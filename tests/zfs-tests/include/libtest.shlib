@@ -49,10 +49,33 @@ fi
 # Generic dot version comparison function
 #
 # Returns success when version $1 is greater than or equal to $2.
+# NetBSD sort(1) has no -V, so this does not use sort.  A leading
+# tag such as "fio-" is ignored, and so is anything after the
+# numeric dotted prefix ("fio-3.38-gabcdef" compares as 3.38).
+# Missing components are zero: 2.3 and 2.3.0 are equal, and
+# 2.0.13 is less than 2.3.
 #
 function compare_version_gte
 {
-	[ "$(printf "$1\n$2" | sort -V | tail -n1)" = "$1" ]
+	awk -v a="$1" -v b="$2" 'BEGIN {
+		sub(/^[^0-9]*/, "", a)
+		sub(/^[^0-9]*/, "", b)
+		sub(/[^0-9.].*/, "", a)
+		sub(/[^0-9.].*/, "", b)
+		n = split(a, av, ".")
+		m = split(b, bv, ".")
+		if (m > n)
+			n = m
+		for (i = 1; i <= n; i++) {
+			xa = av[i] + 0
+			xb = bv[i] + 0
+			if (xa > xb)
+				exit 0
+			if (xa < xb)
+				exit 1
+		}
+		exit 0
+	}'
 }
 
 # Helper function used by linux_version() and freebsd_version()
@@ -71,7 +94,7 @@ function kernel_version
 		#   Debian 12.6: 6.1.0-22-amd64
 		ver=$(uname -r | grep -Eo "^[0-9]+\.[0-9]+\.[0-9]+")
 		;;
-	FreeBSD)
+	NetBSD|FreeBSD)
 		# FreeBSD version numbers are X.Y-BRANCH-pZ. Depending on
 		# branch, -pZ may not be present, but this is typically only
 		# on pre-release or true .0 releases, so can be assumed 0
@@ -132,7 +155,7 @@ function is_linux
 # Return 0 if platform illumos, 1 if otherwise
 function is_illumos
 {
-	[ "$UNAME" = "illumos" ]
+	[ "$UNAME" = "SunOS" ] || [ "$UNAME" = "illumos" ]
 }
 
 # Determine if this is a FreeBSD test system
@@ -142,6 +165,211 @@ function is_illumos
 function is_freebsd
 {
 	[ "$UNAME" = "FreeBSD" ]
+}
+
+# Determine if this is a NetBSD test system
+#
+# Return 0 if platform NetBSD, 1 if otherwise
+function is_netbsd
+{
+	[ "$UNAME" = "NetBSD" ]
+}
+
+# /dev/zfs is character major 190 (NetBSD sys/conf/majors).  Create it
+# the way MAKEDEV does when the module did not mknod it yet.
+if [ "$(uname -s 2>/dev/null)" = "NetBSD" ] && [ ! -c /dev/zfs ]; then
+	if [ -f /dev/MAKEDEV ]; then
+		(cd /dev && sh MAKEDEV zfs) >/dev/null 2>&1 || \
+		    mknod /dev/zfs c 190 0
+	else
+		mknod /dev/zfs c 190 0
+	fi
+	chmod 666 /dev/zfs 2>/dev/null || true
+fi
+
+#
+# GNU getfacl/setfacl accept --version; BSD (NetBSD, FreeBSD) do not
+# (`getfacl: unknown option -- -`).  Do not probe --version: ZTS must
+# stay Linux-compatible (GNU getfacl) and BSD-compatible (NetBSD
+# getfacl [-dhnqv]).  Presence plus a getfacl of a temp file works on
+# both -- GNU and BSD print the owner/group/other ACL and exit 0.
+#
+function verify_posix_acl_utils
+{
+	if ! command -v getfacl >/dev/null 2>&1 || \
+	    ! command -v setfacl >/dev/null 2>&1; then
+		log_fail "getfacl/setfacl are required for POSIX ACL tests"
+	fi
+	typeset tf
+	tf=$(mktemp) || log_fail "mktemp"
+	if ! getfacl "$tf" >/dev/null 2>&1; then
+		rm -f "$tf"
+		log_fail "getfacl cannot display ACLs (need POSIX ACL userland)"
+	fi
+	rm -f "$tf"
+}
+
+# GNU setfacl always speaks POSIX.1e.  NetBSD setfacl brands from
+# pathconf(_PC_ACL_NFS4).  Remount so acltype=posix is what the
+# native tool sees.
+function netbsd_commit_posix_acltype
+{
+	is_netbsd || return 0
+	cd / || true
+	if ismounted "$TESTPOOL/$TESTFS"; then
+		zfs unmount -f "$TESTPOOL/$TESTFS" >/dev/null 2>&1 || true
+	fi
+	zfs mount "$TESTPOOL/$TESTFS"
+}
+
+#
+# Skip (rc=4) if a ZTS helper binary is not on PATH. Used for
+# nvlist_to_lua / libzfs_input_check / etc. that must be built
+# on the guest.
+#
+function require_bin
+{
+	typeset b
+	for b in "$@"; do
+		if ! command -v "$b" >/dev/null 2>&1; then
+			log_unsupported "helper '$b' is not installed"
+		fi
+	done
+}
+
+#
+# Turn a DISKS entry into an openable path. File vdevs are already
+# absolute; prefixing DEV_DSKDIR produced /dev//build/... and broke
+# zpool add / zdb / dd.
+#
+function to_usable_path
+{
+	typeset d=$1
+	if [[ -z $d ]]; then
+		echo ""
+		return
+	fi
+	if is_netbsd; then
+		typeset b=${d##*/}
+		b=${b#r}
+		case $b in
+		ld[0-9]*|wd[0-9]*|sd[0-9]*|dk[0-9]*|vnd[0-9]*|ccd[0-9]*|\
+		cgd[0-9]*|xbd[0-9]*|md[0-9]*|raid[0-9]*)
+			# Kernel labels store the raw node.
+			if [[ -c /dev/r$b ]]; then
+				echo "/dev/r$b"
+				return
+			fi
+			if [[ -b /dev/$b ]]; then
+				echo "/dev/$b"
+				return
+			fi
+			;;
+		esac
+	fi
+	if [[ -f $d || -b $d || -c $d ]]; then
+		echo "$d"
+		return
+	fi
+	if [[ -n $DEV_DSKDIR && ( -f $DEV_DSKDIR/$d || -b $DEV_DSKDIR/$d || \
+	    -c $DEV_DSKDIR/$d ) ]]; then
+		echo "$DEV_DSKDIR/$d"
+		return
+	fi
+	echo "$d"
+}
+
+# Label/status leaf for a disk vdev.  NetBSD stores /dev/rldN; tests
+# and DISKS still use ldN.  Strip only a raw prefix on known disk
+# classes (not raid0 → aid0).
+#
+# Regular files keep their path: zpool status prints
+# /var/tmp/zpool_disk1.dat, not the basename.  Only names under
+# /dev (and bare DISKS names like ldN) are reduced.
+function vdev_match_leaf
+{
+	typeset arg=$1
+	typeset n
+
+	if [[ $arg == /* && $arg != /dev/* ]]; then
+		echo "$arg"
+		return
+	fi
+	if [[ -n $arg && -f $arg && ! -b $arg && ! -c $arg ]]; then
+		echo "$arg"
+		return
+	fi
+
+	n=${arg##*/}
+	if is_netbsd; then
+		case $n in
+		rld[0-9]*|rwd[0-9]*|rsd[0-9]*|rdk[0-9]*|rvnd[0-9]*|\
+		rraid[0-9]*|rccd[0-9]*|rcgd[0-9]*|rxbd[0-9]*|rmd[0-9]*)
+			n=${n#r}
+			;;
+		esac
+	fi
+	echo "$n"
+}
+
+# /dev/rwd0d -> wd0; /dev/dk0 -> dk0; /dev/rld3 -> ld3
+#
+# NetBSD has no lsblk -D / diskinfo TRIM column.  Probe the driver:
+# wd via atactl, dk via the parent wedge, nvme via nvmectl, virtio-blk
+# via the DISCARD feature bit on the attach banner (dmesg.boot so a
+# wrapped ring buffer does not false-skip).
+#
+function netbsd_has_trim
+{
+	typeset d=${1##*/}
+	d=${d#r}
+	typeset name=$(echo "$d" | sed -E 's/([0-9]+)[a-p]$/\1/')
+	typeset drv=$(echo "$name" | sed 's/[0-9].*//')
+	typeset parent attach nvme dmesg_src
+
+	case $drv in
+	wd)
+		/sbin/atactl "$name" identify 2>/dev/null |
+		    grep -q '^TRIM supported$'
+		;;
+	dk)
+		parent=$(/sbin/dkctl "$name" getwedgeinfo 2>/dev/null |
+		    awk '{print $3}')
+		[[ -n $parent ]] && netbsd_has_trim "$parent"
+		;;
+	ld)
+		if [[ -r /var/run/dmesg.boot ]]; then
+			dmesg_src=/var/run/dmesg.boot
+		else
+			dmesg_src=/sbin/dmesg
+		fi
+		if [[ $dmesg_src == /sbin/dmesg ]]; then
+			attach=$(/sbin/dmesg | sed -n "s/^${name} at //p" |
+			    head -1)
+		else
+			attach=$(sed -n "s/^${name} at //p" "$dmesg_src" |
+			    head -1)
+		fi
+		case $attach in
+		nvme*)
+			nvme=${attach%%ns*}
+			nvme=${nvme%%:*}
+			/sbin/nvmectl identify "$nvme" 2>/dev/null |
+			    grep -q 'Dataset Management Command: *Supported'
+			;;
+		virtio*)
+			echo "$attach" | grep -q DISCARD
+			;;
+		*)
+			# other ld(4) attachments: no userland capability bit
+			return 1
+			;;
+		esac
+		;;
+	*)
+		return 1
+		;;
+	esac
 }
 
 # Determine if this is a 32-bit system
@@ -183,8 +411,16 @@ function ismounted
 				! zfs mount | awk -v ds="$1" '$1 == ds {exit 1}'
 			fi
 		;;
-		ufs|nfs)
-			if is_freebsd; then
+		ufs|nfs|ffs)
+			if is_netbsd; then
+				# NetBSD mount(8) has no -p.  "dev on dir type fstype"
+				mount | awk -v fs="$1" -v t="$fstype" '
+					$1 == fs || $3 == fs {
+						gsub(/[()]/, "", $5)
+						if ($5 == t) found = 1
+					}
+					END { exit !found }'
+			elif is_freebsd; then
 				mount -pt $fstype | while read dev dir _t _flags; do
 					[[ "$1" == "$dev" || "$1" == "$dir" ]] && return 0
 				done
@@ -302,7 +538,13 @@ function default_setup_noexit
 	if [[ -n $volume ]]; then
 		if is_global_zone ; then
 			log_must zfs create -V $VOLSIZE $TESTPOOL/$TESTVOL
-			block_device_wait
+			if is_netbsd; then
+				block_device_wait \
+				    "$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL" \
+				    "$ZVOL_RDEVDIR/$TESTPOOL/$TESTVOL"
+			else
+				block_device_wait
+			fi
 		else
 			log_must zfs create $TESTPOOL/$TESTVOL
 		fi
@@ -439,8 +681,11 @@ function create_recv_clone
 	log_must eval "zfs send $snap | zfs recv -u $recvfs"
 	log_must mkfile 1m "$mountpoint/data"
 	log_must zfs snapshot $incr
-	log_must eval "zfs send -i $snap $incr | dd bs=10K count=1 \
-	    iflag=fullblock > $sendfile"
+	# Truncate the incremental send; a short prefix creates a %recv
+	# clone.  ${DD_FULLBLOCK} is GNU iflag=fullblock or POSIX
+	# iflags=fullblock (empty if this dd has neither).
+	log_must eval "zfs send -i $snap $incr | dd bs=10k count=1 \
+	    ${DD_FULLBLOCK} > $sendfile"
 	log_mustnot eval "zfs recv -su $recvfs < $sendfile"
 	destroy_dataset "$sendfs" "-r"
 	log_must rm -f "$sendfile"
@@ -810,6 +1055,15 @@ function zero_partitions #<whole_disk_name>
 		log_must parted $DSK -s -- mklabel gpt
 		blockdev --rereadpt $DSK 2>/dev/null
 		block_device_wait
+	elif is_netbsd; then
+		# Whole-disk vdevs; the suite never partitions them.
+		# Drop a stale GPT if there is one; cleanup_devices'
+		# create/destroy then clears the ZFS labels.
+		if [[ -f $diskname || -f $DEV_DSKDIR/$diskname ]]; then
+			return 0
+		fi
+		gpt destroy $diskname >/dev/null 2>&1
+		return 0
 	else
 		for i in 0 1 3 4 5 6 7
 		do
@@ -913,6 +1167,37 @@ function set_partition
 		fi
 
 		block_device_wait $disk
+		;;
+	NetBSD)
+		# File vdevs are already sized.  A real device gets a
+		# GPT on the raw node.  gpt(8) issues DIOCMWEDGES when
+		# it closes; dev mode returns ENOTTY and gpt still
+		# exits 0, leaving no wedge.  Do not log_unsupported:
+		# that would skip zvol_misc_volmode.
+		if [[ -z $size || -z $disk ]]; then
+			log_fail "The size or disk name is unspecified."
+		fi
+		if [[ -f $disk || -f $DEV_DSKDIR/$disk ]]; then
+			ret_val=0
+		else
+			# $disk already had $DEV_DSKDIR stripped, so a
+			# zvol is "zvol/dsk/pool/vol".  Rewrite dsk to
+			# rdsk, and add the prefix only when the name
+			# is still relative.  Prefixing an absolute
+			# path produces /dev//dev/zvol/rdsk/... and
+			# gpt never creates the wedge.
+			# The pattern and the replacement are variables.
+			# ksh93 keeps a backslash in the replacement and
+			# bash removes it, so gpt was given zvol\/rdsk\/...
+			typeset dsk=/dsk/ rdsk=/rdsk/
+			typeset raw=${disk/$dsk/$rdsk}
+			if [[ $raw != /* ]]; then
+				raw=$DEV_DSKDIR/$raw
+			fi
+			gpt create -f $raw >/dev/null 2>&1
+			gpt add -a 1m -s ${size} -t ffs $raw
+			ret_val=$?
+		fi
 		;;
 	*)
 		if [[ -z $slicenum || -z $size || -z $disk ]]; then
@@ -1208,6 +1493,15 @@ function is_shared_freebsd
 	pgrep -q mountd && showmount -E | grep -qx "$fs"
 }
 
+function is_shared_netbsd
+{
+	typeset fs=$1
+
+	pgrep mountd >/dev/null 2>&1 && \
+	    showmount -E localhost 2>/dev/null | grep -qx "$fs" && return 0
+	is_exported_freebsd "$fs"
+}
+
 function is_shared_illumos
 {
 	typeset fs=$1
@@ -1259,6 +1553,7 @@ function is_shared
 
 	case "$UNAME" in
 	FreeBSD)	is_shared_freebsd "$fs"	;;
+	NetBSD)		is_shared_netbsd "$fs"	;;
 	Linux)		is_shared_linux "$fs"	;;
 	*)		is_shared_illumos "$fs"	;;
 	esac
@@ -1280,6 +1575,11 @@ function is_exported_freebsd
 {
 	typeset fs=$1
 	typeset mtpt _
+
+	# No exports file yet means nothing is exported.  A missing
+	# redirect is a shell error under log_must (zpool_import_012_pos
+	# on NetBSD, where /etc/zfs/exports appears at the first share).
+	[[ -f /etc/zfs/exports ]] || return 1
 
 	while read -r mtpt _; do
 		[ "$mtpt" = "$fs" ] && return
@@ -1326,7 +1626,7 @@ function is_exported
 	fi
 
 	case "$UNAME" in
-	FreeBSD)	is_exported_freebsd "$fs"	;;
+	FreeBSD|NetBSD)	is_exported_freebsd "$fs"	;;
 	Linux)		is_exported_linux "$fs"	;;
 	*)		is_exported_illumos "$fs"	;;
 	esac
@@ -1396,7 +1696,7 @@ function share_nfs #fs
 	Linux)
 		log_must exportfs "*:$fs"
 		;;
-	FreeBSD)
+	FreeBSD|NetBSD)
 		typeset mountd
 		read -r mountd < /var/run/mountd.pid
 		log_must eval "printf '%s\t\n' \"$fs\" >> /etc/zfs/exports"
@@ -1423,7 +1723,7 @@ function unshare_nfs #fs
 	Linux)
 		log_must exportfs -u "*:$fs"
 		;;
-	FreeBSD)
+	FreeBSD|NetBSD)
 		typeset mountd
 		read -r mountd < /var/run/mountd.pid
 		awk -v fs="${fs//\\/\\\\}" '$1 != fs' /etc/zfs/exports > /etc/zfs/exports.$$
@@ -1450,6 +1750,9 @@ function showshares_nfs
 	FreeBSD)
 		showmount
 		;;
+	NetBSD)
+		showmount localhost
+		;;
 	*)
 		share -F nfs
 		;;
@@ -1464,6 +1767,9 @@ function check_nfs
 		;;
 	FreeBSD)
 		showmount -e
+		;;
+	NetBSD)
+		showmount -e localhost
 		;;
 	*)
 		log_unsupported "Unknown platform"
@@ -1492,7 +1798,7 @@ function setup_nfs_server
 
 		log_note "NFS server must be started prior to running ZTS."
 		return
-	elif is_freebsd; then
+	elif is_freebsd || is_netbsd; then
 		log_must kill -s HUP $(</var/run/mountd.pid)
 
 		log_note "NFS server must be started prior to running ZTS."
@@ -1544,7 +1850,7 @@ function setup_nfs_server
 #
 function is_global_zone
 {
-	if is_linux || is_freebsd; then
+	if is_linux || is_freebsd || is_netbsd; then
 		return 0
 	else
 		typeset cur_zone=$(zonename 2>/dev/null)
@@ -1617,18 +1923,14 @@ function create_pool #pool devs_list
 	fi
 
 	if is_global_zone ; then
-		[[ -d /$pool ]] && rm -rf /$pool
+		if [[ -n $pool && $pool != / ]]; then
+			[[ -d /$pool ]] && rm -rf /$pool
+		fi
 		log_must zpool create -f $pool $@
 	fi
 
 	return 0
 }
-
-# Return 0 if destroy successfully or the pool exists; $? otherwise
-# Note: In local zones, this function should return 0 silently.
-#
-# $1 - pool name
-# Destroy pool with the given parameters.
 
 function destroy_pool #pool
 {
@@ -1644,10 +1946,6 @@ function destroy_pool #pool
 		if poolexists "$pool" ; then
 			mtpt=$(get_prop mountpoint "$pool")
 
-			# At times, syseventd/udev activity can cause attempts
-			# to destroy a pool to fail with EBUSY. We retry a few
-			# times allowing failures before requiring the destroy
-			# to succeed.
 			log_must_busy zpool destroy -f $pool
 
 			[[ -d $mtpt ]] && \
@@ -1761,7 +2059,9 @@ function check_state # pool disk state{online,offline,degraded}
 		#check pool state only
 		zpool get -H -o value health $pool | grep -qi "$state"
 	else
-		zpool status -v $pool | grep "$disk" | grep -qi "$state"
+		typeset cur
+		cur=$(get_device_state "$pool" "$disk")
+		[[ -n $cur ]] && echo "$cur" | grep -qi "$state"
 	fi
 }
 
@@ -2212,7 +2512,7 @@ function cleanup_devices #vdevs
 function find_disks
 {
 	# Trust provided list, no attempt is made to locate unused devices.
-	if is_linux || is_freebsd; then
+	if is_linux || is_freebsd || is_netbsd; then
 		echo "$@"
 		return
 	fi
@@ -2508,6 +2808,12 @@ function add_user #<group_name> <user_name> <basedir>
 	Linux)
 		add_user_linux "$group" "$user" "$basedir"
 		;;
+	NetBSD)
+		if id "$user" >/dev/null 2>&1; then
+			return 0
+		fi
+		log_must useradd -g "$group" -d "$basedir/$user" -m "$user"
+		;;
 	*)
 		add_user_illumos "$group" "$user" "$basedir"
 		;;
@@ -2537,6 +2843,12 @@ function del_user #<logname> <basedir>
 		;;
 	Linux)
 		del_user_linux "$user"
+		;;
+	NetBSD)
+		if id "$user" >/dev/null 2>&1; then
+			userdel "$user" >/dev/null 2>&1 || \
+			    userdel -p "$user" >/dev/null 2>&1 || true
+		fi
 		;;
 	*)
 		del_user_illumos "$user"
@@ -2568,6 +2880,12 @@ function add_group #<group_name>
 	Linux)
 		add_group_linux "$group"
 		;;
+	NetBSD)
+		if grep -q "^${group}:" /etc/group 2>/dev/null; then
+			return 0
+		fi
+		groupadd "$group"
+		;;
 	*)
 		add_group_illumos "$group"
 		;;
@@ -2595,6 +2913,9 @@ function del_group #<group_name>
 		;;
 	Linux)
 		del_group_linux "$group"
+		;;
+	NetBSD)
+		groupdel "$group" >/dev/null 2>&1 || true
 		;;
 	*)
 		del_group_illumos "$group"
@@ -2857,13 +3178,35 @@ function get_device_state #pool disk field("", "spares","logs")
 	typeset pool=$1
 	typeset disk=${2#$DEV_DSKDIR/}
 	typeset field=${3:-$pool}
+	typeset rdisk=""
+
+	if is_netbsd; then
+		disk=$(vdev_match_leaf "$disk")
+		if [[ $disk != /* || $disk == /dev/* ]]; then
+			rdisk=r${disk##*/}
+		fi
+		zpool status -v "$pool" 2>/dev/null | \
+			awk -v device="$disk" -v rdisk="$rdisk" \
+			    -v pool="$pool" -v field="$field" \
+			'BEGIN {startconfig=0; startfield=0; }
+			function bn(p) { n=p; sub(".*/", "", n); return n }
+			/config:/ {startconfig=1}
+			(startconfig==1) && ($1==field) {startfield=1; next;}
+			(startfield==1) && ($1==device || bn($1)==device || \
+			    (rdisk!="" && (bn($1)==rdisk || $1==rdisk))) \
+			    {print $2; exit;}
+			(startfield==1) &&
+			($1==field || $1 ~ "^spares$" || $1 ~ "^logs$") \
+			    {startfield=0}'
+		return
+	fi
 
 	zpool status -v "$pool" 2>/dev/null | \
-		awk -v device=$disk -v pool=$pool -v field=$field \
+		awk -v device=$disk -v rdisk=$rdisk -v pool=$pool -v field=$field \
 		'BEGIN {startconfig=0; startfield=0; }
 		/config:/ {startconfig=1}
 		(startconfig==1) && ($1==field) {startfield=1; next;}
-		(startfield==1) && ($1==device) {print $2; exit;}
+		(startfield==1) && ($1==device || (rdisk!="" && $1==rdisk)) {print $2; exit;}
 		(startfield==1) &&
 		($1==field || $1 ~ "^spares$" || $1 ~ "^logs$") {startfield=0}'
 }
@@ -2945,6 +3288,8 @@ function get_num_cpus
 		grep -c '^processor' /proc/cpuinfo
 	elif is_freebsd; then
 		sysctl -n kern.smp.cpus
+	elif is_netbsd; then
+		sysctl -n hw.ncpu
 	else
 		psrinfo | wc -l
 	fi
@@ -2962,6 +3307,9 @@ function get_cpu_freq
 		lscpu | awk '/CPU( max)? MHz/ { print $NF }'
 	elif is_freebsd; then
 		sysctl -n hw.clockrate
+	elif is_netbsd; then
+		# TSC Hz if present; otherwise leave empty (callers treat as optional).
+		sysctl -n machdep.tsc_freq 2>/dev/null || true
 	else
 		psrinfo -v 0 | awk '/processor operates at/ {print $6}'
 	fi
@@ -3037,7 +3385,25 @@ function vdevs_in_pool
 	typeset tmpfile=$(mktemp)
 	zpool status -v "$pool" | grep -A 1000 "config:" >$tmpfile
 	for vdev in "$@"; do
-		grep -wq ${vdev##*/} $tmpfile || return 1
+		# zpool_add / zpool_create pass "$DISK0 $DISK1" as one
+		# argument; split so each leaf is compared on its own.
+		typeset one
+		for one in $vdev; do
+			typeset leaf=$(vdev_match_leaf "$one")
+			typeset found=0
+			typeset have
+			# Exact leaf compare for disks and files.  grep -F
+			# would treat /build/tmp/filedev- as a prefix of
+			# /build/tmp/filedev-root (zpool_add_003_pos dry-run).
+			while read -r have rest; do
+				[[ $(vdev_match_leaf "$have") == "$leaf" ]] && \
+				    found=1 && break
+			done < $tmpfile
+			if [[ $found -ne 1 ]]; then
+				rm -f $tmpfile
+				return 1
+			fi
+		done
 	done
 
 	rm -f $tmpfile
@@ -3111,7 +3477,7 @@ function get_objnum
 	typeset objnum
 
 	[[ -e $pathname ]] || log_fail "No such file or directory: $pathname"
-	if is_freebsd; then
+	if is_freebsd || is_netbsd; then
 		objnum=$(stat -f "%i" $pathname)
 	else
 		objnum=$(stat -c %i $pathname)
@@ -3449,7 +3815,7 @@ function is_swap_inuse
 	Linux)
 		swapon -s | grep -wq $(readlink -f $device)
 		;;
-	FreeBSD)
+	FreeBSD|NetBSD)
 		swapctl -l | grep -wq $device
 		;;
 	*)
@@ -3470,7 +3836,7 @@ function swap_setup
 		log_must eval "mkswap $swapdev > /dev/null 2>&1"
 		log_must swapon $swapdev
 		;;
-	FreeBSD)
+	FreeBSD|NetBSD)
 		log_must swapctl -a $swapdev
 		;;
 	*)
@@ -3493,6 +3859,8 @@ function swap_cleanup
 			log_must swapoff $swapdev
 		elif is_freebsd; then
 			log_must swapoff $swapdev
+		elif is_netbsd; then
+			log_must swapctl -d $swapdev
 		else
 			log_must swap -d $swapdev
 		fi
@@ -3551,6 +3919,9 @@ function set_tunable_impl
 		;;
 	FreeBSD)
 		sysctl vfs.zfs.$tunable=$value
+		;;
+	NetBSD)
+		sysctl -w vfs.zfs.$tunable=$value
 		;;
 	SunOS)
 		echo "${tunable}/${mdb_cmd}0t${value}" | mdb -kw
@@ -3621,6 +3992,9 @@ function get_tunable_impl
 	FreeBSD)
 		sysctl -n vfs.zfs.$tunable
 		;;
+	NetBSD)
+		sysctl -n vfs.zfs.$tunable
+		;;
 	SunOS)
 		[[ "$module" -eq "zfs" ]] || return 1
 		;;
@@ -3662,6 +4036,54 @@ function new_fs #<args>
 	FreeBSD)
 		newfs "$@"
 		;;
+	NetBSD)
+		# NetBSD newfs -v is Apple UFS volume name, not verbose.
+		# A zvol path contains '/' which newfs -v rejects.
+		# getdiskrawname(3) maps /dev/zvol/pool/vol to
+		# /dev/zvol/rdsk/vol (drops the pool) unless the
+		# path contains /dsk/.  Feed it the rdsk alias.
+		# Whole ld/wd/sd disks need a default disklabel and
+		# the raw partition (usually 'd'); unlabeled virtio
+		# ldN fails newfs.
+		typeset -a _nf
+		integer _nfi
+		set -A _nf -- "$@"
+		_nfi=${#_nf[@]}
+		if (( _nfi > 0 )); then
+			typeset _nfd=${_nf[_nfi-1]}
+			case $_nfd in
+			/dev/zvol/dsk/*)
+				_nfd=/dev/zvol/rdsk/${_nfd#/dev/zvol/dsk/}
+				;;
+			/dev/zvol/rdsk/*|/dev/rzvol/*)
+				;;
+			/dev/zvol/*)
+				_nfd=/dev/zvol/rdsk/${_nfd#/dev/zvol/}
+				;;
+			/dev/rld[0-9]*|/dev/ld[0-9]*|/dev/rwd[0-9]*|/dev/wd[0-9]*|/dev/rsd[0-9]*|/dev/sd[0-9]*)
+				typeset _base=${_nfd##*/}
+				_base=${_base#r}
+				_base=${_base%%[a-p]}
+				disklabel -w -r "$_base" >/dev/null 2>&1 || true
+				if [[ -c /dev/r${_base}d ]]; then
+					_nfd=/dev/r${_base}d
+				elif [[ -c /dev/r${_base}c ]]; then
+					_nfd=/dev/r${_base}c
+				elif [[ -c /dev/r${_base}a ]]; then
+					_nfd=/dev/r${_base}a
+				else
+					_nfd=/dev/r${_base}
+				fi
+				;;
+			esac
+			_nf[_nfi-1]=$_nfd
+			# -I: do not require disklabel fstype 4.2BSD.
+			# Without it newfs retries DIOCGDINFO/EBUSY.
+			echo y | newfs -I "${_nf[@]}"
+		else
+			echo y | newfs "$@"
+		fi
+		;;
 	*)
 		echo y | newfs -v "$@"
 		;;
@@ -3673,7 +4095,7 @@ function stat_size #<path>
 	typeset path=$1
 
 	case "$UNAME" in
-	FreeBSD)
+	FreeBSD|NetBSD)
 		stat -f %z "$path"
 		;;
 	*)
@@ -3687,7 +4109,7 @@ function stat_blksz #<path>
 	typeset path=$1
 
 	case "$UNAME" in
-	FreeBSD)
+	FreeBSD|NetBSD)
 		stat -f %k "$path"
 		;;
 	*)
@@ -3701,7 +4123,7 @@ function stat_blocks #<path>
 	typeset path=$1
 
 	case "$UNAME" in
-	FreeBSD)
+	FreeBSD|NetBSD)
 		stat -f %b "$path"
 		;;
 	*)
@@ -3715,7 +4137,7 @@ function stat_mtime #<path>
 	typeset path=$1
 
 	case "$UNAME" in
-	FreeBSD)
+	FreeBSD|NetBSD)
 		stat -f %m "$path"
 		;;
 	*)
@@ -3729,7 +4151,7 @@ function stat_ctime #<path>
 	typeset path=$1
 
 	case "$UNAME" in
-	FreeBSD)
+	FreeBSD|NetBSD)
 		stat -f %c "$path"
 		;;
 	*)
@@ -3743,7 +4165,7 @@ function stat_crtime #<path>
 	typeset path=$1
 
 	case "$UNAME" in
-	FreeBSD)
+	FreeBSD|NetBSD)
 		stat -f %B "$path"
 		;;
 	*)
@@ -3766,6 +4188,21 @@ function stat_generation #<path>
 	esac
 }
 
+# GNU ls -U is unsorted directory order.  NetBSD ls has no -U.
+# NetBSD ls -f is unsorted and implies -a, so drop . and ...
+# Leave every other platform on ls -U: Linux needs that order,
+# and FreeBSD -U is a different flag those tests already use.
+function ls_unsorted # dir
+{
+	typeset dir=${1:-.}
+
+	if is_netbsd; then
+		ls -f "$dir" | awk '$0 != "." && $0 != ".."'
+	else
+		ls -U "$dir"
+	fi
+}
+
 # Run a command as if it was being run in a TTY.
 #
 # Usage:
@@ -3776,9 +4213,26 @@ function faketty
 {
     if is_freebsd; then
         script -q /dev/null env "$@"
+    elif is_netbsd; then
+        # GNU script --return --quiet -c; NetBSD is script -q -c cmd file.
+        script -q -c "$*" /dev/null
     else
         script --return --quiet -c "$*" /dev/null
     fi
+}
+
+#
+# Random permutation of stdin lines.  NetBSD sort -R sets the record
+# separator; GNU sort -R shuffles.  Do not use sort -R directly.
+#
+function shuffle_lines
+{
+	if is_netbsd; then
+		awk 'BEGIN{srand()} {printf "%f\t%s\n", rand(), $0}' |
+		    sort -n | cut -f2-
+	else
+		sort -R
+	fi
 }
 
 #
@@ -3789,7 +4243,7 @@ function range_shuffle # begin end
 	typeset -i begin=$1
 	typeset -i end=$2
 
-	seq ${begin} ${end} | sort -R
+	seq ${begin} ${end} | shuffle_lines
 }
 
 #
@@ -3804,6 +4258,9 @@ function get_xattr # name path
 	case "$UNAME" in
 	FreeBSD)
 		getextattr -qq user "${name}" "${path}"
+		;;
+	NetBSD)
+		getextattr -q user "${name}" "${path}"
 		;;
 	*)
 		attr -qg "${name}" "${path}"
@@ -3821,6 +4278,9 @@ function set_xattr # name value path
 	FreeBSD)
 		setextattr user "${name}" "${value}" "${path}"
 		;;
+	NetBSD)
+		setextattr user "${name}" "${value}" "${path}"
+		;;
 	*)
 		attr -qs "${name}" -V "${value}" "${path}"
 		;;
@@ -3835,6 +4295,10 @@ function set_xattr_stdin # name value
 	case "$UNAME" in
 	FreeBSD)
 		setextattr -i user "${name}" "${path}"
+		;;
+	NetBSD)
+		# NetBSD setextattr has no -i; the value is an argv word.
+		setextattr user "${name}" "$(cat)" "${path}"
 		;;
 	*)
 		attr -qs "${name}" "${path}"
@@ -3851,6 +4315,9 @@ function rm_xattr # name path
 	FreeBSD)
 		rmextattr -q user "${name}" "${path}"
 		;;
+	NetBSD)
+		rmextattr user "${name}" "${path}"
+		;;
 	*)
 		attr -qr "${name}" "${path}"
 		;;
@@ -3864,6 +4331,9 @@ function ls_xattr # path
 	case "$UNAME" in
 	FreeBSD)
 		lsextattr -qq user "${path}"
+		;;
+	NetBSD)
+		lsextattr -q user "${path}"
 		;;
 	*)
 		attr -ql "${path}"
@@ -4063,8 +4533,12 @@ function push_coredump_pattern # dir
 		sysctl -n kern.corefile
 		sysctl kern.corefile="$1/core.%N" >/dev/null
 		;;
+	NetBSD)
+		sysctl -n kern.defcorename
+		sysctl -w kern.defcorename="$1/core.%n" >/dev/null
+		;;
 	*)
-		# Nothing to output – set only for this shell
+		# Nothing to output - set only for this shell
 		coreadm -p "$1/core.%f"
 		;;
 	esac
@@ -4085,6 +4559,9 @@ function pop_coredump_pattern
 		;;
 	FreeBSD)
 		sysctl kern.corefile="$(<"$1")" >/dev/null
+		;;
+	NetBSD)
+		sysctl -w kern.defcorename="$(cat "$1")" >/dev/null
 		;;
 	esac
 }

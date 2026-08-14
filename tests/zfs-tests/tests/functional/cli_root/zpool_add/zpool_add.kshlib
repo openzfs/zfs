@@ -96,6 +96,22 @@ function zpool_create_add_setup
 	        vdev_lo="$(losetup -f "$vdev4" --show)"
 	elif is_freebsd; then
 	        vdev_lo=/dev/"$(mdconfig -a -t vnode -f "$vdev4")"
+	elif is_netbsd; then
+		typeset u
+		for u in 0 1 2 3 4 5 6 7; do
+			if vnconfig -l "vnd$u" 2>/dev/null | \
+			    grep -q "not in use"; then
+				log_must vnconfig "vnd$u" "$vdev4"
+				if [[ -c /dev/rvnd${u}d ]]; then
+					vdev_lo=/dev/rvnd${u}d
+				elif [[ -c /dev/rvnd$u ]]; then
+					vdev_lo=/dev/rvnd$u
+				else
+					vdev_lo=/dev/vnd$u
+				fi
+				break
+			fi
+		done
 	else
 	        vdev_lo="$(lofiadm -a "$vdev4")"
 	fi
@@ -110,6 +126,11 @@ function zpool_create_add_cleanup
 			log_must losetup -d "$vdev_lo"
 		elif is_freebsd; then
 			log_must mdconfig -d -u "$vdev_lo"
+		elif is_netbsd; then
+			typeset _d=${vdev_lo##*/}
+			_d=${_d#r}
+			_d=${_d%%[a-p]}
+			log_must vnconfig -u "$_d"
 		else
 			log_must lofiadm -d "$vdev_lo"
 		fi

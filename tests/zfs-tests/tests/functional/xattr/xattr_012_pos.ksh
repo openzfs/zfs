@@ -70,9 +70,11 @@ if is_freebsd; then
 		log_must eval "set_xattr_stdin xattr$i $TESTDIR/myfile.$$ \
 		    < /tmp/xattr.$$"
 	done
-elif is_linux; then
+elif is_linux || is_netbsd; then
 	# Linux setxattr() syscalls limits individual xattrs to 64k.  Create
 	# 100 files, with 128 xattrs each of size 16k.  100*128*16k=200m
+	# NetBSD lsetxattr maps user.* onto the extattr user namespace and
+	# has the same per-xattr ceiling, so the same helper applies.
 	log_must xattrtest -k -f 100 -x 128 -s 16384 -p $TESTDIR
 else
 	log_must runat $TESTDIR/myfile.$$ mkfile 200m xattr

@@ -26,6 +26,9 @@ verify_runnable "global"
 
 log_assert "overflowing a 64-bit integer should wrap around"
 
-log_must_program $TESTPOOL - <<<"assert(18446744073709551615 + 1 == (-18446744073709551616))"
+typeset bodyf
+bodyf=$(zcp_write_program "assert(18446744073709551615 + 1 == (-18446744073709551616))")
+log_must_program $TESTPOOL "$bodyf"
+rm -f "$bodyf"
 
 log_pass "overflowing a 64-bit integer should wrap around"

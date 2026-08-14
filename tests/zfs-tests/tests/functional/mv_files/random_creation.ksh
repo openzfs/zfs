@@ -31,7 +31,7 @@ log_must mv "${DIR}" "${DIR1}"
 log_must mkdir "${DIR}"
 
 count=0
-for i in $(cd "${DIR1}" ; ls -U . ) ; do
+for i in $(ls_unsorted "${DIR1}") ; do
     if ! touch "${DIR}/${i}" ; then
 	    log_fail "error creating ${i} after ${count} files"
     fi

@@ -101,7 +101,7 @@ log_must zfs create $TESTPOOL/$TESTFS1
 # create multiple snapshot for the dataset with data
 for block_size in 64 128 256; do
 	log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS1/file$block_size \
-	    bs=1M count=$block_size
+	    bs=1${DD_M} count=$block_size
 	log_must zfs snapshot $TESTPOOL/$TESTFS1@snap$block_size
 	log_must zfs bookmark $TESTPOOL/$TESTFS1@snap$block_size \
 	    "$TESTPOOL/$TESTFS1#bmark$block_size"
@@ -174,7 +174,7 @@ for ds in $datasets; do
 done
 for ds in $datasets; do
 	log_must dd if=/dev/urandom of=/$ds/file64 \
-	    bs=1M count=64
+	    bs=1${DD_M} count=64
 done
 
 # create recursive nested snapshot

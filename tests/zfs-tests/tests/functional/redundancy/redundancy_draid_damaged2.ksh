@@ -104,7 +104,7 @@ for nparity in 1 2 3; do
 
 		log_must zpool export $TESTPOOL
 		log_must dd conv=notrunc if=/dev/zero of=$damaged \
-		    bs=1M seek=4 count=$(($dev_size_mb-4))
+		    bs=1${DD_M} seek=4 count=$(($dev_size_mb-4))
 		log_must zpool import -o cachefile=none -d $dir $TESTPOOL
 
 		log_must zpool replace -fsw $TESTPOOL $damaged $spare

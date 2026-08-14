@@ -55,3 +55,59 @@ function cleanup
 	fi
 }
 log_onexit cleanup
+
+#
+# NetBSD FFS has no VOP_FDISCARD, so du(1) of a file vdev on
+# TESTDIR never shrinks.  Put the file on a ZFS dataset.  The
+# parent vdev is a sparse file on TEST_BASE_DIR; the dataset is
+# mounted on ZTS_MNTROOT, which is a different filesystem, so
+# zfs_domount does not deadlock on the covered vnode.  Nested
+# deallocate (zfs_file_zfsreg_deallocate) punches the hole.
+#
+TRIM_PARENT_POOL=""
+TRIM_PARENT_VDEV=""
+TRIM_PARENT_MNT=""
+TRIM_FILE=""
+
+function netbsd_trim_backing_setup
+{
+	typeset bytes="$1"
+	typeset psize
+
+	TRIM_PARENT_POOL="trimport"
+	TRIM_PARENT_VDEV="${TEST_BASE_DIR}/trimport-vdev.$$"
+	TRIM_PARENT_MNT="${ZTS_MNTROOT:-/mnt/zts}/trimport"
+	# MOS and spacemaps sit beside the file.  1GB is enough slack
+	# for the sizes these tests expand to.
+	psize=$((bytes + 1024 * 1024 * 1024))
+
+	log_must mkdir -p "$TRIM_PARENT_MNT"
+	log_must truncate -s "$psize" "$TRIM_PARENT_VDEV"
+	log_must zpool create -f -O compression=off -O atime=off \
+	    -O mountpoint="$TRIM_PARENT_MNT" \
+	    "$TRIM_PARENT_POOL" "$TRIM_PARENT_VDEV"
+	TRIM_FILE="$TRIM_PARENT_MNT/largefile"
+}
+
+# stat/du reads dn_phys->dn_used, which dnode_sync updates.  The
+# frees land in the open parent txg; without a sync the size check
+# still sees the pre-trim file.
+function netbsd_trim_backing_sync
+{
+	if [[ -n $TRIM_PARENT_POOL ]] && poolexists "$TRIM_PARENT_POOL"; then
+		log_must zpool sync "$TRIM_PARENT_POOL"
+	fi
+}
+
+function netbsd_trim_backing_cleanup
+{
+	if [[ -n $TRIM_PARENT_POOL ]] && poolexists "$TRIM_PARENT_POOL"; then
+		destroy_pool "$TRIM_PARENT_POOL"
+	fi
+	if [[ -n $TRIM_PARENT_VDEV ]]; then
+		rm -f "$TRIM_PARENT_VDEV"
+	fi
+	if [[ -n $TRIM_PARENT_MNT ]]; then
+		rmdir "$TRIM_PARENT_MNT" 2>/dev/null || true
+	fi
+}

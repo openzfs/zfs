@@ -13,7 +13,7 @@ Prints "quick manual" if:
 - the *last* commit message contains 'ZFS-CI-Type: quick'
 or "quick auto" if (heuristics):
 - the files changed are not in the list of specified directories, and
-- all commit messages do not contain 'ZFS-CI-Type: (full|linux|freebsd)'
+- all commit messages do not contain 'ZFS-CI-Type: (full|linux|freebsd|netbsd)'
 
 Otherwise prints "full auto" (or "<type> manual" if explicitly requested).
 """
@@ -110,6 +110,9 @@ if __name__ == '__main__':
                         f'requested by commit {commit_ref}')
         if line.strip().lower() == 'zfs-ci-type: linux':
             output_type('linux', 'manual',
+                        f'requested by commit {commit_ref}')
+        if line.strip().lower() == 'zfs-ci-type: netbsd':
+            output_type('netbsd', 'manual',
                         f'requested by commit {commit_ref}')
         if line.strip().lower() == 'zfs-ci-type: full':
             output_type('full', 'manual',

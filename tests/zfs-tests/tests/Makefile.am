@@ -465,6 +465,13 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/acl/posix-sa/posix_004_pos.ksh \
 	functional/acl/posix-sa/setup.ksh \
 	functional/acl/posix/setup.ksh \
+	functional/acl/nfsv4/cleanup.ksh \
+	functional/acl/nfsv4/nfsv4_001_pos.ksh \
+	functional/acl/nfsv4/nfsv4_002_pos.ksh \
+	functional/acl/nfsv4/nfsv4_003_pos.ksh \
+	functional/acl/nfsv4/nfsv4_004_pos.ksh \
+	functional/acl/nfsv4/nfsv4_005_pos.ksh \
+	functional/acl/nfsv4/setup.ksh \
 	functional/alloc_class/alloc_class_001_pos.ksh \
 	functional/alloc_class/alloc_class_002_neg.ksh \
 	functional/alloc_class/alloc_class_003_pos.ksh \
@@ -1732,6 +1739,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/features/large_dnode/large_dnode_008_pos.ksh \
 	functional/features/large_dnode/large_dnode_009_pos.ksh \
 	functional/features/large_dnode/setup.ksh \
+	functional/fioseek/cleanup.ksh \
+	functional/fioseek/fioseek_001_pos.ksh \
+	functional/fioseek/setup.ksh \
 	functional/gang_blocks/cleanup.ksh \
 	functional/gang_blocks/gang_blocks_001_pos.ksh \
 	functional/gang_blocks/gang_blocks_ddt_copies.ksh \

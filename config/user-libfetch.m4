@@ -9,7 +9,7 @@ dnl #
 dnl # fetch(3) is only dynamic.
 dnl # We use sover 6, which first appeared in FreeBSD 8.0-RELEASE.
 dnl #
-dnl # libcurl development packages include curl-config(1) – we want:
+dnl # libcurl development packages include curl-config(1) - we want:
 dnl #   * HTTPS support
 dnl #   * version at least 7.16 (October 2006), for sover 4
 dnl #   * to decide if it's static or not
@@ -32,9 +32,25 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_LIBFETCH], [
 	]], [fetchGetURL("", "");])], [
 		have_libfetch=1
 		LIBFETCH_IS_FETCH=1
-		LIBFETCH_DYNAMIC=1
-		LIBFETCH_SONAME="libfetch.so.6"
-		LIBFETCH_LIBS="-ldl"
+		# FreeBSD 8+ is sover 6 and is dlopened.  NetBSD ships
+		# libfetch in base (sover 4) with a fetchIO* API, so
+		# link it; dlopening libfetch.so.6 would fail.
+		case "$host_os" in
+		netbsd*)
+			LIBFETCH_DYNAMIC=0
+			LIBFETCH_LIBS="-lfetch"
+			LIBFETCH_SONAME="libfetch.so.4"
+			;;
+		*)
+			LIBFETCH_DYNAMIC=1
+			LIBFETCH_SONAME="libfetch.so.6"
+			# dlopen is in libc on BSD; only GNU/Linux ships a separate libdl
+			case "$host_os" in
+			*linux*) LIBFETCH_LIBS="-ldl" ;;
+			*) LIBFETCH_LIBS="" ;;
+			esac
+			;;
+		esac
 		AC_MSG_RESULT([fetch(3)])
 	], [])
 	LIBS="$saved_libs"
@@ -47,7 +63,10 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_LIBFETCH], [
 			if test "$(curl-config --built-shared)" = "yes"; then
 				LIBFETCH_DYNAMIC=1
 				LIBFETCH_SONAME="libcurl.so.4"
-				LIBFETCH_LIBS="-ldl"
+				case "$host_os" in
+				*linux*) LIBFETCH_LIBS="-ldl" ;;
+				*) LIBFETCH_LIBS="" ;;
+				esac
 				AC_MSG_RESULT([libcurl])
 			else
 				LIBFETCH_LIBS="$(curl-config --libs)"

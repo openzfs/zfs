@@ -29,6 +29,12 @@ libzutil_la_SOURCES += \
 	%D%/os/freebsd/zutil_import_os.c
 endif
 
+if BUILD_NETBSD
+libzutil_la_SOURCES += \
+	%D%/os/netbsd/zutil_device_path_os.c \
+	%D%/os/netbsd/zutil_import_os.c
+endif
+
 libzutil_la_LIBADD = \
 	libavl.la \
 	libnvpair.la \
@@ -41,3 +47,7 @@ libzutil_la_LIBADD += \
 endif
 
 libzutil_la_LIBADD += -lm $(LIBBLKID_LIBS) $(LIBUDEV_LIBS)
+
+if BUILD_NETBSD
+libzutil_la_LIBADD += -lintl -lrt $(LTLIBINTL)
+endif

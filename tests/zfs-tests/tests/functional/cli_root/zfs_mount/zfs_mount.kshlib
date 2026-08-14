@@ -127,12 +127,7 @@ function verify_mount_display
 # Helper functions to call the system mount(8) with various options
 function mount_default # <dataset mountpoint | mountpoint>
 {
-	typeset opts=
-	if is_freebsd; then
-		opts="-t zfs"
-	else
-		opts="-t zfs"
-	fi
+	typeset opts="-t zfs"
 
 	mount $opts "$@"
 	return $?
@@ -141,7 +136,7 @@ function mount_default # <dataset mountpoint | mountpoint>
 function mount_ro # <dataset mountpoint | mountpoint>
 {
 	typeset opts=
-	if is_freebsd; then
+	if is_freebsd || is_netbsd; then
 		opts="-t zfs -r"
 	else
 		opts="-t zfs -o ro"
@@ -154,7 +149,7 @@ function mount_ro # <dataset mountpoint | mountpoint>
 function mount_rw # <dataset mountpoint | mountpoint>
 {
 	typeset opts=
-	if is_freebsd; then
+	if is_freebsd || is_netbsd; then
 		opts="-t zfs -w"
 	else
 		opts="-t zfs -o rw"
@@ -167,7 +162,7 @@ function mount_rw # <dataset mountpoint | mountpoint>
 function remount_ro # <dataset mountpoint | mountpoint>
 {
 	typeset opts=
-	if is_freebsd; then
+	if is_freebsd || is_netbsd; then
 		opts="-t zfs -ur"
 	else
 		opts="-o remount,ro"
@@ -180,7 +175,7 @@ function remount_ro # <dataset mountpoint | mountpoint>
 function remount_rw # <dataset mountpoint | mountpoint>
 {
 	typeset opts=
-	if is_freebsd; then
+	if is_freebsd || is_netbsd; then
 		opts="-t zfs -uw"
 	else
 		opts="-o remount,rw"
@@ -226,6 +221,14 @@ function mount_get_ro_rw # mountpoint
 		    $2 != mountpoint || $3 != "zfs" { next }
 		    $4 ~ /(^|,)ro(,|$)/ { print "ro" }
 		    $4 ~ /(^|,)rw(,|$)/ { print "rw" }'
+	elif is_netbsd; then
+		# "tank/hello on /tank/hello type zfs (local)"
+		# "tank/hello on /tank/hello type zfs (read-only, noatime)"
+		# mount -p is fstab(5) and may omit live ZFS mounts.
+		mount | awk -v mountpoint="$mountpoint" '
+		    $2 != "on" || $3 != mountpoint || $5 != "zfs" { next }
+		    $0 ~ /read-only/ { print "ro"; next }
+		    { print "rw" }'
 	else
 		# tank/hello  /tank/hello  zfs  rw,relatime,xattr,noacl,casesensitive  0 0
 		awk -v mountpoint="$mountpoint" '

@@ -105,7 +105,7 @@ log_must eval "echo offline > /sys/block/${sd}/device/state"
 log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
 
 # Add some writes to drive the vdev probe errors
-log_must dd if=/dev/urandom of=$MNTPOINT/writes bs=1M count=1
+log_must dd if=/dev/urandom of=$MNTPOINT/writes bs=1${DD_M} count=1
 
 # Wait until sync starts, and the pool suspends
 log_note "waiting for pool to suspend"

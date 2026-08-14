@@ -23,6 +23,10 @@ verify_runnable "global"
 if is_freebsd; then
 	diskinfo -v $DISKS | grep -qE 'No.*# TRIM/UNMAP support' &&
 	    log_unsupported "DISKS do not support discard (TRIM/UNMAP)"
+elif is_netbsd; then
+	DISK1=${DISKS%% *}
+	netbsd_has_trim "$DISK1" ||
+	    log_unsupported "DISKS do not support discard (TRIM/UNMAP)"
 else
 	DISK1=${DISKS%% *}
 

@@ -124,7 +124,17 @@ function verify_partition # device
 	set_partition 0 "" 1m $device
 	# verify we can access the partition on the device
 	devname="$(readlink -f "$device")"
-	if is_linux || is_freebsd; then
+	if is_netbsd; then
+		# Success is a dk wedge, not the zvol node itself.
+		# Variables, not a backslash replacement: ksh93
+		# keeps those and dkctl misses the raw device.
+		typeset dsk=/dsk/ rdsk=/rdsk/
+		typeset raw=${device/$dsk/$rdsk}
+		typeset dk
+		dk=$(dkctl $raw listwedges 2>/dev/null |
+		    awk '/^dk[0-9]+:/ {sub(":", "", $1); print $1; exit}')
+		[[ -n $dk ]] && is_disk_device /dev/$dk
+	elif is_linux || is_freebsd; then
 		is_disk_device "${devname}p1"
 	else
 		is_disk_device "${devname}s0"

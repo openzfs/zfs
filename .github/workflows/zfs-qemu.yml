@@ -58,6 +58,9 @@ jobs:
           freebsd)
             os_selection='["freebsd14-4r", "freebsd14-5s", "freebsd15-1r", "freebsd15-1s", "freebsd16-0c"]'
             ;;
+          netbsd)
+            os_selection='["netbsd11"]'
+            ;;
           *)
             # default list
             os_selection='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian12", "debian13", "fedora43", "fedora44", "freebsd14-4r", "freebsd15-1r", "freebsd15-1s", "freebsd16-0c", "ubuntu22", "ubuntu24", "ubuntu26"]'
@@ -109,6 +112,7 @@ jobs:
         # FreeBSD Release: freebsd14-4r, freebsd15-1r
         # FreeBSD Stable:  freebsd14-5s, freebsd15-1s
         # FreeBSD Current: freebsd16-0c
+        # NetBSD:          netbsd11  (ZFS-CI-Type: netbsd or specific_os)
         os: ${{ fromJson(needs.test-config.outputs.test_os) }}
     runs-on: ubuntu-24.04
     steps:
@@ -121,7 +125,7 @@ jobs:
       run: .github/workflows/scripts/qemu-1-setup.sh
 
     - name: Start build machine
-      timeout-minutes: 10
+      timeout-minutes: ${{ startsWith(matrix.os, 'netbsd') && 45 || 10 }}
       run: .github/workflows/scripts/qemu-2-start.sh ${{ matrix.os }}
 
     - name: Install dependencies

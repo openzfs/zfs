@@ -55,13 +55,13 @@ log_assert "BEGIN nvlist of a send from a previously-redacted dataset is " \
     "XDR-encoded and receivable"
 
 log_must zfs create $sendfs
-log_must dd if=/dev/urandom of=/$sendfs/f1 bs=128k count=8 status=none
-log_must dd if=/dev/urandom of=/$sendfs/f2 bs=128k count=8 status=none
+log_must dd if=/dev/urandom of=/$sendfs/f1 bs=128k count=8 ${DD_STATUS_NONE}
+log_must dd if=/dev/urandom of=/$sendfs/f2 bs=128k count=8 ${DD_STATUS_NONE}
 log_must zfs snapshot $sendfs@s0
 
 log_must zfs clone $sendfs@s0 $clonefs
 log_must dd if=/dev/urandom of=/$clonefs/f1 bs=128k count=8 conv=notrunc \
-    status=none
+    ${DD_STATUS_NONE}
 log_must zfs snapshot $clonefs@s
 
 log_must zfs redact $sendfs@s0 redaction-bookmark $clonefs@s

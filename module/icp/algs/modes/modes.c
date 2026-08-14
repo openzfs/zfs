@@ -19,6 +19,24 @@
 #include <sys/crypto/common.h>
 #include <sys/crypto/impl.h>
 
+#ifdef __NetBSD__
+#ifdef _KERNEL
+#include <lib/libkern/libkern.h>
+#else
+#include <string.h>
+#endif
+#else
+#ifndef explicit_memset
+static void *
+explicit_memset(void *s, int c, size_t n)
+{
+	memset(s, c, n);
+	__asm__ __volatile__("" :: "r"(s) : "memory");
+	return (s);
+}
+#endif
+#endif
+
 /*
  * Initialize by setting iov_or_mp to point to the current iovec or mp,
  * and by setting current_offset to an offset within the current iovec or mp.
@@ -119,10 +137,7 @@ crypto_free_mode_ctx(void *ctx)
 
 	switch (common_ctx->cc_flags & (CCM_MODE|GCM_MODE)) {
 	case CCM_MODE:
-		if (((ccm_ctx_t *)ctx)->ccm_pt_buf != NULL)
-			vmem_free(((ccm_ctx_t *)ctx)->ccm_pt_buf,
-			    ((ccm_ctx_t *)ctx)->ccm_data_len);
-
+		ccm_clear_ctx((ccm_ctx_t *)ctx);
 		kmem_free(ctx, sizeof (ccm_ctx_t));
 		break;
 
@@ -136,12 +151,17 @@ crypto_free_mode_ctx(void *ctx)
 	}
 }
 
-static void *
-explicit_memset(void *s, int c, size_t n)
+/*
+ * Zero CCM decrypt plaintext before free, matching gcm_clear_ctx().
+ */
+void
+ccm_clear_ctx(ccm_ctx_t *ctx)
 {
-	memset(s, c, n);
-	__asm__ __volatile__("" :: "r"(s) : "memory");
-	return (s);
+	if (ctx->ccm_pt_buf != NULL) {
+		explicit_memset(ctx->ccm_pt_buf, 0, ctx->ccm_data_len);
+		vmem_free(ctx->ccm_pt_buf, ctx->ccm_data_len);
+	}
+	explicit_memset(ctx, 0, sizeof (*ctx));
 }
 
 /*
@@ -154,12 +174,13 @@ explicit_memset(void *s, int c, size_t n)
  * Although extremely unlikely, ctx->gcm_J0 and ctx->gcm_tmp could be used for
  * a known plaintext attack, they consist of the IV and the first and last
  * counter respectively. If they should be cleared is debatable.
+ *
+ * Clearing the entire struct in 1 function call is likely faster than doing
+ * multiple function calls, so we just do that.
  */
 void
 gcm_clear_ctx(gcm_ctx_t *ctx)
 {
-	explicit_memset(ctx->gcm_remainder, 0, sizeof (ctx->gcm_remainder));
-	explicit_memset(ctx->gcm_H, 0, sizeof (ctx->gcm_H));
 #if defined(CAN_USE_GCM_ASM)
 	if (ctx->impl != GCM_IMPL_GENERIC) {
 		ASSERT3P(ctx->gcm_Htable, !=, NULL);
@@ -171,7 +192,5 @@ gcm_clear_ctx(gcm_ctx_t *ctx)
 		explicit_memset(ctx->gcm_pt_buf, 0, ctx->gcm_pt_buf_len);
 		vmem_free(ctx->gcm_pt_buf, ctx->gcm_pt_buf_len);
 	}
-	/* Optional */
-	explicit_memset(ctx->gcm_J0, 0, sizeof (ctx->gcm_J0));
-	explicit_memset(ctx->gcm_tmp, 0, sizeof (ctx->gcm_tmp));
+	explicit_memset(ctx, 0, sizeof (*ctx));
 }

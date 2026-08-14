@@ -41,8 +41,9 @@ ADD_DISK="${ADD_DISK##* }"
 [[ -z $ADD_DISK ]] && \
         log_fail "No spare disks available."
 
-# Under Linux dry-run commands have no legitimate reason to fail.
-if is_linux; then
+# Under Linux and NetBSD an unprivileged user can open /dev/zfs, so
+# dry-run add/create have no legitimate reason to fail.
+if is_linux || is_netbsd; then
 	set -A args "create" "create -f" "create -n" \
 	    "create $TESTPOOL" "create -f $TESTPOOL" "create -n $TESTPOOL" \
 	    "create -fn $TESTPOOL" "create -nf $TESTPOOL" \

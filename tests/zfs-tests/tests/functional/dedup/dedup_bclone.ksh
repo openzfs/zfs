@@ -34,6 +34,12 @@
 
 verify_runnable "global"
 
+# NetBSD has no FICLONE / copy_file_range.  Same skip as
+# zfs_rewrite_skip_clone.
+if is_netbsd; then
+	log_unsupported "NetBSD does not support block cloning"
+fi
+
 log_assert "Block cloning with live DDT entries uses ddt_addref, not BRT"
 
 # Flush DDT log every TXG so entries appear in the ZAP immediately.

@@ -21,20 +21,36 @@
 #
 # Description:
 # Verify that zstream dump on non-native-endian NATIVE-encoded streams
-# eventually exits with code ENOTSUP (95 on Linux, 45 on FreeBSD) but
-# still dumps the complete stream (minus nondecodable nvlists) and
-# prints the rollup summary.
+# eventually exits with this platform's ENOTSUP (48 SunOS/illumos,
+# 95 Linux, 45 FreeBSD and macOS, 86 NetBSD) but still dumps the
+# complete stream (minus nondecodable nvlists) and prints the rollup
+# summary.
 #
 # Strategy:
 # 1. Determine system endianness to identify non-native NATIVE streams
 # 2. Run zstream dump -v on each non-native NATIVE stream
-# 3. Verify exit code is 95 (ENOTSUP)
+# 3. Verify the exit code is this platform's ENOTSUP
+#    (48 SunOS/illumos, 95 Linux, 45 FreeBSD and macOS, 86 NetBSD)
 # 4. Verify that SUMMARY section is present and complete
 #
 
 verify_runnable "both"
 
-log_assert "Non-native NATIVE-encoded streams exit with code 45 or 95."
+# zstream exits with nvlist_unpack's errno.  That is ENOTSUP, and
+# the numeric value is not the same on every platform.
+if is_linux; then
+	typeset expect=95
+elif is_freebsd; then
+	typeset expect=45
+elif is_illumos; then
+	typeset expect=48
+elif is_netbsd; then
+	typeset expect=86
+else
+	typeset expect=45
+fi
+
+log_assert "Non-native NATIVE-encoded streams exit with code $expect."
 
 typeset sys_endian=$(get_system_endian)
 
@@ -59,8 +75,8 @@ for stem in "${streams[@]}"; do
 	bzcat "$stream" | zstream dump -v > "$out" 2>&1
 	typeset rc=$?
 
-	if [[ $rc -ne 45 && $rc -ne 95 ]]; then
-		log_note "$stem: expected exit code 45 or 95, got $rc"
+	if [[ $rc -ne $expect ]]; then
+		log_note "$stem: expected exit code $expect, got $rc"
 		failed="$failed ${stem}(rc=$rc)"
 	fi
 
@@ -85,4 +101,4 @@ done
 [[ -z $failed ]] || \
     log_fail "Non-native NATIVE stream check failed:$failed"
 
-log_pass "Non-native NATIVE-encoded streams exit with code 45 or 95."
+log_pass "Non-native NATIVE-encoded streams exit with code $expect."

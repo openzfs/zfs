@@ -25,6 +25,17 @@ extern "C" {
 #endif
 
 #include <sys/avl.h>
+#ifdef __NetBSD__
+#include <sys/list.h>
+/*
+ * NetBSD faults and zfs_get_done() do not share a thread, so a
+ * per-thread lock stack cannot see a range entered on one thread
+ * and exited on another.  The owner lives on the lock.  Other
+ * platforms do not query it; their objects and enter/exit path
+ * stay as upstream left them.
+ */
+#define	ZFS_RANGELOCK_TRACK_OWNERS
+#endif
 
 typedef enum {
 	RL_READER,
@@ -39,6 +50,14 @@ typedef void (zfs_rangelock_cb_t)(struct zfs_locked_range *, void *);
 typedef struct zfs_rangelock {
 	avl_tree_t rl_tree; /* contains locked_range_t */
 	kmutex_t rl_lock;
+#ifdef	ZFS_RANGELOCK_TRACK_OWNERS
+	/*
+	 * Entered ranges, keyed by the thread that called enter.
+	 * Exit may run on a different thread (zfs_get_done from a
+	 * zio thread after zfs_get_data on the committer).
+	 */
+	list_t rl_owners;
+#endif
 	zfs_rangelock_cb_t *rl_cb;
 	void *rl_arg;
 } zfs_rangelock_t;
@@ -46,6 +65,10 @@ typedef struct zfs_rangelock {
 typedef struct zfs_locked_range {
 	zfs_rangelock_t *lr_rangelock; /* rangelock that this lock applies to */
 	avl_node_t lr_node;	/* avl node link */
+#ifdef	ZFS_RANGELOCK_TRACK_OWNERS
+	list_node_t lr_owner_node; /* rl_owners link */
+	void *lr_owner;		/* thread that called enter */
+#endif
 	uint64_t lr_offset;	/* file range offset */
 	uint64_t lr_length;	/* file range length */
 	uint_t lr_count;	/* range reference count in tree */
@@ -66,6 +89,17 @@ zfs_locked_range_t *zfs_rangelock_tryenter(zfs_rangelock_t *,
     uint64_t, uint64_t, zfs_rangelock_type_t);
 void zfs_rangelock_exit(zfs_locked_range_t *);
 void zfs_rangelock_reduce(zfs_locked_range_t *, uint64_t, uint64_t);
+
+#ifdef	ZFS_RANGELOCK_TRACK_OWNERS
+/*
+ * True when the current thread holds an entered range on rl.
+ * writer: only RL_WRITER counts.  off/len is the range that must
+ * be inside the held lock.  owner_held is any lock on rl.
+ */
+boolean_t zfs_rangelock_owner_covers(zfs_rangelock_t *, uint64_t, uint64_t,
+    boolean_t);
+boolean_t zfs_rangelock_owner_held(zfs_rangelock_t *);
+#endif
 
 #ifdef	__cplusplus
 }

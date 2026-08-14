@@ -22,9 +22,10 @@
 . $STF_SUITE/tests/functional/quota/quota.cfg
 
 # BLOCK_SIZE, QUOTA_VALUE and TOLERANCE set in quota.cfg
+# EDQUOT: Linux 122, FreeBSD/NetBSD 69, illumos 49
 if is_linux; then
 	readonly EDQUOT=122
-elif is_freebsd; then
+elif is_freebsd || is_netbsd; then
 	readonly EDQUOT=69
 else
 	readonly EDQUOT=49

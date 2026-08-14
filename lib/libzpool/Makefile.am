@@ -53,6 +53,9 @@ ZCP_SOURCES = \
 	module/zfs/zcp_set.c \
 	module/zfs/zcp_synctask.c
 
+# Userland always compiles Linux zio_crypt.c (ICP crypto_data_t API).
+# The NetBSD kmod uses module/os/netbsd/zfs/zio_crypt.c instead; do
+# not point this list at the kmod file.
 nodist_libzpool_la_SOURCES = \
 	module/os/linux/zfs/zio_crypt.c \
 	\
@@ -220,6 +223,10 @@ libzpool_la_LIBADD = \
 	libzutil.la
 
 libzpool_la_LIBADD += $(LIBCLOCK_GETTIME) $(ZLIB_LIBS) -lm
+
+if BUILD_NETBSD
+libzpool_la_LIBADD += -lrt $(LTLIBINTL)
+endif
 
 libzpool_la_LDFLAGS = -version-info 7:0:0
 

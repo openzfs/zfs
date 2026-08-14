@@ -36,19 +36,19 @@ log_must zfs set checksum=skein $origin
 
 log_must zfs set copies=1 $origin
 log_must zfs set recordsize=8k $origin
-dd if=/dev/urandom of=$TESTDIR/file_8k bs=1024k count=$MEGS oflag=sync \
+dd if=/dev/urandom of=$TESTDIR/file_8k bs=1024k count=$MEGS ${OFLAG_SYNC} \
     conv=notrunc >/dev/null 2>&1 || log_fail "dd into $TESTDIR/file failed."
 log_must zfs set copies=3 $origin
-dd if=/dev/urandom of=$TESTDIR/file_8k_copies bs=1024k count=$MEGS oflag=sync \
+dd if=/dev/urandom of=$TESTDIR/file_8k_copies bs=1024k count=$MEGS ${OFLAG_SYNC} \
     conv=notrunc >/dev/null 2>&1 || log_fail "dd into $TESTDIR/file failed."
 
 log_must zfs set copies=1 $origin
 log_must zfs set recordsize=128k $origin
-dd if=/dev/urandom of=$TESTDIR/file_128k bs=1024k count=$MEGS oflag=sync \
+dd if=/dev/urandom of=$TESTDIR/file_128k bs=1024k count=$MEGS ${OFLAG_SYNC} \
     conv=notrunc >/dev/null 2>&1 || log_fail "dd into $TESTDIR/file failed."
 log_must zfs set copies=3 $origin
 dd if=/dev/urandom of=$TESTDIR/file_128k_copies bs=1024k \
-    count=$MEGS oflag=sync conv=notrunc >/dev/null 2>&1 || \
+    count=$MEGS ${OFLAG_SYNC} conv=notrunc >/dev/null 2>&1 || \
     log_fail "dd into $TESTDIR/file failed."
 
 zfs snapshot $origin@a || log_fail "zfs snap failed"
@@ -60,21 +60,21 @@ log_must zfs clone $origin@a $origin/clone
 log_must zfs set copies=1 $origin/clone
 log_must zfs set recordsize=8k $origin/clone
 dd if=/$TESTDIR/file_8k of=/$TESTDIR/clone/file_8k bs=1024k \
-     oflag=sync conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
+     ${OFLAG_SYNC} conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 log_must verify_nopwrite $origin $origin@a $origin/clone
 log_must zfs set copies=3 $origin/clone
 dd if=/$TESTDIR/file_8k_copies of=/$TESTDIR/clone/file_8k_copies bs=1024k \
-     oflag=sync conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
+     ${OFLAG_SYNC} conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 log_must verify_nopwrite $origin $origin@a $origin/clone
 
 log_must zfs set copies=1 $origin/clone
 log_must zfs set recordsize=128k $origin/clone
 dd if=/$TESTDIR/file_128k of=/$TESTDIR/clone/file_128k bs=1024k \
-     oflag=sync conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
+     ${OFLAG_SYNC} conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 log_must verify_nopwrite $origin $origin@a $origin/clone
 log_must zfs set copies=3 $origin/clone
 dd if=/$TESTDIR/file_128k_copies of=/$TESTDIR/clone/file_128k_copies bs=1024k \
-     oflag=sync conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
+     ${OFLAG_SYNC} conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 log_must verify_nopwrite $origin $origin@a $origin/clone
 
 #
@@ -98,11 +98,11 @@ log_mustnot vdevs_in_pool $TESTPOOL $DISK_TO_REMOVE
 log_must zfs set copies=1 $origin/clone
 log_must zfs set recordsize=8k $origin/clone
 dd if=/$TESTDIR/file_8k of=/$TESTDIR/clone/file_8k bs=1024k \
-     oflag=sync conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
+     ${OFLAG_SYNC} conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 log_mustnot verify_nopwrite $origin $origin@a $origin/clone
 log_must zfs set copies=3 $origin/clone
 dd if=/$TESTDIR/file_8k_copies of=/$TESTDIR/clone/file_8k_copies bs=1024k \
-     oflag=sync conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
+     ${OFLAG_SYNC} conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 log_mustnot verify_nopwrite $origin $origin@a $origin/clone
 
 #
@@ -111,11 +111,11 @@ log_mustnot verify_nopwrite $origin $origin@a $origin/clone
 log_must zfs set copies=1 $origin/clone
 log_must zfs set recordsize=128k $origin/clone
 dd if=/$TESTDIR/file_128k of=/$TESTDIR/clone/file_128k bs=1024k \
-     oflag=sync conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
+     ${OFLAG_SYNC} conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 log_mustnot verify_nopwrite $origin $origin@a $origin/clone
 log_must zfs set copies=3 $origin/clone
 dd if=/$TESTDIR/file_128k_copies of=/$TESTDIR/clone/file_128k_copies bs=1024k \
-     oflag=sync conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
+     ${OFLAG_SYNC} conv=notrunc >/dev/null 2>&1 || log_fail "dd failed."
 log_mustnot verify_nopwrite $origin $origin@a $origin/clone
 
 log_pass "Remove works with nopwrite."

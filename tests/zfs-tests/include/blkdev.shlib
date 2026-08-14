@@ -124,6 +124,19 @@ function is_physical_device #device
 		    -e '^nda[0-9]+$' \
 		    -e '^nvd[0-9]+$' \
 		    -e '^vtbd[0-9]+$'
+	elif is_netbsd; then
+		typeset d=${device##*/}
+		case $d in
+		rld[0-9]*|rwd[0-9]*|rsd[0-9]*|rdk[0-9]*|rvnd[0-9]*|\
+		rraid[0-9]*|rccd[0-9]*|rcgd[0-9]*|rxbd[0-9]*|rmd[0-9]*)
+			d=${d#r}
+			;;
+		esac
+		echo "$d" | grep -qE \
+		    '^(ld|wd|sd|dk|vnd|ccd|cgd|xbd|md|raid)[0-9]+' && \
+		    { is_disk_device "$DEV_DSKDIR/$device" || \
+		      is_disk_device "$DEV_DSKDIR/r$d" || \
+		      is_disk_device "$DEV_DSKDIR/$d"; }
 	else
 		echo $device | grep -qE "^c[0-F]+([td][0-F]+)+$"
 	fi
@@ -195,9 +208,10 @@ function is_disk_device #path
 {
 	typeset path=$1
 
-	if is_freebsd; then
-		# FreeBSD doesn't have block devices, only character devices.
-		test -c $path
+	if is_freebsd || is_netbsd; then
+		# BSD disk I/O is the character (raw) node; the block
+		# twin exists on NetBSD too.
+		test -c "$path" || test -b "$path"
 	else
 		test -b $path
 	fi
@@ -487,7 +501,7 @@ function get_pool_devices #testpool #devdir
 	typeset out=""
 
 	case "$UNAME" in
-	Linux|FreeBSD)
+	Linux|FreeBSD|NetBSD)
 		zpool status -P $testpool | awk -v d="$devdir" '$1 ~ d {sub(d "/", ""); printf("%s ", $1)}'
 		;;
 	esac

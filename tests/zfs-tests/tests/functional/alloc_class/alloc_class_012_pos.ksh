@@ -49,7 +49,7 @@ function check_removal
 	    $TESTPOOL/$TESTFS
 	for i in 1 2 3 4; do
 		log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/testfile.$i \
-		    bs=1M count=$blocks
+		    bs=1${DD_M} count=$blocks
 		((blocks = blocks + 25))
 	done
 	sync_pool $TESTPOOL

@@ -34,7 +34,8 @@ log_must dd if=/dev/zero of=$TESTDIR/file bs=1024k count=100 \
 if is_linux || is_freebsd; then
 	log_must attempt_during_removal $TESTPOOL $REMOVEDISK zdb -cd $TESTPOOL
 else
-	log_must attempt_during_removal $TESTPOOL $REMOVEDISK
+	# ksh93 `shift 3` errors when the callback is omitted.
+	log_must attempt_during_removal $TESTPOOL $REMOVEDISK true
 fi
 log_mustnot vdevs_in_pool $TESTPOOL $REMOVEDISK
 log_must zdb -cd $TESTPOOL

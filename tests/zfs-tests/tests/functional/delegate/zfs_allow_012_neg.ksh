@@ -58,6 +58,13 @@ set -A perms	create snapshot mount send allow quota reservation \
 		devices exec volsize setuid readonly snapdir userprop \
 		aclmode aclinherit rollback clone rename promote dnodesize \
 		jailed receive destroy
+elif is_netbsd; then
+# No SMF: verify_fs_share calls svcadm/svcs.  No illumos zones.
+set -A perms	create snapshot mount send allow quota reservation \
+		recordsize mountpoint checksum compression canmount atime \
+		devices exec volsize setuid readonly snapdir userprop \
+		aclmode aclinherit rollback clone rename promote dnodesize \
+		xattr receive destroy sharenfs
 else
 set -A perms	create snapshot mount send allow quota reservation \
 		recordsize mountpoint checksum compression canmount atime \

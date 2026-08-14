@@ -45,9 +45,10 @@ fi
 
 function setup
 {
-	# We can't delegate 'mount' privs under Linux: to avoid issues with
+	# We can't delegate 'mount' privs under Linux or NetBSD (kauth
+	# rejects unmount before VFS_UNMOUNT): to avoid issues with
 	# commands that may need to (re)mount datasets we set mountpoint=none
-	if is_linux; then
+	if is_linux || is_netbsd; then
 		log_must zfs create -o mountpoint=none "$DATASET_TEST"
 		log_must zfs create -o mountpoint=none "$DATASET_UTIL"
 	else

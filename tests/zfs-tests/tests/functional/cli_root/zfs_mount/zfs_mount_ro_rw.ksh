@@ -34,11 +34,15 @@
 #        mount option | -- ro rw | -- ro rw | -- ro rw | -- ro rw |
 typeset -a rs_linux=(   rw ro rw   ro ro rw   rw ro rw   rw ro rw )
 typeset -a rs_freebsd=( ro ro ro   ro ro rw   rw ro rw   rw ro rw )
+# NetBSD is BSD VFS + MNT_RDONLY like FreeBSD.
+typeset -a rs_netbsd=(  ro ro ro   ro ro rw   rw ro rw   rw ro rw )
 
 if is_linux ; then
     typeset -n rs_wanted=rs_linux
 elif is_freebsd ; then
     typeset -n rs_wanted=rs_freebsd
+elif is_netbsd ; then
+    typeset -n rs_wanted=rs_netbsd
 else
     log_unsupported "no result set defined for this platform"
 fi

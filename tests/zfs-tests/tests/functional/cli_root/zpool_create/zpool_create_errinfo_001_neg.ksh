@@ -48,6 +48,18 @@ function cleanup
 	elif is_freebsd; then
 		[[ -n "$BLKDEV1" ]] && mdconfig -d -u "$BLKDEV1" 2>/dev/null
 		[[ -n "$BLKDEV2" ]] && mdconfig -d -u "$BLKDEV2" 2>/dev/null
+	elif is_netbsd; then
+		# BLKDEV is /dev/vndNd; vnconfig -u wants vndN.
+		if [[ -n "$BLKDEV1" ]]; then
+			typeset _u=${BLKDEV1#/dev/}
+			_u=${_u%[a-p]}
+			vnconfig -u "$_u" 2>/dev/null
+		fi
+		if [[ -n "$BLKDEV2" ]]; then
+			typeset _u=${BLKDEV2#/dev/}
+			_u=${_u%[a-p]}
+			vnconfig -u "$_u" 2>/dev/null
+		fi
 	fi
 
 	rm -f "$TESTFILE"
@@ -66,6 +78,24 @@ if is_linux; then
 elif is_freebsd; then
 	BLKDEV1=/dev/$(mdconfig -a -t vnode -f "$TESTFILE")
 	BLKDEV2=/dev/$(mdconfig -a -t vnode -f "$TESTFILE")
+elif is_netbsd; then
+	# vnd(4), same role as mdconfig -t vnode / losetup.
+	# vnd0 backs /mnt/zts.  Two units, one file, so the second
+	# open sees the label the first create wrote.
+	typeset _i _n
+	set -A _free
+	for _i in 1 2 3 4 5 6 7; do
+		[ -b /dev/vnd${_i}d ] || (cd /dev && sh MAKEDEV vnd$_i)
+		if vnconfig -l vnd$_i 2>/dev/null | grep -q "not in use"; then
+			_free[${#_free[@]}]=vnd$_i
+			(( ${#_free[@]} >= 2 )) && break
+		fi
+	done
+	(( ${#_free[@]} >= 2 )) || log_fail "need two free vnd units"
+	log_must vnconfig -c ${_free[0]} "$TESTFILE"
+	log_must vnconfig -c ${_free[1]} "$TESTFILE"
+	BLKDEV1=/dev/${_free[0]}d
+	BLKDEV2=/dev/${_free[1]}d
 else
 	log_unsupported "Platform not supported for this test"
 fi

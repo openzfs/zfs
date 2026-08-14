@@ -64,7 +64,7 @@ function damage_and_repair
 	log_must zpool events -c
 
 	log_note injecting damage to $VDEV1
-	log_must dd conv=notrunc if=$SUPPLY of=$VDEV1 bs=1M seek=4 count=$DAMAGEBLKS
+	log_must dd conv=notrunc if=$SUPPLY of=$VDEV1 bs=1${DD_M} seek=4 count=$DAMAGEBLKS
 	log_must zpool scrub $POOL
 	log_must zpool wait -t scrub $POOL
 	log_note "pass $1 observed $(ereports | grep -c checksum) checksum ereports"
@@ -94,7 +94,7 @@ set_tunable64 CHECKSUM_EVENTS_PER_SECOND 20000
 
 # Initialize resources for the test
 log_must truncate -s $MINVDEVSIZE $VDEV1 $VDEV2 $VDEV3
-log_must dd if=/dev/urandom of=$SUPPLY bs=1M count=$DAMAGEBLKS
+log_must dd if=/dev/urandom of=$SUPPLY bs=1${DD_M} count=$DAMAGEBLKS
 log_must mkdir -p $MOUNTDIR
 log_must zpool create -f -m $MOUNTDIR -o failmode=continue $POOL raidz $VDEV1 $VDEV2 $VDEV3
 log_must zfs set compression=off recordsize=16k $POOL

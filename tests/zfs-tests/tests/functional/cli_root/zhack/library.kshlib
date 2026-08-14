@@ -102,14 +102,22 @@ function cleanup_lo
 {
 	typeset L_DEVICE="$1"
 
-	if [[ -e $L_DEVICE ]]; then
-		if is_linux; then
-			log_must losetup -d "$L_DEVICE"
-		elif is_freebsd; then
-			log_must mdconfig -d -u "$L_DEVICE"
-		else
-			log_must lofiadm -d "$L_DEVICE"
+	if [[ -z "$L_DEVICE" || ! -e $L_DEVICE ]]; then
+		return
+	fi
+	if is_linux; then
+		log_must losetup -d "$L_DEVICE"
+	elif is_freebsd; then
+		log_must mdconfig -d -u "$L_DEVICE"
+	elif is_netbsd; then
+		if [[ "$L_DEVICE" == /dev/* ]]; then
+			typeset _d=${L_DEVICE##*/}
+			_d=${_d#r}
+			_d=${_d%%[a-p]}
+			vnconfig -u "$_d" 2>/dev/null || true
 		fi
+	else
+		log_must lofiadm -d "$L_DEVICE"
 	fi
 }
 
@@ -260,6 +268,8 @@ function prepare_vdev
 			l_devname="$(losetup -f "$L_BACKFILE" --show)"
 		elif is_freebsd; then
 			l_devname=/dev/"$(mdconfig -a -t vnode -f "$L_BACKFILE")"
+		elif is_netbsd; then
+			l_devname="$L_BACKFILE"
 		else
 			l_devname="$(lofiadm -a "$L_BACKFILE")"
 		fi

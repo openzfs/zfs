@@ -35,7 +35,8 @@ default_zvol_setup $DISK $VOLSIZE $BLOCKSIZE
 
 log_must new_fs ${ZVOL_RDEVDIR}/$TESTPOOL/$TESTVOL
 
-log_must mkdir $TESTDIR
-log_must mount ${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL $TESTDIR
+[[ -d $TESTDIR ]] || log_must mkdir $TESTDIR
+log_must mount -t $NEWFS_DEFAULT_FS \
+    ${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL $TESTDIR
 
 log_pass

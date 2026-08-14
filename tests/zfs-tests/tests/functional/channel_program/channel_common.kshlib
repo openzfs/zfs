@@ -123,8 +123,14 @@ function log_program_construct_args
 	typeset tmpin=$1
 	shift
 
-	args=""
-	i=0
+	# typeset -i so a caller's integer i is not clobbered (ksh93).
+	typeset args=""
+	typeset -i i=0
+	typeset pool=""
+	typeset infile=""
+	typeset lua_args=""
+	typeset opt
+	OPTIND=1
 	while getopts "nt:m:" opt; do
 		case $opt in
 			t) args="$args -t $OPTARG"; i=$(($i + 2)) ;;
@@ -146,11 +152,71 @@ function log_program_construct_args
 	# If $infile currently holds "-" (a dash) it means that we consume a
 	# HERE doc from stdin, otherwise $infile is a file path.
 	#
-	cat $infile > $tmpin
+	# Do not call this inside $(...): ksh93 can deadlock a here-doc with cat.
+	#
+	if [[ $infile == - ]]; then
+		cat > "$tmpin"
+	elif [[ $infile != "$tmpin" ]]; then
+		cat -- "$infile" > "$tmpin"
+	fi
 
 	lua_args=$@
 
 	echo "$args $pool $tmpin $lua_args"
+}
+
+# Write the program to a temp file. Nested quotes in <<< hang some ksh93.
+function zcp_write_program
+{
+	typeset f
+	f=$(mktemp "${TMPDIR:-/tmp}/zcp.body.XXXXXX") || \
+	    log_fail "mktemp channel program"
+	printf '%s\n' "$1" > "$f" || log_fail "write channel program"
+	print -r -- "$f"
+}
+
+#
+# Slurp a "-" channel program from stdin before any command substitution,
+# then reconstruct argv into namerefs tmpin and program_args.
+#
+function _zcp_begin
+{
+	typeset -n tmpin=$1
+	typeset -n pargs=$2
+	shift 2
+	typeset a saw=0
+	typeset stdin_copy=""
+	typeset argsf
+	for a in "$@"; do
+		[[ $a == - ]] && saw=1
+	done
+	# Read stdin before any $(mktemp).
+	if [[ $saw -eq 1 ]]; then
+		stdin_copy=$(mktemp "${TMPDIR:-/tmp}/zcp.stdin.XXXXXX") || \
+		    log_fail "mktemp stdin"
+		cat > "$stdin_copy" || log_fail "read channel program from stdin"
+	fi
+	tmpin=$(mktemp "${TMPDIR:-/tmp}/zcp.in.XXXXXX") || \
+	    log_fail "mktemp program"
+	argsf="${tmpin}.args"
+	if [[ -n $stdin_copy ]]; then
+		typeset -a av
+		saw=0
+		for a in "$@"; do
+			if [[ $a == - && $saw -eq 0 ]]; then
+				av+=("$stdin_copy")
+				saw=1
+			else
+				av+=("$a")
+			fi
+		done
+		log_program_construct_args "$tmpin" "${av[@]}" > "$argsf"
+		rm -f "$stdin_copy"
+	else
+		log_program_construct_args "$tmpin" "$@" > "$argsf"
+	fi
+	pargs=$(< "$argsf")
+	rm -f "$argsf"
 }
 
 #
@@ -159,14 +225,11 @@ function log_program_construct_args
 #
 function log_must_program
 {
-	typeset tmpin=$(mktemp)
-
-	program_args=$(log_program_construct_args $tmpin $@)
-
-	log_program 0 "" $tmpin "-n $program_args"
-	log_program 0 "" $tmpin "$program_args"
-
-	rm $tmpin
+	typeset tmpin program_args
+	_zcp_begin tmpin program_args "$@"
+	log_program 0 "" "$tmpin" "-n $program_args"
+	log_program 0 "" "$tmpin" "$program_args"
+	rm -f "$tmpin"
 }
 #
 # Program should error as expected in
@@ -175,15 +238,12 @@ function log_must_program
 function log_mustnot_checkerror_program
 {
 	typeset expecterror=$1
+	typeset tmpin program_args
 	shift
-	typeset tmpin=$(mktemp)
-
-	program_args=$(log_program_construct_args $tmpin $@)
-
-	log_program 1 "$expecterror" $tmpin "-n $program_args"
-	log_program 1 "$expecterror" $tmpin "$program_args"
-
-	rm $tmpin
+	_zcp_begin tmpin program_args "$@"
+	log_program 1 "$expecterror" "$tmpin" "-n $program_args"
+	log_program 1 "$expecterror" "$tmpin" "$program_args"
+	rm -f "$tmpin"
 }
 
 #
@@ -204,15 +264,12 @@ function log_mustnot_program
 function log_mustnot_checkerror_program_open
 {
 	typeset expecterror=$1
+	typeset tmpin program_args
 	shift
-	typeset tmpin=$(mktemp)
-
-	program_args=$(log_program_construct_args $tmpin $@)
-
-	log_program 1 "$expecterror" $tmpin "-n $program_args"
-	log_program 0 "" $tmpin "$program_args"
-
-	rm $tmpin
+	_zcp_begin tmpin program_args "$@"
+	log_program 1 "$expecterror" "$tmpin" "-n $program_args"
+	log_program 0 "" "$tmpin" "$program_args"
+	rm -f "$tmpin"
 }
 
 #

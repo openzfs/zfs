@@ -76,7 +76,7 @@ function default_degrade
 {
 	setup_pool
 
-	log_must dd if=/dev/urandom of=$FILEPATH bs=1M count=64
+	log_must dd if=/dev/urandom of=$FILEPATH bs=1${DD_M} count=64
 	log_must zinject -a -d $VDEV -e io -T read -f 100 $POOL
 
 	blk=0
@@ -97,7 +97,7 @@ function io_n_degrade
 	setup_pool
 
 	log_must zpool set io_n=1 $POOL $VDEV
-	log_must dd if=/dev/urandom of=$FILEPATH bs=1M count=64
+	log_must dd if=/dev/urandom of=$FILEPATH bs=1${DD_M} count=64
 	log_must zinject -a -d $VDEV -e io -T read -f 100 $POOL
 
 	dd if=$FILEPATH of=/dev/null bs=1 count=1 2>/dev/null
@@ -113,7 +113,7 @@ function io_t_nodegrade
 	setup_pool
 
 	log_must zpool set io_t=1 $POOL $VDEV
-	log_must dd if=/dev/urandom of=$FILEPATH bs=1M count=64
+	log_must dd if=/dev/urandom of=$FILEPATH bs=1${DD_M} count=64
 	log_must zinject -a -d $VDEV -e io -T read -f 100 $POOL
 
 	blk=0

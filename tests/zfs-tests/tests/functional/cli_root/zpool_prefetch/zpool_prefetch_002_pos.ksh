@@ -32,6 +32,12 @@
 
 verify_runnable "both"
 
+# NetBSD VFS has no copy_file_range(2) / VOP_COPY_FILE_RANGE.
+# clonefile is ENOSYS; BRT cannot be populated.  Expected skip.
+if is_netbsd; then
+	log_unsupported "NetBSD VFS has no copy_file_range/FICLONE"
+fi
+
 if ! command -v clonefile > /dev/null ; then
 	log_unsupported "clonefile program required to test block cloning"
 fi
@@ -52,7 +58,7 @@ MNTPOINT=$(get_prop mountpoint $DATASET)
 log_note "Generating cloned blocks for BRT ..."
 
 # Create source file
-log_must dd if=/dev/urandom of=$MNTPOINT/source bs=1M count=100
+log_must dd if=/dev/urandom of=$MNTPOINT/source bs=1${DD_M} count=100
 
 # Create clones using clonefile
 typeset -i i=0

@@ -104,6 +104,48 @@
 #endif
 
 #define	ZCP_NVLIST_MAX_DEPTH 20
+/*
+ * Floor for C-stack recursion in zcp_table_to_nvlist().  Each nested
+ * table is a C frame (not a luaD_call), so Lua's LUAI_MINCSTACK hook
+ * does not see it.  3KB covers the conversion frame, lua_pushfstring,
+ * fnvlist_free, and an interrupt on a 12KB NetBSD kstack.
+ */
+#define	ZCP_NVLIST_MINCSTACK	(3 * 1024)
+
+#if defined(_KERNEL) && defined(__NetBSD__)
+#include <sys/thread.h>
+#include <sys/taskq.h>
+
+static taskq_t *zcp_nb_taskq;
+
+void
+zfs_netbsd_zcp_taskq_init(void)
+{
+	if (zcp_nb_taskq != NULL)
+		return;
+	zcp_nb_taskq = taskq_create("z_zcp", 1, minclsyspri, 1, INT_MAX, 0);
+}
+
+void
+zfs_netbsd_zcp_taskq_fini(void)
+{
+	if (zcp_nb_taskq != NULL) {
+		taskq_destroy(zcp_nb_taskq);
+		zcp_nb_taskq = NULL;
+	}
+}
+#endif
+
+static boolean_t
+zcp_nvlist_stack_ok(void)
+{
+#if defined(_KERNEL) && defined(__NetBSD__)
+	intptr_t rem = spl_kstack_remaining();
+	if (rem > 0 && rem < ZCP_NVLIST_MINCSTACK)
+		return (B_FALSE);
+#endif
+	return (B_TRUE);
+}
 
 static const uint64_t zfs_lua_check_instrlimit_interval = 100;
 uint64_t zfs_lua_max_instrlimit = ZCP_MAX_INSTRLIMIT;
@@ -135,7 +177,20 @@ zcp_error_handler(lua_State *state)
 	zcp_cleanup(state);
 
 	VERIFY3U(1, ==, lua_gettop(state));
-	msg = lua_tostring(state, 1);
+	/*
+	 * error() may throw a table/function.  lua_tostring() on those
+	 * is NULL, and luaL_traceback(NULL) is fine, but a typed name
+	 * makes the nvlist conversion in zcp_convert_return_values
+	 * a string rather than a second failed conversion (lua_error
+	 * without a pcall handler → panic).
+	 */
+	if (lua_isstring(state, 1)) {
+		msg = lua_tostring(state, 1);
+	} else {
+		msg = lua_typename(state, lua_type(state, 1));
+		if (msg == NULL)
+			msg = "error";
+	}
 	luaL_traceback(state, state, msg, 1);
 	return (1);
 }
@@ -304,7 +359,7 @@ zcp_table_to_nvlist(lua_State *state, int index, int depth)
 		 * stack overflow on circular or heavily nested tables,
 		 * we track the current nvlist depth.
 		 */
-		if (depth >= ZCP_NVLIST_MAX_DEPTH) {
+		if (depth >= ZCP_NVLIST_MAX_DEPTH || !zcp_nvlist_stack_ok()) {
 			fnvlist_free(nvl);
 			(void) lua_pushfstring(state, "Maximum table "
 			    "depth (%d) exceeded for table",
@@ -446,8 +501,18 @@ zcp_convert_return_values(lua_State *state, nvlist_t *nvl,
 	lua_remove(state, 1);
 	err = lua_pcall(state, 3, 0, 0); /* zcp_lua_to_nvlist_helper */
 	if (err != 0) {
-		zcp_lua_to_nvlist(state, 1, nvl, ZCP_RET_ERROR);
+		/*
+		 * Do not call zcp_lua_to_nvlist() here: that lua_error()s
+		 * without a pcall frame and trips zcp_panic_cb.  The
+		 * error object may also be a table/function (no string).
+		 */
+		const char *msg = lua_tostring(state, -1);
+		if (msg == NULL)
+			msg = "channel program return value is "
+			    "not serializable";
+		fnvlist_add_string(nvl, ZCP_RET_ERROR, msg);
 		*result = SET_ERROR(ECHRNG);
+		lua_settop(state, 0);
 	}
 }
 
@@ -742,7 +807,18 @@ zcp_lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 			return (NULL);
 		}
 
+		/*
+		 * KM_SLEEP under a synctask can wait for reclaim
+		 * that needs this txg.
+		 */
+#ifdef __NetBSD__
+		allocbuf = vmem_alloc(allocsize,
+		    allocargs->aa_must_succeed ? KM_SLEEP : KM_NOSLEEP);
+		if (allocbuf == NULL)
+			return (NULL);
+#else
 		allocbuf = vmem_alloc(allocsize, KM_SLEEP);
+#endif
 		allocargs->aa_alloc_remaining -= allocsize;
 
 		*allocbuf = allocsize;
@@ -850,19 +926,40 @@ zcp_eval_impl(dmu_tx_t *tx, zcp_run_info_t *ri)
 	 * or error values.
 	 */
 	err = lua_pcall(state, 1, LUA_MULTRET, 1);
-
+	ri->zri_luaerr = err;
 	/*
-	 * Let Lua use KM_SLEEP while we interpret the return values.
+	 * Leave the instruction hook armed through nvlist
+	 * conversion in zcp_finish_eval().  A huge return table
+	 * must still time out.  lua_close() clears the hook.
 	 */
-	ri->zri_allocargs->aa_must_succeed = B_TRUE;
 
 	/*
-	 * Remove the error handler callback from the stack. At this point,
-	 * there shouldn't be any cleanup handler registered in the handler
-	 * list (zri_cleanup_handlers), regardless of whether it ran or not.
+	 * Keep KM_NOSLEEP until after the synctask; conversion
+	 * runs in open context in zcp_finish_eval().
 	 */
 	list_destroy(&ri->zri_cleanup_handlers);
 	lua_remove(state, 1);
+	/*
+	 * Open-context zcp_eval_open() aborts tx and rele's the
+	 * pool before zcp_finish_eval().  Conversion does not use
+	 * these; NULL them so a later misuse faults loudly.
+	 */
+	ri->zri_tx = NULL;
+	ri->zri_pool = NULL;
+}
+
+static void
+zcp_finish_eval(void *arg)
+{
+	zcp_run_info_t *ri = arg;
+	lua_State *state = ri->zri_state;
+	int err = ri->zri_luaerr;
+
+	/*
+	 * Open context: Lua/nvlist conversion may KM_SLEEP.  Synctask
+	 * already popped the error handler; the stack is the pcall result.
+	 */
+	ri->zri_allocargs->aa_must_succeed = B_TRUE;
 
 	switch (err) {
 	case LUA_OK: {
@@ -892,6 +989,7 @@ zcp_eval_impl(dmu_tx_t *tx, zcp_run_info_t *ri)
 			zcp_convert_return_values(state, ri->zri_outnvl,
 			    ZCP_RET_ERROR, &ri->zri_result);
 		}
+		/* return_count == 0 (bare `return`): success, no payload */
 		break;
 	}
 	case LUA_ERRRUN:
@@ -1144,6 +1242,7 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 	runinfo.zri_allocargs = &allocargs;
 	runinfo.zri_outnvl = outnvl;
 	runinfo.zri_result = 0;
+	runinfo.zri_luaerr = -1;
 	runinfo.zri_cred = cr;
 	runinfo.zri_timed_out = B_FALSE;
 	runinfo.zri_canceled = B_FALSE;
@@ -1160,6 +1259,29 @@ zcp_eval(const char *poolname, const char *program, boolean_t sync,
 			zcp_pool_error(&runinfo, poolname, err);
 	} else {
 		zcp_eval_open(&runinfo, poolname);
+	}
+	if (runinfo.zri_luaerr >= 0) {
+#if defined(_KERNEL) && defined(__NetBSD__)
+		/*
+		 * Open context, but still the syscall LWP.  A cyclic
+		 * table walks about 20 frames of zcp_table_to_nvlist
+		 * and runs off the 12KB kstack into the unmapped PCB
+		 * hole.  Hop onto z_zcp (fresh kstack, still open
+		 * context) before converting the result.
+		 */
+		if (zcp_nb_taskq != NULL) {
+			taskqid_t id = taskq_dispatch(zcp_nb_taskq,
+			    zcp_finish_eval, &runinfo, TQ_SLEEP);
+			if (id != TASKQID_INVALID)
+				taskq_wait_id(zcp_nb_taskq, id);
+			else
+				zcp_finish_eval(&runinfo);
+		} else {
+			zcp_finish_eval(&runinfo);
+		}
+#else
+		zcp_finish_eval(&runinfo);
+#endif
 	}
 	lua_close(state);
 

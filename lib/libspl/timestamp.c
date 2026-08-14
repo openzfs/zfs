@@ -15,6 +15,7 @@
  */
 
 #include <stdio.h>
+#include <sys/time.h>
 #include <time.h>
 #include <langinfo.h>
 #include "statcommon.h"

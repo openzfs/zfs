@@ -1077,7 +1077,7 @@ typedef enum {
 _LIBZFS_H zpool_compat_status_t zpool_load_compat(const char *,
     boolean_t *, char *, size_t);
 
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__)
 
 /*
  * Attach/detach the given filesystem to/from the given jail.

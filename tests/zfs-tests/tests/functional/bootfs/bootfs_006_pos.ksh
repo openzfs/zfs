@@ -102,7 +102,9 @@ verify_bootfs $TESTPOOL
 log_must zpool create $TESTPOOL mirror $VDEV1 $VDEV2 spare $VDEV3
 verify_bootfs $TESTPOOL
 
-if is_linux || is_freebsd; then
+if is_linux || is_freebsd || is_netbsd; then
+	# Linux, FreeBSD, and NetBSD all allow bootfs on a stripe of
+	# file vdevs.  Illumos rejects that topology.
 	# stripe
 	log_must zpool create $TESTPOOL $VDEV1 $VDEV2
 	verify_bootfs $TESTPOOL

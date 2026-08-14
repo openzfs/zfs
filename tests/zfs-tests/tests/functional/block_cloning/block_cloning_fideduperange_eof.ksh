@@ -38,8 +38,8 @@ log_must zpool create -o feature@block_cloning=enabled -O recordsize=128k \
 # actually covers is identical.  That is what makes this test meaningful: were
 # the range trimmed to the destination EOF instead of refused, the trimmed part
 # would compare equal and the dedupe would report success.
-log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=128K count=4
-log_must dd if=/$TESTPOOL/file1 of=/$TESTPOOL/file2 bs=128K count=3
+log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=128k count=4
+log_must dd if=/$TESTPOOL/file1 of=/$TESTPOOL/file2 bs=128k count=3
 log_must sync_pool $TESTPOOL
 
 log_must [ "$(stat_size /$TESTPOOL/file1)" = "524288" ]

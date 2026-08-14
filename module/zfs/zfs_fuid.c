@@ -383,13 +383,13 @@ zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
 
 	return (UID_NOBODY);
 }
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(__NetBSD__)
 uid_t
 zfs_fuid_map_id(zfsvfs_t *zfsvfs, uint64_t fuid,
     cred_t *cr, zfs_fuid_type_t type)
 {
 	/*
-	 * The Linux port only supports POSIX IDs, use the passed id.
+	 * The Linux and NetBSD ports only support POSIX IDs.
 	 */
 	return (fuid);
 }

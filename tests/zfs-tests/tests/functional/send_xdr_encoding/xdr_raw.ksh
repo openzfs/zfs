@@ -51,7 +51,7 @@ log_assert "BEGIN nvlist of a raw send of an encrypted dataset is " \
 log_must eval "echo 'thisisapassphrase' > $keyfile"
 log_must zfs create -o encryption=on -o keyformat=passphrase \
     -o keylocation=file://$keyfile $sendfs
-log_must dd if=/dev/urandom of=/$sendfs/f1 bs=128k count=8 status=none
+log_must dd if=/dev/urandom of=/$sendfs/f1 bs=128k count=8 ${DD_STATUS_NONE}
 log_must zfs snapshot $sendfs@s1
 
 log_must eval "zfs send -w $sendfs@s1 > $stream"

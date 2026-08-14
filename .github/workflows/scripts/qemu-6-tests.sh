@@ -12,6 +12,12 @@
 
 set -eu
 
+# [[ ]] and netbsd*) glob: this file is bash.  Refuse /bin/sh.
+if [ -z "${BASH_VERSION:-}" ]; then
+  echo "$0 must run under bash" >&2
+  exit 1
+fi
+
 function prefix() {
   ID="$1"
   LINE="$2"
@@ -180,6 +186,9 @@ fi
 
 if [ "$1" == "quick" ] ; then
   export RUNFILES="sanity.run"
+elif [[ "$OS" == netbsd* ]] || [ "$1" == "netbsd" ]; then
+  # NetBSD runfile is self-contained.  Do not also load common.run.
+  export RUNFILES="netbsd.run"
 fi
 
 export PATH="$PATH:/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/sbin:/usr/local/bin"
@@ -193,6 +202,44 @@ case "$OS" in
     sudo mount -o noatime /dev/vtbd1 /var/tmp
     sudo chmod 1777 /var/tmp
     sudo mv -f /tmp/*.txt /var/tmp
+    ;;
+  netbsd*)
+    TDIR="/usr/pkg/share/zfs"
+    sudo modstat | grep -q openzfs || sudo modload openzfs
+    if ! sudo modstat | grep -q openzfs; then
+      echo "openzfs.kmod not loaded" >&2
+      exit 1
+    fi
+    # sys/conf/majors: zfs is character major 190. MAKEDEV creates
+    # the node; the module uses that major. Delegation opens it,
+    # so the mode is 0666 rather than MAKEDEV's 600.
+    if [ ! -c /dev/zfs ]; then
+      (cd /dev && sudo sh MAKEDEV zfs)
+    fi
+    sudo chmod 666 /dev/zfs
+    sudo mkdir -p /etc/zfs
+    sudo touch /etc/zfs/zpool.cache
+    sudo mv -f /var/tmp/*.txt /tmp 2>/dev/null || true
+    # Second virtio disk is ld1 (ld0 is the system image).
+    # newfs wants the raw character device of a labeled partition.
+    # Stamp the label from the real disk size (drvctl), not a
+    # hardcoded 64GB — a smaller image overflows, a larger one
+    # wastes and can confuse newfs.
+    if ! sudo disklabel ld1 >/dev/null 2>&1; then
+      sz=$(sudo drvctl -p ld1 disk-info 2>/dev/null | awk '/disk-size/{print $2; exit}') || true
+      if [ -z "${sz:-}" ] || [ "$sz" -le 0 ] 2>/dev/null; then
+        echo "could not determine ld1 size from drvctl" >&2
+        exit 1
+      fi
+      sectors=$((sz / 512))
+      printf 'type: SCSI\ndisk: ld1\nlabel: ztstmp\nbytes/sector: 512\nsectors/track: 63\ntracks/cylinder: 16\nsectors/cylinder: 1008\ncylinders: 1\ntotal sectors: %s\n5 partitions:\n#        size    offset     fstype [fsize bsize cpg/sgs]\n a: %s         0     4.2BSD      0     0     0\n c: %s         0     unused      0     0     0\n' \
+        "$sectors" "$sectors" "$sectors" | sudo disklabel -R -r ld1 /dev/stdin
+    fi
+    sudo newfs -O2 /dev/rld1a >/dev/null
+    sudo mount -o noatime /dev/ld1a /var/tmp
+    sudo chmod 1777 /var/tmp
+    sudo mv -f /tmp/*.txt /var/tmp 2>/dev/null || true
+    export PATH="/usr/pkg/sbin:/usr/pkg/bin:/usr/local/sbin:/usr/local/bin:$PATH"
     ;;
   *)
     # use xfs @ /var/tmp for all distros

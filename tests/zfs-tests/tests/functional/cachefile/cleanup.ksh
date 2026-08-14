@@ -19,3 +19,8 @@
 . $STF_SUITE/include/libtest.shlib
 
 default_cleanup
+
+for d in $DISKS; do
+	[ -n "$d" ] || continue
+	zpool labelclear -f "$d" >/dev/null 2>&1 || true
+done

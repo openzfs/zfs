@@ -58,10 +58,13 @@ DEVS=$(get_pool_devices ${TESTPOOL} ${DEV_RDSKDIR})
 log_note "$DEVS"
 [[ -n $DEVS ]] && set -A DISK $DEVS
 
-log_must dd if=/dev/${DISK[0]} of=/dev/${DISK[1]} bs=1K count=256 conv=notrunc
+src=$(to_usable_path ${DISK[0]})
+dst=$(to_usable_path ${DISK[1]})
+log_must dd if=$src of=$dst bs=1k count=256 conv=notrunc
 
 for x in 0 1 ; do
-	config_count=$(zdb -l $DEV_RDSKDIR/${DISK[$x]} | grep -c features_for_read) ||
+	dev=$(to_usable_path ${DISK[$x]})
+	config_count=$(zdb -l $dev | grep -c features_for_read) ||
 		log_fail "failed to get config_count from DISK[$x]"
 	log_note "vdev $x: message_count $config_count"
 	[ $config_count -ne ${config_count[$x]} ] && \

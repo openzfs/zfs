@@ -37,17 +37,26 @@ set -A args "" \
 
 log_assert "Returning valid lua constructs works."
 
+#
+# Write each program via zcp_write_program.  Do not use
+# <<<"return ${args[i]}" -- see channel_common.kshlib.
+#
 typeset -i i=0
+typeset bodyf
 while (( i < ${#args[*]} )); do
 	log_note "running program: return ${args[i]}"
-	log_must_program $TESTPOOL - <<<"return ${args[i]}"
+	bodyf=$(zcp_write_program "return ${args[i]}")
+	log_must_program $TESTPOOL "$bodyf"
+	rm -f "$bodyf"
 	((i = i + 1))
 done
 
 typeset -i i=0
 while (( i < ${#args[*]} )); do
 	log_note "running program: error(${args[i]})"
-	log_mustnot_checkerror_program "in function 'error'" $TESTPOOL - <<<"error(${args[i]})"
+	bodyf=$(zcp_write_program "error(${args[i]})")
+	log_mustnot_checkerror_program "in function 'error'" $TESTPOOL "$bodyf"
+	rm -f "$bodyf"
 	((i = i + 1))
 done
 

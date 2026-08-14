@@ -451,10 +451,20 @@ out:
 void
 zfs_zevent_init(zfs_zevent_t **zep)
 {
+	VERIFY0(zfs_zevent_init_flags(zep, KM_SLEEP));
+}
+
+int
+zfs_zevent_init_flags(zfs_zevent_t **zep, int flags)
+{
 	zfs_zevent_t *ze;
 
-	ze = *zep = kmem_zalloc(sizeof (zfs_zevent_t), KM_SLEEP);
+	ze = kmem_zalloc(sizeof (zfs_zevent_t), flags);
+	if (ze == NULL)
+		return (SET_ERROR(ENOMEM));
+	*zep = ze;
 	list_link_init(&ze->ze_node);
+	return (0);
 }
 
 void

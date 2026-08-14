@@ -28,6 +28,10 @@ function pool_in_cache {
 	# the given cachefile, default is /etc/zfs/zpool.cache
 	typeset cachefile=${2:-$CPATH}
 
+	if [[ ! -f $cachefile ]]; then
+		return 1
+	fi
+
 	RESULT=$(strings $cachefile | grep -w $1)
 	if [ -z "$RESULT" ]
 	then

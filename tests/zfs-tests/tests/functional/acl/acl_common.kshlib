@@ -150,12 +150,26 @@ function cleanup_user_group
 #
 # Clean up testfile and test directory
 #
+# GNU setfacl -b/--remove-all drops named access entries and the
+# default ACL. NetBSD -b only rewrites the access ACL; -k deletes
+# the default ACL so the directory is left the same way.
+#
+function posix_setfacl_remove_all # obj
+{
+	typeset obj=$1
+
+	log_must setfacl -b $obj
+	if is_netbsd; then
+		log_must setfacl -k $obj
+	fi
+}
+
 function cleanup
 {
 	if [[ -d $TESTDIR ]]; then
 		cd $TESTDIR
 		rm -rf $TESTDIR/*
-		log_must setfacl -b $TESTDIR
+		posix_setfacl_remove_all $TESTDIR
 	fi
 }
 

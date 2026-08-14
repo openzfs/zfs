@@ -129,6 +129,10 @@ zfs_rangelock_init(zfs_rangelock_t *rl, zfs_rangelock_cb_t *cb, void *arg)
 	mutex_init(&rl->rl_lock, NULL, MUTEX_DEFAULT, NULL);
 	avl_create(&rl->rl_tree, zfs_rangelock_compare,
 	    sizeof (zfs_locked_range_t), offsetof(zfs_locked_range_t, lr_node));
+#ifdef	ZFS_RANGELOCK_TRACK_OWNERS
+	list_create(&rl->rl_owners, sizeof (zfs_locked_range_t),
+	    offsetof(zfs_locked_range_t, lr_owner_node));
+#endif
 	rl->rl_cb = cb;
 	rl->rl_arg = arg;
 }
@@ -136,6 +140,10 @@ zfs_rangelock_init(zfs_rangelock_t *rl, zfs_rangelock_cb_t *cb, void *arg)
 void
 zfs_rangelock_fini(zfs_rangelock_t *rl)
 {
+#ifdef	ZFS_RANGELOCK_TRACK_OWNERS
+	ASSERT(list_is_empty(&rl->rl_owners));
+	list_destroy(&rl->rl_owners);
+#endif
 	mutex_destroy(&rl->rl_lock);
 	avl_destroy(&rl->rl_tree);
 }
@@ -488,6 +496,9 @@ zfs_rangelock_enter_impl(zfs_rangelock_t *rl, uint64_t off, uint64_t len,
 	new->lr_proxy = B_FALSE;
 	new->lr_write_wanted = B_FALSE;
 	new->lr_read_wanted = B_FALSE;
+#ifdef	ZFS_RANGELOCK_TRACK_OWNERS
+	new->lr_owner = NULL;
+#endif
 
 	mutex_enter(&rl->rl_lock);
 	if (type == RL_READER) {
@@ -504,6 +515,12 @@ zfs_rangelock_enter_impl(zfs_rangelock_t *rl, uint64_t off, uint64_t len,
 		kmem_free(new, sizeof (*new));
 		new = NULL;
 	}
+	if (new != NULL) {
+#ifdef	ZFS_RANGELOCK_TRACK_OWNERS
+		new->lr_owner = (void *)curthread;
+		list_insert_tail(&rl->rl_owners, new);
+#endif
+	}
 	mutex_exit(&rl->rl_lock);
 	return (new);
 }
@@ -512,14 +529,20 @@ zfs_locked_range_t *
 zfs_rangelock_enter(zfs_rangelock_t *rl, uint64_t off, uint64_t len,
     zfs_rangelock_type_t type)
 {
-	return (zfs_rangelock_enter_impl(rl, off, len, type, B_FALSE));
+	zfs_locked_range_t *lr;
+
+	lr = zfs_rangelock_enter_impl(rl, off, len, type, B_FALSE);
+	return (lr);
 }
 
 zfs_locked_range_t *
 zfs_rangelock_tryenter(zfs_rangelock_t *rl, uint64_t off, uint64_t len,
     zfs_rangelock_type_t type)
 {
-	return (zfs_rangelock_enter_impl(rl, off, len, type, B_TRUE));
+	zfs_locked_range_t *lr;
+
+	lr = zfs_rangelock_enter_impl(rl, off, len, type, B_TRUE);
+	return (lr);
 }
 
 /*
@@ -621,6 +644,10 @@ zfs_rangelock_exit(zfs_locked_range_t *lr)
 	    offsetof(zfs_locked_range_t, lr_node));
 
 	mutex_enter(&rl->rl_lock);
+#ifdef	ZFS_RANGELOCK_TRACK_OWNERS
+	list_remove(&rl->rl_owners, lr);
+	lr->lr_owner = NULL;
+#endif
 	if (lr->lr_type == RL_WRITER) {
 		/* writer locks can't be shared or split */
 		avl_remove(&rl->rl_tree, lr);
@@ -672,6 +699,66 @@ zfs_rangelock_reduce(zfs_locked_range_t *lr, uint64_t off, uint64_t len)
 		cv_broadcast(&lr->lr_read_cv);
 }
 
+#ifdef	ZFS_RANGELOCK_TRACK_OWNERS
+static boolean_t
+zfs_rangelock_covers_lr(const zfs_locked_range_t *lr, uint64_t off,
+    uint64_t len)
+{
+	uint64_t end, lend;
+
+	if (lr->lr_length == 0 || lr->lr_length == UINT64_MAX)
+		return (off >= lr->lr_offset);
+	end = off + len;
+	if (end < off)
+		end = UINT64_MAX;
+	lend = lr->lr_offset + lr->lr_length;
+	if (lend < lr->lr_offset)
+		lend = UINT64_MAX;
+	return (lr->lr_offset <= off && lend >= end);
+}
+
+boolean_t
+zfs_rangelock_owner_covers(zfs_rangelock_t *rl, uint64_t off, uint64_t len,
+    boolean_t writer)
+{
+	zfs_locked_range_t *lr;
+	boolean_t found = B_FALSE;
+
+	mutex_enter(&rl->rl_lock);
+	for (lr = list_head(&rl->rl_owners); lr != NULL;
+	    lr = list_next(&rl->rl_owners, lr)) {
+		if (lr->lr_owner != (void *)curthread)
+			continue;
+		if (writer && lr->lr_type != RL_WRITER)
+			continue;
+		if (zfs_rangelock_covers_lr(lr, off, len)) {
+			found = B_TRUE;
+			break;
+		}
+	}
+	mutex_exit(&rl->rl_lock);
+	return (found);
+}
+
+boolean_t
+zfs_rangelock_owner_held(zfs_rangelock_t *rl)
+{
+	zfs_locked_range_t *lr;
+	boolean_t found = B_FALSE;
+
+	mutex_enter(&rl->rl_lock);
+	for (lr = list_head(&rl->rl_owners); lr != NULL;
+	    lr = list_next(&rl->rl_owners, lr)) {
+		if (lr->lr_owner == (void *)curthread) {
+			found = B_TRUE;
+			break;
+		}
+	}
+	mutex_exit(&rl->rl_lock);
+	return (found);
+}
+#endif
+
 #if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_rangelock_init);
 EXPORT_SYMBOL(zfs_rangelock_fini);
@@ -679,4 +766,8 @@ EXPORT_SYMBOL(zfs_rangelock_enter);
 EXPORT_SYMBOL(zfs_rangelock_tryenter);
 EXPORT_SYMBOL(zfs_rangelock_exit);
 EXPORT_SYMBOL(zfs_rangelock_reduce);
+#ifdef	ZFS_RANGELOCK_TRACK_OWNERS
+EXPORT_SYMBOL(zfs_rangelock_owner_covers);
+EXPORT_SYMBOL(zfs_rangelock_owner_held);
+#endif
 #endif

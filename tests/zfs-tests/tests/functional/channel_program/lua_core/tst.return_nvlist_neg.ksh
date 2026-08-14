@@ -43,16 +43,22 @@ set -A args 'function() return 1 end' \
 	'{0,0,0,["2"]=0}' \
 	'{0,0,0,["3"]=0}'
 
-typeset -i last_index=$((${#args[*]} - 1))
-for i in $(seq 0 $last_index); do
-	log_note "running program: ${args[i]}"
-	log_mustnot_checkerror_program "execution failed" $TESTPOOL - <<<"return ${args[i]}"
+typeset -i i=0
+typeset bodyf
+while (( i < ${#args[*]} )); do
+	log_note "running program: return ${args[i]}"
+	bodyf=$(zcp_write_program "return ${args[i]}")
+	log_mustnot_checkerror_program "execution failed" $TESTPOOL "$bodyf"
+	rm -f "$bodyf"
 	((i = i + 1))
 done
 
-for i in $(seq 0 $last_index); do
-	log_note "running program: ${args[i]}"
-	log_mustnot_checkerror_program "execution failed" $TESTPOOL - <<<"error(${args[i]})"
+typeset -i i=0
+while (( i < ${#args[*]} )); do
+	log_note "running program: error(${args[i]})"
+	bodyf=$(zcp_write_program "error(${args[i]})")
+	log_mustnot_checkerror_program "execution failed" $TESTPOOL "$bodyf"
+	rm -f "$bodyf"
 	((i = i + 1))
 done
 

@@ -35,9 +35,9 @@ log_must zpool create -o feature@block_cloning=enabled -O recordsize=128k $TESTP
 
 # file2 is a copy of file1 with a different first block; only block 1
 # (offset 131072) is identical between the two files.
-log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=128K count=4
-log_must dd if=/$TESTPOOL/file1 of=/$TESTPOOL/file2 bs=128K count=4
-log_must dd if=/dev/urandom of=/$TESTPOOL/file2 bs=128K count=1 conv=notrunc
+log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=128k count=4
+log_must dd if=/$TESTPOOL/file1 of=/$TESTPOOL/file2 bs=128k count=4
+log_must dd if=/dev/urandom of=/$TESTPOOL/file2 bs=128k count=1 conv=notrunc
 log_must sync_pool $TESTPOOL
 
 # Deduplicate just the matching block.

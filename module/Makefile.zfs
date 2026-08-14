@@ -1,0 +1,12 @@
+# Empty zfs.kmod -- MODULE depends on openzfs (mount -t zfs autoload).
+.include <bsd.own.mk>
+
+KMOD=	zfs
+
+.include "Makefile.inc.netbsd"
+
+.PATH:	${SRCDIR}/os/netbsd/zfs
+
+SRCS=	zfs_stub.c
+
+.include <bsd.kmodule.mk>

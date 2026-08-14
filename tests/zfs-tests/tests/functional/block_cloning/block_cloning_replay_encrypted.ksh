@@ -65,10 +65,10 @@ log_must eval "echo $PASSPHRASE | zfs create -o encryption=on" \
 # 2. TX_WRITE: Create two files and sync txg
 #
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/file1 \
-    oflag=sync bs=128k count=4
+    ${OFLAG_SYNC} bs=128k count=4
 log_must zfs set recordsize=16K $TESTPOOL/$TESTFS
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/file2 \
-    oflag=sync bs=16K count=2048
+    ${OFLAG_SYNC} bs=16k count=2048
 sync_pool $TESTPOOL
 
 #

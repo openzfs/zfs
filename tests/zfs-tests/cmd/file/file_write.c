@@ -34,12 +34,37 @@ static unsigned char bigbuffer[BIGBUFFERSIZE];
 
 static void usage(char *);
 
+static uint32_t file_write_rng = 0x6a09e667u;
+
+/*
+ * libc rand() is traditionally an LCG, and on systems such as
+ * NetBSD the output is highly compressible.  Use a xorshift
+ * pseudo-random number generator so the bytes are repeatable
+ * across platforms.
+ *
+ * George Marsaglia, "Xorshift RNGs", Journal of Statistical
+ * Software 8(14), 2003.  The (13, 17, 5) triple is a full-period
+ * 32-bit generator.  Zero is a fixed point, but a nonzero state
+ * never steps there.  The time-XOR seed is kept nonzero.
+ */
+static unsigned char
+file_write_randbyte(void)
+{
+	uint32_t s = file_write_rng;
+
+	s ^= s << 13;
+	s ^= s >> 17;
+	s ^= s << 5;
+	file_write_rng = s;
+	return (s & 0xff);
+}
+
 /*
  * pseudo-randomize the buffer
  */
 static void randomize_buffer(int block_size) {
 	int i;
-	char rnd = rand() & 0xff;
+	unsigned char rnd = file_write_randbyte();
 	for (i = 0; i < block_size; i++)
 		bigbuffer[i] ^= rnd;
 }
@@ -141,8 +166,11 @@ main(int argc, char **argv)
 	nxtfillchar = fillchar;
 	k = 0;
 
-	if (fillchar == 'R')
-		srand(time(NULL));
+	if (fillchar == 'R') {
+		file_write_rng ^= (uint32_t)time(NULL);
+		if (file_write_rng == 0)
+			file_write_rng = 0x6a09e667u;
+	}
 
 	for (i = 0; i < block_size; i++) {
 		bigbuffer[i] = nxtfillchar;
@@ -153,7 +181,7 @@ main(int argc, char **argv)
 			}
 			nxtfillchar = k++;
 		} else if (fillchar == 'R') {
-			nxtfillchar = rand() & 0xff;
+			nxtfillchar = file_write_randbyte();
 		}
 	}
 

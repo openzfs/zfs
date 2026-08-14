@@ -16,6 +16,7 @@ OSv=$OS
 FREEBSD_REL="https://download.freebsd.org/releases/CI-IMAGES"
 FREEBSD_SNAP="https://download.freebsd.org/snapshots/CI-IMAGES"
 URLxz=""
+URLgz=""
 
 # Ubuntu mirrors
 UBMIRROR="https://cloud-images.ubuntu.com"
@@ -25,9 +26,8 @@ UBMIRROR="https://cloud-images.ubuntu.com"
 # default nic model for vm's
 NIC="virtio"
 
-# additional options for virt-install
-OPTS[0]=""
-OPTS[1]=""
+# extra virt-install --boot value, if any
+VI_BOOT=""
 ALT_URL=""
 
 case "$OS" in
@@ -87,8 +87,7 @@ case "$OS" in
     # TODO: Overwrite OSv to debian13 for virt-install until it's added to osinfo
     OSv="debian12"
     URL="https://cloud.debian.org/images/cloud/trixie/latest/debian-13-generic-amd64.qcow2"
-    OPTS[0]="--boot"
-    OPTS[1]="uefi=on"
+    VI_BOOT="uefi=on"
     ;;
   fedora43)
     OSNAME="Fedora 43"
@@ -156,6 +155,16 @@ case "$OS" in
     OSv="ubuntu24.04"
     URL="$UBMIRROR/resolute/current/resolute-server-cloudimg-amd64.img"
     ;;
+  netbsd11)
+    OSNAME="NetBSD 11.0"
+    # virt-install osinfo has no netbsd11 yet; netbsd9.0 is the
+    # newest accepted id.  Guest is still the 11.0 live image.
+    OSv="netbsd9.0"
+    # Official live image -- writable FFS, serial console, root login.
+    URL="https://cdn.NetBSD.org/pub/NetBSD/NetBSD-11.0/images/NetBSD-11.0-amd64-live.img.gz"
+    ALT_URL="https://cdn.netbsd.org/pub/NetBSD/images/11.0/NetBSD-11.0-amd64-live.img.gz"
+    URLgz="$URL"
+    ;;
   *)
     echo "Wrong value for OS variable!"
     exit 111
@@ -200,7 +209,7 @@ while true; do test -b $DISK && break; sleep 1; done
 # around the occasional "ERROR 502: Bad Gateway" errors.
 IMG="/mnt/tests/cloud-image"
 for cmd in 'axel -q -o' 'curl --fail -LSs -o' ; do
-  if [ ! -z "$URLxz" ]; then
+  if [ -n "$URLxz" ]; then
     echo "Loading $URLxz with $cmd..."
     time eval "$cmd $IMG $URLxz" || true
 
@@ -242,7 +251,7 @@ done
 #
 # In this case let's say the raw.xz link in current/ is bad, so look though the
 # other snapshot links for the newest existing raw.xz file.
-if [ ! -z "$URLxz" ] && [ ! -s "$IMG" ] ; then
+if [ -n "$URLxz" ] && [ ! -s "$IMG" ] ; then
   URLxz=$(wget --accept "*.raw.xz" --spider -np --recursive  --no-verbose \
     $(dirname $(dirname $URLxz)) 2>&1  | awk '/200 OK/{print $(NF-2)}' | \
     sort -n | tail -n 1)
@@ -251,15 +260,196 @@ if [ ! -z "$URLxz" ] && [ ! -s "$IMG" ] ; then
 fi
 
 echo "Importing VM image to zvol..."
-if [ ! -z "$URLxz" ]; then
+if [ -n "$URLxz" ]; then
   xzcat -T0 $IMG | sudo dd of=$DISK bs=4M
+elif [ -n "$URLgz" ]; then
+  gzip -dc $IMG | sudo dd of=$DISK bs=4M
 else
   sudo qemu-img dd -f qcow2 -O raw if=$IMG of=$DISK bs=4M
 fi
 rm -f $IMG
 
+# Inject root authorized_keys into a raw NetBSD FFS image so firstboot
+# can SSH.  qemu-netbsd-firstboot.sh waits for sshd; expect is the
+# fallback if this inject fails.
+netbsd_inject_ssh_key() {
+  local disk="$1"
+  local pubkey="$2"
+  local tmp rc=1 fs=""
+  local keyfile rcconf sshdcfg
+
+  echo "Injecting SSH key into NetBSD image (offline)..."
+  tmp=$(mktemp -d)
+  keyfile="$tmp/authorized_keys"
+  rcconf="$tmp/rc.conf"
+  sshdcfg="$tmp/sshd_config"
+  printf '%s\n' "$pubkey" > "$keyfile"
+
+  if command -v guestfish >/dev/null 2>&1; then
+    fs=$(sudo guestfish --ro -a "$disk" <<'EOF' 2>/dev/null | awk -F: '/ufs|ffs/{print $1; exit}'
+run
+list-filesystems
+EOF
+)
+    if [ -n "$fs" ]; then
+      sudo guestfish --rw -a "$disk" <<EOF && rc=0 || rc=1
+run
+mount $fs /
+mkdir-p /root/.ssh
+mkdir-p /etc/ssh
+upload $keyfile /root/.ssh/authorized_keys
+chmod 0700 /root/.ssh
+chmod 0600 /root/.ssh/authorized_keys
+download /etc/rc.conf $rcconf
+-download /etc/ssh/sshd_config $sshdcfg
+EOF
+      if [ "$rc" -eq 0 ]; then
+        grep -q '^sshd=YES' "$rcconf" 2>/dev/null || echo 'sshd=YES' >> "$rcconf"
+        grep -q '^dhcpcd=YES' "$rcconf" 2>/dev/null || echo 'dhcpcd=YES' >> "$rcconf"
+        if [ -f "$sshdcfg" ]; then
+          grep -q '^PermitRootLogin yes' "$sshdcfg" || echo 'PermitRootLogin yes' >> "$sshdcfg"
+          grep -q '^PubkeyAuthentication yes' "$sshdcfg" || echo 'PubkeyAuthentication yes' >> "$sshdcfg"
+        fi
+        sudo guestfish --rw -a "$disk" <<EOF && rc=0 || rc=1
+run
+mount $fs /
+upload $rcconf /etc/rc.conf
+-upload $sshdcfg /etc/ssh/sshd_config
+umount /
+EOF
+        # Verify the key we wrote is what the image now contains.
+        # guestfish stdout is not the downloaded file -- redirect
+        # the CLI to gf.out and download to roundtrip separately.
+        if [ "$rc" -eq 0 ]; then
+          sudo guestfish --ro -a "$disk" <<EOF >"$tmp/gf.out" && rc=0 || rc=1
+run
+mount $fs /
+download /root/.ssh/authorized_keys $tmp/roundtrip
+umount /
+EOF
+          if [ "$rc" -ne 0 ] || ! cmp -s "$keyfile" "$tmp/roundtrip"; then
+            echo "WARNING: guestfish authorized_keys round-trip failed" >&2
+            rc=1
+          fi
+        fi
+      fi
+    fi
+  fi
+
+  rm -rf "$tmp"
+  if [ "$rc" -eq 0 ]; then
+    echo "NetBSD image now has root authorized_keys"
+    return 0
+  fi
+  echo "ERROR: offline key injection failed" >&2
+  return 1
+}
+
+# Grow the live-image root FFS after firstboot.  The stock image is
+# ~2G; unpacking syssrc+comp overflows unless the extra space is
+# folded into the GPT FFS wedge (or an MBR disklabel) and resize_ffs
+# is run.  NetBSD 11 live images are GPT, not MBR.
+netbsd_grow_root_ffs() {
+  echo "Growing NetBSD root FFS to fill the disk..."
+  ssh root@vm0 'sh -s' <<'EOF' || return 1
+set -eu
+root_spec=$(mount | awk '$3 == "/" { print $1; exit }')
+swapctl -U - >/dev/null 2>&1 || true
+
+disk=""
+for d in ld0 wd0 sd0 virtio0; do
+  if gpt show "$d" >/dev/null 2>&1 && gpt show "$d" | grep -q 'FFSv'; then
+    disk=$d
+    break
+  fi
+done
+if [ -z "$disk" ]; then
+  disk=$(echo "$root_spec" | sed -e 's|^/dev/||' -e 's/[a-p]$//')
+fi
+[ -n "$disk" ] || disk=ld0
+
+if gpt show "$disk" >/dev/null 2>&1 && gpt show "$disk" | grep -q 'Pri GPT'; then
+  echo "GPT disk $disk, root $root_spec"
+  gpt resizedisk "$disk"
+  idx=$(gpt show -l "$disk" | awk '/FFSv|NBImgRoot/ { print $3; exit }')
+  if [ -z "$idx" ]; then
+    idx=$(gpt show "$disk" | awk '/FFSv/ { print $3; exit }')
+  fi
+  [ -n "$idx" ] || { echo "no FFS GPT partition on $disk"; exit 1; }
+  gpt resize -i "$idx" "$disk"
+  rdev=$(echo "$root_spec" | sed 's|/dev/|/dev/r|')
+  resize_ffs -y "$rdev" || resize_ffs -y "$root_spec"
+  df -h /
+  exit 0
+fi
+
+# MBR + disklabel fallback.
+sectors=""
+sz=$(drvctl -p "$disk" disk-info 2>/dev/null | awk '/disk-size/{print $2; exit}') || true
+if [ -n "${sz:-}" ] && [ "$sz" -gt 0 ] 2>/dev/null; then
+  sectors=$((sz / 512))
+fi
+if [ -z "${sectors:-}" ] || [ "$sectors" -le 0 ]; then
+  sectors=$(dmesg | awk -v d="$disk" '
+    $1 ~ "^"d":" && /MB/ {
+      for (i = 1; i <= NF; i++)
+        if ($i == "MB," || $i == "MB") { print $(i-1) * 2048; exit }
+    }') || true
+fi
+if [ -z "${sectors:-}" ] || [ "$sectors" -le 0 ]; then
+  echo "could not determine $disk size; refusing to skip grow (syssrc+comp overflow a 2G image)"
+  exit 1
+fi
+
+start=$(fdisk -v "$disk" 2>/dev/null | awk '
+  /^[0-3]:/ && /NetBSD/ { split($0, a, /start /); split(a[2], b, /,/); print b[1]+0; exit }
+')
+[ -n "$start" ] || start=63
+size=$((sectors - start))
+if [ "$size" -gt 0 ]; then
+  fdisk -f -u -0 -s "169/${start}/${size}" "$disk" >/dev/null 2>&1 || true
+fi
+
+disklabel "$disk" > /tmp/dl.old
+awk -v tot="$sectors" '
+  /^total sectors:/ { $3 = tot }
+  /^ a:/ {
+    off = $3 + 0
+    $2 = tot - off
+  }
+  /^ [cd]:/ {
+    $2 = tot
+    $3 = 0
+  }
+  { print }
+' /tmp/dl.old > /tmp/dl.new
+disklabel -R -r "$disk" /tmp/dl.new
+resize_ffs -y "/dev/r${disk}a"
+df -h /
+EOF
+}
+
+
 PUBKEY=$(cat ~/.ssh/id_ed25519.pub)
-if [ ${OS:0:7} != "freebsd" ]; then
+case "$OS" in
+netbsd*)
+  netbsd_inject_ssh_key "$DISK" "$PUBKEY" || \
+    echo "WARNING: offline SSH inject failed; firstboot expect will try" >&2
+  ;;
+freebsd*)
+  cat <<EOF > /tmp/user-data
+#cloud-config
+
+hostname: $OS
+
+# minimized config without sudo for nuageinit of FreeBSD
+growpart:
+  mode: auto
+  devices: ['/']
+  ignore_growroot_disabled: false
+EOF
+  ;;
+*)
   cat <<EOF > /tmp/user-data
 #cloud-config
 
@@ -287,44 +477,46 @@ growpart:
   devices: ['/']
   ignore_growroot_disabled: false
 EOF
-else
-  cat <<EOF > /tmp/user-data
-#cloud-config
-
-hostname: $OS
-
-# minimized config without sudo for nuageinit of FreeBSD
-growpart:
-  mode: auto
-  devices: ['/']
-  ignore_growroot_disabled: false
-EOF
-fi
+  ;;
+esac
 
 sudo virsh net-update default add ip-dhcp-host \
   "<host mac='52:54:00:83:79:00' ip='192.168.122.10'/>" --live --config
 
-sudo virt-install \
-  --os-variant $OSv \
+set -- \
+  --os-variant "$OSv" \
   --name "openzfs" \
   --cpu host-passthrough \
   --virt-type=kvm --hvm \
   --vcpus=4,sockets=1 \
-  --memory $((1024*12)) \
+  --memory $((1024 * 12)) \
   --memballoon model=virtio \
   --graphics none \
   --network bridge=virbr0,model=$NIC,mac='52:54:00:83:79:00' \
-  --cloud-init user-data=/tmp/user-data \
   --disk $DISK,bus=virtio,cache=none,format=raw,driver.discard=unmap \
-  --import --noautoconsole ${OPTS[0]} ${OPTS[1]} >/dev/null
+  --rng /dev/urandom \
+  --import --noautoconsole
+if [ -n "$VI_BOOT" ]; then
+  set -- "$@" --boot "$VI_BOOT"
+fi
+case "$OS" in
+netbsd*)
+  ;;
+*)
+  set -- "$@" --cloud-init user-data=/tmp/user-data
+  ;;
+esac
+sudo virt-install "$@" >/dev/null
 
 # Give the VMs hostnames so we don't have to refer to them with
 # hardcoded IP addresses.
 #
 # vm0:          Initial VM we install dependencies and build ZFS on.
 # vm1..2        Testing VMs
-for ((i=0; i<=VMs; i++)); do
+i=0
+while [ "$i" -le "$VMs" ]; do
   echo "192.168.122.1$i vm$i" | sudo tee -a /etc/hosts
+  i=$((i + 1))
 done
 
 # in case the directory isn't there already
@@ -338,12 +530,37 @@ StrictHostKeyChecking no
 ConnectTimeout 1
 EOF
 
-if [ ${OS:0:7} != "freebsd" ]; then
-  # enable KSM on Linux
-  sudo virsh dommemstat --domain "openzfs" --period 5
-  sudo virsh node-memory-tune 100 50 1
-  echo 1 | sudo tee /sys/kernel/mm/ksm/run > /dev/null
-else
+case "$OS" in
+netbsd*)
+  BASH="/usr/pkg/bin/bash"
+  .github/workflows/scripts/qemu-netbsd-firstboot.sh
+  netbsd_grow_root_ffs || exit 1
+  ssh root@vm0 "export PKG_PATH='https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/amd64/11.0/All'; \
+    pkg_add pkgin || true; \
+    pkg_add bash ca-certificates git python312 sudo qemu-guest-agent rsync mozilla-rootcerts openssl jq || \
+    pkgin -y install bash ca-certificates git python312 sudo qemu-guest-agent rsync mozilla-rootcerts openssl jq"
+  ssh root@vm0 'mozilla-rootcerts install || true'
+  ssh root@vm0 'ln -sf /usr/pkg/bin/python3.12 /usr/pkg/bin/python3 || true'
+  ssh root@vm0 "test -x $BASH && chsh -s $BASH root || true"
+  ssh root@vm0 'useradd -m -g users -s /usr/pkg/bin/bash zfs || useradd -m zfs || true'
+  ssh root@vm0 'mkdir -p ~zfs/.ssh /usr/pkg/etc/sudoers.d'
+  ssh root@vm0 'printf "zfs ALL=(ALL) NOPASSWD: ALL\nDefaults:zfs !requiretty\n" > /usr/pkg/etc/sudoers.d/zfs'
+  ssh root@vm0 'chmod 440 /usr/pkg/etc/sudoers.d/zfs'
+  # pkgsrc sudo only reads sudoers.d if sudoers has #includedir.
+  # Drop the include and a direct grant so either layout works.
+  ssh root@vm0 'grep -q "^#includedir /usr/pkg/etc/sudoers.d" /usr/pkg/etc/sudoers 2>/dev/null || \
+    printf "\n#includedir /usr/pkg/etc/sudoers.d\n" >> /usr/pkg/etc/sudoers'
+  ssh root@vm0 'grep -q "^zfs ALL=" /usr/pkg/etc/sudoers 2>/dev/null || \
+    echo "zfs ALL=(ALL) NOPASSWD: ALL" >> /usr/pkg/etc/sudoers'
+  ssh root@vm0 'visudo -c -f /usr/pkg/etc/sudoers >/dev/null 2>&1 || \
+    visudo -c >/dev/null 2>&1 || true'
+  scp ~/.ssh/id_ed25519.pub "root@vm0:~zfs/.ssh/authorized_keys"
+  ssh root@vm0 'chown -R zfs ~zfs'
+  ssh root@vm0 'grep -q "^sshd=YES" /etc/rc.conf || echo "sshd=YES" >> /etc/rc.conf'
+  ssh root@vm0 'grep -q "^dhcpcd=YES" /etc/rc.conf || echo "dhcpcd=YES" >> /etc/rc.conf'
+  ssh root@vm0 '/etc/rc.d/sshd restart || /etc/rc.d/sshd start'
+  ;;
+freebsd*)
   # on FreeBSD we need some more init stuff, because of nuageinit
   BASH="/usr/local/bin/bash"
   while pidof /usr/bin/qemu-system-x86_64 >/dev/null; do
@@ -362,12 +579,20 @@ else
   ssh root@vm0 'service sshd restart'
   scp ~/src.txz "root@vm0:/tmp/src.txz"
   ssh root@vm0 'tar -C / -zxf /tmp/src.txz'
-fi
+  ;;
+*)
+  # enable KSM on Linux
+  sudo virsh dommemstat --domain "openzfs" --period 5
+  sudo virsh node-memory-tune 100 50 1
+  echo 1 | sudo tee /sys/kernel/mm/ksm/run > /dev/null
+  ;;
+esac
 
 #
 # Config for Alpine Linux similar to FreeBSD.
 #
-if [ ${OS:0:6} == "alpine" ]; then
+case "$OS" in
+alpine*)
   while pidof /usr/bin/qemu-system-x86_64 >/dev/null; do
     ssh 2>/dev/null zfs@vm0 "uname -a" && break
   done
@@ -375,11 +600,9 @@ if [ ${OS:0:6} == "alpine" ]; then
   ssh zfs@vm0 "sudo rm -rf /etc/apk/repositories"
   ssh zfs@vm0 "sudo setup-apkrepos -c1"
   ssh zfs@vm0 "echo '@testing http://dl-cdn.alpinelinux.org/alpine/edge/testing' | sudo tee -a /etc/apk/repositories"
-  # Upgrade to edge or latest-stable.
-  #ssh zfs@vm0 "sudo sed -i 's#/v[0-9]\+\.[0-9]\+/#/edge/#g' /etc/apk/repositories"
-  #ssh zfs@vm0 "sudo sed -i 's#/v[0-9]\+\.[0-9]\+/#/latest-stable/#g' /etc/apk/repositories"
   # Update and upgrade after repository setup.
   ssh zfs@vm0 "sudo apk update"
   ssh zfs@vm0 "sudo apk add --upgrade apk-tools"
   ssh zfs@vm0 "sudo apk upgrade --available"
-fi
+  ;;
+esac

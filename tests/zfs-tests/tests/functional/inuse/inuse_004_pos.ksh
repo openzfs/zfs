@@ -36,6 +36,13 @@
 
 verify_runnable "global"
 
+# format(8) is Illumos.  NetBSD raw disks also do not fail O_EXCL
+# while a pool holds them, so there is no equivalent "format refuses
+# a live vdev" check to substitute.
+if is_netbsd; then
+	log_unsupported "NetBSD has no format(8)"
+fi
+
 function cleanup
 {
 	#

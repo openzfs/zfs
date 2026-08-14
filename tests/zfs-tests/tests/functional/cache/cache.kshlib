@@ -71,9 +71,19 @@ function display_status
 function verify_cache_device
 {
 	typeset pool=$1
+	# zpool status prints zfs_strip_path() names (ld2 / rld2),
+	# while DISKS/LDEV are ld2 or /dev/ld2.  Match both.
 	typeset device=$2
+	typeset device_np=${2#$DEV_DSKDIR/}
 	typeset status=$3
 	typeset type=$4
+	typeset device_r=""
+
+	device_np=$(vdev_match_leaf "$device_np")
+	if is_netbsd && [[ -n $device_np && \
+	    ( $device_np != /* || $device_np == /dev/* ) ]]; then
+		device_r=r${device_np##*/}
+	fi
 
 	if [[ -z $pool || -z $device || -z $status ]]; then
 		log_fail "Usage: verify_cache_device <pool> <device> " \
@@ -104,7 +114,7 @@ function verify_cache_device
 		typeset stat=${dev_stat_tab[((i+1))]}
 
 		case $dev in
-			stripe:$device)
+			stripe:$device|stripe:$device_np|stripe:$device_r)
 				if [[ "$type" == 'mirror' ]]; then
 					log_note "Unexpected type: mirror"
 					return 1
@@ -117,7 +127,7 @@ function verify_cache_device
 					return 0
 				fi
 				;;
-			mirror:$device)
+			mirror:$device|mirror:$device_np|mirror:$device_r)
 				if [[ -z "$type" || $type == 'stripe' ]]; then
 					log_note "Unexpected type: stripe"
 					return 1

@@ -22,6 +22,7 @@
 #include <termios.h>
 #include <signal.h>
 #include <errno.h>
+#include <stdlib.h>
 #include <openssl/evp.h>
 #if LIBFETCH_DYNAMIC
 #include <dlfcn.h>
@@ -502,6 +503,32 @@ get_key_material_file(libzfs_handle_t *hdl, const char *uri,
 	return (ret);
 }
 
+#if LIBFETCH_IS_FETCH && defined(__NetBSD__)
+/*
+ * NetBSD fetchGetURL returns fetchIO *, not FILE *.  Wrap it so
+ * get_key_material_stream can fread/fclose.
+ */
+static int
+zfs_fetchio_read(void *cookie, char *buf, int len)
+{
+	ssize_t n;
+
+	if (len < 0)
+		return (-1);
+	n = fetchIO_read(cookie, buf, (size_t)len);
+	if (n < 0)
+		return (-1);
+	return ((int)n);
+}
+
+static int
+zfs_fetchio_close(void *cookie)
+{
+	fetchIO_close(cookie);
+	return (0);
+}
+#endif
+
 static int
 get_key_material_https(libzfs_handle_t *hdl, const char *uri,
     const char *fsname, zfs_keyformat_t keyformat, boolean_t newkey,
@@ -566,6 +593,35 @@ get_key_material_https(libzfs_handle_t *hdl, const char *uri,
 #endif
 
 #if LIBFETCH_IS_FETCH
+#ifdef __NetBSD__
+	/*
+	 * NetBSD libfetch returns a fetchIO, not a FILE.  It does not
+	 * read SSL_CA_CERT_FILE; OpenSSL's default verify paths honour
+	 * SSL_CERT_FILE, which the ZTS keylocation config exports.
+	 * libzfs does not call setenv.  libfetch checks the chain and
+	 * does not check the certificate hostname.
+	 */
+	{
+		fetchIO *fio = fetchGetURL(uri, "");
+
+		if (fio == NULL) {
+			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			    "Couldn't GET %s: %s"),
+			    uri, fetchLastErrString);
+			ret = ENETDOWN;
+		} else {
+			stream = funopen(fio, zfs_fetchio_read, NULL, NULL,
+			    zfs_fetchio_close);
+			if (stream == NULL) {
+				fetchIO_close(fio);
+				ret = errno != 0 ? errno : ENOMEM;
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "Couldn't wrap fetch stream: %s"),
+				    zfs_strerror(ret));
+			}
+		}
+	}
+#else
 	stream = fetchGetURL(uri, "");
 	if (stream == NULL) {
 		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -573,6 +629,7 @@ get_key_material_https(libzfs_handle_t *hdl, const char *uri,
 		    uri, fetchLastErrString);
 		ret = ENETDOWN;
 	}
+#endif
 #elif LIBFETCH_IS_LIBCURL
 	CURL *curl = curl_easy_init();
 	if (curl == NULL) {

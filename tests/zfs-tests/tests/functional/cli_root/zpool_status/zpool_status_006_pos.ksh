@@ -49,7 +49,7 @@ typeset file="/$TESTPOOL2/$TESTFILE0"
 
 truncate -s $MINVDEVSIZE $TESTDIR/vdev_a
 log_must zpool create -f -o feature@head_errlog=enabled $TESTPOOL2 $TESTDIR/vdev_a
-log_must dd if=/dev/urandom of=$file bs=1024 count=1024 oflag=sync
+log_must dd if=/dev/urandom of=$file bs=1024 count=1024 ${OFLAG_SYNC}
 log_must zinject -t data -e checksum -f 100 -am $file
 
 for i in {1..3}; do

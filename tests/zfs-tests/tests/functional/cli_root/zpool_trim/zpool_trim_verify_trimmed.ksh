@@ -46,21 +46,31 @@ function cleanup
                 rm -rf "$TESTDIR"
         fi
 
+	netbsd_trim_backing_cleanup
+
 	log_must set_tunable64 TRIM_EXTENT_BYTES_MIN $trim_extent_bytes_min
 }
 log_onexit cleanup
 
 LARGESIZE=$((MINVDEVSIZE * 4))
-LARGEFILE="$TESTDIR/largefile"
+# On NetBSD the file has to live on ZFS.  FFS has no VOP_FDISCARD,
+# so du(1) cannot shrink a file vdev stored on TESTDIR.
+if is_netbsd; then
+	netbsd_trim_backing_setup $LARGESIZE
+	LARGEFILE="$TRIM_FILE"
+else
+	LARGEFILE="$TESTDIR/largefile"
+	log_must mkdir "$TESTDIR"
+fi
 
 # Reduce trim size to allow for tighter tolerance below when checking.
 typeset trim_extent_bytes_min=$(get_tunable TRIM_EXTENT_BYTES_MIN)
 log_must set_tunable64 TRIM_EXTENT_BYTES_MIN 512
 
-log_must mkdir "$TESTDIR"
 log_must truncate -s $LARGESIZE "$LARGEFILE"
 log_must zpool create $TESTPOOL "$LARGEFILE"
 
+is_netbsd && netbsd_trim_backing_sync
 original_size=$(du -k "$LARGEFILE" | awk '{print $1 * 1024}')
 
 log_must zpool initialize $TESTPOOL
@@ -69,6 +79,7 @@ while [[ "$(initialize_progress $TESTPOOL $LARGEFILE)" -lt "100" ]]; do
         sleep 0.5
 done
 
+is_netbsd && netbsd_trim_backing_sync
 new_size=$(du -k "$LARGEFILE" | awk '{print $1 * 1024}')
 log_must within_tolerance $new_size $LARGESIZE $((200 * 1024 * 1024))
 
@@ -78,6 +89,7 @@ while [[ "$(trim_progress $TESTPOOL $LARGEFILE)" -lt "100" ]]; do
         sleep 0.5
 done
 
+is_netbsd && netbsd_trim_backing_sync
 new_size=$(du -k "$LARGEFILE" | awk '{print $1 * 1024}')
 log_must within_tolerance $new_size $original_size $((128 * 1024 * 1024))
 

@@ -119,6 +119,15 @@ _LIBZUTIL_H int zfs_strcmp_pathname(const char *, const char *, int);
 
 _LIBZUTIL_H boolean_t zfs_dev_is_dm(const char *);
 _LIBZUTIL_H boolean_t zfs_dev_is_whole_disk(const char *);
+#ifdef __NetBSD__
+_LIBZUTIL_H boolean_t zfs_dev_is_disk_class(const char *);
+_LIBZUTIL_H boolean_t zfs_dev_disk_unit(const char *, char *, size_t);
+_LIBZUTIL_H boolean_t zfs_dev_is_media_wait(const char *);
+_LIBZUTIL_H boolean_t zfs_dev_is_import_scan_leaf(const char *);
+_LIBZUTIL_H boolean_t zpool_dev_probe_ok(const char *);
+_LIBZUTIL_H int zfs_dev_to_raw_path(const char *, char *, size_t);
+_LIBZUTIL_H int zfs_dev_to_block_path(const char *, char *, size_t);
+#endif
 _LIBZUTIL_H int zfs_dev_flush(int);
 _LIBZUTIL_H char *zfs_get_underlying_path(const char *);
 _LIBZUTIL_H char *zfs_get_enclosure_sysfs_path(const char *);

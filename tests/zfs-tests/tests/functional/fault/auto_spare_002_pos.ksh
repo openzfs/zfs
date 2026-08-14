@@ -66,11 +66,11 @@ for type in "mirror" "raidz" "raidz2"; do
 	log_must zfs set recordsize=16k $TESTPOOL/$TESTFS
 
 	# 3. Write a file to the pool to be read back
-	log_must dd if=/dev/urandom of=$TESTFILE bs=1M count=64
+	log_must dd if=/dev/urandom of=$TESTFILE bs=1${DD_M} count=64
 
 	# 4. Inject CHECKSUM ERRORS on read with a zinject error handler
 	log_must zinject -d $FAULT_FILE -e corrupt -f 50 -T read $TESTPOOL
-	log_must dd if=$TESTFILE of=/dev/null bs=1M count=64
+	log_must dd if=$TESTFILE of=/dev/null bs=1${DD_M} count=64
 
 	# 5. Verify the ZED kicks in a hot spare and expected pool/device status
 	log_note "Wait for ZED to auto-spare"

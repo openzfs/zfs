@@ -89,3 +89,10 @@ changelog
 *.orig
 *.tmp
 *.log
+cscope.out
+cscope.in.out
+cscope.po.out
+cscope.files
+ncscope.out
+ncscope.in.out
+ncscope.po.out

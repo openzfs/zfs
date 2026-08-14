@@ -110,6 +110,14 @@ extern "C" {
 #elif defined(_LITTLE_ENDIAN) && _BYTE_ORDER == _LITTLE_ENDIAN
 #define	_ZFS_LITTLE_ENDIAN
 #endif
+#elif defined(__BYTE_ORDER__)
+#if defined(__ORDER_BIG_ENDIAN__) && \
+    __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+#define	_ZFS_BIG_ENDIAN
+#elif defined(__ORDER_LITTLE_ENDIAN__) && \
+    __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define	_ZFS_LITTLE_ENDIAN
+#endif
 #elif defined(_BIG_ENDIAN) && !defined(_LITTLE_ENDIAN)
 #define	_ZFS_BIG_ENDIAN
 #elif defined(_LITTLE_ENDIAN) && !defined(_BIG_ENDIAN)

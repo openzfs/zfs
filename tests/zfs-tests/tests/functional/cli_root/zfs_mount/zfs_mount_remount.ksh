@@ -69,7 +69,7 @@ log_must remount_rw $TESTFS $MNTPFS
 mount_is_rw $MNTPFS
 mount_has_rw_option $MNTPFS
 
-if is_linux; then
+if is_linux || is_netbsd; then
 	# 3. Verify we can (re)mount the snapshot readonly
 	log_must mount_default $TESTSNAP $MNTPSNAP
 	mount_is_ro $MNTPSNAP

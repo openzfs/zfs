@@ -1,0 +1,128 @@
+name: zfs-qemu-netbsd
+
+# NetBSD 11 ZTS, same QEMU pipeline as zfs-qemu.yml's FreeBSD guests.
+# This workflow: path filter or workflow_dispatch.
+# Main zfs-qemu.yml: ZFS-CI-Type: netbsd / specific_os=netbsd11.
+
+on:
+  pull_request:
+    paths:
+      - '**/os/netbsd/**'
+      - 'module/Makefile.netbsd'
+      - 'module/Makefile.inc.netbsd'
+      - 'module/Makefile.openzfs'
+      - 'module/zfs/zcp.c'
+      - 'module/lua/ldo.c'
+      - 'include/sys/zcp.h'
+      - 'tests/runfiles/netbsd.run'
+      - 'tests/zts-path/**'
+      - 'cmd/zpool/os/netbsd/**'
+      - 'lib/**/os/netbsd/**'
+      - 'lib/libspl/include/Makefile.am'
+      - 'lib/libspl/include/sys/timer.h'
+      - 'tests/zfs-tests/include/blkdev.shlib'
+      - 'tests/zfs-tests/tests/functional/cli_root/zdb/zdb_encrypted.ksh'
+      - 'tests/zfs-tests/tests/functional/cli_root/zdb/zdb_encrypted_raw.ksh'
+      - 'tests/zfs-tests/tests/functional/cli_root/zfs_mount/zfs_mount.kshlib'
+      - 'tests/zfs-tests/tests/functional/cli_root/zfs_mount/zfs_mount_005_pos.ksh'
+      - 'tests/zfs-tests/tests/functional/cli_root/zfs_mount/zfs_mount_007_pos.ksh'
+      - 'tests/zfs-tests/tests/functional/cli_root/zfs_mount/zfs_mount_010_neg.ksh'
+      - 'tests/zfs-tests/tests/functional/cli_root/zfs_unmount/zfs_unmount_009_pos.ksh'
+      - 'tests/zfs-tests/tests/functional/cli_root/zfs_unmount/zfs_unmount_nested.ksh'
+      - '.github/workflows/zfs-qemu-netbsd.yml'
+      - '.github/workflows/scripts/qemu-netbsd-firstboot.sh'
+      - '.github/workflows/scripts/qemu-2-start.sh'
+      - '.github/workflows/scripts/qemu-3-deps-vm.sh'
+      - '.github/workflows/scripts/qemu-4-build-vm.sh'
+      - '.github/workflows/scripts/qemu-5-setup.sh'
+      - '.github/workflows/scripts/qemu-6-tests.sh'
+  workflow_dispatch:
+  push:
+    paths:
+      - '**/os/netbsd/**'
+      - 'module/Makefile.netbsd'
+      - 'module/Makefile.inc.netbsd'
+      - 'module/Makefile.openzfs'
+      - 'module/zfs/zcp.c'
+      - 'module/lua/ldo.c'
+      - 'include/sys/zcp.h'
+      - 'tests/runfiles/netbsd.run'
+      - 'tests/zts-path/**'
+      - 'cmd/zpool/os/netbsd/**'
+      - 'lib/**/os/netbsd/**'
+      - 'lib/libspl/include/Makefile.am'
+      - 'lib/libspl/include/sys/timer.h'
+      - 'tests/zfs-tests/include/blkdev.shlib'
+      - 'tests/zfs-tests/tests/functional/cli_root/zdb/zdb_encrypted.ksh'
+      - 'tests/zfs-tests/tests/functional/cli_root/zdb/zdb_encrypted_raw.ksh'
+      - 'tests/zfs-tests/tests/functional/cli_root/zfs_mount/zfs_mount.kshlib'
+      - 'tests/zfs-tests/tests/functional/cli_root/zfs_mount/zfs_mount_005_pos.ksh'
+      - 'tests/zfs-tests/tests/functional/cli_root/zfs_mount/zfs_mount_007_pos.ksh'
+      - 'tests/zfs-tests/tests/functional/cli_root/zfs_mount/zfs_mount_010_neg.ksh'
+      - 'tests/zfs-tests/tests/functional/cli_root/zfs_unmount/zfs_unmount_009_pos.ksh'
+      - 'tests/zfs-tests/tests/functional/cli_root/zfs_unmount/zfs_unmount_nested.ksh'
+      - '.github/workflows/zfs-qemu-netbsd.yml'
+      - '.github/workflows/scripts/qemu-netbsd-firstboot.sh'
+      - '.github/workflows/scripts/qemu-2-start.sh'
+      - '.github/workflows/scripts/qemu-3-deps-vm.sh'
+      - '.github/workflows/scripts/qemu-4-build-vm.sh'
+      - '.github/workflows/scripts/qemu-5-setup.sh'
+      - '.github/workflows/scripts/qemu-6-tests.sh'
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  qemu-vm:
+    name: qemu-x86
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.repository != 'openzfs/zfs'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [netbsd11]
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+
+    - name: Setup QEMU
+      timeout-minutes: 60
+      run: .github/workflows/scripts/qemu-1-setup.sh
+
+    - name: Start build machine
+      timeout-minutes: 45
+      run: .github/workflows/scripts/qemu-2-start.sh ${{ matrix.os }}
+
+    - name: Install dependencies
+      timeout-minutes: 60
+      run: .github/workflows/scripts/qemu-3-deps.sh --poweroff ${{ matrix.os }}
+
+    - name: Build modules
+      timeout-minutes: 40
+      run: .github/workflows/scripts/qemu-4-build.sh --poweroff --enable-debug ${{ matrix.os }}
+
+    - name: Setup testing machines
+      timeout-minutes: 10
+      run: .github/workflows/scripts/qemu-5-setup.sh
+
+    - name: Run tests
+      timeout-minutes: 270
+      run: .github/workflows/scripts/qemu-6-tests.sh
+      env:
+        CI_TYPE: netbsd
+
+    - name: Prepare artifacts
+      if: always()
+      timeout-minutes: 10
+      run: .github/workflows/scripts/qemu-7-prepare.sh
+
+    - uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        name: Logs-functional-${{ matrix.os }}
+        path: /tmp/qemu-${{ matrix.os }}.tar.bz2
+        archive: false
+        if-no-files-found: ignore

@@ -50,8 +50,8 @@ log_onexit redacted_cleanup $sendfs $recvfs
 if is_illumos; then
 	log_must mkholes -h 0:$M -h $((7 * M)):$M $clone_mnt/f1
 else
-	log_must dd if=/dev/zero of=$clone_mnt/f1 bs=1M count=1 conv=notrunc
-	log_must dd if=/dev/zero of=$clone_mnt/f1 bs=1M count=1 conv=notrunc seek=7
+	log_must dd if=/dev/zero of=$clone_mnt/f1 bs=1${DD_M} count=1 conv=notrunc
+	log_must dd if=/dev/zero of=$clone_mnt/f1 bs=1${DD_M} count=1 conv=notrunc seek=7
 fi
 log_must zfs snapshot $clone@snap1
 log_must zfs redact $sendfs@snap book1 $clone@snap1
@@ -76,7 +76,7 @@ log_must zfs destroy -R $recvfs
 if is_illumos; then
 	log_must mkholes -d $((3 * M)):$((2 * M)) $clone_mnt/f2
 else
-	log_must dd if=/dev/urandom of=$clone_mnt/f2 bs=1M count=2 seek=3 \
+	log_must dd if=/dev/urandom of=$clone_mnt/f2 bs=1${DD_M} count=2 seek=3 \
 	    conv=notrunc
 fi
 log_must zfs snapshot $clone@snap1

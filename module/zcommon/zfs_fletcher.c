@@ -976,6 +976,7 @@ fletcher_4_param(ZFS_MODULE_PARAM_ARGS)
 
 	char buf[16];
 
+	buf[0] = '\0';
 	err = sysctl_handle_string(oidp, buf, sizeof (buf), req);
 	if (err)
 		return (err);

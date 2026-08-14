@@ -17,7 +17,17 @@
 #ifndef _SOL_SYS_INTTYPES_H
 #define	_SOL_SYS_INTTYPES_H
 
+#ifdef __NetBSD__
+/*
+ * NetBSD <sys/param.h> includes <sys/inttypes.h>, which must provide
+ * intmax_t via <sys/stdint.h>.  Our wrapper must not shadow that with
+ * a recursive <inttypes.h> include.
+ */
+#include_next <sys/inttypes.h>
 #include <inttypes.h>
+#else
+#include <inttypes.h>
+#endif
 
 #define	_INT64_TYPE
 

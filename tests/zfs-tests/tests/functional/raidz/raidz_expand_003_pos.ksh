@@ -38,6 +38,7 @@ typeset -r dev_size_mb=256
 typeset -a disks
 
 embedded_slog_min_ms=$(get_tunable EMBEDDED_SLOG_MIN_MS)
+original_scrub_after_expand=$(get_tunable SCRUB_AFTER_EXPAND)
 
 function cleanup
 {
@@ -49,12 +50,17 @@ function cleanup
 	done
 
 	log_must set_tunable32 EMBEDDED_SLOG_MIN_MS $embedded_slog_min_ms
+	log_must set_tunable32 SCRUB_AFTER_EXPAND $original_scrub_after_expand
 	log_must set_tunable64 RAIDZ_EXPAND_MAX_REFLOW_BYTES 0
 }
 
 log_onexit cleanup
 
 log_must set_tunable32 EMBEDDED_SLOG_MIN_MS 99999
+# Expansion completion starts its own scrub.  zpool scrub -w always
+# starts another one and fails EBUSY if that one is still running
+# (same as FreeBSD).  004/005 already clear this tunable.
+log_must set_tunable32 SCRUB_AFTER_EXPAND 0
 
 # Disk files which will be used by pool
 for i in {0..$(($devs))}; do

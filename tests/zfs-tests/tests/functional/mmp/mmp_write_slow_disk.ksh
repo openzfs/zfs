@@ -75,7 +75,7 @@ log_must zinject -f 33 -e io -L pad2 -T write -d $MMP_DIR/file.3 $MMP_POOL
 log_must zinject -f 50 -e io -L uber -T write -d $MMP_DIR/file.3 $MMP_POOL
 log_must zinject -D 2000:4 -T write -d $MMP_DIR/file.3 $MMP_POOL
 
-log_must dd if=/dev/urandom of=/$MMP_POOL/data bs=1M count=5
+log_must dd if=/dev/urandom of=/$MMP_POOL/data bs=1${DD_M} count=5
 sleep 10
 sync_pool $MMP_POOL
 

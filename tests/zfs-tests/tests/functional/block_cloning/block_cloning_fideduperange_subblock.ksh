@@ -37,9 +37,9 @@ log_must zpool create -o feature@block_cloning=enabled -O recordsize=128k $TESTP
 # request shorter than the record size is rounded down to nothing by block
 # alignment; the ioctl must still compare the requested bytes and report the
 # ranges as differing rather than silently claiming they are the same.
-log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=128K count=1
-log_must dd if=/$TESTPOOL/file1 of=/$TESTPOOL/file2 bs=128K count=1
-log_must dd if=/dev/urandom of=/$TESTPOOL/file2 bs=4K count=1 conv=notrunc
+log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=128k count=1
+log_must dd if=/$TESTPOOL/file1 of=/$TESTPOOL/file2 bs=128k count=1
+log_must dd if=/dev/urandom of=/$TESTPOOL/file2 bs=4k count=1 conv=notrunc
 log_must sync_pool $TESTPOOL
 
 typeset digest=$(xxh128digest /$TESTPOOL/file2)

@@ -1,0 +1,13 @@
+License tags under module/os/netbsd follow the FreeBSD port:
+
+  CDDL-1.0	ZFS logic derived from OpenZFS/Illumos (vnodeops, vfsops,
+		abd, zvol, arc, ctldir, …) and Illumos SPL (list, callb,
+		acl_common, cmn_err, string, uio).
+
+  BSD-2-Clause	OS glue and files descended from FreeBSD SPL (kmem, kstat,
+		sysctl, ioctl_os, crypto_os, kmod_core, sunddi, file_os, …).
+
+  Sun RPC	In-module XDR (xdr.c, xdr_mem.c, xdr_array.c, rpc/xdr.h,
+		rpc/types.h) copied from NetBSD common/lib/libc/rpc and
+		include/rpc.  Keep that license; do not relicense from
+		Linux SPL (GPL-2.0-or-later).

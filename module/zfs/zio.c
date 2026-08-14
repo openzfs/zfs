@@ -1662,8 +1662,9 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 	    pio->io_prop.zp_direct_write == B_TRUE) {
 		/*
 		 * By default we only will verify checksums for Direct I/O
-		 * writes for Linux. FreeBSD is able to place user pages under
-		 * write protection before issuing them to the ZIO pipeline.
+		 * writes for Linux. FreeBSD and NetBSD place user pages
+		 * under write protection before issuing them to the ZIO
+		 * pipeline.
 		 *
 		 * Checksum validation errors will only be reported through
 		 * the top-level VDEV, which is set by this child ZIO.

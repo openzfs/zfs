@@ -262,11 +262,15 @@ refresh_config(void *unused, nvlist_t *tryconfig)
 	return (spa_tryimport(tryconfig));
 }
 
-#if defined(__FreeBSD__)
+#if defined(__FreeBSD__) || defined(__NetBSD__)
 
 #include <sys/param.h>
 #include <sys/sysctl.h>
+#if defined(__NetBSD__)
+#include <os/netbsd/zfs/sys/zfs_ioctl_compat.h>
+#else
 #include <os/freebsd/zfs/sys/zfs_ioctl_compat.h>
+#endif
 
 static int
 pool_active(void *unused, const char *name, uint64_t guid, boolean_t *isactive)

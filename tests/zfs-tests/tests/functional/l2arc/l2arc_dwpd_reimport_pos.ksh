@@ -85,11 +85,11 @@ log_must truncate -s ${cache_sz}M $VDEV_CACHE
 log_must zpool create -f $TESTPOOL $VDEV cache $VDEV_CACHE
 
 # Staged fills to allow L2ARC to drain between writes
-log_must dd if=/dev/urandom of=/$TESTPOOL/file1a bs=1M count=$((fill_mb/3))
+log_must dd if=/dev/urandom of=/$TESTPOOL/file1a bs=1${DD_M} count=$((fill_mb/3))
 log_must sleep 5
-log_must dd if=/dev/urandom of=/$TESTPOOL/file1b bs=1M count=$((fill_mb/3))
+log_must dd if=/dev/urandom of=/$TESTPOOL/file1b bs=1${DD_M} count=$((fill_mb/3))
 log_must sleep 5
-log_must dd if=/dev/urandom of=/$TESTPOOL/file1c bs=1M count=$((fill_mb/3))
+log_must dd if=/dev/urandom of=/$TESTPOOL/file1c bs=1${DD_M} count=$((fill_mb/3))
 log_must sleep 5
 
 # Verify L2ARC is populated before export
@@ -102,7 +102,7 @@ fi
 # Measure DWPD-limited writes before export
 baseline1=$(kstat arcstats.l2_write_bytes)
 log_note "Baseline before export: ${baseline1}"
-dd if=/dev/urandom of=/$TESTPOOL/file2 bs=1M count=2000 >/dev/null 2>&1 &
+dd if=/dev/urandom of=/$TESTPOOL/file2 bs=1${DD_M} count=2000 >/dev/null 2>&1 &
 dd_pid=$!
 log_must sleep $test_time
 kill $dd_pid 2>/dev/null
@@ -133,11 +133,11 @@ if [[ $l2_size_after -eq 0 ]]; then
 fi
 
 # Staged fills again after import
-log_must dd if=/dev/urandom of=/$TESTPOOL/file3a bs=1M count=$((fill_mb/3))
+log_must dd if=/dev/urandom of=/$TESTPOOL/file3a bs=1${DD_M} count=$((fill_mb/3))
 log_must sleep 5
-log_must dd if=/dev/urandom of=/$TESTPOOL/file3b bs=1M count=$((fill_mb/3))
+log_must dd if=/dev/urandom of=/$TESTPOOL/file3b bs=1${DD_M} count=$((fill_mb/3))
 log_must sleep 5
-log_must dd if=/dev/urandom of=/$TESTPOOL/file3c bs=1M count=$((fill_mb/3))
+log_must dd if=/dev/urandom of=/$TESTPOOL/file3c bs=1${DD_M} count=$((fill_mb/3))
 log_must sleep 5
 
 # Verify L2ARC is still populated after refill
@@ -147,7 +147,7 @@ log_note "L2ARC size after refill: $((l2_size / 1024 / 1024))MB"
 # Measure DWPD-limited writes after import
 baseline2=$(kstat arcstats.l2_write_bytes)
 log_note "Baseline after import: ${baseline2}"
-dd if=/dev/urandom of=/$TESTPOOL/file4 bs=1M count=2000 >/dev/null 2>&1 &
+dd if=/dev/urandom of=/$TESTPOOL/file4 bs=1${DD_M} count=2000 >/dev/null 2>&1 &
 dd_pid=$!
 log_must sleep $test_time
 kill $dd_pid 2>/dev/null

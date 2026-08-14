@@ -17,7 +17,13 @@
 #ifndef _SYS_DKIO_H
 #define	_SYS_DKIO_H
 
-
+#ifdef __NetBSD__
+/*
+ * NetBSD <sys/ioctl.h> includes <sys/dkio.h>.  Use the native header;
+ * the illumos DKIO definitions below are not applicable.
+ */
+#include_next <sys/dkio.h>
+#else
 
 #include <sys/dklabel.h>	/* Needed for NDKMAP define */
 
@@ -470,5 +476,7 @@ typedef struct dk_updatefw_32 {
 #ifdef	__cplusplus
 }
 #endif
+
+#endif /* !__NetBSD__ */
 
 #endif /* _SYS_DKIO_H */

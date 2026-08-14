@@ -31,7 +31,13 @@ TIMEOUT_DEBUG=""
 LOOPBACK="yes"
 STACK_TRACER="no"
 FILESIZE="4G"
-DEFAULT_RUNFILES="common.run,$(uname | tr '[:upper:]' '[:lower:]').run"
+UNAME=$(uname)
+if [ "$UNAME" = "NetBSD" ]; then
+	# NetBSD runfile is self-contained; do not also load common.run.
+	DEFAULT_RUNFILES="netbsd.run"
+else
+	DEFAULT_RUNFILES="common.run,$(echo "$UNAME" | tr '[:upper:]' '[:lower:]').run"
+fi
 RUNFILES=${RUNFILES:-$DEFAULT_RUNFILES}
 FILEDIR=${FILEDIR:-/var/tmp}
 DISKS=${DISKS:-""}
@@ -41,7 +47,6 @@ TAGS=""
 ITERATIONS=1
 ZFS_DBGMSG="$STF_SUITE/callbacks/zfs_dbgmsg.ksh"
 ZFS_DMESG="$STF_SUITE/callbacks/zfs_dmesg.ksh"
-UNAME=$(uname)
 RERUN=""
 KMEMLEAK=""
 
@@ -50,6 +55,12 @@ if [ "$UNAME" = "FreeBSD" ] ; then
 	TESTFAIL_CALLBACKS=${TESTFAIL_CALLBACKS:-"$ZFS_DMESG"}
 	LOSETUP=/sbin/mdconfig
 	DMSETUP=/sbin/gpart
+elif [ "$UNAME" = "NetBSD" ] ; then
+	# File vdevs; NetBSD has no losetup.  vnd(4) is optional later.
+	TESTFAIL_CALLBACKS=${TESTFAIL_CALLBACKS:-"$ZFS_DMESG"}
+	LOOPBACK="no"
+	LOSETUP=/sbin/vndconfig
+	DMSETUP=/usr/bin/true
 else
 	ZFS_MMP="$STF_SUITE/callbacks/zfs_mmp.ksh"
 	TESTFAIL_CALLBACKS=${TESTFAIL_CALLBACKS:-"$ZFS_DBGMSG:$ZFS_DMESG:$ZFS_MMP"}
@@ -116,6 +127,8 @@ cleanup() {
 	if [ "$LOOPBACK" = "yes" ]; then
 		if [ "$UNAME" = "FreeBSD" ] ; then
 			cleanup_freebsd_loopback
+		elif [ "$UNAME" = "NetBSD" ] ; then
+			:
 		else
 			cleanup_linux_loopback
 		fi
@@ -140,6 +153,8 @@ cleanup_all() {
 	TEST_POOLS=$(ASAN_OPTIONS=detect_leaks=false "$ZPOOL" list -Ho name | grep testpool)
 	if [ "$UNAME" = "FreeBSD" ] ; then
 		TEST_LOOPBACKS=$(sudo "${LOSETUP}" -l)
+	elif [ "$UNAME" = "NetBSD" ] ; then
+		TEST_LOOPBACKS=""
 	else
 		TEST_LOOPBACKS=$("${LOSETUP}" -a | awk -F: '/file-vdev/ {print $1}')
 	fi
@@ -153,7 +168,7 @@ cleanup_all() {
 		sudo env ASAN_OPTIONS=detect_leaks=false "$ZPOOL" destroy "${TEST_POOL}"
 	done
 
-	if [ "$UNAME" != "FreeBSD" ] ; then
+	if [ "$UNAME" != "FreeBSD" ] && [ "$UNAME" != "NetBSD" ] ; then
 		msg "Removing all dm(s):   $(sudo "${DMSETUP}" ls |
 		    grep loop | tr '\n' ' ')"
 		sudo "${DMSETUP}" remove_all
@@ -164,6 +179,8 @@ cleanup_all() {
 	for TEST_LOOPBACK in $TEST_LOOPBACKS; do
 		if [ "$UNAME" = "FreeBSD" ] ; then
 			sudo "${LOSETUP}" -d -u "${TEST_LOOPBACK}"
+		elif [ "$UNAME" = "NetBSD" ] ; then
+			:
 		else
 			sudo "${LOSETUP}" -d "${TEST_LOOPBACK}"
 		fi
@@ -288,6 +305,11 @@ constrain_path() {
 	if [ "$UNAME" = "FreeBSD" ] ; then
 		SYSTEM_FILES="$SYSTEM_FILES $SYSTEM_FILES_FREEBSD"
 		ZFSTEST_FILES="$ZFSTEST_FILES $ZFSTEST_FILES_FREEBSD"
+	elif [ "$UNAME" = "NetBSD" ] ; then
+		SYSTEM_FILES="$SYSTEM_FILES $SYSTEM_FILES_NETBSD"
+		ZFSTEST_FILES="$ZFSTEST_FILES $ZFSTEST_FILES_NETBSD"
+		# pkgsrc OpenZFS must beat stock /sbin/zfs
+		SYSTEM_DIRS="/usr/pkg/bin /usr/pkg/sbin $SYSTEM_DIRS"
 	else
 		SYSTEM_FILES="$SYSTEM_FILES $SYSTEM_FILES_LINUX"
 		ZFSTEST_FILES="$ZFSTEST_FILES $ZFSTEST_FILES_LINUX"
@@ -335,6 +357,121 @@ constrain_path() {
 		ln -fs "$STF_PATH/gunzip" "$STF_PATH/uncompress"
 	elif [ "$UNAME" = "FreeBSD" ] ; then
 		ln -fs /usr/local/bin/ksh93 "$STF_PATH/ksh"
+	elif [ "$UNAME" = "NetBSD" ] ; then
+		if [ -x /usr/pkg/bin/ksh93 ]; then
+			ln -fs /usr/pkg/bin/ksh93 "$STF_PATH/ksh"
+		elif [ -x /usr/local/bin/ksh93 ]; then
+			ln -fs /usr/local/bin/ksh93 "$STF_PATH/ksh"
+		else
+			fail "ksh93 is required on NetBSD (pkgsrc shells/ksh93). /bin/ksh is pdksh and cannot run ZTS."
+		fi
+		# GNU timeout is pkgsrc gtimeout; ZTS scripts call timeout(1).
+		if [ -x /usr/pkg/bin/gtimeout ]; then
+			ln -fs /usr/pkg/bin/gtimeout "$STF_PATH/timeout"
+		elif [ -x /usr/pkg/bin/timeout ]; then
+			ln -fs /usr/pkg/bin/timeout "$STF_PATH/timeout"
+		fi
+		# Stock NetBSD /usr/sbin/{zfs,zpool,zdb} cannot spa_open
+		# an OpenZFS-kmod pool.  Drop those links so a missing
+		# port binary is an honest fail, not EINVAL from stock zdb.
+		for n in zdb zfs zpool zhack ztest zstream zinject \
+		    zfs_ids_to_path zstreamdump; do
+			tgt=$(readlink "$STF_PATH/$n" 2>/dev/null) || continue
+			case $tgt in
+			/sbin/*|/usr/sbin/*)
+				rm -f "$STF_PATH/$n"
+				;;
+			esac
+		done
+		# NetBSD dd(1) only accepts lowercase size suffixes
+		# (1m/1k/1g).  Tests were converted; do not install a
+		# wrapper over STF_PATH/dd -- cp(1) follows a symlink
+		# to /bin/dd and replaces the system binary.
+		# CURRENT dd (iflags=fullblock) is /usr/pkg/bin/dd.
+		if [ -x /usr/pkg/bin/dd ]; then
+			ln -fs /usr/pkg/bin/dd "$STF_PATH/dd"
+		fi
+		# mount(8) execs /sbin/mount_XXX, not PATH.
+		# zgenhostid is built for NetBSD too; link it into
+		# STF_PATH so create_links' missing-bin list is honest.
+		for _n in mount_zfs zgenhostid; do
+			for _p in /usr/pkg/sbin /usr/pkg/bin \
+			    /usr/local/sbin /usr/local/bin; do
+				if [ -x "$_p/$_n" ]; then
+					[ "$_n" = mount_zfs ] && \
+					    ln -fs "$_p/$_n" /sbin/mount_zfs
+					ln -fs "$_p/$_n" "$STF_PATH/$_n"
+					break
+				fi
+			done
+		done
+		# Illumos lockfs -f flushes a FS.  NetBSD has no
+		# lockfs(8); mount -u syncs that mount, then sync(8).
+		cat > "$STF_PATH/lockfs" <<'LOCKFS'
+#!/bin/sh
+mnt=
+while [ $# -gt 0 ]; do
+	case $1 in
+	-f) shift ;;
+	*) mnt=$1; shift ;;
+	esac
+done
+if [ -n "$mnt" ] && [ -d "$mnt" ]; then
+	mount -u "$mnt" >/dev/null 2>&1 || true
+fi
+sync
+exit 0
+LOCKFS
+		chmod 755 "$STF_PATH/lockfs"
+		# lofiadm(1M) -> vndconfig(8)
+		cat > "$STF_PATH/lofiadm" <<'LOFI'
+#!/bin/sh
+set -e
+op=$1
+shift
+case $op in
+-a)
+	file=$1
+	u=0
+	while [ $u -le 7 ]; do
+		if vnconfig -l "vnd$u" 2>/dev/null | grep -q "not in use"; then
+			vnconfig "vnd$u" "$file"
+			if [ -c /dev/rvnd${u}d ]; then
+				echo /dev/rvnd${u}d
+			elif [ -c /dev/rvnd$u ]; then
+				echo /dev/rvnd$u
+			else
+				echo /dev/vnd$u
+			fi
+			exit 0
+		fi
+		u=$((u + 1))
+	done
+	exit 1
+	;;
+-d)
+	dev=${1##*/}
+	dev=${dev#r}
+	dev=${dev%%[a-p]}
+	vnconfig -u "$dev"
+	;;
+*)
+	exit 1
+	;;
+esac
+LOFI
+		chmod 755 "$STF_PATH/lofiadm"
+		# Extra helpers above are linked after create_links
+		# already recorded missing names.  Drop any that now
+		# exist so "Missing util(s)" is honest.
+		if [ -n "$STF_MISSING_BIN" ]; then
+			_keep=
+			for i in $STF_MISSING_BIN; do
+				[ -e "$STF_PATH/$i" ] && continue
+				_keep="$_keep $i"
+			done
+			STF_MISSING_BIN=${_keep# }
+		fi
 	fi
 }
 
@@ -506,7 +643,11 @@ post_user = root
 post =
 EOF
 	if [ "$SINGLETEST" = "${SINGLETEST%/*}" ] ; then
-		NEWSINGLETEST=$(find "$STF_SUITE" -name "$SINGLETEST*" -print -quit)
+		if [ "$UNAME" = "NetBSD" ] ; then
+			NEWSINGLETEST=$(find "$STF_SUITE" -name "$SINGLETEST*" -print | head -1)
+		else
+			NEWSINGLETEST=$(find "$STF_SUITE" -name "$SINGLETEST*" -print -quit)
+		fi
 		if [ -z "$NEWSINGLETEST" ] ; then
 			fail "couldn't find test matching '$SINGLETEST'"
 		fi
@@ -597,6 +738,23 @@ constrain_path
 #
 if [ "$UNAME" = "FreeBSD" ]; then
 	sudo ln -fs /usr/local/bin/ksh93 /bin/ksh
+elif [ "$UNAME" = "NetBSD" ]; then
+	ksh93=
+	for c in /usr/pkg/bin/ksh93 /usr/local/bin/ksh93; do
+		if [ -x "$c" ]; then
+			ksh93=$c
+			break
+		fi
+	done
+	if [ -z "$ksh93" ]; then
+		fail "ksh93 is required on NetBSD; refusing to use pdksh /bin/ksh"
+	fi
+	# Confine the ksh93 link to STF_PATH.  Do not replace the
+	# developer's /bin/ksh (pdksh).  QEMU images still get the
+	# /bin/ksh link from qemu-3-deps-vm.sh.
+	ln -sfn "$ksh93" "$STF_PATH/ksh"
+	ln -sfn "$ksh93" "$STF_PATH/ksh93"
+	export STF_KSH93="$ksh93"
 fi
 [ -e "$STF_PATH/ksh" ] || fail "This test suite requires ksh."
 [ -e "$STF_SUITE/include/default.cfg" ] || fail \
@@ -694,6 +852,43 @@ if [ -z "${DISKS}" ]; then
 fi
 
 #
+# NetBSD kernel labels store the character node (/dev/rldN).  Tests and
+# DISKS still often say ldN.  Collapse to the raw leaf so zpool create,
+# zpool status, check_state and vdevs_in_pool agree.  File vdevs stay
+# as given.
+#
+if [ "$UNAME" = "NetBSD" ]; then
+	_ndisks=""
+	for _d in $DISKS; do
+		_b=${_d##*/}
+		if [ -f "$_d" ] && [ ! -b "$_d" ] && [ ! -c "$_d" ]; then
+			_ndisks="$_ndisks $_d"
+			continue
+		fi
+		# Strip a raw 'r' only on known disk classes (not raid0→aid0).
+		case $_b in
+		rld[0-9]*|rwd[0-9]*|rsd[0-9]*|rdk[0-9]*|rvnd[0-9]*|\
+		rraid[0-9]*|rccd[0-9]*|rcgd[0-9]*|rxbd[0-9]*|rmd[0-9]*)
+			_b=${_b#r}
+			;;
+		esac
+		case $_b in
+		ld[0-9]*|wd[0-9]*|sd[0-9]*|dk[0-9]*|vnd[0-9]*|ccd[0-9]*|\
+		cgd[0-9]*|xbd[0-9]*|md[0-9]*|raid[0-9]*)
+			if [ -c "/dev/r${_b}" ]; then
+				_d="r${_b}"
+			elif [ -b "/dev/${_b}" ]; then
+				_d="$_b"
+			fi
+			;;
+		esac
+		_ndisks="$_ndisks $_d"
+	done
+	DISKS=${_ndisks# }
+	unset _ndisks _d _b
+fi
+
+#
 # It may be desirable to test with fewer disks than the default when running
 # the performance tests, but the functional tests require at least three.
 #
@@ -753,13 +948,80 @@ export __ZFS_POOL_EXCLUDE
 export TESTFAIL_CALLBACKS
 
 mktemp_file() {
-	if [ "$UNAME" = "FreeBSD" ]; then
+	if [ "$UNAME" = "FreeBSD" ] || [ "$UNAME" = "NetBSD" ]; then
 		mktemp -u "${FILEDIR}/$1.XXXXXX"
 	else
 		mktemp -ut "$1.XXXXXX" -p "$FILEDIR"
 	fi
 }
 mkdir -p "$FILEDIR" || :
+
+#
+# NetBSD: ZFS mountpoints must not sit on the same FFS as file vdevs
+# or mount(2) deadlocks.  default.cfg uses /mnt/zts.  A vnd-backed
+# FFS image under FILEDIR keeps mountpoints off both the live-image
+# root and the file-vdev filesystem.
+#
+netbsd_prepare_mntroot() {
+	local root img need vnd sz u
+	[ "$UNAME" = "NetBSD" ] || return 0
+	root=/mnt/zts
+	img="${FILEDIR:-/var/tmp}/zts-mntroot.img"
+	need=$((8 * 1024 * 1024 * 1024))
+	vnd= sz=0
+	mkdir -p "$root" "$(dirname "$img")"
+	if mount | grep -q " on ${root} "; then
+		return 0
+	fi
+	for u in 3 2 1 0; do
+		if /usr/sbin/vnconfig -l "vnd$u" 2>/dev/null | \
+		    grep -q "not in use"; then
+			vnd="vnd$u"
+			break
+		fi
+	done
+	[ -n "$vnd" ] || return 1
+	[ -f "$img" ] && sz=$(stat -f %z "$img" 2>/dev/null || echo 0)
+	if [ ! -f "$img" ] || [ "$sz" -lt "$need" ]; then
+		dd if=/dev/zero of="$img" bs=1 count=1 seek=$((need - 1)) \
+		    2>/dev/null || return 1
+		/usr/sbin/vnconfig "$vnd" "$img" || return 1
+		/sbin/newfs "/dev/r$vnd" >/dev/null 2>&1 || \
+		    /sbin/newfs "/dev/r${vnd}c" >/dev/null 2>&1 || {
+			/usr/sbin/vnconfig -u "$vnd" 2>/dev/null || true
+			return 1
+		}
+	else
+		/usr/sbin/vnconfig "$vnd" "$img" || return 1
+	fi
+	if /sbin/mount "/dev/$vnd" "$root" 2>/dev/null || \
+	    /sbin/mount "/dev/${vnd}c" "$root" 2>/dev/null; then
+		mkdir -p "$root/testdir" "$root/testdir0" \
+		    "$root/testdir1" "$root/testdir2"
+		return 0
+	fi
+	/sbin/newfs "/dev/r$vnd" >/dev/null 2>&1 || \
+	    /sbin/newfs "/dev/r${vnd}c" >/dev/null 2>&1 || {
+		/usr/sbin/vnconfig -u "$vnd" 2>/dev/null || true
+		return 1
+	}
+	if /sbin/mount "/dev/$vnd" "$root" 2>/dev/null || \
+	    /sbin/mount "/dev/${vnd}c" "$root" 2>/dev/null; then
+		mkdir -p "$root/testdir" "$root/testdir0" \
+		    "$root/testdir1" "$root/testdir2"
+		return 0
+	fi
+	/usr/sbin/vnconfig -u "$vnd" 2>/dev/null || true
+	return 1
+}
+if [ "$UNAME" = "NetBSD" ]; then
+	netbsd_prepare_mntroot || \
+	    echo "WARNING: /mnt/zts still on root; grow the live image" \
+	    "or file-vdev tests may ENOSPC" >&2
+	mkdir -p /mnt/zts/testdir /mnt/zts/testdir0 \
+	    /mnt/zts/testdir1 /mnt/zts/testdir2
+fi
+
 RESULTS_FILE=$(mktemp_file zts-results)
 REPORT_FILE=$(mktemp_file zts-report)
 

@@ -8634,10 +8634,16 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	 */
 	if (strcmp(oldvdpath, newvdpath) == 0) {
 		spa_strfree(oldvd->vdev_path);
-		oldvd->vdev_path = kmem_alloc(strlen(newvdpath) + 5,
-		    KM_SLEEP);
-		(void) sprintf(oldvd->vdev_path, "%s/old",
-		    newvdpath);
+		/*
+		 * kmem_asprintf, not kmem_alloc(strlen + 5) + sprintf.
+		 * NetBSD vsnprintf's end pointer is buf+len. Kernel VA
+		 * is in the top half, and spl sprintf passed
+		 * (size_t)-1/2, so the sum wrapped and "/old" was never
+		 * stored. spa_strfree then saw strlen+1 of the old path
+		 * (17 != 21 in vdev_free). kmem_asprintf sizes to
+		 * strlen+1 and writes through a counted vsnprintf.
+		 */
+		oldvd->vdev_path = kmem_asprintf("%s/old", newvdpath);
 		if (oldvd->vdev_devid != NULL) {
 			spa_strfree(oldvd->vdev_devid);
 			oldvd->vdev_devid = NULL;

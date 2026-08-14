@@ -115,8 +115,9 @@ function histo_populate_test_pool
 			dd if=/dev/urandom \
 			    of=/${pool}/B_${this_rs}/file_${filenum} \
 			    bs=${this_rs} count=${thiscount} \
-			    iflag=fullblock 2>&1 | \
-			    grep -ve "records in" -e "records out" -e "bytes.*copied"
+			    ${DD_FULLBLOCK} 2>&1 | \
+			    grep -ve "records in" -e "records out" \
+			    -e "bytes.*copied"
 			((filenum+=1))
 		done
 	done

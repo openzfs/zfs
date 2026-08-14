@@ -360,6 +360,72 @@ elif sys.platform.startswith('linux'):
 				kstat[objset][name] = value \
 				    if (name == "dataset_name") else int(value)
 
+elif sys.platform.startswith('netbsd'):
+	from collections import namedtuple
+	_Ctl = namedtuple("_Ctl", "name value")
+
+	def _sysctl_filter(oid):
+		try:
+			out = subprocess.check_output(
+			    ["sysctl", "-e", oid], text=True,
+			    stderr=subprocess.DEVNULL)
+		except (subprocess.CalledProcessError, FileNotFoundError):
+			return []
+		ctls = []
+		for line in out.splitlines():
+			if "=" not in line:
+				continue
+			name, value = line.split("=", 1)
+			ctls.append(_Ctl(name.strip(), value.strip()))
+		return ctls
+
+	def kstat_update(pool=None, objid=None):
+		global kstat
+		kstat = {}
+		if not pool:
+			file = "kstat.zfs.misc.zil"
+			k = _sysctl_filter(file)
+			kstat_process_str(k, file, "GLOBAL", len(file + "."))
+		elif objid:
+			file = "kstat.zfs." + pool + ".dataset.objset-" + objid
+			k = _sysctl_filter(file)
+			kstat_process_str(k, file, objid, len(file + "."))
+		else:
+			file = "kstat.zfs." + pool + ".dataset"
+			obj_start = len("kstat.zfs." + pool + ".")
+			k = _sysctl_filter(file)
+			for s in k:
+				if not s or (s.name.find("zil") == -1 and
+				    s.name.find("dataset_name") == -1):
+					continue
+				name, value = s.name, s.value
+				found = re.findall(r'0x[0-9A-F]+',
+				    name[obj_start:], re.I)
+				if not found:
+					continue
+				objid = found[0]
+				if objid not in kstat:
+					kstat[objid] = dict()
+				zil_start = len(file + ".objset-" +
+				    objid + ".")
+				kstat[objid][name[zil_start:]] = value \
+				    if ("dataset_name" in name) \
+				    else int(value)
+
+	def kstat_process_str(k, file, objset="GLOBAL", zil_start=0):
+			global kstat
+			if not k:
+				print("Unable to process kstat for: " + file)
+				sys.exit(1)
+			kstat[objset] = dict()
+			for s in k:
+				if not s or (s.name.find("zil") == -1 and
+				    s.name.find("dataset_name") == -1):
+					continue
+				name, value = s.name, s.value
+				kstat[objset][name[zil_start:]] = value \
+				    if ("dataset_name" in name) else int(value)
+
 def zil_process_kstat():
 	global curr, pool_name, dataset_name, dsFlag, ds_pairs
 	curr.clear()

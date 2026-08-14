@@ -18,14 +18,26 @@ typedef enum {
 	B_TRUE = 1
 } boolean_t;
 
+#ifndef	_UCHAR_T
 typedef unsigned char		uchar_t;
+#define	_UCHAR_T
+#endif
 typedef unsigned short		ushort_t;
 typedef unsigned int		uint_t;
 typedef unsigned long		ulong_t;
+#ifndef	_LONGLONG_T_DECLARED
+#define	_LONGLONG_T_DECLARED
 typedef unsigned long long	u_longlong_t;
 typedef long long		longlong_t;
+#endif
+#if !defined(__NetBSD__)
+typedef short			pri_t;
+#endif
 
+#ifndef	_OFFSET_T
 typedef longlong_t		offset_t;
+#define	_OFFSET_T
+#endif
 typedef u_longlong_t		u_offset_t;
 typedef u_longlong_t		len_t;
 typedef longlong_t		diskaddr_t;
@@ -33,7 +45,6 @@ typedef longlong_t		diskaddr_t;
 typedef ulong_t			pgcnt_t;	/* number of pages */
 typedef long			spgcnt_t;	/* signed number of pages */
 
-typedef short			pri_t;
 typedef ushort_t		o_mode_t;	/* old file attribute type */
 
 typedef int			major_t;

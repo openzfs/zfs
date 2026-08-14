@@ -114,6 +114,16 @@ if sys.platform.startswith("freebsd"):
         sys.stdin = io.StringIO(dbufs)
         return "-"
 
+elif sys.platform.startswith("netbsd"):
+    import io
+    import subprocess
+
+    def default_ifile():
+        dbufs = subprocess.check_output(
+            ["sysctl", "-n", "kstat.zfs.misc.dbufs"], text=True)
+        sys.stdin = io.StringIO(dbufs)
+        return "-"
+
 elif sys.platform.startswith("linux"):
     def default_ifile():
         return "/proc/spl/kstat/zfs/dbufs"
@@ -465,6 +475,8 @@ def dnodes_build_dict(filehandle):
 
     # The rest of the file is buffer information
     for line in filehandle:
+        if not line.strip():
+            continue
         update_dict(dnodes, 'object', line.split(), labels)
 
     return dnodes
@@ -484,6 +496,8 @@ def types_build_dict(filehandle):
 
     # The rest of the file is buffer information
     for line in filehandle:
+        if not line.strip():
+            continue
         update_dict(types, 'dtype', line.split(), labels)
 
     return types
@@ -505,6 +519,8 @@ def buffers_print_all(filehandle, filters, noheader):
 
     # The rest of the file is buffer information
     for line in filehandle:
+        if not line.strip():
+            continue
         vals = parse_line(line.split(), labels)
         if not skip_line(vals, filters):
             print_values(vals)

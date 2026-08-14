@@ -75,6 +75,12 @@ elif is_freebsd; then
 	"ro"		"rw"	\
 	"nosuid"	"suid"	\
 	"atime"		"noatime"
+elif is_netbsd; then
+	set -A args \
+	"noexec"	"exec"	\
+	"ro"		"rw"	\
+	"nosuid"	"suid"	\
+	"atime"		"noatime"
 else
 	set -A args \
 	"devices"	"/devices/"	"nodevices"	"/nodevices/"	\
@@ -95,7 +101,7 @@ log_must zfs set mountpoint=legacy $testfs
 
 typeset i=0
 while ((i < ${#args[@]})); do
-	if is_linux || is_freebsd; then
+	if is_linux || is_freebsd || is_netbsd; then
 		log_must mount -t zfs -o ${args[$i]} $testfs $tmpmnt
 		
 		msg=$(mount | grep "$tmpmnt ")

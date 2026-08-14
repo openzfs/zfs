@@ -95,6 +95,106 @@ function debian() {
   echo "##[endgroup]"
 }
 
+# pkgsrc has no checkbashisms.  OpenZFS `make checkbashisms` needs the
+# Debian Perl script on PATH.
+function fetch_checkbashisms() {
+  local dest="${1:-/usr/pkg/bin/checkbashisms}"
+  local url="https://salsa.debian.org/debian/devscripts/-/raw/main/scripts/checkbashisms.pl"
+  mkdir -p "$(dirname "$dest")"
+  if command -v ftp >/dev/null 2>&1; then
+    ftp -V -o "$dest" "$url" || return 1
+  elif command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$dest" "$url" || return 1
+  else
+    return 1
+  fi
+  chmod 755 "$dest"
+  # Debian shebang is #!/usr/bin/perl.  NetBSD perl is pkgsrc.
+  if [ -x /usr/pkg/bin/perl ]; then
+    ln -sfn /usr/pkg/bin/perl /usr/bin/perl || true
+    if [ ! -f "${dest}.pl" ]; then
+      cp "$dest" "${dest}.pl"
+    fi
+    printf '%s\n' '#!/bin/sh' \
+      'exec /usr/pkg/bin/perl '"${dest}.pl"' "$@"' > "$dest"
+    chmod 755 "$dest"
+  fi
+}
+
+function netbsd() {
+  echo "##[group]Install Development Tools"
+  export PKG_PATH="${PKG_PATH:-https://cdn.NetBSD.org/pub/pkgsrc/packages/NetBSD/amd64/11.0/All}"
+  sudo pkg_add pkgin || true
+  sudo pkgin -y update || true
+  sudo pkgin -y install \
+    autoconf automake bash cppcheck fio gdb gettext git gmake gsed \
+    jq ksh93 coreutils libtool mozilla-rootcerts openssl pkgconf python312 \
+    py312-flake8 py312-codestyle rsync \
+    sudo xxhash qemu-guest-agent || \
+  sudo pkg_add \
+    autoconf automake bash cppcheck fio git gmake gsed jq ksh93 coreutils libtool \
+    mozilla-rootcerts openssl pkgconf python312 py312-flake8 py312-codestyle rsync sudo xxhash qemu-guest-agent
+  sudo pkg_add pamtester || true
+  sudo mozilla-rootcerts install || true
+  # pkgsrc fio is -march=znver3/AVX; kvm64 SIGILLs.  Rebuild baseline.
+  if [ -x "$(dirname "$0")/netbsd-portable-fio.sh" ]; then
+    sudo PREFIX=/usr/pkg sh "$(dirname "$0")/netbsd-portable-fio.sh" || \
+      echo "WARNING: portable fio build failed" >&2
+  fi
+  # Static analyzers used by checkstyle / `make checkbashisms`.
+  # pkgsrc ships flake8-3.12 / pycodestyle-3.12; checkbashisms is not
+  # a pkgsrc package (use the Debian script).  py-pycodestyle is
+  # pyNNN-codestyle.
+  ln -sf /usr/pkg/bin/flake8-3.12 /usr/pkg/bin/flake8 || true
+  ln -sf /usr/pkg/bin/pycodestyle-3.12 /usr/pkg/bin/pycodestyle || true
+  if [ ! -x /usr/pkg/bin/checkbashisms ]; then
+    fetch_checkbashisms || {
+      echo "ERROR: checkbashisms is required for make checkbashisms" >&2
+      exit 1
+    }
+  fi
+  # ksh93, never pdksh (/bin/ksh).  Tests use #!/bin/ksh -p.
+  if [ -x /usr/pkg/bin/ksh93 ]; then
+    sudo ln -sfn /usr/pkg/bin/ksh93 /usr/pkg/bin/ksh
+    sudo ln -sfn /usr/pkg/bin/ksh93 /bin/ksh
+  fi
+  # GNU timeout ships as gtimeout on NetBSD; tests call timeout(1).
+  if [ -x /usr/pkg/bin/gtimeout ]; then
+    sudo ln -sfn /usr/pkg/bin/gtimeout /usr/pkg/bin/timeout
+  fi
+  # GNU coreutils ships gtruncate; tests call truncate(1).
+  if [ -x /usr/pkg/bin/gtruncate ]; then
+    sudo ln -sfn /usr/pkg/bin/gtruncate /usr/pkg/bin/truncate
+  fi
+  # Kernel + compiler sets for Makefile.netbsd
+  if [ ! -d /usr/src/sys ]; then
+    echo "##[group]Fetch syssrc + comp"
+    ftp -V -o /tmp/syssrc.tgz \
+      https://cdn.NetBSD.org/pub/NetBSD/NetBSD-11.0/source/sets/syssrc.tgz
+    ftp -V -o /tmp/comp.tgz \
+      https://cdn.NetBSD.org/pub/NetBSD/NetBSD-11.0/amd64/binary/sets/comp.tgz
+    sudo tar -C / -xzf /tmp/syssrc.tgz
+    sudo tar -C / -xzf /tmp/comp.tgz
+    rm -f /tmp/syssrc.tgz /tmp/comp.tgz
+    echo "##[endgroup]"
+  fi
+  ln -sf /usr/pkg/bin/python3.12 /usr/pkg/bin/python3 || true
+  ln -sf /usr/pkg/bin/python3.12 /usr/pkg/bin/python || true
+  echo "##[endgroup]"
+  # zfs_load-key_https runs `openssl req`.  Do not leave an empty cnf.
+  sudo mkdir -p /etc/openssl /usr/pkg/etc/openssl
+  if [ -s /usr/pkg/etc/openssl/openssl.cnf ]; then
+    sudo cp -n /usr/pkg/etc/openssl/openssl.cnf /etc/openssl/openssl.cnf 2>/dev/null || true
+  elif [ -s /usr/share/examples/openssl/openssl.cnf ]; then
+    sudo cp /usr/share/examples/openssl/openssl.cnf /etc/openssl/openssl.cnf
+    sudo cp /usr/share/examples/openssl/openssl.cnf /usr/pkg/etc/openssl/openssl.cnf 2>/dev/null || true
+  fi
+  if [ -x "$(dirname "$0")/netbsd-current-dd.sh" ]; then
+    sudo PREFIX=/usr/pkg sh "$(dirname "$0")/netbsd-current-dd.sh" || \
+      echo "WARNING: CURRENT dd (iflags=fullblock) not built"
+  fi
+}
+
 function freebsd() {
   export ASSUME_ALWAYS_YES="YES"
 
@@ -226,6 +326,9 @@ case "$1" in
   freebsd*)
     freebsd
     ;;
+  netbsd*)
+    netbsd
+    ;;
   tumbleweed)
     tumbleweed
     ;;
@@ -299,6 +402,12 @@ case "$1" in
     sudo -E service nfsd enable
     sudo -E service qemu-guest-agent enable
     sudo -E service samba_server enable
+    ;;
+  netbsd*)
+    grep -q '^sshd=YES' /etc/rc.conf || echo 'sshd=YES' | sudo -E tee -a /etc/rc.conf
+    grep -q '^dhcpcd=YES' /etc/rc.conf || echo 'dhcpcd=YES' | sudo -E tee -a /etc/rc.conf
+    sudo -E mkdir -p /etc/zfs
+    sudo -E touch /etc/zfs/zpool.cache
     ;;
   debian*|ubuntu*)
     sudo -E systemctl enable nfs-kernel-server

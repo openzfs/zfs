@@ -35,7 +35,7 @@ verify_runnable "global"
 #    values.
 #
 
-bs=128K
+bs=128k
 count=100
 
 function writefile

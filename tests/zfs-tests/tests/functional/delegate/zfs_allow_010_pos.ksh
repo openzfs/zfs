@@ -39,12 +39,12 @@ log_assert "Verify privileged user has correct permissions once which was "\
 	"delegated to him in datasets"
 log_onexit restore_root_datasets
 
-if is_linux; then
+if is_linux || is_netbsd; then
 #
 #				Results in	Results in
 #		Permission	Filesystem	Volume
 #
-# Removed for Linux:
+# Removed for Linux and NetBSD:
 # - mount	- mount(8) does not permit non-superuser mounts
 # - mountpoint	- mount(8) does not permit non-superuser mounts
 # - canmount	- mount(8) does not permit non-superuser mounts
@@ -54,7 +54,8 @@ if is_linux; then
 # - sharenfs	- sharing requires superuser privileges
 # - share	- sharing requires superuser privileges
 # - readonly	- mount(8) does not permit non-superuser remounts
-#
+# NetBSD kauth rejects unmount(2) for a non-root caller before
+# VFS_UNMOUNT, so delegated mount permission never reaches zfs_umount.
 set -A perms	create		true		false	\
 		snapshot	true		true	\
 		send		true		true	\

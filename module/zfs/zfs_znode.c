@@ -368,7 +368,7 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 			*value = ZFS_CASE_SENSITIVE;
 			break;
 		case ZFS_PROP_ACLTYPE:
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__NetBSD__)
 			*value = ZFS_ACLTYPE_NFSV4;
 #else
 			*value = ZFS_ACLTYPE_OFF;

@@ -95,7 +95,7 @@ function multiple_slow_vdevs_test
 	log_must zfs set primarycache=none $TESTPOOL
 	log_must zfs set recordsize=4K $TESTPOOL
 
-	log_must dd if=/dev/urandom of=$FILEPATH bs=1M count=20
+	log_must dd if=/dev/urandom of=$FILEPATH bs=1${DD_M} count=20
 	zpool sync
 
 	#
@@ -115,7 +115,7 @@ function multiple_slow_vdevs_test
 	#             /var/tmp/vdevfile4.499278  ONLINE    0     0     0   109
 	#
 	start_slow_io
-	dd if=$FILEPATH of=/dev/null bs=1M count=20 2>/dev/null
+	dd if=$FILEPATH of=/dev/null bs=1${DD_M} count=20 2>/dev/null
 	stop_slow_io
 
 	# count events available for processing

@@ -23,9 +23,10 @@ function get_mount_paths #ds
 	if is_linux ; then
 		# testpool/testfs@snap /var/tmp/testdir/fs/.zfs/snapshot/snap zfs ro,relatime,xattr,noacl,casesensitive 0 0
 		awk -v ds=$1 '$1 == ds { print $2 }' /proc/mounts | sort | xargs
-	elif is_freebsd ; then
+	elif is_freebsd || is_netbsd; then
 		# uses mount -v because snapmounts on FreeBSD are marked
-		# "internal" and so invisible by default.
+		# "internal" and so invisible by default.  NetBSD mount
+		# output is "ds on /path type zfs (...)" — $3 is the path.
 
 		# testpool/testfs@snap on /zts/tmp/testdir/fs/.zfs/snapshot/snap (zfs, local, noatime, nosuid, read-only, nfsv4acls, fsid de9c877ddee12ef7, vnodes: count 1 )
 		mount -v | awk -v ds=$1 '$1 == ds { print $3 }' | sort | xargs

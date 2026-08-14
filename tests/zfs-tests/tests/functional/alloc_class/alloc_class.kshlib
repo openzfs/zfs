@@ -35,6 +35,10 @@ function cleanup
 	if datasetexists $TESTPOOL ; then
 		zpool destroy -f $TESTPOOL 2> /dev/null
 	fi
+	# 006 split leaves split_pool behind; poison the next case.
+	if datasetexists split_pool ; then
+		zpool destroy -f split_pool 2> /dev/null
+	fi
 
 	disk_cleanup
 }

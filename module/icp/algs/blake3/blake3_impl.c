@@ -21,7 +21,19 @@
 
 #include "blake3_impl.h"
 
-#if defined(__aarch64__) || \
+/*
+ * NetBSD kobj cannot apply R_AARCH64_LDST128 in b3_aarch64_sse2.S.
+ * Makefile.openzfs therefore omits those objects and does not set
+ * HAVE_BLAKE3_SSE2_ASM.  Registering blake3_sse2_impl then calls
+ * spl_compat stubs that panic("… SIMD not wired").  Userland and
+ * Linux/FreeBSD still assemble the .S files.
+ */
+#if defined(__aarch64__) && defined(_KERNEL) && defined(__NetBSD__) && \
+	!defined(HAVE_BLAKE3_SSE2_ASM)
+#define	BLAKE3_SKIP_AARCH64_SSE	1
+#endif
+
+#if (!defined(BLAKE3_SKIP_AARCH64_SSE) && defined(__aarch64__)) || \
 	(defined(__x86_64) && HAVE_SIMD(SSE2)) || \
 	(defined(__PPC64__) && defined(__LITTLE_ENDIAN__))
 
@@ -87,7 +99,7 @@ const blake3_ops_t blake3_sse2_impl = {
 };
 #endif
 
-#if defined(__aarch64__) || \
+#if (!defined(BLAKE3_SKIP_AARCH64_SSE) && defined(__aarch64__)) || \
 	(defined(__x86_64) && HAVE_SIMD(SSE2)) || \
 	(defined(__PPC64__) && defined(__LITTLE_ENDIAN__))
 
@@ -248,12 +260,12 @@ extern const blake3_ops_t blake3_generic_impl;
 
 static const blake3_ops_t *const blake3_impls[] = {
 	&blake3_generic_impl,
-#if defined(__aarch64__) || \
+#if (!defined(BLAKE3_SKIP_AARCH64_SSE) && defined(__aarch64__)) || \
 	(defined(__x86_64) && HAVE_SIMD(SSE2)) || \
 	(defined(__PPC64__) && defined(__LITTLE_ENDIAN__))
 	&blake3_sse2_impl,
 #endif
-#if defined(__aarch64__) || \
+#if (!defined(BLAKE3_SKIP_AARCH64_SSE) && defined(__aarch64__)) || \
 	(defined(__x86_64) && HAVE_SIMD(SSE4_1)) || \
 	(defined(__PPC64__) && defined(__LITTLE_ENDIAN__))
 	&blake3_sse41_impl,
@@ -338,7 +350,7 @@ blake3_param_set(const char *val, zfs_kernel_param_t *unused)
 	return (generic_impl_setname(val));
 }
 
-#elif defined(__FreeBSD__)
+#elif defined(__FreeBSD__) || defined(__NetBSD__)
 
 #include <sys/sbuf.h>
 
@@ -378,6 +390,7 @@ blake3_param(ZFS_MODULE_PARAM_ARGS)
 
 	char buf[16];
 
+	buf[0] = '\0';
 	err = sysctl_handle_string(oidp, buf, sizeof (buf), req);
 	if (err) {
 		return (err);

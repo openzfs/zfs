@@ -57,7 +57,7 @@ log_must zfs create -o encryption=aes-256-ccm -o keyformat=passphrase \
     -o keylocation=file:///$TESTPOOL2/pwd -o primarycache=none \
     $TESTPOOL2/$TESTFS1
 
-log_must dd if=/dev/urandom of=$file bs=1024 count=1024 oflag=sync
+log_must dd if=/dev/urandom of=$file bs=1024 count=1024 ${OFLAG_SYNC}
 log_must eval "echo 'aaaaaaaa' >> "$file
 
 corrupt_blocks_at_level $file 0

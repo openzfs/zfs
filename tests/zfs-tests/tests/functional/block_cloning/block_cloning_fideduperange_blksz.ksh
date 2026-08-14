@@ -37,9 +37,9 @@ log_must zpool create -o feature@block_cloning=enabled $TESTPOOL $DISKS
 # can only replace whole destination blocks with whole source blocks, so such a
 # pair can never be deduped however equal its bytes are.
 log_must zfs set recordsize=128K $TESTPOOL
-log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=128K count=4
+log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=128k count=4
 log_must zfs set recordsize=64K $TESTPOOL
-log_must dd if=/$TESTPOOL/file1 of=/$TESTPOOL/file2 bs=64K count=8
+log_must dd if=/$TESTPOOL/file1 of=/$TESTPOOL/file2 bs=64k count=8
 log_must sync_pool $TESTPOOL
 
 # Confirm the setup really produced different block sizes, otherwise the test

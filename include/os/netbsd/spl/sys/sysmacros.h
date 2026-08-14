@@ -1,0 +1,293 @@
+// SPDX-License-Identifier: CDDL-1.0
+/*
+ * This file and its contents are supplied under the terms of the
+ * Common Development and Distribution License ("CDDL"), version 1.0.
+ * You may only use this file in accordance with the terms of version
+ * 1.0 of the CDDL.
+ *
+ * A full copy of the text of the CDDL should have accompanied this
+ * source.  A copy of the CDDL is also available via the Internet at
+ * https://opensource.org/license/CDDL-1.0.
+ */
+/*	Copyright (c) 1984, 1986, 1987, 1988, 1989 AT&T	*/
+/*	  All Rights Reserved  	*/
+
+
+/*
+ * Copyright 2008 Sun Microsystems, Inc.  All rights reserved.
+ * Use is subject to license terms.
+ */
+
+#ifndef _SYS_SYSMACROS_H
+#define	_SYS_SYSMACROS_H
+
+#include <sys/param.h>
+#include <sys/systm.h>
+#include <sys/isa_defs.h>
+#include <sys/libkern.h>
+#include <sys/zone.h>
+#include <sys/condvar.h>
+
+#ifdef	__cplusplus
+extern "C" {
+#endif
+
+/*
+ * Some macros for units conversion
+ */
+/*
+ * Disk blocks (sectors) and bytes.
+ */
+#define	dtob(DD)	((DD) << DEV_BSHIFT)
+#define	btod(BB)	(((BB) + DEV_BSIZE - 1) >> DEV_BSHIFT)
+#define	btodt(BB)	((BB) >> DEV_BSHIFT)
+#define	lbtod(BB)	(((offset_t)(BB) + DEV_BSIZE - 1) >> DEV_BSHIFT)
+
+/* common macros */
+#ifndef MIN
+#define	MIN(a, b)	((a) < (b) ? (a) : (b))
+#endif
+#ifndef MAX
+#define	MAX(a, b)	((a) < (b) ? (b) : (a))
+#endif
+#ifndef ABS
+#define	ABS(a)		((a) < 0 ? -(a) : (a))
+#endif
+#ifndef	SIGNOF
+#define	SIGNOF(a)	((a) < 0 ? -1 : (a) > 0)
+#endif
+#ifndef	ARRAY_SIZE
+#define	ARRAY_SIZE(a) (sizeof (a) / sizeof (a[0]))
+#endif
+#ifndef	DIV_ROUND_UP
+#define	DIV_ROUND_UP(n, d)	(((n) + (d) - 1) / (d))
+#endif
+
+#ifdef _STANDALONE
+#define	boot_ncpus 1
+#else /* _STANDALONE */
+#define	boot_ncpus ncpu
+#endif /* _STANDALONE */
+/* NetBSD already provides kpreempt_disable/enable. */
+#define	CPU_SEQID		cpu_index(curcpu())
+#define	CPU_SEQID_UNSTABLE	cpu_index(curcpu())
+#define	is_system_labeled()		0
+/*
+ * Convert a single byte to/from binary-coded decimal (BCD).
+ */
+extern unsigned char byte_to_bcd[256];
+extern unsigned char bcd_to_byte[256];
+
+#define	BYTE_TO_BCD(x)	byte_to_bcd[(x) & 0xff]
+#define	BCD_TO_BYTE(x)	bcd_to_byte[(x) & 0xff]
+
+/*
+ * WARNING: The device number macros defined here should not be used by device
+ * drivers or user software. Device drivers should use the device functions
+ * defined in the DDI/DKI interface (see also ddi.h). Application software
+ * should make use of the library routines available in makedev(3). A set of
+ * new device macros are provided to operate on the expanded device number
+ * format supported in SVR4. Macro versions of the DDI device functions are
+ * provided for use by kernel proper routines only. Macro routines bmajor(),
+ * major(), minor(), emajor(), eminor(), and makedev() will be removed or
+ * their definitions changed at the next major release following SVR4.
+ */
+
+#define	O_BITSMAJOR	7	/* # of SVR3 major device bits */
+#define	O_BITSMINOR	8	/* # of SVR3 minor device bits */
+#define	O_MAXMAJ	0x7f	/* SVR3 max major value */
+#define	O_MAXMIN	0xff	/* SVR3 max minor value */
+
+
+#define	L_BITSMAJOR32	14	/* # of SVR4 major device bits */
+#define	L_BITSMINOR32	18	/* # of SVR4 minor device bits */
+#define	L_MAXMAJ32	0x3fff	/* SVR4 max major value */
+#define	L_MAXMIN32	0x3ffff	/* MAX minor for 3b2 software drivers. */
+				/* For 3b2 hardware devices the minor is */
+				/* restricted to 256 (0-255) */
+
+#ifdef _LP64
+#define	L_BITSMAJOR	32	/* # of major device bits in 64-bit Solaris */
+#define	L_BITSMINOR	32	/* # of minor device bits in 64-bit Solaris */
+#define	L_MAXMAJ	0xfffffffful	/* max major value */
+#define	L_MAXMIN	0xfffffffful	/* max minor value */
+#else
+#define	L_BITSMAJOR	L_BITSMAJOR32
+#define	L_BITSMINOR	L_BITSMINOR32
+#define	L_MAXMAJ	L_MAXMAJ32
+#define	L_MAXMIN	L_MAXMIN32
+#endif
+
+/*
+ * These are versions of the kernel routines for compressing and
+ * expanding long device numbers that don't return errors.
+ */
+#if (L_BITSMAJOR32 == L_BITSMAJOR) && (L_BITSMINOR32 == L_BITSMINOR)
+
+#define	DEVCMPL(x)	(x)
+#define	DEVEXPL(x)	(x)
+
+#else
+
+#define	DEVCMPL(x)	\
+	(dev32_t)((((x) >> L_BITSMINOR) > L_MAXMAJ32 || \
+	    ((x) & L_MAXMIN) > L_MAXMIN32) ? NODEV32 : \
+	    ((((x) >> L_BITSMINOR) << L_BITSMINOR32) | ((x) & L_MAXMIN32)))
+
+#define	DEVEXPL(x)	\
+	(((x) == NODEV32) ? NODEV : \
+	makedevice(((x) >> L_BITSMINOR32) & L_MAXMAJ32, (x) & L_MAXMIN32))
+
+#endif /* L_BITSMAJOR32 ... */
+
+/* convert to old (SVR3.2) dev format */
+
+#define	cmpdev(x) \
+	(o_dev_t)((((x) >> L_BITSMINOR) > O_MAXMAJ || \
+	    ((x) & L_MAXMIN) > O_MAXMIN) ? NODEV : \
+	    ((((x) >> L_BITSMINOR) << O_BITSMINOR) | ((x) & O_MAXMIN)))
+
+/* convert to new (SVR4) dev format */
+
+#define	expdev(x) \
+	(dev_t)(((dev_t)(((x) >> O_BITSMINOR) & O_MAXMAJ) << L_BITSMINOR) | \
+	    ((x) & O_MAXMIN))
+
+/*
+ * Macro for checking power of 2 address alignment.
+ */
+#define	IS_P2ALIGNED(v, a) ((((uintptr_t)(v)) & ((uintptr_t)(a) - 1)) == 0)
+
+/*
+ * Macros for counting and rounding.
+ */
+#define	howmany(x, y)	(((x)+((y)-1))/(y))
+#define	roundup(x, y)	((((x)+((y)-1))/(y))*(y))
+
+/*
+ * Macro to determine if value is a power of 2
+ */
+#define	ISP2(x)		(((x) & ((x) - 1)) == 0)
+
+/*
+ * Macros for various sorts of alignment and rounding.  The "align" must
+ * be a power of 2.  Often times it is a block, sector, or page.
+ */
+
+/*
+ * return x rounded down to an align boundary
+ * eg, P2ALIGN(1200, 1024) == 1024 (1*align)
+ * eg, P2ALIGN(1024, 1024) == 1024 (1*align)
+ * eg, P2ALIGN(0x1234, 0x100) == 0x1200 (0x12*align)
+ * eg, P2ALIGN(0x5600, 0x100) == 0x5600 (0x56*align)
+ */
+// Deprecated. Use P2ALIGN_TYPED instead.
+// #define	P2ALIGN(x, align)		((x) & -(align))
+
+/*
+ * return x % (mod) align
+ * eg, P2PHASE(0x1234, 0x100) == 0x34 (x-0x12*align)
+ * eg, P2PHASE(0x5600, 0x100) == 0x00 (x-0x56*align)
+ */
+#define	P2PHASE(x, align)		((x) & ((align) - 1))
+
+/*
+ * return how much space is left in this block (but if it's perfectly
+ * aligned, return 0).
+ * eg, P2NPHASE(0x1234, 0x100) == 0xcc (0x13*align-x)
+ * eg, P2NPHASE(0x5600, 0x100) == 0x00 (0x56*align-x)
+ */
+#define	P2NPHASE(x, align)		(-(x) & ((align) - 1))
+
+/*
+ * return x rounded up to an align boundary
+ * eg, P2ROUNDUP(0x1234, 0x100) == 0x1300 (0x13*align)
+ * eg, P2ROUNDUP(0x5600, 0x100) == 0x5600 (0x56*align)
+ */
+#define	P2ROUNDUP(x, align)		(-(-(x) & -(align)))
+
+/*
+ * return the ending address of the block that x is in
+ * eg, P2END(0x1234, 0x100) == 0x12ff (0x13*align - 1)
+ * eg, P2END(0x5600, 0x100) == 0x56ff (0x57*align - 1)
+ */
+#define	P2END(x, align)			(-(~(x) & -(align)))
+
+/*
+ * return x rounded up to the next phase (offset) within align.
+ * phase should be < align.
+ * eg, P2PHASEUP(0x1234, 0x100, 0x10) == 0x1310 (0x13*align + phase)
+ * eg, P2PHASEUP(0x5600, 0x100, 0x10) == 0x5610 (0x56*align + phase)
+ */
+#define	P2PHASEUP(x, align, phase)	((phase) - (((phase) - (x)) & -(align)))
+
+/*
+ * return TRUE if adding len to off would cause it to cross an align
+ * boundary.
+ * eg, P2BOUNDARY(0x1234, 0xe0, 0x100) == TRUE (0x1234 + 0xe0 == 0x1314)
+ * eg, P2BOUNDARY(0x1234, 0x50, 0x100) == FALSE (0x1234 + 0x50 == 0x1284)
+ */
+#define	P2BOUNDARY(off, len, align) \
+	(((off) ^ ((off) + (len) - 1)) > (align) - 1)
+
+/*
+ * Return TRUE if they have the same highest bit set.
+ * eg, P2SAMEHIGHBIT(0x1234, 0x1001) == TRUE (the high bit is 0x1000)
+ * eg, P2SAMEHIGHBIT(0x1234, 0x3010) == FALSE (high bit of 0x3010 is 0x2000)
+ */
+#define	P2SAMEHIGHBIT(x, y)		(((x) ^ (y)) < ((x) & (y)))
+
+/*
+ * Typed version of the P2* macros.  These macros should be used to ensure
+ * that the result is correctly calculated based on the data type of (x),
+ * which is passed in as the last argument, regardless of the data
+ * type of the alignment.  For example, if (x) is of type uint64_t,
+ * and we want to round it up to a page boundary using "PAGESIZE" as
+ * the alignment, we can do either
+ *	P2ROUNDUP(x, (uint64_t)PAGESIZE)
+ * or
+ *	P2ROUNDUP_TYPED(x, PAGESIZE, uint64_t)
+ */
+#define	P2ALIGN_TYPED(x, align, type)	\
+	((type)(x) & -(type)(align))
+#define	P2PHASE_TYPED(x, align, type)	\
+	((type)(x) & ((type)(align) - 1))
+#define	P2NPHASE_TYPED(x, align, type)	\
+	(-(type)(x) & ((type)(align) - 1))
+#define	P2ROUNDUP_TYPED(x, align, type)	\
+	(-(-(type)(x) & -(type)(align)))
+#define	P2END_TYPED(x, align, type)	\
+	(-(~(type)(x) & -(type)(align)))
+#define	P2PHASEUP_TYPED(x, align, phase, type)	\
+	((type)(phase) - (((type)(phase) - (type)(x)) & -(type)(align)))
+#define	P2CROSS_TYPED(x, y, align, type)	\
+	(((type)(x) ^ (type)(y)) > (type)(align) - 1)
+#define	P2SAMEHIGHBIT_TYPED(x, y, type) \
+	(((type)(x) ^ (type)(y)) < ((type)(x) & (type)(y)))
+
+/*
+ * Macros to atomically increment/decrement a variable.  mutex and var
+ * must be pointers.
+ */
+#define	INCR_COUNT(var, mutex) mutex_enter(mutex), (*(var))++, mutex_exit(mutex)
+#define	DECR_COUNT(var, mutex) mutex_enter(mutex), (*(var))--, mutex_exit(mutex)
+
+#if !defined(_KMEMUSER) && !defined(offsetof)
+
+/* avoid any possibility of clashing with <stddef.h> version */
+
+#define	offsetof(type, field)	__offsetof(type, field)
+#endif
+
+#define	highbit(x)		(((x) != 0) ? (8 * sizeof (long) - \
+	__builtin_clzl((unsigned long)(x))) : 0)
+#define	lowbit(x)		__builtin_ffsl((long)(x))
+
+#define	highbit64(x)		(((x) != 0) ? (64 - __builtin_clzll((x))) : 0)
+#define	lowbit64(x)		__builtin_ffsll((long long)(x))
+
+#ifdef	__cplusplus
+}
+#endif
+
+#endif	/* _SYS_SYSMACROS_H */

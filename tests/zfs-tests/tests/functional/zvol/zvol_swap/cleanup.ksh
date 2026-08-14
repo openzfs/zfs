@@ -30,6 +30,8 @@ if is_linux; then
 	log_must swapon -a
 elif is_freebsd; then
 	swapon -a || true
+elif is_netbsd; then
+	swapctl -A || true
 else
 	log_must swapadd
 fi

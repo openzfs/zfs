@@ -33,12 +33,26 @@ verify_runnable "both"
 log_assert "Verify chown works with POSIX ACLs"
 log_onexit cleanup
 
-log_must setfacl -d -m u:$ZFS_ACL_STAFF1:rwx $TESTDIR
-log_must setfacl -b $TESTDIR
+if is_netbsd; then
+	# GNU setfacl -d -m u:staff1:rwx on chmod 777 $TESTDIR stores
+	# default u::rwx,u:staff1:rwx,g::rwx,m::rwx,o::rwx.
+	log_must setfacl -d -m \
+	    u::rwx,u:$ZFS_ACL_STAFF1:rwx,g::rwx,m::rwx,o::rwx $TESTDIR
+else
+	log_must setfacl -d -m u:$ZFS_ACL_STAFF1:rwx $TESTDIR
+fi
+posix_setfacl_remove_all $TESTDIR
 
 log_must chown $ZFS_ACL_STAFF1 $TESTDIR
-log_must setfacl -b $TESTDIR
-log_must setfacl -d -m u:$ZFS_ACL_STAFF1:rwx $TESTDIR
+posix_setfacl_remove_all $TESTDIR
+if is_netbsd; then
+	# GNU setfacl -d -m u:staff1:rwx on chmod 777 $TESTDIR stores
+	# default u::rwx,u:staff1:rwx,g::rwx,m::rwx,o::rwx.
+	log_must setfacl -d -m \
+	    u::rwx,u:$ZFS_ACL_STAFF1:rwx,g::rwx,m::rwx,o::rwx $TESTDIR
+else
+	log_must setfacl -d -m u:$ZFS_ACL_STAFF1:rwx $TESTDIR
+fi
 log_must chown 0 $TESTDIR
 
 log_pass "chown works with POSIX ACLs"

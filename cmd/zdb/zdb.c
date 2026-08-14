@@ -6019,6 +6019,19 @@ dump_label(const char *dev)
 		}
 	}
 
+#ifdef __NetBSD__
+	{
+		char raw[MAXPATHLEN];
+
+		/*
+		 * Same node the kernel labeled.  The block twin is
+		 * EBUSY while the pool is open in this process.
+		 */
+		if (zfs_dev_to_raw_path(path, raw, sizeof (raw)) == 0)
+			(void) strlcpy(path, raw, sizeof (path));
+	}
+#endif
+
 	if ((fd = open64(path, O_RDONLY)) < 0) {
 		(void) printf("cannot open '%s': %s\n", path, strerror(errno));
 		zdb_exit(1);

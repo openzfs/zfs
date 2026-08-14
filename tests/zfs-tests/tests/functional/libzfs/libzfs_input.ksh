@@ -19,6 +19,8 @@
 
 verify_runnable "global"
 
+require_bin libzfs_input_check
+
 #
 # DESCRIPTION:
 #	run C program to test passing different input to libzfs ioctls

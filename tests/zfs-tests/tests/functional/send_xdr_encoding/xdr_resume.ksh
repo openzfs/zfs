@@ -51,7 +51,7 @@ log_onexit cleanup
 log_assert "BEGIN nvlist of a token-resumed send is XDR-encoded and receivable"
 
 log_must zfs create $sendfs
-log_must dd if=/dev/urandom of=/$sendfs/f1 bs=128k count=8 status=none
+log_must dd if=/dev/urandom of=/$sendfs/f1 bs=128k count=8 ${DD_STATUS_NONE}
 log_must zfs snapshot $sendfs@s1
 
 log_must eval "zfs send $sendfs@s1 > $full_stream"

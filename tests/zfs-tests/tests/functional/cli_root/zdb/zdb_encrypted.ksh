@@ -61,6 +61,6 @@ sync_pool $TESTPOOL true
 
 log_must eval "zdb -dddd $dataset $obj | grep -q 'object encrypted'"
 
-log_must eval "zdb -K $PASSPHRASE -dddd $dataset $obj | grep -q 'size\s$size$'"
+log_must eval "zdb -K $PASSPHRASE -dddd $dataset $obj | grep -q 'size[[:space:]]$size$'"
 
 log_pass "'zdb -K' enables reading from an encrypted dataset"

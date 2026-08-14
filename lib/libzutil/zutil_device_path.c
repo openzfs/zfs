@@ -19,6 +19,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#ifdef __NetBSD__
+#include <sys/stat.h>
+#endif
 
 #include <libzutil.h>
 
@@ -164,6 +167,43 @@ zfs_strcmp_pathname(const char *name, const char *cmp, int wholedisk)
 	char path_name[MAXPATHLEN];
 	char cmp_name[MAXPATHLEN];
 	char *dir, *tmp = NULL;
+
+#ifdef __NetBSD__
+	/*
+	 * ld3 / rld3 / /dev/ld3 / /dev/rld3 are one disk.  Only for
+	 * character and block nodes; a regular file named ld3 is not.
+	 */
+	{
+		char a[MAXPATHLEN], b[MAXPATHLEN];
+		char pa[MAXPATHLEN], pb[MAXPATHLEN];
+		struct stat sta, stb;
+		const char *na = name, *nb = cmp;
+
+		if (zfs_dev_to_raw_path(name, a, sizeof (a)) == 0 &&
+		    zfs_dev_to_raw_path(cmp, b, sizeof (b)) == 0 &&
+		    strcmp(a, b) == 0) {
+			if (name[0] != '/' &&
+			    zfs_resolve_shortname(name, pa,
+			    sizeof (pa)) == 0)
+				na = pa;
+			else if (name[0] != '/')
+				na = a;
+			if (cmp[0] != '/' &&
+			    zfs_resolve_shortname(cmp, pb,
+			    sizeof (pb)) == 0)
+				nb = pb;
+			else if (cmp[0] != '/')
+				nb = b;
+			if (stat(na, &sta) == 0 &&
+			    stat(nb, &stb) == 0 &&
+			    (S_ISCHR(sta.st_mode) ||
+			    S_ISBLK(sta.st_mode)) &&
+			    (S_ISCHR(stb.st_mode) ||
+			    S_ISBLK(stb.st_mode)))
+				return (0);
+		}
+	}
+#endif
 
 	/* Strip redundant slashes if they exist due to ZPOOL_IMPORT_PATH */
 	cmp_name[0] = '\0';

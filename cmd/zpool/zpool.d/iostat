@@ -46,6 +46,17 @@ if [ "$(uname)" = "FreeBSD" ]; then
 		${interval:+"-w $interval"} \
 		${interval:+"-c 1"} \
 		"$somepath" | tail -n 2)
+elif [ "$(uname)" = "NetBSD" ]; then
+	# NetBSD iostat(8): -d device rows only, -w/-c like FreeBSD.
+	# It wants the disk name (ld2), not /dev/rld2.
+	leaf=${somepath##*/}
+	case $leaf in
+	r[a-z]*) leaf=${leaf#r} ;;
+	esac
+	out=$(iostat -d \
+		${interval:+"-w $interval"} \
+		${interval:+"-c 1"} \
+		"$leaf" | tail -n 2)
 else
 	out=$(iostat -kx \
 		${brief:+"-y"} \

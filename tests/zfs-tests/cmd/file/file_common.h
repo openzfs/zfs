@@ -15,7 +15,7 @@
  * Use is subject to license terms.
  */
 
-#ifndef FILE_COMMON_H
+#ifndef	FILE_COMMON_H
 #define	FILE_COMMON_H
 
 /*
@@ -44,6 +44,25 @@ extern "C" {
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+
+/*
+ * NetBSD 11.0 has no uchar_t / offset_t.  Guard the names so a
+ * later include of libspl stdtypes.h does not re-typedef them.
+ */
+#ifndef	_UCHAR_T
+typedef unsigned char uchar_t;
+#define	_UCHAR_T
+#endif
+#ifndef	_OFFSET_T
+typedef off_t offset_t;
+#define	_OFFSET_T
+#endif
+#ifndef lseek64
+#define	lseek64	lseek
+#endif
+#ifndef ftruncate64
+#define	ftruncate64	ftruncate
+#endif
 
 #define	BLOCKSZ		8192
 #define	DATA		0xa5

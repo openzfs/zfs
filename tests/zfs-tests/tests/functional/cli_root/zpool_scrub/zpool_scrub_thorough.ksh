@@ -60,7 +60,7 @@ log_must set_tunable32 SCAN_LEGACY 0
 log_must zfs create $TESTPOOL/comp
 log_must zfs set compression=on $TESTPOOL/comp
 typeset file_comp="/$TESTPOOL/comp/$TESTFILE0"
-log_must dd if=/dev/urandom of=$file_comp bs=1024 count=1024 oflag=sync
+log_must dd if=/dev/urandom of=$file_comp bs=1024 count=1024 ${OFLAG_SYNC}
 # Make sure data is compressible
 write_compressible $(get_prop mountpoint $TESTPOOL/comp) 16m
 
@@ -68,20 +68,20 @@ write_compressible $(get_prop mountpoint $TESTPOOL/comp) 16m
 log_must eval "echo 'password' | zfs create -o encryption=on -o keyformat=passphrase $TESTPOOL/comp_enc"
 log_must zfs set compression=on $TESTPOOL/comp_enc
 typeset file_comp_enc="/$TESTPOOL/comp_enc/$TESTFILE0"
-log_must dd if=/dev/urandom of=$file_comp_enc bs=1024 count=1024 oflag=sync
+log_must dd if=/dev/urandom of=$file_comp_enc bs=1024 count=1024 ${OFLAG_SYNC}
 write_compressible $(get_prop mountpoint $TESTPOOL/comp_enc) 16m
 
 # 3) Encrypted dataset
 log_must eval "echo 'password' | zfs create -o encryption=on -o keyformat=passphrase $TESTPOOL/enc"
 log_must zfs set compression=off $TESTPOOL/enc
 typeset file_enc="/$TESTPOOL/enc/$TESTFILE0"
-log_must dd if=/dev/urandom of=$file_enc bs=1024 count=1024 oflag=sync
+log_must dd if=/dev/urandom of=$file_enc bs=1024 count=1024 ${OFLAG_SYNC}
 
 # 4) Compressed and encrypted dataset with keys unloaded
 log_must eval "echo 'password' | zfs create -o encryption=on -o keyformat=passphrase $TESTPOOL/comp_enc_unloaded"
 log_must zfs set compression=on $TESTPOOL/comp_enc_unloaded
 typeset file_comp_enc_unloaded="/$TESTPOOL/comp_enc_unloaded/$TESTFILE0"
-log_must dd if=/dev/urandom of=$file_comp_enc_unloaded bs=1024 count=1024 oflag=sync
+log_must dd if=/dev/urandom of=$file_comp_enc_unloaded bs=1024 count=1024 ${OFLAG_SYNC}
 write_compressible $(get_prop mountpoint $TESTPOOL/comp_enc_unloaded) 16m
 
 log_must zfs unmount $TESTPOOL/comp_enc_unloaded
@@ -99,7 +99,7 @@ log_must eval "echo 'password' | zfs create -o encryption=on -o keyformat=passph
 log_must zfs set compression=on $TESTPOOL/comp_enc_unloading
 typeset file_enc_unloading="/$TESTPOOL/comp_enc_unloading/$TESTFILE0"
 # Write enough data to allow time for unloading key
-log_must dd if=/dev/urandom of=$file_enc_unloading bs=1024 count=10240 oflag=sync
+log_must dd if=/dev/urandom of=$file_enc_unloading bs=1024 count=10240 ${OFLAG_SYNC}
 write_compressible $(get_prop mountpoint $TESTPOOL/comp_enc_unloading) 16m
 
 log_must zfs unmount $TESTPOOL/comp_enc_unloading
@@ -171,14 +171,14 @@ log_must zfs create $TESTPOOL/plain_sorted
 typeset mnt_plain=$(get_prop mountpoint $TESTPOOL/plain_sorted)
 log_must zfs set compression=on $TESTPOOL/plain_sorted
 write_compressible $mnt_plain 16m
-log_must dd if=/dev/urandom of=$mnt_plain/$TESTFILE1 bs=1024 count=1024 oflag=sync
+log_must dd if=/dev/urandom of=$mnt_plain/$TESTFILE1 bs=1024 count=1024 ${OFLAG_SYNC}
 
 log_must eval "echo 'password' | zfs create -o encryption=on -o keyformat=passphrase \
     $TESTPOOL/enc_sorted"
 typeset mnt_enc_sorted=$(get_prop mountpoint $TESTPOOL/enc_sorted)
 log_must zfs set compression=on $TESTPOOL/enc_sorted
 write_compressible $mnt_enc_sorted 16m
-log_must dd if=/dev/urandom of=$mnt_enc_sorted/$TESTFILE1 bs=1024 count=1024 oflag=sync
+log_must dd if=/dev/urandom of=$mnt_enc_sorted/$TESTFILE1 bs=1024 count=1024 ${OFLAG_SYNC}
 log_must zpool sync $TESTPOOL
 
 log_must zpool scrub -t -w $TESTPOOL

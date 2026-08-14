@@ -45,6 +45,55 @@ export LC_ALL="C"
 export LANG="C"
 
 #
+# GNU dd (Linux, illumos, Windows) wants an upper-case size suffix
+# (bs=1M).  BSD dd (NetBSD, FreeBSD, macOS, ...) wants lower-case
+# (bs=1m).
+#
+case $(uname) in
+Linux|SunOS|CYGWIN*|MINGW*|MSYS*|Windows_NT|Windows)
+	export DD_M=M
+	;;
+*)
+	export DD_M=m
+	;;
+esac
+
+#
+# GNU / FreeBSD / illumos dd keep O_CREAT when adding a sync oflag.
+# NetBSD dd replaces the default creat if any oflag= is given, so a
+# new file needs sync,creat.  GNU/FreeBSD/illumos reject 'creat'
+# as an oflag token.  Use OFLAG_SYNC only as a whole operand
+# (dd ... ${OFLAG_SYNC}); extra flags: ${OFLAG_SYNC},direct.
+#
+# fullblock: GNU iflag=fullblock (singular).  POSIX.1-2024 and
+# NetBSD CURRENT use iflags=fullblock (plural); iflag= stays
+# open(2) flags.  Probe the dd on PATH so stock 11.0 (neither)
+# stays empty.
+#
+case $(uname) in
+NetBSD)
+	export OFLAG_SYNC='oflag=sync,creat'
+	export DD_STATUS_NONE=
+	if dd if=/dev/zero of=/dev/null bs=1 count=1 iflags=fullblock \
+	    >/dev/null 2>&1
+	then
+		export DD_FULLBLOCK='iflags=fullblock'
+	elif dd if=/dev/zero of=/dev/null bs=1 count=1 iflag=fullblock \
+	    >/dev/null 2>&1
+	then
+		export DD_FULLBLOCK='iflag=fullblock'
+	else
+		export DD_FULLBLOCK=
+	fi
+	;;
+*)
+	export OFLAG_SYNC='oflag=sync'
+	export DD_STATUS_NONE='status=none'
+	export DD_FULLBLOCK='iflag=fullblock'
+	;;
+esac
+
+#
 # pattern to ignore from 'zpool list'.
 #
 export NO_POOLS="no pools available"
@@ -199,6 +248,40 @@ FreeBSD)
 
 	NEWFS_DEFAULT_FS="ufs"
 	SLICE_PREFIX="p"
+	;;
+NetBSD)
+	unpack_opts="xv"
+	pack_opts="cf"
+	verbose="v"
+	unpack_preserve="xpf"
+	pack_preserve="cpf"
+
+	ZVOL_DEVDIR="/dev/zvol/dsk"
+	ZVOL_RDEVDIR="/dev/zvol/rdsk"
+	DEV_DSKDIR="/dev"
+	DEV_RDSKDIR="/dev"
+	DEV_MPATHDIR="/dev"
+
+	NEWFS_DEFAULT_FS="ffs"
+	SLICE_PREFIX="p"
+
+	# File vdevs live on TEST_BASE_DIR (/build). mount(2) holds the
+	# covered vnode for the whole zfs_domount, which then reads
+	# those vdev files. If the mountpoint is also on /build the FFS
+	# lock and vdev I/O deadlock and `zfs set mountpoint=` hangs.
+	# Keep ZFS mountpoints on /mnt/zts -- a vnd-backed FFS image
+	# (see zfs-tests.sh netbsd_prepare_mntroot), not the live-image
+	# root and not /build.  tmpfs is not sparse; 512MB cannot hold
+	# json/zdb/bootfs file vdevs.
+	# cache.cfg puts VDIR on TEST_BASE_DIR so L2ARC images stay off
+	# this mount.
+	ZTS_MNTROOT="/mnt/zts"
+	TESTDIR="$ZTS_MNTROOT/testdir"
+	TESTDIR0="$ZTS_MNTROOT/testdir0"
+	TESTDIR1="$ZTS_MNTROOT/testdir1"
+	TESTDIR2="$ZTS_MNTROOT/testdir2"
+	export ZTS_MNTROOT TESTDIR TESTDIR0 TESTDIR1 TESTDIR2
+	mkdir -p "$TESTDIR" "$TESTDIR0" "$TESTDIR1" "$TESTDIR2" 2>/dev/null || true
 	;;
 *)
 	export AUTO_SNAP=$(svcs -a | \

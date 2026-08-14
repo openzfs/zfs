@@ -22,6 +22,7 @@ dist_scripts_runfiles_DATA = \
 	%D%/runfiles/common.run \
 	%D%/runfiles/freebsd.run \
 	%D%/runfiles/linux.run \
+	%D%/runfiles/netbsd.run \
 	%D%/runfiles/longevity.run \
 	%D%/runfiles/perf-regression.run \
 	%D%/runfiles/sanity.run \

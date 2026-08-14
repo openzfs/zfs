@@ -1,0 +1,670 @@
+# OpenZFS filesystem + SPL as openzfs.kmod.
+# DTrace ABI (solaris_cpu / cpu_core / exported solaris_kmem_*)
+# lives in solaris.kmod.  This module does not depend on it.
+# LOCKDEBUG=1 omits cpu_core[] -- dtrace will not load; ZFS still builds.
+
+.include <bsd.own.mk>
+
+KMOD=	openzfs
+
+.include "Makefile.inc.netbsd"
+
+# os/netbsd/{zfs,spl} first.  Do not fall through to os/freebsd:
+# hkdf.c would silently compile FreeBSD's OpenCrypto copy
+# (<sys/freebsd_crypto.h>) instead of shared module/zfs/hkdf.c.
+# zio_crypt.c is still exists-guarded below as a second belt.
+.PATH:	${SRCDIR}/lua \
+	${SRCDIR}/nvpair \
+	${SRCDIR}/avl \
+	${SRCDIR}/icp/algs/blake3 \
+	${SRCDIR}/icp/algs/edonr \
+	${SRCDIR}/icp/algs/sha2 \
+	${SRCDIR}/icp/algs/skein \
+	${SRCDIR}/icp/asm-aarch64/blake3 \
+	${SRCDIR}/icp/asm-aarch64/sha2 \
+	${SRCDIR}/icp/asm-arm/sha2 \
+	${SRCDIR}/icp/asm-ppc64/sha2 \
+	${SRCDIR}/icp/asm-ppc64/blake3 \
+	${SRCDIR}/icp/asm-x86_64/blake3 \
+	${SRCDIR}/icp/asm-x86_64/sha2 \
+	${SRCDIR}/icp/algs/aes \
+	${SRCDIR}/icp/algs/modes \
+	${SRCDIR}/os/netbsd/zfs \
+	${SRCDIR}/os/netbsd/spl \
+	${SRCDIR}/zcommon \
+	${SRCDIR}/zfs \
+	${SRCDIR}/zstd \
+	${SRCDIR}/zstd/lib/common \
+	${SRCDIR}/zstd/lib/compress \
+	${SRCDIR}/zstd/lib/decompress
+
+SRCS=	# no FreeBSD vnode_if/bus_if generated headers
+
+
+
+# SPL.  DTrace CPU arrays are not here -- they are solaris.kmod.
+SRCS+=	avl.c \
+	u8_textprep.c \
+	acl_common.c \
+	callb.c \
+	list.c \
+	spl_acl.c \
+	spl_atomic.c \
+	spl_cmn_err.c \
+	spl_kmem.c \
+	spl_kstat.c \
+	spl_misc.c \
+	spl_procfs_list.c \
+	spl_string.c \
+	spl_sunddi.c \
+	spl_taskq.c \
+	spl_uio.c \
+	spl_uvm_pin.c \
+	spl_vfs.c \
+	spl_vm.c \
+	spl_zlib.c \
+	spl_zone.c \
+	spl_compat.c \
+	xdr.c \
+	xdr_mem.c \
+	xdr_array.c \
+	spl_kobj.c \
+	solaris_kmod.c
+
+#icp/algs/skein
+SRCS+=	skein.c \
+	skein_block.c \
+	skein_iv.c
+
+#icp/algs/blake3
+SRCS+=	blake3.c \
+	blake3_generic.c \
+	blake3_impl.c
+
+# aarch64: do not add b3_aarch64_sse2.S / sse41.S.  NetBSD kobj_reloc
+# cannot apply R_AARCH64_LDST128 (modload ENOEXEC).  blake3_impl.c
+# stays on the generic C ops unless HAVE_BLAKE3_SSE2_ASM is set.
+# amd64 still ships blake3_{sse2,sse41,avx2,avx512}.S below.
+
+.if ${MACHINE_ARCH} == "powerpc64le"
+#icp/asm-ppc64/blake3 -- LE-only VSX helpers
+SRCS+=	b3_ppc64le_sse2.S \
+	b3_ppc64le_sse41.S
+CPPFLAGS+=	-DHAVE_BLAKE3_SSE2_ASM
+.endif
+
+.if ${MACHINE_ARCH} == "x86_64" || ${MACHINE_ARCH} == "amd64"
+# icp/asm-x86_64 -- real blake3/sha2, dispatched by simd_x86.h
+# after fpu_kern_enter.  i386 cannot assemble these (64-bit regs).
+SRCS+=	blake3_avx2.S \
+	blake3_avx512.S \
+	blake3_sse2.S \
+	blake3_sse41.S \
+	sha256-x86_64.S \
+	sha512-x86_64.S
+CPPFLAGS+=	-DHAVE_BLAKE3_SSE2_ASM -DHAVE_BLAKE3_AVX_ASM
+.endif
+
+#icp/algs/edonr
+SRCS+=	edonr.c
+
+#icp/algs/sha2
+SRCS+=	sha256_impl.c \
+	sha2_generic.c \
+	sha512_impl.c
+
+# Portable AES-GCM / AES-CCM (no AES-NI / PCLMUL on this path).
+SRCS+=	aes_impl.c \
+	aes_impl_generic.c \
+	aes_impl_stubs.c \
+	aes_modes.c \
+	modes.c \
+	gcm.c \
+	gcm_generic.c \
+	ccm.c \
+	icp_aead.c
+
+.if !empty(MACHINE_ARCH:Mearmv7*) || ${MACHINE_ARCH} == "armv7"
+# ARMv7 SHA only.  earmv6* cannot assemble or run these.
+SRCS+=	sha256-armv7.S \
+	sha512-armv7.S
+.endif
+
+.if ${MACHINE_ARCH} == "aarch64" || ${MACHINE_ARCH} == "aarch64eb"
+#icp/asm-aarch64/sha2 (also provides zfs_sha*_block_armv7)
+SRCS+=	sha256-armv8.S \
+	sha512-armv8.S
+.endif
+
+.if ${MACHINE_ARCH} == "powerpc64" || ${MACHINE_ARCH} == "powerpc64le"
+#icp/asm-ppc64/sha2
+SRCS+=	sha256-p8.S \
+	sha256-ppc.S \
+	sha512-p8.S \
+	sha512-ppc.S
+.endif
+
+# SIMD C files: ISA flags also go in CPUFLAGS (the real last
+# slot, see post-bsd.kmodule.mk).  COPTS still carries them so
+# a compile that omits per-file CPUFLAGS stays hard-float.
+# -mhard-float undoes CFLAGS -msoft-float.  -mimplicit-float is clang-only.
+.if ${MACHINE_ARCH} == "x86_64" || ${MACHINE_ARCH} == "amd64" || \
+	${MACHINE_ARCH} == "i386"
+_ZFS_X86_SIMD= -mhard-float -DZFS_SIMD_TU
+.if ${ACTIVE_CC:U} == "clang" || ${CC:T} == "clang"
+_ZFS_X86_SIMD+= -mimplicit-float
+.endif
+COPTS.vdev_raidz_math_sse2.c+= ${_ZFS_X86_SIMD} -msse2
+COPTS.vdev_raidz_math_ssse3.c+= ${_ZFS_X86_SIMD} -mssse3
+COPTS.zfs_fletcher_sse.c+= ${_ZFS_X86_SIMD} -msse2
+.endif
+.if ${MACHINE_ARCH} == "x86_64" || ${MACHINE_ARCH} == "amd64"
+COPTS.vdev_raidz_math_avx2.c+= ${_ZFS_X86_SIMD} -mavx2
+COPTS.vdev_raidz_math_avx512f.c+= ${_ZFS_X86_SIMD} -mavx512f
+COPTS.vdev_raidz_math_avx512bw.c+= ${_ZFS_X86_SIMD} -mavx512bw
+COPTS.zfs_fletcher_intel.c+= ${_ZFS_X86_SIMD} -mavx2
+COPTS.zfs_fletcher_avx512.c+= ${_ZFS_X86_SIMD} -mavx512f
+.endif
+
+.if ${MACHINE_ARCH} == "aarch64" || ${MACHINE_ARCH} == "aarch64eb"
+# Linux Kbuild: compile neon + neonx2, CFLAGS_REMOVE -mgeneral-regs-only.
+# No -mfpu: ASIMD is the aarch64 baseline.  is_supported is kfpu_allowed(),
+# which is the AdvSIMD intersection (any little core without SIMD
+# disables every SIMD impl).
+SRCS+=	vdev_raidz_math_aarch64_neon.c \
+	vdev_raidz_math_aarch64_neonx2.c \
+	spl_kfpu.c
+.endif
+
+.if ${MACHINE_ARCH} == "powerpc" || ${MACHINE_ARCH} == "powerpc64" || \
+	${MACHINE_ARCH} == "powerpc64le"
+# Linux Kbuild: vdev_raidz_math_powerpc_altivec.o + -maltivec.
+# is_supported is kfpu_allowed() && zfs_altivec_available().
+# spl_kfpu.c zeros with vxor / xxlxor via .machine directives.
+# Do not pass -maltivec/-mvsx on that TU -- it would switch the
+# C ABI and let the compiler save/restore the regs we sanitize.
+SRCS+=	vdev_raidz_math_powerpc_altivec.c \
+	spl_kfpu.c
+COPTS.vdev_raidz_math_powerpc_altivec.c+= -maltivec
+.endif
+
+#lua
+SRCS+=	lapi.c \
+	lauxlib.c \
+	lbaselib.c \
+	lcode.c \
+	lcompat.c \
+	lcorolib.c \
+	lctype.c \
+	ldebug.c \
+	ldo.c \
+	lfunc.c \
+	lgc.c \
+	llex.c \
+	lmem.c \
+	lobject.c \
+	lopcodes.c \
+	lparser.c \
+	lstate.c \
+	lstring.c \
+	lstrlib.c \
+	ltable.c \
+	ltablib.c \
+	ltm.c \
+	lvm.c \
+	lzio.c
+
+#nvpair -- own copy, localized. GENERIC libnv has nvlist_pack
+# with a different ABI; solaris.kmod's copy is also localized
+# so this module cannot import it.
+SRCS+=	fnvpair.c \
+	nvpair.c \
+	nvpair_alloc_fixed.c \
+	nvpair_alloc_spl.c
+
+# os/netbsd/zfs. zio_crypt.c is the NetBSD-owned HMAC copy;
+# do not patch os/freebsd/zfs/zio_crypt.c for NetBSD.
+SRCS+=	abd_os.c \
+	arc_os.c \
+	crypto_os.c \
+	dmu_os.c \
+	kmod_core.c \
+	spa_os.c \
+	sysctl_os.c \
+	vdev_label_os.c \
+	zfs_acl.c \
+	zfs_ctldir.c \
+	${SRCDIR}/zfs/zfs_crrd.c \
+	zfs_debug.c \
+	zfs_dir.c \
+	zfs_file_os.c \
+	vdev_disk.c \
+	zfs_ioctl_compat.c \
+	zfs_ioctl_os.c \
+	zfs_racct.c \
+	zfs_vfsops.c \
+	zfs_vfsops_quota.c \
+	zfs_vnops_os.c \
+	zfs_znode_os.c \
+	zio_crypt.c \
+	zvol_os.c \
+	spl_policy.c \
+	spl_sysevent.c
+
+#zcommon
+SRCS+=	cityhash.c \
+	zfeature_common.c \
+	zfs_comutil.c \
+	zfs_deleg.c \
+	zfs_fletcher_avx512.c \
+	zfs_fletcher.c \
+	zfs_fletcher_aarch64_neon.c \
+	zfs_fletcher_intel.c \
+	zfs_fletcher_sse.c \
+	zfs_fletcher_superscalar4.c \
+	zfs_fletcher_superscalar.c \
+	zfs_namecheck.c \
+	zfs_prop.c \
+	zfs_valstr.c \
+	zpool_prop.c \
+	zprop_common.c
+
+#zfs
+SRCS+=	abd.c \
+	aggsum.c \
+	arc.c \
+	blake3_zfs.c \
+	blkptr.c \
+	bplist.c \
+	bpobj.c \
+	bptree.c \
+	bqueue.c \
+	brt.c \
+	btree.c \
+	dataset_kstats.c \
+	dbuf.c \
+	dbuf_stats.c \
+	ddt.c \
+	ddt_log.c \
+	ddt_stats.c \
+	ddt_zap.c \
+	dmu.c \
+	dmu_direct.c \
+	dmu_diff.c \
+	dmu_object.c \
+	dmu_objset.c \
+	dmu_recv.c \
+	dmu_redact.c \
+	dmu_send.c \
+	dmu_traverse.c \
+	dmu_tx.c \
+	dmu_zfetch.c \
+	dnode.c \
+	dnode_sync.c \
+	dsl_bookmark.c \
+	dsl_crypt.c \
+	dsl_dataset.c \
+	dsl_deadlist.c \
+	dsl_deleg.c \
+	dsl_destroy.c \
+	dsl_dir.c \
+	dsl_pool.c \
+	dsl_prop.c \
+	dsl_scan.c \
+	dsl_synctask.c \
+	dsl_userhold.c \
+	edonr_zfs.c \
+	fm.c \
+	gzip.c \
+	hkdf.c \
+	lz4.c \
+	lz4_zfs.c \
+	lzjb.c \
+	metaslab.c \
+	mmp.c \
+	multilist.c \
+	objlist.c \
+	pathname.c \
+	range_tree.c \
+	refcount.c \
+	rrwlock.c \
+	sa.c \
+	sha2_zfs.c \
+	skein_zfs.c \
+	spa.c \
+	space_map.c \
+	space_reftree.c \
+	spa_checkpoint.c \
+	spa_config.c \
+	spa_errlog.c \
+	spa_history.c \
+	spa_log_spacemap.c \
+	spa_misc.c \
+	spa_stats.c \
+	txg.c \
+	uberblock.c \
+	unique.c \
+	vdev.c \
+	vdev_draid.c \
+	vdev_draid_rand.c \
+	vdev_file.c \
+	vdev_indirect_births.c \
+	vdev_indirect.c \
+	vdev_indirect_mapping.c \
+	vdev_initialize.c \
+	vdev_label.c \
+	vdev_mirror.c \
+	vdev_missing.c \
+	vdev_queue.c \
+	vdev_raidz.c \
+	vdev_raidz_math_avx2.c \
+	vdev_raidz_math_avx512bw.c \
+	vdev_raidz_math_avx512f.c \
+	vdev_raidz_math.c \
+	vdev_raidz_math_scalar.c \
+	vdev_raidz_math_sse2.c \
+	vdev_raidz_math_ssse3.c \
+	vdev_rebuild.c \
+	vdev_removal.c \
+	vdev_root.c \
+	vdev_trim.c \
+	zap.c \
+	zap_fat.c \
+	zap_impl.c \
+	zap_leaf.c \
+	zap_micro.c \
+	zcp.c \
+	zcp_get.c \
+	zcp_global.c \
+	zcp_iter.c \
+	zcp_set.c \
+	zcp_synctask.c \
+	zfeature.c \
+	zfs_byteswap.c \
+	zfs_chksum.c \
+	zfs_fm.c \
+	zfs_fuid.c \
+	zfs_impl.c \
+	zfs_ioctl.c \
+	zfs_log.c \
+	zfs_onexit.c \
+	zfs_quota.c \
+	zfs_ratelimit.c \
+	zfs_replay.c \
+	zfs_rlock.c \
+	zfs_sa.c \
+	zfs_vnops.c \
+	zfs_znode.c \
+	zil.c \
+	zio.c \
+	zio_checksum.c \
+	zio_compress.c \
+	zio_inject.c \
+	zle.c \
+	zrlock.c \
+	zthr.c \
+	zvol.c
+
+#zstd
+SRCS+=	zfs_zstd.c
+
+#zstd/common
+SRCS+=	entropy_common.c \
+	error_private.c \
+	fse_decompress.c \
+	pool.c \
+	zstd_common.c \
+
+#zstd/compress
+SRCS+=	fse_compress.c \
+	hist.c \
+	huf_compress.c \
+	zstd_compress.c \
+	zstd_compress_literals.c \
+	zstd_compress_sequences.c \
+	zstd_compress_superblock.c \
+	zstd_double_fast.c \
+	zstd_fast.c \
+	zstd_lazy.c \
+	zstd_ldm.c \
+	zstd_opt.c \
+	zstd_preSplit.c
+
+#zstd/decompress
+SRCS+=	huf_decompress.c \
+	zstd_ddict.c \
+	zstd_decompress_block.c \
+	zstd_decompress.c
+
+# Default CWARNFLAGS is -Wframe-larger-than=512 (Makefile.inc.netbsd).
+# Linux Kbuild applies ZFS_ZSTD_FLAGS += -Wframe-larger-than=20480 to
+# every zstd TU.  We do not raise the project default.  Per-file
+# COPTS is the measured gcc-12/amd64 frame rounded up.  zstd_compress
+# is 5280 bytes: 4096 does not compile it.  Lua/skein keep algorithm
+# state on the stack (Linux ignores the warning in those TUs).
+# VOP/HMAC pads in os/netbsd are heap-allocated instead.
+COPTS.zstd_compress.c+= -Wframe-larger-than=6144
+COPTS.hist.c+= -Wframe-larger-than=5120
+COPTS.entropy_common.c+= -Wframe-larger-than=1024
+COPTS.zstd_compress_sequences.c+= -Wframe-larger-than=768
+COPTS.zstd_compress_superblock.c+= -Wframe-larger-than=768
+COPTS.zstd_decompress_block.c+= -Wframe-larger-than=768
+COPTS.skein_block.c+= -Wframe-larger-than=768
+COPTS.lauxlib.c+= -Wframe-larger-than=768
+COPTS.lstrlib.c+= -Wframe-larger-than=1024
+COPTS.ltablib.c+= -Wframe-larger-than=768
+COPTS.abd.c+= -Wframe-larger-than=768
+COPTS.dmu_redact.c+= -Wframe-larger-than=768
+COPTS.dmu_send.c+= -Wframe-larger-than=1024
+COPTS.dsl_dataset.c+= -Wframe-larger-than=768
+COPTS.range_tree.c+= -Wframe-larger-than=768
+COPTS.spa.c+= -Wframe-larger-than=1024
+COPTS.zcp.c+= -Wframe-larger-than=768
+COPTS.zcp_iter.c+= -Wframe-larger-than=768
+COPTS.zfs_ioctl.c+= -Wframe-larger-than=768
+COPTS.zil.c+= -Wframe-larger-than=768
+COPTS.zvol.c+= -Wframe-larger-than=768
+COPTS.hkdf.c+= -Wframe-larger-than=768
+# zio_crypt.c must come from os/netbsd/zfs (HMAC core copy).
+.if !exists(${SRCDIR}/os/netbsd/zfs/zio_crypt.c)
+.error NetBSD-owned zio_crypt.c missing; not compiling os/freebsd/zfs/zio_crypt.c
+.endif
+.if !exists(${SRCDIR}/zfs/hkdf.c)
+.error shared module/zfs/hkdf.c missing
+.endif
+COPTS.zio_crypt.c+= -Wframe-larger-than=768
+
+# Rebuild every compilation unit if the SYSCTL_INT link-set header
+# changes.  Incremental make after 287 left stale .o files without
+# the link_set_zfs_nb_sysctls section.
+.for _s in ${SRCS:M*.c}
+${_s:T:R}.o: ${INCDIR}/os/netbsd/spl/sys/sysctl.h
+.endfor
+spa_history.o: ${INCDIR}/zfs_gitrev.h
+
+.include <bsd.kmodule.mk>
+
+# bsd.sys.mk: COMPILE.c = CC ${CFLAGS} ${CPPFLAGS} -c
+#             .c.o: ${COMPILE.c} ${COPTS.<file>} ${CPUFLAGS.<file>}
+# CFLAGS+= here is not last.  Per-file CPUFLAGS is.  Use :T so
+# SRCS with a directory prefix still match the compile slot.
+.if ${MACHINE_ARCH} == "x86_64" || ${MACHINE_ARCH} == "amd64" || \
+	${MACHINE_ARCH} == "i386"
+_ZFS_NOSSE= -mno-mmx -mno-sse -mno-sse2 -mno-avx -mno-avx2 -msoft-float
+.if ${ACTIVE_CC:U} == "clang" || ${CC:T} == "clang"
+_ZFS_NOSSE+= -mno-implicit-float
+.else
+_ZFS_NOSSE+= -mgeneral-regs-only
+.endif
+_ZFS_SIMD_C= vdev_raidz_math_sse2.c vdev_raidz_math_ssse3.c \
+	vdev_raidz_math_avx2.c vdev_raidz_math_avx512f.c \
+	vdev_raidz_math_avx512bw.c zfs_fletcher_sse.c \
+	zfs_fletcher_intel.c zfs_fletcher_avx512.c
+.for _s in ${SRCS:M*.c}
+.if empty(_ZFS_SIMD_C:M${_s:T})
+CPUFLAGS.${_s:T}+= ${_ZFS_NOSSE}
+.endif
+.endfor
+CPUFLAGS.vdev_raidz_math_sse2.c+= -mhard-float -msse2
+CPUFLAGS.vdev_raidz_math_ssse3.c+= -mhard-float -mssse3
+CPUFLAGS.zfs_fletcher_sse.c+= -mhard-float -msse2
+.if ${MACHINE_ARCH} == "x86_64" || ${MACHINE_ARCH} == "amd64"
+CPUFLAGS.vdev_raidz_math_avx2.c+= -mhard-float -mavx2
+CPUFLAGS.vdev_raidz_math_avx512f.c+= -mhard-float -mavx512f
+CPUFLAGS.vdev_raidz_math_avx512bw.c+= -mhard-float -mavx512bw
+CPUFLAGS.zfs_fletcher_intel.c+= -mhard-float -mavx2
+CPUFLAGS.zfs_fletcher_avx512.c+= -mhard-float -mavx512f
+.endif
+.endif
+
+show-cc:
+	@echo 'MACHINE_ARCH=${MACHINE_ARCH}'
+	@echo 'CPUFLAGS.abd.c=${CPUFLAGS.abd.c}'
+	@echo 'CPUFLAGS.zfs_crrd.c=${CPUFLAGS.zfs_crrd.c}'
+	@echo 'COPTS.zfs_fletcher_sse.c=${COPTS.zfs_fletcher_sse.c}'
+	@echo 'CPUFLAGS.zfs_fletcher_sse.c=${CPUFLAGS.zfs_fletcher_sse.c}'
+	@echo 'CPUFLAGS.zfs_fletcher_intel.c=${CPUFLAGS.zfs_fletcher_intel.c}'
+	@rm -f abd.o zfs_crrd.o zfs_fletcher.o zfs_fletcher_sse.o \
+	    zfs_fletcher_intel.o zio_checksum.o
+	${MAKE} -f Makefile.openzfs abd.o zfs_crrd.o zfs_fletcher.o \
+	    zfs_fletcher_sse.o zfs_fletcher_intel.o zio_checksum.o
+.PHONY: show-cc
+
+# NetBSD 11.0 GENERIC still links sys/external/bsd/libnv (and a
+# few libc leftovers).  OpenZFS ships its own copies; kobj_checksyms
+# rejects the redefinitions.  Localize those prefixes only -- keep
+# the rest of the symbol table for ddb.  Generated from nm so a
+# new fnvlist_* upstream does not become a load-time surprise.
+# Generated binary search code is particularly bad with this optimization.
+# Oddly, range_tree.c is not affected when unrolling is not done and dsl_scan.c
+# is not affected when unrolling is done.
+# Disable it until the following upstream issue is resolved:
+# https://github.com/llvm/llvm-project/issues/62790
+.if ${CC} == "clang"
+.if ${MACHINE_ARCH} == "i386" || ${MACHINE_ARCH} == "x86_64" || ${MACHINE_ARCH} == "amd64"
+CFLAGS.dsl_scan.c= -mllvm -x86-cmov-converter=false
+CFLAGS.metaslab.c= -mllvm -x86-cmov-converter=false
+CFLAGS.range_tree.c= -mllvm -x86-cmov-converter=false
+CFLAGS.zap_micro.c= -mllvm -x86-cmov-converter=false
+.endif
+.endif
+
+
+CFLAGS.gcc+= -Wno-pointer-to-int-cast
+
+CFLAGS.abd.c= -Wno-cast-qual
+CFLAGS.ddt.c= -Wno-cast-qual
+CFLAGS.ddt_log.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.ddt_zap.c= -Wno-cast-qual
+CFLAGS.dmu.c= -Wno-cast-qual
+CFLAGS.dmu_traverse.c= -Wno-cast-qual
+CFLAGS.dnode.c= ${NO_WUNUSED_BUT_SET_VARIABLE}
+CFLAGS.dsl_deadlist.c= -Wno-cast-qual
+CFLAGS.dsl_dir.c= -Wno-cast-qual
+CFLAGS.dsl_prop.c= -Wno-cast-qual
+CFLAGS.edonr.c= -Wno-cast-qual
+CFLAGS.fm.c= -Wno-cast-qual
+CFLAGS.hist.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.lapi.c= -Wno-cast-qual
+CFLAGS.lcompat.c= -Wno-cast-qual
+CFLAGS.ldo.c= ${NO_WINFINITE_RECURSION}
+CFLAGS.lobject.c= -Wno-cast-qual
+CFLAGS.ltable.c= -Wno-cast-qual
+CFLAGS.lvm.c= -Wno-cast-qual
+CFLAGS.lz4.c= -Wno-cast-qual
+CFLAGS.lz4_zfs.c= -Wno-cast-qual
+CFLAGS.nvpair.c= -Wno-cast-qual -DHAVE_RPC_TYPES ${NO_WSTRINGOP_OVERREAD}
+CFLAGS.pool.c+= ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.pool.c+= -U__BMI__ -fno-tree-vectorize
+CFLAGS.spa.c= -Wno-cast-qual
+CFLAGS.spa_misc.c= -Wno-cast-qual
+CFLAGS.spl_string.c= -Wno-cast-qual
+CFLAGS.spl_vm.c= -Wno-cast-qual
+CFLAGS.spl_zlib.c= -Wno-cast-qual
+CFLAGS.vdev_draid.c= -Wno-cast-qual
+CFLAGS.vdev_raidz.c= -Wno-cast-qual
+CFLAGS.vdev_raidz_math.c= -Wno-cast-qual
+CFLAGS.vdev_raidz_math_aarch64_neon.c= -Wno-cast-qual
+CFLAGS.vdev_raidz_math_aarch64_neonx2.c= -Wno-cast-qual
+CFLAGS.vdev_raidz_math_powerpc_altivec.c= -Wno-cast-qual
+CFLAGS.vdev_raidz_math_avx2.c= -Wno-cast-qual -Wno-duplicate-decl-specifier
+CFLAGS.vdev_raidz_math_avx512f.c= -Wno-cast-qual -Wno-duplicate-decl-specifier
+CFLAGS.vdev_raidz_math_scalar.c= -Wno-cast-qual
+CFLAGS.vdev_raidz_math_sse2.c= -Wno-cast-qual -Wno-duplicate-decl-specifier
+CFLAGS.zap_impl.c= -Wno-cast-qual
+CFLAGS.zap_leaf.c= -Wno-cast-qual
+CFLAGS.zcp.c= -Wno-cast-qual
+CFLAGS.zfs_fletcher.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.zfs_fletcher_aarch64_neon.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.zfs_fletcher_avx512.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.zfs_fletcher_intel.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.zfs_fletcher_sse.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.zfs_fm.c= -Wno-cast-qual ${NO_WUNUSED_BUT_SET_VARIABLE}
+CFLAGS.zfs_ioctl.c= -Wno-cast-qual
+CFLAGS.zfs_log.c= -Wno-cast-qual
+CFLAGS.zfs_vnops_os.c= -Wno-pointer-arith
+CFLAGS.zfs_zstd.c= -Wno-cast-qual -Wno-pointer-arith
+CFLAGS.zil.c= -Wno-cast-qual
+CFLAGS.zio.c= -Wno-cast-qual
+CFLAGS.zprop_common.c= -Wno-cast-qual
+CFLAGS.zrlock.c= -Wno-cast-qual
+
+#zstd
+CFLAGS.entropy_common.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.error_private.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.fse_compress.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL} ${NO_WUNUSED_BUT_SET_VARIABLE}
+CFLAGS.fse_decompress.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.huf_compress.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.huf_decompress.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.xxhash.c+= -U__BMI__ -fno-tree-vectorize
+CFLAGS.xxhash.c+= ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_common.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL} -DZSTD_TRACE=0 -DZSTD_HAVE_WEAK_SYMBOLS=0
+CFLAGS.zstd_compress.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_compress_literals.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_compress_sequences.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_compress_superblock.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL} ${NO_WUNUSED_BUT_SET_VARIABLE}
+CFLAGS.zstd_ddict.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_decompress.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_decompress_block.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_double_fast.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_fast.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_lazy.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_ldm.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+CFLAGS.zstd_opt.c= -U__BMI__ -fno-tree-vectorize ${NO_WBITWISE_INSTEAD_OF_LOGICAL}
+
+.if ${MACHINE_ARCH} == "aarch64" || ${MACHINE_ARCH} == "aarch64eb"
+
+# Linux CFLAGS_REMOVE_*.o += -mgeneral-regs-only.  GENERIC64 also
+# passes -march=armv8-a+nofp+nosimd; strip that and compile SIMD
+# TUs as armv8-a so AdvSIMD (eor v0.16b) assembles.
+#
+# Compile to .o.o then CTFCONVERT_RUN -- writing .o directly left
+# neon objects without CTF and ctfmerge failed.
+AARCH64_ASM_FLAGS= ${AARCH64_SIMD_CFLAGS:N-include:N*ccompile.h:N*simd_config.h} \
+	${CPPFLAGS:N-include:N*ccompile.h:N*simd_config.h} -DLOCORE
+
+vdev_raidz_math_aarch64_neon.o: vdev_raidz_math_aarch64_neon.c
+	${CC} -c ${AARCH64_SIMD_CFLAGS} ${CPPFLAGS} ${WERROR} \
+	    -o ${.TARGET}.o ${.IMPSRC}
+	${CTFCONVERT_RUN}
+
+vdev_raidz_math_aarch64_neonx2.o: vdev_raidz_math_aarch64_neonx2.c
+	${CC} -c ${AARCH64_SIMD_CFLAGS} ${CPPFLAGS} ${WERROR} \
+	    -o ${.TARGET}.o ${.IMPSRC}
+	${CTFCONVERT_RUN}
+
+zfs_fletcher_aarch64_neon.o: zfs_fletcher_aarch64_neon.c
+	${CC} -c ${AARCH64_SIMD_CFLAGS} ${CPPFLAGS} ${WERROR} \
+	    -o ${.TARGET}.o ${.IMPSRC}
+	${CTFCONVERT_RUN}
+
+sha256-armv8.o: sha256-armv8.S
+	${CC} -c ${AARCH64_ASM_FLAGS} ${WERROR} \
+	    -o ${.TARGET} ${.IMPSRC}
+
+sha512-armv8.o: sha512-armv8.S
+	${CC} -c ${AARCH64_ASM_FLAGS} ${WERROR} \
+	    -o ${.TARGET} ${.IMPSRC}
+
+.endif

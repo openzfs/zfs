@@ -17,7 +17,9 @@
 #ifndef _SYS_DKLABEL_H
 #define	_SYS_DKLABEL_H
 
-
+#ifdef __NetBSD__
+#include_next <sys/dklabel.h>
+#else
 
 #include <sys/isa_defs.h>
 #include <sys/types32.h>
@@ -253,5 +255,7 @@ struct dk_devid {
 #ifdef	__cplusplus
 }
 #endif
+
+#endif /* !__NetBSD__ */
 
 #endif	/* _SYS_DKLABEL_H */

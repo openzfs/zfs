@@ -69,7 +69,7 @@ function test_sequential_resilver # <pool> <parity> <dir>
 
 	for (( i=0; i<$nparity; i=i+1 )); do
 		log_must dd conv=notrunc if=/dev/zero of=$dir/dev-$i \
-		    bs=1M seek=4 count=$(($dev_size_mb-4))
+		    bs=1${DD_M} seek=4 count=$(($dev_size_mb-4))
 	done
 
 	log_must zpool import -o cachefile=none -d $dir $pool

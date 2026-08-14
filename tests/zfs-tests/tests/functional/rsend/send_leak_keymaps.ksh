@@ -53,14 +53,14 @@ log_must eval "echo 'password' > $keyfile"
 log_must zfs create -o encryption=on -o keyformat=passphrase \
 	-o keylocation=file://$keyfile $TESTPOOL/$TESTFS2
 
-log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS2/testfile bs=128K count=4 \
-	status=none
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS2/testfile bs=128k count=4 \
+	${DD_STATUS_NONE}
 
 for i in $(seq 0 20); do
     log_note "Taking snapshots"
     log_must zfs snapshot $TESTPOOL/$TESTFS2@snap_$i
-    log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS2/testfile bs=128K \
-	    count=4 status=none
+    log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS2/testfile bs=128k \
+	    count=4 ${DD_STATUS_NONE}
 done
 
 log_must eval "zfs send $TESTPOOL/$TESTFS2@snap_0 | zfs recv $TESTPOOL/recv"

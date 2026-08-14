@@ -25,7 +25,21 @@
 
 #include <sys/isa_defs.h>
 #include <sys/feature_tests.h>
+#if defined(__NetBSD__)
+/*
+ * Native NetBSD is `typedef int64_t longlong_t` / `uint64_t
+ * u_longlong_t` (long / unsigned long on LP64).  OpenZFS common code
+ * treats them as long long.  Same rename-then-typedef as the kernel
+ * SPL boolean_t / longlong_t hijack.
+ */
+#define	longlong_t	__netbsd_longlong_t
+#define	u_longlong_t	__netbsd_u_longlong_t
+#endif
 #include_next <sys/types.h>
+#if defined(__NetBSD__)
+#undef	longlong_t
+#undef	u_longlong_t
+#endif
 #include <sys/types32.h>
 #include <stdarg.h>
 #include <sys/stdtypes.h>

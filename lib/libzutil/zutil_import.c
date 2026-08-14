@@ -1340,7 +1340,16 @@ zpool_find_import_scan_add_slice(libpc_handle_t *hdl, pthread_mutex_t *lock,
 	slice->rn_avl = cache;
 	slice->rn_hdl = hdl;
 	slice->rn_order = order + IMPORT_ORDER_SCAN_OFFSET;
+#ifdef __NetBSD__
+	/*
+	 * So zpool_open_func can keep a label path that names the
+	 * raw twin of this block node.  Preferred slices clear the
+	 * flag, which stops the walk from opening rld3a/rcd0.
+	 */
+	slice->rn_labelpaths = B_TRUE;
+#else
 	slice->rn_labelpaths = B_FALSE;
+#endif
 
 	pthread_mutex_lock(lock);
 	if (avl_find(cache, slice, &where)) {
@@ -1390,7 +1399,7 @@ zpool_find_import_scan_dir(libpc_handle_t *hdl, pthread_mutex_t *lock,
 		case DT_UNKNOWN:
 		case DT_BLK:
 		case DT_LNK:
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__NetBSD__)
 		case DT_CHR:
 #endif
 		case DT_REG:
@@ -1398,6 +1407,17 @@ zpool_find_import_scan_dir(libpc_handle_t *hdl, pthread_mutex_t *lock,
 		default:
 			continue;
 		}
+#ifdef __NetBSD__
+		{
+			size_t plen = strlen(path);
+
+			if (plen > 0 && path[plen - 1] == '/')
+				plen--;
+			if (plen == 4 && memcmp(path, "/dev", 4) == 0 &&
+			    !zfs_dev_is_import_scan_leaf(name))
+				continue;
+		}
+#endif
 
 		zpool_find_import_scan_add_slice(hdl, lock, cache, path, name,
 		    order);

@@ -37,7 +37,8 @@ create_snapshot $TESTPOOL/$TESTFS $TESTSNAP2
 
 log_must snapexists $snap1
 log_must snapexists $snap2
-log_must zfs unmount $fs
+# Do not unmount with cwd on the dataset (NetBSD umount is strict).
+log_must eval "cd / && zfs unmount $fs"
 
 log_must_program_sync $TESTPOOL - $fs $snap2 <<-EOF
 	arg = ...

@@ -43,6 +43,10 @@
 
 verify_runnable "global"
 
+if is_netbsd; then
+	log_unsupported "NetBSD does not support block cloning"
+fi
+
 log_assert "Block cloning of dedup blocks with pruned DDT entries uses BRT"
 
 # Flush DDT log every TXG so entries appear in the ZAP immediately,

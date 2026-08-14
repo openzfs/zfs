@@ -73,6 +73,10 @@
 
 #include "zfs_deleg.h"
 
+#if defined(__linux__) || defined(__FreeBSD__)
+#define	crgetgroupat(cr, i)	(crgetgroups(cr)[(i)])
+#endif
+
 /*
  * Validate that user is allowed to delegate specified permissions.
  *
@@ -423,7 +427,6 @@ static int
 dsl_check_user_access(objset_t *mos, uint64_t zapobj, const char *perm,
     int checkflag, cred_t *cr)
 {
-	const	gid_t *gids;
 	int	ngids;
 	int	i;
 	uint64_t id;
@@ -448,9 +451,8 @@ dsl_check_user_access(objset_t *mos, uint64_t zapobj, const char *perm,
 
 	/* check each supplemental group user is a member of */
 	ngids = crgetngroups(cr);
-	gids = crgetgroups(cr);
 	for (i = 0; i != ngids; i++) {
-		id = gids[i];
+		id = crgetgroupat(cr, i);
 		if (dsl_check_access(mos, zapobj,
 		    ZFS_DELEG_GROUP, checkflag, &id, perm) == 0)
 			return (0);
@@ -508,7 +510,6 @@ static void
 dsl_load_user_sets(objset_t *mos, uint64_t zapobj, avl_tree_t *avl,
     char checkflag, cred_t *cr)
 {
-	const	gid_t *gids;
 	int	ngids, i;
 	uint64_t id;
 
@@ -524,9 +525,8 @@ dsl_load_user_sets(objset_t *mos, uint64_t zapobj, avl_tree_t *avl,
 	    ZFS_DELEG_EVERYONE_SETS, checkflag, NULL, avl);
 
 	ngids = crgetngroups(cr);
-	gids = crgetgroups(cr);
 	for (i = 0; i != ngids; i++) {
-		id = gids[i];
+		id = crgetgroupat(cr, i);
 		(void) dsl_load_sets(mos, zapobj,
 		    ZFS_DELEG_GROUP_SETS, checkflag, &id, avl);
 	}

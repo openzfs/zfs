@@ -177,9 +177,12 @@ test_replace_vdev "raidz $VDEV0 $VDEV1 $VDEV2" \
 	"raidz $VDEV0 $VDEV3 $VDEV2" \
 	"$VDEV0 $VDEV1 $VDEV2" 10
 
+# plain "draid" is draid1:Nd:Mc:0s.  nspares stays 0 unless the
+# type string contains :Ns, so status has no spares line.
+# The name still translates to "draid".
 test_replace_vdev "draid $VDEV0 $VDEV1 $VDEV2 $VDEV3" \
 	"$VDEV1" "$VDEV4" \
-	"draid $VDEV0 $VDEV4 $VDEV2 $VDEV3 spares draid1-0-0" \
+	"draid $VDEV0 $VDEV4 $VDEV2 $VDEV3" \
 	"$VDEV0 $VDEV1 $VDEV2 $VDEV3" 10
 
 set_zfs_txg_timeout $ZFS_TXG_TIMEOUT

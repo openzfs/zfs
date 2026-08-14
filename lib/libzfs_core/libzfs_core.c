@@ -84,8 +84,12 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/zfs_ioctl.h>
-#if __FreeBSD__
-#define	BIG_PIPE_SIZE (64 * 1024) /* From sys/pipe.h */
+#if defined(__FreeBSD__) || defined(__NetBSD__)
+/*
+ * sys/pipe.h is a kernel header on NetBSD (uses vaddr_t).  BIG_PIPE_SIZE
+ * is 4*PIPE_SIZE == 64KB on NetBSD, matching FreeBSD.
+ */
+#define	BIG_PIPE_SIZE (64 * 1024)
 #endif
 
 #include "libzfs_core_impl.h"
@@ -690,7 +694,7 @@ max_pipe_buffer(int infd)
 		cur = max;
 	return (cur);
 #else
-	/* FreeBSD automatically resizes */
+	/* FreeBSD and NetBSD report BIG_PIPE_SIZE from sys/pipe.h. */
 	(void) infd;
 	return (BIG_PIPE_SIZE);
 #endif
@@ -1199,7 +1203,7 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 		 * Copy the kernel "errors" nvlist when present.  On success
 		 * this carries property apply failures; on failure it may
 		 * also include ZFS_RECV_ERR_STREAM.  Do not allocate an
-		 * empty nvlist when the key is absent — leave *errors
+		 * empty nvlist when the key is absent -- leave *errors
 		 * unchanged (callers must initialize it to NULL).  If the
 		 * caller requested errors and the ioctl succeeded but the
 		 * key is missing, treat that as ENOENT (incomplete output).

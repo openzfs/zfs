@@ -44,7 +44,7 @@ for i in $(seq $(($NR_FILES/$BATCH))); do
 done
 cd $CWD
 
-log_must test $NR_FILES -eq $(ls -U $TESTDIR/$DIR | wc -l)
+log_must test $NR_FILES -eq $(ls_unsorted $TESTDIR/$DIR | wc -l)
 
 # remove all files in $DIR directory
 cd $TESTDIR/$DIR
@@ -54,7 +54,7 @@ done
 cd $CWD
 sync_pool $TESTPOOL
 
-log_must test 0 -eq $(ls -U $TESTDIR/$DIR | wc -l)
+log_must test 0 -eq $(ls_unsorted $TESTDIR/$DIR | wc -l)
 
 # check whether zap_shrink works
 zapobj=$(zdb -v -O $TESTPOOL/$TESTFS $DIR)

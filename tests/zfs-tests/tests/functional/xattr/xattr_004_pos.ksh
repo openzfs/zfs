@@ -51,7 +51,14 @@ log_onexit cleanup
 # Create a ufs|ext file system that we can work in
 log_must zfs create -V128m $TESTPOOL/$TESTFS/zvol
 block_device_wait
-log_must eval "new_fs $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol > /dev/null 2>&1"
+if is_netbsd; then
+	# newfs -O defaults to FFSv1.  User extattrs need FFSv2ea.
+	# mount -o extattr is only the UFS1 switch and does not make
+	# setextattr work.  2ea enables them with no mount option.
+	log_must eval "new_fs -O 2ea $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol > /dev/null 2>&1"
+else
+	log_must eval "new_fs $ZVOL_DEVDIR/$TESTPOOL/$TESTFS/zvol > /dev/null 2>&1"
+fi
 
 log_must mkdir /tmp/$NEWFS_DEFAULT_FS.$$
 if is_illumos; then

@@ -62,6 +62,9 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/vfs.h>
+#ifdef __NetBSD__
+#include <sys/statvfs.h>
+#endif
 #include <sys/dsl_crypt.h>
 
 #include <libzfs.h>
@@ -197,6 +200,14 @@ dir_is_empty_readdir(const char *dirname)
 static boolean_t
 dir_is_empty(const char *dirname)
 {
+#ifdef __NetBSD__
+	struct statvfs st;
+
+	if (statvfs(dirname, &st) != 0 ||
+	    strncmp(st.f_fstypename, "zfs", sizeof (st.f_fstypename)) != 0) {
+		return (dir_is_empty_readdir(dirname));
+	}
+#else
 	struct statfs64 st;
 
 	/*
@@ -207,6 +218,7 @@ dir_is_empty(const char *dirname)
 	    (st.f_type != ZFS_SUPER_MAGIC)) {
 		return (dir_is_empty_readdir(dirname));
 	}
+#endif
 
 	/*
 	 * At this point, we know the provided path is on a ZFS
@@ -409,6 +421,15 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 
 	if (strstr(mntopts, MNTOPT_REMOUNT) != NULL)
 		remount = 1;
+#if defined(__NetBSD__)
+	/*
+	 * mount(8) encodes mount -u as the option "update", not
+	 * "remount".  A non-empty mountpoint is not a reason to
+	 * refuse that (zfs_mount_remount).
+	 */
+	if (!remount && strstr(mntopts, "update") != NULL)
+		remount = 1;
+#endif
 
 	/* Potentially duplicates some checks if invoked by zfs_mount(). */
 	if (!zfs_is_mountable_internal(zhp))
@@ -593,6 +614,15 @@ unmount_one(zfs_handle_t *zhp, const char *mountpoint, int flags)
 			libzfs_err = EZFS_IO;
 			break;
 		case ENOENT:
+			/*
+			 * NetBSD unmount(2) namei's the path.  A rename
+			 * can leave the mount on the old directory, and
+			 * a busy child whose covered directory was
+			 * removed is still on the mount list.  ENOENT
+			 * is a failed unmount: do not destroy a
+			 * filesystem that is still mounted, and do not
+			 * add an unmount ioctl.
+			 */
 			libzfs_err = EZFS_NOENT;
 			break;
 		case ENOMEM:

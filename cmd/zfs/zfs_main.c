@@ -1548,8 +1548,22 @@ destroy_callback(zfs_handle_t *zhp, void *data)
 		}
 	} else {
 		error = destroy_batched(cb);
+		if (error == 0) {
+			int uflags = cb->cb_force ? MS_FORCE : 0;
+
+			/*
+			 * NetBSD unmount(2) namei's the mountpoint.  A
+			 * directory removed by receive -F or rename
+			 * returns ENOENT while the mount stays on the
+			 * kernel list.  Linux still reaches that mount.
+			 * The NetBSD kernel needs that change.  Failing
+			 * the unmount is what keeps destroy off a
+			 * filesystem that is still mounted.  There is
+			 * no unmount ioctl.
+			 */
+			error = zfs_unmount(zhp, NULL, uflags);
+		}
 		if (error != 0 ||
-		    zfs_unmount(zhp, NULL, cb->cb_force ? MS_FORCE : 0) != 0 ||
 		    zfs_destroy(zhp, cb->cb_defer_destroy) != 0) {
 			zfs_close(zhp);
 			/*

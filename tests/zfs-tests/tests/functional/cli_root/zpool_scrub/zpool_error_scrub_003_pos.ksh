@@ -48,7 +48,7 @@ truncate -s $MINVDEVSIZE $TESTDIR/vdev_a
 log_must zpool create -f -O primarycache=none $TESTPOOL2 $TESTDIR/vdev_a
 log_must zfs create $TESTPOOL2/$TESTFS1
 typeset file=/$TESTPOOL2/$TESTFS1/$TESTFILE0
-log_must dd if=/dev/urandom of=$file bs=2M count=10
+log_must dd if=/dev/urandom of=$file bs=2${DD_M} count=10
 
 lastfs="$(zfs list -r $TESTPOOL2 | tail -1 | awk '{print $1}')"
 for i in {1..3}; do
@@ -58,7 +58,7 @@ for i in {1..3}; do
 done
 
 log_must zinject -t data -e checksum -f 100 -a $file
-dd if=$file of=/dev/null bs=2M count=10
+dd if=$file of=/dev/null bs=2${DD_M} count=10
 
 # Important: sync error log to disk
 log_must sync_pool $TESTPOOL2

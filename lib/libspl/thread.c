@@ -17,6 +17,7 @@
  */
 
 #include <assert.h>
+#include <limits.h>
 #include <pthread.h>
 #include <string.h>
 #include <sys/thread.h>
@@ -102,7 +103,7 @@ zk_thread_create(const char *name, void (*func)(void *), void *arg,
 	VERIFY0(pthread_create(&tid, &attr, zk_thread_wrapper, ztw));
 	VERIFY0(pthread_attr_destroy(&attr));
 
-	pthread_setname_np(tid, name);
+	(void) pthread_setname_np(tid, name);
 
 	return ((void *)(uintptr_t)tid);
 }

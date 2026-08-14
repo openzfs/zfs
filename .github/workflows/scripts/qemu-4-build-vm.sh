@@ -210,6 +210,58 @@ function freebsd() {
   echo "##[endgroup]"
 }
 
+function netbsd() {
+  extra="${1:-}"
+
+  # Makefile.netbsd is a standalone BSD makefile; it does not need
+  # autogen/configure.  Userland is built --with-config=user below.
+  echo "##[group]Kernel modules"
+  run sh -c 'cd module && make -f Makefile.netbsd -j$(sysctl -n hw.ncpu)'
+  run sudo sh -c 'cd module && make -f Makefile.netbsd install'
+  echo "##[endgroup]"
+
+  echo "##[group]Autogen.sh"
+  run ./autogen.sh
+  echo "##[endgroup]"
+
+  echo "##[group]Configure"
+  run ./configure \
+    --prefix=/usr/pkg \
+    --with-config=user \
+    --enable-pyzfs \
+    --enable-debuginfo $extra
+  echo "##[endgroup]"
+
+  echo "##[group]Build"
+  run gmake -j$(sysctl -n hw.ncpu)
+  echo "##[endgroup]"
+
+  echo "##[group]Install"
+  run sudo gmake install
+  run sudo ln -sfn /usr/pkg/sbin/mount_zfs /sbin/mount_zfs
+  run test -x /usr/pkg/sbin/mount_zfs
+  run test -x /usr/pkg/sbin/zgenhostid
+  echo "##[endgroup]"
+
+  echo "##[group]Verify userland"
+  run test -x /usr/pkg/sbin/zpool
+  run test -x /usr/pkg/sbin/zfs
+  run test -x /usr/pkg/sbin/zdb
+  run test -x /usr/pkg/sbin/zhack
+  run test -x /usr/pkg/sbin/zgenhostid
+  run /usr/pkg/sbin/zpool version
+  echo "##[endgroup]"
+
+  echo "##[group]Verify ZTS helpers"
+  run test -x /usr/pkg/share/zfs/zfs-tests/bin/nvlist_to_lua
+  run test -x /usr/pkg/share/zfs/zfs-tests/bin/libzfs_input_check
+  run test -x /usr/pkg/share/zfs/zfs-tests/bin/libzfs_mnttab_cache_check
+  run test -x /usr/pkg/share/zfs/zfs-tests/bin/zcp_support
+  run sh -c 'ldd /usr/pkg/share/zfs/zfs-tests/bin/zcp_support | grep -q libnvpair'
+  run test -x /usr/pkg/share/zfs/zfs-tests/bin/fioseek
+  echo "##[endgroup]"
+}
+
 function linux() {
   extra="${1:-}"
 
@@ -359,13 +411,15 @@ fi
 # rhel8.10
 # almalinux9.5
 # fedora44
-source /etc/os-release
- if which hostnamectl &> /dev/null ; then
-  # Fedora 42+ use hostnamectl
-  sudo hostnamectl set-hostname "$ID$VERSION_ID"
-  sudo hostnamectl set-hostname --pretty "$ID$VERSION_ID"
-else
-  sudo hostname "$ID$VERSION_ID"
+if [ -f /etc/os-release ]; then
+  source /etc/os-release
+  if which hostnamectl &> /dev/null ; then
+    # Fedora 42+ use hostnamectl
+    sudo hostnamectl set-hostname "$ID$VERSION_ID"
+    sudo hostnamectl set-hostname --pretty "$ID$VERSION_ID"
+  else
+    sudo hostname "$ID$VERSION_ID"
+  fi
 fi
 
 # save some sysinfo
@@ -398,6 +452,9 @@ case "$OS" in
   freebsd*)
     freebsd "$extra"
     ;;
+  netbsd*)
+    netbsd "$extra"
+    ;;
   alma*|centos*)
     rpm_build_and_install "--with-spec=redhat $extra"
     if [ -n "$TARBALL" ] ; then
@@ -425,8 +482,12 @@ PREV_BRANCH=""
 echo 0 > /var/tmp/build-exitcode.txt
 
 # reset cloud-init configuration and poweroff
-if [ -n "$POWEROFF" ] ; then
-        sudo cloud-init clean --logs
-        sync && sleep 2 && sudo poweroff &
+if [ -n "$POWEROFF" ]; then
+  if [[ "$OS" == netbsd* ]]; then
+    sync && sleep 2 && sudo shutdown -p now &
+  else
+    sudo cloud-init clean --logs || true
+    sync && sleep 2 && sudo poweroff &
+  fi
 fi
 exit 0

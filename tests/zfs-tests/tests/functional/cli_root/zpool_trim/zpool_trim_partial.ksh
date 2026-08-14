@@ -47,6 +47,8 @@ function cleanup
 		rm -rf "$TESTDIR"
 	fi
 
+	netbsd_trim_backing_cleanup
+
 	log_must set_tunable64 TRIM_METASLAB_SKIP 0
 	log_must set_tunable64 TRIM_EXTENT_BYTES_MIN $trim_extent_bytes_min
 	log_must set_tunable64 VDEV_MIN_MS_COUNT $vdev_min_ms_count
@@ -54,7 +56,15 @@ function cleanup
 log_onexit cleanup
 
 LARGESIZE=$((MINVDEVSIZE * 4))
-LARGEFILE="$TESTDIR/largefile"
+# File grows to 4*LARGESIZE (see the dd below).  On NetBSD that file
+# has to live on ZFS; FFS cannot punch the hole du(1) is measuring.
+if is_netbsd; then
+	netbsd_trim_backing_setup $((LARGESIZE * 4))
+	LARGEFILE="$TRIM_FILE"
+else
+	LARGEFILE="$TESTDIR/largefile"
+	log_must mkdir "$TESTDIR"
+fi
 
 # The minimum number of metaslabs is increased in order to simulate the
 # behavior of partial trimming on a more typically sized 1TB disk.
@@ -65,12 +75,12 @@ log_must set_tunable64 VDEV_MIN_MS_COUNT 64
 typeset trim_extent_bytes_min=$(get_tunable TRIM_EXTENT_BYTES_MIN)
 log_must set_tunable64 TRIM_EXTENT_BYTES_MIN 512
 
-log_must mkdir "$TESTDIR"
 log_must truncate -s $LARGESIZE "$LARGEFILE"
 log_must zpool create -O compression=off $TESTPOOL "$LARGEFILE"
 log_must mkfile $(( floor(LARGESIZE * 0.80) )) /$TESTPOOL/file
 sync_pool $TESTPOOL
 
+is_netbsd && netbsd_trim_backing_sync
 new_size=$(du -k "$LARGEFILE" | awk '{print $1 * 1024}')
 log_must test $new_size -le $LARGESIZE
 log_must test $new_size -gt $(( floor(LARGESIZE * 0.70) ))
@@ -80,9 +90,12 @@ log_must zpool export $TESTPOOL
 log_must dd if=/dev/urandom of=$LARGEFILE conv=notrunc \
     seek=$((LARGESIZE / (1024 * 1024))) bs=$((1024 * 1024)) \
     count=$((3 * LARGESIZE / (1024 * 1024)))
-log_must zpool import -d $TESTDIR $TESTPOOL
+# The file vdev is not always in $TESTDIR.  On NetBSD it lives on
+# the parent dataset (see netbsd_trim_backing_setup).
+log_must zpool import -d "${LARGEFILE%/*}" $TESTPOOL
 log_must zpool online -e $TESTPOOL "$LARGEFILE"
 
+is_netbsd && netbsd_trim_backing_sync
 new_size=$(du -k "$LARGEFILE" | awk '{print $1 * 1024}')
 log_must test $new_size -gt $((4 * floor(LARGESIZE * 0.70) ))
 
@@ -92,6 +105,7 @@ log_must set_tunable64 TRIM_METASLAB_SKIP 1
 log_must zpool trim -w $TESTPOOL
 sync_pool $TESTPOOL true
 
+is_netbsd && netbsd_trim_backing_sync
 new_size=$(du -k "$LARGEFILE" | awk '{print $1 * 1024}')
 log_must test $new_size -gt $LARGESIZE
 
@@ -102,6 +116,7 @@ log_must set_tunable64 TRIM_METASLAB_SKIP 0
 log_must zpool trim -w $TESTPOOL
 sync_pool $TESTPOOL true
 
+is_netbsd && netbsd_trim_backing_sync
 new_size=$(du -k "$LARGEFILE" | awk '{print $1 * 1024}')
 log_must test $new_size -le $(( 2 * LARGESIZE))
 log_must test $new_size -gt $(( floor(LARGESIZE * 0.70) ))

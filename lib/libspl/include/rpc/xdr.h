@@ -31,10 +31,12 @@
 #define	XDR_GET_BYTES_AVAIL 1
 
 #ifndef HAVE_XDR_BYTESREC
+#if !defined(__NetBSD__)
 struct xdr_bytesrec {
 	bool_t xc_is_last_record;
 	size_t xc_num_avail;
 };
+#endif
 #endif
 typedef struct xdr_bytesrec  xdr_bytesrec_t;
 

@@ -31,6 +31,7 @@
 #include <libintl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <strings.h>
 #include <unistd.h>
 #include <stddef.h>
@@ -4192,6 +4193,7 @@ rollback_destroy(zfs_handle_t *zhp, void *data)
 	return (0);
 }
 
+
 /*
  * Given a dataset, rollback to a specific snapshot, discarding any
  * data changes since then and making it the active dataset.
@@ -4229,6 +4231,7 @@ zfs_rollback(zfs_handle_t *zhp, zfs_handle_t *snap, boolean_t force)
 
 	if (cb.cb_error)
 		return (-1);
+
 
 	/*
 	 * Now that we have verified that the snapshot is the latest,

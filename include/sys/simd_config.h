@@ -23,7 +23,7 @@
  * We need to allow the following:
  * - #define HAVE_TOOLCHAIN_AVX 1   (zfs_config.h, detected by configure)
  * - #undef HAVE_TOOLCHAIN_AVX      (zfs_config.h, probed but not detected)
- * - -DHAVE_TOOLCHAIN_AVX           (Makefile.bsd)
+ * - -DHAVE_TOOLCHAIN_AVX           (Makefile.bsd / Makefile.inc.netbsd)
  *
  * For completeness, we also allow disabling by defined HAVE_TOOLCHAIN_AVX=0.
  *
@@ -82,6 +82,9 @@
 /*
  * The Linux kernel requires a specific toolchain. Everything else uses the
  * regular compiler toolchain.
+ *
+ * NetBSD kmod builds have no configure probes.  Makefile.inc.netbsd
+ * passes the same -DHAVE_TOOLCHAIN_* set as FreeBSD Makefile.bsd.
  */
 #if defined(_KERNEL) && defined(__linux__)
 #define	HAVE_SIMD(ext)	_zfs_deftrue(HAVE_KERNEL_##ext)

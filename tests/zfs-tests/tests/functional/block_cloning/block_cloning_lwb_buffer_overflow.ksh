@@ -61,8 +61,8 @@ log_must zfs create -o recordsize=32K $TESTPOOL/$TESTFS
 # so it can store 1022 block pointers. When LWB optimization is enabled,
 # an assert is hit when 128KB block write is split into two 68KB ones
 # for 2 SLOG devices
-log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/file1 bs=32K count=1022 \
-	conv=fsync
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/file1 bs=32k count=1022 \
+	${OFLAG_SYNC}
 sync_pool $TESTPOOL
 log_must clonefile -f /$TESTPOOL/$TESTFS/file1 /$TESTPOOL/$TESTFS/file2
 log_must sync

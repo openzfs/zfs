@@ -27,11 +27,25 @@ nodist_libzfs_core_la_SOURCES = \
 	module/os/freebsd/zfs/zfs_ioctl_compat.c
 endif
 
+if BUILD_NETBSD
+libzfs_core_la_CPPFLAGS += -Iinclude/os/netbsd/zfs
+
+libzfs_core_la_SOURCES += \
+	%D%/os/netbsd/libzfs_core_ioctl.c
+
+nodist_libzfs_core_la_SOURCES = \
+	module/os/netbsd/zfs/zfs_ioctl_compat.c
+endif
+
 libzfs_core_la_LIBADD = \
 	libnvpair.la \
 	libspl.la
 
 libzfs_core_la_LIBADD += $(LTLIBINTL)
+
+if BUILD_NETBSD
+libzfs_core_la_LIBADD += -lintl
+endif
 
 libzfs_core_la_LDFLAGS = -version-info 3:0:0
 

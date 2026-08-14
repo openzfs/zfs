@@ -1,0 +1,49 @@
+# OpenZFS on NetBSD
+#   openzfs.kmod   ZFS + SPL (does not export DTrace ABI)
+#   solaris.kmod   DTrace ABI: solaris_cpu, cpu_core, solaris_kmem_*
+#                  ncpu > MAXCPUS fails here (dtrace, not zfs)
+#                  LOCKDEBUG=1 omits cpu_core; dtrace will not load
+#   zfs.kmod       empty stub, MODULE(..., "openzfs")  [mount autoload]
+#
+# Default is a release kmod with debuginfo (NDEBUG, -g):
+#   make -f Makefile.netbsd
+# Assertions:
+#   make -f Makefile.netbsd WITH_DEBUG=true
+
+.include <bsd.own.mk>
+
+.MAIN: all
+.PHONY: all clean cleandir install
+
+all:
+	${MAKE} -f ${.CURDIR}/Makefile.openzfs
+	${MAKE} -f ${.CURDIR}/Makefile.solaris
+	${MAKE} -f ${.CURDIR}/Makefile.zfs
+
+clean:
+	${MAKE} -f ${.CURDIR}/Makefile.openzfs clean
+	${MAKE} -f ${.CURDIR}/Makefile.solaris clean
+	${MAKE} -f ${.CURDIR}/Makefile.zfs clean
+
+cleandir:
+	${MAKE} -f ${.CURDIR}/Makefile.openzfs cleandir
+	${MAKE} -f ${.CURDIR}/Makefile.solaris cleandir
+	${MAKE} -f ${.CURDIR}/Makefile.zfs cleandir
+
+.if !defined(STANDDIR)
+# osrelease() is empty in some out-of-tree make envs; uname -r is 11.0
+# on this tree.  MACHINE is amd64 / evbarm / ... (uname -m).
+_OSREL=	${osrelease()}
+.if empty(_OSREL)
+_OSREL!=	uname -r
+.endif
+STANDDIR?=	/stand/${MACHINE}/${_OSREL}/modules
+.endif
+
+install: all
+	@mkdir -p ${STANDDIR}/openzfs ${STANDDIR}/solaris ${STANDDIR}/zfs
+	cp -f openzfs.kmod ${STANDDIR}/openzfs/openzfs.kmod
+	cp -f solaris.kmod ${STANDDIR}/solaris/solaris.kmod
+	cp -f zfs.kmod ${STANDDIR}/zfs/zfs.kmod
+	@ls -l ${STANDDIR}/openzfs/openzfs.kmod \
+	    ${STANDDIR}/solaris/solaris.kmod ${STANDDIR}/zfs/zfs.kmod

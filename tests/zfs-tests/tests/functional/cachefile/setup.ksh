@@ -20,6 +20,11 @@
 . $STF_SUITE/tests/functional/cachefile/cachefile.cfg
 . $STF_SUITE/tests/functional/cachefile/cachefile.kshlib
 
+for d in $DISKS; do
+	[ -n "$d" ] || continue
+	zpool labelclear -f "$d" >/dev/null 2>&1 || true
+done
+
 for pool in "$TESTPOOL" "$TESTPOOL2" "$TESTPOOL3" ; do
 	if poolexists $pool ; then
 		destroy_pool $pool

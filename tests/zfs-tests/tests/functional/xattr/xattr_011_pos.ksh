@@ -84,7 +84,7 @@ else
 fi
 
 # check that with the right flag, the xattr is preserved
-if is_freebsd; then
+if is_freebsd || is_netbsd; then
 	log_note "Checking cp - unsupported"
 elif is_linux; then
 	log_note "Checking cp"

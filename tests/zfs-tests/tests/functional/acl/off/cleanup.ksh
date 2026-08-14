@@ -19,6 +19,13 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/acl/acl_common.kshlib
 
+# posixmode can leave mode-007 trees; do not sit on that mount.
+cd / || true
+if [[ -n $TESTDIR && $TESTDIR != / && -d $TESTDIR ]]; then
+	chmod -R u+rwx "$TESTDIR" >/dev/null 2>&1 || true
+	rm -rf "$TESTDIR"/* >/dev/null 2>&1 || true
+fi
+
 cleanup_user_group
 
 default_cleanup

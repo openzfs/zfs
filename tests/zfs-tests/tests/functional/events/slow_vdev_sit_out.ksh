@@ -51,7 +51,7 @@ log_must truncate -s200M $TEST_BASE_DIR/vdev.$$.{0..9}
 for raidtype in raidz raidz2 raidz3 draid1 draid2 draid3 ; do
 	log_must zpool create $TESTPOOL2 $raidtype $TEST_BASE_DIR/vdev.$$.{0..9}
 	log_must zpool set autosit=on $TESTPOOL2 "${raidtype}-0"
-	log_must dd if=/dev/urandom of=/$TESTPOOL2/bigfile bs=1M count=600
+	log_must dd if=/dev/urandom of=/$TESTPOOL2/bigfile bs=1${DD_M} count=600
 	log_must zpool export $TESTPOOL2
 	log_must zpool import -d $TEST_BASE_DIR $TESTPOOL2
 
@@ -65,9 +65,9 @@ for raidtype in raidz raidz2 raidz3 draid1 draid2 draid3 ; do
 
 	# Do some reads and wait for us to sit out
 	for i in {0..99} ; do
-		dd if=/$TESTPOOL2/bigfile skip=$i bs=2M count=1 of=/dev/null &
-		dd if=/$TESTPOOL2/bigfile skip=$((i + 100)) bs=2M count=1 of=/dev/null &
-		dd if=/$TESTPOOL2/bigfile skip=$((i + 200)) bs=2M count=1 of=/dev/null
+		dd if=/$TESTPOOL2/bigfile skip=$i bs=2${DD_M} count=1 of=/dev/null &
+		dd if=/$TESTPOOL2/bigfile skip=$((i + 100)) bs=2${DD_M} count=1 of=/dev/null &
+		dd if=/$TESTPOOL2/bigfile skip=$((i + 200)) bs=2${DD_M} count=1 of=/dev/null
 
 		sit_out=$(get_vdev_prop sit_out $TESTPOOL2 $BAD_VDEV)
 		if [[ "$sit_out" == "on" ]] ; then

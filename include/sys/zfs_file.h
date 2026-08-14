@@ -22,7 +22,7 @@
  * loff_t name still compile. The FreeBSD kernel gets loff_t from its
  * own linux-compat headers.
  */
-#if !defined(_KERNEL) && defined(__FreeBSD__)
+#if !defined(_KERNEL) && (defined(__FreeBSD__) || defined(__NetBSD__))
 typedef off_t loff_t;
 #endif
 
@@ -33,6 +33,9 @@ typedef struct zfs_file {
 } zfs_file_t;
 #elif defined(__linux__) || defined(__FreeBSD__)
 typedef struct file zfs_file_t;
+#elif defined(__NetBSD__)
+struct zfs_file;
+typedef struct zfs_file zfs_file_t;
 #else
 #error "unknown OS"
 #endif

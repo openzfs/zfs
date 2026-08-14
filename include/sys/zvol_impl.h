@@ -17,6 +17,9 @@
 #define	_SYS_ZVOL_IMPL_H
 
 #include <sys/zfs_context.h>
+#include <sys/dataset_kstats.h>
+
+#define	ZVOL_ROOT	"/dev/zvol"
 
 #define	ZVOL_RDONLY	(1<<0)	/* zvol is readonly (writes rejected) */
 #define	ZVOL_WRITTEN_TO	(1<<1)	/* zvol has been written to (needs flush) */

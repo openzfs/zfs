@@ -54,7 +54,7 @@ log_must zpool import $TESTPOOL
 log_must zinject -t data -e checksum -f 100 -am /$TESTPOOL/10m_file
 
 # create some error blocks before error scrub is requested.
-dd if=/$TESTPOOL/10m_file bs=1M count=1 || true
+dd if=/$TESTPOOL/10m_file bs=1${DD_M} count=1 || true
 # sync error blocks to disk
 log_must sync_pool $TESTPOOL
 
@@ -72,7 +72,7 @@ log_must zpool scrub -s $TESTPOOL
 log_must is_pool_scrub_stopped $TESTPOOL true
 
 # create some error blocks before error scrub is requested.
-dd if=/$TESTPOOL/10m_file bs=1M count=1 || true
+dd if=/$TESTPOOL/10m_file bs=1${DD_M} count=1 || true
 # sync error blocks to disk
 log_must sync_pool $TESTPOOL
 

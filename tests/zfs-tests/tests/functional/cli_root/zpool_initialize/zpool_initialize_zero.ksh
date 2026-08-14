@@ -44,7 +44,13 @@ SMALLFILE="$TESTDIR/smallfile"
 
 log_must mkdir "$TESTDIR"
 # Fill the whole device with 0xff so free space starts out non-zero.
-log_must eval "tr '\0' '\377' < /dev/zero | head -c $MINVDEVSIZE > $SMALLFILE"
+# bs=128k is accepted by GNU and BSD dd.  bs=1 of MINVDEVSIZE is tens
+# of millions of syscalls on every platform.
+# NetBSD dd counts each short pipe read as one record.  tr writes
+# about 16KB at a time, so `tr | dd bs=128k count=N` stops at
+# N*16KB, under SPA_MINDEVSIZE, and create fails with EOVERFLOW.
+# dd has to be the producer so each record is a full 128KB.
+log_must eval "dd if=/dev/zero bs=128k count=$((MINVDEVSIZE / 131072)) 2>/dev/null | tr '\0' '\377' > $SMALLFILE"
 
 log_must zpool create $TESTPOOL "$SMALLFILE"
 log_must zpool initialize -w -z $TESTPOOL

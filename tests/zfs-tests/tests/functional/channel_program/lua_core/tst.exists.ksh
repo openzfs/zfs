@@ -39,7 +39,10 @@ log_must_program $TESTPOOL $ZCP_ROOT/lua_core/tst.exists.zcp \
     $TESTPOOL $TESTPOOL/$TESTFS $TESTPOOL/$TESTFS@$TESTSNAP \
     $TESTPOOL/$TESTCLONE
 
+typeset bodyf
+bodyf=$(zcp_write_program "return zfs.exists('rpool')")
 log_mustnot_checkerror_program "not in the target pool" \
-    $TESTPOOL - <<<"return zfs.exists('rpool')"
+    $TESTPOOL "$bodyf"
+rm -f "$bodyf"
 
 log_pass "zfs.exists() gives correct results"

@@ -256,23 +256,34 @@ function _kstat_freebsd
 	# the name we requested, while for a group, the key will not have the
 	# name (group nodes are "opaque", not returned by sysctl by default.
 
+	# NetBSD sysctl -q suppresses the value, not just errors.
+	# FreeBSD -q only quiets missing oids.
+	typeset _sc_q="-q"
+	is_netbsd && _sc_q=""
+
 	# Multi-line values already end in a newline, and sysctl adds another
 	# one after every value, so hold each line back and drop the empty
 	# last one, to match what the same kstat looks like on Linux.
 
 	if [[ $want_group == 0 ]] ; then
-		sysctl -e "$oid" | awk -v oid="$oid" -v oidre="^$oid=" '
+		sysctl $_sc_q -e "$oid" 2>/dev/null | awk -v oid="$oid" '
+			BEGIN { oidre = "^" oid "[[:space:]]*=" }
 			NR == 1 && $0 !~ oidre { exit 1 }
-			NR == 1 { prev = substr($0, length(oid)+2) ; next }
+			NR == 1 {
+			    sub("^" oid "[[:space:]]*=[[:space:]]*", "")
+			    prev = $0
+			    next
+			}
 			{ print prev ; prev = $0 }
 			END { if (prev != "") print prev }
 		'
 	else
-		sysctl -e "$oid" | awk -v oid="$oid" -v oidre="^$oid=" '
+		sysctl $_sc_q -e "$oid" 2>/dev/null | awk -v oid="$oid" '
+			BEGIN { oidre = "^" oid "[[:space:]]*=" }
 			NR == 1 && $0 ~ oidre { exit 2 }
 			{
-			    sub("^" oid "\.", "")
-			    sub("=", " ")
+			    sub("^" oid "\\.", "")
+			    sub("[[:space:]]*=[[:space:]]*", " ")
 			    print
 			}
 		'
@@ -304,9 +315,11 @@ function _resolve_dsname_freebsd
 	# do it a complicated way.
 	typeset pool=$1
 	typeset dsname=$2
+	# NetBSD sysctl -e may put spaces around `=`.  $6 is the
+	# `dataset_name=pool/fs` (or `dataset_name = pool/fs`) field.
 	sysctl -e kstat.zfs.$pool | \
-	    awk -F '.' -v dsnamere="=$dsname$" '
-		/\.objset-0x[0-9a-f]+\.dataset_name=/ && $6 ~ dsnamere {
+	    awk -F '.' -v dsnamere="[[:space:]]*=[[:space:]]*$dsname[[:space:]]*$" '
+		/\.objset-0x[0-9a-f]+\.dataset_name[[:space:]]*=/ && $6 ~ dsnamere {
 		    print substr($5, 8)
 		    exit
 		}
@@ -499,7 +512,11 @@ function _split_pool_objsetid
 # To avoid needing platform check throughout, we store the names of the
 # platform functions and call through them.
 #
-if is_freebsd ; then
+# NetBSD exports the same kstat.zfs.<module>.<class>.<name> sysctl
+# tree as FreeBSD (spl_kstat.c).  sysctl -e is `name=value` on both;
+# NetBSD may insert spaces around `=`.  Do not pass -q on NetBSD:
+# sysctl -q there prints nothing even for a live oid.
+if is_freebsd || is_netbsd ; then
 	_kstat_os='_kstat_freebsd'
 	_resolve_dsname_os='_resolve_dsname_freebsd'
 elif is_linux ; then

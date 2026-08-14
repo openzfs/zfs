@@ -34,9 +34,19 @@ main(void)
 	if (setrlimit(RLIMIT_NOFILE, &limit) != 0)
 		err(1, "setrlimit()");
 
+	/*
+	 * Some platforms clamp RLIMIT_NOFILE.  NetBSD dosetrlimit()
+	 * clamps to kern.maxfiles.  setrlimit(2) succeeds and does
+	 * not write the clamped value back, so looping over the
+	 * requested 64k hits EMFILE and libzfs_init() cannot open
+	 * /dev/zfs.  getrlimit(2) returns the installed limit.
+	 */
+	if (getrlimit(RLIMIT_NOFILE, &limit) != 0)
+		err(1, "getrlimit()");
+
 	int fd = open("/dev/null", O_RDONLY);
 	if (fd == -1)
-			err(1, "open()");
+		err(1, "open()");
 	for (int i = 0; i < limit.rlim_cur / 2; ++i)
 		if (dup(fd) == -1)
 			err(1, "dup()");

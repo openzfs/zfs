@@ -81,6 +81,12 @@ function get_reverse_option
 			      "noexec"    "exec" \
 			      "rw"        "ro" \
 			      "nosetuid"  "setuid"
+	elif is_netbsd; then
+		set -A values "noatime"   "atime" \
+			      "noexec"    "exec" \
+			      "rw"        "ro" \
+			      "nosetuid"  "setuid" \
+			      "nodev"     "dev"
 	else
 		set -A values "noatime"   "atime" \
 			      "noexec"    "exec" \

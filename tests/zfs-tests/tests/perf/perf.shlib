@@ -385,7 +385,7 @@ function get_min_arc_size
 	Linux)
 		awk '$1 == "c_min" { print $3 }' /proc/spl/kstat/zfs/arcstats
 		;;
-	FreeBSD)
+	FreeBSD|NetBSD)
 		sysctl -n kstat.zfs.misc.arcstats.c_min
 		;;
 	*)
@@ -403,7 +403,7 @@ function get_max_arc_size
 	Linux)
 		awk '$1 == "c_max" { print $3 }' /proc/spl/kstat/zfs/arcstats
 		;;
-	FreeBSD)
+	FreeBSD|NetBSD)
 		sysctl -n kstat.zfs.misc.arcstats.c_max
 		;;
 	*)
@@ -421,7 +421,7 @@ function get_arc_target
 	Linux)
 		awk '$1 == "c" { print $3 }' /proc/spl/kstat/zfs/arcstats
 		;;
-	FreeBSD)
+	FreeBSD|NetBSD)
 		sysctl -n kstat.zfs.misc.arcstats.c
 		;;
 	*)

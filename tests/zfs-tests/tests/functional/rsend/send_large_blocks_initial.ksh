@@ -63,7 +63,7 @@ typeset mntpnt=$(get_prop mountpoint $repro)
 
 # Activate the large_blocks feature by creating a large file, then delete it
 # This leaves the feature 'active' on the dataset level even though large blocks no longer exist.
-log_must dd if=/dev/urandom of=$mntpnt/big.bin bs=1M count=1
+log_must dd if=/dev/urandom of=$mntpnt/big.bin bs=1${DD_M} count=1
 log_must zpool sync $POOL
 log_must rm $mntpnt/big.bin
 

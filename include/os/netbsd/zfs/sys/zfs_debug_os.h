@@ -1,0 +1,52 @@
+// SPDX-License-Identifier: BSD-2-Clause
+/*
+ * Copyright (c) 2007 Pawel Jakub Dawidek <pjd@FreeBSD.org>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHORS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHORS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ * $FreeBSD$
+ */
+
+#ifndef _SYS_ZFS_DEBUG_OS_H
+#define	_SYS_ZFS_DEBUG_OS_H
+
+#include <sys/sdt.h>
+
+#ifdef KDTRACE_HOOKS
+#ifdef SET_ERROR
+#undef SET_ERROR
+#endif
+SDT_PROBE_DECLARE(sdt, , , set__error);
+
+
+/* BEGIN CSTYLED */
+#define	SET_ERROR(err)	({ 					\
+	SDT_PROBE1(sdt, , , set__error, (uintptr_t)err);	\
+	err;							\
+})
+/* END CSTYLED */
+#else
+#define	SET_ERROR(err) (err)
+#endif
+
+#endif	/* _SYS_ZFS_DEBUG_OS_H */

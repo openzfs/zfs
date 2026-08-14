@@ -84,7 +84,7 @@ log_must truncate -s 5G $VDEV
 log_must zpool create -f $TESTPOOL $VDEV
 
 # Fill ARC to arc_max so eviction lists have stable evictable buffers
-log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=1M count=$fill_mb
+log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=1${DD_M} count=$fill_mb
 log_must zpool sync $TESTPOOL
 
 # Create and add cache devices now that ARC is full

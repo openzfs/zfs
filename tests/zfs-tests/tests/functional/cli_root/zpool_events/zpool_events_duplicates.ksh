@@ -92,7 +92,7 @@ function do_dup_test
 		# Read the file a few times to generate some
 		# duplicate errors of the same blocks
 		for _ in {1..15}; do
-			dd if=$FILEPATH of=/dev/null bs=128K 2>/dev/null
+			dd if=$FILEPATH of=/dev/null bs=128k 2>/dev/null
 		done
 		log_must zinject -c all
 	fi

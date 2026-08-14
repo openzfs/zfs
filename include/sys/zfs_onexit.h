@@ -38,6 +38,7 @@ typedef struct zfs_onexit_action_node {
 } zfs_onexit_action_node_t;
 
 extern void zfs_onexit_init(zfs_onexit_t **zo);
+extern int zfs_onexit_init_flags(zfs_onexit_t **zo, int flags);
 extern void zfs_onexit_destroy(zfs_onexit_t *zo);
 
 #endif

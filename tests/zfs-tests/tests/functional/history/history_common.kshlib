@@ -102,6 +102,8 @@ function verify_long
 		suffix=":linux"
 	elif is_freebsd; then
 		suffix=":freebsd"
+	elif is_netbsd; then
+		suffix=":netbsd"
 	fi
 
 	if ! grep -q "$cmd \[user $uid ($user) on $hname$suffix\]" $NEW_HISTORY; then

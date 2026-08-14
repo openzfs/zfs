@@ -90,12 +90,34 @@ function random_write # file write_size
 	typeset file=$1
 	typeset block_size=$2
 	typeset file_size=$(stat_size $file 2>/dev/null)
-	typeset nblocks=$((file_size / block_size))
+	typeset nblocks off err
 
-	[[ -w $file ]] || return 1
+	RANDOM_WRITE_ERR=""
+	# stat_size failure used to fall into "$((RANDOM % 0))" or a
+	# silent dd, and removal_with_export discarded stderr.  Record
+	# the real reason for the caller.
+	if [[ -z "$file_size" ]]; then
+		RANDOM_WRITE_ERR="stat_size empty for $file"
+		return 1
+	fi
+	nblocks=$((file_size / block_size))
+	if (( nblocks <= 0 )); then
+		RANDOM_WRITE_ERR="size $file_size nblocks $nblocks file $file"
+		return 1
+	fi
 
-	dd if=/dev/urandom of=$file conv=notrunc \
-	    bs=$block_size count=1 seek=$((RANDOM % nblocks)) >/dev/null 2>&1
+	[[ -w $file ]] || {
+		RANDOM_WRITE_ERR="not writable: $file"
+		return 1
+	}
+
+	off=$((RANDOM % nblocks))
+	err=$(dd if=/dev/urandom of=$file conv=notrunc \
+	    bs=$block_size count=1 seek=$off 2>&1 >/dev/null) || {
+		RANDOM_WRITE_ERR="dd status $? seek=$off bs=$block_size size=$file_size: ${err}"
+		return 1
+	}
+	return 0
 }
 
 function start_random_writer # file
@@ -120,7 +142,7 @@ function test_removal_with_operation # callback [args]
 	log_must mkfile 1g $TESTDIR/$TESTFILE0
 	for i in $(seq $((2**10))); do
 		random_write $TESTDIR/$TESTFILE0 $((2**12)) || \
-		    log_fail "Could not write to $TESTDIR/$TESTFILE0."
+		    log_fail "Could not write to $TESTDIR/$TESTFILE0${RANDOM_WRITE_ERR:+ ($RANDOM_WRITE_ERR)}."
 	done
 	start_random_writer $TESTDIR/$TESTFILE0 1g
 	killpid=$!

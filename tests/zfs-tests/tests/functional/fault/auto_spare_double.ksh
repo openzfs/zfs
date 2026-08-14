@@ -78,7 +78,7 @@ function do_test {
 
 	# Fill the pool with data to make the resilver take a little
 	# time.
-	dd if=/dev/zero of=/$TESTPOOL/testfile bs=1M || true
+	dd if=/dev/zero of=/$TESTPOOL/testfile bs=1${DD_M} || true
 
 	# Zero our failed disk.  It will appear as a blank.
 	rm -f $FAIL_DRIVE

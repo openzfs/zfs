@@ -140,6 +140,14 @@ typedef struct zcp_run_info {
 	 * The errno number returned to caller of zcp_eval().
 	 */
 	int		zri_result;
+
+	/*
+	 * lua_pcall() status from zcp_eval_impl(), or -1 if the Lua
+	 * program was never entered (pool open failed).  Return-value
+	 * conversion is deferred to open context so synctask never
+	 * KM_SLEEP-allocates while holding dp_config_rwlock as writer.
+	 */
+	int		zri_luaerr;
 } zcp_run_info_t;
 
 zcp_run_info_t *zcp_run_info(lua_State *);

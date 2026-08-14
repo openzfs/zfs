@@ -39,7 +39,7 @@ log_must zpool create -o feature@block_cloning=enabled $TESTPOOL $DISKS
 log_must zfs create $TESTPOOL/$TESTFS1
 log_must zfs create $TESTPOOL/$TESTFS2
 
-log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS1/file1 bs=128K count=4
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS1/file1 bs=128k count=4
 log_must sync_pool $TESTPOOL
 
 log_must \

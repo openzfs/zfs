@@ -203,7 +203,7 @@ typedef struct dmu_buf_impl {
 	 * Handle to safely access the dnode we belong to (NULL when evicted)
 	 * if dnode_move() is used on the platform, or just dnode otherwise.
 	 */
-#if !defined(__linux__) && !defined(__FreeBSD__)
+#if !defined(__linux__) && !defined(__FreeBSD__) && !defined(__NetBSD__)
 #define	USE_DNODE_HANDLE	1
 	struct dnode_handle *db_dnode_handle;
 #else

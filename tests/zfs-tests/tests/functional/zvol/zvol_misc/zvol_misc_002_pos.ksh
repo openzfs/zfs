@@ -59,7 +59,7 @@ log_must zfs set volsize=128m $TESTPOOL/$TESTVOL
 
 log_must new_fs ${ZVOL_RDEVDIR}/$TESTPOOL/$TESTVOL
 
-log_must mount ${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL $TESTDIR
+log_must mount -t $NEWFS_DEFAULT_FS ${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL $TESTDIR
 
 typeset -i fn=0
 typeset -i retval=0
@@ -69,7 +69,7 @@ while file_write -o create -f $TESTDIR/testfile$$.$fn \
 	(( fn = fn + 1 ))
 done
 
-if is_linux || is_freebsd ; then
+if is_linux || is_freebsd || is_netbsd ; then
 	sync_all_pools
 else
 	log_must lockfs -f $TESTDIR
@@ -79,7 +79,15 @@ log_must zfs set snapdev=visible $TESTPOOL/$TESTVOL
 log_must zfs snapshot $TESTPOOL/$TESTVOL@snap
 block_device_wait
 
-fsck -n ${ZVOL_RDEVDIR}/$TESTPOOL/$TESTVOL@snap >/dev/null 2>&1
+if is_netbsd; then
+	# fsck(8) guesses the type from the partition letter at the
+	# end of the path.  That partition is unused on a zvol, so
+	# the front end exits 1 and never runs fsck_ffs.
+	fsck_ffs -n ${ZVOL_RDEVDIR}/$TESTPOOL/$TESTVOL@snap \
+	    >/dev/null 2>&1
+else
+	fsck -n ${ZVOL_RDEVDIR}/$TESTPOOL/$TESTVOL@snap >/dev/null 2>&1
+fi
 retval=$?
 
 if [ $retval -ne 0 ] ; then
@@ -91,6 +99,12 @@ if [ $retval -ne 0 ] ; then
 		# e2fsprogs-1.43.4 (Fedora 26): returns 8
 		#
 		if [ $retval -ne 4 -a $retval -ne 8 ] ; then
+			log_fail "fsck exited with wrong value $retval"
+		fi
+	elif is_netbsd ; then
+		# fsck_ffs -n on a dirty snapshot cannot write the superblock.
+		# FSCK_EXIT_UNRESOLVED is 2 (fsck/exitvalues.h).
+		if [ $retval -ne 2 ] ; then
 			log_fail "fsck exited with wrong value $retval"
 		fi
 	else

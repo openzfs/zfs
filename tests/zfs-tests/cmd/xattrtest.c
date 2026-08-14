@@ -33,7 +33,11 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#ifdef __linux__
 #include <linux/limits.h>
+#else
+#include <limits.h>
+#endif
 
 #define	ERROR(fmt, ...)                                                 \
 	fprintf(stderr, "xattrtest: %s:%d: %s: " fmt "\n",              \
@@ -83,7 +87,12 @@ static int value_is_random = 0;
 static int keep_files = 0;
 static int phase = PHASE_ALL;
 static const char *path = "/tmp/xattrtest";
-static const char *script = "/bin/true";
+/*
+ * execvp() searches PATH.  NetBSD has no /bin/true (it lives in
+ * /usr/bin); a missing hook makes the child _exit(-1) and the
+ * parent reports 255 right after the create phase.
+ */
+static const char *script = "true";
 static char xattrbytes[XATTR_SIZE_MAX];
 
 static int

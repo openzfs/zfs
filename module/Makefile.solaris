@@ -1,0 +1,13 @@
+# solaris.kmod -- DTrace / cyclic / fbt ABI.
+# No depend on openzfs.  A MAXCPUS mismatch fails dtrace, not zfs.
+.include <bsd.own.mk>
+
+KMOD=	solaris
+
+.include "Makefile.inc.netbsd"
+
+.PATH:	${SRCDIR}/os/netbsd/spl
+
+SRCS=	solaris_stub.c
+
+.include <bsd.kmodule.mk>

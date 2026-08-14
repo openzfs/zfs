@@ -80,6 +80,7 @@ export FILE_SIZE=$(( floor($fill_mb / $NUMJOBS) ))
 
 log_must set_tunable32 L2ARC_WRITE_MAX $(( $VCACHE_SZ * 2 ))
 
+log_must mkdir -p $VDIR
 log_must truncate -s $VCACHE_SZ $VCACHE
 log_must truncate -s $VDEV_SZ $VDEV
 

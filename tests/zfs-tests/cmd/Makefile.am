@@ -1,6 +1,49 @@
 # SPDX-License-Identifier: CDDL-1.0
 scripts_zfs_tests_bindir = $(datadir)/$(PACKAGE)/zfs-tests/bin
 
+# Default for helpers that do not set _LDADD. --enable-debug turns VERIFY()
+# into libspl_assertf, which lives in the convenience lib libspl_assert.la
+# (libspl.la does not pull that in — both are noinst). Directory-prefixed
+# names (%D%/foo) do not always inherit LDADD on automake 1.16, so every
+# helper without a private _LDADD is listed below.
+LDADD = libspl_assert.la libspl.la
+%C%_chg_usr_exec_LDADD = libspl_assert.la libspl.la
+%C%_clonefile_LDADD = libspl_assert.la libspl.la
+%C%_clone_mmap_cached_LDADD = libspl_assert.la libspl.la
+%C%_clone_mmap_write_LDADD = libspl_assert.la libspl.la
+%C%_cp_files_LDADD = libspl_assert.la libspl.la
+%C%_ctime_LDADD = libspl_assert.la libspl.la
+%C%_dir_rd_update_LDADD = libspl_assert.la libspl.la
+%C%_dosmode_readonly_write_LDADD = libspl_assert.la libspl.la
+%C%_get_diff_LDADD = libspl_assert.la libspl.la
+%C%_rename_dir_LDADD = libspl_assert.la libspl.la
+%C%_suid_write_to_file_LDADD = libspl_assert.la libspl.la
+%C%_truncate_test_LDADD = libspl_assert.la libspl.la
+%C%_zfs_diff_socket_LDADD = libspl_assert.la libspl.la
+%C%_clone_after_trunc_LDADD = libspl_assert.la libspl.la
+%C%_file_append_LDADD = libspl_assert.la libspl.la
+%C%_file_check_LDADD = libspl_assert.la libspl.la
+%C%_file_trunc_LDADD = libspl_assert.la libspl.la
+%C%_file_write_LDADD = libspl_assert.la libspl.la
+%C%_largest_file_LDADD = libspl_assert.la libspl.la
+%C%_randfree_file_LDADD = libspl_assert.la libspl.la
+%C%_randwritecomp_LDADD = libspl_assert.la libspl.la
+%C%_manipulate_user_buffer_LDADD = libspl_assert.la libspl.la
+%C%_mkbusy_LDADD = libspl_assert.la libspl.la
+%C%_mkfiles_LDADD = libspl_assert.la libspl.la
+%C%_mktree_LDADD = libspl_assert.la libspl.la
+%C%_mmap_exec_LDADD = libspl_assert.la libspl.la
+%C%_mmap_ftruncate_LDADD = libspl_assert.la libspl.la
+%C%_mmap_seek_LDADD = libspl_assert.la libspl.la
+%C%_mmap_sync_LDADD = libspl_assert.la libspl.la
+%C%_mmapwrite_LDADD = libspl_assert.la libspl.la
+%C%_readmmap_LDADD = libspl_assert.la libspl.la
+%C%_mmap_write_sync_LDADD = libspl_assert.la libspl.la
+%C%_mmap_read_truncate_LDADD = libspl_assert.la libspl.la
+%C%_rm_lnkcnt_zero_file_LDADD = libspl_assert.la libspl.la
+%C%_threadsappend_LDADD = libspl_assert.la libspl.la
+%C%_file_fadvise_LDADD = libspl_assert.la libspl.la
+%C%_file_unlink_fh_LDADD = libspl_assert.la libspl.la
 
 scripts_zfs_tests_bin_PROGRAMS  = %D%/chg_usr_exec
 scripts_zfs_tests_bin_PROGRAMS += %D%/clonefile
@@ -73,7 +116,11 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/libzfs_mnttab_cache_check
 scripts_zfs_tests_bin_PROGRAMS += %D%/manipulate_user_buffer
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/mkbusy %D%/mkfile %D%/mkfiles %D%/mktree
-%C%_mkfile_LDADD = $(LTLIBINTL)
+%C%_mkfile_LDADD = $(LTLIBINTL) libspl_assert.la libspl.la
+if BUILD_NETBSD
+# --disable-nls leaves LTLIBINTL empty, but mkfile.c still calls gettext().
+%C%_mkfile_LDADD += -lintl
+endif
 
 
 scripts_zfs_tests_bin_PROGRAMS += \
@@ -84,7 +131,7 @@ scripts_zfs_tests_bin_PROGRAMS += \
 if WANT_MMAP_LIBAIO
 scripts_zfs_tests_bin_PROGRAMS += %D%/mmap_libaio
 %C%_mmap_libaio_CFLAGS = $(AM_CFLAGS) $(LIBAIO_CFLAGS)
-%C%_mmap_libaio_LDADD  = $(LIBAIO_LIBS)
+%C%_mmap_libaio_LDADD  = $(LIBAIO_LIBS) libspl_assert.la libspl.la
 endif
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/zcp_support
@@ -112,7 +159,7 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/send_doall
 	libnvpair.la
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/stride_dd
-%C%_stride_dd_LDADD = -lrt
+%C%_stride_dd_LDADD = -lrt libspl_assert.la libspl.la
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/threadsappend
 
@@ -146,7 +193,7 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/zed_fd_spill-zedlet
 scripts_zfs_tests_bin_PROGRAMS += %D%/idmap_util
 scripts_zfs_tests_bin_PROGRAMS += %D%/setlease
 
-%C%_idmap_util_LDADD = libspl.la
+%C%_idmap_util_LDADD = libspl_assert.la libspl.la
 
 dist_noinst_DATA += %D%/linux_dos_attributes/dos_attributes.h
 scripts_zfs_tests_bin_PROGRAMS  += %D%/read_dos_attributes %D%/write_dos_attributes
@@ -162,3 +209,10 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/file_uncached
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/file_unlink_fh
 %C%_file_unlink_fh_SOURCES  = %D%/file/file_unlink_fh.c
+
+if BUILD_NETBSD
+scripts_zfs_tests_bin_PROGRAMS += %D%/xattrtest
+scripts_zfs_tests_bin_PROGRAMS += %D%/fioseek
+%C%_fioseek_SOURCES = %D%/fioseek.c
+%C%_fioseek_LDADD = libspl_assert.la libspl.la
+endif

@@ -46,7 +46,7 @@ function cleanup
 }
 
 if ! is_linux; then
-	log_unsupported "Only supported on Linux, requires /proc/sys/vm/ tunables"
+	log_unsupported "this test is Linux specific"
 fi
 
 log_onexit cleanup

@@ -29,7 +29,13 @@ typedef pthread_t	kthread_t;
 #define	TS_RUN		0x00000002
 #define	TS_JOINABLE	0x00000004
 
+/*
+ * Dummy Illumos thread identity for userland (libzpool / ztest).
+ * The kernel SPL maps curthread onto the native thread (Linux:
+ * current; NetBSD: curlwp).  Do not invent a userland curlwp.
+ */
 #define	curthread	((void *)(uintptr_t)pthread_self())
+#define	servicing_interrupt()	(0)
 #define	getcomm()	"unknown"
 
 #define	thread_create_named(name, stk, stksize, func, arg, len, \

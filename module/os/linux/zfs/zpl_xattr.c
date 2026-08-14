@@ -540,7 +540,6 @@ zpl_xattr_set_sa(struct inode *ip, const char *name, const void *value,
 {
 	znode_t *zp = ITOZ(ip);
 	nvlist_t *nvl;
-	size_t sa_size;
 	int error = 0;
 
 	mutex_enter(&zp->z_lock);
@@ -559,17 +558,15 @@ zpl_xattr_set_sa(struct inode *ip, const char *name, const void *value,
 		if (error == -ENOENT)
 			error = zpl_xattr_set_dir(ip, name, NULL, 0, flags, cr);
 	} else {
-		/* Limited to 32k to keep nvpair memory allocations small */
-		if (size > DXATTR_MAX_ENTRY_SIZE)
-			return (-EFBIG);
-
-		/* Prevent the DXATTR SA from consuming the entire SA region */
-		error = -nvlist_size(nvl, &sa_size, NV_ENCODE_XDR);
-		if (error)
+		/*
+		 * Reject a value that will not fit before copying it
+		 * into the cached nvlist.  EFBIG leaves that cache in
+		 * place; zpl_xattr_set() then stores the value in the
+		 * xattr directory.
+		 */
+		error = -zfs_sa_xattr_fits(zp, name, size);
+		if (error != 0)
 			return (error);
-
-		if (sa_size > DXATTR_MAX_SA_SIZE)
-			return (-EFBIG);
 
 		error = -nvlist_add_byte_array(nvl, name,
 		    (uchar_t *)value, size);

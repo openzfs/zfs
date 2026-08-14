@@ -17,6 +17,13 @@ libspl_HEADERS += \
 	%D%/os/freebsd/fcntl.h
 endif
 
+if BUILD_NETBSD
+libspl_HEADERS += \
+	%D%/os/netbsd/ctype.h \
+	%D%/os/netbsd/fcntl.h \
+	%D%/os/netbsd/pthread.h
+endif
+
 
 libspl_rpcdir = $(libspldir)/rpc
 libspl_rpc_HEADERS = \
@@ -56,7 +63,6 @@ libspl_sys_HEADERS = \
 	%D%/sys/random.h \
 	%D%/sys/rwlock.h \
 	%D%/sys/sid.h \
-	%D%/sys/simd.h \
 	%D%/sys/stack.h \
 	%D%/sys/stdtypes.h \
 	%D%/sys/string.h \
@@ -77,6 +83,14 @@ libspl_sys_HEADERS = \
 	%D%/sys/vnode.h \
 	%D%/sys/wmsum.h \
 	%D%/sys/zone.h
+
+if BUILD_NETBSD
+# os/netbsd/sys/simd.h is installed below.  ginstall will not overwrite
+# a just-created dest, so the common sys/simd.h cannot share this list.
+else
+libspl_sys_HEADERS += \
+	%D%/sys/simd.h
+endif
 
 libspl_ia32dir = $(libspldir)/sys/ia32
 
@@ -107,6 +121,24 @@ libspl_sys_HEADERS += \
 
 libspl_ia32_HEADERS = \
 	%D%/os/freebsd/sys/ia32/asm_linkage.h
+endif
+
+if BUILD_NETBSD
+libspl_sys_HEADERS += \
+	%D%/os/netbsd/sys/byteorder.h \
+	%D%/os/netbsd/sys/fcntl.h \
+	%D%/os/netbsd/sys/file.h \
+	%D%/os/netbsd/sys/mnttab.h \
+	%D%/os/netbsd/sys/mount.h \
+	%D%/os/netbsd/sys/param.h \
+	%D%/os/netbsd/sys/simd.h \
+	%D%/os/netbsd/sys/stat.h \
+	%D%/os/netbsd/sys/sha2.h \
+	%D%/os/netbsd/sys/vfs.h \
+	%D%/os/netbsd/sys/wait.h
+
+libspl_ia32_HEADERS = \
+	%D%/os/netbsd/sys/ia32/asm_linkage.h
 endif
 
 

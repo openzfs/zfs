@@ -66,7 +66,7 @@ log_must zfs create $TESTPOOL/$TESTFS
 # synchronously to force ZFS to write one out.
 #
 log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/sync \
-    conv=fdatasync,fsync bs=1 count=1
+    ${OFLAG_SYNC} bs=1 count=1
 
 #
 # Create a small file for the O_DIRECT test before freezing the pool. This
@@ -74,7 +74,7 @@ log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/sync \
 # where O_DIRECT is disabled because the first block must be grown.
 #
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/direct \
-    oflag=sync,direct bs=4k count=1
+    ${OFLAG_SYNC},direct bs=4k count=1
 
 #
 # 2. Freeze TESTFS
@@ -108,23 +108,35 @@ log_must rmdir /$TESTPOOL/$TESTFS/dir_to_delete
 # Create a simple validation payload
 log_must mkdir -p $TESTDIR
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/payload \
-    oflag=sync bs=1k count=8
+    ${OFLAG_SYNC} bs=1k count=8
 typeset checksum=$(xxh128digest /$TESTPOOL/$TESTFS/payload)
 
 # TX_WRITE (small file with ordering)
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/small_file \
-    oflag=sync bs=1k count=1
+    ${OFLAG_SYNC} bs=1k count=1
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/small_file \
-    oflag=sync bs=512 count=1
+    ${OFLAG_SYNC} bs=512 count=1
 
 # TX_CREATE, TX_MKDIR, TX_REMOVE, TX_RMDIR
-log_must cp -R /usr/share/dict /$TESTPOOL/$TESTFS
+# NetBSD live images (and some minimal hosts) omit /usr/share/dict.
+# Seed a small tree so the create/mkdir/remove ZIL records still fire.
+if [[ -d /usr/share/dict ]]; then
+	log_must cp -R /usr/share/dict /$TESTPOOL/$TESTFS
+elif [[ -d /usr/dict ]]; then
+	log_must mkdir -p /$TESTPOOL/$TESTFS/dict
+	log_must cp -R /usr/dict/* /$TESTPOOL/$TESTFS/dict/
+else
+	log_must mkdir -p /$TESTPOOL/$TESTFS/dict/words.d
+	log_must eval "printf 'alpha\nbeta\ngamma\n' > /$TESTPOOL/$TESTFS/dict/words"
+	log_must eval "printf 'delta\n' > /$TESTPOOL/$TESTFS/dict/words.d/extra"
+fi
 log_must rm -rf /$TESTPOOL/$TESTFS/dict
 
 # TX_SETATTR
 log_must touch /$TESTPOOL/$TESTFS/setattr
 log_must chmod 567 /$TESTPOOL/$TESTFS/setattr
-if is_freebsd; then
+# NetBSD ships wheel:*:0:root and no group named "root".
+if is_freebsd || is_netbsd; then
 	log_must chgrp wheel /$TESTPOOL/$TESTFS/setattr
 else
 	log_must chgrp root /$TESTPOOL/$TESTFS/setattr
@@ -137,27 +149,27 @@ log_must truncate -s 0 /$TESTPOOL/$TESTFS/truncated_file
 
 # TX_WRITE (large file)
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/large \
-    oflag=sync bs=128k count=64
+    ${OFLAG_SYNC} bs=128k count=64
 
 # TX_WRITE (O_DIRECT)
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/direct \
-    oflag=sync,direct bs=4k count=1
+    ${OFLAG_SYNC},direct bs=4k count=1
 
 # Write zeros, which compress to holes, in the middle of a file
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.1 \
-    oflag=sync bs=128k count=8
+    ${OFLAG_SYNC} bs=128k count=8
 log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.1 \
-    oflag=sync bs=128k count=2
+    ${OFLAG_SYNC} bs=128k count=2
 
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.2 \
-    oflag=sync bs=128k count=8
+    ${OFLAG_SYNC} bs=128k count=8
 log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.2 \
-    oflag=sync bs=128k count=2 seek=2
+    ${OFLAG_SYNC} bs=128k count=2 seek=2
 
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/holes.3 \
-    oflag=sync bs=128k count=8
+    ${OFLAG_SYNC} bs=128k count=8
 log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/holes.3 \
-    oflag=sync bs=128k count=2 seek=2 conv=notrunc
+    ${OFLAG_SYNC} bs=128k count=2 seek=2 conv=notrunc
 
 # TX_MKXATTR
 log_must mkdir /$TESTPOOL/$TESTFS/xattr.dir
@@ -173,7 +185,7 @@ log_must rm_xattr tmpattr /$TESTPOOL/$TESTFS/xattr.file
 # TX_WRITE, TX_LINK, TX_REMOVE
 # Make sure TX_REMOVE won't affect TX_WRITE if file is not destroyed
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/link_and_unlink \
-    oflag=sync bs=128k count=8
+    ${OFLAG_SYNC} bs=128k count=8
 log_must ln /$TESTPOOL/$TESTFS/link_and_unlink \
    /$TESTPOOL/$TESTFS/link_and_unlink.link
 log_must rm /$TESTPOOL/$TESTFS/link_and_unlink.link
@@ -205,7 +217,13 @@ fi
 # 4. Copy TESTFS to temporary location (TESTDIR/copy)
 #
 log_must mkdir -p $TESTDIR
-log_must rsync -aHAX /$TESTPOOL/$TESTFS/ $TESTDIR/copy
+# NetBSD rsync -X fails with ENOATTR when the directory has no extattr
+# (llistxattr returns 93).  The replay check is the file tree, not xattrs.
+if is_netbsd; then
+	log_must rsync -aH /$TESTPOOL/$TESTFS/ $TESTDIR/copy
+else
+	log_must rsync -aHAX /$TESTPOOL/$TESTFS/ $TESTDIR/copy
+fi
 
 #
 # 5. Unmount filesystem and export the pool

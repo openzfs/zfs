@@ -33,16 +33,22 @@ verify_runnable "both"
 
 function nesting_cleanup
 {
+	if mount | grep -q " $legacy_mnt "; then
+		umount -f "$legacy_mnt" 2>/dev/null || true
+	fi
 	log_must zfs destroy -fR $TESTPOOL/a
 	log_must zfs destroy -fR $TESTPOOL/b
 	log_must zfs destroy -fR $TESTPOOL/c
 	log_must zfs destroy -fR $TESTPOOL/d
+	rmdir "$legacy_mnt" 2>/dev/null || true
 }
 
 log_onexit nesting_cleanup
 
 set -A test_depths 30 16 3
 typeset mountpoint=/$TESTPOOL/mnt
+typeset legacy_mnt=$TEST_BASE_DIR/zfs_unmount_legacy
+log_must mkdir -p "$legacy_mnt"
 
 dsA32=$(printf 'a/%.0s' {1..32})"a"
 log_must zfs create -p $TESTPOOL/$dsA32
@@ -51,12 +57,12 @@ dsB32=$(printf 'b/%.0s' {1..32})"b"
 log_must zfs create -o mountpoint=none -p $TESTPOOL/$dsB32
 # FreeBSD's mount command ignores the mountpoint property.
 if ! is_freebsd; then
-	log_mustnot mount -t zfs $TESTPOOL/$dsB32 /mnt
+	log_mustnot mount -t zfs $TESTPOOL/$dsB32 "$legacy_mnt"
 fi
 
 dsC32=$(printf 'c/%.0s' {1..32})"c"
 log_must zfs create -o mountpoint=legacy -p $TESTPOOL/$dsC32
-log_must mount -t zfs $TESTPOOL/$dsC32 /mnt
+log_must mount -t zfs $TESTPOOL/$dsC32 "$legacy_mnt"
 
 dsD32=$(printf 'd/%.0s' {1..32})"d"
 log_must zfs create -o mountpoint=$mountpoint -p $TESTPOOL/$dsD32

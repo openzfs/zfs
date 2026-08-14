@@ -51,6 +51,12 @@
  * needed to be duplicate locked vnops. If the vnops were used more widely
  * in common code this would likely be preferable. However, currently
  * this is the only file where this is the case.
+ *
+ * NetBSD is the same contract: zfs_create / zfs_mkdir / zfs_symlink /
+ * zfs_make_xattrdir return the new vnode locked (the VOP wrapper
+ * unlocks).  Replay calls those functions directly, so it must
+ * VOP_UNLOCK before zrele.  Skipping that leaves the vnode locked
+ * and the next lookup/getattr waits forever on the rwlock.
  */
 
 /*
@@ -66,8 +72,29 @@ zfs_init_vattr(vattr_t *vap, uint64_t mask, uint64_t mode,
 	memset(vap, 0, sizeof (*vap));
 	vap->va_mask = (uint_t)mask;
 	vap->va_mode = mode;
-#if defined(__FreeBSD__) || defined(__APPLE__)
+#if defined(__FreeBSD__) || defined(__APPLE__) || defined(__NetBSD__)
+	/*
+	 * Live VOPs fill va_type before zfs_mkdir / zfs_mknode.  Replay
+	 * does not.  On NetBSD zfs_mknode1 only creates a directory ZAP
+	 * (z_size == 2, which zfs_dirempty requires) when va_type == VDIR.
+	 * Leaving it zero builds a plain file whose mode still says
+	 * S_IFDIR, so the later TX_RMDIR returns ENOTEMPTY and replay
+	 * stops.
+	 *
+	 * IFTOVT() is right when the logged mode carries S_IFMT.  NetBSD's
+	 * table returns VNON if those bits are absent; match zfs_znode_alloc.
+	 */
 	vap->va_type = IFTOVT(mode);
+#if defined(__NetBSD__)
+	/*
+	 * IFTOVT returns VNON only when (mode & S_IFMT) is not a
+	 * known type.  S_ISDIR and the other S_IS* macros test those
+	 * same bits, so they cannot match here.  A typeless mode is
+	 * a regular file.
+	 */
+	if (vap->va_type == VNON)
+		vap->va_type = VREG;
+#endif
 #endif
 	vap->va_uid = (uid_t)(IS_EPHEMERAL(uid)) ? -1 : uid;
 	vap->va_gid = (gid_t)(IS_EPHEMERAL(gid)) ? -1 : gid;
@@ -418,7 +445,7 @@ zfs_replay_create_acl(void *arg1, void *arg2, boolean_t byteswap)
 
 bail:
 	if (error == 0 && zp != NULL) {
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__NetBSD__)
 		VOP_UNLOCK(ZTOV(zp));
 #endif
 		zrele(zp);
@@ -556,7 +583,7 @@ zfs_replay_create(void *arg1, void *arg2, boolean_t byteswap)
 
 out:
 	if (error == 0 && zp != NULL) {
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__NetBSD__)
 		VOP_UNLOCK(ZTOV(zp));
 #endif
 		zrele(zp);
@@ -977,7 +1004,6 @@ zfs_replay_setsaxattr(void *arg1, void *arg2, boolean_t byteswap)
 	lr_setsaxattr_t *lr = arg2;
 	znode_t *zp;
 	nvlist_t *nvl;
-	size_t sa_size;
 	char *name;
 	char *value;
 	size_t size;
@@ -1014,22 +1040,15 @@ zfs_replay_setsaxattr(void *arg1, void *arg2, boolean_t byteswap)
 		error = nvlist_remove(nvl, name, DATA_TYPE_BYTE_ARRAY);
 	} else {
 		value = &lr->lr_data[strlen(name) + 1];
-		/* Limited to 32k to keep nvpair memory allocations small */
-		if (size > DXATTR_MAX_ENTRY_SIZE) {
-			error = SET_ERROR(EFBIG);
+		/*
+		 * Fail before nvlist_add() if the packed list would
+		 * not fit.  The value is already in the log record.
+		 * Replay does not spill to the directory: a spill is
+		 * a different log record.  The cache stays.
+		 */
+		error = zfs_sa_xattr_fits(zp, name, size);
+		if (error != 0)
 			goto out;
-		}
-
-		/* Prevent the DXATTR SA from consuming the entire SA region */
-		error = nvlist_size(nvl, &sa_size, NV_ENCODE_XDR);
-		if (error)
-			goto out;
-
-		if (sa_size > DXATTR_MAX_SA_SIZE) {
-			error = SET_ERROR(EFBIG);
-			goto out;
-		}
-
 		error = nvlist_add_byte_array(nvl, name, (uchar_t *)value,
 		    size);
 	}

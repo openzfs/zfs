@@ -52,3 +52,14 @@ crgetgroups(cred_t *cr)
 	(void) cr;
 	return (NULL);
 }
+
+gid_t
+crgetgroupat(cred_t *cr, int i)
+{
+	gid_t *g;
+
+	g = crgetgroups(cr);
+	if (g == NULL)
+		return ((gid_t)-1);
+	return (g[i]);
+}

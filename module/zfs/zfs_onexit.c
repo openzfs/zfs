@@ -64,12 +64,22 @@
 void
 zfs_onexit_init(zfs_onexit_t **zop)
 {
+	VERIFY0(zfs_onexit_init_flags(zop, KM_SLEEP));
+}
+
+int
+zfs_onexit_init_flags(zfs_onexit_t **zop, int flags)
+{
 	zfs_onexit_t *zo;
 
-	zo = *zop = kmem_zalloc(sizeof (zfs_onexit_t), KM_SLEEP);
+	zo = kmem_zalloc(sizeof (zfs_onexit_t), flags);
+	if (zo == NULL)
+		return (SET_ERROR(ENOMEM));
+	*zop = zo;
 	mutex_init(&zo->zo_lock, NULL, MUTEX_DEFAULT, NULL);
 	list_create(&zo->zo_actions, sizeof (zfs_onexit_action_node_t),
 	    offsetof(zfs_onexit_action_node_t, za_link));
+	return (0);
 }
 
 void

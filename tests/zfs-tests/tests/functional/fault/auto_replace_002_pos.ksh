@@ -127,7 +127,7 @@ part_uuid=$(udevadm info --query=property --property=ID_PART_TABLE_UUID \
 # we use wipefs which lets the kernel know the partition was removed
 # from the device (i.e., calls BLKRRPART ioctl).
 #
-log_must dd if=/dev/zero of=/dev/disk/by-id/$SD_DEVICE_ID bs=1M count=$SDSIZE
+log_must dd if=/dev/zero of=/dev/disk/by-id/$SD_DEVICE_ID bs=1${DD_M} count=$SDSIZE
 log_must /usr/sbin/wipefs -a /dev/disk/by-id/$SD_DEVICE_ID
 remove_disk $SD
 block_device_wait

@@ -72,7 +72,7 @@ log_must zpool import -f -d $VDIR $TESTPOOL
 # synchronously to force ZFS to write one out.
 #
 log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/sync \
-    conv=fdatasync,fsync bs=1 count=1
+    ${OFLAG_SYNC} bs=1 count=1
 
 #
 # 2. Freeze TESTFS
@@ -90,7 +90,12 @@ log_must eval 'for i in $(seq $NFILES); do zfs set dnodesize=${dnsize[$RANDOM % 
 # 4. Copy TESTFS to temporary location (TESTDIR/copy)
 #
 log_must mkdir -p $TESTDIR
-log_must rsync -aHAX /$TESTPOOL/$TESTFS/ $TESTDIR/copy
+# See slog_replay_fs_001: NetBSD rsync -X errors on ENOATTR.
+if is_netbsd; then
+	log_must rsync -aH /$TESTPOOL/$TESTFS/ $TESTDIR/copy
+else
+	log_must rsync -aHAX /$TESTPOOL/$TESTFS/ $TESTDIR/copy
+fi
 
 #
 # 5. Unmount filesystem and export the pool

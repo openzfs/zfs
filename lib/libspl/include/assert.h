@@ -92,7 +92,7 @@ do {									\
 		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
 		    "VERIFY3S(%s, %s, %s) failed "			\
 		    "(%lld %s 0x%lld)", #LEFT, #OP, #RIGHT,		\
-		    (longlong_t)__left, #OP, (longlong_t)__right);	\
+		    (long long)__left, #OP, (long long)__right);	\
 } while (0)
 
 #define	VERIFY3U(LEFT, OP, RIGHT)					\
@@ -103,7 +103,8 @@ do {									\
 		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
 		    "VERIFY3U(%s, %s, %s) failed "			\
 		    "(%llu %s %llu)", #LEFT, #OP, #RIGHT,		\
-		    (u_longlong_t)__left, #OP, (u_longlong_t)__right);	\
+		    (unsigned long long)__left, #OP,			\
+		    (unsigned long long)__right);			\
 } while (0)
 
 #define	VERIFY3P(LEFT, OP, RIGHT)					\
@@ -123,7 +124,7 @@ do {									\
 	if (!(__left == 0))						\
 		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
 		    "VERIFY0(%s) failed (%lld)", #LEFT,			\
-		    (u_longlong_t)__left);				\
+		    (long long)__left);					\
 } while (0)
 
 #define	VERIFY0P(LEFT)							\
@@ -161,7 +162,7 @@ do {									\
 		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
 		    "VERIFY3S(%s, %s, %s) failed "			\
 		    "(%lld %s %lld) " STR, #LEFT, #OP, #RIGHT,		\
-		    (longlong_t)__left, #OP, (longlong_t)__right,	\
+		    (long long)__left, #OP, (long long)__right,		\
 		    __VA_ARGS__);					\
 } while (0)
 
@@ -173,7 +174,8 @@ do {									\
 		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
 		    "VERIFY3U(%s, %s, %s) failed "			\
 		    "(%llu %s %llu) " STR, #LEFT, #OP, #RIGHT,		\
-		    (u_longlong_t)__left, #OP, (u_longlong_t)__right,	\
+		    (unsigned long long)__left, #OP,			\
+		    (unsigned long long)__right,			\
 		    __VA_ARGS__);					\
 } while (0)
 
@@ -196,7 +198,7 @@ do {									\
 	if (!(__left == 0))						\
 		libspl_assertf(__FILE__, __FUNCTION__, __LINE__,	\
 		    "VERIFY0(%s) failed (%lld) " STR, #LEFT,		\
-		    (longlong_t)__left, __VA_ARGS__);			\
+		    (long long)__left, __VA_ARGS__);			\
 } while (0)
 
 #define	VERIFY0PF(LEFT, STR, ...)					\

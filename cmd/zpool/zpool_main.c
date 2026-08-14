@@ -1780,10 +1780,82 @@ zpool_do_remove(int argc, char **argv)
  * This is useful for checking if a disk in an active pool is offlined or
  * faulted.
  */
+#ifdef __NetBSD__
+struct vdev_active_cbdata {
+	char	*path;
+	int	found;
+	int	active;
+};
+
+/*
+ * NetBSD raw disks do not fail O_EXCL while the pool holds them, so
+ * labelclear -f would wipe a live member (zpool_labelclear_active).
+ * The caller passes the label's ZPOOL_CONFIG_GUID as a decimal
+ * string.  A path lookup misses: the pool was created on the block
+ * node and labelclear opened the raw twin.
+ * An imported vdev is active unless it is offline, faulted, removed,
+ * or cannot be opened.
+ */
 static int
-vdev_is_active(char *vdev_path)
+vdev_active_in_pool(zpool_handle_t *zhp, void *arg)
+{
+	struct vdev_active_cbdata *cb = arg;
+	boolean_t avail_spare, l2cache, log;
+	nvlist_t *nv;
+	vdev_stat_t *vs;
+	uint_t c;
+
+	nv = zpool_find_vdev(zhp, cb->path, &avail_spare, &l2cache, &log);
+	if (nv == NULL) {
+		zpool_close(zhp);
+		return (0);
+	}
+	cb->found = 1;
+	cb->active = 1;
+	if (nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_VDEV_STATS,
+	    (uint64_t **)&vs, &c) == 0) {
+		switch (vs->vs_state) {
+		case VDEV_STATE_OFFLINE:
+		case VDEV_STATE_FAULTED:
+		case VDEV_STATE_REMOVED:
+		case VDEV_STATE_CANT_OPEN:
+			cb->active = 0;
+			break;
+		default:
+			break;
+		}
+	}
+	zpool_close(zhp);
+	return (1);
+}
+#endif
+
+static int
+vdev_is_active(char *vdev_path, uint64_t label_guid)
 {
 	int fd;
+
+#ifdef __NetBSD__
+	/*
+	 * Match an imported vdev by guid.  O_EXCL on the raw node
+	 * does not fail while the pool holds the block node.
+	 */
+	if (g_zfs != NULL && label_guid != 0) {
+		struct vdev_active_cbdata cb;
+		char guidstr[32];
+
+		(void) snprintf(guidstr, sizeof (guidstr), "%llu",
+		    (u_longlong_t)label_guid);
+		cb.path = guidstr;
+		cb.found = 0;
+		cb.active = 0;
+		if (zpool_iter(g_zfs, vdev_active_in_pool, &cb) != 0 &&
+		    cb.found)
+			return (cb.active);
+	}
+#else
+	(void) label_guid;
+#endif
 	fd = open(vdev_path, O_EXCL);
 	if (fd < 0) {
 		return (1);   /* cant open O_EXCL - disk is active */
@@ -1812,6 +1884,7 @@ zpool_do_labelclear(int argc, char **argv)
 	pool_state_t state;
 	boolean_t inuse = B_FALSE;
 	boolean_t force = B_FALSE;
+	uint64_t label_guid = 0;
 
 	/* check options */
 	while ((c = getopt(argc, argv, "f")) != -1) {
@@ -1846,7 +1919,8 @@ zpool_do_labelclear(int argc, char **argv)
 	 * Otherwise if the provided vdev name doesn't point to a file,
 	 * try prepending expected disk paths and partition numbers.
 	 */
-	if ((fd = open(vdev, O_RDWR)) < 0) {
+	fd = open(vdev, O_RDWR);
+	if (fd < 0) {
 		int error;
 		if (vdev[0] == '/') {
 			(void) fprintf(stderr, gettext("failed to open "
@@ -1875,6 +1949,33 @@ zpool_do_labelclear(int argc, char **argv)
 		}
 	}
 
+#ifdef __NetBSD__
+	/*
+	 * Labels are on the raw twin.  Open as given first, the
+	 * same as upstream, then a short name under /dev.  Swap
+	 * only when that open is a block node and the raw twin
+	 * opens.  A file named ld0 in this directory is not a
+	 * block node, so it is cleared as on Linux.
+	 */
+	{
+		struct stat st;
+		char raw[MAXPATHLEN];
+
+		if (fstat(fd, &st) == 0 && S_ISBLK(st.st_mode) &&
+		    vdev[0] == '/' &&
+		    zfs_dev_to_raw_path(vdev, raw, sizeof (raw)) == 0 &&
+		    strcmp(raw, vdev) != 0) {
+			int rfd = open(raw, O_RDWR);
+
+			if (rfd >= 0) {
+				(void) close(fd);
+				fd = rfd;
+				(void) strlcpy(vdev, raw, sizeof (vdev));
+			}
+		}
+	}
+#endif
+
 	/*
 	 * Flush all dirty pages for the block device.  This should not be
 	 * fatal when the device does not support BLKFLSBUF as would be the
@@ -1890,6 +1991,9 @@ zpool_do_labelclear(int argc, char **argv)
 		ret = 1;
 		goto errout;
 	}
+	if (config != NULL)
+		(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_GUID,
+		    &label_guid);
 	nvlist_free(config);
 
 	ret = zpool_in_use(g_zfs, fd, &state, &name, &inuse);
@@ -1913,7 +2017,7 @@ zpool_do_labelclear(int argc, char **argv)
 		 * on an offlined disk in an active pool. We can check if
 		 * the disk is online by calling vdev_is_active().
 		 */
-		if (force && !vdev_is_active(vdev))
+		if (force && !vdev_is_active(vdev, label_guid))
 			break;
 
 		(void) fprintf(stderr, gettext(

@@ -29,6 +29,7 @@ extern "C" {
 
 #define	BE_ILLUMOS_VENDOR	"illumos"
 #define	BE_FREEBSD_VENDOR	"freebsd"
+#define	BE_NETBSD_VENDOR	"netbsd"
 #define	BE_GRUB_VENDOR		"grub"
 #define	BE_LINUX_VENDOR		"linux"
 #define	BE_POSIX_VENDOR		"posix"

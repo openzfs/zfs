@@ -18,6 +18,7 @@
  * Verify that a filehandle-based reopen of an open-unlinked file
  * succeeds. On Linux this exercises zfs_vget() via fh_to_dentry;
  * on FreeBSD it exercises zfs_fhtovp() via VFS_FHTOVP.
+ * On NetBSD it exercises zfs_netbsd_fhtovp() via getfh/fhopen.
  *
  * Exit 0 on success, non-zero on failure.
  *
@@ -34,7 +35,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__NetBSD__)
 #include <sys/param.h>
 #include <sys/mount.h>
 #endif
@@ -114,6 +115,24 @@ main(int argc, char *argv[])
 
 	/* Reopen via filehandle — exercises VFS_FHTOVP/zfs_fhtovp */
 	handle_fd = fhopen(&fh, O_RDONLY);
+#elif defined(__NetBSD__)
+	char fh[128];
+	size_t fhsize = sizeof (fh);
+
+	/* getfh writes the handle and the size it used. */
+	if (getfh(filename, fh, &fhsize) < 0) {
+		perror("getfh");
+		goto out;
+	}
+
+	/* Unlink — file_fd keeps the vnode alive */
+	if (unlink(filename) < 0) {
+		perror("unlink");
+		goto out;
+	}
+
+	/* Reopen via filehandle — exercises VFS_FHTOVP */
+	handle_fd = fhopen(fh, fhsize, O_RDONLY);
 #endif
 
 	if (handle_fd < 0) {

@@ -43,8 +43,11 @@ set -A args "{]" \
 log_assert "Runtime errors in lua scripts fail as expected."
 
 typeset -i i=0
+typeset bodyf
 while (( i < ${#args[*]} )); do
-	log_mustnot_checkerror_program "execution failed" $TESTPOOL - <<<"${args[i]}"
+	bodyf=$(zcp_write_program "${args[i]}")
+	log_mustnot_checkerror_program "execution failed" $TESTPOOL "$bodyf"
+	rm -f "$bodyf"
 	((i = i + 1))
 done
 

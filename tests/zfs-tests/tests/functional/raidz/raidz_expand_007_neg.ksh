@@ -53,7 +53,7 @@ for i in {0..$devs}; do
 	device=$TEST_BASE_DIR/dev-$i
 	# simulate active BTX Server data by inserting a BTX header
 	printf "\xeb\x0e%s\x01\x02\x80" "BTX" | dd of="$device" \
-		bs=512 seek=1024 status=none
+		bs=512 seek=1024 ${DD_STATUS_NONE}
 	log_must truncate -s ${dev_size_mb}M "$device"
 	if [[ $i -ne $devs ]]; then
 		disks[${#disks[*]}+1]=$device

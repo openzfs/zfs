@@ -82,7 +82,7 @@ log_must zfs set compression=off $TESTPOOL/$TESTFS
 # Write some data that will be evacuated from the device when
 # we start the removal.
 #
-log_must dd if=/dev/urandom of=$TESTDIR/$TESTFILE0 bs=64M count=32
+log_must dd if=/dev/urandom of=$TESTDIR/$TESTFILE0 bs=64${DD_M} count=32
 
 #
 # Add second device where all the data will be evacuated.

@@ -42,7 +42,12 @@ log_must mkdir $TESTDIR/dir.0
 # Eliminate access by "other" including our test group,
 # we want access controlled only by the ACLs.
 log_must chmod 700 $TESTDIR/dir.0
-log_must setfacl -m g:$ZFS_ACL_STAFF_GROUP:wx $TESTDIR/dir.0
+if is_netbsd; then
+	# GNU setfacl -m g:group:wx stores group:group:-wx.
+	log_must setfacl -m g:$ZFS_ACL_STAFF_GROUP:-wx $TESTDIR/dir.0
+else
+	log_must setfacl -m g:$ZFS_ACL_STAFF_GROUP:wx $TESTDIR/dir.0
+fi
 # Confirm permissions
 if ! ls -l $TESTDIR | grep "dir.0" | grep -q "drwx-wx---+"; then
 	msk=$(ls -l $TESTDIR | awk '/dir.0/ {print $1}')

@@ -46,7 +46,7 @@ log_must zfs set sync=always "$TESTPOOL/$TESTFS"
 # synchronously to force ZFS to write one out.
 #
 log_must dd if=/dev/zero of=$TESTDIR/sync \
-    conv=fdatasync,fsync bs=1 count=1
+    ${OFLAG_SYNC} bs=1 count=1
 
 #
 # 2. Freeze TESTFS

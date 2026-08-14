@@ -71,7 +71,7 @@ DATASET="$TESTPOOL/$TESTFS/fs"
 TESTSNAP1="$DATASET@snap1"
 TESTSNAP2="$DATASET@snap2"
 FILEDIFF="$TESTDIR/zfs-diff.txt"
-if is_freebsd; then
+if is_freebsd || is_netbsd; then
 	MAJOR=$(stat -f %Hr /dev/null)
 	MINOR=$(stat -f %Lr /dev/null)
 else

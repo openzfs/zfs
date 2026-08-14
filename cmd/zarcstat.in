@@ -313,6 +313,45 @@ elif sys.platform.startswith('linux'):
             name, unused, value = s.split()
             kstat[name] = int(value)
 
+elif sys.platform.startswith('netbsd'):
+    import subprocess
+
+    def _sysctl_named(oid):
+        try:
+            out = subprocess.check_output(
+                ["sysctl", "-e", oid], text=True,
+                stderr=subprocess.DEVNULL)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return []
+        prefix = oid + "."
+        rows = []
+        for line in out.splitlines():
+            if "=" not in line:
+                continue
+            name, value = line.split("=", 1)
+            name = name.strip()
+            value = value.strip()
+            if name.startswith(prefix):
+                name = name[len(prefix):]
+            elif name == oid:
+                continue
+            rows.append((name, value))
+        return rows
+
+    def kstat_update():
+        global kstat
+
+        k1 = _sysctl_named("kstat.zfs.misc.arcstats")
+        k2 = _sysctl_named("kstat.zfs.misc.zfetchstats")
+        if not k1:
+            sys.exit(1)
+
+        kstat = {}
+        for name, value in k1:
+            kstat[name] = int(value)
+        for name, value in k2:
+            kstat["zfetch_" + name] = int(value)
+
 
 def detailed_usage():
     sys.stderr.write("%s\n" % cmd)

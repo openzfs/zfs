@@ -278,6 +278,33 @@ echo "##### /proc/sysrq-trigger stack #####"
                 self.run(options, dryrun=False, kmemleak=kmemleak)
                 self.reran = True
 
+    def _with_netbsd_ksh(self, cmd):
+        """
+        NetBSD /bin/ksh is pdksh.  Test files use #!/bin/ksh, so a
+        PATH/STF_PATH ksh93 never runs.  Invoke ksh93 explicitly.
+        """
+        try:
+            sysname = os.uname().sysname
+        except AttributeError:
+            sysname = os.uname()[0]
+        if sysname != 'NetBSD':
+            return cmd
+        ksh = os.environ.get('STF_KSH93') or ''
+        if not ksh:
+            for c in ('/usr/pkg/bin/ksh93', '/usr/local/bin/ksh93'):
+                if os.path.isfile(c) and os.access(c, os.X_OK):
+                    ksh = c
+                    break
+        if not ksh:
+            return cmd
+        path = cmd if isinstance(cmd, str) else (
+            cmd[0] if isinstance(cmd, list) and cmd else '')
+        if not (path.endswith('.ksh') or path.endswith('.sh')):
+            return cmd
+        if isinstance(cmd, list):
+            return [ksh, '-p'] + cmd
+        return [ksh, '-p', cmd]
+
     def update_cmd_privs(self, cmd, user):
         """
         If a user has been specified to run this Cmd and we're not already
@@ -291,7 +318,7 @@ echo "##### /proc/sysrq-trigger stack #####"
                 cmd += '.ksh'
             if os.path.isfile(cmd+'.sh') and os.access(cmd+'.sh', os.X_OK):
                 cmd += '.sh'
-            return cmd
+            return self._with_netbsd_ksh(cmd)
 
         if not os.path.isfile(cmd):
             if os.path.isfile(cmd+'.ksh') and os.access(cmd+'.ksh', os.X_OK):
@@ -302,12 +329,18 @@ echo "##### /proc/sysrq-trigger stack #####"
         # glibc (at least) will not pass TMPDIR through to setuid programs.
         # if set, arrange for it to be reset before running the target cmd
         tmpdir = os.getenv('TMPDIR')
+        wrapped = self._with_netbsd_ksh(cmd)
+        if isinstance(wrapped, list):
+            ret = [SUDO, '-E', '-u', user]
+            if tmpdir:
+                ret += ['env', 'TMPDIR=%s' % tmpdir]
+            return ret + wrapped
         if tmpdir:
             tmpdirarg = 'env TMPDIR=%s' % tmpdir
         else:
             tmpdirarg = ''
 
-        ret = '%s -E -u %s %s %s' % (SUDO, user, tmpdirarg, cmd)
+        ret = '%s -E -u %s %s %s' % (SUDO, user, tmpdirarg, wrapped)
         return ret.split(' ')
 
     def collect_output(self, proc, debug=False):

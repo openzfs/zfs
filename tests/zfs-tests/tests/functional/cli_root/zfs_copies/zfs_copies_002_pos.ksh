@@ -84,8 +84,9 @@ done
 
 log_note "Verify df(1) can correctly display the space charged."
 for val in 1 2 3; do
-	if is_freebsd; then
-		used=`df -m /$TESTPOOL/fs_$val | awk -v pa=$TESTPOOL/fs_$val -v fs=fs_$val '$0 ~ pa && $4 ~ fs {print $3}'`
+	if is_freebsd || is_netbsd; then
+		used=`df -m /$TESTPOOL/fs_$val | awk 'NR==2 {print $3}'`
+		(( used = used * 1024 * 1024 ))
 	else
 		used=`df -F zfs -k /$TESTPOOL/fs_$val/$FILE | awk -v pa=$TESTPOOL/fs_$val '$0 ~ pa {print $3}'`
 		(( used = used * 1024 )) # kb -> bytes

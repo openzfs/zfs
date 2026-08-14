@@ -1106,7 +1106,7 @@ zfs_ioc_input_tests(const char *pool)
 }
 
 enum zfs_ioc_ref {
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__NetBSD__)
 	ZFS_IOC_BASE = 0,
 #else
 	ZFS_IOC_BASE = ('Z' << 8),

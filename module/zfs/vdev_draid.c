@@ -1887,8 +1887,9 @@ vdev_draid_spare_create(nvlist_t *nvroot, vdev_t *vd, uint64_t *ndraidp,
 		old_nspares = 0;
 
 	/* Allocate memory and copy of the existing spares. */
-	new_spares = kmem_alloc(sizeof (nvlist_t *) *
-	    (draid_nspares + old_nspares), KM_SLEEP);
+	size_t asize = sizeof (nvlist_t *) *
+	    (draid_nspares + old_nspares);
+	new_spares = kmem_alloc(asize, KM_SLEEP);
 	for (uint_t i = 0; i < old_nspares; i++)
 		new_spares[i] = fnvlist_dup(old_spares[i]);
 
@@ -1941,7 +1942,15 @@ vdev_draid_spare_create(nvlist_t *nvroot, vdev_t *vd, uint64_t *ndraidp,
 	for (int i = 0; i < n; i++)
 		nvlist_free(new_spares[i]);
 
-	kmem_free(new_spares, sizeof (*new_spares) * n);
+	/*
+	 * NetBSD kmem_free selects the pool from this size.  Linux
+	 * kfree and FreeBSD free ignore it.  Master frees
+	 * sizeof (*new_spares) * n (8*n on amd64).  That is a
+	 * wrong-cache put whenever n != draid_nspares + old_nspares,
+	 * and with n==1 it is exactly kmem-00008.  Always free asize.
+	 */
+	ASSERT3U(n, ==, draid_nspares + old_nspares);
+	kmem_free(new_spares, asize);
 	*ndraidp = ndraid;
 	*nfgroupp = nfgroup;
 

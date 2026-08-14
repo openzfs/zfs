@@ -127,6 +127,59 @@ if sys.platform.startswith('freebsd'):
         ctls = sysctl.filter('vfs.zfs')
         return {namefmt(ctl): ctl.description for ctl in ctls if is_value(ctl)}
 
+elif sys.platform.startswith('netbsd'):
+    # kstat.zfs.misc.* and vfs.zfs.* are sysctl(8) nodes (spl_kstat.c).
+    # No py-sysctl; parse `sysctl -e`.
+
+    def _sysctl_e(oid):
+        try:
+            out = subprocess.check_output(
+                ['sysctl', '-e', oid], text=True,
+                stderr=subprocess.DEVNULL)
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return []
+        rows = []
+        prefix = oid if oid.endswith('.') else oid + '.'
+        for line in out.splitlines():
+            if '=' not in line:
+                continue
+            name, value = line.split('=', 1)
+            name = name.strip()
+            value = value.strip()
+            if name == oid.rstrip('.'):
+                continue
+            if name.startswith(prefix):
+                name = name[len(prefix):]
+            rows.append((name, value))
+        return rows
+
+    def load_kstats(section):
+        base = 'kstat.zfs.misc.{section}'.format(section=section)
+        return ['{name} : {value}'.format(name=n, value=v)
+                for n, v in _sysctl_e(base)]
+
+    def get_params(base):
+        return {name: value for name, value in _sysctl_e(base)}
+
+    def get_tunable_params():
+        return get_params('vfs.zfs')
+
+    def get_vdev_params():
+        return get_params('vfs.zfs.vdev')
+
+    def get_version_impl(_request):
+        rows = _sysctl_e('vfs.zfs.version.module')
+        if rows:
+            return rows[0][1]
+        try:
+            return subprocess.check_output(
+                ['sysctl', '-n', 'vfs.zfs.version.module'],
+                text=True, stderr=subprocess.DEVNULL).strip()
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return '(unknown)'
+
+    def get_descriptions(_request):
+        return {}
 
 elif sys.platform.startswith('linux'):
     KSTAT_PATH = '/proc/spl/kstat/zfs'
@@ -494,6 +547,13 @@ def isolate_section(section_name, kstats_dict):
         sys.exit(1)
 
     section_dict = dict(cleanup_line(l) for l in section_data)
+
+    # NetBSD sysctl node names are at most 31 bytes (SYSCTL_NAMELEN).
+    # Longer arcstat names are not exported.  Treat those as zero so
+    # the report still prints.
+    if sys.platform.startswith('netbsd'):
+        from collections import defaultdict
+        return (defaultdict(int, section_dict))
 
     return section_dict
 
@@ -938,8 +998,8 @@ def section_spl(*_):
     and/or descriptions. This does not use kstats.
     """
 
-    if sys.platform.startswith('freebsd'):
-        # No SPL support in FreeBSD
+    if sys.platform.startswith('freebsd') or sys.platform.startswith('netbsd'):
+        # No SPL support on BSD
         return
 
     spls = get_spl_params()

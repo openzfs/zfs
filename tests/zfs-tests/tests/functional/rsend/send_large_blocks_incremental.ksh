@@ -63,7 +63,7 @@ typeset destfs=$POOL2/dest
 log_must zfs create -o recordsize=1M $srcfs
 typeset mntpnt=$(get_prop mountpoint $srcfs)
 log_must zfs snapshot $srcfs@feature-inactive
-log_must dd if=/dev/urandom of=$mntpnt/big.bin bs=1M count=1
+log_must dd if=/dev/urandom of=$mntpnt/big.bin bs=1${DD_M} count=1
 log_must zpool sync $POOL
 log_must rm $mntpnt/big.bin
 log_must zfs snapshot $srcfs@feature-active

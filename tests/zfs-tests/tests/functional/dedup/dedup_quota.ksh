@@ -192,7 +192,7 @@ function ddt_dedup_vdev_limit
 
 	# Generate a working set to fill up the dedup/special allocation class
 	for i in {0..63}; do
-		log_must dd if=/dev/urandom of=$MOUNTDIR/file${i} bs=1M count=16
+		log_must dd if=/dev/urandom of=$MOUNTDIR/file${i} bs=1${DD_M} count=16
 		log_must sync_pool $POOL
 	done
 

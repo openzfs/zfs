@@ -23,8 +23,7 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/acl/acl_common.kshlib
 
-log_must getfacl --version
-log_must setfacl --version
+verify_posix_acl_utils
 
 cleanup_user_group
 
@@ -38,5 +37,8 @@ log_must chmod 777 $TESTDIR
 
 # Use POSIX ACLs on filesystem
 log_must zfs set acltype=posix $TESTPOOL/$TESTFS
+# Native setfacl brands via pathconf; remount so this is POSIX.1e
+# the way GNU setfacl always is.
+log_must netbsd_commit_posix_acltype
 
 log_pass

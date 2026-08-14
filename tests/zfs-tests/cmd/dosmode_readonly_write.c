@@ -33,6 +33,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -60,9 +61,15 @@ main(int argc, const char *argv[])
 	uint64_t dosflags = ZFS_READONLY;
 	if (ioctl(fd, ZFS_IOC_SETDOSFLAGS, &dosflags) == -1)
 		err(EXIT_FAILURE, "%s: ZFS_IOC_SETDOSFLAGS failed", path);
-#else
+#elif defined(UF_READONLY)
 	if (chflags(path, UF_READONLY) == -1)
 		err(EXIT_FAILURE, "%s: chflags failed", path);
+#else
+	/*
+	 * NetBSD has no UF_READONLY.  Do not substitute UF_IMMUTABLE:
+	 * that would make the subsequent write fail.
+	 */
+	(void) path;
 #endif
 	if (write(fd, buf, strlen(buf)) == -1)
 		err(EXIT_FAILURE, "%s: write failed", path);

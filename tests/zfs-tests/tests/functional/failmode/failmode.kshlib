@@ -18,9 +18,9 @@
 . $STF_SUITE/include/libtest.shlib
 
 typeset -A failmode_sync_helper_cmd=(
-    ["fsync"]='dd if=/dev/urandom of=DATAFILE bs=128k count=1 conv=fsync'
+    ["fsync"]="dd if=/dev/urandom of=DATAFILE bs=128k count=1 ${OFLAG_SYNC}"
     ["msync"]='mmap_write_sync DATAFILE'
-    ["osync"]='dd if=/dev/urandom of=DATAFILE bs=128k count=1 oflag=sync'
+    ["osync"]="dd if=/dev/urandom of=DATAFILE bs=128k count=1 ${OFLAG_SYNC}"
     ["syncalways"]='dd if=/dev/urandom of=DATAFILE bs=128k count=1'
 )
 
@@ -66,7 +66,7 @@ function failmode_sync_test
 
 	# create the target file. the ZIL head structure is created on first
 	# use, and does a full txg wait to finish, which we want to avoid
-	log_must dd if=/dev/zero of=$datafile bs=128k count=1 conv=fsync
+	log_must dd if=/dev/zero of=$datafile bs=128k count=1 ${OFLAG_SYNC}
 	log_must zpool sync
 
 	# inject errors. writes will fail, as will the followup probes

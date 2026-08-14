@@ -88,8 +88,8 @@ log_assert "'zfs create' should return an error with badly-formed parameters."
 typeset -i i=0
 while [[ $i -lt ${#args[*]} ]]; do
 	typeset arg=${args[i]}
-	if is_freebsd; then
-		# FreeBSD does not strictly validate share options (yet).
+	if is_freebsd || is_netbsd; then
+		# FreeBSD/NetBSD do not strictly validate share options (yet).
 		if [[ "$arg" == "-o sharenfs="* ]]; then
 			((i = i + 1))
 			continue

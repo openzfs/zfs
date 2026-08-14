@@ -236,7 +236,7 @@ function replace_missing_devs
 	for vdev in $@; do
 		log_must dd if=/dev/zero of=$vdev \
 		    bs=1024k count=$((MINVDEVSIZE / (1024 * 1024))) \
-		    conv=fdatasync
+		    ${OFLAG_SYNC}
 		log_must zpool replace -wf $pool $vdev $vdev
 	done
 }

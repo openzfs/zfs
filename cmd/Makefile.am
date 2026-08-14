@@ -97,6 +97,30 @@ include $(srcdir)/%D%/zed/Makefile.am
 endif
 
 
+if BUILD_NETBSD
+# Linux mount.zfs already sanitizes to mount_zfs_*.  A program named
+# mount_zfs redefines those variables and automake errors
+# "mount_zfs_OBJECTS should not be defined".  Build under a unique
+# name and install as mount_zfs so NetBSD mount(8) finds it.
+sbin_PROGRAMS += nbmountzfs
+nbmountzfs_SOURCES = \
+	%D%/os/netbsd/mount_zfs.c
+nbmountzfs_LDADD = \
+	libzfs.la \
+	libzfs_core.la \
+	libnvpair.la
+cmd-netbsd-mount-zfs-install-exec-hook:
+	cd "$(DESTDIR)$(sbindir)" && \
+	    mv -f nbmountzfs$(EXEEXT) mount_zfs$(EXEEXT)
+INSTALL_EXEC_HOOKS += cmd-netbsd-mount-zfs-install-exec-hook
+
+sbin_PROGRAMS += zgenhostid
+CPPCHECKTARGETS += zgenhostid
+zgenhostid_SOURCES = \
+	%D%/zgenhostid.c
+endif
+
+
 if USING_PYTHON
 bin_SCRIPTS      += zarcsummary     zarcstat        dbufstat        zilstat
 CLEANFILES       += zarcsummary     zarcstat        dbufstat        zilstat

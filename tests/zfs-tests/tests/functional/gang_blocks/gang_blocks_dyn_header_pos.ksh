@@ -44,7 +44,7 @@ for vdevtype in "" "mirror" "raidz" "raidz2" "draid"; do
 	[[ "$status" == "enabled" ]] || \
 		log_fail "Dynamic gang headers not enabled"
 	path="${mountpoint}/file"
-	log_must dd if=/dev/urandom of=$path bs=1M count=1
+	log_must dd if=/dev/urandom of=$path bs=1${DD_M} count=1
 	log_must zpool sync $TESTPOOL
 	first_block=$(get_first_block_dva $TESTPOOL/$TESTFS file)
 	leaves=$(read_gang_header $TESTPOOL $first_block 1000 | \
@@ -60,7 +60,7 @@ for vdevtype in "" "mirror" "raidz" "raidz2" "draid"; do
 	[[ "$status" == "active" ]] || log_fail "Dynamic gang headers not active"
 
 	path="${mountpoint}/file2"
-	log_must dd if=/dev/urandom of=$path bs=1M count=1
+	log_must dd if=/dev/urandom of=$path bs=1${DD_M} count=1
 	log_must zpool sync $TESTPOOL
 	first_block=$(get_first_block_dva $TESTPOOL/$TESTFS file2)
 	leaves=$(read_gang_header $TESTPOOL $first_block 1000 | \

@@ -43,6 +43,11 @@ export NUMFILES=10000
 if is_freebsd; then
 	log_unsupported "Not applicable on FreeBSD"
 fi
+if is_netbsd; then
+	# unlink runs with the directory locked, so stat(2) never
+	# observes the nlink==0 window this race looks for.
+	log_unsupported "Not applicable on NetBSD"
+fi
 
 # Detect and make sure this test must be executed on a multi-process system
 if ! is_mp; then

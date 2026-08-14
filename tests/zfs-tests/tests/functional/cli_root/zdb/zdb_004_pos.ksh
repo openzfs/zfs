@@ -63,10 +63,10 @@ DEVS=$(get_pool_devices ${TESTPOOL} ${DEV_RDSKDIR})
 [[ -n $DEVS ]] && set -A DISK $DEVS
 
 log_must zpool offline $TESTPOOL $WHOLE_DISK
-log_must dd if=/dev/urandom of=$TESTDIR/testfile bs=1K count=2
+log_must dd if=/dev/urandom of=$TESTDIR/testfile bs=1k count=2
 log_must zpool export $TESTPOOL
 
-log_must dd if=$DEV_RDSKDIR/${DISK[0]} of=$DEV_RDSKDIR/${DISK[1]} bs=1K count=256 conv=notrunc
+log_must dd if=$DEV_RDSKDIR/${DISK[0]} of=$DEV_RDSKDIR/${DISK[1]} bs=1k count=256 conv=notrunc
 
 ubs=$(zdb -lu ${DISK[1]} | grep -e LABEL -e Uberblock -e 'labels = ')
 log_note "vdev 1: ubs $ubs"

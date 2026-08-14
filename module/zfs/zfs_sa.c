@@ -214,6 +214,52 @@ zfs_sa_get_xattr(znode_t *zp)
 	return (error);
 }
 
+/*
+ * XDR size of a DATA_TYPE_BYTE_ARRAY nvpair.  encode size, decode
+ * size, the name's length word, type and nelem are five 4-byte words.
+ * The name and the data follow, each padded to 4 bytes.  See
+ * nvs_xdr_nvp_size().  This is the on-disk encoding.
+ */
+#define	ZFS_SA_XATTR_NVP_SIZE(namelen, len) \
+	(5 * 4 + NV_ALIGN4(namelen) + NV_ALIGN4(len))
+
+/*
+ * Return 0 if setting xattr "name" to "size" bytes leaves the packed
+ * DXATTR nvlist within SA_ATTR_MAX_LEN, or EFBIG if it would not.
+ * The nvlist header and the end marker do not change, so the new
+ * packed size is the current size minus the old pair (if this name
+ * is already present) plus the new pair.  Nothing is copied and
+ * z_xattr_cached is not modified.  zfs_sa_set_xattr() repeats the
+ * SA_ATTR_MAX_LEN check after the value is added.
+ */
+int
+zfs_sa_xattr_fits(znode_t *zp, const char *name, size_t size)
+{
+	nvlist_t *nvl = zp->z_xattr_cached;
+	size_t sa_size, namelen;
+	uchar_t *old;
+	uint_t oldn;
+	int error;
+
+	ASSERT(RW_WRITE_HELD(&zp->z_xattr_lock));
+	ASSERT3P(nvl, !=, NULL);
+
+	if (size > DXATTR_MAX_ENTRY_SIZE)
+		return (SET_ERROR(EFBIG));
+
+	error = nvlist_size(nvl, &sa_size, NV_ENCODE_XDR);
+	if (error != 0)
+		return (error);
+
+	namelen = strlen(name);
+	if (nvlist_lookup_byte_array(nvl, name, &old, &oldn) == 0)
+		sa_size -= ZFS_SA_XATTR_NVP_SIZE(namelen, oldn);
+	sa_size += ZFS_SA_XATTR_NVP_SIZE(namelen, size);
+	if (sa_size > SA_ATTR_MAX_LEN)
+		return (SET_ERROR(EFBIG));
+	return (0);
+}
+
 int
 zfs_sa_set_xattr(znode_t *zp, const char *name, const void *value, size_t vsize)
 {
@@ -459,6 +505,7 @@ EXPORT_SYMBOL(zfs_sa_get_scanstamp);
 EXPORT_SYMBOL(zfs_sa_set_scanstamp);
 EXPORT_SYMBOL(zfs_sa_get_xattr);
 EXPORT_SYMBOL(zfs_sa_set_xattr);
+EXPORT_SYMBOL(zfs_sa_xattr_fits);
 EXPORT_SYMBOL(zfs_sa_upgrade);
 EXPORT_SYMBOL(zfs_sa_upgrade_txholds);
 

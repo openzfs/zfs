@@ -54,8 +54,9 @@ log_must zfs create -p $ctr
 
 # Preparation work for testing
 corepath=/$ctr
-corefile=$corepath/core.zfs
+# NetBSD kern.defcorename=$path/core.%n.  argv0 may be zfs or ksh.
 coresavepath=$corepath/save
+corefile=$corepath/core.zfs
 
 fs=$ctr/$TESTFS
 fs1=$ctr/$TESTFS1
@@ -79,7 +80,14 @@ log_must export ZFS_ABORT=yes
 
 for subcmd in "${cmds[@]}" "${badparams[@]}"; do
 	log_mustnot eval "zfs $subcmd"
-	log_must rm "$corefile"
+	# glob: core.zfs, core.ksh, zfs.core, …
+	found=0
+	for f in "$corepath"/core.* "$corepath"/*.core; do
+		[ -f "$f" ] || continue
+		log_must rm -f "$f"
+		found=1
+	done
+	(( found == 1 )) || log_fail "no core file in $corepath after: zfs $subcmd"
 done
 
 log_pass "With ZFS_ABORT set, zfs command can abort and generate core file as expected."

@@ -17,6 +17,8 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+require_bin libzfs_mnttab_cache_check
+
 verify_runnable "global"
 
 log_assert "libzfs mnttab cache works as expected"

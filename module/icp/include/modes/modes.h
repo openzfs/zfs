@@ -186,6 +186,7 @@ typedef struct gcm_ctx {
 #define	gcm_copy_to		gcm_common.cc_copy_to
 #define	gcm_flags		gcm_common.cc_flags
 
+void ccm_clear_ctx(ccm_ctx_t *ctx);
 void gcm_clear_ctx(gcm_ctx_t *ctx);
 
 typedef struct aes_ctx {

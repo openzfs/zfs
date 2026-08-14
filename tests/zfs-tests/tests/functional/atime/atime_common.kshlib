@@ -38,7 +38,7 @@ function check_atime_updated
 	if is_linux; then
 		typeset before=$(stat -c %X $filename)
 		sleep 2
-	elif is_freebsd; then
+	elif is_freebsd || is_netbsd; then
 		typeset before=$(stat -f %a $filename)
 		sleep 2
 	else
@@ -49,7 +49,7 @@ function check_atime_updated
 
 	if is_linux; then
 		typeset after=$(stat -c %X $filename)
-	elif is_freebsd; then
+	elif is_freebsd || is_netbsd; then
 		typeset after=$(stat -f %a $filename)
 	else
 		typeset after=$(ls -Eu $filename | awk '{print $7}')

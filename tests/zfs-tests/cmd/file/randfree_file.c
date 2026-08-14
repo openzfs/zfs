@@ -113,6 +113,12 @@ main(int argc, char *argv[])
 		close(fd);
 		return (1);
 	}
+#elif defined(__NetBSD__)
+	if (fdiscard(fd, start_off, off_len) < 0) {
+		perror("fdiscard");
+		close(fd);
+		return (1);
+	}
 #else /* !(defined(FALLOC_FL_PUNCH_HOLE) && defined(FALLOC_FL_KEEP_SIZE)) */
 	{
 		perror("FALLOC_FL_PUNCH_HOLE and SPACECTL_DEALLOC unsupported");

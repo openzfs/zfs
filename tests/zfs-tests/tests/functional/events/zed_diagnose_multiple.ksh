@@ -80,7 +80,7 @@ function multiple_slow_vdevs_test
 	log_must zfs set primarycache=none $TESTPOOL
 	log_must zfs set recordsize=4K $TESTPOOL
 
-	log_must dd if=/dev/urandom of=$FILEPATH bs=1M count=4
+	log_must dd if=/dev/urandom of=$FILEPATH bs=1${DD_M} count=4
 	zpool sync
 
 	#
@@ -106,7 +106,7 @@ function multiple_slow_vdevs_test
 	#
 
 	start_io_errors
-	dd if=$FILEPATH of=/dev/null bs=1M count=4 2>/dev/null
+	dd if=$FILEPATH of=/dev/null bs=1${DD_M} count=4 2>/dev/null
 	log_must zinject -c all
 
 	# count io error events available for processing

@@ -17,9 +17,18 @@
 #ifndef _LIBSPL_SYS_TIME_H
 #define	_LIBSPL_SYS_TIME_H
 
-#include <time.h>
-#include <sys/types.h>
+/*
+ * include_next first.  NetBSD <time.h> includes <sys/time.h> then
+ * applies __RENAME(__clock_gettime50).  Including <time.h> before
+ * the native sys/time.h makes clang reject the rename.
+ */
 #include_next <sys/time.h>
+#ifdef __NetBSD__
+#include <time.h>
+#else
+#include <sys/types.h>
+#include <time.h>
+#endif
 
 #ifndef SEC
 #define	SEC		1
@@ -99,6 +108,7 @@ static inline hrtime_t
 gethrtime(void)
 {
 	struct timespec ts;
+
 	(void) clock_gettime(CLOCK_MONOTONIC, &ts);
 	return ((((uint64_t)ts.tv_sec) * NANOSEC) + ts.tv_nsec);
 }

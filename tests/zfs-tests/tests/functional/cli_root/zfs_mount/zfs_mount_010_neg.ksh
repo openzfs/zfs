@@ -56,7 +56,7 @@ mpt=$(get_prop mountpoint $fs)
 log_must zfs umount $fs
 curpath=`dirname $0`
 cd $mpt
-if is_linux || is_freebsd; then
+if is_linux || is_freebsd || is_netbsd; then
     log_must zfs mount $fs
 else
     log_mustnot zfs mount $fs

@@ -57,7 +57,7 @@ log_must wait_scrubbed $TESTPOOL
 log_must check_pool_status $TESTPOOL "scan" "with 0 errors"
 log_must check_pool_status $TESTPOOL "errors" "No known data errors"
 
-log_must dd if=$mntpnt/file of=/dev/null bs=1M iflag=fullblock
+log_must dd if=$mntpnt/file of=/dev/null bs=1${DD_M} ${DD_FULLBLOCK}
 log_must check_pool_status $TESTPOOL "errors" "No known data errors"
 
 log_must zinject -c all

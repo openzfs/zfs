@@ -44,6 +44,22 @@ function attach_img
 		lodev=$(losetup -f $img --show)
 	elif is_freebsd; then
 		lodev=/dev/$(mdconfig $img)
+	elif is_netbsd; then
+		# vnd(4) is NetBSD's vnode disk.  Pick a free unit —
+		# vnd0/vnd1 are often taken by the lab tmpfs/cache tests.
+		lodev=
+		typeset i
+		for i in 0 1 2 3 4 5 6 7; do
+			[ -b /dev/vnd${i}d ] || (cd /dev && sh MAKEDEV vnd$i)
+			if vnconfig -c vnd$i $img 2>/dev/null; then
+				lodev=vnd$i
+				break
+			fi
+		done
+		if [ -z "$lodev" ]; then
+			log_fail "no free vnd unit"
+		fi
+		lodev=/dev/${lodev}d
 	else
 		lodev=$(lofiadm -a $img)
 	fi
@@ -56,6 +72,11 @@ function detach_img
 		log_must losetup -d $lodev
 	elif is_freebsd; then
 		log_must mdconfig -du $lodev
+	elif is_netbsd; then
+		# lodev is /dev/vndNd; vnconfig -u wants vndN.
+		typeset unit=${lodev#/dev/}
+		unit=${unit%[a-p]}
+		log_must vnconfig -u $unit
 	else
 		log_must lofiadm -d $lodev
 	fi
@@ -69,6 +90,12 @@ if is_linux; then
 	fstype="ext4"
 	fsopts="-t $fstype"
 	mntopts="-o discard"
+elif is_netbsd; then
+	# newfs(8) has no -t.  FreeBSD newfs -t means TRIM and must
+	# still see that flag.  Mount takes the type instead.
+	fstype=$NEWFS_DEFAULT_FS
+	fsopts=""
+	mntopts="-t $fstype"
 else
 	fstype=$NEWFS_DEFAULT_FS
 	fsopts="-t"
@@ -105,7 +132,7 @@ function exercise_volume
 		log_must mkfile -n $maxsz $f
 		log_must randwritecomp $f 100
 	done
-	log_must rm $(find $TESTDIR -type f | sort -R | head)
+	log_must rm $(find $TESTDIR -type f | shuffle_lines | head)
 	#
 	# Keep len in [2, maxsz-1] and start in [0, len-2] so the ranges
 	# below never divide by zero and the punched range [start,

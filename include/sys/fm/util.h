@@ -93,6 +93,7 @@ extern int zfs_zevent_next(zfs_zevent_t *, nvlist_t **, uint64_t *, uint64_t *);
 extern int zfs_zevent_wait(zfs_zevent_t *);
 extern int zfs_zevent_seek(zfs_zevent_t *, uint64_t);
 extern void zfs_zevent_init(zfs_zevent_t **);
+extern int zfs_zevent_init_flags(zfs_zevent_t **, int);
 extern void zfs_zevent_destroy(zfs_zevent_t *);
 
 extern void zfs_zevent_track_duplicate(void);

@@ -57,6 +57,15 @@ libspl_la_SOURCES += \
 	%D%/os/freebsd/zone.c
 endif
 
+if BUILD_NETBSD
+libspl_la_SOURCES += \
+	%D%/os/netbsd/getexecname.c \
+	%D%/os/netbsd/gethostid.c \
+	%D%/os/netbsd/getextmntent.c \
+	%D%/os/netbsd/mnttab.c \
+	%D%/os/netbsd/zone.c
+endif
+
 libspl_la_LIBADD = \
 	libspl_assert.la
 

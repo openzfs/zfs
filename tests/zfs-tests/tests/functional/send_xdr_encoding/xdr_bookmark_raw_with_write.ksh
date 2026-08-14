@@ -73,19 +73,19 @@ log_must eval "echo 'thisisapassphrase' > $keyfile"
 log_must zfs create -o encryption=on -o keyformat=passphrase \
     -o keylocation=file://$keyfile $sendfs
 
-log_must dd if=/dev/urandom of=/$sendfs/f1 bs=128k count=8 status=none
+log_must dd if=/dev/urandom of=/$sendfs/f1 bs=128k count=8 ${DD_STATUS_NONE}
 log_must zfs snapshot $sendfs@s0
 
 # The clone inherits encryption from $sendfs.
 log_must zfs clone $sendfs@s0 $clonefs
 log_must dd if=/dev/urandom of=/$clonefs/f1 bs=128k count=8 conv=notrunc \
-    status=none
+    ${DD_STATUS_NONE}
 log_must zfs snapshot $clonefs@s
 
 log_must zfs redact $sendfs@s0 redaction-bookmark $clonefs@s
 
 # Post-redact write: the trigger for openzfs/zfs#18491.
-log_must dd if=/dev/urandom of=/$sendfs/f3 bs=128k count=8 status=none
+log_must dd if=/dev/urandom of=/$sendfs/f3 bs=128k count=8 ${DD_STATUS_NONE}
 log_must zfs snapshot $sendfs@s1
 
 # Establish a raw base on the receiver.

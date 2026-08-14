@@ -48,17 +48,27 @@ BATCH=1000
 
 log_must mkdir $TESTDIR/src $TESTDIR/dst
 
+# GNU ls -U is "do not sort".  NetBSD ls has no -U; ls -f is unsorted
+# and also lists . and ...
+count_files() {
+	if is_netbsd; then
+		ls -f "$1" | awk '$0 != "." && $0 != ".." { n++ } END { print n+0 }'
+	else
+		ls -U "$1" | wc -l
+	fi
+}
+
 WD=$PWD
 cd $TESTDIR/src
 # create NR_FILES in BATCH at a time to prevent overflowing argument buffer
 for i in $(seq $(($NR_FILES/$BATCH))); do touch $(seq $((($i-1)*$BATCH+1)) $(($i*$BATCH))); done
 cd $WD
 
-log_must test $NR_FILES -eq $(ls -U $TESTDIR/src | wc -l)
+log_must test $NR_FILES -eq $(count_files $TESTDIR/src)
 
 # copy files from src to dst, use cp_files to make sure we copy in readdir order
 log_must cp_files $TESTDIR/src $TESTDIR/dst
 
-log_must test $NR_FILES -eq $(ls -U $TESTDIR/dst | wc -l)
+log_must test $NR_FILES -eq $(count_files $TESTDIR/dst)
 
 log_pass

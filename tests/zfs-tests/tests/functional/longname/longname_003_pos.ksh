@@ -74,7 +74,7 @@ fi
 # after freezing the pool unless a ZIL header already exists. Create a file
 # synchronously to force ZFS to write one out.
 #
-log_must dd if=/dev/zero of=/$WORKDIR/sync conv=fdatasync,fsync bs=1 count=1
+log_must dd if=/dev/zero of=/$WORKDIR/sync ${OFLAG_SYNC} bs=1 count=1
 
 log_must zpool freeze $TESTPOOL
 

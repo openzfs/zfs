@@ -95,8 +95,9 @@ for parity in 1 2 3; do
 			block_device_wait $zdev
 			blockdev_exists $zdev
 
+			# NetBSD dd has no status=; GNU status=progress is Linux-only.
 			log_must timeout 120 dd if=/dev/urandom of=$zdev \
-			    bs=1024k count=$volsize status=progress
+			    bs=1024k count=$volsize
 			sync_pool $TESTPOOL
 
 			ref=$(zfs get -Hpo value referenced "$vol")

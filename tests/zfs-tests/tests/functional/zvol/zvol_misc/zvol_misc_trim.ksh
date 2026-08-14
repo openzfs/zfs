@@ -31,7 +31,7 @@
 # 5. TRIM the first 1MB and last 2MB of the 5MB block of data.
 # 6. Observe 2MB of used space on the zvol
 # 7. Verify the trimmed regions are zero'd on the zvol
-# 8. Verify Secure Erase does not work on zvols (Linux only)
+# 8. Verify Secure Erase does not work on zvols (Linux and NetBSD)
 
 verify_runnable "global"
 
@@ -48,6 +48,11 @@ if is_linux ; then
 		trimcmd='blkdiscard'
 	fi
 	secure_trimcmd="$trimcmd --secure"
+elif is_netbsd; then
+	# blkdiscard(8) takes the same -o/-l as Linux.  -s is not
+	# implemented, so the secure-erase check still fails.
+	trimcmd='blkdiscard'
+	secure_trimcmd="$trimcmd -s"
 else
 	# By default, FreeBSD 'trim' always does a dry-run.  '-f' makes
 	# it perform the actual operation.
@@ -72,10 +77,10 @@ function do_test {
 	block_device_wait $zvolpath
 
 	# Create a data file
-	log_must dd if=/dev/urandom of="$datafile1" bs=1M count=5
+	log_must dd if=/dev/urandom of="$datafile1" bs=1${DD_M} count=5
 	
 	# Write to zvol
-	log_must dd if=$datafile1 of=$zvolpath conv=fsync
+	log_must dd if=$datafile1 of=$zvolpath ${OFLAG_SYNC}
 	sync_pool
 
 	# Record how much space we've used (should be 5MB, with 128k
@@ -95,11 +100,11 @@ function do_test {
 	log_must within_tolerance $after 2097152 131072
 
 	# Make the same holes in our test data
-	log_must dd if=/dev/zero of="$datafile1" bs=1M count=1 conv=notrunc
-	log_must dd if=/dev/zero of="$datafile1" bs=1M count=2 seek=3 conv=notrunc
+	log_must dd if=/dev/zero of="$datafile1" bs=1${DD_M} count=1 conv=notrunc
+	log_must dd if=/dev/zero of="$datafile1" bs=1${DD_M} count=2 seek=3 conv=notrunc
 
 	# Extract data from our zvol
-	log_must dd if=$zvolpath of="$datafile2" bs=1M count=5
+	log_must dd if=$zvolpath of="$datafile2" bs=1${DD_M} count=5
 
 	# Compare the data we expect with what's on our zvol.  diff will return
 	# non-zero if they differ.

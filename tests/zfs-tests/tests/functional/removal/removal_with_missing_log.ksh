@@ -54,12 +54,12 @@ log_must zfs create $TESTPOOL/$TESTFS
 
 # Create initial ZIL header (required before freezing)
 log_must dd if=/dev/zero of=/$TESTPOOL/$TESTFS/init \
-    conv=fdatasync,fsync bs=1 count=1
+    ${OFLAG_SYNC} bs=1 count=1
 
 # Freeze pool and write data to ZIL
 log_must zpool freeze $TESTPOOL
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/file1 \
-    oflag=sync bs=128k count=128
+    ${OFLAG_SYNC} bs=128k count=128
 
 # Export with uncommitted ZIL transactions
 log_must zpool export $TESTPOOL

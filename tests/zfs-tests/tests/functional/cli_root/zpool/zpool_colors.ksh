@@ -38,7 +38,7 @@ log_assert "Test colorized zpool status output"
 
 read -r _ DISK2 DISK3 _ <<<"$DISKS"
 
-log_must dd if=/dev/urandom of=/$TESTDIR/testfile bs=10M count=1
+log_must dd if=/dev/urandom of=/$TESTDIR/testfile bs=10${DD_M} count=1
 
 sync_all_pools
 

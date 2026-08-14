@@ -6257,7 +6257,7 @@ zfs_setextattr_dir(struct vop_setextattr_args *ap, const char *attrname)
 	va.va_size = 0;
 	error = VOP_SETATTR(vp, &va, ap->a_cred);
 	if (error == 0)
-		VOP_WRITE(vp, ap->a_uio, IO_UNIT, ap->a_cred);
+		error = VOP_WRITE(vp, ap->a_uio, IO_UNIT, ap->a_cred);
 
 	VOP_UNLOCK(vp);
 	vn_close(vp, flags, ap->a_cred, td);
@@ -6269,7 +6269,8 @@ zfs_setextattr_sa(struct vop_setextattr_args *ap, const char *attrname)
 {
 	znode_t *zp = VTOZ(ap->a_vp);
 	nvlist_t *nvl;
-	size_t sa_size;
+	uchar_t *buf;
+	size_t entry_size;
 	int error;
 
 	error = zfs_ensure_xattr_cached(zp);
@@ -6280,15 +6281,16 @@ zfs_setextattr_sa(struct vop_setextattr_args *ap, const char *attrname)
 	ASSERT3P(zp->z_xattr_cached, !=, NULL);
 
 	nvl = zp->z_xattr_cached;
-	size_t entry_size = ap->a_uio->uio_resid;
-	if (entry_size > DXATTR_MAX_ENTRY_SIZE)
-		return (SET_ERROR(EFBIG));
-	error = nvlist_size(nvl, &sa_size, NV_ENCODE_XDR);
+	entry_size = ap->a_uio->uio_resid;
+	/*
+	 * Size the update before uiomove().  EFBIG leaves the caller's
+	 * uio and the cached nvlist alone so the directory fallback can
+	 * store the original bytes.
+	 */
+	error = zfs_sa_xattr_fits(zp, attrname, entry_size);
 	if (error != 0)
-		return (SET_ERROR(error));
-	if (sa_size > DXATTR_MAX_SA_SIZE)
-		return (SET_ERROR(EFBIG));
-	uchar_t *buf = kmem_alloc(entry_size, KM_SLEEP);
+		return (error);
+	buf = kmem_alloc(entry_size, KM_SLEEP);
 	error = uiomove(buf, entry_size, ap->a_uio);
 	if (error != 0) {
 		error = SET_ERROR(error);
@@ -6327,8 +6329,12 @@ zfs_setextattr_impl(struct vop_setextattr_args *ap, boolean_t compat)
 		.a_cred = ap->a_cred,
 		.a_td = ap->a_td,
 	};
+	ssize_t resid = ap->a_uio->uio_resid;
+	boolean_t tried_sa = B_FALSE;
+
 	error = ENOENT;
 	if (zfsvfs->z_use_sa && zp->z_is_sa && zfsvfs->z_xattr_sa) {
+		tried_sa = B_TRUE;
 		error = zfs_setextattr_sa(ap, attrname);
 		if (error == 0) {
 			/*
@@ -6339,6 +6345,17 @@ zfs_setextattr_impl(struct vop_setextattr_args *ap, boolean_t compat)
 		}
 	}
 	if (error != 0) {
+		/*
+		 * Spill only when SA was not used, or the packed list
+		 * cannot hold this value and the uio is still intact.
+		 * Any other SA error is returned.  The directory path
+		 * truncates the xattr and then writes the remaining
+		 * resid, which is empty once uiomove() has run, and it
+		 * used to discard that write's error.
+		 */
+		if (tried_sa &&
+		    (error != EFBIG || ap->a_uio->uio_resid != resid))
+			return (error);
 		error = zfs_setextattr_dir(ap, attrname);
 		if (error == 0 && zp->z_is_sa) {
 			/*

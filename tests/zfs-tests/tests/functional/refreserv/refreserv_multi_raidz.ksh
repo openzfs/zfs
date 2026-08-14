@@ -66,6 +66,9 @@ if is_freebsd; then
 	bps=$(diskinfo -v ${alldisks[0]} | awk '/sectorsize/ { print $1 }')
 elif is_linux; then
 	bps=$(lsblk -nrdo min-io /dev/${alldisks[0]})
+elif is_netbsd; then
+	# virtio ld and file vdevs in this port are 512-byte sectors.
+	bps=512
 fi
 case "$bps" in
 512)

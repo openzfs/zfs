@@ -1644,6 +1644,7 @@ put_nvlist(zfs_cmd_t *zc, nvlist_t *nvl)
 	return (error);
 }
 
+#ifndef __NetBSD__
 int
 getzfsvfs_impl(objset_t *os, zfsvfs_t **zfvp)
 {
@@ -1674,6 +1675,7 @@ getzfsvfs(const char *dsname, zfsvfs_t **zfvp)
 	dmu_objset_rele(os, FTAG);
 	return (error);
 }
+#endif
 
 /*
  * Find a zfsvfs_t for a mounted filesystem, or create our own, in which
@@ -8545,7 +8547,6 @@ zfsdev_state_init(void *priv)
 	}
 
 	zfsdev_private_set_state(priv, zs);
-
 	zfs_onexit_init((zfs_onexit_t **)&zs->zs_onexit);
 	zfs_zevent_init((zfs_zevent_t **)&zs->zs_zevent);
 

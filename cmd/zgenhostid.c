@@ -159,8 +159,8 @@ main(int argc, char **argv)
 	}
 
 	/*
-	 * we need just 4 bytes in native endianness
-	 * not using sethostid() because it may be missing or just a stub
+	 * Write 4 bytes in native endianness.  Linux reads this file
+	 * directly; sethostid(3) is often a stub there.
 	 */
 	uint32_t hostid = input_i;
 	int written = fwrite(&hostid, 1, 4, fp);
@@ -170,5 +170,16 @@ main(int argc, char **argv)
 	}
 
 	fclose(fp);
+
+#ifdef __NetBSD__
+	/*
+	 * NetBSD gethostid(3) / kern.hostid is the kernel `hostid'
+	 * variable, not /etc/hostid.  spa_get_hostid reads that same
+	 * variable, so the file alone would leave kernel and userland
+	 * disagreeing.
+	 */
+	sethostid((long)hostid);
+#endif
+
 	exit(EXIT_SUCCESS);
 }

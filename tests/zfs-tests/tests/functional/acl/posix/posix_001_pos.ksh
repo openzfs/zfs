@@ -47,7 +47,12 @@ log_onexit cleanup
 # Test access to FILE
 log_note "Testing access to FILE"
 log_must touch $TESTDIR/file.0
-log_must setfacl -m g:$ZFS_ACL_STAFF_GROUP:rw $TESTDIR/file.0
+if is_netbsd; then
+	# GNU setfacl -m g:group:rw stores group:group:rw-.
+	log_must setfacl -m g:$ZFS_ACL_STAFF_GROUP:rw- $TESTDIR/file.0
+else
+	log_must setfacl -m g:$ZFS_ACL_STAFF_GROUP:rw $TESTDIR/file.0
+fi
 if ! getfacl $TESTDIR/file.0 2> /dev/null |
     grep -qFx "group:$ZFS_ACL_STAFF_GROUP:rw-"
 then
@@ -63,7 +68,12 @@ log_must user_run $ZFS_ACL_STAFF1 \
 # for testing that creating a new file is not allowed.
 log_must mkdir $TESTDIR/dir.0
 log_must chmod 700 $TESTDIR/dir.0
-log_must setfacl -m g:$ZFS_ACL_STAFF_GROUP:rw $TESTDIR/dir.0
+if is_netbsd; then
+	# GNU setfacl -m g:group:rw stores group:group:rw-.
+	log_must setfacl -m g:$ZFS_ACL_STAFF_GROUP:rw- $TESTDIR/dir.0
+else
+	log_must setfacl -m g:$ZFS_ACL_STAFF_GROUP:rw $TESTDIR/dir.0
+fi
 # Confirm permissions
 msk=$(ls -ld $TESTDIR/dir.0 | awk '{print $1}')
 if ! [ "$msk" = "drwxrw----+" ]; then

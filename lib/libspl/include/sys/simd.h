@@ -508,6 +508,13 @@ zfs_avx512vbmi_available(void)
 	    __zmm_enabled());
 }
 
+#elif defined(ZFS_SIMD_OS_PROVIDED)
+
+#define	kfpu_allowed()		1
+#define	kfpu_initialize(tsk)	do {} while (0)
+#define	kfpu_begin()		do {} while (0)
+#define	kfpu_end()		do {} while (0)
+
 #elif defined(__arm__)
 
 #define	kfpu_allowed()		1

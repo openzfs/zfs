@@ -35,12 +35,14 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
+#ifdef __NetBSD__
+#include <sys/ioctl.h>
+#include <sys/filio.h>
+#endif
 
-/* some older uClibc's lack the defines, so we'll manually define them */
-#ifdef	__UCLIBC__
+/* some older libc's lack the defines */
 #ifndef	SEEK_DATA
 #define	SEEK_DATA 3
-#endif
 #endif
 
 #define	DATASIZE	(4096)
@@ -98,6 +100,23 @@ _seek_file(int n, int fd)
 		return (0);
 
 	/* size is real, and we only write, so SEEK_DATA must find something */
+#ifdef __NetBSD__
+	{
+		off_t off = 0;
+
+		/*
+		 * lseek(SEEK_DATA) is EINVAL on NetBSD 11; hole/data
+		 * find is FIOSEEKDATA (same as in-tree ZFS).
+		 */
+		if (ioctl(fd, FIOSEEKDATA, &off) < 0) {
+			if (errno == ENXIO)
+				return (1);
+			fprintf(stderr, "Error: lseek '%d_%d': %s\n",
+			    getpid(), n, strerror(errno));
+			exit(2);
+		}
+	}
+#else
 	if (lseek(fd, 0, SEEK_DATA) < 0) {
 		if (errno == ENXIO)
 			return (1);
@@ -105,6 +124,7 @@ _seek_file(int n, int fd)
 		    getpid(), n, strerror(errno));
 		exit(2);
 	}
+#endif
 
 	return (0);
 }

@@ -22,8 +22,8 @@ OPTS[0]=""
 OPTS[1]=""
 
 case "$OS" in
-  freebsd*)
-    # FreeBSD needs only 6GiB
+  freebsd*|netbsd*)
+    # BSD guests need only 6GB
     RAM=6
     ;;
   debian13)
@@ -97,6 +97,7 @@ EOF
     --network bridge=virbr0,model=$NIC,mac="52:54:00:83:79:0$i" \
     --disk $DISK-system,bus=virtio,cache=none,format=$FORMAT,driver.discard=unmap \
     --disk $DISK-tests,bus=virtio,cache=none,format=$FORMAT,driver.discard=unmap \
+    --rng /dev/urandom \
     --import --noautoconsole ${OPTS[0]} ${OPTS[1]}
 done
 

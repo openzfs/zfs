@@ -26,7 +26,9 @@ echo " Tailing last $lines lines of dmesg log"
 echo "================================================================="
 
 # report and reset afterwards
+if [[ $(uname) != "NetBSD" ]] ; then
 dmesg_args="-c"
+fi
 if [[ $(uname) = "Linux" ]] ; then
 	dmesg_args="$dmesg_args --time-format=iso"
 fi

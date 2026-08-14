@@ -86,6 +86,11 @@ user_ns_reason = 'Kernel user namespace support required'
 
 
 #
+# zpool_resilver_concurrent calls zed_setup(), which only runs on Linux.
+#
+zed_reason = 'requires zed'
+
+#
 # Channel program support disabled at build time
 #
 zcp_reason = 'channel program support required'
@@ -166,8 +171,6 @@ else:
 # reasons listed above can be used.
 #
 known = {
-    'casenorm/mixed_none_lookup_ci': ['FAIL', 7633],
-    'casenorm/mixed_formd_lookup_ci': ['FAIL', 7633],
     'cli_root/zpool_import/import_rewind_device_replaced':
         ['FAIL', rewind_reason],
     'cli_user/misc/zfs_share_001_neg': ['SKIP', na_reason],
@@ -184,12 +187,13 @@ if sys.platform.startswith('freebsd'):
         'cli_root/zfs_receive/receive-o-x_props_override':
             ['FAIL', known_reason],
         'cli_root/zpool_resilver/zpool_resilver_concurrent':
-            ['SKIP', na_reason],
+            ['SKIP', zed_reason],
         'zoned_uid/setup': ['SKIP', na_reason],
         'cli_root/zfs_unshare/zfs_unshare_008_pos': ['SKIP', na_reason],
         'cp_files/cp_files_002_pos': ['SKIP', na_reason],
         'link_count/link_count_001': ['SKIP', na_reason],
-        'mmap/mmap_sync_001_pos': ['SKIP', na_reason],
+        'mmap/mmap_sync_001_pos':
+            ['SKIP', 'this test is Linux specific'],
         'uncached/uncached_dontcache': ['SKIP', na_reason],
     })
 elif sys.platform.startswith('linux'):
@@ -201,6 +205,33 @@ elif sys.platform.startswith('linux'):
         'removal/removal_with_zdb': ['SKIP', known_reason],
         'cli_root/zfs_unshare/zfs_unshare_002_pos': ['SKIP', na_reason],
     })
+elif sys.platform.startswith('netbsd'):
+    # The body passes here.  Linux and FreeBSD still skip (no libshare).
+    del known['cli_user/misc/zfs_share_001_neg']
+    known.update({
+        # NetBSD VFS has no copy_file_range(2) / VOP_COPY_FILE_RANGE.
+        'cli_root/zpool_prefetch/zpool_prefetch_002_pos':
+            ['SKIP', cfr_reason],
+        # No FICLONE / copy_file_range; also left out of netbsd.run.
+        'cli_root/zfs_rewrite/zfs_rewrite_skip_clone':
+            ['SKIP', 'NetBSD does not support block cloning'],
+        # cp --reflink / FICLONE. The test skips itself off Linux.
+        'cp_files/cp_files_002_pos':
+            ['SKIP', 'NetBSD does not support reflinks'],
+        'mmap/mmap_sync_001_pos':
+            ['SKIP', 'this test is Linux specific'],
+        'stat/statx_dioalign':
+            ['SKIP', 'NetBSD does not support Linux statx(2)'],
+        'stat/stat_001_pos':
+            ['FAIL', 'NetBSD vn_stat() always sets st_gen = 0'],
+        # zed_setup() is Linux-only; the ksh already skips.
+        'cli_root/zpool_resilver/zpool_resilver_concurrent':
+            ['SKIP', zed_reason],
+    })
+
+if not sys.platform.startswith('linux'):
+    known['mmap/mmap_sync_001_pos'] = [
+        'SKIP', 'this test is Linux specific']
 
 
 #

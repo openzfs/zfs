@@ -145,7 +145,7 @@ for type in "raidz1" "raidz2" "raidz3" ; do
 	    $TESTPOOL1/$TESTFS1
 	log_must zfs set mountpoint=$TESTDIR1 $TESTPOOL1/$TESTFS1
 
-	log_must dd if=/dev/urandom of=/$TESTDIR1/bigfile bs=1M count=$count
+	log_must dd if=/dev/urandom of=/$TESTDIR1/bigfile bs=1${DD_M} count=$count
 
 	# Make one disk 100ms slower to trigger a sit out
 	log_must zinject -d $slow_disk -D100:1 -T read $TESTPOOL1
@@ -154,7 +154,7 @@ for type in "raidz1" "raidz2" "raidz3" ; do
 	SECONDS=0
 	typeset -i size=0
 	for i in $(seq 1 $count) ; do
-		dd if=/$TESTDIR1/bigfile skip=$i bs=1M count=1 of=/dev/null
+		dd if=/$TESTDIR1/bigfile skip=$i bs=1${DD_M} count=1 of=/dev/null
 		size=$i
 
 		sit_out=$(get_vdev_prop sit_out $TESTPOOL1 $slow_disk)

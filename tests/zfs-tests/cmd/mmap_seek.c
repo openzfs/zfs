@@ -25,22 +25,39 @@
 #ifdef __linux__
 #include <linux/fs.h>
 #endif
+#ifdef __NetBSD__
+#include <sys/ioctl.h>
+#include <sys/filio.h>
+#endif
 
-/* some older uClibc's lack the defines, so we'll manually define them */
-#ifdef	__UCLIBC__
+/* some older libc's lack the defines */
 #ifndef	SEEK_DATA
 #define	SEEK_DATA 3
 #endif
 #ifndef	SEEK_HOLE
 #define	SEEK_HOLE 4
 #endif
-#endif
 
 static void
 seek_expect(int fd, off_t offset, int whence, off_t expect_offset)
 {
 	errno = 0;
+#ifdef __NetBSD__
+	/*
+	 * sys_lseek rejects SEEK_DATA / SEEK_HOLE.  FIOSEEKDATA and
+	 * FIOSEEKHOLE are the same search, in and out through an
+	 * off_t, same as fioseek.
+	 */
+	unsigned long cmd = (whence == SEEK_DATA) ? FIOSEEKDATA : FIOSEEKHOLE;
+	off_t seek_offset = offset;
+
+	if (whence != SEEK_DATA && whence != SEEK_HOLE)
+		seek_offset = lseek(fd, offset, whence);
+	else if (ioctl(fd, cmd, &seek_offset) == -1)
+		seek_offset = (off_t)-1;
+#else
 	off_t seek_offset = lseek(fd, offset, whence);
+#endif
 	if (seek_offset == expect_offset)
 		return;
 

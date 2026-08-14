@@ -47,7 +47,7 @@ log_must sync_pool $TESTPOOL true
 # Verify fallback to copy when there are dirty blocks
 log_must set_tunable32 BCLONE_WAIT_DIRTY 0
 
-log_must dd if=/dev/urandom of=/$TESTPOOL/file bs=128K count=4
+log_must dd if=/dev/urandom of=/$TESTPOOL/file bs=128k count=4
 log_must clonefile -f /$TESTPOOL/file /$TESTPOOL/clone 0 0 524288
 
 log_must sync_pool $TESTPOOL
@@ -62,7 +62,7 @@ log_must rm /$TESTPOOL/file /$TESTPOOL/clone
 # Verify blocks are cloned even when there are dirty blocks
 log_must set_tunable32 BCLONE_WAIT_DIRTY 1
 
-log_must dd if=/dev/urandom of=/$TESTPOOL/file bs=128K count=4
+log_must dd if=/dev/urandom of=/$TESTPOOL/file bs=128k count=4
 log_must clonefile -f /$TESTPOOL/file /$TESTPOOL/clone 0 0 524288
 
 log_must sync_pool $TESTPOOL

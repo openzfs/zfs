@@ -47,6 +47,10 @@ function hasflag
 
 	if is_linux; then
 		read_dos_attributes $path
+	elif is_netbsd; then
+		# -o prints flags.  ZFS also tries ACLs and EOPNOTSUPPs
+		# on acltype=off; ignore stderr so log_must sees grep.
+		ls -lo $path 2>/dev/null | awk '{ print $5 }'
 	else
 		ls -lo $path | awk '{ print $5 }'
 	fi | grep -qwF $flag
@@ -65,6 +69,15 @@ else
 	changeflags=chflags
 fi
 
+if is_netbsd; then
+	# SF_ARCHIVED.  FreeBSD uses UF_ARCHIVE / uarch.
+	archflag=arch
+	noarchflag=noarch
+else
+	archflag=uarch
+	noarchflag=nouarch
+fi
+
 #
 # ARCHIVE
 #
@@ -72,29 +85,31 @@ fi
 # the file needs to be archived.
 #
 log_must touch $testfile
-log_must hasflag uarch $testfile
-log_must $changeflags nouarch $testfile
+log_must hasflag $archflag $testfile
+log_must $changeflags $noarchflag $testfile
 log_must hasflag - $testfile
 log_must touch $testfile
 if ! is_linux; then
-	log_must hasflag uarch $testfile
+	log_must hasflag $archflag $testfile
 fi
 log_must rm $testfile
 log_must user_run $owner touch $testfile
-log_must hasflag uarch $testfile
-log_must user_run $owner $changeflags nouarch $testfile
-log_mustnot user_run $other $changeflags uarch $testfile
+log_must hasflag $archflag $testfile
+log_must user_run $owner $changeflags $noarchflag $testfile
+log_mustnot user_run $other $changeflags $archflag $testfile
 log_must hasflag - $testfile
 log_must user_run $owner touch $testfile
-log_mustnot user_run $other $changeflags nouarch $testfile
+log_mustnot user_run $other $changeflags $noarchflag $testfile
 if ! is_linux; then
-	log_must hasflag uarch $testfile
+	log_must hasflag $archflag $testfile
 fi
 log_must user_run $owner rm $testfile
 
 #
-# HIDDEN
+# HIDDEN, OFFLINE, READONLY, SPARSE, SYSTEM -- FreeBSD UF_* / Linux
+# DOS attributes.  NetBSD chflags(1) has none of those keywords.
 #
+if ! is_netbsd; then
 log_must touch $testfile
 log_must $changeflags hidden $testfile
 log_must hasflag hidden $testfile
@@ -198,5 +213,6 @@ log_must user_run $owner $changeflags 0 $testfile
 log_mustnot user_run $other $changeflags system $testfile
 log_must hasflag - $testfile
 log_must user_run $owner rm $testfile
+fi
 
 log_pass "DOS mode flags function correctly"

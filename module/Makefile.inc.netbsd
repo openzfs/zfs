@@ -1,0 +1,262 @@
+# Shared flags for solaris.kmod and zfs.kmod.
+# Included after KMOD= is set.  NETBSDSRCDIR from bsd.own.mk.
+
+# Assertions vs debuginfo are separate, same as Linux
+# --enable-debug vs --enable-debuginfo.
+# Default is NDEBUG (release speed).  -g is always on so a
+# panic dump still resolves.  Assertions: make WITH_DEBUG=true.
+WITH_DEBUG?=	false
+.if defined(WITH_DEBUG) && ${WITH_DEBUG} == "true"
+CPPFLAGS+= -DZFS_DEBUG -DDEBUG -UNDEBUG
+.if defined(WITH_INVARIANTS) && ${WITH_INVARIANTS} == "true"
+CFLAGS+= -DINVARIANTS -DWITNESS -DOPENSOLARIS_WITNESS
+.endif
+.if defined(WITH_O0) && ${WITH_O0} == "true"
+CFLAGS+= -O0
+# -O0 frames exceed the -O2 512-byte budget; still warn, don't fail.
+CWARNFLAGS+= -Wno-error=frame-larger-than=
+.endif
+.else
+CPPFLAGS+= -DNDEBUG
+.endif
+# Debuginfo for savecore / gdb, independent of WITH_DEBUG.
+CFLAGS+= -g
+
+SRCDIR=${.CURDIR}
+INCDIR=${.CURDIR:H}/include
+
+# Same version string Linux/FreeBSD get from zfs_config.h.
+ZFS_META_VERSION!=	awk -F: '/^Version:/ { gsub(/[ \t]/, "", $$2); print $$2; exit }' ${.CURDIR:H}/META
+ZFS_META_RELEASE!=	awk -F: '/^Release:/ { gsub(/[ \t]/, "", $$2); print $$2; exit }' ${.CURDIR:H}/META
+CPPFLAGS+=	-DZFS_META_VERSION=\"${ZFS_META_VERSION}\"
+CPPFLAGS+=	-DZFS_META_RELEASE=\"${ZFS_META_RELEASE}\"
+
+# Overlay headers first so sys/sdt.h is NetBSD's (via include_next)
+# and not OpenZFS include/sys/sdt.h.
+# bsd.klinks.mk (via bsd.kmodule.mk) makes $OBJ/machine and
+# $OBJ/${MACHINE_CPU}.  Harnesses that compile TUs without that
+# must: ln -sfn $S/arch/$MACHINE/include machine  and
+# ln -sfn $S/arch/$CPU/include $CPU in $OBJ.  Prefer MACHINE
+# (ofppc, evbppc) over CPU (powerpc) so machine/disklabel.h exists.
+CPPFLAGS+= -I${INCDIR}/os/netbsd/spl
+CPPFLAGS+= -I${INCDIR}/os/netbsd/zfs
+CPPFLAGS+= -I${INCDIR}/os/netbsd
+# bsd.kmodule.mk also -isystem ${NETBSDSRCDIR}/sys.  GCC then
+# ignores a duplicate -I, so a later -I ${INCDIR} would win
+# include_next (OpenZFS sys/bitops.h pulls zfs_context.h).
+# -idirafter puts OpenZFS include/ after the system dirs.
+CPPFLAGS+= -I${NETBSDSRCDIR}/sys
+CPPFLAGS+= -idirafter ${INCDIR}
+
+# zfs_file_open / vdev_open_func_t gained cred_t on current
+# OpenZFS (3033e0bd8 / 5b1ccf16b).  Older trees still have
+# 4-arg / 5-arg.  Match include/sys, do not overlay a fork.
+_ZFS_FILE_CRED!= grep -c 'mode, cred_t \*cr' ${INCDIR}/sys/zfs_file.h 2>/dev/null | awk 'END { print $$1+0 }'
+.if ${_ZFS_FILE_CRED} > 0
+CPPFLAGS+= -DZFS_FILE_OPEN_HAS_CRED
+.endif
+_ZFS_VDEV_CRED!= grep -c 'pshift, cred_t \*cr' ${INCDIR}/sys/vdev_impl.h 2>/dev/null | awk 'END { print $$1+0 }'
+.if ${_ZFS_VDEV_CRED} > 0
+CPPFLAGS+= -DZFS_VDEV_OPEN_HAS_CRED
+.endif
+
+CPPFLAGS+= -I${SRCDIR}/icp/include
+CPPFLAGS+= -I${SRCDIR}/zstd/include
+CPPFLAGS+= -I${SRCDIR}/icp/algs/skein
+.if exists(${NETBSDSRCDIR}/common/dist/zlib)
+CPPFLAGS+= -I${NETBSDSRCDIR}/common/dist/zlib
+.endif
+.if exists(${NETBSDSRCDIR}/sys/lib/libz)
+CPPFLAGS+= -I${NETBSDSRCDIR}/sys/lib/libz
+.endif
+CPPFLAGS+= -I${.CURDIR}
+# Upstream HAVE_SIMD(ext) -> HAVE_TOOLCHAIN_##ext (or HAVE_KERNEL_##ext
+# on Linux).  Do not invent a parallel HAVE_SSE2 scheme.
+CPPFLAGS+= -include ${INCDIR}/sys/simd_config.h
+CFLAGS+= -include ${INCDIR}/os/netbsd/spl/sys/ccompile.h
+# x86-only: kernel code model + no accidental SSE in C.
+# Other ISAs fault if these flags are passed.
+.if !defined(S)
+S=	${NETBSDSRCDIR}/sys
+.endif
+.if ${MACHINE_ARCH} == "x86_64" || ${MACHINE_ARCH} == "amd64"
+CFLAGS+= -mcmodel=kernel -mno-red-zone
+CFLAGS+= -mno-mmx -mno-sse -mno-sse2 -mno-avx -mno-avx2
+CFLAGS+= -msoft-float -fno-tree-vectorize
+.elif ${MACHINE_ARCH} == "i386"
+CFLAGS+= -mno-mmx -mno-sse -mno-sse2 -mno-avx
+CFLAGS+= -msoft-float -fno-tree-vectorize
+.elif ${MACHINE_ARCH} == "aarch64" || ${MACHINE_ARCH} == "aarch64eb"
+# gcc -moutline-atomics (default on many aarch64 toolchains) emits
+# calls to __aarch64_ldadd*_acq_rel.  A kmod cannot resolve libgcc.
+CFLAGS+= -fno-tree-vectorize -mno-outline-atomics
+.else
+CFLAGS+= -fno-tree-vectorize
+.endif
+CPPFLAGS+= -I${.CURDIR}
+
+CPPFLAGS+= -D__KERNEL__ -D_KERNEL -DNETBSD_NAMECACHE -DBUILDING_ZFS \
+	-D__BSD_VISIBLE=1 -DHAVE_UIO_ZEROCOPY -DWITHOUT_NETDUMP \
+	-DCOMPAT_NETBSD -DZSTD_TRACE=0 -DZSTD_HAVE_WEAK_SYMBOLS=0 \
+	-DZSTD_NO_INTRINSICS
+# prop_object.h vs zfs_prop.h both define PROP_TYPE_*.  Same
+# as sys/modules/zfs/Makefile on NetBSD 11.
+CPPFLAGS+= -D_PROPLIB_ZFS_CONFLICT
+
+WARNS=	0
+# Default matches the tight Linux kmod gate.  NetBSD GENERIC amd64
+# kstack is three pages (~12KB); a 5KB VOP frame is already a
+# double-fault risk.  Do not raise this globally.  Per-file
+# COPTS.<file>+= -Wframe-larger-than=N exceptions live in
+# Makefile.openzfs (zstd only).  Large VOP/namei buffers are
+# heap-allocated.  Do not set NOGCCERROR.
+CWARNFLAGS+= -Werror -Wall -Wframe-larger-than=512
+CWARNFLAGS+= -Wunused-function -Wswitch -Wparentheses
+CWARNFLAGS+= -Wno-unknown-pragmas
+
+# module/lua/ldo.c silences gcc 12+ -Winfinite-recursion behind
+# the autoconf HAVE_* macros.  The NetBSD kmod makefile does not
+# run those tests; the guest compiler has the warning and -Werror.
+CPPFLAGS+= -DHAVE_INFINITE_RECURSION -DHAVE_KERNEL_INFINITE_RECURSION
+
+# Same -DHAVE_TOOLCHAIN_* set as FreeBSD module/Makefile.bsd.
+# HAVE_SIMD(ext) in C/.S files expands these via simd_config.h.
+# Runtime dispatch still goes through zfs_*_available() after
+# fpu_kern_enter.  Do not add a second HAVE_SSE2=1 mapping.
+.if ${MACHINE_ARCH} == "x86_64" || ${MACHINE_ARCH} == "amd64"
+CPPFLAGS+= -D__x86_64 \
+	-DHAVE_TOOLCHAIN_SSE2 -DHAVE_TOOLCHAIN_SSSE3 \
+	-DHAVE_TOOLCHAIN_SSE4_1 -DHAVE_TOOLCHAIN_AVX -DHAVE_TOOLCHAIN_AVX2 \
+	-DHAVE_TOOLCHAIN_AVX512F -DHAVE_TOOLCHAIN_AVX512VL \
+	-DHAVE_TOOLCHAIN_AVX512BW -DHAVE_TOOLCHAIN_SHA512EXT
+.elif ${MACHINE_ARCH} == "i386"
+# Fletcher SSE C files; do not compile x86_64 .S (64-bit regs).
+CPPFLAGS+= -DHAVE_TOOLCHAIN_SSE2 -DHAVE_TOOLCHAIN_SSSE3 \
+	-DHAVE_TOOLCHAIN_SSE4_1
+.endif
+
+# LOCKDEBUG matches a LOCKDEBUG kernel.  Independent of
+# WITH_DEBUG.  cpu_core[] is omitted so the kmod still
+# builds; dtrace.kmod will not load.  Prefer the kernel's
+# opt_lockdebug.h when _KERNEL_OPT is set; this make var
+# is for out-of-tree builds:  make LOCKDEBUG=1
+.if defined(LOCKDEBUG) && ${LOCKDEBUG} != "no" && ${LOCKDEBUG} != "0"
+CPPFLAGS+=	-DLOCKDEBUG
+.endif
+
+.for _SAN in KASAN KMSAN KCSAN KUBSAN
+.if defined(WITH_${_SAN}) && ${WITH_${_SAN}} == "true"
+KERN_OPTS_EXTRA+= ${_SAN}
+.endif
+.endfor
+
+.if ${KASAN:U0} > 0
+WITH_KASAN=	true
+.endif
+.if ${KCSAN:U0} > 0
+WITH_KCSAN=	true
+.endif
+.if ${KMSAN:U0} > 0
+WITH_KMSAN=	true
+.endif
+.if ${KUBSAN:U0} > 0
+WITH_KUBSAN=	true
+.endif
+.if defined(WITH_KASAN) && ${WITH_KASAN} == "true"
+CFLAGS+= -fsanitize=kernel-address \
+	--param asan-globals=1 --param asan-stack=1 \
+	--param asan-instrument-allocas=1 \
+	-fsanitize-address-use-after-scope \
+	-fasan-shadow-offset=0xDFFF900000000000
+CPPFLAGS+= -DKASAN
+.endif
+.if defined(WITH_KUBSAN) && ${WITH_KUBSAN} == "true"
+CFLAGS+= -fsanitize=undefined
+CPPFLAGS+= -DKUBSAN
+.endif
+.if defined(WITH_KCSAN) && ${WITH_KCSAN} == "true"
+CFLAGS+= -fsanitize=thread
+CPPFLAGS+= -DKCSAN
+.endif
+.if defined(WITH_KMSAN) && ${WITH_KMSAN} == "true"
+CFLAGS+= -fsanitize=kernel-memory
+CPPFLAGS+= -DKMSAN
+.endif
+
+.if defined(WITH_GCOV) && ${WITH_GCOV} == "true"
+CFLAGS+=	 -fprofile-arcs -ftest-coverage
+.endif
+
+DEBUG_FLAGS=-g
+
+# GENERIC64 uses -march=armv8-a+nofp+nosimd.  SIMD TUs need AdvSIMD
+# (gas: "selected processor does not support eor v0.16b").
+.if ${MACHINE_ARCH} == "aarch64" || ${MACHINE_ARCH} == "aarch64eb"
+AARCH64_SIMD_CFLAGS=${CFLAGS:N-mgeneral-regs-only:N-march=*} -march=armv8-a
+.endif
+
+# 64-bit OpenZFS ISAs: names containing "64", plus aarch64eb / sparc64.
+.if !empty(MACHINE_ARCH:M*64*) || ${MACHINE_ARCH} == "sparc64" || \
+	${MACHINE_ARCH} == "x86_64" || ${MACHINE_ARCH} == "amd64" || \
+	${MACHINE_ARCH} == "aarch64eb"
+CPPFLAGS+= -DBITS_PER_LONG=64
+.else
+CPPFLAGS+= -DBITS_PER_LONG=32
+.endif
+
+# bsd.kmodule.mk only injects PPC_INTR_IMPL when MACHINE == evbppc.
+# ofppc / macppc / out-of-tree builds die on #include PPC_INTR_IMPL.
+# NetBSD's kernel is soft-float (sys/arch/powerpc/conf/Makefile.powerpc).
+# bsd.kmodule.mk does not pass -msoft-float, so without it the whole
+# kmod is hard-float: C TUs can emit FP ops outside kfpu_begin/end,
+# and zfs_kfpu_leave_ppc() is not ABI-protected for callee-saved FPRs.
+.if ${MACHINE_CPU:U} == "powerpc" || ${MACHINE_ARCH} == "powerpc" || \
+    ${MACHINE_ARCH} == "powerpc64" || ${MACHINE_ARCH} == "powerpc64le"
+. ifndef PPC_INTR_IMPL
+PPC_INTR_IMPL=	<powerpc/intr.h>
+. endif
+. ifndef PPC_PCI_MACHDEP_IMPL
+PPC_PCI_MACHDEP_IMPL=	<powerpc/pci_machdep.h>
+. endif
+CPPFLAGS+=	-DPPC_INTR_IMPL=${PPC_INTR_IMPL}
+CPPFLAGS+=	-DPPC_PCI_MACHDEP_IMPL=${PPC_PCI_MACHDEP_IMPL}
+. if ${MACHINE_ARCH} == "powerpc64" || ${MACHINE_ARCH} == "powerpc64le"
+CPPFLAGS+=	-DPPC_OEA64
+. else
+CPPFLAGS+=	-DPPC_OEA
+. endif
+CFLAGS+=	-msoft-float
+.endif
+# Hide OpenZFS copies of symbols GENERIC already links (libnv
+# nvlist_pack is a different ABI).  Hide openzfs's solaris_kmem_*
+# so they do not clash with solaris.kmod (DTrace's copies).
+# solaris.kmod keeps solaris_kmem_*, solaris_cpu, cpu_core global.
+# cpu_core is omitted under LOCKDEBUG (dtrace will not load).
+localize-kmod-syms: ${KMOD}.kmod
+	@syms=`nm -g ${KMOD}.kmod 2>/dev/null | awk ' \
+	    $$2 ~ /^[TDBR]$$/ && \
+	    $$3 ~ /^(nvlist_|nvpair_|fnvlist_|fnvpair_|nv_alloc_|nv_fixed_ops|kmem_asprintf|kmem_strfree|strpbrk)/ \
+	    { print $$3 }'`; \
+	if [ "${KMOD}" = "openzfs" ]; then \
+		extra=`nm -g ${KMOD}.kmod 2>/dev/null | awk ' \
+		    $$2 ~ /^[TDBR]$$/ && \
+		    $$3 ~ /^(solaris_kmem_|__sysctl_verify_ctype_arg)/ \
+		    { print $$3 }'`; \
+		syms="$$syms $$extra"; \
+	fi; \
+	if [ -n "$$syms" ]; then \
+		set --; \
+		for s in $$syms; do set -- "$$@" --localize-symbol=$$s; done; \
+		objcopy "$$@" ${KMOD}.kmod; \
+	fi
+all: localize-kmod-syms
+
+# spa_history.c includes zfs_gitrev.h.  Automake generates it;
+# the kmod makefiles do not run make_gitrev.sh unless we stamp it.
+${INCDIR}/zfs_gitrev.h:
+	@if [ -x ${.CURDIR:H}/scripts/make_gitrev.sh ]; then \
+		${.CURDIR:H}/scripts/make_gitrev.sh ${.TARGET} || \
+		    echo '#define ZFS_META_GITREV "unknown"' > ${.TARGET}; \
+	else \
+		echo '#define ZFS_META_GITREV "unknown"' > ${.TARGET}; \
+	fi

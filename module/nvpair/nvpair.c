@@ -3295,13 +3295,28 @@ nvs_xdr_nvl_fini(nvstream_t *nvs)
  */
 
 #if (defined(__FreeBSD_version) && __FreeBSD_version >= 1600010) || \
-    defined(_KERNEL) && defined(__linux__) /* Linux kernel */
+	(defined(_KERNEL) && (defined(__linux__) || defined(__NetBSD__)))
 
 #define	NVS_BUILD_XDRPROC_T(type)		\
 static bool_t					\
 nvs_xdr_nvp_##type(XDR *xdrs, void *ptr)	\
 {						\
 	return (xdr_##type(xdrs, ptr));		\
+}
+
+#elif !defined(_KERNEL) && defined(__NetBSD__)
+
+/*
+ * NetBSD libc xdrproc_t is bool_t (*)(XDR *, const void *).
+ * The tirpc-style variadic form is a different ABI and
+ * -Werror=incompatible-pointer-types.
+ */
+#define	NVS_BUILD_XDRPROC_T(type)			\
+static bool_t						\
+nvs_xdr_nvp_##type(XDR *xdrs, const void *ptr)		\
+{							\
+	return (xdr_##type(xdrs,			\
+	    __DECONST(void *, ptr)));			\
 }
 
 #elif !defined(_KERNEL) && defined(XDR_CONTROL) /* tirpc, FreeBSD < 16 */

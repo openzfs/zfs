@@ -38,10 +38,10 @@ log_onexit cleanup
 
 log_must zpool create -o feature@block_cloning=enabled $TESTPOOL $DISKS
 
-log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=128K count=4
+log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=128k count=4
 log_must sync_pool $TESTPOOL
 
-log_must dd if=/$TESTPOOL/file1 of=/$TESTPOOL/file2 bs=128K count=4
+log_must dd if=/$TESTPOOL/file1 of=/$TESTPOOL/file2 bs=128k count=4
 log_must sync_pool $TESTPOOL
 
 log_must have_same_content /$TESTPOOL/file1 /$TESTPOOL/file2

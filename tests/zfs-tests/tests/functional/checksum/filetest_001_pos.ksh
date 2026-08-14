@@ -60,6 +60,9 @@ set -A array $(get_disklist_fullpath)
 
 # Get the first vdev, since we will corrupt it later
 firstvdev=${array[0]}
+if is_netbsd; then
+	firstvdev=$(vdev_match_leaf "$firstvdev")
+fi
 
 # Test each checksum by writing a file using it, confirm there are no errors.
 typeset -i i=1

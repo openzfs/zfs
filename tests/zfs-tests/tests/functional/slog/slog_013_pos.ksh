@@ -43,6 +43,11 @@ function cleanup_testenv
 			losetup -d $lofidev
 		elif is_freebsd; then
 			mdconfig -du ${lofidev#md}
+		elif is_netbsd; then
+			typeset v=${lofidev#/dev/}
+			v=${v#r}
+			v=${v%%[a-p]}
+			vnconfig -u $v
 		else
 			lofiadm -d $lofidev
 		fi
@@ -73,13 +78,33 @@ if is_linux; then
 	lofidev=${lofidev##*/}
 elif is_freebsd; then
 	lofidev=$(mdconfig -a ${LDEV2%% *})
+elif is_netbsd; then
+	# vnd(4) is NetBSD's vnode disk -- same role as mdconfig/losetup.
+	# vnd0 often backs /mnt/zts; prefer a free unit.
+	lofidev=
+	typeset i
+	for i in 1 2 3 0 7; do
+		[ -b /dev/vnd${i}d ] || (cd /dev && sh MAKEDEV vnd$i)
+		if vnconfig -l vnd$i 2>/dev/null | grep -q "not in use"; then
+			log_must vnconfig -c vnd$i ${LDEV2%% *}
+			lofidev=/dev/vnd${i}d
+			break
+		fi
+	done
+	[ -n "$lofidev" ] || log_fail "no free vnd for slog lofi"
 else
 	lofidev=${LDEV2%% *}
 	log_must lofiadm -a $lofidev
 	lofidev=$(lofiadm $lofidev)
 fi
 log_must zpool add $TESTPOOL log $lofidev
-log_must verify_slog_device $TESTPOOL $lofidev 'ONLINE'
+# Disk vdevs are printed as the /dev leaf.  NetBSD's vnd path is
+# /dev/vndNd; status shows vndNd.
+if is_netbsd; then
+	log_must verify_slog_device $TESTPOOL ${lofidev##*/} 'ONLINE'
+else
+	log_must verify_slog_device $TESTPOOL $lofidev 'ONLINE'
+fi
 
 log_pass "Verify slog device can be disk, file, lofi device or any device " \
 	"that presents a block interface."

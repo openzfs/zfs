@@ -50,7 +50,7 @@ for red in all most some none; do
 	mountpoint=$(get_prop mountpoint $TESTPOOL/$TESTFS-$red)
 
 	path="${mountpoint}/file"
-	log_must dd if=/dev/urandom of=$path bs=1M count=1
+	log_must dd if=/dev/urandom of=$path bs=1${DD_M} count=1
 	log_must zpool sync $TESTPOOL
 	num_l0_dvas=$(get_first_block $TESTPOOL/$TESTFS-$red file | get_num_dvas)
 	if [[ "$red" == "all" ]]; then

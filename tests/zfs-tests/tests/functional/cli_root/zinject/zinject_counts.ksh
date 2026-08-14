@@ -80,7 +80,7 @@ function test_device_injection
 	for freq in 100 50 ; do
 		log_must zinject -d $DISK1 -e io -T write -f $freq $TESTPOOL
 
-		log_must dd if=/dev/urandom of=/$TESTPOOL/file bs=1M count=1
+		log_must dd if=/dev/urandom of=/$TESTPOOL/file bs=1${DD_M} count=1
 		log_must zpool sync
 
 		log_must check_count_freq $freq
@@ -93,7 +93,7 @@ function test_device_injection
 # trying to read it back
 function test_object_injection
 {
-	log_must dd if=/dev/urandom of=/$TESTPOOL/file bs=1M count=1
+	log_must dd if=/dev/urandom of=/$TESTPOOL/file bs=1${DD_M} count=1
 	zpool sync
 
 	for freq in 100 50 ; do
@@ -113,7 +113,7 @@ function test_delay_injection
 	for freq in 100 50 ; do
 		log_must zinject -d $DISK1 -D 50:1 -f $freq $TESTPOOL
 
-		log_must dd if=/dev/urandom of=/$TESTPOOL/file bs=1M count=1
+		log_must dd if=/dev/urandom of=/$TESTPOOL/file bs=1${DD_M} count=1
 		zpool sync
 
 		log_must check_count_freq $freq

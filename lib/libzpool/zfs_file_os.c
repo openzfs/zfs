@@ -20,6 +20,9 @@
 #include <sys/zfs_file.h>
 #include <libzpool.h>
 #include <libzutil.h>
+#ifdef __NetBSD__
+#include <sys/spa.h>
+#endif
 
 /* If set, all blocks read will be copied to the specified directory. */
 char *vn_dumpdir = NULL;
@@ -44,17 +47,46 @@ zfs_file_open(const char *path, int flags, int mode, cred_t *cr,
 	int old_umask = 0;
 	zfs_file_t *fp;
 	struct stat64 st;
+	const char *openpath = path;
+#ifdef __NetBSD__
+	char raw[MAXPATHLEN];
 
-	if (!(flags & O_CREAT) && stat64(path, &st) == -1)
+	/*
+	 * Open the raw device read-only, as the kernel does.  The
+	 * block node shares the buffer cache with a live pool and
+	 * returns EBUSY or stale data to zdb.
+	 */
+	if (zfs_dev_to_raw_path(path, raw, sizeof (raw)) == 0)
+		openpath = raw;
+#endif
+
+	if (!(flags & O_CREAT) && stat64(openpath, &st) == -1)
 		return (errno);
 
+#ifdef __NetBSD__
+	/*
+	 * zdb is SPA_MODE_READ and must not be a second writer on the
+	 * raw node: the vdev fd is already open in this process, and
+	 * the block twin is stale.  zhack and ztest pass
+	 * SPA_MODE_READ|SPA_MODE_WRITE, so test the write bit rather
+	 * than equality with SPA_MODE_READ.  UNINIT has not chosen a
+	 * mode; leave the caller's flags alone.
+	 */
+	if ((flags & O_CREAT) == 0 && S_ISCHR(st.st_mode) &&
+	    spa_mode_global != SPA_MODE_UNINIT &&
+	    (spa_mode_global & SPA_MODE_WRITE) == 0)
+		flags = (flags & ~O_ACCMODE) | O_RDONLY;
+#endif
+
+#ifndef __NetBSD__
 	if (!(flags & O_CREAT) && S_ISBLK(st.st_mode))
 		flags |= O_DIRECT;
+#endif
 
 	if (flags & O_CREAT)
 		old_umask = umask(0);
 
-	fd = open64(path, flags, mode);
+	fd = open64(openpath, flags, mode);
 	if (fd == -1)
 		return (errno);
 

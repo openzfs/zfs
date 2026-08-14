@@ -80,13 +80,13 @@ function do_test {
 	fi
 
 	# Create a data file
-	log_must dd if=/dev/urandom of="$datafile1" bs=1M count=5
+	log_must dd if=/dev/urandom of="$datafile1" bs=1${DD_M} count=5
 
 	# Write the data to our zvol using FUA
-	log_must dd if=$datafile1 of=$zvolpath oflag=dsync,direct bs=1M count=5
+	log_must dd if=$datafile1 of=$zvolpath oflag=dsync,direct bs=1${DD_M} count=5
 
 	# Extract data from our zvol
-	log_must dd if=$zvolpath of="$datafile2" bs=1M count=5
+	log_must dd if=$zvolpath of="$datafile2" bs=1${DD_M} count=5
 
 	# Compare the data we expect with what's on our zvol.  diff will return
 	# non-zero if they differ.

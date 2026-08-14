@@ -55,7 +55,8 @@ function setup_snap_env
 	# Volume can't be created in Local Zone.
 	if datasetnonexists $VOL && is_global_zone; then
 		log_must zfs create -V $VOLSIZE $VOL
-		block_device_wait
+		block_device_wait \
+		    "$ZVOL_DEVDIR/$VOL" "$ZVOL_RDEVDIR/$VOL"
 	fi
 
 	# Make sure $VOL is volume
@@ -106,7 +107,7 @@ function setup_snap_env
 
 			if datasetnonexists $snap; then
 				log_must cp /etc/passwd $fname
-				if is_linux || is_freebsd; then
+				if is_linux || is_freebsd || is_netbsd; then
 					sync_all_pools
 					log_must sync
 				else

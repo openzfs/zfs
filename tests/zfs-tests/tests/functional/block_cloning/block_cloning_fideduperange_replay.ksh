@@ -58,9 +58,9 @@ log_must zpool create -o feature@block_cloning=enabled $TESTPOOL $VDEV \
 log_must zfs create -o recordsize=128k $TESTPOOL/$TESTFS
 
 log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/file1 \
-    oflag=sync bs=128K count=4
+    ${OFLAG_SYNC} bs=128k count=4
 log_must dd if=/$TESTPOOL/$TESTFS/file1 of=/$TESTPOOL/$TESTFS/file2 \
-    oflag=sync bs=128K count=4
+    ${OFLAG_SYNC} bs=128k count=4
 sync_pool $TESTPOOL
 
 typeset digest=$(xxh128digest /$TESTPOOL/$TESTFS/file2)

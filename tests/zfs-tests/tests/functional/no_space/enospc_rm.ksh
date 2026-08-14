@@ -51,7 +51,7 @@ log_must zfs set compression=off $TESTPOOL/$TESTFS
 
 log_note "Writing Big(1G) files until ENOSPC."
 log_mustnot_expect "No space left on device" fio --name=test \
-    --fallocate=none --rw=write --bs=1M --size=1G --numjobs=4 \
+    --fallocate=none --rw=write --bs=1m --size=1G --numjobs=4 \
     --sync=1 --directory=$TESTDIR/ --group_reporting
 
 log_must rm $TESTDIR/test.*
@@ -60,7 +60,7 @@ sync_pool $TESTPOOL true
 
 log_note "Writing small(10M) files until ENOSPC."
 log_mustnot_expect "No space left on device" fio --name=test \
-    --fallocate=none --rw=write --bs=1M --size=10M --numjobs=200 \
+    --fallocate=none --rw=write --bs=1m --size=10M --numjobs=200 \
     --sync=1 --directory=$TESTDIR/ --group_reporting
 
 log_must rm $TESTDIR/test.*

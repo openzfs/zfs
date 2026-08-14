@@ -20,6 +20,11 @@ zpool_SOURCES += \
 	%D%/os/freebsd/zpool_vdev_os.c
 endif
 
+if BUILD_NETBSD
+zpool_SOURCES += \
+	%D%/os/netbsd/zpool_vdev_os.c
+endif
+
 if BUILD_LINUX
 zpool_SOURCES += \
 	%D%/os/linux/zpool_vdev_os.c
@@ -142,6 +147,9 @@ dist_zpoolcompat_DATA = \
 	%D%/compatibility.d/freenas-9.10.2 \
 	%D%/compatibility.d/grub2-2.06 \
 	%D%/compatibility.d/grub2-2.12 \
+	%D%/compatibility.d/netbsd-9.0 \
+	%D%/compatibility.d/netbsd-10.0 \
+	%D%/compatibility.d/netbsd-11.0 \
 	%D%/compatibility.d/openzfs-2.0-freebsd \
 	%D%/compatibility.d/openzfs-2.0-linux \
 	%D%/compatibility.d/openzfs-2.1-freebsd \
@@ -175,6 +183,11 @@ zpoolcompatlinks = \
 	"freebsd-11.3		freebsd-12.3" \
 	"freebsd-11.3		freebsd-12.4" \
 	"grub2-2.12		grub2" \
+	"netbsd-9.0		netbsd-9.1" \
+	"netbsd-9.0		netbsd-9.2" \
+	"netbsd-9.0		netbsd-9.3" \
+	"netbsd-9.0		netbsd-9.4" \
+	"netbsd-10.0		netbsd-10.1" \
 	"openzfs-2.1-freebsd	freebsd-13.0" \
 	"openzfs-2.1-freebsd	freebsd-13.1" \
 	"openzfs-2.1-freebsd	freebsd-13.2" \

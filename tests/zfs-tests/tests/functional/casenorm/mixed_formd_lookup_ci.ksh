@@ -29,6 +29,11 @@
 
 verify_runnable "global"
 
+# FIGNORECASE is a VFS/SMB flag. Only illumos namei can pass it.
+if ! is_illumos; then
+	log_unsupported "CI lookup requires FIGNORECASE from the VFS"
+fi
+
 function cleanup
 {
 	destroy_testfs

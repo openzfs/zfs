@@ -14,12 +14,14 @@ subgraph Functional testing
   Setup --> fedora
   Setup --> ubuntu
   Setup --> freebsd
+  Setup --> netbsd
   almalinux --> Cleanup[cleanup + summary]
   centos --> Cleanup
   debian --> Cleanup
   fedora --> Cleanup
   ubuntu --> Cleanup
   freebsd --> Cleanup
+  netbsd --> Cleanup
 end
 
 subgraph Code checking
@@ -58,6 +60,7 @@ the PR's changed files and picks one of:
 | `quick`   | 6 Linux + 1 FreeBSD                        |
 | `linux`   | all supported Linux distros                |
 | `freebsd` | all supported FreeBSD versions             |
+| `netbsd`  | NetBSD 11.0                                |
 | default   | cross-platform sample                      |
 
 Pushes to `openzfs/zfs` skip the matrix entirely; only PRs (and pushes to
@@ -76,6 +79,8 @@ Auto-selected:
 - Linux: almalinux 8/9/10, centos-stream 9/10, debian 11/12/13,
   fedora 43/44, ubuntu 22/24/26
 - FreeBSD: 14.4-RELEASE, 14.5-STABLE, 15.1-RELEASE/STABLE, 16.0-CURRENT
+- NetBSD: 11.0 (via `ZFS-CI-Type: netbsd`, `specific_os=netbsd11`,
+  or `.github/workflows/zfs-qemu-netbsd.yml`)
 
 Available via `specific_os` or `ZTS_OS_OVERRIDE`:
 
@@ -90,6 +95,7 @@ Available via `specific_os` or `ZTS_OS_OVERRIDE`:
 ### Other workflows
 
 - `zfs-arm.yml`: ARM build on `ubuntu-24.04-arm`
+- `zfs-qemu-netbsd.yml`: NetBSD 11.0 ZTS (same QEMU steps as FreeBSD)
 - `zloop.yml`: host-side zloop
 - `labels.yml`: maintains PR status labels
 - `zfs-qemu-packages.yml`: manually dispatched, builds release RPMs or

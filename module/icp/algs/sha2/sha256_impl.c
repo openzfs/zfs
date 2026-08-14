@@ -248,7 +248,7 @@ sha256_param_set(const char *val, zfs_kernel_param_t *unused)
 	return (generic_impl_setname(val));
 }
 
-#elif defined(__FreeBSD__)
+#elif defined(__FreeBSD__) || defined(__NetBSD__)
 
 #include <sys/sbuf.h>
 
@@ -288,6 +288,7 @@ sha256_param(ZFS_MODULE_PARAM_ARGS)
 
 	char buf[16];
 
+	buf[0] = '\0';
 	err = sysctl_handle_string(oidp, buf, sizeof (buf), req);
 	if (err) {
 		return (err);

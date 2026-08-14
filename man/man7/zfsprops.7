@@ -1229,6 +1229,19 @@ and
 .Sy SSL_CLIENT_KEY_FILE
 environment variables can be set to configure the path
 to the client certificate and its key.
+.Pp
+On NetBSD, libfetch does not read
+.Sy SSL_CA_CERT_FILE
+or
+.Sy SSL_CA_CERT_PATH .
+Trust anchors come from OpenSSL's default verify paths, which honour
+.Sy SSL_CERT_FILE
+and
+.Sy SSL_CERT_DIR .
+Client certificates are not supported.
+libfetch checks that the server certificate chains to a trusted CA.
+It does not check the hostname.
+TLS errors from libfetch are written to stderr.
 .It Sy pbkdf2iters Ns = Ns Ar iterations
 Controls the number of PBKDF2 iterations that a
 .Sy passphrase

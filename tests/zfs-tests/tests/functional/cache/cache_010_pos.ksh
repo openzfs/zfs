@@ -43,6 +43,11 @@ function cleanup_testenv
 			losetup -d $lofidev
 		elif is_freebsd; then
 			mdconfig -du ${lofidev#md}
+		elif is_netbsd; then
+			typeset v=${lofidev#/dev/}
+			v=${v#r}
+			v=${v%%[a-p]}
+			vnconfig -u $v
 		else
 			lofiadm -d $lofidev
 		fi
@@ -59,10 +64,10 @@ TESTVOL=testvol1$$
 dsk1=${DISKS%% *}
 log_must zpool create $TESTPOOL ${DISKS#$dsk1}
 
-# Add normal ${DEV_RDSKDIR} device
-log_must zpool add $TESTPOOL cache \
-    ${DEV_RDSKDIR}/${dsk1}
-log_must zpool remove $TESTPOOL ${DEV_RDSKDIR}/${dsk1}
+# Add the first disk/file as cache. Never prefix /dev/ onto an
+# already-absolute file vdev (that produced /dev//build/...).
+log_must zpool add $TESTPOOL cache $(to_usable_path $dsk1)
+log_must zpool remove $TESTPOOL $(to_usable_path $dsk1)
 
 
 # Add provided disk
@@ -82,6 +87,13 @@ if is_linux; then
 	lofidev=${lofidev##*/}
 elif is_freebsd; then
 	lofidev=$(mdconfig -a ${VDEV2%% *})
+elif is_netbsd; then
+	# vnd(4) is NetBSD's vnode disk -- same role as mdconfig/losetup.
+	# vnd0 backs /mnt/zts; use vnd1.
+	lofidev=vnd1
+	[ -b /dev/${lofidev}d ] || (cd /dev && sh MAKEDEV $lofidev)
+	log_must vnconfig -c $lofidev ${VDEV2%% *}
+	lofidev=/dev/${lofidev}d
 else
 	lofidev=${VDEV2%% *}
 	log_must lofiadm -a $lofidev

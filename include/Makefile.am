@@ -5,6 +5,9 @@ endif
 if BUILD_FREEBSD
 include $(srcdir)/%D%/os/freebsd/Makefile.am
 endif
+if BUILD_NETBSD
+include $(srcdir)/%D%/os/netbsd/Makefile.am
+endif
 
 
 COMMON_H = \

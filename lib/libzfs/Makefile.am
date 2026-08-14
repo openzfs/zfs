@@ -33,6 +33,14 @@ dist_libzfs_la_SOURCES += \
 	%D%/os/freebsd/libzfs_zmount.c
 endif
 
+if BUILD_NETBSD
+dist_libzfs_la_SOURCES += \
+	%D%/os/netbsd/libzfs_compat.c \
+	%D%/os/netbsd/libzfs_share_nfs.c \
+	%D%/os/netbsd/libzfs_share_smb.c \
+	%D%/os/netbsd/libzfs_zmount.c
+endif
+
 if BUILD_LINUX
 dist_libzfs_la_SOURCES += \
 	%D%/os/linux/libzfs_mount_os.c \
@@ -74,7 +82,14 @@ libzfs_la_LIBADD = \
 	libnvpair.la \
 	libzutil.la
 
-libzfs_la_LIBADD += -lrt -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LIBFETCH_LIBS) $(LTLIBINTL)
+if BUILD_LINUX
+libzfs_la_LIBADD += -lrt
+endif
+libzfs_la_LIBADD += -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LIBFETCH_LIBS) $(LTLIBINTL)
+
+if BUILD_NETBSD
+libzfs_la_LIBADD += -lintl
+endif
 
 libzfs_la_LDFLAGS = -version-info 7:0:0
 

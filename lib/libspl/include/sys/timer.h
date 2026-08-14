@@ -23,7 +23,26 @@
 
 #define	ddi_get_lbolt()		(gethrtime() >> 23)
 #define	ddi_get_lbolt64()	(gethrtime() >> 23)
+#ifdef __NetBSD__
+/*
+ * Cannot #define hz: NetBSD <sys/sysctl.h> has a struct field `int hz`,
+ * and userspace <sys/param.h> only exports `extern int hz` under
+ * _KERNEL.  An enumeration constant occupies the ordinary identifier
+ * namespace without rewriting later struct members.
+ *
+ * The os/netbsd/sys/timer.h wrapper is compile-path only (include_next
+ * onto this file).  It is not installed: ginstall refuses two time.h /
+ * timer.h basenames in $(includedir)/libspl/sys.
+ */
+#ifndef _LIBSPL_HZ_DEFINED
+#define	_LIBSPL_HZ_DEFINED
+enum { hz = 119 };
+#endif
+#else
+#ifndef _LIBSPL_HZ_DEFINED
 #define	hz	119	/* frequency when using gethrtime() >> 23 for lbolt */
+#endif
+#endif
 
 #define	ddi_time_before(a, b)		(a < b)
 #define	ddi_time_after(a, b)		ddi_time_before(b, a)

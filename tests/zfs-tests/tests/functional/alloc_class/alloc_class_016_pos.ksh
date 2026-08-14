@@ -33,13 +33,13 @@ log_must zpool create $TESTPOOL $ZPOOL_DISKS special $CLASS_DISK0
 # Provision a filesystem with special_small_blocks and copy 10M to it
 log_must zfs create -o compression=off -o special_small_blocks=32K \
 	-o recordsize=32K $TESTPOOL/$TESTFS
-log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/testfile bs=1M count=10
+log_must dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/testfile bs=1${DD_M} count=10
 
 # Provision a volume with special_small_blocks and copy 10M to it
 log_must zfs create -V 100M -b 32K -o special_small_blocks=32K \
 	-o compression=off $TESTPOOL/$TESTVOL
 block_device_wait "$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL"
-log_must dd if=/dev/urandom of=$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL bs=1M count=10
+log_must dd if=/dev/urandom of=$ZVOL_DEVDIR/$TESTPOOL/$TESTVOL bs=1${DD_M} count=10
 
 # Closing the zvol makes udev rescan it, and while it does the pool cannot
 # be destroyed.  Let that settle before the destroy below.

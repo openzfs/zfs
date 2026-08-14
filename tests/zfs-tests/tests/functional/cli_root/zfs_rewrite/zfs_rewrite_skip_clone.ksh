@@ -28,6 +28,12 @@
 
 verify_runnable "global"
 
+# NetBSD has no VOP_COPY_FILE_RANGE / FICLONE, so clonefile cannot
+# create a BRT clone.  Excluded from netbsd.run for the same reason.
+if is_netbsd; then
+	log_unsupported "NetBSD does not support block cloning"
+fi
+
 function cleanup
 {
 	rm -rf $TESTDIR/*

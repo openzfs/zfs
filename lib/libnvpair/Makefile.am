@@ -25,6 +25,10 @@ libnvpair_la_LIBADD = \
 
 libnvpair_la_LIBADD += $(LIBTIRPC_LIBS) $(LTLIBINTL)
 
+if BUILD_NETBSD
+libnvpair_la_LIBADD += -lintl
+endif
+
 libnvpair_la_LDFLAGS =
 
 if !ASAN_ENABLED

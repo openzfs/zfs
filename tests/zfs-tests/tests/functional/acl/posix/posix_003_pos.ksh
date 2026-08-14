@@ -12,6 +12,7 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/acl/acl_common.kshlib
 
 #
 # DESCRIPTION:
@@ -30,18 +31,42 @@ typeset acl_str1="^group:$ZFS_ACL_STAFF_GROUP:-wx$"
 typeset acl_str2="^default:group:$ZFS_ACL_STAFF_GROUP:-wx$"
 typeset ACLDIR="$TESTDIR/dir.1"
 
+# Linux getfacl prints default: entries in the access listing.
+# NetBSD getfacl prints default ACLs only with -d, without that prefix.
+function posix_default_listed # dir
+{
+	typeset dir=$1
+	getfacl "$dir" 2>/dev/null | grep -q "$acl_str2" && return 0
+	getfacl -d "$dir" 2>/dev/null | grep -q "$acl_str1"
+}
+
 log_note "Testing access to DIRECTORY"
 log_must mkdir $ACLDIR
-log_must setfacl -m g:$ZFS_ACL_STAFF_GROUP:wx $ACLDIR
-log_must setfacl -d -m g:$ZFS_ACL_STAFF_GROUP:wx $ACLDIR
+if is_netbsd; then
+	# GNU setfacl -d -m g:group:wx on mkdir 755 stores
+	# default u::rwx,g::r-x,o::r-x,g:group:-wx,m::-wx.
+	log_must setfacl -m g:$ZFS_ACL_STAFF_GROUP:-wx $ACLDIR
+	log_must setfacl -d -m \
+	    u::rwx,g::r-x,o::r-x,g:$ZFS_ACL_STAFF_GROUP:-wx,m::-wx \
+	    $ACLDIR
+else
+	log_must setfacl -m g:$ZFS_ACL_STAFF_GROUP:wx $ACLDIR
+	log_must setfacl -d -m g:$ZFS_ACL_STAFF_GROUP:wx $ACLDIR
+fi
 
 if getfacl $ACLDIR 2> /dev/null | grep -q "$acl_str1" &&
-	getfacl $ACLDIR 2> /dev/null | grep -q "$acl_str2"
+	posix_default_listed $ACLDIR
 then
-	log_must zfs unmount $TESTPOOL/$TESTFS
+	# Drop any cwd hold on the mountpoint (NetBSD will not
+	# unmount a busy dataset).  -f covers leftover namecache
+	# / xattr vnodes from getfacl.
+	cd / || true
+	log_must zfs unmount -f $TESTPOOL/$TESTFS
 	log_must zfs mount $TESTPOOL/$TESTFS
 	log_must eval "getfacl $ACLDIR 2> /dev/null | grep -q \"$acl_str1\""
-	log_must eval "getfacl $ACLDIR 2> /dev/null | grep -q \"$acl_str2\""
+	if ! posix_default_listed $ACLDIR; then
+		log_fail "default ACL for group '$ZFS_ACL_STAFF_GROUP' missing after remount"
+	fi
 	log_pass "POSIX ACLs survive remount"
 else
 	log_fail "Group '$ZFS_ACL_STAFF_GROUP' does not have 'rwx'"

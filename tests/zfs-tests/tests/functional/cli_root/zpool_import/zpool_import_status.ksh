@@ -60,14 +60,27 @@ log_must zfs create -o recordsize=8k $TESTPOOL1/fs
 # after freezing the pool unless a ZIL header already exists. Create a file
 # synchronously to force ZFS to write one out.
 #
-log_must dd if=/dev/zero of=/$TESTPOOL1/fs/sync conv=fsync bs=1 count=1
+log_must dd if=/dev/zero of=/$TESTPOOL1/fs/sync ${OFLAG_SYNC} bs=1 count=1
 
 #
 # Overwrite some blocks to populate spacemap logs
 #
-log_must dd if=/dev/urandom of=/$TESTPOOL1/fs/00 bs=1M count=200
+typeset fill_mb=200
+typeset fill_files=2000
+typeset fill_writes=1024
+if is_netbsd; then
+	# 200m urandom twice + fill_fs 2000*1024 after freeze is ~8min on
+	# the 1.5GB ZTS VM.  Then ksh93 $(jobs) keeps reporting the
+	# background import as Running until wait(1), so the test is
+	# KILLED at the 10min STF cap.  Scale the fill: spa_load still
+	# emits >20 import_progress dbgmsg notes.
+	fill_mb=16
+	fill_files=32
+	fill_writes=8
+fi
+log_must dd if=/dev/urandom of=/$TESTPOOL1/fs/00 bs=1${DD_M} count=$fill_mb
 sync_all_pools
-log_must dd if=/dev/urandom of=/$TESTPOOL1/fs/00 bs=1M count=200
+log_must dd if=/dev/urandom of=/$TESTPOOL1/fs/00 bs=1${DD_M} count=$fill_mb
 sync_all_pools
 
 #
@@ -76,7 +89,7 @@ sync_all_pools
 log_must zpool freeze $TESTPOOL1
 
 # fill_fs [destdir] [dirnum] [filenum] [bytes] [num_writes] [data]
-log_must fill_fs /$TESTPOOL1/fs 1 2000 100 1024 R
+log_must fill_fs /$TESTPOOL1/fs 1 $fill_files 100 $fill_writes R
 
 log_must zpool list -v $TESTPOOL1
 
@@ -94,18 +107,24 @@ log_must zpool export $TESTPOOL1
 log_must set_tunable64 METASLAB_DEBUG_LOAD 1
 log_note "Starting zpool import in background at" $(date +'%H:%M:%S')
 zpool import -d $DEVICE_DIR -f $guid &
+typeset ipid=$!
 
 #
-# capture progress until import is finished
+# Capture progress until import is finished.
+# ksh93 $(jobs) still prints "Running" after the child exits, until
+# wait reaps it — a `while [[ -n $(jobs) ]]` loop never ends.
 #
-kstat import_progress
-while [[ -n $(jobs) ]]; do
-	line=$(kstat import_progress | grep -v pool_guid)
-	if [[ -n $line ]]; then
-		echo $line
-	fi
-	sleep 0.0001
+while kill -0 $ipid 2>/dev/null; do
+	if is_linux; then
+		cat /proc/spl/kstat/zfs/import_progress 2>/dev/null
+	else
+		sysctl -e kstat.zfs.misc.import_progress 2>/dev/null
+	fi | grep -v pool_guid || true
+	sleep 0.1
 done
+wait $ipid
+typeset irc=$?
+log_must test $irc -eq 0
 log_note "zpool import completed at" $(date +'%H:%M:%S')
 
 entries=$(kstat dbgmsg | grep "spa_import_progress_set_notes_impl(): 'testpool1'" | wc -l)

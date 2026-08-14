@@ -81,7 +81,7 @@ log_must set_tunable64 LIVELIST_MIN_PERCENT_SHARED -1
 # Test waiting for space from destroyed filesystem to be freed
 #
 log_must zfs create "$FS"
-log_must dd if=/dev/zero of="/$FS/testfile" bs=1M count=128
+log_must dd if=/dev/zero of="/$FS/testfile" bs=1${DD_M} count=128
 log_must zfs destroy "$FS"
 test_wait
 
@@ -89,7 +89,7 @@ test_wait
 # Test waiting for space from destroyed snapshot to be freed
 #
 log_must zfs create "$FS"
-log_must dd if=/dev/zero of="/$FS/testfile" bs=1M count=128
+log_must dd if=/dev/zero of="/$FS/testfile" bs=1${DD_M} count=128
 log_must zfs snapshot "$SNAP"
 # Make sure bulk of space is unique to snapshot
 log_must rm "/$FS/testfile"

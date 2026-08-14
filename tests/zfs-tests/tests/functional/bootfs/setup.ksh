@@ -20,6 +20,6 @@
 
 verify_runnable "global"
 
-log_must mkdir $TESTDIR
+log_must mkdir -p $TESTDIR
 
 log_pass

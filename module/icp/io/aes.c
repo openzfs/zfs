@@ -361,9 +361,7 @@ out:
 	}
 
 	if (aes_ctx.ac_flags & CCM_MODE) {
-		if (aes_ctx.ac_pt_buf != NULL) {
-			vmem_free(aes_ctx.ac_pt_buf, aes_ctx.ac_data_len);
-		}
+		ccm_clear_ctx((ccm_ctx_t *)&aes_ctx);
 	} else if (aes_ctx.ac_flags & GCM_MODE) {
 		gcm_clear_ctx((gcm_ctx_t *)&aes_ctx);
 	}

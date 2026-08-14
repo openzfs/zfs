@@ -86,6 +86,17 @@ cf_copy_file_range(int sfd, off_t *soff, int dfd, off_t *doff,
 }
 
 #else
+#ifdef __NetBSD__
+static inline ssize_t
+cf_copy_file_range(int sfd, off_t *soff, int dfd, off_t *doff,
+    size_t len, unsigned int flags)
+{
+	(void) sfd, (void) soff, (void) dfd, (void) doff, (void) len;
+	(void) flags;
+	errno = ENOSYS;
+	return (-1);
+}
+#else
 /* Other platforms, let the linker sort it out. */
 static inline ssize_t
 cf_copy_file_range(int sfd, off_t *soff, int dfd, off_t *doff,
@@ -93,6 +104,7 @@ cf_copy_file_range(int sfd, off_t *soff, int dfd, off_t *doff,
 {
 	return (copy_file_range(sfd, soff, dfd, doff, len, flags));
 }
+#endif
 #endif
 
 /*

@@ -52,7 +52,7 @@ typeset file="/$TESTPOOL2/$TESTFS1/$TESTFILE0"
 truncate -s $MINVDEVSIZE $TESTDIR/vdev_a
 log_must zpool create -f $TESTPOOL2 $TESTDIR/vdev_a
 log_must zfs create -o primarycache=none $TESTPOOL2/$TESTFS1
-log_must dd if=/dev/urandom of=$file bs=1024 count=1024 oflag=sync
+log_must dd if=/dev/urandom of=$file bs=1024 count=1024 ${OFLAG_SYNC}
 corrupt_blocks_at_level $file 0
 
 lastfs="$(zfs list -r $TESTPOOL2 | tail -1 | awk '{print $1}')"

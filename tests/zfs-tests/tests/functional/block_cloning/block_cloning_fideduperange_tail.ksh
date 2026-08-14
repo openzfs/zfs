@@ -38,9 +38,9 @@ log_must zpool create -o feature@block_cloning=enabled -O recordsize=128k $TESTP
 # first 4K of block 1, so the bytes it covers are identical even though the
 # two block 1s are not: it must report the ranges as the same.  Comparing any
 # byte past the requested 132K would wrongly report DIFFERS.
-log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=128K count=2
-log_must dd if=/$TESTPOOL/file1 of=/$TESTPOOL/file2 bs=128K count=2
-log_must dd if=/dev/urandom of=/$TESTPOOL/file2 bs=4K count=31 seek=33 \
+log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=128k count=2
+log_must dd if=/$TESTPOOL/file1 of=/$TESTPOOL/file2 bs=128k count=2
+log_must dd if=/dev/urandom of=/$TESTPOOL/file2 bs=4k count=31 seek=33 \
     conv=notrunc
 log_must sync_pool $TESTPOOL
 

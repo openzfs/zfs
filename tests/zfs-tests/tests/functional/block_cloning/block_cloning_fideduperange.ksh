@@ -34,8 +34,8 @@ log_onexit cleanup
 log_must zpool create -o feature@block_cloning=enabled -O recordsize=128k $TESTPOOL $DISKS
 
 # Two independent copies of the same data: file2 gets its own blocks.
-log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=128K count=4
-log_must dd if=/$TESTPOOL/file1 of=/$TESTPOOL/file2 bs=128K count=4
+log_must dd if=/dev/urandom of=/$TESTPOOL/file1 bs=128k count=4
+log_must dd if=/$TESTPOOL/file1 of=/$TESTPOOL/file2 bs=128k count=4
 log_must sync_pool $TESTPOOL
 
 # They are identical but not yet sharing any blocks.

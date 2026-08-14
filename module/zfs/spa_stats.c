@@ -455,6 +455,7 @@ spa_txg_history_fini_io(spa_t *spa, txg_stat_t *ts)
  * count the number of trailing buckets set to zero and update ks_ndata
  * such that they are not output.
  */
+#ifndef __NetBSD__
 static int
 spa_tx_assign_update(kstat_t *ksp, int rw)
 {
@@ -476,15 +477,18 @@ spa_tx_assign_update(kstat_t *ksp, int rw)
 
 	return (0);
 }
+#endif
 
 static void
 spa_tx_assign_init(spa_t *spa)
 {
 	spa_history_kstat_t *shk = &spa->spa_stats.tx_assign_histogram;
+#ifndef __NetBSD__
 	char *name;
 	kstat_named_t *ks;
 	kstat_t *ksp;
 	int i;
+#endif
 
 	mutex_init(&shk->lock, NULL, MUTEX_DEFAULT, NULL);
 
@@ -492,6 +496,11 @@ spa_tx_assign_init(spa_t *spa)
 	shk->size = shk->count * sizeof (kstat_named_t);
 	shk->priv = kmem_alloc(shk->size, KM_SLEEP);
 
+	/*
+	 * XXX: Fix this on NetBSD to stop producing errors in dmesg.
+	 * See sysctl_createv() in sys/kern/kern_sysctl.c
+	 */
+#ifndef __NetBSD__
 	name = kmem_asprintf("zfs/%s", spa_name(spa));
 
 	for (i = 0; i < shk->count; i++) {
@@ -516,6 +525,7 @@ spa_tx_assign_init(spa_t *spa)
 		kstat_install(ksp);
 	}
 	kmem_strfree(name);
+#endif
 }
 
 static void

@@ -80,13 +80,13 @@ function setup_holes
 		log_must mkholes -d $M:$((6 * M)) -h $((7 * M)):$M $mntpnt/f3
 		log_must mkholes -h 0:$((8 * M)) $mntpnt/f4
 	else
-		log_must dd if=/dev/urandom of=$mntpnt/f1 bs=8M count=1
+		log_must dd if=/dev/urandom of=$mntpnt/f1 bs=8${DD_M} count=1
 
-		log_must dd if=/dev/urandom of=$mntpnt/f2 bs=1M count=1
-		log_must dd if=/dev/urandom of=$mntpnt/f2 bs=1M count=1 seek=7 \
+		log_must dd if=/dev/urandom of=$mntpnt/f2 bs=1${DD_M} count=1
+		log_must dd if=/dev/urandom of=$mntpnt/f2 bs=1${DD_M} count=1 seek=7 \
 		    conv=notrunc
 
-		log_must dd if=/dev/urandom of=$mntpnt/f3 bs=1M count=6 seek=1
+		log_must dd if=/dev/urandom of=$mntpnt/f3 bs=1${DD_M} count=6 seek=1
 		log_must truncate -s $((8 * M)) $mntpnt/f3
 
 		log_must truncate -s $((8 * M)) $mntpnt/f4

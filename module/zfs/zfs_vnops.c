@@ -281,6 +281,21 @@ zfs_setup_direct(struct znode *zp, zfs_uio_t *uio, zfs_uio_rw_t rw,
 		goto out;
 
 	error = zfs_uio_get_dio_pages_alloc(uio, rw);
+#ifdef __NetBSD__
+	/*
+	 * The pin can refuse a mapping (MAP_SHARED, wired limit)
+	 * without the bytes being a bad user address.  Fall back to
+	 * uncached ARC I/O, same as a misaligned direct request.
+	 * EFAULT stays an error.  Reads are counted, including a
+	 * kernel uio that returns EOPNOTSUPP.  Writes are not.
+	 */
+	if (error == EOPNOTSUPP) {
+		if (rw == UIO_READ)
+			zfs_nb_dio_read_fallback_add();
+		error = 0;
+		goto out;
+	}
+#endif
 	if (error)
 		goto out;
 	ASSERT(uio->uio_extflg & UIO_DIRECT);

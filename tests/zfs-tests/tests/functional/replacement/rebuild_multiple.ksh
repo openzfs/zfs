@@ -69,7 +69,7 @@ log_must zpool create -f $TESTPOOL1 \
 log_must zfs create $TESTPOOL1/$TESTFS
 
 mntpnt=$(get_prop mountpoint $TESTPOOL1/$TESTFS)
-log_must dd if=/dev/urandom of=$mntpnt/file bs=1M count=32
+log_must dd if=/dev/urandom of=$mntpnt/file bs=1${DD_M} count=32
 sync_pool $TESTPOOL1
 
 log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
@@ -95,7 +95,7 @@ log_must zpool create -f $TESTPOOL1 \
 log_must zfs create $TESTPOOL1/$TESTFS
 
 mntpnt=$(get_prop mountpoint $TESTPOOL1/$TESTFS)
-log_must dd if=/dev/urandom of=$mntpnt/file bs=1M count=32
+log_must dd if=/dev/urandom of=$mntpnt/file bs=1${DD_M} count=32
 sync_pool $TESTPOOL1
 
 log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1

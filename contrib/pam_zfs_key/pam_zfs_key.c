@@ -55,6 +55,24 @@ pam_syslog(pam_handle_t *pamh, int loglevel, const char *fmt, ...)
 	va_end(args);
 }
 #define	MAP_FLAGS MAP_PRIVATE | MAP_ANON | MAP_NOCORE
+#elif	defined(__NetBSD__)
+#include <security/pam_appl.h>
+static void
+pam_syslog(pam_handle_t *pamh, int loglevel, const char *fmt, ...)
+{
+	(void) pamh;
+	va_list args;
+	va_start(args, fmt);
+	vsyslog(loglevel, fmt, args);
+	va_end(args);
+}
+#define	MAP_FLAGS MAP_PRIVATE | MAP_ANON
+/*
+ * NetBSD has no MAP_NOCORE (FreeBSD) and no MADV_DONTDUMP.
+ * Pages stay dumpable while the key is live.  pw_free()
+ * wipes with explicit_memset so a later dump does not
+ * retain the passphrase.
+ */
 #endif
 
 #include <string.h>
@@ -155,7 +173,11 @@ alloc_pw_string(const char *source)
 static void
 pw_free(pw_password_t *pw)
 {
+#ifdef __NetBSD__
+	(void) explicit_memset(pw->value, 0, pw->len);
+#else
 	memset(pw->value, 0, pw->len);
+#endif
 	if (try_lock(munlock, pw->value, pw->len) == 0) {
 		(void) munmap(pw->value, pw->len);
 	}

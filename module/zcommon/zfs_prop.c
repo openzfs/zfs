@@ -490,6 +490,8 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_RELATIME, "relatime",
 #ifdef __FreeBSD__
 	    0,	/* FreeBSD does not natively support relatime. */
+#elif defined(__NetBSD__)
+	    0,	/* NetBSD does not natively support relatime. */
 #else
 	    1,
 #endif

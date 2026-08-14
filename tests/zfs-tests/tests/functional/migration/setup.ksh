@@ -69,8 +69,19 @@ new_fs ${DEV_DSKDIR}/$NONZFS_DISK ||
 # Let udev settle so the device node reflects the new filesystem before the
 # auto-detecting mount consults it.
 #
-block_device_wait ${DEV_DSKDIR}/$NONZFS_DISK
+# NetBSD new_fs writes a disklabel and formats the raw 'd' partition
+# (/dev/rldNd).  mount(8) needs the matching block device (/dev/ldNd);
+# mounting the raw whole disk returns "Block device required".
+typeset mountdev=${DEV_DSKDIR}/$NONZFS_DISK
+if is_netbsd; then
+	typeset _b=${NONZFS_DISK#r}
+	_b=${_b%%[a-p]}
+	if [[ -b ${DEV_DSKDIR}/${_b}d ]]; then
+		mountdev=${DEV_DSKDIR}/${_b}d
+	fi
+fi
+block_device_wait $mountdev
 
-log_must mount ${DEV_DSKDIR}/$NONZFS_DISK $NONZFS_TESTDIR
+log_must mount $mountdev $NONZFS_TESTDIR
 
 log_pass

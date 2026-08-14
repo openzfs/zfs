@@ -32,8 +32,11 @@ set -A args "1.0" \
 	"-1.5"
 
 typeset -i i=0
+typeset bodyf
 while (( i < ${#args[*]} )); do
-	log_mustnot_checkerror_program "malformed number" $TESTPOOL - <<<"return ${args[i]}"
+	bodyf=$(zcp_write_program "return ${args[i]}")
+	log_mustnot_checkerror_program "malformed number" $TESTPOOL "$bodyf"
+	rm -f "$bodyf"
 	((i = i + 1))
 done
 
