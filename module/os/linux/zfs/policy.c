@@ -250,6 +250,14 @@ secpolicy_zinject(const cred_t *cr)
 int
 secpolicy_zfs(const cred_t *cr)
 {
+	/*
+	 * Note that CAP_SYS_ADMIN is effectively "root"-like privileges in
+	 * the given user namespace. Those happen to include mount control
+	 * (matching PRIV_SYS_MOUNT on illumos). There is not a narrower
+	 * permission available. It's important that callers do narrower
+	 * permission checks (eg zone checks) along with this call.
+	 *   -- robn, 2026-08-14
+	 */
 	return (priv_policy(cr, CAP_SYS_ADMIN, EACCES));
 }
 
