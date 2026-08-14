@@ -85,6 +85,9 @@ priv_policy_user(const cred_t *cr, int capability, int err)
 int
 secpolicy_sys_config(const cred_t *cr, boolean_t checkonly)
 {
+	/* pools can only be manipulated from the global zone */
+	if (crgetzoneid(cr) != GLOBAL_ZONEID)
+		return (EACCES);
 	return (priv_policy(cr, CAP_SYS_ADMIN, EPERM));
 }
 
