@@ -25,6 +25,7 @@
  * Copyright (c) 2011, 2020 by Delphix. All rights reserved.
  * Copyright (c) 2017, Intel Corporation.
  * Copyright (c) 2019, Datto Inc. All rights reserved.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #ifndef _SYS_VDEV_H
@@ -56,9 +57,10 @@ typedef boolean_t vdev_open_children_func_t(vdev_t *vd);
 extern void vdev_dbgmsg(vdev_t *vd, const char *fmt, ...)
     __attribute__((format(__printf__, 2, 3)));
 extern void vdev_dbgmsg_print_tree(vdev_t *, int);
-extern int vdev_open(vdev_t *);
-extern void vdev_open_children(vdev_t *);
-extern void vdev_open_children_subset(vdev_t *, vdev_open_children_func_t *);
+extern int vdev_open(vdev_t *, cred_t *);
+extern void vdev_open_children(vdev_t *, cred_t *);
+extern void vdev_open_children_subset(vdev_t *, cred_t *,
+    vdev_open_children_func_t *);
 extern int vdev_validate(vdev_t *);
 extern int vdev_copy_path_strict(vdev_t *, vdev_t *);
 extern void vdev_copy_path_relaxed(vdev_t *, vdev_t *);

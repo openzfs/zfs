@@ -2357,7 +2357,7 @@ spa_load_spares(spa_t *spa)
 		vd->vdev_top = vd;
 		vd->vdev_aux = &spa->spa_spares;
 
-		if (vdev_open(vd) != 0)
+		if (vdev_open(vd, CRED()) != 0)
 			continue;
 
 		if (vdev_validate_aux(vd) == 0)
@@ -2470,7 +2470,7 @@ spa_load_l2cache(spa_t *spa)
 
 			spa_l2cache_activate(vd);
 
-			if (vdev_open(vd) != 0)
+			if (vdev_open(vd, CRED()) != 0)
 				continue;
 
 			(void) vdev_validate_aux(vd);
@@ -4506,7 +4506,7 @@ spa_ld_open_vdevs(spa_t *spa)
 	    MAX(zfs_max_missing_tvds, spa->spa_missing_tvds_allowed);
 
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
-	error = vdev_open(spa->spa_root_vdev);
+	error = vdev_open(spa->spa_root_vdev, CRED());
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
 	if (spa->spa_missing_tvds != 0) {
@@ -6755,7 +6755,7 @@ spa_validate_aux_devs(spa_t *spa, nvlist_t *nvroot, uint64_t crtxg, int mode,
 
 		vd->vdev_top = vd;
 
-		if ((error = vdev_open(vd)) == 0 &&
+		if ((error = vdev_open(vd, CRED())) == 0 &&
 		    (error = vdev_label_init(vd, crtxg, label)) == 0) {
 			fnvlist_add_uint64(dev[i], ZPOOL_CONFIG_GUID,
 			    vd->vdev_guid);
