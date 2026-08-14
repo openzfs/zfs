@@ -38,7 +38,6 @@
 
 struct znode;
 
-int secpolicy_nfs(const cred_t *);
 int secpolicy_sys_config(const cred_t *, boolean_t);
 int secpolicy_vnode_access2(const cred_t *, struct inode *,
     uid_t, mode_t, mode_t);
