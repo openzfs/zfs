@@ -86,10 +86,10 @@ extern int zfs_rename_idmap(znode_t *sdzp, char *snm, znode_t *tdzp,
     zidmap_t *idmap);
 extern int zfs_symlink_idmap(znode_t *dzp, char *name, vattr_t *vap,
     char *link, znode_t **zpp, cred_t *cr, int flags, zidmap_t *idmap);
-/* async Direct I/O reads */
-extern void zpl_async_read_init(void);
-extern void zpl_async_read_fini(void);
-extern void zpl_async_read_pool_destroy(struct spa *);
+/* async Direct I/O (reads and writes) */
+extern void zpl_async_dio_init(void);
+extern void zpl_async_dio_fini(void);
+extern void zpl_async_dio_pool_destroy(struct spa *);
 extern int zfs_dio_pin_pages(zfs_uio_t *, zfs_uio_rw_t);
 
 #ifdef	__cplusplus
