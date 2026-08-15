@@ -295,6 +295,20 @@ zpl_async_dio_rele(zfsvfs_t *zfsvfs, size_t count)
 }
 
 /*
+ * Account a completed (or failed-to-queue) async Direct I/O write and wake
+ * any fsync() waiting for this file's queued writes.
+ */
+static void
+zpl_async_dio_write_done(zfsvfs_t *zfsvfs, znode_t *zp)
+{
+	if (atomic_dec_32_nv(&zp->z_async_dio_writes) == 0) {
+		mutex_enter(&zfsvfs->z_async_dio_lock);
+		cv_broadcast(&zfsvfs->z_async_dio_cv);
+		mutex_exit(&zfsvfs->z_async_dio_lock);
+	}
+}
+
+/*
  * This is the task run in a taskq which calls ki_complete to finish the
  * read or write.
  */
@@ -326,6 +340,13 @@ zpl_async_dio_task(void *arg)
 			zpl_file_accessed(aio->kiocb->ki_filp);
 		}
 	}
+
+	/*
+	 * The write has executed (its ZIL record is written); wake any fsync()
+	 * waiting for this file's async writes.
+	 */
+	if (aio->rw == UIO_WRITE)
+		zpl_async_dio_write_done(aio->zfsvfs, aio->zp);
 
 #ifdef HAVE_2ARGS_KI_COMPLETE
 	aio->kiocb->ki_complete(aio->kiocb, done);
@@ -525,8 +546,18 @@ zpl_async_dio_queue(struct kiocb *kiocb, struct iov_iter *iter,
 		return (error);
 	}
 
+	/*
+	 * Account this znode's queued async writes so fsync() can wait for
+	 * them to execute before committing the ZIL.  The matching decrement
+	 * happens in the task once the write has executed.
+	 */
+	if (rw == UIO_WRITE)
+		atomic_inc_32(&zp->z_async_dio_writes);
+
 	if (taskq_dispatch(pool->taskq, zpl_async_dio_task, aio,
 	    TQ_SLEEP) == TASKQID_INVALID) {
+		if (rw == UIO_WRITE)
+			zpl_async_dio_write_done(zfsvfs, zp);
 		zpl_async_dio_rele(zfsvfs, count);
 		/*
 		 * The pin set no UIO_DIRECT flag; zfs_uio_free_dio_pages()

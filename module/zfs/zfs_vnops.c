@@ -109,6 +109,19 @@ zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
 	if (zfsvfs->z_os->os_sync != ZFS_SYNC_DISABLED) {
 		if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 			return (error);
+#if defined(__linux__)
+		/*
+		 * Wait for this file's async Direct I/O writes that are still
+		 * queued on the worker taskq.  The ZIL holds nothing for them
+		 * yet, so a commit here could otherwise return success before
+		 * the data even reaches the pool.
+		 */
+		mutex_enter(&zfsvfs->z_async_dio_lock);
+		while (atomic_load_32(&zp->z_async_dio_writes) != 0)
+			cv_wait(&zfsvfs->z_async_dio_cv,
+			    &zfsvfs->z_async_dio_lock);
+		mutex_exit(&zfsvfs->z_async_dio_lock);
+#endif
 		error = zil_commit(zfsvfs->z_log, zp->z_id);
 		zfs_exit(zfsvfs, FTAG);
 	}
