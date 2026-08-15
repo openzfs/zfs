@@ -254,11 +254,13 @@ zfs_setup_direct(struct znode *zp, zfs_uio_t *uio, zfs_uio_rw_t rw,
 
 #if defined(__linux__)
 	/*
-	 * The Linux async read path may already checked alignment and do the
-	 * pin, have to skip zfs_uio_page_aligned in async context, unless
-	 * a use-after-free inside.
+	 * The Linux async Direct I/O path may have already checked alignment
+	 * and pinned the pages at submission time (uio->uio_dio.pages != NULL,
+	 * UIO_DIRECT not set).  The request was validated when it was admitted,
+	 * so skip the alignment re-check here; misaligned requests are declined
+	 * at submission and served by the synchronous path.
 	 */
-	if (!(rw == UIO_READ && uio->uio_dio.pages != NULL) &&
+	if (uio->uio_dio.pages == NULL &&
 	    (!zfs_uio_page_aligned(uio) ||
 	    !zfs_uio_aligned(uio, PAGE_SIZE))) {
 #else
@@ -293,7 +295,7 @@ zfs_setup_direct(struct znode *zp, zfs_uio_t *uio, zfs_uio_rw_t rw,
 
 #if defined(__linux__)
 	/*
-	 * The Linux async read path may have already pinned the pages at
+	 * The Linux async Direct I/O path may have already pinned the pages at
 	 * submission time (uio->uio_dio.pages != NULL, UIO_DIRECT not set).
 	 * The eligibility checks above were just re-run at read time, so only
 	 * the pin itself happened early.  Mark the request as Direct I/O and
@@ -650,14 +652,18 @@ zfs_clear_setid_bits_if_necessary(zfsvfs_t *zfsvfs, znode_t *zp, cred_t *cr,
  *
  * Timestamps:
  *	ip - ctime|mtime updated if byte count > 0
+ *
+ * This is the shared body of zfs_write().  The caller is responsible for
+ * entering the filesystem (zfs_enter_verify_zp()/zfs_exit()).
  */
 int
-zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
+zfs_write_impl(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 {
 	int error = 0, error1;
 	ssize_t start_resid = zfs_uio_resid(uio);
 	uint64_t clear_setid_bits_txg = 0;
 	boolean_t o_direct_defer = B_FALSE;
+	zfs_locked_range_t *lr = NULL;
 
 	/*
 	 * Fasttrack empty write
@@ -667,8 +673,6 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		return (0);
 
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
-	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
-		return (error);
 
 	sa_bulk_attr_t bulk[5];
 	int count = 0;
@@ -688,8 +692,8 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	 * so check it explicitly here.
 	 */
 	if (zfs_is_readonly(zfsvfs)) {
-		zfs_exit(zfsvfs, FTAG);
-		return (SET_ERROR(EROFS));
+		error = SET_ERROR(EROFS);
+		goto out;
 	}
 
 	/*
@@ -700,8 +704,8 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	if ((zp->z_pflags & ZFS_IMMUTABLE) ||
 	    ((zp->z_pflags & ZFS_APPENDONLY) && !(ioflag & O_APPEND) &&
 	    (zfs_uio_offset(uio) < zp->z_size))) {
-		zfs_exit(zfsvfs, FTAG);
-		return (SET_ERROR(EPERM));
+		error = SET_ERROR(EPERM);
+		goto out;
 	}
 
 	/*
@@ -709,18 +713,16 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	 */
 	offset_t woff = ioflag & O_APPEND ? zp->z_size : zfs_uio_offset(uio);
 	if (woff < 0) {
-		zfs_exit(zfsvfs, FTAG);
-		return (SET_ERROR(EINVAL));
+		error = SET_ERROR(EINVAL);
+		goto out;
 	}
 
 	/*
 	 * Setting up Direct I/O if requested.
 	 */
 	error = zfs_setup_direct(zp, uio, UIO_WRITE, &ioflag);
-	if (error) {
-		zfs_exit(zfsvfs, FTAG);
-		return (SET_ERROR(error));
-	}
+	if (error)
+		goto out;
 
 	/*
 	 * Pre-fault one transaction-sized chunk before acquiring the range
@@ -737,7 +739,6 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	/*
 	 * If in append mode, set the io offset pointer to eof.
 	 */
-	zfs_locked_range_t *lr;
 	if (ioflag & O_APPEND) {
 		/*
 		 * Obtain an appending range lock to guarantee file append
@@ -770,17 +771,15 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	}
 
 	if (zn_rlimit_fsize_uio(zp, uio)) {
-		zfs_rangelock_exit(lr);
-		zfs_exit(zfsvfs, FTAG);
-		return (SET_ERROR(EFBIG));
+		error = SET_ERROR(EFBIG);
+		goto out_lock;
 	}
 
 	const rlim64_t limit = MAXOFFSET_T;
 
 	if (woff >= limit) {
-		zfs_rangelock_exit(lr);
-		zfs_exit(zfsvfs, FTAG);
-		return (SET_ERROR(EFBIG));
+		error = SET_ERROR(EFBIG);
+		goto out_lock;
 	}
 
 	if (n > limit - woff)
@@ -1084,12 +1083,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 
 	zfs_znode_update_vfs(zp);
 	zfs_rangelock_exit(lr);
-
-	/*
-	 * Cleanup for Direct I/O if requested.
-	 */
-	if (uio->uio_extflg & UIO_DIRECT)
-		zfs_uio_free_dio_pages(uio, UIO_WRITE);
+	lr = NULL;
 
 #ifdef __linux__
 	/*
@@ -1105,24 +1099,54 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	 * at least a partial write, so it's successful.
 	 */
 	if (zfsvfs->z_replay || zfs_uio_resid(uio) == start_resid ||
-	    error == EFAULT) {
-		zfs_exit(zfsvfs, FTAG);
-		return (error);
-	}
+	    error == EFAULT)
+		goto out;
 
 	if (commit) {
 		error = zil_commit(zilog, zp->z_id);
-		if (error != 0) {
-			zfs_exit(zfsvfs, FTAG);
-			return (error);
-		}
+		if (error != 0)
+			goto out;
 	}
 
 	int64_t nwritten = start_resid - zfs_uio_resid(uio);
 	dataset_kstats_update_write_kstats(&zfsvfs->z_kstat, nwritten);
 
+out_lock:
+	if (lr != NULL)
+		zfs_rangelock_exit(lr);
+out:
+	/*
+	 * Cleanup for Direct I/O if requested.
+	 */
+#if defined(__linux__)
+	/*
+	 * The async write path may have pinned pages at submission time
+	 * even when UIO_DIRECT is clear.
+	 */
+	if (uio->uio_dio.pages != NULL || (uio->uio_extflg & UIO_DIRECT)) {
+		uio->uio_extflg |= UIO_DIRECT;
+		zfs_uio_free_dio_pages(uio, UIO_WRITE);
+	}
+#else
+	if (uio->uio_extflg & UIO_DIRECT)
+		zfs_uio_free_dio_pages(uio, UIO_WRITE);
+#endif
+	return (error);
+}
+
+int
+zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	int error;
+
+	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+		return (error);
+
+	error = zfs_write_impl(zp, uio, ioflag, cr);
+
 	zfs_exit(zfsvfs, FTAG);
-	return (0);
+	return (error);
 }
 
 /*

@@ -25,6 +25,7 @@ extern int zfs_fsync(znode_t *, int, cred_t *);
 extern int zfs_read(znode_t *, zfs_uio_t *, int, cred_t *);
 extern int zfs_read_impl(znode_t *, zfs_uio_t *, int, cred_t *);
 extern int zfs_write(znode_t *, zfs_uio_t *, int, cred_t *);
+extern int zfs_write_impl(znode_t *, zfs_uio_t *, int, cred_t *);
 extern int zfs_holey(znode_t *, ulong_t, loff_t *);
 extern int zfs_access(znode_t *, int, int, cred_t *);
 extern int zfs_clone_range(znode_t *, uint64_t *, znode_t *, uint64_t *,
