@@ -956,12 +956,12 @@ spa_remove(spa_t *spa)
 
 #if defined(_KERNEL) && defined(__linux__)
 	/*
-	 * Destroy the per-pool async read worker taskq (Linux) now that the
-	 * pool is closed: no datasets are open, so no async reads can be in
-	 * flight and taskq_destroy() joins the workers immediately.
+	 * Destroy the per-pool async Direct I/O worker taskq (Linux) now that
+	 * the pool is closed: no datasets are open, so no async requests can
+	 * be in flight and taskq_destroy() joins the workers immediately.
 	 */
-	extern void zpl_async_read_pool_destroy(struct spa *);
-	zpl_async_read_pool_destroy(spa);
+	extern void zpl_async_dio_pool_destroy(struct spa *);
+	zpl_async_dio_pool_destroy(spa);
 #endif
 
 	kmem_free(spa, sizeof (spa_t));
