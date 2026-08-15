@@ -497,11 +497,11 @@ struct spa {
 
 #if defined(__linux__)
 	/*
-	 * Per-pool async Direct I/O read worker pool (zpl_async_read_pool_t *).
-	 * One pool per SPA, shared by all datasets of the pool, created lazily
-	 * on the first async read and destroyed in spa_remove().
+	 * Per-pool async Direct I/O worker pool (zpl_async_dio_pool_t *),
+	 * shared by reads and writes and by all datasets of the pool, created
+	 * lazily on the first async request and destroyed in spa_remove().
 	 */
-	void			*spa_zpl_async_read_pool;
+	void			*spa_zpl_async_dio_pool;
 #endif
 
 #ifdef ZFS_DEBUG
