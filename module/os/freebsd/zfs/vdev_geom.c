@@ -801,12 +801,6 @@ vdev_geom_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	uint16_t rate;
 
 	/*
-	 * Set the TLS to indicate downstack that we
-	 * should not access zvols
-	 */
-	VERIFY0(tsd_set(zfs_geom_probe_vdev_key, vd));
-
-	/*
 	 * We must have a pathname, and it must be absolute.
 	 */
 	if (vd->vdev_path == NULL || strncmp(vd->vdev_path, "/dev/", 5) != 0) {
@@ -822,6 +816,13 @@ vdev_geom_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 		ASSERT(vd->vdev_reopening);
 		goto skip_open;
 	}
+
+	/*
+	 * Set the TLS to indicate downstack that we
+	 * should not access zvols
+	 */
+	VERIFY0(tsd_set(zfs_geom_probe_vdev_key, vd));
+
 
 	DROP_GIANT();
 	g_topology_lock();
