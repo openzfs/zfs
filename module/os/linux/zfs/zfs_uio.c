@@ -58,6 +58,18 @@ module_param(zfs_async_read_pinned_copies, ulong, 0644);
 MODULE_PARM_DESC(zfs_async_read_pinned_copies,
 	"Number of read copies into pre-pinned pages (async DIO ARC fallback); "
 	"debug builds only, writable to reset for testing");
+
+/*
+ * Count of write copies served through the pinned-page branch of
+ * zfs_uiomove_iter() (pages pinned by the async Direct I/O submission but
+ * the data copied through the ARC).  Debug builds only; writable so tests
+ * can reset it to verify the branch is exercised.
+ */
+static unsigned long zfs_async_write_pinned_copies = 0;
+module_param(zfs_async_write_pinned_copies, ulong, 0644);
+MODULE_PARM_DESC(zfs_async_write_pinned_copies,
+	"Number of write copies from pre-pinned pages (async DIO ARC fallback);"
+	"debug builds only, writable to reset for testing");
 #endif
 
 /*
@@ -233,6 +245,40 @@ zfs_uiomove_bvec(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 	return (zfs_uiomove_bvec_impl(p, n, rw, uio));
 }
 
+/*
+ * Copy 'cnt' bytes between the pinned pages of a Direct I/O uio and the
+ * buffer 'p'.  Used when a request whose pages were pinned at async
+ * submission time is served through the ARC from the taskq thread, which
+ * has no user mm: the pinned pages are guaranteed resident, so the copy can
+ * never fault.  Returns the number of bytes copied.
+ */
+static size_t
+zfs_uiomove_pinned_pages(zfs_uio_t *uio, void *p, size_t cnt, zfs_uio_rw_t rw)
+{
+	size_t copied = 0;
+
+	while (copied < cnt) {
+		size_t rel = uio->uio_loffset + copied -
+		    zfs_uio_soffset(uio);
+		size_t idx = rel >> PAGESHIFT;
+		size_t pgoff = rel & (PAGESIZE - 1);
+		size_t chunk = MIN(cnt - copied, PAGESIZE - pgoff);
+		void *paddr;
+
+		ASSERT3U(idx, <, uio->uio_dio.npages);
+		paddr = zfs_kmap_local(uio->uio_dio.pages[idx]);
+		if (rw == UIO_READ)
+			memcpy((char *)paddr + pgoff, (char *)p + copied,
+			    chunk);
+		else
+			memcpy((char *)p + copied, (char *)paddr + pgoff,
+			    chunk);
+		zfs_kunmap_local(paddr);
+		copied += chunk;
+	}
+	return (copied);
+}
+
 static int
 zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
     boolean_t revert)
@@ -243,38 +289,35 @@ zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
 
 	/*
 	 * If the uio has pages pinned by the async Direct I/O submission but
-	 * the request is being served through the ARC (UIO_DIRECT cleared by
-	 * a read-time eligibility decline, the page-unaligned tail, or the
+	 * the request is being served through the ARC (UIO_DIRECT cleared by a
+	 * read-time eligibility decline, the page-unaligned tail, or the
 	 * checksum retry), copy into the pinned pages directly rather than
 	 * through the user virtual addresses.  The taskq thread has no user
 	 * mm, and the pinned pages are guaranteed resident, so the copy can
 	 * never fault.  The pinned pages are the user's buffer pages, so the
-	 * data lands in the same place. EOF tail of an ordinary synchronous
-	 * Direct I/O read reaches this branch too which is also ok.
+	 * data lands in the same place.  The EOF tail of an ordinary
+	 * synchronous Direct I/O read reaches this branch too which is also ok.
+	 *
+	 * Writes are symmetric: when pages are pinned, a chunk served through
+	 * the ARC (a decline in zfs_setup_direct(), a partial block at the head
+	 * or tail of an otherwise Direct I/O request, or the first block while
+	 * the file's blocksize is grown) copies from the pinned pages into the
+	 * ARC buffer.  Unlike reads the UIO_DIRECT flag may still be set on
+	 * those chunks (dmu_write_uio_dnode() falls back to the ARC for the
+	 * unaligned head/tail without clearing it), so the flag is not checked
+	 * here: pinned pages are always the user's buffer and always resident.
 	 */
-	if (rw == UIO_READ && uio->uio_dio.pages != NULL &&
-	    !(uio->uio_extflg & UIO_DIRECT)) {
-		size_t copied = 0;
-
+	if (uio->uio_dio.pages != NULL &&
+	    !(uio->uio_extflg & UIO_DIRECT) && rw == UIO_READ) {
 #ifdef ZFS_DEBUG
 		zfs_async_read_pinned_copies++;
 #endif
-		while (copied < cnt) {
-			size_t rel = uio->uio_loffset + copied -
-			    zfs_uio_soffset(uio);
-			size_t idx = rel >> PAGESHIFT;
-			size_t pgoff = rel & (PAGESIZE - 1);
-			size_t chunk = MIN(cnt - copied, PAGESIZE - pgoff);
-			void *paddr;
-
-			ASSERT3U(idx, <, uio->uio_dio.npages);
-			paddr = zfs_kmap_local(uio->uio_dio.pages[idx]);
-			memcpy((char *)paddr + pgoff, (char *)p + copied,
-			    chunk);
-			zfs_kunmap_local(paddr);
-			copied += chunk;
-		}
-		cnt = copied;
+		cnt = zfs_uiomove_pinned_pages(uio, p, cnt, rw);
+	} else if (uio->uio_dio.pages != NULL && rw == UIO_WRITE) {
+#ifdef ZFS_DEBUG
+		zfs_async_write_pinned_copies++;
+#endif
+		cnt = zfs_uiomove_pinned_pages(uio, p, cnt, rw);
 	} else {
 		if (rw == UIO_READ)
 			cnt = copy_to_iter(p, cnt, uio->uio_iter);
@@ -330,11 +373,14 @@ int
 zfs_uio_prefaultpages(ssize_t n, zfs_uio_t *uio)
 {
 	if (uio->uio_segflg == UIO_SYSSPACE || uio->uio_segflg == UIO_BVEC ||
-	    (uio->uio_extflg & UIO_DIRECT)) {
+	    (uio->uio_extflg & UIO_DIRECT) || uio->uio_dio.pages != NULL) {
 		/*
 		 * There's never a need to fault in kernel pages or Direct I/O
-		 * write pages. Direct I/O write pages have been pinned in so
+		 * write pages.  Direct I/O write pages have been pinned in so
 		 * there is never a time for these pages a fault will occur.
+		 * Pre-pinned pages (async Direct I/O submission) are resident
+		 * for the same reason; the submitting thread did the pin, and
+		 * the taskq thread that runs the write has no user mm.
 		 */
 		return (0);
 	} else  {
