@@ -306,24 +306,24 @@ kfpu_begin(void)
 	 */
 	uint8_t *state = zfs_kfpu_fpregs[smp_processor_id()];
 #if HAVE_SIMD(XSAVES)
-	if (static_cpu_has(X86_FEATURE_XSAVES)) {
+	if (cpu_feature_enabled(X86_FEATURE_XSAVES)) {
 		kfpu_do_xsave("xsaves", state, ~XFEATURE_MASK_XTILE);
 		return;
 	}
 #endif
 #if HAVE_SIMD(XSAVEOPT)
-	if (static_cpu_has(X86_FEATURE_XSAVEOPT)) {
+	if (cpu_feature_enabled(X86_FEATURE_XSAVEOPT)) {
 		kfpu_do_xsave("xsaveopt", state, ~XFEATURE_MASK_XTILE);
 		return;
 	}
 #endif
 #if HAVE_SIMD(XSAVE)
-	if (static_cpu_has(X86_FEATURE_XSAVE)) {
+	if (cpu_feature_enabled(X86_FEATURE_XSAVE)) {
 		kfpu_do_xsave("xsave", state, ~XFEATURE_MASK_XTILE);
 		return;
 	}
 #endif
-	if (static_cpu_has(X86_FEATURE_FXSR)) {
+	if (cpu_feature_enabled(X86_FEATURE_FXSR)) {
 		kfpu_save_fxsr(state);
 	} else {
 		kfpu_save_fsave(state);
@@ -371,18 +371,18 @@ kfpu_end(void)
 {
 	uint8_t  *state = zfs_kfpu_fpregs[smp_processor_id()];
 #if HAVE_SIMD(XSAVES)
-	if (static_cpu_has(X86_FEATURE_XSAVES)) {
+	if (cpu_feature_enabled(X86_FEATURE_XSAVES)) {
 		kfpu_do_xrstor("xrstors", state, ~XFEATURE_MASK_XTILE);
 		goto out;
 	}
 #endif
 #if HAVE_SIMD(XSAVE)
-	if (static_cpu_has(X86_FEATURE_XSAVE)) {
+	if (cpu_feature_enabled(X86_FEATURE_XSAVE)) {
 		kfpu_do_xrstor("xrstor", state, ~XFEATURE_MASK_XTILE);
 		goto out;
 	}
 #endif
-	if (static_cpu_has(X86_FEATURE_FXSR)) {
+	if (cpu_feature_enabled(X86_FEATURE_FXSR)) {
 		kfpu_restore_fxsr(state);
 	} else {
 		kfpu_restore_fsave(state);

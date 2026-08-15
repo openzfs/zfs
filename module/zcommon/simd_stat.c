@@ -118,13 +118,13 @@ simd_stat_kstat_data(char *buf, size_t size, void *data)
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
 		    "osxsave", boot_cpu_has(X86_FEATURE_OSXSAVE));
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
-		    "xsaves", static_cpu_has(X86_FEATURE_XSAVES));
+		    "xsaves", cpu_feature_enabled(X86_FEATURE_XSAVES));
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
-		    "xsaveopt", static_cpu_has(X86_FEATURE_XSAVEOPT));
+		    "xsaveopt", cpu_feature_enabled(X86_FEATURE_XSAVEOPT));
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
-		    "xsave", static_cpu_has(X86_FEATURE_XSAVE));
+		    "xsave", cpu_feature_enabled(X86_FEATURE_XSAVE));
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
-		    "fxsr", static_cpu_has(X86_FEATURE_FXSR));
+		    "fxsr", cpu_feature_enabled(X86_FEATURE_FXSR));
 #endif /* __x86__ */
 #if defined(__arm__) || defined(__aarch64__)
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
