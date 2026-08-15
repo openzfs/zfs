@@ -103,7 +103,11 @@ blk_queue_set_read_ahead(struct request_queue *q, unsigned long ra_pages)
 #define	BIO_BI_SECTOR(bio)	(bio)->bi_iter.bi_sector
 #define	BIO_BI_SIZE(bio)	(bio)->bi_iter.bi_size
 #define	BIO_BI_IDX(bio)		(bio)->bi_iter.bi_idx
+#ifdef HAVE_BVEC_ITER_OFFSET
+#define	BIO_BI_SKIP(bio)	(bio)->bi_iter.bi_offset
+#else
 #define	BIO_BI_SKIP(bio)	(bio)->bi_iter.bi_bvec_done
+#endif
 #define	bio_for_each_segment4(bv, bvp, b, i)	\
 	bio_for_each_segment((bv), (b), (i))
 typedef struct bvec_iter bvec_iterator_t;
