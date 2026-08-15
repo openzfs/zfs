@@ -743,6 +743,7 @@ zpl_iter_write_async(struct kiocb *kiocb, struct iov_iter *from)
 	struct inode *ip = filp->f_mapping->host;
 	size_t count = 0;
 	ssize_t ret;
+	int ioflag = filp->f_flags | zfs_io_flags(kiocb);
 
 	/*
 	 * The write checks are shared with the synchronous path and must run
@@ -756,10 +757,11 @@ zpl_iter_write_async(struct kiocb *kiocb, struct iov_iter *from)
 		return (ret);
 
 	/*
-	 * Queue Direct I/O writes if possible and necessary.
+	 * Queue Direct I/O writes if possible and necessary.  O_APPEND
+	 * requests stay on the synchronous path.
 	 */
 	if (zfs_async_dio_enabled && !is_sync_kiocb(kiocb) &&
-	    count > 0 &&
+	    count > 0 && !(ioflag & O_APPEND) &&
 	    ((filp->f_flags & O_DIRECT) ||
 	    ITOZSB(ip)->z_os->os_direct == ZFS_DIRECT_ALWAYS)) {
 		if (zpl_async_dio_queue(kiocb, from, count, UIO_WRITE) == 0)
