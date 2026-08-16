@@ -193,6 +193,7 @@ tags = ['functional', 'procfs']
 [tests/functional/projectquota:Linux]
 tests = ['defaultprojectquota_001_pos', 'defaultprojectquota_005_pos',
     'projectid_001_pos', 'projectid_002_pos', 'projectid_003_pos',
+    'projectid_004_pos',
     'projectquota_001_pos', 'projectquota_003_pos', 'projectquota_006_pos',
     'projectspace_001_pos', 'projectspace_002_pos', 'projectspace_003_pos',
     'projectspace_004_pos', 'projectspace_005_pos', 'projecttree_001_pos']
