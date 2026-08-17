@@ -216,7 +216,8 @@ tags = ['functional', 'upgrade']
 
 [tests/functional/user_namespace:Linux]
 tests = ['user_namespace_001', 'user_namespace_002', 'user_namespace_003',
-    'user_namespace_004', 'user_namespace_secpolicy_sys_config']
+    'user_namespace_004', 'user_namespace_secpolicy_sys_config',
+    'user_namespace_secpolicy_zinject']
 tags = ['functional', 'user_namespace']
 
 [tests/functional/userquota:Linux]
