@@ -97,6 +97,8 @@ struct zfsvfs {
 	kcondvar_t	z_async_dio_cv;	/* signals drain to teardown */
 	uint64_t	z_async_dio_inflight; /* bytes submitted and not done */
 	boolean_t	z_async_dio_draining; /* teardown: no new async DIO */
+	uint64_t	z_async_dio_write_submitted; /* async DIO writes */
+	uint64_t	z_async_dio_write_completed; /* async DIO writes */
 	list_t		z_all_znodes;	/* all znodes in the fs */
 	unsigned long	z_rollback_time; /* last online rollback time */
 	uint64_t	z_snap_atime;	/* last snapshot access time */
