@@ -121,6 +121,8 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 	zp->z_xattr_cached = NULL;
 	zp->z_xattr_parent = 0;
 	zp->z_has_seq = B_FALSE;
+	zp->z_async_dio_write_submitted = 0;
+	zp->z_async_dio_write_completed = 0;
 
 	return (0);
 }

@@ -123,7 +123,9 @@ function async_read_iops
 
 #
 # Measure O_DIRECT random-write IOPS with fio libaio and print the aggregate
-# write IOPS to stdout.
+# write IOPS to stdout.  Blocks are written in verify mode (per-block sha1,
+# deferred with --do_verify=0) so the benchmark data can be checked with
+# async_read_verify() once the run is over.
 #
 # Usage: async_write_iops <file> <iodepth> <numjobs> [runtime]
 #
@@ -140,7 +142,7 @@ function async_write_iops
 	    --rw=randwrite --bs="$ASYNC_BS_HR" --size="$ASYNC_FILESIZE_HR" \
 	    --direct=1 --ioengine=libaio --iodepth=$iodepth \
 	    --numjobs=$numjobs --group_reporting --runtime=$runtime \
-	    --time_based --minimal 2>/dev/null)
+	    --time_based --verify=sha1 --do_verify=0 --minimal 2>/dev/null)
 
 	#
 	# fio terse (--minimal) output is a single ';' separated line per job
