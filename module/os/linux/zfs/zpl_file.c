@@ -214,6 +214,7 @@ typedef struct zpl_async_dio_io {
 	zfsvfs_t	*zfsvfs;
 	zfs_uio_t	uio;
 	struct iov_iter	iter;
+	struct iovec	*iovs;	/* owned copy of the backing iovec array */
 	int		ioflag;
 	cred_t		*cr;
 	ssize_t		count;
@@ -296,16 +297,16 @@ zpl_async_dio_rele(zfsvfs_t *zfsvfs, size_t count)
 
 /*
  * Account a completed (or failed-to-queue) async Direct I/O write and wake
- * any fsync() waiting for this file's queued writes.
+ * any fsync()/sync() waiting on this filesystem's write barrier.
  */
 static void
 zpl_async_dio_write_done(zfsvfs_t *zfsvfs, znode_t *zp)
 {
-	if (atomic_dec_32_nv(&zp->z_async_dio_writes) == 0) {
-		mutex_enter(&zfsvfs->z_async_dio_lock);
-		cv_broadcast(&zfsvfs->z_async_dio_cv);
-		mutex_exit(&zfsvfs->z_async_dio_lock);
-	}
+	atomic_inc_64_nv(&zp->z_async_dio_write_completed);
+	atomic_inc_64_nv(&zfsvfs->z_async_dio_write_completed);
+	mutex_enter(&zfsvfs->z_async_dio_lock);
+	cv_broadcast(&zfsvfs->z_async_dio_cv);
+	mutex_exit(&zfsvfs->z_async_dio_lock);
 }
 
 /*
@@ -356,6 +357,8 @@ zpl_async_dio_task(void *arg)
 
 	zpl_async_dio_rele(aio->zfsvfs, aio->count);
 	crfree(aio->cr);
+	if (aio->iovs != NULL)
+		kfree(aio->iovs);
 	kmem_cache_free(zpl_async_dio_io_cache, aio);
 }
 
@@ -500,11 +503,32 @@ zpl_async_dio_queue(struct kiocb *kiocb, struct iov_iter *iter,
 	aio->cr = CRED();
 	crhold(aio->cr);
 
+	aio->iovs = NULL;
+
 	/*
-	 * The iov_iter passed by libaio lives on the io_submit() stack; copy
-	 * it by value and point the uio at our copy.
+	 * The iov_iter passed by libaio describes a vectored request with a
+	 * pointer to a backing iovec array owned by the submitting aio call
+	 * (a stack array, or a kmalloc'd array that io_submit() frees when it
+	 * returns).  The taskq thread runs after that memory is gone, so take
+	 * ownership of a private copy of the array here, while the submitting
+	 * thread still owns the original.  dup_iter() duplicates the backing
+	 * array for vectored iterators; for a single-segment ITER_UBUF there
+	 * is no array and it returns NULL after copying the iterator itself.
+	 * Without the copy, any iterator dereference on the taskq thread
+	 * (e.g. iov_iter_advance() from zfs_uioskip()) reads released memory.
 	 */
-	aio->iter = *iter;
+	aio->iovs = (struct iovec *)dup_iter(&aio->iter, iter, GFP_KERNEL);
+#if defined(HAVE_ITER_IS_UBUF)
+	if (aio->iovs == NULL && !iter_is_ubuf(iter)) {
+#else
+	if (aio->iovs == NULL) {
+#endif
+		zpl_async_dio_rele(zfsvfs, count);
+		crfree(aio->cr);
+		kmem_cache_free(zpl_async_dio_io_cache, aio);
+		zfs_exit(zfsvfs, FTAG);
+		return (EOPNOTSUPP);
+	}
 	zfs_uio_iov_iter_init(&aio->uio, &aio->iter, kiocb->ki_pos, count);
 
 	/*
@@ -521,6 +545,8 @@ zpl_async_dio_queue(struct kiocb *kiocb, struct iov_iter *iter,
 	    !zfs_uio_aligned(&aio->uio, PAGE_SIZE)) {
 		zpl_async_dio_rele(zfsvfs, count);
 		crfree(aio->cr);
+		if (aio->iovs != NULL)
+			kfree(aio->iovs);
 		kmem_cache_free(zpl_async_dio_io_cache, aio);
 		zfs_exit(zfsvfs, FTAG);
 		return (EOPNOTSUPP);
@@ -541,18 +567,23 @@ zpl_async_dio_queue(struct kiocb *kiocb, struct iov_iter *iter,
 	if (error != 0) {
 		zpl_async_dio_rele(zfsvfs, count);
 		crfree(aio->cr);
+		if (aio->iovs != NULL)
+			kfree(aio->iovs);
 		kmem_cache_free(zpl_async_dio_io_cache, aio);
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
 
 	/*
-	 * Account this znode's queued async writes so fsync() can wait for
-	 * them to execute before committing the ZIL.  The matching decrement
-	 * happens in the task once the write has executed.
+	 * Account this queued write (per-znode and per-filesystem) so
+	 * fsync()/sync() barriers can wait for it to execute before
+	 * committing the ZIL.  The matching completion is accounted in the
+	 * task once the write has executed (or here if it fails to queue).
 	 */
-	if (rw == UIO_WRITE)
-		atomic_inc_32(&zp->z_async_dio_writes);
+	if (rw == UIO_WRITE) {
+		atomic_inc_64_nv(&zp->z_async_dio_write_submitted);
+		atomic_inc_64_nv(&zfsvfs->z_async_dio_write_submitted);
+	}
 
 	if (taskq_dispatch(pool->taskq, zpl_async_dio_task, aio,
 	    TQ_SLEEP) == TASKQID_INVALID) {
@@ -568,6 +599,8 @@ zpl_async_dio_queue(struct kiocb *kiocb, struct iov_iter *iter,
 			zfs_uio_free_dio_pages(&aio->uio, rw);
 		}
 		crfree(aio->cr);
+		if (aio->iovs != NULL)
+			kfree(aio->iovs);
 		kmem_cache_free(zpl_async_dio_io_cache, aio);
 		zfs_exit(zfsvfs, FTAG);
 		return (EOPNOTSUPP);
@@ -663,20 +696,20 @@ zpl_generic_write_checks(struct kiocb *kiocb, struct iov_iter *from,
 	return (0);
 }
 
+/*
+ * Body of the write path shared by the synchronous and asynchronous
+ * entries.  The caller must have run zpl_generic_write_checks() exactly
+ * once; 'count' is the resulting, possibly clamped, byte count.
+ */
 static ssize_t
-zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
+zpl_iter_write_common(struct kiocb *kiocb, struct iov_iter *from, size_t count)
 {
 	cred_t *cr = CRED();
 	fstrans_cookie_t cookie;
 	struct file *filp = kiocb->ki_filp;
 	struct inode *ip = filp->f_mapping->host;
 	zfs_uio_t uio;
-	size_t count = 0;
 	ssize_t ret;
-
-	ret = zpl_generic_write_checks(kiocb, from, &count);
-	if (ret)
-		return (ret);
 
 	zfs_uio_iov_iter_init(&uio, from, kiocb->ki_pos, count);
 
@@ -708,11 +741,11 @@ zpl_iter_write_async(struct kiocb *kiocb, struct iov_iter *from)
 	int ioflag = filp->f_flags | zfs_io_flags(kiocb);
 
 	/*
-	 * The write checks are shared with the synchronous path and must run
-	 * in the submitting thread: they position O_APPEND requests at EOF
-	 * and clamp the count.  The queued task then runs zfs_write_impl()
-	 * with the resulting uio, and the sync fallback below re-runs the
-	 * checks, which is idempotent.
+	 * The write checks must run in the submitting thread exactly once:
+	 * they position O_APPEND requests at EOF and clamp the count.  The
+	 * queued task then runs zfs_write_impl() with the resulting uio, and
+	 * the sync fallback below reuses the same checked state instead of
+	 * re-running the checks (which would re-signal SIGXFSZ at the limit).
 	 */
 	ret = zpl_generic_write_checks(kiocb, from, &count);
 	if (ret)
@@ -731,7 +764,7 @@ zpl_iter_write_async(struct kiocb *kiocb, struct iov_iter *from)
 		/* Declined or failed: fall through to the sync path. */
 	}
 
-	return (zpl_iter_write(kiocb, from));
+	return (zpl_iter_write_common(kiocb, from, count));
 }
 
 static ssize_t
