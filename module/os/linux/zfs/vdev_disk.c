@@ -24,7 +24,7 @@
  * Rewritten for Linux by Brian Behlendorf <behlendorf1@llnl.gov>.
  * LLNL-CODE-403049.
  * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
- * Copyright (c) 2023, 2024, Klara Inc.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #include <sys/zfs_context.h>
@@ -280,14 +280,28 @@ vdev_blkdev_put(zfs_bdev_handle_t *bdh, spa_mode_t smode, void *holder)
 }
 
 static int
+vdev_path_backing_permission(struct path *path, int mask)
+{
+#if defined(HAVE_IDMAP_MNTIDMAP)
+	return (inode_permission(mnt_idmap(path->mnt),
+	    d_backing_inode(path->dentry), mask));
+#elif defined(HAVE_IDMAP_USERNS)
+	return (inode_permission(mnt_user_ns(path->mnt),
+	    d_backing_inode(path->dentry), mask));
+#else
+	return (inode_permission(d_backing_inode(path->dentry), mask));
+#endif
+}
+
+static int
 vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
     uint64_t *logical_ashift, uint64_t *physical_ashift, cred_t *cr)
 {
-	(void) cr;
 	zfs_bdev_handle_t *bdh;
 	spa_mode_t smode = spa_mode(v->vdev_spa);
 	hrtime_t timeout = MSEC2NSEC(zfs_vdev_open_timeout_ms);
 	vdev_disk_t *vd;
+	const cred_t *oldcr = NULL;
 
 	/* Must have a pathname and it must be absolute. */
 	if (v->vdev_path == NULL || v->vdev_path[0] != '/') {
@@ -308,6 +322,13 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	if (vd) {
 		char disk_name[BDEVNAME_SIZE + 6] = "/dev/";
 		boolean_t reread_part = B_FALSE;
+
+		/*
+		 * Reopening an already-open device, so the caller credential
+		 * is irrelevant - we had access to it before, we can assume
+		 * we still do.
+		 */
+		oldcr = override_creds(kcred);
 
 		rw_enter(&vd->vd_lock, RW_WRITER);
 		bdh = vd->vd_bdh;
@@ -357,6 +378,9 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 
 		rw_init(&vd->vd_lock, NULL, RW_DEFAULT, NULL);
 		rw_enter(&vd->vd_lock, RW_WRITER);
+
+		/* Restrict device access below to caller's permissions. */
+		oldcr = override_creds(cr);
 	}
 
 	/*
@@ -387,12 +411,37 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 	 * logic in zvol_open().  Extend the timeout and retry the open
 	 * subsequent attempts are expected to eventually succeed.
 	 */
+
 	hrtime_t start = gethrtime();
-	bdh = BDH_ERR_PTR(-ENXIO);
-	while (BDH_IS_ERR(bdh) && ((gethrtime() - start) < timeout)) {
-		bdh = vdev_blkdev_get_by_path(v->vdev_path, smode,
-		    zfs_vdev_holder);
-		if (unlikely(BDH_PTR_ERR(bdh) == -ENOENT)) {
+	int err = ENXIO;
+	while (err != 0 && ((gethrtime() - start) < timeout)) {
+
+		/*
+		 * Ensure the caller credential (made live by override_creds()
+		 * above) has access to the device node. This will include
+		 * checking file permissions and considering the
+		 * CAP_DAC_OVERRIDE capability.
+		 */
+		struct path devpath;
+		err = kern_path(v->vdev_path, LOOKUP_FOLLOW, &devpath);
+		if (err == 0) {
+			int mask =
+			    (smode & SPA_MODE_READ ? MAY_READ : 0) |
+			    (smode & SPA_MODE_WRITE ? MAY_WRITE : 0);
+			err = vdev_path_backing_permission(&devpath, mask);
+			path_put(&devpath);
+		}
+
+		if (err == 0) {
+			bdh = vdev_blkdev_get_by_path(v->vdev_path, smode,
+			    zfs_vdev_holder);
+			err = BDH_IS_ERR(bdh) ? BDH_PTR_ERR(bdh) : 0;
+		}
+
+		if (err == 0)
+			break;
+
+		if (unlikely(err == -ENOENT)) {
 			/*
 			 * There is no point of waiting since device is removed
 			 * explicitly
@@ -401,28 +450,29 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 				break;
 
 			schedule_timeout_interruptible(MSEC_TO_TICK(10));
-		} else if (unlikely(BDH_PTR_ERR(bdh) == -ERESTARTSYS)) {
+		} else if (unlikely(err == -ERESTARTSYS)) {
 			timeout = MSEC2NSEC(zfs_vdev_open_timeout_ms * 10);
 			continue;
-		} else if (BDH_IS_ERR(bdh)) {
-			break;
 		}
+
+		break;
 	}
 
-	if (BDH_IS_ERR(bdh)) {
-		int error = -BDH_PTR_ERR(bdh);
-		vdev_dbgmsg(v, "open error=%d timeout=%llu/%llu", error,
+	revert_creds(oldcr);
+
+	if (err != 0) {
+		vdev_dbgmsg(v, "open error=%d timeout=%llu/%llu", -err,
 		    (u_longlong_t)(gethrtime() - start),
 		    (u_longlong_t)timeout);
 		vd->vd_bdh = NULL;
 		v->vdev_tsd = vd;
 		rw_exit(&vd->vd_lock);
-		return (SET_ERROR(error));
-	} else {
-		vd->vd_bdh = bdh;
-		v->vdev_tsd = vd;
-		rw_exit(&vd->vd_lock);
+		return (SET_ERROR(-err));
 	}
+
+	vd->vd_bdh = bdh;
+	v->vdev_tsd = vd;
+	rw_exit(&vd->vd_lock);
 
 	struct block_device *bdev = BDH_BDEV(vd->vd_bdh);
 
