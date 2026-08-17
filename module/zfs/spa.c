@@ -5548,15 +5548,25 @@ spa_ld_open_aux_vdevs(spa_t *spa, spa_import_type_t type)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 	if (error == 0 && type != SPA_IMPORT_ASSEMBLE) {
 		ASSERT(spa_version(spa) >= SPA_VERSION_SPARES);
-		if (load_nvlist(spa, spa->spa_spares.sav_object,
-		    &spa->spa_spares.sav_config) != 0) {
-			spa_load_failed(spa, "error loading spares nvlist");
-			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
+		error = load_nvlist(spa, spa->spa_spares.sav_object,
+		    &spa->spa_spares.sav_config);
+		if (error != 0) {
+			if (!zfs_recover && spa_writeable(spa)) {
+				spa_load_failed(spa, "error loading spares "
+				    "nvlist [error=%d]", error);
+				return (spa_vdev_err(rvd,
+				    VDEV_AUX_CORRUPT_DATA, EIO));
+			}
+			spa_load_note(spa, "ignoring spares nvlist "
+			    "[error=%d], no spares will be available", error);
+			/* Leak the object, its dnode may be unreadable. */
+			spa->spa_spares.sav_object = 0;
+			spa->spa_spares.sav_sync = B_TRUE;
+		} else {
+			spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+			spa_load_spares(spa);
+			spa_config_exit(spa, SCL_ALL, FTAG);
 		}
-
-		spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
-		spa_load_spares(spa);
-		spa_config_exit(spa, SCL_ALL, FTAG);
 	} else if (error == 0) {
 		spa->spa_spares.sav_sync = B_TRUE;
 	}
@@ -5570,15 +5580,25 @@ spa_ld_open_aux_vdevs(spa_t *spa, spa_import_type_t type)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 	if (error == 0 && type != SPA_IMPORT_ASSEMBLE) {
 		ASSERT(spa_version(spa) >= SPA_VERSION_L2CACHE);
-		if (load_nvlist(spa, spa->spa_l2cache.sav_object,
-		    &spa->spa_l2cache.sav_config) != 0) {
-			spa_load_failed(spa, "error loading l2cache nvlist");
-			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
+		error = load_nvlist(spa, spa->spa_l2cache.sav_object,
+		    &spa->spa_l2cache.sav_config);
+		if (error != 0) {
+			if (!zfs_recover && spa_writeable(spa)) {
+				spa_load_failed(spa, "error loading l2cache "
+				    "nvlist [error=%d]", error);
+				return (spa_vdev_err(rvd,
+				    VDEV_AUX_CORRUPT_DATA, EIO));
+			}
+			spa_load_note(spa, "ignoring l2cache nvlist "
+			    "[error=%d], no l2cache will be available", error);
+			/* Leak the object, its dnode may be unreadable. */
+			spa->spa_l2cache.sav_object = 0;
+			spa->spa_l2cache.sav_sync = B_TRUE;
+		} else {
+			spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+			spa_load_l2cache(spa);
+			spa_config_exit(spa, SCL_ALL, FTAG);
 		}
-
-		spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
-		spa_load_l2cache(spa);
-		spa_config_exit(spa, SCL_ALL, FTAG);
 	} else if (error == 0) {
 		spa->spa_l2cache.sav_sync = B_TRUE;
 	}
