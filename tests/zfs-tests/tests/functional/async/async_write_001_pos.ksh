@@ -27,8 +27,11 @@
 # STRATEGY:
 #	1. For each numjobs in {1, 32}:
 #	     for each iodepth in {1, 8, 32}:
-#	       - enable async, recreate the pool + test file, measure IOPS
-#	       - disable async, recreate the pool + test file, measure IOPS
+#	       - enable async, recreate the pool + test file, measure IOPS,
+#	         then read the data back with fio --verify to confirm the
+#	         async writes were correct
+#	       - disable async, recreate the pool + test file, measure IOPS,
+#	         then read the data back with fio --verify likewise
 #	2. Log the sync vs async IOPS table.
 #	3. Restore zfs_async_dio_enabled.
 #
@@ -80,6 +83,10 @@ for numjobs in "${numjobss[@]}"; do
 		    $iodepth $numjobs $runtime)
 		log_note "async IOPS: ${async_iops[$numjobs,$iodepth]}"
 
+		# Read the data back and verify the per-block sha1 checksums
+		# (O_DIRECT through the async read path).
+		log_must async_read_verify "$testfile" 1 "libaio" $iodepth
+
 		# Sync measurement
 		log_must set_tunable32 ASYNC_DIO_ENABLED 0
 		async_reimport_pool
@@ -88,6 +95,9 @@ for numjobs in "${numjobss[@]}"; do
 		sync_iops[$numjobs,$iodepth]=$(async_write_iops "$testfile" \
 		    $iodepth $numjobs $runtime)
 		log_note "sync  IOPS: ${sync_iops[$numjobs,$iodepth]}"
+
+		# Read the data back and verify the per-block sha1 checksums.
+		log_must async_read_verify "$testfile" 1 "libaio" $iodepth
 	done
 done
 
