@@ -80,6 +80,31 @@ zfs_is_readonly(zfsvfs_t *zfsvfs)
 	return (!!(zfsvfs->z_sb->s_flags & SB_RDONLY));
 }
 
+/*
+ * Wait until every async Direct I/O write that was queued before this barrier
+ * has executed, i.e. has logged its ZIL record.  Called with the teardown
+ * reader lock held, before zil_commit(), so that sync(2)/syncfs(2) cannot
+ * return while submitted writes are still sitting on the worker taskq with
+ * nothing in the ZIL for them.  When the pool is suspended a queued write
+ * task may itself be blocked, so skip the wait; zil_commit_flags() with
+ * ZIL_COMMIT_NOW is non-blocking in that case for the same reason.
+ */
+static void
+zfs_async_dio_write_barrier(zfsvfs_t *zfsvfs)
+{
+	uint64_t snap;
+
+	if (spa_suspended(dmu_objset_spa(zfsvfs->z_os)))
+		return;
+
+	snap = atomic_load_64(&zfsvfs->z_async_dio_write_submitted);
+
+	mutex_enter(&zfsvfs->z_async_dio_lock);
+	while (atomic_load_64(&zfsvfs->z_async_dio_write_completed) < snap)
+		cv_wait(&zfsvfs->z_async_dio_cv, &zfsvfs->z_async_dio_lock);
+	mutex_exit(&zfsvfs->z_async_dio_lock);
+}
+
 int
 zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 {
@@ -103,6 +128,7 @@ zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 	 * This is to help with shutting down with pools suspended, as we don't
 	 * want to block in that case.
 	 */
+	zfs_async_dio_write_barrier(zfsvfs);
 	err = zil_commit_flags(zfsvfs->z_log, 0, ZIL_COMMIT_NOW);
 	zfs_exit(zfsvfs, FTAG);
 
@@ -681,6 +707,8 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 	cv_init(&zfsvfs->z_async_dio_cv, NULL, CV_DEFAULT, NULL);
 	zfsvfs->z_async_dio_inflight = 0;
 	zfsvfs->z_async_dio_draining = B_FALSE;
+	zfsvfs->z_async_dio_write_submitted = 0;
+	zfsvfs->z_async_dio_write_completed = 0;
 	rw_init(&zfsvfs->z_teardown_inactive_lock, NULL, RW_DEFAULT, NULL);
 	rw_init(&zfsvfs->z_fuid_lock, NULL, RW_DEFAULT, NULL);
 

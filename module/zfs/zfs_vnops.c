@@ -111,13 +111,21 @@ zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
 			return (error);
 #if defined(__linux__)
 		/*
-		 * Wait for this file's async Direct I/O writes that are still
-		 * queued on the worker taskq.  The ZIL holds nothing for them
-		 * yet, so a commit here could otherwise return success before
-		 * the data even reaches the pool.
+		 * Barrier: wait until every async Direct I/O write of this
+		 * znode that was queued before we snapshotted the submission
+		 * counter has executed and logged its ZIL record.  A simple
+		 * in-flight count would be an idle detector, not a barrier: a
+		 * write queued after the count hit zero but before zil_commit()
+		 * would be missed.  Snapshotting the monotonically increasing
+		 * submission counter and waiting for the completion counter to
+		 * catch up includes exactly the writes that existed when the
+		 * barrier started.
 		 */
 		mutex_enter(&zfsvfs->z_async_dio_lock);
-		while (atomic_load_32(&zp->z_async_dio_writes) != 0)
+		uint64_t async_snap =
+		    atomic_load_64(&zp->z_async_dio_write_submitted);
+		while (atomic_load_64(&zp->z_async_dio_write_completed) <
+		    async_snap)
 			cv_wait(&zfsvfs->z_async_dio_cv,
 			    &zfsvfs->z_async_dio_lock);
 		mutex_exit(&zfsvfs->z_async_dio_lock);
@@ -1123,6 +1131,15 @@ zfs_write_impl(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 
 	int64_t nwritten = start_resid - zfs_uio_resid(uio);
 	dataset_kstats_update_write_kstats(&zfsvfs->z_kstat, nwritten);
+
+	/*
+	 * We made progress, so the write is a successful short write: the
+	 * caller derives the byte count from uio_resid.  Do not leak the
+	 * stale error from a chunk that failed after earlier chunks
+	 * succeeded (e.g. ENOSPC/EDQUOT on the second chunk), and do not let
+	 * a later zil_commit() result clobber the outcome.
+	 */
+	error = 0;
 
 out_lock:
 	if (lr != NULL)

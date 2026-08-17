@@ -1,4 +1,6 @@
 /aio_dio_readv
+/aio_dio_writev
+/dio_write_short
 /badsend
 /btree_test
 /chg_usr_exec
