@@ -326,8 +326,14 @@ dmu_read_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 		 * dbuf could be freed in dbuf_write_done() resulting in garbage
 		 * being set for the zio BP.
 		 */
+#if defined(__linux__)
+		zio_priority_t prio = (flags & DMU_ASYNC_READ) ?
+		    ZIO_PRIORITY_ASYNC_READ : ZIO_PRIORITY_SYNC_READ;
+#else
+		zio_priority_t prio = ZIO_PRIORITY_SYNC_READ;
+#endif
 		zio_t *cio = zio_read(rio, spa, bp, mbuf, db->db.db_size,
-		    dmu_read_abd_done, NULL, ZIO_PRIORITY_SYNC_READ,
+		    dmu_read_abd_done, NULL, prio,
 		    ZIO_FLAG_CANFAIL | ZIO_FLAG_DIO_READ, &zb);
 		mutex_exit(&db->db_mtx);
 
