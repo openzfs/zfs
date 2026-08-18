@@ -215,6 +215,8 @@ typedef struct zpl_async_dio_io {
 	zfs_uio_t	uio;
 	struct iov_iter	iter;
 	struct iovec	*iovs;	/* owned copy of the backing iovec array */
+	uint64_t	zseq;	/* per-znode barrier sequence number */
+	uint64_t	fseq;	/* per-filesystem barrier sequence number */
 	int		ioflag;
 	cred_t		*cr;
 	ssize_t		count;
@@ -222,6 +224,7 @@ typedef struct zpl_async_dio_io {
 } zpl_async_dio_io_t;
 
 static kmem_cache_t *zpl_async_dio_io_cache;
+static kmem_cache_t *zpl_async_dio_write_done_cache;
 static kmutex_t zpl_async_dio_pool_lock;
 
 static unsigned int zfs_async_dio_enabled = 0;
@@ -252,7 +255,8 @@ MODULE_PARM_DESC(zfs_async_dio_max_inflight,
  * pool is closed (no datasets, no in-flight requests).
  */
 typedef struct zpl_async_dio_pool {
-	taskq_t		*taskq;
+	taskq_t		*read_taskq;
+	taskq_t		*write_taskq;
 } zpl_async_dio_pool_t;
 
 /*
@@ -296,15 +300,77 @@ zpl_async_dio_rele(zfsvfs_t *zfsvfs, size_t count)
 }
 
 /*
- * Account a completed (or failed-to-queue) async Direct I/O write and wake
- * any fsync()/sync() waiting on this filesystem's write barrier.
+ * Insert a completed sequence number into the scope's pending list, keeping
+ * it ascending.  Completions usually arrive in near-submission order, so the
+ * common case appends at the tail.
  */
 static void
-zpl_async_dio_write_done(zfsvfs_t *zfsvfs, znode_t *zp)
+zpl_async_dio_write_insert(list_t *pending, zpl_async_dio_write_done_t *done)
 {
-	atomic_inc_64_nv(&zp->z_async_dio_write_completed);
-	atomic_inc_64_nv(&zfsvfs->z_async_dio_write_completed);
+	zpl_async_dio_write_done_t *p;
+
+	for (p = list_tail(pending); p != NULL && p->wd_seq > done->wd_seq;
+	    p = list_prev(pending, p))
+		;
+
+	if (p == NULL)
+		list_insert_head(pending, done);
+	else
+		list_insert_after(pending, p, done);
+}
+
+/*
+ * Advance the contiguous completion watermark: while the lowest pending
+ * sequence is the next one expected, consume it.  A later write completing
+ * early parks in the pending list and cannot move the watermark past an
+ * unfinished earlier write.
+ */
+static void
+zpl_async_dio_write_advance(list_t *pending, uint64_t *watermark)
+{
+	zpl_async_dio_write_done_t *done;
+
+	while ((done = list_head(pending)) != NULL &&
+	    done->wd_seq == *watermark + 1) {
+		list_remove(pending, done);
+		(*watermark)++;
+		kmem_cache_free(zpl_async_dio_write_done_cache, done);
+	}
+}
+
+/*
+ * Account a completed (or failed-to-queue) async Direct I/O write in both
+ * barrier scopes and release its in-flight byte reservation in the same
+ * critical section.  zfs_fsync() waits on the per-znode watermark, and
+ * syncfs()/sync() on the per-filesystem one, so a write completing early can
+ * only satisfy a barrier once every earlier write of that scope has also
+ * completed.
+ */
+static void
+zpl_async_dio_write_finish(zfsvfs_t *zfsvfs, znode_t *zp, uint64_t zseq,
+    uint64_t fseq, size_t count)
+{
+	zpl_async_dio_write_done_t *done;
+
+	done = kmem_cache_alloc(zpl_async_dio_write_done_cache, KM_SLEEP);
+	done->wd_seq = zseq;
+
+	mutex_enter(&zp->z_async_dio_write_lock);
+	zpl_async_dio_write_insert(&zp->z_async_dio_write_pending, done);
+	zpl_async_dio_write_advance(&zp->z_async_dio_write_pending,
+	    &zp->z_async_dio_write_watermark);
+	cv_broadcast(&zp->z_async_dio_write_cv);
+	mutex_exit(&zp->z_async_dio_write_lock);
+
+	done = kmem_cache_alloc(zpl_async_dio_write_done_cache, KM_SLEEP);
+	done->wd_seq = fseq;
+
 	mutex_enter(&zfsvfs->z_async_dio_lock);
+	zpl_async_dio_write_insert(&zfsvfs->z_async_dio_write_pending, done);
+	zpl_async_dio_write_advance(&zfsvfs->z_async_dio_write_pending,
+	    &zfsvfs->z_async_dio_write_watermark);
+	ASSERT3U(zfsvfs->z_async_dio_inflight, >=, count);
+	zfsvfs->z_async_dio_inflight -= count;
 	cv_broadcast(&zfsvfs->z_async_dio_cv);
 	mutex_exit(&zfsvfs->z_async_dio_lock);
 }
@@ -343,11 +409,14 @@ zpl_async_dio_task(void *arg)
 	}
 
 	/*
-	 * The write has executed (its ZIL record is written); wake any fsync()
-	 * waiting for this file's async writes.
+	 * The write has executed (its ZIL record is written); advance the
+	 * barrier watermarks and release the in-flight byte reservation.
 	 */
 	if (aio->rw == UIO_WRITE)
-		zpl_async_dio_write_done(aio->zfsvfs, aio->zp);
+		zpl_async_dio_write_finish(aio->zfsvfs, aio->zp, aio->zseq,
+		    aio->fseq, aio->count);
+	else
+		zpl_async_dio_rele(aio->zfsvfs, aio->count);
 
 #ifdef HAVE_2ARGS_KI_COMPLETE
 	aio->kiocb->ki_complete(aio->kiocb, done);
@@ -355,7 +424,6 @@ zpl_async_dio_task(void *arg)
 	aio->kiocb->ki_complete(aio->kiocb, done, 0);
 #endif
 
-	zpl_async_dio_rele(aio->zfsvfs, aio->count);
 	crfree(aio->cr);
 	if (aio->iovs != NULL)
 		kfree(aio->iovs);
@@ -383,13 +451,24 @@ zpl_async_dio_pool_get(spa_t *spa)
 	pool = spa->spa_zpl_async_dio_pool;
 	if (pool == NULL) {
 		unsigned int nthreads = MAX(zfs_async_dio_task_depth, 1);
-		char name[48];
+		char rname[48], wname[48];
 
 		pool = kmem_zalloc(sizeof (*pool), KM_SLEEP);
-		(void) snprintf(name, sizeof (name), "zpl_async_dio_%s",
+		(void) snprintf(rname, sizeof (rname), "zpl_async_read_%s",
+		    spa_name(spa));
+		(void) snprintf(wname, sizeof (wname), "zpl_async_write_%s",
 		    spa_name(spa));
 
-		pool->taskq = taskq_create(name, nthreads,
+		/*
+		 * Reads and writes get separate worker pools so that writes
+		 * blocked on transaction assignment, ZIL commits or range
+		 * locks cannot consume every worker and keep queued reads from
+		 * reaching ZIO.
+		 */
+		pool->read_taskq = taskq_create(rname, nthreads,
+		    maxclsyspri, nthreads, INT_MAX,
+		    TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
+		pool->write_taskq = taskq_create(wname, nthreads,
 		    maxclsyspri, nthreads, INT_MAX,
 		    TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 		spa->spa_zpl_async_dio_pool = pool;
@@ -415,7 +494,8 @@ zpl_async_dio_pool_destroy(struct spa *spa)
 	mutex_exit(&zpl_async_dio_pool_lock);
 
 	if (pool != NULL) {
-		taskq_destroy(pool->taskq);
+		taskq_destroy(pool->read_taskq);
+		taskq_destroy(pool->write_taskq);
 		kmem_free(pool, sizeof (*pool));
 	}
 }
@@ -575,21 +655,34 @@ zpl_async_dio_queue(struct kiocb *kiocb, struct iov_iter *iter,
 	}
 
 	/*
-	 * Account this queued write (per-znode and per-filesystem) so
-	 * fsync()/sync() barriers can wait for it to execute before
-	 * committing the ZIL.  The matching completion is accounted in the
-	 * task once the write has executed (or here if it fails to queue).
+	 * Mark the request as asynchronous Direct I/O: its pages were pinned
+	 * in the submitting thread and it will execute on a worker taskq.  The
+	 * shared impls use the flag to skip submission-time re-validation and
+	 * prefaulting (the pinned pages are resident), and to issue reads at
+	 * the asynchronous ZIO priority rather than the synchronous one.
+	 */
+	aio->uio.uio_extflg |= UIO_ASYNC;
+
+	/*
+	 * Account this queued write in both barrier scopes so fsync()/sync()
+	 * can wait for it to execute before committing the ZIL.  The sequence
+	 * numbers identify the write; the matching completion is accounted in
+	 * the task once the write has executed (or here if it fails to queue).
 	 */
 	if (rw == UIO_WRITE) {
-		atomic_inc_64_nv(&zp->z_async_dio_write_submitted);
-		atomic_inc_64_nv(&zfsvfs->z_async_dio_write_submitted);
+		aio->zseq = atomic_inc_64_nv(&zp->z_async_dio_write_seq);
+		aio->fseq = atomic_inc_64_nv(&zfsvfs->z_async_dio_write_seq);
 	}
 
-	if (taskq_dispatch(pool->taskq, zpl_async_dio_task, aio,
+	taskq_t *taskq = (rw == UIO_READ) ? pool->read_taskq :
+	    pool->write_taskq;
+	if (taskq_dispatch(taskq, zpl_async_dio_task, aio,
 	    TQ_SLEEP) == TASKQID_INVALID) {
 		if (rw == UIO_WRITE)
-			zpl_async_dio_write_done(zfsvfs, zp);
-		zpl_async_dio_rele(zfsvfs, count);
+			zpl_async_dio_write_finish(zfsvfs, zp, aio->zseq,
+			    aio->fseq, count);
+		else
+			zpl_async_dio_rele(zfsvfs, count);
 		/*
 		 * The pin set no UIO_DIRECT flag; zfs_uio_free_dio_pages()
 		 * requires it, so set it before releasing the pinned pages.
@@ -671,11 +764,18 @@ zpl_async_dio_init(void)
 	zpl_async_dio_io_cache = kmem_cache_create("zpl_async_dio_io",
 	    sizeof (zpl_async_dio_io_t), 0,
 	    NULL, NULL, NULL, NULL, NULL, 0);
+	zpl_async_dio_write_done_cache = kmem_cache_create(
+	    "zpl_async_dio_write_done", sizeof (zpl_async_dio_write_done_t),
+	    0, NULL, NULL, NULL, NULL, NULL, 0);
 }
 
 void
 zpl_async_dio_fini(void)
 {
+	if (zpl_async_dio_write_done_cache != NULL) {
+		kmem_cache_destroy(zpl_async_dio_write_done_cache);
+		zpl_async_dio_write_done_cache = NULL;
+	}
 	if (zpl_async_dio_io_cache != NULL) {
 		kmem_cache_destroy(zpl_async_dio_io_cache);
 		zpl_async_dio_io_cache = NULL;
