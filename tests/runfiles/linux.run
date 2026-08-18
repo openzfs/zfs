@@ -170,7 +170,7 @@ tags = ['functional', 'mmp']
 timeout = 1200
 
 [tests/functional/mount:Linux]
-tests = ['umount_unlinked_drain', 'mount_loopback']
+tests = ['umount_unlinked_drain', 'mount_loopback', 'mount_null_source']
 tags = ['functional', 'mount']
 
 [tests/functional/pam:Linux]
