@@ -110,23 +110,22 @@ zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
 #if defined(__linux__)
 		/*
 		 * Barrier: wait until every async Direct I/O write of this
-		 * znode that was queued before we snapshotted the submission
-		 * counter has executed and logged its ZIL record.  A simple
-		 * in-flight count would be an idle detector, not a barrier: a
-		 * write queued after the count hit zero but before zil_commit()
-		 * would be missed.  Snapshotting the monotonically increasing
-		 * submission counter and waiting for the completion counter to
-		 * catch up includes exactly the writes that existed when the
-		 * barrier started.
+		 * znode that was queued before we snapshotted the sequence
+		 * allocator has executed and logged its ZIL record.  A plain
+		 * completed-count check is not a barrier: taskq workers finish
+		 * writes out of order, so a later write completing early could
+		 * satisfy "completed >= snap" while an earlier write is still
+		 * running.  The watermark only advances over contiguous
+		 * completed sequence numbers, so it reaches the snapshot
+		 * exactly when every write with seq <= snap has executed.
 		 */
-		mutex_enter(&zfsvfs->z_async_dio_lock);
+		mutex_enter(&zp->z_async_dio_write_lock);
 		uint64_t async_snap =
-		    atomic_load_64(&zp->z_async_dio_write_submitted);
-		while (atomic_load_64(&zp->z_async_dio_write_completed) <
-		    async_snap)
-			cv_wait(&zfsvfs->z_async_dio_cv,
-			    &zfsvfs->z_async_dio_lock);
-		mutex_exit(&zfsvfs->z_async_dio_lock);
+		    atomic_load_64(&zp->z_async_dio_write_seq);
+		while (zp->z_async_dio_write_watermark < async_snap)
+			cv_wait(&zp->z_async_dio_write_cv,
+			    &zp->z_async_dio_write_lock);
+		mutex_exit(&zp->z_async_dio_write_lock);
 #endif
 		error = zil_commit(zfsvfs->z_log, zp->z_id);
 		zfs_exit(zfsvfs, FTAG);
@@ -273,13 +272,12 @@ zfs_setup_direct(struct znode *zp, zfs_uio_t *uio, zfs_uio_rw_t rw,
 
 #if defined(__linux__)
 	/*
-	 * The Linux async Direct I/O path may have already checked alignment
-	 * and pinned the pages at submission time (uio->uio_dio.pages != NULL,
-	 * UIO_DIRECT not set).  The request was validated when it was admitted,
-	 * so skip the alignment re-check here; misaligned requests are declined
-	 * at submission and served by the synchronous path.
+	 * The Linux async Direct I/O path validated alignment and pinned the
+	 * pages at submission time (UIO_ASYNC set, UIO_DIRECT not).  Skip the
+	 * alignment re-check here; misaligned requests are declined at
+	 * submission and served by the synchronous path.
 	 */
-	if (uio->uio_dio.pages == NULL &&
+	if (!(uio->uio_extflg & UIO_ASYNC) &&
 	    (!zfs_uio_page_aligned(uio) ||
 	    !zfs_uio_aligned(uio, PAGE_SIZE))) {
 #else
@@ -314,13 +312,12 @@ zfs_setup_direct(struct znode *zp, zfs_uio_t *uio, zfs_uio_rw_t rw,
 
 #if defined(__linux__)
 	/*
-	 * The Linux async Direct I/O path may have already pinned the pages at
-	 * submission time (uio->uio_dio.pages != NULL, UIO_DIRECT not set).
-	 * The eligibility checks above were just re-run at read time, so only
-	 * the pin itself happened early.  Mark the request as Direct I/O and
-	 * skip re-pinning.
+	 * The Linux async Direct I/O path pinned the pages at submission time
+	 * (UIO_ASYNC set, UIO_DIRECT not).  The eligibility checks above were
+	 * just re-run at read time, so only the pin itself happened early.
+	 * Mark the request as Direct I/O and skip re-pinning.
 	 */
-	if (uio->uio_dio.pages != NULL) {
+	if (uio->uio_extflg & UIO_ASYNC) {
 		uio->uio_extflg |= UIO_DIRECT;
 		goto out;
 	}
@@ -475,6 +472,10 @@ zfs_read_impl(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		chunk_size = MIN(MAX(zfs_vnops_read_chunk_size, blksz),
 		    DMU_MAX_ACCESS / 2);
 	}
+#if defined(__linux__)
+	if (uio->uio_extflg & UIO_ASYNC)
+		dflags |= DMU_ASYNC_READ;
+#endif
 
 	while (n > 0) {
 		ssize_t nbytes = MIN(n, chunk_size -
@@ -577,6 +578,7 @@ out:
 		uio->uio_extflg |= UIO_DIRECT;
 		zfs_uio_free_dio_pages(uio, UIO_READ);
 	}
+	ASSERT3P(uio->uio_dio.pages, ==, NULL);
 #else
 	if (uio->uio_extflg & UIO_DIRECT)
 		zfs_uio_free_dio_pages(uio, UIO_READ);
@@ -1169,6 +1171,7 @@ out:
 		uio->uio_extflg |= UIO_DIRECT;
 		zfs_uio_free_dio_pages(uio, UIO_WRITE);
 	}
+	ASSERT3P(uio->uio_dio.pages, ==, NULL);
 #else
 	if (uio->uio_extflg & UIO_DIRECT)
 		zfs_uio_free_dio_pages(uio, UIO_WRITE);

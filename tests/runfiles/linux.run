@@ -108,7 +108,7 @@ tags = ['functional', 'direct']
 tests = ['async_read_001_pos', 'async_read_002_pos', 'async_read_003_pos',
     'async_read_004_pos', 'async_read_005_pos', 'async_write_001_pos',
     'async_write_002_pos', 'async_write_003_pos', 'async_write_004_pos',
-    'async_write_005_pos']
+    'async_write_005_pos', 'async_write_006_pos']
 tags = ['functional', 'async']
 
 [tests/functional/events:Linux]
