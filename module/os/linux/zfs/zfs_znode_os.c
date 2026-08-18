@@ -121,8 +121,13 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 	zp->z_xattr_cached = NULL;
 	zp->z_xattr_parent = 0;
 	zp->z_has_seq = B_FALSE;
-	zp->z_async_dio_write_submitted = 0;
-	zp->z_async_dio_write_completed = 0;
+	zp->z_async_dio_write_seq = 0;
+	zp->z_async_dio_write_watermark = 0;
+	mutex_init(&zp->z_async_dio_write_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&zp->z_async_dio_write_cv, NULL, CV_DEFAULT, NULL);
+	list_create(&zp->z_async_dio_write_pending,
+	    sizeof (zpl_async_dio_write_done_t),
+	    offsetof(zpl_async_dio_write_done_t, wd_node));
 
 	return (0);
 }
@@ -144,6 +149,12 @@ zfs_znode_cache_destructor(void *buf, void *arg)
 	ASSERT0P(zp->z_dirlocks);
 	ASSERT0P(zp->z_acl_cached);
 	ASSERT0P(zp->z_xattr_cached);
+	ASSERT3U(zp->z_async_dio_write_seq, ==,
+	    zp->z_async_dio_write_watermark);
+	ASSERT(list_is_empty(&zp->z_async_dio_write_pending));
+	list_destroy(&zp->z_async_dio_write_pending);
+	cv_destroy(&zp->z_async_dio_write_cv);
+	mutex_destroy(&zp->z_async_dio_write_lock);
 }
 
 static int
@@ -540,6 +551,15 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	zp->z_id = db->db_object;
 	zp->z_blksz = blksz;
 	zp->z_sync_cnt = 0;
+	/*
+	 * The znode slab object may be reused across inodes; the sequence
+	 * barrier state must start fresh for this inode.  A previous inode's
+	 * writes are all complete before it could be evicted, so the pending
+	 * list is empty and seq == watermark here.
+	 */
+	zp->z_async_dio_write_seq = 0;
+	zp->z_async_dio_write_watermark = 0;
+	ASSERT(list_is_empty(&zp->z_async_dio_write_pending));
 
 	zfs_znode_sa_init(zfsvfs, zp, db, obj_type, hdl);
 

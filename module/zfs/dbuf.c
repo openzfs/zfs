@@ -1658,8 +1658,14 @@ dbuf_read_impl(dmu_buf_impl_t *db, dnode_t *dn, zio_t *zio, dmu_flags_t flags,
 	 */
 	blkptr_t copy = *bp;
 	dmu_buf_unlock_parent(db, dblt, tag);
+#if defined(__linux__)
+	zio_priority_t prio = (flags & DMU_ASYNC_READ) ?
+	    ZIO_PRIORITY_ASYNC_READ : ZIO_PRIORITY_SYNC_READ;
+#else
+	zio_priority_t prio = ZIO_PRIORITY_SYNC_READ;
+#endif
 	return (arc_read(zio, db->db_objset->os_spa, &copy,
-	    dbuf_read_done, db, ZIO_PRIORITY_SYNC_READ, zio_flags,
+	    dbuf_read_done, db, prio, zio_flags,
 	    &aflags, &zb));
 
 early_unlock:

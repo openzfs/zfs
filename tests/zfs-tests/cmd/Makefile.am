@@ -97,6 +97,10 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/aio_dio_writev
 scripts_zfs_tests_bin_PROGRAMS += %D%/dio_write_short
 %C%_dio_write_short_CFLAGS = $(AM_CFLAGS) $(LIBAIO_CFLAGS)
 %C%_dio_write_short_LDADD  = $(LIBAIO_LIBS)
+
+scripts_zfs_tests_bin_PROGRAMS += %D%/aio_barrier_race
+%C%_aio_barrier_race_CFLAGS = $(AM_CFLAGS) $(LIBAIO_CFLAGS)
+%C%_aio_barrier_race_LDADD  = $(LIBAIO_LIBS)
 endif
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/zcp_support
