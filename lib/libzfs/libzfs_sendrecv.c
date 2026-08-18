@@ -1240,14 +1240,16 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 	if (sdd->verbosity != 0) {
 		uint64_t size = 0;
 		char fromds[ZFS_MAX_DATASET_NAME_LEN];
+		const char *from = NULL;
 
 		if (sdd->prevsnap[0] != '\0') {
 			(void) strlcpy(fromds, zhp->zfs_name, sizeof (fromds));
 			*(strchr(fromds, '@') + 1) = '\0';
 			(void) strlcat(fromds, sdd->prevsnap, sizeof (fromds));
+			from = fromds;
 		}
-		if (zfs_send_space(zhp, zhp->zfs_name,
-		    sdd->prevsnap[0] ? fromds : NULL, flags, &size) == 0) {
+		if (zfs_send_space(zhp, zhp->zfs_name, from, flags,
+		    &size) == 0) {
 			send_print_verbose(fout, zhp->zfs_name,
 			    sdd->prevsnap[0] ? sdd->prevsnap : NULL,
 			    size, sdd->parsable);
