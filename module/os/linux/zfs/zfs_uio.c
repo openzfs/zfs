@@ -373,14 +373,15 @@ int
 zfs_uio_prefaultpages(ssize_t n, zfs_uio_t *uio)
 {
 	if (uio->uio_segflg == UIO_SYSSPACE || uio->uio_segflg == UIO_BVEC ||
-	    (uio->uio_extflg & UIO_DIRECT) || uio->uio_dio.pages != NULL) {
+	    (uio->uio_extflg & UIO_DIRECT) ||
+	    (uio->uio_extflg & UIO_ASYNC)) {
 		/*
 		 * There's never a need to fault in kernel pages or Direct I/O
 		 * write pages.  Direct I/O write pages have been pinned in so
 		 * there is never a time for these pages a fault will occur.
-		 * Pre-pinned pages (async Direct I/O submission) are resident
-		 * for the same reason; the submitting thread did the pin, and
-		 * the taskq thread that runs the write has no user mm.
+		 * Async Direct I/O pages were pinned by the submitting thread
+		 * and are resident for the same reason; the taskq thread that
+		 * runs the write has no user mm.
 		 */
 		return (0);
 	} else  {
@@ -592,6 +593,9 @@ zfs_uio_free_dio_pages(zfs_uio_t *uio, zfs_uio_rw_t rw)
 
 	vmem_free(uio->uio_dio.pages,
 	    uio->uio_dio.npages * sizeof (struct page *));
+	uio->uio_dio.pages = NULL;
+	uio->uio_dio.npages = 0;
+	uio->uio_dio.pinned = B_FALSE;
 }
 
 #if defined(HAVE_PIN_USER_PAGES_UNLOCKED)
@@ -636,8 +640,16 @@ zfs_uio_pin_user_pages(zfs_uio_t *uio, zfs_uio_rw_t rw)
 	}
 #endif
 	const struct iovec *iovp = zfs_uio_iter_iov(uio->uio_iter);
-	for (int i = 0; i < uio->uio_iovcnt; i++) {
-		size_t amt = iovp->iov_len - skip;
+	for (int i = 0; i < uio->uio_iovcnt && len > 0; i++) {
+		/*
+		 * The iterator count may have been truncated (e.g. by
+		 * RLIMIT_FSIZE in generic_write_checks()), so a segment's
+		 * declared length can exceed what remains of this request.
+		 * Clamp to the remaining count: pinning the full segment
+		 * would over-pin and drive 'len' negative, tripping the
+		 * ASSERT0(len) below.
+		 */
+		size_t amt = MIN(iovp->iov_len - skip, len);
 		if (amt == 0) {
 			iovp++;
 			skip = 0;

@@ -97,10 +97,9 @@ zfs_async_dio_write_barrier(zfsvfs_t *zfsvfs)
 	if (spa_suspended(dmu_objset_spa(zfsvfs->z_os)))
 		return;
 
-	snap = atomic_load_64(&zfsvfs->z_async_dio_write_submitted);
-
 	mutex_enter(&zfsvfs->z_async_dio_lock);
-	while (atomic_load_64(&zfsvfs->z_async_dio_write_completed) < snap)
+	snap = atomic_load_64(&zfsvfs->z_async_dio_write_seq);
+	while (zfsvfs->z_async_dio_write_watermark < snap)
 		cv_wait(&zfsvfs->z_async_dio_cv, &zfsvfs->z_async_dio_lock);
 	mutex_exit(&zfsvfs->z_async_dio_lock);
 }
@@ -707,8 +706,11 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 	cv_init(&zfsvfs->z_async_dio_cv, NULL, CV_DEFAULT, NULL);
 	zfsvfs->z_async_dio_inflight = 0;
 	zfsvfs->z_async_dio_draining = B_FALSE;
-	zfsvfs->z_async_dio_write_submitted = 0;
-	zfsvfs->z_async_dio_write_completed = 0;
+	zfsvfs->z_async_dio_write_seq = 0;
+	zfsvfs->z_async_dio_write_watermark = 0;
+	list_create(&zfsvfs->z_async_dio_write_pending,
+	    sizeof (zpl_async_dio_write_done_t),
+	    offsetof(zpl_async_dio_write_done_t, wd_node));
 	rw_init(&zfsvfs->z_teardown_inactive_lock, NULL, RW_DEFAULT, NULL);
 	rw_init(&zfsvfs->z_fuid_lock, NULL, RW_DEFAULT, NULL);
 
@@ -856,6 +858,10 @@ zfsvfs_free(zfsvfs_t *zfsvfs)
 	list_destroy(&zfsvfs->z_all_znodes);
 	ZFS_TEARDOWN_DESTROY(zfsvfs);
 	ASSERT0(zfsvfs->z_async_dio_inflight);
+	ASSERT3U(zfsvfs->z_async_dio_write_seq, ==,
+	    zfsvfs->z_async_dio_write_watermark);
+	ASSERT(list_is_empty(&zfsvfs->z_async_dio_write_pending));
+	list_destroy(&zfsvfs->z_async_dio_write_pending);
 	mutex_destroy(&zfsvfs->z_async_dio_lock);
 	cv_destroy(&zfsvfs->z_async_dio_cv);
 	rw_destroy(&zfsvfs->z_teardown_inactive_lock);

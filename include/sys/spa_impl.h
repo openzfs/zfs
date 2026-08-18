@@ -497,9 +497,10 @@ struct spa {
 
 #if defined(__linux__)
 	/*
-	 * Per-pool async Direct I/O worker pool (zpl_async_dio_pool_t *),
-	 * shared by reads and writes and by all datasets of the pool, created
-	 * lazily on the first async request and destroyed in spa_remove().
+	 * Per-pool async Direct I/O worker pool (zpl_async_dio_pool_t *), one
+	 * taskq for reads and one for writes, shared by all datasets of the
+	 * pool, created lazily on the first async request and destroyed in
+	 * spa_remove().
 	 */
 	void			*spa_zpl_async_dio_pool;
 #endif
