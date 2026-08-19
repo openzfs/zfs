@@ -41,7 +41,8 @@ typedef struct zfs_file_attr {
 	mode_t		zfa_mode;	/* file type */
 } zfs_file_attr_t;
 
-int zfs_file_open(const char *path, int flags, int mode, zfs_file_t **fp);
+int zfs_file_open(const char *path, int flags, int mode, cred_t *cr,
+    zfs_file_t **fp);
 void zfs_file_close(zfs_file_t *fp);
 
 int zfs_file_write(zfs_file_t *fp, const void *buf, size_t len, ssize_t *resid);

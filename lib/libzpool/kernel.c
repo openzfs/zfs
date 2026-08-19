@@ -872,9 +872,9 @@ spa_config_load(void)
 
 	(void) snprintf(pathname, MAXPATHLEN, "%s", spa_config_path);
 
-	err = zfs_file_open(pathname, O_RDONLY, 0, &fp);
+	err = zfs_file_open(pathname, O_RDONLY, 0, kcred, &fp);
 	if (err)
-		err = zfs_file_open(ZPOOL_CACHE_BOOT, O_RDONLY, 0, &fp);
+		err = zfs_file_open(ZPOOL_CACHE_BOOT, O_RDONLY, 0, kcred, &fp);
 
 	kmem_free(pathname, MAXPATHLEN);
 
@@ -1175,8 +1175,10 @@ zvol_rename_minors(spa_t *spa, const char *oldname, const char *newname,
  * Returns 0 on success underlying error on failure.
  */
 int
-zfs_file_open(const char *path, int flags, int mode, zfs_file_t **fpp)
+zfs_file_open(const char *path, int flags, int mode, cred_t *cr,
+    zfs_file_t **fpp)
 {
+	(void) cr;
 	int fd;
 	int dump_fd;
 	int err;
