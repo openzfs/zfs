@@ -102,11 +102,11 @@ spa_config_load(void)
 
 	(void) snprintf(pathname, MAXPATHLEN, "%s", spa_config_path);
 
-	err = zfs_file_open(pathname, O_RDONLY, 0, &fp);
+	err = zfs_file_open(pathname, O_RDONLY, 0, kcred, &fp);
 
 #ifdef __FreeBSD__
 	if (err)
-		err = zfs_file_open(ZPOOL_CACHE_BOOT, O_RDONLY, 0, &fp);
+		err = zfs_file_open(ZPOOL_CACHE_BOOT, O_RDONLY, 0, kcred, &fp);
 #endif
 	kmem_free(pathname, MAXPATHLEN);
 
@@ -173,7 +173,7 @@ spa_config_remove(spa_config_dirent_t *dp)
 		int flags = O_RDWR | O_TRUNC;
 		zfs_file_t *fp;
 
-		error = zfs_file_open(dp->scd_path, flags, 0644, &fp);
+		error = zfs_file_open(dp->scd_path, flags, 0644, kcred, &fp);
 		if (error == 0) {
 			(void) zfs_file_fsync(fp, O_SYNC);
 			(void) zfs_file_close(fp);
@@ -216,7 +216,7 @@ spa_config_write(spa_config_dirent_t *dp, nvlist_t *nvl)
 	 * is instead truncated and overwritten in place.  This way we always
 	 * have a consistent view of the data or a zero length file.
 	 */
-	err = zfs_file_open(dp->scd_path, oflags, 0644, &fp);
+	err = zfs_file_open(dp->scd_path, oflags, 0644, kcred, &fp);
 	if (err == 0) {
 		err = zfs_file_write(fp, buf, buflen, NULL);
 		if (err == 0)
