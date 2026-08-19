@@ -48,7 +48,8 @@
 #include <sys/stat.h>
 
 int
-zfs_file_open(const char *path, int flags, int mode, zfs_file_t **fpp)
+zfs_file_open(const char *path, int flags, int mode, cred_t *cr,
+    zfs_file_t **fpp)
 {
 	struct thread *td;
 	struct vnode *vp;
@@ -76,7 +77,7 @@ zfs_file_open(const char *path, int flags, int mode, zfs_file_t **fpp)
 #else
 	NDINIT(&nd, LOOKUP, FOLLOW, UIO_SYSSPACE, path, td);
 #endif
-	error = vn_open(&nd, &flags, mode, fp);
+	error = vn_open_cred(&nd, &flags, mode, 0, cr, fp);
 	if (error != 0) {
 		falloc_abort(td, fp);
 		return (SET_ERROR(error));
@@ -94,7 +95,7 @@ zfs_file_open(const char *path, int flags, int mode, zfs_file_t **fpp)
 	}
 
 	if (flags & O_TRUNC) {
-		error = fo_truncate(fp, 0, td->td_ucred, td);
+		error = fo_truncate(fp, 0, cr, td);
 		if (error != 0) {
 			zfs_file_close(fp);
 			return (SET_ERROR(error));
