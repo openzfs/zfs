@@ -128,7 +128,7 @@ tests = ['zfs_destroy_002_pos', 'zfs_destroy_003_pos',
     'zfs_destroy_004_pos', 'zfs_destroy_006_neg', 'zfs_destroy_007_neg',
     'zfs_destroy_008_pos', 'zfs_destroy_009_pos', 'zfs_destroy_010_pos',
     'zfs_destroy_011_pos', 'zfs_destroy_012_pos', 'zfs_destroy_013_neg',
-    'zfs_destroy_014_pos', 'zfs_destroy_dev_removal',
+    'zfs_destroy_014_pos', 'zfs_destroy_bookmarks', 'zfs_destroy_dev_removal',
     'zfs_destroy_dev_removal_condense']
 tags = ['functional', 'cli_root', 'zfs_destroy']
 
