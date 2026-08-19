@@ -3573,7 +3573,7 @@ dsl_dataset_promote_check(void *arg, dmu_tx_t *tx)
 		}
 		zfs_bookmark_phys_t bm;
 		err = dsl_bookmark_lookup_impl(ddpa->ddpa_clone,
-		    dbn->dbn_name, &bm);
+		    dbn->dbn_name, &bm, NULL, 0);
 
 		if (err == 0) {
 			fnvlist_add_boolean(ddpa->err_ds, dbn->dbn_name);
