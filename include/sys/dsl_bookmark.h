@@ -128,7 +128,7 @@ int dsl_bookmark_destroy(nvlist_t *, nvlist_t *);
 int dsl_bookmark_lookup(struct dsl_pool *, const char *,
     struct dsl_dataset *, zfs_bookmark_phys_t *);
 int dsl_bookmark_lookup_impl(dsl_dataset_t *, const char *,
-    zfs_bookmark_phys_t *);
+    zfs_bookmark_phys_t *, char *, int);
 int dsl_redaction_list_hold_obj(struct dsl_pool *, uint64_t, const void *,
     redaction_list_t **);
 void dsl_redaction_list_rele(redaction_list_t *, const void *);
