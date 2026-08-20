@@ -532,6 +532,16 @@ and are recovering a damaged label.
 .It Sy zfs_vdev_ms_count_limit Ns = Ns Sy 131072 Po 128k Pc Pq uint
 Practical upper limit of total metaslabs per top-level vdev.
 .
+.It Sy zfs_vdev_dtl_sm_blksz Ns = Ns Sy 4096 Ns B Po 4 KiB Pc Pq int
+Since the DTL space map of a vdev is not expected to have a lot of
+entries, we default its block size to 4K.
+.
+.It Sy zfs_vdev_standard_sm_blksz Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq int
+vdev-wide space maps that have lots of entries written to them at
+the end of each transaction can benefit from a higher I/O bandwidth
+.Pq e.g. Sy vdev_obsolete_sm ,
+thus we default their block size to 128K.
+.
 .It Sy metaslab_preload_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Enable metaslab group preloading.
 .

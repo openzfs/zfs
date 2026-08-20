@@ -7072,6 +7072,12 @@ ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, min_ms_count, UINT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, ms_count_limit, UINT, ZMOD_RW,
 	"Practical upper limit of total metaslabs per top-level vdev");
 
+ZFS_MODULE_PARAM(zfs, zfs_vdev_, dtl_sm_blksz, INT, ZMOD_RW,
+	"Block size for DTL space map.  Power of 2 greater than 4096.");
+
+ZFS_MODULE_PARAM(zfs, zfs_vdev_, standard_sm_blksz, INT, ZMOD_RW,
+	"Block size for standard space map.  Power of 2 greater than 4096.");
+
 ZFS_MODULE_PARAM(zfs, zfs_, slow_io_events_per_second, UINT, ZMOD_RW,
 	"Rate limit slow IO (delay) events to this many per second");
 

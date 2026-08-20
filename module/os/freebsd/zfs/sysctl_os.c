@@ -483,27 +483,6 @@ param_set_max_auto_ashift(SYSCTL_HANDLER_ARGS)
 	return (0);
 }
 
-/*
- * Since the DTL space map of a vdev is not expected to have a lot of
- * entries, we default its block size to 4K.
- */
-extern int zfs_vdev_dtl_sm_blksz;
-
-SYSCTL_INT(_vfs_zfs, OID_AUTO, dtl_sm_blksz,
-	CTLFLAG_RDTUN, &zfs_vdev_dtl_sm_blksz, 0,
-	"Block size for DTL space map.  Power of 2 greater than 4096.");
-
-/*
- * vdev-wide space maps that have lots of entries written to them at
- * the end of each transaction can benefit from a higher I/O bandwidth
- * (e.g. vdev_obsolete_sm), thus we default their block size to 128K.
- */
-extern int zfs_vdev_standard_sm_blksz;
-
-SYSCTL_INT(_vfs_zfs, OID_AUTO, standard_sm_blksz,
-	CTLFLAG_RDTUN, &zfs_vdev_standard_sm_blksz, 0,
-	"Block size for standard space map.  Power of 2 greater than 4096.");
-
 /* zio.c */
 
 SYSCTL_INT(_vfs_zfs_zio, OID_AUTO, exclude_metadata,
