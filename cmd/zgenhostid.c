@@ -24,8 +24,38 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <time.h>
 #include <unistd.h>
+
+/*
+ * Fill buf with len bytes from the system CSPRNG.  Returns 0 on success
+ * and -1 on failure, with errno set.
+ */
+static int
+get_random_bytes(void *buf, size_t len)
+{
+	int fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC);
+	if (fd < 0)
+		return (-1);
+
+	size_t got = 0;
+	while (got < len) {
+		ssize_t n = read(fd, (char *)buf + got, len - got);
+		if (n <= 0) {
+			if (n < 0 && errno == EINTR)
+				continue;
+			if (n == 0)
+				errno = EIO;
+			int saved = errno;
+			(void) close(fd);
+			errno = saved;
+			return (-1);
+		}
+		got += (size_t)n;
+	}
+
+	(void) close(fd);
+	return (0);
+}
 
 static __attribute__((noreturn)) void
 usage(void)
@@ -49,7 +79,7 @@ main(int argc, char **argv)
 {
 	/* default file path, can be optionally set by user */
 	const char *path = "/etc/hostid";
-	/* holds converted user input or lrand48() generated value */
+	/* holds converted user input or generated value */
 	unsigned long input_i = 0;
 
 	int opt;
@@ -102,12 +132,24 @@ main(int argc, char **argv)
 	}
 
 	/*
-	 * generate if not provided by user
-	 * also handle unlikely zero return from lrand48()
+	 * Generate if not provided by user. The hostid identifies
+	 * this machine to ZFS multihost protection, so it must be
+	 * unique. Obtain a value from the system CSPRNG to ensure
+	 * that even on systems that share a common image and boot
+	 * deterministically different hostids will be generated.
+	 * The loop handles the unlikely zero return case.
 	 */
 	while (input_i == 0) {
-		srand48(getpid() ^ time(NULL));
-		input_i = lrand48();
+		uint32_t rnd;
+
+		if (get_random_bytes(&rnd, sizeof (rnd)) != 0) {
+			(void) fprintf(stderr,
+			    "zgenhostid: failed to read /dev/urandom: %s\n",
+			    strerror(errno));
+			exit(EXIT_FAILURE);
+		}
+
+		input_i = rnd;
 	}
 
 	FILE *fp = fopen(path, "wb");
