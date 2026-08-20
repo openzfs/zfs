@@ -549,7 +549,7 @@ zfs_fm_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 	uint64_t ena, pool_guid, vdev_guid, parent_guid;
 	uint64_t checksum_n, checksum_t;
 	uint64_t io_n, io_t;
-	er_timeval_t pool_load;
+	er_timeval_t pool_load = {0};
 	er_timeval_t er_when;
 	nvlist_t *detector;
 	boolean_t pool_found = B_FALSE;
