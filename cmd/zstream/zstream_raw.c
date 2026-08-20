@@ -342,7 +342,7 @@ chain_replay_raw(void *item_in, void *context_in)
 			 * The buffer is no longer owned by the chain.  We will
 			 * free it when safe.
 			 */
-			item->dp_payload = NULL;
+			export_payload(item);
 		} else if (context->volume.isreg && context->stream.inprop) {
 			ASSERT0(drrw->drr_offset);
 			context->volume.size = apply_properties(context,
@@ -363,20 +363,15 @@ chain_replay_raw(void *item_in, void *context_in)
 		    &drr->drr_u.drr_write_embedded;
 
 		if (!ctype_is_uncompressed(drrwe->drr_compression)) {
-			uint8_t *buffer = item->dp_payload;
-			uint32_t lsize = drrwe->drr_lsize;
-
-			ASSERT3U(item->dp_payload_size, <=, lsize);
-
-			item->dp_payload = decompress_buffer(buffer,
-			    item->dp_payload_size, lsize,
+			VERIFY3U(item->dp_payload_size, <=, drrwe->drr_lsize);
+			uint8_t *debuff = decompress_buffer(item->dp_payload,
+			    item->dp_payload_size, drrwe->drr_lsize,
 			    drrwe->drr_compression);
-			if (item->dp_payload == NULL)
+			if (debuff == NULL)
 				errx(EXIT_FAILURE,
 				    "decompression failed at offset %llu",
 				    (u_longlong_t)drrwe->drr_offset);
-			item->dp_payload_size = lsize;
-			free(buffer);
+			set_payload(item, debuff, drrwe->drr_lsize);
 		}
 		if (context->stream.inzvol) {
 			buffer_write(context, item->dp_payload,
@@ -385,7 +380,7 @@ chain_replay_raw(void *item_in, void *context_in)
 			 * The buffer is no longer owned by the chain.  We will
 			 * free it when safe.
 			 */
-			item->dp_payload = NULL;
+			export_payload(item);
 		} else if (context->volume.isreg && context->stream.inprop) {
 			ASSERT0(drrwe->drr_offset);
 			context->volume.size = apply_properties(context,
