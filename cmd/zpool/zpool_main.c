@@ -11001,8 +11001,8 @@ print_status_reason(zpool_handle_t *zhp, status_cbdata_t *cbp,
 		(void) snprintf(action, AC_SIZE,
 		    gettext("Check the value of the "
 		    "'compatibility' property against the\n\t"
-		    "appropriate file in " ZPOOL_SYSCONF_COMPAT_D " or "
-		    ZPOOL_DATA_COMPAT_D ".\n"));
+		    "appropriate file in %s or %s.\n"),
+		    ZPOOL_SYSCONF_COMPAT_D, ZPOOL_DATA_COMPAT_D);
 		break;
 
 	case ZPOOL_STATUS_INCOMPATIBLE_FEAT:
@@ -11012,7 +11012,8 @@ print_status_reason(zpool_handle_t *zhp, status_cbdata_t *cbp,
 		(void) snprintf(action, AC_SIZE, gettext("Consider setting "
 		    "'compatibility' to an appropriate value, or\n\t"
 		    "adding needed features to the relevant file in\n\t"
-		    ZPOOL_SYSCONF_COMPAT_D " or " ZPOOL_DATA_COMPAT_D ".\n"));
+		    "%s or %s.\n"),
+		    ZPOOL_SYSCONF_COMPAT_D, ZPOOL_DATA_COMPAT_D);
 		break;
 
 	case ZPOOL_STATUS_UNSUP_FEAT_READ:
