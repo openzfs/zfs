@@ -90,6 +90,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/poll.h>
 #include <sys/stat.h>
+#include <sys/systeminfo.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
@@ -104,6 +105,7 @@
 #include <sys/vdev_raidz.h>
 #include <sys/vdev_trim.h>
 #include <sys/spa_impl.h>
+#include <sys/mmp.h>
 #include <sys/metaslab_impl.h>
 #include <sys/dsl_prop.h>
 #include <sys/dsl_dataset.h>
@@ -785,7 +787,7 @@ static ztest_option_t option_table[] = {
 	{ 'f',	"vdev-file-directory", "PATH", "File directory for vdev files",
 	    NO_DEFAULT, DEFAULT_VDEV_DIR},
 	{ 'M',	"multi-host", NULL,
-	    "Multi-host; simulate pool imported on remote host",
+	    "Multi-host; create the pool with multihost enabled",
 	    NO_DEFAULT, NULL},
 	{ 'E',	"use-existing-pool", NULL,
 	    "Use existing pool instead of creating new one", NO_DEFAULT, NULL},
@@ -1107,6 +1109,17 @@ process_options(int argc, char **argv)
 		zo->zo_vdev_size = DEFAULT_VDEV_SIZE * 2;
 		zo->zo_raid_do_expand = B_FALSE;
 		raid_kind = "raidz";
+	}
+
+	/*
+	 * The pool is created with the multihost property under -M, and that
+	 * property cannot be set without a hostid.  Say so here rather than
+	 * aborting inside spa_create() later.  zloop.sh exports ZFS_HOSTID
+	 * for its multihost iterations.
+	 */
+	if (zo->zo_mmp_test && get_system_hostid() == 0) {
+		(void) fprintf(stderr, "-M requires a non-zero hostid\n");
+		exit(1);
 	}
 
 	if (strcmp(raid_kind, "random") == 0) {
@@ -8897,6 +8910,18 @@ ztest_init(ztest_shared_t *zs)
 	    zpool_prop_to_name(ZPOOL_PROP_FAILUREMODE),
 	    MAXFAULTS(zs) ? ZIO_FAILURE_MODE_PANIC : ZIO_FAILURE_MODE_WAIT);
 
+	/*
+	 * Set the multihost property at creation time under -M so that every
+	 * subsequent import runs the MMP activity check, which is the point
+	 * of the option.  Setting the property (rather than the in-core
+	 * spa_multihost) keeps it persistent and requires a non-zero hostid,
+	 * which zloop.sh supplies through ZFS_HOSTID.
+	 */
+	if (ztest_opts.zo_mmp_test) {
+		fnvlist_add_uint64(props,
+		    zpool_prop_to_name(ZPOOL_PROP_MULTIHOST), 1);
+	}
+
 	for (i = 0; i < SPA_FEATURES; i++) {
 		char *buf;
 
@@ -9239,6 +9264,26 @@ main(int argc, char **argv)
 		metaslab_force_ganging = ztest_opts.zo_metaslab_force_ganging;
 		metaslab_df_alloc_threshold =
 		    zs->zs_metaslab_df_alloc_threshold;
+
+		/*
+		 * Under -M the pool runs with multihost enabled for the whole
+		 * run.  Suppress the MMP write-failure suspension: ztest sets
+		 * failmode to panic whenever it can tolerate faults, so a
+		 * stalled MMP write would panic the run rather than suspend
+		 * the pool, and ztest_fault_inject() makes such stalls an
+		 * expected event.  This has to happen here rather than in
+		 * process_options(), which only the parent runs.
+		 *
+		 * Shorten the MMP interval as well.  Every pass imports the
+		 * pool, and each import watches the uberblock for
+		 * zfs_multihost_import_intervals * (interval + mmp_delay).
+		 * At the default one second interval that check can outlast
+		 * the pass itself.
+		 */
+		if (ztest_opts.zo_mmp_test) {
+			zfs_multihost_fail_intervals = 0;
+			zfs_multihost_interval = MMP_MIN_INTERVAL;
+		}
 
 		if (zs->zs_do_init)
 			ztest_run_init();
