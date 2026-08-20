@@ -107,6 +107,11 @@ tags = ['functional', 'cli_root', 'zpool_split']
 tests = ['dedup_legacy_gang']
 tags = ['functional', 'dedup']
 
+[tests/functional/device_access:Linux]
+tests = ['device_access_create', 'device_access_attach', 'device_access_add',
+    'device_access_import']
+tags = ['functional', 'device_access']
+
 [tests/functional/devices:Linux]
 tests = ['devices_001_pos', 'devices_002_neg', 'devices_003_pos']
 tags = ['functional', 'devices']
