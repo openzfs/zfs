@@ -928,12 +928,23 @@ dump_packed_nvlist(objset_t *os, uint64_t object, void *data, size_t size)
 	nvlist_t *nv;
 	size_t nvsize = *(uint64_t *)data;
 	char *packed = umem_alloc(nvsize, UMEM_NOFAIL);
+	int err;
 
-	VERIFY0(dmu_read(os, object, 0, nvsize, packed, DMU_READ_PREFETCH));
+	err = dmu_read(os, object, 0, nvsize, packed, DMU_READ_PREFETCH);
+	if (err != 0) {
+		(void) printf("got error %u from dmu_read\n", err);
+		umem_free(packed, nvsize);
+		return;
+	}
 
-	VERIFY0(nvlist_unpack(packed, nvsize, &nv, 0));
+	err = nvlist_unpack(packed, nvsize, &nv, 0);
 
 	umem_free(packed, nvsize);
+
+	if (err != 0) {
+		(void) printf("got error %u from nvlist_unpack\n", err);
+		return;
+	}
 
 	dump_nvlist(nv, 8);
 
