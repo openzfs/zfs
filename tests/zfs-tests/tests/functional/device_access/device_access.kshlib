@@ -1,0 +1,68 @@
+#!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+
+#
+# Copyright (c) 2026, TrueNAS.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+typeset -a _disks=($DISKS)
+typeset -r DEV1=/dev/${_disks[0]}
+typeset -r DEV2=/dev/${_disks[1]}
+typeset -r DEV3=/dev/${_disks[2]}
+
+typeset -A _saved_perms
+
+function save_perms { # path
+	typeset path="$1"
+	_saved_perms[$path]=$(stat -c '%a' "$path")
+}
+
+function restore_perms { #path
+	typeset path="$1"
+	if [[ -z ${_saved_perms[$path]} ]] ; then
+		log_fail "restore_perms($path): must call save_perms first"
+	fi
+	chmod ${_saved_perms[$path]} "$path"
+}
+
+function check_vdevs { #pool, vdevs...
+	typeset pool="$1"
+	typeset want=$(echo "${@:2}" | xargs -n 1 | sort | xargs)
+	typeset have=$(zpool list -HvLP -o name | grep /dev | sort | xargs)
+	log_must test "$want" == "$have"
+}
+
+function without_cap { #capability name, cmd...
+	typeset capname="$1"
+	capsh --drop=$capname -- -c "${*:2}"
+}
+
+function has_cap { #capability name
+	typeset capname="$1"
+	typeset capeff=$(grep ^CapEff /proc/self/status)
+	capsh --decode="${capeff##*:}" | grep -q $capname
+}
+
+function check_cap_support {
+	if ! command -v capsh > /dev/null ; then
+		log_unsupported "capsh program required to test device access"
+	fi
+	if ! has_cap cap_sys_admin ; then
+		log_unsupported "test user requires CAP_SYS_ADMIN capability"
+	fi
+	if ! has_cap cap_dac_override ; then
+		log_unsupported "test user requires CAP_DAC_OVERRIDE capability"
+	fi
+}

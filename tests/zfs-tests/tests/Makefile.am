@@ -264,6 +264,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/deadman/deadman.cfg \
 	functional/delegate/delegate.cfg \
 	functional/delegate/delegate_common.kshlib \
+	functional/device_access/device_access.kshlib \
 	functional/devices/devices.cfg \
 	functional/devices/devices_common.kshlib \
 	functional/events/events.cfg \
@@ -1434,6 +1435,12 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/delegate/zfs_unallow_006_pos.ksh \
 	functional/delegate/zfs_unallow_007_neg.ksh \
 	functional/delegate/zfs_unallow_008_neg.ksh \
+	functional/device_access/cleanup.ksh \
+	functional/device_access/setup.ksh \
+	functional/device_access/device_access_create.ksh \
+	functional/device_access/device_access_attach.ksh \
+	functional/device_access/device_access_add.ksh \
+	functional/device_access/device_access_import.ksh \
 	functional/devices/cleanup.ksh \
 	functional/devices/devices_001_pos.ksh \
 	functional/devices/devices_002_neg.ksh \
