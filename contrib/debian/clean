@@ -8,3 +8,8 @@ debian/openzfs-libnvpair3.install
 debian/openzfs-libzfs7.install
 debian/openzfs-libzfs-dev.install
 debian/openzfs-libzpool7.install
+debian/openzfs-zfsutils.zfs-import.init
+debian/openzfs-zfsutils.zfs-load-key.init
+debian/openzfs-zfsutils.zfs-mount.init
+debian/openzfs-zfsutils.zfs-share.init
+debian/openzfs-zfs-zed.zfs-zed.init
