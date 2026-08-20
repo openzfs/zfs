@@ -118,6 +118,7 @@ _zed_strings_node_create(const char *key, const char *val)
 	} else {
 		np->key = np->val;
 	}
+	/* cppcheck-suppress memleak */
 	return (np);
 
 nomem:
