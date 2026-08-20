@@ -738,6 +738,11 @@ tests = ['zfs_allow_001_pos', 'zfs_allow_002_pos', 'zfs_allow_003_pos',
     'zfs_unallow_006_pos', 'zfs_unallow_007_neg', 'zfs_unallow_008_neg']
 tags = ['functional', 'delegate']
 
+[tests/functional/device_access:Linux]
+tests = ['device_access_create', 'device_access_attach', 'device_access_add',
+    'device_access_import']
+tags = ['functional', 'device_access']
+
 [tests/functional/direct]
 tests = ['dio_aligned_block', 'dio_async_always', 'dio_async_fio_ioengines',
     'dio_compression', 'dio_dedup', 'dio_encryption', 'dio_grow_block',
