@@ -69,17 +69,6 @@ verify_prefix(const char *path, size_t written)
 	int fd;
 	ssize_t got;
 
-	if (stat(path, &st) != 0) {
-		perror("stat");
-		return (1);
-	}
-	if ((uint64_t)st.st_size != (uint64_t)written) {
-		(void) fprintf(stderr,
-		    "file size %llu does not match reported write %zu\n",
-		    (unsigned long long)st.st_size, written);
-		return (1);
-	}
-
 	if (posix_memalign((void **)&rbuf, (size_t)getpagesize(),
 	    written) != 0) {
 		perror("posix_memalign");
@@ -89,6 +78,20 @@ verify_prefix(const char *path, size_t written)
 	fd = open(path, O_RDONLY | O_DIRECT);
 	if (fd < 0) {
 		perror("open for read");
+		free(rbuf);
+		return (1);
+	}
+	if (fstat(fd, &st) != 0) {
+		perror("fstat");
+		(void) close(fd);
+		free(rbuf);
+		return (1);
+	}
+	if ((uint64_t)st.st_size != (uint64_t)written) {
+		(void) fprintf(stderr,
+		    "file size %llu does not match reported write %zu\n",
+		    (unsigned long long)st.st_size, written);
+		(void) close(fd);
 		free(rbuf);
 		return (1);
 	}
