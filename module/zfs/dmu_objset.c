@@ -628,6 +628,7 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 			}
 		}
 		if (err != 0) {
+			dsl_prop_unregister_all(ds, os);
 			arc_buf_destroy(os->os_phys_buf, &os->os_phys_buf);
 			kmem_free(os, sizeof (objset_t));
 			return (err);
