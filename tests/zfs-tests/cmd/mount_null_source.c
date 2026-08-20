@@ -10,28 +10,22 @@
  * https://opensource.org/license/CDDL-1.0.
  */
 
-/*
- * Copyright (c) 2026 by Garth Snyder. All rights reserved.
- */
+#include <sys/mount.h>
+#include <err.h>
+#include <errno.h>
+#include <stdlib.h>
 
-#ifndef _ZSTREAM_BACKTRACE_H
-#define	_ZSTREAM_BACKTRACE_H
+int
+main(int argc, char **argv)
+{
+	if (argc != 2)
+		errx(EXIT_FAILURE, "usage: %s mountpoint", argv[0]);
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+	if (mount(NULL, argv[1], "zfs", 0, NULL) == 0)
+		errx(EXIT_FAILURE, "mount unexpectedly succeeded");
 
-void
-watchdog_init(void);
+	if (errno != EINVAL)
+		err(EXIT_FAILURE, "mount");
 
-void
-watchdog_arm(void);
-
-void
-watchdog_disarm(void);
-
-#ifdef __cplusplus
+	return (EXIT_SUCCESS);
 }
-#endif
-
-#endif  /* _ZSTREAM_BACKTRACE_H */
