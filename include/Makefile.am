@@ -146,6 +146,7 @@ COMMON_H = \
 	sys/zio_checksum.h \
 	sys/zio_compress.h \
 	sys/zio_crypt.h \
+	sys/zio_crypt_os_icp.h \
 	sys/zio_impl.h \
 	sys/zrlock.h \
 	sys/zthr.h \
