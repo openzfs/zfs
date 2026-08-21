@@ -1,0 +1,77 @@
+name: zfs-qemu-xfstests
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        type: string
+        required: false
+        default: "ubuntu24"
+        description: "Distribution to test on (e.g. ubuntu24, debian13)"
+      xfstests_options:
+        type: string
+        required: false
+        default: "-g quick"
+        description: "Arguments for xfstests' ./check (e.g. '-g quick', '-g auto', 'generic/467')"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  xfstests:
+    name: xfstests-${{ inputs.os }}
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+
+    - name: Setup QEMU
+      timeout-minutes: 60
+      run: .github/workflows/scripts/qemu-1-setup.sh
+
+    - name: Start build machine
+      timeout-minutes: 10
+      run: |
+        .github/workflows/scripts/qemu-2-start.sh ${{ inputs.os }}
+        # force single vm for now
+        sed -i 's/^VMs=.*/VMs="1"/' /var/tmp/env.txt
+
+    - name: Install dependencies
+      timeout-minutes: 60
+      run: .github/workflows/scripts/qemu-3-deps.sh --poweroff ${{ inputs.os }}
+
+    # NOTE: no --poweroff here, unlike zfs-qemu.yml — we keep vm0 up so the
+    # bake step can install xfstests before the image is snapshotted.
+    - name: Build modules
+      timeout-minutes: 30
+      run: .github/workflows/scripts/qemu-4-build.sh --enable-debug ${{ inputs.os }}
+
+    - name: Bake xfstests into image
+      timeout-minutes: 30
+      run: ssh zfs@vm0 '$HOME/zfs/.github/workflows/scripts/qemu-xfstests-bake-vm.sh' ${{ inputs.os }}
+
+    - name: Setup testing machines
+      timeout-minutes: 5
+      run: .github/workflows/scripts/qemu-5-setup.sh
+
+    - name: Run xfstests
+      timeout-minutes: 270
+      run: .github/workflows/scripts/qemu-xfstests-run.sh
+      env:
+        XFSTESTS_OPTIONS: ${{ inputs.xfstests_options }}
+
+    - name: Prepare artifacts
+      if: always()
+      timeout-minutes: 10
+      run: .github/workflows/scripts/qemu-xfstests-prepare.sh
+
+    - uses: actions/upload-artifact@v7
+      id: artifact-upload
+      if: always()
+      with:
+        name: xfstests-${{ inputs.os }}
+        path: /tmp/xfstests-${{ inputs.os }}.tar.bz2
+        archive: false
+        if-no-files-found: ignore
