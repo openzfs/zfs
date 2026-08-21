@@ -358,8 +358,14 @@ dsl_deadlist_close(dsl_deadlist_t *dl)
 		}
 		avl_destroy(&dl->dl_cache);
 	}
-	dmu_buf_rele(dl->dl_dbuf, dl);
-	dl->dl_dbuf = NULL;
+	/*
+	 * If dmu_bonus_hold() fails in dsl_deadlist_open(), we are left with
+	 * an "open" deadlist that has no hold to release.
+	 */
+	if (dl->dl_dbuf != NULL) {
+		dmu_buf_rele(dl->dl_dbuf, dl);
+		dl->dl_dbuf = NULL;
+	}
 	dl->dl_phys = NULL;
 	dl->dl_os = NULL;
 	dl->dl_object = 0;
