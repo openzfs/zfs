@@ -458,9 +458,6 @@ dsl_prop_predict(dsl_dir_t *dd, const char *propname,
 /*
  * Unregister this callback.  Return 0 on success, ENOENT if ddname is
  * invalid, or ENOMSG if no matching callback registered.
- *
- * NOTE: This function is no longer used internally but has been preserved
- * to prevent breaking external consumers (Lustre, etc).
  */
 int
 dsl_prop_unregister(dsl_dataset_t *ds, const char *propname,
