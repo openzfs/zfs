@@ -558,7 +558,9 @@ function list_file_blocks # input_file
 	#
 	typeset level vdev path offset length
 	sync_all_pools true
-	zdb -dddddd $ds $objnum | awk '
+	# A bare pool name would make zdb dump the MOS instead of the root
+	# dataset, the trailing slash tells it to open the dataset.
+	zdb -dddddd "$ds/" $objnum | awk '
 	    /^$/ { looking = 0 }
 	    looking {
 	        level = $2
@@ -588,13 +590,17 @@ function corrupt_blocks_at_level # input_file corrupt_level
 
 	[[ -f $input_file ]] || log_fail "Couldn't find $input_file"
 
+	typeset blocks="$(list_file_blocks $input_file)"
+	echo "$blocks" | grep -q "^$corrupt_level " ||
+	    log_fail "Couldn't find $corrupt_level blocks of $input_file"
+
 	if is_freebsd; then
 		# Temporarily allow corrupting an inuse device.
 		debugflags=$(sysctl -n kern.geom.debugflags)
 		sysctl kern.geom.debugflags=16
 	fi
 
-	list_file_blocks $input_file | \
+	echo "$blocks" | \
 	while read level path offset length; do
 		if [[ $level = $corrupt_level ]]; then
 			log_must dd if=/dev/urandom of=$path bs=512 \

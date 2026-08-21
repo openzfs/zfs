@@ -4310,6 +4310,9 @@ zpool_do_prefetch(int argc, char **argv)
  *
  *	-F	Attempt rewind if necessary.
  *
+ *	-M	Tolerate meta-data read errors that are not critical for the
+ *		pool operation.
+ *
  *	-n	See if rewind would work, but don't actually rewind.
  *
  *	-N	Import the pool but don't mount datasets.
@@ -4354,6 +4357,7 @@ zpool_do_import(int argc, char **argv)
 	boolean_t dryrun = B_FALSE;
 	boolean_t do_rewind = B_FALSE;
 	boolean_t xtreme_rewind = B_FALSE;
+	boolean_t relax_meta = B_FALSE;
 	boolean_t do_scan = B_FALSE;
 	boolean_t pool_exists = B_FALSE;
 	uint64_t txg = -1ULL;
@@ -4367,7 +4371,7 @@ zpool_do_import(int argc, char **argv)
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, ":aCc:d:DEfFlmnNo:R:stT:VX",
+	while ((c = getopt_long(argc, argv, ":aCc:d:DEfFlmMnNo:R:stT:VX",
 	    long_options, NULL)) != -1) {
 		switch (c) {
 		case 'a':
@@ -4395,6 +4399,9 @@ zpool_do_import(int argc, char **argv)
 			break;
 		case 'm':
 			flags |= ZFS_IMPORT_MISSING_LOG;
+			break;
+		case 'M':
+			relax_meta = B_TRUE;
 			break;
 		case 'n':
 			dryrun = B_TRUE;
@@ -4439,7 +4446,9 @@ zpool_do_import(int argc, char **argv)
 				    gettext("invalid txg value\n"));
 				usage(B_FALSE);
 			}
-			rewind_policy = ZPOOL_DO_REWIND | ZPOOL_EXTREME_REWIND;
+			/* Rollback to a specific txg implies -FX. */
+			do_rewind = B_TRUE;
+			xtreme_rewind = B_TRUE;
 			break;
 		case 'V':
 			flags |= ZFS_IMPORT_VERBATIM;
@@ -4502,7 +4511,9 @@ zpool_do_import(int argc, char **argv)
 	if (nvlist_alloc(&policy, NV_UNIQUE_NAME, 0) != 0 ||
 	    nvlist_add_uint64(policy, ZPOOL_LOAD_REQUEST_TXG, txg) != 0 ||
 	    nvlist_add_uint32(policy, ZPOOL_LOAD_REWIND_POLICY,
-	    rewind_policy) != 0)
+	    rewind_policy) != 0 ||
+	    nvlist_add_boolean_value(policy, ZPOOL_LOAD_RELAX_META,
+	    relax_meta) != 0)
 		goto error;
 
 	/* check argument count */
