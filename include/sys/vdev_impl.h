@@ -410,6 +410,8 @@ struct vdev {
 	boolean_t	vdev_kobj_flag; /* kobj event record */
 	boolean_t	vdev_attaching; /* vdev attach ashift handling */
 	boolean_t	vdev_is_blkdev; /* vdev is backed by block device */
+	/* vdev is shadow drive or has shadow children */
+	boolean_t	vdev_shadow;
 	vdev_queue_t	vdev_queue;	/* I/O deadline schedule queue	*/
 	spa_aux_vdev_t	*vdev_aux;	/* for l2cache and spares vdevs	*/
 	zio_t		*vdev_probe_zio; /* root of current probe	*/

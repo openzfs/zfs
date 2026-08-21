@@ -5212,6 +5212,8 @@ vdev_raidz_attach_check(vdev_t *new_child)
 	if (new_children << raidvd->vdev_ashift > VDEV_BOOT_SIZE) {
 		return (EINVAL);
 	}
+	if (new_child->vdev_shadow)
+		return (SET_ERROR(EINVAL));
 	return (0);
 }
 

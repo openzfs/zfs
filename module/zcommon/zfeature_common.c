@@ -813,6 +813,12 @@ zpool_feature_init(void)
 		    ZFEATURE_TYPE_BOOLEAN, physical_rewrite_deps, sfeatures);
 	}
 
+	zfeature_register(SPA_FEATURE_SHADOW_MIRROR,
+	    "com.klarasystems:shadow_mirror", "shadow_mirror",
+	    "Support for shadow mirror devices",
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN, NULL,
+	    sfeatures);
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 

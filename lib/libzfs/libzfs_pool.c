@@ -3828,6 +3828,7 @@ is_replacing_spare(nvlist_t *search, nvlist_t *tgt, int which)
 /*
  * Attach new_disk (fully described by nvroot) to old_disk.
  * If 'replacing' is specified, the new disk will replace the old one.
+ * If 'shadow' is specified, the new disk will be attached as a shadow mirror.
  */
 int
 zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
