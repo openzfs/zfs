@@ -153,7 +153,12 @@ Pool name.
 .It Fl f , -vdev-file-directory Ns = (default: Pa /tmp )
 File directory for vdev files.
 .It Fl M , -multi-host
-Multi-host; simulate pool imported on remote host.
+Multi-host; create the pool with the
+.Sy multihost
+property enabled, so that subsequent imports run the MMP activity check.
+Requires a non-zero hostid.
+One may be supplied through
+.Ev ZFS_HOSTID .
 .It Fl E , -use-existing-pool
 Use existing pool (use existing pool instead of creating new one).
 .It Fl T , -run-time Ns = (default: Sy 300 Ns s)
