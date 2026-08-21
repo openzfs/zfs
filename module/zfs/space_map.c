@@ -72,9 +72,11 @@ sm_entry_is_double_word(uint64_t e)
 /*
  * Iterate through the space map, invoking the callback on each (non-debug)
  * space map entry. Stop after reading 'end' bytes of the space map.
+ * When repairing, return ECKSUM instead of asserting on malformed entries.
  */
-int
-space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
+static int
+space_map_iterate_impl(space_map_t *sm, uint64_t end, sm_cb_t callback,
+    void *arg, boolean_t repair)
 {
 	uint64_t blksz = sm->sm_blksz;
 
@@ -146,11 +148,22 @@ space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
 
 				/* move on to the second word */
 				block_cursor++;
+				if (repair && block_cursor >= block_end) {
+					error = SET_ERROR(ECKSUM);
+					break;
+				}
+				VERIFY3P(block_cursor, <, block_end);
 				e = *block_cursor;
-				VERIFY3P(block_cursor, <=, block_end);
 
 				type = SM2_TYPE_DECODE(e);
 				raw_offset = SM2_OFFSET_DECODE(e);
+			}
+
+			uint64_t map_units = sm->sm_size >> sm->sm_shift;
+			if (repair && (raw_offset >= map_units ||
+			    raw_run > map_units - raw_offset)) {
+				error = SET_ERROR(ECKSUM);
+				break;
 			}
 
 			uint64_t entry_offset = (raw_offset << sm->sm_shift) +
@@ -178,6 +191,12 @@ space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
 		dmu_buf_rele(db, FTAG);
 	}
 	return (error);
+}
+
+int
+space_map_iterate(space_map_t *sm, uint64_t end, sm_cb_t callback, void *arg)
+{
+	return (space_map_iterate_impl(sm, end, callback, arg, B_FALSE));
 }
 
 /*
@@ -384,13 +403,34 @@ space_map_incremental_destroy(space_map_t *sm, sm_cb_t callback, void *arg,
 typedef struct space_map_load_arg {
 	space_map_t	*smla_sm;
 	zfs_range_tree_t	*smla_rt;
+	zfs_range_tree_t	*smla_repair_rt;
 	maptype_t	smla_type;
+	space_map_load_result_t *smla_result;
 } space_map_load_arg_t;
+
+static void
+space_map_load_record_repair(space_map_load_arg_t *smla,
+    const space_map_entry_t *sme, uint64_t free_bytes)
+{
+	space_map_load_result_t *result = smla->smla_result;
+
+	ASSERT3P(result, !=, NULL);
+	ASSERT3U(free_bytes, <=, sme->sme_run);
+
+	if (result->smlr_repaired_entries == 0) {
+		result->smlr_first_entry = *sme;
+		result->smlr_first_free_bytes = free_bytes;
+	}
+	result->smlr_last_entry = *sme;
+	result->smlr_last_free_bytes = free_bytes;
+	result->smlr_repaired_entries++;
+}
 
 static int
 space_map_load_callback(space_map_entry_t *sme, void *arg)
 {
 	space_map_load_arg_t *smla = arg;
+
 	if (sme->sme_type == smla->smla_type) {
 		VERIFY3U(zfs_range_tree_space(smla->smla_rt) + sme->sme_run, <=,
 		    smla->smla_sm->sm_size);
@@ -404,6 +444,100 @@ space_map_load_callback(space_map_entry_t *sme, void *arg)
 	return (0);
 }
 
+static int
+space_map_load_repair_callback(space_map_entry_t *sme, void *arg)
+{
+	space_map_load_arg_t *smla = arg;
+	zfs_range_tree_t *rt = smla->smla_rt;
+	zfs_range_tree_t *repair_rt = smla->smla_repair_rt;
+	uint64_t overlap_start, overlap_size;
+
+	ASSERT3P(smla->smla_result, !=, NULL);
+	ASSERT3S(smla->smla_type, ==, SM_FREE);
+
+	boolean_t repair_overlap = repair_rt != NULL &&
+	    zfs_range_tree_find_in(repair_rt, sme->sme_offset, sme->sme_run,
+	    &overlap_start, &overlap_size);
+
+	if (!repair_overlap) {
+		if (sme->sme_type == SM_FREE) {
+			if (zfs_range_tree_try_add(rt, sme->sme_offset,
+			    sme->sme_run))
+				return (0);
+		} else {
+			if (zfs_range_tree_try_remove(rt, sme->sme_offset,
+			    sme->sme_run))
+				return (0);
+		}
+	}
+
+	uint64_t free_before = zfs_range_tree_space(rt);
+	zfs_range_tree_clear(rt, sme->sme_offset, sme->sme_run);
+	free_before -= zfs_range_tree_space(rt);
+
+	/*
+	 * An overlapping operation does not prove that any part of its range
+	 * is unreferenced. Keep the complete range allocated for the rest of
+	 * the replay and extend that quarantine through later overlapping
+	 * entries. Condensation will persist this conservative state.
+	 */
+	if (repair_rt == NULL) {
+		repair_rt = zfs_range_tree_create_flags(NULL, rt->rt_type, NULL,
+		    rt->rt_start, rt->rt_shift, 0, "space_map_load_repair");
+		smla->smla_repair_rt = repair_rt;
+	}
+	zfs_range_tree_clear(repair_rt, sme->sme_offset, sme->sme_run);
+	zfs_range_tree_add(repair_rt, sme->sme_offset, sme->sme_run);
+
+	space_map_load_record_repair(smla, sme, free_before);
+	return (0);
+}
+
+static int
+space_map_load_length_impl(space_map_t *sm, zfs_range_tree_t *rt,
+    maptype_t maptype,
+    uint64_t length, space_map_load_result_t *result)
+{
+	space_map_load_arg_t smla = {
+		.smla_sm = sm,
+		.smla_rt = rt,
+		.smla_type = maptype,
+		.smla_result = result,
+	};
+	VERIFY0(zfs_range_tree_space(rt));
+
+	if (maptype == SM_FREE)
+		zfs_range_tree_add(rt, sm->sm_start, sm->sm_size);
+
+	if (result != NULL) {
+		memset(result, 0, sizeof (*result));
+	}
+
+	sm_cb_t callback = result == NULL ? space_map_load_callback :
+	    space_map_load_repair_callback;
+	int err = space_map_iterate_impl(sm, length, callback, &smla,
+	    result != NULL);
+
+	if (result != NULL && err == 0) {
+		result->smlr_allocated =
+		    sm->sm_size - zfs_range_tree_space(rt);
+		if (smla.smla_repair_rt != NULL) {
+			result->smlr_affected_bytes =
+			    zfs_range_tree_space(smla.smla_repair_rt);
+		}
+	}
+
+	if (err != 0)
+		zfs_range_tree_vacate(rt, NULL, NULL);
+
+	if (smla.smla_repair_rt != NULL) {
+		zfs_range_tree_vacate(smla.smla_repair_rt, NULL, NULL);
+		zfs_range_tree_destroy(smla.smla_repair_rt);
+	}
+
+	return (err);
+}
+
 /*
  * Load the spacemap into the rangetree, like space_map_load. But only
  * read the first 'length' bytes of the spacemap.
@@ -412,23 +546,22 @@ int
 space_map_load_length(space_map_t *sm, zfs_range_tree_t *rt, maptype_t maptype,
     uint64_t length)
 {
-	space_map_load_arg_t smla;
+	return (space_map_load_length_impl(sm, rt, maptype, length, NULL));
+}
 
-	VERIFY0(zfs_range_tree_space(rt));
+/*
+ * Load a free-space map while conservatively quarantining entries that
+ * overlap the state reconstructed so far. The caller must persist the
+ * resulting allocation state before making the range tree allocatable.
+ */
+int
+space_map_load_length_repair(space_map_t *sm, zfs_range_tree_t *rt,
+    uint64_t length, space_map_load_result_t *result)
+{
+	if (result == NULL)
+		return (SET_ERROR(EINVAL));
 
-	if (maptype == SM_FREE)
-		zfs_range_tree_add(rt, sm->sm_start, sm->sm_size);
-
-	smla.smla_rt = rt;
-	smla.smla_sm = sm;
-	smla.smla_type = maptype;
-	int err = space_map_iterate(sm, length,
-	    space_map_load_callback, &smla);
-
-	if (err != 0)
-		zfs_range_tree_vacate(rt, NULL, NULL);
-
-	return (err);
+	return (space_map_load_length_impl(sm, rt, SM_FREE, length, result));
 }
 
 /*
