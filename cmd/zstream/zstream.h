@@ -24,8 +24,8 @@ extern "C" {
 #endif
 
 /*
- * Signals used by the watchdog timer and zstream_queue. The signal mask
- * must be set properly before any threads are spawned.
+ * Signals used by the watchdog timer. The signal mask must be set properly
+ * before any threads are spawned.
  */
 #define	WATCHDOG_SIGNAL		SIGALRM
 #define	THREAD_BACKTRACE_SIGNAL	SIGRTMIN

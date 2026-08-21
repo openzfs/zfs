@@ -399,7 +399,7 @@ static void
 queue_edge_cases(void)
 {
 	static const size_t lengths[] =
-	    { 1, 2, MAX_BATCH - 1, MAX_BATCH, MAX_BATCH + 1, 64 };
+	    { 1, 2, ZQ_MAX_BATCH - 1, ZQ_MAX_BATCH, ZQ_MAX_BATCH + 1, 64 };
 	static const size_t budgets[] = { 0, 1, 16, SIZE_MAX / 2 };
 	uint64_t stream = 200;
 
