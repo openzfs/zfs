@@ -732,6 +732,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_change-key/zfs_change-key.ksh \
 	functional/cli_root/zfs_change-key/zfs_change-key_load.ksh \
 	functional/cli_root/zfs_change-key/zfs_change-key_location.ksh \
+	functional/cli_root/zfs_change-key/zfs_change-key_mismatch.ksh \
 	functional/cli_root/zfs_change-key/zfs_change-key_pbkdf2iters.ksh \
 	functional/cli_root/zfs_change-key/zfs_change-key_userprop.ksh \
 	functional/cli_root/zfs/cleanup.ksh \
