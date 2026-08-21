@@ -755,7 +755,7 @@ int
 traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
     blkptr_cb_t func, void *arg)
 {
-	int err;
+	int err, hard_err = 0;
 	dsl_pool_t *dp = spa_get_dsl(spa);
 	objset_t *mos = dp->dp_meta_objset;
 	boolean_t hard = (flags & TRAVERSE_HARD);
@@ -773,8 +773,10 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 
 		err = dmu_object_info(mos, obj, &doi);
 		if (err != 0) {
-			if (hard)
+			if (hard) {
+				hard_err = err;
 				continue;
+			}
 			break;
 		}
 
@@ -786,8 +788,10 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 			err = dsl_dataset_hold_obj(dp, obj, FTAG, &ds);
 			dsl_pool_config_exit(dp, FTAG);
 			if (err != 0) {
-				if (hard)
+				if (hard) {
+					hard_err = err;
 					continue;
+				}
 				break;
 			}
 			if (dsl_dataset_phys(ds)->ds_prev_snap_txg > txg)
@@ -800,7 +804,13 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 	}
 	if (err == ESRCH)
 		err = 0;
-	return (err);
+
+	/*
+	 * Datasets we could not even open above were skipped, and unlike the
+	 * unreadable blocks they are not reported to the callback in any way.
+	 * Report the last such error now, once the traversal is complete.
+	 */
+	return (err != 0 ? err : hard_err);
 }
 
 EXPORT_SYMBOL(traverse_dataset);

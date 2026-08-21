@@ -93,6 +93,7 @@ zpool_get_load_policy(nvlist_t *nvl, zpool_load_policy_t *zlpp)
 
 	/* Defaults */
 	zlpp->zlp_rewind = ZPOOL_NO_REWIND;
+	zlpp->zlp_relaxmeta = B_FALSE;
 	zlpp->zlp_maxmeta = 0;
 	zlpp->zlp_maxdata = UINT64_MAX;
 	zlpp->zlp_txg = UINT64_MAX;
@@ -113,6 +114,9 @@ zpool_get_load_policy(nvlist_t *nvl, zpool_load_policy_t *zlpp)
 					zlpp->zlp_rewind = ZPOOL_NO_REWIND;
 		} else if (strcmp(nm, ZPOOL_LOAD_REQUEST_TXG) == 0) {
 			(void) nvpair_value_uint64(elem, &zlpp->zlp_txg);
+		} else if (strcmp(nm, ZPOOL_LOAD_RELAX_META) == 0) {
+			(void) nvpair_value_boolean_value(elem,
+			    &zlpp->zlp_relaxmeta);
 		} else if (strcmp(nm, ZPOOL_LOAD_META_THRESH) == 0) {
 			(void) nvpair_value_uint64(elem, &zlpp->zlp_maxmeta);
 		} else if (strcmp(nm, ZPOOL_LOAD_DATA_THRESH) == 0) {
