@@ -1810,6 +1810,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/longname/setup.ksh \
 	functional/log_spacemap/log_spacemap_flushall.ksh \
 	functional/log_spacemap/log_spacemap_import_logs.ksh \
+	functional/fsync/cleanup.ksh \
+	functional/fsync/many_fsync_001_pos.ksh \
+	functional/fsync/setup.ksh \
 	functional/migration/cleanup.ksh \
 	functional/migration/migration_001_pos.ksh \
 	functional/migration/migration_002_pos.ksh \
