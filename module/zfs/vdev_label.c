@@ -830,9 +830,13 @@ vdev_top_config_generate(spa_t *spa, nvlist_t *config)
  * the configuration from the first valid label we find. Otherwise,
  * find the most up-to-date label that does not exceed the specified
  * 'txg' value.
+ *
+ * Only the labels named by the 'labels' mask are consulted, so that a caller
+ * which cannot vouch for the space some of them occupy is able to leave them
+ * out.  See VDEV_LABELS_HEAD and friends.
  */
 nvlist_t *
-vdev_label_read_config(vdev_t *vd, uint64_t txg)
+vdev_label_read_config(vdev_t *vd, uint64_t txg, int labels)
 {
 	spa_t *spa = vd->vdev_spa;
 	nvlist_t *config = NULL;
@@ -860,12 +864,21 @@ vdev_label_read_config(vdev_t *vd, uint64_t txg)
 		return (vdev_draid_read_config_spare(vd));
 
 	for (int l = 0; l < VDEV_LABELS; l++) {
+		if (!(labels & (1 << l))) {
+			vp_abd[l] = NULL;
+			vp[l] = NULL;
+			continue;
+		}
+
 		vp_abd[l] = abd_alloc_linear(sizeof (vdev_phys_t), B_TRUE);
 		vp[l] = abd_to_buf(vp_abd[l]);
 	}
 
 retry:
 	for (int l = 0; l < VDEV_LABELS; l++) {
+		if (!(labels & (1 << l)))
+			continue;
+
 		zio[l] = zio_root(spa, NULL, NULL, flags);
 
 		vdev_label_read(zio[l], vd, l, vp_abd[l],
@@ -874,6 +887,9 @@ retry:
 	}
 	for (int l = 0; l < VDEV_LABELS; l++) {
 		nvlist_t *label = NULL;
+
+		if (!(labels & (1 << l)))
+			continue;
 
 		if (zio_wait(zio[l]) == 0 &&
 		    nvlist_unpack(vp[l]->vp_nvlist, sizeof (vp[l]->vp_nvlist),
@@ -890,7 +906,8 @@ retry:
 			if ((error || label_txg == 0) && !config) {
 				config = label;
 				for (l++; l < VDEV_LABELS; l++)
-					zio_wait(zio[l]);
+					if (labels & (1 << l))
+						zio_wait(zio[l]);
 				break;
 			} else if (label_txg <= txg && label_txg > best_txg) {
 				best_txg = label_txg;
@@ -920,7 +937,8 @@ retry:
 	}
 
 	for (int l = 0; l < VDEV_LABELS; l++) {
-		abd_free(vp_abd[l]);
+		if (vp_abd[l] != NULL)
+			abd_free(vp_abd[l]);
 	}
 
 	return (config);
@@ -947,7 +965,8 @@ vdev_inuse(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason,
 	/*
 	 * Read the label, if any, and perform some basic sanity checks.
 	 */
-	if ((label = vdev_label_read_config(vd, -1ULL)) == NULL)
+	if ((label = vdev_label_read_config(vd, -1ULL,
+	    VDEV_LABELS_ALL)) == NULL)
 		return (B_FALSE);
 
 	(void) nvlist_lookup_uint64(label, ZPOOL_CONFIG_CREATE_TXG,
@@ -1161,7 +1180,8 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 				fnvlist_add_string(nv,
 				    ZPOOL_CREATE_INFO_VDEV, vd->vdev_path);
 
-			cfg = vdev_label_read_config(vd, -1ULL);
+			cfg = vdev_label_read_config(vd, -1ULL,
+			    VDEV_LABELS_ALL);
 			if (cfg != NULL) {
 				const char *pname;
 				if (nvlist_lookup_string(cfg,
@@ -1639,7 +1659,12 @@ vdev_uberblock_load_impl(zio_t *zio, vdev_t *vd, int flags,
 
 	if (vd->vdev_ops->vdev_op_leaf && vdev_readable(vd) &&
 	    vd->vdev_ops != &vdev_draid_spare_ops) {
+		int labels = VDEV_TRUSTED_LABELS(vd);
+
 		for (int l = 0; l < VDEV_LABELS; l++) {
+			if (!(labels & (1 << l)))
+				continue;
+
 			for (int n = 0; n < VDEV_UBERBLOCK_COUNT(vd); n++) {
 				vdev_label_read(zio, vd, l,
 				    abd_alloc_linear(VDEV_UBERBLOCK_SIZE(vd),
@@ -1708,11 +1733,13 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 			return;
 		}
 
-		*config = vdev_label_read_config(cb.ubl_vd, ub->ub_txg);
+		*config = vdev_label_read_config(cb.ubl_vd, ub->ub_txg,
+		    VDEV_TRUSTED_LABELS(cb.ubl_vd));
 		if (*config == NULL && spa->spa_extreme_rewind) {
 			vdev_dbgmsg(cb.ubl_vd, "failed to read label config. "
 			    "Trying again without txg restrictions.");
-			*config = vdev_label_read_config(cb.ubl_vd, UINT64_MAX);
+			*config = vdev_label_read_config(cb.ubl_vd,
+			    UINT64_MAX, VDEV_TRUSTED_LABELS(cb.ubl_vd));
 		}
 		if (*config == NULL) {
 			vdev_dbgmsg(cb.ubl_vd, "failed to read label config");
@@ -1822,11 +1849,20 @@ vdev_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 	if (vd->vdev_ops == &vdev_draid_spare_ops)
 		return;
 
-	/* If the vdev was expanded, need to copy uberblock rings. */
+	/*
+	 * If the vdev was expanded, or its trailing labels were found to hold
+	 * an older pool's, the rings there have to be rebuilt in full: the
+	 * write below only lands in one slot of each, and every slot it does
+	 * not touch keeps whatever was there, which for a foreign ring is a
+	 * set of uberblocks that can outrank our own for as long as it takes
+	 * the txg to come round again.  Only once the copy has been made are
+	 * the trailing labels ours to read from.
+	 */
 	if (vd->vdev_state == VDEV_STATE_HEALTHY &&
-	    vd->vdev_copy_uberblocks == B_TRUE) {
+	    (vd->vdev_copy_uberblocks || vd->vdev_tail_labels_foreign)) {
 		vdev_copy_uberblocks(vd);
 		vd->vdev_copy_uberblocks = B_FALSE;
+		vd->vdev_tail_labels_foreign = B_FALSE;
 	}
 
 	/*

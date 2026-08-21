@@ -406,6 +406,7 @@ struct vdev {
 	boolean_t	vdev_isspare;	/* was a hot spare		*/
 	boolean_t	vdev_isl2cache;	/* was a l2cache device		*/
 	boolean_t	vdev_copy_uberblocks;  /* post expand copy uberblocks */
+	boolean_t	vdev_tail_labels_foreign; /* labels 2-3 are not ours */
 	boolean_t	vdev_resilver_deferred;  /* resilver deferred */
 	boolean_t	vdev_kobj_flag; /* kobj event record */
 	boolean_t	vdev_attaching; /* vdev attach ashift handling */
@@ -547,6 +548,25 @@ typedef struct vdev_label {
 #define	VDEV_LABEL_END_SIZE	(2 * sizeof (vdev_label_t))
 #define	VDEV_LABELS		4
 #define	VDEV_BEST_LABEL		VDEV_LABELS
+
+/*
+ * Subsets of the labels, for the routines which read them.  Labels 0 and 1
+ * sit at fixed offsets from the start of the device; labels 2 and 3 sit at
+ * offsets relative to its end, and so move whenever the device is resized.
+ */
+#define	VDEV_LABELS_HEAD	0x3
+#define	VDEV_LABELS_TAIL	0xc
+#define	VDEV_LABELS_ALL		(VDEV_LABELS_HEAD | VDEV_LABELS_TAIL)
+
+/*
+ * The labels of a vdev which are known to describe the pool it belongs to.
+ * vdev_validate() drops the trailing pair when it finds another pool's
+ * labels there, which is what a vdev grown over an older pool is left with
+ * until the next sync rewrites them.
+ */
+#define	VDEV_TRUSTED_LABELS(vd)	\
+	((vd)->vdev_tail_labels_foreign ? VDEV_LABELS_HEAD : VDEV_LABELS_ALL)
+
 #define	VDEV_OFFSET_IS_LABEL(vd, off)                           \
 	(((off) < VDEV_LABEL_START_SIZE) ||                     \
 	((off) >= ((vd)->vdev_psize - VDEV_LABEL_END_SIZE)))
