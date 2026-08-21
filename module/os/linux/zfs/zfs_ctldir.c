@@ -1248,7 +1248,7 @@ zfsctl_snapshot_unmount_check(const char *snapname)
  *
  * Delayed work queueing runs on a jiffy timer, so the mntput() may not be on
  * the queue yet when we call zpl_flush_delay_workqueue(). So, we sleep for one
- * jiffy each iteration, and flush the queue each time, for 20 milliseconds.
+ * jiffy each iteration, and flush the queue each time, for 40 milliseconds.
  * Most of the time we'll see the task within 2-3 jiffies so this is quite a
  * generous timeout. Worst case, we pause a while, timeout, and eventually
  * return EBUSY.
@@ -1264,7 +1264,7 @@ zfsctl_snapshot_unmount_wait(const char *snapname, taskqid_t tqid)
 
 	taskq_wait_id(system_taskq, tqid);
 
-	unsigned long deadline = jiffies + MSEC_TO_TICK(20);
+	unsigned long deadline = jiffies + MSEC_TO_TICK(40);
 
 	while (!zfsctl_snapshot_unmount_check(snapname)) {
 		if (time_after_eq(jiffies, deadline))
