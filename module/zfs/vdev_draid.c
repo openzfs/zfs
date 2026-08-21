@@ -2256,6 +2256,7 @@ vdev_draid_io_start(zio_t *zio)
 	raidz_map_t *rm = vdev_draid_map_alloc(zio);
 	zio->io_vsd = rm;
 	zio->io_vsd_ops = &vdev_raidz_vsd_ops;
+	zio_batch_create(zio);
 
 	if (zio->io_type == ZIO_TYPE_WRITE) {
 		for (int i = 0; i < rm->rm_nrows; i++) {
@@ -2269,6 +2270,7 @@ vdev_draid_io_start(zio_t *zio)
 		}
 	}
 
+	zio_batch_rele(zio);
 	zio_execute(zio);
 }
 
