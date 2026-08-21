@@ -2992,6 +2992,9 @@ spa_claim_notify(zio_t *zio)
 
 typedef struct spa_load_error {
 	boolean_t	sle_verify_data;
+	boolean_t	sle_relaxmeta;	/* tolerate non-critical meta-data */
+	uint64_t	sle_maxmeta;	/* max acceptable meta-data errors */
+	uint64_t	sle_maxdata;	/* max acceptable data errors */
 	uint64_t	sle_meta_count;
 	uint64_t	sle_data_count;
 } spa_load_error_t;
@@ -3007,8 +3010,23 @@ spa_load_verify_done(zio_t *zio)
 
 	abd_free(zio->io_abd);
 	if (error) {
-		if ((BP_GET_LEVEL(bp) != 0 || DMU_OT_IS_METADATA(type)) &&
-		    type != DMU_OT_INTENT_LOG)
+		boolean_t meta;
+
+		if (type == DMU_OT_INTENT_LOG) {
+			meta = B_FALSE;
+		} else if (zio->io_bookmark.zb_objset == DMU_META_OBJSET) {
+			meta = B_TRUE;
+		} else if (sle->sle_relaxmeta) {
+			/*
+			 * Losing a file or a directory costs us the affected
+			 * objects, but the pool as a whole remains operable.
+			 */
+			meta = DMU_OT_IS_CRITICAL(type, BP_GET_LEVEL(bp));
+		} else {
+			meta = BP_GET_LEVEL(bp) != 0 ||
+			    DMU_OT_IS_METADATA(type);
+		}
+		if (meta)
 			atomic_inc_64(&sle->sle_meta_count);
 		else
 			atomic_inc_64(&sle->sle_data_count);
@@ -3044,6 +3062,14 @@ spa_load_verify_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	 */
 	if (!spa_load_verify_metadata)
 		return (0);
+
+	/*
+	 * Stop the traversal as soon as the verdict is known, there is no
+	 * point in counting the errors we are not going to tolerate anyway.
+	 */
+	if (sle->sle_meta_count > sle->sle_maxmeta ||
+	    sle->sle_data_count > sle->sle_maxdata)
+		return (SET_ERROR(ECANCELED));
 
 	/*
 	 * Sanity check the block pointer in order to detect obvious damage
@@ -3098,7 +3124,7 @@ spa_load_verify(spa_t *spa)
 	zio_t *rio;
 	spa_load_error_t sle = { 0 };
 	zpool_load_policy_t policy;
-	boolean_t verify_ok = B_FALSE;
+	boolean_t verify_ok = B_FALSE, aborted = B_FALSE;
 	int error = 0;
 
 	zpool_get_load_policy(spa->spa_config, &policy);
@@ -3116,11 +3142,29 @@ spa_load_verify(spa_t *spa)
 		return (error);
 
 	/*
-	 * Verify data only if we are rewinding or error limit was set.
-	 * Otherwise nothing except dbgmsg care about it to waste time.
+	 * Verify data only if somebody is going to look at the error count:
+	 * either the caller set a limit for it, or we are only searching for
+	 * the best txg without rewinding to it (zpool import -nF), which
+	 * reports the count back to the user.
 	 */
-	sle.sle_verify_data = (policy.zlp_rewind & ZPOOL_REWIND_MASK) ||
-	    (policy.zlp_maxdata < UINT64_MAX);
+	sle.sle_verify_data = policy.zlp_maxdata < UINT64_MAX ||
+	    ((policy.zlp_rewind & ZPOOL_REWIND_MASK) &&
+	    (spa_load_verify_dryrun ||
+	    spa->spa_load_state != SPA_LOAD_RECOVER));
+
+	sle.sle_relaxmeta = policy.zlp_relaxmeta;
+
+	/*
+	 * Dry run reports the errors instead of acting on them, so it needs
+	 * the complete counts.  Otherwise stop counting once the thresholds
+	 * are exceeded, since the result can not change after that.
+	 */
+	if (spa_load_verify_dryrun) {
+		sle.sle_maxmeta = sle.sle_maxdata = UINT64_MAX;
+	} else {
+		sle.sle_maxmeta = policy.zlp_maxmeta;
+		sle.sle_maxdata = policy.zlp_maxdata;
+	}
 
 	rio = zio_root(spa, NULL, &sle,
 	    ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE);
@@ -3129,14 +3173,24 @@ spa_load_verify(spa_t *spa)
 		if (spa->spa_extreme_rewind) {
 			spa_load_note(spa, "performing a complete scan of the "
 			    "pool since extreme rewind is on. This may take "
-			    "a very long time.\n  (spa_load_verify_data=%u, "
-			    "spa_load_verify_metadata=%u)",
-			    spa_load_verify_data, spa_load_verify_metadata);
+			    "a very long time.\n  (verifying metadata=%u, "
+			    "data=%u)", spa_load_verify_metadata,
+			    spa_load_verify_data && sle.sle_verify_data);
 		}
 
 		error = traverse_pool(spa, spa->spa_verify_min_txg,
 		    TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA |
-		    TRAVERSE_NO_DECRYPT, spa_load_verify_cb, rio);
+		    TRAVERSE_NO_DECRYPT | TRAVERSE_HARD,
+		    spa_load_verify_cb, rio);
+
+		/*
+		 * We aborted the traversal ourselves, so this is not a real
+		 * error, only the error counts below are now lower bounds.
+		 */
+		if (error == ECANCELED) {
+			error = 0;
+			aborted = B_TRUE;
+		}
 	}
 
 	(void) zio_wait(rio);
@@ -3146,8 +3200,10 @@ spa_load_verify(spa_t *spa)
 	spa->spa_load_data_errors = sle.sle_data_count;
 
 	if (sle.sle_meta_count != 0 || sle.sle_data_count != 0) {
-		spa_load_note(spa, "spa_load_verify found %llu metadata errors "
-		    "and %llu data errors", (u_longlong_t)sle.sle_meta_count,
+		spa_load_note(spa, "spa_load_verify found %s%llu metadata "
+		    "errors and %llu data errors",
+		    aborted ? "at least " : "",
+		    (u_longlong_t)sle.sle_meta_count,
 		    (u_longlong_t)sle.sle_data_count);
 	}
 

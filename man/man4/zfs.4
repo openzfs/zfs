@@ -621,8 +621,10 @@ Whether to traverse data blocks during an "extreme rewind"
 .Pq Fl X
 import.
 .Pp
-An extreme rewind import normally performs a full traversal of all
-blocks in the pool for verification.
+Data blocks are traversed only if the number of errors found in them is going
+to be reported, like during a dry run
+.Pq Fl nX ,
+since an actual rewind tolerates any number of them.
 If this parameter is unset, the traversal skips non-metadata blocks.
 It can be toggled once the
 import has started to stop or start the traversal of non-metadata blocks.
