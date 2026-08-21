@@ -125,6 +125,11 @@ zfs_ioc_nextboot(const char *unused, nvlist_t *innvl, nvlist_t *outnvl)
 		spa_close(spa, FTAG);
 		return (ENODEV);
 	}
+	if (vd->vdev_large_label) {
+		(void) spa_vdev_state_exit(spa, NULL, ENXIO);
+		spa_close(spa, FTAG);
+		return (ENOTSUP);
+	}
 	error = vdev_label_write_pad2(vd, command, strlen(command));
 	(void) spa_vdev_state_exit(spa, NULL, 0);
 	txg_wait_synced(spa->spa_dsl_pool, 0);
