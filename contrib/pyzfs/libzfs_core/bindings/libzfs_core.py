@@ -98,6 +98,7 @@ CDEF = """
     int lzc_destroy_snaps(nvlist_t *, boolean_t, nvlist_t **);
     boolean_t lzc_exists(const char *);
     int lzc_get_bookmarks(const char *, nvlist_t *, nvlist_t **);
+    int lzc_get_dataset_props(const char *, nvlist_t *, nvlist_t **);
     int lzc_get_holds(const char *, nvlist_t **);
     int lzc_hold(nvlist_t *, int, nvlist_t **);
     int lzc_load_key(const char *, boolean_t, uint8_t *, uint_t);
