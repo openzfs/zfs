@@ -32,7 +32,7 @@
 .Nm zpool
 .Cm import
 .Fl a
-.Op Fl DflmN
+.Op Fl DflmMN
 .Op Fl F Op Fl nTX
 .Op Fl -rewind-to-checkpoint
 .Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns Ar device
@@ -41,7 +41,7 @@
 .Op Fl R Ar root
 .Nm zpool
 .Cm import
-.Op Fl Dflmt
+.Op Fl DflmMt
 .Op Fl F Op Fl nTX
 .Op Fl -rewind-to-checkpoint
 .Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns Ar device
@@ -107,7 +107,7 @@ Lists destroyed pools only.
 .Nm zpool
 .Cm import
 .Fl a
-.Op Fl DflmN
+.Op Fl DflmMN
 .Op Fl F Op Fl nTX
 .Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns Ar device
 .Op Fl o Ar mntopts
@@ -173,6 +173,15 @@ encrypted datasets will be left unavailable until the keys are loaded.
 .It Fl m
 Allows a pool to import when there is a missing log device.
 Recent transactions can be lost because the log device will be discarded.
+.It Fl M
+Allows the import to succeed with damaged metadata that is not critical for the
+pool operation, such as an indirect block of a file, a directory or a block of
+dnodes.
+The affected objects become inaccessible, leak their space and may be impossible
+to remove.
+Without this option such damage makes the pool unimportable.
+WARNING: This option can be extremely hazardous to the
+health of your pool and should only be used as a last resort.
 .It Fl n
 Used with the
 .Fl F
@@ -247,7 +256,7 @@ health of your pool and should only be used as a last resort.
 .It Xo
 .Nm zpool
 .Cm import
-.Op Fl Dflmt
+.Op Fl DflmMt
 .Op Fl F Op Fl nTX
 .Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns Ar device
 .Op Fl o Ar mntopts
@@ -321,6 +330,15 @@ encrypted datasets will be left unavailable until the keys are loaded.
 .It Fl m
 Allows a pool to import when there is a missing log device.
 Recent transactions can be lost because the log device will be discarded.
+.It Fl M
+Allows the import to succeed with damaged metadata that is not critical for the
+pool operation, such as an indirect block of a file, a directory or a block of
+dnodes.
+The affected objects become inaccessible, leak their space and may be impossible
+to remove.
+Without this option such damage makes the pool unimportable.
+WARNING: This option can be extremely hazardous to the
+health of your pool and should only be used as a last resort.
 .It Fl n
 Used with the
 .Fl F
