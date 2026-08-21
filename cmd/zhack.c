@@ -44,6 +44,8 @@
 #include <sys/zfeature.h>
 #include <sys/dmu_tx.h>
 #include <sys/backtrace.h>
+#include <sys/dsl_dir.h>
+#include <sys/space_map.h>
 #include <zfeature_common.h>
 #include <libzutil.h>
 #include <sys/metaslab_impl.h>
@@ -53,6 +55,13 @@ static importargs_t g_importargs;
 static char *g_pool;
 static boolean_t g_readonly;
 static boolean_t g_dump_dbgmsg;
+
+/*
+ * In readonly imports, metaslab space maps are not opened unless this is set.
+ * We temporarily enable it for leak scan/dry-run so referenced space maps are
+ * accounted for accurately.
+ */
+extern boolean_t spa_mode_readable_spacemaps;
 
 typedef enum {
 	ZHACK_REPAIR_OP_UNKNOWN  = 0,
@@ -110,7 +119,17 @@ usage(void)
 	    "        live host whose legs are all invisible from here\n"
 	    "\n"
 	    "    metaslab leak <pool>\n"
-	    "        apply allocation map from zdb to specified pool\n");
+	    "        apply allocation map from zdb to specified pool\n"
+	    "\n"
+	    "    mosleak scan <pool>\n"
+	    "        identify reclaimable leaked MOS objects\n"
+	    "    mosleak reclaim [-w] <pool>\n"
+	    "        reclaim safe leaked MOS objects; dry-run unless -w\n"
+	    "    mosleak inject [-w] [-c count] [-s count] <pool>\n"
+	    "        inject leaked MOS objects for testing\n"
+	    "        -c <count> leaked DSL clone maps to inject (default 1)\n"
+	    "        -s <count> leaked SPA space maps to inject (default 1)\n"
+	    "        dry-run unless -w\n");
 	exit(1);
 }
 
@@ -797,6 +816,638 @@ static boolean_t
 strstarts(const char *a, const char *b)
 {
 	return (strncmp(a, b, strlen(b)) == 0);
+}
+
+typedef struct zhack_objvec {
+	uint64_t *zv_objs;
+	size_t zv_len;
+	size_t zv_cap;
+} zhack_objvec_t;
+
+typedef struct zhack_leak_report {
+	zhack_objvec_t zlr_clones;
+	zhack_objvec_t zlr_spacemaps;
+	uint64_t zlr_unref_clones;
+	uint64_t zlr_unref_nonempty_clones;
+	uint64_t zlr_unref_spacemaps;
+	uint64_t zlr_unref_nonempty_spacemaps;
+} zhack_leak_report_t;
+
+static void
+zhack_objvec_add(zhack_objvec_t *vec, uint64_t obj)
+{
+	if (vec->zv_len == vec->zv_cap) {
+		size_t new_cap = vec->zv_cap == 0 ? 16 : vec->zv_cap * 2;
+		uint64_t *new_objs = realloc(vec->zv_objs,
+		    new_cap * sizeof (*new_objs));
+		if (new_objs == NULL)
+			fatal(NULL, FTAG, "out of memory");
+		vec->zv_objs = new_objs;
+		vec->zv_cap = new_cap;
+	}
+	vec->zv_objs[vec->zv_len++] = obj;
+}
+
+static void
+zhack_objvec_fini(zhack_objvec_t *vec)
+{
+	free(vec->zv_objs);
+	vec->zv_objs = NULL;
+	vec->zv_len = 0;
+	vec->zv_cap = 0;
+}
+
+static void
+zhack_leak_report_fini(zhack_leak_report_t *report)
+{
+	zhack_objvec_fini(&report->zlr_clones);
+	zhack_objvec_fini(&report->zlr_spacemaps);
+}
+
+static void
+zhack_mos_refd_once(zfs_range_tree_t *refd_objs, uint64_t object)
+{
+	if (object == 0 || zfs_range_tree_contains(refd_objs, object, 1))
+		return;
+
+	zfs_range_tree_add(refd_objs, object, 1);
+}
+
+static void
+zhack_collect_dd_clones_refs(objset_t *mos, zfs_range_tree_t *clones_refd_objs)
+{
+	uint64_t object = 0;
+
+	while (dmu_object_next(mos, &object, B_FALSE, 0) == 0) {
+		dmu_object_info_t doi;
+		dmu_buf_t *db = NULL;
+		int error;
+
+		error = dmu_object_info(mos, object, &doi);
+		if (error != 0 || doi.doi_bonus_type != DMU_OT_DSL_DIR)
+			continue;
+
+		error = dmu_bonus_hold(mos, object, FTAG, &db);
+		if (error != 0) {
+			(void) fprintf(stderr, "warning: object %" PRIu64
+			    " bonus hold failed: %s\n", object,
+			    strerror(error));
+			continue;
+		}
+
+		if (db->db_size >= offsetof(dsl_dir_phys_t, dd_clones) +
+		    sizeof (((dsl_dir_phys_t *)0)->dd_clones)) {
+			dsl_dir_phys_t *dd = db->db_data;
+			zhack_mos_refd_once(clones_refd_objs, dd->dd_clones);
+		}
+		dmu_buf_rele(db, FTAG);
+	}
+}
+
+static void
+zhack_collect_dtl_sm_refs(vdev_t *vd, zfs_range_tree_t *spacemap_refd_objs)
+{
+	if (vd->vdev_ops->vdev_op_leaf) {
+		space_map_t *sm = vd->vdev_dtl_sm;
+
+		if (sm != NULL &&
+		    sm->sm_dbuf->db_size == sizeof (space_map_phys_t))
+			zhack_mos_refd_once(spacemap_refd_objs,
+			    space_map_object(sm));
+		return;
+	}
+
+	for (uint64_t c = 0; c < vd->vdev_children; c++) {
+		zhack_collect_dtl_sm_refs(vd->vdev_child[c],
+		    spacemap_refd_objs);
+	}
+}
+
+static void
+zhack_collect_metaslab_sm_refs(vdev_t *vd, zfs_range_tree_t *spacemap_refd_objs)
+{
+	if (vd->vdev_top == vd) {
+		for (uint64_t m = 0; m < vd->vdev_ms_count; m++) {
+			space_map_t *sm = vd->vdev_ms[m]->ms_sm;
+
+			if (sm != NULL &&
+			    sm->sm_dbuf->db_size == sizeof (space_map_phys_t))
+				zhack_mos_refd_once(spacemap_refd_objs,
+				    space_map_object(sm));
+		}
+	}
+
+	for (uint64_t c = 0; c < vd->vdev_children; c++) {
+		zhack_collect_metaslab_sm_refs(vd->vdev_child[c],
+		    spacemap_refd_objs);
+	}
+}
+
+static void
+zhack_collect_obsolete_sm_refs(vdev_t *vd, zfs_range_tree_t *spacemap_refd_objs)
+{
+	uint64_t obsolete_sm_object;
+
+	VERIFY0(vdev_obsolete_sm_object(vd, &obsolete_sm_object));
+	if (vd->vdev_top == vd && obsolete_sm_object != 0) {
+		dmu_object_info_t doi;
+
+		if (dmu_object_info(vd->vdev_spa->spa_meta_objset,
+		    obsolete_sm_object, &doi) == 0 &&
+		    doi.doi_bonus_size == sizeof (space_map_phys_t)) {
+			zhack_mos_refd_once(spacemap_refd_objs,
+			    obsolete_sm_object);
+		}
+	}
+
+	for (uint64_t c = 0; c < vd->vdev_children; c++) {
+		zhack_collect_obsolete_sm_refs(vd->vdev_child[c],
+		    spacemap_refd_objs);
+	}
+}
+
+static void
+zhack_collect_prev_obsolete_sm_refs(spa_t *spa,
+    zfs_range_tree_t *spacemap_refd_objs)
+{
+	uint64_t prev_obj =
+	    spa->spa_condensing_indirect_phys.scip_prev_obsolete_sm_object;
+
+	if (prev_obj != 0) {
+		dmu_object_info_t doi;
+
+		if (dmu_object_info(spa->spa_meta_objset, prev_obj,
+		    &doi) == 0 &&
+		    doi.doi_bonus_size == sizeof (space_map_phys_t)) {
+			zhack_mos_refd_once(spacemap_refd_objs, prev_obj);
+		}
+	}
+}
+
+static void
+zhack_collect_checkpoint_sm_refs(vdev_t *vd,
+    zfs_range_tree_t *spacemap_refd_objs)
+{
+	if (vd->vdev_top == vd && vd->vdev_top_zap != 0) {
+		uint64_t checkpoint_sm_obj;
+		int error = zap_lookup(spa_meta_objset(vd->vdev_spa),
+		    vd->vdev_top_zap, VDEV_TOP_ZAP_POOL_CHECKPOINT_SM,
+		    sizeof (checkpoint_sm_obj), 1, &checkpoint_sm_obj);
+		if (error == 0)
+			zhack_mos_refd_once(spacemap_refd_objs,
+			    checkpoint_sm_obj);
+	}
+
+	for (uint64_t c = 0; c < vd->vdev_children; c++) {
+		zhack_collect_checkpoint_sm_refs(vd->vdev_child[c],
+		    spacemap_refd_objs);
+	}
+}
+
+static void
+zhack_collect_log_sm_refs(spa_t *spa, zfs_range_tree_t *spacemap_refd_objs)
+{
+	for (spa_log_sm_t *sls = avl_first(&spa->spa_sm_logs_by_txg);
+	    sls != NULL;
+	    sls = AVL_NEXT(&spa->spa_sm_logs_by_txg, sls)) {
+		zhack_mos_refd_once(spacemap_refd_objs, sls->sls_sm_obj);
+	}
+}
+
+static void
+zhack_collect_spacemap_refs(spa_t *spa, zfs_range_tree_t *spacemap_refd_objs)
+{
+	zhack_collect_dtl_sm_refs(spa->spa_root_vdev, spacemap_refd_objs);
+	zhack_collect_metaslab_sm_refs(spa->spa_root_vdev, spacemap_refd_objs);
+	zhack_collect_obsolete_sm_refs(spa->spa_root_vdev, spacemap_refd_objs);
+	zhack_collect_prev_obsolete_sm_refs(spa, spacemap_refd_objs);
+	zhack_collect_checkpoint_sm_refs(spa->spa_root_vdev,
+	    spacemap_refd_objs);
+	zhack_collect_log_sm_refs(spa, spacemap_refd_objs);
+}
+
+static void
+zhack_collect_mos_leak_report(spa_t *spa, zhack_leak_report_t *report,
+    boolean_t print_details)
+{
+	objset_t *mos = spa->spa_meta_objset;
+	zfs_range_tree_t *clones_refd_objs = zfs_range_tree_create_flags(
+	    NULL, ZFS_RANGE_SEG64, NULL, 0, 0, 0,
+	    "zhack_collect_mos_leak_report:clones_refd_objs");
+	zfs_range_tree_t *spacemap_refd_objs = zfs_range_tree_create_flags(
+	    NULL, ZFS_RANGE_SEG64, NULL, 0, 0, 0,
+	    "zhack_collect_mos_leak_report:spacemap_refd_objs");
+	uint64_t object = 0;
+
+	spa_config_enter(spa, SCL_VDEV | SCL_ALLOC, FTAG, RW_READER);
+	zhack_collect_spacemap_refs(spa, spacemap_refd_objs);
+	spa_config_exit(spa, SCL_VDEV | SCL_ALLOC, FTAG);
+
+	zhack_collect_dd_clones_refs(mos, clones_refd_objs);
+
+	while (dmu_object_next(mos, &object, B_FALSE, 0) == 0) {
+		dmu_object_info_t doi;
+		int error = dmu_object_info(mos, object, &doi);
+		if (error != 0)
+			continue;
+
+		if (doi.doi_type == DMU_OT_DSL_CLONES &&
+		    !zfs_range_tree_contains(clones_refd_objs, object, 1)) {
+			uint64_t entries = 0;
+
+			report->zlr_unref_clones++;
+			error = zap_count(mos, object, &entries);
+			if (error == 0 && entries == 0) {
+				zhack_objvec_add(&report->zlr_clones, object);
+				if (print_details) {
+					(void) printf("candidate: object %"
+					    PRIu64 " type=DSL dir clones "
+					    "entries=0\n", object);
+				}
+			} else {
+				report->zlr_unref_nonempty_clones++;
+				if (print_details) {
+					if (error != 0) {
+						(void) printf("skip: object %"
+						    PRIu64 " type=DSL dir "
+						    "clones (count failed: "
+						    "%s)\n", object,
+						    strerror(error));
+					} else {
+						(void) printf("skip: object %"
+						    PRIu64 " type=DSL dir "
+						    "clones entries=%" PRIu64
+						    "\n", object, entries);
+					}
+				}
+			}
+			continue;
+		}
+
+		if (doi.doi_type == DMU_OT_SPACE_MAP &&
+		    doi.doi_bonus_size == sizeof (space_map_phys_t) &&
+		    !zfs_range_tree_contains(spacemap_refd_objs, object, 1)) {
+			dmu_buf_t *db = NULL;
+			uint64_t smp_alloc = 0;
+			uint64_t smp_length = 0;
+
+			report->zlr_unref_spacemaps++;
+			error = dmu_bonus_hold(mos, object, FTAG, &db);
+			if (error == 0) {
+				space_map_phys_t *smp = db->db_data;
+				smp_alloc = smp->smp_alloc;
+				smp_length = smp->smp_length;
+				dmu_buf_rele(db, FTAG);
+			}
+
+			if (error == 0 && smp_alloc == 0 && smp_length == 0) {
+				zhack_objvec_add(&report->zlr_spacemaps,
+				    object);
+				if (print_details) {
+					(void) printf("candidate: object %"
+					    PRIu64 " type=SPA space map "
+					    "smp_alloc=0x%llx "
+					    "smp_length=0x%llx\n",
+					    object, (u_longlong_t)smp_alloc,
+					    (u_longlong_t)smp_length);
+				}
+			} else {
+				report->zlr_unref_nonempty_spacemaps++;
+				if (print_details) {
+					if (error != 0) {
+						(void) printf("skip: object "
+						    "%" PRIu64 " type=SPA "
+						    "space map (bonus hold "
+						    "failed: %s)\n", object,
+						    strerror(error));
+					} else {
+						(void) printf("skip: object "
+						    "%" PRIu64 " type=SPA "
+						    "space map "
+						    "smp_alloc=0x%llx "
+						    "smp_length=0x%llx\n",
+						    object,
+						    (u_longlong_t)smp_alloc,
+						    (u_longlong_t)smp_length);
+					}
+				}
+			}
+		}
+	}
+
+	zfs_range_tree_vacate(clones_refd_objs, NULL, NULL);
+	zfs_range_tree_destroy(clones_refd_objs);
+	zfs_range_tree_vacate(spacemap_refd_objs, NULL, NULL);
+	zfs_range_tree_destroy(spacemap_refd_objs);
+}
+
+static void
+zhack_print_mos_leak_summary(const zhack_leak_report_t *report)
+{
+	(void) printf("summary:\n");
+	(void) printf("\tunreferenced DSL dir clones: %" PRIu64
+	    " (reclaimable=%llu skipped=%" PRIu64 ")\n",
+	    report->zlr_unref_clones,
+	    (u_longlong_t)report->zlr_clones.zv_len,
+	    report->zlr_unref_nonempty_clones);
+	(void) printf("\tunreferenced SPA space maps: %" PRIu64
+	    " (reclaimable=%llu skipped=%" PRIu64 ")\n",
+	    report->zlr_unref_spacemaps,
+	    (u_longlong_t)report->zlr_spacemaps.zv_len,
+	    report->zlr_unref_nonempty_spacemaps);
+	(void) printf("\ttotal reclaimable objects: %llu\n",
+	    (u_longlong_t)(report->zlr_clones.zv_len +
+	    report->zlr_spacemaps.zv_len));
+}
+
+static void
+zhack_leak_reclaim_sync(void *arg, dmu_tx_t *tx)
+{
+	zhack_leak_report_t *report = arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	objset_t *mos = spa->spa_meta_objset;
+
+	for (size_t i = 0; i < report->zlr_clones.zv_len; i++) {
+		VERIFY0(zap_destroy(mos, report->zlr_clones.zv_objs[i], tx));
+	}
+
+	for (size_t i = 0; i < report->zlr_spacemaps.zv_len; i++) {
+		space_map_free_obj(mos, report->zlr_spacemaps.zv_objs[i], tx);
+	}
+
+	spa_history_log_internal(spa, "zhack mosleak reclaim", tx,
+	    "clones=%llu spacemaps=%llu",
+	    (u_longlong_t)report->zlr_clones.zv_len,
+	    (u_longlong_t)report->zlr_spacemaps.zv_len);
+}
+
+typedef struct zhack_leak_inject_arg {
+	uint64_t zli_clone_count;
+	uint64_t zli_spacemap_count;
+	uint64_t *zli_clone_objs;
+	uint64_t *zli_spacemap_objs;
+} zhack_leak_inject_arg_t;
+
+static void
+zhack_leak_inject_sync(void *arg, dmu_tx_t *tx)
+{
+	zhack_leak_inject_arg_t *inject = arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	objset_t *mos = spa->spa_meta_objset;
+
+	for (uint64_t i = 0; i < inject->zli_clone_count; i++) {
+		inject->zli_clone_objs[i] = zap_create(mos, DMU_OT_DSL_CLONES,
+		    DMU_OT_NONE, 0, tx);
+	}
+	for (uint64_t i = 0; i < inject->zli_spacemap_count; i++) {
+		inject->zli_spacemap_objs[i] = space_map_alloc(mos,
+		    SPA_MINBLOCKSIZE, tx);
+	}
+
+	spa_history_log_internal(spa, "zhack mosleak inject", tx,
+	    "clones=%llu spacemaps=%llu",
+	    (u_longlong_t)inject->zli_clone_count,
+	    (u_longlong_t)inject->zli_spacemap_count);
+}
+
+static int
+zhack_do_mosleak_scan(int argc, char **argv)
+{
+	zhack_leak_report_t report = { 0 };
+	spa_t *spa;
+	char *target;
+	boolean_t readable_spacemaps_saved;
+
+	argc--;
+	argv++;
+	if (argc < 1) {
+		(void) fprintf(stderr, "error: missing pool name\n");
+		usage();
+	}
+	target = argv[0];
+
+	readable_spacemaps_saved = spa_mode_readable_spacemaps;
+	spa_mode_readable_spacemaps = B_TRUE;
+	zhack_spa_open(target, B_TRUE, FTAG, &spa);
+	spa_mode_readable_spacemaps = readable_spacemaps_saved;
+
+	zhack_collect_mos_leak_report(spa, &report, B_TRUE);
+	zhack_print_mos_leak_summary(&report);
+	zhack_leak_report_fini(&report);
+	spa_close(spa, FTAG);
+
+	return (0);
+}
+
+static int
+zhack_do_mosleak_reclaim(int argc, char **argv)
+{
+	zhack_leak_report_t report = { 0 };
+	spa_t *spa;
+	char *target;
+	int c;
+	boolean_t do_write = B_FALSE;
+	boolean_t readable_spacemaps_saved;
+
+	optind = 1;
+	while ((c = getopt(argc, argv, "+w")) != -1) {
+		switch (c) {
+		case 'w':
+			do_write = B_TRUE;
+			break;
+		default:
+			usage();
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		(void) fprintf(stderr, "error: missing pool name\n");
+		usage();
+	}
+	target = argv[0];
+
+	readable_spacemaps_saved = spa_mode_readable_spacemaps;
+	if (!do_write)
+		spa_mode_readable_spacemaps = B_TRUE;
+	zhack_spa_open(target, !do_write, FTAG, &spa);
+	spa_mode_readable_spacemaps = readable_spacemaps_saved;
+
+	zhack_collect_mos_leak_report(spa, &report, B_TRUE);
+	zhack_print_mos_leak_summary(&report);
+
+	if (report.zlr_clones.zv_len == 0 && report.zlr_spacemaps.zv_len == 0) {
+		(void) printf("nothing to reclaim\n");
+		zhack_leak_report_fini(&report);
+		spa_close(spa, FTAG);
+		return (0);
+	}
+
+	if (!do_write) {
+		(void) printf("dry run: no changes made "
+		    "(re-run with -w to reclaim)\n");
+		zhack_leak_report_fini(&report);
+		spa_close(spa, FTAG);
+		return (0);
+	}
+
+	VERIFY0(dsl_sync_task(spa_name(spa), NULL, zhack_leak_reclaim_sync,
+	    &report, 5, ZFS_SPACE_CHECK_NORMAL));
+	(void) printf("reclaimed %llu leaked MOS objects\n",
+	    (u_longlong_t)(report.zlr_clones.zv_len +
+	    report.zlr_spacemaps.zv_len));
+	zhack_leak_report_fini(&report);
+	spa_close(spa, FTAG);
+
+	return (0);
+}
+
+static int
+zhack_do_mosleak_inject(int argc, char **argv)
+{
+	zhack_leak_inject_arg_t inject = {
+		.zli_clone_count = 1,
+		.zli_spacemap_count = 1,
+		.zli_clone_objs = NULL,
+		.zli_spacemap_objs = NULL
+	};
+	spa_t *spa;
+	char *target, *tmp;
+	int c;
+	boolean_t do_write = B_FALSE;
+
+	optind = 1;
+	while ((c = getopt(argc, argv, "+c:s:w")) != -1) {
+		switch (c) {
+		case 'c':
+			if (optarg[0] == '-') {
+				(void) fprintf(stderr, "error: invalid clone "
+				    "count: %s\n", optarg);
+				usage();
+			}
+			inject.zli_clone_count = strtoull(optarg, &tmp, 0);
+			if (*tmp != '\0') {
+				(void) fprintf(stderr, "error: invalid clone "
+				    "count: %s\n", optarg);
+				usage();
+			}
+			break;
+		case 's':
+			if (optarg[0] == '-') {
+				(void) fprintf(stderr, "error: invalid space "
+				    "map count: %s\n", optarg);
+				usage();
+			}
+			inject.zli_spacemap_count = strtoull(optarg, &tmp, 0);
+			if (*tmp != '\0') {
+				(void) fprintf(stderr, "error: invalid space "
+				    "map count: %s\n", optarg);
+				usage();
+			}
+			break;
+		case 'w':
+			do_write = B_TRUE;
+			break;
+		default:
+			usage();
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1) {
+		(void) fprintf(stderr, "error: missing pool name\n");
+		usage();
+	}
+	target = argv[0];
+
+	if (inject.zli_clone_count == 0 && inject.zli_spacemap_count == 0) {
+		(void) printf("nothing requested to inject\n");
+		return (0);
+	}
+
+	if (!do_write) {
+		zhack_spa_open(target, B_TRUE, FTAG, &spa);
+		spa_close(spa, FTAG);
+		(void) printf("dry run: would inject %llu leaked DSL clone "
+		    "map(s) and %llu leaked SPA space map(s)\n",
+		    (u_longlong_t)inject.zli_clone_count,
+		    (u_longlong_t)inject.zli_spacemap_count);
+		(void) printf("(re-run with -w to apply)\n");
+		return (0);
+	}
+
+	zhack_spa_open(target, B_FALSE, FTAG, &spa);
+
+	if (inject.zli_clone_count != 0) {
+		inject.zli_clone_objs = calloc(inject.zli_clone_count,
+		    sizeof (*inject.zli_clone_objs));
+		if (inject.zli_clone_objs == NULL)
+			fatal(spa, FTAG, "out of memory");
+	}
+	if (inject.zli_spacemap_count != 0) {
+		inject.zli_spacemap_objs = calloc(inject.zli_spacemap_count,
+		    sizeof (*inject.zli_spacemap_objs));
+		if (inject.zli_spacemap_objs == NULL)
+			fatal(spa, FTAG, "out of memory");
+	}
+
+	VERIFY0(dsl_sync_task(spa_name(spa), NULL, zhack_leak_inject_sync,
+	    &inject, 5, ZFS_SPACE_CHECK_NORMAL));
+
+	for (uint64_t i = 0; i < inject.zli_clone_count; i++) {
+		(void) printf("injected: object %" PRIu64
+		    " type=DSL dir clones entries=0\n",
+		    inject.zli_clone_objs[i]);
+	}
+	for (uint64_t i = 0; i < inject.zli_spacemap_count; i++) {
+		(void) printf("injected: object %" PRIu64
+		    " type=SPA space map smp_alloc=0x0 smp_length=0x0\n",
+		    inject.zli_spacemap_objs[i]);
+	}
+	(void) printf("injected summary: clones=%llu spacemaps=%llu "
+	    "total=%llu\n",
+	    (u_longlong_t)inject.zli_clone_count,
+	    (u_longlong_t)inject.zli_spacemap_count,
+	    (u_longlong_t)(inject.zli_clone_count +
+	    inject.zli_spacemap_count));
+
+	free(inject.zli_clone_objs);
+	free(inject.zli_spacemap_objs);
+	spa_close(spa, FTAG);
+	return (0);
+}
+
+static int
+zhack_do_mosleak(int argc, char **argv)
+{
+	char *subcommand;
+
+	argc--;
+	argv++;
+	if (argc == 0) {
+		(void) fprintf(stderr,
+		    "error: no mosleak operation specified\n");
+		usage();
+	}
+
+	subcommand = argv[0];
+	if (strcmp(subcommand, "scan") == 0) {
+		return (zhack_do_mosleak_scan(argc, argv));
+	} else if (strcmp(subcommand, "reclaim") == 0) {
+		return (zhack_do_mosleak_reclaim(argc, argv));
+	} else if (strcmp(subcommand, "inject") == 0) {
+		return (zhack_do_mosleak_inject(argc, argv));
+	} else {
+		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
+		    subcommand);
+		usage();
+	}
+
+	return (0);
 }
 
 static void
@@ -1540,6 +2191,8 @@ main(int argc, char **argv)
 		rv = zhack_do_feature(argc, argv);
 	} else if (strcmp(subcommand, "mmp") == 0) {
 		rv = zhack_do_mmp(argc, argv);
+	} else if (strcmp(subcommand, "mosleak") == 0) {
+		rv = zhack_do_mosleak(argc, argv);
 	} else if (strcmp(subcommand, "label") == 0) {
 		return (zhack_do_label(argc, argv));
 	} else if (strcmp(subcommand, "metaslab") == 0) {
