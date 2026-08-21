@@ -80,6 +80,30 @@ zfs_is_readonly(zfsvfs_t *zfsvfs)
 	return (!!(zfsvfs->z_sb->s_flags & SB_RDONLY));
 }
 
+/*
+ * Wait until every async Direct I/O write that was queued before this barrier
+ * has executed, i.e. has logged its ZIL record.  Called with the teardown
+ * reader lock held, before zil_commit(), so that sync(2)/syncfs(2) cannot
+ * return while submitted writes are still sitting on the worker taskq with
+ * nothing in the ZIL for them.  When the pool is suspended a queued write
+ * task may itself be blocked, so skip the wait; zil_commit_flags() with
+ * ZIL_COMMIT_NOW is non-blocking in that case for the same reason.
+ */
+static void
+zfs_async_dio_write_barrier(zfsvfs_t *zfsvfs)
+{
+	uint64_t snap;
+
+	if (spa_suspended(dmu_objset_spa(zfsvfs->z_os)))
+		return;
+
+	mutex_enter(&zfsvfs->z_async_dio_lock);
+	snap = atomic_load_64(&zfsvfs->z_async_dio_write_seq);
+	while (zfsvfs->z_async_dio_write_watermark < snap)
+		cv_wait(&zfsvfs->z_async_dio_cv, &zfsvfs->z_async_dio_lock);
+	mutex_exit(&zfsvfs->z_async_dio_lock);
+}
+
 int
 zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 {
@@ -103,6 +127,7 @@ zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 	 * This is to help with shutting down with pools suspended, as we don't
 	 * want to block in that case.
 	 */
+	zfs_async_dio_write_barrier(zfsvfs);
 	err = zil_commit_flags(zfsvfs->z_log, 0, ZIL_COMMIT_NOW);
 	zfs_exit(zfsvfs, FTAG);
 
@@ -677,6 +702,15 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 	list_create(&zfsvfs->z_all_znodes, sizeof (znode_t),
 	    offsetof(znode_t, z_link_node));
 	ZFS_TEARDOWN_INIT(zfsvfs);
+	mutex_init(&zfsvfs->z_async_dio_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&zfsvfs->z_async_dio_cv, NULL, CV_DEFAULT, NULL);
+	zfsvfs->z_async_dio_inflight = 0;
+	zfsvfs->z_async_dio_draining = B_FALSE;
+	zfsvfs->z_async_dio_write_seq = 0;
+	zfsvfs->z_async_dio_write_watermark = 0;
+	list_create(&zfsvfs->z_async_dio_write_pending,
+	    sizeof (zpl_async_dio_write_done_t),
+	    offsetof(zpl_async_dio_write_done_t, wd_node));
 	rw_init(&zfsvfs->z_teardown_inactive_lock, NULL, RW_DEFAULT, NULL);
 	rw_init(&zfsvfs->z_fuid_lock, NULL, RW_DEFAULT, NULL);
 
@@ -823,6 +857,13 @@ zfsvfs_free(zfsvfs_t *zfsvfs)
 	mutex_destroy(&zfsvfs->z_lock);
 	list_destroy(&zfsvfs->z_all_znodes);
 	ZFS_TEARDOWN_DESTROY(zfsvfs);
+	ASSERT0(zfsvfs->z_async_dio_inflight);
+	ASSERT3U(zfsvfs->z_async_dio_write_seq, ==,
+	    zfsvfs->z_async_dio_write_watermark);
+	ASSERT(list_is_empty(&zfsvfs->z_async_dio_write_pending));
+	list_destroy(&zfsvfs->z_async_dio_write_pending);
+	mutex_destroy(&zfsvfs->z_async_dio_lock);
+	cv_destroy(&zfsvfs->z_async_dio_cv);
 	rw_destroy(&zfsvfs->z_teardown_inactive_lock);
 	rw_destroy(&zfsvfs->z_fuid_lock);
 	for (i = 0; i != size; i++) {
@@ -1224,6 +1265,15 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 		}
 	}
 
+	/*
+	 * Stops new submissions, drain, and get writer lock.
+	 */
+	mutex_enter(&zfsvfs->z_async_dio_lock);
+	zfsvfs->z_async_dio_draining = B_TRUE;
+	while (zfsvfs->z_async_dio_inflight != 0)
+		cv_wait(&zfsvfs->z_async_dio_cv, &zfsvfs->z_async_dio_lock);
+	mutex_exit(&zfsvfs->z_async_dio_lock);
+
 	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
 
 	if (!unmounting) {
@@ -1256,6 +1306,16 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	if (!unmounting && (zfsvfs->z_unmounted || zfsvfs->z_os == NULL)) {
 		rw_exit(&zfsvfs->z_teardown_inactive_lock);
 		ZFS_TEARDOWN_EXIT(zfsvfs, FTAG);
+
+		/*
+		 * The async DIO drain was set above.  Since we are bailing
+		 * out without a matching zfs_resume_fs(), re-enable async
+		 * DIO now so the filesystem is not permanently degraded.
+		 */
+		mutex_enter(&zfsvfs->z_async_dio_lock);
+		zfsvfs->z_async_dio_draining = B_FALSE;
+		mutex_exit(&zfsvfs->z_async_dio_lock);
+
 		return (SET_ERROR(EIO));
 	}
 
@@ -1827,6 +1887,15 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 bail:
 	if (err != 0)
 		zfsvfs->z_unmounted = B_TRUE;
+
+	/*
+	 * The filesystem is usable again, so re-enable asynchronous Direct
+	 * I/O reads.  The teardown write lock is still held, so no new
+	 * submission can observe the flag until it is released below.
+	 */
+	mutex_enter(&zfsvfs->z_async_dio_lock);
+	zfsvfs->z_async_dio_draining = B_FALSE;
+	mutex_exit(&zfsvfs->z_async_dio_lock);
 
 	/* release the VFS ops */
 	rw_exit(&zfsvfs->z_teardown_inactive_lock);

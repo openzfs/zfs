@@ -38,6 +38,18 @@ typedef struct zfsvfs zfsvfs_t;
 struct znode;
 
 /*
+ * Completion record for the async Direct I/O write barrier.  Each queued
+ * write carries a sequence number; taskq workers can finish writes out of
+ * order, so a completed write whose predecessors are still running is parked
+ * in the scope's pending list until the contiguous watermark advances past
+ * it.
+ */
+typedef struct zpl_async_dio_write_done {
+	list_node_t	wd_node;
+	uint64_t	wd_seq;
+} zpl_async_dio_write_done_t;
+
+/*
  * This structure emulates the vfs_t from other platforms.  It's purpose
  * is to facilitate the handling of mount options and minimize structural
  * differences between the platforms.
@@ -93,6 +105,13 @@ struct zfsvfs {
 	boolean_t	z_use_hold;	/* held via dmu_objset_hold */
 	rrmlock_t	z_teardown_lock;
 	krwlock_t	z_teardown_inactive_lock;
+	kmutex_t	z_async_dio_lock; /* protects z_async_dio_inflight */
+	kcondvar_t	z_async_dio_cv;	/* signals drain to teardown */
+	uint64_t	z_async_dio_inflight; /* bytes submitted and not done */
+	boolean_t	z_async_dio_draining; /* teardown: no new async DIO */
+	uint64_t	z_async_dio_write_seq;	/* async write seq allocator */
+	uint64_t	z_async_dio_write_watermark; /* completed seq */
+	list_t		z_async_dio_write_pending; /* out-of-order completed */
 	list_t		z_all_znodes;	/* all znodes in the fs */
 	unsigned long	z_rollback_time; /* last online rollback time */
 	uint64_t	z_snap_atime;	/* last snapshot access time */

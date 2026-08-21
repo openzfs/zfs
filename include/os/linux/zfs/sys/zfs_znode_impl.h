@@ -40,7 +40,12 @@ extern "C" {
 
 #define	ZNODE_OS_FIELDS			\
 	inode_timespec_t z_btime; /* creation/birth time (cached) */ \
-	struct inode	z_inode;
+	struct inode	z_inode;					\
+	uint64_t	z_async_dio_write_seq;	/* queued async write seq */ \
+	uint64_t	z_async_dio_write_watermark; /* completed seq */ \
+	list_t		z_async_dio_write_pending; /* out-of-order completed */\
+	kmutex_t	z_async_dio_write_lock;				\
+	kcondvar_t	z_async_dio_write_cv;
 
 /*
  * Convert between znode pointers and inode pointers

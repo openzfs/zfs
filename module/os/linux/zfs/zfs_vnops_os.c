@@ -4313,6 +4313,21 @@ zfs_getpage(struct inode *ip, struct page *pp)
 }
 
 /*
+ * Pin the user pages for a Direct I/O request without evaluating any of the
+ * eligibility conditions.  Used by the async read path (zpl_file.c) to pin
+ * at submission time.
+ */
+int
+zfs_dio_pin_pages(zfs_uio_t *uio, zfs_uio_rw_t rw)
+{
+	int error = zfs_uio_get_dio_pages_alloc(uio, rw);
+
+	if (error == 0)
+		uio->uio_extflg &= ~UIO_DIRECT;
+	return (error);
+}
+
+/*
  * Check ZFS specific permissions to memory map a section of a file.
  *
  *	IN:	ip	- inode of the file to mmap
