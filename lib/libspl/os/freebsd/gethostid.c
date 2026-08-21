@@ -23,5 +23,19 @@
 unsigned long
 get_system_hostid(void)
 {
+	char *env;
+
+	/*
+	 * Allow the hostid to be subverted for testing.  A value which
+	 * parses as zero is ignored, as it is on Linux, so that the
+	 * system hostid is used instead.
+	 */
+	env = getenv("ZFS_HOSTID");
+	if (env != NULL) {
+		unsigned long hostid = strtoull(env, NULL, 0);
+		if (hostid != 0)
+			return (hostid & HOSTID_MASK);
+	}
+
 	return (gethostid());
 }
