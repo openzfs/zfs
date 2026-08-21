@@ -136,6 +136,10 @@ static const int zio_buf_debug_limit = 16384;
 static const int zio_buf_debug_limit = 0;
 #endif
 
+#ifndef _KERNEL
+boolean_t zio_flush_err_propagation = B_FALSE;
+#endif
+
 typedef struct zio_stats {
 	kstat_named_t ziostat_total_allocations;
 	kstat_named_t ziostat_alloc_class_fallbacks;
@@ -1715,8 +1719,13 @@ zio_vdev_delegated_io(vdev_t *vd, uint64_t offset, abd_t *data, uint64_t size,
 void
 zio_flush(zio_t *pio, vdev_t *vd)
 {
-	const zio_flag_t flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE |
-	    ZIO_FLAG_DONT_RETRY;
+#ifdef _KERNEL
+	const zio_flag_t flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_RETRY
+	    | ZIO_FLAG_DONT_PROPAGATE;
+#else
+	const zio_flag_t flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_RETRY
+	    | (zio_flush_err_propagation ? 0 : ZIO_FLAG_DONT_PROPAGATE);
+#endif
 
 	if (vd->vdev_nowritecache)
 		return;
@@ -2526,8 +2535,8 @@ zio_wait(zio_t *zio)
 		error = cv_timedwait_io(&zio->io_cv, &zio->io_lock,
 		    ddi_get_lbolt() + timeout);
 
-		if (zfs_deadman_enabled && error == -1 &&
-		    gethrtime() - zio->io_queued_timestamp >
+		if (!SPA_EXITING(zio->io_spa) && zfs_deadman_enabled &&
+		    error == -1 && gethrtime() - zio->io_queued_timestamp >
 		    spa_deadman_ziotime(zio->io_spa)) {
 			mutex_exit(&zio->io_lock);
 			timeout = MSEC_TO_TICK(zfs_deadman_checktime_ms);
@@ -2602,6 +2611,21 @@ zio_reexecute(void *arg)
 	pio->io_flags |= ZIO_FLAG_REEXECUTED;
 	pio->io_pipeline_trace = 0;
 	pio->io_error = 0;
+
+	if (SPA_EXITING(pio->io_spa)) {
+		pio->io_post = ZIO_POST_CANCELLED;
+		/*
+		 * This pool is being forcibly exiting; skip everything and
+		 * finish as soon as possible.
+		 *
+		 * Note: even MUST_SUCCEED ones are going to fail to
+		 * communicate the actual state of the things.
+		 */
+		pio->io_pipeline = ZIO_STAGE_DONE;
+		pio->io_stage = ZIO_STAGE_OPEN;
+		pio->io_error = SET_ERROR(EIO);
+	}
+
 	pio->io_state[ZIO_WAIT_READY] = (pio->io_stage >= ZIO_STAGE_READY) ||
 	    (pio->io_pipeline & ZIO_STAGE_READY) == 0;
 	pio->io_state[ZIO_WAIT_DONE] = (pio->io_stage >= ZIO_STAGE_DONE);
@@ -2669,9 +2693,11 @@ zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t reason)
 		    "failure and the failure mode property for this pool "
 		    "is set to panic.", spa_name(spa));
 
-	if (reason != ZIO_SUSPEND_MMP) {
+	if (reason != ZIO_SUSPEND_MMP && !SPA_EXITING(spa)) {
 		cmn_err(CE_WARN, "Pool '%s' has encountered an uncorrectable "
-		    "I/O failure and has been suspended.", spa_name(spa));
+		    "I/O failure and has been suspended "
+		    "(spa_last_synced_txg=%llu).", spa_name(spa),
+		    (u_longlong_t)spa_last_synced_txg(spa));
 	}
 
 	(void) zfs_ereport_post(FM_EREPORT_ZFS_IO_FAILURE, spa, NULL,
@@ -2694,6 +2720,13 @@ zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t reason)
 		ASSERT(zio->io_stage == ZIO_STAGE_DONE);
 		zio_add_child(spa->spa_suspend_zio_root, zio);
 	}
+
+	/*
+	 * After the initiation of forced exit there may be newcomers here.
+	 * Make them follow the same path, i.e. re-execute as cancelled I/O
+	 * without actual suspension.
+	 */
+	spa_initiate_forced_exit(spa);
 
 	mutex_exit(&spa->spa_suspend_lock);
 
@@ -2730,9 +2763,41 @@ void
 zio_resume_wait(spa_t *spa)
 {
 	mutex_enter(&spa->spa_suspend_lock);
-	while (spa_suspended(spa))
+	while (spa_suspended(spa) && !SPA_EXITING(spa))
 		cv_wait(&spa->spa_suspend_cv, &spa->spa_suspend_lock);
 	mutex_exit(&spa->spa_suspend_lock);
+}
+
+static void
+zio_wait_godfather(void *arg)
+{
+	zio_t *pio = arg;
+
+	if (pio == NULL)
+		return;
+
+	ASSERT(pio->io_flags & ZIO_FLAG_GODFATHER);
+
+	zio_reexecute(pio);
+	zio_wait(pio);
+}
+
+void
+zio_resume_but_keep_suspended(spa_t *spa)
+{
+	zio_t *pio;
+
+	ASSERT(MUTEX_HELD(&spa->spa_suspend_lock));
+
+	pio = spa->spa_suspend_zio_root;
+	spa->spa_suspend_zio_root = NULL;
+	cv_broadcast(&spa->spa_suspend_cv); /* wake resume waiters */
+
+	if (pio != NULL) {
+		spa_taskq_dispatch(spa,
+		    ZIO_TYPE_CLAIM, ZIO_TASKQ_ISSUE,
+		    zio_wait_godfather, pio, B_FALSE);
+	}
 }
 
 /*
@@ -4253,7 +4318,7 @@ zio_io_to_allocate(metaslab_class_allocator_t *mca, boolean_t *more)
 	 */
 	if (!metaslab_class_throttle_reserve(zio->io_metaslab_class,
 	    zio->io_allocator, zio->io_prop.zp_copies, zio->io_size,
-	    B_FALSE, more)) {
+	    B_FALSE || SPA_EXITING(zio->io_spa), more)) {
 		return (NULL);
 	}
 	zio->io_flags |= ZIO_FLAG_ALLOC_THROTTLED;
@@ -4409,7 +4474,8 @@ again:
 	/*
 	 * Fall back to some other class when this one is full.
 	 */
-	if (error == ENOSPC && (newmc = spa_preferred_class(spa, zio)) != mc) {
+	if (error == ENOSPC && (newmc = spa_preferred_class(spa, zio)) != mc &&
+	    !SPA_EXITING(spa)) {
 		/*
 		 * If we are holding old class reservation, drop it.
 		 * Dispatch the next ZIO(s) there if some are waiting.
@@ -4449,7 +4515,8 @@ again:
 		goto again;
 	}
 
-	if (error == ENOSPC && zio->io_size > spa->spa_min_alloc) {
+	if (error == ENOSPC && zio->io_size > spa->spa_min_alloc &&
+	    !SPA_EXITING(spa)) {
 		if (zfs_flags & ZFS_DEBUG_METASLAB_ALLOC) {
 			zfs_dbgmsg("%s: metaslab allocation failure, "
 			    "trying ganging: zio %px, size %llu, error %d",
@@ -4470,6 +4537,8 @@ again:
 			    error);
 		}
 		zio->io_error = error;
+		if (error && SPA_EXITING(spa))
+			zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
 	} else if (zio->io_prop.zp_rewrite) {
 		/*
 		 * For rewrite operations, preserve the logical birth time
@@ -5523,7 +5592,8 @@ zio_dva_throttle_done(zio_t *zio)
 	const void *tag = pio;
 	uint64_t size = pio->io_size;
 
-	ASSERT3P(zio->io_bp, !=, NULL);
+	if (!SPA_EXITING(zio->io_spa))
+		ASSERT3P(zio->io_bp, !=, NULL);
 	ASSERT3U(zio->io_type, ==, ZIO_TYPE_WRITE);
 	ASSERT3U(zio->io_priority, ==, ZIO_PRIORITY_ASYNC_WRITE);
 	ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_VDEV);
@@ -5581,6 +5651,7 @@ zio_done(zio_t *zio)
 	const uint64_t psize = zio->io_size;
 	zio_t *pio, *pio_next;
 	zio_link_t *zl = NULL;
+	const boolean_t cancelled = zio->io_post & ZIO_POST_CANCELLED;
 
 	/*
 	 * If our children haven't all completed,
@@ -5604,7 +5675,7 @@ zio_done(zio_t *zio)
 		for (int w = 0; w < ZIO_WAIT_TYPES; w++)
 			ASSERT0(zio->io_children[c][w]);
 
-	if (zio->io_bp != NULL && !BP_IS_EMBEDDED(zio->io_bp)) {
+	if (!cancelled && zio->io_bp != NULL && !BP_IS_EMBEDDED(zio->io_bp)) {
 		ASSERT(memcmp(zio->io_bp, &zio->io_bp_copy,
 		    sizeof (blkptr_t)) == 0 ||
 		    (zio->io_bp == zio_unique_parent(zio)->io_bp));
@@ -5632,7 +5703,7 @@ zio_done(zio_t *zio)
 	 * If the I/O on the transformed data was successful, generate any
 	 * checksum reports now while we still have the transformed data.
 	 */
-	if (zio->io_error == 0) {
+	if (!cancelled && zio->io_error == 0) {
 		while (zio->io_cksum_report != NULL) {
 			zio_cksum_report_t *zcr = zio->io_cksum_report;
 			uint64_t align = zcr->zcr_align;
@@ -5669,14 +5740,15 @@ zio_done(zio_t *zio)
 	    !(zio->io_flags & ZIO_FLAG_RAW))
 		zio->io_error = 0;
 
-	vdev_stat_update(zio, psize);
+	if (!cancelled)
+		vdev_stat_update(zio, psize);
 
 	/*
 	 * If this I/O is attached to a particular vdev is slow, exceeding
 	 * 30 seconds to complete, post an error described the I/O delay.
 	 * We ignore these errors if the device is currently unavailable.
 	 */
-	if (zio->io_delay >= MSEC2NSEC(zio_slow_io_ms)) {
+	if (!cancelled && zio->io_delay >= MSEC2NSEC(zio_slow_io_ms)) {
 		if (zio->io_vd != NULL && !vdev_is_dead(zio->io_vd)) {
 			/*
 			 * We want to only increment our slow IO counters if
@@ -5703,7 +5775,7 @@ zio_done(zio_t *zio)
 		}
 	}
 
-	if (zio->io_error) {
+	if (!cancelled && zio->io_error) {
 		/*
 		 * If this I/O is attached to a particular vdev,
 		 * generate an error message describing the I/O failure
@@ -5740,7 +5812,7 @@ zio_done(zio_t *zio)
 		}
 	}
 
-	if (zio->io_error && zio == zio->io_logical) {
+	if (!cancelled && zio->io_error && zio == zio->io_logical) {
 
 		/*
 		 * A DDT child tried to create a mixed gang/non-gang BP. We're
@@ -5779,6 +5851,12 @@ zio_done(zio_t *zio)
 		    !(zio->io_post & (ZIO_POST_REEXECUTE|ZIO_POST_SUSPEND)))
 			zio->io_post |= ZIO_POST_SUSPEND;
 
+		if ((zio->io_post & ZIO_POST_REEXECUTE) &&
+		    SPA_EXITING(zio->io_spa)) {
+			zio->io_post &= ~ZIO_POST_REEXECUTE;
+			zio->io_post |= ZIO_POST_SUSPEND;
+		}
+
 		/*
 		 * Here is a possibly good place to attempt to do
 		 * either combinatorial reconstruction or error correction
@@ -5796,7 +5874,7 @@ zio_done(zio_t *zio)
 	 */
 	zio_inherit_child_errors(zio, ZIO_CHILD_LOGICAL);
 
-	if ((zio->io_error ||
+	if ((cancelled || zio->io_error ||
 	    (zio->io_post & (ZIO_POST_REEXECUTE|ZIO_POST_SUSPEND))) &&
 	    IO_IS_ALLOCATING(zio) && zio->io_gang_leader == zio &&
 	    !(zio->io_flags & (ZIO_FLAG_IO_REWRITE | ZIO_FLAG_NOPWRITE)))
@@ -5811,7 +5889,8 @@ zio_done(zio_t *zio)
 	    (zio->io_post & ZIO_POST_SUSPEND))
 		zio->io_post &= ~ZIO_POST_SUSPEND;
 
-	if (zio->io_post & (ZIO_POST_REEXECUTE|ZIO_POST_SUSPEND)) {
+	if (zio->io_post &
+	    (ZIO_POST_REEXECUTE|ZIO_POST_SUSPEND|ZIO_POST_CANCELLED)) {
 		/*
 		 * A Direct I/O operation that has a checksum verify error
 		 * should not attempt to reexecute. Instead, the error should
@@ -5865,7 +5944,15 @@ zio_done(zio_t *zio)
 			}
 		}
 
-		if ((pio = zio_unique_parent(zio)) != NULL) {
+		if (zio->io_post & ZIO_POST_CANCELLED) {
+			/*
+			 * This zio had been marked for reexecute previously,
+			 * and upon reexecution, found the pool being forcibly
+			 * exiting. Reset error back as it could be altered.
+			 */
+			zio->io_error = SET_ERROR(EIO);
+			goto finish;
+		} else if ((pio = zio_unique_parent(zio)) != NULL) {
 			/*
 			 * We're not a root i/o, so there's nothing to do
 			 * but notify our parent.  Don't propagate errors
@@ -5897,10 +5984,14 @@ zio_done(zio_t *zio)
 		return (NULL);
 	}
 
+finish:
 	ASSERT(list_is_empty(&zio->io_child_list));
-	ASSERT0(zio->io_post & ZIO_POST_REEXECUTE);
-	ASSERT0(zio->io_post & ZIO_POST_SUSPEND);
-	ASSERT(zio->io_error == 0 || (zio->io_flags & ZIO_FLAG_CANFAIL));
+	if (!(zio->io_post & ZIO_POST_CANCELLED)) {
+		ASSERT0(zio->io_post & ZIO_POST_REEXECUTE);
+		ASSERT0(zio->io_post & ZIO_POST_SUSPEND);
+		ASSERT(zio->io_error == 0 ||
+		    (zio->io_flags & ZIO_FLAG_CANFAIL));
+	}
 
 	/*
 	 * Report any checksum errors, since the I/O is complete.
@@ -5909,7 +6000,8 @@ zio_done(zio_t *zio)
 		zio_cksum_report_t *zcr = zio->io_cksum_report;
 		zio->io_cksum_report = zcr->zcr_next;
 		zcr->zcr_next = NULL;
-		zcr->zcr_finish(zcr, NULL);
+		if (!SPA_EXITING(zio->io_spa))
+			zcr->zcr_finish(zcr, NULL);
 		zfs_ereport_free_checksum(zcr);
 	}
 

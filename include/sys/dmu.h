@@ -423,18 +423,19 @@ typedef struct dmu_buf {
  *
  * Return 0 on success, or ENOSPC or EEXIST as specified above.
  */
-uint64_t dmu_object_alloc(objset_t *os, dmu_object_type_t ot,
-    int blocksize, dmu_object_type_t bonus_type, int bonus_len, dmu_tx_t *tx);
-uint64_t dmu_object_alloc_ibs(objset_t *os, dmu_object_type_t ot, int blocksize,
-    int indirect_blockshift,
-    dmu_object_type_t bonustype, int bonuslen, dmu_tx_t *tx);
-uint64_t dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot,
+int dmu_object_alloc(objset_t *os, dmu_object_type_t ot,
+    int blocksize, dmu_object_type_t bonus_type, int bonus_len, dmu_tx_t *tx,
+    uint64_t *objectp);
+int dmu_object_alloc_ibs(objset_t *os, dmu_object_type_t ot, int blocksize,
+    int indirect_blockshift, dmu_object_type_t bonustype, int bonuslen,
+    dmu_tx_t *tx, uint64_t *objectp);
+int dmu_object_alloc_dnsize(objset_t *os, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len,
-    int dnodesize, dmu_tx_t *tx);
-uint64_t dmu_object_alloc_hold(objset_t *os, dmu_object_type_t ot,
+    int dnodesize, dmu_tx_t *tx, uint64_t *objectp);
+int dmu_object_alloc_hold(objset_t *os, dmu_object_type_t ot,
     int blocksize, int indirect_blockshift, dmu_object_type_t bonustype,
     int bonuslen, int dnodesize, dnode_t **allocated_dnode, const void *tag,
-    dmu_tx_t *tx);
+    dmu_tx_t *tx, uint64_t *objectp);
 int dmu_object_claim(objset_t *os, uint64_t object, dmu_object_type_t ot,
     int blocksize, dmu_object_type_t bonus_type, int bonus_len, dmu_tx_t *tx);
 int dmu_object_claim_dnsize(objset_t *os, uint64_t object, dmu_object_type_t ot,
@@ -528,7 +529,7 @@ void dmu_object_set_compress(objset_t *os, uint64_t object, uint8_t compress,
 int dmu_object_cached_size(objset_t *os, uint64_t object,
     uint64_t *l1sz, uint64_t *l2sz);
 
-void dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
+int dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
     void *data, uint8_t etype, uint8_t comp, int uncompressed_size,
     int compressed_size, int byteorder, dmu_tx_t *tx);
 void dmu_redact(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,

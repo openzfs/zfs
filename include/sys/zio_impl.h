@@ -275,6 +275,10 @@ enum zio_stage {
 extern void zio_inject_init(void);
 extern void zio_inject_fini(void);
 
+#ifndef _KERNEL
+extern boolean_t zio_flush_err_propagation;
+#endif
+
 #ifdef	__cplusplus
 }
 #endif
