@@ -47,8 +47,18 @@ dsl_destroy_snapshot_check_impl(dsl_dataset_t *ds, boolean_t defer)
 	if (!ds->ds_is_snapshot)
 		return (SET_ERROR(EINVAL));
 
-	if (dsl_dataset_long_held(ds))
-		return (SET_ERROR(EBUSY));
+	if (dsl_dataset_long_held(ds)) {
+		/*
+		 * A mounted snapshot can be marked for deferred destruction
+		 * and is destroyed when it is unmounted, the same way a held
+		 * one is destroyed when the last hold is released.  Every
+		 * other long hold belongs to an operation that is on its way
+		 * out already, a send or a diff say, so there is nothing to
+		 * defer to and the caller is asked to come back later.
+		 */
+		if (!defer || !dsl_dataset_has_owner(ds))
+			return (SET_ERROR(EBUSY));
+	}
 
 	/*
 	 * Only allow deferred destroy on pools that support it.
@@ -306,11 +316,11 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 	rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
 	ASSERT3U(BP_GET_BIRTH(&dsl_dataset_phys(ds)->ds_bp), <=, tx->tx_txg);
 	rrw_exit(&ds->ds_bp_rwlock, FTAG);
-	ASSERT(zfs_refcount_is_zero(&ds->ds_longholds));
 
 	if (defer &&
 	    (ds->ds_userrefs > 0 ||
-	    dsl_dataset_phys(ds)->ds_num_children > 1)) {
+	    dsl_dataset_phys(ds)->ds_num_children > 1 ||
+	    dsl_dataset_long_held(ds))) {
 		ASSERT(spa_version(dp->dp_spa) >= SPA_VERSION_USERREFS);
 		dmu_buf_will_dirty(ds->ds_dbuf, tx);
 		dsl_dataset_phys(ds)->ds_flags |= DS_FLAG_DEFER_DESTROY;
@@ -318,9 +328,18 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 			spa_history_log_internal_ds(ds, "defer_destroy", tx,
 			    " ");
 		}
+		/*
+		 * Where the long hold is what stopped us, whatever is holding
+		 * it asks for the same sweep when it lets go.  Ask for one
+		 * here too, in case it has already done so and read the mark
+		 * before this txg put it there.
+		 */
+		if (dsl_dataset_long_held(ds))
+			spa_async_request(dp->dp_spa, SPA_ASYNC_DEFER_DESTROY);
 		return;
 	}
 
+	ASSERT(zfs_refcount_is_zero(&ds->ds_longholds));
 	ASSERT3U(dsl_dataset_phys(ds)->ds_num_children, <=, 1);
 
 	if (zfs_snapshot_history_enabled) {
@@ -634,6 +653,103 @@ dsl_destroy_snapshot(const char *name, boolean_t defer)
 	fnvlist_free(errlist);
 	fnvlist_free(nvl);
 	return (error);
+}
+
+static int
+dsl_destroy_snapshot_deferred_check(void *arg, dmu_tx_t *tx)
+{
+	uint64_t dsobj = *(uint64_t *)arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *ds;
+	int error;
+
+	error = dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds);
+	if (error != 0)
+		return (SET_ERROR(ENOENT));
+
+	/*
+	 * The mark is the whole of this destroy's authority and the object is
+	 * where it was left, so a snapshot that no longer carries it, or an
+	 * object that has come back as something else, is not ours to touch.
+	 */
+	if (!ds->ds_is_snapshot || !DS_IS_DEFER_DESTROY(ds))
+		error = SET_ERROR(ENOENT);
+	else
+		error = dsl_destroy_snapshot_check_impl(ds, B_FALSE);
+
+	dsl_dataset_rele(ds, FTAG);
+	return (error);
+}
+
+static void
+dsl_destroy_snapshot_deferred_sync(void *arg, dmu_tx_t *tx)
+{
+	uint64_t dsobj = *(uint64_t *)arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	char name[ZFS_MAX_DATASET_NAME_LEN];
+	dsl_dataset_t *ds;
+
+	VERIFY0(dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds));
+	dsl_dataset_name(ds, name);
+	dsl_destroy_snapshot_sync_impl(ds, B_FALSE, tx);
+	zvol_remove_minors(dp->dp_spa, name, B_TRUE);
+	dsl_dataset_rele(ds, FTAG);
+}
+
+static int
+dsl_destroy_snapshot_deferred_one(const char *dsname, void *arg)
+{
+	(void) arg;
+	dsl_pool_t *dp;
+	dsl_dataset_t *ds;
+	uint64_t dsobj = 0;
+
+	if (dsl_pool_hold(dsname, FTAG, &dp) != 0)
+		return (0);
+	if (dsl_dataset_hold(dp, dsname, FTAG, &ds) == 0) {
+		if (ds->ds_is_snapshot && DS_IS_DEFER_DESTROY(ds) &&
+		    dsl_destroy_snapshot_check_impl(ds, B_FALSE) == 0)
+			dsobj = ds->ds_object;
+		dsl_dataset_rele(ds, FTAG);
+	}
+	dsl_pool_rele(dp, FTAG);
+
+	/*
+	 * The sync task keys off the object rather than the name it was found
+	 * under, so that a snapshot destroyed and recreated under the same
+	 * name in the meantime is not mistaken for this one.
+	 */
+	if (dsobj != 0) {
+		int error = dsl_sync_task(dsname,
+		    dsl_destroy_snapshot_deferred_check,
+		    dsl_destroy_snapshot_deferred_sync, &dsobj, 0,
+		    ZFS_SPACE_CHECK_DESTROY);
+		/*
+		 * ENOENT is the snapshot having gone by another route, or
+		 * having lost the mark, both of which are ordinary.  Anything
+		 * else leaves the mark in place for the next sweep, and is
+		 * worth a note for whoever wonders where the snapshot went.
+		 */
+		if (error != 0 && error != ENOENT) {
+			zfs_dbgmsg("deferred destroy of %s (obj %llu) failed, "
+			    "error %d", dsname, (u_longlong_t)dsobj, error);
+		}
+	}
+
+	return (0);
+}
+
+/*
+ * Destroy every snapshot in the pool that is marked for deferred destruction
+ * and has nothing keeping it alive any more.  Runs on the async thread when a
+ * mount lets go of one, and once at import for anything a crash or an export
+ * left behind.
+ */
+void
+dsl_destroy_snapshot_deferred(const char *poolname)
+{
+	(void) dmu_objset_find(poolname, dsl_destroy_snapshot_deferred_one,
+	    NULL, DS_FIND_CHILDREN | DS_FIND_SNAPSHOTS);
 }
 
 struct killarg {

@@ -807,6 +807,7 @@ extern int bpobj_enqueue_free_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx);
 #define	SPA_ASYNC_REBUILD_DONE			0x2000
 #define	SPA_ASYNC_DETACH_SPARE			0x4000
 #define	SPA_ASYNC_REMOVE_BY_USER		0x8000
+#define	SPA_ASYNC_DEFER_DESTROY			0x10000
 
 /* device manipulation */
 extern int spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t ashift_check);

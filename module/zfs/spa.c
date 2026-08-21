@@ -6349,6 +6349,15 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 		    "Cleaning up temporary userrefs");
 		dsl_pool_clean_tmp_userrefs(spa->spa_dsl_pool);
 
+		/*
+		 * Anything still marked for deferred destruction because a
+		 * mount was holding it was left that way by a crash or an
+		 * export, and nothing is holding it now.  The sweep walks
+		 * every snapshot, so leave it to the async thread rather than
+		 * spending import time on it.
+		 */
+		spa_async_request(spa, SPA_ASYNC_DEFER_DESTROY);
+
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 		spa_import_progress_set_notes(spa, "Restarting initialize");
 		vdev_initialize_restart(spa->spa_root_vdev);
@@ -9870,7 +9879,7 @@ spa_async_thread(void *arg)
 {
 	spa_t *spa = (spa_t *)arg;
 	dsl_pool_t *dp = spa->spa_dsl_pool;
-	int tasks;
+	uint32_t tasks;
 
 	ASSERT(spa->spa_sync_on);
 
@@ -10016,6 +10025,17 @@ spa_async_thread(void *arg)
 		spa_config_exit(spa, SCL_L2ARC, FTAG);
 		spa_namespace_exit(FTAG);
 	}
+
+	/*
+	 * Finish off snapshots whose deferred destruction was waiting on
+	 * something that has since let go of them.  The destroy is a sync
+	 * task, which a suspended pool would never come back from, and the
+	 * export path waits on this thread, so leave the mark where it is
+	 * and pick it up on the next request or at the next import.
+	 */
+	if ((tasks & SPA_ASYNC_DEFER_DESTROY) && spa_writeable(spa) &&
+	    !spa_suspended(spa))
+		dsl_destroy_snapshot_deferred(spa_name(spa));
 
 	/*
 	 * Let the world know that we're done.
