@@ -40,7 +40,7 @@ function restore_perms { #path
 function check_vdevs { #pool, vdevs...
 	typeset pool="$1"
 	typeset want=$(echo "${@:2}" | xargs -n 1 | sort | xargs)
-	typeset have=$(zpool list -HvLP -o name | grep /dev | sort | xargs)
+	typeset have=$(zpool list -HvLP -o name | grep -Eo '/dev/[a-z0-9]+' | sort | xargs)
 	log_must test "$want" == "$have"
 }
 
