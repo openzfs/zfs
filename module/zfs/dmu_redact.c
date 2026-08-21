@@ -1066,12 +1066,8 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 	int n = snprintf(c, ZFS_MAX_DATASET_NAME_LEN - (c - newredactbook),
 	    "#%s", redactbook);
 	if (n >= ZFS_MAX_DATASET_NAME_LEN - (c - newredactbook)) {
-		dsl_pool_rele(dp, FTAG);
-		kmem_free(newredactbook,
-		    sizeof (char) * ZFS_MAX_DATASET_NAME_LEN);
-		if (args != NULL)
-			vmem_free(args, numsnaps * sizeof (*args));
-		return (SET_ERROR(ENAMETOOLONG));
+		err = ENAMETOOLONG;
+		goto out;
 	}
 	err = dsl_bookmark_lookup(dp, newredactbook, NULL, &bookmark);
 	if (err == 0) {
