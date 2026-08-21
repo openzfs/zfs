@@ -565,6 +565,8 @@ test_destroy_bookmarks(const char *pool, const char *bookmark)
 	fnvlist_add_boolean(required, bookmark);
 
 	IOC_INPUT_TEST_WILD(ZFS_IOC_DESTROY_BOOKMARKS, pool, required, NULL, 0);
+	IOC_INPUT_TEST_WILD(ZFS_IOC_DESTROY_BOOKMARKS2, pool, required, NULL,
+	    0);
 
 	nvlist_free(required);
 }
@@ -1216,6 +1218,7 @@ validate_ioc_values(void)
 	CHECK(ZFS_IOC_BASE + 83 == ZFS_IOC_WAIT);
 	CHECK(ZFS_IOC_BASE + 84 == ZFS_IOC_WAIT_FS);
 	CHECK(ZFS_IOC_BASE + 87 == ZFS_IOC_POOL_SCRUB);
+	CHECK(ZFS_IOC_BASE + 91 == ZFS_IOC_DESTROY_BOOKMARKS2);
 	CHECK(ZFS_IOC_PLATFORM_BASE + 1 == ZFS_IOC_EVENTS_NEXT);
 	CHECK(ZFS_IOC_PLATFORM_BASE + 2 == ZFS_IOC_EVENTS_CLEAR);
 	CHECK(ZFS_IOC_PLATFORM_BASE + 3 == ZFS_IOC_EVENTS_SEEK);

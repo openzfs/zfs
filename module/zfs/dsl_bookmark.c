@@ -60,10 +60,11 @@ dsl_bookmark_hold_ds(dsl_pool_t *dp, const char *fullname,
  * Returns ESRCH if bookmark is not found.
  * Note, we need to use the ZAP rather than the AVL to look up bookmarks
  * by name, because only the ZAP honors the casesensitivity setting.
+ * On success, realname receives the stored bookmark name when non-NULL.
  */
 int
 dsl_bookmark_lookup_impl(dsl_dataset_t *ds, const char *shortname,
-    zfs_bookmark_phys_t *bmark_phys)
+    zfs_bookmark_phys_t *bmark_phys, char *realname, int realname_len)
 {
 	objset_t *mos = ds->ds_dir->dd_pool->dp_meta_objset;
 	uint64_t bmark_zapobj = ds->ds_bookmarks_obj;
@@ -83,8 +84,8 @@ dsl_bookmark_lookup_impl(dsl_dataset_t *ds, const char *shortname,
 	memset(bmark_phys, 0, sizeof (*bmark_phys));
 
 	err = zap_lookup_norm(mos, bmark_zapobj, shortname, sizeof (uint64_t),
-	    sizeof (*bmark_phys) / sizeof (uint64_t), bmark_phys, mt, NULL, 0,
-	    NULL);
+	    sizeof (*bmark_phys) / sizeof (uint64_t), bmark_phys, mt, realname,
+	    realname_len, NULL);
 
 	return (err == ENOENT ? SET_ERROR(ESRCH) : err);
 }
@@ -109,7 +110,7 @@ dsl_bookmark_lookup(dsl_pool_t *dp, const char *fullname,
 	if (error != 0)
 		return (error);
 
-	error = dsl_bookmark_lookup_impl(ds, shortname, bmp);
+	error = dsl_bookmark_lookup_impl(ds, shortname, bmp, NULL, 0);
 	if (error == 0 && later_ds != NULL) {
 		if (!dsl_dataset_is_before(later_ds, ds, bmp->zbm_creation_txg))
 			error = SET_ERROR(EXDEV);
@@ -223,7 +224,8 @@ dsl_bookmark_create_check_impl(dsl_pool_t *dp,
 		return (error);
 
 	/* Verify that the new bookmark does not already exist */
-	error = dsl_bookmark_lookup_impl(newbm_ds, newbm_short, &bmark_phys);
+	error = dsl_bookmark_lookup_impl(newbm_ds, newbm_short, &bmark_phys,
+	    NULL, 0);
 	switch (error) {
 	case ESRCH:
 		/* happy path: new bmark doesn't exist, proceed after switch */
@@ -559,7 +561,7 @@ dsl_bookmark_create_sync_impl_book(
 	 */
 
 	VERIFY0(dsl_bookmark_lookup_impl(bmark_fs_source, source_shortname,
-	    &source_phys));
+	    &source_phys, NULL, 0));
 	dsl_bookmark_node_t *new_dbn = dsl_bookmark_node_alloc(new_shortname);
 
 	memcpy(&new_dbn->dbn_phys, &source_phys, sizeof (source_phys));
@@ -876,7 +878,7 @@ dsl_bookmark_init_ds(dsl_dataset_t *ds)
 		    dsl_bookmark_node_alloc(attr->za_name);
 
 		err = dsl_bookmark_lookup_impl(ds,
-		    dbn->dbn_name, &dbn->dbn_phys);
+		    dbn->dbn_name, &dbn->dbn_phys, NULL, 0);
 		ASSERT3U(err, !=, ENOENT);
 		if (err != 0) {
 			kmem_free(dbn, sizeof (*dbn));
@@ -958,7 +960,7 @@ dsl_get_bookmark_props(const char *dsname, const char *bmname, nvlist_t *props)
 		return (err);
 	}
 
-	err = dsl_bookmark_lookup_impl(ds, bmname, &bmark_phys);
+	err = dsl_bookmark_lookup_impl(ds, bmname, &bmark_phys, NULL, 0);
 	if (err != 0)
 		goto out;
 
@@ -1087,6 +1089,8 @@ dsl_bookmark_destroy_check(void *arg, dmu_tx_t *tx)
 {
 	dsl_bookmark_destroy_arg_t *dbda = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dataset_t *held_ds = NULL;
+	boolean_t syncing = dmu_tx_is_syncing(tx);
 	int rv = 0;
 
 	ASSERT(nvlist_empty(dbda->dbda_success));
@@ -1100,6 +1104,9 @@ dsl_bookmark_destroy_check(void *arg, dmu_tx_t *tx)
 		const char *fullname = nvpair_name(pair);
 		dsl_dataset_t *ds;
 		zfs_bookmark_phys_t bm;
+		char canonical[ZFS_MAX_DATASET_NAME_LEN];
+		char *realname = NULL;
+		int realname_len = 0;
 		int error;
 		const char *shortname;
 
@@ -1110,8 +1117,29 @@ dsl_bookmark_destroy_check(void *arg, dmu_tx_t *tx)
 			continue;
 		}
 		if (error == 0) {
-			error = dsl_bookmark_lookup_impl(ds, shortname, &bm);
-			dsl_dataset_rele(ds, FTAG);
+			/*
+			 * Record each stored bookmark exactly once.
+			 * Resolve its name while the syncing check and sync are
+			 * protected by the configuration lock.  The unique
+			 * success nvlist then collapses case aliases.
+			 */
+			if (syncing && (dsl_dataset_phys(ds)->ds_flags &
+			    DS_FLAG_CI_DATASET) != 0) {
+				size_t prefix_len = shortname - fullname;
+
+				memcpy(canonical, fullname, prefix_len);
+				realname = canonical + prefix_len;
+				realname_len = sizeof (canonical) - prefix_len;
+			}
+			error = dsl_bookmark_lookup_impl(ds, shortname, &bm,
+			    realname, realname_len);
+			if (held_ds == ds) {
+				dsl_dataset_rele(ds, FTAG);
+			} else {
+				if (held_ds != NULL)
+					dsl_dataset_rele(held_ds, FTAG);
+				held_ds = ds;
+			}
 			if (error == ESRCH) {
 				/*
 				 * ignore it; the bookmark is
@@ -1134,16 +1162,16 @@ dsl_bookmark_destroy_check(void *arg, dmu_tx_t *tx)
 				}
 			}
 		}
-		if (error == 0) {
-			if (dmu_tx_is_syncing(tx)) {
-				fnvlist_add_boolean(dbda->dbda_success,
-				    fullname);
-			}
-		} else {
+		if (error == 0 && syncing)
+			fnvlist_add_boolean(dbda->dbda_success,
+			    realname != NULL ? canonical : fullname);
+		if (error != 0) {
 			fnvlist_add_int32(dbda->dbda_errors, fullname, error);
 			rv = error;
 		}
 	}
+	if (held_ds != NULL)
+		dsl_dataset_rele(held_ds, FTAG);
 	return (rv);
 }
 
@@ -1153,6 +1181,7 @@ dsl_bookmark_destroy_sync(void *arg, dmu_tx_t *tx)
 	dsl_bookmark_destroy_arg_t *dbda = arg;
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	objset_t *mos = dp->dp_meta_objset;
+	dsl_dataset_t *held_ds = NULL;
 
 	for (nvpair_t *pair = nvlist_next_nvpair(dbda->dbda_success, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(dbda->dbda_success, pair)) {
@@ -1181,8 +1210,16 @@ dsl_bookmark_destroy_sync(void *arg, dmu_tx_t *tx)
 		spa_history_log_internal_ds(ds, "remove bookmark", tx,
 		    "name=%s", shortname);
 
-		dsl_dataset_rele(ds, FTAG);
+		if (held_ds == ds) {
+			dsl_dataset_rele(ds, FTAG);
+		} else {
+			if (held_ds != NULL)
+				dsl_dataset_rele(held_ds, FTAG);
+			held_ds = ds;
+		}
 	}
+	if (held_ds != NULL)
+		dsl_dataset_rele(held_ds, FTAG);
 }
 
 /*
