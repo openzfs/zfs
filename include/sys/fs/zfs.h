@@ -826,6 +826,7 @@ typedef enum {
 
 typedef struct zpool_load_policy {
 	uint32_t	zlp_rewind;	/* rewind policy requested */
+	boolean_t	zlp_relaxmeta;	/* tolerate non-critical meta-data */
 	uint64_t	zlp_maxmeta;	/* max acceptable meta-data errors */
 	uint64_t	zlp_maxdata;	/* max acceptable data errors */
 	uint64_t	zlp_txg;	/* specific txg to load */
@@ -1012,10 +1013,12 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_LOAD_POLICY		"load-policy"
 #define	ZPOOL_LOAD_REWIND_POLICY	"load-rewind-policy"
 #define	ZPOOL_LOAD_REQUEST_TXG		"load-request-txg"
+#define	ZPOOL_LOAD_RELAX_META		"load-relax-meta"
 #define	ZPOOL_LOAD_META_THRESH		"load-meta-thresh"
 #define	ZPOOL_LOAD_DATA_THRESH		"load-data-thresh"
 
 /* Rewind data discovered */
+#define	ZPOOL_CONFIG_LOAD_TXG		"rewind_txg"
 #define	ZPOOL_CONFIG_LOAD_TIME		"rewind_txg_ts"
 #define	ZPOOL_CONFIG_LOAD_META_ERRORS	"verify_meta_errors"
 #define	ZPOOL_CONFIG_LOAD_DATA_ERRORS	"verify_data_errors"

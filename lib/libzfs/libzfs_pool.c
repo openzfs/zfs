@@ -2044,55 +2044,75 @@ zpool_export_force(zpool_handle_t *zhp, const char *log_str)
 }
 
 static void
-zpool_rewind_exclaim(libzfs_handle_t *hdl, const char *name, boolean_t dryrun,
-    nvlist_t *config)
+zpool_rewind_exclaim(libzfs_handle_t *hdl, const char *name, nvlist_t *config)
 {
 	nvlist_t *nv = NULL;
-	uint64_t rewindto;
-	int64_t loss = -1;
-	struct tm t;
-	char timestr[128];
+	boolean_t dryrun;
+	uint64_t rewindto, rewindtxg;
+	int64_t loss = 0;
+	time_t when;
+	char timestr[26], whenstr[64];
 
 	if (!hdl->libzfs_printerr || config == NULL)
 		return;
 
-	if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_LOAD_INFO, &nv) != 0 ||
-	    nvlist_lookup_nvlist(nv, ZPOOL_CONFIG_REWIND_INFO, &nv) != 0) {
+	if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_LOAD_INFO, &nv) != 0)
 		return;
-	}
+
+	/*
+	 * The kernel reports the load it did not commit nested, so the
+	 * nesting is what tells a hypothetical rewind from a real one.
+	 */
+	dryrun = nvlist_lookup_nvlist(nv, ZPOOL_CONFIG_REWIND_INFO, &nv) == 0;
 
 	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_LOAD_TIME, &rewindto) != 0)
 		return;
-	(void) nvlist_lookup_int64(nv, ZPOOL_CONFIG_REWIND_TIME, &loss);
 
-	if (localtime_r((time_t *)&rewindto, &t) != NULL &&
-	    ctime_r((time_t *)&rewindto, timestr) != NULL) {
-		timestr[24] = 0;
-		if (dryrun) {
-			(void) printf(dgettext(TEXT_DOMAIN,
-			    "Would be able to return %s "
-			    "to its state as of %s.\n"),
-			    name, timestr);
-		} else {
-			(void) printf(dgettext(TEXT_DOMAIN,
-			    "Pool %s returned to its state as of %s.\n"),
-			    name, timestr);
-		}
-		if (loss > 120) {
-			(void) printf(dgettext(TEXT_DOMAIN,
-			    "%s approximately %lld "),
-			    dryrun ? "Would discard" : "Discarded",
-			    ((longlong_t)loss + 30) / 60);
-			(void) printf(dgettext(TEXT_DOMAIN,
-			    "minutes of transactions.\n"));
-		} else if (loss > 0) {
-			(void) printf(dgettext(TEXT_DOMAIN,
-			    "%s approximately %lld "),
-			    dryrun ? "Would discard" : "Discarded",
-			    (longlong_t)loss);
-			(void) printf(dgettext(TEXT_DOMAIN,
-			    "seconds of transactions.\n"));
-		}
+	/*
+	 * The loss is reported only if the load fell back to an older
+	 * uberblock, so an enacted load without it discarded nothing.
+	 */
+	if (nvlist_lookup_int64(nv, ZPOOL_CONFIG_REWIND_TIME, &loss) != 0 &&
+	    !dryrun)
+		return;
+
+	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_LOAD_TXG, &rewindtxg) != 0)
+		rewindtxg = 0;
+
+	when = (time_t)rewindto;
+	if (ctime_r(&when, timestr) != NULL) {
+		timestr[24] = '\0';
+	} else {
+		(void) snprintf(timestr, sizeof (timestr), "%llu",
+		    (u_longlong_t)rewindto);
+	}
+
+	if (rewindtxg != 0) {
+		(void) snprintf(whenstr, sizeof (whenstr), "%s (txg %llu)",
+		    timestr, (u_longlong_t)rewindtxg);
+	} else {
+		(void) strlcpy(whenstr, timestr, sizeof (whenstr));
+	}
+
+	if (dryrun) {
+		(void) printf(dgettext(TEXT_DOMAIN,
+		    "Would be able to return %s to its state as of %s.\n"),
+		    name, whenstr);
+	} else {
+		(void) printf(dgettext(TEXT_DOMAIN,
+		    "Pool %s returned to its state as of %s.\n"),
+		    name, whenstr);
+	}
+	if (loss > 120) {
+		(void) printf(dgettext(TEXT_DOMAIN,
+		    "%s approximately %lld minutes of transactions.\n"),
+		    dryrun ? "Would discard" : "Discarded",
+		    ((longlong_t)loss + 30) / 60);
+	} else if (loss > 0) {
+		(void) printf(dgettext(TEXT_DOMAIN,
+		    "%s approximately %lld seconds of transactions.\n"),
+		    dryrun ? "Would discard" : "Discarded",
+		    (longlong_t)loss);
 	}
 }
 
@@ -2352,7 +2372,7 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 		 */
 		if (policy.zlp_rewind & ZPOOL_TRY_REWIND) {
 			zpool_rewind_exclaim(hdl, newname ? origname : thename,
-			    B_TRUE, nv);
+			    nv);
 			nvlist_free(nv);
 			return (-1);
 		}
@@ -2525,7 +2545,7 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 		if (policy.zlp_rewind &
 		    (ZPOOL_DO_REWIND | ZPOOL_TRY_REWIND)) {
 			zpool_rewind_exclaim(hdl, newname ? origname : thename,
-			    ((policy.zlp_rewind & ZPOOL_TRY_REWIND) != 0), nv);
+			    nv);
 		}
 		nvlist_free(nv);
 	}
@@ -4581,9 +4601,7 @@ zpool_clear(zpool_handle_t *zhp, const char *path, nvlist_t *rewindnvl)
 		if (policy.zlp_rewind &
 		    (ZPOOL_DO_REWIND | ZPOOL_TRY_REWIND)) {
 			(void) zcmd_read_dst_nvlist(hdl, &zc, &nvi);
-			zpool_rewind_exclaim(hdl, zc.zc_name,
-			    ((policy.zlp_rewind & ZPOOL_TRY_REWIND) != 0),
-			    nvi);
+			zpool_rewind_exclaim(hdl, zc.zc_name, nvi);
 			nvlist_free(nvi);
 		}
 		zcmd_free_nvlists(&zc);
