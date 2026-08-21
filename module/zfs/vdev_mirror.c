@@ -619,6 +619,10 @@ vdev_mirror_io_start(zio_t *zio)
 			 * them in vdev_mirror_io_done() otherwise.
 			 */
 			boolean_t first = B_TRUE;
+
+			if (mm->mm_children > 1)
+				zio_batch_create(zio);
+
 			for (c = 0; c < mm->mm_children; c++) {
 				mc = &mm->mm_child[c];
 
@@ -640,7 +644,8 @@ vdev_mirror_io_start(zio_t *zio)
 				    vdev_mirror_child_done, mc));
 				first = B_FALSE;
 			}
-			zio_execute(zio);
+
+			zio_execute(zio_batch_rele(zio));
 			return;
 		}
 		/*
@@ -657,6 +662,9 @@ vdev_mirror_io_start(zio_t *zio)
 		c = 0;
 		children = mm->mm_children;
 	}
+
+	if (children > 1)
+		zio_batch_create(zio);
 
 	while (children--) {
 		mc = &mm->mm_child[c++];
@@ -682,7 +690,7 @@ vdev_mirror_io_start(zio_t *zio)
 		    vdev_mirror_child_done, mc));
 	}
 
-	zio_execute(zio);
+	zio_execute(zio_batch_rele(zio));
 }
 
 static int

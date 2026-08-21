@@ -2753,6 +2753,8 @@ vdev_raidz_io_start(zio_t *zio)
 
 	zio->io_vsd = rm;
 	zio->io_vsd_ops = &vdev_raidz_vsd_ops;
+	zio_batch_create(zio);
+
 	if (zio->io_type == ZIO_TYPE_WRITE) {
 		for (int i = 0; i < rm->rm_nrows; i++) {
 			vdev_raidz_io_start_write(zio, rm->rm_row[i]);
@@ -2766,7 +2768,7 @@ vdev_raidz_io_start(zio_t *zio)
 		vdev_raidz_io_start_read(zio, rm);
 	}
 
-	zio_execute(zio);
+	zio_execute(zio_batch_rele(zio));
 }
 
 /*

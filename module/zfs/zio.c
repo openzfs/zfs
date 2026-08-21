@@ -164,6 +164,7 @@ static kstat_t *zio_ksp;
 static inline void __zio_execute(zio_t *zio);
 
 static void zio_taskq_dispatch(zio_t *, zio_taskq_type_t, boolean_t);
+static void zio_batch_join(zio_batch_t *, zio_t *);
 
 static int
 zio_kstats_update(kstat_t *ksp, int rw)
@@ -831,10 +832,27 @@ zio_wait_for_children(zio_t *zio, uint8_t childbits, enum zio_wait_type wait)
 	return (waiting);
 }
 
+/*
+ * The zios a pipeline stage hands back to zio_execute() to run once the
+ * current one stops, chained through io_exec_next in the order they were
+ * added.
+ */
+typedef struct zio_next {
+	zio_t		*zn_list;
+	zio_t		**zn_tailp;	/* where the next one is appended */
+} zio_next_t;
+
+static inline void
+zio_next_init(zio_next_t *next)
+{
+	next->zn_list = NULL;
+	next->zn_tailp = &next->zn_list;
+}
+
 __attribute__((always_inline))
 static inline void
 zio_notify_parent(zio_t *pio, zio_t *zio, enum zio_wait_type wait,
-    zio_t **next_to_executep)
+    zio_next_t *nextp)
 {
 	uint64_t *countp = &pio->io_children[zio->io_child_type][wait];
 	int *errorp = &pio->io_child_error[zio->io_child_type];
@@ -877,11 +895,18 @@ zio_notify_parent(zio_t *pio, zio_t *zio, enum zio_wait_type wait,
 		 * overflowing the stack when we have deeply nested
 		 * parent-child relationships, as we do with the "mega zio"
 		 * of writes for spa_sync(), and the chain of ZIL blocks.
+		 *
+		 * More than one parent may become executable at once, and all
+		 * of them go back to the caller.  It is the caller that keeps
+		 * one and dispatches the rest, since only it knows what else
+		 * is already waiting for its thread.
 		 */
-		if (next_to_executep != NULL && *next_to_executep == NULL &&
+		if (nextp != NULL &&
 		    (pio->io_type == zio->io_type ||
 		    (pio->io_type == ZIO_TYPE_NULL && !pio->io_done))) {
-			*next_to_executep = pio;
+			ASSERT3P(pio->io_exec_next, ==, NULL);
+			*nextp->zn_tailp = pio;
+			nextp->zn_tailp = &pio->io_exec_next;
 		} else {
 			zio_taskq_dispatch(pio, type, B_FALSE);
 		}
@@ -1030,6 +1055,9 @@ zio_create(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 void
 zio_destroy(zio_t *zio)
 {
+	ASSERT3P(zio->io_batch, ==, NULL);
+	ASSERT3P(zio->io_child_batch, ==, NULL);
+	ASSERT3P(zio->io_exec_next, ==, NULL);
 	metaslab_trace_fini(ZIO_ALLOC_LIST(zio));
 	list_destroy(&zio->io_parent_list);
 	list_destroy(&zio->io_child_list);
@@ -1685,6 +1713,40 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 	    ZIO_STAGE_VDEV_IO_START >> 1, pipeline);
 	ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_VDEV);
 
+	if (pio->io_child_batch != NULL) {
+		/*
+		 * Whatever wakes this child up, all it has left to do are the
+		 * few cheap stages of ZIO_VDEV_CHILD_PIPELINE, so it is better
+		 * run right there than dispatched.
+		 */
+		zio->io_flags |= ZIO_FLAG_LIGHTWEIGHT;
+
+		/*
+		 * Only children that come back from the block layer gain
+		 * anything from a batch.  Interior ones are dispatched by their
+		 * own child's zio_notify_parent() instead, as are distributed
+		 * spares, which are leaves that issue children of their own.
+		 * The scheduler may change before a queue slot is actually
+		 * taken, so vdev_should_queue_io() here only keeps the batch
+		 * away from vdevs that can never use it; the binding decision
+		 * is vdev_queue_io()'s.
+		 */
+		if (vd->vdev_ops->vdev_op_leaf &&
+		    vd->vdev_ops != &vdev_draid_spare_ops &&
+		    !vdev_should_queue_io(zio)) {
+			/*
+			 * The batch is dispatched to the taskq chosen for
+			 * whichever member arrives last, so they all have to
+			 * choose the same one.  The flags that steer the choice
+			 * are vdev-inherited, and type and priority come from
+			 * the parent at every call site.
+			 */
+			ASSERT3U(zio->io_type, ==, pio->io_type);
+			ASSERT3U(zio->io_priority, ==, pio->io_priority);
+			zio_batch_join(pio->io_child_batch, zio);
+		}
+	}
+
 	return (zio);
 }
 
@@ -2151,7 +2213,8 @@ zio_free_bp_init(zio_t *zio)
  */
 
 static void
-zio_taskq_dispatch(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline)
+zio_taskq_dispatch_func(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline,
+    task_func_t *func)
 {
 	spa_t *spa = zio->io_spa;
 	zio_type_t t = zio->io_type;
@@ -2183,7 +2246,13 @@ zio_taskq_dispatch(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline)
 
 	ASSERT3U(q, <, ZIO_TASKQ_TYPES);
 
-	spa_taskq_dispatch(spa, t, q, zio_execute, zio, cutinline);
+	spa_taskq_dispatch(spa, t, q, func, zio, cutinline);
+}
+
+static void
+zio_taskq_dispatch(zio_t *zio, zio_taskq_type_t q, boolean_t cutinline)
+{
+	zio_taskq_dispatch_func(zio, q, cutinline, zio_execute);
 }
 
 static boolean_t
@@ -2209,13 +2278,214 @@ static zio_t *
 zio_issue_async(zio_t *zio)
 {
 	ASSERT((zio->io_type != ZIO_TYPE_WRITE) || ZIO_HAS_ALLOCATOR(zio));
+
+	/* Whatever may execute this again, it won't be this thread. */
+	zio->io_pipeline &= ~ZIO_STAGE_ISSUE_ASYNC;
+
+	/*
+	 * A zio whose children are not ready yet, such as an indirect block
+	 * write, has nothing to do in WRITE_COMPRESS but wait for them, so a
+	 * thread dispatched for it would only block.  Do that wait here and let
+	 * whoever wakes it up carry on, since that is not this thread anymore.
+	 */
+	if ((zio->io_pipeline & ZIO_STAGE_WRITE_COMPRESS) &&
+	    zio_wait_for_children(zio, ZIO_CHILD_LOGICAL_BIT |
+	    ZIO_CHILD_GANG_BIT, ZIO_WAIT_READY))
+		return (NULL);
+
 	zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, B_FALSE);
 	return (NULL);
+}
+
+/*
+ * ==========================================================================
+ * Completion batching
+ * ==========================================================================
+ *
+ * A vdev child's entire life after the block layer returns is three pipeline
+ * stages: VDEV_IO_DONE, VDEV_IO_ASSESS and DONE (ZIO_VDEV_CHILD_PIPELINE).
+ * For a parent with many children, such as RAIDZ or a mirror, every child but
+ * the last does nothing there except decrement the parent's child count, yet
+ * each one costs a taskq dispatch and a context switch to get there.
+ *
+ * A batch collects the children of one parent as they return, and once the last
+ * of them is in, runs all of their completions, and then the parent's, on one
+ * thread.  Arrival happens in the block layer completion context, so it is
+ * lock-free: bio_endio() on Linux can run in softirq, where the sleepable
+ * mutex_t is not usable.
+ *
+ * Only children that actually arrive from the block layer join zb_arrived; one
+ * that reaches its completion on a pipeline thread instead just releases its
+ * hold and runs that completion itself, as it would have without any of this.
+ * Building the list on arrival is what allows that, since such a child may run
+ * all the way to zio_destroy() long before the batch does.
+ *
+ * A child that occupies a vdev queue slot must never be a member.  The slot is
+ * released by vdev_queue_io_done(), part of the deferred completion, while a
+ * sibling may still be queued for a slot on another vdev whose slots are in
+ * turn held by the members of other waiting batches -- a cycle that deadlocks.
+ */
+static int zio_batch_enabled = 1;
+
+/*
+ * Open a batch collecting the completions of the vdev children this zio is
+ * about to create, which do little but count down to it.  Every one of those
+ * children must be created before the matching zio_batch_rele().
+ */
+void
+zio_batch_create(zio_t *pio)
+{
+	zio_batch_t *zb;
+
+	ASSERT3P(pio->io_child_batch, ==, NULL);
+
+	if (!zio_batch_enabled)
+		return;
+
+	zb = kmem_alloc(sizeof (*zb), KM_SLEEP);
+	zb->zb_arrived = NULL;
+	zb->zb_holds = 1;		/* creator's hold */
+	pio->io_child_batch = zb;
+}
+
+/*
+ * Free the batch and return the list of members that arrived on it, for the
+ * caller to execute.  Members arrive by prepending, and are equal peers of one
+ * parent, so their order should not matter; the list is reversed into
+ * completion order only because it is walked here anyway.  Membership is
+ * dropped in that walk, both because VDEV_IO_ASSESS may reissue a member, which
+ * must not rejoin, and so that a member's later zio_batch_leave() does not
+ * touch the batch once it is freed.
+ */
+static zio_t *
+zio_batch_run(zio_batch_t *zb)
+{
+	zio_t *list = NULL, *zio, *next;
+
+	for (zio = zb->zb_arrived; zio != NULL; zio = next) {
+		next = zio->io_exec_next;
+		zio->io_batch = NULL;
+		zio->io_exec_next = list;
+		list = zio;
+	}
+
+	kmem_free(zb, sizeof (*zb));
+
+	return (list);
+}
+
+static void
+zio_batch_execute(void *arg)
+{
+	zio_execute(zio_batch_run(((zio_t *)arg)->io_batch));
+}
+
+static void
+zio_batch_join(zio_batch_t *zb, zio_t *zio)
+{
+	ASSERT3P(zio->io_batch, ==, NULL);
+	atomic_inc_64(&zb->zb_holds);
+	zio->io_batch = zb;
+}
+
+/*
+ * Close the batch, once all of its members have been created, dropping the hold
+ * that kept it from running while they were still being created.  Callers do
+ * this before advancing the parent into VDEV_IO_DONE, where it will wait for
+ * them; the members go ahead of it in the list, which is harmless, since all
+ * they do there is decrement its child count.  io_child_batch is cleared, so
+ * that children created later, such as the repair writes from
+ * vdev_raidz_io_done(), do not join a batch that is already gone.  Returns the
+ * parent, preceded by any members that arrived while it was still creating
+ * them, for the caller to execute.
+ */
+zio_t *
+zio_batch_rele(zio_t *pio)
+{
+	zio_batch_t *zb = pio->io_child_batch;
+	zio_t *list, *last;
+
+	ASSERT3P(pio->io_exec_next, ==, NULL);
+
+	if (zb == NULL)
+		return (pio);
+
+	pio->io_child_batch = NULL;
+	if (atomic_dec_64_nv(&zb->zb_holds) != 0)
+		return (pio);
+
+	if ((list = zio_batch_run(zb)) == NULL)
+		return (pio);
+
+	last = list;
+	while (last->io_exec_next != NULL)
+		last = last->io_exec_next;
+	last->io_exec_next = pio;
+	return (list);
+}
+
+/*
+ * Called in place of a member's taskq dispatch, from the block layer
+ * completion context.  Returns B_TRUE if the zio was absorbed by a batch, in
+ * which case the caller must not touch it again.
+ */
+static boolean_t
+zio_batch_arrive(zio_t *zio)
+{
+	zio_batch_t *zb = zio->io_batch;
+	zio_t *head;
+
+	if (zb == NULL)
+		return (B_FALSE);
+
+	/*
+	 * The completion is deferred, so take the service time here, while it
+	 * still is one: vdev_child_slow_outlier() sits out RAIDZ children based
+	 * on io_delta and io_delay.  A non-zero io_delta also tells the stages
+	 * below when the block layer returned, as io_timestamp + io_delta.
+	 */
+	ASSERT3U(zio->io_timestamp, !=, 0);
+	zio->io_delta = gethrtime() - zio->io_timestamp;
+
+	do {
+		head = zb->zb_arrived;
+		zio->io_exec_next = head;
+	} while (atomic_cas_ptr(&zb->zb_arrived, head, zio) != head);
+
+	if (atomic_dec_64_nv(&zb->zb_holds) == 0) {
+		zio_taskq_dispatch_func(zio, ZIO_TASKQ_INTERRUPT, B_FALSE,
+		    zio_batch_execute);
+	}
+	return (B_TRUE);
+}
+
+/*
+ * Give up a membership, either because the zio is about to take a vdev queue
+ * slot after all, or because it reached its completion on a pipeline thread
+ * rather than from the block layer, and so will run that completion itself.
+ * Clearing io_batch makes this idempotent.  Returns the members for the caller
+ * to execute if this was the last hold on the batch, and NULL otherwise.
+ */
+zio_t *
+zio_batch_leave(zio_t *zio)
+{
+	zio_batch_t *zb = zio->io_batch;
+
+	if (likely(zb == NULL))
+		return (NULL);
+
+	zio->io_batch = NULL;
+	if (atomic_dec_64_nv(&zb->zb_holds) != 0)
+		return (NULL);
+
+	return (zio_batch_run(zb));
 }
 
 void
 zio_interrupt(void *zio)
 {
+	if (zio_batch_arrive(zio))
+		return;
 	zio_taskq_dispatch(zio, ZIO_TASKQ_INTERRUPT, B_FALSE);
 }
 
@@ -2423,68 +2693,130 @@ zio_execute_stack_check(zio_t *zio)
 	return (B_FALSE);
 }
 
+/*
+ * Run one pipeline stage, returning a list of zios to continue with, or NULL
+ * if this thread is done with it.
+ */
+__attribute__((always_inline))
+static inline zio_t *
+zio_execute_stage(zio_t *zio)
+{
+	enum zio_stage pipeline = zio->io_pipeline;
+	enum zio_stage stage = zio->io_stage;
+
+	zio->io_executor = curthread;
+
+	ASSERT(!MUTEX_HELD(&zio->io_lock));
+	ASSERT0P(zio->io_stall);
+	ASSERT(ISP2(stage));
+	ASSERT(pipeline & ~((stage << 1) - 1));
+
+	do {
+		stage <<= 1;
+	} while ((stage & pipeline) == 0);
+
+	ASSERT(stage <= ZIO_STAGE_DONE);
+
+	/*
+	 * If we are in interrupt context and this pipeline stage will grab
+	 * a config lock that is held across I/O, or may wait for an I/O that
+	 * needs an interrupt thread to complete, issue async to avoid deadlock.
+	 *
+	 * For VDEV_IO_START, we cut in line so that the io will be sent to
+	 * disk promptly.
+	 */
+	if ((stage & ZIO_BLOCKING_STAGES) && zio->io_vd == NULL &&
+	    zio_taskq_member(zio, ZIO_TASKQ_INTERRUPT)) {
+		boolean_t cut = (stage == ZIO_STAGE_VDEV_IO_START) ?
+		    zio_requeue_io_start_cut_in_line : B_FALSE;
+		zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, cut);
+		return (NULL);
+	}
+
+	/*
+	 * If the current context doesn't have large enough stacks
+	 * the zio must be issued asynchronously to prevent overflow.
+	 */
+	if (zio_execute_stack_check(zio)) {
+		boolean_t cut = (stage == ZIO_STAGE_VDEV_IO_START) ?
+		    zio_requeue_io_start_cut_in_line : B_FALSE;
+		zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, cut);
+		return (NULL);
+	}
+
+	zio->io_stage = stage;
+	zio->io_pipeline_trace |= zio->io_stage;
+
+	/*
+	 * The zio pipeline stage returns the next zio to execute (typically
+	 * the same as this one), or NULL if we should stop.  It may also
+	 * chain more zios to it for us to execute later.
+	 */
+	return (zio_pipeline[highbit64(stage) - 1](zio));
+}
+
+/*
+ * Take all but the first of the zios a stage handed back off its head, and
+ * prepend the rest to those already pending.  Dispatch heavyweight ZIOs except
+ * the last, so that they could run in parallel.
+ */
+static inline void
+zio_execute_defer(zio_t *zio, zio_t **pendingp)
+{
+	zio_t *list = NULL, **tailp = &list;
+	zio_t *next;
+
+	for (zio_t *cur = zio->io_exec_next; cur != NULL; cur = next) {
+		next = cur->io_exec_next;
+		cur->io_exec_next = NULL;
+		if ((next != NULL || *pendingp != NULL) &&
+		    !(cur->io_flags & ZIO_FLAG_LIGHTWEIGHT)) {
+			zio_taskq_dispatch(cur,
+			    cur->io_stage < ZIO_STAGE_VDEV_IO_START ?
+			    ZIO_TASKQ_ISSUE : ZIO_TASKQ_INTERRUPT, B_FALSE);
+			continue;
+		}
+		*tailp = cur;
+		tailp = &cur->io_exec_next;
+	}
+
+	*tailp = *pendingp;
+	*pendingp = list;
+	zio->io_exec_next = NULL;
+}
+
 __attribute__((always_inline))
 static inline void
 __zio_execute(zio_t *zio)
 {
-	ASSERT3U(zio->io_queued_timestamp, >, 0);
+	zio_t *pending = zio->io_exec_next;
+	zio->io_exec_next = NULL;
 
-	while (zio->io_stage < ZIO_STAGE_DONE) {
-		enum zio_stage pipeline = zio->io_pipeline;
-		enum zio_stage stage = zio->io_stage;
+	for (;;) {
+		zio_t *last = zio;
+		while ((zio = zio_execute_stage(zio)) != NULL) {
+			if (zio->io_exec_next != NULL)
+				zio_execute_defer(zio, &pending);
 
-		zio->io_executor = curthread;
-
-		ASSERT(!MUTEX_HELD(&zio->io_lock));
-		ASSERT(ISP2(stage));
-		ASSERT0P(zio->io_stall);
-
-		do {
-			stage <<= 1;
-		} while ((stage & pipeline) == 0);
-
-		ASSERT(stage <= ZIO_STAGE_DONE);
-
-		/*
-		 * If we are in interrupt context and this pipeline stage
-		 * will grab a config lock that is held across I/O,
-		 * or may wait for an I/O that needs an interrupt thread
-		 * to complete, issue async to avoid deadlock.
-		 *
-		 * For VDEV_IO_START, we cut in line so that the io will
-		 * be sent to disk promptly.
-		 */
-		if ((stage & ZIO_BLOCKING_STAGES) && zio->io_vd == NULL &&
-		    zio_taskq_member(zio, ZIO_TASKQ_INTERRUPT)) {
-			boolean_t cut = (stage == ZIO_STAGE_VDEV_IO_START) ?
-			    zio_requeue_io_start_cut_in_line : B_FALSE;
-			zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, cut);
-			return;
+			/*
+			 * A heavyweight zio is dispatched if others are already
+			 * waiting for this thread to let them run in parallel.
+			 */
+			if (zio != last && pending != NULL &&
+			    !(zio->io_flags & ZIO_FLAG_LIGHTWEIGHT)) {
+				zio_taskq_dispatch(zio,
+				    zio->io_stage < ZIO_STAGE_VDEV_IO_START ?
+				    ZIO_TASKQ_ISSUE : ZIO_TASKQ_INTERRUPT,
+				    B_FALSE);
+				break;
+			}
+			last = zio;
 		}
 
-		/*
-		 * If the current context doesn't have large enough stacks
-		 * the zio must be issued asynchronously to prevent overflow.
-		 */
-		if (zio_execute_stack_check(zio)) {
-			boolean_t cut = (stage == ZIO_STAGE_VDEV_IO_START) ?
-			    zio_requeue_io_start_cut_in_line : B_FALSE;
-			zio_taskq_dispatch(zio, ZIO_TASKQ_ISSUE, cut);
+		if ((zio = pending) == NULL)
 			return;
-		}
-
-		zio->io_stage = stage;
-		zio->io_pipeline_trace |= zio->io_stage;
-
-		/*
-		 * The zio pipeline stage returns the next zio to execute
-		 * (typically the same as this one), or NULL if we should
-		 * stop.
-		 */
-		zio = zio_pipeline[highbit64(stage) - 1](zio);
-
-		if (zio == NULL)
-			return;
+		pending = zio->io_exec_next;
+		zio->io_exec_next = NULL;
 	}
 }
 
@@ -4666,6 +4998,7 @@ zio_vdev_io_start(zio_t *zio)
 	uint64_t align;
 	spa_t *spa = zio->io_spa;
 
+	zio->io_delta = 0;
 	zio->io_delay = 0;
 
 	ASSERT0(zio->io_error);
@@ -4859,8 +5192,12 @@ zio_vdev_io_done(zio_t *zio)
 	    zio->io_type == ZIO_TYPE_FLUSH ||
 	    zio->io_type == ZIO_TYPE_TRIM);
 
-	if (zio->io_delay)
-		zio->io_delay = gethrtime() - zio->io_delay;
+	if (zio->io_delay) {
+		/* io_delta is set only if the completion was deferred. */
+		zio->io_delay = (zio->io_delta != 0 ?
+		    zio->io_timestamp + zio->io_delta : gethrtime()) -
+		    zio->io_delay;
+	}
 
 	if (vd != NULL && vd->vdev_ops->vdev_op_leaf &&
 	    vd->vdev_ops != &vdev_draid_spare_ops) {
@@ -4884,11 +5221,20 @@ zio_vdev_io_done(zio_t *zio)
 		}
 	}
 
+	/*
+	 * This zio got here on a pipeline thread rather than from the block
+	 * layer, so it runs its own completion and gives up its membership.
+	 * The batch is chained only below, to keep it clear of whatever
+	 * vdev_op_io_done() may do with this zio.
+	 */
+	zio_t *batch = zio_batch_leave(zio);
+
 	ops->vdev_op_io_done(zio);
 
 	if (unexpected_error && vd->vdev_remove_wanted == B_FALSE)
 		VERIFY0P(vdev_probe(vd, zio));
 
+	zio->io_exec_next = batch;
 	return (zio);
 }
 
@@ -4954,6 +5300,9 @@ zio_vdev_io_assess(zio_t *zio)
 	if (zio_wait_for_children(zio, ZIO_CHILD_VDEV_BIT, ZIO_WAIT_DONE)) {
 		return (NULL);
 	}
+
+	/* A repair write bypass skips VDEV_IO_DONE entirely. */
+	zio->io_exec_next = zio_batch_leave(zio);
 
 	if (vd == NULL && !(zio->io_flags & ZIO_FLAG_CONFIG_WRITER))
 		spa_config_exit(zio->io_spa, SCL_ZIO, zio);
@@ -5490,10 +5839,14 @@ zio_ready(zio_t *zio)
 	 * io_parent_list, from 'pio_next' onward, cannot change because
 	 * all parents must wait for us to be done before they can be done.
 	 */
+	zio_next_t next;
+	zio_next_init(&next);
 	for (; pio != NULL; pio = pio_next) {
 		pio_next = zio_walk_parents(zio, &zl);
-		zio_notify_parent(pio, zio, ZIO_WAIT_READY, NULL);
+		zio_notify_parent(pio, zio, ZIO_WAIT_READY, &next);
 	}
+	ASSERT3P(zio->io_exec_next, ==, NULL);
+	zio->io_exec_next = next.zn_list;
 
 	if (zio->io_flags & ZIO_FLAG_NODATA) {
 		if (bp != NULL && BP_IS_GANG(bp)) {
@@ -5858,7 +6211,7 @@ zio_done(zio_t *zio)
 				zio_remove_child(pio, zio, remove_zl);
 				/*
 				 * This is a rare code path, so we don't
-				 * bother with "next_to_execute".
+				 * bother with the "next" list.
 				 */
 				zio_notify_parent(pio, zio, ZIO_WAIT_DONE,
 				    NULL);
@@ -5875,7 +6228,7 @@ zio_done(zio_t *zio)
 			zio->io_flags |= ZIO_FLAG_DONT_PROPAGATE;
 			/*
 			 * This is a rare code path, so we don't bother with
-			 * "next_to_execute".
+			 * the "next" list.
 			 */
 			zio_notify_parent(pio, zio, ZIO_WAIT_DONE, NULL);
 		} else if (zio->io_post & ZIO_POST_SUSPEND) {
@@ -5944,16 +6297,17 @@ zio_done(zio_t *zio)
 	mutex_exit(&zio->io_lock);
 
 	/*
-	 * We are done executing this zio.  We may want to execute a parent
-	 * next.  See the comment in zio_notify_parent().
+	 * We are done executing this zio.  We may want to execute some of its
+	 * parents next.  See the comment in zio_notify_parent().
 	 */
-	zio_t *next_to_execute = NULL;
+	zio_next_t next;
+	zio_next_init(&next);
 	zl = NULL;
 	for (pio = zio_walk_parents(zio, &zl); pio != NULL; pio = pio_next) {
 		zio_link_t *remove_zl = zl;
 		pio_next = zio_walk_parents(zio, &zl);
 		zio_remove_child(pio, zio, remove_zl);
-		zio_notify_parent(pio, zio, ZIO_WAIT_DONE, &next_to_execute);
+		zio_notify_parent(pio, zio, ZIO_WAIT_DONE, &next);
 	}
 
 	if (zio->io_waiter != NULL) {
@@ -5965,7 +6319,7 @@ zio_done(zio_t *zio)
 		zio_destroy(zio);
 	}
 
-	return (next_to_execute);
+	return (next.zn_list);
 }
 
 /*
@@ -6219,6 +6573,9 @@ ZFS_MODULE_PARAM(zfs_zio, zio_, slow_io_ms, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_zio, zio_, requeue_io_start_cut_in_line, INT, ZMOD_RW,
 	"Prioritize requeued I/O");
+
+ZFS_MODULE_PARAM(zfs_zio, zio_, batch_enabled, INT, ZMOD_RW,
+	"Batch processing of vdev children I/O completions");
 
 ZFS_MODULE_PARAM(zfs, zfs_, sync_pass_deferred_free,  UINT, ZMOD_RW,
 	"Defer frees starting in this pass");
