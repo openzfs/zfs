@@ -1241,6 +1241,101 @@ typedef struct spa_keystore_change_key_args {
 	nvlist_t *skcka_userprops;
 } spa_keystore_change_key_args_t;
 
+/*
+ * Check that every DSL Crypto Key that spa_keystore_change_key_sync_impl()
+ * will rewrap can be unwrapped with the wrapping key it currently claims.
+ * That function cannot return an error, so a key it fails to hold there is
+ * fatal, and this recursion must visit exactly the dsl dirs that one does.
+ * A dataset whose key material no longer matches the encryption root it
+ * points at is rejected here with EACCES instead.
+ */
+static int
+spa_keystore_change_key_check_impl(uint64_t rddobj, uint64_t ddobj,
+    boolean_t skip, dmu_tx_t *tx)
+{
+	int ret;
+	zap_cursor_t *zc;
+	zap_attribute_t *za;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	dsl_dir_t *dd = NULL;
+	dsl_crypto_key_t *dck = NULL;
+	uint64_t curr_rddobj;
+
+	ret = dsl_dir_hold_obj(dp, ddobj, NULL, FTAG, &dd);
+	if (ret != 0)
+		return (ret);
+
+	/* ignore special dsl dirs */
+	if (dd->dd_myname[0] == '$' || dd->dd_myname[0] == '%') {
+		dsl_dir_rele(dd, FTAG);
+		return (0);
+	}
+
+	ret = dsl_dir_get_encryption_root_ddobj(dd, &curr_rddobj);
+	if (ret != 0 && ret != ENOENT) {
+		dsl_dir_rele(dd, FTAG);
+		return (ret);
+	}
+
+	/*
+	 * Stop recursing if this dsl dir didn't inherit from the root
+	 * or if this dd is a clone.
+	 */
+	if (ret == ENOENT ||
+	    (!skip && (curr_rddobj != rddobj || dsl_dir_is_clone(dd)))) {
+		dsl_dir_rele(dd, FTAG);
+		return (0);
+	}
+
+	/* the sync function will rewrap this key, so it must be readable */
+	if (!skip) {
+		ret = spa_keystore_dsl_key_hold_dd(dp->dp_spa, dd, FTAG, &dck);
+		if (ret != 0) {
+			dsl_dir_rele(dd, FTAG);
+			return (ret);
+		}
+		spa_keystore_dsl_key_rele(dp->dp_spa, dck, FTAG);
+	}
+
+	zc = kmem_alloc(sizeof (zap_cursor_t), KM_SLEEP);
+	za = zap_attribute_alloc();
+
+	/* Recurse into all child dsl dirs. */
+	for (zap_cursor_init(zc, dp->dp_meta_objset,
+	    dsl_dir_phys(dd)->dd_child_dir_zapobj);
+	    ret == 0 && zap_cursor_retrieve(zc, za) == 0;
+	    zap_cursor_advance(zc)) {
+		ret = spa_keystore_change_key_check_impl(rddobj,
+		    za->za_first_integer, B_FALSE, tx);
+	}
+	zap_cursor_fini(zc);
+
+	/* Recurse into all dsl dirs of clones, skipping the clones. */
+	for (zap_cursor_init(zc, dp->dp_meta_objset,
+	    dsl_dir_phys(dd)->dd_clones);
+	    ret == 0 && zap_cursor_retrieve(zc, za) == 0;
+	    zap_cursor_advance(zc)) {
+		dsl_dataset_t *clone;
+
+		ret = dsl_dataset_hold_obj(dp, za->za_first_integer,
+		    FTAG, &clone);
+		if (ret != 0)
+			break;
+
+		ret = spa_keystore_change_key_check_impl(rddobj,
+		    clone->ds_dir->dd_object, B_TRUE, tx);
+		dsl_dataset_rele(clone, FTAG);
+	}
+	zap_cursor_fini(zc);
+
+	zap_attribute_free(za);
+	kmem_free(zc, sizeof (zap_cursor_t));
+
+	dsl_dir_rele(dd, FTAG);
+
+	return (ret);
+}
+
 static int
 spa_keystore_change_key_check(void *arg, dmu_tx_t *tx)
 {
@@ -1324,6 +1419,11 @@ spa_keystore_change_key_check(void *arg, dmu_tx_t *tx)
 			ret = dmu_objset_check_wkey_loaded(dd->dd_parent);
 			if (ret != 0)
 				goto error;
+
+			ret = spa_keystore_change_key_check_impl(rddobj,
+			    dd->dd_object, B_FALSE, tx);
+			if (ret != 0)
+				goto error;
 		}
 
 		dsl_dir_rele(dd, FTAG);
@@ -1405,6 +1505,11 @@ spa_keystore_change_key_check(void *arg, dmu_tx_t *tx)
 	if (ret != 0)
 		goto error;
 
+	ret = spa_keystore_change_key_check_impl(rddobj, dd->dd_object, B_FALSE,
+	    tx);
+	if (ret != 0)
+		goto error;
+
 	dsl_dir_rele(dd, FTAG);
 
 	return (0);
@@ -1421,7 +1526,8 @@ error:
  * key references and encryption roots recursively in the event
  * of a call to 'zfs change-key' or 'zfs promote'. The 'skip'
  * parameter should always be set to B_FALSE when called
- * externally.
+ * externally. spa_keystore_change_key_check_impl() must recurse over the
+ * same set of dsl dirs; keep the two in step.
  */
 static void
 spa_keystore_change_key_sync_impl(uint64_t rddobj, uint64_t ddobj,
