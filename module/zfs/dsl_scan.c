@@ -674,10 +674,12 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 		/*
 		 * We might be restarting after a reboot, so jump the issued
 		 * counter to how far we've scanned. We know we're consistent
-		 * up to here.
+		 * up to here. scn_phys is on disk, so an older version may
+		 * have left scn_skipped above scn_examined.
 		 */
-		scn->scn_issued_before_pass = scn->scn_phys.scn_examined -
-		    scn->scn_phys.scn_skipped;
+		scn->scn_issued_before_pass =
+		    scn->scn_phys.scn_examined > scn->scn_phys.scn_skipped ?
+		    scn->scn_phys.scn_examined - scn->scn_phys.scn_skipped : 0;
 
 		if (dsl_scan_is_running(scn) &&
 		    spa_prev_software_version(dp->dp_spa) < SPA_VERSION_SCAN) {
@@ -4510,8 +4512,10 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		 * See print_scan_scrub_resilver_status() issued/total_i
 		 * @ cmd/zpool/zpool_main.c
 		 */
-		to_issue =
-		    scn->scn_phys.scn_to_examine - scn->scn_phys.scn_skipped;
+		/* scn_to_examine is sampled once; scn_skipped keeps growing. */
+		to_issue = scn->scn_phys.scn_to_examine >
+		    scn->scn_phys.scn_skipped ? scn->scn_phys.scn_to_examine -
+		    scn->scn_phys.scn_skipped : 0;
 		issued =
 		    scn->scn_issued_before_pass + spa->spa_scan_pass_issued;
 		restart_early =
@@ -4989,6 +4993,10 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	count_block(dp->dp_blkstats, bp);
 	if (phys_birth <= scn->scn_phys.scn_min_txg ||
 	    phys_birth >= scn->scn_phys.scn_max_txg) {
+		/* Traversed but not scrubbed; both counters must see it. */
+		uint64_t asize = BP_GET_ASIZE(bp);
+		scn->scn_phys.scn_examined += asize;
+		spa->spa_scan_pass_exam += asize;
 		count_block_skipped(scn, bp, B_TRUE);
 		return (0);
 	}
