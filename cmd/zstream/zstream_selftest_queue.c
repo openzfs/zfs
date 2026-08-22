@@ -177,8 +177,8 @@ qtest_producer(void *arg)
 	const qtest_config_t *cfg = run->qr_cfg;
 	uint64_t local_expect = 0;
 	selftest_rng_t rng;
-	alignas(uint64_t) uint8_t item_buffer[sizeof (qtest_item_t) +
-	    cfg->qc_pattern_len];
+	alignas(__alignof__(uint64_t)) uint8_t item_buffer[
+	    sizeof (qtest_item_t) + cfg->qc_pattern_len];
 	qtest_item_t *item = (qtest_item_t *)item_buffer;
 
 	selftest_rng_init(&rng, cfg->qc_rng_stream + 1000 + pa->qp_id);
@@ -239,8 +239,8 @@ qtest_consumer(void *arg)
 	const qtest_config_t *cfg = run->qr_cfg;
 	selftest_rng_t rng;
 	uint64_t expected_seq[cfg->qc_producers];
-	alignas(uint64_t) uint8_t item_buffer[sizeof (qtest_item_t) +
-	    cfg->qc_pattern_len];
+	alignas(__alignof__(uint64_t)) uint8_t item_buffer[
+	    sizeof (qtest_item_t) + cfg->qc_pattern_len];
 	qtest_item_t *item = (qtest_item_t *)item_buffer;
 
 	memset(expected_seq, 0, sizeof (expected_seq));
