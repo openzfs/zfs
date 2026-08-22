@@ -1977,6 +1977,9 @@ vdev_load_child(void *arg)
 typedef struct {
 	vdev_t	*voc_vdev;
 	cred_t	*voc_cred;
+#ifdef _KERNEL
+	struct fs_struct voc_fs;
+#endif
 } vdev_open_child_t;
 
 static void
@@ -1985,9 +1988,20 @@ vdev_open_child(void *arg)
 	vdev_open_child_t *voc = arg;
 	vdev_t *vd = voc->voc_vdev;
 
+#ifdef _KERNEL
+	struct fs_struct *old_fs = current->fs;
+	WRITE_ONCE(current->fs, &voc->voc_fs);
+#endif
+
 	vd->vdev_open_thread = curthread;
 	vd->vdev_open_error = vdev_open(vd, voc->voc_cred);
 	vd->vdev_open_thread = NULL;
+
+#ifdef _KERNEL
+	WRITE_ONCE(current->fs, old_fs);
+	path_put(&voc->voc_fs.root);
+	path_put(&voc->voc_fs.pwd);
+#endif
 
 	crfree(voc->voc_cred);
 	kmem_free(voc, sizeof (vdev_open_child_t));
@@ -2046,6 +2060,14 @@ vdev_open_children_impl(vdev_t *vd, cred_t *cred,
 			    kmem_alloc(sizeof (vdev_open_child_t), KM_SLEEP);
 			voc->voc_vdev = cvd;
 			voc->voc_cred = cred;
+#ifdef _KERNEL
+			voc->voc_fs.users = 1;
+			voc->voc_fs.in_exec = 0;
+			seqlock_init(&voc->voc_fs.seq);
+			voc->voc_fs.umask = current->fs->umask;
+			get_fs_root(current->fs, &voc->voc_fs.root);
+			get_fs_pwd(current->fs, &voc->voc_fs.pwd);
+#endif
 			crhold(cred);
 			VERIFY(taskq_dispatch(tq, vdev_open_child,
 			    voc, TQ_SLEEP) != TASKQID_INVALID);
