@@ -5662,6 +5662,23 @@ zio_done(zio_t *zio)
 	zio_pop_transforms(zio);	/* note: may set zio->io_error */
 
 	/*
+	 * The DDT extension path deliberately produces EAGAIN at two
+	 * sites: at allocation, when extending would require ganging
+	 * (zio_write_gang_block()), and at READY, when the live phys is
+	 * already ganged. Disable dedup and reexecute as a plain write;
+	 * zp_dedup transitions monotonically to false, so the retry
+	 * terminates. A backend EAGAIN can also take this path; it gets
+	 * one non-dedup retry before ordinary error handling.
+	 */
+	if (zio->io_error == EAGAIN &&
+	    zio == zio->io_logical && IO_IS_ALLOCATING(zio) &&
+	    zio->io_prop.zp_dedup) {
+		zio->io_prop.zp_dedup = B_FALSE;
+		zio->io_post |= ZIO_POST_REEXECUTE;
+		zio->io_error = 0;
+	}
+
+	/*
 	 * During thorough scrub, if the dataset key is not loaded, decryption
 	 * or MAC verification fails with EACCES (spa_do_crypt_abd() and the
 	 * MAC helpers). Since the block's checksum was already successfully
@@ -5746,15 +5763,6 @@ zio_done(zio_t *zio)
 
 	if (zio->io_error && zio == zio->io_logical) {
 
-		/*
-		 * A DDT child tried to create a mixed gang/non-gang BP. We're
-		 * going to have to just retry as a non-dedup IO.
-		 */
-		if (zio->io_error == EAGAIN && IO_IS_ALLOCATING(zio) &&
-		    zio->io_prop.zp_dedup) {
-			zio->io_post |= ZIO_POST_REEXECUTE;
-			zio->io_prop.zp_dedup = B_FALSE;
-		}
 		/*
 		 * Determine whether zio should be reexecuted.  This will
 		 * propagate all the way to the root via zio_notify_parent().
