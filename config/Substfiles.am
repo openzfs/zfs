@@ -24,6 +24,7 @@ subst_sed_cmd = \
 	-e 's|@LIBFETCH_SONAME[@]|$(LIBFETCH_SONAME)|g' \
 	-e 's|@PYTHON[@]|$(PYTHON)|g' \
 	-e 's|@PYTHON_SHEBANG[@]|$(PYTHON_SHEBANG)|g' \
+	-e 's|@PYZFS_ENABLED[@]|$(PYZFS_ENABLED)|g' \
 	-e 's|@UBSAN_ENABLED[@]|$(UBSAN_ENABLED)|g' \
 	-e 's|@VERSION[@]|$(VERSION)|g'
 
