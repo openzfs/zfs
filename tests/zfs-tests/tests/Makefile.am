@@ -362,6 +362,10 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/projectquota/projectquota_common.kshlib \
 	functional/quota/quota.cfg \
 	functional/quota/quota.kshlib \
+	functional/raidz/blockfiles/raidz_dedup_overrun-0.dat.bz2 \
+	functional/raidz/blockfiles/raidz_dedup_overrun-1.dat.bz2 \
+	functional/raidz/blockfiles/raidz_dedup_overrun-2.dat.bz2 \
+	functional/raidz/blockfiles/raidz_dedup_overrun-3.dat.bz2 \
 	functional/redacted_send/redacted.cfg \
 	functional/redacted_send/redacted.kshlib \
 	functional/redundancy/redundancy.cfg \
@@ -2005,6 +2009,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/raidz/cleanup.ksh \
 	functional/raidz/raidz_001_neg.ksh \
 	functional/raidz/raidz_002_pos.ksh \
+	functional/raidz/raidz_dedup_overrun.ksh \
 	functional/raidz/raidz_expand_001_pos.ksh \
 	functional/raidz/raidz_expand_002_pos.ksh \
 	functional/raidz/raidz_expand_003_neg.ksh \
