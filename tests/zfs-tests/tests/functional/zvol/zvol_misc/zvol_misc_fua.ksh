@@ -105,12 +105,12 @@ log_must zpool add $TESTPOOL log $datafile3
 log_note "Testing without blk-mq"
 
 set_blk_mq 0
-log_must zpool export $TESTPOOL
+log_must_busy zpool export $TESTPOOL
 log_must zpool import $TESTPOOL
 do_test
 
 set_blk_mq 1
-log_must zpool export $TESTPOOL
+log_must_busy zpool export $TESTPOOL
 log_must zpool import $TESTPOOL
 do_test
 
