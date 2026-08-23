@@ -3700,7 +3700,7 @@ zio_ddt_child_write_done(zio_t *zio)
 	if (dde->dde_io->dde_lead_zio[p] == zio)
 		dde->dde_io->dde_lead_zio[p] = NULL;
 
-	ddt_univ_phys_t *orig = &dde->dde_io->dde_orig_phys;
+	ddt_univ_phys_t *orig = &dde->dde_io->dde_rollback_phys;
 
 	if (zio->io_error != 0) {
 		/*
@@ -3709,7 +3709,8 @@ zio_ddt_child_write_done(zio_t *zio)
 		 * the last time it was successfully extended.
 		 */
 		ddt_phys_unextend(ddp, orig, v);
-		ddt_phys_clear(orig, v);
+		if (dde->dde_io->dde_lead_zio[p] == NULL)
+			ddt_phys_clear(orig, v);
 
 		mutex_exit(&dde->dde_io->dde_io_lock);
 
@@ -3732,12 +3733,13 @@ zio_ddt_child_write_done(zio_t *zio)
 	/*
 	 * We've successfully added new DVAs to the entry. Clear the saved
 	 * state or, if there's still outstanding IO, remember it so we can
-	 * revert to a known good state if that IO fails.
+	 * revert to a known good state if that IO fails. A DDT child owns a
+	 * private BP, so it contains only this child's newly allocated DVAs.
 	 */
 	if (dde->dde_io->dde_lead_zio[p] == NULL)
 		ddt_phys_clear(orig, v);
 	else
-		ddt_phys_copy(orig, ddp, v);
+		ddt_phys_extend(orig, v, zio->io_bp);
 
 	mutex_exit(&dde->dde_io->dde_io_lock);
 }
@@ -4121,7 +4123,7 @@ piggyback:
 		 * First time out, take a copy of the stable entry to revert
 		 * to if there's an error (see zio_ddt_child_write_done())
 		 */
-		ddt_phys_copy(&dde_io->dde_orig_phys, dde->dde_phys, v);
+		ddt_phys_copy(&dde_io->dde_rollback_phys, dde->dde_phys, v);
 		dde_io->dde_lead_zio[p] = cio;
 	} else {
 		if (dde_io->dde_lead_zio[p] == NULL) {
@@ -4130,7 +4132,7 @@ piggyback:
 			 * to revert to if there's an error (see
 			 * zio_ddt_child_write_done())
 			 */
-			ddt_phys_copy(&dde_io->dde_orig_phys, dde->dde_phys,
+			ddt_phys_copy(&dde_io->dde_rollback_phys, dde->dde_phys,
 			    v);
 		} else {
 			/*
