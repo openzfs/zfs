@@ -132,7 +132,7 @@ zstream_do_selftest(int argc, char *argv[])
 {
 	boolean_t list_only = B_FALSE;
 	boolean_t have_seed = B_FALSE;
-	uint_t nthreads = 0;
+	int nthreads = 0;
 	char *end;
 	int c;
 
@@ -150,12 +150,12 @@ zstream_do_selftest(int argc, char *argv[])
 			have_seed = B_TRUE;
 			break;
 		case 't':
-			if (sscanf(optarg, "%u", &nthreads) != 1 ||
-			    nthreads == 0) {
+			if (sscanf(optarg, "%d", &nthreads) != 1) {
 				warnx("failed to parse num_threads '%s'",
 				    optarg);
 				selftest_usage();
 			}
+			zstream_queue_set_num_threads(nthreads);
 			break;
 		case '?':
 			warnx("invalid option '%c'", optopt);
@@ -184,10 +184,6 @@ zstream_do_selftest(int argc, char *argv[])
 		    sizeof (selftest_seed));
 	(void) printf("Using seed 0x%016jx (replay with -s 0x%jx)\n",
 	    (uintmax_t)selftest_seed, (uintmax_t)selftest_seed);
-
-	if (nthreads > 0)
-		zstream_queue_set_num_threads(nthreads);
-
 
 	int count = 0;
 	if (argc == 1) {
