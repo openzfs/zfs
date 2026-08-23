@@ -346,6 +346,12 @@ This applies primarily to
 .It Sy zfs_keep_log_spacemaps_at_export Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Prevent log spacemaps from being destroyed during pool exports and destroys.
 .
+.It Sy zfs_log_sm_blksz Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq int
+This is used as the block size for the space maps used for the
+log space map feature.
+These space maps benefit from a bigger block size
+as we expect to be writing a lot of data to them at once.
+.
 .It Sy zfs_metaslab_segment_weight_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Enable/disable segment-based metaslab selection.
 .

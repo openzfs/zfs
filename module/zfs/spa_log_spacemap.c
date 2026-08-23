@@ -170,7 +170,7 @@
  * block size as we expect to be writing a lot of data to them at
  * once.
  */
-static const unsigned long zfs_log_sm_blksz = 1ULL << 17;
+static int zfs_log_sm_blksz = (1 << 17);
 
 /*
  * Percentage of the overall system's memory that ZFS allows to be
@@ -1574,6 +1574,9 @@ ZFS_MODULE_PARAM(zfs, zfs_, max_log_walking, U64, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, keep_log_spacemaps_at_export, INT, ZMOD_RW,
 	"Prevent the log spacemaps from being flushed and destroyed "
 	"during pool export/destroy");
+
+ZFS_MODULE_PARAM(zfs, zfs_, log_sm_blksz, INT, ZMOD_RW,
+	"Block size for the space maps used for the log space map feature");
 
 ZFS_MODULE_PARAM(zfs, zfs_, max_logsm_summary_length, U64, ZMOD_RW,
 	"Maximum number of rows allowed in the summary of the spacemap log");
