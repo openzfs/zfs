@@ -3757,11 +3757,13 @@ zio_ddt_child_write_ready(zio_t *zio)
 	ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
 
 	if (ddt_phys_is_gang(dde->dde_phys, v)) {
-		for (int i = 0; i < BP_GET_NDVAS(zio->io_bp); i++) {
-			dva_t *d = &zio->io_bp->blk_dva[i];
-			metaslab_group_alloc_decrement(zio->io_spa,
-			    DVA_GET_VDEV(d), zio->io_allocator,
-			    METASLAB_ASYNC_ALLOC, zio->io_size, zio);
+		if (zio->io_flags & ZIO_FLAG_ALLOC_THROTTLED) {
+			for (int i = 0; i < BP_GET_NDVAS(zio->io_bp); i++) {
+				dva_t *d = &zio->io_bp->blk_dva[i];
+				metaslab_group_alloc_decrement(zio->io_spa,
+				    DVA_GET_VDEV(d), zio->io_allocator,
+				    METASLAB_ASYNC_ALLOC, zio->io_size, zio);
+			}
 		}
 		zio->io_error = EAGAIN;
 	}
