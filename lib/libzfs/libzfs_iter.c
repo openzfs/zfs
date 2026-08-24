@@ -420,7 +420,7 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_OBJSETID) &&
 		    (nvlist_lookup_uint64_array(batch,
-		    SNAP_ITER_BATCH_OBJSETIDS, &objsetids,
+		    zfs_prop_to_name(ZFS_PROP_OBJSETID), &objsetids,
 		    &objsetid_count) != 0 || count != objsetid_count)) {
 			ret = EPROTO;
 			goto malformed;
@@ -448,14 +448,15 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 			goto malformed;
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_USED) &&
-		    (nvlist_lookup_uint64_array(batch, SNAP_ITER_BATCH_USED,
-		    &used, &used_count) != 0 || count != used_count)) {
+		    (nvlist_lookup_uint64_array(batch,
+		    zfs_prop_to_name(ZFS_PROP_USED), &used, &used_count) != 0 ||
+		    count != used_count)) {
 			ret = EPROTO;
 			goto malformed;
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_REFERENCED) &&
 		    (nvlist_lookup_uint64_array(batch,
-		    SNAP_ITER_BATCH_REFERENCED, &referenced,
+		    zfs_prop_to_name(ZFS_PROP_REFERENCED), &referenced,
 		    &referenced_count) != 0 || count != referenced_count)) {
 			ret = EPROTO;
 			goto malformed;
@@ -463,7 +464,8 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 		if (count != 0 &&
 		    (flags & ZFS_ITER_BATCHED_LOGICALREFERENCED) &&
 		    (nvlist_lookup_uint64_array(batch,
-		    SNAP_ITER_BATCH_LOGICALREFERENCED, &logicalreferenced,
+		    zfs_prop_to_name(ZFS_PROP_LOGICALREFERENCED),
+		    &logicalreferenced,
 		    &logicalreferenced_count) != 0 ||
 		    count != logicalreferenced_count)) {
 			ret = EPROTO;
@@ -486,7 +488,7 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_DEFER_DESTROY) &&
 		    (nvlist_lookup_uint8_array(batch,
-		    SNAP_ITER_BATCH_DEFER_DESTROY, &defer_destroy,
+		    zfs_prop_to_name(ZFS_PROP_DEFER_DESTROY), &defer_destroy,
 		    &defer_destroy_count) != 0 ||
 		    count != defer_destroy_count)) {
 			ret = EPROTO;

@@ -3031,8 +3031,8 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 			}
 			if (want_objsetid) {
 				fnvlist_add_uint64_array(outnvl,
-				    SNAP_ITER_BATCH_OBJSETIDS, objsetids,
-				    count);
+				    zfs_prop_to_name(ZFS_PROP_OBJSETID),
+				    objsetids, count);
 			}
 			if (want_creation) {
 				fnvlist_add_uint64_array(outnvl,
@@ -3061,21 +3061,23 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 			}
 			if (want_used) {
 				fnvlist_add_uint64_array(outnvl,
-				    SNAP_ITER_BATCH_USED, used, count);
+				    zfs_prop_to_name(ZFS_PROP_USED), used,
+				    count);
 			}
 			if (want_referenced) {
 				fnvlist_add_uint64_array(outnvl,
-				    SNAP_ITER_BATCH_REFERENCED, referenced,
-				    count);
+				    zfs_prop_to_name(ZFS_PROP_REFERENCED),
+				    referenced, count);
 			}
 			if (want_logicalreferenced) {
 				fnvlist_add_uint64_array(outnvl,
-				    SNAP_ITER_BATCH_LOGICALREFERENCED,
+				    zfs_prop_to_name(
+				    ZFS_PROP_LOGICALREFERENCED),
 				    logicalreferenced, count);
 			}
 			if (want_defer_destroy) {
 				fnvlist_add_uint8_array(outnvl,
-				    SNAP_ITER_BATCH_DEFER_DESTROY,
+				    zfs_prop_to_name(ZFS_PROP_DEFER_DESTROY),
 				    defer_destroy, count);
 			}
 		}
