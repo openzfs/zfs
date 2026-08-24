@@ -3097,7 +3097,8 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 			}
 			if (want_written) {
 				fnvlist_add_uint64_array(outnvl,
-				    SNAP_ITER_BATCH_WRITTENS, writtens, count);
+				    zfs_prop_to_name(ZFS_PROP_WRITTEN),
+				    writtens, count);
 				fnvlist_add_uint8_array(outnvl,
 				    SNAP_ITER_BATCH_WRITTEN_VALID,
 				    written_valid, count);

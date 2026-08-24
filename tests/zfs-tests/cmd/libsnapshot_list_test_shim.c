@@ -274,6 +274,7 @@ static int
 replace_written_metadata(zfs_cmd_t *zc, const char *mode)
 {
 	nvlist_t *batch = NULL;
+	const char *written_name = zfs_prop_to_name(ZFS_PROP_WRITTEN);
 	uint64_t *writtens, *writtens_copy = NULL;
 	uint8_t *valid, *valid_copy = NULL;
 	uint_t count;
@@ -285,12 +286,12 @@ replace_written_metadata(zfs_cmd_t *zc, const char *mode)
 		goto out;
 
 	if (strcmp(mode, "missing_writtens") == 0) {
-		(void) nvlist_remove_all(batch, SNAP_ITER_BATCH_WRITTENS);
+		(void) nvlist_remove_all(batch, written_name);
 	} else if (strcmp(mode, "missing_written_valid") == 0) {
 		(void) nvlist_remove_all(batch, SNAP_ITER_BATCH_WRITTEN_VALID);
 	} else if (strcmp(mode, "short_writtens") == 0) {
-		error = nvlist_lookup_uint64_array(batch,
-		    SNAP_ITER_BATCH_WRITTENS, &writtens, &count);
+		error = nvlist_lookup_uint64_array(batch, written_name,
+		    &writtens, &count);
 		if (error != 0 || count < 2) {
 			error = EPROTO;
 			goto out;
@@ -302,8 +303,8 @@ replace_written_metadata(zfs_cmd_t *zc, const char *mode)
 		}
 		(void) memcpy(writtens_copy, writtens,
 		    sizeof (writtens_copy[0]) * count);
-		(void) nvlist_remove_all(batch, SNAP_ITER_BATCH_WRITTENS);
-		error = nvlist_add_uint64_array(batch, SNAP_ITER_BATCH_WRITTENS,
+		(void) nvlist_remove_all(batch, written_name);
+		error = nvlist_add_uint64_array(batch, written_name,
 		    writtens_copy, count - 1);
 		if (error != 0)
 			goto out;

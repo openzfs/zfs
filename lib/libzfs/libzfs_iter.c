@@ -503,7 +503,8 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_WRITTEN) &&
 		    (nvlist_lookup_uint64_array(batch,
-		    SNAP_ITER_BATCH_WRITTENS, &writtens, &written_count) != 0 ||
+		    zfs_prop_to_name(ZFS_PROP_WRITTEN), &writtens,
+		    &written_count) != 0 ||
 		    nvlist_lookup_uint8_array(batch,
 		    SNAP_ITER_BATCH_WRITTEN_VALID, &written_valid,
 		    &written_valid_count) != 0 || count != written_count ||
