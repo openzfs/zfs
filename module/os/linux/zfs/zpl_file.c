@@ -23,6 +23,7 @@
 #include <linux/fs.h>
 #include <linux/migrate.h>
 #include <sys/file.h>
+#include <sys/arc_impl.h>
 #include <sys/dmu_objset.h>
 #include <sys/zfs_znode.h>
 #include <sys/zfs_vfsops.h>
@@ -30,6 +31,7 @@
 #include <sys/zfs_project.h>
 #include <sys/spa_impl.h>
 #include <sys/uio_impl.h>
+#include <sys/vmsystm.h>
 #include <linux/pagemap_compat.h>
 #include <linux/fadvise.h>
 #ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
@@ -238,14 +240,6 @@ MODULE_PARM_DESC(zfs_async_dio_task_depth,
 	"Most workers for async Direct I/O per pool; read-only, set "
 	"at module load");
 
-static unsigned long zfs_async_dio_max_inflight = 64 * 1024 * 1024;
-module_param(zfs_async_dio_max_inflight, ulong, 0644);
-MODULE_PARM_DESC(zfs_async_dio_max_inflight,
-	"Maximum bytes of in-flight async Direct I/O (reads and writes) per "
-	"dataset.  The user pages of admitted requests are pinned, so this "
-	"bounds the pinned memory held by queued requests.  Requests beyond "
-	"this limit are served synchronously.  Defaults to 64 MiB");
-
 /*
  * Per-pool (SPA) async Direct I/O worker pool.  One taskq per storage pool,
  * shared by all datasets of the pool and by reads and writes, so a slow or
@@ -260,43 +254,71 @@ typedef struct zpl_async_dio_pool {
 } zpl_async_dio_pool_t;
 
 /*
- * Async Direct I/O in-flight accounting, in bytes of the requested I/O.
- * Reads and writes share one budget, so the pinned memory held by queued
- * requests (of either direction) is bounded by zfs_async_dio_max_inflight.
- * The pages are pinned for the whole requested range, so the admission
- * reserves (and later releases) the requested byte count.  Returns 0 if the
- * request is admitted, EOPNOTSUPP if the dataset is at its in-flight limit
- * and the request must fall back to the synchronous path.  The admission
- * (reservation) happens before any user pages are pinned, so the amount of
- * pinned memory held by queued requests is bounded by
- * zfs_async_dio_max_inflight rather than by the queue length.
+ * Admit an async Direct I/O request.  Admission is a lock-free comparison
+ * against the memory available in the system: the request is queued only
+ * while at least 15% of physical memory is available and that available
+ * amount is larger than the request itself, so the user pages this request
+ * pins cannot, on their own, push the system into reclaim.  The available
+ * memory figure comes from arc_available_memory(), which ZFS already
+ * maintains for the ARC.  No lock is taken and no per-dataset byte limit
+ * is enforced; requests for which memory is not available simply fall back
+ * to the synchronous path.
+ *
+ * The per-dataset in-flight request count is still maintained (lock-free,
+ * in the packed atomic in zfs_vfsops_os.h) so teardown can wait for
+ * queued requests to finish executing; it no longer bounds admission.
+ * The count increment and the draining check are one compare-and-swap, so
+ * a request admitted just as teardown starts is always visible to the
+ * teardown drain.  Returns 0 if the request is admitted, EOPNOTSUPP if it
+ * must fall back to the synchronous path.
  */
 static int
 zpl_async_dio_hold(zfsvfs_t *zfsvfs, size_t count)
 {
-	mutex_enter(&zfsvfs->z_async_dio_lock);
-	if (zfsvfs->z_async_dio_draining ||
-	    count > zfs_async_dio_max_inflight ||
-	    zfsvfs->z_async_dio_inflight >
-	    zfs_async_dio_max_inflight - count) {
-		mutex_exit(&zfsvfs->z_async_dio_lock);
+	int64_t avail = arc_available_memory();
+	uint64_t old;
+
+	if (avail < 0 ||
+	    (uint64_t)avail < ptob(zfs_totalram_pages) / 100 * 15 ||
+	    (uint64_t)avail < (uint64_t)count) {
 		return (EOPNOTSUPP);
 	}
-	zfsvfs->z_async_dio_inflight += count;
-	mutex_exit(&zfsvfs->z_async_dio_lock);
 
-	return (0);
+	old = atomic_load_64(&zfsvfs->z_async_dio_inflight);
+	for (;;) {
+		if ((old & ZPL_ASYNC_DIO_DRAINING_BIT) != 0)
+			return (EOPNOTSUPP);
+
+		if (atomic_cas_64(&zfsvfs->z_async_dio_inflight, old,
+		    old + 1) == old)
+			return (0);
+
+		old = atomic_load_64(&zfsvfs->z_async_dio_inflight);
+	}
 }
 
 static void
-zpl_async_dio_rele(zfsvfs_t *zfsvfs, size_t count)
+zpl_async_dio_rele(zfsvfs_t *zfsvfs)
 {
-	mutex_enter(&zfsvfs->z_async_dio_lock);
-	ASSERT3U(zfsvfs->z_async_dio_inflight, >=, count);
-	zfsvfs->z_async_dio_inflight -= count;
-	if (zfsvfs->z_async_dio_inflight == 0)
+	uint64_t inflight;
+
+	ASSERT3U((atomic_load_64(&zfsvfs->z_async_dio_inflight) &
+	    ZPL_ASYNC_DIO_INFLIGHT_MASK), !=, 0);
+
+	inflight = atomic_sub_64_nv(&zfsvfs->z_async_dio_inflight, 1);
+
+	/*
+	 * Wake the teardown drainer exactly once, when the last in-flight
+	 * request completes while the filesystem is draining.  The
+	 * broadcast is issued with z_async_dio_lock held, which the
+	 * drainer sleeps on, so the wake cannot be lost between its
+	 * condition check and cv_wait().
+	 */
+	if (inflight == ZPL_ASYNC_DIO_DRAINING_BIT) {
+		mutex_enter(&zfsvfs->z_async_dio_lock);
 		cv_broadcast(&zfsvfs->z_async_dio_cv);
-	mutex_exit(&zfsvfs->z_async_dio_lock);
+		mutex_exit(&zfsvfs->z_async_dio_lock);
+	}
 }
 
 /*
@@ -340,15 +362,14 @@ zpl_async_dio_write_advance(list_t *pending, uint64_t *watermark)
 
 /*
  * Account a completed (or failed-to-queue) async Direct I/O write in both
- * barrier scopes and release its in-flight byte reservation in the same
- * critical section.  zfs_fsync() waits on the per-znode watermark, and
- * syncfs()/sync() on the per-filesystem one, so a write completing early can
- * only satisfy a barrier once every earlier write of that scope has also
- * completed.
+ * barrier scopes and release its in-flight reservation.  zfs_fsync()
+ * waits on the per-znode watermark, and syncfs()/sync() on the
+ * per-filesystem one, so a write completing early can only satisfy a
+ * barrier once every earlier write of that scope has also completed.
  */
 static void
 zpl_async_dio_write_finish(zfsvfs_t *zfsvfs, znode_t *zp, uint64_t zseq,
-    uint64_t fseq, size_t count)
+    uint64_t fseq)
 {
 	zpl_async_dio_write_done_t *done;
 
@@ -369,10 +390,10 @@ zpl_async_dio_write_finish(zfsvfs_t *zfsvfs, znode_t *zp, uint64_t zseq,
 	zpl_async_dio_write_insert(&zfsvfs->z_async_dio_write_pending, done);
 	zpl_async_dio_write_advance(&zfsvfs->z_async_dio_write_pending,
 	    &zfsvfs->z_async_dio_write_watermark);
-	ASSERT3U(zfsvfs->z_async_dio_inflight, >=, count);
-	zfsvfs->z_async_dio_inflight -= count;
 	cv_broadcast(&zfsvfs->z_async_dio_cv);
 	mutex_exit(&zfsvfs->z_async_dio_lock);
+
+	zpl_async_dio_rele(zfsvfs);
 }
 
 /*
@@ -410,13 +431,13 @@ zpl_async_dio_task(void *arg)
 
 	/*
 	 * The write has executed (its ZIL record is written); advance the
-	 * barrier watermarks and release the in-flight byte reservation.
+	 * barrier watermarks and release the in-flight reservation.
 	 */
 	if (aio->rw == UIO_WRITE)
 		zpl_async_dio_write_finish(aio->zfsvfs, aio->zp, aio->zseq,
-		    aio->fseq, aio->count);
+		    aio->fseq);
 	else
-		zpl_async_dio_rele(aio->zfsvfs, aio->count);
+		zpl_async_dio_rele(aio->zfsvfs);
 
 #ifdef HAVE_2ARGS_KI_COMPLETE
 	aio->kiocb->ki_complete(aio->kiocb, done);
@@ -603,7 +624,7 @@ zpl_async_dio_queue(struct kiocb *kiocb, struct iov_iter *iter,
 #else
 	if (aio->iovs == NULL) {
 #endif
-		zpl_async_dio_rele(zfsvfs, count);
+		zpl_async_dio_rele(zfsvfs);
 		crfree(aio->cr);
 		kmem_cache_free(zpl_async_dio_io_cache, aio);
 		zfs_exit(zfsvfs, FTAG);
@@ -623,7 +644,7 @@ zpl_async_dio_queue(struct kiocb *kiocb, struct iov_iter *iter,
 	 */
 	if (!zfs_uio_page_aligned(&aio->uio) ||
 	    !zfs_uio_aligned(&aio->uio, PAGE_SIZE)) {
-		zpl_async_dio_rele(zfsvfs, count);
+		zpl_async_dio_rele(zfsvfs);
 		crfree(aio->cr);
 		if (aio->iovs != NULL)
 			kfree(aio->iovs);
@@ -645,7 +666,7 @@ zpl_async_dio_queue(struct kiocb *kiocb, struct iov_iter *iter,
 	spl_fstrans_unmark(cookie);
 
 	if (error != 0) {
-		zpl_async_dio_rele(zfsvfs, count);
+		zpl_async_dio_rele(zfsvfs);
 		crfree(aio->cr);
 		if (aio->iovs != NULL)
 			kfree(aio->iovs);
@@ -680,9 +701,9 @@ zpl_async_dio_queue(struct kiocb *kiocb, struct iov_iter *iter,
 	    TQ_SLEEP) == TASKQID_INVALID) {
 		if (rw == UIO_WRITE)
 			zpl_async_dio_write_finish(zfsvfs, zp, aio->zseq,
-			    aio->fseq, count);
+			    aio->fseq);
 		else
-			zpl_async_dio_rele(zfsvfs, count);
+			zpl_async_dio_rele(zfsvfs);
 		/*
 		 * The pin set no UIO_DIRECT flag; zfs_uio_free_dio_pages()
 		 * requires it, so set it before releasing the pinned pages.
