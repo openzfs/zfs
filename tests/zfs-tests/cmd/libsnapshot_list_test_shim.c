@@ -140,13 +140,15 @@ replace_with_empty_batch(zfs_cmd_t *zc)
 	nvlist_t *batch = NULL;
 	nvlist_t *replacement = NULL;
 	uint64_t cursor, dmu_type, dds_flags;
+	boolean_t eof;
 	int error;
 
 	error = nvlist_unpack((void *)(uintptr_t)zc->zc_nvlist_dst,
 	    zc->zc_nvlist_dst_size, &batch, 0);
 	if (error != 0)
 		goto out;
-	if (nvlist_exists(batch, SNAP_ITER_BATCH_EOF) ||
+	if (nvlist_lookup_boolean_value(batch, SNAP_ITER_BATCH_EOF,
+	    &eof) != 0 || eof != B_FALSE ||
 	    nvlist_lookup_uint64(batch, SNAP_ITER_BATCH_CURSOR, &cursor) != 0 ||
 	    nvlist_lookup_uint64(batch, SNAP_ITER_BATCH_DMU_TYPE,
 	    &dmu_type) != 0 ||
@@ -170,6 +172,10 @@ replace_with_empty_batch(zfs_cmd_t *zc)
 	    dds_flags);
 	if (error != 0)
 		goto out;
+	error = nvlist_add_boolean_value(replacement, SNAP_ITER_BATCH_EOF,
+	    B_FALSE);
+	if (error != 0)
+		goto out;
 	error = pack_batch(zc, replacement);
 
 out:
@@ -181,7 +187,9 @@ out:
 static boolean_t
 is_metadata_mode(const char *mode)
 {
-	return (strcmp(mode, "missing_dmu_type") == 0 ||
+	return (strcmp(mode, "missing_eof") == 0 ||
+	    strcmp(mode, "unvalued_eof") == 0 ||
+	    strcmp(mode, "missing_dmu_type") == 0 ||
 	    strcmp(mode, "invalid_dmu_type") == 0 ||
 	    strcmp(mode, "missing_dds_flags") == 0 ||
 	    strcmp(mode, "invalid_dds_flags") == 0);
@@ -195,7 +203,11 @@ replace_batch_metadata(zfs_cmd_t *zc, const char *mode)
 	boolean_t invalid;
 	int error;
 
-	if (strcmp(mode, "missing_dmu_type") == 0 ||
+	if (strcmp(mode, "missing_eof") == 0 ||
+	    strcmp(mode, "unvalued_eof") == 0) {
+		name = SNAP_ITER_BATCH_EOF;
+		invalid = strcmp(mode, "missing_eof") != 0;
+	} else if (strcmp(mode, "missing_dmu_type") == 0 ||
 	    strcmp(mode, "invalid_dmu_type") == 0) {
 		name = SNAP_ITER_BATCH_DMU_TYPE;
 		invalid = strcmp(mode, "invalid_dmu_type") == 0;
@@ -209,9 +221,14 @@ replace_batch_metadata(zfs_cmd_t *zc, const char *mode)
 	if (error != 0)
 		goto out;
 	(void) nvlist_remove_all(batch, name);
-	if (invalid &&
-	    (error = nvlist_add_uint64(batch, name, UINT64_MAX)) != 0) {
-		goto out;
+	if (invalid) {
+		if (strcmp(mode, "unvalued_eof") == 0) {
+			error = nvlist_add_boolean(batch, name);
+		} else {
+			error = nvlist_add_uint64(batch, name, UINT64_MAX);
+		}
+		if (error != 0)
+			goto out;
 	}
 	error = pack_batch(zc, batch);
 

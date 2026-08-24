@@ -235,7 +235,7 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 		uint_t creation_count = 0, userref_count = 0;
 		uint64_t next_cursor, dmu_type, dds_flags;
 		nvlist_t *batch = NULL;
-		boolean_t eof, ioctl_eof;
+		boolean_t eof = B_FALSE, ioctl_eof;
 
 		ret = zfs_do_snapshot_list_batch_ioctl(zhp, flags, cursor,
 		    min_txg, max_txg, &batch, &ioctl_eof);
@@ -256,8 +256,9 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 			    "cannot iterate filesystems")));
 		}
 
-		eof = nvlist_exists(batch, SNAP_ITER_BATCH_EOF);
-		if (nvlist_lookup_uint64(batch, SNAP_ITER_BATCH_CURSOR,
+		if (nvlist_lookup_boolean_value(batch, SNAP_ITER_BATCH_EOF,
+		    &eof) != 0 ||
+		    nvlist_lookup_uint64(batch, SNAP_ITER_BATCH_CURSOR,
 		    &next_cursor) != 0) {
 			ret = EPROTO;
 			goto malformed;

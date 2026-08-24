@@ -2766,10 +2766,11 @@ uint_t zfs_snapshot_list_batch_time_us =
  *     (nvlist) requested properties, each named entry is a boolean
  * }
  *
- * outnvl contains authoritative parent metadata, snapshot names, and one
- * parallel array for each requested property.  Result-count and elapsed-time
- * limits amortize parent objset and ioctl overhead without holding the pool
- * configuration lock for an unbounded snapshot walk.
+ * outnvl contains authoritative parent metadata, an always-present EOF boolean
+ * value, snapshot names, and one parallel array for each requested property.
+ * Result-count and elapsed-time limits amortize parent objset and ioctl
+ * overhead without holding the pool configuration lock for an unbounded
+ * snapshot walk.
  */
 static const zfs_ioc_key_t zfs_keys_snapshot_list_batch[] = {
 	{SNAP_ITER_BATCH_PROPS, DATA_TYPE_NVLIST, 0},
@@ -2920,8 +2921,7 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 		    head_type);
 		fnvlist_add_uint64(outnvl, SNAP_ITER_BATCH_DDS_FLAGS,
 		    head_flags);
-		if (eof)
-			fnvlist_add_boolean(outnvl, SNAP_ITER_BATCH_EOF);
+		fnvlist_add_boolean_value(outnvl, SNAP_ITER_BATCH_EOF, eof);
 		if (count != 0) {
 			fnvlist_add_string_array(outnvl, SNAP_ITER_BATCH_NAMES,
 			    (const char * const *)names, count);

@@ -192,8 +192,8 @@ function run_injected_metadata_errors
 	typeset mode preload="$SHIM"
 
 	[[ -n "$LD_PRELOAD" ]] && preload="$SHIM:$LD_PRELOAD"
-	for mode in missing_dmu_type invalid_dmu_type missing_dds_flags \
-	    invalid_dds_flags; do
+	for mode in missing_eof unvalued_eof missing_dmu_type \
+	    invalid_dmu_type missing_dds_flags invalid_dds_flags; do
 		log_must rm -f "$MARKER"
 		log_must eval "LD_PRELOAD='$preload' " \
 		    "ZFS_SNAPSHOT_LIST_TEST_MODE='$mode' " \
