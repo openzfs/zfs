@@ -382,14 +382,14 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_NUMCLONES) &&
 		    (nvlist_lookup_uint64_array(batch,
-		    SNAP_ITER_BATCH_NUMCLONES, &numclones,
+		    zfs_prop_to_name(ZFS_PROP_NUMCLONES), &numclones,
 		    &numclone_count) != 0 || count != numclone_count)) {
 			ret = EPROTO;
 			goto malformed;
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_INCONSISTENT) &&
 		    (nvlist_lookup_uint8_array(batch,
-		    SNAP_ITER_BATCH_INCONSISTENT, &inconsistent,
+		    zfs_prop_to_name(ZFS_PROP_INCONSISTENT), &inconsistent,
 		    &inconsistent_count) != 0 ||
 		    count != inconsistent_count)) {
 			ret = EPROTO;
@@ -397,7 +397,7 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_REDACTED) &&
 		    (nvlist_lookup_uint8_array(batch,
-		    SNAP_ITER_BATCH_REDACTED, &redacted,
+		    zfs_prop_to_name(ZFS_PROP_REDACTED), &redacted,
 		    &redacted_count) != 0 || count != redacted_count)) {
 			ret = EPROTO;
 			goto malformed;

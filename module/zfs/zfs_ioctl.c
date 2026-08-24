@@ -2990,17 +2990,18 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 			}
 			if (want_numclones) {
 				fnvlist_add_uint64_array(outnvl,
-				    SNAP_ITER_BATCH_NUMCLONES, numclones,
-				    count);
+				    zfs_prop_to_name(ZFS_PROP_NUMCLONES),
+				    numclones, count);
 			}
 			if (want_inconsistent) {
 				fnvlist_add_uint8_array(outnvl,
-				    SNAP_ITER_BATCH_INCONSISTENT, inconsistent,
-				    count);
+				    zfs_prop_to_name(ZFS_PROP_INCONSISTENT),
+				    inconsistent, count);
 			}
 			if (want_redacted) {
 				fnvlist_add_uint8_array(outnvl,
-				    SNAP_ITER_BATCH_REDACTED, redacted, count);
+				    zfs_prop_to_name(ZFS_PROP_REDACTED),
+				    redacted, count);
 			}
 		}
 	}
