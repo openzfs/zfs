@@ -285,28 +285,29 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_CREATETXG) &&
 		    (nvlist_lookup_uint64_array(batch,
-		    SNAP_ITER_BATCH_CREATETXGS, &createtxgs,
+		    zfs_prop_to_name(ZFS_PROP_CREATETXG), &createtxgs,
 		    &createtxg_count) != 0 || count != createtxg_count)) {
 			ret = EPROTO;
 			goto malformed;
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_GUID) &&
-		    (nvlist_lookup_uint64_array(batch, SNAP_ITER_BATCH_GUIDS,
-		    &guids, &guid_count) != 0 || count != guid_count)) {
+		    (nvlist_lookup_uint64_array(batch,
+		    zfs_prop_to_name(ZFS_PROP_GUID), &guids,
+		    &guid_count) != 0 || count != guid_count)) {
 			ret = EPROTO;
 			goto malformed;
 		}
 
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_CREATION) &&
 		    (nvlist_lookup_uint64_array(batch,
-		    SNAP_ITER_BATCH_CREATIONS, &creations, &creation_count) !=
-		    0 || count != creation_count)) {
+		    zfs_prop_to_name(ZFS_PROP_CREATION), &creations,
+		    &creation_count) != 0 || count != creation_count)) {
 			ret = EPROTO;
 			goto malformed;
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_USERREFS) &&
 		    (nvlist_lookup_uint64_array(batch,
-		    SNAP_ITER_BATCH_USERREF_COUNTS, &userrefs,
+		    zfs_prop_to_name(ZFS_PROP_USERREFS), &userrefs,
 		    &userref_count) != 0 || count != userref_count)) {
 			ret = EPROTO;
 			goto malformed;

@@ -2927,22 +2927,23 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 			    (const char * const *)names, count);
 			if (want_createtxg) {
 				fnvlist_add_uint64_array(outnvl,
-				    SNAP_ITER_BATCH_CREATETXGS, createtxgs,
-				    count);
+				    zfs_prop_to_name(ZFS_PROP_CREATETXG),
+				    createtxgs, count);
 			}
 			if (want_guid) {
 				fnvlist_add_uint64_array(outnvl,
-				    SNAP_ITER_BATCH_GUIDS, guids, count);
+				    zfs_prop_to_name(ZFS_PROP_GUID), guids,
+				    count);
 			}
 			if (want_creation) {
 				fnvlist_add_uint64_array(outnvl,
-				    SNAP_ITER_BATCH_CREATIONS, creations,
-				    count);
+				    zfs_prop_to_name(ZFS_PROP_CREATION),
+				    creations, count);
 			}
 			if (want_userrefs) {
 				fnvlist_add_uint64_array(outnvl,
-				    SNAP_ITER_BATCH_USERREF_COUNTS, userrefs,
-				    count);
+				    zfs_prop_to_name(ZFS_PROP_USERREFS),
+				    userrefs, count);
 			}
 		}
 	}
