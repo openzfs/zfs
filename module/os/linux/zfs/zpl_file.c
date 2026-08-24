@@ -235,7 +235,7 @@ MODULE_PARM_DESC(zfs_async_dio_enabled,
 static unsigned int zfs_async_dio_task_depth = 32;
 module_param(zfs_async_dio_task_depth, uint, 0444);
 MODULE_PARM_DESC(zfs_async_dio_task_depth,
-	"Workers for async Direct I/O per pool; read-only, set "
+	"Most workers for async Direct I/O per pool; read-only, set "
 	"at module load");
 
 static unsigned long zfs_async_dio_max_inflight = 64 * 1024 * 1024;
@@ -466,10 +466,10 @@ zpl_async_dio_pool_get(spa_t *spa)
 		 * reaching ZIO.
 		 */
 		pool->read_taskq = taskq_create(rname, nthreads,
-		    maxclsyspri, nthreads, INT_MAX,
+		    maxclsyspri, nthreads, nthreads,
 		    TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 		pool->write_taskq = taskq_create(wname, nthreads,
-		    maxclsyspri, nthreads, INT_MAX,
+		    maxclsyspri, nthreads, nthreads,
 		    TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
 		spa->spa_zpl_async_dio_pool = pool;
 	}
