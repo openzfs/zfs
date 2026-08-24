@@ -65,7 +65,13 @@ function mmp_set_hostid
 
 	zgenhostid $1
 
-	[ $(hostid) = "$hostid" ]
+	# musl libc's gethostid() ignores /etc/hostid; verify the file directly.
+	if [[ $(hostid) != "$hostid" ]]; then
+		[[ -f $HOSTID_FILE ]] || return 1
+		typeset written
+		written=$(od -An -N4 -tx4 $HOSTID_FILE | tr -d ' \n')
+		[[ "$written" = "$hostid" ]]
+	fi
 }
 
 function mmp_clear_hostid
