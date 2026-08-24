@@ -1086,12 +1086,23 @@ function fill_fs # destdir dirnum filenum bytes num_writes data
 }
 
 # Get the specified dataset property in parsable format or fail
+#
+# The sentinel distinguishes a command that printed nothing at all from
+# one that printed an empty value: command substitution strips trailing
+# newlines, so both would otherwise collapse to the empty string. Only
+# the former is an error; user properties may legitimately be empty.
 function get_prop # property dataset
 {
 	typeset prop=$1
 	typeset dataset=$2
+	typeset val
 
-	zfs get -Hpo value "$prop" "$dataset" || log_fail "zfs get $prop $dataset"
+	val=$(zfs get -Hpo value "$prop" "$dataset" && print -n X) ||
+	    log_fail "zfs get $prop $dataset"
+	[[ "$val" != X ]] ||
+	    log_fail "zfs get $prop $dataset printed no output"
+	val=${val%X}
+	print -r -- "${val%$'\n'}"
 }
 
 # Get the specified pool property in parsable format or fail
@@ -1099,8 +1110,14 @@ function get_pool_prop # property pool
 {
 	typeset prop=$1
 	typeset pool=$2
+	typeset val
 
-	zpool get -Hpo value "$prop" "$pool" || log_fail "zpool get $prop $pool"
+	val=$(zpool get -Hpo value "$prop" "$pool" && print -n X) ||
+	    log_fail "zpool get $prop $pool"
+	[[ "$val" != X ]] ||
+	    log_fail "zpool get $prop $pool printed no output"
+	val=${val%X}
+	print -r -- "${val%$'\n'}"
 }
 
 # Get the specified vdev property in parsable format or fail
@@ -1109,8 +1126,14 @@ function get_vdev_prop
 	typeset prop="$1"
 	typeset pool="$2"
 	typeset vdev="$3"
+	typeset val
 
-	zpool get -Hpo value "$prop" "$pool" "$vdev" || log_fail "zpool get $prop $pool $vdev"
+	val=$(zpool get -Hpo value "$prop" "$pool" "$vdev" && print -n X) ||
+	    log_fail "zpool get $prop $pool $vdev"
+	[[ "$val" != X ]] ||
+	    log_fail "zpool get $prop $pool $vdev printed no output"
+	val=${val%X}
+	print -r -- "${val%$'\n'}"
 }
 
 # Return 0 if a pool exists; $? otherwise
