@@ -105,10 +105,24 @@ struct zfsvfs {
 	boolean_t	z_use_hold;	/* held via dmu_objset_hold */
 	rrmlock_t	z_teardown_lock;
 	krwlock_t	z_teardown_inactive_lock;
-	kmutex_t	z_async_dio_lock; /* protects z_async_dio_inflight */
-	kcondvar_t	z_async_dio_cv;	/* signals drain to teardown */
-	uint64_t	z_async_dio_inflight; /* bytes submitted and not done */
-	boolean_t	z_async_dio_draining; /* teardown: no new async DIO */
+	/*
+	 * z_async_dio_inflight packs two values in one atomic: the low
+	 * 63 bits count the in-flight async Direct I/O requests and bit 63
+	 * (ZPL_ASYNC_DIO_DRAINING_BIT) is the sticky draining flag set at
+	 * teardown to reject new admissions.  Combining them lets
+	 * zpl_async_dio_hold() admission and the teardown drain
+	 * synchronize with one compare-and-swap, so per-request
+	 * accounting needs no lock.  The count no longer bounds admission
+	 * (async Direct I/O is admitted on a memory-availability check
+	 * instead); it exists so teardown can wait for queued requests to
+	 * finish executing.  z_async_dio_lock still protects the
+	 * write-pending list/watermark and the z_async_dio_cv waiters.
+	 */
+#define	ZPL_ASYNC_DIO_DRAINING_BIT	(1ULL << 63)
+#define	ZPL_ASYNC_DIO_INFLIGHT_MASK	(~ZPL_ASYNC_DIO_DRAINING_BIT)
+	kmutex_t	z_async_dio_lock; /* write-pending list & drain cv */
+	kcondvar_t	z_async_dio_cv;	/* drain-to-teardown and syncfs cv */
+	uint64_t	z_async_dio_inflight; /* atomic; see comment above */
 	uint64_t	z_async_dio_write_seq;	/* async write seq allocator */
 	uint64_t	z_async_dio_write_watermark; /* completed seq */
 	list_t		z_async_dio_write_pending; /* out-of-order completed */
