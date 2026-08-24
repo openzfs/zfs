@@ -104,7 +104,7 @@ run_and_verify -p "$MPOOL" "zpool split $MPOOL ${MPOOL}_split"
 import_dir=$TEST_BASE_DIR/import_dir.$$
 log_must mkdir $import_dir
 log_must cp $STF_SUITE/tests/functional/history/zfs-pool-v4.dat.Z $import_dir
-log_must uncompress $import_dir/zfs-pool-v4.dat.Z
+log_must gunzip $import_dir/zfs-pool-v4.dat.Z
 upgrade_pool=$(zpool import -d $import_dir | awk '/pool:/ { print $2 }')
 log_must zpool import -d $import_dir $upgrade_pool
 run_and_verify -p "$upgrade_pool" "zpool upgrade $upgrade_pool"
