@@ -225,7 +225,6 @@ typedef struct zpl_async_dio_io {
 
 static kmem_cache_t *zpl_async_dio_io_cache;
 static kmem_cache_t *zpl_async_dio_write_done_cache;
-static kmutex_t zpl_async_dio_pool_lock;
 
 static unsigned int zfs_async_dio_enabled = 0;
 module_param(zfs_async_dio_enabled, uint, 0644);
@@ -242,14 +241,61 @@ MODULE_PARM_DESC(zfs_async_dio_task_depth,
  * Per-pool (SPA) async Direct I/O worker pool.  One taskq per storage pool,
  * shared by all datasets of the pool and by reads and writes, so a slow or
  * flooded pool cannot starve other pools of workers (head-of-line
- * isolation) without multiplying threads per dataset.  Created lazily on
- * the first async Direct I/O request and destroyed in spa_remove() once the
- * pool is closed (no datasets, no in-flight requests).
+ * isolation) without multiplying threads per dataset.  Created eagerly in
+ * spa_add() (Linux only) and destroyed in spa_remove() once the pool is
+ * closed (no datasets, no in-flight requests), so the submission hot path
+ * never creates the pool or takes a lock to look it up.
  */
 typedef struct zpl_async_dio_pool {
 	taskq_t		*read_taskq;
 	taskq_t		*write_taskq;
 } zpl_async_dio_pool_t;
+
+/*
+ * Eagerly create the per-pool async Direct I/O worker pool for a spa.
+ * Called from spa_add() so the submission hot path never has to lazily
+ * create the pool or lock around the lookup.  The pool lives for the
+ * lifetime of the spa and is destroyed in spa_remove().  The pool is
+ * created whether or not async Direct I/O is enabled; the enabled flag is
+ * checked at the request entry points, so an idle pool costs only the one
+ * primary thread of each taskq until it is actually used.
+ */
+void
+zpl_async_dio_pool_create(struct spa *spa)
+{
+	zpl_async_dio_pool_t *pool;
+	unsigned int nthreads = MAX(zfs_async_dio_task_depth, 1);
+	char rname[48], wname[48];
+
+	if (zfs_async_dio_task_depth == 0 || zpl_async_dio_io_cache == NULL)
+		return;
+
+	pool = kmem_zalloc(sizeof (*pool), KM_SLEEP);
+	(void) snprintf(rname, sizeof (rname), "zpl_async_read_%s",
+	    spa_name(spa));
+	(void) snprintf(wname, sizeof (wname), "zpl_async_write_%s",
+	    spa_name(spa));
+
+	/*
+	 * Reads and writes get separate worker pools so that writes blocked
+	 * on transaction assignment, ZIL commits or range locks cannot
+	 * consume every worker and keep queued reads from reaching ZIO.
+	 *
+	 * The taskqs are dynamic: nthreads is the maximum number of threads
+	 * (both read and write start with one thread each and grow on demand
+	 * up to that maximum).  minalloc is 0 so task entries are allocated
+	 * on demand, and maxalloc is unbounded (INT_MAX) so the task entry
+	 * pool can never throttle dispatch when more requests are in flight
+	 * than there are worker threads.  Dynamic threads retire after
+	 * spl_taskq_thread_timeout_ms of idleness, but the primary thread of
+	 * each taskq always stays.
+	 */
+	pool->read_taskq = taskq_create(rname, nthreads, maxclsyspri, 0,
+	    INT_MAX, TASKQ_DYNAMIC);
+	pool->write_taskq = taskq_create(wname, nthreads, maxclsyspri, 0,
+	    INT_MAX, TASKQ_DYNAMIC);
+	spa->spa_zpl_async_dio_pool = pool;
+}
 
 /*
  * Admit an async Direct I/O request.  Async Direct I/O is not gated on
@@ -438,58 +484,17 @@ zpl_async_dio_task(void *arg)
 }
 
 /*
- * Return (and lazily create) the async Direct I/O worker pool for a
- * filesystem.  Called with the teardown reader lock held, so teardown
- * cannot race the creation.  Returns NULL if the module is not initialized.
+ * Return the async Direct I/O worker pool for a spa.  The pool is created
+ * eagerly in spa_add() and destroyed in spa_remove(), and the caller holds
+ * the teardown reader lock, so spa_remove() cannot run concurrently: this
+ * is a plain read with no lock or atomic.  Returns NULL when async Direct
+ * I/O is not enabled, in which case the request falls back to the
+ * synchronous path.
  */
 static zpl_async_dio_pool_t *
 zpl_async_dio_pool_get(spa_t *spa)
 {
-	zpl_async_dio_pool_t *pool;
-
-	/*
-	 * Async Direct I/O is disabled when the depth is zero; never create a
-	 * worker pool in that case.
-	 */
-	if (zfs_async_dio_task_depth == 0 ||
-	    zpl_async_dio_io_cache == NULL)
-		return (NULL);
-
-	mutex_enter(&zpl_async_dio_pool_lock);
-	pool = spa->spa_zpl_async_dio_pool;
-	if (pool == NULL) {
-		unsigned int nthreads = MAX(zfs_async_dio_task_depth, 1);
-		char rname[48], wname[48];
-
-		pool = kmem_zalloc(sizeof (*pool), KM_SLEEP);
-		(void) snprintf(rname, sizeof (rname), "zpl_async_read_%s",
-		    spa_name(spa));
-		(void) snprintf(wname, sizeof (wname), "zpl_async_write_%s",
-		    spa_name(spa));
-
-		/*
-		 * Reads and writes get separate worker pools so that writes
-		 * blocked on transaction assignment, ZIL commits or range
-		 * locks cannot consume every worker and keep queued reads from
-		 * reaching ZIO.
-		 *
-		 * The taskqs are dynamic: nthreads is the maximum number of
-		 * threads (both read and write start with one thread each and
-		 * grow on demand up to that maximum).  minalloc is 0 so task
-		 * entries are allocated on demand, and maxalloc bounds the
-		 * per-taskq task entry pool at nthreads.  Dynamic threads
-		 * retire after spl_taskq_thread_timeout_ms of idleness, but
-		 * the primary thread of each taskq always stays.
-		 */
-		pool->read_taskq = taskq_create(rname, nthreads,
-		    maxclsyspri, 0, nthreads, TASKQ_DYNAMIC);
-		pool->write_taskq = taskq_create(wname, nthreads,
-		    maxclsyspri, 0, nthreads, TASKQ_DYNAMIC);
-		spa->spa_zpl_async_dio_pool = pool;
-	}
-	mutex_exit(&zpl_async_dio_pool_lock);
-
-	return (pool);
+	return (spa->spa_zpl_async_dio_pool);
 }
 
 /*
@@ -502,10 +507,8 @@ zpl_async_dio_pool_destroy(struct spa *spa)
 {
 	zpl_async_dio_pool_t *pool;
 
-	mutex_enter(&zpl_async_dio_pool_lock);
 	pool = spa->spa_zpl_async_dio_pool;
 	spa->spa_zpl_async_dio_pool = NULL;
-	mutex_exit(&zpl_async_dio_pool_lock);
 
 	if (pool != NULL) {
 		taskq_destroy(pool->read_taskq);
@@ -774,7 +777,6 @@ zpl_iter_read_async(struct kiocb *kiocb, struct iov_iter *to)
 void
 zpl_async_dio_init(void)
 {
-	mutex_init(&zpl_async_dio_pool_lock, NULL, MUTEX_DEFAULT, NULL);
 	zpl_async_dio_io_cache = kmem_cache_create("zpl_async_dio_io",
 	    sizeof (zpl_async_dio_io_t), 0,
 	    NULL, NULL, NULL, NULL, NULL, 0);
@@ -794,7 +796,6 @@ zpl_async_dio_fini(void)
 		kmem_cache_destroy(zpl_async_dio_io_cache);
 		zpl_async_dio_io_cache = NULL;
 	}
-	mutex_destroy(&zpl_async_dio_pool_lock);
 }
 
 static inline ssize_t
