@@ -39,6 +39,7 @@ verify_runnable "both"
 
 function cleanup
 {
+	mmp_clear_suspended $TESTPOOL
 	datasetexists $TESTPOOL && destroy_pool $TESTPOOL
 	log_must set_tunable64 MULTIHOST_INTERVAL $MMP_INTERVAL_DEFAULT
 	log_must set_tunable64 MULTIHOST_FAIL_INTERVALS \

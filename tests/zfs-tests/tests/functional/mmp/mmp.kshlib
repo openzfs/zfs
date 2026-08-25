@@ -79,6 +79,19 @@ function mmp_clear_hostid
 	rm -f $HOSTID_FILE
 }
 
+# A pool suspended by MMP cannot be destroyed, which would leave it behind
+# and affect subsequent tests.  Such a pool can be resumed, so clear it
+# before the caller destroys it.
+function mmp_clear_suspended # pool
+{
+	typeset pool=${1:-$MMP_POOL}
+
+	if poolexists $pool && \
+	    [[ $(zpool list -H -o health $pool) == "SUSPENDED" ]]; then
+		log_must zpool clear $pool
+	fi
+}
+
 function mmp_pool_create_simple # pool dir enriched
 {
 	typeset pool=${1:-$MMP_POOL}
