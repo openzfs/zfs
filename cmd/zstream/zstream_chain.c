@@ -234,8 +234,6 @@ zstream_chain_exec(zstream_chain_t chain, chain_attrs_t *attrs)
 				.qp_process	 = cs->cs_parallel.process,
 				.qp_cost	 = cs->cs_parallel.cost,
 				.qp_item_size	 = stats.ct_item_size,
-				.qp_batch_budget = cs->cs_parallel.batch_budget,
-				.qp_queue_length = cs->cs_parallel.queue_length,
 				.qp_context	 = cs->cs_context
 			};
 			queue = zstream_queue_create(&queue_params);

@@ -35,22 +35,19 @@ extern "C" {
 #include "zstream_util.h"
 #include "zstream_validate.h"
 
-#define	STANDARD_INPUT_STACK_Q(infile, queue_size) 			\
+#define	STANDARD_INPUT_STACK(infile) 					\
 	serial_read_stream(infile),					\
-	parallel_calc_fletcher4(queue_size),				\
+	parallel_calc_fletcher4(),					\
 	serial_validate_fletcher4(),					\
 	serial_byteswap(BS_INCOMING),					\
 	serial_validate_records()
 
-#define	STANDARD_OUTPUT_STACK_Q(outfile, queue_size) 			\
+#define	STANDARD_OUTPUT_STACK(outfile) 					\
 	serial_byteswap(BS_OUTGOING),					\
-	parallel_calc_fletcher4(queue_size),				\
+	parallel_calc_fletcher4(),					\
 	serial_add_fletcher4(),						\
 	serial_write_stream(outfile),					\
 	chain_terminator()
-
-#define	STANDARD_INPUT_STACK(infile)	STANDARD_INPUT_STACK_Q(infile, 1024)
-#define	STANDARD_OUTPUT_STACK(outfile)	STANDARD_OUTPUT_STACK_Q(outfile, 512)
 
 #define	NULL_OUTPUT_STACK()						\
 	serial_null_output(),						\

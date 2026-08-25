@@ -100,14 +100,14 @@ static pthread_once_t	dif_init_control = PTHREAD_ONCE_INIT;
 static void
 initialize_memory_tracking(void)
 {
-	ssize_t pagesize = (ssize_t)sysconf(_SC_PAGESIZE);
-	ssize_t pages = (ssize_t)sysconf(_SC_PHYS_PAGES);
+	int64_t pagesize = (int64_t)sysconf(_SC_PAGESIZE);
+	int64_t pages = (int64_t)sysconf(_SC_PHYS_PAGES);
 	if (pagesize < 0 || pages < 0) {
 		warnx("unable to read system memory info");
 		payloads.dif_allowed = UINT64_MAX; /* no limit */
 	} else {
-		uint64_t total_mem = (uint64_t)pagesize * (uint64_t)pages;
-		int64_t flex = total_mem - MEMORY_BASE_CUTOFF;
+		int64_t total_mem = pagesize * pages;
+		int64_t flex = total_mem - (int64_t)MEMORY_BASE_CUTOFF;
 		int64_t addl = (double)flex * MEMORY_PCT / 100;
 		payloads.dif_allowed = MEMORY_BASE + MAX(addl, 0);
 	}
