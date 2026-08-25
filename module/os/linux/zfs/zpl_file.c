@@ -238,17 +238,22 @@ MODULE_PARM_DESC(zfs_async_dio_task_depth,
 	"taskqs.  Defaults to 32");
 
 /*
- * Per-pool (SPA) async Direct I/O worker pool.  One taskq per storage pool,
- * shared by all datasets of the pool and by reads and writes, so a slow or
- * flooded pool cannot starve other pools of workers (head-of-line
- * isolation) without multiplying threads per dataset.  Created eagerly in
- * spa_add() (Linux only) and destroyed in spa_remove() once the pool is
- * closed (no datasets, no in-flight requests), so the submission hot path
- * never creates the pool or takes a lock to look it up.
+ * Per-pool (SPA) async Direct I/O worker pool.  Each pool has a set of
+ * per-CPU shards (one read and one write taskq per shard), so dispatch and
+ * worker dequeue hit the shard's own lock and waitqueue instead of
+ * ping-ponging a single taskq lock across all CPUs (blk-mq style).  All
+ * datasets of the pool share the shards, and reads and writes always have
+ * separate taskqs so a slow or flooded pool cannot starve other pools of
+ * workers (head-of-line isolation) and writes cannot consume every worker
+ * and keep queued reads from reaching ZIO.  Created eagerly in spa_add()
+ * (Linux only) and destroyed in spa_remove() once the pool is closed (no
+ * datasets, no in-flight requests), so the submission hot path never
+ * creates the pool or takes a lock to look it up.
  */
 typedef struct zpl_async_dio_pool {
-	taskq_t		*read_taskq;
-	taskq_t		*write_taskq;
+	taskq_t		**read_taskqs;	/* per-CPU shards */
+	taskq_t		**write_taskqs;	/* per-CPU shards */
+	int		nr_taskqs;	/* number of shards */
 } zpl_async_dio_pool_t;
 
 /*
@@ -264,23 +269,28 @@ void
 zpl_async_dio_pool_create(struct spa *spa)
 {
 	zpl_async_dio_pool_t *pool;
-	unsigned int nthreads = MAX(zfs_async_dio_task_depth, 1);
+	unsigned int nthreads;
 	char rname[48], wname[48];
+	int i;
 
 	if (zfs_async_dio_task_depth == 0 || zpl_async_dio_io_cache == NULL)
 		return;
 
 	pool = kmem_zalloc(sizeof (*pool), KM_SLEEP);
-	(void) snprintf(rname, sizeof (rname), "zpl_async_read_%s",
-	    spa_name(spa));
-	(void) snprintf(wname, sizeof (wname), "zpl_async_write_%s",
-	    spa_name(spa));
+	pool->nr_taskqs = MAX(num_online_cpus(), 1);
+	pool->read_taskqs = kmem_zalloc(
+	    sizeof (taskq_t *) * pool->nr_taskqs, KM_SLEEP);
+	pool->write_taskqs = kmem_zalloc(
+	    sizeof (taskq_t *) * pool->nr_taskqs, KM_SLEEP);
 
 	/*
-	 * Reads and writes get separate worker pools so that writes blocked
-	 * on transaction assignment, ZIL commits or range locks cannot
-	 * consume every worker and keep queued reads from reaching ZIO.
-	 *
+	 * The total worker budget (zfs_async_dio_task_depth) is split across
+	 * the shards, so the aggregate number of threads does not multiply
+	 * by the CPU count.
+	 */
+	nthreads = MAX(zfs_async_dio_task_depth / pool->nr_taskqs, 1);
+
+	/*
 	 * The taskqs are dynamic: nthreads is the maximum number of threads
 	 * (both read and write start with one thread each and grow on demand
 	 * up to that maximum).  minalloc is 0 so task entries are allocated
@@ -290,10 +300,17 @@ zpl_async_dio_pool_create(struct spa *spa)
 	 * spl_taskq_thread_timeout_ms of idleness, but the primary thread of
 	 * each taskq always stays.
 	 */
-	pool->read_taskq = taskq_create(rname, nthreads, maxclsyspri, 0,
-	    INT_MAX, TASKQ_DYNAMIC);
-	pool->write_taskq = taskq_create(wname, nthreads, maxclsyspri, 0,
-	    INT_MAX, TASKQ_DYNAMIC);
+	for (i = 0; i < pool->nr_taskqs; i++) {
+		(void) snprintf(rname, sizeof (rname), "zpl_async_read_%s_%d",
+		    spa_name(spa), i);
+		(void) snprintf(wname, sizeof (wname), "zpl_async_write_%s_%d",
+		    spa_name(spa), i);
+
+		pool->read_taskqs[i] = taskq_create(rname, nthreads,
+		    maxclsyspri, 0, INT_MAX, TASKQ_DYNAMIC);
+		pool->write_taskqs[i] = taskq_create(wname, nthreads,
+		    maxclsyspri, 0, INT_MAX, TASKQ_DYNAMIC);
+	}
 	spa->spa_zpl_async_dio_pool = pool;
 }
 
@@ -511,8 +528,14 @@ zpl_async_dio_pool_destroy(struct spa *spa)
 	spa->spa_zpl_async_dio_pool = NULL;
 
 	if (pool != NULL) {
-		taskq_destroy(pool->read_taskq);
-		taskq_destroy(pool->write_taskq);
+		for (int i = 0; i < pool->nr_taskqs; i++) {
+			taskq_destroy(pool->read_taskqs[i]);
+			taskq_destroy(pool->write_taskqs[i]);
+		}
+		kmem_free(pool->read_taskqs,
+		    sizeof (taskq_t *) * pool->nr_taskqs);
+		kmem_free(pool->write_taskqs,
+		    sizeof (taskq_t *) * pool->nr_taskqs);
 		kmem_free(pool, sizeof (*pool));
 	}
 }
@@ -691,8 +714,15 @@ zpl_async_dio_queue(struct kiocb *kiocb, struct iov_iter *iter,
 		aio->fseq = atomic_inc_64_nv(&zfsvfs->z_async_dio_write_seq);
 	}
 
-	taskq_t *taskq = (rw == UIO_READ) ? pool->read_taskq :
-	    pool->write_taskq;
+	/*
+	 * Dispatch to the shard of the submitting CPU: each shard has its
+	 * own taskq lock and waitqueue, so concurrent submitters on
+	 * different CPUs do not contend on a single lock.  The shard count
+	 * is fixed for the pool's lifetime, so the index is a simple modulo.
+	 */
+	int shard = raw_smp_processor_id() % pool->nr_taskqs;
+	taskq_t *taskq = (rw == UIO_READ) ? pool->read_taskqs[shard] :
+	    pool->write_taskqs[shard];
 	if (taskq_dispatch(taskq, zpl_async_dio_task, aio,
 	    TQ_SLEEP) == TASKQID_INVALID) {
 		if (rw == UIO_WRITE)
