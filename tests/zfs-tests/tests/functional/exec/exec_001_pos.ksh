@@ -39,16 +39,16 @@ verify_runnable "both"
 
 function cleanup
 {
-	log_must rm $TESTDIR/myls
+	log_must rm $TESTDIR/ls
 }
 
 log_assert "Setting exec=on on a filesystem, processes can be executed from " \
 	"this file system."
 log_onexit cleanup
 
-log_must cp $STF_PATH/ls $TESTDIR/myls
+log_must cp $STF_PATH/ls $TESTDIR/ls
 log_must zfs set exec=on $TESTPOOL/$TESTFS
-log_must $TESTDIR/myls
-log_must mmap_exec $TESTDIR/myls
+log_must $TESTDIR/ls
+log_must mmap_exec $TESTDIR/ls
 
 log_pass "Setting exec=on on filesystem testing passed."
