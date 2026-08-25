@@ -89,6 +89,7 @@ extern int zfs_symlink_idmap(znode_t *dzp, char *name, vattr_t *vap,
 /* async Direct I/O (reads and writes) */
 extern void zpl_async_dio_init(void);
 extern void zpl_async_dio_fini(void);
+extern void zpl_async_dio_pool_create(struct spa *);
 extern void zpl_async_dio_pool_destroy(struct spa *);
 extern int zfs_dio_pin_pages(zfs_uio_t *, zfs_uio_rw_t);
 
