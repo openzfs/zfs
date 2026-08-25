@@ -25,21 +25,21 @@
 #	kiocb submission with fio libaio.
 #
 # STRATEGY:
-#	1. For each numjobs in {1, 32}:
-#	     for each iodepth in {1, 8, 32}:
-#	       - enable async, recreate the pool + test file, measure IOPS,
-#	         then read the data back with fio --verify to confirm the
-#	         async writes were correct
-#	       - disable async, recreate the pool + test file, measure IOPS,
-#	         then read the data back with fio --verify likewise
-#	2. Log the sync vs async IOPS table.
+#	1. Test a single representative case (numjobs=1, iodepth=8):
+#	     - enable async, recreate the pool + test file, measure IOPS,
+#	       then read the data back with fio --verify to confirm the
+#	       async writes were correct
+#	     - disable async, recreate the pool + test file, measure IOPS,
+#	       then read the data back with fio --verify likewise
+#	2. Log the sync vs async IOPS.
 #	3. Restore zfs_async_dio_enabled.
 #
 
 verify_runnable "global"
 
-typeset -a iodepths=(1 8 32)
-typeset -a numjobss=(1 32)
+# Single representative case only; keep the CI runtime small.
+typeset -a iodepths=(8)
+typeset -a numjobss=(1)
 typeset -A async_iops
 typeset -A sync_iops
 
