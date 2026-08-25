@@ -1772,6 +1772,9 @@ vdev_metaslab_fini(vdev_t *vd)
 	if (vd->vdev_checkpoint_sm != NULL) {
 		ASSERT(spa_feature_is_active(vd->vdev_spa,
 		    SPA_FEATURE_POOL_CHECKPOINT));
+		vd->vdev_spa->spa_checkpoint_info.sci_dspace -=
+		    vd->vdev_stat.vs_checkpoint_space;
+		vd->vdev_stat.vs_checkpoint_space = 0;
 		space_map_close(vd->vdev_checkpoint_sm);
 		/*
 		 * Even though we close the space map, we need to set its
