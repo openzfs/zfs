@@ -868,6 +868,17 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	list_create(&spa->spa_leaf_list, sizeof (vdev_t),
 	    offsetof(vdev_t, vdev_leaf_node));
 
+#if defined(_KERNEL) && defined(__linux__)
+	/*
+	 * Eagerly create the per-pool async Direct I/O worker taskqs (Linux),
+	 * so the submission hot path does not need to lazily create (and lock
+	 * around) the pool.  Destroyed in spa_remove() once the pool is
+	 * closed.
+	 */
+	extern void zpl_async_dio_pool_create(struct spa *);
+	zpl_async_dio_pool_create(spa);
+#endif
+
 	return (spa);
 }
 
