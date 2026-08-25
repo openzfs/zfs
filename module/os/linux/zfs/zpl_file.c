@@ -23,7 +23,6 @@
 #include <linux/fs.h>
 #include <linux/migrate.h>
 #include <sys/file.h>
-#include <sys/arc_impl.h>
 #include <sys/dmu_objset.h>
 #include <sys/zfs_znode.h>
 #include <sys/zfs_vfsops.h>
@@ -31,7 +30,6 @@
 #include <sys/zfs_project.h>
 #include <sys/spa_impl.h>
 #include <sys/uio_impl.h>
-#include <sys/vmsystm.h>
 #include <linux/pagemap_compat.h>
 #include <linux/fadvise.h>
 #ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
@@ -237,8 +235,8 @@ MODULE_PARM_DESC(zfs_async_dio_enabled,
 static unsigned int zfs_async_dio_task_depth = 32;
 module_param(zfs_async_dio_task_depth, uint, 0444);
 MODULE_PARM_DESC(zfs_async_dio_task_depth,
-	"Most workers for async Direct I/O per pool; read-only, set "
-	"at module load");
+	"Worker depth of the per-pool read and write async Direct I/O "
+	"taskqs.  Defaults to 32");
 
 /*
  * Per-pool (SPA) async Direct I/O worker pool.  One taskq per storage pool,
@@ -254,35 +252,23 @@ typedef struct zpl_async_dio_pool {
 } zpl_async_dio_pool_t;
 
 /*
- * Admit an async Direct I/O request.  Admission is a lock-free comparison
- * against the memory available in the system: the request is queued only
- * while at least 15% of physical memory is available and that available
- * amount is larger than the request itself, so the user pages this request
- * pins cannot, on their own, push the system into reclaim.  The available
- * memory figure comes from arc_available_memory(), which ZFS already
- * maintains for the ARC.  No lock is taken and no per-dataset byte limit
- * is enforced; requests for which memory is not available simply fall back
- * to the synchronous path.
+ * Admit an async Direct I/O request.  Async Direct I/O is not gated on
+ * threads, memory, or any in-flight limit: every request is admitted
+ * unless the filesystem is draining (teardown has started).  No lock is
+ * taken.
  *
- * The per-dataset in-flight request count is still maintained (lock-free,
- * in the packed atomic in zfs_vfsops_os.h) so teardown can wait for
- * queued requests to finish executing; it no longer bounds admission.
- * The count increment and the draining check are one compare-and-swap, so
- * a request admitted just as teardown starts is always visible to the
- * teardown drain.  Returns 0 if the request is admitted, EOPNOTSUPP if it
+ * The in-flight count and the draining flag live in one packed atomic (see
+ * zfs_vfsops_os.h), so the draining check and the count increment are one
+ * compare-and-swap and a request admitted just as teardown starts is
+ * always visible to the teardown drain.  The count itself is used only
+ * for that drain; it does not limit admission.  Returns 0 if the request
+ * is admitted, EOPNOTSUPP if the filesystem is draining and the request
  * must fall back to the synchronous path.
  */
 static int
-zpl_async_dio_hold(zfsvfs_t *zfsvfs, size_t count)
+zpl_async_dio_hold(zfsvfs_t *zfsvfs)
 {
-	int64_t avail = arc_available_memory();
 	uint64_t old;
-
-	if (avail < 0 ||
-	    (uint64_t)avail < ptob(zfs_totalram_pages) / 100 * 15 ||
-	    (uint64_t)avail < (uint64_t)count) {
-		return (EOPNOTSUPP);
-	}
 
 	old = atomic_load_64(&zfsvfs->z_async_dio_inflight);
 	for (;;) {
@@ -465,7 +451,8 @@ zpl_async_dio_pool_get(spa_t *spa)
 	 * Async Direct I/O is disabled when the depth is zero; never create a
 	 * worker pool in that case.
 	 */
-	if (zfs_async_dio_task_depth == 0 || zpl_async_dio_io_cache == NULL)
+	if (zfs_async_dio_task_depth == 0 ||
+	    zpl_async_dio_io_cache == NULL)
 		return (NULL);
 
 	mutex_enter(&zpl_async_dio_pool_lock);
@@ -485,13 +472,19 @@ zpl_async_dio_pool_get(spa_t *spa)
 		 * blocked on transaction assignment, ZIL commits or range
 		 * locks cannot consume every worker and keep queued reads from
 		 * reaching ZIO.
+		 *
+		 * The taskqs are dynamic: nthreads is the maximum number of
+		 * threads (both read and write start with one thread each and
+		 * grow on demand up to that maximum).  minalloc is 0 so task
+		 * entries are allocated on demand, and maxalloc bounds the
+		 * per-taskq task entry pool at nthreads.  Dynamic threads
+		 * retire after spl_taskq_thread_timeout_ms of idleness, but
+		 * the primary thread of each taskq always stays.
 		 */
 		pool->read_taskq = taskq_create(rname, nthreads,
-		    maxclsyspri, nthreads, nthreads,
-		    TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
+		    maxclsyspri, 0, nthreads, TASKQ_DYNAMIC);
 		pool->write_taskq = taskq_create(wname, nthreads,
-		    maxclsyspri, nthreads, nthreads,
-		    TASKQ_PREPOPULATE | TASKQ_DYNAMIC);
+		    maxclsyspri, 0, nthreads, TASKQ_DYNAMIC);
 		spa->spa_zpl_async_dio_pool = pool;
 	}
 	mutex_exit(&zpl_async_dio_pool_lock);
@@ -584,12 +577,12 @@ zpl_async_dio_queue(struct kiocb *kiocb, struct iov_iter *iter,
 	}
 
 	/*
-	 * Admit the request before pinning any user pages: the per dataset
-	 * in-flight bound (shared by reads and writes) caps the pinned memory
-	 * held by queued requests.  If the pool is at the limit, fall back to
-	 * the synchronous path rather than queueing another pinned request.
+	 * Admit the request before pinning any user pages.  Admission is
+	 * refused only while the filesystem is draining (teardown); the
+	 * in-flight count is maintained solely so teardown can wait for
+	 * queued requests to finish executing.
 	 */
-	if ((error = zpl_async_dio_hold(zfsvfs, count)) != 0) {
+	if ((error = zpl_async_dio_hold(zfsvfs)) != 0) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
