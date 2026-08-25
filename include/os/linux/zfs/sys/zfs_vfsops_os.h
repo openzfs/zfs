@@ -112,11 +112,10 @@ struct zfsvfs {
 	 * teardown to reject new admissions.  Combining them lets
 	 * zpl_async_dio_hold() admission and the teardown drain
 	 * synchronize with one compare-and-swap, so per-request
-	 * accounting needs no lock.  The count no longer bounds admission
-	 * (async Direct I/O is admitted on a memory-availability check
-	 * instead); it exists so teardown can wait for queued requests to
-	 * finish executing.  z_async_dio_lock still protects the
-	 * write-pending list/watermark and the z_async_dio_cv waiters.
+	 * accounting needs no lock.  The count does not gate admission; it
+	 * only lets teardown wait for queued requests to finish executing.
+	 * z_async_dio_lock still protects the write-pending list/watermark
+	 * and the z_async_dio_cv waiters.
 	 */
 #define	ZPL_ASYNC_DIO_DRAINING_BIT	(1ULL << 63)
 #define	ZPL_ASYNC_DIO_INFLIGHT_MASK	(~ZPL_ASYNC_DIO_DRAINING_BIT)
