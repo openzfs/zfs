@@ -778,6 +778,13 @@ dsl_scan_resilver_scheduled(dsl_pool_t *dp)
 }
 
 boolean_t
+dsl_scan_is_scrub_requested(const dsl_scan_t *scn)
+{
+	return (scn->scn_phys.scn_func == POOL_SCAN_SCRUB ||
+	    scn->scn_phys.scn_flags & DSF_SCRUB_REQUESTED);
+}
+
+boolean_t
 dsl_scan_scrubbing(const dsl_pool_t *dp)
 {
 	dsl_scan_phys_t *scn_phys = &dp->dp_scan->scn_phys;
@@ -805,14 +812,16 @@ dsl_errorscrub_is_paused(const dsl_scan_t *scn)
 boolean_t
 dsl_scan_is_paused_scrub(const dsl_scan_t *scn)
 {
-	return (dsl_scan_scrubbing(scn->scn_dp) &&
+	return (dsl_scan_is_running(scn) &&
+	    dsl_scan_is_scrub_requested(scn) &&
 	    scn->scn_phys.scn_flags & DSF_SCRUB_PAUSED);
 }
 
 static boolean_t
 dsl_scan_is_thorough_scrub(const dsl_scan_t *scn)
 {
-	return (dsl_scan_scrubbing(scn->scn_dp) &&
+	return (dsl_scan_is_running(scn) &&
+	    dsl_scan_is_scrub_requested(scn) &&
 	    scn->scn_phys.scn_flags & DSF_SCRUB_THOROUGH);
 }
 
@@ -1017,6 +1026,14 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 			spa_event_notify(spa, NULL, aux,
 			    ESC_ZFS_RESILVER_START);
 			nvlist_free(aux);
+			/*
+			 * DTLs limit this scan to replacement ranges.
+			 * Preserve the scrub request while using resilver
+			 * repair semantics.
+			 */
+			if (setup_sync_arg->func == POOL_SCAN_SCRUB)
+				scn->scn_phys.scn_flags |= DSF_SCRUB_REQUESTED;
+			scn->scn_phys.scn_func = POOL_SCAN_RESILVER;
 		} else {
 			spa_event_notify(spa, NULL, NULL, ESC_ZFS_SCRUB_START);
 		}
@@ -1485,7 +1502,8 @@ dsl_scrub_pause_resume_check(void *arg, dmu_tx_t *tx)
 
 	if (*cmd == POOL_SCRUB_PAUSE) {
 		/* can't pause a scrub when there is no in-progress scrub */
-		if (!dsl_scan_scrubbing(dp))
+		if (!dsl_scan_is_running(scn) ||
+		    !dsl_scan_is_scrub_requested(scn))
 			return (SET_ERROR(ENOENT));
 
 		/* can't pause a paused scrub */
@@ -5050,6 +5068,9 @@ dsl_scan_scrub_done(zio_t *zio)
 {
 	spa_t *spa = zio->io_spa;
 	dsl_scan_io_queue_t *queue = zio->io_private;
+	boolean_t scrub_io = (zio->io_flags & ZIO_FLAG_SCRUB) ||
+	    (spa->spa_dsl_pool->dp_scan->scn_phys.scn_flags &
+	    DSF_SCRUB_REQUESTED);
 
 	abd_free(zio->io_abd);
 
@@ -5082,7 +5103,7 @@ dsl_scan_scrub_done(zio_t *zio)
 	 */
 	if (zio->io_error && (zio->io_error != ECKSUM ||
 	    !(zio->io_flags & ZIO_FLAG_SPECULATIVE)) &&
-	    !(zio->io_error == EACCES && (zio->io_flags & ZIO_FLAG_SCRUB) &&
+	    !(zio->io_error == EACCES && scrub_io &&
 	    !(zio->io_flags & ZIO_FLAG_RAW))) {
 		if (dsl_errorscrubbing(spa->spa_dsl_pool) &&
 		    !dsl_errorscrub_is_paused(spa->spa_dsl_pool->dp_scan)) {

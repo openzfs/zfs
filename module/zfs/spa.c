@@ -9831,7 +9831,8 @@ spa_scrub_pause_resume(spa_t *spa, pool_scrub_cmd_t cmd)
 {
 	ASSERT0(spa_config_held(spa, SCL_ALL, RW_WRITER));
 
-	if (dsl_scan_resilvering(spa->spa_dsl_pool))
+	if (dsl_scan_resilvering(spa->spa_dsl_pool) &&
+	    !dsl_scan_is_scrub_requested(spa->spa_dsl_pool->dp_scan))
 		return (SET_ERROR(EBUSY));
 
 	return (dsl_scrub_set_pause_resume(spa->spa_dsl_pool, cmd));
@@ -9841,7 +9842,8 @@ int
 spa_scan_stop(spa_t *spa)
 {
 	ASSERT0(spa_config_held(spa, SCL_ALL, RW_WRITER));
-	if (dsl_scan_resilvering(spa->spa_dsl_pool))
+	if (dsl_scan_resilvering(spa->spa_dsl_pool) &&
+	    !dsl_scan_is_scrub_requested(spa->spa_dsl_pool->dp_scan))
 		return (SET_ERROR(EBUSY));
 
 	return (dsl_scan_cancel(spa->spa_dsl_pool));
@@ -11755,7 +11757,7 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		boolean_t scanning, paused, is_scrub;
 		dsl_scan_t *scn =  spa->spa_dsl_pool->dp_scan;
 
-		is_scrub = (scn->scn_phys.scn_func == POOL_SCAN_SCRUB);
+		is_scrub = dsl_scan_is_scrub_requested(scn);
 		scanning = (scn->scn_phys.scn_state == DSS_SCANNING);
 		paused = dsl_scan_is_paused_scrub(scn);
 		*in_progress = (scanning && !paused &&
