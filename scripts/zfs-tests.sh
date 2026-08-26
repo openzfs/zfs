@@ -218,17 +218,22 @@ split_tags() {
 	#
 	# 1. Remove unneeded chars: [],\
 	# 2. Print out the last field of each tag line.  This will be the tag
-	#    for the test (like 'zpool_add').
+	#    for the test (like 'zpool_add'), along with the number of tests
+	#    for that tag.  The tests = line may list the tests over multiple
+	#    lines, so keep counting until the next key = value line.
 	# 3. Remove duplicates between the runfiles.  If the same tag is defined
 	#    in multiple runfiles, then when you do '-T <tag>' ZTS is smart
 	#    enough to know to run the tag in each runfile.  So '-T zpool_add'
 	#    will run the zpool_add from common.run and linux.run.
 	# 4. Ignore the 'functional' tag since we only want individual tests
-	# 5. Print out the tests in our faction of all tests.  This uses modulus
+	# 5. Sort the tags by the number of tests, largest first.  This way the
+	#    interleave in the next step gives each fraction a mix of large and
+	#    small tags, instead of clustering most of the long running tags in
+	#    the same fraction as the alphabetically sorted tag list does.
+	# 6. Print out the tests in our faction of all tests.  This uses modulus
 	#    so "1/3" will run tests 1,3,6,9 etc.  That way the tests are
-	#    interleaved so, say, "3/4" isn't running all the zpool_* tests that
-	#    appear alphabetically at the end.
-	# 6. Remove trailing comma from list
+	#    interleaved so, say, "3/4" isn't running all the zpool_* tests.
+	# 7. Remove trailing comma from list
 	#
 	# TAGS will then look like:
 	#
@@ -237,9 +242,31 @@ split_tags() {
 	# Change the comma to a space for easy processing
 	_RUNFILES=${RUNFILES//","/" "}
 	# shellcheck disable=SC2002,SC2086
-	cat $_RUNFILES | tr -d "[],\'" | awk '/tags = /{print $NF}' | sort | \
-		uniq | grep -v functional | \
-		awk -v num="$NUM" -v den="$DEN" '{ if(NR % den == (num - 1)) {printf "%s,",$0}}' | \
+	cat $_RUNFILES | sed -e "s/','/ /g" | tr -d "[],\'" | awk '
+		/^tests = / {
+			n = NF - 2
+			collecting = 1
+			next
+		}
+		collecting && $0 !~ /=/ {
+			n += NF
+			next
+		}
+		collecting {
+			collecting = 0
+		}
+		/^tags = / {
+			if ($NF != "functional")
+				count[$NF] += n
+			n = 0
+			next
+		}
+		END {
+			for (t in count)
+				print t, count[t]
+		}
+	' | sort -k2,2nr -k1,1 | \
+		awk -v num="$NUM" -v den="$DEN" '{ if(NR % den == (num - 1)) {printf "%s,",$1}}' | \
 		sed -E 's/,$//'
 }
 
