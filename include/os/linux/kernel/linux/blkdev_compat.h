@@ -60,6 +60,12 @@ blk_queue_set_write_cache(struct request_queue *q, bool on)
  *      Only controls if the operator is allowed to change _WC. Initial version
  *      buggy; aliased to QUEUE_FLAG_FUA, so unuseable.
  * 6.6.10, 6.7: QUEUE_FLAG_HW_WC fixed.
+ * 6.11: Both flags removed. BLK_FEAT_WRITE_CACHE in queue_limits.features is
+ *       the driver-set equivalent of _HW_WC, while the operator's override
+ *       lives separately in BLK_FLAG_WRITE_CACHE_DISABLED. We deliberately
+ *       ignore the override (ie don't use bdev_write_cache()): we only sample
+ *       this at vdev open, so if the operator later re-enabled the cache we
+ *       would never flush again.
  *
  * Older than 4.10 we just assume write cache, and let the normal flush fail
  * detection apply.
@@ -67,7 +73,10 @@ blk_queue_set_write_cache(struct request_queue *q, bool on)
 static inline boolean_t
 zfs_bdev_has_write_cache(struct block_device *bdev)
 {
-#if defined(QUEUE_FLAG_HW_WC) && QUEUE_FLAG_HW_WC != QUEUE_FLAG_FUA
+#if defined(HAVE_BLKDEV_QUEUE_LIMITS_FEATURES)
+	return (!!(bdev_get_queue(bdev)->limits.features &
+	    BLK_FEAT_WRITE_CACHE));
+#elif defined(QUEUE_FLAG_HW_WC) && QUEUE_FLAG_HW_WC != QUEUE_FLAG_FUA
 	return (test_bit(QUEUE_FLAG_HW_WC, &bdev_get_queue(bdev)->queue_flags));
 #elif defined(QUEUE_FLAG_WC)
 	return (test_bit(QUEUE_FLAG_WC, &bdev_get_queue(bdev)->queue_flags));
