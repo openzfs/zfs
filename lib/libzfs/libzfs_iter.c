@@ -171,12 +171,8 @@ make_dataset_batch_handle(zfs_handle_t *pzhp, const char *snapname,
 		zhp->zfs_projected_props |= ZFS_PROJECTED_USERREFS;
 	}
 
-	if (strlcpy(zhp->zfs_name, pzhp->zfs_name,
-	    sizeof (zhp->zfs_name)) >= sizeof (zhp->zfs_name) ||
-	    strlcat(zhp->zfs_name, "@", sizeof (zhp->zfs_name)) >=
-	    sizeof (zhp->zfs_name) ||
-	    strlcat(zhp->zfs_name, snapname, sizeof (zhp->zfs_name)) >=
-	    sizeof (zhp->zfs_name)) {
+	if (snprintf(zhp->zfs_name, sizeof (zhp->zfs_name), "%s@%s",
+	    pzhp->zfs_name, snapname) >= sizeof (zhp->zfs_name)) {
 		error = ENAMETOOLONG;
 		goto fail;
 	}
