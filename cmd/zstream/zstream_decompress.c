@@ -102,9 +102,7 @@ chain_decompress_named_writes(void *item_in, void *context)
 		    (u_longlong_t)drrw->drr_object,
 		    (u_longlong_t)drrw->drr_offset);
 	} else {
-		free(item->dp_payload);
-		item->dp_payload = dcbuff;
-		item->dp_payload_size = drrw->drr_logical_size;
+		set_payload(item, dcbuff, drrw->drr_logical_size);
 		drrw->drr_compressiontype = 0;
 		drrw->drr_compressed_size = 0;
 		if (OPTION_ENABLED(CA_VERBOSE)) {

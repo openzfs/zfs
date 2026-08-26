@@ -141,9 +141,7 @@ chain_decompress_writes(queue_item_t *item_in, void *context)
 		    (u_longlong_t)drrw->drr_object,
 		    (u_longlong_t)drrw->drr_offset);
 	}
-	free(item->dp_payload);
-	item->dp_payload = debuff;
-	item->dp_payload_size = drrw->drr_logical_size;
+	set_payload(item, debuff, drrw->drr_logical_size);
 	drrw->drr_compressed_size = 0;
 	drrw->drr_compressiontype = 0;
 }
@@ -174,9 +172,7 @@ chain_compress_writes(queue_item_t *item_in, void *context_in)
 		drrw->drr_compressiontype = 0;
 		drrw->drr_compressed_size = 0;
 	} else {
-		free(item->dp_payload);
-		item->dp_payload = cbuff;
-		item->dp_payload_size = csize;
+		set_payload(item, cbuff, csize);
 		drrw->drr_compressed_size = csize;
 		drrw->drr_compressiontype = context->cs_type;
 	}

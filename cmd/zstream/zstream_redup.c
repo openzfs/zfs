@@ -153,13 +153,12 @@ chain_redup_writes(void *item_in, void *context_in)
 		VERIFY3U(drrw->drr_object, ==, drrwb.drr_refobject);
 		VERIFY3U(drrw->drr_offset, ==, drrwb.drr_refoffset);
 
-		item->dp_payload_size = DRR_WRITE_PAYLOAD_SIZE(drrw);
-		item->dp_payload = safe_malloc(item->dp_payload_size);
-
-		size_t n_read = fread(item->dp_payload, item->dp_payload_size,
-		    1, context->rc_fp);
+		uint64_t size = DRR_WRITE_PAYLOAD_SIZE(drrw);
+		uint8_t *buff = safe_malloc(size);
+		size_t n_read = fread(buff, size, 1, context->rc_fp);
 		if (n_read != 1)
 			err(1, "read of prior payload failed");
+		set_payload(item, buff, size);
 
 		drrw->drr_toguid = drrwb.drr_toguid;
 		drrw->drr_object = drrwb.drr_object;

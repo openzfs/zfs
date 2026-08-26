@@ -72,6 +72,24 @@ chain_step_t
 serial_write_stream(const char *filename);
 
 /*
+ * When payloads change (e.g., after being decompressed), this function
+ * should always be used to intermediate. It frees the old payload and
+ * updates the accounting for total data in flight. To free the old payload
+ * without replacing it, just pass in NULL.
+ */
+void
+set_payload(void *item_in, void *payload, uint64_t size);
+
+/*
+ * Sometimes, e.g., in the implementation of "zstream raw", we want to take
+ * a payload buffer out of the chain system and hand its control over to some
+ * other system. We need to update the memory accounting but not attempt to
+ * free the buffer.
+ */
+void
+export_payload(void *item_in);
+
+/*
  * Report throughput periodically
  */
 chain_step_t
