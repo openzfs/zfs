@@ -46,14 +46,15 @@ object sized larger than this limit.
 .It Sy spl_kmem_cache_slab_limit Ns = Ns Sy 16384 Pq uint
 For small objects the Linux slab allocator should be used to make the most
 efficient use of the memory.
-However, large objects are not supported by
-the Linux slab and therefore the SPL implementation is preferred.
+For large objects, the SPL implementation is preferred.
 This value is used to determine the cutoff between a small and large object.
+The cutoff applies to automatic cache selection.
+An explicit request for a Linux slab or SPL cache overrides it.
 .Pp
-Objects of size
+When cache selection is automatic, objects of size
 .Sy spl_kmem_cache_slab_limit
-or smaller will be allocated using the Linux slab allocator,
-large objects use the SPL allocator.
+or smaller are allocated using the Linux slab allocator,
+and larger objects use the SPL allocator.
 A cutoff of 16K was determined to be optimal for architectures using 4K pages.
 .
 .It Sy spl_kmem_alloc_warn Ns = Ns Sy 32768 Pq uint
