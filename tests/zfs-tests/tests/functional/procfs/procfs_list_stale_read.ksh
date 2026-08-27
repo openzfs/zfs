@@ -67,7 +67,8 @@ function do_test
 	{
 		log_must eval "dd bs=512 count=4 >/dev/null"
 		log_must eval "$cmd"
-		log_must eval 'cat 2>&1 >/dev/null | grep "Input/output error"'
+		log_must eval 'cat 2>&1 >/dev/null | \
+		    grep -E "Input/output error|I/O error"'
 	} <$TXG_HIST
 }
 
