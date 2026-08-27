@@ -114,7 +114,7 @@ uint64_t zfs_vdev_anyraid_min_tile_size = (16ULL << 30);
  * This controls how many tiles we have per disk (based on the smallest disk
  * present at creation time)
  */
-int anyraid_disk_shift = 6;
+int zfs_vdev_anyraid_disk_shift = 6;
 
 static inline uint64_t
 vdev_anyraid_header_offset(vdev_t *vd, int id)
@@ -677,7 +677,7 @@ anyraid_calculate_size(vdev_t *vd)
 	vdev_anyraid_t *var = vd->vdev_tsd;
 
 	uint64_t smallest_disk_size = UINT64_MAX;
-	uint64_t disk_shift = anyraid_disk_shift;
+	uint64_t disk_shift = zfs_vdev_anyraid_disk_shift;
 	uint64_t min_size = zfs_vdev_anyraid_min_tile_size;
 	uint_t toosmall = 0;
 
@@ -1595,3 +1595,5 @@ vdev_ops_t vdev_anyraid_ops = {
 
 ZFS_MODULE_PARAM(zfs_vdev_anyraid, zfs_vdev_anyraid_, min_tile_size, U64,
 	ZMOD_RW, "Minimum tile size for anyraid");
+ZFS_MODULE_PARAM(zfs_vdev_anyraid, zfs_vdev_anyraid_, disk_shift, U64,
+	ZMOD_RW, "Default shift for tile size of anyraid vdevs");
