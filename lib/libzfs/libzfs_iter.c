@@ -304,13 +304,13 @@ zfs_do_snapshot_list_batch_ioctl(zfs_handle_t *zhp, int flags,
 					*result = NULL;
 				}
 			}
-			break;
+		} else {
+			if (ioctl_errno == ENOMEM) {
+				zcmd_expand_dst_nvlist(zhp->zfs_hdl, &zc);
+				continue;
+			}
+			error = ioctl_errno != 0 ? ioctl_errno : EPROTO;
 		}
-		if (ioctl_errno == ENOMEM) {
-			zcmd_expand_dst_nvlist(zhp->zfs_hdl, &zc);
-			continue;
-		}
-		error = ioctl_errno != 0 ? ioctl_errno : EPROTO;
 		break;
 	}
 	if (*result == NULL)
