@@ -133,7 +133,7 @@ out:
 static boolean_t
 batch_has_snapshot_results(const zfs_cmd_t *zc)
 {
-	nvlist_t *batch = NULL;
+	nvlist_t *batch = NULL, *results;
 	char **names;
 	uint_t count;
 	boolean_t result = B_FALSE;
@@ -143,8 +143,82 @@ batch_has_snapshot_results(const zfs_cmd_t *zc)
 	    zc->zc_nvlist_dst_size != 0 &&
 	    nvlist_unpack((char *)(uintptr_t)zc->zc_nvlist_dst,
 	    zc->zc_nvlist_dst_size, &batch, 0) == 0 &&
-	    nvlist_lookup_string_array(batch, SNAP_ITER_BATCH_NAMES, &names,
-	    &count) == 0 && count != 0) {
+	    nvlist_lookup_nvlist(batch, SNAP_ITER_BATCH_RESULTS,
+	    &results) == 0 &&
+	    nvlist_lookup_string_array(results,
+	    zfs_prop_to_name(ZFS_PROP_NAME), &names, &count) == 0 &&
+	    count != 0) {
+		result = B_TRUE;
+	}
+
+	nvlist_free(batch);
+	errno = saved_errno;
+	return (result);
+}
+
+static boolean_t
+batch_has_nested_results(const zfs_cmd_t *zc)
+{
+	nvlist_t *batch = NULL, *results;
+	char **names;
+	uint64_t *createtxgs, *guids, *writtens;
+	uint8_t *written_valid;
+	uint_t count, createtxg_count, guid_count, written_count;
+	uint_t written_valid_count;
+	boolean_t result = B_FALSE;
+	int saved_errno = errno;
+
+	if (zc->zc_nvlist_dst_filled && zc->zc_nvlist_dst != 0 &&
+	    zc->zc_nvlist_dst_size != 0 &&
+	    nvlist_unpack((char *)(uintptr_t)zc->zc_nvlist_dst,
+	    zc->zc_nvlist_dst_size, &batch, 0) == 0 &&
+	    nvlist_lookup_nvlist(batch, SNAP_ITER_BATCH_RESULTS,
+	    &results) == 0 &&
+	    nvlist_lookup_string_array(results,
+	    zfs_prop_to_name(ZFS_PROP_NAME), &names, &count) == 0 &&
+	    count != 0 &&
+	    nvlist_lookup_uint64_array(results,
+	    zfs_prop_to_name(ZFS_PROP_CREATETXG), &createtxgs,
+	    &createtxg_count) == 0 && createtxg_count == count &&
+	    nvlist_lookup_uint64_array(results, zfs_prop_to_name(ZFS_PROP_GUID),
+	    &guids, &guid_count) == 0 && guid_count == count &&
+	    nvlist_lookup_uint64_array(results,
+	    zfs_prop_to_name(ZFS_PROP_WRITTEN), &writtens,
+	    &written_count) == 0 && written_count == count &&
+	    nvlist_lookup_uint8_array(results, SNAP_ITER_BATCH_WRITTEN_VALID,
+	    &written_valid, &written_valid_count) == 0 &&
+	    written_valid_count == count &&
+	    !nvlist_exists(batch, zfs_prop_to_name(ZFS_PROP_NAME)) &&
+	    !nvlist_exists(batch, SNAP_ITER_BATCH_PROPS) &&
+	    !nvlist_exists(batch, zfs_prop_to_name(ZFS_PROP_CREATETXG)) &&
+	    !nvlist_exists(batch, zfs_prop_to_name(ZFS_PROP_GUID)) &&
+	    !nvlist_exists(batch, zfs_prop_to_name(ZFS_PROP_WRITTEN)) &&
+	    !nvlist_exists(batch, SNAP_ITER_BATCH_WRITTEN_VALID)) {
+		result = B_TRUE;
+	}
+
+	nvlist_free(batch);
+	errno = saved_errno;
+	return (result);
+}
+
+static boolean_t
+batch_omits_empty_results(const zfs_cmd_t *zc)
+{
+	nvlist_t *batch = NULL;
+	boolean_t eof;
+	boolean_t result = B_FALSE;
+	int saved_errno = errno;
+
+	if (zc->zc_nvlist_dst_filled && zc->zc_nvlist_dst != 0 &&
+	    zc->zc_nvlist_dst_size != 0 &&
+	    nvlist_unpack((char *)(uintptr_t)zc->zc_nvlist_dst,
+	    zc->zc_nvlist_dst_size, &batch, 0) == 0 &&
+	    nvlist_lookup_boolean_value(batch, SNAP_ITER_BATCH_EOF,
+	    &eof) == 0 &&
+	    eof && !nvlist_exists(batch, SNAP_ITER_BATCH_RESULTS) &&
+	    !nvlist_exists(batch, zfs_prop_to_name(ZFS_PROP_NAME)) &&
+	    !nvlist_exists(batch, SNAP_ITER_BATCH_PROPS)) {
 		result = B_TRUE;
 	}
 
@@ -219,9 +293,10 @@ is_metadata_mode(const char *mode)
 }
 
 static boolean_t
-is_written_metadata_mode(const char *mode)
+is_result_metadata_mode(const char *mode)
 {
-	return (strcmp(mode, "missing_writtens") == 0 ||
+	return (strcmp(mode, "missing_name") == 0 ||
+	    strcmp(mode, "missing_writtens") == 0 ||
 	    strcmp(mode, "missing_written_valid") == 0 ||
 	    strcmp(mode, "short_writtens") == 0 ||
 	    strcmp(mode, "short_written_valid") == 0 ||
@@ -271,9 +346,9 @@ out:
 }
 
 static int
-replace_written_metadata(zfs_cmd_t *zc, const char *mode)
+replace_result_metadata(zfs_cmd_t *zc, const char *mode)
 {
-	nvlist_t *batch = NULL;
+	nvlist_t *batch = NULL, *results;
 	const char *written_name = zfs_prop_to_name(ZFS_PROP_WRITTEN);
 	uint64_t *writtens, *writtens_copy = NULL;
 	uint8_t *valid, *valid_copy = NULL;
@@ -284,13 +359,20 @@ replace_written_metadata(zfs_cmd_t *zc, const char *mode)
 	    zc->zc_nvlist_dst_size, &batch, 0);
 	if (error != 0)
 		goto out;
+	error = nvlist_lookup_nvlist(batch, SNAP_ITER_BATCH_RESULTS, &results);
+	if (error != 0)
+		goto out;
 
-	if (strcmp(mode, "missing_writtens") == 0) {
-		(void) nvlist_remove_all(batch, written_name);
+	if (strcmp(mode, "missing_name") == 0) {
+		(void) nvlist_remove_all(results,
+		    zfs_prop_to_name(ZFS_PROP_NAME));
+	} else if (strcmp(mode, "missing_writtens") == 0) {
+		(void) nvlist_remove_all(results, written_name);
 	} else if (strcmp(mode, "missing_written_valid") == 0) {
-		(void) nvlist_remove_all(batch, SNAP_ITER_BATCH_WRITTEN_VALID);
+		(void) nvlist_remove_all(results,
+		    SNAP_ITER_BATCH_WRITTEN_VALID);
 	} else if (strcmp(mode, "short_writtens") == 0) {
-		error = nvlist_lookup_uint64_array(batch, written_name,
+		error = nvlist_lookup_uint64_array(results, written_name,
 		    &writtens, &count);
 		if (error != 0 || count < 2) {
 			error = EPROTO;
@@ -303,13 +385,13 @@ replace_written_metadata(zfs_cmd_t *zc, const char *mode)
 		}
 		(void) memcpy(writtens_copy, writtens,
 		    sizeof (writtens_copy[0]) * count);
-		(void) nvlist_remove_all(batch, written_name);
-		error = nvlist_add_uint64_array(batch, written_name,
+		(void) nvlist_remove_all(results, written_name);
+		error = nvlist_add_uint64_array(results, written_name,
 		    writtens_copy, count - 1);
 		if (error != 0)
 			goto out;
 	} else {
-		error = nvlist_lookup_uint8_array(batch,
+		error = nvlist_lookup_uint8_array(results,
 		    SNAP_ITER_BATCH_WRITTEN_VALID, &valid, &count);
 		if (error != 0 || count < 2) {
 			error = EPROTO;
@@ -322,12 +404,13 @@ replace_written_metadata(zfs_cmd_t *zc, const char *mode)
 		}
 		(void) memcpy(valid_copy, valid,
 		    sizeof (valid_copy[0]) * count);
-		(void) nvlist_remove_all(batch, SNAP_ITER_BATCH_WRITTEN_VALID);
+		(void) nvlist_remove_all(results,
+		    SNAP_ITER_BATCH_WRITTEN_VALID);
 		if (strcmp(mode, "invalid_written_valid") == 0)
 			valid_copy[0] = 2;
 		else
 			count--;
-		error = nvlist_add_uint8_array(batch,
+		error = nvlist_add_uint8_array(results,
 		    SNAP_ITER_BATCH_WRITTEN_VALID, valid_copy, count);
 		if (error != 0)
 			goto out;
@@ -507,6 +590,22 @@ lzc_ioctl_fd(int fd, unsigned long request, zfs_cmd_t *zc)
 		return (-1);
 	}
 	error = next(fd, request, zc);
+	if (error == 0 && request == ZFS_IOC_SNAPSHOT_LIST_BATCH &&
+	    mode != NULL && strcmp(mode, "nested_results") == 0) {
+		if (batch_has_snapshot_results(zc)) {
+			if (!batch_has_nested_results(zc)) {
+				errno = EPROTO;
+				return (-1);
+			}
+			write_marker(mode);
+		} else {
+			if (!batch_omits_empty_results(zc)) {
+				errno = EPROTO;
+				return (-1);
+			}
+			write_marker("empty_results");
+		}
+	}
 	if (error == -1 && errno == EIO &&
 	    request == ZFS_IOC_SNAPSHOT_LIST_BATCH && mode != NULL &&
 	    strcmp(mode, "partial_eio_output") == 0 &&
@@ -534,8 +633,8 @@ lzc_ioctl_fd(int fd, unsigned long request, zfs_cmd_t *zc)
 		write_marker(mode);
 	}
 	if (error == 0 && request == ZFS_IOC_SNAPSHOT_LIST_BATCH &&
-	    mode != NULL && is_written_metadata_mode(mode)) {
-		error = replace_written_metadata(zc, mode);
+	    mode != NULL && is_result_metadata_mode(mode)) {
+		error = replace_result_metadata(zc, mode);
 		if (error != 0) {
 			errno = error;
 			return (-1);

@@ -51,6 +51,7 @@
 # 22. Use full snapshot properties when coloring the available column.
 # 23. Batch built-ins which apply to neither snapshots nor bookmarks, including
 #     as sort keys, while keeping pseudo-properties on legacy listing.
+# 24. Return projected property arrays in one nested batch nvlist.
 #
 
 verify_runnable "global"
@@ -244,6 +245,25 @@ function verify_direct_properties
 	log_must rm -f "$MARKER"
 }
 
+function verify_nested_results
+{
+	typeset preload="$SHIM"
+	typeset -i calls empty_calls
+
+	[[ -n "$LD_PRELOAD" ]] && preload="$SHIM:$LD_PRELOAD"
+	log_must eval "LD_PRELOAD='$preload' " \
+	    "ZFS_SNAPSHOT_LIST_TEST_MODE='nested_results' " \
+	    "ZFS_SNAPSHOT_LIST_TEST_MARKER='$MARKER' " \
+	    "snapshot_list_test filter '$DATASET' 0 0 > /dev/null"
+	calls=$(grep -Fxc nested_results "$MARKER")
+	(( calls == 3 )) ||
+	    log_fail "nested results checked $calls batches; expected 3"
+	empty_calls=$(grep -Fxc empty_results "$MARKER")
+	(( empty_calls == 1 )) ||
+	    log_fail "empty results omitted $empty_calls times; expected 1"
+	log_must rm -f "$MARKER"
+}
+
 function run_injected_handle_enomem
 {
 	typeset preload="$SHIM"
@@ -264,7 +284,7 @@ function run_injected_metadata_errors
 	[[ -n "$LD_PRELOAD" ]] && preload="$SHIM:$LD_PRELOAD"
 	for mode in missing_eof unvalued_eof missing_dmu_type \
 	    invalid_dmu_type missing_dds_flags invalid_dds_flags missing_writtens \
-	    missing_written_valid short_writtens short_written_valid \
+	    missing_name missing_written_valid short_writtens short_written_valid \
 	    invalid_written_valid; do
 		log_must rm -f "$MARKER"
 		log_must eval "LD_PRELOAD='$preload' " \
@@ -668,6 +688,7 @@ log_must set_tunable32 SNAPSHOT_LIST_BATCH_SIZE 2
 verify_filtered_batch_fill
 verify_filtered_fallback
 log_must set_tunable32 SNAPSHOT_LIST_BATCH_SIZE 1
+verify_nested_results
 run_injected_empty_batch
 run_injected_eof_after_first
 log_must set_tunable32 SNAPSHOT_LIST_BATCH_SIZE 1024

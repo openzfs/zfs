@@ -113,15 +113,15 @@ zfs_batch_add_uint64_prop(nvlist_t *props, zfs_prop_t prop, uint64_t value)
  * kernel can increase its limit without exceeding this caller's destination
  * buffer.  A native packed result needs at most 264 bytes for its name (the
  * string-array slot and ZFS_MAX_DATASET_NAME_LEN bytes), plus eight bytes for
- * each uint64 array and one byte for each uint8 array.  Reserving twice
- * ZFS_MAX_DATASET_NAME_LEN bytes for each name, plus the array storage and
- * 4 KiB for nvpair headers, alignment, and fixed metadata, is a conservative
+ * each uint64 array and one byte for each uint8 array.  Reserving that maximum
+ * per name, plus the array storage and 4 KiB for nvpair headers, alignment,
+ * embedded results-nvlist metadata, and fixed metadata, is a conservative
  * bound for every currently supported property combination.
  */
 #define	SNAPSHOT_LIST_BATCH_MAX_RESULTS		1024
 #define	SNAPSHOT_LIST_BATCH_NVLIST_SIZE(num_uint64_arrays, num_uint8_arrays) \
 	((4 * 1024) + SNAPSHOT_LIST_BATCH_MAX_RESULTS *			\
-	(2 * ZFS_MAX_DATASET_NAME_LEN +					\
+	(ZFS_MAX_DATASET_NAME_LEN + sizeof (uint64_t) +			\
 	(num_uint64_arrays) * sizeof (uint64_t) +			\
 	(num_uint8_arrays) * sizeof (uint8_t)))
 
@@ -350,7 +350,7 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 		uint_t defer_destroy_count = 0, written_count = 0;
 		uint_t written_valid_count = 0;
 		uint64_t next_cursor, dmu_type, dds_flags;
-		nvlist_t *batch = NULL;
+		nvlist_t *batch = NULL, *results = NULL;
 		boolean_t eof = B_FALSE, ioctl_eof;
 		int ioctl_errno;
 
@@ -394,12 +394,13 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 			goto malformed;
 		}
 
-		ret = nvlist_lookup_string_array(batch, SNAP_ITER_BATCH_NAMES,
-		    &names, &count);
+		ret = nvlist_lookup_nvlist(batch, SNAP_ITER_BATCH_RESULTS,
+		    &results);
 		if (ret == ENOENT) {
 			count = 0;
 			ret = 0;
-		} else if (ret != 0) {
+		} else if (ret != 0 || nvlist_lookup_string_array(results,
+		    zfs_prop_to_name(ZFS_PROP_NAME), &names, &count) != 0) {
 			ret = EPROTO;
 			goto malformed;
 		}
@@ -408,21 +409,21 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 			goto malformed;
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_CREATETXG) &&
-		    (nvlist_lookup_uint64_array(batch,
+		    (nvlist_lookup_uint64_array(results,
 		    zfs_prop_to_name(ZFS_PROP_CREATETXG), &createtxgs,
 		    &createtxg_count) != 0 || count != createtxg_count)) {
 			ret = EPROTO;
 			goto malformed;
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_GUID) &&
-		    (nvlist_lookup_uint64_array(batch,
+		    (nvlist_lookup_uint64_array(results,
 		    zfs_prop_to_name(ZFS_PROP_GUID), &guids,
 		    &guid_count) != 0 || count != guid_count)) {
 			ret = EPROTO;
 			goto malformed;
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_OBJSETID) &&
-		    (nvlist_lookup_uint64_array(batch,
+		    (nvlist_lookup_uint64_array(results,
 		    zfs_prop_to_name(ZFS_PROP_OBJSETID), &objsetids,
 		    &objsetid_count) != 0 || count != objsetid_count)) {
 			ret = EPROTO;
@@ -430,35 +431,35 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 		}
 
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_CREATION) &&
-		    (nvlist_lookup_uint64_array(batch,
+		    (nvlist_lookup_uint64_array(results,
 		    zfs_prop_to_name(ZFS_PROP_CREATION), &creations,
 		    &creation_count) != 0 || count != creation_count)) {
 			ret = EPROTO;
 			goto malformed;
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_USERREFS) &&
-		    (nvlist_lookup_uint64_array(batch,
+		    (nvlist_lookup_uint64_array(results,
 		    zfs_prop_to_name(ZFS_PROP_USERREFS), &userrefs,
 		    &userref_count) != 0 || count != userref_count)) {
 			ret = EPROTO;
 			goto malformed;
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_NUMCLONES) &&
-		    (nvlist_lookup_uint64_array(batch,
+		    (nvlist_lookup_uint64_array(results,
 		    zfs_prop_to_name(ZFS_PROP_NUMCLONES), &numclones,
 		    &numclone_count) != 0 || count != numclone_count)) {
 			ret = EPROTO;
 			goto malformed;
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_USED) &&
-		    (nvlist_lookup_uint64_array(batch,
+		    (nvlist_lookup_uint64_array(results,
 		    zfs_prop_to_name(ZFS_PROP_USED), &used, &used_count) != 0 ||
 		    count != used_count)) {
 			ret = EPROTO;
 			goto malformed;
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_REFERENCED) &&
-		    (nvlist_lookup_uint64_array(batch,
+		    (nvlist_lookup_uint64_array(results,
 		    zfs_prop_to_name(ZFS_PROP_REFERENCED), &referenced,
 		    &referenced_count) != 0 || count != referenced_count)) {
 			ret = EPROTO;
@@ -466,7 +467,7 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 		}
 		if (count != 0 &&
 		    (flags & ZFS_ITER_BATCHED_LOGICALREFERENCED) &&
-		    (nvlist_lookup_uint64_array(batch,
+		    (nvlist_lookup_uint64_array(results,
 		    zfs_prop_to_name(ZFS_PROP_LOGICALREFERENCED),
 		    &logicalreferenced,
 		    &logicalreferenced_count) != 0 ||
@@ -475,7 +476,7 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 			goto malformed;
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_INCONSISTENT) &&
-		    (nvlist_lookup_uint8_array(batch,
+		    (nvlist_lookup_uint8_array(results,
 		    zfs_prop_to_name(ZFS_PROP_INCONSISTENT), &inconsistent,
 		    &inconsistent_count) != 0 ||
 		    count != inconsistent_count)) {
@@ -483,14 +484,14 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 			goto malformed;
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_REDACTED) &&
-		    (nvlist_lookup_uint8_array(batch,
+		    (nvlist_lookup_uint8_array(results,
 		    zfs_prop_to_name(ZFS_PROP_REDACTED), &redacted,
 		    &redacted_count) != 0 || count != redacted_count)) {
 			ret = EPROTO;
 			goto malformed;
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_DEFER_DESTROY) &&
-		    (nvlist_lookup_uint8_array(batch,
+		    (nvlist_lookup_uint8_array(results,
 		    zfs_prop_to_name(ZFS_PROP_DEFER_DESTROY), &defer_destroy,
 		    &defer_destroy_count) != 0 ||
 		    count != defer_destroy_count)) {
@@ -498,10 +499,10 @@ zfs_iter_snapshots_batch(zfs_handle_t *zhp, int flags, zfs_iter_f func,
 			goto malformed;
 		}
 		if (count != 0 && (flags & ZFS_ITER_BATCHED_WRITTEN) &&
-		    (nvlist_lookup_uint64_array(batch,
+		    (nvlist_lookup_uint64_array(results,
 		    zfs_prop_to_name(ZFS_PROP_WRITTEN), &writtens,
 		    &written_count) != 0 ||
-		    nvlist_lookup_uint8_array(batch,
+		    nvlist_lookup_uint8_array(results,
 		    SNAP_ITER_BATCH_WRITTEN_VALID, &written_valid,
 		    &written_valid_count) != 0 || count != written_count ||
 		    count != written_valid_count)) {

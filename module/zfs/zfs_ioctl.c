@@ -2768,10 +2768,10 @@ uint_t zfs_snapshot_list_batch_time_us =
  * }
  *
  * outnvl contains authoritative parent metadata, an always-present EOF boolean
- * value, snapshot names, and one parallel array for each requested property.
- * Result-count and elapsed-time limits amortize parent objset and ioctl
- * overhead without holding the pool configuration lock for an unbounded
- * snapshot walk.
+ * value, and, for nonempty batches, a results nvlist containing snapshot names
+ * and one parallel array for each requested property.  Result-count and
+ * elapsed-time limits amortize parent objset and ioctl overhead without holding
+ * the pool configuration lock for an unbounded snapshot walk.
  */
 static const zfs_ioc_key_t zfs_keys_snapshot_list_batch[] = {
 	{SNAP_ITER_BATCH_PROPS, DATA_TYPE_NVLIST, 0},
@@ -3032,74 +3032,87 @@ zfs_ioc_snapshot_list_batch(const char *fsname, nvlist_t *innvl,
 		    head_flags);
 		fnvlist_add_boolean_value(outnvl, SNAP_ITER_BATCH_EOF, eof);
 		if (count != 0) {
-			fnvlist_add_string_array(outnvl, SNAP_ITER_BATCH_NAMES,
+			nvlist_t *empty_results = fnvlist_alloc();
+			nvlist_t *results;
+
+			/*
+			 * Embed the empty results nvlist first.  Populate its
+			 * embedded copy, avoiding a second copy of each array.
+			 */
+			fnvlist_add_nvlist(outnvl, SNAP_ITER_BATCH_RESULTS,
+			    empty_results);
+			fnvlist_free(empty_results);
+			results = fnvlist_lookup_nvlist(outnvl,
+			    SNAP_ITER_BATCH_RESULTS);
+			fnvlist_add_string_array(results,
+			    zfs_prop_to_name(ZFS_PROP_NAME),
 			    (const char * const *)names, count);
 			if (want_createtxg) {
-				fnvlist_add_uint64_array(outnvl,
+				fnvlist_add_uint64_array(results,
 				    zfs_prop_to_name(ZFS_PROP_CREATETXG),
 				    createtxgs, count);
 			}
 			if (want_guid) {
-				fnvlist_add_uint64_array(outnvl,
+				fnvlist_add_uint64_array(results,
 				    zfs_prop_to_name(ZFS_PROP_GUID), guids,
 				    count);
 			}
 			if (want_objsetid) {
-				fnvlist_add_uint64_array(outnvl,
+				fnvlist_add_uint64_array(results,
 				    zfs_prop_to_name(ZFS_PROP_OBJSETID),
 				    objsetids, count);
 			}
 			if (want_creation) {
-				fnvlist_add_uint64_array(outnvl,
+				fnvlist_add_uint64_array(results,
 				    zfs_prop_to_name(ZFS_PROP_CREATION),
 				    creations, count);
 			}
 			if (want_userrefs) {
-				fnvlist_add_uint64_array(outnvl,
+				fnvlist_add_uint64_array(results,
 				    zfs_prop_to_name(ZFS_PROP_USERREFS),
 				    userrefs, count);
 			}
 			if (want_numclones) {
-				fnvlist_add_uint64_array(outnvl,
+				fnvlist_add_uint64_array(results,
 				    zfs_prop_to_name(ZFS_PROP_NUMCLONES),
 				    numclones, count);
 			}
 			if (want_inconsistent) {
-				fnvlist_add_uint8_array(outnvl,
+				fnvlist_add_uint8_array(results,
 				    zfs_prop_to_name(ZFS_PROP_INCONSISTENT),
 				    inconsistent, count);
 			}
 			if (want_redacted) {
-				fnvlist_add_uint8_array(outnvl,
+				fnvlist_add_uint8_array(results,
 				    zfs_prop_to_name(ZFS_PROP_REDACTED),
 				    redacted, count);
 			}
 			if (want_used) {
-				fnvlist_add_uint64_array(outnvl,
+				fnvlist_add_uint64_array(results,
 				    zfs_prop_to_name(ZFS_PROP_USED), used,
 				    count);
 			}
 			if (want_referenced) {
-				fnvlist_add_uint64_array(outnvl,
+				fnvlist_add_uint64_array(results,
 				    zfs_prop_to_name(ZFS_PROP_REFERENCED),
 				    referenced, count);
 			}
 			if (want_logicalreferenced) {
-				fnvlist_add_uint64_array(outnvl,
+				fnvlist_add_uint64_array(results,
 				    zfs_prop_to_name(
 				    ZFS_PROP_LOGICALREFERENCED),
 				    logicalreferenced, count);
 			}
 			if (want_defer_destroy) {
-				fnvlist_add_uint8_array(outnvl,
+				fnvlist_add_uint8_array(results,
 				    zfs_prop_to_name(ZFS_PROP_DEFER_DESTROY),
 				    defer_destroy, count);
 			}
 			if (want_written) {
-				fnvlist_add_uint64_array(outnvl,
+				fnvlist_add_uint64_array(results,
 				    zfs_prop_to_name(ZFS_PROP_WRITTEN),
 				    writtens, count);
-				fnvlist_add_uint8_array(outnvl,
+				fnvlist_add_uint8_array(results,
 				    SNAP_ITER_BATCH_WRITTEN_VALID,
 				    written_valid, count);
 			}
