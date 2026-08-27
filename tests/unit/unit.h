@@ -124,6 +124,10 @@ _UNIT_CHECK_DECLARE(double, double)
 #define	unit_ok(a)	munit_assert_int((a), ==, 0)
 #define	unit_err(a, e)	munit_assert_int((a), ==, (e))
 
+/* shortcuts for pointer null checks */
+#define	unit_null(a)	munit_assert_null(a)
+#define	unit_notnull(a)	munit_assert_not_null(a)
+
 /* helpers to generate useful random data */
 extern uint64_t unit_rand_uint64(void);
 extern char *unit_rand_str(char *buf, size_t bufsz);
