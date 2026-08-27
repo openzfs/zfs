@@ -44,7 +44,7 @@ log_onexit cleanup
 log_must mmp_set_hostid $HOSTID1
 log_must zpool create -f $TESTPOOL mirror $DISKS
 log_must zpool set multihost=on $TESTPOOL
-log_must zinject -d ${DISK[0]} -e io -T write -f 50 $TESTPOOL -L uber
+log_must zinject -d ${DISK[0]} -e io -T write -f 50 -L uber $TESTPOOL
 clear_mmp_history
 uber_count=$(count_mmp_writes $TESTPOOL 3)
 
