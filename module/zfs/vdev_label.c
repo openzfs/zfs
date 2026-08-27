@@ -1900,9 +1900,9 @@ vdev_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 
 /* Sync the uberblocks to all vdevs in svd[] */
 int
-vdev_uberblock_sync_list(vdev_t **svd, int svdcount, uberblock_t *ub, int flags)
+vdev_uberblock_sync_list(spa_t *spa, vdev_t **svd, int svdcount,
+    uberblock_t *ub, int flags)
 {
-	spa_t *spa = svd[0]->vdev_spa;
 	zio_t *zio;
 	uint64_t good_writes = 0;
 
@@ -2137,9 +2137,8 @@ vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
  * at any time, you can just call it again, and it will resume its work.
  */
 int
-vdev_config_sync(vdev_t **svd, int svdcount, uint64_t txg)
+vdev_config_sync(spa_t *spa, vdev_t **svd, int svdcount, uint64_t txg)
 {
-	spa_t *spa = svd[0]->vdev_spa;
 	uberblock_t *ub = &spa->spa_uberblock;
 	int error = 0;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL;
@@ -2230,7 +2229,8 @@ retry:
 	 *	been successfully committed) will be valid with respect
 	 *	to the new uberblocks.
 	 */
-	if ((error = vdev_uberblock_sync_list(svd, svdcount, ub, flags)) != 0) {
+	if ((error = vdev_uberblock_sync_list(spa, svd, svdcount, ub,
+	    flags)) != 0) {
 		if ((flags & ZIO_FLAG_IO_RETRY) != 0) {
 			zfs_dbgmsg("vdev_uberblock_sync_list() returned error "
 			    "%d for pool '%s'", error, spa_name(spa));
