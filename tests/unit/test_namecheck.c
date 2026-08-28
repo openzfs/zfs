@@ -124,6 +124,10 @@ test_dataset_namecheck(const MunitParameter params[], void *data)
 	check_invalid(dataset_namecheck, "tank/../home", NAME_ERR_PARENT_REF);
 	check_invalid(dataset_namecheck, "tank/fs!", NAME_ERR_INVALCHAR);
 
+	/* A component is still a reference when a delimiter follows it. */
+	check_invalid(dataset_namecheck, "tank/.@snap", NAME_ERR_SELF_REF);
+	check_invalid(dataset_namecheck, "tank/..@snap", NAME_ERR_PARENT_REF);
+
 	/* A bookmark delimiter does not belong in a dataset name. */
 	check_invalid(dataset_namecheck, "tank/fs#bm", NAME_ERR_INVALCHAR);
 
@@ -155,6 +159,9 @@ test_snapshot_namecheck(const MunitParameter params[], void *data)
 	check_invalid(snapshot_namecheck, "tank@snap/x",
 	    NAME_ERR_TRAILING_SLASH);
 
+	/* The filesystem the snapshot belongs to is checked as well. */
+	check_invalid(snapshot_namecheck, "tank/.@snap", NAME_ERR_SELF_REF);
+
 	return (MUNIT_OK);
 }
 
@@ -172,6 +179,9 @@ test_bookmark_namecheck(const MunitParameter params[], void *data)
 
 	/* Without a '#' it is not a bookmark. */
 	check_invalid(bookmark_namecheck, "tank/home", NAME_ERR_NO_POUND);
+
+	/* The filesystem the bookmark belongs to is checked as well. */
+	check_invalid(bookmark_namecheck, "tank/.#bm", NAME_ERR_SELF_REF);
 
 	return (MUNIT_OK);
 }
