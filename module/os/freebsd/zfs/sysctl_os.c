@@ -198,7 +198,7 @@ param_set_arc_max(SYSCTL_HANDLER_ARGS)
 	arc_tuning_update(B_TRUE);
 
 	/* Update the sysctl to the tuned value */
-	if (val != 0)
+	if (val != 0 && arc_c_max != 0)
 		zfs_arc_max = arc_c_max;
 
 	return (0);
@@ -215,14 +215,15 @@ param_set_arc_min(SYSCTL_HANDLER_ARGS)
 	if (err != 0 || req->newptr == NULL)
 		return (SET_ERROR(err));
 
-	if (val != 0 && (val < 2ULL << SPA_MAXBLOCKSHIFT || val > arc_c_max))
+	if (val != 0 && (val < 2ULL << SPA_MAXBLOCKSHIFT ||
+	    (arc_c_max != 0 && val > arc_c_max)))
 		return (SET_ERROR(EINVAL));
 
 	zfs_arc_min = val;
 	arc_tuning_update(B_TRUE);
 
 	/* Update the sysctl to the tuned value */
-	if (val != 0)
+	if (val != 0 && arc_c_max != 0)
 		zfs_arc_min = arc_c_min;
 
 	return (0);
