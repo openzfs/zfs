@@ -3,6 +3,7 @@ include $(srcdir)/%D%/bash_completion.d/Makefile.am
 include $(srcdir)/%D%/debian/Makefile.am
 include $(srcdir)/%D%/pyzfs/Makefile.am
 include $(srcdir)/%D%/zcp/Makefile.am
+include $(srcdir)/%D%/zvol-swap-stall/Makefile.am
 
 if BUILD_LINUX
 include $(srcdir)/%D%/bpftrace/Makefile.am
