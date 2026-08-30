@@ -1,0 +1,14 @@
+[Unit]
+Description=Run the disposable zvol-swap stall reproducer
+After=local-fs.target
+Before=getty.target
+ConditionPathExists=/usr/local/sbin/zvol-swap-boot.sh
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/zvol-swap-boot.sh
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target
