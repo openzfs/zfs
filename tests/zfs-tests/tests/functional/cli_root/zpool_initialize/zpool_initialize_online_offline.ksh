@@ -26,9 +26,9 @@
 # 2. Start initializing one of the disks and verify that initializing is active.
 # 3. Offline the disk.
 # 4. Online the disk.
-# 5. Verify that initializing resumes and progress does not regress.
-# 6. Suspend initializing.
-# 7. Repeat steps 3-4 and verify that initializing does not resume.
+# 5. Suspend initializing and verify that progress did not regress.
+# 6. Repeat steps 3-4 and verify that suspended initializing does not resume.
+# 7. Resume initializing and wait for it to finish.
 #
 
 DISK1=${DISKS%% *}
@@ -44,14 +44,13 @@ progress="$(initialize_progress $TESTPOOL $DISK1)"
 
 log_must zpool online $TESTPOOL $DISK1
 
+log_must zpool initialize -s $TESTPOOL $DISK1
 new_progress="$(initialize_progress $TESTPOOL $DISK1)"
 [[ -z "$new_progress" ]] && \
     log_fail "Initializing did not restart after onlining"
 [[ "$progress" -le "$new_progress" ]] || \
     log_fail "Initializing lost progress after onlining"
-log_mustnot eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
-
-log_must zpool initialize -s $TESTPOOL $DISK1
+log_must eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
 action_date="$(initialize_prog_line $TESTPOOL $DISK1 | \
     sed 's/.*ed at \(.*\)).*/\1/g')"
 log_must zpool offline $TESTPOOL $DISK1
@@ -61,5 +60,8 @@ new_action_date=$(initialize_prog_line $TESTPOOL $DISK1 | \
 [[ "$action_date" != "$new_action_date" ]] && \
     log_fail "Initializing action date did not persist across offline/online"
 log_must eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
+
+log_must zpool initialize $TESTPOOL $DISK1
+log_must zpool wait -t initialize $TESTPOOL
 
 log_pass "Initializing performs as expected across offline/online"
