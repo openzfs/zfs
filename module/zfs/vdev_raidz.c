@@ -5543,6 +5543,12 @@ vdev_raidz_ndisks(vdev_t *vd)
 	return (vd->vdev_children);
 }
 
+static uint64_t
+vdev_raidz_alloc_factor(vdev_t *vd)
+{
+	return ((vdev_raidz_nparity(vd) + 1) << vd->vdev_ashift);
+}
+
 vdev_ops_t vdev_raidz_ops = {
 	.vdev_op_init = vdev_raidz_init,
 	.vdev_op_fini = vdev_raidz_fini,
@@ -5565,6 +5571,7 @@ vdev_ops_t vdev_raidz_ops = {
 	.vdev_op_config_generate = vdev_raidz_config_generate,
 	.vdev_op_nparity = vdev_raidz_nparity,
 	.vdev_op_ndisks = vdev_raidz_ndisks,
+	.vdev_op_alloc_factor = vdev_raidz_alloc_factor,
 	.vdev_op_type = VDEV_TYPE_RAIDZ,	/* name of this vdev type */
 	.vdev_op_leaf = B_FALSE			/* not a leaf vdev */
 };

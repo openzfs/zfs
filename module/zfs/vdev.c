@@ -4443,6 +4443,14 @@ vdev_psize_to_asize(vdev_t *vd, uint64_t psize)
 	return (vdev_psize_to_asize_txg(vd, psize, 0));
 }
 
+uint64_t
+vdev_alloc_factor(vdev_t *vd)
+{
+	if (vd->vdev_ops->vdev_op_alloc_factor == NULL)
+		return (1ULL << vd->vdev_ashift);
+	return (vd->vdev_ops->vdev_op_alloc_factor(vd));
+}
+
 /*
  * Mark the given vdev faulted.  A faulted vdev behaves as if the device could
  * not be opened, and no I/O is attempted.
