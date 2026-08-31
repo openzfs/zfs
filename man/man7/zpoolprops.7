@@ -19,7 +19,7 @@
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\" Copyright (c) 2023, 2026, Klara Inc.
 .\"
-.Dd March 2, 2026
+.Dd September 9, 2026
 .Dt ZPOOLPROPS 7
 .Os
 .
@@ -152,6 +152,11 @@ will decrease while
 increases.
 .It Sy guid
 A unique identifier for the pool.
+On Linux, it is the first half of the filesystem UUID of each mounted
+filesystem of the pool; see the
+.Sy guid
+property in
+.Xr zfsprops 7 .
 .It Sy health
 The current health of the pool.
 Health can be one of

@@ -16,7 +16,7 @@
 .\" Copyright (c) 2026, Mateusz Piotrowski <0mp@FreeBSD.org>
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd July 12, 2026
+.Dd September 9, 2026
 .Dt ZFS 4
 .Os
 .
@@ -1809,6 +1809,31 @@ support for snapshot mounts triggered by access to the
 directory by setting the
 .Em nosuid
 mount option.
+.
+.It Sy zfs_sb_uuid Ns = Ns Sy 1 Ns | Ns 0 Pq int
+Set the filesystem UUID of a filesystem, snapshot, or clone at mount time,
+from the pool GUID and the dataset GUID, as the
+.Sy guid
+property in
+.Xr zfsprops 7
+describes.
+Set to
+.Sy 0
+to leave the UUID null, as releases without this parameter did, for example
+when stale overlayfs file handles block a mount after an upgrade; see the
+.Sx Filesystem UUIDs and Overlayfs
+section of
+.Xr zpool-reguid 8 .
+A change applies to the filesystems that are mounted after the change.
+For the filesystems that mount at boot, set the parameter before the first
+mount, on the kernel command line as
+.Sy zfs.zfs_sb_uuid=0
+or in a
+.Pa modprobe.d
+file as
+.Sy options zfs zfs_sb_uuid=0 .
+When the root filesystem is on ZFS, the initramfs must include that file.
+This parameter only applies on Linux.
 .
 .It Sy zfs_flags Ns = Ns Sy 0 Pq int
 Set additional debugging flags.

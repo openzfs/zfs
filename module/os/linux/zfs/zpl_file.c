@@ -1242,12 +1242,58 @@ zpl_ioctl_rewrite(struct file *filp, void __user *arg)
 	return (err);
 }
 
+#ifndef HAVE_SUPER_SET_UUID
+/*
+ * Linux 6.9 added FS_IOC_GETFSUUID, together with super_set_uuid(), and
+ * serves the ioctl in the VFS, from sb->s_uuid, before it calls the
+ * ioctl handler of the filesystem.  On older kernels ZFS must serve the
+ * ioctl itself, from the same field, which zfs_domount() sets, unless
+ * the field is null (zfs_sb_uuid=0).  The headers of those kernels do
+ * not have the definitions, so supply them here.
+ *
+ * The handler covers the files and directories of the filesystem.  The
+ * .zfs control directory has its own file operations without an ioctl
+ * handler, so the ioctl fails with ENOTTY there, where the VFS of newer
+ * kernels serves it.
+ */
+#ifndef FS_IOC_GETFSUUID
+struct fsuuid2 {
+	__u8	len;
+	__u8	uuid[16];
+};
+
+#define	FS_IOC_GETFSUUID	_IOR(0x15, 0, struct fsuuid2)
+#endif
+
+static int
+zpl_ioctl_getfsuuid(struct file *filp, void __user *arg)
+{
+	struct super_block *sb = file_inode(filp)->i_sb;
+	struct fsuuid2 fu = { .len = sizeof (sb->s_uuid) };
+
+	/* No UUID (zfs_sb_uuid=0): fail like the VFS of newer kernels. */
+	if (uuid_is_null(&sb->s_uuid))
+		return (-ENOTTY);
+
+	memcpy(fu.uuid, &sb->s_uuid, sizeof (sb->s_uuid));
+
+	if (copy_to_user(arg, &fu, sizeof (fu)))
+		return (-EFAULT);
+
+	return (0);
+}
+#endif /* !HAVE_SUPER_SET_UUID */
+
 static long
 zpl_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	switch (cmd) {
 	case FS_IOC_GETVERSION:
 		return (zpl_ioctl_getversion(filp, (void *)arg));
+#ifndef HAVE_SUPER_SET_UUID
+	case FS_IOC_GETFSUUID:
+		return (zpl_ioctl_getfsuuid(filp, (void *)arg));
+#endif
 	case FS_IOC_GETFLAGS:
 		return (zpl_ioctl_getflags(filp, (void *)arg));
 	case FS_IOC_SETFLAGS:
@@ -1281,6 +1327,11 @@ zpl_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case FS_IOC32_SETFLAGS:
 		cmd = FS_IOC_SETFLAGS;
 		break;
+#ifndef HAVE_SUPER_SET_UUID
+	case FS_IOC_GETFSUUID:
+		/* The ioctl is the same in 32-bit and 64-bit mode. */
+		break;
+#endif
 	default:
 		return (-ENOTTY);
 	}

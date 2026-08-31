@@ -29,7 +29,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd September 13, 2025
+.Dd September 9, 2026
 .Dt ZFSPROPS 7
 .Os
 .
@@ -190,6 +190,48 @@ GUID.
 Thus, the
 .Sy guid
 is suitable to identify a snapshot across pools.
+.Pp
+On Linux, each mounted filesystem, snapshot, and clone reports a 128-bit
+filesystem UUID to the kernel, which the
+.Sy FS_IOC_GETFSUUID
+ioctl returns.
+The first half of the UUID is the GUID of the pool and the second half is
+the
+.Sy guid
+of the dataset, so the first and the last 16 hexadecimal digits of the UUID
+show the two GUIDs in hexadecimal.
+The UUID is not a valid RFC 4122 UUID.
+Linux overlayfs stores the UUID in its persistent file handles, and the
+.Sy fsuuid Ns =
+rules of IMA policies match it.
+.Pp
+The UUID of a mounted filesystem does not change until its next mount.
+At the next mount, it shows a new pool GUID after
+.Nm zpool Cm reguid
+or in the new pool of
+.Nm zpool Cm split ,
+and a new dataset
+.Sy guid
+after
+.Nm zfs Cm receive
+re-created the filesystem.
+A snapshot that
+.Nm zfs Cm receive
+created in the same pool has the same
+.Sy guid ,
+and thus the same UUID, as the snapshot that it was sent from.
+Earlier OpenZFS releases reported a null UUID, so the first mount after an
+upgrade changes the UUID as well.
+The
+.Sx Filesystem UUIDs and Overlayfs
+section of
+.Xr zpool-reguid 8
+describes the effect of a UUID change on overlayfs and the recovery.
+The
+.Sy zfs_sb_uuid
+module parameter of
+.Xr zfs 4
+restores the null UUID.
 .It Sy logicalreferenced
 The amount of space that is
 .Qq logically

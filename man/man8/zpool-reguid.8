@@ -19,7 +19,7 @@
 .\" Copyright (c) 2024, Klara Inc.
 .\" Copyright (c) 2024, Mateusz Piotrowski
 .\"
-.Dd August 26, 2024
+.Dd September 9, 2026
 .Dt ZPOOL-REGUID 8
 .Os
 .
@@ -46,6 +46,82 @@ in base 10.
 .Nm
 will return an error if the provided GUID is already in use.
 .El
+.Ss Filesystem UUIDs and Overlayfs
+On Linux, the pool GUID is the first half of the filesystem UUID that each
+mounted filesystem of the pool reports to the kernel; the
+.Sy guid
+property in
+.Xr zfsprops 7
+describes the UUID.
+A change of the pool GUID shows in the UUID of a filesystem at the next
+mount of that filesystem.
+.Pp
+Linux overlayfs stores the UUID of an underlying filesystem in the file
+handles of its
+.Sy index
+and
+.Sy nfs_export
+features, and in the origin file handles of the files that it copied up.
+A change of the UUID of an overlayfs layer makes these file handles stale:
+an overlay mount with
+.Sy index=on
+fails, with the kernel log message
+.Dq failed to verify upper root origin ;
+NFS clients of the overlay export get stale file handles; and the inode
+numbers of files that were copied up before the change can change.
+Do not change the GUID of a pool that holds overlayfs layers while these
+features are in use.
+An overlay whose layers are all on one filesystem can use the overlayfs
+mount option
+.Sy uuid=off
+.Pq Linux 5.11 and later
+from its first mount; it then stores null UUIDs in the file handles, which
+a GUID change does not affect.
+The overlayfs documentation of the kernel,
+.Pa Documentation/filesystems/overlayfs.rst ,
+describes the file handles and the mount options.
+.Pp
+To recover after
+.Nm zpool Cm reguid ,
+unmount the affected overlays and their ZFS layers.
+The
+.Dq guid change
+record of
+.Nm zpool Cm history Fl i Ar pool
+shows the previous GUID.
+Restore it with
+.Nm zpool Cm reguid Fl g Ar oldguid Ar pool ,
+provided it is not in use by another pool.
+Then mount the ZFS layers and the overlays again with their previous
+options.
+This restores the previous filesystem UUID if the dataset GUID has not
+changed.
+Do not delete the
+.Pa index
+directory of the overlay to recover: it can hold the only upper link to
+the modified data of a copied-up file, and a mount with
+.Sy index=off
+can then show the original lower data instead.
+.Pp
+Earlier OpenZFS releases reported a null filesystem UUID, so the first
+mount after an upgrade has the same effect as a GUID change.
+The file handles of an overlay from before the upgrade hold null UUIDs,
+so the overlay mounts again with
+.Sy uuid=off
+if all of its layers are on one filesystem.
+Alternatively, the
+.Sy zfs_sb_uuid
+module parameter of
+.Xr zfs 4
+restores the null UUID for the filesystems that are mounted after it is
+set to
+.Sy 0 .
+Set it before the first mount, on the kernel command line or in the
+initramfs, as
+.Xr zfs 4
+describes.
 .Sh SEE ALSO
+.Xr zfs 4 ,
+.Xr zfsprops 7 ,
 .Xr zpool-export 8 ,
 .Xr zpool-import 8
