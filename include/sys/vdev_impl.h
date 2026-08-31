@@ -84,6 +84,7 @@ typedef uint64_t vdev_rebuild_asize_func_t(vdev_t *vd, uint64_t start,
     uint64_t size, uint64_t max_segment);
 typedef void vdev_metaslab_init_func_t(vdev_t *vd, uint64_t *startp,
     uint64_t *sizep);
+typedef uint64_t vdev_alloc_factor_func_t(vdev_t *vd);
 typedef void vdev_config_generate_func_t(vdev_t *vd, nvlist_t *nv);
 typedef uint64_t vdev_nparity_func_t(vdev_t *vd);
 typedef uint64_t vdev_ndisks_func_t(vdev_t *vd);
@@ -111,6 +112,7 @@ typedef const struct vdev_ops {
 	vdev_nparity_func_t		*vdev_op_nparity;
 	vdev_ndisks_func_t		*vdev_op_ndisks;
 	vdev_kobj_post_evt_func_t	*vdev_op_kobj_evt_post;
+	vdev_alloc_factor_func_t	*vdev_op_alloc_factor;
 	char				vdev_op_type[16];
 	boolean_t			vdev_op_leaf;
 } vdev_ops_t;

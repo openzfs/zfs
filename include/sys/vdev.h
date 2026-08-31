@@ -132,6 +132,7 @@ extern uint64_t vdev_psize_to_asize_txg(vdev_t *vd, uint64_t psize,
     uint64_t txg);
 extern uint64_t vdev_psize_to_asize(vdev_t *vd, uint64_t psize);
 extern uint64_t vdev_get_min_alloc(vdev_t *vd);
+extern uint64_t vdev_alloc_factor(vdev_t *vd);
 
 /*
  * Return the amount of space allocated for a gang block header.  Note that
