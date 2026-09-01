@@ -29,6 +29,11 @@
 
 verify_runnable "global"
 
+if ! is_illumos; then
+	log_unsupported "CI lookup on mixed datasets requires zlook " \
+	    "(ZUT_IOC_LOOKUP / FIGNORECASE)."
+fi
+
 function cleanup
 {
 	destroy_testfs

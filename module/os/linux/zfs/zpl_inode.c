@@ -27,6 +27,7 @@
 #include <sys/vfs.h>
 #include <sys/zpl.h>
 #include <sys/file.h>
+#include <sys/u8_textprep.h>
 
 static struct dentry *
 zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
@@ -96,9 +97,15 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 				return (NULL);
 		}
 
-		if (error == -ENOENT)
+		if (error == -ENOENT) {
+			/*
+			 * Negative dentries are incompatible with unicode
+			 * normalization.
+			 */
+			if ((zfsvfs->z_norm & ~U8_TEXTPREP_TOUPPER) != 0)
+				return (NULL);
 			return (d_splice_alias(NULL, dentry));
-		else
+		} else
 			return (ERR_PTR(error));
 	}
 	ip = ZTOI(zp);
