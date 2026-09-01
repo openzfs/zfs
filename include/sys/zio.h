@@ -443,7 +443,7 @@ typedef zio_t *zio_pipe_stage_t(zio_t *zio);
  * The io_trim flags are used to specify the type of TRIM to perform.  They
  * only apply to ZIO_TYPE_TRIM zios are distinct from io_flags.
  */
-enum trim_flag {
+enum zfs_flag_enum trim_flag {
 	ZIO_TRIM_SECURE		= 1U << 0,
 };
 

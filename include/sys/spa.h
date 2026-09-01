@@ -737,7 +737,7 @@ typedef enum spa_import_type {
 	SPA_IMPORT_ASSEMBLE
 } spa_import_type_t;
 
-typedef enum spa_mode {
+typedef enum zfs_flag_enum spa_mode {
 	SPA_MODE_UNINIT = 0,
 	SPA_MODE_READ = 1,
 	SPA_MODE_WRITE = 2,

@@ -180,7 +180,7 @@ typedef struct sa_hdr_phys {
 	BF32_SET(x, 0, 10, num); \
 }
 
-typedef enum sa_buf_type {
+typedef enum zfs_flag_enum sa_buf_type {
 	SA_BONUS = 1,
 	SA_SPILL = 2
 } sa_buf_type_t;

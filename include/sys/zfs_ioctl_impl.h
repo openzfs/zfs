@@ -21,7 +21,7 @@ typedef int zfs_ioc_legacy_func_t(zfs_cmd_t *);
 typedef int zfs_ioc_func_t(const char *, nvlist_t *, nvlist_t *);
 typedef int zfs_secpolicy_func_t(zfs_cmd_t *, nvlist_t *, cred_t *);
 
-typedef enum {
+typedef enum zfs_flag_enum {
 	POOL_CHECK_NONE		= 1 << 0,
 	POOL_CHECK_SUSPENDED	= 1 << 1,
 	POOL_CHECK_READONLY	= 1 << 2,
@@ -51,7 +51,7 @@ typedef enum {
  * for the expected name (bookmark, snapshot, property, etc) but there
  * is no validation in the preflight zfs_check_input_nvpairs() check.
  */
-typedef enum {
+typedef enum zfs_flag_enum {
 	ZK_OPTIONAL = 1 << 0,		/* pair is optional */
 	ZK_WILDCARDLIST = 1 << 1,	/* one or more unspecified key names */
 } ioc_key_flag_t;
