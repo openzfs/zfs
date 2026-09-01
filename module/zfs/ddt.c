@@ -2722,6 +2722,9 @@ typedef struct ddt_prune_entry {
 	ddt_univ_phys_t	dpe_phys[];
 } ddt_prune_entry_t;
 
+#define	DDT_PRUNE_ENTRY_SIZE	\
+	(sizeof (ddt_prune_entry_t) + DDT_FLAT_PHYS_SIZE)
+
 typedef struct ddt_prune_info {
 	spa_t		*dpi_spa;
 	uint64_t	dpi_txg_syncs;
@@ -2754,7 +2757,7 @@ prune_candidates_sync(void *arg, dmu_tx_t *tx)
 		 */
 		if (avl_find(&ddt->ddt_tree, &dpe->dpe_key, NULL)) {
 			ddt_exit(ddt);
-			kmem_free(dpe, sizeof (*dpe));
+			kmem_free(dpe, DDT_PRUNE_ENTRY_SIZE);
 			continue;
 		}
 
@@ -2774,7 +2777,7 @@ prune_candidates_sync(void *arg, dmu_tx_t *tx)
 		}
 
 		ddt_exit(ddt);
-		kmem_free(dpe, sizeof (*dpe));
+		kmem_free(dpe, DDT_PRUNE_ENTRY_SIZE);
 	}
 
 	spa_config_exit(dpi->dpi_spa, SCL_ZIO, FTAG);
@@ -2791,8 +2794,7 @@ ddt_prune_entry(list_t *list, ddt_t *ddt, const ddt_key_t *ddk,
 {
 	ASSERT(ddt->ddt_flags & DDT_FLAG_FLAT);
 
-	size_t dpe_size = sizeof (ddt_prune_entry_t) + DDT_FLAT_PHYS_SIZE;
-	ddt_prune_entry_t *dpe = kmem_alloc(dpe_size, KM_SLEEP);
+	ddt_prune_entry_t *dpe = kmem_alloc(DDT_PRUNE_ENTRY_SIZE, KM_SLEEP);
 
 	dpe->dpe_ddt = ddt;
 	dpe->dpe_key = *ddk;
