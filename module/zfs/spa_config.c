@@ -45,7 +45,7 @@
  * 'cachefile' property set which allows this config to be stored in an
  * alternate location under the control of external software.
  *
- * The kernel independantly maintains an AVL tree of imported pools.  See the
+ * The kernel independently maintains an AVL tree of imported pools.  See the
  * "SPA locking" comment in spa.c.  Whenever a pool configuration is modified
  * we call spa_write_cachefile() which walks through all the active pools and
  * writes the updated configuration to to /etc/zfs/zpool.cache file.
