@@ -262,6 +262,10 @@ function default_setup_noexit
 	typeset no_mountpoint=$4
 	log_note begin default_setup_noexit
 
+	if [[ "/${TESTPOOL}" -ef / ]]; then
+		log_fail "TESTPOOL is not set"
+	fi
+
 	if is_global_zone; then
 		if poolexists $TESTPOOL ; then
 			destroy_pool $TESTPOOL
@@ -464,6 +468,10 @@ function default_mirror_setup_noexit
 	typeset primary=$1
 	typeset secondary=$2
 
+	if [[ "/${TESTPOOL}" -ef / ]]; then
+		log_fail "TESTPOOL is not set"
+	fi
+
 	[[ -z $primary ]] && \
 		log_fail "$func: No parameters passed"
 	[[ -z $secondary ]] && \
@@ -500,6 +508,10 @@ function default_raidz_setup_noexit
 {
 	typeset disklist="$*"
 	disks=(${disklist[*]})
+
+	if [[ "/${TESTPOOL}" -ef / ]]; then
+		log_fail "TESTPOOL is not set"
+	fi
 
 	if [[ ${#disks[*]} -lt 2 ]]; then
 		log_fail "A raid-z requires a minimum of two disks."
