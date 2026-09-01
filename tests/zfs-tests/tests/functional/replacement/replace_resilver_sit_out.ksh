@@ -130,7 +130,7 @@ function replace_test
 	verify_pool $TESTPOOL1
 }
 
-DEVSIZE="150M"
+DEVSIZE="256M"
 specials_list=""
 i=0
 while [[ $i != 10 ]]; do
