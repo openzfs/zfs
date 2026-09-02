@@ -275,6 +275,8 @@ void __asan_poison_memory_region(void const volatile *addr, size_t size) {};
 
 /* User space. */
 #if defined(ADDRESS_SANITIZER) && !defined(_KERNEL)
+void __asan_unpoison_memory_region(void const volatile *addr, size_t size);
+void __asan_poison_memory_region(void const volatile *addr, size_t size);
 #define	ZSTD_ASAN_POISON(p, n)   __asan_poison_memory_region((p), (n))
 #define	ZSTD_ASAN_UNPOISON(p, n) __asan_unpoison_memory_region((p), (n))
 #else
