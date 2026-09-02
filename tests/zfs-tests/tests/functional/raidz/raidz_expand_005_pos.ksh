@@ -58,19 +58,6 @@ function cleanup
 	log_must set_tunable32 SCRUB_AFTER_EXPAND $original_scrub_after_expand
 }
 
-function wait_expand_paused
-{
-	oldcopied='0'
-	newcopied='1'
-	while [[ $oldcopied != $newcopied ]]; do
-		oldcopied=$newcopied
-		sleep 1
-		newcopied=$(zpool status $TESTPOOL | \
-		    grep 'copied out of' | \
-		    awk '{print $1}')
-	done
-}
-
 log_onexit cleanup
 
 function test_replace # <pool> <devices> <parity>
@@ -142,7 +129,7 @@ for disk in ${disks[$(($nparity+2))..$devs]}; do
 	log_must zpool attach $pool ${raid}-0 $disk
 	devices="$devices $disk"
 
-	wait_expand_paused
+	wait_raidz_expand_paused $pool
 
 	for (( i=0; i<2; i++ )); do
 		test_replace $pool "$devices" $nparity
@@ -152,7 +139,7 @@ for disk in ${disks[$(($nparity+2))..$devs]}; do
 		    reflow_size) / 4))
 		log_must set_tunable64 RAIDZ_EXPAND_MAX_REFLOW_BYTES $pause
 
-		wait_expand_paused
+		wait_raidz_expand_paused $pool
 	done
 
 	# Set pause past largest possible value for this pool
