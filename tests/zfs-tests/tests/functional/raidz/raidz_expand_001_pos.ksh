@@ -56,21 +56,6 @@ function cleanup
 	log_must set_tunable64 RAIDZ_EXPAND_MAX_REFLOW_BYTES 0
 }
 
-function wait_expand_paused
-{
-	oldcopied='0'
-	newcopied='1'
-	while [[ $oldcopied != $newcopied ]]; do
-		oldcopied=$newcopied
-		sleep 2
-		newcopied=$(zpool status $TESTPOOL | \
-		    grep 'copied out of' | \
-		    awk '{print $1}')
-		log_note "newcopied=$newcopied"
-	done
-	log_note "paused at $newcopied"
-}
-
 function test_resilver # <pool> <parity> <dir>
 {
 	typeset pool=$1
@@ -133,7 +118,7 @@ function test_scrub # <pool> <parity> <dir>
 	randbyte=$(( ((RANDOM<<15) + RANDOM) % $reflow_size ))
 	log_must set_tunable64 RAIDZ_EXPAND_MAX_REFLOW_BYTES $randbyte
 	log_must zpool attach $TESTPOOL ${raid}-0 $dir/dev-$devs
-	wait_expand_paused
+	wait_raidz_expand_paused $TESTPOOL
 
 	log_must zpool export $pool
 

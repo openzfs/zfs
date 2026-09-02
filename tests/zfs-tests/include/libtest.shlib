@@ -3217,6 +3217,46 @@ function wait_resilvered #pool timeout
        done
 }
 
+# Wait for a raidz expansion to stop reflowing
+#
+# The raidz expansion tests pause a reflow by setting the tunable
+# RAIDZ_EXPAND_MAX_REFLOW_BYTES, then inspect the pool while it is
+# stopped.  A pause offset at or past the end of the reflow lets the
+# expansion run to completion instead, and it may already have completed
+# before this is called, so both states end the wait.
+#
+# $1 pool name
+# $2 timeout
+#
+function wait_raidz_expand_paused #pool timeout
+{
+	typeset pool=${1:-$TESTPOOL}
+	typeset -i timeout=${2:-300}
+	typeset -i t0=$SECONDS
+	typeset status
+	typeset oldcopied=''
+	typeset newcopied=''
+
+	while :; do
+		status=$(zpool status $pool)
+
+		# Nothing is left to wait for once it is no longer running.
+		echo "$status" | grep -q 'expansion of .* in progress' || return
+
+		# It has paused once the amount copied stops changing.
+		newcopied=$(echo "$status" | grep ' copied at ' | \
+		    awk '{print $1}')
+		[[ -n $newcopied && $newcopied == "$oldcopied" ]] && return
+		oldcopied=$newcopied
+
+		if ((SECONDS - t0 > timeout)); then
+			log_fail "expansion of $pool neither paused nor" \
+			    "completed in $timeout seconds"
+		fi
+		sleep 1
+	done
+}
+
 # Backup the zed.rc in our test directory so that we can edit it for our test.
 #
 # Returns: Backup file name.  You will need to pass this to zed_rc_restore().

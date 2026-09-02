@@ -52,20 +52,6 @@ function cleanup
 	log_must set_tunable64 RAIDZ_EXPAND_MAX_REFLOW_BYTES 0
 }
 
-function wait_expand_paused
-{
-	oldcopied='0'
-	newcopied='1'
-	# wait until reflow copied value stops changing
-	while [[ $oldcopied != $newcopied ]]; do
-		oldcopied=$newcopied
-		sleep 1
-		newcopied=$(zpool status $TESTPOOL | \
-		    grep 'copied out of' | \
-		    awk '{print $1}')
-	done
-}
-
 log_onexit cleanup
 
 log_must set_tunable32 EMBEDDED_SLOG_MIN_MS 99999
@@ -108,7 +94,7 @@ for disk in ${disks[$(($nparity+2))..$devs]}; do
 	log_must set_tunable64 RAIDZ_EXPAND_MAX_REFLOW_BYTES $pause
 
 	log_must zpool attach $pool ${raid}-0 $disk
-	wait_expand_paused
+	wait_raidz_expand_paused $pool
 
 	kill_if_running $pid0
 	kill_if_running $pid1
