@@ -337,6 +337,12 @@ case "$1" in
     CMDLINE="$CMDLINE biosdevname=0 net.ifnames=0"
     echo 'GRUB_SERIAL_COMMAND="serial --speed=115200"' \
       | sudo tee -a /etc/default/grub >/dev/null
+    # Force GRUB itself onto the serial console.  These VMs have no display,
+    # and without this grub2-mkconfig can emit 'terminal_output gfxterm',
+    # which leaves GRUB stuck before the kernel starts on a headless VM.
+    sudo sed -i -e '/^GRUB_TERMINAL_INPUT/d' -e '/^GRUB_TERMINAL_OUTPUT/d' /etc/default/grub
+    echo 'GRUB_TERMINAL_INPUT="serial console"' | sudo tee -a /etc/default/grub >/dev/null
+    echo 'GRUB_TERMINAL_OUTPUT="serial console"' | sudo tee -a /etc/default/grub >/dev/null
     ;;
   ubuntu24|ubuntu26)
     GRUB_CFG="/boot/grub/grub.cfg"
