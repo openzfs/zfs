@@ -2405,6 +2405,10 @@ spa_unload(spa_t *spa)
 		vdev_free(spa->spa_root_vdev);
 	ASSERT0P(spa->spa_root_vdev);
 
+	ddt_unload(spa);
+	brt_unload(spa);
+	spa_unload_log_sm_metadata(spa);
+
 	/*
 	 * Close the dsl pool.
 	 */
@@ -2413,10 +2417,6 @@ spa_unload(spa_t *spa)
 		spa->spa_dsl_pool = NULL;
 		spa->spa_meta_objset = NULL;
 	}
-
-	ddt_unload(spa);
-	brt_unload(spa);
-	spa_unload_log_sm_metadata(spa);
 
 	/*
 	 * Drop and purge level 2 cache

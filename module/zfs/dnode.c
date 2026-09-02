@@ -1775,6 +1775,14 @@ dnode_rele_and_unlock(dnode_t *dn, const void *tag, boolean_t evicting)
 	/* Get while the hold prevents the dnode from moving. */
 	dmu_buf_impl_t *db = dn->dn_dbuf;
 	dnode_handle_t *dnh = dn->dn_handle;
+#ifdef ZFS_DEBUG
+	/*
+	 * Capture handle ownership before dropping the hold. After the last
+	 * hold is released, another thread may destroy the dnode. Evaluating
+	 * zrl_owner() after that is a use-after-free.
+	 */
+	boolean_t handle_held = (zrl_owner(&dnh->dnh_zrlock) == curthread);
+#endif
 
 	refs = zfs_refcount_remove(&dn->dn_holds, tag);
 	if (refs == 0)
@@ -1792,7 +1800,7 @@ dnode_rele_and_unlock(dnode_t *dn, const void *tag, boolean_t evicting)
 	 * handle.
 	 */
 #ifdef ZFS_DEBUG
-	ASSERT(refs > 0 || zrl_owner(&dnh->dnh_zrlock) != curthread);
+	ASSERT(refs > 0 || !handle_held);
 #endif
 
 	/* NOTE: the DNODE_DNODE does not have a dn_dbuf */
