@@ -27,23 +27,31 @@
  * Every item carries enough information to be verified independently:
  *
  * - The tuple (qi_producer, qi_seq) identifies each item; the consumer
- *   checks that each producer's items arrive in the same order they
- *   were enqueued.
+ * checks that each producer's items arrive in the same order they were
+ * enqueued.
  *
  * - qi_check is a hash of (qi_seed, qi_producer, qi_seq). The processing
- *   function verifies it and then XORs in TRANSFORM_MAGIC. The consumer
- *   checks that the transform happened iff cost > 0.
+ * function verifies it and then XORs in TRANSFORM_MAGIC. The consumer
+ * checks that the transform happened iff cost > 0.
  *
  * - qi_pattern[] is filled from qi_check and verified both by the process
- *   function and the consumer, to catch any corruption of the shallow
- *   copies in and out of the ring buffer.
+ * function and the consumer, to catch any corruption of the shallow copies
+ * in and out of the ring buffer.
  *
- * - qi_process_count counts invocations of the process function, which
- *   must be exactly one for cost > 0 items and zero for cost == 0 items.
+ * - qi_process_count counts invocations of the process function, which must
+ * be exactly one for cost > 0 items and zero for cost == 0 items.
  *
  * Global conservation checks: the number of items dequeued must equal the
  * number enqueued, and the total number of process-function invocations
  * must equal the number of nonzero-cost items enqueued.
+ *
+ * Costs are not passive values. Each queue measures how long its own work
+ * takes per unit of cost and sizes its batches accordingly. So, a
+ * workload's cost distribution decides how the implementation will behave.
+ * Configs can set qc_ns_per_cost to make processing time genuinely
+ * proportional to cost (the relationship the queue assumes), or leave it at
+ * zero to get delays unrelated to cost. Both are worth testing; see
+ * queue_batch_tuning().
  */
 
 #include <assert.h>
@@ -54,6 +62,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/param.h>
 #include <unistd.h>
 
 #include "zstream_queue.h"
@@ -82,13 +91,12 @@ typedef struct {
 typedef struct {
 	uint32_t	qc_producers;		/* Number of producers */
 	uint64_t	qc_items;		/* Items per producer */
-	size_t		qc_queue_length;
-	size_t		qc_batch_budget;
 	size_t		qc_pattern_len;		/* Extra payload bytes */
 	uint32_t	qc_zero_cost_pct;	/* % of items fast-tracked */
 	size_t		qc_max_cost;		/* Nonzero costs are 1..max */
 	uint32_t	qc_delay_pct;		/* % of items slept on */
 	uint32_t	qc_max_delay_us;
+	uint32_t	qc_ns_per_cost;		/* Delay of cost * this, ns */
 	uint32_t	qc_producer_stall_pct;	/* % chance producer naps */
 	uint32_t	qc_consumer_stall_pct;	/* % chance consumer naps */
 	uint32_t	qc_stall_max_us;
@@ -203,7 +211,19 @@ qtest_producer(void *arg)
 			local_expect++;
 		}
 
-		if (item->qi_cost > 0 && cfg->qc_max_delay_us > 0) {
+		if (item->qi_cost > 0 && cfg->qc_ns_per_cost > 0) {
+			/*
+			 * Make processing time proportional to cost, which
+			 * is the relationship the queue's batch sizing
+			 * assumes. Costs here are small enough that the
+			 * product can't overflow, but clamp anyway so that
+			 * a future config can't turn a tuning test into a
+			 * multi-second sleep.
+			 */
+			uint64_t ns = (uint64_t)item->qi_cost *
+			    cfg->qc_ns_per_cost;
+			item->qi_delay_us = MIN(ns / 1000, 100000);
+		} else if (item->qi_cost > 0 && cfg->qc_max_delay_us > 0) {
 			if (selftest_rng_below(&rng, 1000) <
 			    LONG_DELAYS_PER_THOUSAND) {
 				item->qi_delay_us = cfg->qc_max_delay_us *
@@ -312,9 +332,7 @@ run_queue_workloads(const qtest_config_t *cfgs, int ncfg)
 			.qp_cost = qtest_cost,
 			.qp_context = &runs[i],
 			.qp_item_size =
-			    sizeof (qtest_item_t) + cfgs[i].qc_pattern_len,
-			.qp_batch_budget = cfgs[i].qc_batch_budget,
-			.qp_queue_length = cfgs[i].qc_queue_length,
+			    sizeof (qtest_item_t) + cfgs[i].qc_pattern_len
 		};
 		runs[i].qr_queue = zstream_queue_create(&params);
 	}
@@ -355,8 +373,6 @@ queue_basic(void)
 	qtest_config_t cfg = {
 		.qc_producers = 1,
 		.qc_items = 5000,
-		.qc_queue_length = 64,
-		.qc_batch_budget = 256,
 		.qc_pattern_len = 32,
 		.qc_zero_cost_pct = 20,
 		.qc_max_cost = 64,
@@ -366,9 +382,11 @@ queue_basic(void)
 
 /*
  * A long, randomized stream with heavy-tailed processing delays, a large
- * fraction of fast-tracked items, costs that exceed the batch budget, and a
- * consumer that periodically stalls so the queue backs up and enqueue
- * blocks on Q_FULL. The ring indices wrap hundreds of times.
+ * fraction of fast-tracked items, and a consumer that periodically stalls.
+ * The producer outruns the consumer badly enough that the queue sits at or
+ * near ZQ_SLOTS_PER_QUEUE for most of the run, so this is the main exercise
+ * of Q_FULL and of enqueuers blocking on the dequeued condition. 100000
+ * items wrap the ring indices a couple of dozen times.
  */
 static void
 queue_torture(void)
@@ -376,8 +394,6 @@ queue_torture(void)
 	qtest_config_t cfg = {
 		.qc_producers = 1,
 		.qc_items = 100000,
-		.qc_queue_length = 512,
-		.qc_batch_budget = 2048,
 		.qc_pattern_len = 64,
 		.qc_zero_cost_pct = 30,
 		.qc_max_cost = 4096,
@@ -391,36 +407,50 @@ queue_torture(void)
 }
 
 /*
- * Off-by-one hunting: sweep the degenerate corners of queue length,
- * batch budget, and stream length, including a zero-item stream and
+ * Off-by-one hunting: sweep stream lengths that land on and adjacent to
+ * every boundary the implementation has, including a zero-item stream and
  * zero-length payloads.
+ *
+ * Queue depth and batch size are no longer caller-supplied, so the
+ * boundaries worth probing are the implementation's own: ZQ_MAX_BATCH, the
+ * point at which claim_batch() stops filling a batch, and
+ * ZQ_SLOTS_PER_QUEUE, the point at which the ring index wraps and Q_FULL
+ * can trip. Both are exported by zstream_queue.h for exactly this purpose,
+ * so this sweep tracks them automatically if either one is retuned.
+ *
+ * A stalling consumer is used for the counts at or above
+ * ZQ_SLOTS_PER_QUEUE. Without it the consumer keeps up, the queue never
+ * approaches full, and the wrap and Q_FULL paths go untested no matter how
+ * many items are sent.
  */
 static void
 queue_edge_cases(void)
 {
-	static const size_t lengths[] =
-	    { 1, 2, ZQ_MAX_BATCH - 1, ZQ_MAX_BATCH, ZQ_MAX_BATCH + 1, 64 };
-	static const size_t budgets[] = { 0, 1, 16, SIZE_MAX / 2 };
+	static const uint64_t counts[] = {
+		0, 1, 2, 3,
+		ZQ_MAX_BATCH - 1, ZQ_MAX_BATCH, ZQ_MAX_BATCH + 1,
+		2 * ZQ_MAX_BATCH,
+		ZQ_SLOTS_PER_QUEUE - 1, ZQ_SLOTS_PER_QUEUE,
+		ZQ_SLOTS_PER_QUEUE + 1, 2 * ZQ_SLOTS_PER_QUEUE + 3
+	};
+	const int ncounts = sizeof (counts) / sizeof (counts[0]);
 	uint64_t stream = 200;
 
-	for (int l = 0; l < 6; l++) {
-		for (int b = 0; b < 4; b++) {
-			uint64_t counts[] = { 0, lengths[l], lengths[l] + 1,
-			    4 * lengths[l] + 3 };
-			for (int n = 0; n < 4; n++) {
-				qtest_config_t cfg = {
-					.qc_producers = 1,
-					.qc_items = counts[n],
-					.qc_queue_length = lengths[l],
-					.qc_batch_budget = budgets[b],
-					.qc_pattern_len =
-					    (lengths[l] & 1) ? 0 : 24,
-					.qc_zero_cost_pct = 25,
-					.qc_max_cost = 8,
-					.qc_rng_stream = stream++,
-				};
-				run_queue_workload(&cfg);
-			}
+	for (int n = 0; n < ncounts; n++) {
+		boolean_t big = counts[n] >= ZQ_SLOTS_PER_QUEUE;
+
+		for (int p = 0; p < 2; p++) {
+			qtest_config_t cfg = {
+				.qc_producers = 1,
+				.qc_items = counts[n],
+				.qc_pattern_len = p ? 24 : 0,
+				.qc_zero_cost_pct = 25,
+				.qc_max_cost = 8,
+				.qc_consumer_stall_pct = big ? 1 : 0,
+				.qc_stall_max_us = big ? 200 : 0,
+				.qc_rng_stream = stream++,
+			};
+			run_queue_workload(&cfg);
 		}
 	}
 }
@@ -438,14 +468,79 @@ queue_zero_cost(void)
 	qtest_config_t cfg = {
 		.qc_producers = 1,
 		.qc_items = 20000,
-		.qc_queue_length = 128,
-		.qc_batch_budget = 1024,
 		.qc_pattern_len = 16,
 		.qc_zero_cost_pct = 100,
 		.qc_max_cost = 8,
 		.qc_rng_stream = 300,
 	};
 	run_queue_workload(&cfg);
+}
+
+/*
+ * Batch sizing is derived from each queue's own measured ns-per-unit-cost,
+ * so the cost values reported by a caller now steer the implementation rather
+ * than just gating the fast track. This test runs four queues at once whose
+ * cost-to-time relationships are deliberately dissimilar and checks that
+ * all of them still deliver every item exactly once and in order.
+ *
+ * The four cases, in the order configured below:
+ *
+ * - Faithful. Processing time really is proportional to cost, which is
+ *   what the model assumes. Costs average ~2048 at 250ns each, putting a
+ *   typical item just past the 400us target on its own, so batches come
+ *   out at one or two items.
+ *
+ * - Too slow to batch. Every item costs 1 but takes 600us, so the implied
+ *   budget is a fraction of a cost unit and has to be clamped up to 1.
+ *   Batches should be single items; a rounding error that let the budget
+ *   reach 0 would spin claim_batch() without claiming anything.
+ *
+ * - Too fast to measure. Costs are enormous and the work is nothing, so
+ *   the implied budget overflows anything a size_t can hold and has to
+ *   saturate. Sums of these costs wrap inside both claim_batch() and the
+ *   queue's running total, which is allowed to produce silly batch sizes
+ *   but must not produce wrong answers.
+ *
+ * - Uniform cost. Every item costs the same, the degenerate case for a
+ *   ratio-based estimate.
+ */
+static void
+queue_batch_tuning(void)
+{
+	qtest_config_t cfgs[] = {
+		{
+			.qc_producers = 2,
+			.qc_items = 1500,
+			.qc_pattern_len = 16,
+			.qc_zero_cost_pct = 10,
+			.qc_max_cost = 4096,
+			.qc_ns_per_cost = 250,
+			.qc_rng_stream = 600,
+		}, {
+			.qc_producers = 1,
+			.qc_items = 400,
+			.qc_pattern_len = 8,
+			.qc_zero_cost_pct = 5,
+			.qc_max_cost = 1,
+			.qc_ns_per_cost = 600 * 1000,
+			.qc_rng_stream = 610,
+		}, {
+			.qc_producers = 2,
+			.qc_items = 5000,
+			.qc_pattern_len = 32,
+			.qc_zero_cost_pct = 20,
+			.qc_max_cost = SIZE_MAX / 2,
+			.qc_rng_stream = 620,
+		}, {
+			.qc_producers = 1,
+			.qc_items = 20000,
+			.qc_pattern_len = 0,
+			.qc_zero_cost_pct = 0,
+			.qc_max_cost = 1,
+			.qc_rng_stream = 630,
+		}
+	};
+	run_queue_workloads(cfgs, sizeof (cfgs) / sizeof (cfgs[0]));
 }
 
 /*
@@ -458,8 +553,6 @@ queue_multi_producer(void)
 	qtest_config_t cfg = {
 		.qc_producers = 8,
 		.qc_items = 15000,
-		.qc_queue_length = 256,
-		.qc_batch_budget = 512,
 		.qc_pattern_len = 24,
 		.qc_zero_cost_pct = 25,
 		.qc_max_cost = 512,
@@ -486,9 +579,6 @@ queue_multi_queue(void)
 		qtest_config_t cfg = {
 			.qc_producers = producers,
 			.qc_items = 4000 / producers,
-			.qc_queue_length = (size_t)4 << (i % 6),
-			.qc_batch_budget =
-			    (i % 4 == 0) ? 0 : (size_t)64 << (i % 5),
 			.qc_pattern_len = 8 * (i % 5),
 			.qc_zero_cost_pct = 10 * (i % 6),
 			.qc_max_cost = (size_t)16 << (i % 8),
@@ -518,16 +608,19 @@ queue_stress(void)
 
 		for (int i = 0; i < nqueues; i++) {
 			uint32_t producers = 1 + selftest_rng_below(&rng, 4);
+			/*
+			 * A quarter of the queues get processing time tied
+			 * to cost, so the batch-size estimator sees a mix of
+			 * well-behaved and meaningless cost data.
+			 */
+			uint32_t ns_per_cost =
+			    (selftest_rng_below(&rng, 4) == 0) ?
+			    1 + selftest_rng_below(&rng, 400) : 0;
 			qtest_config_t cfg = {
 				.qc_producers = producers,
 				.qc_items = (2000 +
 				    selftest_rng_below(&rng, 8000)) /
 				    producers,
-				.qc_queue_length = (size_t)1 <<
-				    selftest_rng_below(&rng, 10),
-				.qc_batch_budget =
-				    (selftest_rng_below(&rng, 3) == 0) ? 0 :
-				    selftest_rng_below(&rng, 4096),
 				.qc_pattern_len =
 				    selftest_rng_below(&rng, 64),
 				.qc_zero_cost_pct =
@@ -537,6 +630,7 @@ queue_stress(void)
 				.qc_delay_pct = selftest_rng_below(&rng, 4),
 				.qc_max_delay_us =
 				    selftest_rng_below(&rng, 120),
+				.qc_ns_per_cost = ns_per_cost,
 				.qc_producer_stall_pct =
 				    selftest_rng_below(&rng, 2),
 				.qc_consumer_stall_pct =
@@ -556,6 +650,7 @@ const test_case_t selftest_queue_cases[] = {
 	{ "queue_basic",		queue_basic },
 	{ "queue_edge_cases",		queue_edge_cases },
 	{ "queue_zero_cost",		queue_zero_cost },
+	{ "queue_batch_tuning",		queue_batch_tuning },
 	{ "queue_torture",		queue_torture },
 	{ "queue_multi_producer",	queue_multi_producer },
 	{ "queue_multi_queue",		queue_multi_queue },

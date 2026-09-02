@@ -158,8 +158,6 @@ typedef struct chain_step
 			zc_serial_process_f	*process;	/* serial */
 		} cs_serial;
 		struct {
-			size_t			queue_length;	/* parallel */
-			size_t			batch_budget;
 			zq_estimate_cost_f	*cost;
 			zq_process_item_f	*process;
 		} cs_parallel;

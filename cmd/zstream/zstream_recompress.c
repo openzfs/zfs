@@ -179,11 +179,15 @@ chain_compress_writes(queue_item_t *item_in, void *context_in)
 }
 
 /*
- * A cost of zero waives processing for the current item. If we want to
- * process it, the cost will always be item->dp_payload_size. So in these
- * two cost functions, we're mostly determining which packets need
- * attention. A packet that's already compressed with the target compression
- * profile can be ignored.
+ * A cost of zero waives processing for the current item, so the following
+ * two functions are mostly determining which packets need attention. A
+ * packet that's already compressed with the target compression profile can
+ * be ignored.
+ *
+ * When a packet does need work, the cost is the number of bytes the
+ * compressor or decompressor will have to process: the logical size for
+ * compression, since that's what goes in, and the stored payload size for
+ * decompression, since that's what comes out.
  */
 static size_t
 chain_compress_cost(queue_item_t *item_in, void *context_in)
@@ -245,8 +249,6 @@ parallel_decompress_writes(compression_spec_t *target)
 	    .cs_out_size = sizeof (drr_packet_t),
 	    .cs_context = context,
 	    .cs_parallel = {
-		.queue_length = 256,
-		.batch_budget = 256 * 1024,
 		.process = chain_decompress_writes,
 		.cost = chain_decompress_cost
 	    }
@@ -269,8 +271,6 @@ parallel_compress_writes(compression_spec_t *target)
 	    .cs_out_size = sizeof (drr_packet_t),
 	    .cs_context = context,
 	    .cs_parallel = {
-		.queue_length = 1024,
-		.batch_budget = 32 * 1024,
 		.process = chain_compress_writes,
 		.cost = chain_compress_cost
 	    }
