@@ -50,11 +50,6 @@
 
 verify_runnable "global"
 
-# See issue: https://github.com/openzfs/zfs/issues/6839
-if ! is_illumos; then
-	log_unsupported "Test case may be slow"
-fi
-
 set -A vdevs "" "mirror" "raidz" "draid"
 
 function verify
@@ -139,7 +134,7 @@ CWD=$PWD
 log_must cd $DEVICE_DIR
 log_must tar cf $DEVICE_DIR/$DEVICE_ARCHIVE ${DEVICE_FILE}*
 
-read -r checksum1 < <(cksum $MYTESTFILE)
+read -r checksum1 _ < <(cksum $MYTESTFILE)
 
 typeset -i i=0
 typeset -i j=0
