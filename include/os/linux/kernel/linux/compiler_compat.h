@@ -31,4 +31,10 @@
 #define	READ_ONCE(x)		ACCESS_ONCE(x)
 #endif
 
+#if defined(HAVE_FLAG_ENUM)
+#define	zfs_flag_enum		__attribute__((flag_enum))
+#else
+#define	zfs_flag_enum
+#endif
+
 #endif	/* _ZFS_COMPILER_COMPAT_H */
