@@ -1631,6 +1631,29 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	znode_t	*zp;
 	dsl_dir_t *dd;
 
+	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
+
+	if (!unmounting) {
+		/*
+		 * We purge the parent filesystem's vfsp as the parent
+		 * filesystem and all of its snapshots have their vnode's
+		 * v_vfsp set to the parent's filesystem's vfsp.  Note,
+		 * 'z_parent' is self referential for non-snapshots.
+		 */
+#ifdef FREEBSD_NAMECACHE
+		cache_purgevfs(zfsvfs->z_parent->z_vfs);
+#endif
+	}
+
+	/*
+	 * Close the zil. NB: Can't close the zil while zfs_inactive
+	 * threads are blocked as zil_close can call zfs_inactive.
+	 */
+	if (zfsvfs->z_log) {
+		zil_close(zfsvfs->z_log);
+		zfsvfs->z_log = NULL;
+	}
+
 	/*
 	 * If someone has not already unmounted this file system,
 	 * drain the zrele_taskq to ensure all active references to the
@@ -1656,28 +1679,6 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 			if (++round > 1 && !unmounting)
 				break;
 		}
-	}
-	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
-
-	if (!unmounting) {
-		/*
-		 * We purge the parent filesystem's vfsp as the parent
-		 * filesystem and all of its snapshots have their vnode's
-		 * v_vfsp set to the parent's filesystem's vfsp.  Note,
-		 * 'z_parent' is self referential for non-snapshots.
-		 */
-#ifdef FREEBSD_NAMECACHE
-		cache_purgevfs(zfsvfs->z_parent->z_vfs);
-#endif
-	}
-
-	/*
-	 * Close the zil. NB: Can't close the zil while zfs_inactive
-	 * threads are blocked as zil_close can call zfs_inactive.
-	 */
-	if (zfsvfs->z_log) {
-		zil_close(zfsvfs->z_log);
-		zfsvfs->z_log = NULL;
 	}
 
 	ZFS_TEARDOWN_INACTIVE_ENTER_WRITE(zfsvfs);
@@ -1779,23 +1780,40 @@ zfs_umount(vfs_t *vfsp, int fflag)
 			return (ret);
 	}
 
+	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
+	if (zfsvfs->z_log != NULL) {
+		zil_close(zfsvfs->z_log);
+		zfsvfs->z_log = NULL;
+	}
 	if (fflag & MS_FORCE) {
 		/*
 		 * Mark file system as unmounted before calling
 		 * vflush(FORCECLOSE). This way we ensure no future vnops
 		 * will be called and risk operating on DOOMED vnodes.
 		 */
-		ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
 		zfsvfs->z_unmounted = B_TRUE;
-		ZFS_TEARDOWN_EXIT(zfsvfs, FTAG);
+	}
+	ZFS_TEARDOWN_EXIT(zfsvfs, FTAG);
+
+	if (zfsvfs->z_os != NULL) {
+		taskq_wait_outstanding(dsl_pool_zrele_taskq(
+		    dmu_objset_pool(zfsvfs->z_os)), 0);
 	}
 
 	/*
 	 * Flush all the files.
 	 */
 	ret = vflush(vfsp, 0, (fflag & MS_FORCE) ? FORCECLOSE : 0, td);
-	if (ret != 0)
+	if (ret != 0) {
+		ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
+		ASSERT0P(zfsvfs->z_log);
+		if (zfsvfs->z_os != NULL) {
+			zfsvfs->z_log = zil_open(zfsvfs->z_os, zfs_get_data,
+			    &zfsvfs->z_kstat.dk_zil_sums);
+		}
+		ZFS_TEARDOWN_EXIT(zfsvfs, FTAG);
 		return (ret);
+	}
 	while (taskqueue_cancel(zfsvfs_taskq->tq_queue,
 	    &zfsvfs->z_unlinked_drain_task, NULL) != 0)
 		taskqueue_drain(zfsvfs_taskq->tq_queue,
