@@ -6065,7 +6065,8 @@ spa_ld_checkpoint_rewind(spa_t *spa)
 			if (svdcount == SPA_SYNC_MIN_VDEVS)
 				break;
 		}
-		error = vdev_config_sync(svd, svdcount, spa->spa_first_txg);
+		error = vdev_config_sync(spa, svd, svdcount,
+		    spa->spa_first_txg);
 		if (error == 0)
 			spa->spa_last_synced_guid = rvd->vdev_guid;
 		spa_config_exit(spa, SCL_ALL, FTAG);
@@ -11075,6 +11076,59 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
 }
 
 /*
+ * Select up to SPA_SYNC_MIN_VDEVS top-level vdevs to write the uberblock to.
+ * First take the ones written during this txg, so that the idle ones may stay
+ * asleep.  If there are not enough, top up from special and dedup vdevs, which
+ * are expected to have no seek penalty.  Pools having none of those keep the
+ * old behavior of topping up from any vdev.
+ */
+static int
+spa_select_uberblock_vdevs(spa_t *spa, vdev_t **svd, uint64_t txg)
+{
+	vdev_t *rvd = spa->spa_root_vdev;
+	uint64_t children = rvd->vdev_children;
+	uint64_t c0 = random_in_range(children);
+	boolean_t tiered = spa_has_special(spa) || spa_has_dedup(spa);
+	int svdcount = 0;
+
+	for (int pass = 0; pass < 3; pass++) {
+		if (pass == 2 && svdcount > 0 && tiered)
+			break;
+
+		for (uint64_t c = 0; c < children &&
+		    svdcount < SPA_SYNC_MIN_VDEVS; c++) {
+			vdev_t *vd = rvd->vdev_child[(c0 + c) % children];
+			boolean_t dup = B_FALSE;
+
+			if (vd->vdev_ms_array == 0 || vd->vdev_islog ||
+			    !vdev_is_concrete(vd))
+				continue;
+
+			if (pass == 0 && !txg_list_member(
+			    &spa->spa_vdev_txg_list, vd, TXG_CLEAN(txg)))
+				continue;
+
+			if (pass == 1) {
+				metaslab_class_t *mc = vd->vdev_mg != NULL ?
+				    vd->vdev_mg->mg_class : NULL;
+				if (mc != spa_special_class(spa) &&
+				    mc != spa_dedup_class(spa))
+					continue;
+			}
+
+			for (int i = 0; i < svdcount; i++)
+				dup |= (svd[i] == vd);
+			if (dup)
+				continue;
+
+			svd[svdcount++] = vd;
+		}
+	}
+
+	return (svdcount);
+}
+
+/*
  * Rewrite the vdev configuration (which includes the uberblock) to
  * commit the transaction group.
  *
@@ -11100,30 +11154,12 @@ spa_sync_rewrite_vdev_config(spa_t *spa, dmu_tx_t *tx)
 
 		if (list_is_empty(&spa->spa_config_dirty_list)) {
 			vdev_t *svd[SPA_SYNC_MIN_VDEVS] = { NULL };
-			int svdcount = 0;
-			int children = rvd->vdev_children;
-			int c0 = random_in_range(children);
+			int svdcount = spa_select_uberblock_vdevs(spa, svd,
+			    txg);
 
-			for (int c = 0; c < children; c++) {
-				vdev_t *vd =
-				    rvd->vdev_child[(c0 + c) % children];
-
-				/* Stop when revisiting the first vdev */
-				if (c > 0 && svd[0] == vd)
-					break;
-
-				if (vd->vdev_ms_array == 0 ||
-				    vd->vdev_islog ||
-				    !vdev_is_concrete(vd))
-					continue;
-
-				svd[svdcount++] = vd;
-				if (svdcount == SPA_SYNC_MIN_VDEVS)
-					break;
-			}
-			error = vdev_config_sync(svd, svdcount, txg);
+			error = vdev_config_sync(spa, svd, svdcount, txg);
 		} else {
-			error = vdev_config_sync(rvd->vdev_child,
+			error = vdev_config_sync(spa, rvd->vdev_child,
 			    rvd->vdev_children, txg);
 		}
 
