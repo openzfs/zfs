@@ -51,6 +51,10 @@
 #include <sys/vnode.h>
 #include <sys/misc.h>
 #include <linux/mod_compat.h>
+#include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
+#include <linux/fs_struct.h>
+#endif
 
 unsigned long spl_hostid = 0;
 EXPORT_SYMBOL(spl_hostid);
@@ -406,8 +410,13 @@ hostid_read(uint32_t *hostid)
 	loff_t off;
 	struct file *filp;
 	struct kstat stat;
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
+	scoped_with_init_fs() {
+		filp = filp_open(spl_hostid_path, 0, 0);
+	}
+#else
 	filp = filp_open(spl_hostid_path, 0, 0);
+#endif
 
 	if (IS_ERR(filp))
 		return (ENOENT);
