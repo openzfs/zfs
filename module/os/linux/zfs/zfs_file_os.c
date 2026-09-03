@@ -30,6 +30,9 @@
 #ifdef HAVE_FDTABLE_HEADER
 #include <linux/fdtable.h>
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
+#include <linux/fs_struct.h>
+#endif
 
 /*
  * Open file
@@ -54,7 +57,13 @@ zfs_file_open(const char *path, int flags, int mode, cred_t *cr,
 		saved_umask = xchg(&current->fs->umask, 0);
 
 	const cred_t *oldcr = override_creds(cr);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
+	scoped_with_init_fs() {
+		filp = filp_open(path, flags, mode);
+	}
+#else
 	filp = filp_open(path, flags, mode);
+#endif
 	revert_creds(oldcr);
 
 	if (flags & O_CREAT)
