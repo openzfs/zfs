@@ -11753,9 +11753,18 @@ spa_vdev_activity_in_progress_impl(vdev_t *vd, zpool_wait_activity_t activity)
 	mutex_enter(lock);
 	mutex_enter(&spa->spa_activities_lock);
 
+	/*
+	 * A thread that has finished still has to sync out the new state
+	 * before it exits, and until it does the vdev cannot be initialized
+	 * or trimmed again.  Wait for the thread itself, not just the state,
+	 * so that a command issued after the wait returns does not fail with
+	 * EBUSY.
+	 */
 	boolean_t in_progress = (activity == ZPOOL_WAIT_INITIALIZE) ?
-	    (vd->vdev_initialize_state == VDEV_INITIALIZE_ACTIVE) :
-	    (vd->vdev_trim_state == VDEV_TRIM_ACTIVE);
+	    (vd->vdev_initialize_state == VDEV_INITIALIZE_ACTIVE ||
+	    vd->vdev_initialize_thread != NULL) :
+	    (vd->vdev_trim_state == VDEV_TRIM_ACTIVE ||
+	    vd->vdev_trim_thread != NULL);
 	mutex_exit(lock);
 
 	if (in_progress)
