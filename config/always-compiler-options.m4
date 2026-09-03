@@ -424,3 +424,24 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_FLAG_ENUM], [
 
 	CFLAGS="$saved_flags"
 ])
+
+dnl #
+dnl # Check if cc supports -Werror=assign-enum option.
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_WERROR_ASSIGN_ENUM], [
+	AC_MSG_CHECKING([whether $CC supports -Werror=assign-enum])
+
+	saved_flags="$CFLAGS"
+	CFLAGS="$CFLAGS -Werror=assign-enum"
+
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
+		ERROR_ASSIGN_ENUM=-Werror=assign-enum
+		AC_MSG_RESULT([yes])
+	], [
+		ERROR_ASSIGN_ENUM=
+		AC_MSG_RESULT([no])
+	])
+
+	CFLAGS="$saved_flags"
+	AC_SUBST([ERROR_ASSIGN_ENUM])
+])
