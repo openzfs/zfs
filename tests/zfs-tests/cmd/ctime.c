@@ -33,6 +33,7 @@
 #include <fcntl.h>
 #include <libgen.h>
 #include <string.h>
+#include <time.h>
 
 #define	ST_ATIME 0
 #define	ST_CTIME 1
@@ -325,7 +326,7 @@ main(void)
 	(void) close(fd);
 
 	for (i = 0; i < NCOMMAND; i++) {
-		time_t t1, t2;
+		time_t t1, t2, before, after;
 
 		/*
 		 * Get original time before operating.
@@ -340,8 +341,10 @@ main(void)
 		/*
 		 * Sleep 2 seconds, then invoke command on given file
 		 */
+		before = time(NULL);
 		(void) sleep(2);
 		timetest_table[i].func(tfile);
+		after = time(NULL);
 
 		/*
 		 * Get time after operating.
@@ -355,14 +358,19 @@ main(void)
 
 
 		/*
-		 * Ideally, time change would be exactly two seconds, but allow
-		 * a little slack in case of scheduling delays or similar.
+		 * The operation ran no earlier than two seconds after
+		 * `before` (the sleep) and no later than `after`, so its
+		 * timestamp has to fall in that window.  Comparing against
+		 * the time that actually elapsed rather than against a fixed
+		 * tolerance keeps a loaded machine, where the operation
+		 * itself can take seconds, from failing the test.
 		 */
-		long delta = (long)t2 - (long)t1;
-		if (delta < 2 || delta > 10) {
+		if (t2 < before + 2 || t2 > after) {
 			(void) fprintf(stderr,
-			    "%s: BAD time change: t1(%ld), t2(%ld)\n",
-			    timetest_table[i].name, (long)t1, (long)t2);
+			    "%s: BAD time change: t1(%ld), t2(%ld), "
+			    "expected t2 within [%ld, %ld]\n",
+			    timetest_table[i].name, (long)t1, (long)t2,
+			    (long)before + 2, (long)after);
 			return (1);
 		} else {
 			(void) fprintf(stderr,
