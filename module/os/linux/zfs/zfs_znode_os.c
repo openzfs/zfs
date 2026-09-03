@@ -1201,6 +1201,15 @@ zfs_rezget(znode_t *zp)
 	if (zp->z_is_ctldir)
 		return (0);
 
+	/*
+	 * Drop cached pages before reloading the znode.  After a rollback or
+	 * a forced receive the object may hold different data under the same
+	 * inode, size and generation; stale Uptodate pages would otherwise be
+	 * served by mappedread() and mmap() (see #10931).  FreeBSD does the
+	 * same here via vn_pages_remove().
+	 */
+	truncate_inode_pages(ZTOI(zp)->i_mapping, 0);
+
 	zh = zfs_znode_hold_enter(zfsvfs, obj_num);
 
 	mutex_enter(&zp->z_acl_lock);
