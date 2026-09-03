@@ -80,7 +80,7 @@
 #include <asm/cpufeature.h>
 #include <linux/version.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
-#define static_cpu_has(x) _static_cpu_has(x)
+#define	static_cpu_has(x) _static_cpu_has(x)
 #endif
 
 /*
