@@ -14,8 +14,12 @@
  * Copyright (c) 2026, Christos Longros.
  */
 
+#include <signal.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <sys/resource.h>
+#include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/sysmacros.h>
 #include <sys/avl.h>
@@ -278,6 +282,93 @@ test_btree_drain(const MunitParameter params[], void *data)
 
 /* ========== */
 
+/*
+ * The negative tests from tests/zfs-tests/cmd/btree_test.c.  The B-Tree
+ * crashes on these rather than returning a failure, so each runs in a child
+ * process with core dumps disabled; a child that returns at all is a failure.
+ */
+static int
+do_negative_test(void (*func)(void))
+{
+	pid_t pid = fork();
+	unit_true(pid >= 0);
+
+	if (pid == 0) {
+		struct rlimit rlim = {0};
+
+		(void) setrlimit(RLIMIT_CORE, &rlim);
+		func();
+		_exit(0);
+	}
+
+	int status;
+	unit_eq(waitpid(pid, &status, 0), pid);
+	return (status);
+}
+
+/*
+ * Verify inserting a duplicate value will cause a crash.
+ * Note: negative test; the child is not expected to return.
+ */
+static void
+insert_duplicate(void)
+{
+	zfs_btree_t bt;
+	uint64_t i = 23456;
+	zfs_btree_index_t bt_idx = {0};
+
+	btree_create_u64(&bt);
+	if (zfs_btree_find(&bt, &i, &bt_idx) != NULL)
+		_exit(0);
+	zfs_btree_add_idx(&bt, &i, &bt_idx);
+	if (zfs_btree_find(&bt, &i, &bt_idx) == NULL)
+		_exit(0);
+
+	/* Crash on inserting a duplicate */
+	zfs_btree_add_idx(&bt, &i, NULL);
+}
+
+/*
+ * Verify removing a non-existent value will cause a crash.
+ * Note: negative test; the child is not expected to return.
+ */
+static void
+remove_missing(void)
+{
+	zfs_btree_t bt;
+	uint64_t i = 23456;
+	zfs_btree_index_t bt_idx = {0};
+
+	btree_create_u64(&bt);
+	if (zfs_btree_find(&bt, &i, &bt_idx) != NULL)
+		_exit(0);
+
+	/* Crash removing a nonexistent entry */
+	zfs_btree_remove(&bt, &i);
+}
+
+static MunitResult
+test_btree_insert_duplicate(const MunitParameter params[], void *data)
+{
+	(void) params, (void) data;
+
+	unit_true(WIFSIGNALED(do_negative_test(insert_duplicate)));
+	return (MUNIT_OK);
+}
+
+static MunitResult
+test_btree_remove_missing(const MunitParameter params[], void *data)
+{
+	(void) params, (void) data;
+	int status = do_negative_test(remove_missing);
+
+	unit_true(WIFSIGNALED(status));
+	unit_eq(WTERMSIG(status), SIGABRT);
+	return (MUNIT_OK);
+}
+
+/* ========== */
+
 static const MunitTest btree_tests[] = {
 	UNIT_TEST("empty",		test_btree_empty),
 	UNIT_TEST("add_find",		test_btree_add_find),
@@ -285,6 +376,8 @@ static const MunitTest btree_tests[] = {
 	UNIT_TEST("walk",		test_btree_walk),
 	UNIT_TEST("find_without_index",	test_btree_find_without_index),
 	UNIT_TEST("drain",		test_btree_drain),
+	UNIT_TEST("insert_duplicate",	test_btree_insert_duplicate),
+	UNIT_TEST("remove_missing",	test_btree_remove_missing),
 	{ 0 },
 };
 
