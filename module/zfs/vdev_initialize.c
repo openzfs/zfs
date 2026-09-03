@@ -617,6 +617,7 @@ vdev_initialize_thread(void *arg)
 
 	vd->vdev_initialize_thread = NULL;
 	cv_broadcast(&vd->vdev_initialize_cv);
+	spa_notify_waiters(spa);
 	mutex_exit(&vd->vdev_initialize_lock);
 
 	thread_exit();
