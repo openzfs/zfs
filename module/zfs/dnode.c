@@ -1779,8 +1779,6 @@ dnode_rele_and_unlock(dnode_t *dn, const void *tag, boolean_t evicting)
 	refs = zfs_refcount_remove(&dn->dn_holds, tag);
 	if (refs == 0)
 		cv_broadcast(&dn->dn_nodnholds);
-	mutex_exit(&dn->dn_mtx);
-	/* dnode could get destroyed at this point, so don't use it anymore */
 
 	/*
 	 * It's unsafe to release the last hold on a dnode by dnode_rele() or
@@ -1794,6 +1792,12 @@ dnode_rele_and_unlock(dnode_t *dn, const void *tag, boolean_t evicting)
 #ifdef ZFS_DEBUG
 	ASSERT(refs > 0 || zrl_owner(&dnh->dnh_zrlock) != curthread);
 #endif
+
+	mutex_exit(&dn->dn_mtx);
+	/*
+	 * After the dn_mtx is released the dn and dnh may be destroyed,
+	 * they are no longer safe to use after this point.
+	 */
 
 	/* NOTE: the DNODE_DNODE does not have a dn_dbuf */
 	if (refs == 0 && db != NULL) {
