@@ -1,0 +1,125 @@
+#!/usr/bin/sh
+# shellcheck shell=ash
+# cmdline format:
+#
+# use a particular dataset:
+#    root=zfs:pool/dataset
+# use the bootfs property of a pool:
+#    root=zfs:pool
+# import all pools and use the first one with a bootfs property:
+#    root=zfs
+set -e
+
+# usage: klog "message" [level]
+klog() {
+  if [ -n "$DEBUG_CMDLINE" ]; then
+    return
+  fi
+  echo "<${2:-6}>zfs-root-generator: $1" | tee /dev/kmsg
+}
+
+write_sysroot_override_unit() {
+  klog "writing sysroot.mount override"
+  mkdir -p "$GENERATOR_DIR"/sysroot.mount.d
+  {
+    echo "[Unit]"
+    echo "After=zfs-import.target"
+    echo
+    echo "[Mount]"
+    echo "PassEnvironment=ROOT_DATASET"
+    echo "Type=zfs"
+    echo 'What=${ROOT_DATASET}'
+    echo 'Options=zfsutil'
+  } > "$GENERATOR_DIR"/sysroot.mount.d/zfs-override.conf
+}
+
+write_set_env_unit() {
+  klog "generating zfs-set-env.service"
+  {
+    echo "[Unit]"
+    echo "Description=Set systemd environment variables for ZFS sysroot.mount unit"
+    echo "DefaultDependencies=no"
+    echo "Before=sysroot.mount"
+    echo
+    echo "[Service]"
+    echo "Type=oneshot"
+    echo "RemainAfterExit=yes"
+    echo "ExecStart=/usr/bin/zfs-set-env"
+  } > "$GENERATOR_DIR"/zfs-set-env.service
+}
+
+enable_unit() {
+  local unit="$1"
+  klog "enabling $unit"
+  mkdir -p "$GENERATOR_DIR"/initrd-root-device.target.wants/
+  ln -fs "$GENERATOR_DIR"/"$unit" "$GENERATOR_DIR"/initrd-root-device.target.wants/
+}
+
+GENERATOR_DIR="$1"
+[ -n "$GENERATOR_DIR" ] || {
+  klog "impossible: no generator directory specified" 2
+  exit 1
+}
+CMDLINE=${DEBUG_CMDLINE:-/proc/cmdline}
+
+mode=$(parse-cmdline "$CMDLINE")
+klog "mode: $mode"
+
+case $mode in
+  import_all)
+    write_sysroot_override_unit
+
+    write_set_env_unit
+    enable_unit zfs-set-env.service
+
+    klog "generating zfs-import-all.service"
+    {
+      echo "[Unit]"
+      echo "Description=Import all ZFS pools"
+      echo "DefaultDependencies=no"
+      echo "Wants=systemd-udev-settle.service"
+      echo "After=systemd-udev-settle.service cryptsetup.target"
+      echo "Before=sysroot.mount zfs-set-env.service"
+      echo
+      echo "[Service]"
+      echo "Type=oneshot"
+      echo "RemainAfterExit=yes"
+      echo "ExecStart=/usr/bin/zpool import -o cachefile=none -aN"
+    } > "$GENERATOR_DIR"/zfs-import-all.service
+    enable_unit zfs-import-all.service
+    ;;
+  import|dataset)
+    write_sysroot_override_unit
+
+    write_set_env_unit
+    enable_unit zfs-set-env.service
+
+    pool=$(parse-cmdline -v command=pool "$CMDLINE")
+    klog "generating zfs-import-root-pool.service for pool $pool"
+    {
+      echo "[Unit]"
+      echo "Description=Import ZFS pool $pool for rootfs"
+      echo "DefaultDependencies=no"
+      echo "Requires=systemd-udev-settle.service"
+      echo "After=systemd-udev-settle.service cryptsetup.target"
+      echo "Before=sysroot.mount zfs-set-env.service"
+      echo
+      echo "[Service]"
+      echo "Type=oneshot"
+      echo "RemainAfterExit=yes"
+      echo "ExecStart=/usr/bin/zpool import -o cachefile=none -N \"$pool\""
+    } > "$GENERATOR_DIR"/zfs-import-root-pool.service
+    enable_unit zfs-import-root-pool.service
+    ;;
+  none)
+    klog "not using zfs for root: stopping"
+    exit 0
+    ;;
+  *)
+    klog "impossible: unknown mode $mode" 2
+    exit 1
+    ;;
+esac
+
+klog "finished generating"
+exit 0
