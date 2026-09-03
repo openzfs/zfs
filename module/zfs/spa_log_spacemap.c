@@ -170,7 +170,7 @@
  * block size as we expect to be writing a lot of data to them at
  * once.
  */
-static const unsigned long zfs_log_sm_blksz = 1ULL << 17;
+static int zfs_log_sm_blksz = (1 << 17);
 
 /*
  * Percentage of the overall system's memory that ZFS allows to be
@@ -1332,6 +1332,7 @@ spa_ld_log_sm_data(spa_t *spa)
 	uint_t pn = 0;
 	uint64_t ps = 0;
 	uint64_t nsm = 0;
+	uint64_t nbytes = 0;
 	psls = sls = avl_first(&spa->spa_sm_logs_by_txg);
 	while (sls != NULL) {
 		/* Prefetch log spacemaps up to 16 TXGs or MBs ahead. */
@@ -1383,6 +1384,7 @@ spa_ld_log_sm_data(spa_t *spa)
 
 		pn--;
 		ps -= space_map_length(sls->sls_sm);
+		nbytes += space_map_length(sls->sls_sm);
 		nsm++;
 		space_map_close(sls->sls_sm);
 		sls->sls_sm = NULL;
@@ -1394,10 +1396,10 @@ spa_ld_log_sm_data(spa_t *spa)
 
 	hrtime_t read_logs_endtime = gethrtime();
 	spa_load_note(spa,
-	    "Read %lu log space maps (%llu total blocks - blksz = %llu bytes) "
+	    "Read %lu log space maps (%llu total blocks - %llu total bytes) "
 	    "in %lld ms", avl_numnodes(&spa->spa_sm_logs_by_txg),
 	    (u_longlong_t)spa_log_sm_nblocks(spa),
-	    (u_longlong_t)zfs_log_sm_blksz,
+	    (u_longlong_t)nbytes,
 	    (longlong_t)NSEC2MSEC(read_logs_endtime - read_logs_starttime));
 
 out:
@@ -1574,6 +1576,9 @@ ZFS_MODULE_PARAM(zfs, zfs_, max_log_walking, U64, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, keep_log_spacemaps_at_export, INT, ZMOD_RW,
 	"Prevent the log spacemaps from being flushed and destroyed "
 	"during pool export/destroy");
+
+ZFS_MODULE_PARAM(zfs, zfs_, log_sm_blksz, INT, ZMOD_RW,
+	"Block size for the space maps used for the log space map feature");
 
 ZFS_MODULE_PARAM(zfs, zfs_, max_logsm_summary_length, U64, ZMOD_RW,
 	"Maximum number of rows allowed in the summary of the spacemap log");
