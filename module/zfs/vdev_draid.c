@@ -2546,6 +2546,13 @@ vdev_draid_ndisks(vdev_t *vd)
 	return (vdc->vdc_ndisks);
 }
 
+static uint64_t
+vdev_draid_alloc_factor(vdev_t *vd)
+{
+	vdev_draid_config_t *vdc = vd->vdev_tsd;
+	return (vdc->vdc_groupwidth << vd->vdev_ashift);
+}
+
 vdev_ops_t vdev_draid_ops = {
 	.vdev_op_init = vdev_draid_init,
 	.vdev_op_fini = vdev_draid_fini,
@@ -2568,6 +2575,7 @@ vdev_ops_t vdev_draid_ops = {
 	.vdev_op_config_generate = vdev_draid_config_generate,
 	.vdev_op_nparity = vdev_draid_nparity,
 	.vdev_op_ndisks = vdev_draid_ndisks,
+	.vdev_op_alloc_factor = vdev_draid_alloc_factor,
 	.vdev_op_type = VDEV_TYPE_DRAID,
 	.vdev_op_leaf = B_FALSE,
 };
