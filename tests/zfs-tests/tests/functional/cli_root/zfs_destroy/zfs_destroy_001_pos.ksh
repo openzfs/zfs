@@ -139,9 +139,8 @@ function test_n_check
 
 	# Kill any lingering instances of mkbusy, and clear the list.
 	if is_linux ; then
-		[[ -z $pidlist ]] || log_must kill -TERM $pidlist
+		kill_mkbusy "$pidlist"
 		pidlist=""
-		log_mustnot pgrep -fl mkbusy
 	fi
 
 	# Firstly, umount ufs filesystem which was created by zfs volume.
@@ -155,9 +154,8 @@ function test_n_check
 
 	# Kill any lingering instances of mkbusy, and clear the list.
 	if ! is_linux ; then
-		[[ -z $pidlist ]] || log_must kill -TERM $pidlist
+		kill_mkbusy "$pidlist"
 		pidlist=""
-		log_mustnot pgrep -fl mkbusy
 	fi
 
 	case $dtst in

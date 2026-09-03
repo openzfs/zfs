@@ -80,6 +80,46 @@ function setup_testenv #[dtst]
 	fi
 }
 
+# Kill a list of mkbusy pids, wait for them to go away, then verify no
+# mkbusy is left behind at all.
+#
+# mkbusy daemonizes, so the caller is not its parent and cannot wait(2)
+# for it. kill(2) only queues the signal: the target still has to be
+# scheduled to take it, and then lingers as a zombie until init reaps
+# it. It shows up in a pgrep scan the whole time, so checking once
+# immediately after the kill is racy. Poll for each pid instead, then
+# run the leak check once the pids we killed are known to be gone.
+#
+# kill -0 still succeeds on a zombie, so the poll below waits for the
+# reap, which is the point at which pgrep stops matching the pid.
+#
+# $1   pidlist, as produced by mkbusy and accumulated by the caller
+function kill_mkbusy # pidlist
+{
+	typeset pid
+	typeset -i i
+
+	# Word-split the caller's list, so that a list which is empty or
+	# all whitespace leaves nothing to kill.
+	set -- $1
+
+	if (( $# > 0 )); then
+		log_must kill -TERM "$@"
+
+		for pid in "$@"; do
+			for (( i = 0; i < 50; i++ )); do
+				kill -0 $pid 2>/dev/null || break
+				sleep 0.1
+			done
+			kill -0 $pid 2>/dev/null && log_fail \
+			    "mkbusy pid $pid still present after 5s:" \
+			    "$(pgrep -fl mkbusy)"
+		done
+	fi
+
+	log_mustnot pgrep -fl mkbusy
+}
+
 # Clean up the testing environment
 #
 function cleanup_testenv

@@ -117,8 +117,7 @@ negative_test "-R -rR" $FS
 check_dataset datasetexists $CTR $FS $VOL $VOLSNAP $VOLCLONE
 check_dataset datasetnonexists $FSSNAP $FSCLONE
 
-log_must kill $pidlist
-log_mustnot pgrep -fl mkbusy
+kill_mkbusy "$pidlist"
 pidlist=""
 
 #
@@ -154,8 +153,7 @@ if is_global_zone; then
 	check_dataset datasetnonexists $VOLSNAP $VOLCLONE
 fi
 
-log_must kill $pidlist
-log_mustnot pgrep -fl mkbusy
+kill_mkbusy "$pidlist"
 pidlist=""
 
 #
@@ -187,8 +185,7 @@ for option in -R -rR ; do
 	fi
 done
 
-log_must kill $pidlist
-log_mustnot pgrep -fl mkbusy
+kill_mkbusy "$pidlist"
 pidlist=""
 
 log_pass "zfs destroy -f|-r|-rf|-R|-rR <dataset>' failed in different " \
