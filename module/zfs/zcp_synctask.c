@@ -158,7 +158,8 @@ static const zcp_synctask_info_t zcp_synctask_destroy_info = {
 	.name = "destroy",
 	.func = zcp_synctask_destroy,
 	.pargs = {
-	    {.za_name = "filesystem | snapshot", .za_lua_type = LUA_TSTRING },
+	    {.za_name = "filesystem | snapshot | bookmark",
+	    .za_lua_type = LUA_TSTRING },
 	    {NULL, 0}
 	},
 	.kwargs = {
@@ -172,11 +173,11 @@ static const zcp_synctask_info_t zcp_synctask_destroy_info = {
 static int
 zcp_synctask_destroy(lua_State *state, boolean_t sync, nvlist_t *err_details)
 {
-	(void) err_details;
 	int err;
 	const char *dsname = lua_tostring(state, 1);
 
 	boolean_t issnap = (strchr(dsname, '@') != NULL);
+	boolean_t isbookmark = (strchr(dsname, '#') != NULL);
 
 	if (!issnap && !lua_isnil(state, 2)) {
 		return (luaL_error(state,
@@ -195,6 +196,25 @@ zcp_synctask_destroy(lua_State *state, boolean_t sync, nvlist_t *err_details)
 
 		err = zcp_sync_task(state, dsl_destroy_snapshot_check,
 		    dsl_destroy_snapshot_sync, &ddsa, sync, dsname);
+	} else if (isbookmark) {
+		dsl_bookmark_destroy_arg_t dbda = { 0 };
+		dbda.dbda_bmarks = fnvlist_alloc();
+		dbda.dbda_success = fnvlist_alloc();
+		dbda.dbda_errors = err_details;
+		fnvlist_add_boolean(dbda.dbda_bmarks, dsname);
+
+		zcp_cleanup_handler_t *zch = zcp_register_cleanup(state,
+		    zcp_synctask_cleanup, dbda.dbda_bmarks);
+		zcp_cleanup_handler_t *zch2 = zcp_register_cleanup(state,
+		    zcp_synctask_cleanup, dbda.dbda_success);
+
+		err = zcp_sync_task(state, dsl_bookmark_destroy_check,
+		    dsl_bookmark_destroy_sync, &dbda, sync, dsname);
+
+		zcp_deregister_cleanup(state, zch2);
+		zcp_deregister_cleanup(state, zch);
+		fnvlist_free(dbda.dbda_success);
+		fnvlist_free(dbda.dbda_bmarks);
 	} else {
 		dsl_destroy_head_arg_t ddha = { 0 };
 		ddha.ddha_name = dsname;
