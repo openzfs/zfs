@@ -159,8 +159,8 @@ else:
 # reasons listed above can be used.
 #
 known = {
-    'casenorm/mixed_none_lookup_ci': ['FAIL', 7633],
-    'casenorm/mixed_formd_lookup_ci': ['FAIL', 7633],
+    'casenorm/mixed_none_lookup_ci': ['SKIP', 7633],
+    'casenorm/mixed_formd_lookup_ci': ['SKIP', 7633],
     'cli_root/zpool_import/import_rewind_device_replaced':
         ['FAIL', rewind_reason],
     'cli_user/misc/zfs_share_001_neg': ['SKIP', na_reason],
@@ -186,10 +186,6 @@ if sys.platform.startswith('freebsd'):
     })
 elif sys.platform.startswith('linux'):
     known.update({
-        'casenorm/mixed_formd_lookup': ['FAIL', 7633],
-        'casenorm/mixed_formd_delete': ['FAIL', 7633],
-        'casenorm/sensitive_formd_lookup': ['FAIL', 7633],
-        'casenorm/sensitive_formd_delete': ['FAIL', 7633],
         'removal/removal_with_zdb': ['SKIP', known_reason],
         'cli_root/zfs_unshare/zfs_unshare_002_pos': ['SKIP', na_reason],
     })

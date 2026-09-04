@@ -75,7 +75,8 @@ function lookup_file_ci
 	if is_illumos; then
 		zlook -il $TESTDIR $name >/dev/null 2>&1
 	else
-		test -f "${TESTDIR}/${name}" >/dev/null 2>&1
+		log_unsupported "lookup_file_ci requires zlook(1) / " \
+		    "ZUT_IOC_LOOKUP; not available on this platform"
 	fi
 }
 
