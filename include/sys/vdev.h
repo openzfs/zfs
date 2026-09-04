@@ -194,7 +194,7 @@ extern void vdev_state_clean(vdev_t *vd);
 extern void vdev_defer_resilver(vdev_t *vd);
 extern boolean_t vdev_clear_resilver_deferred(vdev_t *vd, dmu_tx_t *tx);
 
-typedef enum vdev_config_flag {
+typedef enum zfs_flag_enum vdev_config_flag {
 	VDEV_CONFIG_SPARE = 1 << 0,
 	VDEV_CONFIG_L2CACHE = 1 << 1,
 	VDEV_CONFIG_MOS = 1 << 2,

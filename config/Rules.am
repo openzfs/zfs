@@ -27,6 +27,7 @@ AM_CFLAGS += $(PTHREAD_CFLAGS)
 AM_CFLAGS += $(CODE_COVERAGE_CFLAGS)
 AM_CFLAGS += $(NO_FORMAT_ZERO_LENGTH)
 AM_CFLAGS += $(NO_FORMAT_TRUNCATION)
+AM_CFLAGS += $(ERROR_ASSIGN_ENUM)
 if BUILD_FREEBSD
 AM_CFLAGS += -fPIC -Werror -Wno-unknown-pragmas -Wno-enum-conversion
 AM_CFLAGS += -include $(top_srcdir)/include/os/freebsd/spl/sys/ccompile.h

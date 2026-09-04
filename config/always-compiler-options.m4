@@ -399,3 +399,49 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_KERNEL_CC_NO_IPA_SRA], [
 	CFLAGS="$saved_flags"
 	AC_SUBST([KERNEL_NO_IPA_SRA])
 ])
+
+dnl #
+dnl # Check if cc supports __attribute__((flag_enum)).
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_FLAG_ENUM], [
+	AC_MSG_CHECKING([whether $CC supports __attribute__((flag_enum))])
+
+	saved_flags="$CFLAGS"
+	CFLAGS="$CFLAGS -Werror=attributes"
+
+	AC_COMPILE_IFELSE([
+		AC_LANG_SOURCE([[
+			enum __attribute__((flag_enum)) test { A = 1 << 0 };
+			int main() { return 0; }
+		]])
+	], [
+		AC_DEFINE([HAVE_FLAG_ENUM], 1,
+			[Define if compiler supports attribute flag_enum])
+		AC_MSG_RESULT([yes])
+	], [
+		AC_MSG_RESULT([no])
+	])
+
+	CFLAGS="$saved_flags"
+])
+
+dnl #
+dnl # Check if cc supports -Werror=assign-enum option.
+dnl #
+AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_WERROR_ASSIGN_ENUM], [
+	AC_MSG_CHECKING([whether $CC supports -Werror=assign-enum])
+
+	saved_flags="$CFLAGS"
+	CFLAGS="$CFLAGS -Werror=assign-enum"
+
+	AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
+		ERROR_ASSIGN_ENUM=-Werror=assign-enum
+		AC_MSG_RESULT([yes])
+	], [
+		ERROR_ASSIGN_ENUM=
+		AC_MSG_RESULT([no])
+	])
+
+	CFLAGS="$saved_flags"
+	AC_SUBST([ERROR_ASSIGN_ENUM])
+])
