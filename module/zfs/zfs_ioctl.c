@@ -5025,8 +5025,8 @@ zfs_ioc_bucket_create(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 {
 	const char *bucketname = fnvlist_lookup_string(innvl, ZFS_BUCKET);
 	printk(KERN_INFO "ZFS: Creating bucket: %s/%s\n", poolname, bucketname);
-	// return create_bucket(bucketname);
-	return 0;
+	return create_bucket(poolname, bucketname);
+	//return 0;
 }
 
 /*

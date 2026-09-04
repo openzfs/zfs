@@ -1,0 +1,14 @@
+[DEFAULT]
+pre = setup
+pre_user = root
+user = root
+post_user = root
+post = cleanup
+failsafe_user = root
+failsafe = callbacks/zfs_failsafe
+timeout = 600
+tags = ['zos']
+
+[tests/functional/zos/bucket]
+tests = ['zos_bucket_create_001_pos', 'zos_bucket_create_002_neg']
+tags = ['zos', 'functional']

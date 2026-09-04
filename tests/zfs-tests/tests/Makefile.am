@@ -2582,4 +2582,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/idmap_mount/idmap_mount_002.ksh \
 	functional/idmap_mount/idmap_mount_003.ksh \
 	functional/idmap_mount/idmap_mount_004.ksh \
-	functional/idmap_mount/idmap_mount_005.ksh
+	functional/idmap_mount/idmap_mount_005.ksh \
+	functional/zos/bucket/cleanup.ksh \
+	functional/zos/bucket/setup.ksh \
+	functional/zos/bucket/zos_bucket_create_001_pos.ksh \
+	functional/zos/bucket/zos_bucket_create_002_neg.ksh

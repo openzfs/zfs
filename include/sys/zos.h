@@ -38,9 +38,11 @@
 extern "C" {
 #endif
 
-#define DEFAULT_ZOS_PREFIX "zos"
-#define ZOS_BUCKET_META_OBJ 1ULL // Bucket metadata ZAP
-#define ZOS_BUCKET_DATA_OBJ 2ULL // Bucket data ZAP (key -> object)
+/* Suffix appended to pool name for the hidden ZOS objset (e.g. "tank/__zos") */
+#define ZOS_OBJSET_SUFFIX	"__zos"
+
+/* Well-known object ID inside the ZOS objset: bucket directory ZAP */
+#define ZOS_BUCKET_DIR_OBJ	1ULL
 
 // TODO: figure out where to source this ...
 #ifndef MAXNAMELEN
