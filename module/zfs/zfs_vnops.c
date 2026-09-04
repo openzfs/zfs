@@ -675,13 +675,11 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	}
 
 	/*
-	 * Pre-fault one transaction-sized chunk before acquiring the range
-	 * lock.  Copying later chunks with page faults disabled may produce a
-	 * short write, but it must not fault while holding this lock: if the
-	 * source is an mmap of this file, that fault would enter zfs_getpage()
-	 * and deadlock on the same lock.
+	 * Pre-fault the pages to ensure slow (eg NFS) pages
+	 * don't hold up txg.
 	 */
-	if (zfs_uio_prefaultpages(MIN(n, DMU_MAX_ACCESS >> 1), uio)) {
+	ssize_t pfbytes = MIN(n, DMU_MAX_ACCESS >> 1);
+	if (zfs_uio_prefaultpages(pfbytes, uio)) {
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EFAULT));
 	}
@@ -828,19 +826,22 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			    blksz);
 			ASSERT(abuf != NULL);
 			ASSERT(arc_buf_size(abuf) == blksz);
-			zfs_uio_fault_disable(uio, B_TRUE);
-			error = zfs_uiocopy(abuf->b_data, blksz, UIO_WRITE,
-			    uio, &nbytes);
-			zfs_uio_fault_disable(uio, B_FALSE);
-			if (error != 0 || nbytes != blksz) {
-				if (error == 0)
-					error = SET_ERROR(EFAULT);
+			if ((error = zfs_uiocopy(abuf->b_data, blksz,
+			    UIO_WRITE, uio, &nbytes))) {
 				dmu_return_arcbuf(abuf);
 				break;
 			}
+			ASSERT3S(nbytes, ==, blksz);
 		} else {
 			nbytes = MIN(n, (DMU_MAX_ACCESS >> 1) -
 			    P2PHASE(woff, blksz));
+			if (pfbytes < nbytes) {
+				if (zfs_uio_prefaultpages(nbytes, uio)) {
+					error = SET_ERROR(EFAULT);
+					break;
+				}
+				pfbytes = nbytes;
+			}
 		}
 
 		/*
@@ -890,12 +891,32 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			error = dmu_write_uio_dbuf(sa_get_db(zp->z_sa_hdl),
 			    uio, nbytes, tx, dflags);
 			zfs_uio_fault_disable(uio, B_FALSE);
+#ifdef __linux__
+			if (error == EFAULT) {
+				zfs_clear_setid_bits_if_necessary(zfsvfs, zp,
+				    cr, &clear_setid_bits_txg, tx);
+				dmu_tx_commit(tx);
+				/*
+				 * Account for partial writes before
+				 * continuing the loop.
+				 * Update needs to occur before the next
+				 * zfs_uio_prefaultpages, or prefaultpages may
+				 * error, and we may break the loop early.
+				 */
+				n -= tx_bytes - zfs_uio_resid(uio);
+				/*
+				 * The prefaulted pages still faulted, so force
+				 * a re-prefault on the next pass.  If they can
+				 * no longer be faulted in (e.g. the calling
+				 * process is exiting), zfs_uio_prefaultpages()
+				 * fails and the loop breaks with EFAULT instead
+				 * of spinning on them forever.
+				 */
+				pfbytes = 0;
+				continue;
+			}
+#endif
 			/*
-			 * Account for any partial EFAULT below.  On Linux,
-			 * retrying needs another prefault while the range lock
-			 * is held.  That can deadlock when the source maps this
-			 * file.
-			 *
 			 * On FreeBSD, EFAULT should be propagated back to the
 			 * VFS, which will handle faulting and will retry.
 			 */
@@ -1026,6 +1047,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			break;
 		ASSERT3S(tx_bytes, ==, nbytes);
 		n -= nbytes;
+		pfbytes -= nbytes;
 	}
 
 	if (o_direct_defer) {
@@ -1042,14 +1064,6 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	 */
 	if (uio->uio_extflg & UIO_DIRECT)
 		zfs_uio_free_dio_pages(uio, UIO_WRITE);
-
-#ifdef __linux__
-	/*
-	 * Linux write(2) reports a short copy as progress instead of EFAULT.
-	 */
-	if (error == EFAULT && zfs_uio_resid(uio) != start_resid)
-		error = 0;
-#endif
 
 	/*
 	 * If we're in replay mode, or we made no progress, or the
