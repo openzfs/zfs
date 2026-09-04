@@ -4416,7 +4416,8 @@ ztest_device_removal(ztest_ds_t *zd, uint64_t id)
 	 */
 	error = spa_scan(spa, POOL_SCAN_SCRUB, 0);
 	if (error == 0) {
-		while (dsl_scan_scrubbing(spa_get_dsl(spa)))
+		while (dsl_scan_scrubbing(spa_get_dsl(spa)) ||
+		    dsl_scan_resilvering(spa_get_dsl(spa)))
 			txg_wait_synced(spa_get_dsl(spa), 0);
 	}
 
@@ -6912,7 +6913,8 @@ out:
 	if (injected && ztest_opts.zo_raid_do_expand) {
 		int error = spa_scan(spa, POOL_SCAN_SCRUB, 0);
 		if (error == 0) {
-			while (dsl_scan_scrubbing(spa_get_dsl(spa)))
+			while (dsl_scan_scrubbing(spa_get_dsl(spa)) ||
+			    dsl_scan_resilvering(spa_get_dsl(spa)))
 				txg_wait_synced(spa_get_dsl(spa), 0);
 		}
 	}
@@ -6947,7 +6949,8 @@ ztest_scrub_impl(spa_t *spa)
 	if (error)
 		return (error);
 
-	while (dsl_scan_scrubbing(spa_get_dsl(spa)))
+	while (dsl_scan_scrubbing(spa_get_dsl(spa)) ||
+	    dsl_scan_resilvering(spa_get_dsl(spa)))
 		txg_wait_synced(spa_get_dsl(spa), 0);
 
 	if (spa_approx_errlog_size(spa) > 0)

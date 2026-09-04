@@ -67,6 +67,7 @@ typedef enum dsl_scan_flags {
 	DSF_VISIT_DS_AGAIN = 1<<0,
 	DSF_SCRUB_PAUSED = 1<<1,
 	DSF_SCRUB_THOROUGH = 1<<2,
+	DSF_SCRUB_REQUESTED = 1<<3, /* original request was a scrub */
 } dsl_scan_flags_t;
 
 typedef struct dsl_errorscrub_phys {
@@ -189,6 +190,7 @@ int dsl_scan_cancel(struct dsl_pool *);
 int dsl_scan(struct dsl_pool *, pool_scan_func_t, uint64_t starttxg,
     uint64_t txgend, dsl_scan_flags_t flags);
 void dsl_scan_assess_vdev(struct dsl_pool *dp, vdev_t *vd);
+boolean_t dsl_scan_is_scrub_requested(const dsl_scan_t *scn);
 boolean_t dsl_scan_scrubbing(const struct dsl_pool *dp);
 boolean_t dsl_errorscrubbing(const struct dsl_pool *dp);
 boolean_t dsl_errorscrub_active(dsl_scan_t *scn);

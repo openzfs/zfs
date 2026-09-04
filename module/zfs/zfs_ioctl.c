@@ -6702,8 +6702,10 @@ zfs_ioc_pool_reopen(const char *pool, nvlist_t *innvl, nvlist_t *outnvl)
 	 * Otherwise, let vdev_open() decided if a resilver is required.
 	 */
 
+	dsl_scan_t *scn = spa->spa_dsl_pool->dp_scan;
 	spa->spa_scrub_reopen = (!scrub_restart &&
-	    dsl_scan_scrubbing(spa->spa_dsl_pool));
+	    scn->scn_phys.scn_state == DSS_SCANNING &&
+	    dsl_scan_is_scrub_requested(scn));
 	vdev_reopen(spa->spa_root_vdev);
 	spa->spa_scrub_reopen = B_FALSE;
 
