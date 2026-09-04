@@ -78,6 +78,12 @@ sync_pool $TESTPOOL
 # Cold the cache so WILLNEED issues reads, then slow the vdev so the issued
 # prefetch stays outstanding while we sample it.
 log_must zpool export $TESTPOOL
+
+# We sometimes see "cannot import 'testpool': more than one matching pool"
+# happen on the next zpool import line.  Print out which pools we do see
+# and where to help diagnose.
+log_note "import: $(zpool import -d /dev)"
+
 log_must zpool import -d /dev $TESTPOOL
 log_must zinject -d $DISK -D 20:1 $TESTPOOL
 
