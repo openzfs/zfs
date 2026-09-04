@@ -5872,7 +5872,7 @@ get_columns(void)
 
 	if (isatty(STDOUT_FILENO)) {
 		error = ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws);
-		if (error == 0)
+		if (error == 0 && ws.ws_col > 0)
 			columns = ws.ws_col;
 	} else {
 		columns = 999;
