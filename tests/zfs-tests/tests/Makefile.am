@@ -2586,4 +2586,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zos/bucket/cleanup.ksh \
 	functional/zos/bucket/setup.ksh \
 	functional/zos/bucket/zos_bucket_create_001_pos.ksh \
-	functional/zos/bucket/zos_bucket_create_002_neg.ksh
+	functional/zos/bucket/zos_bucket_create_002_neg.ksh \
+	functional/zos/bucket/zos_bucket_delete_001_pos.ksh \
+	functional/zos/bucket/zos_bucket_delete_002_neg.ksh \
+	functional/zos/bucket/zos_bucket_delete_003_pos.ksh

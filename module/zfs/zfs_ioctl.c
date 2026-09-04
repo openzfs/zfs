@@ -5029,6 +5029,18 @@ zfs_ioc_bucket_create(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	//return 0;
 }
 
+static const zfs_ioc_key_t zfs_keys_bucket_delete[] = {
+	{ZFS_BUCKET,	DATA_TYPE_STRING,	ZK_OPTIONAL},
+};
+
+static int
+zfs_ioc_bucket_delete(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	const char *bucketname = fnvlist_lookup_string(innvl, ZFS_BUCKET);
+	printk(KERN_INFO "ZFS: Deleting bucket: %s/%s\n", poolname, bucketname);
+	return delete_bucket(poolname, bucketname);
+}
+
 /*
  * This ioctl waits for activity of a particular type to complete. If there is
  * no activity of that type in progress, it returns immediately, and the
@@ -8226,6 +8238,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_bucket_create, zfs_secpolicy_none, DATASET_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
 	    zfs_keys_bucket_create, ARRAY_SIZE(zfs_keys_bucket_create));
+
+	zfs_ioctl_register("bucket_delete", ZFS_IOC_BUCKET_DELETE,
+	    zfs_ioc_bucket_delete, zfs_secpolicy_none, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
+	    zfs_keys_bucket_delete, ARRAY_SIZE(zfs_keys_bucket_delete));
 
 	zfs_ioctl_register("set_bootenv", ZFS_IOC_SET_BOOTENV,
 	    zfs_ioc_set_bootenv, zfs_secpolicy_config, POOL_NAME,

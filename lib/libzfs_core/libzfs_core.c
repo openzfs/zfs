@@ -2109,3 +2109,20 @@ lzc_bucket_create(const char *pool, const char *bucket) {
 
 	return (error);
 }
+
+int
+lzc_bucket_delete(const char *pool, const char *bucket) {
+	int error;
+
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = NULL;
+
+	fnvlist_add_string(args, ZFS_BUCKET, bucket);
+
+	error = lzc_ioctl(ZFS_IOC_BUCKET_DELETE, pool, args, &result);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}

@@ -9388,7 +9388,15 @@ zfs_do_bucket(int argc, char **argv) {
 
 		ret = error;
 	} else if (strcmp(op, "delete") == 0) {
-		// return delete_bucket(bucket);
+		int error = lzc_bucket_delete(pool, bucket);
+
+		(void) fprintf(stderr, gettext("Bucket error: %d\n"), error);
+
+		if (error != 0) {
+			(void) zfs_standard_error(g_zfs, error, "Cannot delete bucket");
+		}
+
+		ret = error;
 	} else {
 		(void) fprintf(stderr, gettext("invalid operation: %s\n"), op);
 		usage(B_FALSE);

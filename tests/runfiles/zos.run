@@ -10,5 +10,7 @@ timeout = 600
 tags = ['zos']
 
 [tests/functional/zos/bucket]
-tests = ['zos_bucket_create_001_pos', 'zos_bucket_create_002_neg']
+tests = ['zos_bucket_create_001_pos', 'zos_bucket_create_002_neg',
+    'zos_bucket_delete_001_pos', 'zos_bucket_delete_002_neg',
+    'zos_bucket_delete_003_pos']
 tags = ['zos', 'functional']
