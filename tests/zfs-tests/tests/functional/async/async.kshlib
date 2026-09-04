@@ -1,0 +1,179 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+
+#
+# Copyright 2026, tiehexue <tiehexue@hotmail.com>. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/async/async.cfg
+
+#
+# Check if an fio ioengine is available.
+#
+function fio_ioengine_available
+{
+	typeset ioengine=$1
+	typeset tmpfile="/tmp/fio_probe_$$"
+
+	fio --name=probe --ioengine=$ioengine --size=4K --bs=4K \
+	    --rw=read --filename="$tmpfile" --direct=0 \
+	    > /dev/null 2>&1
+	typeset ret=$?
+
+	rm -f "$tmpfile"
+	return $ret
+}
+
+#
+# Write a file with fio in verify mode: each block carries its sha1
+# checksum, which async_read_verify() checks when the file is read back.
+#
+# Usage: async_write_verify <file> <direct> <ioengine> <iodepth> [size_hr]
+#   direct = 0 (buffered) | 1 (O_DIRECT)
+#
+function async_write_verify
+{
+	typeset file=$1
+	typeset direct=$2
+	typeset ioengine=$3
+	typeset iodepth=$4
+	typeset size_hr=${5:-$ASYNC_FILESIZE_HR}
+
+	fio --filename="$file" --name="async-write" \
+	    --rw=write --bs="$ASYNC_BS_HR" --size="$size_hr" \
+	    --direct=$direct --iodepth=$iodepth --ioengine=$ioengine \
+	    --verify=sha1 --do_verify=0 --fallocate=none \
+	    --group_reporting > /dev/null 2>&1
+}
+
+#
+# Read a file previously written by async_write_verify() and verify the
+# per-block sha1 checksums.  With --direct=1 on an async kiocb (libaio /
+# io_uring) this exercises the ZFS async read path: the submission returns
+# immediately (-EIOCBQUEUED) and the data is verified after the taskq
+# completion signals kiocb->ki_complete().  If that path never completes,
+# fio hangs and the test times out.  Returns nonzero on data mismatch.
+#
+# Usage: async_read_verify <file> <direct> <ioengine> <iodepth> [size_hr]
+#
+function async_read_verify
+{
+	typeset file=$1
+	typeset direct=$2
+	typeset ioengine=$3
+	typeset iodepth=$4
+	typeset size_hr=${5:-$ASYNC_FILESIZE_HR}
+
+	fio --filename="$file" --name="async-read" \
+	    --rw=read --bs="$ASYNC_BS_HR" --size="$size_hr" \
+	    --direct=$direct --iodepth=$iodepth --ioengine=$ioengine \
+	    --verify=sha1 --verify_fatal=1 \
+	    --group_reporting > /dev/null 2>&1
+}
+
+#
+# Measure O_DIRECT random-read IOPS with fio libaio and print the aggregate
+# read IOPS to stdout.
+#
+# Usage: async_read_iops <file> <iodepth> <numjobs> [runtime]
+#
+function async_read_iops
+{
+	typeset file=$1
+	typeset iodepth=$2
+	typeset numjobs=$3
+	typeset runtime=${4:-5}
+	typeset -a fields
+	typeset out oldifs
+
+	out=$(fio --filename="$file" --name="async-iops" \
+	    --rw=randread --bs="$ASYNC_BS_HR" --size="$ASYNC_FILESIZE_HR" \
+	    --direct=1 --ioengine=libaio --iodepth=$iodepth \
+	    --numjobs=$numjobs --group_reporting --runtime=$runtime \
+	    --time_based --minimal 2>/dev/null)
+
+	#
+	# fio terse (--minimal) output is a single ';' separated line per job
+	# group (aggregated by --group_reporting):
+	#   <ver>;<fiover>;<jobname>;<groupid>;<error>;<read_kb>;
+	#   <read_bw_kBps>;<read_iops>;<read_runtime_ms>;...
+	# Parse it with pure ksh and print the aggregate read IOPS (field 8).
+	#
+	oldifs=$IFS
+	IFS=';'
+	read -A fields <<< "$out"
+	IFS=$oldifs
+
+	if (( ${#fields[@]} >= 8 )); then
+		print -- "${fields[7]}"
+	else
+		print -- 0
+	fi
+}
+
+#
+# Measure O_DIRECT random-write IOPS with fio libaio and print the aggregate
+# write IOPS to stdout.  Blocks are written in verify mode (per-block sha1,
+# deferred with --do_verify=0) so the benchmark data can be checked with
+# async_read_verify() once the run is over.
+#
+# Usage: async_write_iops <file> <iodepth> <numjobs> [runtime]
+#
+function async_write_iops
+{
+	typeset file=$1
+	typeset iodepth=$2
+	typeset numjobs=$3
+	typeset runtime=${4:-5}
+	typeset -a fields
+	typeset out oldifs
+
+	out=$(fio --filename="$file" --name="async-write-iops" \
+	    --rw=randwrite --bs="$ASYNC_BS_HR" --size="$ASYNC_FILESIZE_HR" \
+	    --direct=1 --ioengine=libaio --iodepth=$iodepth \
+	    --numjobs=$numjobs --group_reporting --runtime=$runtime \
+	    --time_based --verify=sha1 --do_verify=0 --minimal 2>/dev/null)
+
+	#
+	# fio terse (--minimal) output is a single ';' separated line per job
+	# group (aggregated by --group_reporting).  The write IOPS field is
+	# index 48 (0-based) in the fio 3.x terse v3 layout:
+	#   <ver>;<fiover>;<jobname>;<groupid>;<error>;<read_kb>;
+	#   <read_bw_kBps>;<read_iops>;<read_runtime_ms>;...<write_kb>;
+	#   <write_bw_kBps>;<write_iops>;<write_runtime_ms>;...
+	# Parse it with pure ksh and print the aggregate write IOPS.
+	#
+	oldifs=$IFS
+	IFS=';'
+	read -A fields <<< "$out"
+	IFS=$oldifs
+
+	if (( ${#fields[@]} >= 49 )); then
+		print -- "${fields[48]}"
+	else
+		print -- 0
+	fi
+}
+
+function async_reimport_pool
+{
+	log_must rm -f "$mntpnt/async"*
+	log_must sync
+	# Drop VM caches for cold page cache
+	if [[ -w /proc/sys/vm/drop_caches ]]; then
+		log_must eval echo 3 '>' /proc/sys/vm/drop_caches
+	fi
+	# Export/import clears the ARC for this pool
+	log_must zpool export "$TESTPOOL"
+	log_must zpool import "$TESTPOOL"
+}
