@@ -41,6 +41,7 @@
  * uio_extflg: extended flags
  */
 #define	UIO_DIRECT	0x0001	/* Direct I/O requset */
+#define	UIO_UNCACHED	0x0002	/* Caller will not reuse the data */
 
 typedef	struct iovec	iovec_t;
 typedef	enum uio_seg	zfs_uio_seg_t;

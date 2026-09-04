@@ -138,6 +138,13 @@ idmap_reason = 'Idmapped mount needs kernel 5.12+'
 cfr_reason = 'Kernel copy_file_range support required'
 
 #
+# POSIX_FADV_NOREUSE is only recorded as FMODE_NOREUSE since Linux 6.3, and
+# RWF_DONTCACHE was added in Linux 6.14.
+#
+noreuse_reason = 'POSIX_FADV_NOREUSE needs Linux 6.3+'
+dontcache_reason = 'Kernel RWF_DONTCACHE support required'
+
+#
 # Some statx fields are not supported by all kernels
 #
 statx_reason = 'Needed statx(2) field not supported on this kernel'
@@ -183,6 +190,7 @@ if sys.platform.startswith('freebsd'):
         'cp_files/cp_files_002_pos': ['SKIP', na_reason],
         'link_count/link_count_001': ['SKIP', na_reason],
         'mmap/mmap_sync_001_pos': ['SKIP', na_reason],
+        'uncached/uncached_dontcache': ['SKIP', na_reason],
     })
 elif sys.platform.startswith('linux'):
     known.update({
@@ -228,6 +236,8 @@ maybe = {
     'send_xdr_encoding/xdr_bookmark_raw_with_write': ['FAIL', 18491],
     'send_xdr_encoding/xdr_resume_bookmark_raw_with_write': ['FAIL', 18491],
     'trim/setup': ['SKIP', trim_reason],
+    'uncached/uncached_dontcache': ['SKIP', dontcache_reason],
+    'uncached/uncached_noreuse': ['SKIP', noreuse_reason],
     'upgrade/upgrade_projectquota_001_pos': ['SKIP', project_id_reason],
     'upgrade/upgrade_projectquota_002_pos': ['SKIP', project_id_reason],
     'user_namespace/setup': ['SKIP', user_ns_reason],

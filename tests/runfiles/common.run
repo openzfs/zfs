@@ -1094,6 +1094,10 @@ tags = ['functional', 'trim']
 tests = ['truncate_001_pos', 'truncate_002_pos', 'truncate_timestamps']
 tags = ['functional', 'truncate']
 
+[tests/functional/uncached]
+tests = ['uncached_dontcache', 'uncached_noreuse']
+tags = ['functional', 'uncached']
+
 [tests/functional/unlink]
 tests = ['unlinked_fh_accessible']
 tags = ['functional', 'unlink']
