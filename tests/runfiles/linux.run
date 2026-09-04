@@ -25,10 +25,12 @@ tags = ['functional']
 [tests/functional/acl/posix:Linux]
 tests = ['posix_001_pos', 'posix_002_pos', 'posix_003_pos',
     'posix_004_pos', 'posix_005_pos']
+duration = 0
 tags = ['functional', 'acl', 'posix']
 
 [tests/functional/acl/posix-sa:Linux]
 tests = ['posix_001_pos', 'posix_002_pos', 'posix_003_pos', 'posix_004_pos']
+duration = 0
 tags = ['functional', 'acl', 'posix-sa']
 
 [tests/functional/block_cloning:Linux]
@@ -46,44 +48,53 @@ tests = ['block_cloning_ficlone', 'block_cloning_ficlonerange',
     'block_cloning_fideduperange_subblock',
     'block_cloning_fideduperange_tail',
     'block_cloning_disabled_fideduperange']
+duration = 41
 tags = ['functional', 'block_cloning']
 
 [tests/functional/chattr:Linux]
 tests = ['chattr_001_pos', 'chattr_002_neg']
+duration = 0
 tags = ['functional', 'chattr']
 
 [tests/functional/cli_root/zfs:Linux]
 tests = ['zfs_003_neg']
+duration = 30
 tags = ['functional', 'cli_root', 'zfs']
 
 [tests/functional/cli_root/zfs_mount:Linux]
 tests = ['zfs_mount_006_pos', 'zfs_mount_008_pos', 'zfs_mount_013_pos',
     'zfs_mount_014_neg', 'zfs_multi_mount']
+duration = 0
 tags = ['functional', 'cli_root', 'zfs_mount']
 
 [tests/functional/cli_root/zfs_share:Linux]
 tests = ['zfs_share_005_pos', 'zfs_share_007_neg', 'zfs_share_009_neg',
     'zfs_share_012_pos', 'zfs_share_013_pos']
+duration = 0
 tags = ['functional', 'cli_root', 'zfs_share']
 
 [tests/functional/cli_root/zfs_unshare:Linux]
 tests = ['zfs_unshare_008_pos']
+duration = 0
 tags = ['functional', 'cli_root', 'zfs_unshare']
 
 [tests/functional/cli_root/zfs_sysfs:Linux]
 tests = ['zfeature_set_unsupported', 'zfs_get_unsupported',
     'zfs_set_unsupported', 'zfs_sysfs_live', 'zpool_get_unsupported',
     'zpool_set_unsupported']
+duration = 0
 tags = ['functional', 'cli_root', 'zfs_sysfs']
 
 [tests/functional/cli_root/zpool_add:Linux]
 tests = ['add_nested_replacing_spare']
+duration = 8
 tags = ['functional', 'cli_root', 'zpool_add']
 
 [tests/functional/cli_root/zpool_expand:Linux]
 tests = ['zpool_expand_001_pos', 'zpool_expand_002_pos',
     'zpool_expand_003_neg', 'zpool_expand_004_pos', 'zpool_expand_005_pos',
     'zpool_expand_006_pos', 'zpool_expand_007_pos']
+duration = 223
 tags = ['functional', 'cli_root', 'zpool_expand']
 
 [tests/functional/cli_root/zpool_import:Linux]
@@ -91,33 +102,40 @@ tests = ['zpool_import_aux_paths', 'zpool_import_hostid_changed',
     'zpool_import_hostid_changed_unclean_export',
     'zpool_import_hostid_changed_cachefile',
     'zpool_import_hostid_changed_cachefile_unclean_export']
+duration = 77
 tags = ['functional', 'cli_root', 'zpool_import']
 
 [tests/functional/cli_root/zpool_reopen:Linux]
 tests = ['zpool_reopen_001_pos', 'zpool_reopen_002_pos',
     'zpool_reopen_003_pos', 'zpool_reopen_004_pos', 'zpool_reopen_005_pos',
     'zpool_reopen_006_neg', 'zpool_reopen_007_pos']
+duration = 154
 tags = ['functional', 'cli_root', 'zpool_reopen']
 
 [tests/functional/cli_root/zpool_split:Linux]
 tests = ['zpool_split_wholedisk']
+duration = 10
 tags = ['functional', 'cli_root', 'zpool_split']
 
 [tests/functional/dedup:Linux]
 tests = ['dedup_legacy_gang']
+duration = 48
 tags = ['functional', 'dedup']
 
 [tests/functional/device_access:Linux]
 tests = ['device_access_create', 'device_access_attach', 'device_access_add',
     'device_access_import']
+duration = 95
 tags = ['functional', 'device_access']
 
 [tests/functional/devices:Linux]
 tests = ['devices_001_pos', 'devices_002_neg', 'devices_003_pos']
+duration = 0
 tags = ['functional', 'devices']
 
 [tests/functional/direct:Linux]
 tests = ['dio_loopback_dev', 'dio_write_verify']
+duration = 3
 tags = ['functional', 'direct']
 
 [tests/functional/events:Linux]
@@ -126,10 +144,12 @@ tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter', 'zed_fd_spill',
     'zed_slow_io', 'zed_slow_io_many_vdevs', 'zed_diagnose_multiple',
     'zed_synchronous_zedlet', 'slow_vdev_sit_out', 'slow_vdev_sit_out_neg',
     'slow_vdev_degraded_sit_out']
+duration = 842
 tags = ['functional', 'events']
 
 [tests/functional/fallocate:Linux]
 tests = ['fallocate_extend_timestamps', 'fallocate_prealloc', 'fallocate_zero-range']
+duration = 3
 tags = ['functional', 'fallocate']
 
 [tests/functional/fault:Linux]
@@ -141,38 +161,46 @@ tests = ['auto_offline_001_pos', 'auto_online_001_pos', 'auto_online_002_pos',
     'decompress_fault', 'fault_limits', 'scrub_after_resilver',
     'suspend_on_probe_errors', 'suspend_resume_single', 'suspend_draid_fgroups',
     'zpool_status_-s']
+duration = 766
 tags = ['functional', 'fault']
 
 [tests/functional/features/large_dnode:Linux]
 tests = ['large_dnode_002_pos', 'large_dnode_006_pos', 'large_dnode_008_pos']
+duration = 37
 tags = ['functional', 'features', 'large_dnode']
 
 [tests/functional/io:Linux]
 tests = ['libaio', 'io_uring']
+duration = 20
 tags = ['functional', 'io']
 
 [tests/functional/largest_pool:Linux]
 tests = ['largest_pool_001_pos']
 pre =
 post =
+duration = 60
 tags = ['functional', 'largest_pool']
 
 [tests/functional/lease:Linux]
 tests = ['lease_setlease']
+duration = 0
 tags = ['functional', 'lease']
 
 [tests/functional/longname:Linux]
 tests = ['longname_001_pos', 'longname_002_pos', 'longname_003_pos']
+duration = 32
 tags = ['functional', 'longname']
 
 [tests/functional/luks:Linux]
 pre =
 post =
 tests = ['luks_sanity']
+duration = 18
 tags = ['functional', 'luks']
 
 [tests/functional/mmap:Linux]
 tests = ['mmap_libaio_001_pos', 'mmap_sync_001_pos']
+duration = 1
 tags = ['functional', 'mmap']
 
 [tests/functional/mmp:Linux]
@@ -182,21 +210,25 @@ tests = ['mmp_on_thread', 'mmp_on_uberblocks', 'mmp_on_off', 'mmp_interval',
     'mmp_write_uberblocks', 'mmp_reset_interval', 'multihost_history',
     'mmp_on_zdb', 'mmp_write_distribution', 'mmp_hostid', 'mmp_write_slow_disk',
     'mmp_concurrent_import']
+duration = 1496
 tags = ['functional', 'mmp']
 timeout = 1200
 
 [tests/functional/mount:Linux]
 tests = ['umount_unlinked_drain', 'mount_loopback', 'mount_null_source']
+duration = 33
 tags = ['functional', 'mount']
 
 [tests/functional/pam:Linux]
 tests = ['pam_basic', 'pam_change_unmounted', 'pam_mount_recursively',
     'pam_nounmount', 'pam_recursive', 'pam_short_password']
+duration = 18
 tags = ['functional', 'pam']
 
 [tests/functional/procfs:Linux]
 tests = ['procfs_list_basic', 'procfs_list_concurrent_readers',
     'procfs_list_stale_read', 'pool_state']
+duration = 212
 tags = ['functional', 'procfs']
 
 [tests/functional/projectquota:Linux]
@@ -206,25 +238,30 @@ tests = ['defaultprojectquota_001_pos', 'defaultprojectquota_005_pos',
     'projectquota_001_pos', 'projectquota_003_pos', 'projectquota_006_pos',
     'projectspace_001_pos', 'projectspace_002_pos', 'projectspace_003_pos',
     'projectspace_004_pos', 'projectspace_005_pos', 'projecttree_001_pos']
+duration = 4
 tags = ['functional', 'projectquota']
 
 [tests/functional/dos_attributes:Linux]
 tests = ['read_dos_attrs_001', 'write_dos_attrs_001']
+duration = 0
 tags = ['functional', 'dos_attributes']
 
 [tests/functional/renameat2:Linux]
 tests = ['renameat2_noreplace', 'renameat2_exchange', 'renameat2_whiteout']
+duration = 0
 tags = ['functional', 'renameat2']
 
 [tests/functional/rsend:Linux]
 tests = ['send_realloc_dnode_size', 'send_encrypted_files',
     'send-c_longname']
+duration = 19
 tags = ['functional', 'rsend']
 
 [tests/functional/simd:Linux]
 pre =
 post =
 tests = ['simd_supported']
+duration = 0
 tags = ['functional', 'simd']
 
 [tests/functional/snapdir:Linux]
@@ -235,10 +272,12 @@ tests = ['snapdir_admin_create_destroy', 'snapdir_admin_rename_destroy',
     'snapdir_mount_expire_bind', 'snapdir_mount_expire_move',
     'snapdir_mount_multiple', 'snapdir_mount_fd_hold', 'snapdir_mount_foreign',
     'snapdir_mount_destroy_defer']
+duration = 35
 tags = ['functional', 'snapdir']
 
 [tests/functional/syncfs:Linux]
 tests = ['syncfs_suspend']
+duration = 7
 tags = ['functional', 'syncfs']
 pre =
 post =
@@ -246,28 +285,34 @@ post =
 [tests/functional/tmpfile:Linux]
 tests = ['tmpfile_001_pos', 'tmpfile_002_pos', 'tmpfile_003_pos',
     'tmpfile_stat_mode']
+duration = 0
 tags = ['functional', 'tmpfile']
 
 [tests/functional/upgrade:Linux]
 tests = ['upgrade_projectquota_001_pos', 'upgrade_projectquota_002_pos']
+duration = 19
 tags = ['functional', 'upgrade']
 
 [tests/functional/user_namespace:Linux]
 tests = ['user_namespace_001', 'user_namespace_002', 'user_namespace_003',
     'user_namespace_004', 'user_namespace_secpolicy_sys_config',
     'user_namespace_secpolicy_zinject']
+duration = 7
 tags = ['functional', 'user_namespace']
 
 [tests/functional/userquota:Linux]
 tests = ['groupspace_001_pos', 'groupspace_002_pos', 'groupspace_003_pos',
     'groupspace_004_pos','userquota_013_pos', 'userspace_003_pos']
+duration = 1
 tags = ['functional', 'userquota']
 
 [tests/functional/zvol/zvol_misc:Linux]
 tests = ['zvol_misc_fua']
+duration = 13
 tags = ['functional', 'zvol', 'zvol_misc']
 
 [tests/functional/idmap_mount:Linux]
 tests = ['idmap_mount_001', 'idmap_mount_002', 'idmap_mount_003',
     'idmap_mount_004', 'idmap_mount_005']
+duration = 3
 tags = ['functional', 'idmap_mount']

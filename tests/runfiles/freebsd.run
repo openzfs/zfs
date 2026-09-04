@@ -27,16 +27,20 @@ tests = ['block_cloning_copyfilerange_clone',
     'block_cloning_copyfilerange_clone_partial',
     'block_cloning_disabled_copyfilerange_clone']
 
+duration = 0
 tags = ['functional', 'block_cloning']
 [tests/functional/cli_root/zfs_jail:FreeBSD]
 tests = ['zfs_jail_001_pos']
+duration = 0
 tags = ['functional', 'cli_root', 'zfs_jail']
 
 [tests/functional/pam:FreeBSD]
 tests = ['pam_basic', 'pam_change_unmounted', 'pam_mount_recursively',
     'pam_nounmount', 'pam_recursive', 'pam_short_password']
+duration = 12
 tags = ['functional', 'pam']
 
 [tests/functional/direct:FreeBSD]
 tests = ['dio_write_stable_pages']
+duration = 7
 tags = ['functional', 'direct']
