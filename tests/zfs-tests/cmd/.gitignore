@@ -31,6 +31,7 @@
 /mmap_read_truncate
 /mmap_seek
 /mmap_sync
+/mmap_write_source
 /mmapwrite
 /mmap_write_sync
 /mount_null_source

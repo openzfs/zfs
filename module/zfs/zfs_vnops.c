@@ -729,6 +729,12 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 
 	const rlim64_t limit = MAXOFFSET_T;
 
+	/*
+	 * How much to copy at a time.  Halved when a retry brings nothing
+	 * in, see the fault handling at the end of the loop below.
+	 */
+	ssize_t maxcopy = DMU_MAX_ACCESS >> 1;
+
 	if (woff >= limit) {
 		zfs_rangelock_exit(lr);
 		zfs_exit(zfsvfs, FTAG);
@@ -813,8 +819,12 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 
 		arc_buf_t *abuf = NULL;
 		ssize_t nbytes = n;
+#ifdef __linux__
+		/* How much this pass copied, see the fault handling below. */
+		ssize_t copied = 0;
+#endif
 		if (n >= blksz && woff >= zp->z_size &&
-		    P2PHASE(woff, blksz) == 0 &&
+		    P2PHASE(woff, blksz) == 0 && blksz <= maxcopy &&
 		    !(uio->uio_extflg & UIO_DIRECT) &&
 		    (blksz >= SPA_OLD_MAXBLOCKSIZE || n < 4 * blksz)) {
 			/*
@@ -836,11 +846,16 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 				if (error == 0)
 					error = SET_ERROR(EFAULT);
 				dmu_return_arcbuf(abuf);
+#ifdef __linux__
+				if (error == EFAULT)
+					goto refault;
+#endif
 				break;
 			}
 		} else {
 			nbytes = MIN(n, (DMU_MAX_ACCESS >> 1) -
 			    P2PHASE(woff, blksz));
+			nbytes = MIN(nbytes, maxcopy);
 		}
 
 		/*
@@ -968,6 +983,10 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			    (void *)&zp->z_size, sizeof (uint64_t), tx);
 			dmu_tx_commit(tx);
 			ASSERT(error != 0);
+#ifdef __linux__
+			if (error == EFAULT)
+				goto refault;
+#endif
 			break;
 		}
 
@@ -1022,10 +1041,59 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			o_direct_defer = B_FALSE;
 		}
 
+#ifdef __linux__
+		if (error == EFAULT) {
+			copied = tx_bytes;
+			n -= tx_bytes;
+			goto refault;
+		}
+#endif
 		if (error != 0)
 			break;
 		ASSERT3S(tx_bytes, ==, nbytes);
 		n -= nbytes;
+		/* This chunk was copied whole, go back to copying big. */
+		maxcopy = DMU_MAX_ACCESS >> 1;
+		continue;
+#ifdef __linux__
+refault:
+		/*
+		 * The copy above ran with page faults disabled, because
+		 * faulting while the range lock is held deadlocks when the
+		 * source maps this file.  Fault the source in with the lock
+		 * dropped and resume where the copy stopped, rather than
+		 * cutting the write short.
+		 *
+		 * Copy less on the next pass when this one brought nothing
+		 * in, as the page cache does, since a source which faults in
+		 * but still cannot be copied would loop here forever.  Give
+		 * up once a single page cannot be copied: what was written
+		 * so far is returned as a short write.
+		 */
+		if (copied == 0) {
+			if (maxcopy <= (ssize_t)PAGE_SIZE) {
+				error = SET_ERROR(EFAULT);
+				break;
+			}
+			maxcopy >>= 1;
+		} else {
+			maxcopy = DMU_MAX_ACCESS >> 1;
+		}
+
+		if (issig()) {
+			error = SET_ERROR(EINTR);
+			break;
+		}
+
+		zfs_rangelock_exit(lr);
+		error = zfs_uio_prefaultpages(MIN(n, maxcopy), uio);
+		lr = zfs_rangelock_enter(&zp->z_rangelock,
+		    zfs_uio_offset(uio), n, RL_WRITER);
+		if (error != 0) {
+			error = SET_ERROR(EFAULT);
+			break;
+		}
+#endif
 	}
 
 	if (o_direct_defer) {
