@@ -2139,7 +2139,7 @@ dbuf_evict_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid)
 }
 
 void
-dbuf_new_size(dmu_buf_impl_t *db, int size, dmu_tx_t *tx)
+dbuf_new_size(dmu_buf_impl_t *db, int size, boolean_t copy, dmu_tx_t *tx)
 {
 	arc_buf_t *buf, *old_buf;
 	dbuf_dirty_record_t *dr;
@@ -2163,12 +2163,15 @@ dbuf_new_size(dmu_buf_impl_t *db, int size, dmu_tx_t *tx)
 	/* create the data buffer for the new block */
 	buf = arc_alloc_buf(dn->dn_objset->os_spa, db, type, size);
 
-	/* copy old block data to the new block */
 	old_buf = db->db_buf;
-	memcpy(buf->b_data, old_buf->b_data, MIN(osize, size));
-	/* zero the remainder */
-	if (size > osize)
-		memset((uint8_t *)buf->b_data + osize, 0, size - osize);
+	if (copy) {
+		ASSERT(arc_get_compression(old_buf) == ZIO_COMPRESS_OFF);
+		/* copy old block data to the new block */
+		memcpy(buf->b_data, old_buf->b_data, MIN(osize, size));
+		/* zero the remainder */
+		if (size > osize)
+			memset((uint8_t *)buf->b_data + osize, 0, size - osize);
+	}
 
 	mutex_enter(&db->db_mtx);
 	dbuf_set_data(db, buf);
@@ -4119,7 +4122,8 @@ dbuf_create_bonus(dnode_t *dn)
 }
 
 int
-dbuf_spill_set_blksz(dmu_buf_t *db_fake, uint64_t blksz, dmu_tx_t *tx)
+dbuf_spill_set_blksz(dmu_buf_t *db_fake, uint64_t blksz, boolean_t copy,
+    dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 
@@ -4130,7 +4134,7 @@ dbuf_spill_set_blksz(dmu_buf_t *db_fake, uint64_t blksz, dmu_tx_t *tx)
 	ASSERT3U(blksz, <=, spa_maxblocksize(dmu_objset_spa(db->db_objset)));
 	blksz = P2ROUNDUP(blksz, SPA_MINBLOCKSIZE);
 
-	dbuf_new_size(db, blksz, tx);
+	dbuf_new_size(db, blksz, copy, tx);
 
 	return (0);
 }
