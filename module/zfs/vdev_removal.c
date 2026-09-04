@@ -1802,6 +1802,20 @@ again:
 	txg_wait_synced(spa->spa_dsl_pool, 0);
 	ASSERT0(vca.vca_outstanding_bytes);
 
+	/*
+	 * Every copy has reported by now.  The errors of the last segments
+	 * copied may have arrived after the check at the end of the loop
+	 * above, so check again before concluding that the removal can be
+	 * completed.  Otherwise the removal of the last metaslab racing its
+	 * own write errors would drop the vdev with data left uncopied.
+	 */
+	if (zfs_removal_ignore_errors == 0 &&
+	    (vca.vca_read_error_bytes > 0 || vca.vca_write_error_bytes > 0)) {
+		mutex_enter(&svr->svr_lock);
+		svr->svr_thread_exit = B_TRUE;
+		mutex_exit(&svr->svr_lock);
+	}
+
 	mutex_destroy(&vca.vca_lock);
 	cv_destroy(&vca.vca_cv);
 
