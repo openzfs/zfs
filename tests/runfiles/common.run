@@ -410,7 +410,7 @@ tests = ['zpool_add_001_pos', 'zpool_add_002_pos', 'zpool_add_003_pos',
 tags = ['functional', 'cli_root', 'zpool_add']
 
 [tests/functional/cli_root/zpool_attach]
-tests = ['zpool_attach_001_neg', 'attach-o_ashift']
+tests = ['zpool_attach_001_neg', 'attach-o_ashift', 'zpool_attach_shadow']
 tags = ['functional', 'cli_root', 'zpool_attach']
 
 [tests/functional/cli_root/zpool_clear]
