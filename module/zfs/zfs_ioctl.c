@@ -5041,6 +5041,42 @@ zfs_ioc_bucket_delete(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	return delete_bucket(poolname, bucketname);
 }
 
+static int
+zfs_ioc_bucket_list(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	spa_t *spa;
+	objset_t *os;
+	zap_cursor_t zc;
+	zap_attribute_t *za;
+	int error;
+
+	error = spa_open(poolname, &spa, FTAG);
+	if (error)
+		return (error);
+
+	error = zos_get_objset(spa, &os);
+	if (error == ENOENT) {
+		spa_close(spa, FTAG);
+		return (0);
+	}
+	if (error) {
+		spa_close(spa, FTAG);
+		return (error);
+	}
+
+	za = zap_attribute_alloc();
+	for (zap_cursor_init(&zc, os, ZOS_BUCKET_DIR_OBJ);
+	    zap_cursor_retrieve(&zc, za) == 0;
+	    zap_cursor_advance(&zc)) {
+		fnvlist_add_boolean(outnvl, za->za_name);
+	}
+	zap_attribute_free(za);
+	zap_cursor_fini(&zc);
+	dmu_objset_rele(os, FTAG);
+	spa_close(spa, FTAG);
+	return (0);
+}
+
 /*
  * This ioctl waits for activity of a particular type to complete. If there is
  * no activity of that type in progress, it returns immediately, and the
@@ -8243,6 +8279,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_bucket_delete, zfs_secpolicy_none, DATASET_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
 	    zfs_keys_bucket_delete, ARRAY_SIZE(zfs_keys_bucket_delete));
+
+	zfs_ioctl_register("bucket_list", ZFS_IOC_BUCKET_LIST,
+	    zfs_ioc_bucket_list, zfs_secpolicy_none, POOL_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
+	    NULL, 0);
 
 	zfs_ioctl_register("set_bootenv", ZFS_IOC_SET_BOOTENV,
 	    zfs_ioc_set_bootenv, zfs_secpolicy_config, POOL_NAME,

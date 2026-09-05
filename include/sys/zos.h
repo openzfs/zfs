@@ -34,6 +34,9 @@
 #include <sys/param.h>
 #include <sys/types.h>
 
+typedef struct spa spa_t;
+typedef struct objset objset_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -56,6 +59,7 @@ struct zos_object {
   size_t data_size;
 };
 
+int zos_get_objset(spa_t *spa, objset_t **osp);
 int create_bucket(const char *pool, const char *bucket);
 int delete_bucket(const char *pool, const char *bucket);
 

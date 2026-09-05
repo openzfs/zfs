@@ -159,6 +159,7 @@ _LIBZFS_CORE_H int lzc_ddt_prune(const char *, zpool_ddt_prune_unit_t,
 
 _LIBZFS_CORE_H int lzc_bucket_create(const char *, const char *);
 _LIBZFS_CORE_H int lzc_bucket_delete(const char *, const char *);
+_LIBZFS_CORE_H int lzc_bucket_list(const char *, nvlist_t **);
 
 #ifdef	__cplusplus
 }

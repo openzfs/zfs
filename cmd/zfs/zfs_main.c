@@ -430,7 +430,7 @@ get_usage(zfs_help_t idx)
 	case HELP_WAIT:
 		return ("\twait [-t <activity>] <filesystem>\n");
 	case HELP_BUCKET:
-		return (gettext("\tbucket <create|delete> <pool> <bucket_name>\n"));
+		return (gettext("\tbucket <create|delete|list> <pool> [bucket_name]\n"));
 	case HELP_OBJECT:
 		return (gettext("\tobject <upsert|read|delete> <object_name> [object_data]"));
 	case HELP_ZONE:
@@ -9357,18 +9357,15 @@ found:;
 
 static int
 zfs_do_bucket(int argc, char **argv) {
-	int ret, c = 0;
+	int ret = 0;
 
-	if (argc != 4) {
+	if (argc < 3) {
 		(void) fprintf(stderr, gettext("invalid number of arguments\n"));
 		usage(B_FALSE);
 	}
 
 	char *op = argv[1];
 	char *pool = argv[2];
-	char *bucket = argv[3];
-
-	(void) fprintf(stdout, gettext("operation: %s\npool: %s\nbucket: %s\n\n"), op, pool, bucket);
 
 	if ((g_zfs = libzfs_init()) == NULL) {
 		(void) fprintf(stderr, "%s\n", libzfs_error_init(errno));
@@ -9378,6 +9375,11 @@ zfs_do_bucket(int argc, char **argv) {
 	libzfs_print_on_error(g_zfs, B_TRUE);
 
 	if (strcmp(op, "create") == 0) {
+		if (argc != 4) {
+			(void) fprintf(stderr, gettext("invalid number of arguments\n"));
+			usage(B_FALSE);
+		}
+		char *bucket = argv[3];
 		int error = lzc_bucket_create(pool, bucket);
 
 		(void) fprintf(stderr, gettext("Bucket error: %d\n"), error);
@@ -9388,12 +9390,35 @@ zfs_do_bucket(int argc, char **argv) {
 
 		ret = error;
 	} else if (strcmp(op, "delete") == 0) {
+		if (argc != 4) {
+			(void) fprintf(stderr, gettext("invalid number of arguments\n"));
+			usage(B_FALSE);
+		}
+		char *bucket = argv[3];
 		int error = lzc_bucket_delete(pool, bucket);
 
 		(void) fprintf(stderr, gettext("Bucket error: %d\n"), error);
 
 		if (error != 0) {
 			(void) zfs_standard_error(g_zfs, error, "Cannot delete bucket");
+		}
+
+		ret = error;
+	} else if (strcmp(op, "list") == 0) {
+		nvlist_t *buckets = NULL;
+		int error = lzc_bucket_list(pool, &buckets);
+
+		if (error == 0 && buckets != NULL) {
+			nvpair_t *elem = NULL;
+			while ((elem = nvlist_next_nvpair(buckets, elem)) != NULL) {
+				(void) printf("%s\n", nvpair_name(elem));
+			}
+			fnvlist_free(buckets);
+		}
+
+		if (error != 0) {
+			(void) fprintf(stderr, gettext("Bucket error: %d\n"), error);
+			(void) zfs_standard_error(g_zfs, error, "Cannot list buckets");
 		}
 
 		ret = error;

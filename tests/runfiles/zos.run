@@ -11,6 +11,9 @@ tags = ['zos']
 
 [tests/functional/zos/bucket]
 tests = ['zos_bucket_create_001_pos', 'zos_bucket_create_002_neg',
+    'zos_bucket_create_003_pos',
     'zos_bucket_delete_001_pos', 'zos_bucket_delete_002_neg',
-    'zos_bucket_delete_003_pos']
+    'zos_bucket_delete_003_pos', 'zos_bucket_delete_004_pos',
+    'zos_bucket_list_001_pos', 'zos_bucket_list_002_pos',
+    'zos_bucket_list_003_pos', 'zos_bucket_list_004_pos']
 tags = ['zos', 'functional']

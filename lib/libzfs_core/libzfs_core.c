@@ -2097,12 +2097,9 @@ lzc_bucket_create(const char *pool, const char *bucket) {
 	nvlist_t *args = fnvlist_alloc();
 	nvlist_t *result = NULL;
 
-	// TODO: Create a const/macro for "bucket"
 	fnvlist_add_string(args, ZFS_BUCKET, bucket);
 
-	fprintf(stdout, "Before creating bucket:\npool: %s\nbucket: %s\n\n", pool, bucket);
 	error = lzc_ioctl(ZFS_IOC_BUCKET_CREATE, pool, args, &result);
-	fprintf(stdout, "After creating bucket:\npool: %s\nbucket: %s\n\n", pool, bucket);
 
 	fnvlist_free(args);
 	fnvlist_free(result);
@@ -2123,6 +2120,25 @@ lzc_bucket_delete(const char *pool, const char *bucket) {
 
 	fnvlist_free(args);
 	fnvlist_free(result);
+
+	return (error);
+}
+
+int
+lzc_bucket_list(const char *pool, nvlist_t **buckets) {
+	int error;
+
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = NULL;
+
+	error = lzc_ioctl(ZFS_IOC_BUCKET_LIST, pool, args, &result);
+
+	fnvlist_free(args);
+
+	if (error == 0 && result != NULL)
+		*buckets = result;
+	else
+		fnvlist_free(result);
 
 	return (error);
 }

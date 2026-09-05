@@ -72,7 +72,7 @@ static void zos_init_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx) {
 	}
 }
 
-static int zos_get_objset(spa_t *spa, objset_t **osp) {
+int zos_get_objset(spa_t *spa, objset_t **osp) {
 	char *name;
 	objset_t *os;
 	int error;
