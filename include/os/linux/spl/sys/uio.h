@@ -40,6 +40,7 @@
  * uio_extflg: extended flags
  */
 #define	UIO_DIRECT	0x0001 /* Direct I/O request */
+#define	UIO_UNCACHED	0x0002 /* Caller will not reuse the data */
 
 #if defined(HAVE_FAULT_IN_IOV_ITER_READABLE)
 #define	iov_iter_fault_in_readable(a, b)	fault_in_iov_iter_readable(a, b)
