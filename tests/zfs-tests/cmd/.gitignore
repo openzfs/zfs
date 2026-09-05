@@ -43,6 +43,8 @@
 /rename_dir
 /rm_lnkcnt_zero_file
 /send_doall
+/snapshot_list_test
+/snapshot_list_stats_test
 /statx
 /stride_dd
 /threadsappend
