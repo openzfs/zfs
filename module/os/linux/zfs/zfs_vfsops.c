@@ -20,6 +20,7 @@
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/sysmacros.h>
+#include <sys/byteorder.h>
 #include <sys/kmem.h>
 #include <sys/pathname.h>
 #include <sys/vnode.h>
@@ -1333,6 +1334,40 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 
 static atomic_long_t zfs_bdi_seq = ATOMIC_LONG_INIT(0);
 
+#ifdef HAVE_SUPER_SET_UUID
+/*
+ * Set the 128-bit UUID of this superblock.  The UUID contains the 64-bit
+ * pool guid and the 64-bit dataset guid, in that order, as big-endian
+ * values.  Thus the first 16 hex digits of the UUID show the pool guid,
+ * and the last 16 hex digits show the dataset guid.  "zpool get guid"
+ * and "zfs get guid" show the same values in decimal.  The result is
+ * not a valid RFC 4122 UUID, because the version and variant bits
+ * hold guid data; the kernel treats sb->s_uuid as an opaque byte
+ * string, and vfat sets a plain 4-byte volume serial the same way.
+ *
+ * The kernel (Linux 6.9 and later) serves the FS_IOC_GETFSUUID ioctl
+ * from this UUID.  Other consumers include overlayfs (persistent file
+ * handles for the index and NFS export features) and the fsuuid= rules
+ * of IMA policies.
+ *
+ * The UUID is not related to statfs() f_fsid, which continues to come
+ * from the smaller, runtime-unique objset fsid guid.
+ *
+ * The UUID stays constant while the filesystem is mounted.  A "zpool
+ * reguid" shows in the UUID at the next mount of the filesystem.
+ */
+static void
+zfs_set_sb_uuid(struct super_block *sb, objset_t *os)
+{
+	uint64_t guids[2];
+
+	guids[0] = BE_64(spa_guid(dmu_objset_spa(os)));
+	guids[1] = BE_64(dsl_get_guid(dmu_objset_ds(os)));
+
+	super_set_uuid(sb, (uint8_t *)guids, sizeof (guids));
+}
+#endif
+
 int
 zfs_domount(struct super_block *sb, const char *osname,
     vfs_t *vfs, int silent)
@@ -1379,6 +1414,9 @@ zfs_domount(struct super_block *sb, const char *osname,
 	sb->s_time_gran = 1;
 	sb->s_blocksize = recordsize;
 	sb->s_blocksize_bits = ilog2(recordsize);
+#ifdef HAVE_SUPER_SET_UUID
+	zfs_set_sb_uuid(sb, zfsvfs->z_os);
+#endif
 
 	error = -super_setup_bdi_name(sb, "%.28s-%ld", "zfs",
 	    atomic_long_inc_return(&zfs_bdi_seq));

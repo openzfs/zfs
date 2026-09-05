@@ -147,6 +147,10 @@ tags = ['functional', 'fault']
 tests = ['large_dnode_002_pos', 'large_dnode_006_pos', 'large_dnode_008_pos']
 tags = ['functional', 'features', 'large_dnode']
 
+[tests/functional/getfsuuid:Linux]
+tests = ['getfsuuid_001_pos']
+tags = ['functional', 'getfsuuid']
+
 [tests/functional/io:Linux]
 tests = ['libaio', 'io_uring']
 tags = ['functional', 'io']
