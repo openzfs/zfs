@@ -53,7 +53,12 @@ typedef	uint32_t	dev32_t;
 typedef	int32_t		pid32_t;
 typedef	uint32_t	size32_t;
 typedef	int32_t		ssize32_t;
+#ifdef __FreeBSD__
+#include <sys/abi_compat.h>
+#endif
+#ifndef __HAVE_TIME32_T
 typedef	int32_t		time32_t;
+#endif
 typedef	int32_t		clock32_t;
 
 typedef struct timespec32 {
