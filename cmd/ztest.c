@@ -1095,7 +1095,12 @@ fishing:
 	result = thread_create_named(name, stk, stksize,
 	    ztest_fishing_thread, ftargp, len, pp, state, pri);
 	while (atomic_load_64(&ztest_prng_state->zs_jumps) == jumps) {
-		/* let this thread initialize its seed */
+		/*
+		 * Let this thread initialize its seed. Sleep briefly so
+		 * the fishing thread is not starved on a single-CPU or
+		 * heavily loaded system.
+		 */
+		usleep(1000);
 	}
 
 	return (result);
