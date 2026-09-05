@@ -4527,6 +4527,62 @@ zfs_ioc_get_bookmark_props(const char *bookmark, nvlist_t *innvl,
 }
 
 /*
+ * innvl (optional): {
+ *     property name 1 -> boolean,
+ *     property name 2 -> boolean,
+ *     ...
+ * }
+ *
+ * If innvl is empty, all properties are returned.
+ * If innvl contains property names, only those are returned.
+ *
+ * outnvl: {
+ *     property name 1 -> { "value" -> value, "source" -> source },
+ *     property name 2 -> { "value" -> value },
+ *     ...
+ * }
+ */
+static const zfs_ioc_key_t zfs_keys_objset_get_props[] = {
+	{"<property>...", DATA_TYPE_BOOLEAN, ZK_WILDCARDLIST | ZK_OPTIONAL},
+};
+
+static int
+zfs_ioc_objset_get_props(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	objset_t *os;
+	int error;
+
+	error = dmu_objset_hold(dsname, FTAG, &os);
+	if (error != 0)
+		return (error);
+
+	nvlist_t *nv;
+	error = dsl_prop_get_all(os, &nv);
+	if (error != 0) {
+		dmu_objset_rele(os, FTAG);
+		return (error);
+	}
+
+	dmu_objset_stats(os, nv);
+
+	dmu_objset_rele(os, FTAG);
+
+	if (nvlist_empty(innvl)) {
+		fnvlist_merge(outnvl, nv);
+	} else {
+		nvpair_t *pair = NULL;
+		while ((pair = nvlist_next_nvpair(nv, pair)) != NULL) {
+			const char *name = nvpair_name(pair);
+			if (nvlist_exists(innvl, name))
+				fnvlist_add_nvpair(outnvl, pair);
+		}
+	}
+
+	nvlist_free(nv);
+	return (0);
+}
+
+/*
  * innvl: {
  *     bookmark name 1, bookmark name 2
  * }
@@ -8083,6 +8139,12 @@ zfs_ioctl_init(void)
 	    zfs_ioc_get_bookmark_props, zfs_secpolicy_read, ENTITY_NAME,
 	    POOL_CHECK_SUSPENDED, B_FALSE, B_FALSE, zfs_keys_get_bookmark_props,
 	    ARRAY_SIZE(zfs_keys_get_bookmark_props));
+
+	zfs_ioctl_register("objset_get_props", ZFS_IOC_OBJSET_GET_PROPS,
+	    zfs_ioc_objset_get_props, zfs_secpolicy_read, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED, B_FALSE, B_FALSE,
+	    zfs_keys_objset_get_props,
+	    ARRAY_SIZE(zfs_keys_objset_get_props));
 
 	zfs_ioctl_register("destroy_bookmarks", ZFS_IOC_DESTROY_BOOKMARKS,
 	    zfs_ioc_destroy_bookmarks, zfs_secpolicy_destroy_bookmarks,
