@@ -19,6 +19,7 @@
 /largest_file
 /libzfs_input_check
 /libzfs_mnttab_cache_check
+/lzc_destroy_bookmarks
 /manipulate_user_buffer
 /makedir
 /mkbusy
