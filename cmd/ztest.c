@@ -1006,11 +1006,12 @@ fishing:
 			    sizeof (ztest_prng_state->zs_primary_seed));
 		}
 		if (ztest_opts.zo_verbose >= 1) {
-			printf("primary_prng_seed=%016lx%016lx%016lx%016lx\n",
-			    ztest_prng_state->zs_primary_seed[0],
-			    ztest_prng_state->zs_primary_seed[1],
-			    ztest_prng_state->zs_primary_seed[2],
-			    ztest_prng_state->zs_primary_seed[3]);
+			printf("primary_prng_seed="
+			    "%016llx%016llx%016llx%016llx\n",
+			    (u_longlong_t)ztest_prng_state->zs_primary_seed[0],
+			    (u_longlong_t)ztest_prng_state->zs_primary_seed[1],
+			    (u_longlong_t)ztest_prng_state->zs_primary_seed[2],
+			    (u_longlong_t)ztest_prng_state->zs_primary_seed[3]);
 		}
 	}
 	if (atomic_load_64(&seeded) == 0) {
@@ -1022,8 +1023,10 @@ fishing:
 			xoshiro256plusplus_jump(seed);
 		atomic_inc_64(&seeded);
 		if (ztest_opts.zo_verbose >= 5) {
-			printf("thread prng_seed=%016lx%016lx%016lx%016lx\n",
-			    seed[0], seed[1], seed[2], seed[3]);
+			printf("thread prng_seed="
+			    "%016llx%016llx%016llx%016llx\n",
+			    (u_longlong_t)seed[0], (u_longlong_t)seed[1],
+			    (u_longlong_t)seed[2], (u_longlong_t)seed[3]);
 		}
 	}
 	r = xoshiro256plusplus_next(seed);
@@ -1095,7 +1098,12 @@ fishing:
 	result = thread_create_named(name, stk, stksize,
 	    ztest_fishing_thread, ftargp, len, pp, state, pri);
 	while (atomic_load_64(&ztest_prng_state->zs_jumps) == jumps) {
-		/* let this thread initialize its seed */
+		/*
+		 * Let this thread initialize its seed. Sleep briefly so
+		 * the fishing thread is not starved on a single-CPU or
+		 * heavily loaded system.
+		 */
+		usleep(1000);
 	}
 
 	return (result);
