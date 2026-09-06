@@ -1312,6 +1312,12 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		scn->scn_phys.scn_state = complete ? DSS_FINISHED :
 		    DSS_CANCELED;
 		scn->scn_phys.scn_end_time = gethrestime_sec();
+		/*
+		 * The new state, and the config and labels updated above,
+		 * reach disk when this txg syncs.  Note it so that
+		 * "zpool wait" does not return before then.
+		 */
+		scn->scn_finished_txg = tx->tx_txg;
 		spa->spa_scrub_started = B_FALSE;
 
 		/*
@@ -1345,6 +1351,7 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		scn->scn_phys.scn_state = complete ? DSS_FINISHED :
 		    DSS_CANCELED;
 		scn->scn_phys.scn_end_time = gethrestime_sec();
+		scn->scn_finished_txg = tx->tx_txg;
 	}
 
 	spa_notify_waiters(spa);

@@ -108,6 +108,11 @@ typedef struct dsl_errorscrub_phys {
  *			the scan but have not yet been processed (i.e deferred
  *			frees) are accounted for.
  *
+ * scn_finished_txg -	the txg dsl_scan_done() marked the scan finished in.
+ *			That happens in syncing context, ahead of the config
+ *			and label writes of the same txg, so the scan is still
+ *			reported as in progress until this txg has synced.
+ *
  * This structure also maintains information about deferred frees which are
  * a special kind of traversal. Deferred free can exist in either a bptree or
  * a bpobj structure. The scn_is_bptree flag will indicate the type of
@@ -118,6 +123,7 @@ typedef struct dsl_scan {
 	struct dsl_pool *scn_dp;
 	uint64_t scn_restart_txg;
 	uint64_t scn_done_txg;
+	uint64_t scn_finished_txg;
 	uint64_t scn_sync_start_time;
 	uint64_t scn_issued_before_pass;
 
