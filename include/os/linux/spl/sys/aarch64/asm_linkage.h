@@ -13,6 +13,9 @@
 #ifndef _AARCH64_SYS_ASM_LINKAGE_H
 #define	_AARCH64_SYS_ASM_LINKAGE_H
 
+#define	SECTION_TEXT .text
+#define	SECTION_STATIC .section .rodata
+
 #ifdef _ASM	/* The remainder of this file is only for assembly files */
 
 #define	ASM_ENTRY_ALIGN	2
