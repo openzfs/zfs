@@ -36,27 +36,6 @@
 #endif
 #endif
 
-static void
-seek_expect(int fd, off_t offset, int whence, off_t expect_offset)
-{
-	errno = 0;
-#if defined(SEEK_HOLE) && defined(SEEK_DATA)
-	off_t seek_offset = lseek(fd, offset, whence);
-	if (seek_offset == expect_offset)
-		return;
-
-	int err = errno;
-	fprintf(stderr, "lseek(fd, %jd, SEEK_%s) = %jd (expected %jd)",
-	    offset, (whence == SEEK_DATA ? "DATA" : "HOLE"),
-	    seek_offset, expect_offset);
-	if (err != 0)
-		fprintf(stderr, " (errno %d [%s])\n", err, strerror(err));
-	else
-		fputc('\n', stderr);
-#endif
-	exit(2);
-}
-
 static inline void
 seek_data(int fd, off_t offset, off_t expected)
 {

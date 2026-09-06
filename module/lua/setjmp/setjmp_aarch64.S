@@ -30,6 +30,7 @@
  *
  */
 
+#define _ASM
 #include <sys/asm_linkage.h>
 
 #ifdef __aarch64__
