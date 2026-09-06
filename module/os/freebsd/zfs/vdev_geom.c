@@ -1275,6 +1275,22 @@ vdev_geom_rele(vdev_t *vd)
 {
 }
 
+/*
+ * FreeBSD has no global vdev_disk state to set up or tear down; this
+ * only exists so that spa_init()/spa_fini() can call it unconditionally
+ * across all platforms.
+ */
+int
+vdev_disk_init(void)
+{
+	return (0);
+}
+
+void
+vdev_disk_fini(void)
+{
+}
+
 vdev_ops_t vdev_disk_ops = {
 	.vdev_op_init = NULL,
 	.vdev_op_fini = NULL,

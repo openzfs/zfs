@@ -234,8 +234,13 @@ libzpool_la_CPPFLAGS += -DCLOSE_ON_UNMOUNT
 nodist_libzpool_la_SOURCES += module/os/macos/zfs/vdev_file_os.c
 endif
 
+if BUILD_LINUX
+nodist_libzpool_la_SOURCES += module/os/linux/zfs/vdev_file_os.c
+endif
+
 if BUILD_FREEBSD
 libzpool_la_LIBADD += -lgeom
+nodist_libzpool_la_SOURCES += module/os/freebsd/zfs/vdev_file_os.c
 endif
 
 if TARGET_CPU_POWERPC

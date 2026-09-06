@@ -219,6 +219,7 @@ SRCS+=	abd_os.c \
 	spa_os.c \
 	sysctl_os.c \
 	vdev_geom.c \
+	vdev_file_os.c \
 	vdev_label_os.c \
 	zfs_acl.c \
 	zfs_ctldir.c \

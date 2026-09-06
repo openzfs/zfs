@@ -469,6 +469,7 @@ ZFS_OBJS_OS := \
 	spa_misc_os.o \
 	trace.o \
 	vdev_disk.o \
+	vdev_file_os.o \
 	vdev_raidz.o \
 	vdev_label_os.o \
 	zfs_acl.o \
