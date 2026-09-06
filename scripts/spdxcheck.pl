@@ -343,6 +343,7 @@ my %override_file_license_tags = (
 	'CDDL-1.0' => [qw(
 		include/os/linux/spl/sys/errno.h
 		include/os/linux/spl/sys/ia32/asm_linkage.h
+		include/os/linux/spl/sys/aarch64/asm_linkage.h
 		include/os/linux/spl/sys/misc.h
 		include/os/linux/spl/sys/procfs_list.h
 		include/os/linux/spl/sys/trace.h
