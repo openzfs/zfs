@@ -11,7 +11,8 @@
 # default numbering is unsatisfactory.  The drive aliases will be
 # created as symbolic links in /dev/disk/by-vdev.
 #
-# The currently supported topologies are sas_direct and sas_switch.
+# The currently supported topologies are sas_direct, sas_expander
+# and sas_switch.
 # A multipath mode is supported in which dm-mpath devices are
 # handled by examining the first-listed running component disk.  In
 # multipath mode the configuration file should contain a channel
@@ -54,6 +55,18 @@
 # slot 2          2
 # slot 3          1
 # slot 4          3
+
+# #
+# # Example vdev_id.conf - sas_expander
+# #
+#
+# topology sas_expander
+#
+# #       EXPANDER ADDR      CHANNEL NAME
+# channel 0x500304000000000f J1A
+# channel 0x500304000000001f J1B
+# channel 0x500304000000002f J2A
+# channel 0x500304000000003f J2B
 
 # #
 # # Example vdev_id.conf - sas_switch
@@ -130,7 +143,7 @@ usage() {
 	cat << EOF
 Usage: vdev_id [-h]
        vdev_id <-d device> [-c config_file] [-p phys_per_port]
-               [-g sas_direct|sas_switch|scsi] [-m]
+               [-g sas_direct|sas_expander|sas_switch|scsi] [-m]
 
   -c    specify name of an alternative config file [default=$CONFIG]
   -d    specify basename of device (i.e. sda)
@@ -162,6 +175,7 @@ map_channel() {
 	MAPPED_CHAN=
 	PCI_ID=$1
 	PORT=$2
+	EXPANDER=$3
 
 	case $TOPOLOGY in
 		"sas_switch")
@@ -173,6 +187,11 @@ map_channel() {
 		MAPPED_CHAN=$(awk -v pciID="$PCI_ID" -v port="$PORT" \
 			'$1 == "channel" && $2 == pciID && $3 == port \
 			{print $4}' $CONFIG)
+		;;
+		"sas_expander")
+		MAPPED_CHAN=$(awk -v expaddr="$EXPANDER" \
+			'$1 == "channel" && tolower($2) == tolower(expaddr) \
+			{print $3; exit}' $CONFIG)
 		;;
 	esac
 	printf "%s" "${MAPPED_CHAN}"
@@ -383,7 +402,7 @@ sas_handler() {
 
 	case $TOPOLOGY in
 		"sas_switch") j=$((i + 4)) ;;
-		"sas_direct") j=$((i + 1)) ;;
+		"sas_direct"|"sas_expander") j=$((i + 1)) ;;
 	esac
 
 	i=$((i + 1))
@@ -403,15 +422,27 @@ sas_handler() {
 	# attribute.
 	end_device_dir=$port_dir
 
+	expander_dev=
 	while [ $i -lt "$num_dirs" ] ; do
 		d=$(eval echo '$'{$i})
 		end_device_dir="$end_device_dir/$d"
-		if echo "$d" | grep -q '^end_device' ; then
+		case $d in
+		expander-*)
+			expander_dev="$d"
+			;;
+		end_device*)
 			end_device_dir="$end_device_dir/sas_device/$d"
 			break
-		fi
+			;;
+		esac
 		i=$((i + 1))
 	done
+
+	EXPANDER=
+	if [ -n "$expander_dev" ] ; then
+		EXPANDER=$(cat \
+			"/sys/class/sas_device/$expander_dev/sas_address" 2>/dev/null)
+	fi
 
 	# Add 'mix' slot type for environments where dm-multipath devices
 	# include end-devices connected via SAS expanders or direct connection
@@ -480,7 +511,7 @@ sas_handler() {
 	fi
 
 	if [ "$MULTIJBOD_MODE" = "yes" ] ; then
-		CHAN=$(map_channel "$PCI_ID" "$PORT")
+		CHAN=$(map_channel "$PCI_ID" "$PORT" "$EXPANDER")
 		SLOT=$(map_slot "$SLOT" "$CHAN")
 		JBOD=$(map_jbod "$DEV")
 
@@ -489,7 +520,7 @@ sas_handler() {
 		fi
 		echo "${CHAN}"-"${JBOD}"-"${SLOT}${LUN}${PART}"
 	else
-		CHAN=$(map_channel "$PCI_ID" "$PORT")
+		CHAN=$(map_channel "$PCI_ID" "$PORT" "$EXPANDER")
 		SLOT=$(map_slot "$SLOT" "$CHAN")
 
 		if [ -z "$CHAN" ] ; then
@@ -614,7 +645,7 @@ scsi_handler() {
 		return
 	fi
 
-	CHAN=$(map_channel "$PCI_ID" "$PORT")
+	CHAN=$(map_channel "$PCI_ID" "$PORT" "")
 	SLOT=$(map_slot "$SLOT" "$CHAN")
 
 	if [ -z "$CHAN" ] ; then
@@ -809,7 +840,7 @@ ID_VDEV=$(alias_handler)
 if [ -z "$ID_VDEV" ] ; then
 	BAY=${BAY:-bay}
 	case $TOPOLOGY in
-		sas_direct|sas_switch)
+		sas_direct|sas_switch|sas_expander)
 			ID_VDEV=$(sas_handler)
 			;;
 		scsi)
