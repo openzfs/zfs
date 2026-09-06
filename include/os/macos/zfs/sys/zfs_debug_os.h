@@ -9,30 +9,11 @@
  * source.  A copy of the CDDL is also available via the Internet at
  * https://opensource.org/license/CDDL-1.0.
  */
-/*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
- * Use is subject to license terms.
- */
 
-#ifndef _SYS_VDEV_FILE_H
-#define	_SYS_VDEV_FILE_H
+#ifndef _SYS_ZFS_DEBUG_OS_H
+#define	_SYS_ZFS_DEBUG_OS_H
 
-#include <sys/vdev.h>
+#define	 SET_ERROR(err) \
+	(__set_error(__FILE__, __func__, __LINE__, err), err)
 
-#ifdef	__cplusplus
-extern "C" {
-#endif
-
-typedef struct vdev_file {
-	zfs_file_t	*vf_file;
-} vdev_file_t;
-
-extern void vdev_file_init(void);
-extern void vdev_file_fini(void);
-extern int vdev_file_os_io_start(zio_t *zio);
-
-#ifdef	__cplusplus
-}
-#endif
-
-#endif	/* _SYS_VDEV_FILE_H */
+#endif	/* _SYS_ZFS_DEBUG_OS_H */

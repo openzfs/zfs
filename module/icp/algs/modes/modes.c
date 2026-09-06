@@ -165,8 +165,15 @@ gcm_clear_ctx(gcm_ctx_t *ctx)
 		ASSERT3P(ctx->gcm_Htable, !=, NULL);
 		explicit_memset(ctx->gcm_Htable, 0, ctx->gcm_htab_len);
 		kmem_free(ctx->gcm_Htable, ctx->gcm_htab_len);
+		ctx->gcm_Htable = NULL;
 	}
 #endif
+	if (ctx->gcm_Htable) {
+		ASSERT3P(ctx->gcm_Htable, !=, NULL);
+		memset(ctx->gcm_Htable, 0, ctx->gcm_htab_len);
+		kmem_free(ctx->gcm_Htable, ctx->gcm_htab_len);
+	}
+
 	if (ctx->gcm_pt_buf != NULL) {
 		explicit_memset(ctx->gcm_pt_buf, 0, ctx->gcm_pt_buf_len);
 		vmem_free(ctx->gcm_pt_buf, ctx->gcm_pt_buf_len);

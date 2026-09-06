@@ -312,6 +312,29 @@ elif sys.platform.startswith('linux'):
 
             name, unused, value = s.split()
             kstat[name] = int(value)
+elif sys.platform.startswith('darwin'):
+    import subprocess
+
+    def kstat_update():
+        global kstat
+
+        process = subprocess.Popen(['sysctl', 'kstat.zfs.misc.arcstats',
+                                    'kstat.zfs.misc.zfetchstats'],
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT)
+        kstats = process.communicate()[0].decode('ascii').splitlines()
+
+        kstat = {}
+        for l in kstats:
+            items = l.split(':')
+            name = items[0]
+            value = items[1].strip()
+
+            if "arcstats" in name:
+                # Trims 'kstat.zfs.misc.arcstats' from the name
+                kstat[name[24:]] = int(value)
+            else:
+                kstat["zfetch_" + name[27:]] = int(value)
 
 
 def detailed_usage():

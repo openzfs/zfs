@@ -31,9 +31,13 @@
 static inline int
 fdatasync(int fd)
 {
+#ifdef F_FULLFSYNC
 	if (fcntl(fd, F_FULLFSYNC) == -1)
 		return (-1);
 	return (0);
+#else
+	return (fsync(fd));
+#endif
 }
 
 #ifndef _SC_PHYS_PAGES
@@ -68,7 +72,7 @@ pipe2(int fildes[2], int flags)
 	return (0);
 }
 
-#if !defined(MAC_OS_X_VERSION_10_12) || \
+#if defined(MAC_OS_X_VERSION_10_12) && \
 	(MAC_OS_X_VERSION_MIN_REQUIRED < MAC_OS_X_VERSION_10_12)
 #define	mkostemp(template, oflag) mkstemp((template))
 #define	mkostemps(template, slen, oflag) mkstemps((template), (slen))
