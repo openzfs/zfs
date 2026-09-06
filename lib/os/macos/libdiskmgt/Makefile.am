@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 
 libdiskmgt_la_CFLAGS  = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
 libdiskmgt_la_CFLAGS += -fvisibility=default

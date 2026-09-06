@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 FS_BUNDLEPREFIX = /Library/Filesystems
 FS_BUNDLEDIR = $(DESTDIR)$(FS_BUNDLEPREFIX)/zfs.fs
 

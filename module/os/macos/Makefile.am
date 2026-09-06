@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 # Makefile used only by macOS. Should define no dependencies for
 # other platforms.
 

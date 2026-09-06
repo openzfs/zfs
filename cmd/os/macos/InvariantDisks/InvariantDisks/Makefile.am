@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: BSD-3-Clause
 sbin_PROGRAMS   += InvariantDisks
 CPPCHECKTARGETS += InvariantDisks
 

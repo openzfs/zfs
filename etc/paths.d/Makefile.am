@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 pathsddir = $(sysconfdir)/paths.d
 pathsd_DATA = %D%/zfs-path
 

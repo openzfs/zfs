@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 sbin_PROGRAMS   += zfs_util
 CPPCHECKTARGETS += zfs_util
 

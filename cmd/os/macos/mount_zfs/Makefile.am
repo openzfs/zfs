@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 #
 # Linux steals the "mount_zfs" name first, and since it's one
 # giant Makefile you can no longer have two tools with the same name.

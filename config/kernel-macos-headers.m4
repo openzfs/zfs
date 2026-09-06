@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # macOS - attempt to find kernel headers. This is expected to
 dnl # only run on mac platforms (using xcrun command) to iterate

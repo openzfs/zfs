@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: APSL-2.0
 /*
  * Copyright © 2003-2012 Apple Inc. All rights reserved.
  *

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Zlib
 /*
  *  zlib.h -- interface of the 'zlib' general purpose compression library
  *  version 1.2.5, April 19th, 2010

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: OpenSSL-standalone
 /*
  * ====================================================================
  * Copyright (c) 1998-2008 The OpenSSL Project.  All rights reserved.

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 
 
 AC_DEFUN([ZFS_AC_MACOS_IMPURE_ENABLE], [

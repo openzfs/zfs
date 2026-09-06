@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 KERNEL_H = \
 	$(top_srcdir)/include/os/macos/zfs/sys/kstat_osx.h \
 	$(top_srcdir)/include/os/macos/spl/sys/ldi_buf.h \
