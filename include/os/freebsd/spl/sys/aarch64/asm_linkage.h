@@ -13,6 +13,8 @@
 #ifndef _AARCH64_SYS_ASM_LINKAGE_H
 #define	_AARCH64_SYS_ASM_LINKAGE_H
 
+#ifdef _ASM	/* The remainder of this file is only for assembly files */
+
 #define	ASM_ENTRY_ALIGN	2
 
 /*
@@ -47,5 +49,7 @@ x:
  * LOCAL_LABEL defines a label which should not appear in the symbol table.
  */
 #define	LOCAL_LABEL(x) .L##x
+
+#endif /* _ASM */
 
 #endif	/* _AARCH64_SYS_ASM_LINKAGE_H */
