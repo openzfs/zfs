@@ -34,7 +34,8 @@ verify_runnable "both"
 function cleanup
 {
 	zinject -c all
-	datasetexists $TESTPOOL && destroy_pool $TESTPOOL
+	mmp_clear_suspended $TESTPOOL
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 	log_must mmp_clear_hostid
 }
 

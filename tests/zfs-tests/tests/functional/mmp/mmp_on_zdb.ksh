@@ -38,7 +38,8 @@
 
 function cleanup
 {
-	datasetexists $TESTPOOL && destroy_pool $TESTPOOL
+	mmp_clear_suspended $TESTPOOL
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 	for DISK in $DISKS; do
 		zpool labelclear -f $DEV_RDSKDIR/$DISK
 	done
