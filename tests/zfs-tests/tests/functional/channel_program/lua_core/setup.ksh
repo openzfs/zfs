@@ -21,4 +21,12 @@ zcp_support $TESTPOOL || log_unsupported "zfs channel programs are unavailable"
 
 DISK=${DISKS%% *}
 
+if [[ "$(uname -m)" == "aarch64" ]]; then
+	if is_linux && awk '/^CPU implementer/ {exit !/0x61/}' /proc/cpuinfo; then
+		log_unsupported "Not supported on Apple Silicon"
+	elif is_freebsd && sysctl machdep.cpu.brand_string | grep -q Apple; then
+		log_unsupported "Not supported on Apple Silicon"
+	fi
+fi
+
 default_setup ${DISK}
