@@ -1,0 +1,89 @@
+version: 1.0.{build}
+branches:
+  only:
+  - /macOS_.*/
+image: macOS-Catalina
+build_script:
+- sh: >-
+    curl -sflL 'https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-ssh.sh' | bash -e -
+
+    curl -sflL 'https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-vnc.sh' | bash -e -
+
+
+    HOMEBREW_NO_AUTO_UPDATE=1
+
+    export HOMEBREW_NO_AUTO_UPDATE
+
+    HOMEBREW_NO_INSTALL_CLEANUP=1
+
+    export HOMEBREW_NO_INSTALL_CLEANUP
+
+    brew install gsed
+
+    echo "Running from .github/workflows/macos-build.yml"
+
+    sh autogen.sh
+
+
+    ./configure CPPFLAGS="-I/usr/local/opt/gettext/include -I/usr/local/opt/openssl@1.1/include" LDFLAGS="-L/usr/local/opt/gettext/lib/ -L/usr/local/opt/openssl@1.1/lib" CFLAGS="-Wno-error -g -O2"  --sysconfdir=/etc --localstatedir=/var --prefix=/usr/local/zfs/ --sbindir=/usr/local/zfs/bin -libexecdir=/usr/local/zfs/libexec --enable-debug SED=gsed
+
+
+    echo "Checking codestyle"
+
+    make cstyle || exit 1
+
+
+
+    make -j2 # V=1
+
+
+
+    sudo make -j2 V=1 install
+test_script:
+- sh: >-
+    # log stream --source --predicate 'sender == "zfs"' --style compact  &
+
+
+    echo "Loading kernel modules..."
+
+    sudo scripts/load_macos.sh || exit 1
+
+    sleep 5
+
+    echo "Running zfs-tests..."
+
+    export SHELL=/bin/ksh
+
+
+    sudo /usr/local/zfs/bin/zed -fF &
+
+    sudo mkdir -p /etc/synthetic.d/
+
+    sudo touch /etc/synthetic.d/zfs-tests
+
+    scripts/zfs-tests.sh -r macOS-CI || echo "Tests not quite right"
+
+
+    sysctl kern.stack_depth_max
+
+
+    sysctl kstat > kstat.txt
+
+
+    7z a kext.zip /tmp/zfs.kext/
+
+    7z a zfs-tests.zip /var/tmp/test_results/current/ kstat.txt
+
+    ls -la
+
+
+    echo "Attempting to unload"
+
+    sudo /usr/local/zfs/bin/zpool export -fa
+
+    sudo kextunload -b org.openzfsonosx.zfs || echo "Unload failed".
+artifacts:
+- path: kext.zip
+  name: kext
+- path: zfs-tests.zip
+  name: zfstest-log

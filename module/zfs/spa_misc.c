@@ -712,7 +712,7 @@ spa_deadman(void *arg)
 	zfs_dbgmsg("slow spa_sync: started %llu seconds ago, calls %llu",
 	    (getlrtime() - spa->spa_sync_starttime) / NANOSEC,
 	    (u_longlong_t)++spa->spa_deadman_calls);
-	if (zfs_deadman_enabled)
+	if (zfs_deadman_enabled && spa->spa_root_vdev != NULL)
 		vdev_deadman(spa->spa_root_vdev, FTAG);
 
 	spa->spa_deadman_tqid = taskq_dispatch_delay(system_delay_taskq,
@@ -2667,6 +2667,9 @@ spa_init(spa_mode_t mode)
 	vdev_mirror_stat_init();
 	vdev_raidz_math_init();
 	vdev_file_init();
+#ifdef _KERNEL
+	vdev_disk_init();
+#endif
 	zfs_prop_init();
 	chksum_init();
 	zpool_prop_init();
@@ -2683,6 +2686,9 @@ spa_fini(void)
 {
 	spa_evict_all();
 
+#ifdef _KERNEL
+	vdev_disk_fini();
+#endif
 	vdev_file_fini();
 	vdev_mirror_stat_fini();
 	vdev_raidz_math_fini();

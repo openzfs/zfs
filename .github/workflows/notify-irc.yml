@@ -1,0 +1,36 @@
+
+name: Notify IRC
+
+on:
+  push:
+  issues:
+    types:
+      - opened
+      - edited
+      - closed
+  issue_comment:
+  pull_request:
+  discussion:
+    types:
+      - created
+      - edited
+      - closed
+      - answered
+  discussion_comment:
+  create:
+  delete:
+
+jobs:
+  notify-irc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Notify IRC
+        uses: openzfsonwindows/notify-irc@v2
+        with:
+          channel: "#openzfs-macos"
+          server: "irc.libera.chat"
+          nickname: "zfs_consus"
+          mirccolor: "true"
+          eventpath: ${{ github.event_path }}
+

@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>English</string>
+	<key>CFBundleIdentifier</key>
+	<string>org.openzfsonosx.filesystems.zfs</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>zfs</string>
+	<key>CFBundlePackageType</key>
+	<string>fs  </string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.5.2</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>1.5.2</string>
+	<key>FSMediaTypes</key>
+	<dict>
+		<key>ZFS_Dataset</key>
+		<dict>
+			<key>FSMediaProperties</key>
+			<dict>
+				<key>Content Hint</key>
+				<string>ZFS_Dataset</string>
+				<key>Leaf</key>
+				<true/>
+			</dict>
+			<key>FSProbeArguments</key>
+			<string>-p</string>
+			<key>FSProbeExecutable</key>
+			<string>zfs_util</string>
+			<key>FSProbeOrder</key>
+			<integer>1000</integer>
+			<key>autodiskmount</key>
+			<false/>
+		</dict>
+		<key>6A898CC3-1DD2-11B2-99A6-080020736631</key>
+		<dict>
+			<key>FSMediaProperties</key>
+			<dict>
+				<key>Content Hint</key>
+				<string>6A898CC3-1DD2-11B2-99A6-080020736631</string>
+				<key>Leaf</key>
+				<true/>
+			</dict>
+			<key>FSProbeArguments</key>
+			<string>-p</string>
+			<key>FSProbeExecutable</key>
+			<string>zfs_util</string>
+			<key>FSProbeOrder</key>
+			<integer>850</integer>
+			<key>autodiskmount</key>
+			<false/>
+		</dict>
+                <key>Whole</key>
+                <dict>
+                        <key>FSMediaProperties</key>
+                        <dict>
+                                <key>Leaf</key>
+                                <true/>
+                                <key>Whole</key>
+                                <true/>
+                        </dict>
+                        <key>FSProbeArguments</key>
+                        <string>-p</string>
+                        <key>FSProbeExecutable</key>
+                        <string>zfs_util</string>
+                        <key>FSProbeOrder</key>
+                        <integer>20000</integer>
+						<key>autodiskmount</key>
+						<false/>
+                </dict>
+	</dict>
+	<key>FSPersonalities</key>
+	<dict>
+		<key>ZFS</key>
+		<dict>
+			<key>FSName</key>
+			<string>ZFS</string>
+		<!--			<key>FSFormatInteractive</key>
+			<false/> -->
+			<key>FSFormatArguments</key>
+			<string></string>
+			<key>FSFormatContentMask</key>
+			<string>ZFS_Dataset</string>
+			<key>FSFormatExecutable</key>
+			<string>zfs_util</string>
+			<key>FSMountExecutable</key>
+			<string>zfs_util</string>
+			<key>FSMountArguments</key>
+			<string></string>
+			<key>FSVerificationExecutable</key>
+			<string>fsck_zfs</string>
+			<key>FSVerificationArguments</key>
+			<string></string>
+			<key>FSLiveVerificationArguments</key>
+			<string></string>
+			<key>FSXMLOutputArgument</key>
+			<string>-x</string>
+			<key>FSRepairExecutable</key>
+			<string>fsck_zfs</string>
+			<key>FSRepairArguments</key>
+			<string></string>
+			<key>FSFormatMinimumSize</key>
+			<integer>268435456</integer>
+			<key>FSFormatMaximumSize</key>
+			<integer>9223372034707292160</integer>
+			<key>autodiskmount</key>
+			<false/>
+		</dict>
+		<key>ZFS Pool</key>
+		<dict>
+			<key>FSName</key>
+			<string>ZFS Pool</string>
+			<key>FSSubType</key>
+			<integer>0</integer>
+		</dict>
+		<key>ZFS Dataset</key>
+		<dict>
+			<key>FSName</key>
+			<string>ZFS Dataset</string>
+			<key>FSSubType</key>
+			<integer>1</integer>
+		</dict>
+	</dict>
+</dict>
+</plist>

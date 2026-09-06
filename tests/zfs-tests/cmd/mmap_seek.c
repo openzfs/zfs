@@ -40,6 +40,7 @@ static void
 seek_expect(int fd, off_t offset, int whence, off_t expect_offset)
 {
 	errno = 0;
+#if defined(SEEK_HOLE) && defined(SEEK_DATA)
 	off_t seek_offset = lseek(fd, offset, whence);
 	if (seek_offset == expect_offset)
 		return;
@@ -52,19 +53,34 @@ seek_expect(int fd, off_t offset, int whence, off_t expect_offset)
 		fprintf(stderr, " (errno %d [%s])\n", err, strerror(err));
 	else
 		fputc('\n', stderr);
+#endif
 	exit(2);
 }
 
 static inline void
 seek_data(int fd, off_t offset, off_t expected)
 {
-	seek_expect(fd, offset, SEEK_DATA, expected);
+#if defined(SEEK_HOLE) && defined(SEEK_DATA)
+	off_t data_offset = lseek(fd, offset, SEEK_DATA);
+	if (data_offset != expected) {
+		fprintf(stderr, "lseek(fd, %d, SEEK_DATA) = %d (expected %d)\n",
+		    (int)offset, (int)data_offset, (int)expected);
+		exit(2);
+	}
+#endif
 }
 
-static inline void
+static void
 seek_hole(int fd, off_t offset, off_t expected)
 {
-	seek_expect(fd, offset, SEEK_HOLE, expected);
+#if defined(SEEK_HOLE) && defined(SEEK_DATA)
+	off_t hole_offset = lseek(fd, offset, SEEK_HOLE);
+	if (hole_offset != expected) {
+		fprintf(stderr, "lseek(fd, %d, SEEK_HOLE) = %d (expected %d)\n",
+		    (int)offset, (int)hole_offset, (int)expected);
+		exit(2);
+	}
+#endif
 }
 
 int

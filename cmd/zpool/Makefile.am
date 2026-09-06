@@ -25,6 +25,10 @@ zpool_SOURCES += \
 	%D%/os/linux/zpool_vdev_os.c
 endif
 
+if BUILD_MACOS
+zpool_SOURCES += %D%/os/macos/zpool_vdev_os.c
+endif
+
 zpool_LDADD = \
 	libzfs.la \
 	libzfs_core.la \
@@ -36,6 +40,12 @@ zpool_LDADD += $(LTLIBINTL)
 if BUILD_FREEBSD
 zpool_LDADD += -lgeom
 endif
+
+if BUILD_MACOS
+zpool_LDFLAGS  = -sectcreate __TEXT __info_plist %D%/os/macos/Info-zpool.plist
+zpool_LDFLAGS += -sectcreate __TEXT __entitlements %D%/os/macos/zpool-entitlements.plist
+endif
+
 zpool_LDADD += -lm $(LIBBLKID_LIBS) $(LIBUUID_LIBS)
 
 dist_noinst_DATA += %D%/zpool.d/README
@@ -152,6 +162,7 @@ dist_zpoolcompat_DATA = \
 	%D%/compatibility.d/openzfsonosx-1.7.0 \
 	%D%/compatibility.d/openzfsonosx-1.8.1 \
 	%D%/compatibility.d/openzfsonosx-1.9.3 \
+	%D%/compatibility.d/openzfsonosx-2.1.6 \
 	%D%/compatibility.d/zol-0.6.1 \
 	%D%/compatibility.d/zol-0.6.4 \
 	%D%/compatibility.d/zol-0.6.5 \
