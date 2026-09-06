@@ -20,6 +20,7 @@
  * - modified assembly to fit into OpenZFS
  */
 
+#define _ASM
 #include <sys/asm_linkage.h>
 
 #if defined(__aarch64__)
