@@ -1,14 +1,4 @@
 # SPDX-License-Identifier: CDDL-1.0
-pathsddir = $(sysconfdir)/paths.d
-pathsd_DATA = %D%/zfs-path
-
-paths_ddir = $(sysconfdir)/paths.d/
-dist_paths_d_DATA = \
-	%D%/zfs-path
-
-SUBSTFILES += $(dist_paths_d_DATA)
-
-CLEANFILES += $(pathsd_DATA)
 CLEANFILES += %D%/zfs-path
 
 INSTALL_DATA_HOOKS += pathsd-data-hook
