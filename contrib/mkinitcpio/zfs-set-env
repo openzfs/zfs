@@ -1,0 +1,43 @@
+#!/usr/bin/sh
+# shellcheck shell=ash
+set -e
+
+CMDLINE=${DEBUG_CMDLINE:-/proc/cmdline}
+
+# usage: log "message" [level]
+log() {
+  echo "<${2:-6}>$1"
+}
+
+mode=$(parse-cmdline "$CMDLINE")
+log "mode: $mode"
+
+case $mode in
+  import_all)
+    if dSet=$(zpool list -Ho bootfs | grep -m1 -vFx -); then
+      :
+    else
+      log "no pool with bootfs property found" 2
+      exit 1
+    fi
+    ;;
+  import)
+    pool=$(parse-cmdline -v command=pool "$CMDLINE")
+    if dSet=$(zpool list -Ho bootfs "$pool" | grep -m1 -vFx -); then
+      :
+    else
+      log "no bootfs property found for pool $pool" 2
+      exit 1
+    fi
+    ;;
+  dataset)
+    dSet=$(parse-cmdline -v command=dataset "$CMDLINE")
+    ;;
+  none)
+    log "no zfs root specified" 2
+    exit 1
+    ;;
+esac
+
+log "setting ROOT_DATASET to $dSet"
+exec systemctl set-environment ROOT_DATASET="$dSet"

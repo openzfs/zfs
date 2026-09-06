@@ -1,0 +1,72 @@
+#!/usr/bin/bash
+
+true || source /usr/lib/initcpio/functions
+true || source /usr/lib/initcpio/install/systemd
+
+build() {
+  map add_module \
+    zfs \
+    spl
+
+  map add_file \
+    /usr/lib/udev/rules.d/60-zvol.rules \
+    /usr/lib/udev/rules.d/69-vdev.rules \
+    /usr/lib/udev/rules.d/90-zfs.rules
+
+  map add_binary \
+    mount.zfs \
+    zfs \
+    zpool
+
+  add_systemd_unit "systemd-udev-settle.service"
+
+  {
+    copied_files=(
+      /etc/hostid
+    )
+
+    for f in "${copied_files[@]}"; do
+      add_file "$f"
+    done
+
+	  # Include hostid when it's not written to file
+    if [[ ! -f /etc/hostid ]]; then
+      AA="$(hostid | cut -b 1,2)"
+      BB="$(hostid | cut -b 3,4)"
+      CC="$(hostid | cut -b 5,6)"
+      DD="$(hostid | cut -b 7,8)"
+      printf "\x${DD}\x${CC}\x${BB}\x${AA}" > "${BUILDROOT}/etc/hostid"
+    fi
+  }
+
+  add_binary /usr/lib/systemd/system-generators/systemd-debug-generator
+
+  # generator and its dependencies
+  add_binary /usr/lib/zfs/initcpio/zfs-root-generator /usr/lib/systemd/system-generators/
+  add_binary /usr/lib/zfs/initcpio/zfs-set-env /usr/bin/
+  add_binary /usr/lib/zfs/initcpio/parse-cmdline /usr/bin/
+
+  add_binary /usr/lib/initcpio/busybox /usr/bin/
+  for applet in $(/usr/lib/initcpio/busybox --list); do
+    add_symlink "/usr/bin/$applet" busybox
+  done
+}
+
+help() {
+  cat << EOF
+This hook adds ZFS support for systemd-based initrd.
+It has a hard dependency on the systemd hook. Since it's implemented
+using shell scripts, it still requires busybox and will copy it to
+the initrd if you don't have the base hook.
+
+To use this hook, simply add it to your HOOKS array in mkinitcpio.conf.
+You'll also need to change the kernel command line. The supported cmdline
+formats are:
+  1. root=zfs, which imports all pools in initrd, searches for the
+     first pool with the bootfs property set, and then mounts bootfs as root.
+  2. root=zfs:poolname, which imports only the specified pool and then mounts
+     the pool's bootfs as root.
+  3. root=zfs:poolname/dataset, which imports only the specified pool and then
+     mounts the specified dataset as root.
+EOF
+}
