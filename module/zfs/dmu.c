@@ -2885,6 +2885,7 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 	dbuf_dirty_record_t *dr;
 	const blkptr_t *bp;
 	int error = 0, i, numbufs;
+	uint64_t accounted = 0, pinned_charge = 0;
 
 	spa = os->os_spa;
 
@@ -2941,6 +2942,41 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 		dl->dr_brtwrite = B_TRUE;
 		dl->dr_override_state = DR_OVERRIDDEN;
 
+		/*
+		 * The charge decides when the dirty throttle trips, and
+		 * neither obvious value works.  What a clone really pins
+		 * is the dbuf and its dirty record, a few hundred bytes,
+		 * which never reaches zfs_dirty_data_max and so bounds
+		 * nothing.  db_size, what dmu_write_direct() charges for
+		 * the other DB_NOFILL producer, throttles 11x to 347x too
+		 * early because no data buffer is held at all.
+		 *
+		 * Scale the real cost by how much larger the dirty limit
+		 * is than the ARC target, so the throttle trips just as
+		 * the pinned dbufs would fill the ARC.  The two limits are
+		 * independent, one derived from memory and one from the
+		 * ARC target, and it is the ARC that this overruns.
+		 *
+		 * dr_accounted has to be per record, because dbuf_undirty()
+		 * subtracts it again one record at a time.  The pool-wide
+		 * total does not: sum it here and hand it over once below.
+		 * dmu_objset_willuse_space() takes dd_lock and dp_lock, and
+		 * paying that per block is what made an earlier version of
+		 * this 30x slower on a file reflinked onto itself, where
+		 * every block shares one BRT entry and the baseline cost
+		 * per block is only a refcount bump.
+		 */
+		if (pinned_charge == 0) {
+			uint64_t pin = sizeof (dmu_buf_impl_t) +
+			    sizeof (dbuf_dirty_record_t);
+			uint64_t arcmax = arc_target_bytes();
+			pinned_charge = (arcmax == 0) ? pin :
+			    MAX(pin, (pin * zfs_dirty_data_max) / arcmax);
+			pinned_charge = MIN(pinned_charge, db->db.db_size);
+		}
+		dr->dr_accounted = pinned_charge;
+		accounted += dr->dr_accounted;
+
 		mutex_exit(&db->db_mtx);
 
 		/*
@@ -2953,6 +2989,9 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 		}
 	}
 out:
+	if (accounted != 0)
+		dmu_objset_willuse_space(os, accounted, tx);
+
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 
 	return (error);
