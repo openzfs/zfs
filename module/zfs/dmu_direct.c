@@ -252,8 +252,15 @@ dmu_read_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 
 	ASSERT(flags & DMU_DIRECTIO);
 
+	/*
+	 * Direct I/O reads never attach ARC data, so an uncached block's
+	 * dbuf is destroyed on release.  Create such dbufs ephemeral (never
+	 * published to the dbuf hash table or the dnode's dbuf list) so they
+	 * are destroyed on release without taking dn_dbufs_mtx.  Cached and
+	 * in-flight (dirty write / clone) blocks are unaffected.
+	 */
 	err = dmu_buf_hold_array_by_dnode(dn, offset,
-	    size, B_FALSE, FTAG, &numbufs, &dbp, flags);
+	    size, B_FALSE, FTAG, &numbufs, &dbp, flags | DMU_NO_PUBLISH);
 	if (err)
 		return (err);
 
