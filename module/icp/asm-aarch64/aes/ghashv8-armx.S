@@ -53,6 +53,8 @@
 
 #if defined(__aarch64__)
 
+.arch	armv8-a+crypto
+
 /*
  *
  * OpenSSL interface:
