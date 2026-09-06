@@ -26,6 +26,7 @@
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_os.h>
+#include <sys/vdev_disk.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
 #include <vm/vm_page.h>
