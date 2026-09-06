@@ -1112,12 +1112,6 @@ _LIBZFS_H int getextmntent(const char *, struct extmnttab *,
 _LIBZFS_H int do_mount(zfs_handle_t *, const char *, const char *, int);
 #endif
 
-/*
- * Manual mounting of snapshots.
- */
-extern int zfs_snapshot_mount(zfs_handle_t *, const char *, int);
-extern int zfs_snapshot_unmount(zfs_handle_t *, int);
-
 #ifdef	__cplusplus
 }
 #endif

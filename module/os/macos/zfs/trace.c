@@ -23,7 +23,6 @@
 #include <sys/dsl_dataset.h>
 #include <sys/dmu_tx.h>
 #include <sys/dnode.h>
-#include <sys/multilist.h>
 #include <sys/zfs_znode.h>
 #include <sys/zil_impl.h>
 #include <sys/zrlock.h>
