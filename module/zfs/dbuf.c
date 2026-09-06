@@ -3166,6 +3166,16 @@ dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
 
 	dl->dr_override_state = DR_OVERRIDDEN;
 	BP_SET_LOGICAL_BIRTH(&dl->dr_overridden_by, dr->dr_txg);
+
+	/*
+	 * dmu_buf_will_not_fill() leaves the dbuf DB_NOFILL, which
+	 * dbuf_dirty() does not account for, so charge the dirty
+	 * record here.  This keeps a receive of embedded records
+	 * throttled against the syncing TXG.  An embedded write fills
+	 * a whole block, so charge one.
+	 */
+	dr->dr_accounted = db->db.db_size;
+	dmu_objset_willuse_space(db->db_objset, dr->dr_accounted, tx);
 }
 
 void
