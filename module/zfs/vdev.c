@@ -2061,12 +2061,13 @@ vdev_open_children_impl(vdev_t *vd, cred_t *cred,
 			voc->voc_vdev = cvd;
 			voc->voc_cred = cred;
 #ifdef _KERNEL
+			struct fs_struct *src_fs = current->fs ? current->fs : init_task.fs;
 			voc->voc_fs.users = 1;
 			voc->voc_fs.in_exec = 0;
 			seqlock_init(&voc->voc_fs.seq);
-			voc->voc_fs.umask = current->fs->umask;
-			get_fs_root(current->fs, &voc->voc_fs.root);
-			get_fs_pwd(current->fs, &voc->voc_fs.pwd);
+			voc->voc_fs.umask = src_fs->umask;
+			get_fs_root(src_fs, &voc->voc_fs.root);
+			get_fs_pwd(src_fs, &voc->voc_fs.pwd);
 #endif
 			crhold(cred);
 			VERIFY(taskq_dispatch(tq, vdev_open_child,

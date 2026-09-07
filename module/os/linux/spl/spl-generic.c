@@ -50,7 +50,11 @@
 #include <sys/cred.h>
 #include <sys/vnode.h>
 #include <sys/misc.h>
-#include <linux/mod_compat.h>
+#include <linux/sched.h>
+#include <linux/init_task.h>
+#include <linux/seqlock.h>
+#include <linux/version.h>
+
 
 unsigned long spl_hostid = 0;
 EXPORT_SYMBOL(spl_hostid);
@@ -407,7 +411,29 @@ hostid_read(uint32_t *hostid)
 	struct file *filp;
 	struct kstat stat;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
+	{
+		struct fs_struct local_fs;
+		struct fs_struct *old_fs;
+		struct fs_struct *src_fs = current->fs ? current->fs : init_task.fs;
+
+		local_fs.users = 1;
+		local_fs.in_exec = 0;
+		seqlock_init(&local_fs.seq);
+		local_fs.umask = src_fs->umask;
+		get_fs_root(src_fs, &local_fs.root);
+		get_fs_pwd(src_fs, &local_fs.pwd);
+
+		old_fs = current->fs;
+		WRITE_ONCE(current->fs, &local_fs);
+		filp = filp_open(spl_hostid_path, 0, 0);
+		WRITE_ONCE(current->fs, old_fs);
+		path_put(&local_fs.root);
+		path_put(&local_fs.pwd);
+	}
+#else
 	filp = filp_open(spl_hostid_path, 0, 0);
+#endif
 
 	if (IS_ERR(filp))
 		return (ENOENT);
