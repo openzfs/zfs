@@ -37,6 +37,7 @@
 #include <sys/kstat.h>
 #include <linux/cpuhotplug.h>
 #include <linux/mod_compat.h>
+#include <linux/kthread_compat.h>
 
 /* Linux 6.2 renamed timer_delete_sync(); point it at its old name for those. */
 #ifndef HAVE_TIMER_DELETE_SYNC
@@ -1095,7 +1096,8 @@ taskq_thread(void *args)
 			TQSTAT_INC(tq, threads_active);
 
 			/* Perform the requested task */
-			t->tqent_func(t->tqent_arg);
+			scoped_with_init_fs()
+			    t->tqent_func(t->tqent_arg);
 
 			TQSTAT_DEC(tq, threads_active);
 			if ((t->tqent_flags & TQENT_LIST_MASK) ==
