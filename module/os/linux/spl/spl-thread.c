@@ -29,6 +29,7 @@
 #include <sys/tsd.h>
 #include <sys/string.h>
 #include <sys/misc.h>
+#include <linux/kthread_compat.h>
 
 /*
  * Thread interfaces
@@ -59,8 +60,10 @@ thread_generic_wrapper(void *arg)
 	kmem_free(tp->tp_name, tp->tp_name_size);
 	kmem_free(tp, sizeof (thread_priv_t));
 
-	if (func)
-		func(args);
+	if (func) {
+		scoped_with_init_fs()
+		    func(args);
+	}
 
 	return (0);
 }

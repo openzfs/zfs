@@ -7,6 +7,7 @@ kernel_linux_HEADERS = \
 	%D%/kernel/linux/dcache_compat.h \
 	%D%/kernel/linux/idmap_compat.h \
 	%D%/kernel/linux/kmap_compat.h \
+	%D%/kernel/linux/kthread_compat.h \
 	%D%/kernel/linux/mm_compat.h \
 	%D%/kernel/linux/mod_compat.h \
 	%D%/kernel/linux/page_compat.h \
