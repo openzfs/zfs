@@ -11388,6 +11388,13 @@ spa_sync(spa_t *spa, uint64_t txg)
 	spa->spa_ubsync = spa->spa_uberblock;
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
+	/*
+	 * An activity that ended in this txg is only over for a reader of
+	 * the pool now that the txg is on disk, so let the waiters look
+	 * again (see spa_activity_in_progress()).
+	 */
+	spa_notify_waiters(spa);
+
 	spa_handle_ignored_writes(spa);
 
 	/*
@@ -11898,13 +11905,25 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		zfs_fallthrough;
 	case ZPOOL_WAIT_SCRUB:
 	{
-		boolean_t scanning, paused, is_scrub;
+		boolean_t scanning, paused, is_scrub, finishing;
 		dsl_scan_t *scn =  spa->spa_dsl_pool->dp_scan;
 
 		is_scrub = (scn->scn_phys.scn_func == POOL_SCAN_SCRUB);
 		scanning = (scn->scn_phys.scn_state == DSS_SCANNING);
 		paused = dsl_scan_is_paused_scrub(scn);
-		*in_progress = (scanning && !paused &&
+
+		/*
+		 * dsl_scan_done() marks the scan finished in syncing
+		 * context, ahead of the config and label writes that the
+		 * same txg carries, so the scan is not over for anyone
+		 * reading the pool until that txg has synced.  Keep
+		 * reporting it as in progress until then, the way the
+		 * initialize and trim waits cover the whole operation.
+		 */
+		finishing = (scn->scn_finished_txg != 0 &&
+		    spa_last_synced_txg(spa) < scn->scn_finished_txg);
+
+		*in_progress = ((scanning || finishing) && !paused &&
 		    is_scrub == (activity == ZPOOL_WAIT_SCRUB));
 		break;
 	}
