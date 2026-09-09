@@ -87,12 +87,12 @@ extern "C" {
  *			specified and ZAP normalization flags include
  *			U8_TEXTPREP_TOUPPER.
  */
-typedef enum matchtype {
+typedef enum zfs_flag_enum matchtype {
 	MT_NORMALIZE = 1 << 0,
 	MT_MATCH_CASE = 1 << 1,
 } matchtype_t;
 
-typedef enum zap_flags {
+typedef enum zfs_flag_enum zap_flags {
 	/* Use 64-bit hash value (serialized cursors will always use 64-bits) */
 	ZAP_FLAG_HASH64 = 1 << 0,
 	/* Key is binary, not string (zap_add_uint64() can be used) */

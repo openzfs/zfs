@@ -872,7 +872,7 @@ typedef struct l2arc_data_free {
 	list_node_t	l2df_list_node;
 } l2arc_data_free_t;
 
-typedef enum arc_fill_flags {
+typedef enum zfs_flag_enum arc_fill_flags {
 	ARC_FILL_LOCKED		= 1 << 0, /* hdr lock is held */
 	ARC_FILL_COMPRESSED	= 1 << 1, /* fill with compressed data */
 	ARC_FILL_ENCRYPTED	= 1 << 2, /* fill with encrypted data */

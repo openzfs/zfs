@@ -271,7 +271,7 @@ typedef enum dmu_object_type {
  * the transaction is full. See the comment above dmu_tx_assign() for more
  * details on the meaning of these flags.
  */
-typedef enum {
+typedef enum zfs_flag_enum {
 	/*
 	 * If the tx cannot be assigned to a transaction for any reason, do
 	 * not block but return immediately.
@@ -548,7 +548,7 @@ void dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp,
 /*
  * DB_RF_* are to be used for dbuf_read() or in limited other cases.
  */
-typedef enum dmu_flags {
+typedef enum zfs_flag_enum dmu_flags {
 	DB_RF_MUST_SUCCEED	= 0,	  /* Suspend on I/O errors. */
 	DB_RF_CANFAIL		= 1 << 0, /* Return on I/O errors. */
 	DB_RF_HAVESTRUCT	= 1 << 1, /* dn_struct_rwlock is locked. */

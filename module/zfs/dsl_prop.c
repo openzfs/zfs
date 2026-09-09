@@ -1044,7 +1044,7 @@ dsl_props_set(const char *dsname, zprop_source_t source, nvlist_t *props)
 	    &dpsa, nblks, ZFS_SPACE_CHECK_RESERVED));
 }
 
-typedef enum dsl_prop_getflags {
+typedef enum zfs_flag_enum dsl_prop_getflags {
 	DSL_PROP_GET_INHERITING = 0x1,	/* searching parent of target ds */
 	DSL_PROP_GET_SNAPSHOT = 0x2,	/* snapshot dataset */
 	DSL_PROP_GET_LOCAL = 0x4,	/* local properties */
