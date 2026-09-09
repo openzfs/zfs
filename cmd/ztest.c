@@ -277,7 +277,7 @@ extern uint64_t raidz_expand_max_reflow_bytes;
 extern uint_t raidz_expand_pause_point;
 extern boolean_t ddt_prune_artificial_age;
 extern boolean_t ddt_dump_prune_histogram;
-extern uint64_t zfs_vdev_anyraid_min_tile_size;
+extern uint64_t vdev_anyraid_min_tile_size;
 
 
 static ztest_shared_opts_t *ztest_shared_opts;
@@ -9571,10 +9571,8 @@ main(int argc, char **argv)
 			zfs_multihost_fail_intervals = 0;
 			zfs_multihost_interval = MMP_MIN_INTERVAL;
 		}
-		zfs_vdev_anyraid_min_tile_size = MIN(
-		    zfs_vdev_anyraid_min_tile_size,
+		vdev_anyraid_min_tile_size = MIN(vdev_anyraid_min_tile_size,
 		    ztest_opts.zo_vdev_size / 8);
-		}
 
 		if (zs->zs_do_init)
 			ztest_run_init();

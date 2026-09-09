@@ -1762,7 +1762,7 @@ zpool_create(libzfs_handle_t *hdl, const char *pool, nvlist_t *nvroot,
 					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 					    "one or more AnyRAID devices "
 					    "cannot store any tiles (see "
-					    "'zfs_vdev_anyraid_min_tile_size"
+					    "'vdev_anyraid_min_tile_size"
 					    "')"));
 				}
 			}
@@ -2032,7 +2032,7 @@ zpool_add(zpool_handle_t *zhp, nvlist_t *nvroot, boolean_t check_ashift)
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
 			    "one or more anyraid devices cannot store "
 			    "any tiles (see "
-			    "'zfs_vdev_anyraid_min_tile_size')"));
+			    "'vdev_anyraid_min_tile_size')"));
 			return (zfs_error(hdl, EZFS_BADDEV, errbuf));
 		case ENOTSUP:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
