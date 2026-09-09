@@ -106,8 +106,13 @@ function exercise_volume
 		log_must randwritecomp $f 100
 	done
 	log_must rm $(find $TESTDIR -type f | sort -R | head)
-	(( len = RANDOM % maxsz ))
-	(( start = RANDOM % len ))
+	#
+	# Keep len in [2, maxsz-1] and start in [0, len-2] so the ranges
+	# below never divide by zero and the punched range [start,
+	# start+num) always lies inside the file.
+	#
+	(( len = 2 + RANDOM % (maxsz - 2) ))
+	(( start = RANDOM % (len - 1) ))
 	(( num = 1 + RANDOM % (len - start - 1) ))
 	log_must randfree_file -l $len -s $start -n $num $TESTDIR/free-$RANDOM
 	log_must umount $TESTDIR

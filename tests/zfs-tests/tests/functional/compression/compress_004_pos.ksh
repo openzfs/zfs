@@ -47,11 +47,16 @@ function create_free_testing #<file size> <file>
 	typeset -i start=0
 	typeset -i len=0
 	typeset -i dist=0
+	typeset -i maxlen=0
 
 	for start in 0 $((RANDOM % fsz))
 	do
 		(( dist = fsz - start ))
-		for len in $((1 + RANDOM % (dist - 1))) $dist \
+		# Leave at least one byte of the hole, and never divide by
+		# zero when the random start lands on the last byte (dist == 1).
+		(( maxlen = dist - 1 ))
+		(( maxlen < 1 )) && (( maxlen = 1 ))
+		for len in $((1 + RANDOM % maxlen)) $dist \
 		    $((start + dist)); do
 			log_must randfree_file -l $fsz -s $start -n $len $file
 			[[ -e $file ]] && \
