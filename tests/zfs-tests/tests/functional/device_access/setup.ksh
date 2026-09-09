@@ -20,4 +20,7 @@
 
 verify_runnable "global"
 
+[[ -b $DEV1 && -b $DEV2 && -b $DEV3 ]] || \
+	log_unsupported "$DISKS must be real block devices"
+
 log_pass
