@@ -583,7 +583,11 @@ tests = ['zpool_set_001_pos', 'zpool_set_002_neg', 'zpool_set_003_neg',
     'zpool_set_ashift', 'zpool_set_features', 'zpool_set_inherit',
     'vdev_set_001_pos', 'user_property_001_pos', 'user_property_002_neg',
     'zpool_set_clear_userprop','vdev_set_scheduler', 'vdev_set_allocating',
-    'vdev_set_path']
+    'vdev_set_path',
+    'zpool_set_readonly_001_pos', 'zpool_set_readonly_002_pos',
+    'zpool_set_readonly_003_pos', 'zpool_set_readonly_004_pos',
+    'zpool_set_readonly_001_neg', 'zpool_set_readonly_002_neg',
+    'zpool_set_readonly_003_neg', 'zpool_set_readonly_004_neg']
 tags = ['functional', 'cli_root', 'zpool_set']
 
 [tests/functional/cli_root/zpool_split]
