@@ -2270,8 +2270,7 @@ vdev_draid_io_start(zio_t *zio)
 		}
 	}
 
-	zio_batch_rele(zio);
-	zio_execute(zio);
+	zio_execute(zio_batch_rele(zio));
 }
 
 /*

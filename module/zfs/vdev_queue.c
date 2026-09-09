@@ -955,7 +955,9 @@ vdev_queue_io(zio_t *zio)
 	 * since the slot would then be released only once the whole batch is
 	 * complete.
 	 */
-	zio_batch_leave(zio);
+	zio_t *batch = zio_batch_leave(zio);
+	if (batch != NULL)
+		zio_execute(batch);
 
 	mutex_enter(&vq->vq_lock);
 	vdev_queue_io_add(vq, zio);
