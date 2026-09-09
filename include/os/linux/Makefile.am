@@ -120,4 +120,8 @@ kernel_spl_sys_HEADERS = \
 kernel_spl_ia32dir = $(kernel_spl_sysdir)/ia32
 kernel_spl_ia32_HEADERS = \
 	%D%/spl/sys/ia32/asm_linkage.h
+
+kernel_spl_aarch64dir = $(kernel_spl_sysdir)/aarch64
+kernel_spl_aarch64_HEADERS = \
+	%D%/spl/sys/aarch64/asm_linkage.h
 endif

@@ -79,6 +79,7 @@ libspl_sys_HEADERS = \
 	%D%/sys/zone.h
 
 libspl_ia32dir = $(libspldir)/sys/ia32
+libspl_aarch64dir = $(libspldir)/sys/aarch64
 
 if BUILD_LINUX
 libspl_sys_HEADERS += \
@@ -92,6 +93,9 @@ libspl_sys_HEADERS += \
 
 libspl_ia32_HEADERS = \
 	%D%/os/linux/sys/ia32/asm_linkage.h
+
+libspl_aarch64_HEADERS = \
+	%D%/os/linux/sys/aarch64/asm_linkage.h
 endif
 
 if BUILD_FREEBSD
@@ -107,6 +111,9 @@ libspl_sys_HEADERS += \
 
 libspl_ia32_HEADERS = \
 	%D%/os/freebsd/sys/ia32/asm_linkage.h
+
+libspl_aarch64_HEADERS = \
+	%D%/os/freebsd/sys/aarch64/asm_linkage.h
 endif
 
 
