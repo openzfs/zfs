@@ -262,7 +262,7 @@ function default_setup_noexit
 	typeset no_mountpoint=$4
 	log_note begin default_setup_noexit
 
-	if [[ "/${TESTPOOL}" -ef / ]]; then
+	if ! is_safe_pool_name $TESTPOOL; then
 		log_fail "TESTPOOL is not set"
 	fi
 
@@ -468,7 +468,7 @@ function default_mirror_setup_noexit
 	typeset primary=$1
 	typeset secondary=$2
 
-	if [[ "/${TESTPOOL}" -ef / ]]; then
+	if ! is_safe_pool_name $TESTPOOL; then
 		log_fail "TESTPOOL is not set"
 	fi
 
@@ -509,7 +509,7 @@ function default_raidz_setup_noexit
 	typeset disklist="$*"
 	disks=(${disklist[*]})
 
-	if [[ "/${TESTPOOL}" -ef / ]]; then
+	if ! is_safe_pool_name $TESTPOOL; then
 		log_fail "TESTPOOL is not set"
 	fi
 
@@ -1595,6 +1595,21 @@ function verify_runnable # zone limit
 	return 0
 }
 
+#
+# Return 0 if $1 can safely be used as a pool name: it is not empty,
+# and the /$1 path its mountpoint will be removed from recursively
+# does not resolve to the root directory.
+#
+function is_safe_pool_name #pool
+{
+	typeset pool=$1
+
+	[[ -z $pool ]] && return 1
+	[[ "/${pool}" -ef / ]] && return 1
+
+	return 0
+}
+
 # Return 0 if create successfully or the pool exists; $? otherwise
 # Note: In local zones, this function should return 0 silently.
 #
@@ -1607,8 +1622,8 @@ function create_pool #pool devs_list
 
 	shift
 
-	if [[ -z $pool ]]; then
-		log_note "Missing pool name."
+	if ! is_safe_pool_name $pool; then
+		log_note "Missing or unsafe pool name."
 		return 1
 	fi
 
@@ -1635,8 +1650,8 @@ function destroy_pool #pool
 	typeset pool=${1%%/*}
 	typeset mtpt
 
-	if [[ -z $pool ]]; then
-		log_note "No pool name given."
+	if ! is_safe_pool_name $pool; then
+		log_note "Missing or unsafe pool name."
 		return 1
 	fi
 
@@ -1650,8 +1665,9 @@ function destroy_pool #pool
 			# to succeed.
 			log_must_busy zpool destroy -f $pool
 
-			[[ -d $mtpt ]] && \
+			if [[ "$mtpt" != "/" && -d $mtpt ]] ; then
 				log_must rm -rf $mtpt
+			fi
 		else
 			log_note "Pool does not exist. ($pool)"
 			return 1
