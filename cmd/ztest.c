@@ -274,6 +274,7 @@ extern boolean_t zfs_force_some_double_word_sm_entries;
 extern unsigned long zfs_reconstruct_indirect_damage_fraction;
 extern uint64_t raidz_expand_max_reflow_bytes;
 extern uint_t raidz_expand_pause_point;
+extern int spa_simulate_writable_mounts;
 extern boolean_t ddt_prune_artificial_age;
 extern boolean_t ddt_dump_prune_histogram;
 
@@ -8515,6 +8516,199 @@ ztest_import_impl(void)
 	fnvlist_free(cfg);
 }
 
+/* keep in sync with spa_make_readonly_blocked() calls in spa.c */
+#define	ZTEST_READONLY_BLOCKED_CALLS	4
+
+static int
+ztest_readonly_try_convert(spa_t *spa)
+{
+	nvlist_t *props;
+	int error;
+
+	props = fnvlist_alloc();
+	fnvlist_add_uint64(props, zpool_prop_to_name(ZPOOL_PROP_READONLY), 1);
+	error = spa_prop_set(spa, props);
+	fnvlist_free(props);
+	return (error);
+}
+
+static void
+ztest_readonly_verify_rw(spa_t *spa, ztest_ds_t *zd, uint64_t object,
+    uint64_t *buf, uint64_t size, uint64_t gen)
+{
+	uint64_t *check;
+
+	VERIFY(spa_writeable(spa));
+	VERIFY(spa_mode(spa) & SPA_MODE_WRITE);
+	VERIFY0P(spa->spa_export_thread);
+	VERIFY(!spa->spa_is_exporting);
+	VERIFY(spa->spa_sync_on);
+	VERIFY3U(spa->spa_final_txg, ==, UINT64_MAX);
+
+	VERIFY0(ztest_dataset_open(0));
+	for (size_t i = 0; i < size / sizeof (*buf); i++)
+		buf[i] = (0x5a5a000000000000ULL | i) + gen;
+	VERIFY0(ztest_write(zd, object, 0, size, buf));
+	VERIFY0(zil_commit(zd->zd_zilog, object));
+	txg_wait_synced(spa_get_dsl(spa), 0);
+
+	/*
+	 * The dmu_read() call will most likely hit the ARC, but we're
+	 * just checking that the pool at least allowed the write.
+	 */
+	check = umem_alloc(size, UMEM_NOFAIL);
+	memset(check, 0, size);
+	VERIFY0(dmu_read(zd->zd_os, object, 0, size, check,
+	    DMU_READ_NO_PREFETCH));
+	VERIFY0(memcmp(buf, check, size));
+	umem_free(check, size);
+
+	ztest_dataset_close(0);
+}
+
+/*
+ * Convert an imported pool from read/write to readonly, confirm that
+ * a write-mode objset own fails and that a readonly own can still read,
+ * then export, import, and check that the data is still intact.
+ */
+static void
+ztest_readonly(void)
+{
+	ztest_ds_t *zd = &ztest_ds[0];
+	spa_t *spa;
+	ztest_od_t od;
+	objset_t *os;
+	char name[ZFS_MAX_DATASET_NAME_LEN];
+	const uint64_t size = 8192;
+	uint64_t *buf, *check;
+	uint64_t object;
+	int error;
+
+	/* not supported during RAIDZ expansion */
+	if (ztest_opts.zo_raid_do_expand)
+		return;
+
+	if (ztest_opts.zo_verbose >= 3)
+		(void) printf("testing spa_make_readonly()...\n");
+
+	buf = umem_alloc(size, UMEM_NOFAIL);
+	check = umem_alloc(size, UMEM_NOFAIL);
+
+	raidz_scratch_verify();
+	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
+	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
+	VERIFY0(ztest_dataset_open(0));
+	ztest_spa = spa;
+	VERIFY(spa_writeable(spa));
+
+	ztest_od_init(&od, 0, FTAG, 0, DMU_OT_UINT64_OTHER, size, 0, 0);
+	VERIFY0(ztest_object_init(zd, &od, sizeof (od), B_TRUE));
+	object = od.od_object;
+
+	for (size_t i = 0; i < size / sizeof (*buf); i++)
+		buf[i] = 0x5a5a000000000000ULL | i;
+	VERIFY0(ztest_write(zd, object, 0, size, buf));
+	VERIFY0(zil_commit(zd->zd_zilog, object));
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	ztest_dataset_close(0);
+
+	for (int call = 0; call < ZTEST_READONLY_BLOCKED_CALLS; call++) {
+		if (ztest_opts.zo_verbose >= 3) {
+			(void) printf("spa_make_readonly() blocked "
+			    "call site %d...\n", call);
+		}
+
+		spa_simulate_writable_mounts = call + 1;
+		error = ztest_readonly_try_convert(spa);
+		VERIFY3S(error, ==, EBUSY);
+
+		if (spa_simulate_writable_mounts != 0) {
+			/*
+			 * Failed before the simulated mount check at this
+			 * site (e.g. MOS writer).  Still require R/W
+			 * rollback; clear the leftover countdown.
+			 */
+			if (ztest_opts.zo_verbose >= 3) {
+				(void) printf("spa_make_readonly() busy "
+				    "before site %d (left=%d)\n", call,
+				    spa_simulate_writable_mounts);
+			}
+			spa_simulate_writable_mounts = 0;
+		}
+
+		ztest_readonly_verify_rw(spa, zd, object, buf, size, call);
+	}
+
+	/* now verify we can successfully convert the pool to RO mode */
+	spa_simulate_writable_mounts = 0;
+	error = ztest_readonly_try_convert(spa);
+	if (error == EBUSY) {
+		if (ztest_opts.zo_verbose >= 3) {
+			(void) printf("spa_make_readonly() busy, "
+			    "skipping\n");
+		}
+		spa_close(spa, FTAG);
+		VERIFY0(spa_export(ztest_opts.zo_pool, NULL, B_FALSE,
+		    B_FALSE));
+		kernel_fini();
+		umem_free(buf, size);
+		umem_free(check, size);
+		return;
+	}
+	VERIFY0(error);
+	VERIFY(!spa_writeable(spa));
+	VERIFY3U(spa_mode(spa), ==, SPA_MODE_READ);
+
+	ztest_dataset_name(name, ztest_opts.zo_pool, 0);
+	VERIFY3S(ztest_dmu_objset_own(name, DMU_OST_OTHER, B_FALSE, B_TRUE,
+	    FTAG, &os), ==, EROFS);
+
+	VERIFY0(ztest_dmu_objset_own(name, DMU_OST_OTHER, B_TRUE, B_TRUE,
+	    FTAG, &os));
+	memset(check, 0, size);
+	VERIFY0(dmu_read(os, object, 0, size, check, DMU_READ_NO_PREFETCH));
+	VERIFY0(memcmp(buf, check, size));
+	dmu_objset_disown(os, B_TRUE, FTAG);
+
+	spa_close(spa, FTAG);
+
+	ztest_walk_pool_directory("pools before export");
+	int count = 0;
+	while (count < 10 && (error = spa_export(ztest_opts.zo_pool, NULL,
+	    B_FALSE, B_FALSE)) == EBUSY) {
+		if (ztest_opts.zo_verbose >= 3)
+			(void) printf("> spa_export EBUSY; pausing\n");
+		(void) poll(NULL, 0, 1000);
+		count++;
+	}
+	VERIFY0(error);
+	ztest_walk_pool_directory("pools after export");
+
+	kernel_fini();
+
+	raidz_scratch_verify();
+	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
+	ztest_import_impl();
+	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
+	ztest_spa = spa;
+	VERIFY(spa_writeable(spa));
+	VERIFY0(ztest_dataset_open(0));
+
+	VERIFY0(ztest_object_init(zd, &od, sizeof (od), B_FALSE));
+	VERIFY3U(od.od_object, ==, object);
+	memset(check, 0, size);
+	VERIFY0(dmu_read(zd->zd_os, object, 0, size, check,
+	    DMU_READ_NO_PREFETCH));
+	VERIFY0(memcmp(buf, check, size));
+
+	ztest_dataset_close(0);
+	spa_close(spa, FTAG);
+	kernel_fini();
+
+	umem_free(buf, size);
+	umem_free(check, size);
+}
+
 /*
  * Import a storage pool with the given name.
  */
@@ -8543,6 +8737,8 @@ ztest_import(ztest_shared_t *zs)
 	if (!ztest_opts.zo_mmp_test) {
 		ztest_run_zdb(zs->zs_guid);
 		ztest_freeze();
+		ztest_run_zdb(zs->zs_guid);
+		ztest_readonly();
 		ztest_run_zdb(zs->zs_guid);
 	}
 
@@ -9102,7 +9298,7 @@ make_random_pool_props(void)
 
 /*
  * Create a storage pool with the given name and initial vdev size.
- * Then test spa_freeze() functionality.
+ * Then test spa_freeze() and spa_make_readonly() functionality.
  */
 static void
 ztest_init(ztest_shared_t *zs)
@@ -9194,6 +9390,8 @@ ztest_init(ztest_shared_t *zs)
 	if (!ztest_opts.zo_mmp_test) {
 		ztest_run_zdb(zs->zs_guid);
 		ztest_freeze();
+		ztest_run_zdb(zs->zs_guid);
+		ztest_readonly();
 		ztest_run_zdb(zs->zs_guid);
 	}
 

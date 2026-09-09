@@ -776,6 +776,8 @@ dmu_objset_own_impl(dsl_dataset_t *ds, dmu_objset_type_t type,
 		return (SET_ERROR(EINVAL));
 	} else if (!readonly && dsl_dataset_is_snapshot(ds)) {
 		return (SET_ERROR(EROFS));
+	} else if (!readonly && !spa_writeable(dmu_objset_spa(*osp))) {
+		return (SET_ERROR(EROFS));
 	} else if (!readonly && decrypt &&
 	    dsl_dir_incompatible_encryption_version(ds->ds_dir)) {
 		return (SET_ERROR(EROFS));

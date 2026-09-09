@@ -231,6 +231,7 @@ struct vdev {
 	vdev_stat_ex_t	vdev_stat_ex;	/* extended statistics		*/
 	boolean_t	vdev_expanding;	/* expand the vdev?		*/
 	boolean_t	vdev_reopening;	/* reopen in progress?		*/
+	spa_mode_t	vdev_open_mode;	/* spa_mode at last leaf open	*/
 	boolean_t	vdev_nonrot;	/* true if solid state		*/
 	int		vdev_load_error; /* error on last load		*/
 	int		vdev_open_error; /* error on last open		*/

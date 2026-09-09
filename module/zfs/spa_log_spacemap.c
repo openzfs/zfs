@@ -418,10 +418,15 @@ void
 spa_log_summary_decrement_mscount(spa_t *spa, uint64_t txg, boolean_t dirty)
 {
 	/*
-	 * We don't track summary data for read-only pools and this function
-	 * can be called from metaslab_fini(). In that case return immediately.
+	 * Pools imported readonly never populate spa_log_summary
+	 * (spa_ld_log_sm_data() skips them). metaslab_fini() still
+	 * calls here, so an empty summary is a no-op.
+	 *
+	 * A pool converted RW -> RO with spa_make_readonly() still has
+	 * a live summary. We must decrement it so spa_unload_log_sm_metadata()
+	 * can VERIFY0(lse_mscount) after vdev_free().
 	 */
-	if (!spa_writeable(spa))
+	if (!spa_writeable(spa) && list_is_empty(&spa->spa_log_summary))
 		return;
 
 	log_summary_entry_t *target = NULL;

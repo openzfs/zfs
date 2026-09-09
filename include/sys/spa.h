@@ -779,6 +779,7 @@ extern int spa_checkpoint_discard(const char *pool);
 extern int spa_export(const char *pool, nvlist_t **oldconfig, boolean_t force,
     boolean_t hardforce);
 extern int spa_reset(const char *pool);
+extern int spa_make_readonly(spa_t *spa);
 extern void spa_async_request(spa_t *spa, int flag);
 extern void spa_async_unrequest(spa_t *spa, int flag);
 extern void spa_async_suspend(spa_t *spa);

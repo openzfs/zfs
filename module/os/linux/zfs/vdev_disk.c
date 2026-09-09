@@ -358,7 +358,9 @@ vdev_disk_open(vdev_t *v, uint64_t *psize, uint64_t *max_psize,
 					reread_part = B_TRUE;
 			}
 
-			vdev_blkdev_put(bdh, smode, zfs_vdev_holder);
+			vdev_blkdev_put(bdh,
+			    v->vdev_open_mode != SPA_MODE_UNINIT ?
+			    v->vdev_open_mode : smode, zfs_vdev_holder);
 		}
 
 		if (reread_part) {
@@ -548,9 +550,11 @@ vdev_disk_close(vdev_t *v)
 
 	rw_enter(&vd->vd_lock, RW_WRITER);
 
-	if (vd->vd_bdh != NULL)
-		vdev_blkdev_put(vd->vd_bdh, spa_mode(v->vdev_spa),
-		    zfs_vdev_holder);
+	if (vd->vd_bdh != NULL) {
+		spa_mode_t put_mode = v->vdev_open_mode != SPA_MODE_UNINIT ?
+		    v->vdev_open_mode : spa_mode(v->vdev_spa);
+		vdev_blkdev_put(vd->vd_bdh, put_mode, zfs_vdev_holder);
+	}
 
 	v->vdev_tsd = NULL;
 

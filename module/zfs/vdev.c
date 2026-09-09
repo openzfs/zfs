@@ -2224,6 +2224,9 @@ vdev_open(vdev_t *vd, cred_t *cred)
 	error = vd->vdev_ops->vdev_op_open(vd, &osize, &max_osize,
 	    &logical_ashift, &physical_ashift, cred);
 
+	if (error == 0 && vd->vdev_ops->vdev_op_leaf)
+		vd->vdev_open_mode = spa_mode(spa);
+
 	/* Keep the device in removed state if unplugged */
 	if (error == ENOENT && vd->vdev_removed) {
 		vdev_set_state(vd, B_TRUE, VDEV_STATE_REMOVED,
@@ -2903,7 +2906,7 @@ void
 vdev_close(vdev_t *vd)
 {
 	vdev_t *pvd = vd->vdev_parent;
-	spa_t *spa __maybe_unused = vd->vdev_spa;
+	spa_t *spa = vd->vdev_spa;
 
 	ASSERT(vd != NULL);
 	ASSERT(vd->vdev_open_thread == curthread ||
@@ -2916,7 +2919,19 @@ vdev_close(vdev_t *vd)
 	if (pvd != NULL && pvd->vdev_reopening)
 		vd->vdev_reopening = (pvd->vdev_reopening && !vd->vdev_offline);
 
+	/*
+	 * If we're going from RW to RO, then do a real close so the next
+	 * open uses the new flags.
+	 */
+	if (vd->vdev_ops->vdev_op_leaf &&
+	    vd->vdev_open_mode != SPA_MODE_UNINIT &&
+	    vd->vdev_open_mode != spa_mode(spa))
+		vd->vdev_reopening = B_FALSE;
+
+	boolean_t skipped = vd->vdev_reopening;
 	vd->vdev_ops->vdev_op_close(vd);
+	if (!skipped && vd->vdev_ops->vdev_op_leaf)
+		vd->vdev_open_mode = SPA_MODE_UNINIT;
 
 	/*
 	 * We record the previous state before we close it, so that if we are

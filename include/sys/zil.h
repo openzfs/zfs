@@ -636,6 +636,7 @@ extern int 	zil_check_log_chain(struct dsl_pool *dp,
     struct dsl_dataset *ds, void *tx);
 extern void	zil_sync(zilog_t *zilog, dmu_tx_t *tx);
 extern void	zil_clean(zilog_t *zilog, uint64_t synced_txg);
+extern void	zil_reset_txg_info(zilog_t *zilog);
 
 extern int	zil_suspend(const char *osname, void **cookiep);
 extern void	zil_resume(void *cookie);

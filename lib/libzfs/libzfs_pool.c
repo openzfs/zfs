@@ -908,10 +908,22 @@ zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
 			}
 			break;
 		case ZPOOL_PROP_READONLY:
-			if (!flags.import) {
+			if (flags.create) {
 				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "property '%s' can only be set at "
-				    "import time"), propname);
+				    "property '%s' cannot be set at "
+				    "creation time"), propname);
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			}
+			/*
+			 * If we're importing, we can set it 'on' or 'off'.
+			 * Once it's imported, only off->on is supported
+			 * for now.
+			 */
+			if (!flags.import && intval == 0) {
+				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+				    "property '%s' can only be set to "
+				    "'on'"), propname);
 				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 				goto error;
 			}

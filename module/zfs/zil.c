@@ -4399,6 +4399,21 @@ zil_open(objset_t *os, zil_get_data_t *get_data, zil_sums_t *zil_sums)
 }
 
 /*
+ * Reset txg watermarks after making the pool readonly.
+ */
+void
+zil_reset_txg_info(zilog_t *zilog)
+{
+	ASSERT(list_is_empty(&zilog->zl_lwb_list));
+	ASSERT(!zilog_is_dirty(zilog));
+	ASSERT(zilog->zl_suspend != 0);
+	ASSERT(!zilog->zl_suspending);
+
+	zilog->zl_dirty_max_txg = 0;
+	zilog->zl_lwb_max_issued_txg = 0;
+}
+
+/*
  * Close an intent log.
  */
 void
