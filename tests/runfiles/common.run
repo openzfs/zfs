@@ -46,8 +46,8 @@ tests = ['file_append', 'threadsappend_001_pos']
 tags = ['functional', 'append']
 
 [tests/functional/arc]
-tests = ['dbufstats_001_pos', 'dbufstats_002_pos', 'dbufstats_003_pos',
-    'arcstats_runtime_tuning']
+tests = ['arc_dbuf_cache_extra_001_pos', 'dbufstats_001_pos',
+    'dbufstats_002_pos', 'dbufstats_003_pos', 'arcstats_runtime_tuning']
 tags = ['functional', 'arc']
 
 [tests/functional/atime]

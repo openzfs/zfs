@@ -4982,6 +4982,12 @@ arc_reap_cb_check(void *arg, zthr_t *zthr)
 	if (!((reap_cb_check_counter++) % 60))
 		zfs_zstd_cache_reap_now();
 
+	/*
+	 * Once per second, size the dbuf cache to its working set when Direct
+	 * I/O / cache-disabled workloads keep the ARC below its target.
+	 */
+	dbuf_cache_adjust_tick(arc_no_grow, arc_c_max);
+
 	return (B_FALSE);
 }
 
@@ -8028,6 +8034,18 @@ arc_state_fini(void)
 	wmsum_fini(&arc_sums.arcstat_raw_size);
 	wmsum_fini(&arc_sums.arcstat_cached_only_in_progress);
 	wmsum_fini(&arc_sums.arcstat_abd_chunk_waste_size);
+}
+
+/*
+ * Current ARC usage in bytes.  Exported for the dbuf cache sizing policy,
+ * which reads it together with arc_target_bytes() to detect Direct I/O /
+ * cache-disabled workloads that never fill the ARC (see
+ * dbuf_arc_underutilized()).
+ */
+uint64_t
+arc_used_bytes(void)
+{
+	return (aggsum_value(&arc_sums.arcstat_size));
 }
 
 uint64_t
