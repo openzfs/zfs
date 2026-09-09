@@ -256,11 +256,16 @@ function _kstat_freebsd
 	# the name we requested, while for a group, the key will not have the
 	# name (group nodes are "opaque", not returned by sysctl by default.
 
+	# Multi-line values already end in a newline, and sysctl adds another
+	# one after every value, so hold each line back and drop the empty
+	# last one, to match what the same kstat looks like on Linux.
+
 	if [[ $want_group == 0 ]] ; then
 		sysctl -e "$oid" | awk -v oid="$oid" -v oidre="^$oid=" '
 			NR == 1 && $0 !~ oidre { exit 1 }
-			NR == 1 { print substr($0, length(oid)+2) ; next }
-			{ print }
+			NR == 1 { prev = substr($0, length(oid)+2) ; next }
+			{ print prev ; prev = $0 }
+			END { if (prev != "") print prev }
 		'
 	else
 		sysctl -e "$oid" | awk -v oid="$oid" -v oidre="^$oid=" '

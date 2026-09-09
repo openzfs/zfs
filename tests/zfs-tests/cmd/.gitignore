@@ -13,6 +13,7 @@
 /file_append
 /file_check
 /file_trunc
+/file_uncached
 /file_write
 /get_diff
 /getversion

@@ -181,6 +181,26 @@ zfs_io_flags(struct kiocb *kiocb)
 	return (flags);
 }
 
+static inline uint16_t
+zfs_uio_flags(struct kiocb *kiocb)
+{
+	uint16_t flags = 0;
+
+	/*
+	 * Both RWF_DONTCACHE and POSIX_FADV_NOREUSE say the caller does not
+	 * intend to read the data after this.
+	 */
+#if defined(IOCB_DONTCACHE)
+	if (kiocb->ki_flags & IOCB_DONTCACHE)
+		flags |= UIO_UNCACHED;
+#endif
+#if defined(FMODE_NOREUSE)
+	if (kiocb->ki_filp->f_mode & FMODE_NOREUSE)
+		flags |= UIO_UNCACHED;
+#endif
+	return (flags);
+}
+
 /*
  * If relatime is enabled, call file_accessed() if zfs_relatime_need_update()
  * is true.  This is needed since datasets with inherited "relatime" property
@@ -211,6 +231,7 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 	zfs_uio_t uio;
 
 	zfs_uio_iov_iter_init(&uio, to, kiocb->ki_pos, count);
+	uio.uio_extflg |= zfs_uio_flags(kiocb);
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
@@ -261,6 +282,7 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 		return (ret);
 
 	zfs_uio_iov_iter_init(&uio, from, kiocb->ki_pos, count);
+	uio.uio_extflg |= zfs_uio_flags(kiocb);
 
 	crhold(cr);
 	cookie = spl_fstrans_mark();
@@ -1275,6 +1297,21 @@ const struct file_operations zpl_file_operations = {
 	.dedupe_file_range	= zpl_dedupe_file_range,
 #endif
 	.fadvise	= zpl_fadvise,
+#ifdef HAVE_VFS_FOP_FLAGS
+	.fop_flags	=
+#ifdef FOP_DIO_PARALLEL_WRITE
+	/*
+	 * Writes are serialized by the znode's own per-range lock rather
+	 * than by i_rwsem, so non-overlapping O_DIRECT writes need no
+	 * further serialization from the VFS or from io_uring.
+	 */
+	    FOP_DIO_PARALLEL_WRITE |
+#endif
+#ifdef FOP_DONTCACHE
+	    FOP_DONTCACHE |
+#endif
+	    0,
+#endif
 	.unlocked_ioctl	= zpl_ioctl,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl	= zpl_compat_ioctl,
