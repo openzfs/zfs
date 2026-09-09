@@ -30,6 +30,12 @@ function cleanup
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 	restore_perms $DEV1
 	restore_perms $DEV2
+
+	# If the test ends with the pool exported (the normal case) then clear
+	# the vdevs so we don't have the residual pool on there for the next
+	# test.
+	log_must zpool labelclear -f $DEV1
+	log_must zpool labelclear -f $DEV2
 	rm -f $tmpcache
 }
 log_onexit cleanup
