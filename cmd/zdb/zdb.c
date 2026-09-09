@@ -10674,12 +10674,18 @@ main(int argc, char **argv)
 				/*
 				 * If we're missing the log device then
 				 * try opening the pool after clearing the
-				 * log state.
+				 * log state.  Keep the global spa NULL
+				 * meanwhile: the failed open left it that
+				 * way, we hold no reference on what the
+				 * lookup returns, and zdb_exit() would
+				 * spa_close() it on the way out.
 				 */
+				spa_t *found;
+
 				spa_namespace_enter(FTAG);
-				if ((spa = spa_lookup(target)) != NULL &&
-				    spa->spa_log_state == SPA_LOG_MISSING) {
-					spa->spa_log_state = SPA_LOG_CLEAR;
+				if ((found = spa_lookup(target)) != NULL &&
+				    found->spa_log_state == SPA_LOG_MISSING) {
+					found->spa_log_state = SPA_LOG_CLEAR;
 					error = 0;
 				}
 				spa_namespace_exit(FTAG);
