@@ -2828,6 +2828,44 @@ dmu_read_l0_bps(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 			bp = db->db_blkptr;
 		}
 
+		/*
+		 * A block with a pending free (a truncate or hole
+		 * punch not yet synced) must not be cloned: the clone
+		 * would add a BRT reference to a block about to be
+		 * freed, so the pending clone would apply onto an
+		 * already-freed DVA and double free it.  Report
+		 * EAGAIN and let the caller retry once the free
+		 * syncs (the block then reads as a hole).
+		 *
+		 * A hole (or absent BP) has nothing to free and is
+		 * cloned as a hole below.  When the head dirty record
+		 * overrode the BP (a clone in this txg) only frees
+		 * recorded after the override count against it;
+		 * earlier frees predate it.  This mirrors
+		 * dbuf_read_hole().
+		 */
+		if (bp != NULL && !BP_IS_HOLE(bp)) {
+			dbuf_dirty_record_t *dr =
+			    list_head(&db->db_dirty_records);
+			boolean_t freed;
+
+			DB_DNODE_ENTER(db);
+			dnode_t *rdn = DB_DNODE(db);
+			if (dr != NULL && dr->dt.dl.dr_brtwrite) {
+				freed = dnode_block_freed_after(rdn,
+				    db->db_blkid, dr->dr_txg);
+			} else {
+				freed = dnode_block_freed(rdn,
+				    db->db_blkid);
+			}
+			DB_DNODE_EXIT(db);
+			if (freed) {
+				mutex_exit(&db->db_mtx);
+				error = SET_ERROR(EAGAIN);
+				goto out;
+			}
+		}
+
 		mutex_exit(&db->db_mtx);
 
 		if (bp == NULL) {
