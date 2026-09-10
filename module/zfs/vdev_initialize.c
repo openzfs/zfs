@@ -309,13 +309,21 @@ vdev_initialize_block_fill(void *buf, size_t len, void *arg)
 }
 
 static abd_t *
-vdev_initialize_block_alloc(uint64_t value)
+vdev_initialize_block_alloc(vdev_t *vd)
 {
-	/* Allocate ABD for filler data */
-	abd_t *data = abd_alloc_for_io(zfs_initialize_chunk_size, B_FALSE);
+	uint64_t align = 1ULL << vd->vdev_ashift;
+	uint64_t chunk_size = zfs_initialize_chunk_size;
+	uint64_t value = vd->vdev_initialize_value;
 
-	ASSERT0(zfs_initialize_chunk_size % sizeof (uint64_t));
-	(void) abd_iterate_func(data, 0, zfs_initialize_chunk_size,
+	/* Snapshot and normalise the tunable for this initialization thread. */
+	chunk_size = MIN(MAX(chunk_size, align), SPA_MAXBLOCKSIZE);
+	chunk_size = P2ALIGN_TYPED(chunk_size, align, uint64_t);
+
+	/* Allocate ABD for filler data */
+	abd_t *data = abd_alloc_for_io(chunk_size, B_FALSE);
+
+	ASSERT0(chunk_size % align);
+	(void) abd_iterate_func(data, 0, chunk_size,
 	    vdev_initialize_block_fill, &value);
 
 	return (data);
@@ -333,6 +341,7 @@ vdev_initialize_ranges(vdev_t *vd, abd_t *data)
 	zfs_range_tree_t *rt = vd->vdev_initialize_tree;
 	zfs_btree_t *bt = &rt->rt_root;
 	zfs_btree_index_t where;
+	uint64_t chunk_size = abd_get_size(data);
 
 	for (zfs_range_seg_t *rs = zfs_btree_first(bt, &where); rs != NULL;
 	    rs = zfs_btree_next(bt, &where, &where)) {
@@ -341,16 +350,15 @@ vdev_initialize_ranges(vdev_t *vd, abd_t *data)
 
 		/* Split range into legally-sized physical chunks */
 		uint64_t writes_required =
-		    ((size - 1) / zfs_initialize_chunk_size) + 1;
+		    ((size - 1) / chunk_size) + 1;
 
 		for (uint64_t w = 0; w < writes_required; w++) {
 			int error;
 
 			error = vdev_initialize_write(vd,
 			    VDEV_LABEL_START_SIZE + zfs_rs_get_start(rs, rt) +
-			    (w * zfs_initialize_chunk_size),
-			    MIN(size - (w * zfs_initialize_chunk_size),
-			    zfs_initialize_chunk_size), data);
+			    (w * chunk_size),
+			    MIN(size - (w * chunk_size), chunk_size), data);
 			if (error != 0)
 				return (error);
 		}
@@ -538,8 +546,7 @@ vdev_initialize_thread(void *arg)
 	vd->vdev_initialize_last_offset = 0;
 	VERIFY0(vdev_initialize_load(vd));
 
-	abd_t *deadbeef =
-	    vdev_initialize_block_alloc(vd->vdev_initialize_value);
+	abd_t *deadbeef = vdev_initialize_block_alloc(vd);
 
 	vd->vdev_initialize_tree = zfs_range_tree_create_flags(
 	    NULL, ZFS_RANGE_SEG64, NULL, 0, 0,
