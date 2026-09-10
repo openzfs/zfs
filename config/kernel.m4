@@ -700,6 +700,7 @@ AC_DEFUN([ZFS_LINUX_COMPILE], [
 		for kernel module builds])
 	AC_ARG_VAR([KERNEL_ARCH], [Architecture to build kernel modules for])
 	AC_TRY_COMMAND([
+	    test -d "$1" || mkdir -p "$1";
 	    KBUILD_MODPOST_NOFINAL="$5" KBUILD_MODPOST_WARN="$6"
 	    make modules -k -j$TEST_JOBS ${KERNEL_CC:+CC=$KERNEL_CC}
 	    ${KERNEL_LD:+LD=$KERNEL_LD} ${KERNEL_LLVM:+LLVM=$KERNEL_LLVM}
