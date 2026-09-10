@@ -2639,8 +2639,22 @@ recv_check_drr_write_embedded(const struct drr_write_embedded *drrwe,
 		    (u_longlong_t)drrwe->drr_length));
 	}
 
-	/* embedded block type must be within NUM_BP_EMBEDDED_TYPES */
-	if (drrwe->drr_etype >= NUM_BP_EMBEDDED_TYPES) {
+	/*
+	 * Spill blocks must be sent as DRR_SPILL.  dump_write_embedded()
+	 * sets drr_offset to start_blkid * length; when start_blkid is
+	 * DMU_SPILL_BLKID (-2) that multiply wraps to a large offset, and
+	 * offset + length does not overflow, so the check above will not
+	 * reject it.
+	 */
+	if (drrwe->drr_length != 0 &&
+	    drrwe->drr_offset == DMU_SPILL_BLKID * drrwe->drr_length) {
+		return (recv_check_fail(EINVAL, errbuf, errbuflen,
+		    "DRR_WRITE_EMBEDDED offset %llu is a spill block",
+		    (u_longlong_t)drrwe->drr_offset));
+	}
+
+	/* BP_EMBEDDED_TYPE_DATA is the only one this record can have */
+	if (drrwe->drr_etype != BP_EMBEDDED_TYPE_DATA) {
 		return (recv_check_fail(EINVAL, errbuf, errbuflen,
 		    "DRR_WRITE_EMBEDDED has invalid embedded type %u",
 		    drrwe->drr_etype));
