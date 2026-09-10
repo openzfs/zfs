@@ -37,9 +37,9 @@
 # 2. Create a file with a small recordsize on a metadata-only (or direct I/O)
 #    dataset, and churn it with random Direct I/O reads (fio --direct=1).
 # 3. Sample dbufstats.cache_extra_bytes: it must climb above its start value,
-#    unless the allowance is already pinned at its ceiling (arc_c_max's dbuf
-#    share minus arc_c's share), in which case the Direct I/O churn must still
-#    be driving dbuf evictions.
+#    unless the allowance is already pinned at its ceiling
+#    (arc_c_max >> dbuf_cache_extra_max_shift), in which case the Direct I/O
+#    churn must still be driving dbuf evictions.
 # 4. Delete the file (freeing its dbufs) and sample again: cache_extra_bytes
 #    must fall back toward zero.
 #
@@ -100,14 +100,17 @@ function get_uint
 	echo "$val"
 }
 
-# The largest dbuf_cache_extra the kernel can grant right now: the full
-# arc_c_max dbuf share minus the small arc_c share.  dbuf_cache_max_bytes is
-# left at its default (unlimited) value by this test, so it is not binding.
+# The largest dbuf_cache_extra the kernel can grant right now: its ceiling
+# (arc_c_max >> dbuf_cache_extra_max_shift) minus the current dbuf budget
+# (arc_c >> dbuf_cache_shift).  dbuf_cache_max_bytes is left at its default
+# (unlimited) value by this test, so it is not binding.
 function get_extra_ceiling
 {
 	typeset c=$(get_uint arcstats.c)
 	typeset c_max=$(get_uint arcstats.c_max)
-	echo $(((c_max >> DBUF_SHIFT_TEST) - (c >> DBUF_SHIFT_TEST)))
+	typeset extra_shift=$(get_tunable DBUF_CACHE_EXTRA_MAX_SHIFT)
+	typeset base_shift=$(get_tunable DBUF_CACHE_SHIFT)
+	echo $(((c_max >> extra_shift) - (c >> base_shift)))
 }
 
 log_assert "dbuf_cache_extra rises (or is already at its ceiling) under " \
