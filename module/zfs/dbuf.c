@@ -227,6 +227,14 @@ static uint64_t dbuf_metadata_cache_max_bytes = UINT64_MAX;
 static uint_t dbuf_cache_shift = 5;
 static uint_t dbuf_metadata_cache_shift = 6;
 
+/*
+ * Set the maximum size the dbuf cache may grow to as a log2 fraction of the
+ * maximum ARC size, i.e. arc_c_max >> dbuf_cache_extra_max_shift.  This is
+ * the ceiling for dbuf_cache_extra (see below) and should not exceed
+ * dbuf_cache_shift, so the ceiling never falls below the normal budget.
+ */
+static uint_t dbuf_cache_extra_max_shift = 2;
+
 /* Set the dbuf hash mutex count as log2 shift (dynamic by default) */
 static uint_t dbuf_mutex_cache_shift = 0;
 
@@ -238,6 +246,8 @@ static unsigned long dbuf_metadata_cache_target_bytes(void);
  * arc_c >> dbuf_cache_shift budget.  Normally zero; grown once per second
  * by dbuf_cache_adjust_tick() so Direct I/O / cache-disabled workloads can
  * keep their indirect (L1) dbuf working set resident without growing arc_c.
+ * The target is capped so it never exceeds arc_c_max >>
+ * dbuf_cache_extra_max_shift (or dbuf_cache_max_bytes, if smaller).
  */
 static uint64_t dbuf_cache_extra = 0;
 static uint64_t dbuf_cache_prev_evicts = 0;
@@ -738,7 +748,8 @@ dbuf_cache_multilist_index_func(multilist_t *ml, void *obj)
  * The target size of the dbuf cache is its arc_c >> dbuf_cache_shift share
  * plus dbuf_cache_extra, an allowance that Direct I/O / cache-disabled
  * workloads may need because their arc_c share never grows (see
- * dbuf_cache_adjust_tick()).  Both are capped by dbuf_cache_max_bytes.
+ * dbuf_cache_adjust_tick()).  The total is capped by dbuf_cache_max_bytes
+ * and by arc_c_max >> dbuf_cache_extra_max_shift.
  */
 static inline unsigned long
 dbuf_cache_target_bytes(void)
@@ -786,10 +797,10 @@ dbuf_cache_lowater_bytes(void)
  *   - the dbuf LRU cache alone makes up at least half the ARC, i.e. the ARC
  *     holds little beyond dbufs.  This stays true even as dbuf_cache_extra
  *     grows the footprint inside arc_used_bytes().
- * Misjudging is harmless either way: over-growing only retains a few more
- * dbufs (bounded by arc_c_max >> dbuf_cache_shift, shed again when the ARC
- * nears its target or memory is short), while under-growing just keeps the
- * normal arc_c sizing.
+ * Misjudging is harmless either way: over-growing only retains more dbufs
+ * (bounded by arc_c_max >> dbuf_cache_extra_max_shift, and shed again when
+ * the ARC nears its target or memory is short), while under-growing just
+ * keeps the normal arc_c sizing.
  */
 static boolean_t
 dbuf_arc_underutilized(void)
@@ -807,7 +818,8 @@ dbuf_arc_underutilized(void)
  * data; a Direct I/O / cache-disabled workload never fills the ARC, so that
  * budget would never grow and its L1 indirect dbufs would churn.  When
  * dbuf_arc_underutilized() holds and there is no memory pressure (no_grow),
- * adapt the dbuf-owned allowance (dbuf_cache_extra) instead of arc_c.
+ * adapt the dbuf-owned allowance (dbuf_cache_extra) instead of arc_c, up to
+ * arc_c_max >> dbuf_cache_extra_max_shift.
  *
  * The allowance chases real need by the capacity eviction count.
  */
@@ -824,7 +836,7 @@ dbuf_cache_adjust_tick(boolean_t no_grow, uint64_t arc_max)
 	uint64_t size = zfs_refcount_count(&dbuf_caches[DB_DBUF_CACHE].size);
 	uint64_t base = arc_target_bytes() >> dbuf_cache_shift;
 	uint64_t budget_max = MIN(dbuf_cache_max_bytes,
-	    arc_max >> dbuf_cache_shift);
+	    arc_max >> dbuf_cache_extra_max_shift);
 	uint64_t max_extra = budget_max > base ? budget_max - base : 0;
 	uint64_t extra = atomic_load_64(&dbuf_cache_extra);
 	uint64_t evicts = wmsum_value(&dbuf_sums.cache_total_evicts);
@@ -5692,6 +5704,9 @@ ZFS_MODULE_PARAM(zfs_dbuf, dbuf_, metadata_cache_max_bytes, U64, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_dbuf, dbuf_, cache_shift, UINT, ZMOD_RW,
 	"Set size of dbuf cache to log2 fraction of arc size.");
+
+ZFS_MODULE_PARAM(zfs_dbuf, dbuf_, cache_extra_max_shift, UINT, ZMOD_RW,
+	"Set max size of dbuf cache to log2 fraction of max arc size.");
 
 ZFS_MODULE_PARAM(zfs_dbuf, dbuf_, metadata_cache_shift, UINT, ZMOD_RW,
 	"Set size of dbuf metadata cache to log2 fraction of arc size.");
