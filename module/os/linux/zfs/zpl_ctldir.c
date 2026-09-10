@@ -88,7 +88,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_root_getattr, 4,
     const struct path *, path, struct kstat *, stat, u32, request_mask,
     unsigned int, query_flags)
 {
-	(void) request_mask, (void) query_flags;
+	(void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
 	zpl_generic_fillattr(idmap, request_mask, ip, stat);
 	stat->atime = current_time(ip);
@@ -731,7 +731,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_snapdir_getattr, 4,
     const struct path *, path, struct kstat *, stat, u32, request_mask,
     unsigned int, query_flags)
 {
-	(void) request_mask, (void) query_flags;
+	(void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	int error;
@@ -795,7 +795,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_snapdirs_getattr, 4,
     const struct path *, path, struct kstat *, stat, u32, request_mask,
     unsigned int, query_flags)
 {
-	(void) request_mask, (void) query_flags;
+	(void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
 	znode_t *zp __maybe_unused = ITOZ(ip);
 
@@ -886,7 +886,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_shares_getattr, 4,
     const struct path *, path, struct kstat *, stat, u32, request_mask,
     unsigned int, query_flags)
 {
-	(void) request_mask, (void) query_flags;
+	(void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	znode_t *dzp;
