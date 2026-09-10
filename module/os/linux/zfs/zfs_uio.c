@@ -496,6 +496,19 @@ zfs_uio_free_dio_pages(zfs_uio_t *uio, zfs_uio_rw_t rw)
 
 	vmem_free(uio->uio_dio.pages,
 	    uio->uio_dio.npages * sizeof (struct page *));
+
+	/*
+	 * Reset the Direct I/O state so the same uio can be re-setup by
+	 * zfs_setup_direct().  The async read path pins pages and may then
+	 * decline the request (EOPNOTSUPP) after freeing them, in which case
+	 * the synchronous fallback re-runs zfs_setup_direct() on this uio.
+	 * Stale npages/pages/pinned would make the re-pin write past the end
+	 * of the newly allocated pages array and trip the npages ASSERT.
+	 */
+	uio->uio_dio.pages = NULL;
+	uio->uio_dio.npages = 0;
+	uio->uio_dio.pinned = B_FALSE;
+	uio->uio_extflg &= ~UIO_DIRECT;
 }
 
 #if defined(HAVE_PIN_USER_PAGES_UNLOCKED)
@@ -656,6 +669,16 @@ zfs_uio_get_dio_pages_alloc(zfs_uio_t *uio, zfs_uio_rw_t rw)
 		}
 
 		vmem_free(uio->uio_dio.pages, size);
+
+		/*
+		 * Leave the uio in a clean state so a fallback path (e.g. the
+		 * synchronous re-run after an async EOPNOTSUPP) can call
+		 * zfs_setup_direct() again on the same uio.
+		 */
+		uio->uio_dio.pages = NULL;
+		uio->uio_dio.npages = 0;
+		uio->uio_dio.pinned = B_FALSE;
+		uio->uio_extflg &= ~UIO_DIRECT;
 		return (error);
 	} else {
 		ASSERT3S(uio->uio_dio.npages, ==, npages);

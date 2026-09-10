@@ -1,0 +1,119 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# CDDL HEADER START
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# http://www.illumos.org/license/CDDL.
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright 2026, tiehexue <tiehexue@hotmail.com>. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/async/async.cfg
+
+#
+# Check if an fio ioengine is available.
+#
+function fio_ioengine_available
+{
+	typeset ioengine=$1
+	typeset tmpfile="/tmp/fio_probe_$$"
+
+	fio --name=probe --ioengine=$ioengine --size=4K --bs=4K \
+	    --rw=read --filename="$tmpfile" --direct=0 \
+	    > /dev/null 2>&1
+	typeset ret=$?
+
+	rm -f "$tmpfile"
+
+	if (( ret == 0 )); then
+		log_note "fio ioengine '$ioengine' is available"
+	else
+		log_note "fio ioengine '$ioengine' is not available"
+	fi
+
+	return $ret
+}
+
+#
+# Run an async DIO fio benchmark and return IOPS.
+#
+# Usage: async_dio_iops <mntpnt> <ioengine> <rw> <iodepth>
+#                        <runtime> [label] [numjobs]
+#   rw = "read" | "write"
+#
+function async_dio_iops
+{
+	typeset mntpnt=$1
+	typeset ioengine=$2
+	typeset rw=$3
+	typeset iodepth=$4
+	typeset runtime=${5:-10}
+	typeset label=${6:-"iops"}
+	typeset numjobs=${7:-1}
+	typeset testfile="$mntpnt/async_testfile"
+	typeset field iops
+
+	if [[ "$rw" == "read" ]]; then
+		field=8
+		typeset count=$((ASYNC_FILESIZE / ASYNC_BS))
+		dd if=/dev/urandom of="$testfile" bs="$ASYNC_BS_HR" \
+		    count=$count 2>/dev/null
+	else
+		field=49
+	fi
+
+	iops=$(fio --filename="$testfile" --name="$label" \
+	    --rw=rand${rw} --bs="$ASYNC_BS_HR" --size="$ASYNC_FILESIZE_HR" \
+	    --direct=1 --numjobs=$numjobs --iodepth=$iodepth \
+	    --ioengine=$ioengine --fallocate=none \
+	    --group_reporting --minimal --runtime=$runtime --time_based 2>/dev/null | \
+	    cut -d';' -f$field)
+
+	rm -f "$testfile"
+	echo "$iops"
+}
+
+#
+# Run an async DIO fio verify workload: write with sha1 headers,
+# then read back and verify.  The block size and file size default to
+# the values in async.cfg and may be overridden (e.g. to exercise
+# requests larger than SPA_MAXBLOCKSIZE).
+#
+# Usage: async_dio_verify <mntpnt> <ioengine> <iodepth> [bs] [size]
+#
+function async_dio_verify
+{
+	typeset mntpnt=$1
+	typeset ioengine=$2
+	typeset iodepth=$3
+	typeset bs=${4:-$ASYNC_BS_HR}
+	typeset size=${5:-$ASYNC_FILESIZE_HR}
+	typeset testfile="$mntpnt/async_verify_testfile"
+
+	log_must fio --filename="$testfile" --name=async-verify-write \
+	    --rw=write --bs="$bs" --size="$size" \
+	    --direct=1 --numjobs=1 --iodepth=$iodepth \
+	    --ioengine=$ioengine --fallocate=none \
+	    --verify=sha1 --do_verify=0 \
+	    --group_reporting --minimal
+
+	log_must fio --filename="$testfile" --name=async-verify-read \
+	    --rw=read --bs="$bs" --size="$size" \
+	    --direct=1 --numjobs=1 --iodepth=$iodepth \
+	    --ioengine=$ioengine --fallocate=none \
+	    --verify=sha1 --do_verify=1 \
+	    --group_reporting --minimal
+
+	log_must rm -f "$testfile"
+}
