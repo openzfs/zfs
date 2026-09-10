@@ -5,7 +5,7 @@ dnl #       functions to reference the GPL-only symbol 'kasan_flag_enabled',
 dnl #       breaking the build. Detect this and work
 dnl #       around it.
 AC_DEFUN([ZFS_AC_KERNEL_SRC_KASAN_ENABLED], [
-	ZFS_LINUX_TEST_SRC([kasan_enabled], [
+	ZFS_LINUX_TEST_SRC([kasan_enabled_license], [
 		#include <linux/kasan.h>
 	], [
 		kasan_enabled();
