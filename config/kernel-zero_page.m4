@@ -8,7 +8,7 @@ dnl #
 dnl # Checking if ZERO_PAGE is exported GPL-only
 dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_ZERO_PAGE], [
-	ZFS_LINUX_TEST_SRC([zero_page], [
+	ZFS_LINUX_TEST_SRC([zero_page_license], [
 		#include <asm/pgtable.h>
 	], [
 		struct page *p __attribute__ ((unused));
