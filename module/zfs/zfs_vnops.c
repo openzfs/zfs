@@ -2083,7 +2083,23 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	/*
 	 * Maintain predictable lock order.
 	 */
-	if (inzp < outzp || (inzp == outzp && inoff < outoff)) {
+	if (inzp == outzp) {
+		/*
+		 * Within one file, one writer lock spans both
+		 * ranges.  Two locks on the same znode can deadlock
+		 * this thread against itself: a write that grows the
+		 * file's block size grows its lock to cover the
+		 * whole file (see zfs_rlock.c), which then conflicts
+		 * with the other.  The source block pointers are
+		 * read before the lock is reduced, so the source
+		 * stays covered.
+		 */
+		uint64_t lo = MIN(inoff, outoff);
+		uint64_t hi = MAX(inoff + len, outoff + len);
+		outlr = zfs_rangelock_enter(&outzp->z_rangelock, lo,
+		    hi - lo, RL_WRITER);
+		inlr = NULL;
+	} else if (inzp < outzp) {
 		inlr = zfs_rangelock_enter(&inzp->z_rangelock, inoff, len,
 		    RL_READER);
 		outlr = zfs_rangelock_enter(&outzp->z_rangelock, outoff, len,
@@ -2099,7 +2115,8 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	    outlr, B_FALSE, &done);
 
 	zfs_rangelock_exit(outlr);
-	zfs_rangelock_exit(inlr);
+	if (inlr != NULL)
+		zfs_rangelock_exit(inlr);
 
 	if (done > 0) {
 		/*
