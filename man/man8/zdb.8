@@ -15,7 +15,7 @@
 .\" Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 .\" Copyright (c) 2017 Intel Corporation.
 .\"
-.Dd August 12, 2025
+.Dd September 10, 2026
 .Dt ZDB 8
 .Os
 .
@@ -24,7 +24,7 @@
 .Nd display ZFS storage pool debugging and consistency information
 .Sh SYNOPSIS
 .Nm
-.Op Fl AbcdDFGhikLMNPsTvXYy
+.Op Fl AbcdDFGhikLMNPsTvXYyZ
 .Op Fl e Oo Fl V Oc Oo Fl p Ar path Oc Ns …
 .Op Fl I Ar inflight-I/O-ops
 .Oo Fl o Ar var Ns = Ns Ar value Oc Ns …
@@ -572,6 +572,9 @@ Scans through the livelist and metaslabs, checking for duplicate entries
 and compares the two, checking for potential double frees.
 If it encounters issues, warnings will be printed, but the command will not
 necessarily fail.
+.It Fl Z , -zstd-headers
+Read each ZSTD-compressed block and display its ZSTD header: the compressed
+size, the zstd library version as well as the compression level used.
 .El
 .Pp
 Specifying a display option more than once enables verbosity for only that
