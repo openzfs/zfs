@@ -1,0 +1,7 @@
+topology sas_expander
+
+#       EXPANDER ADDR      CHANNEL NAME
+channel 0x500304000000000f J1A
+channel 0x500304000000001f J1B
+channel 0x500304000000002f J2A
+channel 0x500304000000003f J2B
