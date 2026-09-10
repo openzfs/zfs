@@ -1534,27 +1534,6 @@ dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
 }
 
 void
-dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
-    dmu_tx_t *tx)
-{
-	dmu_buf_t **dbp;
-	int numbufs, i;
-
-	if (size == 0)
-		return;
-
-	VERIFY0(dmu_buf_hold_array(os, object, offset, size,
-	    FALSE, FTAG, &numbufs, &dbp, DMU_READ_PREFETCH));
-
-	for (i = 0; i < numbufs; i++) {
-		dmu_buf_t *db = dbp[i];
-
-		dmu_buf_will_not_fill(db, tx);
-	}
-	dmu_buf_rele_array(dbp, numbufs, FTAG);
-}
-
-void
 dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
     void *data, uint8_t etype, uint8_t comp, int uncompressed_size,
     int compressed_size, int byteorder, dmu_tx_t *tx)
@@ -3208,7 +3187,6 @@ EXPORT_SYMBOL(dmu_write_by_dnode);
 EXPORT_SYMBOL(dmu_write_uio);
 EXPORT_SYMBOL(dmu_write_uio_dbuf);
 EXPORT_SYMBOL(dmu_write_uio_dnode);
-EXPORT_SYMBOL(dmu_prealloc);
 EXPORT_SYMBOL(dmu_object_info);
 EXPORT_SYMBOL(dmu_object_info_from_dnode);
 EXPORT_SYMBOL(dmu_object_info_from_db);
