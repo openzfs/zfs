@@ -1,0 +1,194 @@
+#!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
+#
+# CDDL HEADER START
+#
+# The contents of this file are subject to the terms of the
+# Common Development and Distribution License (the "License").
+# You may not use this file except in compliance with the License.
+#
+# You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+# or https://opensource.org/licenses/CDDL-1.0.
+# See the License for the specific language governing permissions
+# and limitations under the License.
+#
+# When distributing Covered Code, include this CDDL HEADER in each
+# file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+# If applicable, add the following below this CDDL HEADER, with the
+# fields enclosed by brackets "[]" replaced with your own identifying
+# information: Portions Copyright [yyyy] [name of copyright owner]
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2026, Hewlett Packard Enterprise Development LP.
+#
+
+#
+# zap_get_obj <path>
+#
+# Return the ZFS DMU object number for <path> by scanning the full
+# dataset dump from zdb, matching on the trailing path component.
+#
+zap_get_obj()
+{
+	typeset path=$1
+	typeset name
+
+	name=$(basename "$path")
+	sync_pool $TESTPOOL > /dev/null 2>&1
+
+	zdb -ddddddd "$TESTPOOL/$TESTFS" 2>/dev/null | \
+	awk -v name="/$name" '
+	    /^[[:space:]]+[0-9]+[[:space:]]/ && !/bonus/ { obj = $1 }
+	    /[[:space:]]path[[:space:]]/ {
+		if ($0 ~ (name "$")) { print obj; exit }
+	    }
+	'
+}
+
+#
+# zap_type <path>
+#
+# Return the on-disk ZAP type for the directory at <path>:
+#   "tinyzap" | "microzap" | "fatzap" | "unknown"
+#
+zap_type()
+{
+	typeset path=$1
+	typeset obj result
+
+	obj=$(zap_get_obj "$path")
+	if [[ -z "$obj" ]]; then
+		print "unknown"
+		return
+	fi
+
+	sync_pool "$TESTPOOL" > /dev/null 2>&1
+
+	result=$(zdb -ddddddd "$TESTPOOL/$TESTFS" "$obj" 2>/dev/null | \
+	    awk '
+	        /^[[:space:]]+(tinyzap|microzap|Fat ZAP)[: ]/ {
+		    if      ($0 ~ /tinyzap/)  { print "tinyzap";  exit }
+		    else if ($0 ~ /microzap/) { print "microzap"; exit }
+		    else if ($0 ~ /Fat ZAP/)  { print "fatzap";   exit }
+		}
+	    ')
+	print "${result:-unknown}"
+}
+
+#
+# zap_dump <path>
+#
+# Log ZAP structure fields for diagnostic output on test failure.
+#
+zap_dump()
+{
+	typeset path=$1
+	typeset obj
+
+	obj=$(zap_get_obj "$path")
+
+	log_note "zap_dump: $path  obj=${obj:-not found}  ds=$TESTPOOL/$TESTFS"
+	[[ -z "$obj" ]] && return
+
+	zdb -ddddddd "$TESTPOOL/$TESTFS" "$obj" 2>/dev/null \
+	    | grep -E 'microzap|tinyzap|Fat ZAP|entries|mz_flags|chunk|stride|nchunks|ptrtbl' \
+	    | while IFS= read -r line; do
+	    log_note "  $line"
+	done
+}
+
+#
+# zap_assert_type <path> <expected>
+#
+# Fail the test (with a zap_dump) if the on-disk ZAP type does not
+# match <expected>.  <expected> must be one of:
+#    "microzap" | "tinyzap" | "fatzap"
+#
+zap_assert_type()
+{
+	typeset path=$1
+	typeset expected=$2
+	typeset got
+
+	got=$(zap_type "$path")
+	if [[ "$got" != "$expected" ]]; then
+		zap_dump "$path"
+		log_fail "$path: expected ZAP type '$expected', got '$got'"
+	fi
+	log_note "$path: ZAP type = $got  [OK]"
+}
+
+#
+# zap_assert_entries <dir> <name> [<name> ...]
+#
+# Fail the test if any of the listed names are not accessible
+# under <dir> via stat(1).
+#
+zap_assert_entries()
+{
+	typeset dir=$1
+	shift
+	typeset name
+	typeset -i missing=0
+
+	for name in "$@"; do
+		if ! stat "$dir/$name" > /dev/null 2>&1; then
+		log_note "MISSING: $dir/$name"
+		((missing++))
+		fi
+	done
+	if [[ $missing -gt 0 ]]; then
+		zap_dump "$dir"
+		log_fail "$dir: $missing entries missing after operation"
+	fi
+}
+
+#
+# zap_chunk_size <path>
+#
+# Return the on-disk TinyZAP chunk size for the directory at <path>
+# by reading zap_chunk_size from the zdb microzap dump.
+# Returns "" if the directory is not a TinyZAP.
+#
+zap_chunk_size()
+{
+    typeset path=$1
+    typeset obj
+
+    obj=$(zap_get_obj "$path")
+    [[ -z "$obj" ]] && return
+
+    sync_pool "$TESTPOOL" > /dev/null 2>&1
+
+    # Flush ARC on Linux only; on FreeBSD sync_pool is sufficient.
+    if [[ -w /proc/sys/vm/drop_caches ]]; then
+        echo 3 > /proc/sys/vm/drop_caches
+    fi
+
+    zdb -ddddddd "$TESTPOOL/$TESTFS" "$obj" 2>/dev/null | \
+        awk '/tinyzap:/ { line = $0; sub(/.*chunk=/, "", line); \
+	    sub(/[^0-9].*/, "", line); print line; exit }'
+}
+
+#
+# zap_assert_chunk <path> <expected_chunk_size>
+#
+# Fail the test if the on-disk TinyZAP chunk size does not match
+# <expected_chunk_size> (e.g. 128 or 256).
+#
+zap_assert_chunk()
+{
+    typeset path=$1
+    typeset expected=$2
+    typeset got
+
+    got=$(zap_chunk_size "$path")
+    if [[ "$got" != "$expected" ]]; then
+        zap_dump "$path"
+        log_fail "$path: expected chunk size '$expected', got '${got:-not found}'"
+    fi
+    log_note "$path: chunk size = $got  [OK]"
+}

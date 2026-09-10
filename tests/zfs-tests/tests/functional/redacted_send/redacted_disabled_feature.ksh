@@ -52,7 +52,7 @@ function cleanup
 log_onexit cleanup
 
 destroy_pool $POOL2
-log_must zpool create -d $POOL2 $DISK2
+log_must zpool create -d -o feature@tinyzap=enabled $POOL2 $DISK2
 
 log_must zfs create $sendfs1
 log_must zfs snapshot $sendfs1@snap
