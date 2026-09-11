@@ -1945,6 +1945,11 @@ and reused if the run is suspended and later resumed.
 .It Sy zfs_initialize_chunk_size Ns = Ns Sy 1048576 Ns B Po 1 MiB Pc Pq u64
 Size of writes used by
 .Xr zpool-initialize 8 .
+Each device's initialization thread samples this value when it starts,
+including when initialization is resumed.
+The effective size is clamped to the range from 512 B to 16 MiB and rounded
+down to a multiple of 512 B.
+Changes do not affect threads that are already running.
 This option is used by the test suite.
 .
 .It Sy zfs_livelist_max_entries Ns = Ns Sy 500000 Po 5*10^5 Pc Pq u64
