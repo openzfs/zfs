@@ -1,0 +1,7 @@
+#cloud-config
+output: {all: '| tee -a /var/log/cloud-init-output.log'}
+runcmd:
+  - [mkdir, -p, /mnt/zvol-source, /mnt/zvol-status]
+  - [mount, -t, 9p, -o, 'trans=virtio,version=9p2000.L', source, /mnt/zvol-source]
+  - [mount, -t, 9p, -o, 'trans=virtio,version=9p2000.L', status, /mnt/zvol-status]
+  - [/mnt/zvol-source/contrib/zvol-swap-stall/prepare-zvol-swap-guest.sh, /mnt/zvol-source, /mnt/zvol-status]
