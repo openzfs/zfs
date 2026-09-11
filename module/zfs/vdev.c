@@ -4447,6 +4447,78 @@ vdev_psize_to_asize(vdev_t *vd, uint64_t psize)
 }
 
 /*
+ * Stop any TRIM or initialize operation running on a vdev which has just
+ * stopped being writeable, and wait for its thread to exit, so that no IO
+ * from the operation outlives the ioctl and the state "zpool status" reports
+ * is the final one.  Otherwise the thread only notices at its next
+ * vdev_trim_should_stop() check, and it is that thread which records the
+ * final state, so "zpool offline -f" would return with the operation still
+ * running -- and still issuing IO to the device the administrator has just
+ * faulted.  spa_vdev_state_exit() already waits for the txg to sync for the
+ * same reason: "when the command completes, you expect no further I/O from
+ * ZFS".
+ *
+ * A faulted vdev cancels, the way spa_vdev_config_exit() does for a vdev on
+ * its way out, so that the result is recorded here rather than left to the
+ * thread.  A vdev which is merely offline only waits: its operation stays
+ * VDEV_TRIM_ACTIVE / VDEV_INITIALIZE_ACTIVE on disk and resumes on
+ * "zpool online", which is what vdev_trim_restart() is for.
+ *
+ * This has to run after spa_vdev_state_exit() has dropped the config locks:
+ * vdev_trim_stop() must not be called with SCL_STATE held as a writer, which
+ * spa_vdev_state_enter() holds, and the thread being waited for takes
+ * SCL_CONFIG as a reader and calls txg_wait_synced() on its way out.
+ */
+static void
+vdev_stop_trim_initialize(spa_t *spa, uint64_t guid)
+{
+	vdev_t *vd;
+	boolean_t cancel;
+
+	spa_namespace_enter(FTAG);
+
+	spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_READER);
+	vd = spa_lookup_by_guid(spa, guid, B_TRUE);
+	if (vd == NULL || !vd->vdev_ops->vdev_op_leaf ||
+	    !vdev_is_concrete(vd) || vdev_writeable(vd)) {
+		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+		spa_namespace_exit(FTAG);
+		return;
+	}
+	cancel = vd->vdev_faulted;
+	spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+
+	/*
+	 * Only cancel an operation which is actually running: a canceling
+	 * vdev_trim_stop() proceeds with no thread as well, and would then
+	 * overwrite the recorded result of one which had already finished.
+	 */
+	mutex_enter(&vd->vdev_trim_lock);
+	if (cancel && vd->vdev_trim_thread != NULL &&
+	    vd->vdev_trim_state == VDEV_TRIM_ACTIVE) {
+		vdev_trim_stop(vd, VDEV_TRIM_CANCELED, NULL);
+	} else {
+		while (vd->vdev_trim_thread != NULL)
+			cv_wait(&vd->vdev_trim_cv, &vd->vdev_trim_lock);
+	}
+	mutex_exit(&vd->vdev_trim_lock);
+
+	mutex_enter(&vd->vdev_initialize_lock);
+	if (cancel && vd->vdev_initialize_thread != NULL &&
+	    vd->vdev_initialize_state == VDEV_INITIALIZE_ACTIVE) {
+		vdev_initialize_stop(vd, VDEV_INITIALIZE_CANCELED, NULL);
+	} else {
+		while (vd->vdev_initialize_thread != NULL) {
+			cv_wait(&vd->vdev_initialize_cv,
+			    &vd->vdev_initialize_lock);
+		}
+	}
+	mutex_exit(&vd->vdev_initialize_lock);
+
+	spa_namespace_exit(FTAG);
+}
+
+/*
  * Mark the given vdev faulted.  A faulted vdev behaves as if the device could
  * not be opened, and no I/O is attempted.
  */
@@ -4454,6 +4526,7 @@ int
 vdev_fault(spa_t *spa, uint64_t guid, vdev_aux_t aux)
 {
 	vdev_t *vd, *tvd;
+	int error;
 
 	spa_vdev_state_enter(spa, SCL_NONE);
 
@@ -4524,7 +4597,12 @@ vdev_fault(spa_t *spa, uint64_t guid, vdev_aux_t aux)
 			vdev_set_state(vd, B_FALSE, VDEV_STATE_DEGRADED, aux);
 	}
 
-	return (spa_vdev_state_exit(spa, vd, 0));
+	error = spa_vdev_state_exit(spa, vd, 0);
+
+	if (error == 0)
+		vdev_stop_trim_initialize(spa, guid);
+
+	return (error);
 }
 
 /*
@@ -4816,6 +4894,9 @@ vdev_offline(spa_t *spa, uint64_t guid, uint64_t flags)
 	mutex_enter(&spa->spa_vdev_top_lock);
 	error = vdev_offline_locked(spa, guid, flags);
 	mutex_exit(&spa->spa_vdev_top_lock);
+
+	if (error == 0)
+		vdev_stop_trim_initialize(spa, guid);
 
 	return (error);
 }
