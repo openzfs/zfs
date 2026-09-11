@@ -2427,7 +2427,51 @@ dsl_crypto_recv_raw_key_sync(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 
 		rddobj = dd->dd_object;
 	} else {
+		dsl_dir_t *rdd;
+		boolean_t foreign = B_FALSE;
+
 		VERIFY0(dsl_dir_get_encryption_root_ddobj(dd, &rddobj));
+
+		/*
+		 * The key in the stream is wrapped by the wrapping key of the
+		 * sender's encryption root and is about to be filed under
+		 * ours. Where we are that root the two are the same thing, as
+		 * the parameters below are written along with the key. Where
+		 * we inherit instead, the root has to be using the wrapping
+		 * key the sender used, which is what the keyformat, salt and
+		 * iteration count describe; a root of our own making has a
+		 * salt of its own and would leave us with a key nothing on
+		 * this pool can unwrap. Such a dataset keeps working until
+		 * its key is unloaded and then never loads again, so keep the
+		 * copy we have instead: dsl_crypto_recv_raw_key_check() has
+		 * already confirmed that both protect the same master key.
+		 *
+		 * The key objects are compared rather than the dsl dirs
+		 * themselves because an incremental receive lands on the
+		 * hidden %recv clone, which has a dsl dir of its own but
+		 * shares the key object of the dataset it is swapped into.
+		 */
+		VERIFY0(dsl_dir_hold_obj(dp, rddobj, NULL, FTAG, &rdd));
+		if (rdd->dd_crypto_obj != dd->dd_crypto_obj) {
+			uint64_t rkeyformat, rsalt, riters;
+
+			VERIFY0(zap_lookup(mos, rdd->dd_crypto_obj,
+			    zfs_prop_to_name(ZFS_PROP_KEYFORMAT), 8, 1,
+			    &rkeyformat));
+			VERIFY0(zap_lookup(mos, rdd->dd_crypto_obj,
+			    zfs_prop_to_name(ZFS_PROP_PBKDF2_SALT), 8, 1,
+			    &rsalt));
+			VERIFY0(zap_lookup(mos, rdd->dd_crypto_obj,
+			    zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS), 8, 1,
+			    &riters));
+
+			foreign = (keyformat != rkeyformat || salt != rsalt ||
+			    iters != riters);
+		}
+		dsl_dir_rele(rdd, FTAG);
+
+		if (foreign)
+			return;
 	}
 
 	/* sync the key data to the ZAP object on disk */
