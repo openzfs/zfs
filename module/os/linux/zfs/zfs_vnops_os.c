@@ -618,8 +618,8 @@ zfs_create_idmap(znode_t *dzp, char *name, vattr_t *vap, int excl,
 	zfs_dirlock_t	*dl;
 	dmu_tx_t	*tx;
 	int		error;
-	uid_t		uid;
-	gid_t		gid;
+	uid_t		uid = crgetuid(cr);
+	gid_t		gid = crgetgid(cr);
 	zfs_acl_ids_t   acl_ids;
 	boolean_t	fuid_dirtied;
 	boolean_t	have_acl = B_FALSE;
@@ -630,10 +630,6 @@ zfs_create_idmap(znode_t *dzp, char *name, vattr_t *vap, int excl,
 	 * If we have an ephemeral id, ACL, or XVATTR then
 	 * make sure file system is at proper version
 	 */
-
-	gid = crgetgid(cr);
-	uid = crgetuid(cr);
-
 	if (zfsvfs->z_use_fuids == B_FALSE &&
 	    (vsecp || IS_EPHEMERAL(uid) || IS_EPHEMERAL(gid)))
 		return (SET_ERROR(EINVAL));
@@ -653,8 +649,8 @@ zfs_create_idmap(znode_t *dzp, char *name, vattr_t *vap, int excl,
 	}
 
 	if (vap->va_mask & ATTR_XVATTR) {
-		if ((error = secpolicy_xvattr((xvattr_t *)vap,
-		    crgetuid(cr), cr, vap->va_mode)) != 0) {
+		if ((error = secpolicy_xvattr((xvattr_t *)vap, uid, cr,
+		    vap->va_mode)) != 0) {
 			zfs_exit(zfsvfs, FTAG);
 			return (error);
 		}
@@ -870,8 +866,8 @@ zfs_tmpfile_idmap(struct inode *dip, vattr_t *vap, int excl,
 	objset_t	*os;
 	dmu_tx_t	*tx;
 	int		error;
-	uid_t		uid;
-	gid_t		gid;
+	uid_t		uid = crgetuid(cr);
+	gid_t		gid = crgetgid(cr);
 	zfs_acl_ids_t   acl_ids;
 	uint64_t	projid = ZFS_DEFAULT_PROJID;
 	boolean_t	fuid_dirtied;
@@ -882,10 +878,6 @@ zfs_tmpfile_idmap(struct inode *dip, vattr_t *vap, int excl,
 	 * If we have an ephemeral id, ACL, or XVATTR then
 	 * make sure file system is at proper version
 	 */
-
-	gid = crgetgid(cr);
-	uid = crgetuid(cr);
-
 	if (zfsvfs->z_use_fuids == B_FALSE &&
 	    (vsecp || IS_EPHEMERAL(uid) || IS_EPHEMERAL(gid)))
 		return (SET_ERROR(EINVAL));
@@ -895,8 +887,8 @@ zfs_tmpfile_idmap(struct inode *dip, vattr_t *vap, int excl,
 	os = zfsvfs->z_os;
 
 	if (vap->va_mask & ATTR_XVATTR) {
-		if ((error = secpolicy_xvattr((xvattr_t *)vap,
-		    crgetuid(cr), cr, vap->va_mode)) != 0) {
+		if ((error = secpolicy_xvattr((xvattr_t *)vap, uid, cr,
+		    vap->va_mode)) != 0) {
 			zfs_exit(zfsvfs, FTAG);
 			return (error);
 		}
@@ -1262,7 +1254,7 @@ zfs_mkdir_idmap(znode_t *dzp, char *dirname, vattr_t *vap, znode_t **zpp,
 	dmu_tx_t	*tx;
 	int		error;
 	int		zf = ZNEW;
-	uid_t		uid;
+	uid_t		uid = crgetuid(cr);
 	gid_t		gid = crgetgid(cr);
 	zfs_acl_ids_t   acl_ids;
 	boolean_t	fuid_dirtied;
@@ -1274,8 +1266,6 @@ zfs_mkdir_idmap(znode_t *dzp, char *dirname, vattr_t *vap, znode_t **zpp,
 	 * If we have an ephemeral id, ACL, or XVATTR then
 	 * make sure file system is at proper version
 	 */
-
-	uid = crgetuid(cr);
 	if (zfsvfs->z_use_fuids == B_FALSE &&
 	    (vsecp || IS_EPHEMERAL(uid) || IS_EPHEMERAL(gid)))
 		return (SET_ERROR(EINVAL));
@@ -1301,8 +1291,8 @@ zfs_mkdir_idmap(znode_t *dzp, char *dirname, vattr_t *vap, znode_t **zpp,
 		zf |= ZCILOOK;
 
 	if (vap->va_mask & ATTR_XVATTR) {
-		if ((error = secpolicy_xvattr((xvattr_t *)vap,
-		    crgetuid(cr), cr, vap->va_mode)) != 0) {
+		if ((error = secpolicy_xvattr((xvattr_t *)vap, uid, cr,
+		    vap->va_mode)) != 0) {
 			zfs_exit(zfsvfs, FTAG);
 			return (error);
 		}
@@ -2172,8 +2162,8 @@ top:
 		int	idmask = (mask & (ATTR_UID|ATTR_GID));
 		int	take_owner;
 		int	take_group;
-		uid_t	uid;
-		gid_t	gid;
+		uid_t	owner;
+		gid_t	group;
 
 		/*
 		 * NOTE: even if a new mode is being set,
@@ -2187,13 +2177,13 @@ top:
 		 * Take ownership or chgrp to group we are a member of
 		 */
 
-		uid = zfs_uid_to_vfsuid(idmap, zfs_i_user_ns(ip),
+		owner = zfs_uid_to_vfsuid(idmap, zfs_i_user_ns(ip),
 		    vap->va_uid);
-		gid = zfs_gid_to_vfsgid(idmap, zfs_i_user_ns(ip),
+		group = zfs_gid_to_vfsgid(idmap, zfs_i_user_ns(ip),
 		    vap->va_gid);
-		take_owner = (mask & ATTR_UID) && (uid == crgetuid(cr));
+		take_owner = (mask & ATTR_UID) && (owner == crgetuid(cr));
 		take_group = (mask & ATTR_GID) &&
-		    zfs_groupmember(zfsvfs, gid, cr);
+		    zfs_groupmember(zfsvfs, group, cr);
 
 		/*
 		 * If both ATTR_UID and ATTR_GID are set then take_owner and
@@ -3369,6 +3359,7 @@ commit_link_szp:
 		VERIFY0(zfs_drop_nlink(szp, tx, NULL));
 	goto commit;
 }
+
 int
 zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
     cred_t *cr, int flags, uint64_t rflags, vattr_t *wo_vap)
