@@ -39,7 +39,7 @@ default_mirror_setup_noexit $DISKS
 
 sync_all_pools
 
-set -A bad_flags a b c   e   g h i j k l   n o p q r s t u v w x y   \
+set -A bad_flags a b c   e   g h i j k l   n o p q r s t u w x y   \
                    B C D E F G H I J K L M N O P Q R S T U V W X Y Z \
                  0 1 2 3 4 5 6 7 8 9 _ - + % . , :
 

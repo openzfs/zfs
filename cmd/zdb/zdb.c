@@ -760,6 +760,7 @@ usage(void)
 	    "            d     ZFS directories\n"
 	    "            f     ZFS files \n"
 	    "            m     SPA space maps\n"
+	    "            v     ZVols\n"
 	    "            z     ZAPs\n"
 	    "            -     Negate effect of next flag\n\n");
 	(void) fprintf(stderr, "    Options to control amount of output:\n");
@@ -4375,6 +4376,10 @@ match_object_type(dmu_object_type_t obj_type, uint64_t flags)
 		break;
 	case DMU_OT_SPACE_MAP:
 		if (!(flags & ZOR_FLAG_SPACE_MAP))
+			match = B_FALSE;
+		break;
+	case DMU_OT_ZVOL:
+		if (!(flags & ZOR_FLAG_ZVOL))
 			match = B_FALSE;
 		break;
 	default:
@@ -10779,6 +10784,7 @@ retry_lookup:
 		flagbits['d'] = ZOR_FLAG_DIRECTORY;
 		flagbits['f'] = ZOR_FLAG_PLAIN_FILE;
 		flagbits['m'] = ZOR_FLAG_SPACE_MAP;
+		flagbits['v'] = ZOR_FLAG_ZVOL;
 		flagbits['z'] = ZOR_FLAG_ZAP;
 		flagbits['A'] = ZOR_FLAG_ALL_TYPES;
 
