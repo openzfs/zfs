@@ -66,6 +66,11 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/libzfs_input_check
 	libzfs_core.la \
 	libnvpair.la
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/lzc_destroy_bookmarks
+%C%_lzc_destroy_bookmarks_LDADD = \
+	libzfs_core.la \
+	libnvpair.la
+
 scripts_zfs_tests_bin_PROGRAMS += %D%/libzfs_mnttab_cache_check
 %C%_libzfs_mnttab_cache_check_LDADD = \
 	libzfs.la

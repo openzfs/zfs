@@ -52,7 +52,7 @@ top:
 
 	dst.dst_pool = dp;
 	dst.dst_txg = dmu_tx_get_txg(tx);
-	dst.dst_space = blocks_modified << DST_AVG_BLKSHIFT;
+	dst.dst_space = (uint64_t)blocks_modified << DST_AVG_BLKSHIFT;
 	dst.dst_space_check = space_check;
 	dst.dst_checkfunc = checkfunc != NULL ? checkfunc : dsl_null_checkfunc;
 	dst.dst_syncfunc = syncfunc;

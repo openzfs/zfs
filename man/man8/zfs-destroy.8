@@ -26,7 +26,7 @@
 .
 .Sh NAME
 .Nm zfs-destroy
-.Nd destroy ZFS dataset, snapshots, or bookmark
+.Nd destroy ZFS datasets, snapshots, or bookmarks
 .Sh SYNOPSIS
 .Nm zfs
 .Cm destroy
@@ -39,7 +39,9 @@
 .Oo % Ns Ar snap Ns Oo , Ns Ar snap Ns Oo % Ns Ar snap Oc Oc Oc Ns …
 .Nm zfs
 .Cm destroy
-.Ar filesystem Ns | Ns Ar volume Ns # Ns Ar bookmark
+.Op Fl r
+.Ar filesystem Ns | Ns Ar volume Ns # Ns Ar bookmark Ns
+.Oo , Ns Ar bookmark Oc Ns …
 .
 .Sh DESCRIPTION
 .Bl -tag -width ""
@@ -167,9 +169,34 @@ behavior for mounted file systems in use.
 .It Xo
 .Nm zfs
 .Cm destroy
-.Ar filesystem Ns | Ns Ar volume Ns # Ns Ar bookmark
+.Op Fl r
+.Ar filesystem Ns | Ns Ar volume Ns # Ns Ar bookmark Ns
+.Oo , Ns Ar bookmark Oc Ns …
 .Xc
-The given bookmark is destroyed.
+Destroys the named bookmarks.
+Multiple bookmarks from one file system or volume can be specified as a
+comma-separated list of short bookmark names.
+Repeated names are destroyed only once.
+Snapshot range syntax using
+.Sy %
+is not supported.
+.Pp
+When a comma-separated list or
+.Fl r
+is specified, bookmarks that do not exist are ignored and the command succeeds
+even if none of the requested bookmarks exist.
+A single bookmark (i.e. no comma-separated list) without
+.Fl r
+retains the legacy behavior: an error is reported and the command fails if
+the bookmark does not exist.
+.Pp
+Regardless of which form is used, any failure to destroy a bookmark other than
+an ignored nonexistent bookmark causes the command to fail.
+.Bl -tag -width "-r"
+.It Fl r
+Also destroy bookmarks with the specified names in descendant file systems
+and volumes.
+.El
 .El
 .
 .Sh EXAMPLES

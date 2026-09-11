@@ -194,6 +194,7 @@
     <elf-symbol name='lzc_ddt_prune' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_destroy' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_destroy_bookmarks' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzc_destroy_bookmarks2' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_destroy_snaps' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_exists' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_get_bookmark_props' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -2704,6 +2705,7 @@
       <enumerator name='ZFS_IOC_POOL_PREFETCH' value='23128'/>
       <enumerator name='ZFS_IOC_DDT_PRUNE' value='23129'/>
       <enumerator name='ZFS_IOC_POOL_CONDENSE' value='23130'/>
+      <enumerator name='ZFS_IOC_DESTROY_BOOKMARKS2' value='23131'/>
       <enumerator name='ZFS_IOC_PLATFORM' value='23168'/>
       <enumerator name='ZFS_IOC_EVENTS_NEXT' value='23169'/>
       <enumerator name='ZFS_IOC_EVENTS_CLEAR' value='23170'/>
@@ -4208,6 +4210,11 @@
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='lzc_destroy_bookmarks' mangled-name='lzc_destroy_bookmarks' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_destroy_bookmarks'>
+      <parameter type-id='5ce45b60' name='bmarks'/>
+      <parameter type-id='857bb57e' name='errlist'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_destroy_bookmarks2' mangled-name='lzc_destroy_bookmarks2' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_destroy_bookmarks2'>
       <parameter type-id='5ce45b60' name='bmarks'/>
       <parameter type-id='857bb57e' name='errlist'/>
       <return type-id='95e97e5e'/>

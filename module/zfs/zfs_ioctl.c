@@ -8090,6 +8090,12 @@ zfs_ioctl_init(void)
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
 	    zfs_keys_destroy_bookmarks,
 	    ARRAY_SIZE(zfs_keys_destroy_bookmarks));
+	zfs_ioctl_register("destroy_bookmarks2", ZFS_IOC_DESTROY_BOOKMARKS2,
+	    zfs_ioc_destroy_bookmarks, zfs_secpolicy_destroy_bookmarks,
+	    POOL_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
+	    zfs_keys_destroy_bookmarks,
+	    ARRAY_SIZE(zfs_keys_destroy_bookmarks));
 
 	zfs_ioctl_register("receive", ZFS_IOC_RECV_NEW,
 	    zfs_ioc_recv_new, zfs_secpolicy_recv, DATASET_NAME,

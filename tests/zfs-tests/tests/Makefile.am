@@ -723,6 +723,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_bookmark/cleanup.ksh \
 	functional/cli_root/zfs_bookmark/setup.ksh \
 	functional/cli_root/zfs_bookmark/zfs_bookmark_cliargs.ksh \
+	functional/cli_root/zfs_bookmark/zfs_bookmark_destroy_lzc.ksh \
 	functional/cli_root/zfs_bookmark/zfs_bookmark_recursive.ksh \
 	functional/cli_root/zfs_change-key/cleanup.ksh \
 	functional/cli_root/zfs_change-key/setup.ksh \
@@ -805,6 +806,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_destroy/zfs_destroy_014_pos.ksh \
 	functional/cli_root/zfs_destroy/zfs_destroy_015_pos.ksh \
 	functional/cli_root/zfs_destroy/zfs_destroy_016_pos.ksh \
+	functional/cli_root/zfs_destroy/zfs_destroy_bookmarks.ksh \
 	functional/cli_root/zfs_destroy/zfs_destroy_clone_livelist.ksh \
 	functional/cli_root/zfs_destroy/zfs_destroy_dev_removal_condense.ksh \
 	functional/cli_root/zfs_destroy/zfs_destroy_dev_removal.ksh \

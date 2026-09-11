@@ -1596,8 +1596,9 @@ lzc_get_bookmark_props(const char *bookmark, nvlist_t **props)
  * entry for each bookmarks that failed.  The value in the errlist will be
  * the (int32) error code.
  */
-int
-lzc_destroy_bookmarks(nvlist_t *bmarks, nvlist_t **errlist)
+static int
+lzc_destroy_bookmarks_impl(zfs_ioc_t ioc, nvlist_t *bmarks,
+    nvlist_t **errlist)
 {
 	nvpair_t *elem;
 	int error;
@@ -1610,9 +1611,28 @@ lzc_destroy_bookmarks(nvlist_t *bmarks, nvlist_t **errlist)
 	(void) strlcpy(pool, nvpair_name(elem), sizeof (pool));
 	pool[strcspn(pool, "/#")] = '\0';
 
-	error = lzc_ioctl(ZFS_IOC_DESTROY_BOOKMARKS, pool, bmarks, errlist);
+	error = lzc_ioctl(ioc, pool, bmarks, errlist);
 
 	return (error);
+}
+
+int
+lzc_destroy_bookmarks(nvlist_t *bmarks, nvlist_t **errlist)
+{
+	return (lzc_destroy_bookmarks_impl(ZFS_IOC_DESTROY_BOOKMARKS,
+	    bmarks, errlist));
+}
+
+/*
+ * Destroys bookmarks through an ioctl that guarantees kernel-side alias
+ * canonicalization and overflow-safe sync task accounting.  Callers requiring
+ * these guarantees must not retry through the legacy ioctl.
+ */
+int
+lzc_destroy_bookmarks2(nvlist_t *bmarks, nvlist_t **errlist)
+{
+	return (lzc_destroy_bookmarks_impl(ZFS_IOC_DESTROY_BOOKMARKS2,
+	    bmarks, errlist));
 }
 
 static int
