@@ -4446,6 +4446,14 @@ vdev_psize_to_asize(vdev_t *vd, uint64_t psize)
 	return (vdev_psize_to_asize_txg(vd, psize, 0));
 }
 
+uint64_t
+vdev_alloc_factor(vdev_t *vd)
+{
+	if (vd->vdev_ops->vdev_op_alloc_factor == NULL)
+		return (1ULL << vd->vdev_ashift);
+	return (vd->vdev_ops->vdev_op_alloc_factor(vd));
+}
+
 /*
  * Stop any TRIM or initialize operation running on a vdev which has just
  * stopped being writeable, and wait for its thread to exit, so that no IO
