@@ -1024,15 +1024,9 @@ again:
 		 */
 		VN_HOLD(vp);
 		*zpp = zp;
-		err = 0;
 
 		sa_buf_rele(db, NULL);
 		ZFS_OBJ_HOLD_EXIT(zfsvfs, obj_num);
-
-		if (err) {
-			getnewvnode_drop_reserve();
-			return (err);
-		}
 
 		locked = VOP_ISLOCKED(vp);
 		VI_LOCK(vp);
@@ -1065,7 +1059,7 @@ again:
 		}
 		VI_UNLOCK(vp);
 		getnewvnode_drop_reserve();
-		return (err);
+		return (0);
 	}
 
 	/*
