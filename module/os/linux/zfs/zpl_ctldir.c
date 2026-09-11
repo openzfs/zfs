@@ -88,7 +88,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_root_getattr, 4,
     const struct path *, path, struct kstat *, stat, u32, request_mask,
     unsigned int, query_flags)
 {
-	(void) request_mask, (void) query_flags;
+	(void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
 	zpl_generic_fillattr(idmap, request_mask, ip, stat);
 	stat->atime = current_time(ip);
@@ -731,7 +731,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_snapdir_getattr, 4,
     const struct path *, path, struct kstat *, stat, u32, request_mask,
     unsigned int, query_flags)
 {
-	(void) request_mask, (void) query_flags;
+	(void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	int error;
@@ -786,6 +786,38 @@ const struct inode_operations zpl_ops_snapdir = {
 	.rename		= zpl_snapdir_rename,
 	.rmdir		= zpl_snapdir_rmdir,
 	.mkdir		= zpl_snapdir_mkdir,
+};
+
+/*
+ * Get unmounted '.zfs/snapshot/<name>' directory attributes.
+ */
+ZPL_IDMAP_IOP_DEFINE(int, zpl_snapdirs_getattr, 4,
+    const struct path *, path, struct kstat *, stat, u32, request_mask,
+    unsigned int, query_flags)
+{
+	(void) query_flags;
+	struct inode *ip = path->dentry->d_inode;
+	znode_t *zp __maybe_unused = ITOZ(ip);
+
+	zpl_generic_fillattr(idmap, request_mask, ip, stat);
+
+#ifdef STATX_BTIME
+	if ((request_mask & STATX_BTIME) && zp->z_btime.tv_sec != 0) {
+		stat->btime = zp->z_btime;
+		stat->result_mask |= STATX_BTIME;
+	}
+#endif
+
+	return (0);
+}
+
+/*
+ * The '.zfs/snapshot/<name>' directory inode operations, used until the
+ * snapshot is mounted over it.
+ */
+const struct inode_operations zpl_ops_snapdirs = {
+	.lookup		= simple_lookup,
+	.getattr	= zpl_snapdirs_getattr,
 };
 
 static struct dentry *
@@ -854,7 +886,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_shares_getattr, 4,
     const struct path *, path, struct kstat *, stat, u32, request_mask,
     unsigned int, query_flags)
 {
-	(void) request_mask, (void) query_flags;
+	(void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	znode_t *dzp;
