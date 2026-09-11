@@ -45,6 +45,7 @@
 #define	MEMORY_BASE_CUTOFF	(4ULL << 30)	/* 4GB */
 #define	MEMORY_PCT		10		/* % beyond the base region */
 #define	MEMORY_HYSTERESIS 	(128 << 20)	/* 128MB */
+#define	BEGIN_PAYLOAD_MAX	(1UL << 28)
 
 /*
  * Init only the filename; chain functions will prepare the FILE *
@@ -372,8 +373,13 @@ chain_read(void *item_in, void *context_in)
 	if (context->ic_offset == 0)
 		set_stream_attributes(item);
 
+	uint32_t drr_type = ATTR_IS_SET(CA_BYTESWAPPED) ?
+	    BSWAP_32(drr->drr_type) : drr->drr_type;
 	size_t payload_size = calc_payload_size(drr);
-	if (payload_size > UINT32_MAX) {
+	if (drr_type == DRR_BEGIN && payload_size > BEGIN_PAYLOAD_MAX) {
+		errx(1, "DRR_BEGIN payload too large at offset %llu",
+		    (u_longlong_t)context->ic_offset);
+	} else if (payload_size > UINT32_MAX) {
 		errx(1, "stated packet size is greater than uint32_t "
 		    "at offset %llu", (u_longlong_t)context->ic_offset);
 	} else if (payload_size > 0) {
@@ -383,8 +389,6 @@ chain_read(void *item_in, void *context_in)
 		set_payload(item, buff, payload_size);
 	}
 
-	uint32_t drr_type = ATTR_IS_SET(CA_BYTESWAPPED) ?
-	    BSWAP_32(drr->drr_type) : drr->drr_type;
 	if (drr_type >= DRR_NUMTYPES) {
 		err(1, "invalid record type %llu found at offset %llu",
 		    (u_longlong_t)drr_type, (u_longlong_t)context->ic_offset);
