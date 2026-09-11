@@ -54,6 +54,14 @@ FMAKE = env -u MAKEFLAGS make $(FMAKEFLAGS)
 modules-Linux:
 	mkdir -p $(sort $(dir $(spl-objs) $(spl-)))
 	mkdir -p $(sort $(dir $(zfs-objs) $(zfs-)))
+	# Pre-6.10 kernel builds didn't need to copy over the source files to the
+	# build directory. We need to do it though post-6.10 due to these commits:
+	#
+	# b1992c3 kbuild: use $(src) instead of $(srctree)/$(src) for source dir
+	# 9a0ebe5 kbuild: use $(obj)/ instead of $(src)/ for common pattern rules
+	if [ "@abs_srcdir@" != "@abs_builddir@" ]; then \
+		cp -rsf "@abs_srcdir@"/*/ "@abs_builddir@"; \
+	fi
 	$(MAKE) -C @LINUX_OBJ@ $(if @KERNEL_CC@,CC=@KERNEL_CC@) \
 		$(if @KERNEL_LD@,LD=@KERNEL_LD@) $(if @KERNEL_LLVM@,LLVM=@KERNEL_LLVM@) \
 		$(if @KERNEL_CROSS_COMPILE@,CROSS_COMPILE=@KERNEL_CROSS_COMPILE@) \
