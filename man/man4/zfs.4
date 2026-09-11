@@ -62,6 +62,27 @@ Set the size of the dbuf cache
 .Pq Sy dbuf_cache_max_bytes
 to a log2 fraction of the target ARC size.
 .
+.It Sy dbuf_cache_extra_max_shift Ns = Ns Sy 2 Pq uint
+Set the maximum size the dbuf cache may grow to as a log2 fraction of the
+maximum ARC size, i.e.
+.No 1/2^ Ns Sy dbuf_cache_extra_max_shift
+of
+.Sy arc_c_max ,
+unless
+.Sy dbuf_cache_max_bytes
+is smaller.
+Under Direct I/O file data does not fill the ARC, so the normal
+.Sy dbuf_cache_shift
+share of the target ARC size stays small and indirect
+.Pq L1
+dbufs would be evicted and rebuilt continuously.
+This ceiling lets the dbuf cache keep such a working set resident; it
+returns to its normal size once the ARC fills with data or memory is short.
+It should not be larger than
+.Sy dbuf_cache_shift ,
+otherwise the allowance starts shrinking to zero as the ARC approaches its
+maximum.
+.
 .It Sy dbuf_metadata_cache_shift Ns = Ns Sy 6 Pq uint
 Set the size of the dbuf metadata cache
 .Pq Sy dbuf_metadata_cache_max_bytes
