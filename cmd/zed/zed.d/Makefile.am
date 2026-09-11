@@ -16,12 +16,16 @@ dist_zedexec_SCRIPTS = \
 	%D%/resilver_finish-notify.sh \
 	%D%/resilver_finish-start-scrub.sh \
 	%D%/scrub_finish-notify.sh \
+	%D%/snapshot_mount.sh \
+	%D%/snapshot_unmount.sh \
 	%D%/statechange-sync-led.sh \
 	%D%/statechange-notify.sh \
 	%D%/statechange-sync-slot_off.sh \
 	%D%/trim_finish-notify.sh \
 	%D%/vdev_attach-sync-led.sh \
-	%D%/vdev_clear-sync-led.sh
+	%D%/vdev_clear-sync-led.sh \
+	%D%/zvol_create.sh \
+	%D%/zvol_remove.sh
 
 nodist_zedexec_SCRIPTS = \
 	%D%/history_event-zfs-list-cacher.sh
@@ -37,11 +41,15 @@ zedconfdefaults = \
 	resilver_finish-notify.sh \
 	resilver_finish-start-scrub.sh \
 	scrub_finish-notify.sh \
+	snapshot_mount.sh \
+	snapshot_unmount.sh \
 	statechange-sync-led.sh \
 	statechange-notify.sh \
 	statechange-sync-slot_off.sh \
 	vdev_attach-sync-led.sh \
-	vdev_clear-sync-led.sh
+	vdev_clear-sync-led.sh \
+	zvol_create.sh \
+        zvol_remove.sh
 
 dist_noinst_DATA += %D%/README
 

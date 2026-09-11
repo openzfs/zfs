@@ -112,7 +112,9 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/send_doall
 	libnvpair.la
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/stride_dd
+if !BUILD_MACOS
 %C%_stride_dd_LDADD = -lrt
+endif
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/threadsappend
 
@@ -154,8 +156,14 @@ scripts_zfs_tests_bin_PROGRAMS  += %D%/read_dos_attributes %D%/write_dos_attribu
 %C%_write_dos_attributes_SOURCES = %D%/linux_dos_attributes/write_dos_attributes.c
 endif
 
+if !BUILD_MACOS
 scripts_zfs_tests_bin_PROGRAMS += %D%/file_fadvise
 %C%_file_fadvise_SOURCES  = %D%/file/file_fadvise.c
+endif
+
+if BUILD_MACOS
+include $(srcdir)/%D%/librt/Makefile.am
+endif
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/file_uncached
 %C%_file_uncached_SOURCES  = %D%/file/file_uncached.c

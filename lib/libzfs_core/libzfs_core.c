@@ -87,6 +87,9 @@
 #if __FreeBSD__
 #define	BIG_PIPE_SIZE (64 * 1024) /* From sys/pipe.h */
 #endif
+#if __APPLE__
+#define	BIG_PIPE_SIZE (64 * 1024)
+#endif
 
 #include "libzfs_core_impl.h"
 

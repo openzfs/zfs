@@ -81,15 +81,27 @@ int zfs_bclone_wait_dirty = 1;
  * Enable Direct I/O. If this setting is 0, then all I/O requests will be
  * directed through the ARC acting as though the dataset property direct was
  * set to disabled.
+ *
+ * Disabled by default on FreeBSD until a potential range locking issue in
+ * zfs_getpages() can be resolved.
+ *
+ * Disabled on macOS, which has no Direct I/O implementation at all: O_DIRECT
+ * is defined as 0 there, so zfs_setup_direct() can never reach the direct
+ * path anyway.
  */
+#ifdef __FreeBSD__
+static int zfs_dio_enabled = 0;
+#elif defined(__APPLE__)
+static int zfs_dio_enabled = 0;
+#else
 static int zfs_dio_enabled = 1;
+#endif
 
 /*
  * Strictly enforce alignment for Direct I/O requests, returning EINVAL
  * if not page-aligned instead of silently falling back to uncached I/O.
  */
 static int zfs_dio_strict = 0;
-
 
 /*
  * Maximum bytes to read per chunk in zfs_read().
@@ -100,6 +112,7 @@ static uint64_t zfs_vnops_read_chunk_size = 1024 * 1024;
 static uint64_t zfs_vnops_read_chunk_size = DMU_MAX_ACCESS / 2;
 #endif
 
+#ifndef __APPLE__
 int
 zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
 {
@@ -115,6 +128,7 @@ zfs_fsync(znode_t *zp, int syncflag, cred_t *cr)
 	return (error);
 }
 
+#endif /* APPLE */
 
 #if defined(SEEK_HOLE) && defined(SEEK_DATA)
 /*
@@ -827,7 +841,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			ASSERT(abuf != NULL);
 			ASSERT(arc_buf_size(abuf) == blksz);
 			if ((error = zfs_uiocopy(abuf->b_data, blksz,
-			    UIO_WRITE, uio, &nbytes))) {
+			    UIO_WRITE, uio, (size_t *)&nbytes))) {
 				dmu_return_arcbuf(abuf);
 				break;
 			}
@@ -1377,8 +1391,13 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 	/*
 	 * Nothing to do if the file has been removed
 	 */
+#ifndef __APPLE__
 	if (zfs_zget(zfsvfs, object, &zp) != 0)
 		return (SET_ERROR(ENOENT));
+#else
+	if (zfs_zget_ext(zfsvfs, object, &zp, ZGET_FLAG_ASYNC) != 0)
+		return (SET_ERROR(ENOENT));
+#endif
 	if (zp->z_unlinked) {
 		/*
 		 * Release the vnode asynchronously as we currently have the
@@ -2985,8 +3004,18 @@ ZFS_MODULE_PARAM(zfs, zfs_, bclone_strict_properties, INT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs, zfs_, bclone_wait_dirty, INT, ZMOD_RW,
 	"Wait for dirty blocks when cloning");
 
+/*
+ * Read-only on macOS, which implements only the uncached tier: enabling it
+ * would let zfs_setup_direct() reach the unimplemented page-pinning path and
+ * fail every request with EOPNOTSUPP.
+ */
+#ifdef __APPLE__
+ZFS_MODULE_PARAM(zfs, zfs_, dio_enabled, INT, ZMOD_RD,
+	"Enable Direct I/O");
+#else
 ZFS_MODULE_PARAM(zfs, zfs_, dio_enabled, INT, ZMOD_RW,
 	"Enable Direct I/O");
+#endif
 
 ZFS_MODULE_PARAM(zfs, zfs_, dio_strict, INT, ZMOD_RW,
 	"Return errors on misaligned Direct I/O");

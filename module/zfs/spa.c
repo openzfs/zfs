@@ -1327,6 +1327,7 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 			const pri_t pri = (t == ZIO_TYPE_WRITE &&
 			    q == ZIO_TASKQ_ISSUE) ?
 			    wtqclsyspri : maxclsyspri;
+
 			tq = taskq_create_proc(name, value, pri, 50,
 			    INT_MAX, spa->spa_proc, flags);
 #ifdef HAVE_SYSDC
@@ -1568,14 +1569,17 @@ spa_taskq_param_get(zio_type_t t, char *buf, boolean_t add_newline)
 	for (uint_t q = 0; q < ZIO_TASKQ_TYPES; q++) {
 		const zio_taskq_info_t *zti = &zio_taskqs[t][q];
 		if (zti->zti_mode == ZTI_MODE_FIXED)
-			pos += sprintf(&buf[pos], "%s%s,%u,%u", sep,
+			pos += snprintf(&buf[pos], MODULE_PARAM_MAX,
+			    "%s%s,%u,%u", sep,
 			    modes[zti->zti_mode], zti->zti_count,
 			    zti->zti_value);
 		else if (zti->zti_mode == ZTI_MODE_SCALE && zti->zti_value > 0)
-			pos += sprintf(&buf[pos], "%s%s,%u", sep,
+			pos += snprintf(&buf[pos], MODULE_PARAM_MAX,
+			    "%s%s,%u", sep,
 			    modes[zti->zti_mode], zti->zti_value);
 		else
-			pos += sprintf(&buf[pos], "%s%s", sep,
+			pos += snprintf(&buf[pos], MODULE_PARAM_MAX,
+			    "%s%s", sep,
 			    modes[zti->zti_mode]);
 		sep = " ";
 	}
@@ -7715,11 +7719,11 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 
 	spa_event_notify(spa, NULL, NULL, ESC_ZFS_POOL_IMPORT);
 
+	spa_import_os(spa);
+
 	spa_namespace_exit(FTAG);
 
 	zvol_create_minors(pool);
-
-	spa_import_os(spa);
 
 	return (0);
 }
@@ -8633,10 +8637,12 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	 * to make it distinguishable from newvd, and unopenable from now on.
 	 */
 	if (strcmp(oldvdpath, newvdpath) == 0) {
+		int n = strlen(newvdpath) + 5;
 		spa_strfree(oldvd->vdev_path);
-		oldvd->vdev_path = kmem_alloc(strlen(newvdpath) + 5,
+		oldvd->vdev_path = kmem_alloc(n,
 		    KM_SLEEP);
-		(void) sprintf(oldvd->vdev_path, "%s/old",
+		(void) snprintf(oldvd->vdev_path, n,
+		    "%s/old",
 		    newvdpath);
 		if (oldvd->vdev_devid != NULL) {
 			spa_strfree(oldvd->vdev_devid);

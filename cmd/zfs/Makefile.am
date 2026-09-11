@@ -20,3 +20,7 @@ zfs_LDADD += $(LTLIBINTL)
 if BUILD_FREEBSD
 zfs_LDADD += -lgeom -ljail
 endif
+
+if BUILD_MACOS
+zfs_LDFLAGS = -sectcreate __TEXT __info_plist %D%/../zpool/os/macos/Info-zfs.plist
+endif

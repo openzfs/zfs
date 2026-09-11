@@ -33,7 +33,7 @@
 	};								\
 	static const zfs_tunable_t *					\
 	__zfs_tunable_##prefix##name					\
-	__attribute__((__section__("zfs_tunables")))			\
+	__attribute__((__section__(ZFS_TUNABLE_SECTION))) \
 	__attribute__((__used__))					\
 	= &_zfs_tunable_##prefix##name;
 
