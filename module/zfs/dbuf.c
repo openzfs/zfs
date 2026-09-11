@@ -748,8 +748,9 @@ dbuf_cache_multilist_index_func(multilist_t *ml, void *obj)
  * The target size of the dbuf cache is its arc_c >> dbuf_cache_shift share
  * plus dbuf_cache_extra, an allowance that Direct I/O / cache-disabled
  * workloads may need because their arc_c share never grows (see
- * dbuf_cache_adjust_tick()).  The total is capped by dbuf_cache_max_bytes
- * and by arc_c_max >> dbuf_cache_extra_max_shift.
+ * dbuf_cache_adjust_tick()).  The total is capped by dbuf_cache_max_bytes;
+ * the allowance itself, and so the total, is additionally bounded by
+ * arc_c_max >> dbuf_cache_extra_max_shift (see dbuf_cache_adjust_tick()).
  */
 static inline unsigned long
 dbuf_cache_target_bytes(void)
@@ -809,7 +810,7 @@ dbuf_arc_underutilized(void)
 	uint64_t arc = arc_used_bytes();
 	uint64_t dbufs = zfs_refcount_count(&dbuf_caches[DB_DBUF_CACHE].size);
 
-	return (arc < (target >> 1) || (arc > 0 && dbufs >= (arc >> 1)));
+	return (arc < target / 2 || (arc > 0 && dbufs >= arc / 2));
 }
 
 /*
@@ -840,17 +841,24 @@ dbuf_cache_adjust_tick(boolean_t no_grow, uint64_t arc_max)
 	uint64_t max_extra = budget_max > base ? budget_max - base : 0;
 	uint64_t extra = atomic_load_64(&dbuf_cache_extra);
 	uint64_t evicts = wmsum_value(&dbuf_sums.cache_total_evicts);
-	uint64_t trimmed = evicts - dbuf_cache_prev_evicts;
+	uint64_t trimmed = evicts > dbuf_cache_prev_evicts ?
+	    evicts - dbuf_cache_prev_evicts : 0;
 
 	dbuf_cache_prev_evicts = evicts;
 
 	if (no_grow || !dbuf_arc_underutilized()) {
+		/*
+		 * The ARC is the memory consumer again, or memory is short,
+		 * so shed the allowance half a step at a time.  Dropping it
+		 * to zero at once would make the evict thread unload the
+		 * whole working set and rebuild it on the next use.
+		 */
 		extra /= 2;
 	} else if (trimmed > 0) {
 		/*
-		 * The budget is the binding limit.  Lift the low-water mark by
-		 * half the current budget; the allowance then doubles in
-		 * seconds until the working set fits.
+		 * The budget is the binding limit.  Lift the budget by half of
+		 * itself, so it grows by roughly 50% per tick until the
+		 * working set fits.
 		 */
 		if (extra < max_extra)
 			extra = MIN(max_extra,
@@ -869,6 +877,14 @@ dbuf_cache_adjust_tick(boolean_t no_grow, uint64_t arc_max)
 		if (need < extra)
 			extra -= (extra - need + 1) / 2;
 	}
+
+	/*
+	 * A lowered dbuf_cache_max_bytes, a raised
+	 * dbuf_cache_extra_max_shift, or a grown arc_c can drop the ceiling
+	 * below an already granted allowance.  Clamp it so the invariant
+	 * dbuf_cache_extra <= max_extra also holds between ticks.
+	 */
+	extra = MIN(extra, max_extra);
 
 	if (extra != atomic_load_64(&dbuf_cache_extra))
 		atomic_store_64(&dbuf_cache_extra, extra);

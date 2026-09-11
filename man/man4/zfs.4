@@ -78,8 +78,10 @@ share of the target ARC size stays small and indirect
 dbufs would be evicted and rebuilt continuously.
 This ceiling lets the dbuf cache keep such a working set resident; it
 returns to its normal size once the ARC fills with data or memory is short.
-Must not be larger than
-.Sy dbuf_cache_shift .
+It should not be larger than
+.Sy dbuf_cache_shift ,
+otherwise the allowance starts shrinking to zero as the ARC approaches its
+maximum.
 .
 .It Sy dbuf_metadata_cache_shift Ns = Ns Sy 6 Pq uint
 Set the size of the dbuf metadata cache
