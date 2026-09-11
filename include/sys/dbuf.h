@@ -271,6 +271,12 @@ typedef struct dmu_buf_impl {
 	uint8_t db_partial_read;
 
 	/*
+	 * Ephemeral dbuf: not in the dbuf hash table or dn_dbufs; only the
+	 * creating thread can find it and it is destroyed on release.
+	 */
+	uint8_t db_no_publish;
+
+	/*
 	 * Protects db_buf's contents if they contain an indirect block or data
 	 * block of the meta-dnode. We use this lock to protect the structure of
 	 * the block tree. This means that when modifying this dbuf's data, we
@@ -343,6 +349,14 @@ void dbuf_rm_spill(struct dnode *dn, dmu_tx_t *tx);
 
 dmu_buf_impl_t *dbuf_hold(struct dnode *dn, uint64_t blkid, const void *tag);
 dmu_buf_impl_t *dbuf_hold_level(struct dnode *dn, int level, uint64_t blkid,
+    const void *tag);
+/*
+ * Like dbuf_hold(), but a dbuf created on a cache miss is ephemeral (never
+ * published), for Direct I/O reads that will not be cached.  The ephemeral
+ * behavior is only applied when the zfs_dbuf_dio_no_publish module parameter
+ * is set; otherwise this behaves exactly like dbuf_hold().
+ */
+dmu_buf_impl_t *dbuf_hold_dio(struct dnode *dn, uint64_t blkid,
     const void *tag);
 int dbuf_hold_impl(struct dnode *dn, uint8_t level, uint64_t blkid,
     boolean_t fail_sparse, boolean_t fail_uncached,
