@@ -845,7 +845,7 @@ dbuf_cache_adjust_tick(boolean_t no_grow, uint64_t arc_max)
 	dbuf_cache_prev_evicts = evicts;
 
 	if (no_grow || !dbuf_arc_underutilized()) {
-		extra = 0;
+		extra /= 2;
 	} else if (trimmed > 0) {
 		/*
 		 * The budget is the binding limit.  Lift the low-water mark by
