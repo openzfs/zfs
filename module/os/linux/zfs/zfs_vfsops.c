@@ -1343,6 +1343,7 @@ zfs_domount(struct super_block *sb, const char *osname,
 	zfsvfs_t *zfsvfs = NULL;
 	int canwrite;
 	int dataset_visible_zone;
+	int fold;
 
 	dataset_visible_zone = zone_dataset_visible(osname, &canwrite);
 
@@ -1392,10 +1393,16 @@ zfs_domount(struct super_block *sb, const char *osname,
 	sb->s_xattr = zpl_xattr_handlers;
 	sb->s_export_op = &zpl_export_operations;
 
+	fold = zfsvfs->z_norm;
+	if (zfsvfs->z_case == ZFS_CASE_MIXED)
+		fold &= ~U8_TEXTPREP_TOUPPER;
+
 #ifdef HAVE_SET_DEFAULT_D_OP
-	set_default_d_op(sb, &zpl_dentry_operations);
+	set_default_d_op(sb, (fold != 0) ? &zpl_folded_dentry_operations :
+	    &zpl_dentry_operations);
 #else
-	sb->s_d_op = &zpl_dentry_operations;
+	sb->s_d_op = (fold != 0) ? &zpl_folded_dentry_operations :
+	    &zpl_dentry_operations;
 #endif
 
 	/* Set features for file system. */
