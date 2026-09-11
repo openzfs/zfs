@@ -332,43 +332,46 @@ EOF
 
 print_customrpmtemplate ()
 {
+	local first_kernel_custom=""
+	local first_kernel_redhat=""
+	local first_kernel_redhat_variant=""
+
 	for kernel in ${1}
 	do
 		if [[ -e "${prefix}/lib/modules/${kernel}/build/Makefile" ]]; then
-			# likely a user-build-kernel with available buildfiles
-			# fixme: we should check if uname from Makefile is the same as ${kernel}
-
 			kernel_versions="${kernel_versions}${kernel}___${prefix}/lib/modules/${kernel}/build/ "
 			print_rpmtemplate_per_kmodpkg --custom "${kernel}"
 
-			# create development package
 			if [[ -n "${devel}" ]]; then
-				# create devel package including common headers
-				print_rpmtemplate_kmoddevelpkg --custom "${kernel}"
-
-				# create devel package
 				print_rpmtemplate_per_kmoddevelpkg --custom "${kernel}"
 			fi
+			[[ -z "${first_kernel_custom}" ]] && first_kernel_custom="${kernel}"
 		elif [[ -e "${buildroot}/usr/src/kernels/${kernel}" ]]; then
-			# this looks like a Fedora/RH kernel -- print a normal template (which includes the proper BR) and be happy :)
 			kernel_versions="${kernel_versions}${kernel}___${buildroot}%{_usrsrc}/kernels/${kernel} "
 
-			# parse kernel versions string and print template
 			local kernel_verrelarch=${kernel%%${kernels_known_variants}}
 			print_rpmtemplate_per_kmodpkg --redhat ${kernel} ${kernel##${kernel_verrelarch}}
 
-			# create development package
 			if [[ -n "${devel}" ]]; then
-				# create devel package including common headers
-				print_rpmtemplate_kmoddevelpkg --redhat ${kernel} ${kernel##${kernel_verrelarch}}
-
-				# create devel package
 				print_rpmtemplate_per_kmoddevelpkg --redhat ${kernel} ${kernel##${kernel_verrelarch}}
+			fi
+			if [[ -z "${first_kernel_redhat}" ]]; then
+				first_kernel_redhat="${kernel}"
+				first_kernel_redhat_variant="${kernel##${kernel_verrelarch}}"
 			fi
 		else
 			error_out 2 "Don't know how to handle ${kernel} -- ${prefix}/lib/modules/${kernel}/build/Makefile not found"
 		fi
 	done
+
+	# Common devel package (only once, outside the per-kernel loop)
+	if [[ -n "${devel}" ]]; then
+		if [[ -n "${first_kernel_custom}" ]]; then
+			print_rpmtemplate_kmoddevelpkg --custom "${first_kernel_custom}"
+		elif [[ -n "${first_kernel_redhat}" ]]; then
+			print_rpmtemplate_kmoddevelpkg --redhat ${first_kernel_redhat} ${first_kernel_redhat_variant}
+		fi
+	fi
 
 	# well, it's no header anymore, but who cares ;-)
 	print_rpmtemplate_header
@@ -386,6 +389,9 @@ print_rpmtemplate ()
 	# and print it and some other required stuff as macro
 	print_rpmtemplate_header
 
+	local first_kernel=""
+	local first_kernel_variant=""
+
 	# now print the packages
 	for kernel in ${kernel_versions_to_build_for} ; do
 
@@ -398,13 +404,20 @@ print_rpmtemplate ()
 		print_rpmtemplate_per_kmodpkg "${kernel}" "${kernel##${kernel_verrelarch}}"
 
 		if [[ -n "${devel}" ]]; then
-			# create devel package including common headers
-			print_rpmtemplate_kmoddevelpkg "${kernel}" "${kernel##${kernel_verrelarch}}"
-
-			# create devel package
+			# create per-kernel devel package
 			print_rpmtemplate_per_kmoddevelpkg "${kernel}" "${kernel##${kernel_verrelarch}}"
 		fi
+
+		if [[ -z "${first_kernel}" ]]; then
+			first_kernel="${kernel}"
+			first_kernel_variant="${kernel##${kernel_verrelarch}}"
+		fi
 	done
+
+	# Common devel package (only once, outside the per-kernel loop)
+	if [[ -n "${devel}" && -n "${first_kernel}" ]]; then
+		print_rpmtemplate_kmoddevelpkg "${first_kernel}" "${first_kernel_variant}"
+	fi
 }
 
 myprog_help ()
