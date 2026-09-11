@@ -37,6 +37,40 @@
 
 #include <sys/zfs_ioctl_impl.h>
 
+/* Set a positive, allocation-bounded snapshot listing batch size. */
+int
+param_set_snapshot_list_batch_size(SYSCTL_HANDLER_ARGS)
+{
+	uint_t value = zfs_snapshot_list_batch_size;
+	int error;
+
+	error = sysctl_handle_int(oidp, &value, 0, req);
+	if (error != 0 || req->newptr == NULL)
+		return (SET_ERROR(error));
+	if (value == 0 || value > ZFS_SNAPSHOT_LIST_BATCH_SIZE_MAX)
+		return (SET_ERROR(EINVAL));
+
+	zfs_snapshot_list_batch_size = value;
+	return (0);
+}
+
+/* Set a positive, bounded snapshot listing wall-clock budget. */
+int
+param_set_snapshot_list_batch_time_us(SYSCTL_HANDLER_ARGS)
+{
+	uint_t value = zfs_snapshot_list_batch_time_us;
+	int error;
+
+	error = sysctl_handle_int(oidp, &value, 0, req);
+	if (error != 0 || req->newptr == NULL)
+		return (SET_ERROR(error));
+	if (value == 0 || value > ZFS_SNAPSHOT_LIST_BATCH_TIME_US_MAX)
+		return (SET_ERROR(EINVAL));
+
+	zfs_snapshot_list_batch_time_us = value;
+	return (0);
+}
+
 int
 zfs_vfs_ref(zfsvfs_t **zfvp)
 {

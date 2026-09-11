@@ -98,6 +98,12 @@
 #define	param_set_max_auto_ashift_args(var) \
     CTLTYPE_UINT, NULL, 0, param_set_max_auto_ashift, "IU"
 
+#define	param_set_snapshot_list_batch_size_args(var) \
+    CTLTYPE_UINT, NULL, 0, param_set_snapshot_list_batch_size, "IU"
+
+#define	param_set_snapshot_list_batch_time_us_args(var) \
+    CTLTYPE_UINT, NULL, 0, param_set_snapshot_list_batch_time_us, "IU"
+
 #define	param_set_raidz_impl_args(var) \
     CTLTYPE_STRING, NULL, 0, param_set_raidz_impl, "A"
 
