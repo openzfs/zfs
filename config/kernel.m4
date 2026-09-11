@@ -862,6 +862,14 @@ dnl # The maximum allowed parallelism can be controlled by setting the
 dnl # TEST_JOBS environment variable.  Otherwise, it default to $(nproc).
 dnl #
 AC_DEFUN([ZFS_LINUX_TEST_COMPILE_ALL], [
+	dnl # It may be that no Makefile has been generated because no
+	dnl # build tests were needed, eg. in the case where the test
+	dnl # results have all been cached. However, subsequent code
+	dnl # assumes a file named Makefile exists. So create an empty
+	dnl # one if needed.
+	test -d build || mkdir build
+	touch build/Makefile
+
 	AS_IF([test "x$2" != "x"], [
 		_ZFS_LINUX_TEST_COMPILE_PROGRESS_START([build], [$2])
 	])
@@ -887,6 +895,7 @@ AC_DEFUN([ZFS_LINUX_TEST_COMPILE_ALL], [
 	dnl # not yet been built.
 	dnl #
 	AS_IF([test "x$enable_linux_builtin" = "xno"], [
+		touch build/Makefile
 		for dir in $(awk '/^obj-m/ { print [$]3 }' \
 		    build/Makefile.compile.$1); do
 			name=${dir%/}
