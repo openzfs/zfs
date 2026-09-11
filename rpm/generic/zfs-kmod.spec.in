@@ -1,3 +1,4 @@
+%define debug_package %{nil}
 %define module  @PACKAGE@
 
 %if !%{defined ksrc}
@@ -28,13 +29,15 @@
 %endif
 %endif
 
-#define repo    rpmfusion
+# Conditional akmod support - can be enabled via: rpmbuild --define "_enable_akmod 1"
+%{?_enable_akmod:%define repo rpmfusion}
+%{!?_enable_akmod:#define repo rpmfusion}
 #define repo    chaos
 
 # (un)define the next line to either build for the newest or all current kernels
-%define buildforkernels newest
+%{?_enable_akmod:%define buildforkernels akmod}
+%{!?_enable_akmod:%define buildforkernels newest}
 #define buildforkernels current
-#define buildforkernels akmod
 
 %bcond_with     debug
 %bcond_with     debuginfo
@@ -72,7 +75,8 @@ Conflicts:      %{module}-dkms
 # Building for a repository use the proper build-sysbuild package
 # to determine which kernel-devel packages should be installed.
 BuildRequires:  %{_bindir}/kmodtool
-%{!?kernels:BuildRequires: buildsys-build-%{repo}-kerneldevpkgs-%{?buildforkernels:%{buildforkernels}}%{!?buildforkernels:current}-%{_target_cpu}}
+# Skip buildsys-build for akmod builds as akmods handles kernel dependencies
+%{!?_enable_akmod:%{!?kernels:BuildRequires: buildsys-build-%{repo}-kerneldevpkgs-%{?buildforkernels:%{buildforkernels}}%{!?buildforkernels:current}-%{_target_cpu}}}
 
 %else
 
@@ -105,6 +109,16 @@ BuildRequires:  %{_bindir}/kmodtool
 %description
 This package contains the ZFS kernel modules.
 
+# akmod package requires -common subpackage
+%package common
+Summary: Common files for the ZFS kernel modules
+Requires: %{name} = %{version}-%{release}
+BuildArch: noarch
+
+%description common
+This package contains the common files (license, documentation, etc.) for the
+ZFS kernel modules.
+
 %prep
 # Error out if there was something wrong with kmodtool.
 %{?kmodtool_check}
@@ -128,6 +142,9 @@ bash %{SOURCE10}  --target %{_target_cpu} %{?repo:--repo %{?repo}} --kmodname %{
 %define _configure ../%{module}-%{version}/configure
 
 %setup -q -c -T -a 0
+
+# For common package
+cp %{module}-%{version}/{COPYRIGHT,LICENSE,NOTICE,README.md} .
 
 for kernel_version in %{?kernel_versions}; do
     %{__mkdir} _kmod_build_${kernel_version%%___*}
@@ -207,9 +224,15 @@ for kernel_version in %{?kernel_versions}; do
     cd ..
 done
 # find-debuginfo.sh only considers executables
+%if %{defined kernel_versions}
 chmod u+x ${RPM_BUILD_ROOT}%{kmodinstdir_prefix}/*/extra/*/*
+%endif
 %{?akmod_install}
 
 
 %clean
 rm -rf $RPM_BUILD_ROOT
+
+%files common
+%doc README.md
+%license COPYRIGHT LICENSE NOTICE
