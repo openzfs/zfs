@@ -16,6 +16,7 @@
 /file_uncached
 /file_write
 /get_diff
+/getfsuuid
 /getversion
 /largest_file
 /libzfs_input_check

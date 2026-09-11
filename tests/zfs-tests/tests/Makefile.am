@@ -283,6 +283,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/failmode/failmode.kshlib \
 	functional/fault/fault.cfg \
 	functional/gang_blocks/gang_blocks.kshlib \
+	functional/getfsuuid/getfsuuid.kshlib \
 	functional/grow/grow.cfg \
 	functional/history/history.cfg \
 	functional/history/history_common.kshlib \
@@ -1741,6 +1742,11 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/gang_blocks/gang_blocks_dyn_header_pos.ksh \
 	functional/gang_blocks/gang_blocks_dyn_multi.ksh \
 	functional/gang_blocks/setup.ksh \
+	functional/getfsuuid/cleanup.ksh \
+	functional/getfsuuid/getfsuuid_001_pos.ksh \
+	functional/getfsuuid/getfsuuid_002_pos.ksh \
+	functional/getfsuuid/getfsuuid_003_pos.ksh \
+	functional/getfsuuid/setup.ksh \
 	functional/grow/grow_pool_001_pos.ksh \
 	functional/grow/grow_replicas_001_pos.ksh \
 	functional/history/cleanup.ksh \
