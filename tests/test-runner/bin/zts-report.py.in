@@ -222,6 +222,7 @@ maybe = {
     'cli_root/zfs_share/zfs_share_concurrent_shares': ['FAIL', known_reason],
     'cli_root/zfs_unshare/zfs_unshare_006_pos': ['SKIP', na_reason],
     'cli_root/zpool_import/import_devices_missing': ['FAIL', 16669],
+    'cli_root/zpool_import/import_relax_metadata_damaged': ['FAIL', 19077],
     'cli_root/zpool_trim/setup': ['SKIP', trim_reason],
     'delegate/setup': ['SKIP', exec_reason],
     'fault/auto_replace_002_pos': ['FAIL', known_reason],
