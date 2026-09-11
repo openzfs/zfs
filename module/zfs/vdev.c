@@ -3102,7 +3102,11 @@ vdev_metaslab_set_size(vdev_t *vd)
 	 */
 
 	if (ms_count < zfs_vdev_min_ms_count)
-		ms_shift = highbit64(asize / zfs_vdev_min_ms_count);
+		/*
+		 * Subtract 1 from highbit64() to ensure ms_shift yields
+		 * at least zfs_vdev_min_ms_count metaslabs.
+		 */
+		ms_shift = highbit64(asize / zfs_vdev_min_ms_count) - 1;
 	else if (ms_count > zfs_vdev_default_ms_count)
 		ms_shift = highbit64(asize / zfs_vdev_default_ms_count);
 	else
