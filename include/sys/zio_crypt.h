@@ -12,30 +12,22 @@
 
 /*
  * Copyright (c) 2017, Datto, Inc. All rights reserved.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #ifndef	_SYS_ZIO_CRYPT_H
 #define	_SYS_ZIO_CRYPT_H
 
 #include <sys/dmu.h>
-#include <sys/zfs_refcount.h>
-#if defined(__FreeBSD__) && defined(_KERNEL)
-#include <sys/freebsd_crypto.h>
-#else
-#include <sys/crypto/api.h>
-#endif /* __FreeBSD__ */
-#include <sys/nvpair.h>
-#include <sys/avl.h>
 #include <sys/zio.h>
-
-/* forward declarations */
-struct zbookmark_phys;
+#include <sys/zio_crypt_os.h>
 
 #define	WRAPPING_KEY_LEN	32
 #define	WRAPPING_IV_LEN		ZIO_DATA_IV_LEN
 #define	WRAPPING_MAC_LEN	ZIO_DATA_MAC_LEN
 #define	MASTER_KEY_MAX_LEN	32
 #define	SHA512_HMAC_KEYLEN	64
+#define	SHA512_HMAC_LEN		64
 
 #define	ZIO_CRYPT_KEY_CURRENT_VERSION	1ULL
 
@@ -47,16 +39,9 @@ typedef enum zio_crypt_type {
 
 /* table of supported crypto algorithms, modes and keylengths. */
 typedef struct zio_crypt_info {
-	/* mechanism name, needed by ICP */
-#if defined(__FreeBSD__) && defined(_KERNEL)
-	/*
-	 * I've deliberately used a different name here, to catch
-	 * ICP-using code.
-	 */
-	const char	*ci_algname;
-#else
-	crypto_mech_name_t ci_mechname;
-#endif
+	/* mechanism/algorithm name for backend to select implementation */
+	const char *ci_mechname;
+
 	/* cipher mode type (GCM, CCM) */
 	zio_crypt_type_t ci_crypt_type;
 
@@ -95,22 +80,17 @@ typedef struct zio_crypt_key {
 	/* count of how many times the current salt has been used */
 	uint64_t zk_salt_count;
 
-	/* illumos crypto api current encryption key */
+	/* current raw encryption key for backend */
 	crypto_key_t zk_current_key;
 
-#if defined(__FreeBSD__) && defined(_KERNEL)
-	/* Session for current encryption key.  Must always be set */
-	freebsd_crypt_session_t	zk_session;
-#else
-	/* template of current encryption key for illumos crypto api */
-	crypto_ctx_template_t zk_current_tmpl;
-#endif
+	/* backend template (session) for current encryption key */
+	zio_crypt_session_t zk_current_sess;
 
-	/* illumos crypto api current hmac key */
+	/* current raw hmac key for backend */
 	crypto_key_t zk_hmac_key;
 
-	/* template of hmac key for illumos crypto api */
-	crypto_ctx_template_t zk_hmac_tmpl;
+	/* backend template (session) for current hmac key */
+	zio_crypt_session_t zk_hmac_sess;
 
 	/* lock for changing the salt and dependent values */
 	krwlock_t zk_salt_lock;
@@ -153,5 +133,59 @@ int zio_do_crypt_abd(boolean_t encrypt, zio_crypt_key_t *key,
     dmu_object_type_t ot, boolean_t byteswap, uint8_t *salt, uint8_t *iv,
     uint8_t *mac, uint_t datalen, abd_t *pabd, abd_t *cabd,
     boolean_t *no_crypt);
+
+/*
+ * Platform/backend interface to an arbitrary crypto suite.
+ */
+
+/*
+ * A key must be opened before use, so the backend can initialise the wanted
+ * algorithm and set up the backend crypto suite/hardware.
+ *
+ * Reopen should be done after any of the keys internal properties change,
+ * eg the salt is changed. It is logically equivalent to close+open, but the
+ * backend may be able to do it more efficiently.
+ */
+int zio_crypt_key_open_os(zio_crypt_key_t *key, const zio_crypt_info_t *ci);
+void zio_crypt_key_close_os(zio_crypt_key_t *key);
+int zio_crypt_key_reopen_os(zio_crypt_key_t *key, const zio_crypt_info_t *ci);
+
+/*
+ * Initialise/free a pair of UIOs with space for iovcnt data elements. This
+ * will allocate/free zfs_uio_iov(u1)/zfs_uio_iov(u2) with at least iovcnt
+ * elements. All other uio fields are private to the backend.
+ *
+ * The backend may allocate more elements than requested; the first
+ * one available for caller data is returned in *idx, and the caller should
+ * not try to use beyond the *idx+iovcnt-1 element.
+ */
+int zio_crypt_uios_init_os(zfs_uio_t *u1, zfs_uio_t *u2, int iovcnt, int *idx);
+void zio_crypt_uios_fini_os(zfs_uio_t *u1, zfs_uio_t *u2);
+
+/* Low-level encrypt/decrypt. See zio_do_crypt_data(). */
+int zio_encrypt_os(const zio_crypt_info_t *ci,
+    crypto_key_t *key, zio_crypt_session_t *sess,
+    zfs_uio_t *plaintext, zfs_uio_t *ciphertext, size_t datalen,
+    const uint8_t iv[ZIO_DATA_IV_LEN], const uint8_t *ad, size_t adlen,
+    uint8_t mac[ZIO_DATA_MAC_LEN]);
+int zio_decrypt_os(const zio_crypt_info_t *ci,
+    crypto_key_t *key, zio_crypt_session_t *sess,
+    zfs_uio_t *ciphertext, zfs_uio_t *plaintext, size_t datalen,
+    const uint8_t iv[ZIO_DATA_IV_LEN], const uint8_t *ad, size_t adlen,
+    uint8_t mac[ZIO_DATA_MAC_LEN]);
+
+/* Generate SHA512-HMAC digest of data using the given HMAC key. */
+int zio_crypt_hmac_os(zio_crypt_key_t *key, const uint8_t *data,
+    size_t datalen, uint8_t digest[SHA512_HMAC_LEN]);
+
+/*
+ * Generate SHA512-HMAC digest using given key. Data is passed incrementally,
+ * and the final result generated at the end.
+ */
+int zio_crypt_hmac_init_os(zio_crypt_hmac_t *hmac, zio_crypt_key_t *key);
+int zio_crypt_hmac_update_os(zio_crypt_hmac_t *hmac, const uint8_t *data,
+    size_t datalen);
+int zio_crypt_hmac_final_os(zio_crypt_hmac_t *hmac,
+	uint8_t digest[SHA512_HMAC_LEN]);
 
 #endif
