@@ -982,8 +982,7 @@ vdev_disk_check_alignment_cb(struct page *page, size_t off, size_t len,
 }
 
 /*
- * Check if we can submit the pages in this ABD to the kernel as-is. Returns
- * the number of pages, or 0 if it can't be submitted like this.
+ * Check if we can submit the pages in this ABD to the kernel as-is.
  */
 static boolean_t
 vdev_disk_check_alignment(abd_t *abd, uint64_t size, struct block_device *bdev)
@@ -991,6 +990,17 @@ vdev_disk_check_alignment(abd_t *abd, uint64_t size, struct block_device *bdev)
 	vdev_disk_check_alignment_t s = {
 	    .blocksize = bdev_logical_block_size(bdev),
 	};
+
+	/*
+	 * A linear ABD is a single contiguous range, so only its first page
+	 * can carry an offset and only its last one can be short. That leaves
+	 * the alignment of the buffer as the only thing to check, and no
+	 * reason to look up the pages.
+	 */
+	if (abd_is_linear(abd)) {
+		ASSERT(IS_P2ALIGNED(size, s.blocksize));
+		return (IS_P2ALIGNED(abd_to_buf(abd), s.blocksize));
+	}
 
 	if (abd_iterate_page_func(abd, 0, size,
 	    vdev_disk_check_alignment_cb, &s))
