@@ -266,6 +266,7 @@ AC_DEFUN([ZFS_AC_KERNEL_TEST_RESULT], [
 			ZFS_AC_KERNEL_FLUSH_DCACHE_PAGE
 			;;
 	esac
+	ZFS_AC_KERNEL_CACHE_UNUSED_RESULTS
 ])
 
 dnl #
@@ -624,7 +625,6 @@ dnl # $2 - add to top-level Makefile
 dnl # $3 - additional build flags
 dnl #
 AC_DEFUN([ZFS_LINUX_CONFTEST_MAKEFILE], [
-	test -d build || mkdir -p build
 	test -d build/$1 || mkdir -p build/$1
 
 	file=build/$1/Makefile
@@ -938,6 +938,7 @@ dnl #
 AC_DEFUN([ZFS_LINUX_TEST_SRC], [
 	cachevar="zfs_cv_kernel_[$1]_$_zfs_linux_cache_checksum"
 	eval "cacheval=\$$cachevar"
+	eval "zfs_cv_kernel_cachevarlist=$zfs_cv_kernel_cachevarlist:$cachevar"
 	AS_IF([test "x$cacheval" = "x"], [
 		ZFS_LINUX_CONFTEST_C([ZFS_LINUX_TEST_PROGRAM([[$2]], [[$3]],
 		    [["Dual BSD/GPL"]])], [$1])
@@ -976,6 +977,27 @@ AC_DEFUN([ZFS_LINUX_TEST_RESULT], [
 	])
 	eval "cacheval=\$$cachevar"
 	AS_IF([test "x$cacheval" = "xyes"], [$2], [$3])
+])
+
+dnl #
+dnl # ZFS_AC_KERNEL_CACHE_UNUSED_RESULTS
+dnl #
+dnl # Kernel build tests are run unconditionally, but the results are
+dnl # conditionally checked. Cache the build results of all unchecked
+dnl # tests so that they are not rebuilt everytime when caching is enabled.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_CACHE_UNUSED_RESULTS], [
+	AC_MSG_CHECKING([for unchecked kernel build results to cache])
+	for cachevar in $(echo "${zfs_cv_kernel_cachevarlist}" | tr : ' '); do
+		eval "cacheval=\$$cachevar"
+		if test "x${cacheval}" = "x"; then
+			testname=${cachevar#zfs_cv_kernel_}
+			testname=${testname%_*}
+			ZFS_LINUX_TEST_RESULT([${testname}])
+		fi
+	done
+	unset zfs_cv_kernel_cachevarlist
+	AC_MSG_RESULT([done])
 ])
 
 dnl #
