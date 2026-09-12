@@ -50,7 +50,7 @@ AC_DEFUN([ZFS_AC_KERNEL_FPU_HEADER], [
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_FPU], [
-	ZFS_LINUX_TEST_SRC([kernel_fpu], [
+	ZFS_LINUX_TEST_SRC([kernel_fpu_license], [
 		#include <linux/types.h>
 		#ifdef HAVE_KERNEL_FPU_API_HEADER
 		#include <asm/fpu/api.h>
@@ -65,7 +65,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_FPU], [
 		kernel_fpu_end();
 	], [], [ZFS_META_LICENSE])
 
-	ZFS_LINUX_TEST_SRC([__kernel_fpu], [
+	ZFS_LINUX_TEST_SRC([__kernel_fpu_license], [
 		#include <linux/types.h>
 		#ifdef HAVE_KERNEL_FPU_API_HEADER
 		#include <asm/fpu/api.h>
