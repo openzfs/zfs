@@ -836,6 +836,24 @@ send_do_embed(const blkptr_t *bp, uint64_t featureflags)
 		return (B_FALSE);
 
 	/*
+	 * Spill blocks (DMU_OT_SA) are sent as DRR_SPILL, not
+	 * DRR_WRITE_EMBEDDED.
+	 */
+	if (BP_GET_TYPE(bp) == DMU_OT_SA)
+		return (B_FALSE);
+
+	/*
+	 * Without DMU_BACKUP_FEATURE_LARGE_BLOCKS the object's block size is
+	 * clamped to SPA_OLD_MAXBLOCKSIZE in the DRR_OBJECT record (see
+	 * dump_dnode()), so a larger embedded block cannot be represented on
+	 * the receiving side. Decline it here and let do_dump() split it
+	 * into SPA_OLD_MAXBLOCKSIZE chunks.
+	 */
+	if (BP_GET_LSIZE(bp) > SPA_OLD_MAXBLOCKSIZE &&
+	    !(featureflags & DMU_BACKUP_FEATURE_LARGE_BLOCKS))
+		return (B_FALSE);
+
+	/*
 	 * Compression function must be legacy, or explicitly enabled.
 	 */
 	if ((BP_GET_COMPRESS(bp) >= ZIO_COMPRESS_LEGACY_FUNCTIONS &&
