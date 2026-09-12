@@ -515,6 +515,17 @@ zpl_async_dio_task(void *arg)
 		    aio->cr);
 	spl_fstrans_unmark(cookie);
 
+	/*
+	 * A Direct I/O read verify failed benignly (recycled O_DIRECT buffer)
+	 * and the buffered re-read succeeded; decline Direct I/O reads on this
+	 * handle from here on, matching zpl_iter_read().  zfs_read_impl() only
+	 * sets the flag when that re-read succeeded, so a genuine on-disk
+	 * error does not disable Direct I/O for the handle.
+	 */
+	if (aio->rw == UIO_READ &&
+	    (aio->uio.uio_extflg & UIO_DIO_CKSUM_RETRIED))
+		zpl_dio_read_decline(aio->kiocb->ki_filp);
+
 	if (ret < 0) {
 		done = ret;
 	} else {
@@ -753,6 +764,19 @@ zpl_async_dio_queue(struct kiocb *kiocb, struct iov_iter *iter,
 	 * the asynchronous ZIO priority rather than the synchronous one.
 	 */
 	aio->uio.uio_extflg |= UIO_ASYNC;
+
+	/*
+	 * This handle previously declined Direct I/O after a benign read
+	 * verify failure; keep taking the uncached buffered path, matching
+	 * zpl_iter_read().  zfs_setup_direct() honours the flag and leaves
+	 * UIO_DIRECT clear, so the pages pinned above are used only for the
+	 * fallback copy and are released by the shared impl on the way out.
+	 */
+	if (rw == UIO_READ) {
+		zpl_file_data_t *zfd = atomic_load_ptr(&filp->private_data);
+		if (zfd != NULL && zfd->zfd_dio_read_declined)
+			aio->uio.uio_extflg |= UIO_DIO_DENY;
+	}
 
 	/*
 	 * Account this queued write in both barrier scopes so fsync()/sync()
