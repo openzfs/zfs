@@ -6383,6 +6383,16 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 		}
 
 		/*
+		 * A scrub error log with no scan to own it is stale.
+		 * Promote it, so an error scrub can reach its entries.
+		 */
+		if (spa->spa_errlog_scrub != 0 && spa->spa_errlog_last == 0 &&
+		    !dsl_scan_scrubbing(spa->spa_dsl_pool) &&
+		    !dsl_scan_resilvering(spa->spa_dsl_pool) &&
+		    !dsl_errorscrubbing(spa->spa_dsl_pool))
+			spa_errlog_rotate(spa);
+
+		/*
 		 * Log the fact that we booted up (so that we can detect if
 		 * we rebooted in the middle of an operation).
 		 */
