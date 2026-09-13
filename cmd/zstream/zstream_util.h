@@ -34,10 +34,21 @@ extern "C" {
 #include <sys/zio_checksum.h>
 #include <sys/zio_compress.h>
 
+/*
+ * As with the libzfs-native ZIO_* encodings, only zstd compression has a
+ * separately-defined level. gzip levels are bundled into the compression
+ * type.
+ */
 typedef struct {
 	enum zio_compress	cs_type;
 	int			cs_level;
 } compression_spec_t;
+
+typedef struct {
+	uint64_t		rs_object;
+	uint64_t		rs_offset;
+	compression_spec_t	rs_compression;
+} record_specifier_t;
 
 typedef void *
 thread_f(void *);
@@ -88,6 +99,45 @@ ctype_is_uncompressed(enum zio_compress ct)
 	VERIFY3U((int)ct, <, (int)ZIO_COMPRESS_FUNCTIONS);
 	return (zio_compress_table[(int)(ct)].ci_compress == NULL);
 }
+
+/*
+ * Convert a string such as "zstd-12" to a compression_spec_t. Returns 0 for
+ * successful parsing, nonzero if parsing failed. In the case of failure,
+ * the original compression_spec_t remains unmodified.
+ *
+ * This parser accepts "on" and returns it as a discrete compression type.
+ */
+int
+parse_compression_specifier(const char *str, compression_spec_t *spec);
+
+/*
+ * Reads as many OBJECT,OFFSET[,COMPRESSION] record specifiers from the
+ * command line as possible, entering them into an hcreate() hash table. The
+ * OBJECT/OFFSET pairs become the keys and the compression types become the
+ * values. If accept_compression is B_FALSE, ZIO_COMPRESS_INHERIT is used as
+ * a placeholder value. This is also the default when accept_compression
+ * is B_TRUE but no compression is specified.
+ *
+ * Stops at the first unparseable specifier and returns the number of
+ * specifiers successfully parsed. Checks a few return codes that should
+ * never fail and exits with a message if they do.
+ */
+int
+parse_record_specifiers(int argc, char *argv[], boolean_t accept_compression);
+
+/*
+ * Looks up record specifiers in an hcreate() hash table by object and
+ * offset. Returns B_TRUE and sets the ctype if found.
+ */
+boolean_t
+lookup_record_specifier(uint64_t object, uint64_t offset,
+    enum zio_compress *ctype);
+
+/*
+ * Frees the hash table used by lookup_record_specifier().
+ */
+void
+destroy_record_specifier_hash(void);
 
 boolean_t
 write_is_encrypted(struct drr_write *drrw);

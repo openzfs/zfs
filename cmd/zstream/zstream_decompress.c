@@ -20,11 +20,11 @@
 
 #include <err.h>
 #include <errno.h>
-#include <search.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/stdtypes.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zio_compress.h>
@@ -48,22 +48,17 @@ chain_decompress_named_writes(void *item_in, void *context)
 
 	dmu_replay_record_t *drr = &item->dp_drr;
 	struct drr_write *drrw = &drr->drr_u.drr_write;
-	char key[KEYSIZE];
 	uint8_t *dcbuff;
 
 	if (drr->drr_type != DRR_WRITE) {
 		return (D_OK);
 	}
 
-	snprintf(key, KEYSIZE, "%llu,%llu",
-	    (u_longlong_t)drrw->drr_object, (u_longlong_t)drrw->drr_offset);
-	ENTRY e = { .key = key };
-	ENTRY *p = hsearch(e, FIND);
-	if (p == NULL) {
+	enum zio_compress ctype;
+	boolean_t found = lookup_record_specifier(drrw->drr_object,
+	    drrw->drr_offset, &ctype);
+	if (!found)
 		return (D_OK);
-	}
-
-	enum zio_compress ctype = (enum zio_compress)(intptr_t)p->data;
 	if (ctype == ZIO_COMPRESS_INHERIT) {
 		/* Unspecified */
 		ctype = drrw->drr_compressiontype;
@@ -134,6 +129,8 @@ int
 zstream_do_decompress(int argc, char *argv[])
 {
 	chain_attrs_t attrs = {0};
+	struct stat statbuf;
+	char *stream_file = NULL;
 	int c;
 
 	while ((c = getopt(argc, argv, "v")) != -1) {
@@ -150,71 +147,29 @@ zstream_do_decompress(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 
-	if (argc < 0)
-		zstream_usage();
-	if (hcreate(argc) == 0)
-		errx(1, "hcreate failed");
+	int num_specifiers = parse_record_specifiers(argc, argv, B_TRUE);
+	argc -= num_specifiers;
+	argv += num_specifiers;
 
-	for (int i = 0; i < argc; i++) {
-		uint64_t object, offset;
-		char *obj_str;
-		char *offset_str;
-		char *key;
-		char *end;
-		enum zio_compress type = ZIO_COMPRESS_INHERIT;
-
-		obj_str = strsep(&argv[i], ",");
-		if (argv[i] == NULL)
-			zstream_usage();
-		errno = 0;
-		object = strtoull(obj_str, &end, 0);
-		if (errno || *end != '\0')
-			errx(1, "invalid value for object");
-		offset_str = strsep(&argv[i], ",");
-		offset = strtoull(offset_str, &end, 0);
-		if (errno || *end != '\0')
-			errx(1, "invalid value for offset");
-		if (argv[i]) {
-			if (0 == strcmp("off", argv[i]))
-				type = ZIO_COMPRESS_OFF;
-			else if (0 == strcmp("lz4", argv[i]))
-				type = ZIO_COMPRESS_LZ4;
-			else if (0 == strcmp("lzjb", argv[i]))
-				type = ZIO_COMPRESS_LZJB;
-			else if (0 == strcmp("gzip", argv[i]))
-				type = ZIO_COMPRESS_GZIP_1;
-			else if (0 == strcmp("zle", argv[i]))
-				type = ZIO_COMPRESS_ZLE;
-			else if (0 == strcmp("zstd", argv[i]))
-				type = ZIO_COMPRESS_ZSTD;
-			else {
-				errx(2, "invalid compression type %s. "
-				    "Supported types are off, lz4, lzjb, gzip, "
-				    "zle, and zstd", argv[i]);
-			}
+	if (argc > 1) {
+		errx(1, "invalid record specifier '%s'", argv[0]);
+	} else if (argc == 1) {
+		if (stat(argv[0], &statbuf) == 0) {
+			stream_file = argv[0];
+		} else {
+			err(1, "%s", argv[0]);
 		}
-
-		int n_chars = asprintf(&key, "%llu,%llu", (u_longlong_t)object,
-		    (u_longlong_t)offset);
-		if (n_chars < 0)
-			err(1, "asprintf");
-		ENTRY e = { .key = key };
-		ENTRY *p;
-		p = hsearch(e, ENTER);
-		if (p == NULL)
-			errx(1, "hsearch failed");
-		p->data = (void *)(intptr_t)type;
 	}
 
 	ENABLE_OPTION(&attrs, CA_FORBID_DEDUP);
 
 	zstream_chain_t decompress_chain = {
-		STANDARD_INPUT_STACK(NULL),
+		STANDARD_INPUT_STACK(stream_file),
 		serial_decompress_named_writes(),
 		STANDARD_OUTPUT_STACK(NULL)
 	};
 	zstream_chain_exec(decompress_chain, &attrs);
 
-	hdestroy();
+	destroy_record_specifier_hash();
 	return (0);
 }

@@ -27,7 +27,9 @@
 # 1. Receive the original stream and compute file hashes as baseline
 # 2. Recompress with "off" (decompress)
 # 3. Verify the output stream is larger than the original
-# 4. Receive and verify file hashes match
+# 4. Repeat the recompression with the stream named on the command line
+#    instead of piped in, and verify the two results are identical
+# 5. Receive and verify file hashes match
 #
 
 verify_runnable "both"
@@ -38,6 +40,7 @@ log_onexit cleanup_pool $POOL
 typeset src="$ZSTREAM_DATADIR/decompress.zsend.bz2"
 typeset orig="$BACKDIR/recompress.orig"
 typeset uncompressed="$BACKDIR/recompress-off.out"
+typeset uncompressed2="$BACKDIR/recompress-off-file.out"
 
 bzcat "$src" > "$orig"
 
@@ -53,6 +56,10 @@ typeset uncomp_size=$(wc -c < "$uncompressed")
 log_note "Original size: $orig_size, uncompressed size: $uncomp_size"
 [[ $uncomp_size -gt $orig_size ]] || \
     log_fail "Uncompressed stream ($uncomp_size) not larger than original ($orig_size)"
+
+# The compression type may also be followed by the name of the stream
+log_must eval "zstream recompress off '$orig' > '$uncompressed2'"
+log_must cmp "$uncompressed" "$uncompressed2"
 
 # Receive and verify
 recv_and_hash "$BACKDIR/hash-off.txt" "$uncompressed" cleanup
