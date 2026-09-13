@@ -10724,6 +10724,14 @@ print_error_log(zpool_handle_t *zhp)
 	if (zpool_get_errlog(zhp, &nverrlist) != 0)
 		return;
 
+	if (nvlist_empty(nverrlist)) {
+		(void) printf(gettext("errors: Permanent errors have been "
+		    "detected, but none of the affected\n\tblocks could be "
+		    "resolved to a file.\n"));
+		nvlist_free(nverrlist);
+		return;
+	}
+
 	(void) printf("errors: Permanent errors have been "
 	    "detected in the following files:\n\n");
 
@@ -11499,7 +11507,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 			} else if (!cbp->cb_verbose) {
 				color_start(ANSI_RED);
 				(void) printf(gettext("errors: %llu data "
-				    "errors, use '-v' for a list\n"),
+				    "errors, use '-v' for details\n"),
 				    (u_longlong_t)nerr);
 				color_end();
 			} else {
