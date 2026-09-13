@@ -6,6 +6,7 @@ dist_sysconf_zfs_DATA = \
 	%D%/zfs/vdev_id.conf.alias.example \
 	%D%/zfs/vdev_id.conf.multipath.example \
 	%D%/zfs/vdev_id.conf.sas_direct.example \
+	%D%/zfs/vdev_id.conf.sas_expander.example \
 	%D%/zfs/vdev_id.conf.sas_switch.example \
 	%D%/zfs/vdev_id.conf.scsi.example
 
