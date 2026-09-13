@@ -33,10 +33,10 @@
 #include <sys/stdtypes.h>
 
 #include "zstream.h"
-#include "zstream_chain.h"
 #include "zstream_modules.h"
 #include "zstream_queue.h"
 #include "zstream_recompress.h"
+#include "zstream_util.h"
 
 #define	MAX_COMPRESSION_STEPS 4
 
@@ -351,6 +351,7 @@ zstream_do_recompress(int argc, char *argv[])
 	int c;
 	int level = ZIO_COMPLEVEL_DEFAULT;
 	int num_threads = 0;
+	compression_spec_t spec;
 
 	chain_attrs_t attrs = { .ca_command_opts = CA_FORBID_DEDUP };
 
@@ -364,7 +365,7 @@ zstream_do_recompress(int argc, char *argv[])
 			break;
 		case 't':
 			if (sscanf(optarg, "%d", &num_threads) != 1) {
-				warnx("failed to parse num_threads '%s'",
+				warnx("failed to parse number of threads '%s'",
 				    optarg);
 				zstream_usage();
 			}
@@ -379,27 +380,34 @@ zstream_do_recompress(int argc, char *argv[])
 	argc -= optind;
 	argv += optind;
 
-	if (argc != 1)
+	if (argc < 1 || argc > 2)
 		zstream_usage();
 
-	compression_spec_t spec = { .cs_level = level };
-	if (strcmp(argv[0], "off") == 0) {
-		spec.cs_type = ZIO_COMPRESS_OFF;
-	} else {
-		enum zio_compress ct;
-		for (ct = 0; ct < ZIO_COMPRESS_FUNCTIONS; ct++) {
-			const char *ci_name = zio_compress_table[ct].ci_name;
-			if (strcmp(argv[0], ci_name) == 0)
-				break;
+	if (parse_compression_specifier(argv[0], &spec) != 0)
+		errx(1, "invalid compression type '%s'", argv[0]);
+	release_libzfs();
+
+	boolean_t is_off = spec.cs_type == ZIO_COMPRESS_OFF;
+	boolean_t is_uncompressed = ctype_is_uncompressed(spec.cs_type);
+	if (is_uncompressed && !is_off)
+		errx(1, "invalid compression type '%s'; use 'off'", argv[0]);
+
+	if (level != ZIO_COMPLEVEL_DEFAULT) {
+		if (spec.cs_type != ZIO_COMPRESS_ZSTD) {
+			errx(1, "use -l only with compression type 'zstd'");
+		} else if (spec.cs_level != ZIO_COMPLEVEL_DEFAULT &&
+		    spec.cs_level != level) {
+			errx(1, "conflicting compression levels -l %d "
+			    "vs. zstd-%d", level, spec.cs_level);
+		} else {
+			warnx("-l is deprecated; use a composite specifier "
+			    "such as zstd-%d", level);
 		}
-		if (ct == ZIO_COMPRESS_FUNCTIONS || ctype_is_uncompressed(ct)) {
-			errx(2, "invalid compression type %s", argv[0]);
-		}
-		spec.cs_type = ct;
+		spec.cs_level = level;
 	}
 
 	zstream_chain_t recompress_chain = {
-		STANDARD_INPUT_STACK(NULL),
+		STANDARD_INPUT_STACK((argc == 2) ? argv[1] : NULL),
 		parallel_decompress_writes(&spec),
 		parallel_compress_writes(&spec),
 		serial_update_compress_features(&spec),

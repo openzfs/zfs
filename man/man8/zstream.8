@@ -11,7 +11,7 @@
 .\"
 .\" Copyright (c) 2020 by Delphix. All rights reserved.
 .\"
-.Dd May 11, 2026
+.Dd September 3, 2026
 .Dt ZSTREAM 8
 .Os
 .
@@ -20,17 +20,31 @@
 .Nd manipulate ZFS send streams
 .Sh SYNOPSIS
 .Nm
+.Cm decompress
+.Op Fl v
+.Oo Ar object Ns Sy \&, Ns Ar offset Ns Oo Sy \&, Ns Ar compress_type Oc Ns … Oc
+.Op Ar file
+.Nm
+.Cm drop_records
+.Op Fl v
+.Oo Ar object Ns Sy \&, Ns Ar offset Ns … Oc
+.Op Ar file
+.Nm
 .Cm dump
 .Op Fl Cvd
 .Op Ar file
 .Nm
-.Cm decompress
+.Cm raw
 .Op Fl v
-.Op Ar object Ns Sy \&, Ns Ar offset Ns Op Sy \&, Ns Ar type Ns ...
+.Op Fl b Ar max_buffers
+.Op Fl g Ar fromguid
+.Ar image Ns | Ns Ar device
+.Op Ar file
 .Nm
-.Cm drop_record
-.Op Fl v
-.Op Ar object Ns Sy \&, Ns Ar offset Ns Op Sy \& Ns ...
+.Cm recompress
+.Op Fl t Ar num_threads
+.Ar compress_type
+.Op Ar file
 .Nm
 .Cm redup
 .Op Fl v
@@ -38,44 +52,117 @@
 .Nm
 .Cm token
 .Ar resume_token
-.Nm
-.Cm raw
-.Op Fl v
-.Op Fl b Ar maxbufs
-.Op Fl g Ar fromguid
-.Ar image|device
-.Nm
-.Cm recompress
-.Op Fl t Ar num_threads
-.Op Fl l Ar level
-.Ar algorithm
 .
 .Sh DESCRIPTION
-The
-.Sy zstream
-utility manipulates ZFS send streams output by the
-.Sy zfs send
+.Nm
+performs various operations on send streams
+created by the
+.Nm zfs Cm send
 command.
+Aside from the
+.Cm token
+subcommand, which takes a resume token rather than a stream, every subcommand
+reads a send stream either from the
+.Ar file
+named as its last argument or, when no
+.Ar file
+is given, from standard input.
+The
+.Cm redup
+subcommand requires a
+.Ar file ;
+it rereads earlier parts of the stream to resolve deduplicated records, so it
+cannot accept input from a pipe.
 .Bl -tag -width ""
+.It Xo
+.Nm
+.Cm decompress
+.Op Fl v
+.Oo Ar object Ns Sy \&, Ns Ar offset Ns Oo Sy \&, Ns Ar compress_type Oc Ns … Oc
+.Op Ar file
+.Xc
+Decompresses specified records within a send stream.
+This subcommand can be used to recover data when the compression type
+recorded in the ZFS metadata is incorrect.
+Specify the object number and byte offset of each record to be decompressed.
+Optionally, specify the (true)
+.Ar compress_type .
+The
+.Ar compress_type
+can be any value accepted by the
+.Sy compression
+property except
+.Sy on ,
+such as
+.Sy off ,
+.Sy gzip ,
+.Sy lz4 ,
+.Sy lzjb ,
+.Sy zstd ,
+or
+.Sy zle .
+A compression level
+.Pq e.g.,\& Sy gzip-3 No or Sy zstd-5
+is accepted but ignored; only the algorithm matters when decompressing.
+If no
+.Ar compress_type
+is given, the compression type recorded in the record's own metadata is used.
+.Pp
+Every record for that object beginning at that offset is decompressed, if
+possible.
+It may not be possible, because a record can be corrupt in some of the
+stream's snapshots but not in others.
+.Pp
+Specifying a compression type of
+.Sy off
+changes the stream's metadata accordingly, without attempting decompression.
+This can be useful if the record is already uncompressed but the metadata
+insists otherwise.
+.Pp
+The repaired stream is written to standard output.
+.Bl -tag -width "-v"
+.It Fl v
+Verbose.
+Prints a summary of decompressed records.
+.El
+.It Xo
+.Nm
+.Cm drop_records
+.Op Fl v
+.Oo Ar object Ns Sy \&, Ns Ar offset Ns … Oc
+.Op Ar file
+.Xc
+Removes selected records, specified by object number and byte offset, from a
+send stream read from the specified
+.Ar file
+or from standard input.
+Currently, only WRITE and WRITE_EMBEDDED records can be dropped.
+The repaired stream is written to standard output.
+.Bl -tag -width "-v"
+.It Fl v
+Verbose.
+Prints a summary of dropped records.
+.El
 .It Xo
 .Nm
 .Cm dump
 .Op Fl Cvd
 .Op Ar file
 .Xc
-Print information about the specified send stream, including headers and
+Prints information about the specified send stream, including headers and
 record counts.
-The send stream may either be in the specified
-.Ar file ,
-or provided on standard input.
-.Bl -tag -width "-D"
+The stream is read from either the specified
+.Ar file
+or standard input.
+.Bl -tag -width "-C"
 .It Fl C
-Suppress the validation of checksums.
+Suppresses the validation of checksums.
 .It Fl v
 Verbose.
-Print metadata for each record.
+Prints metadata for each record.
+This option can be repeated to also print record checksums.
 .It Fl d
-Dump data contained in each record.
+Dumps the data contained in each record as well as checksums.
 Implies verbose.
 .El
 .Pp
@@ -86,137 +173,64 @@ alias is provided for compatibility and is equivalent to running
 .Cm dump .
 .It Xo
 .Nm
-.Cm token
-.Ar resume_token
-.Xc
-Dumps zfs resume token information
-.It Xo
-.Nm
-.Cm decompress
-.Op Fl v
-.Op Ar object Ns Sy \&, Ns Ar offset Ns Op Sy \&, Ns Ar type Ns ...
-.Xc
-Decompress selected records in a ZFS send stream provided on standard input,
-when the compression type recorded in ZFS metadata may be incorrect.
-Specify the object number and byte offset of each record that you wish to
-decompress.
-Optionally specify the compression type.
-Valid compression types include
-.Sy off ,
-.Sy gzip ,
-.Sy lz4 ,
-.Sy lzjb ,
-.Sy zstd ,
-and
-.Sy zle .
-The default is
-.Sy lz4 .
-Every record for that object beginning at that offset will be decompressed, if
-possible.
-It may not be possible, because the record may be corrupted in some but not
-all of the stream's snapshots.
-Specifying a compression type of
-.Sy off
-will change the stream's metadata accordingly, without attempting decompression.
-This can be useful if the record is already uncompressed but the metadata
-insists otherwise.
-The repaired stream will be written to standard output.
-.Bl -tag -width "-v"
-.It Fl v
-Verbose.
-Print summary of decompressed records.
-.El
-.It Xo
-.Nm
-.Cm drop_record
-.Op Fl v
-.Op Ar object Ns Sy \&, Ns Ar offset Ns Op Sy \& ...
-.Xc
-Drop selected records from a ZFS send stream provided on standard input,
-specified by object number and byte offset.
-Only WRITE and WRITE_EMBEDDED are records are supported, currently.
-The repaired stream will be written to standard output.
-.Bl -tag -width "-v"
-.It Fl v
-Verbose.
-Print summary of dropped records.
-.El
-.It Xo
-.Nm
-.Cm redup
-.Op Fl v
-.Ar file
-.Xc
-Deduplicated send streams can be generated by using the
-.Nm zfs Cm send Fl D
-command.
-The ability to send deduplicated send streams is deprecated.
-In the future, the ability to receive a deduplicated send stream with
-.Nm zfs Cm receive
-will be removed.
-However, deduplicated send streams can still be received by utilizing
-.Nm zstream Cm redup .
-.Pp
-The
-.Nm zstream Cm redup
-command is provided a
-.Ar file
-containing a deduplicated send stream, and outputs an equivalent
-non-deduplicated send stream on standard output.
-Therefore, a deduplicated send stream can be received by running:
-.Dl # Nm zstream Cm redup Pa DEDUP_STREAM_FILE | Nm zfs Cm receive No …
-.Bl -tag -width "-D"
-.It Fl v
-Verbose.
-Print summary of converted records.
-.El
-.It Xo
-.Nm
 .Cm raw
 .Op Fl v
-.Op Fl b Ar maxbufs
+.Op Fl b Ar max_buffers
 .Op Fl g Ar fromguid
-.Ar image|device
+.Ar image Ns | Ns Ar device
+.Op Ar file
 .Xc
-Apply a zvol send stream to a raw image or block device.
+Applies a zvol send stream, read from the specified
+.Ar file
+or from standard input, to a raw image or block device.
 By default, at most 32
 .Dv SPA_MAXBLOCKSIZE
 buffers can be written at a time.
 With
-.Ar maxbufs
+.Ar max_buffers
 set to some value between 1 and
 .Dv IOV_MAX ,
-contiguous write records will be combined into one write operation using up to
+contiguous write records are combined into one write operation using up to
 this many buffers, at the cost of additional memory use.
-When
+When a
 .Ar fromguid
-is provided, the initial fromguid of the stream will be checked to ensure it
+is provided, the initial fromguid of the stream is checked to ensure that it
 matches the given value.
-The final toguid of the stream is printed to stdout on completion.
-With
-.Fl v ,
-details of the records in the stream are printed in similar fashion to
+The final toguid of the stream is printed to standard output on completion.
+With the
+.Fl v
+option, details of the records in the stream are printed in similar fashion to
 .Nm
 .Cm dump .
 .It Xo
 .Nm
 .Cm recompress
 .Op Fl t Ar num_threads
-.Op Fl l Ar level
-.Ar algorithm
+.Ar compress_type
+.Op Ar file
 .Xc
-Recompresses a send stream from standard input using the specified compression
-.Ar algorithm
-and optional
-.Ar level ,
+Recompresses a send stream, read from the specified
+.Ar file
+or from standard input, using the specified
+.Ar compress_type ,
 and writes the modified stream to standard output.
-All WRITE records in the send stream will be compressed unless compression
-fails to reduce their size compared to being left uncompressed.
+All WRITE records in the send stream are compressed unless compression
+fails to reduce their size compared to leaving them uncompressed.
 The
-.Ar algorithm
-can be any valid value to the
-.Nm compress
-property.
+.Ar compress_type
+can be any value accepted by the
+.Sy compression
+property except
+.Sy on ,
+including those that name a compression level, such as
+.Sy gzip-3
+or
+.Sy zstd-5 .
+A
+.Ar compress_type
+of
+.Sy off
+decompresses every record and leaves the stream uncompressed.
 Note that encrypted send streams cannot be recompressed.
 .Bl -tag -width "-t"
 .It Fl t Ar num_threads
@@ -224,21 +238,59 @@ Specifies the number of compression worker threads.
 By default,
 .Nm zstream Cm recompress
 creates a thread for every CPU core.
-It's generally unproductive to raise
+It is generally unproductive to raise
 .Ar num_threads
 above this default.
 On some architectures, contention for resources such as memory caches can
 reduce efficiency when many threads are active.
 On those systems, it may be helpful to run with fewer threads,
 particularly when automating operations on shared servers.
-.El
-.Bl -tag -width "-l"
 .It Fl l Ar level
-Specifies compression level.
-Only needed for algorithms where the level is not implied as part of the name
-of the algorithm (e.g. gzip-3 does not require it, while zstd does, if a
-non-default level is desired).
+This option is deprecated.
+It formerly specified a numeric compression level for
+.Sy zstd .
+Use a standard compression specifier such as
+.Sy zstd-5
+instead.
 .El
+.It Xo
+.Nm
+.Cm redup
+.Op Fl v
+.Ar file
+.Xc
+It was formerly possible to create deduplicated send streams with the
+.Nm zfs Cm send Fl D
+option.
+However, support for stream-level deduplication has been deprecated and
+removed from both
+.Nm zfs Cm send
+and
+.Nm zfs Cm receive .
+.Pp
+.Nm zstream Cm redup
+reads a deduplicated stream from the specified
+.Ar file
+and outputs an equivalent, non-deduplicated send stream on standard output.
+Therefore, a deduplicated stream can be received by running:
+.Pp
+.Dl # Nm zstream Cm redup Pa file | Nm zfs Cm receive No …
+.Pp
+A real
+.Ar file
+is required here because resolving deduplicated records involves rereading
+earlier parts of the stream.
+.Bl -tag -width "-v"
+.It Fl v
+Verbose.
+Prints a summary of reduplicated records.
+.El
+.It Xo
+.Nm
+.Cm token
+.Ar resume_token
+.Xc
+Dumps ZFS resume token information.
 .El
 .
 .Sh EXAMPLES
@@ -254,37 +306,45 @@ and is compressed using
 .Sy lz4 ,
 then run this command:
 .Bd -literal
-.No # Nm zfs Ar send Fl c Ar … | Nm zstream decompress Ar 128,0,lz4 | \
-Nm zfs recv Ar …
+.No # Nm zfs Cm send Fl c Ar … | Nm zstream Cm decompress Ar 128,0,lz4 | \
+Nm zfs Cm recv Ar …
 .Ed
 .
 .Ss Recovering from OpenZFS bug #18239
-The bogus records typically have an absurdly large offset, and can be seen with
-a command like
-.Nm zdb Fl ddddd Ar dataset Ar object
+The bogus records typically have an absurdly large offset that can be
+discovered by running
+.Nm zdb Fl ddddd Ar dataset object
 or
-.Nm zstream Ar dump Fl v .
+.Nm zstream Cm dump Fl v .
 To recover, send the dataset and use
 .Nm zstream
-to drop the bogus record, then receive into a new dataset.
+to drop the bogus record, then receive it into a new dataset.
 .Bd -literal
-.No # Nm zfs Ar send Ar ... | Nm zstream drop_record Ar 3545761,18446744073709486080 | \
-Nm zfs recv Ar ...
+.No # Nm zfs Cm send Ar … | Nm zstream Cm drop_records Ar 3545761,18446744073709486080 | \
+Nm zfs Cm recv Ar …
 .Ed
 .
 .Ss Migrating from a zvol to a physical disk
-Given a zvol tank/vol with snapshots @1 @2 and @3, and an adequately sized
-physical disk /dev/sdd:
+Given an adequately sized physical disk
+.Pa /dev/sdd
+and a zvol
+.Ar tank/vol
+with snapshots
+.Ar @1 ,
+.Ar @2 ,
+and
+.Ar @3 :
 .Bd -literal
-.No # Nm zfs Cm send Fl Lec Ar tank | Nm zstream Cm raw Ar /dev/sdd
+.No # Nm zfs Cm send Fl Lec Ar tank/vol@1 | Nm zstream Cm raw Ar /dev/sdd
 16731506615198184313
 .No # Nm zfs Cm send Fl Lec Fl I Ar @1 Ar tank/vol@3 | Nm zstream Cm raw Fl g Ar 16731506615198184313 Ar /dev/sdd
 10690368765373298656
 .Ed
+.
 .Sh SEE ALSO
 .Xr zdb 8 ,
 .Xr zfs 8 ,
 .Xr zfs-receive 8 ,
 .Xr zfs-send 8 ,
-.Lk https://github.com/openzfs/zfs/issues/12762
+.Lk https://github.com/openzfs/zfs/issues/12762 ,
 .Lk https://github.com/openzfs/zfs/issues/18239

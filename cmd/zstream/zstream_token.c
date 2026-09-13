@@ -21,19 +21,18 @@
  * Copyright (c) 2020 by Datto Inc. All rights reserved.
  */
 
-#include <errno.h>
 #include <libnvpair.h>
 #include <libzfs.h>
 #include <stdio.h>
 #include <sys/nvpair.h>
 
 #include "zstream.h"
+#include "zstream_util.h"
 
 int
 zstream_do_token(int argc, char *argv[])
 {
 	char *resume_token = NULL;
-	libzfs_handle_t *hdl;
 
 	if (argc < 2) {
 		(void) fprintf(stderr, "Need to pass the resume token\n");
@@ -41,26 +40,21 @@ zstream_do_token(int argc, char *argv[])
 	}
 
 	resume_token = argv[1];
-
-	if ((hdl = libzfs_init()) == NULL) {
-		(void) fprintf(stderr, "%s\n", libzfs_error_init(errno));
-		return (1);
-	}
+	require_libzfs();
 
 	nvlist_t *resume_nvl =
-	    zfs_send_resume_token_to_nvlist(hdl, resume_token);
+	    zfs_send_resume_token_to_nvlist(libzfs_handle, resume_token);
 
 	if (resume_nvl == NULL) {
 		(void) fprintf(stderr,
 		    "Unable to parse resume token: %s\n",
-		    libzfs_error_description(hdl));
-		libzfs_fini(hdl);
+		    libzfs_error_description(libzfs_handle));
+		release_libzfs();
 		return (1);
 	}
 
 	dump_nvlist(resume_nvl, 5);
 	nvlist_free(resume_nvl);
-
-	libzfs_fini(hdl);
+	release_libzfs();
 	return (0);
 }

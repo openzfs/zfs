@@ -27,6 +27,8 @@
 # 1. Decompress records without specifying type
 # 2. Decompress records specifying zstd as type
 # 3. Verify both outputs are identical
+# 4. Repeat step 1 with the stream named on the command line instead of
+#    piped in, and verify the output is still identical
 #
 
 verify_runnable "both"
@@ -37,6 +39,7 @@ typeset src="$ZSTREAM_DATADIR/decompress.zsend.bz2"
 typeset orig="$BACKDIR/decompress.orig"
 typeset out_default="$BACKDIR/decompress-default.out"
 typeset out_zstd="$BACKDIR/decompress-zstd.out"
+typeset out_file="$BACKDIR/decompress-file.out"
 
 typeset -a records=(2,0 3,0 128,131072)
 typeset -a zstd_records=(2,0,zstd 3,0,zstd 128,131072,zstd)
@@ -51,5 +54,9 @@ log_must eval "zstream decompress ${zstd_records[*]} < '$orig' > '$out_zstd'"
 
 # Both outputs must be identical
 log_must cmp -s "$out_default" "$out_zstd"
+
+# The record specifiers may also be followed by the name of the stream
+log_must eval "zstream decompress ${records[*]} '$orig' > '$out_file'"
+log_must cmp -s "$out_default" "$out_file"
 
 log_pass "Explicit correct compression type matches default."

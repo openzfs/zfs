@@ -29,6 +29,8 @@
 # Strategy:
 # 1. For each of the test streams, run zstream dump -v
 # 2. Compare stdout+stderr with the corresponding reference dump
+# 3. Repeat one of the dumps with the stream named on the command line
+#    instead of piped in, and verify it matches the same reference
 #
 
 verify_runnable "both"
@@ -80,5 +82,18 @@ for stem in "${streams[@]}"; do
 done
 
 [[ -z $failed ]] || log_fail "Dump output mismatch for:$failed"
+
+#
+# zstream dump also accepts the stream as a trailing argument. The stream
+# used here is arbitrary; the point is only to exercise the file argument.
+#
+typeset stem=decompress
+typeset abbrev=$(get_stream_abbrev "$stem")
+typeset infile="$BACKDIR/${stem}.zsend"
+typeset file_out="$BACKDIR/${abbrev}-file.dump"
+
+bzcat "$ZSTREAM_DATADIR/${stem}.zsend.bz2" > "$infile"
+log_must eval "zstream dump -v '$infile' > '$file_out' 2>&1"
+log_must diff "$BACKDIR/${abbrev}-new.dump" "$file_out"
 
 log_pass "zstream dump -v output matches reference dump files."
