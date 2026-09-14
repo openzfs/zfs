@@ -233,61 +233,33 @@ rw_tryenter(krwlock_t *rwlp, krw_t rw)
 }
 
 /*
- * It appears a difference between Darwin's
- * lck_rw_lock_shared_to_exclusive() and Solaris's rw_tryupgrade() and
- * FreeBSD's sx_try_upgrade() is that on failure to upgrade, the prior
- * held shared/reader lock is lost on Darwin, but retained on
- * Solaris/FreeBSD. We could re-acquire the lock in this situation,
- * but it enters a possibility of blocking, when tryupgrade is meant
- * to be non-blocking.
- * Also note that XNU's lck_rw_lock_shared_to_exclusive() is always
- * blocking (when waiting on readers), which means we can not use it.
+ * Unlike Solaris's rw_tryupgrade() and FreeBSD's sx_try_upgrade(),
+ * Darwin's lck_rw_lock_shared_to_exclusive() releases the reader lock
+ * on failure.  Reacquiring it may block, whereas rw_tryupgrade() must
+ * be non-blocking and retain the reader lock on failure.
+ *
+ * Darwin's upgrade operation may also block while waiting for other
+ * readers, so it cannot implement rw_tryupgrade().
+ *
+ * Dropping the reader lock before trying the writer lock is unsafe:
+ * reacquiring it on failure can deadlock with locks held by the caller.
+ * The same ZAP header/leaf lock inversion affected the Linux SPL:
+ * https://github.com/openzfs/zfs/pull/4692
+ * That discussion also identifies this risk in the macOS implementation.
+ * The macOS deadlock is reported in:
+ * https://github.com/openzfsonosx/openzfs-fork/issues/105
+ *
+ * Decline the upgrade without releasing the reader lock.  Callers must
+ * use their existing upgrade-failure path to release locks and retry.
  */
+
 int
 rw_tryupgrade(krwlock_t *rwlp)
 {
-	int held = 0;
-
 	if (atomic_load_nonatomic(&rwlp->rw_owner) == current_thread())
-		panic("rw_enter: locking against myself!");
+		panic("rw_tryupgrade: locking against myself!");
 
-	/* More readers than us? give up */
-	if (atomic_load_nonatomic(&rwlp->rw_readers) != 1)
-		return (0);
-
-	/*
-	 * It is ON. We need to drop our READER lock, and try to
-	 * grab the WRITER as quickly as possible.
-	 */
-	atomic_dec_32((volatile uint32_t *)&rwlp->rw_readers);
-	lck_rw_unlock_shared((lck_rw_t *)&rwlp->rw_lock[0]);
-
-	/* Grab the WRITER lock */
-	held = lck_rw_try_lock((lck_rw_t *)&rwlp->rw_lock[0],
-	    LCK_RW_TYPE_EXCLUSIVE);
-
-	if (held) {
-		/*
-		 * Looks like we won the exclusive lock.
-		 * If we are on a relaxed memory ordering system,
-		 * we need a barrier here anyway, which will publish
-		 * the rw_owner write
-		 */
-		rwlp->rw_owner = current_thread();
-		spl_data_barrier();
-		ASSERT3U(rwlp->rw_readers, ==, 0);
-		return (1);
-	}
-
-	/*
-	 * The worst has happened, we failed to grab WRITE lock, either
-	 * due to another WRITER lock, or, some READER came along.
-	 * IllumOS implementation returns with the READER lock again
-	 * so we need to grab it.
-	 */
-	rw_enter(rwlp, RW_READER);
 	return (0);
-
 }
 
 void
