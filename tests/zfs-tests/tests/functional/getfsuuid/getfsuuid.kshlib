@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+
+#
+# Copyright 2026 Ricardo Correia.  All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+#
+# Run getfsuuid on a path, and set uuid, pool_half, and ds_half from its
+# output: the UUID as 32 hex digits, and the decimal pool guid and dataset
+# guid that the two halves of the UUID hold.
+#
+function get_uuid # path
+{
+	typeset out
+
+	out=$(getfsuuid $1) || log_fail "getfsuuid failed on $1"
+	read -r uuid pool_half ds_half <<<"$out"
+	log_note "uuid of $1: $uuid"
+}
+
+#
+# Run getfsuuid on a path that must have no UUID, and verify that it fails
+# with exit status 2, which it returns when the ioctl fails with ENOTTY.
+# Any other status, including success, fails the test.
+#
+function verify_no_uuid # path
+{
+	typeset out
+	typeset -i ret
+
+	out=$(getfsuuid $1 2>&1)
+	ret=$?
+	log_note "getfsuuid $1: exit status $ret: $out"
+	(( ret == 2 )) ||
+	    log_fail "getfsuuid $1 exited with status $ret, expected 2"
+}
