@@ -96,7 +96,7 @@ unsigned int zvol_num_taskqs = 0;
 unsigned int zvol_request_sync = 0;
 
 struct hlist_head *zvol_htable;
-static list_t zvol_state_list;
+list_t zvol_state_list;
 krwlock_t zvol_state_lock;
 extern int zfs_bclone_strict_properties;
 extern int zfs_bclone_wait_dirty;

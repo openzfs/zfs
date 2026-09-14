@@ -35,13 +35,19 @@ extern "C" {
  */
 typedef void		(*gcm_mul_f)(uint64_t *, uint64_t *, uint64_t *);
 typedef boolean_t	(*gcm_will_work_f)(void);
+typedef void		(*gcm_ghash_f)(uint64_t Xi[2],
+	const uint64_t Htable[32], const uint8_t *input, size_t len);
+typedef void (*gcm_ghash_init_f)(uint64_t *Htable, const uint64_t H[2]);
 
 #define	GCM_IMPL_NAME_MAX (16)
 
 typedef struct gcm_impl_ops {
 	gcm_mul_f mul;
 	gcm_will_work_f is_supported;
+	gcm_ghash_f ghash;
+	gcm_ghash_init_f ghash_init;
 	char name[GCM_IMPL_NAME_MAX];
+	boolean_t needs_htable;
 } gcm_impl_ops_t;
 
 extern const gcm_impl_ops_t gcm_generic_impl;

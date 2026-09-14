@@ -21,4 +21,8 @@
 
 #define	HAVE_LARGE_STACKS	1
 
+#ifdef __APPLE__
+#include <sys/zfs_context_macos.h>
+#endif
+
 #endif

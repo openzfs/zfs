@@ -50,6 +50,10 @@ if [ "$UNAME" = "FreeBSD" ] ; then
 	TESTFAIL_CALLBACKS=${TESTFAIL_CALLBACKS:-"$ZFS_DMESG"}
 	LOSETUP=/sbin/mdconfig
 	DMSETUP=/sbin/gpart
+elif [ "$UNAME" = "Darwin" ] ; then
+	TESTFAIL_CALLBACKS=${TESTFAIL_CALLBACKS:-"$ZFS_DMESG"}
+	LOSETUP=/usr/bin/hdiutil
+	DMSETUP=/sbin/something2
 else
 	ZFS_MMP="$STF_SUITE/callbacks/zfs_mmp.ksh"
 	TESTFAIL_CALLBACKS=${TESTFAIL_CALLBACKS:-"$ZFS_DBGMSG:$ZFS_DMESG:$ZFS_MMP"}
@@ -79,6 +83,16 @@ cleanup_freebsd_loopback() {
 	for TEST_LOOPBACK in ${LOOPBACKS}; do
 		if [ -c "/dev/${TEST_LOOPBACK}" ]; then
 			sudo "${LOSETUP}" -d -u "${TEST_LOOPBACK}" ||
+			    echo "Failed to destroy: ${TEST_LOOPBACK}"
+		fi
+	done
+}
+
+cleanup_macos_loopback() {
+	for TEST_LOOPBACK in ${LOOPBACKS}; do
+		sudo "$ZPOOL" export -a
+		if [ -b "${TEST_LOOPBACK}" ]; then
+			sudo "${LOSETUP}" detach "${TEST_LOOPBACK}" ||
 			    echo "Failed to destroy: ${TEST_LOOPBACK}"
 		fi
 	done
@@ -116,6 +130,8 @@ cleanup() {
 	if [ "$LOOPBACK" = "yes" ]; then
 		if [ "$UNAME" = "FreeBSD" ] ; then
 			cleanup_freebsd_loopback
+		elif [ "$UNAME" = "Darwin" ] ; then
+			cleanup_macos_loopback
 		else
 			cleanup_linux_loopback
 		fi
@@ -140,6 +156,8 @@ cleanup_all() {
 	TEST_POOLS=$(ASAN_OPTIONS=detect_leaks=false "$ZPOOL" list -Ho name | grep testpool)
 	if [ "$UNAME" = "FreeBSD" ] ; then
 		TEST_LOOPBACKS=$(sudo "${LOSETUP}" -l)
+	elif [ "$UNAME" = "Darwin" ] ; then
+		TEST_LOOPBACKS=$(sudo "${LOSETUP}" info|grep /dev/disk)
 	else
 		TEST_LOOPBACKS=$("${LOSETUP}" -a | awk -F: '/file-vdev/ {print $1}')
 	fi
@@ -164,6 +182,8 @@ cleanup_all() {
 	for TEST_LOOPBACK in $TEST_LOOPBACKS; do
 		if [ "$UNAME" = "FreeBSD" ] ; then
 			sudo "${LOSETUP}" -d -u "${TEST_LOOPBACK}"
+		elif [ "$UNAME" = "Darwin" ] ; then
+			sudo "${LOSETUP}" detach "${TEST_LOOPBACK}"
 		else
 			sudo "${LOSETUP}" -d "${TEST_LOOPBACK}"
 		fi
@@ -288,6 +308,9 @@ constrain_path() {
 	if [ "$UNAME" = "FreeBSD" ] ; then
 		SYSTEM_FILES="$SYSTEM_FILES $SYSTEM_FILES_FREEBSD"
 		ZFSTEST_FILES="$ZFSTEST_FILES $ZFSTEST_FILES_FREEBSD"
+	elif [ "$UNAME" = "Darwin" ] ; then
+		SYSTEM_FILES="$SYSTEM_FILES $SYSTEM_FILES_MACOS"
+		ZFSTEST_FILES="$ZFSTEST_FILES $ZFSTEST_FILES_MACOS"
 	else
 		SYSTEM_FILES="$SYSTEM_FILES $SYSTEM_FILES_LINUX"
 		ZFSTEST_FILES="$ZFSTEST_FILES $ZFSTEST_FILES_LINUX"
@@ -335,6 +358,20 @@ constrain_path() {
 		ln -fs "$STF_PATH/gunzip" "$STF_PATH/uncompress"
 	elif [ "$UNAME" = "FreeBSD" ] ; then
 		ln -fs /usr/local/bin/ksh93 "$STF_PATH/ksh"
+	elif [ "$UNAME" = "Darwin" ] ; then
+		[ -f "/usr/local/bin/gdd" ] && ln -fs /usr/local/bin/gdd "$STF_PATH/dd"
+		[ -f "/usr/local/bin/gsed" ] && ln -fs /usr/local/bin/gsed "$STF_PATH/gsed"
+		ln -fs /bin/ksh "$STF_PATH/ksh"
+		ln -fs /sbin/fsck_hfs "$STF_PATH/fsck"
+		ln -fs /sbin/newfs_hfs "$STF_PATH/newfs_hfs"
+		ln -fs /sbin/mount_hfs "$STF_PATH/mount"
+		ln -fs /usr/local/bin/gtruncate "$STF_PATH/truncate"
+		ln -fs /usr/sbin/sysctl "$STF_PATH/sysctl"
+		ln -fs /usr/bin/dscl "$STF_PATH/dscl"
+		ln -fs /usr/bin/xxd "$STF_PATH/xxd"
+		ln -fs /usr/sbin/dseditgroup "$STF_PATH/dseditgroup"
+		ln -fs /usr/bin/xattr "$STF_PATH/xattr"
+		ln -fs /usr/sbin/createhomedir "$STF_PATH/createhomedir"
 	fi
 }
 
@@ -602,6 +639,40 @@ fi
 [ -e "$STF_SUITE/include/default.cfg" ] || fail \
     "Missing $STF_SUITE/include/default.cfg file."
 
+if [ "$UNAME" = "Darwin" ]; then
+	DYLD_LIBRARY_PATH=$STF_SUITE/cmd/librt/.libs:$DYLD_LIBRARY_PATH
+	export DYLD_LIBRARY_PATH
+	# Tell ZFS to not to use /Volumes
+	__ZFS_MAIN_MOUNTPOINT_DIR=/
+	export __ZFS_MAIN_MOUNTPOINT_DIR
+	# Catalina and up has root as read/only.
+	# BigSur gets even harder.
+	sudo /sbin/mount -uw /
+	export SHELL=ksh
+	# We can guess common pool names used by the testers,
+	# and add to synthetic
+	if [ ! -f "/etc/synthetic.d/zfs-tests" ]; then
+	    sudo mkdir -p /etc/synthetic.d
+	    sudo touch /etc/synthetic.conf
+	    sudo touch /etc/synthetic.d/zfs-tests
+	    sudo chmod 666 /etc/synthetic.d/zfs-tests
+	    cat << EOF > /etc/synthetic.d/zfs-tests
+testpool
+testpool1
+testpool2
+logsm_import
+lgcypool
+ldnpool
+zonepool
+perfpool
+EOF
+	    sudo chmod 444 /etc/synthetic.d/zfs-tests
+	    echo ""
+	    echo "Please reboot to activate /etc/synthetic.d/zfs-tests"
+	    echo ""
+	    exit 0
+	fi
+fi
 #
 # Verify the ZFS module stack is loaded.
 #
@@ -660,8 +731,15 @@ if [ -z "${DISKS}" ]; then
 	#
 	for TEST_FILE in ${FILES}; do
 		[ -f "$TEST_FILE" ] && fail "Failed file exists: ${TEST_FILE}"
-		truncate -s "${FILESIZE}" "${TEST_FILE}" ||
+
+		if [ "$UNAME" = "Darwin" ] ; then
+		    mkfile -n "${FILESIZE}" "${TEST_FILE}" ||
 		    fail "Failed creating: ${TEST_FILE} ($?)"
+		else
+		    truncate -s "${FILESIZE}" "${TEST_FILE}" ||
+		    fail "Failed creating: ${TEST_FILE} ($?)"
+		fi
+
 	done
 
 	#
@@ -678,6 +756,21 @@ if [ -z "${DISKS}" ]; then
 				fi
 				DISKS="$DISKS $MDDEVICE"
 				LOOPBACKS="$LOOPBACKS $MDDEVICE"
+			elif [ "$UNAME" = "Darwin" ] ; then
+				MDDEVICE=$(sudo "${LOSETUP}" attach -imagekey diskimage-class=CRawDiskImage -nomount "${TEST_FILE}")
+				if [ -z "$MDDEVICE" ] ; then
+					fail "Failed: ${TEST_FILE} -> loopback"
+				fi
+				LOOPBACKS="${LOOPBACKS}${MDDEVICE} "
+				BASEMDDEVICE=$(basename "$MDDEVICE")
+				if [ -z "$DISKS" ]; then
+					DISKS="$BASEMDDEVICE"
+				else
+					DISKS="$DISKS $BASEMDDEVICE"
+				fi
+				# If we use attached disk, remove the file-vdev
+				# from list.
+				DISKS=${DISKS:-"$TEST_FILE"}
 			else
 				TEST_LOOPBACK=$(sudo "${LOSETUP}" --show -f "${TEST_FILE}") ||
 				    fail "Failed: ${TEST_FILE} -> ${TEST_LOOPBACK}"
@@ -701,6 +794,8 @@ NUM_DISKS=$(echo "${DISKS}" | awk '{print NF}')
 if [ "$TAGS" != "perf" ]; then
 	[ "$NUM_DISKS" -lt 3 ] && fail "Not enough disks ($NUM_DISKS/3 minimum)"
 fi
+
+echo "Finished with DISKS $DISKS"
 
 #
 # Disable SELinux until the ZFS Test Suite has been updated accordingly.
@@ -754,6 +849,8 @@ export TESTFAIL_CALLBACKS
 
 mktemp_file() {
 	if [ "$UNAME" = "FreeBSD" ]; then
+		mktemp -u "${FILEDIR}/$1.XXXXXX"
+	elif [ "$UNAME" = "Darwin" ]; then
 		mktemp -u "${FILEDIR}/$1.XXXXXX"
 	else
 		mktemp -ut "$1.XXXXXX" -p "$FILEDIR"

@@ -165,10 +165,8 @@ typedef struct gcm_ctx {
 	 */
 	uint64_t gcm_ghash[2];
 	uint64_t gcm_H[2];
-#ifdef CAN_USE_GCM_ASM
 	uint64_t *gcm_Htable;
 	size_t gcm_htab_len;
-#endif
 	uint64_t gcm_J0[2];
 	uint64_t gcm_len_a_len_c[2];
 	uint8_t *gcm_pt_buf;

@@ -1,0 +1,42 @@
+#!/bin/bash
+date '+%s' >> /tmp/o3x.log
+echo $0 >> /tmp/o3x.log
+set -e
+
+TMPF=`mktemp /private/tmp/zfsinstaller-unloadzfs.XXXXXX`
+
+if [ $(/usr/sbin/kextstat -b net.lundman.zfs | wc -l) -gt 1 ] ; then
+	echo "Unloading zfs.kext"
+	/sbin/kextunload -b net.lundman.zfs
+	if [ $(/usr/sbin/kextstat -b net.lundman.zfs | wc -l) -gt 1 ] ; then
+		echo "zfs.kext could not be unloaded"
+		exit 2
+	fi
+fi
+
+if [ $(/usr/sbin/kextstat -b org.openzfsonosx.zfs | wc -l) -gt 1 ] ; then
+	echo "Unloading zfs.kext"
+	/sbin/kextunload -b org.openzfsonosx.zfs
+	if [ $(/usr/sbin/kextstat -b org.openzfsonosx.zfs | wc -l) -gt 1 ] ; then
+		echo "zfs.kext could not be unloaded"
+		exit 2
+	fi
+fi
+
+if [ -c /dev/zfs ] ; then
+	echo "/dev/zfs still exists. zfs kernel extension likely still loaded. Exiting."
+	exit 3
+fi
+
+if [ $(/usr/sbin/kextstat -b net.lundman.spl | wc -l) -gt 1 ] ; then
+	/sbin/kextunload -b net.lundman.spl
+	if [ $(/usr/sbin/kextstat -b net.lundman.spl | wc -l) -gt 1 ] ; then
+                echo "spl.kext could not be unloaded"
+                exit 4
+        fi
+fi
+
+set +e
+killall zed
+
+exit 0

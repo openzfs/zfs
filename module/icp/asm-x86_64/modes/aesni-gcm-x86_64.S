@@ -80,18 +80,18 @@ FUNCTION(_aesni_ctr32_ghash_6x)
 	vpaddb	%xmm2,%xmm13,%xmm14
 	vpxor	%xmm15,%xmm1,%xmm9
 	vmovdqu	%xmm4,16+8(%rsp)
-	jmp	.Loop6x
+	jmp	LOCAL_LABEL(oop6x)
 
 .balign	32
-.Loop6x:
+LOCAL_LABEL(oop6x):
 	addl	$100663296,%ebx
-	jc	.Lhandle_ctr32
+	jc	LOCAL_LABEL(handle_ctr32)
 	vmovdqu	0-32(%r9),%xmm3
 	vpaddb	%xmm2,%xmm14,%xmm1
 	vpxor	%xmm15,%xmm10,%xmm10
 	vpxor	%xmm15,%xmm11,%xmm11
 
-.Lresume_ctr32:
+LOCAL_LABEL(resume_ctr32):
 	vmovdqu	%xmm1,(%r8)
 	vpclmulqdq	$0x10,%xmm3,%xmm7,%xmm5
 	vpxor	%xmm15,%xmm12,%xmm12
@@ -257,7 +257,7 @@ FUNCTION(_aesni_ctr32_ghash_6x)
 	vaesenc	%xmm1,%xmm14,%xmm14
 	vmovups	160-128(%rcx),%xmm1
 	cmpl	$12,%ebp	// ICP uses 10,12,14 not 9,11,13 for rounds.
-	jb	.Lenc_tail
+	jb	LOCAL_LABEL(enc_tail)
 
 	vaesenc	%xmm15,%xmm9,%xmm9
 	vaesenc	%xmm15,%xmm10,%xmm10
@@ -275,7 +275,7 @@ FUNCTION(_aesni_ctr32_ghash_6x)
 	vaesenc	%xmm1,%xmm14,%xmm14
 	vmovups	192-128(%rcx),%xmm1
 	cmpl	$14,%ebp	// ICP does not zero key schedule.
-	jb	.Lenc_tail
+	jb	LOCAL_LABEL(enc_tail)
 
 	vaesenc	%xmm15,%xmm9,%xmm9
 	vaesenc	%xmm15,%xmm10,%xmm10
@@ -292,10 +292,10 @@ FUNCTION(_aesni_ctr32_ghash_6x)
 	vmovups	208-128(%rcx),%xmm15
 	vaesenc	%xmm1,%xmm14,%xmm14
 	vmovups	224-128(%rcx),%xmm1
-	jmp	.Lenc_tail
+	jmp	LOCAL_LABEL(enc_tail)
 
 .balign	32
-.Lhandle_ctr32:
+LOCAL_LABEL(handle_ctr32):
 	vmovdqu	(%r11),%xmm0
 	vpshufb	%xmm0,%xmm1,%xmm6
 	vmovdqu	48(%r11),%xmm5
@@ -314,10 +314,10 @@ FUNCTION(_aesni_ctr32_ghash_6x)
 	vpshufb	%xmm0,%xmm13,%xmm13
 	vpshufb	%xmm0,%xmm14,%xmm14
 	vpshufb	%xmm0,%xmm1,%xmm1
-	jmp	.Lresume_ctr32
+	jmp	LOCAL_LABEL(resume_ctr32)
 
 .balign	32
-.Lenc_tail:
+LOCAL_LABEL(enc_tail):
 	vaesenc	%xmm15,%xmm9,%xmm9
 	vmovdqu	%xmm7,16+8(%rsp)
 	vpalignr	$8,%xmm4,%xmm4,%xmm8
@@ -355,7 +355,7 @@ FUNCTION(_aesni_ctr32_ghash_6x)
 
 	addq	$0x60,%r10
 	subq	$0x6,%rdx
-	jc	.L6x_done
+	jc	LOCAL_LABEL(6x_done)
 
 	vmovups	%xmm9,-96(%rsi)
 	vpxor	%xmm15,%xmm1,%xmm9
@@ -370,9 +370,9 @@ FUNCTION(_aesni_ctr32_ghash_6x)
 	vmovups	%xmm14,-16(%rsi)
 	vmovdqa	%xmm3,%xmm14
 	vmovdqu	32+8(%rsp),%xmm7
-	jmp	.Loop6x
+	jmp	LOCAL_LABEL(oop6x)
 
-.L6x_done:
+LOCAL_LABEL(6x_done):
 	vpxor	16+8(%rsp),%xmm8,%xmm8
 	vpxor	%xmm4,%xmm8,%xmm8
 
@@ -397,18 +397,18 @@ FUNCTION(_aesni_ctr32_ghash_no_movbe_6x)
 	vpaddb	%xmm2,%xmm13,%xmm14
 	vpxor	%xmm15,%xmm1,%xmm9
 	vmovdqu	%xmm4,16+8(%rsp)
-	jmp	.Loop6x_nmb
+	jmp	LOCAL_LABEL(oop6x_nmb)
 
 .balign	32
-.Loop6x_nmb:
+LOCAL_LABEL(oop6x_nmb):
 	addl	$100663296,%ebx
-	jc	.Lhandle_ctr32_nmb
+	jc	LOCAL_LABEL(handle_ctr32_nmb)
 	vmovdqu	0-32(%r9),%xmm3
 	vpaddb	%xmm2,%xmm14,%xmm1
 	vpxor	%xmm15,%xmm10,%xmm10
 	vpxor	%xmm15,%xmm11,%xmm11
 
-.Lresume_ctr32_nmb:
+LOCAL_LABEL(resume_ctr32_nmb):
 	vmovdqu	%xmm1,(%r8)
 	vpclmulqdq	$0x10,%xmm3,%xmm7,%xmm5
 	vpxor	%xmm15,%xmm12,%xmm12
@@ -586,7 +586,7 @@ FUNCTION(_aesni_ctr32_ghash_no_movbe_6x)
 	vaesenc	%xmm1,%xmm14,%xmm14
 	vmovups	160-128(%rcx),%xmm1
 	cmpl	$12,%ebp	// ICP uses 10,12,14 not 9,11,13 for rounds.
-	jb	.Lenc_tail_nmb
+	jb	LOCAL_LABEL(enc_tail_nmb)
 
 	vaesenc	%xmm15,%xmm9,%xmm9
 	vaesenc	%xmm15,%xmm10,%xmm10
@@ -604,7 +604,7 @@ FUNCTION(_aesni_ctr32_ghash_no_movbe_6x)
 	vaesenc	%xmm1,%xmm14,%xmm14
 	vmovups	192-128(%rcx),%xmm1
 	cmpl	$14,%ebp	// ICP does not zero key schedule.
-	jb	.Lenc_tail_nmb
+	jb	LOCAL_LABEL(enc_tail_nmb)
 
 	vaesenc	%xmm15,%xmm9,%xmm9
 	vaesenc	%xmm15,%xmm10,%xmm10
@@ -621,10 +621,10 @@ FUNCTION(_aesni_ctr32_ghash_no_movbe_6x)
 	vmovups	208-128(%rcx),%xmm15
 	vaesenc	%xmm1,%xmm14,%xmm14
 	vmovups	224-128(%rcx),%xmm1
-	jmp	.Lenc_tail_nmb
+	jmp	LOCAL_LABEL(enc_tail_nmb)
 
 .balign	32
-.Lhandle_ctr32_nmb:
+LOCAL_LABEL(handle_ctr32_nmb):
 	vmovdqu	(%r11),%xmm0
 	vpshufb	%xmm0,%xmm1,%xmm6
 	vmovdqu	48(%r11),%xmm5
@@ -643,10 +643,10 @@ FUNCTION(_aesni_ctr32_ghash_no_movbe_6x)
 	vpshufb	%xmm0,%xmm13,%xmm13
 	vpshufb	%xmm0,%xmm14,%xmm14
 	vpshufb	%xmm0,%xmm1,%xmm1
-	jmp	.Lresume_ctr32_nmb
+	jmp	LOCAL_LABEL(resume_ctr32_nmb)
 
 .balign	32
-.Lenc_tail_nmb:
+LOCAL_LABEL(enc_tail_nmb):
 	vaesenc	%xmm15,%xmm9,%xmm9
 	vmovdqu	%xmm7,16+8(%rsp)
 	vpalignr	$8,%xmm4,%xmm4,%xmm8
@@ -684,7 +684,7 @@ FUNCTION(_aesni_ctr32_ghash_no_movbe_6x)
 
 	addq	$0x60,%r10
 	subq	$0x6,%rdx
-	jc	.L6x_done_nmb
+	jc	LOCAL_LABEL(6x_done_nmb)
 
 	vmovups	%xmm9,-96(%rsi)
 	vpxor	%xmm15,%xmm1,%xmm9
@@ -699,9 +699,9 @@ FUNCTION(_aesni_ctr32_ghash_no_movbe_6x)
 	vmovups	%xmm14,-16(%rsi)
 	vmovdqa	%xmm3,%xmm14
 	vmovdqu	32+8(%rsp),%xmm7
-	jmp	.Loop6x_nmb
+	jmp	LOCAL_LABEL(oop6x_nmb)
 
-.L6x_done_nmb:
+LOCAL_LABEL(6x_done_nmb):
 	vpxor	16+8(%rsp),%xmm8,%xmm8
 	vpxor	%xmm4,%xmm8,%xmm8
 
@@ -715,7 +715,7 @@ ENTRY_ALIGN(aesni_gcm_decrypt, 32)
 	ENDBR
 	xorq	%r10,%r10
 	cmpq	$0x60,%rdx
-	jb	.Lgcm_dec_abort
+	jb	LOCAL_LABEL(gcm_dec_abort)
 
 	leaq	(%rsp),%rax
 .cfi_def_cfa_register	%rax
@@ -738,7 +738,7 @@ ENTRY_ALIGN(aesni_gcm_decrypt, 32)
 	vmovdqu	(%r8),%xmm1
 	addq	$-128,%rsp
 	movl	12(%r8),%ebx
-	leaq	.Lbswap_mask(%rip),%r11
+	leaq	LOCAL_LABEL(bswap_mask)(%rip),%r11
 	leaq	-128(%rcx),%r14
 	movq	$0xf80,%r15
 	vmovdqu	(%r9),%xmm8
@@ -753,11 +753,11 @@ ENTRY_ALIGN(aesni_gcm_decrypt, 32)
 	andq	%r15,%r14
 	andq	%rsp,%r15
 	subq	%r14,%r15
-	jc	.Ldec_no_key_aliasing
+	jc	LOCAL_LABEL(dec_no_key_aliasing)
 	cmpq	$768,%r15
-	jnc	.Ldec_no_key_aliasing
+	jnc	LOCAL_LABEL(dec_no_key_aliasing)
 	subq	%r15,%rsp
-.Ldec_no_key_aliasing:
+LOCAL_LABEL(dec_no_key_aliasing):
 
 	vmovdqu	80(%rdi),%xmm7
 	leaq	(%rdi),%r14
@@ -821,7 +821,7 @@ ENTRY_ALIGN(aesni_gcm_decrypt, 32)
 .cfi_restore	%rbx
 	leaq	(%rax),%rsp
 .cfi_def_cfa_register	%rsp
-.Lgcm_dec_abort:
+LOCAL_LABEL(gcm_dec_abort):
 	movq	%r10,%rax
 	RET
 .cfi_endproc
@@ -839,7 +839,7 @@ FUNCTION(_aesni_ctr32_6x)
 	leaq	32-128(%rcx),%r12
 	vpxor	%xmm4,%xmm1,%xmm9
 	addl	$100663296,%ebx
-	jc	.Lhandle_ctr32_2
+	jc	LOCAL_LABEL(handle_ctr32_2)
 	vpaddb	%xmm2,%xmm1,%xmm10
 	vpaddb	%xmm2,%xmm10,%xmm11
 	vpxor	%xmm4,%xmm10,%xmm10
@@ -851,10 +851,10 @@ FUNCTION(_aesni_ctr32_6x)
 	vpxor	%xmm4,%xmm13,%xmm13
 	vpaddb	%xmm2,%xmm14,%xmm1
 	vpxor	%xmm4,%xmm14,%xmm14
-	jmp	.Loop_ctr32
+	jmp	LOCAL_LABEL(oop_ctr32)
 
 .balign	16
-.Loop_ctr32:
+LOCAL_LABEL(oop_ctr32):
 	vaesenc	%xmm15,%xmm9,%xmm9
 	vaesenc	%xmm15,%xmm10,%xmm10
 	vaesenc	%xmm15,%xmm11,%xmm11
@@ -864,7 +864,7 @@ FUNCTION(_aesni_ctr32_6x)
 	vmovups	(%r12),%xmm15
 	leaq	16(%r12),%r12
 	decl	%r13d
-	jnz	.Loop_ctr32
+	jnz	LOCAL_LABEL(oop_ctr32)
 
 	vmovdqu	(%r12),%xmm3
 	vaesenc	%xmm15,%xmm9,%xmm9
@@ -897,7 +897,7 @@ FUNCTION(_aesni_ctr32_6x)
 
 	RET
 .balign	32
-.Lhandle_ctr32_2:
+LOCAL_LABEL(handle_ctr32_2):
 	vpshufb	%xmm0,%xmm1,%xmm6
 	vmovdqu	48(%r11),%xmm5
 	vpaddd	64(%r11),%xmm6,%xmm10
@@ -917,7 +917,7 @@ FUNCTION(_aesni_ctr32_6x)
 	vpxor	%xmm4,%xmm13,%xmm13
 	vpshufb	%xmm0,%xmm1,%xmm1
 	vpxor	%xmm4,%xmm14,%xmm14
-	jmp	.Loop_ctr32
+	jmp	LOCAL_LABEL(oop_ctr32)
 .cfi_endproc
 SET_SIZE(_aesni_ctr32_6x)
 
@@ -926,7 +926,7 @@ ENTRY_ALIGN(aesni_gcm_encrypt, 32)
 	ENDBR
 	xorq	%r10,%r10
 	cmpq	$288,%rdx
-	jb	.Lgcm_enc_abort
+	jb	LOCAL_LABEL(gcm_enc_abort)
 
 	leaq	(%rsp),%rax
 .cfi_def_cfa_register	%rax
@@ -949,7 +949,7 @@ ENTRY_ALIGN(aesni_gcm_encrypt, 32)
 	vmovdqu	(%r8),%xmm1
 	addq	$-128,%rsp
 	movl	12(%r8),%ebx
-	leaq	.Lbswap_mask(%rip),%r11
+	leaq	LOCAL_LABEL(bswap_mask)(%rip),%r11
 	leaq	-128(%rcx),%r14
 	movq	$0xf80,%r15
 	leaq	128(%rcx),%rcx
@@ -960,11 +960,11 @@ ENTRY_ALIGN(aesni_gcm_encrypt, 32)
 	andq	%r15,%r14
 	andq	%rsp,%r15
 	subq	%r14,%r15
-	jc	.Lenc_no_key_aliasing
+	jc	LOCAL_LABEL(enc_no_key_aliasing)
 	cmpq	$768,%r15
-	jnc	.Lenc_no_key_aliasing
+	jnc	LOCAL_LABEL(enc_no_key_aliasing)
 	subq	%r15,%rsp
-.Lenc_no_key_aliasing:
+LOCAL_LABEL(enc_no_key_aliasing):
 
 	leaq	(%rsi),%r14
 	leaq	-192(%rsi,%rdx,1),%r15
@@ -1197,7 +1197,7 @@ ENTRY_ALIGN(aesni_gcm_encrypt, 32)
 .cfi_restore	%rbx
 	leaq	(%rax),%rsp
 .cfi_def_cfa_register	%rsp
-.Lgcm_enc_abort:
+LOCAL_LABEL(gcm_enc_abort):
 	movq	%r10,%rax
 	RET
 .cfi_endproc
@@ -1249,15 +1249,15 @@ SET_SIZE(atomic_toggle_boolean_nv)
 SECTION_STATIC
 
 .balign	64
-.Lbswap_mask:
+LOCAL_LABEL(bswap_mask):
 .byte	15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
-.Lpoly:
+LOCAL_LABEL(poly):
 .byte	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0xc2
-.Lone_msb:
+LOCAL_LABEL(one_msb):
 .byte	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
-.Ltwo_lsb:
+LOCAL_LABEL(two_lsb):
 .byte	2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-.Lone_lsb:
+LOCAL_LABEL(one_lsb):
 .byte	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 .byte	65,69,83,45,78,73,32,71,67,77,32,109,111,100,117,108,101,32,102,111,114,32,120,56,54,95,54,52,44,32,67,82,89,80,84,79,71,65,77,83,32,98,121,32,60,97,112,112,114,111,64,111,112,101,110,115,115,108,46,111,114,103,62,0
 .balign	64

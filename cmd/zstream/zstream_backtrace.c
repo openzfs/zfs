@@ -96,6 +96,7 @@ backtrace_all_threads(void)
 	while (B_TRUE) {
 		if (kill(getpid(), THREAD_BACKTRACE_SIGNAL) != 0)
 			err(1, "failed to send thread backtrace signal");
+#ifndef __APPLE__
 		struct timespec deadline;
 		clock_gettime(CLOCK_REALTIME, &deadline);
 		deadline.tv_sec += MAX_SECS_FOR_BACKTRACE;
@@ -110,6 +111,7 @@ backtrace_all_threads(void)
 				    " continuing...");
 			}
 		}
+#endif
 	}
 }
 

@@ -26,6 +26,7 @@
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_os.h>
+#include <sys/vdev_disk.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio.h>
 #include <vm/vm_page.h>
@@ -1272,6 +1273,22 @@ vdev_geom_hold(vdev_t *vd)
 
 static void
 vdev_geom_rele(vdev_t *vd)
+{
+}
+
+/*
+ * FreeBSD has no global vdev_disk state to set up or tear down; this
+ * only exists so that spa_init()/spa_fini() can call it unconditionally
+ * across all platforms.
+ */
+int
+vdev_disk_init(void)
+{
+	return (0);
+}
+
+void
+vdev_disk_fini(void)
 {
 }
 

@@ -821,7 +821,7 @@ zfs_mount_and_share(libzfs_handle_t *hdl, const char *dataset, zfs_type_t type)
 		} else if (zfs_share(zhp, NULL) != 0) {
 			(void) fprintf(stderr, gettext("filesystem "
 			    "successfully created, but not shared\n"));
-			ret = 1;
+			ret = 0;
 		}
 		zfs_commit_shares(NULL);
 	}
@@ -1539,6 +1539,9 @@ destroy_callback(zfs_handle_t *zhp, void *data)
 	if (zfs_get_type(zhp) == ZFS_TYPE_SNAPSHOT) {
 		cb->cb_snap_count++;
 		fnvlist_add_boolean(cb->cb_batchedsnaps, name);
+#ifdef __APPLE__
+		zfs_snapshot_unmount(zhp, cb->cb_force ? MS_FORCE : 0);
+#endif
 		if (cb->cb_snap_count % 10 == 0 && cb->cb_defer_destroy) {
 			error = destroy_batched(cb);
 			if (error != 0) {
@@ -4508,6 +4511,11 @@ zfs_do_rollback(int argc, char **argv)
 	 * Rollback parent to the given snapshot.
 	 */
 	ret = zfs_rollback(zhp, snap, force);
+
+#ifdef __APPLE__
+	if (ret == 0)
+		zfs_rollback_os(zhp);
+#endif
 
 out:
 	zfs_close(snap);
@@ -7619,6 +7627,39 @@ share_mount(int op, int argc, char **argv)
 			fnvlist_free(data);
 		}
 	} else {
+#if defined(__APPLE__)
+		/*
+		 * OsX can not mount from kernel, users are expected to mount
+		 * by hand using "zfs mount dataset@snapshot".
+		 */
+		zfs_handle_t *zhp;
+
+		if (argc > 1) {
+			(void) fprintf(stderr,
+			    gettext("too many arguments\n"));
+			usage(B_FALSE);
+		}
+
+		if ((zhp = zfs_open(g_zfs, argv[0],
+		    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT)) == NULL) {
+			ret = 1;
+		} else {
+
+			if (zfs_get_type(zhp)&ZFS_TYPE_SNAPSHOT) {
+
+				ret = zfs_snapshot_mount(zhp, options, flags);
+
+			} else {
+
+				ret = share_mount_one(zhp, op, flags,
+				    SA_NO_PROTOCOL, B_TRUE, options);
+			}
+
+			zfs_close(zhp);
+		}
+
+#else // APPLE
+
 		zfs_handle_t *zhp;
 
 		if (argc > 1) {
@@ -7636,6 +7677,7 @@ share_mount(int op, int argc, char **argv)
 			zfs_commit_shares(NULL);
 			zfs_close(zhp);
 		}
+#endif // !APPLE
 	}
 
 	free(options);
@@ -8009,9 +8051,23 @@ unshare_unmount(int op, int argc, char **argv)
 			return (unshare_unmount_path(op, argv[0],
 			    flags, B_FALSE));
 
+#if defined(__APPLE__)
+		/* Temporarily, allow mounting snapshots on OS X */
+
+		if ((zhp = zfs_open(g_zfs, argv[0],
+		    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT)) == NULL)
+			return (1);
+
+		if (zfs_get_type(zhp) & ZFS_TYPE_SNAPSHOT) {
+			ret = zfs_snapshot_unmount(zhp, flags);
+			zfs_close(zhp);
+			return (ret);
+		}
+#else
 		if ((zhp = zfs_open(g_zfs, argv[0],
 		    ZFS_TYPE_FILESYSTEM)) == NULL)
 			return (1);
+#endif
 
 		verify(zfs_prop_get(zhp, op == OP_SHARE ?
 		    ZFS_PROP_SHARENFS : ZFS_PROP_MOUNTPOINT,
@@ -9096,7 +9152,18 @@ zfs_rewrite_file(const char *path, boolean_t verbose, zfs_rewrite_args_t *args)
 		return (ret);
 	}
 
+#ifdef __APPLE__
+	/*
+	 * On macOS, ioctl(2) on a regular file is restricted by the kernel
+	 * to a small allowlist (FIONREAD/FIONBIO/FIOASYNC) and never reaches
+	 * the filesystem's VNOP_IOCTL for anything else. fsctl(2)/ffsctl(2)
+	 * is the Darwin syscall for filesystem-specific control operations
+	 * on regular files, and does reach it.
+	 */
+	if (ffsctl(fd, ZFS_IOC_REWRITE, args, 0) < 0) {
+#else
 	if (ioctl(fd, ZFS_IOC_REWRITE, args) < 0) {
+#endif
 		ret = errno;
 		(void) fprintf(stderr, gettext("failed to rewrite %s: %s\n"),
 		    path, strerror(errno));
