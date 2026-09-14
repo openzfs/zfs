@@ -70,6 +70,7 @@
 #include <libzfs_core.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <string.h>
 #ifdef ZFS_DEBUG
@@ -707,7 +708,28 @@ send_worker(void *arg)
 {
 	struct send_worker_ctx *ctx = arg;
 	unsigned int bufsiz = max_pipe_buffer(ctx->from);
-	ssize_t rd;
+	sigset_t block_mask;
+	ssize_t rd = -1;
+
+	/*
+	 * When users request verbose status information about the
+	 * send progress SIGUSR1 is delivered periodically in libzfs
+	 * to a dedicated thread.
+	 *
+	 * However, we get created before this progress thread is
+	 * created and the signal mask of the parent is only modified to
+	 * block SIGUSR1 afterwards.
+	 *
+	 * Block delivery of USR1 to us such that we don't get
+	 * interrupted and the right thread gets the signal.
+	 */
+	sigemptyset(&block_mask);
+	sigaddset(&block_mask, SIGUSR1);
+	int err = pthread_sigmask(SIG_BLOCK, &block_mask, NULL);
+	if (err != 0) {
+		close(ctx->from);
+		return ((void *)(uintptr_t)err);
+	}
 
 	for (;;) {
 		rd = splice(ctx->from, NULL, ctx->to, NULL, bufsiz,
@@ -715,7 +737,8 @@ send_worker(void *arg)
 		if ((rd == -1 && errno != EINTR) || rd == 0)
 			break;
 	}
-	int err = (rd == -1) ? errno : 0;
+
+	err = (rd == -1) ? errno : 0;
 	close(ctx->from);
 	return ((void *)(uintptr_t)err);
 }
