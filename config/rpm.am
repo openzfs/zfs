@@ -7,11 +7,11 @@
 # Build targets for RPM packages.
 ###############################################################################
 
-PHONY += srpm srpms srpm-kmod srpm-dkms srpm-utils
-PHONY += rpm rpms rpm-kmod rpm-dkms rpm-utils rpm-utils-initramfs
+PHONY += srpm srpms srpm-kmod srpm-dkms srpm-utils srpm-akmod
+PHONY += rpm rpms rpm-kmod rpm-dkms rpm-utils rpm-utils-initramfs rpm-akmod
 PHONY += srpm-common rpm-common rpm-local
 
-srpm-kmod srpm-dkms srpm-utils: dist
+srpm-kmod srpm-dkms srpm-utils srpm-akmod: dist
 
 srpm-kmod:
 	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-kmod" \
@@ -24,6 +24,11 @@ srpm-dkms:
 srpm-utils:
 	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" \
 		def='${SRPM_DEFINE_COMMON} ${SRPM_DEFINE_UTIL}' srpm-common
+
+srpm-akmod:
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-kmod" \
+		def='${SRPM_DEFINE_COMMON} --define "_wrong_version_format_terminate_build 0" --define "_enable_akmod 1"' \
+		RPM_SPEC_DIR="rpm/generic" srpm-common
 
 srpm: srpm-kmod srpm-dkms srpm-utils
 srpms: srpm-kmod srpm-dkms srpm-utils
@@ -51,6 +56,11 @@ rpm-utils: srpm-utils
 rpm-utils-initramfs: srpm-utils
 	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}" \
 		def='${RPM_DEFINE_COMMON} ${RPM_DEFINE_UTIL} ${RPM_DEFINE_INITRAMFS}' rpm-common
+
+rpm-akmod: srpm-akmod
+	$(MAKE) $(AM_MAKEFLAGS) pkg="${PACKAGE}-kmod" \
+		def='${RPM_DEFINE_COMMON} --define "_wrong_version_format_terminate_build 0" --define "_enable_akmod 1"' \
+		RPM_SPEC_DIR="rpm/generic" rpm-common
 
 rpm: rpm-kmod rpm-dkms rpm-utils
 rpms: rpm-kmod rpm-dkms rpm-utils
