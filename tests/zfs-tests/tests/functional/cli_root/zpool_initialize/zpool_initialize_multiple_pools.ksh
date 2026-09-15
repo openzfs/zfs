@@ -56,7 +56,7 @@ log_assert "Verify if 'zpool initialize -a' works correctly with multiple pools.
 
 default_chunk_size=$(get_tunable INITIALIZE_CHUNK_SIZE)
 
-DEVSIZE='5G'
+DEVSIZE='1G'
 TESTDIR="$TEST_BASE_DIR/zpool_initialize_multiple_pools"
 DISK1="$TEST_BASE_DIR/zpool_disk1.dat"
 DISK2="$TEST_BASE_DIR/zpool_disk2.dat"
