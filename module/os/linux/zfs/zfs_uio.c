@@ -227,10 +227,17 @@ zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
 	size_t oldcnt = cnt;
 	int error = 0;
 
+	/*
+	 * Use the unchecked variants.  Callers already clamp the length to
+	 * the individual buffer, tighter than the bound __check_object_size()
+	 * knows, which is that of the whole SPL slab.  The user-supplied
+	 * side of the iov_iter is validated within _copy_to_iter() and is
+	 * unaffected.
+	 */
 	if (rw == UIO_READ)
-		cnt = copy_to_iter(p, cnt, uio->uio_iter);
+		cnt = _copy_to_iter(p, cnt, uio->uio_iter);
 	else
-		cnt = copy_from_iter(p, cnt, uio->uio_iter);
+		cnt = _copy_from_iter(p, cnt, uio->uio_iter);
 
 	/*
 	 * When operating on a full pipe no bytes are processed.
