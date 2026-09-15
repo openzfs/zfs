@@ -2847,7 +2847,8 @@ spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps)
 	memset(ps, 0, sizeof (pool_scan_stat_t));
 
 	/* data stored on disk */
-	ps->pss_func = scn->scn_phys.scn_func;
+	ps->pss_func = dsl_scan_is_scrub_requested(scn) ? POOL_SCAN_SCRUB :
+	    scn->scn_phys.scn_func;
 	ps->pss_state = scn->scn_phys.scn_state;
 	ps->pss_start_time = scn->scn_phys.scn_start_time;
 	ps->pss_end_time = scn->scn_phys.scn_end_time;
