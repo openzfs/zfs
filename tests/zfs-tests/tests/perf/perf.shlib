@@ -23,6 +23,21 @@ export PERF_RANDSEED=${PERF_RANDSEED:-'1234'}
 export PERF_COMPPERCENT=${PERF_COMPPERCENT:-'66'}
 export PERF_COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
 
+function get_zstd_workload_size
+{
+	typeset available=$1
+	typeset comp_percent=$2
+
+	(( comp_percent >= 0 && comp_percent <= 100 )) || return 1
+	print $((available / 2))
+}
+
+typeset -a collect_pids
+typeset -a collect_outputs
+typeset -a collect_optional
+typeset -a collect_start_files
+typeset -a collect_stop_files
+
 # Default to JSON for fio output
 export PERF_FIO_FORMAT=${PERF_FIO_FORMAT:-'json'}
 
@@ -132,6 +147,9 @@ function do_fio_run_impl
 
 	# Start the data collection
 	do_collect_scripts "$suffix"
+	for start_file in "${collect_start_files[@]}"; do
+		[[ -n $start_file ]] && : > "$start_file"
+	done
 
 	# Define output file
 	typeset logbase="$(get_perf_output_dir)/$(basename \
@@ -150,6 +168,10 @@ function do_fio_run_impl
 		log_must fio --output-format="${PERF_FIO_FORMAT}" \
 		    --output "$outfile" "$FIO_SCRIPTS/$script"
 	fi
+	for stop_file in "${collect_stop_files[@]}"; do
+		[[ -n $stop_file ]] && : > "$stop_file"
+	done
+	do_collect_scripts_wait
 }
 
 #
@@ -237,19 +259,79 @@ function do_collect_scripts
 	done
 	IFS=$oIFS
 
+	collect_pids=()
+	collect_outputs=()
+	collect_optional=()
+	collect_start_files=()
+	collect_stop_files=()
 	typeset idx=0
 	while [[ $idx -lt "${#collect_scripts[@]}" ]]; do
 		typeset logbase="$(get_perf_output_dir)/$(basename \
 		    "$SUDO_COMMAND")"
+		typeset command="${collect_scripts[$idx]}"
 		typeset outfile="$logbase.${collect_scripts[$idx + 1]}.$suffix"
+		typeset start_file="$outfile.start"
+		typeset stop_file=''
+		typeset timeout_secs=$((PERF_RUNTIME + 60))
 
-		timeout "$PERF_RUNTIME" "${collect_scripts[$idx]}" >"$outfile" 2>&1 &
+		rm -f "$start_file"
+
+		if [[ "$command" == */zstd_perf.sh ]]; then
+			stop_file="$outfile.stop"
+			rm -f "$stop_file"
+			PERF_START_FILE="$start_file" \
+			PERF_STOP_FILE="$stop_file" \
+			PERF_OUTPUT_FILE="$outfile" timeout "$timeout_secs" \
+			    sh -c "$command" >"$outfile.log" 2>&1 &
+			collect_optional+=(1)
+		else
+			PERF_START_FILE="$start_file" timeout "$timeout_secs" \
+			    sh -c "$command" >"$outfile" 2>&1 &
+			collect_optional+=(0)
+		fi
+		collect_pids+=("$!")
+		collect_outputs+=("$outfile")
+		collect_start_files+=("$start_file")
+		collect_stop_files+=("$stop_file")
 		((idx += 2))
 	done
 
-	# Need to explicitly return 0 because timeout(1) will kill
-	# a child process and cause us to return non-zero.
+	# The collectors are reaped after the workload so startup failures are not
+	# mistaken for successful measurements. timeout(1) returns 124 normally.
 	return 0
+}
+
+function do_collect_scripts_wait
+{
+	typeset pid rc idx=0
+
+	while [[ $idx -lt "${#collect_pids[@]}" ]]; do
+		rc=0
+		wait "${collect_pids[$idx]}" || rc=$?
+		if [[ $rc -ne 0 && $rc -ne 124 ]]; then
+			if [[ ${collect_optional[$idx]} -eq 1 ]]; then
+				log_note "Optional performance collector failed: " \
+				    "${collect_scripts[$((idx * 2))]} ($rc)"
+			else
+				log_fail "Performance collector failed: " \
+				    "${collect_scripts[$((idx * 2))]} ($rc)"
+			fi
+		fi
+		if [[ ! -s "${collect_outputs[$idx]}" ]]; then
+			if [[ ${collect_optional[$idx]} -eq 1 ]]; then
+				log_note "Optional performance collector produced no data: " \
+				    "${collect_outputs[$idx]}"
+			else
+				log_fail "Performance collector produced no data: " \
+				    "${collect_outputs[$idx]}"
+			fi
+		fi
+		[[ -z ${collect_start_files[$idx]} ]] || \
+			rm -f "${collect_start_files[$idx]}"
+		[[ -z ${collect_stop_files[$idx]} ]] || \
+			rm -f "${collect_stop_files[$idx]}"
+		((idx += 1))
+	done
 }
 
 # Find a place to deposit performance data collected while under load.
