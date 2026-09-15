@@ -1765,6 +1765,10 @@ metaslab_block_find(zfs_btree_t *t, zfs_range_tree_t *rt, uint64_t start,
 	return (rs);
 }
 
+#ifndef rounddown
+#define	rounddown(x, y) (((x) / (y)) * (y))
+#endif
+
 /*
  * This is a helper function that can be used by the allocator to find a
  * suitable block to allocate. This will search the specified B-tree looking
@@ -1772,7 +1776,8 @@ metaslab_block_find(zfs_btree_t *t, zfs_range_tree_t *rt, uint64_t start,
  */
 static uint64_t
 metaslab_block_picker(zfs_range_tree_t *rt, uint64_t *cursor, uint64_t size,
-    uint64_t max_size, uint64_t max_search, uint64_t *found_size)
+    uint64_t max_size, uint64_t max_search, uint_t mult,
+    uint64_t *found_size)
 {
 	if (*cursor == 0)
 		*cursor = rt->rt_start;
@@ -1790,8 +1795,15 @@ metaslab_block_picker(zfs_range_tree_t *rt, uint64_t *cursor, uint64_t size,
 	    max_search || count_searched < metaslab_min_search_count)) {
 		uint64_t offset = zfs_rs_get_start(rs, rt);
 		if (offset + size <= zfs_rs_get_end(rs, rt)) {
-			*found_size = MIN(zfs_rs_get_end(rs, rt) - offset,
-			    max_size);
+			uint64_t cand_size =  MIN(zfs_rs_get_end(rs, rt) -
+			    offset, max_size);
+			if (size != max_size)
+				cand_size = rounddown(cand_size, mult);
+			else
+				ASSERT0(cand_size % mult);
+			ASSERT3U(cand_size, >=, size);
+
+			*found_size = cand_size;
 			*cursor = offset + *found_size;
 			return (offset);
 		}
@@ -1910,7 +1922,7 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 	zfs_range_tree_t *rt = msp->ms_allocatable;
 	uint_t free_pct = zfs_range_tree_space(rt) * 100 / msp->ms_size;
 	uint64_t offset;
-
+	uint64_t mult = vdev_alloc_factor(msp->ms_group->mg_vd);
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
 	/*
@@ -1924,12 +1936,13 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 		offset = -1;
 	} else {
 		offset = metaslab_block_picker(rt, cursor, size, max_size,
-		    metaslab_df_max_search, found_size);
+		    metaslab_df_max_search, mult, found_size);
 		if (max_size != size && offset == -1) {
 			align = size & -size;
 			cursor = &msp->ms_lbas[highbit64(align) - 1];
 			offset = metaslab_block_picker(rt, cursor, size,
-			    max_size, metaslab_df_max_search, found_size);
+			    max_size, metaslab_df_max_search, mult,
+			    found_size);
 		}
 	}
 
@@ -1950,8 +1963,15 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 		if (rs != NULL && zfs_rs_get_start(rs, rt) + size <=
 		    zfs_rs_get_end(rs, rt)) {
 			offset = zfs_rs_get_start(rs, rt);
-			*found_size = MIN(zfs_rs_get_end(rs, rt) - offset,
-			    max_size);
+			uint64_t cand_size =  MIN(zfs_rs_get_end(rs, rt) -
+			    offset, max_size);
+			if (size != max_size)
+				cand_size = rounddown(cand_size, mult);
+			else
+				ASSERT0(cand_size % mult);
+			ASSERT3U(cand_size, >=, size);
+
+			*found_size = cand_size;
 			*cursor = offset + *found_size;
 		}
 	}
@@ -1977,6 +1997,7 @@ metaslab_cf_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 	uint64_t *cursor = &msp->ms_lbas[0];
 	uint64_t *cursor_end = &msp->ms_lbas[1];
 	uint64_t offset = 0;
+	uint64_t mult = vdev_alloc_factor(msp->ms_group->mg_vd);
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
@@ -1997,7 +2018,14 @@ metaslab_cf_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 	}
 
 	offset = *cursor;
-	*found_size = MIN(*cursor_end - offset, max_size);
+	uint64_t cand_size = MIN(*cursor_end - offset, max_size);
+	if (size != max_size)
+		cand_size = rounddown(cand_size, mult);
+	else
+		ASSERT0(cand_size % mult);
+	ASSERT3U(cand_size, >=, size);
+
+	*found_size = cand_size;
 	*cursor = offset + *found_size;
 
 	return (offset);
@@ -2030,6 +2058,7 @@ metaslab_ndf_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 	uint64_t hbit = highbit64(max_size);
 	uint64_t *cursor = &msp->ms_lbas[hbit - 1];
 	uint64_t max_possible_size = metaslab_largest_allocatable(msp);
+	uint64_t mult = vdev_alloc_factor(msp->ms_group->mg_vd);
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
@@ -2064,8 +2093,14 @@ metaslab_ndf_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 	}
 
 	if ((zfs_rs_get_end(rs, rt) - zfs_rs_get_start(rs, rt)) >= size) {
-		*found_size = MIN(zfs_rs_get_end(rs, rt) -
+		uint64_t cand_size = MIN(zfs_rs_get_end(rs, rt) -
 		    zfs_rs_get_start(rs, rt), max_size);
+		if (size != max_size)
+			cand_size = rounddown(cand_size, mult);
+		else
+			ASSERT0(cand_size % mult);
+		ASSERT3U(cand_size, >=, size);
+		*found_size = cand_size;
 		*cursor = zfs_rs_get_start(rs, rt) + *found_size;
 		return (zfs_rs_get_start(rs, rt));
 	}
