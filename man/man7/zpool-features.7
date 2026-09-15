@@ -669,7 +669,7 @@ in the output of
 .Nm zpool Cm status .
 In case of encrypted filesystems with unloaded keys we are unable to check
 their snapshots or clones for errors and these will not be reported.
-An "access denied" error will be reported.
+The error block itself is reported against the filesystem, without a filename.
 .Pp
 \*[instant-never]
 .

@@ -67,8 +67,14 @@ log_must zpool sync $TESTPOOL2
 log_must zpool scrub $TESTPOOL2
 log_must zpool wait -t scrub $TESTPOOL2
 log_must zpool status -v $TESTPOOL2
-log_mustnot eval "zpool status -v $TESTPOOL2 | \
+# The failure this guards against is printed on stderr, and no file list
+# is printed at all, so both of these have to be checked.
+log_mustnot eval "zpool status -v $TESTPOOL2 2>&1 | \
     grep \"permission denied\""
+log_must eval "zpool status -v $TESTPOOL2 | \
+    grep \"Permanent errors have been detected\""
+log_must eval "zpool status -v $TESTPOOL2 | \
+    grep '$TESTPOOL2/$TESTFS1:<0x'"
 log_mustnot eval "zpool status -v $TESTPOOL2 | grep '$file'"
 
 log_must eval "cat /$TESTPOOL2/pwd | zfs load-key $TESTPOOL2/$TESTFS1"
