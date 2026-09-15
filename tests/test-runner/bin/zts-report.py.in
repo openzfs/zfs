@@ -234,6 +234,8 @@ maybe = {
     'pool_checkpoint/checkpoint_discard_busy': ['FAIL', 11946],
     'projectquota/setup': ['SKIP', exec_reason],
     'renameat2/setup': ['SKIP', renameat2_reason],
+    'rsend/send_embedded_spill_block':
+        ['SKIP', 'embedded spill not available on some platforms'],
     'send_xdr_encoding/xdr_bookmark_raw_with_write': ['FAIL', 18491],
     'send_xdr_encoding/xdr_resume_bookmark_raw_with_write': ['FAIL', 18491],
     'trim/setup': ['SKIP', trim_reason],

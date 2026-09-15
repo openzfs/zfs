@@ -813,10 +813,14 @@ function recursive_cksum
 {
 	case "$(uname)" in
 	FreeBSD)
-		find $1 -type f -exec sh -c 'xxh128sum {}; \
-		    lsextattr -q system {} | xxh128sum; \
-		    lsextattr -q user {} | xxh128sum' \; \
-		    | sort -k 2 | awk '{ print $1 }' | xxh128digest
+		find $1 -type f -exec sh -c '
+			xxh128sum "$1"
+			lsextattr -q system "$1" | xxh128sum
+			for name in $(lsextattr -q user "$1"); do
+				printf "%s\0" "$name"
+				getextattr -qq user "$name" "$1"
+			done | xxh128sum
+		' _ {} \; | sort -k 2 | awk '{ print $1 }' | xxh128digest
 		;;
 	*)
 		find $1 -type f -exec sh -c 'xxh128sum {}; getfattr \
