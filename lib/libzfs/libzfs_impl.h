@@ -72,7 +72,14 @@ struct zfs_handle {
 	boolean_t zfs_mntcheck;
 	char *zfs_mntopts;
 	uint8_t *zfs_props_table;
+	uint64_t zfs_projected_creation;
+	uint64_t zfs_projected_userrefs;
+	uint8_t zfs_projected_props;
+	boolean_t zfs_projected_props_materialized;
 };
+
+#define	ZFS_PROJECTED_CREATION	(1U << 0)
+#define	ZFS_PROJECTED_USERREFS	(1U << 1)
 
 /*
  * Internal namespace property flags for selective remount via

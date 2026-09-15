@@ -1601,6 +1601,14 @@ typedef enum {
  */
 #define	SNAP_ITER_MIN_TXG	"snap_iter_min_txg"
 #define	SNAP_ITER_MAX_TXG	"snap_iter_max_txg"
+#define	SNAP_ITER_BATCH_CURSOR	"snap_iter_batch_cursor"
+#define	SNAP_ITER_BATCH_MAX_RESULTS	"snap_iter_batch_max_results"
+#define	SNAP_ITER_BATCH_PROPS	"snap_iter_batch_props"
+#define	SNAP_ITER_BATCH_RESULTS	"snap_iter_batch_results"
+#define	SNAP_ITER_BATCH_WRITTEN_VALID	"snap_iter_batch_written_valid"
+#define	SNAP_ITER_BATCH_DMU_TYPE	"snap_iter_batch_dmu_type"
+#define	SNAP_ITER_BATCH_DDS_FLAGS	"snap_iter_batch_dds_flags"
+#define	SNAP_ITER_BATCH_EOF	"snap_iter_batch_eof"
 
 /*
  * /dev/zfs ioctl numbers.
@@ -1609,7 +1617,7 @@ typedef enum {
  */
 typedef enum zfs_ioc {
 	/*
-	 * Core features - 89/128 numbers reserved.
+	 * Core features - 92/128 numbers reserved.
 	 */
 #ifdef __FreeBSD__
 	ZFS_IOC_FIRST =	0,
@@ -1708,6 +1716,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_POOL_PREFETCH,			/* 0x5a58 */
 	ZFS_IOC_DDT_PRUNE,			/* 0x5a59 */
 	ZFS_IOC_POOL_CONDENSE,			/* 0x5a5a */
+	ZFS_IOC_SNAPSHOT_LIST_BATCH,		/* 0x5a5b */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.

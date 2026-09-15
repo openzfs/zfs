@@ -37,6 +37,7 @@ int zfs_add_sort_column(zfs_sort_column_t **, const char *, boolean_t);
 void zfs_free_sort_columns(zfs_sort_column_t *);
 boolean_t zfs_sort_only_by_fast(const zfs_sort_column_t *);
 boolean_t zfs_list_only_by_fast(const zprop_list_t *);
+int zfs_list_batch_flags(const zprop_list_t *, const zfs_sort_column_t *);
 
 #ifdef	__cplusplus
 }

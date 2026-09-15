@@ -2704,6 +2704,7 @@
       <enumerator name='ZFS_IOC_POOL_PREFETCH' value='23128'/>
       <enumerator name='ZFS_IOC_DDT_PRUNE' value='23129'/>
       <enumerator name='ZFS_IOC_POOL_CONDENSE' value='23130'/>
+      <enumerator name='ZFS_IOC_SNAPSHOT_LIST_BATCH' value='23131'/>
       <enumerator name='ZFS_IOC_PLATFORM' value='23168'/>
       <enumerator name='ZFS_IOC_EVENTS_NEXT' value='23169'/>
       <enumerator name='ZFS_IOC_EVENTS_CLEAR' value='23170'/>
