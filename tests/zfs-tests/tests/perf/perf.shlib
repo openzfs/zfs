@@ -23,20 +23,23 @@ export PERF_RANDSEED=${PERF_RANDSEED:-'1234'}
 export PERF_COMPPERCENT=${PERF_COMPPERCENT:-'66'}
 export PERF_COMPCHUNK=${PERF_COMPCHUNK:-'4096'}
 
-function get_zstd_workload_size
-{
-	typeset available=$1
-	typeset comp_percent=$2
-
-	(( comp_percent >= 0 && comp_percent <= 100 )) || return 1
-	print $((available / 2))
-}
-
 typeset -a collect_pids
 typeset -a collect_outputs
 typeset -a collect_optional
 typeset -a collect_start_files
 typeset -a collect_stop_files
+typeset -a collect_ready_files
+typeset -a collect_killed
+
+function is_optional_collector
+{
+	typeset command=$1
+
+	case ",${PERF_COLLECT_OPTIONAL_SCRIPTS:-}," in
+	*,"$command",*) return 0 ;;
+	esac
+	return 1
+}
 
 # Default to JSON for fio output
 export PERF_FIO_FORMAT=${PERF_FIO_FORMAT:-'json'}
@@ -146,7 +149,11 @@ function do_fio_run_impl
 	typeset suffix=$(get_suffix "$threads" "$sync" "$iosize")
 
 	# Start the data collection
-	do_collect_scripts "$suffix"
+	log_onexit_push do_collect_scripts_cleanup
+	if ! do_collect_scripts "$suffix"; then
+		log_onexit_pop
+		log_fail "failed to start performance collectors"
+	fi
 	for start_file in "${collect_start_files[@]}"; do
 		[[ -n $start_file ]] && : > "$start_file"
 	done
@@ -157,21 +164,30 @@ function do_fio_run_impl
 	typeset outfile="$logbase.fio.$suffix"
 
 	# Start the load
+	typeset workload_rc=0
 	if [[ $NFS -eq 1 ]]; then
-		log_must ssh -t "$NFS_USER@$NFS_CLIENT" "
+		ssh -t "$NFS_USER@$NFS_CLIENT" "
 			fio --output-format=${PERF_FIO_FORMAT} \
 			    --output /tmp/fio.out /tmp/test.fio
 		"
-		log_must scp "$NFS_USER@$NFS_CLIENT":/tmp/fio.out "$outfile"
-		log_must ssh -t "$NFS_USER@$NFS_CLIENT" "sudo -S umount $NFS_MOUNT"
+		workload_rc=$?
+		if (( workload_rc == 0 )); then
+			scp "$NFS_USER@$NFS_CLIENT":/tmp/fio.out "$outfile"
+			workload_rc=$?
+		fi
+		ssh -t "$NFS_USER@$NFS_CLIENT" "sudo -S umount $NFS_MOUNT"
+		typeset unmount_rc=$?
+		(( workload_rc == 0 )) && workload_rc=$unmount_rc
 	else
-		log_must fio --output-format="${PERF_FIO_FORMAT}" \
+		fio --output-format="${PERF_FIO_FORMAT}" \
 		    --output "$outfile" "$FIO_SCRIPTS/$script"
+		workload_rc=$?
 	fi
-	for stop_file in "${collect_stop_files[@]}"; do
-		[[ -n $stop_file ]] && : > "$stop_file"
-	done
-	do_collect_scripts_wait
+	typeset collect_rc=0
+	do_collect_scripts_stop || collect_rc=$?
+	log_onexit_pop
+	(( workload_rc == 0 )) || log_fail "fio workload failed ($workload_rc)"
+	(( collect_rc == 0 )) || log_fail "required performance collector failed"
 }
 
 #
@@ -264,6 +280,8 @@ function do_collect_scripts
 	collect_optional=()
 	collect_start_files=()
 	collect_stop_files=()
+	collect_ready_files=()
+	collect_killed=()
 	typeset idx=0
 	while [[ $idx -lt "${#collect_scripts[@]}" ]]; do
 		typeset logbase="$(get_perf_output_dir)/$(basename \
@@ -271,50 +289,163 @@ function do_collect_scripts
 		typeset command="${collect_scripts[$idx]}"
 		typeset outfile="$logbase.${collect_scripts[$idx + 1]}.$suffix"
 		typeset start_file="$outfile.start"
-		typeset stop_file=''
-		typeset timeout_secs=$((PERF_RUNTIME + 60))
+		typeset stop_file="$outfile.stop"
+		typeset ready_file="$outfile.ready"
+		typeset optional=0
 
 		rm -f "$start_file"
+		rm -f "$stop_file"
+		rm -f "$ready_file"
 
-		if [[ "$command" == */zstd_perf.sh ]]; then
-			stop_file="$outfile.stop"
-			rm -f "$stop_file"
+		if is_optional_collector "$command"; then
+			optional=1
 			PERF_START_FILE="$start_file" \
 			PERF_STOP_FILE="$stop_file" \
-			PERF_OUTPUT_FILE="$outfile" timeout "$timeout_secs" \
-			    sh -c "$command" >"$outfile.log" 2>&1 &
-			collect_optional+=(1)
+			PERF_OUTPUT_FILE="$outfile" \
+			ZFS_TEST_SETPGID_READY_FILE="$ready_file" \
+			    zfs_test_setpgid sh -c "$command" >"$outfile.log" 2>&1 &
 		else
-			PERF_START_FILE="$start_file" timeout "$timeout_secs" \
-			    sh -c "$command" >"$outfile" 2>&1 &
-			collect_optional+=(0)
+			PERF_START_FILE="$start_file" PERF_STOP_FILE="$stop_file" \
+			ZFS_TEST_SETPGID_READY_FILE="$ready_file" \
+			    zfs_test_setpgid sh -c "$command" >"$outfile" 2>&1 &
 		fi
 		collect_pids+=("$!")
 		collect_outputs+=("$outfile")
 		collect_start_files+=("$start_file")
 		collect_stop_files+=("$stop_file")
+		collect_ready_files+=("$ready_file")
+		collect_optional+=("$optional")
 		((idx += 2))
 	done
 
-	# The collectors are reaped after the workload so startup failures are not
-	# mistaken for successful measurements. timeout(1) returns 124 normally.
+	# Do not let the workload start until every launcher has made its process
+	# group available to the shutdown path.
+	typeset wait_count=0 ready=0
+	while (( wait_count < 10 )); do
+		ready=1
+		idx=0
+		while [[ $idx -lt "${#collect_pids[@]}" ]]; do
+			if [[ ! -f ${collect_ready_files[$idx]} ]]; then
+				ready=0
+				if ! kill -0 "${collect_pids[$idx]}" 2>/dev/null; then
+					do_collect_scripts_stop 0 >/dev/null 2>&1 || :
+					return 1
+				fi
+			fi
+			((idx += 1))
+		done
+		(( ready == 1 )) && break
+		sleep 1
+		((wait_count += 1))
+	done
+	if (( ready != 1 )); then
+		do_collect_scripts_stop 0 >/dev/null 2>&1 || :
+		return 1
+	fi
+
+	# Collectors are stopped and reaped by do_fio_run_impl after the workload.
 	return 0
+}
+
+function collect_group_alive
+{
+	kill -0 -- -"$1" 2>/dev/null
+}
+
+function do_collect_scripts_stop
+{
+	typeset strict=${1:-1}
+	typeset idx pid alive wait_count=0
+
+	[[ ${#collect_pids[@]} -gt 0 ]] || return 0
+	for stop_file in "${collect_stop_files[@]}"; do
+		: > "$stop_file"
+	done
+
+	# Give collectors that understand PERF_STOP_FILE a short grace period.
+	while (( wait_count < 2 )); do
+		alive=0
+		for pid in "${collect_pids[@]}"; do
+			if kill -0 "$pid" 2>/dev/null || collect_group_alive "$pid"; then
+				alive=1
+				break
+			fi
+		done
+		(( alive == 0 )) && break
+		sleep 1
+		(( wait_count += 1 ))
+	done
+
+	collect_killed=()
+	idx=0
+	for pid in "${collect_pids[@]}"; do
+		if kill -0 "$pid" 2>/dev/null && kill -TERM "$pid" 2>/dev/null; then
+			collect_killed+=(1)
+		else
+			collect_killed+=(0)
+		fi
+		if collect_group_alive "$pid"; then
+			kill -TERM -- -"$pid" 2>/dev/null || :
+		fi
+		((idx += 1))
+	done
+
+	wait_count=0
+	while (( wait_count < 2 )); do
+		alive=0
+		for pid in "${collect_pids[@]}"; do
+			if kill -0 "$pid" 2>/dev/null || collect_group_alive "$pid"; then
+				alive=1
+				break
+			fi
+		done
+		(( alive == 0 )) && break
+		sleep 1
+		(( wait_count += 1 ))
+	done
+
+	# Escalate after the bounded grace period so a collector cannot hold up
+	# the performance test indefinitely.
+	idx=0
+	for pid in "${collect_pids[@]}"; do
+		if kill -0 "$pid" 2>/dev/null; then
+			kill -KILL "$pid" 2>/dev/null || :
+		fi
+		if collect_group_alive "$pid"; then
+			kill -KILL -- -"$pid" 2>/dev/null || :
+		fi
+		((idx += 1))
+	done
+
+	do_collect_scripts_wait "$strict"
+}
+
+function do_collect_scripts_cleanup
+{
+	do_collect_scripts_stop 0 >/dev/null 2>&1 || :
 }
 
 function do_collect_scripts_wait
 {
-	typeset pid rc idx=0
+	typeset strict=${1:-1}
+	typeset pid rc idx=0 failed=0 expected=0
 
 	while [[ $idx -lt "${#collect_pids[@]}" ]]; do
 		rc=0
 		wait "${collect_pids[$idx]}" || rc=$?
-		if [[ $rc -ne 0 && $rc -ne 124 ]]; then
+		expected=0
+		if (( ${collect_killed[$idx]:-0} == 1 &&
+		    (rc == EXIT_SIGNAL + 15 || rc == EXIT_SIGNAL + 9) )); then
+			expected=1
+		fi
+		if (( rc != 0 && expected == 0 )); then
 			if [[ ${collect_optional[$idx]} -eq 1 ]]; then
 				log_note "Optional performance collector failed: " \
 				    "${collect_scripts[$((idx * 2))]} ($rc)"
 			else
-				log_fail "Performance collector failed: " \
+				log_note "Performance collector failed: " \
 				    "${collect_scripts[$((idx * 2))]} ($rc)"
+				failed=1
 			fi
 		fi
 		if [[ ! -s "${collect_outputs[$idx]}" ]]; then
@@ -322,16 +453,33 @@ function do_collect_scripts_wait
 				log_note "Optional performance collector produced no data: " \
 				    "${collect_outputs[$idx]}"
 			else
-				log_fail "Performance collector produced no data: " \
+				log_note "Performance collector produced no data: " \
 				    "${collect_outputs[$idx]}"
+				failed=1
 			fi
+		fi
+		if collect_group_alive "${collect_pids[$idx]}"; then
+			log_note "Performance collector process group survived shutdown: " \
+			    "${collect_scripts[$((idx * 2))]}"
+			failed=1
 		fi
 		[[ -z ${collect_start_files[$idx]} ]] || \
 			rm -f "${collect_start_files[$idx]}"
 		[[ -z ${collect_stop_files[$idx]} ]] || \
 			rm -f "${collect_stop_files[$idx]}"
+		[[ -z ${collect_ready_files[$idx]} ]] || \
+			rm -f "${collect_ready_files[$idx]}"
 		((idx += 1))
 	done
+	collect_pids=()
+	collect_outputs=()
+	collect_optional=()
+	collect_start_files=()
+	collect_stop_files=()
+	collect_ready_files=()
+	collect_killed=()
+	(( strict == 0 )) && return 0
+	return "$failed"
 }
 
 # Find a place to deposit performance data collected while under load.
