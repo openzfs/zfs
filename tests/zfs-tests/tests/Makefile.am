@@ -8,6 +8,7 @@ datadir_zfs_tests_testsdir = $(datadir)/$(PACKAGE)/zfs-tests/tests
 nobase_dist_datadir_zfs_tests_tests_DATA = \
 	perf/nfs-sample.cfg \
 	perf/perf.shlib \
+	perf/regression/zstd.shlib \
 	\
 	perf/fio/mkfiles.fio \
 	perf/fio/random_reads.fio \
@@ -31,6 +32,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS = \
 	perf/regression/sequential_writes.ksh \
 	perf/regression/zstd.ksh \
 	perf/regression/zstd_sizing.ksh \
+	perf/regression/collector_lifecycle.ksh \
 	perf/regression/setup.ksh \
 	\
 	perf/scripts/zstd_iostat.sh \

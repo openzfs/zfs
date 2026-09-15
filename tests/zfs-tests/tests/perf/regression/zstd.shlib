@@ -1,4 +1,3 @@
-#!/bin/sh
 # SPDX-License-Identifier: CDDL-1.0
 #
 # This file and its contents are supplied under the terms of the
@@ -10,14 +9,11 @@
 # source.  A copy of the CDDL is also available via the Internet at
 # https://opensource.org/license/CDDL-1.0.
 
-: "${PERFPOOL:?PERFPOOL must be set}"
+function get_zstd_workload_size
+{
+	typeset available=$1
+	typeset comp_percent=$2
 
-if [ -n "${PERF_START_FILE:-}" ]; then
-	while [ ! -f "$PERF_START_FILE" ]; do
-		sleep 1
-	done
-fi
-
-while [ -z "${PERF_STOP_FILE:-}" ] || [ ! -f "$PERF_STOP_FILE" ]; do
-	zpool iostat -lpvyL "$PERFPOOL" 1 1 || exit $?
-done
+	(( comp_percent >= 0 && comp_percent <= 100 )) || return 1
+	print $((available / 2))
+}
