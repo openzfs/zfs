@@ -440,10 +440,11 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
 	ret = zio_decrypt_os(ci, cwkey, NULL,
 	    &cuio, &puio, ci->ci_keylen + SHA512_HMAC_KEYLEN,
 	    iv, (uint8_t *)aad, aad_len, mac);
-	if (ret != 0)
-		goto error;
 
 	zio_crypt_uios_fini_os(&cuio, &puio);
+
+	if (ret != 0)
+		goto error;
 
 	/* generate a fresh salt */
 	ret = random_get_bytes(key->zk_salt, ZIO_DATA_SALT_LEN);
