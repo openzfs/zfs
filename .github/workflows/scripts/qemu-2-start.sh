@@ -15,6 +15,7 @@ OSv=$OS
 # FreeBSD urls's
 FREEBSD_REL="https://download.freebsd.org/releases/CI-IMAGES"
 FREEBSD_SNAP="https://download.freebsd.org/snapshots/CI-IMAGES"
+FREEBSD_IU="https://mirror.opensource.iu.edu/FreeBSD"
 URLxz=""
 
 # Ubuntu mirrors
@@ -132,8 +133,8 @@ case "$OS" in
     FreeBSD="16.0-CURRENT"
     OSNAME="FreeBSD $FreeBSD"
     OSv="freebsd14.0"
-    URLxz="$FREEBSD_SNAP/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI-ufs.raw.xz"
-    KSRC="$FREEBSD_SNAP/../amd64/$FreeBSD/src.txz"
+    URLxz="$FREEBSD_IU/snapshots/CI-IMAGES/$FreeBSD/amd64/Latest/FreeBSD-$FreeBSD-amd64-BASIC-CI-ufs.raw.xz"
+    KSRC="$FREEBSD_IU/snapshots/amd64/$FreeBSD/src.txz"
     ;;
   tumbleweed)
     OSNAME="openSUSE Tumbleweed"
