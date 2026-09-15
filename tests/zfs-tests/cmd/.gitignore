@@ -10,6 +10,7 @@
 /dir_rd_update
 /draid
 /file_fadvise
+/file_fsync
 /file_append
 /file_check
 /file_trunc
