@@ -539,7 +539,9 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		    read && !(flags & DMU_DIRECTIO), B_TRUE);
 	}
 	for (i = 0; i < nblks; i++) {
-		dmu_buf_impl_t *db = dbuf_hold(dn, blkid + i, tag);
+		dmu_buf_impl_t *db = ((flags & DMU_NO_PUBLISH) != 0) ?
+		    dbuf_hold_dio(dn, blkid + i, tag) :
+		    dbuf_hold(dn, blkid + i, tag);
 		if (db == NULL) {
 			if (zs) {
 				dmu_zfetch_run(&dn->dn_zfetch, zs, missed,
