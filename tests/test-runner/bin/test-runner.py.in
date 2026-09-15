@@ -996,7 +996,7 @@ class TestRun(object):
                       self.outputdir, LOG_ERR)
 
         if options.kmemleak:
-            cmd = f'{SUDO} -c "echo scan=0 > {KMEMLEAK_FILE}"'
+            cmd = f'{SUDO} sh -c "echo scan=0 > {KMEMLEAK_FILE}"'
             check_output(cmd, shell=True)
 
         iteration = 0
