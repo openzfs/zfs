@@ -33,3 +33,4 @@
 #include <compat/linuxkpi/common/include/linux/compiler.h>
 
 #define	zfs_fallthrough			__attribute__((__fallthrough__))
+#define	zfs_flag_enum			__attribute__((flag_enum))

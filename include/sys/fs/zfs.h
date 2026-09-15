@@ -41,7 +41,7 @@ extern "C" {
  * Each dataset can be one of the following types.  These constants can be
  * combined into masks that can be passed to various functions.
  */
-typedef enum {
+typedef enum zfs_flag_enum {
 	ZFS_TYPE_INVALID	= 0,
 	ZFS_TYPE_FILESYSTEM	= (1 << 0),
 	ZFS_TYPE_SNAPSHOT	= (1 << 1),
@@ -358,7 +358,7 @@ typedef enum {
 #define	ZPROP_VALUE		"value"
 #define	ZPROP_SOURCE		"source"
 
-typedef enum {
+typedef enum zfs_flag_enum {
 	ZPROP_SRC_NONE = 0x1,
 	ZPROP_SRC_DEFAULT = 0x2,
 	ZPROP_SRC_TEMPORARY = 0x4,
