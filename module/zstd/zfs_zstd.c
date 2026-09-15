@@ -98,8 +98,8 @@ static zstd_stats_t zstd_stats = {
 	{ "decompress_header_invalid",	KSTAT_DATA_UINT64 },
 	{ "compress_failed",		KSTAT_DATA_UINT64 },
 	{ "decompress_failed",		KSTAT_DATA_UINT64 },
-	{ "decompress_context_create", KSTAT_DATA_UINT64 },
-	{ "decompress_context_reuse", KSTAT_DATA_UINT64 },
+	{ "decompress_context_create",	KSTAT_DATA_UINT64 },
+	{ "decompress_context_reuse",	KSTAT_DATA_UINT64 },
 	{ "lz4pass_allowed",		KSTAT_DATA_UINT64 },
 	{ "lz4pass_rejected",		KSTAT_DATA_UINT64 },
 	{ "zstdpass_allowed",		KSTAT_DATA_UINT64 },
@@ -279,11 +279,16 @@ static int pool_count = 16;
 #define	ZSTD_POOL_TIMEOUT	60 * 2
 #define	ZSTD_DCTX_CACHE_MAX	16
 
+static uint_t zfs_zstd_cache_max = ZSTD_DCTX_CACHE_MAX;
+
 static struct zstd_fallback_mem zstd_dctx_fallback;
 static struct zstd_pool *zstd_mempool_cctx;
 static struct zstd_pool *zstd_mempool_dctx;
 static struct zstd_dctx_cache *zstd_dctx_cache_slots;
 static uint_t zstd_dctx_cache_count;
+
+ZFS_MODULE_PARAM(zfs, zfs_, zstd_cache_max, UINT, ZMOD_RW,
+	"Maximum number of active initialized zstd decompression contexts");
 
 /*
  * The library zstd code expects these if ADDRESS_SANITIZER gets defined,
@@ -903,8 +908,10 @@ zstd_dctx_cache_prepare(struct zstd_dctx_cache *cache)
 static struct zstd_dctx_cache *
 zstd_dctx_cache_acquire(void)
 {
+	uint_t cache_count = MIN(zstd_dctx_cache_count, zfs_zstd_cache_max);
+
 	/* Reuse an initialized context before populating an empty slot. */
-	for (uint_t i = 0; i < zstd_dctx_cache_count; i++) {
+	for (uint_t i = 0; i < cache_count; i++) {
 		struct zstd_dctx_cache *cache = &zstd_dctx_cache_slots[i];
 
 		if (!mutex_tryenter(&cache->barrier))
@@ -919,7 +926,7 @@ zstd_dctx_cache_acquire(void)
 	}
 
 	/* Populate at most one empty slot before falling back uncached. */
-	for (uint_t i = 0; i < zstd_dctx_cache_count; i++) {
+	for (uint_t i = 0; i < cache_count; i++) {
 		struct zstd_dctx_cache *cache = &zstd_dctx_cache_slots[i];
 
 		if (!mutex_tryenter(&cache->barrier))
@@ -935,7 +942,7 @@ zstd_dctx_cache_acquire(void)
 			return (cache);
 		}
 
-		/* A failed cache allocation falls back to an uncached context. */
+		/* Allocation failure falls back to uncached decompression. */
 		mutex_exit(&cache->barrier);
 		return (NULL);
 	}
