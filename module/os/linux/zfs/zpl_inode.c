@@ -32,12 +32,9 @@ static struct dentry *
 zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 {
 	cred_t *cr = CRED();
-	struct inode *ip;
 	znode_t *zp;
 	int error;
 	fstrans_cookie_t cookie;
-	pathname_t *ppn = NULL;
-	pathname_t pn;
 	int zfs_flags = 0;
 	zfsvfs_t *zfsvfs = dentry->d_sb->s_fs_info;
 	dsl_dataset_t *ds = dmu_objset_ds(zfsvfs->z_os);
@@ -67,15 +64,11 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 	crhold(cr);
 	cookie = spl_fstrans_mark();
 
-	/* If we are a case insensitive fs, we need the real name */
-	if (zfsvfs->z_case == ZFS_CASE_INSENSITIVE) {
+	if (zfsvfs->z_case == ZFS_CASE_INSENSITIVE)
 		zfs_flags = FIGNORECASE;
-		pn_alloc(&pn);
-		ppn = &pn;
-	}
 
 	error = -zfs_lookup(ITOZ(dir), dname(dentry), &zp,
-	    zfs_flags, cr, NULL, ppn);
+	    zfs_flags, cr, NULL, NULL);
 	spl_fstrans_unmark(cookie);
 	ASSERT3S(error, <=, 0);
 	crfree(cr);
@@ -85,44 +78,13 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 	spin_unlock(&dentry->d_lock);
 
 	if (error) {
-		/*
-		 * If we have a case sensitive fs, we do not want to
-		 * insert negative entries, so return NULL for ENOENT.
-		 * Fall through if the error is not ENOENT. Also free memory.
-		 */
-		if (ppn) {
-			pn_free(ppn);
-			if (error == -ENOENT)
-				return (NULL);
-		}
-
 		if (error == -ENOENT)
 			return (d_splice_alias(NULL, dentry));
 		else
 			return (ERR_PTR(error));
 	}
-	ip = ZTOI(zp);
 
-	/*
-	 * If we are case insensitive, call the correct function
-	 * to install the name.
-	 */
-	if (ppn) {
-		struct dentry *new_dentry;
-		struct qstr ci_name;
-
-		if (strcmp(dname(dentry), pn.pn_buf) == 0) {
-			new_dentry = d_splice_alias(ip,  dentry);
-		} else {
-			ci_name.name = pn.pn_buf;
-			ci_name.len = strlen(pn.pn_buf);
-			new_dentry = d_add_ci(dentry, ip, &ci_name);
-		}
-		pn_free(ppn);
-		return (new_dentry);
-	} else {
-		return (d_splice_alias(ip, dentry));
-	}
+	return (d_splice_alias(ZTOI(zp), dentry));
 }
 
 void

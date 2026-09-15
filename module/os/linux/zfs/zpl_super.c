@@ -23,6 +23,8 @@
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zpl.h>
+#include <sys/u8_textprep.h>
+#include <sys/fs/zfs.h>
 #include <linux/iversion.h>
 #include <linux/version.h>
 #include <linux/vfs_compat.h>
@@ -1054,6 +1056,211 @@ const struct super_operations zpl_super_operations = {
 };
 
 /*
+ * ->d_hash() is called from a RCU context that cannot sleep, so we cannot do
+ * KM_SLEEP allocations. ZAP_MAXNAMELEN_NEW length long names are up to 1024
+ * bytes, inclusive of the NULL terminating character. Kernel stack space is
+ * limited, and we can potentially be given even longer invalid names, so
+ * instead of allocating all memory at once, we allocate ZAP_MAXNAMELEN (256)
+ * bytes on the stack, and operate incrementally on it.
+ *
+ * The incremental hash function is slow compared to the non-incremental hash
+ * function, so we unroll the first loop iteration and check for the case that
+ * only 1 iteration is necessary. In that case, we call full_name_hash().
+ * Otherwise, we proceed to calculate the hash incrementally.
+ *
+ * These two methods of calculation do not produce the same hash, but since we
+ * have a stable partition of names on which each is used, calling this
+ * function to hash a given name will always return the same value, so using
+ * two different hash functions is fine.
+ *
+ * Incremental calculation allows us to handle special cases such as form NFKD
+ * causing us to run out of buffer space and users trying to open files with
+ * longer file names than we support. In both cases, we always return a hash.
+ * This would not be possible if we allocated a ZAP_MAXNAMELEN_NEW (1024) byte
+ * buffer.
+ *
+ * Unicode places no limit on how many combining marks can follow a base
+ * character, so a normalizer that has to buffer an entire combining sequence
+ * before it can reorder and compose has no bound on its buffer. Stream-Safe
+ * Text caps a sequence at 30 non-starters and inserts U+034F COMBINING
+ * GRAPHEME JOINER to break it. ZAP_MAXNAMELEN is a sufficiently large buffer
+ * to accommodate this.
+ *
+ * This assumes that the filesystem is a folding filesystem. It is missing the
+ * special case on flags == 0 to be used generally.
+ */
+static int
+zpl_dentry_hash(const struct dentry *dentry, struct qstr *qstr)
+{
+	zfsvfs_t *zfsvfs = dentry->d_sb->s_fs_info;
+	int flags = zfsvfs->z_norm;
+	char out[ZAP_MAXNAMELEN];
+	size_t rlen, blen, i, n;
+	unsigned long hash;
+	int err = 0;
+
+	if (qstr->len == 0) {
+		qstr->hash = full_name_hash(dentry, qstr->name, qstr->len);
+		return (0);
+	}
+
+	if (zfsvfs->z_case == ZFS_CASE_MIXED)
+		flags &= ~U8_TEXTPREP_TOUPPER;
+
+	flags |= U8_TEXTPREP_IGNORE_NULL | U8_TEXTPREP_IGNORE_INVALID;
+
+	rlen = qstr->len;
+	blen = sizeof (out);
+	(void) u8_textprep_str((char *)qstr->name, &rlen, out, &blen, flags,
+	    U8_UNICODE_LATEST, &err);
+
+	if (rlen == 0) {
+		qstr->hash = full_name_hash(dentry, out, sizeof (out) -
+		    blen);
+		return (0);
+	}
+
+	hash = init_name_hash(dentry);
+
+	n = sizeof (out) - blen;
+	for (i = 0; i < n; i++)
+		hash = partial_name_hash((unsigned char)out[i], hash);
+
+	do {
+		blen = sizeof (out);
+		(void) u8_textprep_str((char *)qstr->name + (qstr->len - rlen),
+		    &rlen, out, &blen, flags, U8_UNICODE_LATEST, &err);
+
+		n = sizeof (out) - blen;
+		for (i = 0; i < n; i++)
+			hash = partial_name_hash((unsigned char)out[i], hash);
+	} while (rlen > 0);
+
+	qstr->hash = end_name_hash(hash);
+	return (0);
+}
+
+/*
+ * ->d_compare() is called from a RCU context that cannot sleep, so we cannot
+ * do KM_SLEEP allocations. ZAP_MAXNAMELEN_NEW length long names are up to 1024
+ * bytes, inclusive of the NULL terminating character. We cannot stack allocate
+ * full buffers for those, so we implement a chunked comparison to support
+ * ZAP_MAXNAMELEN_NEW length long names.
+ *
+ * We may be given strings longer than ZAP_MAXNAMELEN_NEW-1 characters if a
+ * user tries to open a file with such a name. Additionally, strings may be
+ * path components, which are not NULL terminated. Care has been taken to
+ * handle both cases.
+ *
+ * This assumes that the filesystem is a folding filesystem. It is missing the
+ * special case on flags == 0 to be used generally.
+ */
+static int
+zpl_dentry_compare(const struct dentry *dentry, unsigned int len,
+    const char *str, const struct qstr *name)
+{
+	zfsvfs_t *zfsvfs = dentry->d_sb->s_fs_info;
+	int flags = zfsvfs->z_norm;
+	char str1[ZAP_MAXNAMELEN];
+	char str2[ZAP_MAXNAMELEN];
+	size_t rlen1, rlen2, blen1, blen2;
+	int err = 0;
+
+	/*
+	 * Names are often identical to each other pre-normalization, and when
+	 * they are, we can just memcmp() and skip normalization on a match.
+	 * When we do not have a match, we must normalize and then compare
+	 * again.
+	 */
+	if (len == name->len && memcmp(str, name->name, len) == 0)
+		return (0);
+
+	if (zfsvfs->z_case == ZFS_CASE_MIXED)
+		flags &= ~U8_TEXTPREP_TOUPPER;
+
+	flags |= U8_TEXTPREP_IGNORE_NULL | U8_TEXTPREP_IGNORE_INVALID;
+
+	rlen1 = len;
+	rlen2 = name->len;
+
+	do {
+		blen1 = sizeof (str1);
+		blen2 = sizeof (str2);
+
+		(void) u8_textprep_str((char *)&str[len - rlen1], &rlen1,
+		    str1, &blen1, flags, U8_UNICODE_LATEST, &err);
+		(void) u8_textprep_str((char *)&name->name[name->len - rlen2],
+		    &rlen2, str2, &blen2, flags, U8_UNICODE_LATEST, &err);
+
+		if (blen1 != blen2 || memcmp(str1, str2,
+		    sizeof (str1) - blen1) != 0)
+			return (1);
+
+	} while (rlen1 > 0 || rlen2 > 0);
+
+	return (0);
+}
+
+/*
+ * ->d_revalidate() is called when a dentry cache hit occurs, to check if the
+ *  entry is still valid.
+ *
+ * When dentry cache hit occurs on a negative dentry, the VFS will happily give
+ * the cached name to create/mkdir/link/symlink/mknod/rename. When we are on a
+ * filesystem that is case insensitive or normalizing, that causes us to make a
+ * file with a name other than what the user intended, which will be shown in
+ * getdents. This is a nuisance, so we implement ->d_revalidate to allow us to
+ * prevent the names of negative dentries from being reused on filesystems that
+ * are case insensitive or normalizing.
+ *
+ * This assumes that the filesystem is a folding filesystem. It is missing the
+ * special case on ->z_norm to be used generally.
+ */
+#ifdef HAVE_D_REVALIDATE_4ARGS
+static int
+zpl_dentry_revalidate(struct inode *dir, const struct qstr *name,
+    struct dentry *dentry, unsigned int flags)
+#else
+static int
+zpl_dentry_revalidate(struct dentry *dentry, unsigned int flags)
+#endif
+{
+	/* positive dentries are fine */
+	if (d_inode_rcu(dentry) != NULL)
+		return (1);
+
+	/*
+	 * NFSv2/3 calls lookup_one_len() in create, which passes flags==0.
+	 * (nfsd). When flags == 0, we cannot tell what the caller is doing, so
+	 * we must invalidate. Unfortunately, this affects some operations
+	 * where we do not want to invalidate, but we favor correctness over
+	 * speed.
+	 */
+	if (flags == 0)
+		return (0);
+
+	if (flags & (LOOKUP_CREATE | LOOKUP_RENAME_TARGET)) {
+#ifdef HAVE_D_REVALIDATE_4ARGS
+		(void) dir;
+		/*
+		 * If called from RCU, it is unsafe to check the name, so we
+		 * must return -ECHILD to be called outside of a RCU context.
+		 */
+		if (flags & LOOKUP_RCU)
+			return (-ECHILD);
+
+		if (name->len == dentry->d_name.len &&
+		    memcmp(name->name, dentry->d_name.name, name->len) == 0)
+			return (1);
+#endif
+		/* Do *NOT* reuse d_name. */
+		return (0);
+	}
+
+	return (1);
+}
+
+/*
  * ->d_delete() is called when the last reference to a dentry is released. Its
  *  return value indicates if the dentry should be destroyed immediately, or
  *  retained in the dentry cache.
@@ -1078,7 +1285,19 @@ zpl_dentry_delete(const struct dentry *dentry)
 	return (zfs_delete_dentry ? 1 : 0);
 }
 
+/*
+ * Overlayfs is incompatible with filesystems that fold filenames, so we
+ * maintain a non-folding version for non-folding filesystems, so that it might
+ * work on top of them.
+ */
 const struct dentry_operations zpl_dentry_operations = {
+	.d_delete = zpl_dentry_delete,
+};
+
+const struct dentry_operations zpl_folded_dentry_operations = {
+	.d_hash = zpl_dentry_hash,
+	.d_compare = zpl_dentry_compare,
+	.d_revalidate = zpl_dentry_revalidate,
 	.d_delete = zpl_dentry_delete,
 };
 
