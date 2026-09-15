@@ -68,6 +68,20 @@ typedef struct dbuf_stats {
 	 */
 	kstat_named_t cache_total_evicts;
 	/*
+	 * Statistics about the indirect block dbuf cache.  The cache_*
+	 * statistics above describe both LRU dbuf caches together; these
+	 * describe the indirect block part of it on its own.
+	 */
+	kstat_named_t indirect_cache_count;
+	kstat_named_t indirect_cache_size_bytes;
+	kstat_named_t indirect_cache_target_bytes;
+	kstat_named_t indirect_cache_total_evicts;
+	/*
+	 * Number of times the eviction code wanted to free a buffer but the
+	 * victim had been taken by another thread in the meantime.
+	 */
+	kstat_named_t cache_evict_skips;
+	/*
 	 * The distribution of dbuf levels in the dbuf cache and
 	 * the total size of all dbufs at each level.
 	 */
@@ -118,6 +132,11 @@ dbuf_stats_t dbuf_stats = {
 	{ "cache_lowater_bytes",		KSTAT_DATA_UINT64 },
 	{ "cache_hiwater_bytes",		KSTAT_DATA_UINT64 },
 	{ "cache_total_evicts",			KSTAT_DATA_UINT64 },
+	{ "indirect_cache_count",		KSTAT_DATA_UINT64 },
+	{ "indirect_cache_size_bytes",		KSTAT_DATA_UINT64 },
+	{ "indirect_cache_target_bytes",	KSTAT_DATA_UINT64 },
+	{ "indirect_cache_total_evicts",	KSTAT_DATA_UINT64 },
+	{ "cache_evict_skips",			KSTAT_DATA_UINT64 },
 	{ { "cache_levels_N",			KSTAT_DATA_UINT64 } },
 	{ { "cache_levels_bytes_N",		KSTAT_DATA_UINT64 } },
 	{ "hash_hits",				KSTAT_DATA_UINT64 },
@@ -138,6 +157,9 @@ dbuf_stats_t dbuf_stats = {
 struct {
 	wmsum_t cache_count;
 	wmsum_t cache_total_evicts;
+	wmsum_t cache_evict_skips;
+	wmsum_t indirect_cache_count;
+	wmsum_t indirect_cache_evicts;
 	wmsum_t cache_levels[DN_MAX_LEVELS];
 	wmsum_t cache_levels_bytes[DN_MAX_LEVELS];
 	wmsum_t hash_hits;
@@ -181,7 +203,8 @@ static kcondvar_t dbuf_evict_cv;
 static boolean_t dbuf_evict_thread_exit;
 
 /*
- * There are two dbuf caches; each dbuf can only be in one of them at a time.
+ * There are three dbuf caches; each dbuf can only be in one of them at a
+ * time.
  *
  * 1. Cache of metadata dbufs, to help make read-heavy administrative commands
  *    from /sbin/zfs run faster. The "metadata cache" specifically stores dbufs
@@ -194,22 +217,32 @@ static boolean_t dbuf_evict_thread_exit;
  *    performance of these commands. Instead, after it reaches a maximum size
  *    (which should only happen on very small memory systems with a very large
  *    number of filesystem objects), we stop taking new dbufs into the
- *    metadata cache, instead putting them in the normal dbuf cache.
+ *    metadata cache, instead putting them in one of the LRU caches below.
  *
- * 2. LRU cache of dbufs. The dbuf cache maintains a list of dbufs that
- *    are not currently held but have been recently released. These dbufs
- *    are not eligible for arc eviction until they are aged out of the cache.
- *    Dbufs that are aged out of the cache will be immediately destroyed and
- *    become eligible for arc eviction.
+ * 2. LRU cache of indirect block dbufs, i.e. of blocks of level 1 and above.
+ *    Every level-0 block is pointed to by an indirect block, so any workload
+ *    that touches level-0 blocks touches indirect blocks as well, and a
+ *    workload that bypasses the level-0 dbuf cache entirely (direct I/O, or
+ *    any streaming read) touches nothing else.  Indirect blocks therefore
+ *    get a cache of their own, so that a stream of level-0 blocks cannot push
+ *    them out.  Their target size is a fraction of the ARC target, controlled
+ *    by dbuf_cache_indirect_shift.
+ *
+ * 3. LRU cache of level-0 dbufs, which maintains a list of dbufs that are not
+ *    currently held but have been recently released.  These dbufs are not
+ *    eligible for arc eviction until they are aged out of the cache.  Dbufs
+ *    that are aged out of the cache will be immediately destroyed and become
+ *    eligible for arc eviction.
  *
  * Dbufs are added to these caches once the last hold is released. If a dbuf is
  * later accessed and still exists in the dbuf cache, then it will be removed
  * from the cache and later re-added to the head of the cache.
  *
  * If a given dbuf meets the requirements for the metadata cache, it will go
- * there, otherwise it will be considered for the generic LRU dbuf cache. The
- * caches and the refcounts tracking their sizes are stored in an array indexed
- * by those caches' matching enum values (from dbuf_cached_state_t).
+ * there, otherwise it will be considered for one of the generic LRU caches
+ * based on its level.  The caches and the refcounts tracking their sizes are
+ * stored in an array indexed by those caches' matching enum values (from
+ * dbuf_cached_state_t).
  */
 typedef struct dbuf_cache {
 	multilist_t cache;
@@ -219,17 +252,37 @@ dbuf_cache_t dbuf_caches[DB_CACHE_MAX];
 
 /* Size limits for the caches */
 static uint64_t dbuf_cache_max_bytes = UINT64_MAX;
+static uint64_t dbuf_cache_indirect_max_bytes = UINT64_MAX;
 static uint64_t dbuf_metadata_cache_max_bytes = UINT64_MAX;
 
 /* Set the default sizes of the caches to log2 fraction of arc size */
 static uint_t dbuf_cache_shift = 5;
+static uint_t dbuf_cache_indirect_shift = 4;
 static uint_t dbuf_metadata_cache_shift = 6;
+
+/*
+ * Eviction policy tuning.
+ *
+ * dbuf_cache_evict_scan is how many of the oldest buffers on a sublist the
+ * eviction code inspects before it picks a victim.  Setting it to 0 restores
+ * the old "always take the oldest buffer" behaviour.
+ */
+static uint_t dbuf_cache_evict_scan = 16;
+
+/*
+ * A dbuf is considered hot once it has been reused this many times over its
+ * lifetime, or once the ARC has told us that it keeps the block in its MFU
+ * state.  See dbuf_is_hot().
+ */
+#define	DBUF_CACHE_HOT_HITS	2
 
 /* Set the dbuf hash mutex count as log2 shift (dynamic by default) */
 static uint_t dbuf_mutex_cache_shift = 0;
 
 static unsigned long dbuf_cache_target_bytes(void);
 static unsigned long dbuf_metadata_cache_target_bytes(void);
+static void dbuf_cache_stats_add(dbuf_cached_state_t, uint8_t, uint64_t);
+static void dbuf_cache_stats_sub(dbuf_cached_state_t, uint8_t, uint64_t);
 
 /*
  * The LRU dbuf cache uses a three-stage eviction policy:
@@ -255,19 +308,38 @@ static unsigned long dbuf_metadata_cache_target_bytes(void);
  *                                                    thread
  *
  * The high and low water marks indicate the operating range for the eviction
- * thread. The low water mark is, by default, 90% of the total size of the
- * cache and the high water mark is at 110% (both of these percentages can be
- * changed by setting dbuf_cache_lowater_pct and dbuf_cache_hiwater_pct,
- * respectively). The eviction thread will try to ensure that the cache remains
- * within this range by waking up every second and checking if the cache is
- * above the low water mark. The thread can also be woken up by callers adding
- * elements into the cache if the cache is larger than the mid water (i.e max
- * cache size). Once the eviction thread is woken up and eviction is required,
- * it will continue evicting buffers until it's able to reduce the cache size
- * to the low water mark. If the cache size continues to grow and hits the high
- * water mark, then callers adding elements to the cache will begin to evict
- * directly from the cache until the cache is no longer above the high water
- * mark.
+ * thread. The low water mark is, by default, 90% of a cache's target size and
+ * the high water mark is at 110% (both of these percentages can be changed by
+ * setting dbuf_cache_lowater_pct and dbuf_cache_hiwater_pct, respectively).
+ * The eviction thread will try to ensure that the cache remains within this
+ * range by waking up periodically and checking if the cache is above the low
+ * water mark. The thread can also be woken up by callers adding elements into
+ * the cache if the cache is larger than the mid water (i.e max cache size).
+ * Once the eviction thread is woken up and eviction is required, it will
+ * continue evicting buffers until it's able to reduce the cache size to the
+ * low water mark. If the cache size continues to grow and hits the high water
+ * mark, then callers adding elements to the cache will begin to evict directly
+ * from the cache until the cache is no longer above the high water mark.
+ *
+ * The two LRU caches are sized and evicted independently, so that neither kind
+ * of block can push the other kind out: each cache is measured against its own
+ * target and its own water marks.  The total amount of memory the dbuf cache
+ * can pin is therefore bounded by the sum of the two targets, which is always
+ * a fraction of the ARC target:
+ *
+ *   - The eviction thread stops once neither cache is above its own low
+ *   water mark.  A cache is signalled when it passes its own mid water mark,
+ *   and callers evict from it directly once it passes its own high water
+ *   mark.
+ *   - Within a cache, the oldest dbuf_cache_evict_scan buffers are examined
+ *   and the oldest one that has not been reused before (and whose block the
+ *   ARC is not keeping in MFU) is evicted.  This avoids discarding buffers
+ *   that are actively being reused, which is the whole point of the cache.
+ *
+ * The dbufstats cache_count, cache_size_bytes, cache_target_bytes and
+ * cache_lowater_bytes/cache_hiwater_bytes describe the two LRU caches
+ * together; the indirect_cache_* statistics describe only the indirect block
+ * part of it.
  */
 
 /*
@@ -572,7 +644,7 @@ dbuf_evict_user(dmu_buf_impl_t *db)
 		uint64_t size = dbu->dbu_size;
 		(void) zfs_refcount_remove_many(
 		    &dbuf_caches[db->db_caching_status].size, size, dbu);
-		if (db->db_caching_status == DB_DBUF_CACHE)
+		if (db->db_caching_status != DB_DBUF_METADATA_CACHE)
 			DBUF_STAT_DECR(cache_levels_bytes[db->db_level], size);
 	}
 
@@ -716,7 +788,7 @@ dbuf_cache_multilist_index_func(multilist_t *ml, void *obj)
 }
 
 /*
- * The target size of the dbuf cache can grow with the ARC target,
+ * The target size of the level-0 dbuf cache can grow with the ARC target,
  * unless limited by the tunable dbuf_cache_max_bytes.
  */
 static inline unsigned long
@@ -724,6 +796,24 @@ dbuf_cache_target_bytes(void)
 {
 	return (MIN(dbuf_cache_max_bytes,
 	    arc_target_bytes() >> dbuf_cache_shift));
+}
+
+/*
+ * The target size of the indirect block dbuf cache can grow with the ARC
+ * target, unless limited by the tunable dbuf_cache_indirect_max_bytes.
+ *
+ * Indirect blocks of level 1 and above are the parents of every level-0 block,
+ * so any workload that touches level-0 blocks touches indirect blocks as well,
+ * and a workload that does not publish level-0 dbufs at all (direct I/O)
+ * touches nothing else.  Giving them a target of their own, instead of making
+ * them compete with level-0 blocks, is what lets them stay cached while a
+ * large amount of level-0 data flows through.
+ */
+static inline unsigned long
+dbuf_cache_indirect_target_bytes(void)
+{
+	return (MIN(dbuf_cache_indirect_max_bytes,
+	    arc_target_bytes() >> dbuf_cache_indirect_shift));
 }
 
 /*
@@ -737,76 +827,291 @@ dbuf_metadata_cache_target_bytes(void)
 	    arc_target_bytes() >> dbuf_metadata_cache_shift));
 }
 
+/*
+ * Total number of bytes cached by the two LRU dbuf caches.  The metadata
+ * cache is not included: it is only ever evicted when a pool is exported.
+ */
 static inline uint64_t
-dbuf_cache_hiwater_bytes(void)
+dbuf_cache_lru_size_bytes(void)
 {
-	uint64_t dbuf_cache_target = dbuf_cache_target_bytes();
+	return (zfs_refcount_count(&dbuf_caches[DB_DBUF_CACHE].size) +
+	    zfs_refcount_count(&dbuf_caches[DB_DBUF_INDIRECT_CACHE].size));
+}
+
+/*
+ * The size of the whole dbuf cache is bounded by the sum of the two LRU cache
+ * targets, so that it stays a fraction of the ARC target (and therefore of
+ * the ARC's memory limit) no matter how the two caches are populated, and so
+ * that it can never grow without bound just because some other part of the
+ * system is not using the ARC.
+ *
+ * Each cache is enforced against its own target, however, so that a large
+ * indirect block working set cannot let the level-0 cache grow past its own
+ * share and vice versa.
+ */
+static inline unsigned long
+dbuf_cache_kind_target_bytes(dbuf_cached_state_t dcs)
+{
+	if (dcs == DB_DBUF_INDIRECT_CACHE)
+		return (dbuf_cache_indirect_target_bytes());
+
+	ASSERT3S(dcs, ==, DB_DBUF_CACHE);
+	return (dbuf_cache_target_bytes());
+}
+
+static inline uint64_t
+dbuf_cache_total_target_bytes(void)
+{
+	return (dbuf_cache_target_bytes() +
+	    dbuf_cache_indirect_target_bytes());
+}
+
+static inline uint64_t
+dbuf_cache_hiwater_bytes(dbuf_cached_state_t dcs)
+{
+	uint64_t dbuf_cache_target = dbuf_cache_kind_target_bytes(dcs);
 	return (dbuf_cache_target +
 	    (dbuf_cache_target * dbuf_cache_hiwater_pct) / 100);
 }
 
 static inline uint64_t
-dbuf_cache_lowater_bytes(void)
+dbuf_cache_lowater_bytes(dbuf_cached_state_t dcs)
 {
-	uint64_t dbuf_cache_target = dbuf_cache_target_bytes();
+	uint64_t dbuf_cache_target = dbuf_cache_kind_target_bytes(dcs);
 	return (dbuf_cache_target -
 	    (dbuf_cache_target * dbuf_cache_lowater_pct) / 100);
 }
 
-static inline boolean_t
-dbuf_cache_above_lowater(void)
+/*
+ * Water marks for the dbuf cache as a whole, as reported in the dbufstats
+ * kstat.  They are the sums of the two LRU caches' water marks, matching
+ * dbuf_cache_lru_size_bytes() and cache_target_bytes.
+ */
+static inline uint64_t
+dbuf_cache_total_lowater_bytes(void)
 {
-	return (zfs_refcount_count(&dbuf_caches[DB_DBUF_CACHE].size) >
-	    dbuf_cache_lowater_bytes());
+	return (dbuf_cache_lowater_bytes(DB_DBUF_CACHE) +
+	    dbuf_cache_lowater_bytes(DB_DBUF_INDIRECT_CACHE));
+}
+
+static inline uint64_t
+dbuf_cache_total_hiwater_bytes(void)
+{
+	return (dbuf_cache_hiwater_bytes(DB_DBUF_CACHE) +
+	    dbuf_cache_hiwater_bytes(DB_DBUF_INDIRECT_CACHE));
+}
+
+static inline boolean_t
+dbuf_cache_above_lowater(dbuf_cached_state_t dcs)
+{
+	return (zfs_refcount_count(&dbuf_caches[dcs].size) >
+	    dbuf_cache_lowater_bytes(dcs));
 }
 
 /*
- * Evict the oldest eligible dbuf from the dbuf cache.
+ * Decide which dbuf cache a dbuf belongs in once its last hold is released.
+ */
+static dbuf_cached_state_t
+dbuf_cache_select(dmu_buf_impl_t *db)
+{
+	/*
+	 * The metadata cache takes precedence, as it always has: it holds the
+	 * small, hot blocks that make administrative commands fast, and it is
+	 * never evicted.
+	 */
+	if (dbuf_include_in_metadata_cache(db))
+		return (DB_DBUF_METADATA_CACHE);
+
+	/*
+	 * All indirect levels share one cache: which level a block is at makes
+	 * no difference to how it is used, because a block is only ever read
+	 * together with all of its ancestors.
+	 */
+	if (db->db_level > 0)
+		return (DB_DBUF_INDIRECT_CACHE);
+	return (DB_DBUF_CACHE);
+}
+
+/*
+ * Update the per-cache statistics when a dbuf is added to a dbuf cache.
+ * cache_count, cache_levels and cache_levels_bytes describe both of the LRU
+ * dbuf caches together, so that the level breakdown means the same thing it
+ * always has; the indirect_cache_count is maintained for the indirect block
+ * cache only.
  */
 static void
-dbuf_evict_one(void)
+dbuf_cache_stats_add(dbuf_cached_state_t dcs, uint8_t level, uint64_t bytes)
 {
-	int idx = multilist_get_random_index(&dbuf_caches[DB_DBUF_CACHE].cache);
-	multilist_sublist_t *mls = multilist_sublist_lock_idx(
-	    &dbuf_caches[DB_DBUF_CACHE].cache, idx);
+	if (dcs == DB_DBUF_METADATA_CACHE) {
+		DBUF_STAT_BUMP(metadata_cache_count);
+	} else {
+		DBUF_STAT_BUMP(cache_count);
+		DBUF_STAT_BUMP(cache_levels[level]);
+		DBUF_STAT_INCR(cache_levels_bytes[level], bytes);
+		if (dcs == DB_DBUF_INDIRECT_CACHE)
+			DBUF_STAT_BUMP(indirect_cache_count);
+	}
+}
+
+/*
+ * The counterpart of dbuf_cache_stats_add() for a dbuf removed from a dbuf
+ * cache.
+ */
+static void
+dbuf_cache_stats_sub(dbuf_cached_state_t dcs, uint8_t level, uint64_t bytes)
+{
+	if (dcs == DB_DBUF_METADATA_CACHE) {
+		DBUF_STAT_BUMPDOWN(metadata_cache_count);
+	} else {
+		DBUF_STAT_BUMPDOWN(cache_count);
+		DBUF_STAT_BUMPDOWN(cache_levels[level]);
+		DBUF_STAT_DECR(cache_levels_bytes[level], bytes);
+		if (dcs == DB_DBUF_INDIRECT_CACHE)
+			DBUF_STAT_BUMPDOWN(indirect_cache_count);
+	}
+}
+
+/*
+ * A cached dbuf is considered hot if it has been reused before, i.e. if it has
+ * been found in a cache and taken out of it again at least DBUF_CACHE_HOT_HITS
+ * times in its lifetime, or if the ARC has told us that it holds the block in
+ * its MFU state.  Evicting a hot dbuf throws away work that is about to be
+ * repeated: the data buffer has to be allocated and filled again, and for a
+ * compressed indirect block that means decompressing it.
+ *
+ * Both hints are sticky, i.e. they are only ever set and are cleared only when
+ * the dbuf itself is created anew.  They therefore mean "this buffer has been
+ * worth caching", which is deliberately biased towards keeping it; the size
+ * limits and the fallback in dbuf_evict_find_victim() still guarantee that the
+ * cache is trimmed to its target.
+ *
+ * db_mtx must be held.
+ */
+static boolean_t
+dbuf_is_hot(dmu_buf_impl_t *db)
+{
+	return (db->db_cache_hits >= DBUF_CACHE_HOT_HITS || db->db_cache_hot);
+}
+
+/*
+ * Pick the dbuf to evict from one sublist of a dbuf cache.
+ *
+ * The previous policy took the oldest dbuf on a randomly chosen sublist, which
+ * threw away buffers that were being actively reused and then had to read them
+ * back.  Instead, examine the oldest dbuf_cache_evict_scan buffers and take the
+ * oldest one that is not hot.  If they are all hot, fall back to the oldest
+ * anyway so that the cache still shrinks; a workload that really is reusing
+ * everything it caches then degrades to the previous behaviour rather than
+ * pinning the cache forever.
+ *
+ * The sublist lock is held on entry and on return.  db_mtx is taken and
+ * dropped for each candidate with mutex_tryenter(), which preserves the
+ * db_mtx -> sublist lock ordering used by the hold path: a holder that is
+ * taking the dbuf out of the cache holds db_mtx and will fail our tryenter(),
+ * so the candidate is skipped.
+ */
+static dmu_buf_impl_t *
+dbuf_evict_find_victim(multilist_sublist_t *mls)
+{
+	dmu_buf_impl_t *oldest = multilist_sublist_tail(mls);
+	dmu_buf_impl_t *db;
+	uint_t visited = 0;
+
+	if (oldest == NULL)
+		return (NULL);
+
+	for (db = oldest; db != NULL && visited < dbuf_cache_evict_scan;
+	    db = multilist_sublist_prev(mls, db)) {
+		visited++;
+
+		if (mutex_tryenter(&db->db_mtx) == 0)
+			continue;
+
+		boolean_t hot = dbuf_is_hot(db);
+		mutex_exit(&db->db_mtx);
+
+		if (!hot)
+			return (db);
+	}
+
+	return (oldest);
+}
+
+/*
+ * Evict one dbuf from the given dbuf cache.  Returns B_TRUE if a dbuf was
+ * evicted.
+ */
+static boolean_t
+dbuf_evict_one(dbuf_cached_state_t dcs)
+{
+	multilist_t *ml = &dbuf_caches[dcs].cache;
+	multilist_sublist_t *mls;
+	dmu_buf_impl_t *db = NULL;
+	uint_t num = multilist_get_num_sublists(ml);
+	uint_t idx = multilist_get_random_index(ml);
 
 	ASSERT(!MUTEX_HELD(&dbuf_evict_lock));
+	ASSERT3S(dcs, !=, DB_DBUF_METADATA_CACHE);
 
-	dmu_buf_impl_t *db = multilist_sublist_tail(mls);
-	while (db != NULL && mutex_tryenter(&db->db_mtx) == 0) {
-		db = multilist_sublist_prev(mls, db);
+	/*
+	 * Search the sublists starting at a random one.  A cache may hold very
+	 * few buffers, in which case the randomly chosen sublist is often
+	 * empty; walk on to the next one rather than reporting that there is
+	 * nothing to evict.
+	 */
+	for (uint_t i = 0; i < num; i++) {
+		mls = multilist_sublist_lock_idx(ml, (idx + i) % num);
+		db = dbuf_evict_find_victim(mls);
+
+		/*
+		 * dbuf_evict_find_victim() drops db_mtx for every candidate it
+		 * inspects, so the victim may have been grabbed by a holder in
+		 * the meantime.  That holder is removing it from the cache
+		 * itself, so leave it alone and look elsewhere.
+		 */
+		if (db != NULL && mutex_tryenter(&db->db_mtx) != 0)
+			break;
+
+		multilist_sublist_unlock(mls);
+		db = NULL;
+	}
+
+	if (db == NULL) {
+		DBUF_STAT_BUMP(cache_evict_skips);
+		return (B_FALSE);
 	}
 
 	DTRACE_PROBE2(dbuf__evict__one, dmu_buf_impl_t *, db,
 	    multilist_sublist_t *, mls);
 
-	if (db != NULL) {
-		multilist_sublist_remove(mls, db);
-		multilist_sublist_unlock(mls);
-		uint64_t size = db->db.db_size;
-		uint64_t usize = dmu_buf_user_size(&db->db);
-		(void) zfs_refcount_remove_many(
-		    &dbuf_caches[DB_DBUF_CACHE].size, size, db);
-		(void) zfs_refcount_remove_many(
-		    &dbuf_caches[DB_DBUF_CACHE].size, usize, db->db_user);
-		DBUF_STAT_BUMPDOWN(cache_levels[db->db_level]);
-		DBUF_STAT_BUMPDOWN(cache_count);
-		DBUF_STAT_DECR(cache_levels_bytes[db->db_level], size + usize);
-		ASSERT3U(db->db_caching_status, ==, DB_DBUF_CACHE);
-		db->db_caching_status = DB_NO_CACHE;
-		dbuf_destroy(db);
-		DBUF_STAT_BUMP(cache_total_evicts);
-	} else {
-		multilist_sublist_unlock(mls);
-	}
+	uint64_t size = db->db.db_size;
+	uint64_t usize = dmu_buf_user_size(&db->db);
+	multilist_sublist_remove(mls, db);
+	multilist_sublist_unlock(mls);
+
+	(void) zfs_refcount_remove_many(&dbuf_caches[dcs].size, size, db);
+	(void) zfs_refcount_remove_many(&dbuf_caches[dcs].size, usize,
+	    db->db_user);
+	dbuf_cache_stats_sub(dcs, db->db_level, size + usize);
+
+	ASSERT3U(db->db_caching_status, ==, dcs);
+	db->db_caching_status = DB_NO_CACHE;
+	dbuf_destroy(db);
+
+	DBUF_STAT_BUMP(cache_total_evicts);
+	if (dcs == DB_DBUF_INDIRECT_CACHE)
+		DBUF_STAT_BUMP(indirect_cache_evicts);
+
+	return (B_TRUE);
 }
 
 /*
  * The dbuf evict thread is responsible for aging out dbufs from the
- * cache. Once the cache has reached it's maximum size, dbufs are removed
- * and destroyed. The eviction thread will continue running until the size
- * of the dbuf cache is at or below the maximum size. Once the dbuf is aged
- * out of the cache it is destroyed and becomes eligible for arc eviction.
+ * caches. Once the combined size of the two LRU caches has reached its
+ * low water mark, dbufs are removed and destroyed. The eviction thread will
+ * continue running until the size of the dbuf cache is at or below the low
+ * water mark. Once the dbuf is aged out of the cache it is destroyed and
+ * becomes eligible for arc eviction.
  */
 static __attribute__((noreturn)) void
 dbuf_evict_thread(void *unused)
@@ -818,7 +1123,9 @@ dbuf_evict_thread(void *unused)
 
 	mutex_enter(&dbuf_evict_lock);
 	while (!dbuf_evict_thread_exit) {
-		while (!dbuf_cache_above_lowater() && !dbuf_evict_thread_exit) {
+		while (!dbuf_cache_above_lowater(DB_DBUF_CACHE) &&
+		    !dbuf_cache_above_lowater(DB_DBUF_INDIRECT_CACHE) &&
+		    !dbuf_evict_thread_exit) {
 			CALLB_CPR_SAFE_BEGIN(&cpr);
 			(void) cv_timedwait_idle_hires(&dbuf_evict_cv,
 			    &dbuf_evict_lock, SEC2NSEC(1), MSEC2NSEC(1), 0);
@@ -827,12 +1134,26 @@ dbuf_evict_thread(void *unused)
 		mutex_exit(&dbuf_evict_lock);
 
 		/*
-		 * Keep evicting as long as we're above the low water mark
-		 * for the cache. We do this without holding the locks to
-		 * minimize lock contention.
+		 * Keep evicting as long as one of the caches is above its
+		 * own low water mark.  We do this without holding the locks
+		 * to minimize lock contention.  Stop as soon as a pass fails
+		 * to free anything, otherwise we would spin on a cache whose
+		 * buffers are all being reused.
 		 */
-		while (dbuf_cache_above_lowater() && !dbuf_evict_thread_exit) {
-			dbuf_evict_one();
+		while (!dbuf_evict_thread_exit) {
+			boolean_t evicted;
+
+			if (dbuf_cache_above_lowater(DB_DBUF_CACHE))
+				evicted = dbuf_evict_one(DB_DBUF_CACHE);
+			else if (dbuf_cache_above_lowater(
+			    DB_DBUF_INDIRECT_CACHE))
+				evicted = dbuf_evict_one(
+				    DB_DBUF_INDIRECT_CACHE);
+			else
+				break;
+
+			if (!evicted)
+				break;
 		}
 
 		mutex_enter(&dbuf_evict_lock);
@@ -845,28 +1166,28 @@ dbuf_evict_thread(void *unused)
 }
 
 /*
- * Wake up the dbuf eviction thread if the dbuf cache is at its max size.
- * If the dbuf cache is at its high water mark, then evict a dbuf from the
- * dbuf cache using the caller's context.
+ * Wake up the dbuf eviction thread if the given dbuf cache is at its max size.
+ * If it is at its high water mark, then evict a dbuf from it using the
+ * caller's context.
  */
 static void
-dbuf_evict_notify(uint64_t size)
+dbuf_evict_notify(dbuf_cached_state_t dcs, uint64_t size)
 {
 	/*
 	 * We check if we should evict without holding the dbuf_evict_lock,
 	 * because it's OK to occasionally make the wrong decision here,
 	 * and grabbing the lock results in massive lock contention.
 	 */
-	if (size > dbuf_cache_target_bytes()) {
+	if (size > dbuf_cache_kind_target_bytes(dcs)) {
 		/*
 		 * Avoid calling dbuf_evict_one() from memory reclaim context
 		 * (e.g. Linux kswapd, FreeBSD pagedaemon) to prevent deadlocks.
 		 * Memory reclaim threads can get stuck waiting for the dbuf
 		 * hash lock.
 		 */
-		if (size > dbuf_cache_hiwater_bytes() &&
+		if (size > dbuf_cache_hiwater_bytes(dcs) &&
 		    !current_is_reclaim_thread()) {
-			dbuf_evict_one();
+			(void) dbuf_evict_one(dcs);
 		}
 		cv_signal(&dbuf_evict_cv);
 	}
@@ -879,9 +1200,16 @@ dbuf_evict_notify(uint64_t size)
 void
 dbuf_cache_reduce_target_size(void)
 {
-	uint64_t size = zfs_refcount_count(&dbuf_caches[DB_DBUF_CACHE].size);
-
-	if (size > dbuf_cache_target_bytes())
+	/*
+	 * Both LRU caches are sized as a fraction of the ARC target, so both
+	 * of their targets shrink when the ARC target does.  Wake the eviction
+	 * thread if either cache is now over its own target; it will drain
+	 * them until the combined size is back under the low water mark.
+	 */
+	if (zfs_refcount_count(&dbuf_caches[DB_DBUF_CACHE].size) >
+	    dbuf_cache_target_bytes() ||
+	    zfs_refcount_count(&dbuf_caches[DB_DBUF_INDIRECT_CACHE].size) >
+	    dbuf_cache_indirect_target_bytes())
 		cv_signal(&dbuf_evict_cv);
 }
 
@@ -896,13 +1224,22 @@ dbuf_kstat_update(kstat_t *ksp, int rw)
 
 	ds->cache_count.value.ui64 =
 	    wmsum_value(&dbuf_sums.cache_count);
-	ds->cache_size_bytes.value.ui64 =
-	    zfs_refcount_count(&dbuf_caches[DB_DBUF_CACHE].size);
-	ds->cache_target_bytes.value.ui64 = dbuf_cache_target_bytes();
-	ds->cache_hiwater_bytes.value.ui64 = dbuf_cache_hiwater_bytes();
-	ds->cache_lowater_bytes.value.ui64 = dbuf_cache_lowater_bytes();
+	ds->cache_size_bytes.value.ui64 = dbuf_cache_lru_size_bytes();
+	ds->cache_target_bytes.value.ui64 = dbuf_cache_total_target_bytes();
+	ds->cache_hiwater_bytes.value.ui64 = dbuf_cache_total_hiwater_bytes();
+	ds->cache_lowater_bytes.value.ui64 = dbuf_cache_total_lowater_bytes();
 	ds->cache_total_evicts.value.ui64 =
 	    wmsum_value(&dbuf_sums.cache_total_evicts);
+	ds->indirect_cache_count.value.ui64 =
+	    wmsum_value(&dbuf_sums.indirect_cache_count);
+	ds->indirect_cache_size_bytes.value.ui64 = zfs_refcount_count(
+	    &dbuf_caches[DB_DBUF_INDIRECT_CACHE].size);
+	ds->indirect_cache_target_bytes.value.ui64 =
+	    dbuf_cache_indirect_target_bytes();
+	ds->indirect_cache_total_evicts.value.ui64 =
+	    wmsum_value(&dbuf_sums.indirect_cache_evicts);
+	ds->cache_evict_skips.value.ui64 =
+	    wmsum_value(&dbuf_sums.cache_evict_skips);
 	for (int i = 0; i < DN_MAX_LEVELS; i++) {
 		ds->cache_levels[i].value.ui64 =
 		    wmsum_value(&dbuf_sums.cache_levels[i]);
@@ -1011,6 +1348,9 @@ dbuf_init(void)
 
 	wmsum_init(&dbuf_sums.cache_count, 0);
 	wmsum_init(&dbuf_sums.cache_total_evicts, 0);
+	wmsum_init(&dbuf_sums.cache_evict_skips, 0);
+	wmsum_init(&dbuf_sums.indirect_cache_count, 0);
+	wmsum_init(&dbuf_sums.indirect_cache_evicts, 0);
 	for (int i = 0; i < DN_MAX_LEVELS; i++) {
 		wmsum_init(&dbuf_sums.cache_levels[i], 0);
 		wmsum_init(&dbuf_sums.cache_levels_bytes[i], 0);
@@ -1085,6 +1425,9 @@ dbuf_fini(void)
 
 	wmsum_fini(&dbuf_sums.cache_count);
 	wmsum_fini(&dbuf_sums.cache_total_evicts);
+	wmsum_fini(&dbuf_sums.cache_evict_skips);
+	wmsum_fini(&dbuf_sums.indirect_cache_count);
+	wmsum_fini(&dbuf_sums.indirect_cache_evicts);
 	for (int i = 0; i < DN_MAX_LEVELS; i++) {
 		wmsum_fini(&dbuf_sums.cache_levels[i]);
 		wmsum_fini(&dbuf_sums.cache_levels_bytes[i]);
@@ -3317,6 +3660,7 @@ dbuf_destroy(dmu_buf_impl_t *db)
 
 	if (multilist_link_active(&db->db_cache_link)) {
 		ASSERT(db->db_caching_status == DB_DBUF_CACHE ||
+		    db->db_caching_status == DB_DBUF_INDIRECT_CACHE ||
 		    db->db_caching_status == DB_DBUF_METADATA_CACHE);
 
 		multilist_remove(&dbuf_caches[db->db_caching_status].cache, db);
@@ -3326,14 +3670,8 @@ dbuf_destroy(dmu_buf_impl_t *db)
 		    &dbuf_caches[db->db_caching_status].size,
 		    db->db.db_size, db);
 
-		if (db->db_caching_status == DB_DBUF_METADATA_CACHE) {
-			DBUF_STAT_BUMPDOWN(metadata_cache_count);
-		} else {
-			DBUF_STAT_BUMPDOWN(cache_levels[db->db_level]);
-			DBUF_STAT_BUMPDOWN(cache_count);
-			DBUF_STAT_DECR(cache_levels_bytes[db->db_level],
-			    db->db.db_size);
-		}
+		dbuf_cache_stats_sub(db->db_caching_status, db->db_level,
+		    db->db.db_size);
 		db->db_caching_status = DB_NO_CACHE;
 	}
 
@@ -4040,7 +4378,14 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 	}
 
 	if (db->db_buf != NULL) {
-		arc_buf_access(db->db_buf);
+		/*
+		 * Keep the ARC's view of this block up to date, and remember
+		 * whether the ARC considers it hot.  The eviction code uses
+		 * that to avoid discarding dbufs whose block the ARC is going
+		 * to keep around anyway.
+		 */
+		if (arc_buf_access(db->db_buf))
+			db->db_cache_hot = B_TRUE;
 		ASSERT(MUTEX_HELD(&db->db_mtx));
 		ASSERT3P(db->db.db_data, ==, db->db_buf->b_data);
 	}
@@ -4065,7 +4410,15 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 	if (multilist_link_active(&db->db_cache_link)) {
 		ASSERT(zfs_refcount_is_zero(&db->db_holds));
 		ASSERT(db->db_caching_status == DB_DBUF_CACHE ||
+		    db->db_caching_status == DB_DBUF_INDIRECT_CACHE ||
 		    db->db_caching_status == DB_DBUF_METADATA_CACHE);
+
+		/*
+		 * It was found in a dbuf cache and is being reused.  Remember
+		 * that for the lifetime of this dbuf, so that the eviction
+		 * code knows better than to throw it away again.
+		 */
+		db->db_cache_hits++;
 
 		multilist_remove(&dbuf_caches[db->db_caching_status].cache, db);
 
@@ -4077,14 +4430,8 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 		    &dbuf_caches[db->db_caching_status].size, usize,
 		    db->db_user);
 
-		if (db->db_caching_status == DB_DBUF_METADATA_CACHE) {
-			DBUF_STAT_BUMPDOWN(metadata_cache_count);
-		} else {
-			DBUF_STAT_BUMPDOWN(cache_levels[db->db_level]);
-			DBUF_STAT_BUMPDOWN(cache_count);
-			DBUF_STAT_DECR(cache_levels_bytes[db->db_level],
-			    size + usize);
-		}
+		dbuf_cache_stats_sub(db->db_caching_status, db->db_level,
+		    size + usize);
 		db->db_caching_status = DB_NO_CACHE;
 	}
 	(void) zfs_refcount_add(&db->db_holds, tag);
@@ -4300,9 +4647,7 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, const void *tag, boolean_t evicting)
 		} else if (!multilist_link_active(&db->db_cache_link)) {
 			ASSERT3U(db->db_caching_status, ==, DB_NO_CACHE);
 
-			dbuf_cached_state_t dcs =
-			    dbuf_include_in_metadata_cache(db) ?
-			    DB_DBUF_METADATA_CACHE : DB_DBUF_CACHE;
+			dbuf_cached_state_t dcs = dbuf_cache_select(db);
 			db->db_caching_status = dcs;
 
 			multilist_insert(&dbuf_caches[dcs].cache, db);
@@ -4313,22 +4658,21 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, const void *tag, boolean_t evicting)
 			size = zfs_refcount_add_many(
 			    &dbuf_caches[dcs].size, dbu_size, db->db_user);
 			uint8_t db_level = db->db_level;
+			uint64_t total_size = dbuf_cache_lru_size_bytes();
 			mutex_exit(&db->db_mtx);
 
 			if (dcs == DB_DBUF_METADATA_CACHE) {
-				DBUF_STAT_BUMP(metadata_cache_count);
 				DBUF_STAT_MAX(metadata_cache_size_bytes_max,
 				    size);
 			} else {
-				DBUF_STAT_BUMP(cache_count);
-				DBUF_STAT_MAX(cache_size_bytes_max, size);
-				DBUF_STAT_BUMP(cache_levels[db_level]);
-				DBUF_STAT_INCR(cache_levels_bytes[db_level],
-				    db_size + dbu_size);
+				DBUF_STAT_MAX(cache_size_bytes_max,
+				    total_size);
 			}
+			dbuf_cache_stats_add(dcs, db_level,
+			    db_size + dbu_size);
 
-			if (dcs == DB_DBUF_CACHE && !evicting)
-				dbuf_evict_notify(size);
+			if (dcs != DB_DBUF_METADATA_CACHE && !evicting)
+				dbuf_evict_notify(dcs, size);
 		}
 	} else {
 		mutex_exit(&db->db_mtx);
@@ -5571,6 +5915,15 @@ ZFS_MODULE_PARAM(zfs_dbuf_cache, dbuf_cache_, hiwater_pct, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_dbuf_cache, dbuf_cache_, lowater_pct, UINT, ZMOD_RW,
 	"Percentage below dbuf_cache_max_bytes when dbuf eviction stops.");
+
+ZFS_MODULE_PARAM(zfs_dbuf_cache, dbuf_cache_, indirect_max_bytes, U64, ZMOD_RW,
+	"Maximum size in bytes of the indirect block dbuf cache.");
+
+ZFS_MODULE_PARAM(zfs_dbuf_cache, dbuf_cache_, indirect_shift, UINT, ZMOD_RW,
+	"Set size of indirect block dbuf cache to log2 fraction of arc size.");
+
+ZFS_MODULE_PARAM(zfs_dbuf_cache, dbuf_cache_, evict_scan, UINT, ZMOD_RW,
+	"Number of oldest cached dbufs scanned for an eviction victim.");
 
 ZFS_MODULE_PARAM(zfs_dbuf, dbuf_, metadata_cache_max_bytes, U64, ZMOD_RW,
 	"Maximum size in bytes of dbuf metadata cache.");
