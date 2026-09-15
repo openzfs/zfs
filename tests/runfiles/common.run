@@ -1180,7 +1180,7 @@ tests = ['zstream_checksum_001_pos',
     'zstream_recompress_005_pos',
     'zstream_redup_001_pos',
     'zstream_selftest_queue_001_pos',
-    'zstream_validate_001_neg']
+    'zstream_validate_001_neg', 'zstream_validate_002_neg']
 tags = ['functional', 'zstream']
 
 [tests/functional/zvol/zvol_ENOSPC]
