@@ -432,13 +432,6 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_getattr, 4,
 
 	error = -zfs_getattr_fast(idmap, request_mask, ip, stat);
 
-#ifdef STATX_BTIME
-	if (request_mask & STATX_BTIME) {
-		stat->btime = zp->z_btime;
-		stat->result_mask |= STATX_BTIME;
-	}
-#endif
-
 #ifdef STATX_CHANGE_COOKIE
 	if (request_mask & STATX_CHANGE_COOKIE) {
 		/*

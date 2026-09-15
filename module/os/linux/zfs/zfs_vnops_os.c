@@ -1775,14 +1775,31 @@ zfs_getattr_fast(zidmap_t *idmap, u32 request_mask, struct inode *ip,
 
 	mutex_exit(&zp->z_lock);
 
+#ifdef STATX_BTIME
+	if (request_mask & STATX_BTIME) {
+		sp->btime = zp->z_btime;
+		sp->result_mask |= STATX_BTIME;
+	}
+#endif
+
 	/*
 	 * Required to prevent NFS client from detecting different inode
 	 * numbers of snapshot root dentry before and after snapshot mount.
+	 * Likewise report the snapshot creation time as the birth time,
+	 * matching the unmounted '.zfs/snapshot/<name>' directory.
 	 */
 	if (zfsvfs->z_issnap) {
-		if (ip->i_sb->s_root->d_inode == ip)
+		if (ip->i_sb->s_root->d_inode == ip) {
 			sp->ino = ZFSCTL_INO_SNAPDIRS -
 			    dmu_objset_id(zfsvfs->z_os);
+#ifdef STATX_BTIME
+			if (request_mask & STATX_BTIME) {
+				sp->btime.tv_sec = dsl_get_creation(
+				    dmu_objset_ds(zfsvfs->z_os));
+				sp->btime.tv_nsec = 0;
+			}
+#endif
+		}
 	}
 
 	zfs_exit(zfsvfs, FTAG);
