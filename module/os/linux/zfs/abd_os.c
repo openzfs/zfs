@@ -914,7 +914,7 @@ abd_iter_map(struct abd_iter *aiter)
 		    aiter->iter_abd->abd_size - aiter->iter_pos);
 
 		struct page *page = sg_page(aiter->iter_sg);
-		if (PageHighMem(page)) {
+		if (zfs_kmap_partial()) {
 			page = nth_page(page, offset / PAGE_SIZE);
 			offset &= PAGE_SIZE - 1;
 			aiter->iter_mapsize = MIN(aiter->iter_mapsize,
@@ -940,8 +940,7 @@ abd_iter_unmap(struct abd_iter *aiter)
 	if (!abd_is_linear(aiter->iter_abd)) {
 		size_t offset = aiter->iter_offset;
 
-		struct page *page = sg_page(aiter->iter_sg);
-		if (PageHighMem(page))
+		if (zfs_kmap_partial())
 			offset &= PAGE_SIZE - 1;
 
 		/* LINTED E_FUNC_SET_NOT_USED */
