@@ -42,6 +42,23 @@
 #define	zfs_kmap(page)		kmap(page)
 #define	zfs_kunmap(page)	kunmap(page)
 
+/*
+ * Does zfs_kmap_local() give access to only the one page it was passed?
+ * If not, a run of physically contiguous pages can be mapped once and
+ * accessed as a whole.
+ *
+ * Only CONFIG_HIGHMEM kernels ever set up a single page temporary
+ * mapping; everywhere else zfs_kmap_local() is just page_address().  We
+ * deliberately do not narrow this to PageHighMem(), because a HIGHMEM
+ * kernel built with CONFIG_DEBUG_KMAP_LOCAL_FORCE_MAP maps lowmem pages
+ * one at a time as well.  Compare folio_test_partial_kmap() upstream.
+ */
+static inline int
+zfs_kmap_partial(void)
+{
+	return (IS_ENABLED(CONFIG_HIGHMEM));
+}
+
 /* 5.0 API change - no more 'type' argument for access_ok() */
 #ifdef HAVE_ACCESS_OK_TYPE
 #define	zfs_access_ok(type, addr, size)	access_ok(type, addr, size)
