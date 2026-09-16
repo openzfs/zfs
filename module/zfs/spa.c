@@ -2253,6 +2253,12 @@ spa_unload_sync_time_logger(spa_t *spa)
 	spa_sync_time_logger(spa, txg, B_TRUE);
 
 	dmu_tx_commit(tx);
+
+	/*
+	 * The caller derives spa_final_txg from spa_last_synced_txg, so this
+	 * write has to reach disk before that happens.
+	 */
+	txg_wait_synced(spa_get_dsl(spa), txg);
 }
 
 static void
