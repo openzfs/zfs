@@ -159,7 +159,12 @@ function is_32bit
 
 function is_kmemleak
 {
-	is_linux && [ -e /sys/kernel/debug/kmemleak ]
+	is_linux && [ -e /sys/kernel/debug/kmemleak ] || return 1
+
+	# That file exists even when the detector never started. Its slab
+	# cache does not. Unreadable slabinfo errs towards enabled.
+	[ -r /proc/slabinfo ] || return 0
+	grep -q '^kmemleak_object ' /proc/slabinfo
 }
 
 # Determine whether a dataset is mounted
