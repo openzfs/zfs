@@ -501,8 +501,9 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 	 * we can tell it about the multi-block read.  dbuf_read() only knows
 	 * about the one block it is accessing.
 	 */
-	dbuf_flags = (flags & ~DMU_READ_PREFETCH) | DMU_READ_NO_PREFETCH |
-	    DB_RF_CANFAIL | DB_RF_NEVERWAIT | DB_RF_HAVESTRUCT;
+	dbuf_flags = (flags & ~(DMU_READ_PREFETCH | DMU_EPHEMERAL)) |
+	    DMU_READ_NO_PREFETCH | DB_RF_CANFAIL | DB_RF_NEVERWAIT |
+	    DB_RF_HAVESTRUCT;
 
 	rw_enter(&dn->dn_struct_rwlock, RW_READER);
 	if (dn->dn_datablkshift) {
@@ -529,6 +530,7 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		zio = zio_root(dn->dn_objset->os_spa, NULL, NULL,
 		    ZIO_FLAG_CANFAIL);
 	blkid = dbuf_whichblock(dn, 0, offset);
+
 	if ((flags & DMU_READ_NO_PREFETCH) == 0) {
 		/*
 		 * Prepare the zfetch before initiating the demand reads, so
@@ -539,9 +541,29 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		    read && !(flags & DMU_DIRECTIO), B_TRUE);
 	}
 	for (i = 0; i < nblks; i++) {
-		dmu_buf_impl_t *db = ((flags & DMU_EPHEMERAL) != 0) ?
-		    dbuf_hold_ephemeral(dn, blkid + i, tag) :
-		    dbuf_hold(dn, blkid + i, tag);
+		uint64_t blk = blkid + i;
+		dmu_buf_impl_t *db;
+
+		/*
+		 * The request ends in the middle of its last block, and that
+		 * block is not the object's last one: dbuf_read() marks such a
+		 * dbuf partially read, and if the request also starts at the
+		 * beginning of that block it is kept in the dbuf cache for the
+		 * follow-up reads (see db_partial_read).
+		 */
+		if (read && i == nblks - 1 && blk < dn->dn_maxblkid &&
+		    offset + length < (blk + 1) * dn->dn_datablksz) {
+			dbuf_flags |= (offset <= blk * dn->dn_datablksz) ?
+			    DMU_PARTIAL_FIRST : DMU_PARTIAL_MORE;
+		}
+
+		/*
+		 * A private dbuf is never published, so it could not serve the
+		 * follow-up reads that DMU_PARTIAL_FIRST keeps the dbuf for.
+		 */
+		db = ((flags & DMU_EPHEMERAL) != 0 &&
+		    (dbuf_flags & DMU_PARTIAL_FIRST) == 0) ?
+		    dbuf_hold_ephemeral(dn, blk, tag) : dbuf_hold(dn, blk, tag);
 		if (db == NULL) {
 			if (zs) {
 				dmu_zfetch_run(&dn->dn_zfetch, zs, missed,
@@ -563,14 +585,6 @@ dmu_buf_hold_array_by_dnode(dnode_t *dn, uint64_t offset, uint64_t length,
 		 * state will not yet be CACHED.
 		 */
 		if (read) {
-			if (i == nblks - 1 && blkid + i < dn->dn_maxblkid &&
-			    offset + length < db->db.db_offset +
-			    db->db.db_size) {
-				if (offset <= db->db.db_offset)
-					dbuf_flags |= DMU_PARTIAL_FIRST;
-				else
-					dbuf_flags |= DMU_PARTIAL_MORE;
-			}
 			(void) dbuf_read(db, zio, dbuf_flags);
 			if (db->db_state != DB_CACHED)
 				missed = B_TRUE;
@@ -1359,6 +1373,37 @@ dmu_free_range(objset_t *os, uint64_t object, uint64_t offset,
 	return (0);
 }
 
+/*
+ * A read that will not be cached at the dbuf layer, and that the caller
+ * promises not to dirty, may be served by a private (unpublished) dbuf.
+ * Such a dbuf is never inserted into the dbuf hash table or the dnode's
+ * dbuf list, so it is created and destroyed without taking dn_dbufs_mtx.
+ * This is a property of the read, not of the caller: any read that will
+ * not populate the dbuf cache pays that lock for a dbuf which is destroyed
+ * on release anyway.
+ *
+ * Only the read-only entry points below opt in.  Direct callers of
+ * dmu_buf_hold_array_by_dnode() are left alone: zfs_rewrite() dirties the
+ * dbufs it holds (while passing DMU_UNCACHEDIO itself), and
+ * zfs_dedupe_range_memcmp() and ddt_log() simply do not ask for them.
+ */
+static inline boolean_t
+dmu_read_may_be_private(dnode_t *dn, dmu_flags_t flags)
+{
+	/*
+	 * The caller explicitly asked us not to cache this read, so the dbuf
+	 * would be destroyed on release.
+	 */
+	if (flags & DMU_UNCACHEDIO)
+		return (B_TRUE);
+
+	/*
+	 * The dataset does not cache this kind of block at all, so the dbuf
+	 * would be destroyed on release regardless (see DBUF_IS_CACHEABLE()).
+	 */
+	return (!DNODE_LEVEL_IS_CACHEABLE(dn, 0));
+}
+
 static int
 dmu_read_impl(dnode_t *dn, uint64_t offset, uint64_t size,
     void *buf, dmu_flags_t flags)
@@ -1390,6 +1435,13 @@ dmu_read_impl(dnode_t *dn, uint64_t offset, uint64_t size,
 		return (err);
 	}
 	flags &= ~DMU_DIRECTIO;
+
+	/*
+	 * If this read will not populate the dbuf cache there is no reason
+	 * to publish its dbufs; use private dbufs and skip dn_dbufs_mtx.
+	 */
+	if (dmu_read_may_be_private(dn, flags))
+		flags |= DMU_EPHEMERAL;
 
 	while (size > 0) {
 		uint64_t mylen = MIN(size, DMU_MAX_ACCESS / 2);
@@ -1579,6 +1631,13 @@ dmu_read_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
 	if ((flags & DMU_DIRECTIO) && (uio->uio_extflg & UIO_DIRECT))
 		return (dmu_read_uio_direct(dn, uio, size, flags));
 	flags &= ~DMU_DIRECTIO;
+
+	/*
+	 * If this read will not populate the dbuf cache there is no reason
+	 * to publish its dbufs; use private dbufs and skip dn_dbufs_mtx.
+	 */
+	if (dmu_read_may_be_private(dn, flags))
+		flags |= DMU_EPHEMERAL;
 
 	/*
 	 * NB: we could do this block-at-a-time, but it's nice

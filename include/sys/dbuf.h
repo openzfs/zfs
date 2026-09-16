@@ -354,9 +354,10 @@ dmu_buf_impl_t *dbuf_hold_level(struct dnode *dn, int level, uint64_t blkid,
 /*
  * Like dbuf_hold(), but a dbuf created on a cache miss may be ephemeral
  * (never published to the dbuf hash table or dn_dbufs), for reads that will
- * not be cached at the dbuf layer.  This is only done when the
- * zfs_dbuf_ephemeral module parameter is set and the platform does not use
- * dnode_move(); otherwise this behaves exactly like dbuf_hold().
+ * not be cached at the dbuf layer.  The caller must not dirty the returned
+ * dbuf.  This is only done when the zfs_dbuf_ephemeral module parameter is
+ * set and the platform does not use dnode_move(); otherwise this behaves
+ * exactly like dbuf_hold().
  */
 dmu_buf_impl_t *dbuf_hold_ephemeral(struct dnode *dn, uint64_t blkid,
     const void *tag);

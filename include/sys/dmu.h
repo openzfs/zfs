@@ -566,8 +566,10 @@ typedef enum dmu_flags {
 	DMU_IS_PREFETCH		= 1 << 10, /* This read is a prefetch. */
 	/*
 	 * Internal: allow cache-miss dbufs to be created "ephemeral" (never
-	 * published to the dbuf hash table or dn_dbufs).  Used by the Direct
-	 * I/O read path so uncached reads skip dn_dbufs_mtx.
+	 * published to the dbuf hash table or dn_dbufs).  Set by read paths
+	 * that will not populate the dbuf cache, so that they skip
+	 * dn_dbufs_mtx.  The caller must not dirty such a dbuf; the read
+	 * entry points that set this flag never do.
 	 */
 	DMU_EPHEMERAL		= 1 << 11,
 } dmu_flags_t;

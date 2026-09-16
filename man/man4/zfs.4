@@ -1178,13 +1178,17 @@ Maximum size of the internal ZFS debug log.
 .It Sy zfs_dbuf_ephemeral Ns = Ns Sy 1 Ns | Ns 0 Pq int
 When set, the
 .Sy DMU_EPHEMERAL
-flag is honored: a read that misses the dbuf cache may create an ephemeral
-dbuf that is not published to the dbuf hash table or the dnode's dbuf list,
-avoiding
+flag is honored: a read that will not populate the dbuf cache
+.Pq Direct I/O, uncached I/O, or a dataset that does not cache the data
+may create an ephemeral dbuf that is not published to the dbuf hash table
+or the dnode's dbuf list, avoiding
 .Sy dn_dbufs_mtx
 on the read path.
 When cleared, cache-miss dbufs are published normally, as with
 .Sy dbuf_hold .
+A dbuf that is read from the beginning of a block but not to the end of it
+is kept in the dbuf cache for the follow-up reads, and so uses the regular
+published path.
 This tunable is only present on platforms where
 .Fn dnode_move
 is not used.

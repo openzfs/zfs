@@ -2328,6 +2328,11 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 
 	ASSERT(tx->tx_txg != 0);
 	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
+	/*
+	 * A private dbuf is never published, so it could never be found again
+	 * by sync or eviction.  The private-hold contract forbids dirtying it.
+	 */
+	ASSERT0(db->db_ephemeral);
 	DMU_TX_DIRTY_BUF(tx, db);
 
 	DB_DNODE_ENTER(db);
@@ -4379,6 +4384,17 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, const void *tag, boolean_t evicting)
 		} else if (arc_released(db->db_buf)) {
 			/*
 			 * This dbuf has anonymous data associated with it.
+			 */
+			dbuf_destroy(db);
+		} else if (db->db_ephemeral) {
+			/*
+			 * A private dbuf is not in the hash table or dnode's
+			 * dbuf list, so it could never be found, nor could
+			 * eviction reach it once cached.  Never cache, even if
+			 * db_partial_read was set: the reads that flag expects
+			 * could not find a private dbuf either.  (The hold path
+			 * avoids creating private dbufs for such reads; see
+			 * dmu_buf_hold_array_by_dnode().)
 			 */
 			dbuf_destroy(db);
 		} else if (!db->db_partial_read && !DBUF_IS_CACHEABLE(db)) {
