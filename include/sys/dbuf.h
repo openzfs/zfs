@@ -271,10 +271,11 @@ typedef struct dmu_buf_impl {
 	uint8_t db_partial_read;
 
 	/*
-	 * Ephemeral dbuf: not in the dbuf hash table or dn_dbufs; only the
-	 * creating thread can find it and it is destroyed on release.
+	 * Ephemeral dbuf: not published to the dbuf hash table or the
+	 * dnode's dn_dbufs list.  Only the holder that created it can find
+	 * it, and it is destroyed on release without taking dn_dbufs_mtx.
 	 */
-	uint8_t db_no_publish;
+	uint8_t db_ephemeral;
 
 	/*
 	 * Protects db_buf's contents if they contain an indirect block or data
@@ -351,12 +352,13 @@ dmu_buf_impl_t *dbuf_hold(struct dnode *dn, uint64_t blkid, const void *tag);
 dmu_buf_impl_t *dbuf_hold_level(struct dnode *dn, int level, uint64_t blkid,
     const void *tag);
 /*
- * Like dbuf_hold(), but a dbuf created on a cache miss is ephemeral (never
- * published), for Direct I/O reads that will not be cached.  The ephemeral
- * behavior is only applied when the zfs_dbuf_dio_no_publish module parameter
- * is set; otherwise this behaves exactly like dbuf_hold().
+ * Like dbuf_hold(), but a dbuf created on a cache miss may be ephemeral
+ * (never published to the dbuf hash table or dn_dbufs), for reads that will
+ * not be cached at the dbuf layer.  This is only done when the
+ * zfs_dbuf_ephemeral module parameter is set and the platform does not use
+ * dnode_move(); otherwise this behaves exactly like dbuf_hold().
  */
-dmu_buf_impl_t *dbuf_hold_dio(struct dnode *dn, uint64_t blkid,
+dmu_buf_impl_t *dbuf_hold_ephemeral(struct dnode *dn, uint64_t blkid,
     const void *tag);
 int dbuf_hold_impl(struct dnode *dn, uint8_t level, uint64_t blkid,
     boolean_t fail_sparse, boolean_t fail_uncached,

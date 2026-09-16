@@ -260,7 +260,7 @@ dmu_read_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 	 * in-flight (dirty write / clone) blocks are unaffected.
 	 */
 	err = dmu_buf_hold_array_by_dnode(dn, offset,
-	    size, B_FALSE, FTAG, &numbufs, &dbp, flags | DMU_NO_PUBLISH);
+	    size, B_FALSE, FTAG, &numbufs, &dbp, flags | DMU_EPHEMERAL);
 	if (err)
 		return (err);
 
