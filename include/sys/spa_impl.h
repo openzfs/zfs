@@ -345,7 +345,8 @@ struct spa {
 	kthread_t	*spa_async_thread;	/* thread doing async task */
 	int		spa_async_suspended;	/* async tasks suspended */
 	kcondvar_t	spa_async_cv;		/* wait for thread_exit() */
-	uint32_t	spa_async_tasks;	/* async task mask */
+	uint32_t	spa_async_tasks;	/* queued async tasks */
+	uint32_t	spa_async_tasks_running; /* worker task mask */
 	uint64_t	spa_missing_tvds;	/* unopenable tvds on load */
 	uint64_t	spa_missing_tvds_allowed; /* allow loading spa? */
 
