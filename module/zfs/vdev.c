@@ -3927,8 +3927,8 @@ vdev_resilver_note_repairs(vdev_t *vd)
  * missed writes after txg, while none of the pass's repairs to it failed,
  * needs another pass to complete it; report whether any leaf does. Any other
  * leaf left with missing writes is stalled: automatic healing requests skip
- * it until it returns or the pool is imported, so that an unchanged failure
- * is not retried.
+ * it until it returns, the checkpoint is discarded, or the pool is imported,
+ * so that an unchanged failure is not retried.
  */
 boolean_t
 vdev_resilver_settle(vdev_t *vd, uint64_t txg)
@@ -3951,6 +3951,22 @@ vdev_resilver_settle(vdev_t *vd, uint64_t txg)
 			missed = B_TRUE;
 	}
 	return (missed);
+}
+
+/*
+ * Let automatic healing requests reconsider every leaf under vd.
+ */
+void
+vdev_resilver_unstall(vdev_t *vd)
+{
+	for (int c = 0; c < vd->vdev_children; c++)
+		vdev_resilver_unstall(vd->vdev_child[c]);
+
+	if (vd->vdev_children == 0) {
+		mutex_enter(&vd->vdev_dtl_lock);
+		vd->vdev_heal_stalled = B_FALSE;
+		mutex_exit(&vd->vdev_dtl_lock);
+	}
 }
 
 /*

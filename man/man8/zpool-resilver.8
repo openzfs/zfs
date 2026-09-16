@@ -45,8 +45,8 @@ beginning when the pool is imported.
 If a healing resilver cannot complete a device, for example because repair
 writes to it fail or metadata cannot be read, the device's missing data remains
 marked for resilvering.
-ZFS does not retry automatically until the device returns or the pool is
-imported; a scrub does not retry it.
+ZFS does not retry automatically until the device returns, a checkpoint is
+discarded, or the pool is imported; a scrub does not retry it.
 After correcting the problem, use this command to retry.
 A block that no device can read is reported as a permanent error and does not
 keep a device incomplete.

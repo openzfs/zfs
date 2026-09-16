@@ -80,6 +80,7 @@ extern boolean_t vdev_resilver_needed(vdev_t *vd,
     uint64_t *minp, uint64_t *maxp);
 extern void vdev_resilver_note_repairs(vdev_t *vd);
 extern boolean_t vdev_resilver_settle(vdev_t *vd, uint64_t txg);
+extern void vdev_resilver_unstall(vdev_t *vd);
 extern void vdev_destroy_unlink_zap(vdev_t *vd, uint64_t zapobj,
     dmu_tx_t *tx);
 extern uint64_t vdev_create_link_zap(vdev_t *vd, dmu_tx_t *tx);
