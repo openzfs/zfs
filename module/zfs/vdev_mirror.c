@@ -114,7 +114,7 @@ typedef struct mirror_map {
 	mirror_child_t	mm_child[];
 } mirror_map_t;
 
-static const int vdev_mirror_shift = 21;
+const int vdev_mirror_shift = 21;
 
 /*
  * The load configuration settings below are tuned by default for
@@ -169,16 +169,16 @@ static const zio_vsd_ops_t vdev_mirror_vsd_ops = {
 	.vsd_free = vdev_mirror_map_free,
 };
 
-static int
-vdev_mirror_load(mirror_map_t *mm, vdev_t *vd, uint64_t zio_offset)
+/*
+ * The estimated cost of reading a child at an offset: its pending queue
+ * length plus a seek penalty. Split indirect reads use it to choose a copy.
+ */
+int
+vdev_mirror_load(vdev_t *vd, uint64_t zio_offset)
 {
 	uint64_t last_offset;
 	int64_t offset_diff;
 	int load;
-
-	/* All DVAs have equal weight at the root. */
-	if (mm->mm_root)
-		return (INT_MAX);
 
 	/*
 	 * We don't return INT_MAX if the device is resilvering i.e.
@@ -554,7 +554,9 @@ vdev_mirror_child_select(zio_t *zio)
 			break;
 		}
 
-		mc->mc_load = vdev_mirror_load(mm, mc->mc_vd, mc->mc_offset);
+		/* All DVAs have equal weight at the root. */
+		mc->mc_load = mm->mm_root ? INT_MAX :
+		    vdev_mirror_load(mc->mc_vd, mc->mc_offset);
 		if (mc->mc_load > lowest_load)
 			continue;
 

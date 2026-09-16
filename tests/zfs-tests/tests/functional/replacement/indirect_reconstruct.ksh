@@ -31,6 +31,8 @@
 #	   a read must fail rather than enumerate indefinitely.
 #	4. Restore it and heal. Retire the intact copy and verify a cold read
 #	   of the healed one.
+#	5. Repeat with a hot spare whose original is offline, so the first
+#	   copy with data is the stale spare and the intact copy comes later.
 #
 
 verify_runnable "global"
@@ -158,5 +160,15 @@ log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
 log_must zpool attach "$TESTPOOL1" "$workdir/disk-0" "$workdir/disk-2"
 read_fails_bounded "$workdir/disk-0"
 verify_healed "$workdir/disk-2" "$workdir/disk-0"
+
+log_note "Stale spare ahead of the intact copy"
+create_split_pool
+log_must zpool attach -w "$TESTPOOL1" "$workdir/disk-0" "$workdir/disk-2"
+log_must zpool add "$TESTPOOL1" spare "$workdir/disk-3"
+log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
+log_must zpool replace "$TESTPOOL1" "$workdir/disk-0" "$workdir/disk-3"
+log_must zpool offline "$TESTPOOL1" "$workdir/disk-0"
+# A healed spare stays attached until the original is removed.
+verify_healed "$workdir/disk-3" "$workdir/disk-0" "$workdir/disk-2"
 
 log_pass "Split reconstruction tried intact copies before sampling"

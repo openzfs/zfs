@@ -2119,6 +2119,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/replacement/cleanup.ksh \
 	functional/replacement/detach.ksh \
 	functional/replacement/indirect_reconstruct.ksh \
+	functional/replacement/indirect_repair.ksh \
 	functional/replacement/rebuild_disabled_feature.ksh \
 	functional/replacement/rebuild_multiple.ksh \
 	functional/replacement/rebuild_raidz.ksh \
