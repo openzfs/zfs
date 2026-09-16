@@ -416,6 +416,29 @@ If you have slowly failing hardware - periodically repairing the data
 is not going to save you from data loss later on when the hardware fails
 completely.
 .El
+.Pp
+A receive fails if the destination filesystem contains blocks larger
+than 128 KiB but the incoming incremental stream does not carry large
+blocks.
+This happens when the sending side omits
+.Fl L
+.Pq Fl -large-block ,
+and also when the sending side passes
+.Fl L
+but its own copy contains no large blocks, which makes the flag a
+no-op.
+The second case means the two copies have different physical block
+layouts, generally because an earlier replication in the opposite
+direction was run without
+.Fl L ,
+and it cannot be resolved by adding
+.Fl L
+to the failing send.
+Receive a full stream into a new dataset instead.
+See
+.Fl L
+in
+.Xr zfs-send 8 .
 .
 .Sh EXAMPLES
 .\" These are, respectively, examples 12, 13 from zfs.8

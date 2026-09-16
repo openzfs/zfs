@@ -2216,6 +2216,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send_hole_birth.ksh \
 	functional/rsend/send_invalid.ksh \
 	functional/rsend/send_large_blocks_incremental.ksh \
+	functional/rsend/send_large_blocks_reverse.ksh \
 	functional/rsend/send_large_blocks_initial.ksh \
 	functional/rsend/send_large_microzap_incremental.ksh \
 	functional/rsend/send_large_microzap_transitive.ksh \
