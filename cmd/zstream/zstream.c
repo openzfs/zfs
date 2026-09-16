@@ -15,13 +15,23 @@
  * Copyright (c) 2020 by Datto Inc. All rights reserved.
  */
 
+#include <err.h>
+#include <libspl.h>
+#include <libzfs.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <zfs_fletcher.h>
+#include <sys/abd.h>
+#include <sys/zfs_refcount.h>
+#include <sys/zio.h>
+#include <sys/zstd/zstd.h>
 
 #include "zstream.h"
 #include "zstream_util.h"
+
+static libzfs_handle_t *libzfs_handle = NULL;
 
 void
 zstream_usage(void)
@@ -30,21 +40,20 @@ zstream_usage(void)
 	    "usage: zstream command args ...\n"
 	    "Available commands are:\n"
 	    "\n"
-	    "\tzstream dump [-vCd] FILE\n"
-	    "\t... | zstream dump [-vCd]\n"
+	    "\tzstream decompress [-v] [object,offset[,type]...] [file]\n"
 	    "\n"
-	    "\tzstream decompress [-v] [OBJECT,OFFSET[,TYPE]] ...\n"
+	    "\tzstream drop_records [-v] [object,offset...] [file]\n"
 	    "\n"
-	    "\tzstream drop_record [-v] [OBJECT,OFFSET] ...\n"
+	    "\tzstream dump [-Cvd] [file]\n"
 	    "\n"
-	    "\tzstream raw [-v] [-b blocks] [-g guid] IMAGE|DEVICE FILE\n"
-	    "\t... | zstream raw [-v] [-b blocks] [-g guid] IMAGE|DEVICE\n"
+	    "\tzstream raw [-v] [-b max_buffers] [-g fromguid] "
+	    "image|device [file]\n"
 	    "\n"
-	    "\tzstream recompress [-t num_threads] [-l level] TYPE\n"
+	    "\tzstream recompress [-t num_threads] compress_type [file]\n"
 	    "\n"
-	    "\tzstream token resume_token\n"
+	    "\tzstream redup [-v] file\n"
 	    "\n"
-	    "\tzstream redup [-v] FILE | ...\n");
+	    "\tzstream token resume_token\n");
 	exit(1);
 }
 
@@ -64,10 +73,40 @@ set_signal_mask(void)
 	safe_pthread_sigmask(SIG_SETMASK, &mask, NULL);
 }
 
+static void
+libraries_init(void)
+{
+	zfs_refcount_init();
+	abd_init();
+	zio_init();
+	zstd_init();
+	libspl_init();
+	fletcher_4_init();
+	libzfs_handle = libzfs_init();
+}
+
+static void
+libraries_fini(void)
+{
+	if (libzfs_handle == NULL)
+		return;
+	libzfs_fini(libzfs_handle);
+	fletcher_4_fini();
+	libspl_fini();
+	zio_fini();
+	zstd_fini();
+	abd_fini();
+	zfs_refcount_fini();
+}
+
 int
 main(int argc, char *argv[])
 {
+	libraries_init();
 	set_signal_mask();
+
+	if (atexit(libraries_fini) != 0)
+		err(1, "atexit failed");
 
 	char *basename = strrchr(argv[0], '/');
 	basename = basename ? (basename + 1) : argv[0];
@@ -79,23 +118,25 @@ main(int argc, char *argv[])
 
 	char *subcommand = argv[1];
 
-	if (strcmp(subcommand, "dump") == 0) {
-		return (zstream_do_dump(argc - 1, argv + 1));
-	} else if (strcmp(subcommand, "decompress") == 0) {
+	if (strcmp(subcommand, "decompress") == 0) {
 		return (zstream_do_decompress(argc - 1, argv + 1));
-	} else if (strcmp(subcommand, "drop_record") == 0) {
-		return (zstream_do_drop_record(argc - 1, argv + 1));
+	} else if (strcmp(subcommand, "drop_records") == 0 ||
+	    strcmp(subcommand, "drop_record") == 0) {
+		/* "drop_record" is the original name, kept for compatibility */
+		return (zstream_do_drop_records(argc - 1, argv + 1));
+	} else if (strcmp(subcommand, "dump") == 0) {
+		return (zstream_do_dump(argc - 1, argv + 1));
 	} else if (strcmp(subcommand, "raw") == 0) {
 		return (zstream_do_raw(argc - 1, argv + 1));
 	} else if (strcmp(subcommand, "recompress") == 0) {
 		return (zstream_do_recompress(argc - 1, argv + 1));
-	} else if (strcmp(subcommand, "token") == 0) {
-		return (zstream_do_token(argc - 1, argv + 1));
 	} else if (strcmp(subcommand, "redup") == 0) {
 		return (zstream_do_redup(argc - 1, argv + 1));
 	} else if (strcmp(subcommand, "selftest") == 0) {
 		/* Undocumented; used by the ZFS test suite */
 		return (zstream_do_selftest(argc - 1, argv + 1));
+	} else if (strcmp(subcommand, "token") == 0) {
+		return (zstream_do_token(argc - 1, argv + 1));
 	} else {
 		zstream_usage();
 	}

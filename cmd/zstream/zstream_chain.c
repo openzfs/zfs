@@ -16,17 +16,11 @@
 
 #include <assert.h>
 #include <err.h>
-#include <libspl.h>
 #include <pthread.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <sys/abd.h>
 #include <sys/param.h>
 #include <sys/stdtypes.h>
-#include <sys/zio.h>
-#include <sys/zstd/zstd.h>
-#include <sys/zfs_refcount.h>
-#include <zfs_fletcher.h>
 
 #include "zstream_chain.h"
 #include "zstream_queue.h"
@@ -63,28 +57,6 @@ chain_terminator(void)
 {
 	chain_step_t step = { .cs_type = CS_TERMINATE };
 	return (step);
-}
-
-static void
-libraries_init(void)
-{
-	zfs_refcount_init();
-	abd_init();
-	zio_init();
-	zstd_init();
-	libspl_init();
-	fletcher_4_init();
-}
-
-static void
-libraries_fini(void)
-{
-	fletcher_4_fini();
-	libspl_fini();
-	zio_fini();
-	zstd_fini();
-	abd_fini();
-	zfs_refcount_fini();
 }
 
 /*
@@ -254,8 +226,6 @@ zstream_chain_exec(zstream_chain_t chain, chain_attrs_t *attrs)
 	chain_attrs_t backup_attrs = {0};
 	chain_attrs = attrs ? attrs : &backup_attrs;
 
-	libraries_init();
-
 	/* Spawn threads */
 	for (int i = 0; i < num_workers; i++) {
 		char name[32];
@@ -269,8 +239,6 @@ zstream_chain_exec(zstream_chain_t chain, chain_attrs_t *attrs)
 		int ret = pthread_join(worker_threads[i], NULL);
 		VERIFY3S(ret, ==, 0);
 	}
-
-	libraries_fini();
 }
 
 /*
@@ -293,8 +261,6 @@ zstream_chain_exec_serialized(zstream_chain_t chain, chain_attrs_t *attrs)
 
 	chain_attrs_t backup_attrs = {0};
 	chain_attrs = attrs ? attrs : &backup_attrs;
-
-	libraries_init();
 
 	while (!done) {
 		for (int i = 0; i < stats.ct_num_steps; i++) {
@@ -323,6 +289,4 @@ zstream_chain_exec_serialized(zstream_chain_t chain, chain_attrs_t *attrs)
 			}
 		}
 	}
-
-	libraries_fini();
 }
