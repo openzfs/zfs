@@ -4508,31 +4508,62 @@ int
 dsl_dataset_check_quota(dsl_dataset_t *ds, boolean_t check_quota,
     uint64_t asize, uint64_t inflight, uint64_t *used, uint64_t *ref_rsrv)
 {
+	dsl_dir_t *dd = ds->ds_dir;
+	uint64_t reserved;
+	boolean_t held;
 	int error = 0;
 
 	ASSERT3S(asize, >, 0);
 
 	/*
-	 * *ref_rsrv is the portion of asize that will come from any
-	 * unconsumed refreservation space.
+	 * *used is set to the dir's used-on-disk, less any part of it that
+	 * is covered by this dataset's unconsumed refreservation.  *ref_rsrv
+	 * is the portion of asize that will come from that same space.
 	 */
 	*ref_rsrv = 0;
+
+	/*
+	 * ds_reserved and ds_quota are modified only by sync tasks, so they
+	 * may be read without ds_lock.  But
+	 * dsl_dataset_set_refreservation_sync_impl() updates ds_reserved and
+	 * accounts for it in the dir under dd_lock, so when there is a
+	 * reservation read both of them under that lock.  Otherwise we could
+	 * subtract a reservation the dir accounting does not include yet and
+	 * underflow *used.  Reading ds_reserved as a stale zero is fine: it
+	 * only skips the adjustment this time, leaving the estimate
+	 * conservative.
+	 */
+	reserved = ds->ds_reserved;
+	held = (reserved != 0);
+	if (held) {
+		mutex_enter(&dd->dd_lock);
+		reserved = ds->ds_reserved;
+	}
+	*used = dsl_dir_phys(dd)->dd_used_bytes;
+
+	/* Without a reservation and a quota there is nothing left to do. */
+	if (reserved == 0 && (!check_quota || ds->ds_quota == 0)) {
+		if (held)
+			mutex_exit(&dd->dd_lock);
+		return (0);
+	}
 
 	mutex_enter(&ds->ds_lock);
 	/*
 	 * Make a space adjustment for reserved bytes.
 	 */
-	if (ds->ds_reserved > dsl_dataset_phys(ds)->ds_unique_bytes) {
+	if (reserved > dsl_dataset_phys(ds)->ds_unique_bytes) {
 		ASSERT3U(*used, >=,
-		    ds->ds_reserved - dsl_dataset_phys(ds)->ds_unique_bytes);
-		*used -=
-		    (ds->ds_reserved - dsl_dataset_phys(ds)->ds_unique_bytes);
+		    reserved - dsl_dataset_phys(ds)->ds_unique_bytes);
+		*used -= (reserved - dsl_dataset_phys(ds)->ds_unique_bytes);
 		*ref_rsrv =
 		    asize - MIN(asize, parent_delta(ds, asize + inflight));
 	}
 
 	if (!check_quota || ds->ds_quota == 0) {
 		mutex_exit(&ds->ds_lock);
+		if (held)
+			mutex_exit(&dd->dd_lock);
 		return (0);
 	}
 	/*
@@ -4550,6 +4581,8 @@ dsl_dataset_check_quota(dsl_dataset_t *ds, boolean_t check_quota,
 			error = SET_ERROR(EDQUOT);
 	}
 	mutex_exit(&ds->ds_lock);
+	if (held)
+		mutex_exit(&dd->dd_lock);
 
 	return (error);
 }
