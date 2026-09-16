@@ -3910,6 +3910,50 @@ vdev_resilver_needed(vdev_t *vd, uint64_t *minp, uint64_t *maxp)
 }
 
 /*
+ * Record whether any repair write of a completing healing pass failed on
+ * each leaf, before reassessment vacates DTL_SCRUB.
+ */
+void
+vdev_resilver_note_repairs(vdev_t *vd)
+{
+	for (int c = 0; c < vd->vdev_children; c++)
+		vdev_resilver_note_repairs(vd->vdev_child[c]);
+
+	if (vd->vdev_children == 0) {
+		mutex_enter(&vd->vdev_dtl_lock);
+		vd->vdev_repair_failed =
+		    !zfs_range_tree_is_empty(vd->vdev_dtl[DTL_SCRUB]);
+		mutex_exit(&vd->vdev_dtl_lock);
+	}
+}
+
+/*
+ * Determine if a writable leaf missed writes after txg while none of the
+ * completed healing pass's repairs to it failed, so that another pass can
+ * complete it. Failed repairs are left for a change to retry.
+ */
+boolean_t
+vdev_resilver_missed(vdev_t *vd, uint64_t txg)
+{
+	if (vd->vdev_children == 0) {
+		boolean_t missed;
+
+		mutex_enter(&vd->vdev_dtl_lock);
+		missed = vdev_writeable(vd) && !vd->vdev_repair_failed &&
+		    !zfs_range_tree_is_empty(vd->vdev_dtl[DTL_MISSING]) &&
+		    vdev_dtl_max(vd) > txg;
+		mutex_exit(&vd->vdev_dtl_lock);
+		return (missed);
+	}
+
+	for (int c = 0; c < vd->vdev_children; c++) {
+		if (vdev_resilver_missed(vd->vdev_child[c], txg))
+			return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+/*
  * Gets the checkpoint space map object from the vdev's ZAP.  On success sm_obj
  * will contain either the checkpoint spacemap object or zero if none exists.
  * All other errors are returned to the caller.
@@ -6073,7 +6117,7 @@ vdev_defer_resilver(vdev_t *vd)
 
 /*
  * Clears the resilver deferred flag on all leaf devs under vd. Returns
- * B_TRUE if we have devices that need to be resilvered and are available to
+ * B_TRUE if deferred devices still need resilvering and are available to
  * accept resilver I/Os.
  */
 boolean_t
@@ -6099,10 +6143,11 @@ vdev_clear_resilver_deferred(vdev_t *vd, dmu_tx_t *tx)
 	    !vd->vdev_ops->vdev_op_leaf)
 		return (resilver_needed);
 
+	resilver_needed = vd->vdev_resilver_deferred &&
+	    vdev_resilver_needed(vd, NULL, NULL);
 	vd->vdev_resilver_deferred = B_FALSE;
 
-	return (!vdev_is_dead(vd) && !vd->vdev_offline &&
-	    vdev_resilver_needed(vd, NULL, NULL));
+	return (resilver_needed);
 }
 
 boolean_t

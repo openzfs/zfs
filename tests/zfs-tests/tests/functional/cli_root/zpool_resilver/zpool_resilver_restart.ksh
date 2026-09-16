@@ -67,8 +67,11 @@ log_must zpool attach $TESTPOOL $DISK1 $DISK3
 log_must is_pool_resilvering $TESTPOOL true
 
 # 4. Manually restart the resilver with all drives
+restarts=$(zpool history -i $TESTPOOL | grep -c "scan aborted, restarting")
 log_must zpool resilver $TESTPOOL
-log_must is_deferred_scan_started $TESTPOOL
+sync_pool $TESTPOOL
+log_must test $(zpool history -i $TESTPOOL | \
+    grep -c "scan aborted, restarting") -gt $restarts
 log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
 log_must wait_for_resilver_end $TESTPOOL $MAXTIMEOUT
 log_must check_state $TESTPOOL "$DISK2" "online"
