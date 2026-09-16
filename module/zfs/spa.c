@@ -8749,7 +8749,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 			    SPA_FEATURE_RESILVER_DEFER)) {
 				vdev_defer_resilver(newvd);
 			} else {
-				dsl_scan_restart_resilver(spa->spa_dsl_pool,
+				dsl_scan_schedule_resilver(spa->spa_dsl_pool,
 				    dtl_max_txg);
 			}
 		}
@@ -10074,6 +10074,7 @@ spa_async_thread(void *arg)
 
 	mutex_enter(&spa->spa_async_lock);
 	tasks = spa->spa_async_tasks;
+	spa->spa_async_tasks_running = tasks;
 	spa->spa_async_tasks = 0;
 	mutex_exit(&spa->spa_async_lock);
 
@@ -10163,11 +10164,16 @@ spa_async_thread(void *arg)
 	/*
 	 * Kick off a resilver.
 	 */
-	if (tasks & SPA_ASYNC_RESILVER &&
-	    !vdev_rebuild_active(spa->spa_root_vdev) &&
-	    (!dsl_scan_resilvering(dp) ||
-	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER)))
-		dsl_scan_restart_resilver(dp, 0);
+	if (tasks & SPA_ASYNC_RESILVER) {
+		if (!vdev_rebuild_active(spa->spa_root_vdev) &&
+		    (!dsl_scan_resilvering(dp) ||
+		    !spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER)))
+			dsl_scan_schedule_resilver(dp, 0);
+		mutex_enter(&spa->spa_async_lock);
+		spa->spa_async_tasks_running &= ~SPA_ASYNC_RESILVER;
+		mutex_exit(&spa->spa_async_lock);
+		spa_notify_waiters(spa);
+	}
 
 	if (tasks & SPA_ASYNC_INITIALIZE_RESTART) {
 		spa_namespace_enter(FTAG);
@@ -10230,6 +10236,7 @@ spa_async_thread(void *arg)
 	 * Let the world know that we're done.
 	 */
 	mutex_enter(&spa->spa_async_lock);
+	spa->spa_async_tasks_running = 0;
 	spa->spa_async_thread = NULL;
 	cv_broadcast(&spa->spa_async_cv);
 	mutex_exit(&spa->spa_async_lock);
@@ -10337,12 +10344,6 @@ spa_async_request(spa_t *spa, int task)
 	mutex_enter(&spa->spa_async_lock);
 	spa->spa_async_tasks |= task;
 	mutex_exit(&spa->spa_async_lock);
-}
-
-int
-spa_async_tasks(spa_t *spa)
-{
-	return (spa->spa_async_tasks);
 }
 
 /*
@@ -11921,7 +11922,9 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		    DSS_SCANNING);
 		break;
 	case ZPOOL_WAIT_RESILVER:
-		*in_progress = vdev_rebuild_active(spa->spa_root_vdev);
+		*in_progress =
+		    dsl_scan_resilver_scheduled(spa->spa_dsl_pool) ||
+		    vdev_rebuild_active(spa->spa_root_vdev);
 		if (*in_progress)
 			break;
 		zfs_fallthrough;

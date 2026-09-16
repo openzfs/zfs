@@ -99,8 +99,10 @@ typedef struct dsl_errorscrub_phys {
  *			When this flag is set the scanner will stop traversing
  *			the pool and write out the current state to disk.
  *
- * scn_restart_txg -	directs the scanner to either restart or start a
- *			a scan at the specified txg value.
+ * scn_restart_txg -	restart an imported scan at the specified txg.
+ *
+ * scn_resilver_txg -	reassess healing work at the specified txg. Unlike a
+ *			scan restart, this does nothing if no DTL work remains.
  *
  * scn_done_txg -	when a scan completes its traversal it will set
  *			the completion txg to the next txg. This is necessary
@@ -122,6 +124,7 @@ typedef struct dsl_errorscrub_phys {
 typedef struct dsl_scan {
 	struct dsl_pool *scn_dp;
 	uint64_t scn_restart_txg;
+	uint64_t scn_resilver_txg;
 	uint64_t scn_done_txg;
 	uint64_t scn_finished_txg;
 	uint64_t scn_sync_start_time;
@@ -198,7 +201,7 @@ void dsl_scan_assess_vdev(struct dsl_pool *dp, vdev_t *vd);
 boolean_t dsl_scan_scrubbing(const struct dsl_pool *dp);
 boolean_t dsl_errorscrubbing(const struct dsl_pool *dp);
 boolean_t dsl_errorscrub_active(dsl_scan_t *scn);
-void dsl_scan_restart_resilver(struct dsl_pool *, uint64_t txg);
+void dsl_scan_schedule_resilver(struct dsl_pool *, uint64_t txg);
 int dsl_scrub_set_pause_resume(const struct dsl_pool *dp,
     pool_scrub_cmd_t cmd);
 void dsl_errorscrub_sync(struct dsl_pool *, dmu_tx_t *);

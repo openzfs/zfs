@@ -6073,7 +6073,7 @@ vdev_defer_resilver(vdev_t *vd)
 
 /*
  * Clears the resilver deferred flag on all leaf devs under vd. Returns
- * B_TRUE if we have devices that need to be resilvered and are available to
+ * B_TRUE if deferred devices still need resilvering and are available to
  * accept resilver I/Os.
  */
 boolean_t
@@ -6099,10 +6099,11 @@ vdev_clear_resilver_deferred(vdev_t *vd, dmu_tx_t *tx)
 	    !vd->vdev_ops->vdev_op_leaf)
 		return (resilver_needed);
 
+	resilver_needed = vd->vdev_resilver_deferred &&
+	    vdev_resilver_needed(vd, NULL, NULL);
 	vd->vdev_resilver_deferred = B_FALSE;
 
-	return (!vdev_is_dead(vd) && !vd->vdev_offline &&
-	    vdev_resilver_needed(vd, NULL, NULL));
+	return (resilver_needed);
 }
 
 boolean_t
