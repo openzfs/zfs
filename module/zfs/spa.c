@@ -2220,9 +2220,7 @@ spa_sync_time_logger(spa_t *spa, uint64_t txg, boolean_t force)
 	}
 	spa->spa_last_flush_txg_time = curtime;
 
-	mutex_enter(&dp->dp_lock);
 	dirty = dp->dp_dirty_pertxg[idx];
-	mutex_exit(&dp->dp_lock);
 	if (!force && dirty == 0) {
 		return;
 	}

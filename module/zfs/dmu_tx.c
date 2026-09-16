@@ -972,9 +972,9 @@ dmu_tx_delay(dmu_tx_t *tx, uint64_t dirty)
 	    zfs_dirty_data_max * zfs_delay_min_dirty_percent / 100;
 	if (dirty >= zfs_dirty_data_max) {
 		/*
-		 * The caller has already waited until the dirty data is
-		 * under the max, but the sync context reservations added
-		 * on top of it may push the sum beyond it.
+		 * The sync context reservations added on top of the dirty
+		 * data may push the sum beyond the max, as may the dirty
+		 * data itself growing after the caller has checked it.
 		 */
 		tx_time = zfs_delay_max_ns;
 	} else if (dirty > delay_min_bytes) {
@@ -1357,15 +1357,26 @@ dmu_tx_wait(dmu_tx_t *tx)
 		/*
 		 * dmu_tx_try_assign() has determined that we need to wait
 		 * because we've consumed much or all of the dirty buffer
-		 * space.
+		 * space.  The hard limit though is rarely reached, so check
+		 * it unlocked, taking the lock only if we may have to wait.
 		 */
-		mutex_enter(&dp->dp_lock);
-		if (dp->dp_dirty_total >= zfs_dirty_data_max)
+		if (dp->dp_dirty_total >= zfs_dirty_data_max) {
 			DMU_TX_STAT_BUMP(dmu_tx_dirty_over_max);
-		while (dp->dp_dirty_total >= zfs_dirty_data_max)
-			cv_wait(&dp->dp_spaceavail_cv, &dp->dp_lock);
+			mutex_enter(&dp->dp_lock);
+			/*
+			 * Register before loading dp_dirty_total, since
+			 * dsl_pool_dirty_delta() only signals when it sees
+			 * dp_dirty_waiters.  See the comment there about
+			 * ordering.
+			 */
+			dp->dp_dirty_waiters++;
+			membar_sync();
+			while (dp->dp_dirty_total >= zfs_dirty_data_max)
+				cv_wait(&dp->dp_spaceavail_cv, &dp->dp_lock);
+			dp->dp_dirty_waiters--;
+			mutex_exit(&dp->dp_lock);
+		}
 		dirty = dp->dp_dirty_total + dp->dp_sync_reserve_total;
-		mutex_exit(&dp->dp_lock);
 
 		dmu_tx_delay(tx, dirty);
 

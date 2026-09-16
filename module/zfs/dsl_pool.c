@@ -589,22 +589,49 @@ dsl_pool_sync_mos(dsl_pool_t *dp, dmu_tx_t *tx)
 	spa_set_rootblkptr(dp->dp_spa, &dp->dp_meta_rootbp);
 }
 
+/*
+ * Subtract up to space from one of the per-txg counters, returning the
+ * amount actually subtracted.  The counters never go negative, since the
+ * callers may try to give back more than the counter was charged.
+ */
+static uint64_t
+dsl_pool_sub_pertxg(uint64_t *pertxg, int64_t space)
+{
+	uint64_t cur, sub;
+
+	do {
+		cur = *pertxg;
+		sub = MIN((uint64_t)space, cur);
+	} while (atomic_cas_64(pertxg, cur, cur - sub) != cur);
+
+	return (sub);
+}
+
 static void
 dsl_pool_dirty_delta(dsl_pool_t *dp, int64_t delta)
 {
-	ASSERT(MUTEX_HELD(&dp->dp_lock));
-
-	if (delta < 0)
-		ASSERT3U(-delta, <=, dp->dp_dirty_total);
-
-	dp->dp_dirty_total += delta;
+	uint64_t total = atomic_add_64_nv(&dp->dp_dirty_total, delta);
+	ASSERT3S((int64_t)total, >=, 0);
 
 	/*
 	 * Note: we signal even when increasing dp_dirty_total.
 	 * This ensures forward progress -- each thread wakes the next waiter.
 	 */
-	if (dp->dp_dirty_total < zfs_dirty_data_max)
+	if (total >= zfs_dirty_data_max)
+		return;
+
+	/*
+	 * atomic_add_64_nv() above provides no ordering, so explicitly order
+	 * the store to dp_dirty_total against the load of dp_dirty_waiters.
+	 * dmu_tx_wait() does the reverse, so at least one of the two sees
+	 * the other and the wakeup can not be lost.
+	 */
+	membar_sync();
+	if (dp->dp_dirty_waiters > 0) {
+		mutex_enter(&dp->dp_lock);
 		cv_signal(&dp->dp_spaceavail_cv);
+		mutex_exit(&dp->dp_lock);
+	}
 }
 
 void
@@ -992,14 +1019,12 @@ void
 dsl_pool_dirty_space(dsl_pool_t *dp, int64_t space, dmu_tx_t *tx)
 {
 	if (space > 0) {
-		mutex_enter(&dp->dp_lock);
-		dp->dp_dirty_pertxg[tx->tx_txg & TXG_MASK] += space;
+		atomic_add_64(&dp->dp_dirty_pertxg[tx->tx_txg & TXG_MASK],
+		    space);
 		dsl_pool_dirty_delta(dp, space);
-		boolean_t needsync = !dmu_tx_is_syncing(tx) &&
-		    dsl_pool_need_dirty_sync(dp, tx->tx_txg);
-		mutex_exit(&dp->dp_lock);
 
-		if (needsync)
+		if (!dmu_tx_is_syncing(tx) &&
+		    dsl_pool_need_dirty_sync(dp, tx->tx_txg))
 			txg_kick(dp, tx->tx_txg);
 	}
 }
@@ -1028,15 +1053,14 @@ dsl_pool_dirty_mos_space(dsl_pool_t *dp, int64_t space, dmu_tx_t *tx)
 		return;
 
 	uint64_t txgoff = tx->tx_txg & TXG_MASK;
-	mutex_enter(&dp->dp_lock);
-	uint64_t resv = MIN((uint64_t)space,
-	    dp->dp_sync_reserve_pertxg[txgoff]);
-	dp->dp_sync_reserve_pertxg[txgoff] -= resv;
-	ASSERT3U(dp->dp_sync_reserve_total, >=, resv);
-	dp->dp_sync_reserve_total -= resv;
-	dp->dp_dirty_pertxg[txgoff] += space;
+	uint64_t resv = dsl_pool_sub_pertxg(
+	    &dp->dp_sync_reserve_pertxg[txgoff], space);
+	uint64_t left = atomic_add_64_nv(&dp->dp_sync_reserve_total,
+	    -(int64_t)resv);
+	ASSERT3S((int64_t)left, >=, 0);
+
+	atomic_add_64(&dp->dp_dirty_pertxg[txgoff], space);
 	dsl_pool_dirty_delta(dp, space);
-	mutex_exit(&dp->dp_lock);
 }
 
 void
@@ -1046,16 +1070,11 @@ dsl_pool_undirty_space(dsl_pool_t *dp, int64_t space, uint64_t txg)
 	if (space == 0)
 		return;
 
-	mutex_enter(&dp->dp_lock);
-	if (dp->dp_dirty_pertxg[txg & TXG_MASK] < space) {
-		/* XXX writing something we didn't dirty? */
-		space = dp->dp_dirty_pertxg[txg & TXG_MASK];
-	}
-	ASSERT3U(dp->dp_dirty_pertxg[txg & TXG_MASK], >=, space);
-	dp->dp_dirty_pertxg[txg & TXG_MASK] -= space;
-	ASSERT3U(dp->dp_dirty_total, >=, space);
-	dsl_pool_dirty_delta(dp, -space);
-	mutex_exit(&dp->dp_lock);
+	/* XXX writing something we didn't dirty? */
+	uint64_t sub = dsl_pool_sub_pertxg(
+	    &dp->dp_dirty_pertxg[txg & TXG_MASK], space);
+
+	dsl_pool_dirty_delta(dp, -(int64_t)sub);
 }
 
 /*
@@ -1073,14 +1092,11 @@ dsl_pool_sync_reserve(dsl_pool_t *dp, uint64_t space, dmu_tx_t *tx)
 	if (space == 0)
 		return;
 
-	mutex_enter(&dp->dp_lock);
-	dp->dp_sync_reserve_pertxg[tx->tx_txg & TXG_MASK] += space;
-	dp->dp_sync_reserve_total += space;
-	boolean_t needsync = !dmu_tx_is_syncing(tx) &&
-	    dsl_pool_need_dirty_sync(dp, tx->tx_txg);
-	mutex_exit(&dp->dp_lock);
+	atomic_add_64(&dp->dp_sync_reserve_pertxg[tx->tx_txg & TXG_MASK],
+	    space);
+	atomic_add_64(&dp->dp_sync_reserve_total, space);
 
-	if (needsync)
+	if (!dmu_tx_is_syncing(tx) && dsl_pool_need_dirty_sync(dp, tx->tx_txg))
 		txg_kick(dp, tx->tx_txg);
 }
 
@@ -1092,12 +1108,11 @@ dsl_pool_sync_unreserve(dsl_pool_t *dp, uint64_t space, uint64_t txg)
 	if (space == 0)
 		return;
 
-	mutex_enter(&dp->dp_lock);
-	space = MIN(space, dp->dp_sync_reserve_pertxg[txg & TXG_MASK]);
-	dp->dp_sync_reserve_pertxg[txg & TXG_MASK] -= space;
-	ASSERT3U(dp->dp_sync_reserve_total, >=, space);
-	dp->dp_sync_reserve_total -= space;
-	mutex_exit(&dp->dp_lock);
+	space = dsl_pool_sub_pertxg(&dp->dp_sync_reserve_pertxg[txg & TXG_MASK],
+	    space);
+	uint64_t left = atomic_add_64_nv(&dp->dp_sync_reserve_total,
+	    -(int64_t)space);
+	ASSERT3S((int64_t)left, >=, 0);
 }
 
 static int
