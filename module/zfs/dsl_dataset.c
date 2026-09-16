@@ -103,6 +103,32 @@ extern uint_t spa_asize_inflation;
 
 static zil_header_t zero_zil;
 
+static void
+dsl_dataset_deltas_init(dsl_dataset_t *ds)
+{
+	wmsum_init(&ds->ds_unique_delta, 0);
+	wmsum_init(&ds->ds_unique_comp_delta, 0);
+	wmsum_init(&ds->ds_unique_uncomp_delta, 0);
+	wmsum_init(&ds->ds_dead_delta, 0);
+	wmsum_init(&ds->ds_dead_comp_delta, 0);
+	wmsum_init(&ds->ds_dead_uncomp_delta, 0);
+	wmsum_init(&ds->ds_snap_xfer_delta, 0);
+	wmsum_init(&ds->ds_prev_unique_delta, 0);
+}
+
+static void
+dsl_dataset_deltas_fini(dsl_dataset_t *ds)
+{
+	wmsum_fini(&ds->ds_unique_delta);
+	wmsum_fini(&ds->ds_unique_comp_delta);
+	wmsum_fini(&ds->ds_unique_uncomp_delta);
+	wmsum_fini(&ds->ds_dead_delta);
+	wmsum_fini(&ds->ds_dead_comp_delta);
+	wmsum_fini(&ds->ds_dead_uncomp_delta);
+	wmsum_fini(&ds->ds_snap_xfer_delta);
+	wmsum_fini(&ds->ds_prev_unique_delta);
+}
+
 /*
  * Figure out how much of this delta should be propagated to the dsl_dir
  * layer.  If there's a refreservation, that space has already been
@@ -132,7 +158,6 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 	int used = bp_get_dsize_sync(spa, bp);
 	int compressed = BP_GET_PSIZE(bp);
 	int uncompressed = BP_GET_UCSIZE(bp);
-	int64_t delta;
 	spa_feature_t f;
 
 	dprintf_bp(bp, "ds=%p", ds);
@@ -149,32 +174,28 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 		return;
 	}
 
+	ASSERT3P(tx->tx_pool, ==, ds->ds_dir->dd_pool);
+	ASSERT(!ds->ds_is_snapshot);
 	ASSERT3U(BP_GET_BIRTH(bp), >,
 	    dsl_dataset_phys(ds)->ds_prev_snap_txg);
 	/* ds_dbuf is pre-dirtied in dsl_dataset_sync(). */
 	ASSERT(dmu_buf_is_dirty(ds->ds_dbuf, tx));
-	mutex_enter(&ds->ds_lock);
-	delta = parent_delta(ds, used);
-	dsl_dataset_phys(ds)->ds_referenced_bytes += used;
-	dsl_dataset_phys(ds)->ds_compressed_bytes += compressed;
-	dsl_dataset_phys(ds)->ds_uncompressed_bytes += uncompressed;
-	dsl_dataset_phys(ds)->ds_unique_bytes += used;
 
-	if (BP_GET_LSIZE(bp) > SPA_OLD_MAXBLOCKSIZE) {
+	if (BP_GET_LSIZE(bp) > SPA_OLD_MAXBLOCKSIZE &&
+	    ds->ds_feature_activation[SPA_FEATURE_LARGE_BLOCKS] == NULL) {
 		ds->ds_feature_activation[SPA_FEATURE_LARGE_BLOCKS] =
 		    (void *)B_TRUE;
 	}
 
-
 	f = zio_checksum_to_feature(BP_GET_CHECKSUM(bp));
-	if (f != SPA_FEATURE_NONE) {
+	if (f != SPA_FEATURE_NONE && ds->ds_feature_activation[f] == NULL) {
 		ASSERT3S(spa_feature_table[f].fi_type, ==,
 		    ZFEATURE_TYPE_BOOLEAN);
 		ds->ds_feature_activation[f] = (void *)B_TRUE;
 	}
 
 	f = zio_compress_to_feature(BP_GET_COMPRESS(bp));
-	if (f != SPA_FEATURE_NONE) {
+	if (f != SPA_FEATURE_NONE && ds->ds_feature_activation[f] == NULL) {
 		ASSERT3S(spa_feature_table[f].fi_type, ==,
 		    ZFEATURE_TYPE_BOOLEAN);
 		ds->ds_feature_activation[f] = (void *)B_TRUE;
@@ -193,10 +214,9 @@ dsl_dataset_block_born(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx)
 		bplist_append(&ds->ds_dir->dd_pending_allocs, bp);
 	}
 
-	mutex_exit(&ds->ds_lock);
-	dsl_dir_diduse_transfer_space(ds->ds_dir, delta,
-	    compressed, uncompressed, used,
-	    DD_USED_REFRSRV, DD_USED_HEAD, tx);
+	wmsum_add(&ds->ds_unique_delta, used);
+	wmsum_add(&ds->ds_unique_comp_delta, compressed);
+	wmsum_add(&ds->ds_unique_uncomp_delta, uncompressed);
 }
 
 /*
@@ -282,8 +302,6 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 	}
 
 	if (BP_GET_BIRTH(bp) > dsl_dataset_phys(ds)->ds_prev_snap_txg) {
-		int64_t delta;
-
 		/*
 		 * Put blocks that would create IO on the pool's deadlist for
 		 * dsl_process_async_destroys() to find. This is to prevent
@@ -305,22 +323,18 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 			dsl_free(tx->tx_pool, tx->tx_txg, bp);
 		}
 
-		mutex_enter(&ds->ds_lock);
-		ASSERT(dsl_dataset_phys(ds)->ds_unique_bytes >= used ||
-		    !DS_UNIQUE_IS_ACCURATE(ds));
-		delta = parent_delta(ds, -used);
-		dsl_dataset_phys(ds)->ds_unique_bytes -= used;
-		mutex_exit(&ds->ds_lock);
-
-		dsl_dir_diduse_transfer_space(ds->ds_dir,
-		    delta, -compressed, -uncompressed, -used,
-		    DD_USED_REFRSRV, DD_USED_HEAD, tx);
+		wmsum_add(&ds->ds_unique_delta, -used);
+		wmsum_add(&ds->ds_unique_comp_delta, -compressed);
+		wmsum_add(&ds->ds_unique_uncomp_delta, -uncompressed);
 
 		if (defer)
 			dsl_dir_diduse_space(tx->tx_pool->dp_free_dir,
 			    DD_USED_HEAD, used, compressed, uncompressed, tx);
 	} else {
 		dprintf_bp(bp, "putting on dead list: %s", "");
+		wmsum_add(&ds->ds_dead_delta, used);
+		wmsum_add(&ds->ds_dead_comp_delta, compressed);
+		wmsum_add(&ds->ds_dead_uncomp_delta, uncompressed);
 		if (async) {
 			/*
 			 * We are here as part of zio's write done callback,
@@ -340,27 +354,13 @@ dsl_dataset_block_kill(dsl_dataset_t *ds, const blkptr_t *bp, dmu_tx_t *tx,
 		if (dsl_dataset_phys(ds->ds_prev)->ds_next_snap_obj ==
 		    ds->ds_object && BP_GET_BIRTH(bp) >
 		    dsl_dataset_phys(ds->ds_prev)->ds_prev_snap_txg) {
-			dmu_buf_will_dirty(ds->ds_prev->ds_dbuf, tx);
-			mutex_enter(&ds->ds_prev->ds_lock);
-			dsl_dataset_phys(ds->ds_prev)->ds_unique_bytes += used;
-			mutex_exit(&ds->ds_prev->ds_lock);
+			wmsum_add(&ds->ds_prev_unique_delta, used);
 		}
-		if (BP_GET_BIRTH(bp) > ds->ds_dir->dd_origin_txg) {
-			dsl_dir_transfer_space(ds->ds_dir, used,
-			    DD_USED_HEAD, DD_USED_SNAP, tx);
-		}
+		if (BP_GET_BIRTH(bp) > ds->ds_dir->dd_origin_txg)
+			wmsum_add(&ds->ds_snap_xfer_delta, used);
 	}
 
 	dsl_bookmark_block_killed(ds, bp, tx);
-
-	mutex_enter(&ds->ds_lock);
-	ASSERT3U(dsl_dataset_phys(ds)->ds_referenced_bytes, >=, used);
-	dsl_dataset_phys(ds)->ds_referenced_bytes -= used;
-	ASSERT3U(dsl_dataset_phys(ds)->ds_compressed_bytes, >=, compressed);
-	dsl_dataset_phys(ds)->ds_compressed_bytes -= compressed;
-	ASSERT3U(dsl_dataset_phys(ds)->ds_uncompressed_bytes, >=, uncompressed);
-	dsl_dataset_phys(ds)->ds_uncompressed_bytes -= uncompressed;
-	mutex_exit(&ds->ds_lock);
 
 	return (used);
 }
@@ -467,6 +467,8 @@ dsl_dataset_evict_async(void *dbu)
 	dsl_bookmark_fini_ds(ds);
 
 	bplist_destroy(&ds->ds_pending_deadlist);
+	if (!ds->ds_is_snapshot)
+		dsl_dataset_deltas_fini(ds);
 	if (dsl_deadlist_is_open(&ds->ds_deadlist))
 		dsl_deadlist_close(&ds->ds_deadlist);
 	if (dsl_deadlist_is_open(&ds->ds_remap_deadlist))
@@ -636,6 +638,9 @@ dsl_dataset_hold_obj(dsl_pool_t *dp, uint64_t dsobj, const void *tag,
 
 		bplist_create(&ds->ds_pending_deadlist);
 
+		if (!ds->ds_is_snapshot)
+			dsl_dataset_deltas_init(ds);
+
 		list_create(&ds->ds_sendstreams, sizeof (dmu_sendstatus_t),
 		    offsetof(dmu_sendstatus_t, dss_link));
 
@@ -730,6 +735,8 @@ after_dsl_bookmark_fini:
 
 			list_destroy(&ds->ds_prop_cbs);
 			list_destroy(&ds->ds_sendstreams);
+			if (!ds->ds_is_snapshot)
+				dsl_dataset_deltas_fini(ds);
 			bplist_destroy(&ds->ds_pending_deadlist);
 			mutex_destroy(&ds->ds_lock);
 			mutex_destroy(&ds->ds_opening_lock);
@@ -2297,10 +2304,95 @@ dsl_flush_pending_livelist(dsl_dataset_t *ds, dmu_tx_t *tx)
 	    &arg);
 }
 
+static int64_t
+dsl_dataset_take_delta(wmsum_t *ws)
+{
+	int64_t delta = wmsum_value(ws);
+
+	if (delta != 0)
+		wmsum_add(ws, -delta);
+	return (delta);
+}
+
+/*
+ * Apply the accounting deltas accumulated by dsl_dataset_block_born() and
+ * dsl_dataset_block_kill() during this txg.  Doing it once per txg instead of
+ * per block saves a lot of contention on ds_lock and on dd_lock of every
+ * dsl_dir up to the pool root.  The result is identical: parent_delta() is
+ * a difference of two MAX()es around the same counter, so it telescopes,
+ * and the dsl_dir accounting is linear in its arguments.
+ *
+ * Callers of dsl_dataset_block_born()/_kill() must ensure this runs before
+ * anything reads the accounting again.  dsl_dataset_sync_done() does it for
+ * all of them but old_synchronous_dataset_destroy(), which calls it itself.
+ */
+void
+dsl_dataset_apply_deltas(dsl_dataset_t *ds, dmu_tx_t *tx)
+{
+	dsl_dataset_phys_t *dsp;
+	int64_t uniq, comp, uncomp, dead, dead_comp, dead_uncomp;
+	int64_t snap_xfer, prev_uniq, ref, rcomp, runcomp, delta;
+
+	uniq = dsl_dataset_take_delta(&ds->ds_unique_delta);
+	comp = dsl_dataset_take_delta(&ds->ds_unique_comp_delta);
+	uncomp = dsl_dataset_take_delta(&ds->ds_unique_uncomp_delta);
+	dead = dsl_dataset_take_delta(&ds->ds_dead_delta);
+	dead_comp = dsl_dataset_take_delta(&ds->ds_dead_comp_delta);
+	dead_uncomp = dsl_dataset_take_delta(&ds->ds_dead_uncomp_delta);
+	snap_xfer = dsl_dataset_take_delta(&ds->ds_snap_xfer_delta);
+	prev_uniq = dsl_dataset_take_delta(&ds->ds_prev_unique_delta);
+
+	if ((uniq | comp | uncomp | dead | dead_comp | dead_uncomp |
+	    snap_xfer | prev_uniq) == 0)
+		return;
+
+	/* ds_dbuf is pre-dirtied in dsl_dataset_sync(). */
+	ASSERT(dmu_buf_is_dirty(ds->ds_dbuf, tx));
+	dsp = dsl_dataset_phys(ds);
+	ref = uniq - dead;
+	rcomp = comp - dead_comp;
+	runcomp = uncomp - dead_uncomp;
+
+	mutex_enter(&ds->ds_lock);
+	delta = parent_delta(ds, uniq);
+	ASSERT(uniq >= 0 || dsp->ds_unique_bytes >= (uint64_t)-uniq ||
+	    !DS_UNIQUE_IS_ACCURATE(ds));
+	ASSERT(ref >= 0 || dsp->ds_referenced_bytes >= (uint64_t)-ref);
+	ASSERT(rcomp >= 0 || dsp->ds_compressed_bytes >= (uint64_t)-rcomp);
+	ASSERT(runcomp >= 0 ||
+	    dsp->ds_uncompressed_bytes >= (uint64_t)-runcomp);
+	dsp->ds_referenced_bytes += ref;
+	dsp->ds_compressed_bytes += rcomp;
+	dsp->ds_uncompressed_bytes += runcomp;
+	dsp->ds_unique_bytes += uniq;
+	mutex_exit(&ds->ds_lock);
+
+	if (prev_uniq != 0) {
+		dsl_dataset_t *prev = ds->ds_prev;
+
+		dmu_buf_will_dirty(prev->ds_dbuf, tx);
+		mutex_enter(&prev->ds_lock);
+		dsl_dataset_phys(prev)->ds_unique_bytes += prev_uniq;
+		mutex_exit(&prev->ds_lock);
+	}
+
+	if (uniq != 0 || comp != 0 || uncomp != 0) {
+		dsl_dir_diduse_transfer_space(ds->ds_dir, delta, comp, uncomp,
+		    uniq, DD_USED_REFRSRV, DD_USED_HEAD, tx);
+	}
+
+	if (snap_xfer != 0) {
+		dsl_dir_transfer_space(ds->ds_dir, snap_xfer,
+		    DD_USED_HEAD, DD_USED_SNAP, tx);
+	}
+}
+
 void
 dsl_dataset_sync_done(dsl_dataset_t *ds, dmu_tx_t *tx)
 {
 	objset_t *os = ds->ds_objset;
+
+	dsl_dataset_apply_deltas(ds, tx);
 
 	bplist_iterate(&ds->ds_pending_deadlist,
 	    dsl_deadlist_insert_alloc_cb, &ds->ds_deadlist, tx);
