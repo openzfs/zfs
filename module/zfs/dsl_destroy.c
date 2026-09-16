@@ -807,6 +807,10 @@ old_synchronous_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 	VERIFY0(traverse_dataset(ds,
 	    dsl_dataset_phys(ds)->ds_prev_snap_txg, TRAVERSE_POST |
 	    TRAVERSE_NO_DECRYPT, kill_blkptr, &ka));
+
+	/* We are not synced by dsl_pool_sync(), so apply the deltas here. */
+	dsl_dataset_apply_deltas(ds, tx);
+
 	ASSERT(!DS_UNIQUE_IS_ACCURATE(ds) ||
 	    dsl_dataset_phys(ds)->ds_unique_bytes == 0);
 }
