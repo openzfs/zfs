@@ -2127,11 +2127,13 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/replacement/replace_resilver_sit_out.ksh \
 	functional/replacement/resilver_errors.ksh \
 	functional/replacement/resilver_probe.ksh \
+	functional/replacement/resilver_reassess.ksh \
 	functional/replacement/resilver_reopen.ksh \
 	functional/replacement/resilver_restart.ksh \
 	functional/replacement/resilver_restart_001.ksh \
 	functional/replacement/resilver_restart_002.ksh \
 	functional/replacement/scrub_cancel.ksh \
+	functional/replacement/scrub_dtl_retirement.ksh \
 	functional/replacement/setup.ksh \
 	functional/reservation/cleanup.ksh \
 	functional/reservation/reservation_001_pos.ksh \

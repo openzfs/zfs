@@ -130,6 +130,7 @@
 
 #include <sys/dmu_tx.h>
 #include <sys/dsl_dir.h>
+#include <sys/dsl_scan.h>
 #include <sys/dsl_synctask.h>
 #include <sys/metaslab_impl.h>
 #include <sys/spa.h>
@@ -182,6 +183,7 @@ spa_checkpoint_discard_complete_sync(void *arg, dmu_tx_t *tx)
 	spa->spa_checkpoint_info.sci_timestamp = 0;
 
 	spa_feature_decr(spa, SPA_FEATURE_POOL_CHECKPOINT, tx);
+	dsl_scan_assess_vdev(spa_get_dsl(spa), spa->spa_root_vdev, B_FALSE);
 	spa_notify_waiters(spa);
 
 	spa_history_log_internal(spa, "spa discard checkpoint", tx,

@@ -345,6 +345,12 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 		dsl_scan_setup_sync(&setup_sync_arg, tx);
 	}
 
+	/*
+	 * A healing resilver requested while another vdev was rebuilding
+	 * could not start. Reassess even when the post-rebuild scrub is off.
+	 */
+	dsl_scan_assess_vdev(spa_get_dsl(spa), spa->spa_root_vdev, B_FALSE);
+
 	cv_broadcast(&vd->vdev_rebuild_cv);
 
 	/* Clear recent error events (i.e. duplicate events tracking) */
@@ -381,6 +387,8 @@ vdev_rebuild_cancel_sync(void *arg, dmu_tx_t *tx)
 	vd->vdev_rebuild_cancel_wanted = B_FALSE;
 	vd->vdev_rebuilding = B_FALSE;
 	mutex_exit(&vd->vdev_rebuild_lock);
+
+	dsl_scan_assess_vdev(spa_get_dsl(spa), spa->spa_root_vdev, B_FALSE);
 
 	spa_notify_waiters(spa);
 	cv_broadcast(&vd->vdev_rebuild_cv);
