@@ -494,7 +494,7 @@ sa_resize_spill(sa_handle_t *hdl, uint32_t size, dmu_tx_t *tx)
 		blocksize = P2ROUNDUP_TYPED(size, SPA_MINBLOCKSIZE, uint32_t);
 	}
 
-	error = dbuf_spill_set_blksz(hdl->sa_spill, blocksize, tx);
+	error = dbuf_spill_set_blksz(hdl->sa_spill, blocksize, B_TRUE, tx);
 	ASSERT0(error);
 	return (error);
 }
