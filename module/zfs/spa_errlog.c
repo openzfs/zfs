@@ -462,6 +462,19 @@ out:
 	return (error);
 }
 
+/*
+ * Report an error block whose datasets could not be checked.
+ */
+static int
+copyout_unresolved(uint64_t dataset, zbookmark_err_phys_t *zep, void *uaddr,
+    uint64_t *count)
+{
+	zbookmark_phys_t zb;
+
+	zep_to_zb(dataset, zep, &zb);
+	return (copyout_entry(&zb, uaddr, count));
+}
+
 static int
 process_error_block(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
     void *uaddr, uint64_t *count)
@@ -473,15 +486,8 @@ process_error_block(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 	 * the key is not loaded. In this case do not proceed to
 	 * check_filesystem(), instead do the accounting here.
 	 */
-	if (zep->zb_birth == 0 || head_ds == 0) {
-		zbookmark_phys_t zb;
-		zep_to_zb(head_ds, zep, &zb);
-		int error = copyout_entry(&zb, uaddr, count);
-		if (error != 0) {
-			return (error);
-		}
-		return (0);
-	}
+	if (zep->zb_birth == 0 || head_ds == 0)
+		return (copyout_unresolved(head_ds, zep, uaddr, count));
 
 	uint64_t top_affected_fs;
 	uint64_t init_count = *count;
@@ -512,6 +518,21 @@ process_error_block(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 
 		list_destroy(&clones_list);
 	}
+
+	/*
+	 * ENOMEM and EFAULT concern the userland buffer and must be returned.
+	 * Any other failure to check the datasets, e.g. because the key is not
+	 * loaded or a snapshot was destroyed, must not hide the other entries:
+	 * report the block as above unless check_filesystem() already copied
+	 * out part of it, and leave the entry in the log.
+	 */
+	if (error != 0 && error != ENOMEM && error != EFAULT) {
+		if (init_count == *count)
+			error = copyout_unresolved(head_ds, zep, uaddr, count);
+		else
+			error = 0;
+	}
+
 	if (error == 0 && init_count == *count) {
 		/*
 		 * If we reach this point, no errors have been detected

@@ -55,7 +55,7 @@
 static int
 zfs_uiomove_iov(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 {
-	const struct iovec *iov = uio->uio_iov;
+	struct iovec *iov = uio->uio_iov;
 	size_t skip = uio->uio_skip;
 	ulong_t cnt;
 
@@ -84,23 +84,39 @@ zfs_uiomove_iov(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 static int
 zfs_uiomove_bvec_impl(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 {
-	const struct bio_vec *bv = uio->uio_bvec;
+	struct bio_vec *bv = uio->uio_bvec;
 	size_t skip = uio->uio_skip;
 	ulong_t cnt;
 
 	while (n && uio->uio_resid) {
 		void *paddr;
+		struct page *page = bv->bv_page;
 		size_t offset = bv->bv_offset + skip;
-		cnt = MIN(PAGE_SIZE - (offset & ~PAGE_MASK),
-		    MIN(bv->bv_len - skip, n));
 
-		paddr = zfs_kmap_local(bv->bv_page + (offset >> PAGE_SHIFT));
+		cnt = MIN(bv->bv_len - skip, n);
+
+		/*
+		 * A bvec may cover many pages, since bio_add_page() merges
+		 * adjacent pages into one.  It only does so when they are
+		 * both physically contiguous and contiguous in the memory
+		 * map, so wherever zfs_kmap_local() hands back the linear
+		 * map one mapping covers the whole bvec and the copy is a
+		 * single memcpy().  Otherwise only the page we asked for is
+		 * mapped and we have to walk the bvec a page at a time.
+		 */
+		if (zfs_kmap_partial()) {
+			page += offset >> PAGE_SHIFT;
+			offset &= PAGE_SIZE - 1;
+			cnt = MIN(cnt, PAGE_SIZE - offset);
+		}
+
+		paddr = zfs_kmap_local(page);
 		if (rw == UIO_READ) {
 			/* Copy from buffer 'p' to the bvec data */
-			memcpy(paddr + (offset & ~PAGE_MASK), p, cnt);
+			memcpy(paddr + offset, p, cnt);
 		} else {
 			/* Copy from bvec data to buffer 'p' */
-			memcpy(p, paddr + (offset & ~PAGE_MASK), cnt);
+			memcpy(p, paddr + offset, cnt);
 		}
 		zfs_kunmap_local(paddr);
 
@@ -160,7 +176,18 @@ zfs_uiomove_bvec_rq(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 	orig_loffset = io_offset(NULL, rq);
 	this_seg_start = orig_loffset;
 
+	/*
+	 * rq_for_each_bvec() hands out whole multi-page bvecs, which lets
+	 * zfs_copy_bvec() cover each one with a single mapping and memcpy.
+	 * That needs the pages to be reachable through the linear map, so
+	 * where they are not, fall back to rq_for_each_segment(), which
+	 * splits every bvec at a page boundary.  See zfs_kmap_partial().
+	 */
+#if defined(HAVE_RQ_FOR_EACH_BVEC) && !defined(CONFIG_HIGHMEM)
+	rq_for_each_bvec(bv, rq, iter) {
+#else
 	rq_for_each_segment(bv, rq, iter) {
+#endif
 		/*
 		 * Lookup what the logical offset of the last byte of this
 		 * segment is.
@@ -227,10 +254,17 @@ zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
 	size_t oldcnt = cnt;
 	int error = 0;
 
+	/*
+	 * Use the unchecked variants.  Callers already clamp the length to
+	 * the individual buffer, tighter than the bound __check_object_size()
+	 * knows, which is that of the whole SPL slab.  The user-supplied
+	 * side of the iov_iter is validated within _copy_to_iter() and is
+	 * unaffected.
+	 */
 	if (rw == UIO_READ)
-		cnt = copy_to_iter(p, cnt, uio->uio_iter);
+		cnt = _copy_to_iter(p, cnt, uio->uio_iter);
 	else
-		cnt = copy_from_iter(p, cnt, uio->uio_iter);
+		cnt = _copy_from_iter(p, cnt, uio->uio_iter);
 
 	/*
 	 * When operating on a full pipe no bytes are processed.

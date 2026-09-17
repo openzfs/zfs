@@ -274,6 +274,17 @@ zfs_setup_direct(struct znode *zp, zfs_uio_t *uio, zfs_uio_rw_t rw,
 	}
 
 	/*
+	 * The zpl caller declined Direct I/O for this request (a file handle
+	 * that already hit a benign DIO read verify failure from a recycled
+	 * O_DIRECT buffer).  Fall through to uncached buffered I/O.  Placed
+	 * after the ZFS_DIRECT_ALWAYS handling above so direct=always is
+	 * declined too.  The verify itself is untouched, so mirror and raidz
+	 * self-heal for genuine corruption still runs on the buffered path.
+	 */
+	if (uio->uio_extflg & UIO_DIO_DENY)
+		goto out;
+
+	/*
 	 * For short writes the page mapping of Direct I/O makes no sense.
 	 * Direct them through the ARC as uncached I/O.
 	 */
@@ -400,7 +411,7 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	ssize_t dio_remaining_resid = 0;
 
 	dmu_flags_t dflags = DMU_READ_PREFETCH;
-	if (ioflag & O_DIRECT)
+	if ((ioflag & O_DIRECT) || (uio->uio_extflg & UIO_UNCACHED))
 		dflags |= DMU_UNCACHEDIO;
 	if (uio->uio_extflg & UIO_DIRECT) {
 		/*
@@ -516,8 +527,19 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 out:
 	zfs_rangelock_exit(lr);
 
-	if (dio_checksum_failure == B_TRUE)
+	if (dio_checksum_failure == B_TRUE) {
 		uio->uio_extflg |= UIO_DIRECT;
+		/*
+		 * The DIO read verify failed but the buffered re-read that
+		 * followed succeeded, so the on-disk data is good and the
+		 * caller mutated its own O_DIRECT buffer in flight.  Report
+		 * this outward so the platform layer can decline Direct I/O
+		 * for this file handle from here on.  A real on-disk error
+		 * would have returned nonzero and is not flagged.
+		 */
+		if (error == 0)
+			uio->uio_extflg |= UIO_DIO_CKSUM_RETRIED;
+	}
 
 	/*
 	 * Cleanup for Direct I/O if requested.
@@ -879,7 +901,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		}
 
 		dmu_flags_t dflags = DMU_READ_PREFETCH;
-		if (ioflag & O_DIRECT)
+		if ((ioflag & O_DIRECT) || (uio->uio_extflg & UIO_UNCACHED))
 			dflags |= DMU_UNCACHEDIO;
 		if (uio->uio_extflg & UIO_DIRECT)
 			dflags |= DMU_DIRECTIO;
@@ -2083,7 +2105,23 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	/*
 	 * Maintain predictable lock order.
 	 */
-	if (inzp < outzp || (inzp == outzp && inoff < outoff)) {
+	if (inzp == outzp) {
+		/*
+		 * Within one file, one writer lock spans both
+		 * ranges.  Two locks on the same znode can deadlock
+		 * this thread against itself: a write that grows the
+		 * file's block size grows its lock to cover the
+		 * whole file (see zfs_rlock.c), which then conflicts
+		 * with the other.  The source block pointers are
+		 * read before the lock is reduced, so the source
+		 * stays covered.
+		 */
+		uint64_t lo = MIN(inoff, outoff);
+		uint64_t hi = MAX(inoff + len, outoff + len);
+		outlr = zfs_rangelock_enter(&outzp->z_rangelock, lo,
+		    hi - lo, RL_WRITER);
+		inlr = NULL;
+	} else if (inzp < outzp) {
 		inlr = zfs_rangelock_enter(&inzp->z_rangelock, inoff, len,
 		    RL_READER);
 		outlr = zfs_rangelock_enter(&outzp->z_rangelock, outoff, len,
@@ -2099,7 +2137,8 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	    outlr, B_FALSE, &done);
 
 	zfs_rangelock_exit(outlr);
-	zfs_rangelock_exit(inlr);
+	if (inlr != NULL)
+		zfs_rangelock_exit(inlr);
 
 	if (done > 0) {
 		/*

@@ -778,9 +778,6 @@ spl_kmem_cache_create(const char *name, size_t size, size_t align,
 	} else {
 		unsigned long slabflags = 0;
 
-		if (size > spl_kmem_cache_slab_limit)
-			goto out;
-
 		if (skc->skc_flags & KMC_RECLAIMABLE)
 			slabflags |= SLAB_RECLAIM_ACCOUNT;
 

@@ -117,7 +117,7 @@ tests = ['devices_001_pos', 'devices_002_neg', 'devices_003_pos']
 tags = ['functional', 'devices']
 
 [tests/functional/direct:Linux]
-tests = ['dio_loopback_dev', 'dio_write_verify']
+tests = ['dio_loopback_dev', 'dio_read_verify_decline', 'dio_write_verify']
 tags = ['functional', 'direct']
 
 [tests/functional/events:Linux]
@@ -146,6 +146,10 @@ tags = ['functional', 'fault']
 [tests/functional/features/large_dnode:Linux]
 tests = ['large_dnode_002_pos', 'large_dnode_006_pos', 'large_dnode_008_pos']
 tags = ['functional', 'features', 'large_dnode']
+
+[tests/functional/getfsuuid:Linux]
+tests = ['getfsuuid_001_pos', 'getfsuuid_002_pos', 'getfsuuid_003_pos']
+tags = ['functional', 'getfsuuid']
 
 [tests/functional/io:Linux]
 tests = ['libaio', 'io_uring']
@@ -234,7 +238,7 @@ tests = ['snapdir_admin_create_destroy', 'snapdir_admin_rename_destroy',
     'snapdir_stat_no_mount', 'snapdir_mount_bind', 'snapdir_mount_move',
     'snapdir_mount_expire_bind', 'snapdir_mount_expire_move',
     'snapdir_mount_multiple', 'snapdir_mount_fd_hold', 'snapdir_mount_foreign',
-    'snapdir_mount_destroy_defer']
+    'snapdir_mount_destroy_defer', 'snapdir_stat_btime']
 tags = ['functional', 'snapdir']
 
 [tests/functional/syncfs:Linux]

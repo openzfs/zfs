@@ -2768,8 +2768,7 @@ vdev_raidz_io_start(zio_t *zio)
 		vdev_raidz_io_start_read(zio, rm);
 	}
 
-	zio_batch_rele(zio);
-	zio_execute(zio);
+	zio_execute(zio_batch_rele(zio));
 }
 
 /*

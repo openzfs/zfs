@@ -135,6 +135,7 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/edonr_test %D%/skein_test \
 %C%_blake3_test_LDADD = $(%C%_skein_test_LDADD)
 
 if BUILD_LINUX
+scripts_zfs_tests_bin_PROGRAMS += %D%/getfsuuid
 scripts_zfs_tests_bin_PROGRAMS += %D%/getversion
 scripts_zfs_tests_bin_PROGRAMS += %D%/user_ns_exec
 scripts_zfs_tests_bin_PROGRAMS += %D%/makedir
@@ -156,6 +157,9 @@ endif
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/file_fadvise
 %C%_file_fadvise_SOURCES  = %D%/file/file_fadvise.c
+
+scripts_zfs_tests_bin_PROGRAMS += %D%/file_uncached
+%C%_file_uncached_SOURCES  = %D%/file/file_uncached.c
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/file_unlink_fh
 %C%_file_unlink_fh_SOURCES  = %D%/file/file_unlink_fh.c

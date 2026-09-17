@@ -3608,8 +3608,17 @@ receive_freeobjects(struct receive_writer_arg *rwa,
 		dmu_object_info_t doi;
 		int err;
 
+		/*
+		 * EEXIST means obj is an interior slot of a multi-slot
+		 * dnode.  There is nothing to free here: the sender never
+		 * names a live interior slot, so the head of that dnode was
+		 * freed already, either by this record or by a deferred
+		 * claim, and the slot goes with it once that free syncs.
+		 * The in-block scan of dmu_object_next() skips such slots
+		 * the same way; only drr_firstobj arrives here unfiltered.
+		 */
 		err = dmu_object_info(rwa->os, obj, &doi);
-		if (err == ENOENT)
+		if (err == ENOENT || err == EEXIST)
 			continue;
 		else if (err != 0)
 			return (err);

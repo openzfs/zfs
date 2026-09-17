@@ -13,8 +13,10 @@
 /file_append
 /file_check
 /file_trunc
+/file_uncached
 /file_write
 /get_diff
+/getfsuuid
 /getversion
 /largest_file
 /libzfs_input_check

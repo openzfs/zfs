@@ -34,7 +34,16 @@
 DISK1=${DISKS%% *}
 DISK2="$(echo $DISKS | cut -d' ' -f2)"
 
+function cleanup
+{
+	zinject -c all
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+}
+log_onexit cleanup
+
 log_must zpool create -f $TESTPOOL mirror $DISK1 $DISK2
+# Keep initializing active while checking progress and suspending it.
+log_must zinject -d $DISK1 -D 20:1 -T write $TESTPOOL
 log_must zpool initialize $TESTPOOL $DISK1
 
 log_must zpool offline $TESTPOOL $DISK1

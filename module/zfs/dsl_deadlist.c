@@ -30,7 +30,7 @@
  * dp_config_rwlock held with RW_WRITER.
  *
  * The accessors (dsl_deadlist_space() and dsl_deadlist_space_range()) can
- * be called concurrently, from open context, with the dl_config_rwlock held
+ * be called concurrently, from open context, with the dp_config_rwlock held
  * with RW_READER.
  *
  * Therefore, we only need to provide locking between dsl_deadlist_insert() and
@@ -783,7 +783,7 @@ dsl_deadlist_space_range(dsl_deadlist_t *dl, uint64_t mintxg, uint64_t maxtxg,
 		dlce = avl_nearest(&dl->dl_cache, where, AVL_AFTER);
 
 	for (; dlce && dlce->dlce_mintxg < maxtxg;
-	    dlce = AVL_NEXT(&dl->dl_tree, dlce)) {
+	    dlce = AVL_NEXT(&dl->dl_cache, dlce)) {
 		*usedp += dlce->dlce_bytes;
 		*compp += dlce->dlce_comp;
 		*uncompp += dlce->dlce_uncomp;

@@ -35,7 +35,8 @@ verify_runnable "both"
 
 function cleanup
 {
-	datasetexists $TESTPOOL && destroy_pool $TESTPOOL
+	mmp_clear_suspended $TESTPOOL
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 	log_must set_tunable64 TXG_TIMEOUT $TXG_TIMEOUT_DEFAULT
 	log_must rm -f $PREV_UBER $CURR_UBER
 	log_must mmp_clear_hostid

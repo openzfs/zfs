@@ -1534,27 +1534,6 @@ dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
 }
 
 void
-dmu_prealloc(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
-    dmu_tx_t *tx)
-{
-	dmu_buf_t **dbp;
-	int numbufs, i;
-
-	if (size == 0)
-		return;
-
-	VERIFY0(dmu_buf_hold_array(os, object, offset, size,
-	    FALSE, FTAG, &numbufs, &dbp, DMU_READ_PREFETCH));
-
-	for (i = 0; i < numbufs; i++) {
-		dmu_buf_t *db = dbp[i];
-
-		dmu_buf_will_not_fill(db, tx);
-	}
-	dmu_buf_rele_array(dbp, numbufs, FTAG);
-}
-
-void
 dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
     void *data, uint8_t etype, uint8_t comp, int uncompressed_size,
     int compressed_size, int byteorder, dmu_tx_t *tx)
@@ -2828,6 +2807,44 @@ dmu_read_l0_bps(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 			bp = db->db_blkptr;
 		}
 
+		/*
+		 * A block with a pending free (a truncate or hole
+		 * punch not yet synced) must not be cloned: the clone
+		 * would add a BRT reference to a block about to be
+		 * freed, so the pending clone would apply onto an
+		 * already-freed DVA and double free it.  Report
+		 * EAGAIN and let the caller retry once the free
+		 * syncs (the block then reads as a hole).
+		 *
+		 * A hole (or absent BP) has nothing to free and is
+		 * cloned as a hole below.  When the head dirty record
+		 * overrode the BP (a clone in this txg) only frees
+		 * recorded after the override count against it;
+		 * earlier frees predate it.  This mirrors
+		 * dbuf_read_hole().
+		 */
+		if (bp != NULL && !BP_IS_HOLE(bp)) {
+			dbuf_dirty_record_t *dr =
+			    list_head(&db->db_dirty_records);
+			boolean_t freed;
+
+			DB_DNODE_ENTER(db);
+			dnode_t *rdn = DB_DNODE(db);
+			if (dr != NULL && dr->dt.dl.dr_brtwrite) {
+				freed = dnode_block_freed_after(rdn,
+				    db->db_blkid, dr->dr_txg);
+			} else {
+				freed = dnode_block_freed(rdn,
+				    db->db_blkid);
+			}
+			DB_DNODE_EXIT(db);
+			if (freed) {
+				mutex_exit(&db->db_mtx);
+				error = SET_ERROR(EAGAIN);
+				goto out;
+			}
+		}
+
 		mutex_exit(&db->db_mtx);
 
 		if (bp == NULL) {
@@ -3170,7 +3187,6 @@ EXPORT_SYMBOL(dmu_write_by_dnode);
 EXPORT_SYMBOL(dmu_write_uio);
 EXPORT_SYMBOL(dmu_write_uio_dbuf);
 EXPORT_SYMBOL(dmu_write_uio_dnode);
-EXPORT_SYMBOL(dmu_prealloc);
 EXPORT_SYMBOL(dmu_object_info);
 EXPORT_SYMBOL(dmu_object_info_from_dnode);
 EXPORT_SYMBOL(dmu_object_info_from_db);

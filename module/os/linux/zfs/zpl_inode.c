@@ -155,8 +155,13 @@ is_nametoolong(struct dentry *dentry)
 	    dlen >= ZAP_MAXNAMELEN_NEW);
 }
 
+#if defined(HAVE_IOPS_CREATE_NO_FLAG_ARG)
+ZPL_IDMAP_IOP_DEFINE(int, zpl_create, 3,
+    struct inode *, dir, struct dentry *, dentry, umode_t, mode)
+#else
 ZPL_IDMAP_IOP_DEFINE(int, zpl_create, 4,
     struct inode *, dir, struct dentry *, dentry, umode_t, mode, bool, flag)
+#endif
 {
 	cred_t *cr = CRED();
 	znode_t *zp;
@@ -426,13 +431,6 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_getattr, 4,
 	 */
 
 	error = -zfs_getattr_fast(idmap, request_mask, ip, stat);
-
-#ifdef STATX_BTIME
-	if (request_mask & STATX_BTIME) {
-		stat->btime = zp->z_btime;
-		stat->result_mask |= STATX_BTIME;
-	}
-#endif
 
 #ifdef STATX_CHANGE_COOKIE
 	if (request_mask & STATX_CHANGE_COOKIE) {

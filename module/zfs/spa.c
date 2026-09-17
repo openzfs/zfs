@@ -27,6 +27,7 @@
  * Copyright (c) 2023 Hewlett Packard Enterprise Development LP.
  * Copyright (c) 2023-2026, Klara, Inc.
  * Copyright (c) 2026, TrueNAS.
+ * Copyright 2026 Edgecast Cloud LLC.
  */
 
 /*
@@ -10867,32 +10868,49 @@ spa_sync_upgrades(spa_t *spa, dmu_tx_t *tx)
 	if (spa_sync_pass(spa) != 1)
 		return;
 
-	dsl_pool_t *dp = spa->spa_dsl_pool;
-	rrw_enter(&dp->dp_config_rwlock, RW_WRITER, FTAG);
+	uint64_t oldver = spa->spa_ubsync.ub_version;
+	uint64_t newver = spa->spa_uberblock.ub_version;
 
-	if (spa->spa_ubsync.ub_version < SPA_VERSION_ORIGIN &&
-	    spa->spa_uberblock.ub_version >= SPA_VERSION_ORIGIN) {
-		dsl_pool_create_origin(dp, tx);
+	/*
+	 * These upgrades change DSL namespace, so they need the
+	 * writer lock.
+	 */
+	boolean_t need_origin = oldver < SPA_VERSION_ORIGIN &&
+	    newver >= SPA_VERSION_ORIGIN;
+	boolean_t need_clones = oldver < SPA_VERSION_NEXT_CLONES &&
+	    newver >= SPA_VERSION_NEXT_CLONES;
+	boolean_t need_dir_clones = oldver < SPA_VERSION_DIR_CLONES &&
+	    newver >= SPA_VERSION_DIR_CLONES;
 
-		/* Keeping the origin open increases spa_minref */
-		spa->spa_minref += 3;
+	if (need_origin || need_clones || need_dir_clones) {
+		dsl_pool_t *dp = spa->spa_dsl_pool;
+
+		rrw_enter(&dp->dp_config_rwlock, RW_WRITER, FTAG);
+
+		if (need_origin) {
+			dsl_pool_create_origin(dp, tx);
+
+			/* Keeping the origin open increases spa_minref */
+			spa->spa_minref += 3;
+		}
+
+		if (need_clones) {
+			dsl_pool_upgrade_clones(dp, tx);
+		}
+
+		if (need_dir_clones) {
+			dsl_pool_upgrade_dir_clones(dp, tx);
+
+			/* Keeping the freedir open increases spa_minref */
+			spa->spa_minref += 3;
+		}
+
+		rrw_exit(&dp->dp_config_rwlock, FTAG);
 	}
 
-	if (spa->spa_ubsync.ub_version < SPA_VERSION_NEXT_CLONES &&
-	    spa->spa_uberblock.ub_version >= SPA_VERSION_NEXT_CLONES) {
-		dsl_pool_upgrade_clones(dp, tx);
-	}
+	/* Remaining upgrades do not need dp_config_rwlock */
 
-	if (spa->spa_ubsync.ub_version < SPA_VERSION_DIR_CLONES &&
-	    spa->spa_uberblock.ub_version >= SPA_VERSION_DIR_CLONES) {
-		dsl_pool_upgrade_dir_clones(dp, tx);
-
-		/* Keeping the freedir open increases spa_minref */
-		spa->spa_minref += 3;
-	}
-
-	if (spa->spa_ubsync.ub_version < SPA_VERSION_FEATURES &&
-	    spa->spa_uberblock.ub_version >= SPA_VERSION_FEATURES) {
+	if (oldver < SPA_VERSION_FEATURES && newver >= SPA_VERSION_FEATURES) {
 		spa_feature_create_zap_objects(spa, tx);
 	}
 
@@ -10902,7 +10920,7 @@ spa_sync_upgrades(spa_t *spa, dmu_tx_t *tx)
 	 * Old pools that have this feature enabled must be upgraded to have
 	 * this feature active
 	 */
-	if (spa->spa_uberblock.ub_version >= SPA_VERSION_FEATURES) {
+	if (newver >= SPA_VERSION_FEATURES) {
 		boolean_t lz4_en = spa_feature_is_enabled(spa,
 		    SPA_FEATURE_LZ4_COMPRESS);
 		boolean_t lz4_ac = spa_feature_is_active(spa,
@@ -10924,8 +10942,6 @@ spa_sync_upgrades(spa_t *spa, dmu_tx_t *tx)
 		    sizeof (spa->spa_cksum_salt.zcs_bytes),
 		    spa->spa_cksum_salt.zcs_bytes, tx));
 	}
-
-	rrw_exit(&dp->dp_config_rwlock, FTAG);
 }
 
 static void
@@ -11387,6 +11403,13 @@ spa_sync(spa_t *spa, uint64_t txg)
 	 */
 	spa->spa_ubsync = spa->spa_uberblock;
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
+
+	/*
+	 * An activity that ended in this txg is only over for a reader of
+	 * the pool now that the txg is on disk, so let the waiters look
+	 * again (see spa_activity_in_progress()).
+	 */
+	spa_notify_waiters(spa);
 
 	spa_handle_ignored_writes(spa);
 
@@ -11898,13 +11921,25 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		zfs_fallthrough;
 	case ZPOOL_WAIT_SCRUB:
 	{
-		boolean_t scanning, paused, is_scrub;
+		boolean_t scanning, paused, is_scrub, finishing;
 		dsl_scan_t *scn =  spa->spa_dsl_pool->dp_scan;
 
 		is_scrub = (scn->scn_phys.scn_func == POOL_SCAN_SCRUB);
 		scanning = (scn->scn_phys.scn_state == DSS_SCANNING);
 		paused = dsl_scan_is_paused_scrub(scn);
-		*in_progress = (scanning && !paused &&
+
+		/*
+		 * dsl_scan_done() marks the scan finished in syncing
+		 * context, ahead of the config and label writes that the
+		 * same txg carries, so the scan is not over for anyone
+		 * reading the pool until that txg has synced.  Keep
+		 * reporting it as in progress until then, the way the
+		 * initialize and trim waits cover the whole operation.
+		 */
+		finishing = (scn->scn_finished_txg != 0 &&
+		    spa_last_synced_txg(spa) < scn->scn_finished_txg);
+
+		*in_progress = ((scanning || finishing) && !paused &&
 		    is_scrub == (activity == ZPOOL_WAIT_SCRUB));
 		break;
 	}

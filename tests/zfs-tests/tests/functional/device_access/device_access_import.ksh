@@ -30,6 +30,12 @@ function cleanup
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 	restore_perms $DEV1
 	restore_perms $DEV2
+
+	# If the test ends with the pool exported (the normal case) then clear
+	# the vdevs so we don't have the residual pool on there for the next
+	# test.
+	log_must zpool labelclear -f $DEV1
+	log_must zpool labelclear -f $DEV2
 	rm -f $tmpcache
 }
 log_onexit cleanup
@@ -40,7 +46,8 @@ log_assert 'device permissions are properly checked for zpool import'
 log_must chmod 666 $DEV1 $DEV2
 log_must zpool create $TESTPOOL $DEV1 $DEV2
 check_vdevs $TESTPOOL $DEV1 $DEV2
-cp /etc/zfs/zpool.cache $tmpcache
+log_must cp /etc/zfs/zpool.cache $tmpcache
+log_must test -s $tmpcache
 log_must zpool export $TESTPOOL
 
 # remove perms from devices, check pool can be imported. this is relying on the

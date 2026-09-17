@@ -234,6 +234,30 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO_ALLOC_4ARG], [
 	])
 ])
 
+dnl #
+dnl # Linux 7.3 API
+dnl #
+dnl # bi_iter.bi_bvec_done renamed to bi_iter.bi_offset
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_SRC_BVEC_ITER_OFFSET], [
+	ZFS_LINUX_TEST_SRC([bvec_iter_offset], [
+		#include <linux/bio.h>
+	],[
+		struct bvec_iter *bi = NULL;
+		unsigned int __attribute__((unused)) offset = bi->bi_offset;
+	])
+])
+
+AC_DEFUN([ZFS_AC_KERNEL_BVEC_ITER_OFFSET], [
+	AC_MSG_CHECKING([if bvec_iter has bi_offset])
+	ZFS_LINUX_TEST_RESULT([bvec_iter_offset],[
+		AC_MSG_RESULT(yes)
+		AC_DEFINE([HAVE_BVEC_ITER_OFFSET], 1, [bvec_iter has bi_offset])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 	ZFS_AC_KERNEL_SRC_BIO_OPS
 	ZFS_AC_KERNEL_SRC_BIO_SET_DEV
@@ -243,6 +267,7 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BIO], [
 	ZFS_AC_KERNEL_SRC_BDEV_SUBMIT_BIO_RETURNS_VOID
 	ZFS_AC_KERNEL_SRC_BIO_SET_DEV_MACRO
 	ZFS_AC_KERNEL_SRC_BIO_ALLOC_4ARG
+	ZFS_AC_KERNEL_SRC_BVEC_ITER_OFFSET
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_BIO], [
@@ -253,4 +278,5 @@ AC_DEFUN([ZFS_AC_KERNEL_BIO], [
 	ZFS_AC_KERNEL_BIO_BDEV_DISK
 	ZFS_AC_KERNEL_BDEV_SUBMIT_BIO_RETURNS_VOID
 	ZFS_AC_KERNEL_BIO_ALLOC_4ARG
+	ZFS_AC_KERNEL_BVEC_ITER_OFFSET
 ])

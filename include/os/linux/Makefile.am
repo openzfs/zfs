@@ -7,6 +7,7 @@ kernel_linux_HEADERS = \
 	%D%/kernel/linux/dcache_compat.h \
 	%D%/kernel/linux/idmap_compat.h \
 	%D%/kernel/linux/kmap_compat.h \
+	%D%/kernel/linux/kthread_compat.h \
 	%D%/kernel/linux/mm_compat.h \
 	%D%/kernel/linux/mod_compat.h \
 	%D%/kernel/linux/page_compat.h \
@@ -50,6 +51,7 @@ kernel_sys_HEADERS = \
 	%D%/zfs/sys/zfs_vfsops_os.h \
 	%D%/zfs/sys/zfs_vnops_os.h \
 	%D%/zfs/sys/zfs_znode_impl.h \
+	%D%/zfs/sys/zio_crypt_os.h \
 	%D%/zfs/sys/zpl.h
 
 kernel_spl_rpcdir = $(kerneldir)/spl/rpc

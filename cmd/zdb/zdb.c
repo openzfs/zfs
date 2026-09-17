@@ -760,6 +760,7 @@ usage(void)
 	    "            d     ZFS directories\n"
 	    "            f     ZFS files \n"
 	    "            m     SPA space maps\n"
+	    "            v     ZVols\n"
 	    "            z     ZAPs\n"
 	    "            -     Negate effect of next flag\n\n");
 	(void) fprintf(stderr, "    Options to control amount of output:\n");
@@ -4375,6 +4376,10 @@ match_object_type(dmu_object_type_t obj_type, uint64_t flags)
 		break;
 	case DMU_OT_SPACE_MAP:
 		if (!(flags & ZOR_FLAG_SPACE_MAP))
+			match = B_FALSE;
+		break;
+	case DMU_OT_ZVOL:
+		if (!(flags & ZOR_FLAG_ZVOL))
 			match = B_FALSE;
 		break;
 	default:
@@ -10674,12 +10679,18 @@ main(int argc, char **argv)
 				/*
 				 * If we're missing the log device then
 				 * try opening the pool after clearing the
-				 * log state.
+				 * log state.  Keep the global spa NULL
+				 * meanwhile: the failed open left it that
+				 * way, we hold no reference on what the
+				 * lookup returns, and zdb_exit() would
+				 * spa_close() it on the way out.
 				 */
+				spa_t *found;
+
 				spa_namespace_enter(FTAG);
-				if ((spa = spa_lookup(target)) != NULL &&
-				    spa->spa_log_state == SPA_LOG_MISSING) {
-					spa->spa_log_state = SPA_LOG_CLEAR;
+				if ((found = spa_lookup(target)) != NULL &&
+				    found->spa_log_state == SPA_LOG_MISSING) {
+					found->spa_log_state = SPA_LOG_CLEAR;
 					error = 0;
 				}
 				spa_namespace_exit(FTAG);
@@ -10773,6 +10784,7 @@ retry_lookup:
 		flagbits['d'] = ZOR_FLAG_DIRECTORY;
 		flagbits['f'] = ZOR_FLAG_PLAIN_FILE;
 		flagbits['m'] = ZOR_FLAG_SPACE_MAP;
+		flagbits['v'] = ZOR_FLAG_ZVOL;
 		flagbits['z'] = ZOR_FLAG_ZAP;
 		flagbits['A'] = ZOR_FLAG_ALL_TYPES;
 

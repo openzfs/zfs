@@ -598,8 +598,9 @@ tests = ['zpool_status_001_pos', 'zpool_status_002_pos',
     'zpool_status_003_pos', 'zpool_status_004_pos',
     'zpool_status_005_pos', 'zpool_status_006_pos',
     'zpool_status_007_pos', 'zpool_status_008_pos',
-    'zpool_status_009_pos',
-    'zpool_status_features_001_pos']
+    'zpool_status_009_pos', 'zpool_status_010_pos',
+    'zpool_status_011_pos', 'zpool_status_features_001_pos',
+    'zpool_status_-v']
 tags = ['functional', 'cli_root', 'zpool_status']
 
 [tests/functional/cli_root/zpool_sync]
@@ -1020,7 +1021,8 @@ tests = ['recv_dedup', 'recv_dedup_encrypted_zvol', 'rsend_001_pos',
     'send_encrypted_holds',
     'send_encrypted_props', 'send_encrypted_truncated_files',
     'send_freeobjects', 'send_realloc_files', 'send_realloc_encrypted_files',
-    'send_realloc_dnode_nblkptr', 'send_realloc_dnode_mixed',
+    'send_realloc_dnode_nblkptr', 'send_realloc_dnode_interior',
+    'send_realloc_dnode_mixed',
     'send_realloc_dnode_resume',
     'send_spill_block', 'send_split_large_block', 'send_holds',
     'send_hole_birth', 'send_mixed_raw',
@@ -1094,6 +1096,10 @@ tags = ['functional', 'trim']
 [tests/functional/truncate]
 tests = ['truncate_001_pos', 'truncate_002_pos', 'truncate_timestamps']
 tags = ['functional', 'truncate']
+
+[tests/functional/uncached]
+tests = ['uncached_dontcache', 'uncached_noreuse']
+tags = ['functional', 'uncached']
 
 [tests/functional/unlink]
 tests = ['unlinked_fh_accessible']
@@ -1175,7 +1181,7 @@ tests = ['zstream_checksum_001_pos',
     'zstream_recompress_005_pos',
     'zstream_redup_001_pos',
     'zstream_selftest_queue_001_pos',
-    'zstream_validate_001_neg']
+    'zstream_validate_001_neg', 'zstream_validate_002_neg']
 tags = ['functional', 'zstream']
 
 [tests/functional/zvol/zvol_ENOSPC]

@@ -235,6 +235,7 @@ typedef uint64_t zio_flag_t;
 #define	ZIO_FLAG_DELEGATED	(1ULL << 32)
 #define	ZIO_FLAG_PREALLOCATED	(1ULL << 33)
 #define	ZIO_FLAG_POSTREAD	(1ULL << 34)
+#define	ZIO_FLAG_LIGHTWEIGHT	(1ULL << 35)
 
 #define	ZIO_ALLOCATOR_NONE	(-1)
 #define	ZIO_HAS_ALLOCATOR(zio)	((zio)->io_allocator != ZIO_ALLOCATOR_NONE)
@@ -573,7 +574,7 @@ struct zio {
 	/* Completion batching state */
 	zio_batch_t	*io_batch;	/* batch this zio is a member of */
 	zio_batch_t	*io_child_batch; /* batch its vdev children join */
-	zio_t		*io_batch_next;	/* link on zb_arrived */
+	zio_t		*io_exec_next;	/* link on a list of zios to execute */
 };
 
 enum blk_verify_flag {
@@ -656,8 +657,8 @@ extern void zio_delay_interrupt(zio_t *zio);
 extern void zio_deadman(zio_t *zio, const char *tag);
 
 extern void zio_batch_create(zio_t *pio);
-extern void zio_batch_rele(zio_t *pio);
-extern void zio_batch_leave(zio_t *zio);
+extern zio_t *zio_batch_rele(zio_t *pio);
+extern zio_t *zio_batch_leave(zio_t *zio);
 
 extern zio_t *zio_walk_parents(zio_t *cio, zio_link_t **);
 extern zio_t *zio_walk_children(zio_t *pio, zio_link_t **);

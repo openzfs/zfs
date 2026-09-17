@@ -10250,6 +10250,11 @@ l2arc_feed_thread(void *arg)
 		if (!spa_config_tryenter(spa, SCL_L2ARC, dev, RW_READER))
 			continue;
 
+		if (dev->l2ad_rebuild || dev->l2ad_trim_all) {
+			spa_config_exit(spa, SCL_L2ARC, dev);
+			continue;
+		}
+
 		/*
 		 * Avoid contributing to memory pressure.
 		 */

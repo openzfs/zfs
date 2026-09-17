@@ -536,6 +536,8 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 	zp->z_pflags = 0;
 	zp->z_mode = 0;
 	zp->z_sync_cnt = 0;
+	zp->z_btime.tv_sec = creation;
+	zp->z_btime.tv_nsec = 0;
 	ip->i_generation = 0;
 	ip->i_ino = id;
 	ip->i_mode = (S_IFDIR | S_IRWXUGO);
@@ -865,7 +867,7 @@ zfsctl_snapdir_lookup(struct inode *dip, const char *name, struct inode **ipp,
 	}
 
 	*ipp = zfsctl_inode_lookup(zfsvfs, ZFSCTL_INO_SNAPDIRS - id,
-	    &simple_dir_operations, &simple_dir_inode_operations);
+	    &simple_dir_operations, &zpl_ops_snapdirs);
 	if (*ipp == NULL)
 		error = SET_ERROR(ENOENT);
 

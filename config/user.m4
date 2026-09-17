@@ -38,6 +38,7 @@ AC_DEFUN([ZFS_AC_CONFIG_USER], [
 	ZFS_AC_CONFIG_USER_ZFSEXEC
 
 	AC_CHECK_FUNCS([execvpe issetugid mlockall strlcat strlcpy gettid])
+	AC_CHECK_FUNCS([preadv2 pwritev2])
 
 	AC_SUBST(RM)
 ])

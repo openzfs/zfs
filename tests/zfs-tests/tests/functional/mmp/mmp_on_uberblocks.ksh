@@ -38,7 +38,8 @@ TARGET=$((($NDISKS * $DURATION * 1000) / $MMP_INTERVAL))
 
 function cleanup
 {
-	datasetexists $TESTPOOL && destroy_pool $TESTPOOL
+	mmp_clear_suspended $TESTPOOL
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 	log_must mmp_clear_hostid
 }
 
@@ -50,8 +51,25 @@ log_must mmp_set_hostid $HOSTID1
 log_must zpool create -f $TESTPOOL $DISKS
 log_must zpool set multihost=on $TESTPOOL
 
-clear_mmp_history
-MMP_WRITES=$(count_mmp_writes $TESTPOOL $DURATION)
+#
+# A machine that stops running for longer than the MMP failure window
+# has its pool suspended, and the writes it did not make in the
+# meantime say nothing about the interval this test measures.  Resume
+# the pool and take the sample again rather than report the stall.
+#
+typeset -i attempt
+for (( attempt = 1; attempt <= 3; attempt++ )); do
+	clear_mmp_history
+	MMP_WRITES=$(count_mmp_writes $TESTPOOL $DURATION)
+
+	[[ $(zpool list -H -o health $TESTPOOL) != "SUSPENDED" ]] && break
+
+	log_note "Pool suspended while counting writes, sample $attempt dropped"
+	mmp_clear_suspended $TESTPOOL
+	MMP_WRITES=""
+done
+
+[[ -z $MMP_WRITES ]] && log_fail "Pool suspended on every attempt"
 
 log_note "Uberblock changed $MMP_WRITES times"
 log_must within_percent $MMP_WRITES $TARGET 80
