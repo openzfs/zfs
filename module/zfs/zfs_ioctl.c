@@ -218,6 +218,7 @@
 #endif
 
 #include <sys/zfs_ioctl_impl.h>
+#include <sys/dsl_root_reparent.h>
 
 kmutex_t zfsdev_state_lock;
 static zfsdev_state_t zfsdev_state_listhead;
@@ -5288,6 +5289,64 @@ zfs_ioc_rename(zfs_cmd_t *zc)
 }
 
 static int
+zfs_ioc_root_reparent(zfs_cmd_t *zc)
+{
+	dsl_pool_t	*dp;
+	char		child_name[ZFS_MAX_DATASET_NAME_LEN];
+	char		tmpname[ZFS_MAX_DATASET_NAME_LEN];
+	dsl_dataset_t	*new_ds;
+	struct root_reparent_arg *rra;
+	int		error;
+
+	if (copy_from_user(child_name,
+	    (const char __user *)(uintptr_t)zc->zc_nvlist_src,
+	    sizeof (child_name)))
+		return (SET_ERROR(EFAULT));
+
+	error = dsl_pool_hold(zc->zc_name, FTAG, &dp);
+	if (error != 0)
+		return (error);
+
+	error = dsl_root_reparent_check(dp, child_name);
+	if (error != 0) {
+		dsl_pool_rele(dp, FTAG);
+		return (error);
+	}
+
+	(void) snprintf(tmpname, sizeof (tmpname),
+	    "%s/__new_root_tmp", zc->zc_name);
+	error = dsl_dataset_hold(dp, tmpname, FTAG, &new_ds);
+	if (error != 0) {
+		dsl_pool_rele(dp, FTAG);
+		return (error);
+	}
+
+       
+    rra = kmem_zalloc(sizeof (*rra), KM_PUSHPAGE);
+    rra->rra_new_root_obj = new_ds->ds_dir->dd_object;
+    rra->rra_new_root_ds_obj = new_ds->ds_object;
+    rra->rra_new_root_child_zap = dsl_dir_phys(new_ds->ds_dir)->dd_child_dir_zapobj;
+    rra->rra_new_root_ds = new_ds;          /* <-- keep it held */
+
+    (void) strlcpy(rra->rra_child_name, child_name,
+        sizeof (rra->rra_child_name));
+    (void) strlcpy(rra->rra_pool_name, zc->zc_name,
+        sizeof (rra->rra_pool_name));
+
+    /* REMOVED: dsl_dataset_rele(new_ds, FTAG);  */
+    dsl_pool_rele(dp, FTAG);
+
+    error = dsl_sync_task(zc->zc_name, NULL,
+        dsl_root_reparent_sync_task, rra, 0,
+        ZFS_SPACE_CHECK_NONE);
+    if (error != 0) {
+        dsl_dataset_rele(new_ds, FTAG);     /* <-- release on failure */
+        kmem_free(rra, sizeof (*rra));
+    }
+    return (error);
+}
+
+static int
 zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 {
 	const char *propname = nvpair_name(pair);
@@ -8316,6 +8375,8 @@ zfs_ioctl_init(void)
 	    zfs_secpolicy_destroy);
 	zfs_ioctl_register_dataset_modify(ZFS_IOC_RENAME, zfs_ioc_rename,
 	    zfs_secpolicy_rename);
+	zfs_ioctl_register_dataset_modify(ZFS_IOC_ROOT_REPARENT,
+	    zfs_ioc_root_reparent, zfs_secpolicy_read);
 	zfs_ioctl_register_dataset_modify(ZFS_IOC_RECV, zfs_ioc_recv,
 	    zfs_secpolicy_recv);
 	zfs_ioctl_register_dataset_modify(ZFS_IOC_PROMOTE, zfs_ioc_promote,
