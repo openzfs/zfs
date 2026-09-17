@@ -2546,6 +2546,10 @@ vdev_draid_ndisks(vdev_t *vd)
 	return (vdc->vdc_ndisks);
 }
 
+/*
+ * All dRAID allocations are a multiple of the group width times the sector
+ * size.
+ */
 static uint64_t
 vdev_draid_alloc_factor(vdev_t *vd)
 {

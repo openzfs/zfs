@@ -164,6 +164,7 @@ extern unsigned char bcd_to_byte[256];
  */
 #define	howmany(x, y)	(((x)+((y)-1))/(y))
 #define	roundup(x, y)	((((x)+((y)-1))/(y))*(y))
+#define	rounddown(x, y)	(((x) / (y)) * (y))
 
 /*
  * Macro to determine if value is a power of 2

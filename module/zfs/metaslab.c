@@ -1765,10 +1765,6 @@ metaslab_block_find(zfs_btree_t *t, zfs_range_tree_t *rt, uint64_t start,
 	return (rs);
 }
 
-#ifndef rounddown
-#define	rounddown(x, y) (((x) / (y)) * (y))
-#endif
-
 /*
  * This is a helper function that can be used by the allocator to find a
  * suitable block to allocate. This will search the specified B-tree looking

@@ -48,6 +48,9 @@
 #ifndef	DIV_ROUND_UP
 #define	DIV_ROUND_UP(n, d)	(((n) + (d) - 1) / (d))
 #endif
+#ifndef rounddown
+#define	rounddown(x, y)		(((x) / (y)) * (y))
+#endif
 
 #define	makedevice(maj, min)	makedev(maj, min)
 #define	_sysconf(a)		sysconf(a)

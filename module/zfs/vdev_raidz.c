@@ -5545,6 +5545,11 @@ vdev_raidz_ndisks(vdev_t *vd)
 	return (vd->vdev_children);
 }
 
+/*
+ * All RAID-z allocations are a multiple of the sector size times nparity + 1,
+ * in order to ensure that we don't end up with unusably small chunks left over
+ * between other allocations.
+ */
 static uint64_t
 vdev_raidz_alloc_factor(vdev_t *vd)
 {
