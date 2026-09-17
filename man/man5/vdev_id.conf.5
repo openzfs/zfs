@@ -109,12 +109,15 @@ then
 will examine the first running component disk of a dm-multipath
 device as provided by the driver command to determine the physical path.
 .
-.It Sy topology Sy sas_direct Ns | Ns Sy sas_switch Ns | Ns Sy scsi
+.It Sy topology Sy sas_direct Ns | Ns Sy sas_expander Ns | Ns Sy sas_switch Ns | Ns Sy scsi
 Identifies a physical topology that governs how physical paths are
 mapped to channels:
 .Bl -tag -compact -width "sas_direct and scsi"
 .It Sy sas_direct No and Sy scsi
 channels are uniquely identified by a PCI slot and HBA port number
+.It Sy sas_expander
+channels are uniquely identified by the SAS address of the rightmost expander
+in the device path
 .It Sy sas_switch
 channels are uniquely identified by a SAS switch port number
 .El
@@ -213,6 +216,20 @@ channel 1            A
 channel 2            B
 channel 3            C
 channel 4            D
+.Ed
+.Pp
+A SAS-expander topology.
+Note that the
+.Ar channel
+keyword takes only two arguments in this example:
+.Bd -literal -compact -offset Ds
+topology      sas_expander
+
+#       EXPANDER ADDR      CHANNEL NAME
+channel 0x500304000000000f J1A
+channel 0x500304000000001f J1B
+channel 0x500304000000002f J2A
+channel 0x500304000000003f J2B
 .Ed
 .Pp
 A multipath configuration.
