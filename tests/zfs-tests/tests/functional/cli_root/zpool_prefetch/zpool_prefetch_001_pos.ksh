@@ -79,21 +79,27 @@ MNTPOINT=$(get_prop mountpoint $DATASET)
 
 log_note "Generating dataset ..."
 typeset -i i=0
-while (( i < 16384 )); do
-	echo -n $i > $MNTPOINT/f.$i
+while (( i < 8192 )); do
+        (
+                echo -n $i > $MNTPOINT/f.$i
 
-	# Create some copies of the original mainly for the purpose of
-	# having duplicate entries.  About half will have no copies, while
-	# the remainder will have an equal distribution of 1-4 copies,
-	# depending on the number put into the original.
-	typeset -i j
-	((j = i % 8))
-	while (( j < 4 )); do
-		cp $MNTPOINT/f.$i $MNTPOINT/f.$i.$j
-		((j += 1))
-	done
-	((i += 1))
+                # Create some copies of the original mainly for the purpose of
+                # having duplicate entries.  About half will have no copies, while
+                # the remainder will have an equal distribution of 1-4 copies,
+                # depending on the number put into the original.
+                typeset -i j
+                ((j = i % 8))
+                while (( j < 4 )); do
+                        cp $MNTPOINT/f.$i $MNTPOINT/f.$i.$j
+                        ((j += 1))
+                done
+        ) &
+        if [ $(($i % 8)) == 0 ] ; then
+                wait
+        fi
+        ((i += 1))
 done
+wait
 
 # Force the DDT logs to disk with a scrub so they can be prefetched
 log_must zpool scrub -w $TESTPOOL
