@@ -281,6 +281,7 @@ case "$1" in
     sudo -E rc-update add samba
     sudo -E rc-update add dhcpcd
     # Remove services related to cloud-init.
+    sudo -E rc-update del cloud-init-local boot
     sudo -E rc-update del cloud-init default
     sudo -E rc-update del cloud-final default
     sudo -E rc-update del cloud-config default
