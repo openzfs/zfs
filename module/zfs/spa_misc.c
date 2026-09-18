@@ -468,6 +468,29 @@ spa_config_lock_destroy(spa_t *spa)
 	}
 }
 
+/* A writer wants or holds the lock.  Mutated only under scl_lock. */
+#define	SCL_COUNT_WRITER	0x80000000U
+#define	SCL_COUNT_REFS(c)	((c) & ~SCL_COUNT_WRITER)
+
+/*
+ * Drop one reader reference.  The result tells us both that it was the last
+ * one and that a writer is waiting for it.
+ */
+static void
+spa_config_exit_read(spa_config_lock_t *scl)
+{
+	uint32_t count;
+
+	ASSERT3U(SCL_COUNT_REFS(scl->scl_count), >, 0);
+
+	count = atomic_dec_32_nv(&scl->scl_count);
+	if (count != SCL_COUNT_WRITER)
+		return;
+	mutex_enter(&scl->scl_lock);
+	cv_broadcast(&scl->scl_cv);
+	mutex_exit(&scl->scl_lock);
+}
+
 int
 spa_config_tryenter(spa_t *spa, int locks, const void *tag, krw_t rw)
 {
@@ -475,27 +498,31 @@ spa_config_tryenter(spa_t *spa, int locks, const void *tag, krw_t rw)
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (!(locks & (1 << i)))
 			continue;
-		mutex_enter(&scl->scl_lock);
 		if (rw == RW_READER) {
-			if (scl->scl_writer || scl->scl_write_wanted) {
-				mutex_exit(&scl->scl_lock);
+			if (atomic_inc_32_nv(&scl->scl_count) &
+			    SCL_COUNT_WRITER) {
+				spa_config_exit_read(scl);
 				spa_config_exit(spa, locks & ((1 << i) - 1),
 				    tag);
 				return (0);
 			}
 		} else {
+			mutex_enter(&scl->scl_lock);
 			ASSERT(scl->scl_writer != curthread);
-			if (scl->scl_count != 0) {
+			/* Take the reference together with the bit or fail. */
+			if (atomic_cas_32(&scl->scl_count, 0,
+			    SCL_COUNT_WRITER | 1) != 0) {
 				mutex_exit(&scl->scl_lock);
 				spa_config_exit(spa, locks & ((1 << i) - 1),
 				    tag);
 				return (0);
 			}
+			scl->scl_write_wanted++;
 			scl->scl_writer = curthread;
+			mutex_exit(&scl->scl_lock);
 		}
-		scl->scl_count++;
-		mutex_exit(&scl->scl_lock);
 	}
+	membar_consumer();
 	return (1);
 }
 
@@ -514,6 +541,19 @@ spa_config_enter_impl(spa_t *spa, int locks, const void *tag, krw_t rw,
 			wlocks_held |= (1 << i);
 		if (!(locks & (1 << i)))
 			continue;
+
+		/*
+		 * Priority readers have to tell a waiting writer from a
+		 * holding one, which one word can not express, so they take
+		 * the lock.  They are rare.
+		 */
+		if (rw == RW_READER && !priority_flag) {
+			if ((atomic_inc_32_nv(&scl->scl_count) &
+			    SCL_COUNT_WRITER) == 0)
+				continue;
+			spa_config_exit_read(scl);
+		}
+
 		mutex_enter(&scl->scl_lock);
 		if (rw == RW_READER) {
 			while (scl->scl_writer ||
@@ -522,16 +562,18 @@ spa_config_enter_impl(spa_t *spa, int locks, const void *tag, krw_t rw,
 			}
 		} else {
 			ASSERT(scl->scl_writer != curthread);
-			while (scl->scl_count != 0) {
-				scl->scl_write_wanted++;
+			scl->scl_write_wanted++;
+			atomic_or_32(&scl->scl_count, SCL_COUNT_WRITER);
+			while (SCL_COUNT_REFS(scl->scl_count) != 0)
 				cv_wait(&scl->scl_cv, &scl->scl_lock);
-				scl->scl_write_wanted--;
-			}
 			scl->scl_writer = curthread;
 		}
-		scl->scl_count++;
+		atomic_inc_32(&scl->scl_count);
 		mutex_exit(&scl->scl_lock);
 	}
+
+	/* Pair with the membar_producer() in spa_config_exit(). */
+	membar_consumer();
 	ASSERT3U(wlocks_held, <=, locks);
 }
 
@@ -564,14 +606,25 @@ spa_config_exit(spa_t *spa, int locks, const void *tag)
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (!(locks & (1 << i)))
 			continue;
-		mutex_enter(&scl->scl_lock);
-		ASSERT(scl->scl_count > 0);
-		if (--scl->scl_count == 0) {
-			ASSERT(scl->scl_writer == NULL ||
-			    scl->scl_writer == curthread);
-			scl->scl_writer = NULL;	/* OK in either case */
-			cv_broadcast(&scl->scl_cv);
+		if (scl->scl_writer != curthread) {
+			spa_config_exit_read(scl);
+			continue;
 		}
+
+		/*
+		 * A reader mid-backoff may hold a reference, so the count is
+		 * not ours alone.  Clearing SCL_COUNT_WRITER opens the reader
+		 * fast path, so it goes last and after a barrier.
+		 */
+		mutex_enter(&scl->scl_lock);
+		ASSERT3U(SCL_COUNT_REFS(scl->scl_count), >, 0);
+		scl->scl_writer = NULL;
+		atomic_dec_32(&scl->scl_count);
+		if (--scl->scl_write_wanted == 0) {
+			membar_producer();
+			atomic_and_32(&scl->scl_count, ~SCL_COUNT_WRITER);
+		}
+		cv_broadcast(&scl->scl_cv);
 		mutex_exit(&scl->scl_lock);
 	}
 }
@@ -585,7 +638,7 @@ spa_config_held(spa_t *spa, int locks, krw_t rw)
 		spa_config_lock_t *scl = &spa->spa_config_lock[i];
 		if (!(locks & (1 << i)))
 			continue;
-		if ((rw == RW_READER && scl->scl_count != 0) ||
+		if ((rw == RW_READER && SCL_COUNT_REFS(scl->scl_count) != 0) ||
 		    (rw == RW_WRITER && scl->scl_writer == curthread))
 			locks_held |= 1 << i;
 	}
