@@ -16,6 +16,7 @@
 
 #include <sys/kmem.h>
 #include <sys/nvpair.h>
+#include <sys/sysmacros.h>
 #include <libnvpair.h>
 
 #include "unit.h"

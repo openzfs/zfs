@@ -19,6 +19,7 @@
 #include <string.h>
 #include <sys/nvpair.h>
 #include <sys/fs/zfs.h>
+#include <sys/sysmacros.h>
 #include <math.h>
 
 #include <libzutil.h>

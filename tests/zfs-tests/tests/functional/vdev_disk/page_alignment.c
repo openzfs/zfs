@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <sys/param.h>
+#include <sys/sysmacros.h>
 #include <stdlib.h>
 
 /*
