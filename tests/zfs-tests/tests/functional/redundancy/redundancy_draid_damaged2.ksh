@@ -42,7 +42,7 @@
 #
 
 typeset -r devs=7
-typeset -r dev_size_mb=512
+typeset -r dev_size_mb=256
 typeset -a disks
 
 prefetch_disable=$(get_tunable PREFETCH_DISABLE)
@@ -73,7 +73,7 @@ for i in {0..$(($devs - 1))}; do
 done
 
 # Disk file which will be attached
-log_must truncate -s 512M $TEST_BASE_DIR/dev-$devs
+log_must truncate -s 256M $TEST_BASE_DIR/dev-$devs
 
 dir=$TEST_BASE_DIR
 
@@ -85,13 +85,13 @@ for nparity in 1 2 3; do
 	# log_must zfs set primarycache=metadata $TESTPOOL
 
 	log_must zfs create $TESTPOOL/fs
-	log_must fill_fs /$TESTPOOL/fs 1 256 10240 1 R
+	log_must fill_fs /$TESTPOOL/fs 1 128 10240 1 R
 
 	log_must zfs create -o compress=on $TESTPOOL/fs2
-	log_must fill_fs /$TESTPOOL/fs2 1 256 10240 1 R
+	log_must fill_fs /$TESTPOOL/fs2 1 128 10240 1 R
 
 	log_must zfs create -o compress=on -o recordsize=8k $TESTPOOL/fs3
-	log_must fill_fs /$TESTPOOL/fs3 1 256 10240 1 R
+	log_must fill_fs /$TESTPOOL/fs3 1 128 10240 1 R
 
 	log_must zpool export $TESTPOOL
 	log_must zpool import -o cachefile=none -d $dir $TESTPOOL
