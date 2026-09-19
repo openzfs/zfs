@@ -97,15 +97,32 @@ option.
 Generate a stream which may contain blocks larger than 128 KiB.
 This flag has no effect if the
 .Sy large_blocks
-pool feature is disabled, or if the
+pool feature is disabled, or if this filesystem has never contained a
+block larger than 128 KiB.
+Note that it is writing such a block, not setting the
 .Sy recordsize
-property of this filesystem has never been set above 128 KiB.
+property, that activates the per-dataset
+.Sy large_blocks
+feature and lets this flag take effect.
 The receiving system must have the
 .Sy large_blocks
 pool feature enabled as well.
 This flag is required if the
 .Sy large_microzap
 pool feature is active.
+.Pp
+Replicating a filesystem that contains large blocks without this flag
+splits them into 128 KiB blocks on the receiving side, so the received
+copy does not activate the
+.Sy large_blocks
+feature.
+The two copies then have different physical block layouts, and an
+incremental stream sent back in the opposite direction is rejected,
+because that stream cannot carry the large blocks the original
+filesystem still has.
+Recovering from this requires a full receive into a new dataset.
+Use this flag from the first replication onwards if the direction of
+replication may ever be reversed.
 See
 .Xr zpool-features 7
 for details on ZFS feature flags and the
@@ -338,12 +355,29 @@ non-deduplicated stream will be generated.
 Generate a stream which may contain blocks larger than 128 KiB.
 This flag has no effect if the
 .Sy large_blocks
-pool feature is disabled, or if the
+pool feature is disabled, or if this filesystem has never contained a
+block larger than 128 KiB.
+Note that it is writing such a block, not setting the
 .Sy recordsize
-property of this filesystem has never been set above 128 KiB.
+property, that activates the per-dataset
+.Sy large_blocks
+feature and lets this flag take effect.
 The receiving system must have the
 .Sy large_blocks
 pool feature enabled as well.
+.Pp
+Replicating a filesystem that contains large blocks without this flag
+splits them into 128 KiB blocks on the receiving side, so the received
+copy does not activate the
+.Sy large_blocks
+feature.
+The two copies then have different physical block layouts, and an
+incremental stream sent back in the opposite direction is rejected,
+because that stream cannot carry the large blocks the original
+filesystem still has.
+Recovering from this requires a full receive into a new dataset.
+Use this flag from the first replication onwards if the direction of
+replication may ever be reversed.
 See
 .Xr zpool-features 7
 for details on ZFS feature flags and the

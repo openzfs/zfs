@@ -5279,8 +5279,15 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			break;
 		case ZFS_ERR_STREAM_LARGE_BLOCK_MISMATCH:
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "incremental send stream requires -L "
-			    "(--large-block), to match previous receive."));
+			    "destination contains large blocks, but the\n"
+			    "incremental stream does not carry them. Either "
+			    "the sending side omitted -L\n(--large-block), "
+			    "or it used -L but its copy has no large blocks, "
+			    "which makes\n-L a no-op. In the latter case the "
+			    "two copies have different block layouts\nand "
+			    "this direction of replication cannot be resumed; "
+			    "receive a full stream\ninto a new dataset "
+			    "instead."));
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 			break;
 		case ENOTSUP:
