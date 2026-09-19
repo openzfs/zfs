@@ -155,6 +155,7 @@ done
 for kernel_version in %{?kernel_versions}; do
     cd _kmod_build_${kernel_version%%___*}
     %configure \
+        %{?confcache} \
         --with-config=kernel \
         --with-linux=%{ksrc} \
         --with-linux-obj=%{kobj} \
