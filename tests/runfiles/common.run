@@ -997,8 +997,9 @@ tests = ['rootpool_002_neg', 'rootpool_003_neg', 'rootpool_007_pos']
 tags = ['functional', 'rootpool']
 
 [tests/functional/rsend]
-tests = ['recv_dedup', 'recv_dedup_encrypted_zvol', 'rsend_001_pos',
-    'rsend_002_pos', 'rsend_003_pos', 'rsend_004_pos', 'rsend_005_pos',
+tests = ['recv_dedup', 'recv_dedup_encrypted_zvol',
+    'recv_dot_name_neg', 'rsend_001_pos', 'rsend_002_pos',
+    'rsend_003_pos', 'rsend_004_pos', 'rsend_005_pos',
     'rsend_006_pos', 'rsend_007_pos', 'rsend_008_pos', 'rsend_009_pos',
     'rsend_010_pos', 'rsend_011_pos', 'rsend_012_pos', 'rsend_013_pos',
     'rsend_014_pos', 'rsend_016_neg', 'rsend_019_pos', 'rsend_020_pos',
