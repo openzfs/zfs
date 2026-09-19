@@ -413,6 +413,8 @@ AC_DEFUN([ZFS_AC_RPM], [
 
 	AS_IF([test "x$enable_debuginfo" = xyes], [
 		RPM_DEFINE_COMMON=${RPM_DEFINE_COMMON}' --define "__strip /bin/true"'
+	], [
+		RPM_DEFINE_COMMON=${RPM_DEFINE_COMMON}' --nodebuginfo'
 	])
 
 	RPM_DEFINE_UTIL=' --define "_initconfdir $(initconfdir)"'
