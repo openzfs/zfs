@@ -3291,7 +3291,12 @@ vdev_dtl_min(vdev_t *vd)
 	ASSERT3U(zfs_range_tree_space(vd->vdev_dtl[DTL_MISSING]), !=, 0);
 	ASSERT0(vd->vdev_children);
 
-	return (zfs_range_tree_min(vd->vdev_dtl[DTL_MISSING]) - 1);
+	/*
+	 * No block is born in txg 0, so a DTL which starts there, as older
+	 * rebuilds could leave it, needs no lower bound.
+	 */
+	uint64_t min = zfs_range_tree_min(vd->vdev_dtl[DTL_MISSING]);
+	return (min == 0 ? 0 : min - 1);
 }
 
 /*

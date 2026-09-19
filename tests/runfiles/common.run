@@ -981,7 +981,7 @@ tags = ['functional', 'rename_dirs']
 
 [tests/functional/replacement]
 tests = ['attach_import', 'attach_multiple', 'attach_rebuild',
-    'attach_resilver', 'attach_resilver_sit_out', 'detach',
+    'attach_resilver', 'attach_resilver_sit_out', 'detach', 'rebuild_bounds',
     'rebuild_disabled_feature', 'rebuild_multiple', 'rebuild_raidz',
     'replace_import', 'replace_rebuild', 'replace_resilver',
     'replace_resilver_sit_out', 'resilver_restart_001',
