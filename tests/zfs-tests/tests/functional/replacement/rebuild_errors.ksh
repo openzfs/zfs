@@ -18,14 +18,15 @@
 # DESCRIPTION:
 #	A rebuild retires only the DTLs of the devices it rebuilt, and only
 #	when the rebuild itself completed without errors. Failed repair
-#	writes count as errors.
+#	writes and dRAID rows it cannot reconstruct count as errors.
 #
 # STRATEGY:
 #	Exercise failed writes, including failfast failures which are never
-#	retried, speculative writes and a new device that is offline during
-#	its rebuild. Require nonzero rebuild-local errors with
-#	post-rebuild verification disabled, and once more with the default
-#	verification scrub, then heal and compare data after export/import.
+#	retried, speculative writes, a new device that is offline during its
+#	rebuild, and dRAID rows with too few readable columns. Require nonzero
+#	rebuild-local errors with post-rebuild verification disabled, and once
+#	more with the default verification scrub, then heal and compare data
+#	after export/import.
 #	Rebuild a clean device beside a writable one whose earlier writes
 #	failed; the rebuild must not retire the other device's DTL. After a
 #	clean scrub, rebuild while every copy fails its reads: the new device
@@ -38,18 +39,19 @@ log_assert "Rebuilds retire only DTLs they rebuilt without errors"
 rebuild_test_init
 
 for mode in mirror mirror_failfast mirror_scrub target_offline draid \
-    draid_speculative; do
+    draid_speculative draid_read_errors; do
 	log_note "Testing $mode rebuild outcome"
 	case "$mode" in
 		mirror|mirror_failfast|mirror_scrub) rebuild_test_create 1 ;;
 		target_offline) rebuild_test_create 2 mirror ;;
 		draid) rebuild_test_create 5 draid2:3d:5c:0s ;;
-		draid_speculative) rebuild_test_create 3 draid1:2d:3c:0s ;;
+		draid_speculative|draid_read_errors)
+			rebuild_test_create 3 draid1:2d:3c:0s ;;
 	esac
 
 	# With one unavailable child and a full-width dRAID1 group, every row
 	# consumes all parity. Repair of the new child is speculative.
-	if [[ "$mode" = draid_speculative ]]; then
+	if [[ "$mode" = draid_speculative || "$mode" = draid_read_errors ]]; then
 		log_must zpool offline -f "$TESTPOOL1" "$rebuild_dir/disk-1"
 	fi
 	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
@@ -72,6 +74,11 @@ for mode in mirror mirror_failfast mirror_scrub target_offline draid \
 			    -e noop -T write -f 100
 			rebuild_test_inject -F -d "$rebuild_target" \
 			    -e io -T write -f 100
+			;;
+		draid_read_errors)
+			# The unavailable child plus this error exceed parity.
+			rebuild_test_inject -F -d "$rebuild_dir/disk-2" \
+			    -e io -T read -f 100
 			;;
 		mirror_scrub)
 			# The scrub that follows cannot tell a silently dropped
