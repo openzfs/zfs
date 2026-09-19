@@ -23,6 +23,7 @@ UNIT_TESTS = \
 	%D%/test_cityhash \
 	%D%/test_nvpair \
 	%D%/test_backtrace \
+	%D%/test_vdev \
 	%D%/test_timer \
 	%D%/test_zfs_file
 noinst_PROGRAMS = $(UNIT_TESTS)
@@ -146,6 +147,19 @@ nodist_%C%_test_nvpair_SOURCES = \
 %C%_test_backtrace_LDADD = \
 	libunit.la \
 	libspl.la
+
+
+%C%_test_vdev_CFLAGS = $(AM_CFLAGS) $(KERNEL_CFLAGS)
+%C%_test_vdev_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+
+%C%_test_vdev_SOURCES = \
+	%D%/test_vdev.c \
+	%D%/munit.c
+
+%C%_test_vdev_LDADD = \
+	libzpool.la \
+	libnvpair.la \
+	librange_tree.la
 
 
 %C%_test_timer_CFLAGS = $(AM_CFLAGS)
