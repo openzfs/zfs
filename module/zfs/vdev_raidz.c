@@ -3135,6 +3135,24 @@ vdev_child_slow_outlier(zio_t *zio)
 	kmem_free(lat_data, sizeof (uint64_t) * children);
 }
 
+/*
+ * A rebuild reconstructs rows without a checksum, so it cannot repair a row
+ * which it cannot reconstruct consistently. A spare or replacing column that
+ * was read from a complete child has already been copied to its rebuilding
+ * child by that mirror, so the row leaves a device incomplete only if a
+ * column it would repair was not read. Report such a row to the rebuild.
+ */
+static void
+vdev_raidz_rebuild_refuse(zio_t *zio, int unread_repairs)
+{
+	if (unread_repairs == 0)
+		return;
+
+	mutex_enter(&zio->io_lock);
+	zio->io_post |= ZIO_POST_REBUILD_ERROR;
+	mutex_exit(&zio->io_lock);
+}
+
 static void
 vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 {
@@ -3142,6 +3160,7 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 	int parity_errors = 0;
 	int parity_untried = 0;
 	int data_errors = 0;
+	int unread_repairs = 0;
 	zio_flag_t add_flags = 0;
 
 	ASSERT3U(zio->io_type, ==, ZIO_TYPE_READ);
@@ -3158,12 +3177,26 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 
 			if (!rc->rc_skipped)
 				unexpected_errors++;
+
+			if (rc->rc_allow_repair && rc->rc_size != 0)
+				unread_repairs++;
 		} else if (c < rr->rr_firstdatacol && !rc->rc_tried) {
 			parity_untried++;
 		}
 
 		if (rc->rc_force_repair)
 			unexpected_errors++;
+	}
+
+	/*
+	 * With no checksum, an unreconstructed row would otherwise pass
+	 * verification and could be used to repair children with bad data.
+	 */
+	if (zio->io_priority == ZIO_PRIORITY_REBUILD &&
+	    data_errors + parity_errors + parity_untried >
+	    rr->rr_firstdatacol) {
+		vdev_raidz_rebuild_refuse(zio, unread_repairs);
+		return;
 	}
 
 	/*
@@ -3192,8 +3225,10 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 		 * case.
 		 */
 		if (parity_verify && n > 0 &&
-		    zio->io_priority == ZIO_PRIORITY_REBUILD)
+		    zio->io_priority == ZIO_PRIORITY_REBUILD) {
+			vdev_raidz_rebuild_refuse(zio, unread_repairs);
 			return;
+		}
 		/*
 		 * If we have only ndata columns, the data integrity will
 		 * be checked by the checksums normally, but not in case
