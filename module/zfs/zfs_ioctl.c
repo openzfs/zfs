@@ -2791,8 +2791,9 @@ static int
 zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
 {
 	int error;
-	objset_t *os, *ossnap;
-	dsl_dataset_t *ds;
+	objset_t *ossnap;
+	dsl_pool_t *dp;
+	dsl_dataset_t *ds, *snapds;
 	uint64_t min_txg = 0, max_txg = 0;
 
 	if (zc->zc_nvlist_src_size != 0) {
@@ -2808,8 +2809,19 @@ zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
 		nvlist_free(props);
 	}
 
-	error = dmu_objset_hold(zc->zc_name, FTAG, &os);
+	/*
+	 * Walking the snapshot names only needs the dataset: the snapnames
+	 * ZAP lives in the MOS.  Holding the objset instead (as
+	 * dmu_objset_hold() does) would instantiate and then evict a
+	 * complete objset_t on every call for unmounted filesystems and
+	 * idle volumes.
+	 */
+	error = dsl_pool_hold(zc->zc_name, FTAG, &dp);
+	if (error != 0)
+		return (error == ENOENT ? SET_ERROR(ESRCH) : error);
+	error = dsl_dataset_hold(dp, zc->zc_name, FTAG, &ds);
 	if (error != 0) {
+		dsl_pool_rele(dp, FTAG);
 		return (error == ENOENT ? SET_ERROR(ESRCH) : error);
 	}
 
@@ -2819,7 +2831,8 @@ zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
 	 */
 	if (strlcat(zc->zc_name, "@", sizeof (zc->zc_name)) >=
 	    ZFS_MAX_DATASET_NAME_LEN) {
-		dmu_objset_rele(os, FTAG);
+		dsl_dataset_rele(ds, FTAG);
+		dsl_pool_rele(dp, FTAG);
 		return (SET_ERROR(ESRCH));
 	}
 
@@ -2829,7 +2842,7 @@ zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
 			break;
 		}
 
-		error = dmu_snapshot_list_next(os,
+		error = dsl_dataset_snapshot_list_next(ds,
 		    sizeof (zc->zc_name) - strlen(zc->zc_name),
 		    zc->zc_name + strlen(zc->zc_name), &zc->zc_obj,
 		    &zc->zc_cookie, NULL);
@@ -2840,14 +2853,13 @@ zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
 			break;
 		}
 
-		error = dsl_dataset_hold_obj(dmu_objset_pool(os), zc->zc_obj,
-		    FTAG, &ds);
+		error = dsl_dataset_hold_obj(dp, zc->zc_obj, FTAG, &snapds);
 		if (error != 0)
 			break;
 
-		if ((min_txg != 0 && dsl_get_creationtxg(ds) < min_txg) ||
-		    (max_txg != 0 && dsl_get_creationtxg(ds) > max_txg)) {
-			dsl_dataset_rele(ds, FTAG);
+		if ((min_txg != 0 && dsl_get_creationtxg(snapds) < min_txg) ||
+		    (max_txg != 0 && dsl_get_creationtxg(snapds) > max_txg)) {
+			dsl_dataset_rele(snapds, FTAG);
 			/* undo snapshot name append */
 			*(strchr(zc->zc_name, '@') + 1) = '\0';
 			/* skip snapshot */
@@ -2855,24 +2867,25 @@ zfs_ioc_snapshot_list_next(zfs_cmd_t *zc)
 		}
 
 		if (zc->zc_simple) {
-			dsl_dataset_fast_stat(ds, &zc->zc_objset_stats);
-			dsl_dataset_rele(ds, FTAG);
+			dsl_dataset_fast_stat(snapds, &zc->zc_objset_stats);
+			dsl_dataset_rele(snapds, FTAG);
 			break;
 		}
 
-		if ((error = dmu_objset_from_ds(ds, &ossnap)) != 0) {
-			dsl_dataset_rele(ds, FTAG);
+		if ((error = dmu_objset_from_ds(snapds, &ossnap)) != 0) {
+			dsl_dataset_rele(snapds, FTAG);
 			break;
 		}
 		if ((error = zfs_ioc_objset_stats_impl(zc, ossnap)) != 0) {
-			dsl_dataset_rele(ds, FTAG);
+			dsl_dataset_rele(snapds, FTAG);
 			break;
 		}
-		dsl_dataset_rele(ds, FTAG);
+		dsl_dataset_rele(snapds, FTAG);
 		break;
 	}
 
-	dmu_objset_rele(os, FTAG);
+	dsl_dataset_rele(ds, FTAG);
+	dsl_pool_rele(dp, FTAG);
 	/* if we failed, undo the @ that we tacked on to zc_name */
 	if (error != 0)
 		*strchr(zc->zc_name, '@') = '\0';

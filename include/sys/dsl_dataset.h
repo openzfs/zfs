@@ -448,6 +448,8 @@ void get_clones_stat(dsl_dataset_t *ds, nvlist_t *nv);
 void dsl_dataset_stats(dsl_dataset_t *os, nvlist_t *nv);
 
 void dsl_dataset_fast_stat(dsl_dataset_t *ds, dmu_objset_stats_t *stat);
+int dsl_dataset_snapshot_list_next(dsl_dataset_t *ds, int namelen,
+    char *name, uint64_t *idp, uint64_t *offp, boolean_t *case_conflict);
 void dsl_dataset_space(dsl_dataset_t *ds,
     uint64_t *refdbytesp, uint64_t *availbytesp,
     uint64_t *usedobjsp, uint64_t *availobjsp);

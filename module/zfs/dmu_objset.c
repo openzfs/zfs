@@ -2516,43 +2516,8 @@ int
 dmu_snapshot_list_next(objset_t *os, int namelen, char *name,
     uint64_t *idp, uint64_t *offp, boolean_t *case_conflict)
 {
-	dsl_dataset_t *ds = os->os_dsl_dataset;
-	zap_cursor_t cursor;
-	zap_attribute_t *attr;
-
-	ASSERT(dsl_pool_config_held(dmu_objset_pool(os)));
-
-	if (dsl_dataset_phys(ds)->ds_snapnames_zapobj == 0)
-		return (SET_ERROR(ENOENT));
-
-	attr = zap_attribute_alloc();
-	zap_cursor_init_serialized(&cursor,
-	    ds->ds_dir->dd_pool->dp_meta_objset,
-	    dsl_dataset_phys(ds)->ds_snapnames_zapobj, *offp);
-
-	if (zap_cursor_retrieve(&cursor, attr) != 0) {
-		zap_cursor_fini(&cursor);
-		zap_attribute_free(attr);
-		return (SET_ERROR(ENOENT));
-	}
-
-	if (strlen(attr->za_name) + 1 > namelen) {
-		zap_cursor_fini(&cursor);
-		zap_attribute_free(attr);
-		return (SET_ERROR(ENAMETOOLONG));
-	}
-
-	(void) strlcpy(name, attr->za_name, namelen);
-	if (idp)
-		*idp = attr->za_first_integer;
-	if (case_conflict)
-		*case_conflict = attr->za_normalization_conflict;
-	zap_cursor_advance(&cursor);
-	*offp = zap_cursor_serialize(&cursor);
-	zap_cursor_fini(&cursor);
-	zap_attribute_free(attr);
-
-	return (0);
+	return (dsl_dataset_snapshot_list_next(os->os_dsl_dataset, namelen,
+	    name, idp, offp, case_conflict));
 }
 
 int
