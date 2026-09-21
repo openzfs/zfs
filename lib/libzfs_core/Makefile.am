@@ -22,9 +22,6 @@ libzfs_core_la_CPPFLAGS += -Iinclude/os/freebsd/zfs
 
 libzfs_core_la_SOURCES += \
 	%D%/os/freebsd/libzfs_core_ioctl.c
-
-nodist_libzfs_core_la_SOURCES = \
-	module/os/freebsd/zfs/zfs_ioctl_compat.c
 endif
 
 libzfs_core_la_LIBADD = \
