@@ -10,7 +10,8 @@
  * https://opensource.org/license/CDDL-1.0.
  */
 
-#if defined(_KERNEL) && defined(HAVE_QAT)
+#ifdef HAVE_QAT
+
 #include <sys/zfs_context.h>
 #include <sys/qat.h>
 

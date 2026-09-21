@@ -27,7 +27,6 @@
 #include <sys/zfs_znode.h>
 #include <sys/zil_impl.h>
 
-#ifdef _KERNEL
 #define	CREATE_TRACE_POINTS
 #include <sys/trace.h>
 #include <sys/trace_acl.h>
@@ -43,4 +42,3 @@
 #include <sys/trace_zil.h>
 #include <sys/trace_zio.h>
 #include <sys/trace_zrlock.h>
-#endif

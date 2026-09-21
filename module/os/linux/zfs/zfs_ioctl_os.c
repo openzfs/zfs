@@ -360,10 +360,8 @@ openzfs_fini(void)
 	zcommon_fini();
 }
 
-#if defined(_KERNEL)
 module_init(openzfs_init);
 module_exit(openzfs_fini);
-#endif
 
 MODULE_ALIAS("zavl");
 MODULE_ALIAS("icp");

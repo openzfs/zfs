@@ -24,10 +24,6 @@
 
 #include "zfs_prop.h"
 
-#if !defined(_KERNEL)
-#error kernel builds only
-#endif
-
 /*
  * ZFS Module sysfs support
  *
