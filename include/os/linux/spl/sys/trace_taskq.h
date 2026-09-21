@@ -10,7 +10,6 @@
  * https://opensource.org/license/CDDL-1.0.
  */
 
-#if defined(_KERNEL)
 #if defined(HAVE_DECLARE_EVENT_CLASS)
 
 #undef TRACE_SYSTEM
@@ -71,4 +70,3 @@ DEFINE_DTRACE_PROBE1(taskq_ent__start);
 DEFINE_DTRACE_PROBE1(taskq_ent__finish);
 
 #endif /* HAVE_DECLARE_EVENT_CLASS */
-#endif /* _KERNEL */

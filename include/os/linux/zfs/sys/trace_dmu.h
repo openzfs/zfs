@@ -10,7 +10,6 @@
  * https://opensource.org/license/CDDL-1.0.
  */
 
-#if defined(_KERNEL)
 #if defined(HAVE_DECLARE_EVENT_CLASS)
 
 #undef TRACE_SYSTEM
@@ -120,4 +119,3 @@ DEFINE_DTRACE_PROBE3(delay__mintime);
 DEFINE_DTRACE_PROBE3(free__long__range);
 
 #endif /* HAVE_DECLARE_EVENT_CLASS */
-#endif /* _KERNEL */

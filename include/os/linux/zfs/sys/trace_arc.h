@@ -12,7 +12,6 @@
 
 #include <sys/list.h>
 
-#if defined(_KERNEL)
 #if defined(HAVE_DECLARE_EVENT_CLASS)
 
 #undef TRACE_SYSTEM
@@ -392,4 +391,3 @@ DEFINE_DTRACE_PROBE4(arc__miss);
 DEFINE_DTRACE_PROBE4(l2arc__evict);
 
 #endif /* HAVE_DECLARE_EVENT_CLASS */
-#endif /* _KERNEL */

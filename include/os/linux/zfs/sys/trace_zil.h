@@ -10,7 +10,6 @@
  * https://opensource.org/license/CDDL-1.0.
  */
 
-#if defined(_KERNEL)
 #if defined(HAVE_DECLARE_EVENT_CLASS)
 
 #undef TRACE_SYSTEM
@@ -261,4 +260,3 @@ DEFINE_DTRACE_PROBE2(zil__commit__io__error);
 DEFINE_DTRACE_PROBE3(zil__block__size);
 
 #endif /* HAVE_DECLARE_EVENT_CLASS */
-#endif /* _KERNEL */

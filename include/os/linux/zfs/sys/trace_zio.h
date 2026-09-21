@@ -12,7 +12,6 @@
 
 #include <sys/list.h>
 
-#if defined(_KERNEL)
 #if defined(HAVE_DECLARE_EVENT_CLASS)
 
 #undef TRACE_SYSTEM
@@ -85,4 +84,3 @@ DEFINE_DTRACE_PROBE3(zio__delay__hit);
 DEFINE_DTRACE_PROBE1(zio__delay__skip);
 
 #endif /* HAVE_DECLARE_EVENT_CLASS */
-#endif /* _KERNEL */

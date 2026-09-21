@@ -18,10 +18,6 @@
 #ifndef	_SYS_ZFS_ZNODE_IMPL_H
 #define	_SYS_ZFS_ZNODE_IMPL_H
 
-#ifndef _KERNEL
-#error "no user serviceable parts within"
-#endif
-
 #include <sys/isa_defs.h>
 #include <sys/types32.h>
 #include <sys/list.h>
