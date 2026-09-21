@@ -31,13 +31,11 @@
 #include <sys/types.h>
 #include <sys/errno.h>
 
-#ifdef _KERNEL
 #include <sys/libkern.h>
 #include <sys/malloc.h>
 #include <sys/sysctl.h>
 #include <opencrypto/cryptodev.h>
 #include <opencrypto/xform.h>
-#endif
 
 #include <sys/zio_crypt.h>
 #include <sys/fs/zfs.h>
