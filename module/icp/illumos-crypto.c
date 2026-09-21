@@ -13,7 +13,7 @@
  * Copyright (c) 2017, Datto, Inc. All rights reserved.
  */
 
-#ifdef _KERNEL
+#if defined(_KERNEL) && defined(__linux__)
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
