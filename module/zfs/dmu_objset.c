@@ -3056,7 +3056,6 @@ dmu_objset_block_is_shared(objset_t *os, const blkptr_t *bp)
 	return (BP_GET_BIRTH(bp) <= dsl_dataset_phys(ds)->ds_prev_snap_txg);
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(dmu_objset_zil);
 EXPORT_SYMBOL(dmu_objset_pool);
 EXPORT_SYMBOL(dmu_objset_ds);
@@ -3101,4 +3100,3 @@ EXPORT_SYMBOL(dmu_objset_projectquota_present);
 EXPORT_SYMBOL(dmu_objset_projectquota_upgradable);
 EXPORT_SYMBOL(dmu_objset_id_quota_upgrade);
 EXPORT_SYMBOL(dmu_objset_block_is_shared);
-#endif

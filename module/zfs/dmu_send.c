@@ -53,9 +53,6 @@
 #include <sys/zvol.h>
 #include <sys/policy.h>
 #include <sys/objlist.h>
-#ifdef _KERNEL
-#include <sys/zfs_vfsops.h>
-#endif
 
 /* Set this tunable to TRUE to replace corrupt data with 0x2f5baddb10c */
 static int zfs_send_corrupt_data = B_FALSE;

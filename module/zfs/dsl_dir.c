@@ -2541,10 +2541,8 @@ dsl_dir_cancel_waiters(dsl_dir_t *dd)
 	mutex_exit(&dd->dd_activity_lock);
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(dsl_dir_set_quota);
 EXPORT_SYMBOL(dsl_dir_set_reservation);
-#endif
 
 ZFS_MODULE_PARAM(zfs, , zvol_enforce_quotas, INT, ZMOD_RW,
 	"Enable strict ZVOL quota enforcment");

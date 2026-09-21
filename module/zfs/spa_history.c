@@ -30,9 +30,6 @@
 #include <sys/cred.h>
 #include "zfs_comutil.h"
 #include "zfs_gitrev.h"
-#ifdef _KERNEL
-#include <sys/zone.h>
-#endif
 
 /*
  * Routines to manage the on-disk history log.

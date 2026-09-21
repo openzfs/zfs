@@ -762,7 +762,5 @@ dsl_delegation_on(objset_t *os)
 	return (!!spa_delegation(os->os_spa));
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(dsl_deleg_get);
 EXPORT_SYMBOL(dsl_deleg_set);
-#endif

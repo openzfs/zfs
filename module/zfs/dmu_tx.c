@@ -1686,7 +1686,6 @@ dmu_tx_fini(void)
 	}
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(dmu_tx_create);
 EXPORT_SYMBOL(dmu_tx_hold_write);
 EXPORT_SYMBOL(dmu_tx_hold_write_by_dnode);
@@ -1709,4 +1708,3 @@ EXPORT_SYMBOL(dmu_tx_do_callbacks);
 EXPORT_SYMBOL(dmu_tx_hold_spill);
 EXPORT_SYMBOL(dmu_tx_hold_sa_create);
 EXPORT_SYMBOL(dmu_tx_hold_sa);
-#endif

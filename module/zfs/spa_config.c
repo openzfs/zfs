@@ -31,9 +31,6 @@
 #include <sys/zfeature.h>
 #include <sys/zfs_file.h>
 #include <sys/zfs_context.h>
-#ifdef _KERNEL
-#include <sys/zone.h>
-#endif
 
 /*
  * Pool configuration repository.

@@ -16,10 +16,6 @@
  * This file contains zfs_dbgmsg() specific functions that are not OS or
  * userspace specific.
  */
-#if !defined(_KERNEL)
-#include <string.h>
-#endif
-
 #include <sys/zfs_context.h>
 #include <sys/zfs_debug.h>
 #include <sys/nvpair.h>
@@ -82,6 +78,4 @@ __zfs_dbgmsg_nvlist(nvlist_t *nv)
 	vmem_free(buf, len);
 }
 
-#ifdef _KERNEL
 EXPORT_SYMBOL(__zfs_dbgmsg_nvlist);
-#endif
