@@ -18,6 +18,7 @@
 #include <sys/isa_defs.h>
 #include <sys/nvpair.h>
 #include <sys/sysmacros.h>
+#include <sys/mod.h>
 
 /*
  * This allocator is very simple.
@@ -101,6 +102,4 @@ static const nv_alloc_ops_t nv_fixed_ops_def = {
 
 const nv_alloc_ops_t *const nv_fixed_ops = &nv_fixed_ops_def;
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(nv_fixed_ops);
-#endif

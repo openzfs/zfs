@@ -18,6 +18,7 @@
 #include <sys/kmem.h>
 #include <sys/debug.h>
 #include <sys/param.h>
+#include <sys/mod.h>
 #ifndef _KERNEL
 #include <stdlib.h>
 #endif
@@ -584,8 +585,6 @@ fnvpair_value_nvlist(nvpair_t *nvp)
 	return (rv);
 }
 
-#if defined(_KERNEL)
-
 EXPORT_SYMBOL(fnvlist_alloc);
 EXPORT_SYMBOL(fnvlist_free);
 EXPORT_SYMBOL(fnvlist_size);
@@ -653,5 +652,3 @@ EXPORT_SYMBOL(fnvpair_value_uint64);
 EXPORT_SYMBOL(fnvpair_value_string);
 EXPORT_SYMBOL(fnvpair_value_nvlist);
 EXPORT_SYMBOL(fnvlist_num_pairs);
-
-#endif
