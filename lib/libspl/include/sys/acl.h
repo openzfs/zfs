@@ -188,8 +188,6 @@ typedef struct ace_object {
 /* minimal acl entries from GETACLCNT */
 #define	MIN_ACL_ENTRIES		4
 
-#if !defined(_KERNEL)
-
 /* acl check errors */
 #define	GRP_ERROR		1
 #define	USER_ERROR		2
@@ -272,14 +270,6 @@ extern int acl_trivial(const char *);
 extern char *acl_totext(acl_t *, int);
 extern int acl_fromtext(const char *, acl_t **);
 extern int acl_check(acl_t *, int);
-
-#else	/* !defined(_KERNEL) */
-
-extern void ksort(caddr_t, int, int, int (*)(void *, void *));
-extern int cmp2acls(void *, void *);
-
-#endif	/* !defined(_KERNEL) */
-
 extern int acl(const char *path, int cmd, int cnt, void *buf);
 extern int facl(int fd, int cmd, int cnt, void *buf);
 

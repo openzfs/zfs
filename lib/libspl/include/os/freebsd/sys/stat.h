@@ -27,7 +27,6 @@
 
 #define	MAXOFFSET_T	OFF_MAX
 
-#ifndef _KERNEL
 #include <sys/disk.h>
 
 static __inline int
@@ -42,7 +41,6 @@ fstat64(int fd, struct stat *sb)
 	}
 	return (ret);
 }
-#endif
 
 /*
  * Emulate Solaris' behavior of returning the block device size in fstat64().

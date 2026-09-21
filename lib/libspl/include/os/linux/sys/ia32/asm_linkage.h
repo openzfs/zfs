@@ -18,10 +18,6 @@
 #ifndef _IA32_SYS_ASM_LINKAGE_H
 #define	_IA32_SYS_ASM_LINKAGE_H
 
-#if defined(_KERNEL) && defined(__linux__)
-#include <linux/linkage.h>
-#endif
-
 #ifndef ENDBR
 #if defined(__ELF__) && defined(__CET__) && defined(__has_include)
 /* CSTYLED */
