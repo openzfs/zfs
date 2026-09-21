@@ -67,8 +67,8 @@ GITREV = include/zfs_gitrev.h
 CLEANFILES += $(GITREV)
 PHONY += gitrev
 gitrev:
-	cd "$(abs_top_builddir)"; \
-	$(AM_V_GEN)$(top_srcdir)/scripts/make_gitrev.sh $(GITREV)
+	$(AM_V_GEN)cd "$(abs_top_builddir)"; \
+	$(top_srcdir)/scripts/make_gitrev.sh $(GITREV)
 
 GITREV_TARGETS := $(shell $(GREP) -rl --include="*.[ch]" $(notdir $(GITREV)) "$(abs_srcdir)"/* | sed "s|$(abs_srcdir)/||" )
 $(GITREV_TARGETS): gitrev
