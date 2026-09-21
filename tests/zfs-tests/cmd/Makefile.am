@@ -109,6 +109,12 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/rebuild_lost_probe
 	libzpool.la \
 	libnvpair.la
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/rebuild_probe
+%C%_rebuild_probe_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+%C%_rebuild_probe_LDADD = \
+	libzpool.la \
+	libnvpair.la
+
 scripts_zfs_tests_bin_PROGRAMS += %D%/rm_lnkcnt_zero_file
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/send_doall

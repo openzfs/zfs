@@ -1063,6 +1063,15 @@ typedef struct zpool_load_policy {
 
 #define	VDEV_TOP_ZAP_VDEV_REBUILD_PHYS \
 	"org.openzfs:vdev_rebuild"
+/*
+ * A copy of the rebuild state certifying that its progress was saved by
+ * software which counts failed destination writes and refused dRAID rows,
+ * reads no child missing data, never saves progress past a lost segment,
+ * and waits for in-place rewrites before reading a metaslab. Strengthening
+ * what saved progress guarantees requires a new key.
+ */
+#define	VDEV_TOP_ZAP_VDEV_REBUILD_ACCOUNTED \
+	"org.openzfs:vdev_rebuild_accounted"
 
 #define	VDEV_TOP_ZAP_ALLOCATION_BIAS \
 	"org.zfsonlinux:allocation_bias"
