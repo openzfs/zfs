@@ -48,12 +48,7 @@
 #include <sys/stack.h>
 #endif
 
-#ifdef _KERNEL
 MALLOC_DEFINE(M_SOLARIS, "solaris", "Solaris");
-#else
-#define	malloc(size, type, flags)	malloc(size)
-#define	free(addr, type)		free(addr)
-#endif
 
 #ifdef KMEM_DEBUG
 struct kmem_item {
@@ -77,10 +72,6 @@ zfs_kmem_alloc(size_t size, int kmflags)
 	size += sizeof (struct kmem_item);
 #endif
 	p = malloc(MAX(size, 16), M_SOLARIS, kmflags);
-#ifndef _KERNEL
-	if (kmflags & KM_SLEEP)
-		assert(p != NULL);
-#endif
 #ifdef KMEM_DEBUG
 	if (p != NULL) {
 		i = p;
@@ -167,7 +158,7 @@ kmem_cache_create(const char *name, size_t bufsize, size_t align,
 	cache->kc_constructor = constructor;
 	cache->kc_destructor = destructor;
 	cache->kc_private = private;
-#if defined(_KERNEL) && !defined(KMEM_DEBUG)
+#ifndef KMEM_DEBUG
 	cache->kc_zone = uma_zcreate(cache->kc_name, bufsize,
 	    constructor != NULL ? kmem_std_constructor : NULL,
 	    destructor != NULL ? kmem_std_destructor : NULL,
@@ -182,7 +173,7 @@ kmem_cache_create(const char *name, size_t bufsize, size_t align,
 void
 kmem_cache_destroy(kmem_cache_t *cache)
 {
-#if defined(_KERNEL) && !defined(KMEM_DEBUG)
+#ifndef KMEM_DEBUG
 	uma_zdestroy(cache->kc_zone);
 #endif
 	kmem_free(cache, sizeof (*cache));
@@ -191,7 +182,7 @@ kmem_cache_destroy(kmem_cache_t *cache)
 void *
 kmem_cache_alloc(kmem_cache_t *cache, int flags)
 {
-#if defined(_KERNEL) && !defined(KMEM_DEBUG)
+#ifndef KMEM_DEBUG
 	return (uma_zalloc_arg(cache->kc_zone, cache, flags));
 #else
 	void *p;
@@ -206,7 +197,7 @@ kmem_cache_alloc(kmem_cache_t *cache, int flags)
 void
 kmem_cache_free(kmem_cache_t *cache, void *buf)
 {
-#if defined(_KERNEL) && !defined(KMEM_DEBUG)
+#ifndef KMEM_DEBUG
 	uma_zfree_arg(cache->kc_zone, buf, cache);
 #else
 	if (cache->kc_destructor != NULL)
@@ -236,7 +227,6 @@ kmem_cache_reap_active(void)
  * should use kmem_cache_reap_active() (above) and/or moderation to
  * avoid scheduling too many reap-tasks.
  */
-#ifdef _KERNEL
 void
 kmem_cache_reap_soon(kmem_cache_t *cache)
 {
@@ -250,17 +240,6 @@ kmem_reap(void)
 {
 	uma_reclaim(UMA_RECLAIM_TRIM);
 }
-#else
-void
-kmem_cache_reap_soon(kmem_cache_t *cache __unused)
-{
-}
-
-void
-kmem_reap(void)
-{
-}
-#endif
 
 int
 kmem_debugging(void)

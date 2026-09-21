@@ -34,25 +34,10 @@
 	!defined(ARM_HAVE_ATOMIC64) && !defined(I386_HAVE_ATOMIC64) && \
 	!defined(HAS_EMULATED_ATOMIC64)
 
-#ifdef _KERNEL
 #include <sys/kernel.h>
 
 struct mtx atomic_mtx;
 MTX_SYSINIT(atomic, &atomic_mtx, "atomic", MTX_DEF);
-#else
-#include <pthread.h>
-
-#define	mtx_lock(lock)		pthread_mutex_lock(lock)
-#define	mtx_unlock(lock)	pthread_mutex_unlock(lock)
-
-static pthread_mutex_t atomic_mtx;
-
-static __attribute__((constructor)) void
-atomic_init(void)
-{
-	pthread_mutex_init(&atomic_mtx, NULL);
-}
-#endif
 
 void
 atomic_add_64(volatile uint64_t *target, int64_t delta)
