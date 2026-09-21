@@ -212,7 +212,6 @@ vdev_indirect_births_physbirth(vdev_indirect_births_t *vib, uint64_t offset,
 	return (-1);
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(vdev_indirect_births_add_entry);
 EXPORT_SYMBOL(vdev_indirect_births_alloc);
 EXPORT_SYMBOL(vdev_indirect_births_close);
@@ -222,4 +221,3 @@ EXPORT_SYMBOL(vdev_indirect_births_last_entry_txg);
 EXPORT_SYMBOL(vdev_indirect_births_object);
 EXPORT_SYMBOL(vdev_indirect_births_open);
 EXPORT_SYMBOL(vdev_indirect_births_physbirth);
-#endif

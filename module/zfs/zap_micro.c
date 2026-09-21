@@ -30,10 +30,6 @@
 #include <sys/dmu_objset.h>
 #include <sys/spa_impl.h>
 
-#ifdef _KERNEL
-#include <sys/sunddi.h>
-#endif
-
 /*
  * The maximum size (in bytes) of a microzap before it is converted to a
  * fatzap. It will be rounded up to next multiple of 512 (SPA_MINBLOCKSIZE).

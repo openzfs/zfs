@@ -1483,7 +1483,6 @@ spa_swap_errlog(spa_t *spa, uint64_t new_head_ds, uint64_t old_head_ds,
 	mutex_exit(&spa->spa_errlog_lock);
 }
 
-#if defined(_KERNEL)
 /* error handling */
 EXPORT_SYMBOL(spa_log_error);
 EXPORT_SYMBOL(spa_approx_errlog_size);
@@ -1501,7 +1500,6 @@ EXPORT_SYMBOL(find_top_affected_fs);
 EXPORT_SYMBOL(find_birth_txg);
 EXPORT_SYMBOL(zep_to_zb);
 EXPORT_SYMBOL(name_to_errphys);
-#endif
 
 ZFS_MODULE_PARAM(zfs_spa, spa_, upgrade_errlog_limit, UINT, ZMOD_RW,
 	"Limit the number of errors which will be upgraded to the new "

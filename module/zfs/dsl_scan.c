@@ -47,9 +47,6 @@
 #include <sys/abd.h>
 #include <sys/range_tree.h>
 #include <sys/dbuf.h>
-#ifdef _KERNEL
-#include <sys/zfs_vfsops.h>
-#endif
 
 /*
  * Grand theory statement on scan queue sorting

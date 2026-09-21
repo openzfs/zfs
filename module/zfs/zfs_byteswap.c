@@ -186,8 +186,6 @@ zfs_znode_byteswap(void *buf, size_t size)
 	}
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_oldacl_byteswap);
 EXPORT_SYMBOL(zfs_acl_byteswap);
 EXPORT_SYMBOL(zfs_znode_byteswap);
-#endif
