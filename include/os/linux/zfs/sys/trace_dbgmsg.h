@@ -10,7 +10,6 @@
  * https://opensource.org/license/CDDL-1.0.
  */
 
-#if defined(_KERNEL)
 #if defined(HAVE_DECLARE_EVENT_CLASS)
 
 #undef TRACE_SYSTEM
@@ -76,4 +75,3 @@ DEFINE_DPRINTF_EVENT(zfs_zfs__dprintf);
 DEFINE_DTRACE_PROBE1(zfs__dprintf);
 
 #endif /* HAVE_DECLARE_EVENT_CLASS */
-#endif /* _KERNEL */

@@ -10,8 +10,6 @@
  * https://opensource.org/license/CDDL-1.0.
  */
 
-#if defined(_KERNEL)
-
 /*
  * Calls to DTRACE_PROBE* are mapped to standard Linux kernel trace points
  * when they are available(when HAVE_DECLARE_EVENT_CLASS is defined).  The
@@ -163,4 +161,3 @@ EXPORT_SYMBOL(trace_zfs_##name)
 
 #endif /* CREATE_TRACE_POINTS */
 #endif /* HAVE_DECLARE_EVENT_CLASS */
-#endif /* _KERNEL */

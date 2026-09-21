@@ -10,7 +10,6 @@
  * https://opensource.org/license/CDDL-1.0.
  */
 
-#if defined(_KERNEL)
 #if defined(HAVE_DECLARE_EVENT_CLASS)
 
 #undef TRACE_SYSTEM
@@ -115,4 +114,3 @@ DEFINE_DNODE_MOVE_EVENT(zfs_dnode__move);
 DEFINE_DTRACE_PROBE3(dnode__move);
 
 #endif /* HAVE_DECLARE_EVENT_CLASS */
-#endif /* _KERNEL */

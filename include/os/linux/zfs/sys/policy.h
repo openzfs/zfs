@@ -19,8 +19,6 @@
 #ifndef _SYS_POLICY_H
 #define	_SYS_POLICY_H
 
-#ifdef _KERNEL
-
 #include <sys/cred.h>
 #include <sys/types.h>
 #include <sys/xvattr.h>
@@ -49,5 +47,4 @@ int secpolicy_vnode_setattr(cred_t *, struct inode *, struct vattr *,
     const struct vattr *, int, int (void *, int, cred_t *), void *);
 int secpolicy_basic_link(const cred_t *);
 
-#endif /* _KERNEL */
 #endif /* _SYS_POLICY_H */
