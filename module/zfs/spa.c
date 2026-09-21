@@ -10044,7 +10044,7 @@ spa_async_fault_vdev(vdev_t *vd, boolean_t *suspend)
 			/* A required disk is missing so suspend the pool */
 			*suspend = B_TRUE;
 		}
-		vdev_set_state(vd, B_TRUE, newstate, VDEV_AUX_ERR_EXCEEDED);
+		vdev_set_state(vd, B_FALSE, newstate, VDEV_AUX_ERR_EXCEEDED);
 	}
 	for (int c = 0; c < vd->vdev_children; c++)
 		spa_async_fault_vdev(vd->vdev_child[c], suspend);
