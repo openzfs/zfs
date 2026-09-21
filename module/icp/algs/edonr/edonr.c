@@ -307,9 +307,7 @@ EdonRHash(const uint8_t *data, size_t databitlen, uint8_t *hashval)
 	EdonRFinal(&state, hashval);
 }
 
-#ifdef _KERNEL
 EXPORT_SYMBOL(EdonRInit);
 EXPORT_SYMBOL(EdonRUpdate);
 EXPORT_SYMBOL(EdonRHash);
 EXPORT_SYMBOL(EdonRFinal);
-#endif
