@@ -1145,9 +1145,16 @@ def fail(retstr, ret=255):
 
 
 def kmemleak_cb(option, opt_str, value, parser):
-    if not os.path.exists(KMEMLEAK_FILE):
-        fail(f"File '{KMEMLEAK_FILE}' doesn't exist. " +
-             "Enable CONFIG_DEBUG_KMEMLEAK in kernel configuration.")
+    # debugfs is 0700, so an unprivileged stat fails even while the
+    # detector runs; check through sudo like every other access.
+    cmd = f'{SUDO} -n sh -c "test -e {KMEMLEAK_FILE}"'
+    ret = run(cmd, shell=True, capture_output=True, text=True)
+    if ret.returncode != 0:
+        why = ret.stderr.strip().splitlines()
+        fail(f"File '{KMEMLEAK_FILE}' is not available"
+             f"{': ' + why[-1] if why else ''}. Build the kernel with "
+             "CONFIG_DEBUG_KMEMLEAK, boot with kmemleak=on if it also "
+             "sets CONFIG_DEBUG_KMEMLEAK_DEFAULT_OFF, and mount debugfs.")
 
     setattr(parser.values, option.dest, True)
 
