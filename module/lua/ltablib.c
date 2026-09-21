@@ -281,8 +281,4 @@ LUAMOD_API int luaopen_table (lua_State *L) {
   return 1;
 }
 
-#if defined(_KERNEL)
-
 EXPORT_SYMBOL(luaopen_table);
-
-#endif

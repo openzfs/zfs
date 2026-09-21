@@ -788,12 +788,8 @@ LUALIB_API void luaL_checkversion_ (lua_State *L, lua_Number ver) {
   lua_pop(L, 1);
 }
 
-#if defined(_KERNEL)
-
 EXPORT_SYMBOL(luaL_argerror);
 EXPORT_SYMBOL(luaL_error);
 EXPORT_SYMBOL(luaL_loadbufferx);
 EXPORT_SYMBOL(luaL_newmetatable);
 EXPORT_SYMBOL(luaL_traceback);
-
-#endif
