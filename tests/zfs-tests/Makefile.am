@@ -7,7 +7,8 @@ include $(srcdir)/%D%/cmd/Makefile.am
 scripts_zfs_tests_functional_libzfsdir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/libzfs
 scripts_zfs_tests_functional_libzfs_PROGRAMS = %D%/tests/functional/libzfs/many_fds
 %C%_tests_functional_libzfs_many_fds_LDADD = \
-	libzfs.la
+	libzfs.la \
+	libzfs_core.la
 
 scripts_zfs_tests_functional_hkdfdir = $(datadir)/$(PACKAGE)/zfs-tests/tests/functional/hkdf
 scripts_zfs_tests_functional_hkdf_PROGRAMS = %D%/tests/functional/hkdf/hkdf_test
