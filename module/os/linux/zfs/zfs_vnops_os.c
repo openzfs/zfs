@@ -230,8 +230,6 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 	return (0);
 }
 
-#if defined(_KERNEL)
-
 static int zfs_fillpage(struct inode *ip, struct page *pp);
 
 /*
@@ -363,8 +361,6 @@ mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
 
 	return (error);
 }
-#endif /* _KERNEL */
-
 static unsigned long zfs_delete_blocks = DMU_MAX_DELETEBLKCNT;
 
 /*
@@ -4451,7 +4447,6 @@ zfs_fid(struct inode *ip, fid_t *fidp)
 	return (0);
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_open);
 EXPORT_SYMBOL(zfs_close);
 EXPORT_SYMBOL(zfs_lookup);
@@ -4477,4 +4472,3 @@ EXPORT_SYMBOL(zfs_map);
 
 module_param(zfs_delete_blocks, ulong, 0644);
 MODULE_PARM_DESC(zfs_delete_blocks, "Delete files larger than N blocks async");
-#endif
