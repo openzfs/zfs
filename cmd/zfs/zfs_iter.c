@@ -138,7 +138,15 @@ zfs_callback(zfs_handle_t *zhp, void *data)
 
 		if (((zfs_get_type(zhp) & (ZFS_TYPE_SNAPSHOT |
 		    ZFS_TYPE_BOOKMARK)) == 0) && include_snaps) {
-			(void) zfs_iter_snapshots_v2(zhp, cb->cb_flags,
+			int snapshot_flags = cb->cb_flags;
+
+			/*
+			 * Default sorting and tie breaks require the
+			 * creation TXG.
+			 */
+			if (snapshot_flags & ZFS_ITER_BATCHED)
+				snapshot_flags |= ZFS_ITER_BATCHED_CREATETXG;
+			(void) zfs_iter_snapshots_v2(zhp, snapshot_flags,
 			    zfs_callback, data, 0, 0);
 		}
 
@@ -253,6 +261,87 @@ zfs_list_only_by_fast(const zprop_list_t *p)
 	}
 
 	return (B_TRUE);
+}
+
+/*
+ * Return the projected field flag for the batch snapshot iterator, zero
+ * if none is needed, or -1 when the property requires legacy iteration.
+ */
+static int
+zfs_list_batch_prop_flags(int prop)
+{
+	switch (prop) {
+	case ZFS_PROP_NAME:
+	case ZFS_PROP_TYPE:
+		return (0);
+	case ZFS_PROP_USED:
+		return (ZFS_ITER_BATCHED_USED);
+	case ZFS_PROP_REFERENCED:
+		return (ZFS_ITER_BATCHED_REFERENCED);
+	case ZFS_PROP_LOGICALREFERENCED:
+		return (ZFS_ITER_BATCHED_LOGICALREFERENCED);
+	case ZFS_PROP_DEFER_DESTROY:
+		return (ZFS_ITER_BATCHED_DEFER_DESTROY);
+	case ZFS_PROP_WRITTEN:
+		return (ZFS_ITER_BATCHED_WRITTEN);
+	case ZFS_PROP_OBJSETID:
+		return (ZFS_ITER_BATCHED_OBJSETID);
+	case ZFS_PROP_GUID:
+		return (ZFS_ITER_BATCHED_GUID);
+	case ZFS_PROP_CREATETXG:
+		return (ZFS_ITER_BATCHED_CREATETXG);
+	case ZFS_PROP_CREATION:
+		return (ZFS_ITER_BATCHED_CREATION);
+	case ZFS_PROP_USERREFS:
+		return (ZFS_ITER_BATCHED_USERREFS);
+	case ZFS_PROP_NUMCLONES:
+		return (ZFS_ITER_BATCHED_NUMCLONES);
+	case ZFS_PROP_INCONSISTENT:
+		return (ZFS_ITER_BATCHED_INCONSISTENT);
+	case ZFS_PROP_REDACTED:
+		return (ZFS_ITER_BATCHED_REDACTED);
+	default:
+		if (prop >= ZFS_PROP_TYPE && prop < ZFS_NUM_PROPS &&
+		    !zfs_prop_valid_for_type(prop,
+		    ZFS_TYPE_SNAPSHOT | ZFS_TYPE_BOOKMARK, B_FALSE))
+			return (0);
+		return (-1);
+	}
+}
+
+/*
+ * Select the batch snapshot iterator only when it can populate every
+ * displayed and sorted property.
+ */
+int
+zfs_list_batch_flags(const zprop_list_t *p, const zfs_sort_column_t *sc)
+{
+	int flags = ZFS_ITER_BATCHED;
+
+	if (p == NULL)
+		return (0);
+
+	for (; p != NULL; p = p->pl_next) {
+		int prop_flags;
+
+		if (p->pl_all)
+			return (0);
+
+		prop_flags = zfs_list_batch_prop_flags(p->pl_prop);
+		if (prop_flags < 0)
+			return (0);
+		flags |= prop_flags;
+	}
+
+	for (; sc != NULL; sc = sc->sc_next) {
+		int prop_flags = zfs_list_batch_prop_flags(sc->sc_prop);
+
+		if (prop_flags < 0)
+			return (0);
+		flags |= prop_flags;
+	}
+
+	return (flags);
 }
 
 static int
