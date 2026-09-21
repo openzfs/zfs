@@ -8,6 +8,7 @@
 
 #include <sys/sysmacros.h>
 #include <sys/types.h>
+#include <sys/mod.h>
 #include <sys/skein.h>		/* get the Skein API definitions   */
 #include "skein_impl.h"		/* get internal definitions */
 
@@ -898,9 +899,7 @@ Skein1024_Output(Skein1024_Ctxt_t *ctx, uint8_t *hashVal)
 }
 #endif
 
-#ifdef _KERNEL
 EXPORT_SYMBOL(Skein_512_Init);
 EXPORT_SYMBOL(Skein_512_InitExt);
 EXPORT_SYMBOL(Skein_512_Update);
 EXPORT_SYMBOL(Skein_512_Final);
-#endif

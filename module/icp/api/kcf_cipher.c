@@ -168,7 +168,5 @@ retry:
 	return (error);
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(crypto_encrypt);
 EXPORT_SYMBOL(crypto_decrypt);
-#endif

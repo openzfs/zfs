@@ -284,9 +284,7 @@ crypto_mac_final(crypto_context_t context, crypto_data_t *mac)
 	return (rv);
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(crypto_mac);
 EXPORT_SYMBOL(crypto_mac_init);
 EXPORT_SYMBOL(crypto_mac_update);
 EXPORT_SYMBOL(crypto_mac_final);
-#endif

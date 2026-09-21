@@ -13,15 +13,6 @@
  * Copyright (c) 2017, Datto, Inc. All rights reserved.
  */
 
-#ifdef _KERNEL
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/init.h>
-#else
-#define	__exit
-#define	__init
-#endif
-
 #include <sys/crypto/common.h>
 #include <sys/crypto/api.h>
 #include <sys/crypto/impl.h>
