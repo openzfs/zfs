@@ -20,7 +20,6 @@
  * CDDL HEADER END
  */
 
-#if defined(_KERNEL)
 #if defined(HAVE_DECLARE_EVENT_CLASS)
 
 #undef TRACE_SYSTEM
@@ -153,4 +152,3 @@ DEFINE_DTRACE_PROBE3(zfs__ace__allows);
 DEFINE_DTRACE_PROBE(zfs__fastpath__execute__access__miss);
 
 #endif /* HAVE_DECLARE_EVENT_CLASS */
-#endif /* _KERNEL */

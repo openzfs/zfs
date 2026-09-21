@@ -20,7 +20,6 @@
  * CDDL HEADER END
  */
 
-#if defined(_KERNEL)
 #if defined(HAVE_DECLARE_EVENT_CLASS)
 
 #undef TRACE_SYSTEM
@@ -158,4 +157,3 @@ DEFINE_DTRACE_PROBE2(dbuf__evict__one);
 DEFINE_DTRACE_PROBE2(dbuf__state_change);
 
 #endif /* HAVE_DECLARE_EVENT_CLASS */
-#endif /* _KERNEL */

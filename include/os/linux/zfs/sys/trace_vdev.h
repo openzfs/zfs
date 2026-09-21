@@ -20,7 +20,6 @@
  * CDDL HEADER END
  */
 
-#if defined(_KERNEL)
 #if defined(HAVE_DECLARE_EVENT_CLASS)
 
 /*
@@ -134,4 +133,3 @@ DEFINE_DTRACE_PROBE3(remove__free__unvisited);
 DEFINE_DTRACE_PROBE4(remove__free__inflight);
 
 #endif /* HAVE_DECLARE_EVENT_CLASS */
-#endif /* _KERNEL */
