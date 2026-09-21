@@ -30,8 +30,6 @@
  * Copyright (c) 2015 by Chunwei Chen. All rights reserved.
  */
 
-#ifdef _KERNEL
-
 #include <sys/errno.h>
 #include <sys/vmem.h>
 #include <sys/sysmacros.h>
@@ -702,5 +700,3 @@ zfs_uio_get_dio_pages_alloc(zfs_uio_t *uio, zfs_uio_rw_t rw)
 
 	return (0);
 }
-
-#endif /* _KERNEL */

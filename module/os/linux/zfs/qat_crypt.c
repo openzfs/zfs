@@ -17,7 +17,8 @@
  * compression instances, so that code is separated into qat_compress.c
  */
 
-#if defined(_KERNEL) && defined(HAVE_QAT)
+#ifdef HAVE_QAT
+
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/pagemap.h>
