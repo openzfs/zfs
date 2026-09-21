@@ -1595,5 +1595,5 @@ vdev_ops_t vdev_anyraid_ops = {
 
 ZFS_MODULE_PARAM(zfs_vdev, vdev_, anyraid_min_tile_size, U64,
 	ZMOD_RW, "Minimum tile size for anyraid");
-ZFS_MODULE_PARAM(zfs_vdev, vdev_, anyraid_disk_shift, U64,
+ZFS_MODULE_PARAM(zfs_vdev, vdev_, anyraid_disk_shift, INT,
 	ZMOD_RW, "Default shift for tile size of anyraid vdevs");
