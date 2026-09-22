@@ -274,9 +274,6 @@ pool_active(void *unused, const char *name, uint64_t guid, boolean_t *isactive)
 	(void) unused, (void) guid;
 	zfs_iocparm_t zp;
 	zfs_cmd_t *zc = NULL;
-#ifdef ZFS_LEGACY_SUPPORT
-	zfs_cmd_legacy_t *zcl = NULL;
-#endif
 	unsigned long request;
 	int ret;
 
@@ -290,48 +287,18 @@ pool_active(void *unused, const char *name, uint64_t guid, boolean_t *isactive)
 	 * therefore we manually craft the stats command.  Note that the command
 	 * ID is identical between the openzfs and legacy ioctl() formats.
 	 */
-	int ver = ZFS_IOCVER_NONE;
-	size_t ver_size = sizeof (ver);
+	zc = umem_zalloc(sizeof (zfs_cmd_t), UMEM_NOFAIL);
 
-	sysctlbyname("vfs.zfs.version.ioctl", &ver, &ver_size, NULL, 0);
+	(void) strlcpy(zc->zc_name, name, sizeof (zc->zc_name));
+	zp.zfs_cmd = (uint64_t)(uintptr_t)zc;
+	zp.zfs_cmd_size = sizeof (zfs_cmd_t);
+	zp.zfs_ioctl_version = ZFS_IOCVER_OZFS;
 
-	switch (ver) {
-	case ZFS_IOCVER_OZFS:
-		zc = umem_zalloc(sizeof (zfs_cmd_t), UMEM_NOFAIL);
+	request = _IOWR('Z', ZFS_IOC_POOL_STATS, zfs_iocparm_t);
+	ret = ioctl(fd, request, &zp);
 
-		(void) strlcpy(zc->zc_name, name, sizeof (zc->zc_name));
-		zp.zfs_cmd = (uint64_t)(uintptr_t)zc;
-		zp.zfs_cmd_size = sizeof (zfs_cmd_t);
-		zp.zfs_ioctl_version = ZFS_IOCVER_OZFS;
-
-		request = _IOWR('Z', ZFS_IOC_POOL_STATS, zfs_iocparm_t);
-		ret = ioctl(fd, request, &zp);
-
-		free((void *)(uintptr_t)zc->zc_nvlist_dst);
-		umem_free(zc, sizeof (zfs_cmd_t));
-
-		break;
-#ifdef ZFS_LEGACY_SUPPORT
-	case ZFS_IOCVER_LEGACY:
-		zcl = umem_zalloc(sizeof (zfs_cmd_legacy_t), UMEM_NOFAIL);
-
-		(void) strlcpy(zcl->zc_name, name, sizeof (zcl->zc_name));
-		zp.zfs_cmd = (uint64_t)(uintptr_t)zcl;
-		zp.zfs_cmd_size = sizeof (zfs_cmd_legacy_t);
-		zp.zfs_ioctl_version = ZFS_IOCVER_LEGACY;
-
-		request = _IOWR('Z', ZFS_IOC_POOL_STATS, zfs_iocparm_t);
-		ret = ioctl(fd, request, &zp);
-
-		free((void *)(uintptr_t)zcl->zc_nvlist_dst);
-		umem_free(zcl, sizeof (zfs_cmd_legacy_t));
-
-		break;
-#endif
-	default:
-		fprintf(stderr, "unrecognized zfs ioctl version %d", ver);
-		exit(1);
-	}
+	free((void *)(uintptr_t)zc->zc_nvlist_dst);
+	umem_free(zc, sizeof (zfs_cmd_t));
 
 	(void) close(fd);
 
