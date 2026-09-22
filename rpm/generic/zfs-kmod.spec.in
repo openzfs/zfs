@@ -145,7 +145,10 @@ bash %{SOURCE10}  --target %{_target_cpu} %{?repo:--repo %{?repo}} --kmodname %{
 %setup -q -c -T -a 0
 
 # For common package
-cp %{module}-%{version}/{COPYRIGHT,LICENSE,NOTICE,README.md} .
+cp %{module}-%{version}/COPYRIGHT \
+   %{module}-%{version}/LICENSE \
+   %{module}-%{version}/NOTICE \
+   %{module}-%{version}/README.md .
 
 for kernel_version in %{?kernel_versions}; do
     %{__mkdir} _kmod_build_${kernel_version%%___*}
