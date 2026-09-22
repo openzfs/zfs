@@ -62,6 +62,12 @@ struct zos_object {
 int zos_get_objset(spa_t *spa, objset_t **osp);
 int create_bucket(const char *pool, const char *bucket);
 int delete_bucket(const char *pool, const char *bucket);
+/* Resolved bucket: held objset + bucket ZAP object ID */
+int get_bucket(spa_t *spa, const char *bucket, objset_t **os, uint64_t *bucket_zap);
+
+/* Put (create/overwrite) an object. fd = data source, size = bytes (0 = read until EOF) */
+int put_object(const char *pool, const char *bucket, const char *key, int fd, uint64_t size);
+
 
 int upsert_object(const struct zos_object *object, void *object_data,
                   size_t object_data_size);

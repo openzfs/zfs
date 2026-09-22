@@ -114,6 +114,25 @@ int zos_get_objset(spa_t *spa, objset_t **osp) {
 	return (0);
 }
 
+int get_bucket(spa_t *spa, const char *bucket, objset_t **os, uint64_t *bucket_zap){
+	int error;
+
+	error = zos_get_objset(spa, os);
+	if (error) {
+		*os = NULL;
+		return (error);
+	}
+
+	error = zap_lookup(*os, ZOS_BUCKET_DIR_OBJ, bucket, 8, 1, bucket_zap);
+	if (error) {
+		dmu_objset_rele(*os, FTAG);
+		*os = NULL;
+		return error;
+	}
+
+	return 0;
+}
+
 int create_bucket(const char *pool, const char *bucket) {
 	spa_t *spa;
 	objset_t *os;
@@ -122,24 +141,22 @@ int create_bucket(const char *pool, const char *bucket) {
 	int error;
 
 	error = spa_open(pool, &spa, FTAG);
-	if (error)
-		return (error);
-
-	error = zos_get_objset(spa, &os);
 	if (error) {
-		spa_close(spa, FTAG);
 		return (error);
 	}
 
-	/* Check if the bucket already exists. */
-	error = zap_lookup(os, ZOS_BUCKET_DIR_OBJ, bucket, 8, 1, &bucket_zap);
+	error = get_bucket(spa, bucket, &os, &bucket_zap);
 	if (error == 0) {
-		dmu_objset_rele(os, FTAG);
+		if (os != NULL) {
+			dmu_objset_rele(os, FTAG)
+		}
 		spa_close(spa, FTAG);
 		return (EEXIST);
 	}
 	if (error != ENOENT) {
-		dmu_objset_rele(os, FTAG);
+		if (os != NULL) {
+			dmu_objset_rele(os, FTAG)
+		}
 		spa_close(spa, FTAG);
 		return (error);
 	}
@@ -183,19 +200,15 @@ int delete_bucket(const char *pool, const char *bucket) {
 	int error;
 
 	error = spa_open(pool, &spa, FTAG);
-	if (error)
-		return (error);
-
-	error = zos_get_objset(spa, &os);
 	if (error) {
-		spa_close(spa, FTAG);
 		return (error);
 	}
 
-	/* Look up the bucket's ZAP object ID. */
-	error = zap_lookup(os, ZOS_BUCKET_DIR_OBJ, bucket, 8, 1, &bucket_zap);
+	error = get_bucket(spa, bucket, &os, &bucket_zap);
 	if (error) {
-		dmu_objset_rele(os, FTAG);
+		if (os != NULL) {
+			dmu_objset_rele(os, FTAG)
+		}
 		spa_close(spa, FTAG);
 		return (error);
 	}
