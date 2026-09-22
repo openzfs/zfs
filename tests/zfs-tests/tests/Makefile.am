@@ -2502,7 +2502,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zstream/zstream_decompress_004_pos.ksh \
 	functional/zstream/zstream_decompress_005_pos.ksh \
 	functional/zstream/zstream_decompress_006_neg.ksh \
-	functional/zstream/zstream_drop_record_001_pos.ksh \
+	functional/zstream/zstream_drop_records_001_pos.ksh \
 	functional/zstream/zstream_dump_001_pos.ksh \
 	functional/zstream/zstream_dump_002_pos.ksh \
 	functional/zstream/zstream_dump_003_pos.ksh \
