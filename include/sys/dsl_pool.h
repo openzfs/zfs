@@ -103,13 +103,16 @@ typedef struct dsl_pool {
 
 	struct dsl_scan *dp_scan;
 
-	/* Uses dp_lock */
-	kmutex_t dp_lock;
-	kcondvar_t dp_spaceavail_cv;
+	/* Updated with atomics, read without a lock */
 	uint64_t dp_dirty_pertxg[TXG_SIZE];
 	uint64_t dp_dirty_total;
 	uint64_t dp_sync_reserve_pertxg[TXG_SIZE];
 	uint64_t dp_sync_reserve_total;
+
+	/* Uses dp_lock */
+	kmutex_t dp_lock;
+	kcondvar_t dp_spaceavail_cv;
+	uint64_t dp_dirty_waiters;	/* also read unlocked */
 	uint64_t dp_long_free_dirty_pertxg[TXG_SIZE];
 
 	aggsum_t dp_wrlog_pertxg[TXG_SIZE];
