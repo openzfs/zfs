@@ -2142,3 +2142,23 @@ lzc_bucket_list(const char *pool, nvlist_t **buckets) {
 
 	return (error);
 }
+
+int
+lzc_object_put(const char *pool, const char *bucket, const char *key, int fd, uint64_t size) {
+	int error;
+
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = NULL;
+
+	fnvlist_add_string(args, ZFS_BUCKET, bucket);
+	fnvlist_add_string(args, ZFS_KEY, key);
+	fnvlist_add_uint64(args, ZFS_SIZE, size);
+	fnvlist_add_int32(args, "fd", fd);
+
+	error = lzc_ioctl(ZFS_IOC_OBJECT_PUT, pool, args, &result);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}

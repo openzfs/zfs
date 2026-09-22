@@ -17,3 +17,13 @@ tests = ['zos_bucket_create_001_pos', 'zos_bucket_create_002_neg',
     'zos_bucket_list_001_pos', 'zos_bucket_list_002_pos',
     'zos_bucket_list_003_pos', 'zos_bucket_list_004_pos']
 tags = ['zos', 'functional']
+
+#[tests/functional/zos/object]
+#tests = ['zos_object_put_001_pos', 'zos_object_put_002_pos',
+# 'zos_object_put_003_pos', 'zos_object_put_004_neg',
+# 'zos_object_put_005_pos']
+#tags = ['zos', 'functional']
+
+[tests/functional/zos/object]
+tests = ['zos_object_put_001_pos']
+tags = ['zos', 'functional']

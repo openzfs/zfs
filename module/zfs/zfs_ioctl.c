@@ -5072,9 +5072,25 @@ zfs_ioc_bucket_list(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	}
 	zap_attribute_free(za);
 	zap_cursor_fini(&zc);
-	dmu_objset_rele(os, FTAG);
+	zos_release_objset(os);
 	spa_close(spa, FTAG);
 	return (0);
+}
+
+static const zfs_ioc_key_t zfs_keys_object_put[] = {
+	{ZFS_BUCKET,	DATA_TYPE_STRING,	0},
+	{ZFS_KEY,	DATA_TYPE_STRING,	0},
+	{ZFS_SIZE,	DATA_TYPE_UINT64,	0},
+	{"fd",		DATA_TYPE_INT32,	0},
+};
+
+static int
+zfs_ioc_object_put(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl) {
+	const char *bucket = fnvlist_lookup_string(innvl, ZFS_BUCKET);
+	const char *key = fnvlist_lookup_string(innvl, ZFS_KEY);
+	uint64_t size = fnvlist_lookup_uint64(innvl, ZFS_SIZE);
+	int fd = fnvlist_lookup_int32(innvl, "fd");
+	return (put_object(poolname, bucket, key, fd, size));
 }
 
 /*
@@ -8284,6 +8300,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_bucket_list, zfs_secpolicy_none, POOL_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
 	    NULL, 0);
+
+	zfs_ioctl_register("object_put", ZFS_IOC_OBJECT_PUT,
+	    zfs_ioc_object_put, zfs_secpolicy_none, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
+	    zfs_keys_object_put, ARRAY_SIZE(zfs_keys_object_put));
 
 	zfs_ioctl_register("set_bootenv", ZFS_IOC_SET_BOOTENV,
 	    zfs_ioc_set_bootenv, zfs_secpolicy_config, POOL_NAME,

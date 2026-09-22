@@ -246,7 +246,7 @@ static zfs_command_t command_table[] = {
 	{ "rewrite",	zfs_do_rewrite,		HELP_REWRITE		},
 	{ "wait",	zfs_do_wait,		HELP_WAIT		},
 	{ "bucket",	zfs_do_bucket,		HELP_BUCKET		},
-	{ "bucket",	zfs_do_object,		HELP_OBJECT		},
+	{ "object",	zfs_do_object,		HELP_OBJECT		},
 
 #ifdef __FreeBSD__
 	{ NULL },
@@ -9433,7 +9433,90 @@ zfs_do_bucket(int argc, char **argv) {
 }
 
 static int
-zfs_do_object(int argc, char **argv) { return 0; }
+zfs_do_object(int argc, char **argv) {
+	int ret = 0;
+
+	if (argc < 3) {
+		(void) fprintf(stderr, gettext("invalid number of arguments\n"));
+		usage(B_FALSE);
+	}
+
+	char *op = argv[1];
+	char *path = argv[2];
+
+	if ((g_zfs = libzfs_init()) == NULL) {
+		(void) fprintf(stderr, "%s\n", libzfs_error_init(errno));
+		return (1);
+	}
+
+	libzfs_print_on_error(g_zfs, B_TRUE);
+
+	if (strcmp(op, "put") == 0) {
+		/* Parse pool/bucket/key from path */
+		char *slash1 = strchr(path, '/');
+		if (slash1 == NULL) {
+			(void) fprintf(stderr,
+					gettext("expected pool/bucket/key\n"));
+			usage(B_FALSE);
+		}
+		*slash1 = '\0';
+		char *pool = path;
+
+		char *slash2 = strchr(slash1 + 1, '/');
+		if (slash2 == NULL) {
+			(void) fprintf(stderr,
+					gettext("expected pool/bucket/key\n"));
+			usage(B_FALSE);
+		}
+		*slash2 = '\0';
+		char *bucket = slash1 + 1;
+		char *key = slash2 + 1;
+
+		int fd;
+		uint64_t size;
+		if (argc >= 4) {
+			fd = open(argv[3], O_RDONLY);
+			if (fd < 0) {
+				(void) fprintf(stderr,
+						gettext("cannot open '%s': %s\n"),
+						argv[3], strerror(errno));
+				(void) libzfs_fini(g_zfs);
+				return (1);
+			}
+			struct stat st;
+			if (fstat(fd, &st) != 0) {
+				(void) fprintf(stderr,
+						gettext("cannot stat '%s': %s\n"),
+						argv[3], strerror(errno));
+				(void) close(fd);
+				(void) libzfs_fini(g_zfs);
+				return (1);
+			}
+			size = st.st_size;
+		} else {
+			fd = STDIN_FILENO;
+			size = 0;
+		}
+
+		int error = lzc_object_put(pool, bucket, key, fd, size);
+
+		if (fd != STDIN_FILENO)
+			(void) close(fd);
+
+		if (error != 0)
+			(void) zfs_standard_error(g_zfs, error,
+					"Cannot put object");
+
+		ret = error;
+	} else {
+		(void) fprintf(stderr,
+				gettext("invalid operation: %s\n"), op);
+		usage(B_FALSE);
+	}
+
+	return (ret);
+
+}
 
 /*
  * Display version message

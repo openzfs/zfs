@@ -60,6 +60,7 @@ struct zos_object {
 };
 
 int zos_get_objset(spa_t *spa, objset_t **osp);
+void zos_release_objset(objset_t *os);
 int create_bucket(const char *pool, const char *bucket);
 int delete_bucket(const char *pool, const char *bucket);
 /* Resolved bucket: held objset + bucket ZAP object ID */
