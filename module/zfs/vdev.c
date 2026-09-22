@@ -5448,16 +5448,6 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 		return;
 
 	/*
-	 * If this is an I/O error that is going to be retried, then ignore the
-	 * error.  Otherwise, the user may interpret B_FAILFAST I/O errors as
-	 * hard errors, when in reality they can happen for any number of
-	 * innocuous reasons (bus resets, MPxIO link failure, etc).
-	 */
-	if (zio->io_error == EIO &&
-	    !(zio->io_flags & ZIO_FLAG_IO_RETRY))
-		return;
-
-	/*
 	 * Intent logs writes won't propagate their error to the root
 	 * I/O so don't mark these types of failures as pool-level
 	 * errors.
