@@ -417,6 +417,21 @@ AC_DEFUN([ZFS_AC_RPM], [
 		RPM_DEFINE_COMMON=${RPM_DEFINE_COMMON}' --nodebuginfo'
 	])
 
+	AC_MSG_CHECKING([whether to use $RPM configure caching])
+	AS_IF([test "x$cache_file" != x/dev/null], [
+		# Cannot use the main cache file because it can have
+		# different build/host/target (and usually does). So
+		# treat the presence of a cache file as an indicator
+		# that caching should be enabled and use a new cache
+		# file.
+		CONFCACHE_FILE="${ac_pwd}/config.rpm.cache"
+		RPM_DEFINE_COMMON=${RPM_DEFINE_COMMON}' --define "confcache --cache-file=$(CONFCACHE_FILE)"'
+		AC_SUBST([CONFCACHE_FILE])
+		AC_MSG_RESULT([yes (${CONFCACHE_FILE})])
+	],[
+		AC_MSG_RESULT([no])
+	])
+
 	RPM_DEFINE_UTIL=' --define "_initconfdir $(initconfdir)"'
 
 	dnl # Make the next three RPM_DEFINE_UTIL additions conditional, since
