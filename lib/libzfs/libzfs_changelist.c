@@ -589,14 +589,13 @@ change_one(zfs_handle_t *zhp, void *data)
 			cn = NULL;
 		}
 
+		/*
+		 * The mountpoint property does not apply to snapshots, so
+		 * there is no need to iterate over them here.
+		 */
 		if (!clp->cl_alldependents) {
-			if (clp->cl_prop != ZFS_PROP_MOUNTPOINT) {
-				ret = zfs_iter_filesystems_v2(zhp, 0,
-				    change_one, data);
-			} else {
-				ret = zfs_iter_children_v2(zhp, 0, change_one,
-				    data);
-			}
+			ret = zfs_iter_filesystems_v2(zhp, 0, change_one,
+			    data);
 		}
 
 		/*
@@ -755,12 +754,7 @@ changelist_gather(zfs_handle_t *zhp, zfs_prop_t prop, int gather_flags,
 			changelist_free(clp);
 			return (NULL);
 		}
-	} else if (clp->cl_prop != ZFS_PROP_MOUNTPOINT) {
-		if (zfs_iter_filesystems_v2(zhp, 0, change_one, clp) != 0) {
-			changelist_free(clp);
-			return (NULL);
-		}
-	} else if (zfs_iter_children_v2(zhp, 0, change_one, clp) != 0) {
+	} else if (zfs_iter_filesystems_v2(zhp, 0, change_one, clp) != 0) {
 		changelist_free(clp);
 		return (NULL);
 	}
