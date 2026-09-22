@@ -941,7 +941,7 @@ tests = ['redundancy_draid', 'redundancy_draid1', 'redundancy_draid2',
     'redundancy_draid_spare1', 'redundancy_draid_spare2',
     'redundancy_draid_spare3', 'redundancy_draid_spare4', 'redundancy_mirror',
     'redundancy_raidz', 'redundancy_raidz1', 'redundancy_raidz2',
-    'redundancy_raidz3', 'redundancy_stripe']
+    'redundancy_raidz3', 'redundancy_stripe', 'redundancy_write_errors']
 tags = ['functional', 'redundancy']
 timeout = 1200
 
