@@ -142,11 +142,15 @@ struct spa_aux_vdev {
 	uint_t		sav_npending;		/* # pending devices */
 };
 
+/*
+ * scl_count holds the reference count plus SCL_COUNT_WRITER, so that a reader
+ * can take a reference and check for a writer in one atomic operation.
+ */
 typedef struct spa_config_lock {
 	kmutex_t	scl_lock;
 	kthread_t	*scl_writer;
 	int		scl_write_wanted;
-	int		scl_count;
+	uint32_t	scl_count;
 	kcondvar_t	scl_cv;
 } ____cacheline_aligned spa_config_lock_t;
 

@@ -91,6 +91,46 @@ atomic_add_64_nv(volatile uint64_t *target, int64_t delta)
 	return (newval);
 }
 
+void
+atomic_or_64(volatile uint64_t *target, uint64_t bits)
+{
+
+	mtx_lock(&atomic_mtx);
+	*target |= bits;
+	mtx_unlock(&atomic_mtx);
+}
+
+void
+atomic_and_64(volatile uint64_t *target, uint64_t bits)
+{
+
+	mtx_lock(&atomic_mtx);
+	*target &= bits;
+	mtx_unlock(&atomic_mtx);
+}
+
+uint64_t
+atomic_or_64_nv(volatile uint64_t *target, uint64_t bits)
+{
+	uint64_t newval;
+
+	mtx_lock(&atomic_mtx);
+	newval = (*target |= bits);
+	mtx_unlock(&atomic_mtx);
+	return (newval);
+}
+
+uint64_t
+atomic_and_64_nv(volatile uint64_t *target, uint64_t bits)
+{
+	uint64_t newval;
+
+	mtx_lock(&atomic_mtx);
+	newval = (*target &= bits);
+	mtx_unlock(&atomic_mtx);
+	return (newval);
+}
+
 uint64_t
 atomic_cas_64(volatile uint64_t *target, uint64_t cmp, uint64_t newval)
 {

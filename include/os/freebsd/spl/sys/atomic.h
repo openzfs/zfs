@@ -54,6 +54,10 @@ extern void atomic_dec_64(volatile uint64_t *target);
 extern uint64_t atomic_swap_64(volatile uint64_t *a, uint64_t value);
 extern uint64_t atomic_load_64(volatile uint64_t *a);
 extern uint64_t atomic_add_64_nv(volatile uint64_t *target, int64_t delta);
+extern void atomic_or_64(volatile uint64_t *target, uint64_t bits);
+extern void atomic_and_64(volatile uint64_t *target, uint64_t bits);
+extern uint64_t atomic_or_64_nv(volatile uint64_t *target, uint64_t bits);
+extern uint64_t atomic_and_64_nv(volatile uint64_t *target, uint64_t bits);
 extern uint64_t atomic_cas_64(volatile uint64_t *target, uint64_t cmp,
     uint64_t newval);
 #endif
@@ -98,6 +102,38 @@ atomic_dec_32_nv(volatile uint32_t *target)
 	return (atomic_add_32_nv(target, -1));
 }
 
+static __inline void
+atomic_or_32(volatile uint32_t *target, uint32_t bits)
+{
+	atomic_set_32(target, bits);
+}
+
+static __inline void
+atomic_and_32(volatile uint32_t *target, uint32_t bits)
+{
+	atomic_clear_32(target, ~bits);
+}
+
+static __inline uint32_t
+atomic_or_32_nv(volatile uint32_t *target, uint32_t bits)
+{
+	uint32_t old = *target;
+
+	while (!atomic_fcmpset_32(target, &old, old | bits))
+		continue;
+	return (old | bits);
+}
+
+static __inline uint32_t
+atomic_and_32_nv(volatile uint32_t *target, uint32_t bits)
+{
+	uint32_t old = *target;
+
+	while (!atomic_fcmpset_32(target, &old, old & bits))
+		continue;
+	return (old & bits);
+}
+
 #ifndef __sparc64__
 static inline uint32_t
 atomic_cas_32(volatile uint32_t *target, uint32_t cmp, uint32_t newval)
@@ -129,6 +165,38 @@ static inline uint64_t
 atomic_add_64_nv(volatile uint64_t *target, int64_t delta)
 {
 	return (atomic_fetchadd_64(target, delta) + delta);
+}
+
+static __inline void
+atomic_or_64(volatile uint64_t *target, uint64_t bits)
+{
+	atomic_set_64(target, bits);
+}
+
+static __inline void
+atomic_and_64(volatile uint64_t *target, uint64_t bits)
+{
+	atomic_clear_64(target, ~bits);
+}
+
+static __inline uint64_t
+atomic_or_64_nv(volatile uint64_t *target, uint64_t bits)
+{
+	uint64_t old = *target;
+
+	while (!atomic_fcmpset_64(target, &old, old | bits))
+		continue;
+	return (old | bits);
+}
+
+static __inline uint64_t
+atomic_and_64_nv(volatile uint64_t *target, uint64_t bits)
+{
+	uint64_t old = *target;
+
+	while (!atomic_fcmpset_64(target, &old, old & bits))
+		continue;
+	return (old & bits);
 }
 
 #ifndef __sparc64__

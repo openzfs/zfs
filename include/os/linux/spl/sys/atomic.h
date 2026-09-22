@@ -47,6 +47,8 @@
 #define	atomic_dec_32_nv(v)	atomic_dec_return((atomic_t *)(v))
 #define	atomic_add_32_nv(v, i)	atomic_add_return((i), (atomic_t *)(v))
 #define	atomic_sub_32_nv(v, i)	atomic_sub_return((i), (atomic_t *)(v))
+#define	atomic_or_32(v, i)	atomic_or((i), (atomic_t *)(v))
+#define	atomic_and_32(v, i)	atomic_and((i), (atomic_t *)(v))
 #define	atomic_cas_32(v, x, y)	atomic_cmpxchg((atomic_t *)(v), x, y)
 #define	atomic_swap_32(v, x)	atomic_xchg((atomic_t *)(v), x)
 #define	atomic_load_32(v)	atomic_read((atomic_t *)(v))
@@ -59,10 +61,36 @@
 #define	atomic_dec_64_nv(v)	atomic64_dec_return((atomic64_t *)(v))
 #define	atomic_add_64_nv(v, i)	atomic64_add_return((i), (atomic64_t *)(v))
 #define	atomic_sub_64_nv(v, i)	atomic64_sub_return((i), (atomic64_t *)(v))
+#define	atomic_or_64(v, i)	atomic64_or((i), (atomic64_t *)(v))
+#define	atomic_and_64(v, i)	atomic64_and((i), (atomic64_t *)(v))
 #define	atomic_cas_64(v, x, y)	atomic64_cmpxchg((atomic64_t *)(v), x, y)
 #define	atomic_swap_64(v, x)	atomic64_xchg((atomic64_t *)(v), x)
 #define	atomic_load_64(v)	atomic64_read((atomic64_t *)(v))
 #define	atomic_store_64(v, x)	atomic64_set((atomic64_t *)(v), x)
+
+static __inline__ uint32_t
+atomic_or_32_nv(volatile uint32_t *target, uint32_t bits)
+{
+	return (atomic_fetch_or(bits, (atomic_t *)target) | bits);
+}
+
+static __inline__ uint32_t
+atomic_and_32_nv(volatile uint32_t *target, uint32_t bits)
+{
+	return (atomic_fetch_and(bits, (atomic_t *)target) & bits);
+}
+
+static __inline__ uint64_t
+atomic_or_64_nv(volatile uint64_t *target, uint64_t bits)
+{
+	return (atomic64_fetch_or(bits, (atomic64_t *)target) | bits);
+}
+
+static __inline__ uint64_t
+atomic_and_64_nv(volatile uint64_t *target, uint64_t bits)
+{
+	return (atomic64_fetch_and(bits, (atomic64_t *)target) & bits);
+}
 
 #ifdef _LP64
 static __inline__ void *
