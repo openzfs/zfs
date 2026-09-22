@@ -2360,6 +2360,9 @@ zio_batch_run(zio_batch_t *zb)
 {
 	zio_t *list = NULL, *zio, *next;
 
+	/* Pairs with zio_batch_arrive(). */
+	membar_consumer();
+
 	for (zio = zb->zb_arrived; zio != NULL; zio = next) {
 		next = zio->io_exec_next;
 		zio->io_batch = NULL;
@@ -2449,6 +2452,9 @@ zio_batch_arrive(zio_t *zio)
 		head = zb->zb_arrived;
 		zio->io_exec_next = head;
 	} while (atomic_cas_ptr(&zb->zb_arrived, head, zio) != head);
+
+	/* Publish the arrival before dropping the hold that runs the batch. */
+	membar_producer();
 
 	if (atomic_dec_64_nv(&zb->zb_holds) == 0) {
 		zio_taskq_dispatch_func(zio, ZIO_TASKQ_INTERRUPT, B_FALSE,
