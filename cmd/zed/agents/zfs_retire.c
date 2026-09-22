@@ -819,6 +819,14 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 			    zpool_get_name(zhp));
 
 		/*
+		 * Resilvering domain failures can take a lot of computing and
+		 * I/O bandwidth resources, only to be wasted when the failed
+		 * domain component (for example enclosure) is replaced.
+		 */
+		if (is_draid_fdomain_failure(hdl, zhdl, pool_guid, vdev_guid))
+			return;
+
+		/*
 		 * Attempt to substitute a hot spare.
 		 */
 		(void) replace_with_spare(hdl, zhp, vdev);
