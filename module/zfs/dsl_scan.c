@@ -5026,8 +5026,14 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 		needs_io = B_FALSE;
 	}
 
-	/* If it's an intent log block, failure is expected. */
-	if (zb->zb_level == ZB_ZIL_LEVEL)
+	/*
+	 * The last block of an intent log chain may not have been written.
+	 * Blocks of claimed write records were read when they were claimed,
+	 * but an encrypted log is parsed raw, so the bookmark of a record's
+	 * block cannot name it: the object and offset are ciphertext.
+	 */
+	if (zb->zb_level == ZB_ZIL_LEVEL &&
+	    (zb->zb_object == ZB_ZIL_OBJECT || BP_IS_ENCRYPTED(bp)))
 		zio_flags |= ZIO_FLAG_SPECULATIVE;
 
 	for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
