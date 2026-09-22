@@ -34,6 +34,10 @@ deb-local: deb-local-common
                 exit 1; \
         fi; \
         fi)
+	if test "$(RPM_DBPATH)"; then \
+		mkdir -p "$(RPM_DBPATH)" "$(abs_builddir)/.config/rpm"; \
+		echo "%_dbpath $(RPM_DBPATH)" >"$(abs_builddir)/.config/rpm/macros"; \
+	fi
 
 deb-kmod: deb-local rpm-kmod
 	name=${PACKAGE}; \
@@ -41,6 +45,7 @@ deb-kmod: deb-local rpm-kmod
 	arch=`$(RPM) -qp $${name}-kmod-$${version}.src.rpm --qf %{arch} | tail -1`; \
 	debarch=`$(DPKG) --print-architecture`; \
 	pkg1=kmod-$${name}*$${version}.$${arch}.rpm; \
+	HOME=`test "$(RPM_DBPATH)" && echo "$(abs_builddir)" || echo "$${HOME}"` \
 	fakeroot $(ALIEN) -k --scripts --to-deb --target=$$debarch $$pkg1 || exit 1; \
 	$(RM) $$pkg1
 
@@ -51,6 +56,7 @@ deb-dkms: deb-local rpm-dkms
 	arch=`$(RPM) -qp $${name}-dkms-$${version}.src.rpm --qf %{arch} | tail -1`; \
 	debarch=`$(DPKG) --print-architecture`; \
 	pkg1=$${name}-dkms-$${version}.$${arch}.rpm; \
+	HOME=`test "$(RPM_DBPATH)" && echo "$(abs_builddir)" || echo "$${HOME}"` \
 	fakeroot $(ALIEN) -k --scripts --to-deb --target=$$debarch $$pkg1 || exit 1; \
 	$(RM) $$pkg1
 
@@ -82,6 +88,7 @@ deb-utils: deb-local rpm-utils-initramfs
 ## which should NOT be mixed with the alien-generated debs created here
 	chmod +x $${path_prepend}/dh_shlibdeps; \
 	env "PATH=$${path_prepend}:$${PATH}" \
+	    HOME=`test "$(RPM_DBPATH)" && echo "$(abs_builddir)" || echo "$${HOME}"` \
 	fakeroot $(ALIEN) -k --scripts --to-deb --target=$$debarch \
 	    $$pkg1 $$pkg2 $$pkg3 $$pkg4 $$pkg5 $$pkg6 $$pkg7 \
 	    $$pkg8 $$pkg9 $$pkg10 $$pkg11 || exit 1; \

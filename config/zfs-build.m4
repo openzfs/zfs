@@ -503,6 +503,16 @@ AC_DEFUN([ZFS_AC_RPM], [
 	AC_MSG_CHECKING([whether spec files are available])
 	AC_MSG_RESULT([yes ($RPM_SPEC_DIR/*.spec.in)])
 
+	AC_MSG_CHECKING([whether rpm database is readable])
+	AS_IF([test -r "$($RPM --eval '%{_dbpath}')/rpmdb.sqlite"], [
+		AC_MSG_RESULT([yes ($($RPM --eval '%{_dbpath}')/rpmdb.sqlite)])
+	],[
+		RPM_DBPATH="${ac_pwd}/.rpmdb"
+		RPM="$RPM --dbpath=\$(RPM_DBPATH)"
+		RPMBUILD="$RPMBUILD --dbpath=\$(RPM_DBPATH)"
+		AC_MSG_RESULT([no (using ${RPM_DBPATH}/rpmdb.sqlite)])
+	])
+
 	AC_SUBST(HAVE_RPM)
 	AC_SUBST(RPM)
 	AC_SUBST(RPM_VERSION)
@@ -511,6 +521,7 @@ AC_DEFUN([ZFS_AC_RPM], [
 	AC_SUBST(RPMBUILD)
 	AC_SUBST(RPMBUILD_VERSION)
 
+	AC_SUBST(RPM_DBPATH)
 	AC_SUBST(RPM_SPEC_DIR)
 	AC_SUBST(RPM_DEFINE_UTIL)
 	AC_SUBST(RPM_DEFINE_KMOD)
