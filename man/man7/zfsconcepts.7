@@ -62,6 +62,17 @@ File system snapshots can be accessed under the
 directory in the root of the file system.
 Snapshots are automatically mounted on demand and may be unmounted at regular
 intervals.
+On Linux, an entry under
+.Pa .zfs/snapshot
+reports the fsid of its snapshot from
+.Xr statfs 2
+whether or not the snapshot is currently mounted, so a snapshot can be
+identified without mounting it by opening the entry with
+.Dv O_PATH ,
+which does not trigger the automount, and calling
+.Xr fstatfs 2
+on the descriptor, as an NFS server does to resolve a file handle whose
+snapshot is not mounted.
 The availability and visibility of the
 .Pa .zfs
 directory can be controlled by the
