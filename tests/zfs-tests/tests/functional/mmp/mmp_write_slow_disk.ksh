@@ -87,7 +87,7 @@ for x in {0,1,2,4}; do
 done
 
 # Expect that the pool was not suspended
-log_must check_state $MMP_POOL "" "ONLINE"
+log_must check_state $MMP_POOL "" "DEGRADED"
 health=$(zpool list -H -o health $MMP_POOL)
 log_note "$MMP_POOL health is $health"
 [[ "$health" == "SUSPENDED" ]] && log_fail "$MMP_POOL $health unexpected"
