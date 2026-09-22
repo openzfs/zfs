@@ -1993,6 +1993,16 @@ dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
 		    lr->lr_foid, ZB_ZIL_LEVEL,
 		    lr->lr_offset / BP_GET_LSIZE(bp));
 
+		/*
+		 * An encrypted log is parsed without decryption, which leaves
+		 * a record's object and offset ciphertext. Name its block by
+		 * the log and the record's sequence number instead.
+		 */
+		if (BP_IS_ENCRYPTED(&zh->zh_log)) {
+			zb.zb_object = ZB_ZIL_OBJECT;
+			zb.zb_blkid = lrc->lrc_seq;
+		}
+
 		VERIFY0(scan_funcs[scn->scn_phys.scn_func](dp, bp, &zb));
 	}
 	return (0);
@@ -5149,8 +5159,12 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 		needs_io = B_FALSE;
 	}
 
-	/* If it's an intent log block, failure is expected. */
-	if (zb->zb_level == ZB_ZIL_LEVEL)
+	/*
+	 * The last block of an intent log chain may not have been written.
+	 * Blocks of claimed write records were read when they were claimed.
+	 */
+	if (zb->zb_level == ZB_ZIL_LEVEL &&
+	    BP_GET_TYPE(bp) == DMU_OT_INTENT_LOG)
 		zio_flags |= ZIO_FLAG_SPECULATIVE;
 
 	for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
