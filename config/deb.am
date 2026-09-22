@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: CDDL-1.0
-PHONY += deb-kmod deb-dkms deb-utils deb deb-local native-deb-local \
-	native-deb-utils native-deb-kmod native-deb
+PHONY += deb-kmod deb-dkms deb-utils deb deb-local deb-local-common \
+	native-deb-local native-deb-utils native-deb-kmod native-deb \
+	native-deb-check-build-dep
 
-native-deb-local:
+native-deb-local: native-deb-check-build-dep deb-local-common
+
+deb-local-common:
 	@(if test "${HAVE_DPKGBUILD}" = "no"; then \
 		echo -e "\n" \
 	"*** Required util ${DPKGBUILD} missing.  Please install the\n" \
@@ -11,7 +14,7 @@ native-deb-local:
 		exit 1; \
 	fi)
 
-deb-local: native-deb-local
+deb-local: deb-local-common
 	@(if test "${HAVE_ALIEN}" = "no"; then \
 		echo -e "\n" \
 	"*** Required util ${ALIEN} missing.  Please install the\n" \
@@ -91,6 +94,25 @@ deb: deb-kmod deb-dkms deb-utils
 
 debian:
 	cp -r $(srcdir)/contrib/debian debian; chmod +x debian/rules;
+
+native-deb-check-build-dep:
+	exec <$(srcdir)/contrib/debian/control; \
+	while read LINE; do \
+		if [ -z "$${LINE##Build-Depends:*}" ]; then \
+			BDEP="$${LINE#Build-Depends: }"; \
+			while read LINE; do \
+				[ "$${LINE%%*,}" ] && break; \
+				BDEP="$${BDEP%%,},$${LINE%%,}"; \
+			done; break; \
+		fi ; \
+	done; \
+	if apt -s satisfy "$${BDEP}" 2>/dev/null | grep -q "^Inst"; then \
+		/bin/echo -e "\n" \
+		"*** Dependencies needed to build native debian package have\n" \
+		"*** not been met. To install them, run:\n" \
+		"*** apt satisfy \"$${BDEP}\"\n"; \
+		exit 1; \
+	fi
 
 native-deb-utils: native-deb-local debian
 	while [ -f debian/deb-build.lock ]; do sleep 1; done && \
