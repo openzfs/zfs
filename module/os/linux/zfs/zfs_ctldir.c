@@ -500,6 +500,46 @@ zfsctl_is_snapdir(struct inode *ip)
 }
 
 /*
+ * fsid of the snapshot behind a '.zfs/snapshot/<name>' entry, without
+ * mounting it: the same in-core ds_fsid_guid its superblock reports once
+ * mounted.  Read from the dataset's bonus buffer; dsl_dataset_hold_obj()
+ * would instantiate and tear down the whole in-core dataset on every call.
+ */
+int
+zfsctl_snapdir_fsid(struct inode *ip, uint64_t *fsidp)
+{
+	zfsvfs_t *zfsvfs = ITOZSB(ip);
+	dsl_pool_t *dp = dmu_objset_pool(zfsvfs->z_os);
+	dmu_object_info_t doi;
+	dsl_dataset_phys_t *phys;
+	dsl_dataset_t *ds;
+	dmu_buf_t *dbuf;
+	int error;
+
+	ASSERT(zfsctl_is_snapdir(ip));
+
+	dsl_pool_config_enter(dp, FTAG);
+	error = dmu_bonus_hold(dp->dp_meta_objset,
+	    ZFSCTL_INO_SNAPDIRS - ip->i_ino, FTAG, &dbuf);
+	if (error == 0) {
+		dmu_object_info_from_db(dbuf, &doi);
+		if (doi.doi_bonus_type != DMU_OT_DSL_DATASET) {
+			error = SET_ERROR(ENOENT);
+		} else {
+			phys = dbuf->db_data;
+			ds = dmu_buf_get_user(dbuf);
+			*fsidp = ds != NULL ? dsl_dataset_fsid_guid(ds) : 0;
+			if (*fsidp == 0)
+				*fsidp = phys->ds_fsid_guid;
+		}
+		dmu_buf_rele(dbuf, FTAG);
+	}
+	dsl_pool_config_exit(dp, FTAG);
+
+	return (error);
+}
+
+/*
  * Allocate a new inode with the passed id and ops.
  */
 static struct inode *

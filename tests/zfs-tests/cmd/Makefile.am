@@ -142,6 +142,7 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/makedir
 scripts_zfs_tests_bin_PROGRAMS += %D%/mount_null_source
 scripts_zfs_tests_bin_PROGRAMS += %D%/renameat2
 scripts_zfs_tests_bin_PROGRAMS += %D%/statx
+scripts_zfs_tests_bin_PROGRAMS += %D%/statfs_nomount
 scripts_zfs_tests_bin_PROGRAMS += %D%/xattrtest
 scripts_zfs_tests_bin_PROGRAMS += %D%/zed_fd_spill-zedlet
 scripts_zfs_tests_bin_PROGRAMS += %D%/idmap_util
