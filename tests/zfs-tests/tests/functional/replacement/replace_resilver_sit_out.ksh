@@ -42,11 +42,14 @@ save_tunable READ_SIT_OUT_SECS
 set_tunable32 READ_SIT_OUT_SECS 120
 save_tunable SIT_OUT_CHECK_INTERVAL
 set_tunable64 SIT_OUT_CHECK_INTERVAL 20
+save_tunable TXG_TIMEOUT
+set_tunable32 TXG_TIMEOUT 1
 
 function cleanup
 {
 	restore_tunable READ_SIT_OUT_SECS
 	restore_tunable SIT_OUT_CHECK_INTERVAL
+	restore_tunable TXG_TIMEOUT
 	log_must zinject -c all
 	log_must zpool events -c
 
@@ -149,20 +152,23 @@ count=400
 for type in "raidz2" "raidz3" "draid2"; do
 	create_pool $TESTPOOL1 $type $specials_list
 	log_must zpool set autosit=on $TESTPOOL1 "${type}-0"
-	log_must zfs create -o primarycache=none -o recordsize=512K \
-	    $TESTPOOL1/$TESTFS1
+	log_must zfs create -o primarycache=none -o recordsize=1M \
+	    -o compression=off $TESTPOOL1/$TESTFS1
 	log_must zfs set mountpoint=$TESTDIR1 $TESTPOOL1/$TESTFS1
 
-	log_must dd if=/dev/urandom of=/$TESTDIR1/bigfile bs=1M count=$count
+	log_must dd if=/dev/zero of=/$TESTDIR1/bigfile bs=1M count=$count
 
 	# Make one disk 100ms slower to trigger a sit out
-	log_must zinject -d $slow_disk -D100:1 -T read $TESTPOOL1
+	log_must zinject -d $slow_disk -D100:4 -T read $TESTPOOL1
 
 	# Do some reads and wait for sit out on slow disk
 	SECONDS=0
 	typeset -i size=0
 	for i in $(seq 1 $count) ; do
-		dd if=/$TESTDIR1/bigfile skip=$i bs=1M count=1 of=/dev/null
+		dd if=/$TESTDIR1/bigfile skip=$i bs=1M count=1 of=/dev/null &>/dev/null &
+		dd if=/$TESTDIR1/bigfile skip=$((count - i - 1)) bs=1M count=1 of=/dev/null &>/dev/null
+		wait
+
 		size=$i
 
 		sit_out=$(get_vdev_prop sit_out $TESTPOOL1 $slow_disk)
