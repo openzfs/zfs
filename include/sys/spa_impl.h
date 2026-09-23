@@ -322,7 +322,6 @@ struct spa {
 	uint8_t		spa_scrub_active;	/* active or suspended? */
 	uint8_t		spa_scrub_type;		/* type of scrub we're doing */
 	uint8_t		spa_scrub_finished;	/* indicator to rotate logs */
-	uint8_t		spa_scrub_started;	/* started since last boot */
 	uint8_t		spa_scrub_reopen;	/* scrub doing vdev_reopen */
 	uint64_t	spa_scan_pass_start;	/* start time per pass/reboot */
 	uint64_t	spa_scan_pass_scrub_pause; /* scrub pause time */

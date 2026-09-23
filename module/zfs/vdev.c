@@ -121,8 +121,8 @@ static unsigned int zfs_dio_write_verify_events_per_second = 20;
 static unsigned int zfs_checksum_events_per_second = 20;
 
 /*
- * Ignore errors during scrub/resilver.  Allows to work around resilver
- * upon import when there are pool errors.
+ * Recovery override: allow healing or rebuild completion to retire missing
+ * writes despite errors or incomplete coverage. Preserve healing diagnostics.
  */
 static int zfs_scan_ignore_errors = 0;
 
@@ -3163,9 +3163,9 @@ vdev_dirty_leaves(vdev_t *vd, int flags, uint64_t txg)
  *
  * DTL_PARTIAL: txgs for which data is available, but not fully replicated
  *
- * DTL_SCRUB: the txgs that could not be repaired by the last scrub; upon
- *	scrub completion, DTL_SCRUB replaces DTL_MISSING in the range of
- *	txgs that was scrubbed.
+ * DTL_SCRUB: txgs with failed repair writes during a scan. A healing resilver
+ *	with valid coverage replaces DTL_MISSING with these failures in the
+ *	range it visited. A scrub cannot retire DTL_MISSING.
  *
  * DTL_OUTAGE: txgs which cannot currently be read, whether due to
  *	persistent errors or just some device being offline.
@@ -3405,29 +3405,25 @@ vdev_dtl_reassess_impl(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 		mutex_enter(&vd->vdev_dtl_lock);
 
 		/*
-		 * If requested, pretend the scan or rebuild completed cleanly.
+		 * If requested, pretend the rebuild completed cleanly.
 		 */
-		if (zfs_scan_ignore_errors) {
-			if (scn != NULL)
-				scn->scn_phys.scn_errors = 0;
-			if (vr != NULL)
-				vr->vr_rebuild_phys.vrp_errors = 0;
-		}
+		if (zfs_scan_ignore_errors && vr != NULL)
+			vr->vr_rebuild_phys.vrp_errors = 0;
 
 		if (scrub_txg != 0 &&
 		    !zfs_range_tree_is_empty(vd->vdev_dtl[DTL_MISSING])) {
 			wasempty = B_FALSE;
-			zfs_dbgmsg("guid:%llu txg:%llu scrub:%llu started:%d "
+			zfs_dbgmsg("guid:%llu txg:%llu scrub:%llu "
 			    "dtl:%llu/%llu errors:%llu",
 			    (u_longlong_t)vd->vdev_guid, (u_longlong_t)txg,
-			    (u_longlong_t)scrub_txg, spa->spa_scrub_started,
+			    (u_longlong_t)scrub_txg,
 			    (u_longlong_t)vdev_dtl_min(vd),
 			    (u_longlong_t)vdev_dtl_max(vd),
 			    (u_longlong_t)(scn ? scn->scn_phys.scn_errors : 0));
 		}
 
 		/*
-		 * If we've completed a scrub/resilver or a rebuild cleanly
+		 * If we've completed a healing resilver or a rebuild cleanly
 		 * then determine if this vdev should remove any DTLs. We
 		 * only want to excise regions on vdevs that were available
 		 * during the entire duration of this scan.
@@ -3436,20 +3432,18 @@ vdev_dtl_reassess_impl(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 		    vr != NULL && vr->vr_rebuild_phys.vrp_errors == 0) {
 			check_excise = B_TRUE;
 		} else {
-			if (spa->spa_scrub_started ||
-			    (scn != NULL && scn->scn_phys.scn_errors == 0)) {
-				check_excise = B_TRUE;
-			}
+			check_excise = (scn != NULL &&
+			    scn->scn_phys.scn_func == POOL_SCAN_RESILVER &&
+			    (scn->scn_coverage_valid ||
+			    zfs_scan_ignore_errors));
 		}
 
 		if (scrub_txg && check_excise &&
 		    vdev_dtl_should_excise(vd, rebuild_done)) {
 			/*
-			 * We completed a scrub, resilver or rebuild up to
-			 * scrub_txg.  If we did it without rebooting, then
-			 * the scrub dtl will be valid, so excise the old
-			 * region and fold in the scrub dtl.  Otherwise,
-			 * leave the dtl as-is if there was an error.
+			 * We completed a healing resilver or rebuild up to
+			 * scrub_txg, so excise the old region and fold in the
+			 * scrub dtl, which holds the repairs that failed.
 			 *
 			 * There's little trick here: to excise the beginning
 			 * of the DTL_MISSING map, we put it into a reference
@@ -7269,7 +7263,7 @@ ZFS_MODULE_PARAM(zfs, zfs_, checksum_events_per_second, UINT, ZMOD_RW,
 	"(do not set below ZED threshold).");
 
 ZFS_MODULE_PARAM(zfs, zfs_, scan_ignore_errors, INT, ZMOD_RW,
-	"Ignore errors during resilver/scrub");
+	"Allow healing or rebuild DTL retirement despite errors");
 
 ZFS_MODULE_PARAM(zfs_vdev, vdev_, validate_skip, INT, ZMOD_RW,
 	"Bypass vdev_validate()");
