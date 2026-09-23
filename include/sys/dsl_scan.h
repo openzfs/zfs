@@ -141,6 +141,7 @@ typedef struct dsl_scan {
 	boolean_t scn_clearing;		/* scan is issuing sequential extents */
 	boolean_t scn_checkpointing;	/* scan is issuing all queued extents */
 	boolean_t scn_suspending;	/* scan is suspending until next txg */
+	boolean_t scn_coverage_valid;	/* complete healing coverage */
 	uint64_t scn_last_checkpoint;	/* time of last checkpoint */
 
 	/* members for thread synchronization */

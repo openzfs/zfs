@@ -39,10 +39,15 @@ This requires the
 .Sy resilver_defer
 pool feature.
 .Pp
+A healing resilver interrupted by an export or a reboot restarts from the
+beginning when the pool is imported.
+.Pp
 If a repair fails, the affected data remains marked for resilvering, but ZFS
 does not continuously retry an unchanged failure.
 After correcting the device problem, use this command to retry if healing has
 not already resumed automatically.
+A block that no device can read is reported as a permanent error and does not
+keep a device incomplete.
 .Pp
 Due to concurrent writes on a live system, it is possible for
 resilver to progress beyond 100% completion.
