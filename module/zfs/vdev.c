@@ -3328,6 +3328,10 @@ vdev_dtl_should_excise(vdev_t *vd, boolean_t rebuild_done)
 	if (vd->vdev_state < VDEV_STATE_DEGRADED)
 		return (B_FALSE);
 
+	/* A failed probe can set cant_write before the vdev state changes. */
+	if (rebuild_done && !vdev_writeable(vd))
+		return (B_FALSE);
+
 	if (vd->vdev_resilver_deferred)
 		return (B_FALSE);
 
@@ -3338,9 +3342,9 @@ vdev_dtl_should_excise(vdev_t *vd, boolean_t rebuild_done)
 		vdev_rebuild_t *vr = &vd->vdev_top->vdev_rebuild_config;
 		vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
 
-		/* Rebuild not initiated by attach */
+		/* Rebuild repairs only the devices it was started for. */
 		if (vd->vdev_rebuild_txg == 0)
-			return (B_TRUE);
+			return (B_FALSE);
 
 		/*
 		 * When a rebuild completes without error then all missing data
@@ -3409,15 +3413,9 @@ vdev_dtl_reassess_impl(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 
 		mutex_enter(&vd->vdev_dtl_lock);
 
-		/*
-		 * If requested, pretend the scan or rebuild completed cleanly.
-		 */
-		if (zfs_scan_ignore_errors) {
-			if (scn != NULL)
-				scn->scn_phys.scn_errors = 0;
-			if (vr != NULL)
-				vr->vr_rebuild_phys.vrp_errors = 0;
-		}
+		/* Do not erase rebuild errors for the recovery override. */
+		if (!rebuild_done && zfs_scan_ignore_errors && scn != NULL)
+			scn->scn_phys.scn_errors = 0;
 
 		if (scrub_txg != 0 &&
 		    !zfs_range_tree_is_empty(vd->vdev_dtl[DTL_MISSING])) {
@@ -3437,14 +3435,12 @@ vdev_dtl_reassess_impl(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 		 * only want to excise regions on vdevs that were available
 		 * during the entire duration of this scan.
 		 */
-		if (rebuild_done &&
-		    vr != NULL && vr->vr_rebuild_phys.vrp_errors == 0) {
+		if (rebuild_done) {
+			check_excise = (vr->vr_rebuild_phys.vrp_errors == 0 ||
+			    zfs_scan_ignore_errors);
+		} else if (spa->spa_scrub_started ||
+		    (scn != NULL && scn->scn_phys.scn_errors == 0)) {
 			check_excise = B_TRUE;
-		} else {
-			if (spa->spa_scrub_started ||
-			    (scn != NULL && scn->scn_phys.scn_errors == 0)) {
-				check_excise = B_TRUE;
-			}
 		}
 
 		if (scrub_txg && check_excise &&
