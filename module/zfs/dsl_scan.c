@@ -1121,9 +1121,9 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, uint64_t txgstart,
 	/*
 	 * Purge all vdev caches and probe all devices.  We do this here
 	 * rather than in sync context because this requires a writer lock
-	 * on the spa_config lock, which we can't do from sync context.  The
-	 * spa_scrub_reopen flag indicates that vdev_open() should not
-	 * attempt to start another scrub.
+	 * on the spa_config lock, which we can't do from sync context.
+	 * Do not preempt existing verification during its own reopen, but
+	 * still account for devices joining an active healing pass.
 	 */
 	spa_vdev_state_enter(spa, SCL_NONE);
 	spa->spa_scrub_reopen = B_TRUE;
@@ -1341,7 +1341,8 @@ dsl_scan_done(dsl_scan_t *scn, dsl_scan_done_reason_t reason, dmu_tx_t *tx)
 				 * ran carries no deferred mark, because a
 				 * reopen for a scrub skips the assessment.
 				 */
-				dsl_scan_assess_vdev(dp, spa->spa_root_vdev);
+				dsl_scan_assess_vdev(dp, spa->spa_root_vdev,
+				    B_FALSE);
 			}
 		}
 		spa_errlog_rotate(spa);
@@ -1369,7 +1370,7 @@ dsl_scan_done(dsl_scan_t *scn, dsl_scan_done_reason_t reason, dmu_tx_t *tx)
 		 * that no failure falls between the check and the finish.
 		 */
 		if (complete && DSL_SCAN_IS_RESILVER(scn) &&
-		    vdev_resilver_missed(spa->spa_root_vdev,
+		    vdev_resilver_settle(spa->spa_root_vdev,
 		    scn->scn_phys.scn_max_txg))
 			spa_async_request(spa, SPA_ASYNC_RESILVER);
 
@@ -5632,33 +5633,55 @@ dsl_scan_freed(spa_t *spa, const blkptr_t *bp)
 }
 
 /*
- * Check if a vdev needs resilvering (non-empty DTL), if so, and resilver has
- * not started, start it. Otherwise, only restart if max txg in DTL range is
- * greater than the max txg in the current scan. If the DTL max is less than
- * the scan max, then the vdev has not missed any new data since the resilver
- * started, so a restart is not needed.
+ * An already participating device needs another healing pass only if its
+ * missing range extends beyond the current scan's maximum TXG. A newly
+ * available leaf cannot account for the scan's completed prefix, regardless
+ * of its DTL bounds, and a range starting before the scan was never covered.
+ * A leaf that a completed pass could not heal is left alone until it returns
+ * or is healed explicitly, so that an unchanged failure is not retried.
  */
 void
-dsl_scan_assess_vdev(dsl_pool_t *dp, vdev_t *vd)
+dsl_scan_assess_vdev(dsl_pool_t *dp, vdev_t *vd, boolean_t newly_available)
 {
 	uint64_t min, max;
 
-	if (!vdev_resilver_needed(vd, &min, &max))
-		return;
+	ASSERT(!newly_available || vd->vdev_ops->vdev_op_leaf);
 
-	if (!dsl_scan_resilvering(dp)) {
-		spa_async_request(dp->dp_spa, SPA_ASYNC_RESILVER);
+	if (vd->vdev_children != 0) {
+		for (int c = 0; c < vd->vdev_children; c++)
+			dsl_scan_assess_vdev(dp, vd->vdev_child[c], B_FALSE);
 		return;
 	}
 
-	if (max <= dp->dp_scan->scn_phys.scn_max_txg)
+	mutex_enter(&vd->vdev_dtl_lock);
+	if (newly_available)
+		vd->vdev_heal_stalled = B_FALSE;
+	boolean_t stalled = vd->vdev_heal_stalled;
+	mutex_exit(&vd->vdev_dtl_lock);
+
+	if (stalled || !vdev_resilver_needed(vd, &min, &max))
+		return;
+
+	if (!dsl_scan_resilvering(dp)) {
+		if (!dp->dp_spa->spa_scrub_reopen ||
+		    (!dsl_scan_scrubbing(dp) && !dsl_errorscrubbing(dp)))
+			spa_async_request(dp->dp_spa, SPA_ASYNC_RESILVER);
+		return;
+	}
+
+	boolean_t uncovered = newly_available ||
+	    min < dp->dp_scan->scn_phys.scn_min_txg;
+	if (!uncovered && max <= dp->dp_scan->scn_phys.scn_max_txg)
 		return;
 
 	/* restart is needed, check if it can be deferred */
-	if (spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER))
+	if (spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER)) {
 		vdev_defer_resilver(vd);
-	else
+	} else {
+		if (uncovered)
+			dsl_scan_coverage_lost(dp->dp_scan);
 		spa_async_request(dp->dp_spa, SPA_ASYNC_RESILVER);
+	}
 }
 
 ZFS_MODULE_PARAM(zfs, zfs_, scan_vdev_limit, U64, ZMOD_RW,

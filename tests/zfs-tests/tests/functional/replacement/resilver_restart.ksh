@@ -21,7 +21,9 @@
 #	Healing requests whose target disappears do not start a scrub.
 #
 # STRATEGY:
-#	1. Leave a replacement incomplete by failing its repair writes.
+#	1. Leave a replacement incomplete by failing its repair writes. The
+#	   failure must not start another pass, and a scrub must neither turn
+#	   into one nor schedule one, since nothing has changed.
 #	2. Request another resilver, then detach its target.
 #	3. Advance transaction groups past the request and check that no scrub
 #	   was started.
@@ -71,6 +73,17 @@ log_must zinject -d "$workdir/disk-1" -e io -T write -f 100 "$TESTPOOL1"
 log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
 log_must zpool wait -t resilver "$TESTPOOL1"
 log_must zinject -c all
+log_must is_pool_replacing "$TESTPOOL1"
+log_must test "$(scan_starts 2)" -eq 1
+
+# Stalled healing is left for a change: a full scrub stays a scrub.
+log_must zpool scrub -w "$TESTPOOL1"
+for ((i = 0; i < 4; i++)); do
+	sync_pool "$TESTPOOL1"
+done
+log_must zpool wait -t resilver "$TESTPOOL1"
+log_must test "$(scan_starts 1)" -eq 1
+log_must test "$(scan_starts 2)" -eq 1
 log_must is_pool_replacing "$TESTPOOL1"
 
 log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
