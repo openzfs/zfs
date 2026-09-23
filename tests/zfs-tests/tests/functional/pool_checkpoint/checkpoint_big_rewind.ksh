@@ -54,6 +54,6 @@ log_must zpool export $NESTEDPOOL
 log_must zpool import -d $FILEDISKDIR --rewind-to-checkpoint $NESTEDPOOL
 
 log_must zpool export $NESTEDPOOL
-log_must zdb -e -p $FILEDISKDIR $NESTEDPOOL
+log_must zdb_noprefetch -e -p $FILEDISKDIR $NESTEDPOOL
 
 log_pass "Rewind to checkpoint on a stressed pool."

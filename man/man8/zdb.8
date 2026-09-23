@@ -186,6 +186,10 @@ Verify the checksum of all metadata blocks while printing block statistics
 .Pc .
 .Pp
 If specified multiple times, verify the checksums of all blocks.
+Set environment variable
+.Nm ZDB_NO_TRAVERSE_PREFETCH_DATA
+to skip data block prefetching when checksumming all blocks.
+This can lower memory usage.
 .It Fl C , -config
 Display information about the configuration.
 If specified with no other options, instead display information about the cache

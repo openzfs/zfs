@@ -341,8 +341,8 @@ function fragment_after_checkpoint_and_verify
 	# the verification results are consistent.
 	#
 	log_must zpool export $NESTEDPOOL
-	log_must zdb -e -p $FILEDISKDIR $NESTEDPOOL
-	log_must zdb -e -p $FILEDISKDIR -kc $NESTEDPOOL
+	log_must zdb_noprefetch -e -p $FILEDISKDIR $NESTEDPOOL
+	log_must zdb_noprefetch -e -p $FILEDISKDIR -kc $NESTEDPOOL
 	log_must zpool import -d $FILEDISKDIR $NESTEDPOOL
 }
 
@@ -418,3 +418,9 @@ function setup_nested_pool_state
 
 	log_must zpool import -d $FILEDISKDIR $NESTEDPOOL
 }
+
+function zdb_noprefetch
+{
+	eval "ZDB_NO_TRAVERSE_PREFETCH_DATA=1 zdb $@ >/dev/null"
+}
+export zdb_noprefetch

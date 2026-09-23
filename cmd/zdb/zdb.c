@@ -8018,7 +8018,8 @@ dump_block_stats(spa_t *spa)
 
 	deleted_livelists_count_blocks(spa, zcb);
 
-	if (dump_opt['c'] > 1)
+	if (dump_opt['c'] > 1 &&
+	    getenv("ZDB_NO_TRAVERSE_PREFETCH_DATA") == NULL)
 		flags |= TRAVERSE_PREFETCH_DATA;
 
 	zcb->zcb_totalasize = metaslab_class_get_alloc(spa_normal_class(spa));
