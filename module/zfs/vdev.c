@@ -2190,6 +2190,8 @@ vdev_open(vdev_t *vd, cred_t *cred)
 	uint64_t asize, max_asize, psize;
 	uint64_t logical_ashift = 0;
 	uint64_t physical_ashift = 0;
+	boolean_t newly_available =
+	    vd->vdev_prevstate < VDEV_STATE_DEGRADED || vd->vdev_cant_write;
 
 	ASSERT(vd->vdev_open_thread == curthread ||
 	    spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
@@ -2445,13 +2447,8 @@ vdev_open(vdev_t *vd, cred_t *cred)
 		vdev_spa_set_alloc(spa, min_alloc);
 	}
 
-	/*
-	 * If this is a leaf vdev, assess whether a resilver is needed.
-	 * But don't do this if we are doing a reopen for a scrub, since
-	 * this would just restart the scrub we are already doing.
-	 */
-	if (vd->vdev_ops->vdev_op_leaf && !spa->spa_scrub_reopen)
-		dsl_scan_assess_vdev(spa->spa_dsl_pool, vd);
+	if (vd->vdev_ops->vdev_op_leaf)
+		dsl_scan_assess_vdev(spa->spa_dsl_pool, vd, newly_available);
 
 	return (0);
 }
@@ -3321,6 +3318,10 @@ vdev_dtl_should_excise(vdev_t *vd, boolean_t rebuild_done)
 	ASSERT0(vd->vdev_children);
 
 	if (vd->vdev_state < VDEV_STATE_DEGRADED)
+		return (B_FALSE);
+
+	/* A failed probe can set cant_write before the vdev state changes. */
+	if (!rebuild_done && !vdev_writeable(vd))
 		return (B_FALSE);
 
 	if (vd->vdev_resilver_deferred)
@@ -4653,10 +4654,18 @@ vdev_remove_wanted(spa_t *spa, uint64_t guid)
 		return (spa_vdev_state_exit(spa, NULL, 0));
 
 	/*
-	 * Confirm the vdev has been removed, otherwise don't do anything.
+	 * Confirm removal. A successful probe can restore writeability
+	 * without reopening the vdev.
 	 */
-	if (vd->vdev_ops->vdev_op_leaf && !zio_wait(vdev_probe(vd, NULL)))
+	boolean_t was_writeable = vdev_writeable(vd);
+	if (vd->vdev_ops->vdev_op_leaf && !zio_wait(vdev_probe(vd, NULL))) {
+		if (!was_writeable) {
+			dsl_scan_assess_vdev(spa->spa_dsl_pool, vd, B_TRUE);
+			return (spa_vdev_state_exit(spa, vd,
+			    SET_ERROR(EEXIST)));
+		}
 		return (spa_vdev_state_exit(spa, NULL, SET_ERROR(EEXIST)));
+	}
 
 	vd->vdev_remove_wanted = B_TRUE;
 	spa_async_request(spa, SPA_ASYNC_REMOVE_BY_USER);
@@ -4947,8 +4956,6 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 		vd->vdev_forcefault = B_TRUE;
 
 		vd->vdev_faulted = vd->vdev_degraded = 0ULL;
-		vd->vdev_cant_read = B_FALSE;
-		vd->vdev_cant_write = B_FALSE;
 		vd->vdev_stat.vs_aux = 0;
 
 		vdev_reopen(vd == rvd ? rvd : vd->vdev_top);
