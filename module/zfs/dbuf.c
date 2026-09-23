@@ -3614,6 +3614,10 @@ dbuf_dnode_findbp(dnode_t *dn, uint64_t level, uint64_t blkid,
 	int err = 0;
 	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
 
+	/* The bookmark of an intent log record's block names no block here. */
+	if (level >= DN_MAX_LEVELS)
+		return (SET_ERROR(ENOENT));
+
 	err = dbuf_findbp(dn, level, blkid, B_FALSE, &dbp, &bp2);
 	if (err == 0) {
 		ASSERT3P(bp2, !=, NULL);
