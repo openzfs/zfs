@@ -495,14 +495,26 @@ vdev_mirror_child_readable(mirror_child_t *mc)
 }
 
 static boolean_t
-vdev_mirror_child_missing(mirror_child_t *mc, uint64_t txg, uint64_t size)
+vdev_mirror_child_missing(zio_t *zio, mirror_child_t *mc)
 {
 	vdev_t *vd = mc->mc_vd;
 
+	/*
+	 * Which dRAID child holds a segment depends on its row, which only
+	 * vdev_draid_missing() resolves, and only for the read's txg.
+	 */
 	if (vd->vdev_top != NULL && vd->vdev_top->vdev_ops == &vdev_draid_ops)
-		return (vdev_draid_missing(vd, mc->mc_offset, txg, size));
-	else
-		return (vdev_dtl_contains(vd, DTL_MISSING, txg, size));
+		return (vdev_draid_missing(vd, mc->mc_offset, zio->io_txg, 1));
+
+	/*
+	 * A sequential rebuild reads whole segments through a block pointer
+	 * with the synthetic birth TXG_INITIAL and no checksum, so a segment
+	 * may hold blocks of any txg. A child missing any txg is not a source.
+	 */
+	if (zio->io_priority == ZIO_PRIORITY_REBUILD)
+		return (!vdev_dtl_empty(vd, DTL_MISSING));
+
+	return (vdev_dtl_contains(vd, DTL_MISSING, zio->io_txg, 1));
 }
 
 /*
@@ -519,10 +531,10 @@ static int
 vdev_mirror_child_select(zio_t *zio)
 {
 	mirror_map_t *mm = zio->io_vsd;
-	uint64_t txg = zio->io_txg;
 	int c, lowest_load;
 
-	ASSERT(zio->io_bp == NULL || BP_GET_PHYSICAL_BIRTH(zio->io_bp) == txg);
+	ASSERT(zio->io_bp == NULL ||
+	    BP_GET_PHYSICAL_BIRTH(zio->io_bp) == zio->io_txg);
 
 	lowest_load = INT_MAX;
 	mm->mm_preferred_cnt = 0;
@@ -541,7 +553,7 @@ vdev_mirror_child_select(zio_t *zio)
 			continue;
 		}
 
-		if (vdev_mirror_child_missing(mc, txg, 1)) {
+		if (vdev_mirror_child_missing(zio, mc)) {
 			mc->mc_error = SET_ERROR(ESTALE);
 			mc->mc_skipped = 1;
 			mc->mc_speculative = 1;
