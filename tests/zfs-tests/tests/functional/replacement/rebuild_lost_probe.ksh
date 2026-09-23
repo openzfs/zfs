@@ -17,14 +17,18 @@
 # DESCRIPTION:
 #	A sequential rebuild whose reads fail because its whole mirror became
 #	unavailable resumes at the first lost segment, and the new device
-#	alone holds the data once it completes.
+#	alone holds the data once it completes. It restarts by itself when
+#	the leaves return while it is still stopping.
 #
 # STRATEGY:
 #	Use libzpool, with failmode=continue, to hold a rebuild's reads in the
 #	source's queue, lose both leaves, fail a sync's writes to the mirror,
 #	then release the reads. The rebuild must stop without saving progress
 #	past the lost segment and complete after the leaves return and the
-#	pool is imported again. Import the result without the source and scrub it.
+#	pool is imported again. Repeat, but return the leaves while the stopping
+#	rebuild waits for a held txg and handle their resilver request then;
+#	the rebuild must restart without an import. Import each result
+#	without the source and scrub it.
 #
 
 verify_runnable "global"
@@ -41,7 +45,7 @@ log_assert "A rebuild resumes at the segments it lost to an unavailable vdev"
 workdir=$(mktemp -d "$TEST_BASE_DIR/rebuild_lost_probe.XXXXXX") ||
     log_fail "cannot create test directory"
 log_onexit cleanup
-for mode in import; do
+for mode in import return; do
 	log_must rebuild_lost_probe "$workdir" "$mode"
 	log_must rm "$workdir/disk-1"
 	log_must zpool import -N -d "$workdir" $POOL

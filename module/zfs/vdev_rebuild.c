@@ -762,6 +762,7 @@ vdev_rebuild_thread(void *arg)
 	vdev_t *rvd = spa->spa_root_vdev;
 	dsl_pool_t *dp = spa_get_dsl(spa);
 	int error = 0;
+	boolean_t resume = B_FALSE;
 
 	/*
 	 * If there's a scrub in process request that it be stopped.  This
@@ -984,12 +985,21 @@ vdev_rebuild_thread(void *arg)
 		 */
 		ASSERT(vrp->vrp_rebuild_state == VDEV_REBUILD_ACTIVE);
 		vd->vdev_rebuilding = B_FALSE;
+		resume = !vd->vdev_rebuild_exit_wanted && !vd->vdev_removing;
 	}
 
 	dmu_tx_commit(tx);
 
 	vd->vdev_rebuild_thread = NULL;
 	mutex_exit(&vd->vdev_rebuild_lock);
+
+	/*
+	 * A returning vdev requests a restart, which does nothing while this
+	 * thread still runs. The vdev becomes writable before it requests, and
+	 * vdev_rebuilding is clear now, so one of the two restarts it.
+	 */
+	if (resume && vdev_writeable(vd))
+		spa_async_request(spa, SPA_ASYNC_RESILVER);
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 	cv_broadcast(&vd->vdev_rebuild_cv);
