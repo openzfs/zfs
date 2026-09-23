@@ -500,15 +500,16 @@ zfsctl_is_snapdir(struct inode *ip)
 }
 
 /*
- * fsid of the snapshot behind a '.zfs/snapshot/<name>' entry, without
- * mounting it: the same in-core ds_fsid_guid its superblock reports once
- * mounted.  Read from the dataset's bonus buffer; dsl_dataset_hold_obj()
- * would instantiate and tear down the whole in-core dataset on every call.
+ * Read a snapshot's creation time and fsid straight from its bonus buffer.
+ * dsl_dataset_hold_obj() would instantiate and tear down the whole in-core
+ * dataset on every call, and the control directory does this for every
+ * entry it looks up.  The fsid is the in-core ds_fsid_guid when the dataset
+ * happens to be loaded, i.e. what its superblock reports once mounted.
  */
-int
-zfsctl_snapdir_fsid(struct inode *ip, uint64_t *fsidp)
+static int
+zfsctl_snapshot_phys(zfsvfs_t *zfsvfs, uint64_t objsetid,
+    uint64_t *creationp, uint64_t *fsidp)
 {
-	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	dsl_pool_t *dp = dmu_objset_pool(zfsvfs->z_os);
 	dmu_object_info_t doi;
 	dsl_dataset_phys_t *phys;
@@ -516,27 +517,42 @@ zfsctl_snapdir_fsid(struct inode *ip, uint64_t *fsidp)
 	dmu_buf_t *dbuf;
 	int error;
 
-	ASSERT(zfsctl_is_snapdir(ip));
-
 	dsl_pool_config_enter(dp, FTAG);
-	error = dmu_bonus_hold(dp->dp_meta_objset,
-	    ZFSCTL_INO_SNAPDIRS - ip->i_ino, FTAG, &dbuf);
+	error = dmu_bonus_hold(dp->dp_meta_objset, objsetid, FTAG, &dbuf);
 	if (error == 0) {
 		dmu_object_info_from_db(dbuf, &doi);
 		if (doi.doi_bonus_type != DMU_OT_DSL_DATASET) {
 			error = SET_ERROR(ENOENT);
 		} else {
 			phys = dbuf->db_data;
-			ds = dmu_buf_get_user(dbuf);
-			*fsidp = ds != NULL ? dsl_dataset_fsid_guid(ds) : 0;
-			if (*fsidp == 0)
-				*fsidp = phys->ds_fsid_guid;
+			if (creationp != NULL)
+				*creationp = phys->ds_creation_time;
+			if (fsidp != NULL) {
+				ds = dmu_buf_get_user(dbuf);
+				*fsidp = ds != NULL ?
+				    dsl_dataset_fsid_guid(ds) : 0;
+				if (*fsidp == 0)
+					*fsidp = phys->ds_fsid_guid;
+			}
 		}
 		dmu_buf_rele(dbuf, FTAG);
 	}
 	dsl_pool_config_exit(dp, FTAG);
 
 	return (error);
+}
+
+/*
+ * fsid of the snapshot behind a '.zfs/snapshot/<name>' entry, without
+ * mounting it.
+ */
+int
+zfsctl_snapdir_fsid(struct inode *ip, uint64_t *fsidp)
+{
+	ASSERT(zfsctl_is_snapdir(ip));
+
+	return (zfsctl_snapshot_phys(ITOZSB(ip),
+	    ZFSCTL_INO_SNAPDIRS - ip->i_ino, NULL, fsidp));
 }
 
 /*
@@ -618,24 +634,15 @@ zfsctl_inode_lookup(zfsvfs_t *zfsvfs, uint64_t id,
 {
 	struct inode *ip = NULL;
 	uint64_t creation = 0;
-	dsl_dataset_t *snap_ds;
-	dsl_pool_t *pool;
 
 	while (ip == NULL) {
 		ip = ilookup(zfsvfs->z_sb, (unsigned long)id);
 		if (ip)
 			break;
 
-		if (id <= ZFSCTL_INO_SNAPDIRS && !creation) {
-			pool = dmu_objset_pool(zfsvfs->z_os);
-			dsl_pool_config_enter(pool, FTAG);
-			if (!dsl_dataset_hold_obj(pool,
-			    ZFSCTL_INO_SNAPDIRS - id, FTAG, &snap_ds)) {
-				creation = dsl_get_creation(snap_ds);
-				dsl_dataset_rele(snap_ds, FTAG);
-			}
-			dsl_pool_config_exit(pool, FTAG);
-		}
+		if (id <= ZFSCTL_INO_SNAPDIRS && !creation)
+			(void) zfsctl_snapshot_phys(zfsvfs,
+			    ZFSCTL_INO_SNAPDIRS - id, &creation, NULL);
 
 		/* May fail due to concurrent zfsctl_inode_alloc() */
 		ip = zfsctl_inode_alloc(zfsvfs, id, fops, ops, creation);
