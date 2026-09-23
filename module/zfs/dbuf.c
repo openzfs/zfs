@@ -5182,8 +5182,15 @@ dbuf_write_children_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 		if (!rw_tryupgrade(&db->db_rwlock)) {
 			rw_exit(&db->db_rwlock);
 			rw_enter(&db->db_rwlock, RW_WRITER);
+			for (i = 0, bp = db->db.db_data; i < 1ULL << epbs;
+				i++, bp++)
+			{
+				if (!BP_IS_HOLE(bp))
+					break;
+			}
 		}
-		memset(db->db.db_data, 0, db->db.db_size);
+		if (i == 1ULL << epbs)
+			memset(db->db.db_data, 0, db->db.db_size);
 	}
 	rw_exit(&db->db_rwlock);
 }
@@ -5338,7 +5345,7 @@ dbuf_remap_impl_callback(uint64_t vdev, uint64_t offset, uint64_t size,
 }
 
 static void
-dbuf_remap_impl(dnode_t *dn, blkptr_t *bp, krwlock_t *rw, dmu_tx_t *tx)
+dbuf_remap_impl(dnode_t *dn, blkptr_t *bp, dmu_tx_t *tx)
 {
 	blkptr_t bp_copy = *bp;
 	spa_t *spa = dmu_objset_spa(dn->dn_objset);
@@ -5374,16 +5381,6 @@ dbuf_remap_impl(dnode_t *dn, blkptr_t *bp, krwlock_t *rw, dmu_tx_t *tx)
 			}
 		}
 
-		/*
-		 * The db_rwlock prevents dbuf_read_impl() from
-		 * dereferencing the BP while we are changing it.  To
-		 * avoid lock contention, only grab it when we are actually
-		 * changing the BP.
-		 */
-		if (rw != NULL && !RW_WRITE_HELD(rw) && !rw_tryupgrade(rw)) {
-			rw_exit(rw);
-			rw_enter(rw, RW_WRITER);
-		}
 		*bp = bp_copy;
 	}
 }
@@ -5401,11 +5398,11 @@ dbuf_remap(dnode_t *dn, dmu_buf_impl_t *db, dmu_tx_t *tx)
 		return;
 
 	assert_db_data_addr_locked(db);
-	rw_enter(&db->db_rwlock, RW_READER);
+	rw_enter(&db->db_rwlock, RW_WRITER);
 	if (db->db_level > 0) {
 		blkptr_t *bp = db->db.db_data;
 		for (int i = 0; i < db->db.db_size >> SPA_BLKPTRSHIFT; i++) {
-			dbuf_remap_impl(dn, &bp[i], &db->db_rwlock, tx);
+			dbuf_remap_impl(dn, &bp[i], tx);
 		}
 	} else if (db->db.db_object == DMU_META_DNODE_OBJECT) {
 		dnode_phys_t *dnp = db->db.db_data;
@@ -5415,8 +5412,11 @@ dbuf_remap(dnode_t *dn, dmu_buf_impl_t *db, dmu_tx_t *tx)
 			for (int j = 0; j < dnp[i].dn_nblkptr; j++) {
 				krwlock_t *lock = (dn->dn_dbuf == NULL ? NULL :
 				    &dn->dn_dbuf->db_rwlock);
-				dbuf_remap_impl(dn, &dnp[i].dn_blkptr[j], lock,
-				    tx);
+				if (lock)
+					rw_enter(lock, RW_WRITER);
+				dbuf_remap_impl(dn, &dnp[i].dn_blkptr[j], tx);
+				if (lock)
+					rw_exit(lock);
 			}
 		}
 	}
