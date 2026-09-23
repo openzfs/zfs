@@ -10161,10 +10161,17 @@ spa_async_thread(void *arg)
 	}
 
 	/*
-	 * Kick off a resilver.
+	 * Kick off a resilver. A rebuild stopped by an unavailable vdev
+	 * resumes instead once the vdev returns.
 	 */
 	if (tasks & SPA_ASYNC_RESILVER &&
-	    !vdev_rebuild_active(spa->spa_root_vdev) &&
+	    vdev_rebuild_active(spa->spa_root_vdev)) {
+		spa_namespace_enter(FTAG);
+		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+		vdev_rebuild_restart(spa);
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+		spa_namespace_exit(FTAG);
+	} else if (tasks & SPA_ASYNC_RESILVER &&
 	    (!dsl_scan_resilvering(dp) ||
 	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER)))
 		dsl_scan_restart_resilver(dp, 0);
