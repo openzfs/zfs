@@ -16,7 +16,7 @@
 .\" Copyright (c) 2026, Mateusz Piotrowski <0mp@FreeBSD.org>
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd September 9, 2026
+.Dd September 19, 2026
 .Dt ZFS 4
 .Os
 .
@@ -2313,6 +2313,8 @@ If set, remove the DTL (dirty time list) upon completion of a pool scan (scrub),
 even if there were unrepairable errors.
 Intended to be used during pool repair or recovery to
 stop resilvering when the pool is next imported.
+Sequential reconstruction also accepts this override, while retaining rebuild
+error counts for diagnosis.
 .
 .It Sy zfs_scrub_after_expand Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Automatically start a pool scrub after a RAIDZ expansion completes
