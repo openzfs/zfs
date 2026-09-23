@@ -105,6 +105,12 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/nvlist_to_lua
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/rm_lnkcnt_zero_file
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/scan_origin_probe
+%C%_scan_origin_probe_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+%C%_scan_origin_probe_LDADD = \
+	libzpool.la \
+	libnvpair.la
+
 scripts_zfs_tests_bin_PROGRAMS += %D%/send_doall
 %C%_send_doall_LDADD = \
 	libzfs_core.la \
