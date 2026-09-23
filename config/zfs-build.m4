@@ -507,10 +507,14 @@ AC_DEFUN([ZFS_AC_RPM], [
 	AS_IF([test -r "$($RPM --eval '%{_dbpath}')/rpmdb.sqlite"], [
 		AC_MSG_RESULT([yes ($($RPM --eval '%{_dbpath}')/rpmdb.sqlite)])
 	],[
-		RPM_DBPATH="${ac_pwd}/.rpmdb"
-		RPM="$RPM --dbpath=\$(RPM_DBPATH)"
-		RPMBUILD="$RPMBUILD --dbpath=\$(RPM_DBPATH)"
-		AC_MSG_RESULT([no (using ${RPM_DBPATH}/rpmdb.sqlite)])
+		AS_IF([test -r "$($RPM --eval '%{_dbpath}')/Packages"], [
+			AC_MSG_RESULT([yes ($($RPM --eval '%{_dbpath}')/Packages)])
+		],[
+			RPM_DBPATH="${ac_pwd}/.rpmdb"
+			RPM="$RPM --dbpath=\$(RPM_DBPATH)"
+			RPMBUILD="$RPMBUILD --dbpath=\$(RPM_DBPATH)"
+			AC_MSG_RESULT([no (using directory ${RPM_DBPATH})])
+		])
 	])
 
 	AC_SUBST(HAVE_RPM)
