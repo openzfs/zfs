@@ -424,10 +424,10 @@ AC_DEFUN([ZFS_AC_RPM], [
 		# treat the presence of a cache file as an indicator
 		# that caching should be enabled and use a new cache
 		# file.
-		CONFCACHE_FILE="${ac_pwd}/config.rpm.cache"
-		RPM_DEFINE_COMMON=${RPM_DEFINE_COMMON}' --define "confcache --cache-file=$(CONFCACHE_FILE)"'
-		AC_SUBST([CONFCACHE_FILE])
-		AC_MSG_RESULT([yes (${CONFCACHE_FILE})])
+		RPM_CONFCACHE="${ac_pwd}/config.rpm.cache"
+		RPM_DEFINE_COMMON=${RPM_DEFINE_COMMON}' --define "confcache --cache-file=$(RPM_CONFCACHE)"'
+		AC_SUBST([RPM_CONFCACHE])
+		AC_MSG_RESULT([yes (${RPM_CONFCACHE})])
 	],[
 		AC_MSG_RESULT([no])
 	])
