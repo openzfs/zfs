@@ -4185,10 +4185,6 @@ read_by_block_level(dsl_scan_t *scn, zbookmark_phys_t zb)
 	if (!dsl_scan_is_thorough_scrub(scn))
 		zio_flags |= ZIO_FLAG_RAW;
 
-	/* If it's an intent log block, failure is expected. */
-	if (zb.zb_level == ZB_ZIL_LEVEL)
-		zio_flags |= ZIO_FLAG_SPECULATIVE;
-
 	ASSERT(!BP_IS_EMBEDDED(&bp));
 	scan_exec_io(dp, &bp, zio_flags, &zb, NULL);
 	rw_exit(&dn->dn_struct_rwlock);
@@ -4448,6 +4444,17 @@ dsl_errorscrub_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		    head_ds_attr) == 0; zap_cursor_advance(head_ds_cursor)) {
 
 			name_to_errphys(head_ds_attr->za_name, &head_ds_block);
+
+			/* An intent log block is not in the file's tree. */
+			if (head_ds_block.zb_level == ZB_ZIL_LEVEL) {
+				zbookmark_phys_t zil_zb;
+				zep_to_zb(head_ds, &head_ds_block, &zil_zb);
+				spa_log_error(spa, &zil_zb,
+				    head_ds_block.zb_birth);
+				scn->errorscrub_phys.dep_examined++;
+				scn->errorscrub_phys.dep_to_examine--;
+				continue;
+			}
 
 			/*
 			 * In case we are called from spa_sync the pool
