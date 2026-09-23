@@ -390,6 +390,7 @@ support for unlocking datasets on user login.
 
 %build
 %configure \
+    %{?confcache} \
     --with-config=user \
     --with-udevdir=%{_udevdir} \
     --with-udevruledir=%{_udevruledir} \
