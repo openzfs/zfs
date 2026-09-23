@@ -2124,6 +2124,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/replacement/rebuild_draid.ksh \
 	functional/replacement/rebuild_errors.ksh \
 	functional/replacement/rebuild_interrupted.ksh \
+	functional/replacement/rebuild_lost_probe.ksh \
 	functional/replacement/rebuild_multiple.ksh \
 	functional/replacement/rebuild_raidz.ksh \
 	functional/replacement/rebuild_stale_source.ksh \
