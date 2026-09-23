@@ -54,7 +54,7 @@ log_must zpool attach $TESTPOOL2 anymirror1-0 $TEST_BASE_DIR/vdev_file.4
 new_cap=$(zpool get -Hp -o value size $TESTPOOL2)
 new_cap=$((new_cap - cap))
 
-[[ "$new_cap" -eq $((3 * 64 * 1024 * 1024)) ]] || \
+[[ "$new_cap" -eq $((4 * 64 * 1024 * 1024)) ]] || \
 	log_fail "Incorrect space added on attach: $new_cap"
 
 log_must zpool attach $TESTPOOL2 anymirror1-0 $TEST_BASE_DIR/vdev_file.5
@@ -77,7 +77,7 @@ new_cap=$((new_cap - cap))
 log_must zpool attach $TESTPOOL2 anymirror2-0 $TEST_BASE_DIR/vdev_file.5
 new_cap=$(zpool get -Hp -o value size $TESTPOOL2)
 new_cap=$((new_cap - cap))
-[[ "$new_cap" -eq $((256 * 1024 * 1024)) ]] || \
+[[ "$new_cap" -eq $((6 * 64 * 1024 * 1024)) ]] || \
 	log_fail "Incorrect space added on attach: $new_cap"
 
 log_must zpool attach $TESTPOOL2 anymirror2-0 $TEST_BASE_DIR/vdev_file.6
