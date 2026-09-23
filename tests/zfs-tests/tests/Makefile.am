@@ -372,6 +372,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/redundancy/redundancy.kshlib \
 	functional/refreserv/refreserv.cfg \
 	functional/removal/removal.kshlib \
+	functional/replacement/rebuild_test.kshlib \
 	functional/replacement/replacement.cfg \
 	functional/reservation/reservation.cfg \
 	functional/reservation/reservation.shlib \
@@ -2168,6 +2169,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/replacement/detach.ksh \
 	functional/replacement/rebuild_disabled_feature.ksh \
 	functional/replacement/rebuild_draid_speculative.ksh \
+	functional/replacement/rebuild_retirement.ksh \
 	functional/replacement/rebuild_multiple.ksh \
 	functional/replacement/rebuild_raidz.ksh \
 	functional/replacement/replace_import.ksh \
