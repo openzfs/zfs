@@ -22,9 +22,11 @@
 #
 # STRATEGY:
 #	Use libzpool to hold the async worker while exercising real probes,
-#	scan setup, and reopen/clear/removal checks on file vdevs.
+#	scan setup, reopen/clear/removal checks, and persistence on file vdevs.
 #	Reopen two returning leaves together to check parallel child accounting.
 #	Complete a pass without them, then require healing after they return.
+#	Export and import a pass whose saved state matches its healing copy,
+#	lacks it, or has advanced past it; only the first may resume.
 #
 
 verify_runnable "global"
@@ -40,7 +42,7 @@ workdir=$(mktemp -d "$TEST_BASE_DIR/resilver_probe.XXXXXX") ||
 log_onexit cleanup
 # Each invocation owns a userspace pool and holds its async worker to keep probe
 # recovery ahead of the fault-state transition.
-for mode in reopen clear probe complete; do
+for mode in reopen clear probe complete resume legacy advanced; do
 	log_must resilver_probe "$workdir" "$mode"
 done
-log_pass "Probe recovery accounted for healing coverage"
+log_pass "Probe recovery and import accounted for healing coverage"

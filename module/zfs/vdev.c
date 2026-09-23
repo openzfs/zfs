@@ -5496,6 +5496,8 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 				ASSERT(spa_sync_pass(spa) == 1);
 				vdev_dtl_dirty(vd, DTL_SCRUB, txg, size);
 				commit_txg = spa_syncing_txg(spa);
+				dsl_scan_repair_failed(
+				    spa->spa_dsl_pool->dp_scan);
 			} else if (spa->spa_claiming) {
 				ASSERT(flags & ZIO_FLAG_IO_REPAIR);
 				commit_txg = spa_first_txg(spa);

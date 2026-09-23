@@ -560,6 +560,20 @@ bp2sio(const blkptr_t *bp, scan_io_t *sio, int dva_i)
 	}
 }
 
+/*
+ * Whether the saved scan state matches the copy that dsl_scan_phys_sync()
+ * keeps for a healing pass.
+ */
+static boolean_t
+dsl_scan_phys_intact(dsl_pool_t *dp, const dsl_scan_phys_t *phys)
+{
+	dsl_scan_phys_t copy;
+
+	return (zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_SCAN_HEALING, sizeof (uint64_t), SCAN_PHYS_NUMINTS,
+	    &copy) == 0 && memcmp(&copy, phys, sizeof (copy)) == 0);
+}
+
 int
 dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 {
@@ -696,14 +710,19 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 			    (longlong_t)scn->scn_restart_txg);
 		} else if (dsl_scan_resilvering(dp)) {
 			/*
-			 * The in-core coverage of the pass, and DTL_SCRUB
-			 * with exact failed repairs, are gone. Without them
-			 * the pass cannot retire missing writes; restart it.
+			 * The in-core DTL_SCRUB with exact failed repairs is
+			 * gone. Resume only a pass whose saved state still
+			 * matches the copy made while its coverage was intact
+			 * and no repair had failed; see dsl_scan_phys_sync().
 			 */
-			scn->scn_restart_txg = txg;
-			zfs_dbgmsg("restarting imported resilver on %s in txg "
-			    "%llu", spa->spa_name,
-			    (u_longlong_t)scn->scn_restart_txg);
+			if (dsl_scan_phys_intact(dp, &scn->scn_phys)) {
+				scn->scn_coverage_valid = B_TRUE;
+			} else {
+				scn->scn_restart_txg = txg;
+				zfs_dbgmsg("restarting imported resilver on %s "
+				    "in txg %llu", spa->spa_name,
+				    (u_longlong_t)scn->scn_restart_txg);
+			}
 		}
 	}
 
@@ -882,6 +901,42 @@ dsl_errorscrub_setup_check(void *arg, dmu_tx_t *tx)
 }
 
 /*
+ * Save the scan state. While a healing pass keeps its coverage and every
+ * repair write has succeeded, also save an identical copy. Software which
+ * does not maintain the copy saves only the state, so progress it makes
+ * leaves the two different and dsl_scan_init() restarts the pass.
+ */
+static void
+dsl_scan_phys_sync(dsl_scan_t *scn, const dsl_scan_phys_t *phys, dmu_tx_t *tx)
+{
+	objset_t *mos = scn->scn_dp->dp_meta_objset;
+
+	/* Completions of scan I/O update the state; none may be in flight. */
+	ASSERT0P(scn->scn_zio_root);
+
+	VERIFY0(zap_update(mos, DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_SCAN,
+	    sizeof (uint64_t), SCAN_PHYS_NUMINTS, phys, tx));
+	if (phys->scn_state == DSS_SCANNING &&
+	    phys->scn_func == POOL_SCAN_RESILVER &&
+	    scn->scn_coverage_valid && !scn->scn_repair_failed) {
+		VERIFY0(zap_update(mos, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_SCAN_HEALING, sizeof (uint64_t),
+		    SCAN_PHYS_NUMINTS, phys, tx));
+	} else {
+		int err = zap_remove(mos, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_SCAN_HEALING, tx);
+		VERIFY(err == 0 || err == ENOENT);
+	}
+}
+
+static void
+dsl_scan_sync_cached(dsl_scan_t *scn, dmu_tx_t *tx)
+{
+	scn->scn_phys_cached.scn_errors = scn->scn_phys.scn_errors;
+	dsl_scan_phys_sync(scn, &scn->scn_phys_cached, tx);
+}
+
+/*
  * Writes out a persistent dsl_scan_phys_t record to the pool directory.
  * Because we can be running in the block sorting algorithm, we do not always
  * want to write out the record, only when it is "safe" to do so. This safety
@@ -929,10 +984,7 @@ dsl_scan_sync_state(dsl_scan_t *scn, dmu_tx_t *tx, state_sync_type_t sync_type)
 
 		if (scn->scn_phys.scn_queue_obj != 0)
 			scan_ds_queue_sync(scn, tx);
-		VERIFY0(zap_update(scn->scn_dp->dp_meta_objset,
-		    DMU_POOL_DIRECTORY_OBJECT,
-		    DMU_POOL_SCAN, sizeof (uint64_t), SCAN_PHYS_NUMINTS,
-		    &scn->scn_phys, tx));
+		dsl_scan_phys_sync(scn, &scn->scn_phys, tx);
 		memcpy(&scn->scn_phys_cached, &scn->scn_phys,
 		    sizeof (scn->scn_phys));
 
@@ -943,11 +995,25 @@ dsl_scan_sync_state(dsl_scan_t *scn, dmu_tx_t *tx, state_sync_type_t sync_type)
 		scn->scn_checkpointing = B_FALSE;
 		scn->scn_last_checkpoint = ddi_get_lbolt();
 	} else if (sync_type == SYNC_CACHED) {
-		VERIFY0(zap_update(scn->scn_dp->dp_meta_objset,
-		    DMU_POOL_DIRECTORY_OBJECT,
-		    DMU_POOL_SCAN, sizeof (uint64_t), SCAN_PHYS_NUMINTS,
-		    &scn->scn_phys_cached, tx));
+		dsl_scan_sync_cached(scn, tx);
 	}
+}
+
+/*
+ * A returning device can invalidate healing coverage in open context. Persist
+ * that failure with the configuration which makes it available, so that an
+ * import does not resume the pass. Keep the cached bookmark and queue; only
+ * traversal may advance them.
+ */
+void
+dsl_scan_sync_config(dsl_pool_t *dp, dmu_tx_t *tx)
+{
+	dsl_scan_t *scn = dp->dp_scan;
+
+	ASSERT(spa_config_held(dp->dp_spa, SCL_STATE, RW_READER));
+	if (scn != NULL && dsl_scan_resilvering(dp) &&
+	    (!scn->scn_coverage_valid || scn->scn_repair_failed))
+		dsl_scan_sync_cached(scn, tx);
 }
 
 int
@@ -1007,6 +1073,7 @@ dsl_scan_setup_sync_impl(void *arg, dmu_tx_t *tx)
 	scn->scn_last_checkpoint = 0;
 	scn->scn_checkpointing = B_FALSE;
 	scn->scn_coverage_valid = DSL_SCAN_IS_RESILVER(scn);
+	scn->scn_repair_failed = B_FALSE;
 	if (DSL_SCAN_IS_RESILVER(scn)) {
 		VERIFY(vdev_resilver_needed(spa->spa_root_vdev,
 		    &scn->scn_phys.scn_min_txg, &scn->scn_phys.scn_max_txg));
@@ -5185,6 +5252,20 @@ dsl_scan_coverage_lost(dsl_scan_t *scn)
 	}
 }
 
+/*
+ * A failed healing repair is exact in DTL_SCRUB until an import loses it;
+ * see dsl_scan_phys_sync().
+ */
+void
+dsl_scan_repair_failed(dsl_scan_t *scn)
+{
+	spa_t *spa = scn->scn_dp->dp_spa;
+
+	mutex_enter(&spa->spa_scrub_lock);
+	scn->scn_repair_failed = B_TRUE;
+	mutex_exit(&spa->spa_scrub_lock);
+}
+
 void
 dsl_scan_count_error(dsl_scan_t *scn)
 {
@@ -5194,6 +5275,10 @@ dsl_scan_count_error(dsl_scan_t *scn)
 		return;
 	}
 
+	/*
+	 * Cached progress takes this count when it is persisted, so copying a
+	 * bookmark cannot overwrite a concurrent scan error.
+	 */
 	atomic_inc_64(&scn->scn_phys.scn_errors);
 	dsl_scan_coverage_lost(scn);
 }

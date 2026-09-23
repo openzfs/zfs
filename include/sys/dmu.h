@@ -391,6 +391,7 @@ typedef struct dmu_buf {
 #define	DMU_POOL_DDT_DIR		"DDT-%s"
 #define	DMU_POOL_CREATION_VERSION	"creation_version"
 #define	DMU_POOL_SCAN			"scan"
+#define	DMU_POOL_SCAN_HEALING		"org.openzfs:scan_healing"
 #define	DMU_POOL_ERRORSCRUB		"error_scrub"
 #define	DMU_POOL_LAST_SCRUBBED_TXG	"last_scrubbed_txg"
 #define	DMU_POOL_FREE_BPOBJ		"free_bpobj"

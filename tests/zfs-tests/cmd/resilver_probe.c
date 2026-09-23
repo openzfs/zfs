@@ -22,6 +22,7 @@
 #include <sys/spa_impl.h>
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
+#include <sys/zap.h>
 #include <sys/zfs_context.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zio.h>
@@ -55,6 +56,28 @@ mirror(const char *dir, int index, int count)
 	return (nvl);
 }
 
+/*
+ * Leave the saved state as software which does not maintain its healing copy
+ * would: without the copy, or with progress the copy does not include.
+ */
+static void
+resilver_probe_age_sync(void *arg, dmu_tx_t *tx)
+{
+	objset_t *mos = dmu_tx_pool(tx)->dp_meta_objset;
+	dsl_scan_phys_t phys;
+
+	if (strcmp(arg, "legacy") == 0) {
+		VERIFY0(zap_remove(mos, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_SCAN_HEALING, tx));
+		return;
+	}
+	VERIFY0(zap_lookup(mos, DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_SCAN,
+	    sizeof (uint64_t), SCAN_PHYS_NUMINTS, &phys));
+	phys.scn_examined++;
+	VERIFY0(zap_update(mos, DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_SCAN,
+	    sizeof (uint64_t), SCAN_PHYS_NUMINTS, &phys, tx));
+}
+
 int
 main(int argc, char **argv)
 {
@@ -63,8 +86,10 @@ main(int argc, char **argv)
 	const char *dir = argv[1];
 	const char *mode = argv[2];
 	char pool[] = "resilver_probe";
+	boolean_t import = strcmp(mode, "resume") == 0 ||
+	    strcmp(mode, "legacy") == 0 || strcmp(mode, "advanced") == 0;
 	char cachefile[MAXPATHLEN];
-	VERIFY(strcmp(mode, "reopen") == 0 ||
+	VERIFY(import || strcmp(mode, "reopen") == 0 ||
 	    strcmp(mode, "clear") == 0 || strcmp(mode, "probe") == 0 ||
 	    strcmp(mode, "complete") == 0);
 
@@ -115,7 +140,7 @@ main(int argc, char **argv)
 	 * The failed leaves' ranges precede the range on the writable mirror,
 	 * so the active pass excludes their data despite their healthy enums.
 	 */
-	for (int i = 0; i < 2; i++) {
+	for (int i = 0; i < 2 && !import; i++) {
 		int id;
 		record.zi_guid = old[i]->vdev_guid;
 		VERIFY0(zio_inject_fault(pool, 0, &id, &record));
@@ -138,6 +163,44 @@ main(int argc, char **argv)
 	VERIFY3U(scn->scn_phys.scn_min_txg, ==, txg - 1);
 	VERIFY0(scn->scn_phys.scn_errors);
 	VERIFY(scn->scn_coverage_valid);
+
+	if (import) {
+		/*
+		 * Without the failed leaves, only the saved state decides
+		 * whether import resumes the pass. Suspended progress keeps
+		 * the scan from rewriting either record before export.
+		 */
+		boolean_t resume = strcmp(mode, "resume") == 0;
+		VERIFY0(zap_contains(dp->dp_meta_objset,
+		    DMU_POOL_DIRECTORY_OBJECT, DMU_POOL_SCAN_HEALING));
+		if (!resume) {
+			VERIFY0(dsl_sync_task(pool, NULL,
+			    resilver_probe_age_sync, (void *)mode, 0,
+			    ZFS_SPACE_CHECK_NONE));
+		}
+		spa_close(spa, FTAG);
+		nvlist_t *config;
+		VERIFY0(spa_export(pool, &config, B_FALSE, B_FALSE));
+		VERIFY0(spa_import(pool, config, NULL, 0));
+		fnvlist_free(config);
+		VERIFY0(spa_open(pool, &spa, FTAG));
+		dp = spa_get_dsl(spa);
+		scn = dp->dp_scan;
+		txg_wait_synced(dp, 0);
+		/*
+		 * The in-core missing range was never saved, so a restart
+		 * finds nothing to heal and ends the pass.
+		 */
+		VERIFY3B(dsl_scan_resilvering(dp), ==, resume);
+		(void) printf("%s: imported healing pass %s\n", mode,
+		    resume ? "resumed" : "not resumed");
+
+		(void) dsl_scan_cancel(dp);
+		spa_close(spa, FTAG);
+		VERIFY0(spa_destroy(pool));
+		kernel_fini();
+		return (0);
+	}
 
 	for (int i = 0; i < 2; i++) {
 		VERIFY3U(old[i]->vdev_state, ==, VDEV_STATE_HEALTHY);
@@ -220,8 +283,20 @@ main(int argc, char **argv)
 	/* Lost coverage is not a scan error that users should chase. */
 	VERIFY0(scn->scn_phys.scn_errors);
 	VERIFY(dsl_scan_resilver_scheduled(dp));
-	(void) printf("%s: both writable recoveries invalidated coverage\n",
-	    mode);
+
+	/*
+	 * Traversal is still suspended. The availability/configuration sync
+	 * must persist the lost coverage without waiting for scan progress.
+	 */
+	txg_wait_synced(dp, 0);
+	dsl_scan_phys_t saved;
+	VERIFY0(zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_SCAN, sizeof (uint64_t), SCAN_PHYS_NUMINTS, &saved));
+	VERIFY3S(zap_contains(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_SCAN_HEALING), ==, ENOENT);
+	VERIFY0(saved.scn_errors);
+	(void) printf("%s: both writable recoveries invalidated and persisted "
+	    "coverage\n", mode);
 
 	VERIFY0(dsl_scan_cancel(dp));
 	spa_async_resume(spa);
