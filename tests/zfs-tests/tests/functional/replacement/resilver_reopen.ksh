@@ -23,8 +23,9 @@
 # STRATEGY:
 #	1. Make an incompletely written mirror leaf unavailable.
 #	2. Persist error-free healing on newer writes in a second mirror.
-#	3. Return through online, scrub, error scrub, reopen -n, or clear.
-#	4. Check deferred participation.
+#	3. Return through online, scrub, error scrub, reopen -n, clear, or an
+#	   import which resumes the saved pass.
+#	4. Check deferred participation or invalidation of the saved coverage.
 #	5. Complete healing and cold-read with the original first leaf offline.
 #
 
@@ -60,7 +61,7 @@ log_must set_tunable64 SCAN_VDEV_LIMIT 131072
 log_must dd if=/dev/urandom of="$workdir/expected" bs=1M count=8
 
 for defer in disabled enabled; do
-for command in online scrub errorscrub reopen clear; do
+for command in online scrub errorscrub reopen clear import; do
 	log_note "Return through $command with resilver_defer=$defer"
 	log_must truncate -s 0 "$workdir"/disk-{0..3}
 	log_must truncate -s 512M "$workdir"/disk-{0..3}
@@ -133,6 +134,12 @@ for command in online scrub errorscrub reopen clear; do
 	errorscrub) log_mustnot zpool scrub -e "$TESTPOOL1" ;;
 	reopen) log_must zpool reopen -n "$TESTPOOL1" ;;
 	clear) log_must zpool clear "$TESTPOOL1" ;;
+	import)
+		# Injection handlers hold the pool; scanning stays suspended.
+		log_must zinject -c all
+		log_must zpool export "$TESTPOOL1"
+		log_must zpool import -d "$workdir" "$TESTPOOL1"
+		;;
 	esac
 	log_must check_state "$TESTPOOL1" "$workdir/disk-1" online
 	# Rewrite exported labels before inspecting the returned leaf with zdb.
@@ -145,6 +152,21 @@ for command in online scrub errorscrub reopen clear; do
 		    /path:/ { selected = ($2 == leaf) }
 		    selected && /com.datto:resilver_defer/ { found = 1 }
 		    END { exit !found }' "$workdir/config"
+	else
+		# Without deferral, persist the coverage failure by removing the
+		# org.openzfs:scan_healing copy of the scan array, or restart
+		# with a minimum that includes the returning leaf's excluded
+		# range.
+		log_must eval "zdb -dddd '$TESTPOOL1' 1 >'$workdir/scan'"
+		# shellcheck disable=SC2016 # awk field references
+		log_must awk -v max="$dtl_max" '
+		    $1 == "scan" {
+			found = ($3 == 2 && $4 == 1); low = ($6 < max)
+			$1 = ""; scan = $0
+		    }
+		    $1 == "org.openzfs:scan_healing" { $1 = ""; copy = $0 }
+		    END { exit !(found && (copy != scan || low)) }' \
+		    "$workdir/scan"
 	fi
 	log_must zinject -c all
 	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0

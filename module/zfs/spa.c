@@ -6340,6 +6340,19 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 		spa_ld_claim_log_blocks(spa);
 
 		/*
+		 * A resumed healing pass does not cover devices which were
+		 * unavailable when it started. Assess them with the loaded
+		 * DTLs before syncing can advance the pass.
+		 */
+		if (dsl_scan_resilvering(spa->spa_dsl_pool) &&
+		    spa->spa_dsl_pool->dp_scan->scn_restart_txg == 0) {
+			spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
+			dsl_scan_assess_vdev(spa->spa_dsl_pool,
+			    spa->spa_root_vdev, B_FALSE);
+			spa_config_exit(spa, SCL_STATE, FTAG);
+		}
+
+		/*
 		 * Kick-off the syncing thread.
 		 */
 		spa->spa_sync_on = B_TRUE;
@@ -10635,6 +10648,7 @@ spa_sync_config_object(spa_t *spa, dmu_tx_t *tx)
 
 	config = spa_config_generate(spa, spa->spa_root_vdev,
 	    dmu_tx_get_txg(tx), B_FALSE);
+	dsl_scan_sync_config(spa->spa_dsl_pool, tx);
 
 	/*
 	 * If we're upgrading the spa version then make sure that

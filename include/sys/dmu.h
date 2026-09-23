@@ -391,6 +391,12 @@ typedef struct dmu_buf {
 #define	DMU_POOL_DDT_DIR		"DDT-%s"
 #define	DMU_POOL_CREATION_VERSION	"creation_version"
 #define	DMU_POOL_SCAN			"scan"
+/*
+ * A copy of the scan state, saved while a healing pass accounts for all it
+ * covers; see dsl_scan_phys_sync(). Strengthening what that accounting
+ * guarantees requires a new key.
+ */
+#define	DMU_POOL_SCAN_HEALING		"org.openzfs:scan_healing"
 #define	DMU_POOL_ERRORSCRUB		"error_scrub"
 #define	DMU_POOL_LAST_SCRUBBED_TXG	"last_scrubbed_txg"
 #define	DMU_POOL_FREE_BPOBJ		"free_bpobj"

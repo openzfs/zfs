@@ -69,6 +69,8 @@ extern void vdev_dtl_dirty(vdev_t *vd, vdev_dtl_type_t d,
 extern boolean_t vdev_dtl_contains(vdev_t *vd, vdev_dtl_type_t d,
     uint64_t txg, uint64_t size);
 extern boolean_t vdev_dtl_empty(vdev_t *vd, vdev_dtl_type_t d);
+extern uint64_t vdev_dtl_min(vdev_t *vd);
+extern uint64_t vdev_dtl_max(vdev_t *vd);
 extern boolean_t vdev_default_need_resilver(vdev_t *vd, const dva_t *dva,
     size_t psize, uint64_t phys_birth);
 extern boolean_t vdev_dtl_need_resilver(vdev_t *vd, const dva_t *dva,
