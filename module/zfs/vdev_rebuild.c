@@ -316,8 +316,9 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 	spa_feature_decr(vd->vdev_spa, SPA_FEATURE_DEVICE_REBUILD, tx);
 
 	spa_history_log_internal(spa, "rebuild",  tx,
-	    "vdev_id=%llu vdev_guid=%llu complete",
-	    (u_longlong_t)vd->vdev_id, (u_longlong_t)vd->vdev_guid);
+	    "vdev_id=%llu vdev_guid=%llu errors=%llu complete",
+	    (u_longlong_t)vd->vdev_id, (u_longlong_t)vd->vdev_guid,
+	    (u_longlong_t)vrp->vrp_errors);
 	vdev_rebuild_log_notify(spa, vd, ESC_ZFS_RESILVER_FINISH);
 
 	/* Handles detaching of spares */
@@ -398,6 +399,9 @@ vdev_rebuild_reset_sync(void *arg, dmu_tx_t *tx)
 	ASSERT(vrp->vrp_rebuild_state == VDEV_REBUILD_ACTIVE);
 	ASSERT0P(vd->vdev_rebuild_thread);
 
+	/* A full reset revisits every segment; an import/resume does not. */
+	uint64_t errors = vrp->vrp_errors;
+	vrp->vrp_errors = 0;
 	vrp->vrp_last_offset = 0;
 	vrp->vrp_min_txg = TXG_INITIAL;
 	vrp->vrp_max_txg = dmu_tx_get_txg(tx);
@@ -416,8 +420,9 @@ vdev_rebuild_reset_sync(void *arg, dmu_tx_t *tx)
 	    REBUILD_PHYS_ENTRIES, vrp, tx));
 
 	spa_history_log_internal(spa, "rebuild",  tx,
-	    "vdev_id=%llu vdev_guid=%llu reset",
-	    (u_longlong_t)vd->vdev_id, (u_longlong_t)vd->vdev_guid);
+	    "vdev_id=%llu vdev_guid=%llu errors=%llu reset",
+	    (u_longlong_t)vd->vdev_id, (u_longlong_t)vd->vdev_guid,
+	    (u_longlong_t)errors);
 
 	vd->vdev_rebuild_reset_wanted = B_FALSE;
 	ASSERT(vd->vdev_rebuilding);
@@ -484,9 +489,14 @@ vdev_rebuild_cb(zio_t *zio)
 		 */
 		uint64_t *off = &vr->vr_scan_offset[zio->io_txg & TXG_MASK];
 		*off = MIN(*off, zio->io_offset);
-	} else if (zio->io_error) {
+	} else if (zio->io_error ||
+	    (zio->io_post & ZIO_POST_REBUILD_ERROR)) {
+		/* Failed reads and repairs count once per segment. */
 		vrp->vrp_errors++;
 	}
+
+	/* This result belongs to the rebuild, not the containing txg. */
+	zio->io_post &= ~ZIO_POST_REBUILD_ERROR;
 
 	abd_free(zio->io_abd);
 

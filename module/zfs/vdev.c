@@ -5440,6 +5440,27 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 		return;
 	}
 
+	if (type == ZIO_TYPE_WRITE && txg != 0 &&
+	    zio->io_priority == ZIO_PRIORITY_REBUILD &&
+	    vd->vdev_ops->vdev_op_leaf &&
+	    (vdev_writeable(vd) || vd->vdev_rebuild_txg != 0)) {
+		/*
+		 * Repair writes do not propagate their errors to the read
+		 * which issued them. Report the failed repair separately so
+		 * that a successful read cannot certify an incomplete rebuild.
+		 * All children have completed before vdev_stat_update() runs.
+		 * Delegated aggregates have no txg; their original leaf I/Os
+		 * account for the result using their own flags and priority.
+		 *
+		 * dRAID also writes to unavailable children to maintain their
+		 * DTLs. Such errors must not prevent successful reconstruction
+		 * of the other children; the unavailable child's DTL cannot
+		 * be retired. See vdev_draid_spare_child_done(). A device being
+		 * rebuilt always counts, even if it later becomes writable.
+		 */
+		zio->io_post |= ZIO_POST_REBUILD_ERROR;
+	}
+
 	if (flags & ZIO_FLAG_SPECULATIVE)
 		return;
 

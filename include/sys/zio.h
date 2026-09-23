@@ -439,6 +439,8 @@ typedef zio_t *zio_pipe_stage_t(zio_t *zio);
 #define	ZIO_POST_REEXECUTE	(1 << 0)
 #define	ZIO_POST_SUSPEND	(1 << 1)
 #define	ZIO_POST_DIO_CHKSUM_ERR	(1 << 2)
+/* Incomplete reconstruction, consumed by vdev_rebuild_cb(). */
+#define	ZIO_POST_REBUILD_ERROR	(1 << 3)
 
 /*
  * The io_trim flags are used to specify the type of TRIM to perform.  They
