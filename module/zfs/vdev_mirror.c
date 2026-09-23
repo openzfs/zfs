@@ -520,7 +520,7 @@ vdev_mirror_child_missing(zio_t *zio, mirror_child_t *mc)
 /*
  * Try to find a vdev whose DTL doesn't contain the block we want to read
  * preferring vdevs based on determined load. If we can't, try the read on
- * any vdev we haven't already tried.
+ * any vdev we haven't already tried, except a missing one for a rebuild.
  *
  * Distributed spares are an exception to the above load rule. They are
  * always preferred in order to detect gaps in the distributed spare which
@@ -591,10 +591,18 @@ vdev_mirror_child_select(zio_t *zio)
 	/*
 	 * Every device is either missing or has this txg in its DTL.
 	 * Look for any child we haven't already tried before giving up.
+	 * Without a checksum, a rebuild cannot tell a missing child's data
+	 * from valid data, so it never reads one.
 	 */
 	for (c = 0; c < mm->mm_children; c++) {
-		if (!mm->mm_child[c].mc_tried)
-			return (c);
+		mirror_child_t *mc = &mm->mm_child[c];
+
+		if (mc->mc_tried)
+			continue;
+		if (zio->io_priority == ZIO_PRIORITY_REBUILD &&
+		    vdev_mirror_child_missing(zio, mc))
+			continue;
+		return (c);
 	}
 
 	/*
