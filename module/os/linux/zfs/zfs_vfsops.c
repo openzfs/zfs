@@ -1471,6 +1471,8 @@ zfs_domount(struct super_block *sb, const char *osname,
 	/* Allocate a root inode for the filesystem. */
 	error = zfs_root(zfsvfs, &root_inode);
 	if (error) {
+		/* Caller still owns vfs_t; detach before zfs_umount(). */
+		zfsvfs->z_vfs = NULL;
 		(void) zfs_umount(sb);
 		zfsvfs = NULL; /* avoid double-free; first in zfs_umount */
 		goto out;
@@ -1479,6 +1481,8 @@ zfs_domount(struct super_block *sb, const char *osname,
 	/* Allocate a root dentry for the filesystem */
 	sb->s_root = d_make_root(root_inode);
 	if (sb->s_root == NULL) {
+		/* Caller still owns vfs_t; detach before zfs_umount(). */
+		zfsvfs->z_vfs = NULL;
 		(void) zfs_umount(sb);
 		zfsvfs = NULL; /* avoid double-free; first in zfs_umount */
 		error = SET_ERROR(ENOMEM);
