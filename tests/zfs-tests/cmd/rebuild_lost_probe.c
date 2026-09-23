@@ -120,6 +120,48 @@ tunable(const char *setting)
 	VERIFY0(handle_tunable_option(setting, B_TRUE));
 }
 
+static zio_t *
+txg_hold(dsl_pool_t *dp, uint64_t *txgp)
+{
+	dmu_tx_t *tx = dmu_tx_create_dd(dp->dp_mos_dir);
+	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
+	*txgp = dmu_tx_get_txg(tx);
+	zio_t *hold = zio_null(dp->dp_spa->spa_txg_zio[*txgp & TXG_MASK],
+	    dp->dp_spa, NULL, NULL, NULL, 0);
+	dmu_tx_commit(tx);
+	return (hold);
+}
+
+/*
+ * Wait until a resilver request has been handled. Only the end of a sync
+ * dispatches the async thread.
+ */
+static void
+async_wait(spa_t *spa, boolean_t sync)
+{
+	mutex_enter(&spa->spa_async_lock);
+	while ((spa->spa_async_tasks & SPA_ASYNC_RESILVER) ||
+	    spa->spa_async_thread != NULL) {
+		if (spa->spa_async_thread == NULL && sync) {
+			mutex_exit(&spa->spa_async_lock);
+			txg_wait_synced(spa_get_dsl(spa), 0);
+			mutex_enter(&spa->spa_async_lock);
+		} else {
+			cv_wait(&spa->spa_async_cv, &spa->spa_async_lock);
+		}
+	}
+	mutex_exit(&spa->spa_async_lock);
+}
+
+static int
+probe_export(spa_t *spa, const char *pool)
+{
+	spa_close(spa, FTAG);
+	VERIFY0(spa_export(pool, NULL, B_FALSE, B_FALSE));
+	kernel_fini();
+	return (0);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -129,7 +171,8 @@ main(int argc, char **argv)
 	const char *mode = argv[2];
 	char pool[] = "rebuild_lost";
 	char cachefile[MAXPATHLEN];
-	VERIFY(strcmp(mode, "import") == 0);
+	boolean_t window = strcmp(mode, "return") == 0;
+	VERIFY(window || strcmp(mode, "import") == 0);
 
 	/* kernel_init() must not load or rewrite the machine's pool cache. */
 	(void) snprintf(cachefile, sizeof (cachefile), "%s/zpool.cache", dir);
@@ -252,6 +295,21 @@ main(int argc, char **argv)
 	VERIFY(!spa_suspended(spa));
 	VERIFY3U(queued_rebuild_offset(src), ==, lost);
 
+	uint64_t ta, tb;
+	zio_t *ha = NULL, *hb = NULL;
+	if (window) {
+		/*
+		 * Hold two syncs after that of the reads, which the rebuild
+		 * may already wait for. The first dispatches the returning
+		 * leaves' resilver request, while the second keeps the stopping
+		 * rebuild waiting for its last txg.
+		 */
+		txg_wait_open(dp, txg + 2, B_TRUE);
+		ha = txg_hold(dp, &ta);
+		txg_wait_open(dp, ta + 1, B_TRUE);
+		hb = txg_hold(dp, &tb);
+	}
+
 	tunable("zfs_vdev_nia_delay=5");
 	tunable("zfs_vdev_rebuild_min_active=1");
 	tunable("zfs_vdev_rebuild_max_active=3");
@@ -263,6 +321,50 @@ main(int argc, char **argv)
 	    ZIO_FLAG_CANFAIL, B_TRUE)), ==, ENXIO);
 	spa_config_exit(spa, SCL_STATE_ALL, FTAG);
 	abd_free(abd);
+
+	if (window) {
+		/* Wait until the stopping rebuild waits for the held txg. */
+		for (int i = 0; ; i++) {
+			mutex_enter(&vr->vr_io_lock);
+			uint64_t inflight = vr->vr_bytes_inflight;
+			mutex_exit(&vr->vr_io_lock);
+			mutex_enter(&dp->dp_tx.tx_sync_lock);
+			uint64_t waiting = dp->dp_tx.tx_sync_txg_waiting;
+			mutex_exit(&dp->dp_tx.tx_sync_lock);
+			if (inflight == 0 && waiting >= tb)
+				break;
+			VERIFY3S(i, <, 600);
+			delay(MSEC_TO_TICK(100));
+		}
+
+		/* The leaves return without waiting for the held syncs. */
+		spa_vdev_state_enter(spa, SCL_NONE);
+		vdev_clear(spa, top);
+		VERIFY0(spa_vdev_state_exit(spa, NULL, 0));
+		VERIFY(vdev_writeable(top));
+		mutex_enter(&spa->spa_async_lock);
+		VERIFY(spa->spa_async_tasks & SPA_ASYNC_RESILVER);
+		mutex_exit(&spa->spa_async_lock);
+		spa_async_resume(spa);
+		zio_nowait(ha);
+		async_wait(spa, B_FALSE);
+		VERIFY(top->vdev_rebuilding);
+		(void) printf("%s: resilver request handled while the rebuild "
+		    "stopped\n", mode);
+
+		zio_nowait(hb);
+		rebuild_wait(top);
+		async_wait(spa, B_TRUE);
+		rebuild_wait(top);
+		if (rebuild_saved(top).vrp_rebuild_state ==
+		    VDEV_REBUILD_ACTIVE) {
+			(void) fprintf(stderr, "%s: rebuild left active "
+			    "without a worker\n", mode);
+			return (1);
+		}
+		(void) printf("%s: rebuild restarted and finished\n", mode);
+		return (probe_export(spa, pool));
+	}
 
 	rebuild_wait(top);
 	vdev_rebuild_phys_t vrp = rebuild_saved(top);
@@ -299,9 +401,5 @@ main(int argc, char **argv)
 	    VDEV_REBUILD_ACTIVE);
 	(void) printf("%s: rebuild resumed at the lost segment and finished\n",
 	    mode);
-
-	spa_close(spa, FTAG);
-	VERIFY0(spa_export(pool, NULL, B_FALSE, B_FALSE));
-	kernel_fini();
-	return (0);
+	return (probe_export(spa, pool));
 }
