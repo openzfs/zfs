@@ -35,6 +35,7 @@
 #include <sys/dsl_synctask.h>
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_raidz.h>
 #include <sys/mmp.h>
 #include <sys/fs/zfs.h>
 #include <sys/dmu_objset.h>
@@ -129,7 +130,12 @@ usage(void)
 	    "        create leaked MOS objects for testing\n"
 	    "        -c <count> leaked DSL clone maps to create (default 1)\n"
 	    "        -s <count> leaked SPA space maps to create (default 1)\n"
-	    "        dry-run unless -w\n");
+	    "        dry-run unless -w\n"
+	    "    raidz_epochs <pool> <top-vdev-id> <start:width:parity>...\n"
+	    "        DEBUG: write a raidz parity-epoch table to the vdev's\n"
+	    "        top-level ZAP verbatim (no validation, so damaged\n"
+	    "        tables can be injected) and activate the\n"
+	    "        raidz_parity_epochs feature; disposable pools only\n");
 	exit(1);
 }
 
@@ -1602,6 +1608,101 @@ zhack_do_metaslab_leak(int argc, char **argv)
 	spa_close(spa, FTAG);
 }
 
+typedef struct zhack_repochs {
+	uint64_t re_vdev_id;
+	uint64_t re_entries;
+	uint64_t *re_table;
+} zhack_repochs_t;
+
+static void
+zhack_raidz_epochs_sync(void *arg, dmu_tx_t *tx)
+{
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	zhack_repochs_t *ra = arg;
+	vdev_t *vd = vdev_lookup_top(spa, ra->re_vdev_id);
+
+	if (vd == NULL || vd->vdev_ops != &vdev_raidz_ops)
+		fatal(spa, FTAG, "vdev %llu is not a raidz top-level vdev",
+		    (u_longlong_t)ra->re_vdev_id);
+	if (vd->vdev_top_zap == 0)
+		fatal(spa, FTAG, "vdev %llu has no top-level ZAP",
+		    (u_longlong_t)ra->re_vdev_id);
+	VERIFY0(zap_update(spa->spa_meta_objset, vd->vdev_top_zap,
+	    VDEV_TOP_ZAP_RAIDZ_PARITY_EPOCHS, sizeof (uint64_t),
+	    ra->re_entries * 3, ra->re_table, tx));
+	if (!spa_feature_is_active(spa, SPA_FEATURE_RAIDZ_PARITY_EPOCHS))
+		spa_feature_incr(spa, SPA_FEATURE_RAIDZ_PARITY_EPOCHS, tx);
+	{
+		/*
+		 * Refresh the IN-CORE table too (and push it into the label
+		 * config): the writes this process issues after the task --
+		 * including this txg's own MOS sync -- must already encode
+		 * blocks born >= the new epoch start at the new parity, or
+		 * the next import's spa_load_verify sees blocks whose
+		 * physical parity does not match their classification.
+		 */
+		vdev_raidz_t *vdrz2 = vd->vdev_tsd;
+		if (vdrz2->vd_parity_epochs != NULL)
+			kmem_free(vdrz2->vd_parity_epochs,
+			    vdrz2->vd_parity_epoch_count * 3 *
+			    sizeof (uint64_t));
+		vdrz2->vd_parity_epochs = kmem_alloc(
+		    ra->re_entries * 3 * sizeof (uint64_t), KM_SLEEP);
+		for (uint64_t i = 0; i < ra->re_entries * 3; i++)
+			vdrz2->vd_parity_epochs[i] = ra->re_table[i];
+		vdrz2->vd_parity_epoch_count = ra->re_entries;
+		vdev_config_dirty(vd);
+	}
+	spa_history_log_internal(spa, "zhack raidz_epochs", tx,
+	    "vdev=%llu entries=%llu", (u_longlong_t)ra->re_vdev_id,
+	    (u_longlong_t)ra->re_entries);
+}
+
+static int
+zhack_do_raidz_epochs(int argc, char **argv)
+{
+	char *target;
+	spa_t *spa;
+	zhack_repochs_t ra;
+
+	argc--;
+	argv++;
+
+	if (argc < 3) {
+		(void) fprintf(stderr,
+		    "error: raidz_epochs needs <pool> <top-vdev-id> "
+		    "<start:width:parity>...\n");
+		usage();
+	}
+	target = argv[0];
+	ra.re_vdev_id = strtoull(argv[1], NULL, 10);
+	ra.re_entries = argc - 2;
+	ra.re_table = malloc(ra.re_entries * 3 * sizeof (uint64_t));
+	if (ra.re_table == NULL)
+		fatal(NULL, FTAG, "out of memory");
+	for (uint64_t i = 0; i < ra.re_entries; i++) {
+		u_longlong_t start, width, parity;
+
+		if (sscanf(argv[2 + i], "%llu:%llu:%llu",
+		    &start, &width, &parity) != 3)
+			fatal(NULL, FTAG, "bad triplet: %s", argv[2 + i]);
+		ra.re_table[3 * i] = start;
+		ra.re_table[3 * i + 1] = width;
+		ra.re_table[3 * i + 2] = parity;
+	}
+
+	zhack_spa_open(target, B_FALSE, FTAG, &spa);
+	if (!spa_feature_is_enabled(spa, SPA_FEATURE_RAIDZ_PARITY_EPOCHS))
+		fatal(spa, FTAG,
+		    "feature@raidz_parity_epochs is not enabled on %s",
+		    target);
+	VERIFY0(dsl_sync_task(spa_name(spa), NULL, zhack_raidz_epochs_sync,
+	    &ra, 5, ZFS_SPACE_CHECK_NORMAL));
+	spa_close(spa, FTAG);
+	free(ra.re_table);
+	return (0);
+}
+
 static int
 zhack_do_metaslab(int argc, char **argv)
 {
@@ -2197,6 +2298,8 @@ main(int argc, char **argv)
 		return (zhack_do_label(argc, argv));
 	} else if (strcmp(subcommand, "metaslab") == 0) {
 		rv = zhack_do_metaslab(argc, argv);
+	} else if (strcmp(subcommand, "raidz_epochs") == 0) {
+		rv = zhack_do_raidz_epochs(argc, argv);
 	} else {
 		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
 		    subcommand);
