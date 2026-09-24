@@ -1105,6 +1105,9 @@ extern uint_t zfs_arc_pc_percent;
 extern uint_t arc_lotsfree_percent;
 extern uint64_t zfs_arc_min;
 extern uint64_t zfs_arc_max;
+extern uint_t zfs_arc_min_prefetch_ms;
+extern uint_t zfs_arc_min_prescient_prefetch_ms;
+
 extern uint64_t l2arc_dwpd_limit;
 
 extern uint64_t arc_reduce_target_size(uint64_t to_free);
