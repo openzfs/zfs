@@ -121,14 +121,14 @@ native-deb-check-build-dep:
 		exit 1; \
 	fi
 
-native-deb-utils: native-deb-local debian
+native-deb-utils: native-deb-local debiann $(DEB_CONFCACHE)
 	while [ -f debian/deb-build.lock ]; do sleep 1; done && \
 	echo "native-deb-utils" > debian/deb-build.lock && \
 	trap '$(RM) -f debian/deb-build.lock' EXIT && \
 	cp $(srcdir)/contrib/debian/control debian/control && \
 	$(DPKGBUILD) -b -rfakeroot -us -uc
 
-native-deb-kmod: native-deb-local debian
+native-deb-kmod: native-deb-local debian $(DEB_CONFCACHE)
 	while [ -f debian/deb-build.lock ]; do sleep 1; done && \
 	echo "native-deb-kmod" > debian/deb-build.lock && \
 	trap '$(RM) -f debian/deb-build.lock' EXIT && \

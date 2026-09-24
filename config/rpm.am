@@ -124,17 +124,3 @@ rpm-common: $(RPM_CONFCACHE)
 		$(def) --rebuild $$rpmpkg || exit 1; \
 	cp $$rpmbuild/RPMS/*/* . || exit 1; \
 	rm -R $$rpmbuild)
-
-# configure is very sensitive about its "precious" variables. So do not
-# include them in the configure cache. Actually a superset is excluded,
-# but that's fine as the extra excludes aren't expensive to generate.
-
-$(RPM_CONFCACHE)::
-	$(AM_V_GEN)SRC_CONFCACHE="$(abs_builddir)/config.cache"; \
-	if test -f "$(RPM_CONFCACHE)"; then \
-		SRC_CONFCACHE="$(RPM_CONFCACHE)~"; \
-		mv -f "$(RPM_CONFCACHE)" "$$SRC_CONFCACHE"; \
-	fi; \
-	grep -vE -e "[^=]*(build|host|target)[^=]*=" \
-		-e "^ac_cv_env_" \
-		"$$SRC_CONFCACHE" > $(RPM_CONFCACHE)
