@@ -1949,6 +1949,33 @@ print_vdev_metaslab_header(vdev_t *vd)
 		    (u_longlong_t)ms_flush_data_obj);
 	}
 
+	if (vd->vdev_top_zap != 0) {
+		uint64_t pe_int_size = 0, pe_num_ints = 0;
+		int pe_err = zap_length(spa_meta_objset(vd->vdev_spa),
+		    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_PARITY_EPOCHS,
+		    &pe_int_size, &pe_num_ints);
+		if (pe_err == 0 && pe_int_size == sizeof (uint64_t) &&
+		    pe_num_ints > 0 && (pe_num_ints % 3) == 0) {
+			uint64_t *pe = kmem_alloc(
+			    pe_num_ints * sizeof (uint64_t), KM_SLEEP);
+			if (zap_lookup(spa_meta_objset(vd->vdev_spa),
+			    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_PARITY_EPOCHS,
+			    sizeof (uint64_t), pe_num_ints, pe) == 0) {
+				(void) printf("   raidz_parity_epochs %llu:",
+				    (u_longlong_t)(pe_num_ints / 3));
+				for (uint64_t pe_i = 0; pe_i < pe_num_ints;
+				    pe_i += 3) {
+					(void) printf(" [txg>=%llu w=%llu "
+					    "p=%llu]",
+					    (u_longlong_t)pe[pe_i],
+					    (u_longlong_t)pe[pe_i + 1],
+					    (u_longlong_t)pe[pe_i + 2]);
+				}
+			}
+			kmem_free(pe, pe_num_ints * sizeof (uint64_t));
+		}
+	}
+
 	(void) printf("\n\t%-10s%5llu   %-19s   %-15s   %-12s\n",
 	    "metaslabs", (u_longlong_t)vd->vdev_ms_count,
 	    "offset", "spacemap", "free");
