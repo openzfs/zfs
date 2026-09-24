@@ -5876,6 +5876,101 @@ arc_cached(spa_t *spa, const blkptr_t *bp)
 }
 
 /*
+ * Take a zero-copy reference to a range of a block that is already present in
+ * the ARC in the form the caller wants it: uncompressed, unencrypted and not
+ * in need of a byteswap.  Note that this is a property of the header, not of
+ * the block pointer: a block that is compressed on disk qualifies whenever the
+ * ARC holds it expanded, as it does when zfs_compressed_arc_enabled is off.
+ *
+ * This lets a reader copy out only the bytes it actually asked for.  The
+ * alternative, arc_buf_alloc_impl(), has to allocate a second buffer the size
+ * of the whole record and memcpy the record into it, which is what every dbuf
+ * cache miss against an otherwise warm ARC pays today.  Unlike the sharing
+ * done by arc_can_share(), this works with a scattered b_pabd, because the
+ * caller consumes the data through the ABD interface and never needs a
+ * contiguous pointer.
+ *
+ * We only do this when b_pabd is of a kind that arc_buf_alloc_impl() refuses
+ * to share - anything but a plain linear ABD, so scattered ABDs and the single
+ * compound page ("linear page") that Linux hands back for a whole record.  That
+ * is both the interesting case and the safe one: since sharing cannot happen,
+ * ARC_FLAG_SHARED_DATA can never be set on this header and none of the paths
+ * that swap out b_pabd (arc_release(), arc_buf_destroy_impl()) can run.  The
+ * reference we take keeps the header off the evictable lists, so b_pabd stays
+ * allocated, and a hashed header's data is immutable, so it stays correct.
+ *
+ * Returns B_FALSE if the caller has to fall back to a normal read.
+ */
+boolean_t
+arc_hold_abd_range(spa_t *spa, const blkptr_t *bp, uint64_t off, uint64_t len,
+    abd_t **viewp, arc_buf_hdr_t **hdrp, const void *tag)
+{
+	arc_buf_hdr_t *hdr;
+	kmutex_t *hash_lock;
+
+	if (BP_IS_EMBEDDED(bp) || BP_IS_HOLE(bp) || BP_IS_REDACTED(bp) ||
+	    BP_IS_PROTECTED(bp))
+		return (B_FALSE);
+
+	hdr = buf_hash_find(spa_load_guid(spa), bp, &hash_lock);
+	if (hdr == NULL)
+		return (B_FALSE);
+
+	if (!HDR_HAS_L1HDR(hdr) || HDR_IO_IN_PROGRESS(hdr) ||
+	    HDR_PROTECTED(hdr) || HDR_SHARED_DATA(hdr) ||
+	    hdr->b_l1hdr.b_pabd == NULL ||
+	    (abd_is_linear(hdr->b_l1hdr.b_pabd) &&
+	    !abd_is_linear_page(hdr->b_l1hdr.b_pabd)) ||
+	    arc_hdr_get_compress(hdr) != ZIO_COMPRESS_OFF ||
+	    hdr->b_l1hdr.b_byteswap != DMU_BSWAP_NUMFUNCS ||
+	    off + len > HDR_GET_LSIZE(hdr)) {
+		mutex_exit(hash_lock);
+		return (B_FALSE);
+	}
+
+	ASSERT3U(abd_get_size(hdr->b_l1hdr.b_pabd), ==, HDR_GET_LSIZE(hdr));
+
+	/*
+	 * Stay away from arc_uncached: dropping the last reference on such a
+	 * header destroys it, and we do not want a read to throw away data
+	 * that is still sitting in the cache.
+	 */
+	if (hdr->b_l1hdr.b_state != arc_mru &&
+	    hdr->b_l1hdr.b_state != arc_mfu) {
+		mutex_exit(hash_lock);
+		return (B_FALSE);
+	}
+
+	DTRACE_PROBE1(arc__hit, arc_buf_hdr_t *, hdr);
+	arc_access(hdr, 0, B_TRUE);
+	add_reference(hdr, tag);
+	boolean_t is_data = !HDR_ISTYPE_METADATA(hdr);
+	mutex_exit(hash_lock);
+
+	ARCSTAT_BUMP(arcstat_hits);
+	ARCSTAT_CONDSTAT(B_TRUE, demand, prefetch, is_data, data, metadata,
+	    hits);
+
+	*viewp = abd_get_offset_size(hdr->b_l1hdr.b_pabd, off, len);
+	*hdrp = hdr;
+	return (B_TRUE);
+}
+
+/*
+ * Drop a reference taken by arc_hold_abd_range().
+ */
+void
+arc_rele_abd_range(abd_t *view, arc_buf_hdr_t *hdr, const void *tag)
+{
+	kmutex_t *hash_lock = HDR_LOCK(hdr);
+
+	abd_free(view);
+	mutex_enter(hash_lock);
+	(void) remove_reference(hdr, tag);
+	mutex_exit(hash_lock);
+}
+
+/*
  * "Read" the block at the specified DVA (in bp) via the
  * cache.  If the block is found in the cache, invoke the provided
  * callback immediately and return.  Note that the `zio' parameter
@@ -6692,7 +6787,8 @@ arc_release(arc_buf_t *buf, const void *tag)
 	 */
 	if (hdr->b_l1hdr.b_buf != buf || !ARC_BUF_LAST(buf) ||
 	    (HDR_L2_WRITING(hdr) && !ARC_BUF_SHARED(buf)) ||
-	    HDR_IO_IN_PROGRESS(hdr)) {
+	    HDR_IO_IN_PROGRESS(hdr) ||
+	    zfs_refcount_count(&hdr->b_l1hdr.b_refcnt) > 1) {
 		arc_buf_hdr_t *nhdr;
 		uint64_t spa = hdr->b_spa;
 		uint64_t psize = HDR_GET_PSIZE(hdr);

@@ -380,6 +380,8 @@ dbuf_dirty_record_t *dbuf_dirty_lightweight(dnode_t *dn, uint64_t blkid,
     dmu_tx_t *tx);
 boolean_t dbuf_undirty(dmu_buf_impl_t *db, dmu_tx_t *tx);
 int dmu_buf_get_bp_from_dbuf(dmu_buf_impl_t *db, blkptr_t **bp);
+boolean_t dbuf_hold_arc_range(dmu_buf_impl_t *db, uint64_t off, uint64_t len,
+    abd_t **viewp, arc_buf_hdr_t **hdrp, const void *tag);
 int dmu_buf_untransform_direct(dmu_buf_impl_t *db, spa_t *spa);
 void dmu_buf_write_embedded(dmu_buf_t *dbuf, void *data,
     bp_embedded_type_t etype, enum zio_compress comp,
