@@ -36,8 +36,8 @@ extern "C" {
 typedef struct vdev_rebuild_phys {
 	uint64_t	vrp_rebuild_state;	/* vdev_rebuild_state_t */
 	uint64_t	vrp_last_offset;	/* last rebuilt offset */
-	uint64_t	vrp_min_txg;		/* minimum missing txg */
-	uint64_t	vrp_max_txg;		/* maximum missing txg */
+	uint64_t	vrp_min_txg;		/* exclusive lower txg bound */
+	uint64_t	vrp_max_txg;		/* exclusive upper txg bound */
 	uint64_t	vrp_start_time;		/* start time */
 	uint64_t	vrp_end_time;		/* end time */
 	uint64_t	vrp_scan_time_ms;	/* total run time in ms */
