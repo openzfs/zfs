@@ -104,7 +104,7 @@ srpm-common:
 	cp $$rpmbuild/SRPMS/$$rpmpkg . || exit 1; \
 	rm -R $$rpmbuild)
 
-rpm-common: 
+rpm-common: $(RPM_CONFCACHE)
 	@(dist=`$(RPM) --eval %{?dist}`; \
 	rpmpkg=$(pkg)-$(VERSION)-$(RELEASE)$$dist*src.rpm; \
 	rpmspec=$(pkg).spec; \
