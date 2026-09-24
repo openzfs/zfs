@@ -149,6 +149,16 @@ typedef struct vdev_raidz {
 	 * If this vdev is being expanded, spa_raidz_expand is set to this
 	 */
 	vdev_raidz_expand_t vn_vre;
+
+	/*
+	 * Persisted append-only parity-epoch table
+	 * (org.openzfs:raidz_parity_epochs).  Triplets of
+	 * {start physical-birth txg, logical width, parity}, loaded once in
+	 * vdev_raidz_load and freed in vdev_raidz_fini.  Not yet an input to
+	 * layout selection; parity still comes from vd_nparity.
+	 */
+	uint64_t *vd_parity_epochs;
+	uint64_t vd_parity_epoch_count;
 } vdev_raidz_t;
 
 extern int vdev_raidz_attach_check(vdev_t *);

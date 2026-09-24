@@ -5465,6 +5465,55 @@ vdev_raidz_load(vdev_t *vd)
 	}
 
 	/*
+	 * Load the persisted parity-epoch table if the raidz_parity_epochs
+	 * feature has written one.  The table is append-only triplets of
+	 * {start physical-birth txg, logical width, parity} and must be
+	 * structurally valid or the vdev fails to load; it is not yet
+	 * consumed by layout selection.
+	 */
+	if (vd->vdev_top_zap != 0) {
+		uint64_t int_size = 0;
+		uint64_t num_ints = 0;
+
+		err = zap_length(vd->vdev_spa->spa_meta_objset,
+		    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_PARITY_EPOCHS,
+		    &int_size, &num_ints);
+		if (err == 0) {
+			if (int_size != sizeof (uint64_t) || num_ints == 0 ||
+			    (num_ints % 3) != 0)
+				return (SET_ERROR(EINVAL));
+			uint64_t *table = kmem_alloc(
+			    num_ints * sizeof (uint64_t), KM_SLEEP);
+			err = zap_lookup(vd->vdev_spa->spa_meta_objset,
+			    vd->vdev_top_zap,
+			    VDEV_TOP_ZAP_RAIDZ_PARITY_EPOCHS,
+			    sizeof (uint64_t), num_ints, table);
+			if (err != 0) {
+				kmem_free(table,
+				    num_ints * sizeof (uint64_t));
+				return (err);
+			}
+			for (uint64_t i = 0; i < num_ints; i += 3) {
+				uint64_t width = table[i + 1];
+				uint64_t parity = table[i + 2];
+
+				if (parity < 1 ||
+				    parity > VDEV_RAIDZ_MAXPARITY ||
+				    width <= parity || width > UINT8_MAX ||
+				    (i > 0 && table[i] <= table[i - 3])) {
+					kmem_free(table,
+					    num_ints * sizeof (uint64_t));
+					return (SET_ERROR(EINVAL));
+				}
+			}
+			vdrz->vd_parity_epochs = table;
+			vdrz->vd_parity_epoch_count = num_ints / 3;
+		} else if (err != ENOENT) {
+			return (err);
+		}
+	}
+
+	/*
 	 * If we are in the middle of expansion, vre_state should have
 	 * already been set by vdev_raidz_init().
 	 */
@@ -5630,6 +5679,12 @@ vdev_raidz_fini(vdev_t *vd)
 		kmem_free(re, sizeof (*re));
 	avl_destroy(&vdrz->vd_expand_txgs);
 	mutex_destroy(&vdrz->vd_expand_lock);
+	if (vdrz->vd_parity_epochs != NULL) {
+		kmem_free(vdrz->vd_parity_epochs,
+		    vdrz->vd_parity_epoch_count * 3 * sizeof (uint64_t));
+		vdrz->vd_parity_epochs = NULL;
+		vdrz->vd_parity_epoch_count = 0;
+	}
 	mutex_destroy(&vdrz->vn_vre.vre_lock);
 	cv_destroy(&vdrz->vn_vre.vre_cv);
 	zfs_rangelock_fini(&vdrz->vn_vre.vre_rangelock);
