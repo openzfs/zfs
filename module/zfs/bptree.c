@@ -205,7 +205,7 @@ bptree_iterate(objset_t *os, uint64_t obj, boolean_t free, bptree_itor_t func,
 	for (i = ba.ba_phys->bt_begin; i < ba.ba_phys->bt_end; i++) {
 		bptree_entry_phys_t bte;
 		int flags = TRAVERSE_PREFETCH_METADATA | TRAVERSE_POST |
-		    TRAVERSE_NO_DECRYPT;
+		    TRAVERSE_NO_DECRYPT | TRAVERSE_LOGICAL;
 
 		err = dmu_read(os, obj, i * sizeof (bte), sizeof (bte),
 		    &bte, DMU_READ_NO_PREFETCH);
