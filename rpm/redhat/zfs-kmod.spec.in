@@ -62,6 +62,7 @@ fi
 %setup -n %{kmod_name}-%{version}
 %build
 %configure \
+        %{?confcache} \
         --with-config=kernel \
         --with-linux=%{ksrc} \
         --with-linux-obj=%{kobj} \
