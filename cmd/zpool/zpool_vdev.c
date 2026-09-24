@@ -407,6 +407,7 @@ typedef struct replication_level {
 	const char *zprl_type;
 	uint64_t zprl_children;
 	uint64_t zprl_parity;
+	boolean_t zprl_bias;
 } replication_level_t;
 
 #define	ZPOOL_FUZZ	(16 * 1024 * 1024)
@@ -446,6 +447,123 @@ is_raidz_draid(replication_level_t *a, replication_level_t *b)
 }
 
 /*
+ * Number of device failures a toplevel vdev can tolerate.
+ */
+static uint64_t
+rep_failures(const replication_level_t *rep)
+{
+	if (strcmp(rep->zprl_type, VDEV_TYPE_MIRROR) == 0)
+		return (rep->zprl_children - 1);
+
+	return (rep->zprl_parity);
+}
+
+/*
+ * A special or dedup vdev need not match the layout of the normal vdevs in
+ * a redundant pool, provided it can tolerate at least as many device
+ * failures.  Returns B_TRUE if one of 'a' and 'b' is such a vdev and the
+ * other is a normal vdev which it satisfies.
+ */
+static boolean_t
+is_bias_more_redundant(const replication_level_t *a,
+    const replication_level_t *b)
+{
+	const replication_level_t *bias, *normal;
+
+	if (a->zprl_bias == b->zprl_bias)
+		return (B_FALSE);
+
+	bias = a->zprl_bias ? a : b;
+	normal = a->zprl_bias ? b : a;
+
+	return (rep_failures(normal) > 0 &&
+	    rep_failures(bias) >= rep_failures(normal));
+}
+
+/*
+ * Compare the replication levels of two toplevel vdevs.  Returns B_TRUE if
+ * they are consistent.  Otherwise, if 'fatal' is set, an error message is
+ * displayed describing the mismatch.
+ */
+static boolean_t
+rep_consistent(replication_level_t *lastrep, replication_level_t *rep,
+    boolean_t fatal)
+{
+	replication_level_t *raidz, *mirror;
+
+	if (is_bias_more_redundant(lastrep, rep))
+		return (B_TRUE);
+
+	if (is_raidz_mirror(lastrep, rep, &raidz, &mirror) ||
+	    is_raidz_mirror(rep, lastrep, &raidz, &mirror)) {
+		/*
+		 * Accepted raidz and mirror when they can
+		 * handle the same number of disk failures.
+		 */
+		if (raidz->zprl_parity != mirror->zprl_children - 1) {
+			if (fatal)
+				vdev_error(gettext(
+				    "mismatched replication level: "
+				    "%s and %s vdevs with different "
+				    "redundancy, %llu vs. %llu (%llu-way) "
+				    "are present\n"),
+				    raidz->zprl_type,
+				    mirror->zprl_type,
+				    (u_longlong_t)raidz->zprl_parity,
+				    (u_longlong_t)mirror->zprl_children - 1,
+				    (u_longlong_t)mirror->zprl_children);
+			return (B_FALSE);
+		}
+	} else if (is_raidz_draid(lastrep, rep)) {
+		/*
+		 * Accepted raidz and draid when they can
+		 * handle the same number of disk failures.
+		 */
+		if (lastrep->zprl_parity != rep->zprl_parity) {
+			if (fatal)
+				vdev_error(gettext(
+				    "mismatched replication level: "
+				    "%s and %s vdevs with different "
+				    "redundancy, %llu vs. %llu are present\n"),
+				    lastrep->zprl_type,
+				    rep->zprl_type,
+				    (u_longlong_t)lastrep->zprl_parity,
+				    (u_longlong_t)rep->zprl_parity);
+			return (B_FALSE);
+		}
+	} else if (strcmp(lastrep->zprl_type, rep->zprl_type) != 0) {
+		if (fatal)
+			vdev_error(gettext(
+			    "mismatched replication level: "
+			    "both %s and %s vdevs are present\n"),
+			    lastrep->zprl_type, rep->zprl_type);
+		return (B_FALSE);
+	} else if (lastrep->zprl_parity != rep->zprl_parity) {
+		if (fatal)
+			vdev_error(gettext(
+			    "mismatched replication level: "
+			    "both %llu and %llu device parity "
+			    "%s vdevs are present\n"),
+			    (u_longlong_t)lastrep->zprl_parity,
+			    (u_longlong_t)rep->zprl_parity,
+			    rep->zprl_type);
+		return (B_FALSE);
+	} else if (lastrep->zprl_children != rep->zprl_children) {
+		if (fatal)
+			vdev_error(gettext(
+			    "mismatched replication level: "
+			    "both %llu-way and %llu-way %s "
+			    "vdevs are present\n"),
+			    (u_longlong_t)lastrep->zprl_children,
+			    (u_longlong_t)rep->zprl_children,
+			    rep->zprl_type);
+		return (B_FALSE);
+	}
+
+	return (B_TRUE);
+}
+
+/*
  * Given a list of toplevel vdevs, return the current replication level.  If
  * the config is inconsistent, then NULL is returned.  If 'fatal' is set, then
  * an error message will be displayed for each self-inconsistent vdev.
@@ -460,9 +578,10 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 	nvlist_t *nv;
 	const char *type;
 	replication_level_t lastrep = {0};
+	replication_level_t lastbias = {0};
 	replication_level_t rep;
 	replication_level_t *ret;
-	replication_level_t *raidz, *mirror;
+	replication_level_t *same, *other;
 	boolean_t dontreport;
 
 	ret = safe_malloc(sizeof (replication_level_t));
@@ -657,116 +776,34 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 
 		/*
 		 * At this point, we have the replication of the last toplevel
-		 * vdev in 'rep'.  Compare it to 'lastrep' to see if it is
-		 * different.
+		 * vdev in 'rep'.  Compare it to the last vdev of the same class
+		 * (normal, or special and dedup), and to the last vdev of the
+		 * other class.
 		 */
-		if (lastrep.zprl_type != NULL) {
-			if (is_raidz_mirror(&lastrep, &rep, &raidz, &mirror) ||
-			    is_raidz_mirror(&rep, &lastrep, &raidz, &mirror)) {
-				/*
-				 * Accepted raidz and mirror when they can
-				 * handle the same number of disk failures.
-				 */
-				if (raidz->zprl_parity !=
-				    mirror->zprl_children - 1) {
-					if (ret != NULL)
-						free(ret);
-					ret = NULL;
-					if (fatal)
-						vdev_error(gettext(
-						    "mismatched replication "
-						    "level: "
-						    "%s and %s vdevs with "
-						    "different redundancy, "
-						    "%llu vs. %llu (%llu-way) "
-						    "are present\n"),
-						    raidz->zprl_type,
-						    mirror->zprl_type,
-						    (u_longlong_t)
-						    raidz->zprl_parity,
-						    (u_longlong_t)
-						    mirror->zprl_children - 1,
-						    (u_longlong_t)
-						    mirror->zprl_children);
-					else
-						return (NULL);
-				}
-			} else if (is_raidz_draid(&lastrep, &rep)) {
-				/*
-				 * Accepted raidz and draid when they can
-				 * handle the same number of disk failures.
-				 */
-				if (lastrep.zprl_parity != rep.zprl_parity) {
-					if (ret != NULL)
-						free(ret);
-					ret = NULL;
-					if (fatal)
-						vdev_error(gettext(
-						    "mismatched replication "
-						    "level: %s and %s vdevs "
-						    "with different "
-						    "redundancy, %llu vs. "
-						    "%llu are present\n"),
-						    lastrep.zprl_type,
-						    rep.zprl_type,
-						    (u_longlong_t)
-						    lastrep.zprl_parity,
-						    (u_longlong_t)
-						    rep.zprl_parity);
-					else
-						return (NULL);
-				}
-			} else if (strcmp(lastrep.zprl_type, rep.zprl_type) !=
-			    0) {
-				if (ret != NULL)
-					free(ret);
-				ret = NULL;
-				if (fatal)
-					vdev_error(gettext(
-					    "mismatched replication level: "
-					    "both %s and %s vdevs are "
-					    "present\n"),
-					    lastrep.zprl_type, rep.zprl_type);
-				else
-					return (NULL);
-			} else if (lastrep.zprl_parity != rep.zprl_parity) {
-				if (ret)
-					free(ret);
-				ret = NULL;
-				if (fatal)
-					vdev_error(gettext(
-					    "mismatched replication level: "
-					    "both %llu and %llu device parity "
-					    "%s vdevs are present\n"),
-					    (u_longlong_t)
-					    lastrep.zprl_parity,
-					    (u_longlong_t)rep.zprl_parity,
-					    rep.zprl_type);
-				else
-					return (NULL);
-			} else if (lastrep.zprl_children != rep.zprl_children) {
-				if (ret)
-					free(ret);
-				ret = NULL;
-				if (fatal)
-					vdev_error(gettext(
-					    "mismatched replication level: "
-					    "both %llu-way and %llu-way %s "
-					    "vdevs are present\n"),
-					    (u_longlong_t)
-					    lastrep.zprl_children,
-					    (u_longlong_t)
-					    rep.zprl_children,
-					    rep.zprl_type);
-				else
-					return (NULL);
-			}
+		rep.zprl_bias = nvlist_exists(nv,
+		    ZPOOL_CONFIG_ALLOCATION_BIAS);
+		same = rep.zprl_bias ? &lastbias : &lastrep;
+		other = rep.zprl_bias ? &lastrep : &lastbias;
+
+		if ((same->zprl_type != NULL &&
+		    !rep_consistent(same, &rep, fatal)) ||
+		    (other->zprl_type != NULL &&
+		    !rep_consistent(other, &rep, fatal))) {
+			free(ret);
+			ret = NULL;
+			if (!fatal)
+				return (NULL);
 		}
-		lastrep = rep;
+		*same = rep;
 	}
 
+	/*
+	 * Report the replication level of the normal vdevs, since that is
+	 * what any special or dedup vdevs were required to satisfy.
+	 */
 	if (ret != NULL)
-		*ret = rep;
+		*ret = (lastrep.zprl_type != NULL) ? lastrep :
+		    (lastbias.zprl_type != NULL) ? lastbias : rep;
 
 	return (ret);
 }
@@ -830,7 +867,7 @@ check_replication(nvlist_t *config, nvlist_t *newroot)
 	 * the current pool.
 	 */
 	ret = 0;
-	if (current != NULL) {
+	if (current != NULL && !is_bias_more_redundant(current, new)) {
 		if (is_raidz_mirror(current, new, &raidz, &mirror) ||
 		    is_raidz_mirror(new, current, &raidz, &mirror)) {
 			if (raidz->zprl_parity != mirror->zprl_children - 1) {

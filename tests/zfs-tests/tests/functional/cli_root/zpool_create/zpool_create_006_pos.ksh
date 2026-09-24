@@ -102,6 +102,8 @@ set -A valid_args \
 		cache $vdev7 log mirror $vdev8 $vdev9" \
 	"draid $vdev0 $vdev1 $vdev2 draid $vdev4 $vdev5 $vdev6 $vdev7 \
 		special mirror $vdev8 $vdev9" \
+	"draid $vdev0 $vdev1 $vdev2 draid $vdev4 $vdev5 $vdev6 \
+		special mirror $vdev7 $vdev8 $vdev9" \
 	"spare $vdev0 $vdev1 $vdev2 mirror $vdev3 $vdev4 raidz $vdev5 $vdev6"
 
 set -A forced_args \
@@ -125,8 +127,6 @@ set -A forced_args \
 		draid2 $vdev5 $vdev6 $vdev7 $vdev8 spare $vdev9" \
 	"draid $vdev0 $vdev1 $vdev2 $vdev3 \
 		draid2 $vdev4 $vdev5 $vdev6 $vdev7 $vdev8" \
-	"draid $vdev0 $vdev1 $vdev2 draid $vdev4 $vdev5 $vdev6 \
-		special mirror $vdev7 $vdev8 $vdev9" \
 	"spare $vdev0 $vdev1 $vdev2 mirror $vdev3 $vdev4 \
 		raidz2 $vdev5 $vdev6 $vdev7"
 
