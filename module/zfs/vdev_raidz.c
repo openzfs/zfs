@@ -2310,8 +2310,34 @@ vdev_raidz_layout_for_alloc(vdev_raidz_t *vdrz, uint64_t txg)
 	    vdev_raidz_layout_for_alloc_locked(vdrz, txg);
 	mutex_exit(&vdrz->vd_expand_lock);
 
+	/*
+	 * A loaded parity-epoch table fully determines the pair: load
+	 * rejects tables that do not start at txg 0 or that coexist with
+	 * expansion history, so the last entry at or before txg is always
+	 * defined and width/parity cannot be combined across sources.
+	 */
+	if (vdrz->vd_parity_epochs != NULL) {
+		const uint64_t *table = vdrz->vd_parity_epochs;
+		uint64_t entries = vdrz->vd_parity_epoch_count;
+
+		for (uint64_t i = 0; i < entries; i++) {
+			if (table[3 * i] > txg)
+				break;
+			layout.vrl_width = table[3 * i + 1];
+			layout.vrl_nparity = table[3 * i + 2];
+		}
+		if (zfs_flags & ZFS_DEBUG_RAIDZ_RECONSTRUCT) {
+			zfs_dbgmsg("layout_for_alloc(txg=%llu width=%llu "
+			    "parity=%llu src=epochs)",
+			    (u_longlong_t)txg, (u_longlong_t)layout.vrl_width,
+			    (u_longlong_t)layout.vrl_nparity);
+		}
+		return (layout);
+	}
+
 	if (zfs_flags & ZFS_DEBUG_RAIDZ_RECONSTRUCT) {
-		zfs_dbgmsg("layout_for_alloc(txg=%llu width=%llu parity=%llu)",
+		zfs_dbgmsg("layout_for_alloc(txg=%llu width=%llu parity=%llu "
+		    "src=legacy)",
 		    (u_longlong_t)txg, (u_longlong_t)layout.vrl_width,
 		    (u_longlong_t)layout.vrl_nparity);
 	}
@@ -5500,11 +5526,23 @@ vdev_raidz_load(vdev_t *vd)
 				if (parity < 1 ||
 				    parity > VDEV_RAIDZ_MAXPARITY ||
 				    width <= parity || width > UINT8_MAX ||
+				    (i == 0 && table[0] != 0) ||
 				    (i > 0 && table[i] <= table[i - 3])) {
 					kmem_free(table,
 					    num_ints * sizeof (uint64_t));
 					return (SET_ERROR(EINVAL));
 				}
+			}
+			/*
+			 * Expansion history and a parity-epoch table are
+			 * mutually exclusive until a later subgate defines
+			 * their combination; refuse rather than guess.
+			 */
+			if (avl_numnodes(&vdrz->vd_expand_txgs) != 0 ||
+			    state != DSS_NONE) {
+				kmem_free(table,
+				    num_ints * sizeof (uint64_t));
+				return (SET_ERROR(ENOTSUP));
 			}
 			vdrz->vd_parity_epochs = table;
 			vdrz->vd_parity_epoch_count = num_ints / 3;
