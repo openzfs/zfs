@@ -60,7 +60,7 @@ jobs:
             ;;
           *)
             # default list
-            os_selection='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian12", "debian13", "fedora43", "fedora44", "freebsd14-4r", "freebsd15-1r", "freebsd15-1s", "freebsd16-0c", "ubuntu22", "ubuntu24", "ubuntu26"]'
+            os_selection='["almalinux8", "almalinux9", "almalinux10", "debian12", "debian13", "fedora43", "fedora44", "freebsd14-4r", "freebsd15-1r", "freebsd15-1s", "freebsd16-0c", "ubuntu22", "ubuntu24", "ubuntu26"]'
             ;;
           esac
 
