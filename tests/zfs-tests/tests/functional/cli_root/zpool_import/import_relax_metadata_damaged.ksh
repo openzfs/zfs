@@ -26,8 +26,8 @@
 # STRATEGY:
 #	1. Create a pool with two files and remember their hashsums.
 #	2. Corrupt every copy of the indirect block of one of them on disk.
-#	3. Checkpoint the pool, so that the blocks of the txg below are
-#	   guaranteed to stay on disk, and note the last synced txg.
+#	3. Checkpoint the pool, so that the blocks of the checkpointed state
+#	   are guaranteed to stay on disk, and note the txg of that state.
 #	4. Verify that a dry run of that txg rewinds past it, and that the
 #	   same dry run with -M accepts it.
 #	5. Import that txg with -M and verify that it succeeds, that the
@@ -46,6 +46,13 @@
 #	checkpoint holding them the txg may be unloadable for reasons having
 #	nothing to do with the damage injected here, which is exactly what -M
 #	is not supposed to tolerate.
+#
+#	The checkpoint only holds blocks born up to its own txg, which is older
+#	than the last synced txg: creating the checkpoint syncs further txgs.
+#	Nor is there necessarily an uberblock for the checkpoint txg itself,
+#	since a txg that changes nothing writes none.  The txg to request is
+#	therefore the one the checkpointed state was last written in, i.e. the
+#	birth of its root block pointer.
 #
 #	A dry run reports an error whether it found a usable txg or not, so
 #	only the txg it reports tells the two apart.
@@ -84,9 +91,14 @@ log_must save_tunable TXG_TIMEOUT
 log_must set_tunable32 TXG_TIMEOUT 5000
 
 log_must zpool checkpoint $TESTPOOL1
-typeset -i txg=$(get_last_txg_synced $TESTPOOL1)
-
 log_must zpool export $TESTPOOL1
+
+typeset bp=$(zdb -e -p $DEVICE_DIR -k -u $TESTPOOL1 |
+    awk '/^[[:space:]]*bp = / { print; exit }')
+typeset -i txg=$(echo "$bp" | sed -n 's/.*birth=\([0-9][0-9]*\)L.*/\1/p')
+(( txg > 0 )) ||
+    log_fail "Couldn't read the txg of the checkpointed state from: '$bp'"
+log_note "the checkpointed state was last written in txg $txg: $bp"
 
 #
 # An indirect block of a file is fatal for the txg by default.  A dry run
@@ -108,8 +120,8 @@ echo "$out" | grep -q "(txg $txg)" ||
     log_fail "The damaged txg $txg was not accepted with -M"
 
 # And it can be imported for real, losing only the damaged file.
+# That state predates the checkpoint, so there is none left to discard.
 log_must zpool import -d $DEVICE_DIR -M -T $txg $TESTPOOL1
-log_must zpool checkpoint -d $TESTPOOL1
 
 if [[ "$(xxh128digest $intact)" != "$digest" ]]; then
 	log_fail "The intact file lost its content"
