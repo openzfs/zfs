@@ -347,3 +347,67 @@ int put_object(const char *pool, const char *bucket, const char *key, int fd, ui
 
 	return 0;
 }
+
+int delete_object(const char *pool, const char *bucket, const char *key) {
+	spa_t *spa;
+	objset_t *os;
+	uint64_t bucket_zap;
+	uint64_t obj_id;
+	dmu_tx_t *tx;
+	int error;
+
+	error = spa_open(pool, &spa, ZOS_OBJSET_TAG);
+	if (error) {
+		return error;
+	}
+
+	error = get_bucket(spa, bucket, &os, &bucket_zap);
+	if (error) {
+		if (os != NULL) {
+			zos_release_objset(os);
+		}
+		spa_close(spa, ZOS_OBJSET_TAG);
+		return error;
+	}
+
+	error = zap_lookup(os, bucket_zap, key, 8, 1, &obj_id);
+	if (error) {
+		zos_release_objset(os);
+		spa_close(spa, ZOS_OBJSET_TAG);
+		return error;
+	}
+
+	tx = dmu_tx_create(os);
+	// For some reason, this isn't B_TRUE
+	dmu_tx_hold_zap(tx, bucket_zap, B_FALSE, key);
+	dmu_tx_hold_free(tx, obj_id, 0, DMU_OBJECT_END);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (error) {
+		dmu_tx_abort(tx);
+		zos_release_objset(os);
+		spa_close(spa, ZOS_OBJSET_TAG);
+		return error;
+	}
+
+	error = zap_remove(os, bucket_zap, key, tx);
+	if (error) {
+		dmu_tx_abort(tx);
+		zos_release_objset(os);
+		spa_close(spa, ZOS_OBJSET_TAG);
+		return error;
+	}
+
+	error = dmu_object_free(os, obj_id, tx);
+	if (error) {
+		dmu_tx_abort(tx);
+		zos_release_objset(os);
+		spa_close(spa, ZOS_OBJSET_TAG);
+		return error;
+	}
+
+	dmu_tx_commit(tx);
+	zos_release_objset(os);
+	spa_close(spa, ZOS_OBJSET_TAG);
+
+	return 0;
+}

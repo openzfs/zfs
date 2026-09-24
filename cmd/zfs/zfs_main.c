@@ -9508,6 +9508,27 @@ zfs_do_object(int argc, char **argv) {
 					"Cannot put object");
 
 		ret = error;
+	} else if (strcmp(op, "delete") == 0) {
+		char *slash1 = strchr(path, '/');
+		if (slash1 == NULL) {
+			(void) fprintf(stderr, gettext("expected pool/bucket/key\n"));
+			usage(B_FALSE);
+		}
+		*slash1 = '\0';
+		char *pool = path;
+
+		char *slash2 = strchr(slash1 +1, '/');
+		if (slash2 == NULL) {
+			(void) fprintf(stderr, gettext("expected pool/bucket/key\n"));
+			usage(B_FALSE);
+		}
+		*slash2 = '\0';
+		char *bucket = slash1 + 1;
+		char *key = slash2 + 1;
+
+		int error = lzc_object_delete(pool, bucket, key);
+
+		ret = error;
 	} else {
 		(void) fprintf(stderr,
 				gettext("invalid operation: %s\n"), op);

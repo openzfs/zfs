@@ -2162,3 +2162,21 @@ lzc_object_put(const char *pool, const char *bucket, const char *key, int fd, ui
 
 	return (error);
 }
+
+int
+lzc_object_delete(const char *pool, const char *bucket, const char *key) {
+	int error;
+
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = NULL;
+
+	fnvlist_add_string(args, ZFS_BUCKET, bucket);
+	fnvlist_add_string(args, ZFS_KEY, key);
+
+	error = lzc_ioctl(ZFS_IOC_OBJECT_DELETE, pool, args, &result);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}
