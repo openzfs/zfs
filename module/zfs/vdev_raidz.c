@@ -343,6 +343,12 @@ static
 unsigned long raidz_expand_max_reflow_bytes = 0;
 
 /*
+ * Rescue tunable: skip loading the parity-epoch table so a pool bricked by
+ * a damaged table can be imported (readonly recommended) and repaired.
+ */
+int raidz_ignore_parity_epochs = 0;
+
+/*
  * For testing only: pause the raidz expansion at a certain point.
  */
 uint_t raidz_expand_pause_point = 0;
@@ -5497,7 +5503,7 @@ vdev_raidz_load(vdev_t *vd)
 	 * structurally valid or the vdev fails to load; it is not yet
 	 * consumed by layout selection.
 	 */
-	if (vd->vdev_top_zap != 0) {
+	if (vd->vdev_top_zap != 0 && !raidz_ignore_parity_epochs) {
 		uint64_t int_size = 0;
 		uint64_t num_ints = 0;
 
@@ -5832,6 +5838,8 @@ vdev_ops_t vdev_raidz_ops = {
 
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_reflow_bytes, ULONG, ZMOD_RW,
 	"For testing, pause RAIDZ expansion after reflowing this many bytes");
+ZFS_MODULE_PARAM(zfs_vdev, raidz_, ignore_parity_epochs, INT, ZMOD_RW,
+	"Rescue: skip loading the RAIDZ parity-epoch table (import readonly)");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_copy_bytes, ULONG, ZMOD_RW,
 	"Max amount of concurrent i/o for RAIDZ expansion");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_aggregate_rows, ULONG, ZMOD_RW,
