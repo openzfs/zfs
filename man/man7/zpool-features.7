@@ -927,6 +927,16 @@ amount usable space in the pool.
 See
 .Xr zpool-attach 8 .
 .
+.feature org.openzfs raidz_parity_epochs no none
+This feature persists a per-top-level-vdev table of
+.Sy {physical-birth-txg , logical-width , parity}
+epochs so that a RAID-Z vdev can decode blocks written under different
+parity layouts.
+The feature becomes active once a table describing more than the initial
+layout is stored.
+While active, the pool cannot be imported by software that does not
+support this feature.
+.
 .feature com.delphix redaction_bookmarks no bookmarks extensible_dataset
 This feature enables the use of redacted
 .Nm zfs Cm send Ns s ,
