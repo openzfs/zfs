@@ -1,4 +1,4 @@
-openzfs-linux (@VERSION@-1) unstable; urgency=low
+openzfs-linux (@VERSION@-@RELEASE@) unstable; urgency=low
 
   * OpenZFS @VERSION@ is tagged.
 
