@@ -349,6 +349,38 @@ unsigned long raidz_expand_max_reflow_bytes = 0;
 int raidz_ignore_parity_epochs = 0;
 
 /*
+ * P7 width contraction: force a uniform narrow logical width W (0=off).
+ * A raidz created/imported with raidz_force_width=W lays every block on
+ * the first W children (0..W-1) via the SIMPLE map (map_alloc(dcols=W)),
+ * sizes psize<->asize at W (more parity overhead), AND sizes the raidz
+ * offset space (vdev asize / metaslabs) to W children in vdev_raidz_open,
+ * so map, asize and metaslab all agree. Children W..N-1 are never
+ * addressed -> left empty, ready for detach (part D). This is the
+ * coherent uniform-width foundation for in-place contraction.
+ */
+int raidz_force_width = 0;
+
+/*
+ * P7 part C (re-encoding reflow): set for the duration of an in-place
+ * width-contraction sweep. A block whose epoch logical width < physical
+ * width then uses the SIMPLE map (children 0..W-1) -- a CONTRACTED block --
+ * instead of the expanded map (which is for post-EXPANSION narrow blocks).
+ * Also relaxes the DEBUG io_verify (uniform-width assumption) during the
+ * mixed-width window. Pairs with raidz_contract_floor (metaslab.c), which
+ * forces every re-encoded (narrow) block to allocate physically ABOVE the
+ * old-width high-water so it can never collide with a not-yet-swept wide
+ * block. Only valid on a non-expanding pool during a quiesced sweep.
+ */
+int raidz_contracting = 0;
+/*
+ * R05: bind the contraction/detach to a SPECIFIC vdev by top-level
+ * GUID, so the global raidz_contracting tunable enabled for pool A cannot
+ * authorise the raidz-shrink detach of an unrelated vdev (e.g. on pool B).
+ * Must be set to the target vdev's GUID; a zero/mismatched GUID refuses.
+ */
+unsigned long raidz_contract_guid = 0;
+
+/*
  * For testing only: pause the raidz expansion at a certain point.
  */
 uint_t raidz_expand_pause_point = 0;
@@ -2204,12 +2236,113 @@ vdev_raidz_reconstruct_row(raidz_map_t *rm, raidz_row_t *rr,
 	vdev_raidz_reconstruct_general(rr, tgts, ntgts);
 }
 
+/*
+ * F3: FNV digest of the certified epoch-table prefix (entries whose parity
+ * <= the marker parity), computed identically here and in zhack at commit, so
+ * a structurally-valid but SUBSTITUTED table is detected.
+ */
+static uint64_t
+vdev_raidz_epoch_digest(const uint64_t *tbl, uint64_t nent,
+    uint64_t max_parity)
+{
+	uint64_t h = 1469598103934665603ULL;
+	for (uint64_t i = 0; i < nent; i++) {
+		if (tbl[3 * i + 2] > max_parity)
+			continue;
+		for (int k = 0; k < 3; k++) {
+			h ^= tbl[3 * i + k];
+			h *= 1099511628211ULL;
+		}
+	}
+	return (h);
+}
+
+/*
+ * F3: honor the reparity marker (raised tolerance) ONLY when its completion
+ * TXG is covered by the selected uberblock AND the certified epoch-prefix
+ * digest matches the marker; otherwise fail-closed.
+ */
+/*
+ * R02: honor the raised tolerance ONLY on a complete, mandatory certificate.
+ * A missing/zero field is NEVER a grant. Required: marker in
+ * (base, VDEV_RAIDZ_MAXPARITY]; a NON-ZERO completion txg; a NON-ZERO stored
+ * digest that matches the recomputed epoch-prefix digest; and the marker
+ * parity certified by the epoch table (its last entry's parity >= marker).
+ * When a real uberblock is selected (ub!=0) the completion must be covered by
+ * it (rewind is not inherited). ub==0 is early config-scan/discovery: the same
+ * certificate is still required; discovery is not a substitute for the cert.
+ */
+static uint64_t
+vdev_raidz_honored_parity(vdev_t *vd)
+{
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	uint64_t base = vdrz->vd_nparity;
+	uint64_t marker = vdrz->vd_reparity_parity;
+	if (marker > base) {
+		uint64_t ub = vd->vdev_spa->spa_uberblock.ub_txg;
+		uint64_t comp = vdrz->vd_reparity_completion_txg;
+		uint64_t sdig = vdrz->vd_reparity_epoch_digest;
+		uint64_t dig = vdev_raidz_epoch_digest(vdrz->vd_parity_epochs,
+		    vdrz->vd_parity_epoch_count, marker);
+		uint64_t nent = vdrz->vd_parity_epoch_count;
+		boolean_t certified = (marker <= VDEV_RAIDZ_MAXPARITY) &&
+		    (comp > 0) && (sdig != 0 && sdig == dig) &&
+		    (nent > 0 &&
+		    vdrz->vd_parity_epochs[(nent - 1) * 3 + 2] >= marker);
+		if (certified && ub != 0 && comp > ub)
+			certified = B_FALSE;	/* rewind: not inherited */
+		if (certified) {
+			zfs_dbgmsg("raidz reparity marker honored: comp=%llu "
+			    "ub=%llu digest=%llu tolerance=%llu",
+			    (u_longlong_t)comp, (u_longlong_t)ub,
+			    (u_longlong_t)dig, (u_longlong_t)marker);
+			return (marker);
+		}
+		zfs_dbgmsg("raidz reparity marker NOT honored (fail-closed): "
+		    "marker=%llu comp=%llu ub=%llu sdig=%llu dig=%llu tol=%llu",
+		    (u_longlong_t)marker, (u_longlong_t)comp, (u_longlong_t)ub,
+		    (u_longlong_t)sdig, (u_longlong_t)dig, (u_longlong_t)base);
+	} else if (marker != 0 && marker < base) {
+		/*
+		 * P11/D DEMOTION: LOWER the advertised tolerance to the
+		 * target. Once a demotion epoch is in the selected state,
+		 * blocks may sit at the weaker parity, so the pool can
+		 * guarantee only `marker`; returning `base` would OVERSTATE.
+		 * The safe fail direction is therefore the LOWER value:
+		 * honor a properly-bound demotion marker (digest + last
+		 * epoch == marker, completion covered by the selected
+		 * uberblock) and return the target; an unbound/forged
+		 * demotion marker means no real demotion happened, so the
+		 * blocks are still base-parity and falling back to base is
+		 * correct.
+		 */
+		uint64_t ub = vd->vdev_spa->spa_uberblock.ub_txg;
+		uint64_t comp = vdrz->vd_reparity_completion_txg;
+		uint64_t sdig = vdrz->vd_reparity_epoch_digest;
+		uint64_t dig = vdev_raidz_epoch_digest(vdrz->vd_parity_epochs,
+		    vdrz->vd_parity_epoch_count, marker);
+		uint64_t nent = vdrz->vd_parity_epoch_count;
+		boolean_t bound = (marker >= 1) && (comp > 0) &&
+		    (sdig != 0 && sdig == dig) && (nent > 0 &&
+		    vdrz->vd_parity_epochs[(nent - 1) * 3 + 2] == marker);
+		if (bound && ub != 0 && comp > ub)
+			/* rewind to before demotion: blocks are base */
+			bound = B_FALSE;
+		if (bound) {
+			zfs_dbgmsg("raidz DEMOTION marker honored: comp=%llu "
+			    "ub=%llu tolerance=%llu", (u_longlong_t)comp,
+			    (u_longlong_t)ub, (u_longlong_t)marker);
+			return (marker);
+		}
+	}
+	return (base);
+}
+
 static int
 vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
     uint64_t *logical_ashift, uint64_t *physical_ashift, cred_t *cr)
 {
-	vdev_raidz_t *vdrz = vd->vdev_tsd;
-	uint64_t nparity = vdrz->vd_nparity;
+	uint64_t nparity = vdev_raidz_honored_parity(vd);
 	int c;
 	int lasterror = 0;
 	int numerrors = 0;
@@ -2251,6 +2384,11 @@ vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 		*max_asize *= vd->vdev_children - 1;
 
 		vd->vdev_min_asize = *asize;
+	} else if (raidz_force_width != 0 &&
+	    (uint64_t)raidz_force_width >= nparity + 1 &&
+	    (uint64_t)raidz_force_width < vd->vdev_children) {
+		*asize *= raidz_force_width;
+		*max_asize *= raidz_force_width;
 	} else {
 		*asize *= vd->vdev_children;
 		*max_asize *= vd->vdev_children;
@@ -2338,6 +2476,10 @@ vdev_raidz_layout_for_alloc(vdev_raidz_t *vdrz, uint64_t txg)
 			    (u_longlong_t)txg, (u_longlong_t)layout.vrl_width,
 			    (u_longlong_t)layout.vrl_nparity);
 		}
+		if (raidz_force_width != 0 &&
+		    (uint64_t)raidz_force_width >= layout.vrl_nparity + 1 &&
+		    (uint64_t)raidz_force_width < layout.vrl_width)
+			layout.vrl_width = raidz_force_width;
 		return (layout);
 	}
 
@@ -2347,6 +2489,10 @@ vdev_raidz_layout_for_alloc(vdev_raidz_t *vdrz, uint64_t txg)
 		    (u_longlong_t)txg, (u_longlong_t)layout.vrl_width,
 		    (u_longlong_t)layout.vrl_nparity);
 	}
+	if (raidz_force_width != 0 &&
+	    (uint64_t)raidz_force_width >= layout.vrl_nparity + 1 &&
+	    (uint64_t)raidz_force_width < layout.vrl_width)
+		layout.vrl_width = raidz_force_width;
 	return (layout);
 }
 
@@ -2456,7 +2602,8 @@ vdev_raidz_psize_to_asize(vdev_t *vd, uint64_t psize, uint64_t txg)
 #ifdef ZFS_DEBUG
 	uint64_t asize_new = vdev_raidz_psize_to_asize_width(vd, psize,
 	    vdrz->vd_physical_width, layout.vrl_nparity);
-	VERIFY3U(asize_new, <=, asize);
+	if (vdrz->vd_physical_width >= layout.vrl_width)
+		VERIFY3U(asize_new, <=, asize);
 #endif
 
 	return (asize);
@@ -2580,6 +2727,8 @@ static void
 vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 {
 	(void) rm;
+	if (raidz_contracting)
+		return;
 #ifdef ZFS_DEBUG
 	zfs_range_seg64_t logical_rs, physical_rs, remain_rs;
 	logical_rs.rs_start = rr->rr_offset;
@@ -2848,7 +2997,14 @@ vdev_raidz_io_start(zio_t *zio)
 	raidz_map_t *rm;
 
 	vdev_raidz_layout_t layout = vdev_raidz_layout_for_bp(vdrz, zio->io_bp);
-	if (layout.vrl_width != vdrz->vd_physical_width) {
+	if (zfs_flags & ZFS_DEBUG_RAIDZ_RECONSTRUCT)
+		zfs_dbgmsg("io_start: vrl_width=%llu phys=%d contracting=%d "
+		    "fw=%d off=%llu type=%d", (u_longlong_t)layout.vrl_width,
+		    vdrz->vd_physical_width, raidz_contracting,
+		    raidz_force_width,
+		    (u_longlong_t)zio->io_offset, (int)zio->io_type);
+	if (layout.vrl_width != vdrz->vd_physical_width ||
+	    layout.vrl_nparity != vdrz->vd_nparity) {
 		if (BP_GET_DEDUP(zio->io_bp)) {
 			uint64_t required_asize;
 			uint64_t owned_asize;
@@ -2881,6 +3037,11 @@ vdev_raidz_io_start(zio_t *zio)
 				return;
 			}
 		}
+
+	}
+	if (layout.vrl_width != vdrz->vd_physical_width &&
+	    raidz_force_width == 0 &&
+	    !raidz_contracting) {
 		zfs_locked_range_t *lr = NULL;
 		uint64_t synced_offset = UINT64_MAX;
 		uint64_t next_offset = UINT64_MAX;
@@ -4227,8 +4388,7 @@ done:
 static void
 vdev_raidz_state_change(vdev_t *vd, int faulted, int degraded)
 {
-	vdev_raidz_t *vdrz = vd->vdev_tsd;
-	if (faulted > vdrz->vd_nparity)
+	if (faulted > vdev_raidz_honored_parity(vd))
 		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
 		    VDEV_AUX_NO_REPLICAS);
 	else if (degraded + faulted != 0)
@@ -4258,6 +4418,14 @@ vdev_raidz_need_resilver(vdev_t *vd, const dva_t *dva, size_t psize,
 
 	uint64_t dcols = vd->vdev_children;
 	uint64_t nparity = vdrz->vd_nparity;
+	if (vdrz->vd_parity_epochs != NULL) {
+		const uint64_t *pe = vdrz->vd_parity_epochs;
+		for (uint64_t i = 0; i < vdrz->vd_parity_epoch_count; i++) {
+			if (pe[3 * i] > phys_birth)
+				break;
+			nparity = pe[3 * i + 2];
+		}
+	}
 	uint64_t ashift = vd->vdev_top->vdev_ashift;
 	/* The starting RAIDZ (parent) vdev sector of the block. */
 	uint64_t b = DVA_GET_OFFSET(dva) >> ashift;
@@ -4318,6 +4486,10 @@ vdev_raidz_xlate(vdev_t *cvd, const zfs_range_seg64_t *logical_rs,
 	}
 
 	uint64_t width = vdrz->vd_physical_width;
+	if (raidz_force_width != 0 &&
+	    (uint64_t)raidz_force_width >= vdrz->vd_nparity + 1 &&
+	    (uint64_t)raidz_force_width < width)
+		width = raidz_force_width;
 	uint64_t tgt_col = cvd->vdev_id;
 	uint64_t ashift = raidvd->vdev_top->vdev_ashift;
 
@@ -5681,6 +5853,56 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 	}
 
 	vdrz->vd_original_width = children;
+
+	uint64_t *pe_label;
+	unsigned int pe_label_size = 0;
+	boolean_t pe_ok = B_FALSE;
+	if (nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_RAIDZ_PARITY_EPOCHS,
+	    &pe_label, &pe_label_size) == 0 && pe_label_size > 0 &&
+	    (pe_label_size % 3) == 0) {
+		/*
+		 * F3: fail-closed structural validation BEFORE the table can
+		 * influence any read: append-only from txg 0, strictly
+		 * increasing starts, parity 1..3, width > parity. A
+		 * malformed/tampered label table is ignored (the authoritative
+		 * ZAP copy loads later).
+		 */
+		pe_ok = (pe_label[0] == 0);
+		for (unsigned int j = 0; pe_ok && j < pe_label_size / 3; j++) {
+			uint64_t st = pe_label[3 * j], wd = pe_label[3 * j + 1],
+			    pa = pe_label[3 * j + 2];
+			if (j > 0 && st <= pe_label[3 * (j - 1)])
+				pe_ok = B_FALSE;
+			if (pa < 1 || pa > VDEV_RAIDZ_MAXPARITY || wd <= pa)
+				pe_ok = B_FALSE;
+		}
+	}
+	if (pe_ok) {
+		uint64_t *table = kmem_alloc(
+		    pe_label_size * sizeof (uint64_t), KM_SLEEP);
+		for (unsigned int i = 0; i < pe_label_size; i++)
+			table[i] = pe_label[i];
+		if (vdrz->vd_parity_epochs != NULL)
+			kmem_free(vdrz->vd_parity_epochs,
+			    vdrz->vd_parity_epoch_count * 3 *
+			    sizeof (uint64_t));
+		vdrz->vd_parity_epochs = table;
+		vdrz->vd_parity_epoch_count = pe_label_size / 3;
+	}
+
+	{
+		uint64_t rp = 0, rc = 0, rd = 0;
+		(void) nvlist_lookup_uint64(nv,
+		    "com.rrmvp:raidz_reparity_parity", &rp);
+		(void) nvlist_lookup_uint64(nv,
+		    "com.rrmvp:raidz_reparity_completion_txg", &rc);
+		(void) nvlist_lookup_uint64(nv,
+		    "com.rrmvp:raidz_reparity_epoch_digest", &rd);
+		vdrz->vd_reparity_parity = rp;
+		vdrz->vd_reparity_completion_txg = rc;
+		vdrz->vd_reparity_epoch_digest = rd;
+	}
+
 	uint64_t *txgs;
 	unsigned int txgs_size = 0;
 	error = nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_TXGS,
@@ -5783,6 +6005,21 @@ vdev_raidz_config_generate(vdev_t *vd, nvlist_t *nv)
 		kmem_free(txgs, sizeof (uint64_t) * count);
 	}
 	mutex_exit(&vdrz->vd_expand_lock);
+
+	if (vdrz->vd_parity_epochs != NULL && vdrz->vd_parity_epoch_count > 0) {
+		fnvlist_add_uint64_array(nv, ZPOOL_CONFIG_RAIDZ_PARITY_EPOCHS,
+		    vdrz->vd_parity_epochs, vdrz->vd_parity_epoch_count * 3);
+	}
+	if (vdrz->vd_reparity_parity > 0) {
+		fnvlist_add_uint64(nv, "com.rrmvp:raidz_reparity_parity",
+		    vdrz->vd_reparity_parity);
+		fnvlist_add_uint64(nv,
+		    "com.rrmvp:raidz_reparity_completion_txg",
+		    vdrz->vd_reparity_completion_txg);
+		fnvlist_add_uint64(nv,
+		    "com.rrmvp:raidz_reparity_epoch_digest",
+		    vdrz->vd_reparity_epoch_digest);
+	}
 }
 
 static uint64_t
@@ -5806,6 +6043,18 @@ vdev_raidz_ndisks(vdev_t *vd)
 static uint64_t
 vdev_raidz_alloc_factor(vdev_t *vd)
 {
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+
+	/*
+	 * With a parity-epoch table active the vdev holds blocks of more
+	 * than one parity, whose allocation sizes are multiples of
+	 * DIFFERENT (parity + 1) factors. The only granule that divides
+	 * all of them is the sector itself, so fall back to it (the
+	 * pre-alloc-factor behavior) rather than tripping the allocator's
+	 * multiple-of-factor invariant on promoted blocks.
+	 */
+	if (vdrz != NULL && vdrz->vd_parity_epoch_count > 0)
+		return (1ULL << vd->vdev_ashift);
 	return ((vdev_raidz_nparity(vd) + 1) << vd->vdev_ashift);
 }
 
@@ -5838,6 +6087,13 @@ vdev_ops_t vdev_raidz_ops = {
 
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_reflow_bytes, ULONG, ZMOD_RW,
 	"For testing, pause RAIDZ expansion after reflowing this many bytes");
+ZFS_MODULE_PARAM(zfs_vdev, raidz_, force_width, INT, ZMOD_RW,
+	"P7: force per-block logical width (0=off) for uniform narrow layout");
+ZFS_MODULE_PARAM(zfs_vdev, raidz_, contracting, INT, ZMOD_RW,
+	"P7: in-place width-contraction sweep active (0=off): narrow epoch\n"
+	"blocks use the simple map + relax DEBUG io_verify");
+ZFS_MODULE_PARAM(zfs_vdev, raidz_, contract_guid, ULONG, ZMOD_RW,
+	"P7/R05: top-level GUID authorised for the raidz-shrink detach");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, ignore_parity_epochs, INT, ZMOD_RW,
 	"Rescue: skip loading the RAIDZ parity-epoch table (import readonly)");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_copy_bytes, ULONG, ZMOD_RW,

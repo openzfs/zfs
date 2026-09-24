@@ -159,6 +159,9 @@ typedef struct vdev_raidz {
 	 */
 	uint64_t *vd_parity_epochs;
 	uint64_t vd_parity_epoch_count;
+	uint64_t vd_reparity_parity;
+	uint64_t vd_reparity_completion_txg;
+	uint64_t vd_reparity_epoch_digest;
 } vdev_raidz_t;
 
 extern int vdev_raidz_attach_check(vdev_t *);

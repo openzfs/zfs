@@ -233,7 +233,7 @@ static uint_t zfs_import_defer_txgs = 5;
 /*
  * Enable/disable the processing of the free_bpobj object.
  */
-static int zfs_free_bpobj_enabled = 1;
+int zfs_free_bpobj_enabled = 1;
 
 /* Error blocks to be scrubbed in one txg. */
 static uint_t zfs_scrub_error_blocks_per_txg = 1 << 12;
