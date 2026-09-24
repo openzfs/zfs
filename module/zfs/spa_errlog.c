@@ -483,10 +483,13 @@ process_error_block(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 	 * If zb_birth == 0 or head_ds == 0 it means we failed to retrieve the
 	 * birth txg or the head filesystem of the block pointer. This may
 	 * happen e.g. when an encrypted filesystem is not mounted or when
-	 * the key is not loaded. In this case do not proceed to
-	 * check_filesystem(), instead do the accounting here.
+	 * the key is not loaded. An intent log block is not in the file's
+	 * tree, so failing to find it there does not mean it was freed. In
+	 * these cases do not proceed to check_filesystem(), instead do the
+	 * accounting here.
 	 */
-	if (zep->zb_birth == 0 || head_ds == 0)
+	if (zep->zb_birth == 0 || head_ds == 0 ||
+	    zep->zb_level == ZB_ZIL_LEVEL)
 		return (copyout_unresolved(head_ds, zep, uaddr, count));
 
 	uint64_t top_affected_fs;
@@ -890,19 +893,27 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 			continue;
 		}
 
+		/*
+		 * The birth of a block whose key is not loaded, or of an intent
+		 * log block, which is not in the file's tree, stays unknown.
+		 */
 		rw_enter(&dn->dn_struct_rwlock, RW_READER);
-		error = dbuf_dnode_findbp(dn, zep.zb_level, zep.zb_blkid, &bp,
-		    NULL, NULL);
-		if (error == EACCES)
-			error = 0;
-		else if (!error)
-			zep.zb_birth = BP_GET_PHYSICAL_BIRTH(&bp);
+		if (zep.zb_level != ZB_ZIL_LEVEL) {
+			error = dbuf_dnode_findbp(dn, zep.zb_level,
+			    zep.zb_blkid, &bp, NULL, NULL);
+			if (error == EACCES)
+				error = 0;
+			else if (error == 0 && BP_IS_HOLE(&bp))
+				error = SET_ERROR(ENOENT);
+			else if (error == 0)
+				zep.zb_birth = BP_GET_PHYSICAL_BIRTH(&bp);
+		}
 
 		rw_exit(&dn->dn_struct_rwlock);
 		dnode_rele(dn, FTAG);
 		dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 
-		if (error != 0 || BP_IS_HOLE(&bp))
+		if (error != 0)
 			continue;
 
 		uint64_t err_obj;

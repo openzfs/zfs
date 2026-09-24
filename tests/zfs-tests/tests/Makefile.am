@@ -1357,6 +1357,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_scrub/zpool_scrub_003_pos.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_004_pos.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_005_pos.ksh \
+	functional/cli_root/zpool_scrub/zpool_scrub_claimed_log.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_encrypted_unloaded.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_multiple_copies.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_multiple_pools.ksh \
@@ -1413,6 +1414,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_status/zpool_status_011_pos.ksh \
 	functional/cli_root/zpool_status/zpool_status_features_001_pos.ksh \
 	functional/cli_root/zpool_status/zpool_status_-v.ksh \
+	functional/cli_root/zpool_status/zpool_status_claimed_log_error.ksh \
 	functional/cli_root/zpool_sync/cleanup.ksh \
 	functional/cli_root/zpool_sync/setup.ksh \
 	functional/cli_root/zpool_sync/zpool_sync_001_pos.ksh \
