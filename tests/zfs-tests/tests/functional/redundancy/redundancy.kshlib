@@ -22,6 +22,8 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/redundancy/redundancy.cfg
 
+DEVSIZE=$((1024 * 1024 * 150))
+
 function cleanup
 {
 	if poolexists $TESTPOOL; then
@@ -106,7 +108,7 @@ function setup_test_env
 		destroy_pool $pool
 	fi
 
-	log_must truncate -s $MINVDEVSIZE $vdevs
+	log_must truncate -s $DEVSIZE $vdevs
 
 	log_must zpool create -O compression=off -f -m $TESTDIR $pool $keyword $vdevs
 
@@ -235,7 +237,7 @@ function replace_missing_devs
 	typeset vdev
 	for vdev in $@; do
 		log_must dd if=/dev/zero of=$vdev \
-		    bs=1024k count=$((MINVDEVSIZE / (1024 * 1024))) \
+		    bs=1024k count=$((DEVSIZE / (1024 * 1024))) \
 		    conv=fdatasync
 		log_must zpool replace -wf $pool $vdev $vdev
 	done
@@ -255,7 +257,7 @@ function damage_devs
 	typeset -i cnt=$2
 	typeset label="$3"
 	typeset vdevs
-	typeset -i bs_count=$(((MINVDEVSIZE / 1024) - 4096))
+	typeset -i bs_count=$(((DEVSIZE / 1024) - 4096))
 
 	vdevs=$(get_vdevs $pool $cnt)
 	typeset dev
@@ -290,7 +292,7 @@ function damage_devs_off
 	typeset -i off=$3
 	typeset label="$4"
 	typeset vdevs
-	typeset -i bs_count=$(((MINVDEVSIZE / 1024) - 4096))
+	typeset -i bs_count=$(((DEVSIZE / 1024) - 4096))
 
 	vdevs=$(get_vdevs $pool $cnt $off)
 	typeset dev
