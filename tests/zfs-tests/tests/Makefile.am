@@ -2049,6 +2049,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/redundancy/redundancy_raidz3.ksh \
 	functional/redundancy/redundancy_raidz.ksh \
 	functional/redundancy/redundancy_stripe.ksh \
+	functional/redundancy/redundancy_write_errors.ksh \
 	functional/redundancy/setup.ksh \
 	functional/refquota/cleanup.ksh \
 	functional/refquota/refquota_001_pos.ksh \
@@ -2119,6 +2120,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/replacement/attach_resilver_sit_out.ksh \
 	functional/replacement/cleanup.ksh \
 	functional/replacement/detach.ksh \
+	functional/replacement/rebuild_bounds.ksh \
 	functional/replacement/rebuild_disabled_feature.ksh \
 	functional/replacement/rebuild_multiple.ksh \
 	functional/replacement/rebuild_raidz.ksh \

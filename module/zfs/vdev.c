@@ -3291,7 +3291,12 @@ vdev_dtl_min(vdev_t *vd)
 	ASSERT3U(zfs_range_tree_space(vd->vdev_dtl[DTL_MISSING]), !=, 0);
 	ASSERT0(vd->vdev_children);
 
-	return (zfs_range_tree_min(vd->vdev_dtl[DTL_MISSING]) - 1);
+	/*
+	 * No block is born in txg 0, so a DTL which starts there, as older
+	 * rebuilds could leave it, needs no lower bound.
+	 */
+	uint64_t min = zfs_range_tree_min(vd->vdev_dtl[DTL_MISSING]);
+	return (min == 0 ? 0 : min - 1);
 }
 
 /*
@@ -5440,16 +5445,6 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 	}
 
 	if (flags & ZIO_FLAG_SPECULATIVE)
-		return;
-
-	/*
-	 * If this is an I/O error that is going to be retried, then ignore the
-	 * error.  Otherwise, the user may interpret B_FAILFAST I/O errors as
-	 * hard errors, when in reality they can happen for any number of
-	 * innocuous reasons (bus resets, MPxIO link failure, etc).
-	 */
-	if (zio->io_error == EIO &&
-	    !(zio->io_flags & ZIO_FLAG_IO_RETRY))
 		return;
 
 	/*
