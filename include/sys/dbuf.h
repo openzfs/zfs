@@ -68,7 +68,19 @@ typedef enum dbuf_states {
 
 typedef enum dbuf_cached_state {
 	DB_NO_CACHE = -1,
+	/*
+	 * LRU cache of level-0 dbufs, and LRU cache of indirect block dbufs
+	 * (level 1 and above).  They are kept separate so that indirect blocks
+	 * get a share of the dbuf cache of their own and cannot be pushed out
+	 * by a stream of level-0 blocks.  Each is bounded by its own fraction
+	 * of the ARC target.
+	 */
 	DB_DBUF_CACHE,
+	DB_DBUF_INDIRECT_CACHE,
+	/*
+	 * Cache of metadata dbufs.  It is not touched by the eviction thread;
+	 * it is drained when a pool is exported.
+	 */
 	DB_DBUF_METADATA_CACHE,
 	DB_CACHE_MAX
 } dbuf_cached_state_t;
@@ -309,6 +321,28 @@ typedef struct dmu_buf_impl {
 
 	/* List of dirty records for the buffer sorted newest to oldest. */
 	list_t db_dirty_records;
+
+	/*
+	 * Cached dbuf value hints, protected by db_mtx.
+	 *
+	 * db_cache_hits counts how many times this dbuf was found in a dbuf
+	 * cache and taken out of it again, i.e. how many times its residency
+	 * was useful.  The count is kept for the lifetime of the dbuf (a newly
+	 * created dbuf starts at zero, see dbuf_cons()), so it says that the
+	 * buffer has been worth caching rather than how it was used during its
+	 * current residency.
+	 *
+	 * db_cache_hot records that an access to this dbuf found the ARC
+	 * holding the block in its MFU state, i.e. that the ARC had decided to
+	 * keep the block.  It is only ever set, never cleared, so it means
+	 * "the ARC has valued this block", which is also evidence that the
+	 * block has been used more than once.
+	 *
+	 * The eviction code uses these to skip buffers that are being reused in
+	 * favour of colder victims.
+	 */
+	uint32_t db_cache_hits;
+	boolean_t db_cache_hot;
 
 	/* Link in dbuf_cache or dbuf_metadata_cache */
 	multilist_node_t db_cache_link;

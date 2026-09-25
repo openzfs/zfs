@@ -5528,8 +5528,15 @@ arc_access(arc_buf_hdr_t *hdr, arc_flags_t arc_flags, boolean_t hit)
 /*
  * This routine is called by dbuf_hold() to update the arc_access() state
  * which otherwise would be skipped for entries in the dbuf cache.
+ *
+ * Returns B_TRUE if the block ended up in the MFU state, i.e. if the ARC
+ * considers it frequently used.  The dbuf cache uses this to decide which
+ * of its buffers are worth keeping: a block that the ARC has promoted to MFU
+ * is one that is being reused, and the dbuf cache should hold on to it as
+ * well, while a block that the ARC has long since forgotten makes a much
+ * better eviction victim.
  */
-void
+boolean_t
 arc_buf_access(arc_buf_t *buf)
 {
 	arc_buf_hdr_t *hdr = buf->b_hdr;
@@ -5540,7 +5547,7 @@ arc_buf_access(arc_buf_t *buf)
 	 * to handle the case where it is concurrently being released.
 	 */
 	if (hdr->b_l1hdr.b_state == arc_anon || HDR_EMPTY(hdr))
-		return;
+		return (B_FALSE);
 
 	kmutex_t *hash_lock = HDR_LOCK(hdr);
 	mutex_enter(hash_lock);
@@ -5548,7 +5555,7 @@ arc_buf_access(arc_buf_t *buf)
 	if (hdr->b_l1hdr.b_state == arc_anon || HDR_EMPTY(hdr)) {
 		mutex_exit(hash_lock);
 		ARCSTAT_BUMP(arcstat_access_skip);
-		return;
+		return (B_FALSE);
 	}
 
 	ASSERT(hdr->b_l1hdr.b_state == arc_mru ||
@@ -5557,11 +5564,14 @@ arc_buf_access(arc_buf_t *buf)
 
 	DTRACE_PROBE1(arc__hit, arc_buf_hdr_t *, hdr);
 	arc_access(hdr, 0, B_TRUE);
+	boolean_t mfu = (hdr->b_l1hdr.b_state == arc_mfu);
 	mutex_exit(hash_lock);
 
 	ARCSTAT_BUMP(arcstat_hits);
 	ARCSTAT_CONDSTAT(B_TRUE /* demand */, demand, prefetch,
 	    !HDR_ISTYPE_METADATA(hdr), data, metadata, hits);
+
+	return (mfu);
 }
 
 /* a generic arc_read_done_func_t */

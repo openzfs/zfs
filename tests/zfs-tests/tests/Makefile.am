@@ -495,6 +495,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/arc/dbufstats_001_pos.ksh \
 	functional/arc/dbufstats_002_pos.ksh \
 	functional/arc/dbufstats_003_pos.ksh \
+	functional/arc/dbufstats_004_pos.ksh \
 	functional/arc/setup.ksh \
 	functional/atime/atime_001_pos.ksh \
 	functional/atime/atime_002_neg.ksh \
