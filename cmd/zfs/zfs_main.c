@@ -9427,9 +9427,26 @@ zfs_do_bucket(int argc, char **argv) {
 		usage(B_FALSE);
 	}
 
-	//libzfs_fini(g_zfs);
-
 	return (ret);
+}
+
+static int
+parse_pool_bucket_key(char *path, char **pool, char **bucket, char **key) {
+	char *slash1 = strchr(path, '/');
+	if (slash1 == NULL) {
+		return (-1);
+	}
+	*slash1 = '\0';
+	char *slash2 = strchr(slash1 + 1, '/');
+	if (slash2 == NULL) {
+		return (-1);
+	}
+
+	*slash2 = '\0';
+	*pool = path;
+	*bucket = slash1 + 1;
+	*key = slash2 + 1;
+	return (0);
 }
 
 static int
@@ -9452,25 +9469,15 @@ zfs_do_object(int argc, char **argv) {
 	libzfs_print_on_error(g_zfs, B_TRUE);
 
 	if (strcmp(op, "put") == 0) {
-		/* Parse pool/bucket/key from path */
-		char *slash1 = strchr(path, '/');
-		if (slash1 == NULL) {
-			(void) fprintf(stderr,
-					gettext("expected pool/bucket/key\n"));
-			usage(B_FALSE);
-		}
-		*slash1 = '\0';
-		char *pool = path;
+		char *pool;
+		char *bucket;
+		char *key;
 
-		char *slash2 = strchr(slash1 + 1, '/');
-		if (slash2 == NULL) {
-			(void) fprintf(stderr,
-					gettext("expected pool/bucket/key\n"));
+		int error = parse_pool_bucket_key(path, &pool, &bucket, &key);
+		if (error) {
+			(void) fprintf(stderr, gettext("expected pool/bucket/key\n"));
 			usage(B_FALSE);
 		}
-		*slash2 = '\0';
-		char *bucket = slash1 + 1;
-		char *key = slash2 + 1;
 
 		int fd;
 		uint64_t size;
@@ -9498,7 +9505,7 @@ zfs_do_object(int argc, char **argv) {
 			size = 0;
 		}
 
-		int error = lzc_object_put(pool, bucket, key, fd, size);
+		error = lzc_object_put(pool, bucket, key, fd, size);
 
 		if (fd != STDIN_FILENO)
 			(void) close(fd);
@@ -9509,24 +9516,17 @@ zfs_do_object(int argc, char **argv) {
 
 		ret = error;
 	} else if (strcmp(op, "delete") == 0) {
-		char *slash1 = strchr(path, '/');
-		if (slash1 == NULL) {
+		char *pool;
+		char *bucket;
+		char *key;
+
+		int error = parse_pool_bucket_key(path, &pool, &bucket, &key);
+		if (error) {
 			(void) fprintf(stderr, gettext("expected pool/bucket/key\n"));
 			usage(B_FALSE);
 		}
-		*slash1 = '\0';
-		char *pool = path;
 
-		char *slash2 = strchr(slash1 +1, '/');
-		if (slash2 == NULL) {
-			(void) fprintf(stderr, gettext("expected pool/bucket/key\n"));
-			usage(B_FALSE);
-		}
-		*slash2 = '\0';
-		char *bucket = slash1 + 1;
-		char *key = slash2 + 1;
-
-		int error = lzc_object_delete(pool, bucket, key);
+		error = lzc_object_delete(pool, bucket, key);
 
 		ret = error;
 	} else {
