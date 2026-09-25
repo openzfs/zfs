@@ -1238,6 +1238,7 @@ dmu_tx_unassign(dmu_tx_t *tx)
 int
 dmu_tx_assign(dmu_tx_t *tx, dmu_tx_flag_t flags)
 {
+	spa_t *spa = tx->tx_pool->dp_spa;
 	int err;
 
 	ASSERT0(tx->tx_txg);
@@ -1270,13 +1271,13 @@ dmu_tx_assign(dmu_tx_t *tx, dmu_tx_flag_t flags)
 				 * suspend, so treat it as a normal retry.
 				 */
 				err = SET_ERROR(ERESTART);
-			else if ((flags & DMU_TX_WAIT) &&
-			    spa_get_failmode(tx->tx_pool->dp_spa) ==
+			else if (spa_get_failmode(spa) ==
 			    ZIO_FAILURE_MODE_CONTINUE)
 				/*
-				 * Caller wants to wait, but pool config is
-				 * overriding that, so return EIO to be
-				 * propagated back to userspace.
+				 * Pool config says not to block,
+				 * so return EIO to be propagated
+				 * back to userspace, whatever the
+				 * caller's flags.
 				 */
 				err = SET_ERROR(EIO);
 			else
@@ -1289,6 +1290,14 @@ dmu_tx_assign(dmu_tx_t *tx, dmu_tx_flag_t flags)
 		 * want to block.
 		 */
 		if (err != ERESTART || !(flags & DMU_TX_WAIT)) {
+			/*
+			 * A NOWAIT caller answers ERESTART with
+			 * dmu_tx_wait(). On a suspended pool, that
+			 * must block until resume, or the caller
+			 * spins.
+			 */
+			if (suspended && err == ERESTART)
+				tx->tx_break_on_suspend = B_FALSE;
 			ASSERT(err == EDQUOT || err == ENOSPC ||
 			    err == ERESTART || err == EIO);
 			return (err);
