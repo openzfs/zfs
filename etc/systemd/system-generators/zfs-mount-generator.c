@@ -240,7 +240,7 @@ line_worker(char *line, const char *cachefile)
 	/* Minimal pre-requisites to mount a ZFS dataset */
 	const char *after = "zfs-import.target";
 	const char *wants = "zfs-import.target";
-	const char *bindsto = NULL;
+	const char *keyloadrequires = NULL;
 	char *wantedby = NULL;
 	char *requiredby = NULL;
 	bool noauto = false;
@@ -385,8 +385,18 @@ line_worker(char *line, const char *cachefile)
 			(void) fclose(keyloadunit_f);
 		}
 
-		/* Update dependencies for the mount file to want this */
-		bindsto = keyloadunit;
+		/*
+		 * Update dependencies for the mount file to require this.
+		 *
+		 * Requires=, not BindsTo=: with After= on the same unit,
+		 * BindsTo= only lets the mount stay active while the key-load
+		 * service is active, so a mount created by a manual
+		 * `zfs mount` after a manual `zfs load-key` (service never
+		 * started) is unmounted again right away.  Requires= still
+		 * fails the mount when the key-load service fails at boot,
+		 * and still unmounts when it is explicitly stopped.
+		 */
+		keyloadrequires = keyloadunit;
 		if (after[0] == '\0')
 			after = keyloadunit;
 		else if (asprintf(&toktmp, "%s %s", after, keyloadunit) != -1)
@@ -652,8 +662,8 @@ line_worker(char *line, const char *cachefile)
 
 	fprintf(mountfile_f, "Wants=%s\n", wants);
 
-	if (bindsto)
-		fprintf(mountfile_f, "BindsTo=%s\n", bindsto);
+	if (keyloadrequires)
+		fprintf(mountfile_f, "Requires=%s\n", keyloadrequires);
 	if (p_systemd_requires)
 		fprintf(mountfile_f, "Requires=%s\n", p_systemd_requires);
 	if (p_systemd_requiresmountsfor)
