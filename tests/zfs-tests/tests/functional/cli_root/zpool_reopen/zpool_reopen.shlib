@@ -112,7 +112,15 @@ function is_scan_restarted #pool
 	zpool history -i $1 | grep -q "scan aborted, restarting"
 }
 
-function is_deferred_scan_started #pool
+#
+# Check if the last scrub completed and a healing resilver was set up after it
+#
+
+function is_resilver_after_scrub #pool
 {
-	zpool history -i $1 | grep -q "starting deferred resilver"
+	zpool history -i $1 | awk '
+	    /scan setup func=1/ { done = 0; resilver = 0 }
+	    /scan done/ { done = 1 }
+	    done && /scan setup func=2/ { resilver = 1 }
+	    END { exit !resilver }'
 }

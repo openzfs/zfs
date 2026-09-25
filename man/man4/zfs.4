@@ -16,7 +16,7 @@
 .\" Copyright (c) 2026, Mateusz Piotrowski <0mp@FreeBSD.org>
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd September 9, 2026
+.Dd September 16, 2026
 .Dt ZFS 4
 .Os
 .
@@ -2309,10 +2309,13 @@ While resilvering, it will spend at least this much time
 working on a resilver between TXG flushes.
 .
 .It Sy zfs_scan_ignore_errors Ns = Ns Sy 0 Ns | Ns 1 Pq int
-If set, remove the DTL (dirty time list) upon completion of a pool scan (scrub),
-even if there were unrepairable errors.
-Intended to be used during pool repair or recovery to
-stop resilvering when the pool is next imported.
+Allow a healing resilver to clear missing DTL (dirty time log) ranges despite
+scan errors or incomplete coverage, and allow sequential reconstruction to do
+so despite rebuild errors.
+This recovery override can mark unrepaired data as current and permit an
+incomplete replacement to detach its original device.
+It does not give a scrub authority to clear missing data, and healing error
+counts remain available for diagnosis.
 .
 .It Sy zfs_scrub_after_expand Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Automatically start a pool scrub after a RAIDZ expansion completes

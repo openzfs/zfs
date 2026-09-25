@@ -4280,6 +4280,7 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	    dsl_scan_setup_check(&setup_sync_arg.func, tx) == 0) {
 		dsl_scan_setup_sync(&setup_sync_arg, tx);
 	}
+	dsl_scan_assess_vdev(spa_get_dsl(spa), spa->spa_root_vdev, B_FALSE);
 }
 
 /*

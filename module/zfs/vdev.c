@@ -121,8 +121,8 @@ static unsigned int zfs_dio_write_verify_events_per_second = 20;
 static unsigned int zfs_checksum_events_per_second = 20;
 
 /*
- * Ignore errors during scrub/resilver.  Allows to work around resilver
- * upon import when there are pool errors.
+ * Recovery override: allow healing or rebuild completion to retire missing
+ * writes despite errors or incomplete coverage. Preserve healing diagnostics.
  */
 static int zfs_scan_ignore_errors = 0;
 
@@ -2190,6 +2190,8 @@ vdev_open(vdev_t *vd, cred_t *cred)
 	uint64_t asize, max_asize, psize;
 	uint64_t logical_ashift = 0;
 	uint64_t physical_ashift = 0;
+	boolean_t newly_available =
+	    vd->vdev_prevstate < VDEV_STATE_DEGRADED || vd->vdev_cant_write;
 
 	ASSERT(vd->vdev_open_thread == curthread ||
 	    spa_config_held(spa, SCL_STATE_ALL, RW_WRITER) == SCL_STATE_ALL);
@@ -2445,13 +2447,8 @@ vdev_open(vdev_t *vd, cred_t *cred)
 		vdev_spa_set_alloc(spa, min_alloc);
 	}
 
-	/*
-	 * If this is a leaf vdev, assess whether a resilver is needed.
-	 * But don't do this if we are doing a reopen for a scrub, since
-	 * this would just restart the scrub we are already doing.
-	 */
-	if (vd->vdev_ops->vdev_op_leaf && !spa->spa_scrub_reopen)
-		dsl_scan_assess_vdev(spa->spa_dsl_pool, vd);
+	if (vd->vdev_ops->vdev_op_leaf)
+		dsl_scan_assess_vdev(spa->spa_dsl_pool, vd, newly_available);
 
 	return (0);
 }
@@ -3163,9 +3160,9 @@ vdev_dirty_leaves(vdev_t *vd, int flags, uint64_t txg)
  *
  * DTL_PARTIAL: txgs for which data is available, but not fully replicated
  *
- * DTL_SCRUB: the txgs that could not be repaired by the last scrub; upon
- *	scrub completion, DTL_SCRUB replaces DTL_MISSING in the range of
- *	txgs that was scrubbed.
+ * DTL_SCRUB: txgs with failed repair writes during a scan. A healing resilver
+ *	with valid coverage replaces DTL_MISSING with these failures in the
+ *	range it visited. A scrub cannot retire DTL_MISSING.
  *
  * DTL_OUTAGE: txgs which cannot currently be read, whether due to
  *	persistent errors or just some device being offline.
@@ -3323,6 +3320,10 @@ vdev_dtl_should_excise(vdev_t *vd, boolean_t rebuild_done)
 	if (vd->vdev_state < VDEV_STATE_DEGRADED)
 		return (B_FALSE);
 
+	/* A failed probe can set cant_write before the vdev state changes. */
+	if (!rebuild_done && !vdev_writeable(vd))
+		return (B_FALSE);
+
 	if (vd->vdev_resilver_deferred)
 		return (B_FALSE);
 
@@ -3405,29 +3406,25 @@ vdev_dtl_reassess_impl(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 		mutex_enter(&vd->vdev_dtl_lock);
 
 		/*
-		 * If requested, pretend the scan or rebuild completed cleanly.
+		 * If requested, pretend the rebuild completed cleanly.
 		 */
-		if (zfs_scan_ignore_errors) {
-			if (scn != NULL)
-				scn->scn_phys.scn_errors = 0;
-			if (vr != NULL)
-				vr->vr_rebuild_phys.vrp_errors = 0;
-		}
+		if (zfs_scan_ignore_errors && vr != NULL)
+			vr->vr_rebuild_phys.vrp_errors = 0;
 
 		if (scrub_txg != 0 &&
 		    !zfs_range_tree_is_empty(vd->vdev_dtl[DTL_MISSING])) {
 			wasempty = B_FALSE;
-			zfs_dbgmsg("guid:%llu txg:%llu scrub:%llu started:%d "
+			zfs_dbgmsg("guid:%llu txg:%llu scrub:%llu "
 			    "dtl:%llu/%llu errors:%llu",
 			    (u_longlong_t)vd->vdev_guid, (u_longlong_t)txg,
-			    (u_longlong_t)scrub_txg, spa->spa_scrub_started,
+			    (u_longlong_t)scrub_txg,
 			    (u_longlong_t)vdev_dtl_min(vd),
 			    (u_longlong_t)vdev_dtl_max(vd),
 			    (u_longlong_t)(scn ? scn->scn_phys.scn_errors : 0));
 		}
 
 		/*
-		 * If we've completed a scrub/resilver or a rebuild cleanly
+		 * If we've completed a healing resilver or a rebuild cleanly
 		 * then determine if this vdev should remove any DTLs. We
 		 * only want to excise regions on vdevs that were available
 		 * during the entire duration of this scan.
@@ -3436,20 +3433,18 @@ vdev_dtl_reassess_impl(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 		    vr != NULL && vr->vr_rebuild_phys.vrp_errors == 0) {
 			check_excise = B_TRUE;
 		} else {
-			if (spa->spa_scrub_started ||
-			    (scn != NULL && scn->scn_phys.scn_errors == 0)) {
-				check_excise = B_TRUE;
-			}
+			check_excise = (scn != NULL &&
+			    scn->scn_phys.scn_func == POOL_SCAN_RESILVER &&
+			    (scn->scn_coverage_valid ||
+			    zfs_scan_ignore_errors));
 		}
 
 		if (scrub_txg && check_excise &&
 		    vdev_dtl_should_excise(vd, rebuild_done)) {
 			/*
-			 * We completed a scrub, resilver or rebuild up to
-			 * scrub_txg.  If we did it without rebooting, then
-			 * the scrub dtl will be valid, so excise the old
-			 * region and fold in the scrub dtl.  Otherwise,
-			 * leave the dtl as-is if there was an error.
+			 * We completed a healing resilver or rebuild up to
+			 * scrub_txg, so excise the old region and fold in the
+			 * scrub dtl, which holds the repairs that failed.
 			 *
 			 * There's little trick here: to excise the beginning
 			 * of the DTL_MISSING map, we put it into a reference
@@ -4659,10 +4654,18 @@ vdev_remove_wanted(spa_t *spa, uint64_t guid)
 		return (spa_vdev_state_exit(spa, NULL, 0));
 
 	/*
-	 * Confirm the vdev has been removed, otherwise don't do anything.
+	 * Confirm removal. A successful probe can restore writeability
+	 * without reopening the vdev.
 	 */
-	if (vd->vdev_ops->vdev_op_leaf && !zio_wait(vdev_probe(vd, NULL)))
+	boolean_t was_writeable = vdev_writeable(vd);
+	if (vd->vdev_ops->vdev_op_leaf && !zio_wait(vdev_probe(vd, NULL))) {
+		if (!was_writeable) {
+			dsl_scan_assess_vdev(spa->spa_dsl_pool, vd, B_TRUE);
+			return (spa_vdev_state_exit(spa, vd,
+			    SET_ERROR(EEXIST)));
+		}
 		return (spa_vdev_state_exit(spa, NULL, SET_ERROR(EEXIST)));
+	}
 
 	vd->vdev_remove_wanted = B_TRUE;
 	spa_async_request(spa, SPA_ASYNC_REMOVE_BY_USER);
@@ -4953,8 +4956,6 @@ vdev_clear(spa_t *spa, vdev_t *vd)
 		vd->vdev_forcefault = B_TRUE;
 
 		vd->vdev_faulted = vd->vdev_degraded = 0ULL;
-		vd->vdev_cant_read = B_FALSE;
-		vd->vdev_cant_write = B_FALSE;
 		vd->vdev_stat.vs_aux = 0;
 
 		vdev_reopen(vd == rvd ? rvd : vd->vdev_top);
@@ -5495,6 +5496,8 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 				ASSERT(spa_sync_pass(spa) == 1);
 				vdev_dtl_dirty(vd, DTL_SCRUB, txg, size);
 				commit_txg = spa_syncing_txg(spa);
+				dsl_scan_repair_failed(
+				    spa->spa_dsl_pool->dp_scan);
 			} else if (spa->spa_claiming) {
 				ASSERT(flags & ZIO_FLAG_IO_REPAIR);
 				commit_txg = spa_first_txg(spa);
@@ -6073,7 +6076,7 @@ vdev_defer_resilver(vdev_t *vd)
 
 /*
  * Clears the resilver deferred flag on all leaf devs under vd. Returns
- * B_TRUE if we have devices that need to be resilvered and are available to
+ * B_TRUE if deferred devices still need resilvering and are available to
  * accept resilver I/Os.
  */
 boolean_t
@@ -6099,10 +6102,11 @@ vdev_clear_resilver_deferred(vdev_t *vd, dmu_tx_t *tx)
 	    !vd->vdev_ops->vdev_op_leaf)
 		return (resilver_needed);
 
+	resilver_needed = vd->vdev_resilver_deferred &&
+	    vdev_resilver_needed(vd, NULL, NULL);
 	vd->vdev_resilver_deferred = B_FALSE;
 
-	return (!vdev_is_dead(vd) && !vd->vdev_offline &&
-	    vdev_resilver_needed(vd, NULL, NULL));
+	return (resilver_needed);
 }
 
 boolean_t
@@ -7268,7 +7272,7 @@ ZFS_MODULE_PARAM(zfs, zfs_, checksum_events_per_second, UINT, ZMOD_RW,
 	"(do not set below ZED threshold).");
 
 ZFS_MODULE_PARAM(zfs, zfs_, scan_ignore_errors, INT, ZMOD_RW,
-	"Ignore errors during resilver/scrub");
+	"Allow healing or rebuild DTL retirement despite errors");
 
 ZFS_MODULE_PARAM(zfs_vdev, vdev_, validate_skip, INT, ZMOD_RW,
 	"Bypass vdev_validate()");

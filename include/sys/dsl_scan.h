@@ -99,8 +99,10 @@ typedef struct dsl_errorscrub_phys {
  *			When this flag is set the scanner will stop traversing
  *			the pool and write out the current state to disk.
  *
- * scn_restart_txg -	directs the scanner to either restart or start a
- *			a scan at the specified txg value.
+ * scn_restart_txg -	restart an imported scan at the specified txg.
+ *
+ * scn_resilver_txg -	reassess healing work at the specified txg. Unlike a
+ *			scan restart, this does nothing if no DTL work remains.
  *
  * scn_done_txg -	when a scan completes its traversal it will set
  *			the completion txg to the next txg. This is necessary
@@ -122,6 +124,7 @@ typedef struct dsl_errorscrub_phys {
 typedef struct dsl_scan {
 	struct dsl_pool *scn_dp;
 	uint64_t scn_restart_txg;
+	uint64_t scn_resilver_txg;
 	uint64_t scn_done_txg;
 	uint64_t scn_finished_txg;
 	uint64_t scn_sync_start_time;
@@ -138,6 +141,8 @@ typedef struct dsl_scan {
 	boolean_t scn_clearing;		/* scan is issuing sequential extents */
 	boolean_t scn_checkpointing;	/* scan is issuing all queued extents */
 	boolean_t scn_suspending;	/* scan is suspending until next txg */
+	boolean_t scn_coverage_valid;	/* complete healing coverage */
+	boolean_t scn_repair_failed;	/* failed repair since setup */
 	uint64_t scn_last_checkpoint;	/* time of last checkpoint */
 
 	/* members for thread synchronization */
@@ -191,14 +196,18 @@ int dsl_scan_setup_check(void *, dmu_tx_t *);
 void dsl_scan_setup_sync(void *, dmu_tx_t *);
 void dsl_scan_fini(struct dsl_pool *dp);
 void dsl_scan_sync(struct dsl_pool *, dmu_tx_t *);
+void dsl_scan_sync_config(struct dsl_pool *, dmu_tx_t *);
 int dsl_scan_cancel(struct dsl_pool *);
 int dsl_scan(struct dsl_pool *, pool_scan_func_t, uint64_t starttxg,
     uint64_t txgend, dsl_scan_flags_t flags);
-void dsl_scan_assess_vdev(struct dsl_pool *dp, vdev_t *vd);
+void dsl_scan_assess_vdev(struct dsl_pool *dp, vdev_t *vd,
+    boolean_t newly_available);
+void dsl_scan_count_error(dsl_scan_t *scn);
+void dsl_scan_repair_failed(dsl_scan_t *scn);
 boolean_t dsl_scan_scrubbing(const struct dsl_pool *dp);
 boolean_t dsl_errorscrubbing(const struct dsl_pool *dp);
 boolean_t dsl_errorscrub_active(dsl_scan_t *scn);
-void dsl_scan_restart_resilver(struct dsl_pool *, uint64_t txg);
+void dsl_scan_schedule_resilver(struct dsl_pool *, uint64_t txg);
 int dsl_scrub_set_pause_resume(const struct dsl_pool *dp,
     pool_scrub_cmd_t cmd);
 void dsl_errorscrub_sync(struct dsl_pool *, dmu_tx_t *);

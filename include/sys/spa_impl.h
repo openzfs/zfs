@@ -322,7 +322,6 @@ struct spa {
 	uint8_t		spa_scrub_active;	/* active or suspended? */
 	uint8_t		spa_scrub_type;		/* type of scrub we're doing */
 	uint8_t		spa_scrub_finished;	/* indicator to rotate logs */
-	uint8_t		spa_scrub_started;	/* started since last boot */
 	uint8_t		spa_scrub_reopen;	/* scrub doing vdev_reopen */
 	uint64_t	spa_scan_pass_start;	/* start time per pass/reboot */
 	uint64_t	spa_scan_pass_scrub_pause; /* scrub pause time */
@@ -345,7 +344,8 @@ struct spa {
 	kthread_t	*spa_async_thread;	/* thread doing async task */
 	int		spa_async_suspended;	/* async tasks suspended */
 	kcondvar_t	spa_async_cv;		/* wait for thread_exit() */
-	uint32_t	spa_async_tasks;	/* async task mask */
+	uint32_t	spa_async_tasks;	/* queued async tasks */
+	uint32_t	spa_async_tasks_running; /* worker task mask */
 	uint64_t	spa_missing_tvds;	/* unopenable tvds on load */
 	uint64_t	spa_missing_tvds_allowed; /* allow loading spa? */
 
