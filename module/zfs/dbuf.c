@@ -1128,6 +1128,7 @@ dbuf_verify(dmu_buf_impl_t *db)
 		ASSERT3U(db->db_level, <, dn->dn_nlevels);
 		ASSERT(db->db_blkid == DMU_BONUS_BLKID ||
 		    db->db_blkid == DMU_SPILL_BLKID ||
+		    db->db_ephemeral ||
 		    !avl_is_empty(&dn->dn_dbufs));
 	}
 	if (db->db_blkid == DMU_BONUS_BLKID) {
@@ -2327,6 +2328,11 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 
 	ASSERT(tx->tx_txg != 0);
 	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
+	/*
+	 * A private dbuf is never published, so it could never be found again
+	 * by sync or eviction.  The private-hold contract forbids dirtying it.
+	 */
+	ASSERT0(db->db_ephemeral);
 	DMU_TX_DIRTY_BUF(tx, db);
 
 	DB_DNODE_ENTER(db);
@@ -3355,7 +3361,22 @@ dbuf_destroy(dmu_buf_impl_t *db)
 	DB_DNODE_ENTER(db);
 	dn = DB_DNODE(db);
 	dndb = dn->dn_dbuf;
-	if (db->db_blkid != DMU_BONUS_BLKID) {
+	if (db->db_ephemeral) {
+		/*
+		 * Ephemeral dbuf: never published, so nothing to remove from
+		 * the hash table or dn_dbufs.  Still drop the dnode hold
+		 * taken by dbuf_create(), which also stops the dnode being
+		 * moved or freed while the dbuf is alive.
+		 */
+		DB_DNODE_EXIT(db);
+		mutex_enter(&dn->dn_mtx);
+		dnode_rele_and_unlock(dn, db, B_TRUE);
+#ifdef USE_DNODE_HANDLE
+		db->db_dnode_handle = NULL;
+#else
+		db->db_dnode = NULL;
+#endif
+	} else if (db->db_blkid != DMU_BONUS_BLKID) {
 		boolean_t needlock = !MUTEX_HELD(&dn->dn_dbufs_mtx);
 		if (needlock)
 			mutex_enter_nested(&dn->dn_dbufs_mtx,
@@ -3506,13 +3527,15 @@ dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
 
 static dmu_buf_impl_t *
 dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
-    dmu_buf_impl_t *parent, blkptr_t *blkptr, uint64_t hash)
+    dmu_buf_impl_t *parent, blkptr_t *blkptr, uint64_t hash,
+    boolean_t ephemeral)
 {
 	objset_t *os = dn->dn_objset;
 	dmu_buf_impl_t *db, *odb;
 
 	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
 	ASSERT(dn->dn_type != DMU_OT_NONE);
+	ASSERT(ephemeral == B_FALSE || level == 0);
 
 	db = kmem_cache_alloc(dbuf_kmem_cache, KM_SLEEP);
 
@@ -3538,6 +3561,7 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 	db->db_freed_in_flight = FALSE;
 	db->db_pending_evict = TRUE;
 	db->db_partial_read = FALSE;
+	db->db_ephemeral = ephemeral;
 
 	if (blkid == DMU_BONUS_BLKID) {
 		ASSERT3P(parent, ==, dn->dn_dbuf);
@@ -3562,28 +3586,44 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 		db->db.db_offset = db->db_blkid * blocksize;
 	}
 
-	/*
-	 * Hold the dn_dbufs_mtx while we get the new dbuf
-	 * in the hash table *and* added to the dbufs list.
-	 * This prevents a possible deadlock with someone
-	 * trying to look up this dbuf before it's added to the
-	 * dn_dbufs list.
-	 */
-	mutex_enter(&dn->dn_dbufs_mtx);
-	db->db_state = DB_EVICTING; /* not worth logging this state change */
-	if ((odb = dbuf_hash_insert(db)) != NULL) {
-		/* someone else inserted it first */
-		mutex_exit(&dn->dn_dbufs_mtx);
-		kmem_cache_free(dbuf_kmem_cache, db);
-		DBUF_STAT_BUMP(hash_insert_race);
-		return (odb);
-	}
-	avl_add(&dn->dn_dbufs, db);
+	if (ephemeral) {
+		/*
+		 * Ephemeral dbuf: do not publish it to the dbuf hash table or
+		 * the dnode's dbuf list, so dn_dbufs_mtx is not needed.  Only
+		 * the holder that creates it can reference it, and it is
+		 * destroyed on release.  As with the regular path below, we
+		 * return with db_mtx held.
+		 */
+		mutex_enter(&db->db_mtx);
+		db->db_state = DB_UNCACHED;
+		DTRACE_SET_STATE(db, "regular buffer created (ephemeral)");
+		db->db_caching_status = DB_NO_CACHE;
+	} else {
+		/*
+		 * Hold the dn_dbufs_mtx while we get the new dbuf
+		 * in the hash table *and* added to the dbufs list.
+		 * This prevents a possible deadlock with someone
+		 * trying to look up this dbuf before it's added to the
+		 * dn_dbufs list.
+		 */
+		mutex_enter(&dn->dn_dbufs_mtx);
+		/* not worth logging this state change */
+		db->db_state = DB_EVICTING;
+		if ((odb = dbuf_hash_insert(db)) != NULL) {
+			/* someone else inserted it first */
+			mutex_exit(&dn->dn_dbufs_mtx);
+			kmem_cache_free(dbuf_kmem_cache, db);
+			DBUF_STAT_BUMP(hash_insert_race);
+			return (odb);
+		}
+		avl_add(&dn->dn_dbufs, db);
 
-	db->db_state = DB_UNCACHED;
-	DTRACE_SET_STATE(db, "regular buffer created");
-	db->db_caching_status = DB_NO_CACHE;
-	mutex_exit(&dn->dn_dbufs_mtx);
+		db->db_state = DB_UNCACHED;
+		DTRACE_SET_STATE(db, "regular buffer created");
+		db->db_caching_status = DB_NO_CACHE;
+		mutex_exit(&dn->dn_dbufs_mtx);
+	}
+
 	arc_space_consume(sizeof (dmu_buf_impl_t), ARC_SPACE_DBUF);
 
 	if (parent && parent != dn->dn_dbuf)
@@ -3985,10 +4025,13 @@ dbuf_hold_copy(dnode_t *dn, dmu_buf_impl_t *db)
 /*
  * Returns with db_holds incremented, and db_mtx not held.
  * Note: dn_struct_rwlock must be held.
+ *
+ * When ephemeral is set, a dbuf created on a cache miss is ephemeral
+ * (never published); see dbuf_hold_ephemeral().
  */
-int
-dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
-    boolean_t fail_sparse, boolean_t fail_uncached,
+static int
+dbuf_hold_impl_flags(dnode_t *dn, uint8_t level, uint64_t blkid,
+    boolean_t fail_sparse, boolean_t fail_uncached, boolean_t ephemeral,
     const void *tag, dmu_buf_impl_t **dbp)
 {
 	dmu_buf_impl_t *db, *parent = NULL;
@@ -4031,7 +4074,7 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 		}
 		if (err && err != ENOENT)
 			return (err);
-		db = dbuf_create(dn, level, blkid, parent, bp, hv);
+		db = dbuf_create(dn, level, blkid, parent, bp, hv, ephemeral);
 	}
 
 	if (fail_uncached && db->db_state != DB_CACHED) {
@@ -4103,6 +4146,57 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 	return (0);
 }
 
+int
+dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
+    boolean_t fail_sparse, boolean_t fail_uncached,
+    const void *tag, dmu_buf_impl_t **dbp)
+{
+	return (dbuf_hold_impl_flags(dn, level, blkid, fail_sparse,
+	    fail_uncached, B_FALSE, tag, dbp));
+}
+
+/*
+ * An ephemeral dbuf is only safe where dnode_move() is not used, i.e. when
+ * USE_DNODE_HANDLE is not defined.  dnode_move() relies on dn_dbufs holding
+ * every dbuf that references the dnode, so it can relocate them all; an
+ * unpublished dbuf would be invisible to it.  Where dnode handles are used
+ * the behavior is compiled out and dbuf_hold_ephemeral() always publishes.
+ */
+#ifndef USE_DNODE_HANDLE
+/*
+ * When set, the DMU_EPHEMERAL flag is honored by dbuf_hold_ephemeral(): a
+ * dbuf created on a cache miss is ephemeral (never published to the dbuf
+ * hash table or the dnode's dbuf list) and is destroyed on release without
+ * dn_dbufs_mtx.  When cleared, cache-miss dbufs are published normally, as
+ * if dbuf_hold() had been used.
+ */
+static int zfs_dbuf_ephemeral = 1;
+#endif
+
+/*
+ * Like dbuf_hold(), but a dbuf created on a cache miss may be ephemeral
+ * (never published) and destroyed on release without dn_dbufs_mtx.  A cache
+ * hit behaves as dbuf_hold().  dn_struct_rwlock must be held.
+ *
+ * The ephemeral behavior only applies when zfs_dbuf_ephemeral is set and
+ * dnode_move() is not used; otherwise this falls back to dbuf_hold().
+ */
+dmu_buf_impl_t *
+dbuf_hold_ephemeral(dnode_t *dn, uint64_t blkid, const void *tag)
+{
+#ifdef USE_DNODE_HANDLE
+	return (dbuf_hold(dn, blkid, tag));
+#else
+	if (!zfs_dbuf_ephemeral)
+		return (dbuf_hold(dn, blkid, tag));
+
+	dmu_buf_impl_t *db;
+	int err = dbuf_hold_impl_flags(dn, 0, blkid, FALSE, FALSE, B_TRUE,
+	    tag, &db);
+	return (err ? NULL : db);
+#endif
+}
+
 dmu_buf_impl_t *
 dbuf_hold(dnode_t *dn, uint64_t blkid, const void *tag)
 {
@@ -4124,7 +4218,8 @@ dbuf_create_bonus(dnode_t *dn)
 
 	ASSERT0P(dn->dn_bonus);
 	dn->dn_bonus = dbuf_create(dn, 0, DMU_BONUS_BLKID, dn->dn_dbuf, NULL,
-	    dbuf_hash(dn->dn_objset, dn->dn_object, 0, DMU_BONUS_BLKID));
+	    dbuf_hash(dn->dn_objset, dn->dn_object, 0, DMU_BONUS_BLKID),
+	    B_FALSE);
 	dn->dn_bonus->db_pending_evict = FALSE;
 }
 
@@ -4289,6 +4384,17 @@ dbuf_rele_and_unlock(dmu_buf_impl_t *db, const void *tag, boolean_t evicting)
 		} else if (arc_released(db->db_buf)) {
 			/*
 			 * This dbuf has anonymous data associated with it.
+			 */
+			dbuf_destroy(db);
+		} else if (db->db_ephemeral) {
+			/*
+			 * A private dbuf is not in the hash table or dnode's
+			 * dbuf list, so it could never be found, nor could
+			 * eviction reach it once cached.  Never cache, even if
+			 * db_partial_read was set: the reads that flag expects
+			 * could not find a private dbuf either.  (The hold path
+			 * avoids creating private dbufs for such reads; see
+			 * dmu_buf_hold_array_by_dnode().)
 			 */
 			dbuf_destroy(db);
 		} else if (!db->db_partial_read && !DBUF_IS_CACHEABLE(db)) {
@@ -5583,3 +5689,9 @@ ZFS_MODULE_PARAM(zfs_dbuf, dbuf_, metadata_cache_shift, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_dbuf, dbuf_, mutex_cache_shift, UINT, ZMOD_RD,
 	"Set size of dbuf cache mutex array as log2 shift.");
+
+#ifndef USE_DNODE_HANDLE
+ZFS_MODULE_PARAM(zfs_dbuf, zfs_dbuf_, ephemeral, INT, ZMOD_RW,
+	"Honor the DMU_EPHEMERAL flag so read cache-miss dbufs are created "
+	"unpublished, not added to the hash table or the dnode's dbuf list.");
+#endif

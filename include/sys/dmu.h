@@ -564,6 +564,14 @@ typedef enum dmu_flags {
 	DMU_PARTIAL_MORE	= 1 << 8, /* Following partial access. */
 	DMU_KEEP_CACHING	= 1 << 9, /* Don't affect caching. */
 	DMU_IS_PREFETCH		= 1 << 10, /* This read is a prefetch. */
+	/*
+	 * Internal: allow cache-miss dbufs to be created "ephemeral" (never
+	 * published to the dbuf hash table or dn_dbufs).  Set by read paths
+	 * that will not populate the dbuf cache, so that they skip
+	 * dn_dbufs_mtx.  The caller must not dirty such a dbuf; the read
+	 * entry points that set this flag never do.
+	 */
+	DMU_EPHEMERAL		= 1 << 11,
 } dmu_flags_t;
 
 /*
