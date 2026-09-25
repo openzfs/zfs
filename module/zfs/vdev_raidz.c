@@ -2062,6 +2062,29 @@ vdev_raidz_reconstruct_general(raidz_row_t *rr, int *tgts, int ntgts)
 	}
 
 	/*
+	 * If every reconstruction target is a parity column there are no data
+	 * columns to solve for.  Return here rather than calling
+	 * vdev_raidz_matrix_reconstruct() with nmissing_rows == 0 (which would
+	 * dereference the uninitialized missing_rows[0]).  This makes combrec
+	 * fail closed on a block whose on-disk parity geometry does not match
+	 * its classified layout -- e.g. an inconsistent parity-epoch table --
+	 * instead of reading out of bounds.
+	 */
+	if (nmissing_rows == 0) {
+		if (bufs != NULL) {
+			for (c = rr->rr_firstdatacol; c < rr->rr_cols; c++) {
+				raidz_col_t *col = &rr->rr_col[c];
+				if (bufs[c] != NULL) {
+					abd_free(col->rc_abd);
+					col->rc_abd = bufs[c];
+				}
+			}
+			kmem_free(bufs, rr->rr_cols * sizeof (abd_t *));
+		}
+		return;
+	}
+
+	/*
 	 * Figure out which parity columns to use to help generate the missing
 	 * data columns.
 	 */
