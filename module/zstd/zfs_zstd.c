@@ -67,6 +67,11 @@ typedef struct zstd_stats {
 	kstat_named_t	zstd_stat_dec_header_inval;
 	kstat_named_t	zstd_stat_com_fail;
 	kstat_named_t	zstd_stat_dec_fail;
+	kstat_named_t	zstd_stat_com_ctx_create;
+	kstat_named_t	zstd_stat_com_ctx_reuse;
+	kstat_named_t	zstd_stat_com_ctx_reap;
+	kstat_named_t	zstd_stat_com_ctx_buffers;
+	kstat_named_t	zstd_stat_com_ctx_size;
 	/*
 	 * LZ4 first-pass early abort verdict
 	 */
@@ -96,6 +101,11 @@ static zstd_stats_t zstd_stats = {
 	{ "decompress_header_invalid",	KSTAT_DATA_UINT64 },
 	{ "compress_failed",		KSTAT_DATA_UINT64 },
 	{ "decompress_failed",		KSTAT_DATA_UINT64 },
+	{ "compress_context_create",	KSTAT_DATA_UINT64 },
+	{ "compress_context_reuse",	KSTAT_DATA_UINT64 },
+	{ "compress_context_reap",	KSTAT_DATA_UINT64 },
+	{ "compress_context_buffers",	KSTAT_DATA_UINT64 },
+	{ "compress_context_size",	KSTAT_DATA_UINT64 },
 	{ "lz4pass_allowed",		KSTAT_DATA_UINT64 },
 	{ "lz4pass_rejected",		KSTAT_DATA_UINT64 },
 	{ "zstdpass_allowed",		KSTAT_DATA_UINT64 },
@@ -107,28 +117,38 @@ static zstd_stats_t zstd_stats = {
 };
 
 #ifdef _KERNEL
+static void
+zstd_reset_stats(void)
+{
+	ZSTDSTAT_ZERO(zstd_stat_alloc_fail);
+	ZSTDSTAT_ZERO(zstd_stat_alloc_fallback);
+	ZSTDSTAT_ZERO(zstd_stat_com_alloc_fail);
+	ZSTDSTAT_ZERO(zstd_stat_dec_alloc_fail);
+	ZSTDSTAT_ZERO(zstd_stat_com_inval);
+	ZSTDSTAT_ZERO(zstd_stat_dec_inval);
+	ZSTDSTAT_ZERO(zstd_stat_dec_header_inval);
+	ZSTDSTAT_ZERO(zstd_stat_com_fail);
+	ZSTDSTAT_ZERO(zstd_stat_dec_fail);
+	ZSTDSTAT_ZERO(zstd_stat_com_ctx_create);
+	ZSTDSTAT_ZERO(zstd_stat_com_ctx_reuse);
+	ZSTDSTAT_ZERO(zstd_stat_com_ctx_reap);
+	ZSTDSTAT_ZERO(zstd_stat_lz4pass_allowed);
+	ZSTDSTAT_ZERO(zstd_stat_lz4pass_rejected);
+	ZSTDSTAT_ZERO(zstd_stat_zstdpass_allowed);
+	ZSTDSTAT_ZERO(zstd_stat_zstdpass_rejected);
+	ZSTDSTAT_ZERO(zstd_stat_passignored);
+	ZSTDSTAT_ZERO(zstd_stat_passignored_size);
+}
+#endif
+
+#ifdef _KERNEL
 static int
 kstat_zstd_update(kstat_t *ksp, int rw)
 {
 	ASSERT(ksp != NULL);
 
-	if (rw == KSTAT_WRITE && ksp == zstd_ksp) {
-		ZSTDSTAT_ZERO(zstd_stat_alloc_fail);
-		ZSTDSTAT_ZERO(zstd_stat_alloc_fallback);
-		ZSTDSTAT_ZERO(zstd_stat_com_alloc_fail);
-		ZSTDSTAT_ZERO(zstd_stat_dec_alloc_fail);
-		ZSTDSTAT_ZERO(zstd_stat_com_inval);
-		ZSTDSTAT_ZERO(zstd_stat_dec_inval);
-		ZSTDSTAT_ZERO(zstd_stat_dec_header_inval);
-		ZSTDSTAT_ZERO(zstd_stat_com_fail);
-		ZSTDSTAT_ZERO(zstd_stat_dec_fail);
-		ZSTDSTAT_ZERO(zstd_stat_lz4pass_allowed);
-		ZSTDSTAT_ZERO(zstd_stat_lz4pass_rejected);
-		ZSTDSTAT_ZERO(zstd_stat_zstdpass_allowed);
-		ZSTDSTAT_ZERO(zstd_stat_zstdpass_rejected);
-		ZSTDSTAT_ZERO(zstd_stat_passignored);
-		ZSTDSTAT_ZERO(zstd_stat_passignored_size);
-	}
+	if (rw == KSTAT_WRITE && ksp == zstd_ksp)
+		zstd_reset_stats();
 
 	return (0);
 }
@@ -143,6 +163,8 @@ enum zstd_kmem_type {
 	ZSTD_KMEM_POOL,
 	/* Reserved fallback memory for decompression only */
 	ZSTD_KMEM_DCTX,
+	/* Independently owned initialized compression context */
+	ZSTD_KMEM_CCTX_CACHE,
 	ZSTD_KMEM_COUNT,
 };
 
@@ -150,6 +172,13 @@ enum zstd_kmem_type {
 struct zstd_pool {
 	void *mem;
 	size_t size;
+	kmutex_t barrier;
+	hrtime_t timeout;
+};
+
+/* Pool of initialized compression contexts. */
+struct zstd_cctx_cache {
+	ZSTD_CCtx *cctx;
 	kmutex_t barrier;
 	hrtime_t timeout;
 };
@@ -183,7 +212,13 @@ struct zstd_levelmap {
  */
 static void *zstd_alloc(void *opaque, size_t size);
 static void *zstd_dctx_alloc(void *opaque, size_t size);
+static void *zstd_cctx_cache_alloc(void *opaque, size_t size);
 static void zstd_free(void *opaque, void *ptr);
+static struct zstd_cctx_cache *zstd_cctx_cache_acquire(void);
+static void zstd_cctx_cache_release(struct zstd_cctx_cache *cache);
+static void zstd_cctx_cache_reap(void);
+static void zstd_cctx_cache_init(void);
+static void zstd_cctx_cache_deinit(void);
 
 /* Compression memory handler */
 static const ZSTD_customMem zstd_malloc = {
@@ -195,6 +230,13 @@ static const ZSTD_customMem zstd_malloc = {
 /* Decompression memory handler */
 static const ZSTD_customMem zstd_dctx_malloc = {
 	zstd_dctx_alloc,
+	zstd_free,
+	NULL,
+};
+
+/* Cached contexts must not retain a thread-owned pool mutex. */
+static const ZSTD_customMem zstd_cctx_cache_malloc = {
+	zstd_cctx_cache_alloc,
 	zstd_free,
 	NULL,
 };
@@ -251,10 +293,14 @@ static int pool_count = 16;
 
 #define	ZSTD_POOL_MAX		pool_count
 #define	ZSTD_POOL_TIMEOUT	60 * 2
+#define	ZSTD_CCTX_CACHE_MAX	16
+#define	ZSTD_CCTX_CACHE_TIMEOUT	ZSTD_POOL_TIMEOUT
 
 static struct zstd_fallback_mem zstd_dctx_fallback;
 static struct zstd_pool *zstd_mempool_cctx;
 static struct zstd_pool *zstd_mempool_dctx;
+static struct zstd_cctx_cache *zstd_cctx_cache_slots;
+static uint_t zstd_cctx_cache_count;
 
 /*
  * The library zstd code expects these if ADDRESS_SANITIZER gets defined,
@@ -455,6 +501,7 @@ zfs_zstd_compress_impl(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	int16_t zstd_level;
 	zfs_zstdhdr_t *hdr;
 	ZSTD_CCtx *cctx;
+	struct zstd_cctx_cache *cache;
 
 	hdr = (zfs_zstdhdr_t *)d_start;
 
@@ -468,7 +515,13 @@ zfs_zstd_compress_impl(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	ASSERT3U(d_len, <=, s_len);
 	ASSERT3U(zstd_level, !=, 0);
 
-	cctx = ZSTD_createCCtx_advanced(zstd_malloc);
+	cache = zstd_cctx_cache_acquire();
+	if (cache != NULL) {
+		cctx = cache->cctx;
+	} else {
+		/* Cache unavailable; preserve the existing uncached path. */
+		cctx = ZSTD_createCCtx_advanced(zstd_malloc);
+	}
 
 	/*
 	 * Out of kernel memory, gently fall through - this will disable
@@ -497,7 +550,10 @@ zfs_zstd_compress_impl(void *s_start, void *d_start, size_t s_len, size_t d_len,
 	    d_len - sizeof (*hdr),
 	    s_start, s_len);
 
-	ZSTD_freeCCtx(cctx);
+	if (cache != NULL)
+		zstd_cctx_cache_release(cache);
+	else
+		ZSTD_freeCCtx(cctx);
 
 	/* Error in the compression routine, disable compression. */
 	if (ZSTD_isError(c_len)) {
@@ -783,6 +839,27 @@ zstd_dctx_alloc(void *opaque __maybe_unused, size_t size)
 	return (p);
 }
 
+/* Allocate independently owned memory for a cached compression context. */
+static void *
+zstd_cctx_cache_alloc(void *opaque __maybe_unused, size_t size)
+{
+	size_t nbytes = sizeof (struct zstd_kmem) + size;
+	struct zstd_kmem *z;
+
+
+	z = vmem_alloc(nbytes, KM_NOSLEEP);
+	if (z == NULL)
+		return (NULL);
+
+	z->kmem_type = ZSTD_KMEM_CCTX_CACHE;
+	z->kmem_size = nbytes;
+	z->pool = NULL;
+	ZSTDSTAT_ADD(zstd_stat_com_ctx_buffers, 1);
+	ZSTDSTAT_ADD(zstd_stat_com_ctx_size, nbytes);
+
+	return ((char *)z + sizeof (struct zstd_kmem));
+}
+
 /* Free allocated memory by its specific type */
 static void
 zstd_free(void *opaque __maybe_unused, void *ptr)
@@ -807,9 +884,149 @@ zstd_free(void *opaque __maybe_unused, void *ptr)
 		ZSTD_ASAN_POISON(ptr, z->kmem_size - sizeof (struct zstd_kmem));
 		mutex_exit(&zstd_dctx_fallback.barrier);
 		break;
+	case ZSTD_KMEM_CCTX_CACHE:
+		ZSTDSTAT_SUB(zstd_stat_com_ctx_buffers, 1);
+		ZSTDSTAT_SUB(zstd_stat_com_ctx_size, z->kmem_size);
+		vmem_free(z, z->kmem_size);
+		break;
 	default:
 		break;
 	}
+}
+
+/* Reset cached parameters as well as session state to match a new CCtx. */
+static boolean_t
+zstd_cctx_cache_prepare(struct zstd_cctx_cache *cache)
+{
+	size_t err;
+
+	if (cache->cctx == NULL) {
+		cache->cctx = ZSTD_createCCtx_advanced(zstd_cctx_cache_malloc);
+		if (cache->cctx == NULL)
+			return (B_FALSE);
+	} else {
+		err = ZSTD_CCtx_reset(cache->cctx,
+		    ZSTD_reset_session_and_parameters);
+		if (ZSTD_isError(err)) {
+			ZSTD_freeCCtx(cache->cctx);
+			cache->cctx = NULL;
+			return (B_FALSE);
+		}
+	}
+
+	return (B_TRUE);
+}
+
+static struct zstd_cctx_cache *
+zstd_cctx_cache_acquire(void)
+{
+	/* Reuse initialized contexts before populating an empty slot. */
+	for (uint_t i = 0; i < zstd_cctx_cache_count; i++) {
+		struct zstd_cctx_cache *cache = &zstd_cctx_cache_slots[i];
+
+		if (!mutex_tryenter(&cache->barrier))
+			continue;
+
+		if (cache->cctx != NULL && zstd_cctx_cache_prepare(cache)) {
+			ZSTDSTAT_BUMP(zstd_stat_com_ctx_reuse);
+			return (cache);
+		}
+
+		mutex_exit(&cache->barrier);
+	}
+
+	/* Populate one empty slot; a full or busy cache uses the old path. */
+	for (uint_t i = 0; i < zstd_cctx_cache_count; i++) {
+		struct zstd_cctx_cache *cache = &zstd_cctx_cache_slots[i];
+
+		if (!mutex_tryenter(&cache->barrier))
+			continue;
+
+		if (cache->cctx != NULL) {
+			mutex_exit(&cache->barrier);
+			continue;
+		}
+
+		if (zstd_cctx_cache_prepare(cache)) {
+			ZSTDSTAT_BUMP(zstd_stat_com_ctx_create);
+			return (cache);
+		}
+
+		mutex_exit(&cache->barrier);
+		return (NULL);
+	}
+
+	return (NULL);
+}
+
+static void
+zstd_cctx_cache_release(struct zstd_cctx_cache *cache)
+{
+	cache->timeout = gethrestime_sec() + ZSTD_CCTX_CACHE_TIMEOUT;
+	mutex_exit(&cache->barrier);
+}
+
+static void
+zstd_cctx_cache_reap(void)
+{
+	hrtime_t now;
+
+	if (ZSTDSTAT(zstd_stat_com_ctx_buffers) == 0)
+		return;
+
+	now = gethrestime_sec();
+	for (uint_t i = 0; i < zstd_cctx_cache_count; i++) {
+		struct zstd_cctx_cache *cache = &zstd_cctx_cache_slots[i];
+
+		if (!mutex_tryenter(&cache->barrier))
+			continue;
+
+		if (cache->cctx != NULL && now > cache->timeout) {
+			ZSTD_freeCCtx(cache->cctx);
+			cache->cctx = NULL;
+			cache->timeout = 0;
+			ZSTDSTAT_BUMP(zstd_stat_com_ctx_reap);
+		}
+
+		mutex_exit(&cache->barrier);
+	}
+}
+
+static void __init
+zstd_cctx_cache_init(void)
+{
+	zstd_cctx_cache_count = MIN((uint_t)pool_count,
+	    (uint_t)ZSTD_CCTX_CACHE_MAX);
+	zstd_cctx_cache_slots = vmem_zalloc(zstd_cctx_cache_count *
+	    sizeof (*zstd_cctx_cache_slots), KM_SLEEP);
+
+	for (uint_t i = 0; i < zstd_cctx_cache_count; i++)
+		mutex_init(&zstd_cctx_cache_slots[i].barrier, NULL,
+		    MUTEX_DEFAULT, NULL);
+}
+
+static void
+zstd_cctx_cache_deinit(void)
+{
+	if (zstd_cctx_cache_slots == NULL)
+		return;
+
+	for (uint_t i = 0; i < zstd_cctx_cache_count; i++) {
+		struct zstd_cctx_cache *cache = &zstd_cctx_cache_slots[i];
+
+		mutex_enter(&cache->barrier);
+		if (cache->cctx != NULL) {
+			ZSTD_freeCCtx(cache->cctx);
+			cache->cctx = NULL;
+		}
+		mutex_exit(&cache->barrier);
+		mutex_destroy(&cache->barrier);
+	}
+
+	vmem_free(zstd_cctx_cache_slots, zstd_cctx_cache_count *
+	    sizeof (*zstd_cctx_cache_slots));
+	zstd_cctx_cache_slots = NULL;
+	zstd_cctx_cache_count = 0;
 }
 
 /* Allocate fallback memory to ensure safe decompression */
@@ -885,6 +1102,7 @@ zstd_mempool_deinit(void)
 void
 zfs_zstd_cache_reap_now(void)
 {
+	zstd_cctx_cache_reap();
 
 	/*
 	 * Short-circuit if there are no buffers to begin with.
@@ -906,6 +1124,7 @@ zstd_init(void)
 	/* Set pool size by using maximum sane thread count * 4 */
 	pool_count = (boot_ncpus * 4);
 	zstd_meminit();
+	zstd_cctx_cache_init();
 
 	/* Initialize kstat */
 	zstd_ksp = kstat_create("zfs", 0, "zstd", "misc",
@@ -936,8 +1155,10 @@ zstd_fini(void)
 	mutex_destroy(&zstd_dctx_fallback.barrier);
 
 	/* Deinit memory pool */
+	zstd_cctx_cache_deinit();
 	zstd_mempool_deinit();
 }
+
 
 #if defined(_KERNEL)
 #ifdef __FreeBSD__

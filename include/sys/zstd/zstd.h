@@ -78,7 +78,7 @@ typedef struct zfs_zstd_meta {
 /*
  * kstat helper macros
  */
-#define	ZSTDSTAT(stat)		(zstd_stats.stat.value.ui64)
+#define	ZSTDSTAT(stat)		atomic_load_64(&zstd_stats.stat.value.ui64)
 #define	ZSTDSTAT_ZERO(stat)	\
 	atomic_store_64(&zstd_stats.stat.value.ui64, 0)
 #define	ZSTDSTAT_ADD(stat, val) \
