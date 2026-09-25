@@ -1447,7 +1447,8 @@ dmu_objset_upgrade_stop(objset_t *os)
 		    B_TRUE)) == 0) {
 			dsl_dataset_long_rele(dmu_objset_ds(os), upgrade_tag);
 		}
-		txg_wait_synced(os->os_spa->spa_dsl_pool, 0);
+		dsl_pool_t *dp = os->os_spa->spa_dsl_pool;
+		(void) txg_wait_synced_flags(dp, 0, TXG_WAIT_SUSPEND);
 	} else {
 		mutex_exit(&os->os_upgrade_lock);
 	}
@@ -2378,7 +2379,9 @@ dmu_objset_userspace_upgrade_cb(objset_t *os)
 		return (err);
 
 	os->os_flags |= OBJSET_FLAG_USERACCOUNTING_COMPLETE;
-	txg_wait_synced(dmu_objset_pool(os), 0);
+	if (txg_wait_synced_flags(dmu_objset_pool(os), 0,
+	    TXG_WAIT_SUSPEND) != 0)
+		return (SET_ERROR(EAGAIN));
 	return (0);
 }
 
@@ -2421,7 +2424,9 @@ dmu_objset_id_quota_upgrade_cb(objset_t *os)
 	if (dmu_objset_projectquota_enabled(os))
 		os->os_flags |= OBJSET_FLAG_PROJECTQUOTA_COMPLETE;
 
-	txg_wait_synced(dmu_objset_pool(os), 0);
+	if (txg_wait_synced_flags(dmu_objset_pool(os), 0,
+	    TXG_WAIT_SUSPEND) != 0)
+		return (SET_ERROR(EAGAIN));
 	return (0);
 }
 
