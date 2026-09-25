@@ -813,10 +813,19 @@ function recursive_cksum
 {
 	case "$(uname)" in
 	FreeBSD)
-		find $1 -type f -exec sh -c 'xxh128sum {}; \
-		    lsextattr -q system {} | xxh128sum; \
-		    lsextattr -q user {} | xxh128sum' \; \
-		    | sort -k 2 | awk '{ print $1 }' | xxh128digest
+		# Since lsextattr -q prints names tab- or
+		# newline-separated, an xattr name with a tab/newline in
+		# it will not have it's value cksumed.
+		find $1 -type f -exec sh -c '
+			xxh128sum "$1"
+			lsextattr -q system "$1" | xxh128sum
+			lsextattr -q user "$1" | tr "\t" "\n" |
+			    while IFS= read -r name; do
+				[ -z "$name" ] && continue
+				printf "%s\0" "$name"
+				getextattr -qq user "$name" "$1"
+			    done | xxh128sum
+		' _ {} \; | sort -k 2 | awk '{ print $1 }' | xxh128digest
 		;;
 	*)
 		find $1 -type f -exec sh -c 'xxh128sum {}; getfattr \
