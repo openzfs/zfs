@@ -21,7 +21,8 @@ fi
 if [ -n "${PERF_OUTPUT_FILE:-}" ]; then
 	if [ -n "${PERF_STOP_FILE:-}" ]; then
 		exec perf record -F 99 -a -g -q -o "$PERF_OUTPUT_FILE" -- \
-		    sh -c 'while [ ! -f "$PERF_STOP_FILE" ]; do sleep 1; done'
+		    sh -c "while [ ! -f \"\$1\" ]; do sleep 1; done" sh \
+		    "$PERF_STOP_FILE"
 	else
 		exec perf record -F 99 -a -g -q -o "$PERF_OUTPUT_FILE" -- \
 		    sleep "$PERF_RUNTIME"

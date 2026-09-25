@@ -70,3 +70,5 @@
 /setlease
 /file_unlink_fh
 /zcp_support
+/zfs_test_setpgid
+/zstd_dctx_test

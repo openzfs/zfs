@@ -2782,10 +2782,12 @@ Applies only to children that bypass the vdev I/O queue.
 .
 .It Sy zfs_zstd_cache_max Ns = Ns Sy 16 Pq uint
 Maximum number of allocated cache slots considered when acquiring an
-initialized Zstd decompression context.  The cache is allocated during
+initialized Zstd decompression context.
+The cache is allocated during
 initialization and is capped at 16 slots and the configured pool count.
 Lowering this value does not immediately reclaim contexts in excluded slots,
-and raising it cannot grow the allocated array.  Setting this to zero disables
+and raising it cannot grow the allocated array.
+Setting this to zero disables
 initialized-context acquisition and uses the uncached decompression path.
 .
 .It Sy zio_deadman_log_all Ns = Ns Sy 0 Ns | Ns 1 Pq int
