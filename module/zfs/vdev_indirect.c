@@ -207,8 +207,9 @@ static uint_t zfs_condense_indirect_commit_entry_delay_ms = 0;
 /*
  * If an indirect split block contains more than this many possible unique
  * combinations when being reconstructed, consider it too computationally
- * expensive to check them all. Instead, try at most 100 randomly-selected
- * combinations each time the block is accessed.  This allows all segment
+ * expensive to check them all. Instead, try the preferred copies of each
+ * split, then at most this many randomly-selected combinations each time
+ * the block is accessed.  This allows all segment
  * copies to participate fairly in the reconstruction when all combinations
  * cannot be checked and prevents repeated use of one bad copy.
  */
@@ -223,9 +224,8 @@ unsigned long zfs_reconstruct_indirect_damage_fraction = 0;
 /*
  * The indirect_child_t represents the vdev that we will read from, when we
  * need to read all copies of the data (e.g. for scrub or reconstruction).
- * For plain (non-mirror) top-level vdevs (i.e. is_vdev is not a mirror),
- * ic_vdev is the same as is_vdev.  However, for mirror top-level vdevs,
- * ic_vdev is a child of the mirror.
+ * For plain top-level vdevs, ic_vdev is the same as is_vdev.  For mirror,
+ * replacing, and spare vdevs, each ic_vdev is a leaf copy under that tree.
  */
 typedef struct indirect_child {
 	abd_t *ic_data;
@@ -1186,6 +1186,41 @@ vdev_indirect_child_io_done(zio_t *zio)
 	abd_free(zio->io_abd);
 }
 
+static boolean_t
+vdev_indirect_is_copy_vdev(vdev_t *vd)
+{
+	return (vd->vdev_ops == &vdev_mirror_ops ||
+	    vd->vdev_ops == &vdev_replacing_ops ||
+	    vd->vdev_ops == &vdev_spare_ops);
+}
+
+static int
+vdev_indirect_count_copies(vdev_t *vd)
+{
+	if (!vdev_indirect_is_copy_vdev(vd))
+		return (1);
+
+	int n = 0;
+	for (int i = 0; i < vd->vdev_children; i++)
+		n += vdev_indirect_count_copies(vd->vdev_child[i]);
+	return (n);
+}
+
+static int
+vdev_indirect_fill_copies(vdev_t *vd, indirect_split_t *is, int idx)
+{
+	if (!vdev_indirect_is_copy_vdev(vd)) {
+		is->is_child[idx].ic_vdev = vd;
+		list_link_init(&is->is_child[idx].ic_node);
+		return (idx + 1);
+	}
+
+	for (int i = 0; i < vd->vdev_children; i++) {
+		idx = vdev_indirect_fill_copies(vd->vdev_child[i], is, idx);
+	}
+	return (idx);
+}
+
 /*
  * This is a callback for vdev_indirect_remap() which allocates an
  * indirect_split_t for each split segment and adds it to iv_splits.
@@ -1202,9 +1237,7 @@ vdev_indirect_gather_splits(uint64_t split_offset, vdev_t *vd, uint64_t offset,
 	if (vd->vdev_ops == &vdev_indirect_ops)
 		return;
 
-	int n = 1;
-	if (vd->vdev_ops == &vdev_mirror_ops)
-		n = vd->vdev_children;
+	int n = vdev_indirect_count_copies(vd);
 
 	indirect_split_t *is =
 	    kmem_zalloc(offsetof(indirect_split_t, is_child[n]), KM_SLEEP);
@@ -1217,20 +1250,8 @@ vdev_indirect_gather_splits(uint64_t split_offset, vdev_t *vd, uint64_t offset,
 	list_create(&is->is_unique_child, sizeof (indirect_child_t),
 	    offsetof(indirect_child_t, ic_node));
 
-	/*
-	 * Note that we only consider multiple copies of the data for
-	 * *mirror* vdevs.  We don't for "replacing" or "spare" vdevs, even
-	 * though they use the same ops as mirror, because there's only one
-	 * "good" copy under the replacing/spare.
-	 */
-	if (vd->vdev_ops == &vdev_mirror_ops) {
-		for (int i = 0; i < n; i++) {
-			is->is_child[i].ic_vdev = vd->vdev_child[i];
-			list_link_init(&is->is_child[i].ic_node);
-		}
-	} else {
-		is->is_child[0].ic_vdev = vd;
-	}
+	int filled = vdev_indirect_fill_copies(vd, is, 0);
+	ASSERT3S(filled, ==, n);
 
 	list_insert_tail(&iv->iv_splits, is);
 }
@@ -1353,21 +1374,39 @@ vdev_indirect_io_start(zio_t *zio)
 		} else {
 			/*
 			 * If this is a read zio, we read one copy of each
-			 * split segment, from the top-level vdev.  Since
-			 * we don't know the checksum of each split
-			 * individually, the child zio can't ensure that
-			 * we get the right data. E.g. if it's a mirror,
-			 * it will just read from a random (healthy) leaf
-			 * vdev. We have to verify the checksum in
-			 * vdev_indirect_io_done().
+			 * split segment directly from a leaf, preferring a
+			 * readable copy that is not missing this txg. A
+			 * checksumless read through a mirror could repair
+			 * another copy before we verify the full block
+			 * checksum. If this candidate fails, reconstruction
+			 * reads all copies.
 			 *
 			 * For write zios, the vdev code will ensure we write
 			 * to all children.
 			 */
 			for (indirect_split_t *is = list_head(&iv->iv_splits);
 			    is != NULL; is = list_next(&iv->iv_splits, is)) {
+				vdev_t *vd = is->is_vdev;
+				if (zio->io_type == ZIO_TYPE_READ) {
+					int first = random_in_range(
+					    is->is_children);
+					vd = is->is_child[first].ic_vdev;
+					for (int c = 0; c < is->is_children;
+					    c++) {
+						vdev_t *candidate =
+						    is->is_child[(first + c) %
+						    is->is_children].ic_vdev;
+						if (!vdev_readable(candidate))
+							continue;
+						vd = candidate;
+						if (!vdev_dtl_contains(
+						    candidate, DTL_MISSING,
+						    zio->io_txg, 1))
+							break;
+					}
+				}
 				zio_nowait(zio_vdev_child_io(zio, NULL,
-				    is->is_vdev, is->is_target_offset,
+				    vd, is->is_target_offset,
 				    abd_get_offset_size(zio->io_abd,
 				    is->is_split_offset, is->is_size),
 				    is->is_size, zio->io_type,
@@ -1432,11 +1471,15 @@ vdev_indirect_repair(zio_t *zio)
 			indirect_child_t *ic = &is->is_child[c];
 			if (ic == is->is_good_child)
 				continue;
-			if (ic->ic_data == NULL)
-				continue;
-			if (ic->ic_duplicate == is->is_good_child)
+			if (ic->ic_data != NULL &&
+			    ic->ic_duplicate == is->is_good_child)
 				continue;
 
+			/*
+			 * Also repair copies whose reads failed. The device
+			 * may still accept the write, and a failed scan
+			 * repair is recorded in its DTL for later healing.
+			 */
 			zio_nowait(zio_vdev_child_io(zio, NULL,
 			    ic->ic_vdev, is->is_target_offset,
 			    is->is_good_child->ic_data, is->is_size,
@@ -1449,7 +1492,7 @@ vdev_indirect_repair(zio_t *zio)
 			 * a copy of the data, so suppress incrementing the
 			 * checksum counter.
 			 */
-			if (ic->ic_error == ESTALE)
+			if (ic->ic_data == NULL || ic->ic_error == ESTALE)
 				continue;
 
 			vdev_indirect_checksum_error(zio, is, ic);
@@ -1717,7 +1760,7 @@ out:
  * 128KB, but up to 16MB).
  */
 static void
-vdev_indirect_reconstruct_io_done(zio_t *zio)
+vdev_indirect_reconstruct(zio_t *zio)
 {
 	indirect_vsd_t *iv = zio->io_vsd;
 	boolean_t known_good = B_FALSE;
@@ -1771,6 +1814,22 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 			list_insert_tail(&is->is_unique_child, ic_i);
 		}
 
+		/*
+		 * Put first the version held by a copy which is not missing
+		 * this TXG. The heads are tried before any other combination.
+		 */
+		for (int i = 0; i < is->is_children; i++) {
+			indirect_child_t *ic = &is->is_child[i];
+
+			if (ic->ic_data == NULL || ic->ic_error != 0)
+				continue;
+			if (ic->ic_duplicate != NULL)
+				ic = ic->ic_duplicate;
+			list_remove(&is->is_unique_child, ic);
+			list_insert_head(&is->is_unique_child, ic);
+			break;
+		}
+
 		/* Reconstruction is impossible, no valid children */
 		EQUIV(list_is_empty(&is->is_unique_child),
 		    is->is_unique_children == 0);
@@ -1781,13 +1840,30 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 			return;
 		}
 
-		iv->iv_unique_combinations *= is->is_unique_children;
+		/* A wrapped product could select exhaustive enumeration. */
+		if (is->is_unique_children >
+		    iv->iv_attempts_max / iv->iv_unique_combinations)
+			iv->iv_unique_combinations = UINT64_MAX;
+		else
+			iv->iv_unique_combinations *= is->is_unique_children;
 	}
 
-	if (iv->iv_unique_combinations <= iv->iv_attempts_max)
+	if (iv->iv_unique_combinations <= iv->iv_attempts_max) {
 		error = vdev_indirect_splits_enumerate_all(iv, zio);
-	else
-		error = vdev_indirect_splits_enumerate_randomly(iv, zio);
+	} else {
+		/*
+		 * Random combinations can miss an intact source when stale
+		 * copies of many splits are readable, so try it first.
+		 */
+		for (indirect_split_t *is = list_head(&iv->iv_splits);
+		    is != NULL; is = list_next(&iv->iv_splits, is))
+			is->is_good_child = list_head(&is->is_unique_child);
+		error = vdev_indirect_splits_checksum_validate(iv, zio);
+		if (error != 0) {
+			error = vdev_indirect_splits_enumerate_randomly(iv,
+			    zio);
+		}
+	}
 
 	if (error != 0) {
 		/* All attempted combinations failed. */
@@ -1801,8 +1877,35 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 		 * the validated version.
 		 */
 		ASSERT0(vdev_indirect_splits_checksum_validate(iv, zio));
+		/* A failed leaf read of the first attempt is now recovered. */
+		zio->io_error = 0;
 		vdev_indirect_repair(zio);
 		zio_checksum_verified(zio);
+	}
+}
+
+/*
+ * Combinations are checked in the read's buffer. A Direct I/O read's buffer
+ * is user memory, which can change while they are checked and make a wrong
+ * one pass, so check them in a private buffer instead.
+ */
+static void
+vdev_indirect_reconstruct_io_done(zio_t *zio)
+{
+	abd_t *dio_abd = NULL;
+
+	if (zio->io_flags & ZIO_FLAG_DIO_READ) {
+		dio_abd = zio->io_abd;
+		zio->io_abd = abd_alloc(zio->io_size, B_FALSE);
+	}
+
+	vdev_indirect_reconstruct(zio);
+
+	if (dio_abd != NULL) {
+		if (zio->io_error == 0)
+			abd_copy(dio_abd, zio->io_abd, zio->io_size);
+		abd_free(zio->io_abd);
+		zio->io_abd = dio_abd;
 	}
 }
 
@@ -1829,6 +1932,13 @@ vdev_indirect_io_done(zio_t *zio)
 		return;
 	}
 
+	/*
+	 * A failed leaf read is recovered from the other copies, which also
+	 * repairs the failed copy, even if the buffer happens to checksum.
+	 */
+	boolean_t recover = (zio->io_type == ZIO_TYPE_READ &&
+	    zio->io_error != 0);
+
 	zio_bad_cksum_t zbc;
 	int ret = zio_checksum_error(zio, &zbc);
 	/*
@@ -1837,21 +1947,21 @@ vdev_indirect_io_done(zio_t *zio)
 	 * manipulated while the I/O is taking place. The checksum verify error
 	 * will be reported to the top-level VDEV.
 	 */
-	if (zio->io_flags & ZIO_FLAG_DIO_READ && ret == ECKSUM) {
+	if (zio->io_flags & ZIO_FLAG_DIO_READ && ret == ECKSUM && !recover) {
 		zio->io_error = ret;
 		zio->io_post |= ZIO_POST_DIO_CHKSUM_ERR;
 		zio_dio_chksum_verify_error_report(zio);
 		ret = 0;
 	}
 
-	if (ret == 0) {
+	if (ret == 0 && !recover) {
 		zio_checksum_verified(zio);
 		return;
 	}
 
 	/*
-	 * The checksum didn't match.  Read all copies of all splits, and
-	 * then we will try to reconstruct.  The next time
+	 * The checksum didn't match or a read failed.  Read all copies of
+	 * all splits, and then we will try to reconstruct.  The next time
 	 * vdev_indirect_io_done() is called, iv_reconstruct will be set.
 	 */
 	vdev_indirect_read_all(zio);
