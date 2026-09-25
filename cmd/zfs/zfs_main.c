@@ -9356,6 +9356,19 @@ found:;
 }
 
 static int
+parse_pool_bucket(char *path, char **pool, char **bucket) {
+	char *slash1 = strchr(path, '/');
+	if (slash1 == NULL) {
+		return (-1);
+	}
+	*slash1 = '\0';
+
+	*pool = path;
+	*bucket = slash1 + 1;
+	return (0);
+}
+
+static int
 zfs_do_bucket(int argc, char **argv) {
 	int ret = 0;
 
@@ -9365,7 +9378,7 @@ zfs_do_bucket(int argc, char **argv) {
 	}
 
 	char *op = argv[1];
-	char *pool = argv[2];
+	char *path = argv[2];
 
 	if ((g_zfs = libzfs_init()) == NULL) {
 		(void) fprintf(stderr, "%s\n", libzfs_error_init(errno));
@@ -9375,29 +9388,42 @@ zfs_do_bucket(int argc, char **argv) {
 	libzfs_print_on_error(g_zfs, B_TRUE);
 
 	if (strcmp(op, "create") == 0) {
-		if (argc != 4) {
+		if (argc != 3) {
 			(void) fprintf(stderr, gettext("invalid number of arguments\n"));
 			usage(B_FALSE);
 		}
-		char *bucket = argv[3];
-		int error = lzc_bucket_create(pool, bucket);
 
-		(void) fprintf(stderr, gettext("Bucket error: %d\n"), error);
+		char *pool;
+		char *bucket;
 
+		int error = parse_pool_bucket(path, &pool, &bucket);
+		if (error) {
+			(void) fprintf(stderr, gettext("expected pool/bucket\n"));
+			usage(B_FALSE);
+		}
+
+		error = lzc_bucket_create(pool, bucket);
 		if (error != 0) {
 			(void) zfs_standard_error(g_zfs, error, "Cannot create bucket");
 		}
 
 		ret = error;
 	} else if (strcmp(op, "delete") == 0) {
-		if (argc != 4) {
+		if (argc != 3) {
 			(void) fprintf(stderr, gettext("invalid number of arguments\n"));
 			usage(B_FALSE);
 		}
-		char *bucket = argv[3];
-		int error = lzc_bucket_delete(pool, bucket);
 
-		(void) fprintf(stderr, gettext("Bucket error: %d\n"), error);
+		char *pool;
+		char *bucket;
+
+		int error = parse_pool_bucket(path, &pool, &bucket);
+		if (error) {
+			(void) fprintf(stderr, gettext("expected pool/bucket\n"));
+			usage(B_FALSE);
+		}
+
+		error = lzc_bucket_delete(pool, bucket);
 
 		if (error != 0) {
 			(void) zfs_standard_error(g_zfs, error, "Cannot delete bucket");
@@ -9405,8 +9431,13 @@ zfs_do_bucket(int argc, char **argv) {
 
 		ret = error;
 	} else if (strcmp(op, "list") == 0) {
+		if (argc != 3) {
+			(void) fprintf(stderr, gettext("invalid number of arguments\n"));
+			usage(B_FALSE);
+		}
+
 		nvlist_t *buckets = NULL;
-		int error = lzc_bucket_list(pool, &buckets);
+		int error = lzc_bucket_list(path, &buckets);
 
 		if (error == 0 && buckets != NULL) {
 			nvpair_t *elem = NULL;
@@ -9417,7 +9448,6 @@ zfs_do_bucket(int argc, char **argv) {
 		}
 
 		if (error != 0) {
-			(void) fprintf(stderr, gettext("Bucket error: %d\n"), error);
 			(void) zfs_standard_error(g_zfs, error, "Cannot list buckets");
 		}
 
