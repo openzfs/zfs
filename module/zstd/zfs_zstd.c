@@ -116,7 +116,7 @@ static zstd_stats_t zstd_stats = {
 	{ "size",			KSTAT_DATA_UINT64 },
 };
 
-#ifdef _KERNEL
+#if defined(_KERNEL) || defined(ZFS_UNIT_TEST)
 static void
 zstd_reset_stats(void)
 {
@@ -301,6 +301,11 @@ static struct zstd_pool *zstd_mempool_cctx;
 static struct zstd_pool *zstd_mempool_dctx;
 static struct zstd_cctx_cache *zstd_cctx_cache_slots;
 static uint_t zstd_cctx_cache_count;
+#ifdef ZFS_UNIT_TEST
+static uint_t zstd_cctx_cache_test_saved_count;
+static boolean_t zstd_cctx_cache_test_alloc_fail;
+static uint64_t zstd_cctx_cache_test_populate_count;
+#endif
 
 /*
  * The library zstd code expects these if ADDRESS_SANITIZER gets defined,
@@ -846,6 +851,10 @@ zstd_cctx_cache_alloc(void *opaque __maybe_unused, size_t size)
 	size_t nbytes = sizeof (struct zstd_kmem) + size;
 	struct zstd_kmem *z;
 
+#ifdef ZFS_UNIT_TEST
+	if (zstd_cctx_cache_test_alloc_fail)
+		return (NULL);
+#endif
 
 	z = vmem_alloc(nbytes, KM_NOSLEEP);
 	if (z == NULL)
@@ -947,6 +956,9 @@ zstd_cctx_cache_acquire(void)
 			continue;
 		}
 
+#ifdef ZFS_UNIT_TEST
+		atomic_inc_64(&zstd_cctx_cache_test_populate_count);
+#endif
 		if (zstd_cctx_cache_prepare(cache)) {
 			ZSTDSTAT_BUMP(zstd_stat_com_ctx_create);
 			return (cache);
@@ -1159,6 +1171,67 @@ zstd_fini(void)
 	zstd_mempool_deinit();
 }
 
+#ifdef ZFS_UNIT_TEST
+uint64_t
+zfs_zstd_cctx_cache_reuse_count(void)
+{
+	return (ZSTDSTAT(zstd_stat_com_ctx_reuse));
+}
+
+void
+zfs_zstd_cctx_cache_get_stats(uint64_t *buffers, uint64_t *size,
+    uint64_t *reaps)
+{
+	*buffers = ZSTDSTAT(zstd_stat_com_ctx_buffers);
+	*size = ZSTDSTAT(zstd_stat_com_ctx_size);
+	*reaps = ZSTDSTAT(zstd_stat_com_ctx_reap);
+}
+
+void
+zfs_zstd_cctx_cache_reset_stats(void)
+{
+	zstd_reset_stats();
+	atomic_store_64(&zstd_cctx_cache_test_populate_count, 0);
+}
+
+void
+zfs_zstd_cctx_cache_test_expire(void)
+{
+	for (uint_t i = 0; i < zstd_cctx_cache_count; i++) {
+		struct zstd_cctx_cache *cache = &zstd_cctx_cache_slots[i];
+
+		mutex_enter(&cache->barrier);
+		if (cache->cctx != NULL)
+			cache->timeout = 0;
+		mutex_exit(&cache->barrier);
+	}
+}
+
+void
+zfs_zstd_cctx_cache_test_disable(void)
+{
+	zstd_cctx_cache_test_saved_count = zstd_cctx_cache_count;
+	zstd_cctx_cache_count = 0;
+}
+
+void
+zfs_zstd_cctx_cache_test_enable(void)
+{
+	zstd_cctx_cache_count = zstd_cctx_cache_test_saved_count;
+}
+
+void
+zfs_zstd_cctx_cache_test_set_alloc_fail(int fail)
+{
+	zstd_cctx_cache_test_alloc_fail = (fail != 0);
+}
+
+uint64_t
+zfs_zstd_cctx_cache_test_populate_attempts(void)
+{
+	return (atomic_load_64(&zstd_cctx_cache_test_populate_count));
+}
+#endif
 
 #if defined(_KERNEL)
 #ifdef __FreeBSD__
