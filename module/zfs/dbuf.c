@@ -61,6 +61,7 @@ typedef struct dbuf_stats {
 	 * Statistics regarding the bounds on the dbuf cache size.
 	 */
 	kstat_named_t cache_target_bytes;
+	kstat_named_t cache_extra_bytes;
 	kstat_named_t cache_lowater_bytes;
 	kstat_named_t cache_hiwater_bytes;
 	/*
@@ -115,6 +116,7 @@ dbuf_stats_t dbuf_stats = {
 	{ "cache_size_bytes",			KSTAT_DATA_UINT64 },
 	{ "cache_size_bytes_max",		KSTAT_DATA_UINT64 },
 	{ "cache_target_bytes",			KSTAT_DATA_UINT64 },
+	{ "cache_extra_bytes",			KSTAT_DATA_UINT64 },
 	{ "cache_lowater_bytes",		KSTAT_DATA_UINT64 },
 	{ "cache_hiwater_bytes",		KSTAT_DATA_UINT64 },
 	{ "cache_total_evicts",			KSTAT_DATA_UINT64 },
@@ -225,11 +227,38 @@ static uint64_t dbuf_metadata_cache_max_bytes = UINT64_MAX;
 static uint_t dbuf_cache_shift = 5;
 static uint_t dbuf_metadata_cache_shift = 6;
 
+/*
+ * Set the maximum size the dbuf cache may grow to as a log2 fraction of the
+ * maximum ARC size, i.e. arc_c_max >> dbuf_cache_extra_max_shift.  This is
+ * the ceiling for dbuf_cache_extra (see below) and should not exceed
+ * dbuf_cache_shift, so the ceiling never falls below the normal budget.
+ */
+static uint_t dbuf_cache_extra_max_shift = 2;
+
 /* Set the dbuf hash mutex count as log2 shift (dynamic by default) */
 static uint_t dbuf_mutex_cache_shift = 0;
 
 static unsigned long dbuf_cache_target_bytes(void);
 static unsigned long dbuf_metadata_cache_target_bytes(void);
+
+/*
+ * Allowance in bytes by which the dbuf LRU cache may exceed its normal
+ * arc_c >> dbuf_cache_shift budget.  Normally zero; grown once per second
+ * by dbuf_cache_adjust_tick() so Direct I/O / cache-disabled workloads can
+ * keep their indirect (L1) dbuf working set resident without growing arc_c.
+ * The target is capped so it never exceeds arc_c_max >>
+ * dbuf_cache_extra_max_shift (or dbuf_cache_max_bytes, if smaller).
+ */
+static uint64_t dbuf_cache_extra = 0;
+static uint64_t dbuf_cache_prev_evicts = 0;
+
+/*
+ * Set once dbuf_init() has initialized the dbuf_sums wmsums read by
+ * dbuf_cache_adjust_tick(), cleared again in dbuf_fini().  The ARC reap
+ * heartbeat is created by arc_init(), which runs before dbuf_init(), so
+ * without this guard the first tick could read uninitialized wmsums.
+ */
+static boolean_t dbuf_sums_ready = B_FALSE;
 
 /*
  * The LRU dbuf cache uses a three-stage eviction policy:
@@ -716,14 +745,19 @@ dbuf_cache_multilist_index_func(multilist_t *ml, void *obj)
 }
 
 /*
- * The target size of the dbuf cache can grow with the ARC target,
- * unless limited by the tunable dbuf_cache_max_bytes.
+ * The target size of the dbuf cache is its arc_c >> dbuf_cache_shift share
+ * plus dbuf_cache_extra, an allowance that Direct I/O / cache-disabled
+ * workloads may need because their arc_c share never grows (see
+ * dbuf_cache_adjust_tick()).  The total is capped by dbuf_cache_max_bytes;
+ * the allowance itself, and so the total, is additionally bounded by
+ * arc_c_max >> dbuf_cache_extra_max_shift (see dbuf_cache_adjust_tick()).
  */
 static inline unsigned long
 dbuf_cache_target_bytes(void)
 {
 	return (MIN(dbuf_cache_max_bytes,
-	    arc_target_bytes() >> dbuf_cache_shift));
+	    (arc_target_bytes() >> dbuf_cache_shift) +
+	    atomic_load_64(&dbuf_cache_extra)));
 }
 
 /*
@@ -751,6 +785,109 @@ dbuf_cache_lowater_bytes(void)
 	uint64_t dbuf_cache_target = dbuf_cache_target_bytes();
 	return (dbuf_cache_target -
 	    (dbuf_cache_target * dbuf_cache_lowater_pct) / 100);
+}
+
+/*
+ * True when the ARC is not the memory consumer, i.e. Direct I/O or caching
+ * is disabled: data bypasses the ARC, so it holds no real file data and
+ * arc_adapt() never grows its target.  Cached I/O instead keeps the ARC
+ * full of data at its target.  Two signals are used, because arc_used_bytes()
+ * itself counts the dbuf footprint (every dbuf struct via ARC_SPACE_DBUF,
+ * plus the buffers the dbuf LRU cache keeps resident):
+ *   - the ARC is below half its target (it never filled up), or
+ *   - the dbuf LRU cache alone makes up at least half the ARC, i.e. the ARC
+ *     holds little beyond dbufs.  This stays true even as dbuf_cache_extra
+ *     grows the footprint inside arc_used_bytes().
+ * Misjudging is harmless either way: over-growing only retains more dbufs
+ * (bounded by arc_c_max >> dbuf_cache_extra_max_shift, and shed again when
+ * the ARC nears its target or memory is short), while under-growing just
+ * keeps the normal arc_c sizing.
+ */
+static boolean_t
+dbuf_arc_underutilized(void)
+{
+	uint64_t target = arc_target_bytes();
+	uint64_t arc = arc_used_bytes();
+	uint64_t dbufs = zfs_refcount_count(&dbuf_caches[DB_DBUF_CACHE].size);
+
+	return (arc < target / 2 || (arc > 0 && dbufs >= arc / 2));
+}
+
+/*
+ * Called once per second from the ARC reap thread.  The normal cache budget
+ * is arc_c >> dbuf_cache_shift and grows with the ARC once it fills with
+ * data; a Direct I/O / cache-disabled workload never fills the ARC, so that
+ * budget would never grow and its L1 indirect dbufs would churn.  When
+ * dbuf_arc_underutilized() holds and there is no memory pressure (no_grow),
+ * adapt the dbuf-owned allowance (dbuf_cache_extra) instead of arc_c, up to
+ * arc_c_max >> dbuf_cache_extra_max_shift.
+ *
+ * The allowance chases real need by the capacity eviction count.
+ */
+void
+dbuf_cache_adjust_tick(boolean_t no_grow, uint64_t arc_max)
+{
+	/*
+	 * arc_init() starts the reap heartbeat before dbuf_init(), so on the
+	 * very first ticks the dbuf_sums wmsums below may not exist yet.
+	 */
+	if (!dbuf_sums_ready)
+		return;
+
+	uint64_t size = zfs_refcount_count(&dbuf_caches[DB_DBUF_CACHE].size);
+	uint64_t base = arc_target_bytes() >> dbuf_cache_shift;
+	uint64_t budget_max = MIN(dbuf_cache_max_bytes,
+	    arc_max >> dbuf_cache_extra_max_shift);
+	uint64_t max_extra = budget_max > base ? budget_max - base : 0;
+	uint64_t extra = atomic_load_64(&dbuf_cache_extra);
+	uint64_t evicts = wmsum_value(&dbuf_sums.cache_total_evicts);
+	uint64_t trimmed = evicts > dbuf_cache_prev_evicts ?
+	    evicts - dbuf_cache_prev_evicts : 0;
+
+	dbuf_cache_prev_evicts = evicts;
+
+	if (no_grow || !dbuf_arc_underutilized()) {
+		/*
+		 * The ARC is the memory consumer again, or memory is short,
+		 * so shed the allowance half a step at a time.  Dropping it
+		 * to zero at once would make the evict thread unload the
+		 * whole working set and rebuild it on the next use.
+		 */
+		extra /= 2;
+	} else if (trimmed > 0) {
+		/*
+		 * The budget is the binding limit.  Lift the budget by half of
+		 * itself, so it grows by roughly 50% per tick until the
+		 * working set fits.
+		 */
+		if (extra < max_extra)
+			extra = MIN(max_extra,
+			    extra + MAX((base + extra) / 2, 1));
+	} else if (extra > 0) {
+		/*
+		 * Not trimmed: the cache holds its working set, so size is a
+		 * true measure of need.  Keep only enough that the low-water
+		 * mark reaches size and give back half of the rest.
+		 */
+		uint_t pct = MIN(dbuf_cache_lowater_pct, 99);
+		uint64_t den = 100 - pct;
+		uint64_t want = size + (size * pct + den - 1) / den;
+		uint64_t need = (want > base) ?
+		    MIN(want - base, max_extra) : 0;
+		if (need < extra)
+			extra -= (extra - need + 1) / 2;
+	}
+
+	/*
+	 * A lowered dbuf_cache_max_bytes, a raised
+	 * dbuf_cache_extra_max_shift, or a grown arc_c can drop the ceiling
+	 * below an already granted allowance.  Clamp it so the invariant
+	 * dbuf_cache_extra <= max_extra also holds between ticks.
+	 */
+	extra = MIN(extra, max_extra);
+
+	if (extra != atomic_load_64(&dbuf_cache_extra))
+		atomic_store_64(&dbuf_cache_extra, extra);
 }
 
 static inline boolean_t
@@ -899,6 +1036,8 @@ dbuf_kstat_update(kstat_t *ksp, int rw)
 	ds->cache_size_bytes.value.ui64 =
 	    zfs_refcount_count(&dbuf_caches[DB_DBUF_CACHE].size);
 	ds->cache_target_bytes.value.ui64 = dbuf_cache_target_bytes();
+	ds->cache_extra_bytes.value.ui64 =
+	    atomic_load_64(&dbuf_cache_extra);
 	ds->cache_hiwater_bytes.value.ui64 = dbuf_cache_hiwater_bytes();
 	ds->cache_lowater_bytes.value.ui64 = dbuf_cache_lowater_bytes();
 	ds->cache_total_evicts.value.ui64 =
@@ -1042,12 +1181,16 @@ dbuf_init(void)
 		dbuf_ksp->ks_update = dbuf_kstat_update;
 		kstat_install(dbuf_ksp);
 	}
+
+	dbuf_sums_ready = B_TRUE;
 }
 
 void
 dbuf_fini(void)
 {
 	dbuf_hash_table_t *h = &dbuf_hash_table;
+
+	dbuf_sums_ready = B_FALSE;
 
 	dbuf_stats_destroy();
 
@@ -5577,6 +5720,9 @@ ZFS_MODULE_PARAM(zfs_dbuf, dbuf_, metadata_cache_max_bytes, U64, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_dbuf, dbuf_, cache_shift, UINT, ZMOD_RW,
 	"Set size of dbuf cache to log2 fraction of arc size.");
+
+ZFS_MODULE_PARAM(zfs_dbuf, dbuf_, cache_extra_max_shift, UINT, ZMOD_RW,
+	"Set max size of dbuf cache to log2 fraction of max arc size.");
 
 ZFS_MODULE_PARAM(zfs_dbuf, dbuf_, metadata_cache_shift, UINT, ZMOD_RW,
 	"Set size of dbuf metadata cache to log2 fraction of arc size.");
