@@ -1,0 +1,49 @@
+#include <windows.h>   // defines DS_*, WS_*, etc.
+#include <commctrl.h>  // (optional) if you use common controls
+#include "resource.h"
+
+// App icon (used for the EXE and for the tray at runtime)
+IDI_APP        ICON "openzfs.ico"
+IDI_APP_WARN   ICON "openzfs_warn.ico"
+IDI_APP_ERR    ICON "openzfs_err.ico"
+IDI_APP_SCRUB  ICON "openzfs_scrub.ico"
+
+// Import
+IDD_IMPORT DIALOGEX 0,0,500,330
+STYLE DS_MODALFRAME | DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "OpenZFS - Import"
+FONT 9, "Segoe UI"
+BEGIN
+    CONTROL "", IDC_ICON_HDR, "Static", SS_ICON | SS_REALSIZECONTROL,
+            7, 7, 32, 32
+    LTEXT   "Import ZFS Pool", IDC_TITLE, 47, 11, 350, 18
+    CONTROL "", IDC_HDR_SEP, "Static", SS_ETCHEDHORZ, 7, 44, 486, 1
+    CONTROL "", IDC_LIST, "SysListView32", WS_TABSTOP | WS_BORDER | WS_VSCROLL | WS_HSCROLL | LVS_REPORT,
+            7, 52, 486, 182
+    GROUPBOX "Import options", IDC_GRP_OPTIONS, 7, 240, 486, 48
+    CONTROL "Force",    IDC_CHK_FORCE,    "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 16,  254, 60, 10
+    CONTROL "Read-only",IDC_CHK_READONLY, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 89,  254, 70, 10
+    CONTROL "No mount", IDC_CHK_NOMOUNT,  "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 172, 254, 70, 10
+    CONTROL "Load crypto keys", IDC_CHK_LOADKEYS, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 255, 254, 110, 10
+    LTEXT   "", IDC_STATUS, 7, 296, 486, 10
+    PUSHBUTTON  "Refresh", IDC_BTN_REFRESH,  300, 310, 60, 14
+    DEFPUSHBUTTON "Import", IDC_BTN_IMPORT,  366, 310, 60, 14
+    PUSHBUTTON  "Close",   IDC_BTN_CLOSE,    433, 310, 60, 14
+END
+
+// Password
+IDD_PASSPHRASE DIALOGEX 0, 0, 260, 112
+STYLE DS_MODALFRAME | DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Unlock dataset"
+FONT 9, "Segoe UI"
+BEGIN
+    CONTROL     "", IDC_ICON_HDR, "Static", SS_ICON | SS_REALSIZECONTROL,
+                10, 11, 24, 24
+    LTEXT       "Enter passphrase", IDC_TITLE, 42, 12, 208, 16
+    CONTROL     "", IDC_HDR_SEP, "Static", SS_ETCHEDHORZ, 10, 40, 240, 1
+    EDITTEXT    IDC_EDIT_PASSPHRASE, 10, 50, 240, 14, ES_PASSWORD | ES_AUTOHSCROLL
+    CONTROL     "Show", IDC_SHOW, "Button", BS_AUTOCHECKBOX | WS_TABSTOP, 10, 70, 60, 10
+    DEFPUSHBUTTON "OK", IDOK, 152, 90, 50, 14
+    PUSHBUTTON  "Cancel", IDCANCEL, 203, 90, 50, 14
+END
+

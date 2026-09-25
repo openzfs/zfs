@@ -77,6 +77,11 @@ zfs_resolve_shortname(const char *name, char *path, size_t len)
 		}
 	}
 
+#ifdef _WIN32
+	/* Nothing found, attempt OS specific shortnames */
+	if (zfs_resolve_shortname_os(name, path, len) == 0)
+		return (0);
+#endif
 	/*
 	 * The user can pass a relative path like ./file1 for the vdev. The path
 	 * must contain a directory prefix like './file1' or '../file1'.  Simply
@@ -132,7 +137,12 @@ zfs_strcmp_shortname(const char *name, const char *cmp_name, int wholedisk)
 		if (wholedisk)
 			path_len = zfs_append_partition(path_name, MAXPATHLEN);
 
+#ifdef _WIN32
+		if ((path_len == cmp_len) &&
+		    strcasecmp(path_name, cmp_name) == 0) {
+#else
 		if ((path_len == cmp_len) && strcmp(path_name, cmp_name) == 0) {
+#endif
 			error = 0;
 			break;
 		}

@@ -1,0 +1,74 @@
+﻿{
+  "configurations": [
+	{
+	  "name": "x64-Debug",
+	  "generator": "Ninja",
+	  "configurationType": "Debug",
+	  "inheritEnvironments": [ "msvc_x64" ],
+	  "buildRoot": "${projectDir}\\out\\build\\${name}",
+	  "installRoot": "${projectDir}\\out\\install\\${name}",
+	  "cmakeCommandArgs": "",
+	  "buildCommandArgs": "-v",
+	  "ctestCommandArgs": ""
+	},
+	{
+	  "name": "x64-Release",
+	  "generator": "Ninja",
+	  "configurationType": "RelWithDebInfo",
+	  "buildRoot": "${projectDir}\\out\\build\\${name}",
+	  "installRoot": "${projectDir}\\out\\install\\${name}",
+	  "cmakeCommandArgs": "",
+	  "buildCommandArgs": "",
+	  "ctestCommandArgs": "",
+	  "inheritEnvironments": [ "msvc_x64_x64" ]
+	},
+	{
+	  "name": "arm64-Debug",
+	  "generator": "Ninja",
+	  "configurationType": "Debug",
+	  "buildRoot": "${projectDir}\\out\\build\\${name}",
+	  "installRoot": "${projectDir}\\out\\install\\${name}",
+	  "cmakeCommandArgs": "",
+	  "ctestCommandArgs": "",
+	  "inheritEnvironments": [ "msvc_arm64_x64" ],
+	  "variables": [
+		{
+		  "name": "LIB_EAY_DEBUG",
+		  "value": "C:/Program Files/OpenSSL-Win64-ARM/lib/VC/arm64/MTd/libcrypto_static.lib",
+		  "type": "FILEPATH"
+		},
+		{
+		  "name": "SSL_EAY_DEBUG",
+		  "value": "C:/Program Files/OpenSSL-Win64-ARM/lib/VC/arm64/MTd/libssl_static.lib",
+		  "type": "FILEPATH"
+		},
+		{
+		  "name": "OPENSSL_ROOT_DIR",
+		  "value": "C:/Program Files/OpenSSL-Win64-ARM/",
+		  "type": "FILEPATH"
+		},
+		{
+		  "name": "CRYPTO_STATIC_TEST",
+		  "value": "C:/Program Files/OpenSSL-Win64-ARM/lib/VC/arm64/MTd/libcrypto_static.lib",
+		  "type": "FILEPATH"
+		},
+		{
+		  "name": "SSL_EAY_RELEASE",
+		  "value": "C:/Program Files/OpenSSL-Win64-ARM/lib/VC/arm64/MT/libssl_static.lib",
+		  "type": "FILEPATH"
+		},
+		{
+		  "name": "LIB_EAY_RELEASE",
+		  "value": "C:/Program Files/OpenSSL-Win64-ARM/lib/VC/arm64/MT/libcrypto_static.lib",
+		  "type": "FILEPATH"
+		},
+		{
+		  "name": "WDK_COMPILE_FLAGS",
+		  "value": "",
+		  "type": "STRING"
+		}
+	  ],
+	  "buildCommandArgs": "-v"
+	}
+  ]
+}

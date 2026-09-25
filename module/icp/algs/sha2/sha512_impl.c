@@ -97,7 +97,7 @@ const sha512_ops_t sha512_sha512ext_impl = {
 };
 #endif
 
-#elif defined(__aarch64__) || defined(__arm__)
+#elif defined(__aarch64__NOTYET) || defined(__arm__)
 extern void zfs_sha512_block_armv7(uint64_t s[8], const void *, size_t);
 const sha512_ops_t sha512_armv7_impl = {
 	.is_supported = sha2_is_supported,
@@ -105,7 +105,7 @@ const sha512_ops_t sha512_armv7_impl = {
 	.name = "armv7"
 };
 
-#if defined(__aarch64__)
+#if defined(__aarch64__NOTYET)
 static boolean_t sha512_have_armv8ce(void)
 {
 	return (kfpu_allowed() && zfs_sha512_available());
@@ -172,9 +172,9 @@ static const sha512_ops_t *const sha512_impls[] = {
 #if defined(__x86_64) && HAVE_SIMD(SHA512EXT)
 	&sha512_sha512ext_impl,
 #endif
-#if defined(__aarch64__) || defined(__arm__)
+#if defined(__aarch64NOTYET__) || defined(__arm__)
 	&sha512_armv7_impl,
-#if defined(__aarch64__)
+#if defined(__aarch64NOTYET__)
 	&sha512_armv8_impl,
 #endif
 #if defined(__arm__) && __ARM_ARCH > 6
@@ -199,7 +199,7 @@ static const sha512_ops_t *const sha512_impls[] = {
 
 #define	IMPL_FMT(impl, i)	(((impl) == (i)) ? "[%s] " : "%s ")
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(_WIN32)
 
 static int
 sha512_param_get(char *buffer, zfs_kernel_param_t *unused)
@@ -233,6 +233,30 @@ sha512_param_set(const char *val, zfs_kernel_param_t *unused)
 	(void) unused;
 	return (generic_impl_setname(val));
 }
+
+#ifdef _WIN32
+int
+win32_sha512_param_set(ZFS_MODULE_PARAM_ARGS)
+{
+	static char str[1024] = "";
+
+	*type = ZT_TYPE_STRING;
+
+	if (set == B_FALSE) {
+		sha512_param_get(str, NULL);
+		*ptr = str;
+		*len = strlen(str);
+		return (0);
+	}
+
+	ASSERT3P(ptr, !=, NULL);
+
+	generic_impl_setname(*ptr);
+
+	return (0);
+}
+#endif /* WIN32 */
+
 
 #elif defined(__FreeBSD__)
 

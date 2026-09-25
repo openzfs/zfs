@@ -545,6 +545,40 @@ zfs_sha256_available(void)
 #define	kfpu_begin()		do {} while (0)
 #define	kfpu_end()		do {} while (0)
 
+#ifdef _WIN32
+
+/*
+ * Check if NEON is available
+ */
+static inline boolean_t
+zfs_neon_available(void)
+{
+	return (IsProcessorFeaturePresent(
+	    PF_ARM_VFP_32_REGISTERS_AVAILABLE));
+}
+
+/*
+ * Check if SHA2 is available
+ */
+static inline boolean_t
+zfs_sha256_available(void)
+{
+	return (IsProcessorFeaturePresent(
+	    PF_ARM_V8_CRYPTO_INSTRUCTIONS_AVAILABLE));
+}
+
+/*
+ * Check if SHA512 is available
+ */
+static inline boolean_t
+zfs_sha512_available(void)
+{
+	return (IsProcessorFeaturePresent(
+	    PF_ARM_V8_CRYPTO_INSTRUCTIONS_AVAILABLE));
+}
+
+#else
+
 #define	HWCAP_FP		0x00000001
 #define	HWCAP_SHA2		0x00000040
 #define	HWCAP_SHA512		0x00200000
@@ -578,6 +612,8 @@ zfs_sha512_available(void)
 	unsigned long hwcap = getauxval(AT_HWCAP);
 	return (hwcap & HWCAP_SHA512);
 }
+
+#endif /* WIN32 */
 
 #elif defined(__powerpc__)
 

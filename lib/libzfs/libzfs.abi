@@ -362,6 +362,7 @@
     <elf-symbol name='zfs_crypto_create' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_crypto_get_encryption_root' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_crypto_load_key' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_crypto_load_key_direct' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_crypto_rewrap' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_crypto_unload_key' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_dataset_exists' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -479,6 +480,7 @@
     <elf-symbol name='zfs_rename' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_resolve_shortname' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_rollback' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_rollback_os' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_save_arguments' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_send' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_send_one' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -497,7 +499,9 @@
     <elf-symbol name='zfs_smb_acl_remove' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_smb_acl_rename' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_snapshot' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_snapshot_mount' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_snapshot_nvl' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_snapshot_unmount' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_spa_version' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_spa_version_map' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_special_devs' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -2396,9 +2400,11 @@
       <enumerator name='ZFS_PROP_DEFAULTUSEROBJQUOTA' value='103'/>
       <enumerator name='ZFS_PROP_DEFAULTGROUPOBJQUOTA' value='104'/>
       <enumerator name='ZFS_PROP_DEFAULTPROJECTOBJQUOTA' value='105'/>
-      <enumerator name='ZFS_PROP_SNAPSHOTS_CHANGED_NSECS' value='106'/>
-      <enumerator name='ZFS_PROP_ZONED_UID' value='107'/>
-      <enumerator name='ZFS_NUM_PROPS' value='108'/>
+      <enumerator name='ZFS_PROP_MIMIC' value='106'/>
+      <enumerator name='ZFS_PROP_DRIVELETTER' value='107'/>
+      <enumerator name='ZFS_PROP_SNAPSHOTS_CHANGED_NSECS' value='108'/>
+      <enumerator name='ZFS_PROP_ZONED_UID' value='109'/>
+      <enumerator name='ZFS_NUM_PROPS' value='110'/>
     </enum-decl>
     <typedef-decl name='zfs_prop_t' type-id='4b000d60' id='58603c44'/>
     <enum-decl name='zprop_source_t' naming-typedef-id='a2256d42' id='5903f80e'>
@@ -4169,6 +4175,13 @@
       <parameter type-id='9200a744' name='zhp'/>
       <parameter type-id='c19b74c3' name='noop'/>
       <parameter type-id='80f4b756' name='alt_keylocation'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zfs_crypto_load_key_direct' mangled-name='zfs_crypto_load_key_direct' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_crypto_load_key_direct'>
+      <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='c19b74c3' name='noop'/>
+      <parameter type-id='80f4b756' name='pass'/>
+      <parameter type-id='7359adad' name='passlen'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='zfs_crypto_unload_key' mangled-name='zfs_crypto_unload_key' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_crypto_unload_key'>
@@ -6626,8 +6639,11 @@
       <enumerator name='ZFS_IOC_UNJAIL' value='23174'/>
       <enumerator name='ZFS_IOC_USERNS_DETACH' value='23174'/>
       <enumerator name='ZFS_IOC_SET_BOOTENV' value='23175'/>
-      <enumerator name='ZFS_IOC_GET_BOOTENV' value='23176'/>
-      <enumerator name='ZFS_IOC_LAST' value='23177'/>
+      <enumerator name='ZFS_IOC_UNREGISTER_FS' value='23177'/>
+      <enumerator name='ZFS_IOC_MOUNT' value='23178'/>
+      <enumerator name='ZFS_IOC_UNMOUNT' value='23179'/>
+      <enumerator name='ZFS_IOC_GET_MOUNT' value='23180'/>
+      <enumerator name='ZFS_IOC_LAST' value='23181'/>
     </enum-decl>
     <typedef-decl name='zfs_ioc_t' type-id='12033f13' id='5b35941c'/>
     <enum-decl name='zpool_wait_activity_t' naming-typedef-id='73446457' id='849338e3'>
@@ -9202,6 +9218,17 @@
     <function-decl name='zfs_mount_delegation_check' mangled-name='zfs_mount_delegation_check' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_mount_delegation_check'>
       <return type-id='95e97e5e'/>
     </function-decl>
+    <function-decl name='zfs_snapshot_mount' mangled-name='zfs_snapshot_mount' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_snapshot_mount'>
+      <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='80f4b756' name='options'/>
+      <parameter type-id='95e97e5e' name='flags'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zfs_snapshot_unmount' mangled-name='zfs_snapshot_unmount' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_snapshot_unmount'>
+      <parameter type-id='9200a744' name='zhp'/>
+      <parameter type-id='95e97e5e' name='flags'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libzfs/os/linux/libzfs_pool_os.c' language='LANG_C99'>
     <array-type-def dimensions='1' type-id='a84c031d' size-in-bits='288' id='16e6f2c6'>
@@ -9531,6 +9558,10 @@
       <parameter type-id='80f4b756' name='nspath'/>
       <parameter type-id='95e97e5e' name='attach'/>
       <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zfs_rollback_os' mangled-name='zfs_rollback_os' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zfs_rollback_os'>
+      <parameter type-id='9200a744' name='zhp'/>
+      <return type-id='48b5725f'/>
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libzutil/os/linux/zutil_device_path_os.c' language='LANG_C99'>
@@ -10411,7 +10442,12 @@
       </data-member>
     </class-decl>
     <typedef-decl name='zfs_fletcher_avx512_t' type-id='c6d0c382' id='90dbb6d6'/>
-    <union-decl name='fletcher_4_ctx' size-in-bits='2048' visibility='default' id='1f951ade'>
+    <class-decl name='fletcher_4_ctx' size-in-bits='2048' is-struct='yes' visibility='default' id='7a2d14bb'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='' type-id='ac5ab59a' visibility='default'/>
+      </data-member>
+    </class-decl>
+    <union-decl name='__anonymous_union__' size-in-bits='2048' is-anonymous='yes' visibility='default' id='ac5ab59a'>
       <data-member access='public'>
         <var-decl name='scalar' type-id='39730d0b' visibility='default'/>
       </data-member>
@@ -10428,7 +10464,7 @@
         <var-decl name='avx512' type-id='16582e69' visibility='default'/>
       </data-member>
     </union-decl>
-    <typedef-decl name='fletcher_4_ctx_t' type-id='1f951ade' id='4b675395'/>
+    <typedef-decl name='fletcher_4_ctx_t' type-id='7a2d14bb' id='4b675395'/>
     <qualified-type-def type-id='aa14691a' const='yes' id='3f8e8d11'/>
     <pointer-type-def type-id='4b675395' size-in-bits='64' id='0f7df99e'/>
     <qualified-type-def type-id='8f92235e' volatile='yes' id='430e0681'/>

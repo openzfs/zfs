@@ -32,7 +32,6 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <strings.h>
 #include <unistd.h>
 #include <math.h>
 #if LIBFETCH_DYNAMIC
@@ -908,8 +907,9 @@ libzfs_read_stdout_from_fd(int fd, char **lines[])
 		tmp_lines = tmp;
 
 		/* Remove newline if not EOF */
-		if (line[strlen(line) - 1] == '\n')
-			line[strlen(line) - 1] = '\0';
+		size_t linelen = strlen(line);
+		if (linelen > 0 && line[linelen - 1] == '\n')
+			line[linelen - 1] = '\0';
 
 		tmp_lines[lines_cnt] = strdup(line);
 		if (tmp_lines[lines_cnt] == NULL)
@@ -922,9 +922,29 @@ libzfs_read_stdout_from_fd(int fd, char **lines[])
 	return (lines_cnt);
 }
 
+#ifdef _WIN32
 static int
 libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
     char **lines[], int *lines_cnt)
+{
+	(void) path;
+	int fd = -1;
+	int rc = wosix_run_process(argv, env,
+	    (flags & STDOUT_VERBOSE) != 0, (flags & STDERR_VERBOSE) != 0,
+	    lines != NULL ? &fd : NULL);
+
+	if (lines != NULL)
+		*lines_cnt = (fd != -1) ?
+		    libzfs_read_stdout_from_fd(fd, lines) : 0;
+
+	return (rc);
+}
+
+#else
+
+static int
+    libzfs_run_process_impl(const char *path, char *argv[], char *env[],
+    int flags, char **lines[], int *lines_cnt)
 {
 	pid_t pid;
 	int error, devnull_fd;
@@ -988,6 +1008,7 @@ libzfs_run_process_impl(const char *path, char *argv[], char *env[], int flags,
 
 	return (-1);
 }
+#endif
 
 int
 libzfs_run_process(const char *path, char *argv[], int flags)

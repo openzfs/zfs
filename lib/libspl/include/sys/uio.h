@@ -32,7 +32,10 @@
 
 #include <sys/sysmacros.h>
 #include <sys/types.h>
+
+#ifndef _WIN32
 #include_next <sys/uio.h>
+#endif
 
 #ifdef __APPLE__
 #include <sys/_types/_iovec_t.h>
@@ -41,7 +44,7 @@
 #include <stdint.h>
 typedef struct iovec iovec_t;
 
-#if defined(__linux__) || defined(__APPLE__)
+#if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
 typedef enum zfs_uio_rw {
 	UIO_READ =	0,
 	UIO_WRITE =	1,
@@ -75,7 +78,7 @@ typedef struct zfs_uio {
 static inline boolean_t
 zfs_dio_page_aligned(void *buf)
 {
-	return ((((unsigned long)(buf) & (PAGESIZE - 1)) == 0) ?
+	return ((((unsigned long long)(buf) & (PAGESIZE - 1)) == 0) ?
 	    B_TRUE : B_FALSE);
 }
 

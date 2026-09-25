@@ -16,6 +16,9 @@
 
 #include <stdio.h>
 #include <time.h>
+#if _WIN32
+#include <sys/time.h>
+#endif
 #include <langinfo.h>
 #include "statcommon.h"
 

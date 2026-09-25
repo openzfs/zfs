@@ -112,7 +112,7 @@ const sha256_ops_t sha256_shani_impl = {
 };
 #endif
 
-#elif defined(__aarch64__) || defined(__arm__)
+#elif defined(__aarch64NOTYET__) || defined(__arm__)
 extern void zfs_sha256_block_armv7(uint32_t s[8], const void *, size_t);
 const sha256_ops_t sha256_armv7_impl = {
 	.is_supported = sha2_is_supported,
@@ -188,7 +188,7 @@ static const sha256_ops_t *const sha256_impls[] = {
 #if defined(__x86_64) && HAVE_SIMD(SSE4_1)
 	&sha256_shani_impl,
 #endif
-#if defined(__aarch64__) || defined(__arm__)
+#if defined(__aarch64NOTYET__) || defined(__arm__)
 	&sha256_armv7_impl,
 #if __ARM_ARCH > 6
 	&sha256_neon_impl,
@@ -213,7 +213,7 @@ static const sha256_ops_t *const sha256_impls[] = {
 
 #define	IMPL_FMT(impl, i)	(((impl) == (i)) ? "[%s] " : "%s ")
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(_WIN32)
 
 static int
 sha256_param_get(char *buffer, zfs_kernel_param_t *unused)
@@ -247,6 +247,29 @@ sha256_param_set(const char *val, zfs_kernel_param_t *unused)
 	(void) unused;
 	return (generic_impl_setname(val));
 }
+
+#ifdef _WIN32
+int
+win32_sha256_param_set(ZFS_MODULE_PARAM_ARGS)
+{
+	static char str[1024] = "";
+
+	*type = ZT_TYPE_STRING;
+
+	if (set == B_FALSE) {
+		sha256_param_get(str, NULL);
+		*ptr = str;
+		*len = strlen(str);
+		return (0);
+	}
+
+	ASSERT3P(ptr, !=, NULL);
+
+	generic_impl_setname(*ptr);
+
+	return (0);
+}
+#endif /* WIN32 */
 
 #elif defined(__FreeBSD__)
 

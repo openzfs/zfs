@@ -70,6 +70,11 @@ static int gcm_init_avx(gcm_ctx_t *, const uint8_t *, size_t, const uint8_t *,
     size_t, size_t);
 #endif /* ifdef CAN_USE_GCM_ASM */
 
+/* Windows defines variables, so can't be nested */
+#ifndef kfpu_begin_cont
+#define	kfpu_begin_cont kfpu_begin
+#endif
+
 /*
  * Encrypt multiple blocks of data in GCM mode.  Decrypt for GCM mode
  * is done in another function.
@@ -772,6 +777,7 @@ gcm_impl_get_ops(void)
 /*
  * Initialize all supported implementations.
  */
+
 void
 gcm_impl_init(void)
 {
@@ -840,7 +846,9 @@ static const struct {
 		{ "fastest",	IMPL_FASTEST },
 #ifdef CAN_USE_GCM_ASM
 		{ "avx",	IMPL_AVX },
+#if CAN_USE_GCM_ASM >= 2
 		{ "avx2-vaes",	IMPL_AVX2 },
+#endif
 #endif
 };
 
@@ -934,7 +942,8 @@ gcm_impl_set(const char *val)
 	return (err);
 }
 
-#if defined(_KERNEL) && defined(__linux__)
+#if defined(_KERNEL)
+#if defined(__linux__) || defined(_WIN32)
 
 static int
 icp_gcm_impl_set(const char *val, zfs_kernel_param_t *kp)
@@ -977,6 +986,31 @@ icp_gcm_impl_get(char *buffer, zfs_kernel_param_t *kp)
 
 	return (cnt);
 }
+#endif /* linux || windows */
+
+#ifdef _WIN32
+int
+win32_icp_gcm_impl_set(ZFS_MODULE_PARAM_ARGS)
+{
+	static char str[PAGE_SIZE] = "";
+
+	*type = ZT_TYPE_STRING;
+
+	if (set == B_FALSE) {
+		if (gcm_impl_initialized)
+			icp_gcm_impl_get(str, NULL);
+		*ptr = str;
+		*len = strlen(str);
+		return (0);
+	}
+
+	ASSERT3P(ptr, !=, NULL);
+
+	gcm_impl_set(*ptr);
+
+	return (0);
+}
+#endif
 
 module_param_call(icp_gcm_impl, icp_gcm_impl_set, icp_gcm_impl_get,
     NULL, 0644);
@@ -985,6 +1019,7 @@ MODULE_PARM_DESC(icp_gcm_impl, "Select gcm implementation.");
 
 #ifdef CAN_USE_GCM_ASM
 #define	GCM_BLOCK_LEN 16
+
 /*
  * The openssl asm routines are 6x aggregated and need that many bytes
  * at minimum.
@@ -1047,7 +1082,6 @@ static inline void GHASH_AVX(gcm_ctx_t *ctx, const uint8_t *in, size_t len)
 			    (const uint64_t *)ctx->gcm_Htable, in, len);
 			break;
 #endif
-
 		case GCM_IMPL_AVX:
 			gcm_ghash_avx(ctx->gcm_ghash,
 			    (const uint64_t *)ctx->gcm_Htable, in, len);
@@ -1058,20 +1092,20 @@ static inline void GHASH_AVX(gcm_ctx_t *ctx, const uint8_t *in, size_t len)
 	}
 }
 
-typedef size_t ASMABI aesni_gcm_encrypt_impl(const uint8_t *, uint8_t *,
+typedef size_t aesni_gcm_encrypt_impl(const uint8_t *, uint8_t *,
     size_t, const void *, uint64_t *, const uint64_t *Htable, uint64_t *);
-extern size_t ASMABI aesni_gcm_encrypt(const uint8_t *, uint8_t *, size_t,
-    const void *, uint64_t *, uint64_t *);
+extern size_t ASMABI aesni_gcm_encrypt(const uint8_t *, uint8_t *,
+    size_t, const void *, uint64_t *, uint64_t *);
 #if CAN_USE_GCM_ASM >= 2
 extern void ASMABI aes_gcm_enc_update_vaes_avx2(const uint8_t *in,
     uint8_t *out, size_t len, const void *key, const uint8_t ivec[16],
     const uint128_t Htable[16], uint8_t Xi[16]);
 #endif
 
-typedef size_t ASMABI aesni_gcm_decrypt_impl(const uint8_t *, uint8_t *,
+typedef size_t aesni_gcm_decrypt_impl(const uint8_t *, uint8_t *,
     size_t, const void *, uint64_t *, const uint64_t *Htable, uint64_t *);
-extern size_t ASMABI aesni_gcm_decrypt(const uint8_t *, uint8_t *, size_t,
-    const void *, uint64_t *, uint64_t *);
+extern size_t ASMABI aesni_gcm_decrypt(const uint8_t *, uint8_t *,
+    size_t, const void *, uint64_t *, uint64_t *);
 #if CAN_USE_GCM_ASM >= 2
 extern void ASMABI aes_gcm_dec_update_vaes_avx2(const uint8_t *in,
     uint8_t *out, size_t len, const void *key, const uint8_t ivec[16],
@@ -1089,6 +1123,7 @@ gcm_avx2_will_work(void)
 static inline boolean_t
 gcm_avx_will_work(void)
 {
+
 	/* Avx should imply aes-ni and pclmulqdq, but make sure anyhow. */
 	return (kfpu_allowed() &&
 	    zfs_avx_available() && zfs_aes_available() &&
@@ -1656,7 +1691,7 @@ gcm_init_avx(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 		kfpu_end();
 		gcm_format_initial_blocks(iv, iv_len, ctx, block_size,
 		    aes_copy_block, aes_xor_block);
-		kfpu_begin();
+		kfpu_begin_cont();
 	}
 
 	memset(ctx->gcm_ghash, 0, sizeof (ctx->gcm_ghash));
@@ -1670,7 +1705,7 @@ gcm_init_avx(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 		datap += chunk_size;
 		clear_fpu_regs();
 		kfpu_end();
-		kfpu_begin();
+		kfpu_begin_cont();
 	}
 	/* Ghash the remainder and handle possible incomplete GCM block. */
 	if (bleft > 0) {
@@ -1696,6 +1731,8 @@ gcm_init_avx(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 }
 
 #if defined(_KERNEL)
+
+#ifdef __linux__
 static int
 icp_gcm_avx_set_chunk_size(const char *buf, zfs_kernel_param_t *kp)
 {
@@ -1716,6 +1753,37 @@ icp_gcm_avx_set_chunk_size(const char *buf, zfs_kernel_param_t *kp)
 	error = param_set_uint(val_rounded, kp);
 	return (error);
 }
+#endif
+
+#ifdef _WIN32
+/* Lives in here to have access to GCM macros */
+int
+win32_icp_gcm_avx_set_chunk_size(ZFS_MODULE_PARAM_ARGS)
+{
+	uint32_t val;
+
+	*type = ZT_TYPE_UINT;
+
+	if (set == B_FALSE) {
+		*ptr = &gcm_avx_chunk_size;
+		*len = sizeof (gcm_avx_chunk_size);
+		return (0);
+	}
+
+	ASSERT3U(*len, >=, sizeof (gcm_avx_chunk_size));
+
+	val = *(uint32_t *)(*ptr);
+
+	val = (val / GCM_AVX_MIN_DECRYPT_BYTES) * GCM_AVX_MIN_DECRYPT_BYTES;
+
+	if (val < GCM_AVX_MIN_ENCRYPT_BYTES || val > GCM_AVX_MAX_CHUNK_SIZE)
+		return (-EINVAL);
+
+	gcm_avx_chunk_size = val;
+
+	return (0);
+}
+#endif
 
 module_param_call(icp_gcm_avx_chunk_size, icp_gcm_avx_set_chunk_size,
     param_get_uint, &gcm_avx_chunk_size, 0644);

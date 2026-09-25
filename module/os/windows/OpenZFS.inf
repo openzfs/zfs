@@ -1,0 +1,141 @@
+;;;
+;;; OpenZFS
+;;;
+;;;
+;;; Copyright (c) Jorgen Lundman
+;;;
+
+[Version]
+Signature   = "$Windows NT$"
+Class       = System
+ClassGuid   = {4D36E97D-E325-11CE-BFC1-08002BE10318}
+Provider    = %Me%
+DriverVer   = 05/19/2018,1.0.2.0
+CatalogFile = OpenZFS.cat
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir          = 12
+OpenZFS.DriverFiles       = 12            ;%windir%\system32\drivers
+OpenZFS.DllFiles          = 11            ;%windir%\system32
+
+;;
+;; Default install sections
+;;
+
+;[DefaultInstall]
+;OptionDesc  = %ServiceDescription%
+;CopyFiles   = OpenZFS.DriverFiles
+;;;,OpenZFS.DllFiles
+;RegisterDlls = shellopenzfs
+;CopyINF     = OpenZFS.inf
+;
+;[DefaultInstall.Services]
+;AddService  = %ServiceName%,0x802,OpenZFS.Service
+
+[Manufacturer]
+%Me%=Standard,NTamd64,NTx86,NTarm64
+
+[Standard.NTamd64]
+;%VolumeName% = OpenZFS_Install, OpenZFSVolume
+%DriverName% = OpenZFS_Install, ROOT\OpenZFS
+%DriverName% = OpenZFS_Install, OpenZFS\Generic
+;%ControllerName% = OpenZFS_Install, ROOT\OpenZFS
+
+[Standard.NTarm64]
+%DriverName% = OpenZFS_Install, ROOT\OpenZFS
+%DriverName% = OpenZFS_Install, OpenZFS\Generic
+
+[Standard.NTx86]
+;%VolumeName% = OpenZFS_Install, OpenZFSVolume
+%DriverName% = OpenZFS_Install, ROOT\OpenZFS
+%DriverName% = OpenZFS_Install, OpenZFS\Generic
+;%ControllerName% = OpenZFS_Install, ROOT\OpenZFS
+
+[OpenZFS_Install]
+OptionDesc   = %ServiceDescription%
+CopyFiles    = OpenZFS.DriverFiles
+AddReg       = OpenZFS_AddReg
+
+[OpenZFS_AddReg]
+;HKR,,DeviceType,0x00010001,0x00000002
+;HKR,,Type,0x00010001,0x00000002 ; FILE_SYSTEM_DRIVER
+;HKR,,System.Devices.ContainerID,, "{00000001-0002-0003-0004-000000000001}"
+;HKR,,Group,0x00000000,"File System"
+
+;;,OpenZFS.DllFiles
+;;RegisterDlls = shellopenzfs
+
+[OpenZFS_Install.Services]
+AddService  = %ServiceName%,2,OpenZFS.Service
+
+;;
+;; Default uninstall sections
+;;
+
+[DefaultUninstall]
+UnregisterDlls = shellopenzfs
+DelFiles = OpenZFS.DriverFiles
+
+[DefaultUninstall.Services]
+; We shoud have this line, but if we do
+; we can no longer unload. Solve this puzzle.
+DelService = %ServiceName%,0x200      ;Ensure service is stopped before deleting
+
+;
+; Services Section
+;
+
+[OpenZFS.Service]
+DisplayName      = %ServiceName%
+Description      = %ServiceDescription%
+ServiceBinary    = %12%\%DriverName%.sys    ;%windir%\system32\drivers\
+ServiceType      = 2                        ;File System Driver
+StartType        = 3                        ;SERVICE_SYSTEM_START
+ErrorControl     = 1
+LoadOrderGroup   = "File System"
+
+;;[shellopenzfs]
+;;11,,shellopenzfs.dll,1
+
+;
+; Copy Files
+;
+
+[OpenZFS.DriverFiles]
+%DriverName%.sys
+%DriverName%.man
+
+[OpenZFS.DllFiles]
+;;zpool.exe
+;;zfs.exe
+
+[SourceDisksFiles]
+OpenZFS.sys = 1,,
+OpenZFS.man = 1,,
+;;zpool.exe = 1,,
+;;zfs.exe = 1,,
+
+[SourceDisksNames.x86]
+1 = %DiskId1%,,
+;;,\x86
+
+[SourceDisksNames.amd64]
+1 = %DiskId1%,,
+;;,\x64
+
+[SourceDisksNames.arm64]
+1 = %DiskId1%,,
+
+;;
+;; String Section
+;;
+
+[Strings]
+Me                      = "Jorgen Lundman"
+ServiceDescription      = "OpenZFS driver"
+ServiceName             = "OpenZFS"
+DriverName              = "OpenZFS"
+DiskId1                 = "OpenZFS Device Installation Disk"
+VolumeName              = "OpenZFS volume"
+ControllerName = "OpenZFS controller" 

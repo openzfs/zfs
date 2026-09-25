@@ -27,7 +27,7 @@
  * keyarr32	User key
  * keyBits	AES key size (128, 192, or 256 bits)
  */
-static void
+static void ASMABI
 aes_x86_64_generate(aes_key_t *key, const uint32_t *keyarr32, int keybits)
 {
 	key->nr = rijndael_key_setup_enc_amd64(&(key->encr_ks.ks32[0]),

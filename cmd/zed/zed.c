@@ -30,7 +30,9 @@
 #include "zed_event.h"
 #include "zed_file.h"
 #include "zed_log.h"
-
+#ifdef _WIN32
+#include <pthread.h>
+#endif
 static volatile sig_atomic_t _got_exit = 0;
 static volatile sig_atomic_t _got_hup = 0;
 
@@ -217,6 +219,66 @@ _finish_daemonize(void)
 }
 
 /*
+ * Main loop for ZED.
+ */
+void
+main_loop(struct zed_conf *zcp)
+{
+	uint64_t saved_eid;
+	int64_t saved_etime[2];
+	zed_log_msg(LOG_NOTICE,
+	    "ZFS Event Daemon %s-%s (PID %d)",
+	    ZFS_META_VERSION, ZFS_META_RELEASE, (int)getpid());
+
+	if (zed_conf_open_state(zcp) < 0)
+		exit(EXIT_FAILURE);
+
+	if (zed_conf_read_state(zcp, &saved_eid, saved_etime) < 0)
+		exit(EXIT_FAILURE);
+
+idle:
+	/*
+	 * If -I is specified, attempt to open /dev/zfs repeatedly until
+	 * successful.
+	 */
+	do {
+		if (!zed_event_init(zcp))
+			break;
+		/* Wait for some time and try again. tunable? */
+		sleep(30);
+	} while (!_got_exit && zcp->do_idle);
+
+	if (_got_exit)
+		goto out;
+
+	zed_event_seek(zcp, saved_eid, saved_etime);
+
+	while (!_got_exit) {
+		int rv;
+		if (_got_hup) {
+			_got_hup = 0;
+			(void) zed_conf_scan_dir(zcp);
+
+		}
+		rv = zed_event_service(zcp);
+
+		/* ENODEV: When kernel module is unloaded (osx) */
+		if (rv != 0)
+			break;
+	}
+
+	zed_log_msg(LOG_NOTICE, "Exiting");
+	zed_event_fini(zcp);
+
+	if (zcp->do_idle && !_got_exit)
+		goto idle;
+
+out:
+	zed_conf_destroy(zcp);
+	zed_log_fini();
+}
+
+/*
  * ZFS Event Daemon (ZED).
  */
 int
@@ -261,54 +323,15 @@ main(int argc, char *argv[])
 	if (!zcp.do_foreground)
 		_finish_daemonize();
 
-	zed_log_msg(LOG_NOTICE,
-	    "ZFS Event Daemon %s-%s (PID %d)",
-	    ZFS_META_VERSION, ZFS_META_RELEASE, (int)getpid());
+#ifdef _WIN32
+	void win_run_loop(struct zed_conf *);
+	if (!zcp.do_foreground)
+		win_run_loop(&zcp);
+#endif
 
-	if (zed_conf_open_state(&zcp) < 0)
-		exit(EXIT_FAILURE);
+	/* Windows daemonize needs to specify function for thread */
 
-	if (zed_conf_read_state(&zcp, &saved_eid, saved_etime) < 0)
-		exit(EXIT_FAILURE);
+	main_loop(&zcp);
 
-idle:
-	/*
-	 * If -I is specified, attempt to open /dev/zfs repeatedly until
-	 * successful.
-	 */
-	do {
-		if (!zed_event_init(&zcp))
-			break;
-		/* Wait for some time and try again. tunable? */
-		sleep(30);
-	} while (!_got_exit && zcp.do_idle);
-
-	if (_got_exit)
-		goto out;
-
-	zed_event_seek(&zcp, saved_eid, saved_etime);
-
-	while (!_got_exit) {
-		int rv;
-		if (_got_hup) {
-			_got_hup = 0;
-			(void) zed_conf_scan_dir(&zcp);
-		}
-		rv = zed_event_service(&zcp);
-
-		/* ENODEV: When kernel module is unloaded (osx) */
-		if (rv != 0)
-			break;
-	}
-
-	zed_log_msg(LOG_NOTICE, "Exiting");
-	zed_event_fini(&zcp);
-
-	if (zcp.do_idle && !_got_exit)
-		goto idle;
-
-out:
-	zed_conf_destroy(&zcp);
-	zed_log_fini();
 	exit(EXIT_SUCCESS);
 }

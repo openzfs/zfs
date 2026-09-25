@@ -3902,7 +3902,26 @@ zio_ddt_write(zio_t *zio)
 	 */
 	ddt_univ_phys_t *ddp = dde->dde_phys;
 	int have_dvas = ddt_phys_dva_count(ddp, v, BP_IS_ENCRYPTED(bp));
+#ifdef _WIN32
+	/*
+	 * A prior Windows-port bug (TXG partial commit during condvar/
+	 * PagingIoResource/range-lock deadlocks) can leave a DDT entry
+	 * with birth set but no valid data DVAs.  Detect and recover:
+	 * clear the corrupted entry so the write proceeds as if brand-new.
+	 * The old allocation (if any) becomes leaked space; zpool scrub
+	 * will reclaim it.  Without this recovery the pool would BSOD on
+	 * every write to a deduplicated+encrypted dataset.
+	 */
+	if (have_dvas == 0 && ddt_phys_birth(ddp, v) != 0) {
+		zfs_dbgmsg("DDT corruption: entry has birth=%llu but "
+		    "have_dvas=0 (encrypted=%d v=%d) — clearing",
+		    (u_longlong_t)ddt_phys_birth(ddp, v),
+		    (int)BP_IS_ENCRYPTED(bp), (int)v);
+		ddt_phys_clear(ddp, v);
+	}
+#else
 	IMPLY(have_dvas == 0, ddt_phys_birth(ddp, v) == 0);
+#endif
 	boolean_t is_ganged = ddt_phys_is_gang(ddp, v);
 
 	if (dde_io == NULL || dde_io->dde_lead_zio[p] == NULL) {

@@ -179,7 +179,7 @@ static const fletcher_4_ops_t *fletcher_4_impls[] = {
 #if defined(__x86_64) && HAVE_SIMD(AVX512BW)
 	&fletcher_4_avx512bw_ops,
 #endif
-#if defined(__aarch64__) && !defined(__FreeBSD__)
+#if defined(__aarch64NOTYET__) && !defined(__FreeBSD__)
 	&fletcher_4_aarch64_neon_ops,
 #endif
 };
@@ -448,12 +448,14 @@ fletcher_4_native_impl(const void *buf, uint64_t size, zio_cksum_t *zcp)
 
 	if (ops->uses_fpu == B_TRUE) {
 		kfpu_begin();
-	}
-	ops->init_native(&ctx);
-	ops->compute_native(&ctx, buf, size);
-	ops->fini_native(&ctx, zcp);
-	if (ops->uses_fpu == B_TRUE) {
+		ops->init_native(&ctx);
+		ops->compute_native(&ctx, buf, size);
+		ops->fini_native(&ctx, zcp);
 		kfpu_end();
+	} else {
+		ops->init_native(&ctx);
+		ops->compute_native(&ctx, buf, size);
+		ops->fini_native(&ctx, zcp);
 	}
 }
 
@@ -504,12 +506,14 @@ fletcher_4_byteswap_impl(const void *buf, uint64_t size, zio_cksum_t *zcp)
 
 	if (ops->uses_fpu == B_TRUE) {
 		kfpu_begin();
-	}
-	ops->init_byteswap(&ctx);
-	ops->compute_byteswap(&ctx, buf, size);
-	ops->fini_byteswap(&ctx, zcp);
-	if (ops->uses_fpu == B_TRUE) {
+		ops->init_byteswap(&ctx);
+		ops->compute_byteswap(&ctx, buf, size);
+		ops->fini_byteswap(&ctx, zcp);
 		kfpu_end();
+	} else {
+		ops->init_byteswap(&ctx);
+		ops->compute_byteswap(&ctx, buf, size);
+		ops->fini_byteswap(&ctx, zcp);
 	}
 }
 
@@ -827,7 +831,11 @@ abd_fletcher_4_init(zio_abd_checksum_data_t *cdp)
 	cdp->acd_private = (void *) ops;
 
 	if (ops->uses_fpu == B_TRUE) {
+#if defined(_WIN32) && defined(_KERNEL)
+		kfpu_begin_ctx(cdp);
+#else
 		kfpu_begin();
+#endif
 	}
 	if (cdp->acd_byteorder == ZIO_CHECKSUM_NATIVE)
 		ops->init_native(cdp->acd_ctx);
@@ -849,7 +857,11 @@ abd_fletcher_4_fini(zio_abd_checksum_data_t *cdp)
 		ops->fini_byteswap(cdp->acd_ctx, cdp->acd_zcp);
 
 	if (ops->uses_fpu == B_TRUE) {
+#if defined(_WIN32) && defined(_KERNEL)
+		kfpu_end_ctx(cdp);
+#else
 		kfpu_end();
+#endif
 	}
 }
 
@@ -911,7 +923,7 @@ zio_abd_checksum_func_t fletcher_4_abd_ops = {
 
 #define	IMPL_FMT(impl, i)	(((impl) == (i)) ? "[%s] " : "%s ")
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(_WIN32)
 
 static int
 fletcher_4_param_get(char *buffer, zfs_kernel_param_t *unused)
@@ -940,14 +952,42 @@ fletcher_4_param_set(const char *val, zfs_kernel_param_t *unused)
 	return (fletcher_4_impl_set(val));
 }
 
-#else
+#endif /* Linux || Windows */
+
+#ifdef _WIN32
+
+int
+win32_fletcher_4_param_set(ZFS_MODULE_PARAM_ARGS)
+{
+	static char str[1024] = "";
+
+	*type = ZT_TYPE_STRING;
+
+	if (set == B_FALSE) {
+		if (fletcher_4_initialized)
+			fletcher_4_param_get(str, NULL);
+		*ptr = str;
+		*len = strlen(str);
+		return (0);
+	}
+
+	ASSERT3P(ptr, !=, NULL);
+
+	fletcher_4_impl_set(*ptr);
+
+	return (0);
+}
+
+#endif /* WIN32 */
+
+#ifdef __FreeBSD__
 
 #include <sys/sbuf.h>
 
 static int
 fletcher_4_param(ZFS_MODULE_PARAM_ARGS)
 {
-	int err;
+	int err = 0;
 
 	if (req->newptr == NULL) {
 		const uint32_t impl = IMPL_READ(fletcher_4_impl_chosen);

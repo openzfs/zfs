@@ -193,6 +193,8 @@ typedef enum {
 	ZFS_PROP_DEFAULTUSEROBJQUOTA,
 	ZFS_PROP_DEFAULTGROUPOBJQUOTA,
 	ZFS_PROP_DEFAULTPROJECTOBJQUOTA,
+	ZFS_PROP_MIMIC,			/* Windows: mimic=ntfs */
+	ZFS_PROP_DRIVELETTER,
 	ZFS_PROP_SNAPSHOTS_CHANGED_NSECS,
 	ZFS_PROP_ZONED_UID,
 	ZFS_NUM_PROPS
@@ -684,6 +686,13 @@ typedef enum zfs_key_location {
 	ZFS_KEYLOCATION_LOCATIONS
 } zfs_keylocation_t;
 
+typedef enum zfs_mimic {
+	ZFS_MIMIC_OFF = 0,
+	ZFS_MIMIC_HFS,
+	ZFS_MIMIC_APFS,
+	ZFS_MIMIC_NTFS
+} zfs_mimic_t;
+
 typedef enum {
 	ZFS_PREFETCH_NONE = 0,
 	ZFS_PREFETCH_METADATA = 1,
@@ -1119,12 +1128,22 @@ typedef struct zpool_load_policy {
  * userland.
  */
 #define	ZPOOL_CACHE_BOOT	"/boot/zfs/zpool.cache"
+#ifdef _WIN32
+#define	ZPOOL_CACHE		"\\SystemRoot\\System32\\drivers\\zpool.cache"
+#else
 #define	ZPOOL_CACHE		"/etc/zfs/zpool.cache"
+#endif
 /*
  * Settings for zpool compatibility features files
  */
+#ifdef _WIN32
+/* Lets stay away from C:/windows */
+#define	ZPOOL_SYSCONF_COMPAT_D	ZFSEXECDIR "\\compatibility.d"
+#define	ZPOOL_DATA_COMPAT_D	ZFSEXECDIR "\\compatibility.d"
+#else
 #define	ZPOOL_SYSCONF_COMPAT_D	SYSCONFDIR "/zfs/compatibility.d"
 #define	ZPOOL_DATA_COMPAT_D	PKGDATADIR "/compatibility.d"
+#endif
 #define	ZPOOL_COMPAT_MAXSIZE	16384
 
 /*
@@ -1552,7 +1571,15 @@ typedef struct ddt_histogram {
 
 #define	ZVOL_DRIVER	"zvol"
 #define	ZFS_DRIVER	"zfs"
+
+#if defined(_WIN32)
+#define	ZFS_DEV		"\\\\.\\ZFS"
+#define	ZFS_DEV_DOS	L"\\DosDevices\\Global\\ZFS"
+#define	ZFS_DEV_KERNEL	L"\\Device\\ZFSCTL"
+#define	ZFS_GLOBAL_FS_DISK_DEVICE_NAME	L"\\OpenZFS"
+#else
 #define	ZFS_DEV		"/dev/zfs"
+#endif
 #define	ZFS_DEVDIR	"/dev"
 
 #define	ZFS_SUPER_MAGIC	0x2fc12fc1
@@ -1608,7 +1635,7 @@ typedef enum zfs_ioc {
 	/*
 	 * Core features - 89/128 numbers reserved.
 	 */
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(_WIN32)
 	ZFS_IOC_FIRST =	0,
 #else
 	ZFS_IOC_FIRST =	('Z' << 8),
@@ -1720,6 +1747,10 @@ typedef enum zfs_ioc {
 	ZFS_IOC_USERNS_DETACH = ZFS_IOC_UNJAIL,	/* 0x86 (Linux) */
 	ZFS_IOC_SET_BOOTENV,			/* 0x87 */
 	ZFS_IOC_GET_BOOTENV,			/* 0x88 */
+	ZFS_IOC_UNREGISTER_FS,			/* 0x89 (Windows) */
+	ZFS_IOC_MOUNT,				/* 0x8a (Windows) */
+	ZFS_IOC_UNMOUNT,			/* 0x8b (Windows) */
+	ZFS_IOC_GET_MOUNT,			/* 0x8c (Windows) */
 	ZFS_IOC_LAST
 } zfs_ioc_t;
 

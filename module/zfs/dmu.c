@@ -1588,9 +1588,31 @@ dmu_redact(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 }
 
 #ifdef _KERNEL
+#ifdef _WIN32
+static int dmu_read_uio_dnode_impl(dnode_t *dn, zfs_uio_t *uio,
+    uint64_t size, dmu_flags_t flags);
+
 int
 dmu_read_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
     dmu_flags_t flags)
+{
+	int err = 0;
+	__try {
+		err = dmu_read_uio_dnode_impl(dn, uio, size, flags);
+	} __except(EXCEPTION_EXECUTE_HANDLER) {
+		err = EIO;
+	}
+	return (err);
+}
+
+static int
+dmu_read_uio_dnode_impl(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
+    dmu_flags_t flags)
+#else
+int
+dmu_read_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
+    dmu_flags_t flags)
+#endif
 {
 	dmu_buf_t **dbp;
 	int numbufs, i, err;
@@ -1684,9 +1706,31 @@ dmu_read_uio(objset_t *os, uint64_t object, zfs_uio_t *uio, uint64_t size,
 	return (err);
 }
 
+#ifdef _WIN32
+static int dmu_write_uio_dnode_impl(dnode_t *dn, zfs_uio_t *uio,
+    uint64_t size, dmu_tx_t *tx, dmu_flags_t flags);
+
 int
-dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size, dmu_tx_t *tx,
-    dmu_flags_t flags)
+dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
+    dmu_tx_t *tx, dmu_flags_t flags)
+{
+	int err = 0;
+	__try {
+		err = dmu_write_uio_dnode_impl(dn, uio, size, tx, flags);
+	} __except(EXCEPTION_EXECUTE_HANDLER) {
+		err = EIO;
+	}
+	return (err);
+}
+
+static int
+dmu_write_uio_dnode_impl(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
+    dmu_tx_t *tx, dmu_flags_t flags)
+#else
+int
+dmu_write_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
+    dmu_tx_t *tx, dmu_flags_t flags)
+#endif
 {
 	dmu_buf_t **dbp;
 	int numbufs;
@@ -2705,6 +2749,7 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 	zp->zp_dedup = dedup;
 	zp->zp_dedup_verify = dedup && dedup_verify;
 	zp->zp_nopwrite = nopwrite;
+	zp->zp_brtwrite = B_FALSE;
 	zp->zp_encrypt = encrypt;
 	zp->zp_byteorder = ZFS_HOST_BYTEORDER;
 	zp->zp_direct_write = (wp & WP_DIRECT_WR) ? B_TRUE : B_FALSE;

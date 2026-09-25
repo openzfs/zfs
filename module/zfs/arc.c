@@ -5210,6 +5210,36 @@ arc_wait_for_eviction(uint64_t amount, boolean_t lax, boolean_t use_reserve)
 	case ARC_OVF_SEVERE:
 	default:
 	{
+#ifdef _WIN32
+		/*
+		 * On Windows, blocking here causes a range-lock / TXG
+		 * deadlock:
+		 *
+		 *  Writer A: holds ZFS range lock, blocked here waiting for
+		 *            arc_evict_zthr to drain dirty ARC data.
+		 *  Writer B: holds tc_count > 0 (open tx), also blocked here.
+		 *  txg_quiesce: waits for Writer B's tc_count to drop.
+		 *  arc_evict_zthr: needs a TXG sync to evict dirty buffers.
+		 *  TXG sync: blocked by txg_quiesce which is blocked by B.
+		 *
+		 * Result: A holds range lock → CcWorkerThread blocked on
+		 * range lock → cleanup thread waits for page-write
+		 * completion → indefinite hang.
+		 *
+		 * Fix: urgently wake the eviction thread but do not wait.
+		 * ARC temporarily exceeds arc_c; it will drain once active
+		 * transactions commit (tc_count drops → txg_quiesce proceeds
+		 * → txg_sync writes dirty data → arc_evict_zthr unblocks).
+		 */
+		mutex_enter(&arc_evict_lock);
+		if (!arc_evict_needed) {
+			arc_evict_needed = B_TRUE;
+			zthr_wakeup(arc_evict_zthr);
+		}
+		arc_set_need_free();
+		mutex_exit(&arc_evict_lock);
+		return;
+#endif
 		arc_evict_waiter_t aw;
 		list_link_init(&aw.aew_node);
 		cv_init(&aw.aew_cv, NULL, CV_DEFAULT, NULL);

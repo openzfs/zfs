@@ -22,16 +22,20 @@
 #include <sys/zfeature.h>
 #include <sys/dmu_objset.h>
 
+static int zfs_indirect_open_disable = B_FALSE;
+
 #ifdef ZFS_DEBUG
 static boolean_t
 vdev_indirect_mapping_verify(vdev_indirect_mapping_t *vim)
 {
 	ASSERT(vim != NULL);
 
-	ASSERT(vim->vim_object != 0);
-	ASSERT(vim->vim_objset != NULL);
-	ASSERT(vim->vim_phys != NULL);
-	ASSERT(vim->vim_dbuf != NULL);
+	if (!zfs_indirect_open_disable) {
+		ASSERT(vim->vim_object != 0);
+		ASSERT(vim->vim_objset != NULL);
+		ASSERT(vim->vim_phys != NULL);
+		ASSERT(vim->vim_dbuf != NULL);
+	}
 
 	EQUIV(vim->vim_phys->vimp_num_entries > 0,
 	    vim->vim_entries != NULL);
@@ -293,7 +297,8 @@ vdev_indirect_mapping_close(vdev_indirect_mapping_t *vim)
 		vim->vim_entries = NULL;
 	}
 
-	dmu_buf_rele(vim->vim_dbuf, vim);
+	if (vim->vim_dbuf != NULL)
+		dmu_buf_rele(vim->vim_dbuf, vim);
 
 	vim->vim_objset = NULL;
 	vim->vim_object = 0;
@@ -342,6 +347,19 @@ vdev_indirect_mapping_open(objset_t *os, uint64_t mapping_object)
 {
 	vdev_indirect_mapping_t *vim = kmem_zalloc(sizeof (*vim), KM_SLEEP);
 	dmu_object_info_t doi;
+
+	if (zfs_indirect_open_disable) {
+		zfs_dbgmsg("WIN32: Skipping indirect mapping for obj %llu",
+		    (u_longlong_t)mapping_object);
+
+		/* Allocate a dummy phys header so close/free don't crash */
+		vim->vim_phys = kmem_zalloc(
+		    sizeof (vdev_indirect_mapping_phys_t), KM_SLEEP);
+		vim->vim_phys->vimp_num_entries = 0;
+
+		return (vim);
+	}
+
 	VERIFY0(dmu_object_info(os, mapping_object, &doi));
 
 	vim->vim_objset = os;
@@ -614,3 +632,6 @@ EXPORT_SYMBOL(vdev_indirect_mapping_object);
 EXPORT_SYMBOL(vdev_indirect_mapping_open);
 EXPORT_SYMBOL(vdev_indirect_mapping_size);
 #endif
+
+ZFS_MODULE_PARAM(zfs_vdev, zfs_, indirect_open_disable, INT, ZMOD_RW,
+	"Skip vdev_indirect_mapping_open() call");

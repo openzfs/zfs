@@ -1,0 +1,212 @@
+##
+# zed.rc – ZEDLET configuration.
+##
+# shellcheck disable=SC2034
+
+##
+# Absolute path to the debug output file.
+#
+#$env:ZED_DEBUG_LOG="/tmp/zed.debug.log"
+
+##
+# Email address of the zpool administrator for receipt of notifications;
+#   multiple addresses can be specified if they are delimited by whitespace.
+# Email will only be sent if ZED_EMAIL_ADDR is defined.
+# Enabled by default; comment to disable.
+#
+$env:ZED_EMAIL_ADDR="root"
+
+##
+# Name or path of executable responsible for sending notifications via email;
+#   the mail program must be capable of reading a message body from stdin.
+# Email will only be sent if ZED_EMAIL_ADDR is defined.
+#
+#$env:ZED_EMAIL_PROG="mail"
+
+##
+# Command-line options for ZED_EMAIL_PROG.
+# The string @ADDRESS@ will be replaced with the recipient email address(es).
+# The string @SUBJECT@ will be replaced with the notification subject;
+#   this should be protected with quotes to prevent word-splitting.
+# Email will only be sent if ZED_EMAIL_ADDR is defined.
+# If @SUBJECT@ was omited here, a "Subject: ..." header will be added to notification
+#
+#$env:ZED_EMAIL_OPTS="-s '@SUBJECT@' @ADDRESS@"
+
+##
+# Default directory for zed lock files.
+#
+#$env:ZED_LOCKDIR="/var/lock"
+
+##
+# Minimum number of seconds between notifications for a similar event.
+#
+#$env:ZED_NOTIFY_INTERVAL_SECS=3600
+
+##
+# Notification verbosity.
+#   If set to 0, suppress notification if the pool is healthy.
+#   If set to 1, send notification regardless of pool health.
+#
+#$env:ZED_NOTIFY_VERBOSE=0
+
+##
+# Send notifications for 'ereport.fs.zfs.data' events.
+# Disabled by default, any non-empty value will enable the feature.
+#
+#$env:ZED_NOTIFY_DATA=
+
+##
+# Pushbullet access token.
+# This grants full access to your account -- protect it accordingly!
+#   <https://www.pushbullet.com/get-started>
+#   <https://www.pushbullet.com/account>
+# Disabled by default; uncomment to enable.
+#
+#$env:ZED_PUSHBULLET_ACCESS_TOKEN=""
+
+##
+# Pushbullet channel tag for push notification feeds that can be subscribed to.
+#   <https://www.pushbullet.com/my-channel>
+# If not defined, push notifications will instead be sent to all devices
+#   associated with the account specified by the access token.
+# Disabled by default; uncomment to enable.
+#
+#$env:ZED_PUSHBULLET_CHANNEL_TAG=""
+
+##
+# Slack Webhook URL.
+# This allows posting to the given channel and includes an access token.
+#   <https://api.slack.com/incoming-webhooks>
+# Disabled by default; uncomment to enable.
+#
+#$env:ZED_SLACK_WEBHOOK_URL=""
+
+##
+# Pushover token.
+# This defines the application from which the notification will be sent.
+#   <https://pushover.net/api#registration>
+# Disabled by default; uncomment to enable.
+# ZED_PUSHOVER_USER, below, must also be configured.
+#
+#$env:ZED_PUSHOVER_TOKEN=""
+
+##
+# Pushover user key.
+# This defines which user or group will receive Pushover notifications.
+#  <https://pushover.net/api#identifiers>
+# Disabled by default; uncomment to enable.
+# ZED_PUSHOVER_TOKEN, above, must also be configured.
+#$env:ZED_PUSHOVER_USER=""
+
+##
+# Default directory for zed state files.
+#
+#$env:ED_RUNDIR="/var/run"
+
+##
+# Turn on/off enclosure LEDs when drives get DEGRADED/FAULTED.  This works for
+# device mapper and multipath devices as well.  This works with JBOD enclosures
+# and NVMe PCI drives (assuming they're supported by Linux in sysfs).
+#
+$env:ZED_USE_ENCLOSURE_LEDS=1
+
+##
+# Run a scrub after every resilver
+# Disabled by default, 1 to enable and 0 to disable.
+#$env:ZED_SCRUB_AFTER_RESILVER=0
+
+##
+# The syslog priority (e.g., specified as a "facility.level" pair).
+#
+#$env:ZED_SYSLOG_PRIORITY="daemon.notice"
+
+##
+# The syslog tag for marking zed events.
+#
+#$env:ZED_SYSLOG_TAG="zed"
+
+##
+# Which set of event subclasses to log
+# By default, events from all subclasses are logged.
+# If ZED_SYSLOG_SUBCLASS_INCLUDE is set, only subclasses
+# matching the pattern are logged. Use the pipe symbol (|)
+# or shell wildcards (*, ?) to match multiple subclasses.
+# Otherwise, if ZED_SYSLOG_SUBCLASS_EXCLUDE is set, the
+# matching subclasses are excluded from logging.
+#$env:ED_SYSLOG_SUBCLASS_INCLUDE="checksum|scrub_*|vdev.*"
+$env:ZED_SYSLOG_SUBCLASS_EXCLUDE="history_event"
+
+##
+# Use GUIDs instead of names when logging pool and vdevs
+# Disabled by default, 1 to enable and 0 to disable.
+#$env:ZED_SYSLOG_DISPLAY_GUIDS=1
+
+##
+# Power off the drive's slot in the enclosure if it becomes FAULTED.  This can
+# help silence misbehaving drives.  This assumes your drive enclosure fully
+# supports slot power control via sysfs.
+#$env:ZED_POWER_OFF_ENCLOSURE_SLOT_ON_FAULT=1
+
+##
+# Power off the drive's slot in the enclosure if there is a hung I/O which
+# exceeds the deadman timeout.  This can help prevent a single misbehaving
+# drive from rendering a redundant pool unavailable.  This assumes your drive
+# enclosure fully supports slot power control via sysfs.
+#$env:ZED_POWER_OFF_ENCLOSURE_SLOT_ON_DEADMAN=1
+
+##
+# Ntfy topic
+# This defines which topic will receive the ntfy notification.
+#  <https://docs.ntfy.sh/publish/>
+# Disabled by default; uncomment to enable.
+#$env:ZED_NTFY_TOPIC=""
+
+##
+# Ntfy access token (optional for public topics)
+# This defines an access token which can be used
+# to allow you to authenticate when sending to topics
+# <https://docs.ntfy.sh/publish/#access-tokens>
+# Disabled by default; uncomment to enable.
+#$env:ZED_NTFY_ACCESS_TOKEN=""
+
+##
+# Ntfy Service URL
+# This defines which service the ntfy call will be directed toward
+#  <https://docs.ntfy.sh/install/>
+# https://ntfy.sh by default; uncomment to enable an alternative service url.
+#$env : ZED_NTFY_URL="https://ntfy.sh"
+
+##
+# Gotify server URL
+# This defines a URL that the Gotify call will be directed toward.
+# <https://gotify.net/docs/index>
+# Disabled by default; uncomment to enable.
+#$env:ZED_GOTIFY_URL=""
+
+##
+# Gotify application token
+# This defines a Gotify application token which a message is associated with.
+# This token is generated when an application is created on the Gotify server.
+# Disabled by default; uncomment to enable.
+#$env:ZED_GOTIFY_APPTOKEN=""
+
+##
+# Gotify priority (optional)
+# If defined, this overrides the default priority of the
+# Gotify application associated with ZED_GOTIFY_APPTOKEN.
+# Value is an integer 0 and up.
+#$env:ZED_GOTIFY_PRIORITY=""
+
+##
+# Use Toast notification (optional)
+# If defined, use system Toast notifications
+# Value is an integer 0 and up.
+# $env:ZED_TOAST_NOTIFICATIONS=1
+
+##
+# Use BurntToast notification(optional)
+# If defined, use Burnt Toast notifications
+# Installed with "Install-Module -Name BurntToast -Force -AllowClobber"
+# Value is an integer 0 and up.
+# $env:ZED_BURNTTOAST_NOTIFICATIONS=1

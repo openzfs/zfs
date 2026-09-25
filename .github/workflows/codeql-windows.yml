@@ -1,0 +1,155 @@
+#
+# This based on work that Andrew Innes <andrew.c12@gmail.com> did for OpenZFSonWindows,
+# reworked for me to understand what it did, so I can support it myself.
+# - Lundman
+#
+
+name: CodeQL Windows
+
+on:
+  push:
+    branches:
+      - zfs-Windows-*-release
+    tags-ignore:
+      - '*'
+  pull_request:
+    branches:
+      - zfs-Windows-*-release
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Enter MSVC dev environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Checkout OpenZFS
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Checkout OpenSSL
+        uses: actions/checkout@v5
+        with:
+          repository: openzfsonwindows/openssl
+          ref: openssl-3.5.5
+          path: openssl
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: c-cpp
+          build-mode: manual
+
+      - name: Create OpenZFS test signing certificate
+        shell: pwsh
+        run: |
+          $certSubject = "OpenZFS Test Signing Certificate"
+          $pfxPath = "$env:RUNNER_TEMP\openzfs-test-signing.pfx"
+          $pfxPassword = "password123"
+          $pwd = ConvertTo-SecureString $pfxPassword -AsPlainText -Force
+
+          $cert = New-SelfSignedCertificate `
+            -Subject "CN=$certSubject" `
+            -Type CodeSigningCert `
+            -CertStoreLocation "Cert:\CurrentUser\My" `
+            -HashAlgorithm SHA256 `
+            -KeyAlgorithm RSA `
+            -KeyLength 2048 `
+            -KeyExportPolicy Exportable `
+            -NotAfter (Get-Date).AddDays(30)
+
+          if (-not $cert) {
+            throw "Failed to create test signing certificate"
+          }
+
+          Export-PfxCertificate `
+            -Cert "Cert:\CurrentUser\My\$($cert.Thumbprint)" `
+            -FilePath $pfxPath `
+            -Password $pwd | Out-Null
+
+          if (-not (Test-Path $pfxPath)) {
+            throw "Failed to export PFX"
+          }
+
+          "OPENZFS_SIGNTOOL_CERTSTORE=My" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "OPENZFS_SIGNTOOL_CERTNAME=$certSubject" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "OPENZFS_SIGNTOOL_SHA1=$($cert.Thumbprint)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "OPENZFS_SIGNTOOL_TSA=http://timestamp.digicert.com" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "OPENZFS_TEST_CERT_PFX=$pfxPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "OPENZFS_TEST_CERT_PASSWORD=$pfxPassword" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+          Write-Host "Created certificate:"
+          Write-Host "  Subject:    $certSubject"
+          Write-Host "  Store:      My"
+          Write-Host "  Thumbprint: $($cert.Thumbprint)"
+          Write-Host "  PFX:        $pfxPath"
+
+      - name: Install WDK via NuGet
+        shell: pwsh
+        run: |
+          nuget install Microsoft.Windows.WDK.x64 `
+            -Version 10.0.26100.6584 `
+            -OutputDirectory "${{ github.workspace }}\packages" `
+            -Source https://api.nuget.org/v3/index.json
+
+      - name: Set WDK and SDK roots
+        shell: pwsh
+        run: |
+          $wdk = Get-ChildItem "${{ github.workspace }}\packages" -Directory |
+            Where-Object { $_.Name -like "Microsoft.Windows.WDK.x64.*" } |
+            Sort-Object Name -Descending |
+            Select-Object -First 1
+      
+          $sdk = Get-ChildItem "${{ github.workspace }}\packages" -Directory |
+            Where-Object { $_.Name -like "Microsoft.Windows.SDK.CPP.*" -and $_.Name -notlike "*.x64.*" } |
+            Sort-Object Name -Descending |
+            Select-Object -First 1
+      
+          if (-not $wdk) { throw "WDK package directory not found" }
+          if (-not $sdk) { throw "SDK package directory not found" }
+      
+          $env:WDKContentRoot = Join-Path $wdk.FullName "c"
+          $env:WINSDK_NUGET_ROOT = Join-Path $sdk.FullName "c"
+      
+          "WDKContentRoot=$env:WDKContentRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WINSDK_NUGET_ROOT=$env:WINSDK_NUGET_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
+      
+          Write-Host "WDKContentRoot=$env:WDKContentRoot"
+          Write-Host "WINSDK_NUGET_ROOT=$env:WINSDK_NUGET_ROOT"
+
+      - name: Configure CMake
+        shell: pwsh
+        run: |
+          cmake -G "Ninja" `
+            -B "${{ github.workspace }}/out/build/x64-Debug" `
+            "${{ github.workspace }}" `
+            -DOPENSSL_ROOT_DIR="${{ github.workspace }}/openssl" `
+            -DOPENSSL_INCLUDE_DIR="${{ github.workspace }}/openssl/include/x64" `
+            -DCRYPTO_STATIC_TEST="${{ github.workspace }}/openssl/lib/VC/x64/MTd/libcrypto_static.lib" `
+            -DLIB_EAY_DEBUG="${{ github.workspace }}/openssl/lib/VC/x64/MTd/libcrypto_static.lib" `
+            -DLIB_EAY_RELEASE="${{ github.workspace }}/openssl/lib/VC/x64/MT/libcrypto_static.lib" `
+            -DSSL_EAY_DEBUG="${{ github.workspace }}/openssl/lib/VC/x64/MTd/libssl_static.lib" `
+            -DSSL_EAY_RELEASE="${{ github.workspace }}/openssl/lib/VC/x64/MT/libssl_static.lib" `
+            -DOPENZFS_SIGNTOOL_CERTSTORE="$env:OPENZFS_SIGNTOOL_CERTSTORE" `
+            -DOPENZFS_SIGNTOOL_CERTNAME="$env:OPENZFS_SIGNTOOL_CERTNAME" `
+            -DOPENZFS_SIGNTOOL_SHA1="$env:OPENZFS_SIGNTOOL_SHA1" `
+            -DOPENZFS_SIGNTOOL_TSA="$env:OPENZFS_SIGNTOOL_TSA"
+
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake --build "${{ github.workspace }}/out/build/x64-Debug" --parallel
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v4
+
+

@@ -244,6 +244,24 @@ zfs_xattr_owner_unlinked(znode_t *zp)
 	}
 	if (tzp != zp)
 		zrele(tzp);
+#elif defined(_WIN32)
+	zhold(zp);
+	/*
+	 * if zp is XATTR node, keep walking up via z_xattr_parent until we
+	 * get the owner
+	 */
+	while (zp->z_pflags & ZFS_XATTR && zp->z_xattr_parent != NULL) {
+		ASSERT3U(zp->z_xattr_parent, !=, 0);
+		if (zfs_zget(ZTOZSB(zp), zp->z_xattr_parent, &dzp) != 0) {
+			unlinked = 1;
+			break;
+		}
+
+		zrele(zp);
+		zp = dzp;
+		unlinked = zp->z_unlinked;
+	}
+	zrele(zp);
 #else
 	zhold(zp);
 	/*
@@ -637,6 +655,8 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 			wr_state = WR_NEED_COPY;
 		else if (wr_state == WR_INDIRECT)
 			len = MIN(blocksize - P2PHASE(off, blocksize), resid);
+
+		ASSERT3U(len, >, 0);
 
 		itx = zil_itx_create(txtype, sizeof (*lr) +
 		    (wr_state == WR_COPIED ? len : 0));

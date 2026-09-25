@@ -41,7 +41,7 @@ extern ASMABI void aes_decrypt_intel(const uint32_t rk[], int Nr,
  * keyarr32	User key
  * keyBits	AES key size (128, 192, or 256 bits)
  */
-static void
+static void ASMABI
 aes_aesni_generate(aes_key_t *key, const uint32_t *keyarr32, int keybits)
 {
 	kfpu_begin();
@@ -66,7 +66,7 @@ aes_aesni_generate(aes_key_t *key, const uint32_t *keyarr32, int keybits)
  * pt		Input block (plain text)
  * ct		Output block (crypto text).  Can overlap with pt
  */
-static void
+static void ASMABI
 aes_aesni_encrypt(const uint32_t rk[], int Nr, const uint32_t pt[4],
     uint32_t ct[4])
 {
@@ -89,7 +89,7 @@ aes_aesni_encrypt(const uint32_t rk[], int Nr, const uint32_t pt[4],
  * ct		Input block (crypto text)
  * pt		Output block (plain text). Can overlap with pt
  */
-static void
+static void ASMABI
 aes_aesni_decrypt(const uint32_t rk[], int Nr, const uint32_t ct[4],
     uint32_t pt[4])
 {

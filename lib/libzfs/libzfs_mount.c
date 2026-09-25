@@ -495,6 +495,7 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 	strlcat(mntopts, "," MNTOPT_ZFSUTIL, sizeof (mntopts));
 
 	/* Create the directory if it doesn't already exist */
+#ifndef _WIN32
 	if (lstat(mountpoint, &buf) != 0) {
 		if (mkdirp(mountpoint, 0755) != 0) {
 			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
@@ -505,7 +506,7 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 			    mountpoint));
 		}
 	}
-
+#endif
 	/*
 	 * Overlay mounts are enabled by default but may be disabled
 	 * via the 'overlay' property. The -O flag remains for compatibility.
@@ -570,6 +571,7 @@ zfs_mount_at(zfs_handle_t *zhp, const char *options, int flags,
 
 	/* add the mounted entry into our cache */
 	libzfs_mnttab_add(hdl, zfs_get_name(zhp), mountpoint, mntopts);
+
 	return (0);
 }
 
@@ -582,9 +584,9 @@ unmount_one(zfs_handle_t *zhp, const char *mountpoint, int flags)
 	int error;
 
 	error = do_unmount(zhp, mountpoint, flags);
+
 	if (error != 0) {
 		int libzfs_err;
-
 		switch (error) {
 		case EBUSY:
 			libzfs_err = EZFS_BUSY;
@@ -721,7 +723,9 @@ unshare_one(libzfs_handle_t *hdl, const char *name, const char *mountpoint,
 {
 	int err = sa_disable_share(mountpoint, proto);
 	if (err != SA_OK)
-		return (zfs_error_fmt(hdl, proto_table[proto].p_unshare_err,
+		return (zfs_error_fmt(hdl,
+		    err == SA_NO_PERMISSION ?
+		    EZFS_PERM : proto_table[proto].p_unshare_err,
 		    dgettext(TEXT_DOMAIN, "cannot unshare '%s': %s"),
 		    name, sa_errorstr(err)));
 
@@ -772,7 +776,8 @@ zfs_share(zfs_handle_t *zhp, const enum sa_protocol *proto)
 		    *curr_proto);
 		if (err != SA_OK) {
 			return (zfs_error_fmt(zhp->zfs_hdl,
-			    proto_table[*curr_proto].p_share_err,
+			    err == SA_NO_PERMISSION ?
+			    EZFS_PERM : proto_table[*curr_proto].p_share_err,
 			    dgettext(TEXT_DOMAIN, "cannot share '%s: %s'"),
 			    zfs_get_name(zhp), sa_errorstr(err)));
 		}

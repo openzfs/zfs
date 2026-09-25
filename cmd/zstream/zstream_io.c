@@ -14,7 +14,11 @@
  * Copyright (c) 2026 by Garth Snyder. All rights reserved.
  */
 
+#ifdef _WIN32
+#include <sys/byteorder.h>
+#else
 #include <arpa/inet.h>
+#endif
 #include <err.h>
 #include <libzutil.h>
 #include <pthread.h>
@@ -28,6 +32,10 @@
 #include <sys/zfs_ioctl.h>
 #include <time.h>
 #include <unistd.h>
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
 
 #include "zstream_chain.h"
 #include "zstream_modules.h"
@@ -132,11 +140,17 @@ open_file(io_context_t *context)
 		errx(1, "stream cannot be read from a terminal. "
 		    "Name a file or take input from a pipe.");
 	} else if (context->ic_for_reading) {
+#ifdef _WIN32
+		_setmode(_fileno(stdin), _O_BINARY);
+#endif
 		context->ic_fp = stdin;
 	} else if (isatty(STDOUT_FILENO)) {
 		errx(1, "stream cannot be written to a terminal. "
 		    "Capture output to a file or pipe to another command.");
 	} else {
+#ifdef _WIN32
+		_setmode(_fileno(stdout), _O_BINARY);
+#endif
 		context->ic_fp = stdout;
 	}
 }

@@ -70,6 +70,9 @@
 #include "zfs_valstr.h"
 
 #include "statcommon.h"
+#ifdef _WIN32
+#include <sys/efi_partition.h>
+#endif
 
 libzfs_handle_t *g_zfs;
 
@@ -390,32 +393,32 @@ typedef struct zpool_command {
  * the generic usage message.
  */
 static zpool_command_t command_table[] = {
-	{ "version",	zpool_do_version,	HELP_VERSION		},
+	{ "version",	zpool_do_version,	HELP_VERSION	},
 	{ NULL },
-	{ "create",	zpool_do_create,	HELP_CREATE		},
-	{ "destroy",	zpool_do_destroy,	HELP_DESTROY		},
+	{ "create",	zpool_do_create,	HELP_CREATE	},
+	{ "destroy",	zpool_do_destroy,	HELP_DESTROY	},
 	{ NULL },
-	{ "add",	zpool_do_add,		HELP_ADD		},
-	{ "remove",	zpool_do_remove,	HELP_REMOVE		},
+	{ "add",	zpool_do_add,		HELP_ADD	},
+	{ "remove",	zpool_do_remove,	HELP_REMOVE	},
 	{ NULL },
-	{ "labelclear",	zpool_do_labelclear,	HELP_LABELCLEAR		},
+	{ "labelclear",	zpool_do_labelclear,	HELP_LABELCLEAR	},
 	{ NULL },
-	{ "checkpoint",	zpool_do_checkpoint,	HELP_CHECKPOINT		},
-	{ "prefetch",	zpool_do_prefetch,	HELP_PREFETCH		},
+	{ "checkpoint",	zpool_do_checkpoint,	HELP_CHECKPOINT	},
+	{ "prefetch",	zpool_do_prefetch,	HELP_PREFETCH	},
 	{ NULL },
-	{ "list",	zpool_do_list,		HELP_LIST		},
-	{ "iostat",	zpool_do_iostat,	HELP_IOSTAT		},
-	{ "status",	zpool_do_status,	HELP_STATUS		},
+	{ "list",	zpool_do_list,		HELP_LIST	},
+	{ "iostat",	zpool_do_iostat,	HELP_IOSTAT	},
+	{ "status",	zpool_do_status,	HELP_STATUS	},
 	{ NULL },
-	{ "online",	zpool_do_online,	HELP_ONLINE		},
-	{ "offline",	zpool_do_offline,	HELP_OFFLINE		},
-	{ "clear",	zpool_do_clear,		HELP_CLEAR		},
-	{ "reopen",	zpool_do_reopen,	HELP_REOPEN		},
+	{ "online",	zpool_do_online,	HELP_ONLINE	},
+	{ "offline",	zpool_do_offline,	HELP_OFFLINE	},
+	{ "clear",	zpool_do_clear,		HELP_CLEAR	},
+	{ "reopen",	zpool_do_reopen,	HELP_REOPEN	},
 	{ NULL },
-	{ "attach",	zpool_do_attach,	HELP_ATTACH		},
-	{ "detach",	zpool_do_detach,	HELP_DETACH		},
-	{ "replace",	zpool_do_replace,	HELP_REPLACE		},
-	{ "split",	zpool_do_split,		HELP_SPLIT		},
+	{ "attach",	zpool_do_attach,	HELP_ATTACH	},
+	{ "detach",	zpool_do_detach,	HELP_DETACH	},
+	{ "replace",	zpool_do_replace,	HELP_REPLACE	},
+	{ "split",	zpool_do_split,		HELP_SPLIT	},
 	{ NULL },
 	{ "initialize",	zpool_do_initialize,	HELP_INITIALIZE		},
 	{ "resilver",	zpool_do_resilver,	HELP_RESILVER		},
@@ -423,22 +426,22 @@ static zpool_command_t command_table[] = {
 	{ "trim",	zpool_do_trim,		HELP_TRIM		},
 	{ "condense",	zpool_do_condense,	HELP_CONDENSE		},
 	{ NULL },
-	{ "import",	zpool_do_import,	HELP_IMPORT		},
-	{ "export",	zpool_do_export,	HELP_EXPORT		},
-	{ "upgrade",	zpool_do_upgrade,	HELP_UPGRADE		},
-	{ "reguid",	zpool_do_reguid,	HELP_REGUID		},
+	{ "import",	zpool_do_import,	HELP_IMPORT	},
+	{ "export",	zpool_do_export,	HELP_EXPORT	},
+	{ "upgrade",	zpool_do_upgrade,	HELP_UPGRADE	},
+	{ "reguid",	zpool_do_reguid,	HELP_REGUID	},
 	{ NULL },
-	{ "history",	zpool_do_history,	HELP_HISTORY		},
-	{ "events",	zpool_do_events,	HELP_EVENTS		},
+	{ "history",	zpool_do_history,	HELP_HISTORY	},
+	{ "events",	zpool_do_events,	HELP_EVENTS	},
 	{ NULL },
 	{ "get",	zpool_do_get,		HELP_GET		},
 	{ "set",	zpool_do_set,		HELP_SET		},
 	{ NULL },
 	{ "sync",	zpool_do_sync,		HELP_SYNC		},
 	{ NULL },
-	{ "wait",	zpool_do_wait,		HELP_WAIT		},
+	{ "wait",	zpool_do_wait,		HELP_WAIT	},
 	{ NULL },
-	{ "ddtprune",	zpool_do_ddt_prune,	HELP_DDT_PRUNE		},
+	{ "ddtprune",	zpool_do_ddt_prune,	HELP_DDT_PRUNE	},
 };
 
 #define	NCOMMAND	(ARRAY_SIZE(command_table))
@@ -4241,6 +4244,7 @@ zpool_do_checkpoint(int argc, char **argv)
 }
 
 #define	CHECKPOINT_OPT	1024
+#define	FIX_GPT_OPT	1025
 
 /*
  * zpool prefetch [-t <type>] <pool>
@@ -4401,6 +4405,9 @@ zpool_do_import(int argc, char **argv)
 
 	struct option long_options[] = {
 		{"rewind-to-checkpoint", no_argument, NULL, CHECKPOINT_OPT},
+#ifdef _WIN32
+		{"fix-gpt", no_argument, NULL, FIX_GPT_OPT},
+#endif
 		{0, 0, 0, 0}
 	};
 
@@ -4488,6 +4495,11 @@ zpool_do_import(int argc, char **argv)
 		case CHECKPOINT_OPT:
 			flags |= ZFS_IMPORT_CHECKPOINT;
 			break;
+#ifdef _WIN32
+		case FIX_GPT_OPT:
+			efi_set_fix_gpt(B_TRUE);
+			break;
+#endif
 		case ':':
 			(void) fprintf(stderr, gettext("missing argument for "
 			    "'%c' option\n"), optopt);
@@ -4561,6 +4573,9 @@ zpool_do_import(int argc, char **argv)
 	 * otherwise any attempt to discover pools will silently fail.
 	 */
 	if (argc == 0 && geteuid() != 0) {
+#ifdef _WIN32
+		windows_elevate_if_needed(1, B_TRUE);
+#endif
 		(void) fprintf(stderr, gettext("cannot "
 		    "discover pools: permission denied\n"));
 
@@ -6310,9 +6325,9 @@ print_zpool_script_list(const char *subcommand)
 	if (sp == NULL)
 		return;
 
-	for (dir = strtok_r(sp, ":", &tmp);
+	for (dir = strtok_r(sp, ZPOOL_SCRIPTS_PATH_SEP, &tmp);
 	    dir != NULL;
-	    dir = strtok_r(NULL, ":", &tmp))
+	    dir = strtok_r(NULL, ZPOOL_SCRIPTS_PATH_SEP, &tmp))
 		print_zpool_dir_scripts(dir);
 
 	free(sp);
@@ -14201,6 +14216,10 @@ main(int argc, char **argv)
 	(void) textdomain(TEXT_DOMAIN);
 	srand(time(NULL));
 
+#ifdef _WIN32
+	windows_elevate_child_init(&argc, argv);
+#endif
+
 	opterr = 0;
 
 	/*
@@ -14292,6 +14311,10 @@ main(int argc, char **argv)
 		    "command '%s'\n"), cmdname);
 		usage(B_FALSE);
 	}
+
+#ifdef _WIN32
+	ZFS_ELEV_CHECK(ret);
+#endif
 
 	for (i = 0; i < argc; i++)
 		free(newargv[i]);

@@ -104,7 +104,12 @@ _LIBZUTIL_H void update_vdev_config_dev_strs(nvlist_t *);
 /*
  * Default device paths
  */
+#ifdef _WIN32
+#define	DISK_ROOT	"\\\\?\\"
+#else
 #define	DISK_ROOT	"/dev"
+#endif
+
 #define	UDISK_ROOT	"/dev/disk"
 #define	ZVOL_ROOT	"/dev/zvol"
 
@@ -193,6 +198,9 @@ _LIBZUTIL_H ssize_t zfs_dirnamelen(const char *path);
 extern char **environ;
 _LIBZUTIL_H void zfs_setproctitle_init(int argc, char *argv[], char *envp[]);
 _LIBZUTIL_H void zfs_setproctitle(const char *fmt, ...);
+#elif _WIN32
+#define	zfs_setproctitle(fmt, ...)
+#define	zfs_setproctitle_init(x, y, z)	((void)0)
 #else
 #define	zfs_setproctitle(fmt, ...)	setproctitle(fmt, ##__VA_ARGS__)
 #define	zfs_setproctitle_init(x, y, z)	((void)0)
@@ -262,6 +270,8 @@ int for_each_real_leaf_vdev_macro_helper_func(void *zhp_data, nvlist_t *nv,
 int for_each_vdev_in_nvlist(nvlist_t *nvroot, pool_vdev_iter_f func,
     void *data);
 void update_vdevs_config_dev_sysfs_path(nvlist_t *config);
+int zfs_resolve_shortname_os(const char *name, char *path, size_t len);
+
 _LIBZUTIL_H void update_vdev_config_dev_sysfs_path(nvlist_t *nv,
     const char *path, const char *key);
 
@@ -278,6 +288,30 @@ static inline char *zfs_strerror(int errnum) {
 
 	return (errbuf);
 }
+
+#ifdef _WIN32
+/*
+ * UAC elevation helpers — implemented in libzutil/os/windows/zutil_elevate.c.
+ * CLI tools call these for operations that require administrator privileges;
+ * the library itself never calls them.
+ */
+extern void windows_elevate_child_init(int *argc, char **argv);
+extern void windows_relaunch_elevated(void);
+extern void windows_elevate_if_needed(int ret, boolean_t perm_err);
+extern boolean_t windows_is_elev_child(void);
+
+/*
+ * Convenience macro for CLI tool dispatch loops.  Callers must include
+ * libzfs.h before libzutil.h so that the EZFS_* constants are visible.
+ * g_zfs must be the libzfs_handle_t* in scope.
+ */
+#define	ZFS_ELEV_CHECK(ret) \
+	windows_elevate_if_needed((ret), \
+	    libzfs_errno(g_zfs) == EZFS_PERM || \
+	    libzfs_errno(g_zfs) == EZFS_MOUNTFAILED || \
+	    libzfs_errno(g_zfs) == EZFS_UMOUNTFAILED || \
+	    libzfs_errno(g_zfs) == EZFS_CRYPTOFAILED)
+#endif
 
 #ifdef	__cplusplus
 }

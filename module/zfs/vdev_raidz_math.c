@@ -52,7 +52,7 @@ static const raidz_impl_ops_t *const raidz_all_maths[] = {
 #if defined(__x86_64) && HAVE_SIMD(AVX512BW)	/* only x86_64 for now */
 	&vdev_raidz_avx512bw_impl,
 #endif
-#if defined(__aarch64__) && !defined(__FreeBSD__)
+#if defined(__aarch64__NOTYET) && !defined(__FreeBSD__)
 	&vdev_raidz_aarch64_neon_impl,
 	&vdev_raidz_aarch64_neonx2_impl,
 #endif
@@ -625,7 +625,6 @@ vdev_raidz_impl_set(const char *val)
 }
 
 #if defined(_KERNEL)
-
 int
 vdev_raidz_impl_get(char *buffer, size_t size)
 {
@@ -649,5 +648,29 @@ vdev_raidz_impl_get(char *buffer, size_t size)
 
 	return (cnt);
 }
+
+#ifdef _WIN32
+int
+win32_zfs_vdev_raidz_impl_set(ZFS_MODULE_PARAM_ARGS)
+{
+	static char str[PAGE_SIZE] = "";
+
+	*type = ZT_TYPE_STRING;
+
+	if (set == B_FALSE) {
+		if (raidz_math_initialized)
+			vdev_raidz_impl_get(str, PAGE_SIZE);
+		*ptr = str;
+		*len = strlen(str);
+		return (0);
+	}
+
+	ASSERT3P(ptr, !=, NULL);
+
+	vdev_raidz_impl_set(*ptr);
+
+	return (0);
+}
+#endif
 
 #endif

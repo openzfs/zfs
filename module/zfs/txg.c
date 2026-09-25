@@ -535,9 +535,11 @@ txg_sync_thread(void *arg)
 		    !tx->tx_exiting && timer > 0 &&
 		    tx->tx_synced_txg >= tx->tx_sync_txg_waiting &&
 		    !txg_has_quiesced_to_sync(dp)) {
+#ifndef _WIN32
 			dprintf("waiting; tx_synced=%llu waiting=%llu dp=%p\n",
 			    (u_longlong_t)tx->tx_synced_txg,
 			    (u_longlong_t)tx->tx_sync_txg_waiting, dp);
+#endif
 			txg_thread_wait(tx, &cpr, &tx->tx_sync_more_cv, timer);
 			delta = ddi_get_lbolt() - start;
 			timer = (delta > timeout ? 0 : timeout - delta);

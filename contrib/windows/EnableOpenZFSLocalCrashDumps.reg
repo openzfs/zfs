@@ -1,0 +1,31 @@
+Windows Registry Editor Version 5.00
+
+; Install this Registry to enable crash dumps for zpool.exe
+; and zfs.exe. They will appear in %ProgramData%/OpenZFS/CrashDumps/
+;
+; Dumps can be sent to developers directory, or the stacks can be
+; shared using;
+; windbgx -z "C:\ProgramData\OpenZFS\CrashDumps\zfs.exe.6080.dmp"
+; .symfix C:\symbols
+; .sympath+ "C:\Program Files\OpenZFS on Windows\symbols"
+; .reload /f
+; !analyze -v
+; .ecxr
+; k
+;
+; Or use the UI WinDbg.exe, or, Visual Studio.
+;
+
+; Global LocalDumps defaults (machine-wide)
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps]
+"DumpFolder"=hex(2):25,00,50,00,72,00,6f,00,67,00,72,00,61,00,6d,00,44,00,61,00,74,00,61,00,25,00,5c,00,4f,00,70,00,65,00,6e,00,5a,00,46,00,53,00,5c,00,43,00,72,00,61,00,73,00,68,00,44,00,75,00,6d,00,70,00,73,00,00,00
+"DumpCount"=dword:00000010
+"DumpType"=dword:00000002
+
+; Per-app overrides (explicitly full dumps)
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\zpool.exe]
+"DumpType"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\zfs.exe]
+"DumpType"=dword:00000002
+

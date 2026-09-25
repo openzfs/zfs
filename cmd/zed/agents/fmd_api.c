@@ -555,7 +555,7 @@ fmd_serd_gc(fmd_hdl_t *hdl)
 }
 
 /* FMD Timers */
-
+#if 0
 static void
 _timer_notify(union sigval sv)
 {
@@ -575,7 +575,7 @@ _timer_notify(union sigval sv)
 	if (ops->fmdo_timeout != NULL)
 		ops->fmdo_timeout(hdl, ftp, ftp->ft_arg);
 }
-
+#endif
 /*
  * Install a new timer which will fire at least delta nanoseconds after the
  * current time. After the timeout has expired, the module's fmdo_timeout
@@ -599,9 +599,9 @@ fmd_timer_install(fmd_hdl_t *hdl, void *arg, fmd_event_t *ep, hrtime_t delta)
 	its.it_interval.tv_nsec = its.it_value.tv_nsec;
 
 	sev.sigev_notify = SIGEV_THREAD;
-	sev.sigev_notify_function = _timer_notify;
-	sev.sigev_notify_attributes = NULL;
-	sev.sigev_value.sival_ptr = ftp;
+//	sev.sigev_notify_function = _timer_notify;
+//	sev.sigev_notify_attributes = NULL;
+//	sev.sigev_value.sival_ptr = ftp;
 	sev.sigev_signo = 0;
 
 	timer_create(CLOCK_REALTIME, &sev, &ftp->ft_tid);

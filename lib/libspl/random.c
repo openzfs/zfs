@@ -22,12 +22,13 @@
 #include <sys/random.h>
 #include "libspl_impl.h"
 
+static int random_fd = -1, urandom_fd = -1;
+static boolean_t force_pseudo = B_FALSE;
+
+#ifndef _WIN32
+
 #define	RANDOM_PATH	"/dev/random"
 #define	URANDOM_PATH	"/dev/urandom"
-
-static int random_fd = -1, urandom_fd = -1;
-
-static boolean_t force_pseudo = B_FALSE;
 
 void
 random_init(void)
@@ -52,12 +53,6 @@ random_fini(void)
 	urandom_fd = -1;
 }
 
-void
-random_force_pseudo(boolean_t onoff)
-{
-	force_pseudo = onoff;
-}
-
 static int
 random_get_bytes_common(uint8_t *ptr, size_t len, int fd)
 {
@@ -74,6 +69,49 @@ random_get_bytes_common(uint8_t *ptr, size_t len, int fd)
 	}
 
 	return (0);
+}
+
+
+#else /* Windows */
+
+
+errno_t rand_s(unsigned int *randomValue);
+
+void
+random_init(void)
+{
+}
+
+void
+random_fini(void)
+{
+}
+
+static int
+random_get_bytes_common(uint8_t *ptr, size_t len, int fd)
+{
+	size_t resid = len;
+	ssize_t bytes;
+	unsigned int number;
+
+	while (resid != 0) {
+		rand_s(&number);
+		bytes = MIN(resid, sizeof (number));
+		memcpy(ptr, &number, bytes);
+		ASSERT3S(bytes, >=, 0);
+		ptr += bytes;
+		resid -= bytes;
+	}
+
+	return (0);
+}
+
+#endif /* Windows */
+
+void
+random_force_pseudo(boolean_t onoff)
+{
+	force_pseudo = onoff;
 }
 
 int

@@ -139,6 +139,7 @@ cstyle:
 		! -path './include/sys/lua/*' \
 		! -path './module/lua/l*.[ch]' \
 		! -path './module/zfs/lz4.c' \
+		! -path './lib/os/windows/zlib-1.2.13/*' \
 		! -path './tests/unit/munit.[ch]' \
 		$(cstyle_line)
 

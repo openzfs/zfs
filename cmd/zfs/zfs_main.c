@@ -1539,6 +1539,7 @@ destroy_callback(zfs_handle_t *zhp, void *data)
 	if (zfs_get_type(zhp) == ZFS_TYPE_SNAPSHOT) {
 		cb->cb_snap_count++;
 		fnvlist_add_boolean(cb->cb_batchedsnaps, name);
+		zfs_snapshot_unmount(zhp, cb->cb_force ? MS_FORCE : 0);
 		if (cb->cb_snap_count % 10 == 0 && cb->cb_defer_destroy) {
 			error = destroy_batched(cb);
 			if (error != 0) {
@@ -4508,6 +4509,9 @@ zfs_do_rollback(int argc, char **argv)
 	 * Rollback parent to the given snapshot.
 	 */
 	ret = zfs_rollback(zhp, snap, force);
+
+	if (ret == 0)
+		zfs_rollback_os(zhp);
 
 out:
 	zfs_close(snap);
@@ -7491,6 +7495,7 @@ share_mount(int op, int argc, char **argv)
 		usage(B_FALSE);
 	}
 
+
 	/* check number of arguments */
 	if (do_all || recursive) {
 		enum sa_protocol protocol = SA_NO_PROTOCOL;
@@ -7591,9 +7596,16 @@ share_mount(int op, int argc, char **argv)
 		}
 
 		while (getmntent(mnttab, &entry) == 0) {
+
+#ifdef _WIN32
+			/* No df/mount command on Windows, show snapshots too */
+			if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0)
+				continue;
+#else
 			if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0 ||
 			    strchr(entry.mnt_special, '@') != NULL)
 				continue;
+#endif
 			if (json) {
 				item = fnvlist_alloc();
 				fnvlist_add_string(item, "filesystem",
@@ -7628,12 +7640,19 @@ share_mount(int op, int argc, char **argv)
 		}
 
 		if ((zhp = zfs_open(g_zfs, argv[0],
-		    ZFS_TYPE_FILESYSTEM)) == NULL) {
+		    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT)) == NULL) {
 			ret = 1;
 		} else {
-			ret = share_mount_one(zhp, op, flags, SA_NO_PROTOCOL,
-			    B_TRUE, options);
-			zfs_commit_shares(NULL);
+
+			if (zfs_get_type(zhp) & ZFS_TYPE_SNAPSHOT) {
+				ret = zfs_snapshot_mount(zhp, options,
+				    flags);
+			} else {
+				ret = share_mount_one(zhp, op, flags,
+				    SA_NO_PROTOCOL, B_TRUE, options);
+				zfs_commit_shares(NULL);
+			}
+
 			zfs_close(zhp);
 		}
 	}
@@ -8010,8 +8029,14 @@ unshare_unmount(int op, int argc, char **argv)
 			    flags, B_FALSE));
 
 		if ((zhp = zfs_open(g_zfs, argv[0],
-		    ZFS_TYPE_FILESYSTEM)) == NULL)
+		    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT)) == NULL)
 			return (1);
+
+		if (zfs_get_type(zhp) & ZFS_TYPE_SNAPSHOT) {
+			ret = zfs_snapshot_unmount(zhp, flags);
+			zfs_close(zhp);
+			return (ret);
+		}
 
 		verify(zfs_prop_get(zhp, op == OP_SHARE ?
 		    ZFS_PROP_SHARENFS : ZFS_PROP_MOUNTPOINT,
@@ -8063,6 +8088,9 @@ unshare_unmount(int op, int argc, char **argv)
 				    zfs_get_name(zhp));
 				ret = 1;
 			} else if (zfs_unmountall(zhp, flags) != 0) {
+#ifdef _WIN32
+				ZFS_ELEV_CHECK(1);
+#endif
 				ret = 1;
 			}
 			break;
@@ -9437,6 +9465,9 @@ main(int argc, char **argv)
 	(void) setlocale(LC_ALL, "");
 	(void) setlocale(LC_NUMERIC, "C");
 	(void) textdomain(TEXT_DOMAIN);
+#ifdef _WIN32
+	windows_elevate_child_init(&argc, argv);
+#endif
 
 	opterr = 0;
 
@@ -9526,10 +9557,16 @@ main(int argc, char **argv)
 	if (find_command_idx(cmdname, &i) == 0) {
 		current_command = &command_table[i];
 		ret = command_table[i].func(argc - 1, newargv + 1);
+#ifdef _WIN32
+		ZFS_ELEV_CHECK(ret);
+#endif
 	} else if (strchr(cmdname, '=') != NULL) {
 		verify(find_command_idx("set", &i) == 0);
 		current_command = &command_table[i];
 		ret = command_table[i].func(argc, newargv);
+#ifdef _WIN32
+		ZFS_ELEV_CHECK(ret);
+#endif
 	} else {
 		(void) fprintf(stderr, gettext("unrecognized "
 		    "command '%s'\n"), cmdname);

@@ -506,7 +506,7 @@ zpool_get_cmd_search_path(void)
 
 	env = getenv("HOME");
 	if (env != NULL) {
-		if (asprintf(&sp, "%s/.zpool.d:%s",
+		if (asprintf(&sp, "%s/.zpool.d" ZPOOL_SCRIPTS_PATH_SEP "%s",
 		    env, ZPOOL_SCRIPTS_DIR) != -1) {
 			return (sp);
 		}
@@ -542,7 +542,8 @@ vdev_run_cmd_thread(void *cb_cmd_data)
 			continue;
 
 		sprest = sp;
-		while ((dir = strtok_r(sprest, ":", &sprest))) {
+		while ((dir = strtok_r(sprest, ZPOOL_SCRIPTS_PATH_SEP,
+		    &sprest))) {
 			if (snprintf(fullpath, sizeof (fullpath),
 			    "%s/%s", dir, cmd) == -1)
 				continue;

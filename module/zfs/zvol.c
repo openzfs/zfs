@@ -88,6 +88,10 @@
 #include <sys/zvol.h>
 #include <sys/zvol_impl.h>
 
+#if defined(_WIN32) && defined(_KERNEL)
+#include <sys/zvol_os.h>
+#endif
+
 unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_prefetch_bytes = (128 * 1024);
 unsigned int zvol_volmode = ZFS_VOLMODE_GEOM;
@@ -96,7 +100,7 @@ unsigned int zvol_num_taskqs = 0;
 unsigned int zvol_request_sync = 0;
 
 struct hlist_head *zvol_htable;
-static list_t zvol_state_list;
+list_t zvol_state_list;
 krwlock_t zvol_state_lock;
 extern int zfs_bclone_strict_properties;
 extern int zfs_bclone_wait_dirty;
@@ -199,7 +203,7 @@ zvol_find_by_name_hash(const char *name, uint64_t hash, int mode)
  * before zv_state_lock. The mode argument indicates the mode (including none)
  * for zv_suspend_lock to be taken.
  */
-static zvol_state_t *
+zvol_state_t *
 zvol_find_by_name(const char *name, int mode)
 {
 	return (zvol_find_by_name_hash(name, zvol_name_hash(name), mode));
@@ -1269,11 +1273,16 @@ zvol_resume(zvol_state_t *zv)
 	 * zv_suspend_lock. zvol_remove_minors_impl thus cannot check
 	 * zv_suspend_lock to determine it is safe to free because rwlock is
 	 * not inherent atomic.
+	 *
+	 * The decrement and broadcast must be done together under zv_state_lock
+	 * so the waiter in zvol_remove_minors_impl cannot observe
+	 * suspend_ref==0 between decrement and wakeup (missed-wakeup race).
 	 */
+	mutex_enter(&zv->zv_state_lock);
 	atomic_dec(&zv->zv_suspend_ref);
-
 	if (zv->zv_flags & ZVOL_REMOVING)
 		cv_broadcast(&zv->zv_removing_cv);
+	mutex_exit(&zv->zv_state_lock);
 
 	return (error);
 }
@@ -1712,7 +1721,13 @@ zvol_remove_minors_impl(zvol_task_t *task)
 		    (children && strncmp(zv->zv_name, name, namelen) == 0 &&
 		    (zv->zv_name[namelen] == '/' ||
 		    zv->zv_name[namelen] == '@'))) {
-
+			/*
+			 * By holding zv_state_lock here, we guarantee that no
+			 * one is currently using this zv
+			 */
+#if defined(_WIN32) && defined(_KERNEL)
+			zvol_os_detach_zv(zv);
+#endif
 			/*
 			 * Matched, so mark it removal. We want to take the
 			 * write half of the suspend lock to make sure that

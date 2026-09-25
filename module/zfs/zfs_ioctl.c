@@ -219,6 +219,11 @@
 
 #include <sys/zfs_ioctl_impl.h>
 
+#if defined(_WIN32)
+#include <sys/zvol_os.h>
+#include <sys/zfs_vss.h>
+#endif
+
 kmutex_t zfsdev_state_lock;
 static zfsdev_state_t zfsdev_state_listhead;
 
@@ -4092,7 +4097,11 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 			 * until all asynchronous minor handling (e.g. from
 			 * setting the volmode property) has completed. Wait for
 			 * the spa_zvol_taskq to drain then retry.
+			 * Windows does not have the zvol_taskq, so we don't
+			 * need to wait, plus it always holds expect_count==1
+			 * so this hangs.
 			 */
+#ifndef WIN32
 			error2 = dsl_destroy_head(fsname);
 			while ((error2 == EBUSY) && (type == DMU_OST_ZVOL)) {
 				error2 = spa_open(fsname, &spa, FTAG);
@@ -4102,6 +4111,7 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 				}
 				error2 = dsl_destroy_head(fsname);
 			}
+#endif
 		}
 	}
 	return (error);
@@ -4441,6 +4451,9 @@ zfs_ioc_destroy_snaps(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 			return (SET_ERROR(EXDEV));
 
 		zfs_unmount_snap(nvpair_name(pair));
+#if defined(_WIN32) && defined(_KERNEL)
+		zfs_vss_snapshot_remove_by_name(nvpair_name(pair));
+#endif
 		if (spa_open(name, &spa, FTAG) == 0) {
 			zvol_remove_minors(spa, name, B_TRUE);
 			spa_close(spa, FTAG);
@@ -4715,7 +4728,15 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 	if (ost == DMU_OST_ZFS)
 		zfs_unmount_snap(zc->zc_name);
 
+#if defined(_WIN32) && defined(_KERNEL)
+	if (ost == DMU_OST_ZVOL)
+		zvol_os_detach(zc->zc_name);
+#endif
+
 	if (strchr(zc->zc_name, '@')) {
+#if defined(_WIN32) && defined(_KERNEL)
+		zfs_vss_snapshot_remove_by_name(zc->zc_name);
+#endif
 		err = dsl_destroy_snapshot(zc->zc_name, zc->zc_defer_destroy);
 	} else {
 		/*
@@ -4761,6 +4782,11 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 			    zc->zc_name, (uid_t)zoned_uid);
 		}
 	}
+
+#if defined(_WIN32) && defined(_KERNEL)
+	if (ost == DMU_OST_ZVOL && err != 0)
+		zvol_os_attach(zc->zc_name);
+#endif
 
 	return (err);
 }
@@ -7897,7 +7923,7 @@ error:
 
 static zfs_ioc_vec_t zfs_ioc_vec[ZFS_IOC_LAST - ZFS_IOC_FIRST] = { 0 };
 
-static void
+void
 zfs_ioctl_register_legacy(zfs_ioc_t ioc, zfs_ioc_legacy_func_t *func,
     zfs_secpolicy_func_t *secpolicy, zfs_ioc_namecheck_t namecheck,
     boolean_t log_history, zfs_ioc_poolcheck_t pool_check)
@@ -8529,7 +8555,12 @@ zfsdev_state_init(void *priv)
 
 	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
 
+#if defined(_WIN32) && defined(_KERNEL)
+	minor = minor((dev_t)priv);
+#else
 	minor = zfsdev_minor_alloc();
+#endif
+
 	if (minor == 0)
 		return (SET_ERROR(ENXIO));
 

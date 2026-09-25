@@ -25,6 +25,12 @@
 
 #endif
 
+#if defined(__aarch64__)
+
+#include <sys/aarch64/asm_linkage.h>	/* ARM64 /sys/asm_linkage.h */
+
+#endif
+
 #if defined(_KERNEL) && defined(HAVE_KERNEL_OBJTOOL)
 
 #include <asm/frame.h>

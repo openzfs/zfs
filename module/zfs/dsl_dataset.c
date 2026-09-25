@@ -61,6 +61,9 @@
 #include <zfs_fletcher.h>
 #include <sys/zio_checksum.h>
 #include <sys/brt.h>
+#if defined(_WIN32) && defined(_KERNEL)
+#include <sys/zfs_vss.h>
+#endif
 
 /*
  * The SPA supports block sizes up to 16MB.  However, very large blocks
@@ -2006,6 +2009,9 @@ dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors)
 		for (pair = nvlist_next_nvpair(snaps, NULL); pair != NULL;
 		    pair = nvlist_next_nvpair(snaps, pair)) {
 			zvol_create_minors(nvpair_name(pair));
+#if defined(_WIN32) && defined(_KERNEL)
+			zfs_vss_snapshot_add_by_name(nvpair_name(pair));
+#endif
 		}
 	}
 

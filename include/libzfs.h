@@ -602,6 +602,9 @@ _LIBZFS_H int zfs_crypto_clone_check(libzfs_handle_t *, zfs_handle_t *, char *,
     nvlist_t *);
 _LIBZFS_H int zfs_crypto_attempt_load_keys(libzfs_handle_t *, const char *);
 _LIBZFS_H int zfs_crypto_load_key(zfs_handle_t *, boolean_t, const char *);
+_LIBZFS_H int zfs_crypto_load_key_direct(zfs_handle_t *zhp, boolean_t,
+    const char *, size_t);
+
 _LIBZFS_H int zfs_crypto_unload_key(zfs_handle_t *);
 _LIBZFS_H int zfs_crypto_rewrap(zfs_handle_t *, nvlist_t *, boolean_t);
 _LIBZFS_H boolean_t zfs_is_encrypted(zfs_handle_t *);
@@ -775,6 +778,7 @@ _LIBZFS_H int zfs_snapshot(libzfs_handle_t *, const char *, boolean_t,
 _LIBZFS_H int zfs_snapshot_nvl(libzfs_handle_t *hdl, nvlist_t *snaps,
     nvlist_t *props);
 _LIBZFS_H int zfs_rollback(zfs_handle_t *, zfs_handle_t *, boolean_t);
+_LIBZFS_H void zfs_rollback_os(struct zfs_handle *zhp);
 
 typedef struct renameflags {
 	/* recursive rename */
@@ -967,6 +971,8 @@ _LIBZFS_H int zfs_mount_at(zfs_handle_t *, const char *, int, const char *);
 _LIBZFS_H int zfs_unmount(zfs_handle_t *, const char *, int);
 _LIBZFS_H int zfs_unmountall(zfs_handle_t *, int);
 _LIBZFS_H int zfs_mount_delegation_check(void);
+_LIBZFS_H int zfs_snapshot_mount(zfs_handle_t *, const char *options, int);
+_LIBZFS_H int zfs_snapshot_unmount(zfs_handle_t *, int);
 
 #if defined(__linux__) || defined(__APPLE__)
 _LIBZFS_H int zfs_parse_mount_options(const char *mntopts,

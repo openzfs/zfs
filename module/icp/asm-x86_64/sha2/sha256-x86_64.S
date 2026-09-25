@@ -28,7 +28,7 @@
 
 SECTION_STATIC
 
-.balign	64
+.align	64
 SET_OBJ(K256)
 K256:
 .long	0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5
@@ -107,7 +107,7 @@ ENTRY_ALIGN(zfs_sha256_transform_x64, 16)
 	movl	24(%rdi),%r10d
 	movl	28(%rdi),%r11d
 	jmp	.Lloop
-.balign	16
+.align	16
 .Lloop:
 	movl	%ebx,%edi
 	leaq	K256(%rip),%rbp
@@ -624,7 +624,7 @@ ENTRY_ALIGN(zfs_sha256_transform_x64, 16)
 	addl	%r12d,%eax
 	leaq	20(%rbp),%rbp
 	jmp	.Lrounds_16_xx
-.balign	16
+.align	16
 .Lrounds_16_xx:
 	movl	4(%rsp),%r13d
 	movl	56(%rsp),%r15d
@@ -1439,7 +1439,7 @@ ENTRY_ALIGN(zfs_sha256_transform_shani, 64)
 	punpcklqdq	%xmm0,%xmm2
 	jmp	.Loop_shani
 
-.balign	16
+.align	16
 .Loop_shani:
 	movdqu	(%rsi),%xmm3
 	movdqu	16(%rsi),%xmm4
@@ -1670,7 +1670,7 @@ ENTRY_ALIGN(zfs_sha256_transform_ssse3, 64)
 	movl	28(%rdi),%r11d
 
 	jmp	.Lloop_ssse3
-.balign	16
+.align	16
 .Lloop_ssse3:
 	movdqa	K256+512(%rip),%xmm7
 	movdqu	0(%rsi),%xmm0
@@ -1700,7 +1700,7 @@ ENTRY_ALIGN(zfs_sha256_transform_ssse3, 64)
 	movl	%r8d,%r13d
 	jmp	.Lssse3_00_47
 
-.balign	16
+.align	16
 .Lssse3_00_47:
 	subq	$-128,%rbp
 	rorl	$14,%r13d
@@ -2784,7 +2784,7 @@ ENTRY_ALIGN(zfs_sha256_transform_avx, 64)
 	vmovdqa	K256+512+32(%rip),%xmm8
 	vmovdqa	K256+512+64(%rip),%xmm9
 	jmp	.Lloop_avx
-.balign	16
+.align	16
 .Lloop_avx:
 	vmovdqa	K256+512(%rip),%xmm7
 	vmovdqu	0(%rsi),%xmm0
@@ -2810,7 +2810,7 @@ ENTRY_ALIGN(zfs_sha256_transform_avx, 64)
 	movl	%r8d,%r13d
 	jmp	.Lavx_00_47
 
-.balign	16
+.align	16
 .Lavx_00_47:
 	subq	$-128,%rbp
 	vpalignr	$4,%xmm0,%xmm1,%xmm4
@@ -3864,7 +3864,7 @@ ENTRY_ALIGN(zfs_sha256_transform_avx2, 64)
 	vmovdqa	K256+512+32(%rip),%ymm8
 	vmovdqa	K256+512+64(%rip),%ymm9
 	jmp	.Loop_avx2
-.balign	16
+.align	16
 .Loop_avx2:
 	vmovdqa	K256+512(%rip),%ymm7
 	vmovdqu	-64+0(%rsi),%xmm0
@@ -3906,7 +3906,7 @@ ENTRY_ALIGN(zfs_sha256_transform_avx2, 64)
 	subq	$-32*4,%rbp
 	jmp	.Lavx2_00_47
 
-.balign	16
+.align	16
 .Lavx2_00_47:
 	leaq	-64(%rsp),%rsp
 .cfi_escape	0x0f,0x05,0x77,0x38,0x06,0x23,0x08
@@ -4848,7 +4848,7 @@ ENTRY_ALIGN(zfs_sha256_transform_avx2, 64)
 	xorl	%ecx,%edi
 	movl	%r9d,%r12d
 	jmp	.Lower_avx2
-.balign	16
+.align	16
 .Lower_avx2:
 	addl	0+16(%rbp),%r11d
 	andl	%r8d,%r12d

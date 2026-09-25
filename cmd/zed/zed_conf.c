@@ -390,12 +390,14 @@ zed_conf_scan_dir(struct zed_conf *zcp)
 			    direntp->d_name);
 			continue;
 		}
+#ifndef _WIN32
 		if (!(st.st_mode & S_IXUSR)) {
 			zed_log_msg(LOG_INFO,
 			    "Ignoring \"%s\": not executable by user",
 			    direntp->d_name);
 			continue;
 		}
+#endif
 		if ((st.st_mode & S_IWGRP) && !zcp->do_force) {
 			zed_log_msg(LOG_NOTICE,
 			    "Ignoring \"%s\": writable by group",

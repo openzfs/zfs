@@ -3583,7 +3583,7 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 	    zfs_refcount_count(&dn->dn_holds) > 0);
 	(void) zfs_refcount_add(&dn->dn_holds, db);
 
-	dprintf_dbuf(db, "db=%p\n", db);
+	// dprintf_dbuf(db, "db=%p\n", db);
 
 	return (db);
 }

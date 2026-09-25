@@ -2715,7 +2715,11 @@
       <enumerator name='ZFS_IOC_USERNS_DETACH' value='23174'/>
       <enumerator name='ZFS_IOC_SET_BOOTENV' value='23175'/>
       <enumerator name='ZFS_IOC_GET_BOOTENV' value='23176'/>
-      <enumerator name='ZFS_IOC_LAST' value='23177'/>
+      <enumerator name='ZFS_IOC_UNREGISTER_FS' value='23177'/>
+      <enumerator name='ZFS_IOC_MOUNT' value='23178'/>
+      <enumerator name='ZFS_IOC_UNMOUNT' value='23179'/>
+      <enumerator name='ZFS_IOC_GET_MOUNT' value='23180'/>
+      <enumerator name='ZFS_IOC_LAST' value='23181'/>
     </enum-decl>
     <typedef-decl name='zfs_ioc_t' type-id='12033f13' id='5b35941c'/>
     <enum-decl name='zpool_wait_activity_t' naming-typedef-id='73446457' id='849338e3'>

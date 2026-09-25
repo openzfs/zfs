@@ -12,6 +12,7 @@
 
 /*
  * Copyright (c) 2021-2022 Tino Reichardt <milky-zfs@mcmilk.de>
+ * Copyright (c) 2017 Jorgen Lundman <lundman@lundman.net>
  */
 
 #include <sys/simd.h>
@@ -21,7 +22,7 @@
 
 #include "blake3_impl.h"
 
-#if defined(__aarch64__) || \
+#if defined(__aarch64__NOTYET) || \
 	(defined(__x86_64) && HAVE_SIMD(SSE2)) || \
 	(defined(__PPC64__) && defined(__LITTLE_ENDIAN__))
 
@@ -87,7 +88,7 @@ const blake3_ops_t blake3_sse2_impl = {
 };
 #endif
 
-#if defined(__aarch64__) || \
+#if defined(__aarch64__NOTYET) || \
 	(defined(__x86_64) && HAVE_SIMD(SSE2)) || \
 	(defined(__PPC64__) && defined(__LITTLE_ENDIAN__))
 
@@ -248,12 +249,12 @@ extern const blake3_ops_t blake3_generic_impl;
 
 static const blake3_ops_t *const blake3_impls[] = {
 	&blake3_generic_impl,
-#if defined(__aarch64__) || \
+#if defined(__aarch64__NOTYET) || \
 	(defined(__x86_64) && HAVE_SIMD(SSE2)) || \
 	(defined(__PPC64__) && defined(__LITTLE_ENDIAN__))
 	&blake3_sse2_impl,
 #endif
-#if defined(__aarch64__) || \
+#if defined(__aarch64__NOTYET) || \
 	(defined(__x86_64) && HAVE_SIMD(SSE4_1)) || \
 	(defined(__PPC64__) && defined(__LITTLE_ENDIAN__))
 	&blake3_sse41_impl,
@@ -303,7 +304,7 @@ blake3_per_cpu_ctx_fini(void)
 
 #define	IMPL_FMT(impl, i)	(((impl) == (i)) ? "[%s] " : "%s ")
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(_WIN32)
 
 static int
 blake3_param_get(char *buffer, zfs_kernel_param_t *unused)
@@ -336,6 +337,28 @@ blake3_param_set(const char *val, zfs_kernel_param_t *unused)
 {
 	(void) unused;
 	return (generic_impl_setname(val));
+}
+
+#endif /* Linux || Windows */
+
+#if defined(_WIN32)
+
+int
+win32_blake3_param_set(ZFS_MODULE_PARAM_ARGS)
+{
+	*type = ZT_TYPE_STRING;
+
+	if (set == B_FALSE) {
+		static char buffer[PAGE_SIZE];
+		blake3_param_get(buffer, NULL);
+		*ptr = buffer;
+		*len = strlen(buffer);
+		return (0);
+	}
+
+	ASSERT3P(ptr, !=, NULL);
+
+	return (-generic_impl_setname(*ptr));
 }
 
 #elif defined(__FreeBSD__)

@@ -1632,7 +1632,10 @@ spa_taskq_free_param_get(char *buf, zfs_kernel_param_t *kp)
 {
 	return (spa_taskq_param_get(ZIO_TYPE_FREE, buf, TRUE));
 }
-#else
+#endif
+
+#if defined(__FreeBSD__)
+
 /*
  * On FreeBSD load-time parameters can be set up before malloc() is available,
  * so we have to do all the parsing work on the stack.
@@ -1676,6 +1679,74 @@ spa_taskq_free_param(ZFS_MODULE_PARAM_ARGS)
 	if (err || req->newptr == NULL)
 		return (err);
 	return (spa_taskq_param_set(ZIO_TYPE_FREE, buf));
+}
+#endif
+
+#ifdef _WIN32
+
+#define	SPA_TASKQ_PARAM_MAX	(1024)
+
+static int
+win32_spa_taskq_read_param_set(ZFS_MODULE_PARAM_ARGS)
+{
+	char str[SPA_TASKQ_PARAM_MAX] = "";
+
+	*type = ZT_TYPE_STRING;
+
+	if (set == B_FALSE) {
+		(void) spa_taskq_param_get(ZIO_TYPE_READ, str, FALSE);
+		*ptr = str;
+		*len = strlen(str);
+		return (0);
+	}
+
+	ASSERT3P(ptr, !=, NULL);
+
+	spa_taskq_param_set(ZIO_TYPE_READ, *ptr);
+
+	return (0);
+}
+
+static int
+win32_spa_taskq_write_param_set(ZFS_MODULE_PARAM_ARGS)
+{
+	char str[SPA_TASKQ_PARAM_MAX] = "";
+
+	*type = ZT_TYPE_STRING;
+
+	if (set == B_FALSE) {
+		(void) spa_taskq_param_get(ZIO_TYPE_WRITE, str, FALSE);
+		*ptr = str;
+		*len = strlen(str);
+		return (0);
+	}
+
+	ASSERT3P(ptr, !=, NULL);
+
+	spa_taskq_param_set(ZIO_TYPE_WRITE, *ptr);
+
+	return (0);
+}
+
+static int
+win32_spa_taskq_free_param_set(ZFS_MODULE_PARAM_ARGS)
+{
+	char str[SPA_TASKQ_PARAM_MAX] = "";
+
+	*type = ZT_TYPE_STRING;
+
+	if (set == B_FALSE) {
+		(void) spa_taskq_param_get(ZIO_TYPE_FREE, str, FALSE);
+		*ptr = str;
+		*len = strlen(str);
+		return (0);
+	}
+
+	ASSERT3P(ptr, !=, NULL);
+
+	spa_taskq_param_set(ZIO_TYPE_FREE, *ptr);
+
+	return (0);
 }
 #endif
 #endif /* _KERNEL */

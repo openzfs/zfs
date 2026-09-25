@@ -20,6 +20,11 @@
 #include <wchar.h>
 #include <sys/debug.h>
 
+#ifdef _WIN32
+#include <wosix.h>
+#define	fprintf wosix_fprintf
+#endif
+
 #include "libnvpair.h"
 
 #define	FPRINTF(fp, ...)				\

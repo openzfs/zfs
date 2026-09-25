@@ -2744,9 +2744,9 @@ static int XXH_isLittleEndian(void)
  * @param x The 32-bit integer to byteswap.
  * @return @p x, byteswapped.
  */
-#if defined(_MSC_VER)     /* Visual Studio */
+#if defined(_MSC_VER) && !defined(__clang__)     /* Visual Studio */
 #  define XXH_swap32 _byteswap_ulong
-#elif XXH_GCC_VERSION >= 403
+#elif XXH_GCC_VERSION >= 403 || defined(__clang__)
 #  define XXH_swap32 __builtin_bswap32
 #else
 static xxh_u32 XXH_swap32 (xxh_u32 x)
@@ -3279,9 +3279,9 @@ static xxh_u64 XXH_read64(const void* memPtr)
 
 #endif   /* XXH_FORCE_DIRECT_MEMORY_ACCESS */
 
-#if defined(_MSC_VER)     /* Visual Studio */
+#if defined(_MSC_VER) && !defined(__clang__)     /* Visual Studio */
 #  define XXH_swap64 _byteswap_uint64
-#elif XXH_GCC_VERSION >= 403
+#elif XXH_GCC_VERSION >= 403 || defined(__clang__)
 #  define XXH_swap64 __builtin_bswap64
 #else
 static xxh_u64 XXH_swap64(xxh_u64 x)
@@ -3734,7 +3734,7 @@ XXH_PUBLIC_API XXH64_hash_t XXH64_hashFromCanonical(XXH_NOESCAPE const XXH64_can
 #  endif
 #endif
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__clang__)
 #  include <intrin.h>
 #endif
 

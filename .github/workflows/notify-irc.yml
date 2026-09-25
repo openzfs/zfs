@@ -1,0 +1,39 @@
+
+name: Notify IRC
+
+on:
+  push:
+  issues:
+    types:
+      - opened
+      - edited
+      - closed
+  issue_comment:
+  pull_request:
+  discussion:
+    types:
+      - created
+      - edited
+      - closed
+      - answered
+  discussion_comment:
+  create:
+  delete:
+
+jobs:
+  notify-irc:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Notify IRC
+        uses: openzfsonwindows/notify-irc@v3
+        with:
+          channel: "#OpenZFS-Windows"
+          # Tried in order, so one stalled libera node doesn't fail the run
+          server: "irc.libera.chat,irc.eu.libera.chat"
+          # Forks copy this workflow; keep them from announcing to our channel
+          only_repository: "openzfsonwindows/*"
+          nickname: "zfs-consus"
+          mirccolor: "true"
+          eventpath: ${{ github.event_path }}
+

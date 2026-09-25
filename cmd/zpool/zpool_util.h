@@ -28,6 +28,17 @@ extern "C" {
 #define	ZPOOL_SCRIPTS_DIR SYSCONFDIR"/zfs/zpool.d"
 
 /*
+ * Separator for ZPOOL_SCRIPTS_PATH and the $HOME/.zpool.d:ZPOOL_SCRIPTS_DIR
+ * fallback. ":" collides with a drive letter (e.g. "C:/src"), so Windows
+ * uses ";" like its native PATH does.
+ */
+#ifdef _WIN32
+#define	ZPOOL_SCRIPTS_PATH_SEP ";"
+#else
+#define	ZPOOL_SCRIPTS_PATH_SEP ":"
+#endif
+
+/*
  * Basic utility functions
  */
 void *safe_malloc(size_t);

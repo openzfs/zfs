@@ -17,6 +17,10 @@
 #ifndef _SYS_TUNABLES_H
 #define	_SYS_TUNABLES_H extern __attribute__((visibility("hidden")))
 
+#if defined(_WIN32)
+#include <sys/linker_set.h>
+#endif
+
 typedef enum {
 	ZFS_TUNABLE_TYPE_INT,
 	ZFS_TUNABLE_TYPE_UINT,
@@ -39,11 +43,18 @@ typedef struct zfs_tunable {
 	const char		*zt_desc;
 } zfs_tunable_t;
 
+#if defined(__APPLE__)
+#define	ZFS_TUNABLE_SECTION "__DATA_CONST,zfs_tunables"
+#elif defined(_WIN32)
+/* Not used */
+#else
+#define	ZFS_TUNABLE_SECTION "zfs_tunables"
+#endif
+
 _SYS_TUNABLES_H int zfs_tunable_set(const zfs_tunable_t *tunable,
     const char *val);
 _SYS_TUNABLES_H int zfs_tunable_get(const zfs_tunable_t *tunable, char *val,
     size_t valsz);
-
 _SYS_TUNABLES_H const zfs_tunable_t *zfs_tunable_lookup(const char *name);
 
 typedef int (*zfs_tunable_iter_t)(const zfs_tunable_t *tunable, void *arg);

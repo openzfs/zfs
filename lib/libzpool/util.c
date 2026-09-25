@@ -159,6 +159,7 @@ typedef enum { SHOW, INFO, SET } tunable_mode_t;
 static int
 list_tunables_cb(const zfs_tunable_t *tunable, void *arg)
 {
+	int ret = 0;
 	const tunable_mode_t *mode = arg;
 
 	static const char *type[] = {
