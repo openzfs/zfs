@@ -6623,6 +6623,7 @@ spa_open_common(const char *pool, spa_t **spapp, const void *tag,
 {
 	spa_t *spa;
 	spa_load_state_t state = SPA_LOAD_OPEN;
+	nvlist_t *load_info = NULL;
 	int error;
 	int locked = B_FALSE;
 	int firstopen = B_FALSE;
@@ -6707,23 +6708,36 @@ spa_open_common(const char *pool, spa_t **spapp, const void *tag,
 
 	spa_open_ref(spa, tag);
 
-	if (config != NULL)
-		*config = spa_config_generate(spa, NULL, -1ULL, B_TRUE);
-
 	/*
 	 * If we've recovered the pool, pass back any information we
-	 * gathered while doing the load.
+	 * gathered while doing the load.  Copy it while the namespace
+	 * lock is still held.
 	 */
-	if (state == SPA_LOAD_RECOVER && config != NULL) {
-		fnvlist_add_nvlist(*config, ZPOOL_CONFIG_LOAD_INFO,
-		    spa->spa_load_info);
-	}
+	if (state == SPA_LOAD_RECOVER && config != NULL)
+		load_info = fnvlist_dup(spa->spa_load_info);
 
 	if (locked) {
 		spa->spa_last_open_failed = 0;
 		spa->spa_last_ubsync_txg = 0;
 		spa->spa_load_txg = 0;
 		spa_namespace_exit(FTAG);
+	}
+
+	/*
+	 * Generate the config after dropping the namespace lock.  With
+	 * stats it grows with the number of vdevs, and every pool lookup
+	 * in the system waits on that lock.  The reference taken above
+	 * keeps the pool from being exported or destroyed, and
+	 * spa_config_generate() takes the config locks it needs.  The
+	 * sync thread already calls it without the namespace lock.
+	 */
+	if (config != NULL) {
+		*config = spa_config_generate(spa, NULL, -1ULL, B_TRUE);
+		if (load_info != NULL) {
+			fnvlist_add_nvlist(*config, ZPOOL_CONFIG_LOAD_INFO,
+			    load_info);
+			fnvlist_free(load_info);
+		}
 	}
 
 	if (firstopen)

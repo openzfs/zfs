@@ -428,6 +428,7 @@ ztest_func_t ztest_fzap;
 ztest_func_t ztest_dmu_snapshot_create_destroy;
 ztest_func_t ztest_dsl_prop_get_set;
 ztest_func_t ztest_spa_prop_get_set;
+ztest_func_t ztest_spa_get_stats;
 ztest_func_t ztest_spa_create_destroy;
 ztest_func_t ztest_fault_inject;
 ztest_func_t ztest_dmu_snapshot_hold;
@@ -482,6 +483,7 @@ static ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_dmu_objset_create_destroy, 1, &zopt_often),
 	ZTI_INIT(ztest_dsl_prop_get_set, 1, &zopt_often),
 	ZTI_INIT(ztest_spa_prop_get_set, 1, &zopt_sometimes),
+	ZTI_INIT(ztest_spa_get_stats, 1, &zopt_incessant),
 	ZTI_INIT(ztest_fzap, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_dmu_snapshot_create_destroy, 1, &zopt_sometimes),
 	ZTI_INIT(ztest_spa_create_destroy, 1, &zopt_sometimes),
@@ -6404,6 +6406,35 @@ ztest_spa_prop_get_set(ztest_ds_t *zd, uint64_t id)
 	fnvlist_free(props);
 
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
+}
+
+/*
+ * Fetch the pool config with vdev stats, as zpool status and zpool iostat
+ * do.  The config is generated without the namespace lock, so run this
+ * often to race it against the threads that change the vdev tree.
+ */
+void
+ztest_spa_get_stats(ztest_ds_t *zd, uint64_t id)
+{
+	(void) zd, (void) id;
+	nvlist_t *config = NULL;
+	nvlist_t *nvroot;
+	vdev_stat_t *vs;
+	uint_t c;
+
+	(void) pthread_rwlock_rdlock(&ztest_name_lock);
+	VERIFY0(spa_get_stats(ztest_opts.zo_pool, &config, NULL, 0));
+	(void) pthread_rwlock_unlock(&ztest_name_lock);
+
+	nvroot = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE);
+	VERIFY0(nvlist_lookup_uint64_array(nvroot, ZPOOL_CONFIG_VDEV_STATS,
+	    (uint64_t **)&vs, &c));
+	VERIFY(nvlist_exists(nvroot, ZPOOL_CONFIG_VDEV_STATS_EX));
+
+	if (ztest_opts.zo_verbose >= 6)
+		dump_nvlist(config, 4);
+
+	fnvlist_free(config);
 }
 
 static int
