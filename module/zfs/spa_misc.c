@@ -1546,8 +1546,16 @@ spa_vdev_state_exit(spa_t *spa, vdev_t *vd, int error)
 	 * are synchronous.  This is important for things like zpool offline:
 	 * when the command completes, you expect no further I/O from ZFS.
 	 */
-	if (vd != NULL)
-		txg_wait_synced(spa->spa_dsl_pool, 0);
+	if (vd != NULL) {
+		/*
+		 * A suspended pool cannot sync this txg. Report the
+		 * suspend instead of waiting for it.
+		 */
+		int werr = txg_wait_synced_flags(spa->spa_dsl_pool, 0,
+		    TXG_WAIT_SUSPEND);
+		if (werr != 0 && error == 0)
+			error = SET_ERROR(EAGAIN);
+	}
 
 	/*
 	 * If the config changed, update the config cache.
