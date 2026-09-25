@@ -411,3 +411,82 @@ int delete_object(const char *pool, const char *bucket, const char *key) {
 
 	return 0;
 }
+
+int get_object(const char *pool, const char *bucket, const char *key, int fd, uint64_t *size) {
+	spa_t *spa;
+	objset_t *os;
+	uint64_t bucket_zap;
+	uint64_t obj_id;
+	int error;
+	struct file *file;
+	loff_t pos = 0;
+	char *buf;
+
+	error = spa_open(pool, &spa, ZOS_OBJSET_TAG);
+	if (error) {
+		return error;
+	}
+
+	error = get_bucket(spa, bucket, &os, &bucket_zap);
+	if (error) {
+		if (os != NULL) {
+			zos_release_objset(os);
+		}
+		spa_close(spa, ZOS_OBJSET_TAG);
+		return error;
+	}
+
+	error = zap_lookup(os, bucket_zap, key, 8, 1, &obj_id);
+	if (error) {
+		zos_release_objset(os);
+		spa_close(spa, ZOS_OBJSET_TAG);
+		return error;
+	}
+
+	dmu_object_info_t doi;
+	error = dmu_object_info(os, obj_id, &doi);
+	if (error) {
+		zos_release_objset(os);
+		spa_close(spa, ZOS_OBJSET_TAG);
+		return error;
+	}
+
+	file = fget(fd);
+	if (file == NULL) {
+		zos_release_objset(os);
+		spa_close(spa, ZOS_OBJSET_TAG);
+		return EBADF;
+	}
+
+
+	buf = kmem_alloc(ZOS_CHUNK_SIZE, KM_SLEEP);
+	uint64_t offset = 0;
+	while (offset < doi.doi_max_offset) {
+		uint64_t chunk = MIN(ZOS_CHUNK_SIZE, doi.doi_max_offset - offset);
+
+		error = dmu_read(os, obj_id, offset, chunk, buf, DMU_READ_PREFETCH);
+		if (error) {
+			break;
+		}
+
+		ssize_t n = kernel_write(file, buf, chunk, &pos);
+		if (n < 0 || n != chunk) {
+			error = EIO;
+			break;
+		}
+		offset += chunk;
+	}
+
+	fput(file);
+	kmem_free(buf, ZOS_CHUNK_SIZE);
+	zos_release_objset(os);
+	spa_close(spa, ZOS_OBJSET_TAG);
+
+	if (error) {
+		return error;
+	}
+
+	*size = offset;
+
+	return 0;
+}

@@ -25,5 +25,7 @@ tags = ['zos', 'functional']
 #tags = ['zos', 'functional']
 
 [tests/functional/zos/object]
-tests = ['zos_object_put_001_pos', 'zos_object_delete_001_pos', 'zos_object_delete_002_neg']
+tests = ['zos_object_put_001_pos', 'zos_object_delete_001_pos',
+    'zos_object_delete_002_neg', 'zos_object_get_001_pos',
+    'zos_object_get_002_neg']
 tags = ['zos', 'functional']

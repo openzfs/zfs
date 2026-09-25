@@ -5105,6 +5105,30 @@ zfs_ioc_object_delete(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl) {
 	return (delete_object(poolname, bucket, key));
 }
 
+static const zfs_ioc_key_t zfs_keys_object_get[] = {
+	{ZFS_BUCKET,	DATA_TYPE_STRING,	0},
+	{ZFS_KEY,	DATA_TYPE_STRING,	0},
+	{"fd",		DATA_TYPE_INT32,	0},
+};
+
+static int
+zfs_ioc_object_get(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl) {
+	const char *bucket = fnvlist_lookup_string(innvl, ZFS_BUCKET);
+	const char *key = fnvlist_lookup_string(innvl, ZFS_KEY);
+	int fd = fnvlist_lookup_int32(innvl, "fd");
+
+	uint64_t size = 0;
+
+	int error = get_object(poolname, bucket, key, fd, &size);
+	if (error) {
+		return error;
+	}
+
+	fnvlist_add_uint64(outnvl, ZFS_SIZE, size);
+
+	return (0);
+}
+
 /*
  * This ioctl waits for activity of a particular type to complete. If there is
  * no activity of that type in progress, it returns immediately, and the
@@ -8322,6 +8346,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_object_delete, zfs_secpolicy_none, DATASET_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
 	    zfs_keys_object_delete, ARRAY_SIZE(zfs_keys_object_delete));
+
+	zfs_ioctl_register("object_get", ZFS_IOC_OBJECT_GET,
+	    zfs_ioc_object_get, zfs_secpolicy_none, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
+	    zfs_keys_object_get, ARRAY_SIZE(zfs_keys_object_get));
 
 	zfs_ioctl_register("set_bootenv", ZFS_IOC_SET_BOOTENV,
 	    zfs_ioc_set_bootenv, zfs_secpolicy_config, POOL_NAME,

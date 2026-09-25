@@ -1714,7 +1714,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_BUCKET_DELETE,			/* 0x5a5c */
 	ZFS_IOC_BUCKET_LIST,			/* 0x5a5d */
 	ZFS_IOC_OBJECT_PUT,			/* 0x5a5e */
-	ZFS_IOC_OBJECT_READ,			/* 0x5a5f */
+	ZFS_IOC_OBJECT_GET,			/* 0x5a5f */
 	ZFS_IOC_OBJECT_DELETE,			/* 0x5a60 */
 
 	/*

@@ -9537,12 +9537,14 @@ zfs_do_object(int argc, char **argv) {
 
 		error = lzc_object_put(pool, bucket, key, fd, size);
 
-		if (fd != STDIN_FILENO)
+		if (fd != STDIN_FILENO) {
 			(void) close(fd);
+		}
 
-		if (error != 0)
+		if (error) {
 			(void) zfs_standard_error(g_zfs, error,
 					"Cannot put object");
+		}
 
 		ret = error;
 	} else if (strcmp(op, "delete") == 0) {
@@ -9557,6 +9559,43 @@ zfs_do_object(int argc, char **argv) {
 		}
 
 		error = lzc_object_delete(pool, bucket, key);
+
+		ret = error;
+	} else if (strcmp(op, "get") == 0) {
+		char *pool;
+		char *bucket;
+		char *key;
+
+		int error = parse_pool_bucket_key(path, &pool, &bucket, &key);
+		if (error) {
+			(void) fprintf(stderr, gettext("expected pool/bucket/key\n"));
+			usage(B_FALSE);
+		}
+
+		int fd;
+		uint64_t size;
+		if (argc >= 4) {
+			fd = open(argv[3], O_WRONLY|O_CREAT|O_TRUNC, 0644);
+			if (fd < 0) {
+				(void)fprintf(stderr,
+						gettext("cannot open '%s': %s\n"),
+						argv[3], strerror(errno));
+				(void)libzfs_fini(g_zfs);
+				return (1);
+			}
+		} else {
+			fd = STDOUT_FILENO;
+		}
+
+		error = lzc_object_get(pool, bucket, key, fd, &size);
+
+		if (fd != STDOUT_FILENO) {
+			(void)close(fd);
+                }
+
+		if (error) {
+			(void)zfs_standard_error(g_zfs, error, "Cannot get object");
+                }
 
 		ret = error;
 	} else {

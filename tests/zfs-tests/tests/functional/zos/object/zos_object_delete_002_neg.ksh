@@ -4,11 +4,11 @@
 
 BUCKET="testbucket"
 
-log_assert "Put object from file succeeds"
+log_assert "Delete nonexistant object fails"
 
 # Create a temp file with known content
 echo "hello zos" > /tmp/zos_test_data
 
 log_mustnot zfs object delete $TESTPOOL/putbucket/testkey
 
-log_pass "Put object from file succeeded"
+log_pass "Delete nonexistant object failed"

@@ -69,8 +69,7 @@ int get_bucket(spa_t *spa, const char *bucket, objset_t **os, uint64_t *bucket_z
 /* Put (create/overwrite) an object. fd = data source, size = bytes (0 = read until EOF) */
 int put_object(const char *pool, const char *bucket, const char *key, int fd, uint64_t size);
 int delete_object(const char *pool, const char *bucket, const char *key);
-
-int read_object(struct zos_object *object);
+int get_object(const char *pool, const char *bucket, const char *key, int fd, uint64_t *size);
 
 #ifdef __cplusplus
 }

@@ -2180,3 +2180,25 @@ lzc_object_delete(const char *pool, const char *bucket, const char *key) {
 
 	return (error);
 }
+
+int
+lzc_object_get(const char *pool, const char *bucket, const char *key, int fd, uint64_t *size) {
+	int error;
+
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = fnvlist_alloc();
+
+	fnvlist_add_string(args, ZFS_BUCKET, bucket);
+	fnvlist_add_string(args, ZFS_KEY, key);
+	fnvlist_add_int32(args, "fd", fd);
+
+	error = lzc_ioctl(ZFS_IOC_OBJECT_GET, pool, args, &result);
+	if (error == 0) {
+		*size = fnvlist_lookup_uint64(result, ZFS_SIZE);
+	}
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}
