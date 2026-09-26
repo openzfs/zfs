@@ -303,65 +303,46 @@ int put_object(const char *pool, const char *bucket, const char *key, int fd, ui
 
 	new_obj_id = dmu_object_alloc(os, DMU_OT_UINT64_OTHER, SPA_MINBLOCKSIZE, DMU_OT_ZOS_OBJECT_META, sizeof (zos_object_meta_t), tx);
 
-	if (size > 0) {
-		// Known size, single write
-		file = fget(fd);
-		if (file == NULL) {
-			dmu_tx_abort(tx);
-			zos_release_objset(os);
-			spa_close(spa, ZOS_OBJSET_TAG);
-			return EBADFD;
+	file = fget(fd);
+	if (file == NULL) {
+		dmu_tx_abort(tx);
+		zos_release_objset(os);
+		spa_close(spa, ZOS_OBJSET_TAG);
+		return EBADFD;
+	}
+
+	buf = kmem_alloc(ZOS_CHUNK_SIZE, KM_SLEEP);
+
+	uint64_t offset = 0;
+	for (;;) {
+		uint64_t chunk = (size > 0) ? MIN(ZOS_CHUNK_SIZE, size - offset) : ZOS_CHUNK_SIZE;
+
+		ssize_t n = kernel_read(file, buf, chunk, &pos);
+		if (n == 0) {
+			break;
+		}
+		if (n < 0) {
+			error = EIO;
+			break;
 		}
 
-		buf = kmem_alloc(size, KM_SLEEP);
-
-		ssize_t n = kernel_read(file, buf, size, &pos);
-		fput(file);
-		if (n < 0 || n != size) {
-			kmem_free(buf, size);
-			dmu_tx_abort(tx);
-			zos_release_objset(os);
-			spa_close(spa, ZOS_OBJSET_TAG);
-			return EIO;
+		dmu_write(os, new_obj_id, offset, n, buf, tx, DMU_READ_PREFETCH);
+		offset += n;
+		if (size > 0 && offset == size) {
+			break;
 		}
-
-		dmu_write(os, new_obj_id, 0, size, buf, tx, DMU_READ_PREFETCH);
-		kmem_free(buf, size);
-	} else {
-		file = fget(fd);
-		if (file == NULL) {
-			dmu_tx_abort(tx);
-			zos_release_objset(os);
-			spa_close(spa, ZOS_OBJSET_TAG);
-			return EBADFD;
-		}
-
-		// Unknown size, 64KB chunked writes
-		buf = kmem_alloc(ZOS_CHUNK_SIZE, KM_SLEEP);
-
-		uint64_t offset = 0;
-		for (;;) {
-			ssize_t n = kernel_read(file, buf, ZOS_CHUNK_SIZE, &pos);
-			if (n == 0) {
-				break;
-			}
-			if (n < 0) {
-				error = EIO;
-				break;
-			}
-
-			dmu_write(os, new_obj_id, offset, n, buf, tx, DMU_READ_PREFETCH);
-			offset += n;
-		}
-		size = offset;
-		kmem_free(buf, ZOS_CHUNK_SIZE);
-		fput(file);
-		if (error) {
-			dmu_tx_abort(tx);
-			zos_release_objset(os);
-			spa_close(spa, ZOS_OBJSET_TAG);
-			return error;
-		}
+	}
+	if (size > 0 && offset != size) {
+		error = EIO;
+	}
+	size = offset;
+	kmem_free(buf, ZOS_CHUNK_SIZE);
+	fput(file);
+	if (error) {
+		dmu_tx_abort(tx);
+		zos_release_objset(os);
+		spa_close(spa, ZOS_OBJSET_TAG);
+		return error;
 	}
 
 	error = dmu_bonus_hold(os, new_obj_id, ZOS_OBJSET_TAG, &dbuf);
