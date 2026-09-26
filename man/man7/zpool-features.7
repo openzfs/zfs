@@ -1065,6 +1065,36 @@ when a ZIL is created for at least one dataset and will be returned to the
 .Sy enabled
 state when it is destroyed for all datasets that use this feature.
 .
+.feature org.openzfs ziltmpfile yes extensible_dataset
+This feature enables logging the publication of an unnamed
+.Pq Dv O_TMPFILE
+file in the ZIL, so that
+.Xr linkat 2
+of an eligible file no longer waits for a transaction group to sync.
+A file is eligible if it was created in the transaction group that publishes
+it, its extended attributes, if any, are system attribute xattrs that can be
+logged
+.Pq Sy xattr Ns = Ns Sy sa ,
+it has no file flags set
+.Pq for example by Xr chattr 1 ,
+its project is the one the directory it is linked into gives a new file,
+its native ACL is the one its mode gives a new file and that directory has
+no inheritable ACEs,
+and it has at most
+.Sy zfs_tmpfile_log_max_blocks
+blocks
+.Pq see Xr zfs 4 ;
+other publications still wait for a transaction group.
+The published file is recovered by replaying the intent log, which requires
+software that supports this feature.
+Without the feature, publication waits for a transaction group as before.
+.Pp
+This feature becomes
+.Sy active
+when a ZIL is created for at least one dataset and will be returned to the
+.Sy enabled
+state when it is destroyed for all datasets that use this feature.
+.
 .feature com.delphix zpool_checkpoint yes
 This feature enables the
 .Nm zpool Cm checkpoint

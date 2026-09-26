@@ -813,6 +813,18 @@ zpool_feature_init(void)
 		    ZFEATURE_TYPE_BOOLEAN, physical_rewrite_deps, sfeatures);
 	}
 
+	{
+		static const spa_feature_t ziltmpfile_deps[] = {
+			SPA_FEATURE_EXTENSIBLE_DATASET,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_ZILTMPFILE,
+		    "org.openzfs:ziltmpfile", "ziltmpfile",
+		    "Support for logging O_TMPFILE publication in the ZIL.",
+		    ZFEATURE_FLAG_PER_DATASET | ZFEATURE_FLAG_READONLY_COMPAT,
+		    ZFEATURE_TYPE_BOOLEAN, ziltmpfile_deps, sfeatures);
+	}
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 

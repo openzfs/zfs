@@ -34,6 +34,7 @@
 #include <sys/zfs_vnops.h>
 #include <sys/spa.h>
 #include <sys/zil.h>
+#include <sys/zil_impl.h>
 #include <sys/byteorder.h>
 #include <sys/stat.h>
 #include <sys/acl.h>
@@ -569,6 +570,284 @@ out:
 	return (error);
 }
 
+/*
+ * Unnamed (O_TMPFILE) files during replay.
+ *
+ * A published tmpfile is logged as TX_TMPFILE (create the object unnamed,
+ * in the unlinked set), the records that rebuild its contents, and a final
+ * TX_LINK.  Between those records the object has no name and no links, so
+ * the usual zfs_zget()/zrele() of each replay function would destroy it on
+ * release.  Replay therefore holds it, from TX_TMPFILE until its TX_LINK
+ * (or the end of replay), on zfsvfs->z_replay_tmpfiles.  The unlinked-set
+ * drain skips held znodes.  Whatever is still held when replay finishes was
+ * never published and is released unlinked, which frees it.
+ *
+ * If replay is interrupted after TX_TMPFILE has been replayed and synced,
+ * that record is not replayed again, but the object must survive the drain
+ * that starts at the next mount; zfs_replay_tmpfile_adopt() finds such
+ * objects before the drain and holds them again: those of replayed
+ * TX_TMPFILE records whose TX_LINK has not been replayed, if the object's
+ * generation matches the record and it has no links.
+ *
+ * Each of these replay steps records its replay progress in its own
+ * transaction (zil_replaying()), so a later replay resumes after the last
+ * step that reached disk and never repeats a TX_LINK whose name exists.
+ */
+static void
+zfs_replay_tmpfile_hold(zfsvfs_t *zfsvfs, znode_t *zp)
+{
+#ifdef __linux__
+	/* Let zfs_link() link an inode with no links. */
+	struct inode *ip = ZTOI(zp);
+
+	spin_lock(&ip->i_lock);
+#ifdef HAVE_INODE_STATE_READ_ONCE
+	inode_state_set(ip, I_LINKABLE);
+#else
+	ip->i_state |= I_LINKABLE;
+#endif
+	spin_unlock(&ip->i_lock);
+#endif
+
+	mutex_enter(&zp->z_lock);
+	zp->z_replay_tmpfile = B_TRUE;
+	mutex_exit(&zp->z_lock);
+
+	mutex_enter(&zfsvfs->z_znodes_lock);
+	list_insert_tail(&zfsvfs->z_replay_tmpfiles, zp);
+	mutex_exit(&zfsvfs->z_znodes_lock);
+}
+
+/* Drop the hold taken by zfs_replay_tmpfile_hold(). */
+static void
+zfs_replay_tmpfile_release(zfsvfs_t *zfsvfs, znode_t *zp, boolean_t unlinked)
+{
+	mutex_enter(&zfsvfs->z_znodes_lock);
+	list_remove(&zfsvfs->z_replay_tmpfiles, zp);
+	mutex_exit(&zfsvfs->z_znodes_lock);
+
+	mutex_enter(&zp->z_lock);
+	zp->z_replay_tmpfile = B_FALSE;
+	if (unlinked)
+		zp->z_unlinked = B_TRUE;
+	mutex_exit(&zp->z_lock);
+	zrele(zp);
+}
+
+/* Hold an existing object for a replayed TX_TMPFILE, if it is that one. */
+static boolean_t
+zfs_replay_tmpfile_adopt_obj(zfsvfs_t *zfsvfs, uint64_t objid, uint64_t gen)
+{
+	znode_t *zp;
+	uint64_t zgen = 0;
+
+	if (zfs_zget(zfsvfs, objid, &zp) != 0)
+		return (B_FALSE);
+	/*
+	 * A held object with this generation is the one the record
+	 * created (or an adopted copy of it); one with another generation
+	 * is not, and must not stand in for it.
+	 */
+	if (sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(zfsvfs), &zgen,
+	    sizeof (zgen)) != 0 || zgen != gen) {
+		zrele(zp);
+		return (B_FALSE);
+	}
+	if (zp->z_replay_tmpfile) {
+		zrele(zp);
+		return (B_TRUE);
+	}
+	if (zfs_znode_nlink(zp) == 0) {
+		zfs_replay_tmpfile_hold(zfsvfs, zp);
+		return (B_TRUE);
+	}
+	zrele(zp);
+	return (B_FALSE);
+}
+
+/*
+ * An object created by a replayed TX_TMPFILE whose TX_LINK has not been
+ * replayed.  Once its TX_LINK has been replayed, the object was named, and
+ * if it is unlinked again (TX_REMOVE), it is an ordinary unlinked-set entry
+ * that the drain must free, even though its generation still matches.
+ */
+typedef struct zfs_replay_adopt {
+	list_node_t	za_node;
+	uint64_t	za_obj;
+	uint64_t	za_gen;
+} zfs_replay_adopt_t;
+
+static zfs_replay_adopt_t *
+zfs_replay_tmpfile_adopt_find(list_t *l, uint64_t obj)
+{
+	for (zfs_replay_adopt_t *za = list_head(l); za != NULL;
+	    za = list_next(l, za)) {
+		if (za->za_obj == obj)
+			return (za);
+	}
+	return (NULL);
+}
+
+static int
+zfs_replay_tmpfile_adopt_cb(zilog_t *zilog, const lr_t *lr, void *arg,
+    uint64_t claim_txg)
+{
+	list_t *l = arg;
+	zfs_replay_adopt_t *za;
+	uint64_t obj;
+
+	/* Only records already replayed, and not committed by a TXG. */
+	if (lr->lrc_seq > zilog->zl_header->zh_replay_seq ||
+	    lr->lrc_txg < claim_txg)
+		return (0);
+	switch (lr->lrc_txtype & ~TX_CI) {
+	case TX_TMPFILE: {
+		const _lr_create_t *lrc = &((const lr_create_t *)lr)->lr_create;
+
+		/* A record too short for its fields is malformed. */
+		if (lr->lrc_reclen < sizeof (lr_create_t))
+			return (SET_ERROR(EINVAL));
+		obj = LR_FOID_GET_OBJ(lrc->lr_foid);
+		if ((za = zfs_replay_tmpfile_adopt_find(l, obj)) == NULL) {
+			za = kmem_alloc(sizeof (*za), KM_SLEEP);
+			za->za_obj = obj;
+			list_insert_tail(l, za);
+		}
+		za->za_gen = lrc->lr_gen;
+		break;
+	}
+	case TX_LINK:
+		if (lr->lrc_reclen < sizeof (lr_link_t))
+			return (SET_ERROR(EINVAL));
+		obj = ((const lr_link_t *)lr)->lr_link_obj;
+		if ((za = zfs_replay_tmpfile_adopt_find(l, obj)) != NULL) {
+			list_remove(l, za);
+			kmem_free(za, sizeof (*za));
+		}
+		break;
+	}
+	return (0);
+}
+
+static int
+zfs_replay_tmpfile_adopt_blk(zilog_t *zilog, const blkptr_t *bp, void *arg,
+    uint64_t claim_txg)
+{
+	(void) zilog, (void) bp, (void) arg, (void) claim_txg;
+	return (0);
+}
+
+/*
+ * Called before the unlinked-set drain at mount: hold again the unnamed
+ * objects of already-replayed TX_TMPFILE records.
+ */
+void
+zfs_replay_tmpfile_adopt(zfsvfs_t *zfsvfs)
+{
+	zilog_t *zilog = zfsvfs->z_log;
+	const zil_header_t *zh = zilog->zl_header;
+
+	list_t l;
+	zfs_replay_adopt_t *za;
+	int error;
+
+	if (BP_IS_HOLE(&zh->zh_log) || zh->zh_replay_seq == 0)
+		return;
+	list_create(&l, sizeof (zfs_replay_adopt_t),
+	    offsetof(zfs_replay_adopt_t, za_node));
+	/* A malformed record ends the scan; adopt nothing from it. */
+	error = zil_parse(zilog, zfs_replay_tmpfile_adopt_blk,
+	    zfs_replay_tmpfile_adopt_cb, &l, zh->zh_claim_txg, B_TRUE);
+	while ((za = list_remove_head(&l)) != NULL) {
+		if (error == 0) {
+			(void) zfs_replay_tmpfile_adopt_obj(zfsvfs, za->za_obj,
+			    za->za_gen);
+		}
+		kmem_free(za, sizeof (*za));
+	}
+	list_destroy(&l);
+}
+
+/*
+ * Called when replay has finished: release unnamed objects whose TX_LINK
+ * was never replayed.  They are unlinked, so this frees them.
+ */
+void
+zfs_replay_tmpfile_fini(zfsvfs_t *zfsvfs)
+{
+	znode_t *zp;
+
+	for (;;) {
+		mutex_enter(&zfsvfs->z_znodes_lock);
+		zp = list_head(&zfsvfs->z_replay_tmpfiles);
+		mutex_exit(&zfsvfs->z_znodes_lock);
+		if (zp == NULL)
+			break;
+		zfs_replay_tmpfile_release(zfsvfs, zp, B_TRUE);
+	}
+}
+
+/*
+ * Create the unnamed object of a published O_TMPFILE inode.  Its contents
+ * follow in later records, and TX_LINK finally names it.
+ */
+static int
+zfs_replay_tmpfile(void *arg1, void *arg2, boolean_t byteswap)
+{
+	zfsvfs_t *zfsvfs = arg1;
+	lr_create_t *lrc = arg2;
+	_lr_create_t *lr = &lrc->lr_create;
+	znode_t *dzp, *zp = NULL;
+	xvattr_t xva;
+	uint64_t objid, dnodesize;
+	int error;
+
+	/*
+	 * TX_TMPFILE is only written while ziltmpfile is active, and always
+	 * with its full fixed part; a log that holds one without the feature,
+	 * or a record too short for its fields, is malformed.  Fail the
+	 * record, as for an unknown record type, rather than assert.
+	 */
+	if (lr->lr_common.lrc_reclen < sizeof (*lrc) ||
+	    !spa_feature_is_active(zfsvfs->z_os->os_spa,
+	    SPA_FEATURE_ZILTMPFILE))
+		return (SET_ERROR(EINVAL));
+
+	if (byteswap)
+		byteswap_uint64_array(lrc, sizeof (*lrc));
+
+	objid = LR_FOID_GET_OBJ(lr->lr_foid);
+	dnodesize = LR_FOID_GET_SLOTS(lr->lr_foid) << DNODE_SHIFT;
+
+	/*
+	 * The object may already exist if replay was interrupted after this
+	 * record's transaction reached disk.
+	 */
+	if (zfs_replay_tmpfile_adopt_obj(zfsvfs, objid, lr->lr_gen))
+		return (0);
+
+	if ((error = zfs_zget(zfsvfs, lr->lr_doid, &dzp)) != 0)
+		return (error);
+
+	xva_init(&xva);
+	zfs_init_vattr(&xva.xva_vattr, ATTR_MODE | ATTR_UID | ATTR_GID,
+	    lr->lr_mode, lr->lr_uid, lr->lr_gid, lr->lr_rdev, objid);
+	/* See zfs_replay_create() for these uses of vattr fields. */
+	ZFS_TIME_DECODE(&xva.xva_vattr.va_ctime, lr->lr_crtime);
+	xva.xva_vattr.va_nblocks = lr->lr_gen;
+	xva.xva_vattr.va_fsid = dnodesize;
+
+	error = dnode_try_claim(zfsvfs->z_os, objid, dnodesize >> DNODE_SHIFT);
+	if (error == 0) {
+		error = zfs_replay_create_unnamed(dzp, &xva.xva_vattr,
+		    lr->lr_mode, &zp);
+	}
+	if (error == 0)
+		zfs_replay_tmpfile_hold(zfsvfs, zp);
+	zrele(dzp);
+	return (error);
+}
+
 static int
 zfs_replay_remove(void *arg1, void *arg2, boolean_t byteswap)
 {
@@ -633,6 +912,9 @@ zfs_replay_link(void *arg1, void *arg2, boolean_t byteswap)
 		vflg |= FIGNORECASE;
 
 	error = zfs_link(dzp, zp, name, kcred, vflg);
+	/* A replayed TX_TMPFILE object is now published: drop its hold. */
+	if (error == 0 && zp->z_replay_tmpfile)
+		zfs_replay_tmpfile_release(zfsvfs, zp, B_FALSE);
 	zrele(zp);
 	zrele(dzp);
 
@@ -926,18 +1208,30 @@ zfs_replay_setattr(void *arg1, void *arg2, boolean_t byteswap)
 	ASSERT3U(lr->lr_common.lrc_reclen, >=, sizeof (*lr));
 
 	xva_init(&xva);
-	if (byteswap) {
+	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
-		if ((lr->lr_mask & ATTR_XVATTR) &&
-		    zfsvfs->z_version >= ZPL_VERSION_INITIAL)
-			zfs_replay_swap_attrs((lr_attr_t *)&lr->lr_data[0]);
+	/*
+	 * The mask says whether an optional payload follows, so decode and
+	 * validate it before anything uses it.  lr_mask stays as stored: a
+	 * retry (with the record already swapped) decodes it again.
+	 */
+	uint64_t mask = lr->lr_mask;
+	if (mask & ZIL_SETATTR_PORTABLE) {
+		uint_t native;
+		if ((error = zfs_setattr_mask_native(mask, &native)) != 0)
+			return (error);
+		mask = native;
 	}
+
+	if (byteswap && (mask & ATTR_XVATTR) &&
+	    zfsvfs->z_version >= ZPL_VERSION_INITIAL)
+		zfs_replay_swap_attrs((lr_attr_t *)&lr->lr_data[0]);
 
 	if ((error = zfs_zget(zfsvfs, lr->lr_foid, &zp)) != 0)
 		return (error);
 
-	zfs_init_vattr(vap, lr->lr_mask, lr->lr_mode,
+	zfs_init_vattr(vap, mask, lr->lr_mode,
 	    lr->lr_uid, lr->lr_gid, 0, lr->lr_foid);
 
 	vap->va_size = lr->lr_size;
@@ -1225,4 +1519,5 @@ zil_replay_func_t *const zfs_replay_vector[TX_MAX_TYPE] = {
 	zfs_replay_rename_exchange,	/* TX_RENAME_EXCHANGE */
 	zfs_replay_rename_whiteout,	/* TX_RENAME_WHITEOUT */
 	zfs_replay_clone_range,	/* TX_CLONE_RANGE */
+	zfs_replay_tmpfile,	/* TX_TMPFILE */
 };

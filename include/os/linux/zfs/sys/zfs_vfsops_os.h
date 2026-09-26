@@ -94,6 +94,8 @@ struct zfsvfs {
 	rrmlock_t	z_teardown_lock;
 	krwlock_t	z_teardown_inactive_lock;
 	list_t		z_all_znodes;	/* all znodes in the fs */
+	list_t		z_replay_tmpfiles; /* unnamed files held by replay */
+	uint64_t	z_publish_holds; /* znodes held by zfs_link() */
 	unsigned long	z_rollback_time; /* last online rollback time */
 	uint64_t	z_snap_atime;	/* last snapshot access time */
 	kmutex_t	z_znodes_lock;	/* lock for z_all_znodes */

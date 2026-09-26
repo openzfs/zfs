@@ -210,6 +210,8 @@ typedef struct znode {
 	boolean_t	z_suspended;	/* extra ref from a suspend? */
 	boolean_t	z_xattr_dir_absent;	/* no xattr dir (cached) */
 	boolean_t	z_has_seq;	/* SA_ZPL_SEQ present (in-core only) */
+	boolean_t	z_replay_tmpfile; /* held unnamed by ZIL replay */
+	list_node_t	z_replay_node;	/* zfsvfs z_replay_tmpfiles linkage */
 	uint_t		z_blksz;	/* block size in bytes */
 	uint64_t	z_seq;		/* modification sequence number */
 	uint64_t	z_mapcnt;	/* number of pages mapped to file */
@@ -217,6 +219,7 @@ typedef struct znode {
 	uint64_t	z_size;		/* file size (cached) */
 	uint64_t	z_pflags;	/* pflags (cached) */
 	uint32_t	z_sync_cnt;	/* synchronous open count */
+	uint64_t	z_publish_txg;	/* see zfs_tmpfile_settle() */
 	mode_t		z_mode;		/* mode (cached) */
 	kmutex_t	z_acl_lock;	/* acl data lock */
 	zfs_acl_t	*z_acl_cached;	/* cached acl */
@@ -328,6 +331,7 @@ extern void zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     boolean_t o_direct, zil_callback_t callback, void *callback_data);
 extern void zfs_log_truncate(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, uint64_t off, uint64_t len);
+extern int zfs_setattr_mask_native(uint64_t mask, uint_t *native);
 extern void zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, vattr_t *vap, uint_t mask_applied, zfs_fuid_info_t *fuidp);
 extern void zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
@@ -340,7 +344,8 @@ extern void zfs_upgrade(zfsvfs_t *zfsvfs, dmu_tx_t *tx);
 extern void zfs_log_setsaxattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, const char *name, const void *value, size_t size);
 extern void zfs_znode_update_vfs(struct znode *);
-extern void zfs_log_link_tmpfile(zilog_t *zilog, dmu_tx_t *tx,
+extern int zfs_tmpfile_settle(znode_t *zp);
+extern boolean_t zfs_log_link_tmpfile(zilog_t *zilog, dmu_tx_t *tx,
     znode_t *dzp, znode_t *zp, const char *name);
 
 #endif

@@ -107,6 +107,7 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 
 	inode_init_once(ZTOI(zp));
 	list_link_init(&zp->z_link_node);
+	list_link_init(&zp->z_replay_node);
 
 	mutex_init(&zp->z_lock, NULL, MUTEX_DEFAULT, NULL);
 	rw_init(&zp->z_parent_lock, NULL, RW_DEFAULT, NULL);
@@ -132,6 +133,7 @@ zfs_znode_cache_destructor(void *buf, void *arg)
 	znode_t *zp = buf;
 
 	ASSERT(!list_link_active(&zp->z_link_node));
+	ASSERT(!list_link_active(&zp->z_replay_node));
 	mutex_destroy(&zp->z_lock);
 	rw_destroy(&zp->z_parent_lock);
 	rw_destroy(&zp->z_name_lock);
@@ -532,12 +534,14 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	zp->z_atime_dirty = B_FALSE;
 	zp->z_is_ctldir = B_FALSE;
 	zp->z_suspended = B_FALSE;
+	zp->z_replay_tmpfile = B_FALSE;
 	zp->z_xattr_dir_absent = B_FALSE;
 	zp->z_sa_hdl = NULL;
 	zp->z_mapcnt = 0;
 	zp->z_id = db->db_object;
 	zp->z_blksz = blksz;
 	zp->z_sync_cnt = 0;
+	zp->z_publish_txg = 0;
 
 	zfs_znode_sa_init(zfsvfs, zp, db, obj_type, hdl);
 
@@ -1650,6 +1654,10 @@ zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
 	zfs_locked_range_t *lr;
 	int error;
 
+	/* A just-published file's records first (zfs_tmpfile_settle()). */
+	if (off < zp->z_size && (error = zfs_tmpfile_settle(zp)) != 0)
+		return (error);
+
 	/*
 	 * Lock the range being freed.
 	 */
@@ -1731,6 +1739,10 @@ zfs_trunc(znode_t *zp, uint64_t end)
 	int error;
 	sa_bulk_attr_t bulk[2];
 	int count = 0;
+
+	/* A just-published file's records first (zfs_tmpfile_settle()). */
+	if (end < zp->z_size && (error = zfs_tmpfile_settle(zp)) != 0)
+		return (error);
 
 	/*
 	 * We will change zp_size, lock the whole file.

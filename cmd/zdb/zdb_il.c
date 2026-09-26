@@ -404,6 +404,7 @@ static zil_rec_info_t zil_rec_info[TX_MAX_TYPE] = {
 	{.zri_print = zil_prt_rec_clone_range,
 	    .zri_print_enc = zil_prt_rec_clone_range_enc,
 	    .zri_name = "TX_CLONE_RANGE     "},
+	{.zri_print = zil_prt_rec_create,   .zri_name = "TX_TMPFILE         "},
 };
 
 static int
