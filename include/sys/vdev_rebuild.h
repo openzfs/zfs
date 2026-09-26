@@ -64,6 +64,7 @@ typedef struct vdev_rebuild {
 
 	/* In-core state and progress */
 	uint64_t	vr_scan_offset[TXG_SIZE];
+	uint64_t	vr_failed_offset;	/* lowest segment not rebuilt */
 	uint64_t	vr_prev_scan_time_ms;	/* any previous scan time */
 	uint64_t	vr_bytes_inflight_max;	/* maximum bytes inflight */
 	uint64_t	vr_bytes_inflight;	/* current bytes inflight */

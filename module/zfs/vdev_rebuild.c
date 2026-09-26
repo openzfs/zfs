@@ -190,7 +190,8 @@ vdev_rebuild_update_sync(void *arg, dmu_tx_t *tx)
 	mutex_enter(&vd->vdev_rebuild_lock);
 
 	if (vr->vr_scan_offset[txg & TXG_MASK] > 0) {
-		vrp->vrp_last_offset = vr->vr_scan_offset[txg & TXG_MASK];
+		vrp->vrp_last_offset = MIN(vr->vr_scan_offset[txg & TXG_MASK],
+		    atomic_load_64(&vr->vr_failed_offset));
 		vr->vr_scan_offset[txg & TXG_MASK] = 0;
 	}
 
@@ -480,16 +481,20 @@ vdev_rebuild_cb(zio_t *zio)
 	vdev_t *vd = vr->vr_top_vdev;
 
 	mutex_enter(&vr->vr_io_lock);
-	if (zio->io_error == ENXIO && !vdev_writeable(vd)) {
+	if (zio->io_error != 0 && !vdev_writeable(vd)) {
 		/*
-		 * The I/O failed because the top-level vdev was unavailable.
-		 * Attempt to roll back to the last completed offset, in order
-		 * resume from the correct location if the pool is resumed.
-		 * (This works because spa_sync waits on spa_txg_zio before
-		 * it runs sync tasks.)
+		 * The top-level vdev is unavailable, so nothing could be
+		 * rebuilt here whatever the read's error was. The rebuild must
+		 * resume at this segment rather than count it, so progress is
+		 * never saved past it. That works because spa_sync waits on
+		 * spa_txg_zio before it runs sync tasks.
+		 * The read's io_txg is the synthetic birth of the rebuild's
+		 * block pointer, not the txg which issued it. Callbacks update
+		 * the segment under vr_io_lock; sync tasks read it without.
 		 */
-		uint64_t *off = &vr->vr_scan_offset[zio->io_txg & TXG_MASK];
-		*off = MIN(*off, zio->io_offset);
+		atomic_store_64(&vr->vr_failed_offset,
+		    MIN(vr->vr_failed_offset,
+		    DVA_GET_OFFSET(&zio->io_bp->blk_dva[0])));
 	} else if (zio->io_error) {
 		vrp->vrp_errors++;
 	}
@@ -757,6 +762,7 @@ vdev_rebuild_thread(void *arg)
 	vdev_t *rvd = spa->spa_root_vdev;
 	dsl_pool_t *dp = spa_get_dsl(spa);
 	int error = 0;
+	boolean_t resume = B_FALSE;
 
 	/*
 	 * If there's a scrub in process request that it be stopped.  This
@@ -785,6 +791,7 @@ vdev_rebuild_thread(void *arg)
 	mutex_init(&vr->vr_io_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&vr->vr_io_cv, NULL, CV_DEFAULT, NULL);
 
+	vr->vr_failed_offset = UINT64_MAX;
 	vr->vr_pass_start_time = gethrtime();
 	vr->vr_pass_bytes_scanned = 0;
 	vr->vr_pass_bytes_issued = 0;
@@ -930,6 +937,14 @@ vdev_rebuild_thread(void *arg)
 	mutex_destroy(&vr->vr_io_lock);
 	cv_destroy(&vr->vr_io_cv);
 
+	/*
+	 * A segment lost to an unavailable vdev was not rebuilt, even if the
+	 * vdev returned in time for the remaining ranges. Stop rather than
+	 * complete, so that the rebuild resumes at that segment.
+	 */
+	if (error == 0 && vr->vr_failed_offset != UINT64_MAX)
+		error = SET_ERROR(ENXIO);
+
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
 	dmu_tx_t *tx = dmu_tx_create_dd(dp->dp_mos_dir);
@@ -970,12 +985,21 @@ vdev_rebuild_thread(void *arg)
 		 */
 		ASSERT(vrp->vrp_rebuild_state == VDEV_REBUILD_ACTIVE);
 		vd->vdev_rebuilding = B_FALSE;
+		resume = !vd->vdev_rebuild_exit_wanted && !vd->vdev_removing;
 	}
 
 	dmu_tx_commit(tx);
 
 	vd->vdev_rebuild_thread = NULL;
 	mutex_exit(&vd->vdev_rebuild_lock);
+
+	/*
+	 * A returning vdev requests a restart, which does nothing while this
+	 * thread still runs. The vdev becomes writable before it requests, and
+	 * vdev_rebuilding is clear now, so one of the two restarts it.
+	 */
+	if (resume && vdev_writeable(vd))
+		spa_async_request(spa, SPA_ASYNC_RESILVER);
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 	cv_broadcast(&vd->vdev_rebuild_cv);

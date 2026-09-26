@@ -103,6 +103,12 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/nvlist_to_lua
 %C%_nvlist_to_lua_SOURCES = %D%/nvlist_to_lua.c
 %C%_nvlist_to_lua_SOURCES_DIST = %D%/nvlist_to_lua.c
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/rebuild_lost_probe
+%C%_rebuild_lost_probe_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+%C%_rebuild_lost_probe_LDADD = \
+	libzpool.la \
+	libnvpair.la
+
 scripts_zfs_tests_bin_PROGRAMS += %D%/rm_lnkcnt_zero_file
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/send_doall
