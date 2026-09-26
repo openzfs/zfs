@@ -30,6 +30,12 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/btree_test
 	libzpool.la \
 	libbtree.la
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/zfs_test_setpgid
+
+scripts_zfs_tests_bin_PROGRAMS += %D%/zstd_dctx_test
+%C%_zstd_dctx_test_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+%C%_zstd_dctx_test_LDADD = libzpool.la
+
 scripts_zfs_tests_bin_PROGRAMS += %D%/crypto_test
 %C%_crypto_test_SOURCES = %D%/crypto_test.c
 %C%_crypto_test_LDADD = libzpool.la
