@@ -52,12 +52,9 @@ extern "C" {
 #define MAXNAMELEN 256
 #endif
 
-struct zos_object {
-  char *bucket_name;
-  char *object_name;
-  void *data;
-  size_t data_size;
-};
+typedef struct zos_object_meta {
+	uint64_t size;
+} zos_object_meta_t;
 
 int zos_get_objset(spa_t *spa, objset_t **osp);
 void zos_release_objset(objset_t *os);

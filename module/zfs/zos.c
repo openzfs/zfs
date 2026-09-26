@@ -255,6 +255,8 @@ int put_object(const char *pool, const char *bucket, const char *key, int fd, ui
 	struct file *file;
 	loff_t pos = 0;
 	char *buf;
+	dmu_buf_t *dbuf;
+	zos_object_meta_t *zom;
 
 	error = spa_open(pool, &spa, ZOS_OBJSET_TAG);
 	if (error) {
@@ -272,6 +274,7 @@ int put_object(const char *pool, const char *bucket, const char *key, int fd, ui
 
 	tx = dmu_tx_create(os);
 	dmu_tx_hold_zap(tx, bucket_zap, B_TRUE, key);
+	dmu_tx_hold_bonus(tx, DMU_NEW_OBJECT);
 	if (size > 0) {
 		dmu_tx_hold_write(tx, DMU_NEW_OBJECT, 0, size);
 	} else {
@@ -294,7 +297,7 @@ int put_object(const char *pool, const char *bucket, const char *key, int fd, ui
 		return error;
 	}
 
-	new_obj_id = dmu_object_alloc(os, DMU_OT_UINT64_OTHER, SPA_MINBLOCKSIZE, 0, 0, tx);
+	new_obj_id = dmu_object_alloc(os, DMU_OT_UINT64_OTHER, SPA_MINBLOCKSIZE, DMU_OT_ZOS_OBJECT_META, sizeof (zos_object_meta_t), tx);
 
 	if (size > 0) {
 		// Known size, single write
@@ -327,9 +330,24 @@ int put_object(const char *pool, const char *bucket, const char *key, int fd, ui
 			dmu_write(os, new_obj_id, offset, n, buf, tx, DMU_READ_PREFETCH);
 			offset += n;
 		}
+		size = offset;
 		kmem_free(buf, ZOS_CHUNK_SIZE);
 		fput(file);
 	}
+
+	error = dmu_bonus_hold(os, new_obj_id, ZOS_OBJSET_TAG, &dbuf);
+	if (error) {
+		dmu_tx_abort(tx);
+		zos_release_objset(os);
+		spa_close(spa, ZOS_OBJSET_TAG);
+		return error;
+	}
+
+	dmu_buf_will_dirty(dbuf, tx);
+	zom = dbuf->db_data;
+	memset(zom, 0, sizeof(*zom));
+	zom->size = size;
+	dmu_buf_rele(dbuf, ZOS_OBJSET_TAG);
 
 	error = zap_add(os, bucket_zap, key, 8, 1, &new_obj_id, tx);
 	if (error) {
@@ -339,7 +357,7 @@ int put_object(const char *pool, const char *bucket, const char *key, int fd, ui
 		return error;
 	}
 	if (old_obj_id) {
-	 	dmu_object_free(os, old_obj_id, tx);
+		dmu_object_free(os, old_obj_id, tx);
 	}
 	dmu_tx_commit(tx);
 	zos_release_objset(os);
@@ -421,6 +439,9 @@ int get_object(const char *pool, const char *bucket, const char *key, int fd, ui
 	struct file *file;
 	loff_t pos = 0;
 	char *buf;
+	dmu_buf_t *dbuf;
+	zos_object_meta_t *zom;
+	uint64_t obj_size;
 
 	error = spa_open(pool, &spa, ZOS_OBJSET_TAG);
 	if (error) {
@@ -443,13 +464,22 @@ int get_object(const char *pool, const char *bucket, const char *key, int fd, ui
 		return error;
 	}
 
-	dmu_object_info_t doi;
-	error = dmu_object_info(os, obj_id, &doi);
+	error = dmu_bonus_hold(os, obj_id, ZOS_OBJSET_TAG, &dbuf);
 	if (error) {
 		zos_release_objset(os);
 		spa_close(spa, ZOS_OBJSET_TAG);
 		return error;
 	}
+
+	zom = dbuf->db_data;
+	if (dbuf->db_size < sizeof(*zom)) {
+		dmu_buf_rele(dbuf, ZOS_OBJSET_TAG);
+		zos_release_objset(os);
+		spa_close(spa, ZOS_OBJSET_TAG);
+		return EIO;
+	}
+	obj_size = zom->size;
+	dmu_buf_rele(dbuf, ZOS_OBJSET_TAG);
 
 	file = fget(fd);
 	if (file == NULL) {
@@ -461,8 +491,8 @@ int get_object(const char *pool, const char *bucket, const char *key, int fd, ui
 
 	buf = kmem_alloc(ZOS_CHUNK_SIZE, KM_SLEEP);
 	uint64_t offset = 0;
-	while (offset < doi.doi_max_offset) {
-		uint64_t chunk = MIN(ZOS_CHUNK_SIZE, doi.doi_max_offset - offset);
+	while (offset < obj_size) {
+		uint64_t chunk = MIN(ZOS_CHUNK_SIZE, obj_size - offset);
 
 		error = dmu_read(os, obj_id, offset, chunk, buf, DMU_READ_PREFETCH);
 		if (error) {

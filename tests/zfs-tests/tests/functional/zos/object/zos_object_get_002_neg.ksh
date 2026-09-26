@@ -5,10 +5,10 @@
 BUCKET="testbucket"
 KEY="testkey"
 
-log_assert "Get nonexistant object fails"
+log_assert "Get nonexistent object fails"
 
 log_must zfs bucket create $TESTPOOL/$BUCKET
 log_mustnot zfs object get $TESTPOOL/$BUCKET/$KEY
 log_must zfs bucket delete $TESTPOOL/$BUCKET
 
-log_assert "Get nonexistant object failed"
+log_pass "Get nonexistent object failed"

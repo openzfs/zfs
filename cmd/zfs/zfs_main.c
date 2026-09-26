@@ -9591,11 +9591,11 @@ zfs_do_object(int argc, char **argv) {
 
 		if (fd != STDOUT_FILENO) {
 			(void)close(fd);
-                }
+		}
 
 		if (error) {
 			(void)zfs_standard_error(g_zfs, error, "Cannot get object");
-                }
+		}
 
 		ret = error;
 	} else {
