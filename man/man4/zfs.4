@@ -2751,6 +2751,12 @@ if a volatile out-of-order write cache is enabled.
 Disable intent logging replay.
 Can be disabled for recovery from corrupted ZIL.
 .
+.It Sy zil_replay_sync_per_record Ns = Ns Sy 0 Ns | Ns 1 Pq int
+For testing: wait for a transaction group to sync after each intent log
+record is replayed, so that every partial replay reaches the disk and a
+crash during replay can be tested at each record.
+This makes replay take a transaction group per record.
+.
 .It Sy zil_slog_bulk Ns = Ns Sy 67108864 Ns B Po 64 MiB Pc Pq u64
 Limit SLOG write size per commit executed with synchronous priority.
 Any writes above that will be executed with lower (asynchronous) priority
