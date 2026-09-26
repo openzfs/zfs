@@ -13,5 +13,66 @@ if BUILD_LINUX
 nobase_dist_datadir_zfs_tests_tests_functional_SCRIPTS = \
 	simd/simd_supported.ksh \
 	tmpfile/cleanup.ksh \
-	tmpfile/setup.ksh
+	tmpfile/setup.ksh \
+	tmpfile_dmlog/cleanup.ksh \
+	tmpfile_dmlog/setup.ksh \
+	tmpfile_dmlog/tmpfile_dmlog.kshlib \
+	tmpfile_dmlog/tmpfile_dmlog_acl.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_bigxattr.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_checkpoint.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_clone.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_cloneevict.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_cloneevict_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_clonefast.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_clonefast_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_clonefastmid.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_clonefastmid_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_clonemix.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_clonemix_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_clonerm.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_clonesmall_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_dedupefast.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_dedupefast_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_dedupefastmid.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_dedupefastmid_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_dense.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_dirsync.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_dirsync_xattrdir.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_encrypted_clonemix.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_encrypted_meta.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_encrypted_sparsemix.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_filesync.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_hole.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_hugesparse.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_meta.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_meta_nosaxattr.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_meta_xattrdir.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_multi.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_nodump.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_nosync.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_osync.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_projid.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_racegrow.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_racewrite.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_relink.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_remove.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_removefast.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_rename.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_slog.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_small.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_sparse.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_sparsemix.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_syncalways.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_truncevict.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_truncevict_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_truncfast0.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_truncfast0_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_truncfastblk.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_truncfastblk_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_truncfastmid.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_truncfastmid_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_truncrace.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_truncrace_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_unlinked.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_zero_immediate.ksh
 endif
