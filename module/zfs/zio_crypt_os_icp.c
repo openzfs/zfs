@@ -17,6 +17,12 @@
 
 #include <sys/zio_crypt.h>
 
+/*
+ * On Linux, the kernel crypto API backend (zio_crypt_os_kcapi.c) is used
+ * instead when the configure checks found it usable.
+ */
+#if !defined(_KERNEL) || !defined(HAVE_KERNEL_CRYPTO)
+
 void
 zio_crypt_key_close_os(zio_crypt_key_t *key)
 {
@@ -300,3 +306,5 @@ zio_crypt_hmac_final_os(zio_crypt_hmac_t *hmac, uint8_t digest[SHA512_HMAC_LEN])
 
 	return (0);
 }
+
+#endif /* !_KERNEL || !HAVE_KERNEL_CRYPTO */
