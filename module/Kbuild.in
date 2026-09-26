@@ -450,7 +450,6 @@ ZFS_OBJS := \
 	zio_checksum.o \
 	zio_compress.o \
 	zio_crypt.o \
-	zio_crypt_os_icp.o \
 	zio_inject.o \
 	zle.o \
 	zrlock.o \
@@ -492,6 +491,11 @@ ZFS_OBJS_OS := \
 	zpl_super.o \
 	zpl_xattr.o \
 	zvol_os.o
+
+# The encryption backend: the kernel crypto API when configure found it
+# usable, otherwise the ICP.
+@KERNEL_CRYPTO_TRUE@ZFS_OBJS_OS += zio_crypt_os_kcapi.o
+@KERNEL_CRYPTO_FALSE@ZFS_OBJS += zio_crypt_os_icp.o
 
 ZFS_OBJS_X86 := \
 	vdev_raidz_math_avx2.o \

@@ -18,7 +18,15 @@
 #ifndef	_SYS_ZIO_CRYPT_OS_H
 #define	_SYS_ZIO_CRYPT_OS_H
 
-/* Linux always uses the ICP backend. */
+/*
+ * In-kernel, use the kernel crypto API backend when configure selected it
+ * (see config/kernel-crypto.m4), otherwise the ICP backend. Userspace
+ * (libzpool) always uses the ICP backend.
+ */
+#if defined(_KERNEL) && defined(HAVE_KERNEL_CRYPTO)
+#include <sys/zio_crypt_os_kcapi.h>
+#else
 #include <sys/zio_crypt_os_icp.h>
+#endif
 
 #endif
