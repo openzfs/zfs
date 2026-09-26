@@ -164,13 +164,32 @@ vdev_rebuild_should_stop(vdev_t *vd)
 static boolean_t
 vdev_rebuild_should_cancel(vdev_t *vd)
 {
-	vdev_rebuild_t *vr = &vd->vdev_rebuild_config;
-	vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
+	return (!vdev_resilver_needed(vd, NULL, NULL));
+}
 
-	if (!vdev_resilver_needed(vd, &vrp->vrp_min_txg, &vrp->vrp_max_txg))
-		return (B_TRUE);
+/*
+ * Save the rebuild state with an identical copy. Software which does not
+ * count failed destination writes saves only the state, so progress it
+ * makes leaves the two different and vdev_rebuild_load() restarts the
+ * rebuild rather than trusting its error count.
+ */
+static void
+vdev_rebuild_phys_sync(vdev_t *vd, dmu_tx_t *tx)
+{
+	objset_t *mos = vd->vdev_spa->spa_meta_objset;
 
-	return (B_FALSE);
+	/*
+	 * The rebuild thread and its I/O completions update the counters
+	 * without this lock, so write both entries from one copy.
+	 */
+	ASSERT(MUTEX_HELD(&vd->vdev_rebuild_lock));
+	vdev_rebuild_phys_t vrp = vd->vdev_rebuild_config.vr_rebuild_phys;
+	VERIFY0(zap_update(mos, vd->vdev_top_zap,
+	    VDEV_TOP_ZAP_VDEV_REBUILD_PHYS, sizeof (uint64_t),
+	    REBUILD_PHYS_ENTRIES, &vrp, tx));
+	VERIFY0(zap_update(mos, vd->vdev_top_zap,
+	    VDEV_TOP_ZAP_VDEV_REBUILD_ACCOUNTED, sizeof (uint64_t),
+	    REBUILD_PHYS_ENTRIES, &vrp, tx));
 }
 
 /*
@@ -197,9 +216,13 @@ vdev_rebuild_update_sync(void *arg, dmu_tx_t *tx)
 	vrp->vrp_scan_time_ms = vr->vr_prev_scan_time_ms +
 	    NSEC2MSEC(gethrtime() - vr->vr_pass_start_time);
 
-	VERIFY0(zap_update(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
-	    VDEV_TOP_ZAP_VDEV_REBUILD_PHYS, sizeof (uint64_t),
-	    REBUILD_PHYS_ENTRIES, vrp, tx));
+	/*
+	 * A pending reset discards this progress. Saving it would also
+	 * certify state that vdev_rebuild_load() refused to trust, and a
+	 * crash before the reset syncs would then resume from it.
+	 */
+	if (!vd->vdev_rebuild_reset_wanted)
+		vdev_rebuild_phys_sync(vd, tx);
 
 	mutex_exit(&vd->vdev_rebuild_lock);
 }
@@ -238,9 +261,7 @@ vdev_rebuild_initiate_sync(void *arg, dmu_tx_t *tx)
 	 */
 	VERIFY(vdev_resilver_needed(vd, &vrp->vrp_min_txg, &vrp->vrp_max_txg));
 
-	VERIFY0(zap_update(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
-	    VDEV_TOP_ZAP_VDEV_REBUILD_PHYS, sizeof (uint64_t),
-	    REBUILD_PHYS_ENTRIES, vrp, tx));
+	vdev_rebuild_phys_sync(vd, tx);
 
 	spa_history_log_internal(spa, "rebuild", tx,
 	    "vdev_id=%llu vdev_guid=%llu started",
@@ -314,16 +335,15 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 	vrp->vrp_rebuild_state = VDEV_REBUILD_COMPLETE;
 	vrp->vrp_end_time = gethrestime_sec();
 
-	VERIFY0(zap_update(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
-	    VDEV_TOP_ZAP_VDEV_REBUILD_PHYS, sizeof (uint64_t),
-	    REBUILD_PHYS_ENTRIES, vrp, tx));
+	vdev_rebuild_phys_sync(vd, tx);
 
 	vdev_dtl_reassess(vd, tx->tx_txg, vrp->vrp_max_txg, B_TRUE, B_TRUE);
 	spa_feature_decr(vd->vdev_spa, SPA_FEATURE_DEVICE_REBUILD, tx);
 
 	spa_history_log_internal(spa, "rebuild",  tx,
-	    "vdev_id=%llu vdev_guid=%llu complete",
-	    (u_longlong_t)vd->vdev_id, (u_longlong_t)vd->vdev_guid);
+	    "vdev_id=%llu vdev_guid=%llu errors=%llu complete",
+	    (u_longlong_t)vd->vdev_id, (u_longlong_t)vd->vdev_guid,
+	    (u_longlong_t)vrp->vrp_errors);
 	vdev_rebuild_log_notify(spa, vd, ESC_ZFS_RESILVER_FINISH);
 
 	/* Handles detaching of spares */
@@ -367,9 +387,7 @@ vdev_rebuild_cancel_sync(void *arg, dmu_tx_t *tx)
 	vrp->vrp_rebuild_state = VDEV_REBUILD_CANCELED;
 	vrp->vrp_end_time = gethrestime_sec();
 
-	VERIFY0(zap_update(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
-	    VDEV_TOP_ZAP_VDEV_REBUILD_PHYS, sizeof (uint64_t),
-	    REBUILD_PHYS_ENTRIES, vrp, tx));
+	vdev_rebuild_phys_sync(vd, tx);
 
 	spa_feature_decr(vd->vdev_spa, SPA_FEATURE_DEVICE_REBUILD, tx);
 
@@ -404,6 +422,9 @@ vdev_rebuild_reset_sync(void *arg, dmu_tx_t *tx)
 	ASSERT(vrp->vrp_rebuild_state == VDEV_REBUILD_ACTIVE);
 	ASSERT0P(vd->vdev_rebuild_thread);
 
+	/* A full reset revisits every segment; an import/resume does not. */
+	uint64_t errors = vrp->vrp_errors;
+	vrp->vrp_errors = 0;
 	vrp->vrp_last_offset = 0;
 	vrp->vrp_min_txg = TXG_INITIAL;
 	vrp->vrp_max_txg = dmu_tx_get_txg(tx);
@@ -417,13 +438,12 @@ vdev_rebuild_reset_sync(void *arg, dmu_tx_t *tx)
 	/* See vdev_rebuild_initiate_sync comment */
 	VERIFY(vdev_resilver_needed(vd, &vrp->vrp_min_txg, &vrp->vrp_max_txg));
 
-	VERIFY0(zap_update(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
-	    VDEV_TOP_ZAP_VDEV_REBUILD_PHYS, sizeof (uint64_t),
-	    REBUILD_PHYS_ENTRIES, vrp, tx));
+	vdev_rebuild_phys_sync(vd, tx);
 
 	spa_history_log_internal(spa, "rebuild",  tx,
-	    "vdev_id=%llu vdev_guid=%llu reset",
-	    (u_longlong_t)vd->vdev_id, (u_longlong_t)vd->vdev_guid);
+	    "vdev_id=%llu vdev_guid=%llu errors=%llu reset",
+	    (u_longlong_t)vd->vdev_id, (u_longlong_t)vd->vdev_guid,
+	    (u_longlong_t)errors);
 
 	vd->vdev_rebuild_reset_wanted = B_FALSE;
 	ASSERT(vd->vdev_rebuilding);
@@ -460,9 +480,7 @@ vdev_rebuild_clear_sync(void *arg, dmu_tx_t *tx)
 
 	if (vd->vdev_top_zap != 0 && zap_contains(mos, vd->vdev_top_zap,
 	    VDEV_TOP_ZAP_VDEV_REBUILD_PHYS) == 0) {
-		VERIFY0(zap_update(mos, vd->vdev_top_zap,
-		    VDEV_TOP_ZAP_VDEV_REBUILD_PHYS, sizeof (uint64_t),
-		    REBUILD_PHYS_ENTRIES, vrp, tx));
+		vdev_rebuild_phys_sync(vd, tx);
 	}
 
 	mutex_exit(&vd->vdev_rebuild_lock);
@@ -490,9 +508,14 @@ vdev_rebuild_cb(zio_t *zio)
 		 */
 		uint64_t *off = &vr->vr_scan_offset[zio->io_txg & TXG_MASK];
 		*off = MIN(*off, zio->io_offset);
-	} else if (zio->io_error) {
+	} else if (zio->io_error ||
+	    (zio->io_post & ZIO_POST_REBUILD_ERROR)) {
+		/* Failed reads and repairs count once per segment. */
 		vrp->vrp_errors++;
 	}
+
+	/* This result belongs to the rebuild, not the containing txg. */
+	zio->io_post &= ~ZIO_POST_REBUILD_ERROR;
 
 	abd_free(zio->io_abd);
 
@@ -735,6 +758,24 @@ vdev_rebuild_load(vdev_t *vd)
 	} else if (err) {
 		mutex_exit(&vd->vdev_rebuild_lock);
 		return (err);
+	}
+
+	/*
+	 * Resuming skips the rebuilt prefix, so its errors must have been
+	 * counted. Restart a rebuild last advanced by software which did not
+	 * count failed destination writes; see vdev_rebuild_phys_sync().
+	 */
+	if (vrp->vrp_rebuild_state == VDEV_REBUILD_ACTIVE) {
+		uint64_t accounted[REBUILD_PHYS_ENTRIES];
+
+		if (zap_lookup(spa->spa_meta_objset, vd->vdev_top_zap,
+		    VDEV_TOP_ZAP_VDEV_REBUILD_ACCOUNTED, sizeof (uint64_t),
+		    REBUILD_PHYS_ENTRIES, accounted) != 0 ||
+		    memcmp(accounted, vrp, sizeof (accounted)) != 0) {
+			vdev_dbgmsg(vd, "rebuild progress was saved without "
+			    "failed write accounting; restarting");
+			vd->vdev_rebuild_reset_wanted = B_TRUE;
+		}
 	}
 
 	vr->vr_prev_scan_time_ms = vrp->vrp_scan_time_ms;
@@ -1139,8 +1180,9 @@ vdev_rebuild_txgs(vdev_t *vd, uint64_t *min_txg, uint64_t *size)
 	vdev_rebuild_t *vr = &vd->vdev_rebuild_config;
 	vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
 
-	*min_txg = vrp->vrp_min_txg;
-	*size = vrp->vrp_max_txg - vrp->vrp_min_txg;
+	/* The rebuild's minimum is exclusive; range trees use [start, end). */
+	*min_txg = vrp->vrp_min_txg + 1;
+	*size = vrp->vrp_max_txg - *min_txg;
 }
 
 /*

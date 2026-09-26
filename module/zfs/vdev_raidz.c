@@ -3167,6 +3167,19 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 	}
 
 	/*
+	 * With no checksum, an unreconstructed row would otherwise pass
+	 * verification and could be used to repair children with bad data.
+	 */
+	if (zio->io_priority == ZIO_PRIORITY_REBUILD &&
+	    data_errors + parity_errors + parity_untried >
+	    rr->rr_firstdatacol) {
+		mutex_enter(&zio->io_lock);
+		zio->io_post |= ZIO_POST_REBUILD_ERROR;
+		mutex_exit(&zio->io_lock);
+		return;
+	}
+
+	/*
 	 * If we read more parity disks than were used for
 	 * reconstruction, confirm that the other parity disks produced
 	 * correct data.

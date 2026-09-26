@@ -41,6 +41,7 @@
 /randwritecomp
 /read_dos_attributes
 /readmmap
+/rebuild_probe
 /renameat2
 /rename_dir
 /rm_lnkcnt_zero_file
