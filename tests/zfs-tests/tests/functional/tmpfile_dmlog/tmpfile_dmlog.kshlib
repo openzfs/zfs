@@ -1,0 +1,298 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+#
+# Crash-state test for O_TMPFILE publication using dm-log-writes.
+#
+# The pool's only vdev is a dm-log-writes device.  It records each write
+# once a FLUSH covering it completes (a FUA write as soon as it completes),
+# so the log describes what the underlying device had made durable, in
+# order.  The scenario runs normally, unfrozen, with marks placed at its
+# START barrier and after its ACK.  Afterwards the log is replayed onto a
+# zeroed image, stopping at every FLUSH and FUA entry between the marks and
+# at the ACK mark.  Each stop models the device's persistent contents if
+# power were lost at that recorded boundary, with every write not yet
+# covered by a flush lost; it does not enumerate arbitrary partial
+# persistence between flushes.  A copy of each stop is imported and checked
+# by tmpfile_crash:
+#
+#   - before ACK, the published file may be absent, but never torn;
+#   - at ACK, everything the acknowledged syncs promised must be there.
+#
+# TXG syncs reach the disk here, so the test checks the durability contract
+# itself, whether it is met through the intent log or by waiting for a TXG.
+#
+
+DMLOG_DIR=$TEST_BASE_DIR/tmpfile_dmlog
+DMLOG_NAME=zts_tmpfile_dmlog
+DMLOG_LOG_SIZE=2G
+DMLOG_KEYFILE=$TEST_BASE_DIR/tmpfile_dmlog.key
+
+function tmpfile_dmlog_cleanup
+{
+	# Tunables first, before cleanup that can itself fail.  A killed
+	# test's saved values are restored by the failsafe callback instead.
+	restore_tunable TXG_TIMEOUT
+	restore_tunable IMMEDIATE_WRITE_SZ
+	if [[ -n "$DMLOG_PID" ]]; then
+		kill -9 $DMLOG_PID 2>/dev/null
+		wait $DMLOG_PID 2>/dev/null
+		DMLOG_PID=""
+	fi
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	# A mount made after "zpool import -N" leaves its directory behind.
+	[[ -d /$TESTPOOL ]] && ! ismounted /$TESTPOOL && \
+	    find /$TESTPOOL -depth -type d -empty -delete
+	for dev in ${DMLOG_NAME}_main ${DMLOG_NAME}_slog ${DMLOG_NAME}_i_main \
+	    ${DMLOG_NAME}_i_slog $DMLOG_NAME; do
+		dmsetup info $dev >/dev/null 2>&1 && log_must dmsetup remove $dev
+	done
+	for dev in $DMLOG_DATA_LOOP $DMLOG_LOG_LOOP $DMLOG_IMPORT_LOOP; do
+		losetup $dev >/dev/null 2>&1 && log_must losetup -d $dev
+	done
+	DMLOG_DATA_LOOP=""
+	DMLOG_LOG_LOOP=""
+	DMLOG_IMPORT_LOOP=""
+	rm -rf $DMLOG_DIR
+	rm -f $DMLOG_KEYFILE
+}
+
+#
+# Encrypt the scenario's file system (raw key, in a file): sets DMLOG_KEY
+# and adds the encryption options to DMLOG_FS_OPTS.
+#
+function tmpfile_dmlog_encrypt
+{
+	log_must dd if=/dev/urandom of="$DMLOG_KEYFILE" bs=32 count=1
+	DMLOG_KEY=$DMLOG_KEYFILE
+	DMLOG_FS_OPTS="$DMLOG_FS_OPTS -o encryption=on -o keyformat=raw"
+	DMLOG_FS_OPTS="$DMLOG_FS_OPTS -o keylocation=file://$DMLOG_KEY"
+}
+
+#
+# Import the pool from the devices given as zpool import options and mount
+# the file system, read-only for "ro".  If it is encrypted (DMLOG_KEY), the
+# pool is imported without the key, so the intent log is claimed without
+# it; the key is then loaded and the mount replays the log.  With
+# DMLOG_KEY_AT_IMPORT (and "rw"), the import loads the key itself.
+#
+function tmpfile_dmlog_import # rw|ro import-options...
+{
+	typeset mode=$1 fs=$TESTPOOL/$TESTFS
+	shift
+
+	if [[ $mode == rw && ( -z "$DMLOG_KEY" || \
+	    -n "$DMLOG_KEY_AT_IMPORT" ) ]]; then
+		zpool import ${DMLOG_KEY:+-l} -f -o cachefile=none "$@" \
+		    $TESTPOOL
+		return
+	fi
+	zpool import -N -f -o cachefile=none "$@" $TESTPOOL || return
+	if [[ -n "$DMLOG_KEY" ]]; then
+		[[ $(get_prop keystatus $fs) == unavailable ]] || return
+		zfs load-key $fs || return
+	fi
+	if [[ $mode == ro ]]; then
+		zfs mount -o ro $fs
+	else
+		zfs mount $fs
+	fi
+}
+
+#
+# Wait for the scenario to print a line starting with $2 into file $1.
+#
+function tmpfile_dmlog_wait # file prefix timeout
+{
+	typeset -i i=0
+
+	while ! grep -q "^$2" $1; do
+		if ! kill -0 $DMLOG_PID 2>/dev/null; then
+			cat $1
+			log_fail "scenario exited before $2"
+		fi
+		((i += 1))
+		((i > $3 * 10)) && log_fail "no $2 after $3 seconds"
+		sleep 0.1
+	done
+}
+
+#
+# Split device $1 into "<prefix>_main" (the first $3 sectors) and
+# "<prefix>_slog" (the rest), prefix $2, with dm-linear.  With a separate
+# log device, both vdevs are carved from the one dm-log-writes device so
+# that the log records their writes in a single order.
+#
+function tmpfile_dmlog_split # device prefix main_sectors
+{
+	typeset -i total main=$3
+	total=$(blockdev --getsz $1)
+	log_must dmsetup create ${2}_main --table "0 $main linear $1 0"
+	log_must dmsetup create ${2}_slog --table \
+	    "0 $((total - main)) linear $1 $main"
+}
+
+#
+# Record one scenario on a dm-log-writes device, with marks "start" and
+# "ack": sets DMLOG_SIZE (vdev bytes) and DMLOG_MAIN_SECTORS.  Arguments as
+# for tmpfile_dmlog; also DMLOG_FREEZE (non-empty: freeze the pool at START,
+# so the intent log keeps every record) and DMLOG_REQUIRE (a line prefix the
+# scenario must print).
+#
+function tmpfile_dmlog_record # scenario [xattr] [immediate_write_sz]
+{
+	typeset sc=$1
+	typeset xattr=${2:-sa}
+	typeset immediate=$3
+	typeset fs=$TESTPOOL/$TESTFS
+	typeset out=$DMLOG_DIR/run.out
+	typeset data=$DMLOG_DIR/data
+	typeset log=$DMLOG_DIR/log
+	typeset import=$DMLOG_DIR/import
+	typeset -i size=$((MINVDEVSIZE * 2))
+	typeset -i main_sectors=$((size / 512))
+	typeset vdevs=/dev/mapper/$DMLOG_NAME
+	[[ -n "$DMLOG_SLOG" ]] && size=$((size + MINVDEVSIZE))
+	DMLOG_SIZE=$size
+	DMLOG_MAIN_SECTORS=$main_sectors
+
+	log_must rm -rf $DMLOG_DIR
+	log_must mkdir -p $DMLOG_DIR $import
+	log_must truncate -s $size $data
+	log_must truncate -s $DMLOG_LOG_SIZE $log
+	DMLOG_DATA_LOOP=$(losetup -f --show $data) || \
+	    log_fail "cannot attach $data"
+	DMLOG_LOG_LOOP=$(losetup -f --show $log) || \
+	    log_fail "cannot attach $log"
+	log_must dmsetup create $DMLOG_NAME --table \
+	    "0 $(blockdev --getsz $DMLOG_DATA_LOOP) log-writes \
+	    $DMLOG_DATA_LOOP $DMLOG_LOG_LOOP"
+
+	if [[ -n "$DMLOG_SLOG" ]]; then
+		tmpfile_dmlog_split /dev/mapper/$DMLOG_NAME $DMLOG_NAME \
+		    $main_sectors
+		vdevs="/dev/mapper/${DMLOG_NAME}_main log"
+		vdevs="$vdevs /dev/mapper/${DMLOG_NAME}_slog"
+	fi
+
+	# Keep background TXG syncs out of the scenario's window.
+	log_must save_tunable TXG_TIMEOUT
+	log_must set_tunable64 TXG_TIMEOUT 600
+	if [[ -n "$immediate" ]]; then
+		log_must save_tunable IMMEDIATE_WRITE_SZ
+		log_must set_tunable64 IMMEDIATE_WRITE_SZ $immediate
+	fi
+	log_must zpool create -o cachefile=none $DMLOG_POOL_OPTS \
+	    -O xattr=$xattr $TESTPOOL $vdevs
+	log_must zfs create $DMLOG_FS_OPTS $fs
+	typeset mnt
+	mnt=$(get_prop mountpoint $fs)
+
+	TMPFILE_CRASH_GATE=$DMLOG_DIR/gate TMPFILE_CRASH_FREEZE=$DMLOG_FREEZE \
+	    tmpfile_crash run $sc $mnt $TESTPOOL >$out 2>&1 &
+	DMLOG_PID=$!
+	tmpfile_dmlog_wait $out START 120
+	log_must dmsetup message $DMLOG_NAME 0 mark start
+	log_must touch $DMLOG_DIR/gate
+	tmpfile_dmlog_wait $out ACK 300
+	log_must dmsetup message $DMLOG_NAME 0 mark ack
+	log_note "$(cat $out)"
+	[[ -z "$DMLOG_REQUIRE" ]] || grep -q "^$DMLOG_REQUIRE" $out || \
+	    log_fail "scenario did not print $DMLOG_REQUIRE"
+
+	kill -9 $DMLOG_PID
+	wait $DMLOG_PID 2>/dev/null
+	DMLOG_PID=""
+	log_must zpool export $TESTPOOL
+	log_must restore_tunable TXG_TIMEOUT
+	[[ -n "$immediate" ]] && log_must restore_tunable IMMEDIATE_WRITE_SZ
+	if [[ -n "$DMLOG_SLOG" ]]; then
+		log_must dmsetup remove ${DMLOG_NAME}_main
+		log_must dmsetup remove ${DMLOG_NAME}_slog
+	fi
+	log_must dmsetup remove $DMLOG_NAME
+	log_must losetup -d $DMLOG_DATA_LOOP
+	log_must losetup -d $DMLOG_LOG_LOOP
+	DMLOG_DATA_LOOP=""
+	DMLOG_LOG_LOOP=""
+}
+
+#
+# Run one scenario.  Optional: the dataset's xattr property (default sa) and
+# a zfs_immediate_write_sz to use while the scenario runs.  The caller may
+# also set DMLOG_POOL_OPTS and DMLOG_FS_OPTS (extra zpool/zfs create
+# options) and DMLOG_SLOG (non-empty: give the pool a separate log
+# device).
+#
+function tmpfile_dmlog # scenario [xattr] [immediate_write_sz]
+{
+	typeset sc=$1
+	typeset fs=$TESTPOOL/$TESTFS
+	typeset log=$DMLOG_DIR/log
+	typeset replay=$DMLOG_DIR/replay
+	typeset import=$DMLOG_DIR/import
+	typeset -i size main_sectors
+	typeset mnt
+
+	tmpfile_dmlog_record "$@"
+	size=$DMLOG_SIZE
+	main_sectors=$DMLOG_MAIN_SECTORS
+
+	typeset points
+	points=$(log_writes_replay points $log start ack) || \
+	    log_fail "cannot find crash points in the log"
+	typeset last=${points##*[[:space:]]}
+	typeset -i planned state=0
+	planned=$(echo $points | wc -w)
+	log_note "crash states planned: $planned (log entries:" $points")"
+
+	log_must truncate -s $size $replay
+	typeset -i next=0
+	for p in $points; do
+		((state += 1))
+		log_note "crash state $state/$planned: log entry $p" \
+		    "($([[ $p == "$last" ]] && echo ACK || echo before ACK))"
+		log_must log_writes_replay replay $log $replay $next $p
+		next=$((p + 1))
+		log_must cp --sparse=always $replay $import/dev
+		# The vdev was a block device, so import it from one.
+		DMLOG_IMPORT_LOOP=$(losetup -f --show $import/dev) || \
+		    log_fail "cannot attach $import/dev"
+		typeset idevs=$DMLOG_IMPORT_LOOP
+		if [[ -n "$DMLOG_SLOG" ]]; then
+			tmpfile_dmlog_split $DMLOG_IMPORT_LOOP \
+			    ${DMLOG_NAME}_i $main_sectors
+			idevs="/dev/mapper/${DMLOG_NAME}_i_main"
+			idevs="$idevs /dev/mapper/${DMLOG_NAME}_i_slog"
+		fi
+		log_must tmpfile_dmlog_import rw \
+		    $(for d in $idevs; do echo "-d $d"; done)
+		mnt=$(get_prop mountpoint $fs)
+		if [[ $p == "$last" ]]; then
+			log_must tmpfile_crash verify $sc $mnt
+		else
+			log_must tmpfile_crash verify-prefix $sc $mnt
+		fi
+		log_must zpool export $TESTPOOL
+		if [[ -n "$DMLOG_SLOG" ]]; then
+			log_must dmsetup remove ${DMLOG_NAME}_i_main
+			log_must dmsetup remove ${DMLOG_NAME}_i_slog
+		fi
+		log_must losetup -d $DMLOG_IMPORT_LOOP
+		DMLOG_IMPORT_LOOP=""
+		log_must rm -f $import/dev
+	done
+	log_note "crash states verified: $state/$planned;" \
+	    "scratch space used: $(du -sh $DMLOG_DIR | cut -f1)"
+}
