@@ -495,20 +495,32 @@ vdev_mirror_child_readable(mirror_child_t *mc)
 }
 
 static boolean_t
-vdev_mirror_child_missing(mirror_child_t *mc, uint64_t txg, uint64_t size)
+vdev_mirror_child_missing(zio_t *zio, mirror_child_t *mc)
 {
 	vdev_t *vd = mc->mc_vd;
 
+	/*
+	 * Which dRAID child holds a segment depends on its row, which only
+	 * vdev_draid_missing() resolves, and only for the read's txg.
+	 */
 	if (vd->vdev_top != NULL && vd->vdev_top->vdev_ops == &vdev_draid_ops)
-		return (vdev_draid_missing(vd, mc->mc_offset, txg, size));
-	else
-		return (vdev_dtl_contains(vd, DTL_MISSING, txg, size));
+		return (vdev_draid_missing(vd, mc->mc_offset, zio->io_txg, 1));
+
+	/*
+	 * A sequential rebuild reads whole segments through a block pointer
+	 * with the synthetic birth TXG_INITIAL and no checksum, so a segment
+	 * may hold blocks of any txg. A child missing any txg is not a source.
+	 */
+	if (zio->io_priority == ZIO_PRIORITY_REBUILD)
+		return (!vdev_dtl_empty(vd, DTL_MISSING));
+
+	return (vdev_dtl_contains(vd, DTL_MISSING, zio->io_txg, 1));
 }
 
 /*
  * Try to find a vdev whose DTL doesn't contain the block we want to read
  * preferring vdevs based on determined load. If we can't, try the read on
- * any vdev we haven't already tried.
+ * any vdev we haven't already tried, except a missing one for a rebuild.
  *
  * Distributed spares are an exception to the above load rule. They are
  * always preferred in order to detect gaps in the distributed spare which
@@ -519,10 +531,10 @@ static int
 vdev_mirror_child_select(zio_t *zio)
 {
 	mirror_map_t *mm = zio->io_vsd;
-	uint64_t txg = zio->io_txg;
 	int c, lowest_load;
 
-	ASSERT(zio->io_bp == NULL || BP_GET_PHYSICAL_BIRTH(zio->io_bp) == txg);
+	ASSERT(zio->io_bp == NULL ||
+	    BP_GET_PHYSICAL_BIRTH(zio->io_bp) == zio->io_txg);
 
 	lowest_load = INT_MAX;
 	mm->mm_preferred_cnt = 0;
@@ -541,7 +553,7 @@ vdev_mirror_child_select(zio_t *zio)
 			continue;
 		}
 
-		if (vdev_mirror_child_missing(mc, txg, 1)) {
+		if (vdev_mirror_child_missing(zio, mc)) {
 			mc->mc_error = SET_ERROR(ESTALE);
 			mc->mc_skipped = 1;
 			mc->mc_speculative = 1;
@@ -579,10 +591,18 @@ vdev_mirror_child_select(zio_t *zio)
 	/*
 	 * Every device is either missing or has this txg in its DTL.
 	 * Look for any child we haven't already tried before giving up.
+	 * Without a checksum, a rebuild cannot tell a missing child's data
+	 * from valid data, so it never reads one.
 	 */
 	for (c = 0; c < mm->mm_children; c++) {
-		if (!mm->mm_child[c].mc_tried)
-			return (c);
+		mirror_child_t *mc = &mm->mm_child[c];
+
+		if (mc->mc_tried)
+			continue;
+		if (zio->io_priority == ZIO_PRIORITY_REBUILD &&
+		    vdev_mirror_child_missing(zio, mc))
+			continue;
+		return (c);
 	}
 
 	/*
