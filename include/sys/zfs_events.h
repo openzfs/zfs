@@ -119,32 +119,34 @@ extern void zfs_events_txhold(objset_t *os, uint64_t events_size,
  */
 extern void zfs_events_log_create(objset_t *os, dmu_tx_t *tx,
     uint64_t object, uint64_t parent, const char *name, uint64_t mode,
-    uint64_t uid, uint64_t gid, uint64_t events_size, uint64_t *objp);
+    uint64_t uid, uint64_t gid, uint64_t events_size, uint64_t *objp,
+    kmutex_t *lockp);
 extern void zfs_events_log_remove(objset_t *os, dmu_tx_t *tx,
     uint64_t object, uint64_t parent, const char *name,
-    uint64_t events_size, uint64_t *objp);
+    uint64_t events_size, uint64_t *objp, kmutex_t *lockp);
 extern void zfs_events_log_rename(objset_t *os, dmu_tx_t *tx,
     uint64_t object, uint64_t old_parent, const char *old_name,
     uint64_t new_parent, const char *new_name, uint64_t events_size,
-    uint64_t *objp);
+    uint64_t *objp, kmutex_t *lockp);
 extern void zfs_events_log_link(objset_t *os, dmu_tx_t *tx,
     uint64_t object, uint64_t parent, const char *name,
-    uint64_t events_size, uint64_t *objp);
+    uint64_t events_size, uint64_t *objp, kmutex_t *lockp);
 extern void zfs_events_log_symlink(objset_t *os, dmu_tx_t *tx,
     uint64_t object, uint64_t parent, const char *name, const char *target,
-    uint64_t events_size, uint64_t *objp);
+    uint64_t events_size, uint64_t *objp, kmutex_t *lockp);
 extern void zfs_events_log_truncate(objset_t *os, dmu_tx_t *tx,
     uint64_t object, uint64_t old_size, uint64_t new_size,
-    uint64_t events_size, uint64_t *objp);
+    uint64_t events_size, uint64_t *objp, kmutex_t *lockp);
 extern void zfs_events_log_setattr(objset_t *os, dmu_tx_t *tx,
     uint64_t object, uint64_t attr_mask, uint64_t events_size,
-    uint64_t *objp);
+    uint64_t *objp, kmutex_t *lockp);
 
 /*
  * Event retrieval functions
  */
 extern int zfs_events_get(objset_t *os, uint64_t *offp, uint64_t *lenp,
     char *buf);
+extern int zfs_events_get_lost(objset_t *os, uint64_t *lostp);
 
 #ifdef	__cplusplus
 }

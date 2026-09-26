@@ -80,6 +80,7 @@ struct zfsvfs {
 	boolean_t	z_events;	/* Dataset events logging enabled */
 	uint64_t	z_events_size;	/* Event log max size in bytes */
 	uint64_t	z_events_obj;	/* Event log object id, 0 = none */
+	kmutex_t	z_events_lock;	/* Event log ring buffer lock */
 	uint8_t		z_xattr;	/* xattr type in use */
 	uint64_t	z_version;	/* ZPL version */
 	uint64_t	z_shares_dir;	/* hidden shares dir */

@@ -8514,6 +8514,20 @@ zfs_do_events(int argc, char **argv)
 
 	if (json_output) {
 		(void) printf("]\n");
+	} else if (count == 0) {
+		(void) printf("%s\n", gettext("no events found"));
+	}
+
+	/* Report wraparound-dropped records if any */
+	{
+		uint64_t lost = 0;
+
+		if (nvlist_lookup_uint64(result, "records_lost",
+		    &lost) == 0 && lost > 0) {
+			(void) printf(gettext(
+			    "%llu record(s) lost to log wraparound\n"),
+			    (u_longlong_t)lost);
+		}
 	}
 
 	nvlist_free(result);
