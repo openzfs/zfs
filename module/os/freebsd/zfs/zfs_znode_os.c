@@ -1737,7 +1737,8 @@ log:
 	zfs_log_truncate(zilog, tx, TX_TRUNCATE, zp, off, len);
 	if (zfsvfs->z_events) {
 		zfs_events_log_truncate(zfsvfs->z_os, tx, zp->z_id,
-		    old_size, off);
+		    old_size, off, zfsvfs->z_events_size,
+		    &zfsvfs->z_events_obj);
 	}
 
 	dmu_tx_commit(tx);

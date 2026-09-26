@@ -111,26 +111,34 @@ typedef struct zfs_events_phys {
 extern int zfs_events_create_obj(objset_t *os, dmu_tx_t *tx, uint64_t max_size,
     uint64_t *objp);
 extern int zfs_events_destroy_obj(objset_t *os, uint64_t obj, dmu_tx_t *tx);
+extern void zfs_events_txhold(objset_t *os, uint64_t events_size,
+    dmu_tx_t *tx);
 
 /*
  * Event logging functions - called from vnops
  */
 extern void zfs_events_log_create(objset_t *os, dmu_tx_t *tx,
     uint64_t object, uint64_t parent, const char *name, uint64_t mode,
-    uint64_t uid, uint64_t gid);
+    uint64_t uid, uint64_t gid, uint64_t events_size, uint64_t *objp);
 extern void zfs_events_log_remove(objset_t *os, dmu_tx_t *tx,
-    uint64_t object, uint64_t parent, const char *name);
+    uint64_t object, uint64_t parent, const char *name,
+    uint64_t events_size, uint64_t *objp);
 extern void zfs_events_log_rename(objset_t *os, dmu_tx_t *tx,
     uint64_t object, uint64_t old_parent, const char *old_name,
-    uint64_t new_parent, const char *new_name);
+    uint64_t new_parent, const char *new_name, uint64_t events_size,
+    uint64_t *objp);
 extern void zfs_events_log_link(objset_t *os, dmu_tx_t *tx,
-    uint64_t object, uint64_t parent, const char *name);
+    uint64_t object, uint64_t parent, const char *name,
+    uint64_t events_size, uint64_t *objp);
 extern void zfs_events_log_symlink(objset_t *os, dmu_tx_t *tx,
-    uint64_t object, uint64_t parent, const char *name, const char *target);
+    uint64_t object, uint64_t parent, const char *name, const char *target,
+    uint64_t events_size, uint64_t *objp);
 extern void zfs_events_log_truncate(objset_t *os, dmu_tx_t *tx,
-    uint64_t object, uint64_t old_size, uint64_t new_size);
+    uint64_t object, uint64_t old_size, uint64_t new_size,
+    uint64_t events_size, uint64_t *objp);
 extern void zfs_events_log_setattr(objset_t *os, dmu_tx_t *tx,
-    uint64_t object, uint64_t attr_mask);
+    uint64_t object, uint64_t attr_mask, uint64_t events_size,
+    uint64_t *objp);
 
 /*
  * Event retrieval functions

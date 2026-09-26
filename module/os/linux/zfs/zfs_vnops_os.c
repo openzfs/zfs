@@ -743,13 +743,16 @@ top:
 		    acl_ids.z_aclp->z_acl_bytes > ZFS_ACE_SPACE) {
 			dmu_tx_hold_write(tx, DMU_NEW_OBJECT,
 			    0, acl_ids.z_aclp->z_acl_bytes);
-		}
+			}
+			if (zfsvfs->z_events)
+				zfs_events_txhold(os,
+				    zfsvfs->z_events_size, tx);
 
-		error = dmu_tx_assign(tx,
-		    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
-		if (error) {
-			zfs_dirent_unlock(dl);
-			if (error == ERESTART) {
+			error = dmu_tx_assign(tx,
+			    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
+			if (error) {
+				zfs_dirent_unlock(dl);
+				if (error == ERESTART) {
 				waited = B_TRUE;
 				dmu_tx_wait(tx);
 				dmu_tx_abort(tx);
@@ -785,7 +788,8 @@ top:
 		    vsecp, acl_ids.z_fuidp, vap);
 		if (zfsvfs->z_events) {
 			zfs_events_log_create(os, tx, zp->z_id, dzp->z_id,
-			    name, vap->va_mode, crgetuid(cr), crgetgid(cr));
+			    name, vap->va_mode, crgetuid(cr), crgetgid(cr),
+			    zfsvfs->z_events_size, &zfsvfs->z_events_obj);
 		}
 		zfs_acl_ids_free(&acl_ids);
 		dmu_tx_commit(tx);
@@ -1113,6 +1117,8 @@ top:
 
 	/* charge as an update -- would be nice not to charge at all */
 	dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, zfsvfs->z_events_size, tx);
 
 	/*
 	 * Mark this transaction as typically resulting in a net free of space
@@ -1207,7 +1213,8 @@ top:
 		txtype |= TX_CI;
 	zfs_log_remove(zilog, tx, txtype, dzp, name, obj, unlinked);
 	if (zfsvfs->z_events) {
-		zfs_events_log_remove(zfsvfs->z_os, tx, obj, dzp->z_id, name);
+		zfs_events_log_remove(zfsvfs->z_os, tx, obj, dzp->z_id, name,
+		    zfsvfs->z_events_size, &zfsvfs->z_events_obj);
 	}
 
 	dmu_tx_commit(tx);
@@ -1369,6 +1376,8 @@ top:
 
 	dmu_tx_hold_sa_create(tx, acl_ids.z_aclp->z_acl_bytes +
 	    ZFS_SA_BASE_ATTR_SIZE);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, zfsvfs->z_events_size, tx);
 
 	error = dmu_tx_assign(tx,
 	    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
@@ -1413,7 +1422,8 @@ top:
 	    acl_ids.z_fuidp, vap);
 	if (zfsvfs->z_events) {
 		zfs_events_log_create(zfsvfs->z_os, tx, zp->z_id, dzp->z_id,
-		    dirname, vap->va_mode, uid, gid);
+		    dirname, vap->va_mode, uid, gid, zfsvfs->z_events_size,
+		    &zfsvfs->z_events_obj);
 	}
 
 out:
@@ -1527,6 +1537,8 @@ top:
 	dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
 	zfs_sa_upgrade_txholds(tx, zp);
 	zfs_sa_upgrade_txholds(tx, dzp);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, zfsvfs->z_events_size, tx);
 	dmu_tx_mark_netfree(tx);
 	error = dmu_tx_assign(tx,
 	    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
@@ -1557,7 +1569,8 @@ top:
 		    B_FALSE);
 		if (zfsvfs->z_events) {
 			zfs_events_log_remove(zfsvfs->z_os, tx, zp->z_id,
-			    dzp->z_id, name);
+			    dzp->z_id, name, zfsvfs->z_events_size,
+			    &zfsvfs->z_events_obj);
 		}
 	}
 
@@ -2446,6 +2459,8 @@ top:
 		zfs_fuid_txhold(zfsvfs, tx);
 
 	zfs_sa_upgrade_txholds(tx, zp);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, zfsvfs->z_events_size, tx);
 
 	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err)
@@ -2645,7 +2660,8 @@ top:
 		zfs_log_setattr(zilog, tx, TX_SETATTR, zp, vap, mask, fuidp);
 		if (zfsvfs->z_events) {
 			zfs_events_log_setattr(zfsvfs->z_os, tx, zp->z_id,
-			    mask);
+			    mask, zfsvfs->z_events_size,
+			    &zfsvfs->z_events_obj);
 		}
 		/*
 		 * ATTR_MODE bumps via zfs_aclset_common -> tstamp_update_setup;
@@ -3160,6 +3176,8 @@ top:
 		zfs_fuid_txhold(zfsvfs, tx);
 	zfs_sa_upgrade_txholds(tx, szp);
 	dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, zfsvfs->z_events_size, tx);
 	error = dmu_tx_assign(tx,
 	    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
 	if (error) {
@@ -3289,7 +3307,8 @@ top:
 
 	if (zfsvfs->z_events) {
 		zfs_events_log_rename(zfsvfs->z_os, tx, szp->z_id,
-		    sdzp->z_id, sdl->dl_name, tdzp->z_id, tdl->dl_name);
+		    sdzp->z_id, sdl->dl_name, tdzp->z_id, tdl->dl_name,
+		    zfsvfs->z_events_size, &zfsvfs->z_events_obj);
 	}
 
 commit:
@@ -3469,6 +3488,8 @@ top:
 	}
 	if (fuid_dirtied)
 		zfs_fuid_txhold(zfsvfs, tx);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, zfsvfs->z_events_size, tx);
 	error = dmu_tx_assign(tx,
 	    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
 	if (error) {
@@ -3518,7 +3539,8 @@ top:
 		zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
 		if (zfsvfs->z_events) {
 			zfs_events_log_symlink(zfsvfs->z_os, tx, zp->z_id,
-			    dzp->z_id, name, link);
+			    dzp->z_id, name, link, zfsvfs->z_events_size,
+			    &zfsvfs->z_events_obj);
 		}
 
 		zfs_znode_update_vfs(dzp);
@@ -3732,6 +3754,8 @@ top:
 
 	zfs_sa_upgrade_txholds(tx, szp);
 	zfs_sa_upgrade_txholds(tx, tdzp);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, zfsvfs->z_events_size, tx);
 	error = dmu_tx_assign(tx,
 	    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
 	if (error) {
@@ -3769,7 +3793,9 @@ top:
 			zfs_log_link(zilog, tx, txtype, tdzp, szp, name);
 			if (zfsvfs->z_events) {
 				zfs_events_log_link(zfsvfs->z_os, tx,
-				    szp->z_id, tdzp->z_id, name);
+				    szp->z_id, tdzp->z_id, name,
+				    zfsvfs->z_events_size,
+				    &zfsvfs->z_events_obj);
 			}
 		}
 	} else if (is_tmpfile) {

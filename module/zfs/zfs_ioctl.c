@@ -5729,6 +5729,14 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 		}
 		break;
 
+	case ZFS_PROP_EVENTS_SIZE:
+		if (nvpair_value_uint64(pair, &intval) == 0 &&
+		    (intval < ZFS_EVENTS_MIN_SIZE ||
+		    intval > ZFS_EVENTS_MAX_SIZE)) {
+			return (SET_ERROR(ERANGE));
+		}
+		break;
+
 	case ZFS_PROP_SHARESMB:
 		if (zpl_earlier_version(dsname, ZPL_VERSION_FUID))
 			return (SET_ERROR(ENOTSUP));

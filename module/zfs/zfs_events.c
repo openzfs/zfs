@@ -31,6 +31,8 @@
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_dir.h>
 #include <sys/dsl_prop.h>
+#include <sys/dsl_pool.h>
+#include <sys/dsl_synctask.h>
 #include <sys/cmn_err.h>
 #include <sys/sunddi.h>
 #include <sys/cred.h>
@@ -87,6 +89,16 @@ zfs_events_advance_bof(objset_t *os, uint64_t obj, zfs_events_phys_t *zep)
 	char buf[sizeof (reclen)];
 	int err;
 
+	/*
+	 * If BOF has caught up with EOF, the log is logically empty: every
+	 * remaining byte is free space. Rewind BOF so the free-space check
+	 * in zfs_events_write() succeeds instead of looping forever.
+	 */
+	if (zep->zep_bof >= zep->zep_eof) {
+		zep->zep_bof = zep->zep_eof;
+		return (0);
+	}
+
 	phys_bof = zfs_events_log_to_phys(zep->zep_bof, zep);
 	firstread = MIN(sizeof (reclen), zep->zep_phys_max_off - phys_bof);
 
@@ -102,6 +114,20 @@ zfs_events_advance_bof(objset_t *os, uint64_t obj, zfs_events_phys_t *zep)
 	}
 
 	reclen = LE_64(*((uint64_t *)buf));
+
+	/*
+	 * A zero or oversized length means the BOF region doesn't hold a
+	 * valid record header (unwritten space after a full wrap, or
+	 * corruption). Treat everything up to EOF as free space rather
+	 * than spinning on invalid data.
+	 */
+	if (reclen == 0 || reclen + sizeof (reclen) >
+	    zep->zep_eof - zep->zep_bof) {
+		zep->zep_records_lost++;
+		zep->zep_bof = zep->zep_eof;
+		return (0);
+	}
+
 	zep->zep_bof += reclen + sizeof (reclen);
 	zep->zep_records_lost++;
 	return (0);
@@ -117,8 +143,15 @@ zfs_events_write(objset_t *os, uint64_t obj, void *buf, uint64_t len,
 	uint64_t firstwrite, phys_eof;
 	int err;
 
-	/* Advance BOF if we need to make room */
+	/*
+	 * Advance BOF if we need to make room. The theoretical maximum
+	 * iterations is phys_max_off / sizeof (reclen); cap well above that
+	 * so a corrupt header can never spin forever.
+	 */
+	uint64_t spin = 0;
 	while (zep->zep_phys_max_off - (zep->zep_eof - zep->zep_bof) <= len) {
+		if (++spin > (zep->zep_phys_max_off >> 3) + 1)
+			return (SET_ERROR(EIO));
 		if ((err = zfs_events_advance_bof(os, obj, zep)) != 0)
 			return (err);
 	}
@@ -183,6 +216,46 @@ zfs_events_create_obj(objset_t *os, dmu_tx_t *tx, uint64_t max_size,
 }
 
 /*
+ * Add transaction holds for event logging to the caller's transaction.
+ *
+ * Must be called before dmu_tx_assign() on any VFS path that may log
+ * events. Mirrors zfs_fuid_txhold(): when the log object doesn't exist
+ * yet we hold DMU_NEW_OBJECT plus a ZAP add on the master node; once it
+ * exists we hold its bonus and enough write space for one maximum
+ * record.
+ */
+void
+zfs_events_txhold(objset_t *os, uint64_t events_size, dmu_tx_t *tx)
+{
+	uint64_t obj = 0;
+
+	(void) zap_lookup(os, MASTER_NODE_OBJ, ZFS_EVENTS_ZAP_NAME,
+	    sizeof (uint64_t), 1, &obj);
+
+	if (obj == 0) {
+		dmu_tx_hold_bonus(tx, DMU_NEW_OBJECT);
+		dmu_tx_hold_write(tx, DMU_NEW_OBJECT, 0, events_size);
+		dmu_tx_hold_zap(tx, MASTER_NODE_OBJ, TRUE, ZFS_EVENTS_ZAP_NAME);
+	} else {
+		dmu_tx_hold_bonus(tx, obj);
+		dmu_tx_hold_write(tx, obj, 0, events_size);
+	}
+}
+
+/*
+ * Sync-context callback to activate the events feature. spa_feature_incr()
+ * requires a syncing transaction, so it must never be called from open
+ * context; queue it on the caller's transaction group instead.
+ */
+static void
+zfs_events_feature_sync(void *arg __maybe_unused, dmu_tx_t *tx)
+{
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+
+	spa_feature_incr(spa, SPA_FEATURE_EVENTS, tx);
+}
+
+/*
  * Destroy the event log object for a dataset.
  * Also decrements the events feature counter.
  */
@@ -201,14 +274,19 @@ zfs_events_destroy_obj(objset_t *os, uint64_t obj, dmu_tx_t *tx)
 }
 
 /*
- * Internal helper to log an event to the dataset's event log.
+ * Internal helper to log an event to the event log.
  * Creates the event log object lazily if it doesn't exist.
  *
  * Note: This function assumes that the caller has already verified
- * that events are enabled (via zfsvfs->z_events).
+ * that events are enabled (via zfsvfs->z_events), has registered
+ * transaction holds with zfs_events_txhold() before dmu_tx_assign(),
+ * and passes the dataset's cached events_size (zfsvfs->z_events_size).
+ * We must not look up the events_size property here: VFS write paths
+ * do not hold the pool config lock that dsl_prop_get_int_ds() requires.
  */
 static void
-zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl)
+zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
+    uint64_t events_size, uint64_t *objp)
 {
 	dmu_buf_t *dbp;
 	zfs_events_phys_t *zep;
@@ -218,51 +296,49 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl)
 	uint64_t le_len;
 	int err;
 
-	/* Look up the event log object from the objset's master node */
-	err = zap_lookup(os, MASTER_NODE_OBJ, ZFS_EVENTS_ZAP_NAME,
-	    sizeof (uint64_t), 1, &obj);
-	if (err == ENOENT) {
-		/*
-		 * Event log object doesn't exist yet. Create it now.
-		 * This happens on the first event after events are enabled.
-		 * Look up the events_size property to determine the size.
-		 */
-		uint64_t events_size = 1 << 20;	/* 1MB default */
-		dsl_dataset_t *ds = dmu_objset_ds(os);
-		spa_t *spa = dmu_objset_spa(os);
+	/* Use the caller's cached object id, or look it up once */
+	obj = *objp;
+	if (obj == 0) {
+		err = zap_lookup(os, MASTER_NODE_OBJ, ZFS_EVENTS_ZAP_NAME,
+		    sizeof (uint64_t), 1, &obj);
+		if (err == ENOENT) {
+			spa_t *spa = dmu_objset_spa(os);
 
-		/*
-		 * Check if the events feature is enabled on the pool.
-		 * If not enabled, silently skip event logging.
-		 */
-		if (!spa_feature_is_enabled(spa, SPA_FEATURE_EVENTS))
+			/*
+			 * Check if the events feature is enabled on the
+			 * pool. If not, silently skip event logging.
+			 */
+			if (!spa_feature_is_enabled(spa,
+			    SPA_FEATURE_EVENTS))
+				return;
+
+			err = zfs_events_create_obj(os, tx, events_size,
+			    &obj);
+			if (err != 0)
+				return;
+
+			/* Add the object to the master node ZAP */
+			err = zap_add(os, MASTER_NODE_OBJ,
+			    ZFS_EVENTS_ZAP_NAME, sizeof (uint64_t), 1,
+			    &obj, tx);
+			if (err != 0) {
+				(void) dmu_object_free(os, obj, tx);
+				return;
+			}
+
+			/*
+			 * Activate the events feature on first use.
+			 * spa_feature_incr() requires a syncing
+			 * transaction, so defer it to this txg's sync
+			 * pass (see zfs_events_feature_sync).
+			 */
+			dsl_sync_task_nowait(dmu_objset_pool(os),
+			    zfs_events_feature_sync, NULL, tx);
+		} else if (err != 0) {
+			/* Some other error, bail out */
 			return;
-
-		if (ds != NULL) {
-			(void) dsl_prop_get_int_ds(ds,
-			    zfs_prop_to_name(ZFS_PROP_EVENTS_SIZE),
-			    &events_size);
 		}
-
-		err = zfs_events_create_obj(os, tx, events_size, &obj);
-		if (err != 0)
-			return;
-
-		/* Activate the events feature on first use */
-		spa_feature_incr(spa, SPA_FEATURE_EVENTS, tx);
-
-		/* Add the object to the master node ZAP */
-		err = zap_add(os, MASTER_NODE_OBJ, ZFS_EVENTS_ZAP_NAME,
-		    sizeof (uint64_t), 1, &obj, tx);
-		if (err != 0) {
-			/* Failed to add ZAP entry, clean up */
-			spa_feature_decr(spa, SPA_FEATURE_EVENTS, tx);
-			(void) dmu_object_free(os, obj, tx);
-			return;
-		}
-	} else if (err != 0) {
-		/* Some other error, bail out */
-		return;
+		*objp = obj;
 	}
 
 	/* Add transaction group and timestamp */
@@ -300,7 +376,7 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl)
 void
 zfs_events_log_create(objset_t *os, dmu_tx_t *tx,
     uint64_t object, uint64_t parent, const char *name, uint64_t mode,
-    uint64_t uid, uint64_t gid)
+    uint64_t uid, uint64_t gid, uint64_t events_size, uint64_t *objp)
 {
 	nvlist_t *nvl;
 
@@ -313,7 +389,7 @@ zfs_events_log_create(objset_t *os, dmu_tx_t *tx,
 	fnvlist_add_uint64(nvl, ZFS_EV_UID, uid);
 	fnvlist_add_uint64(nvl, ZFS_EV_GID, gid);
 
-	zfs_events_log_event(os, tx, nvl);
+	zfs_events_log_event(os, tx, nvl, events_size, objp);
 	fnvlist_free(nvl);
 }
 
@@ -322,7 +398,8 @@ zfs_events_log_create(objset_t *os, dmu_tx_t *tx,
  */
 void
 zfs_events_log_remove(objset_t *os, dmu_tx_t *tx,
-    uint64_t object, uint64_t parent, const char *name)
+    uint64_t object, uint64_t parent, const char *name,
+    uint64_t events_size, uint64_t *objp)
 {
 	nvlist_t *nvl;
 
@@ -332,7 +409,7 @@ zfs_events_log_remove(objset_t *os, dmu_tx_t *tx,
 	fnvlist_add_uint64(nvl, ZFS_EV_PARENT, parent);
 	fnvlist_add_string(nvl, ZFS_EV_NAME, name);
 
-	zfs_events_log_event(os, tx, nvl);
+	zfs_events_log_event(os, tx, nvl, events_size, objp);
 	fnvlist_free(nvl);
 }
 
@@ -342,7 +419,8 @@ zfs_events_log_remove(objset_t *os, dmu_tx_t *tx,
 void
 zfs_events_log_rename(objset_t *os, dmu_tx_t *tx,
     uint64_t object, uint64_t old_parent, const char *old_name,
-    uint64_t new_parent, const char *new_name)
+    uint64_t new_parent, const char *new_name, uint64_t events_size,
+    uint64_t *objp)
 {
 	nvlist_t *nvl;
 
@@ -354,7 +432,7 @@ zfs_events_log_rename(objset_t *os, dmu_tx_t *tx,
 	fnvlist_add_uint64(nvl, ZFS_EV_PARENT, new_parent);
 	fnvlist_add_string(nvl, ZFS_EV_NAME, new_name);
 
-	zfs_events_log_event(os, tx, nvl);
+	zfs_events_log_event(os, tx, nvl, events_size, objp);
 	fnvlist_free(nvl);
 }
 
@@ -363,7 +441,8 @@ zfs_events_log_rename(objset_t *os, dmu_tx_t *tx,
  */
 void
 zfs_events_log_link(objset_t *os, dmu_tx_t *tx,
-    uint64_t object, uint64_t parent, const char *name)
+    uint64_t object, uint64_t parent, const char *name,
+    uint64_t events_size, uint64_t *objp)
 {
 	nvlist_t *nvl;
 
@@ -373,7 +452,7 @@ zfs_events_log_link(objset_t *os, dmu_tx_t *tx,
 	fnvlist_add_uint64(nvl, ZFS_EV_PARENT, parent);
 	fnvlist_add_string(nvl, ZFS_EV_NAME, name);
 
-	zfs_events_log_event(os, tx, nvl);
+	zfs_events_log_event(os, tx, nvl, events_size, objp);
 	fnvlist_free(nvl);
 }
 
@@ -382,7 +461,8 @@ zfs_events_log_link(objset_t *os, dmu_tx_t *tx,
  */
 void
 zfs_events_log_symlink(objset_t *os, dmu_tx_t *tx,
-    uint64_t object, uint64_t parent, const char *name, const char *target)
+    uint64_t object, uint64_t parent, const char *name, const char *target,
+    uint64_t events_size, uint64_t *objp)
 {
 	nvlist_t *nvl;
 
@@ -393,7 +473,7 @@ zfs_events_log_symlink(objset_t *os, dmu_tx_t *tx,
 	fnvlist_add_string(nvl, ZFS_EV_NAME, name);
 	fnvlist_add_string(nvl, ZFS_EV_TARGET, target);
 
-	zfs_events_log_event(os, tx, nvl);
+	zfs_events_log_event(os, tx, nvl, events_size, objp);
 	fnvlist_free(nvl);
 }
 
@@ -402,7 +482,8 @@ zfs_events_log_symlink(objset_t *os, dmu_tx_t *tx,
  */
 void
 zfs_events_log_truncate(objset_t *os, dmu_tx_t *tx,
-    uint64_t object, uint64_t old_size, uint64_t new_size)
+    uint64_t object, uint64_t old_size, uint64_t new_size,
+    uint64_t events_size, uint64_t *objp)
 {
 	nvlist_t *nvl;
 
@@ -412,7 +493,7 @@ zfs_events_log_truncate(objset_t *os, dmu_tx_t *tx,
 	fnvlist_add_uint64(nvl, ZFS_EV_OLD_SIZE, old_size);
 	fnvlist_add_uint64(nvl, ZFS_EV_NEW_SIZE, new_size);
 
-	zfs_events_log_event(os, tx, nvl);
+	zfs_events_log_event(os, tx, nvl, events_size, objp);
 	fnvlist_free(nvl);
 }
 
@@ -421,7 +502,8 @@ zfs_events_log_truncate(objset_t *os, dmu_tx_t *tx,
  */
 void
 zfs_events_log_setattr(objset_t *os, dmu_tx_t *tx,
-    uint64_t object, uint64_t attr_mask)
+    uint64_t object, uint64_t attr_mask, uint64_t events_size,
+    uint64_t *objp)
 {
 	nvlist_t *nvl;
 
@@ -430,7 +512,7 @@ zfs_events_log_setattr(objset_t *os, dmu_tx_t *tx,
 	fnvlist_add_uint64(nvl, ZFS_EV_OBJECT, object);
 	fnvlist_add_uint64(nvl, ZFS_EV_ATTRS, attr_mask);
 
-	zfs_events_log_event(os, tx, nvl);
+	zfs_events_log_event(os, tx, nvl, events_size, objp);
 	fnvlist_free(nvl);
 }
 
@@ -513,6 +595,7 @@ zfs_events_get(objset_t *os, uint64_t *offp, uint64_t *lenp, char *buf)
 
 #if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_events_create_obj);
+EXPORT_SYMBOL(zfs_events_txhold);
 EXPORT_SYMBOL(zfs_events_destroy_obj);
 EXPORT_SYMBOL(zfs_events_log_create);
 EXPORT_SYMBOL(zfs_events_log_remove);

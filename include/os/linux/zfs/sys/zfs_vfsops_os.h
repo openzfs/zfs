@@ -110,6 +110,7 @@ struct zfsvfs {
 	boolean_t	z_longname;	/* Dataset supports long names */
 	boolean_t	z_events;	/* Dataset events logging enabled */
 	uint64_t	z_events_size;	/* Event log max size in bytes */
+	uint64_t	z_events_obj;	/* Event log object id, 0 = none */
 	uint64_t	z_version;	/* ZPL version */
 	uint64_t	z_shares_dir;	/* hidden shares dir */
 	dataset_kstats_t	z_kstat;	/* fs kstats */
