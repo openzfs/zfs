@@ -3182,6 +3182,18 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 	 */
 	boolean_t parity_verify = (parity_errors + parity_untried) <
 	    (rr->rr_firstdatacol - data_errors);
+	/*
+	 * If we have only ndata columns, the data integrity will
+	 * be checked by the checksums normally, but not in case
+	 * of rebuild when we don't have checksums. In this case,
+	 * we add ZIO_FLAG_SPECULATIVE and try to not spread
+	 * unverified data. For example, when the target vdev happens
+	 * to be the mirroring spare vdev, we would repair only that
+	 * child in it which is being rebuilt.
+	 */
+	if (!parity_verify && zio->io_priority == ZIO_PRIORITY_REBUILD)
+		add_flags |= ZIO_FLAG_SPECULATIVE;
+
 	if (parity_verify || (parity_errors > 0 &&
 	    spa_writeable(zio->io_spa))) {
 		int n = raidz_parity_verify(zio, rr);
@@ -3194,17 +3206,6 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 		if (parity_verify && n > 0 &&
 		    zio->io_priority == ZIO_PRIORITY_REBUILD)
 			return;
-		/*
-		 * If we have only ndata columns, the data integrity will
-		 * be checked by the checksums normally, but not in case
-		 * of rebuild when we don't have checksums. In this case,
-		 * we add ZIO_FLAG_SPECULATIVE and try to not spread
-		 * unverified data. For example, when the target vdev happens
-		 * to be the mirroring spare vdev, we would repair only that
-		 * child in it which is being rebuilt.
-		 */
-		if (!parity_verify && zio->io_priority == ZIO_PRIORITY_REBUILD)
-			add_flags |= ZIO_FLAG_SPECULATIVE;
 		unexpected_errors += n;
 	}
 
