@@ -5014,6 +5014,14 @@ zil_replay_split(zilog_t *zilog, zil_replay_arg_t *zr, const lr_t *lr)
 	return (ZR_SPLIT_HELD);
 }
 
+/*
+ * For tests: sync a TXG after each successful replay operation, so that
+ * every partial replay reaches the disk.  The pieces of a split write are
+ * synced once, after they are replayed together, or once per chunk
+ * replayed on its own.  Slows replay down to a TXG per replay operation.
+ */
+static int zil_replay_sync_per_record = 0;
+
 static int
 zil_replay_log_record(zilog_t *zilog, const lr_t *lr, void *zra,
     uint64_t claim_txg)
@@ -5116,6 +5124,8 @@ again:
 		if (error != 0)
 			return (zil_replay_error(zilog, lr, error));
 	}
+	if (zil_replay_sync_per_record)
+		txg_wait_synced(spa_get_dsl(zilog->zl_spa), 0);
 	if (split == ZR_SPLIT_CHUNK) {
 		/* Now gather this piece. */
 		zil_replay_split_next(zr);
@@ -5261,3 +5271,6 @@ ZFS_MODULE_PARAM(zfs, zfs_, immediate_write_sz, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_zil, zil_, special_is_slog, INT, ZMOD_RW,
 	"Treat special vdevs as SLOG");
+
+ZFS_MODULE_PARAM(zfs_zil, zil_, replay_sync_per_record, INT, ZMOD_RW,
+	"Sync a TXG after each ZIL replay operation (for testing)");
