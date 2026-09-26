@@ -2,7 +2,7 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-BUCKET="testbucket"
+BUCKET="get001"
 KEY="testkey"
 
 log_assert "Get object to file succeeds"

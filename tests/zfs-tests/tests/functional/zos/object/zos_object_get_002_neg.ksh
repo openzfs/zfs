@@ -2,7 +2,7 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-BUCKET="testbucket"
+BUCKET="get002"
 KEY="testkey"
 
 log_assert "Get nonexistent object fails"

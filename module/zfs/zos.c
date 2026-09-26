@@ -231,13 +231,15 @@ int delete_bucket(const char *pool, const char *bucket) {
 	}
 
 	error = zap_remove(os, ZOS_BUCKET_DIR_OBJ, bucket, tx);
-	if (error == 0)
+	if (error == 0) {
 		error = dmu_object_free(os, bucket_zap, tx);
+	}
 
-	if (error == 0)
+	if (error == 0) {
 		dmu_tx_commit(tx);
-	else
+	} else {
 		dmu_tx_abort(tx);
+	}
 
 	zos_release_objset(os);
 	spa_close(spa, ZOS_OBJSET_TAG);
@@ -272,9 +274,20 @@ int put_object(const char *pool, const char *bucket, const char *key, int fd, ui
 		return error;
 	}
 
+	/* Check if key already exists — if so, free old object */
+	error = zap_lookup(os, bucket_zap, key, 8, 1, &old_obj_id);
+	if (error != 0 && error != ENOENT) {
+		zos_release_objset(os);
+		spa_close(spa, ZOS_OBJSET_TAG);
+		return error;
+	}
+
 	tx = dmu_tx_create(os);
 	dmu_tx_hold_zap(tx, bucket_zap, B_TRUE, key);
 	dmu_tx_hold_bonus(tx, DMU_NEW_OBJECT);
+	if (old_obj_id != 0) {
+		dmu_tx_hold_free(tx, old_obj_id, 0, DMU_OBJECT_END);
+	}
 	if (size > 0) {
 		dmu_tx_hold_write(tx, DMU_NEW_OBJECT, 0, size);
 	} else {
@@ -288,25 +301,23 @@ int put_object(const char *pool, const char *bucket, const char *key, int fd, ui
 		return error;
 	}
 
-	/* Check if key already exists — if so, free old object */
-	error = zap_lookup(os, bucket_zap, key, 8, 1, &old_obj_id);
-	if (error != 0 && error != ENOENT) {
-		dmu_tx_abort(tx);
-		zos_release_objset(os);
-		spa_close(spa, ZOS_OBJSET_TAG);
-		return error;
-	}
-
 	new_obj_id = dmu_object_alloc(os, DMU_OT_UINT64_OTHER, SPA_MINBLOCKSIZE, DMU_OT_ZOS_OBJECT_META, sizeof (zos_object_meta_t), tx);
 
 	if (size > 0) {
 		// Known size, single write
-		buf = kmem_alloc(size, KM_SLEEP);
 		file = fget(fd);
+		if (file == NULL) {
+			dmu_tx_abort(tx);
+			zos_release_objset(os);
+			spa_close(spa, ZOS_OBJSET_TAG);
+			return EBADFD;
+		}
+
+		buf = kmem_alloc(size, KM_SLEEP);
 
 		ssize_t n = kernel_read(file, buf, size, &pos);
 		fput(file);
-		if (n < 0) {
+		if (n < 0 || n != size) {
 			kmem_free(buf, size);
 			dmu_tx_abort(tx);
 			zos_release_objset(os);
@@ -317,13 +328,25 @@ int put_object(const char *pool, const char *bucket, const char *key, int fd, ui
 		dmu_write(os, new_obj_id, 0, size, buf, tx, DMU_READ_PREFETCH);
 		kmem_free(buf, size);
 	} else {
+		file = fget(fd);
+		if (file == NULL) {
+			dmu_tx_abort(tx);
+			zos_release_objset(os);
+			spa_close(spa, ZOS_OBJSET_TAG);
+			return EBADFD;
+		}
+
 		// Unknown size, 64KB chunked writes
 		buf = kmem_alloc(ZOS_CHUNK_SIZE, KM_SLEEP);
-		file = fget(fd);
+
 		uint64_t offset = 0;
 		for (;;) {
 			ssize_t n = kernel_read(file, buf, ZOS_CHUNK_SIZE, &pos);
-			if (n <= 0) {
+			if (n == 0) {
+				break;
+			}
+			if (n < 0) {
+				error = EIO;
 				break;
 			}
 
@@ -333,6 +356,12 @@ int put_object(const char *pool, const char *bucket, const char *key, int fd, ui
 		size = offset;
 		kmem_free(buf, ZOS_CHUNK_SIZE);
 		fput(file);
+		if (error) {
+			dmu_tx_abort(tx);
+			zos_release_objset(os);
+			spa_close(spa, ZOS_OBJSET_TAG);
+			return error;
+		}
 	}
 
 	error = dmu_bonus_hold(os, new_obj_id, ZOS_OBJSET_TAG, &dbuf);
@@ -349,7 +378,7 @@ int put_object(const char *pool, const char *bucket, const char *key, int fd, ui
 	zom->size = size;
 	dmu_buf_rele(dbuf, ZOS_OBJSET_TAG);
 
-	error = zap_add(os, bucket_zap, key, 8, 1, &new_obj_id, tx);
+	error = zap_update(os, bucket_zap, key, 8, 1, &new_obj_id, tx);
 	if (error) {
 		dmu_tx_abort(tx);
 		zos_release_objset(os);
@@ -357,7 +386,13 @@ int put_object(const char *pool, const char *bucket, const char *key, int fd, ui
 		return error;
 	}
 	if (old_obj_id) {
-		dmu_object_free(os, old_obj_id, tx);
+		error = dmu_object_free(os, old_obj_id, tx);
+		if (error) {
+			dmu_tx_abort(tx);
+			zos_release_objset(os);
+			spa_close(spa, ZOS_OBJSET_TAG);
+			return error;
+		}
 	}
 	dmu_tx_commit(tx);
 	zos_release_objset(os);
@@ -485,7 +520,7 @@ int get_object(const char *pool, const char *bucket, const char *key, int fd, ui
 	if (file == NULL) {
 		zos_release_objset(os);
 		spa_close(spa, ZOS_OBJSET_TAG);
-		return EBADF;
+		return EBADFD;
 	}
 
 
