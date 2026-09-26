@@ -3927,6 +3927,22 @@ vdev_raidz_combrec(zio_t *zio)
 		vdev_draid_config_t *vdc = vd->vdev_tsd;
 		nparity = vdc->vdc_nparity;
 		physical_width = vdc->vdc_children;
+	} else if (vd->vdev_ops == &vdev_raidz_ops) {
+		/*
+		 * A raidz vdev promoted in place (reparity) keeps its base
+		 * nparity, but once the completion marker is honored every
+		 * block has been re-encoded to the higher target parity. Use
+		 * the honored parity so combinatorial reconstruction searches
+		 * all the parity columns a promoted block actually has. With
+		 * only the base parity, a born>=epoch block that has lost
+		 * `target` children -- e.g. a parity-2 ZIL log block read by
+		 * spa_check_logs during a 2-disk-degraded import -- is wrongly
+		 * declared unrecoverable (ENXIO), failing the import even
+		 * though the block is fully reconstructable (its data column
+		 * may even be intact). When no marker is honored this returns
+		 * the base nparity, so non-reparitied vdevs are unaffected.
+		 */
+		nparity = vdev_raidz_honored_parity(vd);
 	}
 
 	int original_width = (rm->rm_original_width != 0) ?
