@@ -18,7 +18,24 @@
 #ifndef	_SYS_ZIO_CRYPT_OS_H
 #define	_SYS_ZIO_CRYPT_OS_H
 
-/* Linux always uses the ICP backend. */
+/*
+ * In-kernel, use the kernel crypto API if the configure checks found it
+ * usable and the kernel builds the AEAD and hash APIs (CRYPTO_AEAD2 and
+ * CRYPTO_HASH2 are what compile aead.o and shash.o). The configure check
+ * alone is not enough: when configuring for builtin (--enable-linux-builtin)
+ * it only tests that the headers compile. Userspace (libzpool) always uses
+ * the ICP backend.
+ */
+#if defined(_KERNEL) && defined(HAVE_KERNEL_CRYPTO)
+#if IS_REACHABLE(CONFIG_CRYPTO_AEAD2) && IS_REACHABLE(CONFIG_CRYPTO_HASH2)
+#define	ZIO_CRYPT_OS_KCAPI
+#endif
+#endif
+
+#ifdef ZIO_CRYPT_OS_KCAPI
+#include <sys/zio_crypt_os_kcapi.h>
+#else
 #include <sys/zio_crypt_os_icp.h>
+#endif
 
 #endif
