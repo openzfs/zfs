@@ -207,8 +207,9 @@ static uint_t zfs_condense_indirect_commit_entry_delay_ms = 0;
 /*
  * If an indirect split block contains more than this many possible unique
  * combinations when being reconstructed, consider it too computationally
- * expensive to check them all. Instead, try at most 100 randomly-selected
- * combinations each time the block is accessed.  This allows all segment
+ * expensive to check them all. Instead, try the preferred copies of each
+ * split, then at most this many randomly-selected combinations each time
+ * the block is accessed.  This allows all segment
  * copies to participate fairly in the reconstruction when all combinations
  * cannot be checked and prevents repeated use of one bad copy.
  */
@@ -1771,6 +1772,22 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 			list_insert_tail(&is->is_unique_child, ic_i);
 		}
 
+		/*
+		 * Put first the version held by a copy which is not missing
+		 * this TXG. The heads are tried before any other combination.
+		 */
+		for (int i = 0; i < is->is_children; i++) {
+			indirect_child_t *ic = &is->is_child[i];
+
+			if (ic->ic_data == NULL || ic->ic_error != 0)
+				continue;
+			if (ic->ic_duplicate != NULL)
+				ic = ic->ic_duplicate;
+			list_remove(&is->is_unique_child, ic);
+			list_insert_head(&is->is_unique_child, ic);
+			break;
+		}
+
 		/* Reconstruction is impossible, no valid children */
 		EQUIV(list_is_empty(&is->is_unique_child),
 		    is->is_unique_children == 0);
@@ -1789,10 +1806,22 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 			iv->iv_unique_combinations *= is->is_unique_children;
 	}
 
-	if (iv->iv_unique_combinations <= iv->iv_attempts_max)
+	if (iv->iv_unique_combinations <= iv->iv_attempts_max) {
 		error = vdev_indirect_splits_enumerate_all(iv, zio);
-	else
-		error = vdev_indirect_splits_enumerate_randomly(iv, zio);
+	} else {
+		/*
+		 * Random combinations can miss an intact source when stale
+		 * copies of many splits are readable, so try it first.
+		 */
+		for (indirect_split_t *is = list_head(&iv->iv_splits);
+		    is != NULL; is = list_next(&iv->iv_splits, is))
+			is->is_good_child = list_head(&is->is_unique_child);
+		error = vdev_indirect_splits_checksum_validate(iv, zio);
+		if (error != 0) {
+			error = vdev_indirect_splits_enumerate_randomly(iv,
+			    zio);
+		}
+	}
 
 	if (error != 0) {
 		/* All attempted combinations failed. */
