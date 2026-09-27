@@ -35,6 +35,7 @@ log_onexit tmpfile_dmlog_cleanup
 
 # TX_SETSAXATTR records need the zilsaxattr feature.
 DMLOG_POOL_OPTS="-o feature@zilsaxattr=disabled"
+DMLOG_FORBID_RECORD=TX_SETSAXATTR
 tmpfile_dmlog meta
 
 log_pass "O_TMPFILE publication crash states: meta_nosaxattr"

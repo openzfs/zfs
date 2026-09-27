@@ -32,6 +32,7 @@ verify_runnable "global"
 log_assert "O_TMPFILE publication crash states: hole"
 log_onexit tmpfile_dmlog_cleanup
 
+DMLOG_EXPECT_RECORD=TX_SETATTR
 tmpfile_dmlog hole
 
 log_pass "O_TMPFILE publication crash states: hole"

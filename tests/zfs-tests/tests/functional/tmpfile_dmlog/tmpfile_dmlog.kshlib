@@ -38,13 +38,39 @@ DMLOG_DIR=$TEST_BASE_DIR/tmpfile_dmlog
 DMLOG_NAME=zts_tmpfile_dmlog
 DMLOG_LOG_SIZE=2G
 DMLOG_KEYFILE=$TEST_BASE_DIR/tmpfile_dmlog.key
+#
+# A file system made on FreeBSD 15.1 (OpenZFS 2.4), for the native (NFSv4)
+# ACL scenarios, which Linux cannot set up itself: directories "inh" and
+# "inh2" with inheritable ACEs for users and a group, "inhspec" and
+# "inhmask" with inherit-only owner@, group@ and everyone@ entries (the
+# masks a 0644 file gets; inhmask's owner@ without write_acl), "plain"
+# without, and "ctl", a file created on FreeBSD in each inheriting
+# directory.  Made with:
+#	zfs create -o acltype=nfsv4 -o aclinherit=passthrough \
+#	    -o aclmode=passthrough -o xattr=sa pool/fs
+#	cd /pool/fs && mkdir inh inh2 inhspec inhmask plain
+#	setfacl -m u:1001:modify_set:fd:allow inh
+#	setfacl -m g:1002:read_set:fd:allow -m u:1003:read_set:d:allow inh2
+#	setfacl -a 0 owner@:rw-p--aARWcCos:fdi:allow inhspec
+#	setfacl -a 1 group@:r-----a-R-c--s:fdi:allow inhspec
+#	setfacl -a 2 everyone@:r-----a-R-c--s:fdi:allow inhspec
+#	setfacl -a 0 owner@:rw-p--aARWc-os:fdi:allow inhmask
+#	setfacl -a 1 group@:r-----a-R-c--s:fdi:allow inhmask
+#	setfacl -a 2 everyone@:r-----a-R-c--s:fdi:allow inhmask
+#	touch inh/ctl inhspec/ctl inhmask/ctl
+#	zfs snapshot pool/fs@seed && zfs send pool/fs@seed | bzip2
+#
+DMLOG_NFSV4_STREAM=$STF_SUITE/tests/functional/tmpfile_dmlog/nfsv4acl.zsend.bz2
 
 function tmpfile_dmlog_cleanup
 {
-	# Tunables first, before cleanup that can itself fail.  A killed
-	# test's saved values are restored by the failsafe callback instead.
+	# Tunables first, before cleanup that can itself fail.  The replay
+	# test hook is global; never leave it enabled.  A killed test's saved
+	# values are restored by the failsafe callback instead.
+	restore_tunable ZIL_REPLAY_SYNC_PER_RECORD
 	restore_tunable TXG_TIMEOUT
 	restore_tunable IMMEDIATE_WRITE_SZ
+	restore_tunable TMPFILE_LOG_MAX_BLOCKS
 	if [[ -n "$DMLOG_PID" ]]; then
 		kill -9 $DMLOG_PID 2>/dev/null
 		wait $DMLOG_PID 2>/dev/null
@@ -78,6 +104,15 @@ function tmpfile_dmlog_encrypt
 	DMLOG_KEY=$DMLOG_KEYFILE
 	DMLOG_FS_OPTS="$DMLOG_FS_OPTS -o encryption=on -o keyformat=raw"
 	DMLOG_FS_OPTS="$DMLOG_FS_OPTS -o keylocation=file://$DMLOG_KEY"
+}
+
+#
+# zdb on the pool whose devices are linked in $DMLOG_DIR/zdb, with the key
+# if the file system is encrypted.
+#
+function tmpfile_dmlog_zdb # zdb-arguments...
+{
+	zdb ${DMLOG_KEY:+-K $DMLOG_KEY} -e -p $DMLOG_DIR/zdb "$@"
 }
 
 #
@@ -193,9 +228,19 @@ function tmpfile_dmlog_record # scenario [xattr] [immediate_write_sz]
 		log_must save_tunable IMMEDIATE_WRITE_SZ
 		log_must set_tunable64 IMMEDIATE_WRITE_SZ $immediate
 	fi
+	if [[ -n "$DMLOG_MAX_BLOCKS" ]]; then
+		log_must save_tunable TMPFILE_LOG_MAX_BLOCKS
+		log_must set_tunable32 TMPFILE_LOG_MAX_BLOCKS $DMLOG_MAX_BLOCKS
+	fi
 	log_must zpool create -o cachefile=none $DMLOG_POOL_OPTS \
 	    -O xattr=$xattr $TESTPOOL $vdevs
-	log_must zfs create $DMLOG_FS_OPTS $fs
+	if [[ -n "$DMLOG_FS_STREAM" ]]; then
+		bzcat $DMLOG_FS_STREAM | zfs receive $DMLOG_FS_OPTS $fs || \
+		    log_fail "cannot receive $DMLOG_FS_STREAM as $fs"
+		log_note "received $DMLOG_FS_STREAM as $fs"
+	else
+		log_must zfs create $DMLOG_FS_OPTS $fs
+	fi
 	typeset mnt
 	mnt=$(get_prop mountpoint $fs)
 
@@ -217,6 +262,8 @@ function tmpfile_dmlog_record # scenario [xattr] [immediate_write_sz]
 	log_must zpool export $TESTPOOL
 	log_must restore_tunable TXG_TIMEOUT
 	[[ -n "$immediate" ]] && log_must restore_tunable IMMEDIATE_WRITE_SZ
+	[[ -n "$DMLOG_MAX_BLOCKS" ]] && \
+	    log_must restore_tunable TMPFILE_LOG_MAX_BLOCKS
 	if [[ -n "$DMLOG_SLOG" ]]; then
 		log_must dmsetup remove ${DMLOG_NAME}_main
 		log_must dmsetup remove ${DMLOG_NAME}_slog
@@ -232,8 +279,18 @@ function tmpfile_dmlog_record # scenario [xattr] [immediate_write_sz]
 # Run one scenario.  Optional: the dataset's xattr property (default sa) and
 # a zfs_immediate_write_sz to use while the scenario runs.  The caller may
 # also set DMLOG_POOL_OPTS and DMLOG_FS_OPTS (extra zpool/zfs create
-# options) and DMLOG_SLOG (non-empty: give the pool a separate log
-# device).
+# options), DMLOG_FS_STREAM (a bzip2-compressed send stream received as the
+# file system instead of creating one, with DMLOG_FS_OPTS as its -o
+# options), DMLOG_FORBID_RECORD (a log record type, e.g. TX_SETSAXATTR,
+# that must not appear in the intent log at any crash state),
+# DMLOG_EXPECT_RECORD (record types, e.g. TX_CLONE_RANGE, that must appear
+# in the intent log at ACK: which way the publication was logged),
+# DMLOG_ACK_PFLAGS ("path:mask:value" words: files or directories of the
+# file system whose znode pflags, masked, must equal value once the ACK
+# state has been replayed, all in hex; e.g. /d/f:4:4 for ZFS_ACL_TRIVIAL
+# set, /d:2:2 for ZFS_INHERIT_ACE set), DMLOG_MAX_BLOCKS
+# (zfs_tmpfile_log_max_blocks while the scenario runs) and DMLOG_SLOG
+# (non-empty: give the pool a separate log device).
 #
 function tmpfile_dmlog # scenario [xattr] [immediate_write_sz]
 {
@@ -276,6 +333,35 @@ function tmpfile_dmlog # scenario [xattr] [immediate_write_sz]
 			idevs="/dev/mapper/${DMLOG_NAME}_i_main"
 			idevs="$idevs /dev/mapper/${DMLOG_NAME}_i_slog"
 		fi
+		if [[ -n "$DMLOG_FORBID_RECORD" ||
+		    ( -n "$DMLOG_EXPECT_RECORD" && $p == "$last" ) ]]; then
+			log_must mkdir -p $DMLOG_DIR/zdb
+			typeset -i n=0
+			for d in $idevs; do
+				log_must ln -sf $d $DMLOG_DIR/zdb/vdev$n
+				((n += 1))
+			done
+			# A failed inspection must not read as zero records.
+			tmpfile_dmlog_zdb -iv $fs >$DMLOG_DIR/zdb/il.txt \
+			    2>&1 || log_fail "zdb -iv failed: $(tail -5 \
+			    $DMLOG_DIR/zdb/il.txt)"
+			grep -q "ZIL header" $DMLOG_DIR/zdb/il.txt || \
+			    log_fail "zdb -iv printed no ZIL header"
+			typeset -i n
+			for r in $DMLOG_FORBID_RECORD; do
+				n=$(grep -cE "^[[:space:]]+$r[[:space:]]+len" \
+				    $DMLOG_DIR/zdb/il.txt)
+				log_note "$r records: $n"
+				((n == 0)) || log_fail "intent log holds $r"
+			done
+			[[ $p == "$last" ]] && for r in $DMLOG_EXPECT_RECORD; do
+				n=$(grep -cE "^[[:space:]]+$r[[:space:]]+len" \
+				    $DMLOG_DIR/zdb/il.txt)
+				log_note "$r records at ACK: $n"
+				((n > 0)) || log_fail "no $r at ACK"
+			done
+			log_must rm -f $DMLOG_DIR/zdb/vdev*
+		fi
 		log_must tmpfile_dmlog_import rw \
 		    $(for d in $idevs; do echo "-d $d"; done)
 		mnt=$(get_prop mountpoint $fs)
@@ -285,6 +371,9 @@ function tmpfile_dmlog # scenario [xattr] [immediate_write_sz]
 			log_must tmpfile_crash verify-prefix $sc $mnt
 		fi
 		log_must zpool export $TESTPOOL
+		if [[ $p == "$last" && -n "$DMLOG_ACK_PFLAGS" ]]; then
+			tmpfile_dmlog_pflags_check "$idevs"
+		fi
 		if [[ -n "$DMLOG_SLOG" ]]; then
 			log_must dmsetup remove ${DMLOG_NAME}_i_main
 			log_must dmsetup remove ${DMLOG_NAME}_i_slog
@@ -295,4 +384,267 @@ function tmpfile_dmlog # scenario [xattr] [immediate_write_sz]
 	done
 	log_note "crash states verified: $state/$planned;" \
 	    "scratch space used: $(du -sh $DMLOG_DIR | cut -f1)"
+}
+
+#
+# On the exported pool on the devices $1: check each "path:mask:value" of
+# DMLOG_ACK_PFLAGS against the znode pflags zdb prints for that path.
+#
+function tmpfile_dmlog_pflags_check # devices
+{
+	typeset out spec path mask want got
+	typeset -i n=0
+	log_must mkdir -p $DMLOG_DIR/zdb
+	for d in $1; do
+		log_must ln -sf $d $DMLOG_DIR/zdb/vdev$n
+		((n += 1))
+	done
+	# Five -d: zdb prints each znode's path only at that verbosity.
+	out=$(tmpfile_dmlog_zdb -ddddd $TESTPOOL/$TESTFS 2>&1) || \
+	    log_fail "zdb -ddddd failed: $(echo "$out" | tail -5)"
+	for spec in $DMLOG_ACK_PFLAGS; do
+		path=${spec%%:*}
+		mask=${spec#*:}
+		want=${mask#*:}
+		mask=${mask%%:*}
+		got=$(echo "$out" | awk -v p="$path" '
+		    $1 == "path" && $2 == p { found = 1 }
+		    found && $1 == "pflags" { print $2; exit }')
+		[[ -n "$got" ]] || log_fail "$path: no znode in the zdb output"
+		log_note "$path: pflags $got (mask $mask, want $want)"
+		(( (16#$got & 16#$mask) == 16#$want )) || \
+		    log_fail "$path: pflags $got masked by $mask is not $want"
+	done
+	log_must rm -f $DMLOG_DIR/zdb/vdev*
+}
+
+#
+# Named files under $1: what an interrupted replay must recover exactly as
+# an uninterrupted one does.  Publication logs the mtime.  Other times are
+# left out, and so is the mtime of "marker" files: ordinary files written
+# after START, whose replay sets the time the replay ran.
+#
+function tmpfile_dmlog_tree # mountpoint
+{
+	(cd $1 && find . -mindepth 1 -printf '%p %y %s %m %n\n' | sort &&
+	    find . -type f ! -name marker -printf '%p %T@\n' | sort &&
+	    find . -type f -print0 | sort -z | xargs -0 -r cksum)
+}
+
+#
+# The replay progress recorded on the image $1: "s<replay_seq>c<claimed>"
+# while the intent log exists, "done" once it has been destroyed.  It only
+# moves forward as more of a replay reaches the disk.
+#
+function tmpfile_dmlog_progress # image
+{
+	typeset loop out hdr
+	# Its output is the key: nothing else may reach stdout (no log_must).
+	loop=$(losetup -f --show $1) || log_fail "cannot attach $1"
+	mkdir -p $DMLOG_DIR/zdb && ln -sf $loop $DMLOG_DIR/zdb/vdev0 || {
+		losetup -d $loop
+		log_fail "cannot prepare $DMLOG_DIR/zdb"
+	}
+	out=$(tmpfile_dmlog_zdb -ivv $TESTPOOL/$TESTFS 2>&1) || {
+		losetup -d $loop
+		log_fail "zdb -ivv failed: $out"
+	}
+	rm -f $DMLOG_DIR/zdb/vdev0
+	losetup -d $loop || log_fail "cannot detach $loop"
+	if ! echo "$out" | grep -qE "^[[:space:]]+TX_[A-Z0-9_]+ +len"; then
+		echo done
+		return
+	fi
+	hdr=$(echo "$out" | grep -m1 "ZIL header") || \
+	    log_fail "no ZIL header: $out"
+	echo "$hdr" | sed -E \
+	    's/.*claim_txg ([0-9]+).*replay_seq ([0-9]+).*/s\2c\1/' | \
+	    sed -E 's/c[1-9][0-9]*$/c1/'
+}
+
+#
+# Second crash, during replay.  Record the scenario as tmpfile_dmlog does, then
+# import its ACK state on a second dm-log-writes device, with each replayed
+# record synced in its own TXG (zil_replay_sync_per_record), recording the
+# replay itself.  That import is the uninterrupted replay; its recovered tree is
+# the reference.  Then import the state left by a crash at selected points of
+# that replay, which resumes the replay, and require: the same tree, a passing
+# verifier, no replay error in the kernel log, no intent log left, no linked
+# object in the unlinked set, and no leaked blocks.
+#
+# At most $2 points are checked (default 24): all of them if there are no
+# more, otherwise evenly spaced ones plus, found by bisection on the replay
+# progress, the last point before the log is destroyed and the first after.
+# With $3 = "ro", each replay resumes through a read-only mount, and the
+# pool is then imported writable and the scenario's files removed.
+#
+function tmpfile_dmlog_replay # scenario [budget] [ro]
+{
+	typeset sc=$1
+	typeset -i budget=${2:-24}
+	typeset ro=$3
+	typeset fs=$TESTPOOL/$TESTFS
+	typeset log=$DMLOG_DIR/log log2=$DMLOG_DIR/log2
+	typeset base=$DMLOG_DIR/base state=$DMLOG_DIR/state
+	typeset mnt ack points2 q key sel
+	typeset -i n i lo hi mid checked=0 interrupted=0
+
+	tunable_exists ZIL_REPLAY_SYNC_PER_RECORD || \
+	    log_unsupported "needs the zil_replay_sync_per_record tunable"
+	[[ -n "$DMLOG_SLOG" ]] && log_unsupported "no separate log device here"
+	tmpfile_dmlog_record $sc
+	ack=$(log_writes_replay points $log start ack) || \
+	    log_fail "cannot find crash points in the log"
+	ack=${ack##*[[:space:]]}
+
+	# The ACK state, and a record of its uninterrupted replay.
+	log_must truncate -s $DMLOG_SIZE $base
+	log_must log_writes_replay replay $log $base 0 $ack
+	log_must cp --sparse=always $base $DMLOG_DIR/base.orig
+	log_must truncate -s $DMLOG_LOG_SIZE $log2
+	DMLOG_DATA_LOOP=$(losetup -f --show $base) || log_fail "attach base"
+	DMLOG_LOG_LOOP=$(losetup -f --show $log2) || log_fail "attach log2"
+	log_must dmsetup create $DMLOG_NAME --table \
+	    "0 $(blockdev --getsz $DMLOG_DATA_LOOP) log-writes \
+	    $DMLOG_DATA_LOOP $DMLOG_LOG_LOOP"
+	log_must dmsetup message $DMLOG_NAME 0 mark start
+	# Saved to a file first (save_tunable), so that this test's cleanup,
+	# or the failsafe callback if the test is killed, restores it.
+	log_must save_tunable ZIL_REPLAY_SYNC_PER_RECORD
+	log_must set_tunable32 ZIL_REPLAY_SYNC_PER_RECORD 1
+	tmpfile_dmlog_import rw -d /dev/mapper/$DMLOG_NAME
+	typeset -i rc=$?
+	log_must restore_tunable ZIL_REPLAY_SYNC_PER_RECORD
+	((rc == 0)) || log_fail "import of the ACK state failed"
+	mnt=$(get_prop mountpoint $fs)
+	log_must tmpfile_crash verify $sc $mnt
+	tmpfile_dmlog_tree $mnt >$DMLOG_DIR/ref || log_fail "reference tree"
+	log_must dmsetup message $DMLOG_NAME 0 mark end
+	log_must zpool export $TESTPOOL
+	log_must dmsetup remove $DMLOG_NAME
+	log_must losetup -d $DMLOG_DATA_LOOP
+	log_must losetup -d $DMLOG_LOG_LOOP
+	DMLOG_DATA_LOOP=""
+	DMLOG_LOG_LOOP=""
+
+	points2=$(log_writes_replay points $log2 start end) || \
+	    log_fail "cannot find crash points in the replay"
+	set -A pts $points2
+	n=${#pts[@]}
+
+	# Select the points.
+	if ((n <= budget)); then
+		sel="$points2"
+	else
+		sel=""
+		for ((i = 0; i < budget - 2; i++)); do
+			sel="$sel ${pts[$((i * (n - 1) / (budget - 3)))]}"
+		done
+		# Bisect for the first point at which the log is destroyed.
+		lo=0
+		hi=$((n - 1))
+		while ((hi - lo > 1)); do
+			mid=$(((lo + hi) / 2))
+			log_must cp --sparse=always $DMLOG_DIR/base.orig $state
+			log_must log_writes_replay replay $log2 $state 0 \
+			    ${pts[$mid]}
+			key=$(tmpfile_dmlog_progress $state) || \
+			    log_fail "progress at ${pts[$mid]}"
+			[[ $key == @(done|s+([0-9])c[01]) ]] || \
+			    log_fail "unexpected progress key: $key"
+			if [[ $key == done ]]; then
+				hi=$mid
+			else
+				lo=$mid
+			fi
+		done
+		sel="$sel ${pts[$lo]} ${pts[$hi]}"
+	fi
+	sel=$(echo $sel | tr ' ' '\n' | sort -nu | tr '\n' ' ')
+	log_note "replay of the ACK state: $n crash points; checking: $sel"
+
+	for q in $sel; do
+		log_must cp --sparse=always $DMLOG_DIR/base.orig $state
+		log_must log_writes_replay replay $log2 $state 0 $q
+		key=$(tmpfile_dmlog_progress $state) || log_fail "progress at $q"
+		[[ $key == @(done|s+([0-9])c[01]) ]] || \
+		    log_fail "point $q: unexpected progress key: $key"
+		log_note "point $q: progress $key"
+		[[ $key == done ]] || ((interrupted += 1))
+		DMLOG_IMPORT_LOOP=$(losetup -f --show $state) || \
+		    log_fail "attach state"
+		typeset since
+		since=$(dmesg | tail -1 | sed -E 's/^\[ *([0-9.]+)\].*/\1/')
+		log_must tmpfile_dmlog_import ${ro:-rw} -d $DMLOG_IMPORT_LOOP
+		mnt=$(get_prop mountpoint $fs)
+		log_must tmpfile_crash verify $sc $mnt
+		tmpfile_dmlog_tree $mnt >$DMLOG_DIR/tree || log_fail "tree"
+		if ! cmp -s $DMLOG_DIR/ref $DMLOG_DIR/tree; then
+			diff $DMLOG_DIR/ref $DMLOG_DIR/tree
+			log_fail "point $q ($key): recovered differently" \
+			    "from the uninterrupted replay"
+		fi
+		if [[ $ro == ro ]]; then
+			log_must zfs unmount $fs
+			rmdir $mnt 2>/dev/null
+		fi
+		log_must zpool export $TESTPOOL
+		dmesg | awk -v t=${since:-0} '{ s = $0; sub(/^\[ */, "", s);
+		    sub(/\].*/, "", s); if (s + 0 > t + 0) print }' | \
+		    grep -i "replay transaction error" && \
+		    log_fail "point $q ($key): replay error"
+		tmpfile_dmlog_state_check $DMLOG_IMPORT_LOOP "point $q ($key)"
+		if [[ $ro == ro ]]; then
+			# Writable again: remove what was recovered.
+			log_must tmpfile_dmlog_import rw -d $DMLOG_IMPORT_LOOP
+			mnt=$(get_prop mountpoint $fs)
+			log_must find $mnt -maxdepth 2 -type f ! -name setup \
+			    -delete
+			log_must zpool sync $TESTPOOL
+			log_must zpool export $TESTPOOL
+			tmpfile_dmlog_state_check $DMLOG_IMPORT_LOOP \
+			    "point $q ($key), after removal"
+		fi
+		log_must losetup -d $DMLOG_IMPORT_LOOP
+		DMLOG_IMPORT_LOOP=""
+		((checked += 1))
+	done
+	log_note "replay crash points: $n, checked: $checked," \
+	    "interrupting the replay: $interrupted"
+	((interrupted > 0)) || log_fail "no checked point interrupted the replay"
+}
+
+#
+# On the exported pool on device $1: no intent log left, no linked object
+# in the unlinked set, and no leaked blocks.
+#
+function tmpfile_dmlog_state_check # device what
+{
+	typeset out dq o links
+	log_must mkdir -p $DMLOG_DIR/zdb
+	log_must ln -sf $1 $DMLOG_DIR/zdb/vdev0
+	out=$(tmpfile_dmlog_zdb -ivv $TESTPOOL/$TESTFS 2>&1) || \
+	    log_fail "$2: zdb -ivv failed: $out"
+	echo "$out" | grep -qE "^[[:space:]]+TX_[A-Z0-9_]+ +len" && \
+	    log_fail "$2: the intent log was not fully replayed"
+	out=$(tmpfile_dmlog_zdb -dddd $TESTPOOL/$TESTFS 1 2>&1) || \
+	    log_fail "$2: zdb master node: $out"
+	dq=$(echo "$out" | awk '$1 == "DELETE_QUEUE" {print $3}')
+	[[ -n "$dq" ]] || log_fail "$2: no unlinked set"
+	out=$(tmpfile_dmlog_zdb -dddd $TESTPOOL/$TESTFS $dq 2>&1) || \
+	    log_fail "$2: zdb unlinked set: $out"
+	for o in $(echo "$out" | awk '$2 == "=" && $1 ~ /^[0-9a-f]+$/ {
+	    print $3 }'); do
+		# A failed inspection is not evidence of zero links.
+		out=$(tmpfile_dmlog_zdb -dddd $TESTPOOL/$TESTFS $o \
+		    2>&1) || log_fail "$2: zdb object $o: $out"
+		links=$(echo "$out" | awk '$1 == "links" { print $2; exit }')
+		[[ "$links" == +([0-9]) ]] || \
+		    log_fail "$2: no link count for object $o: $out"
+		((links == 0)) || \
+		    log_fail "$2: object $o has $links links but is unlinked"
+	done
+	out=$(tmpfile_dmlog_zdb -b "$TESTPOOL" 2>&1) || \
+	    log_fail "$2: zdb -b: $out"
+	log_must rm -f $DMLOG_DIR/zdb/vdev0
 }

@@ -87,6 +87,19 @@
  *   truncevict, cloneevict
  *		as truncfast0 and clonefast, but f is closed, the inode cache
  *		dropped and f reopened by name before the operation
+ *   punchfast, punchfastrw, zerofast, zerofastrw
+ *		written and published without any sync, then an interior
+ *		block punched out (FALLOC_FL_PUNCH_HOLE) or zeroed
+ *		(FALLOC_FL_ZERO_RANGE), both with FALLOC_FL_KEEP_SIZE, and
+ *		for the *rw variants rewritten with other bytes, then f
+ *		synced.  Every state must be no f (only before ACK), or f with
+ *		its size and every byte outside that block as published, and
+ *		the block as published, zeros or (*rw) rewritten; at ACK, as
+ *		after the last operation.  Prints "PUNCHED txg=<n>
+ *		zil_commits=<n>": the committed TXG and the log commits the
+ *		punch or zeroing itself caused (global zil kstat, for
+ *		diagnosis only: nothing else should commit, but nothing
+ *		prevents it)
  *   dedupefast, dedupefastmid
  *		published, then FIDEDUPERANGE from a synced file with the
  *		same bytes (all of it, or 256K at 256K); the dedupe must share
@@ -107,8 +120,36 @@
  *   rename	published as "t" and synced, then renamed to "f" and synced;
  *		at ACK only "f", complete
  *   acl	needs acltype=posix: in a directory "d" with a default ACL
- *		(setup), "d/f" gets an explicit access ACL and "d/g" only the
- *		inherited one; both published and "d" synced
+ *		(setup), "d/f" gets an explicit access ACL and then its mode
+ *		(without which its native ACL stays the old mode's and its
+ *		publication waits for a TXG), "d/g" only the inherited ACL;
+ *		both published and "d" synced
+ *   nfsv4src, nfsv4dst, nfsv4both
+ *		need the file system received from nfsv4acl.zsend.bz2, made
+ *		on FreeBSD: directories "inh" and "inh2" with inheritable
+ *		native (NFSv4) ACEs, "plain" without, and "inh/ctl", a file
+ *		created in inh there.  As dirsync, with the unnamed file
+ *		opened in inh and published into plain (src), opened in plain
+ *		and published into inh (dst), or opened in inh and published
+ *		into inh2 (both).  Linux cannot read a native ACL back; the
+ *		caller checks the recovered pflags with zdb
+ *   nfsv4spec, nfsv4mask
+ *		as nfsv4src, opened in "inhspec" or "inhmask" of the same
+ *		file system: directories whose inherit-only owner@, group@ and
+ *		everyone@ entries give a new file the masks of its mode (spec)
+ *		or owner@ without write_acl (mask), marked inherited.  Such a
+ *		file passes ZFS_ACL_TRIVIAL, but a file created from its mode
+ *		gets a different ACL
+ *   ntacl	as dirsync, with a security.NTACL xattr on the unnamed file
+ *		(where Samba's vfs_acl_xattr keeps an NT ACL)
+ *   posixacl	needs acltype=posix: the unnamed file gets an explicit access
+ *		ACL through its xattr (mode 0640 with it) and is published
+ *		without a chmod: its native ACL stays the old mode's, so the
+ *		publication waits for a TXG; ACL and mode must survive
+ *   posixumask	needs acltype=posix: the unnamed file is opened with mode
+ *		0666 under umask 022 (0644, applied by zpl_init_acl() after
+ *		the native ACL was built) and published without a chmod: it
+ *		waits for a TXG too; the mode must survive
  *   syncalways	needs sync=always: write and publish with no fsync at all
  *   osync	the tmpfile is opened O_SYNC and written, then published and
  *		the directory synced (writes to an unnamed file are not logged,
@@ -166,12 +207,16 @@
 #define	META_PROJID	4321
 #define	FAST_LEN	(2 * RACE_CHUNK)
 #define	MIX_LEN		200000
+#define	PUNCH_OFF	(2 * RACE_CHUNK)
+#define	PUNCH_LEN	RACE_CHUNK
 #define	SPARSEMIX_SIZE	(30 * MIB + 17)
 #define	XATTR_SHORT	"user.tmpfile_crash.short"
 #define	XATTR_LONG	"user.tmpfile_crash.long"
 #define	XATTR_LONG_LEN	300
 #define	XATTR_BIG	"user.tmpfile_crash.big"
 #define	XATTR_BIG_LEN	60000
+#define	NTACL_NAME	"security.NTACL"
+#define	NTACL_LEN	300
 #define	ACL_ACCESS	"system.posix_acl_access"
 #define	ACL_DEFAULT	"system.posix_acl_default"
 #define	ACL_UID		1234
@@ -415,6 +460,71 @@ is_clone(const char *sc)
 	    strcmp(sc, "cloneevict") == 0 || strcmp(sc, "namedclone") == 0);
 }
 
+/* A block of f punched out or zeroed, and for *rw rewritten (salt + 9). */
+static int
+is_punch(const char *sc)
+{
+	return (strcmp(sc, "punchfast") == 0 ||
+	    strcmp(sc, "punchfastrw") == 0 ||
+	    strcmp(sc, "zerofast") == 0 || strcmp(sc, "zerofastrw") == 0);
+}
+
+/* The punch scenarios whose cleared block is then rewritten. */
+static int
+is_punch_rw(const char *sc)
+{
+	return (strcmp(sc, "punchfastrw") == 0 ||
+	    strcmp(sc, "zerofastrw") == 0);
+}
+
+/*
+ * The nfsv4* scenarios: the directory the unnamed file is opened in and
+ * the one it is published into.
+ */
+static int
+nfsv4_dirs(const char *sc, const char **src, const char **dst)
+{
+	if (strcmp(sc, "nfsv4src") == 0) {
+		*src = "inh";
+		*dst = "plain";
+	} else if (strcmp(sc, "nfsv4dst") == 0) {
+		*src = "plain";
+		*dst = "inh";
+	} else if (strcmp(sc, "nfsv4both") == 0) {
+		*src = "inh";
+		*dst = "inh2";
+	} else if (strcmp(sc, "nfsv4spec") == 0) {
+		*src = "inhspec";
+		*dst = "plain";
+	} else if (strcmp(sc, "nfsv4mask") == 0) {
+		*src = "inhmask";
+		*dst = "plain";
+	} else {
+		return (0);
+	}
+	return (1);
+}
+
+/* A counter from the global ZIL kstats, or -1. */
+static long long
+zil_kstat(const char *name)
+{
+	char line[256], n[64];
+	long long v, found = -1;
+	int type;
+	FILE *f = fopen("/proc/spl/kstat/zfs/zil", "r");
+
+	if (f == NULL)
+		return (-1);
+	while (fgets(line, sizeof (line), f) != NULL) {
+		if (sscanf(line, "%63s %d %lld", n, &type, &v) == 3 &&
+		    strcmp(n, name) == 0)
+			found = v;
+	}
+	(void) fclose(f);
+	return (found);
+}
+
 /* The size of f after a truncating scenario's truncate. */
 static uint64_t
 fast_size(const char *sc)
@@ -482,6 +592,7 @@ static void
 run(const char *sc, int dfd)
 {
 	unsigned salt = salt_of(sc);
+	const char *src, *dst;
 	int fd = -1, sfd;
 
 	/*
@@ -692,6 +803,47 @@ run(const char *sc, int dfd)
 		xfsync(fd, "fsync tmpfile");
 		publish(fd, dfd, "f");
 		xfsync(dfd, "fsync dir");
+	} else if (nfsv4_dirs(sc, &src, &dst)) {
+		int sdfd = openat(dfd, src, O_RDONLY | O_DIRECTORY);
+		int ddfd = openat(dfd, dst, O_RDONLY | O_DIRECTORY);
+		if (sdfd < 0 || ddfd < 0)
+			die("open the ACL directories");
+		fd = open_tmpfile(sdfd);
+		write_pattern(fd, 0, DATA_SIZE, salt);
+		xfsync(fd, "fsync tmpfile");
+		publish(fd, ddfd, "f");
+		xfsync(ddfd, "fsync dir");
+		(void) close(sdfd);
+		(void) close(ddfd);
+	} else if (strcmp(sc, "posixacl") == 0) {
+		uint8_t v[64];
+		size_t n = acl_value(v, acl_explicit_e, 5);
+		fd = open_tmpfile(dfd);
+		write_pattern(fd, 0, SMALL_SIZE, salt);
+		if (fsetxattr(fd, ACL_ACCESS, v, n, 0) != 0)
+			die("access ACL on f");
+		xfsync(fd, "fsync tmpfile");
+		publish(fd, dfd, "f");
+		xfsync(dfd, "fsync dir");
+	} else if (strcmp(sc, "posixumask") == 0) {
+		(void) umask(022);
+		fd = openat(dfd, ".", O_TMPFILE | O_RDWR, 0666);
+		if (fd < 0)
+			die("open O_TMPFILE 0666");
+		write_pattern(fd, 0, SMALL_SIZE, salt);
+		xfsync(fd, "fsync tmpfile");
+		publish(fd, dfd, "f");
+		xfsync(dfd, "fsync dir");
+	} else if (strcmp(sc, "ntacl") == 0) {
+		char v[NTACL_LEN];
+		fd = open_tmpfile(dfd);
+		write_pattern(fd, 0, DATA_SIZE, salt);
+		fill_xattr(v, NTACL_LEN);
+		if (fsetxattr(fd, NTACL_NAME, v, sizeof (v), 0) != 0)
+			die("fsetxattr " NTACL_NAME);
+		xfsync(fd, "fsync tmpfile");
+		publish(fd, dfd, "f");
+		xfsync(dfd, "fsync dir");
 	} else if (is_fast(sc)) {
 		if (strcmp(sc, "namedclone") == 0) {
 			fd = create_file(dfd, "f");
@@ -780,6 +932,26 @@ run(const char *sc, int dfd)
 		sfd = create_file(dfd, "marker");
 		write_pattern(sfd, 0, SMALL_SIZE, salt);
 		xfsync(sfd, "fsync marker");
+	} else if (is_punch(sc)) {
+		/*
+		 * The punch (or zeroing) and the rewrite come while the
+		 * publication's records are still only in memory, all in the
+		 * publication's TXG; they are logged with the file's name.
+		 */
+		int mode = FALLOC_FL_KEEP_SIZE | (strncmp(sc, "zero", 4) == 0 ?
+		    FALLOC_FL_ZERO_RANGE : FALLOC_FL_PUNCH_HOLE);
+		fd = open_tmpfile(dfd);
+		write_pattern(fd, 0, DATA_SIZE, salt);
+		publish(fd, dfd, "f");
+		long long c0 = zil_kstat("zil_commit_count");
+		if (fallocate(fd, mode, PUNCH_OFF, PUNCH_LEN) != 0)
+			die("fallocate");
+		long long c1 = zil_kstat("zil_commit_count");
+		(void) printf("PUNCHED txg=%lld zil_commits=%lld\n",
+		    committed_txg(), c0 < 0 || c1 < 0 ? -1 : c1 - c0);
+		if (is_punch_rw(sc))
+			write_pattern(fd, PUNCH_OFF, PUNCH_LEN, salt + 9);
+		xfsync(fd, "fsync f");
 	} else if (strcmp(sc, "dense") == 0) {
 		fd = open_tmpfile(dfd);
 		write_pattern(fd, 0, DENSE_SIZE, salt);
@@ -849,6 +1021,15 @@ run(const char *sc, int dfd)
 		write_pattern(fd, 0, SMALL_SIZE, salt);
 		if (fsetxattr(fd, ACL_ACCESS, v, n, 0) != 0)
 			die("access ACL on f");
+		/*
+		 * The ACL changed the mode without rebuilding the native ACL,
+		 * which then is not the one the mode gives a new file, and
+		 * the publication would wait for its TXG.  Setting the mode
+		 * rebuilds it; an overlayfs copy-up sets attributes after
+		 * xattrs too.
+		 */
+		if (fchmod(fd, ACL_EXPLICIT_MODE) != 0)
+			die("fchmod f");
 		xfsync(fd, "fsync tmpfile f");
 		publish(fd, ddfd, "f");
 		/*
@@ -1158,13 +1339,12 @@ check_rename(const char *sc, int dfd, int prefix)
 
 /* One ACL'd file in "d": absent, or content, mode and access ACL. */
 static int
-check_acl_file(int ddfd, const char *name, const uint32_t (*e)[3],
-    mode_t mode, char *detail, size_t len)
+check_acl_file(int ddfd, const char *name, const char *sc,
+    const uint32_t (*e)[3], mode_t mode, char *detail, size_t len)
 {
 	uint8_t want[64], got[128];
 	size_t n = acl_value(want, e, 5);
-	int r = check_file(ddfd, name, "acl", SMALL_SIZE, 1, NULL, detail,
-	    len);
+	int r = check_file(ddfd, name, sc, SMALL_SIZE, 1, NULL, detail, len);
 	if (r != 1)
 		return (r);
 	struct stat st;
@@ -1194,9 +1374,9 @@ check_acl(const char *sc, int dfd, int prefix)
 	int ddfd = openat(dfd, "d", O_RDONLY | O_DIRECTORY);
 	if (ddfd < 0)
 		return (result(sc, "SETUP-LOST", 0, " d"));
-	int rf = check_acl_file(ddfd, "f", acl_explicit_e, ACL_EXPLICIT_MODE,
-	    detail, sizeof (detail));
-	int rg = rf < 0 ? rf : check_acl_file(ddfd, "g", acl_inherited_e,
+	int rf = check_acl_file(ddfd, "f", sc, acl_explicit_e,
+	    ACL_EXPLICIT_MODE, detail, sizeof (detail));
+	int rg = rf < 0 ? rf : check_acl_file(ddfd, "g", sc, acl_inherited_e,
 	    ACL_INHERITED_MODE, detail, sizeof (detail));
 	(void) close(ddfd);
 	if (rf < 0 || rg < 0)
@@ -1205,6 +1385,30 @@ check_acl(const char *sc, int dfd, int prefix)
 		return (result(sc, "OK", 1, " f and g"));
 	return (result(sc, "ABSENT", prefix, rf == 1 ? " g missing" :
 	    rg == 1 ? " f missing" : " neither"));
+}
+
+/*
+ * The nfsv4* scenarios: "f" in the directory it was published into, absent
+ * (before ACK) or complete.  Its ACL is the caller's to check.
+ */
+static int
+check_nfsv4(const char *sc, int dfd, const char *dst, int prefix)
+{
+	char detail[256] = "";
+	int ddfd = openat(dfd, dst, O_RDONLY | O_DIRECTORY);
+	if (ddfd < 0) {
+		(void) snprintf(detail, sizeof (detail), " %s", dst);
+		return (result(sc, "SETUP-LOST", 0, detail));
+	}
+	int r = check_file(ddfd, "f", sc, DATA_SIZE, 1, NULL, detail,
+	    sizeof (detail));
+	(void) close(ddfd);
+	if (r < 0)
+		return (result(sc, "WRONG", 0, detail));
+	if (r == 0)
+		return (result(sc, "ABSENT", prefix, " name-not-recovered"));
+	(void) snprintf(detail, sizeof (detail), " %s/f", dst);
+	return (result(sc, "OK", 1, detail));
 }
 
 /*
@@ -1348,6 +1552,78 @@ check_fast(const char *sc, int dfd, int prefix)
 }
 
 /*
+ * is_punch(): every byte of f outside the punched or zeroed block must be
+ * as published, and the block must hold one state it went through:
+ * published, zeros ("punched") or rewritten.  At ACK, only the last is
+ * permitted.
+ */
+static int
+check_punch(const char *sc, int dfd, int prefix)
+{
+	unsigned salt = salt_of(sc);
+	int rw = is_punch_rw(sc);
+	char detail[256] = "";
+	struct stat st;
+	int r = lookup(dfd, "f", &st, detail, sizeof (detail));
+
+	if (r < 0)
+		return (result(sc, "LOOKUP-ERROR", 0, detail));
+	if (r == 0)
+		return (result(sc, "ABSENT", prefix, " name-not-recovered"));
+	(void) snprintf(detail, sizeof (detail), " size=%lld",
+	    (long long)st.st_size);
+	if ((uint64_t)st.st_size != DATA_SIZE)
+		return (result(sc, "WRONG-SIZE", 0, detail));
+
+	uint8_t *buf = malloc(CHUNK);
+	/* The block matches published (1), punched (2), rewritten (4). */
+	int block = 1 | 2 | (rw ? 4 : 0);
+	int fd = openat(dfd, "f", O_RDONLY | O_NOFOLLOW);
+	if (fd < 0)
+		die("open f");
+	if (buf == NULL)
+		die("malloc");
+	for (uint64_t off = 0; off < DATA_SIZE; off += CHUNK) {
+		size_t len = DATA_SIZE - off < CHUNK ? DATA_SIZE - off : CHUNK;
+		if (pread(fd, buf, len, off) != (ssize_t)len)
+			die("pread f");
+		for (size_t j = 0; j < len; j++) {
+			uint64_t o = off + j;
+			if (o < PUNCH_OFF || o >= PUNCH_OFF + PUNCH_LEN) {
+				if (buf[j] == pattern(o, salt))
+					continue;
+				(void) snprintf(detail + strlen(detail),
+				    sizeof (detail) - strlen(detail),
+				    " neighbor-changed-at=%llu",
+				    (unsigned long long)o);
+				free(buf);
+				(void) close(fd);
+				return (result(sc, "WRONG-DATA", 0, detail));
+			}
+			if (buf[j] != pattern(o, salt))
+				block &= ~1;
+			if (buf[j] != 0)
+				block &= ~2;
+			if (buf[j] != pattern(o, salt + 9))
+				block &= ~4;
+		}
+	}
+	free(buf);
+	(void) close(fd);
+	const char *state = (block & 4) ? "rewritten" : (block & 2) ?
+	    "punched" : (block & 1) ? "published" : NULL;
+	if (state == NULL)
+		return (result(sc, "NO-SUCH-STATE", 0, detail));
+	(void) snprintf(detail + strlen(detail), sizeof (detail) -
+	    strlen(detail), " block=%s", state);
+	if (!prefix && strcmp(state, rw ? "rewritten" : "punched") != 0) {
+		return (result(sc, rw && (block & 2) ? "REWRITE-LOST" :
+		    "NO-SUCH-STATE", 0, detail));
+	}
+	return (result(sc, "OK", 1, detail));
+}
+
+/*
  * "hugesparse": reading all of a 1T file is not practical.  Check the size,
  * the data at each end, and that little besides them is allocated
  * (st_blocks).
@@ -1401,6 +1677,7 @@ static int
 check_recovered(const char *sc, int dfd, int prefix)
 {
 	unsigned salt = salt_of(sc);
+	const char *src, *dst;
 	int marked = strcmp(sc, "unlinked") == 0 ||
 	    strcmp(sc, "nosync") == 0 || strcmp(sc, "multi") == 0 ||
 	    strcmp(sc, "remove") == 0;
@@ -1418,12 +1695,24 @@ check_recovered(const char *sc, int dfd, int prefix)
 		return (check_rename(sc, dfd, prefix));
 	if (strcmp(sc, "acl") == 0)
 		return (check_acl(sc, dfd, prefix));
+	if (nfsv4_dirs(sc, &src, &dst))
+		return (check_nfsv4(sc, dfd, dst, prefix));
+	if (strcmp(sc, "posixacl") == 0) {
+		r = check_acl_file(dfd, "f", sc, acl_explicit_e,
+		    ACL_EXPLICIT_MODE, detail, sizeof (detail));
+		if (r < 0)
+			return (result(sc, "WRONG-ACL", 0, detail));
+		return (r == 1 ? result(sc, "OK", 1, " f") :
+		    result(sc, "ABSENT", prefix, " name-not-recovered"));
+	}
 	if (strcmp(sc, "racewrite") == 0 || strcmp(sc, "racegrow") == 0)
 		return (check_race(sc, dfd, prefix));
 	if (strcmp(sc, "hugesparse") == 0)
 		return (check_hugesparse(sc, dfd, prefix));
 	if (is_fast(sc))
 		return (check_fast(sc, dfd, prefix));
+	if (is_punch(sc))
+		return (check_punch(sc, dfd, prefix));
 	if (strcmp(sc, "reuse") == 0) {
 		/* "a" is removed before ACK; until then, absent or complete. */
 		r = check_file(dfd, "a", sc, SMALL_SIZE, 1, NULL, detail,
@@ -1481,7 +1770,7 @@ check_recovered(const char *sc, int dfd, int prefix)
 		return (result(sc, "LOOKUP-ERROR", 0, detail));
 	}
 	uint64_t want_size = strcmp(sc, "small") == 0 ||
-	    strcmp(sc, "clonesmall") == 0 ||
+	    strcmp(sc, "clonesmall") == 0 || strcmp(sc, "posixumask") == 0 ||
 	    strcmp(sc, "meta") == 0 || strcmp(sc, "bigxattr") == 0 ?
 	    SMALL_SIZE :
 	    strcmp(sc, "sparse") == 0 || strcmp(sc, "hole") == 0 ?
@@ -1524,6 +1813,8 @@ check_recovered(const char *sc, int dfd, int prefix)
 	}
 	if (strcmp(sc, "reuse") == 0 && (st.st_mode & 07777) != REUSE_MODE)
 		return (result(sc, "WRONG-META", 0, detail));
+	if (strcmp(sc, "posixumask") == 0 && (st.st_mode & 07777) != 0644)
+		return (result(sc, "WRONG-META", 0, detail));
 	if (strcmp(sc, "meta") == 0) {
 		char v[XATTR_LONG_LEN + 1], want[XATTR_LONG_LEN];
 		ssize_t n1 = fgetxattr(fd, XATTR_SHORT, v, sizeof (v));
@@ -1539,6 +1830,16 @@ check_recovered(const char *sc, int dfd, int prefix)
 		    strlen(detail), " xattr_short=%s xattr_long=%s",
 		    ok1 ? "ok" : "BAD", ok2 ? "ok" : "BAD");
 		if (!ok1 || !ok2 || !okm || !okt)
+			return (result(sc, "WRONG-META", 0, detail));
+	}
+	if (strcmp(sc, "ntacl") == 0) {
+		char v[NTACL_LEN + 1], want[NTACL_LEN];
+		ssize_t n = fgetxattr(fd, NTACL_NAME, v, sizeof (v));
+		fill_xattr(want, NTACL_LEN);
+		int ok = n == NTACL_LEN && memcmp(v, want, n) == 0;
+		(void) snprintf(detail + strlen(detail), sizeof (detail) -
+		    strlen(detail), " ntacl=%s", ok ? "ok" : "BAD");
+		if (!ok)
 			return (result(sc, "WRONG-META", 0, detail));
 	}
 	if (strcmp(sc, "bigxattr") == 0) {

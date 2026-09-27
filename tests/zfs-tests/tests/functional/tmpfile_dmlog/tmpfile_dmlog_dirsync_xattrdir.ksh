@@ -16,8 +16,12 @@
 #
 # DESCRIPTION:
 #	O_TMPFILE publication is recoverable at each recorded flush point: a
-#	file without xattrs on a dataset with xattr=dir: it can be published by
-#	logging.
+#	file without user xattrs on a dataset with xattr=dir.  Whether it is
+#	published by logging depends on the system: a security module that
+#	labels new files (SELinux) stores the label in an xattr directory on
+#	xattr=dir, and a file with an xattr directory takes the TXG wait by
+#	design.  So this test does not require a TX_TMPFILE record; dirsync
+#	(xattr=sa) does.
 #
 # STRATEGY:
 #	1. Create a pool on a dm-log-writes device.

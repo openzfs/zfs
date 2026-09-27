@@ -36,6 +36,7 @@ log_assert "O_TMPFILE publication crash states: encrypted_clonemix"
 log_onexit tmpfile_dmlog_cleanup
 
 tmpfile_dmlog_encrypt
+DMLOG_EXPECT_RECORD="TX_CLONE_RANGE TX_WRITE"
 tmpfile_dmlog clonemix
 
 log_pass "O_TMPFILE publication crash states: encrypted_clonemix"
