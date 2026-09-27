@@ -111,8 +111,7 @@ typedef struct zfs_events_phys {
 extern int zfs_events_create_obj(objset_t *os, dmu_tx_t *tx, uint64_t max_size,
     uint64_t *objp);
 extern int zfs_events_destroy_obj(objset_t *os, uint64_t obj, dmu_tx_t *tx);
-extern void zfs_events_txhold(objset_t *os, uint64_t events_size,
-    dmu_tx_t *tx);
+extern void zfs_events_txhold(objset_t *os, dmu_tx_t *tx);
 
 /*
  * Event logging functions - called from vnops

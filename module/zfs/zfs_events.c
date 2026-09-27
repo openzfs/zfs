@@ -225,7 +225,7 @@ zfs_events_create_obj(objset_t *os, dmu_tx_t *tx, uint64_t max_size,
  * record.
  */
 void
-zfs_events_txhold(objset_t *os, uint64_t events_size, dmu_tx_t *tx)
+zfs_events_txhold(objset_t *os, dmu_tx_t *tx)
 {
 	uint64_t obj = 0;
 
@@ -233,12 +233,45 @@ zfs_events_txhold(objset_t *os, uint64_t events_size, dmu_tx_t *tx)
 	    sizeof (uint64_t), 1, &obj);
 
 	if (obj == 0) {
+		/*
+		 * The log object doesn't exist yet: it will be created in
+		 * this tx. Its first records land in the first blocks, so
+		 * a single maximum-sized write hold covers them.
+		 */
 		dmu_tx_hold_bonus(tx, DMU_NEW_OBJECT);
-		dmu_tx_hold_write(tx, DMU_NEW_OBJECT, 0, events_size);
-		dmu_tx_hold_zap(tx, MASTER_NODE_OBJ, TRUE, ZFS_EVENTS_ZAP_NAME);
+		dmu_tx_hold_write(tx, DMU_NEW_OBJECT, 0,
+		    MIN(ZFS_EVENTS_MAX_SIZE, DMU_MAX_ACCESS));
+		dmu_tx_hold_zap(tx, MASTER_NODE_OBJ, TRUE,
+		    ZFS_EVENTS_ZAP_NAME);
 	} else {
+		/*
+		 * Hold the log's actual physical range, from its bonus
+		 * header (zep_phys_max_off), not the current events_size:
+		 * the two diverge once events_size is changed, since that
+		 * does not resize an existing log. A hold that only covers
+		 * the property range panics with "dirtying dbuf ... but
+		 * not tx_held" once eof crosses into blocks beyond it.
+		 * Write holds are capped at DMU_MAX_ACCESS, so cover the
+		 * range in chunks.
+		 */
+		dmu_buf_t *dbp;
+		uint64_t max_off = ZFS_EVENTS_MAX_SIZE;
+
+		if (dmu_bonus_hold(os, obj, FTAG, &dbp) == 0) {
+			zfs_events_phys_t *zep = dbp->db_data;
+
+			if (zep->zep_phys_max_off != 0)
+				max_off = zep->zep_phys_max_off;
+			dmu_buf_rele(dbp, FTAG);
+		}
+
 		dmu_tx_hold_bonus(tx, obj);
-		dmu_tx_hold_write(tx, obj, 0, events_size);
+		for (uint64_t off = 0; off < max_off;
+		    off += DMU_MAX_ACCESS) {
+			uint64_t len = MIN(DMU_MAX_ACCESS, max_off - off);
+
+			dmu_tx_hold_write(tx, obj, off, len);
+		}
 	}
 }
 
