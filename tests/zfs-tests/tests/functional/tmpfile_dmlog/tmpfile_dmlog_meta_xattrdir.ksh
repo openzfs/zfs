@@ -32,6 +32,8 @@ verify_runnable "global"
 log_assert "O_TMPFILE publication crash states: meta_xattrdir"
 log_onexit tmpfile_dmlog_cleanup
 
+# Directory xattrs are not logged, so publication waits for its TXG.
+DMLOG_FORBID_RECORD=TX_TMPFILE
 tmpfile_dmlog meta dir
 
 log_pass "O_TMPFILE publication crash states: meta_xattrdir"

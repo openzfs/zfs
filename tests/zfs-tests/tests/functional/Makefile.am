@@ -14,7 +14,33 @@ nobase_dist_datadir_zfs_tests_tests_functional_SCRIPTS = \
 	simd/simd_supported.ksh \
 	tmpfile/cleanup.ksh \
 	tmpfile/setup.ksh \
+	tmpfile_crash/cleanup.ksh \
+	tmpfile_crash/setup.ksh \
+	tmpfile_crash/tmpfile_crash.kshlib \
+	tmpfile_crash/tmpfile_crash_acl.ksh \
+	tmpfile_crash/tmpfile_crash_clone.ksh \
+	tmpfile_crash/tmpfile_crash_clonemix.ksh \
+	tmpfile_crash/tmpfile_crash_clonerm.ksh \
+	tmpfile_crash/tmpfile_crash_dirsync.ksh \
+	tmpfile_crash/tmpfile_crash_feature.ksh \
+	tmpfile_crash/tmpfile_crash_filesync.ksh \
+	tmpfile_crash/tmpfile_crash_hole.ksh \
+	tmpfile_crash/tmpfile_crash_meta.ksh \
+	tmpfile_crash/tmpfile_crash_multi.ksh \
+	tmpfile_crash/tmpfile_crash_nosync.ksh \
+	tmpfile_crash/tmpfile_crash_osync.ksh \
+	tmpfile_crash/tmpfile_crash_relink.ksh \
+	tmpfile_crash/tmpfile_crash_remove.ksh \
+	tmpfile_crash/tmpfile_crash_rename.ksh \
+	tmpfile_crash/tmpfile_crash_reuse.ksh \
+	tmpfile_crash/tmpfile_crash_slog.ksh \
+	tmpfile_crash/tmpfile_crash_small.ksh \
+	tmpfile_crash/tmpfile_crash_sparse.ksh \
+	tmpfile_crash/tmpfile_crash_sparsemix.ksh \
+	tmpfile_crash/tmpfile_crash_syncalways.ksh \
+	tmpfile_crash/tmpfile_crash_unlinked.ksh \
 	tmpfile_dmlog/cleanup.ksh \
+	tmpfile_dmlog/nfsv4acl.zsend.bz2 \
 	tmpfile_dmlog/setup.ksh \
 	tmpfile_dmlog/tmpfile_dmlog.kshlib \
 	tmpfile_dmlog/tmpfile_dmlog_acl.ksh \
@@ -41,6 +67,7 @@ nobase_dist_datadir_zfs_tests_tests_functional_SCRIPTS = \
 	tmpfile_dmlog/tmpfile_dmlog_encrypted_clonemix.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_encrypted_meta.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_encrypted_sparsemix.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_fallback.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_filesync.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_hole.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_hugesparse.ksh \
@@ -48,16 +75,41 @@ nobase_dist_datadir_zfs_tests_tests_functional_SCRIPTS = \
 	tmpfile_dmlog/tmpfile_dmlog_meta_nosaxattr.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_meta_xattrdir.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_multi.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_nfsv4acl_both.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_nfsv4acl_dst.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_nfsv4acl_mask.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_nfsv4acl_spec.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_nfsv4acl_src.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_nodump.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_nosync.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_noziltmpfile.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_ntacl.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_osync.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_posixacl.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_posixumask.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_projid.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_punchfast_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_punchfastrw_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_punchmark_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_punchpart_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_punchpartrw_indirect.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_racegrow.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_racewrite.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_relink.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_remove.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_removefast.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_rename.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_replay_clonemix.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_replay_clonerm.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_replay_dense.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_replay_encrypted_meta.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_replay_encrypted_multi_ro.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_replay_encrypted_reuse.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_replay_multi.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_replay_multi_ro.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_replay_remove.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_replay_reuse.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_replay_sparsemix.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_slog.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_small.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_sparse.ksh \
@@ -74,5 +126,10 @@ nobase_dist_datadir_zfs_tests_tests_functional_SCRIPTS = \
 	tmpfile_dmlog/tmpfile_dmlog_truncrace.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_truncrace_indirect.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_unlinked.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_zerofast_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_zerofastrw_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_zeromark_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_zeropart_indirect.ksh \
+	tmpfile_dmlog/tmpfile_dmlog_zeropartrw_indirect.ksh \
 	tmpfile_dmlog/tmpfile_dmlog_zero_immediate.ksh
 endif
