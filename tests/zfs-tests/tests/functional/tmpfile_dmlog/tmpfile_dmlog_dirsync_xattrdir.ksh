@@ -16,8 +16,12 @@
 #
 # DESCRIPTION:
 #	O_TMPFILE publication is recoverable at each recorded flush point: a
-#	file without xattrs on a dataset with xattr=dir: it can be published by
-#	logging.
+#	file without user xattrs on a dataset with xattr=dir.  Whether it is
+#	published by logging depends on the system: a security module that
+#	labels new files (SELinux) stores the label in an xattr directory on
+#	xattr=dir, and a file with an xattr directory takes the TXG wait by
+#	design.  So where SELinux is enabled no TX_TMPFILE may be logged;
+#	elsewhere the publication must be logged, as for dirsync (xattr=sa).
 #
 # STRATEGY:
 #	1. Create a pool on a dm-log-writes device.
@@ -32,6 +36,10 @@ verify_runnable "global"
 log_assert "O_TMPFILE publication crash states: dirsync_xattrdir"
 log_onexit tmpfile_dmlog_cleanup
 
+# SELinux labels every new file, here in an xattr directory.
+if [[ -e /sys/fs/selinux/enforce ]]; then
+	DMLOG_FORBID_RECORD=TX_TMPFILE
+fi
 tmpfile_dmlog dirsync dir
 
 log_pass "O_TMPFILE publication crash states: dirsync_xattrdir"

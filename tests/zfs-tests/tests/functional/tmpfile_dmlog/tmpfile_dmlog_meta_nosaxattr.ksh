@@ -33,8 +33,10 @@ verify_runnable "global"
 log_assert "O_TMPFILE publication crash states: meta_nosaxattr"
 log_onexit tmpfile_dmlog_cleanup
 
-# TX_SETSAXATTR records need the zilsaxattr feature.
+# TX_SETSAXATTR records need the zilsaxattr feature; without them the
+# xattrs cannot be logged, so publication waits for its TXG.
 DMLOG_POOL_OPTS="-o feature@zilsaxattr=disabled"
+DMLOG_FORBID_RECORD="TX_SETSAXATTR TX_TMPFILE"
 tmpfile_dmlog meta
 
 log_pass "O_TMPFILE publication crash states: meta_nosaxattr"

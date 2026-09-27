@@ -32,6 +32,9 @@ verify_runnable "global"
 log_assert "O_TMPFILE publication crash states: bigxattr"
 log_onexit tmpfile_dmlog_cleanup
 
+# The large xattr is not in the system-attribute area, so publication
+# waits for its TXG.
+DMLOG_FORBID_RECORD=TX_TMPFILE
 tmpfile_dmlog bigxattr
 
 log_pass "O_TMPFILE publication crash states: bigxattr"

@@ -18,4 +18,7 @@ verify_runnable "global"
 tmpfile_dmlog_cleanup
 # Backstop: the failsafe callback restores a killed test's saved tunables
 # before the next test; the replay test hook is default-off in any case.
+if tunable_exists ZIL_REPLAY_SYNC_PER_RECORD; then
+	log_must set_tunable32 ZIL_REPLAY_SYNC_PER_RECORD 0
+fi
 log_pass
