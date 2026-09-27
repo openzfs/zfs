@@ -2133,6 +2133,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/replacement/replace_resilver.ksh \
 	functional/replacement/replace_resilver_sit_out.ksh \
 	functional/replacement/resilver_errors.ksh \
+	functional/replacement/resilver_failfast.ksh \
 	functional/replacement/resilver_probe.ksh \
 	functional/replacement/resilver_reassess.ksh \
 	functional/replacement/resilver_reopen.ksh \
