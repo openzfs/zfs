@@ -23,10 +23,13 @@
 
 #endif
 
-#define	FRAME_BEGIN
-#define	FRAME_END
+#if defined(__aarch64__) && defined(_WIN32)
+
+#include <sys/aarch64/asm_linkage.h>	/* ARM64 /sys/asm_linkage.h */
 
 #endif
 
+#define	FRAME_BEGIN
+#define	FRAME_END
 
 #endif	/* _SYS_ASM_LINKAGE_H */

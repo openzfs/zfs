@@ -25,7 +25,7 @@
 extern "C" {
 #endif
 
-#if defined(__STDC__)
+#if defined(__STDC__) || defined(_WIN32)
 /*
  * Increment target.
  */

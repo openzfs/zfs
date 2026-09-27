@@ -387,7 +387,7 @@ size_t ZSTD_ldm_generateSequences_internal(
         hashed = ZSTD_ldm_gear_feed(&hashState, ip, ilimit - ip,
                                     splits, &numSplits);
 
-        for (n = 0; n < numSplits; n++) {
+	for (n = 0; n < numSplits; n++) {
             BYTE const* const split = ip + splits[n] - minMatchLength;
             U64 const xxhash = XXH64(split, minMatchLength, 0);
             U32 const hash = (U32)(xxhash & (((U32)1 << hBits) - 1));

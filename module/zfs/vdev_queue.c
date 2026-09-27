@@ -327,6 +327,11 @@ vdev_queue_max_async_writes(spa_t *spa)
 	if (dirty < min_bytes)
 		return (zfs_vdev_async_write_min_active);
 
+#ifdef _WIN32
+	if ((max_bytes - min_bytes) == 0)
+		return (zfs_vdev_async_write_min_active);
+#endif
+
 	/*
 	 * linear interpolation:
 	 * slope = (max_writes - min_writes) / (max_bytes - min_bytes)

@@ -1,0 +1,27 @@
+{
+  "version": 8,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 23,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Local dev overrides - CLI builds only",
+      "description": "CLI-only mechanism: cmake --preset default. Visual Studio's Open Folder integration switches entirely to CMake Presets mode the moment CMakeUserPresets.json exists in the repo root, dropping the x64-Debug/x64-Release/arm64-Debug configs from the dropdown and leaving only whatever presets are defined here. If you build through Visual Studio, do not copy this file to CMakeUserPresets.json - set the same variables as OS environment variables instead (see CLAUDE.md's Local build overrides section); CMakeSettings.json and the top-level CMakeLists.txt already read them from the environment.",
+      "cacheVariables": {
+        "OPENZFS_SIGNTOOL_SHA1": "<-Your-test-certificate-sha1-here->",
+        "OPENZFS_SIGNTOOL_TSA": "http://timestamp.digicert.com",
+
+        "OPENSSL_ROOT_DIR": "C:/Program Files/OpenSSL-Win64/",
+        "OPENSSL_INCLUDE_DIR": "C:/Program Files/OpenSSL-Win64/include/",
+        "LIB_EAY_DEBUG": "C:/Program Files/OpenSSL-Win64/lib/VC/x64/MTd/libcrypto_static.lib",
+        "SSL_EAY_DEBUG": "C:/Program Files/OpenSSL-Win64/lib/VC/x64/MTd/libssl_static.lib",
+        "LIB_EAY_RELEASE": "C:/Program Files/OpenSSL-Win64/lib/VC/x64/MT/libcrypto_static.lib",
+        "SSL_EAY_RELEASE": "C:/Program Files/OpenSSL-Win64/lib/VC/x64/MT/libssl_static.lib",
+        "CRYPTO_STATIC_TEST": "C:/Program Files/OpenSSL-Win64/lib/VC/x64/MTd/libcrypto_static.lib"
+      }
+    }
+  ]
+}

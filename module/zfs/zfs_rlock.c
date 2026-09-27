@@ -104,7 +104,6 @@
 #include <sys/zfs_context.h>
 #include <sys/zfs_rlock.h>
 
-
 /*
  * AVL comparison function used to order range locks
  * Locks are ordered on the start offset of the range.

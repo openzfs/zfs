@@ -95,6 +95,20 @@ icp_fini(void)
 	kcf_destroy_mech_tabs();
 }
 
+/*
+ * __init normally comes from the platform's kernel-side sys/mod.h
+ * (e.g. os/linux/spl/sys/mod.h -> linux/mod_compat.h -> linux/module.h,
+ * os/windows/spl/sys/mod.h), which by this point in the file has
+ * already been pulled in transitively by the sys/crypto headers
+ * included above on a real kernel build.  The userland sys/mod.h doesn't
+ * define it, and icp_init() below is compiled into userland (libicp)
+ * as well as into the kernel module, so fall back to a no-op
+ * definition rather than leaving it undefined there.
+ */
+#ifndef __init
+#define	__init
+#endif
+
 /* roughly equivalent to kcf.c: _init() */
 int __init
 icp_init(void)

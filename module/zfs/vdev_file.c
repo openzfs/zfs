@@ -119,7 +119,12 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	/*
 	 * We must have a pathname, and it must be absolute.
 	 */
+#ifdef _WIN32
+	if (vd->vdev_path == NULL || (vd->vdev_path[0] != '/' &&
+	    vd->vdev_path[0] != '\\')) {
+#else
 	if (vd->vdev_path == NULL || vd->vdev_path[0] != '/') {
+#endif
 		vd->vdev_stat.vs_aux = VDEV_AUX_BAD_LABEL;
 		return (SET_ERROR(EINVAL));
 	}
@@ -143,11 +148,18 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 	 * to local zone users, so the underlying devices should be as well.
 	 */
 	ASSERT3P(vd->vdev_path, !=, NULL);
+
+#ifdef _WIN32
+	// Windows uses vdev_physpath if available
+	error = zfs_file_open(vd->vdev_physpath ?
+	    vd->vdev_physpath : vd->vdev_path,
+	    vdev_file_open_mode(spa_mode(vd->vdev_spa)), 0, cr, &fp);
+#else
 	ASSERT3S(vd->vdev_path[0], ==, '/');
 
 	error = zfs_file_open(vd->vdev_path,
 	    vdev_file_open_mode(spa_mode(vd->vdev_spa)), 0, cr, &fp);
-
+#endif
 	if (error) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
 		return (error);
@@ -166,6 +178,7 @@ vdev_file_open(vdev_t *vd, uint64_t *psize, uint64_t *max_psize,
 		vd->vdev_stat.vs_aux = VDEV_AUX_OPEN_FAILED;
 		return (SET_ERROR(ENODEV));
 	}
+
 #endif
 
 skip_open:
