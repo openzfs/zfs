@@ -830,6 +830,15 @@ vdev_rebuild_thread(void *arg)
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
 		metaslab_disable(msp);
 
+		/*
+		 * Later passes of the syncing txg rewrite its new blocks in
+		 * place, without allocating, so disabling the metaslab does not
+		 * stop them. A rebuild read racing such a rewrite can see a mix
+		 * of old and new columns, and its repair can overwrite the new
+		 * block on the device being rebuilt with the old one.
+		 */
+		txg_wait_synced(dp, spa_syncing_txg(spa));
+
 		mutex_enter(&msp->ms_sync_lock);
 		mutex_enter(&msp->ms_lock);
 
