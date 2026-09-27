@@ -19,8 +19,9 @@
 
 #
 # DESCRIPTION:
-#	Split indirect reconstruction of a block with more combinations than
-#	the attempt limit gives up within that limit.
+#	Split indirect reconstruction tries the copies which are not missing
+#	the block before sampling combinations, so readable stale copies of
+#	many splits cannot hide an intact source.
 #
 # STRATEGY:
 #	1. Remove a vdev with 1M file blocks using 8K removal segments, so
@@ -28,6 +29,8 @@
 #	2. Add a stale copy beside the intact one, with healing suspended.
 #	3. Damage the intact copy's first segment. With no valid combination,
 #	   a read must fail rather than enumerate indefinitely.
+#	4. Restore it and heal. Retire the intact copy and verify a cold read
+#	   of the healed one.
 #
 
 verify_runnable "global"
@@ -121,7 +124,25 @@ function read_fails_bounded
 	log_must zpool import -d "$workdir" "$TESTPOOL1"
 }
 
-log_assert "Split reconstruction without a valid combination is bounded"
+# Heal with healing resumed, then keep only the healed leaf and read it cold.
+function verify_healed
+{
+	typeset healed=$1 leaf
+	shift
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
+	log_must zpool wait -t resilver "$TESTPOOL1"
+	for leaf in "$@"; do
+		log_must zpool detach "$TESTPOOL1" "$leaf"
+	done
+	log_must zpool export "$TESTPOOL1"
+	log_must zpool import -d "$workdir" "$TESTPOOL1"
+	log_must eval "zpool status '$TESTPOOL1' | grep -q '${healed##*/}'"
+	log_must cmp "$workdir/expected" "$mntpnt/file"
+	log_must zdb -cdui "$TESTPOOL1/$TESTFS"
+	destroy_pool "$TESTPOOL1"
+}
+
+log_assert "Split reconstruction tries intact copies before sampling"
 
 ORIG_SCAN_SUSPEND_PROGRESS=$(get_tunable SCAN_SUSPEND_PROGRESS)
 ORIG_REMOVE_MAX_SEGMENT=$(get_tunable REMOVE_MAX_SEGMENT)
@@ -136,5 +157,6 @@ create_split_pool
 log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
 log_must zpool attach "$TESTPOOL1" "$workdir/disk-0" "$workdir/disk-2"
 read_fails_bounded "$workdir/disk-0"
+verify_healed "$workdir/disk-2" "$workdir/disk-0"
 
-log_pass "Split reconstruction without a valid combination was bounded"
+log_pass "Split reconstruction tried intact copies before sampling"

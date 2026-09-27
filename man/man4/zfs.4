@@ -2260,7 +2260,8 @@ If an indirect split block contains more than this many possible unique
 combinations when being reconstructed, consider it too computationally
 expensive to check them all.
 Instead, try at most this many randomly selected
-combinations each time the block is accessed.
+combinations each time the block is accessed,
+after the one built from copies which are not missing the block.
 This allows all segment copies to participate fairly
 in the reconstruction when all combinations
 cannot be checked and prevents repeated use of one bad copy.
