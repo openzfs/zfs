@@ -281,11 +281,19 @@ zfs_events_txhold(objset_t *os, dmu_tx_t *tx)
  * context; queue it on the caller's transaction group instead.
  */
 static void
-zfs_events_feature_sync(void *arg __maybe_unused, dmu_tx_t *tx)
+zfs_events_feature_sync(void *arg, dmu_tx_t *tx)
 {
-	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	dsl_dataset_t *ds = arg;
 
-	spa_feature_incr(spa, SPA_FEATURE_EVENTS, tx);
+	/*
+	 * Activate as a per-dataset feature: this records the feature
+	 * in the dataset's MOS zap and increments the pool-wide
+	 * refcount. dsl_destroy_head_sync_impl() deactivates all
+	 * per-dataset features on destroy, so the refcount is released
+	 * symmetrically when the dataset goes away.
+	 */
+	dsl_dataset_activate_feature(ds->ds_object, SPA_FEATURE_EVENTS,
+	    (void *)B_TRUE, tx);
 }
 
 /*
@@ -374,12 +382,14 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
 
 			/*
 			 * Activate the events feature on first use.
-			 * spa_feature_incr() requires a syncing
-			 * transaction, so defer it to this txg's sync
-			 * pass (see zfs_events_feature_sync).
+			 * dsl_dataset_activate_feature() requires a
+			 * syncing transaction, so defer it to this
+			 * txg's sync pass (see
+			 * zfs_events_feature_sync).
 			 */
 			dsl_sync_task_nowait(dmu_objset_pool(os),
-			    zfs_events_feature_sync, NULL, tx);
+			    zfs_events_feature_sync,
+			    dmu_objset_ds(os), tx);
 		} else if (err != 0) {
 			/* Some other error, bail out */
 			mutex_exit(lockp);
