@@ -25,7 +25,8 @@
 #	2. Run the "truncfastmid" scenario of tmpfile_crash, marking the log at its
 #	   START barrier and after it acknowledges.
 #	3. Replay the log to each recorded FLUSH/FUA between the marks and
-#	   to the ACK mark; import a copy of each state and verify it.
+#	   to the ACK mark; import a copy of each state and verify it, with
+#	   the publication logged.
 #
 
 verify_runnable "global"
@@ -33,6 +34,7 @@ verify_runnable "global"
 log_assert "O_TMPFILE publication crash states: truncfastmid"
 log_onexit tmpfile_dmlog_cleanup
 
+DMLOG_EXPECT_RECORD=TX_TMPFILE
 tmpfile_dmlog truncfastmid
 
 log_pass "O_TMPFILE publication crash states: truncfastmid"

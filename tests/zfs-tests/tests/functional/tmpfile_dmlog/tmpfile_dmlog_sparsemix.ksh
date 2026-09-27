@@ -33,6 +33,7 @@ verify_runnable "global"
 log_assert "O_TMPFILE publication crash states: sparsemix"
 log_onexit tmpfile_dmlog_cleanup
 
+DMLOG_EXPECT_RECORD="TX_WRITE TX_SETATTR"
 tmpfile_dmlog sparsemix
 
 log_pass "O_TMPFILE publication crash states: sparsemix"

@@ -31,6 +31,8 @@ verify_runnable "global"
 log_assert "O_TMPFILE publication crash states: unlinked"
 log_onexit tmpfile_dmlog_cleanup
 
+# Nothing is published.
+DMLOG_FORBID_RECORD=TX_TMPFILE
 tmpfile_dmlog unlinked
 
 log_pass "O_TMPFILE publication crash states: unlinked"

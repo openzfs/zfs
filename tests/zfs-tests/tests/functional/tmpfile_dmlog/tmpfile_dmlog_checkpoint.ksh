@@ -31,6 +31,8 @@ verify_runnable "global"
 log_assert "O_TMPFILE publication crash states: checkpoint"
 log_onexit tmpfile_dmlog_cleanup
 
+# The file's TXG has synced before linkat(2): nothing to log but the link.
+DMLOG_FORBID_RECORD=TX_TMPFILE
 tmpfile_dmlog checkpoint
 
 log_pass "O_TMPFILE publication crash states: checkpoint"

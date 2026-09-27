@@ -33,6 +33,7 @@ verify_runnable "global"
 log_assert "O_TMPFILE publication crash states: clonerm"
 log_onexit tmpfile_dmlog_cleanup
 
+DMLOG_EXPECT_RECORD=TX_CLONE_RANGE
 tmpfile_dmlog clonerm
 
 log_pass "O_TMPFILE publication crash states: clonerm"
