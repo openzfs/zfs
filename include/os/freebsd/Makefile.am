@@ -34,7 +34,6 @@ noinst_HEADERS = \
 	%D%/spl/sys/lock.h \
 	%D%/spl/sys/misc.h \
 	%D%/spl/sys/mod.h \
-	%D%/spl/sys/mode.h \
 	%D%/spl/sys/mount.h \
 	%D%/spl/sys/mutex.h \
 	%D%/spl/sys/param.h \
