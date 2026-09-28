@@ -34,7 +34,6 @@
 #include <libgen.h>
 #include <zone.h>
 #include <sys/stat.h>
-#include <sys/efi_partition.h>
 #include <sys/range_tree.h>
 #include <sys/systeminfo.h>
 #include <sys/zfs_ioctl.h>

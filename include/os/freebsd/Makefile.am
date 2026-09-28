@@ -64,7 +64,6 @@ noinst_HEADERS = \
 	%D%/spl/sys/types.h \
 	%D%/spl/sys/types32.h \
 	%D%/spl/sys/uio.h \
-	%D%/spl/sys/uuid.h \
 	%D%/spl/sys/vfs.h \
 	%D%/spl/sys/vm.h \
 	%D%/spl/sys/vmsystm.h \
