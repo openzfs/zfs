@@ -74,7 +74,6 @@ kernel_spl_sys_HEADERS = \
 	%D%/spl/sys/errno.h \
 	%D%/spl/sys/fcntl.h \
 	%D%/spl/sys/file.h \
-	%D%/spl/sys/inttypes.h \
 	%D%/spl/sys/isa_defs.h \
 	%D%/spl/sys/kmem.h \
 	%D%/spl/sys/kmem_cache.h \

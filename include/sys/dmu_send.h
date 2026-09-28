@@ -20,7 +20,6 @@
 #ifndef _DMU_SEND_H
 #define	_DMU_SEND_H
 
-#include <sys/inttypes.h>
 #include <sys/dsl_crypt.h>
 #include <sys/dsl_bookmark.h>
 #include <sys/spa.h>

@@ -17,7 +17,6 @@
 #ifndef	_SYS_ZFS_REFCOUNT_H
 #define	_SYS_ZFS_REFCOUNT_H
 
-#include <sys/inttypes.h>
 #include <sys/avl.h>
 #include <sys/list.h>
 #include <sys/zfs_context.h>

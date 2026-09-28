@@ -37,7 +37,6 @@ libspl_sys_HEADERS = \
 	%D%/sys/dkio.h \
 	%D%/sys/dklabel.h \
 	%D%/sys/feature_tests.h \
-	%D%/sys/inttypes.h \
 	%D%/sys/isa_defs.h \
 	%D%/sys/kmem.h \
 	%D%/sys/kstat.h \

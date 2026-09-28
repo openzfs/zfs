@@ -29,7 +29,6 @@
 #endif
 #include <sys/debug.h>
 #include <sys/fs/zfs.h>
-#include <sys/inttypes.h>
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/zfs_sysfs.h>

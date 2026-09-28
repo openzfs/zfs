@@ -21,7 +21,6 @@
 #ifndef	_SYS_DMU_TX_H
 #define	_SYS_DMU_TX_H
 
-#include <sys/inttypes.h>
 #include <sys/dmu.h>
 #include <sys/txg.h>
 #include <sys/zfs_refcount.h>
