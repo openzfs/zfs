@@ -2639,8 +2639,8 @@ recv_check_drr_write_embedded(const struct drr_write_embedded *drrwe,
 		    (u_longlong_t)drrwe->drr_length));
 	}
 
-	/* embedded block type must be within NUM_BP_EMBEDDED_TYPES */
-	if (drrwe->drr_etype >= NUM_BP_EMBEDDED_TYPES) {
+	/* BP_EMBEDDED_TYPE_DATA is the only one this record can have */
+	if (drrwe->drr_etype != BP_EMBEDDED_TYPE_DATA) {
 		return (recv_check_fail(EINVAL, errbuf, errbuflen,
 		    "DRR_WRITE_EMBEDDED has invalid embedded type %u",
 		    drrwe->drr_etype));
