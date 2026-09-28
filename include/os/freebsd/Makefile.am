@@ -31,7 +31,6 @@ noinst_HEADERS = \
 	%D%/spl/sys/kstat.h \
 	%D%/spl/sys/list.h \
 	%D%/spl/sys/list_impl.h \
-	%D%/spl/sys/lock.h \
 	%D%/spl/sys/misc.h \
 	%D%/spl/sys/mod.h \
 	%D%/spl/sys/mount.h \
