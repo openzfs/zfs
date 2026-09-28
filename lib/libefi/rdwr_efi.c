@@ -26,7 +26,6 @@
 #include <libintl.h>
 #include <sys/types.h>
 #include <sys/dkio.h>
-#include <sys/mhd.h>
 #include <sys/param.h>
 #include <sys/dktp/fdisk.h>
 #include <sys/efi_partition.h>
