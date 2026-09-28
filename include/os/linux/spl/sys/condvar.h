@@ -28,7 +28,6 @@
 #include <linux/module.h>
 #include <sys/kmem.h>
 #include <sys/mutex.h>
-#include <sys/wait.h>
 #include <sys/time.h>
 
 /*
