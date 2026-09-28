@@ -1292,6 +1292,69 @@ and the minimum is
 .Sy 100000 .
 This property may be changed with
 .Nm zfs Cm change-key .
+.It Sy events Ns = Ns Sy on Ns | Ns Sy off
+Controls whether file-level event logging is enabled for this dataset.
+When enabled, ZFS records metadata operations
+.Pq create, delete, rename, link, truncate, setattr
+in an internal ring buffer that can be queried using
+.Nm zfs Cm events .
+.Pp
+The event log is stored within the dataset and is included in ZFS send streams,
+making it useful for replication conflict detection and forensic analysis.
+Events are keyed by ZFS object ID, ensuring that the history of a file is
+preserved across renames.
+.Pp
+The default value is
+.Sy off .
+This property is inherited by descendant datasets.
+.Pp
+When this property is first set to
+.Sy on
+on any dataset in a pool, the
+.Sy org.openzfs:events
+pool feature is activated.
+See
+.Xr zpool-features 7
+for details.
+.Pp
+The size of the event log buffer is controlled by the
+.Sy events_size
+property.
+For long-term event retention, use
+.Xr zmetad 8
+to export events to an external database.
+.Pp
+See
+.Xr zfs-events 8
+for information on querying the event log.
+.It Sy events_size Ns = Ns Ar size
+Specifies the maximum size of the file-level event log buffer for this dataset.
+The value can be specified using human-readable suffixes
+.Pq for example, Sy 1M , Sy 512K , Sy 10M .
+.Pp
+The default value is
+.Sy 1M
+.Pq 1 mebibyte .
+The minimum value is
+.Sy 128K
+and the maximum value is
+.Sy 1G .
+.Pp
+The event log operates as a ring buffer; when full, the oldest events are
+overwritten by new events.
+Increasing this value allows more events to be retained before overwriting,
+at the cost of additional dataset space.
+.Pp
+This property has no effect unless the
+.Sy events
+property is set to
+.Sy on .
+This property is inherited by descendant datasets.
+.Pp
+For datasets generating high volumes of events, consider increasing this value
+or using
+.Xr zmetad 8
+to export events to an external database before they are overwritten.
 .It Sy exec Ns = Ns Sy on Ns | Ns Sy off
 Controls whether processes can be executed from within this file system.
 The default value is

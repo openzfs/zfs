@@ -624,6 +624,44 @@ when an encrypted dataset is created and will be returned to the
 .Sy enabled
 state when all datasets that use this feature are destroyed.
 .
+.feature org.openzfs events yes
+This feature enables file-level event logging for datasets.
+When enabled, ZFS records metadata operations
+.Pq create, delete, rename, link, truncate, setattr
+in an internal ring buffer within each dataset.
+.Pp
+Event logging is controlled per-dataset via the
+.Sy events
+property.
+Events are keyed by ZFS object ID, preserving history across file renames.
+The event log is included in ZFS send streams and travels with the pool.
+.Pp
+The size of each dataset's event log buffer is controlled by the
+.Sy events_size
+property
+.Pq default 1 MiB .
+When full, oldest events are overwritten.
+.Pp
+This feature becomes
+.Sy active
+when the
+.Sy events
+property is first set to
+.Sy on
+on any dataset in the pool.
+It returns to the
+.Sy enabled
+state when all datasets with
+.Sy events Ns = Ns Sy on
+are destroyed or have the property set to
+.Sy off .
+.Pp
+See
+.Xr zfs-events 8
+for querying events and
+.Xr zmetad 8
+for exporting events to an external database.
+.
 .feature com.klarasystems fast_dedup yes
 This feature allows more advanced deduplication features to be enabled on new
 dedup tables.

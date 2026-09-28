@@ -1,0 +1,217 @@
+.\" SPDX-License-Identifier: CDDL-1.0
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or https://opensource.org/licenses/CDDL-1.0.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2026, OpenZFS Contributors. All rights reserved.
+.\"
+.Dd March 9, 2026
+.Dt ZFS-EVENTS 8
+.Os
+.
+.Sh NAME
+.Nm zfs-events
+.Nd display file-level event history for ZFS datasets
+.Sh SYNOPSIS
+.Nm zfs
+.Cm events
+.Op Fl jHp
+.Op Fl n Ar count
+.Op Fl o Ar object
+.Op Fl t Ar @snapshot Ns Op Ar ..@snapshot
+.Ar filesystem Ns | Ns Ar volume
+.Op Ar path
+.
+.Sh DESCRIPTION
+The
+.Nm zfs Cm events
+command displays the file-level event history for a ZFS dataset.
+Events are logged when files and directories are created, modified, renamed,
+or deleted, providing a complete audit trail of filesystem changes.
+.Pp
+Events are stored in an internal ring buffer within each dataset and are
+keyed by ZFS object ID, ensuring that the history of a file is preserved
+even after renames.
+The event log is included in ZFS send streams and travels with the pool,
+making it useful for replication conflict detection and forensic analysis.
+.Pp
+To enable event logging on a dataset, set the
+.Sy events
+property:
+.Bd -literal -offset indent
+# zfs set events=on tank/data
+.Ed
+.Pp
+The
+.Sy events
+property is inheritable, so enabling it on a parent dataset will enable
+event logging for all descendant datasets.
+.
+.Ss Event Types
+The following event types are recorded:
+.Bl -tag -width "TRUNCATE" -compact -offset indent
+.It Sy CREATE
+File or directory created
+.It Sy REMOVE
+File or directory deleted
+.It Sy RENAME
+File or directory renamed (includes old and new paths)
+.It Sy LINK
+Hard link created
+.It Sy SYMLINK
+Symbolic link created
+.It Sy TRUNCATE
+File truncated
+.It Sy SETATTR
+File attributes changed (permissions, ownership, times)
+.El
+.Pp
+Note that individual
+.Xr write 2
+operations are not logged, as this would generate excessive events.
+File modifications can be inferred from
+.Sy SETATTR
+events that update
+.Sy mtime ,
+or by comparing snapshots.
+.
+.Sh OPTIONS
+.Bl -tag -width "-t @snap..@snap"
+.It Fl j
+Output in JSON format for machine parsing.
+Each event is printed as a separate JSON object on its own line.
+.It Fl H
+Scripted mode: do not print headers and separate fields by a single tab
+instead of arbitrary whitespace.
+.It Fl p
+Display numbers in exact (parsable) values rather than human-readable form.
+Timestamps are shown as Unix epoch seconds.
+.It Fl n Ar count
+Limit output to the most recent
+.Ar count
+events.
+By default, all events in the ring buffer are displayed.
+.It Fl o Ar object
+Display only events for the specified ZFS object ID.
+Object IDs can be obtained from
+.Xr zdb 8
+or from previous
+.Nm zfs Cm events
+output.
+.It Fl t Ar @snapshot Ns Op Ar ..@snapshot
+Display events relative to snapshots.
+With a single snapshot, display events that occurred after that snapshot.
+With a range
+.Ar @snap1..@snap2 ,
+display events between the two snapshots.
+.It Ar filesystem Ns | Ns Ar volume
+The dataset to query for events.
+.It Ar path
+Optional path to filter events.
+Only events affecting the specified file or directory will be shown.
+For renamed files, events are matched against both old and new paths.
+.El
+.
+.Sh OUTPUT
+By default, the following columns are displayed:
+.Bl -tag -width "OLD_PATH" -compact -offset indent
+.It Sy TXG
+Transaction group in which the event occurred
+.It Sy TIME
+Timestamp of the event
+.It Sy OBJECT
+ZFS object ID of the affected file
+.It Sy EVENT
+Type of event (CREATE, REMOVE, RENAME, etc.)
+.It Sy PATH
+Path to the affected file
+.It Sy OLD_PATH
+For RENAME events, the previous path
+.El
+.
+.Sh EXAMPLES
+.Ss Example 1: Viewing recent events on a dataset
+.Bd -literal -offset indent
+# zfs events tank/data
+TXG      TIME                 OBJECT  EVENT    PATH
+1847     2026-03-09 10:15:23  128     CREATE   /tank/data/newfile.txt
+1848     2026-03-09 10:16:01  128     SETATTR  /tank/data/newfile.txt
+1850     2026-03-09 10:18:45  128     RENAME   /tank/data/renamed.txt
+                                               (was: /tank/data/newfile.txt)
+1852     2026-03-09 10:20:12  129     CREATE   /tank/data/another.txt
+1855     2026-03-09 10:25:33  128     REMOVE   /tank/data/renamed.txt
+.Ed
+.Ss Example 2: Getting the history of a specific file
+.Bd -literal -offset indent
+# zfs events tank/data /tank/data/important.txt
+TXG      TIME                 OBJECT  EVENT    PATH
+1200     2026-03-01 09:00:00  256     CREATE   /tank/data/important.txt
+1205     2026-03-01 09:15:00  256     SETATTR  /tank/data/important.txt
+1340     2026-03-05 14:30:00  256     RENAME   /tank/data/important.txt
+                                               (was: /tank/data/draft.txt)
+.Ed
+.Ss Example 3: JSON output for scripting
+.Bd -literal -offset indent
+# zfs events -j -n 1 tank/data
+{"txg":1855,"time":1741518333,"object":128,"event":"REMOVE",
+ "path":"/tank/data/renamed.txt","uid":1000,"gid":1000,"mode":33188}
+.Ed
+.Ss Example 4: Events since a snapshot
+.Bd -literal -offset indent
+# zfs events -t @yesterday tank/data
+TXG      TIME                 OBJECT  EVENT    PATH
+1847     2026-03-09 10:15:23  128     CREATE   /tank/data/newfile.txt
+\&...
+.Ed
+.Ss Example 5: Events between two snapshots
+.Bd -literal -offset indent
+# zfs events -t @monday..@friday tank/data
+.Ed
+.
+.Sh ENVIRONMENT VARIABLES
+.Bl -tag -width "ZFS_EVENTS_MAX"
+.It Ev ZFS_EVENTS_MAX
+Override the default maximum number of events to display.
+.El
+.
+.Sh INTERFACE STABILITY
+.Sy Evolving .
+.
+.Sh SEE ALSO
+.Xr zfs 8 ,
+.Xr zfs-diff 8 ,
+.Xr zfs-set 8 ,
+.Xr zfsprops 7 ,
+.Xr zmetad 8 ,
+.Xr zpool-features 7
+.
+.Sh NOTES
+The event log is stored as a ring buffer within the dataset.
+When the buffer is full, the oldest events are overwritten.
+The size of the buffer is controlled by the
+.Sy events_size
+property, which defaults to 1 MiB.
+.Pp
+Events are recorded within the same transaction group as the operation
+that triggered them, ensuring consistency with snapshots.
+.Pp
+The
+.Sy org.openzfs:events
+pool feature must be enabled for event logging to function.
+The feature is automatically activated when
+.Sy events=on
+is first set on any dataset in the pool.
+.Pp
+For long-term event retention beyond the ring buffer capacity, use
+.Xr zmetad 8
+to export events to an external SQLite database.
