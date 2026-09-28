@@ -107,7 +107,6 @@ kernel_spl_sys_HEADERS = \
 	%D%/spl/sys/types.h \
 	%D%/spl/sys/types32.h \
 	%D%/spl/sys/uio.h \
-	%D%/spl/sys/user.h \
 	%D%/spl/sys/vfs.h \
 	%D%/spl/sys/vmem.h \
 	%D%/spl/sys/vmsystm.h \
