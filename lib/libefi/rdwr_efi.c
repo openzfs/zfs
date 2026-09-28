@@ -32,6 +32,7 @@
 #include <sys/efi_partition.h>
 #include <sys/byteorder.h>
 #include <sys/vdev_disk.h>
+#include <sys/sysmacros.h>
 #include <linux/fs.h>
 #include <linux/blkpg.h>
 

@@ -49,7 +49,6 @@
 #include <pthread.h>
 #include <signal.h>
 #include <sys/list.h>
-#include <sys/mkdev.h>
 #include <sys/mntent.h>
 #include <sys/mnttab.h>
 #include <sys/mount.h>

@@ -36,8 +36,6 @@
 #include <sys/vdev_impl.h>
 #include <sys/zvol.h>
 
-#include <sys/mkdev.h>
-
 #include "zinject.h"
 
 static int debug;

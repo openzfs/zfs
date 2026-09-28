@@ -17,6 +17,7 @@
 #include <string.h>
 
 #include <sys/types.h>
+#include <sys/sysmacros.h>
 #include <sys/sha2.h>
 #include <sys/zfs_impl.h>
 

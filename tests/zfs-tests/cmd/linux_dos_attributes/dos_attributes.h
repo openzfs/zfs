@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: 0BSD
 
 #include <inttypes.h>
+#include <sys/sysmacros.h>
 
 
 #define	U_APPEND_SHORT		"uappnd"

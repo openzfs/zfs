@@ -20,6 +20,7 @@
 #include <pthread.h>
 #include <string.h>
 #include <sys/thread.h>
+#include <sys/sysmacros.h>
 
 /* this only exists to have its address taken */
 void p0(void) {}

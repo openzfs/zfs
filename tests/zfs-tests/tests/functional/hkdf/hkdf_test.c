@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <sys/sysmacros.h>
 #include <sys/crypto/icp.h>
 #include <sys/sha2.h>
 #include <sys/hkdf.h>
