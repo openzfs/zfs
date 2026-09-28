@@ -8460,6 +8460,11 @@ zfs_do_events(int argc, char **argv)
 			    "for '%s'\n"), argv[0]);
 			zfs_close(zhp);
 			return (1);
+		} else if (err == EINVAL || err == EBUSY || err == ESRCH) {
+			(void) fprintf(stderr, gettext("cannot clear events "
+			    "for '%s': dataset must be mounted\n"), argv[0]);
+			zfs_close(zhp);
+			return (1);
 		} else if (err != 0) {
 			(void) fprintf(stderr, gettext("cannot clear events "
 			    "for '%s': %s\n"), argv[0], strerror(err));
@@ -8505,10 +8510,86 @@ zfs_do_events(int argc, char **argv)
 		object_filter = st.st_ino;
 	}
 
-	/* Query the events */
-	nvlist_t *result = NULL;
-	int error = lzc_get_events(zfs_get_name(zhp), object_filter, 0,
-	    &result);
+	/*
+	 * Query the events. The kernel returns at most one read buffer
+	 * per call and reports the resume point as next_offset; loop
+	 * until the log is exhausted so a large log is never silently
+	 * truncated.
+	 */
+	nvlist_t *events = NULL;
+	uint64_t next_offset = 0;
+	uint64_t prev_offset = 0;
+	uint64_t lost_total = 0;
+	boolean_t have_lost = B_FALSE;
+	int count = 0;
+	int error = 0;
+	boolean_t header_printed = B_FALSE;
+
+	for (;;) {
+		nvlist_t *page = NULL;
+
+		error = lzc_get_events(zfs_get_name(zhp), object_filter,
+		    next_offset, &page);
+		if (error != 0)
+			break;
+
+		/* Guard against a page that makes no forward progress. */
+		if (count > 0 && next_offset == prev_offset)
+			break;
+		prev_offset = next_offset;
+
+		if (!header_printed) {
+			/* Print header or JSON opening */
+			if (json_output) {
+				(void) printf("[");
+			} else {
+				(void) printf("%-10s %-8s %-10s %s\n",
+				    "TXG", "OBJECT", "OPERATION", "NAME");
+				(void) printf("%-10s %-8s %-10s %s\n",
+				    "----------", "--------", "----------",
+				    "--------------------");
+			}
+			header_printed = B_TRUE;
+		}
+
+		uint64_t lost = 0;
+
+		if (nvlist_lookup_uint64(page, "records_lost", &lost) == 0) {
+			lost_total += lost;
+			have_lost = B_TRUE;
+		}
+
+		nvlist_free(events);
+		events = NULL;
+		if (nvlist_lookup_nvlist(page, "events", &events) != 0) {
+			nvlist_free(page);
+			break;
+		}
+
+		(void) nvlist_lookup_uint64(page, "next_offset", &next_offset);
+
+		/* Iterate through events on this page */
+		nvpair_t *pair = NULL;
+		while ((pair = nvlist_next_nvpair(events, pair)) != NULL) {
+			nvlist_t *event;
+
+			if (nvpair_value_nvlist(pair, &event) != 0)
+				continue;
+
+			if (limit_output && (uint64_t)count >= max_events)
+				break;
+
+			print_event(event, json_output, count);
+			count++;
+		}
+
+		boolean_t done = (limit_output &&
+		    (uint64_t)count >= max_events) || next_offset == 0;
+
+		nvlist_free(page);
+		if (done)
+			break;
+	}
 
 	if (error != 0) {
 		if (error == ENOENT) {
@@ -8516,71 +8597,39 @@ zfs_do_events(int argc, char **argv)
 			    gettext("no event log found for '%s'\n"
 			    "Enable events with: zfs set events=on %s\n"),
 			    argv[0], argv[0]);
-		} else {
+		} else if (count == 0) {
 			(void) fprintf(stderr,
 			    gettext("cannot get events for '%s': %s\n"),
 			    argv[0], strerror(error));
+		} else {
+			/*
+			 * Some records were already printed; report the
+			 * truncation instead of failing the whole query.
+			 */
+			(void) fprintf(stderr, gettext("error reading "
+			    "remaining events from '%s': %s\n"),
+			    argv[0], strerror(error));
+			ret = 1;
 		}
-		zfs_close(zhp);
-		return (1);
 	}
 
-	/* Extract the events list */
-	nvlist_t *events = NULL;
-	if (nvlist_lookup_nvlist(result, "events", &events) != 0) {
-		(void) fprintf(stderr,
-		    gettext("no events found\n"));
-		nvlist_free(result);
-		zfs_close(zhp);
-		return (0);
-	}
-
-	/* Print header or JSON opening */
-	if (json_output) {
-		(void) printf("[");
-	} else {
-		(void) printf("%-10s %-8s %-10s %s\n",
-		    "TXG", "OBJECT", "OPERATION", "NAME");
-		(void) printf("%-10s %-8s %-10s %s\n",
-		    "----------", "--------", "----------",
-		    "--------------------");
-	}
-
-	/* Iterate through events */
-	nvpair_t *pair = NULL;
-	int count = 0;
-	while ((pair = nvlist_next_nvpair(events, pair)) != NULL) {
-		nvlist_t *event;
-
-		if (nvpair_value_nvlist(pair, &event) != 0)
-			continue;
-
-		if (limit_output && (uint64_t)count >= max_events)
-			break;
-
-		print_event(event, json_output, count);
-		count++;
-	}
-
-	if (json_output) {
+	if (!header_printed) {
+		if (error == 0)
+			(void) printf("%s\n", gettext("no events found"));
+	} else if (json_output) {
 		(void) printf("]\n");
 	} else if (count == 0) {
 		(void) printf("%s\n", gettext("no events found"));
 	}
 
 	/* Report wraparound-dropped records if any */
-	{
-		uint64_t lost = 0;
-
-		if (nvlist_lookup_uint64(result, "records_lost",
-		    &lost) == 0 && lost > 0) {
-			(void) printf(gettext(
-			    "%llu record(s) lost to log wraparound\n"),
-			    (u_longlong_t)lost);
-		}
+	if (have_lost && lost_total > 0) {
+		(void) printf(gettext(
+		    "%llu record(s) lost to log wraparound\n"),
+		    (u_longlong_t)lost_total);
 	}
 
-	nvlist_free(result);
+	nvlist_free(events);
 	zfs_close(zhp);
 	return (ret);
 }

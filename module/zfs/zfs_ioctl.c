@@ -4675,29 +4675,36 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 		(void) nvlist_lookup_uint64(innvl, "offset", &offset);
 	}
 
-	error = dmu_objset_hold(dsname, FTAG, &os);
-	if (error != 0)
-		return (error);
-
 	/*
 	 * A clear request arrives as offset == UINT64_MAX: reset the
 	 * ring. This rides the established get-events ioctl rather than
-	 * adding a new one. The reset mirrors the VFS event logging
-	 * path: an open-context transaction with holds prepared by
-	 * zfs_events_txhold(). Because DMU_TX_WAIT asserts the pool
-	 * config lock is free, drop the config read lock taken by
-	 * dmu_objset_hold() for the duration of the transaction and
-	 * re-take it before releasing the objset.
+	 * adding a new one. The reset uses the mounted zfsvfs' objset
+	 * and runs under the same ring lock the VFS loggers hold, so it
+	 * can never interleave with concurrent logging; the objset is
+	 * owned by the vfs and the pool config lock is not held by this
+	 * thread, which is exactly the environment the VFS logging path
+	 * assigns its transaction in. Clearing requires the dataset to
+	 * be mounted.
 	 */
 	if (offset == UINT64_MAX) {
-		dsl_pool_t *dp = dmu_objset_pool(os);
+		zfsvfs_t *zfsvfs;
+		int err;
 
-		dsl_pool_config_exit(dp, FTAG);
-		error = zfs_events_clear_task(os);
-		dsl_pool_config_enter(dp, FTAG);
-		dmu_objset_rele(os, FTAG);
-		return (error);
+		err = getzfsvfs(dsname, &zfsvfs);
+		if (err != 0)
+			return (err);
+
+		mutex_enter(&zfsvfs->z_events_lock);
+		err = zfs_events_clear_task(zfsvfs->z_os);
+		mutex_exit(&zfsvfs->z_events_lock);
+
+		zfs_vfs_rele(zfsvfs);
+		return (err);
 	}
+
+	error = dmu_objset_hold(dsname, FTAG, &os);
+	if (error != 0)
+		return (error);
 
 	buf = vmem_alloc(bufsize, KM_SLEEP);
 	read_len = bufsize;
@@ -4708,6 +4715,10 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 		dmu_objset_rele(os, FTAG);
 		return (error);
 	}
+
+	/* An empty read means the log is exhausted: report offset 0. */
+	if (read_len == 0)
+		offset = 0;
 
 	/* Parse packed nvlists from buffer and add to output */
 	events_list = fnvlist_alloc();

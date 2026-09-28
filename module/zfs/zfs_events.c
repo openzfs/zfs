@@ -332,6 +332,12 @@ zfs_events_clear_task(objset_t *os)
 	uint64_t count = 0;
 	int err;
 
+	/*
+	 * The caller must guarantee the pool config lock is not held by
+	 * this thread (DMU_TX_WAIT asserts it) and, when the dataset is
+	 * mounted, must hold the zfsvfs ring lock so the reset cannot
+	 * interleave with concurrent VFS loggers.
+	 */
 	tx = dmu_tx_create(os);
 	zfs_events_txhold(os, tx);
 	err = dmu_tx_assign(tx, DMU_TX_WAIT);
@@ -487,12 +493,34 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
 	zep = dbp->db_data;
 	dmu_buf_will_dirty(dbp, tx);
 
-	/* Write the packed length (little endian) followed by the record */
+	/*
+	 * Append length + record as one atomic write. Splitting them into
+	 * two zfs_events_write() calls would leave a header without a
+	 * record in the log if the second call failed, and a later read
+	 * would consume the next record's header as this one's payload.
+	 */
+	uint64_t total = sizeof (le_len) + packed_len;
+	char *rec = kmem_alloc(total, KM_SLEEP);
+
 	le_len = LE_64((uint64_t)packed_len);
-	err = zfs_events_write(os, obj, &le_len, sizeof (le_len), zep, tx);
-	if (err == 0) {
-		err = zfs_events_write(os, obj, packed, packed_len, zep, tx);
+	memcpy(rec, &le_len, sizeof (le_len));
+	memcpy(rec + sizeof (le_len), packed, packed_len);
+
+	err = zfs_events_write(os, obj, rec, total, zep, tx);
+	if (err != 0) {
+		/*
+		 * The event could not be appended (the write path rolls
+		 * back the ring header on failure). Surface it rather
+		 * than dropping records silently.
+		 */
+		char osname[ZFS_MAX_DATASET_NAME_LEN];
+
+		dmu_objset_name(os, osname);
+		cmn_err(CE_WARN, "failed to append event to the log of "
+		    "'%s': %d", osname, err);
 	}
+
+	kmem_free(rec, total);
 
 	dmu_buf_rele(dbp, FTAG);
 	mutex_exit(lockp);
