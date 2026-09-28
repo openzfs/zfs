@@ -457,8 +457,11 @@ static uint_t zfs_arc_dnode_limit_percent = 10;
  * These tunables are Linux-specific
  */
 static uint64_t zfs_arc_sys_free = 0;
-static uint_t zfs_arc_min_prefetch_ms = 0;
-static uint_t zfs_arc_min_prescient_prefetch_ms = 0;
+
+/* These next two vars are not static since they also get set by zdb */
+uint_t zfs_arc_min_prefetch_ms = 0;
+uint_t zfs_arc_min_prescient_prefetch_ms = 0;
+
 static uint_t zfs_arc_lotsfree_percent = 10;
 
 /*

@@ -10471,6 +10471,20 @@ main(int argc, char **argv)
 	 */
 	zfs_arc_min = 2ULL << SPA_MAXBLOCKSHIFT;
 	zfs_arc_max = 256 * 1024 * 1024;
+
+	/*
+	 * The ARC will not evict prefetched data that is too new.  When zdb
+	 * is doing a lot of reads in a short amount of time, it can lead to
+	 * the ARC ballooning past zfs_arc_max, since arc_evict() cannot find
+	 * anything to evict (due to the ARC containing mostly prefetched
+	 * data).  For example, zdb was observed consuming ~1.4GB mem in the
+	 * pool_checkpoint tests, even though zfs_arc_max was set to 256MB.
+	 *
+	 * To get around this, allow the prefetched data to be evicted after
+	 * only 50ms instead of the normal 1 to 6 seconds.
+	 */
+	zfs_arc_min_prefetch_ms = 50;
+	zfs_arc_min_prescient_prefetch_ms = 50;
 #endif
 
 	/*
