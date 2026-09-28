@@ -47,7 +47,6 @@ libspl_sys_HEADERS = \
 	%D%/sys/mutex.h \
 	%D%/sys/policy.h \
 	%D%/sys/poll.h \
-	%D%/sys/priv.h \
 	%D%/sys/processor.h \
 	%D%/sys/procfs_list.h \
 	%D%/sys/random.h \
