@@ -1,0 +1,299 @@
+.\" SPDX-License-Identifier: CDDL-1.0
+.\"
+.\" CDDL HEADER START
+.\"
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or https://opensource.org/licenses/CDDL-1.0.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" CDDL HEADER END
+.\"
+.\" Copyright (c) 2026, OpenZFS Contributors. All rights reserved.
+.\"
+.Dd March 9, 2026
+.Dt ZMETAD 8
+.Os
+.
+.Sh NAME
+.Nm zmetad
+.Nd ZFS Metadata Export Daemon
+.Sh SYNOPSIS
+.Nm
+.Op Fl fhv
+.Op Fl c Ar config
+.Op Fl d Ar database
+.Op Fl i Ar interval
+.Op Fl r Ar days
+.
+.Sh DESCRIPTION
+The
+.Nm
+daemon monitors ZFS datasets with file-level event logging enabled and
+exports their events to an external SQLite database.
+This provides several benefits over the in-kernel ring buffer:
+.Bl -bullet -offset indent
+.It
+SQL-based querying for time ranges, paths, and object IDs
+.It
+Configurable retention independent of pool space
+.It
+Integration with external monitoring and analysis tools
+.It
+Event persistence across pool export/import cycles
+.El
+.Pp
+The daemon periodically polls all mounted datasets that have the
+.Sy events
+property enabled, retrieves new events using
+.Xr zfs-events 8 ,
+and inserts them into the SQLite database.
+A sync state table tracks the last retrieved offset for each dataset
+to avoid duplicate insertions.
+.
+.Sh OPTIONS
+.Bl -tag -width "-d database"
+.It Fl c Ar config
+Read configuration from the specified file.
+See
+.Sx CONFIGURATION
+for details on the file format.
+.It Fl d Ar database
+Path to the SQLite database file.
+The database will be created if it does not exist.
+Default:
+.Pa /var/lib/zfs/zmetad.db .
+.It Fl f
+Run in foreground mode.
+By default,
+.Nm
+detaches from the terminal and runs as a daemon.
+In foreground mode, log messages are written to standard output.
+.It Fl h
+Display usage information and exit.
+.It Fl i Ar interval
+Poll interval in seconds.
+The daemon will check for new events on all datasets at this interval.
+Default: 30 seconds.
+Minimum: 1 second.
+.It Fl r Ar days
+Event retention period in days.
+Events older than this are automatically deleted during the daily
+cleanup cycle.
+Set to 0 to disable automatic cleanup.
+Default: 90 days.
+.It Fl v
+Verbose mode.
+May be specified multiple times for increased verbosity.
+.El
+.
+.Sh CONFIGURATION
+Configuration can be provided via command-line options or a configuration
+file specified with
+.Fl c .
+Command-line options override configuration file settings.
+.Pp
+The configuration file uses a simple key-value format:
+.Bd -literal -offset indent
+# ZFS Metadata Export Daemon configuration
+
+# Poll interval in seconds
+poll_interval = 30
+
+# SQLite database path
+database = /var/lib/zfs/zmetad.db
+
+# Event retention in days (0 = forever)
+retention_days = 90
+
+# Maximum database size in MB (0 = unlimited)
+max_size_mb = 1000
+.Ed
+.
+.Sh DATABASE SCHEMA
+The SQLite database contains two tables:
+.Ss Events Table
+.Bd -literal -offset indent
+CREATE TABLE events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dataset TEXT NOT NULL,
+    txg INTEGER NOT NULL,
+    timestamp INTEGER NOT NULL,
+    object_id INTEGER NOT NULL,
+    event_type TEXT NOT NULL,
+    path TEXT,
+    old_path TEXT,
+    uid INTEGER,
+    gid INTEGER,
+    mode INTEGER,
+    size INTEGER,
+    UNIQUE(dataset, txg, object_id, event_type, timestamp)
+);
+.Ed
+.Pp
+Indexes are created on
+.Sy (dataset, timestamp) ,
+.Sy (dataset, object_id) ,
+and
+.Sy (dataset, path)
+for efficient querying.
+.Ss Sync State Table
+.Bd -literal -offset indent
+CREATE TABLE sync_state (
+    dataset TEXT PRIMARY KEY,
+    last_offset INTEGER NOT NULL,
+    last_sync INTEGER NOT NULL
+);
+.Ed
+.Pp
+This table tracks the last successfully retrieved offset for each dataset
+to ensure events are not duplicated after daemon restarts.
+.
+.Sh QUERY EXAMPLES
+The SQLite database can be queried directly using the
+.Xr sqlite3 1
+command-line tool or any SQLite client library.
+.Ss Recent events across all datasets
+.Bd -literal -offset indent
+SELECT * FROM events
+WHERE timestamp > strftime('%s', 'now', '-1 hour')
+ORDER BY timestamp DESC;
+.Ed
+.Ss History of a specific file
+.Bd -literal -offset indent
+SELECT * FROM events
+WHERE path = '/tank/data/important.txt'
+   OR old_path = '/tank/data/important.txt'
+ORDER BY txg;
+.Ed
+.Ss Files deleted in a dataset
+.Bd -literal -offset indent
+SELECT path, datetime(timestamp, 'unixepoch') as time
+FROM events
+WHERE dataset = 'tank/data'
+  AND event_type = 'REMOVE'
+ORDER BY timestamp DESC;
+.Ed
+.Ss Rename history
+.Bd -literal -offset indent
+SELECT old_path, path as new_path,
+       datetime(timestamp, 'unixepoch') as time
+FROM events
+WHERE event_type = 'RENAME'
+  AND dataset = 'tank/data';
+.Ed
+.Ss Events per day summary
+.Bd -literal -offset indent
+SELECT date(timestamp, 'unixepoch') as day,
+       event_type,
+       COUNT(*) as count
+FROM events
+GROUP BY day, event_type
+ORDER BY day DESC;
+.Ed
+.
+.Sh FILES
+.Bl -tag -width "/var/lib/zfs/zmetad.db"
+.It Pa /var/lib/zfs/zmetad.db
+Default SQLite database location.
+.It Pa @sysconfdir@/zfs/zmetad.conf
+Default configuration file location.
+.It Pa @runstatedir@/zmetad.pid
+Process ID file when running as a daemon.
+.El
+.
+.Sh SIGNALS
+.Bl -tag -width "SIGTERM"
+.It Sy SIGHUP
+Reload configuration and rescan for datasets with events enabled.
+.It Sy SIGTERM , SIGINT
+Gracefully terminate the daemon.
+.El
+.
+.Sh EXIT STATUS
+.Bl -tag -width "XX"
+.It 0
+Successful termination.
+.It 1
+An error occurred during initialization or operation.
+.El
+.
+.Sh EXAMPLES
+.Ss Example 1: Starting the daemon in foreground mode
+.Bd -literal -offset indent
+# zmetad -f -v
+zmetad starting (poll=30s, retention=90d, db=/var/lib/zfs/zmetad.db)
+Collected 15 events from tank/data
+Collected 3 events from tank/home
+\&...
+.Ed
+.Ss Example 2: Using a custom database and poll interval
+.Bd -literal -offset indent
+# zmetad -d /data/zfs-events.db -i 60 -r 365
+.Ed
+.Ss Example 3: Running via systemd
+.Bd -literal -offset indent
+# systemctl enable --now zmetad.service
+# systemctl status zmetad.service
+.Ed
+.
+.Sh INTERFACE STABILITY
+.Sy Evolving .
+.
+.Sh SEE ALSO
+.Xr sqlite3 1 ,
+.Xr zfs 8 ,
+.Xr zfs-events 8 ,
+.Xr zfsprops 7 ,
+.Xr zpool-features 7
+.
+.Sh NOTES
+The
+.Nm
+daemon requires that libsqlite3 be installed at build time.
+If ZFS was built without SQLite support,
+.Nm
+will not be available.
+.Pp
+The daemon must run as root to access ZFS datasets and the kernel
+event interface.
+.Pp
+The SQLite database uses WAL (Write-Ahead Logging) mode for improved
+concurrent read performance.
+This creates additional
+.Pa .db-wal
+and
+.Pa .db-shm
+files alongside the main database file.
+.Pp
+For datasets generating a high volume of events, consider:
+.Bl -bullet -offset indent -compact
+.It
+Reducing the poll interval to avoid ring buffer overflow
+.It
+Increasing the
+.Sy events_size
+property on the dataset
+.It
+Adjusting retention to manage database growth
+.El
+.
+.Sh CAVEATS
+The daemon exports events as they appear in the kernel ring buffer.
+If events are overwritten in the ring buffer before the daemon polls,
+they will be lost.
+For critical audit requirements, use a short poll interval or increase
+the
+.Sy events_size
+property.
+.Pp
+The database sync state is based on byte offset in the ring buffer.
+If a dataset is destroyed and recreated with the same name, stale
+sync state may cause events to be missed.
+In this case, delete the corresponding row from the
+.Sy sync_state
+table.

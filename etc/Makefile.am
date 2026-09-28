@@ -65,6 +65,11 @@ systemdunit_DATA = \
 	%D%/systemd/system/zfs-zed.service \
 	%D%/systemd/system/zfs.target
 
+if HAVE_LIBSQLITE3
+systemdunit_DATA += \
+	%D%/systemd/system/zmetad.service
+endif
+
 SUBSTFILES += $(systemdunit_DATA)
 
 INSTALL_DATA_HOOKS += systemd-install-data-hook

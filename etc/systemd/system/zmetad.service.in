@@ -1,0 +1,25 @@
+[Unit]
+Description=ZFS Metadata Export Daemon
+Documentation=man:zmetad(8)
+After=zfs-import.target
+Requires=zfs-import.target
+
+[Service]
+Type=simple
+ExecStart=@sbindir@/zmetad --foreground
+Restart=on-failure
+RestartSec=10
+
+# Security hardening
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+NoNewPrivileges=true
+ReadWritePaths=/var/lib/zfs
+
+# Allow access to ZFS
+CapabilityBoundingSet=CAP_SYS_ADMIN
+AmbientCapabilities=CAP_SYS_ADMIN
+
+[Install]
+WantedBy=multi-user.target
