@@ -111,7 +111,6 @@ kernel_spl_sys_HEADERS = \
 	%D%/spl/sys/vmem.h \
 	%D%/spl/sys/vmsystm.h \
 	%D%/spl/sys/vnode.h \
-	%D%/spl/sys/wait.h \
 	%D%/spl/sys/wmsum.h \
 	%D%/spl/sys/zmod.h \
 	%D%/spl/sys/zone.h

@@ -37,7 +37,6 @@
 #include <sys/types.h>
 #include <sys/thread.h>
 #include <sys/rwlock.h>
-#include <sys/wait.h>
 #include <sys/wmsum.h>
 #include <sys/kstat.h>
 
