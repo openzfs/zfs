@@ -88,7 +88,6 @@
 #include <sys/dbuf.h>
 #include <sys/zap.h>
 #include <sys/dmu_objset.h>
-#include <sys/poll.h>
 #include <sys/stat.h>
 #include <sys/systeminfo.h>
 #include <sys/time.h>
@@ -121,6 +120,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <poll.h>
 #include <signal.h>
 #include <umem.h>
 #include <ctype.h>
