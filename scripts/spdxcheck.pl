@@ -269,7 +269,6 @@ my %override_file_license_tags = (
 		include/os/linux/spl/sys/misc.h
 		include/os/linux/spl/sys/procfs_list.h
 		include/os/linux/spl/sys/trace.h
-		include/os/linux/spl/sys/trace_spl.h
 		include/os/linux/spl/sys/trace_taskq.h
 		include/os/linux/spl/sys/wmsum.h
 		module/os/linux/spl/spl-procfs-list.c
