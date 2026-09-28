@@ -4664,6 +4664,7 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 	objset_t *os;
 	int error;
 	uint64_t offset = 0, object = 0;
+	uint64_t start_offset;
 	char *buf;
 	uint64_t bufsize = 256 * 1024;	/* 256KB read buffer */
 	uint64_t read_len;
@@ -4708,6 +4709,7 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	buf = vmem_alloc(bufsize, KM_SLEEP);
 	read_len = bufsize;
+	start_offset = offset;
 
 	error = zfs_events_get(os, &offset, &read_len, buf);
 	if (error != 0) {
@@ -4722,6 +4724,7 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	/* Parse packed nvlists from buffer and add to output */
 	events_list = fnvlist_alloc();
+	uint64_t consumed = 0;
 	if (read_len > 0) {
 		uint64_t pos = 0;
 		uint32_t idx = 0;
@@ -4735,8 +4738,25 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 			reclen = LE_64(*((uint64_t *)(buf + pos)));
 			pos += sizeof (uint64_t);
 
-			if (reclen == 0 || pos + reclen > read_len)
+			/*
+			 * A record that does not fully fit in the buffer
+			 * stops this page: the resume offset must only
+			 * advance past WHOLE records, or the following
+			 * page would start mid-record and lose events.
+			 * A single record larger than the whole buffer
+			 * can never be returned; skip it so the query
+			 * cannot livelock.
+			 */
+			if (reclen == 0 || reclen + sizeof (uint64_t) >
+			    bufsize) {
+				if (consumed == 0)
+					consumed = pos + reclen;
 				break;
+			}
+			if (pos + reclen > read_len)
+				break;
+
+			consumed = pos + reclen;
 
 			/* Unpack the nvlist record */
 			error = nvlist_unpack(buf + pos, reclen, &rec, 0);
@@ -4764,6 +4784,15 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 			pos += reclen;
 		}
 	}
+
+	/*
+	 * The resume offset must point at the first byte NOT delivered:
+	 * past the last whole record parsed, never into the middle of
+	 * one. Advancing past a partial record would silently drop it
+	 * and misalign every following page.
+	 */
+	if (read_len > 0 && consumed > 0)
+		offset = start_offset + consumed;
 
 	fnvlist_add_nvlist(outnvl, "events", events_list);
 	fnvlist_add_uint64(outnvl, "next_offset", offset);
