@@ -28,7 +28,6 @@
 #include <linux/module.h>
 #include <sys/kmem.h>
 #include <sys/mutex.h>
-#include <sys/callo.h>
 #include <sys/wait.h>
 #include <sys/time.h>
 
@@ -76,6 +75,8 @@ typedef struct {
 
 typedef enum { CV_DEFAULT = 0, CV_DRIVER } kcv_type_t;
 
+#define	CALLOUT_FLAG_ABSOLUTE		0x2
+
 extern void __cv_init(kcondvar_t *, char *, kcv_type_t, void *);
 extern void __cv_destroy(kcondvar_t *);
 extern void __cv_wait(kcondvar_t *, kmutex_t *);
@@ -115,6 +116,5 @@ extern void __cv_broadcast(kcondvar_t *c);
 #define	cv_timedwait_io(cvp, mp, t)		__cv_timedwait_io(cvp, mp, t)
 #define	cv_timedwait_sig(cvp, mp, t)		__cv_timedwait_sig(cvp, mp, t)
 #define	cv_timedwait_idle(cvp, mp, t)		__cv_timedwait_idle(cvp, mp, t)
-
 
 #endif /* _SPL_CONDVAR_H */

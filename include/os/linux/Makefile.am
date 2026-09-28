@@ -65,7 +65,6 @@ kernel_spl_sys_HEADERS = \
 	%D%/spl/sys/atomic.h \
 	%D%/spl/sys/byteorder.h \
 	%D%/spl/sys/callb.h \
-	%D%/spl/sys/callo.h \
 	%D%/spl/sys/cmn_err.h \
 	%D%/spl/sys/condvar.h \
 	%D%/spl/sys/cred.h \
