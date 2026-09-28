@@ -54,7 +54,6 @@ libspl_sys_HEADERS = \
 	%D%/sys/rwlock.h \
 	%D%/sys/sid.h \
 	%D%/sys/simd.h \
-	%D%/sys/stack.h \
 	%D%/sys/stdtypes.h \
 	%D%/sys/string.h \
 	%D%/sys/sunddi.h \
