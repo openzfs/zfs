@@ -3105,11 +3105,38 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 	}
 	case ZFS_PROP_EVENTS:
 	{
+		spa_t *spa;
+
 		/*
 		 * When enabling events, we create the event log object.
 		 * When disabling events, we destroy it.
 		 * The actual property value is stored in the nvlist as usual.
+		 *
+		 * Skip the feature check when the property arrives as part
+		 * of 'zfs receive': the log itself is not created from a
+		 * received property (event logging stays off on pools
+		 * without the feature), so rejecting the set would only
+		 * break receiving streams from events-capable senders.
 		 */
+		if (source != ZPROP_SRC_RECEIVED &&
+		    nvpair_value_uint64(pair, &intval) == 0 &&
+		    intval == 1) {
+			if ((err = spa_open(dsname, &spa, FTAG)) != 0)
+				break;
+
+			if (!spa_feature_is_enabled(spa,
+			    SPA_FEATURE_EVENTS)) {
+				spa_close(spa, FTAG);
+				cmn_err(CE_WARN, "cannot enable events on "
+				    "'%s': pool does not have the "
+				    "org.openzfs:events feature enabled",
+				    dsname);
+				err = ENOTSUP;
+				break;
+			}
+			spa_close(spa, FTAG);
+		}
+
 		err = -1;  /* Force default handling */
 		break;
 	}

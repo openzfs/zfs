@@ -106,3 +106,64 @@ All commits signed-off; `make checkstyle` clean at each commit.
   applies to newly created logs. (Could be a future feature: on-line resize.)
 - `.zfs/events` lists per-object event files as a design placeholder; current
   consumption is via `zfs events <dataset>`.
+
+## Addendum: coverage pass, `zfs events -c`, and setter hardening
+(2026-09-28)
+
+### Coverage findings and fixes
+
+After the main matrix went green, a feature-coverage pass identified gaps,
+each since fixed and verified:
+
+- **Destroy leaked the log object and feature refcount.** The
+  org.openzfs:events refcount was never recorded in the dataset's MOS
+  feature zap, so destroy could not deactivate it; `zdb -d` reported a
+  permanent "events feature refcount mismatch". Fixed in `2915fd160` by
+  activating the feature with `dsl_dataset_activate_feature()` at first
+  use, making the existing destroy path deactivate it symmetrically.
+  Verified: create(events=on) -> log events -> destroy cycles leave the
+  refcount stable on a fresh pool.
+- **No way to clear a dataset's event log.** Added `zfs events -c
+  <dataset>` (`0b63259b1`). Clearing rides the established
+  ZFS_IOC_GET_EVENTS ioctl with `offset == UINT64_MAX` reserved as
+  "clear"; the reset runs in open context with the same chunked
+  `zfs_events_txhold()` holds the logging path uses, with the pool config
+  lock dropped around the transaction (DMU_TX_WAIT asserts it free).
+  Verified: clear resets the ring, later writes log again, repeated
+  clears are safe. Two earlier implementations were rejected by the
+  debug build: a plain open-context assign tripped the config-lock IMPLY
+  assert, and a dsl_sync_task version tripped dbuf_dirty "not tx_held"
+  (a MOS tx cannot dirty a dataset bonus buffer).
+- **Snapshot queries gave a confusing ENOENT.** `zfs events <ds>@<snap>`
+  now fails with "event logs are per-dataset and not available on
+  snapshots" (part of `0b63259b1`).
+- **`zfs set events=on` was silently accepted on pools without the
+  feature.** The property set now fails with ENOTSUP and logs a CE_WARN
+  naming the missing org.openzfs:events feature. Received-source sets
+  are exempt so streams from events-capable senders still land on
+  feature-disabled pools. Verified: setter fails on a compat-limited
+  pool, succeeds where the feature is enabled.
+
+### Test #4 reconfirmation (send/recv with the final code)
+
+- Send of an events=on dataset works; the log rides the stream as a plain
+  DMU object.
+- Receive into a feature-disabled pool (compat file without
+  org.openzfs:events) succeeds; the received dataset shows events=off,
+  the transmitted records remain queryable, and post-receive writes are
+  NOT logged (feature disabled).
+- `zfs set events=on` on the received dataset in the disabled pool now
+  correctly fails with ENOTSUP.
+- Receive into a feature-enabled pool also succeeds (4b).
+
+### Known quirks (documented, not fixed)
+
+- A received dataset shows events=off even when the stream carried on;
+  event logging does not auto-enable on receive. The transmitted log
+  remains readable via `zfs events`.
+- Changing `events_size` does not resize an existing log object.
+
+### Commits (coverage pass)
+
+- `2915fd160` Activate org.openzfs:events as a per-dataset feature
+- `0b63259b1` Add zfs events -c to clear a dataset's event log
