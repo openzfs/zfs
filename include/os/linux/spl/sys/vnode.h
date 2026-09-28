@@ -40,7 +40,6 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/uio.h>
-#include <sys/user.h>
 
 /*
  * Prior to linux-2.6.33 only O_DSYNC semantics were implemented and
