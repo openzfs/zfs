@@ -51,7 +51,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include <sys/efi_partition.h>
 #include <libgeom.h>
 
 #include <sys/vdev_impl.h>
