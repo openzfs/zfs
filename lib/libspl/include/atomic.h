@@ -19,7 +19,6 @@
 #define	_SYS_ATOMIC_H
 
 #include <sys/types.h>
-#include <sys/inttypes.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -36,9 +35,7 @@ extern void atomic_inc_ushort(volatile ushort_t *);
 extern void atomic_inc_32(volatile uint32_t *);
 extern void atomic_inc_uint(volatile uint_t *);
 extern void atomic_inc_ulong(volatile ulong_t *);
-#if defined(_INT64_TYPE)
 extern void atomic_inc_64(volatile uint64_t *);
-#endif
 
 /*
  * Decrement target
@@ -50,9 +47,7 @@ extern void atomic_dec_ushort(volatile ushort_t *);
 extern void atomic_dec_32(volatile uint32_t *);
 extern void atomic_dec_uint(volatile uint_t *);
 extern void atomic_dec_ulong(volatile ulong_t *);
-#if defined(_INT64_TYPE)
 extern void atomic_dec_64(volatile uint64_t *);
-#endif
 
 /*
  * Add delta to target
@@ -65,9 +60,7 @@ extern void atomic_add_32(volatile uint32_t *, int32_t);
 extern void atomic_add_int(volatile uint_t *, int);
 extern void atomic_add_ptr(volatile void *, ssize_t);
 extern void atomic_add_long(volatile ulong_t *, long);
-#if defined(_INT64_TYPE)
 extern void atomic_add_64(volatile uint64_t *, int64_t);
-#endif
 
 /*
  * Subtract delta from target
@@ -80,9 +73,7 @@ extern void atomic_sub_32(volatile uint32_t *, int32_t);
 extern void atomic_sub_int(volatile uint_t *, int);
 extern void atomic_sub_ptr(volatile void *, ssize_t);
 extern void atomic_sub_long(volatile ulong_t *, long);
-#if defined(_INT64_TYPE)
 extern void atomic_sub_64(volatile uint64_t *, int64_t);
-#endif
 
 /*
  * logical OR bits with target
@@ -94,9 +85,7 @@ extern void atomic_or_ushort(volatile ushort_t *, ushort_t);
 extern void atomic_or_32(volatile uint32_t *, uint32_t);
 extern void atomic_or_uint(volatile uint_t *, uint_t);
 extern void atomic_or_ulong(volatile ulong_t *, ulong_t);
-#if defined(_INT64_TYPE)
 extern void atomic_or_64(volatile uint64_t *, uint64_t);
-#endif
 
 /*
  * logical AND bits with target
@@ -108,9 +97,7 @@ extern void atomic_and_ushort(volatile ushort_t *, ushort_t);
 extern void atomic_and_32(volatile uint32_t *, uint32_t);
 extern void atomic_and_uint(volatile uint_t *, uint_t);
 extern void atomic_and_ulong(volatile ulong_t *, ulong_t);
-#if defined(_INT64_TYPE)
 extern void atomic_and_64(volatile uint64_t *, uint64_t);
-#endif
 
 /*
  * As above, but return the new value.  Note that these _nv() variants are
@@ -130,9 +117,7 @@ extern ushort_t atomic_inc_ushort_nv(volatile ushort_t *);
 extern uint32_t atomic_inc_32_nv(volatile uint32_t *);
 extern uint_t atomic_inc_uint_nv(volatile uint_t *);
 extern ulong_t atomic_inc_ulong_nv(volatile ulong_t *);
-#if defined(_INT64_TYPE)
 extern uint64_t atomic_inc_64_nv(volatile uint64_t *);
-#endif
 
 /*
  * Decrement target and return new value.
@@ -144,9 +129,7 @@ extern ushort_t atomic_dec_ushort_nv(volatile ushort_t *);
 extern uint32_t atomic_dec_32_nv(volatile uint32_t *);
 extern uint_t atomic_dec_uint_nv(volatile uint_t *);
 extern ulong_t atomic_dec_ulong_nv(volatile ulong_t *);
-#if defined(_INT64_TYPE)
 extern uint64_t atomic_dec_64_nv(volatile uint64_t *);
-#endif
 
 /*
  * Add delta to target
@@ -159,9 +142,7 @@ extern uint32_t atomic_add_32_nv(volatile uint32_t *, int32_t);
 extern uint_t atomic_add_int_nv(volatile uint_t *, int);
 extern void *atomic_add_ptr_nv(volatile void *, ssize_t);
 extern ulong_t atomic_add_long_nv(volatile ulong_t *, long);
-#if defined(_INT64_TYPE)
 extern uint64_t atomic_add_64_nv(volatile uint64_t *, int64_t);
-#endif
 
 /*
  * Subtract delta from target
@@ -174,9 +155,7 @@ extern uint32_t atomic_sub_32_nv(volatile uint32_t *, int32_t);
 extern uint_t atomic_sub_int_nv(volatile uint_t *, int);
 extern void *atomic_sub_ptr_nv(volatile void *, ssize_t);
 extern ulong_t atomic_sub_long_nv(volatile ulong_t *, long);
-#if defined(_INT64_TYPE)
 extern uint64_t atomic_sub_64_nv(volatile uint64_t *, int64_t);
-#endif
 
 /*
  * logical OR bits with target and return new value.
@@ -188,9 +167,7 @@ extern ushort_t atomic_or_ushort_nv(volatile ushort_t *, ushort_t);
 extern uint32_t atomic_or_32_nv(volatile uint32_t *, uint32_t);
 extern uint_t atomic_or_uint_nv(volatile uint_t *, uint_t);
 extern ulong_t atomic_or_ulong_nv(volatile ulong_t *, ulong_t);
-#if defined(_INT64_TYPE)
 extern uint64_t atomic_or_64_nv(volatile uint64_t *, uint64_t);
-#endif
 
 /*
  * logical AND bits with target and return new value.
@@ -202,9 +179,7 @@ extern ushort_t atomic_and_ushort_nv(volatile ushort_t *, ushort_t);
 extern uint32_t atomic_and_32_nv(volatile uint32_t *, uint32_t);
 extern uint_t atomic_and_uint_nv(volatile uint_t *, uint_t);
 extern ulong_t atomic_and_ulong_nv(volatile ulong_t *, ulong_t);
-#if defined(_INT64_TYPE)
 extern uint64_t atomic_and_64_nv(volatile uint64_t *, uint64_t);
-#endif
 
 /*
  * If *arg1 == arg2, set *arg1 = arg3; return old value
@@ -217,9 +192,7 @@ extern uint32_t atomic_cas_32(volatile uint32_t *, uint32_t, uint32_t);
 extern uint_t atomic_cas_uint(volatile uint_t *, uint_t, uint_t);
 extern void *atomic_cas_ptr(volatile void *, void *, void *);
 extern ulong_t atomic_cas_ulong(volatile ulong_t *, ulong_t, ulong_t);
-#if defined(_INT64_TYPE)
 extern uint64_t atomic_cas_64(volatile uint64_t *, uint64_t, uint64_t);
-#endif
 
 /*
  * Swap target and return old value
@@ -232,9 +205,7 @@ extern uint32_t atomic_swap_32(volatile uint32_t *, uint32_t);
 extern uint_t atomic_swap_uint(volatile uint_t *, uint_t);
 extern void *atomic_swap_ptr(volatile void *, void *);
 extern ulong_t atomic_swap_ulong(volatile ulong_t *, ulong_t);
-#if defined(_INT64_TYPE)
 extern uint64_t atomic_swap_64(volatile uint64_t *, uint64_t);
-#endif
 
 /*
  * Atomically read variable.
@@ -249,7 +220,7 @@ extern uint64_t atomic_swap_64(volatile uint64_t *, uint64_t);
 #define	atomic_load_32(p)	(*(volatile uint32_t *)(p))
 #ifdef _LP64
 #define	atomic_load_64(p)	(*(volatile uint64_t *)(p))
-#elif defined(_INT64_TYPE)
+#else
 extern uint64_t atomic_load_64(volatile uint64_t *);
 #endif
 
@@ -275,7 +246,7 @@ extern uint64_t atomic_load_64(volatile uint64_t *);
 #ifdef _LP64
 #define	atomic_store_64(p, v)		\
 	(*(volatile uint64_t *)(p) = (uint64_t)(v))
-#elif defined(_INT64_TYPE)
+#else
 extern void atomic_store_64(volatile uint64_t *, uint64_t);
 #endif
 

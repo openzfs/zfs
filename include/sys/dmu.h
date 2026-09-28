@@ -36,7 +36,6 @@
  */
 
 #include <sys/zfs_context.h>
-#include <sys/inttypes.h>
 #include <sys/cred.h>
 #include <sys/fs/zfs.h>
 #include <sys/zio_compress.h>

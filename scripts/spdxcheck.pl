@@ -125,7 +125,6 @@ my $untagged_patterns = q(
 
 	contrib/coverity/model.c
 	include/libzdb.h
-	include/os/freebsd/spl/sys/inttypes.h
 	include/os/freebsd/spl/sys/mode.h
 	include/os/freebsd/spl/sys/trace.h
 	include/os/freebsd/zfs/sys/trace_zfs.h

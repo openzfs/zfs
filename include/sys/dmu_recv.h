@@ -21,7 +21,6 @@
 #ifndef _DMU_RECV_H
 #define	_DMU_RECV_H
 
-#include <sys/inttypes.h>
 #include <sys/types.h>
 #include <sys/dsl_bookmark.h>
 #include <sys/dsl_dataset.h>

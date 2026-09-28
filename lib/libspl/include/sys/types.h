@@ -17,16 +17,16 @@
 #ifndef _LIBSPL_SYS_TYPES_H
 #define	_LIBSPL_SYS_TYPES_H
 
+#ifndef HAVE_INTTYPES
+#include <inttypes.h>
+#endif /* HAVE_INTTYPES */
+
 #include <sys/isa_defs.h>
 #include <sys/feature_tests.h>
 #include_next <sys/types.h>
 #include <sys/types32.h>
 #include <stdarg.h>
 #include <sys/stdtypes.h>
-
-#ifndef HAVE_INTTYPES
-#include <inttypes.h>
-#endif /* HAVE_INTTYPES */
 
 typedef uint_t		zoneid_t;
 typedef int		projid_t;

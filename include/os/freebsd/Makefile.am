@@ -25,7 +25,6 @@ noinst_HEADERS = \
 	%D%/spl/sys/file.h \
 	%D%/spl/sys/freebsd_rwlock.h \
 	%D%/spl/sys/idmap.h \
-	%D%/spl/sys/inttypes.h \
 	%D%/spl/sys/isa_defs.h \
 	%D%/spl/sys/kmem.h \
 	%D%/spl/sys/kmem_cache.h \

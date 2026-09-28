@@ -22,7 +22,6 @@
 #define	_ZFEATURE_COMMON_H extern __attribute__((visibility("default")))
 
 #include <sys/fs/zfs.h>
-#include <sys/inttypes.h>
 #include <sys/types.h>
 
 #ifdef	__cplusplus
