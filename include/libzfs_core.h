@@ -159,6 +159,7 @@ _LIBZFS_CORE_H int lzc_ddt_prune(const char *, zpool_ddt_prune_unit_t,
 
 _LIBZFS_CORE_H int lzc_get_events(const char *, uint64_t, uint64_t,
     nvlist_t **);
+_LIBZFS_CORE_H int lzc_clear_events(const char *, nvlist_t **);
 
 #ifdef	__cplusplus
 }

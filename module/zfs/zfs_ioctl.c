@@ -4652,6 +4652,26 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 	if (error != 0)
 		return (error);
 
+	/*
+	 * A clear request arrives as offset == UINT64_MAX: reset the
+	 * ring. This rides the established get-events ioctl rather than
+	 * adding a new one. The reset mirrors the VFS event logging
+	 * path: an open-context transaction with holds prepared by
+	 * zfs_events_txhold(). Because DMU_TX_WAIT asserts the pool
+	 * config lock is free, drop the config read lock taken by
+	 * dmu_objset_hold() for the duration of the transaction and
+	 * re-take it before releasing the objset.
+	 */
+	if (offset == UINT64_MAX) {
+		dsl_pool_t *dp = dmu_objset_pool(os);
+
+		dsl_pool_config_exit(dp, FTAG);
+		error = zfs_events_clear_task(os);
+		dsl_pool_config_enter(dp, FTAG);
+		dmu_objset_rele(os, FTAG);
+		return (error);
+	}
+
 	buf = vmem_alloc(bufsize, KM_SLEEP);
 	read_len = bufsize;
 

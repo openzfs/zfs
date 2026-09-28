@@ -315,6 +315,76 @@ zfs_events_destroy_obj(objset_t *os, uint64_t obj, dmu_tx_t *tx)
 }
 
 /*
+ * dsl_sync_task callback for the ioctl clear path: runs in syncing
+ * context where tx assignment is legal.
+ */
+/*
+ * Open-context clear used by the ioctl path. Mirrors the VFS event
+ * logging path: prepare transaction holds with zfs_events_txhold()
+ * and assign with DMU_TX_WAIT. The caller MUST NOT hold the pool
+ * config lock: dmu_tx_assign(DMU_TX_WAIT) asserts it is free.
+ * Returns 0, or ENOENT when the dataset has no event log.
+ */
+int
+zfs_events_clear_task(objset_t *os)
+{
+	dmu_tx_t *tx;
+	uint64_t count = 0;
+	int err;
+
+	tx = dmu_tx_create(os);
+	zfs_events_txhold(os, tx);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (err != 0) {
+		dmu_tx_abort(tx);
+		return (err);
+	}
+
+	err = zfs_events_clear(os, tx, &count);
+	dmu_tx_commit(tx);
+
+	return (err);
+}
+
+/*
+ * Clear a dataset's event log: reset the ring header so subsequent
+ * reads return nothing. Returns ENOENT if the dataset has no event
+ * log. The lost-record counter is reset along with the ring pointers;
+ * clearing means discarding all history.
+ * Must be called from syncing context with a transaction that holds
+ * the log object's bonus (dmu_tx_hold_bonus).
+ */
+int
+zfs_events_clear(objset_t *os, dmu_tx_t *tx, uint64_t *countp)
+{
+	dmu_buf_t *dbp;
+	zfs_events_phys_t *zep;
+	uint64_t obj = 0;
+	int err;
+
+	err = zap_lookup(os, MASTER_NODE_OBJ, ZFS_EVENTS_ZAP_NAME,
+	    sizeof (uint64_t), 1, &obj);
+	if (err != 0)
+		return (err);
+
+	err = dmu_bonus_hold(os, obj, FTAG, &dbp);
+	if (err != 0)
+		return (err);
+
+	zep = dbp->db_data;
+	if (countp != NULL)
+		*countp = zep->zep_eof - zep->zep_bof;
+
+	dmu_buf_will_dirty(dbp, tx);
+	zep->zep_bof = 0;
+	zep->zep_eof = 0;
+	zep->zep_records_lost = 0;
+
+	dmu_buf_rele(dbp, FTAG);
+	return (0);
+}
+
+/*
  * Internal helper to log an event to the event log.
  * Creates the event log object lazily if it doesn't exist.
  *

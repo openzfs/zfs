@@ -146,6 +146,8 @@ extern void zfs_events_log_setattr(objset_t *os, dmu_tx_t *tx,
 extern int zfs_events_get(objset_t *os, uint64_t *offp, uint64_t *lenp,
     char *buf);
 extern int zfs_events_get_lost(objset_t *os, uint64_t *lostp);
+extern int zfs_events_clear(objset_t *os, dmu_tx_t *tx, uint64_t *countp);
+extern int zfs_events_clear_task(objset_t *os);
 
 #ifdef	__cplusplus
 }

@@ -2125,3 +2125,22 @@ lzc_get_events(const char *dsname, uint64_t object, uint64_t offset,
 
 	return (error);
 }
+
+/*
+ * Clears a dataset's event log. Implemented on the get-events ioctl:
+ * an offset of UINT64_MAX is reserved as "clear".
+ */
+int
+lzc_clear_events(const char *dsname, nvlist_t **outnvl)
+{
+	nvlist_t *args = fnvlist_alloc();
+	int error;
+
+	fnvlist_add_uint64(args, "offset", UINT64_MAX);
+
+	error = lzc_ioctl(ZFS_IOC_GET_EVENTS, dsname, args, outnvl);
+
+	fnvlist_free(args);
+
+	return (error);
+}

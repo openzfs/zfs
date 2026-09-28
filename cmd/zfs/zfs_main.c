@@ -393,8 +393,14 @@ get_usage(zfs_help_t idx)
 		return (gettext("	diff [-FHth] <snapshot> "
 		    "[snapshot|filesystem]\n"));
 	case HELP_EVENTS:
-		return (gettext("	events [-jn] [-o <object-id>] "
-		    "<filesystem> [path]\n"));
+		return (gettext("	events [-cjn] [-o <object-id>] "
+		    "<filesystem> [path]\n"
+		    "\n"
+		    "    Display file-level events from the dataset's event "
+		    "log. Event logs\n"
+		    "    are per-dataset and not available on snapshots. "
+		    "With -c, clear\n"
+		    "    the dataset's event log.\n"));
 	case HELP_BOOKMARK:
 		return ("\tbookmark [-r] <snapshot|bookmark> "
 		    "<newbookmark>\n");
@@ -8378,6 +8384,10 @@ print_event(nvlist_t *event, boolean_t json, int count)
  * zfs events [-jn] [-o <object-id>] <filesystem> [path]
  *
  * Display file-level events from a dataset's event log.
+ *
+ * Event logs are per-dataset and live outside a snapshot's data, so
+ * arguments containing a snapshot delimiter ('@') are rejected with a
+ * specific error message.
  */
 static int
 zfs_do_events(int argc, char **argv)
@@ -8386,12 +8396,16 @@ zfs_do_events(int argc, char **argv)
 	int c;
 	boolean_t json_output = B_FALSE;
 	boolean_t limit_output = B_FALSE;
+	boolean_t clear_log = B_FALSE;
 	uint64_t object_filter = 0;
 	uint64_t max_events = 0;
 	int ret = 0;
 
-	while ((c = getopt(argc, argv, "jn:o:")) != -1) {
+	while ((c = getopt(argc, argv, "cjn:o:")) != -1) {
 		switch (c) {
+		case 'c':
+			clear_log = B_TRUE;
+			break;
 		case 'j':
 			json_output = B_TRUE;
 			break;
@@ -8419,9 +8433,45 @@ zfs_do_events(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
+	/*
+	 * Event logs are per-dataset and are not part of a snapshot's
+	 * data, so they cannot be queried on a snapshot.  Reject the
+	 * argument here with a clear message rather than letting
+	 * zfs_open fail with the generic snapshot-delimiter error.
+	 */
+	if (strchr(argv[0], '@') != NULL) {
+		(void) fprintf(stderr,
+		    gettext("cannot get events for '%s': event logs are "
+		    "per-dataset and not available on snapshots\n"),
+		    argv[0]);
+		return (1);
+	}
+
 	/* Open the dataset */
 	if ((zhp = zfs_open(g_zfs, argv[0], ZFS_TYPE_FILESYSTEM)) == NULL)
 		return (1);
+
+	if (clear_log) {
+		nvlist_t *outnvl = NULL;
+		int err = lzc_clear_events(argv[0], &outnvl);
+
+		if (err == ENOENT) {
+			(void) fprintf(stderr, gettext("no event log found "
+			    "for '%s'\n"), argv[0]);
+			zfs_close(zhp);
+			return (1);
+		} else if (err != 0) {
+			(void) fprintf(stderr, gettext("cannot clear events "
+			    "for '%s': %s\n"), argv[0], strerror(err));
+			zfs_close(zhp);
+			return (1);
+		}
+		(void) printf(gettext("cleared event log for '%s'\n"),
+		    argv[0]);
+		nvlist_free(outnvl);
+		zfs_close(zhp);
+		return (0);
+	}
 
 	/* If a path was given, resolve it to an object ID */
 	if (argc > 1) {
