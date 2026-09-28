@@ -640,6 +640,7 @@
     <elf-symbol name='zpool_trim' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_trim_one' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_upgrade' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zpool_valid_proplist' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_vdev_attach' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_vdev_clear' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zpool_vdev_degrade' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -6280,6 +6281,18 @@
     </function-decl>
   </abi-instr>
   <abi-instr address-size='64' path='lib/libzfs/libzfs_pool.c' language='LANG_C99'>
+    <class-decl name='prop_flags' size-in-bits='32' is-struct='yes' visibility='default' id='5e913e44'>
+      <data-member access='public' layout-offset-in-bits='0'>
+        <var-decl name='create' type-id='f0981eeb' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='1'>
+        <var-decl name='import' type-id='f0981eeb' visibility='default'/>
+      </data-member>
+      <data-member access='public' layout-offset-in-bits='2'>
+        <var-decl name='vdevprop' type-id='f0981eeb' visibility='default'/>
+      </data-member>
+    </class-decl>
+    <typedef-decl name='prop_flags_t' type-id='5e913e44' id='a6594d72'/>
     <class-decl name='splitflags' size-in-bits='64' is-struct='yes' visibility='default' id='dc01bf52'>
       <data-member access='public' layout-offset-in-bits='0'>
         <var-decl name='dryrun' type-id='f0981eeb' visibility='default'/>
@@ -7122,6 +7135,15 @@
       <parameter type-id='b59d7dce' name='len'/>
       <parameter type-id='debc6aa3' name='srctype'/>
       <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='zpool_valid_proplist' mangled-name='zpool_valid_proplist' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_valid_proplist'>
+      <parameter type-id='b0382bb3' name='hdl'/>
+      <parameter type-id='80f4b756' name='poolname'/>
+      <parameter type-id='5ce45b60' name='props'/>
+      <parameter type-id='9c313c2d' name='version'/>
+      <parameter type-id='a6594d72' name='flags'/>
+      <parameter type-id='26a90f95' name='errbuf'/>
+      <return type-id='5ce45b60'/>
     </function-decl>
     <function-decl name='zpool_set_prop' mangled-name='zpool_set_prop' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='zpool_set_prop'>
       <parameter type-id='4c81de99' name='zhp'/>

@@ -58,12 +58,6 @@ static nvlist_t *zpool_get_extended_objset_stat(zpool_handle_t *zhp,
 static nvlist_t *
 zpool_get_extended_obj_stat(zpool_handle_t *zhp, uint64_t dsobj, uint64_t obj);
 
-typedef struct prop_flags {
-	unsigned int create:1;	/* Validate property on creation */
-	unsigned int import:1;	/* Validate property on import */
-	unsigned int vdevprop:1; /* Validate property as a VDEV property */
-} prop_flags_t;
-
 /*
  * ====================================================================
  *   zpool property functions
@@ -581,7 +575,7 @@ bootfs_name_valid(const char *pool, const char *bootfs)
  * correct, and parse any numeric properties (index, boolean, etc) if they are
  * specified as strings.
  */
-static nvlist_t *
+nvlist_t *
 zpool_valid_proplist(libzfs_handle_t *hdl, const char *poolname,
     nvlist_t *props, uint64_t version, prop_flags_t flags, char *errbuf)
 {

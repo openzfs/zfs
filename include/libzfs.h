@@ -365,6 +365,14 @@ _LIBZFS_H const char *zpool_get_state_str(zpool_handle_t *);
 /*
  * Functions to manage pool properties
  */
+typedef struct prop_flags {
+	unsigned int create:1;	/* Validate property on creation */
+	unsigned int import:1;	/* Validate property on import */
+	unsigned int vdevprop:1; /* Validate property as a VDEV property */
+} prop_flags_t;
+
+_LIBZFS_H nvlist_t *zpool_valid_proplist(libzfs_handle_t *, const char *,
+    nvlist_t *, uint64_t, prop_flags_t, char *);
 _LIBZFS_H int zpool_set_prop(zpool_handle_t *, const char *, const char *);
 _LIBZFS_H int zpool_get_prop(zpool_handle_t *, zpool_prop_t, char *,
     size_t proplen, zprop_source_t *, boolean_t literal);
