@@ -107,6 +107,31 @@ All commits signed-off; `make checkstyle` clean at each commit.
 - `.zfs/events` lists per-object event files as a design placeholder; current
   consumption is via `zfs events <dataset>`.
 
+## Addendum: performance assessment (2026-09-28)
+
+Measured on zfs-meta (QEMU VM, 4 vCPU), debug build:
+
+- **Write-path overhead (events=on vs events=off)**: 2000 empty-file
+  creates: OFF 3.27-3.53 s, ON 3.61-3.74 s across three rounds, i.e.
+  roughly 5-8% on create-heavy metadata workloads. Plain sequential
+  writes are unaffected (2 GiB dd: 1.9 GB/s off vs 1.8 GB/s on -
+  within run variance; write(2) is not a logged operation).
+- **Query throughput**: 60000-record log paginates end to end in
+  ~1.0 s (~58k records/s) through the ioctl/unpack/format path; the
+  clear ioctl on the same log takes ~10 ms. A full 256KB page query
+  is ~30 ms.
+- **Ring capacity is byte-proportional**: a 1M ring holds ~10000
+  records (~100 B per packed record), 16M holds 60000+ (no wrap at
+  30k file creates). An earlier measurement suggesting a hard
+  ~1057-record cap at 1M was actually the page-boundary truncation
+  bug fixed in 23f14f3a0, not a capacity limit.
+- **Known scale characteristics**: the ring must be sized via
+  events_size at dataset creation (resizing an existing log is a
+  documented no-op); each logged metadata op takes the zfsvfs ring
+  lock and appends under the transaction already open for the VFS
+  op, so per-op cost is a lock + memcpy + dmu_write into the log
+  object, not a separate transaction.
+
 ## Addendum: coverage pass, `zfs events -c`, and setter hardening
 (2026-09-28)
 
