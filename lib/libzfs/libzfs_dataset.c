@@ -1510,6 +1510,39 @@ zfs_fix_auto_resv(zfs_handle_t *zhp, nvlist_t *nvl)
 }
 
 /*
+ * Helper for 'zfs create -o refreservation=auto'.  Must be called after
+ * zfs_valid_proplist(), as it is what sets the UINT64_MAX sentinel value,
+ * and while the pool handle is open.  The volume does not exist yet, so
+ * its size and block size come from nvl; zfs_create() validates them
+ * afterwards, so a missing or bad volsize is left for it to reject.
+ */
+static void
+zfs_create_fix_auto_resv(zpool_handle_t *zph, nvlist_t *nvl)
+{
+	uint64_t volsize;
+	uint64_t volblocksize;
+	uint64_t resvsize;
+
+	if (nvlist_lookup_uint64(nvl,
+	    zfs_prop_to_name(ZFS_PROP_REFRESERVATION), &resvsize) != 0 ||
+	    resvsize != UINT64_MAX) {
+		/* Not being set to "auto" */
+		return;
+	}
+	if (nvlist_lookup_uint64(nvl, zfs_prop_to_name(ZFS_PROP_VOLSIZE),
+	    &volsize) != 0) {
+		return;
+	}
+	if (nvlist_lookup_uint64(nvl, zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE),
+	    &volblocksize) != 0) {
+		volblocksize = zfs_prop_default_numeric(ZFS_PROP_VOLBLOCKSIZE);
+	}
+
+	fnvlist_add_uint64(nvl, zfs_prop_to_name(ZFS_PROP_REFRESERVATION),
+	    zvol_auto_resv(zph, volsize, volblocksize));
+}
+
+/*
  * Given a property name and value, set the property for the given dataset.
  */
 int
@@ -3581,6 +3614,8 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 		zpool_close(zpool_handle);
 		return (-1);
 	}
+	if (type == ZFS_TYPE_VOLUME && props != NULL)
+		zfs_create_fix_auto_resv(zpool_handle, props);
 	zpool_close(zpool_handle);
 
 	if (type == ZFS_TYPE_VOLUME) {
