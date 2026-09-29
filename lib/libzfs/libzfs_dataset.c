@@ -1707,6 +1707,22 @@ zfs_prop_set_list_flags(zfs_handle_t *zhp, nvlist_t *props, int flags)
 			prop = zfs_name_to_prop(nvpair_name(elem));
 			zfs_setprop_error(hdl, prop, errno, errbuf);
 		}
+
+		/*
+		 * The kernel sets each property on its own, so it may have
+		 * set the reservation added for the new volsize even though
+		 * the volsize could not be changed, e.g. on a read-only
+		 * volume.  If so, put the old reservation back below, from
+		 * the same source.  The ioctls are issued directly, as in
+		 * the ENOSPC case, so that the error reported for the
+		 * volsize change is preserved.
+		 */
+		zfs_prop_t resv_prop = ZPROP_INVAL;
+		boolean_t undo_resv = added_resv &&
+		    nvlist_exists(errorprops,
+		    zfs_prop_to_name(ZFS_PROP_VOLSIZE)) &&
+		    zfs_which_resv_prop(zhp, &resv_prop) == 0 &&
+		    !nvlist_exists(errorprops, zfs_prop_to_name(resv_prop));
 		nvlist_free(errorprops);
 
 		if (added_resv && errno == ENOSPC) {
@@ -1725,6 +1741,48 @@ zfs_prop_set_list_flags(zfs_handle_t *zhp, nvlist_t *props, int flags)
 				goto error;
 			zcmd_write_src_nvlist(hdl, &zc, nvl);
 			(void) zfs_ioctl(hdl, ZFS_IOC_SET_PROP, &zc);
+		}
+
+		if (undo_resv) {
+			uint64_t old_resv;
+			zprop_source_t src;
+			char source[ZFS_MAX_DATASET_NAME_LEN];
+
+			if (zfs_prop_get_numeric(zhp, resv_prop, &old_resv,
+			    &src, source, sizeof (source)) != 0)
+				goto error;
+			nvlist_free(nvl);
+			nvl = NULL;
+			zcmd_free_nvlists(&zc);
+
+			if (src == ZPROP_SRC_DEFAULT ||
+			    src == ZPROP_SRC_RECEIVED) {
+				/*
+				 * Drop the local value that was just set, as
+				 * 'zfs inherit -S' does, so that the default
+				 * or received one applies again.  zc still
+				 * holds the sizes of the freed nvlists, which
+				 * the kernel would copy in, so use a fresh one.
+				 */
+				zfs_cmd_t izc = {"\0"};
+
+				(void) strlcpy(izc.zc_name, zhp->zfs_name,
+				    sizeof (izc.zc_name));
+				(void) strlcpy(izc.zc_value,
+				    zfs_prop_to_name(resv_prop),
+				    sizeof (izc.zc_value));
+				izc.zc_cookie = B_TRUE;
+				(void) zfs_ioctl(hdl, ZFS_IOC_INHERIT_PROP,
+				    &izc);
+			} else {
+				if (nvlist_alloc(&nvl, NV_UNIQUE_NAME, 0) != 0)
+					goto error;
+				if (nvlist_add_uint64(nvl,
+				    zfs_prop_to_name(resv_prop), old_resv) != 0)
+					goto error;
+				zcmd_write_src_nvlist(hdl, &zc, nvl);
+				(void) zfs_ioctl(hdl, ZFS_IOC_SET_PROP, &zc);
+			}
 		}
 	} else {
 		for (cl_idx = 0; cl_idx < nvl_len; cl_idx++) {
