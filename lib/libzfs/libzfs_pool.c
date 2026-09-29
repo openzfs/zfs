@@ -185,28 +185,28 @@ zpool_state_to_name(vdev_state_t state, vdev_aux_t aux)
 	switch (state) {
 	case VDEV_STATE_CLOSED:
 	case VDEV_STATE_OFFLINE:
-		return (gettext("OFFLINE"));
+		return ("OFFLINE");
 	case VDEV_STATE_REMOVED:
-		return (gettext("REMOVED"));
+		return ("REMOVED");
 	case VDEV_STATE_CANT_OPEN:
 		if (aux == VDEV_AUX_CORRUPT_DATA || aux == VDEV_AUX_BAD_LOG)
-			return (gettext("FAULTED"));
+			return ("FAULTED");
 		else if (aux == VDEV_AUX_SPLIT_POOL)
-			return (gettext("SPLIT"));
+			return ("SPLIT");
 		else
-			return (gettext("UNAVAIL"));
+			return ("UNAVAIL");
 	case VDEV_STATE_FAULTED:
-		return (gettext("FAULTED"));
+		return ("FAULTED");
 	case VDEV_STATE_DEGRADED:
-		return (gettext("DEGRADED"));
+		return ("DEGRADED");
 	case VDEV_STATE_HEALTHY:
-		return (gettext("ONLINE"));
+		return ("ONLINE");
 
 	default:
 		break;
 	}
 
-	return (gettext("UNKNOWN"));
+	return ("UNKNOWN");
 }
 
 /*
@@ -219,24 +219,24 @@ zpool_pool_state_to_name(pool_state_t state)
 	default:
 		break;
 	case POOL_STATE_ACTIVE:
-		return (gettext("ACTIVE"));
+		return ("ACTIVE");
 	case POOL_STATE_EXPORTED:
-		return (gettext("EXPORTED"));
+		return ("EXPORTED");
 	case POOL_STATE_DESTROYED:
-		return (gettext("DESTROYED"));
+		return ("DESTROYED");
 	case POOL_STATE_SPARE:
-		return (gettext("SPARE"));
+		return ("SPARE");
 	case POOL_STATE_L2CACHE:
-		return (gettext("L2CACHE"));
+		return ("L2CACHE");
 	case POOL_STATE_UNINITIALIZED:
-		return (gettext("UNINITIALIZED"));
+		return ("UNINITIALIZED");
 	case POOL_STATE_UNAVAIL:
-		return (gettext("UNAVAIL"));
+		return ("UNAVAIL");
 	case POOL_STATE_POTENTIALLY_ACTIVE:
-		return (gettext("POTENTIALLY_ACTIVE"));
+		return ("POTENTIALLY_ACTIVE");
 	}
 
-	return (gettext("UNKNOWN"));
+	return ("UNKNOWN");
 }
 
 /*
@@ -253,11 +253,11 @@ zpool_get_state_str(zpool_handle_t *zhp)
 	status = zpool_get_status(zhp, NULL, &errata);
 
 	if (zpool_get_state(zhp) == POOL_STATE_UNAVAIL) {
-		str = gettext("FAULTED");
+		str = "FAULTED";
 	} else if (status == ZPOOL_STATUS_IO_FAILURE_WAIT ||
 	    status == ZPOOL_STATUS_IO_FAILURE_CONTINUE ||
 	    status == ZPOOL_STATUS_IO_FAILURE_MMP) {
-		str = gettext("SUSPENDED");
+		str = "SUSPENDED";
 	} else {
 		nvlist_t *nvroot = fnvlist_lookup_nvlist(
 		    zpool_get_config(zhp, NULL), ZPOOL_CONFIG_VDEV_TREE);
@@ -4197,8 +4197,8 @@ zpool_vdev_split(zpool_handle_t *zhp, char *newname, nvlist_t **newroot,
 		return (zfs_error(hdl, EZFS_INVALIDNAME, errbuf));
 
 	if ((config = zpool_get_config(zhp, NULL)) == NULL) {
-		(void) fprintf(stderr, gettext("Internal error: unable to "
-		    "retrieve pool configuration\n"));
+		(void) fprintf(stderr, "Internal error: unable to "
+		    "retrieve pool configuration\n");
 		return (-1);
 	}
 
@@ -5743,7 +5743,7 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 				features[i] = B_TRUE;
 		}
 		if (report != NULL)
-			strlcpy(report, gettext("all features enabled"), rlen);
+			strlcpy(report, "all features enabled", rlen);
 		return (ZPOOL_COMPATIBILITY_OK);
 	}
 
@@ -5753,7 +5753,7 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 			for (uint_t i = 0; i < SPA_FEATURES; i++)
 				features[i] = B_FALSE;
 		if (report != NULL)
-			strlcpy(report, gettext("all features disabled"), rlen);
+			strlcpy(report, "all features disabled", rlen);
 		return (ZPOOL_COMPATIBILITY_OK);
 	}
 
@@ -5896,33 +5896,33 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 	/* Return the most serious error */
 	if (ret_badfile) {
 		if (report != NULL)
-			snprintf(report, rlen, gettext("could not read/"
-			    "parse feature file(s): %s"), err_badfile);
+			snprintf(report, rlen, "could not read/"
+			    "parse feature file(s): %s", err_badfile);
 		return (ZPOOL_COMPATIBILITY_BADFILE);
 	}
 	if (ret_nofiles) {
 		if (report != NULL)
 			strlcpy(report,
-			    gettext("no valid compatibility files specified"),
+			    "no valid compatibility files specified",
 			    rlen);
 		return (ZPOOL_COMPATIBILITY_NOFILES);
 	}
 	if (ret_badtoken) {
 		if (report != NULL)
-			snprintf(report, rlen, gettext("invalid feature "
-			    "name(s) in local compatibility files: %s"),
+			snprintf(report, rlen, "invalid feature "
+			    "name(s) in local compatibility files: %s",
 			    err_badtoken);
 		return (ZPOOL_COMPATIBILITY_BADTOKEN);
 	}
 	if (ret_warntoken) {
 		if (report != NULL)
-			snprintf(report, rlen, gettext("unrecognized feature "
-			    "name(s) in distribution compatibility files: %s"),
+			snprintf(report, rlen, "unrecognized feature "
+			    "name(s) in distribution compatibility files: %s",
 			    err_badtoken);
 		return (ZPOOL_COMPATIBILITY_WARNTOKEN);
 	}
 	if (report != NULL)
-		strlcpy(report, gettext("compatibility set ok"), rlen);
+		strlcpy(report, "compatibility set ok", rlen);
 	return (ZPOOL_COMPATIBILITY_OK);
 }
 

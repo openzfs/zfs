@@ -1240,7 +1240,7 @@ zfs_crypto_attempt_load_keys(libzfs_handle_t *hdl, const char *fsname)
 	if (ret)
 		goto error;
 
-	(void) printf(gettext("%llu / %llu keys successfully loaded\n"),
+	(void) printf("%llu / %llu keys successfully loaded\n",
 	    (u_longlong_t)(cb.cb_numattempted - cb.cb_numfailed),
 	    (u_longlong_t)cb.cb_numattempted);
 
