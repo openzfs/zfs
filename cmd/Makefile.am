@@ -77,8 +77,6 @@ mount_zfs_LDADD = \
 	libzfs_core.la \
 	libnvpair.la
 
-mount_zfs_LDADD += $(LTLIBINTL)
-
 CPPCHECKTARGETS += raidz_test
 
 

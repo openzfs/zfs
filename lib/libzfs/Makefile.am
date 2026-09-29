@@ -74,7 +74,7 @@ libzfs_la_LIBADD = \
 	libnvpair.la \
 	libzutil.la
 
-libzfs_la_LIBADD += -lrt -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LIBFETCH_LIBS) $(LTLIBINTL)
+libzfs_la_LIBADD += -lrt -lm $(LIBCRYPTO_LIBS) $(ZLIB_LIBS) $(LIBFETCH_LIBS)
 
 libzfs_la_LDFLAGS = -version-info 7:0:0
 

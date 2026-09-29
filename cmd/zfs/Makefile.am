@@ -15,8 +15,6 @@ zfs_LDADD = \
 	libzfs_core.la \
 	libnvpair.la
 
-zfs_LDADD += $(LTLIBINTL)
-
 if BUILD_FREEBSD
 zfs_LDADD += -lgeom -ljail
 endif
