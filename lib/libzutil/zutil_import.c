@@ -70,19 +70,19 @@ libpc_error_description(libpc_handle_t *hdl)
 
 	switch (hdl->lpc_error) {
 	case LPC_BADCACHE:
-		return (dgettext(TEXT_DOMAIN, "invalid or missing cache file"));
+		return ("invalid or missing cache file");
 	case LPC_BADPATH:
-		return (dgettext(TEXT_DOMAIN, "must be an absolute path"));
+		return ("must be an absolute path");
 	case LPC_NOMEM:
-		return (dgettext(TEXT_DOMAIN, "out of memory"));
+		return ("out of memory");
 	case LPC_EACCESS:
-		return (dgettext(TEXT_DOMAIN, "some devices require root "
-		    "privileges"));
+		return ("some devices require root "
+		    "privileges");
 	case LPC_UNKNOWN:
-		return (dgettext(TEXT_DOMAIN, "unknown error"));
+		return ("unknown error");
 	default:
 		assert(hdl->lpc_error == 0);
-		return (dgettext(TEXT_DOMAIN, "no error"));
+		return ("no error");
 	}
 }
 
@@ -1367,8 +1367,8 @@ zpool_find_import_scan_dir(libpc_handle_t *hdl, pthread_mutex_t *lock,
 			return (0);
 
 		zutil_error_aux(hdl, "%s", zfs_strerror(error));
-		(void) zutil_error_fmt(hdl, LPC_BADPATH, dgettext(TEXT_DOMAIN,
-		    "cannot resolve path '%s'"), dir);
+		(void) zutil_error_fmt(hdl, LPC_BADPATH,
+		    "cannot resolve path '%s'", dir);
 		return (error);
 	}
 
@@ -1376,8 +1376,8 @@ zpool_find_import_scan_dir(libpc_handle_t *hdl, pthread_mutex_t *lock,
 	if (dirp == NULL) {
 		error = errno;
 		zutil_error_aux(hdl, "%s", zfs_strerror(error));
-		(void) zutil_error_fmt(hdl, LPC_BADPATH, dgettext(TEXT_DOMAIN,
-		    "cannot open '%s'"), path);
+		(void) zutil_error_fmt(hdl, LPC_BADPATH,
+		    "cannot open '%s'", path);
 		return (error);
 	}
 
@@ -1438,8 +1438,8 @@ zpool_find_import_scan_path(libpc_handle_t *hdl, pthread_mutex_t *lock,
 		}
 
 		zutil_error_aux(hdl, "%s", zfs_strerror(error));
-		(void) zutil_error_fmt(hdl, LPC_BADPATH, dgettext(TEXT_DOMAIN,
-		    "cannot resolve path '%s'"), dir);
+		(void) zutil_error_fmt(hdl, LPC_BADPATH,
+		    "cannot resolve path '%s'", dir);
 		goto out;
 	}
 
@@ -1476,8 +1476,8 @@ zpool_find_import_scan(libpc_handle_t *hdl, pthread_mutex_t *lock,
 				continue;
 
 			zutil_error_aux(hdl, "%s", zfs_strerror(error));
-			(void) zutil_error_fmt(hdl, LPC_BADPATH, dgettext(
-			    TEXT_DOMAIN, "cannot resolve path '%s'"), dir[i]);
+			(void) zutil_error_fmt(hdl, LPC_BADPATH,
+			    "cannot resolve path '%s'", dir[i]);
 			goto error;
 		}
 
@@ -1729,16 +1729,16 @@ zpool_find_import_cached(libpc_handle_t *hdl, importargs_t *iarg)
 
 	if ((fd = open(iarg->cachefile, O_RDONLY | O_CLOEXEC)) < 0) {
 		zutil_error_aux(hdl, "%s", zfs_strerror(errno));
-		(void) zutil_error(hdl, LPC_BADCACHE, dgettext(TEXT_DOMAIN,
-		    "failed to open cache file"));
+		(void) zutil_error(hdl, LPC_BADCACHE,
+		    "failed to open cache file");
 		return (NULL);
 	}
 
 	if (fstat64(fd, &statbuf) != 0) {
 		zutil_error_aux(hdl, "%s", zfs_strerror(errno));
 		(void) close(fd);
-		(void) zutil_error(hdl, LPC_BADCACHE, dgettext(TEXT_DOMAIN,
-		    "failed to get size of cache file"));
+		(void) zutil_error(hdl, LPC_BADCACHE,
+		    "failed to get size of cache file");
 		return (NULL);
 	}
 
@@ -1750,8 +1750,8 @@ zpool_find_import_cached(libpc_handle_t *hdl, importargs_t *iarg)
 	if (read(fd, buf, statbuf.st_size) != statbuf.st_size) {
 		(void) close(fd);
 		free(buf);
-		(void) zutil_error(hdl, LPC_BADCACHE, dgettext(TEXT_DOMAIN,
-		    "failed to read cache file contents"));
+		(void) zutil_error(hdl, LPC_BADCACHE,
+		    "failed to read cache file contents");
 		return (NULL);
 	}
 
@@ -1759,8 +1759,8 @@ zpool_find_import_cached(libpc_handle_t *hdl, importargs_t *iarg)
 
 	if (nvlist_unpack(buf, statbuf.st_size, &raw, 0) != 0) {
 		free(buf);
-		(void) zutil_error(hdl, LPC_BADCACHE, dgettext(TEXT_DOMAIN,
-		    "invalid or corrupt cache file contents"));
+		(void) zutil_error(hdl, LPC_BADCACHE,
+		    "invalid or corrupt cache file contents");
 		return (NULL);
 	}
 
@@ -1943,8 +1943,8 @@ zpool_search_import(libpc_handle_t *hdl, importargs_t *import)
 
 	if ((pools == NULL || nvlist_empty(pools)) &&
 	    hdl->lpc_open_access_error && geteuid() != 0) {
-		(void) zutil_error(hdl, LPC_EACCESS, dgettext(TEXT_DOMAIN,
-		    "no pools found"));
+		(void) zutil_error(hdl, LPC_EACCESS,
+		    "no pools found");
 	}
 
 	return (pools);
@@ -1987,9 +1987,9 @@ zpool_find_config(libpc_handle_t *hdl, const char *target, nvlist_t **configp,
 
 	pools = zpool_search_import(hdl, args);
 	if (pools == NULL) {
-		zutil_error_aux(hdl, dgettext(TEXT_DOMAIN, "no pools found"));
-		(void) zutil_error_fmt(hdl, LPC_UNKNOWN, dgettext(TEXT_DOMAIN,
-		    "failed to find config for pool '%s'"), targetdup);
+		zutil_error_aux(hdl, "no pools found");
+		(void) zutil_error_fmt(hdl, LPC_UNKNOWN,
+		    "failed to find config for pool '%s'", targetdup);
 		free(targetdup);
 		return (ENOENT);
 	}
@@ -2010,19 +2010,19 @@ zpool_find_config(libpc_handle_t *hdl, const char *target, nvlist_t **configp,
 	fnvlist_free(pools);
 
 	if (count == 0) {
-		zutil_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "no matching pools"));
-		(void) zutil_error_fmt(hdl, LPC_UNKNOWN, dgettext(TEXT_DOMAIN,
-		    "failed to find config for pool '%s'"), targetdup);
+		zutil_error_aux(hdl,
+		    "no matching pools");
+		(void) zutil_error_fmt(hdl, LPC_UNKNOWN,
+		    "failed to find config for pool '%s'", targetdup);
 		free(targetdup);
 		return (ENOENT);
 	}
 
 	if (count > 1) {
-		zutil_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "more than one matching pool"));
-		(void) zutil_error_fmt(hdl, LPC_UNKNOWN, dgettext(TEXT_DOMAIN,
-		    "failed to find config for pool '%s'"), targetdup);
+		zutil_error_aux(hdl,
+		    "more than one matching pool");
+		(void) zutil_error_fmt(hdl, LPC_UNKNOWN,
+		    "failed to find config for pool '%s'", targetdup);
 		free(targetdup);
 		fnvlist_free(match);
 		return (EINVAL);

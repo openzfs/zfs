@@ -515,8 +515,8 @@ zfs_mount_setattr(zfs_handle_t *zhp, uint32_t nspflags)
 			if (errno == ENOSYS)
 				return (zfs_mount(zhp, MNTOPT_REMOUNT, 0));
 			return (zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
-			    dgettext(TEXT_DOMAIN, "cannot set mount "
-			    "attributes for '%s'"), zhp->zfs_name));
+			    "cannot set mount "
+			    "attributes for '%s'", zhp->zfs_name));
 		}
 		return (0);
 	}
@@ -539,8 +539,8 @@ zfs_mount_setattr(zfs_handle_t *zhp, uint32_t nspflags)
 				break;
 			}
 			ret = zfs_error_fmt(hdl, EZFS_MOUNTFAILED,
-			    dgettext(TEXT_DOMAIN, "cannot set mount "
-			    "attributes for '%s'"), zhp->zfs_name);
+			    "cannot set mount "
+			    "attributes for '%s'", zhp->zfs_name);
 			break;
 		}
 	}
