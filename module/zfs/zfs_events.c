@@ -778,10 +778,38 @@ zfs_events_get_lost(objset_t *os, uint64_t *lostp)
 	return (0);
 }
 
+/*
+ * Return the format version of the event ring on-disk structure.
+ * Returns ENOENT if the dataset has no event log.
+ */
+int
+zfs_events_get_schema_version(objset_t *os, uint64_t *verp)
+{
+	dmu_buf_t *dbp;
+	zfs_events_phys_t *zep;
+	uint64_t obj;
+	int err;
+
+	err = zap_lookup(os, MASTER_NODE_OBJ, ZFS_EVENTS_ZAP_NAME,
+	    sizeof (uint64_t), 1, &obj);
+	if (err != 0)
+		return (SET_ERROR(ENOENT));
+
+	err = dmu_bonus_hold(os, obj, FTAG, &dbp);
+	if (err != 0)
+		return (err);
+
+	zep = dbp->db_data;
+	*verp = zep->zep_version;
+	dmu_buf_rele(dbp, FTAG);
+	return (0);
+}
+
 #if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_events_create_obj);
 EXPORT_SYMBOL(zfs_events_txhold);
 EXPORT_SYMBOL(zfs_events_get_lost);
+EXPORT_SYMBOL(zfs_events_get_schema_version);
 EXPORT_SYMBOL(zfs_events_destroy_obj);
 EXPORT_SYMBOL(zfs_events_log_create);
 EXPORT_SYMBOL(zfs_events_log_remove);

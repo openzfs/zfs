@@ -4805,6 +4805,14 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 			fnvlist_add_uint64(outnvl, "records_lost", lost);
 	}
 
+	{
+		uint64_t schema_version = 0;
+
+		if (zfs_events_get_schema_version(os, &schema_version) == 0)
+			fnvlist_add_uint64(outnvl, "schema_version",
+			    schema_version);
+	}
+
 	vmem_free(buf, bufsize);
 	dmu_objset_rele(os, FTAG);
 	return (0);
