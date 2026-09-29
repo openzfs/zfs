@@ -17,7 +17,6 @@
 #include <libzfs.h>
 #include <libzutil.h>
 #include <sys/sysctl.h>
-#include <libintl.h>
 #include <sys/linker.h>
 #include <sys/module.h>
 #include <sys/stat.h>

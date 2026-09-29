@@ -40,7 +40,6 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
-#include <libintl.h>
 #include <libgen.h>
 #include <stddef.h>
 #include <stdlib.h>

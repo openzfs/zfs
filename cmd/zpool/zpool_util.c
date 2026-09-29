@@ -16,7 +16,6 @@
 
 #include <errno.h>
 #include <libgen.h>
-#include <libintl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

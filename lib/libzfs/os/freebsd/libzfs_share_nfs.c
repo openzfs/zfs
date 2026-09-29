@@ -38,7 +38,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include <libintl.h>
 
 #include <libzfs.h>
 #include "../../libzfs_share.h"

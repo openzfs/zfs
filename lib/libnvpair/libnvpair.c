@@ -16,7 +16,6 @@
 
 #include <unistd.h>
 #include <string.h>
-#include <libintl.h>
 #include <sys/types.h>
 #include <stdarg.h>
 #include "libnvpair.h"

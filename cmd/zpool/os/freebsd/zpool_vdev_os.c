@@ -56,7 +56,6 @@
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <libintl.h>
 #include <libnvpair.h>
 #include <libzutil.h>
 #include <limits.h>

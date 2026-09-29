@@ -12,7 +12,6 @@
 /*
  * Copyright (c) 2019 by Delphix. All rights reserved.
  */
-#include <libintl.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <stdint.h>

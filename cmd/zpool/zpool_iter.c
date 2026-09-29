@@ -19,7 +19,6 @@
  * Copyright (c) 2025, Klara, Inc.
  */
 
-#include <libintl.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
