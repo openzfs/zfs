@@ -198,7 +198,7 @@ my @path_license_tags = (
 	# with exceptions, so we don't have a "generic" list as such, just
 	# a list of all the ones currently in use.
 	'config' => [
-	    'CDDL-1.0', 'LGPL-2.1-or-later', 'FSFAP', 'FSFULLR',
+	    'CDDL-1.0', 'LGPL-2.1-or-later', 'FSFAP',
 	    'GPL-2.0-or-later WITH Autoconf-exception-generic',
 	    'GPL-3.0-or-later WITH Autoconf-exception-macro',
 	],
