@@ -4856,6 +4856,16 @@ spa_ld_select_uberblock_done(spa_t *spa, uberblock_t *ub)
 	    TXG_INITIAL - 1 : spa_last_synced_txg(spa) - TXG_DEFER_SIZE - 1;
 	spa->spa_first_txg = spa->spa_last_ubsync_txg ?
 	    spa->spa_last_ubsync_txg : spa_last_synced_txg(spa) + 1;
+	/*
+	 * An explicitly requested txg can be older than uberblocks still on
+	 * disk.  Those belong to the timeline this load discards, so the new
+	 * one has to be numbered above them: otherwise a later import selects
+	 * the newest uberblock, which is one of theirs, and silently returns
+	 * to the discarded state -- or fails, once its blocks have been
+	 * reused.
+	 */
+	if (spa->spa_first_txg <= spa->spa_load_latest_ub_txg)
+		spa->spa_first_txg = spa->spa_load_latest_ub_txg + 1;
 	spa->spa_claim_max_txg = spa->spa_first_txg;
 	spa->spa_prev_software_version = ub->ub_software_version;
 }

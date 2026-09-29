@@ -387,6 +387,7 @@ struct spa {
 	char		*spa_root;		/* alternate root directory */
 	uint64_t	spa_ena;		/* spa-wide ereport ENA */
 	int		spa_last_open_failed;	/* error if last open failed */
+	uint64_t	spa_load_latest_ub_txg;	/* newest ub txg on disk */
 	uint64_t	spa_last_ubsync_txg;	/* "best" uberblock txg */
 	uint64_t	spa_last_ubsync_txg_ts;	/* timestamp from that ub */
 	uint64_t	spa_load_txg;		/* ub txg that loaded */

@@ -1711,6 +1711,14 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 	 * Search all labels on this vdev to find the configuration that
 	 * matches the txg for our uberblock.
 	 */
+	/*
+	 * Remember the newest uberblock any label carries, whatever txg was
+	 * asked for.  A load of an older txg has to write its own uberblocks
+	 * above this one, or a later import would find the discarded ones and
+	 * prefer them.
+	 */
+	spa->spa_load_latest_ub_txg = cb.ubl_latest.ub_txg;
+
 	if (cb.ubl_vd != NULL) {
 		vdev_dbgmsg(cb.ubl_vd, "best uberblock found for spa %s, "
 		    "txg=%llu seq=%llu", spa_load_name(spa),
