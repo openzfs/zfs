@@ -82,7 +82,7 @@ log_must sync_pool $POOL
 # keep the files that landed on its interior slots and retry if none did.
 #
 typeset -i attempt inside=0
-for (( attempt = 0; attempt < 5 && inside == 0; attempt++ )); do
+for (( attempt = 0; attempt < 10 && inside == 0; attempt++ )); do
 	log_must zpool export $POOL
 	log_must zpool import $POOL
 
@@ -90,6 +90,10 @@ for (( attempt = 0; attempt < 5 && inside == 0; attempt++ )); do
 		log_must touch /$POOL/fs/new.$i
 	done
 	log_must sync_pool $POOL
+
+	typeset -i min=$(get_objnum /$POOL/fs/new.0)
+	typeset -i max=$(get_objnum /$POOL/fs/new.7)
+	log_note "attempt=$attempt: checking interior slots for $freed, range=$min-$max"
 
 	for (( i = 0; i < 8; i++ )); do
 		typeset -i obj=$(get_objnum /$POOL/fs/new.$i)
