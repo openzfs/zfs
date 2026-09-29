@@ -22,7 +22,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <stddef.h>
-#include <libintl.h>
 #include <libzfs.h>
 #include <libzutil.h>
 #include <sys/mntent.h>

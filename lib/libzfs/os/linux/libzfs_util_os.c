@@ -17,7 +17,6 @@
 #include <alloca.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <libintl.h>
 #include <math.h>
 #include <poll.h>
 #include <stdarg.h>

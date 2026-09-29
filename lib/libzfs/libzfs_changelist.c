@@ -20,7 +20,6 @@
  * Copyright (c) 2018 Datto Inc.
  */
 
-#include <libintl.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>

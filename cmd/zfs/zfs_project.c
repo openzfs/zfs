@@ -23,7 +23,6 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <stddef.h>
-#include <libintl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/list.h>

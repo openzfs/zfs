@@ -22,7 +22,6 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
-#include <libintl.h>
 #include <errno.h>
 #include <sys/stdtypes.h>
 #include <sys/sysmacros.h>
