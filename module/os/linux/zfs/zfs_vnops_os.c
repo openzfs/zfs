@@ -2006,6 +2006,7 @@ zfs_setattr_idmap(znode_t *zp, vattr_t *vap, int flags, cred_t *cr,
 	uint64_t	xattr_obj;
 	uint64_t	mtime[2], ctime[2], atime[2];
 	uint64_t	projid = ZFS_INVALID_PROJID;
+	uint64_t	old_size = 0;
 	znode_t		*attrzp;
 	int		need_policy = FALSE;
 	int		err, err2 = 0;
@@ -2147,7 +2148,15 @@ top:
 		 * block if there are locks present... this
 		 * should be addressed in openat().
 		 */
+
+		/*
+		 * XXX - Note, we are not providing any open
+		 * mode flags here (like FNDELAY), so we may
+		 * block if there are locks present... this
+		 * should be addressed in openat().
+		 */
 		/* XXX - would it be OK to generate a log record here? */
+		old_size = zp->z_size;
 		err = zfs_freesp(zp, vap->va_size, 0, 0, FALSE);
 		if (err)
 			goto out3;
@@ -2666,6 +2675,22 @@ top:
 			    mask, zfsvfs->z_events_size,
 			    &zfsvfs->z_events_obj,
 			    &zfsvfs->z_events_lock);
+
+			/*
+			 * A size change routed through setattr (open(3)
+			 * with O_TRUNC, truncate(1), ftruncate(2)) never
+			 * passes through zfs_freesp's log path, so the
+			 * truncation would otherwise be invisible to
+			 * event consumers; emit TRUNCATE when the file
+			 * shrank.
+			 */
+			if ((mask & ATTR_SIZE) && old_size > zp->z_size) {
+				zfs_events_log_truncate(zfsvfs->z_os, tx,
+				    zp->z_id, old_size, zp->z_size,
+				    zfsvfs->z_events_size,
+				    &zfsvfs->z_events_obj,
+				    &zfsvfs->z_events_lock);
+			}
 		}
 		/*
 		 * ATTR_MODE bumps via zfs_aclset_common -> tstamp_update_setup;
