@@ -73,8 +73,6 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/libzfs_mnttab_cache_check
 scripts_zfs_tests_bin_PROGRAMS += %D%/manipulate_user_buffer
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/mkbusy %D%/mkfile %D%/mkfiles %D%/mktree
-%C%_mkfile_LDADD = $(LTLIBINTL)
-
 
 scripts_zfs_tests_bin_PROGRAMS += \
 	%D%/mmap_exec %D%/mmap_ftruncate %D%/mmap_seek \
