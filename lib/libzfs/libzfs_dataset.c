@@ -1400,6 +1400,26 @@ error:
 	return (NULL);
 }
 
+/*
+ * Return the reservation of a thick provisioned volume of the given size
+ * and block size, which is what refreservation=auto sets.
+ * zfs_add_synthetic_resv() only keeps a reservation in sync with volsize if
+ * it is this exact value.
+ */
+static uint64_t
+zvol_auto_resv(zpool_handle_t *zph, uint64_t volsize, uint64_t volblocksize)
+{
+	nvlist_t *props = fnvlist_alloc();
+	uint64_t resv;
+
+	fnvlist_add_uint64(props, zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE),
+	    volblocksize);
+	resv = zvol_volsize_to_reservation(zph, volsize, props);
+	fnvlist_free(props);
+
+	return (resv);
+}
+
 static int
 zfs_add_synthetic_resv(zfs_handle_t *zhp, nvlist_t *nvl)
 {
@@ -1407,8 +1427,8 @@ zfs_add_synthetic_resv(zfs_handle_t *zhp, nvlist_t *nvl)
 	uint64_t new_volsize;
 	uint64_t old_reservation;
 	uint64_t new_reservation;
+	uint64_t volblocksize;
 	zfs_prop_t resv_prop;
-	nvlist_t *props;
 	zpool_handle_t *zph = zpool_handle(zhp);
 
 	/*
@@ -1419,24 +1439,18 @@ zfs_add_synthetic_resv(zfs_handle_t *zhp, nvlist_t *nvl)
 	if (zfs_which_resv_prop(zhp, &resv_prop) < 0)
 		return (-1);
 	old_reservation = zfs_prop_get_int(zhp, resv_prop);
+	volblocksize = zfs_prop_get_int(zhp, ZFS_PROP_VOLBLOCKSIZE);
 
-	props = fnvlist_alloc();
-	fnvlist_add_uint64(props, zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE),
-	    zfs_prop_get_int(zhp, ZFS_PROP_VOLBLOCKSIZE));
-
-	if ((zvol_volsize_to_reservation(zph, old_volsize, props) !=
+	if ((zvol_auto_resv(zph, old_volsize, volblocksize) !=
 	    old_reservation) || nvlist_exists(nvl,
 	    zfs_prop_to_name(resv_prop))) {
-		fnvlist_free(props);
 		return (0);
 	}
 	if (nvlist_lookup_uint64(nvl, zfs_prop_to_name(ZFS_PROP_VOLSIZE),
 	    &new_volsize) != 0) {
-		fnvlist_free(props);
 		return (-1);
 	}
-	new_reservation = zvol_volsize_to_reservation(zph, new_volsize, props);
-	fnvlist_free(props);
+	new_reservation = zvol_auto_resv(zph, new_volsize, volblocksize);
 
 	if (nvlist_add_uint64(nvl, zfs_prop_to_name(resv_prop),
 	    new_reservation) != 0) {
@@ -1457,7 +1471,6 @@ zfs_fix_auto_resv(zfs_handle_t *zhp, nvlist_t *nvl)
 	uint64_t volsize;
 	uint64_t resvsize;
 	zfs_prop_t prop;
-	nvlist_t *props;
 
 	if (!ZFS_IS_VOLUME(zhp)) {
 		return (0);
@@ -1480,19 +1493,13 @@ zfs_fix_auto_resv(zfs_handle_t *zhp, nvlist_t *nvl)
 		return (0);
 	}
 
-	props = fnvlist_alloc();
-
-	fnvlist_add_uint64(props, zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE),
-	    zfs_prop_get_int(zhp, ZFS_PROP_VOLBLOCKSIZE));
-
 	if (nvlist_lookup_uint64(nvl, zfs_prop_to_name(ZFS_PROP_VOLSIZE),
 	    &volsize) != 0) {
 		volsize = zfs_prop_get_int(zhp, ZFS_PROP_VOLSIZE);
 	}
 
-	resvsize = zvol_volsize_to_reservation(zpool_handle(zhp), volsize,
-	    props);
-	fnvlist_free(props);
+	resvsize = zvol_auto_resv(zpool_handle(zhp), volsize,
+	    zfs_prop_get_int(zhp, ZFS_PROP_VOLBLOCKSIZE));
 
 	(void) nvlist_remove_all(nvl, zfs_prop_to_name(prop));
 	if (nvlist_add_uint64(nvl, zfs_prop_to_name(prop), resvsize) != 0) {
