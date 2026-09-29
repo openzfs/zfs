@@ -115,18 +115,18 @@ mtab_update(const char *dataset, const char *mntpoint, const char *type,
 
 	fp = setmntent("/etc/mtab", "a+e");
 	if (!fp) {
-		(void) fprintf(stderr, gettext(
+		(void) fprintf(stderr,
 		    "filesystem '%s' was mounted, but /etc/mtab "
-		    "could not be opened due to error: %s\n"),
+		    "could not be opened due to error: %s\n",
 		    dataset, strerror(errno));
 		return (MOUNT_FILEIO);
 	}
 
 	error = addmntent(fp, &mnt);
 	if (error) {
-		(void) fprintf(stderr, gettext(
+		(void) fprintf(stderr,
 		    "filesystem '%s' was mounted, but /etc/mtab "
-		    "could not be updated due to error: %s\n"),
+		    "could not be updated due to error: %s\n",
 		    dataset, strerror(errno));
 		return (MOUNT_FILEIO);
 	}
@@ -178,9 +178,9 @@ main(int argc, char **argv)
 		case '?':
 			if (optopt)
 				(void) fprintf(stderr,
-				    gettext("Invalid option '%c'\n"), optopt);
-			(void) fprintf(stderr, gettext("Usage: mount.zfs "
-			    "[-sfnvh] [-o options] <dataset> <mountpoint>\n"));
+				    "Invalid option '%c'\n", optopt);
+			(void) fprintf(stderr, "Usage: mount.zfs "
+			    "[-sfnvh] [-o options] <dataset> <mountpoint>\n");
 			return (MOUNT_USAGE);
 		}
 	}
@@ -191,13 +191,13 @@ main(int argc, char **argv)
 	/* check that we only have two arguments */
 	if (argc != 2) {
 		if (argc == 0)
-			(void) fprintf(stderr, gettext("missing dataset "
-			    "argument\n"));
+			(void) fprintf(stderr, "missing dataset "
+			    "argument\n");
 		else if (argc == 1)
 			(void) fprintf(stderr,
-			    gettext("missing mountpoint argument\n"));
+			    "missing mountpoint argument\n");
 		else
-			(void) fprintf(stderr, gettext("too many arguments\n"));
+			(void) fprintf(stderr, "too many arguments\n");
 		(void) fprintf(stderr, "usage: mount <dataset> <mountpoint>\n");
 		return (MOUNT_USAGE);
 	}
@@ -206,8 +206,8 @@ main(int argc, char **argv)
 
 	/* canonicalize the mount point */
 	if (realpath(argv[1], mntpoint) == NULL) {
-		(void) fprintf(stderr, gettext("filesystem '%s' cannot be "
-		    "mounted at '%s' due to canonicalization error: %s\n"),
+		(void) fprintf(stderr, "filesystem '%s' cannot be "
+		    "mounted at '%s' due to canonicalization error: %s\n",
 		    dataset, argv[1], strerror(errno));
 		return (MOUNT_SYSERR);
 	}
@@ -218,20 +218,20 @@ main(int argc, char **argv)
 	if (error) {
 		switch (error) {
 		case ENOMEM:
-			(void) fprintf(stderr, gettext("filesystem '%s' "
+			(void) fprintf(stderr, "filesystem '%s' "
 			    "cannot be mounted due to a memory allocation "
-			    "failure.\n"), dataset);
+			    "failure.\n", dataset);
 			return (MOUNT_SYSERR);
 		case ENOENT:
-			(void) fprintf(stderr, gettext("filesystem '%s' "
+			(void) fprintf(stderr, "filesystem '%s' "
 			    "cannot be mounted due to invalid option "
-			    "'%s'.\n"), dataset, badopt);
-			(void) fprintf(stderr, gettext("Use the '-s' option "
-			    "to ignore the bad mount option.\n"));
+			    "'%s'.\n", dataset, badopt);
+			(void) fprintf(stderr, "Use the '-s' option "
+			    "to ignore the bad mount option.\n");
 			return (MOUNT_USAGE);
 		default:
-			(void) fprintf(stderr, gettext("filesystem '%s' "
-			    "cannot be mounted due to internal error %d.\n"),
+			(void) fprintf(stderr, "filesystem '%s' "
+			    "cannot be mounted due to internal error %d.\n",
 			    dataset, error);
 			return (MOUNT_SOFTWARE);
 		}
@@ -253,8 +253,8 @@ main(int argc, char **argv)
 	/* try to open the dataset to access the mount point */
 	if ((zhp = zfs_open(g_zfs, dataset,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT)) == NULL) {
-		(void) fprintf(stderr, gettext("filesystem '%s' cannot be "
-		    "mounted, unable to open the dataset\n"), dataset);
+		(void) fprintf(stderr, "filesystem '%s' cannot be "
+		    "mounted, unable to open the dataset\n", dataset);
 		libzfs_fini(g_zfs);
 		return (MOUNT_USAGE);
 	}
@@ -277,8 +277,8 @@ main(int argc, char **argv)
 	 */
 	zfs_version = zfs_prop_get_int(zhp, ZFS_PROP_VERSION);
 	if (zfs_version == 0) {
-		fprintf(stderr, gettext("unable to fetch "
-		    "ZFS version for filesystem '%s'\n"), dataset);
+		fprintf(stderr, "unable to fetch "
+		    "ZFS version for filesystem '%s'\n", dataset);
 		zfs_close(zhp);
 		libzfs_fini(g_zfs);
 		return (MOUNT_SYSERR);
@@ -296,10 +296,10 @@ main(int argc, char **argv)
 	 * systemd depend on 'mount -o remount <mountpoint>' to work.
 	 */
 	if (zfsutil && (strcmp(prop, ZFS_MOUNTPOINT_LEGACY) == 0)) {
-		(void) fprintf(stderr, gettext(
+		(void) fprintf(stderr,
 		    "filesystem '%s' cannot be mounted using 'zfs mount'.\n"
 		    "Use 'zfs set mountpoint=%s' or 'mount -t zfs %s %s'.\n"
-		    "See zfs(8) for more information.\n"),
+		    "See zfs(8) for more information.\n",
 		    dataset, mntpoint, dataset, mntpoint);
 		zfs_close(zhp);
 		libzfs_fini(g_zfs);
@@ -308,10 +308,10 @@ main(int argc, char **argv)
 
 	if (!zfsutil && !(remount || fake) &&
 	    strcmp(prop, ZFS_MOUNTPOINT_LEGACY)) {
-		(void) fprintf(stderr, gettext(
+		(void) fprintf(stderr,
 		    "filesystem '%s' cannot be mounted using 'mount'.\n"
 		    "Use 'zfs set mountpoint=%s' or 'zfs mount %s'.\n"
-		    "See zfs(8) for more information.\n"),
+		    "See zfs(8) for more information.\n",
 		    dataset, "legacy", dataset);
 		zfs_close(zhp);
 		libzfs_fini(g_zfs);
@@ -319,10 +319,10 @@ main(int argc, char **argv)
 	}
 
 	if (verbose)
-		(void) fprintf(stdout, gettext("mount.zfs:\n"
+		(void) fprintf(stdout, "mount.zfs:\n"
 		    "  dataset:    \"%s\"\n  mountpoint: \"%s\"\n"
 		    "  mountflags: 0x%lx\n  zfsflags:   0x%lx\n"
-		    "  mountopts:  \"%s\"\n  mtabopts:   \"%s\"\n"),
+		    "  mountopts:  \"%s\"\n  mtabopts:   \"%s\"\n",
 		    dataset, mntpoint, mntflags, zfsflags, mntopts, mtabopt);
 
 	if (!fake) {
@@ -348,42 +348,42 @@ main(int argc, char **argv)
 	if (error) {
 		switch (errno) {
 		case ENOENT:
-			(void) fprintf(stderr, gettext("mount point "
-			    "'%s' does not exist\n"), mntpoint);
+			(void) fprintf(stderr, "mount point "
+			    "'%s' does not exist\n", mntpoint);
 			return (MOUNT_SYSERR);
 		case EBUSY:
-			(void) fprintf(stderr, gettext("filesystem "
-			    "'%s' is already mounted\n"), dataset);
+			(void) fprintf(stderr, "filesystem "
+			    "'%s' is already mounted\n", dataset);
 			return (MOUNT_BUSY);
 		case ENOTSUP:
 			if (zfs_version > ZPL_VERSION) {
 				(void) fprintf(stderr,
-				    gettext("filesystem '%s' (v%d) is not "
+				    "filesystem '%s' (v%d) is not "
 				    "supported by this implementation of "
-				    "ZFS (max v%d).\n"), dataset,
+				    "ZFS (max v%d).\n", dataset,
 				    (int)zfs_version, (int)ZPL_VERSION);
 			} else {
 				(void) fprintf(stderr,
-				    gettext("filesystem '%s' mount "
-				    "failed for unknown reason.\n"), dataset);
+				    "filesystem '%s' mount "
+				    "failed for unknown reason.\n", dataset);
 			}
 			return (MOUNT_SYSERR);
 #ifdef MS_MANDLOCK
 		case EPERM:
 			if (mntflags & MS_MANDLOCK) {
-				(void) fprintf(stderr, gettext("filesystem "
+				(void) fprintf(stderr, "filesystem "
 				    "'%s' has the 'nbmand=on' property set, "
 				    "this mount\noption may be disabled in "
 				    "your kernel.  Use 'zfs set nbmand=off'\n"
 				    "to disable this option and try to "
-				    "mount the filesystem again.\n"), dataset);
+				    "mount the filesystem again.\n", dataset);
 				return (MOUNT_SYSERR);
 			}
 #endif
 			zfs_fallthrough;
 		default:
-			(void) fprintf(stderr, gettext("filesystem "
-			    "'%s' can not be mounted: %s\n"), dataset,
+			(void) fprintf(stderr, "filesystem "
+			    "'%s' can not be mounted: %s\n", dataset,
 			    strerror(errno));
 			return (MOUNT_USAGE);
 		}

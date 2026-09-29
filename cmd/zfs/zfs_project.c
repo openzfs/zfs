@@ -55,27 +55,27 @@ zfs_project_sanity_check(const char *name, zfs_project_control_t *zpc,
 
 	ret = stat(name, st);
 	if (ret) {
-		(void) fprintf(stderr, gettext("failed to stat %s: %s\n"),
+		(void) fprintf(stderr, "failed to stat %s: %s\n",
 		    name, strerror(errno));
 		return (ret);
 	}
 
 	if (!S_ISREG(st->st_mode) && !S_ISDIR(st->st_mode)) {
-		(void) fprintf(stderr, gettext("only support project quota on "
-		    "regular file or directory\n"));
+		(void) fprintf(stderr, "only support project quota on "
+		    "regular file or directory\n");
 		return (-1);
 	}
 
 	if (!S_ISDIR(st->st_mode)) {
 		if (zpc->zpc_dironly) {
-			(void) fprintf(stderr, gettext(
-			    "'-d' option on non-dir target %s\n"), name);
+			(void) fprintf(stderr,
+			    "'-d' option on non-dir target %s\n", name);
 			return (-1);
 		}
 
 		if (zpc->zpc_recursive) {
-			(void) fprintf(stderr, gettext(
-			    "'-r' option on non-dir target %s\n"), name);
+			(void) fprintf(stderr,
+			    "'-r' option on non-dir target %s\n", name);
 			return (-1);
 		}
 	}
@@ -91,7 +91,7 @@ zfs_project_load_projid(const char *name, zfs_project_control_t *zpc)
 
 	fd = open(name, O_RDONLY | O_NOCTTY);
 	if (fd < 0) {
-		(void) fprintf(stderr, gettext("failed to open %s: %s\n"),
+		(void) fprintf(stderr, "failed to open %s: %s\n",
 		    name, strerror(errno));
 		return (fd);
 	}
@@ -99,7 +99,7 @@ zfs_project_load_projid(const char *name, zfs_project_control_t *zpc)
 	ret = ioctl(fd, ZFS_IOC_FSGETXATTR, &fsx);
 	if (ret)
 		(void) fprintf(stderr,
-		    gettext("failed to get xattr for %s: %s\n"),
+		    "failed to get xattr for %s: %s\n",
 		    name, strerror(errno));
 	else
 		zpc->zpc_expected_projid = fsx.fsx_projid;
@@ -119,7 +119,7 @@ zfs_project_handle_one(const char *name, zfs_project_control_t *zpc)
 		if (errno == ENOENT && zpc->zpc_ignore_noent)
 			return (0);
 
-		(void) fprintf(stderr, gettext("failed to open %s: %s\n"),
+		(void) fprintf(stderr, "failed to open %s: %s\n",
 		    name, strerror(errno));
 		return (fd);
 	}
@@ -127,7 +127,7 @@ zfs_project_handle_one(const char *name, zfs_project_control_t *zpc)
 	ret = ioctl(fd, ZFS_IOC_FSGETXATTR, &fsx);
 	if (ret) {
 		(void) fprintf(stderr,
-		    gettext("failed to get xattr for %s: %s\n"),
+		    "failed to get xattr for %s: %s\n",
 		    name, strerror(errno));
 		goto out;
 	}
@@ -187,7 +187,7 @@ zfs_project_handle_one(const char *name, zfs_project_control_t *zpc)
 	ret = ioctl(fd, ZFS_IOC_FSSETXATTR, &fsx);
 	if (ret) {
 		(void) fprintf(stderr,
-		    gettext("failed to set xattr for %s: %s\n"),
+		    "failed to set xattr for %s: %s\n",
 		    name, strerror(errno));
 
 		if (errno == ENOTSUP) {
@@ -200,10 +200,10 @@ zfs_project_handle_one(const char *name, zfs_project_control_t *zpc)
 			 */
 			if (strcmp(kver, ZFS_META_ALIAS) != 0) {
 				fprintf(stderr,
-				    gettext("Warning: The zfs module version "
+				    "Warning: The zfs module version "
 				    "(%s) and userspace\nversion (%s) do not "
 				    "match up.  This may be the\ncause of the "
-				    "\"Operation not supported\" error.\n"),
+				    "\"Operation not supported\" error.\n",
 				    kver, ZFS_META_ALIAS);
 			}
 		}
@@ -228,7 +228,7 @@ zfs_project_handle_dir(const char *name, zfs_project_control_t *zpc,
 			return (0);
 
 		ret = -errno;
-		(void) fprintf(stderr, gettext("failed to opendir %s: %s\n"),
+		(void) fprintf(stderr, "failed to opendir %s: %s\n",
 		    name, strerror(errno));
 		return (ret);
 	}
@@ -263,7 +263,7 @@ zfs_project_handle_dir(const char *name, zfs_project_control_t *zpc,
 
 	if (errno && !ret) {
 		ret = -errno;
-		(void) fprintf(stderr, gettext("failed to readdir %s: %s\n"),
+		(void) fprintf(stderr, "failed to readdir %s: %s\n",
 		    name, strerror(errno));
 	}
 

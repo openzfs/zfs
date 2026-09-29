@@ -276,8 +276,8 @@ check_slice(const char *path, blkid_cache cache, int force, boolean_t isspare)
 			err = 0;
 		} else {
 			err = -1;
-			vdev_error(gettext("%s contains a filesystem of "
-			    "type '%s'\n"), path, value);
+			vdev_error("%s contains a filesystem of "
+			    "type '%s'\n", path, value);
 		}
 	}
 
@@ -317,8 +317,8 @@ check_disk(const char *path, blkid_cache cache, int force,
 
 	if ((fd = open(path, flags)) < 0) {
 		char *value = blkid_get_tag_value(cache, "TYPE", path);
-		(void) fprintf(stderr, gettext("%s is in use and contains "
-		    "a %s filesystem.\n"), path, value ? value : "unknown");
+		(void) fprintf(stderr, "%s is in use and contains "
+		    "a %s filesystem.\n", path, value ? value : "unknown");
 		free(value);
 		return (-1);
 	}
@@ -346,8 +346,8 @@ check_disk(const char *path, blkid_cache cache, int force,
 			/* Partitions will now be created using the backup */
 			return (0);
 		} else {
-			vdev_error(gettext("%s contains a corrupt primary "
-			    "EFI label.\n"), path);
+			vdev_error("%s contains a corrupt primary "
+			    "EFI label.\n", path);
 			return (-1);
 		}
 	}
@@ -386,8 +386,8 @@ check_device(const char *path, boolean_t force,
 
 	error = blkid_get_cache(&cache, NULL);
 	if (error != 0) {
-		(void) fprintf(stderr, gettext("unable to access the blkid "
-		    "cache.\n"));
+		(void) fprintf(stderr, "unable to access the blkid "
+		    "cache.\n");
 		return (-1);
 	}
 

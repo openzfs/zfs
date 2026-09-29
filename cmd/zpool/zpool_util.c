@@ -64,7 +64,7 @@ zpool_no_memory(void)
 {
 	assert(errno == ENOMEM);
 	(void) fprintf(stderr,
-	    gettext("internal error: out of memory\n"));
+	    "internal error: out of memory\n");
 	exit(1);
 }
 
