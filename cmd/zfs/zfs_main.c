@@ -9435,7 +9435,6 @@ main(int argc, char **argv)
 
 	(void) setlocale(LC_ALL, "");
 	(void) setlocale(LC_NUMERIC, "C");
-	(void) textdomain(TEXT_DOMAIN);
 
 	opterr = 0;
 
