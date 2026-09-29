@@ -11,6 +11,7 @@
 # OS:           OS name like 'fedora41'
 # --custom-branch: When building packages, checkout this version of ZFS to
 #                  build, but use the current CI scripts to do it.
+# --no-confcache:  Disable configure caching
 # --enable-debug:  Build RPMs with '--enable-debug' (for testing)
 # --dkms:       Build DKMS RPMs as well
 # --patch-level NUM:    Use a custom patch level number for packages.
@@ -31,6 +32,7 @@ REPO=""
 TARBALL=""
 CUSTOM_BRANCH=""
 PREV_BRANCH=""
+NO_CONFCACHE=""
 
 cleanup() {
   if [ -n "$PREV_BRANCH" ] ; then
@@ -49,6 +51,10 @@ while [[ $# -gt 0 ]]; do
       shift
       PREV_BRANCH=$(git branch --show-current)
       trap 'cleanup' ERR
+      ;;
+    --no-confcache)
+      NO_CONFCACHE=1
+      shift
       ;;
     --enable-debug)
       ENABLE_DEBUG=1
@@ -334,9 +340,11 @@ function deb_build_and_install() {
 }
 
 function build_tarball {
+  extra="${1:-}"
+
   if [ -n "$REPO" ] ; then
     ./autogen.sh
-    ./configure --with-config=srpm
+    ./configure --with-config=srpm $extra
     make dist
     mkdir -p /tmp/repo/releases
     # The tarball name is based off of 'Version' field in the META file.
@@ -384,8 +392,12 @@ fi
 export PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin"
 
 extra=""
+if [ -z "$NO_CONFCACHE" ] ; then
+  extra="${extra} -C"
+fi
+
 if [ -n "$ENABLE_DEBUG" ] ; then
-  extra="--enable-debug"
+  extra="${extra} --enable-debug"
 fi
 
 if [ -n "$CUSTOM_BRANCH" ] ; then
@@ -401,13 +413,13 @@ case "$OS" in
   alma*|centos*)
     rpm_build_and_install "--with-spec=redhat $extra"
     if [ -n "$TARBALL" ] ; then
-        build_tarball
+        build_tarball "$extra"
     fi
     ;;
   fedora*)
     rpm_build_and_install "$extra"
     if [ -n "$TARBALL" ] ; then
-        build_tarball
+        build_tarball "$extra"
     fi
     ;;
   debian*|ubuntu*)
