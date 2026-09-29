@@ -28,6 +28,8 @@
 #	    - create a volume
 #	    - remember its refreservation
 #	    - destroy the volume
+#	    - verify that a volume created with refreservation=auto gets the
+#	      same refreservation
 #	3. Destroy the pool
 #	4. Recreate the pool with one more disk in the vdev, then repeat steps
 #	   2 and 3.
@@ -115,6 +117,14 @@ for parity in 1 2 3; do
 			refres=$(zfs get -Hpo value refreservation "$vol")
 			log_must test -n "$refres"
 			sizes["$raid"]["$ndisks"]["$vbs"]=$refres
+
+			log_must_busy zfs destroy "$vol"
+
+			# refreservation=auto must pick the same size
+			log_must zfs create -V ${volsize}m \
+			    -o volblocksize=$vbs -o refreservation=auto "$vol"
+			log_must test "$(zfs get -Hpo value refreservation \
+			    "$vol")" -eq "$refres"
 
 			log_must_busy zfs destroy "$vol"
 		done
