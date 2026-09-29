@@ -81,247 +81,247 @@ libzfs_error_description(libzfs_handle_t *hdl)
 
 	switch (hdl->libzfs_error) {
 	case EZFS_NOMEM:
-		return (dgettext(TEXT_DOMAIN, "out of memory"));
+		return ("out of memory");
 	case EZFS_BADPROP:
-		return (dgettext(TEXT_DOMAIN, "invalid property value"));
+		return ("invalid property value");
 	case EZFS_PROPREADONLY:
-		return (dgettext(TEXT_DOMAIN, "read-only property"));
+		return ("read-only property");
 	case EZFS_PROPTYPE:
-		return (dgettext(TEXT_DOMAIN, "property doesn't apply to "
-		    "datasets of this type"));
+		return ("property doesn't apply to "
+		    "datasets of this type");
 	case EZFS_PROPNONINHERIT:
-		return (dgettext(TEXT_DOMAIN, "property cannot be inherited"));
+		return ("property cannot be inherited");
 	case EZFS_PROPSPACE:
-		return (dgettext(TEXT_DOMAIN, "invalid quota or reservation"));
+		return ("invalid quota or reservation");
 	case EZFS_BADTYPE:
-		return (dgettext(TEXT_DOMAIN, "operation not applicable to "
-		    "datasets of this type"));
+		return ("operation not applicable to "
+		    "datasets of this type");
 	case EZFS_BUSY:
-		return (dgettext(TEXT_DOMAIN, "pool or dataset is busy"));
+		return ("pool or dataset is busy");
 	case EZFS_EXISTS:
-		return (dgettext(TEXT_DOMAIN, "pool or dataset exists"));
+		return ("pool or dataset exists");
 	case EZFS_NOENT:
-		return (dgettext(TEXT_DOMAIN, "no such pool or dataset"));
+		return ("no such pool or dataset");
 	case EZFS_BADSTREAM:
-		return (dgettext(TEXT_DOMAIN, "invalid backup stream"));
+		return ("invalid backup stream");
 	case EZFS_DSREADONLY:
-		return (dgettext(TEXT_DOMAIN, "dataset is read-only"));
+		return ("dataset is read-only");
 	case EZFS_VOLTOOBIG:
-		return (dgettext(TEXT_DOMAIN, "volume size exceeds limit for "
-		    "this system"));
+		return ("volume size exceeds limit for "
+		    "this system");
 	case EZFS_INVALIDNAME:
-		return (dgettext(TEXT_DOMAIN, "invalid name"));
+		return ("invalid name");
 	case EZFS_BADRESTORE:
-		return (dgettext(TEXT_DOMAIN, "unable to restore to "
-		    "destination"));
+		return ("unable to restore to "
+		    "destination");
 	case EZFS_BADBACKUP:
-		return (dgettext(TEXT_DOMAIN, "backup failed"));
+		return ("backup failed");
 	case EZFS_BADTARGET:
-		return (dgettext(TEXT_DOMAIN, "invalid target vdev"));
+		return ("invalid target vdev");
 	case EZFS_NODEVICE:
-		return (dgettext(TEXT_DOMAIN, "no such device in pool"));
+		return ("no such device in pool");
 	case EZFS_BADDEV:
-		return (dgettext(TEXT_DOMAIN, "invalid device"));
+		return ("invalid device");
 	case EZFS_NOREPLICAS:
-		return (dgettext(TEXT_DOMAIN, "no valid replicas"));
+		return ("no valid replicas");
 	case EZFS_RESILVERING:
-		return (dgettext(TEXT_DOMAIN, "currently resilvering"));
+		return ("currently resilvering");
 	case EZFS_BADVERSION:
-		return (dgettext(TEXT_DOMAIN, "unsupported version or "
-		    "feature"));
+		return ("unsupported version or "
+		    "feature");
 	case EZFS_POOLUNAVAIL:
-		return (dgettext(TEXT_DOMAIN, "pool is unavailable"));
+		return ("pool is unavailable");
 	case EZFS_DEVOVERFLOW:
-		return (dgettext(TEXT_DOMAIN, "too many devices in one vdev"));
+		return ("too many devices in one vdev");
 	case EZFS_BADPATH:
-		return (dgettext(TEXT_DOMAIN, "must be an absolute path"));
+		return ("must be an absolute path");
 	case EZFS_CROSSTARGET:
-		return (dgettext(TEXT_DOMAIN, "operation crosses datasets or "
-		    "pools"));
+		return ("operation crosses datasets or "
+		    "pools");
 	case EZFS_ZONED:
-		return (dgettext(TEXT_DOMAIN, "dataset in use by local zone"));
+		return ("dataset in use by local zone");
 	case EZFS_MOUNTFAILED:
-		return (dgettext(TEXT_DOMAIN, "mount failed"));
+		return ("mount failed");
 	case EZFS_UMOUNTFAILED:
-		return (dgettext(TEXT_DOMAIN, "unmount failed"));
+		return ("unmount failed");
 	case EZFS_UNSHARENFSFAILED:
-		return (dgettext(TEXT_DOMAIN, "NFS share removal failed"));
+		return ("NFS share removal failed");
 	case EZFS_SHARENFSFAILED:
-		return (dgettext(TEXT_DOMAIN, "NFS share creation failed"));
+		return ("NFS share creation failed");
 	case EZFS_UNSHARESMBFAILED:
-		return (dgettext(TEXT_DOMAIN, "SMB share removal failed"));
+		return ("SMB share removal failed");
 	case EZFS_SHARESMBFAILED:
-		return (dgettext(TEXT_DOMAIN, "SMB share creation failed"));
+		return ("SMB share creation failed");
 	case EZFS_PERM:
-		return (dgettext(TEXT_DOMAIN, "permission denied"));
+		return ("permission denied");
 	case EZFS_NOSPC:
-		return (dgettext(TEXT_DOMAIN, "out of space"));
+		return ("out of space");
 	case EZFS_FAULT:
-		return (dgettext(TEXT_DOMAIN, "bad address"));
+		return ("bad address");
 	case EZFS_IO:
-		return (dgettext(TEXT_DOMAIN, "I/O error"));
+		return ("I/O error");
 	case EZFS_INTR:
-		return (dgettext(TEXT_DOMAIN, "signal received"));
+		return ("signal received");
 	case EZFS_CKSUM:
-		return (dgettext(TEXT_DOMAIN, "insufficient replicas"));
+		return ("insufficient replicas");
 	case EZFS_ISSPARE:
-		return (dgettext(TEXT_DOMAIN, "device is reserved as a hot "
-		    "spare"));
+		return ("device is reserved as a hot "
+		    "spare");
 	case EZFS_INVALCONFIG:
-		return (dgettext(TEXT_DOMAIN, "invalid vdev configuration"));
+		return ("invalid vdev configuration");
 	case EZFS_RECURSIVE:
-		return (dgettext(TEXT_DOMAIN, "recursive dataset dependency"));
+		return ("recursive dataset dependency");
 	case EZFS_NOHISTORY:
-		return (dgettext(TEXT_DOMAIN, "no history available"));
+		return ("no history available");
 	case EZFS_POOLPROPS:
-		return (dgettext(TEXT_DOMAIN, "failed to retrieve "
-		    "pool properties"));
+		return ("failed to retrieve "
+		    "pool properties");
 	case EZFS_POOL_NOTSUP:
-		return (dgettext(TEXT_DOMAIN, "operation not supported "
-		    "on this type of pool"));
+		return ("operation not supported "
+		    "on this type of pool");
 	case EZFS_POOL_INVALARG:
-		return (dgettext(TEXT_DOMAIN, "invalid argument for "
-		    "this pool operation"));
+		return ("invalid argument for "
+		    "this pool operation");
 	case EZFS_NAMETOOLONG:
-		return (dgettext(TEXT_DOMAIN, "dataset name is too long"));
+		return ("dataset name is too long");
 	case EZFS_OPENFAILED:
-		return (dgettext(TEXT_DOMAIN, "open failed"));
+		return ("open failed");
 	case EZFS_NOCAP:
-		return (dgettext(TEXT_DOMAIN,
-		    "disk capacity information could not be retrieved"));
+		return (
+		    "disk capacity information could not be retrieved");
 	case EZFS_LABELFAILED:
-		return (dgettext(TEXT_DOMAIN, "write of label failed"));
+		return ("write of label failed");
 	case EZFS_BADWHO:
-		return (dgettext(TEXT_DOMAIN, "invalid user/group"));
+		return ("invalid user/group");
 	case EZFS_BADPERM:
-		return (dgettext(TEXT_DOMAIN, "invalid permission"));
+		return ("invalid permission");
 	case EZFS_BADPERMSET:
-		return (dgettext(TEXT_DOMAIN, "invalid permission set name"));
+		return ("invalid permission set name");
 	case EZFS_NODELEGATION:
-		return (dgettext(TEXT_DOMAIN, "delegated administration is "
-		    "disabled on pool"));
+		return ("delegated administration is "
+		    "disabled on pool");
 	case EZFS_BADCACHE:
-		return (dgettext(TEXT_DOMAIN, "invalid or missing cache file"));
+		return ("invalid or missing cache file");
 	case EZFS_ISL2CACHE:
-		return (dgettext(TEXT_DOMAIN, "device is in use as a cache"));
+		return ("device is in use as a cache");
 	case EZFS_VDEVNOTSUP:
-		return (dgettext(TEXT_DOMAIN, "vdev specification is not "
-		    "supported"));
+		return ("vdev specification is not "
+		    "supported");
 	case EZFS_NOTSUP:
-		return (dgettext(TEXT_DOMAIN, "operation not supported "
-		    "on this dataset"));
+		return ("operation not supported "
+		    "on this dataset");
 	case EZFS_IOC_NOTSUPPORTED:
-		return (dgettext(TEXT_DOMAIN, "operation not supported by "
-		    "zfs kernel module"));
+		return ("operation not supported by "
+		    "zfs kernel module");
 	case EZFS_ACTIVE_SPARE:
-		return (dgettext(TEXT_DOMAIN, "pool has active shared spare "
-		    "device"));
+		return ("pool has active shared spare "
+		    "device");
 	case EZFS_UNPLAYED_LOGS:
-		return (dgettext(TEXT_DOMAIN, "log device has unplayed intent "
-		    "logs"));
+		return ("log device has unplayed intent "
+		    "logs");
 	case EZFS_REFTAG_RELE:
-		return (dgettext(TEXT_DOMAIN, "no such tag on this dataset"));
+		return ("no such tag on this dataset");
 	case EZFS_REFTAG_HOLD:
-		return (dgettext(TEXT_DOMAIN, "tag already exists on this "
-		    "dataset"));
+		return ("tag already exists on this "
+		    "dataset");
 	case EZFS_TAGTOOLONG:
-		return (dgettext(TEXT_DOMAIN, "tag too long"));
+		return ("tag too long");
 	case EZFS_PIPEFAILED:
-		return (dgettext(TEXT_DOMAIN, "pipe create failed"));
+		return ("pipe create failed");
 	case EZFS_THREADCREATEFAILED:
-		return (dgettext(TEXT_DOMAIN, "thread create failed"));
+		return ("thread create failed");
 	case EZFS_POSTSPLIT_ONLINE:
-		return (dgettext(TEXT_DOMAIN, "disk was split from this pool "
-		    "into a new one"));
+		return ("disk was split from this pool "
+		    "into a new one");
 	case EZFS_SCRUB_PAUSED:
-		return (dgettext(TEXT_DOMAIN, "scrub is paused; "
-		    "use 'zpool scrub' to resume scrub"));
+		return ("scrub is paused; "
+		    "use 'zpool scrub' to resume scrub");
 	case EZFS_SCRUB_PAUSED_TO_CANCEL:
-		return (dgettext(TEXT_DOMAIN, "scrub is paused; "
+		return ("scrub is paused; "
 		    "use 'zpool scrub' to resume or 'zpool scrub -s' to "
-		    "cancel scrub"));
+		    "cancel scrub");
 	case EZFS_SCRUBBING:
-		return (dgettext(TEXT_DOMAIN, "currently scrubbing; "
-		    "use 'zpool scrub -s' to cancel scrub"));
+		return ("currently scrubbing; "
+		    "use 'zpool scrub -s' to cancel scrub");
 	case EZFS_ERRORSCRUBBING:
-		return (dgettext(TEXT_DOMAIN, "currently error scrubbing; "
-		    "use 'zpool scrub -s' to cancel error scrub"));
+		return ("currently error scrubbing; "
+		    "use 'zpool scrub -s' to cancel error scrub");
 	case EZFS_ERRORSCRUB_PAUSED:
-		return (dgettext(TEXT_DOMAIN, "error scrub is paused; "
-		    "use 'zpool scrub -e' to resume error scrub"));
+		return ("error scrub is paused; "
+		    "use 'zpool scrub -e' to resume error scrub");
 	case EZFS_NO_SCRUB:
-		return (dgettext(TEXT_DOMAIN, "there is no active scrub"));
+		return ("there is no active scrub");
 	case EZFS_DIFF:
-		return (dgettext(TEXT_DOMAIN, "unable to generate diffs"));
+		return ("unable to generate diffs");
 	case EZFS_DIFFDATA:
-		return (dgettext(TEXT_DOMAIN, "invalid diff data"));
+		return ("invalid diff data");
 	case EZFS_POOLREADONLY:
-		return (dgettext(TEXT_DOMAIN, "pool is read-only"));
+		return ("pool is read-only");
 	case EZFS_NO_PENDING:
-		return (dgettext(TEXT_DOMAIN, "operation is not "
-		    "in progress"));
+		return ("operation is not "
+		    "in progress");
 	case EZFS_CHECKPOINT_EXISTS:
-		return (dgettext(TEXT_DOMAIN, "checkpoint exists"));
+		return ("checkpoint exists");
 	case EZFS_DISCARDING_CHECKPOINT:
-		return (dgettext(TEXT_DOMAIN, "currently discarding "
-		    "checkpoint"));
+		return ("currently discarding "
+		    "checkpoint");
 	case EZFS_NO_CHECKPOINT:
-		return (dgettext(TEXT_DOMAIN, "checkpoint does not exist"));
+		return ("checkpoint does not exist");
 	case EZFS_DEVRM_IN_PROGRESS:
-		return (dgettext(TEXT_DOMAIN, "device removal in progress"));
+		return ("device removal in progress");
 	case EZFS_VDEV_TOO_BIG:
-		return (dgettext(TEXT_DOMAIN, "device exceeds supported size"));
+		return ("device exceeds supported size");
 	case EZFS_ACTIVE_POOL:
-		return (dgettext(TEXT_DOMAIN, "pool is imported on a "
-		    "different host"));
+		return ("pool is imported on a "
+		    "different host");
 	case EZFS_CRYPTOFAILED:
-		return (dgettext(TEXT_DOMAIN, "encryption failure"));
+		return ("encryption failure");
 	case EZFS_TOOMANY:
-		return (dgettext(TEXT_DOMAIN, "argument list too long"));
+		return ("argument list too long");
 	case EZFS_INITIALIZING:
-		return (dgettext(TEXT_DOMAIN, "currently initializing"));
+		return ("currently initializing");
 	case EZFS_NO_INITIALIZE:
-		return (dgettext(TEXT_DOMAIN, "there is no active "
-		    "initialization"));
+		return ("there is no active "
+		    "initialization");
 	case EZFS_WRONG_PARENT:
-		return (dgettext(TEXT_DOMAIN, "invalid parent dataset"));
+		return ("invalid parent dataset");
 	case EZFS_TRIMMING:
-		return (dgettext(TEXT_DOMAIN, "currently trimming"));
+		return ("currently trimming");
 	case EZFS_NO_TRIM:
-		return (dgettext(TEXT_DOMAIN, "there is no active trim"));
+		return ("there is no active trim");
 	case EZFS_TRIM_NOTSUP:
-		return (dgettext(TEXT_DOMAIN, "trim operations are not "
-		    "supported by this device"));
+		return ("trim operations are not "
+		    "supported by this device");
 	case EZFS_NO_RESILVER_DEFER:
-		return (dgettext(TEXT_DOMAIN, "this action requires the "
-		    "resilver_defer feature"));
+		return ("this action requires the "
+		    "resilver_defer feature");
 	case EZFS_EXPORT_IN_PROGRESS:
-		return (dgettext(TEXT_DOMAIN, "pool export in progress"));
+		return ("pool export in progress");
 	case EZFS_REBUILDING:
-		return (dgettext(TEXT_DOMAIN, "currently sequentially "
-		    "resilvering"));
+		return ("currently sequentially "
+		    "resilvering");
 	case EZFS_VDEV_NOTSUP:
-		return (dgettext(TEXT_DOMAIN, "operation not supported "
-		    "on this type of vdev"));
+		return ("operation not supported "
+		    "on this type of vdev");
 	case EZFS_NOT_USER_NAMESPACE:
-		return (dgettext(TEXT_DOMAIN, "the provided file "
-		    "was not a user namespace file"));
+		return ("the provided file "
+		    "was not a user namespace file");
 	case EZFS_RESUME_EXISTS:
-		return (dgettext(TEXT_DOMAIN, "Resuming recv on existing "
-		    "dataset without force"));
+		return ("Resuming recv on existing "
+		    "dataset without force");
 	case EZFS_RAIDZ_EXPAND_IN_PROGRESS:
-		return (dgettext(TEXT_DOMAIN, "raidz expansion in progress"));
+		return ("raidz expansion in progress");
 	case EZFS_ASHIFT_MISMATCH:
-		return (dgettext(TEXT_DOMAIN, "adding devices with "
-		    "different physical sector sizes is not allowed"));
+		return ("adding devices with "
+		    "different physical sector sizes is not allowed");
 	case EZFS_NO_USER_NS_SUPPORT:
-		return (dgettext(TEXT_DOMAIN, "kernel was built without "
-		    "user namespace support (CONFIG_USER_NS)"));
+		return ("kernel was built without "
+		    "user namespace support (CONFIG_USER_NS)");
 	case EZFS_UNKNOWN:
-		return (dgettext(TEXT_DOMAIN, "unknown error"));
+		return ("unknown error");
 	default:
 		assert(hdl->libzfs_error == 0);
-		return (dgettext(TEXT_DOMAIN, "no error"));
+		return ("no error");
 	}
 }
 
@@ -353,8 +353,8 @@ zfs_verror(libzfs_handle_t *hdl, int error, const char *fmt, va_list ap)
 
 	if (hdl->libzfs_printerr) {
 		if (error == EZFS_UNKNOWN) {
-			(void) fprintf(stderr, dgettext(TEXT_DOMAIN, "internal "
-			    "error: %s: %s\n"), hdl->libzfs_action,
+			(void) fprintf(stderr, "internal "
+			    "error: %s: %s\n", hdl->libzfs_action,
 			    libzfs_error_description(hdl));
 			abort();
 		}
@@ -446,8 +446,8 @@ zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		break;
 
 	case ENOENT:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "dataset does not exist"));
+		zfs_error_aux(hdl,
+		    "dataset does not exist");
 		zfs_verror(hdl, EZFS_NOENT, fmt, ap);
 		break;
 
@@ -457,14 +457,14 @@ zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		break;
 
 	case EEXIST:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "dataset already exists"));
+		zfs_error_aux(hdl,
+		    "dataset already exists");
 		zfs_verror(hdl, EZFS_EXISTS, fmt, ap);
 		break;
 
 	case EBUSY:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "dataset is busy"));
+		zfs_error_aux(hdl,
+		    "dataset is busy");
 		zfs_verror(hdl, EZFS_BUSY, fmt, ap);
 		break;
 	case EROFS:
@@ -477,8 +477,8 @@ zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		zfs_verror(hdl, EZFS_BADVERSION, fmt, ap);
 		break;
 	case EAGAIN:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "pool I/O is currently suspended"));
+		zfs_error_aux(hdl,
+		    "pool I/O is currently suspended");
 		zfs_verror(hdl, EZFS_POOLUNAVAIL, fmt, ap);
 		break;
 	case EREMOTEIO:
@@ -486,15 +486,15 @@ zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		break;
 	case ZFS_ERR_UNKNOWN_SEND_STREAM_FEATURE:
 	case ZFS_ERR_IOC_CMD_UNAVAIL:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "the loaded zfs "
+		zfs_error_aux(hdl, "the loaded zfs "
 		    "module does not support this operation. A reboot may "
-		    "be required to enable this operation."));
+		    "be required to enable this operation.");
 		zfs_verror(hdl, EZFS_IOC_NOTSUPPORTED, fmt, ap);
 		break;
 	case ZFS_ERR_IOC_ARG_UNAVAIL:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "the loaded zfs "
+		zfs_error_aux(hdl, "the loaded zfs "
 		    "module does not support an option for this operation. "
-		    "A reboot may be required to enable this option."));
+		    "A reboot may be required to enable this option.");
 		zfs_verror(hdl, EZFS_IOC_NOTSUPPORTED, fmt, ap);
 		break;
 	case ZFS_ERR_IOC_ARG_REQUIRED:
@@ -538,16 +538,16 @@ zfs_setprop_error(libzfs_handle_t *hdl, zfs_prop_t prop, int err,
 		switch (prop) {
 		case ZFS_PROP_QUOTA:
 		case ZFS_PROP_REFQUOTA:
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			zfs_error_aux(hdl,
 			    "size is less than current used or "
-			    "reserved space"));
+			    "reserved space");
 			(void) zfs_error(hdl, EZFS_PROPSPACE, errbuf);
 			break;
 
 		case ZFS_PROP_RESERVATION:
 		case ZFS_PROP_REFRESERVATION:
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "size is greater than available space"));
+			zfs_error_aux(hdl,
+			    "size is greater than available space");
 			(void) zfs_error(hdl, EZFS_PROPSPACE, errbuf);
 			break;
 
@@ -566,15 +566,15 @@ zfs_setprop_error(libzfs_handle_t *hdl, zfs_prop_t prop, int err,
 		break;
 
 	case E2BIG:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "property value too long"));
+		zfs_error_aux(hdl,
+		    "property value too long");
 		(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 		break;
 
 	case ENOTSUP:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+		zfs_error_aux(hdl,
 		    "pool and or dataset must be upgraded to set this "
-		    "property or value"));
+		    "property or value");
 		(void) zfs_error(hdl, EZFS_BADVERSION, errbuf);
 		break;
 
@@ -582,15 +582,15 @@ zfs_setprop_error(libzfs_handle_t *hdl, zfs_prop_t prop, int err,
 		if (prop == ZFS_PROP_COMPRESSION ||
 		    prop == ZFS_PROP_DNODESIZE ||
 		    prop == ZFS_PROP_RECORDSIZE) {
-			(void) zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			(void) zfs_error_aux(hdl,
 			    "property setting is not allowed on "
-			    "bootable datasets"));
+			    "bootable datasets");
 			(void) zfs_error(hdl, EZFS_NOTSUP, errbuf);
 		} else if (prop == ZFS_PROP_CHECKSUM ||
 		    prop == ZFS_PROP_DEDUP) {
-			(void) zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+			(void) zfs_error_aux(hdl,
 			    "property setting is not allowed on "
-			    "root pools"));
+			    "root pools");
 			(void) zfs_error(hdl, EZFS_NOTSUP, errbuf);
 		} else {
 			(void) zfs_standard_error(hdl, err, errbuf);
@@ -611,8 +611,8 @@ zfs_setprop_error(libzfs_handle_t *hdl, zfs_prop_t prop, int err,
 
 	case EACCES:
 		if (prop == ZFS_PROP_KEYLOCATION) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "keylocation may only be set on encryption roots"));
+			zfs_error_aux(hdl,
+			    "keylocation may only be set on encryption roots");
 			(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
 		} else {
 			(void) zfs_standard_error(hdl, err, errbuf);
@@ -660,18 +660,18 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 
 	case ENOENT:
 		zfs_error_aux(hdl,
-		    dgettext(TEXT_DOMAIN, "no such pool or dataset"));
+		    "no such pool or dataset");
 		zfs_verror(hdl, EZFS_NOENT, fmt, ap);
 		break;
 
 	case EEXIST:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "pool already exists"));
+		zfs_error_aux(hdl,
+		    "pool already exists");
 		zfs_verror(hdl, EZFS_EXISTS, fmt, ap);
 		break;
 
 	case EBUSY:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "pool is busy"));
+		zfs_error_aux(hdl, "pool is busy");
 		zfs_verror(hdl, EZFS_BUSY, fmt, ap);
 		break;
 
@@ -681,8 +681,8 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		break;
 
 	case ENXIO:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "one or more devices is currently unavailable"));
+		zfs_error_aux(hdl,
+		    "one or more devices is currently unavailable");
 		zfs_verror(hdl, EZFS_BADDEV, fmt, ap);
 		break;
 
@@ -704,8 +704,8 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		break;
 
 	case EAGAIN:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "pool I/O is currently suspended"));
+		zfs_error_aux(hdl,
+		    "pool I/O is currently suspended");
 		zfs_verror(hdl, EZFS_POOLUNAVAIL, fmt, ap);
 		break;
 
@@ -713,8 +713,8 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		zfs_verror(hdl, EZFS_POOLREADONLY, fmt, ap);
 		break;
 	case EDOM:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "block size out of range or does not match"));
+		zfs_error_aux(hdl,
+		    "block size out of range or does not match");
 		zfs_verror(hdl, EZFS_BADPROP, fmt, ap);
 		break;
 	case EREMOTEIO:
@@ -751,15 +751,15 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		zfs_verror(hdl, EZFS_VDEV_NOTSUP, fmt, ap);
 		break;
 	case ZFS_ERR_IOC_CMD_UNAVAIL:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "the loaded zfs "
+		zfs_error_aux(hdl, "the loaded zfs "
 		    "module does not support this operation. A reboot may "
-		    "be required to enable this operation."));
+		    "be required to enable this operation.");
 		zfs_verror(hdl, EZFS_IOC_NOTSUPPORTED, fmt, ap);
 		break;
 	case ZFS_ERR_IOC_ARG_UNAVAIL:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "the loaded zfs "
+		zfs_error_aux(hdl, "the loaded zfs "
 		    "module does not support an option for this operation. "
-		    "A reboot may be required to enable this option."));
+		    "A reboot may be required to enable this option.");
 		zfs_verror(hdl, EZFS_IOC_NOTSUPPORTED, fmt, ap);
 		break;
 	case ZFS_ERR_IOC_ARG_REQUIRED:
@@ -773,8 +773,8 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 		zfs_verror(hdl, EZFS_ASHIFT_MISMATCH, fmt, ap);
 		break;
 	case ZFS_ERR_TOO_MANY_SITOUTS:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN, "too many disks "
-		    "already sitting out"));
+		zfs_error_aux(hdl, "too many disks "
+		    "already sitting out");
 		zfs_verror(hdl, EZFS_BUSY, fmt, ap);
 		break;
 	default:
@@ -1302,15 +1302,15 @@ zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
 	/*
 	 * Start with the length of the column headers.
 	 */
-	cbp->cb_colwidths[GET_COL_NAME] = strlen(dgettext(TEXT_DOMAIN, "NAME"));
-	cbp->cb_colwidths[GET_COL_PROPERTY] = strlen(dgettext(TEXT_DOMAIN,
-	    "PROPERTY"));
-	cbp->cb_colwidths[GET_COL_VALUE] = strlen(dgettext(TEXT_DOMAIN,
-	    "VALUE"));
-	cbp->cb_colwidths[GET_COL_RECVD] = strlen(dgettext(TEXT_DOMAIN,
-	    "RECEIVED"));
-	cbp->cb_colwidths[GET_COL_SOURCE] = strlen(dgettext(TEXT_DOMAIN,
-	    "SOURCE"));
+	cbp->cb_colwidths[GET_COL_NAME] = strlen("NAME");
+	cbp->cb_colwidths[GET_COL_PROPERTY] = strlen(
+	    "PROPERTY");
+	cbp->cb_colwidths[GET_COL_VALUE] = strlen(
+	    "VALUE");
+	cbp->cb_colwidths[GET_COL_RECVD] = strlen(
+	    "RECEIVED");
+	cbp->cb_colwidths[GET_COL_SOURCE] = strlen(
+	    "SOURCE");
 
 	/* first property is always NAME */
 	assert(cbp->cb_proplist->pl_prop ==
@@ -1372,7 +1372,7 @@ zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
 		    cbp->cb_colwidths[GET_COL_NAME]) {
 			cbp->cb_colwidths[GET_COL_NAME] = pl->pl_width;
 			cbp->cb_colwidths[GET_COL_SOURCE] = pl->pl_width +
-			    strlen(dgettext(TEXT_DOMAIN, "inherited from"));
+			    strlen("inherited from");
 		}
 	}
 
@@ -1382,19 +1382,19 @@ zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
 	for (i = 0; i < ZFS_GET_NCOLS; i++) {
 		switch (cbp->cb_columns[i]) {
 		case GET_COL_NAME:
-			title = dgettext(TEXT_DOMAIN, "NAME");
+			title = "NAME";
 			break;
 		case GET_COL_PROPERTY:
-			title = dgettext(TEXT_DOMAIN, "PROPERTY");
+			title = "PROPERTY";
 			break;
 		case GET_COL_VALUE:
-			title = dgettext(TEXT_DOMAIN, "VALUE");
+			title = "VALUE";
 			break;
 		case GET_COL_RECVD:
-			title = dgettext(TEXT_DOMAIN, "RECEIVED");
+			title = "RECEIVED";
 			break;
 		case GET_COL_SOURCE:
-			title = dgettext(TEXT_DOMAIN, "SOURCE");
+			title = "SOURCE";
 			break;
 		default:
 			title = NULL;
@@ -1641,8 +1641,8 @@ str2shift(libzfs_handle_t *hdl, const char *buf)
 	}
 	if (i == len) {
 		if (hdl)
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "invalid numeric suffix '%s'"), buf);
+			zfs_error_aux(hdl,
+			    "invalid numeric suffix '%s'", buf);
 		return (-1);
 	}
 
@@ -1658,8 +1658,8 @@ str2shift(libzfs_handle_t *hdl, const char *buf)
 		return (10 * i);
 
 	if (hdl)
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "invalid numeric suffix '%s'"), buf);
+		zfs_error_aux(hdl,
+		    "invalid numeric suffix '%s'", buf);
 	return (-1);
 }
 
@@ -1679,8 +1679,8 @@ zfs_nicestrtonum(libzfs_handle_t *hdl, const char *value, uint64_t *num)
 	/* Check to see if this looks like a number.  */
 	if ((value[0] < '0' || value[0] > '9') && value[0] != '.') {
 		if (hdl)
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "bad numeric value '%s'"), value);
+			zfs_error_aux(hdl,
+			    "bad numeric value '%s'", value);
 		return (-1);
 	}
 
@@ -1694,8 +1694,8 @@ zfs_nicestrtonum(libzfs_handle_t *hdl, const char *value, uint64_t *num)
 	 */
 	if (errno == ERANGE) {
 		if (hdl)
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "numeric value is too large"));
+			zfs_error_aux(hdl,
+			    "numeric value is too large");
 		return (-1);
 	}
 
@@ -1718,8 +1718,8 @@ zfs_nicestrtonum(libzfs_handle_t *hdl, const char *value, uint64_t *num)
 		 */
 		if (fval >= (double)UINT64_MAX) {
 			if (hdl)
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "numeric value is too large"));
+				zfs_error_aux(hdl,
+				    "numeric value is too large");
 			return (-1);
 		}
 
@@ -1731,8 +1731,8 @@ zfs_nicestrtonum(libzfs_handle_t *hdl, const char *value, uint64_t *num)
 		/* Check for overflow */
 		if (shift >= 64 || (*num << shift) >> shift != *num) {
 			if (hdl)
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "numeric value is too large"));
+				zfs_error_aux(hdl,
+				    "numeric value is too large");
 			return (-1);
 		}
 
@@ -1786,19 +1786,19 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 	switch (proptype) {
 	case PROP_TYPE_STRING:
 		if (datatype != DATA_TYPE_STRING) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "'%s' must be a string"), nvpair_name(elem));
+			zfs_error_aux(hdl,
+			    "'%s' must be a string", nvpair_name(elem));
 			goto error;
 		}
 		err = nvpair_value_string(elem, svalp);
 		if (err != 0) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "'%s' is invalid"), nvpair_name(elem));
+			zfs_error_aux(hdl,
+			    "'%s' is invalid", nvpair_name(elem));
 			goto error;
 		}
 		if (strlen(*svalp) >= ZFS_MAXPROPLEN) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "'%s' is too long"), nvpair_name(elem));
+			zfs_error_aux(hdl,
+			    "'%s' is too long", nvpair_name(elem));
 			goto error;
 		}
 		break;
@@ -1816,8 +1816,8 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 		} else if (datatype == DATA_TYPE_UINT64) {
 			(void) nvpair_value_uint64(elem, ivalp);
 		} else {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "'%s' must be a number"), nvpair_name(elem));
+			zfs_error_aux(hdl,
+			    "'%s' must be a number", nvpair_name(elem));
 			goto error;
 		}
 
@@ -1826,8 +1826,8 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 		 */
 		if ((type & ZFS_TYPE_DATASET) && *ivalp == 0 && !isnone &&
 		    (prop == ZFS_PROP_QUOTA || prop == ZFS_PROP_REFQUOTA)) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "use 'none' to disable quota/refquota"));
+			zfs_error_aux(hdl,
+			    "use 'none' to disable quota/refquota");
 			goto error;
 		}
 		/*
@@ -1836,8 +1836,8 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 		if ((type & ZFS_TYPE_POOL) && *ivalp == 0 &&
 		    (!isnone && !isauto) &&
 		    prop == ZPOOL_PROP_DEDUP_TABLE_QUOTA) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "use 'none' to disable ddt table quota"));
+			zfs_error_aux(hdl,
+			    "use 'none' to disable ddt table quota");
 			goto error;
 		}
 
@@ -1874,9 +1874,9 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 			switch (prop) {
 			case ZFS_PROP_REFRESERVATION:
 				if ((type & ZFS_TYPE_VOLUME) == 0) {
-					zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
+					zfs_error_aux(hdl,
 					    "'%s=auto' only allowed on "
-					    "volumes"), nvpair_name(elem));
+					    "volumes", nvpair_name(elem));
 					goto error;
 				}
 				*ivalp = UINT64_MAX;
@@ -1886,8 +1886,8 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 				*ivalp = UINT64_MAX;
 				break;
 			default:
-				zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-				    "'auto' is invalid value for '%s'"),
+				zfs_error_aux(hdl,
+				    "'auto' is invalid value for '%s'",
 				    nvpair_name(elem));
 				goto error;
 			}
@@ -1897,16 +1897,16 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 
 	case PROP_TYPE_INDEX:
 		if (datatype != DATA_TYPE_STRING) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "'%s' must be a string"), nvpair_name(elem));
+			zfs_error_aux(hdl,
+			    "'%s' must be a string", nvpair_name(elem));
 			goto error;
 		}
 
 		(void) nvpair_value_string(elem, &value);
 
 		if (zprop_string_to_index(prop, value, ivalp, type) != 0) {
-			zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-			    "'%s' must be one of '%s'"), propname,
+			zfs_error_aux(hdl,
+			    "'%s' must be one of '%s'", propname,
 			    zprop_values(prop, type));
 			goto error;
 		}
@@ -1956,10 +1956,10 @@ addlist(libzfs_handle_t *hdl, const char *propname, zprop_list_t **listp,
 	    ((type == ZFS_TYPE_DATASET) && !zfs_prop_user(propname) &&
 	    !zfs_prop_userquota(propname) && !zfs_prop_written(propname)) ||
 	    ((type == ZFS_TYPE_VDEV) && !vdev_prop_user(propname)))) {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "invalid property '%s'"), propname);
+		zfs_error_aux(hdl,
+		    "invalid property '%s'", propname);
 		return (zfs_error(hdl, EZFS_BADPROP,
-		    dgettext(TEXT_DOMAIN, "bad property list")));
+		    "bad property list"));
 	}
 
 	zprop_list_t *entry = zfs_alloc(hdl, sizeof (*entry));
@@ -2000,10 +2000,10 @@ zprop_get_list(libzfs_handle_t *hdl, char *props, zprop_list_t **listp,
 	 * If no props were specified, return an error.
 	 */
 	if (props[0] == '\0') {
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "no properties specified"));
-		return (zfs_error(hdl, EZFS_BADPROP, dgettext(TEXT_DOMAIN,
-		    "bad property list")));
+		zfs_error_aux(hdl,
+		    "no properties specified");
+		return (zfs_error(hdl, EZFS_BADPROP,
+		    "bad property list"));
 	}
 
 	for (char *p; (p = strsep(&props, ",")); )

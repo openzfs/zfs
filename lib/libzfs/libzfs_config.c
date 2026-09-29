@@ -107,8 +107,8 @@ namespace_reload(libzfs_handle_t *hdl)
 			default:
 				zcmd_free_nvlists(&zc);
 				return (zfs_standard_error(hdl, errno,
-				    dgettext(TEXT_DOMAIN, "failed to read "
-				    "pool configuration")));
+				    "failed to read "
+				    "pool configuration"));
 			}
 		} else {
 			hdl->libzfs_ns_gen = zc.zc_cookie;

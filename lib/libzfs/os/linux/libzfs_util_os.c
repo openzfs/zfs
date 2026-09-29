@@ -48,23 +48,23 @@ libzfs_error_init(int error)
 {
 	switch (error) {
 	case ENXIO:
-		return (dgettext(TEXT_DOMAIN, "The ZFS modules are not "
+		return ("The ZFS modules are not "
 		    "loaded.\nTry running 'modprobe zfs' as root "
-		    "to load them."));
+		    "to load them.");
 	case ENOENT:
-		return (dgettext(TEXT_DOMAIN, "/dev/zfs and /proc/self/mounts "
+		return ("/dev/zfs and /proc/self/mounts "
 		    "are required.\nTry running 'udevadm trigger' and 'mount "
-		    "-t proc proc /proc' as root."));
+		    "-t proc proc /proc' as root.");
 	case ENOEXEC:
-		return (dgettext(TEXT_DOMAIN, "The ZFS modules cannot be "
+		return ("The ZFS modules cannot be "
 		    "auto-loaded.\nTry running 'modprobe zfs' as "
-		    "root to manually load them."));
+		    "root to manually load them.");
 	case EACCES:
-		return (dgettext(TEXT_DOMAIN, "Permission denied the "
-		    "ZFS utilities must be run as root."));
+		return ("Permission denied the "
+		    "ZFS utilities must be run as root.");
 	default:
-		return (dgettext(TEXT_DOMAIN, "Failed to initialize the "
-		    "libzfs library."));
+		return ("Failed to initialize the "
+		    "libzfs library.");
 	}
 }
 
@@ -192,7 +192,7 @@ find_shares_object(differ_info_t *di)
 
 	if (stat64(fullpath, &sb) != 0) {
 		(void) snprintf(di->errbuf, sizeof (di->errbuf),
-		    dgettext(TEXT_DOMAIN, "Cannot stat %s"), fullpath);
+		    "Cannot stat %s", fullpath);
 		return (zfs_error(di->zhp->zfs_hdl, EZFS_DIFF, di->errbuf));
 	}
 
@@ -247,38 +247,38 @@ zfs_userns(zfs_handle_t *zhp, const char *nspath, int attach)
 
 	if (attach) {
 		(void) snprintf(errbuf, sizeof (errbuf),
-		    dgettext(TEXT_DOMAIN, "cannot add '%s' to namespace"),
+		    "cannot add '%s' to namespace",
 		    zhp->zfs_name);
 	} else {
 		(void) snprintf(errbuf, sizeof (errbuf),
-		    dgettext(TEXT_DOMAIN, "cannot remove '%s' from namespace"),
+		    "cannot remove '%s' from namespace",
 		    zhp->zfs_name);
 	}
 
 	switch (zhp->zfs_type) {
 	case ZFS_TYPE_VOLUME:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "volumes can not be namespaced"));
+		zfs_error_aux(hdl,
+		    "volumes can not be namespaced");
 		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 	case ZFS_TYPE_SNAPSHOT:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "snapshots can not be namespaced"));
+		zfs_error_aux(hdl,
+		    "snapshots can not be namespaced");
 		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 	case ZFS_TYPE_BOOKMARK:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "bookmarks can not be namespaced"));
+		zfs_error_aux(hdl,
+		    "bookmarks can not be namespaced");
 		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 	case ZFS_TYPE_VDEV:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "vdevs can not be namespaced"));
+		zfs_error_aux(hdl,
+		    "vdevs can not be namespaced");
 		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 	case ZFS_TYPE_INVALID:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "invalid zfs_type_t: ZFS_TYPE_INVALID"));
+		zfs_error_aux(hdl,
+		    "invalid zfs_type_t: ZFS_TYPE_INVALID");
 		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 	case ZFS_TYPE_POOL:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "pools can not be namespaced"));
+		zfs_error_aux(hdl,
+		    "pools can not be namespaced");
 		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 	case ZFS_TYPE_FILESYSTEM:
 		break;
