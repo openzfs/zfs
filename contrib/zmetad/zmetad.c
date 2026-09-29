@@ -38,10 +38,12 @@
 #include <libnvpair.h>
 
 #include "zmetad.h"
+#include "zmetad_schema.h"
 
 /* Global state */
 static libzfs_handle_t *g_zfs;
 static zmetad_config_t g_config;
+static zmetad_schema_t *g_schema;
 static volatile sig_atomic_t g_shutdown = 0;
 static volatile sig_atomic_t g_reload = 0;
 
@@ -85,6 +87,7 @@ config_init(zmetad_config_t *cfg)
 	cfg->retention_days = ZMETAD_DEFAULT_RETENTION_DAYS;
 	cfg->max_size_mb = ZMETAD_DEFAULT_MAX_SIZE_MB;
 	strlcpy(cfg->db_path, ZMETAD_DEFAULT_DB_PATH, sizeof (cfg->db_path));
+	cfg->schema_path[0] = '\0';
 	cfg->foreground = B_FALSE;
 	cfg->verbose = 0;
 }
@@ -113,6 +116,22 @@ collect_dataset_events(const char *dataset, zmetad_db_t *db)
 
 	if (events == NULL) {
 		return (0);
+	}
+
+	/*
+	 * Negotiate the record schema version.  Kernels that predate
+	 * schema version exposure omit the key; wire == 0 is treated as
+	 * compatible with any loaded schema.
+	 */
+	uint64_t wire_version = 0;
+	(void) nvlist_lookup_uint64(events, "schema_version", &wire_version);
+	if (zmetad_schema_check_version(g_schema, wire_version) != 0) {
+		fprintf(stderr, "schema version mismatch: daemon=%llu "
+		    "wire=%llu\n",
+		    (unsigned long long)zmetad_schema_version(g_schema),
+		    (unsigned long long)wire_version);
+		nvlist_free(events);
+		return (EINVAL);
 	}
 
 	/*
@@ -287,6 +306,8 @@ usage(const char *progname)
 	    "(default: %d)\n", ZMETAD_DEFAULT_POLL_INTERVAL);
 	fprintf(stderr, "  -r, --retention <days> Retention days "
 	    "(default: %d)\n", ZMETAD_DEFAULT_RETENTION_DAYS);
+	fprintf(stderr, "  --schema <file>        Event schema JSON path "
+	    "(default: embedded)\n");
 	fprintf(stderr, "  -v, --verbose          Verbose output\n");
 	fprintf(stderr, "  -h, --help             Show this help\n");
 }
@@ -297,6 +318,7 @@ static struct option longopts[] = {
 	{ "foreground",	no_argument,		NULL,	'f' },
 	{ "interval",	required_argument,	NULL,	'i' },
 	{ "retention",	required_argument,	NULL,	'r' },
+	{ "schema",	required_argument,	NULL,	's' },
 	{ "verbose",	no_argument,		NULL,	'v' },
 	{ "help",	no_argument,		NULL,	'h' },
 	{ NULL,		0,			NULL,	0 }
@@ -311,7 +333,7 @@ main(int argc, char **argv)
 
 	config_init(&g_config);
 
-	while ((opt = getopt_long(argc, argv, "c:d:fi:r:vh", longopts,
+	while ((opt = getopt_long(argc, argv, "c:d:fi:r:s:vh", longopts,
 	    NULL)) != -1) {
 		switch (opt) {
 		case 'c':
@@ -333,6 +355,10 @@ main(int argc, char **argv)
 		case 'r':
 			g_config.retention_days = atoi(optarg);
 			break;
+		case 's':
+			strlcpy(g_config.schema_path, optarg,
+			    sizeof (g_config.schema_path));
+			break;
 		case 'v':
 			g_config.verbose++;
 			break;
@@ -350,8 +376,23 @@ main(int argc, char **argv)
 		return (EXIT_FAILURE);
 	}
 
+	/* Load the event schema before opening the database */
+	{
+		char errbuf[256];
+		const char *path = (g_config.schema_path[0] != '\0') ?
+		    g_config.schema_path : NULL;
+
+		g_schema = zmetad_schema_load(path, errbuf);
+		if (g_schema == NULL) {
+			fprintf(stderr, "Failed to load event schema: %s\n",
+			    errbuf);
+			libzfs_fini(g_zfs);
+			return (EXIT_FAILURE);
+		}
+	}
+
 	/* Open/create database */
-	err = zmetad_db_open(&db, g_config.db_path);
+	err = zmetad_db_open(&db, g_config.db_path, g_schema);
 	if (err != 0) {
 		fprintf(stderr, "Failed to open database: %s\n",
 		    strerror(err));
@@ -382,6 +423,7 @@ main(int argc, char **argv)
 
 	/* Cleanup */
 	zmetad_db_close(db);
+	zmetad_schema_free(g_schema);
 	libzfs_fini(g_zfs);
 
 	return (EXIT_SUCCESS);

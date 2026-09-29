@@ -28,12 +28,14 @@
 #include <libnvpair.h>
 
 #include "zmetad.h"
+#include "zmetad_schema.h"
 
 struct zmetad_db {
 	sqlite3		*sqlite;
 	sqlite3_stmt	*insert_event_stmt;
 	sqlite3_stmt	*get_last_offset_stmt;
 	sqlite3_stmt	*set_last_offset_stmt;
+	const zmetad_schema_t *schema;
 };
 
 static const char *schema_sql =
@@ -62,6 +64,10 @@ static const char *schema_sql =
 	"    dataset TEXT PRIMARY KEY,"
 	"    last_offset INTEGER NOT NULL,"
 	"    last_sync INTEGER NOT NULL"
+	");"
+	"CREATE TABLE IF NOT EXISTS meta ("
+	"    key TEXT PRIMARY KEY,"
+	"    value TEXT NOT NULL"
 	");";
 
 static const char *insert_event_sql =
@@ -77,10 +83,67 @@ static const char *set_last_offset_sql =
 	"INSERT OR REPLACE INTO sync_state (dataset, last_offset, last_sync) "
 	"VALUES (?, ?, ?)";
 
+static const char *get_meta_sql =
+	"SELECT value FROM meta WHERE key = ?";
+
+static const char *set_meta_sql =
+	"INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)";
+
+/*
+ * Read a value from the meta table.  Returns 0 and sets *out (caller
+ * frees) when the key exists; ENOENT when absent.
+ */
+static int
+db_get_meta(zmetad_db_t *db, const char *key, char **out)
+{
+	sqlite3_stmt *stmt = NULL;
+	int rc;
+
+	*out = NULL;
+
+	rc = sqlite3_prepare_v2(db->sqlite, get_meta_sql, -1, &stmt, NULL);
+	if (rc != SQLITE_OK)
+		return (EIO);
+
+	sqlite3_bind_text(stmt, 1, key, -1, SQLITE_STATIC);
+	rc = sqlite3_step(stmt);
+	if (rc == SQLITE_ROW) {
+		const unsigned char *val = sqlite3_column_text(stmt, 0);
+
+		*out = strdup(val != NULL ? (const char *)val : "");
+		sqlite3_finalize(stmt);
+		if (*out == NULL)
+			return (ENOMEM);
+		return (0);
+	}
+	sqlite3_finalize(stmt);
+	return (rc == SQLITE_DONE ? ENOENT : EIO);
+}
+
+static int
+db_set_meta(zmetad_db_t *db, const char *key, const char *value)
+{
+	sqlite3_stmt *stmt = NULL;
+	int rc;
+
+	rc = sqlite3_prepare_v2(db->sqlite, set_meta_sql, -1, &stmt, NULL);
+	if (rc != SQLITE_OK)
+		return (EIO);
+
+	sqlite3_bind_text(stmt, 1, key, -1, SQLITE_STATIC);
+	sqlite3_bind_text(stmt, 2, value, -1, SQLITE_STATIC);
+	rc = sqlite3_step(stmt);
+	sqlite3_finalize(stmt);
+	return (rc == SQLITE_DONE ? 0 : EIO);
+}
+
 int
-zmetad_db_open(zmetad_db_t **dbp, const char *path)
+zmetad_db_open(zmetad_db_t **dbp, const char *path,
+    const zmetad_schema_t *zs)
 {
 	zmetad_db_t *db;
+	char *stored_version = NULL;
+	char version_str[32];
 	int rc;
 
 	db = calloc(1, sizeof (*db));
@@ -108,6 +171,38 @@ zmetad_db_open(zmetad_db_t **dbp, const char *path)
 		sqlite3_close(db->sqlite);
 		free(db);
 		return (EIO);
+	}
+
+	/*
+	 * Record the event schema version this database was written with.
+	 * Refuse to open when a previous run used a different version:
+	 * silently mixing record layouts would corrupt the event table.
+	 */
+	db->schema = zs;
+	if (zs != NULL) {
+		(void) snprintf(version_str, sizeof (version_str), "%llu",
+		    (unsigned long long)zmetad_schema_version(zs));
+
+		rc = db_get_meta(db, "events_schema_version",
+		    &stored_version);
+		if (rc == 0 && strcmp(stored_version, version_str) != 0) {
+			fprintf(stderr, "database schema version mismatch: "
+			    "stored=%s loaded=%s\n",
+			    stored_version, version_str);
+			free(stored_version);
+			sqlite3_close(db->sqlite);
+			free(db);
+			return (EINVAL);
+		}
+		free(stored_version);
+
+		rc = db_set_meta(db, "events_schema_version", version_str);
+		if (rc != 0) {
+			fprintf(stderr, "Failed to record schema version\n");
+			sqlite3_close(db->sqlite);
+			free(db);
+			return (rc);
+		}
 	}
 
 	/* Prepare statements */
@@ -166,58 +261,93 @@ int
 zmetad_db_insert_event(zmetad_db_t *db, const char *dataset, nvlist_t *event)
 {
 	sqlite3_stmt *stmt = db->insert_event_stmt;
-	uint64_t txg = 0, timestamp = 0, object_id = 0;
-	uint64_t uid = 0, gid = 0, mode = 0, size = 0;
-	const char *event_type = NULL;
-	const char *path = NULL;
-	const char *old_path = NULL;
+	const zmetad_schema_t *zs = db->schema;
+	union {
+		uint64_t	u64;
+		const char	*str;
+	} val;
+	uint64_t op = 0;
+	boolean_t have_op = B_FALSE;
+	uint_t nelem;
+	data_type_t dtype;
 	int rc;
 
-	/*
-	 * Extract fields from nvlist. These key names must match the
-	 * ZFS_EV_* definitions in <sys/zfs_events.h>: "op" is a uint16
-	 * operation enum (ZFS_EV_CREATE, ...), names are strings, and
-	 * the post-write size is "new_size". There is no mode field in
-	 * event records; the column is kept for schema stability.
-	 */
-	uint64_t op = 0;
-	uint16_t op16 = 0;
-	(void) nvlist_lookup_uint64(event, "txg", &txg);
-	(void) nvlist_lookup_uint64(event, "time", &timestamp);
-	(void) nvlist_lookup_uint64(event, "object", &object_id);
-	(void) nvlist_lookup_uint16(event, "op", &op16);
-	op = op16;
-	(void) nvlist_lookup_string(event, "name", &path);
-	(void) nvlist_lookup_string(event, "old_name", &old_path);
-	(void) nvlist_lookup_uint64(event, "uid", &uid);
-	(void) nvlist_lookup_uint64(event, "gid", &gid);
-	(void) nvlist_lookup_uint64(event, "new_size", &size);
-	static const char *const op_names[] = {
-		"NONE", "CREATE", "REMOVE", "RENAME", "LINK", "SYMLINK",
-		"TRUNCATE", "SETATTR"
-	};
-	event_type = (op < sizeof (op_names) / sizeof (op_names[0])) ?
-	    op_names[op] : "UNKNOWN";
+	if (zs == NULL)
+		return (EINVAL);
 
-	/* Bind parameters */
+	/*
+	 * Decode the record schema-driven: every known field is looked
+	 * up via zmetad_schema_field() (ENOENT = absent, normal) and
+	 * bound to the matching SQL column by field name.  Absent
+	 * fields stay NULL.  The mode column is kept for schema
+	 * stability but has no record field.
+	 */
 	sqlite3_reset(stmt);
+	sqlite3_clear_bindings(stmt);
+
+	for (uint_t i = 0; i < zmetad_schema_nfields(zs); i++) {
+		const char *name = zmetad_schema_field_name(zs, i);
+
+		val.u64 = 0;
+		nelem = 0;
+		dtype = DATA_TYPE_UNKNOWN;
+
+		rc = zmetad_schema_field(zs, name, event, &val.u64, &nelem,
+		    &dtype);
+		if (rc == ENOENT)
+			continue;
+		if (rc != 0) {
+			fprintf(stderr, "Field %s: %s\n", name,
+			    strerror(rc));
+			return (rc);
+		}
+
+		if (strcmp(name, "txg") == 0) {
+			sqlite3_bind_int64(stmt, 2, (sqlite3_int64)val.u64);
+		} else if (strcmp(name, "time") == 0) {
+			sqlite3_bind_int64(stmt, 3, (sqlite3_int64)val.u64);
+		} else if (strcmp(name, "object") == 0) {
+			sqlite3_bind_int64(stmt, 4, (sqlite3_int64)val.u64);
+		} else if (strcmp(name, "op") == 0) {
+			op = val.u64;
+			have_op = B_TRUE;
+		} else if (strcmp(name, "name") == 0) {
+			sqlite3_bind_text(stmt, 6, val.str, nelem,
+			    SQLITE_TRANSIENT);
+		} else if (strcmp(name, "old_name") == 0) {
+			sqlite3_bind_text(stmt, 7, val.str, nelem,
+			    SQLITE_TRANSIENT);
+		} else if (strcmp(name, "uid") == 0) {
+			sqlite3_bind_int64(stmt, 8, (sqlite3_int64)val.u64);
+		} else if (strcmp(name, "gid") == 0) {
+			sqlite3_bind_int64(stmt, 9, (sqlite3_int64)val.u64);
+		} else if (strcmp(name, "new_size") == 0) {
+			sqlite3_bind_int64(stmt, 11, (sqlite3_int64)val.u64);
+		}
+		/*
+		 * parent, old_parent, target, mode, old_size, attrs:
+		 * decoded and validated but no dedicated column.
+		 */
+	}
+
+	/*
+	 * The event_type column stores the schema enum name; an op
+	 * outside the enum decodes as UNKNOWN.
+	 */
 	sqlite3_bind_text(stmt, 1, dataset, -1, SQLITE_STATIC);
-	sqlite3_bind_int64(stmt, 2, txg);
-	sqlite3_bind_int64(stmt, 3, timestamp);
-	sqlite3_bind_int64(stmt, 4, object_id);
-	sqlite3_bind_text(stmt, 5, event_type ? event_type : "UNKNOWN",
-	    -1, SQLITE_STATIC);
-	sqlite3_bind_text(stmt, 6, path, -1, SQLITE_STATIC);
-	sqlite3_bind_text(stmt, 7, old_path, -1, SQLITE_STATIC);
-	sqlite3_bind_int64(stmt, 8, uid);
-	sqlite3_bind_int64(stmt, 9, gid);
-	sqlite3_bind_int64(stmt, 10, mode);
-	sqlite3_bind_int64(stmt, 11, size);
+	sqlite3_bind_text(stmt, 5, zmetad_schema_op_name(zs,
+	    have_op ? op : 0), -1, SQLITE_STATIC);
+
+	/*
+	 * Column 10 (mode) stays NULL: no record field maps to it;
+	 * the column is kept for schema stability.
+	 */
 
 	rc = sqlite3_step(stmt);
 	if (rc != SQLITE_DONE && rc != SQLITE_CONSTRAINT) {
 		fprintf(stderr, "Insert error: %s\n",
 		    sqlite3_errmsg(db->sqlite));
+		sqlite3_reset(stmt);
 		return (EIO);
 	}
 

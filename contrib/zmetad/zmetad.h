@@ -33,6 +33,7 @@ extern "C" {
 /* Configuration structure */
 typedef struct zmetad_config {
 	char		db_path[PATH_MAX];
+	char		schema_path[PATH_MAX];
 	int		poll_interval;
 	int		retention_days;
 	int		max_size_mb;
@@ -47,8 +48,10 @@ typedef struct zmetad_db zmetad_db_t;
  * Database operations (zmetad_db.c)
  */
 
-/* Open or create the SQLite database */
-int zmetad_db_open(zmetad_db_t **dbp, const char *path);
+/* Open or create the SQLite database for the given event schema */
+typedef struct zmetad_schema zmetad_schema_t;
+int zmetad_db_open(zmetad_db_t **dbp, const char *path,
+    const zmetad_schema_t *zs);
 
 /* Close the database */
 void zmetad_db_close(zmetad_db_t *db);
