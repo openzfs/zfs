@@ -28,8 +28,6 @@ libzfs_core_la_LIBADD = \
 	libnvpair.la \
 	libspl.la
 
-libzfs_core_la_LIBADD += $(LTLIBINTL)
-
 libzfs_core_la_LDFLAGS = -version-info 3:0:0
 
 if !ASAN_ENABLED
