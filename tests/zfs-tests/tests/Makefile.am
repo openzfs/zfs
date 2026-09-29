@@ -2156,6 +2156,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/reservation/reservation_021_neg.ksh \
 	functional/reservation/reservation_022_pos.ksh \
 	functional/reservation/reservation_023_pos.ksh \
+	functional/reservation/reservation_024_neg.ksh \
 	functional/reservation/setup.ksh \
 	functional/rootpool/cleanup.ksh \
 	functional/rootpool/rootpool_002_neg.ksh \
