@@ -901,5 +901,4 @@ const char *ZMETAD_EMBEDDED_SCHEMA_JSON =
 	"resolve stability via object id\"\n"
 	"    ]\n"
 	"  }\n"
-	"}\n"
-	"\n";
+	"}\n";

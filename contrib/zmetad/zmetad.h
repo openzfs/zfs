@@ -39,6 +39,9 @@ typedef struct zmetad_config {
 	int		max_size_mb;
 	boolean_t	foreground;
 	int		verbose;
+	char		*export_schema_path;
+	char		*check_schema_path;
+	boolean_t	force;
 } zmetad_config_t;
 
 /* Opaque database handle */

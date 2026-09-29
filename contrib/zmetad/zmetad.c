@@ -39,6 +39,7 @@
 
 #include "zmetad.h"
 #include "zmetad_schema.h"
+#include "schema_blob.h"
 
 /* Global state */
 static libzfs_handle_t *g_zfs;
@@ -90,6 +91,113 @@ config_init(zmetad_config_t *cfg)
 	cfg->schema_path[0] = '\0';
 	cfg->foreground = B_FALSE;
 	cfg->verbose = 0;
+	cfg->export_schema_path = NULL;
+	cfg->check_schema_path = NULL;
+	cfg->force = B_FALSE;
+}
+
+/*
+ * One-shot mode: write the embedded canonical schema JSON to
+ * cfg->export_schema_path.  Refuses to clobber an existing file unless
+ * --force was given.  Never enters the polling loop.
+ */
+static int
+run_export_schema(const zmetad_config_t *cfg)
+{
+	FILE *fp;
+
+	if (!cfg->force) {
+		struct stat st;
+
+		if (stat(cfg->export_schema_path, &st) == 0) {
+			fprintf(stderr, "refusing to overwrite existing "
+			    "file %s (use --force)\n",
+			    cfg->export_schema_path);
+			return (1);
+		}
+		if (errno != ENOENT) {
+			fprintf(stderr, "cannot stat %s: %s\n",
+			    cfg->export_schema_path, strerror(errno));
+			return (1);
+		}
+	}
+
+	fp = fopen(cfg->export_schema_path, "w");
+	if (fp == NULL) {
+		fprintf(stderr, "cannot open %s for writing: %s\n",
+		    cfg->export_schema_path, strerror(errno));
+		return (1);
+	}
+
+	if (fwrite(ZMETAD_EMBEDDED_SCHEMA_JSON, 1,
+	    strlen(ZMETAD_EMBEDDED_SCHEMA_JSON), fp) !=
+	    strlen(ZMETAD_EMBEDDED_SCHEMA_JSON)) {
+		fprintf(stderr, "short write to %s: %s\n",
+		    cfg->export_schema_path, strerror(errno));
+		(void) fclose(fp);
+		return (1);
+	}
+	if (fclose(fp) != 0) {
+		fprintf(stderr, "error closing %s: %s\n",
+		    cfg->export_schema_path, strerror(errno));
+		return (1);
+	}
+	if (chmod(cfg->export_schema_path, 0644) != 0) {
+		fprintf(stderr, "cannot chmod %s: %s\n",
+		    cfg->export_schema_path, strerror(errno));
+		return (1);
+	}
+
+	printf("schema written to %s\n", cfg->export_schema_path);
+	return (0);
+}
+
+/*
+ * One-shot mode: validate a schema file against the embedded canonical
+ * schema.  Reports version drift by name.  Never enters the polling
+ * loop.
+ */
+static int
+run_check_schema(const zmetad_config_t *cfg)
+{
+	char errbuf[256];
+	char eb2[256];
+	zmetad_schema_t *zs;
+	zmetad_schema_t *emb;
+	uint64_t file_version;
+	int rc;
+
+	zs = zmetad_schema_load(cfg->check_schema_path, errbuf);
+	if (zs == NULL) {
+		fprintf(stderr, "schema check failed: %s\n", errbuf);
+		return (1);
+	}
+
+	file_version = zmetad_schema_version(zs);
+
+	emb = zmetad_schema_load(NULL, eb2);
+	if (emb == NULL) {
+		fprintf(stderr, "schema check failed: embedded schema "
+		    "unusable: %s\n", eb2);
+		zmetad_schema_free(zs);
+		return (1);
+	}
+
+	if (zmetad_schema_check_version(emb, file_version) == 0) {
+		printf("schema file OK (version %llu)\n",
+		    (u_longlong_t)file_version);
+		rc = 0;
+	} else {
+		fprintf(stderr, "schema version mismatch: file %s has "
+		    "version %llu, embedded schema is version %llu\n",
+		    cfg->check_schema_path, (u_longlong_t)file_version,
+		    (u_longlong_t)zmetad_schema_version(emb));
+		rc = 1;
+	}
+
+	zmetad_schema_free(emb);
+	zmetad_schema_free(zs);
+	return (rc);
 }
 
 static int
@@ -308,20 +416,29 @@ usage(const char *progname)
 	    "(default: %d)\n", ZMETAD_DEFAULT_RETENTION_DAYS);
 	fprintf(stderr, "  --schema <file>        Event schema JSON path "
 	    "(default: embedded)\n");
+	fprintf(stderr, "  --export-schema <file> Write embedded schema "
+	    "JSON to file and exit\n");
+	fprintf(stderr, "  --check-schema <file>  Validate schema file "
+	    "against embedded and exit\n");
+	fprintf(stderr, "  --force                Allow --export-schema to "
+	    "overwrite existing file\n");
 	fprintf(stderr, "  -v, --verbose          Verbose output\n");
 	fprintf(stderr, "  -h, --help             Show this help\n");
 }
 
 static struct option longopts[] = {
-	{ "config",	required_argument,	NULL,	'c' },
-	{ "database",	required_argument,	NULL,	'd' },
-	{ "foreground",	no_argument,		NULL,	'f' },
-	{ "interval",	required_argument,	NULL,	'i' },
-	{ "retention",	required_argument,	NULL,	'r' },
-	{ "schema",	required_argument,	NULL,	's' },
-	{ "verbose",	no_argument,		NULL,	'v' },
-	{ "help",	no_argument,		NULL,	'h' },
-	{ NULL,		0,			NULL,	0 }
+	{ "config",		required_argument,	NULL,	'c' },
+	{ "database",		required_argument,	NULL,	'd' },
+	{ "export-schema",	required_argument,	NULL,	'e' },
+	{ "check-schema",	required_argument,	NULL,	'k' },
+	{ "force",		no_argument,		NULL,	0x100 },
+	{ "foreground",		no_argument,		NULL,	'f' },
+	{ "interval",		required_argument,	NULL,	'i' },
+	{ "retention",		required_argument,	NULL,	'r' },
+	{ "schema",		required_argument,	NULL,	's' },
+	{ "verbose",		no_argument,		NULL,	'v' },
+	{ "help",		no_argument,		NULL,	'h' },
+	{ NULL,			0,			NULL,	0 }
 };
 
 int
@@ -333,7 +450,7 @@ main(int argc, char **argv)
 
 	config_init(&g_config);
 
-	while ((opt = getopt_long(argc, argv, "c:d:fi:r:s:vh", longopts,
+	while ((opt = getopt_long(argc, argv, "c:d:fe:i:k:r:s:vh", longopts,
 	    NULL)) != -1) {
 		switch (opt) {
 		case 'c':
@@ -342,6 +459,21 @@ main(int argc, char **argv)
 		case 'd':
 			strlcpy(g_config.db_path, optarg,
 			    sizeof (g_config.db_path));
+			break;
+		case 'e':
+			if (g_config.export_schema_path != NULL) {
+				fprintf(stderr, "--export-schema given "
+				    "multiple times\n");
+				usage(argv[0]);
+				return (EXIT_FAILURE);
+			}
+			g_config.export_schema_path = optarg;
+			break;
+		case 'k':
+			g_config.check_schema_path = optarg;
+			break;
+		case 0x100:
+			g_config.force = B_TRUE;
 			break;
 		case 'f':
 			g_config.foreground = B_TRUE;
@@ -367,6 +499,42 @@ main(int argc, char **argv)
 			usage(argv[0]);
 			return (opt == 'h' ? EXIT_SUCCESS : EXIT_FAILURE);
 		}
+	}
+
+	/*
+	 * getopt_long eats the next word as the argument of a
+	 * required_argument option even when that word is another
+	 * option, so "zmetad --export-schema --force /path.json"
+	 * stores the path as "--force" and leaves "/path.json" as a
+	 * stray positional.  Recover: if a stored path is literally
+	 * "--force", the flag was meant for us and the real path is
+	 * the leftover positional.
+	 */
+	if ((g_config.export_schema_path != NULL &&
+	    strcmp(g_config.export_schema_path, "--force") == 0) ||
+	    (g_config.check_schema_path != NULL &&
+	    strcmp(g_config.check_schema_path, "--force") == 0)) {
+		char **pathp = (g_config.export_schema_path != NULL) ?
+		    &g_config.export_schema_path : &g_config.check_schema_path;
+
+		g_config.force = B_TRUE;
+		*pathp = NULL;
+		if (optind >= argc) {
+			fprintf(stderr, "--%s requires a file path\n",
+			    (pathp == &g_config.export_schema_path) ?
+			    "export-schema" : "check-schema");
+			return (EXIT_FAILURE);
+		}
+		*pathp = argv[optind];
+		optind++;
+	}
+
+	/* One-shot schema modes: run and exit before any daemon setup */
+	if (g_config.export_schema_path != NULL) {
+		return (run_export_schema(&g_config));
+	}
+	if (g_config.check_schema_path != NULL) {
+		return (run_check_schema(&g_config));
 	}
 
 	/* Initialize libzfs */
