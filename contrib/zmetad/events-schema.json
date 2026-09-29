@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "record_format": {
+    "encoding": "nvlist-packed-native",
+    "record_header": "uint64 little-endian payload length",
+    "fields": {
+      "txg": {
+        "type": "uint64",
+        "since": 1,
+        "always": true,
+        "desc": "transaction group of the change"
+      },
+      "time": {
+        "type": "uint64",
+        "since": 1,
+        "always": true,
+        "desc": "hrtime nanoseconds"
+      },
+      "object": {
+        "type": "uint64",
+        "since": 1,
+        "always": true,
+        "desc": "object ID affected"
+      },
+      "op": {
+        "type": "uint16",
+        "since": 1,
+        "always": true,
+        "enum": [
+          "NONE",
+          "CREATE",
+          "REMOVE",
+          "RENAME",
+          "LINK",
+          "SYMLINK",
+          "TRUNCATE",
+          "SETATTR"
+        ],
+        "desc": "operation type"
+      },
+      "name": {
+        "type": "string",
+        "since": 1,
+        "always": false,
+        "desc": "file/dir name"
+      },
+      "parent": {
+        "type": "uint64",
+        "since": 1,
+        "always": false,
+        "desc": "parent object ID"
+      },
+      "old_name": {
+        "type": "string",
+        "since": 1,
+        "always": false,
+        "ops": [
+          "RENAME"
+        ],
+        "desc": "old name (rename)"
+      },
+      "old_parent": {
+        "type": "uint64",
+        "since": 1,
+        "always": false,
+        "ops": [
+          "RENAME"
+        ],
+        "desc": "old parent (rename)"
+      },
+      "target": {
+        "type": "string",
+        "since": 1,
+        "always": false,
+        "ops": [
+          "SYMLINK"
+        ],
+        "desc": "symlink target"
+      },
+      "mode": {
+        "type": "uint64",
+        "since": 1,
+        "always": false,
+        "ops": [
+          "CREATE"
+        ],
+        "desc": "file mode (create)"
+      },
+      "old_size": {
+        "type": "uint64",
+        "since": 1,
+        "always": false,
+        "ops": [
+          "TRUNCATE"
+        ],
+        "desc": "size before truncate"
+      },
+      "new_size": {
+        "type": "uint64",
+        "since": 1,
+        "always": false,
+        "ops": [
+          "TRUNCATE",
+          "SETATTR"
+        ],
+        "desc": "size after truncate"
+      },
+      "attrs": {
+        "type": "uint64",
+        "since": 1,
+        "always": false,
+        "ops": [
+          "SETATTR"
+        ],
+        "desc": "changed attr mask"
+      },
+      "uid": {
+        "type": "uint64",
+        "since": 1,
+        "always": false,
+        "desc": "user ID"
+      },
+      "gid": {
+        "type": "uint64",
+        "since": 1,
+        "always": false,
+        "desc": "group ID"
+      }
+    },
+    "invariants": [
+      "consumers MUST ignore fields they do not recognize (forward compat)",
+      "op values outside the enum MUST decode as UNKNOWN",
+      "names are dataset-relative at event time; resolve stability via object id"
+    ]
+  }
+}

@@ -15,3 +15,7 @@ zmetad_LDADD = \
 	libnvpair.la
 
 zmetad_LDADD += $(LIBSQLITE3_LIBS)
+
+check-schema:
+	bash $(srcdir)/schema-check.sh $(top_srcdir)
+.PHONY: check-schema
