@@ -15,7 +15,6 @@
  * Copyright (c) 2011 Lawrence Livermore National Security, LLC.
  */
 
-#include <libintl.h>
 #include <unistd.h>
 #include <sys/file.h>
 #include <sys/mount.h>

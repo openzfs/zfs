@@ -36,7 +36,6 @@
 #include <getopt.h>
 #include <inttypes.h>
 #include <libgen.h>
-#include <libintl.h>
 #include <locale.h>
 #include <pthread.h>
 #include <stdio.h>

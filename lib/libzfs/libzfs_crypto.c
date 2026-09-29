@@ -18,7 +18,6 @@
 
 #include <sys/fs/zfs.h>
 #include <sys/dsl_crypt.h>
-#include <libintl.h>
 #include <termios.h>
 #include <signal.h>
 #include <errno.h>

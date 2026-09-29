@@ -33,7 +33,6 @@
 #include <errno.h>
 #include <getopt.h>
 #include <libgen.h>
-#include <libintl.h>
 #include <libnvpair.h>
 #include <locale.h>
 #include <stddef.h>
