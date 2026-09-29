@@ -37,8 +37,8 @@
 static __attribute__((noreturn)) void
 usage(void)
 {
-	(void) fprintf(stderr, gettext(
-	    "Usage: mkfile [-nv] <size>[g|k|b|m] <name1> [<name2>] ...\n"));
+	(void) fprintf(stderr,
+	    "Usage: mkfile [-nv] <size>[g|k|b|m] <name1> [<name2>] ...\n");
 	exit(1);
 }
 
@@ -101,14 +101,14 @@ main(int argc, char **argv)
 			break;
 		default:
 			(void) fprintf(stderr,
-			    gettext("unknown size %s\n"), argv[1]);
+			    "unknown size %s\n", argv[1]);
 			usage();
 		}
 
 		for (i = 0; i <= (len-2); i++) {
 			if (!isdigit(argv[1][i])) {
 				(void) fprintf(stderr,
-				    gettext("unknown size %s\n"), argv[1]);
+				    "unknown size %s\n", argv[1]);
 				usage();
 			}
 		}
@@ -123,13 +123,13 @@ main(int argc, char **argv)
 		int fd;
 
 		if (verbose)
-			(void) fprintf(stdout, gettext("%s %lld bytes\n"),
+			(void) fprintf(stdout, "%s %lld bytes\n",
 			    argv[1], (offset_t)size);
 		fd = open(argv[1], O_CREAT|O_TRUNC|O_RDWR, FILE_MODE);
 		if (fd < 0) {
 			saverr = errno;
 			(void) fprintf(stderr,
-			    gettext("Could not open %s: %s\n"),
+			    "Could not open %s: %s\n",
 			    argv[1], strerror(saverr));
 			errors++;
 			argv++;
@@ -137,8 +137,8 @@ main(int argc, char **argv)
 			continue;
 		} else if (fchown(fd, getuid(), getgid()) < 0) {
 			saverr = errno;
-			(void) fprintf(stderr, gettext(
-			    "Could not set owner/group of %s: %s\n"),
+			(void) fprintf(stderr,
+			    "Could not set owner/group of %s: %s\n",
 			    argv[1], strerror(saverr));
 			(void) close(fd);
 			errors++;
@@ -147,8 +147,8 @@ main(int argc, char **argv)
 			continue;
 		} else if (lseek(fd, (off_t)size-1, SEEK_SET) < 0) {
 			saverr = errno;
-			(void) fprintf(stderr, gettext(
-			    "Could not seek to offset %ld in %s: %s\n"),
+			(void) fprintf(stderr,
+			    "Could not seek to offset %ld in %s: %s\n",
 			    (unsigned long)size-1, argv[1], strerror(saverr));
 			(void) close(fd);
 			errors++;
@@ -157,8 +157,8 @@ main(int argc, char **argv)
 			continue;
 		} else if (write(fd, "", 1) != 1) {
 			saverr = errno;
-			(void) fprintf(stderr, gettext(
-			    "Could not set length of %s: %s\n"),
+			(void) fprintf(stderr,
+			    "Could not set length of %s: %s\n",
 			    argv[1], strerror(saverr));
 			(void) close(fd);
 			errors++;
@@ -173,8 +173,8 @@ main(int argc, char **argv)
 
 			if (lseek(fd, (off_t)0, SEEK_SET) < 0) {
 				saverr = errno;
-				(void) fprintf(stderr, gettext(
-				    "Could not seek to beginning of %s: %s\n"),
+				(void) fprintf(stderr,
+				    "Could not seek to beginning of %s: %s\n",
 				    argv[1], strerror(saverr));
 				(void) close(fd);
 				errors++;
@@ -184,8 +184,8 @@ main(int argc, char **argv)
 			}
 			if (fstat64(fd, &st) < 0) {
 				saverr = errno;
-				(void) fprintf(stderr, gettext(
-				    "Could not fstat64 %s: %s\n"),
+				(void) fprintf(stderr,
+				    "Could not fstat64 %s: %s\n",
 				    argv[1], strerror(saverr));
 				(void) close(fd);
 				errors++;
@@ -199,9 +199,9 @@ main(int argc, char **argv)
 				bufsz = (size_t)st.st_blksize;
 				buf = calloc(1, bufsz);
 				if (buf == NULL) {
-					(void) fprintf(stderr, gettext(
+					(void) fprintf(stderr,
 					    "Could not allocate buffer of"
-					    " size %d\n"), (int)bufsz);
+					    " size %d\n", (int)bufsz);
 					(void) close(fd);
 					bufsz = 0;
 					errors++;
@@ -220,8 +220,8 @@ main(int argc, char **argv)
 					if (result < 0)
 						result = 0;
 					written += result;
-					(void) fprintf(stderr, gettext(
-			    "%s: initialized %lu of %lu bytes: %s\n"),
+					(void) fprintf(stderr,
+			    "%s: initialized %lu of %lu bytes: %s\n",
 					    argv[1], (unsigned long)written,
 					    (unsigned long)size,
 					    strerror(saverr));
@@ -245,8 +245,8 @@ main(int argc, char **argv)
 		}
 		if (close(fd) < 0) {
 			saverr = errno;
-			(void) fprintf(stderr, gettext(
-			    "Error encountered when closing %s: %s\n"),
+			(void) fprintf(stderr,
+			    "Error encountered when closing %s: %s\n",
 			    argv[1], strerror(saverr));
 			errors++;
 			argv++;
@@ -260,8 +260,8 @@ main(int argc, char **argv)
 		 * to fail, but do issue a warning.
 		 */
 		if (chmod(argv[1], FILE_MODE) < 0)
-			(void) fprintf(stderr, gettext(
-			    "warning: couldn't set mode to %#o\n"), FILE_MODE);
+			(void) fprintf(stderr,
+			    "warning: couldn't set mode to %#o\n", FILE_MODE);
 
 		argv++;
 		argc--;

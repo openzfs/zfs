@@ -4663,11 +4663,11 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	if ((DMU_GET_FEATUREFLAGS(drrb->drr_versioninfo) &
 	    DMU_BACKUP_FEATURE_DEDUP)) {
 		(void) fprintf(stderr,
-		    gettext("ERROR: \"zfs receive\" no longer supports "
+		    "ERROR: \"zfs receive\" no longer supports "
 		    "deduplicated send streams.  Use\n"
 		    "the \"zstream redup\" command to convert this stream "
 		    "to a regular,\n"
-		    "non-deduplicated stream.\n"));
+		    "non-deduplicated stream.\n");
 		err = zfs_error(hdl, EZFS_NOTSUP, errbuf);
 		goto out;
 	}

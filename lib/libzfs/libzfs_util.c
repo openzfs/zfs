@@ -1210,7 +1210,7 @@ zfs_path_to_zhandle(libzfs_handle_t *hdl, const char *path, zfs_type_t argtype)
 		return (NULL);
 
 	if (strcmp(entry.mnt_fstype, MNTTYPE_ZFS) != 0) {
-		(void) fprintf(stderr, gettext("'%s': not a ZFS filesystem\n"),
+		(void) fprintf(stderr, "'%s': not a ZFS filesystem\n",
 		    path);
 		return (NULL);
 	}
@@ -1320,7 +1320,7 @@ zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
 {
 	zprop_list_t *pl;
 	int i;
-	char *title;
+	const char *title;
 	size_t len;
 
 	cbp->cb_first = B_FALSE;
