@@ -64,6 +64,21 @@ zfs_file_close(zfs_file_t *fp)
 }
 
 /*
+ * A job control stop (^Z) interrupts a blocking pipe or socket read/write
+ * just like any other signal.  issig() stops the thread in place and
+ * consumes SIGSTOP/SIGTSTP, so the caller can retry the I/O afterwards
+ * instead of failing a long running send or receive.
+ */
+static boolean_t
+zfs_file_restart(ssize_t rc)
+{
+	if (rc < 0 && rc != -ERESTARTSYS && rc != -EINTR)
+		return (B_FALSE);
+
+	return (signal_pending(current) && !issig());
+}
+
+/*
  * Stateful write - use os internal file pointer to determine where to
  * write and update on successful completion.
  *
@@ -78,17 +93,24 @@ int
 zfs_file_write(zfs_file_t *fp, const void *buf, size_t count, ssize_t *resid)
 {
 	loff_t off = fp->f_pos;
+	size_t done = 0;
 	ssize_t rc;
 
-	rc = kernel_write(fp, buf, count, &off);
-	if (rc < 0)
+	do {
+		rc = kernel_write(fp, (const char *)buf + done, count - done,
+		    &off);
+		if (rc > 0)
+			done += rc;
+	} while (done < count && zfs_file_restart(rc));
+
+	if (rc < 0 && done == 0)
 		return (-rc);
 
 	fp->f_pos = off;
 
 	if (resid) {
-		*resid = count - rc;
-	} else if (rc != count) {
+		*resid = count - done;
+	} else if (done != count) {
 		return (EIO);
 	}
 
@@ -143,7 +165,9 @@ zfs_file_read(zfs_file_t *fp, void *buf, size_t count, ssize_t *resid)
 	loff_t off = fp->f_pos;
 	ssize_t rc;
 
-	rc = kernel_read(fp, buf, count, &off);
+	do {
+		rc = kernel_read(fp, buf, count, &off);
+	} while (rc < 0 && zfs_file_restart(rc));
 	if (rc < 0)
 		return (-rc);
 
