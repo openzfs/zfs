@@ -59,6 +59,13 @@ chain_decompress_named_writes(void *item_in, void *context)
 		ctype = drrw->drr_compressiontype;
 	}
 	if (ctype_is_uncompressed(ctype)) {
+		/*
+		 * A record that is not compressed in the stream already
+		 * carries drr_logical_size bytes of payload and has no
+		 * meaningful drr_compressed_size, so leave it untouched.
+		 */
+		if (!DRR_WRITE_COMPRESSED(drrw))
+			return (D_OK);
 		drrw->drr_compressiontype = 0;
 		drrw->drr_logical_size = drrw->drr_compressed_size;
 		drrw->drr_compressed_size = 0;
