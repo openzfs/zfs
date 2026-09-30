@@ -9077,11 +9077,13 @@ zpool_do_condense(int argc, char **argv)
 
 /*
  * Converts a total number of seconds to a human readable string broken
- * down in to days/hours/minutes/seconds.
+ * down in to days/hours/minutes/seconds.  A negative duration (e.g. the
+ * system clock was set back during the operation) is reported as zero.
  */
 static void
-secs_to_dhms(uint64_t total, char *buf)
+secs_to_dhms(int64_t stotal, char *buf)
 {
+	uint64_t total = stotal > 0 ? stotal : 0;
 	uint64_t days = total / 60 / 60 / 24;
 	uint64_t hours = (total / 60 / 60) % 24;
 	uint64_t mins = (total / 60) % 60;
