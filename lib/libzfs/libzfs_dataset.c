@@ -3127,11 +3127,22 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 #endif /* HAVE_IDMAP */
 	} else {
 		/* It's a user/group/project ID (eg "12345"). */
+		uint64_t val;
 		uid_t id;
 		char *end;
-		id = strtoul(cp, &end, 10);
-		if (*end != '\0')
+
+		/*
+		 * strtoull() accepts an empty string, leading whitespace
+		 * and a sign, and silently wraps negative values, so require
+		 * a plain string of digits that fits in 32 bits.
+		 */
+		if (!isdigit((unsigned char)*cp))
 			return (EINVAL);
+		errno = 0;
+		val = strtoull(cp, &end, 10);
+		if (errno != 0 || *end != '\0' || val > UINT32_MAX)
+			return (EINVAL);
+		id = (uid_t)val;
 		if (id > MAXUID && !isproject) {
 #ifdef HAVE_IDMAP
 			/* It's an ephemeral ID. */
