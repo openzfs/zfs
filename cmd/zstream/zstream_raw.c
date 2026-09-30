@@ -114,6 +114,35 @@ write_zeros(raw_context_t *context, off_t offset, size_t length)
 }
 
 /*
+ * buffer_flush - issue any pending buffered writes
+ *
+ * Any operation that modifies the volume other than through buffer_write()
+ * (freeing, zeroing or resizing) must flush the buffer first, so that writes
+ * from earlier records are not applied after it and do not clobber its effect.
+ */
+static void
+buffer_flush(raw_context_t *context)
+{
+	struct raw_buffer *buffer = &context->buffer;
+	struct iovec *iov = buffer->iov;
+
+	if (buffer->iovcnt == 0)
+		return;
+
+	ssize_t res = pwritev(context->volume.fd, iov, buffer->iovcnt,
+	    buffer->position);
+	if (res < 0)
+		err(EXIT_FAILURE, "pwritev");
+	VERIFY3U(res, ==, buffer->length);
+	buffer->length = 0;
+	for (int i = 0; i < buffer->iovcnt; i++) {
+		free(iov[i].iov_base);
+		iov[i].iov_base = NULL;
+	}
+	buffer->iovcnt = 0;
+}
+
+/*
  * buffer_write - pwrite with buffer vectoring and error handling
  *
  * Appends buf to a buffer vector, issuing the pending vector if not contiguous.
@@ -126,30 +155,15 @@ buffer_write(raw_context_t *context, void *buf, size_t nbytes, off_t offset)
 	struct raw_buffer *buffer = &context->buffer;
 	struct iovec *iov = buffer->iov;
 
+	ASSERT3P(buf, !=, NULL);
+	ASSERT3U(offset + nbytes, >=, offset);
+
+	if (buffer->iovcnt != 0 &&
+	    (buffer->position + buffer->length != offset ||
+	    buffer->iovcnt == limits->buffers_max))
+		buffer_flush(context);
 	if (buffer->iovcnt == 0)
 		buffer->position = offset;
-	else if (buffer->position + buffer->length != offset ||
-	    buffer->iovcnt == limits->buffers_max) {
-		ASSERT3U(offset + nbytes, >=, offset);
-		ASSERT3U(buffer->iovcnt, >, 0);
-		ssize_t res = pwritev(context->volume.fd, iov, buffer->iovcnt,
-		    buffer->position);
-		if (res < 0)
-			err(EXIT_FAILURE, "pwritev");
-		VERIFY3U(res, ==, buffer->length);
-		buffer->position = offset;
-		buffer->length = 0;
-		for (int i = 0; i < buffer->iovcnt; i++) {
-			free(iov[i].iov_base);
-			iov[i].iov_base = NULL;
-		}
-		buffer->iovcnt = 0;
-	}
-	if (buf == NULL) {
-		/* Sentinel buf for flush. */
-		ASSERT0(buffer->iovcnt);
-		return;
-	}
 	iov[buffer->iovcnt].iov_base = buf;
 	iov[buffer->iovcnt].iov_len = nbytes;
 	buffer->length += nbytes;
@@ -159,7 +173,7 @@ buffer_write(raw_context_t *context, void *buf, size_t nbytes, off_t offset)
 static inline void
 buffer_finish(raw_context_t *context)
 {
-	buffer_write(context, NULL, 0, 0);
+	buffer_flush(context);
 	if (fsync(context->volume.fd) != 0)
 		err(EXIT_FAILURE, "fsync");
 }
@@ -244,6 +258,12 @@ free_blocks(raw_context_t *context, off_t offset, size_t length)
 static void
 free_range(raw_context_t *context, off_t offset, size_t length)
 {
+	/*
+	 * Earlier records may have written to this range, and those writes
+	 * must land before the range is freed.
+	 */
+	buffer_flush(context);
+
 	if (context->volume.isreg) {
 		if (length == (size_t)-1) {
 			free_tail(context, offset);
@@ -284,6 +304,11 @@ apply_properties(raw_context_t *context, void *buf, size_t len)
 	ASSERT0(strcmp(mzap->mz_chunk[0].mze_name, "size"));
 
 	uint64_t size = mzap->mz_chunk[0].mze_value;
+	/*
+	 * Flush writes from earlier records first, or any beyond the new end
+	 * of a shrunken volume would extend the file again.
+	 */
+	buffer_flush(context);
 	resize(context, size);
 	return (size);
 }
