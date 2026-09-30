@@ -36,6 +36,12 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/crypto_test
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/clone_after_trunc
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/ddt_prune_probe
+%C%_ddt_prune_probe_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+%C%_ddt_prune_probe_LDADD = \
+	libzpool.la \
+	libnvpair.la
+
 if WANT_DEVNAME2DEVID
 scripts_zfs_tests_bin_PROGRAMS += %D%/devname2devid
 %C%_devname2devid_CFLAGS = $(AM_CFLAGS) $(LIBUDEV_CFLAGS)

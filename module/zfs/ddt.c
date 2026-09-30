@@ -231,10 +231,10 @@ uint_t dedup_class_wait_txgs = 5;
 
 /*
  * How many DDT prune entries to add to the DDT sync AVL tree.
- * Note these addtional entries have a memory footprint of a
- * ddt_entry_t (216 bytes).
+ * Note these additional entries have a memory footprint of a
+ * ddt_entry_t (216 bytes).  In global scope for tests.
  */
-static uint32_t zfs_ddt_prunes_per_txg = 50000;
+uint32_t zfs_ddt_prunes_per_txg = 50000;
 
 /*
  * For testing, synthesize aged DDT entries
@@ -2764,8 +2764,15 @@ prune_candidates_sync(void *arg, dmu_tx_t *tx)
 		ddt_bp_create(ddt->ddt_checksum, &dpe->dpe_key,
 		    dpe->dpe_phys, DDT_PHYS_FLAT, &blk);
 
+		/*
+		 * The walk read this candidate from the unique-class store
+		 * object, which lags the log. If a log flush has since
+		 * rewritten the stored entry, it may have more references.
+		 */
 		ddt_entry_t *dde = ddt_lookup(ddt, &blk, B_TRUE);
-		if (dde != NULL && !(dde->dde_flags & DDE_FLAG_LOGGED)) {
+		if (dde != NULL && !(dde->dde_flags & DDE_FLAG_LOGGED) &&
+		    memcmp(&dde->dde_phys->ddp_flat, &dpe->dpe_phys->ddp_flat,
+		    DDT_FLAT_PHYS_SIZE) == 0) {
 			ASSERT(dde->dde_flags & DDE_FLAG_LOADED);
 			/*
 			 * Zero the physical, so we don't try to free DVAs
