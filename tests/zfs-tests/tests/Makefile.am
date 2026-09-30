@@ -2310,6 +2310,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/snapdir/snapdir_admin_create_destroy.ksh \
 	functional/snapdir/snapdir_admin_disabled.ksh \
 	functional/snapdir/snapdir_admin_rename_destroy.ksh \
+	functional/snapdir/snapdir_lookup_stale.ksh \
 	functional/snapdir/snapdir_mount_bind.ksh \
 	functional/snapdir/snapdir_mount_destroy_defer.ksh \
 	functional/snapdir/snapdir_mount_expire_bind.ksh \
