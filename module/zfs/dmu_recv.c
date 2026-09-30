@@ -1481,6 +1481,41 @@ corrective_read_done(zio_t *zio)
 }
 
 /*
+ * Determine the compression level to use when recompressing a block for
+ * a corrective receive.  The objset being healed is a snapshot, and
+ * dmu_objset_open_impl() does not register the compression property
+ * callbacks for snapshots, so os_complevel is not valid here.  Instead,
+ * look up the effective compression property of the dataset (which for
+ * a snapshot is inherited from its head).  If the property does not name
+ * the algorithm the block was written with, fall back to the default
+ * level for that algorithm.  If the chosen level does not match the level
+ * the block was originally written with, the recompressed data will not
+ * match the block's checksum and the block will not be healed.
+ */
+static uint8_t
+corrective_recv_complevel(objset_t *os, enum zio_compress compress)
+{
+	dsl_pool_t *dp = dmu_objset_pool(os);
+	uint64_t val;
+	int err;
+
+	/* Only zstd takes its level from the caller; see zio_compress_data() */
+	if (compress != ZIO_COMPRESS_ZSTD)
+		return (ZIO_COMPLEVEL_DEFAULT);
+
+	dsl_pool_config_enter(dp, FTAG);
+	err = dsl_prop_get_int_ds(os->os_dsl_dataset,
+	    zfs_prop_to_name(ZFS_PROP_COMPRESSION), &val);
+	dsl_pool_config_exit(dp, FTAG);
+
+	if (err != 0 || ZIO_COMPRESS_ALGO(val) != compress)
+		return (ZIO_COMPLEVEL_DEFAULT);
+
+	return (zio_complevel_select(os->os_spa, compress,
+	    ZIO_COMPRESS_LEVEL(val), ZIO_COMPLEVEL_DEFAULT));
+}
+
+/*
  * zio_rewrite the data pointed to by bp with the data from the rrd's abd.
  */
 static int
@@ -1524,13 +1559,39 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 	}
 
 	if (!rwa->raw && BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF) {
-		/* Recompress the data */
-		abd_t *cabd = abd_alloc_linear(BP_GET_PSIZE(bp),
-		    B_FALSE);
-		uint64_t csize = zio_compress_data(BP_GET_COMPRESS(bp),
-		    abd, &cabd, abd_get_size(abd), BP_GET_PSIZE(bp),
-		    rwa->os->os_complevel);
-		abd_zero_off(cabd, csize, BP_GET_PSIZE(bp) - csize);
+		/*
+		 * Recompress the data.  The output of some compressors
+		 * depends on the size of the destination buffer (e.g. the
+		 * zstd early abort heuristic), so use the same maximum size
+		 * as zio_write_compress() did when the block was written.
+		 */
+		spa_t *spa = rwa->os->os_spa;
+		enum zio_compress compress = BP_GET_COMPRESS(bp);
+		uint64_t lsize = abd_get_size(abd);
+		uint64_t psize = BP_GET_PSIZE(bp);
+		abd_t *tabd = abd_alloc_linear(lsize, B_FALSE);
+		uint64_t csize = zio_compress_data(compress, abd, &tabd,
+		    lsize, zio_get_compression_max_size(compress,
+		    spa->spa_gcd_alloc, spa->spa_min_alloc, lsize),
+		    corrective_recv_complevel(rwa->os, compress));
+
+		/*
+		 * If the data did not compress into the on-disk physical
+		 * size, it cannot reproduce the original block, so it cannot
+		 * be used to heal it.
+		 */
+		if (csize > psize) {
+			abd_free(tabd);
+			/* abd may have been swapped above; caller frees it */
+			rrd->abd = abd;
+			if (zfs_recv_best_effort_corrective != 0)
+				return (0);
+			return (SET_ERROR(ECKSUM));
+		}
+		abd_t *cabd = abd_alloc_linear(psize, B_FALSE);
+		abd_copy(cabd, tabd, csize);
+		abd_zero_off(cabd, csize, psize - csize);
+		abd_free(tabd);
 		/* Swap in newly compressed data into the abd */
 		abd_free(abd);
 		abd = cabd;
