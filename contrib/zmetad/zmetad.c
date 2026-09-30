@@ -207,12 +207,126 @@ run_check_schema(const zmetad_config_t *cfg)
 	return (rc);
 }
 
+/*
+ * Per-dataset loss-detection state: the previous poll's records_lost
+ * counter and the highest watermark ever seen (so a regression can
+ * be distinguished from the kernel's offset-0 "log exhausted"
+ * sentinel).  Keyed by dataset name; entries live for the process
+ * lifetime (datasets are few).
+ */
+struct loss_state {
+	char		*dataset;
+	uint64_t	last_lost;
+	boolean_t	have_lost;
+	uint64_t	high_water;
+	boolean_t	have_high_water;
+	struct loss_state *next;
+};
+
+static struct loss_state *g_loss_states;
+
+static struct loss_state *
+loss_state_get(const char *dataset)
+{
+	struct loss_state *ls;
+
+	for (ls = g_loss_states; ls != NULL; ls = ls->next) {
+		if (strcmp(ls->dataset, dataset) == 0)
+			return (ls);
+	}
+
+	ls = calloc(1, sizeof (*ls));
+	if (ls == NULL)
+		return (NULL);
+	ls->dataset = strdup(dataset);
+	if (ls->dataset == NULL) {
+		free(ls);
+		return (NULL);
+	}
+	ls->next = g_loss_states;
+	g_loss_states = ls;
+	return (ls);
+}
+
+/*
+ * Detect event-log loss for this poll: a records_lost delta against
+ * the previous poll (ring wrap or drain-queue overflow) or a
+ * watermark regression (next_offset below the highest offset ever
+ * observed, after the kernel's offset-0 exhaustion sentinel is
+ * excluded).  Records a gap row and warns on stderr; returns the
+ * lost count (0 = no loss).
+ */
+static uint64_t
+detect_loss(const char *dataset, zmetad_db_t *db, struct loss_state *ls,
+    uint64_t last_offset, uint64_t next_offset, uint64_t records_lost)
+{
+	uint64_t lost_delta = 0;
+	uint64_t regression_from = 0;
+	boolean_t regression = B_FALSE;
+
+	if (ls->have_lost && records_lost >= ls->last_lost)
+		lost_delta = records_lost - ls->last_lost;
+	ls->last_lost = records_lost;
+	ls->have_lost = B_TRUE;
+
+	if (ls->have_high_water && next_offset != 0 &&
+	    next_offset < ls->high_water) {
+		regression = B_TRUE;
+		regression_from = ls->high_water;
+	} else if (last_offset != 0 && next_offset != 0 &&
+	    next_offset < last_offset) {
+		/*
+		 * Covers the first poll after a restart whose stored
+		 * watermark predates a ring reset: the in-memory
+		 * high-water mark is gone but sync_state is not.
+		 */
+		regression = B_TRUE;
+		regression_from = last_offset;
+	}
+	if (next_offset != 0 &&
+	    (!ls->have_high_water || next_offset > ls->high_water)) {
+		ls->high_water = next_offset;
+		ls->have_high_water = B_TRUE;
+	}
+
+	if (lost_delta == 0 && !regression)
+		return (0);
+
+	if (regression) {
+		fprintf(stderr, "event log watermark regression on %s: "
+		    "next_offset=%llu below high-water %llu; records "
+		    "since offset %llu were not captured\n",
+		    dataset, (unsigned long long)next_offset,
+		    (unsigned long long)regression_from,
+		    (unsigned long long)next_offset);
+	} else {
+		fprintf(stderr, "event log loss on %s: %llu records lost "
+		    "since last poll (cumulative %llu); records from "
+		    "logical offset %llu onward were affected\n",
+		    dataset, (unsigned long long)lost_delta,
+		    (unsigned long long)records_lost,
+		    (unsigned long long)last_offset);
+	}
+
+	(void) zmetad_db_insert_gap(db, dataset,
+	    regression ? next_offset : last_offset,
+	    regression ? regression_from : next_offset,
+	    lost_delta);
+
+	return (lost_delta > 0 ? lost_delta : 1);
+}
+
 static int
 collect_dataset_events(const char *dataset, zmetad_db_t *db)
 {
 	nvlist_t *events = NULL;
 	uint64_t last_offset;
+	struct loss_state *ls;
 	int err;
+
+	ls = loss_state_get(dataset);
+	if (ls == NULL)
+		return (ENOMEM);
 
 	/* Get last synced offset for this dataset */
 	last_offset = zmetad_db_get_last_offset(db, dataset);
@@ -284,10 +398,26 @@ collect_dataset_events(const char *dataset, zmetad_db_t *db)
 		printf("Collected %u events from %s\n", count, dataset);
 	}
 
-	/* Update last synced offset from returned next_offset */
+	/*
+	 * Loss detection BEFORE advancing the watermark: compare the
+	 * cumulative records_lost with the previous poll and check the
+	 * returned watermark against the high-water mark.  The
+	 * surviving records above are still inserted; the gap row
+	 * records what was lost between the previous watermark and
+	 * this poll's.
+	 */
+	uint64_t records_lost = 0;
 	uint64_t next_offset = 0;
+
+	(void) nvlist_lookup_uint64(events, "records_lost", &records_lost);
 	(void) nvlist_lookup_uint64(events, "next_offset", &next_offset);
 
+	if (detect_loss(dataset, db, ls, last_offset, next_offset,
+	    records_lost) > 0 && g_config.verbose) {
+		printf("Loss detected on %s; gap recorded\n", dataset);
+	}
+
+	/* Update last synced offset from returned next_offset */
 	if (next_offset > 0) {
 		zmetad_db_set_last_offset(db, dataset, next_offset);
 	}

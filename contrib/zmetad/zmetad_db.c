@@ -30,6 +30,8 @@
 #include "zmetad.h"
 #include "zmetad_schema.h"
 
+#define	ZMETAD_DB_SCHEMA_VERSION	2
+
 struct zmetad_db {
 	sqlite3		*sqlite;
 	sqlite3_stmt	*insert_event_stmt;
@@ -37,6 +39,40 @@ struct zmetad_db {
 	sqlite3_stmt	*set_last_offset_stmt;
 	const zmetad_schema_t *schema;
 };
+
+/*
+ * Columns added by database layout version 2.  Used to upgrade a
+ * version 1 database in place.
+ */
+static const struct {
+	const char	*name;
+	const char	*type;
+} db_v2_columns[] = {
+	{ "parent",	"INTEGER" },
+	{ "old_parent",	"INTEGER" },
+	{ "target",	"TEXT" },
+	{ "old_size",	"INTEGER" },
+	{ "attrs",	"INTEGER" },
+};
+
+/*
+ * The gaps table records event-log losses observed while polling:
+ * ring-wrap overwrites reported as records_lost deltas and watermark
+ * regressions from lost sync_state state or a cleared/recreated ring.
+ */
+static const char *gaps_sql =
+	"CREATE TABLE IF NOT EXISTS gaps ("
+	"    id INTEGER PRIMARY KEY AUTOINCREMENT,"
+	"    dataset TEXT NOT NULL,"
+	"    detected INTEGER NOT NULL,"
+	"    from_offset INTEGER,"
+	"    to_offset INTEGER,"
+	"    lost INTEGER NOT NULL"
+		");";
+
+static const char *insert_gap_sql =
+	"INSERT INTO gaps (dataset, detected, from_offset, to_offset, lost) "
+	"VALUES (?, ?, ?, ?, ?)";
 
 static const char *schema_sql =
 	"CREATE TABLE IF NOT EXISTS events ("
@@ -54,8 +90,13 @@ static const char *schema_sql =
 	"    size INTEGER,"
 	"    io_offset INTEGER,"
 	"    io_bytes INTEGER,"
+	"    parent INTEGER,"
+	"    old_parent INTEGER,"
+	"    target TEXT,"
+	"    old_size INTEGER,"
+	"    attrs INTEGER,"
 	"    UNIQUE(dataset, txg, object_id, event_type, timestamp)"
-	");"
+		");"
 	"CREATE INDEX IF NOT EXISTS idx_events_dataset_time "
 	"    ON events(dataset, timestamp);"
 	"CREATE INDEX IF NOT EXISTS idx_events_object "
@@ -75,8 +116,9 @@ static const char *schema_sql =
 static const char *insert_event_sql =
 	"INSERT OR IGNORE INTO events "
 	"(dataset, txg, timestamp, object_id, event_type, path, old_path, "
-	"uid, gid, mode, size, io_offset, io_bytes) "
-	"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	"uid, gid, mode, size, io_offset, io_bytes, parent, old_parent, "
+	"target, old_size, attrs) "
+	"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 static const char *get_last_offset_sql =
 	"SELECT last_offset FROM sync_state WHERE dataset = ?";
@@ -139,6 +181,91 @@ db_set_meta(zmetad_db_t *db, const char *key, const char *value)
 	return (rc == SQLITE_DONE ? 0 : EIO);
 }
 
+/*
+ * Ensure the database layout version matches this build.  A version 1
+ * database (pre-gap-tracking) is upgraded in place with ALTER TABLE
+ * ADD COLUMN; the added columns are NULL for old rows, which is the
+ * correct representation for fields absent from those records.  A
+ * database written by a NEWER layout is refused.
+ */
+static int
+db_check_layout(zmetad_db_t *db)
+{
+	char *stored_version = NULL;
+	char version_str[16];
+	char sql[128];
+	char *errmsg = NULL;
+	unsigned long v;
+	int rc;
+
+	(void) snprintf(version_str, sizeof (version_str), "%u",
+	    ZMETAD_DB_SCHEMA_VERSION);
+
+	rc = db_get_meta(db, "db_schema_version", &stored_version);
+	if (rc == ENOENT) {
+		/*
+		 * No key: either a fresh database (created empty by
+		 * schema_sql above) or a version 1 database.  The
+		 * events table gains no columns from schema_sql when
+		 * it already exists, so probe for a v2 column and
+		 * ALTER TABLE the v1 set in when it is missing.
+		 */
+		{
+			sqlite3_stmt *probe = NULL;
+
+			rc = sqlite3_prepare_v2(db->sqlite,
+			    "SELECT parent FROM events LIMIT 1", -1,
+			    &probe, NULL);
+			if (rc == SQLITE_OK)
+				sqlite3_finalize(probe);
+		}
+		if (rc != SQLITE_OK) {
+			for (size_t i = 0;
+			    i < sizeof (db_v2_columns) /
+			    sizeof (db_v2_columns[0]); i++) {
+				(void) snprintf(sql, sizeof (sql),
+				    "ALTER TABLE events ADD COLUMN %s %s",
+				    db_v2_columns[i].name,
+				    db_v2_columns[i].type);
+				if (sqlite3_exec(db->sqlite, sql, NULL,
+				    NULL, &errmsg) != SQLITE_OK) {
+					fprintf(stderr, "migration error "
+					    "adding %s: %s\n",
+					    db_v2_columns[i].name,
+					    errmsg != NULL ? errmsg :
+					    "unknown");
+					sqlite3_free(errmsg);
+					sqlite3_close(db->sqlite);
+					return (EIO);
+				}
+			}
+			fprintf(stderr, "upgraded database to layout "
+			    "version %s\n", version_str);
+		}
+		rc = db_set_meta(db, "db_schema_version", version_str);
+		if (rc != 0) {
+			fprintf(stderr, "Failed to record database "
+			    "layout version\n");
+			return (rc);
+		}
+		return (0);
+	}
+	if (rc != 0) {
+		fprintf(stderr, "cannot read db_schema_version\n");
+		return (rc);
+	}
+
+	v = strtoul(stored_version, NULL, 10);
+	free(stored_version);
+	if (v != ZMETAD_DB_SCHEMA_VERSION) {
+		fprintf(stderr, "database layout version mismatch: "
+		    "stored=%lu loaded=%u; recreate the database or run "
+		    "an older zmetad\n", v, ZMETAD_DB_SCHEMA_VERSION);
+		return (EINVAL);
+	}
+	return (0);
+}
+
 int
 zmetad_db_open(zmetad_db_t **dbp, const char *path,
     const zmetad_schema_t *zs)
@@ -173,6 +300,22 @@ zmetad_db_open(zmetad_db_t **dbp, const char *path,
 		sqlite3_close(db->sqlite);
 		free(db);
 		return (EIO);
+	}
+
+	rc = sqlite3_exec(db->sqlite, gaps_sql, NULL, NULL, &errmsg);
+	if (rc != SQLITE_OK) {
+		fprintf(stderr, "Gaps table creation error: %s\n", errmsg);
+		sqlite3_free(errmsg);
+		sqlite3_close(db->sqlite);
+		free(db);
+		return (EIO);
+	}
+
+	rc = db_check_layout(db);
+	if (rc != 0) {
+		sqlite3_close(db->sqlite);
+		free(db);
+		return (rc);
 	}
 
 	/*
@@ -329,10 +472,21 @@ zmetad_db_insert_event(zmetad_db_t *db, const char *dataset, nvlist_t *event)
 			sqlite3_bind_int64(stmt, 12, (sqlite3_int64)val.u64);
 		} else if (strcmp(name, "io_bytes") == 0) {
 			sqlite3_bind_int64(stmt, 13, (sqlite3_int64)val.u64);
+		} else if (strcmp(name, "parent") == 0) {
+			sqlite3_bind_int64(stmt, 14, (sqlite3_int64)val.u64);
+		} else if (strcmp(name, "old_parent") == 0) {
+			sqlite3_bind_int64(stmt, 15, (sqlite3_int64)val.u64);
+		} else if (strcmp(name, "target") == 0) {
+			sqlite3_bind_text(stmt, 16, val.str, nelem,
+			    SQLITE_TRANSIENT);
+		} else if (strcmp(name, "old_size") == 0) {
+			sqlite3_bind_int64(stmt, 17, (sqlite3_int64)val.u64);
+		} else if (strcmp(name, "attrs") == 0) {
+			sqlite3_bind_int64(stmt, 18, (sqlite3_int64)val.u64);
 		}
 		/*
-		 * parent, old_parent, target, mode, old_size, attrs:
-		 * decoded and validated but no dedicated column.
+		 * mode: decoded and validated but no record field maps
+		 * to the column (kept for schema stability, stays NULL).
 		 */
 	}
 
@@ -390,6 +544,46 @@ zmetad_db_set_last_offset(zmetad_db_t *db, const char *dataset, uint64_t offset)
 	rc = sqlite3_step(stmt);
 	if (rc != SQLITE_DONE) {
 		fprintf(stderr, "Set last_offset error: %s\n",
+		    sqlite3_errmsg(db->sqlite));
+		return (EIO);
+	}
+
+	return (0);
+}
+
+/*
+ * Record an event-log gap: a loss observed at poll time, either a
+ * records_lost delta (ring wrap or queue overflow) or a watermark
+ * regression (lost sync_state or a cleared/recreated ring).  "lost"
+ * is the count of records lost since the previous poll; from_offset
+ * may be unknown (pass 0) when no range applies.
+ */
+int
+zmetad_db_insert_gap(zmetad_db_t *db, const char *dataset,
+    uint64_t from_offset, uint64_t to_offset, uint64_t lost)
+{
+	sqlite3_stmt *stmt = NULL;
+	int rc;
+
+	rc = sqlite3_prepare_v2(db->sqlite, insert_gap_sql, -1, &stmt, NULL);
+	if (rc != SQLITE_OK) {
+		fprintf(stderr, "Prepare gap insert error: %s\n",
+		    sqlite3_errmsg(db->sqlite));
+		return (EIO);
+	}
+
+	sqlite3_bind_text(stmt, 1, dataset, -1, SQLITE_STATIC);
+	sqlite3_bind_int64(stmt, 2, (sqlite3_int64)time(NULL));
+	if (from_offset != 0)
+		sqlite3_bind_int64(stmt, 3, (sqlite3_int64)from_offset);
+	if (to_offset != 0)
+		sqlite3_bind_int64(stmt, 4, (sqlite3_int64)to_offset);
+	sqlite3_bind_int64(stmt, 5, (sqlite3_int64)lost);
+
+	rc = sqlite3_step(stmt);
+	sqlite3_finalize(stmt);
+	if (rc != SQLITE_DONE) {
+		fprintf(stderr, "Gap insert error: %s\n",
 		    sqlite3_errmsg(db->sqlite));
 		return (EIO);
 	}

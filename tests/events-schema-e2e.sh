@@ -6,7 +6,8 @@
 # Chain under test: schema export -> schema check (ok + version-refusing
 # bad file) -> wire schema_version presence -> zmetad daemon run ->
 # multi-op event capture (CREATE/RENAME/TRUNCATE/SYMLINK) -> SQLite
-# assertions -> daemon version refusal on stale meta version.
+# assertions -> db_schema_version meta key -> gap-row detection on
+# watermark regression -> daemon version refusal on stale meta version.
 #
 # Usage: bash tests/events-schema-e2e.sh
 # Run as root or as a user with passwordless sudo (dataset and file ops
@@ -39,6 +40,15 @@
 #
 # 3. The events table has a `size` column (bound from new_size), not
 #    `new_size`; the TRUNCATE assertion checks size=0.
+#
+# 4. The watermark-regression gap test uses a real ring CLEAR
+#    (lzc_clear_events) instead of doctoring sync_state: verified
+#    against the kernel, an out-of-range stored watermark is clamped
+#    by zfs_events_get() and reports next_offset=0 (the "log
+#    exhausted" sentinel), which the daemon must NOT treat as a
+#    regression.  The clear resets the ring to offset 0, so the
+#    daemon's next poll genuinely regresses below its in-memory
+#    high-water mark with lost=0.
 
 set -u
 
@@ -82,6 +92,21 @@ cleanup() {
 	exit "$status"
 }
 trap cleanup EXIT
+
+# db_query <db> <python-expression using con> : print the value.
+db_query() {
+	python3 - "$1" "$2" <<'PY'
+import sqlite3
+import sys
+
+try:
+    con = sqlite3.connect("file:%s?mode=ro" % sys.argv[1], uri=True,
+                          timeout=2)
+    print(eval(sys.argv[2], {"con": con}))
+except sqlite3.Error:
+    print("ERR")
+PY
+}
 
 # db_has_rename <db> <dataset>: rc 0 when a RENAME row exists.
 db_has_rename() {
@@ -294,8 +319,8 @@ con = sqlite3.connect("file:%s?mode=ro" % db, uri=True, timeout=5)
 errors = []
 
 ev = con.execute(
-    "select event_type, path, old_path, txg, object_id, size "
-    "from events where dataset=?", (ds,)).fetchall()
+    "select event_type, path, old_path, txg, object_id, size, "
+    "parent, old_parent from events where dataset=?", (ds,)).fetchall()
 
 def has(t, p, old=None):
     for r in ev:
@@ -339,6 +364,46 @@ elif meta[0][0] != file_version:
     errors.append("meta events_schema_version=%s, expected %s"
                   % (meta[0][0], file_version))
 
+try:
+    cols = [r[1] for r in con.execute(
+        "pragma table_info(events)").fetchall()]
+except sqlite3.Error:
+    cols = []
+for col in ("parent", "old_parent", "target", "old_size", "attrs"):
+    if col not in cols:
+        errors.append("events table missing column %s" % col)
+
+try:
+    gaps_cols = sorted(r[1] for r in con.execute(
+        "pragma table_info(gaps)").fetchall())
+except sqlite3.Error:
+    gaps_cols = []
+if gaps_cols != ["dataset", "detected", "from_offset", "id",
+                 "lost", "to_offset"]:
+    errors.append("gaps table missing or wrong columns: %r" % (gaps_cols,))
+
+dbver = con.execute(
+    "select value from meta where key='db_schema_version'").fetchall()
+if not dbver:
+    errors.append("meta db_schema_version key absent")
+elif dbver[0][0] != "2":
+    errors.append("meta db_schema_version=%r, expected '2'"
+                  % (dbver[0][0],))
+
+# parent is decoded on every name-bearing op; the CREATE row for 'a'
+# must carry a non-NULL parent object id, and the RENAME row must
+# carry both parent and old_parent.
+for label, row in (("CREATE 'a'", has("CREATE", "a")),
+                   ("RENAME", ren)):
+    if row is None:
+        continue
+    if len(row) < 7 or row[6] is None:
+        errors.append("%s row has parent=%r, expected non-NULL"
+                      % (label, row[6] if len(row) > 6 else None))
+if ren is not None and (len(ren) < 8 or ren[7] is None):
+    errors.append("RENAME row has old_parent=%r, expected non-NULL"
+                  % (ren[7] if len(ren) > 7 else None))
+
 if errors:
     for e in errors:
         print("ASSERT FAIL: %s" % e)
@@ -346,6 +411,72 @@ if errors:
 PY
 	[ $? -eq 0 ] || fail "assert: see ASSERT FAIL lines above"
 	pass assert
+}
+
+step_gap() {
+	# GH #4: collector-lag loss detection.
+	#
+	# The kernel-drivable loss signal is the records_lost DELTA
+	# between polls (ring wrap: bof advances past the watermark,
+	# or drain-queue overflow). A watermark regression
+	# (next_offset below the daemon's high-water) is NOT
+	# reachable in a cheap test: zfs_events_get() clamps an
+	# out-of-range read offset into the current ring window, so
+	# after a clear or recreate the daemon's next poll simply
+	# resumes at the new tail (empty ring -> next_offset=0, the
+	# "log exhausted" sentinel, correctly excluded). The
+	# regression branch in zmetad stays as defense-in-depth for
+	# ring replacement while the clamp cannot produce it.
+	#
+	# Drive a REAL wrap: minimum ring (128KB ~ 1200 records) at
+	# window=0 (one record per write), then 64MB of 4K writes
+	# (~16k records) force several wraps between 3s polls.
+	"${SUDO[@]}" "$ZFS" set events_io_window=0 "$DS" ||
+		fail "gap: set events_io_window=0"
+	mnt="$("$ZFS" get -H -o value mountpoint "$DS")"
+	"${SUDO[@]}" dd if=/dev/zero of="$mnt/gapwrap" bs=4096 \
+	    count=16384 conv=notrunc status=none ||
+		fail "gap: bulk write failed"
+	"${SUDO[@]}" rm -f "$mnt/gapwrap"
+
+	found=0
+	i=0
+	while [ "$i" -lt 15 ]; do
+		n="$(db_query "$WD/zmd.db" \
+		    "con.execute('select count(*) from gaps where ' \
+		    'dataset=?', ('$DS',)).fetchone()[0]" 2>/dev/null)"
+		case "$n" in
+		''|ERR|null|0) ;;
+		*) found=1; break ;;
+		esac
+		sleep 2
+		i=$((i + 1))
+	done
+	[ "$found" -eq 1 ] ||
+		fail "gap: no gaps row for $DS within 30s of ring wrap"
+
+	# The gap row must report a positive lost count (a wrap
+	# always increments records_lost via advance_bof).
+	lost_n="$(db_query "$WD/zmd.db" \
+	    "con.execute('select lost from gaps where dataset=? and ' \
+	    'lost > 0 limit 1', ('$DS',)).fetchone()" 2>/dev/null)"
+	case "$lost_n" in
+	''|ERR|null|None) fail "gap: gaps row has no positive lost count" ;;
+	esac
+
+	# Restore the fence window for any later steps.
+	"${SUDO[@]}" "$ZFS" set events_io_window=1000 "$DS" ||
+		fail "gap: restore events_io_window"
+
+	# The daemon must have warned on stderr (journal).
+	log="$("${SUDO[@]}" journalctl -u "$UNIT" --no-pager -n 200 \
+	    2>/dev/null || true)"
+	case "$log" in
+	*"records lost since last poll"*) ;;
+	*) fail "gap: daemon stderr lacks loss warning" ;;
+	esac
+
+	pass gap
 }
 
 step_version_refusal() {
@@ -398,6 +529,7 @@ step_module_version
 step_daemon_run
 step_ops
 step_assert
+step_gap
 step_version_refusal
 
 printf 'E2E: ALL PASS\n'

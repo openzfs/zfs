@@ -70,6 +70,13 @@ uint64_t zmetad_db_get_last_offset(zmetad_db_t *db, const char *dataset);
 int zmetad_db_set_last_offset(zmetad_db_t *db, const char *dataset,
     uint64_t offset);
 
+/*
+ * Record an event-log gap for a dataset: "lost" records between
+ * "from_offset" and "to_offset" were never captured (0 = unknown).
+ */
+int zmetad_db_insert_gap(zmetad_db_t *db, const char *dataset,
+    uint64_t from_offset, uint64_t to_offset, uint64_t lost);
+
 /* Cleanup events older than retention_days */
 int zmetad_db_cleanup(zmetad_db_t *db, int retention_days);
 
