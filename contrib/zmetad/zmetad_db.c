@@ -52,6 +52,8 @@ static const char *schema_sql =
 	"    gid INTEGER,"
 	"    mode INTEGER,"
 	"    size INTEGER,"
+	"    io_offset INTEGER,"
+	"    io_bytes INTEGER,"
 	"    UNIQUE(dataset, txg, object_id, event_type, timestamp)"
 	");"
 	"CREATE INDEX IF NOT EXISTS idx_events_dataset_time "
@@ -73,8 +75,8 @@ static const char *schema_sql =
 static const char *insert_event_sql =
 	"INSERT OR IGNORE INTO events "
 	"(dataset, txg, timestamp, object_id, event_type, path, old_path, "
-	"uid, gid, mode, size) "
-	"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	"uid, gid, mode, size, io_offset, io_bytes) "
+	"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 static const char *get_last_offset_sql =
 	"SELECT last_offset FROM sync_state WHERE dataset = ?";
@@ -323,6 +325,10 @@ zmetad_db_insert_event(zmetad_db_t *db, const char *dataset, nvlist_t *event)
 			sqlite3_bind_int64(stmt, 9, (sqlite3_int64)val.u64);
 		} else if (strcmp(name, "new_size") == 0) {
 			sqlite3_bind_int64(stmt, 11, (sqlite3_int64)val.u64);
+		} else if (strcmp(name, "io_offset") == 0) {
+			sqlite3_bind_int64(stmt, 12, (sqlite3_int64)val.u64);
+		} else if (strcmp(name, "io_bytes") == 0) {
+			sqlite3_bind_int64(stmt, 13, (sqlite3_int64)val.u64);
 		}
 		/*
 		 * parent, old_parent, target, mode, old_size, attrs:
