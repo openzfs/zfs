@@ -702,9 +702,10 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	 * don't hold up txg.
 	 */
 	ssize_t pfbytes = MIN(n, DMU_MAX_ACCESS >> 1);
-	if (zfs_uio_prefaultpages(pfbytes, uio)) {
+	error = zfs_uio_prefaultpages(pfbytes, uio);
+	if (error != 0) {
 		zfs_exit(zfsvfs, FTAG);
-		return (SET_ERROR(EFAULT));
+		return (error);
 	}
 
 	/*
@@ -866,10 +867,9 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			nbytes = MIN(n, (DMU_MAX_ACCESS >> 1) -
 			    P2PHASE(woff, blksz));
 			if (pfbytes < nbytes) {
-				if (zfs_uio_prefaultpages(nbytes, uio)) {
-					error = SET_ERROR(EFAULT);
+				error = zfs_uio_prefaultpages(nbytes, uio);
+				if (error != 0)
 					break;
-				}
 				pfbytes = nbytes;
 			}
 		}

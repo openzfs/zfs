@@ -270,7 +270,7 @@ zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
 	 * by the kernel's generic_file_splice_read() function.
 	 */
 	if (cnt == 0)
-		return (EFAULT);
+		return (SET_ERROR(EFAULT));
 
 	/*
 	 * When revert is set this is a zfs_uiocopy() which should not
@@ -282,7 +282,7 @@ zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
 	if (revert)
 		iov_iter_revert(uio->uio_iter, cnt);
 	else if (cnt != oldcnt)
-		error = EFAULT;
+		error = SET_ERROR(EFAULT);
 
 	uio->uio_resid -= cnt;
 	uio->uio_loffset += cnt;
@@ -326,7 +326,7 @@ zfs_uio_prefaultpages(ssize_t n, zfs_uio_t *uio)
 		 * can be relied on to fault in user pages when referenced.
 		 */
 		if (iov_iter_fault_in_readable(uio->uio_iter, n))
-			return (EFAULT);
+			return (SET_ERROR(EFAULT));
 	}
 
 	return (0);
