@@ -212,6 +212,22 @@ zfs_events_create_obj(objset_t *os, dmu_tx_t *tx, uint64_t max_size,
 	zep->zep_phys_max_off = max_size;
 	zep->zep_version = ZFS_EVENTS_VERSION;
 
+	/*
+	 * Stamp the ring GUID: the identity of THIS log lifetime. It
+	 * survives zfs_events_clear(); a fresh value is drawn on every
+	 * create, so a destroy/recreate or zfs receive swap is visible
+	 * to consumers as a ring_guid change.
+	 */
+	for (int i = 0; i < 8; i++) {
+		uint64_t g = 1;
+
+		(void) random_get_pseudo_bytes((void *)&g, sizeof (g));
+		if (g != 0) {
+			zep->zep_guid = g;
+			break;
+		}
+	}
+
 	dmu_buf_rele(dbp, FTAG);
 
 	*objp = obj;
@@ -1229,44 +1245,6 @@ zfs_events_io_emit(znode_t *zp, objset_t *os, boolean_t is_write,
 }
 
 /*
- * Flush a file's pending IO windows only if they are past the fence
- * expiry (i.e. the fence would have emitted them by now). Used at
- * close(2): flushing unconditionally there destroys coalescing for
- * short-lived files, whose next open could otherwise absorb into the
- * still-young window. Young windows survive close on the znode; they
- * are emitted by the fence on the file's next IO, or by
- * zfs_inactive() when the file's last reference goes away.
- */
-void
-zfs_events_io_flush_expired(znode_t *zp, objset_t *os)
-{
-	zfsvfs_t *zfsvfs = ZTOZSB(zp);
-	hrtime_t now, window_ns, start;
-
-	if (!zfsvfs->z_events || !zfsvfs->z_events_io || zfsvfs->z_replay)
-		return;
-
-	window_ns = (hrtime_t)zfsvfs->z_events_io_window *
-	    (NANOSEC / MILLISEC);
-	if (window_ns == 0)
-		return;
-
-	now = gethrtime();
-
-	mutex_enter(&zp->z_lock);
-	start = zp->z_ev_io_wstart;
-	mutex_exit(&zp->z_lock);
-	if (start != 0 && now - start >= window_ns)
-		zfs_events_io_flush(zp, os, NULL, B_TRUE);
-
-	mutex_enter(&zp->z_lock);
-	start = zp->z_ev_io_rstart;
-	mutex_exit(&zp->z_lock);
-	if (start != 0 && now - start >= window_ns)
-		zfs_events_io_flush(zp, os, NULL, B_FALSE);
-}
-
-/*
  * Flush a file's pending IO window early, so pending IO records precede
  * an op record (CREATE/REMOVE/RENAME/...) about to be emitted on the
  * same transaction. tx may be NULL (open-txg attribution). A no-op when
@@ -1695,11 +1673,39 @@ zfs_events_get_schema_version(objset_t *os, uint64_t *verp)
 	return (0);
 }
 
+/*
+ * Return the GUID stamped on the event ring at creation (its log
+ * lifetime identity). Returns ENOENT if the dataset has no event log.
+ */
+int
+zfs_events_get_guid(objset_t *os, uint64_t *guidp)
+{
+	dmu_buf_t *dbp;
+	zfs_events_phys_t *zep;
+	uint64_t obj;
+	int err;
+
+	err = zap_lookup(os, MASTER_NODE_OBJ, ZFS_EVENTS_ZAP_NAME,
+	    sizeof (uint64_t), 1, &obj);
+	if (err != 0)
+		return (SET_ERROR(ENOENT));
+
+	err = dmu_bonus_hold(os, obj, FTAG, &dbp);
+	if (err != 0)
+		return (err);
+
+	zep = dbp->db_data;
+	*guidp = zep->zep_guid;
+	dmu_buf_rele(dbp, FTAG);
+	return (0);
+}
+
 #if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_events_create_obj);
 EXPORT_SYMBOL(zfs_events_txhold);
 EXPORT_SYMBOL(zfs_events_get_lost);
 EXPORT_SYMBOL(zfs_events_get_schema_version);
+EXPORT_SYMBOL(zfs_events_get_guid);
 EXPORT_SYMBOL(zfs_events_destroy_obj);
 EXPORT_SYMBOL(zfs_events_log_create);
 EXPORT_SYMBOL(zfs_events_log_remove);

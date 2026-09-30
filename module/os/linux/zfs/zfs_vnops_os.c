@@ -214,14 +214,18 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 		return (error);
 
 	/*
-	 * Flush IO event windows that are already past the fence
-	 * expiry so a stale window does not sit across opens.
-	 * Young windows are deliberately left pending: flushing
-	 * them here would end coalescing for short-lived files,
-	 * each emitting its own record per open/write/close cycle.
-	 * zfs_inactive() flushes whatever remains on final drop.
+	 * Flush any open IO event windows so a still-pending
+	 * window does not outlive the file's last reference
+	 * (open-txg attribution applies; no transaction here).
+	 * Closing emits unconditionally - even a fence-young
+	 * window - because deferring to zfs_inactive() makes the
+	 * record's appearance depend on inode-eviction timing:
+	 * nondeterministic for consumers. The fence coalesces
+	 * within an open; each open/close cycle emits its own
+	 * merged record.
 	 */
-	zfs_events_io_flush_expired(zp, zfsvfs->z_os);
+	zfs_events_io_flush(zp, zfsvfs->z_os, NULL, B_TRUE);
+	zfs_events_io_flush(zp, zfsvfs->z_os, NULL, B_FALSE);
 
 	/* Decrement the synchronous opens in the znode */
 	if (!zfsvfs->z_issnap && (flag & O_SYNC))

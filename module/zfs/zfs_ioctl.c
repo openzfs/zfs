@@ -4896,6 +4896,13 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 			    schema_version);
 	}
 
+	{
+		uint64_t ring_guid = 0;
+
+		if (zfs_events_get_guid(os, &ring_guid) == 0)
+			fnvlist_add_uint64(outnvl, "ring_guid", ring_guid);
+	}
+
 	vmem_free(buf, bufsize);
 	dmu_objset_rele(os, FTAG);
 	return (0);

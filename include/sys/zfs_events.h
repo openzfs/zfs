@@ -76,7 +76,8 @@ typedef struct zfs_events_phys {
 	uint64_t	zep_eof;		/* logical EOF */
 	uint64_t	zep_records_lost;	/* num of records overwritten */
 	uint64_t	zep_version;		/* format version */
-	uint64_t	zep_pad[3];		/* reserved for future use */
+	uint64_t	zep_guid;		/* ring identity GUID */
+	uint64_t	zep_pad[2];		/* reserved for future use */
 } zfs_events_phys_t;
 
 #define	ZFS_EVENTS_VERSION	2
@@ -188,7 +189,6 @@ extern void zfs_events_io_account(struct znode *zp, boolean_t is_write,
     uint64_t offset, uint64_t bytes, const cred_t *cr, uint64_t txg);
 extern void zfs_events_io_flush(struct znode *zp, objset_t *os,
     dmu_tx_t *tx, boolean_t is_write);
-extern void zfs_events_io_flush_expired(struct znode *zp, objset_t *os);
 extern void zfs_events_drain_shutdown(struct zfsvfs *zfsvfs);
 extern void zfs_events_qent_init(void);
 extern void zfs_events_qent_fini(void);
@@ -201,6 +201,7 @@ extern int zfs_events_get(objset_t *os, kmutex_t *lockp, uint64_t *offp,
     uint64_t *lenp, char *buf);
 extern int zfs_events_get_lost(objset_t *os, uint64_t *lostp);
 extern int zfs_events_get_schema_version(objset_t *os, uint64_t *verp);
+extern int zfs_events_get_guid(objset_t *os, uint64_t *guidp);
 extern int zfs_events_clear(objset_t *os, dmu_tx_t *tx, uint64_t *countp);
 extern int zfs_events_clear_task(objset_t *os);
 
