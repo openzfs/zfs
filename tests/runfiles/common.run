@@ -1133,6 +1133,7 @@ tests = [
     'userquota_004_pos', 'userquota_005_neg', 'userquota_006_pos',
     'userquota_007_pos', 'userquota_008_pos', 'userquota_009_pos',
     'userquota_010_pos', 'userquota_011_pos', 'userquota_012_neg',
+    'userquota_014_neg',
     'groupspace_005_pos',
     'userspace_001_pos', 'userspace_002_pos', 'userspace_004_pos',
     'userspace_005_pos', 'userspace_encrypted', 'userspace_send_encrypted',
