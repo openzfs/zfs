@@ -644,7 +644,7 @@ zpl_snapdir_iterate(struct file *filp, struct dir_context *ctx)
 			goto out;
 
 		if (!dir_emit(ctx, snapname, strlen(snapname),
-		    ZFSCTL_INO_SHARES - id, DT_DIR))
+		    ZFSCTL_INO_SNAPDIRS - id, DT_DIR))
 			goto out;
 
 		ctx->pos = pos;
