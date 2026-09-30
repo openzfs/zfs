@@ -79,12 +79,21 @@ Linux)
 	# core file helpers
 	read -r origcorepattern </proc/sys/kernel/core_pattern
 	coreglob="$(grep -E -o '^([^|%[:space:]]*)' /proc/sys/kernel/core_pattern)*"
+	corepatternset=0
 
 	if [[ $coreglob = "*" ]]; then
 		echo "Setting core file pattern..."
-		echo "core" > /proc/sys/kernel/core_pattern
-		coreglob="$(grep -E -o '^([^|%[:space:]]*)' \
-		    /proc/sys/kernel/core_pattern)*"
+		if echo "core" 2>/dev/null >/proc/sys/kernel/core_pattern; then
+			corepatternset=1
+			coreglob="$(grep -E -o '^([^|%[:space:]]*)' \
+			    /proc/sys/kernel/core_pattern)*"
+		else
+			# A bare "*" would match any file in the current
+			# directory, so don't look for core files at all.
+			echo "Unable to set core file pattern," \
+			    "core files will not be collected."
+			coreglob=""
+		fi
 	fi
 	;;
 *)
@@ -94,6 +103,7 @@ esac
 
 function core_file
 {
+	[[ -n $coreglob ]] || return 0
 	# shellcheck disable=SC2012,SC2086
 	ls -tr1 $coreglob 2>/dev/null | head -1
 }
@@ -367,7 +377,9 @@ echo "zloop finished, $foundcrashes crashes found"
 # restore core pattern.
 case $(uname) in
 Linux)
-	echo "$origcorepattern" > /proc/sys/kernel/core_pattern
+	if [[ $corepatternset -eq 1 ]]; then
+		echo "$origcorepattern" > /proc/sys/kernel/core_pattern
+	fi
 	;;
 *)
 	;;
