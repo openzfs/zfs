@@ -22,6 +22,10 @@ failsafe_user = root
 failsafe = callbacks/zfs_failsafe
 tags = ['functional']
 
+[tests/functional/casenorm:illumos]
+tests = ['mixed_none_lookup_ci', 'mixed_formd_lookup_ci']
+tags = ['functional', 'casenorm']
+
 [tests/functional/inuse:illumos]
 tests = ['inuse_001_pos', 'inuse_003_pos', 'inuse_006_pos', 'inuse_007_pos']
 post =

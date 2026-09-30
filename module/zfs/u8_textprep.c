@@ -2121,6 +2121,7 @@ u8_textprep_str(char *inarray, size_t *inlen, char *outarray, size_t *outlen,
 				ib++;
 				ob++;
 			} else {
+				uchar_t *ib_saved = ib;
 				*errnum = 0;
 				state = U8_STATE_START;
 
@@ -2141,6 +2142,7 @@ u8_textprep_str(char *inarray, size_t *inlen, char *outarray, size_t *outlen,
 				if ((obtail - ob) < j) {
 					*errnum = E2BIG;
 					ret_val = (size_t)-1;
+					ib = ib_saved;
 					break;
 				}
 
