@@ -8662,6 +8662,16 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		return (spa_vdev_exit(spa, newrootvd, txg, EOVERFLOW));
 
 	/*
+	 * While a raidz vdev is being expanded, part of it still uses the
+	 * narrower pre-expansion layout, which needs more space per child.
+	 */
+	if (!raidz && oldvd->vdev_top->vdev_ops == &vdev_raidz_ops &&
+	    oldvd->vdev_top->vdev_rz_expanding &&
+	    newvd->vdev_asize <
+	    vdev_raidz_expand_child_min_asize(oldvd->vdev_top))
+		return (spa_vdev_exit(spa, newrootvd, txg, EOVERFLOW));
+
+	/*
 	 * The new device cannot have a higher alignment requirement
 	 * than the top-level vdev.
 	 */
