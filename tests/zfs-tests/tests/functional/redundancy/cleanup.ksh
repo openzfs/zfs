@@ -33,6 +33,7 @@
 . $STF_SUITE/tests/functional/redundancy/redundancy.kshlib
 
 verify_runnable "global"
+restore_tunable TXG_TIMEOUT
 
 cleanup
 
