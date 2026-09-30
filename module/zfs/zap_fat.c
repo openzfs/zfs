@@ -1306,7 +1306,6 @@ static int
 zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 {
 	zap_t *zap = zn->zn_zap;
-	int64_t zt_shift = zap_f_phys(zap)->zap_ptrtbl.zt_shift;
 	uint64_t hash = zn->zn_hash;
 	uint64_t prefix = zap_leaf_phys(l)->l_hdr.lh_prefix;
 	uint64_t prefix_len = zap_leaf_phys(l)->l_hdr.lh_prefix_len;
@@ -1326,7 +1325,6 @@ zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 	 */
 	while (prefix_len) {
 		zap_leaf_t *sl;
-		int64_t prefix_diff = zt_shift - prefix_len;
 		uint64_t sl_prefix = prefix ^ 1;
 		uint64_t sl_hash = ZAP_PREFIX_HASH(sl_prefix, prefix_len);
 		int slbit = prefix & 1;
@@ -1380,13 +1378,19 @@ zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 				l = NULL;
 			}
 
+			/*
+			 * This may drop and reacquire zap_rwlock. While it is
+			 * down, other threads may split, shrink or refill the
+			 * leaves and grow the ptrtbl; everything below that
+			 * depends on that state is re-read under the WRITER
+			 * lock.
+			 */
 			zap_lock_upgrade(zap, tx);
 
 			/* For testing: zap_shrink_test_grow_ptrtbl */
 			if (test_grow)
 				(void) zap_grow_ptrtbl(zap, tx);
 
-			zt_shift = zap_f_phys(zap)->zap_ptrtbl.zt_shift;
 			writer = B_TRUE;
 		}
 
@@ -1426,7 +1430,20 @@ zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 			break;
 		}
 
-		/* If we have gotten here, we have a leaf to collapse */
+		/*
+		 * If we have gotten here, we have a leaf to collapse.
+		 *
+		 * The ptrtbl geometry must be read now, while we hold the
+		 * WRITER lock: if zap_lock_upgrade() had to drop the lock
+		 * above, a concurrent zap_expand_leaf() may have grown the
+		 * ptrtbl in the meantime, and a zt_shift sampled earlier would
+		 * make us repoint the wrong ptrtbl range at l and leave the
+		 * sibling's range pointing to the block we are about to free.
+		 */
+		ASSERT(RW_WRITE_HELD(&zap->zap_rwlock));
+		ASSERT3U(prefix_len, <=, zap_f_phys(zap)->zap_ptrtbl.zt_shift);
+		uint64_t prefix_diff =
+		    zap_f_phys(zap)->zap_ptrtbl.zt_shift - prefix_len;
 		uint64_t idx = (slbit ? prefix : sl_prefix) << prefix_diff;
 		uint64_t nptrs = (1ULL << prefix_diff);
 		uint64_t sl_blkid = sl->l_blkid;
