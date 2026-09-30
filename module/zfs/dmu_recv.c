@@ -2567,7 +2567,12 @@ recv_check_drr_write_embedded(const struct drr_write_embedded *drrwe,
 	if (err != 0)
 		return (err);
 
-	/* logical block size must not exceed pool maximum */
+	/* logical block size must be within the pool's block size limits */
+	err = recv_check_drr_size_min(drrwe->drr_length, SPA_MINBLOCKSIZE,
+	    errbuf, errbuflen, "DRR_WRITE_EMBEDDED length");
+	if (err != 0)
+		return (err);
+
 	err = recv_check_drr_size_max(drrwe->drr_length,
 	    limits.rcl_maxblocksize, errbuf, errbuflen,
 	    "DRR_WRITE_EMBEDDED length");
@@ -2583,7 +2588,12 @@ recv_check_drr_write_embedded(const struct drr_write_embedded *drrwe,
 		    (u_longlong_t)drrwe->drr_length));
 	}
 
-	/* compressed logical size must not exceed pool maximum */
+	/* decompressed logical size must be within the same limits */
+	err = recv_check_drr_size_min(drrwe->drr_lsize, SPA_MINBLOCKSIZE,
+	    errbuf, errbuflen, "DRR_WRITE_EMBEDDED logical size");
+	if (err != 0)
+		return (err);
+
 	err = recv_check_drr_size_max(drrwe->drr_lsize, limits.rcl_maxblocksize,
 	    errbuf, errbuflen, "DRR_WRITE_EMBEDDED logical size");
 	if (err != 0)
@@ -2595,8 +2605,18 @@ recv_check_drr_write_embedded(const struct drr_write_embedded *drrwe,
 	if (err != 0)
 		return (err);
 
-	/* compression algorithm must be within ZIO_COMPRESS_FUNCTIONS */
-	if (drrwe->drr_compression >= ZIO_COMPRESS_FUNCTIONS) {
+	/*
+	 * Embedded data is always compressed with a real algorithm:
+	 * zio_write_compress() embeds a block only after compressing it
+	 * into the block pointer, so never with ZIO_COMPRESS_OFF or
+	 * ZIO_COMPRESS_EMPTY, and INHERIT and ON are property values, not
+	 * algorithms.  Only an algorithm with a decompressor can be written
+	 * as an embedded block pointer (encode_embedded_bp_compressed()
+	 * asserts comp >= ZIO_COMPRESS_OFF) or read back
+	 * (decode_embedded_bp() VERIFYs that the payload decompresses).
+	 */
+	if (drrwe->drr_compression >= ZIO_COMPRESS_FUNCTIONS ||
+	    zio_compress_table[drrwe->drr_compression].ci_decompress == NULL) {
 		return (recv_check_fail(EINVAL, errbuf, errbuflen,
 		    "DRR_WRITE_EMBEDDED has invalid compression type %u",
 		    drrwe->drr_compression));
@@ -2607,27 +2627,21 @@ recv_check_drr_write_embedded(const struct drr_write_embedded *drrwe,
 	if (err != 0)
 		return (err);
 
-	/* uncompressed embedded data has matching logical and payload sizes */
-	if (drrwe->drr_compression == ZIO_COMPRESS_OFF &&
-	    drrwe->drr_lsize != drrwe->drr_psize) {
-		return (recv_check_fail(EINVAL, errbuf, errbuflen,
-		    "DRR_WRITE_EMBEDDED logical size %u must equal payload "
-		    "size %u when compression is off",
-		    drrwe->drr_lsize, drrwe->drr_psize));
-	}
-
-	/* compressed lsize must be at least the on-wire compressed size */
-	if (drrwe->drr_compression != ZIO_COMPRESS_OFF &&
-	    drrwe->drr_lsize < drrwe->drr_psize) {
+	/* lsize must be at least the on-wire compressed size */
+	if (drrwe->drr_lsize < drrwe->drr_psize) {
 		return (recv_check_fail(EINVAL, errbuf, errbuflen,
 		    "DRR_WRITE_EMBEDDED logical size %u < payload size %u",
 		    drrwe->drr_lsize, drrwe->drr_psize));
 	}
 
-	/* uncompressed payload must fit in the logical block */
-	if (drrwe->drr_lsize > drrwe->drr_length) {
+	/*
+	 * The sender always sets the length to the embedded BP's logical
+	 * size (see dump_write_embedded()), and the payload decompresses
+	 * into exactly that many bytes.
+	 */
+	if (drrwe->drr_lsize != drrwe->drr_length) {
 		return (recv_check_fail(EINVAL, errbuf, errbuflen,
-		    "DRR_WRITE_EMBEDDED logical size %u exceeds length %llu",
+		    "DRR_WRITE_EMBEDDED logical size %u must equal length %llu",
 		    drrwe->drr_lsize, (u_longlong_t)drrwe->drr_length));
 	}
 
@@ -3942,6 +3956,8 @@ receive_write_embedded(struct receive_writer_arg *rwa,
     struct drr_write_embedded *drrwe, void *data)
 {
 	dmu_tx_t *tx;
+	dnode_t *dn;
+	abd_t *abd = NULL;
 
 	/* Re-validate; stream errors are reported only by the reader. */
 	int err = recv_check_drr_write_embedded(drrwe, dmu_objset_spa(rwa->os),
@@ -3952,24 +3968,92 @@ receive_write_embedded(struct receive_writer_arg *rwa,
 	if (drrwe->drr_object > rwa->max_object)
 		rwa->max_object = drrwe->drr_object;
 
+	if (dnode_hold(rwa->os, drrwe->drr_object, FTAG, &dn) != 0)
+		return (SET_ERROR(EINVAL));
+
+	/*
+	 * An embedded block pointer can only describe exactly one block of
+	 * the object, so its logical size must be the object's block size.
+	 * The record may not match the object's block size if this is an
+	 * incremental large-block stream received into a dataset that
+	 * previously did a non-large-block receive: in that case
+	 * receive_handle_existing_object() keeps the smaller block size.
+	 * Writing the embedded BP as-is would put a BP whose LSIZE exceeds
+	 * the block size into a single block of the object, silently losing
+	 * the rest of the record's contents and leaving a BP that later
+	 * trips assertions in dmu_send.  Instead, decode and decompress the
+	 * payload and do a normal dmu_write(), which splits it across the
+	 * object's blocks, as flush_write_batch_impl() does for DRR_WRITE.
+	 *
+	 * recv_check_drr_write_embedded() has already rejected raw streams
+	 * and checked that drr_lsize == drr_length and that both are within
+	 * the pool's block size limits, so the payload decompresses into
+	 * exactly the record's length.
+	 */
+	if (drrwe->drr_lsize != dn->dn_datablksz ||
+	    drrwe->drr_offset % dn->dn_datablksz != 0) {
+		abd_t cabd;
+
+		/*
+		 * Embedded data is always compressed: no sender embeds a
+		 * ZIO_COMPRESS_OFF block, and the validator rejects such
+		 * records (their lsize is below SPA_MINBLOCKSIZE, and OFF
+		 * has no decompressor), which recv_embedded_uncompressed_neg
+		 * and recv_embedded_compress_neg check.
+		 */
+		abd = abd_alloc_linear(drrwe->drr_lsize, B_FALSE);
+		abd_zero(abd, drrwe->drr_lsize);
+		abd_get_from_buf_struct(&cabd, data, drrwe->drr_psize);
+		err = zio_decompress_data(drrwe->drr_compression, &cabd, abd,
+		    drrwe->drr_psize, drrwe->drr_lsize, NULL);
+		abd_free(&cabd);
+		if (err != 0) {
+			abd_free(abd);
+			dnode_rele(dn, FTAG);
+			return (SET_ERROR(EINVAL));
+		}
+
+		/*
+		 * The embedded payload is in the sender's byte order, which
+		 * the embedded BP would have recorded; convert it now.
+		 */
+		if (rwa->byteswap) {
+			dmu_object_byteswap_t byteswap =
+			    DMU_OT_BYTESWAP(dn->dn_type);
+			dmu_ot_byteswap[byteswap].ob_func(abd_to_buf(abd),
+			    drrwe->drr_lsize);
+		}
+	}
+
 	tx = dmu_tx_create(rwa->os);
 
-	dmu_tx_hold_write(tx, drrwe->drr_object,
-	    drrwe->drr_offset, drrwe->drr_length);
+	dmu_tx_hold_write_by_dnode(tx, dn, drrwe->drr_offset,
+	    drrwe->drr_lsize);
 	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err != 0) {
 		dmu_tx_abort(tx);
+		if (abd != NULL)
+			abd_free(abd);
+		dnode_rele(dn, FTAG);
 		return (err);
 	}
 
-	dmu_write_embedded(rwa->os, drrwe->drr_object,
-	    drrwe->drr_offset, data, drrwe->drr_etype,
-	    drrwe->drr_compression, drrwe->drr_lsize, drrwe->drr_psize,
-	    rwa->byteswap ^ ZFS_HOST_BYTEORDER, tx);
+	if (abd != NULL) {
+		dmu_write_by_dnode(dn, drrwe->drr_offset, drrwe->drr_lsize,
+		    abd_to_buf(abd), tx,
+		    DMU_READ_NO_PREFETCH | DMU_UNCACHEDIO);
+		abd_free(abd);
+	} else {
+		dmu_write_embedded(rwa->os, drrwe->drr_object,
+		    drrwe->drr_offset, data, drrwe->drr_etype,
+		    drrwe->drr_compression, drrwe->drr_lsize,
+		    drrwe->drr_psize, rwa->byteswap ^ ZFS_HOST_BYTEORDER, tx);
+	}
 
 	/* See comment in restore_write. */
 	save_resume_state(rwa, drrwe->drr_object, drrwe->drr_offset, tx);
 	dmu_tx_commit(tx);
+	dnode_rele(dn, FTAG);
 	return (0);
 }
 
