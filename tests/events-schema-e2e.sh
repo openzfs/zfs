@@ -351,7 +351,8 @@ PY
 step_version_refusal() {
 	"${SUDO[@]}" systemctl stop "$UNIT" ||
 		fail "version-refusal: failed to stop daemon"
-	python3 - "$WD/zmd.db" <<'PY'
+	# The daemon DB is root-owned; the sqlite write needs sudo too.
+	"${SUDO[@]}" python3 - "$WD/zmd.db" <<'PY'
 import sqlite3
 import sys
 
