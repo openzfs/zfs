@@ -312,6 +312,10 @@ zfs_set_userquota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	if (zfsvfs->z_version < ZPL_VERSION_USERSPACE)
 		return (SET_ERROR(ENOTSUP));
 
+	/* The rid is stored in the low 32 bits of the FUID. */
+	if (rid > UINT32_MAX)
+		return (SET_ERROR(EINVAL));
+
 	switch (type) {
 	case ZFS_PROP_USERQUOTA:
 		objp = &zfsvfs->z_userquota_obj;
