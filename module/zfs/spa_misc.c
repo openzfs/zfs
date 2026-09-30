@@ -706,10 +706,11 @@ spa_namespace_broadcast(void)
 
 /*
  * Lookup the named spa_t in the AVL tree.  The spa_namespace_lock must be held.
- * Returns NULL if no matching spa_t is found.
+ * Returns NULL if no matching spa_t is found.  If busy is not NULL, set it
+ * instead of waiting for another thread to import or export the pool.
  */
-spa_t *
-spa_lookup(const char *name)
+static spa_t *
+spa_lookup_impl(const char *name, boolean_t *busy)
 {
 	static spa_t search;	/* spa_t is large; don't allocate on stack */
 	spa_t *spa;
@@ -741,11 +742,33 @@ retry:
 	    spa->spa_load_thread != curthread) ||
 	    (spa->spa_export_thread != NULL &&
 	    spa->spa_export_thread != curthread)) {
+		if (busy != NULL) {
+			*busy = B_TRUE;
+			return (spa);
+		}
 		spa_namespace_wait();
 		goto retry;
 	}
 
 	return (spa);
+}
+
+spa_t *
+spa_lookup(const char *name)
+{
+	return (spa_lookup_impl(name, NULL));
+}
+
+/*
+ * Return B_TRUE if spa_lookup() would wait for the named pool.
+ */
+boolean_t
+spa_lookup_would_wait(const char *name)
+{
+	boolean_t busy = B_FALSE;
+
+	(void) spa_lookup_impl(name, &busy);
+	return (busy);
 }
 
 /*
