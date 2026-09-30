@@ -424,9 +424,57 @@ zpl_snapdir_automount(struct path *path)
 }
 
 /*
+ * Check that the snapshot name still resolves to the snapshot the positive
+ * dentry was instantiated for. Returns 0 if it does, ENOENT if the snapshot
+ * has since been destroyed or renamed away (or the name now refers to a
+ * different snapshot), or another error if the lookup could not be done.
+ */
+static int
+zpl_snapdir_check_name(struct inode *ip, const char *snapname)
+{
+	zfsvfs_t *zfsvfs = ITOZSB(ip);
+	fstrans_cookie_t cookie;
+	uint64_t id;
+	int error;
+
+	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (error);
+
+	cookie = spl_fstrans_mark();
+	error = dmu_snapshot_lookup(zfsvfs->z_os, snapname, &id);
+	spl_fstrans_unmark(cookie);
+
+	zfs_exit(zfsvfs, FTAG);
+
+	if (error == 0 && ip->i_ino != ZFSCTL_INO_SNAPDIRS - id)
+		error = SET_ERROR(ENOENT);
+
+	return (error);
+}
+
+/*
  * Kernel will revalidate when the dentry may have changed state during
- * RCU-walk (eg when the dentry is reused on splice, see zpl_snapdir_lookup()).
- * If we have an inode, then update the flags and declare it good.
+ * RCU-walk (eg when the dentry is reused on splice, see zpl_snapdir_lookup()),
+ * and on every cached lookup of the dentry.
+ *
+ * For a positive dentry that is not a mountpoint, the snapshot may have been
+ * destroyed or renamed since the dentry was created. zfsctl_snapshot_unmount()
+ * only invalidates dentries with something mounted on them, and some paths
+ * (eg channel programs) never call it at all, so here we check that the name
+ * still resolves to the same snapshot, and if it doesn't, tell the VFS to
+ * throw the dentry away and do a fresh lookup. Without this, a stale dentry
+ * for a destroyed snapshot would remain in the dcache, stat(2) would succeed
+ * on it, and entering it would fail with ESTALE when the automount fails.
+ * The check can block, so it can't be done in RCU-walk.
+ *
+ * Mounted dentries are left alone; they are managed by the invalidation
+ * machinery in zfs_ctldir.c, which is always used to detach them before a
+ * snapshot is destroyed or renamed through the ioctl interface, and we do not
+ * want a path walk to implicitly detach a mount (which the VFS would do via
+ * d_invalidate() if we returned 0 here). Once the mount expires the dentry
+ * will be checked like any other.
+ *
+ * If we have an inode and it's current, update the flags and declare it good.
  *
  * For negative dentries, no revalidation necessary - they're either brand-new
  * and not yet live (eg between lookup->mkdir) or they've been invalidated
@@ -442,15 +490,47 @@ zpl_snapdir_revalidate(struct dentry *dentry, unsigned int flags)
 #endif
 {
 	zfs_snapentry_t *se = dentry->d_fsdata;
+	struct inode *ip = d_inode_rcu(dentry);
 
-	if (dentry->d_inode) {
-		if (lookup_want_automount(flags))
-			SE_SET(se, SE_WANT_MOUNT);
-		atomic_store_64(&se->se_atime, jiffies);
-		return (1);
+	if (ip == NULL)
+		return (0);
+
+	if (!d_mountpoint(dentry)) {
+		char snapname[MAXNAMELEN];
+		size_t len;
+		int error;
+
+		if (flags & LOOKUP_RCU)
+			return (-ECHILD);
+
+#ifdef HAVE_D_REVALIDATE_4ARGS
+		/* The kernel gives us a stable (not terminated) name. */
+		len = name->len;
+		if (len < sizeof (snapname))
+			memcpy(snapname, name->name, len);
+#else
+		/* d_name can change under us (d_move()), copy it locked. */
+		spin_lock(&dentry->d_lock);
+		len = dentry->d_name.len;
+		if (len < sizeof (snapname))
+			memcpy(snapname, dentry->d_name.name, len);
+		spin_unlock(&dentry->d_lock);
+#endif
+		if (len >= sizeof (snapname))
+			return (0);
+		snapname[len] = '\0';
+
+		error = zpl_snapdir_check_name(ip, snapname);
+		if (error == ENOENT)
+			return (0);
+		if (error != 0)
+			return (-error);
 	}
 
-	return (0);
+	if (lookup_want_automount(flags))
+		SE_SET(se, SE_WANT_MOUNT);
+	atomic_store_64(&se->se_atime, jiffies);
+	return (1);
 }
 
 /* Kernel is done with the dentry, tear down the snapentry too. */
