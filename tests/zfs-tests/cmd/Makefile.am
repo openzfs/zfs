@@ -51,7 +51,7 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/draid
 %C%_draid_LDADD += $(ZLIB_LIBS)
 
 dist_noinst_DATA += %D%/file/file_common.h
-scripts_zfs_tests_bin_PROGRAMS += %D%/file_append %D%/file_check %D%/file_trunc %D%/file_write %D%/largest_file %D%/randfree_file %D%/randwritecomp
+scripts_zfs_tests_bin_PROGRAMS += %D%/file_append %D%/file_check %D%/file_trunc %D%/file_write %D%/largest_file %D%/randfree_file %D%/randwritecomp %D%/file_fsync
 %C%_file_append_SOURCES   = %D%/file/file_append.c
 %C%_file_check_SOURCES    = %D%/file/file_check.c
 %C%_file_trunc_SOURCES    = %D%/file/file_trunc.c
@@ -59,7 +59,7 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/file_append %D%/file_check %D%/file_trunc 
 %C%_largest_file_SOURCES  = %D%/file/largest_file.c
 %C%_randfree_file_SOURCES = %D%/file/randfree_file.c
 %C%_randwritecomp_SOURCES = %D%/file/randwritecomp.c
-
+%C%_file_fsync_SOURCES    = %D%/file/file_fsync.c
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/libzfs_input_check
 %C%_libzfs_input_check_LDADD = \
