@@ -1754,6 +1754,25 @@ dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
 	}
 }
 
+/*
+ * Update the dbuf's caching hints for an access with the given flags.
+ * A partial access keeps the dbuf cached even when it is not otherwise
+ * cacheable, in anticipation of the rest of the block being accessed;
+ * an access that completes the block lets it go again.
+ */
+static void
+dbuf_update_caching(dmu_buf_impl_t *db, dmu_flags_t flags)
+{
+	ASSERT(MUTEX_HELD(&db->db_mtx));
+
+	if (!(flags & (DMU_UNCACHEDIO | DMU_KEEP_CACHING)))
+		db->db_pending_evict = B_FALSE;
+	if (flags & (DMU_PARTIAL_FIRST | DMU_IS_PREFETCH))
+		db->db_partial_read = B_TRUE;
+	else if (!(flags & (DMU_PARTIAL_MORE | DMU_KEEP_CACHING)))
+		db->db_partial_read = B_FALSE;
+}
+
 int
 dbuf_read(dmu_buf_impl_t *db, zio_t *pio, dmu_flags_t flags)
 {
@@ -1778,12 +1797,7 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *pio, dmu_flags_t flags)
 	    (flags & DMU_READ_NO_PREFETCH) == 0;
 
 	mutex_enter(&db->db_mtx);
-	if (!(flags & (DMU_UNCACHEDIO | DMU_KEEP_CACHING)))
-		db->db_pending_evict = B_FALSE;
-	if (flags & (DMU_PARTIAL_FIRST | DMU_IS_PREFETCH))
-		db->db_partial_read = B_TRUE;
-	else if (!(flags & (DMU_PARTIAL_MORE | DMU_KEEP_CACHING)))
-		db->db_partial_read = B_FALSE;
+	dbuf_update_caching(db, flags);
 	miss = (db->db_state != DB_CACHED);
 
 	if (db->db_state == DB_READ || db->db_state == DB_FILL) {
@@ -2745,7 +2759,14 @@ dmu_buf_will_dirty_flags(dmu_buf_t *db_fake, dmu_tx_t *tx, dmu_flags_t flags)
 				 */
 				undirty = B_TRUE;
 			} else {
-				/* This dbuf is already dirty and cached. */
+				/*
+				 * This dbuf is already dirty and cached.
+				 * We skip dbuf_read(), so apply the caching
+				 * hints it would have, or the final write
+				 * of a block written in parts would leave it
+				 * marked partial and keep it in the dbuf cache.
+				 */
+				dbuf_update_caching(db, flags);
 				dbuf_redirty(dr);
 				mutex_exit(&db->db_mtx);
 				return;
