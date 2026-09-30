@@ -61,6 +61,8 @@ typedef enum zfs_event_op {
 	ZFS_EV_SYMLINK,		/* Symlink creation */
 	ZFS_EV_TRUNCATE,	/* File truncation */
 	ZFS_EV_SETATTR,		/* Attribute change */
+	ZFS_EV_WRITE,		/* Data written to a file */
+	ZFS_EV_READ,		/* Data read from a file */
 	ZFS_EV_MAX_TYPE
 } zfs_event_op_t;
 
@@ -77,7 +79,7 @@ typedef struct zfs_events_phys {
 	uint64_t	zep_pad[3];		/* reserved for future use */
 } zfs_events_phys_t;
 
-#define	ZFS_EVENTS_VERSION	1
+#define	ZFS_EVENTS_VERSION	2
 
 /*
  * Nvlist keys for event records
@@ -97,6 +99,8 @@ typedef struct zfs_events_phys {
 #define	ZFS_EV_ATTRS		"attrs"		/* uint64: changed attr mask */
 #define	ZFS_EV_UID		"uid"		/* uint64: user ID */
 #define	ZFS_EV_GID		"gid"		/* uint64: group ID */
+#define	ZFS_EV_IO_OFFSET	"io_offset"	/* uint64: IO start offset */
+#define	ZFS_EV_IO_BYTES		"io_bytes"	/* uint64: IO byte count */
 
 /*
  * Default and limits for event log size
@@ -104,6 +108,12 @@ typedef struct zfs_events_phys {
 #define	ZFS_EVENTS_MIN_SIZE	(128 << 10)	/* 128 KB minimum */
 #define	ZFS_EVENTS_MAX_SIZE	(1ULL << 30)	/* 1 GB maximum */
 #define	ZFS_EVENTS_DEFAULT_PCT	10		/* 0.1% of dataset refquota */
+
+/*
+ * events_io_window limits (milliseconds). 0 disables the IO TIME fence
+ * (every read/write emits immediately); the maximum is one hour.
+ */
+#define	ZFS_EVENTS_IO_WINDOW_MAX	3600000
 
 /*
  * Core API functions
@@ -139,6 +149,29 @@ extern void zfs_events_log_truncate(objset_t *os, dmu_tx_t *tx,
 extern void zfs_events_log_setattr(objset_t *os, dmu_tx_t *tx,
     uint64_t object, uint64_t attr_mask, uint64_t events_size,
     uint64_t *objp, kmutex_t *lockp);
+extern void zfs_events_log_write(objset_t *os, dmu_tx_t *tx,
+    uint64_t object, uint64_t offset, uint64_t bytes, const cred_t *cr,
+    uint64_t events_size, uint64_t *objp, kmutex_t *lockp, uint64_t txg);
+extern void zfs_events_log_read(objset_t *os, uint64_t object,
+    uint64_t offset, uint64_t bytes, const cred_t *cr,
+    uint64_t events_size, uint64_t *objp, kmutex_t *lockp);
+
+/*
+ * Per-file IO event TIME fence. zfs_events_io_account() feeds a
+ * completed read/write into the fence; callers holding a transaction
+ * pass its txg, transaction-less callers pass 0 (the pool's open txg
+ * is used). zfs_events_io_flush() emits a file's pending window
+ * early; tx may be NULL (open txg attribution).
+ *
+ * Kernel-only: userspace (libzpool) has no struct znode.
+ */
+#if defined(_KERNEL)
+struct znode;
+extern void zfs_events_io_account(struct znode *zp, boolean_t is_write,
+    uint64_t offset, uint64_t bytes, const cred_t *cr, uint64_t txg);
+extern void zfs_events_io_flush(struct znode *zp, objset_t *os,
+    dmu_tx_t *tx, boolean_t is_write);
+#endif	/* _KERNEL */
 
 /*
  * Event retrieval functions

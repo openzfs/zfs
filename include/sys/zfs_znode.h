@@ -217,6 +217,19 @@ typedef struct znode {
 	uint64_t	z_size;		/* file size (cached) */
 	uint64_t	z_pflags;	/* pflags (cached) */
 	uint32_t	z_sync_cnt;	/* synchronous open count */
+	/*
+	 * IO event TIME fence state (see zfs_events_io_account() in
+	 * zfs_events.c), protected by z_lock. Per direction:
+	 * wstart is the pending window's open time (0 = no pending
+	 * window) and the pend fields hold the window's first IO
+	 * offset and summed byte count.
+	 */
+	hrtime_t	z_ev_io_wstart;	/* write window open time */
+	uint64_t	z_ev_io_wpend_off; /* write window first offset */
+	uint64_t	z_ev_io_wpend_bytes; /* write window byte total */
+	hrtime_t	z_ev_io_rstart;	/* read window open time */
+	uint64_t	z_ev_io_rpend_off; /* read window first offset */
+	uint64_t	z_ev_io_rpend_bytes; /* read window byte total */
 	mode_t		z_mode;		/* mode (cached) */
 	kmutex_t	z_acl_lock;	/* acl data lock */
 	zfs_acl_t	*z_acl_cached;	/* cached acl */

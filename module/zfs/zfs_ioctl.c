@@ -3137,6 +3137,71 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 			spa_close(spa, FTAG);
 		}
 
+		/*
+		 * events_io depends on events, so refusing to turn
+		 * events off while events_io is still on gives the
+		 * user one clear error instead of silently disabling
+		 * both. Skipped for 'zfs receive' as above.
+		 */
+		if (source != ZPROP_SRC_RECEIVED &&
+		    nvpair_value_uint64(pair, &intval) == 0 &&
+		    intval == 0) {
+			uint64_t events_io;
+
+			if (dsl_prop_get_integer(dsname,
+			    zfs_prop_to_name(ZFS_PROP_EVENTS_IO),
+			    &events_io, NULL) == 0 && events_io == 1) {
+				cmn_err(CE_WARN, "cannot disable events on "
+				    "'%s': turn events_io off first",
+				    dsname);
+				err = ENOTSUP;
+				break;
+			}
+		}
+
+		err = -1;  /* Force default handling */
+		break;
+	}
+	case ZFS_PROP_EVENTS_IO:
+	{
+		spa_t *spa;
+		uint64_t events;
+
+		/*
+		 * IO events ride on top of the general event log, so
+		 * enabling events_io requires events=on. Skipped for
+		 * 'zfs receive' for the same reason as the events
+		 * check above.
+		 */
+		if (source != ZPROP_SRC_RECEIVED &&
+		    nvpair_value_uint64(pair, &intval) == 0 &&
+		    intval == 1) {
+			if (dsl_prop_get_integer(dsname,
+			    zfs_prop_to_name(ZFS_PROP_EVENTS), &events,
+			    NULL) != 0 || events != 1) {
+				cmn_err(CE_WARN, "cannot enable events_io "
+				    "on '%s': the events property must be "
+				    "enabled first", dsname);
+				err = ENOTSUP;
+				break;
+			}
+
+			if ((err = spa_open(dsname, &spa, FTAG)) != 0)
+				break;
+
+			if (!spa_feature_is_enabled(spa,
+			    SPA_FEATURE_EVENTS)) {
+				spa_close(spa, FTAG);
+				cmn_err(CE_WARN, "cannot enable events_io "
+				    "on '%s': pool does not have the "
+				    "org.openzfs:events feature enabled",
+				    dsname);
+				err = ENOTSUP;
+				break;
+			}
+			spa_close(spa, FTAG);
+		}
+
 		err = -1;  /* Force default handling */
 		break;
 	}
@@ -5835,6 +5900,13 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 		if (nvpair_value_uint64(pair, &intval) == 0 &&
 		    (intval < ZFS_EVENTS_MIN_SIZE ||
 		    intval > ZFS_EVENTS_MAX_SIZE)) {
+			return (SET_ERROR(ERANGE));
+		}
+		break;
+
+	case ZFS_PROP_EVENTS_IO_WINDOW:
+		if (nvpair_value_uint64(pair, &intval) == 0 &&
+		    intval > ZFS_EVENTS_IO_WINDOW_MAX) {
 			return (SET_ERROR(ERANGE));
 		}
 		break;

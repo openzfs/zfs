@@ -272,6 +272,18 @@ events_size_changed_cb(void *arg, uint64_t newval)
 	((zfsvfs_t *)arg)->z_events_size = newval;
 }
 
+static void
+events_io_changed_cb(void *arg, uint64_t newval)
+{
+	((zfsvfs_t *)arg)->z_events_io = newval;
+}
+
+static void
+events_io_window_changed_cb(void *arg, uint64_t newval)
+{
+	((zfsvfs_t *)arg)->z_events_io_window = newval;
+}
+
 static int
 zfs_register_callbacks(vfs_t *vfsp)
 {
@@ -339,6 +351,12 @@ zfs_register_callbacks(vfs_t *vfsp)
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_EVENTS_SIZE), events_size_changed_cb,
 	    zfsvfs);
+	error = error ? error : dsl_prop_register(ds,
+	    zfs_prop_to_name(ZFS_PROP_EVENTS_IO), events_io_changed_cb,
+	    zfsvfs);
+	error = error ? error : dsl_prop_register(ds,
+	    zfs_prop_to_name(ZFS_PROP_EVENTS_IO_WINDOW),
+	    events_io_window_changed_cb, zfsvfs);
 	dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
 	if (error)
 		goto unregister;

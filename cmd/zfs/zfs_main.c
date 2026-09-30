@@ -8226,6 +8226,10 @@ zfs_event_op_name(uint16_t op)
 		return ("TRUNCATE");
 	case ZFS_EV_SETATTR:
 		return ("SETATTR");
+	case ZFS_EV_WRITE:
+		return ("WRITE");
+	case ZFS_EV_READ:
+		return ("READ");
 	default:
 		return ("UNKNOWN");
  * Recursively gather "<dataset>#bookname" -> "<dataset>@snapname" pairs for
@@ -8358,6 +8362,15 @@ print_event(nvlist_t *event, boolean_t json, int count)
 			    &target);
 			if (target != NULL)
 				(void) printf(",\"target\":\"%s\"", target);
+		} else if (op == ZFS_EV_WRITE || op == ZFS_EV_READ) {
+			uint64_t io_offset = 0, io_bytes = 0;
+			(void) nvlist_lookup_uint64(event,
+			    ZFS_EV_IO_OFFSET, &io_offset);
+			(void) nvlist_lookup_uint64(event,
+			    ZFS_EV_IO_BYTES, &io_bytes);
+			(void) printf(",\"io_offset\":%llu,\"io_bytes\":%llu",
+			    (unsigned long long)io_offset,
+			    (unsigned long long)io_bytes);
 		}
 		(void) printf("}");
 	} else {

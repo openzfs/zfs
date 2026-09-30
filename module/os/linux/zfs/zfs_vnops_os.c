@@ -206,13 +206,20 @@ zfs_open(struct inode *ip, int mode, int flag, cred_t *cr)
 int
 zfs_close(struct inode *ip, int flag, cred_t *cr)
 {
-	(void) cr;
 	znode_t	*zp = ITOZ(ip);
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	int error;
 
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
+
+	/*
+	 * Flush any open IO event windows so a still-pending
+	 * window does not outlive the file's last reference
+	 * (open-txg attribution applies; no transaction here).
+	 */
+	zfs_events_io_flush(zp, zfsvfs->z_os, NULL, B_TRUE);
+	zfs_events_io_flush(zp, zfsvfs->z_os, NULL, B_FALSE);
 
 	/* Decrement the synchronous opens in the znode */
 	if (!zfsvfs->z_issnap && (flag & O_SYNC))
@@ -785,6 +792,12 @@ top:
 			txtype |= TX_CI;
 		zfs_log_create(zilog, tx, txtype, dzp, zp, name,
 		    vsecp, acl_ids.z_fuidp, vap);
+		/*
+		 * Emit any pending IO windows before the operation
+		 * event, preserving cause order under the same tx.
+		 */
+		zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_TRUE);
+		zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_FALSE);
 		if (zfsvfs->z_events) {
 			zfs_events_log_create(os, tx, zp->z_id, dzp->z_id,
 			    name, vap->va_mode, crgetuid(cr), crgetgid(cr),
@@ -1212,6 +1225,12 @@ top:
 	if (flags & FIGNORECASE)
 		txtype |= TX_CI;
 	zfs_log_remove(zilog, tx, txtype, dzp, name, obj, unlinked);
+	/*
+	 * Emit any pending IO windows before the operation
+	 * event, preserving cause order under the same tx.
+	 */
+	zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_TRUE);
+	zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_FALSE);
 	if (zfsvfs->z_events) {
 		zfs_events_log_remove(zfsvfs->z_os, tx, obj, dzp->z_id, name,
 		    zfsvfs->z_events_size, &zfsvfs->z_events_obj,
@@ -1421,6 +1440,12 @@ top:
 		txtype |= TX_CI;
 	zfs_log_create(zilog, tx, txtype, dzp, zp, dirname, vsecp,
 	    acl_ids.z_fuidp, vap);
+	/*
+	 * Emit any pending IO windows before the operation
+	 * event, preserving cause order under the same tx.
+	 */
+	zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_TRUE);
+	zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_FALSE);
 	if (zfsvfs->z_events) {
 		zfs_events_log_create(zfsvfs->z_os, tx, zp->z_id, dzp->z_id,
 		    dirname, vap->va_mode, uid, gid, zfsvfs->z_events_size,
@@ -1569,6 +1594,12 @@ top:
 			txtype |= TX_CI;
 		zfs_log_remove(zilog, tx, txtype, dzp, name, ZFS_NO_OBJECT,
 		    B_FALSE);
+		/*
+		 * Emit any pending IO windows before the operation
+		 * event, preserving cause order under the same tx.
+		 */
+		zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_TRUE);
+		zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_FALSE);
 		if (zfsvfs->z_events) {
 			zfs_events_log_remove(zfsvfs->z_os, tx, zp->z_id,
 			    dzp->z_id, name, zfsvfs->z_events_size,
@@ -2670,6 +2701,12 @@ top:
 
 	if (mask != 0) {
 		zfs_log_setattr(zilog, tx, TX_SETATTR, zp, vap, mask, fuidp);
+		/*
+		 * Emit any pending IO windows before the operation
+		 * event, preserving cause order under the same tx.
+		 */
+		zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_TRUE);
+		zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_FALSE);
 		if (zfsvfs->z_events) {
 			zfs_events_log_setattr(zfsvfs->z_os, tx, zp->z_id,
 			    mask, zfsvfs->z_events_size,
@@ -3334,6 +3371,12 @@ top:
 		break;
 	}
 
+	/*
+	 * Emit any pending IO windows before the operation
+	 * event, preserving cause order under the same tx.
+	 */
+	zfs_events_io_flush(szp, zfsvfs->z_os, tx, B_TRUE);
+	zfs_events_io_flush(szp, zfsvfs->z_os, tx, B_FALSE);
 	if (zfsvfs->z_events) {
 		zfs_events_log_rename(zfsvfs->z_os, tx, szp->z_id,
 		    sdzp->z_id, sdl->dl_name, tdzp->z_id, tdl->dl_name,
@@ -3567,6 +3610,12 @@ top:
 		if (flags & FIGNORECASE)
 			txtype |= TX_CI;
 		zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
+		/*
+		 * Emit any pending IO windows before the operation
+		 * event, preserving cause order under the same tx.
+		 */
+		zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_TRUE);
+		zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_FALSE);
 		if (zfsvfs->z_events) {
 			zfs_events_log_symlink(zfsvfs->z_os, tx, zp->z_id,
 			    dzp->z_id, name, link, zfsvfs->z_events_size,
@@ -3822,6 +3871,12 @@ top:
 			if (flags & FIGNORECASE)
 				txtype |= TX_CI;
 			zfs_log_link(zilog, tx, txtype, tdzp, szp, name);
+			/*
+			 * Emit any pending IO windows before the operation
+			 * event, preserving cause order under the same tx.
+			 */
+			zfs_events_io_flush(szp, zfsvfs->z_os, tx, B_TRUE);
+			zfs_events_io_flush(szp, zfsvfs->z_os, tx, B_FALSE);
 			if (zfsvfs->z_events) {
 				zfs_events_log_link(zfsvfs->z_os, tx,
 				    szp->z_id, tdzp->z_id, name,

@@ -35,6 +35,7 @@
 #include <sys/errno.h>
 #include <sys/zfs_dir.h>
 #include <sys/zfs_acl.h>
+#include <sys/zfs_events.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/fs/zfs.h>
 #include <sys/dmu.h>
@@ -401,9 +402,8 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		goto out;
 	}
 
-#if defined(__linux__)
 	ssize_t start_offset = zfs_uio_offset(uio);
-#endif
+
 	uint_t blksz = zp->z_blksz;
 	ssize_t chunk_size;
 	ssize_t n = MIN(zfs_uio_resid(uio), zp->z_size - zfs_uio_offset(uio));
@@ -524,6 +524,17 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	int64_t nread = start_resid - n;
 
 	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, nread);
+
+	/*
+	 * Content-access auditing: one READ record per syscall,
+	 * attributed to the pool's open txg (reads create no
+	 * transaction); account() re-gates and handles the fence.
+	 */
+	if (error == 0 && nread > 0 &&
+	    zfsvfs->z_events && zfsvfs->z_events_io) {
+		zfs_events_io_account(zp, B_FALSE, start_offset,
+		    (uint64_t)nread, cr, 0);
+	}
 out:
 	zfs_rangelock_exit(lr);
 
@@ -795,6 +806,14 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	}
 
 	/*
+	 * IO event accounting: the syscall's starting offset (after any
+	 * append re-resolution) and the last committed txg, emitted as one
+	 * WRITE record after the loop (see zfs_events_io_account()).
+	 */
+	const uint64_t ev_first_offset = woff;
+	uint64_t ev_last_txg = 0;
+
+	/*
 	 * Write the file in reasonable size chunks.  Each chunk is written
 	 * in a separate transaction; this keeps the intent log records small
 	 * and allows us to do more fine-grained space accounting.
@@ -1053,6 +1072,8 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		    uio->uio_extflg & UIO_DIRECT ? B_TRUE : B_FALSE, NULL,
 		    NULL);
 
+		ev_last_txg = dmu_tx_get_txg(tx);
+
 		dmu_tx_commit(tx);
 
 		/*
@@ -1087,15 +1108,26 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	if (uio->uio_extflg & UIO_DIRECT)
 		zfs_uio_free_dio_pages(uio, UIO_WRITE);
 
+	int64_t nwritten = start_resid - zfs_uio_resid(uio);
+
 	/*
 	 * If we're in replay mode, or we made no progress, or the
 	 * uio data is inaccessible return an error.  Otherwise, it's
 	 * at least a partial write, so it's successful.
 	 */
-	if (zfsvfs->z_replay || zfs_uio_resid(uio) == start_resid ||
-	    error == EFAULT) {
+	if (zfsvfs->z_replay || nwritten <= 0 || error == EFAULT) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
+	}
+
+	/*
+	 * Content-modification auditing: one WRITE record per syscall
+	 * (summed across the chunk loop), gated on the dataset's IO
+	 * event properties; zfs_events_io_account() re-gates.
+	 */
+	if (zfsvfs->z_events && zfsvfs->z_events_io) {
+		zfs_events_io_account(zp, B_TRUE, ev_first_offset,
+		    (uint64_t)nwritten, cr, ev_last_txg);
 	}
 
 	if (commit) {
@@ -1106,7 +1138,6 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		}
 	}
 
-	int64_t nwritten = start_resid - zfs_uio_resid(uio);
 	dataset_kstats_update_write_kstats(&zfsvfs->z_kstat, nwritten);
 
 	zfs_exit(zfsvfs, FTAG);
