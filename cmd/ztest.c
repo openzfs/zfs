@@ -4434,7 +4434,6 @@ online_vdev(vdev_t *vd, void *arg)
 {
 	(void) arg;
 	spa_t *spa = vd->vdev_spa;
-	vdev_t *tvd = vd->vdev_top;
 	uint64_t guid = vd->vdev_guid;
 	uint64_t generation = spa->spa_config_generation + 1;
 	vdev_state_t newstate = VDEV_STATE_UNKNOWN;
@@ -4451,14 +4450,16 @@ online_vdev(vdev_t *vd, void *arg)
 	/*
 	 * If vdev_online returned an error or the underlying vdev_open
 	 * failed then we abort the expand. The only way to know that
-	 * vdev_open fails is by checking the returned newstate.
+	 * vdev_open fails is by checking the returned newstate. vd may
+	 * have been freed while the lock was dropped, so an aborted expand
+	 * stops the walk with the root vdev instead.
 	 */
 	if (error || newstate != VDEV_STATE_HEALTHY) {
 		if (ztest_opts.zo_verbose >= 5) {
 			(void) printf("Unable to expand vdev, state %u, "
 			    "error %d\n", newstate, error);
 		}
-		return (vd);
+		return (spa->spa_root_vdev);
 	}
 	ASSERT3U(newstate, ==, VDEV_STATE_HEALTHY);
 
@@ -4471,14 +4472,13 @@ online_vdev(vdev_t *vd, void *arg)
 	if (generation != spa->spa_config_generation) {
 		if (ztest_opts.zo_verbose >= 5) {
 			(void) printf("vdev configuration has changed, "
-			    "guid %"PRIu64", state %"PRIu64", "
+			    "guid %"PRIu64", "
 			    "expected gen %"PRIu64", got gen %"PRIu64"\n",
 			    guid,
-			    tvd->vdev_state,
 			    generation,
 			    spa->spa_config_generation);
 		}
-		return (vd);
+		return (spa->spa_root_vdev);
 	}
 	return (NULL);
 }
