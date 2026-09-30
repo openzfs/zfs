@@ -505,6 +505,28 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
 		VERIFY0(dmu_tx_assign(atx, DMU_TX_WAIT));
 	}
 	/*
+	 * Finalize and pack the record BEFORE taking the ring lock:
+	 * nvlist_pack and kmem_alloc can hit allocator slow paths
+	 * (KM_SLEEP), and holding the ring mutex across them would
+	 * propagate allocator stalls to every other emitter on the
+	 * dataset. Only the header mutation and the append need the
+	 * lock. Early-bail paths inside the lazy-create below must
+	 * free packed/rec.
+	 */
+	fnvlist_add_uint64(nvl, ZFS_EV_TXG, txg);
+	fnvlist_add_uint64(nvl, ZFS_EV_TIME, gethrtime());
+
+	VERIFY0(nvlist_pack(nvl, &packed, &packed_len, NV_ENCODE_NATIVE,
+	    KM_SLEEP));
+
+	uint64_t total = sizeof (le_len) + packed_len;
+	char *rec = kmem_alloc(total, KM_SLEEP);
+
+	le_len = LE_64((uint64_t)packed_len);
+	memcpy(rec, &le_len, sizeof (le_len));
+	memcpy(rec + sizeof (le_len), packed, packed_len);
+
+	/*
 	 * Serialize ring-buffer mutation. Concurrent VFS writers would
 	 * otherwise corrupt the shared bof/eof header and interleave
 	 * records, exactly as spa_history is guarded by
@@ -528,6 +550,8 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
 			if (!spa_feature_is_enabled(spa,
 			    SPA_FEATURE_EVENTS)) {
 				mutex_exit(lockp);
+				fnvlist_pack_free(packed, packed_len);
+				kmem_free(rec, total);
 				if (owned)
 					dmu_tx_commit(atx);
 				return;
@@ -537,6 +561,8 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
 			    events_size, &obj);
 			if (err != 0) {
 				mutex_exit(lockp);
+				fnvlist_pack_free(packed, packed_len);
+				kmem_free(rec, total);
 				if (owned)
 					dmu_tx_commit(atx);
 				return;
@@ -549,6 +575,8 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
 			if (err != 0) {
 				(void) dmu_object_free(os, obj, atx);
 				mutex_exit(lockp);
+				fnvlist_pack_free(packed, packed_len);
+				kmem_free(rec, total);
 				if (owned)
 					dmu_tx_commit(atx);
 				return;
@@ -594,6 +622,8 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
 		} else if (err != 0) {
 			/* Some other error, bail out */
 			mutex_exit(lockp);
+			fnvlist_pack_free(packed, packed_len);
+			kmem_free(rec, total);
 			if (owned)
 				dmu_tx_commit(atx);
 			return;
@@ -601,19 +631,12 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
 		*objp = obj;
 	}
 
-	/* Add transaction group and timestamp */
-	fnvlist_add_uint64(nvl, ZFS_EV_TXG, txg);
-	fnvlist_add_uint64(nvl, ZFS_EV_TIME, gethrtime());
-
-	/* Pack the nvlist */
-	VERIFY0(nvlist_pack(nvl, &packed, &packed_len, NV_ENCODE_NATIVE,
-	    KM_SLEEP));
-
 	/* Get the event log header from bonus buffer */
 	err = dmu_bonus_hold(os, obj, FTAG, &dbp);
 	if (err != 0) {
 		mutex_exit(lockp);
 		fnvlist_pack_free(packed, packed_len);
+		kmem_free(rec, total);
 		if (owned)
 			dmu_tx_commit(atx);
 		return;
@@ -628,13 +651,6 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
 	 * record in the log if the second call failed, and a later read
 	 * would consume the next record's header as this one's payload.
 	 */
-	uint64_t total = sizeof (le_len) + packed_len;
-	char *rec = kmem_alloc(total, KM_SLEEP);
-
-	le_len = LE_64((uint64_t)packed_len);
-	memcpy(rec, &le_len, sizeof (le_len));
-	memcpy(rec + sizeof (le_len), packed, packed_len);
-
 	err = zfs_events_write(os, obj, rec, total, zep, atx);
 	if (err != 0) {
 		/*
@@ -1041,6 +1057,30 @@ zfs_events_io_account(struct znode *zp, boolean_t is_write,
 	 */
 	window_ns = (hrtime_t)zfsvfs->z_events_io_window *
 	    (NANOSEC / MILLISEC);
+
+	if (window_ns == 0) {
+		/*
+		 * Fence disabled: emit every syscall immediately,
+		 * without touching z_lock at all - the pending-window
+		 * state is never read or written on this path, and the
+		 * emission can sleep (ad-hoc tx assign). Saving the
+		 * lock round-trip matters here: this is the per-syscall
+		 * configuration where every cycle of added cost lands
+		 * directly on read/write latency.
+		 */
+		if (is_write) {
+			zfs_events_log_write(zfsvfs->z_os,
+			    NULL, zp->z_id, offset, bytes, cr,
+			    zfsvfs->z_events_size, &zfsvfs->z_events_obj,
+			    &zfsvfs->z_events_lock, txg);
+		} else {
+			zfs_events_log_read(zfsvfs->z_os, zp->z_id,
+			    offset, bytes, cr, zfsvfs->z_events_size,
+			    &zfsvfs->z_events_obj, &zfsvfs->z_events_lock);
+		}
+		return;
+	}
+
 	now = gethrtime();
 
 	mutex_enter(zlk);
@@ -1057,27 +1097,6 @@ zfs_events_io_account(struct znode *zp, boolean_t is_write,
 			pend_off = zp->z_ev_io_rpend_off;
 			pend_bytes = zp->z_ev_io_rpend_bytes;
 		}
-	}
-
-	if (window_ns == 0) {
-		/*
-		 * Fence disabled: emit every syscall immediately. The
-		 * emission can sleep (ad-hoc tx assign), so z_lock is
-		 * released first - no caller state is touched, and the
-		 * ring lock (z_events_lock) nests above nothing here.
-		 */
-		mutex_exit(zlk);
-		if (is_write) {
-			zfs_events_log_write(zfsvfs->z_os,
-			    NULL, zp->z_id, offset, bytes, cr,
-			    zfsvfs->z_events_size, &zfsvfs->z_events_obj,
-			    &zfsvfs->z_events_lock, txg);
-		} else {
-			zfs_events_log_read(zfsvfs->z_os, zp->z_id,
-			    offset, bytes, cr, zfsvfs->z_events_size,
-			    &zfsvfs->z_events_obj, &zfsvfs->z_events_lock);
-		}
-		return;
 	}
 
 	if (start != 0 && now - start < window_ns) {
@@ -1176,65 +1195,96 @@ zfs_events_get(objset_t *os, kmutex_t *lockp, uint64_t *offp,
 		return (err);
 
 	/*
-	 * Serialize against concurrent appenders (and the clear path):
-	 * without this, an append that wraps the ring between the
-	 * header sample and the dmu_read()s below overwrites exactly
-	 * the region being read and the caller parses garbage record
-	 * headers. The ring lock nests above nothing on the read
-	 * path, so holding it across the (blocking) reads is safe.
+	 * Sample the ring window under the ring lock, then release it
+	 * for the (blocking, possibly disk-backed) dmu_read()s and
+	 * re-validate afterwards. Holding the lock across reads of up
+	 * to the ioctl buffer size would stall every emitter on the
+	 * dataset for I/O-latency durations. The data read is valid
+	 * iff the ring window did not move underneath it: bof must be
+	 * unchanged (a wrap would have overwritten our region, and a
+	 * clear resets bof to 0) and eof must not have retreated.
+	 * Appends only advance eof, so "eof unchanged or grown" is
+	 * exact. On violation the sample is simply stale - retry with
+	 * a fresh sample; three attempts is far beyond what any real
+	 * contention requires.
 	 */
-	mutex_enter(lockp);
+	for (int attempt = 0; ; attempt++) {
+		uint64_t samp_bof, samp_eof, samp_off, samp_len;
 
-	zep = dbp->db_data;
+		mutex_enter(lockp);
+		zep = dbp->db_data;
 
-	/* Validate and clamp the read offset */
-	if (*offp < zep->zep_bof)
-		*offp = zep->zep_bof;
-	else if (*offp > zep->zep_eof)
-		*offp = zep->zep_eof;
+		samp_bof = zep->zep_bof;
+		samp_eof = zep->zep_eof;
 
-	/* Calculate how much we can read */
-	read_len = MIN(*lenp, zep->zep_eof - *offp);
+		/* Validate and clamp the read offset */
+		if (*offp < samp_bof)
+			samp_off = samp_bof;
+		else if (*offp > samp_eof)
+			samp_off = samp_eof;
+		else
+			samp_off = *offp;
 
-	if (read_len == 0) {
-		mutex_exit(lockp);
-		dmu_buf_rele(dbp, FTAG);
-		*lenp = 0;
-		return (0);
-	}
+		/* Calculate how much we can read */
+		samp_len = MIN(*lenp, samp_eof - samp_off);
 
-	/* Convert to physical offset and handle wrap-around */
-	phys_read_off = zfs_events_log_to_phys(*offp, zep);
-	phys_eof = zfs_events_log_to_phys(zep->zep_eof, zep);
-
-	if (phys_read_off < phys_eof) {
-		/* No wrap, simple read */
-		err = dmu_read(os, obj, phys_read_off, read_len, buf,
-		    DMU_READ_PREFETCH);
-	} else {
-		/* Handle wrap-around read */
-		uint64_t first = zep->zep_phys_max_off - phys_read_off;
-		if (first > read_len)
-			first = read_len;
-
-		err = dmu_read(os, obj, phys_read_off, first, buf,
-		    DMU_READ_PREFETCH);
-		if (err == 0 && read_len > first) {
-			leftover = read_len - first;
-			err = dmu_read(os, obj, 0, leftover, buf + first,
-			    DMU_READ_PREFETCH);
+		if (samp_len == 0) {
+			mutex_exit(lockp);
+			dmu_buf_rele(dbp, FTAG);
+			*offp = samp_off;
+			*lenp = 0;
+			return (0);
 		}
+
+		/* Convert to physical offset and handle wrap-around */
+		phys_read_off = zfs_events_log_to_phys(samp_off, zep);
+		phys_eof = zfs_events_log_to_phys(samp_eof, zep);
+
+		mutex_exit(lockp);
+
+		if (phys_read_off < phys_eof) {
+			/* No wrap, simple read */
+			err = dmu_read(os, obj, phys_read_off, samp_len,
+			    buf, DMU_READ_PREFETCH);
+		} else {
+			/* Handle wrap-around read */
+			uint64_t first = zep->zep_phys_max_off -
+			    phys_read_off;
+			if (first > samp_len)
+				first = samp_len;
+
+			err = dmu_read(os, obj, phys_read_off, first,
+			    buf, DMU_READ_PREFETCH);
+			if (err == 0 && samp_len > first) {
+				leftover = samp_len - first;
+				err = dmu_read(os, obj, 0, leftover,
+				    buf + first, DMU_READ_PREFETCH);
+			}
+		}
+
+		mutex_enter(lockp);
+		zep = dbp->db_data;
+		boolean_t valid = (zep->zep_bof == samp_bof) &&
+		    (zep->zep_eof >= samp_eof);
+		mutex_exit(lockp);
+
+		if (err == 0 && valid) {
+			*offp = samp_off + samp_len;
+			*lenp = samp_len;
+			dmu_buf_rele(dbp, FTAG);
+			return (0);
+		}
+
+		if (err != 0 || attempt >= 2) {
+			dmu_buf_rele(dbp, FTAG);
+			return (err != 0 ? err : SET_ERROR(EAGAIN));
+		}
+		/*
+		 * Ring moved under the read: loop for a fresh sample.
+		 * *offp is left untouched so the next attempt reclamps
+		 * against the new window.
+		 */
 	}
-
-	mutex_exit(lockp);
-	dmu_buf_rele(dbp, FTAG);
-
-	if (err == 0) {
-		*offp += read_len;
-		*lenp = read_len;
-	}
-
-	return (err);
 }
 
 /*

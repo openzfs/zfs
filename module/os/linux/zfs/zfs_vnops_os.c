@@ -2535,6 +2535,19 @@ top:
 			projid = ZFS_INVALID_PROJID;
 	}
 
+	/*
+	 * Emit any pending IO windows before acquiring the locks
+	 * this function holds across its emitter block: the flush's
+	 * emission can sleep on transaction assignment, and only
+	 * zp->z_lock is dropped by its recursion handling - holding
+	 * z_acl_lock and the xattr znode's locks across it would
+	 * stall concurrent xattr/ACL operations. Doing this before
+	 * the SA bulk-update also preserves cause order: pending IO
+	 * records precede the SETATTR (and any TRUNCATE) record.
+	 */
+	zfs_events_io_flush(zp, zfsvfs->z_os, NULL, B_TRUE);
+	zfs_events_io_flush(zp, zfsvfs->z_os, NULL, B_FALSE);
+
 	if (mask & (ATTR_UID|ATTR_GID|ATTR_MODE))
 		mutex_enter(&zp->z_acl_lock);
 	mutex_enter(&zp->z_lock);
@@ -2697,12 +2710,6 @@ top:
 
 	if (mask != 0) {
 		zfs_log_setattr(zilog, tx, TX_SETATTR, zp, vap, mask, fuidp);
-		/*
-		 * Emit any pending IO windows before the operation
-		 * event, preserving cause order under the same tx.
-		 */
-		zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_TRUE);
-		zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_FALSE);
 		if (zfsvfs->z_events) {
 			zfs_events_log_setattr(zfsvfs->z_os, tx, zp->z_id,
 			    mask, zfsvfs->z_events_size,

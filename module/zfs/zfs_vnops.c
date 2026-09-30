@@ -531,18 +531,23 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 
 	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, nread);
 
+out:
+	zfs_rangelock_exit(lr);
+
 	/*
 	 * Content-access auditing: one READ record per syscall,
 	 * attributed to the pool's open txg (reads create no
 	 * transaction); account() re-gates and handles the fence.
+	 * Runs after the rangelock exit so the emission (which can
+	 * sleep on transaction assignment) never holds RL_READER
+	 * and stalls writers to overlapping ranges - mirroring the
+	 * write path's post-exit accounting.
 	 */
 	if (error == 0 && nread > 0 &&
 	    zfsvfs->z_events && zfsvfs->z_events_io) {
 		zfs_events_io_account(zp, B_FALSE, start_offset,
 		    (uint64_t)nread, cr, 0);
 	}
-out:
-	zfs_rangelock_exit(lr);
 
 	if (dio_checksum_failure == B_TRUE) {
 		uio->uio_extflg |= UIO_DIRECT;
