@@ -521,7 +521,13 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	} else if (error && (uio->uio_extflg & UIO_DIRECT)) {
 		n += dio_remaining_resid;
 	}
-	int64_t nread = start_resid - n;
+	/*
+	 * Byte-count from the uio, not from `n`: a chunk that fails
+	 * with EFAULT partway still advances the uio through the bytes
+	 * actually delivered, and `n` is only decremented on full-
+	 * chunk success. This mirrors the write path's resid math.
+	 */
+	int64_t nread = zfs_uio_offset(uio) - start_offset;
 
 	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, nread);
 
@@ -933,9 +939,12 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			    uio, nbytes, tx, dflags);
 			zfs_uio_fault_disable(uio, B_FALSE);
 #ifdef __linux__
+
 			if (error == EFAULT) {
 				zfs_clear_setid_bits_if_necessary(zfsvfs, zp,
 				    cr, &clear_setid_bits_txg, tx);
+				/* Partial bytes of this chunk committed. */
+				ev_last_txg = dmu_tx_get_txg(tx);
 				dmu_tx_commit(tx);
 				/*
 				 * Account for partial writes before
@@ -964,6 +973,8 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			if (error != 0 && error != EFAULT) {
 				zfs_clear_setid_bits_if_necessary(zfsvfs, zp,
 				    cr, &clear_setid_bits_txg, tx);
+				/* Partial bytes of this chunk committed. */
+				ev_last_txg = dmu_tx_get_txg(tx);
 				dmu_tx_commit(tx);
 				break;
 			}
@@ -987,6 +998,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 				zfs_clear_setid_bits_if_necessary(zfsvfs, zp,
 				    cr, &clear_setid_bits_txg, tx);
 				dmu_return_arcbuf(abuf);
+				ev_last_txg = dmu_tx_get_txg(tx);
 				dmu_tx_commit(tx);
 				break;
 			}
@@ -1028,6 +1040,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		if (tx_bytes == 0) {
 			(void) sa_update(zp->z_sa_hdl, SA_ZPL_SIZE(zfsvfs),
 			    (void *)&zp->z_size, sizeof (uint64_t), tx);
+			ev_last_txg = dmu_tx_get_txg(tx);
 			dmu_tx_commit(tx);
 			ASSERT(error != 0);
 			break;

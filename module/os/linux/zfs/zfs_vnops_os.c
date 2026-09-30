@@ -792,12 +792,6 @@ top:
 			txtype |= TX_CI;
 		zfs_log_create(zilog, tx, txtype, dzp, zp, name,
 		    vsecp, acl_ids.z_fuidp, vap);
-		/*
-		 * Emit any pending IO windows before the operation
-		 * event, preserving cause order under the same tx.
-		 */
-		zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_TRUE);
-		zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_FALSE);
 		if (zfsvfs->z_events) {
 			zfs_events_log_create(os, tx, zp->z_id, dzp->z_id,
 			    name, vap->va_mode, crgetuid(cr), crgetgid(cr),
@@ -1199,6 +1193,14 @@ top:
 			    &links, sizeof (links), tx);
 			ASSERT3U(error,  ==,  0);
 			mutex_exit(&xzp->z_lock);
+			/*
+			 * Emit any pending IO windows on the xattr
+			 * znode before it is destroyed: no close(2)
+			 * ever occurs for it, so the window would
+			 * otherwise die with the znode silently.
+			 */
+			zfs_events_io_flush(xzp, zfsvfs->z_os, tx, B_TRUE);
+			zfs_events_io_flush(xzp, zfsvfs->z_os, tx, B_FALSE);
 			zfs_unlinked_add(xzp, tx);
 
 			if (zp->z_is_sa)
@@ -1440,12 +1442,6 @@ top:
 		txtype |= TX_CI;
 	zfs_log_create(zilog, tx, txtype, dzp, zp, dirname, vsecp,
 	    acl_ids.z_fuidp, vap);
-	/*
-	 * Emit any pending IO windows before the operation
-	 * event, preserving cause order under the same tx.
-	 */
-	zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_TRUE);
-	zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_FALSE);
 	if (zfsvfs->z_events) {
 		zfs_events_log_create(zfsvfs->z_os, tx, zp->z_id, dzp->z_id,
 		    dirname, vap->va_mode, uid, gid, zfsvfs->z_events_size,
@@ -3308,6 +3304,16 @@ top:
 		error = zfs_link_destroy(tdl, tzp, tx, tzflg, NULL);
 		if (error)
 			goto commit_link_szp;
+
+		/*
+		 * Emit any pending IO windows on the overwritten
+		 * target before the operation event, preserving
+		 * cause order under the same tx: a writer holding
+		 * tzp open keeps its window open across the rename,
+		 * and its records must not land after RENAME.
+		 */
+		zfs_events_io_flush(tzp, zfsvfs->z_os, tx, B_TRUE);
+		zfs_events_io_flush(tzp, zfsvfs->z_os, tx, B_FALSE);
 	}
 
 	/*
@@ -3610,12 +3616,6 @@ top:
 		if (flags & FIGNORECASE)
 			txtype |= TX_CI;
 		zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
-		/*
-		 * Emit any pending IO windows before the operation
-		 * event, preserving cause order under the same tx.
-		 */
-		zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_TRUE);
-		zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_FALSE);
 		if (zfsvfs->z_events) {
 			zfs_events_log_symlink(zfsvfs->z_os, tx, zp->z_id,
 			    dzp->z_id, name, link, zfsvfs->z_events_size,

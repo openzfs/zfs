@@ -4745,12 +4745,11 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 	 * A clear request arrives as offset == UINT64_MAX: reset the
 	 * ring. This rides the established get-events ioctl rather than
 	 * adding a new one. The reset uses the mounted zfsvfs' objset
-	 * and runs under the same ring lock the VFS loggers hold, so it
-	 * can never interleave with concurrent logging; the objset is
-	 * owned by the vfs and the pool config lock is not held by this
-	 * thread, which is exactly the environment the VFS logging path
-	 * assigns its transaction in. Clearing requires the dataset to
-	 * be mounted.
+	 * and the pool config lock is not held by this thread, which is
+	 * exactly the environment the VFS logging path assigns its
+	 * transaction in. The ring lock is deliberately NOT held across
+	 * the clear (see the comment at the call below). Clearing
+	 * requires the dataset to be mounted.
 	 */
 	if (offset == UINT64_MAX) {
 		zfsvfs_t *zfsvfs;
@@ -4760,9 +4759,18 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 		if (err != 0)
 			return (err);
 
-		mutex_enter(&zfsvfs->z_events_lock);
+		/*
+		 * zfs_events_clear_task() assigns its transaction with
+		 * DMU_TX_WAIT, which can sleep for a txg under
+		 * throttling; do not hold the ring lock across it or
+		 * every VFS event logger on this dataset stalls too.
+		 * Clear means discard ALL history, so records appended
+		 * while the lock is released (and while the clear
+		 * transaction is in flight) are legitimately discarded
+		 * as well; the header reset itself is a single
+		 * transaction-serialized write.
+		 */
 		err = zfs_events_clear_task(zfsvfs->z_os);
-		mutex_exit(&zfsvfs->z_events_lock);
 
 		zfs_vfs_rele(zfsvfs);
 		return (err);
@@ -4776,7 +4784,17 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 	read_len = bufsize;
 	start_offset = offset;
 
-	error = zfs_events_get(os, &offset, &read_len, buf);
+	zfsvfs_t *io_zfsvfs;
+	error = getzfsvfs(dsname, &io_zfsvfs);
+	if (error != 0) {
+		vmem_free(buf, bufsize);
+		dmu_objset_rele(os, FTAG);
+		return (error);
+	}
+
+	error = zfs_events_get(os, &io_zfsvfs->z_events_lock, &offset,
+	    &read_len, buf);
+	zfs_vfs_rele(io_zfsvfs);
 	if (error != 0) {
 		vmem_free(buf, bufsize);
 		dmu_objset_rele(os, FTAG);

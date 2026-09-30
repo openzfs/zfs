@@ -36,6 +36,9 @@
 #include <sys/cmn_err.h>
 #include <sys/sunddi.h>
 #include <sys/cred.h>
+#if defined(_KERNEL)
+#include <sys/taskq.h>
+#endif
 #include <sys/zfs_events.h>
 #include <sys/zfs_znode.h>
 #include <sys/byteorder.h>
@@ -296,6 +299,46 @@ zfs_events_feature_sync(void *arg, dmu_tx_t *tx)
 	    (void *)B_TRUE, tx);
 }
 
+#if defined(_KERNEL)
+/*
+ * Task argument for the owned-tx activation path: the taskq context
+ * must not reference a znode or a transaction; the objset hold the
+ * emitter held is still live when the task runs (the emitter only
+ * creates this work item while inside the log's own hold), but the
+ * task re-holds nothing - it opens its own transaction immediately.
+ */
+typedef struct zfs_events_activate_arg {
+	objset_t	*aoa_os;
+	dsl_dataset_t	*aoa_ds;
+} zfs_events_activate_arg_t;
+
+/*
+ * Activate the events feature from open context without a caller
+ * transaction: open an ad-hoc tx here (no VFS locks are held in
+ * taskq context, so DMU_TX_WAIT is safe) and queue the feature-sync
+ * sync task on it. Idempotent: skips when the feature is already
+ * active on the dataset.
+ */
+static void
+zfs_events_activate_task(void *arg)
+{
+	zfs_events_activate_arg_t *a = arg;
+	dsl_dataset_t *ds = a->aoa_ds;
+	objset_t *os = a->aoa_os;
+	dmu_tx_t *tx;
+
+	kmem_free(a, sizeof (*a));
+
+	if (dsl_dataset_feature_is_active(ds, SPA_FEATURE_EVENTS))
+		return;
+
+	tx = dmu_tx_create(os);
+	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
+	zfs_events_feature_sync(ds, tx);
+	dmu_tx_commit(tx);
+}
+#endif	/* _KERNEL */
+
 /*
  * Destroy the event log object for a dataset.
  * Also decrements the events feature counter.
@@ -511,6 +554,7 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
 				return;
 			}
 
+
 			/*
 			 * Activate the events feature on first use.
 			 * dsl_dataset_activate_feature() requires a
@@ -518,17 +562,35 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
 			 * txg's sync pass (see
 			 * zfs_events_feature_sync).
 			 *
-			 * Only safe with the CALLER's tx: the queued
-			 * sync task runs at txg sync with this tx, which
-			 * must still be uncommitted. An ad-hoc tx is
-			 * committed below when this function returns,
-			 * so defer feature activation to the next
-			 * caller-tx event instead.
+			 * dsl_sync_task_nowait() queues on the passed
+			 * tx's txg and runs at its sync, so the tx must
+			 * still be uncommitted when it runs: only the
+			 * CALLER's tx qualifies. With an ad-hoc tx
+			 * (owned), dispatch a taskq work item that opens
+			 * its own transaction and activates there -
+			 * otherwise a dataset whose very first event is
+			 * an IO record would create the log without
+			 * ever activating the feature, breaking the
+			 * refcount/destroy symmetry. (Userspace builds
+			 * keep the old defer-to-caller-tx behavior.)
 			 */
-			if (!owned)
-				dsl_sync_task_nowait(dmu_objset_pool(os),
+#if defined(_KERNEL)
+			if (owned) {
+				zfs_events_activate_arg_t *arg =
+				    kmem_alloc(sizeof (*arg), KM_SLEEP);
+				arg->aoa_os = os;
+				arg->aoa_ds = dmu_objset_ds(os);
+				(void) taskq_dispatch(system_taskq,
+				    zfs_events_activate_task,
+				    arg, TQ_SLEEP);
+			} else
+#endif
+			{
+				dsl_sync_task_nowait(
+				    dmu_objset_pool(os),
 				    zfs_events_feature_sync,
 				    dmu_objset_ds(os), atx);
+			}
 		} else if (err != 0) {
 			/* Some other error, bail out */
 			mutex_exit(lockp);
@@ -1093,7 +1155,8 @@ zfs_events_io_account(struct znode *zp, boolean_t is_write,
  * buf: buffer to read events into
  */
 int
-zfs_events_get(objset_t *os, uint64_t *offp, uint64_t *lenp, char *buf)
+zfs_events_get(objset_t *os, kmutex_t *lockp, uint64_t *offp,
+    uint64_t *lenp, char *buf)
 {
 	dmu_buf_t *dbp;
 	uint64_t obj;
@@ -1112,6 +1175,16 @@ zfs_events_get(objset_t *os, uint64_t *offp, uint64_t *lenp, char *buf)
 	if (err != 0)
 		return (err);
 
+	/*
+	 * Serialize against concurrent appenders (and the clear path):
+	 * without this, an append that wraps the ring between the
+	 * header sample and the dmu_read()s below overwrites exactly
+	 * the region being read and the caller parses garbage record
+	 * headers. The ring lock nests above nothing on the read
+	 * path, so holding it across the (blocking) reads is safe.
+	 */
+	mutex_enter(lockp);
+
 	zep = dbp->db_data;
 
 	/* Validate and clamp the read offset */
@@ -1124,6 +1197,7 @@ zfs_events_get(objset_t *os, uint64_t *offp, uint64_t *lenp, char *buf)
 	read_len = MIN(*lenp, zep->zep_eof - *offp);
 
 	if (read_len == 0) {
+		mutex_exit(lockp);
 		dmu_buf_rele(dbp, FTAG);
 		*lenp = 0;
 		return (0);
@@ -1152,6 +1226,7 @@ zfs_events_get(objset_t *os, uint64_t *offp, uint64_t *lenp, char *buf)
 		}
 	}
 
+	mutex_exit(lockp);
 	dmu_buf_rele(dbp, FTAG);
 
 	if (err == 0) {

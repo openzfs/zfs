@@ -78,6 +78,17 @@ main(void)
 	REQUIRE(zmetad_schema_check_version(zs, 3) == EINVAL);
 
 	/*
+	 * The --check-schema drift check in zmetad.c does NOT reuse
+	 * check_version: it requires file_version == embedded version
+	 * exactly, so an older schema FILE is refused there (unlike an
+	 * older wire version, which stays acceptable above).  That
+	 * comparison is local to run_check_schema() and is not
+	 * exercised by this binary; these assertions pin the embedded
+	 * version it compares against.
+	 */
+	REQUIRE(zmetad_schema_version(zs) == 2);
+
+	/*
 	 * op must be declared uint16; the field lookup on a uint64-
 	 * valued record member must fail with EINVAL (type mismatch).
 	 */

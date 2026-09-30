@@ -1844,6 +1844,12 @@ log:
 	error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 	ASSERT0(error);
 
+	/*
+	 * Emit any pending IO windows before the operation
+	 * event, preserving cause order under the same tx.
+	 */
+	zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_TRUE);
+	zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_FALSE);
 	zfs_log_truncate(zilog, tx, TX_TRUNCATE, zp, off, len);
 	if (zfsvfs->z_events) {
 		zfs_events_log_truncate(zfsvfs->z_os, tx, zp->z_id,

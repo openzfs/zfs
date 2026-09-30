@@ -183,7 +183,14 @@ run_check_schema(const zmetad_config_t *cfg)
 		return (1);
 	}
 
-	if (zmetad_schema_check_version(emb, file_version) == 0) {
+	/*
+	 * The drift check must require an EXACT version match: unlike
+	 * the wire path (where an older kernel is tolerated because
+	 * schema versions only add fields), an on-disk schema file
+	 * older than the embedded one means the file is stale and
+	 * would silently mask the schema this daemon was built with.
+	 */
+	if (file_version == zmetad_schema_version(emb)) {
 		printf("schema file OK (version %llu)\n",
 		    (u_longlong_t)file_version);
 		rc = 0;
