@@ -114,6 +114,11 @@ struct zfsvfs {
 	kmutex_t	z_events_lock;	/* Event log ring buffer lock */
 	uint64_t	z_events_io;	/* IO event emission enabled */
 	uint64_t	z_events_io_window; /* IO event fence in ms, 0 = off */
+	list_t		z_evq_deferred;	/* Deferred IO records (FIFO) */
+	uint64_t	z_evq_count;	/* Deferred IO record count */
+	boolean_t	z_evq_scheduled; /* Worker queued on taskq */
+	boolean_t	z_evq_shutdown;	/* No new worker dispatches */
+	taskq_t		*z_evq_taskq;	/* Deferred IO record worker */
 	uint64_t	z_version;	/* ZPL version */
 	uint64_t	z_shares_dir;	/* hidden shares dir */
 	dataset_kstats_t	z_kstat;	/* fs kstats */

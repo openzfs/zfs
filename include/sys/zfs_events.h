@@ -167,10 +167,31 @@ extern void zfs_events_log_read(objset_t *os, uint64_t object,
  */
 #if defined(_KERNEL)
 struct znode;
+struct zfsvfs;
+
+/*
+ * Fixed-size deferred IO-record queue entry (window == 0 emission).
+ * See zfs_events.c for the queue protocol.
+ */
+typedef struct zfs_events_qent {
+	list_node_t		qe_node;
+	uint16_t		qe_op;		/* ZFS_EV_WRITE / _READ */
+	uint64_t		qe_object;
+	uint64_t		qe_offset;
+	uint64_t		qe_bytes;
+	uint64_t		qe_uid;
+	uint64_t		qe_gid;
+	uint64_t		qe_txg;
+} zfs_events_qent_t;
+
 extern void zfs_events_io_account(struct znode *zp, boolean_t is_write,
     uint64_t offset, uint64_t bytes, const cred_t *cr, uint64_t txg);
 extern void zfs_events_io_flush(struct znode *zp, objset_t *os,
     dmu_tx_t *tx, boolean_t is_write);
+extern void zfs_events_io_flush_expired(struct znode *zp, objset_t *os);
+extern void zfs_events_drain_shutdown(struct zfsvfs *zfsvfs);
+extern void zfs_events_qent_init(void);
+extern void zfs_events_qent_fini(void);
 #endif	/* _KERNEL */
 
 /*

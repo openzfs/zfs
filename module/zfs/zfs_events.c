@@ -337,12 +337,319 @@ zfs_events_activate_task(void *arg)
 	zfs_events_feature_sync(ds, tx);
 	dmu_tx_commit(tx);
 }
-#endif	/* _KERNEL */
 
 /*
- * Destroy the event log object for a dataset.
- * Also decrements the events feature counter.
+ * Deferred IO-record emission (window == 0).
+ *
+ * Emitting a record inline in read/write syscall context costs a full
+ * ad-hoc DMU transaction per record whose DMU_TX_WAIT assignment can
+ * throttle-sleep for up to a txg - a per-syscall stall class. Instead
+ * the syscall enqueues a fixed-size record (no allocation failure can
+ * drop it silently: fallback is the old inline emission) and wakes
+ * the dataset's worker, which drains the whole queue in ONE
+ * transaction: N records per ring lock acquisition, one bonus dirty
+ * and one ring append per batch.
+ *
+ * Queue state lives on the zfsvfs under z_events_lock. The worker
+ * swaps out the pending list, drops the lock, and does all blocking
+ * work unlocked; enqueuers never block on the ring.
+ *
+ * Bound: ZFS_EVQ_MAX entries. Past the bound the record is counted
+ * lost (incremented on the ring header at drain time), mirroring the
+ * ring-wrap records_lost semantics: under sustained overload the log
+ * reports the loss rather than stalling the syscall.
  */
+#define	ZFS_EVQ_MAX	4096
+
+/*
+ * Upper bound on one packed record: six native-encoded pairs plus
+ * tags measure ~108 bytes; 256 leaves headroom for future fields.
+ */
+#define	ZFS_EVQ_REC_MAX	256
+
+typedef struct zfs_events_qent zfs_events_qent_t;
+
+static kmem_cache_t *zfs_events_qent_cache;
+
+static void zfs_events_drain_task(void *arg);
+static uint64_t zfs_events_get_obj(objset_t *os, dmu_tx_t *tx,
+    uint64_t events_size, uint64_t *objp, kmutex_t *lockp,
+    boolean_t owned_tx);
+
+void
+zfs_events_qent_init(void)
+{
+	zfs_events_qent_cache = kmem_cache_create(
+	    "zfs_events_qent", sizeof (zfs_events_qent_t), 0,
+	    NULL, NULL, NULL, NULL, NULL, 0);
+}
+
+void
+zfs_events_qent_fini(void)
+{
+	kmem_cache_destroy(zfs_events_qent_cache);
+	zfs_events_qent_cache = NULL;
+}
+
+/*
+ * Enqueue one record for deferred emission. Returns B_TRUE if queued,
+ * B_FALSE if the caller must emit inline (cache alloc failure or queue
+ * full past the loss bound).
+ */
+static boolean_t
+zfs_events_io_defer(zfsvfs_t *zfsvfs, uint16_t op, uint64_t object,
+    uint64_t offset, uint64_t bytes, const cred_t *cr, uint64_t txg)
+{
+	zfs_events_qent_t *qe;
+	taskq_t *tq = NULL;
+	boolean_t queued = B_FALSE;
+
+	mutex_enter(&zfsvfs->z_events_lock);
+	if (zfsvfs->z_evq_shutdown ||
+	    zfsvfs->z_evq_count >= ZFS_EVQ_MAX) {
+		mutex_exit(&zfsvfs->z_events_lock);
+		return (B_FALSE);
+	}
+	mutex_exit(&zfsvfs->z_events_lock);
+
+	qe = kmem_cache_alloc(zfs_events_qent_cache, KM_NOSLEEP);
+	if (qe == NULL)
+		return (B_FALSE);
+
+	qe->qe_op = op;
+	qe->qe_object = object;
+	qe->qe_offset = offset;
+	qe->qe_bytes = bytes;
+	qe->qe_uid = crgetuid((cred_t *)(uintptr_t)cr);
+	qe->qe_gid = crgetgid((cred_t *)(uintptr_t)cr);
+	qe->qe_txg = txg;
+
+	mutex_enter(&zfsvfs->z_events_lock);
+	if (zfsvfs->z_evq_shutdown) {
+		mutex_exit(&zfsvfs->z_events_lock);
+		kmem_cache_free(zfs_events_qent_cache, qe);
+		return (B_FALSE);
+	}
+
+	/*
+	 * The taskq is created lazily on first use. If creation or
+	 * dispatch fails, undo the enqueue and tell the caller to
+	 * emit inline: an entry must never be stranded on the queue
+	 * without a dispatch pending, or it would only be collected
+	 * at unmount.
+	 */
+	if (!zfsvfs->z_evq_scheduled) {
+		if (zfsvfs->z_evq_taskq == NULL) {
+			zfsvfs->z_evq_taskq = taskq_create(
+			    "zfs_events_drain", 1, minclsyspri, 1,
+			    INT_MAX, TASKQ_PREPOPULATE);
+		}
+		tq = zfsvfs->z_evq_taskq;
+		if (tq != NULL) {
+			zfsvfs->z_evq_scheduled = B_TRUE;
+			queued = B_TRUE;
+		}
+	} else {
+		queued = B_TRUE;
+	}
+
+	if (queued)
+		list_insert_tail(&zfsvfs->z_evq_deferred, qe);
+	mutex_exit(&zfsvfs->z_events_lock);
+
+	if (!queued) {
+		kmem_cache_free(zfs_events_qent_cache, qe);
+		return (B_FALSE);
+	}
+
+	if (tq != NULL &&
+	    taskq_dispatch(tq, zfs_events_drain_task, zfsvfs,
+	    TQ_SLEEP) == TASKQID_INVALID) {
+		/*
+		 * Dispatch failed: undo the schedule flag. The entry
+		 * stays queued and the next enqueue retries the
+		 * dispatch (the worker will take everything queued
+		 * when it eventually runs).
+		 */
+		mutex_enter(&zfsvfs->z_events_lock);
+		zfsvfs->z_evq_scheduled = B_FALSE;
+		mutex_exit(&zfsvfs->z_events_lock);
+	}
+
+	return (B_TRUE);
+}
+
+/*
+ * Worker: drain all deferred records in one transaction. Runs with no
+ * VFS locks held; all blocking work happens with the queue lock
+ * dropped. zfsvfs lifetime is guaranteed by the shutdown handshake:
+ * the drain taskq is waited on and destroyed (from
+ * zfs_events_drain_shutdown, called while the objset is still
+ * owned) before the zfsvfs is freed, and shutdown is one-way.
+ */
+static void
+zfs_events_drain_task(void *arg)
+{
+	zfsvfs_t *zfsvfs = arg;
+	objset_t *os = zfsvfs->z_os;
+	list_t batch;
+	zfs_events_qent_t *qe;
+	uint64_t lost = 0;
+	uint64_t nrec = 0;
+	size_t total = 0;
+	char *buf, *p;
+	dmu_buf_t *dbp;
+	zfs_events_phys_t *zep;
+	uint64_t obj;
+	dmu_tx_t *tx;
+	int err;
+
+	list_create(&batch, sizeof (zfs_events_qent_t),
+	    offsetof(zfs_events_qent_t, qe_node));
+
+	mutex_enter(&zfsvfs->z_events_lock);
+	list_move_tail(&batch, &zfsvfs->z_evq_deferred);
+	nrec = zfsvfs->z_evq_count;
+	zfsvfs->z_evq_count = 0;
+	zfsvfs->z_evq_scheduled = B_FALSE;
+	mutex_exit(&zfsvfs->z_events_lock);
+
+	if (list_is_empty(&batch))
+		goto out;
+
+	tx = dmu_tx_create(os);
+	zfs_events_txhold(os, tx);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (err != 0) {
+		dmu_tx_abort(tx);
+		lost = nrec;
+		goto drop;
+	}
+
+	obj = zfs_events_get_obj(os, tx, zfsvfs->z_events_size,
+	    &zfsvfs->z_events_obj, &zfsvfs->z_events_lock, B_TRUE);
+	if (obj == 0) {
+		/*
+		 * No log object and none could be created (feature
+		 * raced off): the records are unreportable.
+		 */
+		dmu_tx_commit(tx);
+		goto out;
+	}
+
+	/* Size the batch buffer: length prefix + record body each. */
+	total = 0;
+	for (qe = list_head(&batch); qe != NULL; qe = list_next(&batch, qe))
+		total += sizeof (uint64_t) + ZFS_EVQ_REC_MAX;
+
+	buf = kmem_alloc(total, KM_SLEEP);
+	p = buf;
+
+	for (qe = list_head(&batch); qe != NULL; qe = list_next(&batch, qe)) {
+		nvlist_t *nvl = fnvlist_alloc();
+		char *packed = NULL;
+		size_t packed_len = 0;
+
+		fnvlist_add_uint16(nvl, ZFS_EV_OP, qe->qe_op);
+		fnvlist_add_uint64(nvl, ZFS_EV_OBJECT, qe->qe_object);
+		fnvlist_add_uint64(nvl, ZFS_EV_IO_OFFSET, qe->qe_offset);
+		fnvlist_add_uint64(nvl, ZFS_EV_IO_BYTES, qe->qe_bytes);
+		fnvlist_add_uint64(nvl, ZFS_EV_UID, qe->qe_uid);
+		fnvlist_add_uint64(nvl, ZFS_EV_GID, qe->qe_gid);
+		VERIFY0(nvlist_pack(nvl, &packed,
+		    &packed_len, NV_ENCODE_NATIVE, KM_SLEEP));
+		VERIFY3U(packed_len, <=, ZFS_EVQ_REC_MAX);
+		fnvlist_free(nvl);
+
+		*(uint64_t *)p = LE_64((uint64_t)packed_len);
+		memcpy(p + sizeof (uint64_t), packed, packed_len);
+		p += sizeof (uint64_t) + packed_len;
+
+		fnvlist_pack_free(packed, packed_len);
+	}
+
+	err = dmu_bonus_hold(os, obj, FTAG, &dbp);
+	if (err != 0) {
+		dmu_tx_commit(tx);
+		kmem_free(buf, total);
+		lost = nrec;
+		goto drop;
+	}
+
+	zep = dbp->db_data;
+	dmu_buf_will_dirty(dbp, tx);
+	(void) zfs_events_write(os, obj, buf, (uint64_t)(p - buf), zep,
+	    tx);
+	dmu_buf_rele(dbp, FTAG);
+	kmem_free(buf, total);
+
+	dmu_tx_commit(tx);
+	goto out;
+
+drop:
+	/*
+	 * Some or all records could not be appended. The ring's lost
+	 * counter is the contract for lost records; update it under
+	 * the ring lock. When even the ring is unreachable, the loss
+	 * is unreportable (queue overload with no log object).
+	 */
+	if (obj != 0 && lost != 0) {
+		dmu_buf_t *ldb;
+		if (dmu_bonus_hold(os, obj, FTAG, &ldb) == 0) {
+			dmu_tx_t *ltx = dmu_tx_create(os);
+			zfs_events_txhold(os, ltx);
+			if (dmu_tx_assign(ltx, DMU_TX_WAIT) == 0) {
+				zfs_events_phys_t *lzep = ldb->db_data;
+				dmu_buf_will_dirty(ldb, ltx);
+				lzep->zep_records_lost += lost;
+				dmu_tx_commit(ltx);
+			} else {
+				dmu_tx_abort(ltx);
+			}
+			dmu_buf_rele(ldb, FTAG);
+		}
+	}
+
+out:
+	qe = list_remove_head(&batch);
+	while (qe != NULL) {
+		kmem_cache_free(zfs_events_qent_cache, qe);
+		qe = list_remove_head(&batch);
+	}
+	list_destroy(&batch);
+}
+
+/*
+ * Teardown: stop accepting records and drain synchronously so no
+ * deferred record outlives the dataset's unmount. Called from
+ * zfsvfs_free() with no VFS activity possible on the dataset.
+ */
+void
+zfs_events_drain_shutdown(zfsvfs_t *zfsvfs)
+{
+	taskq_t *tq;
+
+	mutex_enter(&zfsvfs->z_events_lock);
+	zfsvfs->z_evq_shutdown = B_TRUE;
+	tq = zfsvfs->z_evq_taskq;
+	zfsvfs->z_evq_taskq = NULL;
+	mutex_exit(&zfsvfs->z_events_lock);
+
+	/*
+	 * taskq_wait() lets the worker drain everything queued:
+	 * every enqueue leaves with either a dispatch pending or no
+	 * entry at all, and shutdown is one-way, so after the wait
+	 * the queue is empty. taskq_destroy() then frees the taskq,
+	 * waiting for any still-running task. z_os must still be
+	 * valid here - callers invoke this before objset release.
+	 */
+	if (tq != NULL) {
+		taskq_wait(tq);
+		taskq_destroy(tq);
+	}
+}
+#endif	/* _KERNEL */
+
 int
 zfs_events_destroy_obj(objset_t *os, uint64_t obj, dmu_tx_t *tx)
 {
@@ -452,9 +759,91 @@ zfs_events_clear(objset_t *os, dmu_tx_t *tx, uint64_t *countp)
  * ad-hoc transaction is opened here for the ring append itself: the
  * existing append path (dmu_buf_will_dirty etc.) requires one.
  */
-static void
-zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
-    uint64_t events_size, uint64_t *objp, kmutex_t *lockp, uint64_t txg)
+
+/*
+ * Return the dataset's event log object id, creating and wiring it on
+ * first use (master-node ZAP entry plus taskq-deferred feature
+ * activation for an ad-hoc transaction, sync-task for a caller
+ * transaction). Returns 0 when there is no log and none could be
+ * created (feature disabled, or creation failed).
+ *
+ * Called with no locks held; takes the ring lock around the shared
+ * lazy-create. The caller's transaction must already hold whatever
+ * the append needs (zfs_events_txhold()).
+ */
+uint64_t
+zfs_events_get_obj(objset_t *os, dmu_tx_t *tx, uint64_t events_size,
+    uint64_t *objp, kmutex_t *lockp, boolean_t owned_tx)
+{
+	uint64_t obj = *objp;
+	int err;
+
+	if (obj != 0)
+		return (obj);
+
+	mutex_enter(lockp);
+	obj = *objp;
+	if (obj == 0) {
+		err = zap_lookup(os, MASTER_NODE_OBJ, ZFS_EVENTS_ZAP_NAME,
+		    sizeof (uint64_t), 1, &obj);
+		if (err == ENOENT) {
+			spa_t *spa = dmu_objset_spa(os);
+
+			/*
+			 * No events feature on the pool: no log.
+			 */
+			if (!spa_feature_is_enabled(spa,
+			    SPA_FEATURE_EVENTS)) {
+				mutex_exit(lockp);
+				return (0);
+			}
+
+			err = zfs_events_create_obj(os, tx, events_size,
+			    &obj);
+			if (err != 0) {
+				mutex_exit(lockp);
+				return (0);
+			}
+
+			err = zap_add(os, MASTER_NODE_OBJ,
+			    ZFS_EVENTS_ZAP_NAME, sizeof (uint64_t), 1,
+			    &obj, tx);
+			if (err != 0) {
+				(void) dmu_object_free(os, obj, tx);
+				mutex_exit(lockp);
+				return (0);
+			}
+
+#if defined(_KERNEL)
+			if (owned_tx) {
+				zfs_events_activate_arg_t *arg =
+				    kmem_alloc(sizeof (*arg), KM_SLEEP);
+				arg->aoa_os = os;
+				arg->aoa_ds = dmu_objset_ds(os);
+				(void) taskq_dispatch(system_taskq,
+				    zfs_events_activate_task, arg,
+				    TQ_SLEEP);
+			} else
+#endif
+			{
+				dsl_sync_task_nowait(
+				    dmu_objset_pool(os),
+				    zfs_events_feature_sync,
+				    dmu_objset_ds(os), tx);
+			}
+		} else if (err != 0) {
+			mutex_exit(lockp);
+			return (0);
+		}
+		*objp = obj;
+	}
+	mutex_exit(lockp);
+	return (obj);
+	}
+
+	static void
+	zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
+	uint64_t events_size, uint64_t *objp, kmutex_t *lockp, uint64_t txg)
 {
 	dmu_buf_t *dbp;
 	zfs_events_phys_t *zep;
@@ -532,103 +921,15 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
 	 * records, exactly as spa_history is guarded by
 	 * spa_history_lock.
 	 */
-	mutex_enter(lockp);
-
-	/* Use the caller's cached object id, or look it up once */
-	obj = *objp;
+	obj = zfs_events_get_obj(os, atx, events_size, objp, lockp,
+	    owned);
 	if (obj == 0) {
-		err = zap_lookup(os, MASTER_NODE_OBJ,
-		    ZFS_EVENTS_ZAP_NAME, sizeof (uint64_t), 1, &obj);
-		if (err == ENOENT) {
-			spa_t *spa = dmu_objset_spa(os);
-
-			/*
-			 * Check if the events feature is enabled
-			 * on the pool. If not, silently skip event
-			 * logging.
-			 */
-			if (!spa_feature_is_enabled(spa,
-			    SPA_FEATURE_EVENTS)) {
-				mutex_exit(lockp);
-				fnvlist_pack_free(packed, packed_len);
-				kmem_free(rec, total);
-				if (owned)
-					dmu_tx_commit(atx);
-				return;
-			}
-
-			err = zfs_events_create_obj(os, atx,
-			    events_size, &obj);
-			if (err != 0) {
-				mutex_exit(lockp);
-				fnvlist_pack_free(packed, packed_len);
-				kmem_free(rec, total);
-				if (owned)
-					dmu_tx_commit(atx);
-				return;
-			}
-
-			/* Add the object to the master node ZAP */
-			err = zap_add(os, MASTER_NODE_OBJ,
-			    ZFS_EVENTS_ZAP_NAME, sizeof (uint64_t), 1,
-			    &obj, atx);
-			if (err != 0) {
-				(void) dmu_object_free(os, obj, atx);
-				mutex_exit(lockp);
-				fnvlist_pack_free(packed, packed_len);
-				kmem_free(rec, total);
-				if (owned)
-					dmu_tx_commit(atx);
-				return;
-			}
-
-
-			/*
-			 * Activate the events feature on first use.
-			 * dsl_dataset_activate_feature() requires a
-			 * syncing transaction, so defer it to this
-			 * txg's sync pass (see
-			 * zfs_events_feature_sync).
-			 *
-			 * dsl_sync_task_nowait() queues on the passed
-			 * tx's txg and runs at its sync, so the tx must
-			 * still be uncommitted when it runs: only the
-			 * CALLER's tx qualifies. With an ad-hoc tx
-			 * (owned), dispatch a taskq work item that opens
-			 * its own transaction and activates there -
-			 * otherwise a dataset whose very first event is
-			 * an IO record would create the log without
-			 * ever activating the feature, breaking the
-			 * refcount/destroy symmetry. (Userspace builds
-			 * keep the old defer-to-caller-tx behavior.)
-			 */
-#if defined(_KERNEL)
-			if (owned) {
-				zfs_events_activate_arg_t *arg =
-				    kmem_alloc(sizeof (*arg), KM_SLEEP);
-				arg->aoa_os = os;
-				arg->aoa_ds = dmu_objset_ds(os);
-				(void) taskq_dispatch(system_taskq,
-				    zfs_events_activate_task,
-				    arg, TQ_SLEEP);
-			} else
-#endif
-			{
-				dsl_sync_task_nowait(
-				    dmu_objset_pool(os),
-				    zfs_events_feature_sync,
-				    dmu_objset_ds(os), atx);
-			}
-		} else if (err != 0) {
-			/* Some other error, bail out */
-			mutex_exit(lockp);
-			fnvlist_pack_free(packed, packed_len);
-			kmem_free(rec, total);
-			if (owned)
-				dmu_tx_commit(atx);
-			return;
-		}
-		*objp = obj;
+		/* No log object: nothing to append. */
+		fnvlist_pack_free(packed, packed_len);
+		kmem_free(rec, total);
+		if (owned)
+			dmu_tx_commit(atx);
+		return;
 	}
 
 	/* Get the event log header from bonus buffer */
@@ -928,6 +1229,44 @@ zfs_events_io_emit(znode_t *zp, objset_t *os, boolean_t is_write,
 }
 
 /*
+ * Flush a file's pending IO windows only if they are past the fence
+ * expiry (i.e. the fence would have emitted them by now). Used at
+ * close(2): flushing unconditionally there destroys coalescing for
+ * short-lived files, whose next open could otherwise absorb into the
+ * still-young window. Young windows survive close on the znode; they
+ * are emitted by the fence on the file's next IO, or by
+ * zfs_inactive() when the file's last reference goes away.
+ */
+void
+zfs_events_io_flush_expired(znode_t *zp, objset_t *os)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	hrtime_t now, window_ns, start;
+
+	if (!zfsvfs->z_events || !zfsvfs->z_events_io || zfsvfs->z_replay)
+		return;
+
+	window_ns = (hrtime_t)zfsvfs->z_events_io_window *
+	    (NANOSEC / MILLISEC);
+	if (window_ns == 0)
+		return;
+
+	now = gethrtime();
+
+	mutex_enter(&zp->z_lock);
+	start = zp->z_ev_io_wstart;
+	mutex_exit(&zp->z_lock);
+	if (start != 0 && now - start >= window_ns)
+		zfs_events_io_flush(zp, os, NULL, B_TRUE);
+
+	mutex_enter(&zp->z_lock);
+	start = zp->z_ev_io_rstart;
+	mutex_exit(&zp->z_lock);
+	if (start != 0 && now - start >= window_ns)
+		zfs_events_io_flush(zp, os, NULL, B_FALSE);
+}
+
+/*
  * Flush a file's pending IO window early, so pending IO records precede
  * an op record (CREATE/REMOVE/RENAME/...) about to be emitted on the
  * same transaction. tx may be NULL (open-txg attribution). A no-op when
@@ -1060,23 +1399,38 @@ zfs_events_io_account(struct znode *zp, boolean_t is_write,
 
 	if (window_ns == 0) {
 		/*
-		 * Fence disabled: emit every syscall immediately,
-		 * without touching z_lock at all - the pending-window
-		 * state is never read or written on this path, and the
-		 * emission can sleep (ad-hoc tx assign). Saving the
-		 * lock round-trip matters here: this is the per-syscall
-		 * configuration where every cycle of added cost lands
-		 * directly on read/write latency.
+		 * Fence disabled: one record per syscall, deferred.
+		 * The syscall only enqueues a fixed-size entry and
+		 * wakes the dataset's drain worker - it never builds
+		 * an nvlist, never assigns a transaction, never
+		 * sleeps (KM_NOSLEEP allocation; inline fallback if
+		 * the entry cannot be queued). The worker batches
+		 * everything queued into one transaction, so bulk IO
+		 * also amortizes ring-lock traffic and ring block
+		 * rewrites across whole batches instead of paying
+		 * per record.
 		 */
-		if (is_write) {
-			zfs_events_log_write(zfsvfs->z_os,
-			    NULL, zp->z_id, offset, bytes, cr,
-			    zfsvfs->z_events_size, &zfsvfs->z_events_obj,
-			    &zfsvfs->z_events_lock, txg);
-		} else {
-			zfs_events_log_read(zfsvfs->z_os, zp->z_id,
-			    offset, bytes, cr, zfsvfs->z_events_size,
-			    &zfsvfs->z_events_obj, &zfsvfs->z_events_lock);
+		uint16_t op = is_write ? ZFS_EV_WRITE : ZFS_EV_READ;
+
+		if (!zfs_events_io_defer(zfsvfs, op, zp->z_id, offset,
+		    bytes, cr, txg)) {
+			/*
+			 * Queue full or taskq unavailable: emit
+			 * inline as before. Never silently drop.
+			 */
+			if (is_write) {
+				zfs_events_log_write(zfsvfs->z_os,
+				    NULL, zp->z_id, offset, bytes, cr,
+				    zfsvfs->z_events_size,
+				    &zfsvfs->z_events_obj,
+				    &zfsvfs->z_events_lock, txg);
+			} else {
+				zfs_events_log_read(zfsvfs->z_os,
+				    zp->z_id, offset, bytes, cr,
+				    zfsvfs->z_events_size,
+				    &zfsvfs->z_events_obj,
+				    &zfsvfs->z_events_lock);
+			}
 		}
 		return;
 	}

@@ -214,12 +214,14 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 		return (error);
 
 	/*
-	 * Flush any open IO event windows so a still-pending
-	 * window does not outlive the file's last reference
-	 * (open-txg attribution applies; no transaction here).
+	 * Flush IO event windows that are already past the fence
+	 * expiry so a stale window does not sit across opens.
+	 * Young windows are deliberately left pending: flushing
+	 * them here would end coalescing for short-lived files,
+	 * each emitting its own record per open/write/close cycle.
+	 * zfs_inactive() flushes whatever remains on final drop.
 	 */
-	zfs_events_io_flush(zp, zfsvfs->z_os, NULL, B_TRUE);
-	zfs_events_io_flush(zp, zfsvfs->z_os, NULL, B_FALSE);
+	zfs_events_io_flush_expired(zp, zfsvfs->z_os);
 
 	/* Decrement the synchronous opens in the znode */
 	if (!zfsvfs->z_issnap && (flag & O_SYNC))
@@ -4318,6 +4320,19 @@ zfs_inactive(struct inode *ip)
 		else
 			rw_enter(zti_lock, RW_READER);
 	}
+
+	/*
+	 * Last reference to the file: emit whatever IO windows close
+	 * left pending (young ones from the close-time expiry check).
+	 * Nothing will absorb them after this; losing them would
+	 * violate the bytes-never-dropped contract. The emission may
+	 * sleep on its ad-hoc transaction - no VFS locks are held
+	 * here beyond the teardown read lock, which the emission
+	 * does not take.
+	 */
+	zfs_events_io_flush(zp, zfsvfs->z_os, NULL, B_TRUE);
+	zfs_events_io_flush(zp, zfsvfs->z_os, NULL, B_FALSE);
+
 	if (zp->z_sa_hdl == NULL) {
 		if (need_unlock) {
 			if (no_lockdep)

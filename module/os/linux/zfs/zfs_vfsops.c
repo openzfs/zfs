@@ -30,6 +30,7 @@
 #include <sys/zfs_znode.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_dir.h>
+#include <sys/zfs_events.h>
 #include <sys/zil.h>
 #include <sys/fs/zfs.h>
 #include <sys/dmu.h>
@@ -711,6 +712,8 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 	mutex_init(&zfsvfs->z_znodes_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&zfsvfs->z_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&zfsvfs->z_events_lock, NULL, MUTEX_DEFAULT, NULL);
+	list_create(&zfsvfs->z_evq_deferred, sizeof (zfs_events_qent_t),
+	    offsetof(zfs_events_qent_t, qe_node));
 	list_create(&zfsvfs->z_all_znodes, sizeof (znode_t),
 	    offsetof(znode_t, z_link_node));
 	ZFS_TEARDOWN_INIT(zfsvfs);
@@ -731,6 +734,7 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 
 	error = zfsvfs_init(zfsvfs, os);
 	if (error != 0) {
+		zfs_events_drain_shutdown(zfsvfs);
 		if (zfsvfs->z_use_hold)
 			dmu_objset_rele(os, zfsvfs);
 		else
@@ -856,6 +860,7 @@ zfsvfs_free(zfsvfs_t *zfsvfs)
 
 	zfs_fuid_destroy(zfsvfs);
 
+	list_destroy(&zfsvfs->z_evq_deferred);
 	mutex_destroy(&zfsvfs->z_znodes_lock);
 	mutex_destroy(&zfsvfs->z_lock);
 	mutex_destroy(&zfsvfs->z_events_lock);
@@ -1558,6 +1563,7 @@ out:
 			 * the mount options vfs_t. Remove them from zfsvfs
 			 * so we don't try to free them.
 			 */
+			zfs_events_drain_shutdown(zfsvfs);
 			zfsvfs->z_vfs = NULL;
 
 			dmu_objset_disown(zfsvfs->z_os, B_TRUE, zfsvfs);
@@ -1639,8 +1645,10 @@ zfs_umount(struct super_block *sb)
 		mutex_exit(&os->os_user_ptr_lock);
 
 		/*
-		 * Finally release the objset
+		 * Drain any deferred IO-event records while the
+		 * objset is still owned, then release it.
 		 */
+		zfs_events_drain_shutdown(zfsvfs);
 		dmu_objset_disown(os, B_TRUE, zfsvfs);
 	}
 
