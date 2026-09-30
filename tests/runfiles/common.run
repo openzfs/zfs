@@ -1110,7 +1110,7 @@ tests = ['truncate_001_pos', 'truncate_002_pos', 'truncate_timestamps']
 tags = ['functional', 'truncate']
 
 [tests/functional/uncached]
-tests = ['uncached_dontcache', 'uncached_noreuse']
+tests = ['uncached_dontcache', 'uncached_noreuse', 'uncached_partial_write']
 tags = ['functional', 'uncached']
 
 [tests/functional/unlink]
