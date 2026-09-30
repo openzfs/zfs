@@ -47,6 +47,7 @@ static zmetad_config_t g_config;
 static zmetad_schema_t *g_schema;
 static volatile sig_atomic_t g_shutdown = 0;
 static volatile sig_atomic_t g_reload = 0;
+static volatile sig_atomic_t g_force_collect = 0;
 
 static void
 signal_handler(int sig)
@@ -63,6 +64,13 @@ signal_handler(int sig)
 }
 
 static void
+on_sigusr1(int sig)
+{
+	(void) sig;
+	g_force_collect = 1;
+}
+
+static void
 setup_signals(void)
 {
 	struct sigaction sa;
@@ -74,6 +82,9 @@ setup_signals(void)
 	sigaction(SIGTERM, &sa, NULL);
 	sigaction(SIGINT, &sa, NULL);
 	sigaction(SIGHUP, &sa, NULL);
+
+	sa.sa_handler = on_sigusr1;
+	sigaction(SIGUSR1, &sa, NULL);
 
 	/* Ignore SIGPIPE */
 	sa.sa_handler = SIG_IGN;
@@ -469,6 +480,19 @@ daemon_loop(zmetad_db_t *db)
 			if (g_config.verbose) {
 				printf("Configuration reloaded\n");
 			}
+		}
+
+		/*
+		 * Forced collect: SIGUSR1 requests an out-of-band
+		 * cycle, independent of the poll interval.
+		 */
+		if (g_force_collect) {
+			g_force_collect = 0;
+			if (g_config.verbose) {
+				printf("forced collect (SIGUSR1)\n");
+			}
+			collect_all_events(db);
+			last_collect = now;
 		}
 
 		/* Collect events at poll interval */
