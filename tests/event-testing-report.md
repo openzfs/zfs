@@ -192,3 +192,71 @@ each since fixed and verified:
 
 - `2915fd160` Activate org.openzfs:events as a per-dataset feature
 - `0b63259b1` Add zfs events -c to clear a dataset's event log
+
+## Addendum: IO-event (WRITE/READ) performance assessment (2026-09-30)
+
+Measured on zfs-meta (QEMU VM, 4 vCPU), debug build, buffered I/O,
+3 rounds per cell (all rounds recorded, median quoted). `events=off`
+is unreachable on a post-activation dataset (the one-way feature gate
+refuses `zfs set events=off` with "must be upgraded"), so the baseline
+is **events=on, events_io=off** - which performs no IO-record work.
+
+Method: sequential = dd 2 GiB (bs=1M) write / read to /dev/null;
+random = self-contained C loop, 50000 4K pwrite/pread ops at LCG
+random offsets over a 256M file (no fio on the VM). Ring growth via
+the lzc_get_events probe's records_lost counter delta around one 2 GiB
+sequential write. fs1 ring: events_size=1M (~10000 records).
+
+| Config (events=on)      | seq write | seq read | 4K rand write | 4K rand read |
+|-------------------------|-----------|----------|---------------|--------------|
+| events_io=off (base)    | 0.913 s   | 0.369 s  | 0.279 s       | 0.123 s      |
+| io=on, window=1000 (def)| 0.896 s   | 0.367 s  | 0.268 s       | 0.130 s      |
+| io=on, window=0         | 1.227 s   | 0.404 s  | 0.888 s       | 0.717 s      |
+| io=on, window=5000      | 0.917 s   | 0.370 s  | 0.270 s       | 0.120 s      |
+
+Full rounds (s):
+
+- io=off:  seqw 0.913/1.040/0.884  seqr 0.328/0.395/0.369  randw 0.279/0.261/0.289  randr 0.123/0.111/0.135
+- win1000: seqw 0.896/0.882/0.901  seqr 0.336/0.367/0.374  randw 0.286/0.268/0.252  randr 0.125/0.131/0.130
+- win0:    seqw 1.227/1.279/0.987  seqr 0.406/0.385/0.404  randw 1.065/0.854/0.888  randr 0.757/0.717/0.683
+- win5000: seqw 0.901/0.917/2.523  seqr 0.352/0.370/0.432  randw 0.264/0.270/0.289  randr 0.135/0.115/0.120
+
+Conclusions (debug build; treat absolute numbers as upper bounds):
+
+- **Default fence (window=1000) and window=5000 are free**: sequential
+  write within run variance of the io=off baseline (-2% to +0.4%);
+  4K random write/read within variance (-4% to +6%). The fence reduces
+  per-syscall accounting to a bytes+offset update on a pending window.
+- **window=0 (per-syscall capture) is the worst case, as designed**:
+  +34% sequential write time, +218% 4K random write, +383% median 4K
+  random read (0.717 vs 0.123 s). This is the headline number
+  justifying the time fence; it is the correct mode only for short,
+  targeted forensic captures.
+- **Ring growth**: at window=0, one 2 GiB dd (bs=1M) emits ~2048
+  WRITE records (one per dd chunk) - a ~10k-record 1M ring wraps in
+  roughly 10 GiB (~9-10 s) of sustained bulk I/O, incrementing
+  records_lost. At window=1000/5000 the same workload emits ~1 merged
+  record (whole dd inside one window) - records_lost delta of 2,
+  i.e. background noise only; a sustained-bulk-IO workload emits at
+  most one record per window period, so the ring effectively never
+  fills from I/O alone.
+- **Records per GiB written**: window=0 ~1024 rec/GiB (dd 1M chunks);
+  window=1000 <=1 rec/GiB at this throughput; window=5000 <=0.2.
+
+### IO-event behavioral e2e
+
+tests/events-io-e2e.sh (new, this leaf) encodes the wire-level
+assertions: gate-off isolation, write/read visibility with uid,
+zero-byte suppression, fence coalescing (window=2000 -> one merged
+byte-exact record), per-syscall behavior at window=0, WRITE-before-
+RENAME flush ordering, close flush, byte completeness. Green twice
+plus one independent orchestrator run; events-schema-e2e.sh still
+green (version-refusal step fixed to sudo python3 for the root-owned
+DB).
+
+### Commits (IO events)
+
+- `2b5555ff4` Opt-in WRITE/READ IO event auditing with per-file time fence
+- `85a340dc1` zmetad: schema v2 with WRITE/READ ops and IO fields
+- `d9fb50f52` zmetad: persist io_offset/io_bytes for WRITE/READ records
+- `8b17ebf48` tests: add IO-event e2e suite and fix schema-e2e privileges
