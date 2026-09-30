@@ -386,6 +386,13 @@ dsl_pool_close(dsl_pool_t *dp)
 	bpobj_close(&dp->dp_free_bpobj);
 	bpobj_close(&dp->dp_obsolete_bpobj);
 
+	/*
+	 * An in-progress error scrub keeps its errlog cursor open, which
+	 * holds a MOS object. Release it so the MOS can be evicted.
+	 */
+	if (dp->dp_scan != NULL)
+		zap_cursor_fini(&dp->dp_scan->errorscrub_cursor);
+
 	/* undo the dmu_objset_open_impl(mos) from dsl_pool_open() */
 	if (dp->dp_meta_objset != NULL)
 		dmu_objset_evict(dp->dp_meta_objset);

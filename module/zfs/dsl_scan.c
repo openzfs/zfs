@@ -813,11 +813,28 @@ dsl_scan_is_thorough_scrub(const dsl_scan_t *scn)
 	    scn->scn_phys.scn_flags & DSF_SCRUB_THOROUGH);
 }
 
+/*
+ * The in-core error scrub cursor holds the errlog ZAP open from
+ * zap_cursor_init_serialized() until zap_cursor_fini(), which also zeroes it.
+ */
+static boolean_t
+dsl_errorscrub_cursor_is_open(const dsl_scan_t *scn)
+{
+	return (scn->errorscrub_cursor.zc_zap != NULL);
+}
+
 static void
 dsl_errorscrub_sync_state(dsl_scan_t *scn, dmu_tx_t *tx)
 {
-	scn->errorscrub_phys.dep_cursor =
-	    zap_cursor_serialize(&scn->errorscrub_cursor);
+	/*
+	 * Only update the stored position from an open cursor. A closed
+	 * cursor would serialize as "end of ZAP", which would make a resumed
+	 * error scrub finish without visiting the remaining entries.
+	 */
+	if (dsl_errorscrub_cursor_is_open(scn)) {
+		scn->errorscrub_phys.dep_cursor =
+		    zap_cursor_serialize(&scn->errorscrub_cursor);
+	}
 
 	VERIFY0(zap_update(scn->scn_dp->dp_meta_objset,
 	    DMU_POOL_DIRECTORY_OBJECT,
@@ -974,8 +991,10 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 
 	/*
 	 * If we are starting a fresh scrub, we erase the error scrub
-	 * information from disk.
+	 * information from disk, and release the cursor of any error scrub
+	 * we are replacing.
 	 */
+	zap_cursor_fini(&scn->errorscrub_cursor);
 	memset(&scn->errorscrub_phys, 0, sizeof (scn->errorscrub_phys));
 	dsl_errorscrub_sync_state(scn, tx);
 
@@ -4363,6 +4382,29 @@ dsl_errorscrub_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		/* cancel the error scrub if resilver started */
 		dsl_scan_cancel(scn->scn_dp);
 		return;
+	}
+
+	/*
+	 * The cursor is not open if the pool was imported with an error
+	 * scrub in progress, or if opening it previously failed. Reopen it
+	 * at the stored position. If that fails, try again next txg rather
+	 * than treating the failure as the end of the error log.
+	 */
+	if (!dsl_errorscrub_cursor_is_open(scn)) {
+		if (spa->spa_errlog_last == 0) {
+			/* Nothing left to scrub. */
+			dsl_errorscrub_done(scn, B_TRUE, tx);
+			dsl_errorscrub_sync_state(scn, tx);
+			return;
+		}
+		int err = zap_cursor_init_serialized(&scn->errorscrub_cursor,
+		    spa->spa_meta_objset, spa->spa_errlog_last,
+		    scn->errorscrub_phys.dep_cursor);
+		if (err != 0) {
+			zfs_dbgmsg("error scrub on %s: failed to open errlog "
+			    "cursor [error=%d]", spa_name(spa), err);
+			return;
+		}
 	}
 
 	spa->spa_scrub_active = B_TRUE;
