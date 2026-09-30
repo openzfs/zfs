@@ -378,6 +378,14 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/rsend/dedup_encrypted_zvol.bz2 \
 	functional/rsend/dedup_encrypted_zvol.zsend.bz2 \
 	functional/rsend/dedup.zsend.bz2 \
+	functional/rsend/embedded-blksz-mismatch.zsend.bz2 \
+	functional/rsend/embedded-compress-empty.zsend.bz2 \
+	functional/rsend/embedded-compress-inherit.zsend.bz2 \
+	functional/rsend/embedded-compress-off.zsend.bz2 \
+	functional/rsend/embedded-compress-on.zsend.bz2 \
+	functional/rsend/embedded-uncompressed-112-len4096.zsend.bz2 \
+	functional/rsend/embedded-uncompressed-112.zsend.bz2 \
+	functional/rsend/embedded-uncompressed-64.zsend.bz2 \
 	functional/rsend/embspill.dat.bz2 \
 	functional/rsend/fs.tar.gz \
 	functional/rsend/rsend.cfg \
@@ -2262,8 +2270,12 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send-c_verify_ratio.ksh \
 	functional/rsend/send-c_volume.ksh \
 	functional/rsend/send-cpL_varied_recsize.ksh \
+	functional/rsend/recv_embedded_blksz_neg.ksh \
+	functional/rsend/recv_embedded_compress_neg.ksh \
+	functional/rsend/recv_embedded_uncompressed_neg.ksh \
 	functional/rsend/send_doall.ksh \
 	functional/rsend/send_embedded_large_block.ksh \
+	functional/rsend/send_embedded_large_block_incremental.ksh \
 	functional/rsend/send_embedded_spill_block.ksh \
 	functional/rsend/send_encrypted_incremental.ksh \
 	functional/rsend/send_encrypted_files.ksh \
