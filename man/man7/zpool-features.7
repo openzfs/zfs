@@ -629,6 +629,17 @@ This feature enables file-level event logging for datasets.
 When enabled, ZFS records metadata operations
 .Pq create, delete, rename, link, truncate, setattr
 in an internal ring buffer within each dataset.
+When the
+.Sy events_io
+property is set to
+.Sy on ,
+it additionally records file content access as
+.Sy WRITE
+and
+.Sy READ
+events, coalesced by the
+.Sy events_io_window
+property.
 .Pp
 Event logging is controlled per-dataset via the
 .Sy events

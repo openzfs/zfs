@@ -15,7 +15,7 @@
 .\"
 .\" Copyright (c) 2026, OpenZFS Contributors. All rights reserved.
 .\"
-.Dd March 9, 2026
+.Dd September 29, 2026
 .Dt ZFS-EVENTS 8
 .Os
 .
@@ -74,16 +74,120 @@ Symbolic link created
 File truncated
 .It Sy SETATTR
 File attributes changed (permissions, ownership, times)
+.It Sy WRITE
+File content written (requires
+.Sy events_io Ns = Ns Sy on )
+.It Sy READ
+File content read (requires
+.Sy events_io Ns = Ns Sy on )
 .El
 .Pp
-Note that individual
+.Sy WRITE
+and
+.Sy READ
+events are recorded only when the
+.Sy events_io
+property is set to
+.Sy on ;
+see
+.Sx IO AUDITING
+below.
+.
+.Sh IO AUDITING
+In addition to the metadata operations above,
+.Nm zfs Cm events
+can record file content access as
+.Sy WRITE
+and
+.Sy READ
+events.
+IO auditing is disabled by default and is enabled per dataset:
+.Bd -literal -offset indent
+# zfs set events_io=on tank/data
+.Ed
+.Pp
+The
+.Sy events
+property must be set to
+.Sy on
+for IO auditing to have an effect.
+Each
+.Sy WRITE
+or
+.Sy READ
+record carries
+.Sy io_offset
+and
+.Sy io_bytes
+in addition to the common fields; in JSON output they appear as
+.Sy io_offset
+and
+.Sy io_bytes
+members.
+.Pp
+IO events are coalesced by a per-file, per-direction time fence
+controlled by the
+.Sy events_io_window
+property (milliseconds, 0 to 3600000, default 1000).
+While the window is open, I/O to the same file in the same direction
+is absorbed into a single pending record: byte counts are summed into
+.Sy io_bytes ,
+and
+.Sy io_offset
+is the window's first offset.
+Bytes are coalesced, never dropped: every byte written or read while
+the window is open appears in exactly one record's
+.Sy io_bytes .
+The window closes on the next I/O past the window, on any non-IO
+event for the same file (records keep cause order, so a
+.Sy WRITE
+followed by a
+.Sy RENAME
+is emitted in that order), and on
+.Xr close 2 .
+.Pp
+The
+.Sy uid
+and
+.Sy gid
+of a coalesced record are those of the caller whose I/O triggered
+emission; windows containing I/O from multiple writers are
+attributed to the emitter.
+Setting
+.Sy events_io_window=0
+disables the fence and records every
 .Xr write 2
-operations are not logged, as this would generate excessive events.
-File modifications can be inferred from
-.Sy SETATTR
-events that update
-.Sy mtime ,
-or by comparing snapshots.
+and
+.Xr read 2
+call individually.
+.Pp
+A
+.Sy WRITE
+record carries the transaction group of the write's final
+transaction.
+A
+.Sy READ
+record carries the pool's open transaction group at the time of the
+read; reads create no transaction of their own, so this value is a
+commit-timeline anchor, not a claim that the read was part of that
+transaction group.
+.Pp
+Limitations:
+.Bl -bullet -compact -offset indent
+.It
+Writes performed through
+.Xr mmap 2
+bypass the VFS read/write paths and generate no IO events.
+.It
+At
+.Sy events_io_window=0 ,
+sustained bulk I/O emits a record per syscall (roughly 1024 records
+per GiB with 1M block size) and can wrap a small event ring
+continuously; size
+.Sy events_size
+accordingly or use a nonzero window, which emits at most one record
+per window period.
+.El
 .
 .Sh OPTIONS
 .Bl -tag -width "-t @snap..@snap"
@@ -138,6 +242,15 @@ Path to the affected file
 .It Sy OLD_PATH
 For RENAME events, the previous path
 .El
+.Pp
+.Sy WRITE
+and
+.Sy READ
+events additionally carry
+.Sy IO_OFFSET
+(the window's first offset) and
+.Sy IO_BYTES
+(the summed byte total for the window) in JSON output.
 .
 .Sh EXAMPLES
 .Ss Example 1: Viewing recent events on a dataset
@@ -176,6 +289,15 @@ TXG      TIME                 OBJECT  EVENT    PATH
 .Ss Example 5: Events between two snapshots
 .Bd -literal -offset indent
 # zfs events -t @monday..@friday tank/data
+.Ed
+.Ss Example 6: IO auditing
+.Bd -literal -offset indent
+# zfs set events_io=on tank/data
+# zfs set events_io_window=5000 tank/data
+# dd if=/dev/zero of=/tank/data/blob bs=1M count=64
+# zfs events -j -n 1 tank/data
+{"txg":1861,"object":130,"op":"WRITE","name":"blob",
+ "io_offset":0,"io_bytes":67108864,"uid":1000,"gid":1000}
 .Ed
 .
 .Sh ENVIRONMENT VARIABLES

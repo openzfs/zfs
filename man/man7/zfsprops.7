@@ -1355,6 +1355,83 @@ For datasets generating high volumes of events, consider increasing this value
 or using
 .Xr zmetad 8
 to export events to an external database before they are overwritten.
+.It Sy events_io Ns = Ns Sy on Ns | Ns Sy off
+Controls whether file content access is recorded as
+.Sy WRITE
+and
+.Sy READ
+events in this dataset's event log.
+When enabled, writes and reads performed through the
+.Xr write 2
+and
+.Xr read 2
+paths generate events carrying
+.Sy io_offset
+and
+.Sy io_bytes ;
+see
+.Xr zfs-events 8
+for the record semantics.
+.Pp
+The default value is
+.Sy off .
+This property is inherited by descendant datasets.
+This property has no effect unless the
+.Sy events
+property is set to
+.Sy on ;
+the default configuration's behavior is identical to
+.Sy events
+alone.
+Coalescing of IO events is controlled by the
+.Sy events_io_window
+property.
+.It Sy events_io_window Ns = Ns Ar milliseconds
+Specifies the coalescing window for
+.Sy WRITE
+and
+.Sy READ
+events in this dataset.
+While the window is open, I/O to the same file in the same direction is
+absorbed into a single pending event: byte counts are summed into
+.Sy io_bytes
+and
+.Sy io_offset
+is the window's first offset.
+Bytes are coalesced, never dropped.
+The window closes on the next I/O past the window, on any non-IO event
+for the same file, and on
+.Xr close 2 .
+.Pp
+The value must be between
+.Sy 0
+and
+.Sy 3600000
+milliseconds (one hour).
+The default value is
+.Sy 1000
+(1 second).
+A value of
+.Sy 0
+disables the fence and records every
+.Xr write 2
+and
+.Xr read 2
+call individually; set it to
+.Sy 0
+only for short forensic captures, as sustained bulk I/O at window
+.Sy 0
+will wrap the event ring continuously.
+Size
+.Sy events_size
+accordingly or use a nonzero window.
+This property has no effect unless the
+.Sy events
+and
+.Sy events_io
+properties are set to
+.Sy on .
+This property is inherited by descendant datasets.
 .It Sy exec Ns = Ns Sy on Ns | Ns Sy off
 Controls whether processes can be executed from within this file system.
 The default value is
