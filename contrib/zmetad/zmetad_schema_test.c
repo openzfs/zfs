@@ -61,11 +61,21 @@ main(void)
 		return (1);
 	}
 
-	REQUIRE(zmetad_schema_version(zs) == 1);
-	REQUIRE(zmetad_schema_nfields(zs) == 15);
-	REQUIRE(zmetad_schema_check_version(zs, 1) == 0);
+	REQUIRE(zmetad_schema_version(zs) == 2);
+	REQUIRE(zmetad_schema_nfields(zs) == 17);
+
+	/*
+	 * Wire negotiation: the embedded schema is v2, so wire 2 is
+	 * accepted and wire 3 refused.  Wire 1 is accepted: schema versions
+	 * only add fields and op values, so a v2 daemon decodes a v1
+	 * wire record (datasets whose event log predates the version
+	 * bump report wire=1 forever).  Wire 0 always means "kernel
+	 * did not report a version".
+	 */
+	REQUIRE(zmetad_schema_check_version(zs, 2) == 0);
 	REQUIRE(zmetad_schema_check_version(zs, 0) == 0);
-	REQUIRE(zmetad_schema_check_version(zs, 2) == EINVAL);
+	REQUIRE(zmetad_schema_check_version(zs, 1) == 0);
+	REQUIRE(zmetad_schema_check_version(zs, 3) == EINVAL);
 
 	/*
 	 * op must be declared uint16; the field lookup on a uint64-
@@ -133,9 +143,43 @@ main(void)
 	REQUIRE(strcmp(zmetad_schema_op_name(zs, 0), "NONE") == 0);
 	REQUIRE(strcmp(zmetad_schema_op_name(zs, 2), "REMOVE") == 0);
 	REQUIRE(strcmp(zmetad_schema_op_name(zs, 7), "SETATTR") == 0);
+	REQUIRE(strcmp(zmetad_schema_op_name(zs, 8), "WRITE") == 0);
+	REQUIRE(strcmp(zmetad_schema_op_name(zs, 9), "READ") == 0);
 	REQUIRE(strcmp(zmetad_schema_op_name(zs, 999), "UNKNOWN") == 0);
 
-	zmetad_schema_free(zs);
+	/*
+	 * v2 IO fields: io_offset and io_bytes decode as uint64 on a
+	 * synthetic WRITE record.
+	 */
+	rec = fnvlist_alloc();
+	REQUIRE(rec != NULL);
+	fnvlist_add_uint16(rec, "op", 8);
+	fnvlist_add_uint64(rec, "io_offset", 1ULL << 40);
+	fnvlist_add_uint64(rec, "io_bytes", 65536);
+
+	rc = zmetad_schema_field(zs, "io_offset", rec, &u64, &nelem,
+	    &dtype);
+	REQUIRE(rc == 0);
+	REQUIRE(u64 == (1ULL << 40));
+	REQUIRE(dtype == DATA_TYPE_UINT64);
+
+	rc = zmetad_schema_field(zs, "io_bytes", rec, &u64, &nelem,
+	    &dtype);
+	REQUIRE(rc == 0);
+	REQUIRE(u64 == 65536);
+	REQUIRE(dtype == DATA_TYPE_UINT64);
+
+	/*
+	 * op now carries WRITE (8). The uint16 decoder writes only the
+	 * low 16 bits of the caller's storage, so zero it first.
+	 */
+	u64 = 0;
+	rc = zmetad_schema_field(zs, "op", rec, &u64, &nelem, &dtype);
+	REQUIRE(rc == 0);
+	REQUIRE(u64 == 8);
+	REQUIRE(dtype == DATA_TYPE_UINT16);
+
+	fnvlist_free(rec);
 
 	/* Malformed documents must be rejected with a message. */
 	static const char *const bad_docs[] = {

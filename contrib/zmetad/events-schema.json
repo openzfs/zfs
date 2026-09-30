@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "record_format": {
     "encoding": "nvlist-packed-native",
     "record_header": "uint64 little-endian payload length",
@@ -34,9 +34,11 @@
           "LINK",
           "SYMLINK",
           "TRUNCATE",
-          "SETATTR"
+          "SETATTR",
+          "WRITE",
+          "READ"
         ],
-        "desc": "operation type"
+        "desc": "operation type; WRITE and READ are opt-in (events_io) and coalesced by the events_io_window fence: io_offset is the window's first offset, io_bytes the summed total"
       },
       "name": {
         "type": "string",
@@ -125,6 +127,26 @@
         "since": 1,
         "always": false,
         "desc": "group ID"
+      },
+      "io_offset": {
+        "type": "uint64",
+        "since": 2,
+        "always": false,
+        "ops": [
+          "WRITE",
+          "READ"
+        ],
+        "desc": "IO start offset; when the fence window is open, the window's first offset"
+      },
+      "io_bytes": {
+        "type": "uint64",
+        "since": 2,
+        "always": false,
+        "ops": [
+          "WRITE",
+          "READ"
+        ],
+        "desc": "IO byte count; when the fence window is open, the summed total of coalesced IOs"
       }
     },
     "invariants": [

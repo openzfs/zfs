@@ -626,11 +626,18 @@ zmetad_schema_check_version(const zmetad_schema_t *zs, uint64_t wire)
 	/*
 	 * wire == 0 means the kernel did not report a schema version at
 	 * all (pre-exposure kernels); that is always acceptable.
+	 *
+	 * A wire version OLDER than the daemon's is accepted: schema
+	 * versions only add fields and op values, so a v2 daemon decodes
+	 * a v1 wire record correctly (unknown ops surface as "UNKNOWN"
+	 * and absent optional fields as ENOENT). A wire version NEWER
+	 * than the daemon may carry records this daemon cannot decode
+	 * faithfully and is refused.
 	 */
 	if (wire == 0)
 		return (0);
 
-	if (wire != zs->version)
+	if (wire > zs->version)
 		return (EINVAL);
 
 	return (0);
@@ -763,9 +770,17 @@ zmetad_schema_free(zmetad_schema_t *zs)
  * Embedded copy of the canonical schema document, byte-identical to
  * contrib/zmetad/events-schema.json.
  */
+/*
+ * Embedded copy of the canonical schema document, byte-identical to
+ * contrib/zmetad/events-schema.json.
+ */
+/*
+ * Embedded copy of the canonical schema document, byte-identical to
+ * contrib/zmetad/events-schema.json.
+ */
 const char *ZMETAD_EMBEDDED_SCHEMA_JSON =
 	"{\n"
-	"  \"schema_version\": 1,\n"
+	"  \"schema_version\": 2,\n"
 	"  \"record_format\": {\n"
 	"    \"encoding\": \"nvlist-packed-native\",\n"
 	"    \"record_header\": \"uint64 little-endian payload length\",\n"
@@ -800,9 +815,13 @@ const char *ZMETAD_EMBEDDED_SCHEMA_JSON =
 	"          \"LINK\",\n"
 	"          \"SYMLINK\",\n"
 	"          \"TRUNCATE\",\n"
-	"          \"SETATTR\"\n"
+	"          \"SETATTR\",\n"
+	"          \"WRITE\",\n"
+	"          \"READ\"\n"
 	"        ],\n"
-	"        \"desc\": \"operation type\"\n"
+	"        \"desc\": \"operation type; WRITE and READ are opt-in"
+	" (events_io) and coalesced by the events_io_window fence: io_offset"
+	" is the window's first offset, io_bytes the summed total\"\n"
 	"      },\n"
 	"      \"name\": {\n"
 	"        \"type\": \"string\",\n"
@@ -891,14 +910,36 @@ const char *ZMETAD_EMBEDDED_SCHEMA_JSON =
 	"        \"since\": 1,\n"
 	"        \"always\": false,\n"
 	"        \"desc\": \"group ID\"\n"
+	"      },\n"
+	"      \"io_offset\": {\n"
+	"        \"type\": \"uint64\",\n"
+	"        \"since\": 2,\n"
+	"        \"always\": false,\n"
+	"        \"ops\": [\n"
+	"          \"WRITE\",\n"
+	"          \"READ\"\n"
+	"        ],\n"
+	"        \"desc\": \"IO start offset; when the fence window is open,"
+	" the window's first offset\"\n"
+	"      },\n"
+	"      \"io_bytes\": {\n"
+	"        \"type\": \"uint64\",\n"
+	"        \"since\": 2,\n"
+	"        \"always\": false,\n"
+	"        \"ops\": [\n"
+	"          \"WRITE\",\n"
+	"          \"READ\"\n"
+	"        ],\n"
+	"        \"desc\": \"IO byte count; when the fence window is open,"
+	" the summed total of coalesced IOs\"\n"
 	"      }\n"
 	"    },\n"
 	"    \"invariants\": [\n"
 	"      \"consumers MUST ignore fields they do not recognize (forward"
 	" compat)\",\n"
 	"      \"op values outside the enum MUST decode as UNKNOWN\",\n"
-	"      \"names are dataset-relative at event time; "
-	"resolve stability via object id\"\n"
+	"      \"names are dataset-relative at event time; resolve stability"
+	" via object id\"\n"
 	"    ]\n"
 	"  }\n"
 	"}\n";
