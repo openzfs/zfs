@@ -6803,9 +6803,23 @@ vdev_prop_get(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 				    vd->vdev_stat.vs_esize, ZPROP_SRC_NONE);
 				continue;
 			case VDEV_PROP_FRAGMENTATION:
+				/*
+				 * vdev_stat.vs_fragmentation is never updated,
+				 * it's only filled in vdev_get_stats_ex() copy.
+				 * Report the same values as "zpool list -v".
+				 */
+				if (vd == spa->spa_root_vdev) {
+					intval = metaslab_class_fragmentation(
+					    spa_normal_class(spa));
+				} else if (vd == vd->vdev_top &&
+				    vd->vdev_mg != NULL &&
+				    vdev_is_concrete(vd)) {
+					intval = vd->vdev_mg->mg_fragmentation;
+				} else {
+					intval = ZFS_FRAG_INVALID;
+				}
 				vdev_prop_add_list(outnvl, propname, NULL,
-				    vd->vdev_stat.vs_fragmentation,
-				    ZPROP_SRC_NONE);
+				    intval, ZPROP_SRC_NONE);
 				continue;
 			case VDEV_PROP_PARITY:
 				vdev_prop_add_list(outnvl, propname, NULL,
