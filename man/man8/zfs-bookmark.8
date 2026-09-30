@@ -21,7 +21,7 @@
 .\" Copyright 2019 Joyent, Inc.
 .\" Copyright (c) 2019, 2020 by Christian Schwarz. All Rights Reserved.
 .\"
-.Dd July 11, 2022
+.Dd October 1, 2026
 .Dt ZFS-BOOKMARK 8
 .Os
 .
@@ -47,7 +47,20 @@ datasets.
 The source must be a snapshot, and a bookmark is created only for the
 descendants that have a snapshot of that name; descendants without it are
 skipped.
+The dataset of
+.Ar newbookmark ,
+if given, must be the same as that of the source snapshot.
 .El
+.Pp
+Either the source or
+.Ar newbookmark
+may be given in short form
+.Po
+.Sy @ Ns Ar snapshot
+or
+.Sy # Ns Ar bookmark
+.Pc ,
+in which case its dataset is taken from the other argument.
 .Pp
 When creating a bookmark from an existing redaction bookmark, the resulting
 bookmark is
