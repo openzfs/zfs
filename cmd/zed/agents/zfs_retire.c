@@ -182,6 +182,7 @@ remove_spares(zpool_handle_t *zhp, void *data)
 			if (vs->vs_state != VDEV_STATE_REMOVED &&
 			    zpool_vdev_remove_wanted(zhp, devname) == 0)
 				cbp->cb_num_spares++;
+			free(devname);
 			break;
 		}
 	}
@@ -267,31 +268,37 @@ is_draid_fdomain_failure(fmd_hdl_t *hdl, libzfs_handle_t *zhdl,
     uint64_t pool_guid, uint64_t vdev_guid)
 {
 	uint64_t guid, top_guid;
-	uint64_t children;
-	nvlist_t *nvtop, *vdev, **child;
+	uint64_t children = 0;
+	zpool_handle_t *zhp;
+	nvlist_t *config, *nvroot, *nvtop, *vdev, **child;
 	vdev_stat_t *vs;
 	uint_t i, c, vdev_i = UINT_MAX, width, *nfaults_map = NULL;
 	boolean_t res = B_FALSE;
 
 	for (int try = 0; try < 4; try++) {
-		if (find_by_guid_impl(zhdl, pool_guid, vdev_guid, &vdev,
-		    &top_guid) == NULL)
-			return (B_FALSE);
+		/*
+		 * Re-open the pool on every try to get fresh vdev states.
+		 * The vdev and top-level vdev nvlists point into the pool
+		 * config, so the handle must stay open until we are done
+		 * with them.
+		 */
+		if ((zhp = find_by_guid_impl(zhdl, pool_guid, vdev_guid,
+		    &vdev, &top_guid)) == NULL)
+			break;
 
-		if (find_by_guid_impl(zhdl, pool_guid, top_guid, &nvtop,
-		    NULL) == NULL)
-			return (B_FALSE);
-
-		if (nvlist_lookup_nvlist_array(nvtop, ZPOOL_CONFIG_CHILDREN,
-		    &child, &width) != 0)
-			return (B_FALSE);
-
-		if (nvlist_lookup_uint64(nvtop, ZPOOL_CONFIG_DRAID_NCHILDREN,
-		    &children) != 0) /* not dRAID */
-			return (B_FALSE);
-
-		if (width == children) /* dRAID without failure domains */
-			return (B_FALSE);
+		config = zpool_get_config(zhp, NULL);
+		if (top_guid == 0 ||
+		    nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
+		    &nvroot) != 0 ||
+		    (nvtop = find_vdev(zhdl, nvroot, top_guid, NULL)) == NULL ||
+		    nvlist_lookup_nvlist_array(nvtop, ZPOOL_CONFIG_CHILDREN,
+		    &child, &width) != 0 ||
+		    nvlist_lookup_uint64(nvtop, ZPOOL_CONFIG_DRAID_NCHILDREN,
+		    &children) != 0 || /* not dRAID */
+		    width == children) { /* dRAID without failure domains */
+			zpool_close(zhp);
+			break;
+		}
 
 		if (nfaults_map == NULL)
 			nfaults_map = fmd_hdl_alloc(hdl,
@@ -310,6 +317,8 @@ is_draid_fdomain_failure(fmd_hdl_t *hdl, libzfs_handle_t *zhdl,
 			    &guid) == 0 && guid == vdev_guid)
 				vdev_i = (c % children);
 		}
+
+		zpool_close(zhp);
 
 		for (c = 0; c < children; c++) {
 			if (c == vdev_i &&
@@ -331,7 +340,9 @@ is_draid_fdomain_failure(fmd_hdl_t *hdl, libzfs_handle_t *zhdl,
 		sleep(5);
 	}
 
-	fmd_hdl_free(hdl, nfaults_map, children * sizeof (*nfaults_map));
+	if (nfaults_map != NULL)
+		fmd_hdl_free(hdl, nfaults_map,
+		    children * sizeof (*nfaults_map));
 
 	if (res)
 		fmd_hdl_debug(hdl, "vdev %llu belongs to draid fdomain failure",
@@ -595,6 +606,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 		const char *devtype;
 		char *devname;
 		boolean_t skip_removal = B_FALSE;
+		int remove_status = 0;
 
 		if (nvlist_lookup_string(nvl, FM_EREPORT_PAYLOAD_ZFS_VDEV_TYPE,
 		    &devtype) == 0) {
@@ -633,7 +645,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 		    (uint64_t **)&vs, &c);
 
 		if (vs->vs_state == VDEV_STATE_OFFLINE)
-			return;
+			goto removed_out;
 
 		/*
 		 * Resilvering domain failures can take a lot of computing and
@@ -641,7 +653,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 		 * domain component (for example enclosure) is replaced.
 		 */
 		if (is_draid_fdomain_failure(hdl, zhdl, pool_guid, vdev_guid))
-			return;
+			goto removed_out;
 
 		/*
 		 * If state removed is requested for already removed vdev,
@@ -654,12 +666,11 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 			    nvlist_exists(nvl, "by_kernel")) {
 				skip_removal = B_TRUE;
 			} else {
-				return;
+				goto removed_out;
 			}
 		}
 
 		/* Remove the vdev since device is unplugged */
-		int remove_status = 0;
 		if (!skip_removal && (l2arc ||
 		    (strcmp(class, "resource.fs.zfs.removed") == 0))) {
 			remove_status = zpool_vdev_remove_wanted(zhp, devname);
@@ -675,6 +686,7 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 			fmd_hdl_debug(hdl, "no spare for '%s'", devname);
 		}
 
+removed_out:
 		free(devname);
 		zpool_close(zhp);
 		return;
@@ -823,8 +835,10 @@ zfs_retire_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl,
 		 * I/O bandwidth resources, only to be wasted when the failed
 		 * domain component (for example enclosure) is replaced.
 		 */
-		if (is_draid_fdomain_failure(hdl, zhdl, pool_guid, vdev_guid))
-			return;
+		if (is_draid_fdomain_failure(hdl, zhdl, pool_guid, vdev_guid)) {
+			zpool_close(zhp);
+			continue;
+		}
 
 		/*
 		 * Attempt to substitute a hot spare.
