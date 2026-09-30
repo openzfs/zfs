@@ -138,6 +138,7 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/getversion
 scripts_zfs_tests_bin_PROGRAMS += %D%/user_ns_exec
 scripts_zfs_tests_bin_PROGRAMS += %D%/makedir
 scripts_zfs_tests_bin_PROGRAMS += %D%/mount_null_source
+scripts_zfs_tests_bin_PROGRAMS += %D%/open_by_fid
 scripts_zfs_tests_bin_PROGRAMS += %D%/renameat2
 scripts_zfs_tests_bin_PROGRAMS += %D%/statx
 scripts_zfs_tests_bin_PROGRAMS += %D%/statfs_nomount
