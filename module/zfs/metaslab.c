@@ -2403,9 +2403,6 @@ metaslab_verify_weight_and_frag(metaslab_t *msp)
 	uint64_t frag = msp->ms_fragmentation;
 	uint64_t max_segsize = msp->ms_max_size;
 
-	msp->ms_weight = 0;
-	msp->ms_fragmentation = 0;
-
 	if (was_active != 0 && metaslab_verify_weight_delay_ms != 0) {
 		zfs_dbgmsg("delaying %u ms: spa %s vdev %llu ms %llu",
 		    metaslab_verify_weight_delay_ms, spa_name(vd->vdev_spa),
@@ -2422,27 +2419,40 @@ metaslab_verify_weight_and_frag(metaslab_t *msp)
 	 * (and therefore the value of ms_weight) would be the same if it
 	 * was to be recalculated at this point.
 	 *
+	 * The recalculated weight is kept in a local variable rather than
+	 * being stored in ms_weight.  We only hold ms_lock here, but open
+	 * context allocators read ms_weight of their active metaslabs under
+	 * mg_lock alone (e.g. metaslab_group_alloc() asserting that the
+	 * metaslab is still active), and ms_weight is also the sort key of
+	 * the metaslab group's AVL tree.  Temporarily clearing it would thus
+	 * race with those consumers.  Note that metaslab_weight() only
+	 * consults the active bits of ms_weight, and we OR in was_active
+	 * below anyway, so leaving ms_weight untouched does not change the
+	 * result.
+	 *
+	 * metaslab_weight() always recomputes ms_fragmentation, so there is
+	 * no need to reset it beforehand either.
+	 *
 	 * In addition we set the nodirty flag so metaslab_weight() does
 	 * not dirty the metaslab for future TXGs (e.g. when trying to
 	 * force condensing to upgrade the metaslab spacemaps).
 	 */
-	msp->ms_weight = metaslab_weight(msp, B_TRUE) | was_active;
+	uint64_t new_weight = metaslab_weight(msp, B_TRUE) | was_active;
 
 	VERIFY3U(max_segsize, ==, msp->ms_max_size);
 
 	/*
 	 * If the weight type changed then there is no point in doing
-	 * verification. Revert fields to their original values.
+	 * verification. Revert ms_fragmentation to its original value.
 	 */
-	if ((space_based && !WEIGHT_IS_SPACEBASED(msp->ms_weight)) ||
-	    (!space_based && WEIGHT_IS_SPACEBASED(msp->ms_weight))) {
+	if ((space_based && !WEIGHT_IS_SPACEBASED(new_weight)) ||
+	    (!space_based && WEIGHT_IS_SPACEBASED(new_weight))) {
 		msp->ms_fragmentation = frag;
-		msp->ms_weight = weight;
 		return;
 	}
 
 	VERIFY3U(msp->ms_fragmentation, ==, frag);
-	VERIFY3U(msp->ms_weight, ==, weight);
+	VERIFY3U(new_weight, ==, weight);
 }
 
 /*
