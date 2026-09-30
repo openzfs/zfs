@@ -1679,6 +1679,19 @@ issue_data_read(struct send_reader_thread_arg *srta, struct send_range *range)
 	    arc_getbuf_func, &srdp->abuf, ZIO_PRIORITY_ASYNC_READ,
 	    zioflags, &aflags, &zb);
 	/*
+	 * The ARC only honors a request for compressed data if the header
+	 * is compressed, which is not the case for cached blocks when
+	 * zfs_compressed_arc_enabled=0.  Such a buffer holds the logical
+	 * data, while the record is sent with the block's compression and
+	 * psize, so read the block from disk instead.
+	 */
+	if (arc_err == 0 && srdp->io_compressed &&
+	    arc_get_compression(srdp->abuf) != BP_GET_COMPRESS(bp)) {
+		arc_buf_destroy(srdp->abuf, &srdp->abuf);
+		srdp->abuf = NULL;
+		arc_err = SET_ERROR(ENOENT);
+	}
+	/*
 	 * If the data is not already cached in the ARC, we read directly
 	 * from zio.  This avoids the performance overhead of adding a new
 	 * entry to the ARC, and we also avoid polluting the ARC cache with
