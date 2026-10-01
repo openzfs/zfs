@@ -186,7 +186,7 @@ typedef struct zfs_events_qent {
 	uint64_t		qe_uid;
 	uint64_t		qe_gid;
 	uint64_t		qe_txg;
-	uint64_t		qe_time;	/* hrtime at enqueue */
+	hrtime_t		qe_time;	/* gethrtime() at defer */
 } zfs_events_qent_t;
 
 extern void zfs_events_io_account(struct znode *zp, boolean_t is_write,
@@ -207,6 +207,11 @@ extern int zfs_events_get_lost(objset_t *os, uint64_t *lostp);
 extern int zfs_events_get_schema_version(objset_t *os, uint64_t *verp);
 extern int zfs_events_get_guid(objset_t *os, uint64_t *guidp);
 extern int zfs_events_get_eof(objset_t *os, uint64_t *eofp);
+/*
+ * Reset the ring header. *countp (optional) receives the number of
+ * BYTES of live record data discarded (zep_eof - zep_bof), not a
+ * record count - the ring does not track record counts.
+ */
 extern int zfs_events_clear(objset_t *os, dmu_tx_t *tx, uint64_t *countp);
 extern int zfs_events_clear_task(objset_t *os, kmutex_t *lockp);
 
