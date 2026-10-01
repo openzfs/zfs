@@ -357,18 +357,31 @@ step_ops() {
 	"${SUDO[@]}" sh -c ": > '$mnt/a/f2'" || fail "ops: truncate a/f2"
 	"${SUDO[@]}" ln -s tgt "$mnt/a/l1" || fail "ops: symlink a/l1"
 
-	# Poll interval is 3s; allow up to 30s for the RENAME row to land.
+	# Nested create plus a cross-directory rename. A resolver that
+	# only works while the objmap graph is empty accepts CREATE 'a'
+	# and then leaves a/b/c.txt NULL, and a same-directory rename
+	# does not prove old_full_path used the old parent.
+	"${SUDO[@]}" mkdir "$mnt/a/b" || fail "ops: mkdir a/b"
+	"${SUDO[@]}" dd if=/dev/zero of="$mnt/a/b/c.txt" bs=4096 count=1 \
+		status=none || fail "ops: write a/b/c.txt"
+	"${SUDO[@]}" mv "$mnt/a/b/c.txt" "$mnt/a/d.txt" ||
+		fail "ops: cross-dir rename a/b/c.txt -> a/d.txt"
+
+	# Poll interval is 3s; the cross-dir rename is the last op, so
+	# waiting for it also proves the earlier rows have been polled.
 	found=0
 	i=0
-	while [ "$i" -lt 15 ]; do
-		if db_has_rename "$WD/zmd.db" "$DS"; then
+	while [ "$i" -lt 20 ]; do
+		n="$(db_count "$WD/zmd.db" "$DS" RENAME d.txt 2>/dev/null || true)"
+		if [ "$n" = "1" ]; then
 			found=1
 			break
 		fi
 		sleep 2
 		i=$((i + 1))
 	done
-	[ "$found" -eq 1 ] || fail "ops: RENAME row never appeared within 30s"
+	[ "$found" -eq 1 ] ||
+		fail "ops: cross-dir RENAME d.txt never appeared within 40s"
 	pass ops
 }
 
@@ -487,6 +500,32 @@ _ren = con.execute(
     (ds,)).fetchone()
 if _ren is not None and (_ren[0] is None or _ren[1] is None):
     errors.append("RENAME full_path/old_full_path NULL: %r" % (_ren,))
+
+# Exact paths, not "ends with the name". A wrong parent still ends
+# with the basename, and that is the bug root_objid exists to fix.
+# Root object ids are not always 2, so these strings are the check.
+_exact = {
+    ("CREATE", "a"): "a",
+    ("CREATE", "b"): "a/b",
+    ("CREATE", "c.txt"): "a/b/c.txt",
+}
+_fp_rows = con.execute(
+    "select event_type, path, full_path from events where dataset=?",
+    (ds,)).fetchall()
+for (_t, _p), _want in _exact.items():
+    _got = [r[2] for r in _fp_rows if r[0] == _t and r[1] == _p]
+    if _want not in _got:
+        errors.append("%s %r full_path=%r, expected %r"
+                      % (_t, _p, _got, _want))
+_xren = con.execute(
+    "select full_path, old_full_path from events "
+    "where dataset=? and event_type='RENAME' and path=? and old_path=?",
+    (ds, "d.txt", "c.txt")).fetchone()
+if _xren is None:
+    errors.append("no cross-dir RENAME path='d.txt' old_path='c.txt'")
+elif _xren != ("a/d.txt", "a/b/c.txt"):
+    errors.append("cross-dir RENAME paths %r, expected "
+                  "('a/d.txt', 'a/b/c.txt')" % (_xren,))
 
 # parent is decoded on every name-bearing op; the CREATE row for 'a'
 # must carry a non-NULL parent object id, and the RENAME row must
@@ -1191,6 +1230,49 @@ PY
 	pass version-refusal
 }
 
+step_root_objid() {
+	# GET_EVENTS must return the mounted dataset's root object id.
+	# It is not always 2; compare it to the mountpoint inode, which
+	# is z_root. Absent or mismatched means the resolver cannot
+	# tell "ancestor is the root" from "ancestor was lost".
+	probe="$WD/rootprobe.c"
+	bin="$WD/rootprobe"
+	cat > "$probe" <<'EOF'
+#include <stdio.h>
+#include <libzfs/sys/nvpair.h>
+#include <libzfs/libzfs_core.h>
+int main(int argc, char **argv) {
+	nvlist_t *page = NULL;
+	uint64_t v = 0;
+	if (argc < 2)
+		return 1;
+	libzfs_core_init();
+	if (lzc_get_events(argv[1], 0, 0, &page) != 0)
+		return 2;
+	if (nvlist_lookup_uint64(page, "root_objid", &v) != 0 || v == 0)
+		return 3;
+	printf("%llu\n", (unsigned long long)v);
+	return 0;
+}
+EOF
+	if ! gcc -I "$REPO/include" -I "$REPO/lib/libspl/include" \
+	    "$probe" -o "$bin" \
+	    -L "$REPO/lib/libzfs_core/.libs" -lzfs_core -lnvpair \
+	    >/dev/null 2>"$WD/rootprobe.err"; then
+		fail "root-objid: wire probe compile failed ($(tr '\n' ' ' < "$WD/rootprobe.err"))"
+	fi
+	mnt="$("$ZFS" get -H -o value mountpoint "$DS")"
+	ino="$("${SUDO[@]}" stat -c %i "$mnt")"
+	wire="$("${SUDO[@]}" env \
+	    LD_LIBRARY_PATH="$REPO/lib/libzfs_core/.libs:$REPO/lib/libnvpair/.libs" \
+	    "$bin" "$DS" 2>"$WD/rootprobe.run" || true)"
+	[ -n "$wire" ] ||
+		fail "root-objid: GET_EVENTS did not return root_objid (rc probe, stderr=$(tr '\n' ' ' < "$WD/rootprobe.run"))"
+	[ "$wire" = "$ino" ] ||
+		fail "root-objid: wire=$wire mountpoint inode=$ino"
+	pass root-objid
+}
+
 step_preflight
 step_export
 step_check_ok
@@ -1198,6 +1280,7 @@ step_check_bad
 step_module_version
 step_daemon_run
 step_ops
+step_root_objid
 step_assert
 step_sigusr1
 step_gap
