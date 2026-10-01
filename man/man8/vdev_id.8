@@ -20,7 +20,7 @@
 .Nm
 .Fl d Ar dev
 .Fl c Ar config_file
-.Fl g Sy sas_direct Ns | Ns Sy sas_switch Ns | Ns Sy scsi
+.Fl g Sy sas_direct Ns | Ns Sy sas_expander Ns | Ns Sy sas_switch Ns | Ns Sy scsi
 .Fl m
 .Fl p Ar phys_per_port
 .
@@ -40,6 +40,7 @@ The drive aliases will be created as symbolic links in
 .Pp
 The currently supported topologies are
 .Sy sas_direct ,
+.Sy sas_expander ,
 .Sy sas_switch ,
 and
 .Sy scsi .
@@ -67,12 +68,15 @@ The device node to classify, like
 Specifies the path to an alternate configuration file.
 The default is
 .Pa /etc/zfs/vdev_id.conf .
-.It Fl g Sy sas_direct Ns | Ns Sy sas_switch Ns | Ns Sy scsi
+.It Fl g Sy sas_direct Ns | Ns Sy sas_expander Ns | Ns Sy sas_switch Ns | Ns Sy scsi
 Identifies a physical topology that governs how physical paths are
 mapped to channels:
 .Bl -tag -compact -width "sas_direct and scsi"
 .It Sy sas_direct No and Sy scsi
 channels are uniquely identified by a PCI slot and HBA port number
+.It Sy sas_expander
+channels are uniquely identified by the SAS address of the rightmost expander
+in the device path
 .It Sy sas_switch
 channels are uniquely identified by a SAS switch port number
 .El
