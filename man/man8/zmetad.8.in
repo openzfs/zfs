@@ -15,7 +15,7 @@
 .\"
 .\" Copyright (c) 2026, OpenZFS Contributors. All rights reserved.
 .\"
-.Dd March 9, 2026
+.Dd September 30, 2026
 .Dt ZMETAD 8
 .Os
 .
@@ -29,6 +29,7 @@
 .Op Fl d Ar database
 .Op Fl i Ar interval
 .Op Fl r Ar days
+.Op Fl -purge Ar dataset
 .
 .Sh DESCRIPTION
 The
@@ -54,9 +55,15 @@ property enabled, retrieves new events using
 and inserts them into the SQLite database.
 A sync state table tracks the last retrieved offset for each dataset
 to avoid duplicate insertions.
+.Pp
+Database event history lags filesystem activity by at most one poll
+interval (default 30 seconds).
+Send
+.Dv SIGUSR1
+to the daemon for an immediate collection cycle.
 .
 .Sh OPTIONS
-.Bl -tag -width "-d database"
+.Bl -tag -width "--purge dataset"
 .It Fl c Ar config
 Read configuration from the specified file.
 See
@@ -84,8 +91,36 @@ Minimum: 1 second.
 Event retention period in days.
 Events older than this are automatically deleted during the daily
 cleanup cycle.
+Retention deletes
+.Sy events
+rows only: the
+.Sy gaps ,
+.Sy sync_state ,
+and
+.Sy datasets
+tables are never touched by retention, which is what makes the
+.Sy gaps
+counts lifetime figures.
 Set to 0 to disable automatic cleanup.
 Default: 90 days.
+.It Fl -purge Ar dataset
+One-shot purge mode: instead of running the daemon, delete all
+database rows belonging to
+.Ar dataset
+(the
+.Sy events ,
+.Sy gaps ,
+and
+.Sy sync_state
+tables), then clear the dataset's in-kernel event ring, and exit.
+This is the only mechanism that removes
+.Sy gaps
+rows; once purged, the dataset's loss history in the database is gone.
+The kernel-ring clear preserves ring identity, and the dataset's
+.Sy datasets
+mapping row is left in place.
+Exit status is 0 on success, 1 on a database or kernel error, and 2
+if the dataset does not exist.
 .It Fl v
 Verbose mode.
 May be specified multiple times for increased verbosity.
@@ -115,53 +150,105 @@ max_size_mb = 1000
 .Ed
 .
 .Sh DATABASE SCHEMA
-The SQLite database contains two tables:
-.Ss Events Table
-.Bd -literal -offset indent
-CREATE TABLE events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    dataset TEXT NOT NULL,
-    txg INTEGER NOT NULL,
-    timestamp INTEGER NOT NULL,
-    object_id INTEGER NOT NULL,
-    event_type TEXT NOT NULL,
-    path TEXT,
-    old_path TEXT,
-    uid INTEGER,
-    gid INTEGER,
-    mode INTEGER,
-    size INTEGER,
-    UNIQUE(dataset, txg, object_id, event_type, timestamp)
-);
-.Ed
-.Pp
-Indexes are created on
-.Sy (dataset, timestamp) ,
-.Sy (dataset, object_id) ,
+The SQLite database layout version is recorded in the
+.Sy meta
+table under the
+.Sy db_schema_version
+key; this build writes layout version 4.
+The database contains five tables:
+.Sy events ,
+.Sy sync_state ,
+.Sy datasets ,
+.Sy gaps ,
 and
-.Sy (dataset, path)
-for efficient querying.
+.Sy meta .
+The full column-by-column contract, including the
+.Sy events
+column list, loss-accounting formulas, ring-identity rules, and the
+version-evolution and migration policy, is documented in
+.Pa contrib/zmetad/SCHEMA.md ,
+which is the stable consumer contract; the summaries below cover only
+what a CLI user needs.
 .Ss Sync State Table
 .Bd -literal -offset indent
 CREATE TABLE sync_state (
     dataset TEXT PRIMARY KEY,
     last_offset INTEGER NOT NULL,
-    last_sync INTEGER NOT NULL
+    last_sync INTEGER NOT NULL,
+    ring_guid INTEGER
 );
 .Ed
 .Pp
 This table tracks the last successfully retrieved offset for each dataset
 to ensure events are not duplicated after daemon restarts.
+.Sy ring_guid
+identifies the kernel event log instance the offset belongs to; it
+changes only when the ring is replaced, and the daemon records the
+replacement in the
+.Sy gaps
+table.
+.Ss Datasets Table
+.Bd -literal -offset indent
+CREATE TABLE datasets (
+    dataset TEXT PRIMARY KEY,
+    mountpoint TEXT NOT NULL
+);
+.Ed
+.Pp
+Maps each dataset to its mountpoint as observed at collect time.
+Consumers resolve event paths against this table instead of calling
+into the kernel.
+The value is stored verbatim: mountpoints such as
+.Sy none
+or
+.Sy legacy
+appear as-is.
+The table is neither deleted by retention nor by
+.Fl -purge .
+.Ss Gaps Table
+.Bd -literal -offset indent
+CREATE TABLE gaps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    dataset TEXT NOT NULL,
+    detected INTEGER NOT NULL,
+    from_offset INTEGER,
+    to_offset INTEGER,
+    lost INTEGER NOT NULL
+);
+.Ed
+.Pp
+A permanent, per-dataset completeness record: one row per loss event
+observed at poll time.
+The
+.Sy lost
+column is a sentinel: a positive value is the exact number of records
+lost since the previous poll; 0 marks a watermark regression with an
+unknown count; -1 marks a ring replacement, meaning records before
+that boundary belong to a different kernel event log.
+Retention never deletes
+.Sy gaps
+rows, so they accumulate for the lifetime of the dataset in the
+database; only
+.Fl -purge
+removes them.
+Exact loss-accounting formulas are defined in
+.Pa contrib/zmetad/SCHEMA.md .
 .
 .Sh QUERY EXAMPLES
 The SQLite database can be queried directly using the
 .Xr sqlite3 1
 command-line tool or any SQLite client library.
+The
+.Sy captured_at
+column holds the ingest time as unix seconds; the
+.Sy timestamp
+column holds the kernel's monotonic event time and is not a wall
+clock.
 .Ss Recent events across all datasets
 .Bd -literal -offset indent
 SELECT * FROM events
-WHERE timestamp > strftime('%s', 'now', '-1 hour')
-ORDER BY timestamp DESC;
+WHERE captured_at > strftime('%s', 'now', '-1 hour')
+ORDER BY captured_at DESC;
 .Ed
 .Ss History of a specific file
 .Bd -literal -offset indent
@@ -172,23 +259,23 @@ ORDER BY txg;
 .Ed
 .Ss Files deleted in a dataset
 .Bd -literal -offset indent
-SELECT path, datetime(timestamp, 'unixepoch') as time
+SELECT path, datetime(captured_at, 'unixepoch') as time
 FROM events
 WHERE dataset = 'tank/data'
   AND event_type = 'REMOVE'
-ORDER BY timestamp DESC;
+ORDER BY captured_at DESC;
 .Ed
 .Ss Rename history
 .Bd -literal -offset indent
 SELECT old_path, path as new_path,
-       datetime(timestamp, 'unixepoch') as time
+       datetime(captured_at, 'unixepoch') as time
 FROM events
 WHERE event_type = 'RENAME'
   AND dataset = 'tank/data';
 .Ed
 .Ss Events per day summary
 .Bd -literal -offset indent
-SELECT date(timestamp, 'unixepoch') as day,
+SELECT date(captured_at, 'unixepoch') as day,
        event_type,
        COUNT(*) as count
 FROM events
@@ -204,12 +291,19 @@ Default SQLite database location.
 Default configuration file location.
 .It Pa @runstatedir@/zmetad.pid
 Process ID file when running as a daemon.
+.It Pa contrib/zmetad/SCHEMA.md
+Source-tree path to the consumer contract for the database schema
+(all tables, column semantics, loss-accounting formulas, and the
+version-evolution policy).
 .El
 .
 .Sh SIGNALS
 .Bl -tag -width "SIGTERM"
 .It Sy SIGHUP
 Reload configuration and rescan for datasets with events enabled.
+.It Sy SIGUSR1
+Request an immediate out-of-band collection cycle, independent of the
+poll interval.
 .It Sy SIGTERM , SIGINT
 Gracefully terminate the daemon.
 .El
@@ -220,6 +314,10 @@ Gracefully terminate the daemon.
 Successful termination.
 .It 1
 An error occurred during initialization or operation.
+.It 2
+One-shot
+.Fl -purge
+mode: the specified dataset does not exist.
 .El
 .
 .Sh EXAMPLES
@@ -240,11 +338,17 @@ Collected 3 events from tank/home
 # systemctl enable --now zmetad.service
 # systemctl status zmetad.service
 .Ed
+.Ss Example 4: Purging a dataset's stored events
+.Bd -literal -offset indent
+# zmetad --purge tank/old
+purged tank/old: 1234 events, 0 gaps removed; kernel ring cleared
+.Ed
 .
 .Sh INTERFACE STABILITY
 .Sy Evolving .
 .
 .Sh SEE ALSO
+.Pa contrib/zmetad/SCHEMA.md ,
 .Xr sqlite3 1 ,
 .Xr zfs 8 ,
 .Xr zfs-events 8 ,
@@ -286,6 +390,12 @@ Adjusting retention to manage database growth
 The daemon exports events as they appear in the kernel ring buffer.
 If events are overwritten in the ring buffer before the daemon polls,
 they will be lost.
+Such losses are recorded as rows in the
+.Sy gaps
+table (see
+.Sx DATABASE SCHEMA
+above), so the loss is at least visible in the database even though
+the records themselves are unrecoverable.
 For critical audit requirements, use a short poll interval or increase
 the
 .Sy events_size
