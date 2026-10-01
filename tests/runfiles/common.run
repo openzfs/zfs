@@ -522,6 +522,7 @@ tags = ['functional', 'cli_root', 'zpool_labelclear']
 
 [tests/functional/cli_root/zpool_initialize]
 tests = ['zpool_initialize_attach_detach_add_remove',
+    'zpool_initialize_chunk_size',
     'zpool_initialize_fault_export_import_online',
     'zpool_initialize_import_export',
     'zpool_initialize_multiple_pools',
