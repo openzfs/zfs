@@ -30,6 +30,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,6 +44,13 @@
 #define	ZMETAD_SCHEMA_MAX_ENUM		64
 #define	ZMETAD_MAX_STRING		256
 #define	ZMETAD_MAX_FILE			(1 << 20)
+
+/*
+ * Bound on container nesting for the structural skipper.  Documents
+ * deeper than this are rejected rather than risking stack exhaustion
+ * on a hostile --check-schema input.
+ */
+#define	ZMETAD_JPARSE_MAX_DEPTH		32
 
 typedef enum {
 	ZST_UINT16 = 0,
@@ -65,11 +73,14 @@ struct zmetad_schema {
 
 /*
  * Minimal recursive-descent JSON scanner state.  On error "err" is set
- * to a static message and every parse routine returns -1.
+ * to a static message and every parse routine returns -1.  "depth"
+ * bounds the jskip_value/jskip_container mutual recursion so hostile
+ * input cannot exhaust the stack.
  */
 typedef struct zmetad_jparse {
 	const char	*p;
 	const char	*err;
+	int		depth;
 } zmetad_jparse_t;
 
 static void
@@ -126,10 +137,31 @@ jstring(zmetad_jparse_t *jp, char *buf, size_t buflen)
 			case 'f':
 				c = '\f';
 				break;
-			case 'u':
-				jp->p += 4;
+			case 'u': {
+				/*
+				 * \uXXXX: the schema never needs it, so
+				 * it decodes to '?', but the four hex
+				 * digits must still be present and valid
+				 * - advancing blindly would read past
+				 * the end of a truncated buffer.
+				 */
+				int i;
+				for (i = 0; i < 4; i++) {
+					jp->p++;
+					if (*jp->p == '\0') {
+						jp->err =
+						    "unterminated string";
+						return (-1);
+					}
+					if (!isxdigit((unsigned char)*jp->p)) {
+						jp->err =
+						    "bad escape sequence";
+						return (-1);
+					}
+				}
 				c = '?';
 				break;
+			}
 			case '\0':
 				jp->err = "unterminated string";
 				return (-1);
@@ -166,7 +198,17 @@ jnumber(zmetad_jparse_t *jp, uint64_t *out)
 		return (-1);
 	}
 	while (isdigit((unsigned char)*jp->p)) {
-		v = v * 10 + (*jp->p - '0');
+		uint64_t d = (uint64_t)(*jp->p - '0');
+
+		/*
+		 * Reject values that would wrap UINT64_MAX (a schema
+		 * version of 2^64+1 must not silently decode as 1).
+		 */
+		if (v > (UINT64_MAX - d) / 10) {
+			jp->err = "number overflow";
+			return (-1);
+		}
+		v = v * 10 + d;
 		jp->p++;
 	}
 	if (*jp->p == '.' || *jp->p == 'e' || *jp->p == 'E') {
@@ -185,25 +227,37 @@ static int
 jskip_container(zmetad_jparse_t *jp, char close)
 {
 	char buf[ZMETAD_MAX_STRING];
+	int rc = -1;
+
+	/*
+	 * Bound the jskip_value/jskip_container mutual recursion: a
+	 * megabyte of "[[[[" must not be able to exhaust the stack.
+	 */
+	if (jp->depth >= ZMETAD_JPARSE_MAX_DEPTH) {
+		jp->err = "document nested too deep";
+		return (-1);
+	}
+	jp->depth++;
 
 	jskip_ws(jp);
 	if (*jp->p == close) {
 		jp->p++;
-		return (0);
+		rc = 0;
+		goto out;
 	}
 	for (;;) {
 		if (close == '}') {
 			if (jstring(jp, buf, sizeof (buf)) != 0)
-				return (-1);
+				goto out;
 			jskip_ws(jp);
 			if (*jp->p != ':') {
 				jp->err = "expected ':'";
-				return (-1);
+				goto out;
 			}
 			jp->p++;
 		}
 		if (jskip_value(jp) != 0)
-			return (-1);
+			goto out;
 		jskip_ws(jp);
 		if (*jp->p == ',') {
 			jp->p++;
@@ -212,11 +266,16 @@ jskip_container(zmetad_jparse_t *jp, char close)
 		}
 		if (*jp->p == close) {
 			jp->p++;
-			return (0);
+			rc = 0;
+			goto out;
 		}
 		jp->err = "malformed container";
-		return (-1);
+		goto out;
 	}
+
+out:
+	jp->depth--;
+	return (rc);
 }
 
 /* Skip over any JSON value without interpreting it. */
@@ -335,6 +394,17 @@ jfield_def(zmetad_jparse_t *jp, zmetad_schema_t *zs, const char *fname)
 				if (*jp->p == ',') {
 					jp->p++;
 					jskip_ws(jp);
+					/*
+					 * No trailing comma, consistent
+					 * with every other container.
+					 */
+					if (*jp->p == ']') {
+						jp->err = "trailing comma";
+						return (-1);
+					}
+				} else if (*jp->p != ']') {
+					jp->err = "malformed enum array";
+					return (-1);
 				}
 			}
 			jp->p++;
@@ -399,6 +469,12 @@ jfields_object(zmetad_jparse_t *jp, zmetad_schema_t *zs)
 
 		if (jstring(jp, fname, sizeof (fname)) != 0)
 			return (-1);
+		for (uint_t i = 0; i < zs->nfields; i++) {
+			if (strcmp(zs->fields[i].name, fname) == 0) {
+				jp->err = "duplicate key";
+				return (-1);
+			}
+		}
 		jskip_ws(jp);
 		if (*jp->p != ':') {
 			jp->err = "expected ':'";
@@ -428,6 +504,8 @@ static int
 jdocument(zmetad_jparse_t *jp, zmetad_schema_t *zs)
 {
 	char key[ZMETAD_MAX_STRING];
+	boolean_t have_version = B_FALSE;
+	boolean_t have_format = B_FALSE;
 
 	jskip_ws(jp);
 	if (*jp->p != '{') {
@@ -452,9 +530,19 @@ jdocument(zmetad_jparse_t *jp, zmetad_schema_t *zs)
 		jp->p++;
 
 		if (strcmp(key, "schema_version") == 0) {
+			if (have_version) {
+				jp->err = "duplicate key";
+				return (-1);
+			}
+			have_version = B_TRUE;
 			if (jnumber(jp, &zs->version) != 0)
 				return (-1);
 		} else if (strcmp(key, "record_format") == 0) {
+			if (have_format) {
+				jp->err = "duplicate key";
+				return (-1);
+			}
+			have_format = B_TRUE;
 			jskip_ws(jp);
 			if (*jp->p != '{') {
 				jp->err = "expected record_format object";
@@ -557,6 +645,19 @@ schema_read_file(const char *path, char *errbuf)
 		free(buf);
 		return (NULL);
 	}
+	/*
+	 * If the buffer filled and the file is not at EOF, the document
+	 * is larger than ZMETAD_MAX_FILE.  Report it distinctly rather
+	 * than parsing a silently truncated copy (which would surface as
+	 * a bogus "unterminated" parse error).
+	 */
+	if (n == ZMETAD_MAX_FILE - 1 && fgetc(fp) != EOF) {
+		schema_seterr(errbuf, "file too large: %s exceeds %d bytes",
+		    path, ZMETAD_MAX_FILE);
+		(void) fclose(fp);
+		free(buf);
+		return (NULL);
+	}
 	(void) fclose(fp);
 	buf[n] = '\0';
 	return (buf);
@@ -593,10 +694,23 @@ zmetad_schema_load(const char *path, char *errbuf)
 
 	jp.p = text;
 	jp.err = NULL;
+	jp.depth = 0;
 	if (jdocument(&jp, zs) != 0) {
 		offset = (size_t)(jp.p - text);
 		schema_seterr(errbuf, "malformed schema at offset %lu: %s",
 		    (unsigned long)offset, jp.err != NULL ? jp.err : "error");
+		free(buf);
+		free(zs);
+		return (NULL);
+	}
+
+	/* Nothing but whitespace may follow the top-level document. */
+	jskip_ws(&jp);
+	if (*jp.p != '\0') {
+		offset = (size_t)(jp.p - text);
+		schema_seterr(errbuf,
+		    "malformed schema at offset %lu: trailing garbage",
+		    (unsigned long)offset);
 		free(buf);
 		free(zs);
 		return (NULL);
@@ -640,6 +754,71 @@ zmetad_schema_check_version(const zmetad_schema_t *zs, uint64_t wire)
 	if (wire > zs->version)
 		return (EINVAL);
 
+	return (0);
+}
+
+/* Human-readable name of an internal schema type code. */
+static const char *
+stype_name(zmetad_stype_t t)
+{
+	switch (t) {
+	case ZST_UINT16:
+		return ("uint16");
+	case ZST_UINT64:
+		return ("uint64");
+	case ZST_STRING:
+		return ("string");
+	}
+	return ("unknown");
+}
+
+/*
+ * Compare two loaded schemas for structural equality: same field
+ * count, and identical name and type at every index (order matters -
+ * the field index is the wire ordering).  Returns 0 when equal;
+ * otherwise non-zero with the first difference described in errbuf.
+ */
+int
+zmetad_schema_compare(const zmetad_schema_t *a, const zmetad_schema_t *b,
+    char *errbuf, size_t errlen)
+{
+	if (a == NULL || b == NULL) {
+		if (errbuf != NULL && errlen > 0)
+			(void) snprintf(errbuf, errlen,
+			    "NULL schema argument");
+		return (EINVAL);
+	}
+
+	if (a->nfields != b->nfields) {
+		if (errbuf != NULL && errlen > 0)
+			(void) snprintf(errbuf, errlen,
+			    "field count differs: %u vs %u",
+			    (unsigned)a->nfields, (unsigned)b->nfields);
+		return (1);
+	}
+
+	for (uint_t i = 0; i < a->nfields; i++) {
+		if (strcmp(a->fields[i].name, b->fields[i].name) != 0) {
+			if (errbuf != NULL && errlen > 0)
+				(void) snprintf(errbuf, errlen,
+				    "field %u name differs: %s vs %s",
+				    (unsigned)i, a->fields[i].name,
+				    b->fields[i].name);
+			return (1);
+		}
+		if (a->fields[i].type != b->fields[i].type) {
+			if (errbuf != NULL && errlen > 0)
+				(void) snprintf(errbuf, errlen,
+				    "field %u (%s) type differs: %s vs %s",
+				    (unsigned)i, a->fields[i].name,
+				    stype_name(a->fields[i].type),
+				    stype_name(b->fields[i].type));
+			return (1);
+		}
+	}
+
+	if (errbuf != NULL && errlen > 0)
+		errbuf[0] = '\0';
 	return (0);
 }
 
@@ -688,11 +867,20 @@ zmetad_schema_field(const zmetad_schema_t *zs, const char *name,
 
 	switch (zf->type) {
 	case ZST_UINT16: {
+		/*
+		 * Decode into a true uint16_t and assign the widened
+		 * value: *out is a uint64_t per the header contract,
+		 * and writing through a (uint16_t *) alias would leave
+		 * the high bytes untouched (byte-order dependent).
+		 */
+		uint16_t v16;
+
 		if (nvpair_type(pair) != DATA_TYPE_UINT16)
 			return (EINVAL);
-		err = nvpair_value_uint16(pair, (uint16_t *)out);
+		err = nvpair_value_uint16(pair, &v16);
 		if (err != 0)
 			return (err);
+		*(uint64_t *)out = v16;
 		if (dtype != NULL)
 			*dtype = DATA_TYPE_UINT16;
 		return (0);
@@ -768,15 +956,9 @@ zmetad_schema_free(zmetad_schema_t *zs)
 
 /*
  * Embedded copy of the canonical schema document, byte-identical to
- * contrib/zmetad/events-schema.json.
- */
-/*
- * Embedded copy of the canonical schema document, byte-identical to
- * contrib/zmetad/events-schema.json.
- */
-/*
- * Embedded copy of the canonical schema document, byte-identical to
- * contrib/zmetad/events-schema.json.
+ * contrib/zmetad/events-schema.json.  schema-check.sh enforces the
+ * identity; do not edit this literal without updating the JSON file
+ * (or vice versa) in the same change.
  */
 const char *ZMETAD_EMBEDDED_SCHEMA_JSON =
 	"{\n"

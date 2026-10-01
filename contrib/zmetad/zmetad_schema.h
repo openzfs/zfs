@@ -49,6 +49,16 @@ zmetad_schema_t *zmetad_schema_load(const char *path, char *errbuf);
 int zmetad_schema_check_version(const zmetad_schema_t *zs, uint64_t wire);
 
 /*
+ * Compare two loaded schemas for structural equality: identical field
+ * count, and identical field name and type at every index (order is
+ * significant).  Returns 0 when equal, non-zero otherwise; on
+ * mismatch the first difference is described in "errbuf" (up to
+ * "errlen" bytes).  Returns EINVAL if either schema is NULL.
+ */
+int zmetad_schema_compare(const zmetad_schema_t *a,
+    const zmetad_schema_t *b, char *errbuf, size_t errlen);
+
+/*
  * Look up field "name" (which must be a known schema field) in the
  * event record "rec".  On success stores the value in *out: for
  * numeric fields a zero-extended uint64_t, for string fields a
