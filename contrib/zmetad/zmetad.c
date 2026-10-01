@@ -447,6 +447,25 @@ collect_callback(zfs_handle_t *zhp, void *arg)
 	/* Check if events are enabled on this dataset */
 	events_enabled = zfs_prop_get_int(zhp, ZFS_PROP_EVENTS);
 	if (events_enabled) {
+		char mountpoint[512];
+
+		/*
+		 * Record the mountpoint for path -> dataset
+		 * resolution.  Non-filesystem datasets yield
+		 * "-" or "legacy"; store as-is (consumers filter
+		 * by '/' prefix).  Skip silently on error.
+		 */
+		if (zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, mountpoint,
+		    sizeof (mountpoint), NULL, NULL, 0, B_FALSE) == 0) {
+			if (zmetad_db_upsert_mountpoint(db, name,
+			    mountpoint) != 0 && g_config.verbose) {
+				fprintf(stderr, "failed to record "
+				    "mountpoint for %s\n", name);
+			}
+		} else if (g_config.verbose) {
+			fprintf(stderr, "no mountpoint for %s\n", name);
+		}
+
 		collect_dataset_events(name, db);
 	}
 

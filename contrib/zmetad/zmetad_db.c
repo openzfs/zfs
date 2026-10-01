@@ -74,6 +74,21 @@ static const char *insert_gap_sql =
 	"INSERT INTO gaps (dataset, detected, from_offset, to_offset, lost) "
 	"VALUES (?, ?, ?, ?, ?)";
 
+/*
+ * The datasets table maps each events-enabled dataset to its
+ * mountpoint, recorded at collect time so path-keyed consumers
+ * can resolve path -> dataset with one query.
+ */
+static const char *datasets_sql =
+	"CREATE TABLE IF NOT EXISTS datasets ("
+	"    dataset TEXT PRIMARY KEY,"
+	"    mountpoint TEXT NOT NULL"
+	    ");";
+
+static const char *upsert_mountpoint_sql =
+	"INSERT OR REPLACE INTO datasets (dataset, mountpoint) "
+	"VALUES (?, ?)";
+
 static const char *schema_sql =
 	"CREATE TABLE IF NOT EXISTS events ("
 	"    id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -305,6 +320,15 @@ zmetad_db_open(zmetad_db_t **dbp, const char *path,
 	rc = sqlite3_exec(db->sqlite, gaps_sql, NULL, NULL, &errmsg);
 	if (rc != SQLITE_OK) {
 		fprintf(stderr, "Gaps table creation error: %s\n", errmsg);
+		sqlite3_free(errmsg);
+		sqlite3_close(db->sqlite);
+		free(db);
+		return (EIO);
+	}
+
+	rc = sqlite3_exec(db->sqlite, datasets_sql, NULL, NULL, &errmsg);
+	if (rc != SQLITE_OK) {
+		fprintf(stderr, "Datasets table creation error: %s\n", errmsg);
 		sqlite3_free(errmsg);
 		sqlite3_close(db->sqlite);
 		free(db);
@@ -584,6 +608,41 @@ zmetad_db_insert_gap(zmetad_db_t *db, const char *dataset,
 	sqlite3_finalize(stmt);
 	if (rc != SQLITE_DONE) {
 		fprintf(stderr, "Gap insert error: %s\n",
+		    sqlite3_errmsg(db->sqlite));
+		return (EIO);
+	}
+
+	return (0);
+}
+
+/*
+ * Record (or refresh) a dataset's mountpoint.  INSERT OR REPLACE
+ * keeps one row per dataset; called every collect so mountpoint
+ * changes self-heal.  Table is tiny: prepare per call like
+ * zmetad_db_insert_gap().
+ */
+int
+zmetad_db_upsert_mountpoint(zmetad_db_t *db, const char *dataset,
+    const char *mountpoint)
+{
+	sqlite3_stmt *stmt = NULL;
+	int rc;
+
+	rc = sqlite3_prepare_v2(db->sqlite, upsert_mountpoint_sql, -1,
+	    &stmt, NULL);
+	if (rc != SQLITE_OK) {
+		fprintf(stderr, "Prepare mountpoint upsert error: %s\n",
+		    sqlite3_errmsg(db->sqlite));
+		return (EIO);
+	}
+
+	sqlite3_bind_text(stmt, 1, dataset, -1, SQLITE_STATIC);
+	sqlite3_bind_text(stmt, 2, mountpoint, -1, SQLITE_STATIC);
+
+	rc = sqlite3_step(stmt);
+	sqlite3_finalize(stmt);
+	if (rc != SQLITE_DONE) {
+		fprintf(stderr, "Mountpoint upsert error: %s\n",
 		    sqlite3_errmsg(db->sqlite));
 		return (EIO);
 	}

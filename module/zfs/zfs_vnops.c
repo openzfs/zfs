@@ -407,7 +407,6 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	uint_t blksz = zp->z_blksz;
 	ssize_t chunk_size;
 	ssize_t n = MIN(zfs_uio_resid(uio), zp->z_size - zfs_uio_offset(uio));
-	ssize_t start_resid = n;
 	ssize_t dio_remaining_resid = 0;
 
 	dmu_flags_t dflags = DMU_READ_PREFETCH;

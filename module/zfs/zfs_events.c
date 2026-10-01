@@ -315,6 +315,10 @@ zfs_events_feature_sync(void *arg, dmu_tx_t *tx)
 	    (void *)B_TRUE, tx);
 }
 
+static uint64_t zfs_events_get_obj(objset_t *os, dmu_tx_t *tx,
+    uint64_t events_size, uint64_t *objp, kmutex_t *lockp,
+    boolean_t owned_tx);
+
 #if defined(_KERNEL)
 /*
  * Task argument for the owned-tx activation path: the taskq context
@@ -388,9 +392,6 @@ typedef struct zfs_events_qent zfs_events_qent_t;
 static kmem_cache_t *zfs_events_qent_cache;
 
 static void zfs_events_drain_task(void *arg);
-static uint64_t zfs_events_get_obj(objset_t *os, dmu_tx_t *tx,
-    uint64_t events_size, uint64_t *objp, kmutex_t *lockp,
-    boolean_t owned_tx);
 
 void
 zfs_events_qent_init(void)
@@ -787,7 +788,7 @@ zfs_events_clear(objset_t *os, dmu_tx_t *tx, uint64_t *countp)
  * lazy-create. The caller's transaction must already hold whatever
  * the append needs (zfs_events_txhold()).
  */
-uint64_t
+static uint64_t
 zfs_events_get_obj(objset_t *os, dmu_tx_t *tx, uint64_t events_size,
     uint64_t *objp, kmutex_t *lockp, boolean_t owned_tx)
 {
@@ -855,11 +856,11 @@ zfs_events_get_obj(objset_t *os, dmu_tx_t *tx, uint64_t events_size,
 	}
 	mutex_exit(lockp);
 	return (obj);
-	}
+}
 
-	static void
-	zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
-	uint64_t events_size, uint64_t *objp, kmutex_t *lockp, uint64_t txg)
+static void
+zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
+    uint64_t events_size, uint64_t *objp, kmutex_t *lockp, uint64_t txg)
 {
 	dmu_buf_t *dbp;
 	zfs_events_phys_t *zep;
@@ -1511,7 +1512,7 @@ zfs_events_get(objset_t *os, kmutex_t *lockp, uint64_t *offp,
 {
 	dmu_buf_t *dbp;
 	uint64_t obj;
-	uint64_t read_len, phys_read_off, phys_eof;
+	uint64_t phys_read_off, phys_eof;
 	uint64_t leftover = 0;
 	zfs_events_phys_t *zep;
 	int err;
