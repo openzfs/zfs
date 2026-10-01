@@ -617,13 +617,14 @@ mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
 
 int
 zfs_write_simple(znode_t *zp, const void *data, size_t len,
-    loff_t pos, size_t *presid)
+    loff_t pos, size_t *presid, cred_t *cr)
 {
 	int error = 0;
 	ssize_t resid;
 
 	error = vn_rdwr(UIO_WRITE, ZTOV(zp), __DECONST(void *, data), len, pos,
-	    UIO_SYSSPACE, IO_SYNC, kcred, NOCRED, &resid, curthread);
+	    UIO_SYSSPACE, IO_SYNC, cr != NULL ? cr : kcred, NOCRED, &resid,
+	    curthread);
 
 	if (error) {
 		return (SET_ERROR(error));

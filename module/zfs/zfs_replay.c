@@ -820,7 +820,7 @@ zfs_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 		if (zp->z_size < eod)
 			zfsvfs->z_replay_eof = eod;
 	}
-	error = zfs_write_simple(zp, data, length, offset, NULL);
+	error = zfs_write_simple(zp, data, length, offset, NULL, kcred);
 	zrele(zp);
 	zfsvfs->z_replay_eof = 0;	/* safety */
 

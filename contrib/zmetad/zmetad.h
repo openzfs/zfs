@@ -83,11 +83,11 @@ int zmetad_db_set_last_offset(zmetad_db_t *db, const char *dataset,
 /*
  * Delete every row belonging to "dataset" from the events, gaps and
  * sync_state tables.  Deleted row counts are reported through
- * counts[] in events, gaps, sync_state order.  Does not touch the
- * kernel event ring (see zmetad --purge).
+ * counts[] in events, gaps, sync_state, objmap order.  Does not
+ * touch the kernel event ring (see zmetad --purge).
  */
 int zmetad_db_purge_dataset(zmetad_db_t *db, const char *dataset,
-    long long counts[3]);
+    long long counts[4]);
 
 /*
  * Record an event-log gap for a dataset: records between

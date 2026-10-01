@@ -387,7 +387,7 @@ static unsigned long zfs_delete_blocks = DMU_MAX_DELETEBLKCNT;
  */
 int
 zfs_write_simple(znode_t *zp, const void *data, size_t len,
-    loff_t pos, size_t *residp)
+    loff_t pos, size_t *residp, cred_t *cr)
 {
 	fstrans_cookie_t cookie;
 	int error;
@@ -400,7 +400,7 @@ zfs_write_simple(znode_t *zp, const void *data, size_t len,
 	zfs_uio_iovec_init(&uio, &iov, 1, pos, UIO_SYSSPACE, len, 0);
 
 	cookie = spl_fstrans_mark();
-	error = zfs_write(zp, &uio, 0, kcred);
+	error = zfs_write(zp, &uio, 0, cr != NULL ? cr : kcred);
 	spl_fstrans_unmark(cookie);
 
 	if (error == 0) {
@@ -3880,6 +3880,15 @@ top:
 		if (is_tmpfile) {
 			VERIFY0(zap_remove_int(zfsvfs->z_os,
 			    zfsvfs->z_unlinkedobj, szp->z_id, tx));
+			zfs_events_io_flush(szp, zfsvfs->z_os, tx, B_TRUE);
+			zfs_events_io_flush(szp, zfsvfs->z_os, tx, B_FALSE);
+			if (zfsvfs->z_events) {
+				zfs_events_log_link(zfsvfs->z_os, tx,
+				    szp->z_id, tdzp->z_id, name,
+				    zfsvfs->z_events_size,
+				    &zfsvfs->z_events_obj,
+				    &zfsvfs->z_events_lock);
+			}
 		} else {
 			if (flags & FIGNORECASE)
 				txtype |= TX_CI;

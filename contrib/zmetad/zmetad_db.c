@@ -30,7 +30,7 @@
 #include "zmetad.h"
 #include "zmetad_schema.h"
 
-#define	ZMETAD_DB_SCHEMA_VERSION	4
+#define	ZMETAD_DB_SCHEMA_VERSION	5
 
 struct zmetad_db {
 	sqlite3		*sqlite;
@@ -38,6 +38,11 @@ struct zmetad_db {
 	sqlite3_stmt	*get_last_offset_stmt;
 	sqlite3_stmt	*set_last_offset_stmt;
 	sqlite3_stmt	*get_ring_guid_stmt;
+	sqlite3_stmt	*objmap_get_stmt;
+	sqlite3_stmt	*objmap_put_stmt;
+	sqlite3_stmt	*objmap_del_stmt;
+	sqlite3_stmt	*objmap_any_stmt;
+	sqlite3_stmt	*objmap_root_stmt;
 	const zmetad_schema_t *schema;
 };
 
@@ -130,6 +135,8 @@ static const char *schema_sql =
 	"    target TEXT,"
 	"    old_size INTEGER,"
 	"    attrs INTEGER,"
+	"    full_path TEXT,"
+	"    old_full_path TEXT,"
 	"    UNIQUE(dataset, txg, object_id, event_type, timestamp)"
 		");"
 	"CREATE INDEX IF NOT EXISTS idx_events_dataset_time "
@@ -138,6 +145,15 @@ static const char *schema_sql =
 	"    ON events(dataset, object_id);"
 	"CREATE INDEX IF NOT EXISTS idx_events_path "
 	"    ON events(dataset, path);"
+	"CREATE INDEX IF NOT EXISTS idx_events_full_path "
+	"    ON events(dataset, full_path);"
+	"CREATE TABLE IF NOT EXISTS objmap ("
+	"    dataset TEXT NOT NULL,"
+	"    object_id INTEGER NOT NULL,"
+	"    name TEXT NOT NULL,"
+	"    parent INTEGER,"
+	"    PRIMARY KEY (dataset, object_id)"
+			");"
 	"CREATE TABLE IF NOT EXISTS sync_state ("
 	"    dataset TEXT PRIMARY KEY,"
 	"    last_offset INTEGER NOT NULL,"
@@ -153,8 +169,34 @@ static const char *insert_event_sql =
 	"INSERT OR IGNORE INTO events "
 	"(dataset, txg, timestamp, object_id, event_type, path, old_path, "
 	"uid, gid, mode, size, io_offset, io_bytes, parent, old_parent, "
-	"target, old_size, attrs, captured_at) "
-	"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	"target, old_size, attrs, captured_at, full_path, old_full_path) "
+	"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
+	"?, ?)";
+
+/*
+ * The objmap table is the objid -> (name, parent) graph the
+ * full-path resolver walks.  It accumulates the complete graph
+ * forever (unlike the kernel ring, where an ancestor's CREATE can
+ * wrap away), which is what makes insert-time resolution O(depth)
+ * instead of a full-table scan.
+ */
+static const char *objmap_get_sql =
+	"SELECT name, parent FROM objmap "
+	"WHERE dataset = ? AND object_id = ?";
+
+static const char *objmap_put_sql =
+	"INSERT OR REPLACE INTO objmap "
+	"(dataset, object_id, name, parent) VALUES (?, ?, ?, ?)";
+
+static const char *objmap_del_sql =
+	"DELETE FROM objmap WHERE dataset = ? AND object_id = ?";
+
+static const char *objmap_any_sql =
+	"SELECT 1 FROM objmap WHERE dataset = ? LIMIT 1";
+
+static const char *objmap_root_sql =
+	"INSERT OR IGNORE INTO objmap "
+	"(dataset, object_id, name, parent) VALUES (?, ?, '', 0)";
 
 static const char *get_last_offset_sql =
 	"SELECT last_offset FROM sync_state WHERE dataset = ?";
@@ -175,6 +217,7 @@ static const char *purge_dataset_sql[] = {
 	"DELETE FROM events WHERE dataset = ?",
 	"DELETE FROM gaps WHERE dataset = ?",
 	"DELETE FROM sync_state WHERE dataset = ?",
+	"DELETE FROM objmap WHERE dataset = ?",
 };
 
 static const char *get_meta_sql =
@@ -397,6 +440,57 @@ db_check_layout(zmetad_db_t *db)
 		}
 	}
 
+	/*
+	 * Version 4 -> 5: events gains full_path/old_full_path (the
+	 * dataset-relative path resolved at insert time; NULL when the
+	 * ancestor chain is unresolvable), and the objmap table carries
+	 * the objid -> (name, parent) graph the resolver walks.  Pre-v5
+	 * rows keep NULL full_path and remain PARTIAL under the
+	 * documented conservative-match rules.
+	 */
+	if (v < 5) {
+		static const struct {
+			const char	*name;
+			const char	*type;
+		} db_v5_columns[] = {
+			{ "full_path",		"TEXT" },
+			{ "old_full_path",	"TEXT" },
+		};
+
+		for (size_t i = 0;
+		    i < sizeof (db_v5_columns) /
+		    sizeof (db_v5_columns[0]); i++) {
+			(void) snprintf(sql, sizeof (sql),
+			    "ALTER TABLE events ADD COLUMN %s %s",
+			    db_v5_columns[i].name,
+			    db_v5_columns[i].type);
+			if (sqlite3_exec(db->sqlite, sql, NULL,
+			    NULL, &errmsg) != SQLITE_OK) {
+				if (errmsg == NULL || strstr(errmsg,
+				    "duplicate column name") == NULL) {
+					fprintf(stderr, "migration error "
+					    "adding events.%s: %s\n",
+					    db_v5_columns[i].name,
+					    errmsg != NULL ?
+					    errmsg : "unknown");
+					sqlite3_free(errmsg);
+					sqlite3_close(db->sqlite);
+					return (EIO);
+				}
+				sqlite3_free(errmsg);
+				errmsg = NULL;
+			}
+		}
+		fprintf(stderr, "upgraded database to layout "
+		    "version %s\n", version_str);
+		rc = db_set_meta(db, "db_schema_version", version_str);
+		if (rc != 0) {
+			fprintf(stderr, "Failed to record database "
+			    "layout version\n");
+			return (rc);
+		}
+	}
+
 	return (0);
 }
 
@@ -543,6 +637,30 @@ zmetad_db_open(zmetad_db_t **dbp, const char *path,
 		return (EIO);
 	}
 
+	rc = sqlite3_prepare_v2(db->sqlite, objmap_get_sql, -1,
+	    &db->objmap_get_stmt, NULL);
+	if (rc == SQLITE_OK)
+		rc = sqlite3_prepare_v2(db->sqlite, objmap_put_sql, -1,
+		    &db->objmap_put_stmt, NULL);
+	if (rc == SQLITE_OK)
+		rc = sqlite3_prepare_v2(db->sqlite, objmap_del_sql, -1,
+		    &db->objmap_del_stmt, NULL);
+	if (rc == SQLITE_OK)
+		rc = sqlite3_prepare_v2(db->sqlite, objmap_any_sql, -1,
+		    &db->objmap_any_stmt, NULL);
+	if (rc == SQLITE_OK)
+		rc = sqlite3_prepare_v2(db->sqlite, objmap_root_sql, -1,
+		    &db->objmap_root_stmt, NULL);
+	if (rc != SQLITE_OK) {
+		sqlite3_finalize(db->insert_event_stmt);
+		sqlite3_finalize(db->get_last_offset_stmt);
+		sqlite3_finalize(db->set_last_offset_stmt);
+		sqlite3_finalize(db->get_ring_guid_stmt);
+		sqlite3_close(db->sqlite);
+		free(db);
+		return (EIO);
+	}
+
 	*dbp = db;
 	return (0);
 }
@@ -561,10 +679,184 @@ zmetad_db_close(zmetad_db_t *db)
 		sqlite3_finalize(db->set_last_offset_stmt);
 	if (db->get_ring_guid_stmt)
 		sqlite3_finalize(db->get_ring_guid_stmt);
+	if (db->objmap_get_stmt)
+		sqlite3_finalize(db->objmap_get_stmt);
+	if (db->objmap_put_stmt)
+		sqlite3_finalize(db->objmap_put_stmt);
+	if (db->objmap_del_stmt)
+		sqlite3_finalize(db->objmap_del_stmt);
+	if (db->objmap_any_stmt)
+		sqlite3_finalize(db->objmap_any_stmt);
+	if (db->objmap_root_stmt)
+		sqlite3_finalize(db->objmap_root_stmt);
 	if (db->sqlite)
 		sqlite3_close(db->sqlite);
 
 	free(db);
+}
+
+/*
+ * Resolve a dataset-relative full path for an object by walking the
+ * objmap graph from its parent chain to the root (parent NULL/0).
+ * Returns 0 with a malloc'd path in *pathp, ENOENT when any ancestor
+ * is unknown (the caller leaves full_path NULL: the row stays PARTIAL
+ * under the SCHEMA.md conservative-match rules), or another error.
+ * A depth cap guards against corrupt-graph cycles.
+ */
+#define	ZMETAD_PATH_MAX_DEPTH	64
+
+static int
+objmap_resolve(zmetad_db_t *db, const char *dataset, uint64_t parent,
+const char *name, char **pathp)
+{
+char segs[ZMETAD_PATH_MAX_DEPTH][256];
+size_t lens[ZMETAD_PATH_MAX_DEPTH];
+size_t total = 0, off = 0;
+sqlite3_stmt *stmt = db->objmap_get_stmt;
+int depth = 0, rc;
+
+*pathp = NULL;
+if (name == NULL)
+	return (ENOENT);
+lens[0] = strlen(name);
+if (lens[0] >= sizeof (segs[0]))
+	return (ENOENT);
+memcpy(segs[0], name, lens[0] + 1);
+total = lens[0];
+if (parent == 0 || parent == UINT64_MAX) {
+	/* Already at the dataset root: only the name. */
+	goto build;
+}
+
+for (depth = 0; parent != 0 && parent != UINT64_MAX; depth++) {
+	uint64_t next_parent;
+	const unsigned char *nm;
+
+	if (depth >= ZMETAD_PATH_MAX_DEPTH - 1)
+		return (ENOENT);	/* cycle / corrupt graph */
+
+	sqlite3_reset(stmt);
+	sqlite3_bind_text(stmt, 1, dataset, -1, SQLITE_STATIC);
+	sqlite3_bind_int64(stmt, 2, (sqlite3_int64)parent);
+	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_ROW) {
+		sqlite3_reset(stmt);
+		return (ENOENT);
+	}
+	nm = sqlite3_column_text(stmt, 0);
+	if (nm != NULL && nm[0] == '\0') {
+		/* Root sentinel: terminus, no segment. */
+		sqlite3_reset(stmt);
+		goto build;
+	}
+	if (nm == NULL || strlen((const char *)nm) >=
+	    sizeof (segs[0])) {
+		sqlite3_reset(stmt);
+		return (ENOENT);
+	}
+	lens[depth + 1] = strlen((const char *)nm);
+	memcpy(segs[depth + 1], nm, lens[depth + 1] + 1);
+	total += lens[depth + 1] + 1;
+	next_parent = (uint64_t)sqlite3_column_int64(stmt, 1);
+	sqlite3_reset(stmt);
+	parent = next_parent;
+	}
+
+build:
+	char *path = malloc(total + 1);
+	if (path == NULL)
+		return (ENOMEM);
+
+	/* Walk segments root-first: they were collected child-first. */
+	for (int i = depth; i >= 0; i--) {
+		if (i != depth) {
+			path[off] = '/';
+			off++;
+		}
+		memcpy(path + off, segs[i], lens[i]);
+		off += lens[i];
+	}
+	path[off] = '\0';
+	*pathp = path;
+	return (0);
+}
+
+/*
+ * Update the objmap graph from one decoded record.  CREATE/LINK/
+ * SYMLINK/RENAME map the object's new location; REMOVE drops it
+ * (its subtree's entries become stale but are only consulted via
+ * the parent chain, which now dead-ends -> ENOENT, i.e. PARTIAL).
+ * WRITE/READ/SETATTR/TRUNCATE change no graph edges.
+ * Returns 0 on success or when the op needs no graph update.
+ */
+static int
+objmap_update(zmetad_db_t *db, const char *dataset, uint64_t op,
+    boolean_t have_op, uint64_t object, boolean_t have_object,
+    const char *name, boolean_t have_name, uint64_t parent,
+    boolean_t have_parent)
+{
+	sqlite3_stmt *stmt;
+	int rc;
+
+	if (!have_op || !have_object || !have_name)
+		return (0);
+
+	switch (op) {
+	case 1:	/* CREATE */
+	case 3:	/* RENAME */
+	case 4:	/* LINK */
+	case 5:	/* SYMLINK */
+		/*
+		 * First name-bearing record of a dataset with an empty
+		 * graph: its parent IS the dataset root directory (an
+		 * empty dataset's first object is created in the root;
+		 * a cleared ring keeps objmap, so this cannot misfire
+		 * on a wrapped ring).  Seed it as the sentinel root so
+		 * chains terminate cleanly instead of every row in a
+		 * fresh dataset resolving as PARTIAL.
+		 */
+		sqlite3_reset(db->objmap_any_stmt);
+		sqlite3_bind_text(db->objmap_any_stmt, 1, dataset, -1,
+		    SQLITE_STATIC);
+		rc = sqlite3_step(db->objmap_any_stmt);
+		sqlite3_reset(db->objmap_any_stmt);
+		if (rc == SQLITE_DONE && have_parent && parent != 0) {
+			sqlite3_reset(db->objmap_root_stmt);
+			sqlite3_bind_text(db->objmap_root_stmt, 1, dataset,
+			    -1, SQLITE_STATIC);
+			sqlite3_bind_int64(db->objmap_root_stmt, 2,
+			    (sqlite3_int64)parent);
+			(void) sqlite3_step(db->objmap_root_stmt);
+			sqlite3_reset(db->objmap_root_stmt);
+		}
+
+		stmt = db->objmap_put_stmt;
+		sqlite3_reset(stmt);
+		sqlite3_bind_text(stmt, 1, dataset, -1, SQLITE_STATIC);
+		sqlite3_bind_int64(stmt, 2, (sqlite3_int64)object);
+		sqlite3_bind_text(stmt, 3, name, -1, SQLITE_TRANSIENT);
+		sqlite3_bind_int64(stmt, 4, have_parent ?
+		    (sqlite3_int64)parent : (sqlite3_int64)0);
+		if (sqlite3_step(stmt) != SQLITE_DONE) {
+			sqlite3_reset(stmt);
+			return (EIO);
+		}
+		sqlite3_reset(stmt);
+		return (0);
+	case 2:	/* REMOVE */
+		stmt = db->objmap_del_stmt;
+		sqlite3_reset(stmt);
+		sqlite3_bind_text(stmt, 1, dataset, -1, SQLITE_STATIC);
+		sqlite3_bind_int64(stmt, 2, (sqlite3_int64)object);
+		if (sqlite3_step(stmt) != SQLITE_DONE) {
+			sqlite3_reset(stmt);
+			return (EIO);
+		}
+		sqlite3_reset(stmt);
+		return (0);
+	default:
+		return (0);
+	}
 }
 
 int
@@ -578,6 +870,14 @@ zmetad_db_insert_event(zmetad_db_t *db, const char *dataset, nvlist_t *event)
 	} val;
 	uint64_t op = 0;
 	boolean_t have_op = B_FALSE;
+	uint64_t object = 0;
+	boolean_t have_object = B_FALSE;
+	uint64_t parent = 0;
+	boolean_t have_parent = B_FALSE;
+	const char *rec_name = NULL;
+	boolean_t have_name = B_FALSE;
+	const char *rec_old_name = NULL;
+	boolean_t have_old_name = B_FALSE;
 	uint_t nelem;
 	data_type_t dtype;
 	int rc;
@@ -589,8 +889,7 @@ zmetad_db_insert_event(zmetad_db_t *db, const char *dataset, nvlist_t *event)
 	 * Decode the record schema-driven: every known field is looked
 	 * up via zmetad_schema_field() (ENOENT = absent, normal) and
 	 * bound to the matching SQL column by field name.  Absent
-	 * fields stay NULL.  The mode column is kept for schema
-	 * stability but has no record field.
+	 * fields stay NULL.
 	 */
 	sqlite3_reset(stmt);
 	sqlite3_clear_bindings(stmt);
@@ -618,19 +917,27 @@ zmetad_db_insert_event(zmetad_db_t *db, const char *dataset, nvlist_t *event)
 			sqlite3_bind_int64(stmt, 3, (sqlite3_int64)val.u64);
 		} else if (strcmp(name, "object") == 0) {
 			sqlite3_bind_int64(stmt, 4, (sqlite3_int64)val.u64);
+			object = val.u64;
+			have_object = B_TRUE;
 		} else if (strcmp(name, "op") == 0) {
 			op = val.u64;
 			have_op = B_TRUE;
 		} else if (strcmp(name, "name") == 0) {
 			sqlite3_bind_text(stmt, 6, val.str, nelem,
 			    SQLITE_TRANSIENT);
+			rec_name = (const char *)val.str;
+			have_name = B_TRUE;
 		} else if (strcmp(name, "old_name") == 0) {
 			sqlite3_bind_text(stmt, 7, val.str, nelem,
 			    SQLITE_TRANSIENT);
+			rec_old_name = (const char *)val.str;
+			have_old_name = B_TRUE;
 		} else if (strcmp(name, "uid") == 0) {
 			sqlite3_bind_int64(stmt, 8, (sqlite3_int64)val.u64);
 		} else if (strcmp(name, "gid") == 0) {
 			sqlite3_bind_int64(stmt, 9, (sqlite3_int64)val.u64);
+		} else if (strcmp(name, "mode") == 0) {
+			sqlite3_bind_int64(stmt, 10, (sqlite3_int64)val.u64);
 		} else if (strcmp(name, "new_size") == 0) {
 			sqlite3_bind_int64(stmt, 11, (sqlite3_int64)val.u64);
 		} else if (strcmp(name, "io_offset") == 0) {
@@ -639,6 +946,8 @@ zmetad_db_insert_event(zmetad_db_t *db, const char *dataset, nvlist_t *event)
 			sqlite3_bind_int64(stmt, 13, (sqlite3_int64)val.u64);
 		} else if (strcmp(name, "parent") == 0) {
 			sqlite3_bind_int64(stmt, 14, (sqlite3_int64)val.u64);
+			parent = val.u64;
+			have_parent = B_TRUE;
 		} else if (strcmp(name, "old_parent") == 0) {
 			sqlite3_bind_int64(stmt, 15, (sqlite3_int64)val.u64);
 		} else if (strcmp(name, "target") == 0) {
@@ -649,10 +958,6 @@ zmetad_db_insert_event(zmetad_db_t *db, const char *dataset, nvlist_t *event)
 		} else if (strcmp(name, "attrs") == 0) {
 			sqlite3_bind_int64(stmt, 18, (sqlite3_int64)val.u64);
 		}
-		/*
-		 * mode: decoded and validated but no record field maps
-		 * to the column (kept for schema stability, stays NULL).
-		 */
 	}
 
 	/*
@@ -664,15 +969,46 @@ zmetad_db_insert_event(zmetad_db_t *db, const char *dataset, nvlist_t *event)
 	    have_op ? op : 0), -1, SQLITE_STATIC);
 
 	/*
-	 * Column 10 (mode) stays NULL: no record field maps to it;
-	 * the column is kept for schema stability.
-	 *
 	 * captured_at (19) is ingest wall time (unix seconds): the
 	 * wire 'time' bound to timestamp is gethrtime() nanoseconds
 	 * since boot, which retention cannot compare a wall-clock
 	 * cutoff against.
 	 */
 	sqlite3_bind_int64(stmt, 19, (sqlite3_int64)time(NULL));
+
+	/*
+	 * full_path (20) / old_full_path (21): resolve the record's
+	 * place in the dataset tree at insert time by walking the
+	 * objmap graph.  A name-bearing record also updates the graph
+	 * (the insert and the graph write are both idempotent against
+	 * the UNIQUE key / PRIMARY KEY, so a redelivered record is
+	 * harmless).  Unresolvable chains leave the columns NULL and
+	 * the row stays PARTIAL per the conservative-match contract.
+	 * Resolution failure never fails the insert: path/parent stay
+	 * as ground truth for later re-resolution.
+	 */
+	(void) objmap_update(db, dataset, op, have_op, object,
+	    have_object, rec_name, have_name, parent, have_parent);
+
+	if (have_object && have_name) {
+		char *fp = NULL;
+
+		if (objmap_resolve(db, dataset, have_parent ? parent : 0,
+		    rec_name, &fp) == 0 && fp != NULL) {
+			sqlite3_bind_text(stmt, 20, fp, -1, SQLITE_TRANSIENT);
+			free(fp);
+		}
+		if (have_old_name && rec_old_name != NULL) {
+			char *ofp = NULL;
+
+			if (objmap_resolve(db, dataset,
+			    parent, rec_old_name, &ofp) == 0 && ofp != NULL) {
+				sqlite3_bind_text(stmt, 21, ofp, -1,
+				    SQLITE_TRANSIENT);
+				free(ofp);
+			}
+		}
+	}
 
 	rc = sqlite3_step(stmt);
 	if (rc != SQLITE_DONE && rc != SQLITE_CONSTRAINT) {
@@ -762,12 +1098,12 @@ zmetad_db_set_last_offset(zmetad_db_t *db, const char *dataset,
  */
 int
 zmetad_db_purge_dataset(zmetad_db_t *db, const char *dataset,
-    long long counts[3])
+    long long counts[4])
 {
 	sqlite3_stmt *stmt = NULL;
 	int rc;
 
-	for (int i = 0; i < 3; i++) {
+	for (int i = 0; i < 4; i++) {
 		counts[i] = 0;
 		rc = sqlite3_prepare_v2(db->sqlite, purge_dataset_sql[i],
 		    -1, &stmt, NULL);

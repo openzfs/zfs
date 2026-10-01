@@ -230,7 +230,7 @@ static int
 run_purge(const zmetad_config_t *cfg)
 {
 	const char *ds = cfg->purge_dataset;
-	long long counts[3];
+	long long counts[4];
 	int err;
 
 	if (!zfs_dataset_exists(g_zfs, ds, ZFS_TYPE_FILESYSTEM)) {
@@ -361,6 +361,13 @@ detect_loss(const char *dataset, zmetad_db_t *db, struct loss_state *ls,
 		return (0);
 
 	if (regression) {
+		/*
+		 * Move the watermark down to the new cursor. Leaving
+		 * it above next_offset makes every later poll look
+		 * like another regression.
+		 */
+		ls->high_water = next_offset;
+		ls->have_high_water = (next_offset != 0);
 		fprintf(stderr, "event log watermark regression on %s: "
 		    "next_offset=%llu below high-water %llu; records "
 		    "since offset %llu were not captured\n",
@@ -399,6 +406,7 @@ collect_dataset_events(const char *dataset, zmetad_db_t *db)
 	uint64_t last_offset;
 	struct loss_state *ls;
 	int err;
+	boolean_t insert_failed = B_FALSE;
 
 	ls = loss_state_get(dataset);
 	if (ls == NULL)
@@ -485,6 +493,33 @@ collect_dataset_events(const char *dataset, zmetad_db_t *db)
 	}
 
 	/*
+	 * Clear does not rotate the ring GUID (that identity survives
+	 * a clear by contract) but it does reset logical eof to 0.
+	 * A stored cursor past the current eof is a cleared ring:
+	 * record the hole and resume at 0, or collection stalls until
+	 * the new log grows past the pre-clear cursor and skips
+	 * everything written in between.
+	 */
+	{
+		uint64_t log_eof = 0;
+
+		if (nvlist_lookup_uint64(events, "log_eof", &log_eof) == 0 &&
+		    last_offset > log_eof) {
+			fprintf(stderr, "event log cleared on %s: cursor "
+			    "%llu past eof %llu; resuming at 0\n", dataset,
+			    (unsigned long long)last_offset,
+			    (unsigned long long)log_eof);
+			(void) zmetad_db_insert_gap(db, dataset, log_eof,
+			    last_offset, 0);
+			last_offset = 0;
+			ls->last_lost = 0;
+			ls->have_lost = B_FALSE;
+			ls->high_water = 0;
+			ls->have_high_water = B_FALSE;
+		}
+	}
+
+	/*
 	 * Negotiate the record schema version.  Kernels that predate
 	 * schema version exposure omit the key; wire == 0 is treated as
 	 * compatible with any loaded schema.
@@ -526,6 +561,7 @@ collect_dataset_events(const char *dataset, zmetad_db_t *db)
 		if (err != 0) {
 			fprintf(stderr, "Failed to insert event: %s\n",
 			    strerror(err));
+			insert_failed = B_TRUE;
 		} else {
 			count++;
 		}
@@ -563,7 +599,7 @@ collect_dataset_events(const char *dataset, zmetad_db_t *db)
 	 * (0 binds NULL, and INSERT OR REPLACE keeps last_sync
 	 * fresh without disturbing identity tracking).
 	 */
-	if (next_offset > 0) {
+	if (next_offset > 0 && !insert_failed) {
 		zmetad_db_set_last_offset(db, dataset, next_offset,
 		    have_guid ? ring_guid : 0);
 	} else if (have_guid) {

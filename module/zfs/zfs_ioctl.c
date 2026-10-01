@@ -4718,6 +4718,29 @@ zfs_ioc_destroy_bookmarks(const char *poolname, nvlist_t *innvl,
  *     "next_offset" -> uint64 (offset for next read)
  *     "records_lost" -> uint64 (count of overwritten records)
  */
+static int
+zfs_secpolicy_events(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
+{
+	uint64_t offset = 0;
+	int error;
+
+	error = zfs_secpolicy_read(zc, innvl, cr);
+	if (error != 0)
+		return (error);
+
+	/*
+	 * offset == UINT64_MAX is the clear request. Wiping the log
+	 * is a write: require the destroy delegation, not the read
+	 * policy that every local user passes.
+	 */
+	if (innvl != NULL)
+		(void) nvlist_lookup_uint64(innvl, "offset", &offset);
+	if (offset == UINT64_MAX)
+		return (zfs_secpolicy_write_perms(zc->zc_name,
+		    ZFS_DELEG_PERM_DESTROY, cr));
+	return (0);
+}
+
 static const zfs_ioc_key_t zfs_keys_get_events[] = {
 	{"object",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
 	{"offset",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
@@ -4759,18 +4782,17 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 		if (err != 0)
 			return (err);
 
+		if (!spa_writeable(dmu_objset_spa(zfsvfs->z_os))) {
+			zfs_vfs_rele(zfsvfs);
+			return (SET_ERROR(EROFS));
+		}
+
 		/*
-		 * zfs_events_clear_task() assigns its transaction with
-		 * DMU_TX_WAIT, which can sleep for a txg under
-		 * throttling; do not hold the ring lock across it or
-		 * every VFS event logger on this dataset stalls too.
-		 * Clear means discard ALL history, so records appended
-		 * while the lock is released (and while the clear
-		 * transaction is in flight) are legitimately discarded
-		 * as well; the header reset itself is a single
-		 * transaction-serialized write.
+		 * Assign happens inside clear_task, before it takes
+		 * the ring lock for the header reset.
 		 */
-		err = zfs_events_clear_task(zfsvfs->z_os);
+		err = zfs_events_clear_task(zfsvfs->z_os,
+		    &zfsvfs->z_events_lock);
 
 		zfs_vfs_rele(zfsvfs);
 		return (err);
@@ -4785,7 +4807,7 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 	start_offset = offset;
 
 	zfsvfs_t *io_zfsvfs;
-	error = getzfsvfs(dsname, &io_zfsvfs);
+	error = getzfsvfs_impl(os, &io_zfsvfs);
 	if (error != 0) {
 		vmem_free(buf, bufsize);
 		dmu_objset_rele(os, FTAG);
@@ -4822,22 +4844,20 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 			pos += sizeof (uint64_t);
 
 			/*
-			 * A record that does not fully fit in the buffer
-			 * stops this page: the resume offset must only
-			 * advance past WHOLE records, or the following
-			 * page would start mid-record and lose events.
-			 * A single record larger than the whole buffer
-			 * can never be returned; skip it so the query
-			 * cannot livelock.
+			 * A record that does not fully fit in the bytes
+			 * actually read stops this page. Add only after
+			 * the subtraction so a corrupt length cannot
+			 * wrap the resume cursor to 0 (which the CLI
+			 * treats as "done") or to UINT64_MAX (which the
+			 * ioctl treats as clear).
 			 */
-			if (reclen == 0 || reclen + sizeof (uint64_t) >
-			    bufsize) {
-				if (consumed == 0)
+			if (reclen == 0 || reclen > read_len - pos) {
+				if (consumed == 0 &&
+				    reclen > bufsize - sizeof (uint64_t) &&
+				    reclen <= UINT64_MAX - pos)
 					consumed = pos + reclen;
 				break;
 			}
-			if (pos + reclen > read_len)
-				break;
 
 			consumed = pos + reclen;
 
@@ -4874,7 +4894,8 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 	 * one. Advancing past a partial record would silently drop it
 	 * and misalign every following page.
 	 */
-	if (read_len > 0 && consumed > 0)
+	if (read_len > 0 && consumed > 0 &&
+	    consumed <= UINT64_MAX - start_offset)
 		offset = start_offset + consumed;
 
 	fnvlist_add_nvlist(outnvl, "events", events_list);
@@ -4886,6 +4907,13 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 
 		if (zfs_events_get_lost(os, &lost) == 0)
 			fnvlist_add_uint64(outnvl, "records_lost", lost);
+	}
+
+	{
+		uint64_t log_eof = 0;
+
+		if (zfs_events_get_eof(os, &log_eof) == 0)
+			fnvlist_add_uint64(outnvl, "log_eof", log_eof);
 	}
 
 	{
@@ -8661,7 +8689,7 @@ zfs_ioctl_init(void)
 	    zfs_keys_ddt_prune, ARRAY_SIZE(zfs_keys_ddt_prune));
 
 	zfs_ioctl_register("get_events", ZFS_IOC_GET_EVENTS,
-	    zfs_ioc_get_events, zfs_secpolicy_read, DATASET_NAME,
+	    zfs_ioc_get_events, zfs_secpolicy_events, DATASET_NAME,
 	    POOL_CHECK_SUSPENDED, B_FALSE, B_FALSE,
 	    zfs_keys_get_events, ARRAY_SIZE(zfs_keys_get_events));
 

@@ -509,7 +509,7 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 	if (error)
 		goto out;
 
-	error = -zfs_write_simple(xzp, value, size, pos, NULL);
+	error = -zfs_write_simple(xzp, value, size, pos, NULL, cr);
 out:
 	if (error == 0) {
 		zpl_inode_set_ctime_to_ts(ip, current_time(ip));

@@ -1,4 +1,4 @@
-# zmetad database schema — consumer contract (layout version 4)
+# zmetad database schema — consumer contract (layout version 5)
 
 This document is the stable contract between the `zmetad` daemon's SQLite
 database (`zmetad.db`) and external consumers (e.g. zeta-object). It is
@@ -12,7 +12,7 @@ may read concurrently with the daemon.
 
 ## 1. Stability policy
 
-`meta.db_schema_version = 4` is the stable contract version documented
+`meta.db_schema_version = 5` is the stable contract version documented
 here.
 
 Evolution rules:
@@ -39,6 +39,7 @@ Version history:
 || 2 | events gains `parent`, `old_parent`, `target`, `old_size`, `attrs` |
 || 3 | sync_state gains `ring_guid`; new `datasets` table |
 || 4 | events gains `captured_at` (unix seconds at ingest) |
+|| 5 | events gains `full_path`/`old_full_path`; new `objmap` graph table |
 
 Migration contract: upgrades are performed **in place** by zmetad with
 `ALTER TABLE ADD COLUMN`; added columns are NULL for pre-existing rows,
@@ -69,6 +70,8 @@ Two version keys live in `meta` and are independent:
 | txg | INTEGER | no | `txg` | transaction group of the change |
 || timestamp | INTEGER | no | `time` | kernel event time: `gethrtime()` nanoseconds since boot (monotonic, NOT wall clock); ordering/dedup only — see `captured_at` |
 || captured_at | INTEGER | yes | — | ingest wall time, unix seconds; NULL in pre-v4 rows. Retention and consumer "when did this appear" queries use this |
+|| full_path | INTEGER | yes | — | dataset-relative path resolved at insert time (e.g. `a/b/c.txt`); NULL when the ancestor chain is unresolvable (row stays PARTIAL, §7). Directory RENAMEs relabel descendants forward — events before the rename keep the old full_path; the rename row's `old_full_path` carries it |
+|| old_full_path | INTEGER | yes | — | RENAME rows: the resolved path of `old_path` at insert time |
 | object_id | INTEGER | no | `object` | object ID affected |
 | event_type | TEXT | no | `op` | schema enum name (below); unknown op values decode as `UNKNOWN` |
 | path | TEXT | yes | `name` | file/dir name, dataset-relative at event time |
@@ -149,7 +152,16 @@ mountpoints such as `none` or `legacy` are stored verbatim — consumers
 must filter/prefix-match accordingly. This table is not deleted by
 retention or by `--purge`; it holds no records, only the mapping.
 
-### 2.4 `gaps`
+### 2.4 `objmap`
+
+The objid → (name, parent) graph the daemon maintains to resolve
+`full_path` at insert time: one row per known object per dataset.
+Consumers may read it, but it is an implementation detail of the
+resolver — the durable per-row truth remains `path`/`parent` plus
+`full_path`. `--purge` deletes a dataset's objmap rows; retention
+never touches them.
+
+### 2.5 `gaps`
 
 Permanent completeness record. One row per loss event observed at poll
 time.
@@ -180,7 +192,7 @@ Row lifecycle:
   the dataset's `events`, `gaps`, and `sync_state` rows and clears the
   kernel ring.
 
-### 2.5 `meta`
+### 2.6 `meta`
 
 | Column | Type | NULL | Notes |
 |-------|------|------|-------|
@@ -262,7 +274,9 @@ To reconstruct path state per dataset:
   ties within a txg in capture order.
 - A row is **PARTIAL** when its ancestor chain is incomplete — i.e. an
   ancestor's CREATE fell inside a `gaps` loss range (Section 4), so no
-  full path can be proven.
+  full path can be proven. On layout ≥ 5 this is exactly the row whose
+  `full_path` is NULL; consumers on older layouts reconstruct and test
+  resolvability themselves.
 - Serve PARTIAL rows under **conservative match** only:
   - exact match on the bare name, or
   - a queried key ending in `"/" + bare name`.
@@ -271,6 +285,10 @@ To reconstruct path state per dataset:
   information.
 - **Never fabricate a full path for a partial row.** If the ancestor
   chain cannot be proven, do not synthesize one.
+- On layout ≥ 5, a non-NULL `full_path` is authoritative as of the
+  row's own event: serve it directly, no reconstruction. Rows carry
+  the path as of that event; a later directory RENAME does not rewrite
+  history (the rename row's `old_full_path` links the before-path).
 
 
 ## 8. Freshness (#5)

@@ -400,8 +400,8 @@ dbver = con.execute(
     "select value from meta where key='db_schema_version'").fetchall()
 if not dbver:
     errors.append("meta db_schema_version key absent")
-elif dbver[0][0] != "4":
-    errors.append("meta db_schema_version=%r, expected '4'"
+elif dbver[0][0] != "5":
+    errors.append("meta db_schema_version=%r, expected '5'"
                   % (dbver[0][0],))
 sync_cols = [r[1] for r in con.execute(
     "pragma table_info(sync_state)").fetchall()]
@@ -411,6 +411,28 @@ ev_cols = [r[1] for r in con.execute(
     "pragma table_info(events)").fetchall()]
 if "captured_at" not in ev_cols:
     errors.append("events missing captured_at column: %r" % (ev_cols,))
+if "full_path" not in ev_cols or "old_full_path" not in ev_cols:
+    errors.append("events missing full_path columns: %r" % (ev_cols,))
+
+# gh #11: name-bearing CREATE rows resolve to dataset-relative full
+# paths at insert time (objmap graph). The ops step creates a/b/c
+# under the dataset; every CREATE row's full_path must be non-NULL
+# and end with the bare name.
+for row in con.execute(
+        "select path, full_path from events "
+        "where dataset=? and event_type='CREATE'", (ds,)).fetchall():
+    _p, _fp = row
+    if _fp is None:
+        errors.append("CREATE %r has NULL full_path" % (_p,))
+    elif not _fp.endswith("/" + _p) and _fp != _p:
+        errors.append("CREATE %r full_path=%r does not end in name"
+                      % (_p, _fp))
+_ren = con.execute(
+    "select full_path, old_full_path from events "
+    "where dataset=? and event_type='RENAME' limit 1",
+    (ds,)).fetchone()
+if _ren is not None and (_ren[0] is None or _ren[1] is None):
+    errors.append("RENAME full_path/old_full_path NULL: %r" % (_ren,))
 
 # parent is decoded on every name-bearing op; the CREATE row for 'a'
 # must carry a non-NULL parent object id, and the RENAME row must
@@ -697,7 +719,7 @@ import sys
 con = sqlite3.connect(sys.argv[1])
 con.execute(
     "insert or replace into meta values "
-    "('db_schema_version', '3')")
+    "('db_schema_version', '4')")
 con.commit()
 PY
 	"${SUDO[@]}" systemctl reset-failed "$UNIT" >/dev/null 2>&1 || true
@@ -711,14 +733,14 @@ PY
 	_log="$("${SUDO[@]}" journalctl -u "$UNIT" --no-pager --since="-30s" \
 	    2>/dev/null || true)"
 	case "$_log" in
-	*"upgraded database to layout version 4"*) ;;
-	*) fail "migration: journal lacks 'upgraded database to layout version 4'" ;;
+	*"upgraded database to layout version 5"*) ;;
+	*) fail "migration: journal lacks 'upgraded database to layout version 5'" ;;
 	esac
 	_v="$(db_query "$WD/zmd.db" \
 	    "con.execute(\"select value from meta where key='db_schema_version'\").fetchone()[0]" \
 	    2>/dev/null)"
-	[ "$_v" = "4" ] ||
-		fail "migration: meta db_schema_version=$_v, expected '4'"
+	[ "$_v" = "5" ] ||
+		fail "migration: meta db_schema_version=$_v, expected '5'"
 	pass migration
 }
 

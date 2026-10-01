@@ -8507,9 +8507,13 @@ zfs_do_events(int argc, char **argv)
 			return (1);
 		}
 
-		/* Construct the full path */
-		(void) snprintf(fullpath, sizeof (fullpath), "%s/%s",
-		    mountpoint, argv[1]);
+		/* An absolute path is already complete; do not join it. */
+		if (argv[1][0] == '/') {
+			(void) strlcpy(fullpath, argv[1], sizeof (fullpath));
+		} else {
+			(void) snprintf(fullpath, sizeof (fullpath), "%s/%s",
+			    mountpoint, argv[1]);
+		}
 
 		if (stat(fullpath, &st) != 0) {
 			(void) fprintf(stderr,
@@ -8570,7 +8574,9 @@ zfs_do_events(int argc, char **argv)
 		uint64_t lost = 0;
 
 		if (nvlist_lookup_uint64(page, "records_lost", &lost) == 0) {
-			lost_total += lost;
+			/* Cumulative counter, not a per-page delta. */
+			if (lost > lost_total)
+				lost_total = lost;
 			have_lost = B_TRUE;
 		}
 
