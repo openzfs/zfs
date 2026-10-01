@@ -427,6 +427,13 @@ ZFS_OBJS := \
 	zap_impl.o \
 	zap_leaf.o \
 	zap_micro.o \
+	zap_tiny.o \
+	zcp.o \
+	zcp_get.o \
+	zcp_global.o \
+	zcp_iter.o \
+	zcp_set.o \
+	zcp_synctask.o \
 	zfeature.o \
 	zfs_byteswap.o \
 	zfs_chksum.o \
