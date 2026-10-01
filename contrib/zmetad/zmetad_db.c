@@ -30,7 +30,7 @@
 #include "zmetad.h"
 #include "zmetad_schema.h"
 
-#define	ZMETAD_DB_SCHEMA_VERSION	5
+#define	ZMETAD_DB_SCHEMA_VERSION	6
 
 struct zmetad_db {
 	sqlite3		*sqlite;
@@ -38,11 +38,12 @@ struct zmetad_db {
 	sqlite3_stmt	*get_last_offset_stmt;
 	sqlite3_stmt	*set_last_offset_stmt;
 	sqlite3_stmt	*get_ring_guid_stmt;
+	sqlite3_stmt	*get_last_lost_stmt;
+	sqlite3_stmt	*set_last_lost_stmt;
 	sqlite3_stmt	*objmap_get_stmt;
+	sqlite3_stmt	*objmap_any_stmt;
 	sqlite3_stmt	*objmap_put_stmt;
 	sqlite3_stmt	*objmap_del_stmt;
-	sqlite3_stmt	*objmap_any_stmt;
-	sqlite3_stmt	*objmap_root_stmt;
 	const zmetad_schema_t *schema;
 };
 
@@ -145,8 +146,6 @@ static const char *schema_sql =
 	"    ON events(dataset, object_id);"
 	"CREATE INDEX IF NOT EXISTS idx_events_path "
 	"    ON events(dataset, path);"
-	"CREATE INDEX IF NOT EXISTS idx_events_full_path "
-	"    ON events(dataset, full_path);"
 	"CREATE TABLE IF NOT EXISTS objmap ("
 	"    dataset TEXT NOT NULL,"
 	"    object_id INTEGER NOT NULL,"
@@ -158,7 +157,8 @@ static const char *schema_sql =
 	"    dataset TEXT PRIMARY KEY,"
 	"    last_offset INTEGER NOT NULL,"
 	"    last_sync INTEGER NOT NULL,"
-	"    ring_guid INTEGER"
+	"    ring_guid INTEGER,"
+	"    last_lost INTEGER"
 		");"
 	"CREATE TABLE IF NOT EXISTS meta ("
 	"    key TEXT PRIMARY KEY,"
@@ -191,12 +191,17 @@ static const char *objmap_put_sql =
 static const char *objmap_del_sql =
 	"DELETE FROM objmap WHERE dataset = ? AND object_id = ?";
 
+/*
+ * Emptiness probe for the resolver's root discrimination: an ancestor
+ * with no objmap row is the dataset root only when the graph has no
+ * rows at all (first name-bearing record, or a database upgraded from
+ * a layout without the graph).  Once any row exists, a missing
+ * ancestor means a broken chain -- the CREATE that would have mapped
+ * it was lost -- and the honest answer is ENOENT (the row stays
+ * PARTIAL), not a fabricated shorter path.
+ */
 static const char *objmap_any_sql =
 	"SELECT 1 FROM objmap WHERE dataset = ? LIMIT 1";
-
-static const char *objmap_root_sql =
-	"INSERT OR IGNORE INTO objmap "
-	"(dataset, object_id, name, parent) VALUES (?, ?, '', 0)";
 
 static const char *get_last_offset_sql =
 	"SELECT last_offset FROM sync_state WHERE dataset = ?";
@@ -207,11 +212,31 @@ static const char *get_ring_guid_sql =
 /*
  * Single watermark write: last_offset + ring_guid together, so a
  * ring swap persists the reset offset and the new identity in one
- * statement.  ring_guid binding of NULL stores an unknown identity.
+ * statement.  Upsert, not REPLACE: REPLACE deletes the row and would
+ * NULL last_lost, the restart baseline for records_lost.  A NULL
+ * ring_guid binding stores an unknown identity.
  */
 static const char *set_last_offset_sql =
-	"INSERT OR REPLACE INTO sync_state "
-	"(dataset, last_offset, last_sync, ring_guid) VALUES (?, ?, ?, ?)";
+	"INSERT INTO sync_state "
+	"(dataset, last_offset, last_sync, ring_guid) VALUES (?, ?, ?, ?) "
+	"ON CONFLICT(dataset) DO UPDATE SET "
+	"last_offset = excluded.last_offset, "
+	"last_sync = excluded.last_sync, "
+	"ring_guid = excluded.ring_guid";
+
+static const char *get_last_lost_sql =
+	"SELECT last_lost FROM sync_state WHERE dataset = ?";
+
+/*
+ * last_lost is the previous poll's records_lost.  NULL means no
+ * baseline yet (first observation must not invent a gap).  A missing
+ * row is inserted with offset 0, which is the correct unread cursor.
+ */
+static const char *set_last_lost_sql =
+	"INSERT INTO sync_state "
+	"(dataset, last_offset, last_sync, last_lost) VALUES (?, 0, ?, ?) "
+	"ON CONFLICT(dataset) DO UPDATE SET "
+	"last_lost = excluded.last_lost";
 
 static const char *purge_dataset_sql[] = {
 	"DELETE FROM events WHERE dataset = ?",
@@ -275,22 +300,66 @@ db_set_meta(zmetad_db_t *db, const char *key, const char *value)
 }
 
 /*
- * Ensure the database layout version matches this build.  Version 1
- * (pre-gap-tracking) and version 2 (pre-ring-identity) databases are
- * upgraded in place with ALTER TABLE ADD COLUMN; the added columns
- * are NULL for old rows, which is the correct representation for
- * fields absent from those records.  A database written by a NEWER
- * layout is refused.
+ * True when sql prepares.  A missing column fails prepare; a present
+ * column succeeds even on an empty table.
+ */
+static int
+db_column_exists(sqlite3 *sqlite, const char *sql)
+{
+	sqlite3_stmt *probe = NULL;
+	int rc;
+
+	rc = sqlite3_prepare_v2(sqlite, sql, -1, &probe, NULL);
+	if (rc == SQLITE_OK)
+		sqlite3_finalize(probe);
+	return (rc == SQLITE_OK);
+}
+
+/*
+ * ALTER TABLE ADD COLUMN.  "duplicate column name" is success: a
+ * previous attempt added the column and died before recording the
+ * version.  Does not close the database; the caller owns that.
+ */
+static int
+db_add_column(sqlite3 *sqlite, const char *table, const char *name,
+    const char *type)
+{
+	char sql[128];
+	char *errmsg = NULL;
+
+	(void) snprintf(sql, sizeof (sql),
+	    "ALTER TABLE %s ADD COLUMN %s %s", table, name, type);
+	if (sqlite3_exec(sqlite, sql, NULL, NULL, &errmsg) != SQLITE_OK) {
+		if (errmsg != NULL && strstr(errmsg,
+		    "duplicate column name") != NULL) {
+			sqlite3_free(errmsg);
+			return (0);
+		}
+		fprintf(stderr, "migration error adding %s.%s: %s\n",
+		    table, name,
+		    errmsg != NULL ? errmsg : "unknown");
+		sqlite3_free(errmsg);
+		return (EIO);
+	}
+	return (0);
+}
+
+/*
+ * Ensure the database layout version matches this build.  Older
+ * layouts are upgraded in place.  The version key is written only
+ * after every column for this build exists, so a crash mid-migration
+ * retries the remaining ALTERs instead of being stamped complete.
+ * A database written by a newer layout is refused.  Does not close
+ * the sqlite handle on error; zmetad_db_open does.
  */
 static int
 db_check_layout(zmetad_db_t *db)
 {
 	char *stored_version = NULL;
 	char version_str[16];
-	char sql[128];
-	char *errmsg = NULL;
 	unsigned long v;
 	int rc;
+	int fresh = 0;
 
 	(void) snprintf(version_str, sizeof (version_str), "%u",
 	    ZMETAD_DB_SCHEMA_VERSION);
@@ -298,191 +367,119 @@ db_check_layout(zmetad_db_t *db)
 	rc = db_get_meta(db, "db_schema_version", &stored_version);
 	if (rc == ENOENT) {
 		/*
-		 * No key: either a fresh database (created empty by
-		 * schema_sql above) or a version 1 database.  The
-		 * events table gains no columns from schema_sql when
-		 * it already exists, so probe for a v2 column and
-		 * ALTER TABLE the v1 set in when it is missing.
+		 * No key: a fresh database (schema_sql created every
+		 * column) or a version 1 database that predates the
+		 * key.  Probe the newest column.  If it is missing,
+		 * start at version 2 and fall through.  Stamping the
+		 * current version here used to skip every later column.
 		 */
-		{
-			sqlite3_stmt *probe = NULL;
-
-			rc = sqlite3_prepare_v2(db->sqlite,
-			    "SELECT parent FROM events LIMIT 1", -1,
-			    &probe, NULL);
-			if (rc == SQLITE_OK)
-				sqlite3_finalize(probe);
-		}
-		if (rc != SQLITE_OK) {
+		if (!db_column_exists(db->sqlite,
+		    "SELECT parent FROM events LIMIT 1")) {
 			for (size_t i = 0;
 			    i < sizeof (db_v2_columns) /
 			    sizeof (db_v2_columns[0]); i++) {
-				(void) snprintf(sql, sizeof (sql),
-				    "ALTER TABLE events ADD COLUMN %s %s",
+				rc = db_add_column(db->sqlite, "events",
 				    db_v2_columns[i].name,
 				    db_v2_columns[i].type);
-				if (sqlite3_exec(db->sqlite, sql, NULL,
-				    NULL, &errmsg) != SQLITE_OK) {
-					fprintf(stderr, "migration error "
-					    "adding %s: %s\n",
-					    db_v2_columns[i].name,
-					    errmsg != NULL ? errmsg :
-					    "unknown");
-					sqlite3_free(errmsg);
-					sqlite3_close(db->sqlite);
-					return (EIO);
-				}
+				if (rc != 0)
+					return (rc);
 			}
+			v = 2;
+		} else if (!db_column_exists(db->sqlite,
+		    "SELECT last_lost FROM sync_state LIMIT 1")) {
+			v = 2;
+		} else {
+			v = ZMETAD_DB_SCHEMA_VERSION;
+			fresh = 1;
 		}
-		rc = db_set_meta(db, "db_schema_version", version_str);
-		if (rc != 0) {
-			fprintf(stderr, "Failed to record database "
-			    "layout version\n");
-			return (rc);
-		}
-		return (0);
-	}
-	if (rc != 0) {
+	} else if (rc != 0) {
 		fprintf(stderr, "cannot read db_schema_version\n");
 		return (rc);
+	} else {
+		v = strtoul(stored_version, NULL, 10);
+		free(stored_version);
+		if (v > ZMETAD_DB_SCHEMA_VERSION) {
+			fprintf(stderr, "database layout version "
+			    "mismatch: stored=%lu loaded=%u; recreate "
+			    "the database or run an older zmetad\n", v,
+			    ZMETAD_DB_SCHEMA_VERSION);
+			return (EINVAL);
+		}
 	}
 
-	v = strtoul(stored_version, NULL, 10);
-	free(stored_version);
-	if (v > ZMETAD_DB_SCHEMA_VERSION) {
-		fprintf(stderr, "database layout version mismatch: "
-		    "stored=%lu loaded=%u; recreate the database or run "
-		    "an older zmetad\n", v, ZMETAD_DB_SCHEMA_VERSION);
-		return (EINVAL);
-	}
-
-	/*
-	 * Version 2 -> 3: sync_state gains the ring_guid column.
-	 * The v3 set is ALTERed in whenever the stored version is
-	 * older than this build (covers both a plain "2" and any
-	 * future pre-3 record that skipped intermediate bumps).
-	 */
 	if (v < 3) {
 		for (size_t i = 0;
 		    i < sizeof (db_v3_columns) /
 		    sizeof (db_v3_columns[0]); i++) {
-			(void) snprintf(sql, sizeof (sql),
-			    "ALTER TABLE sync_state ADD COLUMN %s %s",
+			rc = db_add_column(db->sqlite, "sync_state",
 			    db_v3_columns[i].name,
 			    db_v3_columns[i].type);
-			if (sqlite3_exec(db->sqlite, sql, NULL,
-			    NULL, &errmsg) != SQLITE_OK) {
-				/*
-				 * "duplicate column name" means the
-				 * column is already there: a previous
-				 * migration attempt ALTERed but died
-				 * before recording the version. The
-				 * end state is what we want; treat it
-				 * as success.
-				 */
-				if (errmsg != NULL && strstr(errmsg,
-				    "duplicate column name") != NULL) {
-					sqlite3_free(errmsg);
-					errmsg = NULL;
-					continue;
-				}
-				fprintf(stderr, "migration error "
-				    "adding sync_state.%s: %s\n",
-				    db_v3_columns[i].name,
-				    errmsg != NULL ? errmsg : "unknown");
-				sqlite3_free(errmsg);
-				sqlite3_close(db->sqlite);
-				return (EIO);
-			}
-		}
-		fprintf(stderr, "upgraded database to layout "
-		    "version %s\n", version_str);
-		rc = db_set_meta(db, "db_schema_version", version_str);
-		if (rc != 0) {
-			fprintf(stderr, "Failed to record database "
-			    "layout version\n");
-			return (rc);
+			if (rc != 0)
+				return (rc);
 		}
 	}
 
-	/*
-	 * Version 3 -> 4: events gains captured_at (unix seconds at
-	 * ingest).  events.timestamp holds the kernel wire 'time'
-	 * value, which is gethrtime() nanoseconds since boot - not a
-	 * wall clock - so retention could never compare it against a
-	 * time(NULL) cutoff.  Pre-v4 rows get NULL: retention leaves
-	 * them (they are either recent or the operator purges).
-	 */
 	if (v < 4) {
-		(void) snprintf(sql, sizeof (sql),
-		    "ALTER TABLE events ADD COLUMN captured_at INTEGER");
-		if (sqlite3_exec(db->sqlite, sql, NULL,
-		    NULL, &errmsg) != SQLITE_OK) {
-			if (errmsg == NULL || strstr(errmsg,
-			    "duplicate column name") == NULL) {
-				fprintf(stderr, "migration error "
-				    "adding events.captured_at: %s\n",
-				    errmsg != NULL ? errmsg : "unknown");
-				sqlite3_free(errmsg);
-				sqlite3_close(db->sqlite);
-				return (EIO);
-			}
-			sqlite3_free(errmsg);
-			errmsg = NULL;
-		}
-		fprintf(stderr, "upgraded database to layout "
-		    "version %s\n", version_str);
-		rc = db_set_meta(db, "db_schema_version", version_str);
-		if (rc != 0) {
-			fprintf(stderr, "Failed to record database "
-			    "layout version\n");
+		rc = db_add_column(db->sqlite, "events",
+		    "captured_at", "INTEGER");
+		if (rc != 0)
 			return (rc);
-		}
+	}
+
+	if (v < 5) {
+		rc = db_add_column(db->sqlite, "events",
+		    "full_path", "TEXT");
+		if (rc != 0)
+			return (rc);
+		rc = db_add_column(db->sqlite, "events",
+		    "old_full_path", "TEXT");
+		if (rc != 0)
+			return (rc);
 	}
 
 	/*
-	 * Version 4 -> 5: events gains full_path/old_full_path (the
-	 * dataset-relative path resolved at insert time; NULL when the
-	 * ancestor chain is unresolvable), and the objmap table carries
-	 * the objid -> (name, parent) graph the resolver walks.  Pre-v5
-	 * rows keep NULL full_path and remain PARTIAL under the
-	 * documented conservative-match rules.
+	 * Version 5 -> 6: sync_state gains last_lost, the records_lost
+	 * baseline.  NULL on old rows means "no baseline", so the first
+	 * poll after upgrade does not invent a gap for history that
+	 * predates the column.
 	 */
-	if (v < 5) {
-		static const struct {
-			const char	*name;
-			const char	*type;
-		} db_v5_columns[] = {
-			{ "full_path",		"TEXT" },
-			{ "old_full_path",	"TEXT" },
-		};
+	if (v < 6) {
+		rc = db_add_column(db->sqlite, "sync_state",
+		    "last_lost", "INTEGER");
+		if (rc != 0)
+			return (rc);
+	}
 
-		for (size_t i = 0;
-		    i < sizeof (db_v5_columns) /
-		    sizeof (db_v5_columns[0]); i++) {
-			(void) snprintf(sql, sizeof (sql),
-			    "ALTER TABLE events ADD COLUMN %s %s",
-			    db_v5_columns[i].name,
-			    db_v5_columns[i].type);
-			if (sqlite3_exec(db->sqlite, sql, NULL,
-			    NULL, &errmsg) != SQLITE_OK) {
-				if (errmsg == NULL || strstr(errmsg,
-				    "duplicate column name") == NULL) {
-					fprintf(stderr, "migration error "
-					    "adding events.%s: %s\n",
-					    db_v5_columns[i].name,
-					    errmsg != NULL ?
-					    errmsg : "unknown");
-					sqlite3_free(errmsg);
-					sqlite3_close(db->sqlite);
-					return (EIO);
-				}
-				sqlite3_free(errmsg);
-				errmsg = NULL;
-			}
+	/*
+	 * The full_path index lives here, not in schema_sql: it
+	 * references columns that may not exist until the ALTERs
+	 * above ran.  Creating it in schema_sql bricked every v4 ->
+	 * v5 upgrade -- the index failed "no such column" and the
+	 * open returned EIO before the migration could ever run.
+	 * Idempotent, and correct for both fresh and migrated
+	 * databases (a fresh one already has the columns).
+	 */
+	{
+		char *errmsg = NULL;
+
+		rc = sqlite3_exec(db->sqlite,
+		    "CREATE INDEX IF NOT EXISTS idx_events_full_path "
+		    "ON events(dataset, full_path);",
+		    NULL, NULL, &errmsg);
+		if (rc != SQLITE_OK) {
+			fprintf(stderr, "Index creation error: %s\n",
+			    errmsg != NULL ? errmsg : "unknown");
+			sqlite3_free(errmsg);
+			return (EIO);
 		}
-		fprintf(stderr, "upgraded database to layout "
-		    "version %s\n", version_str);
+		sqlite3_free(errmsg);
+	}
+
+	if (v < ZMETAD_DB_SCHEMA_VERSION || fresh) {
+		if (!fresh) {
+			fprintf(stderr, "upgraded database to layout "
+			    "version %s\n", version_str);
+		}
 		rc = db_set_meta(db, "db_schema_version", version_str);
 		if (rc != 0) {
 			fprintf(stderr, "Failed to record database "
@@ -493,7 +490,6 @@ db_check_layout(zmetad_db_t *db)
 
 	return (0);
 }
-
 int
 zmetad_db_open(zmetad_db_t **dbp, const char *path,
     const zmetad_schema_t *zs)
@@ -637,25 +633,49 @@ zmetad_db_open(zmetad_db_t **dbp, const char *path,
 		return (EIO);
 	}
 
+	rc = sqlite3_prepare_v2(db->sqlite, get_last_lost_sql, -1,
+	    &db->get_last_lost_stmt, NULL);
+	if (rc != SQLITE_OK) {
+		sqlite3_finalize(db->insert_event_stmt);
+		sqlite3_finalize(db->get_last_offset_stmt);
+		sqlite3_finalize(db->set_last_offset_stmt);
+		sqlite3_finalize(db->get_ring_guid_stmt);
+		sqlite3_close(db->sqlite);
+		free(db);
+		return (EIO);
+	}
+
+	rc = sqlite3_prepare_v2(db->sqlite, set_last_lost_sql, -1,
+	    &db->set_last_lost_stmt, NULL);
+	if (rc != SQLITE_OK) {
+		sqlite3_finalize(db->insert_event_stmt);
+		sqlite3_finalize(db->get_last_offset_stmt);
+		sqlite3_finalize(db->set_last_offset_stmt);
+		sqlite3_finalize(db->get_ring_guid_stmt);
+		sqlite3_finalize(db->get_last_lost_stmt);
+		sqlite3_close(db->sqlite);
+		free(db);
+		return (EIO);
+	}
+
 	rc = sqlite3_prepare_v2(db->sqlite, objmap_get_sql, -1,
 	    &db->objmap_get_stmt, NULL);
+	if (rc == SQLITE_OK)
+		rc = sqlite3_prepare_v2(db->sqlite, objmap_any_sql, -1,
+		    &db->objmap_any_stmt, NULL);
 	if (rc == SQLITE_OK)
 		rc = sqlite3_prepare_v2(db->sqlite, objmap_put_sql, -1,
 		    &db->objmap_put_stmt, NULL);
 	if (rc == SQLITE_OK)
 		rc = sqlite3_prepare_v2(db->sqlite, objmap_del_sql, -1,
 		    &db->objmap_del_stmt, NULL);
-	if (rc == SQLITE_OK)
-		rc = sqlite3_prepare_v2(db->sqlite, objmap_any_sql, -1,
-		    &db->objmap_any_stmt, NULL);
-	if (rc == SQLITE_OK)
-		rc = sqlite3_prepare_v2(db->sqlite, objmap_root_sql, -1,
-		    &db->objmap_root_stmt, NULL);
 	if (rc != SQLITE_OK) {
 		sqlite3_finalize(db->insert_event_stmt);
 		sqlite3_finalize(db->get_last_offset_stmt);
 		sqlite3_finalize(db->set_last_offset_stmt);
 		sqlite3_finalize(db->get_ring_guid_stmt);
+		sqlite3_finalize(db->get_last_lost_stmt);
+		sqlite3_finalize(db->set_last_lost_stmt);
 		sqlite3_close(db->sqlite);
 		free(db);
 		return (EIO);
@@ -679,16 +699,18 @@ zmetad_db_close(zmetad_db_t *db)
 		sqlite3_finalize(db->set_last_offset_stmt);
 	if (db->get_ring_guid_stmt)
 		sqlite3_finalize(db->get_ring_guid_stmt);
+	if (db->get_last_lost_stmt)
+		sqlite3_finalize(db->get_last_lost_stmt);
+	if (db->set_last_lost_stmt)
+		sqlite3_finalize(db->set_last_lost_stmt);
 	if (db->objmap_get_stmt)
 		sqlite3_finalize(db->objmap_get_stmt);
+	if (db->objmap_any_stmt)
+		sqlite3_finalize(db->objmap_any_stmt);
 	if (db->objmap_put_stmt)
 		sqlite3_finalize(db->objmap_put_stmt);
 	if (db->objmap_del_stmt)
 		sqlite3_finalize(db->objmap_del_stmt);
-	if (db->objmap_any_stmt)
-		sqlite3_finalize(db->objmap_any_stmt);
-	if (db->objmap_root_stmt)
-		sqlite3_finalize(db->objmap_root_stmt);
 	if (db->sqlite)
 		sqlite3_close(db->sqlite);
 
@@ -697,13 +719,42 @@ zmetad_db_close(zmetad_db_t *db)
 
 /*
  * Resolve a dataset-relative full path for an object by walking the
- * objmap graph from its parent chain to the root (parent NULL/0).
- * Returns 0 with a malloc'd path in *pathp, ENOENT when any ancestor
- * is unknown (the caller leaves full_path NULL: the row stays PARTIAL
- * under the SCHEMA.md conservative-match rules), or another error.
- * A depth cap guards against corrupt-graph cycles.
+ * objmap graph from its parent chain to the root.  The root is found
+ * lazily: the dataset's root directory never gets an objmap row, so
+ * a parent id with no row is the terminus -- but only while the
+ * graph has no rows at all (objmap_graph_empty).  Once rows exist, a
+ * missing ancestor is a broken chain (its CREATE was lost) and the
+ * resolve fails, leaving the row PARTIAL.  (The update side used to
+ * guess the root from "graph is empty", which misfired on upgraded
+ * databases whose graph was empty but whose tree was deep: the first
+ * record under a subdirectory seeded that subdirectory as root and
+ * every full_path beneath it resolved short.)  Legacy sentinel rows
+ * (name = '') from older databases are still honored as termini.
+ * Returns 0 with a malloc'd path in *pathp, ENOENT when the name is
+ * missing or too long or the lookup errors (the caller leaves
+ * full_path NULL: the row stays PARTIAL under the SCHEMA.md
+ * conservative-match rules).  A depth cap guards against
+ * corrupt-graph cycles.
  */
 #define	ZMETAD_PATH_MAX_DEPTH	64
+
+/*
+ * True when the dataset's graph has no rows at all: the state in which
+ * a missing ancestor row means "this IS the root", not "the chain is
+ * broken".
+ */
+static boolean_t
+objmap_graph_empty(zmetad_db_t *db, const char *dataset)
+{
+	sqlite3_stmt *stmt = db->objmap_any_stmt;
+	int rc;
+
+	sqlite3_reset(stmt);
+	sqlite3_bind_text(stmt, 1, dataset, -1, SQLITE_STATIC);
+	rc = sqlite3_step(stmt);
+	sqlite3_reset(stmt);
+	return (rc == SQLITE_DONE);
+}
 
 static int
 objmap_resolve(zmetad_db_t *db, const char *dataset, uint64_t parent,
@@ -739,6 +790,23 @@ for (depth = 0; parent != 0 && parent != UINT64_MAX; depth++) {
 	sqlite3_bind_text(stmt, 1, dataset, -1, SQLITE_STATIC);
 	sqlite3_bind_int64(stmt, 2, (sqlite3_int64)parent);
 	rc = sqlite3_step(stmt);
+	if (rc == SQLITE_DONE) {
+		/*
+		 * No objmap row for this ancestor.  With an
+		 * otherwise empty graph that ancestor is the
+		 * dataset root (never mapped): the chain's
+		 * terminus.  Once any row exists, a missing
+		 * ancestor is a broken chain -- the CREATE that
+		 * would have mapped it was lost -- and the honest
+		 * answer is ENOENT: the row keeps NULL full_path
+		 * and stays PARTIAL instead of getting a
+		 * fabricated shorter path.
+		 */
+		sqlite3_reset(stmt);
+		if (!objmap_graph_empty(db, dataset))
+			return (ENOENT);
+		goto build;
+	}
 	if (rc != SQLITE_ROW) {
 		sqlite3_reset(stmt);
 		return (ENOENT);
@@ -783,11 +851,20 @@ build:
 
 /*
  * Update the objmap graph from one decoded record.  CREATE/LINK/
- * SYMLINK/RENAME map the object's new location; REMOVE drops it
- * (its subtree's entries become stale but are only consulted via
- * the parent chain, which now dead-ends -> ENOENT, i.e. PARTIAL).
+ * SYMLINK/RENAME map the object's new location; REMOVE drops it.
  * WRITE/READ/SETATTR/TRUNCATE change no graph edges.
  * Returns 0 on success or when the op needs no graph update.
+ *
+ * The dataset root directory is never mapped: objmap_resolve finds
+ * the root lazily, when its walk reaches a parent id with no row AND
+ * the graph has no rows at all (see objmap_graph_empty).  Do not seed
+ * a root here -- the old "empty graph => parent is the root" guess
+ * fired on every v4 -> v5 upgrade (empty graph, deep tree) and
+ * resolved whole subtrees under the wrong root.  Once the graph has
+ * rows, a missing ancestor is a broken chain and resolves ENOENT
+ * (NULL full_path, PARTIAL) -- including after REMOVE drops a mapped
+ * directory, where descendants honestly degrade to PARTIAL rather
+ * than resolving under a fabricated root.
  */
 static int
 objmap_update(zmetad_db_t *db, const char *dataset, uint64_t op,
@@ -796,7 +873,6 @@ objmap_update(zmetad_db_t *db, const char *dataset, uint64_t op,
     boolean_t have_parent)
 {
 	sqlite3_stmt *stmt;
-	int rc;
 
 	if (!have_op || !have_object || !have_name)
 		return (0);
@@ -806,30 +882,6 @@ objmap_update(zmetad_db_t *db, const char *dataset, uint64_t op,
 	case 3:	/* RENAME */
 	case 4:	/* LINK */
 	case 5:	/* SYMLINK */
-		/*
-		 * First name-bearing record of a dataset with an empty
-		 * graph: its parent IS the dataset root directory (an
-		 * empty dataset's first object is created in the root;
-		 * a cleared ring keeps objmap, so this cannot misfire
-		 * on a wrapped ring).  Seed it as the sentinel root so
-		 * chains terminate cleanly instead of every row in a
-		 * fresh dataset resolving as PARTIAL.
-		 */
-		sqlite3_reset(db->objmap_any_stmt);
-		sqlite3_bind_text(db->objmap_any_stmt, 1, dataset, -1,
-		    SQLITE_STATIC);
-		rc = sqlite3_step(db->objmap_any_stmt);
-		sqlite3_reset(db->objmap_any_stmt);
-		if (rc == SQLITE_DONE && have_parent && parent != 0) {
-			sqlite3_reset(db->objmap_root_stmt);
-			sqlite3_bind_text(db->objmap_root_stmt, 1, dataset,
-			    -1, SQLITE_STATIC);
-			sqlite3_bind_int64(db->objmap_root_stmt, 2,
-			    (sqlite3_int64)parent);
-			(void) sqlite3_step(db->objmap_root_stmt);
-			sqlite3_reset(db->objmap_root_stmt);
-		}
-
 		stmt = db->objmap_put_stmt;
 		sqlite3_reset(stmt);
 		sqlite3_bind_text(stmt, 1, dataset, -1, SQLITE_STATIC);
@@ -874,6 +926,8 @@ zmetad_db_insert_event(zmetad_db_t *db, const char *dataset, nvlist_t *event)
 	boolean_t have_object = B_FALSE;
 	uint64_t parent = 0;
 	boolean_t have_parent = B_FALSE;
+	uint64_t old_parent = 0;
+	boolean_t have_old_parent = B_FALSE;
 	const char *rec_name = NULL;
 	boolean_t have_name = B_FALSE;
 	const char *rec_old_name = NULL;
@@ -949,7 +1003,10 @@ zmetad_db_insert_event(zmetad_db_t *db, const char *dataset, nvlist_t *event)
 			parent = val.u64;
 			have_parent = B_TRUE;
 		} else if (strcmp(name, "old_parent") == 0) {
+			/* RENAME carries old_parent = source dir. */
 			sqlite3_bind_int64(stmt, 15, (sqlite3_int64)val.u64);
+			old_parent = val.u64;
+			have_old_parent = B_TRUE;
 		} else if (strcmp(name, "target") == 0) {
 			sqlite3_bind_text(stmt, 16, val.str, nelem,
 			    SQLITE_TRANSIENT);
@@ -1001,8 +1058,17 @@ zmetad_db_insert_event(zmetad_db_t *db, const char *dataset, nvlist_t *event)
 		if (have_old_name && rec_old_name != NULL) {
 			char *ofp = NULL;
 
+			/*
+			 * Resolve old_full_path against the record's
+			 * old_parent (the source directory), not the
+			 * new parent: a cross-directory RENAME would
+			 * otherwise report the old name under the new
+			 * directory.  Fall back to parent only when
+			 * the record carries no old_parent at all.
+			 */
 			if (objmap_resolve(db, dataset,
-			    parent, rec_old_name, &ofp) == 0 && ofp != NULL) {
+			    have_old_parent ? old_parent : parent,
+			    rec_old_name, &ofp) == 0 && ofp != NULL) {
 				sqlite3_bind_text(stmt, 21, ofp, -1,
 				    SQLITE_TRANSIENT);
 				free(ofp);
@@ -1089,6 +1155,80 @@ zmetad_db_set_last_offset(zmetad_db_t *db, const char *dataset,
 	}
 
 	return (0);
+}
+
+/*
+ * Stored records_lost baseline.  Returns 0 and writes *lostp when a
+ * non-NULL value is stored.  ENOENT means no row or a NULL column:
+ * the first observation must arm the baseline without recording a gap.
+ */
+int
+zmetad_db_get_last_lost(zmetad_db_t *db, const char *dataset,
+    uint64_t *lostp)
+{
+	sqlite3_stmt *stmt = db->get_last_lost_stmt;
+
+	sqlite3_reset(stmt);
+	sqlite3_bind_text(stmt, 1, dataset, -1, SQLITE_STATIC);
+	if (sqlite3_step(stmt) == SQLITE_ROW &&
+	    sqlite3_column_type(stmt, 0) != SQLITE_NULL) {
+		*lostp = (uint64_t)sqlite3_column_int64(stmt, 0);
+		return (0);
+	}
+	return (ENOENT);
+}
+
+/*
+ * Persist the records_lost baseline.  Does not touch last_offset or
+ * ring_guid.  A missing row is inserted with offset 0.
+ */
+int
+zmetad_db_set_last_lost(zmetad_db_t *db, const char *dataset,
+    uint64_t last_lost)
+{
+	sqlite3_stmt *stmt = db->set_last_lost_stmt;
+	int rc;
+
+	sqlite3_reset(stmt);
+	sqlite3_bind_text(stmt, 1, dataset, -1, SQLITE_STATIC);
+	sqlite3_bind_int64(stmt, 2, time(NULL));
+	sqlite3_bind_int64(stmt, 3, (sqlite3_int64)last_lost);
+
+	rc = sqlite3_step(stmt);
+	if (rc != SQLITE_DONE) {
+		fprintf(stderr, "Set last_lost error: %s\n",
+		    sqlite3_errmsg(db->sqlite));
+		return (EIO);
+	}
+	return (0);
+}
+
+/*
+ * Purge epoch: a global counter in meta, bumped by every successful
+ * `zmetad --purge`.  The daemon reads it each poll and re-arms its
+ * in-memory loss state when it moved, so history removed by a
+ * concurrent purge does not look like a watermark regression.
+ */
+int
+zmetad_db_get_purge_epoch(zmetad_db_t *db, uint64_t *epochp)
+{
+	char *s = NULL;
+
+	if (db_get_meta(db, "purge_epoch", &s) != 0 || s == NULL)
+		return (ENOENT);
+	*epochp = strtoull(s, NULL, 10);
+	free(s);
+	return (0);
+}
+
+int
+zmetad_db_set_purge_epoch(zmetad_db_t *db, uint64_t epoch)
+{
+	char buf[24];
+
+	(void) snprintf(buf, sizeof (buf), "%llu",
+	    (unsigned long long)epoch);
+	return (db_set_meta(db, "purge_epoch", buf));
 }
 
 /*

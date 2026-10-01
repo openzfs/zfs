@@ -102,8 +102,7 @@
         "since": 1,
         "always": false,
         "ops": [
-          "TRUNCATE",
-          "SETATTR"
+          "TRUNCATE"
         ],
         "desc": "size after truncate"
       },

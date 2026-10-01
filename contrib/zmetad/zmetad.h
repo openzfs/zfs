@@ -81,6 +81,30 @@ int zmetad_db_set_last_offset(zmetad_db_t *db, const char *dataset,
     uint64_t offset, uint64_t ring_guid);
 
 /*
+ * Stored records_lost baseline for a dataset.  Returns 0 and writes
+ * *lostp when a non-NULL value is stored.  ENOENT means no baseline
+ * yet (no row, or a pre-v6 NULL): the first observation must not
+ * invent a gap.
+ */
+int zmetad_db_get_last_lost(zmetad_db_t *db, const char *dataset,
+    uint64_t *lostp);
+
+/* Persist the records_lost baseline.  Does not move last_offset. */
+int zmetad_db_set_last_lost(zmetad_db_t *db, const char *dataset,
+    uint64_t last_lost);
+
+/*
+ * Global purge epoch: bumped by every successful `zmetad --purge`.
+ * The daemon compares it per poll so its in-memory loss state can be
+ * re-armed after another process removed a dataset's history.  Returns
+ * 0 and writes *epochp; ENOENT when no purge has ever run.
+ */
+int zmetad_db_get_purge_epoch(zmetad_db_t *db, uint64_t *epochp);
+
+/* Set the purge epoch (also used to create it on the first purge). */
+int zmetad_db_set_purge_epoch(zmetad_db_t *db, uint64_t epoch);
+
+/*
  * Delete every row belonging to "dataset" from the events, gaps and
  * sync_state tables.  Deleted row counts are reported through
  * counts[] in events, gaps, sync_state, objmap order.  Does not

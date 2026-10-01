@@ -26,8 +26,11 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <stdarg.h>
+#include <syslog.h>
 #include <errno.h>
 #include <getopt.h>
+#include <limits.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -49,6 +52,7 @@ static zmetad_db_t *g_db;
 static volatile sig_atomic_t g_shutdown = 0;
 static volatile sig_atomic_t g_reload = 0;
 static volatile sig_atomic_t g_force_collect = 0;
+static boolean_t g_daemonized = B_FALSE;
 
 static void
 signal_handler(int sig)
@@ -69,6 +73,29 @@ on_sigusr1(int sig)
 {
 	(void) sig;
 	g_force_collect = 1;
+}
+
+/*
+ * Warn channel for loss/regression events.  After daemonize() stderr
+ * is /dev/null, so a fprintf there is invisible and the only realtime
+ * loss signal would be lost with it; mirror the message to syslog in
+ * that case.  In the foreground stderr is the real terminal (and the
+ * e2e suite reads it via journalctl), so keep it.
+ */
+static void
+zmd_warn(const char *fmt, ...)
+{
+	va_list ap;
+
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+
+	if (g_daemonized) {
+		va_start(ap, fmt);
+		vsyslog(LOG_WARNING, fmt, ap);
+		va_end(ap);
+	}
 }
 
 static void
@@ -245,8 +272,9 @@ run_purge(const zmetad_config_t *cfg)
 	}
 
 	/*
-	 * lzc ioctls need the libzfs_core device opened before use
-	 * (libzfs_init() alone does not open it).
+	 * libzfs_init() already ran libzfs_core_init(); the extra call
+	 * here is a harmless refcount bump kept for clarity that this
+	 * path uses lzc ioctls directly.
 	 */
 	err = libzfs_core_init();
 	if (err != 0) {
@@ -269,6 +297,25 @@ run_purge(const zmetad_config_t *cfg)
 		return (1);
 	}
 
+	/*
+	 * Bump the purge epoch so a LIVE daemon re-arms its in-memory
+	 * loss state (watermark + records_lost baseline) on its next
+	 * poll: this process cannot reset another process's loss_state,
+	 * and without a signal the daemon would fire a spurious
+	 * regression gap for the deliberately-removed history.
+	 */
+	{
+		uint64_t epoch = 0;
+
+		if (zmetad_db_get_purge_epoch(g_db, &epoch) != 0)
+			epoch = 0;
+		if (zmetad_db_set_purge_epoch(g_db, epoch + 1) != 0) {
+			fprintf(stderr, "cannot purge %s: cannot record "
+			    "purge epoch\n", ds);
+			return (1);
+		}
+	}
+
 	printf("purged %s: %lld events, %lld gaps removed; "
 	    "kernel ring cleared\n", ds, counts[0], counts[1]);
 	return (0);
@@ -278,8 +325,10 @@ run_purge(const zmetad_config_t *cfg)
  * Per-dataset loss-detection state: the previous poll's records_lost
  * counter and the highest watermark ever seen (so a regression can
  * be distinguished from the kernel's offset-0 "log exhausted"
- * sentinel).  Keyed by dataset name; entries live for the process
- * lifetime (datasets are few).
+ * sentinel).  The records_lost baseline is also stored in
+ * sync_state.last_lost; this cache is only the process-local copy.
+ * Keyed by dataset name; entries live for the process lifetime
+ * (datasets are few).
  */
 struct loss_state {
 	char		*dataset;
@@ -288,6 +337,8 @@ struct loss_state {
 	uint64_t	high_water;
 	boolean_t	have_high_water;
 	uint64_t	stored_guid;
+	uint64_t	epoch;
+	boolean_t	have_epoch;
 	struct loss_state *next;
 };
 
@@ -368,14 +419,14 @@ detect_loss(const char *dataset, zmetad_db_t *db, struct loss_state *ls,
 		 */
 		ls->high_water = next_offset;
 		ls->have_high_water = (next_offset != 0);
-		fprintf(stderr, "event log watermark regression on %s: "
+		zmd_warn("event log watermark regression on %s: "
 		    "next_offset=%llu below high-water %llu; records "
 		    "since offset %llu were not captured\n",
 		    dataset, (unsigned long long)next_offset,
 		    (unsigned long long)regression_from,
 		    (unsigned long long)next_offset);
 	} else {
-		fprintf(stderr, "event log loss on %s: %llu records lost "
+		zmd_warn("event log loss on %s: %llu records lost "
 		    "since last poll (cumulative %llu); records from "
 		    "logical offset %llu onward were affected\n",
 		    dataset, (unsigned long long)lost_delta,
@@ -412,6 +463,46 @@ collect_dataset_events(const char *dataset, zmetad_db_t *db)
 	if (ls == NULL)
 		return (ENOMEM);
 
+	/*
+	 * First sighting this process: reload the records_lost
+	 * baseline.  A wrap while this daemon was down is then a
+	 * delta against the stored counter, not a silent re-arm.
+	 * NULL means no baseline yet.
+	 */
+	if (!ls->have_lost) {
+		uint64_t stored_lost;
+
+		if (zmetad_db_get_last_lost(db, dataset,
+		    &stored_lost) == 0) {
+			ls->last_lost = stored_lost;
+			ls->have_lost = B_TRUE;
+		}
+	}
+
+	/*
+	 * A concurrent `zmetad --purge` deletes sync_state but cannot
+	 * reach this process's in-memory loss state: without a re-arm
+	 * the next legitimate post-purge offset would sit below the
+	 * old high-water mark and fire a spurious regression gap.  The
+	 * purge epoch moves on every purge, so a changed value means
+	 * this dataset's history may have been removed and both the
+	 * watermark and the loss baseline must start over.
+	 */
+	{
+		uint64_t epoch = 0;
+
+		if (zmetad_db_get_purge_epoch(db, &epoch) == 0) {
+			if (ls->have_epoch && epoch != ls->epoch) {
+				ls->last_lost = 0;
+				ls->have_lost = B_FALSE;
+				ls->high_water = 0;
+				ls->have_high_water = B_FALSE;
+			}
+			ls->epoch = epoch;
+			ls->have_epoch = B_TRUE;
+		}
+	}
+
 	/* Get last synced offset for this dataset */
 	last_offset = zmetad_db_get_last_offset(db, dataset);
 
@@ -422,7 +513,7 @@ collect_dataset_events(const char *dataset, zmetad_db_t *db)
 			/* Dataset doesn't exist or events not enabled */
 			return (0);
 		}
-		fprintf(stderr, "Failed to get events for %s: %s\n",
+		zmd_warn("Failed to get events for %s: %s\n",
 		    dataset, strerror(err));
 		return (err);
 	}
@@ -611,6 +702,14 @@ collect_dataset_events(const char *dataset, zmetad_db_t *db)
 		    ring_guid);
 	}
 
+	/*
+	 * Persist the baseline even when the cursor did not move.
+	 * A wrap that only bumps records_lost must still be visible
+	 * after a restart.
+	 */
+	if (ls->have_lost)
+		(void) zmetad_db_set_last_lost(db, dataset, ls->last_lost);
+
 	nvlist_free(events);
 	return (0);
 }
@@ -699,9 +798,11 @@ daemon_loop(zmetad_db_t *db)
 
 		/*
 		 * Forced collect: SIGUSR1 requests an out-of-band
-		 * cycle, independent of the poll interval.
+		 * cycle, independent of the poll interval.  Drain in
+		 * a loop so multiple pending signals (they do not
+		 * queue as a count) do not leave a stale flag behind.
 		 */
-		if (g_force_collect) {
+		while (g_force_collect) {
 			g_force_collect = 0;
 			if (g_config.verbose) {
 				printf("forced collect (SIGUSR1)\n");
@@ -775,6 +876,13 @@ daemonize(void)
 	open("/dev/null", O_RDONLY);
 	open("/dev/null", O_WRONLY);
 	open("/dev/null", O_WRONLY);
+
+	/*
+	 * stderr now goes to /dev/null, so zmd_warn mirrors loss
+	 * warnings into syslog from here on.
+	 */
+	g_daemonized = B_TRUE;
+	openlog("zmetad", LOG_PID | LOG_NDELAY, LOG_DAEMON);
 }
 
 static void
@@ -851,6 +959,12 @@ main(int argc, char **argv)
 			g_config.export_schema_path = optarg;
 			break;
 		case 'k':
+			if (g_config.check_schema_path != NULL) {
+				fprintf(stderr, "--check-schema given "
+				    "multiple times\n");
+				usage(argv[0]);
+				return (EXIT_FAILURE);
+			}
 			g_config.check_schema_path = optarg;
 			break;
 		case 'p':
@@ -869,14 +983,40 @@ main(int argc, char **argv)
 			g_config.foreground = B_TRUE;
 			break;
 		case 'i':
-			g_config.poll_interval = atoi(optarg);
-			if (g_config.poll_interval < 1) {
-				g_config.poll_interval = 1;
+		case 'r': {
+			char *end = NULL;
+			long val;
+
+			errno = 0;
+			val = strtol(optarg, &end, 10);
+			if (errno != 0 || end == optarg || *end != '\0') {
+				fprintf(stderr, "invalid numeric "
+				    "argument '%s' for -%c\n", optarg,
+				    opt);
+				usage(argv[0]);
+				return (EXIT_FAILURE);
 			}
+			/*
+			 * -i: a poll interval below 1 makes the loop
+			 * spin; -r: only a non-negative count is
+			 * meaningful (0 disables retention), so a
+			 * negative value is a typo, not "disabled" --
+			 * reject it instead of silently clamping.
+			 */
+			if (val < (opt == 'i' ? 1 : 0) ||
+			    val > INT_MAX) {
+				fprintf(stderr, "argument for -%c must "
+				    "be %s\n", opt,
+				    opt == 'i' ? ">= 1" : ">= 0");
+				usage(argv[0]);
+				return (EXIT_FAILURE);
+			}
+			if (opt == 'i')
+				g_config.poll_interval = (int)val;
+			else
+				g_config.retention_days = (int)val;
 			break;
-		case 'r':
-			g_config.retention_days = atoi(optarg);
-			break;
+		}
 		case 's':
 			strlcpy(g_config.schema_path, optarg,
 			    sizeof (g_config.schema_path));
@@ -991,6 +1131,8 @@ main(int argc, char **argv)
 	}
 
 	/* Cleanup */
+	if (g_daemonized)
+		closelog();
 	zmetad_db_close(db);
 	zmetad_schema_free(g_schema);
 	libzfs_fini(g_zfs);
