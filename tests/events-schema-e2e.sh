@@ -902,8 +902,9 @@ elif layout == "v3":
     con.execute("CREATE TABLE sync_state (dataset TEXT PRIMARY KEY, "
                 "last_offset INTEGER NOT NULL, last_sync INTEGER NOT NULL, "
                 "ring_guid INTEGER)")
-    con.execute("INSERT INTO sync_state (dataset, ring_guid) "
-                "VALUES (?, NULL)", (ds + "-x",))
+    con.execute("INSERT INTO sync_state (dataset, ring_guid, "
+                "last_offset, last_sync) VALUES (?, NULL, 1, 0)",
+                (ds + "-x",))
 elif layout == "v4":
     con.execute("CREATE TABLE events (%s%s, captured_at INTEGER)"
                 % (core, v2cols))
