@@ -1288,6 +1288,15 @@ zvol_first_open(zvol_state_t *zv, boolean_t readonly)
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
 	ASSERT(spa_namespace_held());
 
+	/*
+	 * Export drops spa_namespace_lock before it removes the zvols.  Do
+	 * not wait for the export in dmu_objset_own() while holding
+	 * zv_state_lock, since export needs that lock to remove this zvol.
+	 * Fail the same way an open does once the zvol is being removed.
+	 */
+	if (spa_lookup_would_wait(zv->zv_name))
+		return (SET_ERROR(ENXIO));
+
 	boolean_t ro = (readonly || (strchr(zv->zv_name, '@') != NULL));
 	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, ro, B_TRUE, zv, &os);
 	if (error)
