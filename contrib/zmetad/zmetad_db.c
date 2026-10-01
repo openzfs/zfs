@@ -71,6 +71,13 @@ static const struct {
  * The gaps table records event-log losses observed while polling:
  * ring-wrap overwrites reported as records_lost deltas and watermark
  * regressions from lost sync_state state or a cleared/recreated ring.
+ *
+ * gaps.lost semantics (permanent completeness record; rows are
+ * never rewritten or deleted by retention cleanup -- only
+ * zmetad --purge removes them, by dataset):
+ *   > 0   that many records lost (collector lag / queue overflow)
+ *   0     watermark regression detected; count unknown
+ *   -1    ring replaced (identity swap; count unknown)
  */
 static const char *gaps_sql =
 	"CREATE TABLE IF NOT EXISTS gaps ("
@@ -808,6 +815,55 @@ zmetad_db_upsert_mountpoint(zmetad_db_t *db, const char *dataset,
 	return (0);
 }
 
+int
+zmetad_db_gap_stats(zmetad_db_t *db, const char *dataset, long long counts[3])
+{
+	sqlite3_stmt *stmt = NULL;
+	int rc;
+
+	counts[0] = counts[1] = counts[2] = 0;
+
+	rc = sqlite3_prepare_v2(db->sqlite,
+	    "SELECT"
+	    " SUM(CASE WHEN lost < 0 THEN 1 ELSE 0 END),"
+	    " SUM(CASE WHEN lost = 0 THEN 1 ELSE 0 END),"
+	    " SUM(CASE WHEN lost > 0 THEN 1 ELSE 0 END)"
+	    " FROM gaps WHERE dataset = ?", -1, &stmt, NULL);
+	if (rc != SQLITE_OK) {
+		fprintf(stderr, "Prepare gap stats error: %s\n",
+		    sqlite3_errmsg(db->sqlite));
+		return (EIO);
+	}
+
+	sqlite3_bind_text(stmt, 1, dataset, -1, SQLITE_STATIC);
+
+	rc = sqlite3_step(stmt);
+	if (rc == SQLITE_ROW) {
+		/* SUM() over an empty set yields NULL; map to 0. */
+		counts[0] = (sqlite3_column_type(stmt, 0) == SQLITE_NULL) ?
+		    0 : sqlite3_column_int64(stmt, 0);
+		counts[1] = (sqlite3_column_type(stmt, 1) == SQLITE_NULL) ?
+		    0 : sqlite3_column_int64(stmt, 1);
+		counts[2] = (sqlite3_column_type(stmt, 2) == SQLITE_NULL) ?
+		    0 : sqlite3_column_int64(stmt, 2);
+	}
+	sqlite3_finalize(stmt);
+	if (rc != SQLITE_ROW) {
+		fprintf(stderr, "Gap stats error: %s\n",
+		    sqlite3_errmsg(db->sqlite));
+		return (EIO);
+	}
+
+	return (0);
+}
+
+/*
+ * Retention applies to events only.  gaps rows are the permanent
+ * completeness record (see SCHEMA.md): consumers compute lifetime
+ * loss as SUM(lost) WHERE lost > 0 and ring swaps as COUNT(*)
+ * WHERE lost = -1.  Removing gaps rows happens exclusively via
+ * zmetad --purge, which deletes by dataset.
+ */
 int
 zmetad_db_cleanup(zmetad_db_t *db, int retention_days)
 {

@@ -90,11 +90,29 @@ int zmetad_db_purge_dataset(zmetad_db_t *db, const char *dataset,
     long long counts[3]);
 
 /*
- * Record an event-log gap for a dataset: "lost" records between
- * "from_offset" and "to_offset" were never captured (0 = unknown).
+ * Record an event-log gap for a dataset: records between
+ * "from_offset" and "to_offset" were never captured.  "lost"
+ * semantics:
+ *   > 0   that many records lost (collector lag / queue overflow)
+ *   0     watermark regression; no countable loss (count unknown)
+ *   (uint64_t)-1  ring replaced (identity swap; count unknown);
+ *                 stored as -1 in the gaps table
+ *
+ * gaps rows are the permanent completeness record: they are never
+ * rewritten or deleted by retention cleanup (see zmetad_db_cleanup);
+ * only zmetad --purge removes them, by dataset.
  */
 int zmetad_db_insert_gap(zmetad_db_t *db, const char *dataset,
     uint64_t from_offset, uint64_t to_offset, uint64_t lost);
+
+/*
+ * Count a dataset's gaps rows by lost value: counts[0] = lost < 0
+ * (ring replacements), counts[1] = lost == 0 (regressions),
+ * counts[2] = lost > 0 (recorded loss counts).  Returns 0 on
+ * success, nonzero on database error (counts then undefined).
+ */
+int zmetad_db_gap_stats(zmetad_db_t *db, const char *dataset,
+    long long counts[3]);
 
 /*
  * Record (or refresh) a dataset's mountpoint in the datasets

@@ -376,6 +376,14 @@ detect_loss(const char *dataset, zmetad_db_t *db, struct loss_state *ls,
 		    (unsigned long long)last_offset);
 	}
 
+	/*
+	 * Sole loss-path insert: writes the cumulative-delta
+	 * count, so gaps.lost > 0 is the true count of records
+	 * lost since the previous poll, and gaps.lost == 0 means
+	 * the only signal was a watermark regression (count
+	 * unknown).  Never writes the -1 sentinel; that is
+	 * emitted only by the ring-replace path below.
+	 */
 	(void) zmetad_db_insert_gap(db, dataset,
 	    regression ? next_offset : last_offset,
 	    regression ? regression_from : next_offset,
@@ -447,6 +455,15 @@ collect_dataset_events(const char *dataset, zmetad_db_t *db)
 			    (u_longlong_t)((ls->have_high_water &&
 			    ls->high_water > last_offset) ?
 			    ls->high_water : last_offset));
+			/*
+			 * Ring-replace path: the previous log's
+			 * history is uncountably gone, so this
+			 * writes the lost = -1 sentinel (stored
+			 * as (uint64_t)-1) -- the only site that
+			 * may emit it.  A -1 row means "ring
+			 * replaced, count unknown", never a
+			 * numeric loss.
+			 */
 			(void) zmetad_db_insert_gap(db, dataset, 0,
 			    last_offset, (uint64_t)-1);
 			/*
@@ -592,6 +609,24 @@ collect_callback(zfs_handle_t *zhp, void *arg)
 		}
 
 		collect_dataset_events(name, db);
+
+		/*
+		 * Verbose summary: gaps rows by sentinel class for
+		 * this dataset (ring replacements, regressions,
+		 * recorded loss counts).  Gaps are never deleted
+		 * by retention, so these are lifetime counts.
+		 */
+		if (g_config.verbose) {
+			long long gap_counts[3];
+
+			if (zmetad_db_gap_stats(db, name,
+			    gap_counts) == 0) {
+				printf("%s: gaps: %lld ring replacement(s), "
+				    "%lld regression(s), %lld loss record(s)\n",
+				    name, gap_counts[0], gap_counts[1],
+				    gap_counts[2]);
+			}
+		}
 	}
 
 	/* Recurse into children */
