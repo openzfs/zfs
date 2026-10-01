@@ -1,13 +1,23 @@
 .\" SPDX-License-Identifier: CDDL-1.0
 .\"
-.\" This file and its contents are supplied under the terms of the
-.\" Common Development and Distribution License ("CDDL"), version 1.0.
-.\" You may only use this file in accordance with the terms of version
-.\" 1.0 of the CDDL.
+.\" CDDL HEADER START
 .\"
-.\" A full copy of the text of the CDDL should have accompanied this
-.\" source.  A copy of the CDDL is also available via the Internet at
-.\" https://opensource.org/license/CDDL-1.0.
+.\" The contents of this file are subject to the terms of the
+.\" Common Development and Distribution License (the "License").
+.\" You may not use this file except in compliance with the License.
+.\"
+.\" You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+.\" or https://opensource.org/licenses/CDDL-1.0.
+.\" See the License for the specific language governing permissions
+.\" and limitations under the License.
+.\"
+.\" When distributing Covered Code, include this CDDL HEADER in each
+.\" file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+.\" If applicable, add the following below this CDDL HEADER, with the
+.\" fields enclosed by brackets "[]" replaced with your own identifying
+.\" information: Portions Copyright [yyyy] [name of copyright owner]
+.\"
+.\" CDDL HEADER END
 .\"
 .\" Copyright (c) 2009 Sun Microsystems, Inc. All Rights Reserved.
 .\" Copyright 2011 Joshua M. Clulow <josh@sysmgr.org>
@@ -29,7 +39,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd September 9, 2026
+.Dd September 13, 2025
 .Dt ZFSPROPS 7
 .Os
 .
@@ -190,48 +200,6 @@ GUID.
 Thus, the
 .Sy guid
 is suitable to identify a snapshot across pools.
-.Pp
-On Linux, each mounted filesystem, snapshot, and clone reports a 128-bit
-filesystem UUID to the kernel, which the
-.Sy FS_IOC_GETFSUUID
-ioctl returns.
-The first half of the UUID is the GUID of the pool and the second half is
-the
-.Sy guid
-of the dataset, so the first and the last 16 hexadecimal digits of the UUID
-show the two GUIDs in hexadecimal.
-The UUID is not a valid RFC 4122 UUID.
-Linux overlayfs stores the UUID in its persistent file handles, and the
-.Sy fsuuid Ns =
-rules of IMA policies match it.
-.Pp
-The UUID of a mounted filesystem does not change until its next mount.
-At the next mount, it shows a new pool GUID after
-.Nm zpool Cm reguid
-or in the new pool of
-.Nm zpool Cm split ,
-and a new dataset
-.Sy guid
-after
-.Nm zfs Cm receive
-re-created the filesystem.
-A snapshot that
-.Nm zfs Cm receive
-created in the same pool has the same
-.Sy guid ,
-and thus the same UUID, as the snapshot that it was sent from.
-Earlier OpenZFS releases reported a null UUID, so the first mount after an
-upgrade changes the UUID as well.
-The
-.Sx Filesystem UUIDs and Overlayfs
-section of
-.Xr zpool-reguid 8
-describes the effect of a UUID change on overlayfs and the recovery.
-The
-.Sy zfs_sb_uuid
-module parameter of
-.Xr zfs 4
-restores the null UUID.
 .It Sy logicalreferenced
 The amount of space that is
 .Qq logically
@@ -564,15 +532,6 @@ Specifies the time at which a snapshot for a dataset was last
 created or deleted.
 .Pp
 This allows us to be more efficient how often we query snapshots.
-The property is persistent across mount and unmount operations only if the
-.Sy extensible_dataset
-feature is enabled.
-.It Sy snapshots_changed_nsecs
-Specifies the UTC time at which a snapshot for a dataset was last created
-or deleted, expressed as the number of nanoseconds since the Unix epoch.
-This is a high-precision version of
-.Sy snapshots_changed ,
-representing the same instant with nanosecond instead of second resolution.
 The property is persistent across mount and unmount operations only if the
 .Sy extensible_dataset
 feature is enabled.
@@ -1308,14 +1267,15 @@ The default value is
 .Sy off .
 This property is inherited by descendant datasets.
 .Pp
-When the first event log object is created in a pool, the
+The
 .Sy org.openzfs:events
-pool feature is activated.
-Setting
+pool feature is activated on the first logged event for any dataset in
+a pool, not at the moment this property is set: a dataset with
 .Sy events=on
-does not itself create the log or activate the feature, and
-.Sy events=off
-does not destroy an existing log.
+that has not yet performed a logged operation leaves the feature
+.Sy enabled
+but not
+.Sy active .
 See
 .Xr zpool-features 7
 for details.
@@ -1342,8 +1302,6 @@ The minimum value is
 .Sy 128K
 and the maximum value is
 .Sy 1G .
-The size is fixed when the log object is created.
-Changing this property does not resize an existing log.
 .Pp
 The event log operates as a ring buffer; when full, the oldest events are
 overwritten by new events.
@@ -1407,11 +1365,6 @@ Bytes are coalesced, never dropped.
 The window closes on the next I/O past the window, on any non-IO event
 for the same file, and on
 .Xr close 2 .
-.Xr close 2
-flushes a pending window even when it is still young.
-A value of
-.Sy 0
-never opens a pending window.
 .Pp
 The value must be between
 .Sy 0
@@ -1542,21 +1495,6 @@ This was only supported by Linux prior to 5.15, and was buggy there,
 and is not supported by
 .Fx .
 On Solaris it's used for SMB clients.
-.It Sy longname Ns = Ns Sy on Ns | Ns Sy off
-Controls support for filenames longer than 255 bytes, up to 1023 bytes.
-The default is
-.Sy off .
-Setting this property to
-.Sy on
-activates the
-.Sy longname
-pool feature, which must be enabled
-.Po see
-.Xr zpool-features 7
-.Pc .
-Once a file with a long name is created, the feature becomes active and
-the pool can no longer be imported by an OpenZFS implementation that does
-not support it.
 .It Sy overlay Ns = Ns Sy on Ns | Ns Sy off
 Allow mounting on a busy directory or a directory which already contains
 files or directories.
@@ -2309,98 +2247,6 @@ for more information.
 Zoning is a
 Linux
 feature and this property is not available on other platforms.
-.It Sy zoned_uid Ns = Ns Ar uid
-Delegates dataset visibility and administration to all user namespaces
-owned by the specified UID.
-This property enables rootless container support with native ZFS storage.
-For example, setting
-.Sy zoned_uid Ns = Ns 1000
-allows user 1000's rootless Podman containers to use ZFS for storage layers.
-This is a Linux-only feature.
-.Pp
-Authorization uses an additive three-layer model where all layers must pass:
-.Bl -tag -width "L2 (capability tier)" -compact
-.It Sy L0 (authentication)
-The user namespace owner UID must match the
-.Sy zoned_uid
-value.
-.It Sy L1 (dsl_deleg)
-The pool administrator must grant per-operation permissions on the
-delegation root using
-.Xr zfs-allow 8 .
-When pool delegation is OFF
-.Pq Nm zpool Cm set Sy delegation Ns = Ns Sy off ,
-all write operations are denied regardless of capabilities.
-.It Sy L2 (capability tier)
-Linux capabilities within the user namespace determine the permitted
-operation class:
-.Sy CAP_FOWNER
-for non-destructive operations
-.Pq create, snapshot, set property ,
-.Sy CAP_SYS_ADMIN
-for destructive operations
-.Pq destroy, rename, clone .
-Both are namespaced capabilities scoped to the user namespace,
-not the init namespace.
-.El
-.Pp
-Read-only operations
-.Pq Nm zfs Cm list , Nm zfs Cm get
-require no capabilities and no
-.Nm zfs Cm allow
-grants; visibility is controlled solely by the
-.Sy zoned_uid
-delegation scoping.
-.Pp
-Write operations that can be delegated include
-.Nm zfs Cm create ,
-.Nm zfs Cm destroy ,
-.Nm zfs Cm snapshot ,
-.Nm zfs Cm clone ,
-.Nm zfs Cm rename
-.Pq within the delegation subtree ,
-and
-.Nm zfs Cm set .
-.Pp
-The delegation root dataset
-.Pq where zoned_uid is locally set
-cannot be destroyed from within the user namespace, protecting the
-parent dataset from unauthorized removal.
-Renames are also constrained to remain within the delegation subtree.
-The namespace user cannot modify the
-.Sy zoned_uid
-or
-.Sy zoned
-properties, and cannot override
-.Sy filesystem_limit
-or
-.Sy snapshot_limit
-set by the administrator on the delegation root
-.Pq but can impose tighter sub-limits on child datasets .
-.Pp
-Set to
-.Sy 0
-.Pq or inherit
-to disable UID-based delegation.
-.Pp
-Unlike
-.Nm zfs Cm zone
-which requires an existing namespace file,
-.Sy zoned_uid
-applies to any user namespace owned by the specified UID,
-making it suitable for container runtimes that create new namespaces
-on each invocation.
-See
-.Xr zfs-zone 8
-for namespace-specific delegation.
-.Pp
-Example setup for rootless Podman:
-.Bd -literal -offset indent
-# zfs create tank/containers
-# zfs set zoned_uid=1000 tank/containers
-# zfs set mountpoint=none tank/containers
-# zfs allow -u 1000 create,destroy,mount,snapshot,rename,clone tank/containers
-.Ed
 .El
 .Pp
 The following three properties cannot be changed after the file system is

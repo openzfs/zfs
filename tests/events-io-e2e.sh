@@ -7,8 +7,10 @@
 # lzc_get_events ioctl), never through `zfs events` text output or
 # the zmetad database: this is wire-level behavior testing.  Records
 # land in the ring after txg sync (~5s default), so every presence
-# check polls up to ~30s; every absence check waits a 10s grace
-# period first.
+# check polls up to ~30s.  Absence checks first poll until a control
+# record (CREATE) for the same object appears - proof the ring is
+# draining past the operations under test - and only then assert
+# absence over a bounded poll window.
 #
 # Assertions (each prints PASS/FAIL):
 #   preflight          pool imported, work datasets + wire probe ready
@@ -21,23 +23,32 @@
 #                      ring itself is live)
 #   zero-byte          truncate-to-zero create + EOF read -> no
 #                      WRITE/READ records
-#   fence-coalesce     window=2000: two writes 1s apart, close ->
+#   fence-coalesce     window=5000: two writes 1s apart, close ->
 #                      ONE merged WRITE record, io_bytes=8192
 #   fence-disabled     window=0: 3 writes -> exactly 3 records
-#   flush-order        window=2000: a still-pending WRITE is flushed
-#                      before the RENAME, so WRITE precedes RENAME
-#   close-flush        close(2) flushes a young window while another
-#                      fd holds the inode, so inactive cannot be the
-#                      emitter
+#   flush-order        WRITE record precedes RENAME record for the
+#                      same object
+#   close-flush        pending window flushed by close(2) with no
+#                      further IO on the file
 #   byte-completeness  10 x 1KB writes in one window -> one record,
 #                      io_bytes=10240
 #   cleanup            EXIT trap destroys datasets + workdir
+#
+# Every step that asserts exact record counts also asserts the
+# probe's META lost= counter is 0: a wrapped ring invalidates the
+# counts, so the failure is reported as ring loss, not as a count
+# mismatch.
 #
 # Usage: bash tests/events-io-e2e.sh  (root or passwordless sudo)
 # Exit 0 = every assertion passed; nonzero = one or more failed
 # (all assertions run; failures are collected, not fatal).
 #
 # Environment overrides: ZFS, ZPOOL, ZIO_E2E_KEEP (keep workdir).
+#
+# Parallel-run safety: every dataset this suite creates carries the
+# per-run ID ($$) and the stale-dataset sweep in preflight matches
+# ONLY that run ID, so concurrent runs can never destroy each
+# other's datasets.
 
 set -u
 
@@ -45,9 +56,10 @@ ZFS="${ZFS:-/usr/local/sbin/zfs}"
 ZPOOL="${ZPOOL:-/usr/local/sbin/zpool}"
 POOL="testpool"
 BASE_DS="$POOL/fs1"
-DS1="$BASE_DS/io-e2e-$$"
-DS2="$BASE_DS/io-e2e-off-$$"
-DS3="$BASE_DS/io-e2e-fence-$$"
+RUNID="$$"
+DS1="$BASE_DS/io-e2e-$RUNID"
+DS2="$BASE_DS/io-e2e-off-$RUNID"
+DS3="$BASE_DS/io-e2e-fence-$RUNID"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Wire op codes (include/sys/zfs_events.h ZFS_EV_*).
@@ -61,6 +73,44 @@ if [ "$(id -u)" -ne 0 ]; then
 	SUDO=(sudo)
 fi
 
+# Writer-identity execution (fixes the empty-SUDO expansion bug: as
+# root, "${SUDO[@]}" -u nobody dd became "-u nobody dd", rc 127).
+# As root, drop privileges with runuser, else setpriv, else su.
+# Non-root keeps sudo -u.  Set up once by setup_runas.
+WRITER=""
+RUNAS=()
+RUNAS_MODE=""
+
+setup_runas() {
+	# $1 = writer username
+	WRITER="$1"
+	if [ "$(id -u)" -eq 0 ]; then
+		if command -v runuser >/dev/null 2>&1; then
+			RUNAS=(runuser -u "$WRITER" --)
+			RUNAS_MODE="argv"
+		elif command -v setpriv >/dev/null 2>&1; then
+			RUNAS=(setpriv --reuid="$(id -u "$WRITER")" \
+			    --regid="$(id -g "$WRITER")" --clear-groups)
+			RUNAS_MODE="argv"
+		else
+			RUNAS=()
+			RUNAS_MODE="su"
+		fi
+	else
+		RUNAS=(sudo -u "$WRITER")
+		RUNAS_MODE="argv"
+	fi
+}
+
+# run_as_writer <cmd> [args...]: run a command with WRITER's identity.
+run_as_writer() {
+	if [ "$RUNAS_MODE" = "su" ]; then
+		su "$WRITER" -s /bin/sh -c "$(printf '%q ' "$@")"
+	else
+		"${RUNAS[@]}" "$@"
+	fi
+}
+
 CREATED1=0
 CREATED2=0
 CREATED3=0
@@ -68,12 +118,15 @@ WD=""
 PROBE_OK=0
 RECS=""
 FAILS=0
+STEP="init"
 
 pass() { printf 'PASS: %s\n' "$1"; }
 notice() { printf 'NOTICE: %s\n' "$1"; }
+# fail() writes to stderr so its diagnostics survive command
+# substitution in callers (stdout stays machine-value-only).
 fail() {
 	FAILS=$((FAILS + 1))
-	printf 'FAIL: %s\n' "$1"
+	printf 'FAIL: %s\n' "$1" >&2
 }
 
 cleanup() {
@@ -81,15 +134,15 @@ cleanup() {
 	ok=1
 	if [ "$CREATED1" -eq 1 ]; then
 		"${SUDO[@]}" "$ZFS" destroy -R "$DS1" >/dev/null 2>&1 ||
-			{ printf 'FAIL: cleanup: destroy %s\n' "$DS1"; ok=0; }
+			{ printf 'FAIL: cleanup: destroy %s\n' "$DS1" >&2; ok=0; }
 	fi
 	if [ "$CREATED2" -eq 1 ]; then
 		"${SUDO[@]}" "$ZFS" destroy -R "$DS2" >/dev/null 2>&1 ||
-			{ printf 'FAIL: cleanup: destroy %s\n' "$DS2"; ok=0; }
+			{ printf 'FAIL: cleanup: destroy %s\n' "$DS2" >&2; ok=0; }
 	fi
 	if [ "$CREATED3" -eq 1 ]; then
 		"${SUDO[@]}" "$ZFS" destroy -R "$DS3" >/dev/null 2>&1 ||
-			{ printf 'FAIL: cleanup: destroy %s\n' "$DS3"; ok=0; }
+			{ printf 'FAIL: cleanup: destroy %s\n' "$DS3" >&2; ok=0; }
 	fi
 	if [ -n "$WD" ] && [ "${ZIO_E2E_KEEP:-0}" != "1" ]; then
 		rm -rf "$WD"
@@ -109,13 +162,36 @@ ds_mnt() {
 	"$ZFS" get -H -o value mountpoint "$1"
 }
 
+# find_writer: pick an unprivileged user for identity tests and build
+# the RUNAS command prefix for it.
+find_writer() {
+	# $1 = step label
+	local u
+	for u in nobody daemon; do
+		if id -u "$u" >/dev/null 2>&1; then
+			setup_runas "$u"
+			return 0
+		fi
+	done
+	fail "$1: no unprivileged user found (nobody/daemon)"
+	return 1
+}
+
 # run_probe <dataset> <object-id>: dump that object's records (ring
-# order) to $RECS.  Empty object id 0 means "all objects".
+# order) to $RECS.  Empty object id 0 means "all objects".  A nonzero
+# probe exit is a hard step failure (never a silent empty $RECS).
 run_probe() {
+	local rc
 	RECS="$WD/recs.txt"
 	"${SUDO[@]}" env \
 	    LD_LIBRARY_PATH="$REPO/lib/libzfs_core/.libs:$REPO/lib/libnvpair/.libs" \
-	    "$WD/probe" "$1" "${2:-0}" >"$RECS" 2>/dev/null
+	    "$WD/probe" "$1" "${2:-0}" >"$RECS" 2>"$WD/probe.err"
+	rc=$?
+	if [ "$rc" -ne 0 ]; then
+		fail "$STEP: wire probe exited $rc: $(head -c 200 "$WD/probe.err" 2>/dev/null)"
+		return "$rc"
+	fi
+	return 0
 }
 
 # count_op <op-code>: number of records with that op in $RECS.
@@ -123,12 +199,32 @@ count_op() {
 	grep -c "^REC op=$1 " "$RECS" || true
 }
 
+# meta_lost: the probe META line's lost= value (empty when absent).
+meta_lost() {
+	sed -n 's/^META .*lost=\([0-9]*\).*$/\1/p' "$RECS" | head -n 1
+}
+
+# assert_no_loss: steps with exact-count assertions assume the ring
+# never wrapped; verify that against the probe's own lost counter.
+assert_no_loss() {
+	local lost
+	lost="$(meta_lost)"
+	case "$lost" in
+	0) return 0 ;;
+	"") fail "$STEP: probe printed no META lost= line"; return 1 ;;
+	*) fail "$STEP: probe reports lost=$lost (ring wrapped; count assertions invalid)"
+	   return 1 ;;
+	esac
+}
+
 # poll_op <dataset> <object> <op> <n>: poll up to ~30s (txg sync is
 # ~5s) until at least <n> records with <op> exist for <object>.
+# rc: 0 found, 1 timeout, 2 probe failure (already reported).
 poll_op() {
+	local i c
 	i=0
 	while [ "$i" -lt 15 ]; do
-		run_probe "$1" "$2"
+		run_probe "$1" "$2" || return 2
 		c="$(count_op "$3")"
 		[ "$c" -ge "$4" ] && return 0
 		sleep 2
@@ -137,34 +233,61 @@ poll_op() {
 	return 1
 }
 
-# grace: fixed wait so an ABSENCE assertion is not vacuous (covers
-# two txg sync intervals).
-grace() {
-	sleep 5
-	sleep 5
+# wait_drained <dataset> <object>: poll until the control CREATE
+# record for <object> appears.  The CREATE is logged by the same
+# operation sequence under test, so its arrival proves the ring is
+# draining PAST those operations - only then is an absence assertion
+# (no WRITE/READ) meaningful instead of vacuous.
+# rc: 0 drained, 1 timeout, 2 probe failure (already reported).
+wait_drained() {
+	poll_op "$1" "$2" "$OP_CREATE" 1
 }
 
-# field <line> <key>: value of key= in a REC line.
-field() {
-	tok="${2#=}"
-	for t in $1; do
-		case "$t" in
-		"$2="*) printf '%s\n' "${t#*=}"; return ;;
-		esac
+# assert_absent <dataset> <object> <op>: bounded poll (~10s) that
+# <op> never shows up for <object>.  Called only after wait_drained.
+assert_absent() {
+	local i
+	i=0
+	while [ "$i" -lt 5 ]; do
+		run_probe "$1" "$2" || return 2
+		[ "$(count_op "$3")" -eq 0 ] || return 1
+		sleep 2
+		i=$((i + 1))
 	done
+	return 0
+}
+
+# field <line> <key>: value of key= in a REC line.  Extraction runs
+# to the next " word=" token boundary (or end of line), so values
+# containing spaces - e.g. name=my file - are returned intact; the
+# probe prints name= as the LAST field of every REC line.
+field() {
+	printf '%s\n' "$1" | awk -v key="$2" '
+	{
+		if (match($0, "(^| )" key "=")) {
+			v = substr($0, RSTART + RLENGTH)
+			if (match(v, " [A-Za-z_]+="))
+				v = substr(v, 1, RSTART - 1)
+			print v
+		}
+	}'
 }
 
 step_preflight() {
+	STEP=preflight
 	"$ZPOOL" list -H -o name "$POOL" >/dev/null 2>&1 || {
 		fail "preflight: pool $POOL not imported"
 		return
 	}
 
-	# Destroy stale datasets from interrupted earlier runs (never
-	# touch anything else under fs1).
+	# Stale-run sweep: destroy ONLY datasets carrying this run's
+	# ID (leftovers from an earlier attempt of this same run,
+	# e.g. after a signal between create and the EXIT trap).
+	# Wildcard sweeps across other runs' IDs are deliberately
+	# NOT done: parallel suites must not destroy each other.
 	while read -r d; do
 		case "$d" in
-		*/io-e2e-*)
+		*-io-e2e-"$RUNID"|*-io-e2e-off-"$RUNID"|*-io-e2e-fence-"$RUNID")
 			"${SUDO[@]}" "$ZFS" destroy -R "$d" \
 			    >/dev/null 2>&1 || true
 			;;
@@ -192,8 +315,11 @@ step_preflight() {
 		{ fail "preflight: props $DS1"; return; }
 	"${SUDO[@]}" "$ZFS" set events=on events_io=off "$DS2" ||
 		{ fail "preflight: props $DS2"; return; }
+	# Wide fence margin: window=5000 with writes 1s apart keeps
+	# the coalesce test clear of the fence boundary even on a
+	# loaded host (2000ms was race-prone).
 	"${SUDO[@]}" "$ZFS" set events=on events_io=on \
-	    events_io_window=2000 "$DS3" ||
+	    events_io_window=5000 "$DS3" ||
 		{ fail "preflight: props $DS3"; return; }
 	w="$(ds_mnt "$DS1")"
 	case "$w" in
@@ -303,34 +429,29 @@ require_probe() {
 }
 
 step_write_visible() {
+	STEP=write-visible
 	require_probe write-visible || return
 	mnt="$(ds_mnt "$DS1")"
 	"${SUDO[@]}" chmod 0777 "$mnt"
-	WRITER=""
-	for u in nobody daemon; do
-		if id -u "$u" >/dev/null 2>&1; then
-			WRITER="$u"
-			break
-		fi
-	done
-	if [ -z "$WRITER" ]; then
-		fail "write-visible: no unprivileged user found"
-		return
-	fi
+	find_writer write-visible || return
 	uid="$(id -u "$WRITER")"
 	gid="$(id -g "$WRITER")"
 	f="$mnt/w.bin"
-	"${SUDO[@]}" -u "$WRITER" dd if=/dev/zero of="$f" bs=4096 \
+	run_as_writer dd if=/dev/zero of="$f" bs=4096 \
 	    count=1 status=none || {
 		fail "write-visible: dd as $WRITER failed"
 		return
 	}
 	obj="$("${SUDO[@]}" stat -c %i "$f")"
 	f0="$FAILS"
-	if ! poll_op "$DS1" "$obj" "$OP_WRITE" 1; then
+	poll_op "$DS1" "$obj" "$OP_WRITE" 1
+	rc=$?
+	[ "$rc" -eq 2 ] && return
+	if [ "$rc" -ne 0 ]; then
 		fail "write-visible: no WRITE record within 30s"
 		return
 	fi
+	assert_no_loss
 	n="$(count_op "$OP_WRITE")"
 	[ "$n" -eq 1 ] ||
 		fail "write-visible: expected 1 WRITE record, got $n"
@@ -348,27 +469,26 @@ step_write_visible() {
 }
 
 step_read_visible() {
+	STEP=read-visible
 	require_probe read-visible || return
 	mnt="$(ds_mnt "$DS1")"
 	f="$mnt/w.bin"
 	obj="$("${SUDO[@]}" stat -c %i "$f")"
-	WRITER=""
-	for u in nobody daemon; do
-		if id -u "$u" >/dev/null 2>&1; then
-			WRITER="$u"
-			break
-		fi
-	done
+	find_writer read-visible || return
 	f0="$FAILS"
-	"${SUDO[@]}" -u "$WRITER" dd if="$f" of=/dev/null bs=4096 \
+	run_as_writer dd if="$f" of=/dev/null bs=4096 \
 	    count=1 status=none || {
 		fail "read-visible: dd read failed"
 		return
 	}
-	if ! poll_op "$DS1" "$obj" "$OP_READ" 1; then
+	poll_op "$DS1" "$obj" "$OP_READ" 1
+	rc=$?
+	[ "$rc" -eq 2 ] && return
+	if [ "$rc" -ne 0 ]; then
 		fail "read-visible: no READ record within 30s"
 		return
 	fi
+	assert_no_loss
 	n="$(count_op "$OP_READ")"
 	[ "$n" -eq 1 ] ||
 		fail "read-visible: expected 1 READ record, got $n"
@@ -380,6 +500,7 @@ step_read_visible() {
 }
 
 step_gate_off() {
+	STEP=gate-off
 	require_probe gate-off || return
 	mnt="$(ds_mnt "$DS2")"
 	f="$mnt/g.bin"
@@ -388,23 +509,32 @@ step_gate_off() {
 	"${SUDO[@]}" dd if="$f" of=/dev/null bs=4096 count=1 \
 	    status=none || { fail "gate-off: read failed"; return; }
 	obj="$("${SUDO[@]}" stat -c %i "$f")"
-	grace
-	run_probe "$DS2" "$obj"
 	f0="$FAILS"
-	nw="$(count_op "$OP_WRITE")"
-	nr="$(count_op "$OP_READ")"
-	nc="$(count_op "$OP_CREATE")"
-	[ "$nc" -ge 1 ] ||
-		fail "gate-off: CREATE record missing; ring is not \
-capturing this dataset at all, so the IO absence below is vacuous"
-	[ "$nw" -eq 0 ] ||
-		fail "gate-off: $nw WRITE records with events_io=off"
-	[ "$nr" -eq 0 ] ||
-		fail "gate-off: $nr READ records with events_io=off"
+	# The dd above created g.bin, so a CREATE record must appear
+	# even with events_io=off.  Waiting for it proves the ring is
+	# draining; the WRITE/READ absence below is then non-vacuous.
+	wait_drained "$DS2" "$obj"
+	rc=$?
+	[ "$rc" -eq 2 ] && return
+	if [ "$rc" -ne 0 ]; then
+		fail "gate-off: control CREATE record never appeared \
+within 30s; ring is not capturing this dataset, IO absence below \
+would be vacuous"
+		return
+	fi
+	for op in "$OP_WRITE" "$OP_READ"; do
+		assert_absent "$DS2" "$obj" "$op"
+		rc=$?
+		[ "$rc" -eq 2 ] && return
+		[ "$rc" -eq 0 ] ||
+			fail "gate-off: op=$op records present with \
+events_io=off"
+	done
 	[ "$FAILS" -eq "$f0" ] && pass gate-off
 }
 
 step_zero_byte() {
+	STEP=zero-byte
 	require_probe zero-byte || return
 	mnt="$(ds_mnt "$DS1")"
 	f="$mnt/z.bin"
@@ -414,26 +544,41 @@ step_zero_byte() {
 	# EOF read: 0 bytes transferred must not emit a READ record.
 	"${SUDO[@]}" dd if="$f" of=/dev/null bs=4096 count=1 \
 	    status=none || { fail "zero-byte: EOF read failed"; return; }
-	grace
-	run_probe "$DS1" "$obj"
 	f0="$FAILS"
-	nw="$(count_op "$OP_WRITE")"
-	nr="$(count_op "$OP_READ")"
-	nc="$(count_op "$OP_CREATE")"
-	[ "$nc" -ge 1 ] ||
-		fail "zero-byte: CREATE record missing; absence checks \
-below are vacuous"
-	[ "$nw" -eq 0 ] ||
-		fail "zero-byte: $nw WRITE records for a zero-byte file"
-	[ "$nr" -eq 0 ] ||
-		fail "zero-byte: $nr READ records for an EOF-only read"
+	# Control: the truncate-create logged a CREATE for this
+	# object; wait for it before asserting WRITE/READ absence.
+	wait_drained "$DS1" "$obj"
+	rc=$?
+	[ "$rc" -eq 2 ] && return
+	if [ "$rc" -ne 0 ]; then
+		fail "zero-byte: control CREATE record never appeared \
+within 30s; absence checks below would be vacuous"
+		return
+	fi
+	for op in "$OP_WRITE" "$OP_READ"; do
+		assert_absent "$DS1" "$obj" "$op"
+		rc=$?
+		[ "$rc" -eq 2 ] && return
+		if [ "$rc" -ne 0 ]; then
+			if [ "$op" = "$OP_WRITE" ]; then
+				fail "zero-byte: WRITE records for a \
+zero-byte file"
+			else
+				fail "zero-byte: READ records for an \
+EOF-only read"
+			fi
+		fi
+	done
 	[ "$FAILS" -eq "$f0" ] && pass zero-byte
 }
 
 step_fence_coalesce() {
+	STEP=fence-coalesce
 	require_probe fence-coalesce || return
 	mnt="$(ds_mnt "$DS3")"
 	f="$mnt/c.bin"
+	# window=5000ms, writes 1s apart: a 4s margin on each side of
+	# the second write, wide enough for a loaded host.
 	"${SUDO[@]}" python3 - "$f" <<'PY'
 import os
 import sys
@@ -452,10 +597,14 @@ PY
 	}
 	obj="$("${SUDO[@]}" stat -c %i "$f")"
 	f0="$FAILS"
-	if ! poll_op "$DS3" "$obj" "$OP_WRITE" 1; then
+	poll_op "$DS3" "$obj" "$OP_WRITE" 1
+	rc=$?
+	[ "$rc" -eq 2 ] && return
+	if [ "$rc" -ne 0 ]; then
 		fail "fence-coalesce: no WRITE record within 30s"
 		return
 	fi
+	assert_no_loss
 	n="$(count_op "$OP_WRITE")"
 	[ "$n" -eq 1 ] || fail "fence-coalesce: expected 1 merged \
 WRITE record, got $n (window did not coalesce)"
@@ -470,6 +619,7 @@ expected 0 (window's first IO offset)"
 }
 
 step_fence_disabled() {
+	STEP=fence-disabled
 	require_probe fence-disabled || return
 	mnt="$(ds_mnt "$DS1")"
 	f="$mnt/n.bin"
@@ -482,12 +632,16 @@ step_fence_disabled() {
 	done
 	obj="$("${SUDO[@]}" stat -c %i "$f")"
 	f0="$FAILS"
-	if ! poll_op "$DS1" "$obj" "$OP_WRITE" 3; then
+	poll_op "$DS1" "$obj" "$OP_WRITE" 3
+	rc=$?
+	[ "$rc" -eq 2 ] && return
+	if [ "$rc" -ne 0 ]; then
 		n="$(count_op "$OP_WRITE")"
 		fail "fence-disabled: expected 3 WRITE records at \
 window=0, found $n within 30s"
 		return
 	fi
+	assert_no_loss
 	n="$(count_op "$OP_WRITE")"
 	[ "$n" -eq 3 ] ||
 		fail "fence-disabled: expected exactly 3 WRITE records, \
@@ -501,12 +655,9 @@ io_bytes=4096, got $nb"
 }
 
 step_flush_order() {
+	STEP=flush-order
 	require_probe flush-order || return
-	# DS3's window is 2000ms. The write is still pending when rename
-	# runs, so the pre-rename flush is what emits WRITE. On a
-	# window=0 dataset the write is already its own record and this
-	# step would pass with the flush sites removed.
-	mnt="$(ds_mnt "$DS3")"
+	mnt="$(ds_mnt "$DS1")"
 	f="$mnt/o.bin"
 	"${SUDO[@]}" dd if=/dev/zero of="$f" bs=4096 count=1 \
 	    status=none || { fail "flush-order: write failed"; return; }
@@ -514,10 +665,14 @@ step_flush_order() {
 	"${SUDO[@]}" mv "$f" "$f.renamed" ||
 		{ fail "flush-order: rename failed"; return; }
 	f0="$FAILS"
-	if ! poll_op "$DS3" "$obj" "$OP_RENAME" 1; then
+	poll_op "$DS1" "$obj" "$OP_RENAME" 1
+	rc=$?
+	[ "$rc" -eq 2 ] && return
+	if [ "$rc" -ne 0 ]; then
 		fail "flush-order: no RENAME record within 30s"
 		return
 	fi
+	assert_no_loss
 	widx="$(grep -n "^REC op=$OP_WRITE " "$RECS" | head -n 1 |
 		cut -d: -f1)"
 	ridx="$(grep -n "^REC op=$OP_RENAME " "$RECS" | head -n 1 |
@@ -535,46 +690,36 @@ RENAME at line $ridx"
 }
 
 step_close_flush() {
+	STEP=close-flush
 	require_probe close-flush || return
 	mnt="$(ds_mnt "$DS3")"
 	f="$mnt/cl.bin"
-	"${SUDO[@]}" python3 - "$f" "$WD/close-ready" "$WD/close-done" <<'PY' &
+	"${SUDO[@]}" python3 - "$f" <<'PY'
 import os
 import sys
-import time
 
-path, ready, done = sys.argv[1], sys.argv[2], sys.argv[3]
-fd = os.open(path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o644)
-hold = os.open(path, os.O_RDONLY)
+fd = os.open(sys.argv[1], os.O_CREAT | os.O_WRONLY | os.O_TRUNC,
+             0o644)
 os.write(fd, b"x" * 4096)
 os.close(fd)
-open(ready, "w").close()
-while not os.path.exists(done):
-    time.sleep(0.2)
-os.close(hold)
 PY
-	py=$!
-	i=0
-	while [ ! -f "$WD/close-ready" ] && [ "$i" -lt 40 ]; do
-		sleep 0.25
-		i=$((i + 1))
-	done
-	if [ ! -f "$WD/close-ready" ]; then
-		"${SUDO[@]}" touch "$WD/close-done"
-		wait "$py" || true
-		fail "close-flush: writer did not signal ready"
+	[ $? -eq 0 ] || {
+		fail "close-flush: open/write/close failed"
 		return
-	fi
+	}
 	obj="$("${SUDO[@]}" stat -c %i "$f")"
 	f0="$FAILS"
-	# hold fd is still open, so zfs_inactive cannot emit this.
-	if ! poll_op "$DS3" "$obj" "$OP_WRITE" 1; then
+	# No further IO happens on this file: only close(2) can close
+	# the pending window.
+	poll_op "$DS3" "$obj" "$OP_WRITE" 1
+	rc=$?
+	[ "$rc" -eq 2 ] && return
+	if [ "$rc" -ne 0 ]; then
 		fail "close-flush: pending window not flushed by \
 close(2) within 30s"
-		"${SUDO[@]}" touch "$WD/close-done"
-		wait "$py" || true
 		return
 	fi
+	assert_no_loss
 	n="$(count_op "$OP_WRITE")"
 	[ "$n" -eq 1 ] ||
 		fail "close-flush: expected 1 record, got $n"
@@ -582,12 +727,11 @@ close(2) within 30s"
 	ib="$(field "$line" io_bytes)"
 	[ "$ib" = "4096" ] ||
 		fail "close-flush: io_bytes=$ib, expected 4096"
-	"${SUDO[@]}" touch "$WD/close-done"
-	wait "$py" || true
 	[ "$FAILS" -eq "$f0" ] && pass close-flush
 }
 
 step_byte_completeness() {
+	STEP=byte-completeness
 	require_probe byte-completeness || return
 	mnt="$(ds_mnt "$DS3")"
 	f="$mnt/b.bin"
@@ -609,10 +753,14 @@ PY
 	}
 	obj="$("${SUDO[@]}" stat -c %i "$f")"
 	f0="$FAILS"
-	if ! poll_op "$DS3" "$obj" "$OP_WRITE" 1; then
+	poll_op "$DS3" "$obj" "$OP_WRITE" 1
+	rc=$?
+	[ "$rc" -eq 2 ] && return
+	if [ "$rc" -ne 0 ]; then
 		fail "byte-completeness: no WRITE record within 30s"
 		return
 	fi
+	assert_no_loss
 	n="$(count_op "$OP_WRITE")"
 	[ "$n" -eq 1 ] || fail "byte-completeness: expected 1 record \
 for 10 writes inside one window, got $n"

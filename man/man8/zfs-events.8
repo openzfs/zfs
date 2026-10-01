@@ -15,7 +15,7 @@
 .\"
 .\" Copyright (c) 2026, OpenZFS Contributors. All rights reserved.
 .\"
-.Dd September 29, 2026
+.Dd October 1, 2026
 .Dt ZFS-EVENTS 8
 .Os
 .
@@ -25,10 +25,14 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm events
-.Op Fl cj
+.Op Fl c
+.Ar filesystem Ns | Ns Ar volume
+.Nm zfs
+.Cm events
+.Op Fl j
 .Op Fl n Ar count
 .Op Fl o Ar object
-.Ar filesystem
+.Ar filesystem Ns | Ns Ar volume
 .Op Ar path
 .
 .Sh DESCRIPTION
@@ -55,6 +59,11 @@ The
 .Sy events
 property is inheritable, so enabling it on a parent dataset will enable
 event logging for all descendant datasets.
+.Pp
+Event logs are per-dataset and are not part of a snapshot's data:
+arguments containing a snapshot delimiter
+.Pq Sq @
+are rejected.
 .
 .Ss Event Types
 The following event types are recorded:
@@ -64,7 +73,7 @@ File or directory created
 .It Sy REMOVE
 File or directory deleted
 .It Sy RENAME
-File or directory renamed (includes old and new paths)
+File or directory renamed (includes old and new names)
 .It Sy LINK
 Hard link created
 .It Sy SYMLINK
@@ -144,23 +153,14 @@ followed by a
 .Sy RENAME
 is emitted in that order), and on
 .Xr close 2 .
-.Xr close 2
-flushes a pending window even when the window is still young, so a
-record does not wait on inode eviction.
-A window of
-.Sy 0
-has no pending record: each
-.Xr read 2
-or
-.Xr write 2
-is queued on its own and drained asynchronously.
 .Pp
 The
 .Sy uid
 and
 .Sy gid
-of a coalesced record are those of the caller that opened the window,
-not the caller that later flushed it.
+of a coalesced record are those of the caller whose I/O triggered
+emission; windows containing I/O from multiple writers are
+attributed to the emitter.
 Setting
 .Sy events_io_window=0
 disables the fence and records every
@@ -169,17 +169,14 @@ and
 .Xr read 2
 call individually.
 .Pp
-A coalesced
+A
 .Sy WRITE
-carries the pool's open transaction group at flush time, not the
-transaction group of the write that filled the window.
+record carries the transaction group of the write's final
+transaction.
 A
 .Sy READ
-record, and a
-.Sy events_io_window=0
-record, carries the open transaction group sampled when the record
-was queued.
-Reads create no transaction of their own, so this value is a
+record carries the pool's open transaction group at the time of the
+read; reads create no transaction of their own, so this value is a
 commit-timeline anchor, not a claim that the read was part of that
 transaction group.
 .Pp
@@ -203,26 +200,34 @@ per window period.
 .Sh OPTIONS
 .Bl -tag -width "-o object"
 .It Fl c
-Clear the dataset's event log.
-Requires a writable pool and the
-.Sy destroy
-delegation permission.
-The log's ring identity is preserved; the logical end of the log
-resets to 0.
+Clear the dataset's event log instead of displaying it, then exit.
+The dataset must be mounted.
+.Fl c
+cannot be combined with
+.Fl j ,
+.Fl n ,
+.Fl o ,
+or a
+.Ar path
+argument.
+Clearing preserves ring identity: consumers tracking the ring GUID
+(e.g.\&
+.Xr zmetad 8 )
+see the same ring instance, reset to empty.
 .It Fl j
-Output one JSON array.
-Field names are the wire names
-.Pq Sy txg , object , op , name ,
-and the operation-specific fields.
-The kernel
-.Sy time
-field is not printed.
+Output in JSON format for machine parsing.
+All events are printed as a single JSON array; each event is one
+object on its own line.
+See
+.Sx OUTPUT
+for the exact key set.
 .It Fl n Ar count
-Stop after
+Limit output to the oldest
 .Ar count
-records, counting from the oldest surviving record.
-This is not a "most recent" selector.
+events in the ring buffer.
 By default, all events in the ring buffer are displayed.
+.Ar count
+must be a positive integer; zero and non-numeric values are rejected.
 .It Fl o Ar object
 Display only events for the specified ZFS object ID.
 Object IDs can be obtained from
@@ -230,63 +235,138 @@ Object IDs can be obtained from
 or from previous
 .Nm zfs Cm events
 output.
-.It Ar filesystem
-The dataset to query.
-Volumes and snapshots are not accepted.
+The value must be numeric.
+.It Ar filesystem Ns | Ns Ar volume
+The dataset to query for events.
 .It Ar path
-Optional path of a live file.
-The command stats the path and filters by that inode's object ID.
-An absolute path is used as given; a relative path is joined to the
-dataset mountpoint.
-A path that no longer exists cannot be filtered, including a rename's
-old name.
+Optional dataset-relative path used to filter events.
+The path is resolved against the dataset's mountpoint and converted
+to an object ID, so the query shows the full history of that object,
+under any name it has had.
+The file must currently exist: a name that was renamed away can no
+longer be resolved and must be queried by object ID
+.Pq Fl o
+instead.
 .El
 .
 .Sh OUTPUT
-Text output columns are
-.Sy TXG ,
-.Sy OBJECT ,
-.Sy OPERATION ,
+In the default (non-JSON) mode a header is printed followed by one
+line per event with the following columns:
+.Bl -tag -width "OPERATION" -compact -offset indent
+.It Sy TXG
+Transaction group in which the event occurred
+.It Sy OBJECT
+ZFS object ID of the affected file
+.It Sy OPERATION
+Type of event (CREATE, REMOVE, RENAME, SETATTR, TRUNCATE, WRITE,
+READ, \&...)
+.It Sy NAME
+Dataset-relative name of the affected file, for operations that
+carry a name.
+RENAME lines append the previous name in parentheses
+.Pq Dq "(from oldname)" .
+.El
+.Pp
+The kernel record also carries a timestamp, uid, gid, and mode where
+applicable, but these are not part of the text or JSON output of this
+command; use the wire interface
+.Pq Xr zmetad 8
+for the full record.
+.Pp
+In JSON mode
+.Pq Fl j
+the output is a single JSON array.
+Each event object always contains the keys
+.Sy txg ,
+.Sy object ,
 and
-.Sy NAME .
-A rename appends
-.Dq (from Ar oldname )
-with the bare previous name, not a full path.
-JSON output is a single array of objects using the wire field names.
-.Sy WRITE
+.Sy op .
+The keys
+.Sy name
 and
-.Sy READ
-objects additionally carry
+.Sy parent
+appear only when the record carries them (name-bearing metadata
+operations); TRUNCATE, SETATTR, WRITE, and READ records carry
+neither.
+Operation-specific keys are added as follows:
+.Bl -tag -width "TRUNCATE" -compact -offset indent
+.It Sy RENAME
+.Sy old_name , old_parent
+.It Sy TRUNCATE
+.Sy old_size , new_size
+.It Sy SYMLINK
+.Sy target
+.It Sy WRITE , READ
 .Sy io_offset
-and
-.Sy io_bytes .
+(the window's first offset) and
+.Sy io_bytes
+(the summed byte total for the window)
+.El
+.Pp
+An empty log prints
+.Dq no events found .
+If records were overwritten by ring wraparound, a message of the form
+.Dq N record(s) lost to log wraparound
+is printed to standard error.
+If the log cannot be read at all,
+.Nm zfs Cm events
+prints a diagnostic to standard error and exits 1.
+.
+.Sh EXIT STATUS
+.Bl -tag -width "XX"
+.It 0
+Successful query or clear.
+.It 1
+Invalid option or argument, snapshot argument, unopenable dataset,
+failed clear, or a first-page read error.
+.El
 .
 .Sh EXAMPLES
-.Ss Example 1: Viewing events on a dataset
+.Ss Example 1: Viewing the events of a dataset
 .Bd -literal -offset indent
 # zfs events tank/data
 TXG        OBJECT   OPERATION  NAME
 ---------- -------- ---------- --------------------
 1847       128      CREATE     newfile.txt
+1848       128      SETATTR
 1850       128      RENAME     renamed.txt (from newfile.txt)
+1852       129      CREATE     another.txt
+1855       128      REMOVE     renamed.txt
 .Ed
-.Ss Example 2: JSON output
+.Ss Example 2: Getting the history of a specific file
+The path argument is resolved to the file's object ID, so the whole
+object history is shown, including records logged under earlier
+names:
 .Bd -literal -offset indent
-# zfs events -j -n 1 tank/data
-[{"txg":1847,"object":128,"op":"CREATE","name":"newfile.txt"}]
+# zfs events tank/data important.txt
+TXG        OBJECT   OPERATION  NAME
+---------- -------- ---------- --------------------
+1200       256      CREATE     draft.txt
+1205       256      SETATTR
+1340       256      RENAME     important.txt (from draft.txt)
 .Ed
-.Pp
+.Ss Example 3: JSON output for scripting
 .Fl n
-counts from the oldest surviving record, so this is the oldest record,
-not the newest.
-.Ss Example 3: IO auditing
+returns the oldest events in the ring:
+.Bd -literal -offset indent
+# zfs events -j -n 2 tank/data
+[{"txg":1847,"object":128,"op":"CREATE","name":"newfile.txt","parent":4},
+{"txg":1848,"object":128,"op":"SETATTR"}]
+.Ed
+.Ss Example 4: IO auditing
+WRITE and READ records carry no name; correlate them by object ID:
 .Bd -literal -offset indent
 # zfs set events_io=on tank/data
 # zfs set events_io_window=5000 tank/data
 # dd if=/dev/zero of=/tank/data/blob bs=1M count=64
-# zfs events -j -o 130 tank/data
-[{"txg":1861,"object":130,"op":"WRITE","name":"blob",
- "io_offset":0,"io_bytes":67108864}]
+# zfs events -j tank/data
+[{"txg":1860,"object":130,"op":"CREATE","name":"blob","parent":4},
+{"txg":1861,"object":130,"op":"WRITE","io_offset":0,"io_bytes":67108864}]
+.Ed
+.Ss Example 5: Clearing a dataset's event log
+.Bd -literal -offset indent
+# zfs events -c tank/data
+cleared event log for 'tank/data'
 .Ed
 .
 .Sh INTERFACE STABILITY
@@ -303,38 +383,20 @@ not the newest.
 .Sh NOTES
 The event log is stored as a ring buffer within the dataset.
 When the buffer is full, the oldest events are overwritten.
-The size of the buffer is fixed when the log object is created, from
-the
+The size of the buffer is controlled by the
 .Sy events_size
-property at that moment (default 1 MiB).
-Changing
-.Sy events_size
-later does not resize an existing log.
+property, which defaults to 1 MiB.
 .Pp
-Metadata operations are recorded in the same transaction group as the
-operation.
-Coalesced IO records are not: their transaction group is the pool's
-open group at flush or enqueue time.
+Events are recorded within the same transaction group as the operation
+that triggered them, ensuring consistency with snapshots.
 .Pp
 The
 .Sy org.openzfs:events
-pool feature must be enabled before
-.Sy events=on
-is accepted.
-The feature becomes
-.Sy active
-when the first log object is created, which is the first event, not
-the property set itself.
-.Sy events=off
-does not destroy the log and does not return the feature to
-.Sy enabled .
-It is refused while
-.Sy events_io
-is still
-.Sy on .
-The feature returns to
-.Sy enabled
-when every dataset that created a log object is destroyed.
+pool feature must be enabled for event logging to function.
+The feature is activated when the first event is logged on any
+dataset in the pool, not at the moment the
+.Sy events
+property is set.
 .Pp
 For long-term event retention beyond the ring buffer capacity, use
 .Xr zmetad 8

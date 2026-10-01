@@ -1,10 +1,10 @@
-# zmetad database schema — consumer contract (layout version 6)
+# zmetad database schema — consumer contract (layout version 5)
 
 This document is the stable contract between the `zmetad` daemon's SQLite
 database (`zmetad.db`) and external consumers (e.g. zeta-object). It is
 written so a consumer can be implemented without reading `zmetad` source.
 Every column name, type, and semantic below is pinned to
-`contrib/zmetad/zmetad_db.c` at DB layout version 6.
+`contrib/zmetad/zmetad_db.c` at DB layout version 5.
 
 The database is opened in WAL mode (`PRAGMA journal_mode=WAL`); consumers
 may read concurrently with the daemon.
@@ -12,7 +12,7 @@ may read concurrently with the daemon.
 
 ## 1. Stability policy
 
-`meta.db_schema_version = 6` is the stable contract version documented
+`meta.db_schema_version = 5` is the stable contract version documented
 here.
 
 Evolution rules:
@@ -36,22 +36,22 @@ Version history:
 | Version | Change |
 |---------|--------|
 | 1 | Initial layout (events core columns, sync_state, meta) |
-| 2 | events gains `parent`, `old_parent`, `target`, `old_size`, `attrs` |
-| 3 | sync_state gains `ring_guid`; new `datasets` table |
-| 4 | events gains `captured_at` (unix seconds at ingest) |
-| 5 | events gains `full_path`/`old_full_path`; new `objmap` graph table |
-| 6 | sync_state gains `last_lost` (records_lost baseline; NULL = none yet) |
+|| 2 | events gains `parent`, `old_parent`, `target`, `old_size`, `attrs` |
+|| 3 | sync_state gains `ring_guid`; new `datasets` table |
+|| 4 | events gains `captured_at` (unix seconds at ingest) |
+|| 5 | events gains `full_path`/`old_full_path`; new `objmap` graph table |
 
 Migration contract: upgrades are performed **in place** by zmetad with
 `ALTER TABLE ADD COLUMN`; added columns are NULL for pre-existing rows,
 which is the correct representation of "field absent from those
 records". A failed-then-retried migration is safe ("duplicate column
-name" is treated as success). The version key is written only after
-every column for the running build exists.
+name" is treated as success). Consumers reading a v1/v2 database may
+apply the same column additions; consumers of a v3 database need no
+migration logic.
 
 Two version keys live in `meta` and are independent:
 
-- `db_schema_version` — the SQLite layout version (this document; `6`).
+- `db_schema_version` — the SQLite layout version (this document; `5`).
 - `events_schema_version` — the wire record schema version (`2`, see
   `contrib/zmetad/events-schema.json`). zmetad refuses to open a
   database whose stored wire version differs from its loaded schema;
@@ -70,15 +70,15 @@ Two version keys live in `meta` and are independent:
 | txg | INTEGER | no | `txg` | transaction group of the change |
 || timestamp | INTEGER | no | `time` | kernel event time: `gethrtime()` nanoseconds since boot (monotonic, NOT wall clock); ordering/dedup only — see `captured_at` |
 || captured_at | INTEGER | yes | — | ingest wall time, unix seconds; NULL in pre-v4 rows. Retention and consumer "when did this appear" queries use this |
-| full_path | TEXT | yes | — | dataset-relative path resolved at insert time (e.g. `a/b/c.txt`); NULL when the ancestor chain is unresolvable (row stays PARTIAL, §7). Directory RENAMEs relabel descendants forward — events before the rename keep the old full_path; the rename row's `old_full_path` carries it |
-| old_full_path | TEXT | yes | — | RENAME rows: the resolved path of `old_path` at insert time |
+|| full_path | INTEGER | yes | — | dataset-relative path resolved at insert time (e.g. `a/b/c.txt`); NULL when the ancestor chain is unresolvable (row stays PARTIAL, §7). Directory RENAMEs relabel descendants forward — events before the rename keep the old full_path; the rename row's `old_full_path` carries it |
+|| old_full_path | INTEGER | yes | — | RENAME rows: the resolved path of `old_path` at insert time |
 | object_id | INTEGER | no | `object` | object ID affected |
 | event_type | TEXT | no | `op` | schema enum name (below); unknown op values decode as `UNKNOWN` |
 | path | TEXT | yes | `name` | file/dir name, dataset-relative at event time |
 | old_path | TEXT | yes | `old_name` | old name (RENAME) |
 | uid | INTEGER | yes | `uid` | user ID |
 | gid | INTEGER | yes | `gid` | group ID |
-| mode | INTEGER | yes | `mode` | file mode at CREATE; NULL on all other ops |
+| mode | INTEGER | yes | — | **never written**; column kept for schema stability, always NULL |
 | size | INTEGER | yes | `new_size` | size after truncate/setattr |
 | io_offset | INTEGER | yes | `io_offset` | IO start offset (WRITE/READ); window's first offset when the events_io fence window is open |
 | io_bytes | INTEGER | yes | `io_bytes` | IO byte count (WRITE/READ); summed total of coalesced IOs inside a fence window |
@@ -100,25 +100,37 @@ outside the enum decode as `UNKNOWN`):
 `NONE`, `CREATE`, `REMOVE`, `RENAME`, `LINK`, `SYMLINK`, `TRUNCATE`,
 `SETATTR`, `WRITE`, `READ`
 
-Op-constrained optional columns (per events-schema.json ops lists and
-the daemon's binds):
+Op-constrained optional columns. **What the wire actually carries**
+(verified against the kernel emitters in `module/zfs/zfs_events.c` and
+the daemon's binds): name-bearing ops (`CREATE`, `REMOVE`, `RENAME`,
+`LINK`, `SYMLINK`) send `name`/`parent`; the size/attr/IO ops
+(`TRUNCATE`, `SETATTR`, `WRITE`, `READ`) do **not** — their records
+carry no `name` and no `parent`, so `path`, `parent`, and (except
+where noted) `size` are NULL for those rows:
 
 | Op | Columns populated beyond the always-present four |
 |----------|--------------------------------------------------|
-| CREATE | `path`, `parent` |
+| CREATE | `path`, `parent`, `mode`*, `uid`, `gid` |
 | REMOVE | `path`, `parent` |
 | RENAME | `path`, `parent`, `old_path`, `old_parent` |
 | LINK | `path`, `parent` |
 | SYMLINK | `path`, `parent`, `target` |
-| TRUNCATE | `path`, `parent`, `size` (new), `old_size` |
+| TRUNCATE | `old_size`, `size` (from wire `new_size`) |
 | SETATTR | `attrs` |
-| WRITE | `path`, `parent`, `io_offset`, `io_bytes` |
-| READ | `path`, `parent`, `io_offset`, `io_bytes` |
+| WRITE | `io_offset`, `io_bytes`, `uid`, `gid` |
+| READ | `io_offset`, `io_bytes`, `uid`, `gid` |
+
+\* `mode` arrives on the CREATE wire record but is not bound to the
+column (kept NULL for schema stability; see the `events` table note).
 
 (`uid`, `gid` are optional fields not bound to a specific op: they are
-populated whenever the record carries them. WRITE/READ exist only when
-`events_io` is enabled and are coalesced by the `events_io_window`
-fence — `io_offset` is the window's first offset, `io_bytes` the summed
+populated whenever the record carries them — in practice CREATE and
+WRITE/READ. Consumers MUST NOT expect `path`, `parent`, or `size` on
+TRUNCATE/SETATTR/WRITE/READ rows: identify those events by
+`object_id`, resolving the object to a name from the dataset's
+CREATE/RENAME history. WRITE/READ exist only when `events_io` is
+enabled and are coalesced by the `events_io_window` fence —
+`io_offset` is the window's first offset, `io_bytes` the summed
 total.)
 
 The four always-present columns are `txg`, `timestamp` (`time`),
@@ -134,17 +146,10 @@ One row per polled dataset.
 | last_offset | INTEGER | no | watermark: next read offset into the kernel event log |
 | last_sync | INTEGER | no | unix time of the last successful poll |
 | ring_guid | INTEGER | yes | identity of the kernel event log instance; see Section 6 |
-| last_lost | INTEGER | yes | previous poll's cumulative `records_lost`; NULL means no baseline yet |
 
 `last_offset` and `ring_guid` are always written together in a single
 statement, so a persisted offset and its ring identity are never
-observed torn. `last_lost` is written on every poll that observed the
-counter, including polls that do not advance the cursor. A daemon
-restart loads it and records a gap for any increase that happened
-while it was down. NULL (a pre-v6 row, or a dataset never polled) does
-not invent a gap on the first observation. A clear or ring replacement
-re-arms the baseline on the new counter instead of subtracting across
-the reset.
+observed torn.
 
 ### 2.3 `datasets`
 
@@ -206,7 +211,7 @@ Row lifecycle:
 | key | TEXT | no | `PRIMARY KEY` |
 | value | TEXT | no | string value |
 
-Known keys: `db_schema_version` (`"6"`), `events_schema_version` (`"2"`).
+Known keys: `db_schema_version` (`"4"`), `events_schema_version` (`"2"`).
 
 
 ## 3. Deduplication / insertion
@@ -281,10 +286,9 @@ To reconstruct path state per dataset:
   ties within a txg in capture order.
 - A row is **PARTIAL** when its ancestor chain is incomplete — i.e. an
   ancestor's CREATE fell inside a `gaps` loss range (Section 4), so no
-  full path can be proven. On layout ≥ 5 this is exactly the name-bearing
-  row whose `full_path` is NULL; consumers on older layouts reconstruct and
-  test resolvability themselves. Name-less ops (WRITE, READ, TRUNCATE,
-  SETATTR) never carry a `full_path` — their NULL is not PARTIAL.
+  full path can be proven. On layout ≥ 5 this is exactly the row whose
+  `full_path` is NULL; consumers on older layouts reconstruct and test
+  resolvability themselves.
 - Serve PARTIAL rows under **conservative match** only:
   - exact match on the bare name, or
   - a queried key ending in `"/" + bare name`.
@@ -302,25 +306,30 @@ To reconstruct path state per dataset:
 ## 8. Freshness (#5)
 
 The database lags live filesystem state by at most one poll interval
-(default 30 seconds; `-i/--interval`, minimum 1). `SIGUSR1` forces an
+(default 30 seconds; `-i`/`--interval`, minimum 1). `SIGUSR1` forces an
 immediate out-of-band collect, after which the database is current as of
 that collect. See zmetad(8) for CLI details.
 
 
 ## 9. Operational facts
 
-- **Retention** (`--retention <days>`, default 90; 0 disables): deletes
-  `events` rows with `captured_at` older than the cutoff, then runs
-  `VACUUM`. **Scope is events only** — `gaps`, `sync_state`, and
-  `datasets` are untouched, which is what makes the gap counts in
-  Section 4 lifetime figures.
+- **Retention** (`-r`/`--retention <days>`, default 90; must be
+  1..36500 — zero, negative, and non-numeric values are rejected):
+  deletes `events` rows whose `captured_at` is older than the cutoff,
+  then runs `VACUUM`. Rows with a **NULL `captured_at`** (pre-v4
+  rows) are **never deleted** by retention, regardless of age.
+  **Scope is events only** — `gaps`, `sync_state`, and `datasets` are
+  untouched, which is what makes the gap counts in Section 4
+  lifetime figures.
 - **`zmetad --purge <dataset>`** (one-shot mode: no daemonize, no poll
   loop): deletes the dataset's rows from `events`, `gaps`, and
-  `sync_state` (reported counts in that order), then clears the
-  dataset's in-kernel event ring. This is the **only** mechanism that
-  removes `gaps` rows. The `datasets` mapping row is left in place.
+  `sync_state`, then clears the dataset's in-kernel event ring. Its
+  report line prints the **events and gaps counts only** (`purged
+  <ds>: N events, M gaps removed; kernel ring cleared`). This is the
+  **only** mechanism that removes `gaps` rows. The `datasets` mapping
+  row is left in place.
 - **Poll loop**: collects every `poll_interval` seconds (1-second sleep
   granularity); each poll persists the watermark + ring GUID, appends
   new events (dedup as in Section 3), refreshes the `datasets`
-  mountpoint row, and inserts gap rows per Section 2.5 when loss is
+  mountpoint row, and inserts gap rows per Section 2.4 when loss is
   detected.

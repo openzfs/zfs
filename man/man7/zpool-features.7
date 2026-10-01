@@ -1,17 +1,20 @@
 .\" SPDX-License-Identifier: CDDL-1.0
 .\"
-.\" This file and its contents are supplied under the terms of the
-.\" Common Development and Distribution License ("CDDL"), version 1.0.
-.\" You may only use this file in accordance with the terms of version
-.\" 1.0 of the CDDL.
-.\"
-.\" A full copy of the text of the CDDL should have accompanied this
-.\" source.  A copy of the CDDL is also available via the Internet at
-.\" https://opensource.org/license/CDDL-1.0.
-.\"
 .\" Copyright (c) 2012, 2018 by Delphix. All rights reserved.
 .\" Copyright (c) 2013 by Saso Kiselkov. All rights reserved.
 .\" Copyright (c) 2014, Joyent, Inc. All rights reserved.
+.\" The contents of this file are subject to the terms of the Common Development
+.\" and Distribution License (the "License").  You may not use this file except
+.\" in compliance with the License. You can obtain a copy of the license at
+.\" usr/src/OPENSOLARIS.LICENSE or https://opensource.org/licenses/CDDL-1.0.
+.\"
+.\" See the License for the specific language governing permissions and
+.\" limitations under the License. When distributing Covered Code, include this
+.\" CDDL HEADER in each file and include the License file at
+.\" usr/src/OPENSOLARIS.LICENSE.  If applicable, add the following below this
+.\" CDDL HEADER, with the fields enclosed by brackets "[]" replaced with your
+.\" own identifying information:
+.\" Portions Copyright [yyyy] [name of copyright owner]
 .\" Copyright (c) 2019, 2023, 2024, Klara, Inc.
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
@@ -501,33 +504,6 @@ vdev type, or when adding a new
 .Sy draid
 vdev to an existing pool.
 .
-.feature com.seagate draid_failure_domains no draid
-This feature enables use of failure domains in
-.Sy draid
-vdev type.
-Failure domains allow for an entire set of devices that belong to a domain
-to fail without taking the pool offline.
-Devices that are likely to fail together due to sharing a common component,
-such as an enclosure, HBA, or SAS expander, are good candidates to form a
-failure domain.
-For example, on a setup with several enclosures the user could define
-the failure domains to be the set of devices in each enclosure, then the
-failure groups span the enclosures.
-Or in other words, the dRAID is arranged such that the i-th device in
-every failure group belongs to i-th enclosure.
-This will allow tolerating the failure of the whole enclosure.
-The size of the failure group is equal to the number of failure domains,
-and it cannot be less than the size of the redundancy group
-(parity + data + spares).
-.Pp
-This feature becomes
-.Sy active
-when creating a pool which uses the
-.Sy draid
-vdev type with failure domains configured, or when adding a new
-.Sy draid
-vdev with failure domains to an existing pool.
-.
 .feature com.klarasystems dynamic_gang_header no
 This feature enables larger gang headers based on the sector size of the pool.
 When enabled, gang headers will use the entire space allocated for them, instead
@@ -655,16 +631,19 @@ When full, oldest events are overwritten.
 .Pp
 This feature becomes
 .Sy active
-when the first event log object is created, which happens on the
-first logged event, not when
-.Sy events=on
-is set.
-.Sy events=off
-does not destroy the log and does not return the feature to
-.Sy enabled .
-The feature returns to
+when the first event is logged on any dataset in the pool (which
+requires the
+.Sy events
+property to be set to
+.Sy on
+on that dataset), not at the moment the property is set.
+It returns to the
 .Sy enabled
-when every dataset that created a log object is destroyed.
+state only when all datasets holding an event log are destroyed.
+Setting
+.Sy events Ns = Ns Sy off
+on a dataset does not deactivate the feature; the existing event log
+object keeps the reference until the dataset itself is destroyed.
 .Pp
 See
 .Xr zfs-events 8
@@ -717,7 +696,7 @@ in the output of
 .Nm zpool Cm status .
 In case of encrypted filesystems with unloaded keys we are unable to check
 their snapshots or clones for errors and these will not be reported.
-The error block itself is reported against the filesystem, without a filename.
+An "access denied" error will be reported.
 .Pp
 \*[instant-never]
 .

@@ -197,9 +197,17 @@ each since fixed and verified:
 
 Measured on zfs-meta (QEMU VM, 4 vCPU), debug build, buffered I/O,
 3 rounds per cell (all rounds recorded, median quoted). `events=off`
-is unreachable on a post-activation dataset (the one-way feature gate
-refuses `zfs set events=off` with "must be upgraded"), so the baseline
-is **events=on, events_io=off** - which performs no IO-record work.
+is unreachable on a post-activation dataset in this test sequence:
+the datasets were set `events_io=on` earlier, and the setter in
+`zfs_ioctl.c` refuses `zfs set events=off` while `events_io` is
+still on ("turn events_io off first", ENOTSUP) because events_io
+depends on events. This is a dependency-ordering refusal, not a
+one-way property gate: `events_io=off` followed by `events=off` is
+accepted. (The org.openzfs:events FEATURE is genuinely one-way in
+a different sense: it deactivates only when datasets holding event
+logs are destroyed - setting events=off does not deactivate it.)
+So the baseline is **events=on, events_io=off** - which performs no
+IO-record work.
 
 Method: sequential = dd 2 GiB (bs=1M) write / read to /dev/null;
 random = self-contained C loop, 50000 4K pwrite/pread ops at LCG
@@ -260,3 +268,89 @@ DB).
 - `85a340dc1` zmetad: schema v2 with WRITE/READ ops and IO fields
 - `d9fb50f52` zmetad: persist io_offset/io_bytes for WRITE/READ records
 - `8b17ebf48` tests: add IO-event e2e suite and fix schema-e2e privileges
+
+## Addendum: e2e suite repair (2026-10-01)
+
+**All prior "green" claims for both e2e suites in this report are
+VOID pending a re-run on Linux (root + ZFS test pool).** The
+2026-10-01 bughunt (`.hermes/audits/2026-10-01-extended-metadata-bughunt.md`,
+K16/M29) showed both suites were broken in their documented run
+modes - the green runs above were produced under a different (root)
+invocation than the header documents. The suites cannot be executed
+in this environment (macOS, no pool); the repairs below are from
+careful code reading and are checked with `bash -n` + shellcheck
+only.
+
+Repairs applied to `tests/events-io-e2e.sh`:
+
+- **T1** writer-identity commands: the empty `SUDO` array expanded
+  to `-u nobody dd` when run as root (rc 127 - write/read-visible
+  steps always failed). A `RUNAS` prefix (runuser / setpriv / su as
+  root, `sudo -u` otherwise) now wraps every writer-identity command.
+- **T3** `run_probe` checks the probe's exit status; a failing probe
+  fails the step explicitly instead of truncating `$RECS` to empty.
+- **T8** fence-coalesce margins widened: window=5000ms with writes
+  1s apart (was window=2000).
+- **T9** absence assertions (gate-off, zero-byte) no longer use
+  fixed grace sleeps: they poll until the control CREATE record
+  appears (proving the ring drains past the operations under test),
+  then assert absence with a bounded poll.
+- **T6** all dataset names carry a per-run ID (`$$`); the preflight
+  sweep matches ONLY this run's ID, so parallel runs cannot destroy
+  each other.
+- **T7** `fail()` prints to stderr; helpers echo machine values on
+  stdout only, so diagnostics survive command substitution.
+- **T12** `field()` extraction is awk-based and value-safe: values
+  containing spaces (e.g. `name=my file`) are returned intact
+  (extraction runs to the next ` word=` boundary; `name=` is the
+  probe's last field).
+- **T14** every exact-count step now also asserts the probe's
+  `META lost=` counter is 0, so a wrapped ring is reported as ring
+  loss instead of a spurious count mismatch.
+
+Repairs applied to `tests/events-schema-e2e.sh`:
+
+- **T2** the daemon DB is root-owned WAL; `db_query`/`db_has_rename`
+  and the step_assert python now run through `"${SUDO[@]}"`, making
+  both documented modes (root, passwordless sudo) actually work
+  (previously: guaranteed 30s-timeout FAILs under sudo mode).
+- **T4** the near-vacuous migration test (only exercised the
+  duplicate-column no-op path) is replaced by synthetic v2-layout
+  and v3-layout databases built with sqlite3 (v2: events without
+  the 5 v2 columns, sync_state without ring_guid, no
+  db_schema_version key; v3: adds the captured_at stage), driven
+  through zmetad's one-shot open path (`--purge <nonexistent>`),
+  asserting columns added, old rows carry NULLs, data survived, and
+  version==4.
+- **T5** new SIGUSR1 step: mid-interval file creation + signal
+  (systemctl kill -s USR1 with kill -USR1 $pid fallback) asserts the
+  row appears well before the 300s poll interval; a second variant
+  signals during a large in-progress bulk collect and asserts no
+  crash and no duplicate rows.
+- **T6** unit name (`zmd-e2e-$$`) and dataset names carry the
+  per-run ID; the stale-artifact sweep matches only this run's ID.
+- **T7** `fail()` prints to stderr; `step_guid_swap` is no longer
+  run in command substitution (it sets `NEW_RING_GUID` directly).
+- **T10** the hardcoded `/home/caimlas/...` fallback path is
+  removed; discovery uses `$ZMETAD`, `$REPO/zmetad`,
+  `$REPO/contrib/zmetad/zmetad`, `/usr/local/sbin/zmetad`.
+- **T11** the dead `zfs events -j | grep schema_version` fallback
+  is removed (schema_version is a top-level ioctl key that `zfs
+  events -j` never prints, so the branch could never match); the
+  wire probe is now the only path, with a notice on compile failure.
+- **T13** the step_gap comment's ring-size claim is fixed: the
+  default ring is 1 MiB (~10000 records), not 128KB.
+- **T14** added: datasets-table row assertion after a poll
+  (mountpoint is `/`-prefixed), `--export-schema` clobber-refusal +
+  `--force` test, and a retention test that a NULL `captured_at`
+  row survives cleanup while a stamped old row is deleted.
+
+Documentation repaired alongside (K17/D1-D15): zfs-events(8)
+rewritten against the real getopt string (`cjn:o:`), real
+print_event output, and stderr/exit-status semantics; zmetad(8)
+`-c`/config-file/pidfile removed, SIGHUP documented as reserved
+no-op, schema options documented; zpool-features(7)/zfsprops(7)
+activation and deactivation semantics corrected (activation on
+first logged event; deactivation only on dataset destroy);
+SCHEMA.md op-column table corrected to what the wire actually
+carries, version/purge/interval/retention claims fixed.

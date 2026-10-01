@@ -3,11 +3,14 @@
 # tests/events-schema-e2e.sh - end-to-end validation of the extended
 # metadata event/schema feature chain against a live system.
 #
-# Chain under test: schema export -> schema check (ok + version-refusing
-# bad file) -> wire schema_version presence -> zmetad daemon run ->
-# multi-op event capture (CREATE/RENAME/TRUNCATE/SYMLINK) -> SQLite
-# assertions -> db_schema_version meta key -> gap-row detection on
-# watermark regression -> daemon version refusal on stale meta version.
+# Chain under test: schema export (incl. clobber refusal + --force) ->
+# schema check (ok + version-refusing bad file) -> wire schema_version
+# presence -> zmetad daemon run -> multi-op event capture
+# (CREATE/RENAME/TRUNCATE/SYMLINK) -> SQLite assertions (events,
+# datasets, meta, layout) -> SIGUSR1 forced collect -> gap-row
+# detection on ring wrap -> ring swap + purge -> synthetic v1/v3
+# database migrations -> retention (incl. NULL captured_at) ->
+# daemon version refusal on stale meta version.
 #
 # Usage: bash tests/events-schema-e2e.sh
 # Run as root or as a user with passwordless sudo (dataset and file ops
@@ -15,6 +18,15 @@
 # exit 1 = first failed assertion printed.  Idempotent: fresh dataset
 # per run (e2e-<pid>), and an EXIT trap destroys this run's dataset,
 # systemd unit and workdir even on failure.
+#
+# Both documented run modes work: the daemon creates the DB as root
+# (WAL side files root-owned), so EVERY sqlite read goes through
+# "${SUDO[@]}" - unprivileged when run as root, sudo when run as a
+# passwordless-sudo user.
+#
+# Parallel-run safety: the systemd unit name and every dataset carry
+# this run's ID ($$); the stale-artifact sweep in preflight matches
+# ONLY this run's ID, so concurrent runs cannot destroy each other.
 #
 # Environment overrides: ZMETAD, ZFS, ZPOOL.
 #
@@ -54,14 +66,15 @@ set -u
 
 ZFS="${ZFS:-/usr/local/sbin/zfs}"
 ZPOOL="${ZPOOL:-/usr/local/sbin/zpool}"
-UNIT="zmd-e2e"
+RUNID="$$"
+UNIT="zmd-e2e-$RUNID"
 POOL="testpool"
 BASE="fs1"
 BASE_DS="${POOL}/${BASE}"
-DS_NAME="e2e-$$"
+DS_NAME="e2e-$RUNID"
 DS="${BASE_DS}/${DS_NAME}"
-SWAP_DS="${BASE_DS}/e2e-swp-$$"
-RET_DS="e2e-ret-$$"
+SWAP_DS="${BASE_DS}/e2e-swp-$RUNID"
+RET_DS="e2e-ret-$RUNID"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 SCHEMA_FILE="${REPO}/contrib/zmetad/events-schema.json"
 
@@ -70,6 +83,7 @@ CREATED_SWAP_DS=0
 WD=""
 WIRE_HAS_VERSION=0
 WIRE_VERSION=
+NEW_RING_GUID=
 ZMETAD="${ZMETAD:-}"
 SUDO=()
 if [ "$(id -u)" -ne 0 ]; then
@@ -77,7 +91,10 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 pass() { printf 'PASS: %s\n' "$1"; }
-fail() { printf 'FAIL: %s\n' "$1"; exit 1; }
+# fail() writes to stderr so its diagnostics survive command
+# substitution in any caller (helpers echo machine values on stdout
+# only); it still terminates the suite.
+fail() { printf 'FAIL: %s\n' "$1" >&2; exit 1; }
 notice() { printf 'NOTICE: %s\n' "$1"; }
 
 cleanup() {
@@ -100,8 +117,11 @@ cleanup() {
 trap cleanup EXIT
 
 # db_query <db> <python-expression using con> : print the value.
+# Runs privileged: the daemon creates the DB (and its -wal/-shm
+# files) as root, so an unprivileged read of a root-owned WAL
+# database fails and every assertion would time out (K16/T2).
 db_query() {
-	python3 - "$1" "$2" <<'PY'
+	"${SUDO[@]}" python3 - "$1" "$2" <<'PY'
 import sqlite3
 import sys
 
@@ -116,7 +136,7 @@ PY
 
 # db_has_rename <db> <dataset>: rc 0 when a RENAME row exists.
 db_has_rename() {
-	python3 - "$1" "$2" <<'PY'
+	"${SUDO[@]}" python3 - "$1" "$2" <<'PY'
 import sqlite3
 import sys
 
@@ -133,18 +153,46 @@ sys.exit(0 if n > 0 else 1)
 PY
 }
 
+# db_count <db> <dataset> <event_type> <path>: row count (stdout).
+db_count() {
+	db_query "$1" \
+	    "con.execute('select count(*) from events where ' \
+	    'dataset=? and event_type=? and path=?', \
+	    ('$2', '$3', '$4')).fetchone()[0]"
+}
+
+# unit_start <interval> [extra zmetad args...]: (re)start the daemon
+# unit on the suite DB and wait until it is active.
+unit_start() {
+	_interval="$1"
+	shift
+	"${SUDO[@]}" systemctl stop "$UNIT" >/dev/null 2>&1 || true
+	"${SUDO[@]}" systemctl reset-failed "$UNIT" >/dev/null 2>&1 || true
+	"${SUDO[@]}" systemd-run --unit="$UNIT" \
+		--description="zmetad e2e validation" \
+		"$ZMETAD" -f -i "$_interval" "$@" -d "$WD/zmd.db" ||
+		fail "unit_start: systemd-run failed (interval=$_interval)"
+	sleep 4
+	"${SUDO[@]}" systemctl is-active --quiet "$UNIT" ||
+		fail "unit_start: unit $UNIT not active after start"
+}
+
 step_preflight() {
 	"$ZPOOL" list -H -o name "$POOL" >/dev/null 2>&1 ||
 		fail "preflight: pool $POOL not imported"
 
-	# Stop/reset any unit left behind by an interrupted earlier run.
+	# Stale-artifact sweep, run-ID scoped: the unit name and
+	# dataset names embed $$, so the only stale artifacts this
+	# may match are ones left by an earlier attempt of THIS run
+	# (pid reuse after a signal).  Wildcard sweeps across other
+	# runs' artifacts are deliberately not done: parallel suites
+	# must not destroy each other (T6).
 	"${SUDO[@]}" systemctl stop "$UNIT" >/dev/null 2>&1 || true
 	"${SUDO[@]}" systemctl reset-failed "$UNIT" >/dev/null 2>&1 || true
-
-	# Destroy stale e2e-* datasets from interrupted earlier runs.
 	while read -r d; do
 		case "$d" in
-		*/e2e-*) "${SUDO[@]}" "$ZFS" destroy -R "$d" >/dev/null 2>&1 || true ;;
+		"$DS"|"$SWAP_DS")
+			"${SUDO[@]}" "$ZFS" destroy -R "$d" >/dev/null 2>&1 || true ;;
 		esac
 	done < <("$ZFS" list -r -H -o name "$BASE_DS" 2>/dev/null)
 
@@ -166,10 +214,10 @@ step_preflight() {
 
 	if [ -n "$ZMETAD" ] && [ -x "$ZMETAD" ]; then
 		:
-	elif [ -x "${HOME}/git/zfs-metadata/zmetad" ]; then
-		ZMETAD="${HOME}/git/zfs-metadata/zmetad"
-	elif [ -x /home/caimlas/git/zfs-metadata/zmetad ]; then
-		ZMETAD=/home/caimlas/git/zfs-metadata/zmetad
+	elif [ -x "${REPO}/zmetad" ]; then
+		ZMETAD="${REPO}/zmetad"
+	elif [ -x "${REPO}/contrib/zmetad/zmetad" ]; then
+		ZMETAD="${REPO}/contrib/zmetad/zmetad"
 	elif [ -x /usr/local/sbin/zmetad ]; then
 		ZMETAD=/usr/local/sbin/zmetad
 	else
@@ -183,6 +231,25 @@ step_export() {
 		fail "export: zmetad --export-schema failed"
 	cmp -s "$WD/schema.json" "$SCHEMA_FILE" ||
 		fail "export: schema differs from $SCHEMA_FILE"
+
+	# Clobber refusal: a second export over an existing file must
+	# fail with rc 1 naming --force; the file must be untouched.
+	err="$("$ZMETAD" --export-schema "$WD/schema.json" 2>&1 >/dev/null)"
+	rc=$?
+	[ "$rc" -eq 1 ] ||
+		fail "export: clobbering re-export exited rc=$rc, expected 1"
+	case "$err" in
+	*--force*) ;;
+	*) fail "export: clobber refusal does not mention --force: $err" ;;
+	esac
+	cmp -s "$WD/schema.json" "$SCHEMA_FILE" ||
+		fail "export: refused re-export modified the file"
+
+	# --force overwrites and the content is again canonical.
+	"$ZMETAD" --export-schema "$WD/schema.json" --force ||
+		fail "export: --export-schema --force failed"
+	cmp -s "$WD/schema.json" "$SCHEMA_FILE" ||
+		fail "export: forced re-export differs from $SCHEMA_FILE"
 	pass export
 }
 
@@ -204,7 +271,7 @@ s["schema_version"] = 99
 with open(sys.argv[2], "w") as f:
     json.dump(s, f)
 PY
-	err="$("$ZMETAD" --check-schema "$WD/bad.json" 2>&1 1>/dev/null)"
+	err="$("$ZMETAD" --check-schema "$WD/bad.json" 2>&1 >/dev/null)"
 	rc=$?
 	[ "$rc" -eq 1 ] || fail "check-bad: expected rc=1, got rc=$rc"
 	case "$err" in
@@ -219,14 +286,16 @@ PY
 }
 
 step_module_version() {
-	# Advisory only: on a pre-swap module schema_version is absent from
-	# the wire; skip with a notice rather than fail.
-	# NOTE: schema_version is a top-level key in the GET_EVENTS ioctl
-	# reply, which `zfs events -j` does NOT print (it emits only the
-	# record array). Probe the raw ioctl with a tiny lzc_get_events
-	# program instead; fall back to the CLI grep if the compile fails.
-	probe="/tmp/e2e-wireprobe.$$.c"
-	bin="/tmp/e2e-wireprobe.$$"
+	# Advisory only: on a pre-swap module schema_version is absent
+	# from the wire; skip with a notice rather than fail.
+	# NOTE: schema_version is a top-level key in the GET_EVENTS
+	# ioctl reply, which `zfs events -j` does NOT print (it emits
+	# only the record array), so there is no CLI fallback - grep
+	# of `zfs events -j` output could never match.  Probe the raw
+	# ioctl with a tiny lzc_get_events program; if it cannot be
+	# compiled here, skip the assertion with a notice.
+	probe="$WD/wireprobe.c"
+	bin="$WD/wireprobe"
 	cat > "$probe" <<'EOF'
 #include <stdio.h>
 #include <libzfs/sys/nvpair.h>
@@ -244,29 +313,20 @@ int main(int argc, char **argv) {
 	return 3;
 }
 EOF
-	wire=""
-	if gcc -I "$REPO/include" -I "$REPO/lib/libspl/include" \
+	if ! gcc -I "$REPO/include" -I "$REPO/lib/libspl/include" \
 	    "$probe" -o "$bin" \
 	    -L "$REPO/lib/libzfs_core/.libs" -lzfs_core -lnvpair \
 	    >/dev/null 2>&1; then
-		wire="$(sudo env \
-		    LD_LIBRARY_PATH="$REPO/lib/libzfs_core/.libs:$REPO/lib/libnvpair/.libs" \
-		    "$bin" "$BASE_DS" 2>/dev/null || true)"
-		case "$wire" in
-		[0-9]*)
-			WIRE_HAS_VERSION=1
-			WIRE_VERSION="$wire"
-			pass module-version
-			rm -f "$probe" "$bin"
-			return
-			;;
-		esac
+		notice "module-version: wire probe compile failed; wire-version assertion skipped"
+		return
 	fi
-	rm -f "$probe" "$bin"
-	wire="$("$ZFS" events -j "$BASE_DS" 2>/dev/null | head -c 2000 || true)"
+	wire="$("${SUDO[@]}" env \
+	    LD_LIBRARY_PATH="$REPO/lib/libzfs_core/.libs:$REPO/lib/libnvpair/.libs" \
+	    "$bin" "$BASE_DS" 2>/dev/null || true)"
 	case "$wire" in
-	*schema_version*)
+	[0-9]*)
 		WIRE_HAS_VERSION=1
+		WIRE_VERSION="$wire"
 		pass module-version
 		;;
 	*)
@@ -276,13 +336,7 @@ EOF
 }
 
 step_daemon_run() {
-	"${SUDO[@]}" systemd-run --unit="$UNIT" \
-		--description="zmetad e2e validation" \
-		"$ZMETAD" -f -i 3 -d "$WD/zmd.db" ||
-		fail "daemon-run: systemd-run failed"
-	sleep 4
-	"${SUDO[@]}" systemctl is-active --quiet "$UNIT" ||
-		fail "daemon-run: unit $UNIT not active after start"
+	unit_start 3
 	pass daemon-run
 }
 
@@ -320,8 +374,8 @@ step_ops() {
 
 step_assert() {
 	# Deviations 2 and 3 applied below: dataset-relative wire names,
-	# `size` column for TRUNCATE.
-	python3 - "$WD/zmd.db" "$DS" "$WD/schema.json" <<'PY'
+	# `size` column for TRUNCATE.  Reads run privileged (T2).
+	"${SUDO[@]}" python3 - "$WD/zmd.db" "$DS" "$WD/schema.json" <<'PY'
 import json
 import sqlite3
 import sys
@@ -400,15 +454,13 @@ dbver = con.execute(
     "select value from meta where key='db_schema_version'").fetchall()
 if not dbver:
     errors.append("meta db_schema_version key absent")
-elif dbver[0][0] != "6":
-    errors.append("meta db_schema_version=%r, expected '6'"
+elif dbver[0][0] != "5":
+    errors.append("meta db_schema_version=%r, expected '5'"
                   % (dbver[0][0],))
 sync_cols = [r[1] for r in con.execute(
     "pragma table_info(sync_state)").fetchall()]
 if "ring_guid" not in sync_cols:
     errors.append("sync_state missing ring_guid column: %r" % (sync_cols,))
-if "last_lost" not in sync_cols:
-    errors.append("sync_state missing last_lost column: %r" % (sync_cols,))
 ev_cols = [r[1] for r in con.execute(
     "pragma table_info(events)").fetchall()]
 if "captured_at" not in ev_cols:
@@ -450,13 +502,120 @@ if ren is not None and (len(ren) < 8 or ren[7] is None):
     errors.append("RENAME row has old_parent=%r, expected non-NULL"
                   % (ren[7] if len(ren) > 7 else None))
 
+# datasets table: the collect pass must have upserted this dataset's
+# mountpoint row, with a '/'-prefixed mountpoint (T14).
+dsrows = con.execute(
+    "select mountpoint from datasets where dataset=?", (ds,)).fetchall()
+if not dsrows:
+    errors.append("datasets table has no row for %s" % ds)
+elif not str(dsrows[0][0]).startswith("/"):
+    errors.append("datasets mountpoint for %s is %r, expected a "
+                  "'/'-prefixed path" % (ds, dsrows[0][0]))
+
 if errors:
     for e in errors:
-        print("ASSERT FAIL: %s" % e)
+        print("ASSERT FAIL: %s" % e, file=sys.stderr)
     sys.exit(1)
 PY
 	[ $? -eq 0 ] || fail "assert: see ASSERT FAIL lines above"
 	pass assert
+}
+
+step_sigusr1() {
+	# T5: SIGUSR1 forces an out-of-band collect.  Restart the
+	# daemon on a LONG interval (300s) so any row appearing
+	# quickly can only come from the signal-driven collect.
+	unit_start 300
+	mnt="$("$ZFS" get -H -o value mountpoint "$DS")"
+
+	# Let the startup collect finish so we are genuinely
+	# mid-interval when the signal lands.
+	sleep 8
+
+	# --- variant 1: signal between polls ---
+	"${SUDO[@]}" touch "$mnt/usr1" ||
+		fail "sigusr1: touch usr1 failed"
+	start=$(date +%s)
+	_pid="$("${SUDO[@]}" systemctl show -p MainPID --value "$UNIT" \
+	    2>/dev/null || true)"
+	signal_usr1() {
+		if ! "${SUDO[@]}" systemctl kill -s USR1 "$UNIT" 2>/dev/null; then
+			[ -n "$_pid" ] && [ "$_pid" != "0" ] ||
+				fail "sigusr1: cannot determine daemon pid"
+			"${SUDO[@]}" kill -USR1 "$_pid" ||
+				fail "sigusr1: kill -USR1 $_pid failed"
+		fi
+	}
+	# Signal once now, then re-signal on each poll tick: the
+	# create must first reach the ring via txg sync (~5s), and a
+	# signal that lands before that sync collects nothing.  The
+	# schedule alone (300s) cannot produce the row inside the
+	# 60s budget, so appearance proves the signal path.
+	signal_usr1
+	found=0
+	i=0
+	while [ "$i" -lt 30 ]; do
+		n="$(db_count "$WD/zmd.db" "$DS" CREATE usr1 2>/dev/null)"
+		[ "$n" = "1" ] && { found=1; break; }
+		sleep 2
+		signal_usr1
+		i=$((i + 1))
+	done
+	elapsed=$(( $(date +%s) - start ))
+	[ "$found" -eq 1 ] ||
+		fail "sigusr1: usr1 CREATE row absent 60s after SIGUSR1"
+	# 300s poll interval; anything under 120s proves the signal,
+	# not the schedule, produced the row.
+	[ "$elapsed" -lt 120 ] ||
+		fail "sigusr1: row took ${elapsed}s; not demonstrably signal-driven (interval 300s)"
+
+	# --- variant 2: signals during a large in-progress collect ---
+	# Restart on a 15s interval so the assertion cannot be
+	# starved by a swallowed signal (zmetad.c test-and-clear
+	# race); the bulk ring below keeps a collect in flight while
+	# the signals land.  Assert: no crash, no duplicate rows.
+	unit_start 15
+	"${SUDO[@]}" touch "$mnt/usr2" ||
+		fail "sigusr1: touch usr2 failed"
+	# Bulk metadata churn: 1500 creates land in the ring, so the
+	# next collect pass is long-running.
+	"${SUDO[@]}" sh -c 'for i in $(seq 0 1499); do touch "$0/bulk.$i"; done' "$mnt" ||
+		fail "sigusr1: bulk create failed"
+	for _s in 1 2 3; do
+		"${SUDO[@]}" systemctl kill -s USR1 "$UNIT" \
+		    >/dev/null 2>&1 || true
+		sleep 1
+	done
+	"${SUDO[@]}" systemctl is-active --quiet "$UNIT" ||
+		fail "sigusr1: daemon died during signaled bulk collect"
+	found=0
+	i=0
+	while [ "$i" -lt 45 ]; do
+		n="$(db_count "$WD/zmd.db" "$DS" CREATE usr2 2>/dev/null)"
+		[ "$n" = "1" ] && { found=1; break; }
+		[ "${n:-0}" -gt 1 ] 2>/dev/null &&
+			fail "sigusr1: usr2 duplicated ($n rows) after signal storm"
+		sleep 2
+		i=$((i + 1))
+	done
+	[ "$found" -eq 1 ] ||
+		fail "sigusr1: usr2 CREATE row never appeared (exactly once) within 90s"
+	"${SUDO[@]}" systemctl is-active --quiet "$UNIT" ||
+		fail "sigusr1: daemon not active after signal storm"
+	# Dedup proof across every signaled collect: the UNIQUE key
+	# means duplicates would have been silently ignored; assert
+	# the bulk rows also landed exactly once each (sample the
+	# last one).
+	n="$(db_count "$WD/zmd.db" "$DS" CREATE bulk.1499 2>/dev/null)"
+	case "$n" in
+	0|"") ;;	# bulk tail may still be in flight; not fatal
+	1) ;;
+	*) fail "sigusr1: bulk.1499 has $n rows, expected at most 1" ;;
+	esac
+
+	# Restore the short interval the remaining steps rely on.
+	unit_start 3
+	pass sigusr1
 }
 
 step_gap() {
@@ -474,13 +633,12 @@ step_gap() {
 	# regression branch in zmetad stays as defense-in-depth for
 	# ring replacement while the clamp cannot produce it.
 	#
-	# Drive a REAL wrap. IO auditing must be on: writes with
-	# events_io=off emit nothing and records_lost does not move.
-	# The log object already exists at its create-time size
-	# (events_size does not resize it); 64MiB of 4K writes at
-	# window=0 is enough to wrap a 1MiB ring between 3s polls.
-	"${SUDO[@]}" "$ZFS" set events_io=on events_io_window=0 "$DS" ||
-		fail "gap: set events_io=on events_io_window=0"
+	# Drive a REAL wrap on the DEFAULT 1 MiB ring (~10000
+	# records): at window=0 (one record per write) 64MB of 4K
+	# writes emits 16384 records, more than the ring holds, so
+	# at least one wrap lands between two 3s polls.
+	"${SUDO[@]}" "$ZFS" set events_io_window=0 "$DS" ||
+		fail "gap: set events_io_window=0"
 	mnt="$("$ZFS" get -H -o value mountpoint "$DS")"
 	"${SUDO[@]}" dd if=/dev/zero of="$mnt/gapwrap" bs=4096 \
 	    count=16384 conv=notrunc status=none ||
@@ -527,61 +685,14 @@ step_gap() {
 	pass gap
 }
 
-step_restart_loss() {
-	# Wrap while the daemon is down. last_lost must already be in
-	# sync_state from step_gap; a process-memory baseline re-arms
-	# on restart and this step records no new gap.
-	local before found i n
-	before="$(db_query "$WD/zmd.db" \
-	    "con.execute('select coalesce(max(id), 0) from gaps where ' \
-	    'dataset=?', ('$DS',)).fetchone()[0]" 2>/dev/null)"
-	case "$before" in
-	''|ERR|null|None)
-		fail "restart-loss: cannot read gaps baseline"
-		return
-		;;
-	esac
-	"${SUDO[@]}" systemctl stop "$UNIT" ||
-		fail "restart-loss: failed to stop daemon"
-	"${SUDO[@]}" "$ZFS" set events_io=on events_io_window=0 "$DS" ||
-		fail "restart-loss: set events_io=on"
-	mnt="$("$ZFS" get -H -o value mountpoint "$DS")"
-	"${SUDO[@]}" dd if=/dev/zero of="$mnt/gapdown" bs=4096 \
-	    count=16384 conv=notrunc status=none ||
-		fail "restart-loss: bulk write failed"
-	"${SUDO[@]}" rm -f "$mnt/gapdown"
-	"${SUDO[@]}" systemctl reset-failed "$UNIT" >/dev/null 2>&1 || true
-	"${SUDO[@]}" systemd-run --unit="$UNIT" \
-		--description="zmetad e2e validation" \
-		"$ZMETAD" -f -i 3 -d "$WD/zmd.db" ||
-		fail "restart-loss: daemon restart failed"
-	found=0
-	i=0
-	while [ "$i" -lt 15 ]; do
-		n="$(db_query "$WD/zmd.db" \
-		    "con.execute('select count(*) from gaps where ' \
-		    'dataset=? and id > ? and lost > 0', ('$DS', $before)).fetchone()[0]" \
-		    2>/dev/null)"
-		case "$n" in
-		''|ERR|null|0|None) ;;
-		*) found=1; break ;;
-		esac
-		sleep 2
-		i=$((i + 1))
-	done
-	[ "$found" -eq 1 ] ||
-		fail "restart-loss: no new positive gaps row after restart (before id $before)"
-	"${SUDO[@]}" "$ZFS" set events_io_window=1000 "$DS" ||
-		fail "restart-loss: restore events_io_window"
-	pass restart-loss
-}
-
-# step_guid_swap <db> <dataset>: destroy + recreate an events=on child
+# do_guid_swap <db> <dataset>: destroy + recreate an events=on child
 # between daemon polls and wait (up to 30s, like step_gap) for the
 # ring-replace evidence: a gaps row with the lost=-1 sentinel, the
 # journal "ring replaced" warning, and a changed sync_state.ring_guid.
-# On success echoes the NEW guid so a later step can assert against it.
-step_guid_swap() {
+# Called directly (NOT in command substitution) so fail() diagnostics
+# reach the terminal and exit the suite (T7); on success it sets the
+# global NEW_RING_GUID.
+do_guid_swap() {
 	_db="$1"
 	_ds="$2"
 	_mnt="$("$ZFS" get -H -o value mountpoint "$_ds")"
@@ -598,7 +709,7 @@ step_guid_swap() {
 	_i=0
 	while [ "$_i" -lt 15 ]; do
 		_old_guid="$(db_query "$_db" \
-		    "con.execute('select ring_guid from sync_state ' \\
+		    "con.execute('select ring_guid from sync_state ' \
 		    'where dataset=?', ('$_ds',)).fetchone()" 2>/dev/null)"
 		case "$_old_guid" in
 		''|ERR|null|None|0) ;;
@@ -628,14 +739,15 @@ step_guid_swap() {
 	# Poll up to 30s for: the -1 gaps row, the journal warning, and
 	# a changed guid in sync_state.
 	_gap=""
+	_new_guid=""
 	_i=0
 	while [ "$_i" -lt 15 ]; do
 		_gap="$(db_query "$_db" \
-		    "con.execute('select count(*) from gaps where ' \\
+		    "con.execute('select count(*) from gaps where ' \
 		    'dataset=? and lost=-1', ('$_ds',)).fetchone()[0]" \
 		    2>/dev/null)"
 		_new_guid="$(db_query "$_db" \
-		    "con.execute('select ring_guid from sync_state ' \\
+		    "con.execute('select ring_guid from sync_state ' \
 		    'where dataset=?', ('$_ds',)).fetchone()" 2>/dev/null)"
 		case "$_gap" in
 		''|ERR|null|0) ;;
@@ -667,7 +779,7 @@ step_guid_swap() {
 	*) fail "guid-swap: journal lacks 'ring replaced on $_ds' warning" ;;
 	esac
 
-	printf '%s' "$_new_guid"
+	NEW_RING_GUID="$_new_guid"
 }
 
 step_guid_purge() {
@@ -681,10 +793,12 @@ step_guid_purge() {
 
 	# --- ring swap: destroy/recreate between daemon polls -> the
 	# daemon writes the lost=-1 sentinel, warns on the journal, and
-	# re-stamps sync_state.ring_guid. Captured guid flows into the
-	# purge assertion below.
-	_new_guid="$(step_guid_swap "$WD/zmd.db" "$SWAP_DS")"
-	[ "$_new_guid" != "" ] || fail "guid-purge: swap helper returned no guid"
+	# re-stamps sync_state.ring_guid. The new guid flows into the
+	# purge assertion below via NEW_RING_GUID (T7: no command
+	# substitution, so fail() diagnostics are never swallowed).
+	do_guid_swap "$WD/zmd.db" "$SWAP_DS"
+	[ -n "$NEW_RING_GUID" ] ||
+		fail "guid-purge: swap helper produced no guid"
 
 	# --- purge: while the ring still has events, --purge must wipe
 	# DB rows (events/gaps/sync_state), clear the kernel ring, exit 0.
@@ -702,7 +816,7 @@ step_guid_purge() {
 		fail "guid-purge: --purge $SWAP_DS exited nonzero (rc=$_purge_rc)"
 	for _t in events gaps sync_state; do
 		_n="$(db_query "$WD/zmd.db" \
-		    "con.execute('select count(*) from $_t where ' \\
+		    "con.execute('select count(*) from $_t where ' \
 		    'dataset=?', ('$SWAP_DS',)).fetchone()[0]" 2>/dev/null)"
 		case "$_n" in
 		0) ;;
@@ -721,9 +835,8 @@ step_guid_purge() {
 	esac
 
 	# Unknown dataset: exit 2 (run_purge: "dataset not found").
-	"${SUDO[@]}" "$ZMETAD" --purge "$BASE_DS/no-such-e2e-$$" \
-	    -d "$WD/zmd.db" >/dev/null 2>&1 && \
-	    fail "guid-purge: purge of nonexistent dataset exited 0"
+	"${SUDO[@]}" "$ZMETAD" --purge "$BASE_DS/no-such-e2e-$RUNID" \
+	    -d "$WD/zmd.db" >/dev/null 2>&1
 	[ $? -eq 2 ] ||
 		fail "guid-purge: purge of nonexistent dataset did not exit 2"
 
@@ -734,22 +847,21 @@ step_guid_purge() {
 	# re-stamp needs a poll that reaches the identity write: an
 	# empty (just-cleared) ring returns no records, so generate
 	# one event to wake the collect path.
-	local _mnt
 	_mnt="$("$ZFS" get -H -o value mountpoint "$SWAP_DS")"
-	"${SUDO[@]}" touch "$_mnt/post-purge-$$"
+	"${SUDO[@]}" touch "$_mnt/post-purge-$RUNID"
 	_i=0
 	while [ "$_i" -lt 60 ]; do
 		_after="$(db_query "$WD/zmd.db" \
 		    "con.execute('select ring_guid from sync_state ' \
 		    'where dataset=?', ('$SWAP_DS',)).fetchone()" 2>/dev/null)"
 		case "$_after" in
-		"$_new_guid") _i=99; break ;;
+		"$NEW_RING_GUID") _i=99; break ;;
 		esac
 		sleep 2
 		_i=$((_i + 1))
 	done
 	[ "$_i" -eq 99 ] ||
-		fail "guid-purge: sync_state.ring_guid not re-stamped to $_new_guid within 120s"
+		fail "guid-purge: sync_state.ring_guid not re-stamped to $NEW_RING_GUID within 120s"
 
 	"${SUDO[@]}" "$ZFS" destroy -R "$SWAP_DS" || true
 	CREATED_SWAP_DS=0
@@ -757,57 +869,179 @@ step_guid_purge() {
 	pass guid-purge
 }
 
-step_migration() {
-	# Backdate to 3 so the v<4, v<5 and v<6 ALTER chain all run on
-	# restart (every ALTER is duplicate-column-tolerant).  The version
-	# key is stamped only after every column for the build exists.
-	"${SUDO[@]}" systemctl stop "$UNIT" ||
-		fail "migration: failed to stop daemon"
-	"${SUDO[@]}" python3 - "$WD/zmd.db" <<'PY'
+# build_legacy_db <db> <layout>: create a synthetic pre-v4 database.
+# layout=v1: events WITHOUT the 5 v2 columns, sync_state WITHOUT
+# ring_guid, NO db_schema_version meta key (the ENOENT/v1 detection
+# path).  layout=v3: events WITH the v2 columns but WITHOUT
+# captured_at, sync_state WITH ring_guid, db_schema_version='3'
+# (exercises the captured_at stage).  Both get one real events row
+# and one sync_state row so the migration can be proven to preserve
+# data and leave the new columns NULL.
+build_legacy_db() {
+	"${SUDO[@]}" python3 - "$1" "$2" "$RET_DS" <<'PY'
 import sqlite3
 import sys
 
-con = sqlite3.connect(sys.argv[1])
-con.execute(
-    "insert or replace into meta values "
-    "('db_schema_version', '3')")
+db, layout, ds = sys.argv[1], sys.argv[2], sys.argv[3]
+con = sqlite3.connect(db)
+
+core = ("id INTEGER PRIMARY KEY AUTOINCREMENT, dataset TEXT NOT NULL, "
+        "txg INTEGER NOT NULL, timestamp INTEGER NOT NULL, "
+        "object_id INTEGER NOT NULL, event_type TEXT NOT NULL, "
+        "path TEXT, old_path TEXT, uid INTEGER, gid INTEGER, "
+        "mode INTEGER, size INTEGER, io_offset INTEGER, io_bytes INTEGER")
+v2cols = ", parent INTEGER, old_parent INTEGER, target TEXT, " \
+         "old_size INTEGER, attrs INTEGER"
+
+if layout == "v1":
+    con.execute("CREATE TABLE events (%s)" % core)
+    con.execute("CREATE TABLE sync_state (dataset TEXT PRIMARY KEY, "
+                "last_offset INTEGER NOT NULL, last_sync INTEGER NOT NULL)")
+elif layout == "v3":
+    con.execute("CREATE TABLE events (%s%s)" % (core, v2cols))
+    con.execute("CREATE TABLE sync_state (dataset TEXT PRIMARY KEY, "
+                "last_offset INTEGER NOT NULL, last_sync INTEGER NOT NULL, "
+                "ring_guid INTEGER)")
+    con.execute("INSERT INTO sync_state (dataset, ring_guid) "
+                "VALUES (?, NULL)", (ds + "-x",))
+elif layout == "v4":
+    con.execute("CREATE TABLE events (%s%s, captured_at INTEGER)"
+                % (core, v2cols))
+    con.execute("CREATE TABLE sync_state (dataset TEXT PRIMARY KEY, "
+                "last_offset INTEGER NOT NULL, last_sync INTEGER NOT NULL, "
+                "ring_guid INTEGER)")
+else:
+    raise SystemExit("bad layout " + layout)
+con.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, "
+            "value TEXT NOT NULL)")
+if layout == "v3":
+    con.execute("INSERT INTO meta VALUES ('db_schema_version', '3')")
+elif layout == "v4":
+    con.execute("INSERT INTO meta VALUES ('db_schema_version', '4')")
+
+if layout == "v1":
+    con.execute("INSERT INTO events (dataset, txg, timestamp, object_id, "
+                "event_type, path, uid, gid) VALUES (?,?,?,?,?,?,?,?)",
+                (ds, 100, 12345, 42, "CREATE", "old.txt", 7, 7))
+else:
+    con.execute("INSERT INTO events (dataset, txg, timestamp, object_id, "
+                "event_type, path, uid, gid, parent) "
+                "VALUES (?,?,?,?,?,?,?,?,?)",
+                (ds, 100, 12345, 42, "CREATE", "old.txt", 7, 7, 4))
+con.execute("INSERT INTO sync_state (dataset, last_offset, last_sync) "
+            "VALUES (?,?,?)", (ds, 512, 1700000000))
 con.commit()
 PY
-	"${SUDO[@]}" systemctl reset-failed "$UNIT" >/dev/null 2>&1 || true
-	"${SUDO[@]}" systemd-run --unit="$UNIT" \
-		--description="zmetad e2e validation" \
-		"$ZMETAD" -f -i 3 -d "$WD/zmd.db" ||
-		fail "migration: daemon restart failed"
-	sleep 4
-	"${SUDO[@]}" systemctl is-active --quiet "$UNIT" ||
-		fail "migration: unit $UNIT not active after restart"
-	_log="$("${SUDO[@]}" journalctl -u "$UNIT" --no-pager --since="-30s" \
-	    2>/dev/null || true)"
-	case "$_log" in
-	*"upgraded database to layout version 6"*) ;;
-	*) fail "migration: journal lacks 'upgraded database to layout version 6'" ;;
-	esac
-	_v="$(db_query "$WD/zmd.db" \
-	    "con.execute(\"select value from meta where key='db_schema_version'\").fetchone()[0]" \
-	    2>/dev/null)"
-	[ "$_v" = "6" ] ||
-		fail "migration: meta db_schema_version=$_v, expected '6'"
+}
+
+# check_migrated_db <db> <layout>: post-migration invariants.
+check_migrated_db() {
+	"${SUDO[@]}" python3 - "$1" "$2" "$RET_DS" <<'PY'
+import sqlite3
+import sys
+
+db, layout, ds = sys.argv[1], sys.argv[2], sys.argv[3]
+con = sqlite3.connect("file:%s?mode=ro" % db, uri=True, timeout=5)
+errors = []
+
+ev_cols = [r[1] for r in con.execute("pragma table_info(events)")]
+for col in ("parent", "old_parent", "target", "old_size", "attrs",
+            "captured_at", "full_path", "old_full_path"):
+    if col not in ev_cols:
+        errors.append("events missing column %s after migration" % col)
+sync_cols = [r[1] for r in con.execute("pragma table_info(sync_state)")]
+if "ring_guid" not in sync_cols:
+    errors.append("sync_state missing ring_guid after migration")
+tbls = [r[0] for r in con.execute(
+    "select name from sqlite_master where type='table'")]
+if "objmap" not in tbls:
+    errors.append("objmap table missing after migration")
+
+ver = con.execute("select value from meta "
+                  "where key='db_schema_version'").fetchall()
+if not ver or ver[0][0] != "5":
+    errors.append("db_schema_version=%r, expected '5'"
+                  % (ver[0][0] if ver else None,))
+
+row = con.execute("select txg, timestamp, object_id, event_type, path, "
+                  "uid, gid, parent, old_parent, target, old_size, "
+                  "attrs, captured_at from events where dataset=?",
+                  (ds,)).fetchall()
+if len(row) != 1:
+    errors.append("pre-existing events row lost: %d rows" % len(row))
+else:
+    r = row[0]
+    if (r[0], r[1], r[2], r[3], r[4], r[5], r[6]) != \
+            (100, 12345, 42, "CREATE", "old.txt", 7, 7):
+        errors.append("pre-existing row data changed: %r" % (r[:7],))
+    if layout == "v1":
+        # All five v2 columns plus captured_at were added by the
+        # migration and must be NULL for the old row.
+        if any(v is not None for v in r[7:]):
+            errors.append("added columns not NULL on old row: %r"
+                          % (r[7:],))
+    else:
+        if r[7] != 4:
+            errors.append("v3 row parent=%r, expected 4" % (r[7],))
+        if any(v is not None for v in r[8:]):
+            errors.append("added columns not NULL on old v3 row: %r"
+                          % (r[8:],))
+
+sync = con.execute("select last_offset, last_sync from sync_state "
+                   "where dataset=?", (ds,)).fetchall()
+if not sync or sync[0] != (512, 1700000000):
+    errors.append("sync_state row lost or changed: %r" % (sync,))
+
+if errors:
+    for e in errors:
+        print("MIGRATION FAIL: %s" % e, file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
+step_migration() {
+	# T4: REAL migration coverage on synthetic legacy databases
+	# (a v1-layout DB entering the no-db_schema_version detection
+	# path, a v3-layout DB exercising the captured_at stage, and
+	# a v4-layout DB exercising the full_path/objmap stage),
+	# driven through zmetad's one-shot open path: `--purge
+	# <nonexistent>` runs zmetad_db_open (which performs the full
+	# staged migration) and then exits 2 before touching the
+	# kernel or any real dataset.  The running suite daemon is
+	# not involved; its DB is untouched.
+	for layout in v1 v3 v4; do
+		mdb="$WD/mig-$layout.db"
+		rm -f "$mdb" "$mdb-wal" "$mdb-shm"
+		build_legacy_db "$mdb" "$layout" ||
+			fail "migration: cannot build synthetic $layout database"
+		"${SUDO[@]}" "$ZMETAD" --purge \
+		    "$BASE_DS/no-such-mig-$RUNID-$layout" -d "$mdb" \
+		    >/dev/null 2>"$WD/mig-$layout.err"
+		rc=$?
+		[ "$rc" -eq 2 ] ||
+			fail "migration($layout): open path exited rc=$rc, expected 2 (unknown dataset)"
+		check_migrated_db "$mdb" "$layout" ||
+			fail "migration($layout): see MIGRATION FAIL lines above"
+	done
 	pass migration
 }
 
 step_retention() {
 	# Gaps-retention guarantee: events captured_at older than the
-	# retention window are deleted; gaps rows are NEVER touched by
-	# cleanup (only --purge removes them, per SCHEMA.md). The
-	# daemon runs its cleanup pass on the first loop tick, so a
-	# restart with -r 1 exercises it without waiting a day.
+	# retention window are deleted; events rows with a NULL
+	# captured_at (pre-v4 legacy rows) are NEVER deleted
+	# regardless of age; gaps rows are NEVER touched by cleanup
+	# (only --purge removes them, per SCHEMA.md).  The daemon
+	# runs its cleanup pass on the first loop tick, so a restart
+	# with -r 1 exercises it without waiting a day.
 	"${SUDO[@]}" systemctl stop "$UNIT" ||
 		fail "retention: failed to stop daemon"
 
 	# Synthetic history, all scoped to a dataset name that never
 	# exists in the kernel (written straight into the suite DB):
 	# an old events row (captured_at = now-7d) that the 1-day
-	# window must delete, plus old/recent/-1 gaps rows that must
+	# window must delete, an old row with NULL captured_at that
+	# must SURVIVE (T14), plus old/recent/-1 gaps rows that must
 	# all survive.
 	"${SUDO[@]}" python3 - "$WD/zmd.db" "$RET_DS" <<'PY'
 import sqlite3
@@ -821,6 +1055,10 @@ con.execute(
     "insert into events (dataset, txg, timestamp, object_id, "
     "event_type, captured_at) values (?,?,?,?,?,?)",
     (ds, 1, now - 7 * 86400, 1, "WRITE", now - 7 * 86400))
+con.execute(
+    "insert into events (dataset, txg, timestamp, object_id, "
+    "event_type, captured_at) values (?,?,?,?,?,NULL)",
+    (ds, 2, now - 30 * 86400, 2, "WRITE"))
 con.execute(
     "insert into gaps (dataset, detected, from_offset, "
     "to_offset, lost) values (?,?,?,?,?)",
@@ -836,14 +1074,7 @@ con.execute(
 con.commit()
 PY
 
-	"${SUDO[@]}" systemctl reset-failed "$UNIT" >/dev/null 2>&1 || true
-	"${SUDO[@]}" systemd-run --unit="$UNIT" \
-		--description="zmetad e2e validation" \
-		"$ZMETAD" -f -i 3 -r 1 -d "$WD/zmd.db" ||
-		fail "retention: daemon restart failed"
-	sleep 6
-	"${SUDO[@]}" systemctl is-active --quiet "$UNIT" ||
-		fail "retention: unit $UNIT not active after restart"
+	unit_start 3 -r 1
 
 	# The cleanup pass runs on the daemon's first loop tick, AFTER
 	# the first collect finishes - and a collect can take tens of
@@ -852,19 +1083,28 @@ PY
 	_ev=""
 	for _i in $(seq 1 30); do
 		_ev="$(db_query "$WD/zmd.db" \
-		    "con.execute('select count(*) from events where ' \\
-		    'dataset=?', ('$RET_DS',)).fetchone()[0]" 2>/dev/null)"
+		    "con.execute('select count(*) from events where ' \
+		    'dataset=? and captured_at is not null', \
+		    ('$RET_DS',)).fetchone()[0]" 2>/dev/null)"
 		[ "$_ev" = "0" ] && break
 		sleep 2
 	done
 	[ "$_ev" = "0" ] ||
 		fail "retention: old events row survived 1d retention (count=$_ev)"
+	_null_ev="$(db_query "$WD/zmd.db" \
+	    "con.execute('select count(*) from events where ' \
+	    'dataset=? and captured_at is null', \
+	    ('$RET_DS',)).fetchone()[0]" 2>/dev/null)"
+	[ "$_null_ev" = "1" ] ||
+		fail "retention: NULL captured_at row was deleted (count=$_null_ev, expected 1)"
 	_gap_lost="$(db_query "$WD/zmd.db" \
-	    "sorted(r[0] for r in con.execute('select lost from gaps ' \\
+	    "sorted(r[0] for r in con.execute('select lost from gaps ' \
 	    'where dataset=?', ('$RET_DS',)).fetchall())" 2>/dev/null)"
 	[ "$_gap_lost" = "[-1, 0, 7]" ] ||
 		fail "retention: gaps rows not intact, lost values=$_gap_lost (expected [-1, 0, 7])"
 
+	# Restore the daemon without retention for the final steps.
+	unit_start 3
 	pass retention
 }
 
@@ -886,15 +1126,10 @@ step_purge() {
 		fail "purge: --purge $DS exited nonzero (rc=$_purge_rc)"
 	for _t in events gaps sync_state; do
 		_n="$(db_query "$WD/zmd.db" \
-		    "con.execute('select count(*) from $_t where ' \\
+		    "con.execute('select count(*) from $_t where ' \
 		    'dataset=?', ('$DS',)).fetchone()[0]" 2>/dev/null)"
 		case "$_n" in
 		0) ;;
-		# A poll landing inside the purge->count window re-writes
-		# the live dataset's sync_state watermark; events/gaps must
-		# still be strictly 0.
-		1) [ "$_t" = "sync_state" ] ||
-			fail "purge: $_t has 1 row for $DS after purge" ;;
 		''|ERR|null)
 			fail "purge: cannot count $_t rows for $DS"
 			;;
@@ -925,10 +1160,9 @@ con.execute(
     "('events_schema_version', '99')")
 con.commit()
 PY
+	# No unit_start here: the daemon is EXPECTED to die at open
+	# (version refusal), so the is-active assertion must not run.
 	"${SUDO[@]}" systemctl reset-failed "$UNIT" >/dev/null 2>&1 || true
-	# Anchor the journal window at the restart so the refusal-message
-	# greps below cannot match output from earlier steps of this unit.
-	_since="$(date '+%Y-%m-%d %H:%M:%S')"
 	"${SUDO[@]}" systemd-run --unit="$UNIT" \
 		"$ZMETAD" -f -i 3 -d "$WD/zmd.db" ||
 		fail "version-refusal: restart failed"
@@ -944,8 +1178,7 @@ PY
 	done
 	[ "$died" -eq 1 ] ||
 		fail "version-refusal: daemon still running after 10s with meta version 99"
-	log="$("${SUDO[@]}" journalctl -u "$UNIT" --no-pager \
-	    --since "$_since" 2>/dev/null || true)"
+	log="$("${SUDO[@]}" journalctl -u "$UNIT" --no-pager -n 100 2>/dev/null || true)"
 	case "$log" in
 	*99*) ;;
 	*) fail "version-refusal: refusal output does not name 99" ;;
@@ -965,8 +1198,8 @@ step_module_version
 step_daemon_run
 step_ops
 step_assert
+step_sigusr1
 step_gap
-step_restart_loss
 step_guid_purge
 step_migration
 step_retention
