@@ -80,7 +80,8 @@ systemdgenerator_PROGRAMS = \
 	%D%/systemd/system-generators/zfs-mount-generator.c
 
 %C%_systemd_system_generators_zfs_mount_generator_LDADD = \
-	libzfs.la
+	libzfs.la \
+	libzfs_core.la
 
 CPPCHECKTARGETS += $(systemdgenerator_PROGRAMS)
 endif
