@@ -1267,6 +1267,21 @@ The default value is
 .Sy off .
 This property is inherited by descendant datasets.
 .Pp
+Setting
+.Sy events Ns = Ns Sy on
+is refused by
+.Nm libzfs
+when the pool's
+.Sy compatibility
+property is set to a feature set that excludes the
+.Sy org.openzfs:events
+feature; the kernel independently refuses to enable the property on pools
+with
+.Sy compatibility Ns = Ns Sy legacy .
+See
+.Xr zpool-features 7
+for details.
+.Pp
 The
 .Sy org.openzfs:events
 pool feature is activated on the first logged event for any dataset in

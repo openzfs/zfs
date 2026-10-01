@@ -645,6 +645,16 @@ Setting
 on a dataset does not deactivate the feature; the existing event log
 object keeps the reference until the dataset itself is destroyed.
 .Pp
+This feature interacts with the pool
+.Sy compatibility
+property: setting
+.Sy events Ns = Ns Sy on
+is refused when the pool's compatibility feature set excludes
+.Sy org.openzfs:events ,
+so a compatibility-constrained pool is not made un-importable by the
+constrained software by enabling the feature
+.Pq see Xr zpoolprops 7 .
+.Pp
 See
 .Xr zfs-events 8
 for querying events and
