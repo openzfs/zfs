@@ -18,6 +18,7 @@
 #define	_ZMETAD_H
 
 #include <sys/types.h>
+#include <limits.h>
 #include <libnvpair.h>
 
 #ifdef	__cplusplus
@@ -28,7 +29,12 @@ extern "C" {
 #define	ZMETAD_DEFAULT_DB_PATH		"/var/lib/zfs/zmetad.db"
 #define	ZMETAD_DEFAULT_POLL_INTERVAL	30	/* seconds */
 #define	ZMETAD_DEFAULT_RETENTION_DAYS	90
-#define	ZMETAD_DEFAULT_MAX_SIZE_MB	1000
+/*
+ * Upper bound for -r/--retention: keeps retention_days * 86400 far
+ * inside 64-bit range and rejects nonsense values at option-parse
+ * time (see also the defensive check in zmetad_db_cleanup).
+ */
+#define	ZMETAD_MAX_RETENTION_DAYS	36500	/* ~100 years */
 
 /* Configuration structure */
 typedef struct zmetad_config {
@@ -36,7 +42,6 @@ typedef struct zmetad_config {
 	char		schema_path[PATH_MAX];
 	int		poll_interval;
 	int		retention_days;
-	int		max_size_mb;
 	boolean_t	foreground;
 	int		verbose;
 	char		*export_schema_path;
@@ -60,12 +65,30 @@ int zmetad_db_open(zmetad_db_t **dbp, const char *path,
 /* Close the database */
 void zmetad_db_close(zmetad_db_t *db);
 
+/*
+ * Explicit transaction control.  begin issues BEGIN IMMEDIATE so a
+ * concurrent writer fails fast into the busy timeout instead of
+ * deadlocking on lock upgrade; commit/rollback check their result.
+ * Used to make a batch of writes (event inserts, migrations, purge)
+ * atomic.
+ */
+int zmetad_db_begin(zmetad_db_t *db);
+int zmetad_db_commit(zmetad_db_t *db);
+int zmetad_db_rollback(zmetad_db_t *db);
+
 /* Insert an event record */
 int zmetad_db_insert_event(zmetad_db_t *db, const char *dataset,
     nvlist_t *event);
 
-/* Get the last synced offset for a dataset */
-uint64_t zmetad_db_get_last_offset(zmetad_db_t *db, const char *dataset);
+/*
+ * Get the last synced offset for a dataset.  Returns 0 and sets
+ * *offset when a sync_state row exists, ENOENT with *offset = 0 when
+ * the dataset was never synced (distinct from a query error, which
+ * returns EIO so callers do not mistake a failure for offset 0 and
+ * emit a spurious regression row).
+ */
+int zmetad_db_get_last_offset(zmetad_db_t *db, const char *dataset,
+    uint64_t *offset);
 
 /*
  * Get the stored event-log ring identity for a dataset.
@@ -107,8 +130,9 @@ int zmetad_db_set_purge_epoch(zmetad_db_t *db, uint64_t epoch);
 /*
  * Delete every row belonging to "dataset" from the events, gaps and
  * sync_state tables.  Deleted row counts are reported through
- * counts[] in events, gaps, sync_state, objmap order.  Does not
- * touch the kernel event ring (see zmetad --purge).
+ * counts[] in events, gaps, sync_state, objmap order.  The deletes
+ * run in a single transaction.  Does not touch the kernel event ring
+ * (see zmetad --purge).
  */
 int zmetad_db_purge_dataset(zmetad_db_t *db, const char *dataset,
     long long counts[4]);
@@ -133,23 +157,35 @@ int zmetad_db_insert_gap(zmetad_db_t *db, const char *dataset,
  * Count a dataset's gaps rows by lost value: counts[0] = lost < 0
  * (ring replacements), counts[1] = lost == 0 (regressions),
  * counts[2] = lost > 0 (recorded loss counts).  Returns 0 on
- * success, nonzero on database error (counts then undefined).
+ * success, nonzero on database error (counts then zeroed).
  */
 int zmetad_db_gap_stats(zmetad_db_t *db, const char *dataset,
     long long counts[3]);
 
 /*
- * Record (or refresh) a dataset's mountpoint in the datasets
- * table.  Called each collect; INSERT OR REPLACE keeps one row
- * per dataset so mountpoint changes self-heal.
+ * Record (or refresh) a dataset's mountpoint in the datasets table,
+ * stamping last_seen with the current wall-clock second.  Called
+ * each collect; INSERT OR REPLACE keeps one row per dataset so
+ * mountpoint changes self-heal.
  */
 int zmetad_db_upsert_mountpoint(zmetad_db_t *db, const char *dataset,
     const char *mountpoint);
 
+/*
+ * Delete datasets rows not refreshed since "cycle_start" (wall-clock
+ * seconds, as stamped by zmetad_db_upsert_mountpoint): one
+ * parameterized statement per poll cycle, pruning datasets whose
+ * events were disabled or that were destroyed.
+ */
+int zmetad_db_prune_stale_datasets(zmetad_db_t *db, int64_t cycle_start);
+
 /* Cleanup events older than retention_days */
 int zmetad_db_cleanup(zmetad_db_t *db, int retention_days);
 
-/* Get database statistics */
+/*
+ * Get database statistics.  Outputs are always initialized to 0;
+ * returns EIO when either query fails.
+ */
 int zmetad_db_stats(zmetad_db_t *db, uint64_t *event_count,
     uint64_t *db_size);
 

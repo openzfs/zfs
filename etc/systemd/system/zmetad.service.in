@@ -2,11 +2,12 @@
 Description=ZFS Metadata Export Daemon
 Documentation=man:zmetad(8)
 After=zfs-import.target
-Requires=zfs-import.target
+Wants=zfs-import.target
 
 [Service]
 Type=simple
 ExecStart=@sbindir@/zmetad --foreground
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=10
 
