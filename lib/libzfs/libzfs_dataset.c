@@ -1730,7 +1730,7 @@ zfs_prop_set_list_flags(zfs_handle_t *zhp, nvlist_t *props, int flags)
 	int cl_idx;
 	char errbuf[ERRBUFLEN];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
-	nvlist_t *nvl;
+	nvlist_t *nvl = NULL;
 	int nvl_len = 0;
 	int added_resv = 0;
 	zfs_prop_t prop;
