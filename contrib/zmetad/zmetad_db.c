@@ -425,6 +425,15 @@ zmetad_db_open(zmetad_db_t **dbp, const char *path,
 	/* Enable WAL mode for better concurrency */
 	sqlite3_exec(db->sqlite, "PRAGMA journal_mode=WAL", NULL, NULL, NULL);
 
+	/*
+	 * A one-shot --purge runs while a live daemon may hold the
+	 * write lock (its poll writes are frequent).  Without a busy
+	 * handler the open-time schema-version write fails immediately
+	 * with SQLITE_BUSY and purge reports a database error.  Wait
+	 * up to 5s for the lock instead.
+	 */
+	sqlite3_busy_timeout(db->sqlite, 5000);
+
 	/* Create schema */
 	char *errmsg = NULL;
 	rc = sqlite3_exec(db->sqlite, schema_sql, NULL, NULL, &errmsg);

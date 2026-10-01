@@ -60,10 +60,13 @@ BASE="fs1"
 BASE_DS="${POOL}/${BASE}"
 DS_NAME="e2e-$$"
 DS="${BASE_DS}/${DS_NAME}"
+SWAP_DS="${BASE_DS}/e2e-swp-$$"
+RET_DS="e2e-ret-$$"
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 SCHEMA_FILE="${REPO}/contrib/zmetad/events-schema.json"
 
 CREATED_DS=0
+CREATED_SWAP_DS=0
 WD=""
 WIRE_HAS_VERSION=0
 WIRE_VERSION=
@@ -83,6 +86,9 @@ cleanup() {
 	"${SUDO[@]}" systemctl reset-failed "$UNIT" >/dev/null 2>&1 || true
 	if [ "$CREATED_DS" -eq 1 ]; then
 		"${SUDO[@]}" "$ZFS" destroy -R "$DS" >/dev/null 2>&1 || true
+	fi
+	if [ "$CREATED_SWAP_DS" -eq 1 ]; then
+		"${SUDO[@]}" "$ZFS" destroy -R "$SWAP_DS" >/dev/null 2>&1 || true
 	fi
 	if [ -n "$WD" ] && [ "${ZMD_E2E_KEEP:-0}" != "1" ]; then
 		rm -rf "$WD"
@@ -148,7 +154,15 @@ step_preflight() {
 			fail "preflight: cannot set events=on on $BASE_DS"
 	fi
 
-	WD="$(mktemp -d /tmp/zmd-e2e.XXXXXX)"
+	# Normalize the base dataset's kernel ring: a ring grown by
+	# earlier runs makes every daemon collect pass take minutes,
+	# which starves later steps of polls. Clearing preserves ring
+	# identity, so this is invisible to the identity tests below;
+	# the daemon clamps its watermark to the new (empty) tail on
+	# its next poll.
+	"${SUDO[@]}" "$ZFS" events -c "$BASE_DS" >/dev/null 2>&1 || true
+
+	WD="$(mktemp -d /var/tmp/zmd-e2e.XXXXXX)"
 
 	if [ -n "$ZMETAD" ] && [ -x "$ZMETAD" ]; then
 		:
@@ -487,6 +501,338 @@ step_gap() {
 	pass gap
 }
 
+# step_guid_swap <db> <dataset>: destroy + recreate an events=on child
+# between daemon polls and wait (up to 30s, like step_gap) for the
+# ring-replace evidence: a gaps row with the lost=-1 sentinel, the
+# journal "ring replaced" warning, and a changed sync_state.ring_guid.
+# On success echoes the NEW guid so a later step can assert against it.
+step_guid_swap() {
+	_db="$1"
+	_ds="$2"
+	_mnt="$("$ZFS" get -H -o value mountpoint "$_ds")"
+	case "$_mnt" in
+	/*) ;;
+	*) fail "guid-swap: unexpected mountpoint '$_mnt'" ;;
+	esac
+
+	# One write so the daemon has stamped sync_state (last_offset,
+	# ring_guid) for this dataset before the swap.
+	"${SUDO[@]}" touch "$_mnt/swp1" ||
+		fail "guid-swap: touch swp1 failed"
+	_old_guid=""
+	_i=0
+	while [ "$_i" -lt 15 ]; do
+		_old_guid="$(db_query "$_db" \
+		    "con.execute('select ring_guid from sync_state ' \\
+		    'where dataset=?', ('$_ds',)).fetchone()" 2>/dev/null)"
+		case "$_old_guid" in
+		''|ERR|null|None|0) ;;
+		*) break ;;
+		esac
+		sleep 2
+		_i=$((_i + 1))
+	done
+	case "$_old_guid" in
+	''|ERR|null|None|0)
+		fail "guid-swap: no nonzero ring_guid stamped for $_ds within 30s"
+		;;
+	esac
+
+	# Destroy + recreate between polls. The daemon tolerates a
+	# missing dataset (lzc_get_events ENOENT -> silent skip).
+	"${SUDO[@]}" "$ZFS" destroy -R "$_ds" ||
+		fail "guid-swap: destroy failed"
+	"${SUDO[@]}" "$ZFS" create "$_ds" ||
+		fail "guid-swap: recreate failed"
+	"${SUDO[@]}" "$ZFS" set events=on "$_ds" ||
+		fail "guid-swap: events=on after recreate failed"
+	_mnt="$("$ZFS" get -H -o value mountpoint "$_ds")"
+	"${SUDO[@]}" touch "$_mnt/swp2" ||
+		fail "guid-swap: touch swp2 failed"
+
+	# Poll up to 30s for: the -1 gaps row, the journal warning, and
+	# a changed guid in sync_state.
+	_gap=""
+	_i=0
+	while [ "$_i" -lt 15 ]; do
+		_gap="$(db_query "$_db" \
+		    "con.execute('select count(*) from gaps where ' \\
+		    'dataset=? and lost=-1', ('$_ds',)).fetchone()[0]" \
+		    2>/dev/null)"
+		_new_guid="$(db_query "$_db" \
+		    "con.execute('select ring_guid from sync_state ' \\
+		    'where dataset=?', ('$_ds',)).fetchone()" 2>/dev/null)"
+		case "$_gap" in
+		''|ERR|null|0) ;;
+		*)
+			case "$_new_guid" in
+			''|ERR|null|None|"$_old_guid") ;;
+			*) break ;;
+			esac
+			;;
+		esac
+		sleep 2
+		_i=$((_i + 1))
+	done
+	case "$_gap" in
+	''|ERR|null|0)
+		fail "guid-swap: no lost=-1 gaps row for $_ds within 30s"
+		;;
+	esac
+	case "$_new_guid" in
+	''|ERR|null|None|"$_old_guid")
+		fail "guid-swap: ring_guid did not change (old=$_old_guid new=$_new_guid)"
+		;;
+	esac
+
+	_log="$("${SUDO[@]}" journalctl -u "$UNIT" --no-pager -n 200 \
+	    2>/dev/null || true)"
+	case "$_log" in
+	*"ring replaced on $_ds"*) ;;
+	*) fail "guid-swap: journal lacks 'ring replaced on $_ds' warning" ;;
+	esac
+
+	printf '%s' "$_new_guid"
+}
+
+step_guid_purge() {
+	# Shared state for the swap and purge proofs: a dedicated child
+	# dataset so neither pollutes the suite dataset's history.
+	"${SUDO[@]}" "$ZFS" create "$SWAP_DS" ||
+		fail "guid-purge: create $SWAP_DS failed"
+	CREATED_SWAP_DS=1
+	"${SUDO[@]}" "$ZFS" set events=on "$SWAP_DS" ||
+		fail "guid-purge: events=on on $SWAP_DS failed"
+
+	# --- ring swap: destroy/recreate between daemon polls -> the
+	# daemon writes the lost=-1 sentinel, warns on the journal, and
+	# re-stamps sync_state.ring_guid. Captured guid flows into the
+	# purge assertion below.
+	_new_guid="$(step_guid_swap "$WD/zmd.db" "$SWAP_DS")"
+	[ "$_new_guid" != "" ] || fail "guid-purge: swap helper returned no guid"
+
+	# --- purge: while the ring still has events, --purge must wipe
+	# DB rows (events/gaps/sync_state), clear the kernel ring, exit 0.
+	# The live daemon may hold the SQLite write lock at the moment
+	# purge runs (database is locked -> rc 1); retry briefly.
+	_purge_rc=1
+	for _i in 1 2 3 4 5; do
+		"${SUDO[@]}" "$ZMETAD" --purge "$SWAP_DS" -d "$WD/zmd.db" &&
+			{ _purge_rc=0; break; }
+		_purge_rc=$?
+		[ "$_purge_rc" = "2" ] && break
+		sleep 2
+	done
+	[ "$_purge_rc" = "0" ] ||
+		fail "guid-purge: --purge $SWAP_DS exited nonzero (rc=$_purge_rc)"
+	for _t in events gaps sync_state; do
+		_n="$(db_query "$WD/zmd.db" \
+		    "con.execute('select count(*) from $_t where ' \\
+		    'dataset=?', ('$SWAP_DS',)).fetchone()[0]" 2>/dev/null)"
+		case "$_n" in
+		0) ;;
+		''|ERR|null)
+			fail "guid-purge: cannot count $_t rows for $SWAP_DS"
+			;;
+		*)
+			fail "guid-purge: $_t still has $_n rows for $SWAP_DS after purge"
+			;;
+		esac
+	done
+	_ring="$("$ZFS" events -j "$SWAP_DS" 2>/dev/null || true)"
+	case "$_ring" in
+	""|"[]") ;;
+	*) fail "guid-purge: kernel ring not empty after purge: $_ring" ;;
+	esac
+
+	# Unknown dataset: exit 2 (run_purge: "dataset not found").
+	"${SUDO[@]}" "$ZMETAD" --purge "$BASE_DS/no-such-e2e-$$" \
+	    -d "$WD/zmd.db" >/dev/null 2>&1 && \
+	    fail "guid-purge: purge of nonexistent dataset exited 0"
+	[ $? -eq 2 ] ||
+		fail "guid-purge: purge of nonexistent dataset did not exit 2"
+
+	# The swap's -1 row is gone now (purge deleted it) -- and the
+	# new ring's guid must still match what sync_state carried at
+	# swap time, because purge also cleared sync_state: a fresh
+	# poll re-stamps from the SAME kernel ring instance.  The
+	# re-stamp needs a poll that reaches the identity write: an
+	# empty (just-cleared) ring returns no records, so generate
+	# one event to wake the collect path.
+	local _mnt
+	_mnt="$("$ZFS" get -H -o value mountpoint "$SWAP_DS")"
+	"${SUDO[@]}" touch "$_mnt/post-purge-$$"
+	_i=0
+	while [ "$_i" -lt 60 ]; do
+		_after="$(db_query "$WD/zmd.db" \
+		    "con.execute('select ring_guid from sync_state ' \
+		    'where dataset=?', ('$SWAP_DS',)).fetchone()" 2>/dev/null)"
+		case "$_after" in
+		"$_new_guid") _i=99; break ;;
+		esac
+		sleep 2
+		_i=$((_i + 1))
+	done
+	[ "$_i" -eq 99 ] ||
+		fail "guid-purge: sync_state.ring_guid not re-stamped to $_new_guid within 120s"
+
+	"${SUDO[@]}" "$ZFS" destroy -R "$SWAP_DS" || true
+	CREATED_SWAP_DS=0
+
+	pass guid-purge
+}
+
+step_migration() {
+	# v3 -> v4 migration: with the daemon stopped, backdate the
+	# suite DB's db_schema_version to 3 (schema is otherwise
+	# already v4-shaped), restart the daemon, and expect the
+	# "upgraded database to layout version 4" journal line plus a
+	# re-recorded meta value.
+	"${SUDO[@]}" systemctl stop "$UNIT" ||
+		fail "migration: failed to stop daemon"
+	"${SUDO[@]}" python3 - "$WD/zmd.db" <<'PY'
+import sqlite3
+import sys
+
+con = sqlite3.connect(sys.argv[1])
+con.execute(
+    "insert or replace into meta values "
+    "('db_schema_version', '3')")
+con.commit()
+PY
+	"${SUDO[@]}" systemctl reset-failed "$UNIT" >/dev/null 2>&1 || true
+	"${SUDO[@]}" systemd-run --unit="$UNIT" \
+		--description="zmetad e2e validation" \
+		"$ZMETAD" -f -i 3 -d "$WD/zmd.db" ||
+		fail "migration: daemon restart failed"
+	sleep 4
+	"${SUDO[@]}" systemctl is-active --quiet "$UNIT" ||
+		fail "migration: unit $UNIT not active after restart"
+	_log="$("${SUDO[@]}" journalctl -u "$UNIT" --no-pager --since="-30s" \
+	    2>/dev/null || true)"
+	case "$_log" in
+	*"upgraded database to layout version 4"*) ;;
+	*) fail "migration: journal lacks 'upgraded database to layout version 4'" ;;
+	esac
+	_v="$(db_query "$WD/zmd.db" \
+	    "con.execute(\"select value from meta where key='db_schema_version'\").fetchone()[0]" \
+	    2>/dev/null)"
+	[ "$_v" = "4" ] ||
+		fail "migration: meta db_schema_version=$_v, expected '4'"
+	pass migration
+}
+
+step_retention() {
+	# Gaps-retention guarantee: events captured_at older than the
+	# retention window are deleted; gaps rows are NEVER touched by
+	# cleanup (only --purge removes them, per SCHEMA.md). The
+	# daemon runs its cleanup pass on the first loop tick, so a
+	# restart with -r 1 exercises it without waiting a day.
+	"${SUDO[@]}" systemctl stop "$UNIT" ||
+		fail "retention: failed to stop daemon"
+
+	# Synthetic history, all scoped to a dataset name that never
+	# exists in the kernel (written straight into the suite DB):
+	# an old events row (captured_at = now-7d) that the 1-day
+	# window must delete, plus old/recent/-1 gaps rows that must
+	# all survive.
+	"${SUDO[@]}" python3 - "$WD/zmd.db" "$RET_DS" <<'PY'
+import sqlite3
+import sys
+import time
+
+db, ds = sys.argv[1], sys.argv[2]
+now = int(time.time())
+con = sqlite3.connect(db)
+con.execute(
+    "insert into events (dataset, txg, timestamp, object_id, "
+    "event_type, captured_at) values (?,?,?,?,?,?)",
+    (ds, 1, now - 7 * 86400, 1, "WRITE", now - 7 * 86400))
+con.execute(
+    "insert into gaps (dataset, detected, from_offset, "
+    "to_offset, lost) values (?,?,?,?,?)",
+    (ds, now - 7 * 86400, 0, 100, 7))
+con.execute(
+    "insert into gaps (dataset, detected, from_offset, "
+    "to_offset, lost) values (?,?,?,?,?)",
+    (ds, now - 30 * 86400, 0, 100, 0))
+con.execute(
+    "insert into gaps (dataset, detected, from_offset, "
+    "to_offset, lost) values (?,?,?,?,?)",
+    (ds, now, 0, 100, -1))
+con.commit()
+PY
+
+	"${SUDO[@]}" systemctl reset-failed "$UNIT" >/dev/null 2>&1 || true
+	"${SUDO[@]}" systemd-run --unit="$UNIT" \
+		--description="zmetad e2e validation" \
+		"$ZMETAD" -f -i 3 -r 1 -d "$WD/zmd.db" ||
+		fail "retention: daemon restart failed"
+	sleep 6
+	"${SUDO[@]}" systemctl is-active --quiet "$UNIT" ||
+		fail "retention: unit $UNIT not active after restart"
+
+	# The cleanup pass runs on the daemon's first loop tick, AFTER
+	# the first collect finishes - and a collect can take tens of
+	# seconds on a dataset with a large kernel ring. Poll for the
+	# deletion instead of sleeping a fixed interval.
+	_ev=""
+	for _i in $(seq 1 30); do
+		_ev="$(db_query "$WD/zmd.db" \
+		    "con.execute('select count(*) from events where ' \\
+		    'dataset=?', ('$RET_DS',)).fetchone()[0]" 2>/dev/null)"
+		[ "$_ev" = "0" ] && break
+		sleep 2
+	done
+	[ "$_ev" = "0" ] ||
+		fail "retention: old events row survived 1d retention (count=$_ev)"
+	_gap_lost="$(db_query "$WD/zmd.db" \
+	    "sorted(r[0] for r in con.execute('select lost from gaps ' \\
+	    'where dataset=?', ('$RET_DS',)).fetchall())" 2>/dev/null)"
+	[ "$_gap_lost" = "[-1, 0, 7]" ] ||
+		fail "retention: gaps rows not intact, lost values=$_gap_lost (expected [-1, 0, 7])"
+
+	pass retention
+}
+
+step_purge() {
+	# One-shot purge of the suite dataset (daemon still running and
+	# holding history for it from step_ops/step_gap): rc 0, all
+	# three tables empty for $DS, kernel ring cleared.  Retry on a
+	# locked database (live daemon write contention), like the
+	# guid-purge step.
+	_purge_rc=1
+	for _i in 1 2 3 4 5; do
+		"${SUDO[@]}" "$ZMETAD" --purge "$DS" -d "$WD/zmd.db" &&
+			{ _purge_rc=0; break; }
+		_purge_rc=$?
+		[ "$_purge_rc" = "2" ] && break
+		sleep 2
+	done
+	[ "$_purge_rc" = "0" ] ||
+		fail "purge: --purge $DS exited nonzero (rc=$_purge_rc)"
+	for _t in events gaps sync_state; do
+		_n="$(db_query "$WD/zmd.db" \
+		    "con.execute('select count(*) from $_t where ' \\
+		    'dataset=?', ('$DS',)).fetchone()[0]" 2>/dev/null)"
+		case "$_n" in
+		0) ;;
+		''|ERR|null)
+			fail "purge: cannot count $_t rows for $DS"
+			;;
+		*)
+			fail "purge: $_t still has $_n rows for $DS after purge"
+			;;
+		esac
+	done
+	_ring="$("$ZFS" events -j "$DS" 2>/dev/null || true)"
+	case "$_ring" in
+	""|"[]") ;;
+	*) fail "purge: kernel ring not empty after purge: $_ring" ;;
+	esac
+	pass purge
+}
+
 step_version_refusal() {
 	"${SUDO[@]}" systemctl stop "$UNIT" ||
 		fail "version-refusal: failed to stop daemon"
@@ -538,6 +884,10 @@ step_daemon_run
 step_ops
 step_assert
 step_gap
+step_guid_purge
+step_migration
+step_retention
+step_purge
 step_version_refusal
 
 printf 'E2E: ALL PASS\n'
