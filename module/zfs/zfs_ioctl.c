@@ -5021,6 +5021,24 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 			fnvlist_add_uint64(outnvl, "ring_guid", ring_guid);
 	}
 
+	{
+		/*
+		 * Dataset root object id: the resolver in the daemon
+		 * needs it to tell "ancestor is the dataset root" from
+		 * "ancestor lost" - the objmap graph never maps the
+		 * root, and a graph with any rows cannot make that
+		 * distinction from emptiness alone (root ids vary per
+		 * dataset; 2 is not universal).
+		 */
+		zfsvfs_t *zfsvfs = NULL;
+
+		if (getzfsvfs_impl(os, &zfsvfs) == 0 && zfsvfs != NULL) {
+			fnvlist_add_uint64(outnvl, "root_objid",
+			    zfsvfs->z_root);
+			zfs_vfs_rele(zfsvfs);
+		}
+	}
+
 	vmem_free(buf, bufsize);
 	dmu_objset_rele(os, FTAG);
 	return (0);

@@ -81,6 +81,15 @@ int zmetad_db_insert_event(zmetad_db_t *db, const char *dataset,
     nvlist_t *event);
 
 /*
+ * Remember the dataset's root object id as reported by the kernel
+ * (GET_EVENTS "root_objid"); the full-path resolver uses it to treat
+ * that ancestor as the path terminus instead of guessing from graph
+ * emptiness.
+ */
+void zmetad_db_set_root_id(zmetad_db_t *db, const char *dataset,
+    uint64_t id);
+
+/*
  * Get the last synced offset for a dataset.  Returns 0 and sets
  * *offset when a sync_state row exists, ENOENT with *offset = 0 when
  * the dataset was never synced (distinct from a query error, which
