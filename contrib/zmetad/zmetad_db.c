@@ -30,7 +30,7 @@
 #include "zmetad.h"
 #include "zmetad_schema.h"
 
-#define	ZMETAD_DB_SCHEMA_VERSION	3
+#define	ZMETAD_DB_SCHEMA_VERSION	4
 
 struct zmetad_db {
 	sqlite3		*sqlite;
@@ -114,6 +114,7 @@ static const char *schema_sql =
 	"    dataset TEXT NOT NULL,"
 	"    txg INTEGER NOT NULL,"
 	"    timestamp INTEGER NOT NULL,"
+	"    captured_at INTEGER,"
 	"    object_id INTEGER NOT NULL,"
 	"    event_type TEXT NOT NULL,"
 	"    path TEXT,"
@@ -152,8 +153,8 @@ static const char *insert_event_sql =
 	"INSERT OR IGNORE INTO events "
 	"(dataset, txg, timestamp, object_id, event_type, path, old_path, "
 	"uid, gid, mode, size, io_offset, io_bytes, parent, old_parent, "
-	"target, old_size, attrs) "
-	"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+	"target, old_size, attrs, captured_at) "
+	"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
 static const char *get_last_offset_sql =
 	"SELECT last_offset FROM sync_state WHERE dataset = ?";
@@ -350,6 +351,41 @@ db_check_layout(zmetad_db_t *db)
 				sqlite3_close(db->sqlite);
 				return (EIO);
 			}
+		}
+		fprintf(stderr, "upgraded database to layout "
+		    "version %s\n", version_str);
+		rc = db_set_meta(db, "db_schema_version", version_str);
+		if (rc != 0) {
+			fprintf(stderr, "Failed to record database "
+			    "layout version\n");
+			return (rc);
+		}
+	}
+
+	/*
+	 * Version 3 -> 4: events gains captured_at (unix seconds at
+	 * ingest).  events.timestamp holds the kernel wire 'time'
+	 * value, which is gethrtime() nanoseconds since boot - not a
+	 * wall clock - so retention could never compare it against a
+	 * time(NULL) cutoff.  Pre-v4 rows get NULL: retention leaves
+	 * them (they are either recent or the operator purges).
+	 */
+	if (v < 4) {
+		(void) snprintf(sql, sizeof (sql),
+		    "ALTER TABLE events ADD COLUMN captured_at INTEGER");
+		if (sqlite3_exec(db->sqlite, sql, NULL,
+		    NULL, &errmsg) != SQLITE_OK) {
+			if (errmsg == NULL || strstr(errmsg,
+			    "duplicate column name") == NULL) {
+				fprintf(stderr, "migration error "
+				    "adding events.captured_at: %s\n",
+				    errmsg != NULL ? errmsg : "unknown");
+				sqlite3_free(errmsg);
+				sqlite3_close(db->sqlite);
+				return (EIO);
+			}
+			sqlite3_free(errmsg);
+			errmsg = NULL;
 		}
 		fprintf(stderr, "upgraded database to layout "
 		    "version %s\n", version_str);
@@ -621,7 +657,13 @@ zmetad_db_insert_event(zmetad_db_t *db, const char *dataset, nvlist_t *event)
 	/*
 	 * Column 10 (mode) stays NULL: no record field maps to it;
 	 * the column is kept for schema stability.
+	 *
+	 * captured_at (19) is ingest wall time (unix seconds): the
+	 * wire 'time' bound to timestamp is gethrtime() nanoseconds
+	 * since boot, which retention cannot compare a wall-clock
+	 * cutoff against.
 	 */
+	sqlite3_bind_int64(stmt, 19, (sqlite3_int64)time(NULL));
 
 	rc = sqlite3_step(stmt);
 	if (rc != SQLITE_DONE && rc != SQLITE_CONSTRAINT) {
@@ -876,7 +918,8 @@ zmetad_db_cleanup(zmetad_db_t *db, int retention_days)
 	cutoff = time(NULL) - (retention_days * 86400);
 
 	snprintf(sql, sizeof (sql),
-	    "DELETE FROM events WHERE timestamp < %ld", (long)cutoff);
+	    "DELETE FROM events WHERE captured_at IS NOT NULL AND "
+	    "captured_at < %ld", (long)cutoff);
 
 	rc = sqlite3_exec(db->sqlite, sql, NULL, NULL, &errmsg);
 	if (rc != SQLITE_OK) {
