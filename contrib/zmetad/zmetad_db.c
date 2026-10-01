@@ -30,13 +30,14 @@
 #include "zmetad.h"
 #include "zmetad_schema.h"
 
-#define	ZMETAD_DB_SCHEMA_VERSION	2
+#define	ZMETAD_DB_SCHEMA_VERSION	3
 
 struct zmetad_db {
 	sqlite3		*sqlite;
 	sqlite3_stmt	*insert_event_stmt;
 	sqlite3_stmt	*get_last_offset_stmt;
 	sqlite3_stmt	*set_last_offset_stmt;
+	sqlite3_stmt	*get_ring_guid_stmt;
 	const zmetad_schema_t *schema;
 };
 
@@ -53,6 +54,17 @@ static const struct {
 	{ "target",	"TEXT" },
 	{ "old_size",	"INTEGER" },
 	{ "attrs",	"INTEGER" },
+};
+
+/*
+ * Columns added by database layout version 3.  Used to upgrade a
+ * version 2 database in place.
+ */
+static const struct {
+	const char	*name;
+	const char	*type;
+} db_v3_columns[] = {
+	{ "ring_guid",	"INTEGER" },
 };
 
 /*
@@ -121,8 +133,9 @@ static const char *schema_sql =
 	"CREATE TABLE IF NOT EXISTS sync_state ("
 	"    dataset TEXT PRIMARY KEY,"
 	"    last_offset INTEGER NOT NULL,"
-	"    last_sync INTEGER NOT NULL"
-	");"
+	"    last_sync INTEGER NOT NULL,"
+	"    ring_guid INTEGER"
+		");"
 	"CREATE TABLE IF NOT EXISTS meta ("
 	"    key TEXT PRIMARY KEY,"
 	"    value TEXT NOT NULL"
@@ -138,9 +151,23 @@ static const char *insert_event_sql =
 static const char *get_last_offset_sql =
 	"SELECT last_offset FROM sync_state WHERE dataset = ?";
 
+static const char *get_ring_guid_sql =
+	"SELECT ring_guid FROM sync_state WHERE dataset = ?";
+
+/*
+ * Single watermark write: last_offset + ring_guid together, so a
+ * ring swap persists the reset offset and the new identity in one
+ * statement.  ring_guid binding of NULL stores an unknown identity.
+ */
 static const char *set_last_offset_sql =
-	"INSERT OR REPLACE INTO sync_state (dataset, last_offset, last_sync) "
-	"VALUES (?, ?, ?)";
+	"INSERT OR REPLACE INTO sync_state "
+	"(dataset, last_offset, last_sync, ring_guid) VALUES (?, ?, ?, ?)";
+
+static const char *purge_dataset_sql[] = {
+	"DELETE FROM events WHERE dataset = ?",
+	"DELETE FROM gaps WHERE dataset = ?",
+	"DELETE FROM sync_state WHERE dataset = ?",
+};
 
 static const char *get_meta_sql =
 	"SELECT value FROM meta WHERE key = ?";
@@ -197,11 +224,12 @@ db_set_meta(zmetad_db_t *db, const char *key, const char *value)
 }
 
 /*
- * Ensure the database layout version matches this build.  A version 1
- * database (pre-gap-tracking) is upgraded in place with ALTER TABLE
- * ADD COLUMN; the added columns are NULL for old rows, which is the
- * correct representation for fields absent from those records.  A
- * database written by a NEWER layout is refused.
+ * Ensure the database layout version matches this build.  Version 1
+ * (pre-gap-tracking) and version 2 (pre-ring-identity) databases are
+ * upgraded in place with ALTER TABLE ADD COLUMN; the added columns
+ * are NULL for old rows, which is the correct representation for
+ * fields absent from those records.  A database written by a NEWER
+ * layout is refused.
  */
 static int
 db_check_layout(zmetad_db_t *db)
@@ -254,8 +282,6 @@ db_check_layout(zmetad_db_t *db)
 					return (EIO);
 				}
 			}
-			fprintf(stderr, "upgraded database to layout "
-			    "version %s\n", version_str);
 		}
 		rc = db_set_meta(db, "db_schema_version", version_str);
 		if (rc != 0) {
@@ -272,12 +298,62 @@ db_check_layout(zmetad_db_t *db)
 
 	v = strtoul(stored_version, NULL, 10);
 	free(stored_version);
-	if (v != ZMETAD_DB_SCHEMA_VERSION) {
+	if (v > ZMETAD_DB_SCHEMA_VERSION) {
 		fprintf(stderr, "database layout version mismatch: "
 		    "stored=%lu loaded=%u; recreate the database or run "
 		    "an older zmetad\n", v, ZMETAD_DB_SCHEMA_VERSION);
 		return (EINVAL);
 	}
+
+	/*
+	 * Version 2 -> 3: sync_state gains the ring_guid column.
+	 * The v3 set is ALTERed in whenever the stored version is
+	 * older than this build (covers both a plain "2" and any
+	 * future pre-3 record that skipped intermediate bumps).
+	 */
+	if (v < 3) {
+		for (size_t i = 0;
+		    i < sizeof (db_v3_columns) /
+		    sizeof (db_v3_columns[0]); i++) {
+			(void) snprintf(sql, sizeof (sql),
+			    "ALTER TABLE sync_state ADD COLUMN %s %s",
+			    db_v3_columns[i].name,
+			    db_v3_columns[i].type);
+			if (sqlite3_exec(db->sqlite, sql, NULL,
+			    NULL, &errmsg) != SQLITE_OK) {
+				/*
+				 * "duplicate column name" means the
+				 * column is already there: a previous
+				 * migration attempt ALTERed but died
+				 * before recording the version. The
+				 * end state is what we want; treat it
+				 * as success.
+				 */
+				if (errmsg != NULL && strstr(errmsg,
+				    "duplicate column name") != NULL) {
+					sqlite3_free(errmsg);
+					errmsg = NULL;
+					continue;
+				}
+				fprintf(stderr, "migration error "
+				    "adding sync_state.%s: %s\n",
+				    db_v3_columns[i].name,
+				    errmsg != NULL ? errmsg : "unknown");
+				sqlite3_free(errmsg);
+				sqlite3_close(db->sqlite);
+				return (EIO);
+			}
+		}
+		fprintf(stderr, "upgraded database to layout "
+		    "version %s\n", version_str);
+		rc = db_set_meta(db, "db_schema_version", version_str);
+		if (rc != 0) {
+			fprintf(stderr, "Failed to record database "
+			    "layout version\n");
+			return (rc);
+		}
+	}
+
 	return (0);
 }
 
@@ -404,6 +480,17 @@ zmetad_db_open(zmetad_db_t **dbp, const char *path,
 		return (EIO);
 	}
 
+	rc = sqlite3_prepare_v2(db->sqlite, get_ring_guid_sql, -1,
+	    &db->get_ring_guid_stmt, NULL);
+	if (rc != SQLITE_OK) {
+		sqlite3_finalize(db->insert_event_stmt);
+		sqlite3_finalize(db->get_last_offset_stmt);
+		sqlite3_finalize(db->set_last_offset_stmt);
+		sqlite3_close(db->sqlite);
+		free(db);
+		return (EIO);
+	}
+
 	*dbp = db;
 	return (0);
 }
@@ -420,6 +507,8 @@ zmetad_db_close(zmetad_db_t *db)
 		sqlite3_finalize(db->get_last_offset_stmt);
 	if (db->set_last_offset_stmt)
 		sqlite3_finalize(db->set_last_offset_stmt);
+	if (db->get_ring_guid_stmt)
+		sqlite3_finalize(db->get_ring_guid_stmt);
 	if (db->sqlite)
 		sqlite3_close(db->sqlite);
 
@@ -554,8 +643,36 @@ zmetad_db_get_last_offset(zmetad_db_t *db, const char *dataset)
 	return (offset);
 }
 
+/*
+ * Stored ring identity for a dataset: 0 = unknown (no sync_state row,
+ * a pre-v3 row, or a legacy reply never recorded one).
+ */
+uint64_t
+zmetad_db_get_ring_guid(zmetad_db_t *db, const char *dataset)
+{
+	sqlite3_stmt *stmt = db->get_ring_guid_stmt;
+	uint64_t guid = 0;
+
+	sqlite3_reset(stmt);
+	sqlite3_bind_text(stmt, 1, dataset, -1, SQLITE_STATIC);
+
+	if (sqlite3_step(stmt) == SQLITE_ROW &&
+	    sqlite3_column_type(stmt, 0) != SQLITE_NULL) {
+		guid = sqlite3_column_int64(stmt, 0);
+	}
+
+	return (guid);
+}
+
+/*
+ * Persist the watermark and (optionally) the ring identity in one
+ * write.  ring_guid 0 stores NULL: the identity is unknown, which is
+ * the correct on-disk representation for legacy replies and fresh
+ * datasets alike.
+ */
 int
-zmetad_db_set_last_offset(zmetad_db_t *db, const char *dataset, uint64_t offset)
+zmetad_db_set_last_offset(zmetad_db_t *db, const char *dataset,
+    uint64_t offset, uint64_t ring_guid)
 {
 	sqlite3_stmt *stmt = db->set_last_offset_stmt;
 	int rc;
@@ -564,12 +681,53 @@ zmetad_db_set_last_offset(zmetad_db_t *db, const char *dataset, uint64_t offset)
 	sqlite3_bind_text(stmt, 1, dataset, -1, SQLITE_STATIC);
 	sqlite3_bind_int64(stmt, 2, offset);
 	sqlite3_bind_int64(stmt, 3, time(NULL));
+	if (ring_guid != 0) {
+		sqlite3_bind_int64(stmt, 4, (sqlite3_int64)ring_guid);
+	} else {
+		sqlite3_bind_null(stmt, 4);
+	}
 
 	rc = sqlite3_step(stmt);
 	if (rc != SQLITE_DONE) {
 		fprintf(stderr, "Set last_offset error: %s\n",
 		    sqlite3_errmsg(db->sqlite));
 		return (EIO);
+	}
+
+	return (0);
+}
+
+/*
+ * Delete every row belonging to "dataset" from the events, gaps and
+ * sync_state tables.  Row counts are returned through the caller's
+ * array (events, gaps, sync_state order).
+ */
+int
+zmetad_db_purge_dataset(zmetad_db_t *db, const char *dataset,
+    long long counts[3])
+{
+	sqlite3_stmt *stmt = NULL;
+	int rc;
+
+	for (int i = 0; i < 3; i++) {
+		counts[i] = 0;
+		rc = sqlite3_prepare_v2(db->sqlite, purge_dataset_sql[i],
+		    -1, &stmt, NULL);
+		if (rc != SQLITE_OK) {
+			fprintf(stderr, "Prepare purge error: %s\n",
+			    sqlite3_errmsg(db->sqlite));
+			return (EIO);
+		}
+		sqlite3_bind_text(stmt, 1, dataset, -1, SQLITE_STATIC);
+		rc = sqlite3_step(stmt);
+		if (rc != SQLITE_DONE) {
+			fprintf(stderr, "Purge error: %s\n",
+			    sqlite3_errmsg(db->sqlite));
+			sqlite3_finalize(stmt);
+			return (EIO);
+		}
+		counts[i] = sqlite3_changes(db->sqlite);
+		sqlite3_finalize(stmt);
 	}
 
 	return (0);

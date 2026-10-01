@@ -41,6 +41,7 @@ typedef struct zmetad_config {
 	int		verbose;
 	char		*export_schema_path;
 	char		*check_schema_path;
+	char		*purge_dataset;
 	boolean_t	force;
 } zmetad_config_t;
 
@@ -66,9 +67,27 @@ int zmetad_db_insert_event(zmetad_db_t *db, const char *dataset,
 /* Get the last synced offset for a dataset */
 uint64_t zmetad_db_get_last_offset(zmetad_db_t *db, const char *dataset);
 
-/* Set the last synced offset for a dataset */
+/*
+ * Get the stored event-log ring identity for a dataset.
+ * 0 = unknown (no row yet, a pre-v3 row, or only legacy replies).
+ */
+uint64_t zmetad_db_get_ring_guid(zmetad_db_t *db, const char *dataset);
+
+/*
+ * Set the last synced offset for a dataset, persisting the ring
+ * identity in the same write.  ring_guid 0 stores NULL (unknown).
+ */
 int zmetad_db_set_last_offset(zmetad_db_t *db, const char *dataset,
-    uint64_t offset);
+    uint64_t offset, uint64_t ring_guid);
+
+/*
+ * Delete every row belonging to "dataset" from the events, gaps and
+ * sync_state tables.  Deleted row counts are reported through
+ * counts[] in events, gaps, sync_state order.  Does not touch the
+ * kernel event ring (see zmetad --purge).
+ */
+int zmetad_db_purge_dataset(zmetad_db_t *db, const char *dataset,
+    long long counts[3]);
 
 /*
  * Record an event-log gap for a dataset: "lost" records between

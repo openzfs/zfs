@@ -795,6 +795,11 @@ zfs_events_get_obj(objset_t *os, dmu_tx_t *tx, uint64_t events_size,
 	uint64_t obj = *objp;
 	int err;
 
+#ifndef _KERNEL
+	/* Userspace has no taskq activation; kernel-only path. */
+	(void) owned_tx;
+#endif
+
 	if (obj != 0)
 		return (obj);
 

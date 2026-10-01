@@ -45,6 +45,7 @@
 static libzfs_handle_t *g_zfs;
 static zmetad_config_t g_config;
 static zmetad_schema_t *g_schema;
+static zmetad_db_t *g_db;
 static volatile sig_atomic_t g_shutdown = 0;
 static volatile sig_atomic_t g_reload = 0;
 static volatile sig_atomic_t g_force_collect = 0;
@@ -104,6 +105,7 @@ config_init(zmetad_config_t *cfg)
 	cfg->verbose = 0;
 	cfg->export_schema_path = NULL;
 	cfg->check_schema_path = NULL;
+	cfg->purge_dataset = NULL;
 	cfg->force = B_FALSE;
 }
 
@@ -219,6 +221,60 @@ run_check_schema(const zmetad_config_t *cfg)
 }
 
 /*
+ * One-shot mode: delete every events/gaps/sync_state row belonging to
+ * cfg->purge_dataset, then clear the dataset's kernel event ring.
+ * Exits after: 0 success, 2 unknown dataset, 1 lzc or database error.
+ * Never enters the polling loop.
+ */
+static int
+run_purge(const zmetad_config_t *cfg)
+{
+	const char *ds = cfg->purge_dataset;
+	long long counts[3];
+	int err;
+
+	if (!zfs_dataset_exists(g_zfs, ds, ZFS_TYPE_FILESYSTEM)) {
+		fprintf(stderr, "cannot purge %s: dataset not found\n", ds);
+		return (2);
+	}
+
+	err = zmetad_db_purge_dataset(g_db, ds, counts);
+	if (err != 0) {
+		fprintf(stderr, "cannot purge %s: database error\n", ds);
+		return (1);
+	}
+
+	/*
+	 * lzc ioctls need the libzfs_core device opened before use
+	 * (libzfs_init() alone does not open it).
+	 */
+	err = libzfs_core_init();
+	if (err != 0) {
+		fprintf(stderr, "cannot purge %s: libzfs_core init "
+		    "failed: %s\n", ds, strerror(err));
+		return (1);
+	}
+
+	nvlist_t *outnvl = NULL;
+	err = lzc_clear_events(ds, &outnvl);
+	if (outnvl != NULL)
+		nvlist_free(outnvl);
+	if (err == ENOENT) {
+		fprintf(stderr, "cannot purge %s: dataset not found\n", ds);
+		return (2);
+	}
+	if (err != 0) {
+		fprintf(stderr, "cannot purge %s: kernel ring clear "
+		    "failed: %s\n", ds, strerror(err));
+		return (1);
+	}
+
+	printf("purged %s: %lld events, %lld gaps removed; "
+	    "kernel ring cleared\n", ds, counts[0], counts[1]);
+	return (0);
+}
+
+/*
  * Per-dataset loss-detection state: the previous poll's records_lost
  * counter and the highest watermark ever seen (so a regression can
  * be distinguished from the kernel's offset-0 "log exhausted"
@@ -231,6 +287,7 @@ struct loss_state {
 	boolean_t	have_lost;
 	uint64_t	high_water;
 	boolean_t	have_high_water;
+	uint64_t	stored_guid;
 	struct loss_state *next;
 };
 
@@ -359,6 +416,58 @@ collect_dataset_events(const char *dataset, zmetad_db_t *db)
 	}
 
 	/*
+	 * Ring identity: the reply's ring_guid identifies the kernel
+	 * event log instance.  A change against a previously stored
+	 * (nonzero) guid means the ring was replaced (destroy/
+	 * recreate, receive) and every record before this poll
+	 * belonged to a different log.  A reply without the key is a
+	 * legacy kernel: no identity logic at all.
+	 */
+	uint64_t ring_guid = 0;
+	int guid_err = nvlist_lookup_uint64(events, "ring_guid", &ring_guid);
+	boolean_t have_guid = (guid_err == 0 && ring_guid != 0);
+
+	if (have_guid) {
+		uint64_t stored = ls->stored_guid;
+
+		if (stored == 0) {
+			/*
+			 * First sighting this process: fall back to
+			 * the stored value so a daemon restart does
+			 * not mistake a long-lived ring for a new one.
+			 */
+			stored = zmetad_db_get_ring_guid(db, dataset);
+			ls->stored_guid = stored;
+		}
+		if (stored != 0 && stored != ring_guid) {
+			fprintf(stderr, "ring replaced on %s: guid %llu "
+			    "-> %llu; history before offset %llu belongs "
+			    "to the previous log\n", dataset,
+			    (u_longlong_t)stored, (u_longlong_t)ring_guid,
+			    (u_longlong_t)((ls->have_high_water &&
+			    ls->high_water > last_offset) ?
+			    ls->high_water : last_offset));
+			(void) zmetad_db_insert_gap(db, dataset, 0,
+			    last_offset, (uint64_t)-1);
+			/*
+			 * The reply's records are from the NEW ring,
+			 * so the watermark must restart at 0 and the
+			 * loss_state counter baseline must re-arm on
+			 * the new ring's records_lost, or the next
+			 * poll fires a bogus delta.  The watermark
+			 * write below persists offset 0 + the new
+			 * guid together.
+			 */
+			last_offset = 0;
+			ls->last_lost = 0;
+			ls->have_lost = B_FALSE;
+			ls->high_water = 0;
+			ls->have_high_water = B_FALSE;
+		}
+		ls->stored_guid = ring_guid;
+	}
+
+	/*
 	 * Negotiate the record schema version.  Kernels that predate
 	 * schema version exposure omit the key; wire == 0 is treated as
 	 * compatible with any loaded schema.
@@ -428,9 +537,25 @@ collect_dataset_events(const char *dataset, zmetad_db_t *db)
 		printf("Loss detected on %s; gap recorded\n", dataset);
 	}
 
-	/* Update last synced offset from returned next_offset */
+	/*
+	 * Advance the watermark from the returned next_offset,
+	 * persisting the ring identity in the same write.  When the
+	 * ring was replaced above, last_offset was reset to 0: the
+	 * new ring's records start from its own offset space.  On a
+	 * legacy reply (no guid) the stored identity is left alone
+	 * (0 binds NULL, and INSERT OR REPLACE keeps last_sync
+	 * fresh without disturbing identity tracking).
+	 */
 	if (next_offset > 0) {
-		zmetad_db_set_last_offset(db, dataset, next_offset);
+		zmetad_db_set_last_offset(db, dataset, next_offset,
+		    have_guid ? ring_guid : 0);
+	} else if (have_guid) {
+		/*
+		 * Even with nothing new to sync, remember the
+		 * identity once seen so a later swap is detectable.
+		 */
+		zmetad_db_set_last_offset(db, dataset, last_offset,
+		    ring_guid);
 	}
 
 	nvlist_free(events);
@@ -600,6 +725,10 @@ usage(const char *progname)
 	    "JSON to file and exit\n");
 	fprintf(stderr, "  --check-schema <file>  Validate schema file "
 	    "against embedded and exit\n");
+	fprintf(stderr, "  --purge <dataset>      Delete dataset's stored "
+	    "events/gaps/sync_state rows,\n");
+	fprintf(stderr, "                         clear its kernel event "
+	    "ring, and exit\n");
 	fprintf(stderr, "  --force                Allow --export-schema to "
 	    "overwrite existing file\n");
 	fprintf(stderr, "  -v, --verbose          Verbose output\n");
@@ -611,6 +740,7 @@ static struct option longopts[] = {
 	{ "database",		required_argument,	NULL,	'd' },
 	{ "export-schema",	required_argument,	NULL,	'e' },
 	{ "check-schema",	required_argument,	NULL,	'k' },
+	{ "purge",		required_argument,	NULL,	'p' },
 	{ "force",		no_argument,		NULL,	0x100 },
 	{ "foreground",		no_argument,		NULL,	'f' },
 	{ "interval",		required_argument,	NULL,	'i' },
@@ -630,7 +760,7 @@ main(int argc, char **argv)
 
 	config_init(&g_config);
 
-	while ((opt = getopt_long(argc, argv, "c:d:fe:i:k:r:s:vh", longopts,
+	while ((opt = getopt_long(argc, argv, "c:d:fe:i:k:p:r:s:vh", longopts,
 	    NULL)) != -1) {
 		switch (opt) {
 		case 'c':
@@ -651,6 +781,15 @@ main(int argc, char **argv)
 			break;
 		case 'k':
 			g_config.check_schema_path = optarg;
+			break;
+		case 'p':
+			if (g_config.purge_dataset != NULL) {
+				fprintf(stderr, "--purge given multiple "
+				    "times\n");
+				usage(argv[0]);
+				return (EXIT_FAILURE);
+			}
+			g_config.purge_dataset = optarg;
 			break;
 		case 0x100:
 			g_config.force = B_TRUE;
@@ -746,6 +885,17 @@ main(int argc, char **argv)
 		    strerror(err));
 		libzfs_fini(g_zfs);
 		return (EXIT_FAILURE);
+	}
+
+	/* One-shot purge mode: no signals, no daemonize, no loop. */
+	if (g_config.purge_dataset != NULL) {
+		g_db = db;
+		int prc = run_purge(&g_config);
+		zmetad_db_close(db);
+		zmetad_schema_free(g_schema);
+		libzfs_fini(g_zfs);
+		return (prc == 0 ? EXIT_SUCCESS :
+		    (prc == 1 ? EXIT_FAILURE : prc));
 	}
 
 	/* Setup signal handlers */

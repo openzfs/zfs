@@ -386,9 +386,13 @@ dbver = con.execute(
     "select value from meta where key='db_schema_version'").fetchall()
 if not dbver:
     errors.append("meta db_schema_version key absent")
-elif dbver[0][0] != "2":
-    errors.append("meta db_schema_version=%r, expected '2'"
+elif dbver[0][0] != "3":
+    errors.append("meta db_schema_version=%r, expected '3'"
                   % (dbver[0][0],))
+sync_cols = [r[1] for r in con.execute(
+    "pragma table_info(sync_state)").fetchall()]
+if "ring_guid" not in sync_cols:
+    errors.append("sync_state missing ring_guid column: %r" % (sync_cols,))
 
 # parent is decoded on every name-bearing op; the CREATE row for 'a'
 # must carry a non-NULL parent object id, and the RENAME row must
