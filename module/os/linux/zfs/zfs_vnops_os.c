@@ -756,15 +756,15 @@ top:
 		    acl_ids.z_aclp->z_acl_bytes > ZFS_ACE_SPACE) {
 			dmu_tx_hold_write(tx, DMU_NEW_OBJECT,
 			    0, acl_ids.z_aclp->z_acl_bytes);
-			}
-			if (zfsvfs->z_events)
-				zfs_events_txhold(os, tx);
+		}
+		if (zfsvfs->z_events)
+			zfs_events_txhold(os, tx);
 
-			error = dmu_tx_assign(tx,
-			    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
-			if (error) {
-				zfs_dirent_unlock(dl);
-				if (error == ERESTART) {
+		error = dmu_tx_assign(tx,
+		    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
+		if (error) {
+			zfs_dirent_unlock(dl);
+			if (error == ERESTART) {
 				waited = B_TRUE;
 				dmu_tx_wait(tx);
 				dmu_tx_abort(tx);

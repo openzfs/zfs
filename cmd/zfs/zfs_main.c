@@ -34,6 +34,7 @@
 #include <getopt.h>
 #include <libgen.h>
 #include <libnvpair.h>
+#include <limits.h>
 #include <locale.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -8394,7 +8395,44 @@ print_event(nvlist_t *event, boolean_t json, int count)
 }
 
 /*
- * zfs events [-jn] [-o <object-id>] <filesystem> [path]
+ * Parse a numeric option argument (zfs events -n/-o) with strict
+ * validation: reject empty strings, trailing garbage, negative
+ * values, and overflow. A zero limit is rejected for -n ("show zero
+ * events" is meaningless); 0 remains valid for -o since an object ID
+ * of 0 means "no filter".
+ */
+static uint64_t
+parse_event_count(const char *arg, char opt)
+{
+	char *end = NULL;
+	unsigned long long val;
+
+	if (arg == NULL || *arg == '\0' || arg[0] == '-') {
+		(void) fprintf(stderr, gettext("invalid -%c value '%s'\n"),
+		    opt, arg != NULL ? arg : "");
+		usage(B_FALSE);
+	}
+
+	errno = 0;
+	val = strtoull(arg, &end, 10);
+
+	if (end == NULL || *end != '\0' ||
+	    (val == ULLONG_MAX && errno == ERANGE)) {
+		(void) fprintf(stderr, gettext("invalid -%c value '%s'\n"),
+		    opt, arg);
+		usage(B_FALSE);
+	}
+	if (val == 0 && opt == 'n') {
+		(void) fprintf(stderr,
+		    gettext("invalid -%c value '0': must be at least 1\n"),
+		    opt);
+		usage(B_FALSE);
+	}
+	return ((uint64_t)val);
+}
+
+/*
+ * zfs events [-cjn] [-o <object-id>] <filesystem> [path]
  *
  * Display file-level events from a dataset's event log.
  *
@@ -8410,6 +8448,7 @@ zfs_do_events(int argc, char **argv)
 	boolean_t json_output = B_FALSE;
 	boolean_t limit_output = B_FALSE;
 	boolean_t clear_log = B_FALSE;
+	boolean_t object_given = B_FALSE;
 	uint64_t object_filter = 0;
 	uint64_t max_events = 0;
 	int ret = 0;
@@ -8423,11 +8462,12 @@ zfs_do_events(int argc, char **argv)
 			json_output = B_TRUE;
 			break;
 		case 'n':
-			max_events = strtoull(optarg, NULL, 10);
+			max_events = parse_event_count(optarg, 'n');
 			limit_output = B_TRUE;
 			break;
 		case 'o':
-			object_filter = strtoull(optarg, NULL, 10);
+			object_filter = parse_event_count(optarg, 'o');
+			object_given = B_TRUE;
 			break;
 		case '?':
 		default:
@@ -8443,6 +8483,19 @@ zfs_do_events(int argc, char **argv)
 	if (argc < 1) {
 		(void) fprintf(stderr,
 		    gettext("missing filesystem argument\n"));
+		usage(B_FALSE);
+	}
+
+	/*
+	 * -c clears the log and takes only the dataset argument; it
+	 * cannot be combined with the display options (-j/-n/-o) or a
+	 * path filter.
+	 */
+	if (clear_log &&
+	    (json_output || limit_output || object_given || argc > 1)) {
+		(void) fprintf(stderr, gettext(
+		    "-c cannot be combined with -j, -n, -o or a path "
+		    "argument\n"));
 		usage(B_FALSE);
 	}
 
@@ -8466,26 +8519,27 @@ zfs_do_events(int argc, char **argv)
 
 	if (clear_log) {
 		nvlist_t *outnvl = NULL;
-		int err = lzc_clear_events(argv[0], &outnvl);
+		const char *dsname = zfs_get_name(zhp);
+		int err = lzc_clear_events(dsname, &outnvl);
 
 		if (err == ENOENT) {
 			(void) fprintf(stderr, gettext("no event log found "
-			    "for '%s'\n"), argv[0]);
+			    "for '%s'\n"), dsname);
 			zfs_close(zhp);
 			return (1);
 		} else if (err == EINVAL || err == EBUSY || err == ESRCH) {
 			(void) fprintf(stderr, gettext("cannot clear events "
-			    "for '%s': dataset must be mounted\n"), argv[0]);
+			    "for '%s': dataset must be mounted\n"), dsname);
 			zfs_close(zhp);
 			return (1);
 		} else if (err != 0) {
 			(void) fprintf(stderr, gettext("cannot clear events "
-			    "for '%s': %s\n"), argv[0], strerror(err));
+			    "for '%s': %s\n"), dsname, strerror(err));
 			zfs_close(zhp);
 			return (1);
 		}
 		(void) printf(gettext("cleared event log for '%s'\n"),
-		    argv[0]);
+		    dsname);
 		nvlist_free(outnvl);
 		zfs_close(zhp);
 		return (0);
@@ -8556,7 +8610,12 @@ zfs_do_events(int argc, char **argv)
 	 * truncated.
 	 */
 	uint64_t next_offset = 0;
-	uint64_t prev_offset = 0;
+	/*
+	 * Sentinel start value so the no-forward-progress guard below
+	 * cannot fire on the first page (which legitimately fetches
+	 * at offset 0).
+	 */
+	uint64_t prev_offset = UINT64_MAX;
 	uint64_t lost_total = 0;
 	boolean_t have_lost = B_FALSE;
 	int count = 0;
@@ -8572,8 +8631,14 @@ zfs_do_events(int argc, char **argv)
 		if (error != 0)
 			break;
 
-		/* Guard against a page that makes no forward progress. */
-		if (count > 0 && next_offset == prev_offset) {
+		/*
+		 * Guard against a page that makes no forward progress.
+		 * Checked even when no events were delivered (count
+		 * may stay 0 with object filtering or an undecodable
+		 * page), so an unparseable ring cannot livelock the
+		 * ioctl loop.
+		 */
+		if (next_offset == prev_offset) {
 			nvlist_free(page);
 			break;
 		}
@@ -8596,7 +8661,12 @@ zfs_do_events(int argc, char **argv)
 		uint64_t lost = 0;
 
 		if (nvlist_lookup_uint64(page, "records_lost", &lost) == 0) {
-			/* Cumulative counter, not a per-page delta. */
+			/*
+			 * The kernel reports the ring's cumulative
+			 * lost counter on every page, so take the
+			 * maximum rather than summing across pages
+			 * (which would multiply-count).
+			 */
 			if (lost > lost_total)
 				lost_total = lost;
 			have_lost = B_TRUE;
@@ -8638,10 +8708,12 @@ zfs_do_events(int argc, char **argv)
 			    gettext("no event log found for '%s'\n"
 			    "Enable events with: zfs set events=on %s\n"),
 			    argv[0], argv[0]);
+			ret = 1;
 		} else if (count == 0) {
 			(void) fprintf(stderr,
 			    gettext("cannot get events for '%s': %s\n"),
 			    argv[0], strerror(error));
+			ret = 1;
 		} else {
 			/*
 			 * Some records were already printed; report the
@@ -8663,9 +8735,12 @@ zfs_do_events(int argc, char **argv)
 		(void) printf("%s\n", gettext("no events found"));
 	}
 
-	/* Report wraparound-dropped records if any */
+	/*
+	 * Report wraparound-dropped records if any. Always to stderr
+	 * so -j JSON on stdout stays parseable.
+	 */
 	if (have_lost && lost_total > 0) {
-		(void) printf(gettext(
+		(void) fprintf(stderr, gettext(
 		    "%llu record(s) lost to log wraparound\n"),
 		    (u_longlong_t)lost_total);
 	}

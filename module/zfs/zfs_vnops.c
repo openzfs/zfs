@@ -385,6 +385,16 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	    zfs_uio_offset(uio), zfs_uio_resid(uio), RL_READER);
 
 	/*
+	 * Declared and initialized before any goto out: the early-exit
+	 * paths (EOF, Direct I/O setup failure) reach the event emission
+	 * and kstats update below `out:`, which read these values.
+	 * Nothing has been consumed yet, so the current uio offset is
+	 * the start of the read.
+	 */
+	ssize_t start_offset = zfs_uio_offset(uio);
+	int64_t nread = 0;
+
+	/*
 	 * If we are reading past end-of-file we can skip
 	 * to the end; but we might still need to set atime.
 	 */
@@ -401,8 +411,6 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	if (error) {
 		goto out;
 	}
-
-	ssize_t start_offset = zfs_uio_offset(uio);
 
 	uint_t blksz = zp->z_blksz;
 	ssize_t chunk_size;
@@ -526,7 +534,7 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	 * actually delivered, and `n` is only decremented on full-
 	 * chunk success. This mirrors the write path's resid math.
 	 */
-	int64_t nread = zfs_uio_offset(uio) - start_offset;
+	nread = zfs_uio_offset(uio) - start_offset;
 
 	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, nread);
 
