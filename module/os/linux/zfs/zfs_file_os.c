@@ -32,7 +32,7 @@
  */
 int
 zfs_file_open(const char *path, int flags, int mode, cred_t *cr,
-    zfs_file_t **fpp)
+    zfs_file_t **zfpp)
 {
 	struct file *filp;
 	int saved_umask;
@@ -53,13 +53,14 @@ zfs_file_open(const char *path, int flags, int mode, cred_t *cr,
 	if (IS_ERR(filp))
 		return (-PTR_ERR(filp));
 
-	*fpp = filp;
+	*zfpp = filp;
 	return (0);
 }
 
 void
-zfs_file_close(zfs_file_t *fp)
+zfs_file_close(zfs_file_t *zfp)
 {
+	struct file *fp = zfp;
 	filp_close(fp, 0);
 }
 
@@ -90,8 +91,9 @@ zfs_file_restart(ssize_t rc)
  * Returns 0 on success errno on failure.
  */
 int
-zfs_file_write(zfs_file_t *fp, const void *buf, size_t count, ssize_t *resid)
+zfs_file_write(zfs_file_t *zfp, const void *buf, size_t count, ssize_t *resid)
 {
+	struct file *fp = zfp;
 	loff_t off = fp->f_pos;
 	size_t done = 0;
 	ssize_t rc;
@@ -129,10 +131,11 @@ zfs_file_write(zfs_file_t *fp, const void *buf, size_t count, ssize_t *resid)
  * Returns 0 on success errno on failure.
  */
 int
-zfs_file_pwrite(zfs_file_t *fp, const void *buf, size_t count, loff_t off,
+zfs_file_pwrite(zfs_file_t *zfp, const void *buf, size_t count, loff_t off,
     uint8_t ashift, ssize_t *resid)
 {
 	(void) ashift;
+	struct file *fp = zfp;
 	ssize_t rc;
 
 	rc  = kernel_write(fp, buf, count, &off);
@@ -160,8 +163,9 @@ zfs_file_pwrite(zfs_file_t *fp, const void *buf, size_t count, loff_t off,
  * Returns 0 on success errno on failure.
  */
 int
-zfs_file_read(zfs_file_t *fp, void *buf, size_t count, ssize_t *resid)
+zfs_file_read(zfs_file_t *zfp, void *buf, size_t count, ssize_t *resid)
 {
+	struct file *fp = zfp;
 	loff_t off = fp->f_pos;
 	ssize_t rc;
 
@@ -194,9 +198,10 @@ zfs_file_read(zfs_file_t *fp, void *buf, size_t count, ssize_t *resid)
  * Returns 0 on success errno on failure.
  */
 int
-zfs_file_pread(zfs_file_t *fp, void *buf, size_t count, loff_t off,
+zfs_file_pread(zfs_file_t *zfp, void *buf, size_t count, loff_t off,
     ssize_t *resid)
 {
+	struct file *fp = zfp;
 	ssize_t rc;
 
 	rc = kernel_read(fp, buf, count, &off);
@@ -222,8 +227,9 @@ zfs_file_pread(zfs_file_t *fp, void *buf, size_t count, loff_t off,
  * Returns 0 on success errno on failure (ESPIPE for non seekable types)
  */
 int
-zfs_file_seek(zfs_file_t *fp, loff_t *offp, int whence)
+zfs_file_seek(zfs_file_t *zfp, loff_t *offp, int whence)
 {
+	struct file *fp = zfp;
 	loff_t rc;
 
 	if (*offp < 0)
@@ -249,8 +255,9 @@ zfs_file_seek(zfs_file_t *fp, loff_t *offp, int whence)
  * Returns 0 on success or error code of underlying getattr call on failure.
  */
 int
-zfs_file_getattr(zfs_file_t *filp, zfs_file_attr_t *zfattr)
+zfs_file_getattr(zfs_file_t *zfp, zfs_file_attr_t *zfattr)
 {
+	struct file *filp = zfp;
 	struct kstat stat;
 	int rc;
 
@@ -274,8 +281,9 @@ zfs_file_getattr(zfs_file_t *filp, zfs_file_attr_t *zfattr)
  * Returns 0 on success or error code of underlying sync call on failure.
  */
 int
-zfs_file_fsync(zfs_file_t *filp, int flags)
+zfs_file_fsync(zfs_file_t *zfp, int flags)
 {
+	struct file *filp = zfp;
 	int datasync = 0;
 	int error;
 
@@ -295,8 +303,10 @@ zfs_file_fsync(zfs_file_t *filp, int flags)
  * len - length to zero or deallocate
  */
 int
-zfs_file_deallocate(zfs_file_t *fp, loff_t offset, loff_t len)
+zfs_file_deallocate(zfs_file_t *zfp, loff_t offset, loff_t len)
 {
+	struct file *fp = zfp;
+
 	/*
 	 * When supported by the underlying file system preferentially
 	 * use the fallocate() callback to preallocate the space.
@@ -320,8 +330,9 @@ zfs_file_deallocate(zfs_file_t *fp, loff_t offset, loff_t len)
  * Returns current file offset.
  */
 loff_t
-zfs_file_off(zfs_file_t *fp)
+zfs_file_off(zfs_file_t *zfp)
 {
+	struct file *fp = zfp;
 	return (fp->f_pos);
 }
 
@@ -333,8 +344,9 @@ zfs_file_off(zfs_file_t *fp)
  * Returns pointer to file private data.
  */
 void *
-zfs_file_private(zfs_file_t *fp)
+zfs_file_private(zfs_file_t *zfp)
 {
+	struct file *fp = zfp;
 	return (fp->private_data);
 }
 
@@ -372,7 +384,8 @@ zfs_file_get(int fd)
  * fp - input file struct pointer
  */
 void
-zfs_file_put(zfs_file_t *fp)
+zfs_file_put(zfs_file_t *zfp)
 {
+	struct file *fp = zfp;
 	fput(fp);
 }
