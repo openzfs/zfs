@@ -6679,8 +6679,8 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 			    (long long)vd0->vdev_id, (int)maxfaults);
 
 			if (vf != NULL && ztest_random(3) == 0) {
-				(void) close(vf->vf_file->f_fd);
-				vf->vf_file->f_fd = -1;
+				zfs_file_close(vf->vf_file);
+				vf->vf_file = zfs_file_get(-1);
 			} else if (ztest_random(2) == 0) {
 				vd0->vdev_cant_read = B_TRUE;
 			} else {
