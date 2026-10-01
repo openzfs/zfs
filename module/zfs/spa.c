@@ -6635,10 +6635,11 @@ spa_load_best(spa_t *spa, spa_load_state_t state, uint64_t max_request,
  */
 static int
 spa_open_common(const char *pool, spa_t **spapp, const void *tag,
-    nvlist_t *nvpolicy, nvlist_t **config)
+    nvlist_t *nvpolicy, nvlist_t **config, boolean_t *stats_hold)
 {
 	spa_t *spa;
 	spa_load_state_t state = SPA_LOAD_OPEN;
+	nvlist_t *load_info = NULL;
 	int error;
 	int locked = B_FALSE;
 	int firstopen = B_FALSE;
@@ -6656,10 +6657,21 @@ spa_open_common(const char *pool, spa_t **spapp, const void *tag,
 		locked = B_TRUE;
 	}
 
+retry:
 	if ((spa = spa_lookup(pool)) == NULL) {
 		if (locked)
 			spa_namespace_exit(FTAG);
 		return (SET_ERROR(ENOENT));
+	}
+
+	/*
+	 * A stats caller waits while the pool is being exported.  Export
+	 * waits for the stats holds to drain, so new ones must not keep
+	 * coming in.
+	 */
+	if (stats_hold != NULL && locked && spa->spa_is_exporting) {
+		spa_namespace_wait();
+		goto retry;
 	}
 
 	if (spa->spa_state == POOL_STATE_UNINITIALIZED) {
@@ -6723,23 +6735,45 @@ spa_open_common(const char *pool, spa_t **spapp, const void *tag,
 
 	spa_open_ref(spa, tag);
 
-	if (config != NULL)
-		*config = spa_config_generate(spa, NULL, -1ULL, B_TRUE);
+	/*
+	 * Count the hold of a stats caller.  Export waits for these holds
+	 * to drain instead of failing with EBUSY.
+	 */
+	if (stats_hold != NULL && locked) {
+		spa->spa_stats_holds++;
+		*stats_hold = B_TRUE;
+	}
 
 	/*
 	 * If we've recovered the pool, pass back any information we
-	 * gathered while doing the load.
+	 * gathered while doing the load.  Copy it while the namespace
+	 * lock is still held.
 	 */
-	if (state == SPA_LOAD_RECOVER && config != NULL) {
-		fnvlist_add_nvlist(*config, ZPOOL_CONFIG_LOAD_INFO,
-		    spa->spa_load_info);
-	}
+	if (state == SPA_LOAD_RECOVER && config != NULL)
+		load_info = fnvlist_dup(spa->spa_load_info);
 
 	if (locked) {
 		spa->spa_last_open_failed = 0;
 		spa->spa_last_ubsync_txg = 0;
 		spa->spa_load_txg = 0;
 		spa_namespace_exit(FTAG);
+	}
+
+	/*
+	 * Generate the config after dropping the namespace lock.  With
+	 * stats it grows with the number of vdevs, and every pool lookup
+	 * in the system waits on that lock.  The reference taken above
+	 * keeps the pool from being exported or destroyed, and
+	 * spa_config_generate() takes the config locks it needs.  The
+	 * sync thread already calls it without the namespace lock.
+	 */
+	if (config != NULL) {
+		*config = spa_config_generate(spa, NULL, -1ULL, B_TRUE);
+		if (load_info != NULL) {
+			fnvlist_add_nvlist(*config, ZPOOL_CONFIG_LOAD_INFO,
+			    load_info);
+			fnvlist_free(load_info);
+		}
 	}
 
 	if (firstopen)
@@ -6754,13 +6788,13 @@ int
 spa_open_rewind(const char *name, spa_t **spapp, const void *tag,
     nvlist_t *policy, nvlist_t **config)
 {
-	return (spa_open_common(name, spapp, tag, policy, config));
+	return (spa_open_common(name, spapp, tag, policy, config, NULL));
 }
 
 int
 spa_open(const char *name, spa_t **spapp, const void *tag)
 {
-	return (spa_open_common(name, spapp, tag, NULL, NULL));
+	return (spa_open_common(name, spapp, tag, NULL, NULL, NULL));
 }
 
 /*
@@ -6987,9 +7021,10 @@ spa_get_stats(const char *name, nvlist_t **config,
 {
 	int error;
 	spa_t *spa;
+	boolean_t stats_hold = B_FALSE;
 
 	*config = NULL;
-	error = spa_open_common(name, &spa, FTAG, NULL, config);
+	error = spa_open_common(name, &spa, FTAG, NULL, config, &stats_hold);
 
 	if (spa != NULL) {
 		/*
@@ -7047,7 +7082,19 @@ spa_get_stats(const char *name, nvlist_t **config,
 
 	if (spa != NULL) {
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
-		spa_close(spa, FTAG);
+		if (stats_hold) {
+			/*
+			 * Drop the hold and its count under the namespace
+			 * lock, so export never sees one without the other.
+			 */
+			spa_namespace_enter(FTAG);
+			spa_close(spa, FTAG);
+			spa->spa_stats_holds--;
+			spa_namespace_broadcast();
+			spa_namespace_exit(FTAG);
+		} else {
+			spa_close(spa, FTAG);
+		}
 	}
 
 	return (error);
@@ -7924,6 +7971,18 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 	spa_async_suspend(spa);
 
 	spa_namespace_enter(FTAG);
+
+	/*
+	 * Wait for stats callers to drop their holds.  New stats callers
+	 * wait while the pool is being exported, so this wait ends.  Do it
+	 * before setting spa_export_thread.  From then until the reference
+	 * check below, the namespace lock must stay held.  Otherwise a zvol
+	 * open can take the lock and then wait on this export, or a vdev
+	 * change can run in the middle of it.
+	 */
+	while (spa->spa_stats_holds != 0)
+		spa_namespace_wait();
+
 	spa->spa_export_thread = curthread;
 	spa_close(spa, FTAG);
 

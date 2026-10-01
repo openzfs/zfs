@@ -938,6 +938,7 @@ spa_remove(spa_t *spa)
 	ASSERT(spa_state(spa) == POOL_STATE_UNINITIALIZED);
 	ASSERT3U(zfs_refcount_count(&spa->spa_refcount), ==, 0);
 	ASSERT0(spa->spa_waiters);
+	ASSERT0(spa->spa_stats_holds);
 
 	nvlist_free(spa->spa_config_splitting);
 
