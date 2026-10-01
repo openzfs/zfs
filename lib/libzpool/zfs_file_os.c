@@ -388,25 +388,28 @@ zfs_file_unlink(const char *path)
  * fd - input file descriptor
  *
  * Returns pointer to file struct or NULL.
- * Unsupported in user space.
  */
 zfs_file_t *
 zfs_file_get(int fd)
 {
-	(void) fd;
-	abort();
-	return (NULL);
+	/*
+	 * Note that we deliberately don't try to validate the fd. The point is
+	 * to return a zfs_file_t that represents that fd, whatever it is. If
+	 * its not valid for some operation, then that operation will fail when
+	 * attempted.
+	 */
+	zfs_file_t *fp = umem_zalloc(sizeof (zfs_file_t), UMEM_NOFAIL);
+	fp->f_fd = fd;
+	fp->f_dump_fd = -1;
+	return (fp);
 }
 /*
  * Drop reference to file pointer
  *
  * fp - pointer to file struct
- *
- * Unsupported in user space.
  */
 void
 zfs_file_put(zfs_file_t *fp)
 {
-	abort();
-	(void) fp;
+	umem_free(fp, sizeof (zfs_file_t));
 }
