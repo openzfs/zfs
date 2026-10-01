@@ -3108,9 +3108,11 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		spa_t *spa;
 
 		/*
-		 * When enabling events, we create the event log object.
-		 * When disabling events, we destroy it.
-		 * The actual property value is stored in the nvlist as usual.
+		 * events=on does not create the log object, and
+		 * events=off does not destroy it.  The log is created
+		 * lazily on the first event, which is also when the
+		 * feature is activated.  Turning events off is refused
+		 * only while events_io is still on.
 		 *
 		 * Skip the feature check when the property arrives as part
 		 * of 'zfs receive': the log itself is not created from a
@@ -3167,6 +3169,24 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		spa_t *spa;
 		uint64_t events;
 
+		/*
+		 * FreeBSD has no IO-event plumbing: the read/write
+		 * accounting and the deferred-window drain are
+		 * Linux-only, so accepting events_io=on would leave
+		 * the property silently inert. Refuse it there instead
+		 * (received properties still pass through so streams
+		 * from Linux senders do not break).
+		 */
+#ifdef __FreeBSD__
+		if (source != ZPROP_SRC_RECEIVED &&
+		    nvpair_value_uint64(pair, &intval) == 0 && intval == 1) {
+			cmn_err(CE_WARN, "events_io is not supported on "
+			    "this platform; property ignored for '%s'",
+			    dsname);
+			err = ENOTSUP;
+			break;
+		}
+#endif
 		/*
 		 * IO events ride on top of the general event log, so
 		 * enabling events_io requires events=on. Skipped for
@@ -4770,9 +4790,9 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 	 * adding a new one. The reset uses the mounted zfsvfs' objset
 	 * and the pool config lock is not held by this thread, which is
 	 * exactly the environment the VFS logging path assigns its
-	 * transaction in. The ring lock is deliberately NOT held across
-	 * the clear (see the comment at the call below). Clearing
-	 * requires the dataset to be mounted.
+	 * transaction in.  clear_task assigns before it takes the
+	 * ring lock for the header reset.  Clearing requires the
+	 * dataset to be mounted.
 	 */
 	if (offset == UINT64_MAX) {
 		zfsvfs_t *zfsvfs;
@@ -4851,11 +4871,29 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 			 * treats as "done") or to UINT64_MAX (which the
 			 * ioctl treats as clear).
 			 */
-			if (reclen == 0 || reclen > read_len - pos) {
-				if (consumed == 0 &&
-				    reclen > bufsize - sizeof (uint64_t) &&
-				    reclen <= UINT64_MAX - pos)
-					consumed = pos + reclen;
+			if (reclen == 0) {
+				/*
+				 * Corrupt zero-length prefix: drop the
+				 * 8-byte prefix and keep parsing this
+				 * page. The resume cursor must always
+				 * advance or every subsequent GET would
+				 * re-serve the identical window and the
+				 * CLI would silently truncate forever;
+				 * stopping on the bad prefix (rather
+				 * than skipping it) breaks that
+				 * liveness contract.
+				 */
+				continue;
+			}
+			if (reclen > read_len - pos) {
+				/*
+				 * If nothing parsed yet the cursor
+				 * below stays at the page start, but
+				 * zfs_events_get() has already advanced
+				 * the offset by the full page read, so
+				 * the caller still makes forward
+				 * progress (same liveness contract).
+				 */
 				break;
 			}
 

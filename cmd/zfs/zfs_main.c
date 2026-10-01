@@ -8507,9 +8507,31 @@ zfs_do_events(int argc, char **argv)
 			return (1);
 		}
 
-		/* An absolute path is already complete; do not join it. */
+		/*
+		 * An absolute path is already complete; do not join it.
+		 * But verify it actually resolves inside this dataset's
+		 * mountpoint: without the device check, `zfs events
+		 * tank/a /etc/passwd` silently filters on an object
+		 * from a different filesystem.
+		 */
+		struct stat mp_st;
+
 		if (argv[1][0] == '/') {
 			(void) strlcpy(fullpath, argv[1], sizeof (fullpath));
+			if (stat(mountpoint, &mp_st) != 0) {
+				(void) fprintf(stderr,
+				    gettext("cannot stat '%s': %s\n"),
+				    mountpoint, strerror(errno));
+				zfs_close(zhp);
+				return (1);
+			}
+			if (mp_st.st_dev != st.st_dev) {
+				(void) fprintf(stderr, gettext("cannot get "
+				    "events for '%s': '%s' is not within "
+				    "'%s'\n"), argv[0], argv[1], mountpoint);
+				zfs_close(zhp);
+				return (1);
+			}
 		} else {
 			(void) snprintf(fullpath, sizeof (fullpath), "%s/%s",
 			    mountpoint, argv[1]);

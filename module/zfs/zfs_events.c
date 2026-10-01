@@ -345,10 +345,12 @@ static uint64_t zfs_events_get_obj(objset_t *os, dmu_tx_t *tx,
 #define	ZFS_EVQ_MAX	4096
 
 /*
- * Upper bound on one packed record: six native-encoded pairs plus
- * tags measure ~108 bytes; 256 leaves headroom for future fields.
+ * Upper bound on one packed record: one uint16 + seven uint64
+ * native-encoded pairs measure 288 bytes; 512 leaves headroom for
+ * future fields. Keep this in sync with the drain-time runtime
+ * guard, which counts a too-large record lost instead of panicking.
  */
-#define	ZFS_EVQ_REC_MAX	256
+#define	ZFS_EVQ_REC_MAX	512
 
 typedef struct zfs_events_qent zfs_events_qent_t;
 
@@ -489,6 +491,7 @@ zfs_events_drain_task(void *arg)
 	zfs_events_qent_t *qe;
 	uint64_t lost = 0;
 	uint64_t nrec = 0;
+	uint64_t oversize = 0;
 	size_t total = 0;
 	char *buf, *p;
 	dmu_buf_t *dbp;
@@ -556,8 +559,18 @@ zfs_events_drain_task(void *arg)
 		fnvlist_add_uint64(nvl, ZFS_EV_TIME, qe->qe_time);
 		VERIFY0(nvlist_pack(nvl, &packed,
 		    &packed_len, NV_ENCODE_NATIVE, KM_SLEEP));
-		VERIFY3U(packed_len, <=, ZFS_EVQ_REC_MAX);
 		fnvlist_free(nvl);
+		if (packed_len > ZFS_EVQ_REC_MAX) {
+			/*
+			 * A record that cannot fit the budgeted slot
+			 * is counted lost rather than panicking the
+			 * kernel: the ring's records_lost counter is
+			 * the contract for loss.
+			 */
+			fnvlist_pack_free(packed, packed_len);
+			oversize++;
+			continue;
+		}
 
 		*(uint64_t *)p = LE_64((uint64_t)packed_len);
 		memcpy(p + sizeof (uint64_t), packed, packed_len);
@@ -608,6 +621,7 @@ zfs_events_drain_task(void *arg)
 			}
 		}
 	}
+	lost += oversize;
 	dmu_buf_rele(dbp, FTAG);
 	mutex_exit(&zfsvfs->z_events_lock);
 	kmem_free(buf, total);
@@ -1019,7 +1033,31 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
 
 /*
  * Log a file/directory creation event.
+ *
+ * The _attr variant omits the uid/gid fields: ZIL replay re-runs the
+ * vnops under kcred, so attribution would be wrong and the original
+ * owner is not recoverable at replay time. Consumers treat the absent
+ * fields as unknown rather than root-owned.
  */
+void
+zfs_events_log_create_attr(objset_t *os, dmu_tx_t *tx,
+    uint64_t object, uint64_t parent, const char *name, uint64_t mode,
+    uint64_t events_size, uint64_t *objp, kmutex_t *lockp)
+{
+	nvlist_t *nvl;
+
+	nvl = fnvlist_alloc();
+	fnvlist_add_uint16(nvl, ZFS_EV_OP, ZFS_EV_CREATE);
+	fnvlist_add_uint64(nvl, ZFS_EV_OBJECT, object);
+	fnvlist_add_uint64(nvl, ZFS_EV_PARENT, parent);
+	fnvlist_add_string(nvl, ZFS_EV_NAME, name);
+	fnvlist_add_uint64(nvl, ZFS_EV_MODE, mode);
+
+	zfs_events_log_event(os, tx, nvl, events_size, objp, lockp,
+	    dmu_tx_get_txg(tx));
+	fnvlist_free(nvl);
+}
+
 void
 zfs_events_log_create(objset_t *os, dmu_tx_t *tx,
     uint64_t object, uint64_t parent, const char *name, uint64_t mode,
@@ -1384,6 +1422,7 @@ zfs_events_io_account(struct znode *zp, boolean_t is_write,
 	hrtime_t now;
 	hrtime_t start = 0;
 	uint64_t pend_off = 0, pend_bytes = 0;
+	uint64_t uid = 0, gid = 0;
 	kmutex_t *zlk = &zp->z_lock;
 
 	/*
@@ -1452,12 +1491,16 @@ zfs_events_io_account(struct znode *zp, boolean_t is_write,
 		if (start != 0) {
 			pend_off = zp->z_ev_io_wpend_off;
 			pend_bytes = zp->z_ev_io_wpend_bytes;
+			uid = zp->z_ev_io_wuid;
+			gid = zp->z_ev_io_wgid;
 		}
 	} else {
 		start = zp->z_ev_io_rstart;
 		if (start != 0) {
 			pend_off = zp->z_ev_io_rpend_off;
 			pend_bytes = zp->z_ev_io_rpend_bytes;
+			uid = zp->z_ev_io_ruid;
+			gid = zp->z_ev_io_rgid;
 		}
 	}
 
@@ -1482,12 +1525,17 @@ zfs_events_io_account(struct znode *zp, boolean_t is_write,
 		 * re-check whether another thread opened a window in
 		 * between so state stays consistent.
 		 */
+		/*
+		 * Expiry must attribute the merged record to the
+		 * window's captured owner (sampled above with the
+		 * pending fields), not to whichever thread happened
+		 * to touch the file last.
+		 */
 		zfs_events_io_emit(zp, zfsvfs->z_os, is_write, start,
-		    pend_off, pend_bytes,
-		    crgetuid((cred_t *)(uintptr_t)cr),
-		    crgetgid((cred_t *)(uintptr_t)cr),
+		    pend_off, pend_bytes, uid, gid,
 		    zfsvfs->z_events_size,
-		    &zfsvfs->z_events_obj, &zfsvfs->z_events_lock, txg, zlk);
+		    &zfsvfs->z_events_obj, &zfsvfs->z_events_lock,
+		    txg, zlk);
 
 		mutex_enter(zlk);
 		if (is_write) {
@@ -1783,6 +1831,7 @@ EXPORT_SYMBOL(zfs_events_get_guid);
 EXPORT_SYMBOL(zfs_events_get_eof);
 EXPORT_SYMBOL(zfs_events_destroy_obj);
 EXPORT_SYMBOL(zfs_events_log_create);
+EXPORT_SYMBOL(zfs_events_log_create_attr);
 EXPORT_SYMBOL(zfs_events_log_remove);
 EXPORT_SYMBOL(zfs_events_log_rename);
 EXPORT_SYMBOL(zfs_events_log_link);

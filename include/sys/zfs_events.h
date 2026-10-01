@@ -131,6 +131,9 @@ extern void zfs_events_log_create(objset_t *os, dmu_tx_t *tx,
     uint64_t object, uint64_t parent, const char *name, uint64_t mode,
     uint64_t uid, uint64_t gid, uint64_t events_size, uint64_t *objp,
     kmutex_t *lockp);
+extern void zfs_events_log_create_attr(objset_t *os, dmu_tx_t *tx,
+    uint64_t object, uint64_t parent, const char *name, uint64_t mode,
+    uint64_t events_size, uint64_t *objp, kmutex_t *lockp);
 extern void zfs_events_log_remove(objset_t *os, dmu_tx_t *tx,
     uint64_t object, uint64_t parent, const char *name,
     uint64_t events_size, uint64_t *objp, kmutex_t *lockp);

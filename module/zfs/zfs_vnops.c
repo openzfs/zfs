@@ -1926,6 +1926,12 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 		    inblksz);
 		DB_DNODE_EXIT(db);
 		zfs_sa_upgrade_txholds(tx, outzp);
+		/*
+		 * The events logging below this point may lazily create the
+		 * log object and dirty it on this transaction; it must be held.
+		 */
+		if (outzfsvfs->z_events)
+			zfs_events_txhold(outos, tx);
 		error = dmu_tx_assign(tx, DMU_TX_WAIT);
 		if (error != 0) {
 			dmu_tx_abort(tx);

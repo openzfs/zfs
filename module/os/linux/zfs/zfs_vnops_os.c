@@ -799,10 +799,26 @@ top:
 		zfs_log_create(zilog, tx, txtype, dzp, zp, name,
 		    vsecp, acl_ids.z_fuidp, vap);
 		if (zfsvfs->z_events) {
-			zfs_events_log_create(os, tx, zp->z_id, dzp->z_id,
-			    name, vap->va_mode, crgetuid(cr), crgetgid(cr),
-			    zfsvfs->z_events_size, &zfsvfs->z_events_obj,
-			    &zfsvfs->z_events_lock);
+			/*
+			 * ZIL replay runs these vnops with kcred, so uid/gid
+			 * would be misattributed to root; the original owner
+			 * is not recoverable here. Emit without attribution
+			 * fields instead (they bind as NULL downstream).
+			 */
+			if (zfsvfs->z_replay) {
+				zfs_events_log_create_attr(os, tx, zp->z_id,
+				    dzp->z_id, name, vap->va_mode,
+				    zfsvfs->z_events_size,
+				    &zfsvfs->z_events_obj,
+				    &zfsvfs->z_events_lock);
+			} else {
+				zfs_events_log_create(os, tx, zp->z_id,
+				    dzp->z_id, name, vap->va_mode,
+				    crgetuid(cr), crgetgid(cr),
+				    zfsvfs->z_events_size,
+				    &zfsvfs->z_events_obj,
+				    &zfsvfs->z_events_lock);
+			}
 		}
 		zfs_acl_ids_free(&acl_ids);
 		dmu_tx_commit(tx);
@@ -1449,10 +1465,20 @@ top:
 	zfs_log_create(zilog, tx, txtype, dzp, zp, dirname, vsecp,
 	    acl_ids.z_fuidp, vap);
 	if (zfsvfs->z_events) {
-		zfs_events_log_create(zfsvfs->z_os, tx, zp->z_id, dzp->z_id,
-		    dirname, vap->va_mode, uid, gid, zfsvfs->z_events_size,
-		    &zfsvfs->z_events_obj,
-		    &zfsvfs->z_events_lock);
+		/* See the replay note at the create emitter above. */
+		if (zfsvfs->z_replay) {
+			zfs_events_log_create_attr(zfsvfs->z_os, tx,
+			    zp->z_id, dzp->z_id, dirname, vap->va_mode,
+			    zfsvfs->z_events_size,
+			    &zfsvfs->z_events_obj,
+			    &zfsvfs->z_events_lock);
+		} else {
+			zfs_events_log_create(zfsvfs->z_os, tx, zp->z_id,
+			    dzp->z_id, dirname, vap->va_mode, uid, gid,
+			    zfsvfs->z_events_size,
+			    &zfsvfs->z_events_obj,
+			    &zfsvfs->z_events_lock);
+		}
 	}
 
 out:
