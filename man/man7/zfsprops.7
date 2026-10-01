@@ -1308,11 +1308,14 @@ The default value is
 .Sy off .
 This property is inherited by descendant datasets.
 .Pp
-When this property is first set to
-.Sy on
-on any dataset in a pool, the
+When the first event log object is created in a pool, the
 .Sy org.openzfs:events
 pool feature is activated.
+Setting
+.Sy events=on
+does not itself create the log or activate the feature, and
+.Sy events=off
+does not destroy an existing log.
 See
 .Xr zpool-features 7
 for details.
@@ -1339,6 +1342,8 @@ The minimum value is
 .Sy 128K
 and the maximum value is
 .Sy 1G .
+The size is fixed when the log object is created.
+Changing this property does not resize an existing log.
 .Pp
 The event log operates as a ring buffer; when full, the oldest events are
 overwritten by new events.
@@ -1402,6 +1407,11 @@ Bytes are coalesced, never dropped.
 The window closes on the next I/O past the window, on any non-IO event
 for the same file, and on
 .Xr close 2 .
+.Xr close 2
+flushes a pending window even when it is still young.
+A value of
+.Sy 0
+never opens a pending window.
 .Pp
 The value must be between
 .Sy 0

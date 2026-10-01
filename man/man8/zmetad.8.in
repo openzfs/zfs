@@ -65,10 +65,8 @@ to the daemon for an immediate collection cycle.
 .Sh OPTIONS
 .Bl -tag -width "--purge dataset"
 .It Fl c Ar config
-Read configuration from the specified file.
-See
-.Sx CONFIGURATION
-for details on the file format.
+Accepted for compatibility and ignored.
+The daemon does not read a configuration file.
 .It Fl d Ar database
 Path to the SQLite database file.
 The database will be created if it does not exist.
@@ -127,39 +125,33 @@ May be specified multiple times for increased verbosity.
 .El
 .
 .Sh CONFIGURATION
-Configuration can be provided via command-line options or a configuration
-file specified with
-.Fl c .
-Command-line options override configuration file settings.
-.Pp
-The configuration file uses a simple key-value format:
-.Bd -literal -offset indent
-# ZFS Metadata Export Daemon configuration
-
-# Poll interval in seconds
-poll_interval = 30
-
-# SQLite database path
-database = /var/lib/zfs/zmetad.db
-
-# Event retention in days (0 = forever)
-retention_days = 90
-
-# Maximum database size in MB (0 = unlimited)
-max_size_mb = 1000
-.Ed
+.Fl c
+is accepted and ignored.
+There is no configuration file.
+.Sy poll_interval ,
+.Sy database ,
+and
+.Sy retention_days
+are set by
+.Fl i ,
+.Fl d ,
+and
+.Fl r .
+.Sy max_size_mb
+is not implemented.
 .
 .Sh DATABASE SCHEMA
 The SQLite database layout version is recorded in the
 .Sy meta
 table under the
 .Sy db_schema_version
-key; this build writes layout version 4.
-The database contains five tables:
+key; this build writes layout version 6.
+The database contains
 .Sy events ,
 .Sy sync_state ,
 .Sy datasets ,
 .Sy gaps ,
+.Sy objmap ,
 and
 .Sy meta .
 The full column-by-column contract, including the
@@ -175,7 +167,8 @@ CREATE TABLE sync_state (
     dataset TEXT PRIMARY KEY,
     last_offset INTEGER NOT NULL,
     last_sync INTEGER NOT NULL,
-    ring_guid INTEGER
+    ring_guid INTEGER,
+    last_lost INTEGER
 );
 .Ed
 .Pp
@@ -187,6 +180,14 @@ changes only when the ring is replaced, and the daemon records the
 replacement in the
 .Sy gaps
 table.
+.Sy last_lost
+is the previous poll's cumulative
+.Sy records_lost
+counter.
+A restart loads it and records a gap for any increase that happened
+while the daemon was down.
+NULL means no baseline yet, so the first observation does not invent
+a gap.
 .Ss Datasets Table
 .Bd -literal -offset indent
 CREATE TABLE datasets (
@@ -253,10 +254,12 @@ ORDER BY captured_at DESC;
 .Ss History of a specific file
 .Bd -literal -offset indent
 SELECT * FROM events
-WHERE path = '/tank/data/important.txt'
-   OR old_path = '/tank/data/important.txt'
+WHERE full_path = 'data/important.txt'
+   OR old_full_path = 'data/important.txt'
 ORDER BY txg;
 .Ed
+." path/old_path store the dataset-relative bare name; full_path and
+." old_full_path (layout >= 5) store the resolved dataset-relative path.
 .Ss Files deleted in a dataset
 .Bd -literal -offset indent
 SELECT path, datetime(captured_at, 'unixepoch') as time
@@ -288,9 +291,9 @@ ORDER BY day DESC;
 .It Pa /var/lib/zfs/zmetad.db
 Default SQLite database location.
 .It Pa @sysconfdir@/zfs/zmetad.conf
-Default configuration file location.
-.It Pa @runstatedir@/zmetad.pid
-Process ID file when running as a daemon.
+Not read.
+.Fl c
+is accepted and ignored.
 .It Pa contrib/zmetad/SCHEMA.md
 Source-tree path to the consumer contract for the database schema
 (all tables, column semantics, loss-accounting formulas, and the
@@ -300,7 +303,8 @@ version-evolution policy).
 .Sh SIGNALS
 .Bl -tag -width "SIGTERM"
 .It Sy SIGHUP
-Reload configuration and rescan for datasets with events enabled.
+Accepted.
+The daemon does not reload a configuration file.
 .It Sy SIGUSR1
 Request an immediate out-of-band collection cycle, independent of the
 poll interval.

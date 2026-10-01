@@ -655,17 +655,16 @@ When full, oldest events are overwritten.
 .Pp
 This feature becomes
 .Sy active
-when the
-.Sy events
-property is first set to
-.Sy on
-on any dataset in the pool.
-It returns to the
+when the first event log object is created, which happens on the
+first logged event, not when
+.Sy events=on
+is set.
+.Sy events=off
+does not destroy the log and does not return the feature to
+.Sy enabled .
+The feature returns to
 .Sy enabled
-state when all datasets with
-.Sy events Ns = Ns Sy on
-are destroyed or have the property set to
-.Sy off .
+when every dataset that created a log object is destroyed.
 .Pp
 See
 .Xr zfs-events 8

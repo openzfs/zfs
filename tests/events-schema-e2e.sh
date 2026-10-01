@@ -400,13 +400,15 @@ dbver = con.execute(
     "select value from meta where key='db_schema_version'").fetchall()
 if not dbver:
     errors.append("meta db_schema_version key absent")
-elif dbver[0][0] != "5":
-    errors.append("meta db_schema_version=%r, expected '5'"
+elif dbver[0][0] != "6":
+    errors.append("meta db_schema_version=%r, expected '6'"
                   % (dbver[0][0],))
 sync_cols = [r[1] for r in con.execute(
     "pragma table_info(sync_state)").fetchall()]
 if "ring_guid" not in sync_cols:
     errors.append("sync_state missing ring_guid column: %r" % (sync_cols,))
+if "last_lost" not in sync_cols:
+    errors.append("sync_state missing last_lost column: %r" % (sync_cols,))
 ev_cols = [r[1] for r in con.execute(
     "pragma table_info(events)").fetchall()]
 if "captured_at" not in ev_cols:
@@ -472,11 +474,13 @@ step_gap() {
 	# regression branch in zmetad stays as defense-in-depth for
 	# ring replacement while the clamp cannot produce it.
 	#
-	# Drive a REAL wrap: minimum ring (128KB ~ 1200 records) at
-	# window=0 (one record per write), then 64MB of 4K writes
-	# (~16k records) force several wraps between 3s polls.
-	"${SUDO[@]}" "$ZFS" set events_io_window=0 "$DS" ||
-		fail "gap: set events_io_window=0"
+	# Drive a REAL wrap. IO auditing must be on: writes with
+	# events_io=off emit nothing and records_lost does not move.
+	# The log object already exists at its create-time size
+	# (events_size does not resize it); 64MiB of 4K writes at
+	# window=0 is enough to wrap a 1MiB ring between 3s polls.
+	"${SUDO[@]}" "$ZFS" set events_io=on events_io_window=0 "$DS" ||
+		fail "gap: set events_io=on events_io_window=0"
 	mnt="$("$ZFS" get -H -o value mountpoint "$DS")"
 	"${SUDO[@]}" dd if=/dev/zero of="$mnt/gapwrap" bs=4096 \
 	    count=16384 conv=notrunc status=none ||
@@ -521,6 +525,55 @@ step_gap() {
 	esac
 
 	pass gap
+}
+
+step_restart_loss() {
+	# Wrap while the daemon is down. last_lost must already be in
+	# sync_state from step_gap; a process-memory baseline re-arms
+	# on restart and this step records no new gap.
+	local before found i n
+	before="$(db_query "$WD/zmd.db" \
+	    "con.execute('select coalesce(max(id), 0) from gaps where ' \
+	    'dataset=?', ('$DS',)).fetchone()[0]" 2>/dev/null)"
+	case "$before" in
+	''|ERR|null|None)
+		fail "restart-loss: cannot read gaps baseline"
+		return
+		;;
+	esac
+	"${SUDO[@]}" systemctl stop "$UNIT" ||
+		fail "restart-loss: failed to stop daemon"
+	"${SUDO[@]}" "$ZFS" set events_io=on events_io_window=0 "$DS" ||
+		fail "restart-loss: set events_io=on"
+	mnt="$("$ZFS" get -H -o value mountpoint "$DS")"
+	"${SUDO[@]}" dd if=/dev/zero of="$mnt/gapdown" bs=4096 \
+	    count=16384 conv=notrunc status=none ||
+		fail "restart-loss: bulk write failed"
+	"${SUDO[@]}" rm -f "$mnt/gapdown"
+	"${SUDO[@]}" systemctl reset-failed "$UNIT" >/dev/null 2>&1 || true
+	"${SUDO[@]}" systemd-run --unit="$UNIT" \
+		--description="zmetad e2e validation" \
+		"$ZMETAD" -f -i 3 -d "$WD/zmd.db" ||
+		fail "restart-loss: daemon restart failed"
+	found=0
+	i=0
+	while [ "$i" -lt 15 ]; do
+		n="$(db_query "$WD/zmd.db" \
+		    "con.execute('select count(*) from gaps where ' \
+		    'dataset=? and id > ? and lost > 0', ('$DS', $before)).fetchone()[0]" \
+		    2>/dev/null)"
+		case "$n" in
+		''|ERR|null|0|None) ;;
+		*) found=1; break ;;
+		esac
+		sleep 2
+		i=$((i + 1))
+	done
+	[ "$found" -eq 1 ] ||
+		fail "restart-loss: no new positive gaps row after restart (before id $before)"
+	"${SUDO[@]}" "$ZFS" set events_io_window=1000 "$DS" ||
+		fail "restart-loss: restore events_io_window"
+	pass restart-loss
 }
 
 # step_guid_swap <db> <dataset>: destroy + recreate an events=on child
@@ -705,11 +758,9 @@ step_guid_purge() {
 }
 
 step_migration() {
-	# v3 -> v4 migration: with the daemon stopped, backdate the
-	# suite DB's db_schema_version to 3 (schema is otherwise
-	# already v4-shaped), restart the daemon, and expect the
-	# "upgraded database to layout version 4" journal line plus a
-	# re-recorded meta value.
+	# Backdate to 3 so the v<4, v<5 and v<6 ALTER chain all run on
+	# restart (every ALTER is duplicate-column-tolerant).  The version
+	# key is stamped only after every column for the build exists.
 	"${SUDO[@]}" systemctl stop "$UNIT" ||
 		fail "migration: failed to stop daemon"
 	"${SUDO[@]}" python3 - "$WD/zmd.db" <<'PY'
@@ -719,7 +770,7 @@ import sys
 con = sqlite3.connect(sys.argv[1])
 con.execute(
     "insert or replace into meta values "
-    "('db_schema_version', '4')")
+    "('db_schema_version', '3')")
 con.commit()
 PY
 	"${SUDO[@]}" systemctl reset-failed "$UNIT" >/dev/null 2>&1 || true
@@ -733,14 +784,14 @@ PY
 	_log="$("${SUDO[@]}" journalctl -u "$UNIT" --no-pager --since="-30s" \
 	    2>/dev/null || true)"
 	case "$_log" in
-	*"upgraded database to layout version 5"*) ;;
-	*) fail "migration: journal lacks 'upgraded database to layout version 5'" ;;
+	*"upgraded database to layout version 6"*) ;;
+	*) fail "migration: journal lacks 'upgraded database to layout version 6'" ;;
 	esac
 	_v="$(db_query "$WD/zmd.db" \
 	    "con.execute(\"select value from meta where key='db_schema_version'\").fetchone()[0]" \
 	    2>/dev/null)"
-	[ "$_v" = "5" ] ||
-		fail "migration: meta db_schema_version=$_v, expected '5'"
+	[ "$_v" = "6" ] ||
+		fail "migration: meta db_schema_version=$_v, expected '6'"
 	pass migration
 }
 
@@ -839,6 +890,11 @@ step_purge() {
 		    'dataset=?', ('$DS',)).fetchone()[0]" 2>/dev/null)"
 		case "$_n" in
 		0) ;;
+		# A poll landing inside the purge->count window re-writes
+		# the live dataset's sync_state watermark; events/gaps must
+		# still be strictly 0.
+		1) [ "$_t" = "sync_state" ] ||
+			fail "purge: $_t has 1 row for $DS after purge" ;;
 		''|ERR|null)
 			fail "purge: cannot count $_t rows for $DS"
 			;;
@@ -870,6 +926,9 @@ con.execute(
 con.commit()
 PY
 	"${SUDO[@]}" systemctl reset-failed "$UNIT" >/dev/null 2>&1 || true
+	# Anchor the journal window at the restart so the refusal-message
+	# greps below cannot match output from earlier steps of this unit.
+	_since="$(date '+%Y-%m-%d %H:%M:%S')"
 	"${SUDO[@]}" systemd-run --unit="$UNIT" \
 		"$ZMETAD" -f -i 3 -d "$WD/zmd.db" ||
 		fail "version-refusal: restart failed"
@@ -885,7 +944,8 @@ PY
 	done
 	[ "$died" -eq 1 ] ||
 		fail "version-refusal: daemon still running after 10s with meta version 99"
-	log="$("${SUDO[@]}" journalctl -u "$UNIT" --no-pager -n 100 2>/dev/null || true)"
+	log="$("${SUDO[@]}" journalctl -u "$UNIT" --no-pager \
+	    --since "$_since" 2>/dev/null || true)"
 	case "$log" in
 	*99*) ;;
 	*) fail "version-refusal: refusal output does not name 99" ;;
@@ -906,6 +966,7 @@ step_daemon_run
 step_ops
 step_assert
 step_gap
+step_restart_loss
 step_guid_purge
 step_migration
 step_retention
