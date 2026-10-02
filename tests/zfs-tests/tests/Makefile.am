@@ -1363,6 +1363,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_scrub/zpool_scrub_multiple_copies.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_multiple_pools.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_offline_device.ksh \
+	functional/cli_root/zpool_scrub/zpool_scrub_origin_suspend.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_print_repairing.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_txg_continue_from_last.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_date_range_001.ksh \
@@ -2128,9 +2129,15 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/replacement/replace_rebuild.ksh \
 	functional/replacement/replace_resilver.ksh \
 	functional/replacement/replace_resilver_sit_out.ksh \
+	functional/replacement/resilver_errors.ksh \
+	functional/replacement/resilver_probe.ksh \
+	functional/replacement/resilver_reassess.ksh \
+	functional/replacement/resilver_reopen.ksh \
+	functional/replacement/resilver_restart.ksh \
 	functional/replacement/resilver_restart_001.ksh \
 	functional/replacement/resilver_restart_002.ksh \
 	functional/replacement/scrub_cancel.ksh \
+	functional/replacement/scrub_dtl_retirement.ksh \
 	functional/replacement/setup.ksh \
 	functional/reservation/cleanup.ksh \
 	functional/reservation/reservation_001_pos.ksh \

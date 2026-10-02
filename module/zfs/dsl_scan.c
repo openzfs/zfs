@@ -120,6 +120,8 @@ static void scan_ds_queue_remove(dsl_scan_t *scn, uint64_t dsobj);
 static void scan_ds_queue_sync(dsl_scan_t *scn, dmu_tx_t *tx);
 static uint64_t dsl_scan_count_data_disks(spa_t *spa);
 static void read_by_block_level(dsl_scan_t *scn, zbookmark_phys_t zb);
+static void dsl_scan_coverage_lost(dsl_scan_t *scn);
+static void dsl_scan_count_error(dsl_scan_t *scn);
 
 extern uint_t zfs_vdev_async_write_active_min_dirty_percent;
 static int zfs_scan_blkstats = 0;
@@ -603,6 +605,7 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 		 * new-style scrub from the beginning.
 		 */
 		scn->scn_restart_txg = txg;
+		scn->scn_phys.scn_func = f;
 		zfs_dbgmsg("old-style scrub was in progress for %s; "
 		    "restarting new-style scrub in txg %llu",
 		    spa->spa_name,
@@ -694,22 +697,14 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 			    (longlong_t)scn->scn_restart_txg);
 		} else if (dsl_scan_resilvering(dp)) {
 			/*
-			 * If a resilver is in progress and there are already
-			 * errors, restart it instead of finishing this scan and
-			 * then restarting it. If there haven't been any errors
-			 * then remember that the incore DTL is valid.
+			 * The in-core coverage of the pass, and DTL_SCRUB
+			 * with exact failed repairs, are gone. Without them
+			 * the pass cannot retire missing writes; restart it.
 			 */
-			if (scn->scn_phys.scn_errors > 0) {
-				scn->scn_restart_txg = txg;
-				zfs_dbgmsg("resilver can't excise DTL_MISSING "
-				    "when finished; restarting on %s in txg "
-				    "%llu",
-				    spa->spa_name,
-				    (u_longlong_t)scn->scn_restart_txg);
-			} else {
-				/* it's safe to excise DTL when finished */
-				spa->spa_scrub_started = B_TRUE;
-			}
+			scn->scn_restart_txg = txg;
+			zfs_dbgmsg("restarting imported resilver on %s in txg "
+			    "%llu", spa->spa_name,
+			    (u_longlong_t)scn->scn_restart_txg);
 		}
 	}
 
@@ -719,10 +714,11 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 	if (scn->scn_phys.scn_queue_obj != 0) {
 		zap_cursor_t zc;
 		zap_attribute_t *za = zap_attribute_alloc();
+		int err;
 
 		for (zap_cursor_init(&zc, dp->dp_meta_objset,
 		    scn->scn_phys.scn_queue_obj);
-		    zap_cursor_retrieve(&zc, za) == 0;
+		    (err = zap_cursor_retrieve(&zc, za)) == 0;
 		    (void) zap_cursor_advance(&zc)) {
 			scan_ds_queue_insert(scn,
 			    zfs_strtonum(za->za_name, NULL),
@@ -730,6 +726,14 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 		}
 		zap_cursor_fini(&zc);
 		zap_attribute_free(za);
+
+		/* A partially loaded queue would skip datasets. */
+		if (err != ENOENT) {
+			scn->scn_restart_txg = txg;
+			zfs_dbgmsg("cannot load scan queue for %s: error %d; "
+			    "restarting in txg %llu", spa->spa_name, err,
+			    (u_longlong_t)scn->scn_restart_txg);
+		}
 	}
 
 	ddt_walk_init(spa, scn->scn_phys.scn_max_txg);
@@ -760,18 +764,21 @@ dsl_scan_fini(dsl_pool_t *dp)
 	}
 }
 
-static boolean_t
-dsl_scan_restarting(dsl_scan_t *scn, dmu_tx_t *tx)
-{
-	return (scn->scn_restart_txg != 0 &&
-	    scn->scn_restart_txg <= tx->tx_txg);
-}
-
 boolean_t
 dsl_scan_resilver_scheduled(dsl_pool_t *dp)
 {
-	return ((dp->dp_scan && dp->dp_scan->scn_restart_txg != 0) ||
-	    (spa_async_tasks(dp->dp_spa) & SPA_ASYNC_RESILVER));
+	spa_t *spa = dp->dp_spa;
+	dsl_scan_t *scn = dp->dp_scan;
+
+	mutex_enter(&spa->spa_async_lock);
+	mutex_enter(&spa->spa_scrub_lock);
+	boolean_t scheduled = ((spa->spa_async_tasks |
+	    spa->spa_async_tasks_running) & SPA_ASYNC_RESILVER) ||
+	    (scn != NULL && (scn->scn_resilver_txg != 0 ||
+	    (scn->scn_restart_txg != 0 && DSL_SCAN_IS_RESILVER(scn))));
+	mutex_exit(&spa->spa_scrub_lock);
+	mutex_exit(&spa->spa_async_lock);
+	return (scheduled);
 }
 
 boolean_t
@@ -958,8 +965,8 @@ dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 	return (0);
 }
 
-void
-dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
+static void
+dsl_scan_setup_sync_impl(void *arg, dmu_tx_t *tx)
 {
 	setup_sync_arg_t *setup_sync_arg = (setup_sync_arg_t *)arg;
 	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
@@ -967,10 +974,10 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	dsl_pool_t *dp = scn->scn_dp;
 	spa_t *spa = dp->dp_spa;
 
+	ASSERT(spa_config_held(spa, SCL_STATE, RW_READER));
 	ASSERT(!dsl_scan_is_running(scn));
 	ASSERT3U(setup_sync_arg->func, >, POOL_SCAN_NONE);
 	ASSERT3U(setup_sync_arg->func, <, POOL_SCAN_FUNCS);
-	memset(&scn->scn_phys, 0, sizeof (scn->scn_phys));
 
 	/*
 	 * If we are starting a fresh scrub, we erase the error scrub
@@ -979,9 +986,12 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	memset(&scn->errorscrub_phys, 0, sizeof (scn->errorscrub_phys));
 	dsl_errorscrub_sync_state(scn, tx);
 
+	mutex_enter(&spa->spa_activities_lock);
+	memset(&scn->scn_phys, 0, sizeof (scn->scn_phys));
 	scn->scn_phys.scn_func = setup_sync_arg->func;
 	scn->scn_phys.scn_flags = setup_sync_arg->flags;
 	scn->scn_phys.scn_state = DSS_SCANNING;
+	mutex_exit(&spa->spa_activities_lock);
 	scn->scn_phys.scn_min_txg = setup_sync_arg->txgstart;
 	if (setup_sync_arg->txgend == 0) {
 		scn->scn_phys.scn_max_txg = tx->tx_txg;
@@ -997,6 +1007,11 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	scn->scn_done_txg = 0;
 	scn->scn_last_checkpoint = 0;
 	scn->scn_checkpointing = B_FALSE;
+	scn->scn_coverage_valid = DSL_SCAN_IS_RESILVER(scn);
+	if (DSL_SCAN_IS_RESILVER(scn)) {
+		VERIFY(vdev_resilver_needed(spa->spa_root_vdev,
+		    &scn->scn_phys.scn_min_txg, &scn->scn_phys.scn_max_txg));
+	}
 	spa_scan_stat_init(spa);
 	vdev_scan_stat_init(spa->spa_root_vdev);
 
@@ -1006,8 +1021,7 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 		/* rewrite all disk labels */
 		vdev_config_dirty(spa->spa_root_vdev);
 
-		if (vdev_resilver_needed(spa->spa_root_vdev,
-		    &scn->scn_phys.scn_min_txg, &scn->scn_phys.scn_max_txg)) {
+		if (setup_sync_arg->func == POOL_SCAN_RESILVER) {
 			nvlist_t *aux = fnvlist_alloc();
 			fnvlist_add_string(aux, ZFS_EV_RESILVER_TYPE,
 			    "healing");
@@ -1018,7 +1032,6 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 			spa_event_notify(spa, NULL, NULL, ESC_ZFS_SCRUB_START);
 		}
 
-		spa->spa_scrub_started = B_TRUE;
 		/*
 		 * If this is an incremental scrub, limit the DDT scrub phase
 		 * to just the auto-ditto class (for correctness); the rest
@@ -1078,6 +1091,16 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	    (u_longlong_t)scn->scn_phys.scn_max_txg);
 }
 
+void
+dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
+{
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+
+	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
+	dsl_scan_setup_sync_impl(arg, tx);
+	spa_config_exit(spa, SCL_STATE, FTAG);
+}
+
 /*
  * Called by ZFS_IOC_POOL_SCRUB and ZFS_IOC_POOL_SCAN ioctl to start a scrub,
  * error scrub or resilver. Can also be called to resume a paused scrub or
@@ -1098,9 +1121,9 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, uint64_t txgstart,
 	/*
 	 * Purge all vdev caches and probe all devices.  We do this here
 	 * rather than in sync context because this requires a writer lock
-	 * on the spa_config lock, which we can't do from sync context.  The
-	 * spa_scrub_reopen flag indicates that vdev_open() should not
-	 * attempt to start another scrub.
+	 * on the spa_config lock, which we can't do from sync context.
+	 * Do not preempt existing verification during its own reopen, but
+	 * still account for devices joining an active healing pass.
 	 */
 	spa_vdev_state_enter(spa, SCL_NONE);
 	spa->spa_scrub_reopen = B_TRUE;
@@ -1109,7 +1132,7 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, uint64_t txgstart,
 	(void) spa_vdev_state_exit(spa, NULL, 0);
 
 	if (func == POOL_SCAN_RESILVER) {
-		dsl_scan_restart_resilver(spa->spa_dsl_pool, 0);
+		dsl_scan_schedule_resilver(spa->spa_dsl_pool, 0);
 		return (0);
 	}
 
@@ -1188,14 +1211,26 @@ dsl_errorscrub_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 	scn->errorscrub_phys.dep_end_time = gethrestime_sec();
 	zap_cursor_fini(&scn->errorscrub_cursor);
 
+	if (complete) {
+		spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
+		dsl_scan_assess_vdev(dp, spa->spa_root_vdev, B_FALSE);
+		spa_config_exit(spa, SCL_STATE, FTAG);
+	}
+
 	if (spa->spa_errata == ZPOOL_ERRATA_ZOL_2094_SCRUB)
 		spa->spa_errata = 0;
 
 	ASSERT(!dsl_errorscrubbing(scn->scn_dp));
 }
 
+typedef enum {
+	DSL_SCAN_COMPLETE,
+	DSL_SCAN_CANCEL,
+	DSL_SCAN_RESTART
+} dsl_scan_done_reason_t;
+
 static void
-dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
+dsl_scan_done(dsl_scan_t *scn, dsl_scan_done_reason_t reason, dmu_tx_t *tx)
 {
 	static const char *old_names[] = {
 		"scrub_bookmark",
@@ -1211,8 +1246,10 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 
 	dsl_pool_t *dp = scn->scn_dp;
 	spa_t *spa = dp->dp_spa;
+	boolean_t complete = (reason == DSL_SCAN_COMPLETE);
 	int i;
 
+	ASSERT(spa_config_held(spa, SCL_STATE, RW_READER));
 	/* Remove any remnants of an old-style scrub. */
 	for (i = 0; old_names[i]; i++) {
 		(void) zap_remove(dp->dp_meta_objset,
@@ -1248,7 +1285,7 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		}
 	}
 
-	if (dsl_scan_restarting(scn, tx)) {
+	if (reason == DSL_SCAN_RESTART) {
 		spa_history_log_internal(spa, "scan aborted, restarting", tx,
 		    "errors=%llu", (u_longlong_t)spa_approx_errlog_size(spa));
 	} else if (!complete) {
@@ -1270,21 +1307,31 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 	if (DSL_SCAN_IS_SCRUB_RESILVER(scn)) {
 		spa->spa_scrub_active = B_FALSE;
 
+		/* Reassessment vacates the failed repairs in DTL_SCRUB. */
+		if (complete && DSL_SCAN_IS_RESILVER(scn))
+			vdev_resilver_note_repairs(spa->spa_root_vdev);
+
 		/*
-		 * If the scrub/resilver completed, update all DTLs to
-		 * reflect this.  Whether it succeeded or not, vacate
-		 * all temporary scrub DTLs.
+		 * If a healing resilver completed, update all DTLs to reflect
+		 * this.  Only healing certifies coverage of missing writes: a
+		 * scrub may have admitted an unavailable device which returned
+		 * after its traversal passed the missing data.  Whether it
+		 * succeeded or not, vacate all temporary scrub DTLs.
 		 *
 		 * As the scrub does not currently support traversing
 		 * data that have been freed but are part of a checkpoint,
 		 * we don't mark the scrub as done in the DTLs as faults
 		 * may still exist in those vdevs.
 		 */
-		if (complete &&
+		uint64_t resilver_txg = 0;
+		if (complete && DSL_SCAN_IS_RESILVER(scn) &&
 		    !spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT)) {
-			vdev_dtl_reassess(spa->spa_root_vdev, tx->tx_txg,
-			    scn->scn_phys.scn_max_txg, B_TRUE, B_FALSE);
+			resilver_txg = scn->scn_phys.scn_max_txg;
+		}
+		vdev_dtl_reassess(spa->spa_root_vdev, tx->tx_txg,
+		    resilver_txg, B_TRUE, B_FALSE);
 
+		if (complete) {
 			if (DSL_SCAN_IS_RESILVER(scn)) {
 				nvlist_t *aux = fnvlist_alloc();
 				fnvlist_add_string(aux, ZFS_EV_RESILVER_TYPE,
@@ -1295,10 +1342,14 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 			} else {
 				spa_event_notify(spa, NULL, NULL,
 				    ESC_ZFS_SCRUB_FINISH);
+				/*
+				 * A device which returned while the scrub
+				 * ran carries no deferred mark, because a
+				 * reopen for a scrub skips the assessment.
+				 */
+				dsl_scan_assess_vdev(dp, spa->spa_root_vdev,
+				    B_FALSE);
 			}
-		} else {
-			vdev_dtl_reassess(spa->spa_root_vdev, tx->tx_txg,
-			    0, B_TRUE, B_FALSE);
 		}
 		spa_errlog_rotate(spa);
 
@@ -1306,6 +1357,7 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		 * Don't clear flag until after vdev_dtl_reassess to ensure that
 		 * DTL_MISSING will get updated when possible.
 		 */
+		mutex_enter(&spa->spa_activities_lock);
 		scn->scn_phys.scn_state = complete ? DSS_FINISHED :
 		    DSS_CANCELED;
 		scn->scn_phys.scn_end_time = gethrestime_sec();
@@ -1315,7 +1367,18 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		 * "zpool wait" does not return before then.
 		 */
 		scn->scn_finished_txg = tx->tx_txg;
-		spa->spa_scrub_started = B_FALSE;
+		scn->scn_coverage_valid = B_FALSE;
+		mutex_exit(&spa->spa_activities_lock);
+
+		/*
+		 * Writes which failed after this pass set its bounds need
+		 * another pass. Check only now that the pass is finished, so
+		 * that no failure falls between the check and the finish.
+		 */
+		if (complete && DSL_SCAN_IS_RESILVER(scn) &&
+		    vdev_resilver_settle(spa->spa_root_vdev,
+		    scn->scn_phys.scn_max_txg))
+			spa_async_request(spa, SPA_ASYNC_RESILVER);
 
 		/*
 		 * We may have finished replacing a device.
@@ -1325,8 +1388,8 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 
 		/*
 		 * Clear any resilver_deferred flags in the config.
-		 * If there are drives that need resilvering, kick
-		 * off an asynchronous request to start resilver.
+		 * Only newly deferred work warrants another automatic pass;
+		 * unchanged failed or checkpoint-retained DTLs do not.
 		 * vdev_clear_resilver_deferred() may update the config
 		 * before the resilver can restart. In the event of
 		 * a crash during this period, the spa loading code
@@ -1334,7 +1397,8 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		 * and start the resilver then.
 		 */
 		if (spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER) &&
-		    vdev_clear_resilver_deferred(spa->spa_root_vdev, tx)) {
+		    vdev_clear_resilver_deferred(spa->spa_root_vdev, tx) &&
+		    reason != DSL_SCAN_RESTART) {
 			spa_history_log_internal(spa,
 			    "starting deferred resilver", tx, "errors=%llu",
 			    (u_longlong_t)spa_approx_errlog_size(spa));
@@ -1345,10 +1409,12 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		if (complete)
 			zfs_ereport_clear(spa, NULL);
 	} else {
+		mutex_enter(&spa->spa_activities_lock);
 		scn->scn_phys.scn_state = complete ? DSS_FINISHED :
 		    DSS_CANCELED;
 		scn->scn_phys.scn_end_time = gethrestime_sec();
 		scn->scn_finished_txg = tx->tx_txg;
+		mutex_exit(&spa->spa_activities_lock);
 	}
 
 	spa_notify_waiters(spa);
@@ -1462,8 +1528,11 @@ dsl_scan_cancel_sync(void *arg, dmu_tx_t *tx)
 {
 	(void) arg;
 	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
+	spa_t *spa = scn->scn_dp->dp_spa;
 
-	dsl_scan_done(scn, B_FALSE, tx);
+	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
+	dsl_scan_done(scn, DSL_SCAN_CANCEL, tx);
+	spa_config_exit(spa, SCL_STATE, FTAG);
 	dsl_scan_sync_state(scn, tx, SYNC_MANDATORY);
 	spa_event_notify(scn->scn_dp->dp_spa, NULL, NULL, ESC_ZFS_SCRUB_ABORT);
 }
@@ -1554,22 +1623,25 @@ dsl_scrub_set_pause_resume(const dsl_pool_t *dp, pool_scrub_cmd_t cmd)
 }
 
 
-/* start a new scan, or restart an existing one. */
+/* Reassess healing work after the requested txg has reached the pool. */
 void
-dsl_scan_restart_resilver(dsl_pool_t *dp, uint64_t txg)
+dsl_scan_schedule_resilver(dsl_pool_t *dp, uint64_t txg)
 {
+	dmu_tx_t *tx = NULL;
+
 	if (txg == 0) {
-		dmu_tx_t *tx;
 		tx = dmu_tx_create_dd(dp->dp_mos_dir);
 		VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
-
 		txg = dmu_tx_get_txg(tx);
-		dp->dp_scan->scn_restart_txg = txg;
-		dmu_tx_commit(tx);
-	} else {
-		dp->dp_scan->scn_restart_txg = txg;
 	}
-	zfs_dbgmsg("restarting resilver for %s at txg=%llu",
+
+	mutex_enter(&dp->dp_spa->spa_scrub_lock);
+	dp->dp_scan->scn_resilver_txg =
+	    MAX(dp->dp_scan->scn_resilver_txg, txg);
+	mutex_exit(&dp->dp_spa->spa_scrub_lock);
+	if (tx != NULL)
+		dmu_tx_commit(tx);
+	zfs_dbgmsg("scheduling resilver for %s at txg=%llu",
 	    dp->dp_spa->spa_name, (longlong_t)txg);
 }
 
@@ -1941,12 +2013,18 @@ dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
 	return (0);
 }
 
-static void
+/*
+ * Visit the claimed intent log. Returns whether the whole claimed chain was
+ * visited: a read failure ends the parse early, leaving the rest of the chain,
+ * and the blocks its records reference, unvisited.
+ */
+static boolean_t
 dsl_scan_zil(dsl_pool_t *dp, zil_header_t *zh)
 {
 	uint64_t claim_txg = zh->zh_claim_txg;
 	zil_scan_arg_t zsa = { dp, zh };
 	zilog_t *zilog;
+	boolean_t complete;
 
 	ASSERT(spa_writeable(dp->dp_spa));
 
@@ -1955,14 +2033,24 @@ dsl_scan_zil(dsl_pool_t *dp, zil_header_t *zh)
 	 * replayed (or, in read-only mode, blocks that *would* be claimed).
 	 */
 	if (claim_txg == 0)
-		return;
+		return (B_TRUE);
 
 	zilog = zil_alloc(dp->dp_meta_objset, zh);
 
 	(void) zil_parse(zilog, dsl_scan_zil_block, dsl_scan_zil_record, &zsa,
 	    claim_txg, B_FALSE);
 
+	/*
+	 * The parser counts a block before reading it, so only the claimed
+	 * record sequence shows that the last claimed block was read.
+	 */
+	complete = (zh->zh_flags & ZIL_CLAIM_LR_SEQ_VALID) &&
+	    zilog->zl_parse_blk_seq >= zh->zh_claim_blk_seq &&
+	    zilog->zl_parse_lr_seq >= zh->zh_claim_lr_seq;
+
 	zil_free(zilog);
+
+	return (complete);
 }
 
 /*
@@ -2338,7 +2426,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 	 */
 	if (dnp != NULL &&
 	    dnp->dn_bonuslen > DN_MAX_BONUS_LEN(dnp)) {
-		scn->scn_phys.scn_errors++;
+		dsl_scan_count_error(scn);
 		spa_log_error(spa, zb, BP_GET_PHYSICAL_BIRTH(bp));
 		return (SET_ERROR(EINVAL));
 	}
@@ -2353,7 +2441,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 		err = arc_read(NULL, spa, bp, arc_getbuf_func, &buf,
 		    ZIO_PRIORITY_SCRUB, zio_flags, &flags, zb);
 		if (err) {
-			scn->scn_phys.scn_errors++;
+			dsl_scan_count_error(scn);
 			return (err);
 		}
 		for (i = 0, cbp = buf->b_data; i < epb; i++, cbp++) {
@@ -2381,7 +2469,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 		err = arc_read(NULL, spa, bp, arc_getbuf_func, &buf,
 		    ZIO_PRIORITY_SCRUB, zio_flags, &flags, zb);
 		if (err) {
-			scn->scn_phys.scn_errors++;
+			dsl_scan_count_error(scn);
 			return (err);
 		}
 		for (i = 0, cdnp = buf->b_data; i < epb;
@@ -2400,7 +2488,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 		err = arc_read(NULL, spa, bp, arc_getbuf_func, &buf,
 		    ZIO_PRIORITY_SCRUB, zio_flags, &flags, zb);
 		if (err) {
-			scn->scn_phys.scn_errors++;
+			dsl_scan_count_error(scn);
 			return (err);
 		}
 
@@ -2434,7 +2522,7 @@ dsl_scan_recurse(dsl_scan_t *scn, dsl_dataset_t *ds, dmu_objset_type_t ostype,
 		 * Sanity check the block pointer contents, this is handled
 		 * by arc_read() for the cases above.
 		 */
-		scn->scn_phys.scn_errors++;
+		dsl_scan_count_error(scn);
 		spa_log_error(spa, zb, BP_GET_PHYSICAL_BIRTH(bp));
 		return (SET_ERROR(EINVAL));
 	}
@@ -2959,10 +3047,19 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 	    (dp->dp_origin_snap == NULL ||
 	    ds->ds_dir != dp->dp_origin_snap->ds_dir)) {
 		objset_t *os;
-		if (dmu_objset_from_ds(ds, &os) != 0) {
-			goto out;
+		int err = dmu_objset_from_ds(ds, &os);
+		if (err != 0) {
+			zfs_dbgmsg("scan cannot open objset of dataset %llu: "
+			    "error %d", (longlong_t)dsobj, err);
 		}
-		dsl_scan_zil(dp, &os->os_zil_header);
+		/*
+		 * Account for a log left unvisited, once per visit of the
+		 * dataset rather than again on resuming it. Traversal of the
+		 * root block below still visits, and may heal, the objset.
+		 */
+		if ((err != 0 || !dsl_scan_zil(dp, &os->os_zil_header)) &&
+		    scn->scn_phys.scn_bookmark.zb_objset != dsobj)
+			dsl_scan_count_error(scn);
 	}
 
 	/*
@@ -3031,9 +3128,10 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 		if (usenext) {
 			zap_cursor_t zc;
 			zap_attribute_t *za = zap_attribute_alloc();
+			int err;
 			for (zap_cursor_init(&zc, dp->dp_meta_objset,
 			    dsl_dataset_phys(ds)->ds_next_clones_obj);
-			    zap_cursor_retrieve(&zc, za) == 0;
+			    (err = zap_cursor_retrieve(&zc, za)) == 0;
 			    (void) zap_cursor_advance(&zc)) {
 				scan_ds_queue_insert(scn,
 				    zfs_strtonum(za->za_name, NULL),
@@ -3041,6 +3139,9 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 			}
 			zap_cursor_fini(&zc);
 			zap_attribute_free(za);
+			/* Clones left out of the queue are not visited. */
+			if (err != ENOENT)
+				dsl_scan_count_error(scn);
 		} else {
 			VERIFY0(dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
 			    enqueue_clones_cb, &ds->ds_object,
@@ -3211,7 +3312,9 @@ dsl_scan_ddt(dsl_scan_t *scn, dmu_tx_t *tx)
 		    (int)scn->scn_phys.scn_ddt_class_max,
 		    (int)scn->scn_suspending);
 
-	ASSERT(error == 0 || error == ENOENT);
+	/* Traversal skips the blocks which the DDT walk failed to visit. */
+	if (error != 0 && error != ENOENT)
+		dsl_scan_count_error(scn);
 	ASSERT(error != ENOENT ||
 	    ddb->ddb_class > scn->scn_phys.scn_ddt_class_max);
 }
@@ -3257,7 +3360,8 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 			dsl_scan_visitds(scn,
 			    dp->dp_origin_snap->ds_object, tx);
 		}
-		ASSERT(!scn->scn_suspending);
+		if (scn->scn_suspending)
+			return;
 	} else if (scn->scn_phys.scn_bookmark.zb_objset !=
 	    ZB_DESTROYED_OBJSET) {
 		uint64_t dsobj = scn->scn_phys.scn_bookmark.zb_objset;
@@ -4504,6 +4608,7 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	spa_t *spa = dp->dp_spa;
 	state_sync_type_t sync_type = SYNC_OPTIONAL;
 	int restart_early = 0;
+	boolean_t restart, resilver;
 
 	if (spa->spa_resilver_deferred) {
 		uint64_t to_issue, issued;
@@ -4533,28 +4638,59 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	if (spa_sync_pass(spa) > 1)
 		return;
 
+	restart = scn->scn_restart_txg != 0 &&
+	    scn->scn_restart_txg <= tx->tx_txg;
+	mutex_enter(&spa->spa_scrub_lock);
+	resilver = scn->scn_resilver_txg != 0 &&
+	    scn->scn_resilver_txg <= tx->tx_txg;
+	mutex_exit(&spa->spa_scrub_lock);
 
 	/*
-	 * Check for scn_restart_txg before checking spa_load_state, so
+	 * Check restart requests before checking spa_load_state, so
 	 * that we can restart an old-style scan while the pool is being
 	 * imported (see dsl_scan_init). We also restart scans if there
 	 * is a deferred resilver and the user has manually disabled
 	 * deferred resilvers via zfs_resilver_disable_defer, or if the
 	 * current scan progress is below zfs_resilver_defer_percent.
 	 */
-	if (dsl_scan_restarting(scn, tx) || restart_early) {
-		setup_sync_arg_t setup_sync_arg = {
-			.func = POOL_SCAN_SCRUB,
-			.txgstart = 0,
-			.txgend = 0,
-		};
-		dsl_scan_done(scn, B_FALSE, tx);
-		if (vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL))
+	if (restart || resilver || restart_early) {
+		setup_sync_arg_t setup_sync_arg = { .func = POOL_SCAN_NONE };
+
+		spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
+		if (!vdev_rebuild_active(spa->spa_root_vdev) &&
+		    vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL)) {
 			setup_sync_arg.func = POOL_SCAN_RESILVER;
-		zfs_dbgmsg("restarting scan func=%u on %s txg=%llu early=%d",
-		    setup_sync_arg.func, dp->dp_spa->spa_name,
-		    (longlong_t)tx->tx_txg, restart_early);
-		dsl_scan_setup_sync(&setup_sync_arg, tx);
+		} else if (restart &&
+		    !vdev_rebuild_active(spa->spa_root_vdev) &&
+		    scn->scn_phys.scn_func == POOL_SCAN_SCRUB) {
+			setup_sync_arg.func = POOL_SCAN_SCRUB;
+			setup_sync_arg.txgstart = scn->scn_phys.scn_min_txg;
+			setup_sync_arg.txgend = scn->scn_phys.scn_max_txg;
+			setup_sync_arg.flags = scn->scn_phys.scn_flags &
+			    (DSF_SCRUB_PAUSED | DSF_SCRUB_THOROUGH);
+		}
+
+		if (restart || setup_sync_arg.func != POOL_SCAN_NONE)
+			dsl_scan_done(scn, DSL_SCAN_RESTART, tx);
+		scn->scn_restart_txg = 0;
+		if (setup_sync_arg.func != POOL_SCAN_NONE) {
+			zfs_dbgmsg("restarting scan func=%u on %s "
+			    "txg=%llu early=%d", setup_sync_arg.func,
+			    spa->spa_name, (longlong_t)tx->tx_txg,
+			    restart_early);
+			dsl_scan_setup_sync_impl(&setup_sync_arg, tx);
+		} else {
+			(void) vdev_clear_resilver_deferred(spa->spa_root_vdev,
+			    tx);
+			if (restart)
+				dsl_scan_sync_state(scn, tx, SYNC_MANDATORY);
+		}
+		mutex_enter(&spa->spa_scrub_lock);
+		if (scn->scn_resilver_txg <= tx->tx_txg)
+			scn->scn_resilver_txg = 0;
+		mutex_exit(&spa->spa_scrub_lock);
+		spa_config_exit(spa, SCL_STATE, FTAG);
+		spa_notify_waiters(spa);
 	}
 
 	/*
@@ -4810,7 +4946,9 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		ASSERT3U(scn->scn_done_txg, !=, 0);
 		ASSERT0(spa->spa_scrub_inflight);
 		ASSERT0(scn->scn_queues_pending);
-		dsl_scan_done(scn, B_TRUE, tx);
+		spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
+		dsl_scan_done(scn, DSL_SCAN_COMPLETE, tx);
+		spa_config_exit(spa, SCL_STATE, FTAG);
 		sync_type = SYNC_MANDATORY;
 	}
 
@@ -5043,11 +5181,41 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	if (needs_io && !zfs_no_scrub_io) {
 		dsl_scan_enqueue(dp, bp, zio_flags, zb);
 	} else {
+		/* Healing I/O suppressed for diagnosis repairs nothing. */
+		if (needs_io)
+			dsl_scan_coverage_lost(scn);
 		count_block_skipped(scn, bp, B_TRUE);
 	}
 
 	/* do not relocate this block */
 	return (0);
+}
+
+/*
+ * Failed repair writes retain their birth TXGs in DTL_SCRUB. Unreadable
+ * metadata or a missed scan prefix can hide other birth TXGs, so a healing
+ * pass no longer covers every missing write.
+ */
+static void
+dsl_scan_coverage_lost(dsl_scan_t *scn)
+{
+	if (DSL_SCAN_IS_RESILVER(scn)) {
+		spa_t *spa = scn->scn_dp->dp_spa;
+		mutex_enter(&spa->spa_scrub_lock);
+		scn->scn_coverage_valid = B_FALSE;
+		mutex_exit(&spa->spa_scrub_lock);
+	}
+}
+
+/*
+ * Count a failure to read or open something traversal must parse to find
+ * other blocks: the blocks beneath it are not visited.
+ */
+static void
+dsl_scan_count_error(dsl_scan_t *scn)
+{
+	atomic_inc_64(&scn->scn_phys.scn_errors);
+	dsl_scan_coverage_lost(scn);
 }
 
 static void
@@ -5089,6 +5257,13 @@ dsl_scan_scrub_done(zio_t *zio)
 	    !(zio->io_flags & ZIO_FLAG_SPECULATIVE)) &&
 	    !(zio->io_error == EACCES && (zio->io_flags & ZIO_FLAG_SCRUB) &&
 	    !(zio->io_flags & ZIO_FLAG_RAW))) {
+		/*
+		 * A block's own read hides no other block: traversal reads
+		 * every block with children separately and counts that
+		 * failure as lost coverage. A block no copy can supply is
+		 * reported in the error log, and healing cannot copy it, so
+		 * it does not keep the pass from retiring missing writes.
+		 */
 		if (dsl_errorscrubbing(spa->spa_dsl_pool) &&
 		    !dsl_errorscrub_is_paused(spa->spa_dsl_pool->dp_scan)) {
 			atomic_inc_64(&spa->spa_dsl_pool->dp_scan
@@ -5464,33 +5639,55 @@ dsl_scan_freed(spa_t *spa, const blkptr_t *bp)
 }
 
 /*
- * Check if a vdev needs resilvering (non-empty DTL), if so, and resilver has
- * not started, start it. Otherwise, only restart if max txg in DTL range is
- * greater than the max txg in the current scan. If the DTL max is less than
- * the scan max, then the vdev has not missed any new data since the resilver
- * started, so a restart is not needed.
+ * An already participating device needs another healing pass only if its
+ * missing range extends beyond the current scan's maximum TXG. A newly
+ * available leaf cannot account for the scan's completed prefix, regardless
+ * of its DTL bounds, and a range starting before the scan was never covered.
+ * A leaf that a completed pass could not heal is left alone until it returns
+ * or is healed explicitly, so that an unchanged failure is not retried.
  */
 void
-dsl_scan_assess_vdev(dsl_pool_t *dp, vdev_t *vd)
+dsl_scan_assess_vdev(dsl_pool_t *dp, vdev_t *vd, boolean_t newly_available)
 {
 	uint64_t min, max;
 
-	if (!vdev_resilver_needed(vd, &min, &max))
-		return;
+	ASSERT(!newly_available || vd->vdev_ops->vdev_op_leaf);
 
-	if (!dsl_scan_resilvering(dp)) {
-		spa_async_request(dp->dp_spa, SPA_ASYNC_RESILVER);
+	if (vd->vdev_children != 0) {
+		for (int c = 0; c < vd->vdev_children; c++)
+			dsl_scan_assess_vdev(dp, vd->vdev_child[c], B_FALSE);
 		return;
 	}
 
-	if (max <= dp->dp_scan->scn_phys.scn_max_txg)
+	mutex_enter(&vd->vdev_dtl_lock);
+	if (newly_available)
+		vd->vdev_heal_stalled = B_FALSE;
+	boolean_t stalled = vd->vdev_heal_stalled;
+	mutex_exit(&vd->vdev_dtl_lock);
+
+	if (stalled || !vdev_resilver_needed(vd, &min, &max))
+		return;
+
+	if (!dsl_scan_resilvering(dp)) {
+		if (!dp->dp_spa->spa_scrub_reopen ||
+		    (!dsl_scan_scrubbing(dp) && !dsl_errorscrubbing(dp)))
+			spa_async_request(dp->dp_spa, SPA_ASYNC_RESILVER);
+		return;
+	}
+
+	boolean_t uncovered = newly_available ||
+	    min < dp->dp_scan->scn_phys.scn_min_txg;
+	if (!uncovered && max <= dp->dp_scan->scn_phys.scn_max_txg)
 		return;
 
 	/* restart is needed, check if it can be deferred */
-	if (spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER))
+	if (spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER)) {
 		vdev_defer_resilver(vd);
-	else
+	} else {
+		if (uncovered)
+			dsl_scan_coverage_lost(dp->dp_scan);
 		spa_async_request(dp->dp_spa, SPA_ASYNC_RESILVER);
+	}
 }
 
 ZFS_MODULE_PARAM(zfs, zfs_, scan_vdev_limit, U64, ZMOD_RW,

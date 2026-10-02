@@ -43,7 +43,9 @@
 /readmmap
 /renameat2
 /rename_dir
+/resilver_probe
 /rm_lnkcnt_zero_file
+/scan_origin_probe
 /send_doall
 /statx
 /statfs_nomount

@@ -17,7 +17,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd July 11, 2022
+.Dd September 16, 2026
 .Dt ZPOOL-RESILVER 8
 .Os
 .
@@ -38,6 +38,18 @@ resilver will be added to the new one.
 This requires the
 .Sy resilver_defer
 pool feature.
+.Pp
+A healing resilver interrupted by an export or a reboot restarts from the
+beginning when the pool is imported.
+.Pp
+If a healing resilver cannot complete a device, for example because repair
+writes to it fail or metadata cannot be read, the device's missing data remains
+marked for resilvering.
+ZFS does not retry automatically until the device returns, a checkpoint is
+discarded, or the pool is imported; a scrub does not retry it.
+After correcting the problem, use this command to retry.
+A block that no device can read is reported as a permanent error and does not
+keep a device incomplete.
 .Pp
 Due to concurrent writes on a live system, it is possible for
 resilver to progress beyond 100% completion.

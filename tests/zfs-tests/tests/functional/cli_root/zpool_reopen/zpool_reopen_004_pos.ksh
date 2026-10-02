@@ -30,7 +30,7 @@
 # 4. Execute scrub.
 # 5. "Plug back" disk.
 # 6. Reopen a pool with an -n flag.
-# 7. Check if resilver was deferred.
+# 7. Check that the scrub completed and healing followed it.
 # 8. Check if trying to put device to offline fails because of no valid
 #    replicas.
 #
@@ -79,7 +79,8 @@ log_must check_state $TESTPOOL "$REMOVED_DISK_ID" "online"
 log_must zinject -c all
 # 7. Check if scrub scan is NOT replaced by resilver.
 log_must wait_for_scrub_end $TESTPOOL $MAXTIMEOUT
-log_must is_deferred_scan_started $TESTPOOL
+log_must wait_for_resilver_end $TESTPOOL $MAXTIMEOUT
+log_must is_resilver_after_scrub $TESTPOOL
 
 # 8. Check if trying to put device to offline fails because of no valid
 #    replicas.

@@ -408,6 +408,8 @@ struct vdev {
 	boolean_t	vdev_copy_uberblocks;  /* post expand copy uberblocks */
 	boolean_t	vdev_tail_labels_foreign; /* labels 2-3 are not ours */
 	boolean_t	vdev_resilver_deferred;  /* resilver deferred */
+	boolean_t	vdev_repair_failed; /* healing repair write failed */
+	boolean_t	vdev_heal_stalled; /* healing could not complete */
 	boolean_t	vdev_kobj_flag; /* kobj event record */
 	boolean_t	vdev_attaching; /* vdev attach ashift handling */
 	boolean_t	vdev_is_blkdev; /* vdev is backed by block device */
