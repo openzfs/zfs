@@ -1474,6 +1474,13 @@ dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
 	 * find frees from TXGs before the override, which should not make
 	 * the block appear freed.  Instead, check only free ranges from
 	 * TXGs after the override.
+	 *
+	 * Otherwise, recheck BP_IS_HOLE() after dnode_block_freed():
+	 * dnode_sync_free_ranges() clears the bp before it removes the
+	 * free range, and free_blocks() does not take the parent's
+	 * db_rwlock for blkptrs held in the dnode.  If we wait for dn_mtx
+	 * while that happens, block_freed says "no" but bp is now a hole,
+	 * which must not be handed to arc_read().
 	 */
 	if (!is_hole && db->db_level == 0) {
 		dbuf_dirty_record_t *dr = list_head(&db->db_dirty_records);
@@ -1482,7 +1489,8 @@ dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
 			is_hole = dnode_block_freed_after(dn,
 			    db->db_blkid, dr->dr_txg);
 		} else {
-			is_hole = dnode_block_freed(dn, db->db_blkid);
+			is_hole = dnode_block_freed(dn, db->db_blkid) ||
+			    BP_IS_HOLE(bp);
 		}
 	}
 
