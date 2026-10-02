@@ -172,6 +172,7 @@ main(void)
 		{ "attrs",	"uint64" },
 		{ "uid",	"uint64" },
 		{ "gid",	"uint64" },
+		{ "principal",	"uint64" },
 		{ "io_offset",	"uint64" },
 		{ "io_bytes",	"uint64" },
 	};
@@ -186,10 +187,10 @@ main(void)
 		return (1);
 	}
 
-	REQUIRE(zmetad_schema_version(zs) == 2);
-	REQUIRE(zmetad_schema_nfields(zs) == 17);
+	REQUIRE(zmetad_schema_version(zs) == 3);
+	REQUIRE(zmetad_schema_nfields(zs) == 18);
 
-	/* Pin all 17 field names, in order. */
+	/* Pin all 18 field names, in order. */
 	REQUIRE(zmetad_schema_nfields(zs) ==
 	    sizeof (expected_fields) / sizeof (expected_fields[0]));
 	for (size_t i = 0; i < sizeof (expected_fields) /
@@ -268,17 +269,19 @@ main(void)
 	REQUIRE(strcmp(zmetad_schema_op_name(zs, 999), "UNKNOWN") == 0);
 
 	/*
-	 * Wire negotiation: the embedded schema is v2, so wire 2 is
-	 * accepted and wire 3 refused.  Wire 1 is accepted: schema versions
-	 * only add fields and op values, so a v2 daemon decodes a v1
-	 * wire record (datasets whose event log predates the version
-	 * bump report wire=1 forever).  Wire 0 always means "kernel
-	 * did not report a version".
+	 * Wire negotiation: the embedded schema is v3, so wire 3 is
+	 * accepted and wire 4 refused.  Wires 1 and 2 are accepted:
+	 * schema versions only add fields and op values, so a v3
+	 * daemon decodes a v1/v2 wire record (datasets whose event
+	 * log predates a version bump report their create-time
+	 * version forever).  Wire 0 always means "kernel did not
+	 * report a version".
 	 */
-	REQUIRE(zmetad_schema_check_version(zs, 2) == 0);
+	REQUIRE(zmetad_schema_check_version(zs, 3) == 0);
 	REQUIRE(zmetad_schema_check_version(zs, 0) == 0);
 	REQUIRE(zmetad_schema_check_version(zs, 1) == 0);
-	REQUIRE(zmetad_schema_check_version(zs, 3) == EINVAL);
+	REQUIRE(zmetad_schema_check_version(zs, 2) == 0);
+	REQUIRE(zmetad_schema_check_version(zs, 4) == EINVAL);
 
 	/*
 	 * The --check-schema drift check in zmetad.c does NOT reuse
@@ -289,7 +292,7 @@ main(void)
 	 * exercised by this binary; these assertions pin the embedded
 	 * version it compares against.
 	 */
-	REQUIRE(zmetad_schema_version(zs) == 2);
+	REQUIRE(zmetad_schema_version(zs) == 3);
 
 	/*
 	 * op must be declared uint16; the field lookup with a NULL
@@ -378,7 +381,7 @@ main(void)
 	/* NULL-argument accessor variants. */
 	REQUIRE(zmetad_schema_nfields(NULL) == 0);
 	REQUIRE(zmetad_schema_field_name(NULL, 0) == NULL);
-	REQUIRE(zmetad_schema_field_name(zs, 17) == NULL);
+	REQUIRE(zmetad_schema_field_name(zs, 18) == NULL);
 	REQUIRE(zmetad_schema_version(NULL) == 0);
 	REQUIRE(strcmp(zmetad_schema_op_name(NULL, 0), "UNKNOWN") == 0);
 	REQUIRE(zmetad_schema_check_version(NULL, 1) == EINVAL);
@@ -483,7 +486,7 @@ main(void)
 						g_fail = 1;
 					}
 					REQUIRE(zmetad_schema_version(
-					    file_zs) == 2);
+					    file_zs) == 3);
 					zmetad_schema_free(file_zs);
 				}
 			}

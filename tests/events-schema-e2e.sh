@@ -406,7 +406,7 @@ int main(int argc, char **argv) {
 EOF
 	if ! gcc -I "$REPO/include" -I "$REPO/lib/libspl/include" \
 	    "$probe" -o "$bin" \
-	    -L "$REPO/lib/libzfs_core/.libs" -lzfs_core -lnvpair \
+	    -L "$REPO/.libs" -lzfs_core -lnvpair \
 	    >"$WD/wireprobe.cc.err" 2>&1; then
 		printf 'WARNING: module-version: gcc probe could not be compiled on this VM architecture; wire schema_version NOT verified (see %s). Environment limitation, NOT a pass.\n' \
 		    "$WD/wireprobe.cc.err"
@@ -414,7 +414,7 @@ EOF
 		return
 	fi
 	wire="$("${SUDO[@]}" env \
-	    LD_LIBRARY_PATH="$REPO/lib/libzfs_core/.libs:$REPO/lib/libnvpair/.libs" \
+	    LD_LIBRARY_PATH="$REPO/.libs" \
 	    "$bin" "$BASE_DS" 2>/dev/null)"
 	rc=$?
 	case "$rc" in
@@ -565,8 +565,8 @@ dbver = con.execute(
     "select value from meta where key='db_schema_version'").fetchall()
 if not dbver:
     errors.append("meta db_schema_version key absent")
-elif dbver[0][0] != "7":
-    errors.append("meta db_schema_version=%r, expected '7'"
+elif dbver[0][0] != "8":
+    errors.append("meta db_schema_version=%r, expected '8'"
 		  % (dbver[0][0],))
 sync_cols = [r[1] for r in con.execute(
     "pragma table_info(sync_state)").fetchall()]
@@ -1278,8 +1278,8 @@ if "objmap" not in tbls:
 
 ver = con.execute("select value from meta "
                   "where key='db_schema_version'").fetchall()
-if not ver or ver[0][0] != "7":
-    errors.append("db_schema_version=%r, expected '7'"
+if not ver or ver[0][0] != "8":
+    errors.append("db_schema_version=%r, expected '8'"
                   % (ver[0][0] if ver else None,))
 
 # DB layout 7: sync_state gains root_id (persisted root object id).
@@ -1312,7 +1312,7 @@ else:
             errors.append("added columns not NULL on old v3 row: %r"
                           % (r[8:],))
 
-    # The migration chain (v1 -> ... -> 7) rebuilds sync_state from
+    # The migration chain (v1 -> ... -> 8) rebuilds sync_state from
     # the legacy fixture; assert the migrated row gained the v7
     # root_id column (NULL for a fixture that never sent root_objid)
     # and kept its data.
@@ -1527,6 +1527,90 @@ PY
 	pass version-refusal
 }
 
+
+step_principal() {
+	# ZFS_EV_PRINCIPAL: a process registers an opaque u64 tag via
+	# ZFS_IOC_SET_PRINCIPAL; every event record it triggers carries
+	# it; unregistered writers produce records with no principal key
+	# (NULL column - never fabricated). Registration is a CLAIM, not
+	# kernel-verified identity.
+	probe="$WD/principalprobe.c"
+	bin="$WD/principalprobe"
+	cat > "$probe" <<'EOF'
+#include <stdio.h>
+#include <string.h>
+#include <libzfs/libzfs_core.h>
+/* argv: [0] tagfile-mode "write <path>" | "clear" */
+int main(int argc, char **argv) {
+	uint64_t gen = 0;
+	FILE *f;
+	libzfs_core_init();
+	if (argc > 2 && strcmp(argv[1], "write") == 0) {
+		if (lzc_set_principal(0xDEADBEEFULL, &gen) != 0)
+			return (2);
+		f = fopen(argv[2], "w");
+		if (f == NULL)
+			return (3);
+		fputs("principal\n", f);
+		fclose(f);
+		return (0);
+	}
+	if (argc > 1 && strcmp(argv[1], "clear") == 0)
+		return (lzc_clear_principal(&gen) == 0 ? 0 : 1);
+	return (1);
+}
+EOF
+	if ! gcc -I "$REPO/include" -I "$REPO/lib/libspl/include" \
+	    "$probe" -o "$bin" \
+	    -L "$REPO/.libs" -lzfs_core -lnvpair \
+	    >"$WD/principalprobe.cc.err" 2>&1; then
+		fail "principal: probe compile failed (see $WD/principalprobe.cc.err)"
+		return
+	fi
+	mnt="$("$ZFS" get -H -o value mountpoint "$DS")"
+	# Registered writer: register AND write in the SAME process -
+	# the table is keyed by thread group, so the writer must be the
+	# registrant (sudo sh is a different, unregistered process).
+	"${SUDO[@]}" env LD_LIBRARY_PATH="$REPO/.libs" \
+	    "$bin" write "$mnt/pprincipal.txt" >/dev/null 2>&1 ||
+		fail "principal: registered write failed"
+	# Unregistered writer: another process, no registration.
+	"${SUDO[@]}" sh -c "echo no-principal > '$mnt/nprincipal.txt'" ||
+		fail "principal: unregistered write failed"
+	"${SUDO[@]}" env LD_LIBRARY_PATH="$REPO/.libs" \
+	    "$bin" clear >/dev/null 2>&1 || true
+	found_reg=0; found_unreg=0; i=0
+	while [ "$i" -lt 20 ]; do
+		sleep 2
+		# WRITE records carry the object id, not the path; the
+		# principal rides the WRITE of the registered process, so
+		# key the assertion on the tag itself.
+		reg="$(db_query "$WD/zmd.db" \
+		    "con.execute('select principal from events where ' \
+		    'dataset=? and principal is not null limit 1', \
+		    ('$DS',)).fetchone()[0]" 2>/dev/null)"
+		[ "$reg" != "3735928559" ] && { i=$((i + 1)); continue; }
+		found_reg=1
+		# The unregistered writer's records must carry no
+		# principal - absence is never fabricated. Every
+		# principal-bearing record in this dataset must carry the
+		# registered tag; any other value means attribution
+		# crossed processes.
+		unreg="$(db_query "$WD/zmd.db" \
+		    "con.execute('select count(*) from events where ' \
+		    'dataset=? and principal is not null and ' \
+		    'principal != 3735928559', ('$DS',)).fetchone()[0]" \
+		    2>/dev/null)"
+		[ "$unreg" = "0" ] && found_unreg=1
+		break
+	done
+	[ "$found_reg" = "1" ] ||
+		fail "principal: no record with principal=0xDEADBEEF for pprincipal.txt"
+	[ "$found_unreg" = "1" ] ||
+		fail "principal: unregistered writer's record carries a principal (fabricated)"
+	pass principal
+}
+
 step_root_objid() {
 	# GET_EVENTS must return the mounted dataset's root object id.
 	# It is not always 2; compare it to the mountpoint inode, which
@@ -1554,14 +1638,14 @@ int main(int argc, char **argv) {
 EOF
 	if ! gcc -I "$REPO/include" -I "$REPO/lib/libspl/include" \
 	    "$probe" -o "$bin" \
-	    -L "$REPO/lib/libzfs_core/.libs" -lzfs_core -lnvpair \
+	    -L "$REPO/.libs" -lzfs_core -lnvpair \
 	    >/dev/null 2>"$WD/rootprobe.err"; then
 		fail "root-objid: wire probe compile failed ($(tr '\n' ' ' < "$WD/rootprobe.err"))"
 	fi
 	mnt="$("$ZFS" get -H -o value mountpoint "$DS")"
 	ino="$("${SUDO[@]}" stat -c %i "$mnt")"
 	wire="$("${SUDO[@]}" env \
-	    LD_LIBRARY_PATH="$REPO/lib/libzfs_core/.libs:$REPO/lib/libnvpair/.libs" \
+	    LD_LIBRARY_PATH="$REPO/.libs" \
 	    "$bin" "$DS" 2>"$WD/rootprobe.run" || true)"
 	[ -n "$wire" ] ||
 		fail "root-objid: GET_EVENTS did not return root_objid (rc probe, stderr=$(tr '\n' ' ' < "$WD/rootprobe.run"))"
@@ -1578,6 +1662,7 @@ step_module_version
 step_daemon_run
 step_ops
 step_root_objid
+step_principal
 step_assert
 step_sigusr1
 step_gap
