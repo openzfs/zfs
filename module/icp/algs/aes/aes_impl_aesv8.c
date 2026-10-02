@@ -113,7 +113,7 @@ aes_aesv8_decrypt(const uint32_t rk[], int Nr, const uint32_t ct[4],
     uint32_t pt[4])
 {
 	kfpu_begin();
-	aes_v8_encrypt(ct, pt, rk, Nr);
+	aes_v8_decrypt(ct, pt, rk, Nr);
 	kfpu_end();
 }
 
