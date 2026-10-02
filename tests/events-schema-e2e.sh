@@ -1610,18 +1610,29 @@ EOF
 		fail "principal: unregistered write failed"
 	"${SUDO[@]}" env LD_LIBRARY_PATH="$REPO/.libs" \
 	    "$bin" clear >/dev/null 2>&1 || true
-	found_reg=0; found_unreg=0; i=0
+	found_reg=0; found_unreg=0; found_create=0; i=0
 	while [ "$i" -lt 20 ]; do
 		sleep 2
-		# WRITE records carry the object id, not the path; the
-		# principal rides the WRITE of the registered process, so
-		# key the assertion on the tag itself.
+		# The tag rides EVERY record the registrant triggers, not
+		# only its IO: key the wait on the tag itself (the WRITE
+		# record carries the object id, not the path) and then pin
+		# the CHECK below on a lifecycle record, whose attribution
+		# a "some record carries the tag" check cannot see.
 		reg="$(db_query "$WD/zmd.db" \
 		    "con.execute('select principal from events where ' \
 		    'dataset=? and principal is not null limit 1', \
 		    ('$DS',)).fetchone()[0]" 2>/dev/null)"
 		[ "$reg" != "3735928559" ] && { i=$((i + 1)); continue; }
 		found_reg=1
+		# CREATE (a lifecycle op) from the registered process must
+		# carry the tag too: this is the assertion that catches a
+		# build where only the WRITE/READ emitters attach it.
+		create_reg="$(db_query "$WD/zmd.db" \
+		    "con.execute('select principal from events where ' \
+		    'dataset=? and event_type=? and path=? limit 1', \
+		    ('$DS', 'CREATE', 'pprincipal.txt')).fetchone()[0]" \
+		    2>/dev/null)"
+		[ "$create_reg" = "3735928559" ] && found_create=1
 		# The unregistered writer's records must carry no
 		# principal - absence is never fabricated. Every
 		# principal-bearing record in this dataset must carry the
@@ -1639,6 +1650,11 @@ EOF
 		fail "principal: no record with principal=0xDEADBEEF for pprincipal.txt"
 	[ "$found_unreg" = "1" ] ||
 		fail "principal: unregistered writer's record carries a principal (fabricated)"
+	# The lifecycle assertion is what makes this step meaningful:
+	# without it a build that attaches the tag only on the IO path
+	# passes on the WRITE record alone (observed: CREATE had NULL).
+	[ "$found_create" = "1" ] ||
+		fail "principal: registered writer's CREATE record for pprincipal.txt carries no principal (tag attached to IO records only?)"
 	pass principal
 }
 

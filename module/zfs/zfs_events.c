@@ -1362,6 +1362,23 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
 	dmu_tx_t *atx;
 	boolean_t owned;
 	int err;
+	uint64_t pr;
+
+	/*
+	 * Attribution: the tag is per-thread-group and captured in
+	 * syscall context, which is where the lifecycle emitters -
+	 * this function's only callers - run.  Attaching it here
+	 * rather than in each emitter keeps the record shape uniform
+	 * across ops: a registered writer's CREATE, SETATTR, REMOVE,
+	 * RENAME, LINK, SYMLINK and TRUNCATE records carry the tag
+	 * exactly like its WRITE/READ records do (those are built by
+	 * zfs_events_log_write()/log_read() and never reach this
+	 * function, so the key is never added twice).  Unregistered
+	 * writers add no key at all, so the column is never
+	 * fabricated.
+	 */
+	if (zfs_events_principal_get(&pr))
+		fnvlist_add_uint64(nvl, ZFS_EV_PRINCIPAL, pr);
 
 	/*
 	 * Transaction-less callers (READ accounting, deferred fence
