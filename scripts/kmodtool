@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2086,SC2295
+# SPDX-License-Identifier: MIT
+# shellcheck disable=SC2001,SC2034,SC2086,SC2249,SC2295
 
 # kmodtool - Helper script for building kernel module RPMs
 # Copyright (c) 2003-2012 Ville Skyttä <ville.skytta@iki.fi>,
@@ -28,7 +29,7 @@
 shopt -s extglob
 
 myprog="kmodtool-${repo}"
-myver="0.12.1"
+myver="0.13.0"
 
 kmodname=
 build_kernels="current"
@@ -40,6 +41,14 @@ filterfile=
 target=
 buildroot=
 dashvariant=
+
+kernel_uname_r=""
+kernel_uname_r_short=""
+kernel_uname_r_wo_arch=""
+kernel_uname_r_dist=""
+kernel_uname_r_rel=""
+kernel_uname_r_rel_plus_one=""
+kernel_uname_r_short_plus_one=""
 
 error_out()
 {
@@ -60,6 +69,69 @@ print_rpmtemplate_header()
 	echo
 }
 
+init_kernel_uname_r_vars()
+{
+	## Parse kernel uname -r into useful substrings for kABI-aware naming.
+	## On RHEL, errata kernels share a kABI baseline (e.g. 5.14.0-687.el9)
+	## so modules built for one errata kernel are compatible with all
+	## kernels in the same minor release.  Using the short form in package
+	## names avoids unbounded kmod accumulation.
+	##
+	## Examples (RHEL 9.8, x86_64):
+	##   kernel_uname_r                5.14.0-687.52.1.el9_8.x86_64
+	##   kernel_uname_r_short          5.14.0-687.el9_8
+	##   kernel_uname_r_wo_arch        5.14.0-687.52.1.el9_8
+	##   kernel_uname_r_dist           el9_8
+	##   kernel_uname_r_rel            687
+	##   kernel_uname_r_rel_plus_one   688
+	##   kernel_uname_r_short_plus_one 5.14.0-688.el9_8
+	##
+	kernel_uname_r=${1}
+	kernel_uname_r_short=$(echo "${1}" | sed -n \
+		-e "s/\.${target}//" \
+		-e "s/\(.*\)-\([[:alnum:]]\+\)\(\.[[:alnum:]\.]\+\|\)\(\.el.*\|\.fc.*\)/\1-\2\4/p")
+	kernel_uname_r_wo_arch=$(echo "${1}" | sed -e "s/\.${target}//")
+	kernel_uname_r_dist=$(echo "${1}" | sed -n \
+		-e "s/\.${target}//" \
+		-e "s/\(.*\)-\([[:alnum:]]\+\.[[:alnum:]]\+\-\|[[:alnum:]]\+\)\([[:alnum:]\.]\+\|\)\(\.el.*\|\.fc.*\)/\4/" \
+		-e "s/^\.//p")
+	kernel_uname_r_rel=$(echo "${1}" | sed -n \
+		-e "s/\.${target}//" \
+		-e "s/\(.*\)-\([[:alnum:]]\+\.[[:alnum:]]\+\-\|[[:alnum:]]\+\.\)\([[:alnum:]\.]\+\|\)\(.*\)/\2/" \
+		-e "s/^\.//" -e "s/[\.\-]$//p")
+	if echo "${kernel_uname_r_rel}" | grep -qE '^[0-9]+$' ; then
+		kernel_uname_r_rel_plus_one=$(( kernel_uname_r_rel+1 ))
+	else
+		kernel_uname_r_rel_plus_one=""
+	fi
+	kernel_uname_r_short_plus_one=$(echo "${kernel_uname_r_short}" | \
+		sed -e "s/-${kernel_uname_r_rel}\./-${kernel_uname_r_rel_plus_one}\./")
+}
+
+print_rpmtemplate_macros()
+{
+	cat <<EOF
+
+%{?rhel:%global with_rhel_kabi 1}
+
+%if 0%{?rhel} || 0%{?fedora}
+%global kmod_pkg_name kmod-${kmodname}
+%endif
+EOF
+}
+
+print_rpmtemplate_macros_pkg_name_version()
+{
+	init_kernel_uname_r_vars "${1}"
+	cat <<EOF
+
+%if 0%{?rhel} || 0%{?fedora}
+%global kmod_for_kernel %{?with_rhel_kabi:${kernel_uname_r_short}}%{!?with_rhel_kabi:${kernel_uname_r}}
+%global package_kmod_name %{kmod_pkg_name}-%{kmod_for_kernel}
+%endif
+EOF
+}
+
 print_akmodtemplate ()
 {
 	echo
@@ -78,7 +150,6 @@ Requires:   kmodtool
 Requires: 	akmods
 %{?AkmodsBuildRequires:Requires: %{AkmodsBuildRequires}}
 # same requires and provides as a kmods package would have
-Requires: 	${kmodname}-kmod-common >= %{?epoch:%{epoch}:}%{version}
 Provides: 	${kmodname}-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
 EOF
 
@@ -144,65 +215,122 @@ print_rpmtemplate_per_kmodpkg ()
 	fi
 
 	# first part
+	#
+	# On RHEL, use the kABI-baseline version (kernel_uname_r_short) in
+	# the package name so that errata kernel rebuilds produce the same
+	# package name and avoid unbounded kmod accumulation.  The file
+	# paths still use the full kernel_uname_r.
+	#
+	# On Fedora (no kABI guarantee), use the full kernel_uname_r in
+	# the package name as before.
 	cat <<EOF
-%package       -n kmod-${kmodname}-${kernel_uname_r}
-Summary:          ${kmodname} kernel module(s) for ${kernel_uname_r}
+%package       -n %{package_kmod_name}
+Summary:          ${kmodname} kernel module(s) for %{kmod_for_kernel}
 Group:            System Environment/Kernel
-Provides:         kernel-modules-for-kernel = ${kernel_uname_r}
+Provides:         kernel-modules%{!?with_rhel_kabi:-for-kernel} = ${kernel_uname_r}
 Provides:         kmod-${kmodname}-uname-r = ${kernel_uname_r}
 Provides:         ${kmodname}-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
-Requires:         ${kmodname}-kmod-common >= %{?epoch:%{epoch}:}%{version}
-
-%if 0%{?rhel} == 6 || 0%{?centos} == 6
-Requires(post):   module-init-tools
-Requires(postun): module-init-tools
+%if %{with rhel_kabi}
+Provides:         installonlypkg(kernel-module)
+Requires(post):   kmod
+Requires(postun): kmod
+Requires(post):   %{_prefix}/sbin/weak-modules
+Requires(postun): %{_prefix}/sbin/weak-modules
 %else
 Requires(post):   kmod
 Requires(postun): kmod
 %endif
 EOF
 
-	# second part
+	# second part — depmod helper macro
+	cat <<EOF
+%global _kmodtool_depmod_post \\
+if [ -f /boot/System.map-${kernel_uname_r} ] ; then \\
+  ${prefix}${depmod_path} -aeF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} >/dev/null ; \\
+elif [ -f /lib/modules/${kernel_uname_r}/System.map ] ; then \\
+  ${prefix}${depmod_path} -aeF /lib/modules/${kernel_uname_r}/System.map ${kernel_uname_r} >/dev/null ; \\
+else \\
+  ${prefix}${depmod_path} -a >/dev/null ; \\
+fi || :
+EOF
+
 	if [[ -z "${customkernel}" ]]; then
 	     cat <<EOF
+%if %{with rhel_kabi}
+Requires:         kernel >= ${kernel_uname_r_short}
+Requires:         kernel < ${kernel_uname_r_short_plus_one}
+BuildRequires:    kernel-devel = ${kernel_uname_r_wo_arch} redhat-rpm-config
+%else
 Requires:         kernel-uname-r = ${kernel_uname_r}
-BuildRequires:	  kernel-devel-uname-r = ${kernel_uname_r}
+BuildRequires:    kernel-devel-uname-r = ${kernel_uname_r}
+%endif
 %{?KmodsRequires:Requires: %{KmodsRequires}-uname-r = ${kernel_uname_r}}
 %{?KmodsRequires:BuildRequires: %{KmodsRequires}-uname-r = ${kernel_uname_r}}
-%post          -n kmod-${kmodname}-${kernel_uname_r}
-if [[ -f "/boot/System.map-${kernel_uname_r}" ]]; then
-	${prefix}${depmod_path} -aeF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} > /dev/null || :
-elif [[ -f "/lib/modules/${kernel_uname_r}/System.map" ]]; then
-	${prefix}${depmod_path} -aeF /lib/modules/${kernel_uname_r}/System.map ${kernel_uname_r} > /dev/null || :
-else
-	${prefix}${depmod_path} -ae ${kernel_uname_r} &> /dev/null || :
-fi
-%postun        -n kmod-${kmodname}-${kernel_uname_r}
-if [[ -f "/boot/System.map-${kernel_uname_r}" ]]; then
-	${prefix}${depmod_path} -aF /boot/System.map-${kernel_uname_r} ${kernel_uname_r} &> /dev/null || :
-elif [[ -f "/lib/modules/${kernel_uname_r}/System.map" ]]; then
-	${prefix}${depmod_path} -aF /lib/modules/${kernel_uname_r}/System.map ${kernel_uname_r} &> /dev/null || :
-else
-	${prefix}${depmod_path} -a ${kernel_uname_r} &> /dev/null || :
-fi
+
+%post          -n %{package_kmod_name}
+%{_kmodtool_depmod_post}
+%if %{with rhel_kabi}
+modules=( \$(find ${prefix}/lib/modules/${kernel_uname_r}/extra/${kmodname}/ \
+	-name "*.ko" -o -name "*.ko.xz" -o -name "*.ko.gz" -o -name "*.ko.zst") )
+printf '%s\\n' "\${modules[@]}" | %{_prefix}/sbin/weak-modules --add-modules
+%endif
+
+%if %{with rhel_kabi}
+%preun         -n %{package_kmod_name}
+rpm -ql %{package_kmod_name}-%{version}-%{release}.$(arch) \
+	| grep -E '\.ko(\.xz|\.gz|\.zst)?$' \
+	> /var/run/rpm-%{package_kmod_name}-modules
+%endif
+
+%postun        -n %{package_kmod_name}
+%{_kmodtool_depmod_post}
+%if %{with rhel_kabi}
+modules=( \$(cat /var/run/rpm-%{package_kmod_name}-modules) )
+rm -f /var/run/rpm-%{package_kmod_name}-modules
+printf '%s\\n' "\${modules[@]}" | %{_prefix}/sbin/weak-modules --remove-modules
+%endif
 
 EOF
 	else
 	  cat <<EOF
-%post          -n kmod-${kmodname}-${kernel_uname_r}
+%post          -n %{package_kmod_name}
 [ "\$(uname -r)" = "${kernel_uname_r}"  ] && ${prefix}${depmod_path} -a > /dev/null || :
-%postun        -n kmod-${kmodname}-${kernel_uname_r}
+%if %{with rhel_kabi}
+if [[ "\$(uname -r)" == "${kernel_uname_r}" ]] ; then
+	modules=( \$(find ${prefix}/lib/modules/${kernel_uname_r}/extra/${kmodname}/ \
+		-name "*.ko" -o -name "*.ko.xz" -o -name "*.ko.gz" -o -name "*.ko.zst") )
+	printf '%s\\n' "\${modules[@]}" | %{_prefix}/sbin/weak-modules --add-modules
+fi
+%endif
+
+%if %{with rhel_kabi}
+%preun         -n %{package_kmod_name}
+if [[ "\$(uname -r)" == "${kernel_uname_r}" ]] ; then
+	rpm -ql %{package_kmod_name}-%{version}-%{release}.$(arch) \
+		| grep -E '\.ko(\.xz|\.gz|\.zst)?$' \
+		> /var/run/rpm-%{package_kmod_name}-modules
+fi
+%endif
+
+%postun        -n %{package_kmod_name}
 [ "\$(uname -r)" = "${kernel_uname_r}"  ] && ${prefix}${depmod_path} -a > /dev/null || :
+%if %{with rhel_kabi}
+if [[ "\$(uname -r)" == "${kernel_uname_r}" ]] ; then
+	modules=( \$(cat /var/run/rpm-%{package_kmod_name}-modules) )
+	rm -f /var/run/rpm-%{package_kmod_name}-modules
+	printf '%s\\n' "\${modules[@]}" | %{_prefix}/sbin/weak-modules --remove-modules
+fi
+%endif
 
 EOF
 	fi
 
-  # third part
+  # third part — file paths always use the full kernel_uname_r
 	cat <<EOF
-%description  -n kmod-${kmodname}-${kernel_uname_r}
+%description  -n %{package_kmod_name}
 This package provides the ${kmodname} kernel modules built for the Linux
-kernel ${kernel_uname_r} for the %{_target_cpu} family of processors.
-%files        -n kmod-${kmodname}-${kernel_uname_r}
+kernel %{kmod_for_kernel} for the %{_target_cpu} family of processors.
+%files        -n %{package_kmod_name}
 %defattr(644,root,root,755)
 %dir $prefix/lib/modules/${kernel_uname_r}/extra
 ${prefix}/lib/modules/${kernel_uname_r}/extra/${kmodname}/
@@ -302,27 +430,26 @@ EOF
 
 print_rpmtemplate_kmodmetapkg ()
 {
-		local kernel_uname_r=${1}
-		local kernel_variant="${2:+-${2}}"
+		local kernel_variant="${1:+-${1}}"
 
 		cat <<EOF
-%package      -n kmod-${kmodname}${kernel_variant}
+%package      -n %{kmod_pkg_name}${kernel_variant}
 Summary:         Metapackage which tracks in ${kmodname} kernel module for newest kernel${kernel_variant}
 Group:           System Environment/Kernel
 
 Provides:        ${kmodname}-kmod = %{?epoch:%{epoch}:}%{version}-%{release}
-Requires:        kmod-${kmodname}-${kernel_uname_r} >= %{?epoch:%{epoch}:}%{version}-%{release}
+Requires:        %{package_kmod_name} >= %{?epoch:%{epoch}:}%{version}-%{release}
 %{?KmodsMetaRequires:Requires: %{?KmodsMetaRequires}}
 EOF
 
 		cat <<EOF
 
-%description  -n kmod-${kmodname}${kernel_variant}
+%description  -n %{kmod_pkg_name}${kernel_variant}
 This is a meta-package without payload which sole purpose is to require the
 ${kmodname} kernel module(s) for the newest kernel${kernel_variant}.
 to make sure you get it together with a new kernel.
 
-%files        -n kmod-${kmodname}${kernel_variant}
+%files        -n %{kmod_pkg_name}${kernel_variant}
 %defattr(644,root,root,755)
 
 
@@ -334,11 +461,27 @@ print_customrpmtemplate ()
 	local first_kernel_custom=""
 	local first_kernel_redhat=""
 	local first_kernel_redhat_variant=""
+	local seen_kabi_baselines=""
 
 	for kernel in ${1}
 	do
+		# Deduplicate kernels that share the same kABI baseline.
+		# On RHEL, errata kernels (e.g. 5.14.0-687.49.1 through
+		# 5.14.0-687.54.1) all map to the same kABI-baseline
+		# package name (kmod-xxx-5.14.0-687.el9_8).  Generating
+		# duplicate %package definitions causes rpmbuild to fail.
+		# On Fedora each kernel has a unique short name, so no
+		# kernels are skipped.
+		init_kernel_uname_r_vars "${kernel}"
+		local kabi_key="${kernel_uname_r_short:-${kernel}}"
+		case " ${seen_kabi_baselines} " in
+			*" ${kabi_key} "*) continue ;;
+		esac
+		seen_kabi_baselines="${seen_kabi_baselines} ${kabi_key}"
+
 		if [[ -e "${prefix}/lib/modules/${kernel}/build/Makefile" ]]; then
 			kernel_versions="${kernel_versions}${kernel}___${prefix}/lib/modules/${kernel}/build/ "
+			print_rpmtemplate_macros_pkg_name_version "${kernel}"
 			print_rpmtemplate_per_kmodpkg --custom "${kernel}"
 
 			if [[ -n "${devel}" ]]; then
@@ -349,6 +492,7 @@ print_customrpmtemplate ()
 			kernel_versions="${kernel_versions}${kernel}___${buildroot}%{_usrsrc}/kernels/${kernel} "
 
 			local kernel_verrelarch=${kernel%%${kernels_known_variants}}
+			print_rpmtemplate_macros_pkg_name_version "${kernel}"
 			print_rpmtemplate_per_kmodpkg --redhat ${kernel} ${kernel##${kernel_verrelarch}}
 
 			if [[ -n "${devel}" ]]; then
@@ -390,14 +534,25 @@ print_rpmtemplate ()
 
 	local first_kernel=""
 	local first_kernel_variant=""
+	local seen_kabi_baselines=""
 
 	# now print the packages
 	for kernel in ${kernel_versions_to_build_for} ; do
 
+		# Deduplicate by kABI baseline (see print_customrpmtemplate)
+		init_kernel_uname_r_vars "${kernel}"
+		local kabi_key="${kernel_uname_r_short:-${kernel}}"
+		case " ${seen_kabi_baselines} " in
+			*" ${kabi_key} "*) continue ;;
+		esac
+		seen_kabi_baselines="${seen_kabi_baselines} ${kabi_key}"
+
 		local kernel_verrelarch=${kernel%%${kernels_known_variants}}
 
+		print_rpmtemplate_macros_pkg_name_version "${kernel}"
+
 		# create metapackage
-		print_rpmtemplate_kmodmetapkg "${kernel}" "${kernel##${kernel_verrelarch}}"
+		print_rpmtemplate_kmodmetapkg "${kernel##${kernel_verrelarch}}"
 
 		# create package
 		print_rpmtemplate_per_kmodpkg "${kernel}" "${kernel##${kernel_verrelarch}}"
@@ -545,6 +700,7 @@ elif [[ -z "${kernels_known_variants}" ]] ; then
 fi
 
 # go
+print_rpmtemplate_macros
 if [[ -n "${for_kernels}" ]]; then
 	# this is easy:
 	print_customrpmtemplate "${for_kernels}"
