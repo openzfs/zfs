@@ -24,7 +24,7 @@
 #include <time.h>
 #include <libnvpair.h>
 #include <stdarg.h>
-#include <umem.h>
+#include <sys/kmem.h>
 
 #ifdef	__cplusplus
 extern "C" {
@@ -129,7 +129,7 @@ extern void fmd_hdl_unregister(fmd_hdl_t *);
 extern void fmd_hdl_setspecific(fmd_hdl_t *, void *);
 extern void *fmd_hdl_getspecific(fmd_hdl_t *);
 
-#define	FMD_SLEEP	UMEM_NOFAIL
+#define	FMD_SLEEP	KM_SLEEP
 
 extern void *fmd_hdl_alloc(fmd_hdl_t *, size_t, int);
 extern void *fmd_hdl_zalloc(fmd_hdl_t *, size_t, int);

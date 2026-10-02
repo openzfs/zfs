@@ -28,7 +28,7 @@
 #include <sys/stdtypes.h>
 #include <sys/sysmacros.h>
 #include <sys/zfs_ioctl.h>
-#include <umem.h>
+#include <sys/kmem.h>
 #include <unistd.h>
 
 #include "zstream.h"
@@ -48,7 +48,7 @@ typedef struct redup_entry {
 
 typedef struct redup_table {
 	redup_entry_t	**redup_hash_array;
-	umem_cache_t	*ddecache;
+	kmem_cache_t	*ddecache;
 	uint64_t	ddt_count;
 	int		numhashbits;
 } redup_table_t;
@@ -67,7 +67,7 @@ rdt_insert(redup_table_t *rdt,
 	redup_entry_t **rdepp;
 
 	rdepp = &(rdt->redup_hash_array[hashcode]);
-	redup_entry_t *rde = umem_cache_alloc(rdt->ddecache, UMEM_NOFAIL);
+	redup_entry_t *rde = kmem_cache_alloc(rdt->ddecache, KM_SLEEP);
 	rde->rde_next = *rdepp;
 	rde->rde_guid = guid;
 	rde->rde_object = object;
@@ -236,7 +236,7 @@ zstream_do_redup(int argc, char *argv[])
 
 	context.rc_rdt.redup_hash_array =
 	    safe_calloc(numbuckets * sizeof (redup_entry_t *));
-	context.rc_rdt.ddecache = umem_cache_create("rde",
+	context.rc_rdt.ddecache = kmem_cache_create("rde",
 	    sizeof (redup_entry_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
 	context.rc_rdt.numhashbits = highbit64(numbuckets) - 1;
 	context.rc_rdt.ddt_count = 0;
@@ -261,7 +261,7 @@ zstream_do_redup(int argc, char *argv[])
 	}
 
 	fclose(context.rc_fp);
-	umem_cache_destroy(context.rc_rdt.ddecache);
+	kmem_cache_destroy(context.rc_rdt.ddecache);
 	free(context.rc_rdt.redup_hash_array);
 	return (0);
 }

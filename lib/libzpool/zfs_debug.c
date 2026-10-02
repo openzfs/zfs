@@ -58,7 +58,7 @@ zfs_dbgmsg_fini(void)
 {
 	zfs_dbgmsg_t *zdm;
 	while ((zdm = list_remove_head(&zfs_dbgmsgs)))
-		umem_free(zdm, zdm->zdm_size);
+		kmem_free(zdm, zdm->zdm_size);
 	mutex_destroy(&zfs_dbgmsgs_lock);
 }
 
@@ -74,7 +74,7 @@ void
 __zfs_dbgmsg(char *buf)
 {
 	uint_t size = sizeof (zfs_dbgmsg_t) + strlen(buf) + 1;
-	zfs_dbgmsg_t *zdm = umem_zalloc(size, KM_SLEEP);
+	zfs_dbgmsg_t *zdm = kmem_zalloc(size, KM_SLEEP);
 	zdm->zdm_size = size;
 	zdm->zdm_timestamp = gethrestime_sec();
 	strcpy(zdm->zdm_msg, buf);
