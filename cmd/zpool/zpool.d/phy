@@ -1,0 +1,97 @@
+#!/bin/sh
+#
+# Show SAS PHY stats for each vdev
+#
+
+# shellcheck disable=SC2154
+
+helpstr="
+phy:	Show phy_topo and phy_total_errors
+phy_name:	Show SAS PHY name
+phy_errors:	Show all SAS PHY error stats
+phy_total_errors:	Show the sum of all PHY errors
+phy_link:	Show common SAS PHY link stats
+phy_topo:	Show SAS PHY topology back to the SCSI host
+phy_invalid_dword_count:	Show SAS PHY invalid_dword_count
+phy_loss_of_dword_sync_count:	Show SAS PHY loss_of_dword_sync_count
+phy_negotiated_linkrate:	Show SAS PHY negotiated_linkrate
+phy_maximum_linkrate:	Show SAS PHY maximum_linkrate
+phy_minimum_linkrate:	Show SAS PHY minimum_linkrate
+phy_reset_problem_count:	Show SAS PHY phy_reset_problem_count
+phy_running_disparity_error_count:	Show SAS PHY running_disparity_error_count
+"
+
+script="${0##*/}"
+
+if [ "$1" = "-h" ] ; then
+	echo "$helpstr" | grep "$script:" | tr -s '\t' | cut -f 2-
+	exit
+fi
+
+# Convert '/dev/sda' to 'sda'
+base=$(basename "$VDEV_UPATH")
+
+# Break down our group names into invidivual names
+case "$script" in
+	phy)
+		get="phy_topo phy_total_errors"
+		;;
+	phy_errors)
+		get="phy_invalid_dword_count phy_loss_of_dword_sync_count phy_running_disparity_error_count phy_reset_problem_count"
+		;;
+	phy_link)
+		get="phy_negotiated_linkrate phy_maximum_linkrate phy_minimum_linkrate"
+		;;
+	*)
+		get="$script"
+		;;
+esac
+
+rc=0
+if [ ! -e /sys/class/block/$base ] ; then
+	# Can't find our block device
+	rc=1
+else
+	sas_path="$(realpath -e /sys/class/block/$base/device 2>/dev/null)" || rc=1
+	full_phy_path="$(realpath -e $sas_path/../../../phy* 2>/dev/null)" || rc=1
+
+	phy_name="$(basename $full_phy_path)"
+
+	# Shortened path with sysfs entries
+	phy_path="/sys/class/sas_phy/$phy_name"
+fi
+
+for i in $get ; do
+	if [ "$rc" == "1" ] ; then
+		# This vdev does not have a SAS phy, print '-' for all
+		# requested column values.
+		echo "$i=-"
+		continue
+	fi
+
+	case "$i" in
+		phy_name)
+		echo "phy_name=$phy_name"
+		;;
+	phy_topo)
+		phy_topo="$(echo $full_phy_path | grep -Eo 'host.+')"
+		echo "phy_topo=$phy_topo"
+		;;
+	phy_total_errors)
+		errors=$((  $(<$phy_path/invalid_dword_count) + \
+			$(<$phy_path/loss_of_dword_sync_count) + \
+			$(<$phy_path/running_disparity_error_count) + \
+			$(<$phy_path/phy_reset_problem_count) ))
+		echo "phy_total_errors=$errors"
+		;;
+	phy_reset_problem_count)
+		echo "phy_reset_problem_count=$(<$phy_path/phy_reset_problem_count)"
+		;;
+	*)
+		# Common case - read in the sysfs file corresponding to the
+		# column name. Most of the columns are named "phy_" + sysfs name
+		nophy="${i/#phy_/}"
+		echo "$i=$(<$phy_path/$nophy)"
+		;;
+	esac
+done
