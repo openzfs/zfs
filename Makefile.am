@@ -219,7 +219,8 @@ pkg: @DEFAULT_PACKAGE@
 pkg-dkms: @DEFAULT_PACKAGE@-dkms
 pkg-kmod: @DEFAULT_PACKAGE@-kmod
 pkg-utils: @DEFAULT_PACKAGE@-utils
-pkg-macos: @DEFAULT_PACKAGE@-macos
+pkg-macos:
+	$(top_srcdir)/scripts/pkg_macos.sh
 
 include config/rpm.am
 include config/deb.am
