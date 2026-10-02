@@ -484,6 +484,7 @@ ZFS_OBJS_OS := \
 	zfs_vfsops.o \
 	zfs_vnops_os.o \
 	zfs_znode_os.o \
+	zio_crypt_os_kcapi.o \
 	zpl_ctldir.o \
 	zpl_export.o \
 	zpl_file.o \
