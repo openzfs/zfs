@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 
 INFO_PLIST = Info.plist
 PLIST_STRING = InfoPlist.strings
