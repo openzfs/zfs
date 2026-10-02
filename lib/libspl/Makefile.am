@@ -21,6 +21,7 @@ libspl_la_SOURCES = \
 	%D%/cred.c \
 	%D%/getexecname.c \
 	%D%/kmem.c \
+	%D%/kmem_cache.c \
 	%D%/kstat.c \
 	%D%/libspl.c \
 	%D%/list.c \
