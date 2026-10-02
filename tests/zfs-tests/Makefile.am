@@ -48,6 +48,7 @@ dist_scripts_zfs_tests_include_DATA = \
 	%D%/include/math.shlib \
 	%D%/include/properties.shlib \
 	%D%/include/tunables.cfg \
+	%D%/include/tunables-macos.cfg \
 	%D%/include/zpool_script.shlib
 
 nodist_scripts_zfs_tests_include_DATA = \

@@ -676,6 +676,7 @@ abd_get_from_buf(void *buf, size_t size)
 abd_t *
 abd_get_from_buf_struct(abd_t *abd, void *buf, size_t size)
 {
+	*abd = (typeof(*abd)) { 0 }; // zero out the struct for safety
 	abd_init_struct(abd);
 	return (abd_get_from_buf_impl(abd, buf, size));
 }

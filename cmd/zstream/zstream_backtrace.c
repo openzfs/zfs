@@ -93,6 +93,7 @@ backtrace_self(int signal)
 static void
 backtrace_all_threads(void)
 {
+#ifndef __APPLE__
 	while (B_TRUE) {
 		if (kill(getpid(), THREAD_BACKTRACE_SIGNAL) != 0)
 			err(1, "failed to send thread backtrace signal");
@@ -111,6 +112,7 @@ backtrace_all_threads(void)
 			}
 		}
 	}
+#endif
 }
 
 /*

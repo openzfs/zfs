@@ -96,6 +96,10 @@ SHELLCHECKSCRIPTS += %D%/zvol_wait
 include $(srcdir)/%D%/zed/Makefile.am
 endif
 
+if BUILD_MACOS
+include $(srcdir)/%D%/zed/Makefile.am
+include $(srcdir)/%D%/os/Makefile.am
+endif
 
 if USING_PYTHON
 bin_SCRIPTS      += zarcsummary     zarcstat        dbufstat        zilstat

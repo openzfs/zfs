@@ -2572,7 +2572,7 @@ get_receive_resume_token_impl(dsl_dataset_t *ds)
 	compressed = kmem_alloc(packed_size, KM_SLEEP);
 
 	/* Call compress function directly to avoid hole detection. */
-	abd_t pabd, cabd;
+	abd_t pabd = { 0 }, cabd = { 0 };
 	abd_get_from_buf_struct(&pabd, packed, packed_size);
 	abd_get_from_buf_struct(&cabd, compressed, packed_size);
 	compressed_size = zfs_gzip_compress(&pabd, &cabd,

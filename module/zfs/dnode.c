@@ -60,6 +60,7 @@ dnode_stats_t dnode_stats = {
 	{ "dnode_move_handle",			KSTAT_DATA_UINT64 },
 	{ "dnode_move_rwlock",			KSTAT_DATA_UINT64 },
 	{ "dnode_move_active",			KSTAT_DATA_UINT64 },
+	{ "dnode_move_race",			KSTAT_DATA_UINT64 },
 };
 
 dnode_sums_t dnode_sums;
@@ -298,6 +299,9 @@ dnode_kstats_update(kstat_t *ksp, int rw)
 	    wmsum_value(&dnode_sums.dnode_move_rwlock);
 	ds->dnode_move_active.value.ui64 =
 	    wmsum_value(&dnode_sums.dnode_move_active);
+	ds->dnode_move_race.value.ui64 =
+	    wmsum_value(&dnode_sums.dnode_move_race);
+
 	return (0);
 }
 
@@ -337,6 +341,7 @@ dnode_init(void)
 	wmsum_init(&dnode_sums.dnode_move_handle, 0);
 	wmsum_init(&dnode_sums.dnode_move_rwlock, 0);
 	wmsum_init(&dnode_sums.dnode_move_active, 0);
+	wmsum_init(&dnode_sums.dnode_move_race, 0);
 
 	dnode_ksp = kstat_create("zfs", 0, "dnodestats", "misc",
 	    KSTAT_TYPE_NAMED, sizeof (dnode_stats) / sizeof (kstat_named_t),
@@ -384,6 +389,7 @@ dnode_fini(void)
 	wmsum_fini(&dnode_sums.dnode_move_handle);
 	wmsum_fini(&dnode_sums.dnode_move_rwlock);
 	wmsum_fini(&dnode_sums.dnode_move_active);
+	wmsum_fini(&dnode_sums.dnode_move_race);
 
 	kmem_cache_destroy(dnode_cache);
 	dnode_cache = NULL;
@@ -1048,7 +1054,6 @@ dnode_move(void *buf, void *newbuf, size_t size, void *arg)
 #endif
 	return (KMEM_CBRC_NO);
 #endif
-
 	/*
 	 * The dnode is on the objset's list of known dnodes if the objset
 	 * pointer is valid. We set the low bit of the objset pointer when
@@ -1160,6 +1165,25 @@ dnode_move(void *buf, void *newbuf, size_t size, void *arg)
 		mutex_exit(&os->os_lock);
 		DNODE_STAT_BUMP(dnode_move_active);
 		return (KMEM_CBRC_LATER);
+	}
+
+	/*
+	 * If the &odn->dn_mtx lock is held by another thread,
+	 * we could destroy the mutex below (in dnode_dest()) while
+	 * dnode_rele() is holding it.
+	 *
+	 */
+
+	if (!mutex_tryenter(&odn->dn_mtx)) {
+		rw_exit(&odn->dn_struct_rwlock);
+		zrl_exit(&odn->dn_handle->dnh_zrlock);
+		mutex_exit(&os->os_lock);
+		dprintf("%s:%d: could not obtain dn_mtx mutex\n",
+		    __func__, __LINE__);
+		DNODE_STAT_BUMP(dnode_move_race);
+		return (KMEM_CBRC_LATER);
+	} else {
+		mutex_exit(&odn->dn_mtx);
 	}
 
 	rw_exit(&odn->dn_struct_rwlock);

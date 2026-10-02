@@ -103,6 +103,7 @@
 
 .text
 
+/* Windows userland links with OpenSSL */
 ENTRY_ALIGN(gcm_init_htab_avx, 32)
 .cfi_startproc
 	ENDBR
@@ -111,7 +112,7 @@ ENTRY_ALIGN(gcm_init_htab_avx, 32)
 	vmovdqu	(%rsi),%xmm2
 	// KCF/ICP stores H in network byte order with the hi qword first
 	// so we need to swap all bytes, not the 2 qwords.
-	vmovdqu	.Lbswap_mask(%rip),%xmm4
+	vmovdqu	LOCAL_LABEL(bswap_mask)(%rip),%xmm4
 	vpshufb	%xmm4,%xmm2,%xmm2
 
 
@@ -124,16 +125,16 @@ ENTRY_ALIGN(gcm_init_htab_avx, 32)
 	vpor	%xmm3,%xmm2,%xmm2
 
 
-	vpand	.L0x1c2_polynomial(%rip),%xmm5,%xmm5
+	vpand	LOCAL_LABEL(0x1c2_polynomial)(%rip),%xmm5,%xmm5
 	vpxor	%xmm5,%xmm2,%xmm2
 
 	vpunpckhqdq	%xmm2,%xmm2,%xmm6
 	vmovdqa	%xmm2,%xmm0
 	vpxor	%xmm2,%xmm6,%xmm6
 	movq	$4,%r10
-	jmp	.Linit_start_avx
+	jmp	LOCAL_LABEL(init_start_avx)
 .balign	32
-.Linit_loop_avx:
+LOCAL_LABEL(init_loop_avx):
 	vpalignr	$8,%xmm3,%xmm4,%xmm5
 	vmovdqu	%xmm5,-16(%rdi)
 	vpunpckhqdq	%xmm0,%xmm0,%xmm3
@@ -165,7 +166,7 @@ ENTRY_ALIGN(gcm_init_htab_avx, 32)
 	vpxor	%xmm4,%xmm0,%xmm0
 	vpsrlq	$1,%xmm0,%xmm0
 	vpxor	%xmm1,%xmm0,%xmm0
-.Linit_start_avx:
+LOCAL_LABEL(init_start_avx):
 	vmovdqa	%xmm0,%xmm5
 	vpunpckhqdq	%xmm0,%xmm0,%xmm3
 	vpxor	%xmm0,%xmm3,%xmm3
@@ -204,7 +205,7 @@ ENTRY_ALIGN(gcm_init_htab_avx, 32)
 	vmovdqu	%xmm0,16(%rdi)
 	leaq	48(%rdi),%rdi
 	subq	$1,%r10
-	jnz	.Linit_loop_avx
+	jnz	LOCAL_LABEL(init_loop_avx)
 
 	vpalignr	$8,%xmm4,%xmm3,%xmm5
 	vmovdqu	%xmm5,-16(%rdi)
@@ -221,12 +222,12 @@ ENTRY_ALIGN(gcm_ghash_avx, 32)
 	vzeroupper
 
 	vmovdqu	(%rdi),%xmm10
-	leaq	.L0x1c2_polynomial(%rip),%r10
+	leaq	LOCAL_LABEL(0x1c2_polynomial)(%rip),%r10
 	leaq	64(%rsi),%rsi
-	vmovdqu	.Lbswap_mask(%rip),%xmm13
+	vmovdqu	LOCAL_LABEL(bswap_mask)(%rip),%xmm13
 	vpshufb	%xmm13,%xmm10,%xmm10
 	cmpq	$0x80,%rcx
-	jb	.Lshort_avx
+	jb	LOCAL_LABEL(short_avx)
 	subq	$0x80,%rcx
 
 	vmovdqu	112(%rdx),%xmm14
@@ -317,14 +318,14 @@ ENTRY_ALIGN(gcm_ghash_avx, 32)
 
 	leaq	128(%rdx),%rdx
 	cmpq	$0x80,%rcx
-	jb	.Ltail_avx
+	jb	LOCAL_LABEL(tail_avx)
 
 	vpxor	%xmm10,%xmm15,%xmm15
 	subq	$0x80,%rcx
-	jmp	.Loop8x_avx
+	jmp	LOCAL_LABEL(oop8x_avx)
 
 .balign	32
-.Loop8x_avx:
+LOCAL_LABEL(oop8x_avx):
 	vpunpckhqdq	%xmm15,%xmm15,%xmm8
 	vmovdqu	112(%rdx),%xmm14
 	vpxor	%xmm0,%xmm3,%xmm3
@@ -438,13 +439,13 @@ ENTRY_ALIGN(gcm_ghash_avx, 32)
 
 	leaq	128(%rdx),%rdx
 	subq	$0x80,%rcx
-	jnc	.Loop8x_avx
+	jnc	LOCAL_LABEL(oop8x_avx)
 
 	addq	$0x80,%rcx
-	jmp	.Ltail_no_xor_avx
+	jmp	LOCAL_LABEL(tail_no_xor_avx)
 
 .balign	32
-.Lshort_avx:
+LOCAL_LABEL(short_avx):
 	vmovdqu	-16(%rdx,%rcx,1),%xmm14
 	leaq	(%rdx,%rcx,1),%rdx
 	vmovdqu	0-64(%rsi),%xmm6
@@ -455,7 +456,7 @@ ENTRY_ALIGN(gcm_ghash_avx, 32)
 	vmovdqa	%xmm1,%xmm4
 	vmovdqa	%xmm2,%xmm5
 	subq	$0x10,%rcx
-	jz	.Ltail_avx
+	jz	LOCAL_LABEL(tail_avx)
 
 	vpunpckhqdq	%xmm15,%xmm15,%xmm8
 	vpxor	%xmm0,%xmm3,%xmm3
@@ -470,7 +471,7 @@ ENTRY_ALIGN(gcm_ghash_avx, 32)
 	vpclmulqdq	$0x00,%xmm7,%xmm8,%xmm2
 	vpsrldq	$8,%xmm7,%xmm7
 	subq	$0x10,%rcx
-	jz	.Ltail_avx
+	jz	LOCAL_LABEL(tail_avx)
 
 	vpunpckhqdq	%xmm15,%xmm15,%xmm8
 	vpxor	%xmm0,%xmm3,%xmm3
@@ -485,7 +486,7 @@ ENTRY_ALIGN(gcm_ghash_avx, 32)
 	vpclmulqdq	$0x00,%xmm7,%xmm8,%xmm2
 	vmovdqu	80-64(%rsi),%xmm7
 	subq	$0x10,%rcx
-	jz	.Ltail_avx
+	jz	LOCAL_LABEL(tail_avx)
 
 	vpunpckhqdq	%xmm15,%xmm15,%xmm8
 	vpxor	%xmm0,%xmm3,%xmm3
@@ -500,7 +501,7 @@ ENTRY_ALIGN(gcm_ghash_avx, 32)
 	vpclmulqdq	$0x00,%xmm7,%xmm8,%xmm2
 	vpsrldq	$8,%xmm7,%xmm7
 	subq	$0x10,%rcx
-	jz	.Ltail_avx
+	jz	LOCAL_LABEL(tail_avx)
 
 	vpunpckhqdq	%xmm15,%xmm15,%xmm8
 	vpxor	%xmm0,%xmm3,%xmm3
@@ -515,7 +516,7 @@ ENTRY_ALIGN(gcm_ghash_avx, 32)
 	vpclmulqdq	$0x00,%xmm7,%xmm8,%xmm2
 	vmovdqu	128-64(%rsi),%xmm7
 	subq	$0x10,%rcx
-	jz	.Ltail_avx
+	jz	LOCAL_LABEL(tail_avx)
 
 	vpunpckhqdq	%xmm15,%xmm15,%xmm8
 	vpxor	%xmm0,%xmm3,%xmm3
@@ -530,7 +531,7 @@ ENTRY_ALIGN(gcm_ghash_avx, 32)
 	vpclmulqdq	$0x00,%xmm7,%xmm8,%xmm2
 	vpsrldq	$8,%xmm7,%xmm7
 	subq	$0x10,%rcx
-	jz	.Ltail_avx
+	jz	LOCAL_LABEL(tail_avx)
 
 	vpunpckhqdq	%xmm15,%xmm15,%xmm8
 	vpxor	%xmm0,%xmm3,%xmm3
@@ -545,12 +546,12 @@ ENTRY_ALIGN(gcm_ghash_avx, 32)
 	vpclmulqdq	$0x00,%xmm7,%xmm8,%xmm2
 	vmovq	184-64(%rsi),%xmm7
 	subq	$0x10,%rcx
-	jmp	.Ltail_avx
+	jmp	LOCAL_LABEL(tail_avx)
 
 .balign	32
-.Ltail_avx:
+LOCAL_LABEL(tail_avx):
 	vpxor	%xmm10,%xmm15,%xmm15
-.Ltail_no_xor_avx:
+LOCAL_LABEL(tail_no_xor_avx):
 	vpunpckhqdq	%xmm15,%xmm15,%xmm8
 	vpxor	%xmm0,%xmm3,%xmm3
 	vpclmulqdq	$0x00,%xmm6,%xmm15,%xmm0
@@ -583,7 +584,7 @@ ENTRY_ALIGN(gcm_ghash_avx, 32)
 	vpxor	%xmm9,%xmm10,%xmm10
 
 	cmpq	$0,%rcx
-	jne	.Lshort_avx
+	jne	LOCAL_LABEL(short_avx)
 
 	vpshufb	%xmm13,%xmm10,%xmm10
 	vmovdqu	%xmm10,(%rdi)
@@ -596,23 +597,23 @@ SET_SIZE(gcm_ghash_avx)
 
 SECTION_STATIC
 .balign	64
-.Lbswap_mask:
+LOCAL_LABEL(bswap_mask):
 .byte	15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0
-.L0x1c2_polynomial:
+LOCAL_LABEL(0x1c2_polynomial):
 .byte	1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0xc2
-.L7_mask:
+LOCAL_LABEL(7_mask):
 .long	7,0,7,0
-.L7_mask_poly:
+LOCAL_LABEL(7_mask_poly):
 .long	7,0,450,0
 .balign	64
-SET_OBJ(.Lrem_4bit)
-.Lrem_4bit:
+SET_OBJ(LOCAL_LABEL(rem_4bit))
+LOCAL_LABEL(rem_4bit):
 .long	0,0,0,471859200,0,943718400,0,610271232
 .long	0,1887436800,0,1822425088,0,1220542464,0,1423966208
 .long	0,3774873600,0,4246732800,0,3644850176,0,3311403008
 .long	0,2441084928,0,2376073216,0,2847932416,0,3051356160
-SET_OBJ(.Lrem_8bit)
-.Lrem_8bit:
+SET_OBJ(LOCAL_LABEL(rem_8bit))
+LOCAL_LABEL(rem_8bit):
 .value	0x0000,0x01C2,0x0384,0x0246,0x0708,0x06CA,0x048C,0x054E
 .value	0x0E10,0x0FD2,0x0D94,0x0C56,0x0918,0x08DA,0x0A9C,0x0B5E
 .value	0x1C20,0x1DE2,0x1FA4,0x1E66,0x1B28,0x1AEA,0x18AC,0x196E

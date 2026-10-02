@@ -353,6 +353,14 @@ struct zbookmark_err_phys {
 	(zb)->zb_level == ZB_ROOT_LEVEL &&	\
 	(zb)->zb_blkid == ZB_ROOT_BLKID)
 
+/*
+ * Unsigned 0/1 flag type for the bitfields below; a stand-in for the
+ * zfs_bool_phys_t planned upstream. Not boolean_t: where that is a signed int
+ * (the macOS kernel, arm64) a one-bit field holds 1 but reads back as -1, so
+ * tests like zp_byteorder != ZFS_HOST_BYTEORDER are always true.
+ */
+typedef uint32_t zfs_bool_phys_t;
+
 typedef struct zio_prop {
 	enum zio_checksum	zp_checksum:8;
 	enum zio_compress	zp_compress:8;
@@ -362,14 +370,14 @@ typedef struct zio_prop {
 	uint8_t			zp_gang_copies;
 	dmu_object_type_t	zp_type:8;
 	dmu_object_type_t	zp_storage_type:8;
-	boolean_t		zp_dedup:1;
-	boolean_t		zp_dedup_verify:1;
-	boolean_t		zp_nopwrite:1;
-	boolean_t		zp_brtwrite:1;
-	boolean_t		zp_encrypt:1;
-	boolean_t		zp_byteorder:1;
-	boolean_t		zp_direct_write:1;
-	boolean_t		zp_rewrite:1;
+	zfs_bool_phys_t		zp_dedup:1;
+	zfs_bool_phys_t		zp_dedup_verify:1;
+	zfs_bool_phys_t		zp_nopwrite:1;
+	zfs_bool_phys_t		zp_brtwrite:1;
+	zfs_bool_phys_t		zp_encrypt:1;
+	zfs_bool_phys_t		zp_byteorder:1;
+	zfs_bool_phys_t		zp_direct_write:1;
+	zfs_bool_phys_t		zp_rewrite:1;
 	uint32_t		zp_zpl_smallblk;
 	uint8_t			zp_salt[ZIO_DATA_SALT_LEN];
 	uint8_t			zp_iv[ZIO_DATA_IV_LEN];
@@ -563,6 +571,10 @@ struct zio {
 	kmutex_t	io_lock;
 	kcondvar_t	io_cv;
 	int		io_allocator;
+
+#ifdef ZIO_OS_FIELDS
+	ZIO_OS_FIELDS
+#endif
 
 	/* FMA state */
 	zio_cksum_report_t *io_cksum_report;

@@ -44,6 +44,41 @@
 #include "zstream_modules.h"
 #include "zstream_util.h"
 
+#ifdef __APPLE__
+#include <Availability.h>
+#endif
+
+#if defined(__APPLE__) && __MAC_OS_X_VERSION_MIN_REQUIRED < 110000
+/*
+ * pwritev() first appeared in macOS 11, and older SDKs do not declare it.
+ * When targeting anything older, emulate it with pwrite(). The macro comes
+ * after all system headers so a newer SDK's own declaration is not renamed.
+ */
+static ssize_t
+zstream_pwritev(int fd, const struct iovec *iov, int iovcnt, off_t offset)
+{
+	ssize_t total = 0;
+
+	for (int i = 0; i < iovcnt; i++) {
+		size_t done = 0;
+
+		while (done < iov[i].iov_len) {
+			ssize_t n = pwrite(fd,
+			    (const char *)iov[i].iov_base + done,
+			    iov[i].iov_len - done, offset + total);
+			if (n < 0)
+				return (total > 0 ? total : -1);
+			if (n == 0)
+				return (total);
+			done += n;
+			total += n;
+		}
+	}
+	return (total);
+}
+#define	pwritev	zstream_pwritev
+#endif
+
 /*
  * Supported feature flags (in drr_versioninfo)
  */

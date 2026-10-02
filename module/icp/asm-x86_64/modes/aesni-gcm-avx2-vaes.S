@@ -15,11 +15,11 @@
 /* Windows userland links with OpenSSL */
 #if !defined (_WIN32) || defined (_KERNEL)
 
-.section	.rodata
+SECTION_STATIC
 .balign	16
 
 
-.Lbswap_mask:
+LOCAL_LABEL(bswap_mask):
 .quad	0x08090a0b0c0d0e0f, 0x0001020304050607
 
 
@@ -29,19 +29,19 @@
 
 
 
-.Lgfpoly:
+LOCAL_LABEL(gfpoly):
 .quad	1, 0xc200000000000000
 
 
-.Lgfpoly_and_internal_carrybit:
+LOCAL_LABEL(gfpoly_and_internal_carrybit):
 .quad	1, 0xc200000000000001
 
 .balign	32
 
-.Lctr_pattern:
+LOCAL_LABEL(ctr_pattern):
 .quad	0, 0
 .quad	1, 0
-.Linc_2blocks:
+LOCAL_LABEL(inc_2blocks):
 .quad	2, 0
 .quad	2, 0
 
@@ -57,7 +57,7 @@ ENDBR
 	vmovdqu	(%rsi),%xmm3
 	// KCF/ICP stores H in network byte order with the hi qword first
 	// so we need to swap all bytes, not the 2 qwords.
-	vmovdqu	.Lbswap_mask(%rip),%xmm4
+	vmovdqu	LOCAL_LABEL(bswap_mask)(%rip),%xmm4
 	vpshufb	%xmm4,%xmm3,%xmm3
 
 
@@ -67,10 +67,10 @@ ENDBR
 	vpshufd	$0xd3,%xmm3,%xmm0
 	vpsrad	$31,%xmm0,%xmm0
 	vpaddq	%xmm3,%xmm3,%xmm3
-	vpand	.Lgfpoly_and_internal_carrybit(%rip),%xmm0,%xmm0
+	vpand	LOCAL_LABEL(gfpoly_and_internal_carrybit)(%rip),%xmm0,%xmm0
 	vpxor	%xmm0,%xmm3,%xmm3
 
-	vbroadcasti128	.Lgfpoly(%rip),%ymm6
+	vbroadcasti128	LOCAL_LABEL(gfpoly)(%rip),%ymm6
 
 
 	vpclmulqdq	$0x00,%xmm3,%xmm3,%xmm0
@@ -159,6 +159,7 @@ ENDBR
 
 .cfi_endproc
 SET_SIZE(gcm_init_vpclmulqdq_avx2)
+
 ENTRY_ALIGN(gcm_ghash_vpclmulqdq_avx2, 32)
 .cfi_startproc
 
@@ -169,8 +170,8 @@ ENDBR
 
 
 
-	vmovdqu	.Lbswap_mask(%rip),%xmm6
-	vmovdqu	.Lgfpoly(%rip),%xmm7
+	vmovdqu	LOCAL_LABEL(bswap_mask)(%rip),%xmm6
+	vmovdqu	LOCAL_LABEL(gfpoly)(%rip),%xmm7
 
 
 	vmovdqu	(%rdi),%xmm5
@@ -178,7 +179,7 @@ ENDBR
 
 
 	cmpq	$32,%rcx
-	jb	.Lghash_lastblock
+	jb	LOCAL_LABEL(ghash_lastblock)
 
 
 
@@ -186,12 +187,12 @@ ENDBR
 	vinserti128	$1,%xmm7,%ymm7,%ymm7
 
 	cmpq	$127,%rcx
-	jbe	.Lghash_loop_1x
+	jbe	LOCAL_LABEL(ghash_loop_1x)
 
 
 	vmovdqu	128(%rsi),%ymm8
 	vmovdqu	128+32(%rsi),%ymm9
-.Lghash_loop_4x:
+LOCAL_LABEL(ghash_loop_4x):
 
 	vmovdqu	0(%rdx),%ymm1
 	vpshufb	%ymm6,%ymm1,%ymm1
@@ -244,7 +245,7 @@ ENDBR
 	vpxor	%ymm5,%ymm4,%ymm4
 
 
-	vbroadcasti128	.Lgfpoly(%rip),%ymm2
+	vbroadcasti128	LOCAL_LABEL(gfpoly)(%rip),%ymm2
 	vpclmulqdq	$0x01,%ymm3,%ymm2,%ymm0
 	vpshufd	$0x4e,%ymm3,%ymm3
 	vpxor	%ymm3,%ymm4,%ymm4
@@ -260,12 +261,12 @@ ENDBR
 	subq	$-128,%rdx
 	addq	$-128,%rcx
 	cmpq	$127,%rcx
-	ja	.Lghash_loop_4x
+	ja	LOCAL_LABEL(ghash_loop_4x)
 
 
 	cmpq	$32,%rcx
-	jb	.Lghash_loop_1x_done
-.Lghash_loop_1x:
+	jb	LOCAL_LABEL(ghash_loop_1x_done)
+LOCAL_LABEL(ghash_loop_1x):
 	vmovdqu	(%rdx),%ymm0
 	vpshufb	%ymm6,%ymm0,%ymm0
 	vpxor	%ymm0,%ymm5,%ymm5
@@ -289,13 +290,13 @@ ENDBR
 	addq	$32,%rdx
 	subq	$32,%rcx
 	cmpq	$32,%rcx
-	jae	.Lghash_loop_1x
-.Lghash_loop_1x_done:
+	jae	LOCAL_LABEL(ghash_loop_1x)
+LOCAL_LABEL(ghash_loop_1x_done):
 
 
-.Lghash_lastblock:
+LOCAL_LABEL(ghash_lastblock):
 	testq	%rcx,%rcx
-	jz	.Lghash_done
+	jz	LOCAL_LABEL(ghash_done)
 	vmovdqu	(%rdx),%xmm0
 	vpshufb	%xmm6,%xmm0,%xmm0
 	vpxor	%xmm0,%xmm5,%xmm5
@@ -315,7 +316,7 @@ ENDBR
 	vpxor	%xmm1,%xmm5,%xmm5
 
 
-.Lghash_done:
+LOCAL_LABEL(ghash_done):
 
 	vpshufb	%xmm6,%xmm5,%xmm5
 	vmovdqu	%xmm5,(%rdi)
@@ -339,7 +340,7 @@ ENDBR
 .hidden BORINGSSL_function_hit
 	movb	$1,BORINGSSL_function_hit+6(%rip)
 #endif
-	vbroadcasti128	.Lbswap_mask(%rip),%ymm0
+	vbroadcasti128	LOCAL_LABEL(bswap_mask)(%rip),%ymm0
 
 
 
@@ -361,19 +362,19 @@ ENDBR
 	vbroadcasti128	(%r11),%ymm10
 
 
-	vpaddd	.Lctr_pattern(%rip),%ymm11,%ymm11
+	vpaddd	LOCAL_LABEL(ctr_pattern)(%rip),%ymm11,%ymm11
 
 
 
 	cmpq	$127,%rdx
-	jbe	.Lcrypt_loop_4x_done__func1
+	jbe	LOCAL_LABEL(crypt_loop_4x_done__func1)
 
 	vmovdqu	128(%r9),%ymm7
 	vmovdqu	128+32(%r9),%ymm8
 
 
 
-	vmovdqu	.Linc_2blocks(%rip),%ymm2
+	vmovdqu	LOCAL_LABEL(inc_2blocks)(%rip),%ymm2
 	vpshufb	%ymm0,%ymm11,%ymm12
 	vpaddd	%ymm2,%ymm11,%ymm11
 	vpshufb	%ymm0,%ymm11,%ymm13
@@ -390,7 +391,7 @@ ENDBR
 	vpxor	%ymm9,%ymm15,%ymm15
 
 	leaq	16(%rcx),%rax
-.Lvaesenc_loop_first_4_vecs__func1:
+LOCAL_LABEL(vaesenc_loop_first_4_vecs__func1):
 	vbroadcasti128	(%rax),%ymm2
 	vaesenc	%ymm2,%ymm12,%ymm12
 	vaesenc	%ymm2,%ymm13,%ymm13
@@ -399,7 +400,7 @@ ENDBR
 
 	addq	$16,%rax
 	cmpq	%rax,%r11
-	jne	.Lvaesenc_loop_first_4_vecs__func1
+	jne	LOCAL_LABEL(vaesenc_loop_first_4_vecs__func1)
 	vpxor	0(%rdi),%ymm10,%ymm2
 	vpxor	32(%rdi),%ymm10,%ymm3
 	vpxor	64(%rdi),%ymm10,%ymm5
@@ -416,14 +417,14 @@ ENDBR
 	subq	$-128,%rdi
 	addq	$-128,%rdx
 	cmpq	$127,%rdx
-	jbe	.Lghash_last_ciphertext_4x__func1
+	jbe	LOCAL_LABEL(ghash_last_ciphertext_4x__func1)
 .balign	16
-.Lcrypt_loop_4x__func1:
+LOCAL_LABEL(crypt_loop_4x__func1):
 
 
 
 
-	vmovdqu	.Linc_2blocks(%rip),%ymm2
+	vmovdqu	LOCAL_LABEL(inc_2blocks)(%rip),%ymm2
 	vpshufb	%ymm0,%ymm11,%ymm12
 	vpaddd	%ymm2,%ymm11,%ymm11
 	vpshufb	%ymm0,%ymm11,%ymm13
@@ -440,8 +441,8 @@ ENDBR
 	vpxor	%ymm9,%ymm15,%ymm15
 
 	cmpl	$24,%r10d
-	jl	.Laes128__func1
-	je	.Laes192__func1
+	jl	LOCAL_LABEL(aes128__func1)
+	je	LOCAL_LABEL(aes192__func1)
 
 	vbroadcasti128	-208(%r11),%ymm2
 	vaesenc	%ymm2,%ymm12,%ymm12
@@ -455,7 +456,7 @@ ENDBR
 	vaesenc	%ymm2,%ymm14,%ymm14
 	vaesenc	%ymm2,%ymm15,%ymm15
 
-.Laes192__func1:
+LOCAL_LABEL(aes192__func1):
 	vbroadcasti128	-176(%r11),%ymm2
 	vaesenc	%ymm2,%ymm12,%ymm12
 	vaesenc	%ymm2,%ymm13,%ymm13
@@ -468,7 +469,7 @@ ENDBR
 	vaesenc	%ymm2,%ymm14,%ymm14
 	vaesenc	%ymm2,%ymm15,%ymm15
 
-.Laes128__func1:
+LOCAL_LABEL(aes128__func1):
 	prefetcht0	512(%rdi)
 	prefetcht0	512+64(%rdi)
 
@@ -572,7 +573,7 @@ ENDBR
 	vpxor	%ymm1,%ymm6,%ymm6
 
 
-	vbroadcasti128	.Lgfpoly(%rip),%ymm4
+	vbroadcasti128	LOCAL_LABEL(gfpoly)(%rip),%ymm4
 	vpclmulqdq	$0x01,%ymm5,%ymm4,%ymm2
 	vpshufd	$0x4e,%ymm5,%ymm5
 	vpxor	%ymm5,%ymm6,%ymm6
@@ -618,8 +619,8 @@ ENDBR
 
 	addq	$-128,%rdx
 	cmpq	$127,%rdx
-	ja	.Lcrypt_loop_4x__func1
-.Lghash_last_ciphertext_4x__func1:
+	ja	LOCAL_LABEL(crypt_loop_4x__func1)
+LOCAL_LABEL(ghash_last_ciphertext_4x__func1):
 
 	vmovdqu	0(%rsi),%ymm3
 	vpshufb	%ymm0,%ymm3,%ymm3
@@ -672,7 +673,7 @@ ENDBR
 	vpxor	%ymm1,%ymm6,%ymm6
 
 
-	vbroadcasti128	.Lgfpoly(%rip),%ymm4
+	vbroadcasti128	LOCAL_LABEL(gfpoly)(%rip),%ymm4
 	vpclmulqdq	$0x01,%ymm5,%ymm4,%ymm2
 	vpshufd	$0x4e,%ymm5,%ymm5
 	vpxor	%ymm5,%ymm6,%ymm6
@@ -686,10 +687,10 @@ ENDBR
 	vpxor	%xmm2,%xmm1,%xmm1
 
 	subq	$-128,%rsi
-.Lcrypt_loop_4x_done__func1:
+LOCAL_LABEL(crypt_loop_4x_done__func1):
 
 	testq	%rdx,%rdx
-	jz	.Ldone__func1
+	jz	LOCAL_LABEL(done__func1)
 
 
 
@@ -704,23 +705,23 @@ ENDBR
 	vpxor	%xmm7,%xmm7,%xmm7
 
 	cmpq	$64,%rdx
-	jb	.Llessthan64bytes__func1
+	jb	LOCAL_LABEL(lessthan64bytes__func1)
 
 
 	vpshufb	%ymm0,%ymm11,%ymm12
-	vpaddd	.Linc_2blocks(%rip),%ymm11,%ymm11
+	vpaddd	LOCAL_LABEL(inc_2blocks)(%rip),%ymm11,%ymm11
 	vpshufb	%ymm0,%ymm11,%ymm13
-	vpaddd	.Linc_2blocks(%rip),%ymm11,%ymm11
+	vpaddd	LOCAL_LABEL(inc_2blocks)(%rip),%ymm11,%ymm11
 	vpxor	%ymm9,%ymm12,%ymm12
 	vpxor	%ymm9,%ymm13,%ymm13
 	leaq	16(%rcx),%rax
-.Lvaesenc_loop_tail_1__func1:
+LOCAL_LABEL(vaesenc_loop_tail_1__func1):
 	vbroadcasti128	(%rax),%ymm2
 	vaesenc	%ymm2,%ymm12,%ymm12
 	vaesenc	%ymm2,%ymm13,%ymm13
 	addq	$16,%rax
 	cmpq	%rax,%r11
-	jne	.Lvaesenc_loop_tail_1__func1
+	jne	LOCAL_LABEL(vaesenc_loop_tail_1__func1)
 	vaesenclast	%ymm10,%ymm12,%ymm12
 	vaesenclast	%ymm10,%ymm13,%ymm13
 
@@ -756,25 +757,25 @@ ENDBR
 	addq	$64,%rdi
 	addq	$64,%rsi
 	subq	$64,%rdx
-	jz	.Lreduce__func1
+	jz	LOCAL_LABEL(reduce__func1)
 
 	vpxor	%xmm1,%xmm1,%xmm1
 
 
-.Llessthan64bytes__func1:
+LOCAL_LABEL(lessthan64bytes__func1):
 	vpshufb	%ymm0,%ymm11,%ymm12
-	vpaddd	.Linc_2blocks(%rip),%ymm11,%ymm11
+	vpaddd	LOCAL_LABEL(inc_2blocks)(%rip),%ymm11,%ymm11
 	vpshufb	%ymm0,%ymm11,%ymm13
 	vpxor	%ymm9,%ymm12,%ymm12
 	vpxor	%ymm9,%ymm13,%ymm13
 	leaq	16(%rcx),%rax
-.Lvaesenc_loop_tail_2__func1:
+LOCAL_LABEL(vaesenc_loop_tail_2__func1):
 	vbroadcasti128	(%rax),%ymm2
 	vaesenc	%ymm2,%ymm12,%ymm12
 	vaesenc	%ymm2,%ymm13,%ymm13
 	addq	$16,%rax
 	cmpq	%rax,%r11
-	jne	.Lvaesenc_loop_tail_2__func1
+	jne	LOCAL_LABEL(vaesenc_loop_tail_2__func1)
 	vaesenclast	%ymm10,%ymm12,%ymm12
 	vaesenclast	%ymm10,%ymm13,%ymm13
 
@@ -782,10 +783,10 @@ ENDBR
 
 
 	cmpq	$32,%rdx
-	jb	.Lxor_one_block__func1
-	je	.Lxor_two_blocks__func1
+	jb	LOCAL_LABEL(xor_one_block__func1)
+	je	LOCAL_LABEL(xor_two_blocks__func1)
 
-.Lxor_three_blocks__func1:
+LOCAL_LABEL(xor_three_blocks__func1):
 	vmovdqu	0(%rdi),%ymm2
 	vmovdqu	32(%rdi),%xmm3
 	vpxor	%ymm2,%ymm12,%ymm12
@@ -806,18 +807,18 @@ ENDBR
 	vpxor	%ymm4,%ymm6,%ymm6
 	vpclmulqdq	$0x11,%xmm3,%xmm13,%xmm4
 	vpxor	%ymm4,%ymm7,%ymm7
-	jmp	.Lghash_mul_one_vec_unreduced__func1
+	jmp	LOCAL_LABEL(ghash_mul_one_vec_unreduced__func1)
 
-.Lxor_two_blocks__func1:
+LOCAL_LABEL(xor_two_blocks__func1):
 	vmovdqu	(%rdi),%ymm2
 	vpxor	%ymm2,%ymm12,%ymm12
 	vmovdqu	%ymm12,(%rsi)
 	vpshufb	%ymm0,%ymm12,%ymm12
 	vpxor	%ymm1,%ymm12,%ymm12
 	vmovdqu	(%r8),%ymm2
-	jmp	.Lghash_mul_one_vec_unreduced__func1
+	jmp	LOCAL_LABEL(ghash_mul_one_vec_unreduced__func1)
 
-.Lxor_one_block__func1:
+LOCAL_LABEL(xor_one_block__func1):
 	vmovdqu	(%rdi),%xmm2
 	vpxor	%xmm2,%xmm12,%xmm12
 	vmovdqu	%xmm12,(%rsi)
@@ -825,7 +826,7 @@ ENDBR
 	vpxor	%xmm1,%xmm12,%xmm12
 	vmovdqu	(%r8),%xmm2
 
-.Lghash_mul_one_vec_unreduced__func1:
+LOCAL_LABEL(ghash_mul_one_vec_unreduced__func1):
 	vpclmulqdq	$0x00,%ymm2,%ymm12,%ymm4
 	vpxor	%ymm4,%ymm5,%ymm5
 	vpclmulqdq	$0x01,%ymm2,%ymm12,%ymm4
@@ -835,9 +836,9 @@ ENDBR
 	vpclmulqdq	$0x11,%ymm2,%ymm12,%ymm4
 	vpxor	%ymm4,%ymm7,%ymm7
 
-.Lreduce__func1:
+LOCAL_LABEL(reduce__func1):
 
-	vbroadcasti128	.Lgfpoly(%rip),%ymm2
+	vbroadcasti128	LOCAL_LABEL(gfpoly)(%rip),%ymm2
 	vpclmulqdq	$0x01,%ymm5,%ymm2,%ymm3
 	vpshufd	$0x4e,%ymm5,%ymm5
 	vpxor	%ymm5,%ymm6,%ymm6
@@ -849,7 +850,7 @@ ENDBR
 	vextracti128	$1,%ymm7,%xmm1
 	vpxor	%xmm7,%xmm1,%xmm1
 
-.Ldone__func1:
+LOCAL_LABEL(done__func1):
 
 	vpshufb	%xmm0,%xmm1,%xmm1
 	vmovdqu	%xmm1,(%r12)
@@ -871,7 +872,7 @@ ENDBR
 .cfi_offset	%r12,-16
 
 	movq	16(%rsp),%r12
-	vbroadcasti128	.Lbswap_mask(%rip),%ymm0
+	vbroadcasti128	LOCAL_LABEL(bswap_mask)(%rip),%ymm0
 
 
 
@@ -893,22 +894,22 @@ ENDBR
 	vbroadcasti128	(%r11),%ymm10
 
 
-	vpaddd	.Lctr_pattern(%rip),%ymm11,%ymm11
+	vpaddd	LOCAL_LABEL(ctr_pattern)(%rip),%ymm11,%ymm11
 
 
 
 	cmpq	$127,%rdx
-	jbe	.Lcrypt_loop_4x_done__func2
+	jbe	LOCAL_LABEL(crypt_loop_4x_done__func2)
 
 	vmovdqu	128(%r9),%ymm7
 	vmovdqu	128+32(%r9),%ymm8
 .balign	16
-.Lcrypt_loop_4x__func2:
+LOCAL_LABEL(crypt_loop_4x__func2):
 
 
 
 
-	vmovdqu	.Linc_2blocks(%rip),%ymm2
+	vmovdqu	LOCAL_LABEL(inc_2blocks)(%rip),%ymm2
 	vpshufb	%ymm0,%ymm11,%ymm12
 	vpaddd	%ymm2,%ymm11,%ymm11
 	vpshufb	%ymm0,%ymm11,%ymm13
@@ -925,8 +926,8 @@ ENDBR
 	vpxor	%ymm9,%ymm15,%ymm15
 
 	cmpl	$24,%r10d
-	jl	.Laes128__func2
-	je	.Laes192__func2
+	jl	LOCAL_LABEL(aes128__func2)
+	je	LOCAL_LABEL(aes192__func2)
 
 	vbroadcasti128	-208(%r11),%ymm2
 	vaesenc	%ymm2,%ymm12,%ymm12
@@ -940,7 +941,7 @@ ENDBR
 	vaesenc	%ymm2,%ymm14,%ymm14
 	vaesenc	%ymm2,%ymm15,%ymm15
 
-.Laes192__func2:
+LOCAL_LABEL(aes192__func2):
 	vbroadcasti128	-176(%r11),%ymm2
 	vaesenc	%ymm2,%ymm12,%ymm12
 	vaesenc	%ymm2,%ymm13,%ymm13
@@ -953,7 +954,7 @@ ENDBR
 	vaesenc	%ymm2,%ymm14,%ymm14
 	vaesenc	%ymm2,%ymm15,%ymm15
 
-.Laes128__func2:
+LOCAL_LABEL(aes128__func2):
 	prefetcht0	512(%rdi)
 	prefetcht0	512+64(%rdi)
 
@@ -1057,7 +1058,7 @@ ENDBR
 	vpxor	%ymm1,%ymm6,%ymm6
 
 
-	vbroadcasti128	.Lgfpoly(%rip),%ymm4
+	vbroadcasti128	LOCAL_LABEL(gfpoly)(%rip),%ymm4
 	vpclmulqdq	$0x01,%ymm5,%ymm4,%ymm2
 	vpshufd	$0x4e,%ymm5,%ymm5
 	vpxor	%ymm5,%ymm6,%ymm6
@@ -1103,11 +1104,11 @@ ENDBR
 	subq	$-128,%rsi
 	addq	$-128,%rdx
 	cmpq	$127,%rdx
-	ja	.Lcrypt_loop_4x__func2
-.Lcrypt_loop_4x_done__func2:
+	ja	LOCAL_LABEL(crypt_loop_4x__func2)
+LOCAL_LABEL(crypt_loop_4x_done__func2):
 
 	testq	%rdx,%rdx
-	jz	.Ldone__func2
+	jz	LOCAL_LABEL(done__func2)
 
 
 
@@ -1122,23 +1123,23 @@ ENDBR
 	vpxor	%xmm7,%xmm7,%xmm7
 
 	cmpq	$64,%rdx
-	jb	.Llessthan64bytes__func2
+	jb	LOCAL_LABEL(lessthan64bytes__func2)
 
 
 	vpshufb	%ymm0,%ymm11,%ymm12
-	vpaddd	.Linc_2blocks(%rip),%ymm11,%ymm11
+	vpaddd	LOCAL_LABEL(inc_2blocks)(%rip),%ymm11,%ymm11
 	vpshufb	%ymm0,%ymm11,%ymm13
-	vpaddd	.Linc_2blocks(%rip),%ymm11,%ymm11
+	vpaddd	LOCAL_LABEL(inc_2blocks)(%rip),%ymm11,%ymm11
 	vpxor	%ymm9,%ymm12,%ymm12
 	vpxor	%ymm9,%ymm13,%ymm13
 	leaq	16(%rcx),%rax
-.Lvaesenc_loop_tail_1__func2:
+LOCAL_LABEL(vaesenc_loop_tail_1__func2):
 	vbroadcasti128	(%rax),%ymm2
 	vaesenc	%ymm2,%ymm12,%ymm12
 	vaesenc	%ymm2,%ymm13,%ymm13
 	addq	$16,%rax
 	cmpq	%rax,%r11
-	jne	.Lvaesenc_loop_tail_1__func2
+	jne	LOCAL_LABEL(vaesenc_loop_tail_1__func2)
 	vaesenclast	%ymm10,%ymm12,%ymm12
 	vaesenclast	%ymm10,%ymm13,%ymm13
 
@@ -1174,25 +1175,25 @@ ENDBR
 	addq	$64,%rdi
 	addq	$64,%rsi
 	subq	$64,%rdx
-	jz	.Lreduce__func2
+	jz	LOCAL_LABEL(reduce__func2)
 
 	vpxor	%xmm1,%xmm1,%xmm1
 
 
-.Llessthan64bytes__func2:
+LOCAL_LABEL(lessthan64bytes__func2):
 	vpshufb	%ymm0,%ymm11,%ymm12
-	vpaddd	.Linc_2blocks(%rip),%ymm11,%ymm11
+	vpaddd	LOCAL_LABEL(inc_2blocks)(%rip),%ymm11,%ymm11
 	vpshufb	%ymm0,%ymm11,%ymm13
 	vpxor	%ymm9,%ymm12,%ymm12
 	vpxor	%ymm9,%ymm13,%ymm13
 	leaq	16(%rcx),%rax
-.Lvaesenc_loop_tail_2__func2:
+LOCAL_LABEL(vaesenc_loop_tail_2__func2):
 	vbroadcasti128	(%rax),%ymm2
 	vaesenc	%ymm2,%ymm12,%ymm12
 	vaesenc	%ymm2,%ymm13,%ymm13
 	addq	$16,%rax
 	cmpq	%rax,%r11
-	jne	.Lvaesenc_loop_tail_2__func2
+	jne	LOCAL_LABEL(vaesenc_loop_tail_2__func2)
 	vaesenclast	%ymm10,%ymm12,%ymm12
 	vaesenclast	%ymm10,%ymm13,%ymm13
 
@@ -1200,10 +1201,10 @@ ENDBR
 
 
 	cmpq	$32,%rdx
-	jb	.Lxor_one_block__func2
-	je	.Lxor_two_blocks__func2
+	jb	LOCAL_LABEL(xor_one_block__func2)
+	je	LOCAL_LABEL(xor_two_blocks__func2)
 
-.Lxor_three_blocks__func2:
+LOCAL_LABEL(xor_three_blocks__func2):
 	vmovdqu	0(%rdi),%ymm2
 	vmovdqu	32(%rdi),%xmm3
 	vpxor	%ymm2,%ymm12,%ymm12
@@ -1224,18 +1225,18 @@ ENDBR
 	vpxor	%ymm4,%ymm6,%ymm6
 	vpclmulqdq	$0x11,%xmm3,%xmm13,%xmm4
 	vpxor	%ymm4,%ymm7,%ymm7
-	jmp	.Lghash_mul_one_vec_unreduced__func2
+	jmp	LOCAL_LABEL(ghash_mul_one_vec_unreduced__func2)
 
-.Lxor_two_blocks__func2:
+LOCAL_LABEL(xor_two_blocks__func2):
 	vmovdqu	(%rdi),%ymm2
 	vpxor	%ymm2,%ymm12,%ymm12
 	vmovdqu	%ymm12,(%rsi)
 	vpshufb	%ymm0,%ymm2,%ymm12
 	vpxor	%ymm1,%ymm12,%ymm12
 	vmovdqu	(%r8),%ymm2
-	jmp	.Lghash_mul_one_vec_unreduced__func2
+	jmp	LOCAL_LABEL(ghash_mul_one_vec_unreduced__func2)
 
-.Lxor_one_block__func2:
+LOCAL_LABEL(xor_one_block__func2):
 	vmovdqu	(%rdi),%xmm2
 	vpxor	%xmm2,%xmm12,%xmm12
 	vmovdqu	%xmm12,(%rsi)
@@ -1243,7 +1244,7 @@ ENDBR
 	vpxor	%xmm1,%xmm12,%xmm12
 	vmovdqu	(%r8),%xmm2
 
-.Lghash_mul_one_vec_unreduced__func2:
+LOCAL_LABEL(ghash_mul_one_vec_unreduced__func2):
 	vpclmulqdq	$0x00,%ymm2,%ymm12,%ymm4
 	vpxor	%ymm4,%ymm5,%ymm5
 	vpclmulqdq	$0x01,%ymm2,%ymm12,%ymm4
@@ -1253,9 +1254,9 @@ ENDBR
 	vpclmulqdq	$0x11,%ymm2,%ymm12,%ymm4
 	vpxor	%ymm4,%ymm7,%ymm7
 
-.Lreduce__func2:
+LOCAL_LABEL(reduce__func2):
 
-	vbroadcasti128	.Lgfpoly(%rip),%ymm2
+	vbroadcasti128	LOCAL_LABEL(gfpoly)(%rip),%ymm2
 	vpclmulqdq	$0x01,%ymm5,%ymm2,%ymm3
 	vpshufd	$0x4e,%ymm5,%ymm5
 	vpxor	%ymm5,%ymm6,%ymm6
@@ -1267,7 +1268,7 @@ ENDBR
 	vextracti128	$1,%ymm7,%xmm1
 	vpxor	%xmm7,%xmm1,%xmm1
 
-.Ldone__func2:
+LOCAL_LABEL(done__func2):
 
 	vpshufb	%xmm0,%xmm1,%xmm1
 	vmovdqu	%xmm1,(%r12)

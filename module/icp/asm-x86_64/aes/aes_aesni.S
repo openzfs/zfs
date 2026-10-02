@@ -322,9 +322,9 @@ rijndael_key_setup_enc_intel_local:
 	FRAME_BEGIN
 	// NULL pointer sanity check
 	test	%USERCIPHERKEY, %USERCIPHERKEY
-	jz	.Lenc_key_invalid_param
+	jz	LOCAL_LABEL(enc_key_invalid_param)
 	test	%AESKEY, %AESKEY
-	jz	.Lenc_key_invalid_param
+	jz	LOCAL_LABEL(enc_key_invalid_param)
 
 	movups	(%USERCIPHERKEY), %xmm0	// user key (first 16 bytes)
 	movups	%xmm0, (%AESKEY)
@@ -332,7 +332,7 @@ rijndael_key_setup_enc_intel_local:
 	pxor	%xmm4, %xmm4		// xmm4 is assumed 0 in _key_expansion_x
 
 	cmp	$256, %KEYSIZE32
-	jnz	.Lenc_key192
+	jnz	LOCAL_LABEL(enc_key192)
 
 	// AES 256: 14 rounds in encryption key schedule
 #ifdef OPENSSL_INTERFACE
@@ -380,9 +380,9 @@ rijndael_key_setup_enc_intel_local:
 	RET
 
 .balign 4
-.Lenc_key192:
+LOCAL_LABEL(enc_key192):
 	cmp	$192, %KEYSIZE32
-	jnz	.Lenc_key128
+	jnz	LOCAL_LABEL(enc_key128)
 
 	// AES 192: 12 rounds in encryption key schedule
 #ifdef OPENSSL_INTERFACE
@@ -417,9 +417,9 @@ rijndael_key_setup_enc_intel_local:
 	RET
 
 .balign 4
-.Lenc_key128:
+LOCAL_LABEL(enc_key128):
 	cmp $128, %KEYSIZE32
-	jnz .Lenc_key_invalid_key_bits
+	jnz LOCAL_LABEL(enc_key_invalid_key_bits)
 
 	// AES 128: 10 rounds in encryption key schedule
 #ifdef OPENSSL_INTERFACE
@@ -456,7 +456,7 @@ rijndael_key_setup_enc_intel_local:
 	FRAME_END
 	RET
 
-.Lenc_key_invalid_param:
+LOCAL_LABEL(enc_key_invalid_param):
 #ifdef	OPENSSL_INTERFACE
 	mov	$-1, %rax	// user key or AES key pointer is NULL
 	FRAME_END
@@ -465,7 +465,7 @@ rijndael_key_setup_enc_intel_local:
 	/* FALLTHROUGH */
 #endif	/* OPENSSL_INTERFACE */
 
-.Lenc_key_invalid_key_bits:
+LOCAL_LABEL(enc_key_invalid_key_bits):
 #ifdef	OPENSSL_INTERFACE
 	mov	$-2, %rax	// keysize is invalid
 #else	/* Open Solaris Interface */
@@ -504,9 +504,9 @@ FRAME_BEGIN
 	call	rijndael_key_setup_enc_intel_local
 	test	%rax, %rax
 #ifdef	OPENSSL_INTERFACE
-	jnz	.Ldec_key_exit	// Failed if returned non-0
+	jnz	LOCAL_LABEL(dec_key_exit)	// Failed if returned non-0
 #else	/* OpenSolaris Interface */
-	jz	.Ldec_key_exit	// Failed if returned 0
+	jz	LOCAL_LABEL(dec_key_exit)	// Failed if returned 0
 #endif	/* OPENSSL_INTERFACE */
 
 	/*
@@ -524,7 +524,7 @@ FRAME_BEGIN
 	mov	%ROUNDS64, %ENDAESKEY
 
 .balign 4
-.Ldec_key_reorder_loop:
+LOCAL_LABEL(dec_key_reorder_loop):
 	movups	(%AESKEY), %xmm0
 	movups	(%ROUNDS64), %xmm1
 	movups	%xmm0, (%ROUNDS64)
@@ -532,10 +532,10 @@ FRAME_BEGIN
 	lea	0x10(%AESKEY), %AESKEY
 	lea	-0x10(%ROUNDS64), %ROUNDS64
 	cmp	%AESKEY, %ROUNDS64
-	ja	.Ldec_key_reorder_loop
+	ja	LOCAL_LABEL(dec_key_reorder_loop)
 
 .balign 4
-.Ldec_key_inv_loop:
+LOCAL_LABEL(dec_key_inv_loop):
 	movups	(%rcx), %xmm0
 	// Convert an encryption round key to a form usable for decryption
 	// with the "AES Inverse Mix Columns" instruction
@@ -543,9 +543,9 @@ FRAME_BEGIN
 	movups	%xmm1, (%rcx)
 	lea	0x10(%rcx), %rcx
 	cmp	%ENDAESKEY, %rcx
-	jnz	.Ldec_key_inv_loop
+	jnz	LOCAL_LABEL(dec_key_inv_loop)
 
-.Ldec_key_exit:
+LOCAL_LABEL(dec_key_exit):
 	// OpenSolaris: rax = # rounds (10, 12, or 14) or 0 for error
 	// OpenSSL: rax = 0 for OK, or non-zero for error
 	FRAME_END
@@ -612,9 +612,9 @@ ENTRY_NP(aes_encrypt_intel)
 	pxor	%KEY, %STATE			// round 0
 	lea	0x30(%KEYP), %KEYP
 	cmp	$12, %NROUNDS
-	jb	.Lenc128
+	jb	LOCAL_LABEL(enc128)
 	lea	0x20(%KEYP), %KEYP
-	je	.Lenc192
+	je	LOCAL_LABEL(enc192)
 
 	// AES 256
 	lea	0x20(%KEYP), %KEYP
@@ -624,7 +624,7 @@ ENTRY_NP(aes_encrypt_intel)
 	aesenc	%KEY, %STATE
 
 .balign 4
-.Lenc192:
+LOCAL_LABEL(enc192):
 	// AES 192 and 256
 	movups	-0x40(%KEYP), %KEY
 	aesenc	%KEY, %STATE
@@ -632,7 +632,7 @@ ENTRY_NP(aes_encrypt_intel)
 	aesenc	%KEY, %STATE
 
 .balign 4
-.Lenc128:
+LOCAL_LABEL(enc128):
 	// AES 128, 192, and 256
 	movups	-0x20(%KEYP), %KEY
 	aesenc	%KEY, %STATE
@@ -695,9 +695,9 @@ ENTRY_NP(aes_decrypt_intel)
 	pxor	%KEY, %STATE			// round 0
 	lea	0x30(%KEYP), %KEYP
 	cmp	$12, %NROUNDS
-	jb	.Ldec128
+	jb	LOCAL_LABEL(dec128)
 	lea	0x20(%KEYP), %KEYP
-	je	.Ldec192
+	je	LOCAL_LABEL(dec192)
 
 	// AES 256
 	lea	0x20(%KEYP), %KEYP
@@ -707,7 +707,7 @@ ENTRY_NP(aes_decrypt_intel)
 	aesdec	%KEY, %STATE
 
 .balign 4
-.Ldec192:
+LOCAL_LABEL(dec192):
 	// AES 192 and 256
 	movups	-0x40(%KEYP), %KEY
 	aesdec	%KEY, %STATE
@@ -715,7 +715,7 @@ ENTRY_NP(aes_decrypt_intel)
 	aesdec	%KEY, %STATE
 
 .balign 4
-.Ldec128:
+LOCAL_LABEL(dec128):
 	// AES 128, 192, and 256
 	movups	-0x20(%KEYP), %KEY
 	aesdec	%KEY, %STATE

@@ -645,12 +645,6 @@
     <function-decl name='membar_enter' mangled-name='membar_enter' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='membar_enter'>
       <return type-id='48b5725f'/>
     </function-decl>
-    <function-decl name='membar_producer' mangled-name='membar_producer' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='membar_producer'>
-      <return type-id='48b5725f'/>
-    </function-decl>
-    <function-decl name='membar_consumer' mangled-name='membar_consumer' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='membar_consumer'>
-      <return type-id='48b5725f'/>
-    </function-decl>
     <type-decl name='unsigned long int' size-in-bits='64' id='7359adad'/>
     <type-decl name='unsigned short int' size-in-bits='16' id='8efea9e5'/>
   </abi-instr>
@@ -2715,7 +2709,9 @@
       <enumerator name='ZFS_IOC_USERNS_DETACH' value='23174'/>
       <enumerator name='ZFS_IOC_SET_BOOTENV' value='23175'/>
       <enumerator name='ZFS_IOC_GET_BOOTENV' value='23176'/>
-      <enumerator name='ZFS_IOC_LAST' value='23177'/>
+      <enumerator name='ZFS_IOC_PROXY_DATASET' value='23177'/>
+      <enumerator name='ZFS_IOC_PROXY_REMOVE' value='23178'/>
+      <enumerator name='ZFS_IOC_LAST' value='23179'/>
     </enum-decl>
     <typedef-decl name='zfs_ioc_t' type-id='12033f13' id='5b35941c'/>
     <enum-decl name='zpool_wait_activity_t' naming-typedef-id='73446457' id='849338e3'>

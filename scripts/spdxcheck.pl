@@ -56,6 +56,11 @@ my $tagged_patterns = q(
 	*.h
 	*.S
 
+	# C++ / Objective-C++ (macOS IOKit components)
+	*.cpp
+	*.hpp
+	*.mm
+
 	# Python files, eg test suite drivers, libzfs bindings
 	*.py
 	*.py.in
@@ -160,6 +165,69 @@ my $untagged_patterns = q(
 	tests/zfs-tests/include/tunables.cfg
 	tests/zfs-tests/include/zpool_script.shlib
 	tests/zfs-tests/tests/functional/mv_files/random_creation.ksh
+
+	# OpenZFS on OS X fork: files that are not part of the upstream macOS PR
+	# and do not carry a license tag yet (mostly ZetaWatch).
+	# Remove an entry once the file gains a tag.
+	cmd/os/macos/ZetaWatch/CommonAuthorization/CommonAuthorization.h
+	cmd/os/macos/ZetaWatch/Makefile.am
+	cmd/os/macos/ZetaWatch/uninstall-helper.sh
+	cmd/os/macos/ZetaWatch/ZetaAuthorizationHelper/ZetaAuthorizationHelper.h
+	cmd/os/macos/ZetaWatch/ZetaAuthorizationHelper/ZetaAuthorizationHelper.mm
+	cmd/os/macos/ZetaWatch/ZetaAuthorizationHelper/ZetaAuthorizationHelperProtocol.h
+	cmd/os/macos/ZetaWatch/ZetaAuthorizationHelper/ZetaCPPUtils.hpp
+	cmd/os/macos/ZetaWatch/ZetaWatch/InvariantDisks/IDDiskArbitrationDispatcher.cpp
+	cmd/os/macos/ZetaWatch/ZetaWatch/InvariantDisks/IDDiskArbitrationDispatcher.hpp
+	cmd/os/macos/ZetaWatch/ZetaWatch/InvariantDisks/IDDiskArbitrationHandler.hpp
+	cmd/os/macos/ZetaWatch/ZetaWatch/InvariantDisks/IDDiskArbitrationUtils.cpp
+	cmd/os/macos/ZetaWatch/ZetaWatch/InvariantDisks/IDDiskArbitrationUtils.hpp
+	cmd/os/macos/ZetaWatch/ZetaWatch/SizeTransformer.mm
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaAuthorization.h
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaAuthorization.mm
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaAutoImporter.h
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaAutoImporter.mm
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaBookmarkMenu.h
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaBookmarkMenu.mm
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaCommanderBase.h
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaCommanderBase.mm
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaConfirmDialog.h
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaConfirmDialog.mm
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaDictQueryDialog.h
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaDictQueryDialog.mm
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaFileSystemPropertyMenu.h
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaFileSystemPropertyMenu.mm
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaFormatHelpers.cpp
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaFormatHelpers.hpp
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaImportMenu.h
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaImportMenu.mm
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaKeyLoader.h
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaKeyLoader.mm
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaMainMenu.h
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaMainMenu.mm
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaNotificationCenter.h
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaNotificationCenter.mm
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaPoolPropertyMenu.h
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaPoolPropertyMenu.mm
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaPoolWatcher.h
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaPoolWatcher.mm
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaQueryDialog.h
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaQueryDialog.mm
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaSnapshotMenu.h
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaSnapshotMenu.mm
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaWatchDelegate.h
+	cmd/os/macos/ZetaWatch/ZetaWatch/ZetaWatchDelegate.mm
+	cmd/os/macos/ZetaWatch/ZFSWrapper/include/ZFSNVList.hpp
+	cmd/os/macos/ZetaWatch/ZFSWrapper/include/ZFSStrings.hpp
+	cmd/os/macos/ZetaWatch/ZFSWrapper/include/ZFSUtils.hpp
+	cmd/os/macos/ZetaWatch/ZFSWrapper/src/ZFSNVList.cpp
+	cmd/os/macos/ZetaWatch/ZFSWrapper/src/ZFSStrings.cpp
+	cmd/os/macos/ZetaWatch/ZFSWrapper/src/ZFSStringsNS.mm
+	cmd/os/macos/ZetaWatch/ZFSWrapper/src/ZFSUtils.cpp
+	contrib/macOS/Makefile.am
+	contrib/macOS/uninstall-openzfsonosx.sh
+	scripts/kpi_check.py
+	scripts/symbolicate_panic_macos.py
+	tests/zfs-tests/include/tunables-macos.cfg
 );
 
 # For files expected to have a license tags, these are the acceptable tags by
@@ -246,15 +314,85 @@ my %override_file_license_tags = (
 	)],
 	'OpenSSL-standalone' => [qw(
 		module/icp/asm-x86_64/aes/aes_aesni.S
+		module/icp/asm-aarch64/aes/aesv8-armx.S
+		module/icp/asm-aarch64/aes/ghashv8-armx.S
 	)],
 	'CDDL-1.0 OR MPL-2.0' => [qw(
 		tests/zfs-tests/cmd/renameat2.c
 	)],
 
-	# Legacy inclusions of BSD-2-Clause files in Linux SPL.
+	# Legacy inclusions of BSD-2-Clause files in Linux SPL, plus macOS
+	# ports of the same TrueNAS/iXsystems and FreeBSD-derived files.
 	'BSD-2-Clause' => [qw(
 		include/os/linux/spl/sys/debug.h
 		module/os/linux/spl/spl-zone.c
+		include/os/macos/spl/sys/debug.h
+		include/os/macos/spl/sys/priv.h
+		include/os/macos/spl/sys/simd.h
+		module/os/macos/zfs/sysctl_os.c
+		lib/libzfs/os/macos/libzfs_share_nfs.c
+	)],
+
+	# 4-clause BSD (with advertising clause) inclusions in the macOS SPL.
+	'BSD-4-Clause' => [qw(
+		module/os/macos/spl/spl-qsort.c
+	)],
+
+	# zlib-licensed vendor headers used by the macOS SPL's in-kernel
+	# compression shim.
+	'Zlib' => [qw(
+		module/os/macos/spl/spl-zlib.c
+		include/os/macos/spl/sys/zmod.h
+	)],
+
+	# Apple Public Source License 2.0: files derived from Apple's own
+	# xnu/hfs sources, needed by the macOS port for HFS+ compatibility
+	# shims and IOKit sysctl/config helpers.
+	'APSL-2.0' => [qw(
+		cmd/os/macos/zconfigd/zconfigd.c
+		cmd/os/macos/zsysctl/zsysctl.c
+		include/os/macos/zfs/sys/finderinfo.h
+		include/os/macos/zfs/sys/hfs_internal.h
+	)],
+
+	# BSD-3-Clause: InvariantDisks is a separately-licensed third-party
+	# component bundled with the macOS port; see its own BSD.LICENSE.md.
+	'BSD-3-Clause' => [qw(
+		cmd/os/macos/InvariantDisks/Makefile.am
+		cmd/os/macos/InvariantDisks/InvariantDisks/Makefile.am
+		cmd/os/macos/InvariantDisks/InvariantDisks/git-version.h
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDBaseLinker.cpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDBaseLinker.hpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDCLI.cpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDCLI.hpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDDAHandlerIdle.cpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDDAHandlerIdle.hpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDDiskArbitrationDispatcher.cpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDDiskArbitrationDispatcher.hpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDDiskArbitrationHandler.hpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDDiskArbitrationUtils.cpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDDiskArbitrationUtils.hpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDDiskInfoLogger.cpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDDiskInfoLogger.hpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDDispatchUtils.cpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDDispatchUtils.hpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDException.cpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDException.hpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDFileUtils.hpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDFileUtils.mm
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDImagePathLinker.cpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDImagePathLinker.hpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDLogUtils.cpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDLogUtils.hpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDMediaPathLinker.cpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDMediaPathLinker.hpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDSerialLinker.cpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDSerialLinker.hpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDSymlinkHandle.cpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDSymlinkHandle.hpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDUUIDLinker.cpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/IDUUIDLinker.hpp
+		cmd/os/macos/InvariantDisks/InvariantDisks/main.cpp
 	)],
 
 	# Temporary overrides for things that have the wrong license for
@@ -266,6 +404,7 @@ my %override_file_license_tags = (
 	'CDDL-1.0' => [qw(
 		include/os/linux/spl/sys/errno.h
 		include/os/linux/spl/sys/ia32/asm_linkage.h
+		include/os/linux/spl/sys/aarch64/asm_linkage.h
 		include/os/linux/spl/sys/misc.h
 		include/os/linux/spl/sys/procfs_list.h
 		include/os/linux/spl/sys/trace.h

@@ -262,6 +262,12 @@ vdev_file_io_start(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
 
+	if (vdev_file_os_io_start(zio)) {
+		zio->io_error = SET_ERROR(ENXIO);
+		zio_delay_interrupt(zio);
+		return;
+	}
+
 	if (zio->io_type == ZIO_TYPE_FLUSH) {
 		/* XXPOLICY */
 		if (!vdev_readable(vd)) {

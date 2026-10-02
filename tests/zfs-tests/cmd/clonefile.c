@@ -71,6 +71,12 @@ _Static_assert(sizeof (loff_t) == sizeof (off_t),
 	"loff_t and off_t must be the same size");
 #endif
 
+#ifdef __APPLE__
+/* error: attribute declaration must precede definition */
+ssize_t
+copy_file_range(int, loff_t *, int, loff_t *, size_t, unsigned int);
+#define	cf_copy_file_range copy_file_range
+#else
 ssize_t
 copy_file_range(int, off_t *, int, off_t *, size_t, unsigned int)
     __attribute__((weak));
@@ -84,6 +90,7 @@ cf_copy_file_range(int sfd, off_t *soff, int dfd, off_t *doff,
 	return (
 	    syscall(__NR_copy_file_range, sfd, soff, dfd, doff, len, flags));
 }
+#endif /* APPLE */
 
 #else
 /* Other platforms, let the linker sort it out. */
@@ -313,9 +320,9 @@ main(int argc, char **argv)
 		off_t slen = lseek(sfd, 0, SEEK_END);
 		off_t dpos = lseek(dfd, 0, SEEK_CUR);
 		off_t dlen = lseek(dfd, 0, SEEK_END);
-
 		fprintf(stderr, "file offsets: src=%jd/%jd; dst=%jd/%jd\n",
-		    spos, slen, dpos, dlen);
+		    (intmax_t)spos, (intmax_t)slen,
+		    (intmax_t)dpos, (intmax_t)dlen);
 	}
 
 	close(dfd);

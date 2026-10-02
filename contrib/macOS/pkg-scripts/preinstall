@@ -1,0 +1,51 @@
+#!/usr/bin/perl
+
+$0 =~ m/.*\/(.*)$/;
+my $stage = $1;
+my $action = $ARGV[3];
+my $wd = `pwd`;
+chomp($wd);
+my $actionsDir = $wd . "/" . 'postinstall' . "_actions/";
+my $upgradeDir = $wd . "/" . 'postupgrade' . "_actions/";
+my $upgrade = 0;
+my $debug = 1;
+
+if ( $0 =~ /postupgrade/ || $0 =~ /preupgrade/ || $action =~ /upgrade/) {
+	system("logger -p install.info 'Upgrade scripts will be run.'") if ( $debug );
+	$upgrade = 1;
+}
+
+if ( $stage =~ /pre/ )
+{
+	$actionsDir = $wd  . "/" . 'preinstall' . "_actions/";
+	$upgradeDir = $wd  . "/" . 'preupgrade' . "_actions/";
+}
+
+if ( $upgrade == 1  && -e $upgradeDir ) {
+	system("logger -p install.info 'Running Upgrade Scripts . . .'") if ( $debug );
+	$count = 0;
+	foreach my $action (`/bin/ls \"$upgradeDir\"`) {
+		chomp($action);
+		system("logger -p install.info 'Begin script: $action'") if ( $debug );
+		system($upgradeDir . $action, $ARGV[0], $ARGV[1], $ARGV[2], $ARGV[3]) == 0 or die;
+		system("logger -p install.info 'End script: $action'") if ( $debug );
+		$count++;
+	}
+	system("logger -p install.info '$count Upgrade Scripts run.'") if ( $debug );
+}
+
+if ( -e $actionsDir ) {
+	system("logger -p install.info 'Running Install Scripts . . .'") if ( $debug );
+	$count = 0;
+	foreach my $action (`/bin/ls \"$actionsDir\"`) {
+		chomp($action);
+		system("logger -p install.info 'Begin script: $action'") if ( $debug );
+		system($actionsDir . $action, $ARGV[0], $ARGV[1], $ARGV[2], $ARGV[3],$upgrade) == 0 or die;
+		system("logger -p install.info 'End script: $action'") if ( $debug );
+		$count++;
+	}
+	system("logger -p install.info '$count Install Scripts run.'") if ( $debug );
+}
+
+exit(0);
+

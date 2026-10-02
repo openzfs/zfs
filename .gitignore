@@ -42,6 +42,7 @@
 !udev/**
 
 !.editorconfig
+!.flake8
 !.cirrus.yml
 !.gitignore
 !.gitmodules

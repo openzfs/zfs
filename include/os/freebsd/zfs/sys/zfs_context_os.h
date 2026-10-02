@@ -46,6 +46,10 @@
 #define	HAVE_LARGE_STACKS	1
 #endif
 
+#ifndef MODULE_PARAM_MAX
+#define	MODULE_PARAM_MAX 1024
+#endif
+
 #define	taskq_create_sysdc(a, b, d, e, p, dc, f) \
 	    ((void) sizeof (dc), taskq_create(a, b, maxclsyspri, d, e, f))
 
