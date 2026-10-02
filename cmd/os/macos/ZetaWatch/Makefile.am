@@ -83,7 +83,7 @@ ZetaLoginItemHelper_bin_SOURCES = \
 	%D%/ZetaLoginItemHelper/main.m
 
 ZetaLoginItemHelper_bin_OBJCFLAGS = -fobjc-arc -Wall -Wextra
-ZetaLoginItemHelper_bin_LDFLAGS = -static -framework Cocoa -framework Foundation
+ZetaLoginItemHelper_bin_LDFLAGS = -framework Cocoa -framework Foundation
 
 noinst_ZetaLoginItemHelper.app: ZetaLoginItemHelper_bin
 	$(AM_V_GEN)$(MKDIR_P) ZetaLoginItemHelper.app/Contents/MacOS

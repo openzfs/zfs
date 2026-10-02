@@ -12,7 +12,7 @@ zfs_util_SOURCES = \
 zfs_util_LDADD = \
         libzfs.la
 
-zfs_util_LDFLAGS = -static -framework IOKit
+zfs_util_LDFLAGS = -framework IOKit
 
 # build the /Library/Filesystems/zfs.fs/ bundle
 
