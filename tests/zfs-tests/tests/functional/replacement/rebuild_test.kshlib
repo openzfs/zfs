@@ -1,0 +1,187 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+
+# Helpers for rebuild outcome tests. Only pools and injection records created
+# by the caller are removed. All vdevs are disposable files in a private dir.
+
+# Clear the given injections, or all of them.
+function rebuild_test_clear_faults
+{
+	typeset id pending=""
+	typeset -i ret=0
+	for id in $rebuild_inject_ids; do
+		if [[ $# -gt 0 && " $* " != *" $id "* ]]; then
+			pending="$pending $id"
+		elif ! zinject -c "$id"; then
+			pending="$pending $id"
+			ret=1
+		fi
+	done
+	rebuild_inject_ids="$pending"
+	return $ret
+}
+
+function rebuild_test_cleanup
+{
+	rebuild_test_clear_faults
+	# Destroy before restoring progress so cleanup cannot finish repair.
+	if [[ "$rebuild_pool_created" = 1 ]] && poolexists "$TESTPOOL1"; then
+		destroy_pool "$TESTPOOL1"
+	fi
+	set_tunable32 SCAN_IGNORE_ERRORS "$rebuild_orig_ignore"
+	set_tunable32 SCAN_SUSPEND_PROGRESS "$rebuild_orig_suspend"
+	set_tunable32 REBUILD_SCRUB_ENABLED "$rebuild_orig_scrub"
+	set_tunable64 REBUILD_VDEV_LIMIT "$rebuild_orig_vdev_limit"
+	rm -rf "$rebuild_dir"
+}
+
+function rebuild_test_init
+{
+	rebuild_orig_ignore=$(get_tunable SCAN_IGNORE_ERRORS)
+	rebuild_orig_suspend=$(get_tunable SCAN_SUSPEND_PROGRESS)
+	rebuild_orig_scrub=$(get_tunable REBUILD_SCRUB_ENABLED)
+	rebuild_orig_vdev_limit=$(get_tunable REBUILD_VDEV_LIMIT)
+	rebuild_dir=$(mktemp -d "$TEST_BASE_DIR/rebuild.XXXXXX") ||
+	    log_fail "cannot create rebuild test directory"
+	rebuild_inject_ids=""
+	rebuild_pool_created=0
+	log_onexit rebuild_test_cleanup
+	log_must set_tunable32 SCAN_IGNORE_ERRORS 0
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
+	log_must set_tunable32 REBUILD_SCRUB_ENABLED 0
+	log_must dd if=/dev/urandom of="$rebuild_dir/expected" bs=1M count=64
+}
+
+# Create n source devices and one fresh replacement device. Remaining
+# arguments describe the top-level vdev (empty for a single-device pool).
+function rebuild_test_create
+{
+	typeset -i n=$1 i
+	shift
+	typeset -a disks
+
+	log_must rm -f "$rebuild_dir"/disk-*
+	for (( i=0; i<n; i++ )); do
+		disks[i]="$rebuild_dir/disk-$i"
+	done
+	rebuild_target="$rebuild_dir/disk-$n"
+	log_must truncate -s 512M "${disks[@]}" "$rebuild_target"
+	log_must zpool create -f -o cachefile=none \
+	    -o feature@resilver_defer=disabled -m "$rebuild_dir/mnt" \
+	    -O compression=off -O atime=off -O recordsize=128k \
+	    -O primarycache=metadata "$TESTPOOL1" "$@" "${disks[@]}"
+	rebuild_pool_created=1
+	log_must cp "$rebuild_dir/expected" "$rebuild_dir/mnt/file"
+	sync_pool "$TESTPOOL1"
+	# Leave an unrelated, successful scan behind to test retirement ownership.
+	log_must zpool scrub -w "$TESTPOOL1"
+}
+
+function rebuild_test_inject
+{
+	typeset id
+	id=$(zinject -q "$@" "$TESTPOOL1") || log_fail "cannot inject fault"
+	case "$id" in
+		""|*[!0-9]*) log_fail "invalid injection id: $id" ;;
+	esac
+	rebuild_inject_ids="$rebuild_inject_ids $id"
+	rebuild_inject_last=$id
+}
+
+# Wait for actual replacement completion, not merely a completed scan. Bound
+# the wait so a retirement regression reports a failure instead of a ZTS kill.
+function rebuild_test_wait
+{
+	timeout 120 zpool wait -t "$1" "$TESTPOOL1" && return 0
+	zpool status -v "$TESTPOOL1"
+	return 1
+}
+
+# Live rebuild statistics may be cleared by a later healing pass. History
+# must record a completed rebuild, and its own result, rather than cancellation
+# or an error count borrowed from another scan.
+function rebuild_test_completed
+{
+	log_must rebuild_test_wait resilver
+	log_must eval "zpool history -i '$TESTPOOL1' >'$rebuild_dir/history'"
+	log_must grep -E " rebuild .* errors=$1 complete$" "$rebuild_dir/history"
+}
+
+# Whether a healing pass set up after the rebuild completed without errors.
+# With "ordered", no device may be detached before that pass completes.
+function rebuild_test_healed
+{
+	zpool history -i "$TESTPOOL1" | awk -v ordered="$1" '
+	    / rebuild .* complete$/ { rebuilt = 1; setup = healed = 0 }
+	    rebuilt && / scan setup func=/ { setup = / func=2 / }
+	    setup && / scan done errors=0$/ { healed = 1 }
+	    / scan done / { setup = 0 }
+	    rebuilt && ordered && / detach vdev=/ && !healed { early = 1 }
+	    END { exit !(healed && !early) }'
+}
+
+# The rebuild must not retire repairs it failed. Either the replacement is
+# still incomplete, or a healing pass which followed the rebuild completed it,
+# as it may when every failure can be repaired from a remaining copy.
+function rebuild_test_retained
+{
+	is_pool_replacing "$TESTPOOL1" || rebuild_test_healed ordered
+}
+
+# Whether the leaf's synced DTL records missing data. The pool has no cache
+# file, so zdb finds it through its devices.
+function rebuild_test_missing
+{
+	sync_pool "$TESTPOOL1"
+	zdb -e -p "$rebuild_dir" -ddd "$TESTPOOL1" >"$rebuild_dir/dtl" 2>&1 ||
+	    return 1
+	awk -v leaf="$1" '
+	    $2 ~ /^\[DTL-/ { selected = ($1 == leaf) }
+	    selected && $1 == "missing" { found = 1 }
+	    END { exit !found }' "$rebuild_dir/dtl"
+}
+
+# Wait for injections to fire, so that a rebuild interrupted afterwards has
+# already counted the failures.
+function rebuild_test_wait_fired
+{
+	typeset -i i
+	for (( i = 0; i < 120; i++ )); do
+		zinject >"$rebuild_dir/injections" || return 1
+		awk -v ids="$*" 'BEGIN { n = split(ids, want) }
+		    { for (i = 1; i <= n; i++)
+			if ($1 == want[i] && $NF + 0 > 0) seen[$1] = 1 }
+		    END { for (i = 1; i <= n; i++)
+			if (!(want[i] in seen)) exit 1 }' \
+		    "$rebuild_dir/injections" && return 0
+		sleep 0.5
+	done
+	return 1
+}
+
+function rebuild_test_finish
+{
+	log_must rebuild_test_clear_faults
+	log_must set_tunable32 SCAN_IGNORE_ERRORS 0
+	# Request healing explicitly; do not depend on scrub admission policy.
+	log_must zpool reopen "$TESTPOOL1"
+	log_must rebuild_test_wait resilver
+	log_must rebuild_test_wait replace
+	log_must zpool scrub "$TESTPOOL1"
+	log_must rebuild_test_wait scrub
+	log_must check_pool_status "$TESTPOOL1" "errors" "No known data errors"
+	log_must zpool export "$TESTPOOL1"
+	log_must zpool import -o cachefile=none -d "$rebuild_dir" "$TESTPOOL1"
+	log_must cmp "$rebuild_dir/expected" "$rebuild_dir/mnt/file"
+	destroy_pool "$TESTPOOL1"
+	rebuild_pool_created=0
+}
