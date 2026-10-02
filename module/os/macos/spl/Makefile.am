@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 
 # Anyone remember why we made this a library?
 libspl_la_CPPFLAGS= \
