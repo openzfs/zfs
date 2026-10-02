@@ -648,10 +648,16 @@ libzfs_macos_wrapfd(int *srcfd, boolean_t send)
 	 * with mkfifo() (which is safe from MitM). Jump some hoops to
 	 * work around it.
 	 */
-	do {
+	for (;;) {
 		snprintf(template, sizeof (template), "/tmp/.zfs.pipe.%u",
 		    arc4random());
-	} while (mkfifo(template, 0600) != 0);
+		if (mkfifo(template, 0600) == 0)
+			break;
+		if (errno != EEXIST) {
+			free(p2f);
+			return;
+		}
+	}
 
 	pipe_relay_readfd = open(template, O_RDONLY | O_NONBLOCK);
 
@@ -759,10 +765,14 @@ libzfs_macos_pipefd(int *read_fd, int *write_fd)
 	 * with mkfifo() (which is safe from MitM). Jump some hoops to
 	 * work around it.
 	 */
-	do {
+	for (;;) {
 		snprintf(template, sizeof (template), "/tmp/.zfs.pipe.%u",
 		    arc4random());
-	} while (mkfifo(template, 0600) != 0);
+		if (mkfifo(template, 0600) == 0)
+			break;
+		if (errno != EEXIST)
+			return (-1);
+	}
 
 	*read_fd = open(template, O_RDONLY | O_NONBLOCK);
 
