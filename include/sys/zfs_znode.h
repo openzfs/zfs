@@ -229,11 +229,15 @@ typedef struct znode {
 	uint64_t	z_ev_io_wpend_bytes; /* write window byte total */
 	uint64_t	z_ev_io_wuid;	/* uid that opened the write window */
 	uint64_t	z_ev_io_wgid;	/* gid that opened the write window */
+	uint64_t	z_ev_io_wprincipal; /* principal tag of window opener */
+	boolean_t	z_ev_io_whaveprincipal;
 	hrtime_t	z_ev_io_rstart;	/* read window open time */
 	uint64_t	z_ev_io_rpend_off; /* read window first offset */
 	uint64_t	z_ev_io_rpend_bytes; /* read window byte total */
 	uint64_t	z_ev_io_ruid;	/* uid that opened the read window */
 	uint64_t	z_ev_io_rgid;	/* gid that opened the read window */
+	uint64_t	z_ev_io_rprincipal; /* principal tag of window opener */
+	boolean_t	z_ev_io_rhaveprincipal;
 	mode_t		z_mode;		/* mode (cached) */
 	kmutex_t	z_acl_lock;	/* acl data lock */
 	zfs_acl_t	*z_acl_cached;	/* cached acl */

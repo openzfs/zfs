@@ -2136,3 +2136,47 @@ lzc_clear_events(const char *dsname, nvlist_t **outnvl)
 {
 	return (lzc_ioctl(ZFS_IOC_CLEAR_EVENTS, dsname, NULL, outnvl));
 }
+
+/*
+ * Registers (principal != 0 semantics handled by caller; 0 is a valid
+ * tag value) or deregisters the calling process's event-principal
+ * tag. Returns 0 and the registration generation via *genp on
+ * success. ENOSPC = registration table full; ENOENT = clear with no
+ * registration; EINVAL = kernel key validation (should not happen).
+ */
+int
+lzc_set_principal(uint64_t principal, uint64_t *genp)
+{
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *outnvl = NULL;
+	boolean_t registered = B_FALSE;
+	int error;
+
+	fnvlist_add_uint64(args, "principal", principal);
+	error = lzc_ioctl(ZFS_IOC_SET_PRINCIPAL, NULL, args, &outnvl);
+	fnvlist_free(args);
+	if (error == 0 && outnvl != NULL) {
+		(void) nvlist_lookup_boolean_value(outnvl, "registered",
+		    &registered);
+		(void) nvlist_lookup_uint64(outnvl, "generation", genp);
+		fnvlist_free(outnvl);
+	}
+	return (registered ? error : (error ? error : EIO));
+}
+
+int
+lzc_clear_principal(uint64_t *genp)
+{
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *outnvl = NULL;
+	int error;
+
+	fnvlist_add_boolean_value(args, "clear", B_TRUE);
+	error = lzc_ioctl(ZFS_IOC_SET_PRINCIPAL, NULL, args, &outnvl);
+	fnvlist_free(args);
+	if (error == 0 && outnvl != NULL) {
+		(void) nvlist_lookup_uint64(outnvl, "generation", genp);
+		fnvlist_free(outnvl);
+	}
+	return (error);
+}

@@ -356,10 +356,11 @@ static uint64_t zfs_events_get_obj(objset_t *os, dmu_tx_t *tx,
 #define	ZFS_EVQ_MAX	4096
 
 /*
- * Upper bound on one packed record: one uint16 + seven uint64
- * native-encoded pairs measure 288 bytes; 512 leaves headroom for
- * future fields. Keep this in sync with the drain-time runtime
- * guard, which counts a too-large record lost instead of panicking.
+ * Upper bound on one packed record: one uint16 + eight uint64
+ * native-encoded pairs (incl. the optional principal) measure under
+ * 320 bytes; 512 leaves headroom for future fields. Keep this in
+ * sync with the drain-time runtime guard, which counts a too-large
+ * record lost instead of panicking.
  */
 #define	ZFS_EVQ_REC_MAX	512
 
@@ -369,19 +370,146 @@ static kmem_cache_t *zfs_events_qent_cache;
 
 static void zfs_events_drain_task(void *arg);
 
+/*
+ * Per-principal registration table (ZFS_EV_PRINCIPAL).
+ *
+ * An application (zeta-object: one process per S3 gateway) registers an
+ * opaque uint64 tag for its thread group; every event record the
+ * thread group triggers carries the tag, letting consumers attribute
+ * records to an application-level principal (e.g. an S3 access key)
+ * that the kernel cannot know.
+ *
+ * Evidentiary weight: the tag is a CLAIM supplied by userspace, not
+ * evidence - any process may register any value. The record's uid/gid
+ * remain the kernel-verified attribution; the principal is a
+ * correlation key.
+ *
+ * Capture discipline: zfs_events_principal_get() must be called ONLY
+ * from syscall context. Deferred emission (taskq drain, zfs_inactive)
+ * runs in kernel-worker context where the calling process is not the
+ * writer, so deferred records capture the tag into their queue entry
+ * at defer time, exactly like uid/gid. A tag absent at defer time is
+ * never fabricated later.
+ *
+ * Generation counter: tgids can be reused. Each registration bumps
+ * the entry's generation, so a stale consumer of a previous
+ * registration can always distinguish old from new.
+ */
+#define	ZFS_PRINCIPAL_MAX	64
+
+/*
+ * Thread-group id of the caller. getpid() is the THREAD id on both
+ * platforms (Linux current->pid / FreeBSD td_tid), but registrations
+ * are per application process (a multi-threaded gateway registers
+ * once and every request thread must match), so key the table on the
+ * thread-group leader id.
+ */
+#if defined(_KERNEL)
+#if defined(__linux__)
+#define	ZFS_EV_TGID()	(current->tgid)
+#else
+#define	ZFS_EV_TGID()	(curproc->p_pid)
+#endif
+#else
+#define	ZFS_EV_TGID()	((pid_t)getpid())	/* libzpool: plain pid */
+#endif
+
+typedef struct zfs_events_principal {
+	pid_t		zp_tgid;	/* 0 = slot free */
+	uint64_t	zp_tag;
+	uint64_t	zp_gen;		/* bumps on every register */
+} zfs_events_principal_t;
+
+static kmutex_t		zfs_events_principal_lock;
+static zfs_events_principal_t	zfs_events_principals[ZFS_PRINCIPAL_MAX];
+
+/*
+ * Leaf-lock ordering: zfs_events_principal_lock guards only this
+ * table and is never held across any other lock acquisition
+ * (including z_events_lock); capture sites take it and release it
+ * before touching dataset state.
+ */
+boolean_t
+zfs_events_principal_get(uint64_t *tagp)
+{
+	pid_t tgid = ZFS_EV_TGID();
+	boolean_t found = B_FALSE;
+	int i;
+
+	mutex_enter(&zfs_events_principal_lock);
+	for (i = 0; i < ZFS_PRINCIPAL_MAX; i++) {
+		if (zfs_events_principals[i].zp_tgid == tgid) {
+			*tagp = zfs_events_principals[i].zp_tag;
+			found = B_TRUE;
+			break;
+		}
+	}
+	mutex_exit(&zfs_events_principal_lock);
+	return (found);
+}
+
 void
 zfs_events_qent_init(void)
 {
 	zfs_events_qent_cache = kmem_cache_create(
 	    "zfs_events_qent", sizeof (zfs_events_qent_t), 0,
 	    NULL, NULL, NULL, NULL, NULL, 0);
+	mutex_init(&zfs_events_principal_lock, NULL, MUTEX_DEFAULT, NULL);
+	memset(zfs_events_principals, 0, sizeof (zfs_events_principals));
 }
 
 void
 zfs_events_qent_fini(void)
 {
+	mutex_destroy(&zfs_events_principal_lock);
 	kmem_cache_destroy(zfs_events_qent_cache);
 	zfs_events_qent_cache = NULL;
+}
+
+/*
+ * Register (have=B_TRUE) or deregister (have=B_FALSE) the calling
+ * thread group's principal tag. Returns B_TRUE and the entry's
+ * generation via *genp on success; B_FALSE when the table is full
+ * (register) or the caller has no registration (deregister).
+ */
+boolean_t
+zfs_events_principal_set(boolean_t have, uint64_t tag, uint64_t *genp)
+{
+	pid_t tgid = ZFS_EV_TGID();
+	int i, free_slot = -1;
+
+	mutex_enter(&zfs_events_principal_lock);
+	for (i = 0; i < ZFS_PRINCIPAL_MAX; i++) {
+		if (zfs_events_principals[i].zp_tgid == tgid)
+			break;
+		if (zfs_events_principals[i].zp_tgid == 0 &&
+		    free_slot == -1)
+			free_slot = i;
+	}
+	if (!have) {
+		if (i == ZFS_PRINCIPAL_MAX) {
+			mutex_exit(&zfs_events_principal_lock);
+			return (B_FALSE);
+		}
+		memset(&zfs_events_principals[i], 0,
+		    sizeof (zfs_events_principals[i]));
+		mutex_exit(&zfs_events_principal_lock);
+		return (B_TRUE);
+	}
+	if (i == ZFS_PRINCIPAL_MAX) {
+		if (free_slot == -1) {
+			mutex_exit(&zfs_events_principal_lock);
+			return (B_FALSE);
+		}
+		i = free_slot;
+		zfs_events_principals[i].zp_tgid = tgid;
+		zfs_events_principals[i].zp_gen = 0;
+	}
+	zfs_events_principals[i].zp_tag = tag;
+	zfs_events_principals[i].zp_gen++;
+	*genp = zfs_events_principals[i].zp_gen;
+	mutex_exit(&zfs_events_principal_lock);
+	return (B_TRUE);
 }
 
 /*
@@ -416,6 +544,7 @@ zfs_events_io_defer(zfsvfs_t *zfsvfs, uint16_t op, uint64_t object,
 	qe->qe_bytes = bytes;
 	qe->qe_uid = crgetuid((cred_t *)(uintptr_t)cr);
 	qe->qe_gid = crgetgid((cred_t *)(uintptr_t)cr);
+	qe->qe_have_principal = zfs_events_principal_get(&qe->qe_principal);
 	qe->qe_txg = txg;
 	qe->qe_time = gethrtime();
 	if (qe->qe_txg == 0 && zfsvfs->z_os != NULL) {
@@ -623,6 +752,9 @@ zfs_events_drain_task(void *arg)
 		fnvlist_add_uint64(nvl, ZFS_EV_IO_BYTES, qe->qe_bytes);
 		fnvlist_add_uint64(nvl, ZFS_EV_UID, qe->qe_uid);
 		fnvlist_add_uint64(nvl, ZFS_EV_GID, qe->qe_gid);
+		if (qe->qe_have_principal)
+			fnvlist_add_uint64(nvl, ZFS_EV_PRINCIPAL,
+			    qe->qe_principal);
 		fnvlist_add_uint64(nvl, ZFS_EV_TXG, qe->qe_txg);
 		fnvlist_add_uint64(nvl, ZFS_EV_TIME, (uint64_t)qe->qe_time);
 		VERIFY0(nvlist_pack(nvl, &packed,
@@ -808,7 +940,28 @@ zfs_events_drain_shutdown(zfsvfs_t *zfsvfs)
 	zfsvfs->z_evq_count = 0;
 	mutex_exit(&zfsvfs->z_events_lock);
 }
-#endif	/* _KERNEL */
+#else	/* !_KERNEL (libzpool builds the record builders) */
+
+/*
+ * Userspace stubs: registration is a kernel-module feature (reached
+ * via ioctl); libzpool-compiled record builders never match a
+ * principal, which keeps the "absent is never fabricated" contract.
+ */
+boolean_t
+zfs_events_principal_get(uint64_t *tagp)
+{
+	(void) tagp;
+	return (B_FALSE);
+}
+
+boolean_t
+zfs_events_principal_set(boolean_t have, uint64_t tag, uint64_t *genp)
+{
+	(void) have, (void) tag, (void) genp;
+	return (B_FALSE);
+}
+
+#endif	/* !_KERNEL */
 
 /*
  * Destroy a dataset's event log object, undoing everything
@@ -1456,6 +1609,7 @@ zfs_events_log_write(objset_t *os, dmu_tx_t *tx,
     uint64_t events_size, uint64_t *objp, kmutex_t *lockp, uint64_t txg)
 {
 	nvlist_t *nvl;
+	uint64_t pr;
 
 	nvl = fnvlist_alloc();
 	fnvlist_add_uint16(nvl, ZFS_EV_OP, ZFS_EV_WRITE);
@@ -1464,6 +1618,8 @@ zfs_events_log_write(objset_t *os, dmu_tx_t *tx,
 	fnvlist_add_uint64(nvl, ZFS_EV_IO_BYTES, bytes);
 	fnvlist_add_uint64(nvl, ZFS_EV_UID, crgetuid((cred_t *)(uintptr_t)cr));
 	fnvlist_add_uint64(nvl, ZFS_EV_GID, crgetgid((cred_t *)(uintptr_t)cr));
+	if (zfs_events_principal_get(&pr))
+		fnvlist_add_uint64(nvl, ZFS_EV_PRINCIPAL, pr);
 
 	zfs_events_log_event(os, tx, nvl, events_size, objp, lockp, txg);
 	fnvlist_free(nvl);
@@ -1481,6 +1637,7 @@ zfs_events_log_read(objset_t *os, uint64_t object,
     uint64_t events_size, uint64_t *objp, kmutex_t *lockp)
 {
 	nvlist_t *nvl;
+	uint64_t pr;
 
 	nvl = fnvlist_alloc();
 	fnvlist_add_uint16(nvl, ZFS_EV_OP, ZFS_EV_READ);
@@ -1489,6 +1646,8 @@ zfs_events_log_read(objset_t *os, uint64_t object,
 	fnvlist_add_uint64(nvl, ZFS_EV_IO_BYTES, bytes);
 	fnvlist_add_uint64(nvl, ZFS_EV_UID, crgetuid((cred_t *)(uintptr_t)cr));
 	fnvlist_add_uint64(nvl, ZFS_EV_GID, crgetgid((cred_t *)(uintptr_t)cr));
+	if (zfs_events_principal_get(&pr))
+		fnvlist_add_uint64(nvl, ZFS_EV_PRINCIPAL, pr);
 
 	zfs_events_log_event(os, NULL, nvl, events_size, objp, lockp, 0);
 	fnvlist_free(nvl);
@@ -1515,7 +1674,8 @@ zfs_events_log_read(objset_t *os, uint64_t object,
 static void
 zfs_events_io_emit(znode_t *zp, objset_t *os, boolean_t is_write,
     hrtime_t start, uint64_t offset, uint64_t bytes, uint64_t uid,
-    uint64_t gid, uint64_t events_size, uint64_t *objp, kmutex_t *lockp,
+    uint64_t gid, uint64_t principal, boolean_t have_principal,
+    uint64_t events_size, uint64_t *objp, kmutex_t *lockp,
     uint64_t txg, kmutex_t *zlk)
 {
 	uint16_t op = is_write ? ZFS_EV_WRITE : ZFS_EV_READ;
@@ -1532,6 +1692,8 @@ zfs_events_io_emit(znode_t *zp, objset_t *os, boolean_t is_write,
 	fnvlist_add_uint64(nvl, ZFS_EV_IO_BYTES, bytes);
 	fnvlist_add_uint64(nvl, ZFS_EV_UID, uid);
 	fnvlist_add_uint64(nvl, ZFS_EV_GID, gid);
+	if (have_principal)
+		fnvlist_add_uint64(nvl, ZFS_EV_PRINCIPAL, principal);
 
 	/*
 	 * Deferred emission carries no transaction: the fence may merge
@@ -1561,6 +1723,8 @@ zfs_events_io_flush(znode_t *zp, objset_t *os, dmu_tx_t *tx,
 	uint64_t txg = 0;
 	hrtime_t start;
 	uint64_t offset, bytes, uid, gid;
+	uint64_t principal = 0;
+	boolean_t have_principal = B_FALSE;
 	boolean_t locked;
 
 	if (!zfsvfs->z_events || !zfsvfs->z_events_io || zfsvfs->z_replay)
@@ -1590,6 +1754,8 @@ zfs_events_io_flush(znode_t *zp, objset_t *os, dmu_tx_t *tx,
 		bytes = zp->z_ev_io_wpend_bytes;
 		uid = zp->z_ev_io_wuid;
 		gid = zp->z_ev_io_wgid;
+		principal = zp->z_ev_io_wprincipal;
+		have_principal = zp->z_ev_io_whaveprincipal;
 	} else {
 		start = zp->z_ev_io_rstart;
 		if (start == 0) {
@@ -1602,6 +1768,8 @@ zfs_events_io_flush(znode_t *zp, objset_t *os, dmu_tx_t *tx,
 		bytes = zp->z_ev_io_rpend_bytes;
 		uid = zp->z_ev_io_ruid;
 		gid = zp->z_ev_io_rgid;
+		principal = zp->z_ev_io_rprincipal;
+		have_principal = zp->z_ev_io_rhaveprincipal;
 	}
 	if (locked) {
 		/*
@@ -1610,7 +1778,8 @@ zfs_events_io_flush(znode_t *zp, objset_t *os, dmu_tx_t *tx,
 		 * emission and returns with it unlocked.
 		 */
 		zfs_events_io_emit(zp, os, is_write, start, offset, bytes,
-		    uid, gid, zfsvfs->z_events_size, &zfsvfs->z_events_obj,
+		    uid, gid, principal, have_principal,
+		    zfsvfs->z_events_size, &zfsvfs->z_events_obj,
 		    &zfsvfs->z_events_lock, txg, &zp->z_lock);
 		return;
 	}
@@ -1622,7 +1791,8 @@ zfs_events_io_flush(znode_t *zp, objset_t *os, dmu_tx_t *tx,
 	 */
 	mutex_exit(&zp->z_lock);
 	zfs_events_io_emit(zp, os, is_write, start, offset, bytes,
-	    uid, gid, zfsvfs->z_events_size, &zfsvfs->z_events_obj,
+	    uid, gid, principal, have_principal,
+	    zfsvfs->z_events_size, &zfsvfs->z_events_obj,
 	    &zfsvfs->z_events_lock, txg, NULL);
 	mutex_enter(&zp->z_lock);
 }
@@ -1659,6 +1829,8 @@ zfs_events_io_account(struct znode *zp, boolean_t is_write,
 	hrtime_t start = 0;
 	uint64_t pend_off = 0, pend_bytes = 0;
 	uint64_t uid = 0, gid = 0;
+	uint64_t principal = 0;
+	boolean_t have_principal = B_FALSE;
 	kmutex_t *zlk = &zp->z_lock;
 
 	/*
@@ -1738,6 +1910,8 @@ zfs_events_io_account(struct znode *zp, boolean_t is_write,
 			pend_bytes = zp->z_ev_io_wpend_bytes;
 			uid = zp->z_ev_io_wuid;
 			gid = zp->z_ev_io_wgid;
+			principal = zp->z_ev_io_wprincipal;
+			have_principal = zp->z_ev_io_whaveprincipal;
 		}
 	} else {
 		start = zp->z_ev_io_rstart;
@@ -1746,6 +1920,8 @@ zfs_events_io_account(struct znode *zp, boolean_t is_write,
 			pend_bytes = zp->z_ev_io_rpend_bytes;
 			uid = zp->z_ev_io_ruid;
 			gid = zp->z_ev_io_rgid;
+			principal = zp->z_ev_io_rprincipal;
+			have_principal = zp->z_ev_io_rhaveprincipal;
 		}
 	}
 
@@ -1777,8 +1953,8 @@ zfs_events_io_account(struct znode *zp, boolean_t is_write,
 		 * to touch the file last.
 		 */
 		zfs_events_io_emit(zp, zfsvfs->z_os, is_write, start,
-		    pend_off, pend_bytes, uid, gid,
-		    zfsvfs->z_events_size,
+		    pend_off, pend_bytes, uid, gid, principal,
+		    have_principal, zfsvfs->z_events_size,
 		    &zfsvfs->z_events_obj, &zfsvfs->z_events_lock,
 		    txg, zlk);
 
@@ -1792,6 +1968,9 @@ zfs_events_io_account(struct znode *zp, boolean_t is_write,
 				    crgetuid((cred_t *)(uintptr_t)cr);
 				zp->z_ev_io_wgid =
 				    crgetgid((cred_t *)(uintptr_t)cr);
+				zp->z_ev_io_whaveprincipal =
+				    zfs_events_principal_get(
+				    &zp->z_ev_io_wprincipal);
 			} else {
 				/*
 				 * Another thread already opened a new
@@ -1809,6 +1988,9 @@ zfs_events_io_account(struct znode *zp, boolean_t is_write,
 				    crgetuid((cred_t *)(uintptr_t)cr);
 				zp->z_ev_io_rgid =
 				    crgetgid((cred_t *)(uintptr_t)cr);
+				zp->z_ev_io_rhaveprincipal =
+				    zfs_events_principal_get(
+				    &zp->z_ev_io_rprincipal);
 			} else {
 				zp->z_ev_io_rpend_bytes += bytes;
 			}
@@ -1824,12 +2006,16 @@ zfs_events_io_account(struct znode *zp, boolean_t is_write,
 		zp->z_ev_io_wpend_bytes = bytes;
 		zp->z_ev_io_wuid = crgetuid((cred_t *)(uintptr_t)cr);
 		zp->z_ev_io_wgid = crgetgid((cred_t *)(uintptr_t)cr);
+		zp->z_ev_io_whaveprincipal =
+		    zfs_events_principal_get(&zp->z_ev_io_wprincipal);
 	} else {
 		zp->z_ev_io_rstart = now;
 		zp->z_ev_io_rpend_off = offset;
 		zp->z_ev_io_rpend_bytes = bytes;
 		zp->z_ev_io_ruid = crgetuid((cred_t *)(uintptr_t)cr);
 		zp->z_ev_io_rgid = crgetgid((cred_t *)(uintptr_t)cr);
+		zp->z_ev_io_rhaveprincipal =
+		    zfs_events_principal_get(&zp->z_ev_io_rprincipal);
 	}
 	mutex_exit(zlk);
 }

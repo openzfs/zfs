@@ -5122,6 +5122,49 @@ zfs_ioc_clear_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 	return (err);
 }
 
+/*
+ * Register or deregister the calling process's event-principal tag
+ * (ZFS_EV_PRINCIPAL on subsequently created event records). Exactly
+ * one of "principal" (register) or "clear" (deregister) must be
+ * present. No dataset is named and no pool is touched: this is a
+ * process-local attribute, so no permission beyond being able to
+ * open the ZFS device is required. The tag is an application claim,
+ * not a kernel-verified identity.
+ */
+static const zfs_ioc_key_t zfs_keys_set_principal[] = {
+	{"principal",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{"clear",	DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
+};
+
+static int
+zfs_ioc_set_principal(const char *unused, nvlist_t *innvl,
+    nvlist_t *outnvl)
+{
+	(void) unused;
+	uint64_t tag = 0, gen = 0;
+	boolean_t have_tag, have_clear, ok;
+
+	have_tag = nvlist_exists(innvl, "principal");
+	have_clear = nvlist_exists(innvl, "clear");
+	if (have_tag == have_clear)
+		return (SET_ERROR(EINVAL));
+
+	if (have_clear) {
+		ok = zfs_events_principal_set(B_FALSE, 0, &gen);
+		fnvlist_add_boolean_value(outnvl, "registered", B_FALSE);
+		fnvlist_add_uint64(outnvl, "generation", gen);
+		return (ok ? 0 : SET_ERROR(ENOENT));
+	}
+
+	(void) nvlist_lookup_uint64(innvl, "principal", &tag);
+	ok = zfs_events_principal_set(B_TRUE, tag, &gen);
+	if (!ok)
+		return (SET_ERROR(ENOSPC));
+	fnvlist_add_boolean_value(outnvl, "registered", B_TRUE);
+	fnvlist_add_uint64(outnvl, "generation", gen);
+	return (0);
+}
+
 static const zfs_ioc_key_t zfs_keys_channel_program[] = {
 	{"program",	DATA_TYPE_STRING,		0},
 	{"arg",		DATA_TYPE_ANY,			0},
@@ -8782,6 +8825,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_clear_events, zfs_secpolicy_clear_events, DATASET_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_FALSE,
 	    zfs_keys_clear_events, ARRAY_SIZE(zfs_keys_clear_events));
+
+	zfs_ioctl_register("set_principal", ZFS_IOC_SET_PRINCIPAL,
+	    zfs_ioc_set_principal, zfs_secpolicy_none, NO_NAME,
+	    POOL_CHECK_NONE, B_FALSE, B_FALSE,
+	    zfs_keys_set_principal, ARRAY_SIZE(zfs_keys_set_principal));
 
 	/* IOCTLS that use the legacy function signature */
 

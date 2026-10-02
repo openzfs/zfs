@@ -80,7 +80,7 @@ typedef struct zfs_events_phys {
 	uint64_t	zep_pad[2];		/* reserved for future use */
 } zfs_events_phys_t;
 
-#define	ZFS_EVENTS_VERSION	2
+#define	ZFS_EVENTS_VERSION	3
 
 /*
  * Nvlist keys for event records
@@ -100,6 +100,7 @@ typedef struct zfs_events_phys {
 #define	ZFS_EV_ATTRS		"attrs"		/* uint64: changed attr mask */
 #define	ZFS_EV_UID		"uid"		/* uint64: user ID */
 #define	ZFS_EV_GID		"gid"		/* uint64: group ID */
+#define	ZFS_EV_PRINCIPAL	"principal"	/* uint64: opaque tag */
 #define	ZFS_EV_IO_OFFSET	"io_offset"	/* uint64: IO start offset */
 #define	ZFS_EV_IO_BYTES		"io_bytes"	/* uint64: IO byte count */
 
@@ -185,6 +186,8 @@ typedef struct zfs_events_qent {
 	uint64_t		qe_bytes;
 	uint64_t		qe_uid;
 	uint64_t		qe_gid;
+	uint64_t		qe_principal;	/* opaque tag (claim) */
+	boolean_t		qe_have_principal;
 	uint64_t		qe_txg;
 	hrtime_t		qe_time;	/* gethrtime() at defer */
 } zfs_events_qent_t;
@@ -196,7 +199,25 @@ extern void zfs_events_io_flush(struct znode *zp, objset_t *os,
 extern void zfs_events_drain_shutdown(struct zfsvfs *zfsvfs);
 extern void zfs_events_qent_init(void);
 extern void zfs_events_qent_fini(void);
+
+/*
+ * Principal-tag table (ZFS_EV_PRINCIPAL). Kernel: real registration;
+ * userspace (libzpool compiles the record builders without _KERNEL):
+ * stubs that never match, since registration is a kernel-module
+ * feature reached via ioctl.
+ */
+extern boolean_t zfs_events_principal_get(uint64_t *tagp);
+extern boolean_t zfs_events_principal_set(boolean_t have, uint64_t tag,
+    uint64_t *genp);
 #endif	/* _KERNEL */
+
+/*
+ * Defined for both kernel and libzpool (which builds the record
+ * builders without _KERNEL and links stubs that never match).
+ */
+extern boolean_t zfs_events_principal_get(uint64_t *tagp);
+extern boolean_t zfs_events_principal_set(boolean_t have, uint64_t tag,
+    uint64_t *genp);
 
 /*
  * Event retrieval functions
