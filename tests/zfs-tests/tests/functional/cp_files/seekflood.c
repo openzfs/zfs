@@ -37,7 +37,7 @@
 #include <sys/wait.h>
 
 /* some older uClibc's lack the defines, so we'll manually define them */
-#ifdef	__UCLIBC__
+#if defined(__UCLIBC__) || defined(__APPLE__)
 #ifndef	SEEK_DATA
 #define	SEEK_DATA 3
 #endif

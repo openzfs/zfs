@@ -21,7 +21,7 @@ pre = setup
 quiet = False
 pre_user = root
 user = root
-timeout = 600
+timeout = 300
 post_user = root
 post = cleanup
 failsafe_user = root
@@ -71,7 +71,7 @@ tests = ['bclone_crossfs_corner_cases_limited',
     'bclone_samefs_embedded',
     'bclone_samefs_hole']
 tags = ['functional', 'bclone']
-timeout = 7200
+timeout = 300
 
 [tests/functional/block_cloning]
 tests = ['block_cloning_clone_mmap_cached',
@@ -181,7 +181,7 @@ tests = ['zdb_002_pos', 'zdb_003_pos', 'zdb_004_pos', 'zdb_005_pos',
 pre =
 post =
 tags = ['functional', 'cli_root', 'zdb']
-timeout = 1200
+timeout = 300
 
 [tests/functional/cli_root/zfs]
 tests = ['zfs_001_neg', 'zfs_002_pos']
@@ -507,7 +507,7 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'zpool_import_status', 'zpool_import_parallel_pos',
     'zpool_import_parallel_neg', 'zpool_import_parallel_admin']
 tags = ['functional', 'cli_root', 'zpool_import']
-timeout = 1200
+timeout = 300
 
 [tests/functional/cli_root/zpool_iostat]
 tests = ['zpool_iostat_interval_all', 'zpool_iostat_interval_some']
@@ -883,7 +883,7 @@ tests = ['checkpoint_after_rewind', 'checkpoint_big_rewind',
     'checkpoint_ro_rewind', 'checkpoint_sm_scale', 'checkpoint_twice',
     'checkpoint_vdev_add', 'checkpoint_zdb', 'checkpoint_zhack_feat']
 tags = ['functional', 'pool_checkpoint']
-timeout = 1800
+timeout = 300
 
 [tests/functional/pool_names]
 tests = ['pool_names_001_pos', 'pool_names_002_neg']
@@ -931,7 +931,7 @@ tests = ['raidz_001_neg', 'raidz_002_pos', 'raidz_expand_001_pos',
     'raidz_expand_004_pos', 'raidz_expand_005_pos', 'raidz_expand_006_neg',
     'raidz_expand_007_neg', 'raidz_zinject']
 tags = ['functional', 'raidz']
-timeout = 1200
+timeout = 300
 
 [tests/functional/redundancy]
 tests = ['redundancy_draid', 'redundancy_draid1', 'redundancy_draid2',
@@ -943,7 +943,7 @@ tests = ['redundancy_draid', 'redundancy_draid1', 'redundancy_draid2',
     'redundancy_raidz', 'redundancy_raidz1', 'redundancy_raidz2',
     'redundancy_raidz3', 'redundancy_stripe']
 tags = ['functional', 'redundancy']
-timeout = 1200
+timeout = 300
 
 [tests/functional/refquota]
 tests = ['refquota_001_pos', 'refquota_002_pos', 'refquota_003_pos',

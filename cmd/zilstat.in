@@ -360,6 +360,64 @@ elif sys.platform.startswith('linux'):
 				kstat[objset][name] = value \
 				    if (name == "dataset_name") else int(value)
 
+elif sys.platform.startswith('darwin'):
+	import subprocess
+
+	def kstat_update(pool = None, objid = None):
+		def get_sysctl(name):
+			try:
+				return subprocess.check_output(['sysctl', name]) \
+				       .decode('utf-8').splitlines()
+			except subprocess.CalledProcessError as e:
+				print("Command: \"sysctl " + name + "\" failed with error " \
+				      "code: " + str(e.returncode))
+				sys.exit(1)
+
+		global kstat
+		kstat = {}
+		if not pool:
+			file = "kstat.zfs.misc.zil"
+			k = get_sysctl(file)
+			kstat_process_str(k, file, "GLOBAL", len(file + "."))
+		elif objid:
+			file = "kstat.zfs/" + pool + ".dataset.objset-" + objid
+			k = get_sysctl(file)
+			kstat_process_str(k, file, objid, len(file + "."))
+		else:
+			file = "kstat.zfs/" + pool + ".dataset"
+			zil_start = len(file + ".")
+			obj_start = len("kstat.zfs." + pool + ".")
+			k = get_sysctl(file)
+			for s in k:
+				if (s.find("zil") == -1 and \
+				    s.find("dataset_name") == -1):
+					continue
+				name, value = s.split(":")
+				value = value.strip()
+				objid = re.findall(r'0x[0-9A-F]+', \
+					name[obj_start:], re.I)[0]
+				if objid not in kstat:
+					kstat[objid] = dict()
+				zil_start = len(file + ".objset-" + \
+					objid + ".")
+				kstat[objid][name[zil_start:]] = int(value) \
+				    if (name.find("dataset_name") == -1) else value
+
+	def kstat_process_str(k, file, objset = "GLOBAL", zil_start = 0):
+			global kstat
+			if not k:
+				print("Unable to process kstat for: " + file)
+				sys.exit(1)
+			kstat[objset] = dict()
+			for s in k:
+				if (s.find("zil") == -1 and \
+				    s.find("dataset_name") == -1):
+					continue
+				name, value = s.split(":")
+				value = value.strip()
+				kstat[objset][name[zil_start:]] = int(value) \
+				    if (name.find("dataset_name") == -1) else value
+
 def zil_process_kstat():
 	global curr, pool_name, dataset_name, dsFlag, ds_pairs
 	curr.clear()

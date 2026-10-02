@@ -45,7 +45,7 @@ ddt_zap_compress(const void *src, uchar_t *dst, size_t s_len, size_t d_len)
 	ASSERT3U(d_len, >=, s_len + 1);	/* no compression plus version byte */
 
 	/* Call compress function directly to avoid hole detection. */
-	abd_t sabd, dabd;
+	abd_t sabd = { 0 }, dabd = { 0 };
 	abd_get_from_buf_struct(&sabd, (void *)src, s_len);
 	abd_get_from_buf_struct(&dabd, dst, d_len - 1);
 	c_len = ci->ci_compress(&sabd, &dabd, s_len, d_len - 1, ci->ci_level);

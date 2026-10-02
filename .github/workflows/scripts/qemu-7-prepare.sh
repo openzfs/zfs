@@ -37,7 +37,7 @@ if ! grep -q vm /etc/hosts ; then
 fi
 
 # build was okay
-BASE="$HOME/work/zfs/zfs"
+BASE="${GITHUB_WORKSPACE:-$HOME/work/zfs/zfs}"
 MERGE="$BASE/.github/workflows/scripts/merge_summary.awk"
 
 # catch result files of testings (vm's should be there)
