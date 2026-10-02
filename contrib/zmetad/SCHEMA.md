@@ -1,10 +1,10 @@
-# zmetad database schema — consumer contract (layout version 5)
+# zmetad database schema — consumer contract (layout version 8)
 
 This document is the stable contract between the `zmetad` daemon's SQLite
 database (`zmetad.db`) and external consumers (e.g. zeta-object). It is
 written so a consumer can be implemented without reading `zmetad` source.
 Every column name, type, and semantic below is pinned to
-`contrib/zmetad/zmetad_db.c` at DB layout version 5.
+`contrib/zmetad/zmetad_db.c` at DB layout version 8.
 
 The database is opened in WAL mode (`PRAGMA journal_mode=WAL`); consumers
 may read concurrently with the daemon.
@@ -12,7 +12,7 @@ may read concurrently with the daemon.
 
 ## 1. Stability policy
 
-`meta.db_schema_version = 5` is the stable contract version documented
+`meta.db_schema_version = 8` is the stable contract version documented
 here.
 
 Evolution rules:
@@ -36,10 +36,13 @@ Version history:
 | Version | Change |
 |---------|--------|
 | 1 | Initial layout (events core columns, sync_state, meta) |
-|| 2 | events gains `parent`, `old_parent`, `target`, `old_size`, `attrs` |
-|| 3 | sync_state gains `ring_guid`; new `datasets` table |
-|| 4 | events gains `captured_at` (unix seconds at ingest) |
-|| 5 | events gains `full_path`/`old_full_path`; new `objmap` graph table |
+| 2 | events gains `parent`, `old_parent`, `target`, `old_size`, `attrs` |
+| 3 | sync_state gains `ring_guid`; new `datasets` table |
+| 4 | events gains `captured_at` (unix seconds at ingest) |
+| 5 | events gains `full_path`/`old_full_path`; new `objmap` graph table |
+| 6 | sync_state gains `last_lost` (records_lost baseline; NULL = none yet) |
+| 7 | sync_state gains `root_id` (persisted dataset root object id; NULL = never learned) |
+| 8 | events gains `principal` (opaque application principal tag; NULL = writer did not register one) |
 
 Migration contract: upgrades are performed **in place** by zmetad with
 `ALTER TABLE ADD COLUMN`; added columns are NULL for pre-existing rows,
@@ -51,9 +54,10 @@ migration logic.
 
 Two version keys live in `meta` and are independent:
 
-- `db_schema_version` — the SQLite layout version (this document; `5`).
-- `events_schema_version` — the wire record schema version (`2`, see
-  `contrib/zmetad/events-schema.json`). zmetad refuses to open a
+- `db_schema_version` — the SQLite layout version (this document; `8`).
+- `events_schema_version` — the wire record schema version (`3`, see
+  `contrib/zmetad/events-schema.json`; kept in lockstep with the
+  kernel's `ZFS_EVENTS_VERSION`). zmetad refuses to open a
   database whose stored wire version differs from its loaded schema;
   consumers should likewise treat a mismatch as a refuse condition, not
   a parse attempt.
@@ -87,6 +91,7 @@ Two version keys live in `meta` and are independent:
 | target | TEXT | yes | `target` | symlink target (SYMLINK) |
 | old_size | INTEGER | yes | `old_size` | size before truncate (TRUNCATE) |
 | attrs | INTEGER | yes | `attrs` | changed attr mask (SETATTR) |
+| principal | INTEGER | yes | `principal` | opaque application principal tag; NULL when the writer did not register one; supplied by userspace, NOT verified by the kernel - a claim, not evidence |
 
 UNIQUE constraint: `(dataset, txg, object_id, event_type, timestamp)`.
 
@@ -125,7 +130,14 @@ column (kept NULL for schema stability; see the `events` table note).
 
 (`uid`, `gid` are optional fields not bound to a specific op: they are
 populated whenever the record carries them — in practice CREATE and
-WRITE/READ. Consumers MUST NOT expect `path`, `parent`, or `size` on
+WRITE/READ. `principal` is likewise optional on the wire: it is
+populated whenever the record carries it, regardless of op, and stays
+NULL otherwise — kernel records from writers that did not register a
+principal never carry the key, so the column is never fabricated. As
+with every field, records may carry fields a given zmetad schema does
+not know; unknown wire keys are ignored (forward compatibility), and
+new optional fields land here as additional nullable columns. Consumers
+MUST NOT expect `path`, `parent`, or `size` on
 TRUNCATE/SETATTR/WRITE/READ rows: identify those events by
 `object_id`, resolving the object to a name from the dataset's
 CREATE/RENAME history. WRITE/READ exist only when `events_io` is
@@ -211,7 +223,11 @@ Row lifecycle:
 | key | TEXT | no | `PRIMARY KEY` |
 | value | TEXT | no | string value |
 
-Known keys: `db_schema_version` (`"4"`), `events_schema_version` (`"2"`).
+Known keys: `db_schema_version` (`"8"`), `events_schema_version`
+(`"3"`), and `purge_epoch:<dataset>` (one monotonic integer per
+purged dataset; bumped atomically by `--purge`). The legacy global
+`purge_epoch` key survives in databases migrated from layout ≤ 6 but
+is no longer written.
 
 
 ## 3. Deduplication / insertion

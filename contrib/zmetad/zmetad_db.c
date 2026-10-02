@@ -841,6 +841,27 @@ db_check_layout(zmetad_db_t *db)
 		}
 	}
 
+	/*
+	 * Version 7 -> 8: events gains principal, the opaque
+	 * application principal tag carried by ZFS_EV_PRINCIPAL
+	 * (gh zeta-object#7).  It is supplied by the writing
+	 * application through userspace and is NOT verified by the
+	 * kernel -- stored verbatim as a claim, never evidence.
+	 * Unregistered writers send no key: pre-v8 rows get NULL,
+	 * which is also the correct on-disk representation for
+	 * every record whose writer never registered a principal.
+	 */
+	if (v < 8) {
+		static const db_column_t v8_columns[] = {
+			{ "principal",		"INTEGER" },
+		};
+
+		rc = db_migrate_stage(db, 8, "events",
+		    v8_columns, NDBCOLS(v8_columns));
+		if (rc != 0)
+			return (rc);
+	}
+
 	return (0);
 }
 

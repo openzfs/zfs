@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "record_format": {
     "encoding": "nvlist-packed-native",
     "record_header": "uint64 little-endian payload length",
@@ -126,6 +126,12 @@
         "since": 1,
         "always": false,
         "desc": "group ID"
+      },
+      "principal": {
+        "type": "uint64",
+        "since": 3,
+        "always": false,
+        "desc": "opaque application principal tag; supplied by the writing application, NOT verified by the kernel - a claim, not evidence; absent when the writer did not register one"
       },
       "io_offset": {
         "type": "uint64",
