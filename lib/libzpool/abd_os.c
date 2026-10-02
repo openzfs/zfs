@@ -57,7 +57,7 @@ abd_alloc_struct_impl(size_t size)
 	 * allocate the abd itself and return.
 	 */
 	if (size == 0)
-		return (umem_alloc(sizeof (abd_t), UMEM_NOFAIL));
+		return (kmem_alloc(sizeof (abd_t), KM_SLEEP));
 
 	/*
 	 * Allocating for a scatter abd, so compute how many ABD_PAGESIZE
@@ -70,8 +70,8 @@ abd_alloc_struct_impl(size_t size)
 	 * allocation, but it's fiddly and harder to read for no real gain.
 	 */
 	uint_t n = abd_iovcnt_for_bytes(size);
-	abd_t *abd = umem_alloc(sizeof (abd_t) + (n-1) * sizeof (struct iovec),
-	    UMEM_NOFAIL);
+	abd_t *abd = kmem_alloc(sizeof (abd_t) + (n-1) * sizeof (struct iovec),
+	    KM_SLEEP);
 	ABD_SCATTER(abd).abd_offset = 0;
 	ABD_SCATTER(abd).abd_iovcnt = n;
 	return (abd);
@@ -84,7 +84,7 @@ abd_free_struct_impl(abd_t *abd)
 	uint_t iovcnt =
 	    abd_is_linear(abd) || abd_is_gang(abd) ?
 	    0 : (ABD_SCATTER(abd).abd_iovcnt - 1);
-	umem_free(abd, sizeof (abd_t) + iovcnt * sizeof (struct iovec));
+	kmem_free(abd, sizeof (abd_t) + iovcnt * sizeof (struct iovec));
 }
 
 void
@@ -103,7 +103,7 @@ abd_alloc_chunks(abd_t *abd, size_t size)
 	struct iovec *iov = ABD_SCATTER(abd).abd_iov;
 	for (int i = 0; i < n; i++) {
 		iov[i].iov_base =
-		    umem_alloc_aligned(ABD_PAGESIZE, ABD_PAGESIZE, UMEM_NOFAIL);
+		    kmem_alloc_aligned(ABD_PAGESIZE, ABD_PAGESIZE, KM_SLEEP);
 		iov[i].iov_len = ABD_PAGESIZE;
 	}
 }
@@ -114,7 +114,7 @@ abd_free_chunks(abd_t *abd)
 	uint_t n = ABD_SCATTER(abd).abd_iovcnt;
 	struct iovec *iov = ABD_SCATTER(abd).abd_iov;
 	for (int i = 0; i < n; i++)
-		umem_free_aligned(iov[i].iov_base, ABD_PAGESIZE);
+		kmem_free_aligned(iov[i].iov_base, ABD_PAGESIZE);
 }
 
 boolean_t
@@ -181,7 +181,7 @@ abd_init(void)
 	abd_zero_scatter->abd_size = SPA_MAXBLOCKSIZE;
 
 	void *zero =
-	    umem_alloc_aligned(ABD_PAGESIZE, ABD_PAGESIZE, UMEM_NOFAIL);
+	    kmem_alloc_aligned(ABD_PAGESIZE, ABD_PAGESIZE, KM_SLEEP);
 	memset(zero, 0, ABD_PAGESIZE);
 
 	uint_t n = abd_iovcnt_for_bytes(SPA_MAXBLOCKSIZE);
@@ -195,7 +195,7 @@ abd_init(void)
 void
 abd_fini(void)
 {
-	umem_free_aligned(
+	kmem_free_aligned(
 	    ABD_SCATTER(abd_zero_scatter).abd_iov[0].iov_base, ABD_PAGESIZE);
 	abd_free_struct(abd_zero_scatter);
 	abd_zero_scatter = NULL;

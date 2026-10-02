@@ -17,14 +17,16 @@
  */
 
 #include <sys/sid.h>
-#include <umem.h>
+#include <sys/kmem.h>
+#include <string.h>
+#include <stdlib.h>
 
 ksiddomain_t *
 ksid_lookupdomain(const char *dom)
 {
 	ksiddomain_t *kd;
 
-	kd = umem_zalloc(sizeof (ksiddomain_t), UMEM_NOFAIL);
+	kd = kmem_zalloc(sizeof (ksiddomain_t), KM_SLEEP);
 	kd->kd_name = strdup(dom);
 	return (kd);
 }
@@ -33,5 +35,5 @@ void
 ksiddomain_rele(ksiddomain_t *ksid)
 {
 	free(ksid->kd_name);
-	umem_free(ksid, sizeof (ksiddomain_t));
+	kmem_free(ksid, sizeof (ksiddomain_t));
 }

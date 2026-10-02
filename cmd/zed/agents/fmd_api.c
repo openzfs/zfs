@@ -155,21 +155,21 @@ void *
 fmd_hdl_alloc(fmd_hdl_t *hdl, size_t size, int flags)
 {
 	(void) hdl;
-	return (umem_alloc(size, flags));
+	return (kmem_alloc(size, flags));
 }
 
 void *
 fmd_hdl_zalloc(fmd_hdl_t *hdl, size_t size, int flags)
 {
 	(void) hdl;
-	return (umem_zalloc(size, flags));
+	return (kmem_zalloc(size, flags));
 }
 
 void
 fmd_hdl_free(fmd_hdl_t *hdl, void *data, size_t size)
 {
 	(void) hdl;
-	umem_free(data, size);
+	kmem_free(data, size);
 }
 
 /*

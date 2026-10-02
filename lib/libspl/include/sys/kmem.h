@@ -35,6 +35,8 @@
 #define	kmem_alloc(_s, _f)	umem_alloc(_s, _f)
 #define	kmem_zalloc(_s, _f)	umem_zalloc(_s, _f)
 #define	kmem_free(_b, _s)	umem_free(_b, _s)
+#define	kmem_alloc_aligned(_s, _a, _f)	umem_alloc_aligned(_s, _a, _f)
+#define	kmem_free_aligned(_b, _f)	umem_free_aligned(_b, _f)
 #define	vmem_alloc(_s, _f)	kmem_alloc(_s, _f)
 #define	vmem_zalloc(_s, _f)	kmem_zalloc(_s, _f)
 #define	vmem_free(_b, _s)	kmem_free(_b, _s)

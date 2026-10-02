@@ -40,7 +40,7 @@
 #include <sys/debug.h>
 #include <sys/stat.h>
 #include <pthread.h>
-#include <umem.h>
+#include <sys/kmem.h>
 #include <time.h>
 
 #include <libzfs.h>
@@ -4578,7 +4578,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 			 * prepend a path separator.
 			 */
 			int len = strlen(drrb->drr_toname);
-			cp = umem_alloc(len + 2, UMEM_NOFAIL);
+			cp = kmem_alloc(len + 2, KM_SLEEP);
 			cp[0] = '/';
 			(void) strcpy(&cp[1], drrb->drr_toname);
 			chopprefix = cp;
@@ -4632,7 +4632,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	(void) strlcpy(destsnap, tosnap, sizeof (destsnap));
 	(void) strlcat(destsnap, chopprefix, sizeof (destsnap));
 	if (cp != NULL)
-		umem_free(cp, strlen(cp) + 1);
+		kmem_free(cp, strlen(cp) + 1);
 	if (!zfs_name_valid(destsnap, ZFS_TYPE_SNAPSHOT)) {
 		err = zfs_error(hdl, EZFS_INVALIDNAME, errbuf);
 		goto out;

@@ -25,6 +25,9 @@
 #include <sys/thread.h>
 #include <sys/taskq.h>
 #include <sys/kmem.h>
+#include <sys/debug.h>
+#include <sys/string.h>
+#include <errno.h>
 #include <pthread.h>
 
 static pthread_key_t taskq_tsd;
