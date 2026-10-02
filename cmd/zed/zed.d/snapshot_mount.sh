@@ -27,4 +27,4 @@ zed_check_cmd "${ZFS}" || exit 4
 
 "${ZFS}" "${action}" "${ZEVENT_SNAPSHOT_NAME}"
 
-finished
+exit 0
