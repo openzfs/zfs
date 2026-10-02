@@ -2949,16 +2949,52 @@ zfs_prop_set_userquota(const char *dsname, nvpair_t *pair)
 }
 
 /*
+ * Resolve a numeric dataset property to the value the property-set
+ * request currently being validated will leave behind: a value carried
+ * in the same request wins over the value already stored.  Without
+ * this, an atomic "zfs set events=on events_io=on" (and the symmetric
+ * disable) is judged against the stale stored state and wrongly
+ * rejected.  The nvlist form of a property value is
+ * {ZPROP_VALUE -> value}, the same shape zfs_prop_set_special()
+ * unwraps for the property being set.
+ */
+static int
+zfs_prop_get_effective_int(const char *dsname, const char *propname,
+    nvlist_t *nvl, uint64_t *valp)
+{
+	nvpair_t *pair;
+
+	if (nvl != NULL && nvlist_lookup_nvpair(nvl, propname, &pair) == 0) {
+		if (nvpair_type(pair) == DATA_TYPE_NVLIST) {
+			nvlist_t *attrs;
+
+			if (nvpair_value_nvlist(pair, &attrs) != 0)
+				return (SET_ERROR(EINVAL));
+			if (nvlist_lookup_nvpair(attrs, ZPROP_VALUE,
+			    &pair) != 0)
+				return (SET_ERROR(EINVAL));
+		}
+		return (nvpair_value_uint64(pair, valp));
+	}
+
+	return (dsl_prop_get_integer(dsname, propname, valp, NULL));
+}
+
+/*
  * If the named property is one that has a special function to set its value,
  * return 0 on success and a positive error code on failure; otherwise if it is
  * not one of the special properties handled by this function, return -1.
+ *
+ * nvl is the property-set request nvl being applied (NULL when there is
+ * none, e.g. a pure inherit); the dependency checks below consult it so a
+ * property set in the same request is seen before it is committed.
  *
  * XXX: It would be better for callers of the property interface if we handled
  * these special cases in dsl_prop.c (in the dsl layer).
  */
 static int
 zfs_prop_set_special(const char *dsname, zprop_source_t source,
-    nvpair_t *pair)
+    nvlist_t *nvl, nvpair_t *pair)
 {
 	const char *propname = nvpair_name(pair);
 	zfs_prop_t prop = zfs_name_to_prop(propname);
@@ -3193,16 +3229,20 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		 * events_io depends on events, so refusing to turn
 		 * events off while events_io is still on gives the
 		 * user one clear error instead of silently disabling
-		 * both. Skipped for 'zfs receive' as above.
+		 * both.  The incoming value wins when both properties
+		 * are set in one request: an atomic
+		 * "events=off events_io=off" must be judged on the
+		 * state the request leaves behind, not the stale
+		 * stored value.  Skipped for 'zfs receive' as above.
 		 */
 		if (source != ZPROP_SRC_RECEIVED &&
 		    nvpair_value_uint64(pair, &intval) == 0 &&
 		    intval == 0) {
 			uint64_t events_io;
 
-			if (dsl_prop_get_integer(dsname,
-			    zfs_prop_to_name(ZFS_PROP_EVENTS_IO),
-			    &events_io, NULL) == 0 && events_io == 1) {
+			if (zfs_prop_get_effective_int(dsname,
+			    zfs_prop_to_name(ZFS_PROP_EVENTS_IO), nvl,
+			    &events_io) == 0 && events_io == 1) {
 				cmn_err(CE_WARN, "cannot disable events on "
 				    "'%s': turn events_io off first",
 				    dsname);
@@ -3239,16 +3279,19 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 #endif
 		/*
 		 * IO events ride on top of the general event log, so
-		 * enabling events_io requires events=on. Skipped for
-		 * 'zfs receive' for the same reason as the events
-		 * check above.
+		 * enabling events_io requires events=on.  The incoming
+		 * value wins when both are set in one request: an
+		 * atomic "events=on events_io=on" must be judged on
+		 * the state the request leaves behind, not the stale
+		 * stored value.  Skipped for 'zfs receive' for the
+		 * same reason as the events check above.
 		 */
 		if (source != ZPROP_SRC_RECEIVED &&
 		    nvpair_value_uint64(pair, &intval) == 0 &&
 		    intval == 1) {
-			if (dsl_prop_get_integer(dsname,
-			    zfs_prop_to_name(ZFS_PROP_EVENTS), &events,
-			    NULL) != 0 || events != 1) {
+			if (zfs_prop_get_effective_int(dsname,
+			    zfs_prop_to_name(ZFS_PROP_EVENTS), nvl,
+			    &events) != 0 || events != 1) {
 				cmn_err(CE_WARN, "cannot enable events_io "
 				    "on '%s': the events property must be "
 				    "enabled first", dsname);
@@ -3434,7 +3477,7 @@ retry:
 				err = -1; /* does not need special handling */
 			else
 				err = zfs_prop_set_special(dsname, source,
-				    pair);
+				    nvl, pair);
 			if (err == -1) {
 				/*
 				 * For better performance we build up a list of
@@ -3697,7 +3740,8 @@ zfs_ioc_inherit_prop(zfs_cmd_t *zc)
 	if (pair == NULL) {
 		err = SET_ERROR(EINVAL);
 	} else {
-		err = zfs_prop_set_special(zc->zc_name, source, pair);
+		err = zfs_prop_set_special(zc->zc_name, source, dummy,
+		    pair);
 		if (err == -1) /* property is not "special", needs handling */
 			err = dsl_prop_inherit(zc->zc_name, zc->zc_value,
 			    source);
@@ -4786,7 +4830,10 @@ zfs_ioc_destroy_bookmarks(const char *poolname, nvlist_t *innvl,
  * outnvl:
  *     "events" -> nvlist array of event records
  *     "next_offset" -> uint64 (offset for next read)
- *     "records_lost" -> uint64 (count of overwritten records)
+ *     "records_lost" -> uint64 (ring's cumulative overwritten-record count)
+ *     "records_undecodable" -> uint64 (records in this reply consumed by
+ *         the cursor but not decodable; per reply, not cumulative, and
+ *         omitted when there are none)
  */
 static int
 zfs_secpolicy_events(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
@@ -4826,7 +4873,6 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 	objset_t *os;
 	int error;
 	uint64_t offset = 0, object = 0;
-	uint64_t start_offset;
 	char *buf;
 	uint64_t bufsize = 256 * 1024;	/* 256KB read buffer */
 	uint64_t read_len;
@@ -4844,8 +4890,9 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 	 * secpolicy, read-only pool check). The historically
 	 * overloaded UINT64_MAX offset on this read ioctl is kept
 	 * hardened for already-deployed userland: zfs_secpolicy_events
-	 * demands destroy-level permission for it, and the read-only
-	 * pool check below rejects EROFS.
+	 * demands the same write-class "events" permission as the
+	 * dedicated clear ioctl and the property it guards, and the
+	 * read-only pool check below rejects EROFS.
 	 */
 	if (offset == UINT64_MAX) {
 		zfsvfs_t *zfsvfs;
@@ -4897,7 +4944,6 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	buf = vmem_alloc(bufsize, KM_SLEEP);
 	read_len = bufsize;
-	start_offset = offset;
 
 	error = zfs_events_get(os, &io_zfsvfs->z_events_lock, &offset,
 	    &read_len, buf);
@@ -4908,7 +4954,16 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 		return (error);
 	}
 
-	/* An empty read means the log is exhausted: report offset 0. */
+	/*
+	 * An empty read means nothing was delivered, so the cursor must
+	 * not move.  Zero is the exhaustion encoding both consumers
+	 * already rely on: the CLI stops paging on next_offset == 0
+	 * (cmd/zfs/zfs_main.c) and zmetad treats 0 as "keep the stored
+	 * watermark" (contrib/zmetad/zmetad.c) and excludes it from its
+	 * regression check.  An empty read implies the clamped window
+	 * was empty, so there is nothing at or after the returned
+	 * position to re-deliver -- reporting 0 loses no records.
+	 */
 	if (read_len == 0)
 		offset = 0;
 
@@ -4971,10 +5026,11 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 				/*
 				 * Corrupt record: the cursor still
 				 * advances, so the hole is permanent
-				 * for this ring. Account for it in
-				 * records_lost below -- see the loss
-				 * accounting comment at the reply
-				 * tail.
+				 * for this ring.  Report it separately
+				 * as records_undecodable at the reply
+				 * tail -- never fold it into the ring's
+				 * cumulative records_lost, which must
+				 * stay monotonic.
 				 */
 				unpack_fails++;
 				pos += reclen;
@@ -5004,12 +5060,19 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 	/*
 	 * The resume offset must point at the first byte NOT delivered:
 	 * past the last whole record parsed, never into the middle of
-	 * one. Advancing past a partial record would silently drop it
-	 * and misalign every following page.
+	 * one.  zfs_events_get() clamps the read start up to the ring's
+	 * bof and returns the END of the window it read (start + len),
+	 * so the clamped start has to be reconstructed from its own
+	 * outputs: adding "consumed" to the caller's raw offset would
+	 * place the cursor below the clamped start and re-deliver the
+	 * very same records on the next call.
 	 */
-	if (read_len > 0 && consumed > 0 &&
-	    consumed <= UINT64_MAX - start_offset)
-		offset = start_offset + consumed;
+	if (read_len > 0 && consumed > 0) {
+		uint64_t read_start = offset - read_len;
+
+		if (consumed <= UINT64_MAX - read_start)
+			offset = read_start + consumed;
+	}
 
 	fnvlist_add_nvlist(outnvl, "events", events_list);
 	fnvlist_add_uint64(outnvl, "next_offset", offset);
@@ -5017,24 +5080,29 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	{
 		/*
-		 * Loss accounting contract: records_lost must count
-		 * every record that existed but was not delivered to
-		 * the caller. The ring's counter covers overwritten
-		 * records; records that failed nvlist_unpack() in this
-		 * page were consumed by the cursor advance yet never
-		 * delivered, so they are added here. The ring header is
-		 * NOT updated from this path -- it holds no txg and
-		 * cannot commit a header write -- so the extra losses
-		 * ride the reply only; the daemon's delta detection
-		 * treats the increased value as an unaccounted gap and
-		 * records it.
+		 * records_lost is the ring's OWN cumulative counter,
+		 * reported verbatim so it stays monotonic.  Records
+		 * this reply consumed but could not decode are a
+		 * per-reply quantity reported separately below as
+		 * records_undecodable; folding them into this value
+		 * would reset it on every reply, and the daemon reads
+		 * a decrease as an external ring clear and re-arms its
+		 * loss baseline, blacking out detection for a poll.
 		 */
 		uint64_t lost = 0;
 
 		if (zfs_events_get_lost(os, &lost) == 0)
-			fnvlist_add_uint64(outnvl, "records_lost",
-			    lost + unpack_fails);
+			fnvlist_add_uint64(outnvl, "records_lost", lost);
 	}
+
+	/*
+	 * Records the cursor consumed but could not decode.  Reported
+	 * per reply, not cumulative, so the caller can record a gap
+	 * without disturbing the monotonic records_lost delta.  Omitted
+	 * entirely when there are none.
+	 */
+	if (unpack_fails != 0)
+		fnvlist_add_uint64(outnvl, "records_undecodable", unpack_fails);
 
 	{
 		uint64_t log_eof = 0;

@@ -1743,9 +1743,18 @@ log:
 	ASSERT0(error);
 
 	zfs_log_truncate(zilog, tx, TX_TRUNCATE, zp, off, len);
-	if (zfsvfs->z_events) {
+	/*
+	 * Log a TRUNCATE only when the file's size actually changed.
+	 * For a hole punch / range free, off is the range start, not a
+	 * new size, and those paths leave z_size alone -- passing off
+	 * would record "the file became <offset> bytes".  Every real
+	 * size change (truncate, and both extend paths) has already set
+	 * zp->z_size before falling through here, so it is the true
+	 * new size.
+	 */
+	if (zfsvfs->z_events && zp->z_size != old_size) {
 		zfs_events_log_truncate(zfsvfs->z_os, tx, zp->z_id,
-		    old_size, off, zfsvfs->z_events_size,
+		    old_size, zp->z_size, zfsvfs->z_events_size,
 		    &zfsvfs->z_events_obj,
 		    &zfsvfs->z_events_lock);
 	}

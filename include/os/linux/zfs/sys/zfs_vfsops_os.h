@@ -113,7 +113,7 @@ struct zfsvfs {
 	uint64_t	z_events_obj;	/* Event log object id, 0 = none */
 	kmutex_t	z_events_lock;	/* Event log ring buffer lock */
 	uint64_t	z_events_io;	/* IO event emission enabled */
-	uint64_t	z_events_io_window; /* IO event fence in ms, 0 = off */
+	uint64_t	z_events_io_window; /* ms; 0 = defer to drain worker */
 	list_t		z_evq_deferred;	/* Deferred IO records (FIFO) */
 	uint64_t	z_evq_count;	/* Deferred IO record count */
 	boolean_t	z_evq_scheduled; /* Worker queued on taskq */

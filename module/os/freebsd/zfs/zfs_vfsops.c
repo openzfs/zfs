@@ -639,6 +639,18 @@ events_changed_cb(void *arg, uint64_t newval)
 	zfsvfs_t *zfsvfs = arg;
 
 	zfsvfs->z_events = newval;
+
+	/*
+	 * Seed the cached ring id now that the dataset's objset exists
+	 * (this callback fires once per mount and again on resume via
+	 * dsl_prop_register). Without it the first emitting transaction
+	 * after a (re)mount would drop its record: z_events_obj is 0, so
+	 * zfs_events_get_obj() would treat a ring its own txhold DID see
+	 * as a racing creator's and skip it.
+	 */
+	if (zfsvfs->z_os != NULL)
+		zfs_events_seed_obj(zfsvfs->z_os, &zfsvfs->z_events_obj,
+		    &zfsvfs->z_events_lock);
 }
 
 static void
@@ -858,6 +870,13 @@ zfsvfs_init(zfsvfs_t *zfsvfs, objset_t *os)
 	zfsvfs->z_max_blksz = SPA_OLD_MAXBLOCKSIZE;
 	zfsvfs->z_show_ctldir = ZFS_SNAPDIR_VISIBLE;
 	zfsvfs->z_os = os;
+
+	/*
+	 * Drop any cached ring id: the events property callback re-seeds
+	 * it from the ZAP (registered in zfs_register_callbacks), so a
+	 * re-open or suspend/resume must not keep a stale id.
+	 */
+	zfsvfs->z_events_obj = 0;
 
 	error = zfs_get_zplprop(os, ZFS_PROP_VERSION, &zfsvfs->z_version);
 	if (error != 0)
@@ -1868,14 +1887,16 @@ zfs_umount(vfs_t *vfsp, int fflag)
 		mutex_enter(&os->os_user_ptr_lock);
 		dmu_objset_set_user(os, NULL);
 		mutex_exit(&os->os_user_ptr_lock);
-
-		/*
-		 * Drain deferred IO records while the objset is
-		 * still owned, then release it.
-		 */
-		zfs_events_drain_shutdown(zfsvfs);
-		dmu_objset_disown(os, B_TRUE, zfsvfs);
 	}
+
+	/*
+	 * Drain deferred IO records even when z_os is NULL (a failed
+	 * reopen): the queue must not leak with the zfsvfs.
+	 */
+	zfs_events_drain_shutdown(zfsvfs);
+
+	if (os != NULL)
+		dmu_objset_disown(os, B_TRUE, zfsvfs);
 
 	/*
 	 * We can now safely destroy the '.zfs' directory node.

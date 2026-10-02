@@ -83,6 +83,21 @@ zfs_events_log_to_phys(uint64_t log_off, zfs_events_phys_t *zep)
 }
 
 /*
+ * Read the little-endian record-length prefix at p. Because records are
+ * variable length the prefix sits at arbitrary offsets inside the ring,
+ * so a direct uint64_t load would be unaligned (and alias-unsafe); copy
+ * the bytes out first.
+ */
+static uint64_t
+zfs_events_record_reclen(const void *p)
+{
+	uint64_t len;
+
+	memcpy(&len, p, sizeof (len));
+	return (LE_64(len));
+}
+
+/*
  * Advance zep_bof to skip the oldest record, freeing space for new records.
  */
 static int
@@ -116,7 +131,7 @@ zfs_events_advance_bof(objset_t *os, uint64_t obj, zfs_events_phys_t *zep)
 			return (err);
 	}
 
-	reclen = LE_64(*((uint64_t *)buf));
+	reclen = zfs_events_record_reclen(buf);
 
 	/*
 	 * A zero or oversized length means the BOF region doesn't hold a
@@ -296,6 +311,36 @@ zfs_events_txhold(objset_t *os, dmu_tx_t *tx)
 			dmu_tx_hold_write(tx, obj, off, len);
 		}
 	}
+}
+
+/*
+ * Seed the cached event-log object id from the master-node ZAP entry.
+ *
+ * zfsvfs->z_events_obj is otherwise only written when
+ * zfs_events_get_obj() resolves the ring, so without an initial seed the
+ * first emitting transaction after a mount (or after a reopen, which
+ * resets the cache) finds a ZAP entry its own zfs_events_txhold() DID see
+ * but an empty cache, takes the skip-on-mismatch path in
+ * zfs_events_get_obj() and silently drops the record. Callers invoke this
+ * from the events property callback right after the events properties are
+ * (re)read, i.e. at mount and on resume.
+ *
+ * Best-effort: ENOENT (no ring yet) and any other lookup error leave the
+ * cache empty, and the ring is then created/claimed lazily by the first
+ * emitter exactly as before. os must be a valid dataset objset.
+ */
+void
+zfs_events_seed_obj(objset_t *os, uint64_t *objp, kmutex_t *lockp)
+{
+	uint64_t obj;
+
+	mutex_enter(lockp);
+	if (*objp == 0) {
+		if (zap_lookup(os, MASTER_NODE_OBJ, ZFS_EVENTS_ZAP_NAME,
+		    sizeof (uint64_t), 1, &obj) == 0)
+			*objp = obj;
+	}
+	mutex_exit(lockp);
 }
 
 /*
@@ -631,6 +676,47 @@ zfs_events_io_defer(zfsvfs_t *zfsvfs, uint16_t op, uint64_t object,
 }
 
 /*
+ * Account records that could not be appended to the ring, on a fresh
+ * ad-hoc transaction. records_lost is the ring's contract for loss, so it
+ * must be bumped even when the batch transaction that failed is already
+ * aborted or committed. The tx is assigned before taking the ring lock
+ * (DMU_TX_WAIT may sleep for a txg; holding the ring lock across it would
+ * stall every inline emitter), matching zfs_events_log_event()'s order,
+ * so no lock inversion. dmu_tx_holds_obj_bonus() keeps the will_dirty off
+ * an object this tx does not hold; when there is no reachable ring
+ * (os or obj is 0) the loss is simply unreportable.
+ */
+static void
+zfs_events_account_lost(objset_t *os, uint64_t obj, uint64_t lost,
+    kmutex_t *lockp)
+{
+	dmu_tx_t *ltx;
+
+	if (os == NULL || obj == 0 || lost == 0)
+		return;
+
+	ltx = dmu_tx_create(os);
+	zfs_events_txhold(os, ltx);
+	if (dmu_tx_assign(ltx, DMU_TX_WAIT) == 0) {
+		dmu_buf_t *ldb;
+
+		mutex_enter(lockp);
+		if (dmu_tx_holds_obj_bonus(ltx, obj) &&
+		    dmu_bonus_hold(os, obj, FTAG, &ldb) == 0) {
+			zfs_events_phys_t *lzep = ldb->db_data;
+
+			dmu_buf_will_dirty(ldb, ltx);
+			lzep->zep_records_lost += lost;
+			dmu_buf_rele(ldb, FTAG);
+		}
+		mutex_exit(lockp);
+		dmu_tx_commit(ltx);
+	} else {
+		dmu_tx_abort(ltx);
+	}
+}
+
+/*
  * Worker: drain all deferred records in one transaction. Runs with no
  * VFS locks held; all blocking work happens with the queue lock
  * dropped. zfsvfs lifetime is guaranteed by the shutdown handshake:
@@ -708,12 +794,15 @@ zfs_events_drain_task(void *arg)
 		 * none could be created (feature raced off), or a
 		 * racing tx created one this tx holds nothing on
 		 * (skip-on-mismatch in zfs_events_get_obj). Either
-		 * way the batch is dropped; the loss is unreportable
-		 * on the ring because this tx must not touch that
-		 * object.
+		 * way the batch is dropped; account it on a fresh ad-hoc
+		 * tx when a racing ring gave us an id to account against
+		 * (the drop is a no-op when obj is still 0, i.e. no ring
+		 * exists at all).
 		 */
 		dmu_tx_commit(tx);
-		goto out;
+		lost = nrec;
+		obj = zfsvfs->z_events_obj;
+		goto drop;
 	}
 
 	/*
@@ -797,7 +886,8 @@ zfs_events_drain_task(void *arg)
 		mutex_exit(&zfsvfs->z_events_lock);
 		dmu_tx_commit(tx);
 		kmem_free(buf, total);
-		goto out;
+		lost = nrec;
+		goto drop;
 	}
 
 	zep = dbp->db_data;
@@ -809,7 +899,7 @@ zfs_events_drain_task(void *arg)
 		char *end = p;
 
 		while (rp < end) {
-			uint64_t rlen = LE_64(*(uint64_t *)rp);
+			uint64_t rlen = zfs_events_record_reclen(rp);
 			uint64_t rec_total = sizeof (uint64_t) + rlen;
 
 			err = zfs_events_write(os, obj, rp, rec_total,
@@ -832,7 +922,7 @@ zfs_events_drain_task(void *arg)
 			 */
 			lost = 0;
 			while (rp < end) {
-				uint64_t rlen = LE_64(*(uint64_t *)rp);
+				uint64_t rlen = zfs_events_record_reclen(rp);
 
 				lost++;
 				rp += sizeof (uint64_t) + rlen;
@@ -851,34 +941,13 @@ zfs_events_drain_task(void *arg)
 
 drop:
 	/*
-	 * The batch tx was aborted before assignment, so a fresh
-	 * ad-hoc tx is the only way to report the loss. The tx is
-	 * assigned before taking the ring lock (the same order
-	 * log_event uses), so no lock inversion is possible. A
-	 * concurrent clear racing this commit can only overstate
-	 * loss by at most one batch in one txg; accounting-only.
+	 * The batch could not be appended (or its tx could not be
+	 * assigned) and the batch tx is already finished, so account the
+	 * loss on a fresh ad-hoc tx. A concurrent clear racing this
+	 * commit can only overstate loss by at most one batch in one
+	 * txg; accounting-only.
 	 */
-	if (obj != 0 && lost != 0) {
-		dmu_tx_t *ltx = dmu_tx_create(os);
-
-		zfs_events_txhold(os, ltx);
-		if (dmu_tx_assign(ltx, DMU_TX_WAIT) == 0) {
-			dmu_buf_t *ldb;
-
-			mutex_enter(&zfsvfs->z_events_lock);
-			if (dmu_bonus_hold(os, obj, FTAG, &ldb) == 0) {
-				zfs_events_phys_t *lzep = ldb->db_data;
-
-				dmu_buf_will_dirty(ldb, ltx);
-				lzep->zep_records_lost += lost;
-				dmu_buf_rele(ldb, FTAG);
-			}
-			mutex_exit(&zfsvfs->z_events_lock);
-			dmu_tx_commit(ltx);
-		} else {
-			dmu_tx_abort(ltx);
-		}
-	}
+	zfs_events_account_lost(os, obj, lost, &zfsvfs->z_events_lock);
 
 out:
 	qe = list_remove_head(&batch);
@@ -900,6 +969,7 @@ zfs_events_drain_shutdown(zfsvfs_t *zfsvfs)
 	zfs_events_qent_t *qe;
 	taskq_t *tq;
 	boolean_t pending;
+	uint64_t swept = 0;
 
 	mutex_enter(&zfsvfs->z_events_lock);
 	zfsvfs->z_evq_shutdown = B_TRUE;
@@ -915,7 +985,13 @@ zfs_events_drain_shutdown(zfsvfs_t *zfsvfs)
 	 * z_os must still be valid here.
 	 */
 	if (tq != NULL) {
-		if (pending)
+		/*
+		 * z_os is NULL on a failed reopen: there is no ring to
+		 * drain into, so skip the worker (drain_task would
+		 * dereference a NULL objset) and let the sweep below free
+		 * the queued entries.
+		 */
+		if (pending && zfsvfs->z_os != NULL)
 			(void) taskq_dispatch(tq, zfs_events_drain_task,
 			    zfsvfs, TQ_SLEEP);
 		taskq_wait(tq);
@@ -928,17 +1004,22 @@ zfs_events_drain_shutdown(zfsvfs_t *zfsvfs)
 	 * list is normally empty here, but a racing enqueue that
 	 * passed its shutdown check just before it was set could
 	 * still land one (and a failed drain could leave a batch
-	 * behind in principle). At unmount they are unreportable -
-	 * the ring lock and log object are about to go away and the
-	 * loss cannot be recorded - so free them rather than leak
-	 * the kmem_cache entries with the zfsvfs (list_destroy frees
-	 * the list, not its entries).
+	 * behind in principle). They were never dispatched, so count
+	 * them as loss before freeing rather than leak the kmem_cache
+	 * entries with the zfsvfs (list_destroy frees the list, not
+	 * its entries). The accounting needs a live ring; when z_os is
+	 * already gone it is skipped and the loss is unreportable.
 	 */
 	mutex_enter(&zfsvfs->z_events_lock);
-	while ((qe = list_remove_head(&zfsvfs->z_evq_deferred)) != NULL)
+	while ((qe = list_remove_head(&zfsvfs->z_evq_deferred)) != NULL) {
+		swept++;
 		kmem_cache_free(zfs_events_qent_cache, qe);
+	}
 	zfsvfs->z_evq_count = 0;
 	mutex_exit(&zfsvfs->z_events_lock);
+
+	zfs_events_account_lost(zfsvfs->z_os, zfsvfs->z_events_obj, swept,
+	    &zfsvfs->z_events_lock);
 }
 #else	/* !_KERNEL (libzpool builds the record builders) */
 
@@ -1147,8 +1228,21 @@ zfs_events_get_obj(objset_t *os, dmu_tx_t *tx, uint64_t events_size,
 	 * callback directly dirties MOS objects on an open tx and
 	 * panics debug kernels.
 	 */
-	if (obj != 0)
-		return (obj);
+	/*
+	 * Fast path: trust the cached id only if this tx actually holds
+	 * the object. A racing creator can install the ZAP entry after
+	 * this tx's zfs_events_txhold() ran, in which case the tx holds
+	 * nothing on obj and dirtying it would panic (debug builds) or
+	 * corrupt tx space accounting (release). Refuse (and keep the
+	 * cache) so the next tx - whose txhold sees the entry - appends
+	 * normally; losing one record to the race beats dirtying an
+	 * unheld object.
+	 */
+	if (obj != 0) {
+		if (tx == NULL || dmu_tx_holds_obj_bonus(tx, obj))
+			return (obj);
+		return (0);
+	}
 
 	mutex_enter(lockp);
 	obj = *objp;
@@ -1304,7 +1398,25 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
 	if (tx == NULL) {
 		atx = dmu_tx_create(os);
 		zfs_events_txhold(os, atx);
-		VERIFY0(dmu_tx_assign(atx, DMU_TX_WAIT));
+		err = dmu_tx_assign(atx, DMU_TX_WAIT);
+		if (err != 0) {
+			/*
+			 * dmu_tx_assign() legitimately fails on ENOSPC /
+			 * EDQUOT: a full pool must not panic the kernel.
+			 * Nothing is packed yet (packing happens below),
+			 * and a record cannot be appended on a tx that
+			 * was never assigned, so abort and drop it. The
+			 * loss is not reportable on the ring here because
+			 * this caller holds no ring object to bump.
+			 */
+			char osname[ZFS_MAX_DATASET_NAME_LEN];
+
+			dmu_tx_abort(atx);
+			dmu_objset_name(os, osname);
+			cmn_err(CE_WARN, "failed to assign event log tx "
+			    "for '%s': %d", osname, err);
+			return;
+		}
 	}
 	/*
 	 * Finalize and pack the record BEFORE taking the ring lock:
@@ -2043,8 +2155,8 @@ zfs_events_get(objset_t *os, kmutex_t *lockp, uint64_t *offp,
 	/* Look up the event log object */
 	err = zap_lookup(os, MASTER_NODE_OBJ, ZFS_EVENTS_ZAP_NAME,
 	    sizeof (uint64_t), 1, &obj);
-	if (err != 0)
-		return (SET_ERROR(ENOENT));
+	if (err != 0)	/* ENOENT means "no ring"; propagate the rest */
+		return (err);
 
 	err = dmu_bonus_hold(os, obj, FTAG, &dbp);
 	if (err != 0)
@@ -2066,12 +2178,21 @@ zfs_events_get(objset_t *os, kmutex_t *lockp, uint64_t *offp,
 	 */
 	for (int attempt = 0; ; attempt++) {
 		uint64_t samp_bof, samp_eof, samp_off, samp_len;
+		uint64_t samp_lost, samp_guid;
 
 		mutex_enter(lockp);
 		zep = dbp->db_data;
 
 		samp_bof = zep->zep_bof;
 		samp_eof = zep->zep_eof;
+		/*
+		 * Sample the loss counter and ring GUID too: both move
+		 * only when records were dropped (a wrap) or the header
+		 * was reset, so they catch a wrap/clear that leaves bof
+		 * and eof looking unchanged.
+		 */
+		samp_lost = zep->zep_records_lost;
+		samp_guid = zep->zep_guid;
 
 		/* Validate and clamp the read offset */
 		if (*offp < samp_bof)
@@ -2120,8 +2241,17 @@ zfs_events_get(objset_t *os, kmutex_t *lockp, uint64_t *offp,
 
 		mutex_enter(lockp);
 		zep = dbp->db_data;
+		/*
+		 * Residual limitation: a clear that lands while samp_bof
+		 * is 0 preserves the GUID and zeroes records_lost, so a
+		 * refill that grows eof past samp_eof can still satisfy
+		 * this check. Header sampling alone cannot tell a cleared
+		 * ring from a fresh one with the same GUID.
+		 */
 		boolean_t valid = (zep->zep_bof == samp_bof) &&
-		    (zep->zep_eof >= samp_eof);
+		    (zep->zep_eof >= samp_eof) &&
+		    (zep->zep_records_lost == samp_lost) &&
+		    (zep->zep_guid == samp_guid);
 		mutex_exit(lockp);
 
 		if (err == 0 && valid) {
@@ -2157,8 +2287,8 @@ zfs_events_get_lost(objset_t *os, uint64_t *lostp)
 
 	err = zap_lookup(os, MASTER_NODE_OBJ, ZFS_EVENTS_ZAP_NAME,
 	    sizeof (uint64_t), 1, &obj);
-	if (err != 0)
-		return (SET_ERROR(ENOENT));
+	if (err != 0)	/* ENOENT means "no ring"; propagate the rest */
+		return (err);
 
 	err = dmu_bonus_hold(os, obj, FTAG, &dbp);
 	if (err != 0)
@@ -2184,8 +2314,8 @@ zfs_events_get_schema_version(objset_t *os, uint64_t *verp)
 
 	err = zap_lookup(os, MASTER_NODE_OBJ, ZFS_EVENTS_ZAP_NAME,
 	    sizeof (uint64_t), 1, &obj);
-	if (err != 0)
-		return (SET_ERROR(ENOENT));
+	if (err != 0)	/* ENOENT means "no ring"; propagate the rest */
+		return (err);
 
 	err = dmu_bonus_hold(os, obj, FTAG, &dbp);
 	if (err != 0)
@@ -2211,8 +2341,8 @@ zfs_events_get_guid(objset_t *os, uint64_t *guidp)
 
 	err = zap_lookup(os, MASTER_NODE_OBJ, ZFS_EVENTS_ZAP_NAME,
 	    sizeof (uint64_t), 1, &obj);
-	if (err != 0)
-		return (SET_ERROR(ENOENT));
+	if (err != 0)	/* ENOENT means "no ring"; propagate the rest */
+		return (err);
 
 	err = dmu_bonus_hold(os, obj, FTAG, &dbp);
 	if (err != 0)
@@ -2240,8 +2370,8 @@ zfs_events_get_eof(objset_t *os, uint64_t *eofp)
 
 	err = zap_lookup(os, MASTER_NODE_OBJ, ZFS_EVENTS_ZAP_NAME,
 	    sizeof (uint64_t), 1, &obj);
-	if (err != 0)
-		return (SET_ERROR(ENOENT));
+	if (err != 0)	/* ENOENT means "no ring"; propagate the rest */
+		return (err);
 
 	err = dmu_bonus_hold(os, obj, FTAG, &dbp);
 	if (err != 0)
@@ -2256,6 +2386,7 @@ zfs_events_get_eof(objset_t *os, uint64_t *eofp)
 #if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_events_create_obj);
 EXPORT_SYMBOL(zfs_events_txhold);
+EXPORT_SYMBOL(zfs_events_seed_obj);
 EXPORT_SYMBOL(zfs_events_get_lost);
 EXPORT_SYMBOL(zfs_events_get_schema_version);
 EXPORT_SYMBOL(zfs_events_get_guid);

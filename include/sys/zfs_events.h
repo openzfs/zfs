@@ -113,7 +113,9 @@ typedef struct zfs_events_phys {
 
 /*
  * events_io_window limits (milliseconds). 0 disables the IO TIME fence
- * (every read/write emits immediately); the maximum is one hour.
+ * and instead defers every IO record to the dataset's drain worker (one
+ * record per syscall, batched by the worker into a single transaction);
+ * the maximum is one hour.
  */
 #define	ZFS_EVENTS_IO_WINDOW_MAX	3600000
 
@@ -124,6 +126,17 @@ extern int zfs_events_create_obj(objset_t *os, dmu_tx_t *tx, uint64_t max_size,
     uint64_t *objp);
 extern int zfs_events_destroy_obj(objset_t *os, uint64_t obj, dmu_tx_t *tx);
 extern void zfs_events_txhold(objset_t *os, dmu_tx_t *tx);
+
+/*
+ * Seed the caller's cached event-log object id from the master-node ZAP
+ * entry. Called from the events property callback at mount/reopen so the
+ * first emitting transaction after a (re)mount does not silently drop its
+ * record on the skip-on-mismatch path in zfs_events_get_obj(). A no-op
+ * when the cache is already populated; a lookup error (no ring yet) is
+ * ignored. objp is the cache, lockp the ring lock guarding it.
+ */
+extern void zfs_events_seed_obj(objset_t *os, uint64_t *objp,
+    kmutex_t *lockp);
 
 /*
  * Event logging functions - called from vnops

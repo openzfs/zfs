@@ -2181,6 +2181,14 @@ zfs_setattr_idmap(znode_t *zp, vattr_t *vap, int flags, cred_t *cr,
 		}
 	}
 
+	/*
+	 * Capture the pre-operation size once, before the retry label.
+	 * An ERESTART retry re-runs the truncate below; re-sampling it
+	 * there would take the already-truncated size as the "old" size
+	 * and suppress the TRUNCATE event emission.
+	 */
+	old_size = zp->z_size;
+
 top:
 	attrzp = NULL;
 	aclp = NULL;
@@ -2215,7 +2223,6 @@ top:
 		 * should be addressed in openat().
 		 */
 		/* XXX - would it be OK to generate a log record here? */
-		old_size = zp->z_size;
 		err = zfs_freesp(zp, vap->va_size, 0, 0, FALSE);
 		if (err)
 			goto out3;
