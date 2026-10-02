@@ -41,4 +41,4 @@ InvariantDisks_SOURCES = \
 
 InvariantDisks_CXXFLAGS = -std=c++11 -stdlib=libc++
 InvariantDisks_OBJCXXFLAGS = -std=c++11 -stdlib=libc++
-InvariantDisks_LDFLAGS = -static -framework IOKit -framework DiskArbitration -framework CoreFoundation -framework Foundation
+InvariantDisks_LDFLAGS = -framework IOKit -framework DiskArbitration -framework CoreFoundation -framework Foundation
