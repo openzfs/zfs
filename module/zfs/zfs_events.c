@@ -386,8 +386,9 @@ zfs_events_qent_fini(void)
 
 /*
  * Enqueue one record for deferred emission. Returns B_TRUE if queued,
- * B_FALSE if the caller must emit inline (cache alloc failure or queue
- * full past the loss bound).
+ * B_FALSE if the caller must emit inline (cache alloc failure, queue
+ * full, shutdown, or dispatch failure): queue overload falls back to
+ * inline emission, so nothing is lost by the queue itself.
  */
 static boolean_t
 zfs_events_io_defer(zfsvfs_t *zfsvfs, uint16_t op, uint64_t object,
@@ -427,24 +428,17 @@ zfs_events_io_defer(zfsvfs_t *zfsvfs, uint16_t op, uint64_t object,
 		mutex_exit(&tc->tc_open_lock);
 	}
 
+	/*
+	 * Everything below - the cap check, the lazy taskq create and
+	 * the insert - runs in this one critical section, so the cap
+	 * check cannot race the count increment (TOCTOU) and a count
+	 * the drain worker reads is always one the enqueuers
+	 * incremented under the lock. On a cap hit nothing is dropped:
+	 * B_FALSE makes the caller emit inline instead.
+	 */
 	mutex_enter(&zfsvfs->z_events_lock);
 	if (zfsvfs->z_evq_shutdown ||
 	    zfsvfs->z_evq_count >= ZFS_EVQ_MAX) {
-		mutex_exit(&zfsvfs->z_events_lock);
-		kmem_cache_free(zfs_events_qent_cache, qe);
-		return (B_FALSE);
-	}
-
-	/*
-	 * Cap re-check belongs in THIS critical section, together with
-	 * the count increment and the insert: checking the bound only
-	 * before the allocation lets concurrent enqueuers drive the
-	 * queue past ZFS_EVQ_MAX (TOCTOU), and a count that is not
-	 * incremented under the lock is not one the drain worker can
-	 * trust for loss accounting. On a cap hit nothing is dropped:
-	 * B_FALSE makes the caller emit inline instead.
-	 */
-	if (zfsvfs->z_evq_count >= ZFS_EVQ_MAX) {
 		mutex_exit(&zfsvfs->z_events_lock);
 		kmem_cache_free(zfs_events_qent_cache, qe);
 		return (B_FALSE);
@@ -553,8 +547,27 @@ zfs_events_drain_task(void *arg)
 	zfs_events_txhold(os, tx);
 	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err != 0) {
+		/*
+		 * The batch tx could not be assigned, so the records
+		 * cannot be appended. The ring's lost counter is the
+		 * contract for loss: bump it on a fresh ad-hoc tx,
+		 * assigned before taking the ring lock (DMU_TX_WAIT
+		 * may sleep for a txg; the same order log_event uses,
+		 * so no lock inversion). A concurrent clear can
+		 * still land between the failed append and this
+		 * commit, but only in the safe direction: the clear
+		 * resets the header first, so the stale bump either
+		 * commits before it (then is reset with the cleared
+		 * history) or after a still-unassigned-batch failure
+		 * - a queue-delivery failure independent of the
+		 * clear. Re-using the dead batch tx is not possible;
+		 * a bump-after-clear here overstates loss by at most
+		 * one batch and only when a clear raced a tx-assign
+		 * failure in the same txg.
+		 */
 		dmu_tx_abort(tx);
 		lost = nrec;
+		obj = zfsvfs->z_events_obj;
 		goto drop;
 	}
 
@@ -573,6 +586,16 @@ zfs_events_drain_task(void *arg)
 		dmu_tx_commit(tx);
 		goto out;
 	}
+
+	/*
+	 * The assigned tx commits with the loss bump below, so a
+	 * concurrent clear cannot land between the failed append and
+	 * the accounting: the bump either precedes the clear (and is
+	 * reset with the rest of the header, correct - the cleared
+	 * history subsumes it) or follows it in txg order. There is no
+	 * separate ad-hoc accounting tx left to resurrect a stale
+	 * count across a one-txg window.
+	 */
 
 	/* Size the batch buffer: length prefix + record body each. */
 	total = 0;
@@ -642,12 +665,13 @@ zfs_events_drain_task(void *arg)
 		mutex_exit(&zfsvfs->z_events_lock);
 		dmu_tx_commit(tx);
 		kmem_free(buf, total);
-		lost = nrec;
-		goto drop;
+		goto out;
 	}
 
 	zep = dbp->db_data;
 	dmu_buf_will_dirty(dbp, tx);
+	if (zep->zep_version != ZFS_EVENTS_VERSION)
+		zep->zep_version = ZFS_EVENTS_VERSION;
 	{
 		char *rp = buf;
 		char *end = p;
@@ -667,7 +691,11 @@ zfs_events_drain_task(void *arg)
 			 * Count only the records that were not
 			 * appended; advance_bof mutations made while
 			 * freeing space persist and are themselves
-			 * already counted in records_lost. The tx
+			 * already counted in records_lost. The loss
+			 * is bumped on this same assigned tx (see the
+			 * comment at the top of the batch path), so
+			 * it cannot race a concurrent clear's header
+			 * reset: they commit in txg order. The tx
 			 * still commits.
 			 */
 			lost = 0;
@@ -677,30 +705,26 @@ zfs_events_drain_task(void *arg)
 				lost++;
 				rp += sizeof (uint64_t) + rlen;
 			}
+			zep->zep_records_lost += lost;
+			lost = 0;
 		}
 	}
-	lost += oversize;
+	zep->zep_records_lost += oversize;
 	dmu_buf_rele(dbp, FTAG);
 	mutex_exit(&zfsvfs->z_events_lock);
 	kmem_free(buf, total);
 
 	dmu_tx_commit(tx);
-	if (lost != 0)
-		goto drop;
 	goto out;
 
 drop:
 	/*
-	 * Some or all records could not be appended. The ring's lost
-	 * counter is the contract for lost records; update it under
-	 * the ring lock. The ad-hoc accounting tx is assigned BEFORE
-	 * taking the lock (DMU_TX_WAIT can sleep for a txg; holding
-	 * the ring mutex across it would stall every inline emitter on
-	 * the dataset), and only the bonus hold/dirty/update runs
-	 * locked - the same order log_event uses, so there is no
-	 * lock-order inversion (both take only lockp). When even the
-	 * ring is unreachable, the loss is unreportable (queue
-	 * overload with no log object).
+	 * The batch tx was aborted before assignment, so a fresh
+	 * ad-hoc tx is the only way to report the loss. The tx is
+	 * assigned before taking the ring lock (the same order
+	 * log_event uses), so no lock inversion is possible. A
+	 * concurrent clear racing this commit can only overstate
+	 * loss by at most one batch in one txg; accounting-only.
 	 */
 	if (obj != 0 && lost != 0) {
 		dmu_tx_t *ltx = dmu_tx_create(os);
@@ -821,10 +845,6 @@ zfs_events_destroy_obj(objset_t *os, uint64_t obj, dmu_tx_t *tx)
 }
 
 /*
- * dsl_sync_task callback for the ioctl clear path: runs in syncing
- * context where tx assignment is legal.
- */
-/*
  * Open-context clear used by the ioctl path. Mirrors the VFS event
  * logging path: prepare transaction holds with zfs_events_txhold()
  * and assign with DMU_TX_WAIT. The caller MUST NOT hold the pool
@@ -930,29 +950,21 @@ zfs_events_clear(objset_t *os, dmu_tx_t *tx, uint64_t *countp)
 	zep->zep_eof = 0;
 	zep->zep_records_lost = 0;
 
+	/*
+	 * A clear leaves a logically fresh ring containing no records
+	 * from any earlier format, and every subsequent append writes
+	 * this module's record format - so the format stamp must be
+	 * the running module's version. Without this, a ring created
+	 * by an older module (before a wire-format change) would keep
+	 * reporting the stale version while serving records the
+	 * current module appended, misdescribing the wire contract to
+	 * consumers.
+	 */
+	zep->zep_version = ZFS_EVENTS_VERSION;
+
 	dmu_buf_rele(dbp, FTAG);
 	return (0);
 }
-
-/*
- * Internal helper to log an event to the event log.
- * Creates the event log object lazily if it doesn't exist.
- *
- * Note: This function assumes that the caller has already verified
- * that events are enabled (via zfsvfs->z_events), has registered
- * transaction holds with zfs_events_txhold() before dmu_tx_assign(),
- * and passes the dataset's cached events_size (zfsvfs->z_events_size).
- * We must not look up the events_size property here: VFS write paths
- * do not hold the pool config lock that dsl_prop_get_int_ds() requires.
- *
- * The record's txg label is passed separately (txg): emitters with a
- * live transaction pass dmu_tx_get_txg(tx); transaction-less callers
- * (READ accounting, deferred fence flushes) pass 0, in which case the
- * pool's open txg is sampled under txg_hold_open() - a commit-timeline
- * anchor, not a transaction that carried the IO. When tx is NULL an
- * ad-hoc transaction is opened here for the ring append itself: the
- * existing append path (dmu_buf_will_dirty etc.) requires one.
- */
 
 /*
  * Return the dataset's event log object id, creating and wiring it on
@@ -1070,6 +1082,25 @@ zfs_events_get_obj(objset_t *os, dmu_tx_t *tx, uint64_t events_size,
 	return (obj);
 }
 
+/*
+ * Internal helper to log an event to the event log.
+ * Creates the event log object lazily if it doesn't exist.
+ *
+ * Note: This function assumes that the caller has already verified
+ * that events are enabled (via zfsvfs->z_events), has registered
+ * transaction holds with zfs_events_txhold() before dmu_tx_assign(),
+ * and passes the dataset's cached events_size (zfsvfs->z_events_size).
+ * We must not look up the events_size property here: VFS write paths
+ * do not hold the pool config lock that dsl_prop_get_int_ds() requires.
+ *
+ * The record's txg label is passed separately (txg): emitters with a
+ * live transaction pass dmu_tx_get_txg(tx); transaction-less callers
+ * (READ accounting, deferred fence flushes) pass 0, in which case the
+ * pool's open txg is sampled under txg_hold_open() - a commit-timeline
+ * anchor, not a transaction that carried the IO. When tx is NULL an
+ * ad-hoc transaction is opened here for the ring append itself: the
+ * existing append path (dmu_buf_will_dirty etc.) requires one.
+ */
 static void
 zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
     uint64_t events_size, uint64_t *objp, kmutex_t *lockp, uint64_t txg)
@@ -1191,6 +1222,16 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
 
 	zep = dbp->db_data;
 	dmu_buf_will_dirty(dbp, atx);
+
+	/*
+	 * Records appended by this module are in this module's record
+	 * format; correct a stale stamp left by an older module so the
+	 * header always describes the newest record in the ring. (The
+	 * pre-stamp ring has only old-format records, still described
+	 * by their original version.)
+	 */
+	if (zep->zep_version != ZFS_EVENTS_VERSION)
+		zep->zep_version = ZFS_EVENTS_VERSION;
 
 	/*
 	 * Append length + record as one atomic write. Splitting them into

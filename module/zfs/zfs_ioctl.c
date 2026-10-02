@@ -4800,14 +4800,18 @@ zfs_secpolicy_events(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 
 	/*
 	 * offset == UINT64_MAX is the clear request. Wiping the log
-	 * is a write: require the destroy delegation, not the read
-	 * policy that every local user passes.
+	 * is a write: the dedicated clear ioctl (ZFS_IOC_CLEAR_EVENTS)
+	 * requires the delegated "events" permission via
+	 * zfs_secpolicy_clear_events(), so this legacy path must
+	 * enforce the identical policy -- the same destructive
+	 * operation must not carry two permission models depending
+	 * on which entry point the caller used.
 	 */
 	if (innvl != NULL)
 		(void) nvlist_lookup_uint64(innvl, "offset", &offset);
 	if (offset == UINT64_MAX)
 		return (zfs_secpolicy_write_perms(zc->zc_name,
-		    ZFS_DELEG_PERM_DESTROY, cr));
+		    zfs_prop_to_name(ZFS_PROP_EVENTS), cr));
 	return (0);
 }
 
@@ -4876,11 +4880,20 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 	 * read buffer on a request that cannot succeed.
 	 */
 	zfsvfs_t *io_zfsvfs;
+	uint64_t root_objid = 0;
 	error = getzfsvfs_impl(os, &io_zfsvfs);
 	if (error != 0) {
 		dmu_objset_rele(os, FTAG);
 		return (error);
 	}
+
+	/*
+	 * Snapshot the dataset root object id while the zfsvfs hold
+	 * guarantees the mount exists; the reply tail below reads the
+	 * local copy unconditionally, so an unmount after the release
+	 * cannot make the field silently vanish.
+	 */
+	root_objid = io_zfsvfs->z_root;
 
 	buf = vmem_alloc(bufsize, KM_SLEEP);
 	read_len = bufsize;
@@ -4902,6 +4915,7 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 	/* Parse packed nvlists from buffer and add to output */
 	events_list = fnvlist_alloc();
 	uint64_t consumed = 0;
+	uint64_t unpack_fails = 0;
 	if (read_len > 0) {
 		uint64_t pos = 0;
 		uint32_t idx = 0;
@@ -4954,6 +4968,15 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 			/* Unpack the nvlist record */
 			error = nvlist_unpack(buf + pos, reclen, &rec, 0);
 			if (error != 0) {
+				/*
+				 * Corrupt record: the cursor still
+				 * advances, so the hole is permanent
+				 * for this ring. Account for it in
+				 * records_lost below -- see the loss
+				 * accounting comment at the reply
+				 * tail.
+				 */
+				unpack_fails++;
 				pos += reclen;
 				continue;
 			}
@@ -4993,10 +5016,24 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 	nvlist_free(events_list);
 
 	{
+		/*
+		 * Loss accounting contract: records_lost must count
+		 * every record that existed but was not delivered to
+		 * the caller. The ring's counter covers overwritten
+		 * records; records that failed nvlist_unpack() in this
+		 * page were consumed by the cursor advance yet never
+		 * delivered, so they are added here. The ring header is
+		 * NOT updated from this path -- it holds no txg and
+		 * cannot commit a header write -- so the extra losses
+		 * ride the reply only; the daemon's delta detection
+		 * treats the increased value as an unaccounted gap and
+		 * records it.
+		 */
 		uint64_t lost = 0;
 
 		if (zfs_events_get_lost(os, &lost) == 0)
-			fnvlist_add_uint64(outnvl, "records_lost", lost);
+			fnvlist_add_uint64(outnvl, "records_lost",
+			    lost + unpack_fails);
 	}
 
 	{
@@ -5028,15 +5065,11 @@ zfs_ioc_get_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
 		 * "ancestor lost" - the objmap graph never maps the
 		 * root, and a graph with any rows cannot make that
 		 * distinction from emptiness alone (root ids vary per
-		 * dataset; 2 is not universal).
+		 * dataset; 2 is not universal). Read from the snapshot
+		 * taken under the io_zfsvfs hold above; no second
+		 * zfsvfs lookup here, so the value is always present.
 		 */
-		zfsvfs_t *zfsvfs = NULL;
-
-		if (getzfsvfs_impl(os, &zfsvfs) == 0 && zfsvfs != NULL) {
-			fnvlist_add_uint64(outnvl, "root_objid",
-			    zfsvfs->z_root);
-			zfs_vfs_rele(zfsvfs);
-		}
+		fnvlist_add_uint64(outnvl, "root_objid", root_objid);
 	}
 
 	vmem_free(buf, bufsize);
