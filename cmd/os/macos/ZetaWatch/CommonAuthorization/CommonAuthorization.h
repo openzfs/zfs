@@ -8,6 +8,8 @@
 
 /* CSTYLED */
 #import <Foundation/Foundation.h>
+/* CSTYLED */
+#import <Security/Authorization.h>
 
 @interface CommonAuthorization : NSObject
 
