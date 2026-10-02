@@ -50,7 +50,9 @@ typedef struct zmetad_config {
 	boolean_t	force;
 } zmetad_config_t;
 
-/* Opaque database handle */
+/*
+ * Opaque database handle
+ */
 typedef struct zmetad_db zmetad_db_t;
 
 /*
@@ -61,6 +63,14 @@ typedef struct zmetad_db zmetad_db_t;
 typedef struct zmetad_schema zmetad_schema_t;
 int zmetad_db_open(zmetad_db_t **dbp, const char *path,
     const zmetad_schema_t *zs);
+
+/*
+ * Install the runtime warning sink for db-layer warnings (poll-path
+ * errors, migration progress).  The daemon passes its daemon_warn-
+ * backed sink so warnings survive daemonization; NULL (the default)
+ * falls back to stderr.  cb receives a single formatted line.
+ */
+void zmetad_db_set_warn(zmetad_db_t *db, void (*cb)(const char *msg));
 
 /* Close the database */
 void zmetad_db_close(zmetad_db_t *db);
@@ -82,9 +92,12 @@ int zmetad_db_insert_event(zmetad_db_t *db, const char *dataset,
 
 /*
  * Remember the dataset's root object id as reported by the kernel
- * (GET_EVENTS "root_objid"); the full-path resolver uses it to treat
- * that ancestor as the path terminus instead of guessing from graph
- * emptiness.
+ * (GET_EVENTS "root_objid") AND persist it in sync_state.root_id
+ * (DB layout 7).  The full-path resolver uses the id -- cache or
+ * persisted fallback -- to treat that ancestor as the path terminus
+ * instead of guessing from graph emptiness; the persisted copy lets
+ * a legacy-kernel reply (no root_objid key) keep resolving against
+ * the last learned root.
  */
 void zmetad_db_set_root_id(zmetad_db_t *db, const char *dataset,
     uint64_t id);
@@ -126,22 +139,29 @@ int zmetad_db_set_last_lost(zmetad_db_t *db, const char *dataset,
     uint64_t last_lost);
 
 /*
- * Global purge epoch: bumped by every successful `zmetad --purge`.
- * The daemon compares it per poll so its in-memory loss state can be
- * re-armed after another process removed a dataset's history.  Returns
- * 0 and writes *epochp; ENOENT when no purge has ever run.
+ * Per-dataset purge epoch: bumped by every successful
+ * `zmetad --purge <dataset>` (meta key 'purge_epoch:<dataset>',
+ * one atomic upsert per bump).  The daemon compares ONLY its own
+ * dataset's epoch each poll so its in-memory loss state for that
+ * dataset can be re-armed after another process removed its
+ * history; purging one dataset does not re-arm the others.  Returns
+ * 0 and writes *epochp; ENOENT means no purge has ever been
+ * recorded for the dataset (fresh per-dataset epoch starts at 0;
+ * the pre-layout-7 global 'purge_epoch' key is read once as the
+ * initial baseline for migration continuity).
  */
-int zmetad_db_get_purge_epoch(zmetad_db_t *db, uint64_t *epochp);
+int zmetad_db_get_purge_epoch(zmetad_db_t *db, const char *dataset,
+    uint64_t *epochp);
 
-/* Set the purge epoch (also used to create it on the first purge). */
-int zmetad_db_set_purge_epoch(zmetad_db_t *db, uint64_t epoch);
+/* Atomically bump the dataset's purge epoch (creates it at 1). */
+int zmetad_db_bump_purge_epoch(zmetad_db_t *db, const char *dataset);
 
 /*
- * Delete every row belonging to "dataset" from the events, gaps and
- * sync_state tables.  Deleted row counts are reported through
- * counts[] in events, gaps, sync_state, objmap order.  The deletes
- * run in a single transaction.  Does not touch the kernel event ring
- * (see zmetad --purge).
+ * Delete every row belonging to "dataset" from the events, gaps,
+ * sync_state and objmap tables.  Deleted row counts are reported
+ * through counts[] in events, gaps, sync_state, objmap order.  The
+ * deletes run in a single transaction.  Does not touch the kernel
+ * event ring (see zmetad --purge).
  */
 int zmetad_db_purge_dataset(zmetad_db_t *db, const char *dataset,
     long long counts[4]);
