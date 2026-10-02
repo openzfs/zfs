@@ -163,7 +163,7 @@ The SQLite database layout version is recorded in the
 .Sy meta
 table under the
 .Sy db_schema_version
-key; this build writes layout version 5.
+key; this build writes layout version 7.
 The database contains six tables:
 .Sy events ,
 .Sy sync_state ,
@@ -185,7 +185,9 @@ CREATE TABLE sync_state (
     dataset TEXT PRIMARY KEY,
     last_offset INTEGER NOT NULL,
     last_sync INTEGER NOT NULL,
-    ring_guid INTEGER
+    ring_guid INTEGER,
+    last_lost INTEGER,
+    root_id INTEGER
 );
 .Ed
 .Pp
@@ -197,15 +199,27 @@ changes only when the ring is replaced, and the daemon records the
 replacement in the
 .Sy gaps
 table.
+.Sy root_id
+is the dataset root object id last reported by the kernel
+(GET_EVENTS
+.Sy root_objid ) ;
+the full-path resolver uses it as the path terminus.
+NULL or 0 means the root is unknown (legacy kernel reply), and the
+resolver falls back to graph-emptiness heuristics.
 .Ss Datasets Table
 .Bd -literal -offset indent
 CREATE TABLE datasets (
     dataset TEXT PRIMARY KEY,
-    mountpoint TEXT NOT NULL
+    mountpoint TEXT NOT NULL,
+    last_seen INTEGER
 );
 .Ed
 .Pp
 Maps each dataset to its mountpoint as observed at collect time.
+.Sy last_seen
+is the time of the collect cycle that last refreshed the row; rows
+not refreshed within a cycle are pruned (one prune per collect
+cycle), so the table tracks datasets the daemon currently sees.
 Consumers resolve event paths against this table instead of calling
 into the kernel.
 The value is stored verbatim: mountpoints such as

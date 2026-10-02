@@ -255,12 +255,12 @@ Conclusions (debug build; treat absolute numbers as upper bounds):
 
 tests/events-io-e2e.sh (new, this leaf) encodes the wire-level
 assertions: gate-off isolation, write/read visibility with uid,
-zero-byte suppression, fence coalescing (window=2000 -> one merged
-byte-exact record), per-syscall behavior at window=0, WRITE-before-
-RENAME flush ordering, close flush, byte completeness. Green twice
-plus one independent orchestrator run; events-schema-e2e.sh still
-green (version-refusal step fixed to sudo python3 for the root-owned
-DB).
+zero-byte suppression, fence coalescing (window=5000 with writes
+1s apart -> one merged byte-exact record; see T8 below), per-syscall
+behavior at window=0, WRITE-before-RENAME flush ordering, close
+flush, byte completeness. The original green runs predate the
+2026-10-01 repair addendum and are VOID (see below); the suite was
+re-verified green on Linux after the repairs.
 
 ### Commits (IO events)
 
@@ -315,13 +315,13 @@ Repairs applied to `tests/events-schema-e2e.sh`:
   both documented modes (root, passwordless sudo) actually work
   (previously: guaranteed 30s-timeout FAILs under sudo mode).
 - **T4** the near-vacuous migration test (only exercised the
-  duplicate-column no-op path) is replaced by synthetic v2-layout
-  and v3-layout databases built with sqlite3 (v2: events without
-  the 5 v2 columns, sync_state without ring_guid, no
-  db_schema_version key; v3: adds the captured_at stage), driven
-  through zmetad's one-shot open path (`--purge <nonexistent>`),
-  asserting columns added, old rows carry NULLs, data survived, and
-  version==4.
+  duplicate-column no-op path) is replaced by synthetic v1-layout,
+  v3-layout, and v4-layout databases (v1: pre-events table;
+  v3: adds the captured_at stage; v4: adds the guid/last_lost
+  machinery), driven through zmetad's one-shot open path
+  (`--purge <nonexistent>`), asserting the full keyed ALTER chain
+  runs, columns added, old rows carry NULLs, data survived, and the
+  result is the current layout (version 7).
 - **T5** new SIGUSR1 step: mid-interval file creation + signal
   (systemctl kill -s USR1 with kill -USR1 $pid fallback) asserts the
   row appears well before the 300s poll interval; a second variant

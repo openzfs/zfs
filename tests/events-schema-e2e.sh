@@ -115,6 +115,11 @@ cleanup() {
 	exit "$status"
 }
 trap cleanup EXIT
+# TERM/INT must clean up too (E2E-9): an EXIT-only trap leaks the
+# unit, dataset and DB when the suite is killed between steps.
+# Routing the signal through exit runs the EXIT trap above.
+trap 'exit 143' TERM
+trap 'exit 130' INT
 
 # db_query <db> <python-expression using con> : print the value.
 # Runs privileged: the daemon creates the DB (and its -wal/-shm
@@ -172,9 +177,37 @@ unit_start() {
 		--description="zmetad e2e validation" \
 		"$ZMETAD" -f -i "$_interval" "$@" -d "$WD/zmd.db" ||
 		fail "unit_start: systemd-run failed (interval=$_interval)"
-	sleep 4
-	"${SUDO[@]}" systemctl is-active --quiet "$UNIT" ||
-		fail "unit_start: unit $UNIT not active after start"
+	# Poll for liveness instead of a fixed sleep (E2E-12): sleep 4
+	# both wasted time on fast starts and raced daemons that die
+	# slowly (e.g. a DB open blocked on a stale WAL).  is-active
+	# plus a live MainPID is the liveness proof; on timeout the
+	# journal tail is printed so the cause of a slow failure is
+	# visible.
+	_up=0
+	_i=0
+	while [ "$_i" -lt 15 ]; do
+		if "${SUDO[@]}" systemctl is-active --quiet "$UNIT" \
+		    2>/dev/null; then
+			_pid="$("${SUDO[@]}" systemctl show -p MainPID \
+			    --value "$UNIT" 2>/dev/null || true)"
+			case "$_pid" in
+			''|0) ;;
+			*)
+				if "${SUDO[@]}" kill -0 "$_pid" 2>/dev/null; then
+					_up=1
+					break
+				fi
+				;;
+			esac
+		fi
+		sleep 1
+		_i=$((_i + 1))
+	done
+	if [ "$_up" -ne 1 ]; then
+		_j="$("${SUDO[@]}" journalctl -u "$UNIT" --no-pager -n 10 \
+		    2>/dev/null || true)"
+		fail "unit_start: unit $UNIT not active within 15s; journal tail: $_j"
+	fi
 }
 
 step_preflight() {
@@ -194,6 +227,60 @@ step_preflight() {
 		"$DS"|"$SWAP_DS")
 			"${SUDO[@]}" "$ZFS" destroy -R "$d" >/dev/null 2>&1 || true ;;
 		esac
+	done < <("$ZFS" list -r -H -o name "$BASE_DS" 2>/dev/null)
+
+	# Cross-run hygiene for leaked units (E2E-9): a prior suite run
+	# killed by SIGKILL left its EXIT trap unrun.  A zmd-e2e-* unit
+	# whose MainPID no longer exists can never clean up after
+	# itself, so stop it.  LIVE units (a parallel run's daemon) are
+	# left alone.
+	while read -r u; do
+		case "$u" in
+		zmd-e2e-*) ;;
+		*) continue ;;
+		esac
+		[ "$u" = "$UNIT" ] && continue
+		_p="$("${SUDO[@]}" systemctl show -p MainPID --value \
+		    "$u" 2>/dev/null || true)"
+		case "$_p" in
+		''|0) _dead=1 ;;
+		*) if "${SUDO[@]}" kill -0 "$_p" 2>/dev/null; then
+			_dead=0
+		   else
+			_dead=1
+		   fi ;;
+		esac
+		if [ "$_dead" = "1" ]; then
+			"${SUDO[@]}" systemctl stop "$u" >/dev/null 2>&1 || true
+			"${SUDO[@]}" systemctl reset-failed "$u" \
+			    >/dev/null 2>&1 || true
+		fi
+	done < <("${SUDO[@]}" systemctl list-units --all --no-legend \
+	    'zmd-e2e-*' 2>/dev/null | awk '{print $1}' | sed 's/\.service$//')
+
+	# Same leak class, datasets: destroy e2e-* children of $BASE_DS
+	# older than this run's pid scope.  A dead unit can no longer
+	# hold its dataset, and no live run owning an in-use e2e-* dataset
+	# can have a pid below the current one (pids only grow between
+	# wraps; a wrapped pid count of this machine makes collision
+	# practically impossible for the e2e window).  This is the
+	# deliberate, bounded exception to the strict run-ID scoping
+	# above, and it only touches names the suites themselves mint.
+	while read -r d; do
+		case "$d" in
+		"$BASE_DS"/e2e-*|"$BASE_DS"/io-e2e-*) ;;
+		*) continue ;;
+		esac
+		case "$d" in
+		*-"$RUNID") continue ;;  # this run's own names: handled above
+		esac
+		_rid="${d##*-}"
+		case "$_rid" in
+		''|*[!0-9]*) continue ;;
+		esac
+		if [ "$_rid" -lt "$RUNID" ]; then
+			"${SUDO[@]}" "$ZFS" destroy -R "$d" >/dev/null 2>&1 || true
+		fi
 	done < <("$ZFS" list -r -H -o name "$BASE_DS" 2>/dev/null)
 
 	v="$("$ZFS" get -H -o value events "$BASE_DS" 2>/dev/null)"
@@ -286,14 +373,16 @@ PY
 }
 
 step_module_version() {
-	# Advisory only: on a pre-swap module schema_version is absent
-	# from the wire; skip with a notice rather than fail.
-	# NOTE: schema_version is a top-level key in the GET_EVENTS
-	# ioctl reply, which `zfs events -j` does NOT print (it emits
-	# only the record array), so there is no CLI fallback - grep
-	# of `zfs events -j` output could never match.  Probe the raw
-	# ioctl with a tiny lzc_get_events program; if it cannot be
-	# compiled here, skip the assertion with a notice.
+	# E2E-5: the wire schema_version is a real kernel-to-userspace
+	# contract, not advisory: the daemon stores it in meta on its
+	# first poll, so an absent or wrong value is a kernel regression
+	# and must fail the step.  Two things are checked:
+	#   - schema_version PRESENT in the GET_EVENTS reply (it is a
+	#     top-level ioctl key, which `zfs events -j` does NOT print,
+	#     so the raw probe below is the only path), and
+	#   - its VALUE equals the exported schema's schema_version.
+	# Only a genuine build-environment limitation (gcc cannot run
+	# here) may skip the step, with a loud WARNING.
 	probe="$WD/wireprobe.c"
 	bin="$WD/wireprobe"
 	cat > "$probe" <<'EOF'
@@ -310,29 +399,38 @@ int main(int argc, char **argv) {
 		printf("%llu\n", (unsigned long long)v);
 		return 0;
 	}
+	/* Key absent from the reply: distinct from an ioctl error so
+	 * the caller can fail on it (rc 3). */
 	return 3;
 }
 EOF
 	if ! gcc -I "$REPO/include" -I "$REPO/lib/libspl/include" \
 	    "$probe" -o "$bin" \
 	    -L "$REPO/lib/libzfs_core/.libs" -lzfs_core -lnvpair \
-	    >/dev/null 2>&1; then
-		notice "module-version: wire probe compile failed; wire-version assertion skipped"
+	    >"$WD/wireprobe.cc.err" 2>&1; then
+		printf 'WARNING: module-version: gcc probe could not be compiled on this VM architecture; wire schema_version NOT verified (see %s). Environment limitation, NOT a pass.\n' \
+		    "$WD/wireprobe.cc.err"
+		notice "module-version: wire probe compile failed; skipping"
 		return
 	fi
 	wire="$("${SUDO[@]}" env \
 	    LD_LIBRARY_PATH="$REPO/lib/libzfs_core/.libs:$REPO/lib/libnvpair/.libs" \
-	    "$bin" "$BASE_DS" 2>/dev/null || true)"
-	case "$wire" in
-	[0-9]*)
-		WIRE_HAS_VERSION=1
-		WIRE_VERSION="$wire"
-		pass module-version
-		;;
-	*)
-		notice "module-version: schema_version absent from wire events; wire-version assertion skipped"
-		;;
+	    "$bin" "$BASE_DS" 2>/dev/null)"
+	rc=$?
+	case "$rc" in
+	0) ;;
+	2) fail "module-version: lzc_get_events($BASE_DS) failed (rc 2)" ;;
+	3) fail "module-version: schema_version key absent from the GET_EVENTS reply - kernel wire regression" ;;
+	*) fail "module-version: wire probe exited rc=$rc" ;;
 	esac
+	file_version="$(python3 -c \
+	    'import json,sys; print(json.load(open(sys.argv[1]))["schema_version"])' \
+	    "$WD/schema.json")"
+	[ "$wire" = "$file_version" ] ||
+		fail "module-version: wire schema_version=$wire, exported schema says $file_version"
+	WIRE_HAS_VERSION=1
+	WIRE_VERSION="$wire"
+	pass module-version
 }
 
 step_daemon_run() {
@@ -467,9 +565,9 @@ dbver = con.execute(
     "select value from meta where key='db_schema_version'").fetchall()
 if not dbver:
     errors.append("meta db_schema_version key absent")
-elif dbver[0][0] != "5":
-    errors.append("meta db_schema_version=%r, expected '5'"
-                  % (dbver[0][0],))
+elif dbver[0][0] != "7":
+    errors.append("meta db_schema_version=%r, expected '7'"
+		  % (dbver[0][0],))
 sync_cols = [r[1] for r in con.execute(
     "pragma table_info(sync_state)").fetchall()]
 if "ring_guid" not in sync_cols:
@@ -504,28 +602,44 @@ if _ren is not None and (_ren[0] is None or _ren[1] is None):
 # Exact paths, not "ends with the name". A wrong parent still ends
 # with the basename, and that is the bug root_objid exists to fix.
 # Root object ids are not always 2, so these strings are the check.
+# E2E-6: exact EQUALITY against the dataset-relative path computed
+# from the known mkdir/touch sequence (not a suffix test), at two
+# different depths, and each expected row must appear EXACTLY once
+# (a resolver emitting a second mis-attributed row alongside the
+# correct one must fail here, not hide in a list).
 _exact = {
-    ("CREATE", "a"): "a",
-    ("CREATE", "b"): "a/b",
-    ("CREATE", "c.txt"): "a/b/c.txt",
+    ("CREATE", "a"): "a",                    # depth 1
+    ("CREATE", "b"): "a/b",                  # depth 2
+    ("CREATE", "c.txt"): "a/b/c.txt",        # depth 3
 }
+# d.txt has NO CREATE row: it comes into being only via the cross-dir
+# RENAME asserted below, which checks its full_path exactly.
 _fp_rows = con.execute(
     "select event_type, path, full_path from events where dataset=?",
     (ds,)).fetchall()
 for (_t, _p), _want in _exact.items():
     _got = [r[2] for r in _fp_rows if r[0] == _t and r[1] == _p]
-    if _want not in _got:
-        errors.append("%s %r full_path=%r, expected %r"
-                      % (_t, _p, _got, _want))
+    if len(_got) == 0:
+        errors.append("%s %r has no row (expected full_path=%r)"
+                      % (_t, _p, _want))
+    elif len(_got) > 1:
+        errors.append("%s %r has %d rows, expected exactly 1"
+                      % (_t, _p, len(_got)))
+    elif _got[0] != _want:
+        errors.append("%s %r full_path=%r, expected exactly %r"
+                      % (_t, _p, _got[0], _want))
 _xren = con.execute(
     "select full_path, old_full_path from events "
     "where dataset=? and event_type='RENAME' and path=? and old_path=?",
-    (ds, "d.txt", "c.txt")).fetchone()
-if _xren is None:
-    errors.append("no cross-dir RENAME path='d.txt' old_path='c.txt'")
-elif _xren != ("a/d.txt", "a/b/c.txt"):
-    errors.append("cross-dir RENAME paths %r, expected "
-                  "('a/d.txt', 'a/b/c.txt')" % (_xren,))
+    (ds, "d.txt", "c.txt")).fetchall()
+# E2E-6: the cross-directory RENAME's old_full_path must be EXACT
+# (proving the old parent binding), not merely non-NULL.
+if len(_xren) != 1:
+    errors.append("cross-dir RENAME path='d.txt' old_path='c.txt': "
+                  "%d rows, expected 1" % len(_xren))
+elif _xren[0] != ("a/d.txt", "a/b/c.txt"):
+    errors.append("cross-dir RENAME paths %r, expected exactly "
+                  "('a/d.txt', 'a/b/c.txt')" % (_xren[0],))
 
 # parent is decoded on every name-bearing op; the CREATE row for 'a'
 # must carry a non-NULL parent object id, and the RENAME row must
@@ -560,6 +674,39 @@ PY
 	pass assert
 }
 
+# wait_collect_done <interval-marks...>: poll the DB until the
+# daemon's startup collect has COMPLETED.  Completion is proven, not
+# assumed (E2E-7): each collect_all_events pass refreshes
+# datasets.last_seen for every events-enabled dataset it walked, so
+# once max(last_seen) holds still across two consecutive polls
+# (>=2s apart, shorter than any sane poll interval), a collect pass
+# has finished and the next one cannot start before the interval
+# elapses.  With interval 300s the caller then has a wide,
+# signal-exclusive window.
+wait_collect_done() {
+	_prev=-1
+	_i=0
+	while [ "$_i" -lt 30 ]; do
+		_cur="$(db_query "$WD/zmd.db" \
+		    "con.execute('select coalesce(max(last_seen), 0) ' \
+		    'from datasets').fetchone()[0]" 2>/dev/null)"
+		case "$_cur" in
+		''|ERR|null)
+			sleep 2
+			_i=$((_i + 1))
+			continue
+			;;
+		esac
+		if [ "$_cur" = "$_prev" ] && [ "$_cur" != "0" ]; then
+			return 0
+		fi
+		_prev="$_cur"
+		sleep 2
+		_i=$((_i + 1))
+	done
+	return 1
+}
+
 step_sigusr1() {
 	# T5: SIGUSR1 forces an out-of-band collect.  Restart the
 	# daemon on a LONG interval (300s) so any row appearing
@@ -567,9 +714,14 @@ step_sigusr1() {
 	unit_start 300
 	mnt="$("$ZFS" get -H -o value mountpoint "$DS")"
 
-	# Let the startup collect finish so we are genuinely
-	# mid-interval when the signal lands.
-	sleep 8
+	# Prove the startup collect FINISHED before touching anything
+	# (E2E-7): a fixed sleep cannot - a slow VM run may still be
+	# inside the startup batch, which would ingest the file below
+	# and make the timing proof unsound.  wait_collect_done polls
+	# until datasets.last_seen stabilizes, i.e. the batch ended.
+	if ! wait_collect_done; then
+		fail "sigusr1: startup collect never stabilized within 60s"
+	fi
 
 	# --- variant 1: signal between polls ---
 	"${SUDO[@]}" touch "$mnt/usr1" ||
@@ -724,6 +876,132 @@ step_gap() {
 	pass gap
 }
 
+step_restart_loss() {
+	# Wrap while the daemon is down.  Detecting a last_lost
+	# NON-persistence regression (E2E-1): a healthy daemon reads
+	# the persisted last_lost baseline at open and, on its first
+	# poll after restart, reports ONLY the loss accumulated during
+	# downtime.  A broken daemon (get_last_lost error mistaken for
+	# "no baseline") re-arms and reports the PRE-restart wrap too,
+	# roughly doubling the loss.  A bare "a new positive gaps row
+	# exists" assertion passes on BOTH builds, so the step asserts
+	# the DELTA: sum(gaps.lost) after restart minus the sum before
+	# restart must be strictly less than the downtime record count.
+	#
+	# Derivation of the bound (ring = events_size, default 1 MiB
+	# ~= 10.8k records): the delta is (kernel cumulative lost -
+	# persisted last_lost), i.e. loss the daemon had no baseline
+	# for.  Healthy: the persisted baseline already covers step_gap's
+	# wrap, so delta = loss during the dd downtime only (bounded by
+	# the 16384 downtime writes; measured ~500).  Broken (re-armed
+	# baseline): delta = the FULL kernel cumulative counter, which
+	# includes step_gap's ~15.9k wrap on top of the downtime loss -
+	# far above the 16384 bound.  before_sum is read and stamped
+	# only to prove the baseline existed before the downtime.
+	local before before_sum found i n delta
+	before="$(db_query "$WD/zmd.db" \
+	    "con.execute('select coalesce(max(id), 0) from gaps where ' \
+	    'dataset=?', ('$DS',)).fetchone()[0]" 2>/dev/null)"
+	case "$before" in
+	''|ERR|null|None)
+		fail "restart-loss: cannot read gaps baseline"
+		return
+		;;
+	esac
+	# Ordering assumption, checked not assumed (E2E-1): step_gap
+	# must have persisted a non-NULL last_lost for $DS, or the
+	# delta bound below is meaningless.
+	_ll="$(db_query "$WD/zmd.db" \
+	    "con.execute('select last_lost from sync_state where ' \
+	    'dataset=?', ('$DS',)).fetchone()" 2>/dev/null)"
+	case "$_ll" in
+	None|''|ERR|null)
+		fail "restart-loss: sync_state.last_lost is $_ll after step_gap; loss baseline not persisted"
+		;;
+	esac
+	_llost="$(db_query "$WD/zmd.db" \
+	    "con.execute('select last_lost from sync_state where ' \
+	    'dataset=?', ('$DS',)).fetchone()[0]" 2>/dev/null)"
+	case "$_llost" in
+	''|ERR|null|[!0-9]*)
+		fail "restart-loss: sync_state.last_lost=$_llost is not a number"
+		;;
+	esac
+	before_sum="$(db_query "$WD/zmd.db" \
+	    "con.execute('select coalesce(sum(lost), 0) from gaps where ' \
+	    'dataset=?', ('$DS',)).fetchone()[0]" 2>/dev/null)"
+	case "$before_sum" in
+	''|ERR|null|[!0-9]*)
+		fail "restart-loss: cannot read pre-restart lost sum ($_before_sum)"
+		return
+		;;
+	esac
+	"${SUDO[@]}" systemctl stop "$UNIT" ||
+		fail "restart-loss: failed to stop daemon"
+	"${SUDO[@]}" "$ZFS" set events_io=on events_io_window=0 "$DS" ||
+		fail "restart-loss: set events_io=on"
+	mnt="$("$ZFS" get -H -o value mountpoint "$DS")"
+	"${SUDO[@]}" dd if=/dev/zero of="$mnt/gapdown" bs=4096 \
+	    count=16384 conv=notrunc status=none ||
+		fail "restart-loss: bulk write failed"
+	"${SUDO[@]}" rm -f "$mnt/gapdown"
+	"${SUDO[@]}" systemctl reset-failed "$UNIT" >/dev/null 2>&1 || true
+	"${SUDO[@]}" systemd-run --unit="$UNIT" \
+		--description="zmetad e2e validation" \
+		"$ZMETAD" -f -i 3 -d "$WD/zmd.db" ||
+		fail "restart-loss: daemon restart failed"
+	# Wait for the first post-restart poll(s) to land, then read
+	# the delta.  A longer wait cannot create a false PASS: the
+	# healthy build caps its delta at loss_during_downtime and any
+	# FURTHER loss still comes from real downtime records; only a
+	# re-armed baseline pushes the delta past the bound.
+	found=0
+	i=0
+	while [ "$i" -lt 20 ]; do
+		sleep 2
+		n="$(db_query "$WD/zmd.db" \
+		    "con.execute('select count(*) from gaps where ' \
+		    'dataset=? and id > ?', ('$DS', $before)).fetchone()[0]" \
+		    2>/dev/null)"
+		case "$n" in
+		''|ERR|null|0|None)
+			i=$((i + 1))
+			continue
+			;;
+		esac
+		# At least one new row exists: check the delta bound
+		# now and on every subsequent tick (a broken daemon's
+		# re-report may land a poll later than its first row).
+		delta="$(db_query "$WD/zmd.db" \
+		    "con.execute('select coalesce(sum(lost), 0) - $before_sum ' \
+		    'from gaps where dataset=? and id > ? and lost > 0', \
+		    ('$DS', $before)).fetchone()[0]" 2>/dev/null)"
+		case "$delta" in
+		''|ERR|null) i=$((i + 1)); continue ;;
+		esac
+		# Budget = the dd record count: the kernel cannot report
+		# more NEW loss than records written while the daemon was
+		# down (16384), because the ring still held ~10.8k of
+		# those when the downtime began. A re-armed baseline
+		# re-reports the FULL kernel cumulative counter (~16.4k +
+		# step_gap's 15.9k), which crosses this bound. (The
+		# earlier 16384 - before_sum form was dimensionally wrong:
+		# before_sum is prior loss, not ring free space, and
+		# measured healthy deltas (~500) sat just above it.)
+		[ "$delta" -ge 16384 ] && {
+			fail "restart-loss: post-restart lost delta $delta >= downtime record budget 16384 (before_sum=$before_sum) - last_lost baseline was re-armed, not persisted"
+			return
+		}
+		[ "$delta" -gt 0 ] && { found=1; break; }
+		i=$((i + 1))
+	done
+	[ "$found" -eq 1 ] ||
+		fail "restart-loss: no new positive gaps row after restart (before id $before)"
+	"${SUDO[@]}" "$ZFS" set events_io_window=1000 "$DS" ||
+		fail "restart-loss: restore events_io_window"
+	pass restart-loss
+}
+
 # do_guid_swap <db> <dataset>: destroy + recreate an events=on child
 # between daemon polls and wait (up to 30s, like step_gap) for the
 # ring-replace evidence: a gaps row with the lost=-1 sentinel, the
@@ -841,18 +1119,17 @@ step_guid_purge() {
 
 	# --- purge: while the ring still has events, --purge must wipe
 	# DB rows (events/gaps/sync_state), clear the kernel ring, exit 0.
-	# The live daemon may hold the SQLite write lock at the moment
-	# purge runs (database is locked -> rc 1); retry briefly.
-	_purge_rc=1
-	for _i in 1 2 3 4 5; do
-		"${SUDO[@]}" "$ZMETAD" --purge "$SWAP_DS" -d "$WD/zmd.db" &&
-			{ _purge_rc=0; break; }
-		_purge_rc=$?
-		[ "$_purge_rc" = "2" ] && break
-		sleep 2
-	done
-	[ "$_purge_rc" = "0" ] ||
-		fail "guid-purge: --purge $SWAP_DS exited nonzero (rc=$_purge_rc)"
+	# E2E-4: the daemon is STOPPED first, then the purge runs, then
+	# every table is asserted strictly 0 - the old tolerance-free /
+	# opposite-tolerance mix between this step and step_purge was
+	# flaky because a live poll could re-write sync_state inside
+	# the purge->count window.  With the daemon down the one-shot
+	# CLI holds the DB alone, so no lock-retry is needed and the
+	# zero-row assertion is deterministic.
+	"${SUDO[@]}" systemctl stop "$UNIT" ||
+		fail "guid-purge: failed to stop daemon"
+	"${SUDO[@]}" "$ZMETAD" --purge "$SWAP_DS" -d "$WD/zmd.db" ||
+		fail "guid-purge: --purge $SWAP_DS exited nonzero"
 	for _t in events gaps sync_state; do
 		_n="$(db_query "$WD/zmd.db" \
 		    "con.execute('select count(*) from $_t where ' \
@@ -885,7 +1162,9 @@ step_guid_purge() {
 	# poll re-stamps from the SAME kernel ring instance.  The
 	# re-stamp needs a poll that reaches the identity write: an
 	# empty (just-cleared) ring returns no records, so generate
-	# one event to wake the collect path.
+	# one event to wake the collect path.  The daemon was stopped
+	# for the purge (E2E-4); restart it here.
+	unit_start 3
 	_mnt="$("$ZFS" get -H -o value mountpoint "$SWAP_DS")"
 	"${SUDO[@]}" touch "$_mnt/post-purge-$RUNID"
 	_i=0
@@ -999,9 +1278,15 @@ if "objmap" not in tbls:
 
 ver = con.execute("select value from meta "
                   "where key='db_schema_version'").fetchall()
-if not ver or ver[0][0] != "5":
-    errors.append("db_schema_version=%r, expected '5'"
+if not ver or ver[0][0] != "7":
+    errors.append("db_schema_version=%r, expected '7'"
                   % (ver[0][0] if ver else None,))
+
+# DB layout 7: sync_state gains root_id (persisted root object id).
+# The synthetic legacy FIXTURES must NOT have it (they model the old
+# layouts), so root_id is expected here only AFTER migration.
+if "root_id" not in sync_cols:
+    errors.append("sync_state missing root_id after migration")
 
 row = con.execute("select txg, timestamp, object_id, event_type, path, "
                   "uid, gid, parent, old_parent, target, old_size, "
@@ -1027,10 +1312,20 @@ else:
             errors.append("added columns not NULL on old v3 row: %r"
                           % (r[8:],))
 
-sync = con.execute("select last_offset, last_sync from sync_state "
-                   "where dataset=?", (ds,)).fetchall()
-if not sync or sync[0] != (512, 1700000000):
-    errors.append("sync_state row lost or changed: %r" % (sync,))
+    # The migration chain (v1 -> ... -> 7) rebuilds sync_state from
+    # the legacy fixture; assert the migrated row gained the v7
+    # root_id column (NULL for a fixture that never sent root_objid)
+    # and kept its data.
+    sync7 = con.execute(
+        "select last_offset, last_sync, root_id from sync_state "
+        "where dataset=?", (ds,)).fetchall()
+    if not sync7 or sync7[0][:2] != (512, 1700000000):
+        errors.append("sync_state row lost or changed: %r" % (sync7,))
+    elif len(sync7[0]) < 3:
+        errors.append("sync_state missing root_id column after migration")
+    elif sync7[0][2] is not None:
+        errors.append("sync_state.root_id=%r on migrated legacy row, "
+                      "expected NULL" % (sync7[0][2],))
 
 if errors:
     for e in errors:
@@ -1119,9 +1414,10 @@ PY
 	# The cleanup pass runs on the daemon's first loop tick, AFTER
 	# the first collect finishes - and a collect can take tens of
 	# seconds on a dataset with a large kernel ring. Poll for the
-	# deletion instead of sleeping a fixed interval.
+	# deletion instead of sleeping a fixed interval (E2E-13:
+	# 30x2s was marginal on a loaded VM; 60x2s stays bounded).
 	_ev=""
-	for _i in $(seq 1 30); do
+	for _i in $(seq 1 60); do
 		_ev="$(db_query "$WD/zmd.db" \
 		    "con.execute('select count(*) from events where ' \
 		    'dataset=? and captured_at is not null', \
@@ -1149,21 +1445,19 @@ PY
 }
 
 step_purge() {
-	# One-shot purge of the suite dataset (daemon still running and
-	# holding history for it from step_ops/step_gap): rc 0, all
-	# three tables empty for $DS, kernel ring cleared.  Retry on a
-	# locked database (live daemon write contention), like the
-	# guid-purge step.
-	_purge_rc=1
-	for _i in 1 2 3 4 5; do
-		"${SUDO[@]}" "$ZMETAD" --purge "$DS" -d "$WD/zmd.db" &&
-			{ _purge_rc=0; break; }
-		_purge_rc=$?
-		[ "$_purge_rc" = "2" ] && break
-		sleep 2
-	done
-	[ "$_purge_rc" = "0" ] ||
-		fail "purge: --purge $DS exited nonzero (rc=$_purge_rc)"
+	# One-shot purge of the suite dataset (holding history for it
+	# from step_ops/step_gap): rc 0, kernel ring cleared, and all
+	# three tables strictly 0 rows for $DS (E2E-3: no tolerance.
+	# The daemon is stopped first so a concurrent poll cannot
+	# re-write sync_state inside the purge->count window; a live
+	# poll was the old excuse for a sync_state<=1 tolerance, which
+	# could mask a real purge regression).  The one-shot CLI opens
+	# the same DB file, so no lock-retry is needed once the daemon
+	# is down.
+	"${SUDO[@]}" systemctl stop "$UNIT" ||
+		fail "purge: failed to stop daemon"
+	"${SUDO[@]}" "$ZMETAD" --purge "$DS" -d "$WD/zmd.db" ||
+		fail "purge: --purge $DS exited nonzero"
 	for _t in events gaps sync_state; do
 		_n="$(db_query "$WD/zmd.db" \
 		    "con.execute('select count(*) from $_t where ' \
@@ -1183,6 +1477,9 @@ step_purge() {
 	""|"[]") ;;
 	*) fail "purge: kernel ring not empty after purge: $_ring" ;;
 	esac
+	# The final step needs a RUNNING unit; bring it back (the
+	# version-refusal step stops it again itself).
+	unit_start 3
 	pass purge
 }
 
