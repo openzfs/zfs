@@ -8,7 +8,6 @@ libspl_HEADERS = \
 	%D%/statcommon.h \
 	%D%/stdlib.h \
 	%D%/string.h \
-	%D%/umem.h \
 	%D%/unistd.h \
 	%D%/zone.h
 
@@ -39,6 +38,7 @@ libspl_sys_HEADERS = \
 	%D%/sys/feature_tests.h \
 	%D%/sys/isa_defs.h \
 	%D%/sys/kmem.h \
+	%D%/sys/kmem_cache.h \
 	%D%/sys/kstat.h \
 	%D%/sys/list.h \
 	%D%/sys/list_impl.h \
@@ -68,6 +68,7 @@ libspl_sys_HEADERS = \
 	%D%/sys/types.h \
 	%D%/sys/types32.h \
 	%D%/sys/uio.h \
+	%D%/sys/vmem.h \
 	%D%/sys/vnode.h \
 	%D%/sys/wmsum.h \
 	%D%/sys/zone.h
