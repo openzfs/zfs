@@ -787,6 +787,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_create/zfs_create_dryrun.ksh \
 	functional/cli_root/zfs_create/zfs_create_encrypted.ksh \
 	functional/cli_root/zfs_create/zfs_create_nomount.ksh \
+	functional/cli_root/zfs_create/zfs_create_refreserv.ksh \
 	functional/cli_root/zfs_create/zfs_create_verbose.ksh \
 	functional/cli_root/zfs_destroy/cleanup.ksh \
 	functional/cli_root/zfs_destroy/setup.ksh \
@@ -2155,6 +2156,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/reservation/reservation_020_pos.ksh \
 	functional/reservation/reservation_021_neg.ksh \
 	functional/reservation/reservation_022_pos.ksh \
+	functional/reservation/reservation_023_pos.ksh \
+	functional/reservation/reservation_024_neg.ksh \
 	functional/reservation/setup.ksh \
 	functional/rootpool/cleanup.ksh \
 	functional/rootpool/rootpool_002_neg.ksh \

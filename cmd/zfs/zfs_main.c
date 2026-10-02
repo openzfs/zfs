@@ -1288,8 +1288,11 @@ zfs_do_create(int argc, char **argv)
 		volsize = zvol_volsize_to_reservation(zpool_handle, volsize,
 		    real_props);
 
-		if (nvlist_lookup_string(props, zfs_prop_to_name(resv_prop),
-		    &strval) != 0) {
+		/*
+		 * Look in real_props, where property aliases such as
+		 * "refreserv" have been resolved to their full name.
+		 */
+		if (!nvlist_exists(real_props, zfs_prop_to_name(resv_prop))) {
 			if (nvlist_add_uint64(props,
 			    zfs_prop_to_name(resv_prop), volsize) != 0) {
 				nvlist_free(props);

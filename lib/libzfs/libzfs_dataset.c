@@ -1405,6 +1405,26 @@ error:
 	return (NULL);
 }
 
+/*
+ * Return the reservation of a thick provisioned volume of the given size
+ * and block size, which is what refreservation=auto sets.
+ * zfs_add_synthetic_resv() only keeps a reservation in sync with volsize if
+ * it is this exact value.
+ */
+static uint64_t
+zvol_auto_resv(zpool_handle_t *zph, uint64_t volsize, uint64_t volblocksize)
+{
+	nvlist_t *props = fnvlist_alloc();
+	uint64_t resv;
+
+	fnvlist_add_uint64(props, zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE),
+	    volblocksize);
+	resv = zvol_volsize_to_reservation(zph, volsize, props);
+	fnvlist_free(props);
+
+	return (resv);
+}
+
 static int
 zfs_add_synthetic_resv(zfs_handle_t *zhp, nvlist_t *nvl)
 {
@@ -1412,8 +1432,8 @@ zfs_add_synthetic_resv(zfs_handle_t *zhp, nvlist_t *nvl)
 	uint64_t new_volsize;
 	uint64_t old_reservation;
 	uint64_t new_reservation;
+	uint64_t volblocksize;
 	zfs_prop_t resv_prop;
-	nvlist_t *props;
 	zpool_handle_t *zph = zpool_handle(zhp);
 
 	/*
@@ -1424,24 +1444,18 @@ zfs_add_synthetic_resv(zfs_handle_t *zhp, nvlist_t *nvl)
 	if (zfs_which_resv_prop(zhp, &resv_prop) < 0)
 		return (-1);
 	old_reservation = zfs_prop_get_int(zhp, resv_prop);
+	volblocksize = zfs_prop_get_int(zhp, ZFS_PROP_VOLBLOCKSIZE);
 
-	props = fnvlist_alloc();
-	fnvlist_add_uint64(props, zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE),
-	    zfs_prop_get_int(zhp, ZFS_PROP_VOLBLOCKSIZE));
-
-	if ((zvol_volsize_to_reservation(zph, old_volsize, props) !=
+	if ((zvol_auto_resv(zph, old_volsize, volblocksize) !=
 	    old_reservation) || nvlist_exists(nvl,
 	    zfs_prop_to_name(resv_prop))) {
-		fnvlist_free(props);
 		return (0);
 	}
 	if (nvlist_lookup_uint64(nvl, zfs_prop_to_name(ZFS_PROP_VOLSIZE),
 	    &new_volsize) != 0) {
-		fnvlist_free(props);
 		return (-1);
 	}
-	new_reservation = zvol_volsize_to_reservation(zph, new_volsize, props);
-	fnvlist_free(props);
+	new_reservation = zvol_auto_resv(zph, new_volsize, volblocksize);
 
 	if (nvlist_add_uint64(nvl, zfs_prop_to_name(resv_prop),
 	    new_reservation) != 0) {
@@ -1462,7 +1476,6 @@ zfs_fix_auto_resv(zfs_handle_t *zhp, nvlist_t *nvl)
 	uint64_t volsize;
 	uint64_t resvsize;
 	zfs_prop_t prop;
-	nvlist_t *props;
 
 	if (!ZFS_IS_VOLUME(zhp)) {
 		return (0);
@@ -1485,19 +1498,13 @@ zfs_fix_auto_resv(zfs_handle_t *zhp, nvlist_t *nvl)
 		return (0);
 	}
 
-	props = fnvlist_alloc();
-
-	fnvlist_add_uint64(props, zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE),
-	    zfs_prop_get_int(zhp, ZFS_PROP_VOLBLOCKSIZE));
-
 	if (nvlist_lookup_uint64(nvl, zfs_prop_to_name(ZFS_PROP_VOLSIZE),
 	    &volsize) != 0) {
 		volsize = zfs_prop_get_int(zhp, ZFS_PROP_VOLSIZE);
 	}
 
-	resvsize = zvol_volsize_to_reservation(zpool_handle(zhp), volsize,
-	    props);
-	fnvlist_free(props);
+	resvsize = zvol_auto_resv(zpool_handle(zhp), volsize,
+	    zfs_prop_get_int(zhp, ZFS_PROP_VOLBLOCKSIZE));
 
 	(void) nvlist_remove_all(nvl, zfs_prop_to_name(prop));
 	if (nvlist_add_uint64(nvl, zfs_prop_to_name(prop), resvsize) != 0) {
@@ -1505,6 +1512,39 @@ zfs_fix_auto_resv(zfs_handle_t *zhp, nvlist_t *nvl)
 		return (-1);
 	}
 	return (1);
+}
+
+/*
+ * Helper for 'zfs create -o refreservation=auto'.  Must be called after
+ * zfs_valid_proplist(), as it is what sets the UINT64_MAX sentinel value,
+ * and while the pool handle is open.  The volume does not exist yet, so
+ * its size and block size come from nvl; zfs_create() validates them
+ * afterwards, so a missing or bad volsize is left for it to reject.
+ */
+static void
+zfs_create_fix_auto_resv(zpool_handle_t *zph, nvlist_t *nvl)
+{
+	uint64_t volsize;
+	uint64_t volblocksize;
+	uint64_t resvsize;
+
+	if (nvlist_lookup_uint64(nvl,
+	    zfs_prop_to_name(ZFS_PROP_REFRESERVATION), &resvsize) != 0 ||
+	    resvsize != UINT64_MAX) {
+		/* Not being set to "auto" */
+		return;
+	}
+	if (nvlist_lookup_uint64(nvl, zfs_prop_to_name(ZFS_PROP_VOLSIZE),
+	    &volsize) != 0) {
+		return;
+	}
+	if (nvlist_lookup_uint64(nvl, zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE),
+	    &volblocksize) != 0) {
+		volblocksize = zfs_prop_default_numeric(ZFS_PROP_VOLBLOCKSIZE);
+	}
+
+	fnvlist_add_uint64(nvl, zfs_prop_to_name(ZFS_PROP_REFRESERVATION),
+	    zvol_auto_resv(zph, volsize, volblocksize));
 }
 
 /*
@@ -1672,6 +1712,22 @@ zfs_prop_set_list_flags(zfs_handle_t *zhp, nvlist_t *props, int flags)
 			prop = zfs_name_to_prop(nvpair_name(elem));
 			zfs_setprop_error(hdl, prop, errno, errbuf);
 		}
+
+		/*
+		 * The kernel sets each property on its own, so it may have
+		 * set the reservation added for the new volsize even though
+		 * the volsize could not be changed, e.g. on a read-only
+		 * volume.  If so, put the old reservation back below, from
+		 * the same source.  The ioctls are issued directly, as in
+		 * the ENOSPC case, so that the error reported for the
+		 * volsize change is preserved.
+		 */
+		zfs_prop_t resv_prop = ZPROP_INVAL;
+		boolean_t undo_resv = added_resv &&
+		    nvlist_exists(errorprops,
+		    zfs_prop_to_name(ZFS_PROP_VOLSIZE)) &&
+		    zfs_which_resv_prop(zhp, &resv_prop) == 0 &&
+		    !nvlist_exists(errorprops, zfs_prop_to_name(resv_prop));
 		nvlist_free(errorprops);
 
 		if (added_resv && errno == ENOSPC) {
@@ -1690,6 +1746,48 @@ zfs_prop_set_list_flags(zfs_handle_t *zhp, nvlist_t *props, int flags)
 				goto error;
 			zcmd_write_src_nvlist(hdl, &zc, nvl);
 			(void) zfs_ioctl(hdl, ZFS_IOC_SET_PROP, &zc);
+		}
+
+		if (undo_resv) {
+			uint64_t old_resv;
+			zprop_source_t src;
+			char source[ZFS_MAX_DATASET_NAME_LEN];
+
+			if (zfs_prop_get_numeric(zhp, resv_prop, &old_resv,
+			    &src, source, sizeof (source)) != 0)
+				goto error;
+			nvlist_free(nvl);
+			nvl = NULL;
+			zcmd_free_nvlists(&zc);
+
+			if (src == ZPROP_SRC_DEFAULT ||
+			    src == ZPROP_SRC_RECEIVED) {
+				/*
+				 * Drop the local value that was just set, as
+				 * 'zfs inherit -S' does, so that the default
+				 * or received one applies again.  zc still
+				 * holds the sizes of the freed nvlists, which
+				 * the kernel would copy in, so use a fresh one.
+				 */
+				zfs_cmd_t izc = {"\0"};
+
+				(void) strlcpy(izc.zc_name, zhp->zfs_name,
+				    sizeof (izc.zc_name));
+				(void) strlcpy(izc.zc_value,
+				    zfs_prop_to_name(resv_prop),
+				    sizeof (izc.zc_value));
+				izc.zc_cookie = B_TRUE;
+				(void) zfs_ioctl(hdl, ZFS_IOC_INHERIT_PROP,
+				    &izc);
+			} else {
+				if (nvlist_alloc(&nvl, NV_UNIQUE_NAME, 0) != 0)
+					goto error;
+				if (nvlist_add_uint64(nvl,
+				    zfs_prop_to_name(resv_prop), old_resv) != 0)
+					goto error;
+				zcmd_write_src_nvlist(hdl, &zc, nvl);
+				(void) zfs_ioctl(hdl, ZFS_IOC_SET_PROP, &zc);
+			}
 		}
 	} else {
 		for (cl_idx = 0; cl_idx < nvl_len; cl_idx++) {
@@ -3579,6 +3677,8 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 		zpool_close(zpool_handle);
 		return (-1);
 	}
+	if (type == ZFS_TYPE_VOLUME && props != NULL)
+		zfs_create_fix_auto_resv(zpool_handle, props);
 	zpool_close(zpool_handle);
 
 	if (type == ZFS_TYPE_VOLUME) {

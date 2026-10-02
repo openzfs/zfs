@@ -1867,7 +1867,8 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 
 		/*
 		 * Special handling for setting 'refreservation' to 'auto'.  Use
-		 * UINT64_MAX to tell the caller to use zfs_fix_auto_resv().
+		 * UINT64_MAX to tell the caller to use zfs_fix_auto_resv() or
+		 * zfs_create_fix_auto_resv().
 		 * 'auto' is only allowed on volumes.
 		 */
 		if (isauto) {

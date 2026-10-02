@@ -121,7 +121,7 @@ tests = ['zfs_create_001_pos', 'zfs_create_002_pos', 'zfs_create_003_pos',
     'zfs_create_004_pos', 'zfs_create_005_pos', 'zfs_create_006_pos',
     'zfs_create_007_pos', 'zfs_create_011_pos', 'zfs_create_012_pos',
     'zfs_create_013_pos', 'zfs_create_014_pos', 'zfs_create_encrypted',
-    'zfs_create_dryrun', 'zfs_create_verbose']
+    'zfs_create_dryrun', 'zfs_create_refreserv', 'zfs_create_verbose']
 tags = ['functional', 'cli_root', 'zfs_create']
 
 [tests/functional/cli_root/zfs_destroy]
@@ -544,7 +544,7 @@ tests = ['reservation_001_pos', 'reservation_002_pos', 'reservation_003_pos',
     'reservation_014_pos', 'reservation_015_pos',
     'reservation_016_pos', 'reservation_017_pos', 'reservation_018_pos',
     'reservation_019_pos', 'reservation_020_pos', 'reservation_021_neg',
-    'reservation_022_pos']
+    'reservation_022_pos', 'reservation_023_pos', 'reservation_024_neg']
 tags = ['functional', 'reservation']
 
 [tests/functional/rsend]
