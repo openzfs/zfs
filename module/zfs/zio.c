@@ -1483,7 +1483,6 @@ zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 
 	metaslab_check_free(spa, bp);
 	arc_freed(spa, bp);
-	dsl_scan_freed(spa, bp);
 
 	if (BP_IS_GANG(bp) ||
 	    BP_GET_DEDUP(bp) ||
@@ -1501,6 +1500,7 @@ zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 		    ZIO_TYPE_FREE, ZIO_PRIORITY_NOW,
 		    flags, NULL, 0, NULL, ZIO_STAGE_OPEN, stage));
 	} else {
+		dsl_scan_freed(spa, bp);
 		metaslab_free(spa, bp, txg, B_FALSE);
 		return (NULL);
 	}
@@ -4823,6 +4823,11 @@ again:
 static zio_t *
 zio_dva_free(zio_t *zio)
 {
+	/*
+	 * A dedup or cloned block may still have other references, so its
+	 * queued scan I/O is dropped only once its space is freed here.
+	 */
+	dsl_scan_freed(zio->io_spa, zio->io_bp);
 	metaslab_free(zio->io_spa, zio->io_bp, zio->io_txg, B_FALSE);
 
 	return (zio);
