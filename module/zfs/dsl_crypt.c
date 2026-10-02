@@ -1247,7 +1247,7 @@ typedef struct spa_keystore_change_key_args {
  * That function cannot return an error, so a key it fails to hold there is
  * fatal, and this recursion must visit exactly the dsl dirs that one does.
  * A dataset whose key material no longer matches the encryption root it
- * points at is rejected here with EACCES instead.
+ * points at is rejected here instead.
  */
 static int
 spa_keystore_change_key_check_impl(uint64_t rddobj, uint64_t ddobj,
@@ -1289,7 +1289,30 @@ spa_keystore_change_key_check_impl(uint64_t rddobj, uint64_t ddobj,
 
 	/* the sync function will rewrap this key, so it must be readable */
 	if (!skip) {
+		dsl_wrapping_key_t *wkey = NULL;
+
+		/*
+		 * Hold the root's wrapping key so that it cannot be unloaded
+		 * while this key is unwrapped with it. An EACCES from the
+		 * key hold below is then an unwrap failure.
+		 */
+		ret = spa_keystore_wkey_hold_dd(dp->dp_spa, dd, FTAG, &wkey);
+		if (ret != 0) {
+			dsl_dir_rele(dd, FTAG);
+			return (SET_ERROR(EACCES));
+		}
+
 		ret = spa_keystore_dsl_key_hold_dd(dp->dp_spa, dd, FTAG, &dck);
+		dsl_wrapping_key_rele(wkey, FTAG);
+		if (ret == EACCES) {
+			char *name = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN,
+			    KM_SLEEP);
+			dsl_dir_name(dd, name);
+			zfs_dbgmsg("change-key: key of %s cannot be unwrapped "
+			    "with its encryption root's key", name);
+			kmem_free(name, ZFS_MAX_DATASET_NAME_LEN);
+			ret = SET_ERROR(ZFS_ERR_CRYPTO_KEY_MISMATCH);
+		}
 		if (ret != 0) {
 			dsl_dir_rele(dd, FTAG);
 			return (ret);
