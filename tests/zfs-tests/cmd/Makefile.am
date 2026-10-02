@@ -79,7 +79,7 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/mkbusy %D%/mkfile %D%/mkfiles %D%/mktree
 scripts_zfs_tests_bin_PROGRAMS += \
 	%D%/mmap_exec %D%/mmap_ftruncate %D%/mmap_seek \
 	%D%/mmap_sync %D%/mmapwrite %D%/readmmap %D%/mmap_write_sync \
-	%D%/mmap_read_truncate
+	%D%/mmap_read_truncate %D%/mmap_write_source
 
 if WANT_MMAP_LIBAIO
 scripts_zfs_tests_bin_PROGRAMS += %D%/mmap_libaio
