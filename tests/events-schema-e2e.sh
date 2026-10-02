@@ -278,6 +278,19 @@ step_preflight() {
 		case "$_rid" in
 		''|*[!0-9]*) continue ;;
 		esac
+		# Never reap a name minted by a LIVE run, even when its
+		# pid sorts below ours.  This suite mints one systemd unit
+		# per run (zmd-e2e-<pid>), so an active unit proves the
+		# run is live; the io suite mints runs with no unit, so
+		# fall back to "is the pid still alive".  Only leftovers of
+		# runs that are BOTH older and dead are destroyed.
+		if "${SUDO[@]}" systemctl is-active --quiet \
+		    "zmd-e2e-$_rid" 2>/dev/null; then
+			continue
+		fi
+		if kill -0 "$_rid" 2>/dev/null; then
+			continue
+		fi
 		if [ "$_rid" -lt "$RUNID" ]; then
 			"${SUDO[@]}" "$ZFS" destroy -R "$d" >/dev/null 2>&1 || true
 		fi
@@ -381,8 +394,10 @@ step_module_version() {
 	#     top-level ioctl key, which `zfs events -j` does NOT print,
 	#     so the raw probe below is the only path), and
 	#   - its VALUE equals the exported schema's schema_version.
-	# Only a genuine build-environment limitation (gcc cannot run
-	# here) may skip the step, with a loud WARNING.
+	# A compile failure is a HARD failure, not a skip: the probe
+	# links against the in-tree-built libzfs_core/libnvpair in
+	# $REPO/.libs, which exist in any tree this suite can run
+	# against (the io suite hard-fails the same way).
 	probe="$WD/wireprobe.c"
 	bin="$WD/wireprobe"
 	cat > "$probe" <<'EOF'
@@ -408,10 +423,7 @@ EOF
 	    "$probe" -o "$bin" \
 	    -L "$REPO/.libs" -lzfs_core -lnvpair \
 	    >"$WD/wireprobe.cc.err" 2>&1; then
-		printf 'WARNING: module-version: gcc probe could not be compiled on this VM architecture; wire schema_version NOT verified (see %s). Environment limitation, NOT a pass.\n' \
-		    "$WD/wireprobe.cc.err"
-		notice "module-version: wire probe compile failed; skipping"
-		return
+		fail "module-version: gcc probe failed to compile (see $WD/wireprobe.cc.err)"
 	fi
 	wire="$("${SUDO[@]}" env \
 	    LD_LIBRARY_PATH="$REPO/.libs" \
@@ -537,8 +549,7 @@ for r in ev:
 meta = con.execute(
     "select value from meta where key='events_schema_version'").fetchall()
 if not meta:
-    print("NOTICE: meta events_schema_version absent (wire version "
-          "0/absent); not fatal")
+    errors.append("meta events_schema_version key absent")
 elif meta[0][0] != file_version:
     errors.append("meta events_schema_version=%s, expected %s"
                   % (meta[0][0], file_version))
@@ -674,16 +685,23 @@ PY
 	pass assert
 }
 
-# wait_collect_done <interval-marks...>: poll the DB until the
-# daemon's startup collect has COMPLETED.  Completion is proven, not
-# assumed (E2E-7): each collect_all_events pass refreshes
-# datasets.last_seen for every events-enabled dataset it walked, so
-# once max(last_seen) holds still across two consecutive polls
-# (>=2s apart, shorter than any sane poll interval), a collect pass
-# has finished and the next one cannot start before the interval
-# elapses.  With interval 300s the caller then has a wide,
-# signal-exclusive window.
+# wait_collect_done <baseline>: poll the DB until the daemon's
+# startup collect has COMPLETED.  Completion is proven, not assumed
+# (E2E-7): each collect_all_events pass refreshes datasets.last_seen
+# for every events-enabled dataset it walked, so once max(last_seen)
+# holds still across two consecutive polls (>=2s apart, shorter than
+# any sane poll interval), a collect pass has finished and the next
+# one cannot start before the interval elapses.  With interval 300s
+# the caller then has a wide, signal-exclusive window.
+#
+# <baseline> is max(last_seen) sampled BEFORE the daemon started.
+# last_seen persists across restarts, so without it a row left by an
+# earlier run is already "stable" and this wait would return before
+# the startup collect walked anything (E2E-4).  Return only once the
+# current value is strictly greater than <baseline> (0 when there is
+# no row).
 wait_collect_done() {
+	_base="${1:-0}"
 	_prev=-1
 	_i=0
 	while [ "$_i" -lt 30 ]; do
@@ -691,13 +709,13 @@ wait_collect_done() {
 		    "con.execute('select coalesce(max(last_seen), 0) ' \
 		    'from datasets').fetchone()[0]" 2>/dev/null)"
 		case "$_cur" in
-		''|ERR|null)
+		''|ERR|null|None|[!0-9]*)
 			sleep 2
 			_i=$((_i + 1))
 			continue
 			;;
 		esac
-		if [ "$_cur" = "$_prev" ] && [ "$_cur" != "0" ]; then
+		if [ "$_cur" -gt "$_base" ] && [ "$_cur" = "$_prev" ]; then
 			return 0
 		fi
 		_prev="$_cur"
@@ -711,6 +729,15 @@ step_sigusr1() {
 	# T5: SIGUSR1 forces an out-of-band collect.  Restart the
 	# daemon on a LONG interval (300s) so any row appearing
 	# quickly can only come from the signal-driven collect.
+	# Snapshot the persisted last_seen BEFORE the restart so the
+	# wait below cannot be satisfied by a previous run's row
+	# (E2E-4); the fresh collect must move it strictly past this.
+	_base="$(db_query "$WD/zmd.db" \
+	    "con.execute('select coalesce(max(last_seen), 0) ' \
+	    'from datasets').fetchone()[0]" 2>/dev/null)"
+	case "$_base" in
+	''|ERR|null|None|[!0-9]*) _base=0 ;;
+	esac
 	unit_start 300
 	mnt="$("$ZFS" get -H -o value mountpoint "$DS")"
 
@@ -718,15 +745,15 @@ step_sigusr1() {
 	# (E2E-7): a fixed sleep cannot - a slow VM run may still be
 	# inside the startup batch, which would ingest the file below
 	# and make the timing proof unsound.  wait_collect_done polls
-	# until datasets.last_seen stabilizes, i.e. the batch ended.
-	if ! wait_collect_done; then
+	# until datasets.last_seen stabilizes past the snapshot above,
+	# i.e. the fresh startup batch ended.
+	if ! wait_collect_done "$_base"; then
 		fail "sigusr1: startup collect never stabilized within 60s"
 	fi
 
 	# --- variant 1: signal between polls ---
 	"${SUDO[@]}" touch "$mnt/usr1" ||
 		fail "sigusr1: touch usr1 failed"
-	start=$(date +%s)
 	_pid="$("${SUDO[@]}" systemctl show -p MainPID --value "$UNIT" \
 	    2>/dev/null || true)"
 	signal_usr1() {
@@ -752,13 +779,14 @@ step_sigusr1() {
 		signal_usr1
 		i=$((i + 1))
 	done
-	elapsed=$(( $(date +%s) - start ))
 	[ "$found" -eq 1 ] ||
 		fail "sigusr1: usr1 CREATE row absent 60s after SIGUSR1"
-	# 300s poll interval; anything under 120s proves the signal,
-	# not the schedule, produced the row.
-	[ "$elapsed" -lt 120 ] ||
-		fail "sigusr1: row took ${elapsed}s; not demonstrably signal-driven (interval 300s)"
+	# Timing proof is the loop bound itself: the row must appear
+	# within the 30*2s poll budget above, while the daemon's poll
+	# interval is 300s, so a scheduled collect cannot possibly fire
+	# inside that window and only the signal path can explain the
+	# row.  (A separate elapsed < 120 check was tautological - it
+	# could not fail once the loop's own 60s cap had passed.)
 
 	# --- variant 2: signals during a large in-progress collect ---
 	# Restart on a 15s interval so the assertion cannot be
@@ -878,27 +906,24 @@ step_gap() {
 
 step_restart_loss() {
 	# Wrap while the daemon is down.  Detecting a last_lost
-	# NON-persistence regression (E2E-1): a healthy daemon reads
-	# the persisted last_lost baseline at open and, on its first
-	# poll after restart, reports ONLY the loss accumulated during
-	# downtime.  A broken daemon (get_last_lost error mistaken for
-	# "no baseline") re-arms and reports the PRE-restart wrap too,
-	# roughly doubling the loss.  A bare "a new positive gaps row
-	# exists" assertion passes on BOTH builds, so the step asserts
-	# the DELTA: sum(gaps.lost) after restart minus the sum before
-	# restart must be strictly less than the downtime record count.
+	# NON-persistence regression (E2E-1/GH#1): a healthy daemon
+	# reads the persisted last_lost baseline (C0) at open and, on
+	# its first poll after restart, reports ONLY the loss
+	# accumulated during the downtime - a gap row of C1 - C0,
+	# where C1 is the kernel's cumulative lost counter.  A broken
+	# daemon (get_last_lost error mistaken for "no baseline")
+	# re-arms and reports the FULL cumulative C1.
 	#
-	# Derivation of the bound (ring = events_size, default 1 MiB
-	# ~= 10.8k records): the delta is (kernel cumulative lost -
-	# persisted last_lost), i.e. loss the daemon had no baseline
-	# for.  Healthy: the persisted baseline already covers step_gap's
-	# wrap, so delta = loss during the dd downtime only (bounded by
-	# the 16384 downtime writes; measured ~500).  Broken (re-armed
-	# baseline): delta = the FULL kernel cumulative counter, which
-	# includes step_gap's ~15.9k wrap on top of the downtime loss -
-	# far above the 16384 bound.  before_sum is read and stamped
-	# only to prove the baseline existed before the downtime.
-	local before before_sum found i n delta
+	# Discriminator: with C0 > 0 the healthy report C1 - C0 is
+	# strictly less than C1, while the re-armed build reports
+	# exactly C1 and is never < C1.  The earlier "sum(lost) after
+	# minus sum(lost) before" form could NOT tell the two apart: it
+	# subtracted a prior loss count from a post-restart loss count,
+	# and on the re-armed build that subtraction cancelled almost
+	# all of the re-reported loss (C1 ~= 16.4k minus the
+	# pre-restart sum ~= 15.9k ~= 500), which slipped under the
+	# 16384 bound - the very failure this step exists to catch.
+	local before found i _llost post_ll new_lost
 	before="$(db_query "$WD/zmd.db" \
 	    "con.execute('select coalesce(max(id), 0) from gaps where ' \
 	    'dataset=?', ('$DS',)).fetchone()[0]" 2>/dev/null)"
@@ -908,34 +933,27 @@ step_restart_loss() {
 		return
 		;;
 	esac
-	# Ordering assumption, checked not assumed (E2E-1): step_gap
-	# must have persisted a non-NULL last_lost for $DS, or the
-	# delta bound below is meaningless.
-	_ll="$(db_query "$WD/zmd.db" \
-	    "con.execute('select last_lost from sync_state where ' \
-	    'dataset=?', ('$DS',)).fetchone()" 2>/dev/null)"
-	case "$_ll" in
-	None|''|ERR|null)
-		fail "restart-loss: sync_state.last_lost is $_ll after step_gap; loss baseline not persisted"
-		;;
-	esac
+	# C0: the persisted cumulative ring-loss baseline at the moment
+	# the daemon stops.  Scalar query with "or [None]" so a SQL NULL
+	# in an existing row also prints as None and the guard below can
+	# fire (E2E-8): a bare fetchone() yields the truthy tuple
+	# (None,), which the case would not match.
 	_llost="$(db_query "$WD/zmd.db" \
-	    "con.execute('select last_lost from sync_state where ' \
-	    'dataset=?', ('$DS',)).fetchone()[0]" 2>/dev/null)"
+	    "(con.execute('select last_lost from sync_state where ' \
+	    'dataset=?', ('$DS',)).fetchone() or [None])[0]" \
+	    2>/dev/null)"
 	case "$_llost" in
-	''|ERR|null|[!0-9]*)
-		fail "restart-loss: sync_state.last_lost=$_llost is not a number"
-		;;
-	esac
-	before_sum="$(db_query "$WD/zmd.db" \
-	    "con.execute('select coalesce(sum(lost), 0) from gaps where ' \
-	    'dataset=?', ('$DS',)).fetchone()[0]" 2>/dev/null)"
-	case "$before_sum" in
-	''|ERR|null|[!0-9]*)
-		fail "restart-loss: cannot read pre-restart lost sum ($_before_sum)"
+	''|ERR|null|None|[!0-9]*)
+		fail "restart-loss: sync_state.last_lost=$_llost is not a number after step_gap"
 		return
 		;;
 	esac
+	# Precondition for the discriminator below: C0 must be non-zero,
+	# i.e. step_gap must have produced wrap loss.  Without it the
+	# healthy report would not be strictly less than C1 and the test
+	# would pass vacuously on both builds - fail loudly instead.
+	[ "$_llost" -gt 0 ] ||
+		fail "restart-loss: pre-restart last_lost=$_llost is 0 (step_gap produced no ring loss); the re-baseline discriminator cannot fire"
 	"${SUDO[@]}" systemctl stop "$UNIT" ||
 		fail "restart-loss: failed to stop daemon"
 	"${SUDO[@]}" "$ZFS" set events_io=on events_io_window=0 "$DS" ||
@@ -950,53 +968,66 @@ step_restart_loss() {
 		--description="zmetad e2e validation" \
 		"$ZMETAD" -f -i 3 -d "$WD/zmd.db" ||
 		fail "restart-loss: daemon restart failed"
-	# Wait for the first post-restart poll(s) to land, then read
-	# the delta.  A longer wait cannot create a false PASS: the
-	# healthy build caps its delta at loss_during_downtime and any
-	# FURTHER loss still comes from real downtime records; only a
-	# re-armed baseline pushes the delta past the bound.
+	# Wait for the first post-restart poll(s) to land, then read the
+	# new loss and the freshly persisted baseline C1.  A longer wait
+	# cannot create a false PASS: the healthy build reports C1 - C0
+	# once and then nothing; only a re-armed baseline keeps
+	# re-reporting, and the C1 comparison below rejects it.
 	found=0
 	i=0
 	while [ "$i" -lt 20 ]; do
 		sleep 2
-		n="$(db_query "$WD/zmd.db" \
-		    "con.execute('select count(*) from gaps where ' \
-		    'dataset=? and id > ?', ('$DS', $before)).fetchone()[0]" \
-		    2>/dev/null)"
-		case "$n" in
-		''|ERR|null|0|None)
+		new_lost="$(db_query "$WD/zmd.db" \
+		    "con.execute('select coalesce(sum(lost), 0) from gaps ' \
+		    'where dataset=? and id > ? and lost > 0', \
+		    ('$DS', $before)).fetchone()[0]" 2>/dev/null)"
+		case "$new_lost" in
+		''|ERR|null|None)
 			i=$((i + 1))
 			continue
 			;;
 		esac
-		# At least one new row exists: check the delta bound
-		# now and on every subsequent tick (a broken daemon's
-		# re-report may land a poll later than its first row).
-		delta="$(db_query "$WD/zmd.db" \
-		    "con.execute('select coalesce(sum(lost), 0) - $before_sum ' \
-		    'from gaps where dataset=? and id > ? and lost > 0', \
-		    ('$DS', $before)).fetchone()[0]" 2>/dev/null)"
-		case "$delta" in
-		''|ERR|null) i=$((i + 1)); continue ;;
+		[ "$new_lost" -gt 0 ] || { i=$((i + 1)); continue; }
+		# C1: the cumulative ring-loss baseline the daemon
+		# persisted at its first post-restart poll.  Read fresh
+		# each tick and require it to have advanced past C0:
+		# until that poll writes it the row still holds the
+		# pre-restart value, which would make the comparison
+		# below meaningless (and could fail a healthy build).
+		post_ll="$(db_query "$WD/zmd.db" \
+		    "(con.execute('select last_lost from sync_state where ' \
+		    'dataset=?', ('$DS',)).fetchone() or [None])[0]" \
+		    2>/dev/null)"
+		case "$post_ll" in
+		''|ERR|null|None|[!0-9]*)
+			i=$((i + 1))
+			continue
+			;;
 		esac
-		# Budget = the dd record count: the kernel cannot report
-		# more NEW loss than records written while the daemon was
-		# down (16384), because the ring still held ~10.8k of
-		# those when the downtime began. A re-armed baseline
-		# re-reports the FULL kernel cumulative counter (~16.4k +
-		# step_gap's 15.9k), which crosses this bound. (The
-		# earlier 16384 - before_sum form was dimensionally wrong:
-		# before_sum is prior loss, not ring free space, and
-		# measured healthy deltas (~500) sat just above it.)
-		[ "$delta" -ge 16384 ] && {
-			fail "restart-loss: post-restart lost delta $delta >= downtime record budget 16384 (before_sum=$before_sum) - last_lost baseline was re-armed, not persisted"
+		[ "$post_ll" -gt "$_llost" ] ||
+			{ i=$((i + 1)); continue; }
+		# (b) Discriminator: the healthy build reports C1 - C0 with
+		# C0 > 0, strictly less than C1; the re-armed build reports
+		# the full cumulative C1 and is never < C1.  This is the
+		# check the old dimensionally-wrong delta form lacked.
+		#
+		# No absolute bound is asserted here on purpose: the loss
+		# accrued while the daemon was down is bounded by the
+		# RING's record capacity, not by the number of writes
+		# issued during the downtime - a bulk write that displaces
+		# every record the ring held reports the full capacity
+		# (observed 16386 records on an empty-then-filled ring),
+		# so any "less than the write count" bound false-fails a
+		# healthy build.
+		if [ "$new_lost" -ge "$post_ll" ]; then
+			fail "restart-loss: post-restart new loss $new_lost >= persisted cumulative last_lost $post_ll (C1) - last_lost baseline was re-armed, not persisted (C0=$_llost)"
 			return
-		}
-		[ "$delta" -gt 0 ] && { found=1; break; }
-		i=$((i + 1))
+		fi
+		found=1
+		break
 	done
 	[ "$found" -eq 1 ] ||
-		fail "restart-loss: no new positive gaps row after restart (before id $before)"
+		fail "restart-loss: no discriminating new positive gaps row after restart (before id $before, C0=$_llost)"
 	"${SUDO[@]}" "$ZFS" set events_io_window=1000 "$DS" ||
 		fail "restart-loss: restore events_io_window"
 	pass restart-loss

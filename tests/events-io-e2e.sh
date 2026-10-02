@@ -318,6 +318,18 @@ step_preflight() {
 		case "$_rid" in
 		''|*[!0-9]*) continue ;;
 		esac
+		# Never reap a name minted by a LIVE run, even when its
+		# pid sorts below ours: a live run's dataset is in use.
+		# The schema suite mints a systemd unit per run
+		# (zmd-e2e-<pid>); this suite mints runs with no unit, so
+		# fall back to "is the pid still alive".
+		if "${SUDO[@]}" systemctl is-active --quiet \
+		    "zmd-e2e-$_rid" 2>/dev/null; then
+			continue
+		fi
+		if kill -0 "$_rid" 2>/dev/null; then
+			continue
+		fi
 		if [ "$_rid" -lt "$RUNID" ]; then
 			"${SUDO[@]}" "$ZFS" destroy -R "$d" >/dev/null 2>&1 || true
 		fi
@@ -339,16 +351,61 @@ step_preflight() {
 	}
 	CREATED3=1
 
-	"${SUDO[@]}" "$ZFS" set events=on events_io=on \
-	    events_io_window=0 "$DS1" ||
+	# events_io rides on the general event log: enable events on the
+	# base dataset first (children inherit it), exactly as the schema
+	# suite does, then enable events_io on the children.
+	"${SUDO[@]}" "$ZFS" set events=on "$BASE_DS" ||
+		{ fail "preflight: set events=on $BASE_DS"; return; }
+	# Normalise events_io on the base BEFORE the dependency case
+	# below: events_io is inherited, so a leftover events_io=on on
+	# the base dataset (a previous session's manual testing) makes
+	# the events=off on DS2 fail with the dependency refusal and
+	# aborts the whole suite.  The suite must not depend on the
+	# pool's pre-existing property state.
+	"${SUDO[@]}" "$ZFS" set events_io=off "$BASE_DS" ||
+		{ fail "preflight: reset events_io $BASE_DS"; return; }
+
+	# Negative case (E2E-3): with events=off on a child, enabling
+	# events_io must be REFUSED.  `zfs set` reports only the generic
+	# ioctl error class for a rejected property (ENOTSUP maps to
+	# "pool and or dataset must be upgraded..."), so the dependency
+	# is asserted against the kernel's own diagnostic - the cmn_err
+	# "... the events property must be enabled first" - which lands
+	# in the kernel log.  Exercised on DS2, restored immediately after.
+	"${SUDO[@]}" "$ZFS" set events=off "$DS2" ||
+		{ fail "preflight: set events=off $DS2"; return; }
+	klog_before="$("${SUDO[@]}" dmesg 2>/dev/null | wc -l | tr -d ' ')"
+	[ -n "$klog_before" ] || klog_before=0
+	refuse_out="$("${SUDO[@]}" "$ZFS" set events_io=on "$DS2" 2>&1)"
+	refuse_rc=$?
+	if [ "$refuse_rc" -eq 0 ]; then
+		fail "preflight: events_io=on accepted with events=off on $DS2; expected refusal: $refuse_out"
+	fi
+	_io_val="$("${SUDO[@]}" "$ZFS" get -H -o value events_io "$DS2")"
+	[ "$_io_val" = "off" ] ||
+		fail "preflight: events_io=$_io_val after refused set (expected off)"
+	# Require the kernel's naming of `events` whenever dmesg is
+	# readable (a nonzero pre-attempt line count): a dmesg that is
+	# restricted or absent leaves klog_before=0 and skips only this
+	# string check, never the refusal/state assertions above.
+	if [ "$klog_before" -gt 0 ]; then
+		_klog_new="$("${SUDO[@]}" dmesg 2>/dev/null | \
+		    tail -n "+$((klog_before + 1))")"
+		printf '%s\n' "$_klog_new" | grep -q \
+		    'events property must be enabled first' ||
+			fail "preflight: kernel refused events_io but did not name the events dependency"
+	fi
+	"${SUDO[@]}" "$ZFS" set events=on "$DS2" ||
+		{ fail "preflight: restore events=on $DS2"; return; }
+
+	"${SUDO[@]}" "$ZFS" set events_io=on events_io_window=0 "$DS1" ||
 		{ fail "preflight: props $DS1"; return; }
-	"${SUDO[@]}" "$ZFS" set events=on events_io=off "$DS2" ||
+	"${SUDO[@]}" "$ZFS" set events_io=off "$DS2" ||
 		{ fail "preflight: props $DS2"; return; }
 	# Wide fence margin: window=5000 with writes 1s apart keeps
 	# the coalesce test clear of the fence boundary even on a
 	# loaded host (2000ms was race-prone).
-	"${SUDO[@]}" "$ZFS" set events=on events_io=on \
-	    events_io_window=5000 "$DS3" ||
+	"${SUDO[@]}" "$ZFS" set events_io=on events_io_window=5000 "$DS3" ||
 		{ fail "preflight: props $DS3"; return; }
 	w="$(ds_mnt "$DS1")"
 	case "$w" in

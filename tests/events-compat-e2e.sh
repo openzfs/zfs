@@ -45,6 +45,11 @@ cleanup() {
 	rm -rf "$WD"
 }
 trap cleanup EXIT
+# TERM/INT must clean up too: an EXIT-only trap leaves the pools and
+# workdir behind when the suite is killed between steps.  Routing the
+# signal through exit runs the EXIT trap above.
+trap 'exit 143' TERM
+trap 'exit 130' INT
 
 [ -f "$COMPAT_SRC" ] || fail "missing $COMPAT_SRC"
 mkdir -p "$WD" || fail "mkdir $WD"
