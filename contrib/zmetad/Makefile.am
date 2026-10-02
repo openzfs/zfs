@@ -42,8 +42,9 @@ EXTRA_DIST = \
 	%D%/events-schema.json \
 	%D%/SCHEMA.md
 
+PHONY += check-schema
 check-schema:
-	bash $(srcdir)/schema-check.sh $(top_srcdir)
+	bash $(srcdir)/%D%/schema-check.sh $(top_srcdir)
 
 # Enforce header/JSON/blob schema sync as part of "make check".
 check-local: check-schema

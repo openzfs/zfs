@@ -57,10 +57,15 @@ Two version keys live in `meta` and are independent:
 - `db_schema_version` — the SQLite layout version (this document; `8`).
 - `events_schema_version` — the wire record schema version (`3`, see
   `contrib/zmetad/events-schema.json`; kept in lockstep with the
-  kernel's `ZFS_EVENTS_VERSION`). zmetad refuses to open a
-  database whose stored wire version differs from its loaded schema;
-  consumers should likewise treat a mismatch as a refuse condition, not
-  a parse attempt.
+  kernel's `ZFS_EVENTS_VERSION`). The record schema evolves additively,
+  so zmetad accepts a database whose stored wire version is **older**
+  than its loaded schema — absent fields stay NULL, unknown op values
+  decode as `UNKNOWN` — and refuses only a stored version that is
+  **newer** than the loaded schema (records it may not decode
+  faithfully), or a non-numeric stamp (a value it cannot order). A
+  missing key is a fresh or pre-versioning database and is accepted.
+  Consumers should apply the same rule: an older stored version is
+  readable, a newer one is a refuse condition, not a parse attempt.
 
 
 ## 2. Tables
@@ -115,7 +120,7 @@ where noted) `size` are NULL for those rows:
 
 | Op | Columns populated beyond the always-present four |
 |----------|--------------------------------------------------|
-| CREATE | `path`, `parent`, `mode`*, `uid`, `gid` |
+| CREATE | `path`, `parent`, `mode`, `uid`, `gid` |
 | REMOVE | `path`, `parent` |
 | RENAME | `path`, `parent`, `old_path`, `old_parent` |
 | LINK | `path`, `parent` |
@@ -124,9 +129,6 @@ where noted) `size` are NULL for those rows:
 | SETATTR | `attrs` |
 | WRITE | `io_offset`, `io_bytes`, `uid`, `gid` |
 | READ | `io_offset`, `io_bytes`, `uid`, `gid` |
-
-\* `mode` arrives on the CREATE wire record but is not bound to the
-column (kept NULL for schema stability; see the `events` table note).
 
 (`uid`, `gid` are optional fields not bound to a specific op: they are
 populated whenever the record carries them — in practice CREATE and
@@ -256,6 +258,33 @@ boolean/count — never folded into a record count: a `-1` row carries no
 count, and treating it as 1 or summing it corrupts the figure. (This
 matches zmetad's own stats, which count the three gap classes
 separately.)
+
+### 4.1 GET_EVENTS reply keys
+
+The kernel's `ZFS_IOC_GET_EVENTS` reply (consumed page by page) carries
+the counters the formulas above derive from. A consumer reading the wire
+directly must treat them as follows:
+
+- `next_offset` — the **resume cursor**: the ring's end-of-window offset
+  for the next read. Pagination resumes here, so records already
+  delivered in the current window are not re-delivered when a later call
+  clamps its start offset below the cursor. A zero cursor means the log
+  is exhausted; a cursor that fails to advance means the end of the
+  readable window.
+- `records_lost` — the ring's **cumulative** count of overwritten
+  records since the log was created. It is monotonic for a live ring
+  (only a ring replacement resets it, §6). The per-poll loss is its
+  delta against the previously persisted baseline, which is exactly the
+  `lost > 0` gap rows of §2.5.
+- `records_undecodable` — records the cursor consumed in **this single
+  reply** but could not decode (per-reply, NOT cumulative; the key is
+  omitted when there are none, and is absent on older kernels). zmetad
+  records it as its **own** `gaps` row spanning the page once the
+  watermark is durably advanced, but deliberately keeps it OUT of the
+  cumulative `records_lost` delta that drives loss detection: folding it
+  in would re-count every undecodable record on each later poll.
+  Consumers must therefore never add it to `records_lost` (which stays
+  monotonic); it is accounted for once, as its own gap row.
 
 
 ## 5. Path resolution (#6)

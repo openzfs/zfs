@@ -211,13 +211,6 @@ int zmetad_db_prune_stale_datasets(zmetad_db_t *db, int64_t cycle_start);
 /* Cleanup events older than retention_days */
 int zmetad_db_cleanup(zmetad_db_t *db, int retention_days);
 
-/*
- * Get database statistics.  Outputs are always initialized to 0;
- * returns EIO when either query fails.
- */
-int zmetad_db_stats(zmetad_db_t *db, uint64_t *event_count,
-    uint64_t *db_size);
-
 #ifdef	__cplusplus
 }
 #endif

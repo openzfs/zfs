@@ -113,9 +113,11 @@ Default: 90 days.
 Load the wire event schema from
 .Ar file
 instead of the schema embedded in the binary.
-The daemon refuses to start if the file fails to parse or its
+The daemon refuses to start if the file fails to parse.  A database
+whose stored
 .Sy schema_version
-disagrees with the version already stored in the database.
+is NEWER than the loaded schema is also refused; an older stored
+version is accepted, because record schema versions evolve additively.
 .It Fl -purge Ar dataset
 One-shot purge mode: instead of running the daemon, delete all
 database rows belonging to
@@ -123,8 +125,9 @@ database rows belonging to
 (the
 .Sy events ,
 .Sy gaps ,
+.Sy sync_state ,
 and
-.Sy sync_state
+.Sy objmap
 tables), then clear the dataset's in-kernel event ring, and exit.
 This is the only mechanism that removes
 .Sy gaps
@@ -163,7 +166,7 @@ The SQLite database layout version is recorded in the
 .Sy meta
 table under the
 .Sy db_schema_version
-key; this build writes layout version 7.
+key; this build writes layout version 8.
 The database contains six tables:
 .Sy events ,
 .Sy sync_state ,
@@ -395,7 +398,7 @@ refusing to overwrite existing file events-schema.json (use --force)
 # zmetad --export-schema --force events-schema.json
 schema written to events-schema.json
 # zmetad --check-schema events-schema.json
-schema file OK (version 2)
+schema file OK (version 3)
 .Ed
 .
 .Sh INTERFACE STABILITY
