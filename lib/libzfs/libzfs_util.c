@@ -1048,6 +1048,33 @@ libzfs_envvar_is_set(const char *envvar)
 	    (!strncasecmp(env, "ON", 2) && strnlen(env, 3) == 2)));
 }
 
+/*
+ * The btree leaf cache is process-wide, but a process can hold more than
+ * one libzfs handle.  Create it with the first handle and destroy it with
+ * the last one.
+ */
+static pthread_mutex_t libzfs_btree_lock = PTHREAD_MUTEX_INITIALIZER;
+static uint_t libzfs_btree_refcnt = 0;
+
+static void
+libzfs_btree_hold(void)
+{
+	(void) pthread_mutex_lock(&libzfs_btree_lock);
+	if (libzfs_btree_refcnt++ == 0)
+		zfs_btree_init();
+	(void) pthread_mutex_unlock(&libzfs_btree_lock);
+}
+
+static void
+libzfs_btree_rele(void)
+{
+	(void) pthread_mutex_lock(&libzfs_btree_lock);
+	ASSERT3U(libzfs_btree_refcnt, >, 0);
+	if (--libzfs_btree_refcnt == 0)
+		zfs_btree_fini();
+	(void) pthread_mutex_unlock(&libzfs_btree_lock);
+}
+
 libzfs_handle_t *
 libzfs_init(void)
 {
@@ -1070,12 +1097,14 @@ libzfs_init(void)
 	}
 
 	if ((hdl->libzfs_fd = open(ZFS_DEV, O_RDWR|O_EXCL|O_CLOEXEC)) < 0) {
+		regfree(&hdl->libzfs_urire);
 		free(hdl);
 		return (NULL);
 	}
 
 	if (libzfs_core_init() != 0) {
 		(void) close(hdl->libzfs_fd);
+		regfree(&hdl->libzfs_urire);
 		free(hdl);
 		return (NULL);
 	}
@@ -1086,7 +1115,7 @@ libzfs_init(void)
 	vdev_prop_init();
 	libzfs_mnttab_init(hdl);
 	fletcher_4_init();
-	zfs_btree_init();
+	libzfs_btree_hold();
 
 	if (getenv("ZFS_PROP_DEBUG") != NULL) {
 		hdl->libzfs_prop_debug = B_TRUE;
@@ -1094,9 +1123,8 @@ libzfs_init(void)
 	if ((env = getenv("ZFS_SENDRECV_MAX_NVLIST")) != NULL) {
 		if ((error = zfs_nicestrtonum(hdl, env,
 		    &hdl->libzfs_max_nvlist))) {
+			libzfs_fini(hdl);
 			errno = error;
-			(void) close(hdl->libzfs_fd);
-			free(hdl);
 			return (NULL);
 		}
 	} else {
@@ -1131,7 +1159,7 @@ libzfs_fini(libzfs_handle_t *hdl)
 	libzfs_mnttab_fini(hdl);
 	libzfs_core_fini();
 	regfree(&hdl->libzfs_urire);
-	zfs_btree_fini();
+	libzfs_btree_rele();
 	fletcher_4_fini();
 #if LIBFETCH_DYNAMIC
 	if (hdl->libfetch != (void *)-1 && hdl->libfetch != NULL)
