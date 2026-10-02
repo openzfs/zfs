@@ -29,6 +29,7 @@ jobs:
         path: smatch
     - name: Install smatch dependencies
       run: |
+        sudo apt-get update
         sudo apt-get install -y llvm gcc make sqlite3 libsqlite3-dev libdbd-sqlite3-perl libssl-dev libtry-tiny-perl
     - name: Make smatch
       run: |
