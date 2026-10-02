@@ -20,11 +20,12 @@
 
 function cleanup
 {
-	log_must set_tunable64 METASLAB_FORCE_GANGING $((2**17 + 1))
+	log_must restore_tunable METASLAB_FORCE_GANGING
 	default_cleanup_noexit
 }
 
 default_setup_noexit "$DISKS"
+log_must save_tunable METASLAB_FORCE_GANGING
 log_must set_tunable64 METASLAB_FORCE_GANGING $((2**14))
 log_onexit cleanup
 
