@@ -597,22 +597,6 @@ enum ztest_object {
 static __attribute__((noreturn)) void usage(boolean_t requested);
 static int ztest_scrub_impl(spa_t *spa);
 
-/*
- * These libumem hooks provide a reasonable set of defaults for the allocator's
- * debugging facilities.
- */
-const char *
-_umem_debug_init(void)
-{
-	return ("default,verbose"); /* $UMEM_DEBUG setting */
-}
-
-const char *
-_umem_logging_init(void)
-{
-	return ("fail,contents"); /* $UMEM_LOGGING setting */
-}
-
 static void
 dump_debug_buffer(void)
 {

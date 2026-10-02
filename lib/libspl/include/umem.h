@@ -52,7 +52,6 @@ typedef void vmem_t;
 
 #define	UMEM_CACHE_NAMELEN	31
 
-typedef int umem_nofail_callback_t(void);
 typedef int umem_constructor_t(void *, void *, int);
 typedef void umem_destructor_t(void *, void *);
 typedef void umem_reclaim_t(void *);
@@ -68,11 +67,6 @@ typedef struct umem_cache {
 	void			*cache_arena;
 	int			cache_cflags;
 } umem_cache_t;
-
-/* Prototypes for functions to provide defaults for umem envvars */
-const char *_umem_debug_init(void);
-const char *_umem_options_init(void);
-const char *_umem_logging_init(void);
 
 __attribute__((malloc, alloc_size(1)))
 static inline void *
@@ -142,10 +136,6 @@ umem_free_aligned(void *ptr, size_t size __maybe_unused)
 	_aligned_free(ptr);
 #endif
 }
-
-static inline void
-umem_nofail_callback(umem_nofail_callback_t *cb __maybe_unused)
-{}
 
 static inline umem_cache_t *
 umem_cache_create(

@@ -44,7 +44,6 @@
 #include <zone.h>
 #include <grp.h>
 #include <pwd.h>
-#include <umem.h>
 #include <pthread.h>
 #include <signal.h>
 #include <sys/list.h>
@@ -129,24 +128,6 @@ static int zfs_do_help(int argc, char **argv);
 enum zfs_options {
 	ZFS_OPTION_JSON_NUMS_AS_INT = 1024
 };
-
-/*
- * Enable a reasonable set of defaults for libumem debugging on DEBUG builds.
- */
-
-#ifdef DEBUG
-const char *
-_umem_debug_init(void)
-{
-	return ("default,verbose"); /* $UMEM_DEBUG setting */
-}
-
-const char *
-_umem_logging_init(void)
-{
-	return ("fail,contents"); /* $UMEM_LOGGING setting */
-}
-#endif
 
 typedef enum {
 	HELP_CLONE,

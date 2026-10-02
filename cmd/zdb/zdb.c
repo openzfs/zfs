@@ -696,22 +696,6 @@ livelist_metaslab_validate(spa_t *spa)
 	zfs_btree_destroy(&sv.sv_leftover);
 }
 
-/*
- * These libumem hooks provide a reasonable set of defaults for the allocator's
- * debugging facilities.
- */
-const char *
-_umem_debug_init(void)
-{
-	return ("default,verbose"); /* $UMEM_DEBUG setting */
-}
-
-const char *
-_umem_logging_init(void)
-{
-	return ("fail,contents"); /* $UMEM_LOGGING setting */
-}
-
 static void
 usage(void)
 {
