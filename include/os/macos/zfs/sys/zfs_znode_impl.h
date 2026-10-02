@@ -47,9 +47,6 @@ extern "C" {
 #define	ZFS_SIMMUTABLE	0x0040000000000000ull
 #define	ZFS_SAPPENDONLY	0x0080000000000000ull
 
-#define	SA_ZPL_ADDTIME(z)	z->z_attr_table[ZPL_ADDTIME]
-#define	SA_ZPL_DOCUMENTID(z)	z->z_attr_table[ZPL_DOCUMENTID]
-
 #define	ZGET_FLAG_UNLINKED	(1<<0) /* Also lookup unlinked */
 #define	ZGET_FLAG_ASYNC		(1<<3) /* taskq the vnode_create call */
 
