@@ -141,25 +141,6 @@ enum zpool_options {
 	ZPOOL_OPTION_CONDENSE_LIST_TYPES
 };
 
-/*
- * These libumem hooks provide a reasonable set of defaults for the allocator's
- * debugging facilities.
- */
-
-#ifdef DEBUG
-const char *
-_umem_debug_init(void)
-{
-	return ("default,verbose"); /* $UMEM_DEBUG setting */
-}
-
-const char *
-_umem_logging_init(void)
-{
-	return ("fail,contents"); /* $UMEM_LOGGING setting */
-}
-#endif
-
 typedef enum {
 	HELP_ADD,
 	HELP_ATTACH,

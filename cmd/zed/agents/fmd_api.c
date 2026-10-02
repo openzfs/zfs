@@ -64,24 +64,6 @@ fmd_module_t	zfs_retire_module;
 fmd_module_t	zfs_diagnosis_module;
 
 /*
- * Enable a reasonable set of defaults for libumem debugging on DEBUG builds.
- */
-
-#ifdef DEBUG
-const char *
-_umem_debug_init(void)
-{
-	return ("default,verbose"); /* $UMEM_DEBUG setting */
-}
-
-const char *
-_umem_logging_init(void)
-{
-	return ("fail,contents"); /* $UMEM_LOGGING setting */
-}
-#endif
-
-/*
  * Register a module with fmd and finish module initialization.
  * Returns an integer indicating whether it succeeded (zero) or
  * failed (non-zero).
