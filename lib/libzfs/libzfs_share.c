@@ -21,7 +21,6 @@
 #include <stddef.h>
 #include <string.h>
 #include <errno.h>
-#include <libintl.h>
 #include <sys/file.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -124,78 +123,78 @@ sa_errorstr(int err)
 
 	switch (err) {
 	case SA_OK:
-		return (dgettext(TEXT_DOMAIN, "ok"));
+		return ("ok");
 	case SA_NO_SUCH_PATH:
-		return (dgettext(TEXT_DOMAIN, "path doesn't exist"));
+		return ("path doesn't exist");
 	case SA_NO_MEMORY:
-		return (dgettext(TEXT_DOMAIN, "no memory"));
+		return ("no memory");
 	case SA_DUPLICATE_NAME:
-		return (dgettext(TEXT_DOMAIN, "name in use"));
+		return ("name in use");
 	case SA_BAD_PATH:
-		return (dgettext(TEXT_DOMAIN, "bad path"));
+		return ("bad path");
 	case SA_NO_SUCH_GROUP:
-		return (dgettext(TEXT_DOMAIN, "no such group"));
+		return ("no such group");
 	case SA_CONFIG_ERR:
-		return (dgettext(TEXT_DOMAIN, "configuration error"));
+		return ("configuration error");
 	case SA_SYSTEM_ERR:
-		return (dgettext(TEXT_DOMAIN, "system error"));
+		return ("system error");
 	case SA_SYNTAX_ERR:
-		return (dgettext(TEXT_DOMAIN, "syntax error"));
+		return ("syntax error");
 	case SA_NO_PERMISSION:
-		return (dgettext(TEXT_DOMAIN, "no permission"));
+		return ("no permission");
 	case SA_BUSY:
-		return (dgettext(TEXT_DOMAIN, "busy"));
+		return ("busy");
 	case SA_NO_SUCH_PROP:
-		return (dgettext(TEXT_DOMAIN, "no such property"));
+		return ("no such property");
 	case SA_INVALID_NAME:
-		return (dgettext(TEXT_DOMAIN, "invalid name"));
+		return ("invalid name");
 	case SA_INVALID_PROTOCOL:
-		return (dgettext(TEXT_DOMAIN, "invalid protocol"));
+		return ("invalid protocol");
 	case SA_NOT_ALLOWED:
-		return (dgettext(TEXT_DOMAIN, "operation not allowed"));
+		return ("operation not allowed");
 	case SA_BAD_VALUE:
-		return (dgettext(TEXT_DOMAIN, "bad property value"));
+		return ("bad property value");
 	case SA_INVALID_SECURITY:
-		return (dgettext(TEXT_DOMAIN, "invalid security type"));
+		return ("invalid security type");
 	case SA_NO_SUCH_SECURITY:
-		return (dgettext(TEXT_DOMAIN, "security type not found"));
+		return ("security type not found");
 	case SA_VALUE_CONFLICT:
-		return (dgettext(TEXT_DOMAIN, "property value conflict"));
+		return ("property value conflict");
 	case SA_NOT_IMPLEMENTED:
-		return (dgettext(TEXT_DOMAIN, "not implemented"));
+		return ("not implemented");
 	case SA_INVALID_PATH:
-		return (dgettext(TEXT_DOMAIN, "invalid path"));
+		return ("invalid path");
 	case SA_NOT_SUPPORTED:
-		return (dgettext(TEXT_DOMAIN, "operation not supported"));
+		return ("operation not supported");
 	case SA_PROP_SHARE_ONLY:
-		return (dgettext(TEXT_DOMAIN, "property not valid for group"));
+		return ("property not valid for group");
 	case SA_NOT_SHARED:
-		return (dgettext(TEXT_DOMAIN, "not shared"));
+		return ("not shared");
 	case SA_NO_SUCH_RESOURCE:
-		return (dgettext(TEXT_DOMAIN, "no such resource"));
+		return ("no such resource");
 	case SA_RESOURCE_REQUIRED:
-		return (dgettext(TEXT_DOMAIN, "resource name required"));
+		return ("resource name required");
 	case SA_MULTIPLE_ERROR:
-		return (dgettext(TEXT_DOMAIN,
-		    "errors from multiple protocols"));
+		return (
+		    "errors from multiple protocols");
 	case SA_PATH_IS_SUBDIR:
-		return (dgettext(TEXT_DOMAIN, "path is a subpath of share"));
+		return ("path is a subpath of share");
 	case SA_PATH_IS_PARENTDIR:
-		return (dgettext(TEXT_DOMAIN, "path is parent of a share"));
+		return ("path is parent of a share");
 	case SA_NO_SECTION:
-		return (dgettext(TEXT_DOMAIN, "protocol requires a section"));
+		return ("protocol requires a section");
 	case SA_NO_PROPERTIES:
-		return (dgettext(TEXT_DOMAIN, "properties not found"));
+		return ("properties not found");
 	case SA_NO_SUCH_SECTION:
-		return (dgettext(TEXT_DOMAIN, "section not found"));
+		return ("section not found");
 	case SA_PASSWORD_ENC:
-		return (dgettext(TEXT_DOMAIN, "passwords must be encrypted"));
+		return ("passwords must be encrypted");
 	case SA_SHARE_EXISTS:
-		return (dgettext(TEXT_DOMAIN,
-		    "path or file is already shared"));
+		return (
+		    "path or file is already shared");
 	default:
 		(void) snprintf(errstr, sizeof (errstr),
-		    dgettext(TEXT_DOMAIN, "unknown %d"), err);
+		    "unknown %d", err);
 		return (errstr);
 	}
 }

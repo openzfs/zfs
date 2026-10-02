@@ -17,7 +17,6 @@
 #include <libzfs.h>
 #include <libzutil.h>
 #include <sys/sysctl.h>
-#include <libintl.h>
 #include <sys/linker.h>
 #include <sys/module.h>
 #include <sys/stat.h>
@@ -195,8 +194,8 @@ libzfs_error_init(int error)
 	size_t msglen = sizeof (errbuf);
 
 	if (modfind("zfs") < 0) {
-		size_t len = snprintf(msg, msglen, dgettext(TEXT_DOMAIN,
-		    "Failed to load %s module: "), ZFS_KMOD);
+		size_t len = snprintf(msg, msglen,
+		    "Failed to load %s module: ", ZFS_KMOD);
 		if (len >= msglen)
 			len = msglen - 1;
 		msg += len;
@@ -271,32 +270,32 @@ zfs_jail(zfs_handle_t *zhp, int jailid, int attach)
 
 	if (attach) {
 		(void) snprintf(errbuf, sizeof (errbuf),
-		    dgettext(TEXT_DOMAIN, "cannot jail '%s'"), zhp->zfs_name);
+		    "cannot jail '%s'", zhp->zfs_name);
 	} else {
 		(void) snprintf(errbuf, sizeof (errbuf),
-		    dgettext(TEXT_DOMAIN, "cannot unjail '%s'"), zhp->zfs_name);
+		    "cannot unjail '%s'", zhp->zfs_name);
 	}
 
 	switch (zhp->zfs_type) {
 	case ZFS_TYPE_VOLUME:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "volumes can not be jailed"));
+		zfs_error_aux(hdl,
+		    "volumes can not be jailed");
 		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 	case ZFS_TYPE_SNAPSHOT:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "snapshots can not be jailed"));
+		zfs_error_aux(hdl,
+		    "snapshots can not be jailed");
 		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 	case ZFS_TYPE_BOOKMARK:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "bookmarks can not be jailed"));
+		zfs_error_aux(hdl,
+		    "bookmarks can not be jailed");
 		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 	case ZFS_TYPE_VDEV:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "vdevs can not be jailed"));
+		zfs_error_aux(hdl,
+		    "vdevs can not be jailed");
 		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 	case ZFS_TYPE_INVALID:
-		zfs_error_aux(hdl, dgettext(TEXT_DOMAIN,
-		    "invalid zfs_type_t: ZFS_TYPE_INVALID"));
+		zfs_error_aux(hdl,
+		    "invalid zfs_type_t: ZFS_TYPE_INVALID");
 		return (zfs_error(hdl, EZFS_BADTYPE, errbuf));
 	case ZFS_TYPE_POOL:
 	case ZFS_TYPE_FILESYSTEM:

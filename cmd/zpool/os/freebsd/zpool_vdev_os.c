@@ -56,7 +56,6 @@
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <libintl.h>
 #include <libnvpair.h>
 #include <libzutil.h>
 #include <limits.h>
@@ -103,10 +102,10 @@ after_zpool_upgrade(zpool_handle_t *zhp)
 	if (zpool_get_prop(zhp, ZPOOL_PROP_BOOTFS, bootfs,
 	    sizeof (bootfs), NULL, B_FALSE) == 0 &&
 	    strcmp(bootfs, "-") != 0) {
-		(void) printf(gettext("Pool '%s' has the bootfs "
+		(void) printf("Pool '%s' has the bootfs "
 		    "property set, you might need to update\nthe boot "
 		    "code. See gptzfsboot(8) and loader.efi(8) for "
-		    "details.\n"), zpool_get_name(zhp));
+		    "details.\n", zpool_get_name(zhp));
 	}
 }
 

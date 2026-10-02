@@ -17,7 +17,6 @@
  * Copyright (c) 2013 by Delphix. All rights reserved.
  */
 
-#include <libintl.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>

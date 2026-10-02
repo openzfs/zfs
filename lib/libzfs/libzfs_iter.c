@@ -22,7 +22,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <stddef.h>
-#include <libintl.h>
 #include <libzfs.h>
 #include <libzutil.h>
 #include <sys/mntent.h>
@@ -82,8 +81,7 @@ top:
 			break;
 		default:
 			rc = zfs_standard_error(zhp->zfs_hdl, errno,
-			    dgettext(TEXT_DOMAIN,
-			    "cannot iterate filesystems"));
+			    "cannot iterate filesystems");
 			break;
 		}
 	}
@@ -540,14 +538,12 @@ iter_dependents_cb(zfs_handle_t *zhp, void *arg)
 					return (0);
 				} else {
 					zfs_error_aux(zhp->zfs_hdl,
-					    dgettext(TEXT_DOMAIN,
-					    "recursive dependency at '%s'"),
+					    "recursive dependency at '%s'",
 					    zfs_get_name(zhp));
 					err = zfs_error(zhp->zfs_hdl,
 					    EZFS_RECURSIVE,
-					    dgettext(TEXT_DOMAIN,
 					    "cannot determine dependent "
-					    "datasets"));
+					    "datasets");
 					zfs_close(zhp);
 					return (err);
 				}

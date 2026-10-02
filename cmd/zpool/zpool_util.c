@@ -16,7 +16,6 @@
 
 #include <errno.h>
 #include <libgen.h>
-#include <libintl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -64,7 +63,7 @@ zpool_no_memory(void)
 {
 	assert(errno == ENOMEM);
 	(void) fprintf(stderr,
-	    gettext("internal error: out of memory\n"));
+	    "internal error: out of memory\n");
 	exit(1);
 }
 
