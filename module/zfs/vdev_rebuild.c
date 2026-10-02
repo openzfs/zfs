@@ -164,13 +164,7 @@ vdev_rebuild_should_stop(vdev_t *vd)
 static boolean_t
 vdev_rebuild_should_cancel(vdev_t *vd)
 {
-	vdev_rebuild_t *vr = &vd->vdev_rebuild_config;
-	vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
-
-	if (!vdev_resilver_needed(vd, &vrp->vrp_min_txg, &vrp->vrp_max_txg))
-		return (B_TRUE);
-
-	return (B_FALSE);
+	return (!vdev_resilver_needed(vd, NULL, NULL));
 }
 
 /*
@@ -1139,8 +1133,9 @@ vdev_rebuild_txgs(vdev_t *vd, uint64_t *min_txg, uint64_t *size)
 	vdev_rebuild_t *vr = &vd->vdev_rebuild_config;
 	vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
 
-	*min_txg = vrp->vrp_min_txg;
-	*size = vrp->vrp_max_txg - vrp->vrp_min_txg;
+	/* The rebuild's minimum is exclusive; range trees use [start, end). */
+	*min_txg = vrp->vrp_min_txg + 1;
+	*size = vrp->vrp_max_txg - *min_txg;
 }
 
 /*
