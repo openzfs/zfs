@@ -40,16 +40,44 @@ extern "C" {
 #define	BF32_GET(x, low, len)		BF32_DECODE(x, low, len)
 #define	BF64_GET(x, low, len)		BF64_DECODE(x, low, len)
 
+#ifdef _WIN32
+/*
+ * MSVC/clang-cl sign-extends a signed enum value assigned into these
+ * macros' XOR-based bitfield encoding, corrupting neighbouring bits.
+ * Explicitly truncate to the field's width first. Not needed upstream
+ * (GCC/clang don't have this problem), and the plain, unconditional
+ * !!(v) form trips newer GCC's -Wint-in-bool-context when v is a
+ * ternary of two nonzero compile-time constants (e.g. BP_SET_CHECKSUM
+ * choosing between two nonzero enum values), so keep it Windows-only.
+ */
+#define	BF32_UVAL(len, v) \
+	((len) == 1  ? (uint32_t)!!(v) : \
+	((len) <= 8  ? (uint32_t)(uint8_t)(v)  : \
+	(len) <= 16 ? (uint32_t)(uint16_t)(v) : \
+	(uint32_t)(v)))
+#define	BF64_UVAL(len, v) \
+	((len) == 1  ? (uint64_t)!!(v) : \
+	((len) <= 8  ? (uint64_t)(uint8_t)(v)  : \
+	(len) <= 16 ? (uint64_t)(uint16_t)(v) : \
+	(len) <= 32 ? (uint64_t)(uint32_t)(v) : \
+	(uint64_t)(v)))
+#else
+#define	BF32_UVAL(len, v)	(v)
+#define	BF64_UVAL(len, v)	(v)
+#endif
+
 #define	BF32_SET(x, low, len, val) do { \
-	ASSERT3U(val, <, 1U << (len)); \
+	uint32_t __v = BF32_UVAL((len), (val)); \
+	ASSERT3U(__v, <, 1U << (len)); \
 	ASSERT3U(low + len, <=, 32); \
-	(x) ^= BF32_ENCODE((x >> low) ^ (val), low, len); \
+	(x) ^= BF32_ENCODE((x >> low) ^ (__v), low, len); \
 } while (0)
 
 #define	BF64_SET(x, low, len, val) do { \
-	ASSERT3U(val, <, 1ULL << (len)); \
+	uint64_t __v = BF64_UVAL((len), (val)); \
+	ASSERT3U(__v, <, 1ULL << (len)); \
 	ASSERT3U(low + len, <=, 64); \
-	((x) ^= BF64_ENCODE((x >> low) ^ (val), low, len)); \
+	((x) ^= BF64_ENCODE((x >> low) ^ (__v), low, len)); \
 } while (0)
 
 #define	BF32_GET_SB(x, low, len, shift, bias)	\

@@ -48,8 +48,9 @@ extern "C" {
 #define	FM_EREPORT_ZFS_PROBE_FAILURE		"probe_failure"
 #define	FM_EREPORT_ZFS_LOG_REPLAY		"log_replay"
 #define	FM_EREPORT_ZFS_CONFIG_CACHE_WRITE	"config_cache_write"
+#define	FM_EREPORT_ZFS_SNAPSHOT_MOUNT	"snapshot_mount"
+#define	FM_EREPORT_ZFS_SNAPSHOT_UNMOUNT	"snapshot_unmount"
 #define	FM_EREPORT_ZFS_SITOUT			"sitout"
-
 #define	FM_EREPORT_PAYLOAD_ZFS_POOL		"pool"
 #define	FM_EREPORT_PAYLOAD_ZFS_POOL_FAILMODE	"pool_failmode"
 #define	FM_EREPORT_PAYLOAD_ZFS_POOL_GUID	"pool_guid"
@@ -125,6 +126,7 @@ extern "C" {
 #define	FM_RESOURCE_ZFS_SNAPSHOT_UNMOUNT		"snapshot_unmount"
 #define	FM_RESOURCE_ZVOL_CREATE_SYMLINK		"zvol_create"
 #define	FM_RESOURCE_ZVOL_REMOVE_SYMLINK		"zvol_remove"
+#define	FM_RESOURCE_SYSTEM_BOOT		"system_boot"
 
 #ifdef	__cplusplus
 }

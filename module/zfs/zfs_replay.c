@@ -66,8 +66,11 @@ zfs_init_vattr(vattr_t *vap, uint64_t mask, uint64_t mode,
 	memset(vap, 0, sizeof (*vap));
 	vap->va_mask = (uint_t)mask;
 	vap->va_mode = mode;
-#if defined(__FreeBSD__) || defined(__APPLE__)
+#if defined(__FreeBSD__) || defined(__APPLE__) || defined(_WIN32)
 	vap->va_type = IFTOVT(mode);
+#endif
+#if defined(_WIN32)
+	vap->va_mask |= ATTR_TYPE;
 #endif
 	vap->va_uid = (uid_t)(IS_EPHEMERAL(uid)) ? -1 : uid;
 	vap->va_gid = (gid_t)(IS_EPHEMERAL(gid)) ? -1 : gid;

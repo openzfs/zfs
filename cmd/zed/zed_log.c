@@ -220,11 +220,43 @@ _zed_log_aux(int priority, const char *fmt, va_list vargs)
 		buf[sizeof (buf) - 1] = '\0';
 	}
 
+#ifdef _WIN32
+	if (_ctx.do_syslog)
+		syslog(priority, "%s\n", buf);
+	// Should we hide this implementation in windows/os/ ?
+	if (_ctx.do_stderr && (priority <= _ctx.priority)) {
+		HANDLE hEventLog = RegisterEventSourceA(NULL, "OpenZFS_zed");
+		if (hEventLog != NULL) {
+			LPCSTR strings[1] = { buf };
+			WORD type;
+			switch (priority) {
+			case LOG_EMERG:
+			case LOG_ALERT:
+			case LOG_CRIT:
+			case LOG_ERR:
+				type = EVENTLOG_ERROR_TYPE;
+				break;
+			case LOG_WARNING:
+				type = EVENTLOG_WARNING_TYPE;
+				break;
+			case LOG_NOTICE:
+			case LOG_INFO:
+			case LOG_DEBUG:
+			default:
+				type = EVENTLOG_INFORMATION_TYPE;
+			}
+			ReportEventA(hEventLog, type, 0, 0, NULL, 1, 0,
+			    strings, NULL);
+			DeregisterEventSource(hEventLog);
+		}
+	}
+#else
 	if (_ctx.do_syslog)
 		syslog(priority, "%s", buf);
 
 	if (_ctx.do_stderr && (priority <= _ctx.priority))
 		fprintf(stderr, "%s\n", buf);
+#endif
 }
 
 /*

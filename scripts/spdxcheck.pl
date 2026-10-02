@@ -87,6 +87,8 @@ my $tagged_patterns = q(
 	*.ac
 	*.am
 	*.m4
+	*.cmake
+	*.cmake.in
 
 	# Unsuffixed programs (or generated of same)
 	cmd/zarcstat.in
@@ -176,12 +178,27 @@ my @path_license_tags = (
 	'module/os/linux/spl' => ['GPL-2.0-or-later'],
 	'include/os/linux/spl' => ['GPL-2.0-or-later'],
 
+	# These few Windows SPL files are verbatim/near-verbatim ports of
+	# the original LLNL Linux-SPL project files above, not original
+	# Windows-port code, and carry that project's GPL-2.0-or-later
+	# header. The rest of module/os/windows/spl is CDDL like the rest
+	# of the Windows port.
+	'include/os/windows/spl/spl-debug.h' => ['GPL-2.0-or-later'],
+	'include/os/windows/spl/sys/console.h' => ['GPL-2.0-or-later'],
+	'include/os/windows/spl/sys/misc.h' => ['GPL-2.0-or-later'],
+	'include/os/windows/spl/sys/zmod.h' => ['GPL-2.0-or-later'],
+	'module/os/windows/spl/spl-zlib.c' => ['GPL-2.0-or-later'],
+
 	# Third-party code should keep it's original license
 	'module/zstd/lib' => ['BSD-3-Clause OR GPL-2.0-only'],
 	'module/lua' => ['MIT'],
 
 	# lua/setjmp is platform-specific code sourced from various places
 	'module/lua/setjmp' => $default_license_tags,
+
+	# Vendored zlib (Jean-loup Gailly, Mark Adler) + minizip (Gilles Vollant)
+	'lib/os/windows/zlib-1.2.13' => ['Zlib'],
+	'include/os/windows/zfs/sys/zlib.h' => ['Zlib'],
 
 	# Some of the fletcher modules are dual-licensed
 	'module/zcommon/zfs_fletcher' =>
@@ -235,6 +252,20 @@ my %override_file_license_tags = (
 		module/icp/algs/skein/skein_iv.c
 		module/icp/algs/skein/skein_port.h
 		module/zfs/vdev_draid_rand.c
+		lib/os/windows/libuuid/all-io.h
+	)],
+
+	# util-linux libuuid's randutils is LGPL, unlike the rest of the
+	# (BSD-3-Clause) libuuid bundle.
+	'LGPL-2.1-or-later' => [qw(
+		lib/os/windows/libuuid/randutils.c
+		lib/os/windows/libuuid/randutils.h
+	)],
+
+	# Vendored GetGitRevisionDescription.cmake (Ryan Pavlik et al.)
+	'BSL-1.0' => [qw(
+		contrib/windows/cmake/GetGitRevisionDescription.cmake
+		contrib/windows/cmake/GetGitRevisionDescription.cmake.in
 	)],
 
 	# Legacy inclusions
@@ -255,6 +286,11 @@ my %override_file_license_tags = (
 	'BSD-2-Clause' => [qw(
 		include/os/linux/spl/sys/debug.h
 		module/os/linux/spl/spl-zone.c
+	)],
+
+	# Old-style 4-clause UC Berkeley license (NetBSD getopt.c)
+	'BSD-4-Clause-UC' => [qw(
+		lib/libspl/os/windows/getopt.c
 	)],
 
 	# Temporary overrides for things that have the wrong license for

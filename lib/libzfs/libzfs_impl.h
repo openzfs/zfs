@@ -236,6 +236,11 @@ extern int zpool_relabel_disk(libzfs_handle_t *hdl, const char *path,
     const char *msg);
 extern int find_shares_object(differ_info_t *di);
 
+#ifdef _WIN32
+extern boolean_t zfs_prop_get_driveletter_os(zfs_handle_t *zhp,
+    char *propbuf, size_t proplen, zprop_source_t *src);
+#endif
+
 #ifdef	__cplusplus
 }
 #endif

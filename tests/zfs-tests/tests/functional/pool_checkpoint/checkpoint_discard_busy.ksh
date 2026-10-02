@@ -43,8 +43,8 @@ log_unsupported "Skipping, issue https://github.com/openzfs/zfs/issues/12053"
 
 function test_cleanup
 {
-	# reset to original value
-	log_must restore_tunable SPA_DISCARD_MEMORY_LIMIT
+	# reset memory limit to 16M
+	set_tunable64 SPA_DISCARD_MEMORY_LIMIT 16777216
 	cleanup_nested_pools
 }
 
@@ -70,7 +70,6 @@ log_onexit test_cleanup
 #	map, we should have even more time to
 #	verify this.
 #
-log_must save_tunable SPA_DISCARD_MEMORY_LIMIT
 set_tunable64 SPA_DISCARD_MEMORY_LIMIT 128
 
 log_must zpool checkpoint $NESTEDPOOL
@@ -103,8 +102,8 @@ log_mustnot zpool checkpoint -d $NESTEDPOOL
 log_mustnot zpool remove $NESTEDPOOL $FILEDISK1
 log_mustnot zpool reguid $NESTEDPOOL
 
-# reset to original value
-log_must restore_tunable SPA_DISCARD_MEMORY_LIMIT
+# reset memory limit to 16M
+set_tunable64 SPA_DISCARD_MEMORY_LIMIT 16777216
 
 nested_wait_discard_finish
 

@@ -62,6 +62,9 @@
 !SECURITY.md
 !TEST
 !zfs.release.in
+!CMakeLists.txt
+!CMakeSettings.json
+!CMakeUserPresets.json.sample
 
 #
 # Normal rules
