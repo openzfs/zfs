@@ -40,7 +40,7 @@
 	return [url path];
 }
 
-- (void)initialize
++ (void)initialize
 {
 	if (self == [PathValueTransformer self])
 	{
