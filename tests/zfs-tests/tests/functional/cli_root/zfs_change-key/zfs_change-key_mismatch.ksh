@@ -25,8 +25,8 @@
 # 3. Load the received dataset's key and inherit the second root's key
 # 4. Raw send an incremental stream to it, which restores the sending
 #    root's key material while it still points at the local root
-# 5. Verify 'zfs change-key' on the dataset fails
-# 6. Verify 'zfs change-key' on its encryption root fails
+# 5. Verify 'zfs change-key' on the dataset fails with an unwrap error
+# 6. Verify 'zfs change-key' on its encryption root fails with an unwrap error
 # 7. Verify the encryption root can be rekeyed once the dataset is gone
 #
 
@@ -63,10 +63,12 @@ log_must eval "zfs send -w -i $TESTPOOL/$TESTFS1/child@snap1" \
 	"$TESTPOOL/$TESTFS1/child@snap2 |" \
 	"zfs receive -u $TESTPOOL/$TESTFS2/child"
 
-log_mustnot eval "echo $PASSPHRASE2 | zfs change-key -o keyformat=passphrase" \
-	"-o keylocation=prompt $TESTPOOL/$TESTFS2/child"
-log_mustnot eval "echo $PASSPHRASE2 | zfs change-key -o keyformat=passphrase" \
-	"-o keylocation=prompt $TESTPOOL/$TESTFS2"
+log_mustnot_expect "cannot be unwrapped" eval "echo $PASSPHRASE2 |" \
+	"zfs change-key -o keyformat=passphrase -o keylocation=prompt" \
+	"$TESTPOOL/$TESTFS2/child"
+log_mustnot_expect "cannot be unwrapped" eval "echo $PASSPHRASE2 |" \
+	"zfs change-key -o keyformat=passphrase -o keylocation=prompt" \
+	"$TESTPOOL/$TESTFS2"
 
 log_must destroy_dataset $TESTPOOL/$TESTFS2/child -r
 log_must eval "echo $PASSPHRASE2 | zfs change-key -o keyformat=passphrase" \

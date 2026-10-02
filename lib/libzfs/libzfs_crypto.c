@@ -1795,6 +1795,13 @@ zfs_crypto_rewrap(zfs_handle_t *zhp, nvlist_t *raw_props, boolean_t inheritkey)
 			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
 			    "Key is not currently loaded."));
 			break;
+		case ZFS_ERR_CRYPTO_KEY_MISMATCH:
+			zfs_error_aux(zhp->zfs_hdl, dgettext(TEXT_DOMAIN,
+			    "A dataset using the same encryption root as '%s' "
+			    "has a key that cannot be unwrapped with the "
+			    "root's wrapping key."),
+			    zhp->zfs_name);
+			break;
 		}
 		zfs_error(zhp->zfs_hdl, EZFS_CRYPTOFAILED, errbuf);
 	}
