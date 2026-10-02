@@ -394,8 +394,8 @@ get_usage(zfs_help_t idx)
 		return (gettext("	diff [-FHth] <snapshot> "
 		    "[snapshot|filesystem]\n"));
 	case HELP_EVENTS:
-		return (gettext("	events [-cjn] [-o <object-id>] "
-		    "<filesystem> [path]\n"
+		return (gettext("	events [-cj] [-n <count>] "
+		    "[-o <object-id>] <filesystem> [path]\n"
 		    "\n"
 		    "    Display file-level events from the dataset's event "
 		    "log. Event logs\n"
@@ -8306,17 +8306,66 @@ zfs_bookmark_perror(const char *bookname, int err)
 }
 
 /*
+ * Print a string as a JSON string literal, including the surrounding
+ * quotes, escaping the characters JSON does not allow unescaped.
+ *
+ * Event names, old names and symlink targets are raw filesystem
+ * strings: an unescaped quote, backslash or control byte in any of
+ * them would make the -j output unparseable.  Bytes >= 0x20 that are
+ * neither '"' nor '\\' are emitted verbatim; they are assumed to be
+ * valid UTF-8, which JSON (RFC 8259) permits inside a string.
+ */
+static void
+print_json_string(const char *s)
+{
+	(void) printf("\"");
+	for (; *s != '\0'; s++) {
+		unsigned char c = (unsigned char)*s;
+
+		switch (c) {
+		case '"':
+			(void) printf("\\\"");
+			break;
+		case '\\':
+			(void) printf("\\\\");
+			break;
+		case '\b':
+			(void) printf("\\b");
+			break;
+		case '\f':
+			(void) printf("\\f");
+			break;
+		case '\n':
+			(void) printf("\\n");
+			break;
+		case '\r':
+			(void) printf("\\r");
+			break;
+		case '	':
+			(void) printf("\\t");
+			break;
+		default:
+			if (c < 0x20)
+				(void) printf("\\u%04x", c);
+			else
+				(void) putchar(c);
+			break;
+		}
+	}
+	(void) printf("\"");
+}
+
+/*
  * Print a single event record.
  */
 static void
 print_event(nvlist_t *event, boolean_t json, int count)
 {
-	uint64_t txg = 0, time = 0, object = 0, parent = 0;
+	uint64_t txg = 0, object = 0, parent = 0;
 	uint16_t op = 0;
 	const char *name = NULL;
 
 	(void) nvlist_lookup_uint64(event, ZFS_EV_TXG, &txg);
-	(void) nvlist_lookup_uint64(event, ZFS_EV_TIME, &time);
 	(void) nvlist_lookup_uint64(event, ZFS_EV_OBJECT, &object);
 	(void) nvlist_lookup_uint16(event, ZFS_EV_OP, &op);
 	(void) nvlist_lookup_string(event, ZFS_EV_NAME, &name);
@@ -8329,8 +8378,10 @@ print_event(nvlist_t *event, boolean_t json, int count)
 		    (unsigned long long)txg,
 		    (unsigned long long)object,
 		    zfs_event_op_name(op));
-		if (name != NULL)
-			(void) printf(",\"name\":\"%s\"", name);
+		if (name != NULL) {
+			(void) printf(",\"name\":");
+			print_json_string(name);
+		}
 		if (parent != 0)
 			(void) printf(",\"parent\":%llu",
 			    (unsigned long long)parent);
@@ -8343,8 +8394,10 @@ print_event(nvlist_t *event, boolean_t json, int count)
 			    &old_name);
 			(void) nvlist_lookup_uint64(event, ZFS_EV_OLD_PARENT,
 			    &old_parent);
-			if (old_name != NULL)
-				(void) printf(",\"old_name\":\"%s\"", old_name);
+			if (old_name != NULL) {
+				(void) printf(",\"old_name\":");
+				print_json_string(old_name);
+			}
 			if (old_parent != 0)
 				(void) printf(",\"old_parent\":%llu",
 				    (unsigned long long)old_parent);
@@ -8361,8 +8414,16 @@ print_event(nvlist_t *event, boolean_t json, int count)
 			const char *target = NULL;
 			(void) nvlist_lookup_string(event, ZFS_EV_TARGET,
 			    &target);
-			if (target != NULL)
-				(void) printf(",\"target\":\"%s\"", target);
+			if (target != NULL) {
+				(void) printf(",\"target\":");
+				print_json_string(target);
+			}
+		} else if (op == ZFS_EV_SETATTR) {
+			uint64_t attrs = 0;
+			(void) nvlist_lookup_uint64(event, ZFS_EV_ATTRS,
+			    &attrs);
+			(void) printf(",\"attrs\":%llu",
+			    (unsigned long long)attrs);
 		} else if (op == ZFS_EV_WRITE || op == ZFS_EV_READ) {
 			uint64_t io_offset = 0, io_bytes = 0;
 			(void) nvlist_lookup_uint64(event,
@@ -8432,7 +8493,7 @@ parse_event_count(const char *arg, char opt)
 }
 
 /*
- * zfs events [-cjn] [-o <object-id>] <filesystem> [path]
+ * zfs events [-cj] [-n <count>] [-o <object-id>] <filesystem> [path]
  *
  * Display file-level events from a dataset's event log.
  *
@@ -8548,6 +8609,7 @@ zfs_do_events(int argc, char **argv)
 	/* If a path was given, resolve it to an object ID */
 	if (argc > 1) {
 		struct stat st;
+		struct stat mp_st;
 		char fullpath[PATH_MAX];
 		char mountpoint[ZFS_MAXPROPLEN];
 
@@ -8563,15 +8625,36 @@ zfs_do_events(int argc, char **argv)
 
 		/*
 		 * An absolute path is already complete; do not join it.
-		 * But verify it actually resolves inside this dataset's
-		 * mountpoint: without the device check, `zfs events
-		 * tank/a /etc/passwd` silently filters on an object
-		 * from a different filesystem.
+		 * A relative path is resolved against the mountpoint.
 		 */
-		struct stat mp_st;
-
 		if (argv[1][0] == '/') {
 			(void) strlcpy(fullpath, argv[1], sizeof (fullpath));
+		} else {
+			(void) snprintf(fullpath, sizeof (fullpath), "%s/%s",
+			    mountpoint, argv[1]);
+		}
+
+		/*
+		 * stat() must fill st before any use of it below: the
+		 * absolute-path guard compares st.st_dev, so resolving
+		 * the path first is required for the comparison to test
+		 * the file rather than uninitialised stack.
+		 */
+		if (stat(fullpath, &st) != 0) {
+			(void) fprintf(stderr,
+			    gettext("cannot stat '%s': %s\n"),
+			    fullpath, strerror(errno));
+			zfs_close(zhp);
+			return (1);
+		}
+
+		/*
+		 * For an absolute path, verify it actually resolves inside
+		 * this dataset's mountpoint: without the device check,
+		 * `zfs events tank/a /etc/passwd` would silently filter on
+		 * an object from a different filesystem.
+		 */
+		if (argv[1][0] == '/') {
 			if (stat(mountpoint, &mp_st) != 0) {
 				(void) fprintf(stderr,
 				    gettext("cannot stat '%s': %s\n"),
@@ -8586,17 +8669,6 @@ zfs_do_events(int argc, char **argv)
 				zfs_close(zhp);
 				return (1);
 			}
-		} else {
-			(void) snprintf(fullpath, sizeof (fullpath), "%s/%s",
-			    mountpoint, argv[1]);
-		}
-
-		if (stat(fullpath, &st) != 0) {
-			(void) fprintf(stderr,
-			    gettext("cannot stat '%s': %s\n"),
-			    fullpath, strerror(errno));
-			zfs_close(zhp);
-			return (1);
 		}
 
 		/* The inode number is the object ID */
@@ -8606,16 +8678,17 @@ zfs_do_events(int argc, char **argv)
 	/*
 	 * Query the events. The kernel returns at most one read buffer
 	 * per call and reports the resume point as next_offset; loop
-	 * until the log is exhausted so a large log is never silently
+	 * while that cursor advances so a large log is never silently
 	 * truncated.
 	 */
 	uint64_t next_offset = 0;
 	/*
-	 * Sentinel start value so the no-forward-progress guard below
-	 * cannot fire on the first page (which legitimately fetches
-	 * at offset 0).
+	 * Last resume cursor the kernel returned, and whether one has
+	 * been seen yet.  Paging continues only while the cursor
+	 * advances; see the no-progress guard in the loop.
 	 */
-	uint64_t prev_offset = UINT64_MAX;
+	uint64_t prev_offset = 0;
+	boolean_t have_prev = B_FALSE;
 	uint64_t lost_total = 0;
 	boolean_t have_lost = B_FALSE;
 	int count = 0;
@@ -8625,6 +8698,8 @@ zfs_do_events(int argc, char **argv)
 	for (;;) {
 		nvlist_t *page = NULL;
 		nvlist_t *events;
+		uint64_t page_next = 0;
+		boolean_t last_page = B_FALSE;
 
 		error = lzc_get_events(zfs_get_name(zhp), object_filter,
 		    next_offset, &page);
@@ -8632,17 +8707,32 @@ zfs_do_events(int argc, char **argv)
 			break;
 
 		/*
-		 * Guard against a page that makes no forward progress.
-		 * Checked even when no events were delivered (count
-		 * may stay 0 with object filtering or an undecodable
-		 * page), so an unparseable ring cannot livelock the
-		 * ioctl loop.
+		 * The kernel reports the resume cursor in next_offset:
+		 * keep paging only while it advances.  A zero cursor
+		 * means the log is exhausted; a cursor that fails to
+		 * advance (a stalled or rewinding kernel) would re-serve
+		 * the same window forever, so it is treated as the end
+		 * too.  Read the cursor before emitting anything, so a
+		 * stalled page is never printed a second time.
 		 */
-		if (next_offset == prev_offset) {
+		if (nvlist_lookup_uint64(page, "next_offset",
+		    &page_next) != 0) {
+			/*
+			 * A reply without a resume cursor (older
+			 * reply layout) cannot be paged: show this
+			 * page, then stop.  Dropping the page here
+			 * would lose the events it carries, and the
+			 * post-loop error path would report
+			 * strerror(0) as "Success".
+			 */
+			last_page = B_TRUE;
+		} else if (page_next == 0 ||
+		    (have_prev && page_next <= prev_offset)) {
 			nvlist_free(page);
 			break;
 		}
-		prev_offset = next_offset;
+		prev_offset = page_next;
+		have_prev = B_TRUE;
 
 		if (!header_printed) {
 			/* Print header or JSON opening */
@@ -8677,8 +8767,6 @@ zfs_do_events(int argc, char **argv)
 			break;
 		}
 
-		(void) nvlist_lookup_uint64(page, "next_offset", &next_offset);
-
 		/* Iterate through events on this page */
 		nvpair_t *pair = NULL;
 		while ((pair = nvlist_next_nvpair(events, pair)) != NULL) {
@@ -8694,11 +8782,12 @@ zfs_do_events(int argc, char **argv)
 			count++;
 		}
 
-		boolean_t done = (limit_output &&
-		    (uint64_t)count >= max_events) || next_offset == 0;
-
+		next_offset = page_next;
 		nvlist_free(page);
-		if (done)
+
+		if (last_page)
+			break;
+		if (limit_output && (uint64_t)count >= max_events)
 			break;
 	}
 
@@ -8708,6 +8797,17 @@ zfs_do_events(int argc, char **argv)
 			    gettext("no event log found for '%s'\n"
 			    "Enable events with: zfs set events=on %s\n"),
 			    argv[0], argv[0]);
+			ret = 1;
+		} else if (error == ESRCH || error == EINVAL ||
+		    error == EBUSY) {
+			/*
+			 * The get-events ioctl fails this way when the
+			 * dataset is not mounted; report it as the clear
+			 * path does rather than leaking strerror(ESRCH)
+			 * as "No such process".
+			 */
+			(void) fprintf(stderr, gettext("cannot get events "
+			    "for '%s': dataset must be mounted\n"), argv[0]);
 			ret = 1;
 		} else if (count == 0) {
 			(void) fprintf(stderr,
@@ -8727,8 +8827,18 @@ zfs_do_events(int argc, char **argv)
 	}
 
 	if (!header_printed) {
-		if (error == 0)
+		if (error != 0) {
+			/* already reported on stderr */
+		} else if (json_output) {
+			/*
+			 * An empty result is still a valid JSON array:
+			 * a -j consumer must never be handed the human
+			 * string, it has to be able to parse stdout.
+			 */
+			(void) printf("[]\n");
+		} else {
 			(void) printf("%s\n", gettext("no events found"));
+		}
 	} else if (json_output) {
 		(void) printf("]\n");
 	} else if (count == 0) {

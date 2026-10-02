@@ -1591,7 +1591,16 @@ zfs_check_events_compat_idx(zpool_handle_t *zph, uint64_t idx,
 	char featprop[64];
 	char featbuf[64];
 	boolean_t features[SPA_FEATURES];
-	static char warned_pool[ZFS_MAXPROPLEN] = "";
+	/*
+	 * The warning below is per pool, not per process: a single
+	 * process-global flag suppressed the message for every pool
+	 * after the first, so a second pool with an unparseable
+	 * compatibility file was allowed with no diagnostic at all
+	 * (the message names the pool it is about, so it must be
+	 * tracked per pool).  The last warned pool is remembered to
+	 * keep at most one message per pool per run.
+	 */
+	static char warned_pool[ZFS_MAX_DATASET_NAME_LEN];
 
 	/* Only events=on can activate the pool feature. */
 	if (idx == 0)
@@ -1617,8 +1626,8 @@ zfs_check_events_compat_idx(zpool_handle_t *zph, uint64_t idx,
 		/*
 		 * The compatibility files could not be fully parsed, so
 		 * feature membership cannot be determined; allow the
-		 * change but warn once per process, mirroring how
-		 * libzfs_pool.c surfaces compatibility file problems.
+		 * change but warn once per pool, since the message names
+		 * the affected pool.
 		 */
 		if (strcmp(warned_pool, zpool_get_name(zph)) != 0) {
 			(void) strlcpy(warned_pool, zpool_get_name(zph),

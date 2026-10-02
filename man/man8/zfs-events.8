@@ -217,7 +217,10 @@ see the same ring instance, reset to empty.
 .It Fl j
 Output in JSON format for machine parsing.
 All events are printed as a single JSON array; each event is one
-object on its own line.
+object on its own line.  An empty result is printed as an empty
+array
+.Pq Ql [] ,
+so the output is always parseable.
 See
 .Sx OUTPUT
 for the exact key set.
@@ -296,6 +299,9 @@ Operation-specific keys are added as follows:
 .Sy old_size , new_size
 .It Sy SYMLINK
 .Sy target
+.It Sy SETATTR
+.Sy attrs
+(Changed-attribute mask; a decimal bitmask.)
 .It Sy WRITE , READ
 .Sy io_offset
 (the window's first offset) and
@@ -351,7 +357,7 @@ returns the oldest events in the ring:
 .Bd -literal -offset indent
 # zfs events -j -n 2 tank/data
 [{"txg":1847,"object":128,"op":"CREATE","name":"newfile.txt","parent":4},
-{"txg":1848,"object":128,"op":"SETATTR"}]
+{"txg":1848,"object":128,"op":"SETATTR","attrs":16}]
 .Ed
 .Ss Example 4: IO auditing
 WRITE and READ records carry no name; correlate them by object ID:
