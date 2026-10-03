@@ -77,17 +77,17 @@ Two version keys live in `meta` and are independent:
 | id | INTEGER | no | — | `PRIMARY KEY AUTOINCREMENT` (insertion order) |
 | dataset | TEXT | no | — | dataset name |
 | txg | INTEGER | no | `txg` | transaction group of the change |
-|| timestamp | INTEGER | no | `time` | kernel event time: `gethrtime()` nanoseconds since boot (monotonic, NOT wall clock); ordering/dedup only — see `captured_at` |
-|| captured_at | INTEGER | yes | — | ingest wall time, unix seconds; NULL in pre-v4 rows. Retention and consumer "when did this appear" queries use this |
-|| full_path | INTEGER | yes | — | dataset-relative path resolved at insert time (e.g. `a/b/c.txt`); NULL when the ancestor chain is unresolvable (row stays PARTIAL, §7). Directory RENAMEs relabel descendants forward — events before the rename keep the old full_path; the rename row's `old_full_path` carries it |
-|| old_full_path | INTEGER | yes | — | RENAME rows: the resolved path of `old_path` at insert time |
+| timestamp | INTEGER | no | `time` | kernel event time: `gethrtime()` nanoseconds since boot (monotonic, NOT wall clock); ordering/dedup only — see `captured_at` |
+| captured_at | INTEGER | yes | — | ingest wall time, unix seconds; NULL in pre-v4 rows. Retention and consumer "when did this appear" queries use this |
+| full_path | TEXT | yes | — | dataset-relative path resolved at insert time (e.g. `a/b/c.txt`); NULL when the ancestor chain is unresolvable (row stays PARTIAL, §7). Directory RENAMEs relabel descendants forward — events before the rename keep the old full_path; the rename row's `old_full_path` carries it |
+| old_full_path | TEXT | yes | — | RENAME rows: the resolved path of `old_path` at insert time |
 | object_id | INTEGER | no | `object` | object ID affected |
 | event_type | TEXT | no | `op` | schema enum name (below); unknown op values decode as `UNKNOWN` |
 | path | TEXT | yes | `name` | file/dir name, dataset-relative at event time |
 | old_path | TEXT | yes | `old_name` | old name (RENAME) |
 | uid | INTEGER | yes | `uid` | user ID |
 | gid | INTEGER | yes | `gid` | group ID |
-| mode | INTEGER | yes | — | **never written**; column kept for schema stability, always NULL |
+| mode | INTEGER | yes | `mode` | file mode at CREATE (permission bits; recorded when the event carries a create/setattr mode) |
 | size | INTEGER | yes | `new_size` | size after truncate/setattr |
 | io_offset | INTEGER | yes | `io_offset` | IO start offset (WRITE/READ); window's first offset when the events_io fence window is open |
 | io_bytes | INTEGER | yes | `io_bytes` | IO byte count (WRITE/READ); summed total of coalesced IOs inside a fence window |
@@ -150,6 +150,12 @@ total.)
 The four always-present columns are `txg`, `timestamp` (`time`),
 `object_id` (`object`), and `event_type` (`op`).
 
+**LINK is last-link-wins** for path resolution: an object's location
+map (`objmap`, and consequently `full_path` resolution) holds a single
+`(name, parent)` per object, so a hard LINK overwrites the object's
+previous mapping with the new link's name/parent. Older link paths
+remain visible only in the historical event rows.
+
 ### 2.2 `sync_state`
 
 One row per polled dataset.
@@ -160,10 +166,36 @@ One row per polled dataset.
 | last_offset | INTEGER | no | watermark: next read offset into the kernel event log |
 | last_sync | INTEGER | no | unix time of the last successful poll |
 | ring_guid | INTEGER | yes | identity of the kernel event log instance; see Section 6 |
+| last_lost | INTEGER | yes | previous poll's cumulative `records_lost`; NULL means no baseline yet |
+| root_id | INTEGER | yes | dataset root object id as reported by the kernel (`root_objid`); NULL/0 = never learned — see below |
 
 `last_offset` and `ring_guid` are always written together in a single
 statement, so a persisted offset and its ring identity are never
-observed torn.
+observed torn. That statement **preserves a previously stored
+`ring_guid` when the incoming one is absent/NULL** (legacy-kernel
+reply): a stored identity is never erased by a reply that lacks the
+key. `last_lost` is written on every poll that observed the counter;
+NULL on rows that predate layout 6 or have not yet seen a poll.
+`root_id` is written whenever the kernel reports `root_objid` and is
+never touched by the offset writer (each column has exactly one
+writer).
+
+`root_id` semantics: **0/NULL means the root object id was never
+learned — a legacy kernel that does not send `root_objid` — and the
+daemon falls back to the graph-emptiness heuristic for path
+resolution.** Once a root id has been learned from a reply that
+carried it, later replies lacking the key (e.g. an older kernel
+running against the same database) resolve against the STORED id
+instead of degrading to PARTIAL permanently.
+
+`meta` also carries per-dataset `purge_epoch:<dataset>` keys: a
+monotonic counter bumped atomically by `--purge <dataset>`. The daemon
+compares **only its own dataset's** epoch each poll and re-arms its
+in-memory watermark and loss baseline for that dataset, so purging a
+live dataset does not manufacture a spurious regression gap row — and
+purging dataset A does not re-arm datasets B and C. The pre-layout-7
+global `purge_epoch` key may still be present in migrated databases;
+it is read once as the initial baseline and no longer updated.
 
 ### 2.3 `datasets`
 
@@ -171,21 +203,26 @@ observed torn.
 |------------|------|------|-------|
 | dataset | TEXT | no | `PRIMARY KEY` |
 | mountpoint | TEXT | no | mountpoint recorded at collect time |
+| last_seen | INTEGER | yes | unix time of the most recent collect that saw the dataset |
 
 Refreshed (`INSERT OR REPLACE`) on every dataset sighting, so
 mountpoint changes self-heal. The value is stored **as-is**: non-/
 mountpoints such as `none` or `legacy` are stored verbatim — consumers
-must filter/prefix-match accordingly. This table is not deleted by
-retention or by `--purge`; it holds no records, only the mapping.
+must filter/prefix-match accordingly. Rows whose `last_seen` predates
+the current poll cycle are pruned (`zmetad_db_prune_stale_datasets`):
+a dataset destroyed or with events disabled stops being attributed
+paths. This table is not deleted by `--purge` (the mapping row stays);
+it holds no records, only the mapping.
 
 ### 2.4 `objmap`
 
 The objid → (name, parent) graph the daemon maintains to resolve
 `full_path` at insert time: one row per known object per dataset.
-Consumers may read it, but it is an implementation detail of the
-resolver — the durable per-row truth remains `path`/`parent` plus
-`full_path`. `--purge` deletes a dataset's objmap rows; retention
-never touches them.
+A hard LINK overwrites the object's row (last-link-wins, §2.1);
+REMOVE deletes it. Consumers may read it, but it is an implementation
+detail of the resolver — the durable per-row truth remains
+`path`/`parent` plus `full_path`. `--purge` deletes a dataset's objmap
+rows; retention never touches them.
 
 ### 2.5 `gaps`
 
@@ -215,8 +252,8 @@ Row lifecycle:
 - Rows are **never deleted by retention** (`zmetad_db_cleanup` touches
   `events` only). They are therefore lifetime counts per dataset.
 - Rows are deleted **only** by `zmetad --purge <dataset>`, which removes
-  the dataset's `events`, `gaps`, and `sync_state` rows and clears the
-  kernel ring.
+  the dataset's `events`, `gaps`, `sync_state`, and `objmap` rows and
+  clears the kernel ring.
 
 ### 2.6 `meta`
 
@@ -309,12 +346,19 @@ watermark belongs to.
 - **NULL (or 0 when read through the daemon's accessor) = identity
   unknown**: no `sync_state` row yet, a pre-v3 row, or a legacy kernel
   reply that never carried `ring_guid`. It does not mean "no ring".
+- A stored non-NULL GUID is **never erased** by a reply that lacks the
+  key: the watermark upsert keeps the stored identity when the
+  incoming one is NULL, so mixed-version operation (kernel downgrade,
+  module upgrade while the daemon runs) does not lose swap detection.
 - The GUID changes iff the kernel ring was replaced (dataset
   destroy/recreate, receive). On a detected change zmetad:
   1. writes one `gaps` row with `lost = -1` (the swap boundary;
      `from_offset` NULL, `to_offset` = the last offset of the old log),
   2. resets the watermark to 0 and persists it together with the **new**
-     GUID.
+     GUID,
+  3. clears the stored `last_lost` baseline (it belonged to the old
+     ring's counter; a new-ring counter above the old baseline must not
+     produce a cross-ring delta).
 - Consumers should therefore **segment per-epoch queries by the
   `lost = -1` gap rows**: records before a `-1` row's position belong to
   a previous log instance and must not be joined with records after it
@@ -328,11 +372,14 @@ To reconstruct path state per dataset:
 - Build an `object_id -> (name, parent)` graph from **all** rows of the
   dataset (`event_type` CREATE/RENAME/LINK/SYMLINK/REMOVE etc.), applied
   in `(txg, id)` order — `txg` orders transaction groups, `id` breaks
-  ties within a txg in capture order.
+  ties within a txg in capture order. A LINK applies last-link-wins:
+  the object's mapping becomes the newest link's `(name, parent)`.
 - A row is **PARTIAL** when its ancestor chain is incomplete — i.e. an
   ancestor's CREATE fell inside a `gaps` loss range (Section 4), so no
-  full path can be proven. On layout ≥ 5 this is exactly the row whose
-  `full_path` is NULL; consumers on older layouts reconstruct and test
+  full path can be proven. On layout ≥ 5 this is exactly the name-bearing
+  row (CREATE/RENAME/LINK/SYMLINK and IO records) whose `full_path` is
+  NULL; WRITE/READ/TRUNCATE/SETATTR never carry a `full_path` — their
+  NULL is not PARTIAL. Consumers on older layouts reconstruct and test
   resolvability themselves.
 - Serve PARTIAL rows under **conservative match** only:
   - exact match on the bare name, or
@@ -367,12 +414,13 @@ that collect. See zmetad(8) for CLI details.
   untouched, which is what makes the gap counts in Section 4
   lifetime figures.
 - **`zmetad --purge <dataset>`** (one-shot mode: no daemonize, no poll
-  loop): deletes the dataset's rows from `events`, `gaps`, and
-  `sync_state`, then clears the dataset's in-kernel event ring. Its
-  report line prints the **events and gaps counts only** (`purged
-  <ds>: N events, M gaps removed; kernel ring cleared`). This is the
-  **only** mechanism that removes `gaps` rows. The `datasets` mapping
-  row is left in place.
+  loop): deletes the dataset's rows from `events`, `gaps`,
+  `sync_state`, **and `objmap`**, then clears the dataset's in-kernel
+  event ring and bumps the dataset's `purge_epoch:<dataset>` meta key
+  (atomically). Its report line prints the **events and gaps counts
+  only** (`purged <ds>: N events, M gaps removed; kernel ring
+  cleared`). This is the **only** mechanism that removes `gaps` rows.
+  The `datasets` mapping row is left in place.
 - **Poll loop**: collects every `poll_interval` seconds (1-second sleep
   granularity); each poll persists the watermark + ring GUID, appends
   new events (dedup as in Section 3), refreshes the `datasets`
