@@ -2304,7 +2304,7 @@ function wait_for_degraded
 #
 function cleanup_devices #vdevs
 {
-	typeset pool="foopool$$"
+	typeset pool="foopool"
 
 	for vdev in $@; do
 		zero_partitions $vdev

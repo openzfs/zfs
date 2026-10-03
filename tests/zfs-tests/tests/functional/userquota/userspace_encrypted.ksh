@@ -43,7 +43,7 @@ function log_must_unsupported
 log_onexit cleanup
 
 FILEDEV="$TEST_BASE_DIR/userspace_encrypted"
-POOLNAME="testpool$$"
+POOLNAME="testpool_userspace_encrypted"
 typeset -a POOL_OPTS=('' # all pool features enabled
     '-d' # all pool features disabled
     '-d -o feature@userobj_accounting=enabled' # only userobj_accounting enabled
