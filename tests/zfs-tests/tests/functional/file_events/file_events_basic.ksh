@@ -57,13 +57,22 @@ mnt=$(get_prop mountpoint "$ds")
 
 log_must touch "$mnt/afile"
 log_must mv "$mnt/afile" "$mnt/bfile"
+# TRUNCATE is emitted only when the file SHRANK (setattr path,
+# zfs_vnops_os.c: old_size > z_size), so give it content first.
+log_must dd if=/dev/zero of="$mnt/bfile" bs=1024 count=8     conv=notrunc
 log_must truncate -s 4096 "$mnt/bfile"
 log_must rm "$mnt/bfile"
 
-count=$(wait_records "$ds" 4) || log_fail "expected 4 records, got $count"
+# The growth-path dd may add a SETATTR record; require at least the
+# 4 lifecycle records.
+count=$(wait_records "$ds" 4) || log_fail "expected >=4 records, got $count"
 
 typeset json="$TMPDIR/file_events_basic.$$"
-log_must zfs events -j "$ds" >"$json"
+	# Run directly (not under log_must): logapi writes a SUCCESS line
+	# to stdout after the command, which would contaminate the capture.
+	zfs events -j "$ds" >"$json"
+	[[ $? -eq 0 ]] || log_fail "zfs events -j failed"
+
 
 # op name pairs expected in txg order
 typeset expected_ops="CREATE RENAME TRUNCATE REMOVE"
@@ -82,7 +91,8 @@ grep -q '"old_name":"afile"' "$json" ||
     log_fail "RENAME record missing old_name"
 grep -q '"name":"bfile"' "$json" ||
     log_fail "RENAME/TRUNCATE/REMOVE record missing name bfile"
-grep -q '"old_size":0' "$json" || log_fail "TRUNCATE missing old_size"
+grep -q '"old_size":8192' "$json" ||
+    log_fail "TRUNCATE missing old_size=8192"
 grep -q '"new_size":4096' "$json" || log_fail "TRUNCATE missing new_size"
 
 # txg must be nondecreasing in record order.
@@ -90,7 +100,7 @@ python3 - "$json" <<'EOF'
 import json, sys
 with open(sys.argv[1]) as f:
     page = json.load(f)
-txgs = [e["txg"] for e in page["events"]]
+txgs = [e["txg"] for e in page]
 assert all(a <= b for a, b in zip(txgs, txgs[1:])), "txg decreased: %s" % txgs
 print("txgs-ok")
 EOF

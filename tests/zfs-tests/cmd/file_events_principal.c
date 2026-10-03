@@ -110,6 +110,16 @@ do_write(const char *path)
 		(void) fprintf(stderr, "write to %s failed\n", path);
 		return (1);
 	}
+
+	/*
+	 * Registrations are keyed by thread group, so deregister here:
+	 * a later `clear` invocation would run as a different tgid and
+	 * find no entry (ENOENT).
+	 */
+	if (lzc_clear_principal(&gen) != 0) {
+		(void) fprintf(stderr, "lzc_clear_principal failed\n");
+		return (1);
+	}
 	return (0);
 }
 
@@ -117,8 +127,9 @@ static int
 do_read(const char *dsname)
 {
 	nvlist_t *outnvl = NULL;
-	nvlist_t **events = NULL;
-	uint_t nelem = 0;
+	nvlist_t *events_list = NULL;
+	nvlist_t *rec = NULL;
+	nvpair_t *pair = NULL;
 	int error;
 
 	error = lzc_get_events(dsname, 0, 0, &outnvl);
@@ -129,9 +140,20 @@ do_read(const char *dsname)
 	}
 	if (outnvl == NULL)
 		return (0);
-	(void) nvlist_lookup_nvlist_array(outnvl, "events", &events, &nelem);
-	for (uint_t i = 0; i < nelem; i++)
-		print_record(events[i]);
+	/*
+	 * The kernel returns "events" as a flat nvlist keyed by
+	 * record index string ("0", "1", ...), not an nvlist array
+	 * (zfs_ioctl.c zfs_ioc_get_events).
+	 */
+	if (nvlist_lookup_nvlist(outnvl, "events", &events_list) != 0) {
+		fnvlist_free(outnvl);
+		return (0);
+	}
+	pair = nvlist_next_nvpair(events_list, NULL);
+	for (; pair != NULL; pair = nvlist_next_nvpair(events_list, pair)) {
+		if (nvpair_value_nvlist(pair, &rec) == 0)
+			print_record(rec);
+	}
 	fnvlist_free(outnvl);
 	return (0);
 }

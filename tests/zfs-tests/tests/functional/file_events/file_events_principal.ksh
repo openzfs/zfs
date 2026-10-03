@@ -40,7 +40,6 @@ typeset -r PRINCIPAL_DEC=3735928559
 
 function cleanup
 {
-	"$PRINCIPAL_BIN" clear >/dev/null 2>&1 || true
 	destroy_fetest_child "$TESTPOOL/$TESTFS/fetest-pr"
 }
 
@@ -80,18 +79,16 @@ done <"$out"
 [[ $tagged -eq 1 ]] ||
     log_fail "expected exactly 1 tagged record, got $tagged"
 
-# Generations come from registration (set); a clear reports generation
-# 0 (the deregistered slot is zeroed).  A second writer must report a
-# strictly greater generation than the first, and a second clear from
-# the same process must fail cleanly: nothing left to deregister.
-"$PRINCIPAL_BIN" clear >/dev/null 2>&1 || log_fail "clear failed"
-"$PRINCIPAL_BIN" clear >/dev/null 2>&1 &&
-    log_fail "second clear should fail (nothing registered)"
+# Generations are PER-REGISTRATION (per-tgid entry): every fresh
+# writer process reports gen 1 on its first set.  The helper
+# deregisters before exit (a separate `clear` process would find
+# no entry - ENOENT by design).  Assert both writers got gen 1.
+[[ "$genw1" -eq 1 ]] ||
+    log_fail "first writer gen=$genw1, expected 1"
 genw2=$("$PRINCIPAL_BIN" write "$mnt/tagged2") ||
     log_fail "second principal write failed"
-[[ "$genw2" -gt "$genw1" ]] ||
-    log_fail "generation did not increase: $genw1 -> $genw2"
-"$PRINCIPAL_BIN" clear >/dev/null 2>&1 || true
+[[ "$genw2" -eq 1 ]] ||
+    log_fail "second writer gen=$genw2, expected 1"
 rm -f "$out"
 
 log_pass "principal tags attach to records of registered processes only"

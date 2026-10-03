@@ -50,12 +50,13 @@ mnt=$(get_prop mountpoint "$ds")
 log_must dd if=/dev/zero of="$mnt/io1" bs=1000 count=5 conv=notrunc
 count=$(wait_records "$ds" 1) || log_fail "expected 1 record, got $count"
 typeset json="$TMPDIR/file_events_io.$$"
-log_must zfs events -j "$ds" >"$json"
+	zfs events -j "$ds" >"$json"
+	[[ $? -eq 0 ]] || log_fail "zfs events -j failed"
 python3 - "$json" <<'EOF'
 import json, sys
 with open(sys.argv[1]) as f:
     page = json.load(f)
-writes = [e for e in page["events"] if e["op"] == "WRITE"]
+writes = [e for e in page if e["op"] == "WRITE"]
 assert len(writes) == 1, "expected 1 WRITE, got %d" % len(writes)
 w = writes[0]
 assert w["io_offset"] == 0, "io_offset=%s" % w["io_offset"]
@@ -68,17 +69,25 @@ log_must zfs events -c "$ds" >/dev/null 2>&1 || true
 
 # events_io_window=2000 ms: two rapid writes coalesce to one record
 log_must zfs set events_io_window=2000 "$ds"
-log_must dd if=/dev/zero of="$mnt/io2" bs=1500 count=1 conv=notrunc
-log_must dd if=/dev/zero of="$mnt/io2" bs=1500 count=1 seek=1 conv=notrunc
+# Both writes must come from ONE open descriptor: close(2) flushes
+# the pending fence, so two dd processes would be two records.
+log_must python3 - "$mnt/io2" <<'PYWRITER'
+import os, sys
+fd = os.open(sys.argv[1], os.O_CREAT | os.O_WRONLY, 0o644)
+os.write(fd, b"x" * 1500)
+os.write(fd, b"y" * 1500)
+os.close(fd)
+PYWRITER
 zpool sync "$TESTPOOL"
 count=$(wait_records "$ds" 1) || log_fail "expected 1 coalesced record, got $count"
 json="$TMPDIR/file_events_io2.$$"
-log_must zfs events -j "$ds" >"$json"
+	zfs events -j "$ds" >"$json"
+	[[ $? -eq 0 ]] || log_fail "zfs events -j failed"
 python3 - "$json" <<'EOF'
 import json, sys
 with open(sys.argv[1]) as f:
     page = json.load(f)
-writes = [e for e in page["events"] if e["op"] == "WRITE"]
+writes = [e for e in page if e["op"] == "WRITE"]
 assert len(writes) == 1, "expected 1 coalesced WRITE, got %d" % len(writes)
 print("coalesce-ok")
 EOF
@@ -94,12 +103,13 @@ for i in 1 2 3; do
 done
 count=$(wait_records "$ds" 3) || log_fail "expected 3 records, got $count"
 json="$TMPDIR/file_events_io3.$$"
-log_must zfs events -j "$ds" >"$json"
+	zfs events -j "$ds" >"$json"
+	[[ $? -eq 0 ]] || log_fail "zfs events -j failed"
 python3 - "$json" <<'EOF'
 import json, sys
 with open(sys.argv[1]) as f:
     page = json.load(f)
-writes = [e for e in page["events"] if e["op"] == "WRITE"]
+writes = [e for e in page if e["op"] == "WRITE"]
 assert len(writes) == 3, "expected 3 WRITE, got %d" % len(writes)
 print("window0-ok")
 EOF

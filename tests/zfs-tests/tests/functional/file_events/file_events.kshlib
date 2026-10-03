@@ -24,16 +24,22 @@
 typeset -i fetest_seq=0
 
 # make_fetest_child
-# Create and mount a child filesystem $TESTPOOL/$TESTFS/fetest-N and
-# echo its name.  Events default to off; the caller enables them.
+# Create a child filesystem $TESTPOOL/$TESTFS/fetest-N (zfs create
+# auto-mounts it) and echo its name.  Events default to off; the caller
+# enables them.
+# NOTE: this function is invoked via command substitution, so it must
+# not use log_must/log_note (they write to stdout).
 function make_fetest_child
 {
 	typeset ds
 
 	((fetest_seq = fetest_seq + 1))
 	ds="$TESTPOOL/$TESTFS/fetest-$fetest_seq"
-	log_must zfs create "$ds"
-	log_must zfs mount -a
+	# Self-heal leftovers from a previously aborted run of this test.
+	if datasetexists "$ds"; then
+		zfs destroy -rf "$ds" || return 1
+	fi
+	zfs create "$ds" || return 1
 	echo "$ds"
 }
 
@@ -55,7 +61,8 @@ function count_records
 {
 	typeset ds="$1"
 
-	zfs events -n 100000 "$ds" 2>/dev/null | wc -l
+	zfs events -n 100000 "$ds" 2>/dev/null |
+	    grep -v -e '^TXG' -e '^---' -e '^no events' | wc -l
 }
 
 # wait_records <dataset> <expected> [timeout]

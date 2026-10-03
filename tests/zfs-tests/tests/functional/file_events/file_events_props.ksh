@@ -45,22 +45,27 @@ log_must zfs set events=on "$ds"
 
 typeset child="$ds/child"
 log_must zfs create "$child"
-typeset val=$(zfs get -H -o value events "$child")
+typeset val
+val="$(zfs get -H -o value events "$child")"
 [[ "$val" == "on" ]] ||
     log_fail "child inherited events=$val, expected on"
 
 log_must zfs set events_size=128K "$ds"
-val=$(zfs get -H -o value events_size "$ds")
+val="$(zfs get -H -o value events_size "$ds")"
 [[ "$val" == "128K" ]] ||
     log_fail "events_size readback $val, expected 128K"
 
 log_mustnot zfs set events_size=notanumber "$ds"
 
-# events_io requires events=on
+# events_io requires events=on.  The kernel refuses with a warning
+# (emitted to dmesg); userspace surfaces a generic set-property error,
+# so only assert the refusal, not the message text.
 log_must zfs set events=off "$ds"
-log_mustnot_expect "must be enabled" zfs set events_io=on "$ds"
+log_mustnot zfs set events_io=on "$ds"
 
-# default events=off: writes produce no records
+# default events=off: writes produce no records.  Clear first so
+# earlier on-era records cannot be miscounted.
+log_must zfs events -c "$ds"
 log_must touch "$(get_prop mountpoint "$ds")/plain"
 count=$(wait_records "$ds" 0)
 [[ "$count" -eq 0 ]] ||

@@ -23,7 +23,7 @@
 # STRATEGY:
 # 1. Set events_size=128K (~1250 records) on a child filesystem with
 #    events=on.
-# 2. Create ~2000 small files, forcing the ring past one wrap.
+# 2. Create ~6000 small files, forcing the ring past one wrap.
 # 3. Verify the human-readable `zfs events` output reports lost records
 #    ("lost to log wraparound") on stderr.
 # 4. Verify newer records are still present and the command completes
@@ -47,7 +47,7 @@ log_must zfs set events_size=128K "$ds"
 mnt=$(get_prop mountpoint "$ds")
 
 typeset -i i=0
-while ((i < 2000)); do
+while ((i < 6000)); do
 	: >"$mnt/wrapfile-$i"
 	((i = i + 1))
 done
@@ -62,7 +62,10 @@ log_must zpool sync "$TESTPOOL"
 # timeout: a wedged ring must fail the test, not hang the suite.
 typeset out="$TMPDIR/file_events_wrap.$$"
 typeset err="$TMPDIR/file_events_wrap.err.$$"
-log_must timeout 60 zfs events "$ds" >"$out" 2>"$err"
+	# Direct invocation: log_must redirects stderr to its own logfile,
+	# which would swallow the wraparound message we grep for.
+	timeout 60 zfs events "$ds" >"$out" 2>"$err"
+	[[ $? -eq 0 ]] || log_fail "zfs events failed"
 grep -q "lost to log wraparound" "$err" ||
     log_fail "no wraparound loss reported on stderr: $(cat "$err")"
 rm -f "$out" "$err"
@@ -70,14 +73,18 @@ rm -f "$out" "$err"
 # The ring must still hold recent records: the last file we created
 # must appear in the JSON page.
 json="$TMPDIR/file_events_wrap.json.$$"
-log_must timeout 60 zfs events -j "$ds" >"$json"
-grep -q "wrapfile-1999" "$json" ||
+	timeout 60 zfs events -j "$ds" >"$json"
+	[[ $? -eq 0 ]] || log_fail "zfs events -j failed"
+grep -q "wrapfile-5999" "$json" ||
     log_fail "recent record missing after wraparound"
 python3 - "$json" <<'EOF'
 import json, sys
 with open(sys.argv[1]) as f:
     page = json.load(f)
-assert page.get("records_lost", 0) > 0, "records_lost not reported"
+# CLI JSON carries records only, not the lost counter (checked on
+# stderr above); assert the visible window is bounded post-wrap.
+assert isinstance(page, list) and 0 < len(page) < 2000, \
+    "record count out of bounds after wrap: %d" % len(page)
 print("lost-ok")
 EOF
 [[ $? -eq 0 ]] || log_fail "records_lost page key missing"

@@ -60,8 +60,9 @@ log_must mkdir -p "$wd"
 # openzfs-2.4 has no events token; the trailing newline is required
 # because the loader NULs the last byte of the file.
 typeset compatfile="$wd/no-events"
+# The shipped files already end in a newline (required by the
+# loader, which NULs the last byte); do NOT append another.
 log_must cp "$COMPAT_SRC" "$compatfile"
-log_must printf '\n' >>"$compatfile"
 
 typeset -r img1="$wd/compat.img"
 typeset -r img2="$wd/compat-off.img"
@@ -99,7 +100,7 @@ function verify_accept
 log_must zpool create -f -o compatibility="$compatfile" "$pool1" "$img1"
 log_must zfs create "$ds1"
 verify_refusal
-log_must zfs get -H -o value compatibility "$pool1" >"$wd/compat.val"
+log_must zpool get -H -o value compatibility "$pool1" >"$wd/compat.val"
 grep -q "no-events" "$wd/compat.val" ||
     log_fail "compatibility readback: $(cat "$wd/compat.val")"
 
