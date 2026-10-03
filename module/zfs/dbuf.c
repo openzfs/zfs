@@ -1746,6 +1746,49 @@ dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
 	}
 }
 
+/*
+ * Fast path for a partial read of a block that is in the ARC but has no buffer
+ * of its own in this dbuf yet.  On success the caller gets a zero-copy ABD
+ * reference to [off, off + len) of the block, which it must release with
+ * arc_rele_abd_range().
+ *
+ * Nothing is cached in the dbuf, so this only helps when the dbuf cache is
+ * missing anyway - which is exactly when the full-record copy done by
+ * dbuf_read() -> arc_buf_alloc_impl() dominates the cost of a small read.
+ */
+boolean_t
+dbuf_hold_arc_range(dmu_buf_impl_t *db, uint64_t off, uint64_t len,
+    abd_t **viewp, arc_buf_hdr_t **hdrp, const void *tag)
+{
+	blkptr_t *bp, bp_copy;
+	db_lock_type_t dblt;
+	boolean_t have_bp = B_FALSE;
+
+	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
+
+	if (db->db_level != 0 || db->db_blkid == DMU_BONUS_BLKID)
+		return (B_FALSE);
+
+	mutex_enter(&db->db_mtx);
+	if (db->db_state != DB_UNCACHED || db->db_dirtycnt != 0) {
+		mutex_exit(&db->db_mtx);
+		return (B_FALSE);
+	}
+	dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
+	if (dmu_buf_get_bp_from_dbuf(db, &bp) == 0 && bp != NULL) {
+		bp_copy = *bp;
+		have_bp = B_TRUE;
+	}
+	dmu_buf_unlock_parent(db, dblt, FTAG);
+	mutex_exit(&db->db_mtx);
+
+	if (!have_bp)
+		return (B_FALSE);
+
+	return (arc_hold_abd_range(db->db_objset->os_spa, &bp_copy, off, len,
+	    viewp, hdrp, tag));
+}
+
 int
 dbuf_read(dmu_buf_impl_t *db, zio_t *pio, dmu_flags_t flags)
 {
