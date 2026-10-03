@@ -45,7 +45,7 @@ function cleanup
 log_onexit cleanup
 
 FILEDEV="$TEST_BASE_DIR/userspace_encrypted"
-POOLNAME="testpool$$"
+POOLNAME="testpool_userspace_send_encrypted"
 ENC_SOURCE="$POOLNAME/source"
 ENC_TARGET="$POOLNAME/target"
 
