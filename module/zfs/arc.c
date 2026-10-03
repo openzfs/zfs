@@ -2175,10 +2175,44 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 			abd_t dabd;
 			abd_get_from_buf_struct(&dabd, buf->b_data,
 			    HDR_GET_LSIZE(hdr));
-			error = zio_decompress_data(HDR_GET_COMPRESS(hdr),
-			    hdr->b_l1hdr.b_pabd, &dabd,
-			    HDR_GET_PSIZE(hdr), HDR_GET_LSIZE(hdr),
-			    &hdr->b_complevel);
+
+			int ret = ZIA_FALLBACK;
+			zia_props_t *zia_props = zia_get_props(spa);
+			if ((zia_props->decompress == 1) &&
+			    (hdr->b_can_offload == B_TRUE)) {
+				ret = zia_decompress(zia_props,
+				    HDR_GET_COMPRESS(hdr),
+				    hdr->b_l1hdr.b_pabd, HDR_GET_PSIZE(hdr),
+				    &dabd, HDR_GET_LSIZE(hdr),
+				    &hdr->b_complevel);
+			}
+
+			if (ret == ZIA_OK) {
+				ASSERT(zia_is_offloaded(
+				    hdr->b_l1hdr.b_pabd) == B_TRUE);
+				ret = zia_onload_abd(&dabd,
+				    HDR_GET_LSIZE(hdr), B_FALSE);
+			}
+
+			ASSERT(zia_is_offloaded(&dabd) != B_TRUE);
+
+			if (ret == ZIA_OK) {
+				error = 0;
+			} else {
+				if (ret == ZIA_ACCELERATOR_DOWN) {
+					mutex_enter(&spa->spa_props_lock);
+					zia_props->can_offload = B_FALSE;
+					mutex_exit(&spa->spa_props_lock);
+
+					hdr->b_can_offload = B_FALSE;
+				}
+
+				error = zio_decompress_data(
+				    HDR_GET_COMPRESS(hdr),
+				    hdr->b_l1hdr.b_pabd, &dabd,
+				    HDR_GET_PSIZE(hdr), HDR_GET_LSIZE(hdr),
+				    &hdr->b_complevel);
+			}
 			abd_free(&dabd);
 
 			/*
@@ -3307,7 +3341,7 @@ arc_hdr_free_abd(arc_buf_hdr_t *hdr, boolean_t free_rdata)
 static arc_buf_hdr_t *
 arc_hdr_alloc(uint64_t spa, int32_t psize, int32_t lsize,
     boolean_t protected, enum zio_compress compression_type, uint8_t complevel,
-    arc_buf_contents_t type)
+    arc_buf_contents_t type, boolean_t can_offload)
 {
 	arc_buf_hdr_t *hdr;
 
@@ -3326,6 +3360,7 @@ arc_hdr_alloc(uint64_t spa, int32_t psize, int32_t lsize,
 	arc_hdr_set_flags(hdr, arc_bufc_to_flags(type) | ARC_FLAG_HAS_L1HDR);
 	arc_hdr_set_compress(hdr, compression_type);
 	hdr->b_complevel = complevel;
+	hdr->b_can_offload = can_offload;
 	if (protected)
 		arc_hdr_set_flags(hdr, ARC_FLAG_PROTECTED);
 
@@ -3490,7 +3525,8 @@ arc_alloc_buf(spa_t *spa, const void *tag, arc_buf_contents_t type,
     int32_t size)
 {
 	arc_buf_hdr_t *hdr = arc_hdr_alloc(spa_load_guid(spa), size, size,
-	    B_FALSE, ZIO_COMPRESS_OFF, 0, type);
+	    B_FALSE, ZIO_COMPRESS_OFF, 0, type,
+	    zia_get_props(spa)->can_offload);
 
 	arc_buf_t *buf = NULL;
 	VERIFY0(arc_buf_alloc_impl(hdr, spa, NULL, tag, B_FALSE, B_FALSE,
@@ -3514,7 +3550,8 @@ arc_alloc_compressed_buf(spa_t *spa, const void *tag, uint64_t psize,
 	ASSERT3U(compression_type, <, ZIO_COMPRESS_FUNCTIONS);
 
 	arc_buf_hdr_t *hdr = arc_hdr_alloc(spa_load_guid(spa), psize, lsize,
-	    B_FALSE, compression_type, complevel, ARC_BUFC_DATA);
+	    B_FALSE, compression_type, complevel, ARC_BUFC_DATA,
+	    zia_get_props(spa)->can_offload);
 
 	arc_buf_t *buf = NULL;
 	VERIFY0(arc_buf_alloc_impl(hdr, spa, NULL, tag, B_FALSE,
@@ -3548,7 +3585,8 @@ arc_alloc_raw_buf(spa_t *spa, const void *tag, uint64_t dsobj,
 	ASSERT3U(compression_type, <, ZIO_COMPRESS_FUNCTIONS);
 
 	hdr = arc_hdr_alloc(spa_load_guid(spa), psize, lsize, B_TRUE,
-	    compression_type, complevel, type);
+	    compression_type, complevel, type,
+	    zia_get_props(spa)->can_offload);
 
 	hdr->b_crypt_hdr.b_dsobj = dsobj;
 	hdr->b_crypt_hdr.b_ot = ot;
@@ -6155,7 +6193,8 @@ top:
 			 */
 			arc_buf_hdr_t *exists = NULL;
 			hdr = arc_hdr_alloc(guid, psize, lsize,
-			    BP_IS_PROTECTED(bp), BP_GET_COMPRESS(bp), 0, type);
+			    BP_IS_PROTECTED(bp), BP_GET_COMPRESS(bp), 0, type,
+			    zia_get_props(spa)->can_offload);
 
 			if (!embedded_bp) {
 				hdr->b_dva = *BP_IDENTITY(bp);
@@ -6787,7 +6826,7 @@ arc_release(arc_buf_t *buf, const void *tag)
 		mutex_exit(hash_lock);
 
 		nhdr = arc_hdr_alloc(spa, psize, lsize, protected, compress,
-		    complevel, type);
+		    complevel, type, hdr->b_can_offload);
 		ASSERT0P(nhdr->b_l1hdr.b_buf);
 		ASSERT0(zfs_refcount_count(&nhdr->b_l1hdr.b_refcnt));
 		VERIFY3U(nhdr->b_type, ==, type);
