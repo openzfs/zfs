@@ -86,8 +86,8 @@ macos_zfs_LDFLAGS = \
 	-lcc_kext
 
 if TARGET_CPU_AARCH64
-macos_zfs_CPPFLAGS+=-arch arm64e -arch x86_64
-macos_zfs_LDFLAGS+=-arch arm64e -arch x86_64
+macos_zfs_CPPFLAGS+=-arch arm64e
+macos_zfs_LDFLAGS+=-arch arm64e
 zfs_ASM_SOURCES_C = \
 	%D%/../../icp/asm-aarch64/aes/aesv8-armx.S \
 	%D%/../../icp/asm-aarch64/aes/ghashv8-armx.S \
