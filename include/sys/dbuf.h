@@ -429,6 +429,7 @@ int dbuf_dnode_findbp(dnode_t *dn, uint64_t level, uint64_t blkid,
 void dbuf_init(void);
 void dbuf_fini(void);
 void dbuf_cache_reduce_target_size(void);
+void dbuf_cache_adjust_tick(boolean_t no_grow, uint64_t arc_max);
 
 boolean_t dbuf_is_metadata(dmu_buf_impl_t *db);
 
