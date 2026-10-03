@@ -5204,7 +5204,7 @@ zfs_ioc_clear_events(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
  */
 static const zfs_ioc_key_t zfs_keys_set_principal[] = {
 	{"principal",	DATA_TYPE_UINT64,	ZK_OPTIONAL},
-	{"clear",	DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
+	{"clear",	DATA_TYPE_BOOLEAN_VALUE,	ZK_OPTIONAL},
 };
 
 static int
