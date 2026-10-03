@@ -30,6 +30,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
+#include <fcntl.h>
 
 #define MUNIT_VERSION(major, minor, revision)                                  \
   (((major) << 16) | ((minor) << 8) | (revision))

@@ -18,15 +18,10 @@
 #define	_SYS_ASM_LINKAGE_H
 
 #if defined(__i386) || defined(__amd64)
-
 #include <sys/ia32/asm_linkage.h>	/* XX64	x86/sys/asm_linkage.h */
-
 #endif
 
 #define	FRAME_BEGIN
 #define	FRAME_END
-
-#endif
-
 
 #endif	/* _SYS_ASM_LINKAGE_H */

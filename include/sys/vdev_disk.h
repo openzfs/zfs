@@ -33,5 +33,8 @@
 
 #ifdef _KERNEL
 #include <sys/vdev.h>
+
+extern int vdev_disk_init(void);
+extern void vdev_disk_fini(void);
 #endif /* _KERNEL */
 #endif /* _SYS_VDEV_DISK_H */

@@ -184,7 +184,7 @@ ENTRY_ALIGN(zfs_sha512_transform_x64, 16)
 	movq	%rdx,128+16(%rsp)
 	movq	%rax,152(%rsp)
 .cfi_escape	0x0f,0x06,0x77,0x98,0x01,0x06,0x23,0x08
-.Lprologue:
+LOCAL_LABEL(prologue):
 	movq	0(%rdi),%rax
 	movq	8(%rdi),%rbx
 	movq	16(%rdi),%rcx
@@ -193,9 +193,9 @@ ENTRY_ALIGN(zfs_sha512_transform_x64, 16)
 	movq	40(%rdi),%r9
 	movq	48(%rdi),%r10
 	movq	56(%rdi),%r11
-	jmp	.Lloop
+	jmp	LOCAL_LABEL(loop)
 .balign	16
-.Lloop:
+LOCAL_LABEL(loop):
 	movq	%rbx,%rdi
 	leaq	K512(%rip),%rbp
 	xorq	%rcx,%rdi
@@ -710,9 +710,9 @@ ENTRY_ALIGN(zfs_sha512_transform_x64, 16)
 	addq	%r12,%r8
 	addq	%r12,%rax
 	leaq	24(%rbp),%rbp
-	jmp	.Lrounds_16_xx
+	jmp	LOCAL_LABEL(rounds_16_xx)
 .balign	16
-.Lrounds_16_xx:
+LOCAL_LABEL(rounds_16_xx):
 	movq	8(%rsp),%r13
 	movq	112(%rsp),%r15
 	movq	%r13,%r12
@@ -1466,7 +1466,7 @@ ENTRY_ALIGN(zfs_sha512_transform_x64, 16)
 	addq	%r12,%rax
 	leaq	24(%rbp),%rbp
 	cmpb	$0,7(%rbp)
-	jnz	.Lrounds_16_xx
+	jnz	LOCAL_LABEL(rounds_16_xx)
 	movq	128+0(%rsp),%rdi
 	addq	%r14,%rax
 	leaq	128(%rsi),%rsi
@@ -1487,7 +1487,7 @@ ENTRY_ALIGN(zfs_sha512_transform_x64, 16)
 	movq	%r9,40(%rdi)
 	movq	%r10,48(%rdi)
 	movq	%r11,56(%rdi)
-	jb	.Lloop
+	jb	LOCAL_LABEL(loop)
 	movq	152(%rsp),%rsi
 .cfi_def_cfa	%rsi,8
 	movq	-48(%rsi),%r15
@@ -1504,7 +1504,7 @@ ENTRY_ALIGN(zfs_sha512_transform_x64, 16)
 .cfi_restore	%rbx
 	leaq	(%rsi),%rsp
 .cfi_def_cfa_register	%rsp
-.Lepilogue:
+LOCAL_LABEL(epilogue):
 	RET
 .cfi_endproc
 SET_SIZE(zfs_sha512_transform_x64)
@@ -1536,7 +1536,7 @@ ENTRY_ALIGN(zfs_sha512_transform_avx, 64)
 	movq	%rdx,128+16(%rsp)
 	movq	%rax,152(%rsp)
 .cfi_escape	0x0f,0x06,0x77,0x98,0x01,0x06,0x23,0x08
-.Lprologue_avx:
+LOCAL_LABEL(prologue_avx):
 
 	vzeroupper
 	movq	0(%rdi),%rax
@@ -1547,9 +1547,9 @@ ENTRY_ALIGN(zfs_sha512_transform_avx, 64)
 	movq	40(%rdi),%r9
 	movq	48(%rdi),%r10
 	movq	56(%rdi),%r11
-	jmp	.Lloop_avx
+	jmp	LOCAL_LABEL(loop_avx)
 .balign	16
-.Lloop_avx:
+LOCAL_LABEL(loop_avx):
 	vmovdqa	K512+1280(%rip),%xmm11
 	vmovdqu	0(%rsi),%xmm0
 	leaq	K512+128(%rip),%rbp
@@ -1588,10 +1588,10 @@ ENTRY_ALIGN(zfs_sha512_transform_avx, 64)
 	xorq	%rcx,%rdi
 	vmovdqa	%xmm11,112(%rsp)
 	movq	%r8,%r13
-	jmp	.Lavx_00_47
+	jmp	LOCAL_LABEL(avx_00_47)
 
 .balign	16
-.Lavx_00_47:
+LOCAL_LABEL(avx_00_47):
 	addq	$256,%rbp
 	vpalignr	$8,%xmm0,%xmm1,%xmm8
 	shrdq	$23,%r13,%r13
@@ -2210,7 +2210,7 @@ ENTRY_ALIGN(zfs_sha512_transform_avx, 64)
 	addq	%rax,%r14
 	vmovdqa	%xmm10,112(%rsp)
 	cmpb	$0,135(%rbp)
-	jne	.Lavx_00_47
+	jne	LOCAL_LABEL(avx_00_47)
 	shrdq	$23,%r13,%r13
 	movq	%r14,%rax
 	movq	%r9,%r12
@@ -2650,7 +2650,7 @@ ENTRY_ALIGN(zfs_sha512_transform_avx, 64)
 	movq	%r9,40(%rdi)
 	movq	%r10,48(%rdi)
 	movq	%r11,56(%rdi)
-	jb	.Lloop_avx
+	jb	LOCAL_LABEL(loop_avx)
 
 	movq	152(%rsp),%rsi
 .cfi_def_cfa	%rsi,8
@@ -2669,7 +2669,7 @@ ENTRY_ALIGN(zfs_sha512_transform_avx, 64)
 .cfi_restore	%rbx
 	leaq	(%rsi),%rsp
 .cfi_def_cfa_register	%rsp
-.Lepilogue_avx:
+LOCAL_LABEL(epilogue_avx):
 	RET
 .cfi_endproc
 SET_SIZE(zfs_sha512_transform_avx)
@@ -2702,7 +2702,7 @@ ENTRY_ALIGN(zfs_sha512_transform_avx2, 64)
 	movq	%rdx,128+16(%rsp)
 	movq	%rax,152(%rsp)
 .cfi_escape	0x0f,0x06,0x77,0x98,0x01,0x06,0x23,0x08
-.Lprologue_avx2:
+LOCAL_LABEL(prologue_avx2):
 
 	vzeroupper
 	subq	$-128,%rsi
@@ -2717,9 +2717,9 @@ ENTRY_ALIGN(zfs_sha512_transform_avx2, 64)
 	movq	40(%rdi),%r9
 	movq	48(%rdi),%r10
 	movq	56(%rdi),%r11
-	jmp	.Loop_avx2
+	jmp	LOCAL_LABEL(oop_avx2)
 .balign	16
-.Loop_avx2:
+LOCAL_LABEL(oop_avx2):
 	vmovdqu	-128(%rsi),%xmm0
 	vmovdqu	-128+16(%rsi),%xmm1
 	vmovdqu	-128+32(%rsi),%xmm2
@@ -2778,10 +2778,10 @@ ENTRY_ALIGN(zfs_sha512_transform_avx2, 64)
 	vmovdqa	%ymm11,96(%rsp)
 	movq	%r9,%r12
 	addq	$32*8,%rbp
-	jmp	.Lavx2_00_47
+	jmp	LOCAL_LABEL(avx2_00_47)
 
 .balign	16
-.Lavx2_00_47:
+LOCAL_LABEL(avx2_00_47):
 	leaq	-128(%rsp),%rsp
 .cfi_escape	0x0f,0x06,0x77,0xf8,0x00,0x06,0x23,0x08
 
@@ -3382,7 +3382,7 @@ ENTRY_ALIGN(zfs_sha512_transform_avx2, 64)
 	vmovdqa	%ymm10,96(%rsp)
 	leaq	256(%rbp),%rbp
 	cmpb	$0,-121(%rbp)
-	jne	.Lavx2_00_47
+	jne	LOCAL_LABEL(avx2_00_47)
 	addq	0+128(%rsp),%r11
 	andq	%r8,%r12
 	rorxq	$41,%r8,%r13
@@ -3791,15 +3791,15 @@ ENTRY_ALIGN(zfs_sha512_transform_avx2, 64)
 	movq	%r11,56(%rdi)
 
 	cmpq	144(%rbp),%rsi
-	je	.Ldone_avx2
+	je	LOCAL_LABEL(done_avx2)
 
 	xorq	%r14,%r14
 	movq	%rbx,%rdi
 	xorq	%rcx,%rdi
 	movq	%r9,%r12
-	jmp	.Lower_avx2
+	jmp	LOCAL_LABEL(ower_avx2)
 .balign	16
-.Lower_avx2:
+LOCAL_LABEL(ower_avx2):
 	addq	0+16(%rbp),%r11
 	andq	%r8,%r12
 	rorxq	$41,%r8,%r13
@@ -3994,7 +3994,7 @@ ENTRY_ALIGN(zfs_sha512_transform_avx2, 64)
 	movq	%r9,%r12
 	leaq	-128(%rbp),%rbp
 	cmpq	%rsp,%rbp
-	jae	.Lower_avx2
+	jae	LOCAL_LABEL(ower_avx2)
 
 	movq	1280(%rsp),%rdi
 	addq	%r14,%rax
@@ -4025,12 +4025,12 @@ ENTRY_ALIGN(zfs_sha512_transform_avx2, 64)
 	movq	%r10,48(%rdi)
 	movq	%r11,56(%rdi)
 
-	jbe	.Loop_avx2
+	jbe	LOCAL_LABEL(oop_avx2)
 	leaq	(%rsp),%rbp
 
 .cfi_escape	0x0f,0x06,0x76,0x98,0x01,0x06,0x23,0x08
 
-.Ldone_avx2:
+LOCAL_LABEL(done_avx2):
 	movq	152(%rbp),%rsi
 .cfi_def_cfa	%rsi,8
 	vzeroupper
@@ -4048,7 +4048,7 @@ ENTRY_ALIGN(zfs_sha512_transform_avx2, 64)
 .cfi_restore	%rbx
 	leaq	(%rsi),%rsp
 .cfi_def_cfa_register	%rsp
-.Lepilogue_avx2:
+LOCAL_LABEL(epilogue_avx2):
 	RET
 .cfi_endproc
 SET_SIZE(zfs_sha512_transform_avx2)

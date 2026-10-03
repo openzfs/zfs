@@ -13,3 +13,7 @@ endif
 if PAM_ZFS_ENABLED
 include $(srcdir)/%D%/pam_zfs_key/Makefile.am
 endif
+
+if BUILD_MACOS
+include $(srcdir)/%D%/macOS/Makefile.am
+endif

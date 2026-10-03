@@ -94,7 +94,7 @@ gcm_mul_pclmulqdq(uint64_t *x_in, uint64_t *y, uint64_t *res) {
 //	 15, 14, 13, 12, 11, 10, 9, 8, 7, 6 ,5, 4, 3, 2, 1, 0 };
 SECTION_STATIC
 .balign XMM_ALIGN
-.Lbyte_swap16_mask:
+LOCAL_LABEL(byte_swap16_mask):
 	.byte	15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
 
 
@@ -140,7 +140,7 @@ ENTRY_NP(gcm_mul_pclmulqdq)
 	//
 	// Byte swap 16-byte input
 	//
-	lea	.Lbyte_swap16_mask(%rip), %rax
+	lea	LOCAL_LABEL(byte_swap16_mask)(%rip), %rax
 	movups	(%rax), %xmm10
 	pshufb	%xmm10, %xmm0
 	pshufb	%xmm10, %xmm1

@@ -24,6 +24,13 @@ libzfs_core_la_SOURCES += \
 	%D%/os/freebsd/libzfs_core_ioctl.c
 endif
 
+if BUILD_MACOS
+libzfs_core_la_CPPFLAGS += -I$(top_srcdir)/include/os/macos/zfs
+
+libzfs_core_la_SOURCES += \
+        %D%/os/macos/libzfs_core_ioctl.c
+endif
+
 libzfs_core_la_LIBADD = \
 	libnvpair.la \
 	libspl.la
@@ -32,8 +39,10 @@ libzfs_core_la_LIBADD += $(LTLIBINTL)
 
 libzfs_core_la_LDFLAGS = -version-info 3:0:0
 
+if !BUILD_MACOS
 if !ASAN_ENABLED
 libzfs_core_la_LDFLAGS += -Wl,-z,defs
+endif
 endif
 
 if BUILD_FREEBSD

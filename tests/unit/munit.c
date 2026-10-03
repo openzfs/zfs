@@ -64,6 +64,14 @@
 
 /*** End configuration ***/
 
+/* OpenZFS/macOS: _POSIX_C_SOURCE hides BSD extensions (strlcpy, openat,
+ * clock_gettime, F_GETPATH, ...) that our SPL shim headers depend on.
+ * Define _DARWIN_C_SOURCE first so __DARWIN_C_LEVEL stays at FULL even
+ * after _POSIX_C_SOURCE is set below. */
+#if defined(__APPLE__) && !defined(_DARWIN_C_SOURCE)
+#  define _DARWIN_C_SOURCE
+#endif
+
 #if defined(_POSIX_C_SOURCE) && (_POSIX_C_SOURCE < 200809L)
 #  undef _POSIX_C_SOURCE
 #endif

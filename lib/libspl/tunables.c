@@ -12,6 +12,7 @@
 
 /*
  * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
+ * Copyright (c) 2026, Jorgen Lundman <lundman@lundman.net>
  */
 
 #include <stddef.h>
@@ -54,8 +55,64 @@
  * actual C variable that the tunable describes.
  */
 
-extern const zfs_tunable_t *__start_zfs_tunables;
-extern const zfs_tunable_t *__stop_zfs_tunables;
+/*
+ * In the interest of making this more portable, let's wrap it in
+ * some API macros. There are a few to pick from, but I went with
+ * illumos/Solaris style, as it is already familiar to OpenZFS.
+ *
+ * A loop typically looks like:
+ *
+ * // The iterator
+ *  ztunable_t **ztp = NULL;
+ *
+ *  SET_DECLARE(zfs_tunables, const zfs_tunable_t);
+ *  // This produces the externs (they do this in inner scope)
+ * "extern const zfs_tunable_t *__start_zfs_tunables;"
+ * "extern const zfs_tunable_t *__stop_zfs_tunables;"
+ *
+ *  // Start looping
+ *  SET_FOREACH(ztp, zfs_tunables) { // Loop for all elements
+ *   const zfs_tunable_t *zt = *ztp; // ** vs [] really?
+ *   ...
+ *  }
+ *
+ * That way I can hide non-EFI-platform work of macOS and Windows.
+ *
+ * I would argue we should add os/sys/linker_set.h like illumos
+ * (and macOS/Windows already has for kernel) and move the macros
+ * in there, but without Upstream's involvement, it is busywork.
+ *
+ * We should consider adding __attribute__((retain)) to the
+ * ZFS_MODULE_PARAM macro if upstream's clang are new enough.
+ *
+ */
+
+#ifdef __APPLE__
+
+#include <mach-o/getsect.h>
+
+/* Mach-O requires Segment,Section. We'll split the input 'set' */
+/* Note: zfs_tunables must match the section name in ZFS_TUNABLE_SECTION */
+
+#define	SET_DECLARE(set, type) \
+	extern type *__start_##set __asm("section$start$__DATA_CONST$" #set); \
+	extern type *__stop_##set  __asm("section$end$__DATA_CONST$" #set)
+
+#define	SET_FOREACH(pvar, set) \
+	for ((pvar) = &__start_##set; \
+	    (pvar) < &__stop_##set; (pvar)++)
+
+#else
+
+#define	SET_DECLARE(set, type) \
+	extern type *__start_##set; \
+    extern type *__stop_##set
+
+#define	SET_FOREACH(pvar, set) \
+	for ((pvar) = &__start_##set; \
+	    (pvar) != &__stop_##set; (pvar)++)
+
+#endif
 
 /*
  * Because there are no tunables in libspl itself, the above symbols will not
@@ -64,7 +121,7 @@ extern const zfs_tunable_t *__stop_zfs_tunables;
  * any NULL pointers.
  */
 static void *__zfs_tunable__placeholder
-	__attribute__((__section__("zfs_tunables")))
+	__attribute__((__section__(ZFS_TUNABLE_SECTION)))
 	__attribute__((__used__)) = NULL;
 
 /*
@@ -75,8 +132,10 @@ static void *__zfs_tunable__placeholder
 const zfs_tunable_t *
 zfs_tunable_lookup(const char *name)
 {
-	for (const zfs_tunable_t **ztp = &__start_zfs_tunables;
-	    ztp != &__stop_zfs_tunables; ztp++) {
+	const zfs_tunable_t **ztp = NULL;
+	SET_DECLARE(zfs_tunables, const zfs_tunable_t);
+
+	SET_FOREACH(ztp, zfs_tunables) {
 		const zfs_tunable_t *zt = *ztp;
 		if (zt == NULL)
 			continue;
@@ -87,14 +146,19 @@ zfs_tunable_lookup(const char *name)
 	return (NULL);
 }
 
+
+/* upstream ELF loop */
+
 /*
  * Like zfs_tunable_lookup, but call the provided callback for each tunable.
  */
 void
 zfs_tunable_iter(zfs_tunable_iter_t cb, void *arg)
 {
-	for (const zfs_tunable_t **ztp = &__start_zfs_tunables;
-	    ztp != &__stop_zfs_tunables; ztp++) {
+	const zfs_tunable_t **ztp = NULL;
+	SET_DECLARE(zfs_tunables, const zfs_tunable_t);
+
+	SET_FOREACH(ztp, zfs_tunables) {
 		const zfs_tunable_t *zt = *ztp;
 		if (zt == NULL)
 			continue;
