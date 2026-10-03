@@ -815,7 +815,6 @@ db_check_layout(zmetad_db_t *db)
 			v = (v < 7) ? 7 : v;
 		}
 	}
-	}
 
 	/*
 	 * Version 7 -> 8: events gains principal, the opaque

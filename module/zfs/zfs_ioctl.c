@@ -584,6 +584,9 @@ zfs_secpolicy_zoned_uid_deleg(const char *name, const char *perm, cred_t *cr)
 	if (error == ECANCELED)
 		return (SET_ERROR(EPERM));
 	return (error);
+}
+
+/*
  * Policy for clearing a dataset's event log: a destructive operation,
  * so it requires the same write-class permission as setting the
  * events property (root in the global zone, or the delegated "events"
@@ -5270,7 +5273,6 @@ zfs_ioc_channel_program(const char *poolname, nvlist_t *innvl,
 	return (zcp_eval(poolname, program, sync_flag, instrlimit, memlimit,
 	    nvarg, outnvl));
 }
-#endif
 
 /*
  * innvl: unused

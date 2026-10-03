@@ -127,16 +127,16 @@ int zmetad_db_set_last_offset(zmetad_db_t *db, const char *dataset,
 
 /*
  * Stored records_lost baseline for a dataset.  Returns 0 and writes
- * *lostp when a non-NULL value is stored.  ENOENT means no baseline
- * yet (no row, or a pre-v6 NULL): the first observation must not
- * invent a gap.
+ * *havep = B_TRUE with *lostp when a non-NULL value is stored;
+ * *havep = B_FALSE and ENOENT mean no baseline yet (no row, or a
+ * pre-v6 NULL): the first observation must not invent a gap.
  */
 int zmetad_db_get_last_lost(zmetad_db_t *db, const char *dataset,
-    uint64_t *lostp);
+    boolean_t *havep, uint64_t *lostp);
 
-/* Persist the records_lost baseline.  Does not move last_offset. */
+/* Persist the records_lost baseline (or clear it with B_FALSE). */
 int zmetad_db_set_last_lost(zmetad_db_t *db, const char *dataset,
-    uint64_t last_lost);
+    boolean_t have, uint64_t last_lost);
 
 /*
  * Per-dataset purge epoch: bumped by every successful

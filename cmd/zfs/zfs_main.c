@@ -8233,6 +8233,10 @@ zfs_event_op_name(uint16_t op)
 		return ("READ");
 	default:
 		return ("UNKNOWN");
+	}
+}
+
+/*
  * Recursively gather "<dataset>#bookname" -> "<dataset>@snapname" pairs for
  * every descendant that actually has the source snapshot, mirroring the way
  * "zfs snapshot -r" collects its targets.  Descendants that lack the snapshot

@@ -955,42 +955,21 @@ zpl_events_iterate(struct file *filp, struct dir_context *ctx)
 	return (0);
 }
 
-static int
-#ifdef HAVE_USERNS_IOPS_GETATTR
-zpl_events_getattr_impl(struct user_namespace *user_ns,
-    const struct path *path, struct kstat *stat, u32 request_mask,
-    unsigned int query_flags)
-#elif defined(HAVE_IDMAP_IOPS_GETATTR)
-zpl_events_getattr_impl(struct mnt_idmap *user_ns,
-    const struct path *path, struct kstat *stat, u32 request_mask,
-    unsigned int query_flags)
-#else
-zpl_events_getattr_impl(const struct path *path, struct kstat *stat,
-    u32 request_mask, unsigned int query_flags)
-#endif
+/*
+ * Get '.zfs/events' directory attributes.
+ */
+ZPL_IDMAP_IOP_DEFINE(int, zpl_events_getattr, 4,
+    const struct path *, path, struct kstat *, stat, u32, request_mask,
+    unsigned int, query_flags)
 {
-	(void) request_mask, (void) query_flags;
+	(void) query_flags;
 	struct inode *ip = path->dentry->d_inode;
 
-#if (defined(HAVE_USERNS_IOPS_GETATTR) || defined(HAVE_IDMAP_IOPS_GETATTR))
-#ifdef HAVE_GENERIC_FILLATTR_USERNS
-	generic_fillattr(user_ns, ip, stat);
-#elif defined(HAVE_GENERIC_FILLATTR_IDMAP)
-	generic_fillattr(user_ns, ip, stat);
-#elif defined(HAVE_GENERIC_FILLATTR_IDMAP_REQMASK)
-	generic_fillattr(user_ns, request_mask, ip, stat);
-#else
-	(void) user_ns;
-	generic_fillattr(ip, stat);
-#endif
-#else
-	generic_fillattr(ip, stat);
-#endif
+	zpl_generic_fillattr(idmap, request_mask, ip, stat);
 	stat->atime = current_time(ip);
 
 	return (0);
 }
-ZPL_GETATTR_WRAPPER(zpl_events_getattr);
 
 static struct dentry *
 zpl_events_lookup(struct inode *dip, struct dentry *dentry,

@@ -19,11 +19,12 @@ zmetad_LDADD = \
 
 zmetad_LDADD += $(LIBSQLITE3_LIBS)
 
-# These fragments are concatenated into the top-level Makefile via
-# contrib/Makefile.am. Each primary must be initialized with "=" at
-# its first use (automake rejects a += before any =), so the first
-# assignment here anchors it and later fragments may extend it with +=.
-noinst_PROGRAMS = zmetad_schema_test
+# check_PROGRAMS, not noinst_PROGRAMS: the concatenated top-level
+# Makefile also defines noinst_PROGRAMS (upstream tests/unit framework,
+# under CONFIG_USER), and automake cannot merge a primary across
+# differing conditions. check_PROGRAMS is unused elsewhere; it still
+# builds the binary for "make check" and TESTS below still runs it.
+check_PROGRAMS = zmetad_schema_test
 
 zmetad_schema_test_SOURCES = \
 	%D%/zmetad_schema_test.c \
