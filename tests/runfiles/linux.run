@@ -249,8 +249,62 @@ post =
 
 [tests/functional/tmpfile:Linux]
 tests = ['tmpfile_001_pos', 'tmpfile_002_pos', 'tmpfile_003_pos',
-    'tmpfile_stat_mode']
+    'tmpfile_004_pos', 'tmpfile_stat_mode']
 tags = ['functional', 'tmpfile']
+
+[tests/functional/tmpfile_crash:Linux]
+tests = ['tmpfile_crash_dirsync', 'tmpfile_crash_filesync',
+    'tmpfile_crash_small', 'tmpfile_crash_meta', 'tmpfile_crash_clone',
+    'tmpfile_crash_sparse', 'tmpfile_crash_unlinked', 'tmpfile_crash_nosync',
+    'tmpfile_crash_acl', 'tmpfile_crash_multi', 'tmpfile_crash_osync',
+    'tmpfile_crash_relink', 'tmpfile_crash_remove', 'tmpfile_crash_rename',
+    'tmpfile_crash_reuse', 'tmpfile_crash_slog', 'tmpfile_crash_syncalways',
+    'tmpfile_crash_clonemix', 'tmpfile_crash_clonerm', 'tmpfile_crash_hole',
+    'tmpfile_crash_sparsemix']
+tags = ['functional', 'tmpfile_crash']
+
+[tests/functional/tmpfile_dmlog:Linux]
+tests = ['tmpfile_dmlog_dirsync', 'tmpfile_dmlog_filesync',
+    'tmpfile_dmlog_small', 'tmpfile_dmlog_checkpoint', 'tmpfile_dmlog_meta',
+    'tmpfile_dmlog_meta_xattrdir', 'tmpfile_dmlog_meta_nosaxattr',
+    'tmpfile_dmlog_bigxattr', 'tmpfile_dmlog_clone', 'tmpfile_dmlog_sparse',
+    'tmpfile_dmlog_dense', 'tmpfile_dmlog_unlinked', 'tmpfile_dmlog_nosync',
+    'tmpfile_dmlog_zero_immediate', 'tmpfile_dmlog_noziltmpfile',
+    'tmpfile_dmlog_acl', 'tmpfile_dmlog_multi', 'tmpfile_dmlog_osync',
+    'tmpfile_dmlog_relink', 'tmpfile_dmlog_remove', 'tmpfile_dmlog_rename',
+    'tmpfile_dmlog_slog', 'tmpfile_dmlog_syncalways',
+    'tmpfile_dmlog_replay_multi', 'tmpfile_dmlog_replay_multi_ro',
+    'tmpfile_dmlog_replay_remove', 'tmpfile_dmlog_replay_reuse',
+    'tmpfile_dmlog_replay_dense', 'tmpfile_dmlog_clonemix',
+    'tmpfile_dmlog_clonerm', 'tmpfile_dmlog_hole', 'tmpfile_dmlog_sparsemix',
+    'tmpfile_dmlog_replay_clonemix', 'tmpfile_dmlog_replay_clonerm',
+    'tmpfile_dmlog_replay_sparsemix', 'tmpfile_dmlog_encrypted_meta',
+    'tmpfile_dmlog_encrypted_clonemix', 'tmpfile_dmlog_encrypted_sparsemix',
+    'tmpfile_dmlog_replay_encrypted_meta',
+    'tmpfile_dmlog_replay_encrypted_multi_ro',
+    'tmpfile_dmlog_replay_encrypted_reuse', 'tmpfile_dmlog_hugesparse',
+    'tmpfile_dmlog_racewrite', 'tmpfile_dmlog_racegrow',
+    'tmpfile_dmlog_clonesmall_indirect', 'tmpfile_dmlog_clonemix_indirect',
+    'tmpfile_dmlog_fallback', 'tmpfile_dmlog_truncfast0',
+    'tmpfile_dmlog_truncfast0_indirect', 'tmpfile_dmlog_truncfastblk',
+    'tmpfile_dmlog_truncfastblk_indirect', 'tmpfile_dmlog_truncfastmid',
+    'tmpfile_dmlog_truncfastmid_indirect', 'tmpfile_dmlog_clonefast',
+    'tmpfile_dmlog_clonefast_indirect', 'tmpfile_dmlog_clonefastmid',
+    'tmpfile_dmlog_clonefastmid_indirect', 'tmpfile_dmlog_removefast',
+    'tmpfile_dmlog_nodump', 'tmpfile_dmlog_projid',
+    'tmpfile_dmlog_dirsync_xattrdir',
+    'tmpfile_dmlog_dedupefast', 'tmpfile_dmlog_dedupefast_indirect',
+    'tmpfile_dmlog_dedupefastmid', 'tmpfile_dmlog_dedupefastmid_indirect',
+    'tmpfile_dmlog_truncevict', 'tmpfile_dmlog_truncevict_indirect',
+    'tmpfile_dmlog_cloneevict', 'tmpfile_dmlog_cloneevict_indirect',
+    'tmpfile_dmlog_truncrace', 'tmpfile_dmlog_truncrace_indirect',
+    'tmpfile_dmlog_punchfast_indirect', 'tmpfile_dmlog_punchfastrw_indirect',
+    'tmpfile_dmlog_zerofast_indirect', 'tmpfile_dmlog_zerofastrw_indirect',
+    'tmpfile_dmlog_nfsv4acl_src', 'tmpfile_dmlog_nfsv4acl_dst',
+    'tmpfile_dmlog_nfsv4acl_both', 'tmpfile_dmlog_nfsv4acl_spec',
+    'tmpfile_dmlog_nfsv4acl_mask', 'tmpfile_dmlog_ntacl',
+    'tmpfile_dmlog_posixacl', 'tmpfile_dmlog_posixumask']
+tags = ['functional', 'tmpfile_dmlog']
 
 [tests/functional/upgrade:Linux]
 tests = ['upgrade_projectquota_001_pos', 'upgrade_projectquota_002_pos']

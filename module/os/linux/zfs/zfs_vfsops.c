@@ -677,6 +677,8 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 	mutex_init(&zfsvfs->z_lock, NULL, MUTEX_DEFAULT, NULL);
 	list_create(&zfsvfs->z_all_znodes, sizeof (znode_t),
 	    offsetof(znode_t, z_link_node));
+	list_create(&zfsvfs->z_replay_tmpfiles, sizeof (znode_t),
+	    offsetof(znode_t, z_replay_node));
 	ZFS_TEARDOWN_INIT(zfsvfs);
 	rw_init(&zfsvfs->z_teardown_inactive_lock, NULL, RW_DEFAULT, NULL);
 	rw_init(&zfsvfs->z_fuid_lock, NULL, RW_DEFAULT, NULL);
@@ -736,11 +738,21 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 		    &zfsvfs->z_kstat.dk_zil_sums);
 
 		/*
+		 * Hold unnamed files that an interrupted replay created,
+		 * before the drain could free them, whenever replay will
+		 * resume, including on a read-only mount.
+		 */
+		boolean_t replay = !zil_replay_disable &&
+		    spa_writeable(dmu_objset_spa(zfsvfs->z_os));
+
+		/*
 		 * During replay we remove the read only flag to
 		 * allow replays to succeed.
 		 */
 		if (readonly != 0) {
 			readonly_changed_cb(zfsvfs, B_FALSE);
+			if (replay)
+				zfs_replay_tmpfile_adopt(zfsvfs);
 		} else {
 			zap_stats_t zs;
 			if (zap_get_stats(zfsvfs->z_os, zfsvfs->z_unlinkedobj,
@@ -751,6 +763,8 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 				    "num_entries in unlinked set: %llu",
 				    zs.zs_num_entries);
 			}
+			if (replay)
+				zfs_replay_tmpfile_adopt(zfsvfs);
 			zfs_unlinked_drain(zfsvfs);
 			dsl_dir_t *dd = zfsvfs->z_os->os_dsl_dataset->ds_dir;
 			dd->dd_activity_cancelled = B_FALSE;
@@ -792,6 +806,8 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 				    zfs_replay_vector);
 				zfsvfs->z_replay = B_FALSE;
 			}
+			/* Free unnamed files that were never published. */
+			zfs_replay_tmpfile_fini(zfsvfs);
 		}
 
 		/* restore readonly bit */
@@ -823,6 +839,7 @@ zfsvfs_free(zfsvfs_t *zfsvfs)
 	mutex_destroy(&zfsvfs->z_znodes_lock);
 	mutex_destroy(&zfsvfs->z_lock);
 	list_destroy(&zfsvfs->z_all_znodes);
+	list_destroy(&zfsvfs->z_replay_tmpfiles);
 	ZFS_TEARDOWN_DESTROY(zfsvfs);
 	rw_destroy(&zfsvfs->z_teardown_inactive_lock);
 	rw_destroy(&zfsvfs->z_fuid_lock);
@@ -1236,6 +1253,19 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 		 * We can safely check z_all_znodes for being empty because the
 		 * VFS has already blocked operations which add to it.
 		 */
+		/*
+		 * zfs_link() holds a published O_TMPFILE znode until its
+		 * TXG syncs.  Sync, and run the callbacks that queue the
+		 * releases, so that the loop below can drain them.
+		 */
+		if (unmounting &&
+		    atomic_load_64(&zfsvfs->z_publish_holds) != 0) {
+			dsl_pool_t *dp = dmu_objset_pool(zfsvfs->z_os);
+
+			txg_wait_synced(dp, 0);
+			txg_wait_callbacks(dp);
+		}
+
 		int round = 0;
 		while (!list_is_empty(&zfsvfs->z_all_znodes)) {
 			taskq_wait_outstanding(dsl_pool_zrele_taskq(

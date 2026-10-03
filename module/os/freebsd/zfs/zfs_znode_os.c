@@ -130,6 +130,7 @@ zfs_znode_cache_constructor(void *buf, void *arg, int kmflags)
 	POINTER_INVALIDATE(&zp->z_zfsvfs);
 
 	list_link_init(&zp->z_link_node);
+	list_link_init(&zp->z_replay_node);
 
 	mutex_init(&zp->z_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&zp->z_acl_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -155,6 +156,7 @@ zfs_znode_cache_destructor(void *buf, void *arg)
 	ASSERT(!POINTER_IS_VALID(zp->z_zfsvfs));
 	ASSERT0P(zp->z_vnode);
 	ASSERT(!list_link_active(&zp->z_link_node));
+	ASSERT(!list_link_active(&zp->z_replay_node));
 	mutex_destroy(&zp->z_lock);
 	mutex_destroy(&zp->z_acl_lock);
 	rw_destroy(&zp->z_xattr_lock);
@@ -438,6 +440,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 
 	zp->z_sa_hdl = NULL;
 	zp->z_unlinked = 0;
+	zp->z_replay_tmpfile = B_FALSE;
 	zp->z_atime_dirty = 0;
 	zp->z_xattr_dir_absent = B_FALSE;
 	zp->z_mapcnt = 0;
@@ -445,6 +448,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	zp->z_blksz = blksz;
 	zp->z_seq = 0x7A4653;
 	zp->z_sync_cnt = 0;
+	zp->z_publish_txg = 0;
 	atomic_store_ptr(&zp->z_cached_symlink, NULL);
 
 	zfs_znode_sa_init(zfsvfs, zp, db, obj_type, hdl);
