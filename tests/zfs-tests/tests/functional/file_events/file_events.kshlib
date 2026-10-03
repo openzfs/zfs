@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+
+#
+# Copyright (c) 2026 by Benjamin Hodgens <ben@hodgens.net>
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+#
+# Shared helpers for the file_events functional tests.
+#
+
+# Sequential child dataset counter
+typeset -i fetest_seq=0
+
+# make_fetest_child
+# Create and mount a child filesystem $TESTPOOL/$TESTFS/fetest-N and
+# echo its name.  Events default to off; the caller enables them.
+function make_fetest_child
+{
+	typeset ds
+
+	((fetest_seq = fetest_seq + 1))
+	ds="$TESTPOOL/$TESTFS/fetest-$fetest_seq"
+	log_must zfs create "$ds"
+	log_must zfs mount -a
+	echo "$ds"
+}
+
+# destroy_fetest_child <dataset>
+# Destroy a child filesystem created by make_fetest_child, tolerating
+# a missing dataset.
+function destroy_fetest_child
+{
+	typeset ds="$1"
+
+	if datasetexists "$ds"; then
+		log_must zfs destroy -rf "$ds"
+	fi
+}
+
+# count_records <dataset>
+# Echo the number of event records currently in the dataset's ring.
+function count_records
+{
+	typeset ds="$1"
+
+	zfs events -n 100000 "$ds" 2>/dev/null | wc -l
+}
+
+# wait_records <dataset> <expected> [timeout]
+# Poll until count_records reaches <expected> or <timeout> (default 15)
+# seconds elapse.  Echoes the final count; returns success only when
+# the count was reached.
+function wait_records
+{
+	typeset ds="$1"
+	typeset -i expected="$2"
+	typeset -i timeout="${3:-15}"
+	typeset -i count=0
+	typeset -i i=0
+
+	while [[ $i -lt $timeout ]]; do
+		zpool sync "$TESTPOOL"
+		count=$(count_records "$ds")
+		if [[ $count -ge $expected ]]; then
+			break
+		fi
+		((i = i + 1))
+		sleep 1
+	done
+	echo "$count"
+	[[ $count -ge $expected ]]
+}
