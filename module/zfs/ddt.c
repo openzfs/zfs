@@ -1950,13 +1950,23 @@ ddt_repair_done(ddt_t *ddt, ddt_entry_t *dde)
 	ddt_exit(ddt);
 }
 
+/*
+ * The repair zio is a null zio with no bp, so the ddt can't be recovered from
+ * it in the done callback (ddt_select() needs a bp); carry it alongside the
+ * entry, which ddt_free() needs to find the entry's size and cache.
+ */
+typedef struct ddt_repair_ctx {
+	ddt_t		*drc_ddt;
+	ddt_entry_t	*drc_rdde;
+} ddt_repair_ctx_t;
+
 static void
 ddt_repair_entry_done(zio_t *zio)
 {
-	ddt_t *ddt = ddt_select(zio->io_spa, zio->io_bp);
-	ddt_entry_t *rdde = zio->io_private;
+	ddt_repair_ctx_t *drc = zio->io_private;
 
-	ddt_free(ddt, rdde);
+	ddt_free(drc->drc_ddt, drc->drc_rdde);
+	kmem_free(drc, sizeof (ddt_repair_ctx_t));
 }
 
 static void
@@ -1964,11 +1974,16 @@ ddt_repair_entry(ddt_t *ddt, ddt_entry_t *dde, ddt_entry_t *rdde, zio_t *rio)
 {
 	ddt_key_t *ddk = &dde->dde_key;
 	ddt_key_t *rddk = &rdde->dde_key;
+	ddt_repair_ctx_t *drc;
 	zio_t *zio;
 	blkptr_t blk;
 
+	drc = kmem_alloc(sizeof (ddt_repair_ctx_t), KM_SLEEP);
+	drc->drc_ddt = ddt;
+	drc->drc_rdde = rdde;
+
 	zio = zio_null(rio, rio->io_spa, NULL,
-	    ddt_repair_entry_done, rdde, rio->io_flags);
+	    ddt_repair_entry_done, drc, rio->io_flags);
 
 	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
 		ddt_univ_phys_t *ddp = dde->dde_phys;
