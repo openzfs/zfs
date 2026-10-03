@@ -583,6 +583,8 @@ sync_cols = [r[1] for r in con.execute(
     "pragma table_info(sync_state)").fetchall()]
 if "ring_guid" not in sync_cols:
     errors.append("sync_state missing ring_guid column: %r" % (sync_cols,))
+if "last_lost" not in sync_cols:
+    errors.append("sync_state missing last_lost column: %r" % (sync_cols,))
 ev_cols = [r[1] for r in con.execute(
     "pragma table_info(events)").fetchall()]
 if "captured_at" not in ev_cols:
@@ -856,8 +858,8 @@ step_gap() {
 	# records): at window=0 (one record per write) 64MB of 4K
 	# writes emits 16384 records, more than the ring holds, so
 	# at least one wrap lands between two 3s polls.
-	"${SUDO[@]}" "$ZFS" set events_io_window=0 "$DS" ||
-		fail "gap: set events_io_window=0"
+	"${SUDO[@]}" "$ZFS" set events_io=on events_io_window=0 "$DS" ||
+		fail "gap: set events_io=on events_io_window=0"
 	mnt="$("$ZFS" get -H -o value mountpoint "$DS")"
 	"${SUDO[@]}" dd if=/dev/zero of="$mnt/gapwrap" bs=4096 \
 	    count=16384 conv=notrunc status=none ||
@@ -1302,6 +1304,8 @@ for col in ("parent", "old_parent", "target", "old_size", "attrs",
 sync_cols = [r[1] for r in con.execute("pragma table_info(sync_state)")]
 if "ring_guid" not in sync_cols:
     errors.append("sync_state missing ring_guid after migration")
+if "last_lost" not in sync_cols:
+    errors.append("sync_state missing last_lost after migration")
 tbls = [r[0] for r in con.execute(
     "select name from sqlite_master where type='table'")]
 if "objmap" not in tbls:
@@ -1713,6 +1717,7 @@ step_principal
 step_assert
 step_sigusr1
 step_gap
+step_restart_loss
 step_guid_purge
 step_migration
 step_retention
