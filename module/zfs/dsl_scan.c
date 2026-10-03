@@ -1937,6 +1937,39 @@ dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
 		    lr->lr_offset / BP_GET_LSIZE(bp));
 
 		VERIFY0(scan_funcs[scn->scn_phys.scn_func](dp, bp, &zb));
+	} else if (lrc->lrc_txtype == TX_CLONE_RANGE) {
+		zil_scan_arg_t *zsa = arg;
+		dsl_pool_t *dp = zsa->zsa_dp;
+		dsl_scan_t *scn = dp->dp_scan;
+		zil_header_t *zh = zsa->zsa_zh;
+		const lr_clone_range_t *lr = (const lr_clone_range_t *)lrc;
+		zbookmark_phys_t zb;
+
+		/*
+		 * Claiming references the cloned blocks, which may then have
+		 * no other reference until the record is replayed. They were
+		 * born before the claim and possibly in another dataset, so
+		 * only the scan's own birth range applies. An encrypted log
+		 * is parsed without decryption, which leaves all but the
+		 * block pointers of a record ciphertext; name its blocks by
+		 * the log and the record's sequence number instead.
+		 */
+		for (uint64_t i = 0; i < lr->lr_nbps; i++) {
+			const blkptr_t *bp = &lr->lr_bps[i];
+
+			if (BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp))
+				continue;
+			SET_BOOKMARK(&zb,
+			    zh->zh_log.blk_cksum.zc_word[ZIL_ZC_OBJSET],
+			    lr->lr_foid, ZB_ZIL_LEVEL,
+			    lr->lr_offset / BP_GET_LSIZE(bp) + i);
+			if (BP_IS_ENCRYPTED(&zh->zh_log)) {
+				zb.zb_object = ZB_ZIL_OBJECT;
+				zb.zb_blkid = lrc->lrc_seq;
+			}
+			VERIFY0(scan_funcs[scn->scn_phys.scn_func](dp, bp,
+			    &zb));
+		}
 	}
 	return (0);
 }
