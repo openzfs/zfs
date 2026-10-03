@@ -86,7 +86,9 @@ safe_create_thread(thread_f *body, void *body_arg, const char *name,
 {
 	pthread_t tid;
 	int ret;
+#ifndef __APPLE__
 	int name_attempts = 3;
+#endif
 
 	ret = pthread_create(&tid, NULL, body, body_arg);
 	if (ret != 0) {
