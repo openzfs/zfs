@@ -31,10 +31,7 @@ _Static_assert(sizeof (loff_t) == sizeof (off_t),
 	"loff_t and off_t must be the same size");
 #endif
 
-#ifdef __APPLE__
-ssize_t
-copy_file_range(int, loff_t *, int, loff_t *, size_t, unsigned int);
-#else
+#ifndef __APPLE__
 ssize_t
 copy_file_range(int, off_t *, int, off_t *, size_t, unsigned int)
     __attribute__((weak));

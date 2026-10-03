@@ -86,9 +86,7 @@ cf_copy_file_range(int sfd, off_t *soff, int dfd, off_t *doff,
 }
 
 #elif defined(__APPLE__)
-/* error: attribute declaration must precede definition */
-ssize_t
-copy_file_range(int, loff_t *, int, loff_t *, size_t, unsigned int);
+/* The macOS SPL unistd.h shim already provides copy_file_range(). */
 #define	cf_copy_file_range copy_file_range
 
 #else
