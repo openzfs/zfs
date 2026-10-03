@@ -28,14 +28,41 @@
 The ZFS module supports these parameters:
 .Bl -tag -width Ds
 .It Sy dbuf_cache_max_bytes Ns = Ns Sy UINT64_MAX Ns B Pq u64
-Maximum size in bytes of the dbuf cache.
+Maximum size in bytes of the level 0 dbuf cache.
 The target size is determined by the MIN versus
 .No 1/2^ Ns Sy dbuf_cache_shift Pq 1/32nd
 of the target ARC size.
+Level 0 and indirect blocks are cached separately, and each cache is measured
+against its own target, so the dbuf cache as a whole is bounded by the sum of
+the two targets.
 The behavior of the dbuf cache and its associated settings
 can be observed via the
 .Pa /proc/spl/kstat/zfs/dbufstats
 kstat.
+.
+.It Sy dbuf_cache_indirect_max_bytes Ns = Ns Sy UINT64_MAX Ns B Pq u64
+Maximum size in bytes of the dbuf cache for indirect blocks, i.e. for blocks
+of level 1 and above.
+The target size is determined by the MIN versus
+.No 1/2^ Ns Sy dbuf_cache_indirect_shift Pq 1/16th
+of the target ARC size.
+Indirect blocks are cached separately from level 0 blocks so that a stream of
+level 0 blocks cannot evict them.
+This matters most for direct I/O, which does not cache level 0 blocks at all,
+and so relies entirely on the indirect block cache to avoid re-reading and
+re-decompressing the same indirect blocks.
+The behavior of the indirect block dbuf cache can be observed via the
+.Pa /proc/spl/kstat/zfs/dbufstats
+kstat.
+.
+.It Sy dbuf_cache_evict_scan Ns = Ns Sy 16 Pq uint
+Number of the oldest dbufs on a sublist that are examined when choosing which
+cached dbuf to evict.
+Cached dbufs that have been reused before, or whose block the ARC holds in its
+MFU state, are skipped in favour of colder victims found within the scanned
+window.
+Setting this to 0 restores the previous behaviour of always evicting the oldest
+dbuf.
 .
 .It Sy dbuf_metadata_cache_max_bytes Ns = Ns Sy UINT64_MAX Ns B Pq u64
 Maximum size in bytes of the metadata dbuf cache.
@@ -48,18 +75,21 @@ can be observed via the
 kstat.
 .
 .It Sy dbuf_cache_hiwater_pct Ns = Ns Sy 10 Ns % Pq uint
-The percentage over
-.Sy dbuf_cache_max_bytes
-when dbufs must be evicted directly.
+The percentage over a dbuf cache's own target at which dbufs must be evicted
+directly, in the context of the caller adding to the cache.
 .
 .It Sy dbuf_cache_lowater_pct Ns = Ns Sy 10 Ns % Pq uint
-The percentage below
-.Sy dbuf_cache_max_bytes
-when the evict thread stops evicting dbufs.
+The percentage below a dbuf cache's own target at which the evict thread stops
+evicting dbufs from it.
 .
 .It Sy dbuf_cache_shift Ns = Ns Sy 5 Pq uint
-Set the size of the dbuf cache
+Set the size of the level 0 dbuf cache
 .Pq Sy dbuf_cache_max_bytes
+to a log2 fraction of the target ARC size.
+.
+.It Sy dbuf_cache_indirect_shift Ns = Ns Sy 4 Pq uint
+Set the size of the indirect block dbuf cache
+.Pq Sy dbuf_cache_indirect_max_bytes
 to a log2 fraction of the target ARC size.
 .
 .It Sy dbuf_metadata_cache_shift Ns = Ns Sy 6 Pq uint

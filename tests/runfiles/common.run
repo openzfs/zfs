@@ -47,7 +47,7 @@ tags = ['functional', 'append']
 
 [tests/functional/arc]
 tests = ['dbufstats_001_pos', 'dbufstats_002_pos', 'dbufstats_003_pos',
-    'arcstats_runtime_tuning']
+    'dbufstats_004_pos', 'arcstats_runtime_tuning']
 tags = ['functional', 'arc']
 
 [tests/functional/atime]
