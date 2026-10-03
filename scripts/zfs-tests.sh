@@ -660,11 +660,18 @@ if [ "$UNAME" = "Darwin" ]; then
 testpool
 testpool1
 testpool2
+testpool3
+testpool.root
+foopool
 logsm_import
 lgcypool
 ldnpool
 zonepool
 perfpool
+alter_import-test
+testdir_nfs_mntpoint
+testpool_userspace_encrypted
+testpool_userspace_send_encrypted
 EOF
 	    sudo chmod 444 /etc/synthetic.d/zfs-tests
 	    echo ""
