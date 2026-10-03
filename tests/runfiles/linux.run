@@ -252,6 +252,35 @@ tests = ['tmpfile_001_pos', 'tmpfile_002_pos', 'tmpfile_003_pos',
     'tmpfile_stat_mode']
 tags = ['functional', 'tmpfile']
 
+[tests/functional/tmpfile_dmlog:Linux]
+tests = ['tmpfile_dmlog_dirsync', 'tmpfile_dmlog_filesync',
+    'tmpfile_dmlog_small', 'tmpfile_dmlog_checkpoint', 'tmpfile_dmlog_meta',
+    'tmpfile_dmlog_meta_xattrdir', 'tmpfile_dmlog_meta_nosaxattr',
+    'tmpfile_dmlog_bigxattr', 'tmpfile_dmlog_clone', 'tmpfile_dmlog_sparse',
+    'tmpfile_dmlog_dense', 'tmpfile_dmlog_unlinked', 'tmpfile_dmlog_nosync',
+    'tmpfile_dmlog_zero_immediate', 'tmpfile_dmlog_acl', 'tmpfile_dmlog_multi',
+    'tmpfile_dmlog_osync', 'tmpfile_dmlog_relink', 'tmpfile_dmlog_remove',
+    'tmpfile_dmlog_rename', 'tmpfile_dmlog_slog', 'tmpfile_dmlog_syncalways',
+    'tmpfile_dmlog_clonemix', 'tmpfile_dmlog_clonerm', 'tmpfile_dmlog_hole',
+    'tmpfile_dmlog_sparsemix', 'tmpfile_dmlog_encrypted_meta',
+    'tmpfile_dmlog_encrypted_clonemix', 'tmpfile_dmlog_encrypted_sparsemix',
+    'tmpfile_dmlog_hugesparse', 'tmpfile_dmlog_racewrite',
+    'tmpfile_dmlog_racegrow', 'tmpfile_dmlog_clonesmall_indirect',
+    'tmpfile_dmlog_clonemix_indirect', 'tmpfile_dmlog_truncfast0',
+    'tmpfile_dmlog_truncfast0_indirect', 'tmpfile_dmlog_truncfastblk',
+    'tmpfile_dmlog_truncfastblk_indirect', 'tmpfile_dmlog_truncfastmid',
+    'tmpfile_dmlog_truncfastmid_indirect', 'tmpfile_dmlog_clonefast',
+    'tmpfile_dmlog_clonefast_indirect', 'tmpfile_dmlog_clonefastmid',
+    'tmpfile_dmlog_clonefastmid_indirect', 'tmpfile_dmlog_removefast',
+    'tmpfile_dmlog_nodump', 'tmpfile_dmlog_projid',
+    'tmpfile_dmlog_dirsync_xattrdir',
+    'tmpfile_dmlog_dedupefast', 'tmpfile_dmlog_dedupefast_indirect',
+    'tmpfile_dmlog_dedupefastmid', 'tmpfile_dmlog_dedupefastmid_indirect',
+    'tmpfile_dmlog_truncevict', 'tmpfile_dmlog_truncevict_indirect',
+    'tmpfile_dmlog_cloneevict', 'tmpfile_dmlog_cloneevict_indirect',
+    'tmpfile_dmlog_truncrace', 'tmpfile_dmlog_truncrace_indirect']
+tags = ['functional', 'tmpfile_dmlog']
+
 [tests/functional/upgrade:Linux]
 tests = ['upgrade_projectquota_001_pos', 'upgrade_projectquota_002_pos']
 tags = ['functional', 'upgrade']

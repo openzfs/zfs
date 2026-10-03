@@ -147,6 +147,8 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/xattrtest
 scripts_zfs_tests_bin_PROGRAMS += %D%/zed_fd_spill-zedlet
 scripts_zfs_tests_bin_PROGRAMS += %D%/idmap_util
 scripts_zfs_tests_bin_PROGRAMS += %D%/setlease
+scripts_zfs_tests_bin_PROGRAMS += %D%/log_writes_replay
+scripts_zfs_tests_bin_PROGRAMS += %D%/tmpfile_crash
 
 %C%_idmap_util_LDADD = libspl.la
 
