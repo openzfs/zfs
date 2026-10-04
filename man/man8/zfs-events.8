@@ -217,9 +217,9 @@ see the same ring instance, reset to empty.
 .It Fl j
 Output in JSON format for machine parsing.
 All events are printed as a single JSON array; each event is one
-object on its own line.  An empty result is printed as an empty
-array
-.Pq Ql [] ,
+object on its own line.
+An empty result is printed as an empty array
+.Pq Ql [] .
 so the output is always parseable.
 See
 .Sx OUTPUT
@@ -379,12 +379,12 @@ cleared event log for 'tank/data'
 .Sy Evolving .
 .
 .Sh SEE ALSO
+.Xr zfsprops 7 ,
+.Xr zpool-features 7 ,
 .Xr zfs 8 ,
 .Xr zfs-diff 8 ,
 .Xr zfs-set 8 ,
-.Xr zfsprops 7 ,
-.Xr zmetad 8 ,
-.Xr zpool-features 7
+.Xr zmetad 8
 .
 .Sh NOTES
 The event log is stored as a ring buffer within the dataset.

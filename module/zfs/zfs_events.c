@@ -1362,7 +1362,7 @@ zfs_events_log_event(objset_t *os, dmu_tx_t *tx, nvlist_t *nvl,
 	dmu_tx_t *atx;
 	boolean_t owned;
 	int err;
-	uint64_t pr;
+	uint64_t pr = 0;
 
 	/*
 	 * Attribution: the tag is per-thread-group and captured in
@@ -1738,7 +1738,7 @@ zfs_events_log_write(objset_t *os, dmu_tx_t *tx,
     uint64_t events_size, uint64_t *objp, kmutex_t *lockp, uint64_t txg)
 {
 	nvlist_t *nvl;
-	uint64_t pr;
+	uint64_t pr = 0;
 
 	nvl = fnvlist_alloc();
 	fnvlist_add_uint16(nvl, ZFS_EV_OP, ZFS_EV_WRITE);
@@ -1766,7 +1766,7 @@ zfs_events_log_read(objset_t *os, uint64_t object,
     uint64_t events_size, uint64_t *objp, kmutex_t *lockp)
 {
 	nvlist_t *nvl;
-	uint64_t pr;
+	uint64_t pr = 0;
 
 	nvl = fnvlist_alloc();
 	fnvlist_add_uint16(nvl, ZFS_EV_OP, ZFS_EV_READ);
