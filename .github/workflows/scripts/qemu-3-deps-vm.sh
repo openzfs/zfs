@@ -132,12 +132,12 @@ function rhel() {
     acl attr bc bzip2 cryptsetup curl dbench dkms elfutils-libelf-devel fio \
     gdb git jq kernel-rpm-macros ksh libacl-devel libaio-devel \
     libargon2-devel libattr-devel libblkid-devel libcurl-devel libffi-devel \
-    ncompress libselinux-devel libsqlite3-devel libtirpc-devel libtool libudev-devel \
+    ncompress libselinux-devel libtirpc-devel libtool libudev-devel \
     libuuid-devel lsscsi mdadm nfs-utils openssl-devel pam-devel pamtester \
     parted perf python3 python3-cffi python3-devel python3-packaging \
     kernel-devel python3-setuptools qemu-guest-agent rng-tools rpcgen \
     rpm-build rsync samba strace sysstat systemd watchdog wget xfsprogs-devel \
-    xxhash zlib-devel
+    xxhash sqlite-devel zlib-devel
 
   # These are needed for building Lustre.  We only install these on EL VMs since
   # we don't plan to test build Lustre on other platforms.
