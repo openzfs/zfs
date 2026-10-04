@@ -885,6 +885,9 @@ def section_l2arc(kstats_dict):
     for title, value in l2_todo:
         prt_i1(title, f_hits(arc_stats[value]))
 
+    if 'l2_hdr_pruned' in arc_stats:
+        prt_i1('Pruned headers:', f_hits(arc_stats['l2_hdr_pruned']))
+
     print()
     prt_1('L2ARC size (adaptive):', f_bytes(arc_stats['l2_size']))
     prt_i2('Compressed:', f_perc(arc_stats['l2_asize'], arc_stats['l2_size']),
