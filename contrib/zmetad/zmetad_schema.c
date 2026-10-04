@@ -1,17 +1,13 @@
 // SPDX-License-Identifier: CDDL-1.0
 /*
- * CDDL HEADER START
+ * This file and its contents are supplied under the terms of the
+ * Common Development and Distribution License ("CDDL"), version 1.0.
+ * You may only use this file in accordance with the terms of version
+ * 1.0 of the CDDL.
  *
- * The contents of this file are subject to the terms of the
- * Common Development and Distribution License (the "License").
- * You may not use this file except in compliance with the License.
- *
- * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
- * or https://opensource.org/licenses/CDDL-1.0.
- * See the License for the specific language governing permissions
- * and limitations under the License.
- *
- * CDDL HEADER END
+ * A full copy of the text of the CDDL should have accompanied this
+ * source.  A copy of the CDDL is also available via the Internet at
+ * https://opensource.org/license/CDDL-1.0.
  */
 
 /*
@@ -961,68 +957,69 @@ zmetad_schema_free(zmetad_schema_t *zs)
  * (or vice versa) in the same change.
  */
 const char *ZMETAD_EMBEDDED_SCHEMA_JSON =
-	"{\n  \"schema_version\": 3,\n  \"record_format\": {\n    \"encoding\": "
-	"\"nvlist-packed-native\",\n    \"record_header\": \"uint64 little-endian"
-	" payload length\",\n    \"fields\": {\n      \"txg\": {\n        \"type"
-	"\": \"uint64\",\n        \"since\": 1,\n        \"always\": true,\n     "
-	"   \"desc\": \"transaction group of the change\"\n      },\n      \"time"
-	"\": {\n        \"type\": \"uint64\",\n        \"since\": 1,\n        \"a"
-	"lways\": true,\n        \"desc\": \"hrtime nanoseconds\"\n      },\n    "
-	"  \"object\": {\n        \"type\": \"uint64\",\n        \"since\": 1,\n "
-	"       \"always\": true,\n        \"desc\": \"object ID affected\"\n    "
-	"  },\n      \"op\": {\n        \"type\": \"uint16\",\n        \"since\":"
-	" 1,\n        \"always\": true,\n        \"enum\": [\n          \"NONE\","
-	"\n          \"CREATE\",\n          \"REMOVE\",\n          \"RENAME\",\n "
-	"         \"LINK\",\n          \"SYMLINK\",\n          \"TRUNCATE\",\n   "
-	"       \"SETATTR\",\n          \"WRITE\",\n          \"READ\"\n        ]"
-	",\n        \"desc\": \"operation type; WRITE and READ are opt-in (events"
-	"_io) and coalesced by the events_io_window fence: io_offset is the windo"
-	"w's first offset, io_bytes the summed total\"\n      },\n      \"name\":"
-	" {\n        \"type\": \"string\",\n        \"since\": 1,\n        \"alwa"
-	"ys\": false,\n        \"desc\": \"file/dir name\"\n      },\n      \"par"
-	"ent\": {\n        \"type\": \"uint64\",\n        \"since\": 1,\n        "
-	"\"always\": false,\n        \"desc\": \"parent object ID\"\n      },\n  "
-	"    \"old_name\": {\n        \"type\": \"string\",\n        \"since\": 1"
-	",\n        \"always\": false,\n        \"ops\": [\n          \"RENAME\""
-	"\n        ],\n        \"desc\": \"old name (rename)\"\n      },\n      "
-	"\"old_parent\": {\n        \"type\": \"uint64\",\n        \"since\": 1,"
-	"\n        \"always\": false,\n        \"ops\": [\n          \"RENAME\"\n"
-	"        ],\n        \"desc\": \"old parent (rename)\"\n      },\n      "
-	"\"target\": {\n        \"type\": \"string\",\n        \"since\": 1,\n   "
-	"     \"always\": false,\n        \"ops\": [\n          \"SYMLINK\"\n    "
-	"    ],\n        \"desc\": \"symlink target\"\n      },\n      \"mode\": "
-	"{\n        \"type\": \"uint64\",\n        \"since\": 1,\n        \"alway"
-	"s\": false,\n        \"ops\": [\n          \"CREATE\"\n        ],\n     "
-	"   \"desc\": \"file mode (create)\"\n      },\n      \"old_size\": {\n  "
-	"      \"type\": \"uint64\",\n        \"since\": 1,\n        \"always\": "
-	"false,\n        \"ops\": [\n          \"TRUNCATE\"\n        ],\n        "
-	"\"desc\": \"size before truncate\"\n      },\n      \"new_size\": {\n   "
-	"     \"type\": \"uint64\",\n        \"since\": 1,\n        \"always\": f"
-	"alse,\n        \"ops\": [\n          \"TRUNCATE\"\n        ],\n        "
-	"\"desc\": \"size after truncate\"\n      },\n      \"attrs\": {\n       "
-	" \"type\": \"uint64\",\n        \"since\": 1,\n        \"always\": false"
-	",\n        \"ops\": [\n          \"SETATTR\"\n        ],\n        \"desc"
-	"\": \"changed attr mask\"\n      },\n      \"uid\": {\n        \"type\":"
-	" \"uint64\",\n        \"since\": 1,\n        \"always\": false,\n       "
-	" \"desc\": \"user ID\"\n      },\n      \"gid\": {\n        \"type\": \""
-	"uint64\",\n        \"since\": 1,\n        \"always\": false,\n        \""
-	"desc\": \"group ID\"\n      },\n      \"principal\": {\n        \"type\""
-	": \"uint64\",\n        \"since\": 3,\n        \"always\": false,\n      "
-	"  \"desc\": \"opaque application principal tag; supplied by the writing "
-	"application, NOT verified by the kernel - a claim, not evidence; absent "
-	"when the writer did not register one\"\n      },\n      \"io_offset\": {"
-	"\n        \"type\": \"uint64\",\n        \"since\": 2,\n        \"always"
-	"\": false,\n        \"ops\": [\n          \"WRITE\",\n          \"READ\""
-	"\n        ],\n        \"desc\": \"IO start offset; when the fence window"
-	" is open, the window's first offset\"\n      },\n      \"io_bytes\": {\n"
-	"        \"type\": \"uint64\",\n        \"since\": 2,\n        \"always\""
-	": false,\n        \"ops\": [\n          \"WRITE\",\n          \"READ\"\n"
-	"        ],\n        \"desc\": \"IO byte count; when the fence window is "
-	"open, the summed total of coalesced IOs\"\n      }\n    },\n    \"invari"
-	"ants\": [\n      \"consumers MUST ignore fields they do not recognize (f"
-	"orward compat)\",\n      \"op values outside the enum MUST decode as UNK"
-	"NOWN\",\n      \"names are dataset-relative at event time; resolve stabi"
-	"lity via object id\"\n    ]\n  }\n}\n";
-
-
-
+	"{\n  \"schema_version\": 3,\n  \"record_format\": {\n    \"encoding"
+	"\": \"nvlist-packed-native\",\n    \"record_header\": \"uint64 littl"
+	"e-endian payload length\",\n    \"fields\": {\n      \"txg\": {\n   "
+	"     \"type\": \"uint64\",\n        \"since\": 1,\n        \"always"
+	"\": true,\n        \"desc\": \"transaction group of the change\"\n  "
+	"    },\n      \"time\": {\n        \"type\": \"uint64\",\n        \""
+	"since\": 1,\n        \"always\": true,\n        \"desc\": \"hrtime n"
+	"anoseconds\"\n      },\n      \"object\": {\n        \"type\": \"uin"
+	"t64\",\n        \"since\": 1,\n        \"always\": true,\n        \""
+	"desc\": \"object ID affected\"\n      },\n      \"op\": {\n        "
+	"\"type\": \"uint16\",\n        \"since\": 1,\n        \"always\": tr"
+	"ue,\n        \"enum\": [\n          \"NONE\",\n          \"CREATE\","
+	"\n          \"REMOVE\",\n          \"RENAME\",\n          \"LINK\","
+	"\n          \"SYMLINK\",\n          \"TRUNCATE\",\n          \"SETAT"
+	"TR\",\n          \"WRITE\",\n          \"READ\"\n        ],\n       "
+	" \"desc\": \"operation type; WRITE and READ are opt-in (events_io) a"
+	"nd coalesced by the events_io_window fence: io_offset is the window'"
+	"s first offset, io_bytes the summed total\"\n      },\n      \"name"
+	"\": {\n        \"type\": \"string\",\n        \"since\": 1,\n       "
+	" \"always\": false,\n        \"desc\": \"file/dir name\"\n      },\n"
+	"      \"parent\": {\n        \"type\": \"uint64\",\n        \"since"
+	"\": 1,\n        \"always\": false,\n        \"desc\": \"parent objec"
+	"t ID\"\n      },\n      \"old_name\": {\n        \"type\": \"string"
+	"\",\n        \"since\": 1,\n        \"always\": false,\n        \"op"
+	"s\": [\n          \"RENAME\"\n        ],\n        \"desc\": \"old na"
+	"me (rename)\"\n      },\n      \"old_parent\": {\n        \"type\": "
+	"\"uint64\",\n        \"since\": 1,\n        \"always\": false,\n    "
+	"    \"ops\": [\n          \"RENAME\"\n        ],\n        \"desc\": "
+	"\"old parent (rename)\"\n      },\n      \"target\": {\n        \"ty"
+	"pe\": \"string\",\n        \"since\": 1,\n        \"always\": false,"
+	"\n        \"ops\": [\n          \"SYMLINK\"\n        ],\n        \"d"
+	"esc\": \"symlink target\"\n      },\n      \"mode\": {\n        \"ty"
+	"pe\": \"uint64\",\n        \"since\": 1,\n        \"always\": false,"
+	"\n        \"ops\": [\n          \"CREATE\"\n        ],\n        \"de"
+	"sc\": \"file mode (create)\"\n      },\n      \"old_size\": {\n     "
+	"   \"type\": \"uint64\",\n        \"since\": 1,\n        \"always\":"
+	" false,\n        \"ops\": [\n          \"TRUNCATE\"\n        ],\n   "
+	"     \"desc\": \"size before truncate\"\n      },\n      \"new_size"
+	"\": {\n        \"type\": \"uint64\",\n        \"since\": 1,\n       "
+	" \"always\": false,\n        \"ops\": [\n          \"TRUNCATE\"\n   "
+	"     ],\n        \"desc\": \"size after truncate\"\n      },\n      "
+	"\"attrs\": {\n        \"type\": \"uint64\",\n        \"since\": 1,\n"
+	"        \"always\": false,\n        \"ops\": [\n          \"SETATTR"
+	"\"\n        ],\n        \"desc\": \"changed attr mask\"\n      },\n "
+	"     \"uid\": {\n        \"type\": \"uint64\",\n        \"since\": 1"
+	",\n        \"always\": false,\n        \"desc\": \"user ID\"\n      "
+	"},\n      \"gid\": {\n        \"type\": \"uint64\",\n        \"since"
+	"\": 1,\n        \"always\": false,\n        \"desc\": \"group ID\"\n"
+	"      },\n      \"principal\": {\n        \"type\": \"uint64\",\n   "
+	"     \"since\": 3,\n        \"always\": false,\n        \"desc\": \""
+	"opaque application principal tag; supplied by the writing applicatio"
+	"n, NOT verified by the kernel - a claim, not evidence; absent when t"
+	"he writer did not register one\"\n      },\n      \"io_offset\": {\n"
+	"        \"type\": \"uint64\",\n        \"since\": 2,\n        \"alwa"
+	"ys\": false,\n        \"ops\": [\n          \"WRITE\",\n          \""
+	"READ\"\n        ],\n        \"desc\": \"IO start offset; when the fe"
+	"nce window is open, the window's first offset\"\n      },\n      \"i"
+	"o_bytes\": {\n        \"type\": \"uint64\",\n        \"since\": 2,\n"
+	"        \"always\": false,\n        \"ops\": [\n          \"WRITE\","
+	"\n          \"READ\"\n        ],\n        \"desc\": \"IO byte count;"
+	" when the fence window is open, the summed total of coalesced IOs\""
+	"\n      }\n    },\n    \"invariants\": [\n      \"consumers MUST ign"
+	"ore fields they do not recognize (forward compat)\",\n      \"op val"
+	"ues outside the enum MUST decode as UNKNOWN\",\n      \"names are da"
+	"taset-relative at event time; resolve stability via object id\"\n   "
+	" ]\n  }\n}\n";

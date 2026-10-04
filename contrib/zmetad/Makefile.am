@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: CDDL-1.0
 zmetad_CFLAGS  = $(AM_CFLAGS)
 zmetad_CFLAGS += $(LIBSQLITE3_CFLAGS)
 

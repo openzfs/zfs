@@ -1,3 +1,4 @@
+dnl # SPDX-License-Identifier: CDDL-1.0
 dnl #
 dnl # Check for libsqlite3 - optional dependency for zmetad
 dnl #
