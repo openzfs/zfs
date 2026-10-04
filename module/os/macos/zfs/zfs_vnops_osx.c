@@ -1310,6 +1310,85 @@ static void zfs_cache_name(struct vnode *vp, struct vnode *dvp, char *filename)
 }
 
 
+/*
+ * Negative name-cache entries and concurrent creates.
+ *
+ * zfs_vnop_lookup() enters a negative name-cache entry after zfs_lookup()
+ * returns ENOENT. If a create of the same name completes in between, its
+ * cache_purge_negatives() runs before that cache_enter(), and the entry it
+ * leaves behind is stale: later lookups (stat, rmdir, unlink, ...) are
+ * answered ENOENT from the cache for a name that exists, while CREATE
+ * lookups, which skip negative entries, report EEXIST.
+ *
+ * Each directory therefore carries a generation that is advanced, under
+ * z_negcache_lock, every time its negative entries are purged. A lookup
+ * samples it before calling zfs_lookup() and enters the negative entry,
+ * under the same lock, only if it has not changed. A negative entry is
+ * then either entered before the purge, which removes it, or not at all.
+ * Filesystem-wide invalidations (zfs_purgevfs()) advance the generation of
+ * every directory they purge for the same reason.
+ */
+static inline uint64_t
+zfs_negcache_gen(struct vnode *dvp)
+{
+	return (atomic_load_64(&VTOZ(dvp)->z_negcache_gen));
+}
+
+static boolean_t
+zfs_negcache_enter(struct vnode *dvp, struct componentname *cnp,
+    uint64_t gen)
+{
+	znode_t *dzp = VTOZ(dvp);
+	boolean_t entered = B_FALSE;
+
+	mutex_enter(&dzp->z_negcache_lock);
+	if (dzp->z_negcache_gen == gen) {
+		cache_enter(dvp, NULL, cnp);
+		entered = B_TRUE;
+	}
+	mutex_exit(&dzp->z_negcache_lock);
+
+	return (entered);
+}
+
+static void
+zfs_purge_negatives(struct vnode *dvp)
+{
+	znode_t *dzp = VTOZ(dvp);
+
+	mutex_enter(&dzp->z_negcache_lock);
+	atomic_store_64(&dzp->z_negcache_gen, dzp->z_negcache_gen + 1);
+	cache_purge_negatives(dvp);
+	mutex_exit(&dzp->z_negcache_lock);
+}
+
+static int
+zfs_purgevfs_impl(struct vnode *vp, void *arg)
+{
+	(void) arg;
+
+	cache_purge(vp);
+	if (vnode_isdir(vp) && VTOZ(vp) != NULL)
+		zfs_purge_negatives(vp);
+	else
+		cache_purge_negatives(vp);
+
+	return (VNODE_RETURNED);
+}
+
+/*
+ * Like spl_cache_purgevfs(), but advances each directory's negative-cache
+ * generation so that a lookup which found nothing before the invalidation
+ * (snapdir visibility change, rollback, receive) cannot enter its negative
+ * entry after it.
+ */
+void
+zfs_purgevfs(mount_t mp, boolean_t reload)
+{
+	(void) vnode_iterate(mp, reload ? VNODE_RELOAD : 0,
+	    zfs_purgevfs_impl, NULL);
+}
+
 int
 zfs_vnop_lookup(struct vnop_lookup_args *ap)
 #if 0
@@ -1388,6 +1467,9 @@ zfs_vnop_lookup(struct vnop_lookup_args *ap)
 	cn2.cn_nameiop = cnp->cn_nameiop;
 	cn2.cn_flags = cnp->cn_flags;
 
+	/* Sampled before zfs_lookup(); see zfs_negcache_enter(). */
+	uint64_t negcache_gen = zfs_negcache_gen(ap->a_dvp);
+
 	error = zfs_lookup(VTOZ(ap->a_dvp), filename, &zp, /* flags */ 0, cr,
 	    &direntflags, &cn2);
 
@@ -1399,8 +1481,9 @@ zfs_vnop_lookup(struct vnop_lookup_args *ap)
 
 #if 1
 	/*
-	 * It appears that VFS layer adds negative cache entries for us, so
-	 * we do not need to add them here, or they are duplicated.
+	 * XNU's VFS layer only enters positive name-cache entries; negative
+	 * entries are added here, guarded against concurrent creates by
+	 * zfs_negcache_enter().
 	 */
 	if (!negative_cache) {
 		if ((error == ENOENT) && zfs_vnop_create_negatives) {
@@ -1413,9 +1496,15 @@ zfs_vnop_lookup(struct vnop_lookup_args *ap)
 			/* Insert name into cache (non-existent) */
 			if ((cnp->cn_flags & MAKEENTRY) &&
 			    ap->a_cnp->cn_nameiop != CREATE) {
-				cache_enter(ap->a_dvp, NULL, ap->a_cnp);
-				dprintf("Negative-cache made for '%s'\n",
-				    filename);
+				if (zfs_negcache_enter(ap->a_dvp, ap->a_cnp,
+				    negcache_gen)) {
+					dprintf("Negative-cache made for "
+					    "'%s'\n", filename);
+				} else {
+					dprintf("Negative-cache skipped for "
+					    "'%s': directory changed\n",
+					    filename);
+				}
 			}
 		} /* ENOENT */
 	}
@@ -1491,7 +1580,7 @@ zfs_vnop_create(struct vnop_create_args *ap)
 	error = zfs_create(VTOZ(ap->a_dvp), cnp->cn_nameptr, vap, excl, mode,
 	    &zp, cr, 0, NULL);
 	if (!error) {
-		cache_purge_negatives(ap->a_dvp);
+		zfs_purge_negatives(ap->a_dvp);
 		*ap->a_vpp = ZTOV(zp);
 
 		// Also tell XNU what VAPs we handled.
@@ -1781,7 +1870,7 @@ zfs_vnop_mkdir(struct vnop_mkdir_args *ap)
 	    &zp, cr, /* flags */0, /* vsecp */NULL);
 	if (!error) {
 		*ap->a_vpp = ZTOV(zp);
-		cache_purge_negatives(ap->a_dvp);
+		zfs_purge_negatives(ap->a_dvp);
 		vnode_update_identity(*ap->a_vpp, ap->a_dvp,
 		    (const char *)ap->a_cnp->cn_nameptr, ap->a_cnp->cn_namelen,
 		    0, VNODE_UPDATE_NAME);
@@ -2163,8 +2252,8 @@ zfs_vnop_rename(struct vnop_rename_args *ap)
 	    /* rflags */ 0, NULL);
 
 	if (!error) {
-		cache_purge_negatives(ap->a_fdvp);
-		cache_purge_negatives(ap->a_tdvp);
+		zfs_purge_negatives(ap->a_fdvp);
+		zfs_purge_negatives(ap->a_tdvp);
 		cache_purge(ap->a_fvp);
 
 		zfs_rename_hardlink(ap->a_fvp, ap->a_tvp,
@@ -2236,8 +2325,8 @@ zfs_vnop_renamex(struct vnop_renamex_args *ap)
 		(ap->a_flags&VFS_RENAME_EXCL), 0, NULL);
 
 	if (!error) {
-		cache_purge_negatives(ap->a_fdvp);
-		cache_purge_negatives(ap->a_tdvp);
+		zfs_purge_negatives(ap->a_fdvp);
+		zfs_purge_negatives(ap->a_tdvp);
 		cache_purge(ap->a_fvp);
 
 		zfs_rename_hardlink(ap->a_fvp, ap->a_tvp,
@@ -2302,7 +2391,7 @@ zfs_vnop_symlink(struct vnop_symlink_args *ap)
 	    ap->a_vap, ap->a_target, &zp, cr, 0);
 	if (!error) {
 		*ap->a_vpp = ZTOV(zp);
-		cache_purge_negatives(ap->a_dvp);
+		zfs_purge_negatives(ap->a_dvp);
 		vnode_update_identity(*ap->a_vpp, NULL,
 			(const char *)ap->a_cnp->cn_nameptr,
 			ap->a_cnp->cn_namelen, 0,
@@ -2382,7 +2471,7 @@ zfs_vnop_link(struct vnop_link_args *ap)
 		// handles the target
 		vnode_setmultipath(ap->a_vp);
 		cache_purge(ap->a_vp);
-		cache_purge_negatives(ap->a_tdvp);
+		zfs_purge_negatives(ap->a_tdvp);
 		vnode_update_identity(ap->a_vp, NULL,
 			(const char *)ap->a_cnp->cn_nameptr,
 			ap->a_cnp->cn_namelen, 0,
@@ -4637,7 +4726,7 @@ zfs_vnop_clonefile(struct vnop_clonefile_args *ap)
 	 * Any failure exit out of here should release outzp
 	 */
 
-	cache_purge_negatives(ap->a_dvp);
+	zfs_purge_negatives(ap->a_dvp);
 
 	// Also tell XNU what VAPs we handled.
 	if (VATTR_IS_ACTIVE(vap, va_mode))
