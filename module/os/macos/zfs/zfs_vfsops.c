@@ -373,7 +373,7 @@ snapdir_changed_cb(void *arg, uint64_t newval)
 {
 	zfsvfs_t *zfsvfs = arg;
 	zfsvfs->z_show_ctldir = newval;
-	cache_purgevfs(zfsvfs->z_vfs, FALSE);
+	zfs_purgevfs(zfsvfs->z_vfs, FALSE);
 }
 
 static void
@@ -2112,7 +2112,7 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	}
 
 	/* best effort before lock held  - see below */
-	cache_purgevfs(zfsvfs->z_parent->z_vfs, TRUE);
+	zfs_purgevfs(zfsvfs->z_parent->z_vfs, TRUE);
 
 	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
 
@@ -2264,7 +2264,7 @@ zfs_vfs_unmount(struct mount *mp, int mntflags, vfs_context_t context)
 	 * parent's filesystem's vfsp.  Note, 'z_parent' is self
 	 * referential for non-snapshots.
 	 */
-	cache_purgevfs(zfsvfs->z_parent->z_vfs, TRUE);
+	zfs_purgevfs(zfsvfs->z_parent->z_vfs, TRUE);
 
 	/*
 	 * Unmount any snapshots mounted under .zfs before unmounting the
@@ -2819,7 +2819,7 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 		zfs_unlinked_drain(zfsvfs);
 	}
 
-	cache_purgevfs(zfsvfs->z_parent->z_vfs, TRUE);
+	zfs_purgevfs(zfsvfs->z_parent->z_vfs, TRUE);
 
 	/* Also issue an FSEvent so Finder updates */
 	zfs_findernotify_refresh(zfsvfs->z_parent->z_vfs);
