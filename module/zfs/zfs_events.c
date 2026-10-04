@@ -399,8 +399,6 @@ static uint64_t zfs_events_get_obj(objset_t *os, dmu_tx_t *tx,
  */
 #define	ZFS_EVQ_REC_MAX	512
 
-typedef struct zfs_events_qent zfs_events_qent_t;
-
 static kmem_cache_t *zfs_events_qent_cache;
 
 static void zfs_events_drain_task(void *arg);
