@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 #
+# This suite runs under bash; [ ] tests are intentional style here.
+# shellcheck disable=SC2292
+# Case statements here are guard-style; default arms are noise.
+# shellcheck disable=SC2249
+#
 # tests/events-schema-e2e.sh - end-to-end validation of the extended
 # metadata event/schema feature chain against a live system.
 #
@@ -81,8 +86,6 @@ SCHEMA_FILE="${REPO}/contrib/zmetad/events-schema.json"
 CREATED_DS=0
 CREATED_SWAP_DS=0
 WD=""
-WIRE_HAS_VERSION=0
-WIRE_VERSION=
 NEW_RING_GUID=
 ZMETAD="${ZMETAD:-}"
 SUDO=()
@@ -449,8 +452,6 @@ EOF
 	    "$WD/schema.json")"
 	[ "$wire" = "$file_version" ] ||
 		fail "module-version: wire schema_version=$wire, exported schema says $file_version"
-	WIRE_HAS_VERSION=1
-	WIRE_VERSION="$wire"
 	pass module-version
 }
 
@@ -777,7 +778,8 @@ if errors:
         print("ASSERT FAIL: %s" % e, file=sys.stderr)
     sys.exit(1)
 PY
-	[ $? -eq 0 ] || fail "assert: see ASSERT FAIL lines above"
+	pyrc=$?
+	[ "$pyrc" -eq 0 ] || fail "assert: see ASSERT FAIL lines above"
 	pass assert
 }
 
@@ -854,8 +856,9 @@ step_sigusr1() {
 	    2>/dev/null || true)"
 	signal_usr1() {
 		if ! "${SUDO[@]}" systemctl kill -s USR1 "$UNIT" 2>/dev/null; then
-			[ -n "$_pid" ] && [ "$_pid" != "0" ] ||
+			if [ -z "$_pid" ] || [ "$_pid" = "0" ]; then
 				fail "sigusr1: cannot determine daemon pid"
+			fi
 			"${SUDO[@]}" kill -USR1 "$_pid" ||
 				fail "sigusr1: kill -USR1 $_pid failed"
 		fi
@@ -894,6 +897,8 @@ step_sigusr1() {
 		fail "sigusr1: touch usr2 failed"
 	# Bulk metadata churn: 1500 creates land in the ring, so the
 	# next collect pass is long-running.
+	# Bulk-create via sh -c; $0 carries the mountpoint (deliberate).
+	# shellcheck disable=SC2016
 	"${SUDO[@]}" sh -c 'for i in $(seq 0 1499); do touch "$0/bulk.$i"; done' "$mnt" ||
 		fail "sigusr1: bulk create failed"
 	for _s in 1 2 3; do

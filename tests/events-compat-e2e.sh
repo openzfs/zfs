@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 #
+# This suite runs under bash; [ ] tests are intentional style here.
+# shellcheck disable=SC2292
+#
 # tests/events-compat-e2e.sh - pool compatibility gate for events=on.
 #
 # libzfs refuses events=on when the pool's compatibility set excludes

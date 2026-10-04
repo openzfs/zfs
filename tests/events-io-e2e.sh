@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 #
+# This suite runs under bash; [ ] tests are intentional style here.
+# shellcheck disable=SC2292
+# Case statements here are guard-style; default arms are noise.
+# shellcheck disable=SC2249
+#
 # tests/events-io-e2e.sh - end-to-end validation of the IO event
 # feature against a live system running the leaf-01 kernel.
 #
@@ -297,6 +302,7 @@ step_preflight() {
 			"${SUDO[@]}" "$ZFS" destroy -R "$d" \
 			    >/dev/null 2>&1 || true
 			;;
+		*) ;;
 		esac
 	done < <("$ZFS" list -r -H -o name "$BASE_DS" 2>/dev/null)
 
@@ -313,10 +319,12 @@ step_preflight() {
 		esac
 		case "$d" in
 		*-"$RUNID") continue ;;  # this run's own names: handled above
+		*) ;;
 		esac
 		_rid="${d##*-}"
 		case "$_rid" in
 		''|*[!0-9]*) continue ;;
+		*) continue ;;
 		esac
 		# Never reap a name minted by a LIVE run, even when its
 		# pid sorts below ours: a live run's dataset is in use.
@@ -677,7 +685,8 @@ time.sleep(1.0)
 os.write(fd, b"x" * 4096)
 os.close(fd)
 PY
-	[ $? -eq 0 ] || {
+	pyrc=$?
+	[ "$pyrc" -eq 0 ] || {
 		fail "fence-coalesce: timed writes failed"
 		return
 	}
@@ -855,7 +864,8 @@ while i < 10:
     i += 1
 os.close(fd)
 PY
-	[ $? -eq 0 ] || {
+	pyrc=$?
+	[ "$pyrc" -eq 0 ] || {
 		fail "byte-completeness: 10x1KB writes failed"
 		return
 	}
