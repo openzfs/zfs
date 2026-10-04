@@ -8797,11 +8797,32 @@ zfs_do_events(int argc, char **argv)
 
 	if (error != 0) {
 		if (error == ENOENT) {
-			(void) fprintf(stderr,
-			    gettext("no event log found for '%s'\n"
-			    "Enable events with: zfs set events=on %s\n"),
-			    argv[0], argv[0]);
-			ret = 1;
+			/*
+			 * ENOENT has two meanings.  A dataset with
+			 * events=off has no log and needs the hint.
+			 * A dataset with events=on whose ring has
+			 * not been created yet (the ring is made
+			 * lazily by the first logged op) is a
+			 * legitimate empty result, not an error:
+			 * treat it like any other empty set so a
+			 * fresh dataset cannot be mistaken for a
+			 * broken one.
+			 */
+			char events_prop[32];
+
+			if (zfs_prop_get(zhp, ZFS_PROP_EVENTS,
+			    events_prop, sizeof (events_prop),
+			    NULL, NULL, 0, B_TRUE) == 0 &&
+			    strcmp(events_prop, "on") == 0) {
+				error = 0;
+				ret = 0;
+			} else {
+				(void) fprintf(stderr,
+				    gettext("no event log found for '%s'\n"
+				    "Enable events with: zfs set events=on "
+				    "%s\n"), argv[0], argv[0]);
+				ret = 1;
+			}
 		} else if (error == ESRCH || error == EINVAL ||
 		    error == EBUSY) {
 			/*
