@@ -42,7 +42,9 @@
 #include <libnvpair.h>
 
 #include "zmetad.h"
+#include "zmetad_conf.h"
 #include "zmetad_schema.h"
+#include "zmetad_spool.h"
 #include "schema_blob.h"
 
 /* Global state */
@@ -50,6 +52,7 @@ static libzfs_handle_t *g_zfs;
 static zmetad_config_t g_config;
 static zmetad_schema_t *g_schema;
 static zmetad_db_t *g_db;
+static zmetad_spool_t *g_spool;
 static volatile sig_atomic_t g_shutdown = 0;
 static volatile sig_atomic_t g_reload = 0;
 static volatile sig_atomic_t g_force_collect = 0;
@@ -128,6 +131,22 @@ db_warn_sink(const char *msg)
 }
 
 /*
+ * Spool failure sink: the spool writer is best-effort by contract and
+ * owns no warning channel, so the collect loop reports through
+ * daemon_warn.  zmetad_spool_poisoned() gates the caller: after a
+ * write error the handle refuses further writes until
+ * zmetad_spool_resume() at the next collect-cycle start, so a full
+ * disk produces one warning per cycle, not one per record.
+ */
+static void
+spool_warn(void)
+{
+	daemon_warn("event spool write failed (%s); spooling paused "
+	    "until the next collect cycle; the database is "
+	    "unaffected\n", strerror(errno));
+}
+
+/*
  * Monotonic wall-clock-free seconds for interval scheduling: an NTP
  * step or DST change must not stretch or shrink the poll interval
  * (which would widen the ring-wrap window).  time(NULL) remains the
@@ -157,6 +176,10 @@ config_init(zmetad_config_t *cfg)
 	cfg->check_schema_path = NULL;
 	cfg->purge_dataset = NULL;
 	cfg->force = B_FALSE;
+	cfg->spool_path[0] = '\0';
+	cfg->spool_enabled = B_FALSE;
+	cfg->spool_max_bytes = ZMETAD_SPOOL_DEFAULT_BYTES;
+	cfg->spool_fsync = B_FALSE;
 }
 
 /*
@@ -583,6 +606,18 @@ have_baseline:
 	}
 
 	/*
+	 * Spool the gap marker BEFORE any post-boundary record line:
+	 * a stream consumer segments at it exactly as the gaps-table
+	 * consumer segments at the row inserted below.  lost = 0 is
+	 * the count-unknown regression form, lost = delta the exact
+	 * count; this path never emits the swap sentinel.
+	 */
+	if (g_spool != NULL && zmetad_spool_marker(g_spool, dataset,
+	    "gap", "lost", (uint64_t)lost_delta, NULL) != 0) {
+		spool_warn();
+	}
+
+	/*
 	 * Sole loss-path insert: writes the cumulative-delta
 	 * count, so gaps.lost > 0 is the true count of records
 	 * lost since the previous poll, and gaps.lost == 0 means
@@ -615,6 +650,7 @@ collect_dataset_events(const char *dataset, zmetad_db_t *db)
 	uint64_t records_lost = 0;
 	uint64_t records_undecodable = 0;
 	uint64_t next_offset = 0;
+	uint64_t batch_ts = 0;
 	boolean_t have_guid = B_FALSE;
 	boolean_t refetched = B_FALSE;
 	boolean_t insert_failed = B_FALSE;
@@ -625,6 +661,15 @@ collect_dataset_events(const char *dataset, zmetad_db_t *db)
 	ls = loss_state_get(dataset);
 	if (ls == NULL)
 		return (ENOMEM);
+
+	/*
+	 * One ingest timestamp per collect batch: every event spool
+	 * line in this page carries the same "ts", the time stored in
+	 * the events table's captured_at column for the same records.
+	 * (Markers stamp themselves at emission time instead: they
+	 * have no events-table counterpart to stay in step with.)
+	 */
+	batch_ts = (uint64_t)time(NULL);
 
 	/*
 	 * Get last synced offset for this dataset.  ENOENT (never
@@ -737,6 +782,33 @@ fetch:
 				    "replacement gap for %s\n", dataset);
 			}
 			/*
+			 * Spool the swap sentinel BEFORE any new-ring
+			 * record line: it is the stream form of the
+			 * lost = -1 gap row (envelope contract:
+			 * "swap":true), the boundary a stream
+			 * consumer segments at.  Best-effort, like
+			 * the DB write.
+			 */
+			if (g_spool != NULL &&
+			    zmetad_spool_marker(g_spool, dataset, "gap",
+			    "lost", (uint64_t)-1, NULL) != 0) {
+				spool_warn();
+			}
+			/*
+			 * Spool the epoch marker BEFORE any new-ring
+			 * record line: a consumer must be able to
+			 * segment its stream at guid changes, so the
+			 * boundary cannot follow the records it
+			 * bounds.  Best-effort, like the DB write.
+			 */
+			if (g_spool != NULL &&
+			    zmetad_spool_marker(g_spool, dataset,
+			    "epoch", "old_guid", (uint64_t)stored,
+			    "new_guid", (uint64_t)ring_guid,
+			    NULL) != 0) {
+				spool_warn();
+			}
+			/*
 			 * Discard the reply (fetched at the old
 			 * watermark), restart the watermark at 0 and
 			 * re-arm the loss baseline on the new ring,
@@ -823,6 +895,19 @@ fetch:
 				daemon_warn("failed to record clear "
 				    "boundary gap for %s\n", dataset);
 			}
+			/*
+			 * Spool the clear boundary as a lost=0 gap
+			 * marker BEFORE the new log's records: it
+			 * delimits the hole the clear opened, so a
+			 * stream consumer segments at it exactly as
+			 * the gaps-table consumer does (SCHEMA.md,
+			 * lost = 0: regression with unknown count).
+			 */
+			if (g_spool != NULL &&
+			    zmetad_spool_marker(g_spool, dataset, "gap",
+			    "lost", (uint64_t)0, NULL) != 0) {
+				spool_warn();
+			}
 			last_offset = 0;
 			ls->last_lost = 0;
 			ls->have_lost = B_FALSE;
@@ -895,6 +980,24 @@ fetch:
 				insert_failed = B_TRUE;
 			} else {
 				count++;
+				/*
+				 * Spool the line only after the DB
+				 * insert succeeded: the database is
+				 * the integrity record and the spool
+				 * is derived from it, so a spool
+				 * failure must never mirror a record
+				 * the database refused (and a rolled
+				 * back batch is never spooled at
+				 * all).  Best-effort: on failure the
+				 * handle poisons itself; the rest of
+				 * the batch's spool lines are
+				 * skipped but the DB commit stands.
+				 */
+				if (g_spool != NULL &&
+				    zmetad_spool_event(g_spool, dataset,
+				    event, batch_ts) != 0) {
+					spool_warn();
+				}
 			}
 		}
 
@@ -1148,6 +1251,15 @@ collect_all_events(zmetad_db_t *db)
 	ctx.db = db;
 	ctx.complete = B_TRUE;
 
+	/*
+	 * Re-arm the spool at every cycle start: a poisoned handle
+	 * (one write error last cycle) gets one fresh attempt per
+	 * cycle, so a transient condition (full disk, unmounted
+	 * spool filesystem) self-heals without losing the database.
+	 */
+	if (g_spool != NULL)
+		zmetad_spool_resume(g_spool);
+
 	/* Iterate all pools and datasets */
 	if (zfs_iter_root(g_zfs, collect_callback, &ctx) != 0)
 		ctx.complete = B_FALSE;
@@ -1335,6 +1447,8 @@ usage(const char *progname)
 	fprintf(stderr, "Usage: %s [options]\n", progname);
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Options:\n");
+	fprintf(stderr, "  -C, --config <path>    Configuration file "
+	    "(default: %s when present)\n", ZMETAD_CONF_PATH);
 	fprintf(stderr, "  -d, --database <path>  SQLite database path\n");
 	fprintf(stderr, "  -f, --foreground       Run in foreground\n");
 	fprintf(stderr, "  -i, --interval <sec>   Poll interval "
@@ -1359,6 +1473,7 @@ usage(const char *progname)
 }
 
 static struct option longopts[] = {
+	{ "config",		required_argument,	NULL,	'C' },
 	{ "database",		required_argument,	NULL,	'd' },
 	{ "export-schema",	required_argument,	NULL,	'e' },
 	{ "check-schema",	required_argument,	NULL,	'k' },
@@ -1379,12 +1494,77 @@ main(int argc, char **argv)
 	zmetad_db_t *db = NULL;
 	int opt;
 	int err;
+	const char *conf_path = ZMETAD_CONF_PATH;
 
 	config_init(&g_config);
 
-	while ((opt = getopt_long(argc, argv, "d:fe:i:k:p:r:s:vh", longopts,
+	/*
+	 * Pre-scan pass: find -C/--config only, so the conf file can
+	 * be loaded BEFORE the real getopt pass applies the flags.
+	 * Precedence is built-in defaults < conf file < CLI flags;
+	 * the conf load below sits between config_init() and the
+	 * flag assignments, and this pre-scan is what lets a -C
+	 * given anywhere on the command line select the file.  The
+	 * real pass re-handles 'C' (last one seen wins, matching
+	 * every other flag).
+	 */
+	optind = 1;
+	opterr = 0;
+	/*
+	 * "+" = POSIX mode: without it GNU getopt permutes argv while
+	 * scanning for -C, reordering non-option words behind option
+	 * arguments and corrupting the real pass below (e.g. "-i 3 db"
+	 * seen as "-i -d 3").  Every legal invocation puts -C before
+	 * any non-option word, so POSIX mode loses nothing.
+	 */
+	while ((opt = getopt_long(argc, argv, "+C:", longopts,
+	    NULL)) != -1) {
+		if (opt == 'C')
+			conf_path = optarg;
+		/* Anything else is re-reported by the real pass. */
+	}
+	/*
+	 * A path starting with '-' here means getopt stopped early or
+	 * ate an option word as the argument; the real pass rejects
+	 * the malformed invocation, so do not act on it here.
+	 */
+	if (conf_path != NULL && conf_path[0] == '-')
+		conf_path = ZMETAD_CONF_PATH;
+
+	/*
+	 * Reset optind before the real pass: the pre-scan above ran
+	 * getopt to completion, and GNU getopt permutes argv as it
+	 * scans, leaving optind at argc.  Without this reset the real
+	 * pass sees an exhausted argv and returns -1 immediately --
+	 * every flag (-f, -i, -v, -h ...) is silently dropped.
+	 */
+	optind = 1;
+
+	/*
+	 * Load the configuration file (defaults < conf < flags).  A
+	 * missing file is fine; a present-but-invalid one is a fatal
+	 * startup error (exit 2, message on stderr).
+	 */
+	{
+		char conferr[256];
+		int crc = zmetad_conf_load(&g_config, conf_path, conferr,
+		    sizeof (conferr));
+
+		if (crc == -1) {
+			fprintf(stderr, "%s: %s\n", conf_path, conferr);
+			return (2);
+		}
+		g_config.conf_path_used = conf_path;
+		g_config.conf_loaded = (crc == 0);
+	}
+
+	while ((opt = getopt_long(argc, argv,
+	    "C:d:fe:i:k:p:r:s:vh", longopts,
 	    NULL)) != -1) {
 		switch (opt) {
+		case 'C':
+			conf_path = optarg;
+			break;
 		case 'd':
 			/*
 			 * A truncated path would open/create the wrong
@@ -1473,9 +1653,8 @@ main(int argc, char **argv)
 			    sizeof (g_config.schema_path)) >=
 			    sizeof (g_config.schema_path)) {
 				fprintf(stderr, "schema path too long "
-				    "(max %lu): %s\n",
-				    (unsigned long)sizeof (g_config.schema_path),
-				    optarg);
+				    "(max %lu): %s\n", (unsigned long)
+				    sizeof (g_config.schema_path), optarg);
 				return (EXIT_FAILURE);
 			}
 			break;
@@ -1583,6 +1762,38 @@ main(int argc, char **argv)
 	 */
 	zmetad_db_set_warn(db, db_warn_sink);
 
+	/*
+	 * Open the NDJSON spool after the database: the DB is the
+	 * integrity record and the spool a derived stream, so a
+	 * spool failure can never block startup -- but a failure to
+	 * even create the handle is reported rather than silently
+	 * disabling spooling (the conf asked for it).  One-shot
+	 * modes (--export-schema, --check-schema, --purge) exited
+	 * above; only the daemon path reaches this.  Writes happen
+	 * lazily on first record, so a transiently unavailable spool
+	 * filesystem still reaches the poison/resume cycle at run
+	 * time instead of failing startup.
+	 */
+	if (g_config.spool_enabled) {
+		int src = zmetad_spool_open(&g_spool, g_config.spool_path,
+		    g_config.spool_max_bytes, g_config.spool_fsync);
+
+		if (src != 0) {
+			daemon_warn("cannot open event spool %s: %s; "
+			    "continuing without spooling (database "
+			    "unaffected)\n", g_config.spool_path,
+			    strerror(src));
+			g_spool = NULL;
+		} else {
+			zmetad_spool_set_schema(g_spool, g_schema);
+			if (g_config.verbose)
+				printf("event spool: %s (max %lu bytes, "
+				    "fsync %s)\n", g_config.spool_path,
+				    (unsigned long)g_config.spool_max_bytes,
+				    g_config.spool_fsync ? "on" : "off");
+		}
+	}
+
 	/* One-shot purge mode: no signals, no daemonize, no loop. */
 	if (g_config.purge_dataset != NULL) {
 		g_db = db;
@@ -1611,6 +1822,29 @@ main(int argc, char **argv)
 		printf("zmetad starting (poll=%ds, retention=%dd, db=%s)\n",
 		    g_config.poll_interval, g_config.retention_days,
 		    g_config.db_path);
+		/*
+		 * Conf accounting: which file was consulted and which
+		 * keys it set (so an operator can prove precedence:
+		 * defaults < conf < flags).  Spool keys are conf-only
+		 * today; they are reported for the same reason.
+		 */
+		if (g_config.conf_loaded) {
+			printf("config: %s applied\n",
+			    g_config.conf_path_used);
+			printf("config: db_path=%s schema_path=%s "
+			    "poll_interval=%d retention_days=%d\n",
+			    g_config.db_path, g_config.schema_path,
+			    g_config.poll_interval, g_config.retention_days);
+			if (g_config.spool_enabled)
+				printf("config: spool_path=%s "
+				    "spool_max_bytes=%lu spool_fsync=%s\n",
+				    g_config.spool_path,
+				    (unsigned long)g_config.spool_max_bytes,
+				    g_config.spool_fsync ? "on" : "off");
+		} else {
+			printf("config: %s not present; using built-in "
+			    "defaults\n", g_config.conf_path_used);
+		}
 	}
 
 	/* Main loop */
@@ -1621,6 +1855,8 @@ main(int argc, char **argv)
 	}
 
 	/* Cleanup */
+	zmetad_spool_close(g_spool);
+	g_spool = NULL;
 	zmetad_db_close(db);
 	zmetad_schema_free(g_schema);
 	libzfs_fini(g_zfs);

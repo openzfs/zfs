@@ -1,0 +1,40 @@
+# /etc/zmetad.conf - zmetad configuration file
+#
+# Format: one "key = value" per line.  '#' starts a comment (whole
+# line or trailing).  Values may be double-quoted; there is no escape
+# grammar.  Unknown keys, duplicate keys, and out-of-range values are
+# fatal startup errors.
+#
+# Precedence: built-in defaults < this file < command-line flags (a
+# flag given to zmetad overrides the value set here).
+#
+# This sample is installed only when /etc/zmetad.conf does not
+# already exist; an operator's file is never clobbered.
+
+# SQLite database path.
+#db_path = /var/lib/zfs/zmetad.db
+
+# Wire event schema JSON path (default: the schema embedded in the
+# binary).
+#schema_path =
+
+# Poll interval in seconds, 1..86400.
+#poll_interval = 30
+
+# Event retention in days, 0..36500 (0 = keep forever).
+#retention_days = 90
+
+# NDJSON spool file for log-pipeline integration.  Setting a
+# non-empty path ENABLES spooling; empty or commented-out leaves it
+# off.  See zmetad(8) and contrib/zmetad/SCHEMA.md for the envelope
+# contract.
+#spool_path = /var/spool/zmetad/events.ndjson
+
+# Spool rotation threshold in bytes, 1MB..1GB.  When the file would
+# exceed this size it is renamed to <spool_path>.1 (single
+# generation, overwritten) and a fresh file is opened.
+#spool_max_bytes = 67108864
+
+# fsync(2) the spool after each collected batch.  Off by default:
+# file tailers do not need it and per-batch fsync costs.
+#spool_fsync = off

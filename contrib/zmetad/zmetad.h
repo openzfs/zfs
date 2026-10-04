@@ -36,6 +36,17 @@ extern "C" {
  */
 #define	ZMETAD_MAX_RETENTION_DAYS	36500	/* ~100 years */
 
+/*
+ * Configuration file: parsed by zmetad_conf.c when present.  A
+ * missing file is not an error; an invalid one is fatal at startup.
+ */
+#define	ZMETAD_CONF_PATH	"/etc/zmetad.conf"
+
+/* Spool knob defaults (zmetad.h contract; see zmetad_spool.c). */
+#define	ZMETAD_SPOOL_DEFAULT_BYTES	(64 * 1024 * 1024)	/* 64 MB */
+#define	ZMETAD_SPOOL_MIN_BYTES		(1024 * 1024)		/* 1 MB */
+#define	ZMETAD_SPOOL_MAX_BYTES		(1024 * 1024 * 1024)	/* 1 GB */
+
 /* Configuration structure */
 typedef struct zmetad_config {
 	char		db_path[PATH_MAX];
@@ -48,6 +59,18 @@ typedef struct zmetad_config {
 	char		*check_schema_path;
 	char		*purge_dataset;
 	boolean_t	force;
+	/*
+	 * Spool (NDJSON export) settings, leaf-01 contract: appended,
+	 * never reordered.  spool_path empty = spooling off; a
+	 * non-empty spool_path in the conf file sets spool_enabled.
+	 */
+	char		spool_path[PATH_MAX];
+	boolean_t	spool_enabled;
+	size_t		spool_max_bytes;	/* default 64 * 1024 * 1024 */
+	boolean_t	spool_fsync;		/* default B_FALSE */
+	/* Configuration file accounting (set by main, conf loader). */
+	const char	*conf_path_used;
+	boolean_t	conf_loaded;
 } zmetad_config_t;
 
 /*

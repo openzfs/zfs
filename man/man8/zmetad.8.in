@@ -25,6 +25,7 @@
 .Sh SYNOPSIS
 .Nm
 .Op Fl fhv
+.Op Fl C Ar config
 .Op Fl d Ar database
 .Op Fl i Ar interval
 .Op Fl r Ar days
@@ -65,12 +66,24 @@ Send
 .Dv SIGUSR1
 to the daemon for an immediate collection cycle.
 .Pp
-All configuration is provided on the command line;
-.Nm
-has no configuration file.
+All configuration is provided on the command line or in an optional
+configuration file,
+.Pa /etc/zmetad.conf
+(see
+.Sx CONFIGURATION
+below); with neither, built-in defaults apply.
 .
 .Sh OPTIONS
 .Bl -tag -width "--export-schema file"
+.It Fl C Ar config , Fl -config Ar config
+Read the daemon configuration from
+.Ar config
+instead of the default
+.Pa /etc/zmetad.conf .
+A missing file is not an error; a present-but-invalid file is a fatal
+startup error (message on standard error, exit status 2).
+See
+.Sx CONFIGURATION .
 .It Fl d Ar database
 Path to the SQLite database file.
 The database will be created if it does not exist.
@@ -160,6 +173,164 @@ It takes no argument.
 Verbose mode.
 May be specified multiple times for increased verbosity.
 .El
+.
+.Sh CONFIGURATION
+When
+.Pa /etc/zmetad.conf
+(or the file named by
+.Fl C )
+exists, it is read at startup before the command-line flags are
+applied.
+Precedence: built-in defaults are overridden by the configuration
+file, which is overridden by command-line flags, so existing systemd
+units and one-shot invocations keep their behavior.
+A missing file is not an error; an invalid file (unknown or duplicate
+key, out-of-range value, malformed line) is a fatal startup error
+reported on standard error with exit status 2.
+.Pp
+The file contains one
+.Sy key = value
+pair per line.
+.Ql #
+starts a comment, whole-line or trailing after whitespace; blank
+lines are ignored.
+Values may be double-quoted; there is no escape grammar, and a
+backslash anywhere in a value is rejected.
+Unknown and duplicate keys are errors.
+The keys are:
+.Bl -tag -width "spool_max_bytes"
+.It Sy db_path
+SQLite database path.
+String, at most
+.Dv PATH_MAX - 1
+bytes.
+Default:
+.Pa /var/lib/zfs/zmetad.db .
+.It Sy schema_path
+Wire event schema JSON path.
+String; empty means the schema embedded in the binary.
+.It Sy poll_interval
+Poll interval in seconds, 1 to 86400.
+Default: 30.
+.It Sy retention_days
+Event retention in days, 0 to 36500.
+Default: 90.
+.It Sy spool_path
+NDJSON spool file path.
+Setting a non-empty value enables spooling; empty or absent leaves it
+off.
+See
+.Sx SPOOL FILE
+below.
+.It Sy spool_max_bytes
+Spool rotation threshold in bytes, 1 MB to 1 GB.
+Default: 67108864 (64 MB).
+.It Sy spool_fsync
+.Cm on
+or
+.Cm off
+.Cm ( true / false
+accepted as aliases).
+fsync the spool file after each collected batch.
+Default:
+.Cm off .
+.El
+.
+.Sh SPOOL FILE
+When
+.Sy spool_path
+is set in the configuration file,
+.Nm
+mirrors every event it ingests to an NDJSON file for log-pipeline
+tailers such as syslog-ng or vector.
+Spooling is best-effort and off by default: a spool write failure
+never blocks the daemon and never touches the database, which remains
+the integrity record.
+After a write error the spool pauses for the remainder of the collect
+cycle (one warning on standard error or syslog per cycle) and re-arms
+at the next cycle, so the stream is lossy by design; completeness
+questions belong to the database (see
+.Pa contrib/zmetad/SCHEMA.md ,
+which documents the full envelope contract).
+.Pp
+Format: one compact JSON object per line.
+Every line carries the header fields
+.Sy zmetad No = 1 ,
+.Sy type ,
+.Sy dataset ,
+and
+.Sy ts
+(unix seconds).
+Three types exist:
+.Bl -tag -width "event"
+.It Sy event
+One ingested record; the
+.Sy rec
+member holds the record's fields in schema order, using the wire field
+names and the same op names the
+.Sy events
+table's
+.Sy event_type
+column stores.
+It is the stream form of an
+.Sy events
+row.
+.It Sy epoch
+Ring identity change:
+.Sy old_guid
+to
+.Sy new_guid
+(see
+.Sx DATABASE SCHEMA ,
+ring identity).
+The stream form of a
+.Sy gaps
+row with
+.Sy lost No = -1 .
+.It Sy gap
+Loss boundary, two forms:
+.Ql "lost":N
+with N greater than or equal to 0 (exact lost count; N = 0 means a
+count-unknown watermark regression) and
+.Ql "swap":true
+(ring replaced).
+The sentinel rules of the
+.Sy gaps
+table apply unchanged.
+.El
+.Pp
+Markers are always written before the records that follow the
+boundary, so a consumer can segment the stream at identity and loss
+boundaries exactly as a database consumer segments at
+.Sy gaps
+rows.
+Writes are append-only and line-atomic.
+Rotation is size-based with a single generation: before a line would
+push the file past
+.Sy spool_max_bytes ,
+the file is renamed to
+.Pa <spool_path>.1
+(overwriting any previous generation) and a fresh file is opened; no
+line is ever split across a rotation.
+Tailers should follow both files.
+.Ss syslog-ng file() source
+Tail the spool as a JSON-parseable source:
+.Bd -literal -offset indent
+source s_zmetad {
+    file("/var/spool/zmetad/events.ndjson"
+         follow-freq(1)
+         flags(no-parse)
+         program-override("zmetad"));
+};
+parser p_zmetad {
+    json-parser(prefix(".zmetad."));
+};
+log {
+    source(s_zmetad);
+    parser(p_zmetad);
+    destination(d_zmetad_store);
+};
+.Ed
 .
 .Sh DATABASE SCHEMA
 The SQLite database layout version is recorded in the
@@ -321,6 +492,10 @@ ORDER BY day DESC;
 .
 .Sh FILES
 .Bl -tag -width "/var/lib/zfs/zmetad.db"
+.It Pa /etc/zmetad.conf
+Default daemon configuration file (optional; read at startup when it
+exists, see
+.Sx CONFIGURATION ) .
 .It Pa /var/lib/zfs/zmetad.db
 Default SQLite database location.
 .It Pa contrib/zmetad/SCHEMA.md

@@ -426,3 +426,87 @@ that collect. See zmetad(8) for CLI details.
   new events (dedup as in Section 3), refreshes the `datasets`
   mountpoint row, and inserts gap rows per Section 2.4 when loss is
   detected.
+
+
+## 10. Spool envelope (NDJSON stream)
+
+Besides the database, zmetad can mirror everything it ingests to an
+NDJSON spool file for log-pipeline tailers (syslog-ng, vector, ...).
+It is **off by default**; setting a non-empty `spool_path` in
+`/etc/zmetad.conf` enables it (see zmetad(8), SPOOL FILE). The spool
+is a *derived stream of the database*: every line below corresponds to
+an events or gaps row (or the watermark reset of a ring swap) that was
+committed first. A consumer may treat the two as parallel views of the
+same facts.
+
+Envelope format: one compact JSON object per line, UTF-8, `LF`
+delimited. Every line carries the envelope header `zmetad` (constant
+`1`), `type`, `dataset`, and `ts` (unix seconds). Three types exist,
+verbatim:
+
+```json
+{"zmetad":1,"type":"event","dataset":"tank/data","ts":1696312345,"rec":{"txg":15042,"object":128,"op":"TRUNCATE","new_size":0}}
+{"zmetad":1,"type":"epoch","dataset":"tank/data","ts":1696312346,"old_guid":111,"new_guid":222}
+{"zmetad":1,"type":"gap","dataset":"tank/data","ts":1696312347,"lost":37}
+{"zmetad":1,"type":"gap","dataset":"tank/data","ts":1696312347,"swap":true}
+```
+
+- `event` — one record as inserted into `events` (Section 2.1). `rec`
+  is the wire record serialized schema-driven, **in schema field
+  order**, with the same field semantics as the table columns (wire
+  names, e.g. `object`, `op`); `op` carries the **enum name**
+  (`TRUNCATE`), exactly what `event_type` stores; absent wire fields
+  are omitted (the JSON form of the NULL column rule). `ts` is the
+  record's `captured_at` (ingest time; one value per collect batch).
+- `epoch` — ring identity change (Section 6): `old_guid` → `new_guid`.
+  The stream form of the `lost = -1` gap row's boundary.
+- `gap` — loss boundary (Section 2.5), two forms: `"lost":N` with
+  N ≥ 0 (exact lost count, or `0` = count-unknown regression) and
+  `"swap":true` (ring replaced; the `-1` sentinel rendered as a JSON
+  boolean — never as a numeric count). The sentinel rules of
+  Section 2.5/4 apply unchanged.
+
+Ordering guarantee: **markers precede the post-boundary records.** A
+`gap`/`epoch` marker for a boundary is always written to the stream
+before any `event` line of the page(s) after that boundary, so a
+consumer can segment the stream exactly like the gaps-table consumer
+segments its queries (Section 6). Line writes are `O_APPEND` and
+line-atomic: a tailer never observes a partial line, and no line ever
+spans a rotation.
+
+Best-effort semantics: a spool failure (ENOSPC, I/O error) never
+blocks or fails the daemon and never touches the database — the DB
+commit is the integrity record. After a write error the spool
+**poisons** itself for the rest of the collect cycle (one warning per
+cycle, on stderr/syslog), drops the remaining lines of that cycle, and
+re-arms at the next cycle start. Consequences for consumers: the spool
+is **lossy by design** — a gap in the *stream* does not mean a gap in
+the *database*; authoritative completeness lives in `events`/`gaps`
+(Sections 2.1/2.5). Consumers needing completeness must not rely on
+the spool alone.
+
+Rotation: size-based, single generation. Before a write that would
+push the file past `spool_max_bytes` (default 64 MB, range 1 MB–1 GB),
+the file is closed, renamed to `<spool_path>.1` (overwriting any
+previous `.1`), and a fresh file is opened. Because the check runs
+before the whole line is appended, **no line is ever split across a
+rotation**. Tailers should follow both `<spool_path>` and
+`<spool_path>.1`.
+
+Consumer recipe (tailer):
+
+1. Follow the spool file (and `.1`); parse each line as JSON. Reject
+   (counter) any line whose `zmetad` != 1 or whose `type` is unknown —
+   that is a forward-compatibility signal, not a parse error.
+2. `type == "event"`: the line is the same fact as an `events` row;
+   map `rec` fields per the Section 2.1 table (`dataset` + `rec`
+   together identify the record; `ts` is `captured_at`).
+3. `type == "gap"` with `"swap":true`, or `type == "epoch"`: segment
+   the stream here, exactly as a DB consumer segments at `lost = -1`
+   rows (Section 6): records before the marker belong to the previous
+   kernel event log.
+4. `type == "gap"` with `"lost":N`: loss boundary; N follows the
+   Section 2.5 sentinel table (N = 0 is "count unknown", never "no
+   loss").
+5. Treat missing lines as possible (best-effort, above); do not use
+   the spool for completeness judgments.

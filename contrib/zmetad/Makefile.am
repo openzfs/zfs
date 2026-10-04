@@ -7,9 +7,13 @@ CPPCHECKTARGETS += zmetad
 zmetad_SOURCES = \
 	%D%/zmetad.c \
 	%D%/zmetad.h \
+	%D%/zmetad_conf.c \
+	%D%/zmetad_conf.h \
 	%D%/zmetad_db.c \
 	%D%/zmetad_schema.c \
 	%D%/zmetad_schema.h \
+	%D%/zmetad_spool.c \
+	%D%/zmetad_spool.h \
 	%D%/schema_blob.h
 
 zmetad_LDADD = \
@@ -28,8 +32,11 @@ check_PROGRAMS = zmetad_schema_test
 
 zmetad_schema_test_SOURCES = \
 	%D%/zmetad_schema_test.c \
+	%D%/zmetad_conf.c \
 	%D%/zmetad_schema.c \
 	%D%/zmetad_schema.h \
+	%D%/zmetad_spool.c \
+	%D%/zmetad_spool.h \
 	%D%/schema_blob.h
 
 zmetad_schema_test_LDADD = libnvpair.la
@@ -41,7 +48,21 @@ TESTS = zmetad_schema_test
 EXTRA_DIST = \
 	%D%/schema-check.sh \
 	%D%/events-schema.json \
-	%D%/SCHEMA.md
+	%D%/SCHEMA.md \
+	%D%/zmetad.conf.sample
+
+# Install the sample configuration into $(sysconfdir), never
+# clobbering an existing operator file: install-data-local runs the
+# copy only when the target does not exist.  Only the SAMPLE is
+# installed by default; /etc/zmetad.conf is created by the operator.
+install-data-local:
+	@if [ -f "$(DESTDIR)$(sysconfdir)/zmetad.conf" ]; then \
+		echo "zmetad.conf exists; not overwriting"; \
+	else \
+		$(MKDIR_P) "$(DESTDIR)$(sysconfdir)"; \
+		$(INSTALL_DATA) "$(srcdir)/%D%/zmetad.conf.sample" \
+		    "$(DESTDIR)$(sysconfdir)/zmetad.conf"; \
+	fi
 
 PHONY += check-schema
 check-schema:

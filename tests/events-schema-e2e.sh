@@ -175,7 +175,8 @@ unit_start() {
 	"${SUDO[@]}" systemctl reset-failed "$UNIT" >/dev/null 2>&1 || true
 	"${SUDO[@]}" systemd-run --unit="$UNIT" \
 		--description="zmetad e2e validation" \
-		"$ZMETAD" -f -i "$_interval" "$@" -d "$WD/zmd.db" ||
+		"$ZMETAD" -C "$WD/zmetad.conf" -f -i "$_interval" "$@" \
+		-d "$WD/zmd.db" ||
 		fail "unit_start: systemd-run failed (interval=$_interval)"
 	# Poll for liveness instead of a fixed sleep (E2E-12): sleep 4
 	# both wasted time on fast starts and raced daemons that die
@@ -311,6 +312,14 @@ step_preflight() {
 	"${SUDO[@]}" "$ZFS" events -c "$BASE_DS" >/dev/null 2>&1 || true
 
 	WD="$(mktemp -d /var/tmp/zmd-e2e.XXXXXX)"
+
+	# Spool config (leaf 03): the daemon is conf-driven for the
+	# spool (conf-only keys, no CLI flag), so every unit_start
+	# below passes -C with a spool_path inside the run's workdir;
+	# step_spool asserts the stream after the ops step.
+	cat > "$WD/zmetad.conf" <<EOF
+spool_path = $WD/spool.ndjson
+EOF
 
 	if [ -n "$ZMETAD" ] && [ -x "$ZMETAD" ]; then
 		:
@@ -493,6 +502,91 @@ step_ops() {
 	[ "$found" -eq 1 ] ||
 		fail "ops: cross-dir RENAME d.txt never appeared within 40s"
 	pass ops
+}
+
+step_spool() {
+	# Leaf 03 addendum: the daemon was started (unit_start) with a
+	# conf setting spool_path inside $WD, and step_ops performed
+	# the multi-op workload, so the spool file must exist, parse
+	# as NDJSON, and carry at least one event envelope line whose
+	# dataset and op match a record the DB assertions verified
+	# (the cross-dir RENAME d.txt row from step_ops).
+	SPOOL="$WD/spool.ndjson"
+	i=0
+	while [ "$i" -lt 20 ]; do
+		if [ -s "$SPOOL" ]; then
+			break
+		fi
+		sleep 2
+		i=$((i + 1))
+	done
+	[ -s "$SPOOL" ] ||
+		fail "spool: $SPOOL empty or missing after ops (conf spool_path ignored?)"
+
+	# NDJSON + envelope validation, privileged (the daemon runs as
+	# root, so the file is root-owned; the suite user may not read
+	# it directly).  Fails on: non-JSON line, missing/foreign
+	# envelope header, unknown type, event line without dataset or
+	# rec, and no matching RENAME d.txt event line.
+	"${SUDO[@]}" python3 - "$SPOOL" "$DS" <<'PY' ||
+	fail "spool: envelope validation failed (see SPAIL/SPFAIL lines above)"
+import json
+import sys
+
+path, ds = sys.argv[1], sys.argv[2]
+n_event = 0
+n_marker = 0
+matched = None
+with open(path) as f:
+    for lineno, line in enumerate(f, 1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except ValueError as e:
+            print("SPAIL line %d not JSON: %s" % (lineno, e),
+                  file=sys.stderr)
+            sys.exit(1)
+        if not isinstance(obj, dict) or obj.get("zmetad") != 1:
+            print("SPAIL line %d: bad envelope header: %r"
+                  % (lineno, obj), file=sys.stderr)
+            sys.exit(1)
+        t = obj.get("type")
+        if t not in ("event", "epoch", "gap"):
+            print("SPAIL line %d: unknown type %r" % (lineno, t),
+                  file=sys.stderr)
+            sys.exit(1)
+        if not isinstance(obj.get("dataset"), str) or \
+                not isinstance(obj.get("ts"), int):
+            print("SPAIL line %d: missing dataset/ts" % lineno,
+                  file=sys.stderr)
+            sys.exit(1)
+        if t == "event":
+            rec = obj.get("rec")
+            if not isinstance(rec, dict):
+                print("SPAIL line %d: event without rec dict"
+                      % lineno, file=sys.stderr)
+                sys.exit(1)
+            n_event += 1
+            if (matched is None and obj["dataset"] == ds and
+                    rec.get("op") == "RENAME" and
+                    rec.get("name") == "d.txt"):
+                matched = obj
+        else:
+            n_marker += 1
+
+if n_event < 1:
+    print("SPFAIL no type=event line in spool", file=sys.stderr)
+    sys.exit(1)
+if matched is None:
+    print("SPFAIL no event line for %s RENAME d.txt" % ds,
+          file=sys.stderr)
+    sys.exit(1)
+print("spool: %d event lines, %d marker lines; RENAME d.txt "
+      "line verified" % (n_event, n_marker))
+PY
+	pass spool
 }
 
 step_assert() {
@@ -1712,6 +1806,7 @@ step_check_bad
 step_module_version
 step_daemon_run
 step_ops
+step_spool
 step_root_objid
 step_principal
 step_assert

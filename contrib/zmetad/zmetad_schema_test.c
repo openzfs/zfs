@@ -26,10 +26,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <limits.h>
+#include <sys/stat.h>
 
 #include <libnvpair.h>
 
+#include "zmetad.h"
+#include "zmetad_conf.h"
 #include "zmetad_schema.h"
+#include "zmetad_spool.h"
 #include "schema_blob.h"
 
 static int g_fail;
@@ -132,6 +137,640 @@ expect_load_ok(const char *doc, const char *what)
 	}
 	(void) unlink(path);
 	return (zs);
+}
+
+/*
+ * Write "doc" to "<dir>/<name>" (a plain name, no slashes) under a
+ * caller-provided mkdtemp directory and return a malloc'd path (caller
+ * frees) or NULL on failure.  Conf tests write several files, so a
+ * per-suite directory beats another mkstemp name.
+ */
+static char *
+conf_write_file(const char *dir, const char *name, const char *doc)
+{
+	char *path;
+	FILE *fp;
+	size_t len = strlen(doc);
+	size_t dlen = strlen(dir);
+
+	path = malloc(dlen + 1 + strlen(name) + 1);
+	if (path == NULL)
+		return (NULL);
+	(void) snprintf(path, dlen + 1 + strlen(name) + 1, "%s/%s", dir,
+	    name);
+	fp = fopen(path, "w");
+	if (fp == NULL) {
+		fprintf(stderr, "FAIL: fopen %s: %s\n", path,
+		    strerror(errno));
+		g_fail = 1;
+		free(path);
+		return (NULL);
+	}
+	if (fwrite(doc, 1, len, fp) != len) {
+		fprintf(stderr, "FAIL: short write %s\n", path);
+		g_fail = 1;
+	}
+	(void) fclose(fp);
+	return (path);
+}
+
+/*
+ * Initialize a zmetad_config_t to the same built-in defaults the
+ * daemon's config_init() applies (minus the daemon-only one-shot
+ * pointers, which this test does not exercise).
+ */
+static void
+config_defaults_for_test(zmetad_config_t *cfg)
+{
+	memset(cfg, 0, sizeof (*cfg));
+	cfg->poll_interval = ZMETAD_DEFAULT_POLL_INTERVAL;
+	cfg->retention_days = ZMETAD_DEFAULT_RETENTION_DAYS;
+	(void) strlcpy(cfg->db_path, ZMETAD_DEFAULT_DB_PATH,
+	    sizeof (cfg->db_path));
+	cfg->spool_max_bytes = 64 * 1024 * 1024;
+	cfg->spool_fsync = B_FALSE;
+	cfg->spool_enabled = B_FALSE;
+}
+
+/*
+ * Spool tests (leaf 02): read the whole spool file into a malloc'd
+ * buffer (caller frees).  Returns NULL (and flags failure) when the
+ * file cannot be read.
+ */
+static char *
+spool_read_file(const char *path)
+{
+	FILE *fp;
+	long sz;
+	char *buf;
+
+	fp = fopen(path, "r");
+	if (fp == NULL) {
+		fprintf(stderr, "FAIL: spool fopen %s: %s\n", path,
+		    strerror(errno));
+		g_fail = 1;
+		return (NULL);
+	}
+	if (fseek(fp, 0, SEEK_END) != 0 || (sz = ftell(fp)) < 0) {
+		fprintf(stderr, "FAIL: spool size %s: %s\n", path,
+		    strerror(errno));
+		g_fail = 1;
+		(void) fclose(fp);
+		return (NULL);
+	}
+	(void) rewind(fp);
+	buf = malloc((size_t)sz + 1);
+	if (buf == NULL) {
+		(void) fclose(fp);
+		return (NULL);
+	}
+	if (fread(buf, 1, (size_t)sz, fp) != (size_t)sz) {
+		fprintf(stderr, "FAIL: spool short read %s\n", path);
+		g_fail = 1;
+		free(buf);
+		(void) fclose(fp);
+		return (NULL);
+	}
+	buf[sz] = '\0';
+	(void) fclose(fp);
+	return (buf);
+}
+
+/*
+ * Verify every line in the spool content parses back as one complete
+ * JSON object (the file ends with a newline; nothing may follow it).
+ * A partial line -- the rotation hazard the writer exists to
+ * prevent -- shows up as trailing data without its newline.
+ * Parsing uses nvlist_unpack of an nvlist_print_json round trip is
+ * overkill here: a hand-rolled scanner that checks balanced quoting
+ * (no unescaped quote inside), one top-level {...}, and the fixed
+ * envelope prefix is enough to prove line-atomicity and shape.
+ */
+static void
+spool_assert_ndjson(const char *content, const char *what)
+{
+	const char *p = content;
+
+	while (*p != '\0') {
+		const char *nl = strchr(p, '\n');
+		boolean_t in_str = B_FALSE;
+		const char *q;
+
+		if (nl == NULL) {
+			fprintf(stderr, "FAIL: %s: trailing data without "
+			    "newline (partial line)\n", what);
+			g_fail = 1;
+			return;
+		}
+		/* Scanner: quotes toggle; backslash escapes one char. */
+		for (q = p; q < nl; q++) {
+			if (in_str && *q == '\\') {
+				q++;
+				continue;
+			}
+			if (*q == '"')
+				in_str = !in_str;
+		}
+		if (in_str || *p != '{' || nl[-1] != '}') {
+			fprintf(stderr, "FAIL: %s: line is not one "
+			    "complete JSON object: %.*s\n", what,
+			    (int)(nl - p), p);
+			g_fail = 1;
+			return;
+		}
+		p = nl + 1;
+	}
+}
+
+static void
+run_spool_tests(void)
+{
+	char dir[] = "/tmp/zmetad_spool_test_XXXXXX";
+	char *path;
+	zmetad_schema_t *zs;
+	zmetad_spool_t *sp;
+	nvlist_t *rec;
+	char errbuf[256];
+
+	if (mkdtemp(dir) == NULL) {
+		fprintf(stderr, "FAIL: mkdtemp spool: %s\n", strerror(errno));
+		g_fail = 1;
+		return;
+	}
+
+	zs = zmetad_schema_load(NULL, errbuf);
+	if (zs == NULL) {
+		fprintf(stderr, "FAIL: spool: embedded schema load: %s\n",
+		    errbuf);
+		g_fail = 1;
+		return;
+	}
+
+	/* Argument validation. */
+	REQUIRE(zmetad_spool_open(&sp, NULL, 0, B_FALSE) == EINVAL);
+	REQUIRE(zmetad_spool_open(NULL, "x", 0, B_FALSE) == EINVAL);
+	REQUIRE(zmetad_spool_open(&sp, "", 0, B_FALSE) == EINVAL);
+
+	/* Poisoned-by-default contract for an unknown handle. */
+	REQUIRE(zmetad_spool_poisoned(NULL) == B_TRUE);
+	zmetad_spool_resume(NULL);		/* no-op */
+	zmetad_spool_close(NULL);		/* no-op */
+
+	/*
+	 * Event envelope: keys fixed and ordered, rec serialized
+	 * schema-driven in schema order, JSON escaping round-trips.
+	 * The dataset name carries a quote and a backslash; the
+	 * escaped line is verified against an expected literal AND
+	 * re-scanned by spool_assert_ndjson().
+	 */
+	{
+		const char *dsname = "tank/we\"ird\\path";
+		char expect[512];
+		char *content;
+		uint64_t ts = 1696312345;
+
+		path = malloc(strlen(dir) + 32);
+		REQUIRE(path != NULL);
+		(void) snprintf(path, strlen(dir) + 32, "%s/ev.ndjson",
+		    dir);
+
+		REQUIRE(zmetad_spool_open(&sp, path, 0, B_FALSE) == 0);
+		REQUIRE(zmetad_spool_poisoned(sp) == B_FALSE);
+		zmetad_spool_set_schema(sp, zs);
+
+		rec = fnvlist_alloc();
+		REQUIRE(rec != NULL);
+		fnvlist_add_uint64(rec, "txg", 15042);
+		fnvlist_add_uint16(rec, "op", 6);	/* TRUNCATE */
+		fnvlist_add_string(rec, "name", "a\\b\"c");
+
+		REQUIRE(zmetad_spool_event(sp, dsname, rec, ts) == 0);
+		fnvlist_free(rec);
+		zmetad_spool_close(sp);
+
+		content = spool_read_file(path);
+		REQUIRE(content != NULL);
+		(void) snprintf(expect, sizeof (expect),
+		    "{\"zmetad\":1,\"type\":\"event\","
+		    "\"dataset\":\"tank/we\\\"ird\\\\path\","
+		    "\"ts\":%llu,"
+		    "\"rec\":{\"txg\":15042,\"op\":\"TRUNCATE\","
+		    "\"name\":\"a\\\\b\\\"c\"}}\n",
+		    (unsigned long long)ts);
+		if (content != NULL && strcmp(content, expect) != 0) {
+			fprintf(stderr, "FAIL: spool envelope mismatch:\n"
+			    " got: %s want: %s\n", content, expect);
+			g_fail = 1;
+		}
+		if (content != NULL)
+			spool_assert_ndjson(content, "envelope");
+		free(content);
+
+		/* Lazily created: the file exists only after a write. */
+		{
+			struct stat st;
+			char *path2 = malloc(strlen(dir) + 32);
+
+			REQUIRE(path2 != NULL);
+			(void) snprintf(path2, strlen(dir) + 32,
+			    "%s/lazy.ndjson", dir);
+			REQUIRE(zmetad_spool_open(&sp, path2, 0,
+			    B_FALSE) == 0);
+			zmetad_spool_close(sp);
+			REQUIRE(stat(path2, &st) == -1 &&
+			    errno == ENOENT);
+			free(path2);
+		}
+
+		/* Bad args on a live handle. */
+		REQUIRE(zmetad_spool_open(&sp, path, 0, B_FALSE) == 0);
+		zmetad_spool_set_schema(sp, zs);
+		REQUIRE(zmetad_spool_event(sp, NULL, NULL, 1) == EINVAL);
+		REQUIRE(zmetad_spool_marker(sp, NULL, "gap",
+		    NULL) == EINVAL);
+		zmetad_spool_close(sp);
+
+		free(path);
+	}
+
+	/*
+	 * Markers: epoch (old_guid/new_guid), gap lost=n, gap swap
+	 * sentinel ((uint64_t)-1 renders as "swap":true), and the
+	 * type validation.
+	 */
+	{
+		char *content;
+
+		path = malloc(strlen(dir) + 32);
+		REQUIRE(path != NULL);
+		(void) snprintf(path, strlen(dir) + 32, "%s/mk.ndjson",
+		    dir);
+
+		REQUIRE(zmetad_spool_open(&sp, path, 0, B_FALSE) == 0);
+		REQUIRE(zmetad_spool_marker(sp, "tank/h", "epoch",
+		    "old_guid", (uint64_t)111, "new_guid", (uint64_t)222,
+		    NULL) == 0);
+		REQUIRE(zmetad_spool_marker(sp, "tank/h", "gap",
+		    "lost", (uint64_t)37, NULL) == 0);
+		REQUIRE(zmetad_spool_marker(sp, "tank/h", "gap",
+		    "lost", (uint64_t)-1, NULL) == 0);
+		REQUIRE(zmetad_spool_marker(sp, "tank/h", "bogus",
+		    NULL) == EINVAL);
+		zmetad_spool_close(sp);
+
+		content = spool_read_file(path);
+		REQUIRE(content != NULL);
+		if (content != NULL) {
+			const char *l1 = strstr(content, "\"type\":\"epoch\"");
+			const char *l2 = strstr(content, "\"lost\":37");
+			const char *l3 = strstr(content, "\"swap\":true");
+
+			REQUIRE(l1 != NULL);
+			REQUIRE(strstr(l1 != NULL ? l1 : content,
+			    "\"old_guid\":111") != NULL);
+			REQUIRE(strstr(l1 != NULL ? l1 : content,
+			    "\"new_guid\":222") != NULL);
+			REQUIRE(l2 != NULL);
+			REQUIRE(l3 != NULL);
+			spool_assert_ndjson(content, "markers");
+		}
+		free(content);
+		free(path);
+	}
+
+	/*
+	 * Rotation at a tiny max_bytes: each line forces a roll, so
+	 * the live file holds only the LAST line, the .1 generation
+	 * holds every earlier line, and no line is ever split.
+	 */
+	{
+		char dot1[strlen(dir) + 40];
+		char *content;
+		int i;
+
+		path = malloc(strlen(dir) + 40);
+		REQUIRE(path != NULL);
+		(void) snprintf(path, strlen(dir) + 40, "%s/rot.ndjson",
+		    dir);
+		(void) snprintf(dot1, sizeof (dot1), "%s.1", path);
+
+		/*
+		 * Lines are ~55 bytes; a 60-byte threshold rolls on
+		 * every line after the first.
+		 */
+		REQUIRE(zmetad_spool_open(&sp, path, 60, B_FALSE) == 0);
+		zmetad_spool_set_schema(sp, zs);
+		rec = fnvlist_alloc();
+		REQUIRE(rec != NULL);
+		fnvlist_add_uint64(rec, "txg", 1);
+		for (i = 0; i < 6; i++) {
+			REQUIRE(zmetad_spool_event(sp, "tank/r", rec,
+			    (uint64_t)(1000 + i)) == 0);
+		}
+		fnvlist_free(rec);
+		zmetad_spool_close(sp);
+
+		{
+			struct stat st;
+			char *old;
+			int nlines = 0;
+			char *p;
+
+			REQUIRE(stat(dot1, &st) == 0);
+			REQUIRE(st.st_size > 0);
+
+			/* Live file: exactly one (the last) line. */
+			content = spool_read_file(path);
+			REQUIRE(content != NULL);
+			if (content != NULL) {
+				for (p = content; (p = strchr(p, '\n'))
+				    != NULL; p++)
+					nlines++;
+				REQUIRE(nlines == 1);
+				REQUIRE(strstr(content,
+				    "\"ts\":1005") != NULL);
+				spool_assert_ndjson(content,
+				    "rotation live");
+			}
+			free(content);
+
+			/*
+			 * .1: the previous generation holds the
+			 * last line written before the final roll
+			 * (each line was appended to a FRESH file,
+			 * so one line per generation; the earlier
+			 * lines were each renamed over by the
+			 * next).  None may be partial.
+			 */
+			old = spool_read_file(dot1);
+			REQUIRE(old != NULL);
+			if (old != NULL) {
+				nlines = 0;
+				for (p = old; (p = strchr(p, '\n'))
+				    != NULL; p++)
+					nlines++;
+				REQUIRE(nlines == 1);
+				REQUIRE(strstr(old,
+				    "\"ts\":1004") != NULL);
+				spool_assert_ndjson(old,
+				    "rotation .1");
+			}
+			free(old);
+		}
+		free(path);
+	}
+
+	/*
+	 * Error path: a spool path in a read-only directory poisons
+	 * the handle, events/marker refuse with EIO, resume clears
+	 * it (recovery at the next collect cycle), and -- the
+	 * poison contract -- the CALLER decides what happens to the
+	 * collect; nothing here can fail it.
+	 */
+	{
+		char rodir[strlen(dir) + 16];
+		char ropath[strlen(dir) + 32];
+		struct stat st;
+
+		(void) snprintf(rodir, sizeof (rodir), "%s/ro", dir);
+		REQUIRE(mkdir(rodir, 0555) == 0);
+		(void) snprintf(ropath, sizeof (ropath), "%s/x.ndjson",
+		    rodir);
+
+		REQUIRE(zmetad_spool_open(&sp, ropath, 0,
+		    B_FALSE) == 0);
+		rec = fnvlist_alloc();
+		REQUIRE(rec != NULL);
+		fnvlist_add_uint64(rec, "txg", 1);
+		/* First write fails (open in RO dir) and poisons. */
+		REQUIRE(zmetad_spool_event(sp, "tank/e", rec, 1) == EIO);
+		REQUIRE(zmetad_spool_poisoned(sp) == B_TRUE);
+		/* Poisoned handles refuse everything with EIO. */
+		REQUIRE(zmetad_spool_event(sp, "tank/e", rec, 2) == EIO);
+		REQUIRE(zmetad_spool_marker(sp, "tank/e", "gap",
+		    "lost", (uint64_t)1, NULL) == EIO);
+		/* Nothing was created. */
+		REQUIRE(stat(ropath, &st) == -1 && errno == ENOENT);
+		fnvlist_free(rec);
+		/* Resume: the next cycle's write is attempted again. */
+		zmetad_spool_resume(sp);
+		REQUIRE(zmetad_spool_poisoned(sp) == B_FALSE);
+		REQUIRE(zmetad_spool_event(sp, "tank/e", NULL, 3) == EIO);
+		REQUIRE(zmetad_spool_poisoned(sp) == B_TRUE);
+		zmetad_spool_close(sp);
+		(void) rmdir(rodir);
+	}
+
+	zmetad_schema_free(zs);
+	if (g_fail) {
+		fprintf(stderr, "spool test dir kept for inspection: %s\n",
+		    dir);
+		return;
+	}
+	(void) rmdir(dir);
+}
+
+/*
+ * Conf loader: rc 0 = loaded, 1 = file absent, -1 = hard error.
+ */
+static void
+run_conf_tests(void)
+{
+	char dir[] = "/tmp/zmetad_conf_test_XXXXXX";
+	zmetad_config_t cfg;
+	char err[256];
+
+	if (mkdtemp(dir) == NULL) {
+		fprintf(stderr, "FAIL: mkdtemp conf: %s\n", strerror(errno));
+		g_fail = 1;
+		return;
+	}
+
+	/* File absent -> 1, config untouched. */
+	{
+		char *absent = conf_write_file(dir, "absent", "");
+
+		(void) unlink(absent);
+		config_defaults_for_test(&cfg);
+		REQUIRE(zmetad_conf_load(&cfg, absent, err,
+		    sizeof (err)) == 1);
+		free(absent);
+	}
+
+	/* Minimal file: one key, everything else default. */
+	{
+		char *p = conf_write_file(dir, "minimal",
+		    "poll_interval = 7\n");
+
+		config_defaults_for_test(&cfg);
+		REQUIRE(zmetad_conf_load(&cfg, p, err, sizeof (err)) == 0);
+		REQUIRE(cfg.poll_interval == 7);
+		REQUIRE(cfg.retention_days == ZMETAD_DEFAULT_RETENTION_DAYS);
+		free(p);
+	}
+
+	/* All keys. */
+	{
+		char *p = conf_write_file(dir, "all",
+		    "db_path = /tmp/zmd-all.db\n"
+		    "schema_path = /tmp/schema.json\n"
+		    "poll_interval = 600\n"
+		    "retention_days = 365\n"
+		    "spool_path = /var/spool/zmetad/events.ndjson\n"
+		    "spool_max_bytes = 1048576\n"
+		    "spool_fsync = on\n");
+
+		config_defaults_for_test(&cfg);
+		REQUIRE(zmetad_conf_load(&cfg, p, err, sizeof (err)) == 0);
+		REQUIRE(strcmp(cfg.db_path, "/tmp/zmd-all.db") == 0);
+		REQUIRE(strcmp(cfg.schema_path, "/tmp/schema.json") == 0);
+		REQUIRE(cfg.poll_interval == 600);
+		REQUIRE(cfg.retention_days == 365);
+		REQUIRE(cfg.spool_enabled == B_TRUE);
+		REQUIRE(strcmp(cfg.spool_path,
+		    "/var/spool/zmetad/events.ndjson") == 0);
+		REQUIRE(cfg.spool_max_bytes == 1048576);
+		REQUIRE(cfg.spool_fsync == B_TRUE);
+		free(p);
+	}
+
+	/* Quoted values, blank lines, whole-line + trailing comments. */
+	{
+		char *p = conf_write_file(dir, "quoted",
+		    "# whole-line comment\n"
+		    "\n"
+		    "db_path = \"/tmp/zmd q.db\" # trailing comment\n"
+		    "spool_fsync = \"off\"\n");
+
+		config_defaults_for_test(&cfg);
+		REQUIRE(zmetad_conf_load(&cfg, p, err, sizeof (err)) == 0);
+		REQUIRE(strcmp(cfg.db_path, "/tmp/zmd q.db") == 0);
+		REQUIRE(cfg.spool_fsync == B_FALSE);
+		free(p);
+	}
+
+	/* Unknown key -> hard error naming it. */
+	{
+		char *p = conf_write_file(dir, "unknown",
+		    "db_path = /tmp/x.db\n"
+		    "bogus_key = 1\n");
+
+		config_defaults_for_test(&cfg);
+		err[0] = '\0';
+		REQUIRE(zmetad_conf_load(&cfg, p, err, sizeof (err)) == -1);
+		REQUIRE(strstr(err, "bogus_key") != NULL);
+		free(p);
+	}
+
+	/* Duplicate key -> hard error. */
+	{
+		char *p = conf_write_file(dir, "dup",
+		    "poll_interval = 5\n"
+		    "poll_interval = 6\n");
+
+		config_defaults_for_test(&cfg);
+		err[0] = '\0';
+		REQUIRE(zmetad_conf_load(&cfg, p, err, sizeof (err)) == -1);
+		REQUIRE(strstr(err, "duplicate") != NULL);
+		free(p);
+	}
+
+	/* Out-of-range poll_interval -> hard error. */
+	{
+		char *p = conf_write_file(dir, "range",
+		    "poll_interval = 86401\n");
+
+		config_defaults_for_test(&cfg);
+		REQUIRE(zmetad_conf_load(&cfg, p, err, sizeof (err)) == -1);
+		free(p);
+	}
+
+	/* Non-numeric poll_interval -> hard error. */
+	{
+		char *p = conf_write_file(dir, "bogus",
+		    "poll_interval = bogus\n");
+
+		config_defaults_for_test(&cfg);
+		REQUIRE(zmetad_conf_load(&cfg, p, err, sizeof (err)) == -1);
+		free(p);
+	}
+
+	/* Backslash outside quotes -> hard error, no escape grammar. */
+	{
+		char *p = conf_write_file(dir, "backslash",
+		    "db_path = /tmp/x\\y.db\n");
+
+		config_defaults_for_test(&cfg);
+		REQUIRE(zmetad_conf_load(&cfg, p, err, sizeof (err)) == -1);
+		free(p);
+	}
+
+	/* Truncating db_path -> hard error (value longer than PATH_MAX). */
+	{
+		char *p = conf_write_file(dir, "toolong", "");
+		FILE *fp = fopen(p, "w");
+
+		REQUIRE(fp != NULL);
+		(void) fprintf(fp, "db_path = /tmp/");
+		for (size_t i = 0; i < PATH_MAX; i++)
+			(void) fputc('x', fp);
+		(void) fprintf(fp, "\n");
+		(void) fclose(fp);
+
+		config_defaults_for_test(&cfg);
+		REQUIRE(zmetad_conf_load(&cfg, p, err, sizeof (err)) == -1);
+		free(p);
+	}
+
+	/* spool_max_bytes out of range (below 1MB) -> hard error. */
+	{
+		char *p = conf_write_file(dir, "smallspool",
+		    "spool_max_bytes = 1024\n");
+
+		config_defaults_for_test(&cfg);
+		REQUIRE(zmetad_conf_load(&cfg, p, err, sizeof (err)) == -1);
+		free(p);
+	}
+
+	/* spool_fsync invalid token -> hard error. */
+	{
+		char *p = conf_write_file(dir, "badfsync",
+		    "spool_fsync = maybe\n");
+
+		config_defaults_for_test(&cfg);
+		REQUIRE(zmetad_conf_load(&cfg, p, err, sizeof (err)) == -1);
+		free(p);
+	}
+
+	/* Line over the 4KB cap -> hard error, not truncation. */
+	{
+		char *p = conf_write_file(dir, "longline", "");
+		FILE *fp = fopen(p, "w");
+
+		REQUIRE(fp != NULL);
+		(void) fprintf(fp, "schema_path = /tmp/");
+		for (int i = 0; i < 5000; i++)
+			(void) fputc('y', fp);
+		(void) fprintf(fp, "\n");
+		(void) fclose(fp);
+
+		config_defaults_for_test(&cfg);
+		REQUIRE(zmetad_conf_load(&cfg, p, err, sizeof (err)) == -1);
+		free(p);
+	}
+
+	/* Empty spool_path leaves spooling disabled. */
+	{
+		char *p = conf_write_file(dir, "emptyspool",
+		    "spool_path = \"\"\n");
+
+		config_defaults_for_test(&cfg);
+		REQUIRE(zmetad_conf_load(&cfg, p, err, sizeof (err)) == 0);
+		REQUIRE(cfg.spool_enabled == B_FALSE);
+		free(p);
+	}
+
+	(void) rmdir(dir);
 }
 
 int
@@ -704,6 +1343,16 @@ main(void)
 	}
 
 	zmetad_schema_free(zs);
+	zs = NULL;
+
+	/*
+	 * NDJSON spool writer (leaf 02): loads its own embedded
+	 * schema since the parser tests freed theirs.
+	 */
+	run_spool_tests();
+
+	/* zmetad.conf parser (leaf 01). */
+	run_conf_tests();
 
 	if (g_fail) {
 		fprintf(stderr, "zmetad_schema_test: FAILED\n");
