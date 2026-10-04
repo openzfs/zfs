@@ -40,6 +40,12 @@ zmetad_schema_test_SOURCES = \
 	%D%/zmetad_spool.h \
 	%D%/schema_blob.h
 
+# strlcpy()/strlcat() come from libspl; on glibc >= 2.38 they exist in
+# libc and these sources compile to nothing (HAVE_STRLCPY).
+zmetad_schema_test_SOURCES += \
+	$(top_srcdir)/lib/libspl/strlcpy.c \
+	$(top_srcdir)/lib/libspl/strlcat.c
+
 zmetad_schema_test_LDADD = libnvpair.la
 
 # Run the parser test under "make check".
