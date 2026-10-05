@@ -71,13 +71,17 @@ import json, sys
 with open(sys.argv[1]) as f:
     page = json.load(f)
 writes = [e for e in page if e["op"] == "WRITE"]
-assert len(writes) == 1, "expected 1 WRITE, got %d" % len(writes)
+if len(writes) != 1:
+    for w in writes:
+        sys.stderr.write("WRITE off=%s bytes=%s txg=%s\n" %
+            (w.get("io_offset"), w.get("io_bytes"), w.get("txg")))
+    raise SystemExit("expected 1 WRITE, got %d" % len(writes))
 w = writes[0]
 assert w["io_offset"] == 0, "io_offset=%s" % w["io_offset"]
 assert w["io_bytes"] == 5000, "io_bytes=%s" % w["io_bytes"]
 print("write-ok")
 EOF
-[[ $? -eq 0 ]] || log_fail "WRITE record fields wrong"
+[[ $? -eq 0 ]] || log_fail "WRITE record fields wrong (records dumped above)"
 rm -f "$json"
 log_must zfs events -c "$ds" >/dev/null 2>&1 || true
 count=$(wait_records_clear "$ds") || \
