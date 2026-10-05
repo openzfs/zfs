@@ -80,6 +80,8 @@ EOF
 [[ $? -eq 0 ]] || log_fail "WRITE record fields wrong"
 rm -f "$json"
 log_must zfs events -c "$ds" >/dev/null 2>&1 || true
+count=$(wait_records_clear "$ds") || \
+    log_fail "ring not empty after clear: $count records"
 
 # events_io_window=2000 ms: two rapid writes coalesce to one record
 log_must zfs set events_io_window=2000 "$ds"
@@ -108,6 +110,8 @@ EOF
 [[ $? -eq 0 ]] || log_fail "expected the two writes to coalesce"
 rm -f "$json"
 log_must zfs events -c "$ds" >/dev/null 2>&1 || true
+count=$(wait_records_clear "$ds") || \
+    log_fail "ring not empty after clear: $count records"
 
 # window=0: fencing disabled, no coalescing - 3 writes, 3 records
 log_must zfs set events_io_window=0 "$ds"

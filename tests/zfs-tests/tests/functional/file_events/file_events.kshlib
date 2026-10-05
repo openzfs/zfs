@@ -65,6 +65,32 @@ function count_records
 	    grep -v -e '^TXG' -e '^---' -e '^no events' | wc -l
 }
 
+# wait_records_clear <dataset> [timeout]
+# Poll until the dataset's ring is empty or <timeout> (default 15)
+# seconds elapse.  Returns success only when the ring is empty.
+# Used after `zfs events -c`: the clear and an in-flight deferred
+# drain can race, and a record that lands after the clear would
+# otherwise pollute the next check's counts.
+function wait_records_clear
+{
+	typeset ds="$1"
+	typeset -i timeout="${2:-15}"
+	typeset -i count=0
+	typeset -i i=0
+
+	while [[ $i -lt $timeout ]]; do
+		zpool sync "$TESTPOOL"
+		count=$(count_records "$ds")
+		if [[ $count -eq 0 ]]; then
+			break
+		fi
+		((i = i + 1))
+		sleep 1
+	done
+	echo "$count"
+	[[ $count -eq 0 ]]
+}
+
 # wait_records <dataset> <expected> [timeout]
 # Poll until count_records reaches <expected> or <timeout> (default 15)
 # seconds elapse.  Echoes the final count; returns success only when
