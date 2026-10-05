@@ -4319,6 +4319,71 @@ zfs_rename(zfs_handle_t *zhp, const char *target, renameflags_t flags)
 	(void) snprintf(errbuf, sizeof (errbuf), dgettext(TEXT_DOMAIN,
 	    "cannot rename to '%s'"), target);
 
+        /*
+         * Root reparent: zfs rename <pool> <pool>/<child>
+         * Two-phase: create temp dataset via zfs_create, then
+         * rewire pointers via ZFS_IOC_ROOT_REPARENT.
+         */
+        if (strchr(zhp->zfs_name, '/') == NULL &&
+            strncmp(target, zhp->zfs_name,
+            strlen(zhp->zfs_name)) == 0 &&
+            target[strlen(zhp->zfs_name)] == '/') {
+                const char *child = target + strlen(zhp->zfs_name) + 1;
+                char tmpname[ZFS_MAX_DATASET_NAME_LEN];
+                int ret;
+
+                (void) snprintf(tmpname, sizeof (tmpname),
+                    "%s/__new_root_tmp", zhp->zfs_name);
+
+		fprintf(stderr, "PHASE 1: creating %s\n", tmpname);
+                {
+			nvlist_t *props;
+			nvlist_alloc(&props, 0, 0);
+			nvlist_add_string(props, "mountpoint", "none");
+			ret = zfs_create(hdl, tmpname, ZFS_TYPE_FILESYSTEM, props);
+			nvlist_free(props);
+		}
+
+		/* Force child ZAP allocation — create grandchild, DON'T destroy */
+		{
+			char grandchild[ZFS_MAX_DATASET_NAME_LEN];
+			int gret;
+			nvlist_t *gprops;
+
+			snprintf(grandchild, sizeof(grandchild),
+			    "%s/__tmp", tmpname);
+			nvlist_alloc(&gprops, 0, 0);
+			nvlist_add_string(gprops, "mountpoint", "none");
+			gret = zfs_create(hdl, grandchild,
+			    ZFS_TYPE_FILESYSTEM, gprops);
+			nvlist_free(gprops);
+			fprintf(stderr, "PHASE 1b: grandchild ret=%d\n", gret);
+			if (gret != 0)
+				return (zfs_error(hdl, errno, errbuf));
+		}
+
+		fprintf(stderr, "PHASE 1 done, ret=%d\n", ret);
+                if (ret != 0)
+                        return (zfs_error(hdl, errno, errbuf));
+
+		fprintf(stderr, "PHASE 2: calling ioctl\n");
+                (void) strlcpy(zc.zc_name, zhp->zfs_name,
+                    sizeof (zc.zc_name));
+                zc.zc_nvlist_src = (uint64_t)(uintptr_t)child;
+
+		ret = zfs_ioctl(hdl, ZFS_IOC_ROOT_REPARENT, &zc);
+		fprintf(stderr, "PHASE 2 done, ret=%d\n", ret);
+		if (ret != 0) {
+		    zfs_handle_t *tmp_hdl = zfs_open(hdl, tmpname, ZFS_TYPE_FILESYSTEM);
+		    if (tmp_hdl != NULL) {
+			    (void) zfs_destroy(tmp_hdl, B_TRUE);
+			    zfs_close(tmp_hdl);
+		    }
+		    return (zfs_error(hdl, errno, errbuf));
+}   
+                return (0);
+        }
+
 	/* make sure source name is valid */
 	if (!zfs_validate_name(hdl, zhp->zfs_name, zhp->zfs_type, B_TRUE))
 		return (zfs_error(hdl, EZFS_INVALIDNAME, errbuf));
