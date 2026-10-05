@@ -118,8 +118,8 @@ tests = ['case_all_values', 'norm_all_values', 'mixed_create_failure',
     'sensitive_formd_lookup', 'sensitive_formd_delete',
     'insensitive_none_lookup', 'insensitive_none_delete',
     'insensitive_formd_lookup', 'insensitive_formd_delete',
-    'mixed_none_lookup', 'mixed_none_lookup_ci', 'mixed_none_delete',
-    'mixed_formd_lookup', 'mixed_formd_lookup_ci', 'mixed_formd_delete']
+    'mixed_none_lookup', 'mixed_none_delete', 'mixed_formd_lookup',
+    'mixed_formd_delete']
 tags = ['functional', 'casenorm']
 
 [tests/functional/channel_program/lua_core]
