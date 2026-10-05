@@ -39,6 +39,12 @@ typedef struct zfs_tunable {
 	const char		*zt_desc;
 } zfs_tunable_t;
 
+#if defined(__APPLE__)
+#define	ZFS_TUNABLE_SECTION "__DATA_CONST,zfs_tunables"
+#else
+#define	ZFS_TUNABLE_SECTION "zfs_tunables"
+#endif
+
 _SYS_TUNABLES_H int zfs_tunable_set(const zfs_tunable_t *tunable,
     const char *val);
 _SYS_TUNABLES_H int zfs_tunable_get(const zfs_tunable_t *tunable, char *val,

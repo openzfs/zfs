@@ -97,7 +97,7 @@ ENTRY_ALIGN(zfs_sha256_transform_x64, 16)
 	movq	%rdx,64+16(%rsp)
 	movq	%rax,88(%rsp)
 .cfi_escape	0x0f,0x06,0x77,0xd8,0x00,0x06,0x23,0x08
-.Lprologue:
+LOCAL_LABEL(prologue):
 	movl	0(%rdi),%eax
 	movl	4(%rdi),%ebx
 	movl	8(%rdi),%ecx
@@ -106,9 +106,9 @@ ENTRY_ALIGN(zfs_sha256_transform_x64, 16)
 	movl	20(%rdi),%r9d
 	movl	24(%rdi),%r10d
 	movl	28(%rdi),%r11d
-	jmp	.Lloop
+	jmp	LOCAL_LABEL(loop)
 .balign	16
-.Lloop:
+LOCAL_LABEL(loop):
 	movl	%ebx,%edi
 	leaq	K256(%rip),%rbp
 	xorl	%ecx,%edi
@@ -623,9 +623,9 @@ ENTRY_ALIGN(zfs_sha256_transform_x64, 16)
 	addl	%r12d,%r8d
 	addl	%r12d,%eax
 	leaq	20(%rbp),%rbp
-	jmp	.Lrounds_16_xx
+	jmp	LOCAL_LABEL(rounds_16_xx)
 .balign	16
-.Lrounds_16_xx:
+LOCAL_LABEL(rounds_16_xx):
 	movl	4(%rsp),%r13d
 	movl	56(%rsp),%r15d
 	movl	%r13d,%r12d
@@ -1379,7 +1379,7 @@ ENTRY_ALIGN(zfs_sha256_transform_x64, 16)
 	addl	%r12d,%eax
 	leaq	20(%rbp),%rbp
 	cmpb	$0,3(%rbp)
-	jnz	.Lrounds_16_xx
+	jnz	LOCAL_LABEL(rounds_16_xx)
 	movq	64+0(%rsp),%rdi
 	addl	%r14d,%eax
 	leaq	64(%rsi),%rsi
@@ -1400,7 +1400,7 @@ ENTRY_ALIGN(zfs_sha256_transform_x64, 16)
 	movl	%r9d,20(%rdi)
 	movl	%r10d,24(%rdi)
 	movl	%r11d,28(%rdi)
-	jb	.Lloop
+	jb	LOCAL_LABEL(loop)
 	movq	88(%rsp),%rsi
 .cfi_def_cfa	%rsi,8
 	movq	-48(%rsi),%r15
@@ -1417,7 +1417,7 @@ ENTRY_ALIGN(zfs_sha256_transform_x64, 16)
 .cfi_restore	%rbx
 	leaq	(%rsi),%rsp
 .cfi_def_cfa_register	%rsp
-.Lepilogue:
+LOCAL_LABEL(epilogue):
 	RET
 .cfi_endproc
 SET_SIZE(zfs_sha256_transform_x64)
@@ -1437,10 +1437,10 @@ ENTRY_ALIGN(zfs_sha256_transform_shani, 64)
 	movdqa	%xmm7,%xmm8
 .byte	102,15,58,15,202,8
 	punpcklqdq	%xmm0,%xmm2
-	jmp	.Loop_shani
+	jmp	LOCAL_LABEL(oop_shani)
 
 .balign	16
-.Loop_shani:
+LOCAL_LABEL(oop_shani):
 	movdqu	(%rsi),%xmm3
 	movdqu	16(%rsi),%xmm4
 	movdqu	32(%rsi),%xmm5
@@ -1617,7 +1617,7 @@ ENTRY_ALIGN(zfs_sha256_transform_shani, 64)
 
 	paddd	%xmm10,%xmm2
 	paddd	%xmm9,%xmm1
-	jnz	.Loop_shani
+	jnz	LOCAL_LABEL(oop_shani)
 
 	pshufd	$0xb1,%xmm2,%xmm2
 	pshufd	$0x1b,%xmm1,%xmm7
@@ -1658,7 +1658,7 @@ ENTRY_ALIGN(zfs_sha256_transform_ssse3, 64)
 	movq	%rdx,64+16(%rsp)
 	movq	%rax,88(%rsp)
 .cfi_escape	0x0f,0x06,0x77,0xd8,0x00,0x06,0x23,0x08
-.Lprologue_ssse3:
+LOCAL_LABEL(prologue_ssse3):
 
 	movl	0(%rdi),%eax
 	movl	4(%rdi),%ebx
@@ -1669,9 +1669,9 @@ ENTRY_ALIGN(zfs_sha256_transform_ssse3, 64)
 	movl	24(%rdi),%r10d
 	movl	28(%rdi),%r11d
 
-	jmp	.Lloop_ssse3
+	jmp	LOCAL_LABEL(loop_ssse3)
 .balign	16
-.Lloop_ssse3:
+LOCAL_LABEL(loop_ssse3):
 	movdqa	K256+512(%rip),%xmm7
 	movdqu	0(%rsi),%xmm0
 	movdqu	16(%rsi),%xmm1
@@ -1698,10 +1698,10 @@ ENTRY_ALIGN(zfs_sha256_transform_ssse3, 64)
 	xorl	%ecx,%edi
 	movdqa	%xmm7,48(%rsp)
 	movl	%r8d,%r13d
-	jmp	.Lssse3_00_47
+	jmp	LOCAL_LABEL(ssse3_00_47)
 
 .balign	16
-.Lssse3_00_47:
+LOCAL_LABEL(ssse3_00_47):
 	subq	$-128,%rbp
 	rorl	$14,%r13d
 	movdqa	%xmm1,%xmm4
@@ -2280,7 +2280,7 @@ ENTRY_ALIGN(zfs_sha256_transform_ssse3, 64)
 	addl	%eax,%r14d
 	movdqa	%xmm6,48(%rsp)
 	cmpb	$0,131(%rbp)
-	jne	.Lssse3_00_47
+	jne	LOCAL_LABEL(ssse3_00_47)
 	rorl	$14,%r13d
 	movl	%r14d,%eax
 	movl	%r9d,%r12d
@@ -2720,7 +2720,7 @@ ENTRY_ALIGN(zfs_sha256_transform_ssse3, 64)
 	movl	%r9d,20(%rdi)
 	movl	%r10d,24(%rdi)
 	movl	%r11d,28(%rdi)
-	jb	.Lloop_ssse3
+	jb	LOCAL_LABEL(loop_ssse3)
 
 	movq	88(%rsp),%rsi
 .cfi_def_cfa	%rsi,8
@@ -2738,7 +2738,7 @@ ENTRY_ALIGN(zfs_sha256_transform_ssse3, 64)
 .cfi_restore	%rbx
 	leaq	(%rsi),%rsp
 .cfi_def_cfa_register	%rsp
-.Lepilogue_ssse3:
+LOCAL_LABEL(epilogue_ssse3):
 	RET
 .cfi_endproc
 SET_SIZE(zfs_sha256_transform_ssse3)
@@ -2770,7 +2770,7 @@ ENTRY_ALIGN(zfs_sha256_transform_avx, 64)
 	movq	%rdx,64+16(%rsp)
 	movq	%rax,88(%rsp)
 .cfi_escape	0x0f,0x06,0x77,0xd8,0x00,0x06,0x23,0x08
-.Lprologue_avx:
+LOCAL_LABEL(prologue_avx):
 
 	vzeroupper
 	movl	0(%rdi),%eax
@@ -2783,9 +2783,9 @@ ENTRY_ALIGN(zfs_sha256_transform_avx, 64)
 	movl	28(%rdi),%r11d
 	vmovdqa	K256+512+32(%rip),%xmm8
 	vmovdqa	K256+512+64(%rip),%xmm9
-	jmp	.Lloop_avx
+	jmp	LOCAL_LABEL(loop_avx)
 .balign	16
-.Lloop_avx:
+LOCAL_LABEL(loop_avx):
 	vmovdqa	K256+512(%rip),%xmm7
 	vmovdqu	0(%rsi),%xmm0
 	vmovdqu	16(%rsi),%xmm1
@@ -2808,10 +2808,10 @@ ENTRY_ALIGN(zfs_sha256_transform_avx, 64)
 	xorl	%ecx,%edi
 	vmovdqa	%xmm7,48(%rsp)
 	movl	%r8d,%r13d
-	jmp	.Lavx_00_47
+	jmp	LOCAL_LABEL(avx_00_47)
 
 .balign	16
-.Lavx_00_47:
+LOCAL_LABEL(avx_00_47):
 	subq	$-128,%rbp
 	vpalignr	$4,%xmm0,%xmm1,%xmm4
 	shrdl	$14,%r13d,%r13d
@@ -3354,7 +3354,7 @@ ENTRY_ALIGN(zfs_sha256_transform_avx, 64)
 	addl	%eax,%r14d
 	vmovdqa	%xmm6,48(%rsp)
 	cmpb	$0,131(%rbp)
-	jne	.Lavx_00_47
+	jne	LOCAL_LABEL(avx_00_47)
 	shrdl	$14,%r13d,%r13d
 	movl	%r14d,%eax
 	movl	%r9d,%r12d
@@ -3794,7 +3794,7 @@ ENTRY_ALIGN(zfs_sha256_transform_avx, 64)
 	movl	%r9d,20(%rdi)
 	movl	%r10d,24(%rdi)
 	movl	%r11d,28(%rdi)
-	jb	.Lloop_avx
+	jb	LOCAL_LABEL(loop_avx)
 
 	movq	88(%rsp),%rsi
 .cfi_def_cfa	%rsi,8
@@ -3813,7 +3813,7 @@ ENTRY_ALIGN(zfs_sha256_transform_avx, 64)
 .cfi_restore	%rbx
 	leaq	(%rsi),%rsp
 .cfi_def_cfa_register	%rsp
-.Lepilogue_avx:
+LOCAL_LABEL(epilogue_avx):
 	RET
 .cfi_endproc
 SET_SIZE(zfs_sha256_transform_avx)
@@ -3846,7 +3846,7 @@ ENTRY_ALIGN(zfs_sha256_transform_avx2, 64)
 	movq	%rdx,64+16(%rsp)
 	movq	%rax,88(%rsp)
 .cfi_escape	0x0f,0x06,0x77,0xd8,0x00,0x06,0x23,0x08
-.Lprologue_avx2:
+LOCAL_LABEL(prologue_avx2):
 
 	vzeroupper
 	subq	$-64,%rsi
@@ -3863,9 +3863,9 @@ ENTRY_ALIGN(zfs_sha256_transform_avx2, 64)
 	movl	28(%rdi),%r11d
 	vmovdqa	K256+512+32(%rip),%ymm8
 	vmovdqa	K256+512+64(%rip),%ymm9
-	jmp	.Loop_avx2
+	jmp	LOCAL_LABEL(oop_avx2)
 .balign	16
-.Loop_avx2:
+LOCAL_LABEL(oop_avx2):
 	vmovdqa	K256+512(%rip),%ymm7
 	vmovdqu	-64+0(%rsi),%xmm0
 	vmovdqu	-64+16(%rsi),%xmm1
@@ -3904,10 +3904,10 @@ ENTRY_ALIGN(zfs_sha256_transform_avx2, 64)
 	vmovdqa	%ymm7,32(%rsp)
 	movl	%r9d,%r12d
 	subq	$-32*4,%rbp
-	jmp	.Lavx2_00_47
+	jmp	LOCAL_LABEL(avx2_00_47)
 
 .balign	16
-.Lavx2_00_47:
+LOCAL_LABEL(avx2_00_47):
 	leaq	-64(%rsp),%rsp
 .cfi_escape	0x0f,0x05,0x77,0x38,0x06,0x23,0x08
 
@@ -4432,7 +4432,7 @@ ENTRY_ALIGN(zfs_sha256_transform_avx2, 64)
 	vmovdqa	%ymm6,32(%rsp)
 	leaq	128(%rbp),%rbp
 	cmpb	$0,3(%rbp)
-	jne	.Lavx2_00_47
+	jne	LOCAL_LABEL(avx2_00_47)
 	addl	0+64(%rsp),%r11d
 	andl	%r8d,%r12d
 	rorxl	$25,%r8d,%r13d
@@ -4841,15 +4841,15 @@ ENTRY_ALIGN(zfs_sha256_transform_avx2, 64)
 	movl	%r11d,28(%rdi)
 
 	cmpq	80(%rbp),%rsi
-	je	.Ldone_avx2
+	je	LOCAL_LABEL(done_avx2)
 
 	xorl	%r14d,%r14d
 	movl	%ebx,%edi
 	xorl	%ecx,%edi
 	movl	%r9d,%r12d
-	jmp	.Lower_avx2
+	jmp	LOCAL_LABEL(ower_avx2)
 .balign	16
-.Lower_avx2:
+LOCAL_LABEL(ower_avx2):
 	addl	0+16(%rbp),%r11d
 	andl	%r8d,%r12d
 	rorxl	$25,%r8d,%r13d
@@ -5044,7 +5044,7 @@ ENTRY_ALIGN(zfs_sha256_transform_avx2, 64)
 	movl	%r9d,%r12d
 	leaq	-64(%rbp),%rbp
 	cmpq	%rsp,%rbp
-	jae	.Lower_avx2
+	jae	LOCAL_LABEL(ower_avx2)
 
 	movq	512(%rsp),%rdi
 	addl	%r14d,%eax
@@ -5075,13 +5075,13 @@ ENTRY_ALIGN(zfs_sha256_transform_avx2, 64)
 	movl	%r10d,24(%rdi)
 	movl	%r11d,28(%rdi)
 
-	jbe	.Loop_avx2
+	jbe	LOCAL_LABEL(oop_avx2)
 	leaq	(%rsp),%rbp
 
 
 .cfi_escape	0x0f,0x06,0x76,0xd8,0x00,0x06,0x23,0x08
 
-.Ldone_avx2:
+LOCAL_LABEL(done_avx2):
 	movq	88(%rbp),%rsi
 .cfi_def_cfa	%rsi,8
 	vzeroupper
@@ -5099,7 +5099,7 @@ ENTRY_ALIGN(zfs_sha256_transform_avx2, 64)
 .cfi_restore	%rbx
 	leaq	(%rsi),%rsp
 .cfi_def_cfa_register	%rsp
-.Lepilogue_avx2:
+LOCAL_LABEL(epilogue_avx2):
 	RET
 .cfi_endproc
 SET_SIZE(zfs_sha256_transform_avx2)

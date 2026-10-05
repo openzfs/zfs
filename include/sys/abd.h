@@ -168,6 +168,11 @@ abd_cmp_zero(abd_t *abd, size_t size)
 	return (abd_cmp_zero_off(abd, 0, size));
 }
 
+#ifdef __APPLE__
+void abd_return_buf_off(abd_t *, void *, size_t, size_t, size_t);
+void abd_return_buf_copy_off(abd_t *, void *, size_t, size_t, size_t);
+#endif
+
 /*
  * ABD type check functions
  */

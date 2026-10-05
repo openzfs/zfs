@@ -1,0 +1,375 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 46;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		700AE3C91915139C00929DAE /* IDUUIDLinker.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 700AE3C71915139C00929DAE /* IDUUIDLinker.cpp */; };
+		700AE3CC191530A000929DAE /* IDSerialLinker.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 700AE3CA191530A000929DAE /* IDSerialLinker.cpp */; };
+		704C39201A3C777F00929DAE /* IDDispatchUtils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 704C391E1A3C777F00929DAE /* IDDispatchUtils.cpp */; };
+		704C39231A3C7E9600929DAE /* IDDAHandlerIdle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 704C39211A3C7E9600929DAE /* IDDAHandlerIdle.cpp */; };
+		707E3F0E1B6CDC2400929DAE /* IDLogUtils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 707E3F0C1B6CDC2400929DAE /* IDLogUtils.cpp */; };
+		70C63F28190CF5E800929DAE /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 70C63F27190CF5E800929DAE /* main.cpp */; };
+		70C63F32190CF78800929DAE /* IDCLI.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 70C63F30190CF78800929DAE /* IDCLI.cpp */; };
+		70C63F35190CF87400929DAE /* IDException.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 70C63F33190CF87400929DAE /* IDException.cpp */; };
+		70C63F44190CFFA500929DAE /* CoreFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 70C63F43190CFFA500929DAE /* CoreFoundation.framework */; };
+		70C63F46190CFFAC00929DAE /* DiskArbitration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 70C63F45190CFFAC00929DAE /* DiskArbitration.framework */; };
+		70C63F4B190D1AEF00929DAE /* IDDiskArbitrationDispatcher.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 70C63F49190D1AEF00929DAE /* IDDiskArbitrationDispatcher.cpp */; };
+		70C63F4F190D2AA000929DAE /* IDDiskInfoLogger.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 70C63F4D190D2AA000929DAE /* IDDiskInfoLogger.cpp */; };
+		70C63F52190D2CC900929DAE /* IDDiskArbitrationUtils.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 70C63F50190D2CC900929DAE /* IDDiskArbitrationUtils.cpp */; };
+		70C63F55190D4A4300929DAE /* IDMediaPathLinker.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 70C63F53190D4A4300929DAE /* IDMediaPathLinker.cpp */; };
+		70C63F58190D574000929DAE /* IDFileUtils.mm in Sources */ = {isa = PBXBuildFile; fileRef = 70C63F56190D574000929DAE /* IDFileUtils.mm */; };
+		70C63F5A190D713B00929DAE /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 70C63F59190D713B00929DAE /* IOKit.framework */; };
+		70C9002E1C6780EF001A40C8 /* IDImagePathLinker.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 70C9002C1C6780EF001A40C8 /* IDImagePathLinker.cpp */; };
+		70D4742E1BDD0E4200929DAE /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 70D4742D1BDD0E4200929DAE /* Foundation.framework */; };
+		70D474311BDD17E800929DAE /* IDSymlinkHandle.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 70D4742F1BDD17E800929DAE /* IDSymlinkHandle.cpp */; };
+		70D474371BDD21E100929DAE /* IDBaseLinker.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 70D474351BDD21E100929DAE /* IDBaseLinker.cpp */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		70C63F22190CF5E800929DAE /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = /usr/share/man/man1/;
+			dstSubfolderSpec = 0;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		700AE3C71915139C00929DAE /* IDUUIDLinker.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = IDUUIDLinker.cpp; sourceTree = "<group>"; };
+		700AE3C81915139C00929DAE /* IDUUIDLinker.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = IDUUIDLinker.hpp; sourceTree = "<group>"; };
+		700AE3CA191530A000929DAE /* IDSerialLinker.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = IDSerialLinker.cpp; sourceTree = "<group>"; };
+		700AE3CB191530A000929DAE /* IDSerialLinker.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = IDSerialLinker.hpp; sourceTree = "<group>"; };
+		704C391E1A3C777F00929DAE /* IDDispatchUtils.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = IDDispatchUtils.cpp; sourceTree = "<group>"; };
+		704C391F1A3C777F00929DAE /* IDDispatchUtils.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = IDDispatchUtils.hpp; sourceTree = "<group>"; };
+		704C39211A3C7E9600929DAE /* IDDAHandlerIdle.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = IDDAHandlerIdle.cpp; sourceTree = "<group>"; };
+		704C39221A3C7E9600929DAE /* IDDAHandlerIdle.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = IDDAHandlerIdle.hpp; sourceTree = "<group>"; };
+		707E3F0C1B6CDC2400929DAE /* IDLogUtils.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = IDLogUtils.cpp; sourceTree = "<group>"; };
+		707E3F0D1B6CDC2400929DAE /* IDLogUtils.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = IDLogUtils.hpp; sourceTree = "<group>"; };
+		70C63F24190CF5E800929DAE /* InvariantDisks */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = InvariantDisks; sourceTree = BUILT_PRODUCTS_DIR; };
+		70C63F27190CF5E800929DAE /* main.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = main.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		70C63F30190CF78800929DAE /* IDCLI.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = IDCLI.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		70C63F31190CF78800929DAE /* IDCLI.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; lineEnding = 0; path = IDCLI.hpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		70C63F33190CF87400929DAE /* IDException.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = IDException.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		70C63F34190CF87400929DAE /* IDException.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; lineEnding = 0; path = IDException.hpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		70C63F43190CFFA500929DAE /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
+		70C63F45190CFFAC00929DAE /* DiskArbitration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DiskArbitration.framework; path = System/Library/Frameworks/DiskArbitration.framework; sourceTree = SDKROOT; };
+		70C63F49190D1AEF00929DAE /* IDDiskArbitrationDispatcher.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = IDDiskArbitrationDispatcher.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		70C63F4A190D1AEF00929DAE /* IDDiskArbitrationDispatcher.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; lineEnding = 0; path = IDDiskArbitrationDispatcher.hpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		70C63F4C190D1B4200929DAE /* IDDiskArbitrationHandler.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; lineEnding = 0; path = IDDiskArbitrationHandler.hpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		70C63F4D190D2AA000929DAE /* IDDiskInfoLogger.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = IDDiskInfoLogger.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		70C63F4E190D2AA000929DAE /* IDDiskInfoLogger.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; lineEnding = 0; path = IDDiskInfoLogger.hpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		70C63F50190D2CC900929DAE /* IDDiskArbitrationUtils.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; lineEnding = 0; path = IDDiskArbitrationUtils.cpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.cpp; };
+		70C63F51190D2CC900929DAE /* IDDiskArbitrationUtils.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; lineEnding = 0; path = IDDiskArbitrationUtils.hpp; sourceTree = "<group>"; xcLanguageSpecificationIdentifier = xcode.lang.objcpp; };
+		70C63F53190D4A4300929DAE /* IDMediaPathLinker.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = IDMediaPathLinker.cpp; sourceTree = "<group>"; };
+		70C63F54190D4A4300929DAE /* IDMediaPathLinker.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = IDMediaPathLinker.hpp; sourceTree = "<group>"; };
+		70C63F56190D574000929DAE /* IDFileUtils.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = IDFileUtils.mm; sourceTree = "<group>"; };
+		70C63F57190D574000929DAE /* IDFileUtils.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = IDFileUtils.hpp; sourceTree = "<group>"; };
+		70C63F59190D713B00929DAE /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
+		70C9002C1C6780EF001A40C8 /* IDImagePathLinker.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = IDImagePathLinker.cpp; sourceTree = "<group>"; };
+		70C9002D1C6780EF001A40C8 /* IDImagePathLinker.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = IDImagePathLinker.hpp; sourceTree = "<group>"; };
+		70D4742D1BDD0E4200929DAE /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
+		70D4742F1BDD17E800929DAE /* IDSymlinkHandle.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = IDSymlinkHandle.cpp; sourceTree = "<group>"; };
+		70D474301BDD17E800929DAE /* IDSymlinkHandle.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = IDSymlinkHandle.hpp; sourceTree = "<group>"; };
+		70D474351BDD21E100929DAE /* IDBaseLinker.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = IDBaseLinker.cpp; sourceTree = "<group>"; };
+		70D474361BDD21E100929DAE /* IDBaseLinker.hpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.h; path = IDBaseLinker.hpp; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		70C63F21190CF5E800929DAE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				70C63F5A190D713B00929DAE /* IOKit.framework in Frameworks */,
+				70C63F46190CFFAC00929DAE /* DiskArbitration.framework in Frameworks */,
+				70C63F44190CFFA500929DAE /* CoreFoundation.framework in Frameworks */,
+				70D4742E1BDD0E4200929DAE /* Foundation.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		70C63F1B190CF5E800929DAE = {
+			isa = PBXGroup;
+			children = (
+				70C63F26190CF5E800929DAE /* InvariantDisks */,
+				70C63F47190D15FE00929DAE /* Frameworks */,
+				70C63F25190CF5E800929DAE /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		70C63F25190CF5E800929DAE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				70C63F24190CF5E800929DAE /* InvariantDisks */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		70C63F26190CF5E800929DAE /* InvariantDisks */ = {
+			isa = PBXGroup;
+			children = (
+				70C63F27190CF5E800929DAE /* main.cpp */,
+				70C63F30190CF78800929DAE /* IDCLI.cpp */,
+				70C63F31190CF78800929DAE /* IDCLI.hpp */,
+				70C63F33190CF87400929DAE /* IDException.cpp */,
+				70C63F34190CF87400929DAE /* IDException.hpp */,
+				70C63F50190D2CC900929DAE /* IDDiskArbitrationUtils.cpp */,
+				70C63F51190D2CC900929DAE /* IDDiskArbitrationUtils.hpp */,
+				70C63F4C190D1B4200929DAE /* IDDiskArbitrationHandler.hpp */,
+				70C63F4D190D2AA000929DAE /* IDDiskInfoLogger.cpp */,
+				70C63F4E190D2AA000929DAE /* IDDiskInfoLogger.hpp */,
+				704C39211A3C7E9600929DAE /* IDDAHandlerIdle.cpp */,
+				704C39221A3C7E9600929DAE /* IDDAHandlerIdle.hpp */,
+				70D474351BDD21E100929DAE /* IDBaseLinker.cpp */,
+				70D474361BDD21E100929DAE /* IDBaseLinker.hpp */,
+				70C63F53190D4A4300929DAE /* IDMediaPathLinker.cpp */,
+				70C63F54190D4A4300929DAE /* IDMediaPathLinker.hpp */,
+				700AE3C71915139C00929DAE /* IDUUIDLinker.cpp */,
+				700AE3C81915139C00929DAE /* IDUUIDLinker.hpp */,
+				700AE3CA191530A000929DAE /* IDSerialLinker.cpp */,
+				700AE3CB191530A000929DAE /* IDSerialLinker.hpp */,
+				70C9002C1C6780EF001A40C8 /* IDImagePathLinker.cpp */,
+				70C9002D1C6780EF001A40C8 /* IDImagePathLinker.hpp */,
+				70C63F49190D1AEF00929DAE /* IDDiskArbitrationDispatcher.cpp */,
+				70C63F4A190D1AEF00929DAE /* IDDiskArbitrationDispatcher.hpp */,
+				70C63F56190D574000929DAE /* IDFileUtils.mm */,
+				70C63F57190D574000929DAE /* IDFileUtils.hpp */,
+				70D4742F1BDD17E800929DAE /* IDSymlinkHandle.cpp */,
+				70D474301BDD17E800929DAE /* IDSymlinkHandle.hpp */,
+				704C391E1A3C777F00929DAE /* IDDispatchUtils.cpp */,
+				704C391F1A3C777F00929DAE /* IDDispatchUtils.hpp */,
+				707E3F0C1B6CDC2400929DAE /* IDLogUtils.cpp */,
+				707E3F0D1B6CDC2400929DAE /* IDLogUtils.hpp */,
+			);
+			path = InvariantDisks;
+			sourceTree = "<group>";
+		};
+		70C63F47190D15FE00929DAE /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				70D4742D1BDD0E4200929DAE /* Foundation.framework */,
+				70C63F59190D713B00929DAE /* IOKit.framework */,
+				70C63F45190CFFAC00929DAE /* DiskArbitration.framework */,
+				70C63F43190CFFA500929DAE /* CoreFoundation.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		70C63F23190CF5E800929DAE /* InvariantDisks */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 70C63F2D190CF5E800929DAE /* Build configuration list for PBXNativeTarget "InvariantDisks" */;
+			buildPhases = (
+				70C63F42190CFB6800929DAE /* Git Version */,
+				70C63F20190CF5E800929DAE /* Sources */,
+				70C63F21190CF5E800929DAE /* Frameworks */,
+				70C63F22190CF5E800929DAE /* CopyFiles */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = InvariantDisks;
+			productName = InvariantDisks;
+			productReference = 70C63F24190CF5E800929DAE /* InvariantDisks */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		70C63F1C190CF5E800929DAE /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				LastUpgradeCheck = 0800;
+				ORGANIZATIONNAME = "the-color-black.net";
+			};
+			buildConfigurationList = 70C63F1F190CF5E800929DAE /* Build configuration list for PBXProject "InvariantDisks" */;
+			compatibilityVersion = "Xcode 3.2";
+			developmentRegion = English;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+			);
+			mainGroup = 70C63F1B190CF5E800929DAE;
+			productRefGroup = 70C63F25190CF5E800929DAE /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				70C63F23190CF5E800929DAE /* InvariantDisks */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		70C63F42190CFB6800929DAE /* Git Version */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.git",
+			);
+			name = "Git Version";
+			outputPaths = (
+				"$(DERIVED_SOURCES_DIR)/git-version.h",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "GIT_VERSION=$(git describe --tags --long --abbrev=6 --dirty=*)\necho \"#define GIT_VERSION \\\"${GIT_VERSION}\\\"\" > ${DERIVED_FILE_DIR}/git-version.h\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		70C63F20190CF5E800929DAE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				700AE3C91915139C00929DAE /* IDUUIDLinker.cpp in Sources */,
+				700AE3CC191530A000929DAE /* IDSerialLinker.cpp in Sources */,
+				70C63F32190CF78800929DAE /* IDCLI.cpp in Sources */,
+				70C63F52190D2CC900929DAE /* IDDiskArbitrationUtils.cpp in Sources */,
+				70C63F55190D4A4300929DAE /* IDMediaPathLinker.cpp in Sources */,
+				704C39201A3C777F00929DAE /* IDDispatchUtils.cpp in Sources */,
+				704C39231A3C7E9600929DAE /* IDDAHandlerIdle.cpp in Sources */,
+				70C63F35190CF87400929DAE /* IDException.cpp in Sources */,
+				70C9002E1C6780EF001A40C8 /* IDImagePathLinker.cpp in Sources */,
+				70D474311BDD17E800929DAE /* IDSymlinkHandle.cpp in Sources */,
+				707E3F0E1B6CDC2400929DAE /* IDLogUtils.cpp in Sources */,
+				70D474371BDD21E100929DAE /* IDBaseLinker.cpp in Sources */,
+				70C63F4B190D1AEF00929DAE /* IDDiskArbitrationDispatcher.cpp in Sources */,
+				70C63F4F190D2AA000929DAE /* IDDiskInfoLogger.cpp in Sources */,
+				70C63F58190D574000929DAE /* IDFileUtils.mm in Sources */,
+				70C63F28190CF5E800929DAE /* main.cpp in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		70C63F2B190CF5E800929DAE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.12;
+				ONLY_ACTIVE_ARCH = YES;
+			};
+			name = Debug;
+		};
+		70C63F2C190CF5E800929DAE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++0x";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 10.12;
+			};
+			name = Release;
+		};
+		70C63F2E190CF5E800929DAE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Debug;
+		};
+		70C63F2F190CF5E800929DAE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				PRODUCT_NAME = "$(TARGET_NAME)";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		70C63F1F190CF5E800929DAE /* Build configuration list for PBXProject "InvariantDisks" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				70C63F2B190CF5E800929DAE /* Debug */,
+				70C63F2C190CF5E800929DAE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		70C63F2D190CF5E800929DAE /* Build configuration list for PBXNativeTarget "InvariantDisks" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				70C63F2E190CF5E800929DAE /* Debug */,
+				70C63F2F190CF5E800929DAE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 70C63F1C190CF5E800929DAE /* Project object */;
+}

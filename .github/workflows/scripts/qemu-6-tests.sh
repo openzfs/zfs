@@ -32,7 +32,7 @@ function prefix() {
     && echo $CTR > "/tmp/ctr-vm${ID}.new" \
     && mv "/tmp/ctr-vm${ID}.new" "/tmp/ctr-vm${ID}"
 
-  BASE="$HOME/work/zfs/zfs"
+  BASE="${GITHUB_WORKSPACE:-$HOME/work/zfs/zfs}"
   COLOR="$BASE/scripts/zfs-tests-color.sh"
   CLINE=$(echo $LINE| grep '^\[.*] Test[: ]' \
     | sed -e 's|^\[.*] Test|Test|g' \

@@ -21,6 +21,7 @@
 #include <sys/fs/zfs.h>
 #include <sys/sysmacros.h>
 #include <math.h>
+#include <sys/sysmacros.h>
 
 #include <libzutil.h>
 

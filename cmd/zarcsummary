@@ -216,6 +216,61 @@ elif sys.platform.startswith('linux'):
 
         return descs
 
+
+elif sys.platform.startswith('darwin'):
+    VDEV_CACHE_SIZE = 'zfs_vdev_cache_size'
+    TUNABLES_BASE = 'kstat.zfs.darwin.tunable'
+
+    def load_kstats(section):
+        base = 'kstat.zfs.misc.{section}'.format(section=section)
+        kstats = get_params(base)
+
+        result = []
+        for name, value in kstats.items():
+            kstat = '{name} : {value}'.format(name=name, value=value)
+            result.append(kstat)
+        return result
+
+    def get_version_impl(name):
+        # O3X doesn't have separate ZFS/SPL versions
+        process = subprocess.Popen(['sysctl', 'zfs.kext_version'],
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT)
+        kstat = process.communicate()[0].decode('ascii')
+        version = kstat.split(':')[1].strip()
+
+        return '{} version {}'.format(name, version)
+
+    def get_params(base: str):
+        process = subprocess.Popen(['sysctl', base],
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT)
+        kstats = process.communicate()[0].decode('ascii').splitlines()
+
+        result = {}
+        cut = len(base) + 1
+        for l in kstats:
+            items = l.split(':')
+            name = items[0]
+            value = items[1].strip()
+            result[name[cut:]] = value
+        return result
+
+    def get_tunable_params():
+        return get_params(TUNABLES_BASE)
+
+    def get_vdev_params():
+        """Linux just gets tunable params for this, our kstats code
+        appears to follow that more closely fbsd.
+
+        And vdev cache size is in the tunables and the code calling
+        this checks for that"""
+        return get_params(TUNABLES_BASE)
+
+    def get_spl_params():
+        return get_params('kstat.spl.misc.spl_misc')
+
+
 def handle_unraisableException(exc_type, exc_value=None, exc_traceback=None,
                                err_msg=None, object=None):
    handle_Exception(exc_type, object, exc_traceback)

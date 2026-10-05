@@ -85,6 +85,10 @@ cf_copy_file_range(int sfd, off_t *soff, int dfd, off_t *doff,
 	    syscall(__NR_copy_file_range, sfd, soff, dfd, doff, len, flags));
 }
 
+#elif defined(__APPLE__)
+/* The macOS SPL unistd.h shim already provides copy_file_range(). */
+#define	cf_copy_file_range copy_file_range
+
 #else
 /* Other platforms, let the linker sort it out. */
 static inline ssize_t
@@ -313,9 +317,9 @@ main(int argc, char **argv)
 		off_t slen = lseek(sfd, 0, SEEK_END);
 		off_t dpos = lseek(dfd, 0, SEEK_CUR);
 		off_t dlen = lseek(dfd, 0, SEEK_END);
-
 		fprintf(stderr, "file offsets: src=%jd/%jd; dst=%jd/%jd\n",
-		    spos, slen, dpos, dlen);
+		    (intmax_t)spos, (intmax_t)slen,
+		    (intmax_t)dpos, (intmax_t)dlen);
 	}
 
 	close(dfd);

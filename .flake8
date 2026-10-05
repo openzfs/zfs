@@ -1,0 +1,6 @@
+[flake8]
+# macOS-only helper scripts that do not follow the project's python style.
+exclude =
+    .git,
+    scripts/kpi_check.py,
+    scripts/symbolicate_panic_macos.py

@@ -86,7 +86,9 @@ safe_create_thread(thread_f *body, void *body_arg, const char *name,
 {
 	pthread_t tid;
 	int ret;
+#ifndef __APPLE__
 	int name_attempts = 3;
+#endif
 
 	ret = pthread_create(&tid, NULL, body, body_arg);
 	if (ret != 0) {
@@ -102,12 +104,14 @@ safe_create_thread(thread_f *body, void *body_arg, const char *name,
 	 * message, but that interferes with zstream dump output comparisons
 	 * in ZTS.
 	 */
+#ifndef __APPLE__
 	while (name_attempts-- > 0) {
 		ret = pthread_setname_np(tid, name);
 		if (ret == 0)
 			break;
 		usleep(100);
 	}
+#endif
 	if (detach) {
 		ret = pthread_detach(tid);
 		if (ret != 0) {
