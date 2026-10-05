@@ -32,6 +32,14 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/file_events/file_events.kshlib
 
+#
+# IO-event recording and the deferred-window drain are Linux-only; on
+# FreeBSD the kernel refuses events_io=on (ENOTSUP) by design.
+#
+if is_freebsd; then
+	log_unsupported "IO events are not supported on FreeBSD"
+fi
+
 function cleanup
 {
 	destroy_fetest_child "$TESTPOOL/$TESTFS/fetest-io"
