@@ -1351,6 +1351,9 @@ property is set to
 the default configuration's behavior is identical to
 .Sy events
 alone.
+Enabling it is refused on
+.Fx ,
+where the IO-event recording plumbing is absent.
 Coalescing of IO events is controlled by the
 .Sy events_io_window
 property.
