@@ -51,6 +51,12 @@ log_assert "IO events: WRITE records, default-window coalescing, window=0 fencin
 
 ds=$(make_fetest_child) || log_fail "create fetest-io"
 log_must zfs set events=on "$ds"
+# A generous window makes check 1 deterministic: dd issues five separate
+# 1000-byte write(2)s, and on a slow CI VM they can straddle the 1s
+# default window, splitting into multiple records. Coalescing semantics
+# are what the test verifies, not VM speed; the close(2) fence flush
+# then collapses the pending window into the single expected record.
+log_must zfs set events_io_window=60000 "$ds"
 log_must zfs set events_io=on "$ds"
 mnt=$(get_prop mountpoint "$ds")
 
