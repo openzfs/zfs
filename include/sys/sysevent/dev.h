@@ -230,7 +230,7 @@ extern "C" {
 #define	DEV_INSTANCE		"instance"
 #define	DEV_PROP_PREFIX		"prop-"
 
-#ifdef __linux__
+#if defined(__linux__) || defined(_WIN32)
 #define	DEV_IDENTIFIER		"devid"
 #define	DEV_PATH		"path"
 #define	DEV_IS_PART		"is_slice"

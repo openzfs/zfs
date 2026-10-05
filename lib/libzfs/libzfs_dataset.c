@@ -31,7 +31,6 @@
 #include <libintl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <strings.h>
 #include <unistd.h>
 #include <stddef.h>
 #include <zone.h>
@@ -2473,7 +2472,12 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 
 			if (literal ||
 			    localtime_r(&time, &t) == NULL ||
-			    strftime(propbuf, proplen, "%a %b %e %k:%M %Y",
+			    strftime(propbuf, proplen,
+#ifdef _WIN32
+			    "%a %b %d %H:%M %Y",
+#else
+			    "%a %b %e %k:%M %Y",
+#endif
 			    &t) == 0)
 				(void) snprintf(propbuf, proplen, "%llu",
 				    (u_longlong_t)val);
@@ -2780,7 +2784,12 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 
 			if (literal ||
 			    localtime_r(&time, &t) == NULL ||
-			    strftime(propbuf, proplen, "%a %b %e %k:%M:%S %Y",
+			    strftime(propbuf, proplen,
+#ifdef _WIN32
+			    "%a %b %e %H:%M:%S %Y",
+#else
+			    "%a %b %e %k:%M:%S %Y",
+#endif
 			    &t) == 0)
 				(void) snprintf(propbuf, proplen, "%llu",
 				    (u_longlong_t)val);
@@ -2800,6 +2809,18 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 		}
 		zcp_check(zhp, prop, val, NULL);
 		break;
+
+#ifdef _WIN32
+	case ZFS_PROP_DRIVELETTER:
+		str = getprop_string(zhp, prop, &source);
+		if (str == NULL)
+			return (-1);
+		(void) strlcpy(propbuf, str, proplen);
+		zcp_check(zhp, prop, 0, str);
+		if (zfs_prop_get_driveletter_os(zhp, propbuf, proplen, src))
+			return (0);
+		break;
+#endif /* _WIN32 */
 
 	default:
 		switch (zfs_prop_get_type(prop)) {

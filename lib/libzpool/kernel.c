@@ -45,6 +45,9 @@
 #include <sys/zvol.h>
 #include <zfs_fletcher.h>
 #include <zlib.h>
+#ifdef _WIN32
+#include <wosix.h>
+#endif
 
 /*
  * Emulation of kernel services in userland.
@@ -299,7 +302,11 @@ vpanic(const char *fmt, va_list adx)
 void
 delay(clock_t ticks)
 {
+#if HAVE_USLEEP
+	usleep(ticks * 1000 / hz);
+#else
 	(void) poll(0, 0, ticks * (1000 / hz));
+#endif
 }
 
 int

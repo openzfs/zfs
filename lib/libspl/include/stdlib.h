@@ -19,6 +19,14 @@
 #ifndef _LIBSPL_STDLIB_H
 #define	_LIBSPL_STDLIB_H
 
+#ifdef  __cplusplus
+extern "C" {
+#endif
+
 extern const char *getexecname(void);
+
+#ifdef  __cplusplus
+}
+#endif
 
 #endif

@@ -1,0 +1,108 @@
+;;;
+;;; OpenZVOL
+;;;
+;;; The Volume handler for OpenZFS
+;;;
+;;; Copyright (c) Jorgen Lundman
+;;;
+[Version]
+Signature   = "$Windows NT$"
+Class       = SCSIAdapter
+ClassGuid   = {4D36E97B-E325-11CE-BFC1-08002BE10318}
+Provider    = %Me%
+DriverVer   = 05/19/2018,1.0.2.0
+CatalogFile = OpenZVOL.cat
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir          = 12
+OpenZVOL.DriverFiles       = 12            ;%windir%\system32\drivers
+
+;;
+;; Default install sections
+;;
+
+[Manufacturer]
+%Me%=Standard,NTamd64,NTx86,NTarm64
+
+[Standard.NTamd64]
+%DriverName% = OpenZVOL.Install, ROOT\OpenZVOL
+
+[Standard.NTx86]
+%DriverName% = OpenZVOL.Install, ROOT\OpenZVOL
+
+[Standard.NTarm64]
+%DriverName% = OpenZVOL.Install, ROOT\OpenZVOL
+
+; Run by zfsintaller.exe
+[OpenZVOL.Install]
+OptionDesc     = %ServiceDescription%
+CopyFiles      = OpenZVOL.DriverFiles
+
+[OpenZVOL.ClassInstall]
+AddReg         = OpenZVOL.AddReg
+
+[OpenZVOL.AddReg]
+
+
+[OpenZVOL.Install.Services]
+AddService  = %ServiceName%,0x00000002,OpenZVOL.Service
+
+;;
+;; Default uninstall sections
+;;
+
+[DefaultUninstall]
+DelFiles   = OpenZVOL.DriverFiles
+
+[DefaultUninstall.Services]
+DelService = %ServiceName%,0x200      ;Ensure service is stopped before deleting
+
+;
+; Services Section
+;
+
+[OpenZVOL.Service]
+DisplayName      = %ServiceName%
+Description      = %ServiceDescription%
+ServiceBinary    = %12%\%DriverName%.sys    ;%windir%\system32\drivers\
+ServiceType      = 1
+StartType        = 3                        ;SERVICE_SYSTEM_START
+ErrorControl     = 1
+LoadOrderGroup   = SCSI miniport
+DependOnService  = storport
+
+;
+; Copy Files
+;
+
+[OpenZVOL.DriverFiles]
+%DriverName%.sys
+
+[SourceDisksFiles]
+OpenZVOL.sys = 1,,
+
+[SourceDisksNames.x86]
+1 = %DiskId1%,,
+;;,\x86
+
+[SourceDisksNames.amd64]
+1 = %DiskId1%,,
+;;,\x64
+
+[SourceDisksNames.arm64]
+1 = %DiskId1%,,
+;;,\x64
+
+;;
+;; String Section
+;;
+
+[Strings]
+Me                      = "Jorgen Lundman"
+ServiceDescription      = "OpenZVOL driver"
+ServiceName             = "OpenZVOL"
+DriverName              = "OpenZVOL"
+DiskId1                 = "OpenZVOL Device Installation Disk"
+VolumeName              = "OpenZVOL volume"
+ControllerName = "OpenZVOL controller" 

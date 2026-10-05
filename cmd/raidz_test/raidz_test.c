@@ -44,6 +44,7 @@ static void sig_handler(int signo)
 	action.sa_flags = 0;
 	(void) sigaction(signo, &action, NULL);
 
+#ifndef _WIN32
 	if (rto_opts.rto_gdb) {
 		pid_t pid = fork();
 		if (pid == 0) {
@@ -54,6 +55,7 @@ static void sig_handler(int signo)
 			while (waitpid(pid, NULL, 0) == -1 && errno == EINTR)
 				;
 	}
+#endif
 
 	raise(signo);
 	errno = old_errno;
@@ -805,6 +807,7 @@ main(int argc, char **argv)
 	/* init gdb pid string early */
 	(void) sprintf(pid_s, "%d", getpid());
 
+#ifndef _WIN32
 	action.sa_handler = sig_handler;
 	sigemptyset(&action.sa_mask);
 	action.sa_flags = 0;
@@ -815,6 +818,7 @@ main(int argc, char **argv)
 	}
 
 	(void) setvbuf(stdout, NULL, _IOLBF, 0);
+#endif
 
 	dprintf_setup(&argc, argv);
 
@@ -843,5 +847,6 @@ main(int argc, char **argv)
 	umem_free(rand_data, SPA_MAXBLOCKSIZE);
 	kernel_fini();
 
+	printf("Application exit code = %d\n", err);
 	return (err);
 }

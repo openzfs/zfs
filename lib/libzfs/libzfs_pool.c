@@ -29,7 +29,6 @@
 #include <libintl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <strings.h>
 #include <unistd.h>
 #include <libgen.h>
 #include <zone.h>
@@ -5723,6 +5722,9 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
     size_t rlen)
 {
 	int sdirfd, ddirfd, featfd;
+#ifdef _WIN32
+	int edirfd;
+#endif
 	struct stat fs;
 	char *fc;
 	char *ps, *ls, *ws;
@@ -5782,6 +5784,28 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 
 	sdirfd = open(ZPOOL_SYSCONF_COMPAT_D, ZC_DIR_FLAGS);
 	ddirfd = open(ZPOOL_DATA_COMPAT_D, ZC_DIR_FLAGS);
+#ifdef _WIN32
+	/*
+	 * Also search next to the running executable so that test
+	 * machines without a full installer still find compatibility.d.
+	 */
+	edirfd = -1;
+	{
+		char exedir[MAXPATHLEN];
+		DWORD exelen = GetModuleFileNameA(NULL, exedir, MAXPATHLEN);
+		if (exelen > 0 && exelen < MAXPATHLEN) {
+			char *slash = strrchr(exedir, '\\');
+			if (slash == NULL)
+				slash = strrchr(exedir, '/');
+			if (slash != NULL) {
+				*slash = '\0';
+				strlcat(exedir, "\\compatibility.d",
+				    MAXPATHLEN);
+				edirfd = open(exedir, ZC_DIR_FLAGS);
+			}
+		}
+	}
+#endif
 
 	(void) strlcpy(l_compat, compat, ZFS_MAXPROPLEN);
 
@@ -5799,12 +5823,15 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 			featfd = openat(ddirfd, file, O_RDONLY | O_CLOEXEC);
 			source = Z_DATA;
 		}
-
+#ifdef _WIN32
+		if (featfd < 0 && edirfd >= 0) {
+			featfd = openat(edirfd, file, O_RDONLY | O_CLOEXEC);
+			source = Z_DATA;
+		}
+#endif
 		/* File readable and correct size? */
-		if (featfd < 0 ||
-		    fstat(featfd, &fs) < 0 ||
-		    fs.st_size < 1 ||
-		    fs.st_size > ZPOOL_COMPAT_MAXSIZE) {
+		if (featfd < 0 || fstat(featfd, &fs) < 0 ||
+		    fs.st_size < 1 || fs.st_size > ZPOOL_COMPAT_MAXSIZE) {
 			(void) close(featfd);
 			strlcat(err_badfile, file, ZFS_MAXPROPLEN);
 			strlcat(err_badfile, " ", ZFS_MAXPROPLEN);
@@ -5844,9 +5871,9 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 		/* replace final newline with NULL to ensure string ends */
 		fc[fs.st_size - 1] = '\0';
 
-		for (line = strtok_r(fc, "\n", &ls);
+		for (line = strtok_r(fc, "\r\n", &ls);
 		    line != NULL;
-		    line = strtok_r(NULL, "\n", &ls)) {
+		    line = strtok_r(NULL, "\r\n", &ls)) {
 			/* discard comments */
 			char *r = strchr(line, '#');
 			if (r != NULL)
@@ -5892,6 +5919,9 @@ zpool_load_compat(const char *compat, boolean_t *features, char *report,
 	}
 	(void) close(sdirfd);
 	(void) close(ddirfd);
+#ifdef _WIN32
+	(void) close(edirfd);
+#endif
 
 	/* Return the most serious error */
 	if (ret_badfile) {

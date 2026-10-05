@@ -777,7 +777,7 @@ static const uint32_t rcon[RC_LENGTH] =
  * cipherKey	User key
  * keyBits	AES key size (128, 192, or 256 bits)
  */
-static int
+static int ASMABI
 rijndael_key_setup_enc(uint32_t rk[], const uint32_t cipherKey[],
     int keyBits)
 {
@@ -882,7 +882,7 @@ rijndael_key_setup_enc(uint32_t rk[], const uint32_t cipherKey[],
  * cipherKey	User key
  * keyBits	AES key size (128, 192, or 256 bits)
  */
-static int
+static int ASMABI
 rijndael_key_setup_dec(uint32_t rk[], const uint32_t cipherKey[], int keyBits)
 {
 	int	 Nr, i, j;
@@ -943,7 +943,7 @@ rijndael_key_setup_dec(uint32_t rk[], const uint32_t cipherKey[], int keyBits)
  * keyarr32	User key
  * keyBits	AES key size (128, 192, or 256 bits)
  */
-static void
+static void ASMABI
 aes_generic_generate(aes_key_t *key, const uint32_t *keyarr32, int keybits)
 {
 	key->nr = rijndael_key_setup_enc(&(key->encr_ks.ks32[0]), keyarr32,
@@ -966,7 +966,7 @@ aes_generic_generate(aes_key_t *key, const uint32_t *keyarr32, int keybits)
  * pt	Input block (plain text)
  * ct	Output block (crypto text).  Can overlap with pt
  */
-static void
+static void ASMABI
 aes_generic_encrypt(const uint32_t rk[], int Nr, const uint32_t pt[4],
     uint32_t ct[4])
 {
@@ -1094,7 +1094,7 @@ aes_generic_encrypt(const uint32_t rk[], int Nr, const uint32_t pt[4],
  * ct	Input block (crypto text)
  * pt	Output block (plain text). Can overlap with pt
  */
-static void
+static void ASMABI
 aes_generic_decrypt(const uint32_t rk[], int Nr, const uint32_t ct[4],
     uint32_t pt[4])
 {

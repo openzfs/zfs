@@ -321,6 +321,21 @@ typedef struct dk_gpt {
 /* possible values for "efi_flags" */
 #define	EFI_GPT_PRIMARY_CORRUPT	0x1	/* primary label corrupt */
 
+#ifdef _WIN32
+/*
+ * Windows does not handle NumPartitions==9, and computes the CRC
+ * incorrectly, then wipes out (Primary) Partition Entry Array, and
+ * clears the GPT header. We define this flag to purposely skip
+ * the Primary label to read the backup. Windows does not clear the
+ * Backup Partition Entry Array. This will set EFI_GPT_PRIMARY_CORRUPT
+ * upon return, if they differ.
+ * The Windows port will (optionally) replace the
+ * blanked GPT header with the backup, but re-written with
+ * NumPartitions==128. (Which Windows does handle).
+ */
+#define	EFI_GPT_PRIMARY_SKIP	0x2 /* skip primary label, will set corrupt */
+#endif
+
 /* the private ioctl between libefi and the driver */
 typedef struct dk_efi {
 	diskaddr_t	 dki_lba;	/* starting block */
@@ -344,7 +359,7 @@ struct partition64 {
 /*
  * Number of EFI partitions
  */
-#if defined(__linux__)
+#if defined(__linux__) || defined(_WIN32)
 #define	EFI_NUMPAR	128 /* Expected by parted-1.8.1 */
 #else
 #define	EFI_NUMPAR	9
@@ -359,6 +374,11 @@ struct partition64 {
 _SYS_EFI_PARTITION_H int efi_debug;
 _SYS_EFI_PARTITION_H int efi_alloc_and_init(int, uint32_t, struct dk_gpt **);
 _SYS_EFI_PARTITION_H int efi_alloc_and_read(int, struct dk_gpt **);
+#ifdef _WIN32
+_SYS_EFI_PARTITION_H int efi_alloc_and_read_flags(int, struct dk_gpt **,
+    uint_t);
+_SYS_EFI_PARTITION_H void efi_set_fix_gpt(boolean_t);
+#endif
 _SYS_EFI_PARTITION_H int efi_write(int, struct dk_gpt *);
 _SYS_EFI_PARTITION_H int efi_rescan(int);
 _SYS_EFI_PARTITION_H void efi_free(struct dk_gpt *);

@@ -27,7 +27,7 @@
 #include "ltm.h"
 #include "lvm.h"
 #include "lzio.h"
-
+#include <sys/asm_linkage.h>
 
 /* Return the number of bytes available on the stack. */
 #if defined (_KERNEL) && defined(__linux__)
@@ -43,6 +43,14 @@ static intptr_t stack_remaining(void) {
   intptr_t local;
   local = (intptr_t)&local - (intptr_t)curthread->td_kstack;
   return local;
+}
+#elif defined (_KERNEL) && defined(_WIN32)
+static intptr_t stack_remaining(void) {
+  ULONG_PTR low, high;
+  intptr_t local;
+  IoGetStackLimits(&low, &high);
+  local = (intptr_t)&local;
+  return (local - (intptr_t)low);
 }
 #else
 static intptr_t stack_remaining(void) {
@@ -66,11 +74,15 @@ static intptr_t stack_remaining(void) {
 
 #ifdef _KERNEL
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__) || defined(_WIN32)
 #if defined(__i386__)
 #define	JMP_BUF_CNT	6
 #elif defined(__x86_64__)
+#ifdef _WIN32
+#define	JMP_BUF_CNT	10 // +rsi +rdi 
+#else
 #define	JMP_BUF_CNT	8
+#endif
 #elif defined(__sparc__) && defined(__arch64__)
 #define	JMP_BUF_CNT	6
 #elif defined(__powerpc__)
@@ -93,10 +105,16 @@ static intptr_t stack_remaining(void) {
 
 typedef	struct _label_t { long long unsigned val[JMP_BUF_CNT]; } label_t;
 
+#if !defined (_WIN32) || !defined (__aarch64__)
 int ASMABI setjmp(label_t *) __attribute__ ((__nothrow__));
 extern __attribute__((noreturn)) void ASMABI longjmp(label_t *);
+#endif
 
+#if defined (_WIN32) && defined (__aarch64__)
+#define LUAI_THROW(L,c)		longjmp(&(c)->b, 1)
+#else
 #define LUAI_THROW(L,c)		longjmp(&(c)->b)
+#endif
 #define LUAI_TRY(L,c,a)		if (setjmp(&(c)->b) == 0) { a }
 #define luai_jmpbuf		label_t
 

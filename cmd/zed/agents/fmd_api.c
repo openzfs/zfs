@@ -555,7 +555,6 @@ fmd_serd_gc(fmd_hdl_t *hdl)
 }
 
 /* FMD Timers */
-
 static void
 _timer_notify(union sigval sv)
 {

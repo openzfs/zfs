@@ -22,6 +22,9 @@
 #include <libzutil.h>
 #include "libzfs_impl.h"
 
+#ifdef _WIN32
+#include <wosix.h>
+#endif
 
 /*
  * nfs_exports_[lock|unlock] are used to guard against conconcurrent

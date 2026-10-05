@@ -53,6 +53,10 @@
 #include <sys/zfs_quota.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_znode.h>
+#ifdef _WIN32
+#include <sys/zfs_vnops_os.h>
+#endif
+
 
 /*
  * Enables access to the block cloning feature. If this setting is 0, then even
@@ -405,6 +409,8 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	ssize_t start_offset = zfs_uio_offset(uio);
 #endif
 	uint_t blksz = zp->z_blksz;
+	if (blksz == 0)
+		blksz = zfsvfs->z_max_blksz;
 	ssize_t chunk_size;
 	ssize_t n = MIN(zfs_uio_resid(uio), zp->z_size - zfs_uio_offset(uio));
 	ssize_t start_resid = n;
@@ -632,6 +638,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	ssize_t start_resid = zfs_uio_resid(uio);
 	uint64_t clear_setid_bits_txg = 0;
 	boolean_t o_direct_defer = B_FALSE;
+	dmu_tx_t *tx = NULL;
 
 	/*
 	 * Fasttrack empty write
@@ -647,8 +654,35 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	sa_bulk_attr_t bulk[5];
 	int count = 0;
 	uint64_t mtime[2], ctime[2];
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zfsvfs), NULL, &mtime, 16);
-	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs), NULL, &ctime, 16);
+
+#ifdef _WIN32
+	/* Windows addition, skip update of Write and Change if requested */
+	if (!(uio->uio_extflg & SKIP_WRITE_TIME)) {
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zfsvfs), NULL,
+		    &mtime, 16);
+	}
+	if (!(uio->uio_extflg & SKIP_CHANGE_TIME)) {
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs), NULL,
+		    &ctime, 16);
+	}
+#else
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zfsvfs), NULL,
+	    &mtime, 16);
+	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs), NULL,
+	    &ctime, 16);
+#endif
+	/*
+	 * Always persist the current zp->z_size, even for Windows paging
+	 * writes (UIO_SKIP_SIZE_UPDATE).  That flag only prevents *deriving*
+	 * a new size from this write's own offset (see the CAS loop below);
+	 * it must not stop the already-authoritative in-memory size from
+	 * being written to the SA.  Skipping this bulk attr left the paging
+	 * write's data durable on disk with no on-disk size pointing at it,
+	 * so a crash (or any vnode reload) before some *other* event
+	 * happened to persist the size reverted the file to its last
+	 * durably-synced size -- 0 for a freshly truncate-opened file, even
+	 * though the actual bytes had already been committed.
+	 */
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_SIZE(zfsvfs), NULL,
 	    &zp->z_size, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zfsvfs), NULL,
@@ -799,6 +833,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	 * in a separate transaction; this keeps the intent log records small
 	 * and allows us to do more fine-grained space accounting.
 	 */
+	boolean_t tx_waited = B_FALSE;
 	while (n > 0) {
 		woff = zfs_uio_offset(uio);
 
@@ -812,7 +847,8 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		}
 
 		uint64_t blksz;
-		if (lr->lr_length == UINT64_MAX && zp->z_size <= zp->z_blksz) {
+		if (lr->lr_length == UINT64_MAX &&
+		    (zp->z_blksz == 0 || zp->z_size <= zp->z_blksz)) {
 			if (zp->z_blksz > zfsvfs->z_max_blksz &&
 			    !ISP2(zp->z_blksz)) {
 				/*
@@ -831,6 +867,12 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			blksz = zp->z_blksz;
 		}
 
+		/*
+		 * Snapshot uio before the arc-borrow path advances it via
+		 * zfs_uiocopy().  On ERESTART restore it so the retry
+		 * re-copies the same data without skipping a chunk.
+		 */
+		zfs_uio_t uio_snap = *uio;
 		arc_buf_t *abuf = NULL;
 		ssize_t nbytes = n;
 		if (n >= blksz && woff >= zp->z_size &&
@@ -869,15 +911,84 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		/*
 		 * Start a transaction.
 		 */
-		dmu_tx_t *tx = dmu_tx_create(zfsvfs->z_os);
+		tx = dmu_tx_create(zfsvfs->z_os);
 		dmu_tx_hold_sa(tx, zp->z_sa_hdl, ZFS_SEQ_MAY_GROW(zp));
 		dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
 		DB_DNODE_ENTER(db);
 		dmu_tx_hold_write_by_dnode(tx, DB_DNODE(db), woff, nbytes);
 		DB_DNODE_EXIT(db);
 		zfs_sa_upgrade_txholds(tx, zp);
-		error = dmu_tx_assign(tx, DMU_TX_WAIT);
-		if (error) {
+		dmu_tx_flag_t tx_flags = DMU_TX_NOWAIT;
+		if (tx_waited)
+			tx_flags |= DMU_TX_NOTHROTTLE;
+		error = dmu_tx_assign(tx, tx_flags);
+		/*
+		 * This whole NOWAIT-based retry loop (not just this check)
+		 * is Windows-specific, used instead of upstream's
+		 * DMU_TX_WAIT to avoid blocking in dmu_tx_wait() while
+		 * holding the Windows PagingIoResource. That means we
+		 * never reach dmu_tx_assign(DMU_TX_WAIT)'s own internal
+		 * retry loop, which is what normally converts a suspended
+		 * pool's ESHUTDOWN to EIO when failmode=continue, to avoid
+		 * retrying indefinitely against a pool that will not
+		 * resume on its own. Replicate that conversion here so a
+		 * suspended pool doesn't just spin through this loop
+		 * forever instead of erroring out.
+		 */
+		spa_t *wr_spa = dmu_objset_spa(zfsvfs->z_os);
+		if (error == ERESTART &&
+		    spa_get_failmode(wr_spa) == ZIO_FAILURE_MODE_CONTINUE &&
+		    spa_suspended(wr_spa))
+			error = SET_ERROR(EIO);
+		if (error == ERESTART) {
+			/*
+			 * TXG is quiescing; we must not block while holding
+			 * the range lock or the MPW (Modified Page Writer)
+			 * will deadlock waiting for the same lock while
+			 * txg_quiesce waits for MPW's tc_count to drop.
+			 * Drop the range lock, wait for the next open TXG,
+			 * then re-acquire and retry.
+			 *
+			 * After dmu_tx_wait() the dirty-delay penalty has
+			 * already been paid; use DMU_TX_NOTHROTTLE on the
+			 * next attempt so we do not re-enter the delay path
+			 * on a new tx whose tx_dirty_delayed is reset to
+			 * FALSE.
+			 *
+			 * On Windows, dmu_tx_wait() must not be called while
+			 * holding PagingIoResource, or it can deadlock
+			 * against a concurrent CcFlushCache on a second
+			 * handle to the same file; see
+			 * zfs_write_dmu_tx_wait_os()'s own comment for the
+			 * full explanation.
+			 */
+			if (abuf != NULL) {
+				dmu_return_arcbuf(abuf);
+				abuf = NULL;
+				*uio = uio_snap;
+			}
+			zfs_rangelock_exit(lr);
+#ifdef _WIN32
+			zfs_write_dmu_tx_wait_os(zp, tx);
+#else
+			dmu_tx_wait(tx);
+#endif
+			dmu_tx_abort(tx);
+			tx_waited = B_TRUE;
+			if (ioflag & O_APPEND) {
+				lr = zfs_rangelock_enter(&zp->z_rangelock,
+				    0, n, RL_APPEND);
+				woff = lr->lr_offset;
+				if (lr->lr_length == UINT64_MAX)
+					woff = zp->z_size;
+				zfs_uio_setoffset(uio, woff);
+				zfs_uio_setsoffset(uio, woff);
+			} else {
+				lr = zfs_rangelock_enter(&zp->z_rangelock,
+				    woff, n, RL_WRITER);
+			}
+			continue;
+		} else if (error) {
 			dmu_tx_abort(tx);
 			if (abuf != NULL)
 				dmu_return_arcbuf(abuf);
@@ -899,6 +1010,21 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			zfs_grow_blocksize(zp, blksz, tx);
 			zfs_rangelock_reduce(lr, woff, n);
 		}
+#ifdef _WIN32
+		else if (zp->z_blksz != 0 && !ISP2(zp->z_blksz) &&
+		    woff + nbytes > zp->z_blksz) {
+			/*
+			 * Pre-existing non-power-of-2 block
+			 * (dn_datablkshift==0): Windows paging writes
+			 * arrive via RL_WRITER and bypass the normal
+			 * lr_length==UINT64_MAX grow path.  Heal the
+			 * block before dmu_write_uio_dbuf to prevent
+			 * the "accessing past end" panic in
+			 * dmu_buf_hold_array_by_dnode.
+			 */
+			zfs_grow_blocksize(zp, woff + nbytes, tx);
+		}
+#endif
 
 		dmu_flags_t dflags = DMU_READ_PREFETCH;
 		if ((ioflag & O_DIRECT) || (uio->uio_extflg & UIO_UNCACHED))
@@ -1024,7 +1150,20 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		/*
 		 * Update the file size (zp_size) if it has changed;
 		 * account for possible concurrent updates.
+		 * On Windows, paging writes (cache-manager flushes) set
+		 * UIO_SKIP_SIZE_UPDATE so this CAS loop never *derives* a new
+		 * z_size from this write's own offset: the logical size was
+		 * already established by the preceding cached write via the
+		 * changed_length block, and a paging write only flushes some
+		 * dirty range of it -- not necessarily up to the true logical
+		 * end -- so its own offset is not authoritative.  The already-
+		 * correct z_size (whatever it is by now) still gets persisted
+		 * to the SA below via the bulk update; only the advance-from-
+		 * offset step is skipped here.
 		 */
+#ifdef _WIN32
+		if (!(uio->uio_extflg & UIO_SKIP_SIZE_UPDATE))
+#endif
 		while ((end_size = zp->z_size) < zfs_uio_offset(uio)) {
 			(void) atomic_cas_64(&zp->z_size, end_size,
 			    zfs_uio_offset(uio));

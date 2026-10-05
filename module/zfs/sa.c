@@ -2035,6 +2035,7 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 		SA_ADD_BULK_ATTR(attr_desc, j, newattr, locator,
 		    datastart, buflen);
 	}
+
 	ASSERT3U(j, ==, attr_count);
 
 	error = sa_build_layouts(hdl, attr_desc, attr_count, tx);
