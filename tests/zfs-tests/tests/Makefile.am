@@ -2637,6 +2637,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zstream/zstream_recompress_004_pos.ksh \
 	functional/zstream/zstream_recompress_005_pos.ksh \
 	functional/zstream/zstream_redup_001_pos.ksh \
+	functional/zstream/zstream_resume_001_pos.ksh \
+	functional/zstream/zstream_resume_002_neg.ksh \
 	functional/zstream/zstream_validate_001_neg.ksh \
 	functional/zstream/zstream_validate_002_neg.ksh \
 	functional/zstream/zstream_selftest_queue_001_pos.ksh \

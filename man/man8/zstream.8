@@ -11,7 +11,7 @@
 .\"
 .\" Copyright (c) 2020 by Delphix. All rights reserved.
 .\"
-.Dd September 3, 2026
+.Dd October 6, 2026
 .Dt ZSTREAM 8
 .Os
 .
@@ -49,6 +49,11 @@
 .Cm redup
 .Op Fl v
 .Ar file
+.Nm
+.Cm resume
+.Op Fl v
+.Ar resume_token
+.Op Ar file
 .Nm
 .Cm token
 .Ar resume_token
@@ -287,6 +292,49 @@ Prints a summary of reduplicated records.
 .El
 .It Xo
 .Nm
+.Cm resume
+.Op Fl v
+.Ar resume_token
+.Op Ar file
+.Xc
+Reads a saved send stream from the specified
+.Ar file
+or from standard input and writes to standard output the stream that
+.Nm zfs Cm send Fl t Ar resume_token
+would have generated.
+This allows an interrupted
+.Nm zfs Cm receive Fl s
+to be resumed from a saved copy of the original stream when the sending
+system is no longer available.
+.Pp
+Records that precede the resume point named by the token are skipped, and the
+stream's DRR_BEGIN record is marked as resuming.
+The stream must be a non-deduplicated, non-replication stream of the snapshot
+named by the token, sent with the same
+.Fl L ,
+.Fl e ,
+.Fl c ,
+and
+.Fl w
+options as the original.
+The stream may itself be a resumed stream, provided that it resumes at or
+before the token's resume point.
+If the stream is truncated after the resume point, the partial result can be
+received, and the process repeated with the new resume token once more of the
+stream is available.
+.Pp
+When the input can be seeked, such as a file, the payloads of records before
+the resume point are skipped without being read or verified.
+Everything from the resume point onward is verified against the stream
+checksums, as is the whole stream when it is read from a pipe.
+.Bl -tag -width "-v"
+.It Fl v
+Verbose.
+Prints the resume point, the offset in the input stream at which output
+resumed, and the number of records skipped.
+.El
+.It Xo
+.Nm
 .Cm token
 .Ar resume_token
 .Xc
@@ -322,6 +370,16 @@ to drop the bogus record, then receive it into a new dataset.
 .Bd -literal
 .No # Nm zfs Cm send Ar … | Nm zstream Cm drop_records Ar 3545761,18446744073709486080 | \
 Nm zfs Cm recv Ar …
+.Ed
+.
+.Ss Resuming a receive from a saved stream
+If a receive of a saved stream is interrupted, it can be resumed from the
+same file:
+.Bd -literal
+.No # Nm zfs Cm receive Fl s Ar pool/fs Ar < stream
+.No # Nm zfs Cm get Fl H Fl o Sy value Sy receive_resume_token Ar pool/fs
+1-e604ea4bf-e0-789c63a2...
+.No # Nm zstream Cm resume Ar 1-e604ea4bf-e0-789c63a2... Ar stream | Nm zfs Cm receive Fl s Ar pool/fs
 .Ed
 .
 .Ss Migrating from a zvol to a physical disk

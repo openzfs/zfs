@@ -55,6 +55,8 @@ typedef struct {
 	FILE		*ic_fp;
 	boolean_t	ic_for_reading;
 	off_t		ic_offset;
+	skip_func_t	ic_skip;	/* reading only; cleared once used */
+	void		*ic_skip_arg;
 } io_context_t;
 
 typedef struct {
@@ -343,6 +345,80 @@ read_payload(io_context_t *context, size_t size)
 	return (buff);
 }
 
+/*
+ * Payloads at least this large are skipped by seeking. Smaller ones are read
+ * and discarded, because seeking over them turns sequential reads into small
+ * random ones, which defeats readahead and is slower on most storage.
+ */
+#define	SKIP_SEEK_MIN	(1024 * 1024)
+
+/*
+ * Skip past the records that the skip function rejects, leaving the stream
+ * positioned at the last of them so that it is the next record read. Returns
+ * B_TRUE if any records were skipped, in which case the stream checksum must
+ * be resynchronized from that record's header. Streams that cannot seek, such
+ * as pipes, are read normally.
+ */
+static boolean_t
+skip_records(io_context_t *context)
+{
+	static uint8_t discard[SKIP_SEEK_MIN];
+	FILE *fp = context->ic_fp;
+	skip_func_t skip = context->ic_skip;
+	off_t last = -1;
+
+	context->ic_skip = NULL;
+	if (fseeko(fp, 0, SEEK_CUR) != 0)
+		return (B_FALSE);
+
+	off_t here = context->ic_offset;
+	for (;;) {
+		dmu_replay_record_t drr;
+
+		here = context->ic_offset;
+		if (fread(&drr, sizeof (drr), 1, fp) != 1) {
+			if (ferror(fp)) {
+				err(1, "error reading record header at "
+				    "offset %llu", (u_longlong_t)here);
+			}
+			break;
+		}
+
+		size_t payload_size = calc_payload_size(&drr);
+		if (ATTR_IS_SET(CA_BYTESWAPPED))
+			byteswap_record(&drr, BSWAP_32(drr.drr_type));
+		if (drr.drr_type == DRR_BEGIN || drr.drr_type == DRR_END ||
+		    drr.drr_type >= DRR_NUMTYPES ||
+		    payload_size > UINT32_MAX ||
+		    !skip(&drr, context->ic_skip_arg)) {
+			break;
+		}
+
+		if (payload_size >= SKIP_SEEK_MIN) {
+			if (fseeko(fp, payload_size, SEEK_CUR) != 0) {
+				err(1, "error seeking past record payload at "
+				    "offset %llu", (u_longlong_t)here);
+			}
+		} else if (payload_size > 0 &&
+		    fread(discard, payload_size, 1, fp) != 1) {
+			if (ferror(fp)) {
+				err(1, "error reading record payload at "
+				    "offset %llu", (u_longlong_t)here);
+			}
+			break;
+		}
+		last = here;
+		context->ic_offset += sizeof (drr) + payload_size;
+	}
+
+	context->ic_offset = (last >= 0) ? last : here;
+	if (fseeko(fp, context->ic_offset, SEEK_SET) != 0) {
+		err(1, "error seeking to offset %llu",
+		    (u_longlong_t)context->ic_offset);
+	}
+	return (last >= 0);
+}
+
 static disposition_t
 chain_read(void *item_in, void *context_in)
 {
@@ -359,6 +435,11 @@ chain_read(void *item_in, void *context_in)
 
 	item->dp_payload = NULL;
 	item->dp_payload_size = 0;
+	item->dp_cksum_resync = B_FALSE;
+
+	if (context->ic_skip != NULL && context->ic_offset > 0)
+		item->dp_cksum_resync = skip_records(context);
+
 	item->dp_stream_offset = context->ic_offset;
 
 	if (fread(drr, sizeof (dmu_replay_record_t), 1, context->ic_fp) != 1) {
@@ -506,6 +587,17 @@ chain_step_t
 serial_read_stream(const char *filename)
 {
 	return (setup_io(filename, B_TRUE));
+}
+
+chain_step_t
+serial_read_stream_skip(const char *filename, skip_func_t skip, void *arg)
+{
+	chain_step_t step = setup_io(filename, B_TRUE);
+	io_context_t *context = step.cs_context;
+
+	context->ic_skip = skip;
+	context->ic_skip_arg = arg;
+	return (step);
 }
 
 chain_step_t
