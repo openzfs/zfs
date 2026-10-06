@@ -2558,6 +2558,9 @@ dsl_dataset_apply_deltas(dsl_dataset_t *ds, dmu_tx_t *tx)
 	int64_t uniq, comp, uncomp, dead, dead_comp, dead_uncomp;
 	int64_t snap_xfer, prev_uniq, ref, rcomp, runcomp, delta;
 
+	if (SPA_EXITING(dmu_tx_pool(tx)->dp_spa))
+		return;
+
 	uniq = dsl_dataset_take_delta(&ds->ds_unique_delta);
 	comp = dsl_dataset_take_delta(&ds->ds_unique_comp_delta);
 	uncomp = dsl_dataset_take_delta(&ds->ds_unique_uncomp_delta);
@@ -2579,6 +2582,10 @@ dsl_dataset_apply_deltas(dsl_dataset_t *ds, dmu_tx_t *tx)
 	runcomp = uncomp - dead_uncomp;
 
 	mutex_enter(&ds->ds_lock);
+	if (SPA_EXITING(dmu_tx_pool(tx)->dp_spa)) {
+		mutex_exit(&ds->ds_lock);
+		return;
+	}
 	delta = parent_delta(ds, uniq);
 	ASSERT(uniq >= 0 || dsp->ds_unique_bytes >= (uint64_t)-uniq ||
 	    !DS_UNIQUE_IS_ACCURATE(ds));
