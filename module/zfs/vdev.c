@@ -4451,6 +4451,27 @@ vdev_psize_to_asize(vdev_t *vd, uint64_t psize)
 }
 
 /*
+ * All allocations are a multiple of 1 << the ashift of the vdev that they are
+ * being allocated in. Certain vdev types (currently raidz and draid) always
+ * request allocations that are a multiple of a larger size, in order to
+ * preserve alignment requirements or prevent fragmentation. This function
+ * exposes those requirements to the metaslab code, so that the dynamic
+ * allocation size feature can also respect it.
+ *
+ * Without this functionality, we can end up allocating sizes that are not
+ * aligned properly, which can result in sizes changing when passing back forth
+ * through the asize/psize conversion logic. This can lead to frees and
+ * allocations not matching in size, which is problematic.
+ */
+uint64_t
+vdev_alloc_factor(vdev_t *vd)
+{
+	if (vd->vdev_ops->vdev_op_alloc_factor == NULL)
+		return (1ULL << vd->vdev_ashift);
+	return (vd->vdev_ops->vdev_op_alloc_factor(vd));
+}
+
+/*
  * Stop any TRIM or initialize operation running on a vdev which has just
  * stopped being writeable, and wait for its thread to exit, so that no IO
  * from the operation outlives the ioctl and the state "zpool status" reports
