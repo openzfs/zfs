@@ -56,7 +56,8 @@ log_assert "Verify scrub -C."
 # last_scrubbed_txg persists once a scrub completes, so the pool must be
 # one no other test has scrubbed.
 log_must truncate -s $MINVDEVSIZE $VDEV0 $VDEV1
-log_must zpool create -f $TESTPOOL2 mirror $VDEV0 $VDEV1
+# Keep file data out of ARC so scrub cannot repair the injected errors.
+log_must zpool create -f -O primarycache=none $TESTPOOL2 mirror $VDEV0 $VDEV1
 
 # Create one file.
 mntpnt=$(get_prop mountpoint $TESTPOOL2)

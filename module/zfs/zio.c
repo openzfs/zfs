@@ -5296,6 +5296,74 @@ zio_vsd_default_cksum_report(zio_t *zio, zio_cksum_report_t *zcr)
 	zcr->zcr_free = zio_abd_free;
 }
 
+static void
+zio_arc_repair_done(zio_t *zio)
+{
+	zio_t *pio = zio->io_private;
+
+	pio->io_error = zio->io_error;
+}
+
+/* Try a verified L1 ARC copy only after all on-disk copies failed. */
+static void
+zio_arc_repair(zio_t *zio)
+{
+	blkptr_t *bp = zio->io_bp;
+	blkptr_t cbp;
+	arc_buf_t *buf = NULL;
+	arc_flags_t arc_flags;
+	zio_t *repair;
+
+	if (zio->io_error == 0 || zio->io_type != ZIO_TYPE_READ ||
+	    zio->io_child_type != ZIO_CHILD_LOGICAL || zio->io_vd != NULL ||
+	    (zio->io_flags & (ZIO_FLAG_SCRUB | ZIO_FLAG_SCAN_THREAD |
+	    ZIO_FLAG_RAW)) != (ZIO_FLAG_SCRUB | ZIO_FLAG_SCAN_THREAD |
+	    ZIO_FLAG_RAW) || (zio->io_flags & ZIO_FLAG_SPECULATIVE) ||
+	    bp == NULL || BP_IS_EMBEDDED(bp) || BP_IS_GANG(bp) ||
+	    BP_GET_DEDUP(bp) || BP_GET_CHECKSUM(bp) == ZIO_CHECKSUM_OFF ||
+	    BP_GET_CHECKSUM(bp) == ZIO_CHECKSUM_NOPARITY ||
+	    !spa_writeable(zio->io_spa))
+		return;
+
+	/* Sorted scans rotate DVAs; ARC identity uses the first DVA. */
+	cbp = *bp;
+	for (int i = 0; i < BP_GET_NDVAS(bp); i++) {
+		for (int j = 0; j < BP_GET_NDVAS(bp); j++)
+			cbp.blk_dva[j] =
+			    bp->blk_dva[(i + j) % BP_GET_NDVAS(bp)];
+		arc_flags = ARC_FLAG_WAIT | ARC_FLAG_CACHED_ONLY;
+		if (arc_read(NULL, zio->io_spa, &cbp, arc_getbuf_func, &buf,
+		    ZIO_PRIORITY_SCRUB, ZIO_FLAG_RAW, &arc_flags,
+		    &zio->io_bookmark) == 0)
+			break;
+	}
+	if (buf == NULL)
+		return;
+
+	if (arc_buf_size(buf) != zio->io_size ||
+	    arc_get_compression(buf) != BP_GET_COMPRESS(bp)) {
+		arc_buf_destroy(buf, &buf);
+		return;
+	}
+	abd_copy_from_buf(zio->io_abd, buf->b_data, zio->io_size);
+	arc_buf_destroy(buf, &buf);
+	if (zio_checksum_error_impl(zio->io_spa, bp, BP_GET_CHECKSUM(bp),
+	    zio->io_abd, zio->io_size, zio->io_offset, NULL) != 0)
+		return;
+
+	/* The read owns the BP and ABD until its repair child completes. */
+	zio->io_error = 0;
+	zio->io_child_error[ZIO_CHILD_VDEV] = 0;
+	repair = zio_rewrite(zio, zio->io_spa, BP_GET_BIRTH(bp), bp,
+	    zio->io_abd, zio->io_size, zio_arc_repair_done, zio,
+	    ZIO_PRIORITY_SCRUB, ZIO_FLAG_RAW | ZIO_FLAG_CANFAIL |
+	    ZIO_FLAG_DONT_PROPAGATE | ZIO_FLAG_IO_REPAIR |
+	    ZIO_FLAG_SELF_HEAL | ZIO_FLAG_SCAN_THREAD, &zio->io_bookmark);
+	/* Preserve the verified checksum, including foreign byte order. */
+	repair->io_pipeline &= ~ZIO_STAGE_CHECKSUM_GENERATE;
+	zio_nowait(repair);
+}
+
 static zio_t *
 zio_vdev_io_assess(zio_t *zio)
 {
@@ -5381,6 +5449,8 @@ zio_vdev_io_assess(zio_t *zio)
 		vd->vdev_nowritecache = B_TRUE;
 		zio->io_error = 0;
 	}
+
+	zio_arc_repair(zio);
 
 	if (zio->io_error)
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
