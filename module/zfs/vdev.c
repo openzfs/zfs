@@ -3282,7 +3282,7 @@ vdev_dtl_need_resilver(vdev_t *vd, const dva_t *dva, size_t psize,
 }
 
 /*
- * Returns the lowest txg in the DTL range.
+ * Returns the exclusive lower txg bound, clamped at zero.
  */
 static uint64_t
 vdev_dtl_min(vdev_t *vd)
@@ -3291,11 +3291,16 @@ vdev_dtl_min(vdev_t *vd)
 	ASSERT3U(zfs_range_tree_space(vd->vdev_dtl[DTL_MISSING]), !=, 0);
 	ASSERT0(vd->vdev_children);
 
-	return (zfs_range_tree_min(vd->vdev_dtl[DTL_MISSING]) - 1);
+	/*
+	 * No block is born in txg 0, so a DTL which starts there, as older
+	 * rebuilds could leave it, needs no lower bound.
+	 */
+	uint64_t min = zfs_range_tree_min(vd->vdev_dtl[DTL_MISSING]);
+	return (min == 0 ? 0 : min - 1);
 }
 
 /*
- * Returns the highest txg in the DTL.
+ * Returns the exclusive upper txg bound.
  */
 static uint64_t
 vdev_dtl_max(vdev_t *vd)
@@ -5503,8 +5508,8 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 		 * do so -- and it's not clear that it'd be desirable anyway.
 		 *
 		 * For rebuild, since we don't have any information about BPs
-		 * and txgs that are being rebuilt, we need to add all known
-		 * txgs (starting from TXG_INITIAL) to DTL so that during
+		 * and txgs that are being rebuilt, we add the rebuild's
+		 * saved txg interval to the DTL so that during
 		 * healing resilver we would be able to check all txgs at
 		 * vdev_draid_need_resilver().
 		 */
