@@ -28,6 +28,12 @@
 #    coalesce into a single WRITE record (the fence is time-based).
 # 4. Setting events_io_window=0 disables coalescing: three 100-byte
 #    writes produce three WRITE records.
+#
+# Each check runs on its OWN child filesystem: `zfs events -c` empties
+# the ring but does not discard an open coalescing fence, so a record
+# from a previous check whose window is still open can be re-emitted
+# into the next check's counts (observed on slow CI VMs where the
+# 60s fence of check 1 drained during check 2).
 
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/file_events/file_events.kshlib
@@ -42,14 +48,19 @@ fi
 
 function cleanup
 {
-	destroy_fetest_child "$TESTPOOL/$TESTFS/fetest-io"
+	destroy_fetest_child "$TESTPOOL/$TESTFS/fetest-io-1"
+	destroy_fetest_child "$TESTPOOL/$TESTFS/fetest-io-2"
+	destroy_fetest_child "$TESTPOOL/$TESTFS/fetest-io-3"
 }
 
 log_onexit cleanup
 
 log_assert "IO events: WRITE records, default-window coalescing, window=0 fencing off"
 
-ds=$(make_fetest_child) || log_fail "create fetest-io"
+#
+# check 1: single write, exact fields
+#
+ds=$(make_fetest_child) || log_fail "create fetest-io-1"
 log_must zfs set events=on "$ds"
 # A generous window makes check 1 deterministic: dd issues five separate
 # 1000-byte write(2)s, and on a slow CI VM they can straddle the 1s
@@ -60,7 +71,6 @@ log_must zfs set events_io_window=60000 "$ds"
 log_must zfs set events_io=on "$ds"
 mnt=$(get_prop mountpoint "$ds")
 
-# single write, exact fields
 log_must dd if=/dev/zero of="$mnt/io1" bs=1000 count=5 conv=notrunc
 count=$(wait_records "$ds" 1) || log_fail "expected 1 record, got $count"
 typeset json="$TMPDIR/file_events_io.$$"
@@ -83,12 +93,17 @@ print("write-ok")
 EOF
 [[ $? -eq 0 ]] || log_fail "WRITE record fields wrong (records dumped above)"
 rm -f "$json"
-log_must zfs events -c "$ds" >/dev/null 2>&1 || true
-count=$(wait_records_clear "$ds") || \
-    log_fail "ring not empty after clear: $count records"
+destroy_fetest_child "$ds"
 
-# events_io_window=2000 ms: two rapid writes coalesce to one record
+#
+# check 2: events_io_window=2000 ms, two rapid writes coalesce
+#
+ds=$(make_fetest_child) || log_fail "create fetest-io-2"
+log_must zfs set events=on "$ds"
 log_must zfs set events_io_window=2000 "$ds"
+log_must zfs set events_io=on "$ds"
+mnt=$(get_prop mountpoint "$ds")
+
 # Both writes must come from ONE open descriptor: close(2) flushes
 # the pending fence, so two dd processes would be two records.
 log_must python3 - "$mnt/io2" <<'PYWRITER'
@@ -108,17 +123,26 @@ import json, sys
 with open(sys.argv[1]) as f:
     page = json.load(f)
 writes = [e for e in page if e["op"] == "WRITE"]
-assert len(writes) == 1, "expected 1 coalesced WRITE, got %d" % len(writes)
+if len(writes) != 1:
+    for w in writes:
+        sys.stderr.write("WRITE off=%s bytes=%s txg=%s\n" %
+            (w.get("io_offset"), w.get("io_bytes"), w.get("txg")))
+    raise SystemExit("expected 1 coalesced WRITE, got %d" % len(writes))
 print("coalesce-ok")
 EOF
-[[ $? -eq 0 ]] || log_fail "expected the two writes to coalesce"
+[[ $? -eq 0 ]] || log_fail "expected the two writes to coalesce (records dumped above)"
 rm -f "$json"
-log_must zfs events -c "$ds" >/dev/null 2>&1 || true
-count=$(wait_records_clear "$ds") || \
-    log_fail "ring not empty after clear: $count records"
+destroy_fetest_child "$ds"
 
-# window=0: fencing disabled, no coalescing - 3 writes, 3 records
+#
+# check 3: window=0 disables coalescing - 3 writes, 3 records
+#
+ds=$(make_fetest_child) || log_fail "create fetest-io-3"
+log_must zfs set events=on "$ds"
 log_must zfs set events_io_window=0 "$ds"
+log_must zfs set events_io=on "$ds"
+mnt=$(get_prop mountpoint "$ds")
+
 for i in 1 2 3; do
 	log_must dd if=/dev/zero of="$mnt/io3" bs=100 count=1 \
 	    seek=$((i - 1)) conv=notrunc
@@ -132,10 +156,14 @@ import json, sys
 with open(sys.argv[1]) as f:
     page = json.load(f)
 writes = [e for e in page if e["op"] == "WRITE"]
-assert len(writes) == 3, "expected 3 WRITE, got %d" % len(writes)
+if len(writes) != 3:
+    for w in writes:
+        sys.stderr.write("WRITE off=%s bytes=%s txg=%s\n" %
+            (w.get("io_offset"), w.get("io_bytes"), w.get("txg")))
+    raise SystemExit("expected 3 WRITE, got %d" % len(writes))
 print("window0-ok")
 EOF
-[[ $? -eq 0 ]] || log_fail "window=0 should produce 3 WRITE records"
+[[ $? -eq 0 ]] || log_fail "window=0 should produce 3 WRITE records (records dumped above)"
 rm -f "$json"
 
 log_pass "IO events: WRITE records, default-window coalescing, window=0 fencing off"
