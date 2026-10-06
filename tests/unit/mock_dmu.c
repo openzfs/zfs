@@ -21,6 +21,7 @@
 
 #include <sys/zfs_context.h>
 #include <sys/dmu.h>
+#include <sys/dmu_objset.h>
 #include <sys/dmu_tx.h>
 #include <sys/dnode.h>
 #include <sys/dsl_dataset.h>
@@ -115,6 +116,8 @@ mock_dnode_create(size_t blksize, dmu_object_type_t type)
 	mdn->mdn_refcount = 1;
 	mdn->mdn_dn.dn_type = type;
 	mdn->mdn_dn.dn_object = 1;	/* arbitrary non-zero object number */
+	struct objset *os = kmem_zalloc(sizeof (struct objset), KM_SLEEP);
+	mdn->mdn_dn.dn_objset = os;
 	mdn->mdn_blksize = blksize;
 
 	return (mdn);
@@ -142,6 +145,7 @@ mock_dnode_destroy(mock_dnode_t *mdn)
 
 	kmem_free(mdn->mdn_blocks,
 	    mdn->mdn_nblocks * sizeof (mock_dbuf_t *));
+	kmem_free(mdn->mdn_dn.dn_objset, sizeof (struct objset));
 	kmem_free(mdn, sizeof (mock_dnode_t));
 }
 
@@ -332,6 +336,13 @@ dsl_dataset_dirty(dsl_dataset_t *ds, dmu_tx_t *tx)
 }
 
 boolean_t
+spa_exiting(spa_t *spa)
+{
+	(void) spa;
+	return (B_FALSE);
+}
+
+boolean_t
 spa_feature_is_enabled(spa_t *spa, spa_feature_t f)
 {
 	(void) spa; (void) f;
@@ -371,15 +382,15 @@ dmu_object_free(objset_t *os, uint64_t object, dmu_tx_t *tx)
 	return (EIO);
 }
 
-uint64_t
+int
 dmu_object_alloc_hold(objset_t *os, dmu_object_type_t ot,
     int blocksize, int indirect_blockshift, dmu_object_type_t bonustype,
     int bonuslen, int dnodesize, dnode_t **allocated_dnode,
-    const void *tag, dmu_tx_t *tx)
+    const void *tag, dmu_tx_t *tx, uint64_t *objectp)
 {
 	(void) os; (void) ot; (void) blocksize; (void) indirect_blockshift;
 	(void) bonustype; (void) bonuslen; (void) dnodesize;
-	(void) allocated_dnode; (void) tag; (void) tx;
+	(void) allocated_dnode; (void) tag; (void) tx; (void) objectp;
 	return (EIO);
 }
 
