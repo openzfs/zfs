@@ -544,6 +544,31 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	zp->z_blksz = blksz;
 	zp->z_sync_cnt = 0;
 
+	/*
+	 * The IO window state must start closed. The inode memory comes
+	 * from the VFS inode slab and is recycled, so these fields can
+	 * hold stale garbage from the previous occupant; a nonzero
+	 * z_ev_io_wstart would make the first write take the window-
+	 * absorb path and emit records with uninitialized offsets and
+	 * byte totals (observed as zio canary + k*size on kernels whose
+	 * slab recycling poisons freed memory). The same applies to the
+	 * read window and the pending byte/offset fields feeding it.
+	 */
+	zp->z_ev_io_wstart = 0;
+	zp->z_ev_io_wpend_off = 0;
+	zp->z_ev_io_wpend_bytes = 0;
+	zp->z_ev_io_wuid = 0;
+	zp->z_ev_io_wgid = 0;
+	zp->z_ev_io_wprincipal = 0;
+	zp->z_ev_io_whaveprincipal = B_FALSE;
+	zp->z_ev_io_rstart = 0;
+	zp->z_ev_io_rpend_off = 0;
+	zp->z_ev_io_rpend_bytes = 0;
+	zp->z_ev_io_ruid = 0;
+	zp->z_ev_io_rgid = 0;
+	zp->z_ev_io_rprincipal = 0;
+	zp->z_ev_io_rhaveprincipal = B_FALSE;
+
 	zfs_znode_sa_init(zfsvfs, zp, db, obj_type, hdl);
 
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MODE(zfsvfs), NULL, &mode, 8);
@@ -1982,6 +2007,12 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	rootzp->z_xattr_dir_absent = B_FALSE;
 	rootzp->z_is_sa = USE_SA(version, os);
 	rootzp->z_pflags = 0;
+	/*
+	 * IO windows must start closed on a recycled znode (see
+	 * zfs_znode_alloc()).
+	 */
+	rootzp->z_ev_io_wstart = 0;
+	rootzp->z_ev_io_rstart = 0;
 
 	zfsvfs = kmem_zalloc(sizeof (zfsvfs_t), KM_SLEEP);
 	zfsvfs->z_os = os;
