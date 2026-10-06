@@ -47,6 +47,8 @@
 !.gitmodules
 !.mailmap
 !AUTHORS
+!AGENTS.md
+!CLAUDE.md
 !autogen.sh
 !CODE_OF_CONDUCT.md
 !configure.ac
