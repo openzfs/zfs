@@ -91,7 +91,7 @@ typedef struct dsl_sync_task {
 	txg_node_t dst_node;
 	struct dsl_pool *dst_pool;
 	uint64_t dst_txg;
-	int dst_space;
+	uint64_t dst_space;
 	zfs_space_check_t dst_space_check;
 	dsl_checkfunc_t *dst_checkfunc;
 	dsl_syncfunc_t *dst_syncfunc;
