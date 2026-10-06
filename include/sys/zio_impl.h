@@ -115,7 +115,7 @@ extern "C" {
  * NOTE: PLEASE UPDATE THE BITFIELD STRINGS IN zfs_valstr.c IF YOU ADD ANOTHER
  * FLAG.
  */
-enum zio_stage {
+enum zfs_flag_enum zio_stage {
 	ZIO_STAGE_OPEN			= 1 << 0,	/* RWFCXT */
 
 	ZIO_STAGE_READ_BP_INIT		= 1 << 1,	/* R----- */
