@@ -24,10 +24,8 @@
 
 #include <stdarg.h>
 
+#define	KM_SLEEP		0x0000	/* never fails */
 #define	KM_NOSLEEP		0x0001  /* cannot block for memory; may fail */
-
-#define	UMEM_DEFAULT		0x0000  /* normal -- may fail */
-#define	UMEM_NOFAIL		0x0100  /* Never fails */
 
 #define	NULL	(0)
 
@@ -84,15 +82,15 @@ memcpy(void *dst, void *src, size_t len)
 }
 
 void *
-umem_alloc_aligned(size_t size, size_t align, int kmflags)
+kmem_alloc_aligned(size_t size, size_t align, int kmflags)
 {
 	__coverity_negative_sink__(size);
 	__coverity_negative_sink__(align);
 
-	if (((UMEM_NOFAIL & kmflags) == UMEM_NOFAIL) || condition0) {
+	if (((KM_SLEEP & kmflags) == KM_SLEEP) || condition0) {
 		void *buf = __coverity_alloc__(size);
 		__coverity_mark_as_uninitialized_buffer__(buf);
-		__coverity_mark_as_afm_allocated__(buf, "umem_free");
+		__coverity_mark_as_afm_allocated__(buf, "kmem_free_aligned");
 		return (buf);
 	}
 
@@ -100,14 +98,14 @@ umem_alloc_aligned(size_t size, size_t align, int kmflags)
 }
 
 void *
-umem_alloc(size_t size, int kmflags)
+kmem_alloc(size_t size, int kmflags)
 {
 	__coverity_negative_sink__(size);
 
-	if (((UMEM_NOFAIL & kmflags) == UMEM_NOFAIL) || condition0) {
+	if (((KM_SLEEP & kmflags) == KM_SLEEP) || condition0) {
 		void *buf = __coverity_alloc__(size);
 		__coverity_mark_as_uninitialized_buffer__(buf);
-		__coverity_mark_as_afm_allocated__(buf, "umem_free");
+		__coverity_mark_as_afm_allocated__(buf, "kmem_free");
 		return (buf);
 	}
 
@@ -115,14 +113,14 @@ umem_alloc(size_t size, int kmflags)
 }
 
 void *
-umem_zalloc(size_t size, int kmflags)
+kmem_zalloc(size_t size, int kmflags)
 {
 	__coverity_negative_sink__(size);
 
-	if (((UMEM_NOFAIL & kmflags) == UMEM_NOFAIL) || condition0) {
+	if (((KM_SLEEP & kmflags) == KM_SLEEP) || condition0) {
 		void *buf = __coverity_alloc__(size);
 		__coverity_writeall0__(buf);
-		__coverity_mark_as_afm_allocated__(buf, "umem_free");
+		__coverity_mark_as_afm_allocated__(buf, "kmem_free");
 		return (buf);
 	}
 
@@ -130,26 +128,26 @@ umem_zalloc(size_t size, int kmflags)
 }
 
 void
-umem_free(void *buf, size_t size)
+kmem_free(void *buf, size_t size)
 {
 	__coverity_negative_sink__(size);
 	__coverity_free__(buf);
 }
 
-typedef struct {} umem_cache_t;
+typedef struct {} kmem_cache_t;
 
 void *
-umem_cache_alloc(umem_cache_t *skc, int flags)
+kmem_cache_alloc(kmem_cache_t *skc, int flags)
 {
 	(void) skc;
 
 	if (condition1)
 		__coverity_sleep__();
 
-	if (((UMEM_NOFAIL & flags) == UMEM_NOFAIL) || condition0) {
+	if (((KM_SLEEP & flags) == KM_SLEEP) || condition0) {
 		void *buf = __coverity_alloc_nosize__();
 		__coverity_mark_as_uninitialized_buffer__(buf);
-		__coverity_mark_as_afm_allocated__(buf, "umem_cache_free");
+		__coverity_mark_as_afm_allocated__(buf, "kmem_cache_free");
 		return (buf);
 	}
 
@@ -157,7 +155,7 @@ umem_cache_alloc(umem_cache_t *skc, int flags)
 }
 
 void
-umem_cache_free(umem_cache_t *skc, void *obj)
+kmem_cache_free(kmem_cache_t *skc, void *obj)
 {
 	(void) skc;
 
