@@ -27,6 +27,7 @@
 /mkfile
 /mkfiles
 /mktree
+/mmap_eof_extend
 /mmap_exec
 /mmap_ftruncate
 /mmap_libaio
