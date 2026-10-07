@@ -758,6 +758,13 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	if (n > limit - woff)
 		n = limit - woff;
 
+	/*
+	 * A write past the end of the file exposes the rest of its last
+	 * page; clear anything stored there through a mapping.
+	 */
+	if (woff > zp->z_size)
+		zn_zero_eof_page(zp, lr, woff);
+
 	uint64_t end_size = MAX(zp->z_size, woff + n);
 	zilog_t *zilog = zfsvfs->z_log;
 	boolean_t commit = (ioflag & (O_SYNC | O_DSYNC)) ||
@@ -1784,6 +1791,13 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 
 	if (inoff >= MAXOFFSET_T || outoff >= MAXOFFSET_T)
 		return (SET_ERROR(EFBIG));
+
+	/*
+	 * Cloning past the end of the file exposes the rest of its last
+	 * page; clear anything stored there through a mapping.
+	 */
+	if (!dedup && outoff > outzp->z_size)
+		zn_zero_eof_page(outzp, outlr, outoff);
 
 	/*
 	 * A dedupe leaves the destination's content and metadata alone: it can
