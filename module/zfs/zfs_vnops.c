@@ -1107,10 +1107,29 @@ refault:
 			break;
 		}
 
+		offset_t retry_offset = zfs_uio_offset(uio);
 		zfs_rangelock_exit(lr);
 		error = zfs_uio_prefaultpages(MIN(n, maxcopy), uio);
-		lr = zfs_rangelock_enter(&zp->z_rangelock,
-		    zfs_uio_offset(uio), n, RL_WRITER);
+		if ((ioflag & O_APPEND) && error == 0) {
+			/* Recheck EOF after dropping the append lock. */
+			lr = zfs_rangelock_enter(&zp->z_rangelock, 0, n,
+			    RL_APPEND);
+			woff = lr->lr_length == UINT64_MAX ? zp->z_size :
+			    lr->lr_offset;
+			if (woff >= limit) {
+				error = SET_ERROR(EFBIG);
+				break;
+			}
+			if (n > limit - woff)
+				n = limit - woff;
+			zfs_uio_setoffset(uio, woff);
+			/* Preserve the source-page index used by direct I/O. */
+			zfs_uio_soffset(uio) += woff - retry_offset;
+			end_size = MAX(zp->z_size, woff + n);
+		} else {
+			lr = zfs_rangelock_enter(&zp->z_rangelock,
+			    retry_offset, n, RL_WRITER);
+		}
 		if (error != 0) {
 			error = SET_ERROR(EFAULT);
 			break;

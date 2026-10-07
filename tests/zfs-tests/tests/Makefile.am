@@ -1860,6 +1860,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/mmap/mmap_ftruncate.ksh \
 	functional/mmap/mmap_read_truncate.ksh \
 	functional/mmap/mmap_write_source.ksh \
+	functional/mmap/mmap_iov_iter_revert.ksh \
+	functional/mmap/mmap_write_append_race.ksh \
 	functional/mmap/setup.ksh \
 	functional/mmp/cleanup.ksh \
 	functional/mmp/mmp_active_import.ksh \
