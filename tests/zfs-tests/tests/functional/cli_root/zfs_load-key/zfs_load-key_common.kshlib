@@ -98,7 +98,10 @@ function verify_origin
 
 function setup_https
 {
-	log_must openssl req -x509 -newkey rsa:4096 -sha256 -days 1 -nodes -keyout "/$TESTPOOL/snakeoil.key" -out "$SSL_CA_CERT_FILE" -subj "/CN=$HTTPS_HOSTNAME"
+	log_must openssl req -x509 -newkey rsa:4096 -sha256 -days 1 -nodes \
+	    -keyout "/$TESTPOOL/snakeoil.key" -out "$SSL_CA_CERT_FILE" \
+	    -subj "/CN=$HTTPS_HOSTNAME" \
+	    -addext "subjectAltName=IP:$HTTPS_HOSTNAME"
 
 	python3 -uc "
 import http.server, ssl, sys, os, time, random
