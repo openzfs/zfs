@@ -32,6 +32,7 @@ subgraph Other workflows
   zfs-arm.yml
   zloop.yml
   labels.yml
+  zfs-failfirst.yml
 end
 ```
 
@@ -92,5 +93,32 @@ Available via `specific_os` or `ZTS_OS_OVERRIDE`:
 - `zfs-arm.yml`: ARM build on `ubuntu-24.04-arm`
 - `zloop.yml`: host-side zloop
 - `labels.yml`: maintains PR status labels
+- `zfs-failfirst.yml`: for PRs that add a test in one commit and fix the
+  bug in a later commit, checks that the test fails on the test commit
+  and passes on the PR head (see below)
 - `zfs-qemu-packages.yml`: manually dispatched, builds release RPMs or
   tests RPM installation from the ZFS yum repo
+
+### Failing test, then fix (`zfs-failfirst.yml`)
+
+A bug fix is easiest to review when the PR first adds a test that shows
+the bug, then fixes it.  `zfs-failfirst.yml` checks that pattern.  Its
+`Detect` job runs `scripts/failfirst-detect.py` over the PR's commits and
+looks for a *test commit*:
+
+- it changes only files under `tests/`,
+- it adds or modifies at least one test script (other than `setup.ksh`
+  and `cleanup.ksh`), and
+- a later commit in the PR changes files outside `tests/`.
+
+For each test commit (up to four), a `verify` job builds that commit with
+`--enable-debug` in one `ubuntu24` VM and runs the tests it adds or
+modifies; at least one of them must fail, be killed, hang or crash the
+kernel.  Another `verify` job builds the PR head and runs the same tests;
+all of them must pass without kernel errors.  Tests run one at a time
+with `zfs-tests.sh -t`, and the VM is restarted after a crash or hang.
+The `Verdict` job collects the results.  PRs without a test commit finish
+after `Detect`.
+
+The repository variables `FAILFIRST_OS` and `FAILFIRST_UPSTREAM` change
+the test OS and the repository whose `master` is the base for pushes.

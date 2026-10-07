@@ -1,0 +1,189 @@
+name: zfs-failfirst
+
+# Verify PRs that add a test demonstrating a bug in one commit and fix the
+# bug in a later commit.  Each such test commit is built on its own and its
+# tests must fail (or crash); the PR head is built and the same tests must
+# pass.  PRs without this pattern finish after the detect job.
+#
+# A test commit changes only files under tests/ and adds or modifies a test
+# script; see scripts/failfirst-detect.py.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      base:
+        type: string
+        required: false
+        default: ""
+        description: "(optional) Commit or branch the change is based on (default: merge base with openzfs/zfs master)"
+      os:
+        type: string
+        required: false
+        default: ""
+        description: "(optional) OS to test on (default: ubuntu24)"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  detect:
+    name: Detect
+    if: github.event_name != 'push' || github.repository != 'openzfs/zfs'
+    runs-on: ubuntu-24.04
+    outputs:
+      found: ${{ steps.detect.outputs.found }}
+      matrix: ${{ steps.detect.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ env.HEAD_SHA }}
+          fetch-depth: 0
+      - name: Find test commits
+        id: detect
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          INPUT_BASE: ${{ github.event.inputs.base }}
+          UPSTREAM: ${{ vars.FAILFIRST_UPSTREAM || 'https://github.com/openzfs/zfs' }}
+        run: |
+          if [ -n "$PR_BASE" ]; then
+            base="$PR_BASE"
+          elif [ -n "$INPUT_BASE" ]; then
+            base=$(git rev-parse --verify -q "$INPUT_BASE^{commit}" ||
+              git rev-parse --verify "origin/$INPUT_BASE^{commit}")
+          else
+            git fetch -q "$UPSTREAM" master
+            base=FETCH_HEAD
+          fi
+          base=$(git merge-base "$base" "$HEAD_SHA")
+          echo "Commits in $base..$HEAD_SHA"
+          python3 .github/workflows/scripts/failfirst-detect.py \
+            "$base" "$HEAD_SHA" > /tmp/detect.json
+          jq . /tmp/detect.json
+          echo "found=$(jq -r .found /tmp/detect.json)" >> $GITHUB_OUTPUT
+          echo "matrix=$(jq -c .matrix /tmp/detect.json)" >> $GITHUB_OUTPUT
+          jq -r .summary /tmp/detect.json >> $GITHUB_STEP_SUMMARY
+
+  verify:
+    name: ${{ matrix.expect == 'fail' && 'Fails without fix' || 'Passes with fix' }} (${{ matrix.title }})
+    needs: [ detect ]
+    if: needs.detect.outputs.found == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    env:
+      OS: ${{ github.event.inputs.os || vars.FAILFIRST_OS || 'ubuntu24' }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        ref: ${{ env.HEAD_SHA }}
+        fetch-depth: 0
+
+    - name: Check out test commit
+      if: matrix.role == 'test'
+      env:
+        REF: ${{ matrix.ref }}
+      run: |
+        # Build the test commit, but with the CI scripts of the PR head.
+        git checkout -q --detach "$REF"
+        git checkout -q "$HEAD_SHA" -- .github
+        git log -1 --format='Building %h %s'
+
+    - name: Setup QEMU
+      timeout-minutes: 60
+      run: .github/workflows/scripts/qemu-1-setup.sh
+
+    - name: Start build machine
+      timeout-minutes: 10
+      run: .github/workflows/scripts/qemu-2-start.sh $OS
+
+    - name: Install dependencies
+      timeout-minutes: 60
+      run: .github/workflows/scripts/qemu-3-deps.sh --poweroff $OS
+
+    - name: Build modules
+      timeout-minutes: 30
+      run: .github/workflows/scripts/qemu-4-build.sh --poweroff --enable-debug $OS
+
+    - name: Setup testing machine
+      timeout-minutes: 5
+      run: |
+        # One VM is enough to run a handful of tests.
+        sed -i 's/^VMs=.*/VMs="1"/' /var/tmp/env.txt
+        .github/workflows/scripts/qemu-5-setup.sh
+
+    - name: Run tests
+      timeout-minutes: 240
+      env:
+        EXPECT: ${{ matrix.expect }}
+        TITLE: ${{ matrix.title }}
+        TESTS: ${{ matrix.tests }}
+      run: |
+        read -ra tests <<< "$TESTS"
+        .github/workflows/scripts/failfirst-tests.sh "$EXPECT" "$TITLE" \
+          "${tests[@]}"
+
+    - name: Prepare artifacts
+      if: always()
+      run: |
+        source /var/tmp/env.txt || exit 0
+        scp zfs@vm1:"/var/tmp/*.txt" $RESPATH/vm1 2>/dev/null || true
+        mkdir -p /tmp/failfirst-result
+        cp $RESPATH/failfirst/summary.md \
+          /tmp/failfirst-result/${{ matrix.role }}-${{ matrix.ref }}.md || true
+        sudo tar cjf /tmp/failfirst-logs.tar.bz2 -C $(dirname $RESPATH) \
+          $(basename $RESPATH) || true
+
+    - uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        name: failfirst-logs-${{ matrix.role }}-${{ matrix.ref }}
+        path: /tmp/failfirst-logs.tar.bz2
+        archive: false
+        if-no-files-found: ignore
+
+    - uses: actions/upload-artifact@v7
+      if: always()
+      with:
+        name: failfirst-result-${{ matrix.role }}-${{ matrix.ref }}
+        path: /tmp/failfirst-result
+        if-no-files-found: ignore
+
+  verdict:
+    name: Verdict
+    needs: [ detect, verify ]
+    if: always() && needs.detect.result == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/download-artifact@v8
+      if: needs.detect.outputs.found == 'true'
+      with:
+        pattern: failfirst-result-*
+        merge-multiple: true
+        path: results
+    - name: Summary
+      env:
+        FOUND: ${{ needs.detect.outputs.found }}
+        VERIFY: ${{ needs.verify.result }}
+      run: |
+        if [ "$FOUND" != "true" ]; then
+          echo "No failing test -> fix commit pairs to verify." \
+            | tee -a $GITHUB_STEP_SUMMARY
+          exit 0
+        fi
+        # test commits first, then the head
+        for f in results/test-*.md results/head-*.md; do
+          if [ -f "$f" ]; then cat "$f"; fi
+        done >> $GITHUB_STEP_SUMMARY
+        if [ "$VERIFY" != "success" ]; then
+          echo "::error::Verification $VERIFY; see the jobs above."
+          exit 1
+        fi
+        echo "All test commits fail without their fix and pass with it." \
+          | tee -a $GITHUB_STEP_SUMMARY
