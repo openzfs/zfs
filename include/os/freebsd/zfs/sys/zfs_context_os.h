@@ -46,9 +46,6 @@
 #define	HAVE_LARGE_STACKS	1
 #endif
 
-#define	taskq_create_sysdc(a, b, d, e, p, dc, f) \
-	    ((void) sizeof (dc), taskq_create(a, b, maxclsyspri, d, e, f))
-
 #define	fm_panic	panic
 
 extern int zfs_debug_level;
@@ -66,9 +63,6 @@ extern struct mtx zfs_debug_mtx;
 	}	   \
 } while (0)
 
-#define	signal_pending(x) SIGPENDING(x)
-#define	current curthread
-#define	thread_join(x)
 typedef struct opensolaris_utsname	utsname_t;
 extern utsname_t *utsname(void);
 extern int spa_import_rootpool(const char *name, bool checkpointrewind);
