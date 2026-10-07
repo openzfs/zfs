@@ -29,10 +29,9 @@
 #	3. Verify the TRIM can be suspended.
 #	4. Restart the TRIM and verify the rate is preserved.
 #
-# NOTE: The tolerances and delays used in the test below are intentionally
-# set be to fairly large since we are capping the maximum trim rate.  The
-# actual trim rate can be lower.  The critical thing is that the trim rate
-# is limited, the rate is preserved when resuming, and it can be changed.
+# NOTE: Rate limiting caps the maximum trim rate; a busy system can trim
+# more slowly. Check the minimum elapsed time to reach a given progress,
+# rather than requiring a fixed amount of progress after a short sleep.
 #
 
 function cleanup
@@ -47,41 +46,63 @@ function cleanup
 }
 log_onexit cleanup
 
+function trim_to_progress # target rate [resume]
+{
+	typeset -i target=$1
+	typeset -i rate=$2
+	typeset -i progress
+	typeset -i minimum
+	typeset start
+	typeset -i elapsed
+	typeset -i i
+
+	progress=$(trim_progress $TESTPOOL $LARGEFILE)
+	(( minimum = (target - progress) * 10240 / 100 / rate ))
+	start=$(date +%s)
+
+	if [[ "$3" == resume ]]; then
+		log_must zpool trim $TESTPOOL
+	else
+		log_must zpool trim -r ${rate}M $TESTPOOL
+	fi
+
+	for (( i = 0; i < 60; i++ )); do
+		progress=$(trim_progress $TESTPOOL $LARGEFILE)
+		if (( progress >= target )); then
+			(( target < 100 )) && break
+			trim_prog_line $TESTPOOL $LARGEFILE | \
+			    grep -q complete && break
+		fi
+		log_must sleep 1
+	done
+	(( progress >= target )) || log_fail \
+	    "TRIM did not reach $target%: $(trim_prog_line $TESTPOOL $LARGEFILE)"
+
+	(( elapsed = $(date +%s) - start ))
+	# Allow one second for timestamp rounding and percentage truncation.
+	log_note "TRIM reached $progress% in ${elapsed}s at a ${rate}M/s limit"
+	(( elapsed >= minimum - 1 )) || log_fail "TRIM exceeded rate limit"
+
+	if (( target < 100 )); then
+		log_must zpool trim -s $TESTPOOL
+		log_must eval "trim_prog_line $TESTPOOL $LARGEFILE | grep suspended"
+	else
+		log_must eval "trim_prog_line $TESTPOOL $LARGEFILE | grep complete"
+	fi
+}
+
 LARGEFILE="$TESTDIR/largefile"
 
 log_must mkdir "$TESTDIR"
 log_must truncate -s 10G "$LARGEFILE"
 log_must zpool create -f $TESTPOOL "$LARGEFILE"
 
-# Start trimming at 200M/s for 5 seconds (approximately 10% of the pool)
-log_must zpool trim -r 200M $TESTPOOL
-log_must sleep 4
-progress=$(trim_progress $TESTPOOL $LARGEFILE)
-log_must zpool trim -s $TESTPOOL
-log_must eval "trim_prog_line $TESTPOOL $LARGEFILE | grep suspended"
-log_must within_tolerance 10 $progress 5
+# Start at 200M/s, then resume without specifying a new rate.
+trim_to_progress 10 200
+trim_to_progress 20 200 resume
 
-# Resuming trimming at 200M/s for 5 seconds (approximately 20% of the pool)
-log_must zpool trim $TESTPOOL
-log_must sleep 4
-progress=$(trim_progress $TESTPOOL $LARGEFILE)
-log_must zpool trim -s $TESTPOOL
-log_must eval "trim_prog_line $TESTPOOL $LARGEFILE | grep suspended"
-log_must within_tolerance 20 $progress 10
-
-# Increase trimming to 600M/s for 5 seconds (approximately 50% of the pool)
-log_must zpool trim -r 600M $TESTPOOL
-log_must sleep 4
-progress=$(trim_progress $TESTPOOL $LARGEFILE)
-log_must zpool trim -s $TESTPOOL
-log_must eval "trim_prog_line $TESTPOOL $LARGEFILE | grep suspended"
-log_must within_tolerance 50 $progress 15
-
-# Set maximum trim rate for 5 seconds (100% of the pool)
-log_must zpool trim -r 1T $TESTPOOL
-log_must sleep 4
-progress=$(trim_progress $TESTPOOL $LARGEFILE)
-log_must eval "trim_prog_line $TESTPOOL $LARGEFILE | grep complete"
-log_must within_tolerance 100 $progress 0
+# Increase the rate and finally allow trimming at the maximum rate.
+trim_to_progress 50 600
+trim_to_progress 100 1048576
 
 log_pass "Manual TRIM rate throttles as expected"
