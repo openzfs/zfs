@@ -362,6 +362,11 @@ else
   scp ~/.ssh/id_ed25519.pub "root@vm0:~zfs/.ssh/authorized_keys"
   ssh root@vm0 'chown -R zfs ~zfs'
   ssh root@vm0 'service sshd restart'
+  # The restart can return before sshd is accepting connections again.
+  for ((i=0; i<30; i++)); do
+    ssh 2>/dev/null root@vm0 true && break
+    sleep 1
+  done
   scp ~/src.txz "root@vm0:/tmp/src.txz"
   ssh root@vm0 'tar -C / -zxf /tmp/src.txz'
 fi
