@@ -64,6 +64,8 @@ extern void vuprintf(const char *, __va_list)
 extern void panic(const char *, ...)
     __attribute__((format(__printf__, 1, 2), __noreturn__));
 
+#define	fm_panic	panic
+
 #define	cmn_err_once(ce, ...)				\
 do {							\
 	static volatile uint32_t printed = 0;		\
