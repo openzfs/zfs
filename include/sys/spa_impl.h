@@ -434,7 +434,7 @@ struct spa {
 	uint64_t	spa_dedup_checksum;	/* default dedup checksum */
 	uint64_t	spa_dspace;		/* dspace in normal class */
 	uint64_t	spa_rdspace;		/* raw (non-dedup) --//-- */
-	boolean_t	spa_active_ddt_prune;	/* ddt prune process active */
+	uint32_t	spa_active_ddt_prune;	/* atomic prune ownership */
 	brt_vdev_t	**spa_brt_vdevs;	/* array of per-vdev BRTs */
 	uint64_t	spa_brt_nvdevs;		/* number of vdevs in BRT */
 	brt_dedup_shard_t *spa_brt_dedup;	/* pending dedup'd clones */

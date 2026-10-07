@@ -5025,7 +5025,7 @@ zio_vdev_io_start(zio_t *zio)
 			 * the pruning process.  This impacts the read/write
 			 * I/O balance while pruning.
 			 */
-			if (spa->spa_active_ddt_prune)
+			if (atomic_load_32(&spa->spa_active_ddt_prune))
 				spa_config_enter_priority(spa, SCL_ZIO, zio,
 				    RW_READER);
 			else

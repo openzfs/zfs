@@ -62,6 +62,10 @@ log_onexit cleanup
 
 log_must zpool create -f $TESTPOOL $DISKS
 
+# A prune of an empty table must release its ownership too.
+log_must zpool ddtprune -p 100 $TESTPOOL
+log_must zpool ddtprune -p 100 $TESTPOOL
+
 log_must zfs create -o recordsize=512 -o dedup=on $TESTPOOL/$TESTFS
 typeset mountpoint=$(get_prop mountpoint $TESTPOOL/$TESTFS)
 log_must dd if=/dev/urandom of=$mountpoint/f1 bs=512k count=1

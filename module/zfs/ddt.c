@@ -2923,12 +2923,10 @@ ddt_prune_unique_entries(spa_t *spa, zpool_ddt_prune_unit_t unit,
 		return (SET_ERROR(EINVAL));
 	}
 
-	if (spa->spa_active_ddt_prune)
+	if (atomic_cas_32(&spa->spa_active_ddt_prune, 0, 1) != 0)
 		return (SET_ERROR(EALREADY));
 	if (ddt_total_entries(spa) == 0)
-		return (0);
-
-	spa->spa_active_ddt_prune = B_TRUE;
+		goto out;
 
 	zfs_dbgmsg("prune %llu %s", (u_longlong_t)amount,
 	    unit == ZPOOL_DDT_PRUNE_PERCENTAGE ? "%" : "seconds old or older");
@@ -2970,10 +2968,11 @@ ddt_prune_unique_entries(spa_t *spa, zpool_ddt_prune_unit_t unit,
 		ddt_prune_walk(spa, cutoff, NULL);
 	}
 
+out:
 	zfs_dbgmsg("%s: prune completed in %llu ms",
 	    spa_name(spa), (u_longlong_t)NSEC2MSEC(gethrtime() - start_time));
 
-	spa->spa_active_ddt_prune = B_FALSE;
+	atomic_swap_32(&spa->spa_active_ddt_prune, 0);
 	return (0);
 }
 
