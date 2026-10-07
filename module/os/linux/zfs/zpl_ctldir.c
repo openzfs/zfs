@@ -23,10 +23,14 @@
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_ctldir.h>
+#include <sys/zfs_quota.h>
 #include <sys/zpl.h>
 #include <sys/dmu.h>
 #include <sys/dsl_dataset.h>
+#include <sys/dsl_deleg.h>
+#include <sys/policy.h>
 #include <sys/zap.h>
+#include <linux/seq_file.h>
 #include <linux/version.h>
 
 /*
@@ -57,21 +61,49 @@ zpl_root_iterate(struct file *filp, struct dir_context *ctx)
 	if ((error = zpl_enter(zfsvfs, FTAG)) != 0)
 		return (error);
 
-	if (!dir_emit_dots(filp, ctx))
+	if (!dir_emit_dots(filp, ctx)) {
+		error = SET_ERROR(-EIO);
 		goto out;
+	}
 
 	if (ctx->pos == 2) {
 		if (!dir_emit(ctx, ZFS_SNAPDIR_NAME,
-		    strlen(ZFS_SNAPDIR_NAME), ZFSCTL_INO_SNAPDIR, DT_DIR))
+		    strlen(ZFS_SNAPDIR_NAME), ZFSCTL_INO_SNAPDIR, DT_DIR)) {
+			error = SET_ERROR(-EIO);
 			goto out;
+		}
 
 		ctx->pos++;
 	}
 
 	if (ctx->pos == 3) {
 		if (!dir_emit(ctx, ZFS_SHAREDIR_NAME,
-		    strlen(ZFS_SHAREDIR_NAME), ZFSCTL_INO_SHARES, DT_DIR))
+		    strlen(ZFS_SHAREDIR_NAME), ZFSCTL_INO_SHARES, DT_DIR)) {
+			error = SET_ERROR(-EIO);
 			goto out;
+		}
+
+		ctx->pos++;
+	}
+
+	if (ctx->pos == 4 && zfs_ctldir_spacefiles) {
+		if (!dir_emit(ctx, ZFS_SPACEDIR_NAME,
+		    strlen(ZFS_SPACEDIR_NAME), ZFSCTL_INO_SPACEDIR,
+		    DT_DIR)) {
+			error = SET_ERROR(-EIO);
+			goto out;
+		}
+
+		ctx->pos++;
+	}
+
+	if (ctx->pos == 5 && zfs_ctldir_spacefiles) {
+		if (!dir_emit(ctx, ZFS_QUOTADIR_NAME,
+		    strlen(ZFS_QUOTADIR_NAME), ZFSCTL_INO_QUOTADIR,
+		    DT_DIR)) {
+			error = SET_ERROR(-EIO);
+			goto out;
+		}
 
 		ctx->pos++;
 	}
@@ -80,6 +112,37 @@ out:
 
 	return (error);
 }
+
+/*
+ * Space and quota entries under '.zfs' are only visible when the
+ * zfs_ctldir_spacefiles module param is set. Cached entries (both positive
+ * and negative) must track the module param in both directions: returning 0
+ * makes the VFS invalidate the cached dentry and redo the lookup, which
+ * re-evaluates the param.
+ */
+#ifdef HAVE_D_REVALIDATE_4ARGS
+static int
+zpl_spacefiles_revalidate(struct inode *dir, const struct qstr *name,
+    struct dentry *dentry, unsigned int flags)
+#else
+static int
+zpl_spacefiles_revalidate(struct dentry *dentry, unsigned int flags)
+#endif
+{
+	/*
+	 * A positive dentry is valid only while the files are enabled;
+	 * a negative dentry (ENOENT cached while disabled) is valid
+	 * only while they stay disabled.  Returning 0 in either other
+	 * case makes the VFS drop the cached dentry and redo the
+	 * lookup, which re-evaluates the param.
+	 */
+	return ((dentry->d_inode != NULL) ==
+	    (zfs_ctldir_spacefiles != 0) ? 1 : 0);
+}
+
+const struct dentry_operations zpl_dops_spacefiles = {
+	.d_revalidate	= zpl_spacefiles_revalidate,
+};
 
 /*
  * Get root directory attributes.
@@ -99,6 +162,16 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_root_getattr, 4,
 static struct dentry *
 zpl_root_lookup(struct inode *dip, struct dentry *dentry, unsigned int flags)
 {
+	/*
+	 * Cache space/quota entries (positive or negative) with revalidate
+	 * ops so they invalidate when the zfs_ctldir_spacefiles module param
+	 * changes state.
+	 */
+	if (strcmp(dname(dentry), ZFS_SPACEDIR_NAME) == 0 ||
+	    strcmp(dname(dentry), ZFS_QUOTADIR_NAME) == 0)
+		dentry->d_op = &zpl_dops_spacefiles;
+	dentry->d_flags |= DCACHE_OP_REVALIDATE;
+
 	cred_t *cr = CRED();
 	struct inode *ip;
 	int error;
@@ -483,6 +556,7 @@ static const struct dentry_operations zpl_dops_snapdirs = {
 	.d_revalidate	= zpl_snapdir_revalidate,
 	.d_release	= zpl_snapdir_release,
 };
+
 
 /*
  * Snapdir control dentries need a zfs_snapentry_t to track a possible mount
@@ -933,3 +1007,658 @@ const struct inode_operations zpl_ops_shares = {
 	.lookup		= zpl_shares_lookup,
 	.getattr	= zpl_shares_getattr,
 };
+
+/*
+ * Get '.zfs/space' directory contents.
+ */
+static int
+zpl_spacedir_iterate(struct file *filp, struct dir_context *ctx)
+{
+	zfsvfs_t *zfsvfs = ITOZSB(file_inode(filp));
+	int error = 0;
+
+	if ((error = zpl_enter(zfsvfs, FTAG)) != 0)
+		return (error);
+
+	if (!dir_emit_dots(filp, ctx)) {
+		error = SET_ERROR(-EIO);
+		goto out;
+	}
+
+	if (ctx->pos == 2) {
+		if (!dir_emit(ctx, ZFS_USERFILE_NAME,
+		    strlen(ZFS_USERFILE_NAME), ZFSCTL_INO_SPACE_USER,
+		    DT_REG)) {
+			error = SET_ERROR(-EIO);
+			goto out;
+		}
+
+		ctx->pos++;
+	}
+
+	if (ctx->pos == 3) {
+		if (!dir_emit(ctx, ZFS_GROUPFILE_NAME,
+		    strlen(ZFS_GROUPFILE_NAME), ZFSCTL_INO_SPACE_GROUP,
+		    DT_REG)) {
+			error = SET_ERROR(-EIO);
+			goto out;
+		}
+
+		ctx->pos++;
+	}
+
+	if (ctx->pos == 4) {
+		if (!dir_emit(ctx, ZFS_PROJECTFILE_NAME,
+		    strlen(ZFS_PROJECTFILE_NAME), ZFSCTL_INO_SPACE_PROJ,
+		    DT_REG)) {
+			error = SET_ERROR(-EIO);
+			goto out;
+		}
+
+		ctx->pos++;
+	}
+
+out:
+	zpl_exit(zfsvfs, FTAG);
+	return (error);
+}
+
+static struct dentry *
+zpl_spacedir_lookup(struct inode *dip, struct dentry *dentry,
+    unsigned int flags)
+{
+	cred_t *cr = CRED();
+	struct inode *ip;
+	int error;
+
+	crhold(cr);
+	error = -zfsctl_spacedir_lookup(dip, dname(dentry), &ip, 0, cr,
+	    NULL, NULL);
+	ASSERT3S(error, <=, 0);
+	crfree(cr);
+
+	dentry->d_op = &zpl_dops_spacefiles;
+	dentry->d_flags |= DCACHE_OP_REVALIDATE;
+
+	if (error) {
+		if (error == -ENOENT)
+			return (d_splice_alias(NULL, dentry));
+		else
+			return (ERR_PTR(error));
+	}
+
+	return (d_splice_alias(ip, dentry));
+}
+
+/*
+ * Get '.zfs/space' directory attributes.
+ */
+ZPL_IDMAP_IOP_DEFINE(int, zpl_spacedir_getattr, 4,
+    const struct path *, path, struct kstat *, stat, u32, request_mask,
+    unsigned int, query_flags)
+{
+	(void) query_flags;
+	struct inode *ip = path->dentry->d_inode;
+	zpl_generic_fillattr(idmap, request_mask, ip, stat);
+	stat->atime = current_time(ip);
+
+	return (0);
+}
+
+/*
+ * The '.zfs/space' directory file operations.
+ */
+const struct file_operations zpl_fops_spacedir = {
+	.open		= zpl_common_open,
+	.llseek		= generic_file_llseek,
+	.read		= generic_read_dir,
+	.iterate_shared	= zpl_spacedir_iterate,
+};
+
+/*
+ * The '.zfs/space' directory inode operations.
+ */
+const struct inode_operations zpl_ops_spacedir = {
+	.lookup		= zpl_spacedir_lookup,
+	.getattr	= zpl_spacedir_getattr,
+};
+
+/*
+ * Get '.zfs/quota' directory contents.
+ */
+static int
+zpl_quotadir_iterate(struct file *filp, struct dir_context *ctx)
+{
+	zfsvfs_t *zfsvfs = ITOZSB(file_inode(filp));
+	int error = 0;
+
+	if ((error = zpl_enter(zfsvfs, FTAG)) != 0)
+		return (error);
+
+	if (!dir_emit_dots(filp, ctx)) {
+		error = SET_ERROR(-EIO);
+		goto out;
+	}
+
+	if (ctx->pos == 2) {
+		if (!dir_emit(ctx, ZFS_USERFILE_NAME,
+		    strlen(ZFS_USERFILE_NAME), ZFSCTL_INO_QUOTA_USER,
+		    DT_REG)) {
+			error = SET_ERROR(-EIO);
+			goto out;
+		}
+
+		ctx->pos++;
+	}
+
+	if (ctx->pos == 3) {
+		if (!dir_emit(ctx, ZFS_GROUPFILE_NAME,
+		    strlen(ZFS_GROUPFILE_NAME), ZFSCTL_INO_QUOTA_GROUP,
+		    DT_REG)) {
+			error = SET_ERROR(-EIO);
+			goto out;
+		}
+
+		ctx->pos++;
+	}
+
+	if (ctx->pos == 4) {
+		if (!dir_emit(ctx, ZFS_PROJECTFILE_NAME,
+		    strlen(ZFS_PROJECTFILE_NAME), ZFSCTL_INO_QUOTA_PROJ,
+		    DT_REG)) {
+			error = SET_ERROR(-EIO);
+			goto out;
+		}
+
+		ctx->pos++;
+	}
+
+out:
+	zpl_exit(zfsvfs, FTAG);
+	return (error);
+}
+
+static struct dentry *
+zpl_quotadir_lookup(struct inode *dip, struct dentry *dentry,
+    unsigned int flags)
+{
+	cred_t *cr = CRED();
+	struct inode *ip;
+	int error;
+
+	crhold(cr);
+	error = -zfsctl_quotadir_lookup(dip, dname(dentry), &ip, 0, cr,
+	    NULL, NULL);
+	ASSERT3S(error, <=, 0);
+	crfree(cr);
+
+	dentry->d_op = &zpl_dops_spacefiles;
+	dentry->d_flags |= DCACHE_OP_REVALIDATE;
+
+	if (error) {
+		if (error == -ENOENT)
+			return (d_splice_alias(NULL, dentry));
+		else
+			return (ERR_PTR(error));
+	}
+
+	return (d_splice_alias(ip, dentry));
+}
+
+/*
+ * Get '.zfs/quota' directory attributes.
+ */
+ZPL_IDMAP_IOP_DEFINE(int, zpl_quotadir_getattr, 4,
+    const struct path *, path, struct kstat *, stat, u32, request_mask,
+    unsigned int, query_flags)
+{
+	(void) query_flags;
+	struct inode *ip = path->dentry->d_inode;
+	zpl_generic_fillattr(idmap, request_mask, ip, stat);
+	stat->atime = current_time(ip);
+
+	return (0);
+}
+
+/*
+ * The '.zfs/quota' directory file operations.
+ */
+const struct file_operations zpl_fops_quotadir = {
+	.open		= zpl_common_open,
+	.llseek		= generic_file_llseek,
+	.read		= generic_read_dir,
+	.iterate_shared	= zpl_quotadir_iterate,
+};
+
+/*
+ * The '.zfs/quota' directory inode operations.
+ */
+const struct inode_operations zpl_ops_quotadir = {
+	.lookup		= zpl_quotadir_lookup,
+	.getattr	= zpl_quotadir_getattr,
+};
+
+/*
+ * Helpers for the '.zfs/(space|quota)/(user|group|project)' files.
+ * Walk the user/group/project accounting entries for the given
+ * property types, using the zfs_userspace_many() cookie to iterate
+ * over all entries in small batches.
+ */
+static int
+foreach_zfs_useracct(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
+    uint64_t cookie,
+    int (*fn)(zfs_useracct_t *zua, zfs_userquota_prop_t type, void *v),
+    void *fn_arg, uint64_t *default_quotap)
+{
+	uint64_t cbufsize;
+	uint64_t bufsize = 16 * sizeof (zfs_useracct_t);
+	uint64_t default_quota;
+	zfs_useracct_t *buf = kmem_alloc(bufsize, KM_SLEEP);
+	int error = 0;
+
+	for (;;) {
+		cbufsize = bufsize;
+		error = zfs_userspace_many(zfsvfs, type, &cookie,
+		    buf, &cbufsize, &default_quota);
+		if (error != 0) {
+			break;
+		}
+		if (cbufsize == 0) {
+			break;
+		}
+		zfs_useracct_t *zua = buf;
+		while (cbufsize > 0) {
+			(void) fn(zua, type, fn_arg);
+			zua++;
+			cbufsize -= sizeof (zfs_useracct_t);
+		}
+	}
+	kmem_free(buf, bufsize);
+	if (error == 0 && default_quotap != NULL) {
+		*default_quotap = default_quota;
+	}
+	return (error);
+}
+
+/*
+ * Merge one accounting entry into an nvlist of nvlists indexed by id
+ * string.  zfs_userspace_many() returns each property in a separate
+ * walk with an unspecified id order, so entries for the same id must
+ * be combined here before they can be printed on one line.
+ */
+typedef struct zua_cb {
+	nvlist_t *ids;
+	boolean_t mark_used_side;
+} zua_cb_t;
+
+static int
+zua_nvlist_add(zfs_useracct_t *zua, zfs_userquota_prop_t type, void *v)
+{
+	zua_cb_t *cb = (zua_cb_t *)v;
+	nvlist_t *ids = cb->ids;
+	char name[MAXNAMELEN + 32];
+	nvlist_t *spacelist;
+
+	/*
+	 * Key on the FUID domain together with the rid so entries
+	 * from different domains sharing a rid stay distinct.  The
+	 * key doubles as the id printed for the row.  A full
+	 * domain does not fit with the rid in a char[MAXNAMELEN],
+	 * hence the extra slack.
+	 */
+	if (zua->zu_domain[0] != '\0') {
+		(void) snprintf(name, sizeof (name), "%s-%u",
+		    zua->zu_domain, zua->zu_rid);
+	} else {
+		(void) snprintf(name, sizeof (name), "%u", zua->zu_rid);
+	}
+	if (nvlist_lookup_nvlist(ids, name, &spacelist) != 0 ||
+	    spacelist == NULL) {
+		VERIFY0(nvlist_alloc(&spacelist, NV_UNIQUE_NAME, KM_SLEEP));
+		VERIFY0(nvlist_add_nvlist(ids, name, spacelist));
+		nvlist_free(spacelist);
+		/* lookup again because nvlist_add_nvlist does a deep-copy */
+		VERIFY0(nvlist_lookup_nvlist(ids, name, &spacelist));
+	}
+	VERIFY0(nvlist_add_uint64(spacelist,
+	    zfs_userquota_prop_prefixes[type], zua->zu_space));
+	if (cb->mark_used_side)
+		VERIFY0(nvlist_add_boolean_value(spacelist,
+		    "zpl_used_side", B_TRUE));
+	return (0);
+}
+
+static void
+seq_print_spaceval(struct seq_file *seq, nvlist_t *spacelist,
+    zfs_userquota_prop_t type, boolean_t have_default,
+    uint64_t default_quota)
+{
+	uint64_t spaceval;
+
+	seq_printf(seq, ",");
+	if (nvlist_lookup_uint64(spacelist,
+	    zfs_userquota_prop_prefixes[type], &spaceval) == 0) {
+		seq_printf(seq, "%llu", (u_longlong_t)spaceval);
+	} else if (have_default) {
+		seq_printf(seq, "%llu", (u_longlong_t)default_quota);
+	}
+}
+
+
+static int
+zpl_quotaspace_show(struct seq_file *seq, boolean_t fill_defaults)
+{
+	zfs_userquota_prop_t *props = (zfs_userquota_prop_t *)seq->private;
+	zfsvfs_t *zfsvfs = ITOZSB(file_inode(seq->file));
+	uint64_t defaults[2];
+	boolean_t have_default[2];
+	nvlist_t *ids;
+	unsigned int i;
+	int error;
+
+	for (i = 0; i < 2; ++i) {
+		defaults[i] = 0;
+		have_default[i] = B_FALSE;
+	}
+
+	if ((error = zpl_enter(zfsvfs, FTAG)) != 0)
+		return (error);
+
+	VERIFY0(nvlist_alloc(&ids, NV_UNIQUE_NAME, KM_SLEEP));
+	zua_cb_t cb = { .ids = ids, .mark_used_side = B_FALSE };
+
+	/*
+	 * Quota files replicate the CLI's row provenance: ids from the
+	 * used walks mark rows whose missing quota columns fill with
+	 * the used walk's default quota; quota-side rows never get
+	 * defaults substituted.  defaults[] therefore come from the
+	 * used walks, not the quota walks.
+	 */
+	if (fill_defaults) {
+		static zfs_userquota_prop_t used_props[2] = {
+		    ZFS_PROP_USERUSED, ZFS_PROP_USEROBJUSED
+		};
+		unsigned int j;
+
+		cb.mark_used_side = B_TRUE;
+		for (j = 0; j < 2; ++j) {
+			error = foreach_zfs_useracct(zfsvfs, used_props[j], 0,
+			    zua_nvlist_add, &cb, &defaults[j]);
+			if (error == 0) {
+				have_default[j] = B_TRUE;
+			} else if (error != ENOTSUP) {
+				goto out;
+			}
+		}
+		cb.mark_used_side = B_FALSE;
+	}
+	for (i = 0; i < 2; ++i) {
+		/*
+		 * Not all datasets support all accounting types (e.g.
+		 * no projectquota or objused accounting).  Tolerate
+		 * ENOTSUP for unavailable types; the missing column
+		 * prints empty.  Any other error bails out.
+		 */
+		error = foreach_zfs_useracct(zfsvfs, props[i], 0,
+		    zua_nvlist_add, &cb,
+		    fill_defaults ? NULL : &defaults[i]);
+		if (error == 0) {
+			if (!fill_defaults)
+				have_default[i] = B_TRUE;
+		} else if (error != ENOTSUP) {
+			goto out;
+		}
+	}
+	for (nvpair_t *idpair = nvlist_next_nvpair(ids, NULL);
+	    idpair != NULL; idpair = nvlist_next_nvpair(ids, idpair)) {
+		const char *id = nvpair_name(idpair);
+		nvlist_t *spacelist;
+
+		seq_printf(seq, "%s", id);
+		VERIFY0(nvpair_value_nvlist(idpair, &spacelist));
+		boolean_t used_side = B_FALSE;
+		(void) nvlist_lookup_boolean_value(spacelist,
+		    "zpl_used_side", &used_side);
+
+		for (i = 0; i < 2; ++i) {
+			/*
+			 * A quota file fills a missing column with the
+			 * default quota, but only on a row that came
+			 * from a used walk; a space file prints
+			 * missing columns empty.
+			 */
+			seq_print_spaceval(seq, spacelist, props[i],
+			    fill_defaults && used_side && have_default[i],
+			    defaults[i]);
+		}
+		seq_putc(seq, '\n');
+	}
+	error = 0;
+out:
+	nvlist_free(ids);
+
+	zpl_exit(zfsvfs, FTAG);
+
+	return (error);
+}
+
+static int
+zpl_quota_show(struct seq_file *seq, void *v)
+{
+	seq_printf(seq, "id,quota,objquota\n");
+	return (zpl_quotaspace_show(seq, B_TRUE));
+}
+
+static int
+zpl_space_show(struct seq_file *seq, void *v)
+{
+	seq_printf(seq, "id,used,objused\n");
+	return (zpl_quotaspace_show(seq, B_FALSE));
+}
+
+static zfs_userquota_prop_t userspace_props[2] = {
+	ZFS_PROP_USERUSED,
+	ZFS_PROP_USEROBJUSED
+};
+
+static zfs_userquota_prop_t groupspace_props[2] = {
+	ZFS_PROP_GROUPUSED,
+	ZFS_PROP_GROUPOBJUSED
+};
+
+static zfs_userquota_prop_t projectspace_props[2] = {
+	ZFS_PROP_PROJECTUSED,
+	ZFS_PROP_PROJECTOBJUSED
+};
+
+static zfs_userquota_prop_t userquota_props[2] = {
+	ZFS_PROP_USERQUOTA,
+	ZFS_PROP_USEROBJQUOTA
+};
+
+static zfs_userquota_prop_t groupquota_props[2] = {
+	ZFS_PROP_GROUPQUOTA,
+	ZFS_PROP_GROUPOBJQUOTA
+};
+
+static zfs_userquota_prop_t projectquota_props[2] = {
+	ZFS_PROP_PROJECTQUOTA,
+	ZFS_PROP_PROJECTOBJQUOTA
+};
+
+/*
+ * Reading the .zfs/space and .zfs/quota files requires the same
+ * delegated permissions as the corresponding `zfs userspace`-family
+ * ioctls; root passes via secpolicy_zfs().
+ */
+static int
+zpl_spacefile_access(zfsvfs_t *zfsvfs, const char *perm, cred_t *cr)
+{
+	dsl_pool_t *dp = dmu_objset_pool(zfsvfs->z_os);
+	int error;
+
+	if (secpolicy_zfs(cr) == 0)
+		return (0);
+
+	if ((error = zpl_enter(zfsvfs, FTAG)) != 0)
+		return (error);
+
+	dsl_pool_config_enter(dp, FTAG);
+	error = dsl_deleg_access_impl(dmu_objset_ds(zfsvfs->z_os), perm, cr);
+	dsl_pool_config_exit(dp, FTAG);
+
+	zpl_exit(zfsvfs, FTAG);
+
+	return (error);
+}
+
+static int
+zpl_fops_userspace_open(struct inode *inode, struct file *file)
+{
+	int error;
+
+	if ((error = zpl_spacefile_access(ITOZSB(inode),
+	    ZFS_DELEG_PERM_USERUSED, CRED())) != 0)
+		return (-error);
+
+	return (single_open(file, zpl_space_show,
+	    (void *)userspace_props));
+}
+
+static int
+zpl_fops_groupspace_open(struct inode *inode, struct file *file)
+{
+	int error;
+
+	if ((error = zpl_spacefile_access(ITOZSB(inode),
+	    ZFS_DELEG_PERM_GROUPUSED, CRED())) != 0)
+		return (-error);
+
+	return (single_open(file, zpl_space_show,
+	    (void *)groupspace_props));
+}
+
+static int
+zpl_fops_projectspace_open(struct inode *inode, struct file *file)
+{
+	int error;
+
+	if ((error = zpl_spacefile_access(ITOZSB(inode),
+	    ZFS_DELEG_PERM_PROJECTUSED, CRED())) != 0)
+		return (-error);
+
+	return (single_open(file, zpl_space_show,
+	    (void *)projectspace_props));
+}
+
+static int
+zpl_fops_userquota_open(struct inode *inode, struct file *file)
+{
+	int error;
+
+	if ((error = zpl_spacefile_access(ITOZSB(inode),
+	    ZFS_DELEG_PERM_USERQUOTA, CRED())) != 0)
+		return (-error);
+
+	return (single_open(file, zpl_quota_show,
+	    (void *)userquota_props));
+}
+
+static int
+zpl_fops_groupquota_open(struct inode *inode, struct file *file)
+{
+	int error;
+
+	if ((error = zpl_spacefile_access(ITOZSB(inode),
+	    ZFS_DELEG_PERM_GROUPQUOTA, CRED())) != 0)
+		return (-error);
+
+	return (single_open(file, zpl_quota_show,
+	    (void *)groupquota_props));
+}
+
+static int
+zpl_fops_projectquota_open(struct inode *inode, struct file *file)
+{
+	int error;
+
+	if ((error = zpl_spacefile_access(ITOZSB(inode),
+	    ZFS_DELEG_PERM_PROJECTQUOTA, CRED())) != 0)
+		return (-error);
+
+	return (single_open(file, zpl_quota_show,
+	    (void *)projectquota_props));
+}
+
+/* .zfs/space/user */
+const struct file_operations zpl_fops_userspace_file = {
+	.open		= zpl_fops_userspace_open,
+#ifdef HAVE_SEQ_READ_ITER
+	.read_iter	= seq_read_iter,
+#endif
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+/* .zfs/space/group */
+const struct file_operations zpl_fops_groupspace_file = {
+	.open		= zpl_fops_groupspace_open,
+#ifdef HAVE_SEQ_READ_ITER
+	.read_iter	= seq_read_iter,
+#endif
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+/* .zfs/space/project */
+const struct file_operations zpl_fops_projectspace_file = {
+	.open		= zpl_fops_projectspace_open,
+#ifdef HAVE_SEQ_READ_ITER
+	.read_iter	= seq_read_iter,
+#endif
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+/* .zfs/quota/user */
+const struct file_operations zpl_fops_userquota_file = {
+	.open		= zpl_fops_userquota_open,
+#ifdef HAVE_SEQ_READ_ITER
+	.read_iter	= seq_read_iter,
+#endif
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+/* .zfs/quota/group */
+const struct file_operations zpl_fops_groupquota_file = {
+	.open		= zpl_fops_groupquota_open,
+#ifdef HAVE_SEQ_READ_ITER
+	.read_iter	= seq_read_iter,
+#endif
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+/* .zfs/quota/project */
+const struct file_operations zpl_fops_projectquota_file = {
+	.open		= zpl_fops_projectquota_open,
+#ifdef HAVE_SEQ_READ_ITER
+	.read_iter	= seq_read_iter,
+#endif
+	.read		= seq_read,
+	.llseek		= seq_lseek,
+	.release	= single_release,
+};
+
+const struct inode_operations zpl_ops_userspace_file = {};
+const struct inode_operations zpl_ops_groupspace_file = {};
+const struct inode_operations zpl_ops_projectspace_file = {};
+const struct inode_operations zpl_ops_userquota_file = {};
+const struct inode_operations zpl_ops_groupquota_file = {};
+const struct inode_operations zpl_ops_projectquota_file = {};

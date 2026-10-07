@@ -31,6 +31,11 @@
 #define	ZFS_CTLDIR_NAME		".zfs"
 #define	ZFS_SNAPDIR_NAME	"snapshot"
 #define	ZFS_SHAREDIR_NAME	"shares"
+#define	ZFS_SPACEDIR_NAME	"space"
+#define	ZFS_QUOTADIR_NAME	"quota"
+#define	ZFS_USERFILE_NAME	"user"
+#define	ZFS_GROUPFILE_NAME	"group"
+#define	ZFS_PROJECTFILE_NAME	"project"
 
 #define	zfs_has_ctldir(zdp)	\
 	((zdp)->z_id == ZTOZSB(zdp)->z_root && \
@@ -40,6 +45,7 @@
 	(ZTOZSB(zdp)->z_show_ctldir == ZFS_SNAPDIR_VISIBLE))
 
 extern int zfs_expire_snapshot;
+extern int zfs_ctldir_spacefiles;
 
 /* zfsctl generic functions */
 extern int zfsctl_create(zfsvfs_t *);
@@ -78,6 +84,16 @@ extern int zfsctl_shares_lookup(struct inode *dip, char *name,
     struct inode **ipp, int flags, cred_t *cr, int *direntflags,
     pathname_t *realpnp);
 
+/* zfsctl '.zfs/space' functions */
+extern int zfsctl_spacedir_lookup(struct inode *dip, const char *name,
+    struct inode **ipp, int flags, cred_t *cr, int *direntflags,
+    pathname_t *realpnp);
+
+/* zfsctl '.zfs/quota' functions */
+extern int zfsctl_quotadir_lookup(struct inode *dip, const char *name,
+    struct inode **ipp, int flags, cred_t *cr, int *direntflags,
+    pathname_t *realpnp);
+
 /*
  * These inodes numbers are reserved for the .zfs control directory.
  * It is important that they be no larger that 48-bits because only
@@ -89,6 +105,28 @@ extern int zfsctl_shares_lookup(struct inode *dip, char *name,
 #define	ZFSCTL_INO_SHARES	0x0000FFFFFFFFFFFEULL
 #define	ZFSCTL_INO_SNAPDIR	0x0000FFFFFFFFFFFDULL
 #define	ZFSCTL_INO_SNAPDIRS	0x0000FFFFFFFFFFFCULL
+/*
+ * snapdir inode numbers must be lowest; each snapshot gets its own
+ * directory and inode number, assigned by decrementing from
+ * ZFSCTL_INO_SNAPDIRS.
+ */
+/*
+ * Fixed inodes for the '.zfs/(space|quota)' pseudo-files.  A dedicated
+ * block far below ZFSCTL_INO_SNAPDIRS: real dmu object numbers never
+ * reach this high in practice, and a snapshot inode (SNAPDIRS - objsetid)
+ * can only land here for objsetid > 2.7e14, which cannot occur.  Existing
+ * inode values are left untouched so file handles issued by older modules
+ * for .zfs/snapshot and snapshot directories remain valid.
+ */
+#define	ZFSCTL_INO_SPACEDIR	0x0000FFFFFF000000ULL
+#define	ZFSCTL_INO_SPACE_USER	0x0000FFFFFF000001ULL
+#define	ZFSCTL_INO_SPACE_GROUP	0x0000FFFFFF000002ULL
+#define	ZFSCTL_INO_SPACE_PROJ	0x0000FFFFFF000003ULL
+#define	ZFSCTL_INO_QUOTADIR	0x0000FFFFFF000004ULL
+#define	ZFSCTL_INO_QUOTA_USER	0x0000FFFFFF000005ULL
+#define	ZFSCTL_INO_QUOTA_GROUP	0x0000FFFFFF000006ULL
+#define	ZFSCTL_INO_QUOTA_PROJ	0x0000FFFFFF000007ULL
+#define	ZFSCTL_INO_SPACEFILE_MAX	ZFSCTL_INO_QUOTA_PROJ
 
 #define	ZFSCTL_EXPIRE_SNAPSHOT	300
 
