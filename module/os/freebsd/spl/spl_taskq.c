@@ -35,6 +35,7 @@
 #include <sys/queue.h>
 #include <sys/taskq.h>
 #include <sys/taskqueue.h>
+#include <sys/tsd.h>
 #include <sys/zfs_context.h>
 
 #if defined(__i386__) || defined(__amd64__) || defined(__aarch64__)
