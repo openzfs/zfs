@@ -1693,8 +1693,8 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 	if ((err = zfs_enter(zfsvfs, FTAG)) != 0)
 		return (err);
 	/* A zero fid_gen means we are in the .zfs control directories */
-	if (fid_gen == 0 &&
-	    (object == ZFSCTL_INO_ROOT || object == ZFSCTL_INO_SNAPDIR)) {
+	if (fid_gen == 0 && object >= ZFSCTL_INO_SNAPDIR &&
+	    object <= ZFSCTL_INO_ROOT && object != ZFSCTL_INO_SHARES) {
 		if (zfsvfs->z_show_ctldir == ZFS_SNAPDIR_DISABLED) {
 			zfs_exit(zfsvfs, FTAG);
 			return (SET_ERROR(ENOENT));
@@ -1704,8 +1704,47 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 		ASSERT(*ipp != NULL);
 
 		if (object == ZFSCTL_INO_SNAPDIR) {
-			VERIFY0(zfsctl_root_lookup(*ipp, "snapshot", ipp,
-			    0, kcred, NULL, NULL));
+			VERIFY0(zfsctl_root_lookup(*ipp, ZFS_SNAPDIR_NAME,
+			    ipp, 0, kcred, NULL, NULL));
+		} else if (object == ZFSCTL_INO_SPACEDIR ||
+		    object == ZFSCTL_INO_QUOTADIR) {
+			/* May be ENOENT if zfs_ctldir_spacefiles is off */
+			err = zfsctl_root_lookup(*ipp,
+			    (object == ZFSCTL_INO_SPACEDIR) ?
+			    ZFS_SPACEDIR_NAME : ZFS_QUOTADIR_NAME,
+			    ipp, 0, kcred, NULL, NULL);
+			if (err != 0) {
+				zfs_exit(zfsvfs, FTAG);
+				return (SET_ERROR(ENOENT));
+			}
+		} else if (object >= ZFSCTL_INO_QUOTA_PROJ &&
+		    object <= ZFSCTL_INO_SPACE_USER) {
+			const char *name;
+
+			switch (object) {
+			case ZFSCTL_INO_SPACE_USER:
+			case ZFSCTL_INO_QUOTA_USER:
+				name = ZFS_USERFILE_NAME;
+				break;
+			case ZFSCTL_INO_SPACE_GROUP:
+			case ZFSCTL_INO_QUOTA_GROUP:
+				name = ZFS_GROUPFILE_NAME;
+				break;
+			default:
+				name = ZFS_PROJECTFILE_NAME;
+				break;
+			}
+
+			/* May be ENOENT if zfs_ctldir_spacefiles is off */
+			err = (object >= ZFSCTL_INO_SPACE_PROJ) ?
+			    zfsctl_spacedir_lookup(*ipp, name, ipp,
+			    0, kcred, NULL, NULL) :
+			    zfsctl_quotadir_lookup(*ipp, name, ipp,
+			    0, kcred, NULL, NULL);
+			if (err != 0) {
+				zfs_exit(zfsvfs, FTAG);
+				return (SET_ERROR(ENOENT));
+			}
 		} else {
 			/*
 			 * Must have an existing ref, so igrab()
