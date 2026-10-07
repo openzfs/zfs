@@ -144,7 +144,8 @@ log_must umount $MNTPNT
 log_note "Verify transactions to replay:"
 log_must zdb -iv $TESTPOOL/$TESTVOL
 
-log_must zpool export $TESTPOOL
+# Device probes can briefly keep the unmounted zvol open.
+log_must_busy zpool export $TESTPOOL
 
 #
 # 6. Import TESTPOOL, the intent log is replayed during minor creation.
