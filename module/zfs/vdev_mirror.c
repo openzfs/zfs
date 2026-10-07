@@ -110,6 +110,7 @@ typedef struct mirror_map {
 	int		mm_children;
 	boolean_t	mm_resilvering;
 	boolean_t	mm_rebuilding;
+	boolean_t	mm_rebuild_active;
 	boolean_t	mm_root;
 	mirror_child_t	mm_child[];
 } mirror_map_t;
@@ -333,7 +334,7 @@ vdev_mirror_map_init(zio_t *zio)
 		 * differently; we shouldn't issue them to the resilvering
 		 * device because it might not have those blocks.
 		 *
-		 * We are resilvering iff:
+		 * For healing resilvers, this applies iff:
 		 * 1) We are a replacing vdev (ie our name is "replacing-1" or
 		 *    "spare-1" or something like that), and
 		 * 2) The pool is currently being resilvered.
@@ -361,6 +362,12 @@ vdev_mirror_map_init(zio_t *zio)
 		    dsl_scan_resilvering(vd->vdev_spa->spa_dsl_pool);
 		mm = vdev_mirror_map_alloc(vd->vdev_children, replacing,
 		    B_FALSE);
+		/*
+		 * Keep dispatch and completion consistent for this I/O.
+		 * Leaf markers can outlive the rebuild worker while DTLs
+		 * remain.
+		 */
+		mm->mm_rebuild_active = vd->vdev_top->vdev_rebuilding;
 		for (c = 0; c < mm->mm_children; c++) {
 			mc = &mm->mm_child[c];
 			mc->mc_vd = vd->vdev_child[c];
@@ -634,6 +641,18 @@ vdev_mirror_io_start(zio_t *zio)
 					continue;
 				}
 
+				/*
+				 * The rebuild thread has not yet drained the
+				 * scrub. Do not read uncopied replacement data.
+				 */
+				if (mm->mm_rebuild_active &&
+				    mc->mc_rebuilding) {
+					mc->mc_error = SET_ERROR(ESTALE);
+					mc->mc_skipped = 1;
+					mc->mc_speculative = 1;
+					continue;
+				}
+
 				mc->mc_abd = first ? zio->io_abd :
 				    abd_alloc_sametype(zio->io_abd,
 				    zio->io_size);
@@ -877,6 +896,15 @@ vdev_mirror_io_done(zio_t *zio)
 		zio->io_error = vdev_mirror_worst_error(mm);
 		ASSERT(zio->io_error != 0);
 	}
+
+	/*
+	 * A rebuild scrub without a block pointer has not been verified by its
+	 * parent.  It only selects the best available copy; the rebuild worker
+	 * or checksum-owning parent is responsible for repairs.
+	 */
+	if (zio->io_bp == NULL && (zio->io_flags & ZIO_FLAG_SCRUB) &&
+	    mm->mm_rebuild_active)
+		return;
 
 	if (good_copies && spa_self_heal_allowed(zio->io_spa) &&
 	    (unexpected_errors ||

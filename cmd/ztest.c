@@ -264,6 +264,7 @@ static const ztest_shared_opts_t ztest_opts_defaults = {
 };
 
 extern uint64_t metaslab_force_ganging;
+extern uint_t metaslab_force_ganging_pct;
 extern uint64_t metaslab_df_alloc_threshold;
 extern uint64_t zfs_deadman_synctime_ms;
 extern uint_t metaslab_preload_limit;
@@ -8310,6 +8311,224 @@ ztest_dmu_sync_blocksize_tests(spa_t *spa)
 	    ZTEST_DMU_SYNC_SMALL_SIZE, "shrink");
 }
 
+typedef struct {
+	int source;
+	int target;
+	off_t first_offset;
+	uint64_t copied;
+} ztest_rebuild_copy_t;
+
+static void
+ztest_rebuild_copy(void *arg, zfs_range_seg64_t *range)
+{
+	ztest_rebuild_copy_t *copy = arg;
+	char buf[512];
+
+	for (uint64_t p = range->rs_start; p < range->rs_end;
+	    p += sizeof (buf)) {
+		size_t size = MIN(sizeof (buf), range->rs_end - p);
+		off_t offset = p + VDEV_LABEL_START_SIZE;
+		if (copy->copied == 0)
+			copy->first_offset = offset;
+		VERIFY3S(pread(copy->source, buf, size, offset), ==, size);
+		VERIFY3S(pwrite(copy->target, buf, size, offset), ==, size);
+		copy->copied += size;
+	}
+}
+
+static int
+ztest_rebuild_read(spa_t *spa, const blkptr_t *bp, void *buf, size_t size)
+{
+	abd_t *abd = abd_alloc_for_io(size, B_FALSE);
+	abd_zero(abd, size);
+	int error = zio_wait(zio_read(NULL, spa, bp, abd, size,
+	    NULL, NULL, ZIO_PRIORITY_SCRUB,
+	    ZIO_FLAG_SCRUB | ZIO_FLAG_RAW | ZIO_FLAG_CANFAIL |
+	    ZIO_FLAG_DONT_RETRY, NULL));
+	abd_copy_to_buf(buf, abd, size);
+	abd_free(abd);
+	return (error);
+}
+
+/*
+ * A scrub may need a partially rebuilt replacement to recover a block, but
+ * only its checksum-owning parent may authorize repairs from those bytes.
+ * Run before the main pool is created: suspending scans and disabling forced
+ * ganging must not affect another workload.
+ */
+static void
+ztest_scrub_rebuild(void)
+{
+	uint_t nparity = 1 + ztest_random(3);
+	uint_t ndata = 1 + ztest_random(8);
+	uint_t children = ndata + nparity;
+	uint_t ashift = 9 + ztest_random(4);
+	size_t size = ndata << ashift;
+	char *pool = kmem_asprintf("%s_scrub_rebuild", ztest_opts.zo_pool);
+	char *dir = kmem_asprintf("%s/scrub_rebuild.XXXXXX", ztest_opts.zo_dir);
+	char *path = kmem_alloc(MAXPATHLEN, KM_SLEEP);
+	nvlist_t *leaves[11];
+	int faults[4];
+	int suspend = zfs_scan_suspend_progress;
+	uint_t ganging = metaslab_force_ganging_pct;
+
+	VERIFY3P(mkdtemp(dir), !=, NULL);
+	zfs_scan_suspend_progress = 1;
+	metaslab_force_ganging_pct = 0;
+
+	if (ztest_opts.zo_verbose >= 3) {
+		(void) printf("scrub rebuild recovery: draid%u:%ud:%uc, "
+		    "ashift %u\n", nparity, ndata, children, ashift);
+	}
+
+	for (uint_t c = 0; c < children; c++) {
+		(void) snprintf(path, MAXPATHLEN, "%s/disk%u", dir, c);
+		leaves[c] = make_vdev_file(path, NULL, NULL, 512ULL << 20,
+		    ashift);
+	}
+	nvlist_t *draid = fnvlist_alloc();
+	fnvlist_add_string(draid, ZPOOL_CONFIG_TYPE, VDEV_TYPE_DRAID);
+	fnvlist_add_uint64(draid, ZPOOL_CONFIG_NPARITY, nparity);
+	fnvlist_add_uint64(draid, ZPOOL_CONFIG_DRAID_NDATA, ndata);
+	fnvlist_add_uint64(draid, ZPOOL_CONFIG_DRAID_NSPARES, 0);
+	fnvlist_add_uint64(draid, ZPOOL_CONFIG_DRAID_NGROUPS, 1);
+	fnvlist_add_nvlist_array(draid, ZPOOL_CONFIG_CHILDREN,
+	    (const nvlist_t **)leaves, children);
+	nvlist_t *root = fnvlist_alloc();
+	fnvlist_add_string(root, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT);
+	fnvlist_add_nvlist_array(root, ZPOOL_CONFIG_CHILDREN,
+	    (const nvlist_t **)&draid, 1);
+	nvlist_t *props = fnvlist_alloc();
+	fnvlist_add_uint64(props, "feature@draid", 0);
+	fnvlist_add_uint64(props, "feature@device_rebuild", 0);
+	VERIFY0(spa_create(pool, root, props, NULL, NULL, NULL));
+	fnvlist_free(props);
+	fnvlist_free(root);
+	fnvlist_free(draid);
+	for (uint_t c = 0; c < children; c++)
+		fnvlist_free(leaves[c]);
+
+	spa_t *spa;
+	VERIFY0(spa_open(pool, &spa, FTAG));
+	objset_t *os;
+	VERIFY0(dmu_objset_own(pool, DMU_OST_ZFS, B_FALSE, B_TRUE, FTAG, &os));
+	VERIFY0(dsl_prop_set_int(pool, "compression", ZPROP_SRC_LOCAL,
+	    ZIO_COMPRESS_OFF));
+	VERIFY0(dsl_prop_set_int(pool, "checksum", ZPROP_SRC_LOCAL,
+	    ZIO_CHECKSUM_SHA256));
+	VERIFY0(dsl_prop_set_int(pool, "copies", ZPROP_SRC_LOCAL, 1));
+	char *expected = kmem_alloc(size, KM_SLEEP);
+	char *actual = kmem_alloc(size, KM_SLEEP);
+	for (uint_t c = 0; c < ndata; c++)
+		memset(expected + (c << ashift), 0x31 + 0x13 * c, 1 << ashift);
+	dmu_tx_t *tx = dmu_tx_create(os);
+	dmu_tx_hold_bonus(tx, DMU_NEW_OBJECT);
+	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
+	uint64_t object = dmu_object_alloc(os, DMU_OT_UINT64_OTHER,
+	    size, DMU_OT_NONE, 0, tx);
+	dmu_tx_commit(tx);
+	tx = dmu_tx_create(os);
+	dmu_tx_hold_write(tx, object, 0, size);
+	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
+	dmu_write(os, object, 0, size, expected, tx, 0);
+	dmu_tx_commit(tx);
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	dmu_buf_t *db;
+	VERIFY0(dmu_buf_hold(os, object, 0, FTAG, &db, 0));
+	dmu_buf_impl_t *dbuf = (dmu_buf_impl_t *)db;
+	db_lock_type_t lock = dmu_buf_lock_parent(dbuf, RW_READER, FTAG);
+	blkptr_t bp = *dbuf->db_blkptr;
+	dmu_buf_unlock_parent(dbuf, lock, FTAG);
+	dmu_buf_rele(db, FTAG);
+	VERIFY3U(BP_GET_NDVAS(&bp), ==, 1);
+	VERIFY3U(BP_GET_PSIZE(&bp), ==, size);
+	VERIFY(!BP_IS_GANG(&bp));
+
+	vdev_t *top = spa->spa_root_vdev->vdev_child[0];
+	vdev_t *original = top->vdev_child[children - 1];
+	(void) snprintf(path, MAXPATHLEN, "%s/replacement", dir);
+	root = make_vdev_root(path, NULL, NULL, 512ULL << 20, ashift,
+	    NULL, 0, 0, 1);
+	VERIFY0(spa_vdev_attach(spa, original->vdev_guid, root,
+	    B_TRUE, B_TRUE));
+	fnvlist_free(root);
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	vdev_t *replacement = original->vdev_parent->vdev_child[1];
+	VERIFY(top->vdev_rebuilding);
+	VERIFY(vdev_dtl_contains(replacement, DTL_MISSING,
+	    BP_GET_PHYSICAL_BIRTH(&bp), 1));
+
+	/* Copy one column without retiring the replacement's broad DTL. */
+	ztest_rebuild_copy_t copy = {
+		.source = open(original->vdev_path, O_RDONLY),
+		.target = open(replacement->vdev_path, O_RDWR)
+	};
+	VERIFY3S(copy.source, >=, 0);
+	VERIFY3S(copy.target, >=, 0);
+	zfs_range_seg64_t logical = {
+		.rs_start = DVA_GET_OFFSET(&bp.blk_dva[0]),
+		.rs_end = DVA_GET_OFFSET(&bp.blk_dva[0]) +
+		    DVA_GET_ASIZE(&bp.blk_dva[0])
+	};
+	vdev_xlate_walk(original, &logical, ztest_rebuild_copy, &copy);
+	VERIFY3U(copy.copied, >, 0);
+	VERIFY0(fsync(copy.target));
+
+	/* Exhaust parity so recovery needs the replacement's copied column. */
+	for (uint_t c = 0; c <= nparity; c++) {
+		vdev_t *vd = c == nparity ? original : top->vdev_child[c];
+		zinject_record_t fault = {
+			.zi_guid = vd->vdev_guid,
+			.zi_error = EFAULT,
+			.zi_freq = ZI_PERCENTAGE_MAX,
+			.zi_iotype = ZINJECT_IOTYPE_READ,
+			.zi_cmd = ZINJECT_DEVICE_FAULT
+		};
+		VERIFY0(zio_inject_fault(pool, 0, &faults[c], &fault));
+	}
+	vdev_stat_t before, after;
+	vdev_get_stats_ex(top->vdev_child[0], &before, NULL);
+	VERIFY0(ztest_rebuild_read(spa, &bp, actual, size));
+	VERIFY0(memcmp(expected, actual, size));
+	VERIFY(top->vdev_rebuilding);
+	vdev_get_stats_ex(top->vdev_child[0], &after, NULL);
+	VERIFY3U(after.vs_self_healed, >, before.vs_self_healed);
+
+	/* Reject a corrupt candidate without overwriting the original. */
+	uint8_t original_byte, changed_byte, after_byte;
+	VERIFY3S(pread(copy.source, &original_byte, 1,
+	    copy.first_offset), ==, 1);
+	changed_byte = original_byte ^ 0x80;
+	VERIFY3S(pwrite(copy.target, &changed_byte, 1,
+	    copy.first_offset), ==, 1);
+	VERIFY0(fsync(copy.target));
+	VERIFY3S(ztest_rebuild_read(spa, &bp, actual, size), !=, 0);
+	VERIFY3S(pread(copy.source, &after_byte, 1, copy.first_offset), ==, 1);
+	VERIFY3U(original_byte, ==, after_byte);
+	VERIFY(top->vdev_rebuilding);
+	VERIFY0(close(copy.source));
+	VERIFY0(close(copy.target));
+	for (uint_t c = 0; c <= nparity; c++)
+		VERIFY0(zio_clear_fault(faults[c]));
+
+	dmu_objset_disown(os, B_TRUE, FTAG);
+	spa_close(spa, FTAG);
+	VERIFY0(spa_export(pool, NULL, B_FALSE, B_FALSE));
+	VERIFY0(unlink(path));
+	for (uint_t c = 0; c < children; c++) {
+		(void) snprintf(path, MAXPATHLEN, "%s/disk%u", dir, c);
+		VERIFY0(unlink(path));
+	}
+	VERIFY0(rmdir(dir));
+	kmem_free(expected, size);
+	kmem_free(actual, size);
+	kmem_strfree(pool);
+	kmem_strfree(dir);
+	kmem_free(path, MAXPATHLEN);
+	metaslab_force_ganging_pct = ganging;
+	zfs_scan_suspend_progress = suspend;
+}
+
 static void
 ztest_freeze(void)
 {
@@ -9032,6 +9251,7 @@ ztest_init(ztest_shared_t *zs)
 
 	raidz_scratch_verify();
 	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
+	ztest_scrub_rebuild();
 
 	/*
 	 * Create the storage pool.
