@@ -66,6 +66,7 @@
 #include <sys/sysctl.h>
 #include <sys/systm.h>
 #include <sys/taskqueue.h>
+#include <sys/tsd.h>
 #include <sys/uio.h>
 #include <sys/vdev.h>
 #include <sys/vdev_removal.h>

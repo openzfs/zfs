@@ -179,6 +179,7 @@
 #include <sys/zone.h>
 #include <sys/nvpair.h>
 #include <sys/pathname.h>
+#include <sys/tsd.h>
 #include <sys/fs/zfs.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zfs_dir.h>

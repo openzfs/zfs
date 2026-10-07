@@ -22,6 +22,7 @@
 #include <sys/bio.h>
 #include <sys/buf.h>
 #include <sys/file.h>
+#include <sys/tsd.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>

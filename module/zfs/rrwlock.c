@@ -18,6 +18,7 @@
  */
 
 #include <sys/rrwlock.h>
+#include <sys/tsd.h>
 #include <sys/trace_zfs.h>
 
 /*

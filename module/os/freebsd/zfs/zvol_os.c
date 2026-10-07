@@ -68,6 +68,7 @@
 #include <sys/dirent.h>
 #include <sys/policy.h>
 #include <sys/queue.h>
+#include <sys/tsd.h>
 #include <sys/fs/zfs.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zil.h>

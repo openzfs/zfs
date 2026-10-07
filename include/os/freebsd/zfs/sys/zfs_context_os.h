@@ -49,14 +49,6 @@
 #define	taskq_create_sysdc(a, b, d, e, p, dc, f) \
 	    ((void) sizeof (dc), taskq_create(a, b, maxclsyspri, d, e, f))
 
-#define	tsd_create(keyp, destructor)    do {                 \
-		*(keyp) = osd_thread_register((destructor));         \
-		KASSERT(*(keyp) > 0, ("cannot register OSD"));       \
-} while (0)
-
-#define	tsd_destroy(keyp)	osd_thread_deregister(*(keyp))
-#define	tsd_get(key)	osd_thread_get(curthread, (key))
-#define	tsd_set(key, value)	osd_thread_set(curthread, (key), (value))
 #define	fm_panic	panic
 
 extern int zfs_debug_level;

@@ -60,6 +60,7 @@ noinst_HEADERS = \
 	%D%/spl/sys/time.h \
 	%D%/spl/sys/timer.h \
 	%D%/spl/sys/trace.h \
+	%D%/spl/sys/tsd.h \
 	%D%/spl/sys/types.h \
 	%D%/spl/sys/types32.h \
 	%D%/spl/sys/uio.h \
