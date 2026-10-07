@@ -44,6 +44,7 @@
 /renameat2
 /rename_dir
 /rm_lnkcnt_zero_file
+/scrub_rebuild_recovery
 /send_doall
 /statx
 /statfs_nomount

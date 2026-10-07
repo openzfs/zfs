@@ -105,6 +105,10 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/nvlist_to_lua
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/rm_lnkcnt_zero_file
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/scrub_rebuild_recovery
+%C%_scrub_rebuild_recovery_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+%C%_scrub_rebuild_recovery_LDADD = libzpool.la libnvpair.la
+
 scripts_zfs_tests_bin_PROGRAMS += %D%/send_doall
 %C%_send_doall_LDADD = \
 	libzfs_core.la \
