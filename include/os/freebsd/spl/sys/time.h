@@ -30,9 +30,8 @@
 #pragma once
 #include_next <sys/time.h>
 #include <sys/debug.h>
-#ifndef _SYS_KERNEL_H_
+
 extern int hz;
-#endif
 
 #define	SEC		1
 #define	MILLISEC	1000UL
@@ -61,6 +60,7 @@ typedef longlong_t	hrtime_t;
 
 #define	SEC_TO_TICK(sec)	((sec) * hz)
 #define	NSEC_TO_TICK(nsec)	((nsec) / (NANOSEC / hz))
+#define	MSEC_TO_TICK(msec)	(howmany((hrtime_t)(msec) * hz, MILLISEC))
 
 static __inline hrtime_t
 getlrtime(void)
