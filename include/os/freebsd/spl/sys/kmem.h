@@ -103,6 +103,10 @@ void *calloc(size_t n, size_t s);
 	zfs_kmem_alloc((size), (kmflags) | M_ZERO)
 #define	kmem_free(buf, size)		zfs_kmem_free((buf), (size))
 
+typedef int fstrans_cookie_t;
+#define	spl_fstrans_mark() (0)
+#define	spl_fstrans_unmark(x) ((void)x)
+
 #endif	/* _KERNEL */
 
 #ifdef _STANDALONE
