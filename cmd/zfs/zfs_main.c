@@ -391,17 +391,17 @@ get_usage(zfs_help_t idx)
 	case HELP_RELEASE:
 		return ("\trelease [-r] <tag> <snapshot> ...\n");
 	case HELP_DIFF:
-		return (gettext("	diff [-FHth] <snapshot> "
-		    "[snapshot|filesystem]\n"));
+		return ("	diff [-FHth] <snapshot> "
+		    "[snapshot|filesystem]\n");
 	case HELP_EVENTS:
-		return (gettext("	events [-cj] [-n <count>] "
+		return ("	events [-cj] [-n <count>] "
 		    "[-o <object-id>] <filesystem> [path]\n"
 		    "\n"
 		    "    Display file-level events from the dataset's event "
 		    "log. Event logs\n"
 		    "    are per-dataset and not available on snapshots. "
 		    "With -c, clear\n"
-		    "    the dataset's event log.\n"));
+		    "    the dataset's event log.\n");
 	case HELP_BOOKMARK:
 		return ("\tbookmark [-r] <snapshot|bookmark> "
 		    "<newbookmark>\n");
@@ -8473,7 +8473,7 @@ parse_event_count(const char *arg, char opt)
 	unsigned long long val;
 
 	if (arg == NULL || *arg == '\0' || arg[0] == '-') {
-		(void) fprintf(stderr, gettext("invalid -%c value '%s'\n"),
+		(void) fprintf(stderr, "invalid -%c value '%s'\n",
 		    opt, arg != NULL ? arg : "");
 		usage(B_FALSE);
 	}
@@ -8483,13 +8483,13 @@ parse_event_count(const char *arg, char opt)
 
 	if (end == NULL || *end != '\0' ||
 	    (val == ULLONG_MAX && errno == ERANGE)) {
-		(void) fprintf(stderr, gettext("invalid -%c value '%s'\n"),
+		(void) fprintf(stderr, "invalid -%c value '%s'\n",
 		    opt, arg);
 		usage(B_FALSE);
 	}
 	if (val == 0 && opt == 'n') {
 		(void) fprintf(stderr,
-		    gettext("invalid -%c value '0': must be at least 1\n"),
+		    "invalid -%c value '0': must be at least 1\n",
 		    opt);
 		usage(B_FALSE);
 	}
@@ -8537,7 +8537,7 @@ zfs_do_events(int argc, char **argv)
 		case '?':
 		default:
 			(void) fprintf(stderr,
-			    gettext("invalid option '%c'\n"), optopt);
+			    "invalid option '%c'\n", optopt);
 			usage(B_FALSE);
 		}
 	}
@@ -8547,7 +8547,7 @@ zfs_do_events(int argc, char **argv)
 
 	if (argc < 1) {
 		(void) fprintf(stderr,
-		    gettext("missing filesystem argument\n"));
+		    "missing filesystem argument\n");
 		usage(B_FALSE);
 	}
 
@@ -8558,9 +8558,8 @@ zfs_do_events(int argc, char **argv)
 	 */
 	if (clear_log &&
 	    (json_output || limit_output || object_given || argc > 1)) {
-		(void) fprintf(stderr, gettext(
-		    "-c cannot be combined with -j, -n, -o or a path "
-		    "argument\n"));
+		(void) fprintf(stderr, "-c cannot be combined with "
+		    "-j, -n, -o or a path argument\n");
 		usage(B_FALSE);
 	}
 
@@ -8572,8 +8571,8 @@ zfs_do_events(int argc, char **argv)
 	 */
 	if (strchr(argv[0], '@') != NULL) {
 		(void) fprintf(stderr,
-		    gettext("cannot get events for '%s': event logs are "
-		    "per-dataset and not available on snapshots\n"),
+		    "cannot get events for '%s': event logs are "
+		    "per-dataset and not available on snapshots\n",
 		    argv[0]);
 		return (1);
 	}
@@ -8588,22 +8587,22 @@ zfs_do_events(int argc, char **argv)
 		int err = lzc_clear_events(dsname, &outnvl);
 
 		if (err == ENOENT) {
-			(void) fprintf(stderr, gettext("no event log found "
-			    "for '%s'\n"), dsname);
+			(void) fprintf(stderr, "no event log found "
+			    "for '%s'\n", dsname);
 			zfs_close(zhp);
 			return (1);
 		} else if (err == EINVAL || err == EBUSY || err == ESRCH) {
-			(void) fprintf(stderr, gettext("cannot clear events "
-			    "for '%s': dataset must be mounted\n"), dsname);
+			(void) fprintf(stderr, "cannot clear events "
+			    "for '%s': dataset must be mounted\n", dsname);
 			zfs_close(zhp);
 			return (1);
 		} else if (err != 0) {
-			(void) fprintf(stderr, gettext("cannot clear events "
-			    "for '%s': %s\n"), dsname, strerror(err));
+			(void) fprintf(stderr, "cannot clear events "
+			    "for '%s': %s\n", dsname, strerror(err));
 			zfs_close(zhp);
 			return (1);
 		}
-		(void) printf(gettext("cleared event log for '%s'\n"),
+		(void) printf("cleared event log for '%s'\n",
 		    dsname);
 		nvlist_free(outnvl);
 		zfs_close(zhp);
@@ -8621,7 +8620,7 @@ zfs_do_events(int argc, char **argv)
 		if (zfs_prop_get(zhp, ZFS_PROP_MOUNTPOINT, mountpoint,
 		    sizeof (mountpoint), NULL, NULL, 0, B_FALSE) != 0) {
 			(void) fprintf(stderr,
-			    gettext("cannot get mountpoint for '%s'\n"),
+			    "cannot get mountpoint for '%s'\n",
 			    argv[0]);
 			zfs_close(zhp);
 			return (1);
@@ -8646,7 +8645,7 @@ zfs_do_events(int argc, char **argv)
 		 */
 		if (stat(fullpath, &st) != 0) {
 			(void) fprintf(stderr,
-			    gettext("cannot stat '%s': %s\n"),
+			    "cannot stat '%s': %s\n",
 			    fullpath, strerror(errno));
 			zfs_close(zhp);
 			return (1);
@@ -8661,15 +8660,15 @@ zfs_do_events(int argc, char **argv)
 		if (argv[1][0] == '/') {
 			if (stat(mountpoint, &mp_st) != 0) {
 				(void) fprintf(stderr,
-				    gettext("cannot stat '%s': %s\n"),
+				    "cannot stat '%s': %s\n",
 				    mountpoint, strerror(errno));
 				zfs_close(zhp);
 				return (1);
 			}
 			if (mp_st.st_dev != st.st_dev) {
-				(void) fprintf(stderr, gettext("cannot get "
+				(void) fprintf(stderr, "cannot get "
 				    "events for '%s': '%s' is not within "
-				    "'%s'\n"), argv[0], argv[1], mountpoint);
+				    "'%s'\n", argv[0], argv[1], mountpoint);
 				zfs_close(zhp);
 				return (1);
 			}
@@ -8818,9 +8817,9 @@ zfs_do_events(int argc, char **argv)
 				ret = 0;
 			} else {
 				(void) fprintf(stderr,
-				    gettext("no event log found for '%s'\n"
+				    "no event log found for '%s'\n"
 				    "Enable events with: zfs set events=on "
-				    "%s\n"), argv[0], argv[0]);
+				    "%s\n", argv[0], argv[0]);
 				ret = 1;
 			}
 		} else if (error == ESRCH || error == EINVAL ||
@@ -8831,12 +8830,12 @@ zfs_do_events(int argc, char **argv)
 			 * path does rather than leaking strerror(ESRCH)
 			 * as "No such process".
 			 */
-			(void) fprintf(stderr, gettext("cannot get events "
-			    "for '%s': dataset must be mounted\n"), argv[0]);
+			(void) fprintf(stderr, "cannot get events "
+			    "for '%s': dataset must be mounted\n", argv[0]);
 			ret = 1;
 		} else if (count == 0) {
 			(void) fprintf(stderr,
-			    gettext("cannot get events for '%s': %s\n"),
+			    "cannot get events for '%s': %s\n",
 			    argv[0], strerror(error));
 			ret = 1;
 		} else {
@@ -8844,8 +8843,8 @@ zfs_do_events(int argc, char **argv)
 			 * Some records were already printed; report the
 			 * truncation instead of failing the whole query.
 			 */
-			(void) fprintf(stderr, gettext("error reading "
-			    "remaining events from '%s': %s\n"),
+			(void) fprintf(stderr, "error reading "
+			    "remaining events from '%s': %s\n",
 			    argv[0], strerror(error));
 			ret = 1;
 		}
@@ -8862,12 +8861,12 @@ zfs_do_events(int argc, char **argv)
 			 */
 			(void) printf("[]\n");
 		} else {
-			(void) printf("%s\n", gettext("no events found"));
+			(void) printf("%s\n", "no events found");
 		}
 	} else if (json_output) {
 		(void) printf("]\n");
 	} else if (count == 0) {
-		(void) printf("%s\n", gettext("no events found"));
+		(void) printf("%s\n", "no events found");
 	}
 
 	/*
@@ -8875,8 +8874,8 @@ zfs_do_events(int argc, char **argv)
 	 * so -j JSON on stdout stays parseable.
 	 */
 	if (have_lost && lost_total > 0) {
-		(void) fprintf(stderr, gettext(
-		    "%llu record(s) lost to log wraparound\n"),
+		(void) fprintf(stderr, "%llu record(s) lost to "
+		    "log wraparound\n",
 		    (u_longlong_t)lost_total);
 	}
 
