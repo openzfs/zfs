@@ -17,6 +17,7 @@
 
 /*
  * Copyright (c) 2013, 2017 by Delphix. All rights reserved.
+ * Copyright 2026 Oxide Computer Company
  */
 
 /*
@@ -155,9 +156,11 @@ zil_prt_rec_write(zilog_t *zilog, int txtype, const void *arg)
 	int verbose = MAX(dump_opt['d'], dump_opt['i']);
 	int error;
 
-	(void) printf("%sfoid %llu, offset %llx, length %llx\n", tab_prefix,
-	    (u_longlong_t)lr->lr_foid, (u_longlong_t)lr->lr_offset,
-	    (u_longlong_t)lr->lr_length);
+	(void) printf("%sfoid %llu, offset %llx, length %llx%s%s\n",
+	    tab_prefix, (u_longlong_t)lr->lr_foid,
+	    (u_longlong_t)lr->lr_offset, (u_longlong_t)lr->lr_length,
+	    (lr->lr_flags & LR_WRITE_CONT) ? ", continued" : "",
+	    (lr->lr_flags & LR_WRITE_MORE) ? ", more follows" : "");
 
 	if (txtype == TX_WRITE2 || verbose < 4)
 		return;
