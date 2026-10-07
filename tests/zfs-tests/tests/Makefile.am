@@ -1997,6 +1997,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/quota/quota_004_pos.ksh \
 	functional/quota/quota_005_pos.ksh \
 	functional/quota/quota_006_neg.ksh \
+	functional/quota/quota_007_pos.ksh \
 	functional/quota/setup.ksh \
 	functional/raidz/cleanup.ksh \
 	functional/raidz/raidz_001_neg.ksh \
