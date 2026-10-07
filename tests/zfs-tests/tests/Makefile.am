@@ -492,6 +492,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/alloc_class/cleanup.ksh \
 	functional/alloc_class/setup.ksh \
 	functional/append/file_append.ksh \
+	functional/append/file_append_noappend.ksh \
 	functional/append/threadsappend_001_pos.ksh \
 	functional/append/cleanup.ksh \
 	functional/append/setup.ksh \
