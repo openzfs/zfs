@@ -111,6 +111,22 @@ zfs_rangelock_cb(zfs_locked_range_t *new, void *arg)
 	}
 
 	/*
+	 * A write starting past the end of the file also extends the file
+	 * over the rest of its last page, which zfs_zero_eof_page() has to
+	 * zero first, so lock from the current end of file.
+	 */
+	if (new->lr_offset > zp->z_size &&
+	    P2PHASE(zp->z_size, PAGE_SIZE) != 0) {
+		uint64_t gap = new->lr_offset - zp->z_size;
+
+		new->lr_offset = zp->z_size;
+		if (new->lr_length > UINT64_MAX - gap)
+			new->lr_length = UINT64_MAX;
+		else
+			new->lr_length += gap;
+	}
+
+	/*
 	 * If we might grow the block size then lock the whole file range.
 	 * NB: this test should match the check in zfs_grow_blocksize
 	 */
@@ -1465,6 +1481,52 @@ zfs_grow_blocksize(znode_t *zp, uint64_t size, dmu_tx_t *tx)
 }
 
 /*
+ * Zero the cached part of the file's last page past the end of the
+ * file, up to end, before the file is extended to end or beyond.
+ *
+ * Stores through a shared mapping can leave data in that part of the
+ * page. Once the file is extended over it, mappedread() returns it
+ * from the page, and if the page is dirty, zfs_putpages() writes it to
+ * disk.
+ *
+ * lr is the caller's RL_WRITER range lock, which zfs_rangelock_cb()
+ * extends down to the end of the file. Nothing is zeroed outside of
+ * it. vnode_pager_purge_range() needs the vnode lock, which ZIL replay
+ * does not hold, but a vnode being replayed has no cached pages.
+ */
+void
+zfs_zero_eof_page(znode_t *zp, zfs_locked_range_t *lr, uint64_t end)
+{
+	vnode_t *vp = ZTOV(zp);
+	uint64_t size = zp->z_size;
+
+	ASSERT3U(lr->lr_type, ==, RL_WRITER);
+
+	if (end <= size || P2PHASE(size, PAGE_SIZE) == 0 ||
+	    lr->lr_offset > size)
+		return;
+
+	end = MIN(end, P2ROUNDUP(size, PAGE_SIZE));
+	if (lr->lr_length != UINT64_MAX)
+		end = MIN(end, lr->lr_offset + lr->lr_length);
+	if (end <= size)
+		return;
+
+	if (!vn_has_cached_data(vp))
+		return;
+
+#if __FreeBSD_version >= 1400032
+	vnode_pager_purge_range(vp, size, end);
+#else
+	/*
+	 * vnode_pager_purge_range() is not available before
+	 * __FreeBSD_version 1400032, so the page is left alone there, as
+	 * zfs_free_range() does.
+	 */
+#endif
+}
+
+/*
  * Increase the file length
  *
  *	IN:	zp	- znode of file to free data in.
@@ -1493,6 +1555,9 @@ zfs_extend(znode_t *zp, uint64_t end)
 		zfs_rangelock_exit(lr);
 		return (0);
 	}
+
+	zfs_zero_eof_page(zp, lr, end);
+
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
