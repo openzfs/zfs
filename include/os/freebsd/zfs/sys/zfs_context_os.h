@@ -66,9 +66,6 @@ extern struct mtx zfs_debug_mtx;
 	}	   \
 } while (0)
 
-typedef int fstrans_cookie_t;
-#define	spl_fstrans_mark() (0)
-#define	spl_fstrans_unmark(x) ((void)x)
 #define	signal_pending(x) SIGPENDING(x)
 #define	current curthread
 #define	thread_join(x)
