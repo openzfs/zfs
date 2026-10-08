@@ -3345,7 +3345,10 @@ created_before(libzfs_handle_t *hdl, avl_tree_t *avl,
 	if (guid1 == 0)
 		return (1);
 
+	/* Snapshots outside this tree can't be compared: report "same". */
 	nvfs = fsavl_find(avl, guid1, &snapname);
+	if (nvfs == NULL)
+		return (0);
 	fsname = fnvlist_lookup_string(nvfs, "name");
 	(void) snprintf(buf, sizeof (buf), "%s@%s", fsname, snapname);
 	guid1hdl = zfs_open(hdl, buf, ZFS_TYPE_SNAPSHOT);
@@ -3353,6 +3356,10 @@ created_before(libzfs_handle_t *hdl, avl_tree_t *avl,
 		return (-1);
 
 	nvfs = fsavl_find(avl, guid2, &snapname);
+	if (nvfs == NULL) {
+		zfs_close(guid1hdl);
+		return (0);
+	}
 	fsname = fnvlist_lookup_string(nvfs, "name");
 	(void) snprintf(buf, sizeof (buf), "%s@%s", fsname, snapname);
 	guid2hdl = zfs_open(hdl, buf, ZFS_TYPE_SNAPSHOT);
@@ -3616,10 +3623,19 @@ again:
 				break;
 		}
 
-		/* check for promote */
+		/*
+		 * Check for promote.  Only an origin inside the received tree
+		 * can have been promoted there: after a 'zfs promote' outside
+		 * it, the local origin is not in local_avl at all.  A zero
+		 * guid means "no origin", which created_before() handles.
+		 */
 		(void) nvlist_lookup_uint64(stream_nvfs, "origin",
 		    &stream_originguid);
-		if (stream_nvfs && originguid != stream_originguid) {
+		if (stream_nvfs && originguid != stream_originguid &&
+		    (originguid == 0 ||
+		    fsavl_find(local_avl, originguid, NULL) != NULL) &&
+		    (stream_originguid == 0 ||
+		    fsavl_find(local_avl, stream_originguid, NULL) != NULL)) {
 			switch (created_before(hdl, local_avl,
 			    stream_originguid, originguid)) {
 			case 1: {
