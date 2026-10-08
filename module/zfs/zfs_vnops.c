@@ -2055,6 +2055,10 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	if (error != 0)
 		goto out;
 
+	/* A just-published destination's records first (see there). */
+	if ((error = zfs_tmpfile_settle(outzp)) != 0)
+		goto out;
+
 	/*
 	 * The range to clone must lie within the source file.  Clamp it to the
 	 * source EOF and treat an empty range as a no-op.
@@ -2713,6 +2717,10 @@ zfs_dedupe_range(znode_t *inzp, uint64_t inoff, znode_t *outzp, uint64_t outoff,
 
 	error = zfs_clone_range_precheck(inzp, outzp);
 	if (error != 0)
+		goto out;
+
+	/* A just-published destination's records first (see there). */
+	if ((error = zfs_tmpfile_settle(outzp)) != 0)
 		goto out;
 
 	/*

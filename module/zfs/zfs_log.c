@@ -35,6 +35,7 @@
 #include <sys/dmu.h>
 #include <sys/dbuf.h>
 #include <sys/spa.h>
+#include <sys/zfeature.h>
 #include <sys/zfs_fuid.h>
 #include <sys/dsl_dataset.h>
 #include <sys/zfs_vnops.h>
@@ -299,7 +300,7 @@ zfs_log_create(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 
 	if ((int)txtype == TX_CREATE_ATTR || (int)txtype == TX_MKDIR_ATTR ||
 	    (int)txtype == TX_CREATE || (int)txtype == TX_MKDIR ||
-	    (int)txtype == TX_MKXATTR) {
+	    (int)txtype == TX_MKXATTR || (int)txtype == TX_TMPFILE) {
 		txsize = sizeof (lr_create_t) + namesize + fuidsz + xvatsize;
 		itx = zil_itx_create(txtype, txsize);
 		lr_create_t *lrc = (lr_create_t *)&itx->itx_lr;
@@ -578,10 +579,16 @@ zfs_log_rename_whiteout(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
  * called as soon as the write is on stable storage (be it via a DMU sync or a
  * ZIL commit).
  */
-void
-zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
+/*
+ * Log a write.  The records are synchronous if "sync" is set or the file is
+ * open for synchronous writes; otherwise they are only committed by an
+ * fsync of the file (or a commit of the whole log).
+ */
+static void
+zfs_log_write_impl(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, offset_t off, ssize_t resid, boolean_t commit,
-    boolean_t o_direct, zil_callback_t callback, void *callback_data)
+    boolean_t o_direct, zil_callback_t callback, void *callback_data,
+    boolean_t sync)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
 	uint32_t blocksize = zp->z_blksz;
@@ -653,7 +660,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		BP_ZERO(&lr->lr_blkptr);
 
 		itx->itx_private = ZTOZSB(zp);
-		itx->itx_sync = (zp->z_sync_cnt != 0);
+		itx->itx_sync = sync || (zp->z_sync_cnt != 0);
 		itx->itx_gen = gen;
 
 		if (resid == len) {
@@ -668,6 +675,15 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	}
 
 	dsl_pool_wrlog_count(zilog->zl_dmu_pool, log_size, tx->tx_txg);
+}
+
+void
+zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
+    znode_t *zp, offset_t off, ssize_t resid, boolean_t commit,
+    boolean_t o_direct, zil_callback_t callback, void *callback_data)
+{
+	zfs_log_write_impl(zilog, tx, txtype, zp, off, resid, commit,
+	    o_direct, callback, callback_data, B_FALSE);
 }
 
 /*
@@ -694,12 +710,61 @@ zfs_log_truncate(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	zil_itx_assign(zilog, itx, tx);
 }
 
+/* The OS-independent TX_SETATTR mask bits (see ZIL_SETATTR_PORTABLE). */
+static const struct {
+	uint_t		native;
+	uint64_t	portable;
+} zil_setattr_bits[] = {
+	{ ATTR_MODE,	ZIL_SETATTR_MODE },
+	{ ATTR_UID,	ZIL_SETATTR_UID },
+	{ ATTR_GID,	ZIL_SETATTR_GID },
+	{ ATTR_SIZE,	ZIL_SETATTR_SIZE },
+	{ ATTR_ATIME,	ZIL_SETATTR_ATIME },
+	{ ATTR_MTIME,	ZIL_SETATTR_MTIME },
+};
+
+static uint64_t
+zfs_setattr_mask_portable(uint_t native)
+{
+	uint64_t mask = ZIL_SETATTR_PORTABLE;
+
+	for (int i = 0; i < ARRAY_SIZE(zil_setattr_bits); i++) {
+		if (native & zil_setattr_bits[i].native) {
+			mask |= zil_setattr_bits[i].portable;
+			native &= ~zil_setattr_bits[i].native;
+		}
+	}
+	VERIFY0(native);
+	return (mask);
+}
+
 /*
- * Handles TX_SETATTR transactions.
+ * Translate a portable TX_SETATTR mask to this OS's bits.  A bit this
+ * reader does not know fails the record.
  */
-void
-zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
-    znode_t *zp, vattr_t *vap, uint_t mask_applied, zfs_fuid_info_t *fuidp)
+int
+zfs_setattr_mask_native(uint64_t mask, uint_t *native)
+{
+	ASSERT(mask & ZIL_SETATTR_PORTABLE);
+	mask &= ~ZIL_SETATTR_PORTABLE;
+	*native = 0;
+	for (int i = 0; i < ARRAY_SIZE(zil_setattr_bits); i++) {
+		if (mask & zil_setattr_bits[i].portable) {
+			*native |= zil_setattr_bits[i].native;
+			mask &= ~zil_setattr_bits[i].portable;
+		}
+	}
+	return (mask == 0 ? 0 : SET_ERROR(EINVAL));
+}
+
+/*
+ * Handles TX_SETATTR transactions.  With "portable", the mask is written
+ * in the OS-independent encoding; no xvattr or FUID domains may be given.
+ */
+static void
+zfs_log_setattr_impl(zilog_t *zilog, dmu_tx_t *tx, int txtype,
+    znode_t *zp, vattr_t *vap, uint_t mask_applied, zfs_fuid_info_t *fuidp,
+    boolean_t sync, boolean_t portable)
 {
 	itx_t		*itx;
 	lr_setattr_t	*lr;
@@ -724,7 +789,13 @@ zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	itx = zil_itx_create(txtype, recsize);
 	lr = (lr_setattr_t *)&itx->itx_lr;
 	lr->lr_foid = zp->z_id;
-	lr->lr_mask = (uint64_t)mask_applied;
+	if (portable) {
+		ASSERT0(vap->va_mask & ATTR_XVATTR);
+		ASSERT0P(fuidp);
+		lr->lr_mask = zfs_setattr_mask_portable(mask_applied);
+	} else {
+		lr->lr_mask = (uint64_t)mask_applied;
+	}
 	lr->lr_mode = (uint64_t)vap->va_mode;
 	if ((mask_applied & ATTR_UID) && IS_EPHEMERAL(vap->va_uid))
 		lr->lr_uid = fuidp->z_fuid_owner;
@@ -752,16 +823,25 @@ zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	if (fuidp)
 		(void) zfs_log_fuid_domains(fuidp, start);
 
-	itx->itx_sync = (zp->z_sync_cnt != 0);
+	itx->itx_sync = sync || (zp->z_sync_cnt != 0);
 	zil_itx_assign(zilog, itx, tx);
+}
+
+void
+zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
+    znode_t *zp, vattr_t *vap, uint_t mask_applied, zfs_fuid_info_t *fuidp)
+{
+	zfs_log_setattr_impl(zilog, tx, txtype, zp, vap, mask_applied, fuidp,
+	    B_FALSE, B_FALSE);
 }
 
 /*
  * Handles TX_SETSAXATTR transactions.
  */
-void
-zfs_log_setsaxattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
-    znode_t *zp, const char *name, const void *value, size_t size)
+static void
+zfs_log_setsaxattr_impl(zilog_t *zilog, dmu_tx_t *tx, int txtype,
+    znode_t *zp, const char *name, const void *value, size_t size,
+    boolean_t sync)
 {
 	itx_t		*itx;
 	lr_setsaxattr_t	*lr;
@@ -784,8 +864,16 @@ zfs_log_setsaxattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		lr->lr_size = 0;
 	}
 
-	itx->itx_sync = (zp->z_sync_cnt != 0);
+	itx->itx_sync = sync || (zp->z_sync_cnt != 0);
 	zil_itx_assign(zilog, itx, tx);
+}
+
+void
+zfs_log_setsaxattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
+    znode_t *zp, const char *name, const void *value, size_t size)
+{
+	zfs_log_setsaxattr_impl(zilog, tx, txtype, zp, name, value, size,
+	    B_FALSE);
 }
 
 /*
@@ -857,10 +945,10 @@ zfs_log_acl(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
 /*
  * Handles TX_CLONE_RANGE transactions.
  */
-void
-zfs_log_clone_range(zilog_t *zilog, dmu_tx_t *tx, int txtype, znode_t *zp,
-    uint64_t off, uint64_t len, uint64_t blksz, const blkptr_t *bps,
-    size_t nbps)
+static void
+zfs_log_clone_range_impl(zilog_t *zilog, dmu_tx_t *tx, int txtype,
+    znode_t *zp, uint64_t off, uint64_t len, uint64_t blksz,
+    const blkptr_t *bps, size_t nbps, boolean_t sync)
 {
 	itx_t *itx;
 	lr_clone_range_t *lr;
@@ -888,7 +976,7 @@ zfs_log_clone_range(zilog_t *zilog, dmu_tx_t *tx, int txtype, znode_t *zp,
 		lr->lr_nbps = partnbps;
 		memcpy(lr->lr_bps, bps, sizeof (bps[0]) * partnbps);
 
-		itx->itx_sync = (zp->z_sync_cnt != 0);
+		itx->itx_sync = sync || (zp->z_sync_cnt != 0);
 
 		zil_itx_assign(zilog, itx, tx);
 
@@ -900,3 +988,256 @@ zfs_log_clone_range(zilog_t *zilog, dmu_tx_t *tx, int txtype, znode_t *zp,
 		len -= partlen;
 	}
 }
+
+void
+zfs_log_clone_range(zilog_t *zilog, dmu_tx_t *tx, int txtype, znode_t *zp,
+    uint64_t off, uint64_t len, uint64_t blksz, const blkptr_t *bps,
+    size_t nbps)
+{
+	zfs_log_clone_range_impl(zilog, tx, txtype, zp, off, len, blksz, bps,
+	    nbps, B_FALSE);
+}
+
+/*
+ * Publication logs an unnamed inode's contents from a plan made before
+ * anything is logged: each block is classified once.  A block dirty in
+ * this TXG is data (TX_WRITE).  A block with a stable block pointer is a
+ * clone made in this TXG, since the inode was created in it
+ * (TX_CLONE_RANGE of that pointer).  A hole is not logged; the final size
+ * record restores it.  If a block cannot be classified, or the file has
+ * more blocks than zfs_tmpfile_log_max_blocks (the plan's work and memory
+ * scale with the logical size, holes included), there is no plan and the
+ * publication waits for its TXG instead.
+ */
+static uint_t zfs_tmpfile_log_max_blocks = 4096;
+
+typedef enum {
+	TMPFILE_BLK_HOLE,
+	TMPFILE_BLK_DATA,
+	TMPFILE_BLK_CLONE,
+} tmpfile_blk_t;
+
+typedef struct tmpfile_plan {
+	uint64_t	tp_size;
+	uint64_t	tp_blksz;
+	uint64_t	tp_nblocks;
+	uint8_t		*tp_class;	/* tmpfile_blk_t of each block */
+	blkptr_t	*tp_bps;	/* the clones' pointers, in order */
+	uint64_t	tp_nclones;
+} tmpfile_plan_t;
+
+static void
+zfs_tmpfile_plan_free(tmpfile_plan_t *tp)
+{
+	if (tp->tp_class != NULL)
+		vmem_free(tp->tp_class, tp->tp_nblocks);
+	if (tp->tp_bps != NULL)
+		vmem_free(tp->tp_bps, sizeof (blkptr_t) * tp->tp_nblocks);
+}
+
+/*
+ * The caller holds a range lock over the whole file that excludes writers,
+ * so the size, block size and blocks cannot change.
+ */
+static int
+zfs_tmpfile_plan(znode_t *zp, tmpfile_plan_t *tp)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	boolean_t cloning = spa_feature_is_enabled(
+	    dmu_objset_spa(zfsvfs->z_os), SPA_FEATURE_BLOCK_CLONING);
+
+	memset(tp, 0, sizeof (*tp));
+	tp->tp_size = zp->z_size;
+	tp->tp_blksz = zp->z_blksz;
+	if (tp->tp_size == 0)
+		return (0);
+	tp->tp_nblocks = (tp->tp_size - 1) / tp->tp_blksz + 1;
+	if (tp->tp_nblocks > zfs_tmpfile_log_max_blocks)
+		return (SET_ERROR(EFBIG));
+	tp->tp_class = vmem_alloc(tp->tp_nblocks, KM_SLEEP);
+
+	for (uint64_t i = 0; i < tp->tp_nblocks; i++) {
+		uint64_t off = i * tp->tp_blksz;
+		uint64_t len = MIN(tp->tp_blksz, tp->tp_size - off);
+		blkptr_t bp;
+		size_t nbps = 1;
+		int error = dmu_read_l0_bps(zfsvfs->z_os, zp->z_id, off, len,
+		    &bp, &nbps);
+
+		if (error == EAGAIN) {
+			/* Dirty in this TXG, or with a pending free. */
+			tp->tp_class[i] = TMPFILE_BLK_DATA;
+		} else if (error != 0) {
+			return (error);
+		} else if (BP_IS_HOLE(&bp)) {
+			tp->tp_class[i] = TMPFILE_BLK_HOLE;
+		} else if (!cloning) {
+			return (SET_ERROR(ENOTSUP));
+		} else {
+			if (tp->tp_bps == NULL) {
+				tp->tp_bps = vmem_alloc(sizeof (blkptr_t) *
+				    tp->tp_nblocks, KM_SLEEP);
+			}
+			tp->tp_bps[tp->tp_nclones++] = bp;
+			tp->tp_class[i] = TMPFILE_BLK_CLONE;
+		}
+	}
+	return (0);
+}
+
+/*
+ * Log the planned contents: clones first, because replaying a clone needs
+ * the object's block size, which can only grow while the object has at
+ * most one block; then data.
+ */
+static void
+zfs_log_tmpfile_contents(zilog_t *zilog, dmu_tx_t *tx, znode_t *zp,
+    const tmpfile_plan_t *tp, boolean_t commit)
+{
+	static const tmpfile_blk_t order[] = {
+		TMPFILE_BLK_CLONE, TMPFILE_BLK_DATA };
+
+	for (int pass = 0; pass < ARRAY_SIZE(order); pass++) {
+		tmpfile_blk_t want = order[pass];
+		uint64_t clone = 0;	/* index in tp_bps of block i */
+
+		for (uint64_t i = 0; i < tp->tp_nblocks; ) {
+			if (tp->tp_class[i] != want) {
+				clone += (tp->tp_class[i] == TMPFILE_BLK_CLONE);
+				i++;
+				continue;
+			}
+			/* A run of blocks of this kind. */
+			uint64_t first = i, first_clone = clone;
+			while (i < tp->tp_nblocks && tp->tp_class[i] == want) {
+				clone += (want == TMPFILE_BLK_CLONE);
+				i++;
+			}
+			uint64_t off = first * tp->tp_blksz;
+			uint64_t end = MIN(i * tp->tp_blksz, tp->tp_size);
+			if (want == TMPFILE_BLK_CLONE) {
+				zfs_log_clone_range_impl(zilog, tx,
+				    TX_CLONE_RANGE, zp, off, end - off,
+				    tp->tp_blksz, &tp->tp_bps[first_clone],
+				    i - first, B_TRUE);
+			} else {
+				zfs_log_write_impl(zilog, tx, TX_WRITE, zp,
+				    off, end - off, commit, B_FALSE, NULL,
+				    NULL, B_TRUE);
+			}
+		}
+	}
+}
+
+/*
+ * Log the publication of an O_TMPFILE inode.  None of the operations
+ * performed on the unnamed inode were logged, so its current state is
+ * reconstructed here, in an order that keeps publication atomic in the
+ * log: TX_TMPFILE creates the object unnamed (in the unlinked set), the
+ * TX_CLONE_RANGE, TX_WRITE, TX_SETSAXATTR and TX_SETATTR (size and mtime)
+ * records rebuild its contents and final attributes, and TX_LINK
+ * names it last.  Replay may stop after any record; every such prefix
+ * leaves either no name or the complete file.  All records are
+ * synchronous, so any commit that includes the name includes the rest.
+ *
+ * The caller holds zp->z_xattr_lock, has loaded the SA xattr cache, holds a
+ * range lock over the whole file that excludes writers, and has verified
+ * that the inode can be published this way (see zfs_link()).  Returns
+ * B_FALSE, having logged nothing, if the contents cannot be planned (see
+ * zfs_tmpfile_plan()); the caller then waits for the TXG instead.
+ */
+boolean_t
+zfs_log_link_tmpfile(zilog_t *zilog, dmu_tx_t *tx, znode_t *dzp, znode_t *zp,
+    const char *name)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(dzp);
+	tmpfile_plan_t plan;
+
+	if (zil_replaying(zilog, tx))
+		return (B_TRUE);
+
+	ASSERT(RW_LOCK_HELD(&zp->z_xattr_lock));
+	ASSERT3P(zp->z_xattr_cached, !=, NULL);
+
+	/* Nothing is logged unless the whole publication can be. */
+	if (zfs_tmpfile_plan(zp, &plan) != 0) {
+		zfs_tmpfile_plan_free(&plan);
+		return (B_FALSE);
+	}
+
+	vattr_t va = { 0 };
+	va.va_mask = ATTR_MODE | ATTR_UID | ATTR_GID;
+	va.va_mode = zp->z_mode;
+	va.va_uid  = (uid_t)KUID_TO_SUID(ZTOUID(zp));
+	va.va_gid  = (gid_t)KGID_TO_SGID(ZTOGID(zp));
+
+	zfs_log_create(zilog, tx, TX_TMPFILE, dzp, zp, "", NULL, NULL, &va);
+
+	boolean_t commit = (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS);
+	zfs_log_tmpfile_contents(zilog, tx, zp, &plan, commit);
+
+	nvpair_t *nvp = NULL;
+	while ((nvp = nvlist_next_nvpair(zp->z_xattr_cached, nvp)) != NULL) {
+		uchar_t *val;
+		uint_t vlen;
+
+		VERIFY3U(nvpair_type(nvp), ==, DATA_TYPE_BYTE_ARRAY);
+		VERIFY0(nvpair_value_byte_array(nvp, &val, &vlen));
+		zfs_log_setsaxattr_impl(zilog, tx, TX_SETSAXATTR, zp,
+		    nvpair_name(nvp), val, vlen, B_TRUE);
+	}
+
+	/*
+	 * The final size (holes, including a trailing one, are not logged)
+	 * and mtime (the records above set it to the replay time), with the
+	 * portable mask, so that a pool can be recovered by another OS.
+	 */
+	uint64_t mtime[2];
+	VERIFY0(sa_lookup(zp->z_sa_hdl, SA_ZPL_MTIME(zfsvfs), mtime,
+	    sizeof (mtime)));
+	vattr_t sva = { 0 };
+	sva.va_mask = ATTR_SIZE | ATTR_MTIME;
+	sva.va_size = plan.tp_size;
+	ZFS_TIME_DECODE(&sva.va_mtime, mtime);
+	zfs_log_setattr_impl(zilog, tx, TX_SETATTR, zp, &sva, sva.va_mask,
+	    NULL, B_TRUE, B_TRUE);
+
+	zfs_log_link(zilog, tx, TX_LINK, dzp, zp, name);
+	zfs_tmpfile_plan_free(&plan);
+	return (B_TRUE);
+}
+
+/*
+ * A file published by logging (zfs_log_link_tmpfile()) keeps its
+ * publication TXG in z_publish_txg until that TXG syncs.  The publication's
+ * data records are resolved from the file only when a commit writes them,
+ * so an operation that would make them resolve to a state that never
+ * existed (a truncate below its size, a hole punched or a range zeroed in
+ * it, a clone or dedupe into it, removing its last name) first commits
+ * them, while the file is as published: every prefix of the log then holds
+ * the published file, or it and later records.  A punch or zeroing counts
+ * even though its record follows the publication's: a later write to the
+ * block would otherwise be what the publication's record resolves to, and
+ * that write's own record then carries no data (zfs_get_data() finds the
+ * block already synced), so replay would free the rewritten block again.
+ * Called before taking the file's range lock or assigning a transaction.
+ */
+int
+zfs_tmpfile_settle(znode_t *zp)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	uint64_t txg = zp->z_publish_txg;
+	int error;
+
+	if (txg == 0 ||
+	    txg <= spa_last_synced_txg(dmu_objset_spa(zfsvfs->z_os)))
+		return (0);
+	error = zil_commit(zfsvfs->z_log, zp->z_id);
+	if (error == 0)
+		zp->z_publish_txg = 0;
+	return (error);
+}
+
+ZFS_MODULE_PARAM(zfs, zfs_, tmpfile_log_max_blocks, UINT, ZMOD_RW,
+	"Most blocks an O_TMPFILE publication is logged with; a larger file "
+	"waits for its TXG");

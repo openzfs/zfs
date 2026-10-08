@@ -1,0 +1,137 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+#
+# Crash-image test for O_TMPFILE publication.
+#
+# The pool is frozen at the scenario's START barrier, after its setup state
+# has been synced, so nothing the scenario does reaches the uberblock.  Once
+# the scenario acknowledges its syncs, the vdev is copied while the pool is
+# still imported: that copy is the on-disk state a crash at ACK would leave.
+# Exporting the original instead would first commit every pending intent log
+# record (zil_close), including records that nothing had forced to disk, and
+# could hide publications whose data was never logged by the syncs that were
+# acknowledged.  The copy is imported, replaying its intent log, and checked.
+#
+# Because the pool is frozen, recovery depends only on the intent log: a
+# design that makes publication durable by waiting for a TXG sync, as the
+# unmodified O_TMPFILE code does, is expected to lose the published file.
+# For the same reason the "checkpoint" scenario, whose tmpfile reaches a
+# committed TXG before it is published, is not in this group: its
+# publication is durable only through a TXG that freezing never commits.
+# It is covered by tmpfile_dmlog, where TXG syncs reach the disk.
+# Freezing also makes the intent log copy data into log blocks instead of
+# referencing blocks written by dmu_sync(), so the tmpfile_dmlog tests are
+# needed to cover that path.  The scenarios and checks are provided by the
+# tmpfile_crash command; see tests/zfs-tests/cmd/tmpfile_crash.c.
+#
+
+TMPFILE_CRASH_DIR=$TEST_BASE_DIR/tmpfile_crash
+
+function tmpfile_crash_cleanup
+{
+	if [[ -n "$TMPFILE_CRASH_PID" ]]; then
+		kill -9 $TMPFILE_CRASH_PID 2>/dev/null
+		wait $TMPFILE_CRASH_PID 2>/dev/null
+		TMPFILE_CRASH_PID=""
+	fi
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
+	# A mount made after "zpool import -N" leaves its directory behind.
+	[[ -d /$TESTPOOL ]] && ! ismounted /$TESTPOOL && \
+	    find /$TESTPOOL -depth -type d -empty -delete
+	restore_tunable TXG_TIMEOUT
+	rm -rf $TMPFILE_CRASH_DIR
+}
+
+#
+# Wait for the scenario to print a line starting with $2 into file $1.
+# Fails if the scenario exits first or $3 seconds pass.
+#
+function tmpfile_crash_wait # file prefix timeout
+{
+	typeset -i i=0
+
+	while ! grep -q "^$2" $1; do
+		if ! kill -0 $TMPFILE_CRASH_PID 2>/dev/null; then
+			cat $1
+			log_fail "scenario exited before $2"
+		fi
+		((i += 1))
+		((i > $3 * 10)) && log_fail "no $2 after $3 seconds"
+		sleep 0.1
+	done
+}
+
+#
+# The caller may set TMPFILE_CRASH_FS_OPTS (extra zfs create options) and
+# TMPFILE_CRASH_SLOG (non-empty: give the pool a separate log device, copied
+# into the crash image with the main vdev) and TMPFILE_CRASH_REQUIRE (a line
+# prefix the scenario must print, e.g. "REUSE", or the test has no
+# coverage and fails).
+#
+function tmpfile_crash_image # scenario
+{
+	typeset sc=$1
+	typeset vdev=$TMPFILE_CRASH_DIR/vdev
+	typeset image=$TMPFILE_CRASH_DIR/image
+	typeset out=$TMPFILE_CRASH_DIR/run.out
+	typeset fs=$TESTPOOL/$TESTFS
+
+	log_must rm -rf $TMPFILE_CRASH_DIR
+	log_must mkdir -p $TMPFILE_CRASH_DIR $image
+	typeset vdevs=$vdev
+	log_must truncate -s $MINVDEVSIZE $vdev
+	if [[ -n "$TMPFILE_CRASH_SLOG" ]]; then
+		log_must truncate -s $MINVDEVSIZE $TMPFILE_CRASH_DIR/slog
+		vdevs="$vdev log $TMPFILE_CRASH_DIR/slog"
+	fi
+	log_must zpool create -o cachefile=none -O xattr=sa $TESTPOOL $vdevs
+	log_must zfs create $TMPFILE_CRASH_FS_OPTS $fs
+	typeset mnt zdbout
+	mnt=$(get_prop mountpoint $fs)
+
+	# Keep timed TXG syncs out of the scenario: a publication whose
+	# unnamed file was created in an earlier TXG waits for a TXG instead
+	# of logging, and a frozen pool never commits one.
+	log_must save_tunable TXG_TIMEOUT
+	log_must set_tunable64 TXG_TIMEOUT 600
+	TMPFILE_CRASH_FREEZE=1 tmpfile_crash run $sc $mnt $TESTPOOL \
+	    >$out 2>&1 &
+	TMPFILE_CRASH_PID=$!
+	tmpfile_crash_wait $out ACK 300
+	log_note "$(cat $out)"
+	[[ -z "$TMPFILE_CRASH_REQUIRE" ]] || \
+	    grep -q "^$TMPFILE_CRASH_REQUIRE" $out || \
+	    log_fail "scenario did not print $TMPFILE_CRASH_REQUIRE"
+
+	# Crash image: the vdev as it is on disk at ACK.
+	log_must cp --sparse=always $vdev $image/vdev
+	[[ -n "$TMPFILE_CRASH_SLOG" ]] && \
+	    log_must cp --sparse=always $TMPFILE_CRASH_DIR/slog $image/slog
+
+	kill -9 $TMPFILE_CRASH_PID
+	wait $TMPFILE_CRASH_PID 2>/dev/null
+	TMPFILE_CRASH_PID=""
+	log_must zpool export $TESTPOOL
+	log_must restore_tunable TXG_TIMEOUT
+
+	log_note "Intent log in the crash image:"
+	log_must zdb -e -p "$image" -iv "$fs"
+	log_must zpool import -f -o cachefile=none -d $image $TESTPOOL
+	mnt=$(get_prop mountpoint $fs)
+	log_must tmpfile_crash verify $sc $mnt
+	log_must zpool export $TESTPOOL
+	zdbout=$(zdb -e -p "$image" -b "$TESTPOOL" 2>&1) || \
+	    log_fail "zdb -b $TESTPOOL in $image: $zdbout"
+}

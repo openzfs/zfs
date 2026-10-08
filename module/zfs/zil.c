@@ -938,30 +938,58 @@ zilog_is_dirty(zilog_t *zilog)
 }
 
 /*
+ * Per-dataset features for log record types that older software cannot
+ * replay: TX_SETSAXATTR (zilsaxattr) and TX_TMPFILE (ziltmpfile).  Each is
+ * active on a dataset while its log chain may hold such records: it is
+ * activated, and the activation has synced, before a chain is written to
+ * (zil_create(), or zil_commit_activate_features() for an existing chain),
+ * and deactivated when the chain is destroyed (zil_sync()).  Writers may
+ * create such records whenever the feature is enabled.
+ */
+static const spa_feature_t zil_log_features[] = {
+	SPA_FEATURE_ZILSAXATTR,
+	SPA_FEATURE_ZILTMPFILE,
+};
+
+static boolean_t
+zil_log_feature_wanted(zilog_t *zilog, spa_feature_t f)
+{
+	return (spa_feature_is_enabled(zilog->zl_spa, f) &&
+	    dmu_objset_type(zilog->zl_os) != DMU_OST_ZVOL);
+}
+
+/*
  * Its called in zil_commit context (zil_process_commit_list()/zil_create()).
- * It activates SPA_FEATURE_ZILSAXATTR feature, if its enabled.
- * Check dsl_dataset_feature_is_active to avoid txg_wait_synced() on every
- * zil_commit.
+ * It activates the log features that are enabled on the pool but not yet
+ * active on this dataset, e.g. after they were enabled on a pool with
+ * existing ZIL headers.  Check dsl_dataset_feature_is_active to avoid
+ * txg_wait_synced() on every zil_commit.
  */
 static void
-zil_commit_activate_saxattr_feature(zilog_t *zilog)
+zil_commit_activate_features(zilog_t *zilog)
 {
 	dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
 	uint64_t txg = 0;
 	dmu_tx_t *tx = NULL;
 
-	if (spa_feature_is_enabled(zilog->zl_spa, SPA_FEATURE_ZILSAXATTR) &&
-	    dmu_objset_type(zilog->zl_os) != DMU_OST_ZVOL &&
-	    !dsl_dataset_feature_is_active(ds, SPA_FEATURE_ZILSAXATTR)) {
-		tx = dmu_tx_create(zilog->zl_os);
-		VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
-		dsl_dataset_dirty(ds, tx);
-		txg = dmu_tx_get_txg(tx);
+	for (int i = 0; i < ARRAY_SIZE(zil_log_features); i++) {
+		spa_feature_t f = zil_log_features[i];
 
+		if (!zil_log_feature_wanted(zilog, f) ||
+		    dsl_dataset_feature_is_active(ds, f))
+			continue;
+		if (tx == NULL) {
+			tx = dmu_tx_create(zilog->zl_os);
+			VERIFY0(dmu_tx_assign(tx,
+			    DMU_TX_WAIT | DMU_TX_SUSPEND));
+			dsl_dataset_dirty(ds, tx);
+			txg = dmu_tx_get_txg(tx);
+		}
 		mutex_enter(&ds->ds_lock);
-		ds->ds_feature_activation[SPA_FEATURE_ZILSAXATTR] =
-		    (void *)B_TRUE;
+		ds->ds_feature_activation[f] = (void *)B_TRUE;
 		mutex_exit(&ds->ds_lock);
+	}
+	if (tx != NULL) {
 		dmu_tx_commit(tx);
 		txg_wait_synced(zilog->zl_dmu_pool, txg);
 	}
@@ -1028,17 +1056,19 @@ zil_create(zilog_t *zilog)
 	 */
 	if (tx != NULL) {
 		/*
-		 * If "zilsaxattr" feature is enabled on zpool, then activate
-		 * it now when we're creating the ZIL chain. We can't wait with
-		 * this until we write the first xattr log record because we
-		 * need to wait for the feature activation to sync out.
+		 * If log features ("zilsaxattr", "ziltmpfile") are enabled on
+		 * the zpool, then activate them now when we're creating the ZIL
+		 * chain. We can't wait with this until we write the first such
+		 * log record because we need to wait for the feature
+		 * activation to sync out.
 		 */
-		if (spa_feature_is_enabled(zilog->zl_spa,
-		    SPA_FEATURE_ZILSAXATTR) && dmu_objset_type(zilog->zl_os) !=
-		    DMU_OST_ZVOL) {
+		for (int i = 0; i < ARRAY_SIZE(zil_log_features); i++) {
+			spa_feature_t f = zil_log_features[i];
+
+			if (!zil_log_feature_wanted(zilog, f))
+				continue;
 			mutex_enter(&ds->ds_lock);
-			ds->ds_feature_activation[SPA_FEATURE_ZILSAXATTR] =
-			    (void *)B_TRUE;
+			ds->ds_feature_activation[f] = (void *)B_TRUE;
 			mutex_exit(&ds->ds_lock);
 		}
 
@@ -1049,11 +1079,12 @@ zil_create(zilog_t *zilog)
 		 * This branch covers the case where we enable the feature on a
 		 * zpool that has existing ZIL headers.
 		 */
-		zil_commit_activate_saxattr_feature(zilog);
+		zil_commit_activate_features(zilog);
 	}
-	IMPLY(spa_feature_is_enabled(zilog->zl_spa, SPA_FEATURE_ZILSAXATTR) &&
-	    dmu_objset_type(zilog->zl_os) != DMU_OST_ZVOL,
-	    dsl_dataset_feature_is_active(ds, SPA_FEATURE_ZILSAXATTR));
+	for (int i = 0; i < ARRAY_SIZE(zil_log_features); i++) {
+		IMPLY(zil_log_feature_wanted(zilog, zil_log_features[i]),
+		    dsl_dataset_feature_is_active(ds, zil_log_features[i]));
+	}
 
 	ASSERT(error != 0 || memcmp(&blk, &zh->zh_log, sizeof (blk)) == 0);
 	IMPLY(error == 0, lwb != NULL);
@@ -3154,10 +3185,10 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 		lwb = zil_create(zilog);
 	} else {
 		/*
-		 * Activate SPA_FEATURE_ZILSAXATTR for the cases where ZIL will
+		 * Activate the log features for the cases where ZIL will
 		 * have already been created (zl_lwb_list not empty).
 		 */
-		zil_commit_activate_saxattr_feature(zilog);
+		zil_commit_activate_features(zilog);
 		ASSERT(lwb->lwb_state == LWB_STATE_NEW ||
 		    lwb->lwb_state == LWB_STATE_OPENED);
 
@@ -4183,13 +4214,18 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 		} else {
 			/*
 			 * A destroyed ZIL chain can't contain any TX_SETSAXATTR
-			 * records. So, deactivate the feature for this dataset.
-			 * We activate it again when we start a new ZIL chain.
+			 * or TX_TMPFILE records. So, deactivate the features
+			 * for this dataset. We activate them again when we
+			 * start a new ZIL chain.
 			 */
-			if (dsl_dataset_feature_is_active(ds,
-			    SPA_FEATURE_ZILSAXATTR))
-				dsl_dataset_deactivate_feature(ds,
-				    SPA_FEATURE_ZILSAXATTR, tx);
+			for (int i = 0; i < ARRAY_SIZE(zil_log_features);
+			    i++) {
+				spa_feature_t f = zil_log_features[i];
+
+				if (dsl_dataset_feature_is_active(ds, f))
+					dsl_dataset_deactivate_feature(ds, f,
+					    tx);
+			}
 		}
 	}
 
@@ -4683,6 +4719,12 @@ zil_replay_error(zilog_t *zilog, const lr_t *lr, int error)
 	return (error);
 }
 
+/*
+ * For tests: sync a TXG after each replayed record, so that every partial
+ * replay reaches the disk.  Slows replay down to a TXG per record.
+ */
+static int zil_replay_sync_per_record = 0;
+
 static int
 zil_replay_log_record(zilog_t *zilog, const lr_t *lr, void *zra,
     uint64_t claim_txg)
@@ -4763,6 +4805,8 @@ zil_replay_log_record(zilog_t *zilog, const lr_t *lr, void *zra,
 		if (error != 0)
 			return (zil_replay_error(zilog, lr, error));
 	}
+	if (zil_replay_sync_per_record)
+		txg_wait_synced(spa_get_dsl(zilog->zl_spa), 0);
 	return (0);
 }
 
@@ -4895,3 +4939,6 @@ ZFS_MODULE_PARAM(zfs, zfs_, immediate_write_sz, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_zil, zil_, special_is_slog, INT, ZMOD_RW,
 	"Treat special vdevs as SLOG");
+
+ZFS_MODULE_PARAM(zfs_zil, zil_, replay_sync_per_record, INT, ZMOD_RW,
+	"Sync a TXG after each replayed ZIL record (for testing)");

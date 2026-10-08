@@ -26,6 +26,7 @@ scripts_zfs_tests_functional_tmpfile_PROGRAMS = \
 	%D%/tests/functional/tmpfile/tmpfile_001_pos \
 	%D%/tests/functional/tmpfile/tmpfile_002_pos \
 	%D%/tests/functional/tmpfile/tmpfile_003_pos \
+	%D%/tests/functional/tmpfile/tmpfile_replay \
 	%D%/tests/functional/tmpfile/tmpfile_stat_mode \
 	%D%/tests/functional/tmpfile/tmpfile_test
 endif

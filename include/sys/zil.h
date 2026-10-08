@@ -158,7 +158,8 @@ typedef enum zil_create {
 #define	TX_RENAME_EXCHANGE	22	/* Atomic swap via renameat2 */
 #define	TX_RENAME_WHITEOUT	23	/* Atomic whiteout via renameat2 */
 #define	TX_CLONE_RANGE		24	/* Clone a file range */
-#define	TX_MAX_TYPE		25	/* Max transaction type */
+#define	TX_TMPFILE		25	/* Create an unnamed (O_TMPFILE) file */
+#define	TX_MAX_TYPE		26	/* Max transaction type */
 
 /*
  * The transactions for mkdir, symlink, remove, rmdir, link, and rename
@@ -371,6 +372,22 @@ typedef struct {
 	/* optional attribute lr_attr_t may be here */
 	uint8_t		lr_data[];
 } lr_setattr_t;
+
+/*
+ * lr_mask of a TX_SETATTR record normally holds the attribute bits of the
+ * OS that wrote it, which differ between Linux and FreeBSD.  A record with
+ * ZIL_SETATTR_PORTABLE set holds the ZIL_SETATTR_* bits below instead,
+ * which every OS translates to its own.  Only O_TMPFILE publication writes
+ * such records, on datasets with the ziltmpfile feature active, so any
+ * reader that can replay the publication knows the encoding.
+ */
+#define	ZIL_SETATTR_PORTABLE	(1ULL << 63)
+#define	ZIL_SETATTR_MODE	(1ULL << 0)
+#define	ZIL_SETATTR_UID		(1ULL << 1)
+#define	ZIL_SETATTR_GID		(1ULL << 2)
+#define	ZIL_SETATTR_SIZE	(1ULL << 3)
+#define	ZIL_SETATTR_ATIME	(1ULL << 4)
+#define	ZIL_SETATTR_MTIME	(1ULL << 5)
 
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */

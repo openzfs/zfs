@@ -318,6 +318,12 @@ zfs_unlinked_drain(zfsvfs_t *zfsvfs)
 		if (error != 0)
 			continue;
 
+		/* Skip unnamed files held by ZIL replay: may be published. */
+		if (zp->z_replay_tmpfile) {
+			vrele(ZTOV(zp));
+			continue;
+		}
+
 		vn_lock(ZTOV(zp), LK_EXCLUSIVE | LK_RETRY);
 
 		/*

@@ -44,6 +44,7 @@
 #include <sys/dmu.h>
 #include <sys/dmu_objset.h>
 #include <sys/spa.h>
+#include <sys/zfeature.h>
 #include <sys/txg.h>
 #include <sys/dbuf.h>
 #include <sys/zap.h>
@@ -964,6 +965,12 @@ top:
 	zp->z_unlinked = B_TRUE;
 	zfs_unlinked_add(zp, tx);
 	zfs_acl_ids_free(&acl_ids);
+	/*
+	 * Nothing is logged here; publication logs the file later.  When
+	 * replaying TX_TMPFILE, record the replay progress in this TX.
+	 */
+	if (zfsvfs->z_replay)
+		(void) zil_replaying(zfsvfs->z_log, tx);
 	dmu_tx_commit(tx);
 out:
 
@@ -985,6 +992,24 @@ zfs_tmpfile(struct inode *dip, vattr_t *vap, int excl,
 {
 	return (zfs_tmpfile_idmap(dip, vap, excl, mode, ipp, cr, flag, vsecp,
 	    zfs_init_idmap));
+}
+
+/*
+ * ZIL replay of TX_TMPFILE: create the unnamed object, in the unlinked
+ * set, and return it referenced.
+ */
+int
+zfs_replay_create_unnamed(znode_t *dzp, vattr_t *vap, int mode,
+    znode_t **zpp)
+{
+	struct inode *ip = NULL;
+	int error;
+
+	ASSERT(ZTOZSB(dzp)->z_replay);
+	error = zfs_tmpfile(ZTOI(dzp), vap, 0, mode, &ip, kcred, 0, NULL);
+	if (error == 0)
+		*zpp = ITOZ(ip);
+	return (error);
 }
 
 /*
@@ -1065,6 +1090,10 @@ top:
 		error = SET_ERROR(EPERM);
 		goto out;
 	}
+
+	/* A just-published file's records first (zfs_tmpfile_settle()). */
+	if ((error = zfs_tmpfile_settle(zp)) != 0)
+		goto out;
 
 	mutex_enter(&zp->z_lock);
 	may_delete_now = atomic_read(&ZTOI(zp)->i_count) == 1 &&
@@ -3079,6 +3108,10 @@ top:
 			error = 0;
 			goto out;
 		}
+		/* A just-published target's records first. */
+		if (!(rflags & RENAME_EXCHANGE) &&
+		    (error = zfs_tmpfile_settle(tzp)) != 0)
+			goto out;
 	} else if (rflags & RENAME_EXCHANGE) {
 		/* Target must exist for RENAME_EXCHANGE. */
 		error = SET_ERROR(ENOENT);
@@ -3560,6 +3593,95 @@ zfs_readlink(struct inode *ip, zfs_uio_t *uio, cred_t *cr)
 }
 
 /*
+ * TXG callback: the publication of zp has synced; release the hold that
+ * zfs_link() took.  Not in syncing context's way: the release may be the
+ * last reference, so it is done asynchronously.
+ */
+static void
+zfs_tmpfile_published(void *arg, int error)
+{
+	znode_t *zp = arg;
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+
+	(void) error;
+	zfs_zrele_async(zp);
+	atomic_dec_64(&zfsvfs->z_publish_holds);
+}
+
+/*
+ * Returns B_TRUE if the O_TMPFILE inode zp can be published into dzp by
+ * logging it as a new file (zfs_log_link_tmpfile()).  Replay recreates it
+ * as zfs_mknode() creates a file in dzp, with its mode, owner, group and
+ * logged xattrs, so it must have no attribute a user can set (chattr(1)
+ * flags, xvattrs), the project that dzp gives a new file, and the native
+ * (NFSv4) ACL a new file in dzp gets: the ACL itself is not logged, so
+ * it must be exactly the one its mode gives a new file
+ * (zfs_acl_is_from_mode()) and dzp must have no inheritable ACEs.
+ * Upstream Linux OpenZFS cannot set a native ACL, but a pool imported or
+ * a dataset received from an implementation that can carries them, and
+ * a file inherits from the directory it was opened in, not the one it
+ * is published into.  All of its xattrs
+ * must be system attribute xattrs, their cache must be loaded so they
+ * can be logged, and if there are any, the pool must allow TX_SETSAXATTR
+ * records.  Directory-based xattrs, including SA-dataset xattrs too
+ * large for the SA, cannot be logged that way.  Any doubt, including a
+ * failed lookup, selects the TXG wait instead.  Called with
+ * zp->z_xattr_lock held.
+ */
+static boolean_t
+zfs_tmpfile_loggable(znode_t *zp, znode_t *dzp)
+{
+	const uint64_t user_pflags = ZFS_READONLY | ZFS_HIDDEN | ZFS_SYSTEM |
+	    ZFS_IMMUTABLE | ZFS_NOUNLINK | ZFS_APPENDONLY | ZFS_NODUMP |
+	    ZFS_OPAQUE | ZFS_AV_QUARANTINED | ZFS_REPARSE | ZFS_OFFLINE |
+	    ZFS_SPARSE;
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	uint64_t xoid = 0;
+	int error;
+
+	ASSERT(RW_LOCK_HELD(&zp->z_xattr_lock));
+
+	/*
+	 * TX_TMPFILE needs the ziltmpfile feature: older software cannot
+	 * replay it.  Enabled is enough here; the commit that issues the
+	 * record first makes the feature active on the dataset (see
+	 * zil_log_features in zil.c).
+	 */
+	if (!spa_feature_is_enabled(dmu_objset_spa(zfsvfs->z_os),
+	    SPA_FEATURE_ZILTMPFILE))
+		return (B_FALSE);
+
+	if ((zp->z_pflags & user_pflags) != 0 ||
+	    zp->z_projid != zfs_inherit_projid(dzp) ||
+	    (zp->z_pflags & ZFS_PROJINHERIT) !=
+	    (dzp->z_pflags & ZFS_PROJINHERIT))
+		return (B_FALSE);
+
+	if ((dzp->z_pflags & ZFS_INHERIT_ACE) || !zfs_acl_is_from_mode(zp))
+		return (B_FALSE);
+
+	if (!zfsvfs->z_use_sa || !zp->z_is_sa)
+		return (B_FALSE);
+
+	error = sa_lookup(zp->z_sa_hdl, SA_ZPL_XATTR(zfsvfs), &xoid,
+	    sizeof (xoid));
+	if (error == ENOENT)
+		error = 0;
+	else if (error != 0 || xoid != 0)
+		return (B_FALSE);
+
+	mutex_enter(&zp->z_lock);
+	if (zp->z_xattr_cached == NULL)
+		error = zfs_sa_get_xattr(zp);
+	mutex_exit(&zp->z_lock);
+	if (error != 0)
+		return (B_FALSE);
+
+	return (nvlist_next_nvpair(zp->z_xattr_cached, NULL) == NULL ||
+	    zfs_sa_xattr_log_enabled(zfsvfs->z_os));
+}
+
+/*
  * Insert a new entry into directory tdzp referencing szp.
  *
  *	IN:	tdzp	- Directory to contain new entry.
@@ -3591,6 +3713,8 @@ zfs_link(znode_t *tdzp, znode_t *szp, char *name, cred_t *cr,
 	uid_t		owner;
 	boolean_t	waited = B_FALSE;
 	boolean_t	is_tmpfile = 0;
+	boolean_t	log_tmpfile = B_FALSE;
+	zfs_locked_range_t *lr = NULL;
 	uint64_t	txg;
 
 	is_tmpfile = (sip->i_nlink == 0 &&
@@ -3684,12 +3808,32 @@ zfs_link(znode_t *tdzp, znode_t *szp, char *name, cred_t *cr,
 		return (error);
 	}
 
+	/*
+	 * An O_TMPFILE inode is published by logging it as a new file when
+	 * possible; otherwise the TXG that links it is waited for below.  Its
+	 * contents and xattrs are logged from its current state, so a range
+	 * lock over the whole file excludes writers (taken, as for a write,
+	 * before the transaction is assigned) and z_xattr_lock is held (its
+	 * xattrs are logged from the SA xattr cache) until the log records
+	 * are assigned.
+	 */
+	if (is_tmpfile) {
+		lr = zfs_rangelock_enter(&szp->z_rangelock, 0, UINT64_MAX,
+		    RL_WRITER);
+		rw_enter(&szp->z_xattr_lock, RW_READER);
+		log_tmpfile = zfs_tmpfile_loggable(szp, tdzp);
+	}
+
 top:
 	/*
 	 * Attempt to lock directory; fail if entry already exists.
 	 */
 	error = zfs_dirent_lock(&dl, tdzp, name, &tzp, zf, NULL, NULL);
 	if (error) {
+		if (is_tmpfile) {
+			rw_exit(&szp->z_xattr_lock);
+			zfs_rangelock_exit(lr);
+		}
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
@@ -3714,9 +3858,27 @@ top:
 			goto top;
 		}
 		dmu_tx_abort(tx);
+		if (is_tmpfile) {
+			rw_exit(&szp->z_xattr_lock);
+			zfs_rangelock_exit(lr);
+		}
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
 	}
+	/*
+	 * Only an inode created in this transaction group can be published
+	 * by logging: its contents are then all dirty in this TXG, and it
+	 * cannot have reached disk while unnamed.  Its generation number is
+	 * the TXG that created it.
+	 */
+	if (log_tmpfile) {
+		uint64_t gen = 0;
+
+		if (sa_lookup(szp->z_sa_hdl, SA_ZPL_GEN(zfsvfs), &gen,
+		    sizeof (gen)) != 0 || gen != dmu_tx_get_txg(tx))
+			log_tmpfile = B_FALSE;
+	}
+
 	/* unmark z_unlinked so zfs_link_create will not reject */
 	if (is_tmpfile)
 		szp->z_unlinked = B_FALSE;
@@ -3724,16 +3886,27 @@ top:
 
 	if (error == 0) {
 		uint64_t txtype = TX_LINK;
-		/*
-		 * tmpfile is created to be in z_unlinkedobj, so remove it.
-		 * Also, we don't log in ZIL, because all previous file
-		 * operation on the tmpfile are ignored by ZIL. Instead we
-		 * always wait for txg to sync to make sure all previous
-		 * operation are sync safe.
-		 */
 		if (is_tmpfile) {
+			/* remove from unlinked set */
 			VERIFY0(zap_remove_int(zfsvfs->z_os,
 			    zfsvfs->z_unlinkedobj, szp->z_id, tx));
+			/*
+			 * Falls back to the TXG wait if not logged.  Once
+			 * logged, szp is held, so that it keeps z_publish_txg,
+			 * until this TXG syncs (see zfs_tmpfile_settle()).
+			 */
+			if (log_tmpfile)
+				log_tmpfile = zfs_log_link_tmpfile(zilog, tx,
+				    tdzp, szp, name);
+			if (log_tmpfile && !zfsvfs->z_replay) {
+				szp->z_publish_txg = dmu_tx_get_txg(tx);
+				zhold(szp);
+				atomic_inc_64(&zfsvfs->z_publish_holds);
+				dmu_tx_callback_register(tx,
+				    zfs_tmpfile_published, szp);
+			}
+			if (!log_tmpfile && zfsvfs->z_replay)
+				(void) zil_replaying(zilog, tx);
 		} else {
 			if (flags & FIGNORECASE)
 				txtype |= TX_CI;
@@ -3747,12 +3920,18 @@ top:
 	dmu_tx_commit(tx);
 
 	zfs_dirent_unlock(dl);
+	if (is_tmpfile) {
+		rw_exit(&szp->z_xattr_lock);
+		zfs_rangelock_exit(lr);
+	}
 
 	if (error == 0) {
-		if (!is_tmpfile && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS &&
+		    (!is_tmpfile || log_tmpfile))
 			error = zil_commit(zilog, 0);
 
-		if (is_tmpfile && zfsvfs->z_os->os_sync != ZFS_SYNC_DISABLED) {
+		if (is_tmpfile && !log_tmpfile && !zfsvfs->z_replay &&
+		    zfsvfs->z_os->os_sync != ZFS_SYNC_DISABLED) {
 			txg_wait_flag_t wait_flags =
 			    spa_get_failmode(dmu_objset_spa(zfsvfs->z_os)) ==
 			    ZIO_FAILURE_MODE_CONTINUE ? TXG_WAIT_SUSPEND : 0;
