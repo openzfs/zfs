@@ -2184,6 +2184,23 @@ spa_dedup_class(spa_t *spa)
 	return (spa->spa_dedup_class);
 }
 
+/*
+ * Whether gang headers can be larger than SPA_OLD_GANGBLOCKSIZE.  While a
+ * pool is being loaded, the MOS is read before the feature refcounts are,
+ * so spa_feature_is_active() is still false; the label's features_for_read
+ * lists dynamic_gang_header (a ZFEATURE_FLAG_MOS feature) when it is active.
+ */
+boolean_t
+spa_dynamic_gang_header(spa_t *spa)
+{
+	if (spa_feature_is_active(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER))
+		return (B_TRUE);
+	return (spa->spa_load_state != SPA_LOAD_NONE &&
+	    spa->spa_label_features != NULL &&
+	    nvlist_exists(spa->spa_label_features,
+	    spa_feature_table[SPA_FEATURE_DYNAMIC_GANG_HEADER].fi_guid));
+}
+
 boolean_t
 spa_special_has_ddt(spa_t *spa)
 {
