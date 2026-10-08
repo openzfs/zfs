@@ -931,6 +931,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_receive/zfs_receive_new_props.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_raw_-d.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_raw_incremental.ksh \
+	functional/cli_root/zfs_receive/zfs_receive_promote_outside.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_raw.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_to_encrypted.ksh \
 	functional/cli_root/zfs_receive/zfs_receive_-wR-encrypted-mix.ksh \
