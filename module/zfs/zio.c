@@ -4463,6 +4463,24 @@ piggyback:
 		need_dvas -= parent_dvas;
 	}
 
+	/*
+	 * An override BP skipped the compress and encrypt stages, so we only
+	 * have the logical data, not what the BP describes.  We can't write
+	 * more copies from that, so restart as a regular dedup write, which
+	 * compresses the data again.  dbuf_write_override_done() frees the
+	 * override block.
+	 */
+	if (zio->io_bp_override) {
+		if (dde_io != NULL)
+			mutex_exit(&dde_io->dde_io_lock);
+		ddt_exit(ddt);
+		zio->io_bp_override = NULL;
+		*bp = zio->io_bp_orig;
+		zio->io_pipeline = zio->io_orig_pipeline;
+		zio->io_stage = ZIO_STAGE_OPEN;
+		return (zio);
+	}
+
 	if (is_ganged) {
 		if (dde_io != NULL)
 			mutex_exit(&dde_io->dde_io_lock);
