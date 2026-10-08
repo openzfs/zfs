@@ -2208,6 +2208,16 @@ spa_preferred_class(spa_t *spa, const zio_t *zio)
 	}
 
 	/*
+	 * Allocations fall back from the dedup class to the special class
+	 * to the normal class.  The normal class is the last resort: a
+	 * block there has either failed in the other classes already or
+	 * never belonged in them, so the caller must gang it rather than
+	 * fall back again, or it would bounce between the classes forever.
+	 */
+	if (mc == spa_normal_class(spa))
+		return (mc);
+
+	/*
 	 * Override object type for the purposes of selecting a storage class.
 	 * Primarily for DMU_OTN_ types where we can't explicitly control their
 	 * storage class; instead, choose a static type most closely matches
