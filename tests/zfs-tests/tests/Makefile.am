@@ -2294,6 +2294,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/slog/slog_016_pos.ksh \
 	functional/slog/slog_replay_fs_001.ksh \
 	functional/slog/slog_replay_fs_002.ksh \
+	functional/slog/slog_replay_fs_003.ksh \
 	functional/slog/slog_replay_volume.ksh \
 	functional/snapdir/cleanup.ksh \
 	functional/snapdir/setup.ksh \
