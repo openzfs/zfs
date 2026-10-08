@@ -6015,8 +6015,9 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, const char *origin,
 			 * system, we can't clear the $hasrecvd flag.
 			 */
 			*errflags |= ZPROP_ERR_NORESTORE;
-		} else if (first_recvd_props) {
-			dsl_prop_unset_hasrecvd(tofs);
+		} else if (first_recvd_props &&
+		    dsl_prop_unset_hasrecvd(tofs) != 0) {
+			*errflags |= ZPROP_ERR_NORESTORE;
 		}
 
 		if (origrecvd == NULL && !drc.drc_newfs) {
