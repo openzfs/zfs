@@ -202,6 +202,7 @@ typedef struct pool_entry {
 typedef struct name_entry {
 	char			*ne_name;
 	uint64_t		ne_guid;
+	uint64_t		ne_pool_guid;	/* 0 for spares and l2cache */
 	uint64_t		ne_order;
 	uint64_t		ne_num_labels;
 	struct name_entry	*ne_next;
@@ -213,22 +214,69 @@ typedef struct pool_list {
 } pool_list_t;
 
 /*
+ * Find the best name for the leaf vdev with the given guid.  With
+ * pool_guid != 0, only consider devices whose label has that pool guid
+ * (or none: spares and l2cache devices).
+ */
+static name_entry_t *
+best_name(name_entry_t *names, uint64_t guid, const char *path,
+    uint64_t pool_guid)
+{
+	name_entry_t *ne, *best = NULL;
+
+	for (ne = names; ne != NULL; ne = ne->ne_next) {
+		if (ne->ne_guid != guid)
+			continue;
+		if (pool_guid != 0 && ne->ne_pool_guid != 0 &&
+		    ne->ne_pool_guid != pool_guid)
+			continue;
+
+		if (path == NULL)
+			return (ne);
+
+		if ((strlen(path) == strlen(ne->ne_name)) &&
+		    strncmp(path, ne->ne_name, strlen(path)) == 0)
+			return (ne);
+
+		if (best == NULL) {
+			best = ne;
+			continue;
+		}
+
+		/* Prefer paths with move vdev labels. */
+		if (ne->ne_num_labels > best->ne_num_labels) {
+			best = ne;
+			continue;
+		}
+
+		/* Prefer paths earlier in the search order. */
+		if (ne->ne_num_labels == best->ne_num_labels &&
+		    ne->ne_order < best->ne_order) {
+			best = ne;
+			continue;
+		}
+	}
+	return (best);
+}
+
+/*
  * Go through and fix up any path and/or devid information for the given vdev
- * configuration.
+ * configuration of the pool with the given guid.
  */
 static int
-fix_paths(libpc_handle_t *hdl, nvlist_t *nv, name_entry_t *names)
+fix_paths(libpc_handle_t *hdl, nvlist_t *nv, name_entry_t *names,
+    uint64_t pool_guid)
 {
 	nvlist_t **child;
 	uint_t c, children;
 	uint64_t guid;
-	name_entry_t *ne, *best;
+	name_entry_t *best;
 	const char *path;
 
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) == 0) {
 		for (c = 0; c < children; c++)
-			if (fix_paths(hdl, child[c], names) != 0)
+			if (fix_paths(hdl, child[c], names, pool_guid) != 0)
 				return (-1);
 		return (0);
 	}
@@ -244,44 +292,20 @@ fix_paths(libpc_handle_t *hdl, nvlist_t *nv, name_entry_t *names)
 	 * matches the ZPOOL_CONFIG_PATH.  If no matching entry is found we
 	 * use the lowest order device which corresponds to the first match
 	 * while traversing the ZPOOL_IMPORT_PATH search path.
+	 *
+	 * Vdev guids survive 'zpool reguid', so a stale copy of a device can
+	 * have the same vdev guid (and path) as a device of another pool.
+	 * Prefer devices whose label belongs to this pool; fall back to any
+	 * device, as a reguid interrupted by a crash leaves labels of the
+	 * same pool with different pool guids.
 	 */
 	verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) == 0);
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) != 0)
 		path = NULL;
 
-	best = NULL;
-	for (ne = names; ne != NULL; ne = ne->ne_next) {
-		if (ne->ne_guid == guid) {
-			if (path == NULL) {
-				best = ne;
-				break;
-			}
-
-			if ((strlen(path) == strlen(ne->ne_name)) &&
-			    strncmp(path, ne->ne_name, strlen(path)) == 0) {
-				best = ne;
-				break;
-			}
-
-			if (best == NULL) {
-				best = ne;
-				continue;
-			}
-
-			/* Prefer paths with move vdev labels. */
-			if (ne->ne_num_labels > best->ne_num_labels) {
-				best = ne;
-				continue;
-			}
-
-			/* Prefer paths earlier in the search order. */
-			if (ne->ne_num_labels == best->ne_num_labels &&
-			    ne->ne_order < best->ne_order) {
-				best = ne;
-				continue;
-			}
-		}
-	}
+	best = best_name(names, guid, path, pool_guid);
+	if (best == NULL && pool_guid != 0)
+		best = best_name(names, guid, path, 0);
 
 	if (best == NULL)
 		return (0);
@@ -494,6 +518,7 @@ add_config(libpc_handle_t *hdl, pool_list_t *pl, const char *path,
 	}
 
 	ne->ne_guid = vdev_guid;
+	ne->ne_pool_guid = pool_guid;
 	ne->ne_order = order;
 	ne->ne_num_labels = num_labels;
 	ne->ne_next = pl->names;
@@ -850,7 +875,7 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		 * Go through and fix up any paths and/or devids based on our
 		 * known list of vdev GUID -> path mappings.
 		 */
-		if (fix_paths(hdl, nvroot, pl->names) != 0) {
+		if (fix_paths(hdl, nvroot, pl->names, pe->pe_guid) != 0) {
 			nvlist_free(nvroot);
 			goto nomem;
 		}
@@ -921,7 +946,8 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 					update_vdev_config_dev_strs(spares[i]);
 					continue;
 				}
-				if (fix_paths(hdl, spares[i], pl->names) != 0)
+				if (fix_paths(hdl, spares[i], pl->names,
+				    pe->pe_guid) != 0)
 					goto nomem;
 			}
 		}
@@ -937,7 +963,8 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 					update_vdev_config_dev_strs(l2cache[i]);
 					continue;
 				}
-				if (fix_paths(hdl, l2cache[i], pl->names) != 0)
+				if (fix_paths(hdl, l2cache[i], pl->names,
+				    pe->pe_guid) != 0)
 					goto nomem;
 			}
 		}
