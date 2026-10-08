@@ -33,6 +33,7 @@
 #include <sys/zfs_znode.h>
 #include <sys/zfeature.h>
 #include <sys/metaslab.h>
+#include "zfs_namecheck.h"
 
 #define	DST_AVG_BLKSHIFT 14
 
@@ -137,6 +138,18 @@ zcp_synctask_clone(lua_State *state, boolean_t sync, nvlist_t *err_details)
 		.ddca_clone = lua_tostring(state, 2),
 		.ddca_cred = ri->zri_cred,
 	};
+
+	/*
+	 * Check the new name as the ioctl path does for zfs clone: '%' is
+	 * reserved for internal datasets, which zfs list never shows.  Names
+	 * that are too long are left to dsl_dataset_clone_check(), which
+	 * returns ENAMETOOLONG.
+	 */
+	namecheck_err_t why;
+	char what;
+	if ((dataset_namecheck(ddca.ddca_clone, &why, &what) != 0 &&
+	    why != NAME_ERR_TOOLONG) || strchr(ddca.ddca_clone, '%') != NULL)
+		return (SET_ERROR(EINVAL));
 
 	err = zcp_sync_task(state, dsl_dataset_clone_check,
 	    dsl_dataset_clone_sync, &ddca, sync, ddca.ddca_origin);
