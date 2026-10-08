@@ -489,7 +489,7 @@ nvt_remove_nvpair(nvlist_t *nvl, const nvpair_t *nvp)
 }
 
 static int
-nvt_add_nvpair(nvlist_t *nvl, nvpair_t *nvp)
+nvt_add_nvpair(nvlist_t *nvl, nvpair_t *nvp, boolean_t check_dup)
 {
 	nvpriv_t *priv = (nvpriv_t *)(uintptr_t)nvl->nvl_priv;
 
@@ -502,9 +502,10 @@ nvt_add_nvpair(nvlist_t *nvl, nvpair_t *nvp)
 
 	/*
 	 * if we don't allow duplicate entries, make sure to
-	 * unlink any existing entries from the table.
+	 * unlink any existing entries from the table.  A caller that
+	 * has already removed them passes B_FALSE to skip the search.
 	 */
-	if (nvl->nvl_nvflag != 0) {
+	if (check_dup && nvl->nvl_nvflag != 0) {
 		int err = nvt_remove_nvpair(nvl, nvp);
 		if (err != 0)
 			return (err);
@@ -1291,7 +1292,7 @@ nvlist_add_common(nvlist_t *nvl, const char *name,
 	else if (nvl->nvl_nvflag & NV_UNIQUE_NAME_TYPE)
 		(void) nvlist_remove(nvl, name, type);
 
-	err = nvt_add_nvpair(nvl, nvp);
+	err = nvt_add_nvpair(nvl, nvp, B_FALSE);
 	if (err != 0) {
 		nvpair_free(nvp);
 		nvp_buf_free(nvl, nvp);
@@ -2442,7 +2443,7 @@ nvs_decode_pairs(nvstream_t *nvs, nvlist_t *nvl)
 			return (EFAULT);
 		}
 
-		err = nvt_add_nvpair(nvl, nvp);
+		err = nvt_add_nvpair(nvl, nvp, B_TRUE);
 		if (err != 0) {
 			nvpair_free(nvp);
 			nvp_buf_free(nvl, nvp);
