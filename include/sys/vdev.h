@@ -208,6 +208,8 @@ extern void vdev_clear_kobj_evt(vdev_t *vd);
 extern void vdev_top_config_generate(spa_t *spa, nvlist_t *config);
 extern nvlist_t *vdev_config_generate(spa_t *spa, vdev_t *vd,
     boolean_t getstats, vdev_config_flag_t flags);
+extern void vdev_config_generate_impl(spa_t *spa, vdev_t *vd, nvlist_t *nv,
+    boolean_t getstats, vdev_config_flag_t flags);
 
 /*
  * Label routines
