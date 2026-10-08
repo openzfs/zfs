@@ -12,7 +12,8 @@ Usage: failfirst-detect.py BASE HEAD
 A test commit is a non-merge commit in BASE..HEAD that:
 - changes only files under tests/,
 - adds or modifies at least one test script (tests/zfs-tests/tests/**.ksh,
-  other than setup.ksh and cleanup.ksh), and
+  other than setup.ksh and cleanup.ksh), or a channel program (.zcp) whose
+  .ksh test of the same name exists, and
 - is followed by at least one commit that changes files outside tests/.
 
 Prints a JSON object to stdout:
@@ -42,6 +43,8 @@ MAX_TEST_COMMITS = 4
 
 # Paths are passed to shell scripts, so only plain names are accepted.
 TEST_SCRIPT_RE = re.compile(r'^tests/zfs-tests/(tests/[A-Za-z0-9_./-]+\.ksh)$')
+# A channel program (.zcp) is run by the .ksh test of the same name.
+ZCP_RE = re.compile(r'^tests/zfs-tests/(tests/[A-Za-z0-9_./-]+)\.zcp$')
 NOT_A_TEST = ('setup.ksh', 'cleanup.ksh')
 
 
@@ -69,13 +72,22 @@ def changed_files(sha):
     return files
 
 
-def tests_in(files):
+def tests_in(sha, files):
     """Test scripts added or modified (not deleted) by a commit."""
     tests = []
     for status, path in files:
+        if status == 'D':
+            continue
         m = TEST_SCRIPT_RE.match(path)
-        if m and status != 'D' and os.path.basename(path) not in NOT_A_TEST:
-            tests.append(m.group(1))
+        if m and os.path.basename(path) not in NOT_A_TEST:
+            test = m.group(1)
+        else:
+            m = ZCP_RE.match(path)
+            if not m or not exists_at(sha, m.group(1) + '.ksh'):
+                continue
+            test = m.group(1) + '.ksh'
+        if test not in tests:
+            tests.append(test)
     return tests
 
 
@@ -102,7 +114,7 @@ def main():
             'sha': sha,
             'title': git('log', '-1', '--format=%s', sha).strip(),
             'only_tests': only_tests,
-            'tests': tests_in(files) if only_tests else [],
+            'tests': tests_in(sha, files) if only_tests else [],
         })
 
     pairs = []

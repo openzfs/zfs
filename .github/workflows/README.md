@@ -108,7 +108,8 @@ looks for a *test commit*:
 
 - it changes only files under `tests/`,
 - it adds or modifies at least one test script (other than `setup.ksh`
-  and `cleanup.ksh`), and
+  and `cleanup.ksh`), or a channel program (`.zcp`) that is run by the
+  `.ksh` test of the same name, and
 - a later commit in the PR changes files outside `tests/`.
 
 For each test commit (up to four), a `verify` job builds that commit with
