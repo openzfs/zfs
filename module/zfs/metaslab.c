@@ -6136,9 +6136,13 @@ metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg, boolean_t now)
 	 * Note that, we don't checkpoint any blocks if the current
 	 * syncing txg <= spa_checkpoint_txg. We want these frees to sync
 	 * normally as they will be referenced by the checkpointed uberblock.
+	 *
+	 * What matters is when the space was allocated: a cloned block's
+	 * logical birth is the txg of the clone, but its DVAs are the
+	 * original's, so use the physical birth.
 	 */
 	boolean_t checkpoint = B_FALSE;
-	if (BP_GET_BIRTH(bp) <= spa->spa_checkpoint_txg &&
+	if (BP_GET_PHYSICAL_BIRTH(bp) <= spa->spa_checkpoint_txg &&
 	    spa_syncing_txg(spa) > spa->spa_checkpoint_txg) {
 		/*
 		 * At this point, if the block is part of the checkpoint
