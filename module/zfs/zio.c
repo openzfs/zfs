@@ -3294,8 +3294,7 @@ static void
 zio_gang_tree_assemble(zio_t *gio, blkptr_t *bp, zio_gang_node_t **gnpp)
 {
 	uint64_t gangblocksize = UINT64_MAX;
-	if (spa_feature_is_active(gio->io_spa,
-	    SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
+	if (spa_dynamic_gang_header(gio->io_spa)) {
 		spa_config_enter(gio->io_spa, SCL_VDEV, FTAG, RW_READER);
 		for (int dva = 0; dva < BP_GET_NDVAS(bp); dva++) {
 			vdev_t *vd = vdev_lookup_top(gio->io_spa,
