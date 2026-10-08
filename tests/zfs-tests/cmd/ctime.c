@@ -327,6 +327,7 @@ main(void)
 
 	for (i = 0; i < NCOMMAND; i++) {
 		time_t t1, t2, before, after;
+		unsigned int remaining;
 
 		/*
 		 * Get original time before operating.
@@ -339,10 +340,15 @@ main(void)
 		}
 
 		/*
-		 * Sleep 2 seconds, then invoke command on given file
+		 * Wait until at least 2 wall-clock seconds have passed.  Sleep
+		 * may be interrupted, or the wall clock may be adjusted.
 		 */
 		before = time(NULL);
-		(void) sleep(2);
+		do {
+			remaining = 2;
+			while (remaining != 0)
+				remaining = sleep(remaining);
+		} while (time(NULL) < before + 2);
 		timetest_table[i].func(tfile);
 		after = time(NULL);
 
