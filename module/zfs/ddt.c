@@ -2931,6 +2931,8 @@ ddt_prune_unique_entries(spa_t *spa, zpool_ddt_prune_unit_t unit,
 		ddt_prune_walk(spa, 0, &histogram);
 
 		uint64_t target = (histogram.dah_entries * amount) / 100;
+		if (target == 0)
+			goto out;
 
 		/*
 		 * Figure out our cutoff date
@@ -2964,6 +2966,7 @@ ddt_prune_unique_entries(spa_t *spa, zpool_ddt_prune_unit_t unit,
 		ddt_prune_walk(spa, cutoff, NULL);
 	}
 
+out:
 	zfs_dbgmsg("%s: prune completed in %llu ms",
 	    spa_name(spa), (u_longlong_t)NSEC2MSEC(gethrtime() - start_time));
 
