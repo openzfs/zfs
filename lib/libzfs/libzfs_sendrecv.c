@@ -3483,14 +3483,16 @@ recv_fix_encryption_hierarchy(libzfs_handle_t *hdl, const char *top_zfs,
 
 			/*
 			 * Restore the keylocation only if the stream carried
-			 * properties.  A holds-only raw send has none, and the
-			 * raw receive has already established a usable
-			 * keylocation, so there is nothing to fix up.
+			 * it.  A holds-only raw send has no properties, and a
+			 * 'send -b' stream has only received ones, which
+			 * usually don't include keylocation.  The raw receive
+			 * has then already established a usable keylocation,
+			 * so there is nothing to fix up.
 			 */
-			if (stream_props != NULL) {
-				stream_keylocation = fnvlist_lookup_string(
-				    stream_props,
-				    zfs_prop_to_name(ZFS_PROP_KEYLOCATION));
+			if (stream_props != NULL && nvlist_lookup_string(
+			    stream_props,
+			    zfs_prop_to_name(ZFS_PROP_KEYLOCATION),
+			    &stream_keylocation) == 0) {
 
 				/*
 				 * Refresh the properties in case the call to
