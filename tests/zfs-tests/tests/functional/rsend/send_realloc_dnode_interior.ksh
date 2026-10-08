@@ -78,35 +78,38 @@ log_must sync_pool $POOL
 # Object allocation continues from where it left off for as long as the
 # objset stays open, so reopen it to make it start over from the lowest
 # free slots.  The first allocation may take the head slot of the freed
-# dnode and other CPUs allocate from other chunks of the object space, so
-# keep the files that landed on its interior slots and retry if none did.
+# dnode and other CPUs allocate from other chunks of the object space.
+# Keep filler files until an interior slot is used, so retries do not
+# repeatedly allocate the same lower slots.
 #
-typeset -i attempt inside=0
+typeset -i attempt inside=0 count=0
 for (( attempt = 0; attempt < 10 && inside == 0; attempt++ )); do
 	log_must zpool export $POOL
 	log_must zpool import $POOL
 
-	for (( i = 0; i < 8; i++ )); do
-		log_must touch /$POOL/fs/new.$i
-	done
-	log_must sync_pool $POOL
-
-	typeset -i min=$(get_objnum /$POOL/fs/new.0)
-	typeset -i max=$(get_objnum /$POOL/fs/new.7)
-	log_note "attempt=$attempt: checking interior slots for $freed, range=$min-$max"
-
-	for (( i = 0; i < 8; i++ )); do
-		typeset -i obj=$(get_objnum /$POOL/fs/new.$i)
+	# Allow enough allocations to fill the slots below the freed dnode.
+	for (( i = 0; i < freed + 8 && inside == 0; i++ )); do
+		log_must touch /$POOL/fs/new.$count
+		typeset -i obj=$(get_objnum /$POOL/fs/new.$count)
 		if (( obj > freed && obj < freed + 8 )); then
-			log_note "new.$i is object $obj, inside $freed"
+			log_note "new.$count is object $obj, inside $freed"
 			(( inside += 1 ))
-		else
-			log_must rm /$POOL/fs/new.$i
 		fi
+		(( count += 1 ))
 	done
 	log_must sync_pool $POOL
+	log_note "attempt=$attempt: allocated $count files, last object=$obj"
 done
 (( inside > 0 )) || log_fail "No object landed on an interior slot of $freed"
+
+# Remove filler files, leaving only the interior-slot allocation.
+for (( i = 0; i < count; i++ )); do
+	typeset -i obj=$(get_objnum /$POOL/fs/new.$i)
+	if (( obj <= freed || obj >= freed + 8 )); then
+		log_must rm /$POOL/fs/new.$i
+	fi
+done
+log_must sync_pool $POOL
 
 log_must zfs snapshot $POOL/fs@b
 
