@@ -37,6 +37,7 @@
 #include <sys/spa.h>
 #include <sys/zfs_fuid.h>
 #include <sys/dsl_dataset.h>
+#include <sys/zfs_vnops.h>
 
 /*
  * These zfs_log_* functions must be called within a dmu tx, in one
@@ -219,50 +220,30 @@ zfs_xattr_owner_unlinked(znode_t *zp)
 {
 	int unlinked = 0;
 	znode_t *dzp;
-#ifdef __FreeBSD__
 	znode_t *tzp = zp;
 
 	/*
-	 * zrele drops the vnode lock which violates the VOP locking contract
-	 * on FreeBSD. See comment at the top of zfs_replay.c for more detail.
-	 */
-	/*
-	 * if zp is XATTR node, keep walking up via z_xattr_parent until we
-	 * get the owner
+	 * zp is borrowed and must not be released here.  Only release
+	 * references acquired by zfs_zget(), and release them asynchronously
+	 * because zfs_log_* functions are called with an assigned transaction.
+	 *
+	 * If zp is an XATTR node, keep walking up via z_xattr_parent until we
+	 * get the owner.
 	 */
 	while (tzp->z_pflags & ZFS_XATTR) {
-		ASSERT3U(zp->z_xattr_parent, !=, 0);
+		ASSERT3U(tzp->z_xattr_parent, !=, 0);
 		if (zfs_zget(ZTOZSB(tzp), tzp->z_xattr_parent, &dzp) != 0) {
 			unlinked = 1;
 			break;
 		}
 
 		if (tzp != zp)
-			zrele(tzp);
+			zfs_zrele_async(tzp);
 		tzp = dzp;
 		unlinked = tzp->z_unlinked;
 	}
 	if (tzp != zp)
-		zrele(tzp);
-#else
-	zhold(zp);
-	/*
-	 * if zp is XATTR node, keep walking up via z_xattr_parent until we
-	 * get the owner
-	 */
-	while (zp->z_pflags & ZFS_XATTR) {
-		ASSERT3U(zp->z_xattr_parent, !=, 0);
-		if (zfs_zget(ZTOZSB(zp), zp->z_xattr_parent, &dzp) != 0) {
-			unlinked = 1;
-			break;
-		}
-
-		zrele(zp);
-		zp = dzp;
-		unlinked = zp->z_unlinked;
-	}
-	zrele(zp);
-#endif
+		zfs_zrele_async(tzp);
 	return (unlinked);
 }
 
