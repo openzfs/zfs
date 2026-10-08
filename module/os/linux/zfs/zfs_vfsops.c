@@ -1148,6 +1148,36 @@ zfs_prune_aliases(zfsvfs_t *zfsvfs, unsigned long nr_to_scan)
 #define	S_SHRINK(sb)	((sb)->s_shrink)
 #endif
 
+/*
+ * Call the superblock shrinker in batches of shrinker->batch objects, the
+ * same way the kernel's do_shrink_slab() does.  A single scan_objects() call
+ * marks every inode it isolates I_FREEING before evicting them one at a time,
+ * so a prune of millions of objects would leave lookups of any of those
+ * inodes retrying in zfs_zget() until the whole list has been evicted.
+ */
+static int
+zfs_prune_batched(struct shrinker *shrinker, struct shrink_control *sc,
+    unsigned long nr_to_scan)
+{
+	unsigned long batch = shrinker->batch > 0 ? shrinker->batch : 128;
+	int objects = 0;
+
+	while (nr_to_scan > 0) {
+		unsigned long nr = MIN(nr_to_scan, batch);
+		unsigned long freed;
+
+		sc->nr_to_scan = nr;
+		freed = (*shrinker->scan_objects)(shrinker, sc);
+		if (freed == SHRINK_STOP)
+			break;
+		objects += freed;
+		nr_to_scan -= nr;
+		cond_resched();
+	}
+
+	return (objects);
+}
+
 int
 zfs_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 {
@@ -1178,14 +1208,14 @@ zfs_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 				continue;
 			if (c > tc)
 				tc = c;
-			sc.nr_to_scan = mult_frac(nr_to_scan, c, tc) + 1;
-			*objects += (*shrinker->scan_objects)(shrinker, &sc);
+			*objects += zfs_prune_batched(shrinker, &sc,
+			    mult_frac(nr_to_scan, c, tc) + 1);
 		}
 	} else {
-			*objects = (*shrinker->scan_objects)(shrinker, &sc);
+		*objects = zfs_prune_batched(shrinker, &sc, nr_to_scan);
 	}
 #else
-	*objects = (*shrinker->scan_objects)(shrinker, &sc);
+	*objects = zfs_prune_batched(shrinker, &sc, nr_to_scan);
 #endif
 
 	/*
