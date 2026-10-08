@@ -37,6 +37,7 @@
 
 function cleanup
 {
+	set_tunable32 LIVELIST_CONDENSE_SYNC_PAUSE 0
 	poolexists $TESTPOOL2 && zpool destroy $TESTPOOL2
 	# reset livelist max size
 	set_tunable64 LIVELIST_MAX_ENTRIES $ORIGINAL_MAX
@@ -85,15 +86,18 @@ log_must mkfile 1m /$TESTPOOL2/$TESTCLONE/B
 
 # Resume condense thr
 set_tunable32 LIVELIST_CONDENSE_SYNC_PAUSE 0
-# The zthr only sees the resume on its next tick before it queues the
-# condense synctask, so the synctask may land in a later txg than the one
-# sync_pool waits for: sync until it has run.
-for i in {1..10}; do
+sync_pool $TESTPOOL2
+# The condense thread may enqueue its sync task after this txg finishes.
+# Wait for the actual ALLOC observation, keeping the failure bounded.
+typeset -i attempts=30
+while [[ $(get_tunable LIVELIST_CONDENSE_NEW_ALLOC) -eq 0 &&
+    $attempts -gt 0 ]]; do
+	log_note "Waiting for the condense sync task"
+	log_must sleep 1
 	sync_pool $TESTPOOL2
-	[[ "0" < "$(get_tunable LIVELIST_CONDENSE_NEW_ALLOC)" ]] && break
+	(( attempts -= 1 ))
 done
-# Check that we've added new ALLOC blkptrs during the condense
-[[ "0" < "$(get_tunable LIVELIST_CONDENSE_NEW_ALLOC)" ]] || \
+[[ $(get_tunable LIVELIST_CONDENSE_NEW_ALLOC) -gt 0 ]] || \
     log_fail "removal/condense test failed"
 
 log_must zfs destroy $TESTPOOL2/$TESTCLONE
