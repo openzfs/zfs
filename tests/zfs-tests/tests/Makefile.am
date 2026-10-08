@@ -1604,6 +1604,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/dedup/dedup_legacy_fdt_upgrade.ksh \
 	functional/dedup/dedup_legacy_fdt_mixed.ksh \
 	functional/dedup/dedup_log_zdb_leak.ksh \
+	functional/dedup/dedup_override_copies.ksh \
 	functional/dedup/dedup_prune.ksh \
 	functional/dedup/dedup_prune_leak.ksh \
 	functional/dedup/dedup_prune_percentage.ksh \
