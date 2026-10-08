@@ -6129,7 +6129,7 @@ ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_reflow_bytes, ULONG, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, force_width, INT, ZMOD_RW,
 	"P7: force per-block logical width (0=off) for uniform narrow layout");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, contracting, INT, ZMOD_RW,
-	"P7: in-place width-contraction sweep active (0=off): narrow epoch\n"
+	"P7: in-place width-contraction sweep active (0=off): narrow epoch "
 	"blocks use the simple map + relax DEBUG io_verify");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, contract_guid, ULONG, ZMOD_RW,
 	"P7/R05: top-level GUID authorised for the raidz-shrink detach");
