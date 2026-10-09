@@ -152,9 +152,12 @@ targets work more smoothly.
 
 * Name the test program `test_foo`. Almost always, you will have one source
   file with the actual tests in it, called `test_foo.c`.
-* Add the program to `UNIT_TESTS`. `noinst_PROGRAMS` will be populated from it,
-  but this gives a specific name the run and coverage targets can use to
-  resolve the `T=` parameter to a specific test.
+* Add the program to `UNIT_TESTS` or `EXTRA_TESTS`. These variables are
+  used by the run and coverage targets when resolving the `T=` parameter to
+  a specific test. The only difference is that `make unit` (without `T=`) will
+  run the tests from `UNIT_TESTS` only, not from `EXTRA_TESTS`.
+  `noinst_PROGRAMS` will always be populated from both, so they will all be
+  built.
 * List the source files under test in `nodist_%C%_test_foo_SOURCES`, and the
   source files for the test itself in `%C%_test_foo_SOURCES`. This is
   important, as the coverage targets use `nodist_%C%_ ... _SOURCES` as the list
