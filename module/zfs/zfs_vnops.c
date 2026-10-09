@@ -1764,7 +1764,8 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 	 * Length must be multipe of blksz, except for the end of the file.
 	 */
 	if ((len % inblksz) != 0 &&
-	    (len < inzp->z_size - inoff || len < outzp->z_size - outoff))
+	    (len < inzp->z_size - inoff ||
+	    (outoff < outzp->z_size && len < outzp->z_size - outoff)))
 		return (SET_ERROR(EINVAL));
 
 	/*
