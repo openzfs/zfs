@@ -180,7 +180,8 @@ tests = ['luks_sanity']
 tags = ['functional', 'luks']
 
 [tests/functional/mmap:Linux]
-tests = ['mmap_libaio_001_pos', 'mmap_sync_001_pos']
+tests = ['mmap_libaio_001_pos', 'mmap_sync_001_pos',
+    'mmap_iov_iter_revert', 'mmap_write_append_race']
 tags = ['functional', 'mmap']
 
 [tests/functional/mmp:Linux]

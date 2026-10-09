@@ -128,6 +128,11 @@ zfs_uio_setsoffset(zfs_uio_t *uio, offset_t off)
 static inline void
 zfs_uio_advance(zfs_uio_t *uio, ssize_t size)
 {
+	if (size < 0 && uio->uio_segflg == UIO_ITER) {
+		/* Keep the iterator in sync with the rolled-back uio cursor. */
+		iov_iter_revert(uio->uio_iter, -size);
+	}
+
 	uio->uio_resid -= size;
 	uio->uio_loffset += size;
 }
