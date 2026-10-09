@@ -1567,16 +1567,146 @@ dmu_redact(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 }
 
 #ifdef _KERNEL
+/*
+ * Answer reads of blocks that are already in the ARC by copying only the
+ * requested range out of a zero-copy ABD reference, instead of materializing a
+ * full-record arc_buf_t for the dbuf.  Set to 0 to restore the old path.
+ */
+static int dmu_arc_range_read = 1;
+
+static int
+dmu_abd_uio_cb(void *buf, size_t len, void *priv)
+{
+	return (zfs_uio_fault_move(buf, len, UIO_READ, (zfs_uio_t *)priv));
+}
+
+/*
+ * Serve as much of a read as possible straight out of the ARC, copying only
+ * the bytes that were asked for.
+ *
+ * The normal path has to hand the caller a dmu_buf_t, whose db_data is a
+ * contiguous pointer, so every dbuf cache miss on a warm ARC allocates a
+ * buffer the size of the whole record and memcpys the record into it: 128 KiB
+ * of memcpy to answer a 4 KiB read.  Here we take a zero-copy ABD reference to
+ * the record as it sits in the ARC and copy out just the requested range.
+ * Nothing lands in the dbuf cache, which is fine, since this only triggers
+ * when the dbuf cache missed to begin with.
+ *
+ * Stops at the first block that cannot be served this way and reports what is
+ * left in *residp, so the caller can finish through the normal path.  That
+ * block's dbuf is handed back in *heldp still held, so that the fallback finds
+ * it in the dbuf hash instead of creating it a second time; the caller must
+ * release it once the fallback is done with it.
+ */
+static int
+dmu_read_uio_arc(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
+    dmu_flags_t flags, uint64_t *residp, dmu_buf_impl_t **heldp)
+{
+	uint64_t start = zfs_uio_offset(uio);
+	int err = 0;
+
+	*heldp = NULL;
+
+	for (;;) {
+		uint64_t off = zfs_uio_offset(uio);
+		uint64_t left = size - (off - start);
+		uint64_t bufoff, tocpy;
+		dmu_buf_impl_t *db;
+		arc_buf_hdr_t *hdr;
+		abd_t *view;
+		boolean_t held;
+
+		if (left == 0)
+			break;
+
+		rw_enter(&dn->dn_struct_rwlock, RW_READER);
+		db = dbuf_hold(dn, dbuf_whichblock(dn, 0, off), FTAG);
+		rw_exit(&dn->dn_struct_rwlock);
+		if (db == NULL) {
+			err = SET_ERROR(EIO);
+			break;
+		}
+
+		bufoff = off - db->db.db_offset;
+		if (bufoff >= db->db.db_size) {
+			*heldp = db;
+			break;
+		}
+		tocpy = MIN(db->db.db_size - bufoff, left);
+		held = dbuf_hold_arc_range(db, bufoff, tocpy, &view, &hdr,
+		    FTAG);
+		if (!held) {
+			*heldp = db;
+			break;
+		}
+		dbuf_rele(db, FTAG);
+
+		/*
+		 * The ABD chunk is mapped across the copy, so we must not take
+		 * a page fault here.  zfs_read() has already faulted the user
+		 * pages in; if that no longer holds we stop and let the normal
+		 * path redo the rest of the read, which is allowed to fault.
+		 */
+		zfs_uio_fault_disable(uio, B_TRUE);
+		err = abd_iterate_func(view, 0, tocpy, dmu_abd_uio_cb, uio);
+		zfs_uio_fault_disable(uio, B_FALSE);
+		arc_rele_abd_range(view, hdr, FTAG);
+
+		if (err != 0) {
+			if (err == EFAULT)
+				err = 0;
+			break;
+		}
+	}
+
+	*residp = size - (zfs_uio_offset(uio) - start);
+
+	/*
+	 * Keep the prefetcher's stream alive, but only when we served the whole
+	 * read.  If we have to fall back, dmu_buf_hold_array_by_dnode() runs
+	 * the prefetcher itself, with the block-level miss information we do
+	 * not have here; running it twice, or running it with the wrong miss
+	 * status, costs far more than it saves.
+	 */
+	if (*residp == 0 && (flags & DMU_READ_NO_PREFETCH) == 0) {
+		uint64_t blkid = dbuf_whichblock(dn, 0, start);
+		uint64_t nblks = 1;
+
+		if (dn->dn_datablkshift) {
+			int shift = dn->dn_datablkshift;
+			nblks = (P2ROUNDUP(start + size, 1ULL << shift) -
+			    P2ALIGN_TYPED(start, 1ULL << shift, uint64_t)) >>
+			    shift;
+		}
+		dmu_zfetch(&dn->dn_zfetch, blkid, nblks, B_TRUE, B_FALSE,
+		    B_FALSE, (flags & DMU_UNCACHEDIO) != 0);
+	}
+	return (err);
+}
+
 int
 dmu_read_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
     dmu_flags_t flags)
 {
 	dmu_buf_t **dbp;
+	dmu_buf_impl_t *held = NULL;
 	int numbufs, i, err;
 
 	if ((flags & DMU_DIRECTIO) && (uio->uio_extflg & UIO_DIRECT))
 		return (dmu_read_uio_direct(dn, uio, size, flags));
 	flags &= ~DMU_DIRECTIO;
+
+	if (dmu_arc_range_read) {
+		uint64_t resid;
+
+		err = dmu_read_uio_arc(dn, uio, size, flags, &resid, &held);
+		if (err != 0 || resid == 0) {
+			if (held != NULL)
+				dbuf_rele(held, FTAG);
+			return (err);
+		}
+		size = resid;
+	}
 
 	/*
 	 * NB: we could do this block-at-a-time, but it's nice
@@ -1584,8 +1714,11 @@ dmu_read_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
 	 */
 	err = dmu_buf_hold_array_by_dnode(dn, zfs_uio_offset(uio), size,
 	    TRUE, FTAG, &numbufs, &dbp, flags);
-	if (err)
+	if (err) {
+		if (held != NULL)
+			dbuf_rele(held, FTAG);
 		return (err);
+	}
 
 	for (i = 0; i < numbufs; i++) {
 		uint64_t tocpy;
@@ -1607,6 +1740,8 @@ dmu_read_uio_dnode(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
 		size -= tocpy;
 	}
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
+	if (held != NULL)
+		dbuf_rele(held, FTAG);
 
 	return (err);
 }
@@ -3206,6 +3341,11 @@ EXPORT_SYMBOL(dmu_assign_arcbuf_by_dnode);
 EXPORT_SYMBOL(dmu_assign_arcbuf_by_dbuf);
 EXPORT_SYMBOL(dmu_buf_hold);
 EXPORT_SYMBOL(dmu_ot);
+
+#ifdef _KERNEL
+ZFS_MODULE_PARAM(zfs, , dmu_arc_range_read, INT, ZMOD_RW,
+	"Read partial blocks straight from the ARC without a full-record copy");
+#endif
 
 ZFS_MODULE_PARAM(zfs, zfs_, nopwrite_enabled, INT, ZMOD_RW,
 	"Enable NOP writes");
