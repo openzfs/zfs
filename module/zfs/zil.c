@@ -2524,8 +2524,8 @@ zil_lwb_commit(zilog_t *zilog, lwb_t *lwb, itx_t *itx)
 
 			/*
 			 * Typically, the only return values we should see from
-			 * ->zl_get_data() are 0, EIO, ENOENT, EEXIST or
-			 *  EALREADY. However, it is also possible to see other
+			 * ->zl_get_data() are 0, EIO, ENOENT or EEXIST.
+			 *  However, it is also possible to see other
 			 *  error values such as ENOSPC or EINVAL from
 			 *  dmu_read() -> dnode_hold() -> dnode_hold_impl() or
 			 *  ENXIO as well as a multitude of others from the
@@ -2573,8 +2573,6 @@ zil_lwb_commit(zilog_t *zilog, lwb_t *lwb, itx_t *itx)
 			case ENOENT:
 				zfs_fallthrough;
 			case EEXIST:
-				zfs_fallthrough;
-			case EALREADY:
 				return (0);
 			}
 		}
@@ -4946,6 +4944,54 @@ zil_replay_split(zilog_t *zilog, zil_replay_arg_t *zr, const lr_t *lr)
 }
 
 static int
+zil_replay_scan_blk(zilog_t *zilog, const blkptr_t *bp, void *arg,
+    uint64_t claim_txg)
+{
+	(void) zilog, (void) bp, (void) arg, (void) claim_txg;
+
+	return (0);
+}
+
+/*
+ * Before replay, look for a TX_WRITE2, which only older software logged.
+ * Stop at the first one.  Unlike zil_replay_log_record(), this doesn't skip
+ * records already replayed (lrc_seq <= zh_replay_seq): any TX_WRITE2 shows
+ * that the log was written by that software, and the records left to replay
+ * were too.
+ */
+static int
+zil_replay_scan_record(zilog_t *zilog, const lr_t *lr, void *arg,
+    uint64_t claim_txg)
+{
+	(void) arg;
+
+	if ((lr->lrc_txtype & ~TX_CI) == TX_WRITE2 &&
+	    lr->lrc_txg >= claim_txg) {
+		zilog->zl_replay_write2 = B_TRUE;
+		return (SET_ERROR(EEXIST));
+	}
+	return (0);
+}
+
+/*
+ * Return whether the log being replayed has a TX_WRITE2 (or couldn't be
+ * scanned), and therefore needs to be replayed as whole blocks, rather than
+ * just each record's range.
+ * Old software logged a TX_WRITE2, with no data or blkptr, when its data was
+ * in the block written for another WR_INDIRECT TX_WRITE in the same txg.
+ * Replaying that TX_WRITE's whole block restores the TX_WRITE2's data.
+ * (Since lwbs are filled outside zl_issuer_lock, that TX_WRITE can come
+ * later in the log, or be missing from it.)  Newer software logs every
+ * WR_INDIRECT as a TX_WRITE with a blkptr, and each record replays its own
+ * range.
+ */
+boolean_t
+zil_replay_whole_blocks(zilog_t *zilog)
+{
+	return (zilog->zl_replay_write2);
+}
+
+static int
 zil_replay_log_record(zilog_t *zilog, const lr_t *lr, void *zra,
     uint64_t claim_txg)
 {
@@ -5078,6 +5124,7 @@ zil_replay(objset_t *os, void *arg,
 	const zil_header_t *zh = zilog->zl_header;
 	zil_replay_arg_t zr;
 	lr_write_t split_lr;
+	int err;
 
 	if ((zh->zh_flags & ZIL_REPLAY_NEEDED) == 0) {
 		return (zil_destroy(zilog, B_TRUE));
@@ -5097,6 +5144,19 @@ zil_replay(objset_t *os, void *arg,
 	 */
 	txg_wait_synced(zilog->zl_dmu_pool, 0);
 
+	/*
+	 * If the scan stops early on an error, such as a read error, we can't
+	 * tell whether the rest of the log has a TX_WRITE2, so replay whole
+	 * blocks, as older software did.  That replays any log correctly,
+	 * though without keeping write order within a block.  The scan reads
+	 * only record headers, which aren't encrypted, so it doesn't decrypt.
+	 */
+	zilog->zl_replay_write2 = B_FALSE;
+	err = zil_parse(zilog, zil_replay_scan_blk, zil_replay_scan_record,
+	    NULL, zh->zh_claim_txg, B_FALSE);
+	if (err != 0)
+		zilog->zl_replay_write2 = B_TRUE;
+
 	zilog->zl_replay = B_TRUE;
 	zilog->zl_replay_time = ddi_get_lbolt();
 	ASSERT0(zilog->zl_replay_blks);
@@ -5105,6 +5165,7 @@ zil_replay(objset_t *os, void *arg,
 	/* If the log ended inside a split write, count it as dropped. */
 	zil_replay_split_drop(zilog, &zr, 0);
 	vmem_free(zr.zr_lr, ZIL_REPLAY_BUFSZ);
+	zilog->zl_replay_write2 = B_FALSE;
 
 	zil_destroy(zilog, B_FALSE);
 	txg_wait_synced(zilog->zl_dmu_pool, zilog->zl_destroy_txg);
@@ -5149,6 +5210,7 @@ EXPORT_SYMBOL(zil_open);
 EXPORT_SYMBOL(zil_close);
 EXPORT_SYMBOL(zil_replay);
 EXPORT_SYMBOL(zil_replaying);
+EXPORT_SYMBOL(zil_replay_whole_blocks);
 EXPORT_SYMBOL(zil_destroy);
 EXPORT_SYMBOL(zil_destroy_sync);
 EXPORT_SYMBOL(zil_itx_create);
