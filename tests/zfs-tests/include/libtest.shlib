@@ -1861,6 +1861,8 @@ function verify_pool
 
 	log_must zpool scrub $pool
 	log_must wait_scrubbed $pool
+	log_must check_pool_status $pool scan \
+	    "scrub repaired .* with 0 errors"
 
 	typeset -i cksum=$(zpool status $pool | awk '
 	    !NF { isvdev = 0 }
@@ -3186,10 +3188,12 @@ function wait_replacing #pool timeout
 {
 	typeset timeout=${2:-300}
 	typeset pool=${1:-$TESTPOOL}
+	typeset -i timer
 	for (( timer = 0; timer < $timeout; timer++ )); do
-		is_pool_replacing $pool || break;
-		sleep 1;
+		is_pool_replacing $pool || return 0
+		sleep 1
 	done
+	return 1
 }
 
 # Wait for a pool to be scrubbed
@@ -3199,12 +3203,14 @@ function wait_replacing #pool timeout
 #
 function wait_scrubbed #pool timeout
 {
-       typeset timeout=${2:-300}
-       typeset pool=${1:-$TESTPOOL}
-       for (( timer = 0; timer < $timeout; timer++ )); do
-               is_pool_scrubbed $pool && break;
-               sleep 1;
-       done
+	typeset timeout=${2:-300}
+	typeset pool=${1:-$TESTPOOL}
+	typeset -i timer
+	for (( timer = 0; timer < $timeout; timer++ )); do
+		is_pool_scrubbed $pool && return 0
+		sleep 1
+	done
+	return 1
 }
 
 # Wait for a pool to be resilvered
@@ -3214,12 +3220,14 @@ function wait_scrubbed #pool timeout
 #
 function wait_resilvered #pool timeout
 {
-       typeset timeout=${2:-300}
-       typeset pool=${1:-$TESTPOOL}
-       for (( timer = 0; timer < $timeout; timer++ )); do
-               is_pool_resilvered $pool && break;
-               sleep 1;
-       done
+	typeset timeout=${2:-300}
+	typeset pool=${1:-$TESTPOOL}
+	typeset -i timer
+	for (( timer = 0; timer < $timeout; timer++ )); do
+		is_pool_resilvered $pool && return 0
+		sleep 1
+	done
+	return 1
 }
 
 # Wait for a raidz expansion to stop reflowing
