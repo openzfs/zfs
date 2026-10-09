@@ -12,6 +12,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright 2026 Oxide Computer Company
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -153,7 +154,7 @@ typedef enum zil_create {
 #define	TX_MKDIR_ACL		17	/* mkdir with ACL */
 #define	TX_MKDIR_ATTR		18	/* mkdir with attr */
 #define	TX_MKDIR_ACL_ATTR	19	/* mkdir with ACL + attrs */
-#define	TX_WRITE2		20	/* dmu_sync EALREADY write */
+#define	TX_WRITE2		20	/* dmu_sync EALREADY write (old) */
 #define	TX_SETSAXATTR		21	/* Set sa xattrs on file */
 #define	TX_RENAME_EXCHANGE	22	/* Atomic swap via renameat2 */
 #define	TX_RENAME_WHITEOUT	23	/* Atomic whiteout via renameat2 */
@@ -615,6 +616,7 @@ extern void	zil_close(zilog_t *zilog);
 extern boolean_t zil_replay(objset_t *os, void *arg,
     zil_replay_func_t *const replay_func[TX_MAX_TYPE]);
 extern boolean_t zil_replaying(zilog_t *zilog, dmu_tx_t *tx);
+extern boolean_t zil_replay_whole_blocks(zilog_t *zilog);
 extern boolean_t zil_destroy(zilog_t *zilog, boolean_t keep_first);
 extern void	zil_destroy_sync(zilog_t *zilog, dmu_tx_t *tx);
 
