@@ -6108,24 +6108,26 @@ are_vdevs_in_pool(int argc, char **argv, char *pool_name,
 	return (ret);
 }
 
-static int
-is_pool_cb(zpool_handle_t *zhp, void *data)
-{
-	char *name = data;
-	if (strcmp(name, zpool_get_name(zhp)) == 0)
-		return (1);
-
-	return (0);
-}
-
 /*
  * Do we have a pool named *name?  If so, return 1, otherwise 0.
  */
 static int
 is_pool(char *name)
 {
-	return (for_each_pool(0, NULL, B_TRUE, NULL, ZFS_TYPE_POOL, B_FALSE,
-	    is_pool_cb, name));
+	zpool_handle_t *zhp;
+
+	if (zpool_skip_pool(name))
+		return (0);
+
+	/* Open only this pool.  A failed open means it is not a pool. */
+	libzfs_print_on_error(g_zfs, B_FALSE);
+	zhp = zpool_open_canfail(g_zfs, name);
+	libzfs_print_on_error(g_zfs, B_TRUE);
+	if (zhp == NULL)
+		return (0);
+
+	zpool_close(zhp);
+	return (1);
 }
 
 /* Are all our argv[] strings pool names?  If so return 1, 0 otherwise. */
