@@ -17,6 +17,7 @@
  * Copyright (c) 2015, Nexenta Systems, Inc. All rights reserved.
  * Copyright 2019 Joyent, Inc.
  * Copyright 2026 ConnectWise
+ * Copyright 2026 Oxide Computer Company
  */
 
 #include <sys/dsl_scan.h>
@@ -1908,7 +1909,6 @@ static int
 dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
     uint64_t claim_txg)
 {
-	(void) zilog;
 	if (lrc->lrc_txtype == TX_WRITE) {
 		zil_scan_arg_t *zsa = arg;
 		dsl_pool_t *dp = zsa->zsa_dp;
@@ -1929,6 +1929,10 @@ dsl_scan_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
 		 * other records that are not synced)
 		 */
 		if (claim_txg == 0 || BP_GET_BIRTH(bp) < claim_txg)
+			return (0);
+
+		/* Several records can share a dmu_sync() block. */
+		if (zil_bp_tree_add(zilog, bp) != 0)
 			return (0);
 
 		ASSERT3U(BP_GET_LSIZE(bp), !=, 0);

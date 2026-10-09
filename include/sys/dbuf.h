@@ -75,6 +75,7 @@ typedef enum dbuf_cached_state {
 
 struct dnode;
 struct dmu_tx;
+struct dmu_sync_arg;
 
 /*
  * level = 0 means the user data
@@ -149,6 +150,11 @@ typedef struct dbuf_dirty_record {
 			 */
 			arc_buf_t *dr_data;
 			override_states_t dr_override_state;
+			/*
+			 * The dmu_sync() or Direct I/O write in progress, if
+			 * dr_override_state is DR_IN_DMU_SYNC.
+			 */
+			struct dmu_sync_arg *dr_sync_arg;
 			uint8_t dr_copies;
 			uint8_t dr_gang_copies;
 			boolean_t dr_nopwrite;
