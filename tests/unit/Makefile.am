@@ -13,7 +13,7 @@ libunit_la_SOURCES = \
 	%D%/unit.h
 
 
-# all test binaries
+# all unit test binaries. these are run when you run `make unit`
 UNIT_TESTS = \
 	%D%/test_zap \
 	%D%/test_namecheck \
@@ -23,7 +23,14 @@ UNIT_TESTS = \
 	%D%/test_cityhash \
 	%D%/test_nvpair \
 	%D%/test_timer
-noinst_PROGRAMS = $(UNIT_TESTS)
+
+# extra test binaries. not unit/correctness tests as such, but use the same
+# framework. not run by `make unit`, but will work with `T=` etc
+EXTRA_TESTS = \
+	%D%/test_nvpair_stress
+
+noinst_PROGRAMS = $(UNIT_TESTS) $(EXTRA_TESTS)
+>>>>>>> 5993e6177a (unit/nvpair_stress: nvpair stress tests)
 
 
 %C%_test_zap_CFLAGS = $(AM_CFLAGS)
@@ -146,6 +153,22 @@ nodist_%C%_test_nvpair_SOURCES = \
 	libspl.la
 
 
+%C%_test_nvpair_stress_CFLAGS = $(AM_CFLAGS) $(LIBTIRPC_CFLAGS)
+
+nodist_%C%_test_nvpair_stress_SOURCES = \
+	module/nvpair/nvpair.c \
+	module/nvpair/fnvpair.c \
+	lib/libnvpair/nvpair_alloc_system.c
+
+%C%_test_nvpair_stress_SOURCES = \
+	%D%/test_nvpair_stress.c
+
+%C%_test_nvpair_stress_LDADD = \
+	libspl.la \
+	$(LIBTIRPC_LIBS) \
+	libunit.la
+
+
 # test run and coverage targets below
 PHONY += unit unit-coverage unit-coverage-html
 
@@ -194,7 +217,7 @@ unit-clean-local:
 
 _UNIT_ALL_TARGETS = $(notdir $(UNIT_TESTS))
 _UNIT_FIND_TARGET = \
-	$(foreach cmd, $(UNIT_TESTS), \
+	$(foreach cmd, $(UNIT_TESTS) $(EXTRA_TESTS), \
 		$(if $(filter $(join test_, $(1)), $(notdir $(cmd))), \
 			$(notdir $(cmd))))
 
