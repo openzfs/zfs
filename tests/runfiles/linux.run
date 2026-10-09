@@ -144,6 +144,7 @@ tests = ['auto_offline_001_pos', 'auto_online_001_pos', 'auto_online_002_pos',
     'decrypt_fault',
     'decompress_fault', 'fault_limits', 'scrub_after_resilver',
     'suspend_on_probe_errors', 'suspend_resume_single', 'suspend_draid_fgroups',
+    'suspend_zil_keep_first',
     'zpool_status_-s']
 tags = ['functional', 'fault']
 
