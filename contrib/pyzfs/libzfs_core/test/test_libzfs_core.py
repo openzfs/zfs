@@ -1351,6 +1351,44 @@ class ZFSTest(unittest.TestCase):
     def test_destroy_bookmarks_empty(self):
         lzc.lzc_bookmark({})
 
+    def test_get_dataset_props(self):
+        name = ZFSTest.pool.makeName(b'fs1')
+
+        props = lzc.lzc_get_dataset_props(name)
+        self.assertIsInstance(props, dict)
+        self.assertGreater(len(props), 0)
+        for key, val in props.items():
+            self.assertIsInstance(val, dict)
+
+    def test_get_dataset_props_filtered(self):
+        name = ZFSTest.pool.makeName(b'fs1')
+
+        props = lzc.lzc_get_dataset_props(name, [b'compression', b'guid'])
+        self.assertIsInstance(props, dict)
+        self.assertLessEqual(len(props), 2)
+        for key in props:
+            self.assertIn(key, [b'compression', b'guid'])
+
+    def test_get_dataset_props_nonexistent(self):
+        with self.assertRaises(lzc_exc.DatasetNotFound):
+            lzc.lzc_get_dataset_props(
+                ZFSTest.pool.makeName(b'nonexistent'))
+
+    def test_get_dataset_props_snapshot(self):
+        snap = ZFSTest.pool.makeName(b'fs1@snap')
+        lzc.lzc_snapshot([snap])
+
+        props = lzc.lzc_get_dataset_props(snap)
+        self.assertIsInstance(props, dict)
+        self.assertGreater(len(props), 0)
+
+    def test_get_dataset_props_invalid_property(self):
+        name = ZFSTest.pool.makeName(b'fs1')
+
+        props = lzc.lzc_get_dataset_props(name, [b'badprop'])
+        self.assertIsInstance(props, dict)
+        self.assertNotIn(b'badprop', props)
+
     def test_snaprange_space(self):
         snap1 = ZFSTest.pool.makeName(b"fs1@snap1")
         snap2 = ZFSTest.pool.makeName(b"fs1@snap2")
