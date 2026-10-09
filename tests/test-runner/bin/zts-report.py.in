@@ -149,6 +149,12 @@ dontcache_reason = 'Kernel RWF_DONTCACHE support required'
 #
 statx_reason = 'Needed statx(2) field not supported on this kernel'
 
+#
+# Some Linux kernels are built without the device-mapper log-writes target
+# or distributions do not ship dmsetup.
+#
+dm_log_writes_reason = 'dmsetup and kernel dm-log-writes target required'
+
 if sys.platform.startswith('freebsd'):
     cfr_cross_reason = 'copy_file_range(2) cross-filesystem needs FreeBSD 14+'
 else:
@@ -341,6 +347,7 @@ elif sys.platform.startswith('linux'):
         'idmap_mount/idmap_mount_005': ['SKIP', idmap_reason],
         'io/io_uring': ['SKIP', 'io_uring support required'],
         'stat/statx_dioalign': ['SKIP', 'statx_reason'],
+        'tmpfile_dmlog/setup': ['SKIP', dm_log_writes_reason],
         'zoned_uid/setup': ['SKIP', user_ns_reason],
     })
 
