@@ -3845,10 +3845,14 @@ zil_crash(zilog_t *zilog)
 
 	/*
 	 * Zero the ZIL header bp after the ZIL restarts. We'll free it in
-	 * zil_clean() when we clean up the lwbs.
+	 * zil_clean() when we clean up the lwbs. Without lwbs nothing will
+	 * free it: the header still owns the block, which a pending
+	 * zil_destroy() may be keeping, so leave it there.
 	 */
-	zil_header_t *zh = zil_header_in_syncing_context(zilog);
-	BP_ZERO(&zh->zh_log);
+	if (!list_is_empty(&zilog->zl_lwb_crash_list)) {
+		zil_header_t *zh = zil_header_in_syncing_context(zilog);
+		BP_ZERO(&zh->zh_log);
+	}
 
 	/*
 	 * Mark this ZIL dirty on the next txg, so that zil_clean() will be
