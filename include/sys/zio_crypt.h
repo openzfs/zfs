@@ -20,6 +20,7 @@
 
 #include <sys/dmu.h>
 #include <sys/zio.h>
+#include <sys/zalgo.h>
 #include <sys/zio_crypt_os.h>
 
 #define	WRAPPING_KEY_LEN	32
@@ -37,10 +38,19 @@ typedef enum zio_crypt_type {
 	ZC_TYPE_GCM
 } zio_crypt_type_t;
 
+typedef struct zio_crypt_session {
+	zalgo_cipher_hold_t *zs_hold;
+	void *zs_ctx;
+} zio_crypt_session_t;
+
+typedef struct zio_crypt_hmac {
+	void *zh_ctx;
+} zio_crypt_hmac_t;
+
 /* table of supported crypto algorithms, modes and keylengths. */
 typedef struct zio_crypt_info {
 	/* mechanism/algorithm name for backend to select implementation */
-	const char *ci_mechname;
+	zalgo_cipher_subtype_t	ci_cipher;
 
 	/* cipher mode type (GCM, CCM) */
 	zio_crypt_type_t ci_crypt_type;
@@ -94,6 +104,8 @@ typedef struct zio_crypt_key {
 
 	/* lock for changing the salt and dependent values */
 	krwlock_t zk_salt_lock;
+
+	zalgo_cipher_hold_t *zk_cipher_hold;
 } zio_crypt_key_t;
 
 void zio_crypt_key_destroy(zio_crypt_key_t *key);
@@ -139,18 +151,6 @@ int zio_do_crypt_abd(boolean_t encrypt, zio_crypt_key_t *key,
  */
 
 /*
- * A key must be opened before use, so the backend can initialise the wanted
- * algorithm and set up the backend crypto suite/hardware.
- *
- * Reopen should be done after any of the keys internal properties change,
- * eg the salt is changed. It is logically equivalent to close+open, but the
- * backend may be able to do it more efficiently.
- */
-int zio_crypt_key_open_os(zio_crypt_key_t *key, const zio_crypt_info_t *ci);
-void zio_crypt_key_close_os(zio_crypt_key_t *key);
-int zio_crypt_key_reopen_os(zio_crypt_key_t *key, const zio_crypt_info_t *ci);
-
-/*
  * Initialise/free a pair of UIOs with space for iovcnt data elements. This
  * will allocate/free zfs_uio_iov(u1)/zfs_uio_iov(u2) with at least iovcnt
  * elements. All other uio fields are private to the backend.
@@ -173,19 +173,5 @@ int zio_decrypt_os(const zio_crypt_info_t *ci,
     zfs_uio_t *ciphertext, zfs_uio_t *plaintext, size_t datalen,
     const uint8_t iv[ZIO_DATA_IV_LEN], const uint8_t *ad, size_t adlen,
     uint8_t mac[ZIO_DATA_MAC_LEN]);
-
-/* Generate SHA512-HMAC digest of data using the given HMAC key. */
-int zio_crypt_hmac_os(zio_crypt_key_t *key, const uint8_t *data,
-    size_t datalen, uint8_t digest[SHA512_HMAC_LEN]);
-
-/*
- * Generate SHA512-HMAC digest using given key. Data is passed incrementally,
- * and the final result generated at the end.
- */
-int zio_crypt_hmac_init_os(zio_crypt_hmac_t *hmac, zio_crypt_key_t *key);
-int zio_crypt_hmac_update_os(zio_crypt_hmac_t *hmac, const uint8_t *data,
-    size_t datalen);
-int zio_crypt_hmac_final_os(zio_crypt_hmac_t *hmac,
-	uint8_t digest[SHA512_HMAC_LEN]);
 
 #endif
