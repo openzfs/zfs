@@ -19,12 +19,17 @@ A test commit is a non-merge commit in BASE..HEAD that:
 Prints a JSON object to stdout:
 
   {"found": true|false,
-   "matrix": {"include": [
-     {"role": "test", "ref": SHA, "expect": "fail", "tests": "...",
-      "title": "..."},
-     ...,
-     {"role": "head", "ref": HEAD_SHA, "expect": "pass", "tests": "..."}]},
+   "labels": ["Fails without fix: SHA9 TITLE", ...,
+              "Passes with fix: SHA9 TITLE"],
+   "jobs": {LABEL: {"role": "test", "ref": SHA, "expect": "fail",
+                    "tests": "...", "title": "..."},
+            ...,
+            LABEL: {"role": "head", "ref": HEAD_SHA, "expect": "pass",
+                    "tests": "...", "title": "..."}},
    "summary": "markdown text"}
+
+The labels are the verify job's only matrix key, so that GitHub shows them
+in the job names; the jobs are looked up by label.
 
 "tests" is a space separated list of test paths relative to the test suite
 (e.g. "tests/functional/mmap/mmap_eof_extend.ksh"), as zfs-tests.sh -t
@@ -164,11 +169,23 @@ def main():
                 lines.append(f'Note: {t} no longer exists at HEAD and is '
                              'not run there.')
 
+    jobs = {label(j): j for j in include}
     print(json.dumps({
         'found': bool(include),
-        'matrix': {'include': include},
+        'labels': list(jobs),
+        'jobs': jobs,
         'summary': '\n'.join(lines),
     }))
+
+
+def label(job):
+    """Name of a verify job, as shown in the PR's checks."""
+    title = job['title']
+    if len(title) > 60:
+        title = title[:57] + '...'
+    what = 'Fails without fix' if job['expect'] == 'fail' \
+        else 'Passes with fix'
+    return f"{what}: {job['ref'][:9]} {title}"
 
 
 if __name__ == '__main__':

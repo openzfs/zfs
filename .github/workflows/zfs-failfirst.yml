@@ -38,7 +38,8 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       found: ${{ steps.detect.outputs.found }}
-      matrix: ${{ steps.detect.outputs.matrix }}
+      labels: ${{ steps.detect.outputs.labels }}
+      jobs: ${{ steps.detect.outputs.jobs }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -66,19 +67,29 @@ jobs:
             "$base" "$HEAD_SHA" > /tmp/detect.json
           jq . /tmp/detect.json
           echo "found=$(jq -r .found /tmp/detect.json)" >> $GITHUB_OUTPUT
-          echo "matrix=$(jq -c .matrix /tmp/detect.json)" >> $GITHUB_OUTPUT
+          echo "labels=$(jq -c .labels /tmp/detect.json)" >> $GITHUB_OUTPUT
+          echo "jobs=$(jq -c .jobs /tmp/detect.json)" >> $GITHUB_OUTPUT
           jq -r .summary /tmp/detect.json >> $GITHUB_STEP_SUMMARY
 
   verify:
-    name: ${{ matrix.expect == 'fail' && 'Fails without fix' || 'Passes with fix' }} (${{ matrix.title }})
+    # A static name: GitHub doesn't evaluate a name that uses the matrix
+    # when the job is skipped, and appends the matrix value (the label) to
+    # this one.
+    name: Verify
     needs: [ detect ]
     if: needs.detect.outputs.found == 'true'
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.detect.outputs.matrix) }}
+      matrix:
+        label: ${{ fromJson(needs.detect.outputs.labels) }}
     runs-on: ubuntu-24.04
     env:
       OS: ${{ github.event.inputs.os || vars.FAILFIRST_OS || 'ubuntu24' }}
+      ROLE: ${{ fromJson(needs.detect.outputs.jobs)[matrix.label].role }}
+      REF: ${{ fromJson(needs.detect.outputs.jobs)[matrix.label].ref }}
+      EXPECT: ${{ fromJson(needs.detect.outputs.jobs)[matrix.label].expect }}
+      TITLE: ${{ fromJson(needs.detect.outputs.jobs)[matrix.label].title }}
+      TESTS: ${{ fromJson(needs.detect.outputs.jobs)[matrix.label].tests }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -86,9 +97,7 @@ jobs:
         fetch-depth: 0
 
     - name: Check out test commit
-      if: matrix.role == 'test'
-      env:
-        REF: ${{ matrix.ref }}
+      if: env.ROLE == 'test'
       run: |
         # Build the test commit, but with the CI scripts of the PR head.
         git checkout -q --detach "$REF"
@@ -120,10 +129,6 @@ jobs:
 
     - name: Run tests
       timeout-minutes: 240
-      env:
-        EXPECT: ${{ matrix.expect }}
-        TITLE: ${{ matrix.title }}
-        TESTS: ${{ matrix.tests }}
       run: |
         read -ra tests <<< "$TESTS"
         .github/workflows/scripts/failfirst-tests.sh "$EXPECT" "$TITLE" \
@@ -136,14 +141,14 @@ jobs:
         scp zfs@vm1:"/var/tmp/*.txt" $RESPATH/vm1 2>/dev/null || true
         mkdir -p /tmp/failfirst-result
         cp $RESPATH/failfirst/summary.md \
-          /tmp/failfirst-result/${{ matrix.role }}-${{ matrix.ref }}.md || true
+          "/tmp/failfirst-result/$ROLE-$REF.md" || true
         sudo tar cjf /tmp/failfirst-logs.tar.bz2 -C $(dirname $RESPATH) \
           $(basename $RESPATH) || true
 
     - uses: actions/upload-artifact@v7
       if: always()
       with:
-        name: failfirst-logs-${{ matrix.role }}-${{ matrix.ref }}
+        name: failfirst-logs-${{ env.ROLE }}-${{ env.REF }}
         path: /tmp/failfirst-logs.tar.bz2
         archive: false
         if-no-files-found: ignore
@@ -151,7 +156,7 @@ jobs:
     - uses: actions/upload-artifact@v7
       if: always()
       with:
-        name: failfirst-result-${{ matrix.role }}-${{ matrix.ref }}
+        name: failfirst-result-${{ env.ROLE }}-${{ env.REF }}
         path: /tmp/failfirst-result
         if-no-files-found: ignore
 
