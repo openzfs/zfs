@@ -21,9 +21,10 @@
 # STRATEGY:
 #	1. Create a pool with dedup=on
 #	2. Add duplicate entries to the DDT
-#	3. Verify ddtprune doesn't remove duplicate entries
-#	4. Convert some entries to non-duplicate
-#	5. Verify ddtprune removes non-duplicate entries
+#	3. Verify invalid ages are rejected without blocking later prunes
+#	4. Verify ddtprune doesn't remove duplicate entries
+#	5. Convert some entries to non-duplicate
+#	6. Verify ddtprune removes non-duplicate entries
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -61,6 +62,10 @@ log_onexit cleanup
 
 log_must zpool create -f $TESTPOOL $DISKS
 
+# A prune of an empty table must release its ownership too.
+log_must zpool ddtprune -p 100 $TESTPOOL
+log_must zpool ddtprune -p 100 $TESTPOOL
+
 log_must zfs create -o recordsize=512 -o dedup=on $TESTPOOL/$TESTFS
 typeset mountpoint=$(get_prop mountpoint $TESTPOOL/$TESTFS)
 log_must dd if=/dev/urandom of=$mountpoint/f1 bs=512k count=1
@@ -68,6 +73,12 @@ log_must dd if=$mountpoint/f1 of=$mountpoint/f2 bs=512k
 sync_pool $TESTPOOL
 entries=$(ddt_entries)
 log_note "ddt entries before: $entries"
+
+# An age older than the epoch, and one whose conversion to seconds
+# overflows. A rejected prune must not stay marked as in progress, which
+# would make the next prune fail.
+log_mustnot zpool ddtprune -d 100000 $TESTPOOL
+log_mustnot zpool ddtprune -d 213503982334602 $TESTPOOL
 
 log_must zpool ddtprune -p 100 $TESTPOOL
 sync_pool $TESTPOOL

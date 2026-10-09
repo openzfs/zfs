@@ -14157,7 +14157,8 @@ zpool_do_ddt_prune(int argc, char **argv)
 			}
 			errno = 0;
 			amount = strtoull(optarg, &endptr, 0);
-			if (errno != 0 || *endptr != '\0' || amount == 0) {
+			if (errno != 0 || *endptr != '\0' || amount == 0 ||
+			    amount > UINT64_MAX / 86400) {
 				(void) fprintf(stderr,
 				    "invalid days value\n");
 				usage(B_FALSE);

@@ -2911,18 +2911,26 @@ ddt_prune_unique_entries(spa_t *spa, zpool_ddt_prune_unit_t unit,
 {
 	uint64_t cutoff;
 	uint64_t start_time = gethrtime();
+	uint64_t now = gethrestime_sec();
 
-	if (spa->spa_active_ddt_prune)
+	if (unit == ZPOOL_DDT_PRUNE_PERCENTAGE) {
+		if (amount == 0 || amount > 100)
+			return (SET_ERROR(EINVAL));
+	} else if (unit == ZPOOL_DDT_PRUNE_AGE) {
+		if (amount >= now)
+			return (SET_ERROR(EINVAL));
+	} else {
+		return (SET_ERROR(EINVAL));
+	}
+
+	if (atomic_cas_32(&spa->spa_active_ddt_prune, 0, 1) != 0)
 		return (SET_ERROR(EALREADY));
 	if (ddt_total_entries(spa) == 0)
-		return (0);
-
-	spa->spa_active_ddt_prune = B_TRUE;
+		goto out;
 
 	zfs_dbgmsg("prune %llu %s", (u_longlong_t)amount,
 	    unit == ZPOOL_DDT_PRUNE_PERCENTAGE ? "%" : "seconds old or older");
 
-	uint64_t now = gethrestime_sec();
 	if (unit == ZPOOL_DDT_PRUNE_PERCENTAGE) {
 		ddt_age_histo_t histogram;
 		uint64_t oldest = 0;
@@ -2953,12 +2961,8 @@ ddt_prune_unique_entries(spa_t *spa, zpool_ddt_prune_unit_t unit,
 
 		if (ddt_dump_prune_histogram)
 			ddt_dump_age_histogram(&histogram, cutoff);
-	} else if (unit == ZPOOL_DDT_PRUNE_AGE) {
-		if (amount >= now)
-			return (SET_ERROR(EINVAL));
-		cutoff = now - amount;
 	} else {
-		return (SET_ERROR(EINVAL));
+		cutoff = now - amount;
 	}
 
 	if (cutoff > 0 && !spa_shutting_down(spa) && !issig()) {
@@ -2970,7 +2974,7 @@ out:
 	zfs_dbgmsg("%s: prune completed in %llu ms",
 	    spa_name(spa), (u_longlong_t)NSEC2MSEC(gethrtime() - start_time));
 
-	spa->spa_active_ddt_prune = B_FALSE;
+	atomic_swap_32(&spa->spa_active_ddt_prune, 0);
 	return (0);
 }
 
