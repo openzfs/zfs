@@ -102,6 +102,38 @@ dmu_tx_private_ok(dmu_tx_t *tx)
 	return (tx->tx_anyobj);
 }
 
+/*
+ * Does this tx hold the bonus buffer of obj (or a new-object hold for it)?
+ *
+ * dmu_tx_dirty_buf() panics in debug builds when a dbuf is dirtied by a
+ * tx that holds neither, so callers that must never panic have to ask the
+ * same question. This mirrors the hold matching there: a hold counts when
+ * it names the same dnode and is THT_BONUS or THT_NEWOBJECT. A lazily
+ * created object is covered by DMU_NEW_OBJECT holds (txh_dnode == NULL)
+ * plus the THT_NEWOBJECT hold that dmu_object_alloc() records, and only
+ * the latter carries dn_object; txh_arg1 is 0 for bonus holds, so dnode
+ * identity is the only usable key. No lock is taken: a tx is only ever
+ * touched by the thread that owns it.
+ */
+boolean_t
+dmu_tx_holds_obj_bonus(dmu_tx_t *tx, uint64_t obj)
+{
+	boolean_t holds = B_FALSE;
+
+	for (dmu_tx_hold_t *txh = list_head(&tx->tx_holds); txh != NULL;
+	    txh = list_next(&tx->tx_holds, txh)) {
+		if (txh->txh_dnode != NULL &&
+		    txh->txh_dnode->dn_object == obj &&
+		    (txh->txh_type == THT_BONUS ||
+		    txh->txh_type == THT_NEWOBJECT)) {
+			holds = B_TRUE;
+			break;
+		}
+	}
+
+	return (holds);
+}
+
 static dmu_tx_hold_t *
 dmu_tx_hold_dnode_impl(dmu_tx_t *tx, dnode_t *dn, enum dmu_tx_hold_type type,
     uint64_t arg1, uint64_t arg2)

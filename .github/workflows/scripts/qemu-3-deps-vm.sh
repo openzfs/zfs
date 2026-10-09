@@ -85,8 +85,9 @@ function debian() {
     acl alien attr autoconf bc cpio cryptsetup curl dbench dh-python dkms \
     fakeroot fio gdb gdebi git ksh lcov isc-dhcp-client jq libacl1-dev \
     libaio-dev libattr1-dev libblkid-dev libcurl4-openssl-dev libdevmapper-dev \
-    libelf-dev libffi-dev libmount-dev libpam0g-dev libselinux-dev libssl-dev \
-    libtool libtool-bin libudev-dev libunwind-dev linux-headers-$(uname -r) \
+    libelf-dev libffi-dev libmount-dev libpam0g-dev libselinux-dev libsqlite3-dev \
+    libssl-dev libtool libtool-bin libudev-dev libunwind-dev \
+    linux-headers-$(uname -r) \
     lsscsi nfs-kernel-server pamtester parted python3 python3-all-dev \
     python3-cffi python3-dev python3-distlib python3-packaging libtirpc-dev \
     python3-setuptools python3-sphinx qemu-guest-agent rng-tools rpm2cpio \
@@ -136,7 +137,7 @@ function rhel() {
     parted perf python3 python3-cffi python3-devel python3-packaging \
     kernel-devel python3-setuptools qemu-guest-agent rng-tools rpcgen \
     rpm-build rsync samba strace sysstat systemd watchdog wget xfsprogs-devel \
-    xxhash zlib-devel
+    xxhash sqlite-devel zlib-devel
 
   # These are needed for building Lustre.  We only install these on EL VMs since
   # we don't plan to test build Lustre on other platforms.

@@ -251,6 +251,7 @@ if sys.platform.startswith('freebsd'):
         'cli_root/zfs_inherit/zfs_inherit_001_neg': ['FAIL', known_reason],
         'cli_root/zpool_import/zpool_import_012_pos': ['FAIL', known_reason],
         'delegate/zfs_allow_003_pos': ['FAIL', known_reason],
+        'file_events/file_events_io': ['SKIP', na_reason],
         'pool_checkpoint/checkpoint_big_rewind': ['FAIL', 12622],
         'pool_checkpoint/checkpoint_indirect': ['FAIL', 12623],
         'resilver/resilver_restart_001': ['FAIL', known_reason],

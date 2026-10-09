@@ -46,6 +46,7 @@
 #include <sys/stat.h>
 #include <sys/zap.h>
 #include <sys/zfs_znode.h>
+#include <sys/zfs_events.h>
 #include <sys/sa.h>
 #include <sys/zfs_sa.h>
 #include <sys/zfs_stat.h>
@@ -183,6 +184,8 @@ zfs_znode_init(void)
 	znode_hold_cache = kmem_cache_create("zfs_znode_hold_cache",
 	    sizeof (znode_hold_t), 0, zfs_znode_hold_cache_constructor,
 	    zfs_znode_hold_cache_destructor, NULL, NULL, NULL, 0);
+
+	zfs_events_qent_init();
 }
 
 void
@@ -198,6 +201,8 @@ zfs_znode_fini(void)
 	if (znode_hold_cache)
 		kmem_cache_destroy(znode_hold_cache);
 	znode_hold_cache = NULL;
+
+	zfs_events_qent_fini();
 }
 
 /*
@@ -538,6 +543,31 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	zp->z_id = db->db_object;
 	zp->z_blksz = blksz;
 	zp->z_sync_cnt = 0;
+
+	/*
+	 * The IO window state must start closed. The inode memory comes
+	 * from the VFS inode slab and is recycled, so these fields can
+	 * hold stale garbage from the previous occupant; a nonzero
+	 * z_ev_io_wstart would make the first write take the window-
+	 * absorb path and emit records with uninitialized offsets and
+	 * byte totals (observed as zio canary + k*size on kernels whose
+	 * slab recycling poisons freed memory). The same applies to the
+	 * read window and the pending byte/offset fields feeding it.
+	 */
+	zp->z_ev_io_wstart = 0;
+	zp->z_ev_io_wpend_off = 0;
+	zp->z_ev_io_wpend_bytes = 0;
+	zp->z_ev_io_wuid = 0;
+	zp->z_ev_io_wgid = 0;
+	zp->z_ev_io_wprincipal = 0;
+	zp->z_ev_io_whaveprincipal = B_FALSE;
+	zp->z_ev_io_rstart = 0;
+	zp->z_ev_io_rpend_off = 0;
+	zp->z_ev_io_rpend_bytes = 0;
+	zp->z_ev_io_ruid = 0;
+	zp->z_ev_io_rgid = 0;
+	zp->z_ev_io_rprincipal = 0;
+	zp->z_ev_io_rhaveprincipal = B_FALSE;
 
 	zfs_znode_sa_init(zfsvfs, zp, db, obj_type, hdl);
 
@@ -1798,6 +1828,7 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 	zilog_t *zilog = zfsvfs->z_log;
 	uint64_t mode;
 	uint64_t mtime[2], ctime[2];
+	uint64_t old_size = zp->z_size;
 	sa_bulk_attr_t bulk[4];
 	int count = 0;
 	int error;
@@ -1826,6 +1857,8 @@ log:
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, ZFS_SEQ_MAY_GROW(zp));
 	zfs_sa_upgrade_txholds(tx, zp);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, tx);
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
@@ -1842,7 +1875,28 @@ log:
 	error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 	ASSERT0(error);
 
+	/*
+	 * Emit any pending IO windows before the operation
+	 * event, preserving cause order under the same tx.
+	 */
+	zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_TRUE);
+	zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_FALSE);
 	zfs_log_truncate(zilog, tx, TX_TRUNCATE, zp, off, len);
+	/*
+	 * Log a TRUNCATE only when the file's size actually changed.
+	 * For a hole punch / range free, off is the range start, not a
+	 * new size, and those paths leave z_size alone -- passing off
+	 * would record "the file became <offset> bytes".  Every real
+	 * size change (truncate, and both extend paths) has already set
+	 * zp->z_size before falling through here, so it is the true
+	 * new size.
+	 */
+	if (zfsvfs->z_events && zp->z_size != old_size) {
+		zfs_events_log_truncate(zfsvfs->z_os, tx, zp->z_id,
+		    old_size, zp->z_size, zfsvfs->z_events_size,
+		    &zfsvfs->z_events_obj,
+		    &zfsvfs->z_events_lock);
+	}
 
 	dmu_tx_commit(tx);
 
@@ -1953,6 +2007,12 @@ zfs_create_fs(objset_t *os, cred_t *cr, nvlist_t *zplprops, dmu_tx_t *tx)
 	rootzp->z_xattr_dir_absent = B_FALSE;
 	rootzp->z_is_sa = USE_SA(version, os);
 	rootzp->z_pflags = 0;
+	/*
+	 * IO windows must start closed on a recycled znode (see
+	 * zfs_znode_alloc()).
+	 */
+	rootzp->z_ev_io_wstart = 0;
+	rootzp->z_ev_io_rstart = 0;
 
 	zfsvfs = kmem_zalloc(sizeof (zfsvfs_t), KM_SLEEP);
 	zfsvfs->z_os = os;

@@ -503,6 +503,10 @@ zfs_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	case ZFS_ERR_WRONG_PARENT:
 		zfs_verror(hdl, EZFS_WRONG_PARENT, fmt, ap);
 		break;
+	case ERANGE:
+		zfs_error_aux(hdl, "value is out of range");
+		zfs_verror(hdl, EZFS_BADPROP, fmt, ap);
+		break;
 	case ZFS_ERR_BADPROP:
 		zfs_verror(hdl, EZFS_BADPROP, fmt, ap);
 		break;

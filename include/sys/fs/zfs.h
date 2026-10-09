@@ -195,6 +195,10 @@ typedef enum {
 	ZFS_PROP_DEFAULTPROJECTOBJQUOTA,
 	ZFS_PROP_SNAPSHOTS_CHANGED_NSECS,
 	ZFS_PROP_ZONED_UID,
+	ZFS_PROP_EVENTS,
+	ZFS_PROP_EVENTS_SIZE,
+	ZFS_PROP_EVENTS_IO,
+	ZFS_PROP_EVENTS_IO_WINDOW,
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -1708,6 +1712,9 @@ typedef enum zfs_ioc {
 	ZFS_IOC_POOL_PREFETCH,			/* 0x5a58 */
 	ZFS_IOC_DDT_PRUNE,			/* 0x5a59 */
 	ZFS_IOC_POOL_CONDENSE,			/* 0x5a5a */
+	ZFS_IOC_GET_EVENTS,			/* 0x5a5b */
+	ZFS_IOC_CLEAR_EVENTS,			/* 0x5a5c */
+	ZFS_IOC_SET_PRINCIPAL,			/* 0x5a5d */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.

@@ -29,7 +29,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd September 9, 2026
+.Dd September 13, 2025
 .Dt ZFSPROPS 7
 .Os
 .
@@ -190,48 +190,6 @@ GUID.
 Thus, the
 .Sy guid
 is suitable to identify a snapshot across pools.
-.Pp
-On Linux, each mounted filesystem, snapshot, and clone reports a 128-bit
-filesystem UUID to the kernel, which the
-.Sy FS_IOC_GETFSUUID
-ioctl returns.
-The first half of the UUID is the GUID of the pool and the second half is
-the
-.Sy guid
-of the dataset, so the first and the last 16 hexadecimal digits of the UUID
-show the two GUIDs in hexadecimal.
-The UUID is not a valid RFC 4122 UUID.
-Linux overlayfs stores the UUID in its persistent file handles, and the
-.Sy fsuuid Ns =
-rules of IMA policies match it.
-.Pp
-The UUID of a mounted filesystem does not change until its next mount.
-At the next mount, it shows a new pool GUID after
-.Nm zpool Cm reguid
-or in the new pool of
-.Nm zpool Cm split ,
-and a new dataset
-.Sy guid
-after
-.Nm zfs Cm receive
-re-created the filesystem.
-A snapshot that
-.Nm zfs Cm receive
-created in the same pool has the same
-.Sy guid ,
-and thus the same UUID, as the snapshot that it was sent from.
-Earlier OpenZFS releases reported a null UUID, so the first mount after an
-upgrade changes the UUID as well.
-The
-.Sx Filesystem UUIDs and Overlayfs
-section of
-.Xr zpool-reguid 8
-describes the effect of a UUID change on overlayfs and the recovery.
-The
-.Sy zfs_sb_uuid
-module parameter of
-.Xr zfs 4
-restores the null UUID.
 .It Sy logicalreferenced
 The amount of space that is
 .Qq logically
@@ -564,15 +522,6 @@ Specifies the time at which a snapshot for a dataset was last
 created or deleted.
 .Pp
 This allows us to be more efficient how often we query snapshots.
-The property is persistent across mount and unmount operations only if the
-.Sy extensible_dataset
-feature is enabled.
-.It Sy snapshots_changed_nsecs
-Specifies the UTC time at which a snapshot for a dataset was last created
-or deleted, expressed as the number of nanoseconds since the Unix epoch.
-This is a high-precision version of
-.Sy snapshots_changed ,
-representing the same instant with nanosecond instead of second resolution.
 The property is persistent across mount and unmount operations only if the
 .Sy extensible_dataset
 feature is enabled.
@@ -1292,6 +1241,168 @@ and the minimum is
 .Sy 100000 .
 This property may be changed with
 .Nm zfs Cm change-key .
+.It Sy events Ns = Ns Sy on Ns | Ns Sy off
+Controls whether file-level event logging is enabled for this dataset.
+When enabled, ZFS records metadata operations
+.Pq create, delete, rename, link, truncate, setattr
+in an internal ring buffer that can be queried using
+.Nm zfs Cm events .
+.Pp
+The event log is stored within the dataset and is included in ZFS send streams,
+making it useful for replication conflict detection and forensic analysis.
+Events are keyed by ZFS object ID, ensuring that the history of a file is
+preserved across renames.
+.Pp
+The default value is
+.Sy off .
+This property is inherited by descendant datasets.
+.Pp
+Setting
+.Sy events Ns = Ns Sy on
+is refused by
+.Nm libzfs
+when the pool's
+.Sy compatibility
+property is set to a feature set that excludes the
+.Sy org.openzfs:events
+feature; the kernel independently refuses to enable the property on pools
+with
+.Sy compatibility Ns = Ns Sy legacy .
+See
+.Xr zpool-features 7
+for details.
+.Pp
+The
+.Sy org.openzfs:events
+pool feature is activated on the first logged event for any dataset in
+a pool, not at the moment this property is set: a dataset with
+.Sy events=on
+that has not yet performed a logged operation leaves the feature
+.Sy enabled
+but not
+.Sy active .
+See
+.Xr zpool-features 7
+for details.
+.Pp
+The size of the event log buffer is controlled by the
+.Sy events_size
+property.
+For long-term event retention, use
+.Xr zmetad 8
+to export events to an external database.
+.Pp
+See
+.Xr zfs-events 8
+for information on querying the event log.
+.It Sy events_size Ns = Ns Ar size
+Specifies the maximum size of the file-level event log buffer for this dataset.
+The value can be specified using human-readable suffixes
+.Pq for example, Sy 1M , Sy 512K , Sy 10M .
+.Pp
+The default value is
+.Sy 1M
+.Pq 1 mebibyte .
+The minimum value is
+.Sy 128K
+and the maximum value is
+.Sy 1G .
+.Pp
+The event log operates as a ring buffer; when full, the oldest events are
+overwritten by new events.
+Increasing this value allows more events to be retained before overwriting,
+at the cost of additional dataset space.
+.Pp
+This property has no effect unless the
+.Sy events
+property is set to
+.Sy on .
+This property is inherited by descendant datasets.
+.Pp
+For datasets generating high volumes of events, consider increasing this value
+or using
+.Xr zmetad 8
+to export events to an external database before they are overwritten.
+.It Sy events_io Ns = Ns Sy on Ns | Ns Sy off
+Controls whether file content access is recorded as
+.Sy WRITE
+and
+.Sy READ
+events in this dataset's event log.
+When enabled, writes and reads performed through the
+.Xr write 2
+and
+.Xr read 2
+paths generate events carrying
+.Sy io_offset
+and
+.Sy io_bytes ;
+see
+.Xr zfs-events 8
+for the record semantics.
+.Pp
+The default value is
+.Sy off .
+This property is inherited by descendant datasets.
+This property has no effect unless the
+.Sy events
+property is set to
+.Sy on ;
+the default configuration's behavior is identical to
+.Sy events
+alone.
+Enabling it is refused on
+.Fx ,
+where the IO-event recording plumbing is absent.
+Coalescing of IO events is controlled by the
+.Sy events_io_window
+property.
+.It Sy events_io_window Ns = Ns Ar milliseconds
+Specifies the coalescing window for
+.Sy WRITE
+and
+.Sy READ
+events in this dataset.
+While the window is open, I/O to the same file in the same direction is
+absorbed into a single pending event: byte counts are summed into
+.Sy io_bytes
+and
+.Sy io_offset
+is the window's first offset.
+Bytes are coalesced, never dropped.
+The window closes on the next I/O past the window, on any non-IO event
+for the same file, and on
+.Xr close 2 .
+.Pp
+The value must be between
+.Sy 0
+and
+.Sy 3600000
+milliseconds (one hour).
+The default value is
+.Sy 1000
+(1 second).
+A value of
+.Sy 0
+disables the fence and records every
+.Xr write 2
+and
+.Xr read 2
+call individually; set it to
+.Sy 0
+only for short forensic captures, as sustained bulk I/O at window
+.Sy 0
+will wrap the event ring continuously.
+Size
+.Sy events_size
+accordingly or use a nonzero window.
+This property has no effect unless the
+.Sy events
+and
+.Sy events_io
+properties are set to
+.Sy on .
+This property is inherited by descendant datasets.
 .It Sy exec Ns = Ns Sy on Ns | Ns Sy off
 Controls whether processes can be executed from within this file system.
 The default value is
@@ -1392,21 +1503,6 @@ This was only supported by Linux prior to 5.15, and was buggy there,
 and is not supported by
 .Fx .
 On Solaris it's used for SMB clients.
-.It Sy longname Ns = Ns Sy on Ns | Ns Sy off
-Controls support for filenames longer than 255 bytes, up to 1023 bytes.
-The default is
-.Sy off .
-Setting this property to
-.Sy on
-activates the
-.Sy longname
-pool feature, which must be enabled
-.Po see
-.Xr zpool-features 7
-.Pc .
-Once a file with a long name is created, the feature becomes active and
-the pool can no longer be imported by an OpenZFS implementation that does
-not support it.
 .It Sy overlay Ns = Ns Sy on Ns | Ns Sy off
 Allow mounting on a busy directory or a directory which already contains
 files or directories.
@@ -2159,98 +2255,6 @@ for more information.
 Zoning is a
 Linux
 feature and this property is not available on other platforms.
-.It Sy zoned_uid Ns = Ns Ar uid
-Delegates dataset visibility and administration to all user namespaces
-owned by the specified UID.
-This property enables rootless container support with native ZFS storage.
-For example, setting
-.Sy zoned_uid Ns = Ns 1000
-allows user 1000's rootless Podman containers to use ZFS for storage layers.
-This is a Linux-only feature.
-.Pp
-Authorization uses an additive three-layer model where all layers must pass:
-.Bl -tag -width "L2 (capability tier)" -compact
-.It Sy L0 (authentication)
-The user namespace owner UID must match the
-.Sy zoned_uid
-value.
-.It Sy L1 (dsl_deleg)
-The pool administrator must grant per-operation permissions on the
-delegation root using
-.Xr zfs-allow 8 .
-When pool delegation is OFF
-.Pq Nm zpool Cm set Sy delegation Ns = Ns Sy off ,
-all write operations are denied regardless of capabilities.
-.It Sy L2 (capability tier)
-Linux capabilities within the user namespace determine the permitted
-operation class:
-.Sy CAP_FOWNER
-for non-destructive operations
-.Pq create, snapshot, set property ,
-.Sy CAP_SYS_ADMIN
-for destructive operations
-.Pq destroy, rename, clone .
-Both are namespaced capabilities scoped to the user namespace,
-not the init namespace.
-.El
-.Pp
-Read-only operations
-.Pq Nm zfs Cm list , Nm zfs Cm get
-require no capabilities and no
-.Nm zfs Cm allow
-grants; visibility is controlled solely by the
-.Sy zoned_uid
-delegation scoping.
-.Pp
-Write operations that can be delegated include
-.Nm zfs Cm create ,
-.Nm zfs Cm destroy ,
-.Nm zfs Cm snapshot ,
-.Nm zfs Cm clone ,
-.Nm zfs Cm rename
-.Pq within the delegation subtree ,
-and
-.Nm zfs Cm set .
-.Pp
-The delegation root dataset
-.Pq where zoned_uid is locally set
-cannot be destroyed from within the user namespace, protecting the
-parent dataset from unauthorized removal.
-Renames are also constrained to remain within the delegation subtree.
-The namespace user cannot modify the
-.Sy zoned_uid
-or
-.Sy zoned
-properties, and cannot override
-.Sy filesystem_limit
-or
-.Sy snapshot_limit
-set by the administrator on the delegation root
-.Pq but can impose tighter sub-limits on child datasets .
-.Pp
-Set to
-.Sy 0
-.Pq or inherit
-to disable UID-based delegation.
-.Pp
-Unlike
-.Nm zfs Cm zone
-which requires an existing namespace file,
-.Sy zoned_uid
-applies to any user namespace owned by the specified UID,
-making it suitable for container runtimes that create new namespaces
-on each invocation.
-See
-.Xr zfs-zone 8
-for namespace-specific delegation.
-.Pp
-Example setup for rootless Podman:
-.Bd -literal -offset indent
-# zfs create tank/containers
-# zfs set zoned_uid=1000 tank/containers
-# zfs set mountpoint=none tank/containers
-# zfs allow -u 1000 create,destroy,mount,snapshot,rename,clone tank/containers
-.Ed
 .El
 .Pp
 The following three properties cannot be changed after the file system is

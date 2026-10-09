@@ -200,6 +200,8 @@
     <elf-symbol name='lzc_change_key' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_channel_program' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_channel_program_nosync' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzc_clear_events' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzc_clear_principal' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_clone' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_condense' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_create' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -211,6 +213,7 @@
     <elf-symbol name='lzc_get_bookmark_props' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_get_bookmarks' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_get_bootenv' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzc_get_events' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_get_holds' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_get_props' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_get_vdev_prop' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -244,6 +247,7 @@
     <elf-symbol name='lzc_send_space_resume_redacted' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_send_wrapper' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_set_bootenv' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzc_set_principal' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_set_vdev_prop' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_snaprange_space' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_snapshot' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -2832,6 +2836,9 @@
       <enumerator name='ZFS_IOC_POOL_PREFETCH' value='23128'/>
       <enumerator name='ZFS_IOC_DDT_PRUNE' value='23129'/>
       <enumerator name='ZFS_IOC_POOL_CONDENSE' value='23130'/>
+      <enumerator name='ZFS_IOC_GET_EVENTS' value='23131'/>
+      <enumerator name='ZFS_IOC_CLEAR_EVENTS' value='23132'/>
+      <enumerator name='ZFS_IOC_SET_PRINCIPAL' value='23133'/>
       <enumerator name='ZFS_IOC_PLATFORM' value='23168'/>
       <enumerator name='ZFS_IOC_EVENTS_NEXT' value='23169'/>
       <enumerator name='ZFS_IOC_EVENTS_CLEAR' value='23170'/>
@@ -3851,6 +3858,12 @@
       <parameter type-id='95e97e5e'/>
       <return type-id='95e97e5e'/>
     </function-decl>
+    <function-decl name='nvlist_lookup_boolean_value' visibility='default' binding='global' size-in-bits='64'>
+      <parameter type-id='22cce67b'/>
+      <parameter type-id='80f4b756'/>
+      <parameter type-id='37e3bd22'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
     <function-decl name='nvlist_lookup_uint64' visibility='default' binding='global' size-in-bits='64'>
       <parameter type-id='22cce67b'/>
       <parameter type-id='80f4b756'/>
@@ -4492,6 +4505,27 @@
       <parameter type-id='80f4b756' name='pool'/>
       <parameter type-id='02e25ab0' name='unit'/>
       <parameter type-id='9c313c2d' name='amount'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_get_events' mangled-name='lzc_get_events' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_get_events'>
+      <parameter type-id='80f4b756' name='dsname'/>
+      <parameter type-id='9c313c2d' name='object'/>
+      <parameter type-id='9c313c2d' name='offset'/>
+      <parameter type-id='857bb57e' name='outnvl'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_clear_events' mangled-name='lzc_clear_events' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_clear_events'>
+      <parameter type-id='80f4b756' name='dsname'/>
+      <parameter type-id='857bb57e' name='outnvl'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_set_principal' mangled-name='lzc_set_principal' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_set_principal'>
+      <parameter type-id='9c313c2d' name='principal'/>
+      <parameter type-id='5d6479ae' name='genp'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_clear_principal' mangled-name='lzc_clear_principal' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_clear_principal'>
+      <parameter type-id='5d6479ae' name='genp'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='lzc_ioctl_fd_os' visibility='default' binding='global' size-in-bits='64'>

@@ -30,6 +30,7 @@
 #include <sys/zfs_znode.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_dir.h>
+#include <sys/zfs_events.h>
 #include <sys/zil.h>
 #include <sys/fs/zfs.h>
 #include <sys/dmu.h>
@@ -260,6 +261,44 @@ longname_changed_cb(void *arg, uint64_t newval)
 	((zfsvfs_t *)arg)->z_longname = newval;
 }
 
+static void
+events_changed_cb(void *arg, uint64_t newval)
+{
+	zfsvfs_t *zfsvfs = arg;
+
+	zfsvfs->z_events = newval;
+
+	/*
+	 * Seed the cached ring id now that the dataset's objset exists
+	 * (this callback fires once per mount and again on resume via
+	 * dsl_prop_register). Without it the first emitting transaction
+	 * after a (re)mount would drop its record: z_events_obj is 0, so
+	 * zfs_events_get_obj() would treat a ring its own txhold DID see
+	 * as a racing creator's and skip it.
+	 */
+	if (zfsvfs->z_os != NULL)
+		zfs_events_seed_obj(zfsvfs->z_os, &zfsvfs->z_events_obj,
+		    &zfsvfs->z_events_lock);
+}
+
+static void
+events_size_changed_cb(void *arg, uint64_t newval)
+{
+	((zfsvfs_t *)arg)->z_events_size = newval;
+}
+
+static void
+events_io_changed_cb(void *arg, uint64_t newval)
+{
+	((zfsvfs_t *)arg)->z_events_io = newval;
+}
+
+static void
+events_io_window_changed_cb(void *arg, uint64_t newval)
+{
+	((zfsvfs_t *)arg)->z_events_io_window = newval;
+}
+
 static int
 zfs_register_callbacks(vfs_t *vfsp)
 {
@@ -322,6 +361,17 @@ zfs_register_callbacks(vfs_t *vfsp)
 	    zfs_prop_to_name(ZFS_PROP_NBMAND), nbmand_changed_cb, zfsvfs);
 	error = error ? error : dsl_prop_register(ds,
 	    zfs_prop_to_name(ZFS_PROP_LONGNAME), longname_changed_cb, zfsvfs);
+	error = error ? error : dsl_prop_register(ds,
+	    zfs_prop_to_name(ZFS_PROP_EVENTS), events_changed_cb, zfsvfs);
+	error = error ? error : dsl_prop_register(ds,
+	    zfs_prop_to_name(ZFS_PROP_EVENTS_SIZE), events_size_changed_cb,
+	    zfsvfs);
+	error = error ? error : dsl_prop_register(ds,
+	    zfs_prop_to_name(ZFS_PROP_EVENTS_IO), events_io_changed_cb,
+	    zfsvfs);
+	error = error ? error : dsl_prop_register(ds,
+	    zfs_prop_to_name(ZFS_PROP_EVENTS_IO_WINDOW),
+	    events_io_window_changed_cb, zfsvfs);
 	dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
 	if (error)
 		goto unregister;
@@ -443,6 +493,13 @@ zfsvfs_init(zfsvfs_t *zfsvfs, objset_t *os)
 	zfsvfs->z_max_blksz = SPA_OLD_MAXBLOCKSIZE;
 	zfsvfs->z_show_ctldir = ZFS_SNAPDIR_VISIBLE;
 	zfsvfs->z_os = os;
+
+	/*
+	 * Drop any cached ring id: the events property callback re-seeds
+	 * it from the ZAP (registered in zfs_register_callbacks), so a
+	 * re-open or suspend/resume must not keep a stale id.
+	 */
+	zfsvfs->z_events_obj = 0;
 
 	error = zfs_get_zplprop(os, ZFS_PROP_VERSION, &zfsvfs->z_version);
 	if (error != 0)
@@ -675,6 +732,9 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 
 	mutex_init(&zfsvfs->z_znodes_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&zfsvfs->z_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&zfsvfs->z_events_lock, NULL, MUTEX_DEFAULT, NULL);
+	list_create(&zfsvfs->z_evq_deferred, sizeof (zfs_events_qent_t),
+	    offsetof(zfs_events_qent_t, qe_node));
 	list_create(&zfsvfs->z_all_znodes, sizeof (znode_t),
 	    offsetof(znode_t, z_link_node));
 	ZFS_TEARDOWN_INIT(zfsvfs);
@@ -695,6 +755,7 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 
 	error = zfsvfs_init(zfsvfs, os);
 	if (error != 0) {
+		zfs_events_drain_shutdown(zfsvfs);
 		if (zfsvfs->z_use_hold)
 			dmu_objset_rele(os, zfsvfs);
 		else
@@ -820,8 +881,10 @@ zfsvfs_free(zfsvfs_t *zfsvfs)
 
 	zfs_fuid_destroy(zfsvfs);
 
+	list_destroy(&zfsvfs->z_evq_deferred);
 	mutex_destroy(&zfsvfs->z_znodes_lock);
 	mutex_destroy(&zfsvfs->z_lock);
+	mutex_destroy(&zfsvfs->z_events_lock);
 	list_destroy(&zfsvfs->z_all_znodes);
 	ZFS_TEARDOWN_DESTROY(zfsvfs);
 	rw_destroy(&zfsvfs->z_teardown_inactive_lock);
@@ -1521,6 +1584,7 @@ out:
 			 * the mount options vfs_t. Remove them from zfsvfs
 			 * so we don't try to free them.
 			 */
+			zfs_events_drain_shutdown(zfsvfs);
 			zfsvfs->z_vfs = NULL;
 
 			dmu_objset_disown(zfsvfs->z_os, B_TRUE, zfsvfs);
@@ -1600,12 +1664,16 @@ zfs_umount(struct super_block *sb)
 		mutex_enter(&os->os_user_ptr_lock);
 		dmu_objset_set_user(os, NULL);
 		mutex_exit(&os->os_user_ptr_lock);
-
-		/*
-		 * Finally release the objset
-		 */
-		dmu_objset_disown(os, B_TRUE, zfsvfs);
 	}
+
+	/*
+	 * Drain deferred IO-event records even when z_os is NULL (a failed
+	 * reopen): the queue must not leak with the zfsvfs.
+	 */
+	zfs_events_drain_shutdown(zfsvfs);
+
+	if (os != NULL)
+		dmu_objset_disown(os, B_TRUE, zfsvfs);
 
 	zfsvfs_free(zfsvfs);
 	sb->s_fs_info = NULL;

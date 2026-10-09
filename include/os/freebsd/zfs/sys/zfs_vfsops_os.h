@@ -77,6 +77,17 @@ struct zfsvfs {
 	boolean_t	z_xattr_sa;	/* allow xattrs to be stores as SA */
 	boolean_t	z_use_namecache; /* make use of FreeBSD name cache */
 	boolean_t	z_longname;	/* Dataset supports long names */
+	boolean_t	z_events;	/* Dataset events logging enabled */
+	uint64_t	z_events_size;	/* Event log max size in bytes */
+	uint64_t	z_events_obj;	/* Event log object id, 0 = none */
+	kmutex_t	z_events_lock;	/* Event log ring buffer lock */
+	uint64_t	z_events_io;	/* IO event emission enabled */
+	uint64_t	z_events_io_window; /* ms; 0 = defer to drain worker */
+	list_t		z_evq_deferred;	/* Deferred IO records (FIFO) */
+	uint64_t	z_evq_count;	/* Deferred IO record count */
+	boolean_t	z_evq_scheduled; /* Worker queued on taskq */
+	boolean_t	z_evq_shutdown;	/* No new worker dispatches */
+	taskq_t		*z_evq_taskq;	/* Deferred IO record worker */
 	uint8_t		z_xattr;	/* xattr type in use */
 	uint64_t	z_version;	/* ZPL version */
 	uint64_t	z_shares_dir;	/* hidden shares dir */
