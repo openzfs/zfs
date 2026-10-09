@@ -21,6 +21,7 @@
  * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
  * Copyright (c) 2021, 2022 by Pawel Jakub Dawidek
+ * Copyright 2026 Oxide Computer Company
  */
 
 #include <sys/dmu.h>
@@ -2244,17 +2245,18 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
  *	ENOENT: the block was dbuf_free_range()'d, so there's nothing to do.
  *		The caller should not log the write.
  *
- *	EALREADY: this block is already in the process of being synced.
- *		The caller should track its progress (somehow).
- *
- *	EIO: could not do the I/O.
+ *	EIO: could not do the I/O, or the block was replaced by a block
+ *		clone.
  *		The caller should do a txg_wait_synced().
  *
  *	0: the I/O has been initiated.
  *		The caller should log this blkptr in the done callback.
  *		It is possible that the I/O will fail, in which case
  *		the error will be reported to the done callback and
- *		propagated to pio from zio_done().
+ *		propagated to pio from zio_done().  If the block had
+ *		already been written by an earlier dmu_sync() in this txg,
+ *		*zgd_bp is set to that write's blkptr and the done callback
+ *		is called before dmu_sync() returns.
  */
 int
 dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
@@ -2290,7 +2292,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	 * sync thread will block in dbuf_sync_leaf() until we drop db_mtx.
 	 */
 	mutex_enter(&db->db_mtx);
-
+top:
 	if (txg <= spa_last_synced_txg(os->os_spa)) {
 		/*
 		 * This txg has already synced.  There's nothing to do.
@@ -2369,15 +2371,40 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	}
 
 	ASSERT(dr->dr_txg == txg);
-	if (dr->dt.dl.dr_override_state == DR_IN_DMU_SYNC ||
-	    dr->dt.dl.dr_override_state == DR_OVERRIDDEN) {
+	if (dr->dt.dl.dr_override_state == DR_IN_DMU_SYNC) {
 		/*
-		 * We have already issued a sync write for this buffer,
-		 * or this buffer has already been synced.  It could not
-		 * have been dirtied since, or we would have cleared the state.
+		 * Another sync write of this buffer is in progress.  Wait
+		 * for it, then use its blkptr (the DR_OVERRIDDEN state
+		 * below).  Its copy holds our data: the buffer could not
+		 * have been dirtied since, or we would have cleared the
+		 * state.
+		 */
+		cv_wait(&db->db_changed, &db->db_mtx);
+		goto top;
+	}
+	if (dr->dt.dl.dr_brtwrite) {
+		/*
+		 * A block clone replaced this buffer after our write.  Its
+		 * blkptr points to a block allocated in an earlier txg,
+		 * which the log can't claim or free, so wait for the txg to
+		 * sync instead.
 		 */
 		mutex_exit(&db->db_mtx);
-		return (SET_ERROR(EALREADY));
+		return (SET_ERROR(EIO));
+	}
+	if (dr->dt.dl.dr_override_state == DR_OVERRIDDEN) {
+		/*
+		 * This buffer has already been written by a sync write, and
+		 * not dirtied since.  Log that write's blkptr.  The same
+		 * blkptr may be in other log records; claim and free skip
+		 * duplicates.  (zfs_get_data() logs a Direct I/O write's
+		 * blkptr itself, without calling dmu_sync().)
+		 */
+		*zgd->zgd_bp = dr->dt.dl.dr_overridden_by;
+		mutex_exit(&db->db_mtx);
+		zil_lwb_add_block(zgd->zgd_lwb, zgd->zgd_bp);
+		done(zgd, 0);
+		return (0);
 	}
 
 	ASSERT0(dr->dt.dl.dr_has_raw_params);
