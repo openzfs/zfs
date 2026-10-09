@@ -38,6 +38,18 @@ typedef struct zfsvfs zfsvfs_t;
 struct znode;
 
 /*
+ * Completion record for the async Direct I/O write barrier.  Each queued
+ * write carries a sequence number; taskq workers can finish writes out of
+ * order, so a completed write whose predecessors are still running is parked
+ * in the scope's pending list until the contiguous watermark advances past
+ * it.
+ */
+typedef struct zpl_async_dio_write_done {
+	list_node_t	wd_node;
+	uint64_t	wd_seq;
+} zpl_async_dio_write_done_t;
+
+/*
  * This structure emulates the vfs_t from other platforms.  It's purpose
  * is to facilitate the handling of mount options and minimize structural
  * differences between the platforms.
@@ -93,6 +105,26 @@ struct zfsvfs {
 	boolean_t	z_use_hold;	/* held via dmu_objset_hold */
 	rrmlock_t	z_teardown_lock;
 	krwlock_t	z_teardown_inactive_lock;
+	/*
+	 * z_async_dio_inflight packs two values in one atomic: the low
+	 * 63 bits count the in-flight async Direct I/O requests and bit 63
+	 * (ZPL_ASYNC_DIO_DRAINING_BIT) is the sticky draining flag set at
+	 * teardown to reject new admissions.  Combining them lets
+	 * zpl_async_dio_hold() admission and the teardown drain
+	 * synchronize with one compare-and-swap, so per-request
+	 * accounting needs no lock.  The count does not gate admission; it
+	 * only lets teardown wait for queued requests to finish executing.
+	 * z_async_dio_lock still protects the write-pending list/watermark
+	 * and the z_async_dio_cv waiters.
+	 */
+#define	ZPL_ASYNC_DIO_DRAINING_BIT	(1ULL << 63)
+#define	ZPL_ASYNC_DIO_INFLIGHT_MASK	(~ZPL_ASYNC_DIO_DRAINING_BIT)
+	kmutex_t	z_async_dio_lock; /* write-pending list & drain cv */
+	kcondvar_t	z_async_dio_cv;	/* drain-to-teardown and syncfs cv */
+	uint64_t	z_async_dio_inflight; /* atomic; see comment above */
+	uint64_t	z_async_dio_write_seq;	/* async write seq allocator */
+	uint64_t	z_async_dio_write_watermark; /* completed seq */
+	list_t		z_async_dio_write_pending; /* out-of-order completed */
 	list_t		z_all_znodes;	/* all znodes in the fs */
 	unsigned long	z_rollback_time; /* last online rollback time */
 	uint64_t	z_snap_atime;	/* last snapshot access time */
