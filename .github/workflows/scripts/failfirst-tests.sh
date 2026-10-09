@@ -2,7 +2,7 @@
 
 ######################################################################
 # Run the tests of a "failing test -> fix" commit pair and check them
-# against the expected outcome (see zfs-failfirst.yml).
+# against the expected outcome (see zfs-precheck.yml).
 #
 # called on runner:  failfirst-tests.sh fail|pass TITLE TEST...
 # called on qemu-vm: failfirst-tests.sh --vm-setup OS

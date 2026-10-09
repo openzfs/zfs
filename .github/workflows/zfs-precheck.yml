@@ -1,5 +1,8 @@
-name: zfs-failfirst
+name: zfs-precheck
 
+# Quick checks of a PR's structure, run on one VM ahead of the full test
+# matrix.  For now the one check is "failing test, then fix":
+#
 # Verify PRs that add a test demonstrating a bug in one commit and fix the
 # bug in a later commit.  Each such test commit is built on its own and its
 # tests must fail (or crash); the PR head is built and the same tests must
