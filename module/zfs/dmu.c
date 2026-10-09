@@ -2705,8 +2705,9 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
  * a dnode is dirty report the dnode as having no holes by returning EBUSY
  * which is always safe to do.
  */
-int
-dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole, uint64_t *off)
+static int
+dmu_offset_next_impl(objset_t *os, uint64_t object, boolean_t hole,
+    uint64_t *off, boolean_t wait)
 {
 	dnode_t *dn;
 	uint64_t txg, maxtxg = 0;
@@ -2721,9 +2722,9 @@ restart:
 
 	if (dnode_is_dirty(dn)) {
 		/*
-		 * If the zfs_dmu_offset_next_sync module option is enabled
-		 * then hole reporting has been requested.  Dirty dnodes
-		 * must be synced to disk to accurately report holes.
+		 * If the caller asked to wait, as dmu_offset_next()
+		 * does when zfs_dmu_offset_next_sync is set, dirty
+		 * dnodes must be synced to disk to report holes.
 		 *
 		 * Provided a RL_READER rangelock spanning 0-UINT64_MAX is
 		 * held by the caller only limited restarts will be required.
@@ -2731,7 +2732,7 @@ restart:
 		 * returning EBUSY and not reporting holes after at most
 		 * TXG_CONCURRENT_STATES (3) restarts.
 		 */
-		if (zfs_dmu_offset_next_sync) {
+		if (wait) {
 			rw_exit(&dn->dn_struct_rwlock);
 			dnode_rele(dn, FTAG);
 
@@ -2755,6 +2756,21 @@ restart:
 	dnode_rele(dn, FTAG);
 
 	return (err);
+}
+
+int
+dmu_offset_next(objset_t *os, uint64_t object, boolean_t hole,
+    uint64_t *off)
+{
+	return (dmu_offset_next_impl(os, object, hole, off,
+	    zfs_dmu_offset_next_sync));
+}
+
+int
+dmu_offset_next_nowait(objset_t *os, uint64_t object, boolean_t hole,
+    uint64_t *off)
+{
+	return (dmu_offset_next_impl(os, object, hole, off, B_FALSE));
 }
 
 int

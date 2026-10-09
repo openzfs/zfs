@@ -1708,6 +1708,7 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 	uint64_t	uid, gid, projid;
 	blkptr_t	*bps;
 	size_t		maxblocks, nbps;
+	uint64_t	probed = 0, hole_end = 0;
 	uint_t		inblksz;
 	uint64_t	clear_setid_bits_txg = 0;
 	uint64_t	last_synced_txg = 0;
@@ -1822,6 +1823,38 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 	 */
 	while (len > 0) {
 		size = MIN(inblksz * maxblocks, len);
+
+		/*
+		 * A source hole past the destination's EOF needs no
+		 * clone. The first chunk always runs, so its log
+		 * record carries the block size for replay.
+		 */
+		if (!dedup && inoff >= probed &&
+		    outoff >= outzp->z_size &&
+		    outlr->lr_length != UINT64_MAX) {
+			uint64_t next = inoff;
+			int err = dmu_offset_next_nowait(inos,
+			    inzp->z_id, B_FALSE, &next);
+
+			if (err == ESRCH)
+				next = inoff + len;
+			if ((err == 0 || err == ESRCH) &&
+			    next > inoff) {
+				size = MIN(next - inoff, len);
+				inoff += size;
+				outoff += size;
+				len -= size;
+				done += size;
+				hole_end = outoff;
+				continue;
+			}
+			if (err == 0) {
+				probed = inoff + len;
+				if (dmu_offset_next_nowait(inos,
+				    inzp->z_id, B_TRUE, &next) == 0)
+					probed = next;
+			}
+		}
 
 		if (zfs_id_overblockquota(outzfsvfs, DMU_USERUSED_OBJECT,
 		    uid) ||
@@ -1993,6 +2026,46 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 		if (issig()) {
 			error = SET_ERROR(EINTR);
 			break;
+		}
+	}
+
+	/*
+	 * The range ended in a skipped hole, so no chunk extended the
+	 * file that far. Extend it and log the new size.
+	 */
+	if (hole_end > outzp->z_size) {
+		int err;
+
+		tx = dmu_tx_create(outos);
+		dmu_tx_hold_sa(tx, outzp->z_sa_hdl,
+		    ZFS_SEQ_MAY_GROW(outzp));
+		zfs_sa_upgrade_txholds(tx, outzp);
+		err = dmu_tx_assign(tx, DMU_TX_WAIT);
+		if (err != 0) {
+			dmu_tx_abort(tx);
+			outsize = outzp->z_size;
+			done = outsize > outoff - done ?
+			    outsize - (outoff - done) : 0;
+			if (error == 0)
+				error = err;
+		} else {
+			zfs_clear_setid_bits_if_necessary(outzfsvfs,
+			    outzp, cr, &clear_setid_bits_txg, tx);
+			zfs_tstamp_update_setup(outzp,
+			    CONTENT_MODIFIED, mtime, ctime);
+			if (outzp->z_is_sa)
+				outzp->z_has_seq = B_TRUE;
+			while ((outsize = outzp->z_size) < hole_end) {
+				(void) atomic_cas_64(&outzp->z_size,
+				    outsize, hole_end);
+			}
+			err = sa_bulk_update(outzp->z_sa_hdl, bulk,
+			    count, tx);
+			if (error == 0)
+				error = err;
+			zfs_log_truncate(zilog, tx, TX_TRUNCATE,
+			    outzp, hole_end, 0);
+			dmu_tx_commit(tx);
 		}
 	}
 
