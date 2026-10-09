@@ -90,6 +90,7 @@ jobs:
       EXPECT: ${{ fromJson(needs.detect.outputs.jobs)[matrix.label].expect }}
       TITLE: ${{ fromJson(needs.detect.outputs.jobs)[matrix.label].title }}
       TESTS: ${{ fromJson(needs.detect.outputs.jobs)[matrix.label].tests }}
+      TIMEOUT: ${{ fromJson(needs.detect.outputs.jobs)[matrix.label].timeout }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -128,7 +129,8 @@ jobs:
         .github/workflows/scripts/qemu-5-setup.sh
 
     - name: Run tests
-      timeout-minutes: 240
+      # scales with the number of tests; see failfirst-detect.py
+      timeout-minutes: ${{ fromJson(env.TIMEOUT) }}
       run: |
         read -ra tests <<< "$TESTS"
         .github/workflows/scripts/failfirst-tests.sh "$EXPECT" "$TITLE" \

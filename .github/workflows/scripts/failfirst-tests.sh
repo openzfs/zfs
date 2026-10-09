@@ -21,8 +21,11 @@
 
 set -eu
 
-# Seconds a single test may run before the VM is considered hung.
-PER_TEST_TIMEOUT=${PER_TEST_TIMEOUT:-2400}
+# Seconds a single test may run before the VM is considered hung.  The
+# test runner itself stops a test after 600 seconds; this allows for the
+# group's setup and cleanup.  failfirst-detect.py sizes the step timeout
+# from it.
+PER_TEST_TIMEOUT=${PER_TEST_TIMEOUT:-1500}
 
 # Kernel messages that mean the test hit a bug, even if it passed.
 KERR='VERIFY|PANIC|BUG:|Oops|Kernel panic|general protection|Call Trace'

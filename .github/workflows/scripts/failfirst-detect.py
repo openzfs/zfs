@@ -22,10 +22,10 @@ Prints a JSON object to stdout:
    "labels": ["Fails without fix: SHA9 TITLE", ...,
               "Passes with fix: SHA9 TITLE"],
    "jobs": {LABEL: {"role": "test", "ref": SHA, "expect": "fail",
-                    "tests": "...", "title": "..."},
+                    "tests": "...", "title": "...", "timeout": MINUTES},
             ...,
             LABEL: {"role": "head", "ref": HEAD_SHA, "expect": "pass",
-                    "tests": "...", "title": "..."}},
+                    "tests": "...", "title": "...", "timeout": MINUTES}},
    "summary": "markdown text"}
 
 The labels are the verify job's only matrix key, so that GitHub shows them
@@ -45,6 +45,12 @@ import sys
 
 # Maximum number of test commits to verify, to bound the CI time.
 MAX_TEST_COMMITS = 4
+
+# Minutes for a verify job's test step: a test may run up to the watchdog
+# in failfirst-tests.sh (PER_TEST_TIMEOUT, 25 minutes), plus a VM restart.
+MINUTES_PER_TEST = 30
+MINUTES_EXTRA = 15
+MAX_MINUTES = 240
 
 # Paths are passed to shell scripts, so only plain names are accepted.
 TEST_SCRIPT_RE = re.compile(r'^tests/zfs-tests/(tests/[A-Za-z0-9_./-]+\.ksh)$')
@@ -169,6 +175,9 @@ def main():
                 lines.append(f'Note: {t} no longer exists at HEAD and is '
                              'not run there.')
 
+    for j in include:
+        j['timeout'] = min(MAX_MINUTES, MINUTES_EXTRA +
+                           MINUTES_PER_TEST * len(j['tests'].split()))
     jobs = {label(j): j for j in include}
     print(json.dumps({
         'found': bool(include),
