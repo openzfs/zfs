@@ -2449,6 +2449,30 @@ vdev_raidz_layout_for_alloc_locked(vdev_raidz_t *vdrz, uint64_t txg)
 {
 	ASSERT(MUTEX_HELD(&vdrz->vd_expand_lock));
 
+	/*
+	 * A loaded parity-epoch table fully determines the pair: load
+	 * rejects tables that do not start at txg 0 or that coexist with
+	 * expansion history, so the last entry at or before txg is always
+	 * defined and width/parity cannot be combined across sources.
+	 */
+	if (vdrz->vd_parity_epochs != NULL) {
+		const uint64_t *table = vdrz->vd_parity_epochs;
+		uint64_t entries = vdrz->vd_parity_epoch_count;
+
+		vdev_raidz_layout_t layout = {
+			.vrl_width = table[1],
+			.vrl_nparity = table[2],
+		};
+
+		for (uint64_t i = 1; i < entries; i++) {
+			if (table[3 * i] > txg)
+				break;
+			layout.vrl_width = table[3 * i + 1];
+			layout.vrl_nparity = table[3 * i + 2];
+		}
+		return (layout);
+	}
+
 	reflow_node_t lookup = {
 		.re_txg = txg,
 	};
@@ -2477,40 +2501,12 @@ vdev_raidz_layout_for_alloc(vdev_raidz_t *vdrz, uint64_t txg)
 	    vdev_raidz_layout_for_alloc_locked(vdrz, txg);
 	mutex_exit(&vdrz->vd_expand_lock);
 
-	/*
-	 * A loaded parity-epoch table fully determines the pair: load
-	 * rejects tables that do not start at txg 0 or that coexist with
-	 * expansion history, so the last entry at or before txg is always
-	 * defined and width/parity cannot be combined across sources.
-	 */
-	if (vdrz->vd_parity_epochs != NULL) {
-		const uint64_t *table = vdrz->vd_parity_epochs;
-		uint64_t entries = vdrz->vd_parity_epoch_count;
-
-		for (uint64_t i = 0; i < entries; i++) {
-			if (table[3 * i] > txg)
-				break;
-			layout.vrl_width = table[3 * i + 1];
-			layout.vrl_nparity = table[3 * i + 2];
-		}
-		if (zfs_flags & ZFS_DEBUG_RAIDZ_RECONSTRUCT) {
-			zfs_dbgmsg("layout_for_alloc(txg=%llu width=%llu "
-			    "parity=%llu src=epochs)",
-			    (u_longlong_t)txg, (u_longlong_t)layout.vrl_width,
-			    (u_longlong_t)layout.vrl_nparity);
-		}
-		if (raidz_force_width != 0 &&
-		    (uint64_t)raidz_force_width >= layout.vrl_nparity + 1 &&
-		    (uint64_t)raidz_force_width < layout.vrl_width)
-			layout.vrl_width = raidz_force_width;
-		return (layout);
-	}
-
 	if (zfs_flags & ZFS_DEBUG_RAIDZ_RECONSTRUCT) {
 		zfs_dbgmsg("layout_for_alloc(txg=%llu width=%llu parity=%llu "
-		    "src=legacy)",
+		    "src=%s)",
 		    (u_longlong_t)txg, (u_longlong_t)layout.vrl_width,
-		    (u_longlong_t)layout.vrl_nparity);
+		    (u_longlong_t)layout.vrl_nparity,
+		    vdrz->vd_parity_epochs != NULL ? "epochs" : "legacy");
 	}
 	if (raidz_force_width != 0 &&
 	    (uint64_t)raidz_force_width >= layout.vrl_nparity + 1 &&
@@ -3060,7 +3056,6 @@ vdev_raidz_io_start(zio_t *zio)
 				return;
 			}
 		}
-
 	}
 	if (layout.vrl_width != vdrz->vd_physical_width &&
 	    raidz_force_width == 0 &&
