@@ -29,7 +29,7 @@ typeset readonly=false
 function cleanup
 {
 	if $readonly; then
-		log_must zpool export $TESTPOOL
+		log_must_busy zpool export $TESTPOOL
 		exported=true
 	fi
 	$exported && log_must zpool import $TESTPOOL
@@ -89,7 +89,7 @@ sync_all_pools
 # Keep the object lists stable across zdb invocations. An active pool can
 # replace space map objects during a background metaslab flush.
 if is_global_zone; then
-	log_must zpool export $TESTPOOL
+	log_must_busy zpool export $TESTPOOL
 	exported=true
 	log_must zpool import -o readonly=on $TESTPOOL
 	exported=false
