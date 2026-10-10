@@ -682,6 +682,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/channel_program/synctask_core/tst.snapshot_rename.ksh \
 	functional/channel_program/synctask_core/tst.snapshot_simple.ksh \
 	functional/channel_program/synctask_core/tst.terminate_by_signal.ksh \
+	functional/checksum/arc_repair.ksh \
 	functional/checksum/cleanup.ksh \
 	functional/checksum/filetest_001_pos.ksh \
 	functional/checksum/filetest_002_pos.ksh \
