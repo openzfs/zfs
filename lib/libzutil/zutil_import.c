@@ -1015,8 +1015,8 @@ zpool_read_label_slow(int fd, nvlist_t **config, int *num_labels)
 		return (0);
 	size = P2ALIGN_TYPED(statbuf.st_size, sizeof (vdev_label_t), uint64_t);
 
-	label = (vdev_phys_t *)umem_alloc_aligned(sizeof (*label), PAGESIZE,
-	    UMEM_DEFAULT);
+	label = (vdev_phys_t *)kmem_alloc_aligned(sizeof (*label), PAGESIZE,
+	    KM_NOSLEEP);
 	if (label == NULL)
 		return (-1);
 
@@ -1066,7 +1066,7 @@ zpool_read_label_slow(int fd, nvlist_t **config, int *num_labels)
 	if (num_labels != NULL)
 		*num_labels = count;
 
-	umem_free_aligned(label, sizeof (*label));
+	kmem_free_aligned(label, sizeof (*label));
 	*config = expected_config;
 
 	return (0);
@@ -1097,8 +1097,8 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 		return (0);
 	size = P2ALIGN_TYPED(statbuf.st_size, sizeof (vdev_label_t), uint64_t);
 
-	labels = (vdev_phys_t *)umem_alloc_aligned(
-	    VDEV_LABELS * sizeof (*labels), PAGESIZE, UMEM_DEFAULT);
+	labels = (vdev_phys_t *)kmem_alloc_aligned(
+	    VDEV_LABELS * sizeof (*labels), PAGESIZE, KM_NOSLEEP);
 	if (labels == NULL)
 		return (-1);
 
@@ -1164,7 +1164,7 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 			error = zpool_read_label_slow(fd, config, num_labels);
 			saved_errno = errno;
 		}
-		umem_free_aligned(labels, VDEV_LABELS * sizeof (*labels));
+		kmem_free_aligned(labels, VDEV_LABELS * sizeof (*labels));
 		errno = saved_errno;
 		return (error);
 	}
@@ -1213,7 +1213,7 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 	if (num_labels != NULL)
 		*num_labels = count;
 
-	umem_free_aligned(labels, VDEV_LABELS * sizeof (*labels));
+	kmem_free_aligned(labels, VDEV_LABELS * sizeof (*labels));
 	*config = expected_config;
 
 	return (0);

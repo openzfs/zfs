@@ -45,15 +45,17 @@ function cleanup
 
 function check_ll_len
 {
-    string="$(zdb -vvvvv $TESTPOOL | grep "Livelist")"
-    substring="$1"
-    msg=$2
-    if test "${string#*$substring}" != "$string"; then
-        return 0    # $substring is in $string
-    else
-	log_note $string
-        log_fail "$msg" # $substring is not in $string
-    fi
+	typeset string
+	typeset -i i
+
+	for (( i = 0; i < 60; i++ )); do
+		string=$(zdb -vvvvv $TESTPOOL/$TESTCLONE | grep "Livelist")
+		[[ "$string" == *", $1" ]] && return 0
+		sleep 1
+		sync_pool $TESTPOOL
+	done
+	log_note "$string"
+	log_fail "$2"
 }
 
 function test_condense
@@ -73,13 +75,13 @@ function test_condense
 
 	check_ll_len "5 entries" "Unexpected livelist size"
 
-	# sync between each write to allow for a condense of the previous entry
+	# Condensing runs in a background thread and a later txg. Wait for it
+	# before the next overwrite so the next condense is not skipped.
 	for i in {0..4}; do
 	    log_must mkfile 5m /$TESTPOOL/$TESTCLONE/testfile$i
 	    sync_pool $TESTPOOL
+	    check_ll_len "6 entries" "Condense did not occur"
 	done
-
-	check_ll_len "6 entries" "Condense did not occur"
 
 	log_must zfs destroy $TESTPOOL/$TESTCLONE
 	check_livelist_gone

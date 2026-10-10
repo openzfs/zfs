@@ -696,22 +696,6 @@ livelist_metaslab_validate(spa_t *spa)
 	zfs_btree_destroy(&sv.sv_leftover);
 }
 
-/*
- * These libumem hooks provide a reasonable set of defaults for the allocator's
- * debugging facilities.
- */
-const char *
-_umem_debug_init(void)
-{
-	return ("default,verbose"); /* $UMEM_DEBUG setting */
-}
-
-const char *
-_umem_logging_init(void)
-{
-	return ("fail,contents"); /* $UMEM_LOGGING setting */
-}
-
 static void
 usage(void)
 {
@@ -928,19 +912,19 @@ dump_packed_nvlist(objset_t *os, uint64_t object, void *data, size_t size)
 	(void) size;
 	nvlist_t *nv;
 	size_t nvsize = *(uint64_t *)data;
-	char *packed = umem_alloc(nvsize, UMEM_NOFAIL);
+	char *packed = kmem_alloc(nvsize, KM_SLEEP);
 	int err;
 
 	err = dmu_read(os, object, 0, nvsize, packed, DMU_READ_PREFETCH);
 	if (err != 0) {
 		(void) printf("got error %u from dmu_read\n", err);
-		umem_free(packed, nvsize);
+		kmem_free(packed, nvsize);
 		return;
 	}
 
 	err = nvlist_unpack(packed, nvsize, &nv, 0);
 
-	umem_free(packed, nvsize);
+	kmem_free(packed, nvsize);
 
 	if (err != 0) {
 		(void) printf("got error %u from nvlist_unpack\n", err);
@@ -1191,8 +1175,8 @@ dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 			(void) printf("\n");
 			continue;
 		}
-		prop = umem_zalloc(attrp->za_num_integers *
-		    attrp->za_integer_length, UMEM_NOFAIL);
+		prop = kmem_zalloc(attrp->za_num_integers *
+		    attrp->za_integer_length, KM_SLEEP);
 
 		if (key64)
 			(void) zap_lookup_uint64(os, object,
@@ -1244,7 +1228,7 @@ dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 			}
 		}
 		(void) printf("\n");
-		umem_free(prop,
+		kmem_free(prop,
 		    attrp->za_num_integers * attrp->za_integer_length);
 	}
 	zap_cursor_fini(&zc);
@@ -1394,8 +1378,8 @@ dump_sa_layouts(objset_t *os, uint64_t object, void *data, size_t size)
 		}
 
 		VERIFY(attrp->za_integer_length == 2);
-		layout_attrs = umem_zalloc(attrp->za_num_integers *
-		    attrp->za_integer_length, UMEM_NOFAIL);
+		layout_attrs = kmem_zalloc(attrp->za_num_integers *
+		    attrp->za_integer_length, KM_SLEEP);
 
 		VERIFY(zap_lookup(os, object, attrp->za_name,
 		    attrp->za_integer_length,
@@ -1404,7 +1388,7 @@ dump_sa_layouts(objset_t *os, uint64_t object, void *data, size_t size)
 		for (i = 0; i != attrp->za_num_integers; i++)
 			(void) printf(" %d ", (int)layout_attrs[i]);
 		(void) printf("]\n");
-		umem_free(layout_attrs,
+		kmem_free(layout_attrs,
 		    attrp->za_num_integers * attrp->za_integer_length);
 	}
 	zap_cursor_fini(&zc);
@@ -5277,7 +5261,7 @@ cksum_record_alloc(zio_cksum_t *cksum, int l)
 {
 	cksum_record_t *rec;
 
-	rec = umem_zalloc(sizeof (*rec), UMEM_NOFAIL);
+	rec = kmem_zalloc(sizeof (*rec), KM_SLEEP);
 	rec->cksum = *cksum;
 	rec->labels[l] = B_TRUE;
 
@@ -6159,11 +6143,11 @@ dump_label(const char *dev)
 
 	cookie = NULL;
 	while ((node = avl_destroy_nodes(&config_tree, &cookie)) != NULL)
-		umem_free(node, sizeof (cksum_record_t));
+		kmem_free(node, sizeof (cksum_record_t));
 
 	cookie = NULL;
 	while ((node = avl_destroy_nodes(&uberblock_tree, &cookie)) != NULL)
-		umem_free(node, sizeof (cksum_record_t));
+		kmem_free(node, sizeof (cksum_record_t));
 
 	avl_destroy(&config_tree);
 	avl_destroy(&uberblock_tree);
@@ -6663,8 +6647,8 @@ ddt_done:
 			    brt_entry_get_refcount(zcb->zcb_spa, bp);
 			if (refcnt > 0) {
 				brt_block = B_TRUE;
-				zbre = umem_zalloc(sizeof (zdb_brt_entry_t),
-				    UMEM_NOFAIL);
+				zbre = kmem_zalloc(sizeof (zdb_brt_entry_t),
+				    KM_SLEEP);
 				zbre->zbre_dva = bp->blk_dva[0];
 				zbre->zbre_refcount = refcnt;
 				avl_insert(&zcb->zcb_brt, zbre, where);
@@ -7538,8 +7522,8 @@ zdb_leak_init(spa_t *spa, zdb_cb_t *zcb)
 	spa->spa_special_embedded_log_class->mc_ops = &zdb_metaslab_ops;
 
 	zcb->zcb_vd_obsolete_counts =
-	    umem_zalloc(rvd->vdev_children * sizeof (uint32_t *),
-	    UMEM_NOFAIL);
+	    kmem_zalloc(rvd->vdev_children * sizeof (uint32_t *),
+	    KM_SLEEP);
 
 	/*
 	 * For leak detection, we overload the ms_allocatable trees
@@ -7679,7 +7663,7 @@ zdb_leak_fini(spa_t *spa, zdb_cb_t *zcb)
 				    (u_longlong_t)zbre->zbre_refcount);
 				leaks = B_TRUE;
 			}
-			umem_free(zbre, sizeof (zdb_brt_entry_t));
+			kmem_free(zbre, sizeof (zdb_brt_entry_t));
 		}
 		avl_destroy(&zcb->zcb_brt);
 	}
@@ -7760,7 +7744,7 @@ zdb_leak_fini(spa_t *spa, zdb_cb_t *zcb)
 		}
 	}
 
-	umem_free(zcb->zcb_vd_obsolete_counts,
+	kmem_free(zcb->zcb_vd_obsolete_counts,
 	    rvd->vdev_children * sizeof (uint32_t *));
 	zcb->zcb_vd_obsolete_counts = NULL;
 
@@ -7965,7 +7949,7 @@ dump_block_stats(spa_t *spa)
 
 	ddt_prefetch_all(spa);
 
-	zcb = umem_zalloc(sizeof (zdb_cb_t), UMEM_NOFAIL);
+	zcb = kmem_zalloc(sizeof (zdb_cb_t), KM_SLEEP);
 
 	if (spa_feature_is_active(spa, SPA_FEATURE_BLOCK_CLONING)) {
 		avl_create(&zcb->zcb_brt, zdb_brt_entry_compare,
@@ -8097,7 +8081,7 @@ dump_block_stats(spa_t *spa)
 	}
 
 	if (tzb->zb_count == 0) {
-		umem_free(zcb, sizeof (zdb_cb_t));
+		kmem_free(zcb, sizeof (zdb_cb_t));
 		return (2);
 	}
 
@@ -8223,8 +8207,8 @@ dump_block_stats(spa_t *spa)
 		(void) printf("\nBlocks\tLSIZE\tPSIZE\tASIZE"
 		    "\t  avg\t comp\t%%Total\tType\n");
 
-		zfs_blkstat_t *mdstats = umem_zalloc(sizeof (zfs_blkstat_t),
-		    UMEM_NOFAIL);
+		zfs_blkstat_t *mdstats = kmem_zalloc(sizeof (zfs_blkstat_t),
+		    KM_SLEEP);
 
 		for (t = 0; t <= ZDB_OT_TOTAL; t++) {
 			const char *typename;
@@ -8347,22 +8331,22 @@ dump_block_stats(spa_t *spa)
 			dump_size_histograms(zcb);
 		}
 
-		umem_free(mdstats, sizeof (zfs_blkstat_t));
+		kmem_free(mdstats, sizeof (zfs_blkstat_t));
 	}
 
 	(void) printf("\n");
 
 	if (leaks) {
-		umem_free(zcb, sizeof (zdb_cb_t));
+		kmem_free(zcb, sizeof (zdb_cb_t));
 		return (2);
 	}
 
 	if (zcb->zcb_haderrors) {
-		umem_free(zcb, sizeof (zdb_cb_t));
+		kmem_free(zcb, sizeof (zdb_cb_t));
 		return (3);
 	}
 
-	umem_free(zcb, sizeof (zdb_cb_t));
+	kmem_free(zcb, sizeof (zdb_cb_t));
 	return (0);
 }
 
@@ -8406,7 +8390,7 @@ zdb_ddt_add_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	zdde = avl_find(t, &zdde_search, &where);
 
 	if (zdde == NULL) {
-		zdde = umem_zalloc(sizeof (*zdde), UMEM_NOFAIL);
+		zdde = kmem_zalloc(sizeof (*zdde), KM_SLEEP);
 		zdde->zdde_key = zdde_search.zdde_key;
 		avl_insert(t, zdde, where);
 	}
@@ -8454,7 +8438,7 @@ dump_simulated_ddt(spa_t *spa)
 		dds->dds_ref_psize += zdde->zdde_ref_psize;
 		dds->dds_ref_dsize += zdde->zdde_ref_dsize;
 
-		umem_free(zdde, sizeof (*zdde));
+		kmem_free(zdde, sizeof (*zdde));
 	}
 
 	avl_destroy(&t);
@@ -9747,7 +9731,7 @@ zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
 	 * We don't know how the data was compressed, so just try
 	 * every decompress function at every inflated blocksize.
 	 */
-	void *lbuf2 = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
+	void *lbuf2 = kmem_alloc(SPA_MAXBLOCKSIZE, KM_SLEEP);
 	int cfuncs[ZIO_COMPRESS_FUNCTIONS] = { 0 };
 	int *cfuncp = cfuncs;
 	uint64_t maxlsize = SPA_MAXBLOCKSIZE;
@@ -9802,7 +9786,7 @@ zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
 			}
 		}
 	}
-	umem_free(lbuf2, SPA_MAXBLOCKSIZE);
+	kmem_free(lbuf2, SPA_MAXBLOCKSIZE);
 
 	if (*cfuncp == ZIO_COMPRESS_ZLE) {
 		printf("\nZLE decompression was selected. If you "
@@ -9938,7 +9922,7 @@ zdb_read_block(char *thing, spa_t *spa)
 	}
 
 	pabd = abd_alloc_for_io(SPA_MAXBLOCKSIZE, B_FALSE);
-	lbuf = umem_alloc(SPA_MAXBLOCKSIZE, UMEM_NOFAIL);
+	lbuf = kmem_alloc(SPA_MAXBLOCKSIZE, KM_SLEEP);
 
 	BP_ZERO(bp);
 
@@ -10103,7 +10087,7 @@ zdb_read_block(char *thing, spa_t *spa)
 
 out:
 	abd_free(pabd);
-	umem_free(lbuf, SPA_MAXBLOCKSIZE);
+	kmem_free(lbuf, SPA_MAXBLOCKSIZE);
 done:
 	free(flagstr);
 	free(dup);
@@ -10357,14 +10341,14 @@ main(int argc, char **argv)
 			break;
 		case 'p':
 			if (searchdirs == NULL) {
-				searchdirs = umem_alloc(sizeof (char *),
-				    UMEM_NOFAIL);
+				searchdirs = kmem_alloc(sizeof (char *),
+				    KM_SLEEP);
 			} else {
-				char **tmp = umem_alloc((nsearch + 1) *
-				    sizeof (char *), UMEM_NOFAIL);
+				char **tmp = kmem_alloc((nsearch + 1) *
+				    sizeof (char *), KM_SLEEP);
 				memcpy(tmp, searchdirs, nsearch *
 				    sizeof (char *));
-				umem_free(searchdirs,
+				kmem_free(searchdirs,
 				    nsearch * sizeof (char *));
 				searchdirs = tmp;
 			}
@@ -10670,7 +10654,7 @@ main(int argc, char **argv)
 		 * If path is not provided, search in /dev
 		 */
 		if (searchdirs == NULL) {
-			searchdirs = umem_alloc(sizeof (char *), UMEM_NOFAIL);
+			searchdirs = kmem_alloc(sizeof (char *), KM_SLEEP);
 			searchdirs[nsearch++] = (char *)ZFS_DEVDIR;
 		}
 
@@ -10708,7 +10692,7 @@ main(int argc, char **argv)
 	}
 
 	if (searchdirs != NULL) {
-		umem_free(searchdirs, nsearch * sizeof (char *));
+		kmem_free(searchdirs, nsearch * sizeof (char *));
 		searchdirs = NULL;
 	}
 

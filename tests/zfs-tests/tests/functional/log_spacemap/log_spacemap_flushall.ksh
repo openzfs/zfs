@@ -50,6 +50,8 @@ function cleanup
 log_onexit cleanup
 
 function get_smp_length {
+	typeset max_txg=$1
+
 	#
 	# zdb -m output includes:
 	#
@@ -65,11 +67,20 @@ function get_smp_length {
 	# Traditional awk doesn't understand hex numbers, so we run them back
 	# through printf to covert to decimal before summing them.
 	#
-	zdb -m $LOGSM_POOL | awk '
-	    /^Log Spacemap object/ { onoff = 1 }
-	    /smp_length/ && onoff { print $3 }
+	zdb -m $LOGSM_POOL | awk -v max_txg="$max_txg" '
+	    /^Log Spacemap object/ { txg = $6; in_log = 1; next }
+	    /^space map object/ && in_log { next }
+	    /^[^[:space:]]/ { in_log = 0 }
+	    /smp_length/ && in_log && txg <= max_txg { print $3 }
 	' | xargs -n1 printf '%d\n' | awk '
-	    { sum += $1 } END { print sum }
+	    { sum += $1 } END { print sum + 0 }
+	'
+}
+
+function get_smp_max_txg {
+	zdb -m $LOGSM_POOL | awk '
+	    /^Log Spacemap object/ && $6 > max_txg { max_txg = $6 }
+	    END { print max_txg + 0 }
 	'
 }
 
@@ -82,11 +93,15 @@ for s in $(seq 256) ; do
 	sync_pool $LOGSM_POOL
 done
 
-typeset length_1=$(get_smp_length)
+# Only compare log space maps that existed before the flush request.  The
+# flush can create new log entries in a later TXG while it flushes old ones.
+typeset max_txg=$(get_smp_max_txg)
+typeset length_1=$(get_smp_length $max_txg)
 
 log_must zpool condense -t log_spacemap -w $LOGSM_POOL
+sync_pool $LOGSM_POOL
 
-typeset length_2=$(get_smp_length)
+typeset length_2=$(get_smp_length $max_txg)
 
 log_must test $length_1 -gt $length_2
 

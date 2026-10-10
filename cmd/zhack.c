@@ -710,7 +710,7 @@ zhack_do_mmp_reclaim(int argc, char **argv)
 
 	/* Takes SCL_VDEV itself, so size the array before we hold it. */
 	max = MAX(vdev_count_leaves(spa), 1);
-	guids = umem_zalloc(max * sizeof (uint64_t), UMEM_NOFAIL);
+	guids = kmem_zalloc(max * sizeof (uint64_t), KM_SLEEP);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 	zhack_collect_absent(spa->spa_root_vdev, guids, &nguids, max);
@@ -755,7 +755,7 @@ zhack_do_mmp_reclaim(int argc, char **argv)
 		    "them and be refused\n", target, failed);
 	}
 
-	umem_free(guids, max * sizeof (uint64_t));
+	kmem_free(guids, max * sizeof (uint64_t));
 	spa_close(spa, FTAG);
 
 	return (failed == 0 ? 0 : 1);

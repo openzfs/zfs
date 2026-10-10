@@ -185,7 +185,7 @@ __dprintf(boolean_t dprint, const char *file, const char *func,
 		int i;
 
 		size = 1024;
-		buf = umem_alloc(size, UMEM_NOFAIL);
+		buf = kmem_alloc(size, KM_SLEEP);
 		i = snprintf(buf, size, "%s:%d:%s(): ", newfile, line, func);
 
 		if (i < size) {
@@ -196,7 +196,7 @@ __dprintf(boolean_t dprint, const char *file, const char *func,
 
 		__zfs_dbgmsg(buf);
 
-		umem_free(buf, size);
+		kmem_free(buf, size);
 	}
 }
 
@@ -317,16 +317,6 @@ ddi_strtoull(const char *str, char **nptr, int base, u_longlong_t *result)
  * kernel emulation setup & teardown
  * =========================================================================
  */
-static int
-umem_out_of_memory(void)
-{
-	char errmsg[] = "out of memory -- generating core dump\n";
-
-	(void) fprintf(stderr, "%s", errmsg);
-	abort();
-	return (0);
-}
-
 static void
 spa_config_load(void)
 {
@@ -406,8 +396,6 @@ kernel_init(int mode)
 	extern uint_t rrw_tsd_key;
 
 	libspl_init();
-
-	umem_nofail_callback(umem_out_of_memory);
 
 	dprintf("physmem = %llu pages (%.2f GB)\n", (u_longlong_t)physmem,
 	    (double)physmem * sysconf(_SC_PAGE_SIZE) / (1ULL << 30));

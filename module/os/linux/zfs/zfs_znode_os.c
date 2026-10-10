@@ -1160,8 +1160,13 @@ again:
 		zfs_znode_hold_exit(zfsvfs, zh);
 
 		if (err == EAGAIN) {
-			/* inode might need this to finish evict */
-			cond_resched();
+			/*
+			 * The inode is being evicted, possibly by a thread
+			 * working through a long dispose list.  Sleep rather
+			 * than spin so that thread gets the CPU and the hold
+			 * locks it needs; xfs_iget() does the same.
+			 */
+			delay(1);
 			goto again;
 		}
 		return (err);

@@ -802,13 +802,13 @@ ddt_phys_extend(ddt_univ_phys_t *ddp, ddt_phys_variant_t v, const blkptr_t *bp)
 }
 
 void
-ddt_phys_unextend(ddt_univ_phys_t *cur, ddt_univ_phys_t *orig,
+ddt_phys_unextend(ddt_univ_phys_t *cur, const ddt_univ_phys_t *orig,
     ddt_phys_variant_t v)
 {
 	ASSERT3U(v, <, DDT_PHYS_NONE);
 	dva_t *cur_dvas = (v == DDT_PHYS_FLAT) ?
 	    cur->ddp_flat.ddp_dva : cur->ddp_trad[v].ddp_dva;
-	dva_t *orig_dvas = (v == DDT_PHYS_FLAT) ?
+	const dva_t *orig_dvas = (v == DDT_PHYS_FLAT) ?
 	    orig->ddp_flat.ddp_dva : orig->ddp_trad[v].ddp_dva;
 
 	for (int d = 0; d < SPA_DVAS_PER_BP; d++)
@@ -2931,6 +2931,8 @@ ddt_prune_unique_entries(spa_t *spa, zpool_ddt_prune_unit_t unit,
 		ddt_prune_walk(spa, 0, &histogram);
 
 		uint64_t target = (histogram.dah_entries * amount) / 100;
+		if (target == 0)
+			goto out;
 
 		/*
 		 * Figure out our cutoff date
@@ -2964,6 +2966,7 @@ ddt_prune_unique_entries(spa_t *spa, zpool_ddt_prune_unit_t unit,
 		ddt_prune_walk(spa, cutoff, NULL);
 	}
 
+out:
 	zfs_dbgmsg("%s: prune completed in %llu ms",
 	    spa_name(spa), (u_longlong_t)NSEC2MSEC(gethrtime() - start_time));
 

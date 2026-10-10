@@ -110,6 +110,8 @@ extern "C" {
 #include <sys/tsd.h>
 #include <sys/procfs_list.h>
 #include <sys/kmem.h>
+#include <sys/kmem_cache.h>
+#include <sys/vmem.h>
 #include <sys/zfs_delay.h>
 #include <sys/vnode.h>
 #include <sys/callb.h>

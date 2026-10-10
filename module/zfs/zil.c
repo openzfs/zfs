@@ -937,13 +937,15 @@ zilog_is_dirty(zilog_t *zilog)
 	return (B_FALSE);
 }
 
+static void zil_crash(zilog_t *zilog);
+
 /*
  * Its called in zil_commit context (zil_process_commit_list()/zil_create()).
  * It activates SPA_FEATURE_ZILSAXATTR feature, if its enabled.
  * Check dsl_dataset_feature_is_active to avoid txg_wait_synced() on every
  * zil_commit.
  */
-static void
+static int
 zil_commit_activate_saxattr_feature(zilog_t *zilog)
 {
 	dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
@@ -963,8 +965,16 @@ zil_commit_activate_saxattr_feature(zilog_t *zilog)
 		    (void *)B_TRUE;
 		mutex_exit(&ds->ds_lock);
 		dmu_tx_commit(tx);
-		txg_wait_synced(zilog->zl_dmu_pool, txg);
+		int err = txg_wait_synced_flags(zilog->zl_dmu_pool,
+		    txg, TXG_WAIT_SUSPEND);
+		if (err != 0) {
+			ASSERT3U(err, ==, ESHUTDOWN);
+			zil_crash(zilog);
+			return (err);
+		}
 	}
+
+	return (0);
 }
 
 /*
@@ -986,7 +996,13 @@ zil_create(zilog_t *zilog)
 	/*
 	 * Wait for any previous destroy to complete.
 	 */
-	txg_wait_synced(zilog->zl_dmu_pool, zilog->zl_destroy_txg);
+	error = txg_wait_synced_flags(zilog->zl_dmu_pool,
+	    zilog->zl_destroy_txg, TXG_WAIT_SUSPEND);
+	if (error != 0) {
+		ASSERT3U(error, ==, ESHUTDOWN);
+		zil_crash(zilog);
+		return (NULL);
+	}
 
 	ASSERT0(zh->zh_claim_txg);
 	ASSERT0(zh->zh_replay_seq);
@@ -1043,13 +1059,20 @@ zil_create(zilog_t *zilog)
 		}
 
 		dmu_tx_commit(tx);
-		txg_wait_synced(zilog->zl_dmu_pool, txg);
+		int err = txg_wait_synced_flags(zilog->zl_dmu_pool, txg,
+		    TXG_WAIT_SUSPEND);
+		if (err != 0) {
+			ASSERT3U(err, ==, ESHUTDOWN);
+			zil_crash(zilog);
+			return (NULL);
+		}
 	} else {
 		/*
 		 * This branch covers the case where we enable the feature on a
 		 * zpool that has existing ZIL headers.
 		 */
-		zil_commit_activate_saxattr_feature(zilog);
+		if (zil_commit_activate_saxattr_feature(zilog) != 0)
+			return (NULL);
 	}
 	IMPLY(spa_feature_is_enabled(zilog->zl_spa, SPA_FEATURE_ZILSAXATTR) &&
 	    dmu_objset_type(zilog->zl_os) != DMU_OST_ZVOL,
@@ -2388,8 +2411,6 @@ cont:
 	return (lwb);
 }
 
-static void zil_crash(zilog_t *zilog);
-
 /*
  * Fill the actual transaction data into the lwb, following zil_lwb_assign().
  * Does not require locking.
@@ -3152,12 +3173,14 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 			return;
 
 		lwb = zil_create(zilog);
-	} else {
+	} else if (zil_commit_activate_saxattr_feature(zilog) != 0) {
 		/*
-		 * Activate SPA_FEATURE_ZILSAXATTR for the cases where ZIL will
-		 * have already been created (zl_lwb_list not empty).
+		 * Activation failed because the pool suspended, and
+		 * zil_crash() took the lwb list. Drop the lwb so the
+		 * nolwb path below returns the error.
 		 */
-		zil_commit_activate_saxattr_feature(zilog);
+		lwb = NULL;
+	} else {
 		ASSERT(lwb->lwb_state == LWB_STATE_NEW ||
 		    lwb->lwb_state == LWB_STATE_OPENED);
 

@@ -25,7 +25,7 @@
 #	3. Inject a 10s zio delay to force long IOs.
 #	4. Read an uncached file in the background.
 #	5. Verify a "deadman" event is posted.
-#	6. Inject a 100ms zio delay which is under the 5s allowed.
+#	6. Inject a 100ms zio delay under the default deadman timeout.
 #	7. Read an uncached file in the background.
 #	8. Verify a "deadman" event is not posted.
 #
@@ -84,8 +84,12 @@ if [ "$events" -lt 1 ]; then
 	log_fail "Expect >=1 deadman events, $events found"
 fi
 
-# 6. Inject a 100ms zio delay which is under the 5s allowed, allow them
-# to run concurrently so they don't get starved in the queue.
+# 6. Restore the default deadman timeout before checking that a short
+#    delay does not generate a deadman event.  A short test timeout can
+#    turn CI VM scheduling stalls into false positives.
+log_must set_tunable64 DEADMAN_ZIOTIME_MS $ZIOTIME_DEFAULT
+
+# Allow the 100ms delays to run concurrently so they don't get starved.
 log_must zpool events -c
 log_must zinject -d $DISK1 -D100:10 $TESTPOOL
 

@@ -37,6 +37,8 @@ DISK=${DISKS%% *}
 log_must zpool create -o failmode=wait -f $TESTPOOL $DISK
 log_must zfs create -o recordsize=128k $TESTPOOL/$TESTFS
 
+typeset -i suspended_before=$(kstat dmu_tx.dmu_tx_suspended)
+
 # start writing to a file in the background. these args to dd will make it
 # keep writing until it fills the pool, but we will kill it before that happens.
 dd if=/dev/urandom of=/$TESTPOOL/$TESTFS/file bs=128k &
@@ -49,17 +51,23 @@ sleep 2
 log_must zinject -d $DISK -e io -T write $TESTPOOL
 log_must zinject -d $DISK -e nxio -T probe $TESTPOOL
 
-# should only take a moment, but give it a chance
-log_note "waiting for pool to suspend"
-typeset -i tries=10
-until [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]] ; do
+# Wait for the failed I/O and for dd to observe the suspension. Neither
+# transition is immediate on a busy system.
+log_note "waiting for pool suspension and blocked writer"
+typeset -i tries=60
+until [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]] &&
+    (( $(kstat dmu_tx.dmu_tx_suspended) > suspended_before )); do
 	if ((tries-- == 0)); then
-		log_fail "pool didn't suspend"
+		log_note "pool state: $(kstat_pool $TESTPOOL state)"
+		log_note "dmu_tx_suspended: $(kstat dmu_tx.dmu_tx_suspended)," \
+		    "was $suspended_before"
+		log_fail "pool or writer didn't observe suspension"
 	fi
+	log_must kill -0 $dd_pid
 	sleep 1
 done
 
-# dmu_tx_try_assign() should have noticed the suspend by now
+# dmu_tx_try_assign() has observed this suspension.
 typeset -i suspended=$(kstat dmu_tx.dmu_tx_suspended)
 
 # dd should still be running, blocked in the kernel
