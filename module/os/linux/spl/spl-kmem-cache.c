@@ -141,7 +141,20 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 	gfp_t lflags = kmem_flags_convert(flags | KM_VMEM);
 	void *ptr;
 
-	ptr = spl_vmalloc(size, lflags);
+	/*
+	 * Since Linux 7.0, vmalloc() first tries to back large areas with
+	 * high-order pages.  Those attempts already skip direct reclaim,
+	 * but each failure still wakes kswapd, although the order-0
+	 * fallback then succeeds.  Slabs are large enough to trigger this
+	 * on every grow, so on a fragmented system kswapd keeps reclaiming
+	 * the ARC and swapping while plenty of memory is free.
+	 *
+	 * Slabs are only grown from spl_cache_grow_work(), which can sleep
+	 * and reclaim directly, so don't wake kswapd from here.  The order-0
+	 * allocations keep direct reclaim, so this cannot fail where it
+	 * would not have failed before.
+	 */
+	ptr = spl_vmalloc(size, lflags & ~__GFP_KSWAPD_RECLAIM);
 
 	/* Resulting allocated memory will be page aligned */
 	ASSERT(IS_P2ALIGNED(ptr, PAGE_SIZE));
