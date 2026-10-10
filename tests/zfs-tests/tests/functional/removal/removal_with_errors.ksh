@@ -98,6 +98,11 @@ log_must zinject -c all
 log_must zpool export $TESTPOOL
 log_must zpool import -d $DISKDIR $TESTPOOL
 
+# The injected errors above also failed writes to $DISK0, which must be
+# resilvered before mirror-0 may be removed again.
+log_must wait_resilvered $TESTPOOL
+log_must zpool wait -t resilver $TESTPOOL
+
 # Verify that unexpected write errors automatically cancel the removal.
 log_must zinject -d $DISK3 -e io -T all -f 100 $TESTPOOL
 log_must zpool remove $TESTPOOL mirror-0

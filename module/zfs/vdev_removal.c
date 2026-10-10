@@ -2283,6 +2283,16 @@ spa_vdev_remove_top_check(vdev_t *vd)
 		return (SET_ERROR(EBUSY));
 
 	/*
+	 * The top-level DTLs of a mirror only record ranges missing from
+	 * every child, so they are empty while a single child is still
+	 * being resilvered or rebuilt.  The removal copy neither consults
+	 * the children's DTLs nor verifies checksums, so it may read stale
+	 * data from such a child.  Wait until all children are in sync.
+	 */
+	if (vdev_resilver_needed(vd, NULL, NULL) || vdev_rebuild_active(vd))
+		return (SET_ERROR(EBUSY));
+
+	/*
 	 * The device must be healthy.
 	 */
 	if (!vdev_readable(vd))
