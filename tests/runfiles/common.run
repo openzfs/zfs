@@ -712,7 +712,7 @@ tests = ['cp_files_001_pos', 'cp_files_002_pos', 'cp_stress']
 tags = ['functional', 'cp_files']
 
 [tests/functional/zap_shrink]
-tests = ['zap_shrink_001_pos']
+tests = ['zap_shrink_001_pos', 'zap_shrink_002_pos']
 tags = ['functional', 'zap_shrink']
 
 [tests/functional/crtime]
