@@ -2227,6 +2227,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send-cpL_varied_recsize.ksh \
 	functional/rsend/send_doall.ksh \
 	functional/rsend/send_embedded_large_block.ksh \
+	functional/rsend/send_embedded_large_block_incremental.ksh \
 	functional/rsend/send_embedded_spill_block.ksh \
 	functional/rsend/send_encrypted_incremental.ksh \
 	functional/rsend/send_encrypted_files.ksh \
