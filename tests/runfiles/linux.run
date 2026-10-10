@@ -133,7 +133,8 @@ tests = ['failmode_nowait_wait']
 tags = ['functional', 'failmode']
 
 [tests/functional/fallocate:Linux]
-tests = ['fallocate_extend_timestamps', 'fallocate_prealloc', 'fallocate_zero-range']
+tests = ['fallocate_extend_timestamps', 'fallocate_odirect_append',
+    'fallocate_prealloc', 'fallocate_zero-range']
 tags = ['functional', 'fallocate']
 
 [tests/functional/fault:Linux]

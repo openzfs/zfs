@@ -1526,16 +1526,21 @@ zfs_grow_blocksize(znode_t *zp, uint64_t size, dmu_tx_t *tx)
  *
  *	IN:	zp	- znode of file to free data in.
  *		end	- new end-of-file
+ *		log	- TRUE to update mtime, ctime and z_seq and
+ *			  log a TX_TRUNCATE record
  *
  *	RETURN:	0 on success, error code on failure
  */
-static int
-zfs_extend(znode_t *zp, uint64_t end)
+int
+zfs_extend(znode_t *zp, uint64_t end, boolean_t log)
 {
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	dmu_tx_t *tx;
 	zfs_locked_range_t *lr;
 	uint64_t newblksz;
+	uint64_t mtime[2], ctime[2];
+	sa_bulk_attr_t bulk[4];
+	int count = 0;
 	int error;
 
 	/*
@@ -1551,7 +1556,8 @@ zfs_extend(znode_t *zp, uint64_t end)
 		return (0);
 	}
 	tx = dmu_tx_create(zfsvfs->z_os);
-	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
+	dmu_tx_hold_sa(tx, zp->z_sa_hdl,
+	    log ? ZFS_SEQ_MAY_GROW(zp) : B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
 	if (end > zp->z_blksz &&
 	    (!ISP2(zp->z_blksz) || zp->z_blksz < zfsvfs->z_max_blksz)) {
@@ -1589,9 +1595,29 @@ zfs_extend(znode_t *zp, uint64_t end)
 	VERIFY0(sa_update(zp->z_sa_hdl, SA_ZPL_SIZE(ZTOZSB(zp)),
 	    &zp->z_size, sizeof (zp->z_size), tx));
 
+	if (log) {
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MTIME(zfsvfs),
+		    NULL, mtime, 16);
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_CTIME(zfsvfs),
+		    NULL, ctime, 16);
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zfsvfs),
+		    NULL, &zp->z_pflags, 8);
+		zfs_tstamp_update_setup(zp, CONTENT_MODIFIED, mtime,
+		    ctime);
+		ZFS_PERSIST_SEQ(zp, bulk, count);
+		ASSERT3S(count, <=, ARRAY_SIZE(bulk));
+		VERIFY0(sa_bulk_update(zp->z_sa_hdl, bulk, count,
+		    tx));
+		zfs_log_truncate(zfsvfs->z_log, tx, TX_TRUNCATE, zp,
+		    end, 0);
+	}
+
 	zfs_rangelock_exit(lr);
 
 	dmu_tx_commit(tx);
+
+	if (log)
+		zfs_znode_update_vfs(zp);
 
 	return (0);
 }
@@ -1812,7 +1838,7 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 		return (error);
 
 	if (off > zp->z_size) {
-		error =  zfs_extend(zp, off+len);
+		error =  zfs_extend(zp, off+len, B_FALSE);
 		if (error == 0 && log)
 			goto log;
 		goto out;
@@ -1823,7 +1849,7 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 	} else {
 		if ((error = zfs_free_range(zp, off, len)) == 0 &&
 		    off + len > zp->z_size)
-			error = zfs_extend(zp, off+len);
+			error = zfs_extend(zp, off+len, B_FALSE);
 	}
 	if (error || !log)
 		goto out;
