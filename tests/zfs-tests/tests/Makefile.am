@@ -674,6 +674,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/channel_program/synctask_core/tst.promote_conflict.ksh \
 	functional/channel_program/synctask_core/tst.promote_multiple.ksh \
 	functional/channel_program/synctask_core/tst.promote_simple.ksh \
+	functional/channel_program/synctask_core/tst.readonly_pool.ksh \
 	functional/channel_program/synctask_core/tst.rollback_mult.ksh \
 	functional/channel_program/synctask_core/tst.rollback_one.ksh \
 	functional/channel_program/synctask_core/tst.set_props.ksh \
