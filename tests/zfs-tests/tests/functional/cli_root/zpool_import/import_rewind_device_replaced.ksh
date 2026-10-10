@@ -78,6 +78,9 @@ function test_replace_vdev
 	typeset poolfinalstate="$4"
 	typeset zinjectdevices="$5"
 	typeset writedata="$6"
+	# The configuration the pool is created with, as shown by zpool
+	# status, if it differs from the zpool create arguments.
+	typeset poolinitialstate="${7:-$poolcreate}"
 
 	log_note "$0: pool '$poolcreate', replace $replacevdev by $replaceby."
 
@@ -116,7 +119,7 @@ function test_replace_vdev
 	# Import read only to avoid overwriting more recent blocks.
 	############################################################
 	log_must zpool import -d $DEVICE_DIR -o readonly=on -T $txg $TESTPOOL1
-	log_must check_pool_config $TESTPOOL1 "$poolcreate"
+	log_must check_pool_config $TESTPOOL1 "$poolinitialstate"
 
 	log_must verify_data_hashsums $MD5FILE
 
@@ -136,7 +139,7 @@ function test_replace_vdev
 	# Import read-write since we won't need the pool anymore.
 	############################################################
 	log_must zpool import -d $DEVICE_DIR -T $txg $TESTPOOL1
-	log_must check_pool_config $TESTPOOL1 "$poolcreate"
+	log_must check_pool_config $TESTPOOL1 "$poolinitialstate"
 
 	log_must verify_data_hashsums $MD5FILE
 
@@ -177,10 +180,11 @@ test_replace_vdev "raidz $VDEV0 $VDEV1 $VDEV2" \
 	"raidz $VDEV0 $VDEV3 $VDEV2" \
 	"$VDEV0 $VDEV1 $VDEV2" 10
 
-test_replace_vdev "draid $VDEV0 $VDEV1 $VDEV2 $VDEV3" \
-	"$VDEV1" "$VDEV4" \
-	"draid $VDEV0 $VDEV4 $VDEV2 $VDEV3 spares draid1-0-0" \
-	"$VDEV0 $VDEV1 $VDEV2 $VDEV3" 10
+test_replace_vdev "draid:1s $VDEV0 $VDEV1 $VDEV2 $VDEV3 $VDEV4" \
+	"$VDEV1" "$VDEV5" \
+	"draid $VDEV0 $VDEV5 $VDEV2 $VDEV3 $VDEV4 spares draid1-0-0" \
+	"$VDEV0 $VDEV1 $VDEV2 $VDEV3 $VDEV4" 10 \
+	"draid $VDEV0 $VDEV1 $VDEV2 $VDEV3 $VDEV4 spares draid1-0-0"
 
 set_zfs_txg_timeout $ZFS_TXG_TIMEOUT
 
