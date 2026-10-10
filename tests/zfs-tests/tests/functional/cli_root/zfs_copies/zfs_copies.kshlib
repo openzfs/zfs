@@ -146,5 +146,6 @@ function do_vol_test
 
 	# Ubuntu 20.04 wants a sync here
 	log_must sync
-	log_must zfs destroy $vol
+	# Device discovery may briefly hold the unmounted volume open.
+	log_must_busy zfs destroy $vol
 }
