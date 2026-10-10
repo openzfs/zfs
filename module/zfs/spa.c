@@ -58,6 +58,12 @@
 #include <sys/vdev_trim.h>
 #include <sys/vdev_disk.h>
 #include <sys/vdev_raidz.h>
+extern int raidz_force_width;
+extern int raidz_contracting;
+extern unsigned long raidz_contract_guid;
+extern void metaslab_group_passivate(metaslab_group_t *);
+extern void metaslab_group_activate(metaslab_group_t *);
+extern void metaslab_fini(metaslab_t *);
 #include <sys/vdev_draid.h>
 #include <sys/metaslab.h>
 #include <sys/metaslab_impl.h>
@@ -8931,9 +8937,34 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	    spa_version(spa) >= SPA_VERSION_SPARES);
 
 	/*
+	 * P7 contraction (part D): permit detaching the LAST child of a
+	 * raidz when the pool is in the uniform narrow-width state
+	 * (raidz_force_width == children - 1). Part A confines all data +
+	 * parity to children 0..W-1, so the last child holds no referenced
+	 * sectors and can be removed, shrinking the raidz to W devices.
+	 */
+	boolean_t raidz_shrink = B_FALSE;
+	boolean_t raidz_shrink_ms = B_FALSE;
+	/*
+	 * R05: the raidz-shrink detach is authorised only for the vdev whose
+	 * top-level GUID the operator named in raidz_contract_guid. A global
+	 * tunable armed for one pool must not authorise detaching a child of an
+	 * unrelated raidz (a different pool/vdev).
+	 */
+	boolean_t raidz_guid_ok = (raidz_contract_guid != 0 &&
+	    raidz_contract_guid == pvd->vdev_guid);
+	if (pvd->vdev_ops == &vdev_raidz_ops && raidz_guid_ok &&
+	    ((raidz_force_width != 0 &&
+	    (uint64_t)raidz_force_width == pvd->vdev_children - 1) ||
+	    (raidz_contracting != 0 && (raidz_shrink_ms = B_TRUE))) &&
+	    vd == pvd->vdev_child[pvd->vdev_children - 1]) {
+		raidz_shrink = B_TRUE;
+	}
+	/*
 	 * Only mirror, replacing, and spare vdevs support detach.
 	 */
-	if (pvd->vdev_ops != &vdev_replacing_ops &&
+	if (!raidz_shrink &&
+	    pvd->vdev_ops != &vdev_replacing_ops &&
 	    pvd->vdev_ops != &vdev_mirror_ops &&
 	    pvd->vdev_ops != &vdev_spare_ops)
 		return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
@@ -8942,7 +8973,7 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	 * If this device has the only valid copy of some data,
 	 * we cannot safely detach it.
 	 */
-	if (vdev_dtl_required(vd))
+	if (!raidz_shrink && vdev_dtl_required(vd))
 		return (spa_vdev_exit(spa, NULL, txg, EBUSY));
 
 	ASSERT(pvd->vdev_children >= 2);
@@ -9002,6 +9033,50 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	 */
 	vdev_remove_child(pvd, vd);
 	vdev_compact_children(pvd);
+	if (raidz_shrink) {
+		vdev_raidz_t *vdrz = pvd->vdev_tsd;
+		vdrz->vd_physical_width = pvd->vdev_children;
+		if (vdrz->vd_original_width > (int)pvd->vdev_children)
+			vdrz->vd_original_width = pvd->vdev_children;
+		if (raidz_shrink_ms) {
+			/*
+			 * Contracted pool metaslab SHRINK without a rebuild:
+			 * keep the valid low metaslabs, finalize only the
+			 * empty high ones [newc, oldc). This SIDESTEPS the
+			 * architectural wall -- vdev_metaslab_init's I/O
+			 * (dnode_hold) forbids SCL_ALL WRITER, which the
+			 * detach holds; by not rebuilding we do no I/O.
+			 * metaslab_group_passivate (config lock held) clears
+			 * ms_allocator so metaslab_fini is legal; the
+			 * metaslabs are empty (ceiling) + drained +
+			 * log_spacemap off, so the range trees are empty;
+			 * metaslab_fini updates mc_space; then reactivate the
+			 * group.
+			 */
+			metaslab_group_t *mg = pvd->vdev_mg;
+			uint64_t casz = pvd->vdev_child[0]->vdev_asize;
+			uint64_t newasz = casz * pvd->vdev_children;
+			uint64_t newc = newasz >> pvd->vdev_ms_shift;
+			uint64_t oldc = pvd->vdev_ms_count;
+			metaslab_group_passivate(mg);
+			if (pvd->vdev_log_mg != NULL)
+				metaslab_group_passivate(pvd->vdev_log_mg);
+			for (uint64_t m = newc; m < oldc; m++) {
+				if (pvd->vdev_ms[m] != NULL) {
+					metaslab_fini(pvd->vdev_ms[m]);
+					pvd->vdev_ms[m] = NULL;
+				}
+			}
+			pvd->vdev_ms_count = newc;
+			pvd->vdev_asize = newasz;
+			pvd->vdev_max_asize =
+			    pvd->vdev_child[0]->vdev_max_asize *
+			    pvd->vdev_children;
+			if (pvd->vdev_log_mg != NULL)
+				metaslab_group_activate(pvd->vdev_log_mg);
+			metaslab_group_activate(mg);
+		}
+	}
 
 	/*
 	 * Remember one of the remaining children so we can get tvd below.
