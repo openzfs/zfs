@@ -102,6 +102,8 @@ function check_while_waiting
 	typeset wait_proc_pid=$1
 	# A check that should be true while the activity is in progress
 	typeset activity_check=$2
+	# For a scan, the pool it runs on
+	typeset scan_pool=$3
 
 	log_note "$(get_time) waiting for process $wait_proc_pid using" \
 	    "activity check '$activity_check'"
@@ -114,6 +116,13 @@ function check_while_waiting
 	# exited too soon.
 	#
 	log_mustnot eval "$activity_check"
+
+	#
+	# A scan is over for 'zpool wait' only once the txg that finished it
+	# has synced (see spa_activity_in_progress()), which can take longer
+	# than WAIT_EXIT_GRACE with the I/O delay of add_io_delay.
+	#
+	[[ -n "$scan_pool" ]] && log_must zpool sync $scan_pool
 
 	bkgrnd_proc_succeeded $wait_proc_pid
 }

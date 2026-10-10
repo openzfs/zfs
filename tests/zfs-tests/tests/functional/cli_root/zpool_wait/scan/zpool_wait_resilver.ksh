@@ -59,7 +59,7 @@ add_io_delay $TESTPOOL
 log_must zpool attach $TESTPOOL $DISK1 $DISK2
 log_bkgrnd zpool wait -t resilver $TESTPOOL
 pid=$!
-check_while_waiting $pid "$IN_PROGRESS_CHECK"
+check_while_waiting $pid "$IN_PROGRESS_CHECK" $TESTPOOL
 
 log_must zpool detach $TESTPOOL $DISK2
 
@@ -69,6 +69,6 @@ pid=$!
 while ! is_pool_resilvering $TESTPOOL && proc_exists $pid; do
 	log_must sleep .5
 done
-check_while_waiting $pid "$IN_PROGRESS_CHECK"
+check_while_waiting $pid "$IN_PROGRESS_CHECK" $TESTPOOL
 
 log_pass "'zpool wait -t resilver' and 'zpool attach -w' work."
