@@ -479,10 +479,19 @@ is_faulted(int *faulted_devs, int nfaulted, int dev)
  * Evaluate how resilvering I/O will be distributed given a list of faulted
  * vdevs.  As a simplification we assume one IO is sufficient to repair each
  * damaged device in a group.
+ *
+ * The kernel uses each permutation in the map under every cyclic relabeling
+ * of the children, i.e. vdev_draid_permute_id() maps column c to child
+ * (row[c] + iter) % children for iter in [0, children).  Rather than walking
+ * every developed row, the caller exploits this symmetry: relabeling by iter
+ * is equivalent to shifting the faulted devices by -iter, so the I/O issued
+ * to child d by the developed map equals the sum over all shifts g of the
+ * base row I/O issued to child (d + g) with the faults shifted by g.  The
+ * I/O counts are therefore accumulated in ios[] relative to the shift.
  */
-static double
+static void
 eval_resilver(draid_map_t *map, uint64_t groupwidth, uint64_t nspares,
-    int *faulted_devs, int nfaulted, int *min_child_ios, int *max_child_ios)
+    int *faulted_devs, int nfaulted, uint64_t shift, int *ios)
 {
 	uint64_t children = map->dm_children;
 	uint64_t ngroups = 1;
@@ -493,10 +502,6 @@ eval_resilver(draid_map_t *map, uint64_t groupwidth, uint64_t nspares,
 	 */
 	while (ngroups * (groupwidth) % (children - nspares) != 0)
 		ngroups++;
-
-	int *ios = calloc(map->dm_children, sizeof (uint64_t));
-
-	ASSERT3P(ios, !=, NULL);
 
 	/* Resilver all rows */
 	for (int i = 0; i < map->dm_nperms; i++) {
@@ -532,7 +537,8 @@ eval_resilver(draid_map_t *map, uint64_t groupwidth, uint64_t nspares,
 
 				if (!is_faulted(faulted_devs, nfaulted,
 				    row[groupidx])) {
-					ios[row[groupidx]]++;
+					ios[(row[groupidx] + children - shift) %
+					    children]++;
 				} else if (nspares > 0) {
 					while (is_faulted(faulted_devs,
 					    nfaulted, row[spareidx])) {
@@ -540,13 +546,23 @@ eval_resilver(draid_map_t *map, uint64_t groupwidth, uint64_t nspares,
 					}
 
 					ASSERT3U(spareidx, <, map->dm_children);
-					ios[row[spareidx]]++;
+					ios[(row[spareidx] + children - shift) %
+					    children]++;
 					spareidx++;
 				}
 			}
 		}
 	}
+}
 
+/*
+ * Calculate the imbalance ratio for the I/O counts accumulated by
+ * eval_resilver().  The faulted_devs[] are given relative to the shift.
+ */
+static double
+eval_ratio(int *ios, uint64_t children, int *faulted_devs, int nfaulted,
+    int *min_child_ios, int *max_child_ios)
+{
 	*min_child_ios = INT_MAX;
 	*max_child_ios = 0;
 
@@ -558,7 +574,7 @@ eval_resilver(draid_map_t *map, uint64_t groupwidth, uint64_t nspares,
 	 * ratio is returned for comparison and it is not an uncommon when
 	 * there are a large number of children.
 	 */
-	for (int i = 0; i < map->dm_children; i++) {
+	for (int i = 0; i < children; i++) {
 
 		if (is_faulted(faulted_devs, nfaulted, i)) {
 			ASSERT0(ios[i]);
@@ -578,11 +594,7 @@ eval_resilver(draid_map_t *map, uint64_t groupwidth, uint64_t nspares,
 	ASSERT3S(*min_child_ios, !=, INT_MAX);
 	ASSERT3S(*max_child_ios, !=, 0);
 
-	double ratio = (double)(*max_child_ios) / (double)(*min_child_ios);
-
-	free(ios);
-
-	return (ratio);
+	return ((double)(*max_child_ios) / (double)(*min_child_ios));
 }
 
 /*
@@ -591,6 +603,14 @@ eval_resilver(draid_map_t *map, uint64_t groupwidth, uint64_t nspares,
  * is defined to be the largest number of child IOs over the fewest number
  * child IOs. A value of 1.0 indicates the mapping is perfectly balance and
  * all children perform an equal amount of work during reconstruction.
+ *
+ * The mapping is evaluated as the kernel uses it, with every permutation
+ * developed under all cyclic relabelings of the children.  Under this
+ * relabeling all single failures are equivalent, and a double failure
+ * depends only on the distance between the two faulted children.  Each
+ * equivalence class is evaluated once and weighted by the number of
+ * failures it represents, which gives the same worst and average ratios
+ * as evaluating every failure against every developed row.
  */
 static void
 eval_decluster(draid_map_t *map, double *worst_ratiop, double *avg_ratiop)
@@ -612,6 +632,9 @@ eval_decluster(draid_map_t *map, double *worst_ratiop, double *avg_ratiop)
 		return;
 	}
 
+	int *ios = calloc(children, sizeof (int));
+	ASSERT3P(ios, !=, NULL);
+
 	/*
 	 * Score the mapping as if it had either 1 or 2 distributed spares.
 	 */
@@ -627,54 +650,60 @@ eval_decluster(draid_map_t *map, double *worst_ratiop, double *avg_ratiop)
 		for (uint64_t groupwidth = 2;
 		    groupwidth <= MIN(children - nspares, 19);
 		    groupwidth++) {
-			int faulted_devs[2];
+			int faulted_devs[2], relative_devs[2];
 			int min_ios, max_ios;
 
 			/*
 			 * Score possible devices faults.  This is limited
 			 * to exactly one fault per distributed spare for
-			 * the purposes of this similation.
+			 * the purposes of this similation.  With one fault
+			 * there is a single equivalence class.  With two
+			 * faults the class is the distance between them.
 			 */
-			for (int f1 = 0; f1 < children; f1++) {
-				faulted_devs[0] = f1;
-				double ratio;
+			uint64_t nclasses = (faults == 1) ? 1 : children / 2;
 
-				if (faults == 1) {
-					ratio = eval_resilver(map, groupwidth,
-					    nspares, faulted_devs, faults,
-					    &min_ios, &max_ios);
+			for (uint64_t dist = 1; dist <= nclasses; dist++) {
+				int weight;
 
-					if (ratio > worst_ratio) {
-						worst_ratio = ratio;
-						worst_min_ios = min_ios;
-						worst_max_ios = max_ios;
-					}
+				memset(ios, 0, children * sizeof (int));
+				relative_devs[0] = 0;
+				relative_devs[1] = dist;
 
-					sum += ratio;
-					n++;
-				} else if (faults == 2) {
-					for (int f2 = f1 + 1; f2 < children;
-					    f2++) {
-						faulted_devs[1] = f2;
-
-						ratio = eval_resilver(map,
-						    groupwidth, nspares,
-						    faulted_devs, faults,
-						    &min_ios, &max_ios);
-
-						if (ratio > worst_ratio) {
-							worst_ratio = ratio;
-							worst_min_ios = min_ios;
-							worst_max_ios = max_ios;
-						}
-
-						sum += ratio;
-						n++;
-					}
+				for (uint64_t shift = 0; shift < children;
+				    shift++) {
+					faulted_devs[0] = shift;
+					faulted_devs[1] = (shift + dist) %
+					    children;
+					eval_resilver(map, groupwidth, nspares,
+					    faulted_devs, faults, shift, ios);
 				}
+
+				double ratio = eval_ratio(ios, children,
+				    relative_devs, faults, &min_ios, &max_ios);
+
+				/*
+				 * Number of failures in this class: all
+				 * children for one fault, otherwise every
+				 * unordered pair at this distance.
+				 */
+				if (faults == 2 && 2 * dist == children)
+					weight = children / 2;
+				else
+					weight = children;
+
+				if (ratio > worst_ratio) {
+					worst_ratio = ratio;
+					worst_min_ios = min_ios;
+					worst_max_ios = max_ios;
+				}
+
+				sum += ratio * weight;
+				n += weight;
 			}
 		}
 	}
+
+	free(ios);
 
 	*worst_ratiop = worst_ratio;
 	*avg_ratiop = sum / n;
