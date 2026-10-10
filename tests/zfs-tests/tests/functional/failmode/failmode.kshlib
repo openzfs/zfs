@@ -92,12 +92,21 @@ function failmode_sync_test
 		sleep 1
 	done
 
+	# Suspension is visible before the helper is scheduled to return.
+	# In continue mode it must exit while the pool is still suspended.
+	if [[ $failmode = "continue" ]]; then
+		tries=10
+		while kill -0 $pid 2>/dev/null && ((tries-- > 0)); do
+			sleep 1
+		done
+	fi
+
 	# zil_commit() should have noticed the suspend by now
 	typeset -i zilerr=$(kstat zil.zil_commit_error_count)
 
 	# see if the helper program blocked
 	typeset -i blocked
-	if kill -0 $pid ; then
+	if kill -0 $pid 2>/dev/null ; then
 		blocked=1
 		log_note "$helper: blocked in the kernel"
 	else
