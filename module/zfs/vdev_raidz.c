@@ -5346,6 +5346,36 @@ vdev_raidz_attach_check(vdev_t *new_child)
 	return (0);
 }
 
+/*
+ * Return the minimum asize of a device replacing a child of the raidz vdev
+ * "vd", while an expansion of it is in progress.
+ *
+ * The generic vdev_get_min_asize() check is not sufficient in this case:
+ * the part of the vdev that has not been reflowed yet is still laid out
+ * across the original (vdev_children - 1) children, and the reflow runs up
+ * to the end of the last metaslab.  The new device must therefore be able
+ * to hold every row of that layout, i.e. 1/(vdev_children - 1) of the
+ * metaslab space, rounded up to whole sectors.  The already reflowed part
+ * only needs 1/vdev_children of it.
+ *
+ * This is only applied to new devices, and not as part of the vdev's
+ * min_asize which every child is checked against when it is opened.
+ */
+uint64_t
+vdev_raidz_expand_child_min_asize(vdev_t *vd)
+{
+	ASSERT3P(vd->vdev_ops, ==, &vdev_raidz_ops);
+	ASSERT3P(vd->vdev_top, ==, vd);
+	ASSERT(vd->vdev_rz_expanding);
+	ASSERT3U(vd->vdev_children, >, 1);
+
+	uint64_t ashift = vd->vdev_ashift;
+	uint64_t ms_end = vd->vdev_ms_count << vd->vdev_ms_shift;
+
+	return (DIV_ROUND_UP(ms_end >> ashift, vd->vdev_children - 1) <<
+	    ashift);
+}
+
 void
 vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 {
