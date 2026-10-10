@@ -54,6 +54,14 @@ uint64_t metaslab_force_ganging = SPA_MAXBLOCKSIZE + 1;
 uint_t metaslab_force_ganging_pct = 3;
 
 /*
+ * For testing, delay the weight verification of active metaslabs by this
+ * many milliseconds (see metaslab_verify_weight_and_frag()).  This widens
+ * the window during which concurrent allocators may observe the metaslab
+ * while it is being verified.
+ */
+static uint_t metaslab_verify_weight_delay_ms = 0;
+
+/*
  * In pools where the log space map feature is not enabled we touch
  * multiple metaslabs (and their respective space maps) with each
  * transaction group. Thus, we benefit from having a small space map
@@ -2397,6 +2405,13 @@ metaslab_verify_weight_and_frag(metaslab_t *msp)
 
 	msp->ms_weight = 0;
 	msp->ms_fragmentation = 0;
+
+	if (was_active != 0 && metaslab_verify_weight_delay_ms != 0) {
+		zfs_dbgmsg("delaying %u ms: spa %s vdev %llu ms %llu",
+		    metaslab_verify_weight_delay_ms, spa_name(vd->vdev_spa),
+		    (u_longlong_t)vd->vdev_id, (u_longlong_t)msp->ms_id);
+		delay(MSEC_TO_TICK(metaslab_verify_weight_delay_ms));
+	}
 
 	/*
 	 * This function is used for verification purposes and thus should
@@ -6513,6 +6528,9 @@ ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, force_ganging, U64, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, force_ganging_pct, UINT, ZMOD_RW,
 	"Percentage of large blocks that will be forced to be gang blocks");
+
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, verify_weight_delay_ms, UINT,
+	ZMOD_RW, "Delay weight verification of active metaslabs (testing)");
 
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, df_max_search, UINT, ZMOD_RW,
 	"Max distance (bytes) to search forward before using size tree");
