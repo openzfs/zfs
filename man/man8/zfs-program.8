@@ -63,6 +63,9 @@ The program cannot change on-disk state by calling functions from the
 zfs.sync submodule.
 The program can be used to gather information such as properties and
 determining if changes would succeed (zfs.check.*).
+A read-only channel program can also be run on a pool that was imported
+read-only.
+Other channel programs require a writable pool.
 Without this flag, all pending changes must be synced to disk before a
 channel program can complete.
 .It Fl t Ar instruction-limit
