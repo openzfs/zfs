@@ -29,7 +29,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd September 9, 2026
+.Dd October 1, 2026
 .Dt ZFSPROPS 7
 .Os
 .
@@ -2166,6 +2166,10 @@ This property enables rootless container support with native ZFS storage.
 For example, setting
 .Sy zoned_uid Ns = Ns 1000
 allows user 1000's rootless Podman containers to use ZFS for storage layers.
+The
+.Ar uid
+must be a decimal number less than 4294967295;
+size suffixes are not accepted.
 This is a Linux-only feature.
 .Pp
 Authorization uses an additive three-layer model where all layers must pass:
