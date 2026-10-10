@@ -427,6 +427,7 @@ ZFS_OBJS := \
 	zap_impl.o \
 	zap_leaf.o \
 	zap_micro.o \
+	zap_tiny.o \
 	zfeature.o \
 	zfs_byteswap.o \
 	zfs_chksum.o \
