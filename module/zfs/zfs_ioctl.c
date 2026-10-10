@@ -4640,6 +4640,20 @@ zfs_ioc_channel_program(const char *poolname, nvlist_t *innvl,
 	if (memlimit == 0 || memlimit > zfs_lua_max_memlimit)
 		return (SET_ERROR(EINVAL));
 
+	if (sync_flag) {
+		spa_t *spa;
+		int error;
+
+		error = spa_open(poolname, &spa, FTAG);
+		if (error != 0)
+			return (error);
+		if (!spa_writeable(spa))
+			error = SET_ERROR(EROFS);
+		spa_close(spa, FTAG);
+		if (error != 0)
+			return (error);
+	}
+
 	return (zcp_eval(poolname, program, sync_flag, instrlimit, memlimit,
 	    nvarg, outnvl));
 }
@@ -8159,7 +8173,7 @@ zfs_ioctl_init(void)
 #if !defined(DISABLE_ZCP)
 	zfs_ioctl_register("channel_program", ZFS_IOC_CHANNEL_PROGRAM,
 	    zfs_ioc_channel_program, zfs_secpolicy_config,
-	    POOL_NAME, POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE,
+	    POOL_NAME, POOL_CHECK_SUSPENDED, B_TRUE,
 	    B_TRUE, zfs_keys_channel_program,
 	    ARRAY_SIZE(zfs_keys_channel_program));
 #endif

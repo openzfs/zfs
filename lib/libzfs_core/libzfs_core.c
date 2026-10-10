@@ -1689,6 +1689,10 @@ lzc_channel_program_impl(const char *pool, const char *program, boolean_t sync,
  * ETIME    The program was terminated because it exceeded its Lua instruction
  *          limit. Some portion of the channel program may have executed and
  *          committed changes to disk. No output is returned through 'outnvl'.
+ *
+ * EROFS    The pool is imported read-only. Channel programs that run in
+ *          syncing context require a writable pool. No part of the channel
+ *          program was executed.
  */
 int
 lzc_channel_program(const char *pool, const char *program, uint64_t instrlimit,
@@ -1795,8 +1799,12 @@ lzc_pool_prefetch(const char *pool, zpool_prefetch_type_t type)
  * return faster. The downside to that, is that the program cannot change
  * on-disk state by calling functions from the zfs.sync submodule.
  *
- * The return values of this function (and their meaning) are exactly the
- * same as the ones described in lzc_channel_program().
+ * A read-only channel program can also be run on a pool that is imported
+ * read-only.
+ *
+ * The return values of this function (and their meaning) are the same as
+ * the ones described in lzc_channel_program(), except that EROFS is never
+ * returned.
  */
 int
 lzc_channel_program_nosync(const char *pool, const char *program,
