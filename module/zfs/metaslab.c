@@ -5363,7 +5363,8 @@ next:
 
 static boolean_t
 metaslab_group_allocatable(spa_t *spa, metaslab_group_t *mg, uint64_t psize,
-    int d, int flags, boolean_t try_hard, zio_alloc_list_t *zal, int allocator)
+    int d, int flags, boolean_t try_hard, zio_alloc_list_t *zal, int allocator,
+    boolean_t *unhealthy)
 {
 	metaslab_class_t *mc = mg->mg_class;
 	vdev_t *vd = mg->mg_vd;
@@ -5402,6 +5403,7 @@ metaslab_group_allocatable(spa_t *spa, metaslab_group_t *mg, uint64_t psize,
 		    vd->vdev_children == 0) {
 			metaslab_trace_add(zal, mg, NULL, psize, d,
 			    TRACE_VDEV_ERROR, allocator);
+			*unhealthy = B_TRUE;
 			return (B_FALSE);
 		}
 	}
@@ -5418,6 +5420,7 @@ metaslab_alloc_dva_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	metaslab_group_t *mg = NULL, *rotor;
 	vdev_t *vd;
 	boolean_t try_hard = B_FALSE;
+	boolean_t unhealthy = B_FALSE;
 
 	ASSERT(!DVA_IS_VALID(&dva[d]));
 
@@ -5484,7 +5487,7 @@ top:
 		ASSERT(mg->mg_class == mc);
 
 		if (!metaslab_group_allocatable(spa, mg, psize, d, flags,
-		    try_hard, zal, allocator))
+		    try_hard, zal, allocator, &unhealthy))
 			goto next;
 
 		vd = mg->mg_vd;
@@ -5494,8 +5497,7 @@ top:
 		    txg);
 		ASSERT0(P2PHASE(max_asize, 1ULL << vd->vdev_ashift));
 		uint64_t offset = metaslab_group_alloc(mg, zal, asize,
-		    max_asize, txg, dva, d, allocator, try_hard,
-		    &asize);
+		    max_asize, txg, dva, d, allocator, try_hard, &asize);
 
 		if (offset != -1ULL) {
 			if (actual_psize)
@@ -5516,10 +5518,16 @@ next:
 
 	/*
 	 * If we haven't tried hard, perhaps do so now.
+	 *
+	 * Also do so if we skipped an unhealthy vdev in the normal class.
+	 * No other class is tried after it, so failing here only makes
+	 * the block a gang block, and its gang header and members are
+	 * then allocated with try_hard, typically on that same vdev.
 	 */
 	if (!try_hard && (zfs_metaslab_try_hard_before_gang ||
 	    GANG_ALLOCATION(flags) || (flags & METASLAB_ZIL) != 0 ||
-	    psize <= spa->spa_min_alloc)) {
+	    psize <= spa->spa_min_alloc ||
+	    (unhealthy && mc == spa_normal_class(spa)))) {
 		METASLABSTAT_BUMP(metaslabstat_try_hard);
 		try_hard = B_TRUE;
 		goto top;
