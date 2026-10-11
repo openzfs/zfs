@@ -14,6 +14,11 @@
 set -eu
 
 function alpine() {
+  echo "##[group]Shrink the initramfs"
+  # /boot is a small FAT partition, "kms" makes the initramfs too big.
+  sudo sed -i 's/ kms / /' /etc/mkinitfs/mkinitfs.conf
+  echo "##[endgroup]"
+
   echo "##[group]Install Development Tools"
   sudo apk add \
     acl alpine-sdk attr autoconf automake bash build-base clang22 coreutils \
@@ -32,15 +37,11 @@ function alpine() {
   echo "##[endgroup]"
 
   echo "##[group]Boot the -stable kernel instead of -virt"
-  # -virt has CONFIG_SCSI_DEBUG disabled, which several ZTS tests
-  # (zpool_expand, zpool_reopen, fault/auto_*, ...) need to simulate
-  # disks that support expand/fault-injection scenarios real static
-  # disks can't easily provide.  -stable has it enabled.  This takes
-  # effect on the VM's next boot, which happens naturally when this
-  # deps step powers off and qemu-prepare-for-build.sh starts the VM
-  # back up for the build step -- no explicit reboot needed here.
-  sudo sed -i 's/^default=virt$/default=stable/' /etc/update-extlinux.conf
-  sudo update-extlinux
+  # -virt lacks CONFIG_SCSI_DEBUG, which several ZTS tests need.  Takes
+  # effect on the next boot, after this step powers off.  Limine has a
+  # static entry and no kernel hooks, so edit it.
+  sudo sed -i -e 's#/vmlinuz-virt#/vmlinuz-stable#' \
+    -e 's#/initramfs-virt#/initramfs-stable#' /boot/limine/limine.conf
   echo "##[endgroup]"
 
   echo "##[group]Install ksh93 from Source"
