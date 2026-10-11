@@ -851,14 +851,14 @@ zio_next_init(zio_next_t *next)
 __attribute__((always_inline))
 static inline void
 zio_notify_parent(zio_t *pio, zio_t *zio, enum zio_wait_type wait,
-    zio_next_t *nextp)
+    int error, zio_next_t *nextp)
 {
 	uint64_t *countp = &pio->io_children[zio->io_child_type][wait];
 	int *errorp = &pio->io_child_error[zio->io_child_type];
 
 	mutex_enter(&pio->io_lock);
-	if (zio->io_error && !(zio->io_flags & ZIO_FLAG_DONT_PROPAGATE))
-		*errorp = zio_worst_error(*errorp, zio->io_error);
+	if (error && !(zio->io_flags & ZIO_FLAG_DONT_PROPAGATE))
+		*errorp = zio_worst_error(*errorp, error);
 	pio->io_post |= zio->io_post;
 	ASSERT3U(*countp, >, 0);
 
@@ -5864,6 +5864,37 @@ zio_ready(zio_t *zio)
 		zio->io_bp_copy = *bp;
 #endif
 
+	/*
+	 * A logical child that failed before READY, e.g. to allocate its
+	 * block, left a hole where its block pointer should be.  If that is
+	 * part of our data, as in a ZIL block, whose WR_INDIRECT records hold
+	 * the block pointers of dmu_sync() writes, the data must not be
+	 * written: replay would read the hole as zeros.  Our parents would
+	 * only see the error at DONE, so pass it on to them now; a ZIL block's
+	 * dmu_sync() writes reach its write through a zio_null().  Likewise,
+	 * a write whose gang members failed to allocate has a block pointer
+	 * to an incomplete gang tree, so pass that error on too.  As before,
+	 * the errors become ours in zio_done().  Allocating writes still do
+	 * their I/O: their failures are reexecuted or suspended there.
+	 */
+	int ready_error = zio->io_error;
+	boolean_t skip_io = B_FALSE;
+	if (ready_error == 0 &&
+	    (zio->io_type == ZIO_TYPE_WRITE || zio->io_type == ZIO_TYPE_NULL)) {
+		mutex_enter(&zio->io_lock);
+		if (!IO_IS_ALLOCATING(zio))
+			ready_error = zio->io_child_error[ZIO_CHILD_LOGICAL];
+		skip_io = (ready_error != 0);
+		if (ready_error == 0)
+			ready_error = zio->io_child_error[ZIO_CHILD_GANG];
+		mutex_exit(&zio->io_lock);
+	}
+
+	if (skip_io) {
+		ASSERT(!(zio->io_flags & ZIO_FLAG_ALLOC_THROTTLED));
+		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
+	}
+
 	if (zio->io_error != 0) {
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
 
@@ -5902,7 +5933,8 @@ zio_ready(zio_t *zio)
 	zio_next_init(&next);
 	for (; pio != NULL; pio = pio_next) {
 		pio_next = zio_walk_parents(zio, &zl);
-		zio_notify_parent(pio, zio, ZIO_WAIT_READY, &next);
+		zio_notify_parent(pio, zio, ZIO_WAIT_READY, ready_error,
+		    &next);
 	}
 	ASSERT3P(zio->io_exec_next, ==, NULL);
 	zio->io_exec_next = next.zn_list;
@@ -6282,7 +6314,7 @@ zio_done(zio_t *zio)
 				 * bother with the "next" list.
 				 */
 				zio_notify_parent(pio, zio, ZIO_WAIT_DONE,
-				    NULL);
+				    zio->io_error, NULL);
 			}
 		}
 
@@ -6298,7 +6330,8 @@ zio_done(zio_t *zio)
 			 * This is a rare code path, so we don't bother with
 			 * the "next" list.
 			 */
-			zio_notify_parent(pio, zio, ZIO_WAIT_DONE, NULL);
+			zio_notify_parent(pio, zio, ZIO_WAIT_DONE,
+			    zio->io_error, NULL);
 		} else if (zio->io_post & ZIO_POST_SUSPEND) {
 			/*
 			 * We'd fail again if we reexecuted now, so suspend
@@ -6375,7 +6408,8 @@ zio_done(zio_t *zio)
 		zio_link_t *remove_zl = zl;
 		pio_next = zio_walk_parents(zio, &zl);
 		zio_remove_child(pio, zio, remove_zl);
-		zio_notify_parent(pio, zio, ZIO_WAIT_DONE, &next);
+		zio_notify_parent(pio, zio, ZIO_WAIT_DONE, zio->io_error,
+		    &next);
 	}
 
 	if (zio->io_waiter != NULL) {
