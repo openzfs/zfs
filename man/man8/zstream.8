@@ -11,7 +11,7 @@
 .\"
 .\" Copyright (c) 2020 by Delphix. All rights reserved.
 .\"
-.Dd September 3, 2026
+.Dd October 18, 2026
 .Dt ZSTREAM 8
 .Os
 .
@@ -48,6 +48,8 @@
 .Nm
 .Cm redup
 .Op Fl v
+.Op Fl d Ar tmpdir
+.Op Fl m Ar memory
 .Ar file
 .Nm
 .Cm token
@@ -257,6 +259,8 @@ instead.
 .Nm
 .Cm redup
 .Op Fl v
+.Op Fl d Ar tmpdir
+.Op Fl m Ar memory
 .Ar file
 .Xc
 It was formerly possible to create deduplicated send streams with the
@@ -284,6 +288,46 @@ earlier parts of the stream.
 .It Fl v
 Verbose.
 Prints a summary of reduplicated records.
+.It Fl d Ar tmpdir
+Sets the directory in which to store temporary files.
+With very large input streams,
+.Nm zstream Cm redup
+may be unable to hold all reduplication information in memory at once.
+In this event, it uses files in
+.Pa /var/tmp
+for backup storage.
+You can specify a different location with the
+.Fl d
+option.
+Whether or not you specify a custom directory, the location must be
+writable when
+.Nm zstream
+first starts so that filesystem problems can be discovered early.
+.It Fl m Ar memory
+Limits the amount of memory used to hold reduplication information.
+Anything that does not fit within this limit is stored in temporary files
+.Pq see Fl d .
+The
+.Ar memory
+value is a number of bytes and may include a suffix such as
+.Sy K ,
+.Sy M ,
+.Sy G ,
+or
+.Sy T ,
+as in
+.Sy 512M
+or
+.Sy 1.5G .
+A value of 0 places all reduplication information on disk.
+A nonzero limit of 1 MiB or less is rounded up to a whole number of pages,
+with a minimum of three pages.
+A larger limit is rounded up to a whole number of mebibytes,
+with a minimum of 3 MiB.
+By default,
+.Nm zstream Cm redup
+uses up to 30% of physical memory, but no less than 128 MiB.
+On 32-bit systems, the default is a flat 128 MiB.
 .El
 .It Xo
 .Nm
