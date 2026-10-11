@@ -17,6 +17,24 @@ AC_DEFUN([ZFS_AC_KERNEL_MM_PAGE_FLAG_ERROR], [
 	])
 ])
 
+AC_DEFUN([ZFS_AC_KERNEL_SRC_MM_PAGE_FLAG_PRIVATE], [
+	ZFS_LINUX_TEST_SRC([mm_page_flag_private], [
+		#include <linux/page-flags.h>
+
+		static enum pageflags
+		    test_flag __attribute__((unused)) = PG_private;
+	])
+])
+AC_DEFUN([ZFS_AC_KERNEL_MM_PAGE_FLAG_PRIVATE], [
+	AC_MSG_CHECKING([whether PG_private flag is available])
+	ZFS_LINUX_TEST_RESULT([mm_page_flag_private], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_MM_PAGE_FLAG_PRIVATE, 1, [PG_private flag is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+])
+
 dnl #
 dnl # Linux 6.18+ uses a struct typedef (memdesc_flags_t) instead of an
 dnl # 'unsigned long' for the 'flags' field in 'struct page'.
@@ -44,9 +62,11 @@ AC_DEFUN([ZFS_AC_KERNEL_MM_PAGE_FLAGS_STRUCT], [
 
 AC_DEFUN([ZFS_AC_KERNEL_SRC_MM_PAGE_FLAGS], [
 	ZFS_AC_KERNEL_SRC_MM_PAGE_FLAG_ERROR
+	ZFS_AC_KERNEL_SRC_MM_PAGE_FLAG_PRIVATE
 	ZFS_AC_KERNEL_SRC_MM_PAGE_FLAGS_STRUCT
 ])
 AC_DEFUN([ZFS_AC_KERNEL_MM_PAGE_FLAGS], [
 	ZFS_AC_KERNEL_MM_PAGE_FLAG_ERROR
+	ZFS_AC_KERNEL_MM_PAGE_FLAG_PRIVATE
 	ZFS_AC_KERNEL_MM_PAGE_FLAGS_STRUCT
 ])
