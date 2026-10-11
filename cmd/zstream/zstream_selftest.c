@@ -20,28 +20,42 @@
  *   zstream selftest [-l] [-s seed] [-t nthreads] module [test ...]
  *
  * Tests are grouped into modules (see zstream_selftest.h). With no test
- * names, all of a module's tests run in order. -l lists the available
- * tests. -s replays a previous run's PRNG seed. -t sets the size of the
- * shared worker thread pool before any test runs.
+ * names, all of a module's tests run in order.
+ *
+ * -l lists the available tests
+ * -s replays a previous run by using its PRNG seed
+ * -t sets the size of the shared worker thread pool before any test runs
  *
  * This subcommand is intentionally undocumented in zstream_usage() and the
- * man page; it exists to be driven by the ZFS test suite.
+ * man page. It exists to be driven by the ZFS test suite.
  */
 
 #include <assert.h>
 #include <err.h>
+#include <errno.h>
 #include <libspl.h>
+#include <poll.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/random.h>
+#include <sys/resource.h>
+#if defined(__linux__)
+#include <sys/prctl.h>
+#endif
 #include <sys/stdtypes.h>
+#include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "zstream.h"
 #include "zstream_backtrace.h"
 #include "zstream_queue.h"
 #include "zstream_selftest.h"
+#include "zstream_util.h"
+
+#define	NUM_MODULES	(sizeof (modules) / sizeof (modules[0]))
 
 typedef struct {
 	const char		*sm_name;
@@ -49,14 +63,166 @@ typedef struct {
 } selftest_module_t;
 
 static const selftest_module_t modules[] = {
-	{ "queue", selftest_queue_cases },
+	{ "queue",	selftest_queue_cases },
+	{ "allocator",	selftest_alloc_cases },
+	{ "hash",	selftest_hash_cases  },
 };
-
-#define	NUM_MODULES	(sizeof (modules) / sizeof (modules[0]))
 
 uint64_t selftest_seed;
 
-static const char *current_test = "(startup)";
+const char *
+selftest_scratch_dir(void)
+{
+	const char *dir = getenv("ZSTREAM_SELFTEST_DIR");
+	return ((dir != NULL && dir[0] != '\0') ? dir : "/var/tmp");
+}
+
+/*
+ * Does the output contain any of the '|'-separated alternatives?
+ */
+static boolean_t
+output_matches(const char *output, const char *expect)
+{
+	const char *alt = expect;
+	while (B_TRUE) {
+		const char *bar = strchr(alt, '|');
+		size_t len = (bar != NULL) ? bar - alt : strlen(alt);
+		for (const char *p = output; *p != '\0'; p++) {
+			if (strncmp(p, alt, len) == 0)
+				return (B_TRUE);
+		}
+		if (bar == NULL)
+			return (B_FALSE);
+		alt = bar + 1;
+	}
+}
+
+static int64_t
+monotonic_msec(void)
+{
+	struct timespec ts;
+	VERIFY0(clock_gettime(CLOCK_MONOTONIC, &ts));
+	return ((int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000);
+}
+
+/*
+ * Exit status for a child that can't redirect its output. It's distinct from
+ * both 0 and err()'s 1 so that neither kind of test can mistake it for the
+ * outcome it expects.
+ */
+#define	CHILD_SETUP_FAILED	125
+
+/*
+ * Common implementation of selftest_expect_exit() and
+ * selftest_expect_success()
+ */
+static void
+run_child(const char *what, selftest_child_f *fn, void *arg,
+    const char *expect, boolean_t want_success)
+{
+	char output[4096];
+	size_t len = 0;
+	int fds[2];
+
+	if (pipe(fds) != 0)
+		err(1, "pipe");
+	(void) fflush(NULL);
+	pid_t pid = fork();
+	if (pid < 0)
+		err(1, "fork");
+	if (pid == 0) {
+		/*
+		 * Expected aborts shouldn't leave core files behind. On
+		 * Linux, a piped core_pattern (apport, systemd-coredump)
+		 * still runs at RLIMIT_CORE 0; only non-dumpable stops it.
+		 */
+		struct rlimit no_core = { 0, 0 };
+		(void) setrlimit(RLIMIT_CORE, &no_core);
+#if defined(__linux__)
+		(void) prctl(PR_SET_DUMPABLE, 0, 0, 0, 0);
+#endif
+		(void) close(fds[0]);
+		if (dup2(fds[1], STDOUT_FILENO) < 0 ||
+		    dup2(fds[1], STDERR_FILENO) < 0)
+			_exit(CHILD_SETUP_FAILED);
+		(void) close(fds[1]);
+		fn(arg);
+		(void) fflush(NULL);
+		_exit(0);
+	}
+
+	(void) close(fds[1]);
+	struct pollfd pfd = { .fd = fds[0], .events = POLLIN };
+	int64_t deadline = monotonic_msec() + EXPECT_EXIT_TIMEOUT_SECS * 1000;
+	while (B_TRUE) {
+		int64_t remaining = deadline - monotonic_msec();
+		if (remaining <= 0) {
+			(void) kill(pid, SIGKILL);
+			(void) waitpid(pid, NULL, 0);
+			errx(1, "%s: child still running after %d seconds",
+			    what, EXPECT_EXIT_TIMEOUT_SECS);
+		}
+		int rc = poll(&pfd, 1, (int)remaining);
+		if (rc < 0 && errno != EINTR)
+			err(1, "poll");
+		if (rc <= 0)
+			continue;
+		char chunk[512];
+		ssize_t n = read(fds[0], chunk, sizeof (chunk));
+		if (n < 0 && errno != EINTR)
+			err(1, "read from child");
+		if (n == 0)
+			break;		/* EOF: the child has exited */
+		if (n > 0) {
+			size_t keep = MIN((size_t)n, sizeof (output) - 1 - len);
+			memcpy(output + len, chunk, keep);
+			len += keep;
+		}
+	}
+	(void) close(fds[0]);
+	output[len] = '\0';
+
+	int status;
+	while (waitpid(pid, &status, 0) < 0) {
+		if (errno != EINTR)
+			err(1, "waitpid");
+	}
+
+	const char *problem = NULL;
+	boolean_t clean = WIFEXITED(status) && WEXITSTATUS(status) == 0;
+	if (WIFEXITED(status) && WEXITSTATUS(status) == CHILD_SETUP_FAILED)
+		problem = "could not redirect its output";
+	else if (want_success && !clean)
+		problem = "failed instead of returning normally";
+	else if (!want_success && clean)
+		problem = "returned normally instead of exiting";
+	else if (WIFSIGNALED(status) && WTERMSIG(status) != SIGABRT)
+		problem = "was killed by an unexpected signal";
+	else if (expect != NULL && !output_matches(output, expect))
+		problem = "did not print the expected message";
+	if (problem != NULL) {
+		(void) fprintf(stderr, "\n%s: child %s\n", what, problem);
+		if (expect != NULL)
+			(void) fprintf(stderr, "Expected: %s\n", expect);
+		(void) fprintf(stderr, "Output:\n%s\n", output);
+		errx(1, "%s", want_success ? "child test failed" :
+		    "expected exit did not occur");
+	}
+}
+
+void
+selftest_expect_exit(const char *what, selftest_child_f *fn, void *arg,
+    const char *expect)
+{
+	run_child(what, fn, arg, expect, B_FALSE);
+}
+
+void
+selftest_expect_success(const char *what, selftest_child_f *fn, void *arg,
+    const char *expect)
+{
+	run_child(what, fn, arg, expect, B_TRUE);
+}
 
 static void
 selftest_usage(void)
@@ -105,9 +271,8 @@ list_tests(const selftest_module_t *module)
 static void
 run_case(const test_case_t *tc)
 {
-	(void) printf("Running %-20s ... ", tc->tc_name);
+	(void) printf("Running %-22s ... ", tc->tc_name);
 	(void) fflush(stdout);
-	current_test = tc->tc_name;
 	watchdog_arm();
 	tc->tc_func();
 	watchdog_disarm();
