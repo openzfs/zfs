@@ -1654,6 +1654,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/direct/dio_max_recordsize.ksh \
 	functional/direct/dio_mixed.ksh \
 	functional/direct/dio_mmap.ksh \
+	functional/direct/dio_nopwrite.ksh \
 	functional/direct/dio_overwrites.ksh \
 	functional/direct/dio_property.ksh \
 	functional/direct/dio_random.ksh \
