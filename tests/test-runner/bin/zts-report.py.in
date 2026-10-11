@@ -145,6 +145,12 @@ noreuse_reason = 'POSIX_FADV_NOREUSE needs Linux 6.3+'
 dontcache_reason = 'Kernel RWF_DONTCACHE support required'
 
 #
+# splice(2) does not lock the file offset, so a dry run of zfs send can
+# overwrite its own output when stdout is a file.
+#
+splice_fpos_reason = 'Kernel splice(2) does not lock the file position'
+
+#
 # Some statx fields are not supported by all kernels
 #
 statx_reason = 'Needed statx(2) field not supported on this kernel'
@@ -234,6 +240,7 @@ maybe = {
     'pool_checkpoint/checkpoint_discard_busy': ['FAIL', 11946],
     'projectquota/setup': ['SKIP', exec_reason],
     'renameat2/setup': ['SKIP', renameat2_reason],
+    'rsend/send-c_stream_size_estimate': ['FAIL', splice_fpos_reason],
     'send_xdr_encoding/xdr_bookmark_raw_with_write': ['FAIL', 18491],
     'send_xdr_encoding/xdr_resume_bookmark_raw_with_write': ['FAIL', 18491],
     'trim/setup': ['SKIP', trim_reason],
