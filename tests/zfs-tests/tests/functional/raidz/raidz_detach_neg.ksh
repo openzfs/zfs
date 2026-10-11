@@ -73,6 +73,11 @@ log_must zpool export $pool
 log_must zpool import -d $workdir $pool
 log_must cmp $workdir/expected $mnt/file
 log_must zpool online $pool ${disks[0]}
+# Onlining can start a resilver, which must finish before a scrub can start.
+if ! timeout 60 zpool wait -t resilver $pool; then
+	zpool status -v $pool
+	log_fail "RAIDZ resilver did not finish within 60 seconds"
+fi
 log_must zpool scrub -w $pool
 log_must check_pool_status $pool "errors" "No known data errors"
 log_must zpool export $pool
