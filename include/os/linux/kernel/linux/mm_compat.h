@@ -45,4 +45,14 @@
 #define	ClearPageError(p)	do {} while (0)
 #endif
 
+/*
+ * 7.4 removes PG_private, SetPagePrivate and ClearPagePrivate, instead using
+ * the private data itself being non-zero/non-null to indicate set, and
+ * zero/null as clear.
+ */
+#ifndef HAVE_MM_PAGE_FLAG_PRIVATE
+#define	SetPagePrivate(p)		do {} while (0)
+#define	ClearPagePrivate(p)	do {} while (0)
+#endif
+
 #endif /* _ZFS_MM_COMPAT_H */
