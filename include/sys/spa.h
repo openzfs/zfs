@@ -1178,6 +1178,7 @@ extern boolean_t spa_has_slogs(spa_t *spa);
 extern boolean_t spa_has_special(spa_t *spa);
 extern boolean_t spa_is_root(spa_t *spa);
 extern boolean_t spa_writeable(spa_t *spa);
+extern boolean_t spa_self_heal_allowed(spa_t *spa);
 extern boolean_t spa_has_pending_synctask(spa_t *spa);
 extern int spa_maxblocksize(spa_t *spa);
 extern int spa_maxdnodesize(spa_t *spa);

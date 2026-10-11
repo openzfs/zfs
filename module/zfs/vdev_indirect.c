@@ -1423,7 +1423,7 @@ vdev_indirect_repair(zio_t *zio)
 {
 	indirect_vsd_t *iv = zio->io_vsd;
 
-	if (!spa_writeable(zio->io_spa))
+	if (!spa_self_heal_allowed(zio->io_spa))
 		return;
 
 	for (indirect_split_t *is = list_head(&iv->iv_splits);
