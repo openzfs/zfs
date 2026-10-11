@@ -274,6 +274,7 @@ znode_hold_t *
 zfs_znode_hold_enter(zfsvfs_t *zfsvfs, uint64_t obj)
 {
 	znode_hold_t *zh, *zh_new, search;
+	avl_index_t where;
 	int i = ZFS_OBJ_HASH(zfsvfs, obj);
 	boolean_t found = B_FALSE;
 
@@ -281,11 +282,11 @@ zfs_znode_hold_enter(zfsvfs_t *zfsvfs, uint64_t obj)
 	search.zh_obj = obj;
 
 	mutex_enter(&zfsvfs->z_hold_locks[i]);
-	zh = avl_find(&zfsvfs->z_hold_trees[i], &search, NULL);
+	zh = avl_find(&zfsvfs->z_hold_trees[i], &search, &where);
 	if (likely(zh == NULL)) {
 		zh = zh_new;
 		zh->zh_obj = obj;
-		avl_add(&zfsvfs->z_hold_trees[i], zh);
+		avl_insert(&zfsvfs->z_hold_trees[i], zh, where);
 	} else {
 		ASSERT3U(zh->zh_obj, ==, obj);
 		found = B_TRUE;
