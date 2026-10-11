@@ -5016,8 +5016,7 @@ zfs_ioc_ddt_prune(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 }
 
 static const zfs_ioc_key_t zfs_keys_bucket_create[] = {
-	// TODO: Instead of optional, should this be just 0?
-	{ZFS_BUCKET,	DATA_TYPE_STRING,	ZK_OPTIONAL},
+	{ZFS_BUCKET,	DATA_TYPE_STRING,	0},
 };
 
 static int
@@ -5030,7 +5029,7 @@ zfs_ioc_bucket_create(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 }
 
 static const zfs_ioc_key_t zfs_keys_bucket_delete[] = {
-	{ZFS_BUCKET,	DATA_TYPE_STRING,	ZK_OPTIONAL},
+	{ZFS_BUCKET,	DATA_TYPE_STRING,	0},
 };
 
 static int
