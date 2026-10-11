@@ -165,6 +165,13 @@ uint_t vdev_removal_max_span = 32 * 1024;
  */
 static int zfs_removal_suspend_progress = 0;
 
+/*
+ * For testing: before reading a metaslab's space map, the removal thread
+ * waits this many milliseconds, so that a test can free blocks in that
+ * metaslab while the thread is about to read it.
+ */
+static uint_t zfs_removal_sm_load_delay_ms = 0;
+
 #define	VDEV_REMOVAL_ZAP_OBJS	"lzap"
 
 static __attribute__((noreturn)) void spa_vdev_remove_thread(void *arg);
@@ -1683,8 +1690,18 @@ again:
 		 * to finish loading the spacemap, and then take the
 		 * appropriate action (see free_from_removing_vdev()).
 		 */
-		if (msp->ms_sm != NULL)
+		if (msp->ms_sm != NULL) {
+			if (zfs_removal_sm_load_delay_ms != 0) {
+				zfs_dbgmsg("removal: waiting %u ms before "
+				    "loading space map of vdev %llu ms %llu",
+				    zfs_removal_sm_load_delay_ms,
+				    (u_longlong_t)vd->vdev_id,
+				    (u_longlong_t)msp->ms_id);
+				delay(MSEC_TO_TICK(
+				    zfs_removal_sm_load_delay_ms));
+			}
 			VERIFY0(space_map_load(msp->ms_sm, segs, SM_ALLOC));
+		}
 
 		/*
 		 * We could not hold svr_lock while loading space map, or we
@@ -2612,6 +2629,9 @@ ZFS_MODULE_PARAM(zfs_vdev, vdev_, removal_max_span, UINT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_vdev, zfs_, removal_suspend_progress, UINT, ZMOD_RW,
 	"Pause device removal after this many bytes are copied "
 	"(debug use only - causes removal to hang)");
+
+ZFS_MODULE_PARAM(zfs_vdev, zfs_, removal_sm_load_delay_ms, UINT, ZMOD_RW,
+	"Delay before device removal reads each space map (testing)");
 
 EXPORT_SYMBOL(free_from_removing_vdev);
 EXPORT_SYMBOL(spa_removal_get_stats);
