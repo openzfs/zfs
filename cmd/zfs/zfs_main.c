@@ -430,9 +430,9 @@ get_usage(zfs_help_t idx)
 	case HELP_WAIT:
 		return ("\twait [-t <activity>] <filesystem>\n");
 	case HELP_BUCKET:
-		return (gettext("\tbucket <create|delete|list> <pool> [bucket_name]\n"));
+		return ("\tbucket <create|delete|list> <pool> [bucket_name]\n");
 	case HELP_OBJECT:
-		return (gettext("\tobject <upsert|read|delete> <object_name> [object_data]"));
+		return ("\tobject <upsert|read|delete> <object_name> [object_data]");
 	case HELP_ZONE:
 		return ("\tzone <nsfile> <filesystem>\n");
 	case HELP_UNZONE:
@@ -9373,7 +9373,7 @@ zfs_do_bucket(int argc, char **argv) {
 	int ret = 0;
 
 	if (argc < 3) {
-		(void) fprintf(stderr, gettext("invalid number of arguments\n"));
+		(void) fprintf(stderr, "invalid number of arguments\n");
 		usage(B_FALSE);
 	}
 
@@ -9389,7 +9389,7 @@ zfs_do_bucket(int argc, char **argv) {
 
 	if (strcmp(op, "create") == 0) {
 		if (argc != 3) {
-			(void) fprintf(stderr, gettext("invalid number of arguments\n"));
+			(void) fprintf(stderr, "invalid number of arguments\n");
 			usage(B_FALSE);
 		}
 
@@ -9398,7 +9398,7 @@ zfs_do_bucket(int argc, char **argv) {
 
 		int error = parse_pool_bucket(path, &pool, &bucket);
 		if (error) {
-			(void) fprintf(stderr, gettext("expected pool/bucket\n"));
+			(void) fprintf(stderr, "expected pool/bucket\n");
 			usage(B_FALSE);
 		}
 
@@ -9410,7 +9410,7 @@ zfs_do_bucket(int argc, char **argv) {
 		ret = error;
 	} else if (strcmp(op, "delete") == 0) {
 		if (argc != 3) {
-			(void) fprintf(stderr, gettext("invalid number of arguments\n"));
+			(void) fprintf(stderr, "invalid number of arguments\n");
 			usage(B_FALSE);
 		}
 
@@ -9419,7 +9419,7 @@ zfs_do_bucket(int argc, char **argv) {
 
 		int error = parse_pool_bucket(path, &pool, &bucket);
 		if (error) {
-			(void) fprintf(stderr, gettext("expected pool/bucket\n"));
+			(void) fprintf(stderr, "expected pool/bucket\n");
 			usage(B_FALSE);
 		}
 
@@ -9432,7 +9432,7 @@ zfs_do_bucket(int argc, char **argv) {
 		ret = error;
 	} else if (strcmp(op, "list") == 0) {
 		if (argc != 3) {
-			(void) fprintf(stderr, gettext("invalid number of arguments\n"));
+			(void) fprintf(stderr, "invalid number of arguments\n");
 			usage(B_FALSE);
 		}
 
@@ -9453,7 +9453,7 @@ zfs_do_bucket(int argc, char **argv) {
 
 		ret = error;
 	} else {
-		(void) fprintf(stderr, gettext("invalid operation: %s\n"), op);
+		(void) fprintf(stderr, "invalid operation: %s\n", op);
 		usage(B_FALSE);
 	}
 
@@ -9484,7 +9484,7 @@ zfs_do_object(int argc, char **argv) {
 	int ret = 0;
 
 	if (argc < 3) {
-		(void) fprintf(stderr, gettext("invalid number of arguments\n"));
+		(void) fprintf(stderr, "invalid number of arguments\n");
 		usage(B_FALSE);
 	}
 
@@ -9505,7 +9505,7 @@ zfs_do_object(int argc, char **argv) {
 
 		int error = parse_pool_bucket_key(path, &pool, &bucket, &key);
 		if (error) {
-			(void) fprintf(stderr, gettext("expected pool/bucket/key\n"));
+			(void) fprintf(stderr, "expected pool/bucket/key\n");
 			usage(B_FALSE);
 		}
 
@@ -9515,7 +9515,7 @@ zfs_do_object(int argc, char **argv) {
 			fd = open(argv[3], O_RDONLY);
 			if (fd < 0) {
 				(void) fprintf(stderr,
-						gettext("cannot open '%s': %s\n"),
+						"cannot open '%s': %s\n",
 						argv[3], strerror(errno));
 				(void) libzfs_fini(g_zfs);
 				return (1);
@@ -9523,7 +9523,7 @@ zfs_do_object(int argc, char **argv) {
 			struct stat st;
 			if (fstat(fd, &st) != 0) {
 				(void) fprintf(stderr,
-						gettext("cannot stat '%s': %s\n"),
+						"cannot stat '%s': %s\n",
 						argv[3], strerror(errno));
 				(void) close(fd);
 				(void) libzfs_fini(g_zfs);
@@ -9554,7 +9554,7 @@ zfs_do_object(int argc, char **argv) {
 
 		int error = parse_pool_bucket_key(path, &pool, &bucket, &key);
 		if (error) {
-			(void) fprintf(stderr, gettext("expected pool/bucket/key\n"));
+			(void) fprintf(stderr, "expected pool/bucket/key\n");
 			usage(B_FALSE);
 		}
 
@@ -9568,7 +9568,7 @@ zfs_do_object(int argc, char **argv) {
 
 		int error = parse_pool_bucket_key(path, &pool, &bucket, &key);
 		if (error) {
-			(void) fprintf(stderr, gettext("expected pool/bucket/key\n"));
+			(void) fprintf(stderr, "expected pool/bucket/key\n");
 			usage(B_FALSE);
 		}
 
@@ -9578,7 +9578,7 @@ zfs_do_object(int argc, char **argv) {
 			fd = open(argv[3], O_WRONLY|O_CREAT|O_TRUNC, 0644);
 			if (fd < 0) {
 				(void)fprintf(stderr,
-						gettext("cannot open '%s': %s\n"),
+						"cannot open '%s': %s\n",
 						argv[3], strerror(errno));
 				(void)libzfs_fini(g_zfs);
 				return (1);
@@ -9600,7 +9600,7 @@ zfs_do_object(int argc, char **argv) {
 		ret = error;
 	} else {
 		(void) fprintf(stderr,
-				gettext("invalid operation: %s\n"), op);
+				"invalid operation: %s\n", op);
 		usage(B_FALSE);
 	}
 
