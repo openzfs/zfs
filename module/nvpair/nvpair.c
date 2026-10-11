@@ -2179,22 +2179,9 @@ int nvlist_lookup_nvpair_embedded_index(nvlist_t *nvl,
 boolean_t
 nvlist_exists(const nvlist_t *nvl, const char *name)
 {
-	nvpriv_t *priv;
-	nvpair_t *nvp;
-	i_nvp_t *curr;
-
-	if (name == NULL || nvl == NULL ||
-	    (priv = (nvpriv_t *)(uintptr_t)nvl->nvl_priv) == NULL)
+	if (name == NULL || nvl == NULL || nvl->nvl_priv == 0)
 		return (B_FALSE);
-
-	for (curr = priv->nvp_list; curr != NULL; curr = curr->nvi_next) {
-		nvp = &curr->nvi_nvp;
-
-		if (strcmp(name, NVP_NAME(nvp)) == 0)
-			return (B_TRUE);
-	}
-
-	return (B_FALSE);
+	return (nvt_lookup_name(nvl, name) != NULL);
 }
 
 int
