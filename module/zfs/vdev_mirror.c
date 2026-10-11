@@ -878,7 +878,7 @@ vdev_mirror_io_done(zio_t *zio)
 		ASSERT(zio->io_error != 0);
 	}
 
-	if (good_copies && spa_writeable(zio->io_spa) &&
+	if (good_copies && spa_self_heal_allowed(zio->io_spa) &&
 	    (unexpected_errors ||
 	    (zio->io_flags & ZIO_FLAG_RESILVER) ||
 	    ((zio->io_flags & ZIO_FLAG_SCRUB) && mm->mm_resilvering))) {

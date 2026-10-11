@@ -2845,6 +2845,27 @@ spa_writeable(spa_t *spa)
 }
 
 /*
+ * Whether a read that found a damaged copy may rewrite it with the good data
+ * in hand (self-healing, and resilver or rebuild repairs).
+ *
+ * Not while loading a txg other than the newest one (an explicitly requested
+ * txg, a rewind, or a dry run probing either) until the load commits to it by
+ * starting to sync: the blocks of an older txg may have been freed and their
+ * space reused by later txgs, so a copy failing its checksum is expected, and
+ * rewriting it would overwrite live blocks of those later txgs.  A dry run
+ * would damage the pool it promised not to modify, and a rewind that rejects
+ * this txg would damage the newer txgs, which are all that is left if no
+ * older txg loads either.
+ */
+boolean_t
+spa_self_heal_allowed(spa_t *spa)
+{
+	return (spa_writeable(spa) &&
+	    (spa->spa_load_state == SPA_LOAD_NONE ||
+	    spa->spa_load_max_txg == UINT64_MAX || spa->spa_sync_on));
+}
+
+/*
  * Returns true if there is a pending sync task in any of the current
  * syncing txg, the current quiescing txg, or the current open txg.
  */

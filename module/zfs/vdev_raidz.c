@@ -3332,7 +3332,7 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 		unexpected_errors += n;
 	}
 
-	if (spa_writeable(zio->io_spa) &&
+	if (spa_self_heal_allowed(zio->io_spa) &&
 	    (unexpected_errors > 0 || (zio->io_flags & ZIO_FLAG_RESILVER))) {
 		/*
 		 * Use the good data we have in hand to repair damaged children.
@@ -3385,7 +3385,7 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 	 * necessary, but since expansion is paused during scrub/resilver, at
 	 * most a single row will have a shadow location.
 	 */
-	if (spa_writeable(zio->io_spa) &&
+	if (spa_self_heal_allowed(zio->io_spa) &&
 	    (zio->io_flags & (ZIO_FLAG_RESILVER | ZIO_FLAG_SCRUB))) {
 		for (int c = 0; c < rr->rr_cols; c++) {
 			raidz_col_t *rc = &rr->rr_col[c];
