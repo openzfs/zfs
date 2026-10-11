@@ -969,6 +969,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_rewrite/setup.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_physical.ksh \
+	functional/cli_root/zfs_rewrite/zfs_rewrite_physical_accounting.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_skip_clone.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_skip_snapshot.ksh \
 	functional/cli_root/zfs_rollback/cleanup.ksh \
@@ -2031,6 +2032,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/raidz/raidz_expand_rewrite.ksh \
 	functional/raidz/raidz_zinject.ksh \
 	functional/raidz/raidz_parity_epochs_dedup_pos.ksh \
+	functional/raidz/raidz_detach_neg.ksh \
 	functional/raidz/raidz_parity_epochs_pos.ksh \
 	functional/raidz/raidz_recon_pos.ksh \
 	functional/raidz/setup.ksh \
