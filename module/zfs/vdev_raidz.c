@@ -349,38 +349,6 @@ unsigned long raidz_expand_max_reflow_bytes = 0;
 int raidz_ignore_parity_epochs = 0;
 
 /*
- * P7 width contraction: force a uniform narrow logical width W (0=off).
- * A raidz created/imported with raidz_force_width=W lays every block on
- * the first W children (0..W-1) via the SIMPLE map (map_alloc(dcols=W)),
- * sizes psize<->asize at W (more parity overhead), AND sizes the raidz
- * offset space (vdev asize / metaslabs) to W children in vdev_raidz_open,
- * so map, asize and metaslab all agree. Children W..N-1 are never
- * addressed -> left empty, ready for detach (part D). This is the
- * coherent uniform-width foundation for in-place contraction.
- */
-int raidz_force_width = 0;
-
-/*
- * P7 part C (re-encoding reflow): set for the duration of an in-place
- * width-contraction sweep. A block whose epoch logical width < physical
- * width then uses the SIMPLE map (children 0..W-1) -- a CONTRACTED block --
- * instead of the expanded map (which is for post-EXPANSION narrow blocks).
- * Also relaxes the DEBUG io_verify (uniform-width assumption) during the
- * mixed-width window. Pairs with raidz_contract_floor (metaslab.c), which
- * forces every re-encoded (narrow) block to allocate physically ABOVE the
- * old-width high-water so it can never collide with a not-yet-swept wide
- * block. Only valid on a non-expanding pool during a quiesced sweep.
- */
-int raidz_contracting = 0;
-/*
- * R05: bind the contraction/detach to a SPECIFIC vdev by top-level
- * GUID, so the global raidz_contracting tunable enabled for pool A cannot
- * authorise the raidz-shrink detach of an unrelated vdev (e.g. on pool B).
- * Must be set to the target vdev's GUID; a zero/mismatched GUID refuses.
- */
-unsigned long raidz_contract_guid = 0;
-
-/*
  * For testing only: pause the raidz expansion at a certain point.
  */
 uint_t raidz_expand_pause_point = 0;
@@ -2407,11 +2375,6 @@ vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 		*max_asize *= vd->vdev_children - 1;
 
 		vd->vdev_min_asize = *asize;
-	} else if (raidz_force_width != 0 &&
-	    (uint64_t)raidz_force_width >= nparity + 1 &&
-	    (uint64_t)raidz_force_width < vd->vdev_children) {
-		*asize *= raidz_force_width;
-		*max_asize *= raidz_force_width;
 	} else {
 		*asize *= vd->vdev_children;
 		*max_asize *= vd->vdev_children;
@@ -2508,10 +2471,6 @@ vdev_raidz_layout_for_alloc(vdev_raidz_t *vdrz, uint64_t txg)
 		    (u_longlong_t)layout.vrl_nparity,
 		    vdrz->vd_parity_epochs != NULL ? "epochs" : "legacy");
 	}
-	if (raidz_force_width != 0 &&
-	    (uint64_t)raidz_force_width >= layout.vrl_nparity + 1 &&
-	    (uint64_t)raidz_force_width < layout.vrl_width)
-		layout.vrl_width = raidz_force_width;
 	return (layout);
 }
 
@@ -2746,8 +2705,6 @@ static void
 vdev_raidz_io_verify(zio_t *zio, raidz_map_t *rm, raidz_row_t *rr, int col)
 {
 	(void) rm;
-	if (raidz_contracting)
-		return;
 #ifdef ZFS_DEBUG
 	zfs_range_seg64_t logical_rs, physical_rs, remain_rs;
 	logical_rs.rs_start = rr->rr_offset;
@@ -3017,10 +2974,9 @@ vdev_raidz_io_start(zio_t *zio)
 
 	vdev_raidz_layout_t layout = vdev_raidz_layout_for_bp(vdrz, zio->io_bp);
 	if (zfs_flags & ZFS_DEBUG_RAIDZ_RECONSTRUCT)
-		zfs_dbgmsg("io_start: vrl_width=%llu phys=%d contracting=%d "
-		    "fw=%d off=%llu type=%d", (u_longlong_t)layout.vrl_width,
-		    vdrz->vd_physical_width, raidz_contracting,
-		    raidz_force_width,
+		zfs_dbgmsg("io_start: vrl_width=%llu phys=%d "
+		    "off=%llu type=%d", (u_longlong_t)layout.vrl_width,
+		    vdrz->vd_physical_width,
 		    (u_longlong_t)zio->io_offset, (int)zio->io_type);
 	if (layout.vrl_width != vdrz->vd_physical_width ||
 	    layout.vrl_nparity != vdrz->vd_nparity) {
@@ -3057,9 +3013,7 @@ vdev_raidz_io_start(zio_t *zio)
 			}
 		}
 	}
-	if (layout.vrl_width != vdrz->vd_physical_width &&
-	    raidz_force_width == 0 &&
-	    !raidz_contracting) {
+	if (layout.vrl_width != vdrz->vd_physical_width) {
 		zfs_locked_range_t *lr = NULL;
 		uint64_t synced_offset = UINT64_MAX;
 		uint64_t next_offset = UINT64_MAX;
@@ -4520,10 +4474,6 @@ vdev_raidz_xlate(vdev_t *cvd, const zfs_range_seg64_t *logical_rs,
 	}
 
 	uint64_t width = vdrz->vd_physical_width;
-	if (raidz_force_width != 0 &&
-	    (uint64_t)raidz_force_width >= vdrz->vd_nparity + 1 &&
-	    (uint64_t)raidz_force_width < width)
-		width = raidz_force_width;
 	uint64_t tgt_col = cvd->vdev_id;
 	uint64_t ashift = raidvd->vdev_top->vdev_ashift;
 
@@ -6121,13 +6071,6 @@ vdev_ops_t vdev_raidz_ops = {
 
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_reflow_bytes, ULONG, ZMOD_RW,
 	"For testing, pause RAIDZ expansion after reflowing this many bytes");
-ZFS_MODULE_PARAM(zfs_vdev, raidz_, force_width, INT, ZMOD_RW,
-	"P7: force per-block logical width (0=off) for uniform narrow layout");
-ZFS_MODULE_PARAM(zfs_vdev, raidz_, contracting, INT, ZMOD_RW,
-	"P7: in-place width-contraction sweep active (0=off): narrow epoch "
-	"blocks use the simple map + relax DEBUG io_verify");
-ZFS_MODULE_PARAM(zfs_vdev, raidz_, contract_guid, ULONG, ZMOD_RW,
-	"P7/R05: top-level GUID authorised for the raidz-shrink detach");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, ignore_parity_epochs, INT, ZMOD_RW,
 	"Rescue: skip loading the RAIDZ parity-epoch table (import readonly)");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_copy_bytes, ULONG, ZMOD_RW,
