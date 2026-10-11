@@ -1932,7 +1932,12 @@ zio_write_bp_init(zio_t *zio)
 		 */
 		if (!BP_IS_HOLE(bp) && zp->zp_nopwrite) {
 			ASSERT(!zp->zp_dedup);
-			ASSERT3U(BP_GET_CHECKSUM(bp), ==, zp->zp_checksum);
+			/*
+			 * A data-less override (Direct I/O) is written with
+			 * the WP_NOFILL policy, whose checksum is off.
+			 */
+			IMPLY(zio->io_abd != NULL,
+			    BP_GET_CHECKSUM(bp) == zp->zp_checksum);
 			zio->io_flags |= ZIO_FLAG_NOPWRITE;
 			return (zio);
 		}
