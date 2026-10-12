@@ -45,10 +45,10 @@ case "$OS" in
     URL="https://repo.almalinux.org/almalinux/10/cloud/x86_64/images/AlmaLinux-10-GenericCloud-latest.x86_64.qcow2"
     ;;
   alpine3-24)
-    OSNAME="Alpine Linux 3.24.1"
+    OSNAME="Alpine Linux 3.24.2"
     # Alpine Linux v3.22 and v3.23 are unknown to osinfo as of 2025-12-26.
     OSv="alpinelinux3.21"
-    URL="https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/cloud/generic_alpine-3.24.1-x86_64-bios-cloudinit-r0.qcow2"
+    URL="https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/cloud/alpine-3.24.2-x86_64-cloudinit-r2.qcow2"
     ;;
   archlinux)
     OSNAME="Archlinux"
@@ -378,6 +378,13 @@ if [ ${OS:0:6} == "alpine" ]; then
   while pidof /usr/bin/qemu-system-x86_64 >/dev/null; do
     ssh 2>/dev/null zfs@vm0 "uname -a" && break
   done
+  # The image's Limine updater configs use old key names that the limine
+  # from the upgrade below ignores, which breaks its BIOS boot hook.
+  ssh zfs@vm0 "echo 'BOOT_DEVICE=/dev/vda' | sudo tee /etc/limine/limine-bios-updater.conf"
+  ssh zfs@vm0 "echo 'boot_device=/dev/vda' | sudo tee -a /etc/limine/limine-bios-updater.conf"
+  ssh zfs@vm0 "echo 'EFI_FILE=BOOTX64.EFI' | sudo tee /etc/limine/limine-efi-updater.conf"
+  ssh zfs@vm0 "echo 'efi_file=BOOTX64.EFI' | sudo tee -a /etc/limine/limine-efi-updater.conf"
+  ssh zfs@vm0 "echo 'efi_system_partition=/boot' | sudo tee -a /etc/limine/limine-efi-updater.conf"
   # Enable community and testing repositories.
   ssh zfs@vm0 "sudo rm -rf /etc/apk/repositories"
   ssh zfs@vm0 "sudo setup-apkrepos -c1"
