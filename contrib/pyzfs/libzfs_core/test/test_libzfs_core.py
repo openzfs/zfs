@@ -3886,6 +3886,18 @@ class _TempPool(object):
             self.getRoot().reset()
             return
 
+        self._destroy()
+        try:
+            subprocess.check_output(
+                self._zpool_create, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as e:
+            print('command failed: ', e.output)
+            raise
+        for fs in self._filesystems:
+            lzc.lzc_create(self.makeName(fs))
+        self.getRoot().reset()
+
+    def _destroy(self):
         # On the CI builders this may fail with "pool is busy"
         # Retry 5 times before raising an error
         retry = 0
@@ -3894,26 +3906,20 @@ class _TempPool(object):
                 subprocess.check_output(
                     ['zpool', 'destroy', '-f', self._pool_name],
                     stderr=subprocess.STDOUT)
-                subprocess.check_output(
-                    self._zpool_create, stderr=subprocess.STDOUT)
-                break
+                return
             except subprocess.CalledProcessError as e:
                 if b'pool is busy' in e.output and retry < 5:
                     retry += 1
                     time.sleep(1)
                     continue
-                else:
-                    print('command failed: ', e.output)
-                    raise
-        for fs in self._filesystems:
-            lzc.lzc_create(self.makeName(fs))
-        self.getRoot().reset()
+                print('command failed: ', e.output)
+                raise
 
     def cleanUp(self):
+        # Retry "pool is busy" like reset() does, so the pool isn't left
+        # behind for the tests that run after this one.
         try:
-            subprocess.check_output(
-                ['zpool', 'destroy', '-f', self._pool_name],
-                stderr=subprocess.STDOUT)
+            self._destroy()
         except Exception:
             pass
         try:
