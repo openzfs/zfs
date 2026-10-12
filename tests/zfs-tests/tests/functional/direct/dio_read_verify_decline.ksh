@@ -34,14 +34,18 @@
 # STRATEGY:
 #	1. Create a pool and a dataset with compression=off.
 #	2. Write a file using Direct I/O.
-#	3. On a single file handle, repeatedly read the file with O_DIRECT
+#	3. Delay every read of the pool's vdevs with zinject, so each read
+#	   leaves the data in the caller's buffer for that long before the
+#	   checksum is verified.
+#	4. On a single file handle, repeatedly read the file with O_DIRECT
 #	   while another thread continuously modifies the shared buffer
-#	   (manipulate_user_buffer), forcing read checksum verify failures.
-#	4. Confirm at least one dio_verify_rd event was triggered.
-#	5. Confirm the direct read count is bounded to a small number: the
-#	   handle declined Direct I/O after the first benign failure instead
-#	   of issuing a direct read (and verify failure) for every request.
-#	6. Confirm the pool reports no data errors.
+#	   (manipulate_user_buffer).  The delay makes the very first direct
+#	   read fail its checksum verify.
+#	5. Confirm at least one dio_verify_rd event was triggered.
+#	6. Confirm only the first read was a direct read: the handle declined
+#	   Direct I/O after the first benign failure instead of issuing a
+#	   direct read (and verify failure) for every request.
+#	7. Confirm the pool reports no data errors.
 #
 
 verify_runnable "global"
@@ -52,19 +56,29 @@ verify_runnable "global"
 # so this behaviour is Linux only.
 #
 
-NUMBLOCKS=500
+NUMBLOCKS=100
 BS=$((128 * 1024)) # 128k
 
-# With the fix a single direct read hits the benign failure and the handle
-# then declines Direct I/O, so the direct read count stays at a small handful.
-# Without it every one of the NUMBLOCKS reads is a direct read that fails the
-# verify.  Allow a generous margin for the reads issued before the first
-# failure is seen.
-MAX_DIRECT_READS=10
+#
+# Without a delay the buffer is modified between the read completing and its
+# checksum verify only by chance, so the number of direct reads before the
+# first failure varied from run to run.  Delaying each read by READ_DELAY_MS
+# after the data has been copied into the caller's buffer makes the first
+# direct read fail its verify, so exactly one direct read is expected.
+# Without the decline every one of the NUMBLOCKS reads is a direct read.
+#
+READ_DELAY_MS=25
+MAX_DIRECT_READS=1
+
+function cleanup
+{
+	zinject -c all
+	dio_cleanup
+}
 
 log_assert "A benign Direct I/O read verify failure declines Direct I/O " \
     "for the file handle."
-log_onexit dio_cleanup
+log_onexit cleanup
 
 log_must truncate -s $MINVDEVSIZE $DIO_VDEVS
 
@@ -79,6 +93,10 @@ log_must stride_dd -o "$mntpnt/direct-read.iso" -i /dev/urandom \
 log_must zpool sync $TESTPOOL1
 log_must zpool events -c
 
+for vdev in $DIO_VDEVS; do
+	log_must zinject -d $vdev -D $READ_DELAY_MS:1 -T read $TESTPOOL1
+done
+
 prev_dio_rd=$(kstat_pool $TESTPOOL1 iostats.direct_read_count)
 
 #
@@ -87,6 +105,8 @@ prev_dio_rd=$(kstat_pool $TESTPOOL1 iostats.direct_read_count)
 #
 log_must manipulate_user_buffer -f "$mntpnt/direct-read.iso" \
     -n $NUMBLOCKS -b $BS -r
+
+log_must zinject -c all
 
 curr_dio_rd=$(kstat_pool $TESTPOOL1 iostats.direct_read_count)
 total_dio_rd=$((curr_dio_rd - prev_dio_rd))
@@ -101,8 +121,8 @@ if [[ $dio_verify -lt 1 ]]; then
 	    "triggered, saw $dio_verify dio_verify_rd events"
 fi
 
-# The handle declined Direct I/O after the first benign failure, so the
-# direct read count is bounded well below NUMBLOCKS ($NUMBLOCKS).
+# The handle declined Direct I/O after the first benign failure, so only
+# that read was a direct read, not all NUMBLOCKS ($NUMBLOCKS).
 if [[ $total_dio_rd -gt $MAX_DIRECT_READS ]]; then
 	log_fail "Direct I/O was not declined: $total_dio_rd direct reads " \
 	    "(> $MAX_DIRECT_READS); the file handle kept issuing direct reads"
