@@ -25,7 +25,8 @@ dist_scripts_runfiles_DATA = \
 	%D%/runfiles/longevity.run \
 	%D%/runfiles/perf-regression.run \
 	%D%/runfiles/sanity.run \
-	%D%/runfiles/sunos.run
+	%D%/runfiles/sunos.run \
+	%D%/runfiles/zos.run
 
 
 dist_noinst_DATA += %D%/README.md

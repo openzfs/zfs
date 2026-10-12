@@ -2592,10 +2592,16 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zos/bucket/zos_bucket_delete_002_neg.ksh \
 	functional/zos/bucket/zos_bucket_delete_003_pos.ksh \
 	functional/zos/bucket/zos_bucket_delete_004_pos.ksh \
+	functional/zos/bucket/zos_bucket_delete_005_neg.ksh \
 	functional/zos/bucket/zos_bucket_list_001_pos.ksh \
 	functional/zos/bucket/zos_bucket_list_002_pos.ksh \
 	functional/zos/bucket/zos_bucket_list_003_pos.ksh \
 	functional/zos/bucket/zos_bucket_list_004_pos.ksh \
 	functional/zos/object/cleanup.ksh \
 	functional/zos/object/setup.ksh \
-	functional/zos/object/zos_object_put_001_pos.ksh
+	functional/zos/object/zos_object_put_001_pos.ksh \
+	functional/zos/object/zos_object_put_002_pos.ksh \
+	functional/zos/object/zos_object_delete_001_pos.ksh \
+	functional/zos/object/zos_object_delete_002_neg.ksh \
+	functional/zos/object/zos_object_get_001_pos.ksh \
+	functional/zos/object/zos_object_get_002_neg.ksh
