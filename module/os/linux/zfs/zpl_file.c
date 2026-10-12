@@ -331,11 +331,17 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 	zfs_uio_iov_iter_init(&uio, from, kiocb->ki_pos, count);
 	uio.uio_extflg |= zfs_uio_flags(kiocb);
 
+	/*
+	 * Take O_APPEND from the kiocb only. RWF_NOAPPEND clears
+	 * IOCB_APPEND for a single write while the file keeps O_APPEND.
+	 */
+	int ioflag = filp->f_flags & ~O_APPEND;
+
 	crhold(cr);
 	cookie = spl_fstrans_mark();
 
 	ret = -zfs_write(ITOZ(ip), &uio,
-	    filp->f_flags | zfs_io_flags(kiocb), cr);
+	    ioflag | zfs_io_flags(kiocb), cr);
 
 	spl_fstrans_unmark(cookie);
 	crfree(cr);

@@ -145,6 +145,11 @@ noreuse_reason = 'POSIX_FADV_NOREUSE needs Linux 6.3+'
 dontcache_reason = 'Kernel RWF_DONTCACHE support required'
 
 #
+# RWF_NOAPPEND is not supported by all kernels.
+#
+noappend_reason = 'Kernel RWF_NOAPPEND support required'
+
+#
 # Some statx fields are not supported by all kernels
 #
 statx_reason = 'Needed statx(2) field not supported on this kernel'
@@ -281,6 +286,7 @@ if sys.platform.startswith('freebsd'):
     })
 elif sys.platform.startswith('linux'):
     maybe.update({
+        'append/file_append_noappend': ['SKIP', noappend_reason],
         'bclone/bclone_crossfs_corner_cases': ['SKIP', cfr_cross_reason],
         'bclone/bclone_crossfs_corner_cases_limited':
             ['SKIP', cfr_cross_reason],

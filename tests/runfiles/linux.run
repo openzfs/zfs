@@ -31,6 +31,10 @@ tags = ['functional', 'acl', 'posix']
 tests = ['posix_001_pos', 'posix_002_pos', 'posix_003_pos', 'posix_004_pos']
 tags = ['functional', 'acl', 'posix-sa']
 
+[tests/functional/append:Linux]
+tests = ['file_append_noappend']
+tags = ['functional', 'append']
+
 [tests/functional/block_cloning:Linux]
 tests = ['block_cloning_ficlone', 'block_cloning_ficlonerange',
     'block_cloning_ficlonerange_partial', 'block_cloning_disabled_ficlone',
