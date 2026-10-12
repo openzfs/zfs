@@ -41,6 +41,7 @@ typeset -r dev_size_mb=128
 typeset -a disks
 
 prefetch_disable=$(get_tunable PREFETCH_DISABLE)
+scrub_after_expand=$(get_tunable SCRUB_AFTER_EXPAND)
 
 function cleanup
 {
@@ -53,6 +54,7 @@ function cleanup
 	done
 
 	log_must set_tunable32 PREFETCH_DISABLE $prefetch_disable
+	log_must set_tunable32 SCRUB_AFTER_EXPAND $scrub_after_expand
 	log_must set_tunable64 RAIDZ_EXPAND_MAX_REFLOW_BYTES 0
 }
 
@@ -157,6 +159,11 @@ function test_scrub # <pool> <parity> <dir>
 log_onexit cleanup
 
 log_must set_tunable32 PREFETCH_DISABLE 1
+
+# The random pause offset can lie beyond the last byte the reflow copies.  The
+# expansion then completes, possibly only after an import, and the automatic
+# scrub it starts would race with the scrubs below ("currently scrubbing").
+log_must set_tunable32 SCRUB_AFTER_EXPAND 0
 
 # Disk files which will be used by pool
 for i in {0..$(($devs - 1))}; do
