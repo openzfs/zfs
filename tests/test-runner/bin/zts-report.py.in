@@ -332,7 +332,6 @@ elif sys.platform.startswith('linux'):
         'fault/auto_online_002_pos': ['FAIL', 11889],
         'fault/auto_replace_001_pos': ['FAIL', 14851],
         'fault/auto_spare_002_pos': ['FAIL', 11889],
-        'fault/auto_spare_multiple': ['FAIL', 11889],
         'fault/auto_spare_shared': ['FAIL', 11889],
         'fault/decompress_fault': ['FAIL', 11889],
         'idmap_mount/idmap_mount_001': ['SKIP', idmap_reason],

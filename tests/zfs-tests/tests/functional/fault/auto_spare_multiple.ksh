@@ -47,6 +47,29 @@ function cleanup
 	rm -f $DATA_DEVS $SPARE_DEVS
 }
 
+#
+# Run a scrub of the pool to the end, so that every block on every child is
+# read.  The pool starts scans of its own: the resilver onto the first hot
+# spare, deferred while the first scrub runs and started once it is done,
+# and on dRAID the scrub that a rebuild starts when it completes.  Polling
+# for an idle pool and then starting a scrub races with both, so wait for
+# them, retry a scrub that finds one of them running (EBUSY), and start
+# over when one of them replaced the scrub before it finished.
+#
+function scrub_pool
+{
+	typeset pool=$1
+	typeset -i try
+
+	for ((try = 0; try < 10; try++)); do
+		log_must zpool wait -t resilver,scrub $pool
+		if zpool scrub -w $pool && is_pool_scrubbed $pool; then
+			return
+		fi
+	done
+	log_fail "no scrub of $pool ran to the end"
+}
+
 log_assert "ZED should be able to handle multiple faulted devices"
 log_onexit cleanup
 
@@ -114,11 +137,8 @@ for type in "mirror" "raidz" "raidz2" "raidz3" "draid2:1s"; do
 	# 5. Inject IO ERRORS on a second device
 	log_must zinject -d $FAULT_DEV2 -e io -T all -f 100 $TESTPOOL
 
-	# 6. Start a scrub
-	while is_pool_scrubbing $TESTPOOL || is_pool_resilvering $TESTPOOL; do
-		sleep 1
-	done
-	log_must zpool scrub $TESTPOOL
+	# 6. Scrub the pool
+	scrub_pool $TESTPOOL
 
 	# 7. Verify the ZED kicks in a second hot spare
 	log_note "Wait for ZED to auto-spare"
@@ -127,9 +147,7 @@ for type in "mirror" "raidz" "raidz2" "raidz3" "draid2:1s"; do
 	log_must wait_hotspare_state $TESTPOOL $SPARE2 "INUSE"
 	log_must check_state $TESTPOOL "" "DEGRADED"
 
-	while is_pool_scrubbing $TESTPOOL || is_pool_resilvering $TESTPOOL; do
-		sleep 1
-	done
+	log_must zpool wait -t resilver,scrub $TESTPOOL
 
 	# 8. Clear the fault on both devices
 	log_must zinject -c all
