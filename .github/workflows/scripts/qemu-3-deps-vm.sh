@@ -359,7 +359,13 @@ case "$1" in
 esac
 
 case "$1" in
-  alpine*|archlinux|freebsd*)
+  alpine*)
+    if [[ "$1" == *kmemleak* ]]; then
+      # linux-stable has kmemleak built in, but off by default.
+      sudo sed -i '/^\s*cmdline:/s/$/ kmemleak=on/' /boot/limine/limine.conf
+    fi
+    ;;
+  archlinux|freebsd*)
     true
     ;;
   *)
