@@ -9408,7 +9408,7 @@ zfs_do_bucket(int argc, char **argv) {
 
 		error = lzc_bucket_create(pool, bucket);
 		if (error != 0) {
-			(void) zfs_standard_error(g_zfs, error, "Cannot create bucket");
+			(void) zfs_standard_error(g_zfs, error, "cannot create bucket");
 		}
 
 		ret = error;
@@ -9430,11 +9430,11 @@ zfs_do_bucket(int argc, char **argv) {
 		error = lzc_bucket_delete(pool, bucket);
 		if (error != 0) {
 			if (error == ENOTEMPTY) {
-				(void) fprintf(stderr, "cannot delete '%s': "
-						"bucket is not empty\n", path);
+				(void) fprintf(stderr, "cannot delete '%s/%s': "
+						"bucket is not empty\n", pool, bucket);
 			} else {
 				(void) zfs_standard_error(g_zfs, error,
-						"Cannot delete bucket");
+						"cannot delete bucket");
 			}
 	}
 
@@ -9457,7 +9457,7 @@ zfs_do_bucket(int argc, char **argv) {
 		}
 
 		if (error != 0) {
-			(void) zfs_standard_error(g_zfs, error, "Cannot list buckets");
+			(void) zfs_standard_error(g_zfs, error, "cannot list buckets");
 		}
 
 		ret = error;
@@ -9556,8 +9556,8 @@ zfs_do_object(int argc, char **argv) {
 		}
 
 		if (error) {
-			(void) zfs_standard_error(g_zfs, error,
-					"Cannot put object");
+			(void) fprintf(stderr,
+					"cannot put object '%s': %s\n", path, strerror(error));
 		}
 
 		ret = error;
@@ -9579,7 +9579,12 @@ zfs_do_object(int argc, char **argv) {
 
 		error = lzc_object_delete(pool, bucket, key);
 
-		ret = error;
+                if (error) {
+                  (void)fprintf(stderr, "cannot delete object '%s/%s/%s': %s\n",
+                                pool, bucket, key, strerror(error));
+                }
+
+                ret = error;
 	} else if (strcmp(op, "get") == 0) {
 		if (argc > 4) {
 			(void) fprintf(stderr, "invalid number of arguments\n");
@@ -9618,7 +9623,8 @@ zfs_do_object(int argc, char **argv) {
 		}
 
 		if (error) {
-			(void)zfs_standard_error(g_zfs, error, "Cannot get object");
+			(void) fprintf(stderr,
+					"Cannot get object '%s': %s\n", path, strerror(error));
 		}
 
 		ret = error;
