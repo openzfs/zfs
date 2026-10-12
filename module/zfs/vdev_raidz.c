@@ -458,6 +458,20 @@ vdev_raidz_map_free_vsd(zio_t *zio)
 {
 	raidz_map_t *rm = zio->io_vsd;
 
+	/*
+	 * Drop the expansion rangelock only now, after all of this zio's
+	 * child i/os are done.  vdev_raidz_io_done() issues repair and shadow
+	 * writes to the locations it read, and the reflow must not copy
+	 * these rows until those writes have landed: a copy that reads a
+	 * row before its repair would move the damaged data, and the late
+	 * repair would then overwrite whatever the reflow has since placed
+	 * at the old location.
+	 */
+	if (rm->rm_lr != NULL) {
+		zfs_rangelock_exit(rm->rm_lr);
+		rm->rm_lr = NULL;
+	}
+
 	vdev_raidz_map_free(rm);
 }
 
@@ -4061,7 +4075,7 @@ vdev_raidz_io_done(zio_t *zio)
 
 		if (raidz_checksum_verify(zio) == 0) {
 			if (zio->io_post & ZIO_POST_DIO_CHKSUM_ERR)
-				goto done;
+				return;
 
 			for (int i = 0; i < rm->rm_nrows; i++) {
 				raidz_row_t *rr = rm->rm_row[i];
@@ -4159,11 +4173,6 @@ vdev_raidz_io_done(zio_t *zio)
 				vdev_raidz_io_done_unrecoverable(zio);
 			}
 		}
-	}
-done:
-	if (rm->rm_lr != NULL) {
-		zfs_rangelock_exit(rm->rm_lr);
-		rm->rm_lr = NULL;
 	}
 }
 
