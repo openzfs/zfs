@@ -3559,8 +3559,18 @@ dbuf_findbp(dnode_t *dn, int level, uint64_t blkid, int fail_sparse,
 
 		if (err)
 			return (err);
+		/*
+		 * Indirect blocks are never encrypted, so reading one needs
+		 * no key.  Don't decrypt the dnode here: callers that find a
+		 * block pointer for a raw operation (e.g. a raw send from a
+		 * redaction bookmark) hold the dataset without a key mapping
+		 * and would fail with EACCES.  A decrypting read of the
+		 * block itself still decrypts and authenticates the dnode
+		 * in dbuf_read().
+		 */
 		err = dbuf_read(*parentp, NULL, DB_RF_CANFAIL |
-		    DB_RF_HAVESTRUCT | DMU_READ_NO_PREFETCH);
+		    DB_RF_HAVESTRUCT | DMU_READ_NO_PREFETCH |
+		    DMU_READ_NO_DECRYPT);
 		if (err) {
 			dbuf_rele(*parentp, NULL);
 			*parentp = NULL;
