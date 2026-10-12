@@ -722,6 +722,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zdb/zdb_file_layout_002.ksh \
 	functional/cli_root/zdb/zdb_file_layout_003.ksh \
 	functional/cli_root/zdb/zdb_file_layout_neg.ksh \
+	functional/cli_root/zdb/zdb_il_saxattr.ksh \
 	functional/cli_root/zdb/zdb_object_range_neg.ksh \
 	functional/cli_root/zdb/zdb_object_range_pos.ksh \
 	functional/cli_root/zdb/zdb_objset_id.ksh \

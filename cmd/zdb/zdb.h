@@ -19,6 +19,7 @@
 #define	_ZDB_H
 
 void dump_intent_log(zilog_t *);
+void dump_xattr_value(const uint8_t *, uint64_t);
 extern uint8_t dump_opt[512];
 
 #endif	/* _ZDB_H */
