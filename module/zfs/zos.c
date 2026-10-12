@@ -201,6 +201,7 @@ int delete_bucket(const char *pool, const char *bucket) {
 	spa_t *spa;
 	objset_t *os;
 	uint64_t bucket_zap;
+	uint64_t count;
 	dmu_tx_t *tx;
 	int error;
 
@@ -228,6 +229,22 @@ int delete_bucket(const char *pool, const char *bucket) {
 		zos_release_objset(os);
 		spa_close(spa, ZOS_OBJSET_TAG);
 		return (error);
+	}
+
+	// Check count after assigning a transaction to serialize multiple
+	// PUTs.  Fail to delete bucket if objects exist for that bucket.
+	error = zap_count(os, bucket_zap, &count);
+	if (error) {
+		dmu_tx_abort(tx);
+		zos_release_objset(os);
+		spa_close(spa, ZOS_OBJSET_TAG);
+		return (error);
+	}
+	if (count > 0) {
+		dmu_tx_abort(tx);
+		zos_release_objset(os);
+		spa_close(spa, ZOS_OBJSET_TAG);
+		return (SET_ERROR(ENOTEMPTY));
 	}
 
 	error = zap_remove(os, ZOS_BUCKET_DIR_OBJ, bucket, tx);

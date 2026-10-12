@@ -9424,10 +9424,15 @@ zfs_do_bucket(int argc, char **argv) {
 		}
 
 		error = lzc_bucket_delete(pool, bucket);
-
 		if (error != 0) {
-			(void) zfs_standard_error(g_zfs, error, "Cannot delete bucket");
-		}
+			if (error == ENOTEMPTY) {
+				(void) fprintf(stderr, "cannot delete '%s': "
+						"bucket is not empty\n", path);
+			} else {
+				(void) zfs_standard_error(g_zfs, error,
+						"Cannot delete bucket");
+			}
+	}
 
 		ret = error;
 	} else if (strcmp(op, "list") == 0) {

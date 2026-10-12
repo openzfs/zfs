@@ -12,6 +12,7 @@ echo "hello zos" > /tmp/zos_test_data
 
 log_must zfs bucket create $TESTPOOL/$BUCKET
 log_must zfs object put $TESTPOOL/$BUCKET/$KEY /tmp/zos_test_data
+log_must zfs object delete $TESTPOOL/$BUCKET/$KEY
 log_must zfs bucket delete $TESTPOOL/$BUCKET
 
 log_pass "Put object from file succeeded"

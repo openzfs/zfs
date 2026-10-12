@@ -17,6 +17,7 @@ log_must zfs object put $TESTPOOL/$BUCKET/$KEY /tmp/zos_test_data2
 log_must zfs object get $TESTPOOL/$BUCKET/$KEY /tmp/zos_test_data_out
 log_must diff /tmp/zos_test_data2 /tmp/zos_test_data_out
 log_must [ "$(wc -c < /tmp/zos_test_data2)" = "$(wc -c < /tmp/zos_test_data_out)" ]
+log_must zfs object delete $TESTPOOL/$BUCKET/$KEY
 log_must zfs bucket delete $TESTPOOL/$BUCKET
 
 log_pass "Overwriting object from file succeeded"
