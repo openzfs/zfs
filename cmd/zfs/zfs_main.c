@@ -430,9 +430,13 @@ get_usage(zfs_help_t idx)
 	case HELP_WAIT:
 		return ("\twait [-t <activity>] <filesystem>\n");
 	case HELP_BUCKET:
-		return ("\tbucket <create|delete|list> <pool> [bucket_name]\n");
+		return ("\tbucket create <pool/bucket>\n"
+		    "\tbucket delete <pool/bucket>\n"
+		    "\tbucket list <pool>\n");
 	case HELP_OBJECT:
-		return ("\tobject <upsert|read|delete> <object_name> [object_data]");
+		return ("\tobject put <pool/bucket/key> [filename]\n"
+		    "\tobject get <pool/bucket/key> [filename]\n"
+		    "\tobject delete <pool/bucket/key>\n");
 	case HELP_ZONE:
 		return ("\tzone <nsfile> <filesystem>\n");
 	case HELP_UNZONE:
@@ -9504,6 +9508,11 @@ zfs_do_object(int argc, char **argv) {
 	libzfs_print_on_error(g_zfs, B_TRUE);
 
 	if (strcmp(op, "put") == 0) {
+		if (argc > 4) {
+			(void) fprintf(stderr, "invalid number of arguments\n");
+			usage(B_FALSE);
+		}
+
 		char *pool;
 		char *bucket;
 		char *key;
@@ -9553,6 +9562,11 @@ zfs_do_object(int argc, char **argv) {
 
 		ret = error;
 	} else if (strcmp(op, "delete") == 0) {
+		if (argc != 3) {
+			(void) fprintf(stderr, "invalid number of arguments\n");
+			usage(B_FALSE);
+		}
+
 		char *pool;
 		char *bucket;
 		char *key;
@@ -9567,6 +9581,11 @@ zfs_do_object(int argc, char **argv) {
 
 		ret = error;
 	} else if (strcmp(op, "get") == 0) {
+		if (argc > 4) {
+			(void) fprintf(stderr, "invalid number of arguments\n");
+			usage(B_FALSE);
+		}
+
 		char *pool;
 		char *bucket;
 		char *key;
