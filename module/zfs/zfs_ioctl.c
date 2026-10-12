@@ -4748,6 +4748,9 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 	ost = dmu_objset_type(os);
 	dmu_objset_rele(os, FTAG);
 
+	if (ost == DMU_OST_BUCKET)
+		return (SET_ERROR(EINVAL));
+
 	if (ost == DMU_OST_ZFS)
 		zfs_unmount_snap(zc->zc_name);
 
