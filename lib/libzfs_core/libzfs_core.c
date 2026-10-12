@@ -2091,7 +2091,8 @@ lzc_ddt_prune(const char *pool, zpool_ddt_prune_unit_t unit, uint64_t amount)
 }
 
 int
-lzc_bucket_create(const char *pool, const char *bucket) {
+lzc_bucket_create(const char *pool, const char *bucket)
+{
 	int error;
 
 	nvlist_t *args = fnvlist_alloc();
@@ -2108,7 +2109,8 @@ lzc_bucket_create(const char *pool, const char *bucket) {
 }
 
 int
-lzc_bucket_delete(const char *pool, const char *bucket) {
+lzc_bucket_delete(const char *pool, const char *bucket)
+{
 	int error;
 
 	nvlist_t *args = fnvlist_alloc();
@@ -2125,7 +2127,8 @@ lzc_bucket_delete(const char *pool, const char *bucket) {
 }
 
 int
-lzc_bucket_list(const char *pool, nvlist_t **buckets) {
+lzc_bucket_list(const char *pool, nvlist_t **buckets)
+{
 	int error;
 
 	nvlist_t *args = fnvlist_alloc();
@@ -2144,7 +2147,9 @@ lzc_bucket_list(const char *pool, nvlist_t **buckets) {
 }
 
 int
-lzc_object_put(const char *pool, const char *bucket, const char *key, int fd, uint64_t size) {
+lzc_object_put(const char *pool, const char *bucket, const char *key, int fd,
+    uint64_t size)
+{
 	int error;
 
 	nvlist_t *args = fnvlist_alloc();
@@ -2182,7 +2187,8 @@ lzc_object_delete(const char *pool, const char *bucket, const char *key) {
 }
 
 int
-lzc_object_get(const char *pool, const char *bucket, const char *key, int fd, uint64_t *size) {
+lzc_object_get(const char *pool, const char *bucket, const char *key, int fd,
+		uint64_t *size) {
 	int error;
 
 	nvlist_t *args = fnvlist_alloc();

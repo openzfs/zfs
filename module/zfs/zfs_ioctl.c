@@ -5026,7 +5026,7 @@ static int
 zfs_ioc_bucket_create(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 {
 	const char *bucketname = fnvlist_lookup_string(innvl, ZFS_BUCKET);
-	return create_bucket(poolname, bucketname);
+	return (create_bucket(poolname, bucketname));
 }
 
 static const zfs_ioc_key_t zfs_keys_bucket_delete[] = {
@@ -5037,7 +5037,7 @@ static int
 zfs_ioc_bucket_delete(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 {
 	const char *bucketname = fnvlist_lookup_string(innvl, ZFS_BUCKET);
-	return delete_bucket(poolname, bucketname);
+	return (delete_bucket(poolname, bucketname));
 }
 
 static int
@@ -5120,7 +5120,7 @@ zfs_ioc_object_get(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl) {
 
 	int error = get_object(poolname, bucket, key, fd, &size);
 	if (error) {
-		return error;
+		return (error);
 	}
 
 	fnvlist_add_uint64(outnvl, ZFS_SIZE, size);

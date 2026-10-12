@@ -1,23 +1,13 @@
 // SPDX-License-Identifier: CDDL-1.0
 /*
- * CDDL HEADER START
+ * This file and its contents are supplied under the terms of the
+ * Common Development and Distribution License ("CDDL"), version 1.0.
+ * You may only use this file in accordance with the terms of version
+ * 1.0 of the CDDL.
  *
- * The contents of this file are subject to the terms of the
- * Common Development and Distribution License (the "License").
- * You may not use this file except in compliance with the License.
- *
- * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
- * or https://opensource.org/licenses/CDDL-1.0.
- * See the License for the specific language governing permissions
- * and limitations under the License.
- *
- * When distributing Covered Code, include this CDDL HEADER in each
- * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
- * If applicable, add the following below this CDDL HEADER, with the
- * fields enclosed by brackets "[]" replaced with your own identifying
- * information: Portions Copyright [yyyy] [name of copyright owner]
- *
- * CDDL HEADER END
+ * A full copy of the text of the CDDL should have accompanied this
+ * source.  A copy of the CDDL is also available via the Internet at
+ * https://opensource.org/license/CDDL-1.0.
  */
 /*
  * Copyright (c) 2025 Stephen Reaves. All rights reserved.
@@ -29,7 +19,7 @@
  */
 
 #ifndef _SYS_ZOS_H
-#define _SYS_ZOS_H
+#define	_SYS_ZOS_H
 
 #include <sys/param.h>
 #include <sys/types.h>
@@ -42,14 +32,14 @@ extern "C" {
 #endif
 
 /* Suffix appended to pool name for the hidden ZOS objset (e.g. "tank/__zos") */
-#define ZOS_OBJSET_SUFFIX	"__zos"
+#define	ZOS_OBJSET_SUFFIX	"__zos"
 
 /* Well-known object ID inside the ZOS objset: bucket directory ZAP */
-#define ZOS_BUCKET_DIR_OBJ	1ULL
+#define	ZOS_BUCKET_DIR_OBJ	1ULL
 
 // TODO: figure out where to source this ...
 #ifndef MAXNAMELEN
-#define MAXNAMELEN 256
+#define	MAXNAMELEN 256
 #endif
 
 typedef struct zos_object_meta {
@@ -61,12 +51,18 @@ void zos_release_objset(objset_t *os);
 int create_bucket(const char *pool, const char *bucket);
 int delete_bucket(const char *pool, const char *bucket);
 /* Resolved bucket: held objset + bucket ZAP object ID */
-int get_bucket(spa_t *spa, const char *bucket, objset_t **os, uint64_t *bucket_zap);
+int get_bucket(spa_t *spa, const char *bucket, objset_t **os,
+    uint64_t *bucket_zap);
 
-/* Put (create/overwrite) an object. fd = data source, size = bytes (0 = read until EOF) */
-int put_object(const char *pool, const char *bucket, const char *key, int fd, uint64_t size);
+/*
+ * Put (create/overwrite) an object.  fd = data source, size = bytes
+ * (0 = read until EOF).
+ */
+int put_object(const char *pool, const char *bucket, const char *key,
+    int fd, uint64_t size);
 int delete_object(const char *pool, const char *bucket, const char *key);
-int get_object(const char *pool, const char *bucket, const char *key, int fd, uint64_t *size);
+int get_object(const char *pool, const char *bucket, const char *key,
+    int fd, uint64_t *size);
 
 #ifdef __cplusplus
 }

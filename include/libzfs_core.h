@@ -161,10 +161,10 @@ _LIBZFS_CORE_H int lzc_bucket_create(const char *, const char *);
 _LIBZFS_CORE_H int lzc_bucket_delete(const char *, const char *);
 _LIBZFS_CORE_H int lzc_bucket_list(const char *, nvlist_t **);
 _LIBZFS_CORE_H int lzc_object_put(const char *, const char *, const char *,
-   int, uint64_t);
+	    int, uint64_t);
 _LIBZFS_CORE_H int lzc_object_delete(const char *, const char *, const char *);
 _LIBZFS_CORE_H int lzc_object_get(const char *, const char *, const char *,
-   int, uint64_t *);
+	    int, uint64_t *);
 
 #ifdef	__cplusplus
 }
