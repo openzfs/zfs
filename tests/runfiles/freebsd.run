@@ -40,3 +40,9 @@ tags = ['functional', 'pam']
 [tests/functional/direct:FreeBSD]
 tests = ['dio_write_stable_pages']
 tags = ['functional', 'direct']
+
+[tests/functional/file_events:FreeBSD]
+tests = ['file_events_basic', 'file_events_props',
+    'file_events_wrap', 'file_events_principal', 'file_events_clear',
+    'file_events_cli', 'file_events_compat']
+tags = ['functional', 'file_events']

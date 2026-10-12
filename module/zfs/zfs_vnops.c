@@ -35,6 +35,7 @@
 #include <sys/errno.h>
 #include <sys/zfs_dir.h>
 #include <sys/zfs_acl.h>
+#include <sys/zfs_events.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/fs/zfs.h>
 #include <sys/dmu.h>
@@ -384,6 +385,16 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	    zfs_uio_offset(uio), zfs_uio_resid(uio), RL_READER);
 
 	/*
+	 * Declared and initialized before any goto out: the early-exit
+	 * paths (EOF, Direct I/O setup failure) reach the event emission
+	 * and kstats update below `out:`, which read these values.
+	 * Nothing has been consumed yet, so the current uio offset is
+	 * the start of the read.
+	 */
+	ssize_t start_offset = zfs_uio_offset(uio);
+	int64_t nread = 0;
+
+	/*
 	 * If we are reading past end-of-file we can skip
 	 * to the end; but we might still need to set atime.
 	 */
@@ -401,13 +412,9 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		goto out;
 	}
 
-#if defined(__linux__)
-	ssize_t start_offset = zfs_uio_offset(uio);
-#endif
 	uint_t blksz = zp->z_blksz;
 	ssize_t chunk_size;
 	ssize_t n = MIN(zfs_uio_resid(uio), zp->z_size - zfs_uio_offset(uio));
-	ssize_t start_resid = n;
 	ssize_t dio_remaining_resid = 0;
 
 	dmu_flags_t dflags = DMU_READ_PREFETCH;
@@ -521,11 +528,33 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	} else if (error && (uio->uio_extflg & UIO_DIRECT)) {
 		n += dio_remaining_resid;
 	}
-	int64_t nread = start_resid - n;
+	/*
+	 * Byte-count from the uio, not from `n`: a chunk that fails
+	 * with EFAULT partway still advances the uio through the bytes
+	 * actually delivered, and `n` is only decremented on full-
+	 * chunk success. This mirrors the write path's resid math.
+	 */
+	nread = zfs_uio_offset(uio) - start_offset;
 
 	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, nread);
+
 out:
 	zfs_rangelock_exit(lr);
+
+	/*
+	 * Content-access auditing: one READ record per syscall,
+	 * attributed to the pool's open txg (reads create no
+	 * transaction); account() re-gates and handles the fence.
+	 * Runs after the rangelock exit so the emission (which can
+	 * sleep on transaction assignment) never holds RL_READER
+	 * and stalls writers to overlapping ranges - mirroring the
+	 * write path's post-exit accounting.
+	 */
+	if (error == 0 && nread > 0 &&
+	    zfsvfs->z_events && zfsvfs->z_events_io) {
+		zfs_events_io_account(zp, B_FALSE, start_offset,
+		    (uint64_t)nread, cr, 0);
+	}
 
 	if (dio_checksum_failure == B_TRUE) {
 		uio->uio_extflg |= UIO_DIRECT;
@@ -795,6 +824,14 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	}
 
 	/*
+	 * IO event accounting: the syscall's starting offset (after any
+	 * append re-resolution) and the last committed txg, emitted as one
+	 * WRITE record after the loop (see zfs_events_io_account()).
+	 */
+	const uint64_t ev_first_offset = woff;
+	uint64_t ev_last_txg = 0;
+
+	/*
 	 * Write the file in reasonable size chunks.  Each chunk is written
 	 * in a separate transaction; this keeps the intent log records small
 	 * and allows us to do more fine-grained space accounting.
@@ -914,9 +951,12 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			    uio, nbytes, tx, dflags);
 			zfs_uio_fault_disable(uio, B_FALSE);
 #ifdef __linux__
+
 			if (error == EFAULT) {
 				zfs_clear_setid_bits_if_necessary(zfsvfs, zp,
 				    cr, &clear_setid_bits_txg, tx);
+				/* Partial bytes of this chunk committed. */
+				ev_last_txg = dmu_tx_get_txg(tx);
 				dmu_tx_commit(tx);
 				/*
 				 * Account for partial writes before
@@ -945,6 +985,8 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 			if (error != 0 && error != EFAULT) {
 				zfs_clear_setid_bits_if_necessary(zfsvfs, zp,
 				    cr, &clear_setid_bits_txg, tx);
+				/* Partial bytes of this chunk committed. */
+				ev_last_txg = dmu_tx_get_txg(tx);
 				dmu_tx_commit(tx);
 				break;
 			}
@@ -968,6 +1010,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 				zfs_clear_setid_bits_if_necessary(zfsvfs, zp,
 				    cr, &clear_setid_bits_txg, tx);
 				dmu_return_arcbuf(abuf);
+				ev_last_txg = dmu_tx_get_txg(tx);
 				dmu_tx_commit(tx);
 				break;
 			}
@@ -1009,6 +1052,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		if (tx_bytes == 0) {
 			(void) sa_update(zp->z_sa_hdl, SA_ZPL_SIZE(zfsvfs),
 			    (void *)&zp->z_size, sizeof (uint64_t), tx);
+			ev_last_txg = dmu_tx_get_txg(tx);
 			dmu_tx_commit(tx);
 			ASSERT(error != 0);
 			break;
@@ -1053,6 +1097,8 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		    uio->uio_extflg & UIO_DIRECT ? B_TRUE : B_FALSE, NULL,
 		    NULL);
 
+		ev_last_txg = dmu_tx_get_txg(tx);
+
 		dmu_tx_commit(tx);
 
 		/*
@@ -1087,15 +1133,26 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	if (uio->uio_extflg & UIO_DIRECT)
 		zfs_uio_free_dio_pages(uio, UIO_WRITE);
 
+	int64_t nwritten = start_resid - zfs_uio_resid(uio);
+
 	/*
 	 * If we're in replay mode, or we made no progress, or the
 	 * uio data is inaccessible return an error.  Otherwise, it's
 	 * at least a partial write, so it's successful.
 	 */
-	if (zfsvfs->z_replay || zfs_uio_resid(uio) == start_resid ||
-	    error == EFAULT) {
+	if (zfsvfs->z_replay || nwritten <= 0 || error == EFAULT) {
 		zfs_exit(zfsvfs, FTAG);
 		return (error);
+	}
+
+	/*
+	 * Content-modification auditing: one WRITE record per syscall
+	 * (summed across the chunk loop), gated on the dataset's IO
+	 * event properties; zfs_events_io_account() re-gates.
+	 */
+	if (zfsvfs->z_events && zfsvfs->z_events_io) {
+		zfs_events_io_account(zp, B_TRUE, ev_first_offset,
+		    (uint64_t)nwritten, cr, ev_last_txg);
 	}
 
 	if (commit) {
@@ -1106,7 +1163,6 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		}
 	}
 
-	int64_t nwritten = start_resid - zfs_uio_resid(uio);
 	dataset_kstats_update_write_kstats(&zfsvfs->z_kstat, nwritten);
 
 	zfs_exit(zfsvfs, FTAG);
@@ -1878,6 +1934,12 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 		    inblksz);
 		DB_DNODE_EXIT(db);
 		zfs_sa_upgrade_txholds(tx, outzp);
+		/*
+		 * The events logging below this point may lazily create the
+		 * log object and dirty it on this transaction; it must be held.
+		 */
+		if (outzfsvfs->z_events)
+			zfs_events_txhold(outos, tx);
 		error = dmu_tx_assign(tx, DMU_TX_WAIT);
 		if (error != 0) {
 			dmu_tx_abort(tx);
@@ -1978,6 +2040,21 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 		if (!dedup) {
 			zfs_log_clone_range(zilog, tx, TX_CLONE_RANGE, outzp,
 			    outoff, size, inblksz, bps, nbps);
+		}
+
+		/*
+		 * A clone writes the destination without going through
+		 * zfs_write(). Flush any pending window and record the
+		 * cloned range so the audit log is not a hole.
+		 */
+		zfs_events_io_flush(outzp, outos, tx, B_TRUE);
+		zfs_events_io_flush(outzp, outos, tx, B_FALSE);
+		if (outzfsvfs->z_events) {
+			zfs_events_log_write(outos, tx, outzp->z_id,
+			    outoff, size, cr, outzfsvfs->z_events_size,
+			    &outzfsvfs->z_events_obj,
+			    &outzfsvfs->z_events_lock,
+			    dmu_tx_get_txg(tx));
 		}
 
 		dmu_tx_commit(tx);

@@ -462,6 +462,12 @@ tests = ['zpool_events_clear', 'zpool_events_cliargs', 'zpool_events_follow',
     'zpool_events_clear_retained', 'zpool_events_scrub_txg_continue_from_last']
 tags = ['functional', 'cli_root', 'zpool_events']
 
+[tests/functional/file_events]
+tests = ['file_events_basic', 'file_events_props', 'file_events_io',
+    'file_events_wrap', 'file_events_principal', 'file_events_clear',
+    'file_events_cli', 'file_events_compat']
+tags = ['functional', 'file_events']
+
 [tests/functional/cli_root/zpool_export]
 tests = ['zpool_export_001_pos', 'zpool_export_002_pos',
     'zpool_export_003_neg', 'zpool_export_004_pos',

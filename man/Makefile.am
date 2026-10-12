@@ -38,6 +38,7 @@ dist_man_MANS = \
 	%D%/man8/zfs-create.8 \
 	%D%/man8/zfs-destroy.8 \
 	%D%/man8/zfs-diff.8 \
+	%D%/man8/zfs-events.8 \
 	%D%/man8/zfs-get.8 \
 	%D%/man8/zfs-groupspace.8 \
 	%D%/man8/zfs-hold.8 \
@@ -133,6 +134,11 @@ nodist_man_MANS = \
 	%D%/man8/zed.8 \
 	%D%/man8/zfs-mount-generator.8 \
 	%D%/man8/zfs_prepare_disk.8
+
+if HAVE_LIBSQLITE3
+nodist_man_MANS += \
+	%D%/man8/zmetad.8
+endif
 
 dist_noinst_DATA += $(dist_noinst_man_MANS) $(dist_man_MANS)
 

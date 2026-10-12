@@ -31,6 +31,7 @@
 #define	ZFS_CTLDIR_NAME		".zfs"
 #define	ZFS_SNAPDIR_NAME	"snapshot"
 #define	ZFS_SHAREDIR_NAME	"shares"
+#define	ZFS_EVENTSDIR_NAME	"events"
 
 #define	zfs_has_ctldir(zdp)	\
 	((zdp)->z_id == ZTOZSB(zdp)->z_root && \
@@ -78,6 +79,12 @@ extern int zfsctl_shares_lookup(struct inode *dip, char *name,
     struct inode **ipp, int flags, cred_t *cr, int *direntflags,
     pathname_t *realpnp);
 
+/* zfsctl '.zfs/events' functions */
+extern int zfsctl_eventsdir_lookup(struct inode *dip, const char *name,
+    struct inode **ipp, int flags, cred_t *cr, int *direntflags,
+    pathname_t *realpnp);
+extern boolean_t zfsctl_is_eventsdir(struct inode *ip);
+
 /*
  * These inodes numbers are reserved for the .zfs control directory.
  * It is important that they be no larger that 48-bits because only
@@ -89,6 +96,7 @@ extern int zfsctl_shares_lookup(struct inode *dip, char *name,
 #define	ZFSCTL_INO_SHARES	0x0000FFFFFFFFFFFEULL
 #define	ZFSCTL_INO_SNAPDIR	0x0000FFFFFFFFFFFDULL
 #define	ZFSCTL_INO_SNAPDIRS	0x0000FFFFFFFFFFFCULL
+#define	ZFSCTL_INO_EVENTSDIR	0x0000FFFFFFFFFFFBULL
 
 #define	ZFSCTL_EXPIRE_SNAPSHOT	300
 

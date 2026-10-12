@@ -805,6 +805,22 @@ zfs_prop_init(void)
 	    ZFS_TYPE_FILESYSTEM, "on | off", "LONGNAME", boolean_table,
 	    sfeatures);
 
+	zprop_register_index(ZFS_PROP_EVENTS, "events", 0, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM, "on | off", "EVENTS", boolean_table,
+	    sfeatures);
+
+	zprop_register_number(ZFS_PROP_EVENTS_SIZE, "events_size",
+	    1 << 20, PROP_INHERIT, ZFS_TYPE_FILESYSTEM,
+	    "128K to 1G", "EVENTSZ", B_FALSE, sfeatures);
+
+	zprop_register_index(ZFS_PROP_EVENTS_IO, "events_io", 0, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM, "on | off", "EVENTS_IO", boolean_table,
+	    sfeatures);
+
+	zprop_register_number(ZFS_PROP_EVENTS_IO_WINDOW, "events_io_window",
+	    1000, PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "0 to 3600000",
+	    "EVENTSIOWIN", B_FALSE, sfeatures);
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 

@@ -54,6 +54,7 @@
 
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
+#include "zfeature_common.h"
 #include "libzfs_impl.h"
 #include "zfs_deleg.h"
 
@@ -63,6 +64,11 @@ static __thread char rpbuf[2048];
 
 static int userquota_propname_decode(const char *propname, boolean_t zoned,
     zfs_userquota_prop_t *typep, char *domain, int domainlen, uint64_t *ridp);
+
+static int zfs_check_events_compat_idx(zpool_handle_t *, uint64_t, char *,
+    size_t);
+static int zfs_check_events_compat(zpool_handle_t *, const char *, char *,
+    size_t);
 
 /*
  * Given a single type (not a mask of types), return the type in a human
@@ -1300,6 +1306,28 @@ badlabel:
 			chosen_normal = (int)intval;
 			break;
 
+		case ZFS_PROP_EVENTS:
+		{
+			/*
+			 * events=on activates the per-pool
+			 * org.openzfs:events feature; refuse it when the
+			 * pool's compatibility setting excludes that
+			 * feature.  This covers every path that validates
+			 * properties through this function, including
+			 * "zfs create -o" and receive's "-o" overrides.
+			 */
+			char compat_errbuf[ERRBUFLEN];
+
+			if (zpool_hdl != NULL &&
+			    zfs_check_events_compat_idx(zpool_hdl, intval,
+			    compat_errbuf, sizeof (compat_errbuf)) != 0) {
+				zfs_error_aux(hdl, "%s", compat_errbuf);
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			}
+			break;
+		}
+
 		default:
 			break;
 		}
@@ -1543,6 +1571,122 @@ zfs_create_fix_auto_resv(zpool_handle_t *zph, nvlist_t *nvl)
 }
 
 /*
+ * Check whether events=<idx> may be set on a dataset in the given pool,
+ * honoring the pool's compatibility setting.  The compatibility
+ * feature-set files are userland data (e.g. /etc/zfs/compatibility.d)
+ * which the kernel cannot parse, so this check is the authoritative
+ * enforcement of the compatibility contract for the events property;
+ * the kernel independently rejects compatibility=legacy pools.
+ *
+ * Returns 0 if the value may be set, -1 if it must be refused (with a
+ * message in errbuf naming the pool, the compatibility setting and the
+ * org.openzfs:events feature).
+ */
+static int
+zfs_check_events_compat_idx(zpool_handle_t *zph, uint64_t idx,
+    char *errbuf, size_t errlen)
+{
+	char compat[ZFS_MAXPROPLEN];
+	char report[1024];
+	char featprop[64];
+	char featbuf[64];
+	boolean_t features[SPA_FEATURES];
+	/*
+	 * The warning below is per pool, not per process: a single
+	 * process-global flag suppressed the message for every pool
+	 * after the first, so a second pool with an unparseable
+	 * compatibility file was allowed with no diagnostic at all
+	 * (the message names the pool it is about, so it must be
+	 * tracked per pool).  The last warned pool is remembered to
+	 * keep at most one message per pool per run.
+	 */
+	static char warned_pool[ZFS_MAX_DATASET_NAME_LEN];
+
+	/* Only events=on can activate the pool feature. */
+	if (idx == 0)
+		return (0);
+
+	if (zpool_get_prop(zph, ZPOOL_PROP_COMPATIBILITY, compat,
+	    sizeof (compat), NULL, B_FALSE) != 0)
+		return (0);	/* pool properties unreadable; kernel checks */
+
+	/* unset, empty or "off" compatibility => all features allowed */
+	if (compat[0] == '\0' || strcmp(compat, ZPOOL_COMPAT_OFF) == 0)
+		return (0);
+
+	switch (zpool_load_compat(compat, features, report,
+	    sizeof (report))) {
+	case ZPOOL_COMPATIBILITY_OK:
+		break;
+
+	case ZPOOL_COMPATIBILITY_WARNTOKEN:
+	case ZPOOL_COMPATIBILITY_BADTOKEN:
+	case ZPOOL_COMPATIBILITY_BADFILE:
+	case ZPOOL_COMPATIBILITY_NOFILES:
+		/*
+		 * The compatibility files could not be fully parsed, so
+		 * feature membership cannot be determined; allow the
+		 * change but warn once per pool, since the message names
+		 * the affected pool.
+		 */
+		if (strcmp(warned_pool, zpool_get_name(zph)) != 0) {
+			(void) strlcpy(warned_pool, zpool_get_name(zph),
+			    sizeof (warned_pool));
+			(void) fprintf(stderr,
+			    "warning: cannot verify org.openzfs:events "
+			    "compatibility for pool '%s' "
+			    "(compatibility '%s'): %s\n",
+			    zpool_get_name(zph), compat, report);
+		}
+		return (0);
+	}
+
+	if (features[SPA_FEATURE_EVENTS])
+		return (0);
+
+	/*
+	 * The compatibility set excludes events, but if the feature is
+	 * already enabled or active on the pool the constraint was
+	 * already crossed (or an earlier compatibility file included
+	 * it); allow it in that case, matching the kernel's behavior.
+	 */
+	(void) snprintf(featprop, sizeof (featprop), "feature@%s",
+	    spa_feature_table[SPA_FEATURE_EVENTS].fi_uname);
+	if (zpool_prop_get_feature(zph, featprop, featbuf,
+	    sizeof (featbuf)) == 0 &&
+	    strcmp(featbuf, ZFS_FEATURE_DISABLED) != 0)
+		return (0);
+
+	(void) snprintf(errbuf, errlen,
+	    "cannot enable events on '%s': pool compatibility '%s' "
+	    "does not include the org.openzfs:events feature",
+	    zpool_get_name(zph), compat);
+	return (-1);
+}
+
+/*
+ * String-value form of zfs_check_events_compat_idx(): accepts the
+ * events index strings ("on"/"off") as well as their numeric
+ * equivalents.
+ */
+static int
+zfs_check_events_compat(zpool_handle_t *zph, const char *propval,
+    char *errbuf, size_t errlen)
+{
+	uint64_t idx;
+	char *end;
+
+	if (zprop_string_to_index(ZFS_PROP_EVENTS, propval, &idx,
+	    ZFS_TYPE_FILESYSTEM) != 0) {
+		idx = strtoull(propval, &end, 10);
+		if (end == propval || *end != '\0')
+			return (0);	/* invalid value; caught elsewhere */
+	}
+
+	return (zfs_check_events_compat_idx(zph, idx, errbuf, errlen));
+}
+
+/*
  * Given a property name and value, set the property for the given dataset.
  */
 int
@@ -1595,7 +1739,7 @@ zfs_prop_set_list_flags(zfs_handle_t *zhp, nvlist_t *props, int flags)
 	int cl_idx;
 	char errbuf[ERRBUFLEN];
 	libzfs_handle_t *hdl = zhp->zfs_hdl;
-	nvlist_t *nvl;
+	nvlist_t *nvl = NULL;
 	int nvl_len = 0;
 	int added_resv = 0;
 	zfs_prop_t prop;
@@ -1605,6 +1749,41 @@ zfs_prop_set_list_flags(zfs_handle_t *zhp, nvlist_t *props, int flags)
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    "cannot set property for '%s'",
 	    zhp->zfs_name);
+
+	/*
+	 * The events property activates the per-pool org.openzfs:events
+	 * feature, which may be excluded by the pool's compatibility
+	 * setting.  Enforce the compatibility set here so that every
+	 * caller that funnels through this function (zfs set, and any
+	 * consumer of zfs_prop_set()/zfs_prop_set_list()) is gated.
+	 * Note that zfs inherit takes the separate zfs_prop_inherit()
+	 * path and is intentionally not gated.
+	 */
+	{
+		const char *eventsval;
+		uint64_t eventsnum;
+		int refuse = 0;
+
+		if (zhp->zpool_hdl != NULL) {
+			if (nvlist_lookup_string(props,
+			    zfs_prop_to_name(ZFS_PROP_EVENTS),
+			    &eventsval) == 0) {
+				refuse = zfs_check_events_compat(
+				    zhp->zpool_hdl, eventsval, errbuf,
+				    sizeof (errbuf));
+			} else if (nvlist_lookup_uint64(props,
+			    zfs_prop_to_name(ZFS_PROP_EVENTS),
+			    &eventsnum) == 0) {
+				refuse = zfs_check_events_compat_idx(
+				    zhp->zpool_hdl, eventsnum, errbuf,
+				    sizeof (errbuf));
+			}
+		}
+		if (refuse != 0) {
+			ret = zfs_error(hdl, EZFS_BADPROP, errbuf);
+			goto error;
+		}
+	}
 
 	if ((nvl = zfs_valid_proplist(hdl, zhp->zfs_type, props,
 	    zfs_prop_get_int(zhp, ZFS_PROP_ZONED), zhp, zhp->zpool_hdl,

@@ -61,6 +61,11 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/file_append %D%/file_check %D%/file_trunc 
 %C%_randwritecomp_SOURCES = %D%/file/randwritecomp.c
 
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/file_events_principal
+%C%_file_events_principal_LDADD = \
+	libzfs_core.la \
+	libnvpair.la
+
 scripts_zfs_tests_bin_PROGRAMS += %D%/libzfs_input_check
 %C%_libzfs_input_check_LDADD = \
 	libzfs_core.la \

@@ -61,6 +61,7 @@
 #include <sys/zpl.h>
 #include <sys/zil.h>
 #include <sys/sa_impl.h>
+#include <sys/zfs_events.h>
 #include <linux/mm_compat.h>
 
 /*
@@ -205,13 +206,26 @@ zfs_open(struct inode *ip, int mode, int flag, cred_t *cr)
 int
 zfs_close(struct inode *ip, int flag, cred_t *cr)
 {
-	(void) cr;
 	znode_t	*zp = ITOZ(ip);
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	int error;
 
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
+
+	/*
+	 * Flush any open IO event windows so a still-pending
+	 * window does not outlive the file's last reference
+	 * (open-txg attribution applies; no transaction here).
+	 * Closing emits unconditionally - even a fence-young
+	 * window - because deferring to zfs_inactive() makes the
+	 * record's appearance depend on inode-eviction timing:
+	 * nondeterministic for consumers. The fence coalesces
+	 * within an open; each open/close cycle emits its own
+	 * merged record.
+	 */
+	zfs_events_io_flush(zp, zfsvfs->z_os, NULL, B_TRUE);
+	zfs_events_io_flush(zp, zfsvfs->z_os, NULL, B_FALSE);
 
 	/* Decrement the synchronous opens in the znode */
 	if (!zfsvfs->z_issnap && (flag & O_SYNC))
@@ -373,7 +387,7 @@ static unsigned long zfs_delete_blocks = DMU_MAX_DELETEBLKCNT;
  */
 int
 zfs_write_simple(znode_t *zp, const void *data, size_t len,
-    loff_t pos, size_t *residp)
+    loff_t pos, size_t *residp, cred_t *cr)
 {
 	fstrans_cookie_t cookie;
 	int error;
@@ -386,7 +400,7 @@ zfs_write_simple(znode_t *zp, const void *data, size_t len,
 	zfs_uio_iovec_init(&uio, &iov, 1, pos, UIO_SYSSPACE, len, 0);
 
 	cookie = spl_fstrans_mark();
-	error = zfs_write(zp, &uio, 0, kcred);
+	error = zfs_write(zp, &uio, 0, cr != NULL ? cr : kcred);
 	spl_fstrans_unmark(cookie);
 
 	if (error == 0) {
@@ -743,6 +757,8 @@ top:
 			dmu_tx_hold_write(tx, DMU_NEW_OBJECT,
 			    0, acl_ids.z_aclp->z_acl_bytes);
 		}
+		if (zfsvfs->z_events)
+			zfs_events_txhold(os, tx);
 
 		error = dmu_tx_assign(tx,
 		    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
@@ -782,6 +798,28 @@ top:
 			txtype |= TX_CI;
 		zfs_log_create(zilog, tx, txtype, dzp, zp, name,
 		    vsecp, acl_ids.z_fuidp, vap);
+		if (zfsvfs->z_events) {
+			/*
+			 * ZIL replay runs these vnops with kcred, so uid/gid
+			 * would be misattributed to root; the original owner
+			 * is not recoverable here. Emit without attribution
+			 * fields instead (they bind as NULL downstream).
+			 */
+			if (zfsvfs->z_replay) {
+				zfs_events_log_create_attr(os, tx, zp->z_id,
+				    dzp->z_id, name, vap->va_mode,
+				    zfsvfs->z_events_size,
+				    &zfsvfs->z_events_obj,
+				    &zfsvfs->z_events_lock);
+			} else {
+				zfs_events_log_create(os, tx, zp->z_id,
+				    dzp->z_id, name, vap->va_mode,
+				    crgetuid(cr), crgetgid(cr),
+				    zfsvfs->z_events_size,
+				    &zfsvfs->z_events_obj,
+				    &zfsvfs->z_events_lock);
+			}
+		}
 		zfs_acl_ids_free(&acl_ids);
 		dmu_tx_commit(tx);
 	} else {
@@ -1108,6 +1146,8 @@ top:
 
 	/* charge as an update -- would be nice not to charge at all */
 	dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, tx);
 
 	/*
 	 * Mark this transaction as typically resulting in a net free of space
@@ -1175,6 +1215,14 @@ top:
 			    &links, sizeof (links), tx);
 			ASSERT3U(error,  ==,  0);
 			mutex_exit(&xzp->z_lock);
+			/*
+			 * Emit any pending IO windows on the xattr
+			 * znode before it is destroyed: no close(2)
+			 * ever occurs for it, so the window would
+			 * otherwise die with the znode silently.
+			 */
+			zfs_events_io_flush(xzp, zfsvfs->z_os, tx, B_TRUE);
+			zfs_events_io_flush(xzp, zfsvfs->z_os, tx, B_FALSE);
 			zfs_unlinked_add(xzp, tx);
 
 			if (zp->z_is_sa)
@@ -1201,6 +1249,17 @@ top:
 	if (flags & FIGNORECASE)
 		txtype |= TX_CI;
 	zfs_log_remove(zilog, tx, txtype, dzp, name, obj, unlinked);
+	/*
+	 * Emit any pending IO windows before the operation
+	 * event, preserving cause order under the same tx.
+	 */
+	zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_TRUE);
+	zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_FALSE);
+	if (zfsvfs->z_events) {
+		zfs_events_log_remove(zfsvfs->z_os, tx, obj, dzp->z_id, name,
+		    zfsvfs->z_events_size, &zfsvfs->z_events_obj,
+		    &zfsvfs->z_events_lock);
+	}
 
 	dmu_tx_commit(tx);
 out:
@@ -1361,6 +1420,8 @@ top:
 
 	dmu_tx_hold_sa_create(tx, acl_ids.z_aclp->z_acl_bytes +
 	    ZFS_SA_BASE_ATTR_SIZE);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, tx);
 
 	error = dmu_tx_assign(tx,
 	    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
@@ -1403,6 +1464,22 @@ top:
 		txtype |= TX_CI;
 	zfs_log_create(zilog, tx, txtype, dzp, zp, dirname, vsecp,
 	    acl_ids.z_fuidp, vap);
+	if (zfsvfs->z_events) {
+		/* See the replay note at the create emitter above. */
+		if (zfsvfs->z_replay) {
+			zfs_events_log_create_attr(zfsvfs->z_os, tx,
+			    zp->z_id, dzp->z_id, dirname, vap->va_mode,
+			    zfsvfs->z_events_size,
+			    &zfsvfs->z_events_obj,
+			    &zfsvfs->z_events_lock);
+		} else {
+			zfs_events_log_create(zfsvfs->z_os, tx, zp->z_id,
+			    dzp->z_id, dirname, vap->va_mode, uid, gid,
+			    zfsvfs->z_events_size,
+			    &zfsvfs->z_events_obj,
+			    &zfsvfs->z_events_lock);
+		}
+	}
 
 out:
 	zfs_acl_ids_free(&acl_ids);
@@ -1515,6 +1592,8 @@ top:
 	dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
 	zfs_sa_upgrade_txholds(tx, zp);
 	zfs_sa_upgrade_txholds(tx, dzp);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, tx);
 	dmu_tx_mark_netfree(tx);
 	error = dmu_tx_assign(tx,
 	    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
@@ -1543,6 +1622,18 @@ top:
 			txtype |= TX_CI;
 		zfs_log_remove(zilog, tx, txtype, dzp, name, ZFS_NO_OBJECT,
 		    B_FALSE);
+		/*
+		 * Emit any pending IO windows before the operation
+		 * event, preserving cause order under the same tx.
+		 */
+		zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_TRUE);
+		zfs_events_io_flush(zp, zfsvfs->z_os, tx, B_FALSE);
+		if (zfsvfs->z_events) {
+			zfs_events_log_remove(zfsvfs->z_os, tx, zp->z_id,
+			    dzp->z_id, name, zfsvfs->z_events_size,
+			    &zfsvfs->z_events_obj,
+			    &zfsvfs->z_events_lock);
+		}
 	}
 
 	dmu_tx_commit(tx);
@@ -1974,6 +2065,7 @@ zfs_setattr_idmap(znode_t *zp, vattr_t *vap, int flags, cred_t *cr,
 	uint64_t	xattr_obj;
 	uint64_t	mtime[2], ctime[2], atime[2];
 	uint64_t	projid = ZFS_INVALID_PROJID;
+	uint64_t	old_size = 0;
 	znode_t		*attrzp;
 	int		need_policy = FALSE;
 	int		err, err2 = 0;
@@ -2089,6 +2181,14 @@ zfs_setattr_idmap(znode_t *zp, vattr_t *vap, int flags, cred_t *cr,
 		}
 	}
 
+	/*
+	 * Capture the pre-operation size once, before the retry label.
+	 * An ERESTART retry re-runs the truncate below; re-sampling it
+	 * there would take the already-truncated size as the "old" size
+	 * and suppress the TRUNCATE event emission.
+	 */
+	old_size = zp->z_size;
+
 top:
 	attrzp = NULL;
 	aclp = NULL;
@@ -2108,6 +2208,13 @@ top:
 		    cr, idmap);
 		if (err)
 			goto out3;
+
+		/*
+		 * XXX - Note, we are not providing any open
+		 * mode flags here (like FNDELAY), so we may
+		 * block if there are locks present... this
+		 * should be addressed in openat().
+		 */
 
 		/*
 		 * XXX - Note, we are not providing any open
@@ -2430,6 +2537,8 @@ top:
 		zfs_fuid_txhold(zfsvfs, tx);
 
 	zfs_sa_upgrade_txholds(tx, zp);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, tx);
 
 	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err)
@@ -2464,6 +2573,19 @@ top:
 		else
 			projid = ZFS_INVALID_PROJID;
 	}
+
+	/*
+	 * Emit any pending IO windows before acquiring the locks
+	 * this function holds across its emitter block: the flush's
+	 * emission can sleep on transaction assignment, and only
+	 * zp->z_lock is dropped by its recursion handling - holding
+	 * z_acl_lock and the xattr znode's locks across it would
+	 * stall concurrent xattr/ACL operations. Doing this before
+	 * the SA bulk-update also preserves cause order: pending IO
+	 * records precede the SETATTR (and any TRUNCATE) record.
+	 */
+	zfs_events_io_flush(zp, zfsvfs->z_os, NULL, B_TRUE);
+	zfs_events_io_flush(zp, zfsvfs->z_os, NULL, B_FALSE);
 
 	if (mask & (ATTR_UID|ATTR_GID|ATTR_MODE))
 		mutex_enter(&zp->z_acl_lock);
@@ -2627,6 +2749,28 @@ top:
 
 	if (mask != 0) {
 		zfs_log_setattr(zilog, tx, TX_SETATTR, zp, vap, mask, fuidp);
+		if (zfsvfs->z_events) {
+			zfs_events_log_setattr(zfsvfs->z_os, tx, zp->z_id,
+			    mask, zfsvfs->z_events_size,
+			    &zfsvfs->z_events_obj,
+			    &zfsvfs->z_events_lock);
+
+			/*
+			 * A size change routed through setattr (open(3)
+			 * with O_TRUNC, truncate(1), ftruncate(2)) never
+			 * passes through zfs_freesp's log path, so the
+			 * truncation would otherwise be invisible to
+			 * event consumers; emit TRUNCATE when the file
+			 * shrank.
+			 */
+			if ((mask & ATTR_SIZE) && old_size > zp->z_size) {
+				zfs_events_log_truncate(zfsvfs->z_os, tx,
+				    zp->z_id, old_size, zp->z_size,
+				    zfsvfs->z_events_size,
+				    &zfsvfs->z_events_obj,
+				    &zfsvfs->z_events_lock);
+			}
+		}
 		/*
 		 * ATTR_MODE bumps via zfs_aclset_common -> tstamp_update_setup;
 		 * ATTR_SIZE goes through zfs_freesp(log=FALSE) which does not.
@@ -3140,6 +3284,8 @@ top:
 		zfs_fuid_txhold(zfsvfs, tx);
 	zfs_sa_upgrade_txholds(tx, szp);
 	dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, tx);
 	error = dmu_tx_assign(tx,
 	    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
 	if (error) {
@@ -3204,6 +3350,16 @@ top:
 		error = zfs_link_destroy(tdl, tzp, tx, tzflg, NULL);
 		if (error)
 			goto commit_link_szp;
+
+		/*
+		 * Emit any pending IO windows on the overwritten
+		 * target before the operation event, preserving
+		 * cause order under the same tx: a writer holding
+		 * tzp open keeps its window open across the rename,
+		 * and its records must not land after RENAME.
+		 */
+		zfs_events_io_flush(tzp, zfsvfs->z_os, tx, B_TRUE);
+		zfs_events_io_flush(tzp, zfsvfs->z_os, tx, B_FALSE);
 	}
 
 	/*
@@ -3265,6 +3421,19 @@ top:
 		zfs_log_rename(zilog, tx, (flags & FIGNORECASE ? TX_CI : 0),
 		    sdzp, sdl->dl_name, tdzp, tdl->dl_name, szp);
 		break;
+	}
+
+	/*
+	 * Emit any pending IO windows before the operation
+	 * event, preserving cause order under the same tx.
+	 */
+	zfs_events_io_flush(szp, zfsvfs->z_os, tx, B_TRUE);
+	zfs_events_io_flush(szp, zfsvfs->z_os, tx, B_FALSE);
+	if (zfsvfs->z_events) {
+		zfs_events_log_rename(zfsvfs->z_os, tx, szp->z_id,
+		    sdzp->z_id, sdl->dl_name, tdzp->z_id, tdl->dl_name,
+		    zfsvfs->z_events_size, &zfsvfs->z_events_obj,
+		    &zfsvfs->z_events_lock);
 	}
 
 commit:
@@ -3444,6 +3613,8 @@ top:
 	}
 	if (fuid_dirtied)
 		zfs_fuid_txhold(zfsvfs, tx);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, tx);
 	error = dmu_tx_assign(tx,
 	    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
 	if (error) {
@@ -3491,6 +3662,12 @@ top:
 		if (flags & FIGNORECASE)
 			txtype |= TX_CI;
 		zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
+		if (zfsvfs->z_events) {
+			zfs_events_log_symlink(zfsvfs->z_os, tx, zp->z_id,
+			    dzp->z_id, name, link, zfsvfs->z_events_size,
+			    &zfsvfs->z_events_obj,
+			    &zfsvfs->z_events_lock);
+		}
 
 		zfs_znode_update_vfs(dzp);
 		zfs_znode_update_vfs(zp);
@@ -3703,6 +3880,8 @@ top:
 
 	zfs_sa_upgrade_txholds(tx, szp);
 	zfs_sa_upgrade_txholds(tx, tdzp);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, tx);
 	error = dmu_tx_assign(tx,
 	    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
 	if (error) {
@@ -3734,10 +3913,32 @@ top:
 		if (is_tmpfile) {
 			VERIFY0(zap_remove_int(zfsvfs->z_os,
 			    zfsvfs->z_unlinkedobj, szp->z_id, tx));
+			zfs_events_io_flush(szp, zfsvfs->z_os, tx, B_TRUE);
+			zfs_events_io_flush(szp, zfsvfs->z_os, tx, B_FALSE);
+			if (zfsvfs->z_events) {
+				zfs_events_log_link(zfsvfs->z_os, tx,
+				    szp->z_id, tdzp->z_id, name,
+				    zfsvfs->z_events_size,
+				    &zfsvfs->z_events_obj,
+				    &zfsvfs->z_events_lock);
+			}
 		} else {
 			if (flags & FIGNORECASE)
 				txtype |= TX_CI;
 			zfs_log_link(zilog, tx, txtype, tdzp, szp, name);
+			/*
+			 * Emit any pending IO windows before the operation
+			 * event, preserving cause order under the same tx.
+			 */
+			zfs_events_io_flush(szp, zfsvfs->z_os, tx, B_TRUE);
+			zfs_events_io_flush(szp, zfsvfs->z_os, tx, B_FALSE);
+			if (zfsvfs->z_events) {
+				zfs_events_log_link(zfsvfs->z_os, tx,
+				    szp->z_id, tdzp->z_id, name,
+				    zfsvfs->z_events_size,
+				    &zfsvfs->z_events_obj,
+				    &zfsvfs->z_events_lock);
+			}
 		}
 	} else if (is_tmpfile) {
 		/* restore z_unlinked since when linking failed */
@@ -4165,6 +4366,19 @@ zfs_inactive(struct inode *ip)
 		else
 			rw_enter(zti_lock, RW_READER);
 	}
+
+	/*
+	 * Last reference to the file: emit whatever IO windows close
+	 * left pending (young ones from the close-time expiry check).
+	 * Nothing will absorb them after this; losing them would
+	 * violate the bytes-never-dropped contract. The emission may
+	 * sleep on its ad-hoc transaction - no VFS locks are held
+	 * here beyond the teardown read lock, which the emission
+	 * does not take.
+	 */
+	zfs_events_io_flush(zp, zfsvfs->z_os, NULL, B_TRUE);
+	zfs_events_io_flush(zp, zfsvfs->z_os, NULL, B_FALSE);
+
 	if (zp->z_sa_hdl == NULL) {
 		if (need_unlock) {
 			if (no_lockdep)

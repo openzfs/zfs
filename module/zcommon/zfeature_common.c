@@ -812,6 +812,19 @@ zpool_feature_init(void)
 		    ZFEATURE_TYPE_BOOLEAN, physical_rewrite_deps, sfeatures);
 	}
 
+	{
+		static const spa_feature_t events_deps[] = {
+			SPA_FEATURE_EXTENSIBLE_DATASET,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_EVENTS,
+		    "org.openzfs:events", "events",
+		    "File-level event history tracking.",
+		    ZFEATURE_FLAG_READONLY_COMPAT | ZFEATURE_FLAG_PER_DATASET |
+		    ZFEATURE_FLAG_NO_UPGRADE,
+		    ZFEATURE_TYPE_BOOLEAN, events_deps, sfeatures);
+	}
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 

@@ -53,6 +53,6 @@ extern int zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl,
 extern int zfs_setsecattr(znode_t *zp, vsecattr_t *vsecp, int flag,
     cred_t *cr);
 extern int zfs_write_simple(znode_t *zp, const void *data, size_t len,
-    loff_t pos, size_t *resid);
+    loff_t pos, size_t *resid, cred_t *cr);
 
 #endif

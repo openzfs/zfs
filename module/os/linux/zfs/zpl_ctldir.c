@@ -75,6 +75,14 @@ zpl_root_iterate(struct file *filp, struct dir_context *ctx)
 
 		ctx->pos++;
 	}
+
+	if (ctx->pos == 4) {
+		if (!dir_emit(ctx, ZFS_EVENTSDIR_NAME,
+		    strlen(ZFS_EVENTSDIR_NAME), ZFSCTL_INO_EVENTSDIR, DT_DIR))
+			goto out;
+
+		ctx->pos++;
+	}
 out:
 	zpl_exit(zfsvfs, FTAG);
 
@@ -932,4 +940,68 @@ const struct file_operations zpl_fops_shares = {
 const struct inode_operations zpl_ops_shares = {
 	.lookup		= zpl_shares_lookup,
 	.getattr	= zpl_shares_getattr,
+};
+
+/*
+ * The '.zfs/events' directory - provides access to file-level event history.
+ * Currently shows as an empty directory; full implementation deferred.
+ * Use 'zfs events <dataset>' command for event queries.
+ */
+static int
+zpl_events_iterate(struct file *filp, struct dir_context *ctx)
+{
+	/* Empty directory - just emit dots */
+	dir_emit_dots(filp, ctx);
+	return (0);
+}
+
+/*
+ * Get '.zfs/events' directory attributes.
+ */
+ZPL_IDMAP_IOP_DEFINE(int, zpl_events_getattr, 4,
+    const struct path *, path, struct kstat *, stat, u32, request_mask,
+    unsigned int, query_flags)
+{
+	(void) query_flags;
+	struct inode *ip = path->dentry->d_inode;
+
+	zpl_generic_fillattr(idmap, request_mask, ip, stat);
+	stat->atime = current_time(ip);
+
+	return (0);
+}
+
+static struct dentry *
+zpl_events_lookup(struct inode *dip, struct dentry *dentry,
+    unsigned int flags)
+{
+	(void) flags;
+	zfsvfs_t *zfsvfs = ITOZSB(dip);
+	int error;
+
+	if ((error = zpl_enter(zfsvfs, FTAG)) != 0)
+		return (ERR_PTR(error));
+
+	/* Events directory has no children yet */
+	zpl_exit(zfsvfs, FTAG);
+
+	return (d_splice_alias(NULL, dentry));
+}
+
+/*
+ * The '.zfs/events' directory file operations.
+ */
+const struct file_operations zpl_fops_events = {
+	.open		= zpl_common_open,
+	.llseek		= generic_file_llseek,
+	.read		= generic_read_dir,
+	.iterate_shared	= zpl_events_iterate,
+};
+
+/*
+ * The '.zfs/events' directory inode operations.
+ */
+const struct inode_operations zpl_ops_events = {
+	.lookup		= zpl_events_lookup,
+	.getattr	= zpl_events_getattr,
 };

@@ -13,3 +13,7 @@ endif
 if PAM_ZFS_ENABLED
 include $(srcdir)/%D%/pam_zfs_key/Makefile.am
 endif
+
+if HAVE_LIBSQLITE3
+include $(srcdir)/%D%/zmetad/Makefile.am
+endif

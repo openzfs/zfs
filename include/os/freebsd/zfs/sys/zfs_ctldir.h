@@ -48,6 +48,9 @@ int zfsctl_lookup_objset(vfs_t *vfsp, uint64_t objsetid, zfsvfs_t **zfsvfsp);
 
 #define	ZFSCTL_INO_ROOT		0x1
 #define	ZFSCTL_INO_SNAPDIR	0x2
+#define	ZFSCTL_INO_EVENTSDIR	0x3
+
+#define	ZFS_EVENTSDIR_NAME	"events"
 
 #ifdef	__cplusplus
 }

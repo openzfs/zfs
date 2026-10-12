@@ -76,6 +76,7 @@
 #include <vm/vm_param.h>
 #include <sys/zil.h>
 #include <sys/zfs_vnops.h>
+#include <sys/zfs_events.h>
 #include <sys/module.h>
 #include <sys/sysent.h>
 #include <sys/dmu_impl.h>
@@ -616,13 +617,14 @@ mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
 
 int
 zfs_write_simple(znode_t *zp, const void *data, size_t len,
-    loff_t pos, size_t *presid)
+    loff_t pos, size_t *presid, cred_t *cr)
 {
 	int error = 0;
 	ssize_t resid;
 
 	error = vn_rdwr(UIO_WRITE, ZTOV(zp), __DECONST(void *, data), len, pos,
-	    UIO_SYSSPACE, IO_SYNC, kcred, NOCRED, &resid, curthread);
+	    UIO_SYSSPACE, IO_SYNC, cr != NULL ? cr : kcred, NOCRED, &resid,
+	    curthread);
 
 	if (error) {
 		return (SET_ERROR(error));
@@ -1131,6 +1133,8 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 		dmu_tx_hold_write(tx, DMU_NEW_OBJECT,
 		    0, acl_ids.z_aclp->z_acl_bytes);
 	}
+	if (zfsvfs->z_events)
+		zfs_events_txhold(os, tx);
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		zfs_acl_ids_free(&acl_ids);
@@ -1162,6 +1166,26 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 	txtype = zfs_log_create_txtype(Z_FILE, vsecp, vap);
 	zfs_log_create(zilog, tx, txtype, dzp, zp, name,
 	    vsecp, acl_ids.z_fuidp, vap);
+	if (zfsvfs->z_events) {
+		/*
+		 * ZIL replay runs these vnops with kcred, so uid/gid
+		 * would be misattributed to root; the original owner
+		 * is not recoverable here. Emit without attribution
+		 * fields instead (they bind as NULL downstream).
+		 */
+		if (zfsvfs->z_replay) {
+			zfs_events_log_create_attr(zfsvfs->z_os, tx,
+			    zp->z_id, dzp->z_id, name, vap->va_mode,
+			    zfsvfs->z_events_size, &zfsvfs->z_events_obj,
+			    &zfsvfs->z_events_lock);
+		} else {
+			zfs_events_log_create(zfsvfs->z_os, tx, zp->z_id,
+			    dzp->z_id, name, vap->va_mode, crgetuid(cr),
+			    crgetgid(cr), zfsvfs->z_events_size,
+			    &zfsvfs->z_events_obj,
+			    &zfsvfs->z_events_lock);
+		}
+	}
 	zfs_acl_ids_free(&acl_ids);
 	dmu_tx_commit(tx);
 
@@ -1268,6 +1292,8 @@ zfs_remove_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 
 	/* charge as an update -- would be nice not to charge at all */
 	dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, tx);
 
 	/*
 	 * Mark this transaction as typically resulting in a net free of space
@@ -1298,6 +1324,11 @@ zfs_remove_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 	/* XXX check changes to linux vnops */
 	txtype = TX_REMOVE;
 	zfs_log_remove(zilog, tx, txtype, dzp, name, obj, unlinked);
+	if (zfsvfs->z_events) {
+		zfs_events_log_remove(zfsvfs->z_os, tx, obj, dzp->z_id, name,
+		    zfsvfs->z_events_size, &zfsvfs->z_events_obj,
+		    &zfsvfs->z_events_lock);
+	}
 
 	dmu_tx_commit(tx);
 out:
@@ -1494,6 +1525,8 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 
 	dmu_tx_hold_sa_create(tx, acl_ids.z_aclp->z_acl_bytes +
 	    ZFS_SA_BASE_ATTR_SIZE);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, tx);
 
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
@@ -1528,6 +1561,20 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 	txtype = zfs_log_create_txtype(Z_DIR, NULL, vap);
 	zfs_log_create(zilog, tx, txtype, dzp, zp, dirname, NULL,
 	    acl_ids.z_fuidp, vap);
+	if (zfsvfs->z_events) {
+		/* See the replay note at the create emitter above. */
+		if (zfsvfs->z_replay) {
+			zfs_events_log_create_attr(zfsvfs->z_os, tx,
+			    zp->z_id, dzp->z_id, dirname, vap->va_mode,
+			    zfsvfs->z_events_size, &zfsvfs->z_events_obj,
+			    &zfsvfs->z_events_lock);
+		} else {
+			zfs_events_log_create(zfsvfs->z_os, tx, zp->z_id,
+			    dzp->z_id, dirname, vap->va_mode, uid, gid,
+			    zfsvfs->z_events_size, &zfsvfs->z_events_obj,
+			    &zfsvfs->z_events_lock);
+		}
+	}
 
 out:
 	zfs_acl_ids_free(&acl_ids);
@@ -1597,6 +1644,8 @@ zfs_rmdir_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 	dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
 	zfs_sa_upgrade_txholds(tx, zp);
 	zfs_sa_upgrade_txholds(tx, dzp);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, tx);
 	dmu_tx_mark_netfree(tx);
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
@@ -1611,6 +1660,12 @@ zfs_rmdir_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 		uint64_t txtype = TX_RMDIR;
 		zfs_log_remove(zilog, tx, txtype, dzp, name,
 		    ZFS_NO_OBJECT, B_FALSE);
+		if (zfsvfs->z_events) {
+			zfs_events_log_remove(zfsvfs->z_os, tx, zp->z_id,
+			    dzp->z_id, name, zfsvfs->z_events_size,
+			    &zfsvfs->z_events_obj,
+			    &zfsvfs->z_events_lock);
+		}
 	}
 
 	dmu_tx_commit(tx);
@@ -2295,6 +2350,7 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 	uint64_t	xattr_obj;
 	uint64_t	mtime[2], ctime[2];
 	uint64_t	projid = ZFS_INVALID_PROJID;
+	uint64_t	old_size = 0;
 	znode_t		*attrzp;
 	int		need_policy = FALSE;
 	int		err, err2;
@@ -2434,6 +2490,7 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 		 * should be addressed in openat().
 		 */
 		/* XXX - would it be OK to generate a log record here? */
+		old_size = zp->z_size;
 		err = zfs_freesp(zp, vap->va_size, 0, 0, FALSE);
 		if (err) {
 			zfs_exit(zfsvfs, FTAG);
@@ -2760,6 +2817,8 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 		zfs_fuid_txhold(zfsvfs, tx);
 
 	zfs_sa_upgrade_txholds(tx, zp);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, tx);
 
 	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err)
@@ -2956,8 +3015,31 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 	if (fuid_dirtied)
 		zfs_fuid_sync(zfsvfs, tx);
 
-	if (mask != 0)
+	if (mask != 0) {
 		zfs_log_setattr(zilog, tx, TX_SETATTR, zp, vap, mask, fuidp);
+		if (zfsvfs->z_events) {
+			zfs_events_log_setattr(zfsvfs->z_os, tx, zp->z_id,
+			    mask, zfsvfs->z_events_size,
+			    &zfsvfs->z_events_obj,
+			    &zfsvfs->z_events_lock);
+
+			/*
+			 * A size change routed through setattr (open(3)
+			 * with O_TRUNC, truncate(1), ftruncate(2)) never
+			 * passes through zfs_freesp's log path, so the
+			 * truncation would otherwise be invisible to
+			 * event consumers; emit TRUNCATE when the file
+			 * shrank.
+			 */
+			if ((mask & AT_SIZE) && old_size > zp->z_size) {
+				zfs_events_log_truncate(zfsvfs->z_os, tx,
+				    zp->z_id, old_size, zp->z_size,
+				    zfsvfs->z_events_size,
+				    &zfsvfs->z_events_obj,
+				    &zfsvfs->z_events_lock);
+			}
+		}
+	}
 
 	if (mask & (AT_UID|AT_GID|AT_MODE))
 		mutex_exit(&zp->z_acl_lock);
@@ -3479,6 +3561,8 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 
 	zfs_sa_upgrade_txholds(tx, szp);
 	dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, tx);
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
@@ -3502,6 +3586,14 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 			if (error == 0) {
 				zfs_log_rename(zilog, tx, TX_RENAME, sdzp,
 				    snm, tdzp, tnm, szp);
+				if (zfsvfs->z_events) {
+					zfs_events_log_rename(zfsvfs->z_os, tx,
+					    szp->z_id, sdzp->z_id, snm,
+					    tdzp->z_id, tnm,
+					    zfsvfs->z_events_size,
+					    &zfsvfs->z_events_obj,
+					    &zfsvfs->z_events_lock);
+				}
 			} else {
 				/*
 				 * At this point, we have successfully created
@@ -3678,6 +3770,8 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 	}
 	if (fuid_dirtied)
 		zfs_fuid_txhold(zfsvfs, tx);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, tx);
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		zfs_acl_ids_free(&acl_ids);
@@ -3715,6 +3809,12 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 		zrele(zp);
 	} else {
 		zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
+		if (zfsvfs->z_events) {
+			zfs_events_log_symlink(zfsvfs->z_os, tx, zp->z_id,
+			    dzp->z_id, name, link, zfsvfs->z_events_size,
+			    &zfsvfs->z_events_obj,
+			    &zfsvfs->z_events_lock);
+		}
 	}
 
 	zfs_acl_ids_free(&acl_ids);
@@ -3898,6 +3998,8 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 	dmu_tx_hold_zap(tx, tdzp->z_id, TRUE, name);
 	zfs_sa_upgrade_txholds(tx, szp);
 	zfs_sa_upgrade_txholds(tx, tdzp);
+	if (zfsvfs->z_events)
+		zfs_events_txhold(zfsvfs->z_os, tx);
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
@@ -3910,6 +4012,12 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 	if (error == 0) {
 		uint64_t txtype = TX_LINK;
 		zfs_log_link(zilog, tx, txtype, tdzp, szp, name);
+		if (zfsvfs->z_events) {
+			zfs_events_log_link(zfsvfs->z_os, tx, szp->z_id,
+			    tdzp->z_id, name, zfsvfs->z_events_size,
+			    &zfsvfs->z_events_obj,
+			    &zfsvfs->z_events_lock);
+		}
 	}
 
 	dmu_tx_commit(tx);

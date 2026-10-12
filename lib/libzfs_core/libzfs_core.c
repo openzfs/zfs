@@ -2089,3 +2089,94 @@ lzc_ddt_prune(const char *pool, zpool_ddt_prune_unit_t unit, uint64_t amount)
 
 	return (error);
 }
+
+/*
+ * Retrieve file-level events from a dataset's event log.
+ *
+ * dsname: Dataset name (filesystem)
+ * object: Object ID to filter by (0 = all objects)
+ * offset: Logical offset for pagination (0 = from beginning)
+ * outnvl: On success, contains:
+ *         "events" -> nvlist array of event records
+ *         "next_offset" -> uint64 offset for next read
+ *         "records_lost" -> uint64 count of overwritten records
+ *
+ * Each event record contains:
+ *         "txg" -> uint64 transaction group
+ *         "time" -> uint64 hrtime timestamp
+ *         "object" -> uint64 object ID
+ *         "op" -> uint16 operation type (ZFS_EV_CREATE, etc.)
+ *         Additional fields depending on operation type
+ */
+int
+lzc_get_events(const char *dsname, uint64_t object, uint64_t offset,
+    nvlist_t **outnvl)
+{
+	nvlist_t *args = fnvlist_alloc();
+
+	if (object != 0)
+		fnvlist_add_uint64(args, "object", object);
+	if (offset != 0)
+		fnvlist_add_uint64(args, "offset", offset);
+
+	int error = lzc_ioctl(ZFS_IOC_GET_EVENTS, dsname, args, outnvl);
+
+	fnvlist_free(args);
+
+	return (error);
+}
+
+/*
+ * Clears a dataset's event log via the dedicated clear ioctl
+ * (ZFS_IOC_CLEAR_EVENTS), which carries write-class permissions and
+ * the read-only/suspended pool checks. The dataset must be mounted.
+ */
+int
+lzc_clear_events(const char *dsname, nvlist_t **outnvl)
+{
+	return (lzc_ioctl(ZFS_IOC_CLEAR_EVENTS, dsname, NULL, outnvl));
+}
+
+/*
+ * Registers (principal != 0 semantics handled by caller; 0 is a valid
+ * tag value) or deregisters the calling process's event-principal
+ * tag. Returns 0 and the registration generation via *genp on
+ * success. ENOSPC = registration table full; ENOENT = clear with no
+ * registration; EINVAL = kernel key validation (should not happen).
+ */
+int
+lzc_set_principal(uint64_t principal, uint64_t *genp)
+{
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *outnvl = NULL;
+	boolean_t registered = B_FALSE;
+	int error;
+
+	fnvlist_add_uint64(args, "principal", principal);
+	error = lzc_ioctl(ZFS_IOC_SET_PRINCIPAL, NULL, args, &outnvl);
+	fnvlist_free(args);
+	if (error == 0 && outnvl != NULL) {
+		(void) nvlist_lookup_boolean_value(outnvl, "registered",
+		    &registered);
+		(void) nvlist_lookup_uint64(outnvl, "generation", genp);
+		fnvlist_free(outnvl);
+	}
+	return (registered ? error : (error ? error : EIO));
+}
+
+int
+lzc_clear_principal(uint64_t *genp)
+{
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *outnvl = NULL;
+	int error;
+
+	fnvlist_add_boolean_value(args, "clear", B_TRUE);
+	error = lzc_ioctl(ZFS_IOC_SET_PRINCIPAL, NULL, args, &outnvl);
+	fnvlist_free(args);
+	if (error == 0 && outnvl != NULL) {
+		(void) nvlist_lookup_uint64(outnvl, "generation", genp);
+		fnvlist_free(outnvl);
+	}
+	return (error);
+}

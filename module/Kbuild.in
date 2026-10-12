@@ -395,6 +395,7 @@ ZFS_OBJS := \
 	spa_errlog.o \
 	spa_history.o \
 	spa_log_spacemap.o \
+	zfs_events.o \
 	spa_misc.o \
 	spa_stats.o \
 	space_map.o \

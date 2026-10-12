@@ -1,4 +1,5 @@
 etc/default/zfs
+etc/zmetad.conf
 etc/zfs/zfs-functions
 etc/zfs/zpool.d/
 usr/lib/systemd/system-generators/
@@ -17,6 +18,7 @@ usr/lib/systemd/system/zfs-trim-weekly@.timer
 usr/lib/systemd/system/zfs-trim@.service
 usr/lib/systemd/system/zfs-share.service
 usr/lib/systemd/system/zfs-volume-wait.service
+usr/lib/systemd/system/zmetad.service
 usr/lib/systemd/system/zfs-volumes.target
 usr/lib/systemd/system/zfs.target
 usr/lib/udev/
@@ -29,6 +31,7 @@ usr/sbin/zgenhostid
 usr/sbin/zhack
 usr/sbin/zinject
 usr/sbin/zpool
+usr/sbin/zmetad
 usr/sbin/zstream
 usr/sbin/zstreamdump
 usr/bin/zvol_wait
@@ -60,6 +63,7 @@ usr/share/man/man8/zfs-clone.8
 usr/share/man/man8/zfs-create.8
 usr/share/man/man8/zfs-destroy.8
 usr/share/man/man8/zfs-diff.8
+usr/share/man/man8/zfs-events.8
 usr/share/man/man8/zfs-get.8
 usr/share/man/man8/zfs-groupspace.8
 usr/share/man/man8/zfs-hold.8
@@ -93,6 +97,7 @@ usr/share/man/man8/zfs-wait.8
 usr/share/man/man8/zfs-zone.8
 usr/share/man/man8/zfs.8
 usr/share/man/man8/zfs_ids_to_path.8
+usr/share/man/man8/zmetad.8
 usr/share/man/man8/zfs_prepare_disk.8
 usr/share/man/man7/zfsconcepts.7
 usr/share/man/man7/zfsprops.7
