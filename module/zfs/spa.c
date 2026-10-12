@@ -8529,6 +8529,12 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	boolean_t raidz = oldvd->vdev_ops == &vdev_raidz_ops;
 
 	if (raidz) {
+		vdev_raidz_t *vdrz = oldvd->vdev_tsd;
+
+		/* Expansion history cannot be combined with parity epochs. */
+		if (vdrz->vd_parity_epochs != NULL)
+			return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
+
 		if (!spa_feature_is_enabled(spa, SPA_FEATURE_RAIDZ_EXPANSION))
 			return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
 

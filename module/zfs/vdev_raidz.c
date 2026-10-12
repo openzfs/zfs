@@ -5656,8 +5656,7 @@ vdev_raidz_load(vdev_t *vd)
 	 * Load the persisted parity-epoch table if the raidz_parity_epochs
 	 * feature has written one.  The table is append-only triplets of
 	 * {start physical-birth txg, logical width, parity} and must be
-	 * structurally valid or the vdev fails to load; it is not yet
-	 * consumed by layout selection.
+	 * structurally valid and fit the physical vdev or loading fails.
 	 */
 	if (vd->vdev_top_zap != 0 && !raidz_ignore_parity_epochs) {
 		uint64_t int_size = 0;
@@ -5688,6 +5687,7 @@ vdev_raidz_load(vdev_t *vd)
 				if (parity < 1 ||
 				    parity > VDEV_RAIDZ_MAXPARITY ||
 				    width <= parity || width > UINT8_MAX ||
+				    width > vdrz->vd_physical_width ||
 				    (i == 0 && table[0] != 0) ||
 				    (i > 0 && table[i] <= table[i - 3])) {
 					kmem_free(table,
@@ -5706,6 +5706,13 @@ vdev_raidz_load(vdev_t *vd)
 				    num_ints * sizeof (uint64_t));
 				return (SET_ERROR(ENOTSUP));
 			}
+			/*
+			 * Replace the label copy after validating the MOS copy.
+			 */
+			if (vdrz->vd_parity_epochs != NULL)
+				kmem_free(vdrz->vd_parity_epochs,
+				    vdrz->vd_parity_epoch_count * 3 *
+				    sizeof (uint64_t));
 			vdrz->vd_parity_epochs = table;
 			vdrz->vd_parity_epoch_count = num_ints / 3;
 		} else if (err != ENOENT) {
@@ -5857,7 +5864,8 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 			    pa = pe_label[3 * j + 2];
 			if (j > 0 && st <= pe_label[3 * (j - 1)])
 				pe_ok = B_FALSE;
-			if (pa < 1 || pa > VDEV_RAIDZ_MAXPARITY || wd <= pa)
+			if (pa < 1 || pa > VDEV_RAIDZ_MAXPARITY || wd <= pa ||
+			    wd > UINT8_MAX || wd > children)
 				pe_ok = B_FALSE;
 		}
 	}
