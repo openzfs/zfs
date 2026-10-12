@@ -206,6 +206,15 @@ zfs_other_serd_cases(fmd_hdl_t *hdl, const zfs_case_data_t *zfs_case)
 		}
 
 		/*
+		 * A solved case is a vdev that has already been diagnosed
+		 * and faulted.  It stays open for as long as the vdev stays
+		 * faulted, so counting it would keep any other vdev under
+		 * the same parent from ever being faulted.
+		 */
+		if (fmd_case_solved(hdl, zcp->zc_case))
+			continue;
+
+		/*
 		 * Check if there is another active serd case besides zfs_case
 		 *
 		 * Only one serd engine will be assigned to the case
