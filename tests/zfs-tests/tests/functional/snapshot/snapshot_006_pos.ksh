@@ -81,6 +81,7 @@ CWD=$PWD
 log_must cd $TESTDIR1
 log_must tar cf $SNAPSHOT_TARDIR/original.tar .
 log_must cd $CWD
+log_must touch -r $TESTDIR1 $SNAPSHOT_TARDIR/original.times
 
 log_note "Create a snapshot and mount it..."
 log_must zfs snapshot $SNAPCTR
@@ -104,6 +105,15 @@ log_must cd $TESTDIR1/snapshot
 log_must tar xf $SNAPSHOT_TARDIR/snapshot.tar
 
 log_must cd $CWD
+
+#
+# bsdtar does not restore the times of "." when extracting, so the
+# two directories would keep the times of their extraction, which
+# differ whenever the extractions straddle a second.  Give them the
+# times of the directories that were archived, as GNU tar does.
+#
+log_must touch -r $SNAPSHOT_TARDIR/original.times $TESTDIR1/original
+log_must touch -r $SNAPDIR1 $TESTDIR1/snapshot
 
 log_must directory_diff $TESTDIR1/original $TESTDIR1/snapshot
 log_pass "Directory structures match."
