@@ -34,7 +34,8 @@ verify_runnable "both"
 DURATION=10
 NDISKS=$(echo $DISKS | wc -w)
 MMP_INTERVAL=$(get_tunable MULTIHOST_INTERVAL)
-TARGET=$((($NDISKS * $DURATION * 1000) / $MMP_INTERVAL))
+typeset -i TARGET
+typeset -F sample_start sample_duration
 
 function cleanup
 {
@@ -60,7 +61,9 @@ log_must zpool set multihost=on $TESTPOOL
 typeset -i attempt
 for (( attempt = 1; attempt <= 3; attempt++ )); do
 	clear_mmp_history
+	sample_start=$SECONDS
 	MMP_WRITES=$(count_mmp_writes $TESTPOOL $DURATION)
+	sample_duration=$((SECONDS - sample_start))
 
 	[[ $(zpool list -H -o health $TESTPOOL) != "SUSPENDED" ]] && break
 
@@ -71,7 +74,9 @@ done
 
 [[ -z $MMP_WRITES ]] && log_fail "Pool suspended on every attempt"
 
-log_note "Uberblock changed $MMP_WRITES times"
+# A delayed sleep or kstat read extends the observation window in CI VMs.
+TARGET=$((($NDISKS * sample_duration * 1000) / $MMP_INTERVAL))
+log_note "Uberblock changed $MMP_WRITES times in $sample_duration seconds"
 log_must within_percent $MMP_WRITES $TARGET 80
 
 log_pass "Ensure MMP uberblocks update at the correct interval passed"
