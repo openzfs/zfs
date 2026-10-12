@@ -223,9 +223,6 @@ typedef enum dmu_object_type {
 	DMU_OT_DEADLIST_HDR,		/* UINT64 */
 	DMU_OT_DSL_CLONES,		/* ZAP */
 	DMU_OT_BPOBJ_SUBOBJ,		/* UINT64 */
-	DMU_OT_ZOS_BUCKET_META,		/* ZAP */
-	DMU_OT_ZOS_BUCKET_DATA,		/* ZAP */
-	DMU_OT_ZOS_OBJECT_META,		/* ZAP */
 	/*
 	 * Do not allocate new object types here. Doing so makes the on-disk
 	 * format incompatible with any other format that uses the same object

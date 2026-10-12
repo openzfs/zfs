@@ -318,7 +318,9 @@ int put_object(const char *pool, const char *bucket, const char *key, int fd, ui
 		return error;
 	}
 
-	new_obj_id = dmu_object_alloc(os, DMU_OT_UINT64_OTHER, SPA_MINBLOCKSIZE, DMU_OT_ZOS_OBJECT_META, sizeof (zos_object_meta_t), tx);
+	new_obj_id = dmu_object_alloc(os, DMU_OT_UINT64_OTHER,
+		SPA_MINBLOCKSIZE, DMU_OTN_UINT64_METADATA,
+		sizeof (zos_object_meta_t), tx);
 
 	file = fget(fd);
 	if (file == NULL) {
