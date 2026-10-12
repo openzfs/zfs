@@ -20,33 +20,18 @@
 
 #
 # Description:
-# This is the post-redact-write variant of xdr_resume_bookmark_raw,
-# separated out because of a known issue (#18491) that causes it to fail
-# roughly 30% of the time. It's included here as a test for issue #18491
-# until the exact source of that problem can be pinned down more specifically.
+# This is the post-redact-write variant of xdr_resume_bookmark_raw, which also
+# exports and imports the pool before the incremental send (openzfs/zfs#18491).
 #
-# Known issue: openzfs/zfs#18491
-#
-# On a freshly-created pool, `zfs send -w -i ds#book ds@snap` intermittently
-# fails with EACCES whenever there is data-modifying activity between the
-# `zfs redact` that created the bookmark and the subsequent send. This EACCES
-# is surfaced to userspace as the misleading message "dataset key must be
-# loaded," although the key remains loaded throughout.
-#
-# The reproducer script included in the issue report typically triggers the
-# problem within about 10 iterations on a fresh pool. Disk-sync mitigations
-# (zpool sync, with or without `-f`, with or without sleep, single or doubled,
-# applied at any reasonable point) do not avert the problem. CI runs that
-# include the test in this file reproduce the failure regularly (though
-# intermittently) across multiple distributions. xdr_resume_bookmark_raw.ksh
-# removes the post-redact write (which is not essential to the test) and
-# therefore runs reliably.
-#
-# When this test fails, the failure marker is the libzfs warning
-# "dataset key must be loaded" on stderr from the first `zfs send -w -i`
-# line below (the one that produces the stream we then truncate), and a
-# non-zero exit from that send. The test does not attempt to distinguish
-# the known-issue failure from other possible failures.
+# A raw send from a redaction bookmark looks up the block pointers of the
+# blocks the bookmark redacted (PREVIOUSLY_REDACTED in send_reader_thread()).
+# Those lookups must not need the dataset's key: the send is raw, and the
+# snapshot is held without a key mapping.  On a warm pool whether they did
+# depended on the ARC: if a decrypted copy of the snapshot's dnode block was
+# cached (from the mounted head dataset), the lookup succeeded; if not, it
+# failed with EACCES ("dataset key must be loaded").  Exporting and
+# importing the pool without loading the key leaves no decrypted copy, so
+# the lookup takes the decrypting path every time.
 #
 
 verify_runnable "both"
@@ -68,8 +53,7 @@ function cleanup
 log_onexit cleanup
 
 log_assert "BEGIN nvlist of a token-resumed raw incremental from a redaction " \
-    "bookmark, with a post-redact write, is XDR-encoded and receivable " \
-    "(known to flake; see openzfs/zfs#18491)"
+    "bookmark, with a post-redact write, is XDR-encoded and receivable"
 
 log_must eval "echo 'thisisapassphrase' > $keyfile"
 log_must zfs create -o encryption=on -o keyformat=passphrase \
@@ -85,7 +69,7 @@ log_must zfs snapshot $clonefs@s
 
 log_must zfs redact $sendfs@s0 redaction-bookmark $clonefs@s
 
-# Post-redact write: the trigger for openzfs/zfs#18491.
+# Post-redact write.
 log_must dd if=/dev/urandom of=/$sendfs/f3 bs=128k count=16 status=none
 log_must zfs snapshot $sendfs@s1
 
@@ -93,8 +77,12 @@ log_must zfs snapshot $sendfs@s1
 log_must eval "zfs send -w $sendfs@s0 > $full_stream"
 log_must eval "zfs receive $recvfs < $full_stream"
 
-# The next line is what races. On failure it exits with EACCES rendered
-# as "dataset key must be loaded".
+# Drop every cached copy of the source's blocks; the key stays unloaded,
+# since a raw send must not need it.
+log_must zpool export $POOL
+log_must zpool import $POOL
+log_must eval "[[ \"$(get_prop keystatus $sendfs)\" == unavailable ]]"
+
 log_must eval "zfs send -w -i $sendfs#redaction-bookmark $sendfs@s1 > \
     $incr_stream"
 mess_send_file $incr_stream
