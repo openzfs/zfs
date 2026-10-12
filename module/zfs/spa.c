@@ -9609,8 +9609,7 @@ spa_vdev_split_mirror(spa_t *spa, const char *newname, nvlist_t *config,
 	/* release the spa config lock, retaining the namespace lock */
 	spa_vdev_config_exit(spa, NULL, txg, 0, FTAG);
 
-	if (zio_injection_enabled)
-		zio_handle_panic_injection(spa, FTAG, 1);
+	zio_handle_panic_injection(spa, FTAG, 1);
 
 	spa_activate(newspa, spa_mode_global);
 	spa_async_suspend(newspa);
@@ -9691,8 +9690,7 @@ spa_vdev_split_mirror(spa_t *spa, const char *newname, nvlist_t *config,
 	vdev_config_dirty(newspa->spa_root_vdev);
 	(void) spa_vdev_config_exit(newspa, NULL, txg, 0, FTAG);
 
-	if (zio_injection_enabled)
-		zio_handle_panic_injection(spa, FTAG, 2);
+	zio_handle_panic_injection(spa, FTAG, 2);
 
 	spa_async_resume(newspa);
 
@@ -9766,8 +9764,7 @@ spa_vdev_split_mirror(spa_t *spa, const char *newname, nvlist_t *config,
 	}
 	spa_config_exit(spa, SCL_STATE_ALL, spa);
 
-	if (zio_injection_enabled)
-		zio_handle_panic_injection(spa, FTAG, 3);
+	zio_handle_panic_injection(spa, FTAG, 3);
 
 	/* split is complete; log a history record */
 	spa_history_log_internal(newspa, "split", NULL,
