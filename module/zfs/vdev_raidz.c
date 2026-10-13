@@ -343,8 +343,11 @@ static
 unsigned long raidz_expand_max_reflow_bytes = 0;
 
 /*
- * Rescue tunable: skip loading the parity-epoch table so a pool bricked by
- * a damaged table can be imported (readonly recommended) and repaired.
+ * Rescue tunable: ignore the parity-epoch table, both the copy in the label
+ * and MOS config and the one in the vdev ZAP, so that the data of a pool
+ * whose table is damaged can be read.  Blocks born in an epoch that changed
+ * the parity decode wrongly while it is set, so a pool with the feature
+ * active can then only be imported read-only.
  */
 int raidz_ignore_parity_epochs = 0;
 
@@ -5812,6 +5815,21 @@ vdev_raidz_load(vdev_t *vd)
 	}
 
 	/*
+	 * With the table ignored, blocks would be written in the vdev's own
+	 * layout whatever epoch they are born in, and the config rewrite
+	 * would drop the table from the labels.  Only a read-only import is
+	 * safe.
+	 */
+	if (raidz_ignore_parity_epochs && spa_writeable(vd->vdev_spa) &&
+	    spa_feature_is_active(vd->vdev_spa,
+	    SPA_FEATURE_RAIDZ_PARITY_EPOCHS)) {
+		spa_load_failed(vd->vdev_spa, "raidz_ignore_parity_epochs "
+		    "is set and feature@raidz_parity_epochs is active: import "
+		    "read-only");
+		return (SET_ERROR(EROFS));
+	}
+
+	/*
 	 * Load the persisted parity-epoch table if the raidz_parity_epochs
 	 * feature has written one.  The table is {start physical-birth txg,
 	 * logical width, parity} triplets sorted by start, which must be
@@ -6002,7 +6020,8 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 	uint64_t *pe_label;
 	unsigned int pe_label_size = 0;
 	boolean_t pe_ok = B_FALSE;
-	if (nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_RAIDZ_PARITY_EPOCHS,
+	if (!raidz_ignore_parity_epochs &&
+	    nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_RAIDZ_PARITY_EPOCHS,
 	    &pe_label, &pe_label_size) == 0 && pe_label_size > 0 &&
 	    (pe_label_size % 3) == 0) {
 		/*
@@ -6223,7 +6242,7 @@ vdev_ops_t vdev_raidz_ops = {
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_reflow_bytes, ULONG, ZMOD_RW,
 	"For testing, pause RAIDZ expansion after reflowing this many bytes");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, ignore_parity_epochs, INT, ZMOD_RW,
-	"Rescue: skip loading the RAIDZ parity-epoch table (import readonly)");
+	"Rescue: ignore the RAIDZ parity-epoch table (import read-only)");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, expand_max_copy_bytes, ULONG, ZMOD_RW,
 	"Max amount of concurrent i/o for RAIDZ expansion");
 ZFS_MODULE_PARAM(zfs_vdev, raidz_, io_aggregate_rows, ULONG, ZMOD_RW,
