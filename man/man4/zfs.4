@@ -595,8 +595,8 @@ parity.
 Blocks that were written under another parity are then read wrongly, so while
 the
 .Sy raidz_parity_epochs
-feature is active the pool can only be imported read-only, and a read-write
-import fails.
+feature is active, or while the vdev labels or the pool configuration carry a
+table, the pool can only be imported read-only, and a read-write import fails.
 Set it before importing the pool.
 See
 .Xr zpool-features 7 .
