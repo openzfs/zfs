@@ -10300,6 +10300,15 @@ spa_async_thread(void *arg)
 		dsl_destroy_snapshot_deferred(spa_name(spa));
 
 	/*
+	 * Turn indirect vdevs that nothing refers to any more into holes.
+	 * This waits for a txg, which a suspended pool would never sync;
+	 * spa_sync_condense_indirect() asks again while one qualifies.
+	 */
+	if ((tasks & SPA_ASYNC_RETIRE_INDIRECT) && spa_writeable(spa) &&
+	    !spa_suspended(spa))
+		spa_vdev_retire_indirect(spa);
+
+	/*
 	 * Let the world know that we're done.
 	 */
 	mutex_enter(&spa->spa_async_lock);
@@ -11081,6 +11090,9 @@ spa_sync_condense_indirect(spa_t *spa, dmu_tx_t *tx)
 	for (int c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *vd = rvd->vdev_child[c];
 		vdev_indirect_state_sync_verify(vd);
+
+		if (vdev_retire_indirect_ready(vd))
+			spa_async_request(spa, SPA_ASYNC_RETIRE_INDIRECT);
 
 		if (vdev_indirect_should_condense(vd)) {
 			spa_condense_indirect_start_sync(vd, tx);
