@@ -38,6 +38,12 @@
  *	Import the pool and report the state of the top-level vdev: as the
  *	pool was opened, after offlining two children, or after faulting two
  *	children.
+ *   boundary <dir> <pool>
+ *	In one sync task, on the raidz vdev of a pool without a parity-epoch
+ *	table, add an epoch that starts at the txg T of the task, then at
+ *	T+1, T+2 and T+3: print what the check of the setter says of each in
+ *	syncing context, what the setter does with each in that order, and
+ *	the table the vdev ends up with.  The first start allowed is T+3.
  *
  * Results are printed as "RESULT ..." lines for the test scripts to read.
  */
@@ -56,6 +62,7 @@
 #include <sys/dmu_tx.h>
 #include <sys/dsl_pool.h>
 #include <sys/dsl_dir.h>
+#include <sys/dsl_synctask.h>
 #include <sys/txg.h>
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
@@ -84,7 +91,8 @@ usage(void)
 	    "       raidz_epoch_test corrupt <dir> <offsets> <psize> <width> "
 	    "<parity> <ashift> <column>...\n"
 	    "       raidz_epoch_test read <dir> <pool> <object> <blocksize>\n"
-	    "       raidz_epoch_test state <dir> <pool> open|offline|fault\n");
+	    "       raidz_epoch_test state <dir> <pool> open|offline|fault\n"
+	    "       raidz_epoch_test boundary <dir> <pool>\n");
 	exit(2);
 }
 
@@ -514,6 +522,119 @@ do_state(const char *dir, const char *pool, const char *what)
 	return (0);
 }
 
+/*
+ * The starts "boundary" tries: the txg of its sync task and the three after
+ * it, the last of which is the first start the setter allows.
+ */
+#define	BOUNDARY_TRIES	4
+
+typedef struct boundary_arg {
+	uint64_t	ba_txg;
+	int		ba_check[BOUNDARY_TRIES];
+	int		ba_set[BOUNDARY_TRIES];
+} boundary_arg_t;
+
+/* The vdev's own geometry from txg 0, then another parity from start. */
+static void
+boundary_table(vdev_t *vd, uint64_t start, uint64_t *tbl)
+{
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+
+	tbl[0] = 0;
+	tbl[1] = tbl[4] = vdrz->vd_physical_width;
+	tbl[2] = vdrz->vd_nparity;
+	tbl[3] = start;
+	tbl[5] = vdrz->vd_nparity % 3 + 1;
+}
+
+static int
+boundary_check(void *arg, dmu_tx_t *tx)
+{
+	boundary_arg_t *ba = arg;
+	vdev_t *vd;
+	uint64_t tbl[6];
+
+	if (!dmu_tx_is_syncing(tx))
+		return (0);
+	vd = dmu_tx_pool(tx)->dp_spa->spa_root_vdev->vdev_child[0];
+	ba->ba_txg = dmu_tx_get_txg(tx);
+	for (int d = 0; d < BOUNDARY_TRIES; d++) {
+		boundary_table(vd, ba->ba_txg + d, tbl);
+		ba->ba_check[d] = vdev_raidz_parity_epochs_set_check_tx(vd,
+		    tbl, 2, tx);
+	}
+	return (0);
+}
+
+static void
+boundary_sync(void *arg, dmu_tx_t *tx)
+{
+	boundary_arg_t *ba = arg;
+	vdev_t *vd = dmu_tx_pool(tx)->dp_spa->spa_root_vdev->vdev_child[0];
+	uint64_t tbl[6];
+
+	VERIFY3U(dmu_tx_get_txg(tx), ==, ba->ba_txg);
+	for (int d = 0; d < BOUNDARY_TRIES; d++) {
+		boundary_table(vd, ba->ba_txg + d, tbl);
+		ba->ba_set[d] = vdev_raidz_parity_epochs_set(vd, tbl, 2, tx);
+	}
+}
+
+static const char *
+boundary_result(int err, const char *ok, char *buf, size_t len)
+{
+	if (err == 0)
+		return (ok);
+	if (err == ERANGE)
+		return ("ERANGE");
+	(void) snprintf(buf, len, "error%d", err);
+	return (buf);
+}
+
+static int
+do_boundary(const char *dir, const char *pool)
+{
+	boundary_arg_t ba = { 0 };
+	vdev_raidz_t *vdrz;
+	spa_t *spa;
+	char b1[16];
+	char b2[16];
+	int err;
+
+	err = open_pool(dir, pool, B_FALSE, &spa);
+	if (err != 0) {
+		(void) printf("RESULT boundary rc=%d\n", err);
+		return (err);
+	}
+	err = dsl_sync_task(pool, boundary_check, boundary_sync, &ba, 5,
+	    ZFS_SPACE_CHECK_NORMAL);
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	(void) printf("RESULT boundary rc=%d txg=%llu\n", err,
+	    (u_longlong_t)ba.ba_txg);
+	for (int d = 0; d < BOUNDARY_TRIES; d++) {
+		(void) printf("RESULT boundary start=T+%d check=%s set=%s\n",
+		    d, boundary_result(ba.ba_check[d], "accepted", b1,
+		    sizeof (b1)), boundary_result(ba.ba_set[d], "stored", b2,
+		    sizeof (b2)));
+	}
+
+	vdrz = spa->spa_root_vdev->vdev_child[0]->vdev_tsd;
+	mutex_enter(&vdrz->vd_expand_lock);
+	(void) printf("RESULT boundary table=");
+	for (uint64_t i = 0; i < vdrz->vd_parity_epoch_count; i++) {
+		const uint64_t *e = &vdrz->vd_parity_epochs[3 * i];
+
+		(void) printf("%s%llu:%llu:%llu", i == 0 ? "" : ",",
+		    (u_longlong_t)e[0], (u_longlong_t)e[1],
+		    (u_longlong_t)e[2]);
+	}
+	(void) printf("\n");
+	mutex_exit(&vdrz->vd_expand_lock);
+
+	close_pool(spa, pool);
+	return (err);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -549,6 +670,8 @@ main(int argc, char **argv)
 		    strtoull(argv[5], NULL, 10));
 	} else if (strcmp(argv[1], "state") == 0 && argc == 5) {
 		rv = do_state(argv[2], argv[3], argv[4]);
+	} else if (strcmp(argv[1], "boundary") == 0 && argc == 4) {
+		rv = do_boundary(argv[2], argv[3]);
 	} else {
 		usage();
 	}

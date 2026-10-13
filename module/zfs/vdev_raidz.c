@@ -5625,25 +5625,36 @@ vdev_raidz_parity_epochs_install(vdev_t *vd, const uint64_t *table,
 }
 
 /*
- * Say whether vdev_raidz_parity_epochs_set() would accept the table on this
- * vdev, with no side effects, so that a writer can refuse before it queues
- * its sync task.  The caller holds the spa config lock as reader, which
- * keeps the vdev tree stable.  A dsl_sync_task() check function runs with
- * the pool config lock held, and spa_sync() takes them in the other order:
- * in open context, take the spa config lock before dsl_sync_task(), or only
- * try to take it in the check function, never wait for it there.
- *
- * EINVAL: not a top-level RAID-Z vdev with a top-level ZAP, or a table that
- *	   does not fit this vdev (see vdev_raidz_parity_epochs_check()).
- * ENOTSUP: the feature is not enabled, or the vdev has expansion state or
- *	   history, which cannot coexist with a table.
+ * The first txg at which an epoch added by a sync task running in tx may
+ * start.  Blocks are laid out by the epoch of their physical birth txg and
+ * nothing already written is re-encoded.  While the txg of tx syncs, the
+ * txgs after it can already be open, and the ZIL and dmu_sync() write
+ * blocks born in them in open context, laid out by the table they found.
+ * The first txg that cannot be open yet is TXG_CONCURRENT_STATES later, as
+ * for the width a completed RAID-Z expansion records.
  */
-int
-vdev_raidz_parity_epochs_set_check(vdev_t *vd, const uint64_t *table,
-    uint64_t nent)
+uint64_t
+vdev_raidz_parity_epochs_first_start(dmu_tx_t *tx)
+{
+	return (dmu_tx_get_txg(tx) + TXG_CONCURRENT_STATES);
+}
+
+/*
+ * What vdev_raidz_parity_epochs_set_check() and _set_check_tx() decide.  A
+ * first of 0 leaves out the rule on the start of added epochs, which needs
+ * the txg of the sync task.
+ */
+static int
+vdev_raidz_parity_epochs_verdict(vdev_t *vd, const uint64_t *table,
+    uint64_t nent, uint64_t first)
 {
 	vdev_raidz_t *vdrz;
+	uint64_t base[3];
+	const uint64_t *cur;
+	uint64_t ncur;
 	boolean_t expanded;
+	boolean_t extends;
+	int error;
 
 	if (vd->vdev_ops != &vdev_raidz_ops || vd != vd->vdev_top ||
 	    vd->vdev_top_zap == 0)
@@ -5665,8 +5676,73 @@ vdev_raidz_parity_epochs_set_check(vdev_t *vd, const uint64_t *table,
 	    vd->vdev_children != vdrz->vd_physical_width)
 		return (SET_ERROR(ENOTSUP));
 
-	return (vdev_raidz_parity_epochs_check(table, nent,
-	    vdrz->vd_physical_width, vdrz->vd_nparity));
+	error = vdev_raidz_parity_epochs_check(table, nent,
+	    vdrz->vd_physical_width, vdrz->vd_nparity);
+	if (error != 0)
+		return (error);
+
+	/*
+	 * The blocks of the epochs the vdev has are on disk, so a table may
+	 * only add epochs to them.  A vdev without a table has one epoch, its
+	 * own geometry.
+	 */
+	base[0] = 0;
+	base[1] = vdrz->vd_physical_width;
+	base[2] = vdrz->vd_nparity;
+	mutex_enter(&vdrz->vd_expand_lock);
+	cur = vdrz->vd_parity_epochs != NULL ? vdrz->vd_parity_epochs : base;
+	ncur = vdrz->vd_parity_epochs != NULL ?
+	    vdrz->vd_parity_epoch_count : 1;
+	extends = nent >= ncur &&
+	    memcmp(table, cur, ncur * 3 * sizeof (uint64_t)) == 0;
+	mutex_exit(&vdrz->vd_expand_lock);
+	if (!extends)
+		return (SET_ERROR(EINVAL));
+
+	/* The starts increase, so the first added epoch is the earliest. */
+	if (first != 0 && nent > ncur && table[3 * ncur] < first)
+		return (SET_ERROR(ERANGE));
+
+	return (0);
+}
+
+/*
+ * Say whether vdev_raidz_parity_epochs_set() would accept the table on this
+ * vdev, as far as that can be told before its sync task is queued, with no
+ * side effects.  The rule on when added epochs start is left to
+ * vdev_raidz_parity_epochs_set_check_tx().  The caller holds the spa config
+ * lock as reader, which keeps the vdev tree stable.  A dsl_sync_task() check
+ * function runs with the pool config lock held, and spa_sync() takes them in
+ * the other order: in open context, take the spa config lock before
+ * dsl_sync_task(), or only try to take it in the check function, never wait
+ * for it there.
+ *
+ * EINVAL: not a top-level RAID-Z vdev with a top-level ZAP, a table that
+ *	   does not fit this vdev (see vdev_raidz_parity_epochs_check()), or
+ *	   one that changes or drops an epoch the vdev has.
+ * ENOTSUP: the feature is not enabled, or the vdev has expansion state or
+ *	   history, which cannot coexist with a table.
+ */
+int
+vdev_raidz_parity_epochs_set_check(vdev_t *vd, const uint64_t *table,
+    uint64_t nent)
+{
+	return (vdev_raidz_parity_epochs_verdict(vd, table, nent, 0));
+}
+
+/*
+ * vdev_raidz_parity_epochs_set_check() for a sync task running in tx, which
+ * also refuses, with ERANGE, a table whose first added epoch starts before
+ * vdev_raidz_parity_epochs_first_start(tx).  Call it from the check function
+ * of the task, in syncing context, where its verdict is the one
+ * vdev_raidz_parity_epochs_set() reaches in the sync function.
+ */
+int
+vdev_raidz_parity_epochs_set_check_tx(vdev_t *vd, const uint64_t *table,
+    uint64_t nent, dmu_tx_t *tx)
+{
+	return (vdev_raidz_parity_epochs_verdict(vd, table, nent,
+	    vdev_raidz_parity_epochs_first_start(tx)));
 }
 
 /*
@@ -5675,15 +5751,15 @@ vdev_raidz_parity_epochs_set_check(vdev_t *vd, const uint64_t *table,
  * in-core table and dirty the config so that the labels and the MOS config
  * carry it.  The ZAP entry and the in-core table change in the same txg.
  *
- * Blocks are laid out by the epoch of their physical birth txg and nothing
- * already written is re-encoded, so every entry the caller adds must start
- * after the txg the call runs in: one that starts at or before it describes
- * blocks that were written with another layout.  This is not checked here.
+ * The table must keep every epoch the vdev has and may only add epochs, each
+ * starting at or after vdev_raidz_parity_epochs_first_start(tx): an epoch
+ * that starts earlier would describe blocks already written with another
+ * layout.
  *
  * Syncing context only, as a dsl_sync_task() sync function, with the spa
  * config lock held as reader (spa_sync() holds it).  Returns the error of
- * vdev_raidz_parity_epochs_set_check() with nothing changed; a caller that
- * checked in open context cannot see it fail.
+ * vdev_raidz_parity_epochs_set_check_tx() with nothing changed: a caller
+ * whose check function got 0 from it for the same table cannot see it fail.
  */
 int
 vdev_raidz_parity_epochs_set(vdev_t *vd, const uint64_t *table,
@@ -5695,7 +5771,7 @@ vdev_raidz_parity_epochs_set(vdev_t *vd, const uint64_t *table,
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(spa_config_held(spa, SCL_CONFIG, RW_READER));
 
-	error = vdev_raidz_parity_epochs_set_check(vd, table, nent);
+	error = vdev_raidz_parity_epochs_set_check_tx(vd, table, nent, tx);
 	if (error != 0)
 		return (error);
 

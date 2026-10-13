@@ -254,21 +254,41 @@ The first triplet must be
 of the vdev itself, every
 .Ar width
 must be the vdev's, and the starts must increase.
+A table can only grow: it must begin with every triplet the vdev already has,
+unchanged, and may add new ones after them.
 A table that does not fit the vdev, or a vdev that has been expanded, is
 refused and nothing is changed.
 The pool must be exported.
 .Pp
 A block is read with the epoch its physical birth transaction group falls in,
-and nothing already written is rewritten, so a new epoch must start after the
-transaction group in which the table is stored.
+and nothing already written is rewritten, so a new epoch must start after every
+transaction group that may already hold blocks when the table is stored: the
+first start allowed is three transaction groups after the one in which zhack
+stores the table.
 The pool is imported, and several transaction groups are written, before the
-table is stored, so leave a wide margin above the newest transaction group in
-the labels of the exported pool.
+table is stored, so that transaction group is not known in advance, and each
+run writes transaction groups of its own: an added epoch that starts earlier
+is refused, and the first start allowed that the message names held for that
+run only.
+A
+.Ar start
+of
+.Sy next
+stands for the first start allowed in the run that stores the table.
+On success, zhack prints the table it stored, with
+.Sy next
+replaced by the transaction group it stood for, and if a start was given as
+.Sy next
+it returns only once that transaction group has been written, so that every
+block written afterwards is born in the new epoch.
 .Pp
 The
 .Fl f
 flag writes only the copy of the table in the vdev's ZAP, exactly as given and
 without checking it, so that a damaged table can be made.
+Every
+.Ar start
+must then be a number.
 .Pp
 This is for tests, and it can make a pool impossible to import.
 A pool whose table is damaged cannot be repaired in place: the

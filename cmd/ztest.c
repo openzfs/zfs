@@ -4527,8 +4527,8 @@ ztest_pe_extend(vdev_t *vd, uint64_t parity, uint64_t start, uint64_t *table)
 
 /*
  * Runs in open context, where a refusal is reported cleanly, and again in
- * syncing context, where nothing may fail.  EBUSY: the config lock was not
- * free, try again.
+ * syncing context, on the table the sync function stores, where nothing may
+ * fail.  EBUSY: the config lock was not free, try again.
  */
 static int
 ztest_pe_append_check(void *arg, dmu_tx_t *tx)
@@ -4551,10 +4551,16 @@ ztest_pe_append_check(void *arg, dmu_tx_t *tx)
 	vd = vdev_lookup_top(spa, pa->pa_vdev);
 	if (vd == NULL || vd->vdev_ops != &vdev_raidz_ops) {
 		error = SET_ERROR(ENOENT);
-	} else {
+	} else if (lock) {
 		uint64_t n = ztest_pe_extend(vd, pa->pa_parity, 0, table);
 
 		error = vdev_raidz_parity_epochs_set_check(vd, table, n);
+	} else {
+		uint64_t n = ztest_pe_extend(vd, pa->pa_parity,
+		    dmu_tx_get_txg(tx) + pa->pa_lead, table);
+
+		error = vdev_raidz_parity_epochs_set_check_tx(vd, table, n,
+		    tx);
 	}
 	if (lock)
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
@@ -9463,13 +9469,17 @@ typedef struct ztest_epochs_install {
 
 /*
  * Store the table the way zhack(1) does: the vdev ZAP entry, the feature,
- * the in-core copy and the config, in one txg.
+ * the in-core copy and the config, in one txg.  The epochs after the first
+ * start at the first txg the setter allows, one window apart.
  */
 static void
 ztest_epochs_install_sync(void *arg, dmu_tx_t *tx)
 {
 	ztest_epochs_install_t *ei = arg;
+	uint64_t first = vdev_raidz_parity_epochs_first_start(tx);
 
+	for (uint64_t i = 1; i < ei->ei_entries; i++)
+		ei->ei_table[3 * i] = first + (i - 1) * ZTEST_EPOCHS_WINDOW;
 	VERIFY0(vdev_raidz_parity_epochs_set(ei->ei_vd, ei->ei_table,
 	    ei->ei_entries, tx));
 }
@@ -9807,7 +9817,6 @@ ztest_raidz_epochs_run(ztest_shared_t *zs, spa_t *spa)
 	void *buf;
 	uint64_t txg;
 	uint64_t epoch_parity[ZTEST_EPOCHS_ENTRIES];
-	uint64_t first;
 	int checks = ztest_opts.zo_raidz_epochs_checks;
 	uint_t old_pct = metaslab_force_ganging_pct;
 	int old_flags = zfs_flags;
@@ -9850,17 +9859,16 @@ ztest_raidz_epochs_run(ztest_shared_t *zs, spa_t *spa)
 	 * Epoch parities: the base one, the next two in the cycle 1, 2, 3
 	 * (one above and one below a base of 2, both above a base of 1,
 	 * both below a base of 3), then the base one again.  The first
-	 * epoch starts at txg 0 and the second a few txgs from now, after
-	 * the sync task that stores the table, which is the only thing that
-	 * may sync before it.
+	 * epoch starts at txg 0 and the second a few txgs from now, at the
+	 * first txg after the sync task that stores the table that the
+	 * setter allows; nothing else may sync before it.  The sync task
+	 * fills in the starts.
 	 */
 	epoch_parity[0] = epoch_parity[3] = vdrz->vd_nparity;
 	epoch_parity[1] = epoch_parity[0] % 3 + 1;
 	epoch_parity[2] = epoch_parity[1] % 3 + 1;
-	first = spa_last_synced_txg(spa) + 8;
 	for (uint64_t i = 0; i < ZTEST_EPOCHS_ENTRIES; i++) {
-		table[3 * i] = i == 0 ? 0 :
-		    first + (i - 1) * ZTEST_EPOCHS_WINDOW;
+		table[3 * i] = 0;
 		table[3 * i + 1] = rzvd->vdev_children;
 		table[3 * i + 2] = epoch_parity[i];
 	}

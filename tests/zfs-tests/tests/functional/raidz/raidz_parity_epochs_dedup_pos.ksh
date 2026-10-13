@@ -22,9 +22,9 @@
 #
 # STRATEGY:
 #	1. Write a deduplicated block in a five-wide RAIDZ1 pool.
-#	2. Inject a parity-2 epoch after all existing blocks, then write
-#	   the same data with copies=2. Require an ordinary two-copy block
-#	   allocated entirely at parity 2.
+#	2. Inject a parity-2 epoch after all existing blocks, at the first
+#	   txg zhack allows, then write the same data with copies=2.
+#	   Require an ordinary two-copy block allocated entirely at parity 2.
 #	3. Within the parity-2 epoch, require DDT extension to remain enabled.
 #	4. Scrub, reimport, and compare all data.
 #
@@ -71,11 +71,7 @@ sync_pool $pool
 check_bp p1 'dedup single '
 log_must zpool export $pool
 
-log_must eval "zdb -lu ${disks[0]} > $workdir/labels.out"
-typeset -i txg=$(awk '/txg = /{print $3}' $workdir/labels.out |
-    sort -n | tail -1)
-log_must test $txg -gt 0
-log_must zhack -d $workdir raidz_epochs $pool 0 0:5:1 $((txg + 1)):5:2
+log_must zhack -d $workdir raidz_epochs $pool 0 0:5:1 next:5:2
 log_must zpool import -d $workdir $pool
 
 log_must zfs set copies=2 $pool

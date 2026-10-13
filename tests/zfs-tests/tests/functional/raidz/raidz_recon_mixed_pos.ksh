@@ -67,17 +67,20 @@ function recon_case
 	log_must raidz_epoch_test create $dir $POOL $WIDTH $base
 
 	#
-	# The epoch starts after every txg the pool has seen, so that the
-	# block written below is the first one of it.
+	# The epoch starts after every txg the pool has seen, zhack's own
+	# import included, at the first txg zhack allows, which it prints:
+	# the block written below is the first one of it.
 	#
 	if (( base != par )); then
-		log_must eval "zdb -lu $dir/v0 > $dir/labels.out"
-		txg=$(awk '/txg = /{print $3}' $dir/labels.out |
-		    sort -n | tail -1)
-		[[ -n $txg ]] || log_fail "case $name: no txg in $dir/v0 labels"
-		(( epoch = txg + 1 ))
-		log_must zhack -d $dir raidz_epochs $POOL 0 \
-		    0:$WIDTH:$base $epoch:$WIDTH:$par
+		out=$(zhack -d $dir raidz_epochs $POOL 0 \
+		    0:$WIDTH:$base next:$WIDTH:$par) ||
+		    log_fail "case $name: zhack failed: $out"
+		log_note "$out"
+		txg=${out##* }
+		txg=${txg%%:*}
+		[[ $txg == +([0-9]) ]] ||
+		    log_fail "case $name: no epoch start in: $out"
+		(( epoch = txg ))
 	fi
 
 	out=$(raidz_epoch_test write $dir $POOL $bs) ||

@@ -56,11 +56,7 @@ for parity in 1 2; do
 	sync_pool $pool
 	log_must zpool export $pool
 
-	log_must eval "zdb -lu ${disks[0]} > $workdir/labels.out"
-	typeset txg=$(awk '/txg = / {if ($3 > max) max = $3}
-	    END {print max + 1}' $workdir/labels.out)
-	log_must test $txg -gt 1
-	log_must zhack -d $workdir raidz_epochs $pool 0 0:4:1 $txg:4:$parity
+	log_must zhack -d $workdir raidz_epochs $pool 0 0:4:1 next:4:$parity
 	log_must zpool import -d $workdir $pool
 	log_must cp $workdir/expected $mnt/after
 	sync_pool $pool

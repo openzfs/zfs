@@ -28,8 +28,8 @@
 # STRATEGY:
 #	1. Create a 5-wide raidz pool and write gang blocks with the
 #	   metaslab force-ganging tunables (born at the base parity).
-#	2. Export it and store a {0:5:P, T:5:Q} table with zhack, T above
-#	   every existing txg.
+#	2. Export it and store a {0:5:P, T:5:Q} table with zhack, T the
+#	   first txg it allows, above every existing txg.
 #	3. Import it and write more gang blocks (born at parity Q).
 #	4. Read every file back and scrub; zdb finds no leak, which also
 #	   checks the claims of the gang headers of both parities.
@@ -102,13 +102,9 @@ function run_case # <base parity> <other parity>
 	write_files 0 $nfiles
 	log_must zpool export $POOL
 
-	# A boundary above every txg of the pool: the newest uberblock.
-	log_must eval "zdb -lu ${VDEVS[0]} > $BASEDIR/labels.out"
-	typeset -i txg=$(awk '/txg = /{print $3}' $BASEDIR/labels.out |
-	    sort -n | tail -1)
-	log_must test $txg -gt 0
+	# A boundary above every txg of the pool, zhack's own import included.
 	log_must zhack -d $BASEDIR raidz_epochs $POOL 0 \
-	    0:${ndev}:${base} $(( txg + 1 )):${ndev}:${other}
+	    0:${ndev}:${base} next:${ndev}:${other}
 	log_must zpool import -d $BASEDIR $POOL
 	log_must eval "zpool get -H -o value feature@raidz_parity_epochs \
 	    $POOL | grep -q active"

@@ -2034,6 +2034,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/raidz/raidz_parity_epochs_dedup_pos.ksh \
 	functional/raidz/raidz_detach_neg.ksh \
 	functional/raidz/raidz_parity_epochs_pos.ksh \
+	functional/raidz/raidz_parity_epochs_append_neg.ksh \
 	functional/raidz/raidz_parity_epochs_expand_neg.ksh \
 	functional/raidz/raidz_parity_epochs_gang.ksh \
 	functional/raidz/raidz_parity_epochs_validate_neg.ksh \

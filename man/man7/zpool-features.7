@@ -959,6 +959,9 @@ debugging command does
 and so does
 .Xr ztest 1
 on the pools it creates.
+Both only extend a table: the epochs it has keep their start, width and
+parity, and a new epoch starts after every transaction group that may already
+hold blocks.
 A RAID-Z vdev that has a table cannot be expanded with
 .Nm zpool Cm attach ,
 and a pool in which a vdev has both a table and expansion history cannot be
