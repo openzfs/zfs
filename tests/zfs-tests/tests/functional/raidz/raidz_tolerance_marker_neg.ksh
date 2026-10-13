@@ -20,17 +20,20 @@
 #
 # DESCRIPTION:
 #	The number of failures a raidz vdev survives is its parity, or less
-#	if it holds blocks of a lower parity.  Nothing a label says may raise
-#	it: a vdev config that carries the completion marker of an in-place
-#	re-parity, as written by software that has such an operation, must
-#	not make a raidz1 vdev survive two failures.
+#	if it holds blocks of a lower parity.  A parity-epoch table whose
+#	last epoch has a higher parity does not raise it: a raidz1 vdev with
+#	a table that ends at parity 2 must not survive two failures.  The
+#	completion marker of an in-place re-parity, which software that has
+#	such an operation would write next to such a table, is given to pool
+#	creation too, and does not reach the labels.
 #
 # STRATEGY:
-#	1. Create a raidz1 pool whose vdev config carries a parity-epoch table
-#	   that ends at parity 2, a completion marker for parity 2 and the
-#	   digest of the table that goes with it.
+#	1. Create a raidz1 pool from a vdev config that carries a completion
+#	   marker for parity 2 and the digest of the table that goes with it,
+#	   and store that table, which ends at parity 2, as zhack does.  The
+#	   labels must carry the table, and not the marker.
 #	2. Fault two children of the open pool: the vdev has to go from
-#	   DEGRADED to CANT_OPEN, as it does in a pool without the marker.
+#	   DEGRADED to CANT_OPEN, as it does in a pool without a table.
 #	3. Import the pool with two children missing: it must not open.
 #	4. With one child missing it opens, DEGRADED.
 #
@@ -60,6 +63,9 @@ function marker_case
 		log_must raidz_epoch_test create $dir $POOL $WIDTH 1
 	else
 		log_must raidz_epoch_test create $dir $POOL $WIDTH 1 $marker
+		log_must eval "zdb -l $dir/v0 > $dir/labels.out"
+		log_must grep -q 'raidz_parity_epochs\[' $dir/labels.out
+		log_mustnot grep -q 'rrmvp' $dir/labels.out
 	fi
 
 	out=$(raidz_epoch_test state $dir $POOL fault) ||
@@ -90,9 +96,9 @@ function marker_case
 }
 
 log_onexit cleanup
-log_assert "a re-parity completion marker does not raise the tolerance"
+log_assert "a table that ends at a higher parity does not raise the tolerance"
 
 marker_case plain none
 marker_case marked 2
 
-log_pass "a re-parity completion marker does not raise the tolerance"
+log_pass "a table that ends at a higher parity does not raise the tolerance"

@@ -19,9 +19,21 @@
  *
  *   create <dir> <pool> <children> <parity> [<marker-parity>]
  *	Create an empty raidz pool with every feature enabled.  With a marker
- *	parity, also give the vdev a parity-epoch table that ends at that
- *	parity, plus a completion marker for it with a matching digest, the way
- *	a label written by a build that supports in-place re-parity would.
+ *	parity, also store a parity-epoch table that ends at that parity, the
+ *	way zhack does, and put a completion marker for that parity, with a
+ *	matching digest, in the config the pool is created from, as software
+ *	with an in-place re-parity would; this code keeps neither, so they
+ *	never reach the labels or the MOS config.
+ *   forge <dir> <pool> <children> <parity> create|add
+ *	Give a raidz vdev whose config carries a parity-epoch table, as only a
+ *	hand-made config can, to pool creation, or add it to the pool that
+ *	"create" made in <dir>.  Print the result and the number of top-level
+ *	vdevs of the pool.
+ *   rootparse <dir> <pool>
+ *	Parse the vdev tree of the label of <dir>/v0 the way the root pool
+ *	import of FreeBSD does before it opens the pool, outside spa_load(),
+ *	and print the result, the size of the parity-epoch table in the label
+ *	and the number of entries the parse put in force.
  *   write <dir> <pool> <blocksize>
  *	Write one block of reproducible data to a new MOS object and print its
  *	object number, the offsets of its DVAs on vdev 0 and its birth txg.
@@ -87,6 +99,9 @@ usage(void)
 	(void) fprintf(stderr,
 	    "usage: raidz_epoch_test create <dir> <pool> <children> <parity> "
 	    "[<marker-parity>]\n"
+	    "       raidz_epoch_test forge <dir> <pool> <children> <parity> "
+	    "create|add\n"
+	    "       raidz_epoch_test rootparse <dir> <pool>\n"
 	    "       raidz_epoch_test write <dir> <pool> <blocksize>\n"
 	    "       raidz_epoch_test corrupt <dir> <offsets> <psize> <width> "
 	    "<parity> <ashift> <column>...\n"
@@ -100,6 +115,13 @@ static void
 vdev_path(char *buf, size_t len, const char *dir, int child)
 {
 	(void) snprintf(buf, len, "%s/v%d", dir, child);
+}
+
+/* The files of a raidz vdev added to the pool: <dir>/a0 .. a<N-1>. */
+static void
+added_path(char *buf, size_t len, const char *dir, int child)
+{
+	(void) snprintf(buf, len, "%s/a%d", dir, child);
 }
 
 static nvlist_t *
@@ -215,22 +237,27 @@ epoch_digest(const uint64_t *tbl, uint64_t nent, uint64_t max_parity)
 	return (h);
 }
 
-static int
-do_create(const char *dir, const char *pool, int children, int parity,
-    int marker)
+/*
+ * A raidz vdev of new files, named by pathf, with the table in its config
+ * if there is one.
+ */
+static nvlist_t *
+raidz_config(const char *dir, int children, int parity,
+    void (*pathf)(char *, size_t, const char *, int), const uint64_t *tbl,
+    uint_t tbl_len)
 {
-	nvlist_t **child, *raid, *root, *props;
+	nvlist_t **child;
+	nvlist_t *raid;
 	char path[PATH_BUF];
-	spa_t *spa;
 	int err;
 
 	child = calloc(children, sizeof (nvlist_t *));
 	for (int c = 0; c < children; c++) {
-		vdev_path(path, sizeof (path), dir, c);
+		pathf(path, sizeof (path), dir, c);
 		err = make_file(path, VDEV_FILE_SIZE);
 		if (err != 0) {
 			(void) fprintf(stderr, "make_file %s: %d\n", path, err);
-			return (err);
+			exit(1);
 		}
 		child[c] = file_vdev(path);
 	}
@@ -241,29 +268,36 @@ do_create(const char *dir, const char *pool, int children, int parity,
 	fnvlist_add_uint64(raid, ZPOOL_CONFIG_IS_LOG, 0);
 	fnvlist_add_nvlist_array(raid, ZPOOL_CONFIG_CHILDREN,
 	    (const nvlist_t * const *)child, children);
-
-	if (marker != 0) {
-		uint64_t tbl[6] = { 0, children, parity,
-		    FORGED_EPOCH_START, children, marker };
-
+	if (tbl != NULL) {
 		fnvlist_add_uint64_array(raid, ZPOOL_CONFIG_RAIDZ_PARITY_EPOCHS,
-		    tbl, 6);
-		fnvlist_add_uint64(raid, "com.rrmvp:raidz_reparity_parity",
-		    marker);
-		fnvlist_add_uint64(raid,
-		    "com.rrmvp:raidz_reparity_completion_txg", 1);
-		fnvlist_add_uint64(raid,
-		    "com.rrmvp:raidz_reparity_epoch_digest",
-		    epoch_digest(tbl, 2, marker));
+		    tbl, tbl_len);
 	}
 
-	root = fnvlist_alloc();
+	for (int c = 0; c < children; c++)
+		fnvlist_free(child[c]);
+	free(child);
+	return (raid);
+}
+
+static nvlist_t *
+root_config(nvlist_t *raid)
+{
+	nvlist_t *root = fnvlist_alloc();
+
 	fnvlist_add_string(root, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT);
 	fnvlist_add_nvlist_array(root, ZPOOL_CONFIG_CHILDREN,
 	    (const nvlist_t * const *)&raid, 1);
+	return (root);
+}
+
+static int
+create_pool(const char *pool, nvlist_t *raid)
+{
+	nvlist_t *root = root_config(raid);
+	nvlist_t *props = fnvlist_alloc();
+	int err;
 
 	/* spa_create() enables no feature by itself; ask for all of them. */
-	props = fnvlist_alloc();
 	for (int i = 0; i < SPA_FEATURES; i++) {
 		char buf[256];
 
@@ -276,18 +310,208 @@ do_create(const char *dir, const char *pool, int children, int parity,
 
 	err = spa_create(pool, root, props, NULL, NULL, NULL);
 	fnvlist_free(root);
-	fnvlist_free(raid);
-	for (int c = 0; c < children; c++)
-		fnvlist_free(child[c]);
-	free(child);
 	fnvlist_free(props);
+	return (err);
+}
+
+/*
+ * Store a table on the first top-level vdev the way zhack(1) does: checked
+ * in syncing context, where the setter's verdict is final, then set.
+ */
+typedef struct table_arg {
+	const uint64_t	*ta_table;
+	uint64_t	ta_entries;
+} table_arg_t;
+
+static int
+store_table_check(void *arg, dmu_tx_t *tx)
+{
+	table_arg_t *ta = arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+
+	if (!dmu_tx_is_syncing(tx))
+		return (0);
+	return (vdev_raidz_parity_epochs_set_check_tx(
+	    spa->spa_root_vdev->vdev_child[0], ta->ta_table, ta->ta_entries,
+	    tx));
+}
+
+static void
+store_table_sync(void *arg, dmu_tx_t *tx)
+{
+	table_arg_t *ta = arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+
+	VERIFY0(vdev_raidz_parity_epochs_set(spa->spa_root_vdev->vdev_child[0],
+	    ta->ta_table, ta->ta_entries, tx));
+}
+
+static int
+do_create(const char *dir, const char *pool, int children, int parity,
+    int marker)
+{
+	uint64_t tbl[6] = { 0, children, parity,
+	    FORGED_EPOCH_START, children, marker };
+	table_arg_t ta = { tbl, 2 };
+	nvlist_t *raid;
+	spa_t *spa;
+	int err;
+
+	raid = raidz_config(dir, children, parity, vdev_path, NULL, 0);
+	if (marker != 0) {
+		fnvlist_add_uint64(raid, "com.rrmvp:raidz_reparity_parity",
+		    marker);
+		fnvlist_add_uint64(raid,
+		    "com.rrmvp:raidz_reparity_completion_txg", 1);
+		fnvlist_add_uint64(raid,
+		    "com.rrmvp:raidz_reparity_epoch_digest",
+		    epoch_digest(tbl, 2, marker));
+	}
+
+	err = create_pool(pool, raid);
+	fnvlist_free(raid);
 	(void) printf("RESULT create rc=%d\n", err);
 	if (err != 0)
 		return (err);
 
 	VERIFY0(spa_open(pool, &spa, FTAG));
+	if (marker != 0) {
+		err = dsl_sync_task(pool, store_table_check, store_table_sync,
+		    &ta, 5, ZFS_SPACE_CHECK_NORMAL);
+		(void) printf("RESULT create table rc=%d\n", err);
+	}
 	txg_wait_synced(spa_get_dsl(spa), 0);
 	close_pool(spa, pool);
+	return (err);
+}
+
+static int
+do_forge(const char *dir, const char *pool, int children, int parity,
+    const char *how)
+{
+	uint64_t tbl[6] = { 0, children, parity,
+	    FORGED_EPOCH_START, children, parity % 3 + 1 };
+	nvlist_t *raid;
+	nvlist_t *root;
+	spa_t *spa = NULL;
+	int err = 0;
+
+	if (strcmp(how, "create") == 0) {
+		raid = raidz_config(dir, children, parity, vdev_path, tbl, 6);
+		err = create_pool(pool, raid);
+		fnvlist_free(raid);
+		if (err != 0) {
+			(void) printf("RESULT forge create rc=%d top=0\n", err);
+			return (0);
+		}
+		VERIFY0(spa_open(pool, &spa, FTAG));
+	} else if (strcmp(how, "add") == 0) {
+		err = open_pool(dir, pool, B_FALSE, &spa);
+		if (err != 0) {
+			(void) printf("RESULT forge add import rc=%d\n", err);
+			return (err);
+		}
+		raid = raidz_config(dir, children, parity, added_path, tbl, 6);
+		root = root_config(raid);
+		err = spa_vdev_add(spa, root, B_FALSE);
+		fnvlist_free(root);
+		fnvlist_free(raid);
+	} else {
+		usage();
+	}
+
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	(void) printf("RESULT forge %s rc=%d top=%llu\n", how, err,
+	    (u_longlong_t)spa->spa_root_vdev->vdev_children);
+	close_pool(spa, pool);
+	return (0);
+}
+
+/*
+ * What spa_import_rootpool() does on FreeBSD before it opens the root pool,
+ * from spa_generate_rootconf(), for a pool of one top-level vdev and from
+ * one leaf: a config made of the label, whose vdev tree is parsed with
+ * VDEV_ALLOC_ROOTPOOL on a spa that spa_add() has just made.
+ */
+static int
+do_rootparse(const char *dir, const char *pool)
+{
+	nvlist_t *label;
+	nvlist_t *config;
+	nvlist_t *nvroot;
+	nvlist_t *nvtop;
+	char path[PATH_BUF];
+	const char *pname;
+	uint64_t *tbl;
+	uint_t tbl_len = 0;
+	uint64_t nent = 0;
+	vdev_t *rvd = NULL;
+	spa_t *spa;
+	int fd;
+	int num;
+	int err;
+
+	vdev_path(path, sizeof (path), dir, 0);
+	fd = open(path, O_RDONLY);
+	if (fd == -1 || zpool_read_label(fd, &label, &num) != 0 ||
+	    label == NULL) {
+		(void) fprintf(stderr, "no label on %s\n", path);
+		return (1);
+	}
+	(void) close(fd);
+	pname = fnvlist_lookup_string(label, ZPOOL_CONFIG_POOL_NAME);
+	if (strcmp(pname, pool) != 0) {
+		(void) fprintf(stderr, "%s is a vdev of %s\n", path, pname);
+		nvlist_free(label);
+		return (1);
+	}
+
+	nvtop = fnvlist_lookup_nvlist(label, ZPOOL_CONFIG_VDEV_TREE);
+	if (nvlist_lookup_uint64_array(nvtop, ZPOOL_CONFIG_RAIDZ_PARITY_EPOCHS,
+	    &tbl, &tbl_len) != 0)
+		tbl_len = 0;
+	nvroot = fnvlist_alloc();
+	fnvlist_add_string(nvroot, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT);
+	fnvlist_add_uint64(nvroot, ZPOOL_CONFIG_ID, 0ULL);
+	fnvlist_add_uint64(nvroot, ZPOOL_CONFIG_GUID,
+	    fnvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_GUID));
+	fnvlist_add_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    (const nvlist_t * const *)&nvtop, 1);
+	config = fnvlist_dup(label);
+	fnvlist_add_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, nvroot);
+	fnvlist_remove(config, ZPOOL_CONFIG_GUID);
+	fnvlist_remove(config, ZPOOL_CONFIG_TOP_GUID);
+	fnvlist_free(nvroot);
+
+	spa_namespace_enter(FTAG);
+	spa = spa_add(pool, config, NULL);
+	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION,
+	    &spa->spa_ubsync.ub_version) != 0)
+		spa->spa_ubsync.ub_version = SPA_VERSION_INITIAL;
+	spa->spa_is_root = B_TRUE;
+	spa->spa_import_flags = ZFS_IMPORT_VERBATIM;
+
+	nvtop = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE);
+	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+	err = spa_config_parse(spa, &rvd, nvtop, NULL, 0, VDEV_ALLOC_ROOTPOOL);
+	if (err == 0) {
+		vdev_t *tvd = rvd->vdev_child[0];
+
+		if (tvd->vdev_ops == &vdev_raidz_ops) {
+			vdev_raidz_t *vdrz = tvd->vdev_tsd;
+
+			nent = vdrz->vd_parity_epoch_count;
+		}
+		vdev_free(rvd);
+	}
+	spa_config_exit(spa, SCL_ALL, FTAG);
+	spa_remove(spa);
+	spa_namespace_exit(FTAG);
+
+	(void) printf("RESULT rootparse rc=%d label=%u table=%llu\n", err,
+	    tbl_len, (u_longlong_t)nent);
+	fnvlist_free(config);
+	nvlist_free(label);
 	return (0);
 }
 
@@ -663,6 +887,11 @@ main(int argc, char **argv)
 	if (strcmp(argv[1], "create") == 0 && argc >= 6) {
 		rv = do_create(argv[2], argv[3], atoi(argv[4]), atoi(argv[5]),
 		    argc >= 7 ? atoi(argv[6]) : 0);
+	} else if (strcmp(argv[1], "forge") == 0 && argc == 7) {
+		rv = do_forge(argv[2], argv[3], atoi(argv[4]), atoi(argv[5]),
+		    argv[6]);
+	} else if (strcmp(argv[1], "rootparse") == 0 && argc == 4) {
+		rv = do_rootparse(argv[2], argv[3]);
 	} else if (strcmp(argv[1], "write") == 0 && argc == 5) {
 		rv = do_write(argv[2], argv[3], strtoull(argv[4], NULL, 10));
 	} else if (strcmp(argv[1], "read") == 0 && argc == 6) {
