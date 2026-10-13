@@ -1708,6 +1708,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_POOL_PREFETCH,			/* 0x5a58 */
 	ZFS_IOC_DDT_PRUNE,			/* 0x5a59 */
 	ZFS_IOC_POOL_CONDENSE,			/* 0x5a5a */
+	ZFS_IOC_ZVOL_REWRITE,			/* 0x5a5b */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.
@@ -2002,6 +2003,14 @@ typedef enum {
  */
 #define	DDT_PRUNE_UNIT		"ddt_prune_unit"
 #define	DDT_PRUNE_AMOUNT	"ddt_prune_amount"
+
+/*
+ * The following are names used when invoking ZFS_IOC_ZVOL_REWRITE.  The
+ * flags are the ZFS_REWRITE_* flags of zfs_rewrite_args_t.
+ */
+#define	ZVOL_REWRITE_OFFSET	"rewrite_offset"
+#define	ZVOL_REWRITE_LENGTH	"rewrite_length"
+#define	ZVOL_REWRITE_FLAGS	"rewrite_flags"
 
 /*
  * Flags for ZFS_IOC_VDEV_SET_STATE
