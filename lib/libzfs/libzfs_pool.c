@@ -4066,6 +4066,17 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		    "than the top-level vdev.");
 		(void) zfs_error(hdl, EZFS_BADTARGET, errbuf);
 		break;
+
+	case ZFS_ERR_VDEV_NOTSUP:
+		if (strcmp(type, VDEV_TYPE_RAIDZ) == 0) {
+			zfs_error_aux(hdl, "raidz vdev has a parity-epoch "
+			    "table (feature@raidz_parity_epochs) and cannot be "
+			    "expanded");
+			(void) zfs_error(hdl, EZFS_VDEV_NOTSUP, errbuf);
+		} else {
+			(void) zpool_standard_error(hdl, errno, errbuf);
+		}
+		break;
 	default:
 		(void) zpool_standard_error(hdl, errno, errbuf);
 	}

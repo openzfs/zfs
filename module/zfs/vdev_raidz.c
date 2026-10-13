@@ -5555,6 +5555,26 @@ vdev_raidz_attach_check(vdev_t *new_child)
 	return (0);
 }
 
+/*
+ * A parity-epoch table and expansion history are mutually exclusive
+ * (vdev_raidz_load() refuses a vdev that has both), so an expansion must not
+ * start on a vdev that has a table.
+ */
+boolean_t
+vdev_raidz_has_parity_epochs(vdev_t *vd)
+{
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	boolean_t has;
+
+	ASSERT3P(vd->vdev_ops, ==, &vdev_raidz_ops);
+
+	mutex_enter(&vdrz->vd_expand_lock);
+	has = (vdrz->vd_parity_epochs != NULL);
+	mutex_exit(&vdrz->vd_expand_lock);
+
+	return (has);
+}
+
 void
 vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 {
@@ -5568,6 +5588,7 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 	ASSERT3U(raidvd->vdev_children, ==, vdrz->vd_physical_width + 1);
 	ASSERT3P(raidvd->vdev_child[raidvd->vdev_children - 1], ==,
 	    new_child);
+	ASSERT(!vdev_raidz_has_parity_epochs(raidvd));
 
 	spa_feature_incr(spa, SPA_FEATURE_RAIDZ_EXPANSION, tx);
 
