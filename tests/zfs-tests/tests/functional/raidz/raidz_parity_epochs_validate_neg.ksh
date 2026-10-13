@@ -77,7 +77,7 @@ function check_refused # <description> <rule> <start:width:parity>...
 	log_mustnot zpool import -d $workdir $pool
 	log_must zpool import -o readonly=on -d $workdir $pool
 	log_must cmp /$pool/data $workdir/data.ref
-	log_must zpool export $pool
+	log_must_busy zpool export $pool
 	log_must set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 0
 }
 

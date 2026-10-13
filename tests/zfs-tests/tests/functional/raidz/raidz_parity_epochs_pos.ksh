@@ -85,7 +85,7 @@ log_must set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 1
 log_mustnot zpool import -d $BASEDIR $TESTPOOL2
 log_must zpool import -d $BASEDIR -o readonly=on $TESTPOOL2
 log_must cmp /$TESTPOOL2/payload $BASEDIR/payload.ref
-log_must zpool export $TESTPOOL2
+log_must_busy zpool export $TESTPOOL2
 
 # zhack opens a pool for writing, so it cannot open this one with the tunable
 # either: the damaged table can be read around, not repaired in place.
