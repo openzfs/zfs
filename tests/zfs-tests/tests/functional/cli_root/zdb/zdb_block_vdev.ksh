@@ -31,6 +31,8 @@
 #	   rewrite the files, skipping cloned and snapshot blocks: the
 #	   checkpoint row fills, the cloned and snapshot rows stay, the
 #	   live row shrinks, and the vdev balances with and without -L.
+#	   Rewriting a file without skipping snapshot blocks moves them to
+#	   the snapshot-only row.
 #	5. Discard the checkpoint, destroy the snapshot, remove the clone
 #	   and rewrite: each of those rows empties.
 #	6. With log space maps kept at export, the vdevs balance with and
@@ -43,6 +45,12 @@
 #	   rejected.
 #	9. On a pool whose device is named "s0", an unknown name is
 #	   rejected.
+#	10. In a dataset whose blocks all sit on the special mirror, take
+#	   three snapshots with frees between them: with -bb, each
+#	   snapshot-only row is what "zfs destroy -nv" would reclaim, they
+#	   add up to usedbysnapshots, and the live rows to referenced.
+#	11. Clone the middle snapshot: the rows name the clone, and no
+#	   snapshot-only range includes its origin.
 #
 
 verify_runnable "global"
@@ -53,7 +61,7 @@ fi
 
 VDEV_DIR=$TEST_BASE_DIR/zdb_block_vdev
 OUT=$VDEV_DIR/out
-SNAP_ROWS="born in snapshots (live and/or snapshot-only)"
+SNAP_ROWS="born in snapshots (live and/or snapshot-only; use -bb to split)"
 
 function cleanup
 {
@@ -230,6 +238,19 @@ log_must test "$(row $OUT.1 "$TESTPOOL/fs: live, in no snapshot")" -lt $live
 balanced $OUT.1
 zdbv $TESTPOOL 1 $OUT.1L -bPL
 balanced $OUT.1L
+zdbv $TESTPOOL 1 $OUT.1bb -bbP
+only=$(row $OUT.1bb "$TESTPOOL/fs: only in snapshots $TESTPOOL/fs@s")
+import_pool $TESTPOOL
+mnt=$(get_prop mountpoint $TESTPOOL/fs)
+
+# The 128 blocks of B that the snapshot shares are left to it alone.
+log_must zfs rewrite $mnt/B
+export_pool $TESTPOOL
+zdbv $TESTPOOL 1 $OUT.1bb -bbP
+log_must test \
+    "$(row $OUT.1bb "$TESTPOOL/fs: only in snapshots $TESTPOOL/fs@s")" \
+    -ge $((only + 128 * 32768))
+balanced $OUT.1bb
 import_pool $TESTPOOL
 
 #
@@ -242,6 +263,8 @@ zdbv $TESTPOOL 1 $OUT.1 -bP
 log_must test "$(row $OUT.1 "checkpoint")" -eq 0
 log_must test "$(row $OUT.1 "$TESTPOOL/fs: $SNAP_ROWS")" -eq 0
 balanced $OUT.1
+zdbv $TESTPOOL 1 $OUT.1bb -bbP
+log_mustnot grep -q "$TESTPOOL/fs: only in snapshots" $OUT.1bb
 import_pool $TESTPOOL
 mnt=$(get_prop mountpoint $TESTPOOL/fs)
 log_must rm $mnt/C
@@ -373,5 +396,67 @@ export_pool $TESTPOOL2
 zdbv $TESTPOOL2 s0 $OUT.s0 -bP
 balanced $OUT.s0
 log_mustnot zdb -e -p $VDEV_DIR -b --vdev=nosuch $TESTPOOL2
+
+#
+# 10. The snapshot rows against ZFS's own accounting. All of fs2's blocks
+# sit on the special mirror, whose deflated size is its allocated size.
+#
+import_pool $TESTPOOL
+fs2=$TESTPOOL/fs2
+log_must zfs create -o recordsize=32K -o special_small_blocks=32K \
+    -o compression=off $fs2
+mnt=$(get_prop mountpoint $fs2)
+log_must dd if=/dev/urandom of=$mnt/F1 bs=1M count=4
+sync_pool $TESTPOOL true
+log_must zfs snapshot $fs2@a
+log_must dd if=/dev/urandom of=$mnt/F1 bs=1M count=1 conv=notrunc
+log_must dd if=/dev/urandom of=$mnt/F2 bs=1M count=1
+sync_pool $TESTPOOL true
+log_must zfs snapshot $fs2@b
+log_must rm $mnt/F2
+sync_pool $TESTPOOL true
+log_must zfs snapshot $fs2@c
+log_must dd if=/dev/urandom of=$mnt/F1 bs=1M count=1 seek=1 conv=notrunc
+sync_pool $TESTPOOL true
+usedsnap=$(get_prop usedbysnapshots $fs2)
+referenced=$(get_prop referenced $fs2)
+export_pool $TESTPOOL
+zdbv $TESTPOOL 1 $OUT.o -bbP
+balanced $OUT.o
+log_mustnot grep -q "^	note: inconsistent" $OUT.o
+import_pool $TESTPOOL
+
+prefix="$fs2: only in snapshots "
+ranges=$(awk -v p="$prefix" 'NF >= 3 &&
+    index(substr($0, index($0, $3)), p) == 1 {
+	print substr($0, index($0, $3) + length(p))
+    }' $OUT.o)
+log_must test -n "$ranges"
+sum=0
+for range in $ranges; do
+	value=$(row $OUT.o "$prefix$range")
+	reclaim=$(zfs destroy -nvp $range | awk '/^reclaim/ { print $2 }')
+	log_note "$range: $value on the vdev, $reclaim to reclaim"
+	log_must test "$value" -eq "$reclaim"
+	sum=$((sum + value))
+done
+log_must test $sum -eq $usedsnap
+live=$(($(row $OUT.o "$fs2: live, in no snapshot") + \
+    $(row $OUT.o "$fs2: live, also in snapshots")))
+log_must test $live -eq $referenced
+
+#
+# 11. A clone of the middle snapshot.
+#
+log_must zfs clone $fs2@b ${fs2}c
+mnt=$(get_prop mountpoint ${fs2}c)
+log_must dd if=/dev/urandom of=$mnt/G bs=1M count=1
+export_pool $TESTPOOL
+zdbv $TESTPOOL 1 $OUT.c -bbP
+balanced $OUT.c
+log_must test "$(row $OUT.c \
+    "$fs2: live or held through clones of $fs2@b (${fs2}c)")" -gt 0
+log_mustnot grep -Eq "$fs2: only in snapshots ($fs2@b|.*%(b|c)$)" $OUT.c
+log_must test "$(row $OUT.c "${fs2}c: live, in no snapshot")" -gt 0
 
 log_pass "'zdb -b --vdev' accounts for the space allocated on a vdev"
