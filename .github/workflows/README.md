@@ -92,10 +92,41 @@ results are considered, so an older success cannot replace a
 newer failure. Only completed workflows are reused, even if individual
 jobs in a running workflow have already finished.
 
+Fork results are reused only on the first workflow attempt. Requested
+reruns execute the selected jobs in the base repository, including
+selective QEMU matrix reruns that retain the original Setup outputs.
+
 This version checks run and step metadata and assumes the fork uses the
 standard full-testing push workflow. It does not compare workflow or
 script contents with the PR base, allowing its own PR to demonstrate
 reuse. Comparing CI files is deferred to a later change.
+
+### Reusing fork zloop results
+
+The `zloop` job uses the same helper, `reuse-ci.py zloop`, to find a
+successful push job for the exact PR head SHA. Push and PR jobs use
+the same build configuration (debug, ASAN and UBSAN) and test command.
+Dependency installation, autogen, configure, make, install and tests
+must all have succeeded on `ubuntu-24.04`. The same run age and source
+repository checks apply as for QEMU.
+
+A matching result skips build and testing in the PR job and links to
+the original job logs. Otherwise the usual zloop steps run. Successful
+zloop jobs do not upload artifacts, so reuse needs no artifact transfer.
+
+### Reusing other fork results
+
+`unit-tests`, `zfs-arm` and `checkstyle` also use `reuse-ci.py`, passing
+their workflow name. The helper specifies each workflow's file, runner,
+job name and required successful steps. All use the same SHA, run age,
+source repository and first-attempt checks as QEMU and zloop.
+
+Unit tests require the complete userspace build and test sequence on
+`ubuntu-24.04`. ARM requires dependency installation and the build/sanity
+test step on `ubuntu-24.04-arm`; manual runs with a custom GCC are not
+reused. Checkstyle requires prepare, configure, build, style, lint and
+ABI checks on `ubuntu-22.04`. Missing or failed results run normally,
+as do manually requested reruns.
 
 ### Supported guests
 
