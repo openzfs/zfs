@@ -5564,28 +5564,44 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
  * narrower one describes a vdev that was expanded or contracted, neither of
  * which combines with a table (the caller refuses expansion state before it
  * gets here).  Only the parity may change, up or down.
+ *
+ * On EINVAL, *why, if why is not NULL, says which rule the table breaks.
  */
 static int
 vdev_raidz_parity_epochs_check(const uint64_t *tbl, uint64_t nent,
-    uint64_t width, uint64_t nparity)
+    uint64_t width, uint64_t nparity, const char **why)
 {
-	if (nent == 0 || nent > VDEV_RAIDZ_MAX_PARITY_EPOCHS ||
-	    width > UINT8_MAX)
-		return (SET_ERROR(EINVAL));
+	const char *rule = NULL;
 
-	if (tbl[0] != 0 || tbl[2] != nparity)
-		return (SET_ERROR(EINVAL));
+	if (nent == 0)
+		rule = "it has no entry";
+	else if (nent > VDEV_RAIDZ_MAX_PARITY_EPOCHS)
+		rule = "it has more entries than a ZAP value holds";
+	else if (width > UINT8_MAX)
+		rule = "the vdev has more children than a table describes";
+	else if (tbl[0] != 0)
+		rule = "the first entry does not start at txg 0";
+	else if (tbl[2] != nparity)
+		rule = "the first entry does not have the parity of the vdev";
 
-	for (uint64_t i = 0; i < nent; i++) {
+	for (uint64_t i = 0; rule == NULL && i < nent; i++) {
 		uint64_t parity = tbl[3 * i + 2];
 
-		if (parity < 1 || parity > VDEV_RAIDZ_MAXPARITY ||
-		    tbl[3 * i + 1] != width || width <= parity ||
-		    (i > 0 && tbl[3 * i] <= tbl[3 * (i - 1)]))
-			return (SET_ERROR(EINVAL));
+		if (parity < 1 || parity > VDEV_RAIDZ_MAXPARITY)
+			rule = "an entry has a parity outside 1 to 3";
+		else if (tbl[3 * i + 1] != width)
+			rule = "an entry does not have the width of the vdev";
+		else if (width <= parity)
+			rule = "an entry has no data column";
+		else if (i > 0 && tbl[3 * i] <= tbl[3 * (i - 1)])
+			rule = "the starts of the entries do not increase";
 	}
 
-	return (0);
+	if (rule == NULL)
+		return (0);
+	if (why != NULL)
+		*why = rule;
+	return (SET_ERROR(EINVAL));
 }
 
 /*
@@ -5646,7 +5662,7 @@ vdev_raidz_parity_epochs_first_start(dmu_tx_t *tx)
  */
 static int
 vdev_raidz_parity_epochs_verdict(vdev_t *vd, const uint64_t *table,
-    uint64_t nent, uint64_t first)
+    uint64_t nent, uint64_t first, const char **why)
 {
 	vdev_raidz_t *vdrz;
 	uint64_t base[3];
@@ -5657,11 +5673,17 @@ vdev_raidz_parity_epochs_verdict(vdev_t *vd, const uint64_t *table,
 	int error;
 
 	if (vd->vdev_ops != &vdev_raidz_ops || vd != vd->vdev_top ||
-	    vd->vdev_top_zap == 0)
+	    vd->vdev_top_zap == 0) {
+		if (why != NULL)
+			*why = "not a top-level raidz vdev with a ZAP";
 		return (SET_ERROR(EINVAL));
+	}
 	if (!spa_feature_is_enabled(vd->vdev_spa,
-	    SPA_FEATURE_RAIDZ_PARITY_EPOCHS))
+	    SPA_FEATURE_RAIDZ_PARITY_EPOCHS)) {
+		if (why != NULL)
+			*why = "feature@raidz_parity_epochs is not enabled";
 		return (SET_ERROR(ENOTSUP));
+	}
 
 	vdrz = vd->vdev_tsd;
 	mutex_enter(&vdrz->vd_expand_lock);
@@ -5673,11 +5695,14 @@ vdev_raidz_parity_epochs_verdict(vdev_t *vd, const uint64_t *table,
 	 */
 	if (expanded || vdrz->vn_vre.vre_state != DSS_NONE ||
 	    vdrz->vd_original_width != vdrz->vd_physical_width ||
-	    vd->vdev_children != vdrz->vd_physical_width)
+	    vd->vdev_children != vdrz->vd_physical_width) {
+		if (why != NULL)
+			*why = "the vdev has expansion state or history";
 		return (SET_ERROR(ENOTSUP));
+	}
 
 	error = vdev_raidz_parity_epochs_check(table, nent,
-	    vdrz->vd_physical_width, vdrz->vd_nparity);
+	    vdrz->vd_physical_width, vdrz->vd_nparity, why);
 	if (error != 0)
 		return (error);
 
@@ -5696,12 +5721,18 @@ vdev_raidz_parity_epochs_verdict(vdev_t *vd, const uint64_t *table,
 	extends = nent >= ncur &&
 	    memcmp(table, cur, ncur * 3 * sizeof (uint64_t)) == 0;
 	mutex_exit(&vdrz->vd_expand_lock);
-	if (!extends)
+	if (!extends) {
+		if (why != NULL)
+			*why = "it changes or drops an epoch the vdev has";
 		return (SET_ERROR(EINVAL));
+	}
 
 	/* The starts increase, so the first added epoch is the earliest. */
-	if (first != 0 && nent > ncur && table[3 * ncur] < first)
+	if (first != 0 && nent > ncur && table[3 * ncur] < first) {
+		if (why != NULL)
+			*why = "an added epoch starts too early";
 		return (SET_ERROR(ERANGE));
+	}
 
 	return (0);
 }
@@ -5722,12 +5753,13 @@ vdev_raidz_parity_epochs_verdict(vdev_t *vd, const uint64_t *table,
  *	   one that changes or drops an epoch the vdev has.
  * ENOTSUP: the feature is not enabled, or the vdev has expansion state or
  *	   history, which cannot coexist with a table.
+ * On an error, *why, if why is not NULL, says which rule was broken.
  */
 int
 vdev_raidz_parity_epochs_set_check(vdev_t *vd, const uint64_t *table,
-    uint64_t nent)
+    uint64_t nent, const char **why)
 {
-	return (vdev_raidz_parity_epochs_verdict(vd, table, nent, 0));
+	return (vdev_raidz_parity_epochs_verdict(vd, table, nent, 0, why));
 }
 
 /*
@@ -5739,10 +5771,10 @@ vdev_raidz_parity_epochs_set_check(vdev_t *vd, const uint64_t *table,
  */
 int
 vdev_raidz_parity_epochs_set_check_tx(vdev_t *vd, const uint64_t *table,
-    uint64_t nent, dmu_tx_t *tx)
+    uint64_t nent, dmu_tx_t *tx, const char **why)
 {
 	return (vdev_raidz_parity_epochs_verdict(vd, table, nent,
-	    vdev_raidz_parity_epochs_first_start(tx)));
+	    vdev_raidz_parity_epochs_first_start(tx), why));
 }
 
 /*
@@ -5771,7 +5803,8 @@ vdev_raidz_parity_epochs_set(vdev_t *vd, const uint64_t *table,
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(spa_config_held(spa, SCL_CONFIG, RW_READER));
 
-	error = vdev_raidz_parity_epochs_set_check_tx(vd, table, nent, tx);
+	error = vdev_raidz_parity_epochs_set_check_tx(vd, table, nent, tx,
+	    NULL);
 	if (error != 0)
 		return (error);
 
@@ -5947,9 +5980,15 @@ vdev_raidz_load(vdev_t *vd)
 			    &int_size, &num_ints);
 		}
 		if (err == 0) {
+			const char *why = NULL;
+
 			if (int_size != sizeof (uint64_t) || num_ints == 0 ||
-			    (num_ints % 3) != 0)
+			    (num_ints % 3) != 0) {
+				vdev_dbgmsg(vd, "vdev_raidz_load: rejecting "
+				    "parity epoch table [error=%d]: it is not "
+				    "made of whole uint64 triplets", EINVAL);
 				return (SET_ERROR(EINVAL));
+			}
 
 			/*
 			 * Expansion history and a parity-epoch table are
@@ -5974,11 +6013,14 @@ vdev_raidz_load(vdev_t *vd)
 			if (err == 0) {
 				err = vdev_raidz_parity_epochs_check(table,
 				    num_ints / 3, vdrz->vd_physical_width,
-				    vdrz->vd_nparity);
+				    vdrz->vd_nparity, &why);
+			} else {
+				why = "it cannot be read";
 			}
 			if (err != 0) {
 				vdev_dbgmsg(vd, "vdev_raidz_load: rejecting "
-				    "parity epoch table [error=%d]", err);
+				    "parity epoch table [error=%d]: %s", err,
+				    why);
 				kmem_free(table,
 				    num_ints * sizeof (uint64_t));
 				return (err);
@@ -6127,29 +6169,39 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 
 	uint64_t *pe_label;
 	unsigned int pe_label_size = 0;
-	boolean_t pe_ok = B_FALSE;
 	if (!raidz_ignore_parity_epochs &&
 	    nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_RAIDZ_PARITY_EPOCHS,
-	    &pe_label, &pe_label_size) == 0 && pe_label_size > 0 &&
-	    (pe_label_size % 3) == 0) {
+	    &pe_label, &pe_label_size) == 0) {
+		const char *why = NULL;
+
 		/*
 		 * Validate BEFORE the table can influence any read.  A
 		 * malformed or tampered label table, or one next to
 		 * expansion state, is ignored (the authoritative ZAP copy
 		 * loads later and refuses the same cases).
 		 */
-		pe_ok = !reflow_in_progress &&
-		    !nvlist_exists(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_TXGS) &&
-		    vdev_raidz_parity_epochs_check(pe_label,
-		    pe_label_size / 3, children, nparity) == 0;
-	}
-	if (pe_ok) {
-		uint64_t *table = kmem_alloc(
-		    pe_label_size * sizeof (uint64_t), KM_SLEEP);
-		for (unsigned int i = 0; i < pe_label_size; i++)
-			table[i] = pe_label[i];
-		vdrz->vd_parity_epochs = table;
-		vdrz->vd_parity_epoch_count = pe_label_size / 3;
+		if (pe_label_size == 0 || (pe_label_size % 3) != 0) {
+			why = "it is not made of whole uint64 triplets";
+		} else if (reflow_in_progress ||
+		    nvlist_exists(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_TXGS)) {
+			why = "the vdev has expansion state or history";
+		} else {
+			(void) vdev_raidz_parity_epochs_check(pe_label,
+			    pe_label_size / 3, children, nparity, &why);
+		}
+
+		if (why == NULL) {
+			uint64_t *table = kmem_alloc(
+			    pe_label_size * sizeof (uint64_t), KM_SLEEP);
+			for (unsigned int i = 0; i < pe_label_size; i++)
+				table[i] = pe_label[i];
+			vdrz->vd_parity_epochs = table;
+			vdrz->vd_parity_epoch_count = pe_label_size / 3;
+		} else {
+			zfs_dbgmsg("%s: raidz vdev %lld: ignoring the parity "
+			    "epoch table of the config: %s", spa_name(spa),
+			    (longlong_t)vdrz->vn_vre.vre_vdev_id, why);
+		}
 	}
 
 	uint64_t *txgs;

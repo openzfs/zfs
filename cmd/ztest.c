@@ -4554,13 +4554,14 @@ ztest_pe_append_check(void *arg, dmu_tx_t *tx)
 	} else if (lock) {
 		uint64_t n = ztest_pe_extend(vd, pa->pa_parity, 0, table);
 
-		error = vdev_raidz_parity_epochs_set_check(vd, table, n);
+		error = vdev_raidz_parity_epochs_set_check(vd, table, n,
+		    NULL);
 	} else {
 		uint64_t n = ztest_pe_extend(vd, pa->pa_parity,
 		    dmu_tx_get_txg(tx) + pa->pa_lead, table);
 
 		error = vdev_raidz_parity_epochs_set_check_tx(vd, table, n,
-		    tx);
+		    tx, NULL);
 	}
 	if (lock)
 		spa_config_exit(spa, SCL_CONFIG, FTAG);

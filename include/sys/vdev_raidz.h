@@ -172,9 +172,9 @@ extern void vdev_raidz_parity_epochs_install(vdev_t *, const uint64_t *,
     uint64_t);
 extern uint64_t vdev_raidz_parity_epochs_first_start(dmu_tx_t *);
 extern int vdev_raidz_parity_epochs_set_check(vdev_t *, const uint64_t *,
-    uint64_t);
+    uint64_t, const char **);
 extern int vdev_raidz_parity_epochs_set_check_tx(vdev_t *, const uint64_t *,
-    uint64_t, dmu_tx_t *);
+    uint64_t, dmu_tx_t *, const char **);
 extern int vdev_raidz_parity_epochs_set(vdev_t *, const uint64_t *, uint64_t,
     dmu_tx_t *);
 extern void vdev_raidz_attach_sync(void *, dmu_tx_t *);

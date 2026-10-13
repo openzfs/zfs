@@ -342,7 +342,7 @@ store_table_check(void *arg, dmu_tx_t *tx)
 		return (0);
 	return (vdev_raidz_parity_epochs_set_check_tx(
 	    spa->spa_root_vdev->vdev_child[0], ta->ta_table, ta->ta_entries,
-	    tx));
+	    tx, NULL));
 }
 
 static void
@@ -857,7 +857,7 @@ boundary_check(void *arg, dmu_tx_t *tx)
 	for (int d = 0; d < BOUNDARY_TRIES; d++) {
 		boundary_table(vd, ba->ba_txg + d, tbl);
 		ba->ba_check[d] = vdev_raidz_parity_epochs_set_check_tx(vd,
-		    tbl, 2, tx);
+		    tbl, 2, tx, NULL);
 	}
 	return (0);
 }

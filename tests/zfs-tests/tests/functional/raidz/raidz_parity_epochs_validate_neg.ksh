@@ -25,8 +25,9 @@
 #	   untouched, on a vdev that does not exist, a vdev id that is not a
 #	   number, a triplet that is not one and a table that does not fit.
 #	3. For each table that does not fit the vdev, on a pool of its own,
-#	   write it with zhack -f, which skips that check, and require the
-#	   import to fail with a diagnostic.  The rescue tunable then allows a
+#	   require zhack to name the rule it breaks, write it with zhack -f,
+#	   which skips that check, and require the import to fail with a
+#	   diagnostic that names the rule.  The rescue tunable then allows a
 #	   read-only import only, which keeps the data.
 #	4. Require a table that fits, with a parity change at a txg the pool
 #	   never reaches, to import, scrub clean and keep the data.
@@ -56,19 +57,20 @@ function make_pool
 	log_must zpool export $pool
 }
 
-function check_refused # <description> <start:width:parity>...
+function check_refused # <description> <rule> <start:width:parity>...
 {
-	typeset desc=$1
-	shift
+	typeset desc=$1 rule=$2
+	shift 2
 
 	log_note "Table with $desc: $*"
 	make_pool
-	log_mustnot_expect "not valid" \
+	log_mustnot_expect "not valid for this vdev: $rule" \
 	    zhack -d $workdir raidz_epochs $pool 0 "$@"
 	log_must zhack -d $workdir raidz_epochs -f $pool 0 "$@"
 	log_mustnot zpool import -d $workdir $pool
 	log_mustnot eval "zdb -e -p $workdir -G $pool > $workdir/zdb.out 2>&1"
-	log_must grep -q 'rejecting parity epoch table' $workdir/zdb.out
+	log_must grep -qF "rejecting parity epoch table [error=22]: $rule" \
+	    $workdir/zdb.out
 
 	# A damaged table can be read around, read-only, but not repaired.
 	log_must set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 1
@@ -115,12 +117,17 @@ log_must eval "zpool get -H -o value feature@raidz_parity_epochs $pool | \
 log_must zpool export $pool
 
 # The first entry is the vdev's own geometry, and the width never changes.
-check_refused "a first parity other than the vdev's" 0:3:2
-check_refused "a first width other than the vdev's" 0:2:1
-check_refused "a later width narrower than the vdev" 0:3:1 $far:2:1
-check_refused "a later width wider than the vdev" 0:3:1 $far:4:1
-check_refused "a first entry that does not cover txg 0" $far:3:1
-check_refused "repeated start txgs" 0:3:1 $far:3:2 $far:3:1
+typeset -r R_START="the first entry does not start at txg 0"
+typeset -r R_PARITY="the first entry does not have the parity of the vdev"
+typeset -r R_WIDTH="an entry does not have the width of the vdev"
+typeset -r R_ORDER="the starts of the entries do not increase"
+check_refused "a first parity other than the vdev's" "$R_PARITY" 0:3:2
+check_refused "a first width other than the vdev's" "$R_WIDTH" 0:2:1
+check_refused "a later width narrower than the vdev" "$R_WIDTH" \
+    0:3:1 $far:2:1
+check_refused "a later width wider than the vdev" "$R_WIDTH" 0:3:1 $far:4:1
+check_refused "a first entry that does not cover txg 0" "$R_START" $far:3:1
+check_refused "repeated start txgs" "$R_ORDER" 0:3:1 $far:3:2 $far:3:1
 
 # A table that fits, including a future parity-2 epoch, is accepted.
 make_pool
