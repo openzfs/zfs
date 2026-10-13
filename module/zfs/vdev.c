@@ -4462,13 +4462,16 @@ vdev_psize_to_asize(vdev_t *vd, uint64_t psize)
  * aligned properly, which can result in sizes changing when passing back forth
  * through the asize/psize conversion logic. This can lead to frees and
  * allocations not matching in size, which is problematic.
+ *
+ * The requirement can depend on the layout in force, so the txg the allocation
+ * is made in is passed, as it is to vdev_psize_to_asize_txg().
  */
 uint64_t
-vdev_alloc_factor(vdev_t *vd)
+vdev_alloc_factor(vdev_t *vd, uint64_t txg)
 {
 	if (vd->vdev_ops->vdev_op_alloc_factor == NULL)
 		return (1ULL << vd->vdev_ashift);
-	return (vd->vdev_ops->vdev_op_alloc_factor(vd));
+	return (vd->vdev_ops->vdev_op_alloc_factor(vd, txg));
 }
 
 /*

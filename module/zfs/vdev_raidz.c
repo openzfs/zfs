@@ -6216,24 +6216,18 @@ vdev_raidz_ndisks(vdev_t *vd)
 /*
  * All RAID-z allocations are a multiple of the sector size times nparity + 1,
  * in order to ensure that we don't end up with unusably small chunks left over
- * between other allocations.
+ * between other allocations.  The parity is that of the layout in force at the
+ * allocating txg, which a parity-epoch table changes over time: a size that
+ * is a multiple of the factor of another epoch can be too small for a block
+ * laid out at this txg.
  */
 static uint64_t
-vdev_raidz_alloc_factor(vdev_t *vd)
+vdev_raidz_alloc_factor(vdev_t *vd, uint64_t txg)
 {
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	vdev_raidz_layout_t layout = vdev_raidz_layout_for_alloc(vdrz, txg);
 
-	/*
-	 * With a parity-epoch table active the vdev holds blocks of more
-	 * than one parity, whose allocation sizes are multiples of
-	 * DIFFERENT (parity + 1) factors. The only granule that divides
-	 * all of them is the sector itself, so fall back to it (the
-	 * pre-alloc-factor behavior) rather than tripping the allocator's
-	 * multiple-of-factor invariant on promoted blocks.
-	 */
-	if (vdrz != NULL && vdrz->vd_parity_epoch_count > 0)
-		return (1ULL << vd->vdev_ashift);
-	return ((vdev_raidz_nparity(vd) + 1) << vd->vdev_ashift);
+	return ((layout.vrl_nparity + 1) << vd->vdev_ashift);
 }
 
 vdev_ops_t vdev_raidz_ops = {

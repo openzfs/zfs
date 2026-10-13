@@ -1813,11 +1813,11 @@ metaslab_block_picker(zfs_range_tree_t *rt, uint64_t *cursor, uint64_t size,
 }
 
 static uint64_t metaslab_df_alloc(metaslab_t *msp, uint64_t size,
-    uint64_t max_size, uint64_t *found_size);
+    uint64_t max_size, uint64_t txg, uint64_t *found_size);
 static uint64_t metaslab_cf_alloc(metaslab_t *msp, uint64_t size,
-    uint64_t max_size, uint64_t *found_size);
+    uint64_t max_size, uint64_t txg, uint64_t *found_size);
 static uint64_t metaslab_ndf_alloc(metaslab_t *msp, uint64_t size,
-    uint64_t max_size, uint64_t *found_size);
+    uint64_t max_size, uint64_t txg, uint64_t *found_size);
 metaslab_ops_t *metaslab_allocator(spa_t *spa);
 
 static metaslab_ops_t metaslab_allocators[] = {
@@ -1904,7 +1904,7 @@ metaslab_allocator(spa_t *spa)
  */
 static uint64_t
 metaslab_df_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
-    uint64_t *found_size)
+    uint64_t txg, uint64_t *found_size)
 {
 	/*
 	 * Find the largest power of 2 block size that evenly divides the
@@ -1918,7 +1918,7 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 	zfs_range_tree_t *rt = msp->ms_allocatable;
 	uint_t free_pct = zfs_range_tree_space(rt) * 100 / msp->ms_size;
 	uint64_t offset;
-	uint64_t mult = vdev_alloc_factor(msp->ms_group->mg_vd);
+	uint64_t mult = vdev_alloc_factor(msp->ms_group->mg_vd, txg);
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
 	/*
@@ -1986,14 +1986,14 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
  */
 static uint64_t
 metaslab_cf_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
-    uint64_t *found_size)
+    uint64_t txg, uint64_t *found_size)
 {
 	zfs_range_tree_t *rt = msp->ms_allocatable;
 	zfs_btree_t *t = &msp->ms_allocatable_by_size;
 	uint64_t *cursor = &msp->ms_lbas[0];
 	uint64_t *cursor_end = &msp->ms_lbas[1];
 	uint64_t offset = 0;
-	uint64_t mult = vdev_alloc_factor(msp->ms_group->mg_vd);
+	uint64_t mult = vdev_alloc_factor(msp->ms_group->mg_vd, txg);
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
@@ -2044,7 +2044,7 @@ uint64_t metaslab_ndf_clump_shift = 4;
 
 static uint64_t
 metaslab_ndf_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
-    uint64_t *found_size)
+    uint64_t txg, uint64_t *found_size)
 {
 	zfs_btree_t *t = &msp->ms_allocatable->rt_root;
 	zfs_range_tree_t *rt = msp->ms_allocatable;
@@ -2054,7 +2054,7 @@ metaslab_ndf_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 	uint64_t hbit = highbit64(max_size);
 	uint64_t *cursor = &msp->ms_lbas[hbit - 1];
 	uint64_t max_possible_size = metaslab_largest_allocatable(msp);
-	uint64_t mult = vdev_alloc_factor(msp->ms_group->mg_vd);
+	uint64_t mult = vdev_alloc_factor(msp->ms_group->mg_vd, txg);
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
@@ -4916,7 +4916,7 @@ metaslab_block_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 	VERIFY0(msp->ms_disabled);
 	VERIFY0(msp->ms_new);
 
-	start = mc->mc_ops->msop_alloc(msp, size, max_size, actual_size);
+	start = mc->mc_ops->msop_alloc(msp, size, max_size, txg, actual_size);
 	if (start != -1ULL) {
 		size = *actual_size;
 		metaslab_group_t *mg = msp->ms_group;
@@ -5500,6 +5500,17 @@ top:
 		    max_asize, txg, dva, d, allocator, try_hard, &asize);
 
 		if (offset != -1ULL) {
+			/*
+			 * The psize that fits the allocation must not need
+			 * more space than the allocation, or the I/O for a
+			 * block of that size runs past the DVA.  The pickers
+			 * round to the vdev's allocation factor, which only
+			 * the vdev types that need one provide.
+			 */
+			IMPLY(vd->vdev_ops->vdev_op_alloc_factor != NULL,
+			    vdev_psize_to_asize_txg(vd,
+			    vdev_asize_to_psize_txg(vd, asize, txg), txg) <=
+			    asize);
 			if (actual_psize)
 				*actual_psize = vdev_asize_to_psize_txg(vd,
 				    asize, txg);

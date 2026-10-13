@@ -9421,7 +9421,7 @@ ztest_epochs_arith_check(vdev_t *vd, const uint64_t *table, uint64_t n)
 	for (uint64_t i = 0; i < n; i++) {
 		uint64_t txg = table[3 * i];
 		uint64_t parity = table[3 * i + 2];
-		uint64_t factor = vdev_alloc_factor(vd);
+		uint64_t factor = vdev_alloc_factor(vd, txg);
 		uint64_t violations = 0;
 		uint64_t first = 0;
 
@@ -9635,7 +9635,7 @@ ztest_epochs_picker_check(spa_t *spa, vdev_t *vd, uint64_t txg,
 			zfs_range_tree_remove(msp->ms_allocatable,
 			    msp->ms_start, start - msp->ms_start);
 			offset = ops->msop_alloc(msp, min_asize, max_asize,
-			    &found);
+			    txg, &found);
 			zfs_range_tree_add(msp->ms_allocatable,
 			    msp->ms_start, start - msp->ms_start);
 			memcpy(msp->ms_lbas, lbas, sizeof (lbas));

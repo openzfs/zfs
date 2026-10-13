@@ -84,7 +84,7 @@ typedef uint64_t vdev_rebuild_asize_func_t(vdev_t *vd, uint64_t start,
     uint64_t size, uint64_t max_segment);
 typedef void vdev_metaslab_init_func_t(vdev_t *vd, uint64_t *startp,
     uint64_t *sizep);
-typedef uint64_t vdev_alloc_factor_func_t(vdev_t *vd);
+typedef uint64_t vdev_alloc_factor_func_t(vdev_t *vd, uint64_t txg);
 typedef void vdev_config_generate_func_t(vdev_t *vd, nvlist_t *nv);
 typedef uint64_t vdev_nparity_func_t(vdev_t *vd);
 typedef uint64_t vdev_ndisks_func_t(vdev_t *vd);
