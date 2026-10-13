@@ -17,12 +17,17 @@
 
 #
 # DESCRIPTION:
-#	An epoch width cannot exceed the RAIDZ vdev's physical child count.
+#	Every epoch of a parity-epoch table has the RAIDZ vdev's physical
+#	width.  A wider row has more columns than the vdev has children, and a
+#	narrower one describes a vdev that was expanded or contracted, which
+#	cannot be combined with a table.
 #
 # STRATEGY:
-#	1. Write oversized future epochs on an exported four-wide RAIDZ1.
-#	2. Require userspace and kernel imports to reject the table.
-#	3. Restore valid tables, allow narrower widths, and check data and scrub.
+#	1. Write future epochs of other widths on an exported four-wide RAIDZ1
+#	   with zhack -f, since zhack refuses them.
+#	2. Require userspace and kernel imports to reject the table, and the
+#	   rescue tunable to allow only a read-only import.
+#	3. Accept a table of the vdev's width, and check data and scrub.
 #
 
 verify_runnable "global"
@@ -34,11 +39,23 @@ typeset -a disks
 
 function cleanup
 {
+	set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 0
 	poolexists $pool && destroy_pool $pool
 	rm -rf $workdir
 }
 
-log_assert "Oversized parity epochs fail import before influencing I/O"
+# A fresh pool holding the expected data, exported.
+function make_pool
+{
+	poolexists $pool && destroy_pool $pool
+	log_must zpool create -f -O mountpoint=$mnt -O compression=off \
+	    $pool raidz1 ${disks[@]}
+	log_must cp $workdir/expected $mnt/file
+	sync_pool $pool
+	log_must zpool export $pool
+}
+
+log_assert "Epochs of another width fail import before influencing I/O"
 log_onexit cleanup
 
 log_must mkdir -p $workdir
@@ -46,37 +63,34 @@ for i in 0 1 2 3; do
 	disks[i]=$workdir/vdev$i
 	log_must truncate -s 256M ${disks[i]}
 done
-log_must zpool create -f -O mountpoint=$mnt -O compression=off \
-    $pool raidz1 ${disks[@]}
 log_must dd if=/dev/urandom of=$workdir/expected bs=128k count=64
-log_must cp $workdir/expected $mnt/file
-sync_pool $pool
-log_must zpool export $pool
 
-# zhack refuses to store a table that is too wide for the vdev, so -f writes
-# the ZAP entry as given.  The loader must reject it even before it is used.
-for width in 6 256; do
+# The loader must reject the table even before any block uses it.  A pool
+# whose table is damaged can only be read around, so each case gets its own.
+for width in 6 256 3; do
+	make_pool
 	log_mustnot zhack -d $workdir raidz_epochs $pool 0 \
 	    0:4:1 18446744073709551615:$width:1
 	log_must zhack -d $workdir raidz_epochs -f $pool 0 \
 	    0:4:1 18446744073709551615:$width:1
 	log_mustnot zdb -e -p $workdir -m $pool
 	log_mustnot zpool import -d $workdir $pool
-	log_must zhack -o raidz_ignore_parity_epochs=1 -d $workdir \
-	    raidz_epochs $pool 0 0:4:1
-	log_must zpool import -d $workdir $pool
+
+	log_must set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 1
+	log_mustnot zpool import -d $workdir $pool
+	log_must zpool import -o readonly=on -d $workdir $pool
 	log_must cmp $workdir/expected $mnt/file
-	log_must zpool scrub -w $pool
-	log_must check_pool_status $pool "errors" "No known data errors"
 	log_must zpool export $pool
+	log_must set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 0
 done
 
-# Logical widths below the physical width remain supported.
+# A table of the vdev's own width is accepted.
+make_pool
 log_must zhack -d $workdir raidz_epochs $pool 0 \
-    0:4:1 18446744073709551615:3:1
+    0:4:1 18446744073709551615:4:2
 log_must zpool import -d $workdir $pool
 log_must cmp $workdir/expected $mnt/file
 log_must zpool scrub -w $pool
 log_must check_pool_status $pool "errors" "No known data errors"
 
-log_pass "Oversized epochs are refused and valid tables preserve data"
+log_pass "Epochs of another width are refused and valid tables preserve data"

@@ -30,9 +30,9 @@
 #	  2. the debug writer stores a table and activates the feature,
 #	  3. zdb prints the stored table,
 #	  4. a structurally damaged table fails import closed,
-#	  5. the raidz_ignore_parity_epochs rescue tunable imports it and scrubs clean
-#	     with intact data, and
-#	  6. restoring a valid table imports cleanly.
+#	  5. the raidz_ignore_parity_epochs rescue tunable imports it read-only
+#	     with intact data, and refuses a read-write import, and
+#	  6. zhack cannot open it for writing with the tunable either.
 #
 
 verify_runnable "global"
@@ -49,7 +49,7 @@ function cleanup
 }
 
 log_onexit cleanup
-log_assert "raidz_parity_epochs persists, is inspectable, and is recoverable"
+log_assert "raidz_parity_epochs persists, is inspectable, is rescued read-only"
 
 mkdir -p $BASEDIR
 for i in 0 1 2; do
@@ -61,6 +61,7 @@ log_must zpool create -f $TESTPOOL2 raidz1 ${VDEVS[0]} ${VDEVS[1]} ${VDEVS[2]}
 log_must eval "zpool get -H -o value feature@raidz_parity_epochs $TESTPOOL2 | grep -q enabled"
 
 log_must dd if=/dev/urandom of=/$TESTPOOL2/payload bs=1M count=8
+log_must cp /$TESTPOOL2/payload $BASEDIR/payload.ref
 log_must zpool export $TESTPOOL2
 
 # Store a geometry-identical table and activate the feature.
@@ -77,18 +78,18 @@ log_mustnot zhack -d $BASEDIR raidz_epochs $TESTPOOL2 0 5:3:1
 log_must zhack -d $BASEDIR raidz_epochs -f $TESTPOOL2 0 5:3:1
 log_mustnot zpool import -d $BASEDIR $TESTPOOL2
 
-# The rescue tunable skips the table so the pool imports and scrubs clean.
+# The rescue tunable ignores the table.  Blocks born in an epoch that changed
+# the parity would decode wrongly, so only a read-only import is allowed.
 log_must set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 1
-log_must zpool import -d $BASEDIR $TESTPOOL2
-log_must zpool scrub -w $TESTPOOL2
-log_must check_pool_status $TESTPOOL2 "errors" "No known data errors"
+log_mustnot zpool import -d $BASEDIR $TESTPOOL2
+log_must zpool import -d $BASEDIR -o readonly=on $TESTPOOL2
+log_must cmp /$TESTPOOL2/payload $BASEDIR/payload.ref
 log_must zpool export $TESTPOOL2
+
+# zhack opens a pool for writing, so it cannot open this one with the tunable
+# either: the damaged table can be read around, not repaired in place.
+log_mustnot zhack -o raidz_ignore_parity_epochs=1 -d $BASEDIR \
+    raidz_epochs $TESTPOOL2 0 0:3:1
 log_must set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 0
 
-# Repair the damaged table: zhack opens the still-bricked pool with the
-# rescue tunable set for libzpool, then overwrites it with a valid table.
-log_must zhack -o raidz_ignore_parity_epochs=1 -d $BASEDIR \
-    raidz_epochs $TESTPOOL2 0 0:3:1
-log_must zpool import -d $BASEDIR $TESTPOOL2
-
-log_pass "raidz_parity_epochs persists, is inspectable, and is recoverable"
+log_pass "raidz_parity_epochs persists, is inspectable, is rescued read-only"
