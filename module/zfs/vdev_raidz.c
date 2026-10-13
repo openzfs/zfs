@@ -5615,6 +5615,42 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 	    (unsigned long long)raidvd->vdev_children);
 }
 
+/*
+ * Most parity-epoch triplets that fit in one ZAP value.  A longer table
+ * cannot have been stored, so a longer one from a label is corrupt.
+ */
+#define	VDEV_RAIDZ_MAX_PARITY_EPOCHS \
+	(ZAP_MAXVALUELEN / (3 * sizeof (uint64_t)))
+
+/*
+ * Check a parity-epoch table read from disk, from the vdev label or from the
+ * top-level vdev ZAP, against the vdev it was found on.  Layout selection and
+ * the map allocators behind it trust the table, so what they rely on must be
+ * checked before the table can influence any I/O: a row wider than the vdev
+ * has more columns than children, which no reconstruction can survive.
+ */
+static int
+vdev_raidz_parity_epochs_check(const uint64_t *tbl, uint64_t nent,
+    uint64_t width)
+{
+	if (nent == 0 || nent > VDEV_RAIDZ_MAX_PARITY_EPOCHS)
+		return (SET_ERROR(EINVAL));
+
+	for (uint64_t i = 0; i < nent; i++) {
+		uint64_t start = tbl[3 * i];
+		uint64_t w = tbl[3 * i + 1];
+		uint64_t parity = tbl[3 * i + 2];
+
+		if (parity < 1 || parity > VDEV_RAIDZ_MAXPARITY ||
+		    w <= parity || w > UINT8_MAX || w > width ||
+		    (i == 0 && start != 0) ||
+		    (i > 0 && start <= tbl[3 * (i - 1)]))
+			return (SET_ERROR(EINVAL));
+	}
+
+	return (0);
+}
+
 int
 vdev_raidz_load(vdev_t *vd)
 {
@@ -5675,25 +5711,16 @@ vdev_raidz_load(vdev_t *vd)
 			    vd->vdev_top_zap,
 			    VDEV_TOP_ZAP_RAIDZ_PARITY_EPOCHS,
 			    sizeof (uint64_t), num_ints, table);
+			if (err == 0) {
+				err = vdev_raidz_parity_epochs_check(table,
+				    num_ints / 3, vdrz->vd_physical_width);
+			}
 			if (err != 0) {
+				vdev_dbgmsg(vd, "vdev_raidz_load: rejecting "
+				    "parity epoch table [error=%d]", err);
 				kmem_free(table,
 				    num_ints * sizeof (uint64_t));
 				return (err);
-			}
-			for (uint64_t i = 0; i < num_ints; i += 3) {
-				uint64_t width = table[i + 1];
-				uint64_t parity = table[i + 2];
-
-				if (parity < 1 ||
-				    parity > VDEV_RAIDZ_MAXPARITY ||
-				    width <= parity || width > UINT8_MAX ||
-				    width > vdrz->vd_physical_width ||
-				    (i == 0 && table[0] != 0) ||
-				    (i > 0 && table[i] <= table[i - 3])) {
-					kmem_free(table,
-					    num_ints * sizeof (uint64_t));
-					return (SET_ERROR(EINVAL));
-				}
 			}
 			/*
 			 * Expansion history and a parity-epoch table are
@@ -5852,22 +5879,12 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 	    &pe_label, &pe_label_size) == 0 && pe_label_size > 0 &&
 	    (pe_label_size % 3) == 0) {
 		/*
-		 * F3: fail-closed structural validation BEFORE the table can
-		 * influence any read: append-only from txg 0, strictly
-		 * increasing starts, parity 1..3, width > parity. A
-		 * malformed/tampered label table is ignored (the authoritative
-		 * ZAP copy loads later).
+		 * Validate BEFORE the table can influence any read.  A
+		 * malformed or tampered label table is ignored (the
+		 * authoritative ZAP copy loads later).
 		 */
-		pe_ok = (pe_label[0] == 0);
-		for (unsigned int j = 0; pe_ok && j < pe_label_size / 3; j++) {
-			uint64_t st = pe_label[3 * j], wd = pe_label[3 * j + 1],
-			    pa = pe_label[3 * j + 2];
-			if (j > 0 && st <= pe_label[3 * (j - 1)])
-				pe_ok = B_FALSE;
-			if (pa < 1 || pa > VDEV_RAIDZ_MAXPARITY || wd <= pa ||
-			    wd > UINT8_MAX || wd > children)
-				pe_ok = B_FALSE;
-		}
+		pe_ok = (vdev_raidz_parity_epochs_check(pe_label,
+		    pe_label_size / 3, children) == 0);
 	}
 	if (pe_ok) {
 		uint64_t *table = kmem_alloc(
