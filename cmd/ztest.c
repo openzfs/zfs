@@ -102,6 +102,7 @@
 #include <sys/vdev_file.h>
 #include <sys/vdev_initialize.h>
 #include <sys/vdev_raidz.h>
+#include <sys/vdev_raidz_impl.h>
 #include <sys/vdev_trim.h>
 #include <sys/spa_impl.h>
 #include <sys/mmp.h>
@@ -180,6 +181,14 @@ typedef enum {
 #define	ZTEST_EPOCHS_IO		0x8	/* gang blocks written and freed */
 #define	ZTEST_EPOCHS_ALL	0xf
 
+/* Dedicated RAIDZ parity-epoch test states */
+typedef enum {
+	ZTEST_PE_NONE,			/* Default is none, must opt-in	*/
+	ZTEST_PE_REQUESTED,		/* The '-W' option was used	*/
+	ZTEST_PE_KILLED,		/* Data written, process killed	*/
+	ZTEST_PE_CHECKED,		/* Pool checked after the kill	*/
+} ztest_pe_state_t;
+
 /*
  * Parity-epoch tables are remembered across a kill for this many top-level
  * vdevs, and for this many entries each, which is more than a run appends.
@@ -221,6 +230,7 @@ typedef struct ztest_shared_opts {
 	raidz_epochs_test_state_t zo_raidz_epochs_test;
 	int zo_raidz_epochs_checks;
 	int zo_pe_mix;			/* '-Z': change parity during the run */
+	ztest_pe_state_t zo_pe_test;	/* '-W': dedicated parity-epoch test */
 	int zo_mmp_test;
 	int zo_special_vdevs;
 	int zo_dump_dbgmsg;
@@ -287,6 +297,7 @@ static const ztest_shared_opts_t ztest_opts_defaults = {
 	.zo_raidz_expand_test = RAIDZ_EXPAND_NONE,
 	.zo_raidz_epochs_test = RAIDZ_EPOCHS_NONE,
 	.zo_pe_mix = 0,
+	.zo_pe_test = ZTEST_PE_NONE,
 	.zo_fishing = 1,
 };
 
@@ -838,6 +849,9 @@ static ztest_option_t option_table[] = {
 	{ 'Z', "raidz-parity-epochs-mix", NULL,
 	    "Change the parity of raidz vdevs during the run",
 	    NO_DEFAULT, NULL},
+	{ 'W', "raidz-parity-epochs-test", NULL,
+	    "Perform a dedicated raidz parity-epoch test",
+	    NO_DEFAULT, NULL},
 	{ 'o',	"option", "\"NAME=VALUE\"",
 	    "Set the named tunable to the given value",
 	    NO_DEFAULT, NULL},
@@ -1322,6 +1336,9 @@ process_options(int argc, char **argv)
 		case 'Z':
 			zo->zo_pe_mix = B_TRUE;
 			break;
+		case 'W':
+			zo->zo_pe_test = ZTEST_PE_REQUESTED;
+			break;
 		case 'E':
 			zo->zo_init = 0;
 			break;
@@ -1428,10 +1445,12 @@ process_options(int argc, char **argv)
 	 * not been expanded, and the widest parity a table can hold needs
 	 * four columns.
 	 */
-	if (zo->zo_pe_mix) {
+	if (zo->zo_pe_mix || zo->zo_pe_test != ZTEST_PE_NONE) {
 		if (zo->zo_raidz_expand_test != RAIDZ_EXPAND_NONE ||
-		    zo->zo_raidz_epochs_test != RAIDZ_EPOCHS_NONE) {
-			(void) fprintf(stderr, "-X, -Y and -Z are exclusive\n");
+		    zo->zo_raidz_epochs_test != RAIDZ_EPOCHS_NONE ||
+		    (zo->zo_pe_mix && zo->zo_pe_test != ZTEST_PE_NONE)) {
+			(void) fprintf(stderr,
+			    "-X, -Y, -Z and -W are exclusive\n");
 			usage(B_FALSE);
 		}
 		zo->zo_mirrors = 0;
@@ -1439,6 +1458,12 @@ process_options(int argc, char **argv)
 		zo->zo_raid_children = MAX(zo->zo_raid_children, 4);
 		zo->zo_raid_do_expand = B_FALSE;
 		raid_kind = "raidz";
+	}
+
+	/* The dedicated test checks one vdev, and has no use for multihost */
+	if (zo->zo_pe_test != ZTEST_PE_NONE) {
+		zo->zo_mmp_test = 0;
+		zo->zo_vdevs = 1;
 	}
 
 	/*
@@ -4608,6 +4633,7 @@ static boolean_t
 ztest_pe_enabled(void)
 {
 	return (ztest_opts.zo_pe_mix ||
+	    ztest_opts.zo_pe_test != ZTEST_PE_NONE ||
 	    ztest_opts.zo_raidz_epochs_test != RAIDZ_EPOCHS_NONE);
 }
 
@@ -9959,6 +9985,914 @@ ztest_raidz_epochs_run(ztest_shared_t *zs, spa_t *spa)
 	ztest_shared_opts->zo_raidz_epochs_test = RAIDZ_EPOCHS_DONE;
 }
 
+/*
+ * Dedicated RAID-Z parity-epoch test (-W).
+ *
+ * The usual mix of operations (-Z) reaches a bad epoch boundary only by
+ * chance, and a defect that needs a particular layout may take many passes
+ * to show.  This test builds the layouts and looks at the result, the same
+ * way every time.  One raidz vdev gets four epochs in turn: its own parity,
+ * the next parity in the cycle 1, 2, 3, the one after that, and the second
+ * again, so blocks are laid out with a higher and with a lower parity than
+ * the vdev's own, and neighbours in the pool differ.  In each epoch it:
+ *
+ *  - writes small objects of many sizes, and in the next epoch frees two
+ *    of every three, leaving gaps in the allocations of a parity that is no
+ *    longer the current one;
+ *  - allocates ZIL-sized blocks of dynamic size until the vdev is nearly
+ *    full, which takes in those gaps and the end of the metaslabs it fills,
+ *    and each must leave room for the block it will hold;
+ *  - writes objects of 256K that are all forced to gang, to be freed later;
+ *  - writes objects through the ZIL, with commits, and checks the log blocks;
+ *  - reads everything back from disk, checks the epoch every block was born
+ *    in and that its extent holds its layout.
+ *
+ * It ends by writing a last burst that only the log holds, 256K writes
+ * forced to gang among them, and by killing the process.
+ * The next pass imports the pool, so the log is claimed and replayed, and
+ * the table comes back from disk.  It reads everything again from a cold
+ * cache, scrubs, damages as many columns of every block as the block's own
+ * parity can lose and reads again, which reconstructs each row with the
+ * parity it was written with, checks that the vdev claims no more
+ * redundancy than its lowest parity, and frees the gang blocks, born in
+ * every epoch.  The zdb run that follows the pass fails on leaked space.
+ */
+#define	ZTEST_PE_EPOCHS		4	/* base, two others, the second */
+#define	ZTEST_PE_PLAIN		48	/* small objects per epoch */
+#define	ZTEST_PE_GANG		8	/* objects forced to gang per epoch */
+#define	ZTEST_PE_ZIL		20	/* objects written through the ZIL */
+#define	ZTEST_PE_LOG		12	/* objects only the log holds */
+#define	ZTEST_PE_BIGSZ		(256 * 1024)
+#define	ZTEST_PE_LWBSZ		(128 * 1024)	/* the ZIL's largest block */
+#define	ZTEST_PE_DYN_MIN	(12 * 1024)	/* the ZIL's smallest ask */
+#define	ZTEST_PE_DYN_KEEP	16	/* 1/16 of the space is left free */
+#define	ZTEST_PE_GANG_MIN	(ZTEST_PE_BIGSZ - ZTEST_PE_LWBSZ / 2)
+
+enum ztest_pe_kind {
+	ZTEST_PE_K_PLAIN,
+	ZTEST_PE_K_GANG,
+	ZTEST_PE_K_ZIL,
+	ZTEST_PE_K_LOG
+};
+
+static const char *const ztest_pe_tag[] = {
+	"pe_plain", "pe_gang", "pe_zil", "pe_log"
+};
+
+static uint64_t ztest_pe_failed;
+
+static __attribute__((format(printf, 2, 3))) void
+ztest_pe_expect(boolean_t ok, const char *message, ...)
+{
+	va_list args;
+
+	if (ok)
+		return;
+
+	(void) fflush(stdout);
+	(void) fprintf(stderr, "ztest: raidz parity-epoch check failed: ");
+	va_start(args, message);
+	(void) vfprintf(stderr, message, args);
+	va_end(args);
+	(void) fprintf(stderr, "\n");
+	ztest_pe_failed++;
+}
+
+/* Stop here if any check failed: the next step builds on the last. */
+static void
+ztest_pe_report(const char *step)
+{
+	if (ztest_pe_failed != 0)
+		fatal(B_FALSE, "%llu raidz parity-epoch checks failed in %s",
+		    (u_longlong_t)ztest_pe_failed, step);
+}
+
+/* The epoch a block born in the given txg belongs to. */
+static uint64_t
+ztest_pe_epoch_of(const uint64_t *table, uint64_t n, uint64_t birth)
+{
+	uint64_t i = 0;
+
+	while (i + 1 < n && table[3 * (i + 1)] <= birth)
+		i++;
+
+	return (i);
+}
+
+/* The parity blocks born in the given txg are laid out with. */
+static uint64_t
+ztest_pe_parity_of(const uint64_t *table, uint64_t n, uint64_t base,
+    uint64_t birth)
+{
+	return (n == 0 ? base :
+	    table[3 * ztest_pe_epoch_of(table, n, birth) + 2]);
+}
+
+static uint64_t
+ztest_pe_size(int kind, uint64_t idx)
+{
+	static const uint64_t plain[] =
+	    { 512, 1024, 2048, 4096, 8192, 16384, 32768 };
+	static const uint64_t zil[] = { 4096, 8192, 16384, 32768, 65536 };
+
+	switch (kind) {
+	case ZTEST_PE_K_PLAIN:
+		return (plain[idx % (sizeof (plain) / sizeof (plain[0]))]);
+	case ZTEST_PE_K_ZIL:
+		return (zil[idx % (sizeof (zil) / sizeof (zil[0]))]);
+	case ZTEST_PE_K_LOG:
+		/* The big ones are written indirectly, and gang. */
+		return (idx % 2 == 0 ? ZTEST_PE_BIGSZ : zil[idx % 3]);
+	default:
+		return (ZTEST_PE_BIGSZ);
+	}
+}
+
+/*
+ * The contents of a block follow from what it is and where it belongs, are
+ * incompressible so that every big block gangs, and tell blocks apart.
+ */
+static void
+ztest_pe_fill(void *buf, uint64_t size, int kind, uint64_t epoch, uint64_t idx)
+{
+	uint64_t *p = buf;
+	uint64_t x = (kind + 1) * 0x9e3779b97f4a7c15ULL ^
+	    (epoch + 1) * 0xbf58476d1ce4e5b9ULL ^
+	    (idx + 1) * 0x94d049bb133111ebULL;
+
+	for (uint64_t i = 0; i < size / sizeof (uint64_t); i++) {
+		x ^= x << 13;
+		x ^= x >> 7;
+		x ^= x << 17;
+		p[i] = x;
+	}
+}
+
+static void
+ztest_pe_od(ztest_od_t *od, int kind, uint64_t epoch, uint64_t idx)
+{
+	ztest_od_init(od, epoch, ztest_pe_tag[kind], idx, DMU_OT_UINT64_OTHER,
+	    ztest_pe_size(kind, idx), 0, 0);
+}
+
+/* Create an object and write its one block, logged like any other write. */
+static void
+ztest_pe_put(ztest_ds_t *zd, int kind, uint64_t epoch, uint64_t idx, void *buf)
+{
+	ztest_od_t od;
+	uint64_t size = ztest_pe_size(kind, idx);
+
+	ztest_pe_od(&od, kind, epoch, idx);
+	VERIFY0(ztest_object_init(zd, &od, sizeof (od), B_FALSE));
+	ztest_pe_fill(buf, size, kind, epoch, idx);
+	(void) pthread_rwlock_rdlock(&zd->zd_zilog_lock);
+	VERIFY0(ztest_write(zd, od.od_object, 0, size, buf));
+	(void) pthread_rwlock_unlock(&zd->zd_zilog_lock);
+}
+
+static void
+ztest_pe_free(ztest_ds_t *zd, int kind, uint64_t epoch, uint64_t idx)
+{
+	ztest_od_t od;
+
+	ztest_pe_od(&od, kind, epoch, idx);
+	mutex_enter(&zd->zd_dirobj_lock);
+	if (ztest_lookup(zd, &od, 1) == 0)
+		VERIFY0(ztest_remove(zd, &od, 1));
+	mutex_exit(&zd->zd_dirobj_lock);
+}
+
+/* Whether the plain object of that epoch is still there. */
+static boolean_t
+ztest_pe_plain_live(uint64_t epoch, uint64_t idx, uint64_t current)
+{
+	return (epoch == current || idx % 3 == 0);
+}
+
+static uint64_t
+ztest_pe_get_all(vdev_t *vd, uint64_t *table)
+{
+	return (ztest_pe_get_table(vd, table, ZTEST_PE_MAX_ENTRIES));
+}
+
+/*
+ * Drop everything cached, so that what is read comes from the disks.
+ */
+static void
+ztest_pe_uncache(spa_t *spa, objset_t *os)
+{
+	dmu_objset_evict_dbufs(os);
+	arc_flush(spa, B_FALSE);
+}
+
+typedef struct ztest_pe_ctx {
+	spa_t		*ps_spa;
+	vdev_t		*ps_vd;
+	ztest_ds_t	*ps_zd;
+	void		*ps_buf;
+	uint64_t	ps_table[ZTEST_PE_WORDS];
+	uint64_t	ps_nent;
+	uint64_t	ps_ngang[ZTEST_PE_EPOCHS];
+	boolean_t	ps_has_log;	/* the log's objects are to be there */
+	boolean_t	ps_gang_freed;	/* the gang blocks are gone */
+} ztest_pe_ctx_t;
+
+/*
+ * Read an object back and compare it with what was written.  A block that
+ * is on disk, which is to say clean, also has its birth and extent checked:
+ * the epoch it was born in must be the one the object was written in, and
+ * the extent it was allocated must hold the layout of that epoch.
+ */
+static void
+ztest_pe_check_object(ztest_pe_ctx_t *ps, int kind, uint64_t epoch,
+    uint64_t idx, boolean_t synced)
+{
+	ztest_ds_t *zd = ps->ps_zd;
+	objset_t *os = zd->zd_os;
+	uint64_t size = ztest_pe_size(kind, idx);
+	ztest_od_t od;
+	void *got = kmem_alloc(size, KM_SLEEP);
+	int error;
+
+	ztest_pe_od(&od, kind, epoch, idx);
+	mutex_enter(&zd->zd_dirobj_lock);
+	error = ztest_lookup(zd, &od, 1);
+	mutex_exit(&zd->zd_dirobj_lock);
+	if (error != 0) {
+		ztest_pe_expect(B_FALSE, "%s object %llu/%llu has gone",
+		    ztest_pe_tag[kind], (u_longlong_t)epoch,
+		    (u_longlong_t)idx);
+		goto out;
+	}
+
+	ztest_pe_fill(ps->ps_buf, size, kind, epoch, idx);
+	error = dmu_read(os, od.od_object, 0, size, got,
+	    DMU_READ_NO_PREFETCH);
+	ztest_pe_expect(error == 0 && memcmp(got, ps->ps_buf, size) == 0,
+	    "%s object %llu/%llu (%llu bytes, born in epoch %llu) does not "
+	    "read back as written, error %d", ztest_pe_tag[kind],
+	    (u_longlong_t)epoch, (u_longlong_t)idx, (u_longlong_t)size,
+	    (u_longlong_t)epoch, error);
+
+	if (synced && error == 0) {
+		dmu_buf_t *db;
+		const blkptr_t *bp;
+
+		VERIFY0(dmu_buf_hold(os, od.od_object, 0, FTAG, &db,
+		    DMU_READ_NO_PREFETCH));
+		bp = dmu_buf_get_blkptr(db);
+		if (bp != NULL && !BP_IS_HOLE(bp) && !BP_IS_EMBEDDED(bp)) {
+			uint64_t birth = BP_GET_PHYSICAL_BIRTH(bp);
+			uint64_t born = ztest_pe_epoch_of(ps->ps_table,
+			    ps->ps_nent, birth);
+
+			ztest_pe_expect(born == epoch, "%s object %llu/%llu "
+			    "was written in epoch %llu and born at txg %llu "
+			    "in epoch %llu", ztest_pe_tag[kind],
+			    (u_longlong_t)epoch, (u_longlong_t)idx,
+			    (u_longlong_t)epoch, (u_longlong_t)birth,
+			    (u_longlong_t)born);
+
+			if (BP_IS_GANG(bp))
+				ps->ps_ngang[epoch]++;
+			for (int d = 0; d < BP_GET_NDVAS(bp) &&
+			    !BP_IS_GANG(bp); d++) {
+				uint64_t asize = DVA_GET_ASIZE(&bp->blk_dva[d]);
+				uint64_t need = vdev_psize_to_asize_txg(
+				    ps->ps_vd, BP_GET_PSIZE(bp), birth);
+
+				ztest_pe_expect(need <= asize, "%s object "
+				    "%llu/%llu: the block has %llu bytes "
+				    "and its layout in epoch %llu needs %llu",
+				    ztest_pe_tag[kind], (u_longlong_t)epoch,
+				    (u_longlong_t)idx, (u_longlong_t)asize,
+				    (u_longlong_t)born, (u_longlong_t)need);
+			}
+		}
+		dmu_buf_rele(db, FTAG);
+	}
+out:
+	kmem_free(got, size);
+}
+
+/* Check every object that should be there after the given epoch. */
+static void
+ztest_pe_check_all(ztest_pe_ctx_t *ps, uint64_t current, boolean_t synced)
+{
+	ztest_ds_t *zd = ps->ps_zd;
+
+	if (synced)
+		ztest_pe_uncache(ps->ps_spa, zd->zd_os);
+	for (uint64_t e = 0; e < ZTEST_PE_EPOCHS && e <= current; e++) {
+		for (uint64_t i = 0; i < ZTEST_PE_PLAIN; i++) {
+			if (ztest_pe_plain_live(e, i, current))
+				ztest_pe_check_object(ps, ZTEST_PE_K_PLAIN, e,
+				    i, synced);
+		}
+		for (uint64_t i = 0; !ps->ps_gang_freed && i < ZTEST_PE_GANG;
+		    i++)
+			ztest_pe_check_object(ps, ZTEST_PE_K_GANG, e, i,
+			    synced);
+		for (uint64_t i = 0; i < ZTEST_PE_ZIL; i++)
+			ztest_pe_check_object(ps, ZTEST_PE_K_ZIL, e, i,
+			    synced);
+		for (uint64_t i = 0; ps->ps_has_log &&
+		    e == ZTEST_PE_EPOCHS - 1 && i < ZTEST_PE_LOG; i++)
+			ztest_pe_check_object(ps, ZTEST_PE_K_LOG, e, i,
+			    synced);
+	}
+}
+
+/*
+ * Allocate blocks of the dynamic sizes the ZIL asks for until all but a
+ * sixteenth of the free space is taken (a txg that syncs meanwhile needs
+ * some).  A request takes a free segment whole when it is shorter than the
+ * largest block, so what these meet is the gaps the epoch before left and the
+ * end of every metaslab they fill.  Each block is checked against the layout
+ * of the epoch it is allocated in: a block laid out in more room than it was
+ * given has its zero padding written onto whatever comes next.
+ */
+static void
+ztest_pe_dynamic_check(ztest_pe_ctx_t *ps, uint64_t epoch)
+{
+	spa_t *spa = ps->ps_spa;
+	objset_t *os = ps->ps_zd->zd_os;
+	metaslab_class_t *mc = spa_normal_class(spa);
+	uint64_t avail;
+	uint64_t keep;
+	uint64_t budget;
+	uint64_t max;
+	uint64_t used = 0;
+	blkptr_t *bps;
+	uint64_t nalloc = 0;
+	uint64_t nbad = 0;
+	uint64_t first = 0;
+	uint64_t nshort = 0;
+	uint_t old_pct = metaslab_force_ganging_pct;
+	dmu_tx_t *tx;
+	uint64_t txg;
+
+	/* The space in use is only up to date after a sync. */
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	avail = metaslab_class_get_space(mc) - metaslab_class_get_alloc(mc);
+	keep = metaslab_class_get_space(mc) / ZTEST_PE_DYN_KEEP;
+	budget = avail > keep ? avail - keep : 0;
+	max = budget / ZTEST_PE_DYN_MIN + 1;
+	bps = kmem_zalloc(max * sizeof (blkptr_t), KM_SLEEP);
+
+	tx = dmu_tx_create(os);
+	dmu_tx_hold_bonus(tx, ZTEST_DIROBJ);
+	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
+	txg = dmu_tx_get_txg(tx);
+
+	/* Forced ganging would also turn the big requests down. */
+	metaslab_force_ganging_pct = 0;
+	while (nalloc < max && used < budget) {
+		blkptr_t *bp = &bps[nalloc];
+		boolean_t slog;
+		uint64_t asize;
+		uint64_t need;
+
+		if (zio_alloc_zil(spa, os, txg, bp, ZTEST_PE_DYN_MIN,
+		    ZTEST_PE_LWBSZ, &slog, B_FALSE) != 0)
+			break;
+		/*
+		 * zio_alloc_zil() rounds the psize it reports down to the
+		 * ZIL's own granule, which can hide a short allocation.  Check
+		 * the largest psize the allocation can hold instead.
+		 */
+		asize = DVA_GET_ASIZE(&bp->blk_dva[0]);
+		need = vdev_psize_to_asize_txg(ps->ps_vd,
+		    vdev_asize_to_psize_txg(ps->ps_vd, asize, txg), txg);
+		if (need > asize && nbad++ == 0)
+			first = nalloc;
+		if (asize < vdev_psize_to_asize_txg(ps->ps_vd,
+		    ZTEST_PE_LWBSZ, txg))
+			nshort++;
+		used += asize;
+		nalloc++;
+	}
+	metaslab_force_ganging_pct = old_pct;
+	if (ztest_opts.zo_verbose >= 3)
+		(void) printf("parity epochs: epoch %llu, %llu dynamic "
+		    "allocations, %llu cut short\n", (u_longlong_t)epoch,
+		    (u_longlong_t)nalloc, (u_longlong_t)nshort);
+	while (nalloc > 0)
+		metaslab_free(spa, &bps[--nalloc], txg, B_TRUE);
+	dmu_tx_commit(tx);
+	kmem_free(bps, max * sizeof (blkptr_t));
+
+	ztest_pe_expect(nbad == 0, "epoch %llu: %llu dynamically sized "
+	    "allocations hold less than the layout of their block needs, "
+	    "the first is number %llu", (u_longlong_t)epoch,
+	    (u_longlong_t)nbad, (u_longlong_t)first);
+}
+
+typedef struct ztest_pe_zil_walk {
+	vdev_t		*zw_vd;
+	uint64_t	zw_blocks;
+	uint64_t	zw_bad;
+} ztest_pe_zil_walk_t;
+
+static int
+ztest_pe_zil_block(zilog_t *zilog, const blkptr_t *bp, void *arg,
+    uint64_t txg)
+{
+	(void) zilog, (void) txg;
+	ztest_pe_zil_walk_t *zw = arg;
+
+	zw->zw_blocks++;
+	for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
+		if (vdev_psize_to_asize_txg(zw->zw_vd, BP_GET_PSIZE(bp),
+		    BP_GET_PHYSICAL_BIRTH(bp)) > DVA_GET_ASIZE(&bp->blk_dva[d]))
+			zw->zw_bad++;
+	}
+
+	return (0);
+}
+
+static int
+ztest_pe_zil_record(zilog_t *zilog, const lr_t *lr, void *arg, uint64_t txg)
+{
+	(void) zilog, (void) lr, (void) arg, (void) txg;
+
+	return (0);
+}
+
+/*
+ * Write objects through the ZIL in bursts, each followed by a commit, and
+ * check that every log block holds its layout.
+ */
+static void
+ztest_pe_zil_burst(ztest_pe_ctx_t *ps, uint64_t epoch)
+{
+	ztest_ds_t *zd = ps->ps_zd;
+	ztest_pe_zil_walk_t zw = { .zw_vd = ps->ps_vd };
+
+	for (uint64_t i = 0; i < ZTEST_PE_ZIL; i++) {
+		ztest_pe_put(zd, ZTEST_PE_K_ZIL, epoch, i, ps->ps_buf);
+		if (i % 5 == 4)
+			VERIFY0(zil_commit(zd->zd_zilog, 0));
+	}
+	VERIFY0(zil_commit(zd->zd_zilog, 0));
+
+	(void) zil_parse(zd->zd_zilog, ztest_pe_zil_block, ztest_pe_zil_record,
+	    &zw, 0, B_FALSE);
+	ztest_pe_expect(zw.zw_bad == 0, "epoch %llu: %llu of %llu log blocks "
+	    "hold less than the layout of their block needs",
+	    (u_longlong_t)epoch, (u_longlong_t)zw.zw_bad,
+	    (u_longlong_t)zw.zw_blocks);
+}
+
+/* Wait for the first txg of an epoch to be the open one. */
+static void
+ztest_pe_wait_epoch(spa_t *spa, uint64_t start)
+{
+	while (spa_last_synced_txg(spa) + 1 < start)
+		txg_wait_synced(spa_get_dsl(spa), spa_last_synced_txg(spa) + 1);
+}
+
+/* Sync long enough for frees to be reusable, which takes a few txgs. */
+static void
+ztest_pe_settle(spa_t *spa)
+{
+	for (int i = 0; i < TXG_DEFER_SIZE + 2; i++)
+		txg_wait_synced(spa_get_dsl(spa), 0);
+}
+
+static void
+ztest_pe_epoch_work(ztest_pe_ctx_t *ps, uint64_t epoch)
+{
+	spa_t *spa = ps->ps_spa;
+	ztest_ds_t *zd = ps->ps_zd;
+	uint_t old_pct = metaslab_force_ganging_pct;
+	uint64_t old_gang = metaslab_force_ganging;
+
+	/* The gaps left by the epoch before. */
+	if (epoch > 0) {
+		for (uint64_t i = 0; i < ZTEST_PE_PLAIN; i++) {
+			if (!ztest_pe_plain_live(epoch - 1, i, epoch))
+				ztest_pe_free(zd, ZTEST_PE_K_PLAIN, epoch - 1,
+				    i);
+		}
+		ztest_pe_settle(spa);
+	}
+	ztest_pe_dynamic_check(ps, epoch);
+
+	for (uint64_t i = 0; i < ZTEST_PE_PLAIN; i++)
+		ztest_pe_put(zd, ZTEST_PE_K_PLAIN, epoch, i, ps->ps_buf);
+	txg_wait_synced(spa_get_dsl(spa), 0);
+
+	/*
+	 * The threshold is above the ZIL's largest block, so that forced
+	 * ganging never refuses a log block, which cannot gang.
+	 */
+	metaslab_force_ganging = ZTEST_PE_GANG_MIN;
+	metaslab_force_ganging_pct = 100;
+	for (uint64_t i = 0; i < ZTEST_PE_GANG; i++)
+		ztest_pe_put(zd, ZTEST_PE_K_GANG, epoch, i, ps->ps_buf);
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	metaslab_force_ganging_pct = old_pct;
+	metaslab_force_ganging = old_gang;
+
+	ztest_pe_zil_burst(ps, epoch);
+	txg_wait_synced(spa_get_dsl(spa), 0);
+}
+
+/*
+ * A vdev that has a table must refuse to be expanded: the combination cannot
+ * be imported.
+ */
+static void
+ztest_pe_attach_refused(spa_t *spa, vdev_t *rzvd)
+{
+	char *newpath = kmem_alloc(MAXPATHLEN, KM_SLEEP);
+	uint64_t size = vdev_get_min_asize(rzvd->vdev_child[0]);
+	nvlist_t *root;
+	int error;
+
+	(void) snprintf(newpath, MAXPATHLEN, ztest_dev_template,
+	    ztest_opts.zo_dir, ztest_opts.zo_pool, rzvd->vdev_children);
+	root = make_vdev_root(newpath, NULL, NULL, size + size / 10,
+	    ztest_get_ashift(), NULL, 0, 0, 1);
+	error = spa_vdev_attach(spa, rzvd->vdev_guid, root, B_FALSE, B_FALSE);
+	nvlist_free(root);
+	kmem_free(newpath, MAXPATHLEN);
+	ztest_pe_expect(error == ZFS_ERR_VDEV_NOTSUP, "attaching a disk to a "
+	    "raidz vdev that has a parity-epoch table returned %d, expected "
+	    "%d", error, ZFS_ERR_VDEV_NOTSUP);
+}
+
+static uint64_t
+ztest_pe_errors(vdev_t *vd)
+{
+	uint64_t n = 0;
+
+	for (uint64_t c = 0; c < vd->vdev_children; c++)
+		n += ztest_pe_errors(vd->vdev_child[c]);
+	if (vd->vdev_ops->vdev_op_leaf) {
+		n += vd->vdev_stat.vs_read_errors +
+		    vd->vdev_stat.vs_write_errors +
+		    vd->vdev_stat.vs_checksum_errors;
+	}
+
+	return (n);
+}
+
+static void
+ztest_pe_clear_errors(spa_t *spa)
+{
+	spa_vdev_state_enter(spa, SCL_NONE);
+	vdev_clear(spa, NULL);
+	(void) spa_vdev_state_exit(spa, NULL, 0);
+}
+
+/*
+ * Scrub, and count the errors the leaves report.  Without damage nothing
+ * may be found, so a repair means a block was written wrongly.  After damage
+ * the scrub finds what reads did not touch, such as parity columns, and
+ * repairs it.
+ */
+static void
+ztest_pe_scrub(ztest_pe_ctx_t *ps, const char *when, boolean_t damaged)
+{
+	spa_t *spa = ps->ps_spa;
+	int error = ztest_scrub_impl(spa);
+	uint64_t nerr;
+
+	if (error == EBUSY)
+		error = 0;
+	spa_config_enter(spa, SCL_VDEV | SCL_STATE, FTAG, RW_READER);
+	nerr = ztest_pe_errors(spa->spa_root_vdev);
+	spa_config_exit(spa, SCL_VDEV | SCL_STATE, FTAG);
+	ztest_pe_expect(error == 0, "the scrub %s ended with error %d", when,
+	    error);
+	ztest_pe_expect(damaged || nerr == 0, "the scrub %s found %llu "
+	    "errors in blocks nobody damaged", when, (u_longlong_t)nerr);
+	ztest_pe_clear_errors(spa);
+}
+
+/*
+ * Damage as many columns of a block as its own parity can lose, data columns
+ * first, in the files of the leaves, below the pool's back.
+ */
+static int
+ztest_pe_damage_block(ztest_pe_ctx_t *ps, const blkptr_t *bp)
+{
+	vdev_t *vd = ps->ps_vd;
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	uint64_t birth = BP_GET_PHYSICAL_BIRTH(bp);
+	uint64_t parity = ztest_pe_parity_of(ps->ps_table, ps->ps_nent,
+	    vdrz->vd_nparity, birth);
+	uint64_t ashift = vd->vdev_ashift;
+	zio_t zio;
+	raidz_map_t *rm;
+	raidz_row_t *rr;
+	int ndamaged = 0;
+	int order[VDEV_RAIDZ_MAXPARITY];
+
+	memset(&zio, 0, sizeof (zio));
+	zio.io_offset = DVA_GET_OFFSET(&bp->blk_dva[0]);
+	zio.io_size = P2ROUNDUP_TYPED(BP_GET_PSIZE(bp), 1ULL << ashift,
+	    uint64_t);
+	zio.io_type = ZIO_TYPE_READ;
+	zio.io_abd = abd_alloc_for_io(zio.io_size, B_FALSE);
+
+	rm = vdev_raidz_map_alloc(&zio, ashift, vdrz->vd_physical_width,
+	    parity);
+	ASSERT3U(rm->rm_nrows, ==, 1);
+	rr = rm->rm_row[0];
+	ASSERT3U(rr->rr_firstdatacol, ==, parity);
+
+	/* Data columns, then parity columns, as far as the parity goes. */
+	for (int c = rr->rr_firstdatacol; c < rr->rr_cols &&
+	    ndamaged < (int)parity; c++)
+		order[ndamaged++] = c;
+	for (int c = 0; c < rr->rr_firstdatacol && ndamaged < (int)parity;
+	    c++)
+		order[ndamaged++] = c;
+
+	for (int i = 0; i < ndamaged; i++) {
+		raidz_col_t *rc = &rr->rr_col[order[i]];
+		vdev_t *cvd = vd->vdev_child[rc->rc_devidx];
+		uint64_t off = rc->rc_offset + VDEV_LABEL_START_SIZE;
+		uint8_t *data = malloc(rc->rc_size);
+		int fd = open(cvd->vdev_path, O_RDWR);
+
+		if (fd == -1 || data == NULL ||
+		    pread(fd, data, rc->rc_size, off) != rc->rc_size)
+			fatal(B_TRUE, "can't read %s", cvd->vdev_path);
+		for (uint64_t b = 0; b < rc->rc_size; b++)
+			data[b] = ~data[b];
+		if (pwrite(fd, data, rc->rc_size, off) != rc->rc_size)
+			fatal(B_TRUE, "can't write %s", cvd->vdev_path);
+		(void) close(fd);
+		free(data);
+	}
+
+	vdev_raidz_map_free(rm);
+	abd_free(zio.io_abd);
+
+	return (ndamaged);
+}
+
+/*
+ * Damage the block of every object that is on disk, as far as its own
+ * parity allows, read all of them back and compare.
+ */
+static void
+ztest_pe_reconstruct_check(ztest_pe_ctx_t *ps, uint64_t current)
+{
+	ztest_ds_t *zd = ps->ps_zd;
+	objset_t *os = zd->zd_os;
+	uint64_t ndamaged = 0;
+	uint64_t nblocks = 0;
+
+	/* The big blocks that gang are read through their header, not hit. */
+	for (int kind = ZTEST_PE_K_PLAIN; kind <= ZTEST_PE_K_LOG; kind++) {
+		uint64_t count = kind == ZTEST_PE_K_PLAIN ? ZTEST_PE_PLAIN :
+		    kind == ZTEST_PE_K_ZIL ? ZTEST_PE_ZIL : ZTEST_PE_LOG;
+
+		if (kind == ZTEST_PE_K_GANG)
+			continue;
+		for (uint64_t e = 0; e < ZTEST_PE_EPOCHS; e++) {
+			if (kind == ZTEST_PE_K_LOG && e != current)
+				continue;
+			for (uint64_t i = 0; i < count; i++) {
+				ztest_od_t od;
+				dmu_buf_t *db;
+				const blkptr_t *bp;
+
+				if (kind == ZTEST_PE_K_PLAIN &&
+				    !ztest_pe_plain_live(e, i, current))
+					continue;
+				ztest_pe_od(&od, kind, e, i);
+				mutex_enter(&zd->zd_dirobj_lock);
+				if (ztest_lookup(zd, &od, 1) != 0) {
+					mutex_exit(&zd->zd_dirobj_lock);
+					continue;
+				}
+				mutex_exit(&zd->zd_dirobj_lock);
+				VERIFY0(dmu_buf_hold(os, od.od_object, 0,
+				    FTAG, &db, DMU_READ_NO_PREFETCH));
+				bp = dmu_buf_get_blkptr(db);
+				if (bp != NULL && !BP_IS_HOLE(bp) &&
+				    !BP_IS_EMBEDDED(bp) && !BP_IS_GANG(bp) &&
+				    BP_GET_NDVAS(bp) == 1) {
+					ndamaged += ztest_pe_damage_block(ps,
+					    bp);
+					nblocks++;
+				}
+				dmu_buf_rele(db, FTAG);
+			}
+		}
+	}
+
+	ztest_pe_expect(nblocks != 0, "no block to damage");
+	if (ztest_opts.zo_verbose >= 1)
+		(void) printf("parity epochs: damaged %llu columns of %llu "
+		    "blocks\n", (u_longlong_t)ndamaged, (u_longlong_t)nblocks);
+
+	/* Everything has to read back as written, from the repaired disks. */
+	ztest_pe_check_all(ps, current, B_TRUE);
+}
+
+/*
+ * The vdev must not claim more redundancy than the lowest parity any of its
+ * blocks has: offline as many children as that parity, and the next one has
+ * to be refused.
+ */
+static void
+ztest_pe_tolerance_check(ztest_pe_ctx_t *ps)
+{
+	spa_t *spa = ps->ps_spa;
+	vdev_t *vd = ps->ps_vd;
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	uint64_t minp = ztest_pe_min_parity(vd);
+	uint64_t guids[VDEV_RAIDZ_MAXPARITY + 1];
+	int error;
+
+	/* With the vdev's own parity the lowest, nothing differs to claim. */
+	if (minp >= vdrz->vd_nparity)
+		return;
+
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+	for (uint64_t i = 0; i <= minp; i++)
+		guids[i] = vd->vdev_child[i]->vdev_guid;
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+
+	for (uint64_t i = 0; i < minp; i++) {
+		error = vdev_offline(spa, guids[i], ZFS_OFFLINE_TEMPORARY);
+		ztest_pe_expect(error == 0, "offlining child %llu of a raidz "
+		    "vdev whose lowest parity is %llu returned %d",
+		    (u_longlong_t)i, (u_longlong_t)minp, error);
+	}
+	error = vdev_offline(spa, guids[minp], ZFS_OFFLINE_TEMPORARY);
+	ztest_pe_expect(error == EBUSY, "offlining child %llu of a raidz vdev "
+	    "whose lowest parity is %llu, and its own %llu, returned %d, "
+	    "expected %d: blocks of parity %llu cannot lose that many",
+	    (u_longlong_t)minp, (u_longlong_t)minp,
+	    (u_longlong_t)vdrz->vd_nparity, error, EBUSY,
+	    (u_longlong_t)minp);
+
+	ztest_pe_expect(ztest_pe_quiesce(spa), "the children are not back");
+}
+
+/* Pass 1: build the epochs, check them, and die with the log unsynced. */
+static void
+ztest_pe_run(ztest_shared_t *zs, spa_t *spa)
+{
+	vdev_t *rzvd = spa->spa_root_vdev->vdev_child[0];
+	vdev_raidz_t *vdrz = rzvd->vdev_tsd;
+	ztest_pe_ctx_t *ps = kmem_zalloc(sizeof (*ps), KM_SLEEP);
+	uint64_t parity[ZTEST_PE_EPOCHS];
+	uint64_t bufsz = ZTEST_PE_BIGSZ;
+
+	ASSERT3U(ztest_opts.zo_pe_test, ==, ZTEST_PE_REQUESTED);
+	ztest_pe_failed = 0;
+
+	if (rzvd->vdev_ops != &vdev_raidz_ops || vdrz->vd_parity_epochs != NULL)
+		fatal(B_FALSE, "-W needs a raidz top-level vdev without a "
+		    "parity-epoch table");
+	if (!spa_feature_is_enabled(spa, SPA_FEATURE_RAIDZ_PARITY_EPOCHS))
+		fatal(B_FALSE, "feature@raidz_parity_epochs is not enabled");
+	if (spa_maxblocksize(spa) < ZTEST_PE_BIGSZ)
+		fatal(B_FALSE, "-W needs blocks of %d bytes, "
+		    "feature@large_blocks is not enabled", ZTEST_PE_BIGSZ);
+
+	/*
+	 * The vdev's own parity, the next two in the cycle 1, 2, 3, then the
+	 * second again.  Whatever the vdev's own parity is, one epoch is above
+	 * it or below it, and the last one is not its own.
+	 */
+	parity[0] = vdrz->vd_nparity;
+	parity[1] = parity[0] % 3 + 1;
+	parity[2] = parity[1] % 3 + 1;
+	parity[3] = parity[1];
+
+	ps->ps_spa = spa;
+	ps->ps_vd = rzvd;
+	ps->ps_zd = &ztest_ds[0];
+	ps->ps_buf = kmem_alloc(bufsz, KM_SLEEP);
+	VERIFY0(ztest_dataset_open(0));
+
+	for (uint64_t epoch = 0; epoch < ZTEST_PE_EPOCHS; epoch++) {
+		uint64_t start;
+
+		if (epoch > 0) {
+			VERIFY0(ztest_pe_store(spa, 0, parity[epoch],
+			    4 + ztest_random(4), &start));
+			ztest_pe_wait_epoch(spa, start);
+		}
+		ps->ps_nent = ztest_pe_get_all(rzvd, ps->ps_table);
+		if (ztest_opts.zo_verbose >= 1)
+			(void) printf("parity epochs: epoch %llu, parity %llu, "
+			    "%llu entries\n", (u_longlong_t)epoch,
+			    (u_longlong_t)parity[epoch],
+			    (u_longlong_t)ps->ps_nent);
+
+		ztest_pe_epoch_work(ps, epoch);
+		ztest_pe_check_all(ps, epoch, B_TRUE);
+		ztest_pe_report("an epoch");
+	}
+
+	for (uint64_t e = 1; e < ZTEST_PE_EPOCHS; e++) {
+		ztest_pe_expect(ps->ps_ngang[e] != 0, "no gang block was born "
+		    "in epoch %llu, the test checked nothing there",
+		    (u_longlong_t)e);
+	}
+	ztest_pe_scrub(ps, "after the epochs", B_FALSE);
+	ztest_pe_attach_refused(spa, rzvd);
+	ztest_pe_report("the epochs");
+
+	/*
+	 * The last burst, in the last epoch, written to the log and not
+	 * synced: small writes are copied into the log and big ones written
+	 * as blocks of their own, which gang, and the log points at them.  The
+	 * kill that follows leaves them to the next pass, which claims the
+	 * blocks and replays the records.
+	 */
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	metaslab_force_ganging = ZTEST_PE_GANG_MIN;
+	metaslab_force_ganging_pct = 100;
+	for (uint64_t i = 0; i < ZTEST_PE_LOG; i++) {
+		ztest_pe_put(ps->ps_zd, ZTEST_PE_K_LOG, ZTEST_PE_EPOCHS - 1, i,
+		    ps->ps_buf);
+	}
+	VERIFY0(zil_commit(ps->ps_zd->zd_zilog, 0));
+
+	if (ztest_opts.zo_verbose >= 1)
+		(void) printf("killing the parity-epoch test with the log "
+		    "unsynced\n");
+	ztest_shared_opts->zo_pe_test = ZTEST_PE_KILLED;
+	ztest_kill(zs);
+}
+
+/* Pass 2: the pool, its table and its log have come back from the dead. */
+static void
+ztest_pe_check(ztest_shared_t *zs, spa_t *spa)
+{
+	vdev_t *rzvd = spa->spa_root_vdev->vdev_child[0];
+	ztest_pe_ctx_t *ps = kmem_zalloc(sizeof (*ps), KM_SLEEP);
+	uint64_t current = ZTEST_PE_EPOCHS - 1;
+
+	(void) zs;
+	ASSERT3U(ztest_opts.zo_pe_test, ==, ZTEST_PE_KILLED);
+	ztest_pe_failed = 0;
+	ztest_shared_opts->zo_pe_test = ZTEST_PE_CHECKED;
+
+	ps->ps_spa = spa;
+	ps->ps_vd = rzvd;
+	ps->ps_zd = &ztest_ds[0];
+	ps->ps_buf = kmem_alloc(ZTEST_PE_BIGSZ, KM_SLEEP);
+	ps->ps_has_log = B_TRUE;
+	ps->ps_nent = ztest_pe_get_all(rzvd, ps->ps_table);
+	ztest_pe_expect(ps->ps_nent == ZTEST_PE_EPOCHS, "the table has %llu "
+	    "entries, expected %d", (u_longlong_t)ps->ps_nent,
+	    ZTEST_PE_EPOCHS);
+	ztest_pe_report("the table");
+	ztest_pe_clear_errors(spa);
+	VERIFY0(ztest_dataset_open(0));
+
+	/*
+	 * What the log held, then everything, from a cold cache once the
+	 * replayed writes are on disk.
+	 */
+	for (uint64_t i = 0; i < ZTEST_PE_LOG; i++)
+		ztest_pe_check_object(ps, ZTEST_PE_K_LOG, current, i, B_FALSE);
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	ztest_pe_check_all(ps, current, B_TRUE);
+	ztest_pe_report("the first read");
+	ztest_pe_scrub(ps, "after the kill", B_FALSE);
+
+	/* Every row reconstructed with the parity it was written with. */
+	ztest_pe_reconstruct_check(ps, current);
+	ztest_pe_report("the reconstruction");
+	ztest_pe_scrub(ps, "after the damage", B_TRUE);
+	ztest_pe_scrub(ps, "after the repair", B_FALSE);
+
+	ztest_pe_attach_refused(spa, rzvd);
+	ztest_pe_tolerance_check(ps);
+	ztest_pe_report("the tolerance");
+
+	/* Free the gang blocks, born in every epoch. */
+	for (uint64_t e = 0; e < ZTEST_PE_EPOCHS; e++) {
+		for (uint64_t i = 0; i < ZTEST_PE_GANG; i++)
+			ztest_pe_free(ps->ps_zd, ZTEST_PE_K_GANG, e, i);
+	}
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	ps->ps_gang_freed = B_TRUE;
+	ztest_pe_check_all(ps, current, B_TRUE);
+	ztest_pe_report("the frees");
+
+	ztest_dataset_close(0);
+	kmem_free(ps->ps_buf, ZTEST_PE_BIGSZ);
+	kmem_free(ps, sizeof (*ps));
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	if (ztest_opts.zo_verbose >= 1)
+		(void) printf("raidz parity-epoch test complete\n");
+}
+
 static void
 ztest_generic_run(ztest_shared_t *zs, spa_t *spa)
 {
@@ -10070,7 +11004,8 @@ ztest_run(ztest_shared_t *zs)
 	/*
 	 * XXX - BUGBUG raidz expansion do not run this for generic for now
 	 */
-	if (ztest_opts.zo_raidz_expand_test != RAIDZ_EXPAND_NONE)
+	if (ztest_opts.zo_raidz_expand_test != RAIDZ_EXPAND_NONE ||
+	    ztest_opts.zo_pe_test != ZTEST_PE_NONE)
 		VERIFY0(vdev_raidz_impl_set("cycle"));
 
 	dmu_objset_stats_t dds;
@@ -10170,6 +11105,10 @@ ztest_run(ztest_shared_t *zs)
 		ztest_raidz_expand_check(spa);
 	else if (ztest_opts.zo_raidz_epochs_test == RAIDZ_EPOCHS_REQUESTED)
 		ztest_raidz_epochs_run(zs, spa);
+	else if (ztest_opts.zo_pe_test == ZTEST_PE_REQUESTED)
+		ztest_pe_run(zs, spa);
+	else if (ztest_opts.zo_pe_test == ZTEST_PE_KILLED)
+		ztest_pe_check(zs, spa);
 	else
 		ztest_generic_run(zs, spa);
 
@@ -10744,7 +11683,9 @@ main(int argc, char **argv)
 	 * to verify that self-healing data works, and forced crashes
 	 * to verify that we never lose on-disk consistency.
 	 */
-	while (gethrtime() < zs->zs_proc_stop) {
+	while (gethrtime() < zs->zs_proc_stop ||
+	    (ztest_opts.zo_pe_test != ZTEST_PE_NONE &&
+	    ztest_shared_opts->zo_pe_test != ZTEST_PE_CHECKED)) {
 		int status;
 		boolean_t killed;
 
@@ -10824,6 +11765,8 @@ main(int argc, char **argv)
 			break; /* raidz expand test complete */
 		if (ztest_shared_opts->zo_raidz_epochs_test ==
 		    RAIDZ_EPOCHS_DONE)
+			break; /* raidz parity-epoch test complete */
+		if (ztest_shared_opts->zo_pe_test == ZTEST_PE_CHECKED)
 			break; /* raidz parity-epoch test complete */
 	}
 
