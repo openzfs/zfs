@@ -66,7 +66,8 @@ log_must zpool export $TESTPOOL2
 
 # Store a geometry-identical table and activate the feature.
 log_must zhack -d $BASEDIR raidz_epochs $TESTPOOL2 0 0:3:1
-log_must eval "zdb -e -p $BASEDIR -m $TESTPOOL2 2>/dev/null | grep -q raidz_parity_epochs"
+log_must eval "zdb -e -p $BASEDIR -m $TESTPOOL2 > $BASEDIR/zdb.out"
+log_must grep -q raidz_parity_epochs $BASEDIR/zdb.out
 
 log_must zpool import -d $BASEDIR $TESTPOOL2
 log_must eval "zpool get -H -o value feature@raidz_parity_epochs $TESTPOOL2 | grep -q active"

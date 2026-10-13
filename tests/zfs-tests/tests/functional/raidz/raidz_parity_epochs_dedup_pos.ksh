@@ -45,8 +45,9 @@ function cleanup
 function check_bp
 {
 	typeset bp
-	bp=$(zdb -ddddddbbbbbb $pool/ $(get_objnum $mnt/$1) |
-	    grep -m 1 'L0 DVA')
+	log_must eval "zdb -ddddddbbbbbb $pool/ $(get_objnum $mnt/$1) \
+	    > $workdir/zdb.out"
+	bp=$(grep -m 1 'L0 DVA' $workdir/zdb.out)
 	log_note "$1: $bp"
 	[[ "$bp" =~ $2 ]] || log_fail "unexpected block pointer for $1"
 	if [[ $3 == ordinary && "$bp" == *dedup* ]]; then
@@ -70,8 +71,9 @@ sync_pool $pool
 check_bp p1 'dedup single '
 log_must zpool export $pool
 
-typeset -i txg=$(zdb -lu ${disks[0]} |
-    awk '/txg = /{print $3}' | sort -n | tail -1)
+log_must eval "zdb -lu ${disks[0]} > $workdir/labels.out"
+typeset -i txg=$(awk '/txg = /{print $3}' $workdir/labels.out |
+    sort -n | tail -1)
 log_must test $txg -gt 0
 log_must zhack -d $workdir raidz_epochs $pool 0 0:5:1 $((txg + 1)):5:2
 log_must zpool import -d $workdir $pool

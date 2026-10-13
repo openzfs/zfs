@@ -79,7 +79,10 @@ log_must zpool export $TESTPOOL2
 # physical birth. The label's pool-config txg can lag the newest uberblock
 # (the final export txgs), so derive T from the best uberblock instead --
 # T = max(ub_txg) + 1 is greater than any physical birth in the pool.
-typeset -i TXG=$(zdb -lu ${VDEVS[0]} | awk '/txg = /{print $3}' | sort -n | tail -1)
+log_must eval "zdb -lu ${VDEVS[0]} > $BASEDIR/labels.out"
+typeset -i TXG=$(awk '/txg = /{print $3}' $BASEDIR/labels.out |
+    sort -n | tail -1)
+log_must test $TXG -gt 0
 typeset -i T=$((TXG + 1))
 log_must zhack -d $BASEDIR raidz_epochs $TESTPOOL2 0 0:${ndev}:1 ${T}:${ndev}:2
 log_must zpool import -d $BASEDIR $TESTPOOL2
