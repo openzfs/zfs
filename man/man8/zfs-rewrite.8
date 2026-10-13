@@ -18,20 +18,23 @@
 .
 .Sh NAME
 .Nm zfs-rewrite
-.Nd rewrite specified files without modification
+.Nd rewrite specified files and volumes without modification
 .Sh SYNOPSIS
 .Nm zfs
 .Cm rewrite
 .Oo Fl CPSWrvx Ns Oc
 .Op Fl l Ar length
 .Op Fl o Ar offset
-.Ar file Ns | Ns Ar directory Ns …
+.Ar file Ns | Ns Ar directory Ns | Ns Ar volume Ns …
 .
 .Sh DESCRIPTION
 Rewrite blocks of specified
 .Ar file
 as is without modification at a new location and possibly with new properties,
 as if they were atomically read and written back.
+A
+.Ar volume ,
+given by its dataset name or the path of its device, is rewritten the same way.
 .No See Sx NOTES .
 for more information about property changes that may be applied during rewrite.
 .Bl -tag -width "-r"
@@ -53,6 +56,8 @@ gives it a new IV and MAC.
 Physical rewrite requires the
 .Sy physical_rewrite
 feature to be enabled on the pool.
+It is refused for an encrypted volume: a raw incremental stream would not
+include the rewritten blocks, and the received copy could not be read.
 .It Fl S
 Skip blocks that are shared with snapshots.
 Blocks created before the most recent snapshot are shared with that snapshot.
@@ -77,10 +82,12 @@ Rewrite at most this number of bytes.
 Start at this offset in bytes.
 .It Fl r
 Recurse into directories.
+This has no effect on a volume.
 .It Fl v
-Print names of all successfully rewritten files.
+Print names of all successfully rewritten files and volumes.
 .It Fl x
 Don't cross file system mount points when recursing.
+This has no effect on a volume.
 .El
 .Sh NOTES
 Rewrite works by replacing an existing block with a new block of the same
@@ -118,8 +125,8 @@ If a
 .Fl l
 or
 .Fl o
-value request a rewrite to regions past the end of the file, then those
-regions are silently ignored, and no error is reported.
+value request a rewrite to regions past the end of the file or volume, then
+those regions are silently ignored, and no error is reported.
 .Pp
 By default, rewritten blocks update their logical birth time,
 meaning they will be included in incremental
@@ -129,6 +136,31 @@ When the
 .Fl P
 flag is used, rewritten blocks preserve their logical birth time, since
 there are no user data changes.
+.Pp
+A volume is given by its dataset name, such as
+.Ar pool/volume ,
+or by the path
+.Pa /dev/zvol/pool/volume
+of its device.
+A name that is also an existing path is taken as a path.
+Unlike for a file, which only needs write access, rewriting a volume needs the
+same privilege as other pool configuration operations.
+The volume can be in use, and does not need to have a device node:
+it is rewritten in pieces, so that I/O to it waits for one piece at most.
+Until the command is done, the volume can not be destroyed, rolled back,
+received into, shrunk, or sent itself rather than a snapshot of it, and its
+pool can not be exported.
+Unlike for a file, the command does not return before the rewritten data are
+on stable storage.
+A volume snapshot, a read-only volume, a volume received from a redacted send
+stream, or a pool that is not writable cannot be rewritten, nor can a volume
+whose intent log has not been replayed yet, which happens when its device is
+created.
+If the device of the volume is removed meanwhile, for example because its
+.Sy volmode
+property is changed, the command may stop with an error, and can then be run
+again.
+The volume block size is not changed.
 .
 .Sh SEE ALSO
 .Xr zfsprops 7 ,
