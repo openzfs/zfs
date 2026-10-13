@@ -440,6 +440,22 @@ vdev_get_nparity(vdev_t *vd)
 	return (nparity);
 }
 
+/*
+ * Get the number of failed children that every block of a top-level vdev
+ * survives.  It is the parity level, except for a vdev that holds blocks of
+ * a lower parity as well, which a raidz vdev with a parity-epoch table may.
+ * Whatever the vdev claims about its redundancy, to open, to offline a child
+ * or to sit one out, must hold for those blocks too.
+ */
+uint64_t
+vdev_get_min_nparity(vdev_t *vd)
+{
+	if (vd->vdev_ops->vdev_op_min_nparity != NULL)
+		return (vd->vdev_ops->vdev_op_min_nparity(vd));
+
+	return (vdev_get_nparity(vd));
+}
+
 static int
 vdev_prop_get_objid(vdev_t *vd, uint64_t *objid)
 {
@@ -3540,7 +3556,7 @@ vdev_dtl_reassess_impl(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 				minref = 1;
 			} else if (vdev_get_nparity(vd) != 0) {
 				/* RAIDZ, DRAID */
-				minref = vdev_get_nparity(vd) + 1;
+				minref = vdev_get_min_nparity(vd) + 1;
 				if (vd->vdev_ops == &vdev_draid_ops) {
 					vdev_draid_config_t *vdc = vd->vdev_tsd;
 					minref = vdc->vdc_nparity + 1;
@@ -6535,7 +6551,7 @@ vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 						sitouts++;
 					}
 				}
-				if (sitouts >= vdev_get_nparity(pvd)) {
+				if (sitouts >= vdev_get_min_nparity(pvd)) {
 					error = ZFS_ERR_TOO_MANY_SITOUTS;
 					break;
 				}

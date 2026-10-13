@@ -2229,6 +2229,25 @@ vdev_raidz_reconstruct_row(raidz_map_t *rm, raidz_row_t *rr,
 	vdev_raidz_reconstruct_general(rr, tgts, ntgts);
 }
 
+/*
+ * The number of failed children that every block of the vdev survives: the
+ * lowest parity of any layout the vdev has held, which is not necessarily the
+ * parity of the layout new blocks are written in.
+ */
+static uint64_t
+vdev_raidz_min_nparity(vdev_t *vd)
+{
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	uint64_t min = vdrz->vd_nparity;
+
+	mutex_enter(&vdrz->vd_expand_lock);
+	for (uint64_t i = 0; i < vdrz->vd_parity_epoch_count; i++)
+		min = MIN(min, vdrz->vd_parity_epochs[3 * i + 2]);
+	mutex_exit(&vdrz->vd_expand_lock);
+
+	return (min);
+}
+
 static int
 vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
     uint64_t *logical_ashift, uint64_t *physical_ashift, cred_t *cr)
@@ -2281,7 +2300,7 @@ vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 		*max_asize *= vd->vdev_children;
 	}
 
-	if (numerrors > nparity) {
+	if (numerrors > vdev_raidz_min_nparity(vd)) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_NO_REPLICAS;
 		return (lasterror);
 	}
@@ -3263,7 +3282,7 @@ vdev_child_slow_outlier(zio_t *zio)
 		    cvd->vdev_state != VDEV_STATE_HEALTHY;
 
 		/* We can't sit out more disks than we have parity */
-		if (sitting && ++sitouts >= vdev_get_nparity(vd))
+		if (sitting && ++sitouts >= vdev_get_min_nparity(vd))
 			skip = B_TRUE;
 
 		mutex_enter(&cvd->vdev_stat_lock);
@@ -4273,8 +4292,7 @@ done:
 static void
 vdev_raidz_state_change(vdev_t *vd, int faulted, int degraded)
 {
-	vdev_raidz_t *vdrz = vd->vdev_tsd;
-	if (faulted > vdrz->vd_nparity)
+	if (faulted > vdev_raidz_min_nparity(vd))
 		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
 		    VDEV_AUX_NO_REPLICAS);
 	else if (degraded + faulted != 0)
@@ -6120,6 +6138,7 @@ vdev_ops_t vdev_raidz_ops = {
 	.vdev_op_metaslab_init = NULL,
 	.vdev_op_config_generate = vdev_raidz_config_generate,
 	.vdev_op_nparity = vdev_raidz_nparity,
+	.vdev_op_min_nparity = vdev_raidz_min_nparity,
 	.vdev_op_ndisks = vdev_raidz_ndisks,
 	.vdev_op_alloc_factor = vdev_raidz_alloc_factor,
 	.vdev_op_type = VDEV_TYPE_RAIDZ,	/* name of this vdev type */

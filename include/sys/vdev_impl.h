@@ -87,6 +87,7 @@ typedef void vdev_metaslab_init_func_t(vdev_t *vd, uint64_t *startp,
 typedef uint64_t vdev_alloc_factor_func_t(vdev_t *vd, uint64_t txg);
 typedef void vdev_config_generate_func_t(vdev_t *vd, nvlist_t *nv);
 typedef uint64_t vdev_nparity_func_t(vdev_t *vd);
+typedef uint64_t vdev_min_nparity_func_t(vdev_t *vd);
 typedef uint64_t vdev_ndisks_func_t(vdev_t *vd);
 
 typedef const struct vdev_ops {
@@ -110,6 +111,7 @@ typedef const struct vdev_ops {
 	vdev_metaslab_init_func_t	*vdev_op_metaslab_init;
 	vdev_config_generate_func_t	*vdev_op_config_generate;
 	vdev_nparity_func_t		*vdev_op_nparity;
+	vdev_min_nparity_func_t		*vdev_op_min_nparity;
 	vdev_ndisks_func_t		*vdev_op_ndisks;
 	vdev_kobj_post_evt_func_t	*vdev_op_kobj_evt_post;
 	vdev_alloc_factor_func_t	*vdev_op_alloc_factor;
@@ -638,6 +640,7 @@ extern uint64_t vdev_default_min_asize(vdev_t *vd);
 extern uint64_t vdev_get_min_asize(vdev_t *vd);
 extern void vdev_set_min_asize(vdev_t *vd);
 extern uint64_t vdev_get_nparity(vdev_t *vd);
+extern uint64_t vdev_get_min_nparity(vdev_t *vd);
 extern uint64_t vdev_get_ndisks(vdev_t *vd);
 
 /*
