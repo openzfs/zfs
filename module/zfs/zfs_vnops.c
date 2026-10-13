@@ -1283,10 +1283,8 @@ zfs_rewrite(znode_t *zp, uint64_t off, uint64_t len, uint64_t flags,
 				continue;
 
 			nw += dbp[i]->db_size;
-			if (flags & ZFS_REWRITE_PHYSICAL)
-				dmu_buf_will_rewrite(dbp[i], tx);
-			else
-				dmu_buf_will_dirty(dbp[i], tx);
+			dmu_buf_will_rewrite(dbp[i], tx,
+			    (flags & ZFS_REWRITE_PHYSICAL) != 0);
 		}
 		dmu_buf_rele_array(dbp, numbufs, FTAG);
 

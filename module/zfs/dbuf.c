@@ -2240,10 +2240,11 @@ dbuf_redirty(dbuf_dirty_record_t *dr)
 		}
 
 		/*
-		 * Clear the rewrite flag since this is now a logical
+		 * Clear the rewrite flags since this is now a logical
 		 * modification.
 		 */
 		dr->dt.dl.dr_rewrite = B_FALSE;
+		dr->dt.dl.dr_physical_rewrite = B_FALSE;
 	}
 }
 
@@ -2784,7 +2785,7 @@ dmu_buf_will_dirty(dmu_buf_t *db_fake, dmu_tx_t *tx)
 }
 
 void
-dmu_buf_will_rewrite(dmu_buf_t *db_fake, dmu_tx_t *tx)
+dmu_buf_will_rewrite(dmu_buf_t *db_fake, dmu_tx_t *tx, boolean_t physical)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 
@@ -2804,14 +2805,16 @@ dmu_buf_will_rewrite(dmu_buf_t *db_fake, dmu_tx_t *tx)
 
 	/*
 	 * The dbuf is not dirty, so we need to make it dirty and
-	 * mark it for rewrite (preserve logical birth time).
+	 * mark it for rewrite (physical: preserve logical birth time).
 	 */
 	dmu_buf_will_dirty_flags(db_fake, tx, DMU_READ_NO_PREFETCH);
 
 	mutex_enter(&db->db_mtx);
 	dbuf_dirty_record_t *dr = dbuf_find_dirty_eq(db, tx->tx_txg);
-	if (dr != NULL && db->db_level == 0)
+	if (dr != NULL && db->db_level == 0) {
 		dr->dt.dl.dr_rewrite = B_TRUE;
+		dr->dt.dl.dr_physical_rewrite = physical;
+	}
 	mutex_exit(&db->db_mtx);
 }
 
@@ -5449,9 +5452,12 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 	dmu_write_policy(os, dn, db->db_level, wp_flag, &zp);
 
 	/*
-	 * Set rewrite properties for zfs_rewrite() operations.
+	 * Set rewrite properties for zfs_rewrite() operations.  The data
+	 * are unchanged, so nopwrite would leave the block where it is.
 	 */
-	if (db->db_level == 0 && dr->dt.dl.dr_rewrite) {
+	if (db->db_level == 0 && dr->dt.dl.dr_rewrite)
+		zp.zp_nopwrite = B_FALSE;
+	if (db->db_level == 0 && dr->dt.dl.dr_physical_rewrite) {
 		zp.zp_rewrite = B_TRUE;
 
 		/*
