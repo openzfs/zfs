@@ -2960,9 +2960,16 @@ print_file_layout_raidz(vdev_t *vd, blkptr_t *bp, uint64_t file_offset,
 	zio.io_type = ZIO_TYPE_READ;
 	zio.io_abd = abd_alloc_for_io(zio.io_size, B_FALSE);
 
-	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	/*
+	 * Map the block with the parity of the epoch it was born in, as the
+	 * I/O path does.  The row shown spans every child, as the width of a
+	 * vdev with parity epochs does.
+	 */
+	uint64_t nparity;
+	vdev_raidz_layout_for_birth(vd, BP_GET_PHYSICAL_BIRTH(bp), NULL,
+	    &nparity);
 	raidz_map_t *rm = vdev_raidz_map_alloc(&zio, vd->vdev_ashift,
-	    vd->vdev_children, vdrz->vd_nparity);
+	    vd->vdev_children, nparity);
 	raidz_row_t *rr = rm->rm_row[0];
 
 	if (!dump_opt['H']) {

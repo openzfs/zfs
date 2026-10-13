@@ -46,6 +46,10 @@
  *	Write one block of reproducible data to a new MOS object and print its
  *	object number, the offsets of its DVAs on vdev 0 and its birth txg.
  *	The MOS gives every block several copies.
+ *   put <dir> <pool> <blocksize>
+ *	Write one block of reproducible data to a new object of the root
+ *	dataset of the pool, where zdb -f can show its layout, and print its
+ *	object number and its birth txg.
  *   corrupt <dir> <offsets> <psize> <width> <parity> <ashift> <column>...
  *	Overwrite the given data columns of the block copies at the
  *	comma-separated <offsets> on the file vdevs, as laid out for <width>
@@ -112,6 +116,7 @@ usage(void)
 	    "       raidz_epoch_test rootparse <dir> <pool>\n"
 	    "       raidz_epoch_test label <dir> <pool> [now]\n"
 	    "       raidz_epoch_test write <dir> <pool> <blocksize>\n"
+	    "       raidz_epoch_test put <dir> <pool> <blocksize>\n"
 	    "       raidz_epoch_test corrupt <dir> <offsets> <psize> <width> "
 	    "<parity> <ashift> <column>...\n"
 	    "       raidz_epoch_test read <dir> <pool> <object> <blocksize>\n"
@@ -638,6 +643,50 @@ do_write(const char *dir, const char *pool, uint64_t blksz)
 }
 
 static int
+do_put(const char *dir, const char *pool, uint64_t blksz)
+{
+	spa_t *spa;
+	objset_t *os;
+	dmu_tx_t *tx;
+	dmu_buf_t *db;
+	uint64_t obj;
+	uint64_t birth;
+	uint64_t *buf;
+	int err;
+
+	err = open_pool(dir, pool, B_FALSE, &spa);
+	if (err != 0) {
+		(void) printf("RESULT put rc=%d\n", err);
+		return (err);
+	}
+	VERIFY0(dmu_objset_own(pool, DMU_OST_ANY, B_FALSE, B_TRUE, FTAG,
+	    &os));
+
+	buf = malloc(blksz);
+	fill_pattern(buf, blksz);
+
+	tx = dmu_tx_create(os);
+	dmu_tx_hold_write(tx, DMU_NEW_OBJECT, 0, blksz);
+	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
+	obj = dmu_object_alloc(os, DMU_OT_PLAIN_FILE_CONTENTS, blksz,
+	    DMU_OT_NONE, 0, tx);
+	dmu_write(os, obj, 0, blksz, buf, tx, DMU_READ_NO_PREFETCH);
+	dmu_tx_commit(tx);
+	free(buf);
+	txg_wait_synced(spa_get_dsl(spa), 0);
+
+	VERIFY0(dmu_buf_hold(os, obj, 0, FTAG, &db, DMU_READ_NO_PREFETCH));
+	birth = BP_GET_PHYSICAL_BIRTH(dmu_buf_get_blkptr(db));
+	dmu_buf_rele(db, FTAG);
+	dmu_objset_disown(os, B_TRUE, FTAG);
+
+	(void) printf("RESULT put rc=0 object=%llu birth=%llu\n",
+	    (u_longlong_t)obj, (u_longlong_t)birth);
+	close_pool(spa, pool);
+	return (0);
+}
+
+static int
 corrupt_column(const char *dir, raidz_col_t *rc)
 {
 	char path[PATH_BUF];
@@ -969,6 +1018,8 @@ main(int argc, char **argv)
 		rv = do_label(argv[2], argv[3], argc == 5);
 	} else if (strcmp(argv[1], "write") == 0 && argc == 5) {
 		rv = do_write(argv[2], argv[3], strtoull(argv[4], NULL, 10));
+	} else if (strcmp(argv[1], "put") == 0 && argc == 5) {
+		rv = do_put(argv[2], argv[3], strtoull(argv[4], NULL, 10));
 	} else if (strcmp(argv[1], "read") == 0 && argc == 6) {
 		rv = do_read(argv[2], argv[3], strtoull(argv[4], NULL, 10),
 		    strtoull(argv[5], NULL, 10));

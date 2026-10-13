@@ -2406,6 +2406,26 @@ vdev_raidz_layout_for_bp(vdev_raidz_t *vdrz, const blkptr_t *bp)
 }
 
 /*
+ * The logical width and the parity of the layout that the blocks of the
+ * top-level RAID-Z vdev vd born in txg have, the one the I/O path maps them
+ * with, for consumers outside it such as zdb.  Either pointer may be NULL.
+ */
+void
+vdev_raidz_layout_for_birth(vdev_t *vd, uint64_t txg, uint64_t *widthp,
+    uint64_t *nparityp)
+{
+	ASSERT3P(vd->vdev_ops, ==, &vdev_raidz_ops);
+
+	vdev_raidz_layout_t layout =
+	    vdev_raidz_layout_for_alloc(vd->vdev_tsd, txg);
+
+	if (widthp != NULL)
+		*widthp = layout.vrl_width;
+	if (nparityp != NULL)
+		*nparityp = layout.vrl_nparity;
+}
+
+/*
  * DDT extension requires the complete allocation layout to match, including
  * parity as well as logical column width.
  */
