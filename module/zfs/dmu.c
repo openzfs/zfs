@@ -1547,7 +1547,7 @@ dmu_rewrite_skip(dmu_buf_t *db, objset_t *os, uint64_t flags,
 	 * the advisory use.
 	 */
 	blkptr_t *bp = dmu_buf_get_blkptr(db);
-	if (bp == NULL)
+	if (bp == NULL || BP_IS_HOLE(bp))
 		return (B_TRUE);
 
 	if (flags & ZFS_REWRITE_SKIP_SNAPSHOT) {
@@ -1571,8 +1571,9 @@ dmu_rewrite_skip(dmu_buf_t *db, objset_t *os, uint64_t flags,
 /*
  * Mark the existing blocks of the given range of the object for rewrite, so
  * that they are reallocated as if they were read and written back unchanged.
- * Blocks excluded by the ZFS_REWRITE_SKIP_* flags are left alone.  Holes are
- * not special: the caller is expected to pass only ranges that hold data.
+ * Blocks excluded by the ZFS_REWRITE_SKIP_* flags are left alone, and so are
+ * holes and blocks that are being freed: rewriting those would only allocate
+ * zeroes.
  *
  * The transaction must already be assigned and hold the range for writing.
  * The amounts of data read and marked for rewrite are added to *readp and
@@ -1601,6 +1602,13 @@ dmu_rewrite_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
 	for (int i = 0; i < numbufs; i++) {
 		nr += dbp[i]->db_size;
 		if (dmu_buf_is_dirty(dbp[i], tx))
+			continue;
+
+		/*
+		 * A block freed in a transaction group that is not synced yet
+		 * is still a block here, but not worth bringing back.
+		 */
+		if (dnode_block_freed(dn, ((dmu_buf_impl_t *)dbp[i])->db_blkid))
 			continue;
 
 		if (dmu_rewrite_skip(dbp[i], dn->dn_objset, rewrite_flags, &wp,

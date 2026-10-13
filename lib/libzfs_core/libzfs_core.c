@@ -2077,6 +2077,28 @@ lzc_get_bootenv(const char *pool, nvlist_t **outnvl)
 }
 
 /*
+ * Rewrite a range of the dataset as-is without modification, so that its
+ * blocks are reallocated.  Only volumes can be rewritten this way so far; any
+ * other dataset fails with ENOTSUP.
+ *
+ * The optional arguments are given in innvl, which may be NULL:
+ *
+ * "rewrite_offset" -> uint64_t (DATASET_REWRITE_OFFSET, defaults to 0)
+ * "rewrite_length" -> uint64_t (DATASET_REWRITE_LENGTH, defaults to 0, which
+ *     stands for the rest of the volume)
+ * "rewrite_flags" -> uint64_t (DATASET_REWRITE_FLAGS, ZFS_REWRITE_* flags)
+ *
+ * outnvl may be NULL.  Nothing is returned in it so far: as for lzc_sync(), it
+ * keeps the signature for what the call may return later.  *outnvl, if set,
+ * is to be freed by the caller.
+ */
+int
+lzc_dataset_rewrite(const char *dsname, nvlist_t *innvl, nvlist_t **outnvl)
+{
+	return (lzc_ioctl(ZFS_IOC_DATASET_REWRITE, dsname, innvl, outnvl));
+}
+
+/*
  * Prune the specified amount from the pool's dedup table.
  */
 int
