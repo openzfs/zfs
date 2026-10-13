@@ -45,6 +45,14 @@
 .Op Fl Z
 .
 .Nm
+.Fl W
+.Op Fl VG
+.Op Fl s Ar size_of_each_vdev
+.Op Fl a Ar alignment_shift
+.Op Fl r Ar raidz_disks
+.Op Fl R Ar raid_parity
+.
+.Nm
 .Fl X
 .Op Fl VG
 .Op Fl s Ar size_of_each_vdev
@@ -199,6 +207,34 @@ Dump zfs_dbgmsg buffer before exiting due to an error.
 .It Fl J , -fishing Ns = Ns Ar seed
 Specify a 64-digit hexadecimal seed to reproduce the same sequence of random
 numbers, or pass a single 0 to disable this feature.
+.It Fl W , -raidz-parity-epochs-test
+Perform a dedicated raidz parity-epoch test.
+The pool gets one raidz vdev, and its parity-epoch table gets three epochs in
+turn: the next parity in the cycle 1, 2, 3, the one after that, and the second
+one again, so that blocks are laid out with a higher and with a lower parity
+than the vdev's own.
+In each epoch the test writes objects of many sizes, frees some of them in the
+next epoch to leave gaps, allocates ZIL-sized blocks until the vdev is nearly
+full, which takes in the gaps and the end of the metaslabs it fills, writes
+blocks that are forced to gang, writes through the ZIL, and reads everything
+back, checking the epoch every block was born in and that its extent holds its
+layout.
+It then writes a last burst that only the log holds and kills itself.
+The next pass imports the pool, so that the log is claimed and replayed, reads
+everything from a cold cache, scrubs, damages as many columns of every block as
+the block's own parity can lose and reads again, checks that the vdev does not
+claim more redundancy than the lowest parity of its table, and frees the gang
+blocks.
+The zdb run that follows fails on leaked space.
+The test needs at least four raidz disks, and
+.Fl R
+sets the parity of the vdev; with a parity of 2 or 3 the epoch of parity 1 also
+tests the redundancy the vdev claims.
+It cannot be combined with
+.Fl X ,
+.Fl Y
+or
+.Fl Z .
 .It Fl Z , -raidz-parity-epochs-mix
 Change the parity of the raidz vdevs in the course of the run.
 The pool gets raidz top-level vdevs of at least four disks, and from time to
@@ -211,9 +247,10 @@ The tables stored are checked after each kill.
 Fault injection stays within the lowest parity of any table, and the zdb run
 that ends each pass fails if it reports leaked space.
 It cannot be combined with
-.Fl X
+.Fl X ,
+.Fl Y
 or
-.Fl Y ,
+.Fl W ,
 and it forces
 .Fl K Sy raidz
 and
