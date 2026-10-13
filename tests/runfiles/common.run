@@ -799,7 +799,7 @@ tests = ['failmode_dmu_tx_wait', 'failmode_dmu_tx_continue',
     'failmode_osync_wait', 'failmode_osync_continue',
     'failmode_syncalways_wait', 'failmode_syncalways_continue',
     'failmode_vdev_state', 'failmode_dio_unwritable',
-    'failmode_vdev_detach']
+    'failmode_vdev_detach', 'failmode_zil_crash_header']
 tags = ['functional', 'failmode']
 
 [tests/functional/fallocate]
