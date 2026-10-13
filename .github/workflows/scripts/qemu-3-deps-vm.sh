@@ -28,8 +28,8 @@ function alpine() {
     linux-headers linux-tools linux-stable linux-stable-dev lsscsi m4 make \
     nfs-utils openssl-dev parted pax procps py3-cffi py3-distlib py3-packaging \
     py3-setuptools python3 python3-dev qemu-guest-agent rng-tools rsync samba \
-    samba-server sed strace sysstat tzdata util-linux util-linux-dev wget \
-    words xfsprogs xxhash zlib-dev pamtester@testing
+    samba-server sed strace sysstat tzdata util-linux util-linux-dev valgrind \
+    wget words xfsprogs xxhash zlib-dev pamtester@testing
   echo "##[endgroup]"
 
   echo "##[group]Switch to eudev"
@@ -64,7 +64,7 @@ function archlinux() {
   sudo pacman -Sy --noconfirm base-devel bc cpio cryptsetup dhclient dkms \
     fakeroot fio gdb inetutils jq less linux linux-headers lsscsi nfs-utils \
     parted pax perf python-packaging python-setuptools qemu-guest-agent ksh \
-    samba strace sysstat rng-tools rsync wget xxhash
+    samba strace sysstat rng-tools rsync valgrind wget xxhash
   echo "##[endgroup]"
 }
 
@@ -91,8 +91,8 @@ function debian() {
     lsscsi nfs-kernel-server pamtester parted python3 python3-all-dev \
     python3-cffi python3-dev python3-distlib python3-packaging libtirpc-dev \
     python3-setuptools python3-sphinx qemu-guest-agent rng-tools rpm2cpio \
-    rsync samba strace sysstat uuid-dev watchdog wget xfslibs-dev xxhash \
-    zlib1g-dev
+    rsync samba strace sysstat uuid-dev valgrind watchdog wget xfslibs-dev \
+    xxhash zlib1g-dev
   echo "##[endgroup]"
 }
 
@@ -136,8 +136,8 @@ function rhel() {
     libuuid-devel lsscsi mdadm nfs-utils openssl-devel pam-devel pamtester \
     parted perf python3 python3-cffi python3-devel python3-packaging \
     kernel-devel python3-setuptools qemu-guest-agent rng-tools rpcgen \
-    rpm-build rsync samba strace sysstat systemd watchdog wget xfsprogs-devel \
-    xxhash zlib-devel
+    rpm-build rsync samba strace sysstat systemd valgrind watchdog wget \
+    xfsprogs-devel xxhash zlib-devel
 
   # These are needed for building Lustre.  We only install these on EL VMs since
   # we don't plan to test build Lustre on other platforms.
