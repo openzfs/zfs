@@ -42,6 +42,7 @@
 .Op Fl p Ar pool_name
 .Op Fl T Ar time
 .Op Fl z Ar zil_failure_rate
+.Op Fl Z
 .
 .Nm
 .Fl X
@@ -198,6 +199,25 @@ Dump zfs_dbgmsg buffer before exiting due to an error.
 .It Fl J , -fishing Ns = Ns Ar seed
 Specify a 64-digit hexadecimal seed to reproduce the same sequence of random
 numbers, or pass a single 0 to disable this feature.
+.It Fl Z , -raidz-parity-epochs-mix
+Change the parity of the raidz vdevs in the course of the run.
+The pool gets raidz top-level vdevs of at least four disks, and from time to
+time the parity-epoch table of one of them is extended by an epoch of another
+parity, which starts a few transaction groups later.
+Blocks then have the parity of the epoch they are born in, while the other
+operations go on: gang blocks, the ZIL, scrub, resilver, replace, fault
+injection, export and import, and the kill that ends a pass.
+The tables stored are checked after each kill.
+Fault injection stays within the lowest parity of any table, and the zdb run
+that ends each pass fails if it reports leaked space.
+It cannot be combined with
+.Fl X
+or
+.Fl Y ,
+and it forces
+.Fl K Sy raidz
+and
+.Fl m Sy 0 .
 .It Fl V , -verbose
 Verbose (use multiple times for ever more verbosity).
 .It Fl X , -raidz-expansion
