@@ -634,7 +634,7 @@ metaslab_class_balance(metaslab_class_t *mc, boolean_t onsync)
 
 static void
 metaslab_class_rotate(metaslab_group_t *mg, int allocator, uint64_t psize,
-    boolean_t success)
+    uint64_t asize, boolean_t success)
 {
 	metaslab_class_t *mc = mg->mg_class;
 	metaslab_class_allocator_t *mca = &mc->mc_allocator[allocator];
@@ -659,9 +659,11 @@ metaslab_class_rotate(metaslab_group_t *mg, int allocator, uint64_t psize,
 	 * mostly go over the target queue depth.  Meanwhile, to stripe between
 	 * groups in configured amounts per child even if we can't reach the
 	 * target queue depth, i.e. can't saturate the group write performance,
-	 * always rotate after allocating the queue target bytes.
+	 * always rotate after allocating the queue target bytes.  The quota
+	 * is counted in allocated bytes, parity and padding included, so that
+	 * groups with different redundancy fill up at the same rate.
 	 */
-	uint64_t naq = atomic_add_64_nv(&mca->mca_aliquot, psize) + psize / 2;
+	uint64_t naq = atomic_add_64_nv(&mca->mca_aliquot, asize) + asize / 2;
 	if (naq < mg->mg_aliquot)
 		return;
 	if (naq >= mg->mg_queue_target)
@@ -5501,7 +5503,8 @@ top:
 			if (actual_psize)
 				*actual_psize = vdev_asize_to_psize_txg(vd,
 				    asize, txg);
-			metaslab_class_rotate(mg, allocator, psize, B_TRUE);
+			metaslab_class_rotate(mg, allocator, psize, asize,
+			    B_TRUE);
 
 			DVA_SET_VDEV(&dva[d], vd->vdev_id);
 			DVA_SET_OFFSET(&dva[d], offset);
@@ -5511,7 +5514,7 @@ top:
 			return (0);
 		}
 next:
-		metaslab_class_rotate(mg, allocator, psize, B_FALSE);
+		metaslab_class_rotate(mg, allocator, psize, 0, B_FALSE);
 	} while ((mg = mg->mg_next) != rotor);
 
 	/*
