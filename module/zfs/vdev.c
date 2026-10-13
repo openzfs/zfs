@@ -925,6 +925,19 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	}
 
 	/*
+	 * vdev_raidz_init() puts in force the parity-epoch table of a config,
+	 * which only vdev_raidz_parity_epochs_set() makes, together with the
+	 * vdev ZAP copy and the feature that keep it.  The config of a vdev
+	 * that pool creation or vdev add makes cannot carry one.
+	 */
+	if (alloctype == VDEV_ALLOC_ADD && ops == &vdev_raidz_ops &&
+	    nvlist_exists(nv, ZPOOL_CONFIG_RAIDZ_PARITY_EPOCHS)) {
+		zfs_dbgmsg("%s: refusing the parity-epoch table in the config "
+		    "of a new raidz vdev", spa_name(spa));
+		return (SET_ERROR(EINVAL));
+	}
+
+	/*
 	 * Initialize the vdev specific data.  This is done before calling
 	 * vdev_alloc_common() since it may fail and this simplifies the
 	 * error reporting and cleanup code paths.
