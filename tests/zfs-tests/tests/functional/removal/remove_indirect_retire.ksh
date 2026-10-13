@@ -42,8 +42,6 @@ function cleanup
 {
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 	rm -rf $VDIR
-	restore_tunable CONDENSE_INDIRECT_OBSOLETE_PCT
-	restore_tunable CONDENSE_MIN_MAPPING_BYTES
 }
 
 function check_retired # id
@@ -67,12 +65,6 @@ function check_retired # id
 
 log_assert "An indirect vdev that nothing refers to becomes a hole"
 log_onexit cleanup
-
-# Condense the mapping as soon as part of it is obsolete.
-log_must save_tunable CONDENSE_INDIRECT_OBSOLETE_PCT
-log_must save_tunable CONDENSE_MIN_MAPPING_BYTES
-log_must set_tunable32 CONDENSE_INDIRECT_OBSOLETE_PCT 0
-log_must set_tunable64 CONDENSE_MIN_MAPPING_BYTES 1
 
 log_must mkdir -p $VDIR
 log_must truncate -s $MINVDEVSIZE $VDIR/0 $VDIR/1 $VDIR/2 $VDIR/3 \
