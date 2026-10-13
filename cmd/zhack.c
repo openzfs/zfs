@@ -131,11 +131,14 @@ usage(void)
 	    "        -c <count> leaked DSL clone maps to create (default 1)\n"
 	    "        -s <count> leaked SPA space maps to create (default 1)\n"
 	    "        dry-run unless -w\n"
-	    "    raidz_epochs <pool> <top-vdev-id> <start:width:parity>...\n"
-	    "        DEBUG: write a raidz parity-epoch table to the vdev's\n"
-	    "        top-level ZAP verbatim (no validation, so damaged\n"
-	    "        tables can be injected) and activate the\n"
-	    "        raidz_parity_epochs feature; disposable pools only\n");
+	    "    raidz_epochs [-f] <pool> <top-vdev-id>\n"
+	    "                 <start:width:parity>...\n"
+	    "        DEBUG: store a raidz parity-epoch table on the vdev and\n"
+	    "        activate the raidz_parity_epochs feature; refused if the\n"
+	    "        table is not valid for the vdev; disposable pools only\n"
+	    "        -f write the vdev's top-level ZAP entry verbatim and\n"
+	    "        nothing else (no validation, so damaged tables can be\n"
+	    "        injected)\n");
 	exit(1);
 }
 
@@ -1612,7 +1615,61 @@ typedef struct zhack_repochs {
 	uint64_t re_vdev_id;
 	uint64_t re_entries;
 	uint64_t *re_table;
+	boolean_t re_force;
+	const char *re_why;
 } zhack_repochs_t;
+
+/*
+ * Whether the table can be stored on the vdev; re_why says why not.  The
+ * caller holds the spa config lock as reader.
+ */
+static int
+zhack_raidz_epochs_verdict(spa_t *spa, zhack_repochs_t *ra)
+{
+	vdev_t *vd = vdev_lookup_top(spa, ra->re_vdev_id);
+	int error = 0;
+
+	if (vd == NULL) {
+		ra->re_why = "no such top-level vdev";
+		error = ENOENT;
+	} else if (vd->vdev_ops != &vdev_raidz_ops) {
+		ra->re_why = "not a raidz vdev";
+		error = EINVAL;
+	} else if (vd->vdev_top_zap == 0) {
+		ra->re_why = "the vdev has no top-level ZAP";
+		error = EINVAL;
+	} else if (ra->re_force) {
+		if (ra->re_entries * 3 * sizeof (uint64_t) > ZAP_MAXVALUELEN) {
+			ra->re_why = "the table does not fit in a ZAP value";
+			error = EFBIG;
+		}
+	} else {
+		error = vdev_raidz_parity_epochs_set_check(vd, ra->re_table,
+		    ra->re_entries);
+		if (error == EINVAL)
+			ra->re_why = "the table is not valid for this vdev";
+		else if (error == ENOTSUP)
+			ra->re_why = "the vdev has expansion state or history";
+	}
+
+	return (error);
+}
+
+/*
+ * The table was checked before the task was queued.  Check it again in
+ * syncing context, under the config lock spa_sync() holds, where it cannot
+ * fail, but not in open context: a check function runs with the pool config
+ * lock held, and waiting there for the spa config lock can deadlock with
+ * spa_sync(), which takes the two the other way round.
+ */
+static int
+zhack_raidz_epochs_check(void *arg, dmu_tx_t *tx)
+{
+	if (!dmu_tx_is_syncing(tx))
+		return (0);
+
+	return (zhack_raidz_epochs_verdict(dmu_tx_pool(tx)->dp_spa, arg));
+}
 
 static void
 zhack_raidz_epochs_sync(void *arg, dmu_tx_t *tx)
@@ -1621,37 +1678,18 @@ zhack_raidz_epochs_sync(void *arg, dmu_tx_t *tx)
 	zhack_repochs_t *ra = arg;
 	vdev_t *vd = vdev_lookup_top(spa, ra->re_vdev_id);
 
-	if (vd == NULL || vd->vdev_ops != &vdev_raidz_ops)
-		fatal(spa, FTAG, "vdev %llu is not a raidz top-level vdev",
-		    (u_longlong_t)ra->re_vdev_id);
-	if (vd->vdev_top_zap == 0)
-		fatal(spa, FTAG, "vdev %llu has no top-level ZAP",
-		    (u_longlong_t)ra->re_vdev_id);
-	VERIFY0(zap_update(spa->spa_meta_objset, vd->vdev_top_zap,
-	    VDEV_TOP_ZAP_RAIDZ_PARITY_EPOCHS, sizeof (uint64_t),
-	    ra->re_entries * 3, ra->re_table, tx));
-	if (!spa_feature_is_active(spa, SPA_FEATURE_RAIDZ_PARITY_EPOCHS))
-		spa_feature_incr(spa, SPA_FEATURE_RAIDZ_PARITY_EPOCHS, tx);
-	{
-		/*
-		 * Refresh the IN-CORE table too (and push it into the label
-		 * config): the writes this process issues after the task --
-		 * including this txg's own MOS sync -- must already encode
-		 * blocks born >= the new epoch start at the new parity, or
-		 * the next import's spa_load_verify sees blocks whose
-		 * physical parity does not match their classification.
-		 */
-		vdev_raidz_t *vdrz2 = vd->vdev_tsd;
-		if (vdrz2->vd_parity_epochs != NULL)
-			kmem_free(vdrz2->vd_parity_epochs,
-			    vdrz2->vd_parity_epoch_count * 3 *
-			    sizeof (uint64_t));
-		vdrz2->vd_parity_epochs = kmem_alloc(
-		    ra->re_entries * 3 * sizeof (uint64_t), KM_SLEEP);
-		for (uint64_t i = 0; i < ra->re_entries * 3; i++)
-			vdrz2->vd_parity_epochs[i] = ra->re_table[i];
-		vdrz2->vd_parity_epoch_count = ra->re_entries;
-		vdev_config_dirty(vd);
+	if (ra->re_force) {
+		VERIFY0(zap_update(spa->spa_meta_objset, vd->vdev_top_zap,
+		    VDEV_TOP_ZAP_RAIDZ_PARITY_EPOCHS, sizeof (uint64_t),
+		    ra->re_entries * 3, ra->re_table, tx));
+		if (!spa_feature_is_active(spa,
+		    SPA_FEATURE_RAIDZ_PARITY_EPOCHS))
+			spa_feature_incr(spa, SPA_FEATURE_RAIDZ_PARITY_EPOCHS,
+			    tx);
+	} else {
+		/* Checked above, so this cannot fail. */
+		VERIFY0(vdev_raidz_parity_epochs_set(vd, ra->re_table,
+		    ra->re_entries, tx));
 	}
 	spa_history_log_internal(spa, "zhack raidz_epochs", tx,
 	    "vdev=%llu entries=%llu", (u_longlong_t)ra->re_vdev_id,
@@ -1663,10 +1701,23 @@ zhack_do_raidz_epochs(int argc, char **argv)
 {
 	char *target;
 	spa_t *spa;
-	zhack_repochs_t ra;
+	zhack_repochs_t ra = { 0 };
+	char *end;
+	int c, error;
 
-	argc--;
-	argv++;
+	optind = 1;
+	while ((c = getopt(argc, argv, "+f")) != -1) {
+		switch (c) {
+		case 'f':
+			ra.re_force = B_TRUE;
+			break;
+		default:
+			usage();
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
 
 	if (argc < 3) {
 		(void) fprintf(stderr,
@@ -1675,16 +1726,21 @@ zhack_do_raidz_epochs(int argc, char **argv)
 		usage();
 	}
 	target = argv[0];
-	ra.re_vdev_id = strtoull(argv[1], NULL, 10);
+	errno = 0;
+	ra.re_vdev_id = strtoull(argv[1], &end, 10);
+	if (errno != 0 || end == argv[1] || *end != '\0' || argv[1][0] == '-')
+		fatal(NULL, FTAG, "bad top-level vdev id: %s", argv[1]);
 	ra.re_entries = argc - 2;
 	ra.re_table = malloc(ra.re_entries * 3 * sizeof (uint64_t));
 	if (ra.re_table == NULL)
 		fatal(NULL, FTAG, "out of memory");
 	for (uint64_t i = 0; i < ra.re_entries; i++) {
 		u_longlong_t start, width, parity;
+		int n = 0;
 
-		if (sscanf(argv[2 + i], "%llu:%llu:%llu",
-		    &start, &width, &parity) != 3)
+		if (sscanf(argv[2 + i], "%llu:%llu:%llu%n",
+		    &start, &width, &parity, &n) != 3 ||
+		    argv[2 + i][n] != '\0' || strchr(argv[2 + i], '-') != NULL)
 			fatal(NULL, FTAG, "bad triplet: %s", argv[2 + i]);
 		ra.re_table[3 * i] = start;
 		ra.re_table[3 * i + 1] = width;
@@ -1696,8 +1752,24 @@ zhack_do_raidz_epochs(int argc, char **argv)
 		fatal(spa, FTAG,
 		    "feature@raidz_parity_epochs is not enabled on %s",
 		    target);
-	VERIFY0(dsl_sync_task(spa_name(spa), NULL, zhack_raidz_epochs_sync,
-	    &ra, 5, ZFS_SPACE_CHECK_NORMAL));
+
+	/*
+	 * Refuse here, in open context, where it can be reported: fatal()
+	 * from the sync task would wait for the txg that is running it.
+	 */
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+	error = zhack_raidz_epochs_verdict(spa, &ra);
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+	if (error == 0) {
+		error = dsl_sync_task(spa_name(spa), zhack_raidz_epochs_check,
+		    zhack_raidz_epochs_sync, &ra, 5, ZFS_SPACE_CHECK_NORMAL);
+	}
+	if (error != 0) {
+		fatal(spa, FTAG, "cannot store the table on vdev %llu: %s "
+		    "[%s]", (u_longlong_t)ra.re_vdev_id,
+		    ra.re_why != NULL ? ra.re_why : "unexpected error",
+		    strerror(error));
+	}
 	spa_close(spa, FTAG);
 	free(ra.re_table);
 	return (0);

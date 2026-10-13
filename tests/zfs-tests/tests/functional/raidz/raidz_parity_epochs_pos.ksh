@@ -72,7 +72,9 @@ log_must eval "zpool get -H -o value feature@raidz_parity_epochs $TESTPOOL2 | gr
 log_must zpool export $TESTPOOL2
 
 # A structurally damaged table (first entry does not cover txg 0) is refused.
-log_must zhack -d $BASEDIR raidz_epochs $TESTPOOL2 0 5:3:1
+# zhack refuses to store it, so -f writes the ZAP entry as given.
+log_mustnot zhack -d $BASEDIR raidz_epochs $TESTPOOL2 0 5:3:1
+log_must zhack -d $BASEDIR raidz_epochs -f $TESTPOOL2 0 5:3:1
 log_mustnot zpool import -d $BASEDIR $TESTPOOL2
 
 # The rescue tunable skips the table so the pool imports and scrubs clean.
