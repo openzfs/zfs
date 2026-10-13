@@ -944,7 +944,7 @@ tests = ['raidz_001_neg', 'raidz_002_pos', 'raidz_dedup_overrun',
     'raidz_recon_mixed_pos', 'raidz_tolerance_epochs_pos',
     'raidz_tolerance_marker_neg', 'raidz_parity_epochs_validate_neg',
     'raidz_parity_epochs_gang', 'raidz_parity_epochs_append_neg',
-    'raidz_parity_epochs_config_neg']
+    'raidz_parity_epochs_config_neg', 'raidz_parity_epochs_label_pos']
 tags = ['functional', 'raidz']
 timeout = 1200
 

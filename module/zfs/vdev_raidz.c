@@ -5787,6 +5787,95 @@ vdev_raidz_parity_epochs_set(vdev_t *vd, const uint64_t *table,
 	return (0);
 }
 
+/*
+ * Until vdev_raidz_load() replaces it, the in-core table is the copy that
+ * vdev_raidz_init() took from the label or the MOS config, which reading the
+ * MOS needs.  That copy is not authoritative, the vdev ZAP copy is: the
+ * setter writes both in the same txg, so a copy of the config that the ZAP
+ * lacks or contradicts was written some other way, and a ZAP copy that the
+ * config lacks is not the one the MOS was read with.  Log how the copy of
+ * the config differs from the ZAP copy, NULL if there is none, before it is
+ * replaced or dropped, and have the config rewritten from what remains.
+ */
+static void
+vdev_raidz_parity_epochs_reconcile(vdev_t *vd, const uint64_t *table,
+    uint64_t nent)
+{
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	spa_t *spa = vd->vdev_spa;
+	uint64_t cfg[3] = { 0, 0, 0 };
+	uint64_t lost[2] = { 0, 0 };
+	uint64_t ncfg;
+	uint64_t i = 0;
+
+	mutex_enter(&vdrz->vd_expand_lock);
+	ncfg = vdrz->vd_parity_epoch_count;
+	if (vdrz->vd_parity_epochs != NULL) {
+		const uint64_t *cur = vdrz->vd_parity_epochs;
+
+		while (i < ncfg && i < nent &&
+		    memcmp(&cur[3 * i], &table[3 * i], sizeof (cfg)) == 0)
+			i++;
+		if (i < ncfg)
+			memcpy(cfg, &cur[3 * i], sizeof (cfg));
+
+		/*
+		 * The first epoch of another parity than the vdev's that the
+		 * pool has reached: blocks born in it were laid out with a
+		 * table that only the config has.
+		 */
+		for (uint64_t j = 1; table == NULL && j < ncfg; j++) {
+			if (cur[3 * j] <= spa_last_synced_txg(spa) &&
+			    cur[3 * j + 2] != vdrz->vd_nparity) {
+				lost[0] = cur[3 * j];
+				lost[1] = cur[3 * j + 2];
+				break;
+			}
+		}
+	}
+	mutex_exit(&vdrz->vd_expand_lock);
+
+	if (i == ncfg && i == nent)
+		return;
+
+	if (ncfg == 0) {
+		vdev_dbgmsg(vd, "vdev_raidz_load: no parity epoch table in "
+		    "the config, using the %llu entries of the vdev ZAP's",
+		    (u_longlong_t)nent);
+	} else if (table == NULL) {
+		vdev_dbgmsg(vd, "vdev_raidz_load: no parity epoch table in "
+		    "the vdev ZAP, dropping the %llu entries of the config's",
+		    (u_longlong_t)ncfg);
+		if (lost[1] != 0) {
+			vdev_dbgmsg(vd, "vdev_raidz_load: the dropped table "
+			    "has an epoch of parity %llu from txg %llu, which "
+			    "the pool has reached: blocks born in it cannot "
+			    "be read without it", (u_longlong_t)lost[1],
+			    (u_longlong_t)lost[0]);
+		}
+	} else {
+		vdev_dbgmsg(vd, "vdev_raidz_load: the parity epoch table of "
+		    "the config (%llu entries) differs from the vdev ZAP's "
+		    "(%llu entries) at entry %llu, using the vdev ZAP's",
+		    (u_longlong_t)ncfg, (u_longlong_t)nent, (u_longlong_t)i);
+		if (i < ncfg) {
+			vdev_dbgmsg(vd, "vdev_raidz_load: config entry %llu: "
+			    "%llu:%llu:%llu", (u_longlong_t)i,
+			    (u_longlong_t)cfg[0], (u_longlong_t)cfg[1],
+			    (u_longlong_t)cfg[2]);
+		}
+		if (i < nent) {
+			vdev_dbgmsg(vd, "vdev_raidz_load: vdev ZAP entry %llu: "
+			    "%llu:%llu:%llu", (u_longlong_t)i,
+			    (u_longlong_t)table[3 * i],
+			    (u_longlong_t)table[3 * i + 1],
+			    (u_longlong_t)table[3 * i + 2]);
+		}
+	}
+	if (spa_writeable(spa))
+		spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
+}
+
 int
 vdev_raidz_load(vdev_t *vd)
 {
@@ -5844,15 +5933,19 @@ vdev_raidz_load(vdev_t *vd)
 	 * feature has written one.  The table is {start physical-birth txg,
 	 * logical width, parity} triplets sorted by start, which must be
 	 * valid for this vdev or the vdev fails to load.  Layout selection
-	 * consumes it as soon as it is installed.
+	 * consumes it as soon as it is installed.  Without one, the vdev has
+	 * no table, whatever its config said.
 	 */
-	if (vd->vdev_top_zap != 0 && !raidz_ignore_parity_epochs) {
+	if (!raidz_ignore_parity_epochs) {
 		uint64_t int_size = 0;
 		uint64_t num_ints = 0;
 
-		err = zap_length(vd->vdev_spa->spa_meta_objset,
-		    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_PARITY_EPOCHS,
-		    &int_size, &num_ints);
+		err = ENOENT;
+		if (vd->vdev_top_zap != 0) {
+			err = zap_length(vd->vdev_spa->spa_meta_objset,
+			    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_PARITY_EPOCHS,
+			    &int_size, &num_ints);
+		}
 		if (err == 0) {
 			if (int_size != sizeof (uint64_t) || num_ints == 0 ||
 			    (num_ints % 3) != 0)
@@ -5894,10 +5987,15 @@ vdev_raidz_load(vdev_t *vd)
 			 * The ZAP copy is authoritative: it replaces the copy
 			 * vdev_raidz_init() took from the label or MOS config.
 			 */
+			vdev_raidz_parity_epochs_reconcile(vd, table,
+			    num_ints / 3);
 			vdev_raidz_parity_epochs_install(vd, table,
 			    num_ints / 3);
 			kmem_free(table, num_ints * sizeof (uint64_t));
-		} else if (err != ENOENT) {
+		} else if (err == ENOENT) {
+			vdev_raidz_parity_epochs_reconcile(vd, NULL, 0);
+			vdev_raidz_parity_epochs_install(vd, NULL, 0);
+		} else {
 			return (err);
 		}
 	}
