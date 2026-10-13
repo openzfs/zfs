@@ -1445,8 +1445,7 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error,
 	 * is useful for ensuring that configurations are updated
 	 * transactionally.
 	 */
-	if (zio_injection_enabled)
-		zio_handle_panic_injection(spa, tag, 0);
+	zio_handle_panic_injection(spa, tag, 0);
 
 	/*
 	 * Note: this txg_wait_synced() is important because it ensures
