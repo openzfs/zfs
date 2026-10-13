@@ -54,10 +54,11 @@
  *	Overwrite the given data columns of the block copies at the
  *	comma-separated <offsets> on the file vdevs, as laid out for <width>
  *	children and <parity> parity columns.
- *   read <dir> <pool> <object> <blocksize>
+ *   read <dir> <pool> <object> <blocksize> [readonly]
  *	Import the pool, read the object back and compare it with what
  *	"write" stored.  Exits 0 if the read ran to completion, whatever its
  *	result, so that a failed assertion is told apart from a read error.
+ *	With "readonly", import without writing the pool.
  *   state <dir> <pool> open|offline|fault
  *	Import the pool and report the state of the top-level vdev: as the
  *	pool was opened, after offlining two children, or after faulting two
@@ -119,7 +120,8 @@ usage(void)
 	    "       raidz_epoch_test put <dir> <pool> <blocksize>\n"
 	    "       raidz_epoch_test corrupt <dir> <offsets> <psize> <width> "
 	    "<parity> <ashift> <column>...\n"
-	    "       raidz_epoch_test read <dir> <pool> <object> <blocksize>\n"
+	    "       raidz_epoch_test read <dir> <pool> <object> <blocksize> "
+	    "[readonly]\n"
 	    "       raidz_epoch_test state <dir> <pool> open|offline|fault\n"
 	    "       raidz_epoch_test boundary <dir> <pool>\n");
 	exit(2);
@@ -585,6 +587,7 @@ do_label(const char *dir, const char *pool, boolean_t now)
 	vdev_raidz_t *vdrz;
 	blkptr_t bp;
 	uint64_t birth = 0;
+	uint64_t obj = 0;
 	spa_t *spa;
 	int err;
 
@@ -603,12 +606,13 @@ do_label(const char *dir, const char *pool, boolean_t now)
 	    ZFS_SPACE_CHECK_NONE));
 	if (now) {
 		txg_wait_synced(spa_get_dsl(spa), la.la_table[3]);
-		(void) write_block(spa, 8192, &bp);
+		obj = write_block(spa, 8192, &bp);
 		birth = BP_GET_PHYSICAL_BIRTH(&bp);
 	}
 	txg_wait_synced(spa_get_dsl(spa), 0);
-	(void) printf("RESULT label rc=0 start=%llu birth=%llu\n",
-	    (u_longlong_t)la.la_table[3], (u_longlong_t)birth);
+	(void) printf("RESULT label rc=0 start=%llu birth=%llu "
+	    "object=%llu\n", (u_longlong_t)la.la_table[3],
+	    (u_longlong_t)birth, (u_longlong_t)obj);
 	close_pool(spa, pool);
 	return (0);
 }
@@ -762,13 +766,14 @@ do_corrupt(const char *dir, char *offsets, uint64_t psize, uint64_t width,
 }
 
 static int
-do_read(const char *dir, const char *pool, uint64_t obj, uint64_t blksz)
+do_read(const char *dir, const char *pool, uint64_t obj, uint64_t blksz,
+    boolean_t readonly)
 {
 	spa_t *spa;
 	uint64_t *buf, *want;
 	int err, match;
 
-	err = open_pool(dir, pool, B_FALSE, &spa);
+	err = open_pool(dir, pool, readonly, &spa);
 	if (err != 0) {
 		(void) printf("RESULT read rc=%d import=1\n", err);
 		return (err);
@@ -1020,9 +1025,10 @@ main(int argc, char **argv)
 		rv = do_write(argv[2], argv[3], strtoull(argv[4], NULL, 10));
 	} else if (strcmp(argv[1], "put") == 0 && argc == 5) {
 		rv = do_put(argv[2], argv[3], strtoull(argv[4], NULL, 10));
-	} else if (strcmp(argv[1], "read") == 0 && argc == 6) {
+	} else if (strcmp(argv[1], "read") == 0 && (argc == 6 ||
+	    (argc == 7 && strcmp(argv[6], "readonly") == 0))) {
 		rv = do_read(argv[2], argv[3], strtoull(argv[4], NULL, 10),
-		    strtoull(argv[5], NULL, 10));
+		    strtoull(argv[5], NULL, 10), argc == 7);
 	} else if (strcmp(argv[1], "state") == 0 && argc == 5) {
 		rv = do_state(argv[2], argv[3], argv[4]);
 	} else if (strcmp(argv[1], "boundary") == 0 && argc == 4) {

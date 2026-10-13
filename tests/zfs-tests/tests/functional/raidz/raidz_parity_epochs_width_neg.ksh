@@ -17,17 +17,17 @@
 
 #
 # DESCRIPTION:
-#	Every epoch of a parity-epoch table has the RAIDZ vdev's physical
-#	width.  A wider row has more columns than the vdev has children, and a
-#	narrower one describes a vdev that was expanded or contracted, which
-#	cannot be combined with a table.
+#	Epoch widths cannot exceed the physical child count or eliminate
+#	every data column.  A narrower logical width does not remove a
+#	physical device and remains compatible with the stored table.
 #
 # STRATEGY:
-#	1. Write future epochs of other widths on an exported four-wide RAIDZ1
-#	   with zhack -f, since zhack refuses them.
+#	1. Write invalid future widths on an exported four-wide RAIDZ1 with
+#	   zhack -f, since the regular setter refuses them.
 #	2. Require userspace and kernel imports to reject the table, and the
 #	   rescue tunable to allow only a read-only import.
-#	3. Accept a table of the vdev's width, and check data and scrub.
+#	3. Accept a narrower logical stripe; check old and new data after
+#	   writes, export/import and scrub.
 #
 
 verify_runnable "global"
@@ -55,7 +55,7 @@ function make_pool
 	log_must zpool export $pool
 }
 
-log_assert "Epochs of another width fail import before influencing I/O"
+log_assert "Invalid epoch widths fail import before influencing I/O"
 log_onexit cleanup
 
 log_must mkdir -p $workdir
@@ -67,7 +67,7 @@ log_must dd if=/dev/urandom of=$workdir/expected bs=128k count=64
 
 # The loader must reject the table even before any block uses it.  A pool
 # whose table is damaged can only be read around, so each case gets its own.
-for width in 6 256 3; do
+for width in 6 256; do
 	make_pool
 	log_mustnot zhack -d $workdir raidz_epochs $pool 0 \
 	    0:4:1 18446744073709551615:$width:1
@@ -84,11 +84,21 @@ for width in 6 256 3; do
 	log_must set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 0
 done
 
-# A table of the vdev's own width is accepted.
+# A table with a narrower logical stripe is accepted and preserves data.
 make_pool
 log_must zhack -d $workdir raidz_epochs $pool 0 \
-    0:4:1 18446744073709551615:4:2
+    0:4:1 next:3:2
 log_must zpool import -d $workdir $pool
+log_must cmp $workdir/expected $mnt/file
+for i in 0 1 2 3; do
+	log_must cp $workdir/expected $mnt/new$i
+	sync_pool $pool
+done
+log_must zpool export $pool
+log_must zpool import -d $workdir $pool
+for i in 0 1 2 3; do
+	log_must cmp $workdir/expected $mnt/new$i
+done
 log_must cmp $workdir/expected $mnt/file
 log_must zpool scrub -w $pool
 log_must check_pool_status $pool "errors" "No known data errors"

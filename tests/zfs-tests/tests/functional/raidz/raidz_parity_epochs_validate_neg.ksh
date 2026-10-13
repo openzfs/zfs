@@ -108,7 +108,7 @@ log_mustnot_expect "bad triplet" \
 log_mustnot_expect "not valid" \
     timeout 60 zhack -d $workdir raidz_epochs $pool 0 0:3:2
 log_mustnot_expect "not valid" \
-    timeout 60 zhack -d $workdir raidz_epochs $pool 0 0:3:1 $far:2:1
+    timeout 60 zhack -d $workdir raidz_epochs $pool 0 0:3:1 $far:4:1
 log_must eval "zdb -e -p $workdir -m $pool > $workdir/zdb.out"
 log_mustnot grep -q raidz_parity_epochs $workdir/zdb.out
 log_must zpool import -d $workdir $pool
@@ -116,15 +116,16 @@ log_must eval "zpool get -H -o value feature@raidz_parity_epochs $pool | \
     grep -q enabled"
 log_must zpool export $pool
 
-# The first entry is the vdev's own geometry, and the width never changes.
+# The first entry is the vdev's own geometry; later widths must fit.
 typeset -r R_START="the first entry does not start at txg 0"
 typeset -r R_PARITY="the first entry does not have the parity of the vdev"
-typeset -r R_WIDTH="an entry does not have the width of the vdev"
+typeset -r R_BASE_WIDTH="the first entry does not have the width of the vdev"
+typeset -r R_WIDTH="an entry exceeds the width of the vdev"
 typeset -r R_ORDER="the starts of the entries do not increase"
 check_refused "a first parity other than the vdev's" "$R_PARITY" 0:3:2
-check_refused "a first width other than the vdev's" "$R_WIDTH" 0:2:1
-check_refused "a later width narrower than the vdev" "$R_WIDTH" \
-    0:3:1 $far:2:1
+check_refused "a first width other than the vdev's" "$R_BASE_WIDTH" 0:2:1
+check_refused "a later width without a data column" \
+    "an entry has no data column" 0:3:1 $far:2:2
 check_refused "a later width wider than the vdev" "$R_WIDTH" 0:3:1 $far:4:1
 check_refused "a first entry that does not cover txg 0" "$R_START" $far:3:1
 check_refused "repeated start txgs" "$R_ORDER" 0:3:1 $far:3:2 $far:3:1

@@ -62,23 +62,38 @@ function put_block
 	birth=$v
 }
 
-# check_layout <dir> <object> <parity>: zdb -f shows that many parity columns.
+# check_layout <dir> <object> <parity> <width>: check both column counts.
 function check_layout
 {
-	typeset dir=$1 object=$2 want=$3
-	typeset -i n
+	typeset dir=$1 object=$2 want=$3 width=$4
+	typeset -i n rows=1
 
+	(( width != WIDTH )) && (( rows = 32 / (width - want) ))
 	log_must eval "zdb -e -p $dir -f -H -v $POOL/ $object > $dir/layout.out"
 	n=$(awk -F'\t' '$NF ~ /^P[0-9]+$/ {n++} END {print n + 0}' \
 	    $dir/layout.out)
-	(( n == want )) || log_fail "object $object: zdb shows $n parity" \
-	    "columns, the epoch its block was born in has parity $want"
+	(( n == want * rows )) || log_fail "object $object: zdb shows $n parity" \
+	    "column entries, expected $((want * rows))"
+	n=$(awk -F'\t' '$NF ~ /^D[0-9]+$/ {n++} END {print n + 0}' \
+	    $dir/layout.out)
+	(( n == (width - want) * rows )) || log_fail "object $object: zdb shows" \
+	    "$n data columns, expected $(((width - want) * rows))"
+	n=$(awk -F'\t' '$NF ~ /^D[0-9]+$/ {n += $4} END {print n + 0}' \
+	    $dir/layout.out)
+	(( n == 256 )) || log_fail "object $object: data size is $n sectors"
+	n=$(awk -F'\t' '$NF ~ /^P[0-9]+$/ {n += $4} END {print n + 0}' \
+	    $dir/layout.out)
+	(( n == ((32 + width - want - 1) / (width - want)) * want * 8 )) ||
+	    log_fail "object $object: unexpected parity size $n sectors"
+	n=$(awk -F'\t' '$NF ~ /^[PD][0-9]+$/ {v[$1] = 1} \
+	    END {for (path in v) n++; print n + 0}' $dir/layout.out)
+	(( n == WIDTH )) || log_fail "object $object: only $n physical children"
 }
 
 # layout_case <name> <vdev parity> <parity of the new epoch>
 function layout_case
 {
-	typeset name=$1 base=$2 par=$3
+	typeset name=$1 base=$2 par=$3 width=${4:-$WIDTH}
 	typeset dir=$BASEDIR/$name last
 	typeset -i start before after
 
@@ -89,7 +104,7 @@ function layout_case
 	(( before = obj ))
 
 	out=$(zhack -d $dir raidz_epochs $POOL 0 \
-	    0:$WIDTH:$base next:$WIDTH:$par) ||
+	    0:$WIDTH:$base next:$width:$par) ||
 	    log_fail "case $name: zhack failed: $out"
 	log_note "$out"
 	last=${out##* }
@@ -103,8 +118,12 @@ function layout_case
 	(( birth >= start )) || log_fail "case $name: the second block was" \
 	    "born in txg $birth, before the epoch at $start"
 
-	check_layout $dir $before $base
-	check_layout $dir $after $par
+	check_layout $dir $before $base $WIDTH
+	check_layout $dir $after $par $width
+	log_must eval "zdb -e -p $dir -f $POOL/ $after > $dir/header.out"
+	typeset -i minimum=$base
+	(( par < minimum )) && (( minimum = par ))
+	log_must grep -q "min_parity: $minimum" $dir/header.out
 }
 
 log_onexit cleanup
@@ -112,5 +131,7 @@ log_assert "zdb -f shows a block with the parity of its epoch"
 
 layout_case up 1 2
 layout_case down 2 1
+
+layout_case narrow 1 2 3
 
 log_pass "zdb -f shows a block with the parity of its epoch"

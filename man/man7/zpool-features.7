@@ -935,7 +935,9 @@ parity layouts.
 A block is laid out with the parity of the last epoch that starts at or
 before its physical birth transaction group.
 The first entry of a table must start at transaction group 0 and describe the
-vdev's own width and parity, and every entry must have the vdev's width.
+vdev's own width and parity.
+Later entries may use a narrower logical width, but must have at least one
+data column and cannot exceed the number of physical children.
 A pool with a table that breaks these rules fails to import.
 .Pp
 This feature becomes
@@ -970,7 +972,13 @@ imported.
 Where the epochs of a vdev differ in parity, the redundancy assumed for the vdev
 as a whole, for instance when deciding whether it can still be opened or
 whether a device can be taken offline, is the lowest parity in its table.
-Reads, writes, scrubs and resilvers use the parity of each block's epoch.
+Reads, writes, scrubs and resilvers use the width and parity of each block's
+epoch.
+.Pp
+A table found only in the labels or MOS configuration, without a copy in
+the vdev ZAP, is retained for read-only recovery.
+A writable import is refused so that it cannot erase the layout needed by
+existing blocks.
 .Pp
 The
 .Sy raidz_ignore_parity_epochs
