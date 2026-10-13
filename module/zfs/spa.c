@@ -7999,11 +7999,13 @@ spa_export_common(const char *pool, int new_state, nvlist_t **oldconfig,
 	 * The pool will be in core if it's openable, in which case we can
 	 * modify its state.  Objsets may be open only because they're dirty,
 	 * so we have to force it to sync before checking spa_refcnt.
+	 * Datasets that were just closed hold the pool until their
+	 * asynchronous eviction runs, so wait for that even when the pool
+	 * is not syncing (e.g. imported read-only).
 	 */
-	if (spa->spa_sync_on) {
+	if (spa->spa_sync_on)
 		txg_wait_synced(spa->spa_dsl_pool, 0);
-		spa_evicting_os_wait(spa);
-	}
+	spa_evicting_os_wait(spa);
 
 	/*
 	 * A pool cannot be exported or destroyed if there are active
