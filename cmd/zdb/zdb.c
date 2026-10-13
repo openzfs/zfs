@@ -2841,37 +2841,29 @@ inverse_text(boolean_t on)
 }
 
 static void
-print_file_layout_line(int line, int first_disk, int last_disk, int ashift,
-    raidz_row_t *rr)
+print_file_layout_line(int line, int width, int ashift, raidz_row_t *rr)
 {
-	if (first_disk != 0) {
-		/* Account for empty columns */
-		for (int c = 0; c < first_disk; c++) {
-			(void) printf("%s%s", (c == 0) ? " │ " : "  ",
-			    line == 0 ? "` ` ` ` ` " : " ` ` ` ` `");
-		}
-	}
-
-	/*
-	 * Check if we need to account for out of order disks in raidz1.
-	 * Here flip means the disks in first two column were exchanged.
-	 */
-	boolean_t flip = rr->rr_firstdatacol == 1 &&
-	    (rr->rr_offset & (1ULL << 20));
-
-	for (int c = 0; c < rr->rr_cols; c++) {
-		raidz_col_t *rc = &rr->rr_col[c];
+	for (int disk = 0; disk < width; disk++) {
+		raidz_col_t *rc = NULL;
 		char colname[8];
-		boolean_t pcol = flip ? (c == 1) : (c < rr->rr_firstdatacol);
+		int col;
 
-		if (rc->rc_devidx > last_disk)
+		for (col = 0; col < rr->rr_cols; col++) {
+			if (rr->rr_col[col].rc_devidx == disk) {
+				rc = &rr->rr_col[col];
+				break;
+			}
+		}
+		(void) printf("%s", disk == 0 ? " │ " : "  ");
+		if (rc == NULL || rc->rc_size == 0) {
+			(void) printf("%s", line == 0 ?
+			    "` ` ` ` ` " : " ` ` ` ` `");
 			continue;
+		}
 
+		boolean_t pcol = col < rr->rr_firstdatacol;
 		(void) snprintf(colname, sizeof (colname), "%c%d",
-		    pcol ? 'P' : 'D', (flip && c < 2) ? 0 :
-		    pcol ? c : c - rr->rr_firstdatacol);
-
-		(void) printf("%s", (rc->rc_devidx == 0) ? " │ " : "  ");
+		    pcol ? 'P' : 'D', pcol ? col : col - rr->rr_firstdatacol);
 		if (pcol)
 			inverse_text(B_TRUE);
 		if (line == 0) {
@@ -2884,14 +2876,6 @@ print_file_layout_line(int line, int first_disk, int last_disk, int ashift,
 		}
 		if (pcol)
 			inverse_text(B_FALSE);
-		if (rc->rc_devidx == last_disk) {
-			/* empty columns */
-			for (int c = last_disk + 1; c < rr->rr_cols; c++) {
-				(void) printf("  %s",
-				    line == 0 ? "` ` ` ` ` " : " ` ` ` ` `");
-			}
-			break;
-		}
 	}
 	(void) printf(" │\n");
 }
@@ -2947,64 +2931,52 @@ static void
 print_file_layout_raidz(vdev_t *vd, blkptr_t *bp, uint64_t file_offset,
     boolean_t last)
 {
-	/*
-	 * RAIDZ file data layout
-	 *
-	 * Use vdev_raidz_map_alloc() to get the actual layout
-	 */
 	const dva_t *dva = bp->blk_dva;
-	zio_t zio = {0};
+	zio_t zio = { 0 };
+	uint64_t width;
+	uint64_t nparity;
+	raidz_map_t *rm;
+
 	zio.io_size = P2ROUNDUP_TYPED(BP_GET_PSIZE(bp),
 	    1ULL << vd->vdev_ashift, uint64_t);
 	zio.io_offset = DVA_GET_OFFSET(&dva[0]);
 	zio.io_type = ZIO_TYPE_READ;
 	zio.io_abd = abd_alloc_for_io(zio.io_size, B_FALSE);
 
-	/*
-	 * Map the block with the parity of the epoch it was born in, as the
-	 * I/O path does.  The row shown spans every child, as the width of a
-	 * vdev with parity epochs does.
-	 */
-	uint64_t nparity;
-	vdev_raidz_layout_for_birth(vd, BP_GET_PHYSICAL_BIRTH(bp), NULL,
+	/* Use the same logical rows and physical columns as the I/O path. */
+	vdev_raidz_layout_for_birth(vd, BP_GET_PHYSICAL_BIRTH(bp), &width,
 	    &nparity);
-	raidz_map_t *rm = vdev_raidz_map_alloc(&zio, vd->vdev_ashift,
-	    vd->vdev_children, nparity);
-	raidz_row_t *rr = rm->rm_row[0];
+	if (width != vd->vdev_children) {
+		vdev_raidz_t *vdrz = vd->vdev_tsd;
+		uint64_t synced = UINT64_MAX;
+		boolean_t scratch = B_FALSE;
+
+		if (vdrz->vn_vre.vre_state == DSS_SCANNING) {
+			synced = RRSS_GET_OFFSET(&vd->vdev_spa->spa_ubsync);
+			scratch = RRSS_GET_STATE(&vd->vdev_spa->spa_ubsync) ==
+			    RRSS_SCRATCH_VALID;
+		}
+		rm = vdev_raidz_map_alloc_expanded(&zio, vd->vdev_ashift,
+		    vd->vdev_children, width, nparity, synced, synced, scratch);
+	} else {
+		rm = vdev_raidz_map_alloc(&zio, vd->vdev_ashift,
+		    width, nparity);
+	}
 
 	if (!dump_opt['H']) {
-		int last_disk = vd->vdev_children - 1;
-		/*
-		 * Account for out of order disks in raidz1.
-		 * For now just reverse them back and adjust for it later.
-		 */
-		if (rr->rr_firstdatacol == 1 &&
-		    (zio.io_offset & (1ULL << 20))) {
-			uint64_t devidx = rr->rr_col[0].rc_devidx;
-			rr->rr_col[0].rc_devidx = rr->rr_col[1].rc_devidx;
-			rr->rr_col[1].rc_devidx = devidx;
-		}
-		int first_disk = rr->rr_col[0].rc_devidx;
+		for (int row = 0; row < rm->rm_nrows; row++) {
+			raidz_row_t *rr = rm->rm_row[row];
 
-		(void) printf("%12llx", (u_longlong_t)file_offset);
-		print_file_layout_line(0, first_disk, last_disk,
-		    vd->vdev_ashift, rr);
-		(void) printf("%*c", 12, ' ');
-		print_file_layout_line(1, first_disk, last_disk,
-		    vd->vdev_ashift, rr);
-		/* Check for split row */
-		if (first_disk != 0) {
-			(void) printf("%*c", 12, ' ');
-			print_file_layout_line(0, 0, first_disk - 1,
+			(void) printf("%12llx", (u_longlong_t)file_offset);
+			print_file_layout_line(0, vd->vdev_children,
 			    vd->vdev_ashift, rr);
 			(void) printf("%*c", 12, ' ');
-			print_file_layout_line(1, 0, first_disk - 1,
+			print_file_layout_line(1, vd->vdev_children,
 			    vd->vdev_ashift, rr);
 		}
-		/* seperate rows with a line */
 		(void) printf("%*c", 12, ' ');
 		for (int c = 0; c < vd->vdev_children; c++) {
-			(void) printf("%s%10s", (c == 0) ?
+			(void) printf("%s%10s", c == 0 ?
 			    (last ? " └─" : " ├─") : "──",
 			    "──────────");
 		}
@@ -3017,47 +2989,64 @@ print_file_layout_raidz(vdev_t *vd, blkptr_t *bp, uint64_t file_offset,
 			    (u_longlong_t)((file_offset - next_offset) / 512));
 		}
 		next_offset = file_offset + BP_GET_LSIZE(bp);
-		uint64_t tmp_offset = file_offset;
+		uint64_t rem = (zio.io_size >> vd->vdev_ashift) %
+		    (width - nparity);
+		for (int row = 0; row < rm->rm_nrows; row++) {
+			raidz_row_t *rr = rm->rm_row[row];
+			uint64_t tmp_offset = file_offset +
+			    ((uint64_t)row << vd->vdev_ashift);
 
+			for (int c = 0; c < rr->rr_cols; c++) {
+				boolean_t pcol = c < rr->rr_firstdatacol;
+				raidz_col_t *rc = &rr->rr_col[c];
+				char *path = vd->vdev_child[rc->rc_devidx]->
+				    vdev_path;
 
-		for (int c = 0; c < rr->rr_cols; c++) {
-			boolean_t pcol = c < rr->rr_firstdatacol;
-			raidz_col_t *rc = &rr->rr_col[c];
-			char *path = vd->vdev_child[rc->rc_devidx]->vdev_path;
+				if (rc->rc_size == 0)
+					continue;
+				if (!pcol && rm->rm_nrows > 1) {
+					uint64_t dc = c - rr->rr_firstdatacol;
+					uint64_t full = rem == 0 ? dc :
+					    MIN(dc, rem);
+					uint64_t sector = full * rm->rm_nrows;
 
-			if (rc->rc_size == 0)
-				continue;
-			(void) printf("%s\t\t%llu\t%d",
-			    zfs_basename(path),
-			    (u_longlong_t)(rc->rc_offset +
-			    VDEV_LABEL_START_SIZE)/512,
-			    (int)rc->rc_size/512);
-			if (dump_opt['v']) {
-				char label = pcol ? 'P' : 'D';
-				int num;
+					sector += (dc - full) *
+					    (rm->rm_nrows - 1);
+					sector += row;
 
-				if (c < 2) {
-					num = 0;
-				} else {
-					num = pcol ? c :
-					    (c - rr->rr_firstdatacol);
+					tmp_offset = file_offset +
+					    (sector << vd->vdev_ashift);
 				}
-				printf("\t%c%d", label, num);
-				if (dump_opt['v'] > 1) {
-					unsigned long long off;
-					if (pcol)
-						off = file_offset;
-					else
-						off = tmp_offset;
-					off = off / 512ULL;
-					printf("\t%llu", off);
+				(void) printf("%s\t\t%llu\t%d",
+				    zfs_basename(path),
+				    (u_longlong_t)(rc->rc_offset +
+				    VDEV_LABEL_START_SIZE) / 512,
+				    (int)rc->rc_size / 512);
+				if (dump_opt['v']) {
+					int num = pcol ? c :
+					    c - rr->rr_firstdatacol;
+
+					(void) printf("\t%c%d",
+					    pcol ? 'P' : 'D', num);
+					if (dump_opt['v'] > 1) {
+						uint64_t off = file_offset;
+
+						if (!pcol)
+							off = tmp_offset;
+
+						(void) printf("\t%llu",
+						    (u_longlong_t)(off / 512));
+					}
 				}
+				if (!pcol) {
+					tmp_offset += rc->rc_size;
+				}
+				(void) printf("\n");
 			}
-			if (!pcol)
-				tmp_offset += rc->rc_size;
-			printf("\n");
 		}
 	}
+	vdev_raidz_map_free(rm);
+	abd_free(zio.io_abd);
 }
 
 static void
@@ -3198,6 +3187,9 @@ dump_indirect_layout(dnode_t *dn)
 		(void) printf("%12s: %s%d\n", "vdev_type",
 		    spa->spa_root_vdev->vdev_child[0]->vdev_ops->vdev_op_type,
 		    (int)vdev_get_nparity(spa->spa_root_vdev->vdev_child[0]));
+		(void) printf("%12s: %llu\n", "min_parity",
+		    (u_longlong_t)vdev_get_min_nparity(
+		    spa->spa_root_vdev->vdev_child[0]));
 		(void) printf("%12s: %d\n", "sector size", 1 << ashift);
 		(void) printf("%12s: %d\n\n", "child disks", children);
 

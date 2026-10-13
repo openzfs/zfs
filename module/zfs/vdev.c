@@ -6856,7 +6856,7 @@ vdev_prop_get(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 				continue;
 			case VDEV_PROP_PARITY:
 				vdev_prop_add_list(outnvl, propname, NULL,
-				    vdev_get_nparity(vd), ZPROP_SRC_NONE);
+				    vdev_get_min_nparity(vd), ZPROP_SRC_NONE);
 				continue;
 			case VDEV_PROP_FDOMAIN:
 			case VDEV_PROP_FGROUP:

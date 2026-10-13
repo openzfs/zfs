@@ -19,30 +19,18 @@
 
 #
 # DESCRIPTION:
-#	The copy of a parity-epoch table in the vdev ZAP is the authoritative
-#	one; the copy in the labels and the MOS config is what the MOS is
-#	read with until the ZAP is reached.  A table that the config carries
-#	and the ZAP does not was not stored by the setter: the import drops
-#	it, says so, says so again if the pool has reached an epoch of it,
-#	whose blocks cannot be read without it, and the config is written
-#	back without it.  A table that only the ZAP has is used, said to be,
-#	and written back to the config.
+#	A config-only parity-epoch table may describe live blocks.  Preserve
+#	it for read-only recovery and refuse a writable import.  The refusal
+#	and recovery reads must leave the labels and MOS config unchanged.
+#	A table in the vdev ZAP only remains authoritative and is propagated
+#	to the config on a writable import.
 #
 # STRATEGY:
-#	1. Create a raidz1 pool and give its vdev a table in the config only,
-#	   whose new epoch starts at a txg the pool never reaches.
-#	2. Require zdb to open the pool and say that it drops the table, and
-#	   nothing about an epoch the pool has reached.
-#	3. Write a block in a read-write import, and require the labels and
-#	   the MOS config written back to carry no table.
-#	4. On a second pool, store a table in the vdev ZAP only, with
-#	   zhack -f: require zdb to say that it uses the table that the config
-#	   lacks, and a read-write import to write it back to the labels and
-#	   the MOS config.
-#	5. On a third pool, give the vdev a table in the config only whose
-#	   new epoch starts at the first txg the setter would allow, and write
-#	   a block in that epoch: require zdb to name the epoch when it drops
-#	   the table.
+#	1. Create config-only tables with future and reached parity epochs.
+#	2. Refuse a writable import and compare all vdev bytes before/after.
+#	3. Read the known block through a read-only import, and compare all
+#	   vdev bytes again.  Verify that labels and MOS config keep the table.
+#	4. Store a ZAP-only table and verify its normal import and propagation.
 #
 
 verify_runnable "global"
@@ -50,12 +38,11 @@ verify_runnable "global"
 typeset -r BASEDIR=$TEST_BASE_DIR/raidz_pe_label.$$
 typeset -r POOL=${TESTPOOL}_label
 typeset -r FAR=1000000
-typeset -r MSG_DROP="no parity epoch table in the vdev ZAP, dropping"
-typeset -r MSG_REACHED="the dropped table has an epoch of parity"
+typeset -r MSG_KEEP="preserving the config table for read-only recovery"
 typeset -r MSG_ZAP="no parity epoch table in the config, using"
 typeset -i WIDTH=5
 typeset -i n
-typeset dir out start birth
+typeset dir out start birth obj
 
 function cleanup
 {
@@ -75,25 +62,57 @@ function count_values
 	n=$(grep -c 'raidz_parity_epochs\[' $d/where.out)
 }
 
-log_onexit cleanup
-log_assert "the copy of a parity-epoch table in the vdev ZAP is the one used"
+# config_case <future|reached>: preserve the table and the known block.
+function config_case
+{
+	typeset name=$1
+	dir=$BASEDIR/$name
+	log_must mkdir -p $dir
+	log_must raidz_epoch_test create $dir $POOL $WIDTH 1
+	if [[ $name == reached ]]; then
+		out=$(raidz_epoch_test label $dir $POOL now) ||
+		    log_fail "label failed: $out"
+		log_note "$out"
+		start=$(print -r -- "$out" |
+		    sed -n 's/.* start=\([0-9]*\).*/\1/p')
+		birth=$(print -r -- "$out" |
+		    sed -n 's/.* birth=\([0-9]*\).*/\1/p')
+		[[ $start == +([0-9]) && $birth == +([0-9]) ]] ||
+		    log_fail "no start or birth txg in: $out"
+		(( birth >= start )) || log_fail "epoch was not reached: $out"
+	else
+		out=$(raidz_epoch_test write $dir $POOL 8192) ||
+		    log_fail "write failed: $out"
+		log_must raidz_epoch_test label $dir $POOL
+	fi
+	obj=$(print -r -- "$out" |
+	    sed -n 's/.* object=\([0-9]*\).*/\1/p')
+	[[ $obj == +([0-9]) ]] || log_fail "no object in: $out"
 
-# A table in the config only, never reached: dropped, and written back so.
-dir=$BASEDIR/config
-log_must mkdir -p $dir
-log_must raidz_epoch_test create $dir $POOL $WIDTH 1
-log_must raidz_epoch_test label $dir $POOL
-count_values $dir label
-(( n >= 6 )) || log_fail "the labels do not carry the table"
-log_must eval "zdb -e -p $dir -G -m $POOL > $dir/zdb.out 2>&1"
-log_must grep -q "$MSG_DROP" $dir/zdb.out
-log_mustnot grep -q "$MSG_REACHED" $dir/zdb.out
-out=$(raidz_epoch_test write $dir $POOL 8192) || log_fail "write failed: $out"
-log_note "$out"
-count_values $dir label
-(( n == 0 )) || log_fail "the labels written back carry the dropped table"
-count_values $dir config
-(( n == 0 )) || log_fail "the MOS config written back carries the table"
+	count_values $dir label
+	(( n >= 6 )) || log_fail "the labels do not carry the table"
+	log_must eval "cksum $dir/v* > $dir/before.cksum"
+	log_mustnot raidz_epoch_test write $dir $POOL 8192
+	log_must eval "cksum $dir/v* > $dir/after.cksum"
+	log_must cmp $dir/before.cksum $dir/after.cksum
+	out=$(raidz_epoch_test read $dir $POOL $obj 8192 readonly) ||
+	    log_fail "read-only import failed: $out"
+	log_note "$out"
+	[[ $out == *"rc=0 match=1"* ]] || log_fail "read mismatch: $out"
+	log_must eval "zdb -e -p $dir -G -m $POOL > $dir/zdb.out 2>&1"
+	log_must grep -q "$MSG_KEEP" $dir/zdb.out
+	count_values $dir label
+	(( n >= 6 )) || log_fail "the labels lost the recovery table"
+	count_values $dir config
+	(( n == 6 )) || log_fail "the MOS config lost the recovery table"
+	log_must eval "cksum $dir/v* > $dir/after.cksum"
+	log_must cmp $dir/before.cksum $dir/after.cksum
+}
+
+log_onexit cleanup
+log_assert "config-only epochs preserve data through read-only recovery"
+config_case future
+config_case reached
 
 # A table in the vdev ZAP only: used, and written back to the config.
 dir=$BASEDIR/zap
@@ -113,22 +132,4 @@ count_values $dir label
 count_values $dir config
 (( n == 6 )) || log_fail "the MOS config written back lacks the table"
 
-# A table in the config only, with blocks in its new epoch.
-dir=$BASEDIR/reached
-log_must mkdir -p $dir
-log_must raidz_epoch_test create $dir $POOL $WIDTH 1
-out=$(raidz_epoch_test label $dir $POOL now) || log_fail "label failed: $out"
-log_note "$out"
-start=$(print -r -- "$out" |
-    sed -n 's/^RESULT label rc=0 start=\([0-9]*\) birth=.*/\1/p')
-birth=$(print -r -- "$out" | sed -n 's/^RESULT label rc=0 .* birth=//p')
-[[ $start == +([0-9]) && $birth == +([0-9]) ]] ||
-    log_fail "no start or birth txg in: $out"
-(( birth >= start )) ||
-    log_fail "the block was born in txg $birth, before the epoch at $start"
-zdb -e -p $dir -G -m $POOL > $dir/zdb.out 2>&1
-log_note "zdb -m exited $?"
-log_must grep -q "$MSG_DROP" $dir/zdb.out
-log_must grep -q "$MSG_REACHED 2 from txg $start," $dir/zdb.out
-
-log_pass "the copy of a parity-epoch table in the vdev ZAP is the one used"
+log_pass "config-only epochs preserve data; ZAP epochs propagate normally"

@@ -5579,11 +5579,10 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
  * checked before the table can influence any I/O.
  *
  * The first entry stands for every block that predates the table, so it must
- * be the vdev's own geometry, {0, width, nparity}.  Every entry must keep the
- * vdev's physical width: a wider row has more columns than children, and a
- * narrower one describes a vdev that was expanded or contracted, neither of
- * which combines with a table (the caller refuses expansion state before it
- * gets here).  Only the parity may change, up or down.
+ * be the vdev's own geometry, {0, width, nparity}.  Later entries may describe
+ * a narrower logical stripe, but cannot address children the vdev lacks.
+ * This does not change the physical topology; expansion history remains
+ * incompatible with a parity-epoch table.
  *
  * On EINVAL, *why, if why is not NULL, says which rule the table breaks.
  */
@@ -5603,15 +5602,18 @@ vdev_raidz_parity_epochs_check(const uint64_t *tbl, uint64_t nent,
 		rule = "the first entry does not start at txg 0";
 	else if (tbl[2] != nparity)
 		rule = "the first entry does not have the parity of the vdev";
+	else if (tbl[1] != width)
+		rule = "the first entry does not have the width of the vdev";
 
 	for (uint64_t i = 0; rule == NULL && i < nent; i++) {
 		uint64_t parity = tbl[3 * i + 2];
+		uint64_t logical_width = tbl[3 * i + 1];
 
 		if (parity < 1 || parity > VDEV_RAIDZ_MAXPARITY)
 			rule = "an entry has a parity outside 1 to 3";
-		else if (tbl[3 * i + 1] != width)
-			rule = "an entry does not have the width of the vdev";
-		else if (width <= parity)
+		else if (logical_width > width)
+			rule = "an entry exceeds the width of the vdev";
+		else if (logical_width <= parity)
 			rule = "an entry has no data column";
 		else if (i > 0 && tbl[3 * i] <= tbl[3 * (i - 1)])
 			rule = "the starts of the entries do not increase";
@@ -5973,11 +5975,11 @@ vdev_raidz_load(vdev_t *vd)
 	 * safe.
 	 */
 	if (raidz_ignore_parity_epochs && spa_writeable(vd->vdev_spa) &&
+	    (vdrz->vd_parity_epochs_config_present ||
 	    spa_feature_is_active(vd->vdev_spa,
-	    SPA_FEATURE_RAIDZ_PARITY_EPOCHS)) {
+	    SPA_FEATURE_RAIDZ_PARITY_EPOCHS))) {
 		spa_load_failed(vd->vdev_spa, "raidz_ignore_parity_epochs "
-		    "is set and feature@raidz_parity_epochs is active: import "
-		    "read-only");
+		    "is set with stored parity epochs: import read-only");
 		return (SET_ERROR(EROFS));
 	}
 
@@ -5986,8 +5988,8 @@ vdev_raidz_load(vdev_t *vd)
 	 * feature has written one.  The table is {start physical-birth txg,
 	 * logical width, parity} triplets sorted by start, which must be
 	 * valid for this vdev or the vdev fails to load.  Layout selection
-	 * consumes it as soon as it is installed.  Without one, the vdev has
-	 * no table, whatever its config said.
+	 * consumes it as soon as it is installed.  A config-only table is
+	 * retained for read-only recovery, but does not permit writing.
 	 */
 	if (!raidz_ignore_parity_epochs) {
 		uint64_t int_size = 0;
@@ -6055,8 +6057,29 @@ vdev_raidz_load(vdev_t *vd)
 			    num_ints / 3);
 			kmem_free(table, num_ints * sizeof (uint64_t));
 		} else if (err == ENOENT) {
-			vdev_raidz_parity_epochs_reconcile(vd, NULL, 0);
-			vdev_raidz_parity_epochs_install(vd, NULL, 0);
+			if (vdrz->vd_parity_epochs_config_present &&
+			    !vdev_raidz_has_parity_epochs(vd)) {
+				spa_load_failed(vd->vdev_spa,
+				    "invalid config-only parity epoch table");
+				return (SET_ERROR(EINVAL));
+			}
+			/*
+			 * A config-only table may already describe live blocks.
+			 * Keep it available for recovery reads.  A writable
+			 * import must not erase their layout or write without
+			 * the ZAP copy and active feature that protect it.
+			 */
+			if (vdev_raidz_has_parity_epochs(vd)) {
+				vdev_dbgmsg(vd, "vdev_raidz_load: no parity "
+				    "epoch table in the vdev ZAP, preserving "
+				    "the config table for read-only recovery");
+				if (spa_writeable(vd->vdev_spa)) {
+					spa_load_failed(vd->vdev_spa,
+					    "config-only parity epoch table: "
+					    "import read-only for recovery");
+					return (SET_ERROR(EROFS));
+				}
+			}
 		} else {
 			return (err);
 		}
@@ -6187,6 +6210,8 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 
 	vdrz->vd_original_width = children;
 
+	vdrz->vd_parity_epochs_config_present =
+	    nvlist_exists(nv, ZPOOL_CONFIG_RAIDZ_PARITY_EPOCHS);
 	uint64_t *pe_label;
 	unsigned int pe_label_size = 0;
 	if (!raidz_ignore_parity_epochs &&
