@@ -939,7 +939,8 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_NPARITY		"nparity"
 #define	ZPOOL_CONFIG_RAIDZ_EXPANDING	"raidz_expanding"
 #define	ZPOOL_CONFIG_RAIDZ_EXPAND_TXGS	"raidz_expand_txgs"
-#define	ZPOOL_CONFIG_RAIDZ_PARITY_EPOCHS	"com.rrmvp:raidz_parity_epochs"
+#define	ZPOOL_CONFIG_RAIDZ_PARITY_EPOCHS \
+	"org.openzfs:raidz_parity_epochs"
 #define	ZPOOL_CONFIG_HOSTID		"hostid"
 #define	ZPOOL_CONFIG_HOSTNAME		"hostname"
 #define	ZPOOL_CONFIG_LOADED_TIME	"initial_load_time"
