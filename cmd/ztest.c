@@ -4261,6 +4261,8 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 
 	if (spa->spa_raidz_expand)
 		expected_error = ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS;
+	else
+		expected_error = vdev_raidz_attach_check(pvd);
 
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
@@ -4301,6 +4303,11 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	if (error != 0 && error != expected_error) {
 		fatal(0, "raidz attach (%s %"PRIu64") returned %d, expected %d",
 		    newpath, newsize, error, expected_error);
+	}
+
+	if (error == 0 && expected_error == ZFS_ERR_RAIDZ_EXPAND_TOO_WIDE) {
+		fatal(0, "raidz attach (%s %"PRIu64") succeeded, expected %d",
+		    newpath, newsize, expected_error);
 	}
 
 	if (raidz_expand_pause_point) {

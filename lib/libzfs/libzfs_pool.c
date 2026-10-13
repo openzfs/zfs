@@ -4066,6 +4066,12 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		    "than the top-level vdev.");
 		(void) zfs_error(hdl, EZFS_BADTARGET, errbuf);
 		break;
+
+	case ZFS_ERR_RAIDZ_EXPAND_TOO_WIDE:
+		zfs_error_aux(hdl,
+		    "this raidz vdev is too wide to be expanded");
+		(void) zfs_error(hdl, EZFS_BADTARGET, errbuf);
+		break;
 	default:
 		(void) zpool_standard_error(hdl, errno, errbuf);
 	}

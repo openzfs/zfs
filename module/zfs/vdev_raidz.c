@@ -5342,10 +5342,15 @@ raidz_dtl_reassessed(vdev_t *vd)
 }
 
 int
-vdev_raidz_attach_check(vdev_t *new_child)
+vdev_raidz_attach_check(vdev_t *raidvd)
 {
-	vdev_t *raidvd = new_child->vdev_parent;
-	uint64_t new_children = raidvd->vdev_children;
+	/*
+	 * The new child is not attached yet, so size up the raidz vdev as it
+	 * will be once the child has been added.
+	 */
+	uint64_t new_children = raidvd->vdev_children + 1;
+
+	ASSERT3P(raidvd->vdev_ops, ==, &vdev_raidz_ops);
 
 	/*
 	 * We use the "boot" space as scratch space to handle overwriting the
@@ -5354,7 +5359,7 @@ vdev_raidz_attach_check(vdev_t *new_child)
 	 * >200 children).
 	 */
 	if (new_children << raidvd->vdev_ashift > VDEV_BOOT_SIZE) {
-		return (EINVAL);
+		return (SET_ERROR(ZFS_ERR_RAIDZ_EXPAND_TOO_WIDE));
 	}
 	return (0);
 }

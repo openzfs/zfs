@@ -8674,8 +8674,9 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	 * RAIDZ-expansion-specific checks.
 	 */
 	if (raidz) {
-		if (vdev_raidz_attach_check(newvd) != 0)
-			return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
+		error = vdev_raidz_attach_check(oldvd);
+		if (error != 0)
+			return (spa_vdev_exit(spa, newrootvd, txg, error));
 
 		/*
 		 * Fail early if a child is not healthy or being replaced

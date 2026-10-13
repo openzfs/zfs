@@ -17,7 +17,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd May 9, 2026
+.Dd October 13, 2026
 .Dt ZPOOL-ATTACH 8
 .Os
 .
@@ -81,6 +81,11 @@ and waiting for reconstruction to complete).
 Expansion does not change the number of failures that can be tolerated
 without data loss (e.g. a RAID-Z2 is still a RAID-Z2 even after expansion).
 A RAID-Z vdev can be expanded multiple times.
+Each expansion uses the 3.5 MiB boot area that ZFS reserves near the start of
+every disk as scratch space, and that area has to hold one sector for each disk
+of the expanded vdev: with
+.Sy ashift Ns = Ns Sy 16 ,
+for example, a RAID-Z vdev can be expanded to at most 56 disks.
 .Pp
 After the expansion completes, old blocks retain their old data-to-parity
 ratio

@@ -771,6 +771,11 @@ zpool_standard_error_fmt(libzfs_handle_t *hdl, int error, const char *fmt, ...)
 	case ZFS_ERR_ASHIFT_MISMATCH:
 		zfs_verror(hdl, EZFS_ASHIFT_MISMATCH, fmt, ap);
 		break;
+	case ZFS_ERR_RAIDZ_EXPAND_TOO_WIDE:
+		zfs_error_aux(hdl,
+		    "this raidz vdev is too wide to be expanded");
+		zfs_verror(hdl, EZFS_BADTARGET, fmt, ap);
+		break;
 	case ZFS_ERR_TOO_MANY_SITOUTS:
 		zfs_error_aux(hdl, "too many disks "
 		    "already sitting out");
