@@ -4375,8 +4375,9 @@ vdev_raidz_need_resilver(vdev_t *vd, const dva_t *dva, size_t psize,
 		return (B_TRUE);
 
 	uint64_t dcols = vd->vdev_children;
-	uint64_t nparity =
-	    vdev_raidz_layout_for_alloc(vdrz, phys_birth).vrl_nparity;
+	vdev_raidz_layout_t layout =
+	    vdev_raidz_layout_for_alloc(vdrz, phys_birth);
+	uint64_t nparity = layout.vrl_nparity;
 	uint64_t ashift = vd->vdev_top->vdev_ashift;
 	/* The starting RAIDZ (parent) vdev sector of the block. */
 	uint64_t b = DVA_GET_OFFSET(dva) >> ashift;
@@ -4384,25 +4385,20 @@ vdev_raidz_need_resilver(vdev_t *vd, const dva_t *dva, size_t psize,
 	uint64_t s = ((psize - 1) >> ashift) + 1;
 	/* The first column for this stripe. */
 	uint64_t f = b % dcols;
+	/*
+	 * The block is laid out in rows of the layout's width, each with
+	 * nparity parity columns, over consecutive children.  A layout
+	 * narrower than the vdev, from an epoch or a previous expansion,
+	 * can need several rows where a full-width one needs one.
+	 */
+	uint64_t ncols = s + nparity *
+	    howmany(s, layout.vrl_width - nparity);
 
 	/* Unreachable by sequential resilver. */
 	ASSERT3U(phys_birth, !=, TXG_UNKNOWN);
 
 	if (!vdev_dtl_contains(vd, DTL_PARTIAL, phys_birth, 1))
 		return (B_FALSE);
-
-	if (s + nparity >= dcols)
-		return (B_TRUE);
-
-	/*
-	 * The block is laid out in rows of the logical width it was born
-	 * with, each with nparity parity columns, over consecutive
-	 * children.  A block born before an expansion can need several
-	 * rows where a block of the vdev's width needs one.
-	 */
-	uint64_t ncols = s + nparity *
-	    howmany(s, vdev_raidz_layout_for_alloc(vdrz, phys_birth).vrl_width -
-	    nparity);
 
 	if (ncols >= dcols)
 		return (B_TRUE);
