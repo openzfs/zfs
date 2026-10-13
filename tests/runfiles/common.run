@@ -505,6 +505,7 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'import_rewind_config_changed',
     'import_rewind_device_replaced',
     'import_rewind_dryrun_no_writes',
+    'import_rewind_zil_claim',
     'import_rewind_metadata_damaged',
     'zpool_import_status', 'zpool_import_parallel_pos',
     'zpool_import_parallel_neg', 'zpool_import_parallel_admin']
