@@ -2117,6 +2117,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/removal/remove_attach_mirror.ksh \
 	functional/removal/remove_expanded.ksh \
 	functional/removal/remove_indirect.ksh \
+	functional/removal/remove_indirect_retire.ksh \
+	functional/removal/remove_indirect_retire_held.ksh \
 	functional/removal/remove_mirror.ksh \
 	functional/removal/remove_mirror_sanity.ksh \
 	functional/removal/remove_raidz.ksh \

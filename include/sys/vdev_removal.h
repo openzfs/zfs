@@ -83,6 +83,8 @@ extern void spa_vdev_remove_suspend(spa_t *);
 extern int spa_vdev_remove_cancel(spa_t *);
 extern void spa_vdev_removal_destroy(spa_vdev_removal_t *);
 extern uint64_t spa_remove_max_segment(spa_t *);
+extern boolean_t vdev_retire_indirect_ready(vdev_t *);
+extern void spa_vdev_retire_indirect(spa_t *);
 
 extern uint_t vdev_removal_max_span;
 
