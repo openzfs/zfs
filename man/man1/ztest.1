@@ -14,7 +14,7 @@
 .\" reserved.
 .\" Copyright (c) 2017, Intel Corporation.
 .\"
-.Dd July 5, 2026
+.Dd October 13, 2026
 .Dt ZTEST 1
 .Os
 .
@@ -52,6 +52,14 @@
 .Op Fl R Ar raid_parity
 .Op Fl d Ar datasets
 .Op Fl t Ar threads
+.
+.Nm
+.Fl Y Ar checks
+.Op Fl VG
+.Op Fl s Ar size_of_each_vdev
+.Op Fl a Ar alignment_shift
+.Op Fl r Ar raidz_disks
+.Op Fl R Ar raid_parity
 .
 .Sh DESCRIPTION
 .Nm
@@ -194,6 +202,26 @@ numbers, or pass a single 0 to disable this feature.
 Verbose (use multiple times for ever more verbosity).
 .It Fl X , -raidz-expansion
 Perform a dedicated raidz expansion test.
+.It Fl Y , -raidz-parity-epochs Ns = Ns Sy all Ns | Ns Ar check Ns Oo , Ns Ar check Oc Ns …
+Perform a dedicated test of the allocation paths of a raidz vdev whose parity
+changes between epochs.
+The pool gets one raidz vdev and a four entry parity-epoch table that cycles
+through the three parities and returns to the base one, set with
+.Fl R .
+The checks to run are
+.Sy all
+or a comma separated list of:
+.Bl -tag -compact -width "arith"
+.It Sy arith
+the round trip of the allocation factor;
+.It Sy gang
+the extent of gang headers;
+.It Sy zil
+dynamically sized allocations;
+.It Sy io
+gang blocks written in every epoch, freed, read back and checked by
+.Xr zdb 8 .
+.El
 .El
 .
 .Sh EXAMPLES

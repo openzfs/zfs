@@ -166,6 +166,20 @@ typedef enum {
 	RAIDZ_EXPAND_CHECKED,		/* Pool scrub verification done	*/
 } raidz_expand_test_state_t;
 
+/* Dedicated RAIDZ parity-epoch allocation test states */
+typedef enum {
+	RAIDZ_EPOCHS_NONE,		/* Default is none, must opt-in	*/
+	RAIDZ_EPOCHS_REQUESTED,		/* The '-Y' option was used	*/
+	RAIDZ_EPOCHS_DONE,		/* The checks have completed	*/
+} raidz_epochs_test_state_t;
+
+/* The checks of that test, selected by the argument of '-Y' */
+#define	ZTEST_EPOCHS_ARITH	0x1	/* allocation factor round trip	*/
+#define	ZTEST_EPOCHS_GANG	0x2	/* gang header un-allocation	*/
+#define	ZTEST_EPOCHS_ZIL	0x4	/* dynamically sized allocations */
+#define	ZTEST_EPOCHS_IO		0x8	/* gang blocks written and freed */
+#define	ZTEST_EPOCHS_ALL	0xf
+
 
 #define	ZO_GVARS_MAX_ARGLEN	((size_t)64)
 #define	ZO_GVARS_MAX_COUNT	((size_t)10)
@@ -196,6 +210,8 @@ typedef struct ztest_shared_opts {
 	uint64_t zo_maxloops;
 	uint64_t zo_metaslab_force_ganging;
 	raidz_expand_test_state_t zo_raidz_expand_test;
+	raidz_epochs_test_state_t zo_raidz_epochs_test;
+	int zo_raidz_epochs_checks;
 	int zo_mmp_test;
 	int zo_special_vdevs;
 	int zo_dump_dbgmsg;
@@ -260,10 +276,13 @@ static const ztest_shared_opts_t ztest_opts_defaults = {
 	.zo_special_vdevs = ZTEST_VDEV_CLASS_RND,
 	.zo_gvars_count = 0,
 	.zo_raidz_expand_test = RAIDZ_EXPAND_NONE,
+	.zo_raidz_epochs_test = RAIDZ_EPOCHS_NONE,
 	.zo_fishing = 1,
 };
 
 extern uint64_t metaslab_force_ganging;
+extern uint_t metaslab_force_ganging_pct;
+extern metaslab_ops_t *metaslab_allocator(spa_t *spa);
 extern uint64_t metaslab_df_alloc_threshold;
 extern uint64_t zfs_deadman_synctime_ms;
 extern uint_t metaslab_preload_limit;
@@ -795,6 +814,9 @@ static ztest_option_t option_table[] = {
 	{ 'X', "raidz-expansion", NULL,
 	    "Perform a dedicated raidz expansion test",
 	    NO_DEFAULT, NULL},
+	{ 'Y', "raidz-parity-epochs", "CHECKS",
+	    "Perform a dedicated raidz parity-epoch allocation test",
+	    NO_DEFAULT, NULL},
 	{ 'o',	"option", "\"NAME=VALUE\"",
 	    "Set the named tunable to the given value",
 	    NO_DEFAULT, NULL},
@@ -1095,6 +1117,38 @@ fishing:
 #define	_thread_create(stk, stksize, func, arg, len, pp, state, pri)	\
 	ztest_thread_create(#func, stk, stksize, func, arg, len, pp, state, pri)
 
+static int
+ztest_parse_epochs_checks(const char *input)
+{
+	char *list = strdup(input);
+	char *save = NULL;
+	int checks = 0;
+
+	if (list == NULL)
+		fatal(B_TRUE, "strdup failed");
+	for (char *name = strtok_r(list, ",", &save); name != NULL;
+	    name = strtok_r(NULL, ",", &save)) {
+		if (strcmp(name, "all") == 0) {
+			checks |= ZTEST_EPOCHS_ALL;
+		} else if (strcmp(name, "arith") == 0) {
+			checks |= ZTEST_EPOCHS_ARITH;
+		} else if (strcmp(name, "gang") == 0) {
+			checks |= ZTEST_EPOCHS_GANG;
+		} else if (strcmp(name, "zil") == 0) {
+			checks |= ZTEST_EPOCHS_ZIL;
+		} else if (strcmp(name, "io") == 0) {
+			checks |= ZTEST_EPOCHS_IO;
+		} else {
+			(void) fprintf(stderr, "invalid -Y check '%s'\n", name);
+			usage(B_FALSE);
+		}
+	}
+	free(list);
+	if (checks == 0)
+		usage(B_FALSE);
+	return (checks);
+}
+
 static void
 ztest_parse_name_value(const char *input, ztest_shared_opts_t *zo)
 {
@@ -1239,6 +1293,11 @@ process_options(int argc, char **argv)
 		case 'X':
 			zo->zo_raidz_expand_test = RAIDZ_EXPAND_REQUESTED;
 			break;
+		case 'Y':
+			zo->zo_raidz_epochs_test = RAIDZ_EPOCHS_REQUESTED;
+			zo->zo_raidz_epochs_checks =
+			    ztest_parse_epochs_checks(optarg);
+			break;
 		case 'E':
 			zo->zo_init = 0;
 			break;
@@ -1323,6 +1382,19 @@ process_options(int argc, char **argv)
 		zo->zo_mirrors = 0;
 		zo->zo_vdevs = 1;
 		zo->zo_vdev_size = DEFAULT_VDEV_SIZE * 2;
+		zo->zo_raid_do_expand = B_FALSE;
+		raid_kind = "raidz";
+	}
+
+	/* Force compatible options for the raidz parity-epoch run */
+	if (zo->zo_raidz_epochs_test == RAIDZ_EPOCHS_REQUESTED) {
+		if (zo->zo_raidz_expand_test != RAIDZ_EXPAND_NONE) {
+			(void) fprintf(stderr, "-X and -Y are exclusive\n");
+			usage(B_FALSE);
+		}
+		zo->zo_mmp_test = 0;
+		zo->zo_mirrors = 0;
+		zo->zo_vdevs = 1;
 		zo->zo_raid_do_expand = B_FALSE;
 		raid_kind = "raidz";
 	}
@@ -7491,6 +7563,7 @@ ztest_run_zdb(uint64_t guid)
 	char *zbuf;
 	const int len = MAXPATHLEN + MAXNAMELEN + 20;
 	FILE *fp;
+	boolean_t leaked = B_FALSE;
 
 	bin = kmem_alloc(len, KM_SLEEP);
 	zdb = kmem_alloc(len, KM_SLEEP);
@@ -7523,16 +7596,24 @@ ztest_run_zdb(uint64_t guid)
 
 	fp = popen(zdb, "r");
 
-	while (fgets(zbuf, 1024, fp) != NULL)
+	while (fgets(zbuf, 1024, fp) != NULL) {
 		if (ztest_opts.zo_verbose >= 3)
 			(void) printf("%s", zbuf);
 
+		/* zdb reports leaked space without failing, so look for it. */
+		if (ztest_opts.zo_raidz_epochs_test != RAIDZ_EPOCHS_NONE &&
+		    strstr(zbuf, "leaked space") != NULL)
+			leaked = B_TRUE;
+	}
+
 	status = pclose(fp);
 
-	if (status == 0)
+	if (status == 0 && !leaked)
 		goto out;
 
 	ztest_dump_core = 0;
+	if (status == 0)
+		fatal(B_FALSE, "'%s' reported leaked space", zdb);
 	if (WIFEXITED(status))
 		fatal(B_FALSE, "'%s' exit code %d", zdb, WEXITSTATUS(status));
 	else
@@ -8705,6 +8786,679 @@ ztest_raidz_expand_run(ztest_shared_t *zs, spa_t *spa)
 	ztest_kill(zs);
 }
 
+/*
+ * Dedicated RAIDZ parity-epoch allocation test (-Y).
+ *
+ * Persist a table whose parity changes in step with four consecutive windows
+ * of ZTEST_EPOCHS_WINDOW txgs: the base parity of the vdev, the two other
+ * parities, then the base parity again.  Blocks born in the middle epochs
+ * are therefore both promoted and demoted relative to txg 0, the layout the
+ * whole-vdev helpers used to assume.  In every epoch check what depends on
+ * the layout of the txg a block is born in:
+ *
+ *  - the round trip of the allocation factor (pure arithmetic);
+ *  - the extent of a gang header, from allocation to un-allocation;
+ *  - dynamically sized allocations, as made for ZIL blocks, which must
+ *    leave room for the block they will hold;
+ *  - gang blocks forced by metaslab_force_ganging_pct, born in every epoch
+ *    and freed in a later one.  The zdb(8) run that follows each pass
+ *    (ztest_run_zdb()) fails on a leaked or over-claimed gang header.
+ *
+ * Failures of the first three are counted and reported together at the end:
+ * a wrong gang header extent can also stop the run earlier, on a range tree
+ * assertion.
+ */
+#define	ZTEST_EPOCHS_WINDOW	12	/* txgs per epoch */
+#define	ZTEST_EPOCHS_ENTRIES	4	/* base, two others, base again */
+#define	ZTEST_EPOCHS_ZIL_ALLOCS	800	/* ZIL-like allocations per epoch */
+#define	ZTEST_EPOCHS_BLOCKSZ	(128 * 1024)
+
+static uint64_t ztest_epochs_failed;
+
+static __attribute__((format(printf, 2, 3))) void
+ztest_epochs_expect(boolean_t ok, const char *message, ...)
+{
+	va_list args;
+
+	if (ok)
+		return;
+
+	(void) fflush(stdout);
+	(void) fprintf(stderr, "ztest: raidz parity-epoch check failed: ");
+	va_start(args, message);
+	(void) vfprintf(stderr, message, args);
+	va_end(args);
+	(void) fprintf(stderr, "\n");
+	ztest_epochs_failed++;
+}
+
+/* The epoch (table index) a txg is born in, read from the table alone. */
+static uint64_t
+ztest_epochs_index(const uint64_t *table, uint64_t n, uint64_t txg)
+{
+	uint64_t i = 0;
+
+	while (i + 1 < n && table[3 * (i + 1)] <= txg)
+		i++;
+	return (i);
+}
+
+/*
+ * Every allocation size the factor allows must still hold the psize it
+ * converts to, or the block written to it runs past the DVA.
+ */
+static void
+ztest_epochs_arith_check(vdev_t *vd, const uint64_t *table, uint64_t n)
+{
+	uint64_t sector = 1ULL << vd->vdev_ashift;
+
+	for (uint64_t i = 0; i < n; i++) {
+		uint64_t txg = table[3 * i];
+		uint64_t parity = table[3 * i + 2];
+		uint64_t factor = vdev_alloc_factor(vd);
+		uint64_t violations = 0;
+		uint64_t first = 0;
+
+		ztest_epochs_expect(vdev_psize_to_asize_txg(vd,
+		    SPA_OLD_GANGBLOCKSIZE, txg) == (parity + 1) * sector,
+		    "epoch %llu (parity %llu): gang header asize %llu, "
+		    "expected %llu", (u_longlong_t)i, (u_longlong_t)parity,
+		    (u_longlong_t)vdev_psize_to_asize_txg(vd,
+		    SPA_OLD_GANGBLOCKSIZE, txg),
+		    (u_longlong_t)((parity + 1) * sector));
+
+		for (uint64_t asize = factor; asize <= 512 * sector;
+		    asize += factor) {
+			uint64_t psize = vdev_asize_to_psize_txg(vd, asize,
+			    txg);
+
+			if (psize == 0)
+				continue;
+			if (vdev_psize_to_asize_txg(vd, psize, txg) > asize) {
+				if (violations++ == 0)
+					first = asize;
+			}
+		}
+		ztest_epochs_expect(violations == 0,
+		    "epoch %llu (parity %llu): %llu of the sizes that are "
+		    "multiples of the allocation factor (%llu) do not hold "
+		    "the psize they convert to, first %llu",
+		    (u_longlong_t)i, (u_longlong_t)parity,
+		    (u_longlong_t)violations, (u_longlong_t)factor,
+		    (u_longlong_t)first);
+	}
+}
+
+typedef struct ztest_epochs_install {
+	vdev_t		*ei_vd;
+	uint64_t	*ei_table;
+	uint64_t	ei_entries;
+} ztest_epochs_install_t;
+
+/*
+ * Store the table the way zhack(1) does: the vdev ZAP entry, the feature,
+ * the in-core copy and the config, in one txg.
+ */
+static void
+ztest_epochs_install_sync(void *arg, dmu_tx_t *tx)
+{
+	ztest_epochs_install_t *ei = arg;
+
+	VERIFY0(vdev_raidz_parity_epochs_set(ei->ei_vd, ei->ei_table,
+	    ei->ei_entries, tx));
+}
+
+/*
+ * The bounds checks on a block pointer must use the extent of the gang header
+ * of the parity it was born with: a header that ends on the last sector of
+ * the vdev is valid, one that ends a sector later is not.
+ */
+static void
+ztest_epochs_bounds_check(spa_t *spa, vdev_t *vd, uint64_t birth,
+    uint64_t parity)
+{
+	uint64_t sector = 1ULL << vd->vdev_ashift;
+	uint64_t header = (parity + 1) * sector;
+
+	for (int past = 0; past < 2; past++) {
+		blkptr_t bp;
+		dva_t *dva = &bp.blk_dva[0];
+		boolean_t verified;
+		boolean_t valid;
+
+		BP_ZERO(&bp);
+		DVA_SET_VDEV(dva, vd->vdev_id);
+		DVA_SET_OFFSET(dva, vd->vdev_asize - header + past * sector);
+		DVA_SET_ASIZE(dva, 2 * header);
+		DVA_SET_GANG(dva, 1);
+		BP_SET_TYPE(&bp, DMU_OT_NONE);
+		BP_SET_LEVEL(&bp, 0);
+		BP_SET_LSIZE(&bp, SPA_OLD_GANGBLOCKSIZE);
+		BP_SET_PSIZE(&bp, SPA_OLD_GANGBLOCKSIZE);
+		BP_SET_COMPRESS(&bp, ZIO_COMPRESS_OFF);
+		BP_SET_CHECKSUM(&bp, ZIO_CHECKSUM_FLETCHER_4);
+		BP_SET_BIRTH(&bp, birth, 0);
+
+		verified = zfs_blkptr_verify(spa, &bp, BLK_CONFIG_NEEDED,
+		    BLK_VERIFY_ONLY) == 0;
+		valid = zfs_dva_valid(spa, dva, &bp);
+		ztest_epochs_expect(verified == (past == 0) &&
+		    valid == (past == 0), "gang header born at txg %llu in an "
+		    "epoch of parity %llu, ending %llu bytes past the vdev: "
+		    "zfs_blkptr_verify() says %s and zfs_dva_valid() says %s",
+		    (u_longlong_t)birth, (u_longlong_t)parity,
+		    (u_longlong_t)(past * sector), verified ? "valid" :
+		    "invalid", valid ? "valid" : "invalid");
+	}
+}
+
+/*
+ * A gang header allocated at txg must give back exactly what it took when
+ * it is un-allocated in the same txg, whichever parity txg is born in.
+ */
+static void
+ztest_epochs_gang_header_check(spa_t *spa, vdev_t *vd, uint64_t txg,
+    uint64_t parity)
+{
+	zio_alloc_list_t zal;
+	blkptr_t bp;
+	metaslab_t *msp;
+	uint64_t asize;
+	uint64_t held;
+	uint64_t left;
+	int error;
+
+	BP_ZERO(&bp);
+	metaslab_trace_init(&zal);
+	error = metaslab_alloc(spa, spa_normal_class(spa),
+	    SPA_OLD_GANGBLOCKSIZE, &bp, 1, txg, NULL, METASLAB_GANG_HEADER,
+	    &zal, 0, FTAG);
+	metaslab_trace_fini(&zal);
+	if (error != 0) {
+		ztest_epochs_expect(B_FALSE, "gang header allocation at "
+		    "txg %llu failed: %d", (u_longlong_t)txg, error);
+		return;
+	}
+
+	ASSERT3U(DVA_GET_VDEV(&bp.blk_dva[0]), ==, vd->vdev_id);
+	asize = DVA_GET_ASIZE(&bp.blk_dva[0]);
+	ztest_epochs_expect(asize == (parity + 1) * (1ULL << vd->vdev_ashift),
+	    "gang header at txg %llu in an epoch of parity %llu was allocated "
+	    "%llu bytes", (u_longlong_t)txg, (u_longlong_t)parity,
+	    (u_longlong_t)asize);
+
+	msp = vd->vdev_ms[DVA_GET_OFFSET(&bp.blk_dva[0]) >> vd->vdev_ms_shift];
+	mutex_enter(&msp->ms_lock);
+	held = zfs_range_tree_space(msp->ms_allocating[txg & TXG_MASK]);
+	mutex_exit(&msp->ms_lock);
+
+	metaslab_free(spa, &bp, txg, B_TRUE);
+
+	mutex_enter(&msp->ms_lock);
+	left = zfs_range_tree_space(msp->ms_allocating[txg & TXG_MASK]);
+	mutex_exit(&msp->ms_lock);
+	ztest_epochs_expect(held - left == asize,
+	    "un-allocating a gang header born at txg %llu in an epoch of "
+	    "parity %llu released %llu of the %llu bytes it holds",
+	    (u_longlong_t)txg, (u_longlong_t)parity,
+	    (u_longlong_t)(held - left), (u_longlong_t)asize);
+}
+
+/*
+ * Offer the allocators a single free segment, at the end of an otherwise
+ * empty metaslab, of every length a dynamically sized allocation can be cut
+ * to, and check what they hand out.  The allocation must be a multiple of
+ * the factor of the epoch, and the block of the psize it converts to must
+ * still end inside the metaslab, not in the next one.
+ */
+static void
+ztest_epochs_picker_check(spa_t *spa, vdev_t *vd, uint64_t txg,
+    uint64_t epoch, uint64_t parity)
+{
+	const char *const names[] = { "dynamic", "cursor" };
+	const char *active = metaslab_allocator(spa)->msop_name;
+	uint64_t sector = 1ULL << vd->vdev_ashift;
+	uint64_t factor = (parity + 1) * sector;
+	uint64_t min_asize = vdev_psize_to_asize_txg(vd, 12 * 1024, txg);
+	uint64_t max_asize = vdev_psize_to_asize_txg(vd,
+	    ZTEST_EPOCHS_BLOCKSZ, txg);
+	uint64_t lbas[MAX_LBAS];
+	uint64_t nbad[2] = { 0 };
+	uint64_t first_bad[2] = { 0 };
+	metaslab_t *msp = NULL;
+
+	/* The last metaslab is the least likely to have been used. */
+	for (uint64_t m = vd->vdev_ms_count; m > 0 && msp == NULL; m--) {
+		metaslab_t *cand = vd->vdev_ms[m - 1];
+
+		taskq_wait(spa->spa_metaslab_taskq);
+		mutex_enter(&cand->ms_lock);
+		while (cand->ms_loading)
+			cv_wait(&cand->ms_load_cv, &cand->ms_lock);
+		if (!cand->ms_loaded && metaslab_load(cand) != 0) {
+			mutex_exit(&cand->ms_lock);
+			continue;
+		}
+		if (zfs_range_tree_space(cand->ms_allocatable) ==
+		    cand->ms_size && cand->ms_disabled == 0 &&
+		    !cand->ms_condensing)
+			msp = cand;
+		else
+			mutex_exit(&cand->ms_lock);
+	}
+	if (msp == NULL) {
+		ztest_epochs_expect(B_FALSE, "no empty metaslab to test the "
+		    "allocators with");
+		return;
+	}
+	memcpy(lbas, msp->ms_lbas, sizeof (lbas));
+
+	for (int a = 0; a < 2; a++) {
+		const metaslab_ops_t *ops;
+
+		spa_set_allocator(spa, names[a]);
+		ops = metaslab_allocator(spa);
+		for (uint64_t len = min_asize; len < max_asize;
+		    len += sector) {
+			uint64_t start = msp->ms_start + msp->ms_size - len;
+			uint64_t want = len - len % factor;
+			uint64_t found = 0;
+			uint64_t offset;
+			uint64_t psize;
+
+			zfs_range_tree_remove(msp->ms_allocatable,
+			    msp->ms_start, start - msp->ms_start);
+			offset = ops->msop_alloc(msp, min_asize, max_asize,
+			    &found);
+			zfs_range_tree_add(msp->ms_allocatable,
+			    msp->ms_start, start - msp->ms_start);
+			memcpy(msp->ms_lbas, lbas, sizeof (lbas));
+
+			psize = vdev_asize_to_psize_txg(vd, found, txg);
+			if (offset != start || found != want ||
+			    vdev_psize_to_asize_txg(vd, psize, txg) > found) {
+				if (nbad[a]++ == 0)
+					first_bad[a] = len;
+			}
+		}
+	}
+	mutex_exit(&msp->ms_lock);
+	spa_set_allocator(spa, active);
+
+	for (int a = 0; a < 2; a++) {
+		ztest_epochs_expect(nbad[a] == 0, "epoch %llu (parity %llu): "
+		    "the %s allocator cut a free segment at the end of a "
+		    "metaslab to a size that is not a multiple of %llu bytes "
+		    "or does not hold its psize in %llu cases, first for a "
+		    "segment of %llu bytes", (u_longlong_t)epoch,
+		    (u_longlong_t)parity, names[a], (u_longlong_t)factor,
+		    (u_longlong_t)nbad[a], (u_longlong_t)first_bad[a]);
+	}
+}
+
+/*
+ * Allocate ZIL-like blocks of dynamic size until the metaslabs in use have
+ * run out of long enough free segments, so the last ones may be cut short.
+ * The psize each allocation reports must fit into its DVA once it is laid
+ * out, otherwise the I/O writes padding past the allocation.
+ */
+static uint64_t
+ztest_epochs_zil_check(spa_t *spa, vdev_t *vd, objset_t *os, uint64_t txg,
+    uint64_t epoch)
+{
+	blkptr_t *bps;
+	uint64_t nalloc = 0;
+	uint64_t nbad = 0;
+	uint64_t nshort = 0;
+	uint64_t first_bad = 0;
+	uint_t old_pct = metaslab_force_ganging_pct;
+
+	bps = kmem_zalloc(ZTEST_EPOCHS_ZIL_ALLOCS * sizeof (blkptr_t),
+	    KM_SLEEP);
+	/* Forced ganging would also shrink the maximum size asked for. */
+	metaslab_force_ganging_pct = 0;
+	for (uint64_t i = 0; i < ZTEST_EPOCHS_ZIL_ALLOCS; i++) {
+		blkptr_t *bp = &bps[i];
+		boolean_t slog;
+		uint64_t asize;
+		uint64_t footprint;
+
+		if (zio_alloc_zil(spa, os, txg, bp, 12 * 1024,
+		    ZTEST_EPOCHS_BLOCKSZ, &slog, B_FALSE) != 0)
+			break;
+		nalloc++;
+
+		ASSERT3U(DVA_GET_VDEV(&bp->blk_dva[0]), ==, vd->vdev_id);
+		asize = DVA_GET_ASIZE(&bp->blk_dva[0]);
+		footprint = vdev_psize_to_asize_txg(vd, BP_GET_PSIZE(bp), txg);
+		if (footprint > asize) {
+			if (nbad++ == 0)
+				first_bad = i;
+		}
+		if (asize < vdev_psize_to_asize_txg(vd, ZTEST_EPOCHS_BLOCKSZ,
+		    txg))
+			nshort++;
+	}
+	metaslab_force_ganging_pct = old_pct;
+	while (nalloc > 0)
+		metaslab_free(spa, &bps[--nalloc], txg, B_TRUE);
+	kmem_free(bps, ZTEST_EPOCHS_ZIL_ALLOCS * sizeof (blkptr_t));
+
+	ztest_epochs_expect(nbad == 0, "epoch %llu: %llu dynamically sized "
+	    "allocations are smaller than the block they were sized for, "
+	    "first is number %llu", (u_longlong_t)epoch, (u_longlong_t)nbad,
+	    (u_longlong_t)first_bad);
+	return (nshort);
+}
+
+/*
+ * The contents of a block follow from where it is and how often it has been
+ * written, are incompressible so that every block is big enough to gang, and
+ * can be told apart after being read back.
+ */
+static void
+ztest_epochs_pattern(void *buf, uint64_t object, uint64_t offset, uint64_t gen)
+{
+	uint64_t *p = buf;
+	uint64_t x = object * 0x9e3779b97f4a7c15ULL ^ offset ^
+	    gen * 0xbf58476d1ce4e5b9ULL ^ 0x94d049bb133111ebULL;
+
+	for (size_t i = 0; i < ZTEST_EPOCHS_BLOCKSZ / sizeof (uint64_t); i++) {
+		x ^= x << 13;
+		x ^= x >> 7;
+		x ^= x << 17;
+		p[i] = x;
+	}
+}
+
+static void
+ztest_epochs_write(objset_t *os, uint64_t object, uint64_t offset,
+    uint64_t gen, dmu_tx_t *tx, void *buf)
+{
+	ztest_epochs_pattern(buf, object, offset, gen);
+	dmu_write(os, object, offset, ZTEST_EPOCHS_BLOCKSZ, buf, tx,
+	    DMU_READ_NO_PREFETCH);
+}
+
+/* Count the blocks of an object that do not read back as written. */
+static uint64_t
+ztest_epochs_verify(objset_t *os, uint64_t object, uint64_t nblocks,
+    uint64_t gen, void *want, void *got)
+{
+	uint64_t nbad = 0;
+
+	for (uint64_t b = 0; b < nblocks; b++) {
+		ztest_epochs_pattern(want, object, b * ZTEST_EPOCHS_BLOCKSZ,
+		    gen);
+		if (dmu_read(os, object, b * ZTEST_EPOCHS_BLOCKSZ,
+		    ZTEST_EPOCHS_BLOCKSZ, got, DMU_READ_NO_PREFETCH) != 0 ||
+		    memcmp(want, got, ZTEST_EPOCHS_BLOCKSZ) != 0)
+			nbad++;
+	}
+	return (nbad);
+}
+
+/* Count the gang blocks of an object that were born in the given epoch. */
+static uint64_t
+ztest_epochs_count_gang(objset_t *os, uint64_t object, uint64_t nblocks,
+    const uint64_t *table, uint64_t n, uint64_t epoch)
+{
+	uint64_t ngang = 0;
+
+	for (uint64_t b = 0; b < nblocks; b++) {
+		dmu_buf_t *db;
+		const blkptr_t *bp;
+
+		VERIFY0(dmu_buf_hold(os, object, b * ZTEST_EPOCHS_BLOCKSZ,
+		    FTAG, &db, DMU_READ_NO_PREFETCH));
+		bp = dmu_buf_get_blkptr(db);
+		if (bp != NULL && !BP_IS_HOLE(bp) && BP_IS_GANG(bp) &&
+		    ztest_epochs_index(table, n,
+		    BP_GET_PHYSICAL_BIRTH(bp)) == epoch)
+			ngang++;
+		dmu_buf_rele(db, FTAG);
+	}
+	return (ngang);
+}
+
+static void
+ztest_raidz_epochs_run(ztest_shared_t *zs, spa_t *spa)
+{
+	vdev_t *rzvd = spa->spa_root_vdev->vdev_child[0];
+	vdev_raidz_t *vdrz = rzvd->vdev_tsd;
+	dsl_pool_t *dp = spa_get_dsl(spa);
+	char dsname[ZFS_MAX_DATASET_NAME_LEN];
+	uint64_t table[3 * ZTEST_EPOCHS_ENTRIES];
+	uint64_t obj_a[ZTEST_EPOCHS_ENTRIES];
+	uint64_t obj_b[ZTEST_EPOCHS_ENTRIES];
+	uint64_t nblocks_b[ZTEST_EPOCHS_ENTRIES] = { 0 };
+	uint64_t gen_a[ZTEST_EPOCHS_ENTRIES] = { 0 };
+	uint64_t ngang[ZTEST_EPOCHS_ENTRIES] = { 0 };
+	uint64_t nshort = 0;
+	ztest_epochs_install_t ei;
+	objset_t *os;
+	dmu_tx_t *tx;
+	void *buf;
+	uint64_t txg;
+	uint64_t epoch_parity[ZTEST_EPOCHS_ENTRIES];
+	uint64_t first;
+	int checks = ztest_opts.zo_raidz_epochs_checks;
+	uint_t old_pct = metaslab_force_ganging_pct;
+	int old_flags = zfs_flags;
+
+	(void) zs;
+	ASSERT3U(ztest_opts.zo_raidz_epochs_test, ==, RAIDZ_EPOCHS_REQUESTED);
+	ztest_epochs_failed = 0;
+
+	if (rzvd->vdev_ops != &vdev_raidz_ops || vdrz->vd_parity_epochs != NULL)
+		fatal(B_FALSE, "the parity-epoch test needs a raidz top-level "
+		    "vdev without a table");
+	if (rzvd->vdev_children < 4)
+		fatal(B_FALSE, "the parity-epoch test needs at least 4 "
+		    "raidz children (-r), as it also uses parity 3");
+	if (!spa_feature_is_enabled(spa, SPA_FEATURE_RAIDZ_PARITY_EPOCHS))
+		fatal(B_FALSE, "feature@raidz_parity_epochs is not enabled");
+
+	(void) snprintf(dsname, sizeof (dsname), "%s/epochs",
+	    ztest_opts.zo_pool);
+	VERIFY0(dmu_objset_create(dsname, DMU_OST_OTHER, 0, NULL, NULL, NULL));
+	VERIFY0(ztest_dmu_objset_own(dsname, DMU_OST_OTHER, B_FALSE, B_TRUE,
+	    FTAG, &os));
+	buf = kmem_alloc(ZTEST_EPOCHS_BLOCKSZ, KM_SLEEP);
+
+	tx = dmu_tx_create(os);
+	for (uint64_t i = 0; i < 2 * ZTEST_EPOCHS_ENTRIES; i++)
+		dmu_tx_hold_bonus(tx, DMU_NEW_OBJECT);
+	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
+	for (uint64_t i = 0; i < ZTEST_EPOCHS_ENTRIES; i++) {
+		obj_a[i] = dmu_object_alloc(os, DMU_OT_UINT64_OTHER,
+		    ZTEST_EPOCHS_BLOCKSZ, DMU_OT_NONE, 0, tx);
+		obj_b[i] = dmu_object_alloc(os, DMU_OT_UINT64_OTHER,
+		    ZTEST_EPOCHS_BLOCKSZ, DMU_OT_NONE, 0, tx);
+	}
+	txg = dmu_tx_get_txg(tx);
+	dmu_tx_commit(tx);
+	txg_wait_synced(dp, txg);
+
+	/*
+	 * Epoch parities: the base one, the next two in the cycle 1, 2, 3
+	 * (one above and one below a base of 2, both above a base of 1,
+	 * both below a base of 3), then the base one again.  The first
+	 * epoch starts at txg 0 and the second a few txgs from now, after
+	 * the sync task that stores the table, which is the only thing that
+	 * may sync before it.
+	 */
+	epoch_parity[0] = epoch_parity[3] = vdrz->vd_nparity;
+	epoch_parity[1] = epoch_parity[0] % 3 + 1;
+	epoch_parity[2] = epoch_parity[1] % 3 + 1;
+	first = spa_last_synced_txg(spa) + 8;
+	for (uint64_t i = 0; i < ZTEST_EPOCHS_ENTRIES; i++) {
+		table[3 * i] = i == 0 ? 0 :
+		    first + (i - 1) * ZTEST_EPOCHS_WINDOW;
+		table[3 * i + 1] = rzvd->vdev_children;
+		table[3 * i + 2] = epoch_parity[i];
+	}
+
+	ei.ei_vd = rzvd;
+	ei.ei_table = table;
+	ei.ei_entries = ZTEST_EPOCHS_ENTRIES;
+	VERIFY0(dsl_sync_task(spa_name(spa), NULL, ztest_epochs_install_sync,
+	    &ei, 5, ZFS_SPACE_CHECK_NORMAL));
+	if (checks & ZTEST_EPOCHS_ARITH)
+		ztest_epochs_arith_check(rzvd, table, ZTEST_EPOCHS_ENTRIES);
+	if (ztest_opts.zo_verbose >= 1) {
+		(void) printf("raidz parity epochs:");
+		for (uint64_t i = 0; i < ZTEST_EPOCHS_ENTRIES; i++) {
+			(void) printf(" %llu:%llu:%llu",
+			    (u_longlong_t)table[3 * i],
+			    (u_longlong_t)table[3 * i + 1],
+			    (u_longlong_t)table[3 * i + 2]);
+		}
+		(void) printf("\n");
+	}
+
+	/* Force every block of this size or more to gang. */
+	metaslab_force_ganging_pct = 100;
+	if (checks & ZTEST_EPOCHS_IO)
+		zfs_flags |= ZFS_DEBUG_ZIO_FREE;
+
+	for (uint64_t epoch = 0; epoch < ZTEST_EPOCHS_ENTRIES; epoch++) {
+		uint64_t end = epoch + 1 < ZTEST_EPOCHS_ENTRIES ?
+		    table[3 * (epoch + 1)] : table[3 * epoch] +
+		    ZTEST_EPOCHS_WINDOW;
+		boolean_t checked = B_FALSE;
+
+		/* Wait for the first txg of the epoch. */
+		while (spa_last_synced_txg(spa) + 1 < table[3 * epoch])
+			txg_wait_synced(dp, spa_last_synced_txg(spa) + 1);
+
+		/*
+		 * One txg after another, each with its own writes, until the
+		 * epoch is over.  The first one also runs the allocator
+		 * checks, with the txg held open so that nothing else
+		 * touches the metaslabs meanwhile.
+		 */
+		while (spa_last_synced_txg(spa) + 1 < end) {
+			tx = dmu_tx_create(os);
+			for (int j = 0; j < 2; j++) {
+				dmu_tx_hold_write(tx, obj_a[epoch],
+				    j * ZTEST_EPOCHS_BLOCKSZ,
+				    ZTEST_EPOCHS_BLOCKSZ);
+				dmu_tx_hold_write(tx, obj_b[epoch],
+				    (nblocks_b[epoch] + j) *
+				    ZTEST_EPOCHS_BLOCKSZ,
+				    ZTEST_EPOCHS_BLOCKSZ);
+			}
+			VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
+			txg = dmu_tx_get_txg(tx);
+
+			if (ztest_epochs_index(table, ZTEST_EPOCHS_ENTRIES,
+			    txg) != epoch) {
+				/* Overshot the window; cannot happen idle. */
+				dmu_tx_commit(tx);
+				txg_wait_synced(dp, txg);
+				break;
+			}
+			if (!checked) {
+				checked = B_TRUE;
+				if (checks & ZTEST_EPOCHS_GANG) {
+					ztest_epochs_bounds_check(spa, rzvd,
+					    txg, epoch_parity[epoch]);
+					ztest_epochs_gang_header_check(spa,
+					    rzvd, txg, epoch_parity[epoch]);
+				}
+				if (checks & ZTEST_EPOCHS_ZIL) {
+					ztest_epochs_picker_check(spa, rzvd,
+					    txg, epoch, epoch_parity[epoch]);
+					nshort += ztest_epochs_zil_check(spa,
+					    rzvd, os, txg, epoch);
+				}
+			}
+
+			/* The object A blocks are rewritten every txg. */
+			gen_a[epoch]++;
+			for (int j = 0; (checks & ZTEST_EPOCHS_IO) && j < 2;
+			    j++) {
+				ztest_epochs_write(os, obj_a[epoch],
+				    j * ZTEST_EPOCHS_BLOCKSZ, gen_a[epoch], tx,
+				    buf);
+				ztest_epochs_write(os, obj_b[epoch],
+				    nblocks_b[epoch]++ * ZTEST_EPOCHS_BLOCKSZ,
+				    0, tx, buf);
+			}
+			dmu_tx_commit(tx);
+			txg_wait_synced(dp, txg);
+		}
+		if (checks & ZTEST_EPOCHS_IO) {
+			ngang[epoch] = ztest_epochs_count_gang(os,
+			    obj_a[epoch], 2, table, ZTEST_EPOCHS_ENTRIES,
+			    epoch) + ztest_epochs_count_gang(os,
+			    obj_b[epoch], nblocks_b[epoch], table,
+			    ZTEST_EPOCHS_ENTRIES, epoch);
+			ztest_epochs_expect(ngang[epoch] != 0, "no gang "
+			    "block was born in epoch %llu, the test checked "
+			    "nothing there", (u_longlong_t)epoch);
+		}
+	}
+
+	/*
+	 * Everything written must read back from disk as written: a block
+	 * that was given less room than its layout needs has its tail on
+	 * the next allocation.
+	 */
+	if (checks & ZTEST_EPOCHS_IO) {
+		void *got = kmem_alloc(ZTEST_EPOCHS_BLOCKSZ, KM_SLEEP);
+		uint64_t nbad = 0;
+
+		dmu_objset_evict_dbufs(os);
+		arc_flush(spa, B_FALSE);
+		for (uint64_t i = 0; i < ZTEST_EPOCHS_ENTRIES; i++) {
+			nbad += ztest_epochs_verify(os, obj_a[i], 2, gen_a[i],
+			    buf, got);
+			nbad += ztest_epochs_verify(os, obj_b[i],
+			    nblocks_b[i], 0, buf, got);
+		}
+		kmem_free(got, ZTEST_EPOCHS_BLOCKSZ);
+		ztest_epochs_expect(nbad == 0, "%llu of the blocks written "
+		    "do not read back as written", (u_longlong_t)nbad);
+	}
+
+	/*
+	 * Free the object A blocks, born in every epoch, in the last one.
+	 * The object B blocks stay, for zdb to claim.
+	 */
+	for (uint64_t i = 0; (checks & ZTEST_EPOCHS_IO) &&
+	    i < ZTEST_EPOCHS_ENTRIES; i++) {
+		VERIFY0(dmu_free_long_range(os, obj_a[i], 0,
+		    DMU_OBJECT_END));
+		tx = dmu_tx_create(os);
+		dmu_tx_hold_free(tx, obj_a[i], 0, DMU_OBJECT_END);
+		VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT));
+		VERIFY0(dmu_object_free(os, obj_a[i], tx));
+		dmu_tx_commit(tx);
+	}
+	txg_wait_synced(dp, 0);
+
+	if (ztest_opts.zo_verbose >= 1) {
+		(void) printf("raidz parity epochs: gang blocks per epoch");
+		for (uint64_t i = 0; i < ZTEST_EPOCHS_ENTRIES; i++)
+			(void) printf(" %llu", (u_longlong_t)ngang[i]);
+		(void) printf(", %llu cut-short dynamic allocations\n",
+		    (u_longlong_t)nshort);
+	}
+
+	kmem_free(buf, ZTEST_EPOCHS_BLOCKSZ);
+	dmu_objset_disown(os, B_TRUE, FTAG);
+	metaslab_force_ganging_pct = old_pct;
+	zfs_flags = old_flags;
+	txg_wait_synced(dp, 0);
+
+	if (ztest_epochs_failed != 0)
+		fatal(B_FALSE, "%llu raidz parity-epoch checks failed",
+		    (u_longlong_t)ztest_epochs_failed);
+	ztest_shared_opts->zo_raidz_epochs_test = RAIDZ_EPOCHS_DONE;
+}
+
 static void
 ztest_generic_run(ztest_shared_t *zs, spa_t *spa)
 {
@@ -8913,6 +9667,8 @@ ztest_run(ztest_shared_t *zs)
 		ztest_raidz_expand_run(zs, spa);
 	else if (ztest_opts.zo_raidz_expand_test == RAIDZ_EXPAND_KILLED)
 		ztest_raidz_expand_check(spa);
+	else if (ztest_opts.zo_raidz_epochs_test == RAIDZ_EPOCHS_REQUESTED)
+		ztest_raidz_epochs_run(zs, spa);
 	else
 		ztest_generic_run(zs, spa);
 
@@ -9565,6 +10321,9 @@ main(int argc, char **argv)
 		if (ztest_shared_opts->zo_raidz_expand_test ==
 		    RAIDZ_EXPAND_CHECKED)
 			break; /* raidz expand test complete */
+		if (ztest_shared_opts->zo_raidz_epochs_test ==
+		    RAIDZ_EPOCHS_DONE)
+			break; /* raidz parity-epoch test complete */
 	}
 
 	if (ztest_opts.zo_verbose >= 1) {
