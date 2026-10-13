@@ -9583,7 +9583,7 @@ ztest_epochs_gang_header_check(spa_t *spa, vdev_t *vd, uint64_t txg,
 
 /*
  * Offer the allocators a single free segment, at the end of an otherwise
- * empty metaslab, of every length a dynamically sized allocation can be cut
+ * isolated free map, of every length a dynamically sized allocation can be cut
  * to, and check what they hand out.  The allocation must be a multiple of
  * the factor of the epoch, and the block of the psize it converts to must
  * still end inside the metaslab, not in the next one.
@@ -9603,6 +9603,7 @@ ztest_epochs_picker_check(spa_t *spa, vdev_t *vd, uint64_t txg,
 	uint64_t nbad[2] = { 0 };
 	uint64_t first_bad[2] = { 0 };
 	metaslab_t *msp = NULL;
+	zfs_range_tree_t *saved;
 
 	/* The last metaslab is the least likely to have been used. */
 	for (uint64_t m = vd->vdev_ms_count; m > 0 && msp == NULL; m--) {
@@ -9616,19 +9617,27 @@ ztest_epochs_picker_check(spa_t *spa, vdev_t *vd, uint64_t txg,
 			mutex_exit(&cand->ms_lock);
 			continue;
 		}
-		if (zfs_range_tree_space(cand->ms_allocatable) ==
-		    cand->ms_size && cand->ms_disabled == 0 &&
+		if (zfs_range_tree_contains(cand->ms_allocatable,
+		    cand->ms_start + cand->ms_size - max_asize,
+		    max_asize) && cand->ms_disabled == 0 &&
 		    !cand->ms_condensing)
 			msp = cand;
 		else
 			mutex_exit(&cand->ms_lock);
 	}
 	if (msp == NULL) {
-		ztest_epochs_expect(B_FALSE, "no empty metaslab to test the "
-		    "allocators with");
+		ztest_epochs_expect(B_FALSE, "no free metaslab tail to "
+		    "test the allocators with");
 		return;
 	}
 	memcpy(lbas, msp->ms_lbas, sizeof (lbas));
+	/*
+	 * Pool creation can leave metadata in every metaslab.  Save the
+	 * entire free map while holding ms_lock, then offer only a real
+	 * free suffix to the picker.  No allocation is committed to disk.
+	 */
+	saved = zfs_range_tree_create(NULL, ZFS_RANGE_SEG64, NULL, 0, 0);
+	zfs_range_tree_vacate(msp->ms_allocatable, zfs_range_tree_add, saved);
 
 	for (int a = 0; a < 2; a++) {
 		const metaslab_ops_t *ops;
@@ -9643,12 +9652,10 @@ ztest_epochs_picker_check(spa_t *spa, vdev_t *vd, uint64_t txg,
 			uint64_t offset;
 			uint64_t psize;
 
-			zfs_range_tree_remove(msp->ms_allocatable,
-			    msp->ms_start, start - msp->ms_start);
+			zfs_range_tree_add(msp->ms_allocatable, start, len);
 			offset = ops->msop_alloc(msp, min_asize, max_asize,
 			    txg, &found);
-			zfs_range_tree_add(msp->ms_allocatable,
-			    msp->ms_start, start - msp->ms_start);
+			zfs_range_tree_vacate(msp->ms_allocatable, NULL, NULL);
 			memcpy(msp->ms_lbas, lbas, sizeof (lbas));
 
 			psize = vdev_asize_to_psize_txg(vd, found, txg);
@@ -9659,6 +9666,8 @@ ztest_epochs_picker_check(spa_t *spa, vdev_t *vd, uint64_t txg,
 			}
 		}
 	}
+	zfs_range_tree_vacate(saved, zfs_range_tree_add, msp->ms_allocatable);
+	zfs_range_tree_destroy(saved);
 	mutex_exit(&msp->ms_lock);
 	spa_set_allocator(spa, active);
 
