@@ -16,7 +16,7 @@
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd July 23, 2025
+.Dd October 13, 2026
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -932,10 +932,52 @@ This feature persists a per-top-level-vdev table of
 .Sy {physical-birth-txg , logical-width , parity}
 epochs so that a RAID-Z vdev can decode blocks written under different
 parity layouts.
-The feature becomes active once a table describing more than the initial
-layout is stored.
-While active, the pool cannot be imported by software that does not
+A block is laid out with the parity of the last epoch that starts at or
+before its physical birth transaction group.
+The first entry of a table must start at transaction group 0 and describe the
+vdev's own width and parity, and every entry must have the vdev's width.
+A pool with a table that breaks these rules fails to import.
+.Pp
+This feature becomes
+.Sy active
+as soon as a table is stored for a RAID-Z vdev, even one that only restates the
+vdev's own layout.
+While it is
+.Sy active ,
+the pool cannot be imported, not even read-only, by software that does not
 support this feature.
+.Pp
+No
+.Nm zpool
+or
+.Nm zfs
+subcommand stores a table.
+The
+.Nm zhack Cm raidz_epochs
+debugging command does
+.Pq see Xr zhack 1 ,
+and so does
+.Xr ztest 1
+on the pools it creates.
+A RAID-Z vdev that has a table cannot be expanded with
+.Nm zpool Cm attach ,
+and a pool in which a vdev has both a table and expansion history cannot be
+imported.
+.Pp
+Where the epochs of a vdev differ in parity, the redundancy assumed for the vdev
+as a whole, for instance when deciding whether it can still be opened or
+whether a device can be taken offline, is the lowest parity in its table.
+Reads, writes, scrubs and resilvers use the parity of each block's epoch.
+.Pp
+The
+.Sy raidz_ignore_parity_epochs
+module parameter makes every RAID-Z vdev of a pool imported while it is set
+ignore its table, so that the blocks written under the vdev's own layout can be
+read from a pool whose table is damaged; blocks of an epoch with another parity
+cannot.
+Such a pool can only be imported read-only.
+See
+.Xr zfs 4 .
 .
 .feature com.delphix redaction_bookmarks no bookmarks extensible_dataset
 This feature enables the use of redacted
