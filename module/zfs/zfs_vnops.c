@@ -1118,7 +1118,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
  * Returns B_TRUE if block should be skipped.
  */
 static boolean_t
-zfs_rewrite_skip(dmu_buf_t *db, objset_t *os, uint64_t flags)
+zfs_rewrite_skip(dmu_buf_t *db, objset_t *os, uint64_t flags, uint64_t txg)
 {
 	/*
 	 * This may be slightly stale and racy, but should be OK for
@@ -1135,6 +1135,11 @@ zfs_rewrite_skip(dmu_buf_t *db, objset_t *os, uint64_t flags)
 
 	if (flags & ZFS_REWRITE_SKIP_BRT) {
 		if (brt_maybe_exists(os->os_spa, bp))
+			return (B_TRUE);
+	}
+
+	if (flags & ZFS_REWRITE_SKIP_CURRENT_ASIZE) {
+		if (bp_asize_is_current(os->os_spa, bp, txg))
 			return (B_TRUE);
 	}
 
@@ -1161,7 +1166,7 @@ zfs_rewrite(znode_t *zp, uint64_t off, uint64_t len, uint64_t flags,
 
 #define	ZFS_REWRITE_VALID_FLAGS \
 	(ZFS_REWRITE_PHYSICAL | ZFS_REWRITE_SKIP_SNAPSHOT | \
-	ZFS_REWRITE_SKIP_BRT)
+	ZFS_REWRITE_SKIP_BRT | ZFS_REWRITE_SKIP_CURRENT_ASIZE)
 
 	if ((flags & ~ZFS_REWRITE_VALID_FLAGS) != 0 || arg != 0)
 		return (SET_ERROR(EINVAL));
@@ -1265,7 +1270,8 @@ zfs_rewrite(znode_t *zp, uint64_t off, uint64_t len, uint64_t flags,
 			if (dmu_buf_is_dirty(dbp[i], tx))
 				continue;
 
-			if (zfs_rewrite_skip(dbp[i], zfsvfs->z_os, flags))
+			if (zfs_rewrite_skip(dbp[i], zfsvfs->z_os, flags,
+			    dmu_tx_get_txg(tx)))
 				continue;
 
 			nw += dbp[i]->db_size;
