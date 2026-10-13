@@ -174,6 +174,7 @@ typedef struct vdev_raidz {
 
 extern int vdev_raidz_attach_check(vdev_t *);
 extern uint64_t vdev_raidz_expand_child_min_asize(vdev_t *);
+extern boolean_t vdev_raidz_has_parity_epochs(vdev_t *);
 extern void vdev_raidz_parity_epochs_install(vdev_t *, const uint64_t *,
     uint64_t);
 extern int vdev_raidz_parity_epochs_set_check(vdev_t *, const uint64_t *,
