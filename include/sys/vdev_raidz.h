@@ -151,11 +151,15 @@ typedef struct vdev_raidz {
 	vdev_raidz_expand_t vn_vre;
 
 	/*
-	 * Persisted append-only parity-epoch table
-	 * (org.openzfs:raidz_parity_epochs).  Triplets of
-	 * {start physical-birth txg, logical width, parity}, loaded once in
-	 * vdev_raidz_load and freed in vdev_raidz_fini.  Not yet an input to
-	 * layout selection; parity still comes from vd_nparity.
+	 * Parity-epoch table (org.openzfs:raidz_parity_epochs): triplets of
+	 * {start physical-birth txg, logical width, parity}, sorted by start;
+	 * the count is in triplets.  vdev_raidz_init copies it from the label
+	 * or MOS config (needed to read the MOS before vdev_load),
+	 * vdev_raidz_load replaces that copy with the vdev ZAP's, and
+	 * vdev_raidz_fini frees the current one.  Once the vdev is in use
+	 * only vdev_raidz_parity_epochs_install() replaces it.  The pointer
+	 * and the count are protected by vd_expand_lock: take it to read
+	 * either.
 	 */
 	uint64_t *vd_parity_epochs;
 	uint64_t vd_parity_epoch_count;
@@ -165,6 +169,12 @@ typedef struct vdev_raidz {
 } vdev_raidz_t;
 
 extern int vdev_raidz_attach_check(vdev_t *);
+extern void vdev_raidz_parity_epochs_install(vdev_t *, const uint64_t *,
+    uint64_t);
+extern int vdev_raidz_parity_epochs_set_check(vdev_t *, const uint64_t *,
+    uint64_t);
+extern int vdev_raidz_parity_epochs_set(vdev_t *, const uint64_t *, uint64_t,
+    dmu_tx_t *);
 extern void vdev_raidz_attach_sync(void *, dmu_tx_t *);
 extern void spa_start_raidz_expansion_thread(spa_t *);
 extern int spa_raidz_expand_get_stats(spa_t *, pool_raidz_expand_stat_t *);

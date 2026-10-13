@@ -4405,15 +4405,8 @@ vdev_raidz_need_resilver(vdev_t *vd, const dva_t *dva, size_t psize,
 		return (B_TRUE);
 
 	uint64_t dcols = vd->vdev_children;
-	uint64_t nparity = vdrz->vd_nparity;
-	if (vdrz->vd_parity_epochs != NULL) {
-		const uint64_t *pe = vdrz->vd_parity_epochs;
-		for (uint64_t i = 0; i < vdrz->vd_parity_epoch_count; i++) {
-			if (pe[3 * i] > phys_birth)
-				break;
-			nparity = pe[3 * i + 2];
-		}
-	}
+	uint64_t nparity =
+	    vdev_raidz_layout_for_alloc(vdrz, phys_birth).vrl_nparity;
 	uint64_t ashift = vd->vdev_top->vdev_ashift;
 	/* The starting RAIDZ (parent) vdev sector of the block. */
 	uint64_t b = DVA_GET_OFFSET(dva) >> ashift;
@@ -5651,6 +5644,129 @@ vdev_raidz_parity_epochs_check(const uint64_t *tbl, uint64_t nent,
 	return (0);
 }
 
+/*
+ * Replace the in-core parity-epoch table of a top-level RAID-Z vdev with a
+ * copy of the nent triplets at table; nent == 0 removes it.  Nothing is
+ * validated and nothing is written to disk.  This is the one place that
+ * replaces the table of a vdev in use: readers take vd_expand_lock to see
+ * the pointer and the count together, and the old table is freed after the
+ * lock is dropped.
+ */
+void
+vdev_raidz_parity_epochs_install(vdev_t *vd, const uint64_t *table,
+    uint64_t nent)
+{
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	uint64_t *copy = NULL;
+	uint64_t *old;
+	uint64_t old_nent;
+
+	ASSERT3P(vd->vdev_ops, ==, &vdev_raidz_ops);
+	ASSERT((table == NULL) == (nent == 0));
+
+	if (nent != 0) {
+		copy = kmem_alloc(nent * 3 * sizeof (uint64_t), KM_SLEEP);
+		memcpy(copy, table, nent * 3 * sizeof (uint64_t));
+	}
+
+	mutex_enter(&vdrz->vd_expand_lock);
+	old = vdrz->vd_parity_epochs;
+	old_nent = vdrz->vd_parity_epoch_count;
+	vdrz->vd_parity_epochs = copy;
+	vdrz->vd_parity_epoch_count = nent;
+	mutex_exit(&vdrz->vd_expand_lock);
+
+	if (old != NULL)
+		kmem_free(old, old_nent * 3 * sizeof (uint64_t));
+}
+
+/*
+ * Say whether vdev_raidz_parity_epochs_set() would accept the table on this
+ * vdev, with no side effects, so that a writer can refuse before it queues
+ * its sync task.  The caller holds the spa config lock as reader, which
+ * keeps the vdev tree stable.  A dsl_sync_task() check function runs with
+ * the pool config lock held, and spa_sync() takes them in the other order:
+ * in open context, take the spa config lock before dsl_sync_task(), or only
+ * try to take it in the check function, never wait for it there.
+ *
+ * EINVAL: not a top-level RAID-Z vdev with a top-level ZAP, or a table that
+ *	   does not fit this vdev (see vdev_raidz_parity_epochs_check()).
+ * ENOTSUP: the feature is not enabled, or the vdev has expansion state or
+ *	   history, which cannot coexist with a table.
+ */
+int
+vdev_raidz_parity_epochs_set_check(vdev_t *vd, const uint64_t *table,
+    uint64_t nent)
+{
+	vdev_raidz_t *vdrz;
+	boolean_t expanded;
+
+	if (vd->vdev_ops != &vdev_raidz_ops || vd != vd->vdev_top ||
+	    vd->vdev_top_zap == 0)
+		return (SET_ERROR(EINVAL));
+	if (!spa_feature_is_enabled(vd->vdev_spa,
+	    SPA_FEATURE_RAIDZ_PARITY_EPOCHS))
+		return (SET_ERROR(ENOTSUP));
+
+	vdrz = vd->vdev_tsd;
+	mutex_enter(&vdrz->vd_expand_lock);
+	expanded = !avl_is_empty(&vdrz->vd_expand_txgs);
+	mutex_exit(&vdrz->vd_expand_lock);
+	/*
+	 * An attach whose sync task has not run yet shows as a child beyond
+	 * the physical width.
+	 */
+	if (expanded || vdrz->vn_vre.vre_state != DSS_NONE ||
+	    vdrz->vd_original_width != vdrz->vd_physical_width ||
+	    vd->vdev_children != vdrz->vd_physical_width)
+		return (SET_ERROR(ENOTSUP));
+
+	return (vdev_raidz_parity_epochs_check(table, nent,
+	    vdrz->vd_physical_width));
+}
+
+/*
+ * Store a parity-epoch table on a top-level RAID-Z vdev: write the vdev ZAP
+ * entry, activate the feature if this is the first table, replace the
+ * in-core table and dirty the config so that the labels and the MOS config
+ * carry it.  The ZAP entry and the in-core table change in the same txg.
+ *
+ * Blocks are laid out by the epoch of their physical birth txg and nothing
+ * already written is re-encoded, so every entry the caller adds must start
+ * after the txg the call runs in: one that starts at or before it describes
+ * blocks that were written with another layout.  This is not checked here.
+ *
+ * Syncing context only, as a dsl_sync_task() sync function, with the spa
+ * config lock held as reader (spa_sync() holds it).  Returns the error of
+ * vdev_raidz_parity_epochs_set_check() with nothing changed; a caller that
+ * checked in open context cannot see it fail.
+ */
+int
+vdev_raidz_parity_epochs_set(vdev_t *vd, const uint64_t *table,
+    uint64_t nent, dmu_tx_t *tx)
+{
+	spa_t *spa = vd->vdev_spa;
+	int error;
+
+	ASSERT(dmu_tx_is_syncing(tx));
+	ASSERT(spa_config_held(spa, SCL_CONFIG, RW_READER));
+
+	error = vdev_raidz_parity_epochs_set_check(vd, table, nent);
+	if (error != 0)
+		return (error);
+
+	VERIFY0(zap_update(spa->spa_meta_objset, vd->vdev_top_zap,
+	    VDEV_TOP_ZAP_RAIDZ_PARITY_EPOCHS, sizeof (uint64_t), nent * 3,
+	    table, tx));
+	if (!spa_feature_is_active(spa, SPA_FEATURE_RAIDZ_PARITY_EPOCHS))
+		spa_feature_incr(spa, SPA_FEATURE_RAIDZ_PARITY_EPOCHS, tx);
+
+	vdev_raidz_parity_epochs_install(vd, table, nent);
+	vdev_config_dirty(vd);
+
+	return (0);
+}
+
 int
 vdev_raidz_load(vdev_t *vd)
 {
@@ -5734,14 +5850,12 @@ vdev_raidz_load(vdev_t *vd)
 				return (SET_ERROR(ENOTSUP));
 			}
 			/*
-			 * Replace the label copy after validating the MOS copy.
+			 * The ZAP copy is authoritative: it replaces the copy
+			 * vdev_raidz_init() took from the label or MOS config.
 			 */
-			if (vdrz->vd_parity_epochs != NULL)
-				kmem_free(vdrz->vd_parity_epochs,
-				    vdrz->vd_parity_epoch_count * 3 *
-				    sizeof (uint64_t));
-			vdrz->vd_parity_epochs = table;
-			vdrz->vd_parity_epoch_count = num_ints / 3;
+			vdev_raidz_parity_epochs_install(vd, table,
+			    num_ints / 3);
+			kmem_free(table, num_ints * sizeof (uint64_t));
 		} else if (err != ENOENT) {
 			return (err);
 		}
@@ -5891,10 +6005,6 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 		    pe_label_size * sizeof (uint64_t), KM_SLEEP);
 		for (unsigned int i = 0; i < pe_label_size; i++)
 			table[i] = pe_label[i];
-		if (vdrz->vd_parity_epochs != NULL)
-			kmem_free(vdrz->vd_parity_epochs,
-			    vdrz->vd_parity_epoch_count * 3 *
-			    sizeof (uint64_t));
 		vdrz->vd_parity_epochs = table;
 		vdrz->vd_parity_epoch_count = pe_label_size / 3;
 	}
@@ -6013,12 +6123,12 @@ vdev_raidz_config_generate(vdev_t *vd, nvlist_t *nv)
 
 		kmem_free(txgs, sizeof (uint64_t) * count);
 	}
-	mutex_exit(&vdrz->vd_expand_lock);
 
 	if (vdrz->vd_parity_epochs != NULL && vdrz->vd_parity_epoch_count > 0) {
 		fnvlist_add_uint64_array(nv, ZPOOL_CONFIG_RAIDZ_PARITY_EPOCHS,
 		    vdrz->vd_parity_epochs, vdrz->vd_parity_epoch_count * 3);
 	}
+	mutex_exit(&vdrz->vd_expand_lock);
 	if (vdrz->vd_reparity_parity > 0) {
 		fnvlist_add_uint64(nv, "com.rrmvp:raidz_reparity_parity",
 		    vdrz->vd_reparity_parity);
