@@ -2077,6 +2077,28 @@ lzc_get_bootenv(const char *pool, nvlist_t **outnvl)
 }
 
 /*
+ * Rewrite a range of the volume as-is without modification, so that its
+ * blocks are reallocated.  A zero length stands for the rest of the volume.
+ * The flags are the ZFS_REWRITE_* flags.
+ */
+int
+lzc_zvol_rewrite(const char *volume, uint64_t offset, uint64_t length,
+    uint64_t flags)
+{
+	nvlist_t *args = fnvlist_alloc();
+
+	fnvlist_add_uint64(args, ZVOL_REWRITE_OFFSET, offset);
+	fnvlist_add_uint64(args, ZVOL_REWRITE_LENGTH, length);
+	fnvlist_add_uint64(args, ZVOL_REWRITE_FLAGS, flags);
+
+	int error = lzc_ioctl(ZFS_IOC_ZVOL_REWRITE, volume, args, NULL);
+
+	fnvlist_free(args);
+
+	return (error);
+}
+
+/*
  * Prune the specified amount from the pool's dedup table.
  */
 int
