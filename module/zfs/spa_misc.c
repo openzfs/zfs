@@ -2687,7 +2687,7 @@ spa_import_progress_remove(uint64_t pool_guid)
 			if (sip->pool_name)
 				spa_strfree(sip->pool_name);
 			if (sip->spa_load_notes)
-				spa_strfree(sip->spa_load_notes);
+				kmem_strfree(sip->spa_load_notes);
 			list_remove(&shl->procfs_list.pl_list, sip);
 			shl->size--;
 			kmem_free(sip, sizeof (spa_import_progress_t));
