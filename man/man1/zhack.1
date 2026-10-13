@@ -257,7 +257,7 @@ must be the vdev's, and the starts must increase.
 A table can only grow: it must begin with every triplet the vdev already has,
 unchanged, and may add new ones after them.
 A table that does not fit the vdev, or a vdev that has been expanded, is
-refused and nothing is changed.
+refused, with the rule it breaks in the message, and nothing is changed.
 The pool must be exported.
 .Pp
 A block is read with the epoch its physical birth transaction group falls in,

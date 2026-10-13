@@ -1622,6 +1622,7 @@ typedef struct zhack_repochs {
 	uint64_t re_first;	/* first start allowed, once known */
 	boolean_t re_force;
 	const char *re_why;
+	const char *re_rule;	/* the rule of the setter it breaks */
 } zhack_repochs_t;
 
 /*
@@ -1638,6 +1639,7 @@ zhack_raidz_epochs_verdict(spa_t *spa, zhack_repochs_t *ra, dmu_tx_t *tx)
 	vdev_t *vd = vdev_lookup_top(spa, ra->re_vdev_id);
 	int error = 0;
 
+	ra->re_rule = NULL;
 	if (tx != NULL) {
 		ra->re_first = vdev_raidz_parity_epochs_first_start(tx);
 	} else {
@@ -1666,15 +1668,15 @@ zhack_raidz_epochs_verdict(spa_t *spa, zhack_repochs_t *ra, dmu_tx_t *tx)
 	} else {
 		if (tx != NULL) {
 			error = vdev_raidz_parity_epochs_set_check_tx(vd,
-			    ra->re_table, ra->re_entries, tx);
+			    ra->re_table, ra->re_entries, tx, &ra->re_rule);
 		} else {
 			error = vdev_raidz_parity_epochs_set_check(vd,
-			    ra->re_table, ra->re_entries);
+			    ra->re_table, ra->re_entries, &ra->re_rule);
 		}
 		if (error == EINVAL)
 			ra->re_why = "the table is not valid for this vdev";
 		else if (error == ENOTSUP)
-			ra->re_why = "the vdev has expansion state or history";
+			ra->re_why = ra->re_rule;
 		else if (error == ERANGE)
 			ra->re_why = "an added epoch starts too early";
 	}
@@ -1821,6 +1823,11 @@ zhack_do_raidz_epochs(int argc, char **argv)
 		    "(the first start allowed in this run was txg %llu; use "
 		    "next) [%s]", (u_longlong_t)ra.re_vdev_id, ra.re_why,
 		    (u_longlong_t)ra.re_first, strerror(error));
+	} else if (error == EINVAL && ra.re_why != NULL &&
+	    ra.re_rule != NULL) {
+		fatal(spa, FTAG, "cannot store the table on vdev %llu: %s: %s "
+		    "[%s]", (u_longlong_t)ra.re_vdev_id, ra.re_why,
+		    ra.re_rule, strerror(error));
 	} else if (error != 0) {
 		fatal(spa, FTAG, "cannot store the table on vdev %llu: %s "
 		    "[%s]", (u_longlong_t)ra.re_vdev_id,
