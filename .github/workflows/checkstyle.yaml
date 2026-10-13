@@ -11,11 +11,29 @@ concurrency:
 jobs:
   checkstyle:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read
     steps:
     - uses: actions/checkout@v6
       with:
         ref: ${{ github.event.pull_request.head.sha }}
+    - name: Find completed fork job
+      id: reuse
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        jobs=$(python3 .github/workflows/scripts/reuse-ci.py checkstyle)
+        echo "url=$(jq -r '.checkstyle // ""' <<< "$jobs")" >> "$GITHUB_OUTPUT"
+    - name: Reuse successful fork job
+      if: steps.reuse.outputs.url != ''
+      env:
+        REUSED_JOB: ${{ steps.reuse.outputs.url }}
+      run: |
+        printf 'Reused successful style, lint and ABI checks for this commit.\n\n[Original job and logs](%s)\n' \
+          "$REUSED_JOB" | tee -a "$GITHUB_STEP_SUMMARY"
     - name: Install dependencies
+      if: steps.reuse.outputs.url == ''
       run: |
         # for x in lxd core20 snapd; do sudo snap remove $x; done
         sudo apt-get purge -y snapd google-chrome-stable firefox
@@ -30,22 +48,28 @@ jobs:
         scanelf --version
         shellcheck --version
     - name: Prepare
+      if: steps.reuse.outputs.url == ''
       run: |
         sed -i '/DEBUG_CFLAGS="-Werror"/s/^/#/' config/zfs-build.m4
         ./autogen.sh
     - name: Configure
+      if: steps.reuse.outputs.url == ''
       run: |
         ./configure
     - name: Make
+      if: steps.reuse.outputs.url == ''
       run: |
         make -j$(nproc) --no-print-directory --silent
     - name: Checkstyle
+      if: steps.reuse.outputs.url == ''
       run: |
         make -j$(nproc) --no-print-directory --silent checkstyle
     - name: Lint
+      if: steps.reuse.outputs.url == ''
       run: |
         make -j$(nproc) --no-print-directory --silent lint
     - name: CheckABI
+      if: steps.reuse.outputs.url == ''
       id: CheckABI
       run: |
         docker run -v $PWD:/source ghcr.io/openzfs/libabigail make -j$(nproc) --no-print-directory --silent checkabi

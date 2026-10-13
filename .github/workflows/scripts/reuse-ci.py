@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Find successful push jobs that can replace QEMU jobs in a fork PR."""
+"""Find successful fork push jobs for PR checks."""
 
 import datetime
 import json
@@ -10,10 +10,25 @@ import urllib.parse
 import urllib.request
 
 
-WORKFLOW = ".github/workflows/zfs-qemu.yml"
-REQUIRED_STEPS = {
-    "Setup QEMU", "Start build machine", "Install dependencies",
-    "Build modules", "Setup testing machines", "Run tests", "Test Summary",
+WORKFLOWS = {
+    "zfs-qemu": ("zfs-qemu.yml", "ubuntu-24.04", None, {
+        "Setup QEMU", "Start build machine", "Install dependencies",
+        "Build modules", "Setup testing machines", "Run tests", "Test Summary",
+    }),
+    "zloop": ("zloop.yml", "ubuntu-24.04", "zloop", {
+        "Install dependencies", "Autogen.sh", "Configure", "Make",
+        "Install", "Tests",
+    }),
+    "unit-tests": ("unit-tests.yml", "ubuntu-24.04", "unit-tests", {
+        "Install dependencies", "Autogen", "Configure", "Unit tests",
+    }),
+    "zfs-arm": ("zfs-arm.yml", "ubuntu-24.04-arm", "ZFS ARM build", {
+        "Install dependencies", "Build modules",
+    }),
+    "checkstyle": ("checkstyle.yaml", "ubuntu-22.04", "checkstyle", {
+        "Install dependencies", "Prepare", "Configure", "Make",
+        "Checkstyle", "Lint", "CheckABI",
+    }),
 }
 MAX_AGE = datetime.timedelta(days=7)
 
@@ -29,21 +44,23 @@ def github_api(path):
         return json.load(response)
 
 
-def reusable_jobs(event, targets, api=github_api, now=None):
+def reusable_jobs(event, targets, api=github_api, now=None,
+                  workflow="zfs-qemu"):
+    filename, runner, job_name, required_steps = WORKFLOWS[workflow]
     pr = event["pull_request"]
     repo = pr["head"]["repo"]["full_name"]
     if repo.lower() == pr["base"]["repo"]["full_name"].lower():
         return {}
     head = pr["head"]["sha"]
-    if not targets:
+    if job_name is None and not targets:
         return {}
 
-    # Push uses ci_type=default (full tests), even with ZTS_OS_OVERRIDE.
-    # Dispatch and PR runs can use different inputs or a reduced test suite.
+    # QEMU push runs use full tests, even with ZTS_OS_OVERRIDE. Dispatch
+    # and PR runs can use different inputs or a reduced test suite.
     query = urllib.parse.urlencode({
         "event": "push", "head_sha": head, "per_page": 1,
     })
-    runs = api(f"repos/{repo}/actions/workflows/zfs-qemu.yml/runs?{query}")
+    runs = api(f"repos/{repo}/actions/workflows/{filename}/runs?{query}")
     if not runs["workflow_runs"]:
         return {}
     run = runs["workflow_runs"][0]
@@ -51,7 +68,8 @@ def reusable_jobs(event, targets, api=github_api, now=None):
     created = datetime.datetime.fromisoformat(
         run["created_at"].replace("Z", "+00:00"))
     if (run["head_sha"] != head or run["event"] != "push" or
-            run["status"] != "completed" or run["path"] != WORKFLOW or
+            run["status"] != "completed" or
+            run["path"] != f".github/workflows/{filename}" or
             run["repository"]["full_name"].lower() != repo.lower() or
             run["head_repository"]["full_name"].lower() != repo.lower() or
             not datetime.timedelta(0) <= now - created <= MAX_AGE):
@@ -62,7 +80,8 @@ def reusable_jobs(event, targets, api=github_api, now=None):
     # A truncated matrix cannot establish which results are current.
     if jobs["total_count"] > len(jobs["jobs"]):
         return {}
-    names = {f"qemu-x86 ({target})": target for target in targets}
+    names = ({f"qemu-x86 ({target})": target for target in targets}
+             if job_name is None else {job_name: workflow})
     result = {}
     for job in jobs["jobs"]:
         target = names.get(job["name"])
@@ -70,13 +89,13 @@ def reusable_jobs(event, targets, api=github_api, now=None):
                 job["run_id"] != run["id"] or
                 job["status"] != "completed" or
                 job["conclusion"] != "success" or
-                job["labels"] != ["ubuntu-24.04"]):
+                job["labels"] != [runner]):
             continue
         steps = {step["name"]: step for step in job["steps"]}
         if not all(name in steps and
                    steps[name]["status"] == "completed" and
                    steps[name]["conclusion"] == "success"
-                   for name in REQUIRED_STEPS):
+                   for name in required_steps):
             continue
         result[target] = (
             f"https://github.com/{repo}/actions/runs/{run['id']}"
@@ -87,13 +106,15 @@ def reusable_jobs(event, targets, api=github_api, now=None):
 def main():
     result = {}
     try:
-        if os.environ.get("GITHUB_EVENT_NAME") == "pull_request":
+        if (os.environ.get("GITHUB_EVENT_NAME") == "pull_request" and
+                os.environ.get("GITHUB_RUN_ATTEMPT", "1") == "1"):
             with open(os.environ["GITHUB_EVENT_PATH"]) as stream:
                 event = json.load(stream)
             result = reusable_jobs(
-                event, json.loads(os.environ["ZTS_TARGETS"]))
+                event, json.loads(os.environ.get("ZTS_TARGETS", "[]")),
+                workflow=sys.argv[1] if len(sys.argv) > 1 else "zfs-qemu")
     except (OSError, ValueError, KeyError, TypeError, RuntimeError) as error:
-        print(f"Cannot reuse fork QEMU jobs: {error}", file=sys.stderr)
+        print(f"Cannot reuse fork CI jobs: {error}", file=sys.stderr)
     print(json.dumps(result))
 
 
