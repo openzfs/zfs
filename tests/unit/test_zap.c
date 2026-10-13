@@ -125,7 +125,7 @@ mock_zap_create_norm_params(const MunitParameter params[], const char *key,
 		return (mock_zap_create_norm_fatzap(normflags));
 	else
 		munit_errorf("mock_zap_create_params: invalid type '%s'", type);
-	__builtin_unreachable();
+	unit_unreachable();
 }
 
 /* Shortcuts for ZAPs with no normalization flags set. */
@@ -149,7 +149,7 @@ mock_zap_is_params(dnode_t *dn, const MunitParameter params[],
 		return (mock_zap_is_fatzap(dn));
 	else
 		munit_errorf("mock_zap_is_params: invalid type '%s'", type);
-	__builtin_unreachable();
+	unit_unreachable();
 }
 
 /* ========== */
