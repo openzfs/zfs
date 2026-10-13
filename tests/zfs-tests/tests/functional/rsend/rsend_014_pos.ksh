@@ -47,7 +47,7 @@ log_must cleanup_pool $POOL2
 
 log_must eval "zfs send -R $POOL/$FS@final > $BACKDIR/fs-final-R"
 log_must eval "zfs receive -d $POOL2 < $BACKDIR/fs-final-R"
-log_must_busy zpool export $POOL
+log_must zpool export $POOL
 log_must zpool import $POOL
 
 dstds=$(get_dst_ds $POOL/$FS $POOL2)

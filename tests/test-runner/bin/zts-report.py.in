@@ -92,15 +92,6 @@ zcp_reason = 'channel program support required'
 
 
 #
-# Some rewind tests can fail since nothing guarantees that old MOS blocks
-# are not overwritten.  Snapshots protect datasets and data files but not
-# the MOS.  Reasonable efforts are made in the test case to increase the
-# odds that some txgs will have their MOS data left untouched, but it is
-# never a sure thing.
-#
-rewind_reason = 'Arbitrary pool rewind is not guaranteed'
-
-#
 # Some tests require a minimum version of the fio benchmark utility.
 # Older distributions such as CentOS 6.x only provide fio-2.0.13.
 #
@@ -228,8 +219,6 @@ maybe = {
     'chattr/setup': ['SKIP', exec_reason],
     'channel_program/lua_core/setup': ['SKIP', zcp_reason],
     'channel_program/synctask_core/setup': ['SKIP', zcp_reason],
-    'cli_root/zpool_import/import_rewind_device_replaced':
-        ['FAIL', rewind_reason],
     'crtime/crtime_001_pos': ['SKIP', statx_reason],
     'cli_root/zfs_share/zfs_share_concurrent_shares': ['FAIL', known_reason],
     'cli_root/zfs_unshare/zfs_unshare_006_pos': ['SKIP', na_reason],
