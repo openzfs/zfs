@@ -135,7 +135,10 @@ usage(void)
 	    "                 <start:width:parity>...\n"
 	    "        DEBUG: store a raidz parity-epoch table on the vdev and\n"
 	    "        activate the raidz_parity_epochs feature; refused if the\n"
-	    "        table is not valid for the vdev; disposable pools only\n"
+	    "        table is not valid for the vdev, drops or changes one\n"
+	    "        of its epochs, or adds one that starts too early; a\n"
+	    "        start of 'next' is the first one allowed; prints the\n"
+	    "        table stored; disposable pools only\n"
 	    "        -f write the vdev's top-level ZAP entry verbatim and\n"
 	    "        nothing else (no validation, so damaged tables can be\n"
 	    "        injected)\n");
@@ -1615,19 +1618,36 @@ typedef struct zhack_repochs {
 	uint64_t re_vdev_id;
 	uint64_t re_entries;
 	uint64_t *re_table;
+	boolean_t *re_next;	/* the start was given as "next" */
+	uint64_t re_first;	/* first start allowed, once known */
 	boolean_t re_force;
 	const char *re_why;
 } zhack_repochs_t;
 
 /*
  * Whether the table can be stored on the vdev; re_why says why not.  The
- * caller holds the spa config lock as reader.
+ * caller holds the spa config lock as reader.  In syncing context, tx is
+ * that of the sync task: the starts given as "next" become the first one the
+ * setter allows, which is only known there, and are checked with the rest.
+ * In open context, tx is NULL and they stand for the earliest that first
+ * start can be, so that what can be checked before the task runs is.
  */
 static int
-zhack_raidz_epochs_verdict(spa_t *spa, zhack_repochs_t *ra)
+zhack_raidz_epochs_verdict(spa_t *spa, zhack_repochs_t *ra, dmu_tx_t *tx)
 {
 	vdev_t *vd = vdev_lookup_top(spa, ra->re_vdev_id);
 	int error = 0;
+
+	if (tx != NULL) {
+		ra->re_first = vdev_raidz_parity_epochs_first_start(tx);
+	} else {
+		ra->re_first = spa_last_synced_txg(spa) + 1 +
+		    TXG_CONCURRENT_STATES;
+	}
+	for (uint64_t i = 0; i < ra->re_entries; i++) {
+		if (ra->re_next[i])
+			ra->re_table[3 * i] = ra->re_first;
+	}
 
 	if (vd == NULL) {
 		ra->re_why = "no such top-level vdev";
@@ -1644,23 +1664,32 @@ zhack_raidz_epochs_verdict(spa_t *spa, zhack_repochs_t *ra)
 			error = EFBIG;
 		}
 	} else {
-		error = vdev_raidz_parity_epochs_set_check(vd, ra->re_table,
-		    ra->re_entries);
+		if (tx != NULL) {
+			error = vdev_raidz_parity_epochs_set_check_tx(vd,
+			    ra->re_table, ra->re_entries, tx);
+		} else {
+			error = vdev_raidz_parity_epochs_set_check(vd,
+			    ra->re_table, ra->re_entries);
+		}
 		if (error == EINVAL)
 			ra->re_why = "the table is not valid for this vdev";
 		else if (error == ENOTSUP)
 			ra->re_why = "the vdev has expansion state or history";
+		else if (error == ERANGE)
+			ra->re_why = "an added epoch starts too early";
 	}
 
 	return (error);
 }
 
 /*
- * The table was checked before the task was queued.  Check it again in
- * syncing context, under the config lock spa_sync() holds, where it cannot
- * fail, but not in open context: a check function runs with the pool config
- * lock held, and waiting there for the spa config lock can deadlock with
- * spa_sync(), which takes the two the other way round.
+ * The table was checked before the task was queued, except for when the
+ * added epochs start, which only the txg of the task decides.  Check it all
+ * in syncing context, under the config lock spa_sync() holds, where a
+ * refusal comes back from dsl_sync_task(), but not in open context: a check
+ * function runs with the pool config lock held, and waiting there for the
+ * spa config lock can deadlock with spa_sync(), which takes the two the
+ * other way round.
  */
 static int
 zhack_raidz_epochs_check(void *arg, dmu_tx_t *tx)
@@ -1668,7 +1697,8 @@ zhack_raidz_epochs_check(void *arg, dmu_tx_t *tx)
 	if (!dmu_tx_is_syncing(tx))
 		return (0);
 
-	return (zhack_raidz_epochs_verdict(dmu_tx_pool(tx)->dp_spa, arg));
+	return (zhack_raidz_epochs_verdict(dmu_tx_pool(tx)->dp_spa, arg,
+	    tx));
 }
 
 static void
@@ -1687,7 +1717,7 @@ zhack_raidz_epochs_sync(void *arg, dmu_tx_t *tx)
 			spa_feature_incr(spa, SPA_FEATURE_RAIDZ_PARITY_EPOCHS,
 			    tx);
 	} else {
-		/* Checked above, so this cannot fail. */
+		/* Checked in this txg, so this cannot fail. */
 		VERIFY0(vdev_raidz_parity_epochs_set(vd, ra->re_table,
 		    ra->re_entries, tx));
 	}
@@ -1731,17 +1761,32 @@ zhack_do_raidz_epochs(int argc, char **argv)
 	if (errno != 0 || end == argv[1] || *end != '\0' || argv[1][0] == '-')
 		fatal(NULL, FTAG, "bad top-level vdev id: %s", argv[1]);
 	ra.re_entries = argc - 2;
-	ra.re_table = malloc(ra.re_entries * 3 * sizeof (uint64_t));
-	if (ra.re_table == NULL)
+	ra.re_table = calloc(ra.re_entries * 3, sizeof (uint64_t));
+	ra.re_next = calloc(ra.re_entries, sizeof (boolean_t));
+	if (ra.re_table == NULL || ra.re_next == NULL)
 		fatal(NULL, FTAG, "out of memory");
 	for (uint64_t i = 0; i < ra.re_entries; i++) {
-		u_longlong_t start, width, parity;
+		const char *t = argv[2 + i];
+		u_longlong_t start = 0;
+		u_longlong_t width;
+		u_longlong_t parity;
 		int n = 0;
 
-		if (sscanf(argv[2 + i], "%llu:%llu:%llu%n",
-		    &start, &width, &parity, &n) != 3 ||
-		    argv[2 + i][n] != '\0' || strchr(argv[2 + i], '-') != NULL)
-			fatal(NULL, FTAG, "bad triplet: %s", argv[2 + i]);
+		if (strncmp(t, "next:", 5) == 0) {
+			if (ra.re_force) {
+				fatal(NULL, FTAG, "-f stores every start as "
+				    "given, not next: %s", t);
+			}
+			ra.re_next[i] = B_TRUE;
+			if (sscanf(t + 5, "%llu:%llu%n", &width, &parity,
+			    &n) != 2 || t[5 + n] != '\0' ||
+			    strchr(t, '-') != NULL)
+				fatal(NULL, FTAG, "bad triplet: %s", t);
+		} else if (sscanf(t, "%llu:%llu:%llu%n", &start, &width,
+		    &parity, &n) != 3 || t[n] != '\0' ||
+		    strchr(t, '-') != NULL) {
+			fatal(NULL, FTAG, "bad triplet: %s", t);
+		}
 		ra.re_table[3 * i] = start;
 		ra.re_table[3 * i + 1] = width;
 		ra.re_table[3 * i + 2] = parity;
@@ -1755,23 +1800,59 @@ zhack_do_raidz_epochs(int argc, char **argv)
 
 	/*
 	 * Refuse here, in open context, where it can be reported: fatal()
-	 * from the sync task would wait for the txg that is running it.
+	 * from the sync task would wait for the txg that is running it.  What
+	 * only the txg of the task decides is refused by its check function,
+	 * and comes back from dsl_sync_task().
 	 */
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
-	error = zhack_raidz_epochs_verdict(spa, &ra);
+	error = zhack_raidz_epochs_verdict(spa, &ra, NULL);
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 	if (error == 0) {
 		error = dsl_sync_task(spa_name(spa), zhack_raidz_epochs_check,
 		    zhack_raidz_epochs_sync, &ra, 5, ZFS_SPACE_CHECK_NORMAL);
 	}
-	if (error != 0) {
+	if (error == ERANGE && ra.re_why != NULL) {
+		/*
+		 * The next run imports the pool and syncs txgs of its own
+		 * before its task runs, so the first start it allows is
+		 * later than this one; "next" stands for it in any run.
+		 */
+		fatal(spa, FTAG, "cannot store the table on vdev %llu: %s "
+		    "(the first start allowed in this run was txg %llu; use "
+		    "next) [%s]", (u_longlong_t)ra.re_vdev_id, ra.re_why,
+		    (u_longlong_t)ra.re_first, strerror(error));
+	} else if (error != 0) {
 		fatal(spa, FTAG, "cannot store the table on vdev %llu: %s "
 		    "[%s]", (u_longlong_t)ra.re_vdev_id,
 		    ra.re_why != NULL ? ra.re_why : "unexpected error",
 		    strerror(error));
 	}
+
+	if (!ra.re_force) {
+		boolean_t next = B_FALSE;
+
+		(void) printf("%s: vdev %llu:", target,
+		    (u_longlong_t)ra.re_vdev_id);
+		for (uint64_t i = 0; i < ra.re_entries; i++) {
+			(void) printf(" %llu:%llu:%llu",
+			    (u_longlong_t)ra.re_table[3 * i],
+			    (u_longlong_t)ra.re_table[3 * i + 1],
+			    (u_longlong_t)ra.re_table[3 * i + 2]);
+			next |= ra.re_next[i];
+		}
+		(void) printf("\n");
+
+		/*
+		 * Every block written once zhack returns, by this pool or by
+		 * the next import, is then born in the epoch that starts
+		 * there.
+		 */
+		if (next)
+			txg_wait_synced(spa_get_dsl(spa), ra.re_first);
+	}
 	spa_close(spa, FTAG);
 	free(ra.re_table);
+	free(ra.re_next);
 	return (0);
 }
 

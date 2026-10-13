@@ -32,7 +32,8 @@
 #
 # STRATEGY:
 #	1. Create a 5-wide raidz1 pool; write data (parity-1, born at create).
-#	2. Offline-inject a {0:5:1, T:5:2} epoch table with zhack; reimport.
+#	2. Offline-inject a {0:5:1, T:5:2} epoch table with zhack, T the
+#	   first txg it allows; reimport.
 #	3. Write more data past the epoch boundary (parity-2); record cksums.
 #	4. Scrub is clean -- recon reads both parity classes.
 #	5. 'zpool replace' a member: the resilver completes with no errors --
@@ -76,15 +77,10 @@ log_must sync_pool $TESTPOOL2
 log_must zpool export $TESTPOOL2
 
 # Inject a parity-2 epoch boundary strictly above every existing block's
-# physical birth. The label's pool-config txg can lag the newest uberblock
-# (the final export txgs), so derive T from the best uberblock instead --
-# T = max(ub_txg) + 1 is greater than any physical birth in the pool.
-log_must eval "zdb -lu ${VDEVS[0]} > $BASEDIR/labels.out"
-typeset -i TXG=$(awk '/txg = /{print $3}' $BASEDIR/labels.out |
-    sort -n | tail -1)
-log_must test $TXG -gt 0
-typeset -i T=$((TXG + 1))
-log_must zhack -d $BASEDIR raidz_epochs $TESTPOOL2 0 0:${ndev}:1 ${T}:${ndev}:2
+# physical birth, including those zhack's own import writes: T is the first
+# txg zhack allows, which it picks for "next".
+log_must zhack -d $BASEDIR raidz_epochs $TESTPOOL2 0 \
+    0:${ndev}:1 next:${ndev}:2
 log_must zpool import -d $BASEDIR $TESTPOOL2
 log_must eval "zpool get -H -o value feature@raidz_parity_epochs $TESTPOOL2 | grep -q active"
 
