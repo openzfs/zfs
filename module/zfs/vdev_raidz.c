@@ -2229,113 +2229,12 @@ vdev_raidz_reconstruct_row(raidz_map_t *rm, raidz_row_t *rr,
 	vdev_raidz_reconstruct_general(rr, tgts, ntgts);
 }
 
-/*
- * F3: FNV digest of the certified epoch-table prefix (entries whose parity
- * <= the marker parity), computed identically here and in zhack at commit, so
- * a structurally-valid but SUBSTITUTED table is detected.
- */
-static uint64_t
-vdev_raidz_epoch_digest(const uint64_t *tbl, uint64_t nent,
-    uint64_t max_parity)
-{
-	uint64_t h = 1469598103934665603ULL;
-	for (uint64_t i = 0; i < nent; i++) {
-		if (tbl[3 * i + 2] > max_parity)
-			continue;
-		for (int k = 0; k < 3; k++) {
-			h ^= tbl[3 * i + k];
-			h *= 1099511628211ULL;
-		}
-	}
-	return (h);
-}
-
-/*
- * F3: honor the reparity marker (raised tolerance) ONLY when its completion
- * TXG is covered by the selected uberblock AND the certified epoch-prefix
- * digest matches the marker; otherwise fail-closed.
- */
-/*
- * R02: honor the raised tolerance ONLY on a complete, mandatory certificate.
- * A missing/zero field is NEVER a grant. Required: marker in
- * (base, VDEV_RAIDZ_MAXPARITY]; a NON-ZERO completion txg; a NON-ZERO stored
- * digest that matches the recomputed epoch-prefix digest; and the marker
- * parity certified by the epoch table (its last entry's parity >= marker).
- * When a real uberblock is selected (ub!=0) the completion must be covered by
- * it (rewind is not inherited). ub==0 is early config-scan/discovery: the same
- * certificate is still required; discovery is not a substitute for the cert.
- */
-static uint64_t
-vdev_raidz_honored_parity(vdev_t *vd)
-{
-	vdev_raidz_t *vdrz = vd->vdev_tsd;
-	uint64_t base = vdrz->vd_nparity;
-	uint64_t marker = vdrz->vd_reparity_parity;
-	if (marker > base) {
-		uint64_t ub = vd->vdev_spa->spa_uberblock.ub_txg;
-		uint64_t comp = vdrz->vd_reparity_completion_txg;
-		uint64_t sdig = vdrz->vd_reparity_epoch_digest;
-		uint64_t dig = vdev_raidz_epoch_digest(vdrz->vd_parity_epochs,
-		    vdrz->vd_parity_epoch_count, marker);
-		uint64_t nent = vdrz->vd_parity_epoch_count;
-		boolean_t certified = (marker <= VDEV_RAIDZ_MAXPARITY) &&
-		    (comp > 0) && (sdig != 0 && sdig == dig) &&
-		    (nent > 0 &&
-		    vdrz->vd_parity_epochs[(nent - 1) * 3 + 2] >= marker);
-		if (certified && ub != 0 && comp > ub)
-			certified = B_FALSE;	/* rewind: not inherited */
-		if (certified) {
-			zfs_dbgmsg("raidz reparity marker honored: comp=%llu "
-			    "ub=%llu digest=%llu tolerance=%llu",
-			    (u_longlong_t)comp, (u_longlong_t)ub,
-			    (u_longlong_t)dig, (u_longlong_t)marker);
-			return (marker);
-		}
-		zfs_dbgmsg("raidz reparity marker NOT honored (fail-closed): "
-		    "marker=%llu comp=%llu ub=%llu sdig=%llu dig=%llu tol=%llu",
-		    (u_longlong_t)marker, (u_longlong_t)comp, (u_longlong_t)ub,
-		    (u_longlong_t)sdig, (u_longlong_t)dig, (u_longlong_t)base);
-	} else if (marker != 0 && marker < base) {
-		/*
-		 * P11/D DEMOTION: LOWER the advertised tolerance to the
-		 * target. Once a demotion epoch is in the selected state,
-		 * blocks may sit at the weaker parity, so the pool can
-		 * guarantee only `marker`; returning `base` would OVERSTATE.
-		 * The safe fail direction is therefore the LOWER value:
-		 * honor a properly-bound demotion marker (digest + last
-		 * epoch == marker, completion covered by the selected
-		 * uberblock) and return the target; an unbound/forged
-		 * demotion marker means no real demotion happened, so the
-		 * blocks are still base-parity and falling back to base is
-		 * correct.
-		 */
-		uint64_t ub = vd->vdev_spa->spa_uberblock.ub_txg;
-		uint64_t comp = vdrz->vd_reparity_completion_txg;
-		uint64_t sdig = vdrz->vd_reparity_epoch_digest;
-		uint64_t dig = vdev_raidz_epoch_digest(vdrz->vd_parity_epochs,
-		    vdrz->vd_parity_epoch_count, marker);
-		uint64_t nent = vdrz->vd_parity_epoch_count;
-		boolean_t bound = (marker >= 1) && (comp > 0) &&
-		    (sdig != 0 && sdig == dig) && (nent > 0 &&
-		    vdrz->vd_parity_epochs[(nent - 1) * 3 + 2] == marker);
-		if (bound && ub != 0 && comp > ub)
-			/* rewind to before demotion: blocks are base */
-			bound = B_FALSE;
-		if (bound) {
-			zfs_dbgmsg("raidz DEMOTION marker honored: comp=%llu "
-			    "ub=%llu tolerance=%llu", (u_longlong_t)comp,
-			    (u_longlong_t)ub, (u_longlong_t)marker);
-			return (marker);
-		}
-	}
-	return (base);
-}
-
 static int
 vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
     uint64_t *logical_ashift, uint64_t *physical_ashift, cred_t *cr)
 {
-	uint64_t nparity = vdev_raidz_honored_parity(vd);
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	uint64_t nparity = vdrz->vd_nparity;
 	int c;
 	int lasterror = 0;
 	int numerrors = 0;
@@ -4374,7 +4273,8 @@ done:
 static void
 vdev_raidz_state_change(vdev_t *vd, int faulted, int degraded)
 {
-	if (faulted > vdev_raidz_honored_parity(vd))
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	if (faulted > vdrz->vd_nparity)
 		vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
 		    VDEV_AUX_NO_REPLICAS);
 	else if (degraded + faulted != 0)
@@ -6060,19 +5960,6 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 		vdrz->vd_parity_epoch_count = pe_label_size / 3;
 	}
 
-	{
-		uint64_t rp = 0, rc = 0, rd = 0;
-		(void) nvlist_lookup_uint64(nv,
-		    "com.rrmvp:raidz_reparity_parity", &rp);
-		(void) nvlist_lookup_uint64(nv,
-		    "com.rrmvp:raidz_reparity_completion_txg", &rc);
-		(void) nvlist_lookup_uint64(nv,
-		    "com.rrmvp:raidz_reparity_epoch_digest", &rd);
-		vdrz->vd_reparity_parity = rp;
-		vdrz->vd_reparity_completion_txg = rc;
-		vdrz->vd_reparity_epoch_digest = rd;
-	}
-
 	uint64_t *txgs;
 	unsigned int txgs_size = 0;
 	error = nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_TXGS,
@@ -6180,16 +6067,6 @@ vdev_raidz_config_generate(vdev_t *vd, nvlist_t *nv)
 		    vdrz->vd_parity_epochs, vdrz->vd_parity_epoch_count * 3);
 	}
 	mutex_exit(&vdrz->vd_expand_lock);
-	if (vdrz->vd_reparity_parity > 0) {
-		fnvlist_add_uint64(nv, "com.rrmvp:raidz_reparity_parity",
-		    vdrz->vd_reparity_parity);
-		fnvlist_add_uint64(nv,
-		    "com.rrmvp:raidz_reparity_completion_txg",
-		    vdrz->vd_reparity_completion_txg);
-		fnvlist_add_uint64(nv,
-		    "com.rrmvp:raidz_reparity_epoch_digest",
-		    vdrz->vd_reparity_epoch_digest);
-	}
 }
 
 static uint64_t
