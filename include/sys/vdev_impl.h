@@ -348,6 +348,12 @@ struct vdev {
 	vdev_indirect_births_t *vdev_indirect_births;
 
 	/*
+	 * Set when this indirect vdev could not be retired, so that it is
+	 * not retried in every txg (see spa_vdev_retire_indirect()).
+	 */
+	boolean_t	vdev_indirect_retire_failed;
+
+	/*
 	 * In memory data structures used to manage the obsolete sm, for
 	 * indirect or removing vdevs.
 	 *
