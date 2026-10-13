@@ -50,6 +50,8 @@ jobs:
         with:
           ref: ${{ env.HEAD_SHA }}
           fetch-depth: 0
+      - name: Check precheck selection
+        run: python3 -m unittest discover -s .github/workflows/scripts/tests -v
       - name: Find test commits
         id: detect
         env:
