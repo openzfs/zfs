@@ -576,7 +576,6 @@ static int
 zil_clear_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
     uint64_t first_txg)
 {
-	(void) tx;
 	ASSERT(!BP_IS_HOLE(bp));
 
 	/*
@@ -591,7 +590,7 @@ zil_clear_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
 	if (zil_bp_tree_add(zilog, bp) != 0)
 		return (0);
 
-	zio_free(zilog->zl_spa, first_txg, bp);
+	zio_free(zilog->zl_spa, dmu_tx_get_txg(tx), bp);
 	return (0);
 }
 
@@ -610,13 +609,17 @@ zil_claim_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
 	/*
 	 * Claim log block if not already committed and not already claimed.
 	 * If tx == NULL, just verify that the block is claimable.
+	 *
+	 * Blocks born before first_txg were committed.  The claim itself
+	 * happens in the txg of tx, the first one the pool syncs, which is
+	 * later than first_txg after a load of an explicitly requested txg.
 	 */
 	if (BP_IS_HOLE(bp) || BP_GET_BIRTH(bp) < first_txg ||
 	    zil_bp_tree_add(zilog, bp) != 0)
 		return (0);
 
 	return (zio_wait(zio_claim(NULL, zilog->zl_spa,
-	    tx == NULL ? 0 : first_txg, bp, spa_claim_notify, NULL,
+	    tx == NULL ? 0 : dmu_tx_get_txg(tx), bp, spa_claim_notify, NULL,
 	    ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE | ZIO_FLAG_SCRUB)));
 }
 
@@ -1225,7 +1228,7 @@ zil_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 			(void) zil_parse(zilog, zil_clear_log_block,
 			    zil_noop_log_record, tx, first_txg, B_FALSE);
 		} else {
-			zio_free(zilog->zl_spa, first_txg, &zh->zh_log);
+			zio_free(zilog->zl_spa, tx->tx_txg, &zh->zh_log);
 		}
 		memset(zh, 0, sizeof (zil_header_t));
 		if (os->os_encrypted)
@@ -1237,9 +1240,11 @@ zil_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 
 	/*
 	 * If we are not rewinding and opening the pool normally, then
-	 * the min_claim_txg should be equal to the first txg of the pool.
+	 * the min_claim_txg is the txg after the one we loaded.  The first
+	 * txg of the pool can be later than that if we loaded an explicitly
+	 * requested txg older than the newest uberblock.
 	 */
-	ASSERT3U(first_txg, ==, spa_first_txg(zilog->zl_spa));
+	ASSERT3U(first_txg, <=, spa_first_txg(zilog->zl_spa));
 
 	/*
 	 * Claim all log blocks if we haven't already done so, and remember

@@ -3167,7 +3167,7 @@ spa_min_claim_txg(spa_t *spa)
 	if (checkpoint_txg != 0)
 		return (checkpoint_txg + 1);
 
-	return (spa->spa_first_txg);
+	return (spa->spa_claim_min_txg);
 }
 
 /*
