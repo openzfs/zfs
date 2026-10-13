@@ -4469,8 +4469,8 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 		    msp->ms_checkpointing, SM_FREE, SM_NO_VDEVID, tx);
 		mutex_enter(&msp->ms_lock);
 
-		spa->spa_checkpoint_info.sci_dspace +=
-		    zfs_range_tree_space(msp->ms_checkpointing);
+		atomic_add_64(&spa->spa_checkpoint_info.sci_dspace,
+		    zfs_range_tree_space(msp->ms_checkpointing));
 		vd->vdev_stat.vs_checkpoint_space +=
 		    zfs_range_tree_space(msp->ms_checkpointing);
 		ASSERT3U(vd->vdev_stat.vs_checkpoint_space, ==,
