@@ -37,7 +37,7 @@ typedef void zio_checksum_t(struct abd *abd, uint64_t size,
 typedef void *zio_checksum_tmpl_init_t(const zio_cksum_salt_t *salt);
 typedef void zio_checksum_tmpl_free_t(void *ctx_template);
 
-typedef enum zio_checksum_flags {
+typedef enum zfs_flag_enum zio_checksum_flags {
 	/* Strong enough for metadata? */
 	ZCHECKSUM_FLAG_METADATA = (1 << 1),
 	/* ZIO embedded checksum */

@@ -27,7 +27,7 @@
 extern "C" {
 #endif
 
-typedef enum abd_flags {
+typedef enum zfs_flag_enum abd_flags {
 	ABD_FLAG_LINEAR		= 1 << 0, /* is buffer linear (or scattered)? */
 	ABD_FLAG_OWNER		= 1 << 1, /* does it own its data buffers? */
 	ABD_FLAG_META		= 1 << 2, /* does this represent FS metadata? */
