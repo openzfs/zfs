@@ -226,6 +226,31 @@ Blocks written since the dataset's last snapshot.
 .It Ar dataset Ns Sy : born in snapshots
 Blocks first written before the dataset's last snapshot, whether the
 dataset still references them or only its snapshots do.
+With
+.Fl bb ,
+this group is split into one
+.Sy only in snapshots
+group per range of snapshots, and the rest, which goes either to
+.Sy live, also in snapshots
+or, when a snapshot of the dataset is the origin of a clone, to
+.Sy live or held through clones of Ar snapshot ;
+a dataset never has both.
+.It Ar dataset Ns Sy : live, also in snapshots
+Blocks the dataset references and its snapshots share.
+Rewriting them leaves them held by those snapshots.
+.It Ar dataset Ns Sy : live or held through clones of Ar snapshot
+Blocks born before a snapshot that is the origin of a clone, including
+the hidden clone of an interrupted
+.Nm zfs Cm receive
+.Pq released by Nm zfs Cm receive Fl A .
+They may be referenced by the dataset, by the clones, or only by
+snapshots.
+.It Ar dataset Ns Sy : only in snapshots Ar dataset Ns @ Ns Ar first Ns Op % Ns Ar last
+Blocks referenced only by the snapshot
+.Ar dataset Ns @ Ns Ar first ,
+or by the range of snapshots
+.Ar dataset Ns @ Ns Ar first Ns % Ns Ar last ;
+destroying that snapshot or range releases them.
 .It Ar dataset Ns Sy : intent log
 Intent log blocks, released when the log is replayed or discarded.
 .El
@@ -249,6 +274,10 @@ on a removed vdev that its indirect mapping does not cover.
 A note follows the report for each of these but the ditto copies.
 On an imported pool the report describes the last synced state and
 may not balance.
+With
+.Fl bb ,
+the deadlists of all snapshots are read, which takes longer on pools
+with many snapshots.
 Other output is unchanged.
 .It Fl B , -backup
 Generate a backup stream, similar to
