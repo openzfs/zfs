@@ -50,6 +50,14 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/draid
 	libnvpair.la
 %C%_draid_LDADD += $(ZLIB_LIBS)
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/raidz_epoch_test
+%C%_raidz_epoch_test_CFLAGS = $(AM_CFLAGS) $(KERNEL_CFLAGS)
+%C%_raidz_epoch_test_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+%C%_raidz_epoch_test_LDADD = \
+	libzpool.la \
+	libzfs_core.la \
+	libnvpair.la
+
 dist_noinst_DATA += %D%/file/file_common.h
 scripts_zfs_tests_bin_PROGRAMS += %D%/file_append %D%/file_check %D%/file_trunc %D%/file_write %D%/largest_file %D%/randfree_file %D%/randwritecomp
 %C%_file_append_SOURCES   = %D%/file/file_append.c
