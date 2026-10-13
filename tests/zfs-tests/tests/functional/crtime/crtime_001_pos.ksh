@@ -46,12 +46,20 @@ for arg in ${args[*]}; do
 	log_note "Testing with xattr set to $arg"
 	log_must zfs set xattr=$arg $TESTPOOL
 	rm -f $TESTFILE
-	log_must touch $TESTFILE
+	#
+	# Create the file with a single open(O_CREAT), which sets crtime
+	# and ctime from the same timestamp.  GNU touch(1) also calls
+	# futimens() after creating the file, which sets ctime again: when
+	# a second boundary falls between the two, ctime moves past crtime.
+	#
+	log_must eval ": > $TESTFILE"
 	typeset -i crtime=$(stat_crtime $TESTFILE)
 	typeset -i ctime=$(stat_ctime $TESTFILE)
 	if (( crtime != ctime )); then
 		log_fail "Incorrect crtime ($crtime != $ctime)"
 	fi
+	# Let the clock move on, so a touch that reset crtime would show.
+	log_must sleep 1
 	log_must touch $TESTFILE
 	typeset -i crtime1=$(stat_crtime $TESTFILE)
 	if (( crtime1 != crtime )); then
