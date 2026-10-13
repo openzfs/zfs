@@ -248,6 +248,9 @@ struct zilog {
 	/* After crash, txg to restart zil */
 	uint64_t	zl_restart_txg;
 
+	/* After crash, key mapping held for an encrypted dataset */
+	struct dsl_key_mapping *zl_crash_km;
+
 	/* Pointer for per dataset zil sums */
 	zil_sums_t *zl_sums;
 };

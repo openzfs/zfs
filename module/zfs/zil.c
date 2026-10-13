@@ -2885,12 +2885,17 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
  * do cleanup after every txg until the ZIL is restarted, and zilog_dirty()
  * can arrange that easily, unlike zil_sync() which is more complicated to
  * get a call to without actual dirty data.
+ *
+ * Returns B_TRUE if it freed any log blocks. The caller must then dirty the
+ * dataset in the txg after synced_txg (see zil_crash_dirty()).
  */
-static void
+static boolean_t
 zil_crash_clean(zilog_t *zilog, uint64_t synced_txg)
 {
 	ASSERT(MUTEX_HELD(&zilog->zl_lock));
 	ASSERT3U(zilog->zl_restart_txg, >, 0);
+
+	boolean_t freed = B_FALSE;
 
 	/* Clean up anything on the crash list from earlier txgs */
 	lwb_t *lwb;
@@ -2914,12 +2919,14 @@ zil_crash_clean(zilog_t *zilog, uint64_t synced_txg)
 		list_remove(&zilog->zl_lwb_crash_list, lwb);
 		if (lwb->lwb_buf != NULL)
 			zio_buf_free(lwb->lwb_buf, lwb->lwb_sz);
-		if (!BP_IS_HOLE(&lwb->lwb_blk))
+		if (!BP_IS_HOLE(&lwb->lwb_blk)) {
 			/*
 			 * Free on the next txg, since zil_clean() is called
 			 * once synced_txg has already been completed.
 			 */
 			zio_free(zilog->zl_spa, synced_txg+1, &lwb->lwb_blk);
+			freed = B_TRUE;
+		}
 		zil_free_lwb(zilog, lwb);
 	}
 
@@ -2929,7 +2936,7 @@ zil_crash_clean(zilog_t *zilog, uint64_t synced_txg)
 		 * the next txg and we'll consider it all again then.
 		 */
 		zilog_dirty(zilog, synced_txg+1);
-		return;
+		return (freed);
 	}
 
 	/*
@@ -2940,6 +2947,34 @@ zil_crash_clean(zilog_t *zilog, uint64_t synced_txg)
 	ASSERT(list_is_empty(&zilog->zl_lwb_crash_list));
 
 	zilog->zl_restart_txg = 0;
+	return (freed);
+}
+
+/*
+ * zil_crash() zeroed zh_log in the in-memory header only. The header on disk
+ * is rewritten when the dataset next syncs, and until then it still points
+ * at the log chain that zil_crash_clean() is freeing. If it is never
+ * rewritten, the chain's blocks are used again from the stale header: a
+ * destroy frees them a second time, and an import claims them. So dirty the
+ * dataset in the txg that the frees go to: the zeroed header reaches disk
+ * in the same txg as the frees.
+ */
+static void
+zil_crash_dirty(zilog_t *zilog, uint64_t txg)
+{
+	objset_t *os = zilog->zl_os;
+
+	/*
+	 * An encrypted dataset needs its key to sync. zil_crash() holds the
+	 * key mapping until the ZIL restarts, and dsl_dataset_dirty() takes
+	 * its own reference from it.
+	 */
+	if (os->os_encrypted && zilog->zl_crash_km == NULL)
+		return;
+
+	dmu_tx_t *tx = dmu_tx_create_assigned(zilog->zl_dmu_pool, txg);
+	dsl_dataset_dirty(dmu_objset_ds(os), tx);
+	dmu_tx_commit(tx);
 }
 
 /*
@@ -2959,11 +2994,24 @@ zil_clean(zilog_t *zilog, uint64_t synced_txg)
 
 	/* Do cleanup and restart after crash. */
 	if (zilog->zl_restart_txg > 0) {
+		boolean_t freed = B_FALSE;
+		dsl_key_mapping_t *km = NULL;
+
 		mutex_enter(&zilog->zl_lock);
 		/* Make sure we didn't lose a race. */
-		if (zilog->zl_restart_txg > 0)
-			zil_crash_clean(zilog, synced_txg);
+		if (zilog->zl_restart_txg > 0) {
+			freed = zil_crash_clean(zilog, synced_txg);
+			if (zilog->zl_restart_txg == 0) {
+				km = zilog->zl_crash_km;
+				zilog->zl_crash_km = NULL;
+			}
+		}
 		mutex_exit(&zilog->zl_lock);
+
+		if (freed)
+			zil_crash_dirty(zilog, synced_txg + 1);
+		if (km != NULL)
+			key_mapping_rele(zilog->zl_spa, km, zilog);
 	}
 
 	mutex_enter(&itxg->itxg_lock);
@@ -3895,6 +3943,17 @@ zil_crash(zilog_t *zilog)
 	zilog->zl_restart_txg = restart_txg;
 
 	/*
+	 * zil_clean() dirties the dataset after the crash (see
+	 * zil_crash_dirty()), maybe after the dataset is disowned. For an
+	 * encrypted dataset, hold the key mapping until the ZIL restarts.
+	 */
+	dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
+	if (zilog->zl_os->os_encrypted && ds->ds_key_mapping != NULL) {
+		key_mapping_add_ref(ds->ds_key_mapping, zilog);
+		zilog->zl_crash_km = ds->ds_key_mapping;
+	}
+
+	/*
 	 * Capture any live LWBs. Depending on the state of the pool they may
 	 * represent in-flight IO that won't return for some time, and we want
 	 * to make sure they don't get in the way of normal ZIL operation.
@@ -4460,6 +4519,7 @@ zil_free(zilog_t *zilog)
 	ASSERT0(zilog->zl_suspend);
 	ASSERT0(zilog->zl_suspending);
 	ASSERT0(zilog->zl_restart_txg);
+	ASSERT0P(zilog->zl_crash_km);
 
 	ASSERT(list_is_empty(&zilog->zl_lwb_list));
 	list_destroy(&zilog->zl_lwb_list);
