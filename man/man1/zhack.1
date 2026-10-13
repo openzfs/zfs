@@ -13,7 +13,7 @@
 .\"
 .\" lint-ok: WARNING: sections out of conventional order: Sh SYNOPSIS
 .\"
-.Dd August 9, 2026
+.Dd October 13, 2026
 .Dt ZHACK 1
 .Os
 .
@@ -225,6 +225,57 @@ Without
 .Fl w
 this is a dry run and no changes are made.
 The pool must be exported.
+.
+.It Xo
+.Nm zhack
+.Cm raidz_epochs
+.Op Fl f
+.Ar pool
+.Ar vdev
+.Ar triplet Ns \&...
+.Xc
+Store the parity-epoch table of top-level RAID-Z vdev number
+.Ar vdev
+of
+.Ar pool ,
+and activate the
+.Sy raidz_parity_epochs
+feature
+.Pq see Xr zpool-features 7 ,
+which must be enabled.
+Each
+.Ar triplet
+is
+.Ar start Ns \&: Ns Ar width Ns \&: Ns Ar parity :
+the first physical birth transaction group of the epoch, its number of
+columns, and its parity.
+The first triplet must be
+.Sy 0 Ns \&: Ns Ar width Ns \&: Ns Ar parity
+of the vdev itself, every
+.Ar width
+must be the vdev's, and the starts must increase.
+A table that does not fit the vdev, or a vdev that has been expanded, is
+refused and nothing is changed.
+The pool must be exported.
+.Pp
+A block is read with the epoch its physical birth transaction group falls in,
+and nothing already written is rewritten, so a new epoch must start after the
+transaction group in which the table is stored.
+The pool is imported, and several transaction groups are written, before the
+table is stored, so leave a wide margin above the newest transaction group in
+the labels of the exported pool.
+.Pp
+The
+.Fl f
+flag writes only the copy of the table in the vdev's ZAP, exactly as given and
+without checking it, so that a damaged table can be made.
+.Pp
+This is for tests, and it can make a pool impossible to import.
+A pool whose table is damaged cannot be repaired in place: the
+.Sy raidz_ignore_parity_epochs
+module parameter
+.Pq see Xr zfs 4
+lets it be imported read-only, to copy its data off.
 .
 .El
 .
