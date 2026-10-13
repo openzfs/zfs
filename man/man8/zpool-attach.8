@@ -86,6 +86,8 @@ After the expansion completes, old blocks retain their old data-to-parity
 ratio
 .Pq e.g. 5-wide RAID-Z2 has 3 data and 2 parity
 but distributed among the larger set of disks.
+They can be rewritten with the new ratio using
+.Xr zfs-rewrite 8 .
 New blocks will be written with the new data-to-parity ratio (e.g. a 5-wide
 RAID-Z2 which has been expanded once to 6-wide, has 4 data and 2 parity).
 However, the vdev's assumed parity ratio does not change, so slightly less
@@ -152,6 +154,7 @@ Old blocks keep their original data-to-parity ratio; only blocks written
 after the expansion use the new ratio.
 .
 .Sh SEE ALSO
+.Xr zfs-rewrite 8 ,
 .Xr zpool-add 8 ,
 .Xr zpool-detach 8 ,
 .Xr zpool-import 8 ,
