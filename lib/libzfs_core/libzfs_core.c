@@ -2208,3 +2208,25 @@ lzc_object_get(const char *pool, const char *bucket, const char *key, int fd,
 
 	return (error);
 }
+
+int
+lzc_object_list(const char *pool, const char *bucket, nvlist_t **objects)
+{
+	int error;
+
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = NULL;
+
+	fnvlist_add_string(args, ZFS_BUCKET, bucket);
+
+	error = lzc_ioctl(ZFS_IOC_OBJECT_LIST, pool, args, &result);
+
+	fnvlist_free(args);
+
+	if (error == 0 && result != NULL)
+		*objects = result;
+	else
+		fnvlist_free(result);
+
+	return (error);
+}

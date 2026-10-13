@@ -5128,6 +5128,47 @@ zfs_ioc_object_get(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl) {
 	return (0);
 }
 
+static const zfs_ioc_key_t zfs_keys_object_list[] = {
+	{ZFS_BUCKET,	DATA_TYPE_STRING,	0},
+};
+
+static int
+zfs_ioc_object_list(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl) {
+	spa_t *spa;
+	objset_t *os;
+	uint64_t bucket_zap;
+	zap_cursor_t zc;
+	zap_attribute_t *za;
+	int error;
+	const char *bucket = fnvlist_lookup_string(innvl, ZFS_BUCKET);
+
+	error = spa_open(poolname, &spa, FTAG);
+	if (error) {
+		return (error);
+	}
+
+	error = get_bucket(spa, bucket, &os, &bucket_zap);
+	if (error) {
+		if (os != NULL) {
+			zos_release_objset(os);
+		}
+		spa_close(spa, FTAG);
+		return (error);
+	}
+
+	za = zap_attribute_alloc();
+	for (zap_cursor_init(&zc, os, bucket_zap);
+	    zap_cursor_retrieve(&zc, za) == 0;
+	    zap_cursor_advance(&zc)) {
+		fnvlist_add_boolean(outnvl, za->za_name);
+	}
+	zap_attribute_free(za);
+	zap_cursor_fini(&zc);
+	zos_release_objset(os);
+	spa_close(spa, FTAG);
+	return (0);
+}
+
 /*
  * This ioctl waits for activity of a particular type to complete. If there is
  * no activity of that type in progress, it returns immediately, and the
@@ -8350,6 +8391,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_object_get, zfs_secpolicy_none, DATASET_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
 	    zfs_keys_object_get, ARRAY_SIZE(zfs_keys_object_get));
+
+	zfs_ioctl_register("object_list", ZFS_IOC_OBJECT_LIST,
+	    zfs_ioc_object_list, zfs_secpolicy_none, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
+	    zfs_keys_object_list, ARRAY_SIZE(zfs_keys_object_list));
 
 	zfs_ioctl_register("set_bootenv", ZFS_IOC_SET_BOOTENV,
 	    zfs_ioc_set_bootenv, zfs_secpolicy_config, POOL_NAME,

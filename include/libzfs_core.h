@@ -165,6 +165,7 @@ _LIBZFS_CORE_H int lzc_object_put(const char *, const char *, const char *,
 _LIBZFS_CORE_H int lzc_object_delete(const char *, const char *, const char *);
 _LIBZFS_CORE_H int lzc_object_get(const char *, const char *, const char *,
 	    int, uint64_t *);
+_LIBZFS_CORE_H int lzc_object_list(const char *, const char *, nvlist_t **);
 
 #ifdef	__cplusplus
 }

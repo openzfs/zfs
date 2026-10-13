@@ -33,5 +33,7 @@ tags = ['zos', 'functional']
 [tests/functional/zos/object]
 tests = ['zos_object_put_001_pos', 'zos_object_put_002_pos',
     'zos_object_delete_001_pos', 'zos_object_delete_002_neg',
-    'zos_object_get_001_pos', 'zos_object_get_002_neg']
+    'zos_object_get_001_pos', 'zos_object_get_002_neg',
+    'zos_object_list_001_pos', 'zos_object_list_002_pos',
+    'zos_object_list_003_pos', 'zos_object_list_004_pos']
 tags = ['zos', 'functional']

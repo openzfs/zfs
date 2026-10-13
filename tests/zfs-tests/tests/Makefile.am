@@ -2604,4 +2604,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zos/object/zos_object_delete_001_pos.ksh \
 	functional/zos/object/zos_object_delete_002_neg.ksh \
 	functional/zos/object/zos_object_get_001_pos.ksh \
-	functional/zos/object/zos_object_get_002_neg.ksh
+	functional/zos/object/zos_object_get_002_neg.ksh \
+	functional/zos/object/zos_object_list_001_pos.ksh \
+	functional/zos/object/zos_object_list_002_pos.ksh \
+	functional/zos/object/zos_object_list_003_pos.ksh \
+	functional/zos/object/zos_object_list_004_pos.ksh

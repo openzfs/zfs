@@ -437,7 +437,8 @@ get_usage(zfs_help_t idx)
 	case HELP_OBJECT:
 		return ("\tobject put <pool/bucket/key> [filename]\n"
 		    "\tobject get <pool/bucket/key> [filename]\n"
-		    "\tobject delete <pool/bucket/key>\n");
+		    "\tobject delete <pool/bucket/key>\n"
+		    "\tobject list <pool/bucket>\n");
 	case HELP_ZONE:
 		return ("\tzone <nsfile> <filesystem>\n");
 	case HELP_UNZONE:
@@ -9636,6 +9637,39 @@ zfs_do_object(int argc, char **argv) {
 			    "cannot get object '%s/%s/%s': %s\n",
 			    pool, bucket, key, strerror(error));
 			usage(B_FALSE);
+		}
+
+		ret = error;
+	} else if (strcmp(op, "list") == 0) {
+		if (argc != 3) {
+			(void) fprintf(stderr, "invalid number of arguments\n");
+			usage(B_FALSE);
+		}
+
+		char *pool;
+		char *bucket;
+
+		int error = parse_pool_bucket(path, &pool, &bucket);
+		if (error) {
+			(void) fprintf(stderr, "expected pool/bucket\n");
+			usage(B_FALSE);
+		}
+
+		nvlist_t *keys = NULL;
+		error = lzc_object_list(pool, bucket, &keys);
+
+		if (error == 0 && keys != NULL) {
+			nvpair_t *elem = NULL;
+			while ((elem = nvlist_next_nvpair(keys, elem)) !=
+			    NULL) {
+				(void) printf("%s\n", nvpair_name(elem));
+			}
+			fnvlist_free(keys);
+		}
+
+		if (error != 0) {
+			(void) zfs_standard_error(g_zfs, error,
+			    "cannot list objects");
 		}
 
 		ret = error;
