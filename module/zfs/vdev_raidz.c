@@ -5619,25 +5619,32 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
  * Check a parity-epoch table read from disk, from the vdev label or from the
  * top-level vdev ZAP, against the vdev it was found on.  Layout selection and
  * the map allocators behind it trust the table, so what they rely on must be
- * checked before the table can influence any I/O: a row wider than the vdev
- * has more columns than children, which no reconstruction can survive.
+ * checked before the table can influence any I/O.
+ *
+ * The first entry stands for every block that predates the table, so it must
+ * be the vdev's own geometry, {0, width, nparity}.  Every entry must keep the
+ * vdev's physical width: a wider row has more columns than children, and a
+ * narrower one describes a vdev that was expanded or contracted, neither of
+ * which combines with a table (the caller refuses expansion state before it
+ * gets here).  Only the parity may change, up or down.
  */
 static int
 vdev_raidz_parity_epochs_check(const uint64_t *tbl, uint64_t nent,
-    uint64_t width)
+    uint64_t width, uint64_t nparity)
 {
-	if (nent == 0 || nent > VDEV_RAIDZ_MAX_PARITY_EPOCHS)
+	if (nent == 0 || nent > VDEV_RAIDZ_MAX_PARITY_EPOCHS ||
+	    width > UINT8_MAX)
+		return (SET_ERROR(EINVAL));
+
+	if (tbl[0] != 0 || tbl[2] != nparity)
 		return (SET_ERROR(EINVAL));
 
 	for (uint64_t i = 0; i < nent; i++) {
-		uint64_t start = tbl[3 * i];
-		uint64_t w = tbl[3 * i + 1];
 		uint64_t parity = tbl[3 * i + 2];
 
 		if (parity < 1 || parity > VDEV_RAIDZ_MAXPARITY ||
-		    w <= parity || w > UINT8_MAX || w > width ||
-		    (i == 0 && start != 0) ||
-		    (i > 0 && start <= tbl[3 * (i - 1)]))
+		    tbl[3 * i + 1] != width || width <= parity ||
+		    (i > 0 && tbl[3 * i] <= tbl[3 * (i - 1)]))
 			return (SET_ERROR(EINVAL));
 	}
 
@@ -5722,7 +5729,7 @@ vdev_raidz_parity_epochs_set_check(vdev_t *vd, const uint64_t *table,
 		return (SET_ERROR(ENOTSUP));
 
 	return (vdev_raidz_parity_epochs_check(table, nent,
-	    vdrz->vd_physical_width));
+	    vdrz->vd_physical_width, vdrz->vd_nparity));
 }
 
 /*
@@ -5806,9 +5813,10 @@ vdev_raidz_load(vdev_t *vd)
 
 	/*
 	 * Load the persisted parity-epoch table if the raidz_parity_epochs
-	 * feature has written one.  The table is append-only triplets of
-	 * {start physical-birth txg, logical width, parity} and must be
-	 * structurally valid and fit the physical vdev or loading fails.
+	 * feature has written one.  The table is {start physical-birth txg,
+	 * logical width, parity} triplets sorted by start, which must be
+	 * valid for this vdev or the vdev fails to load.  Layout selection
+	 * consumes it as soon as it is installed.
 	 */
 	if (vd->vdev_top_zap != 0 && !raidz_ignore_parity_epochs) {
 		uint64_t int_size = 0;
@@ -5821,6 +5829,21 @@ vdev_raidz_load(vdev_t *vd)
 			if (int_size != sizeof (uint64_t) || num_ints == 0 ||
 			    (num_ints % 3) != 0)
 				return (SET_ERROR(EINVAL));
+
+			/*
+			 * Expansion history and a parity-epoch table are
+			 * mutually exclusive until their combination is
+			 * defined; refuse rather than guess.  Say so before
+			 * the shape check, which a table written before the
+			 * expansion would fail on its width.
+			 */
+			if (avl_numnodes(&vdrz->vd_expand_txgs) != 0 ||
+			    state != DSS_NONE) {
+				vdev_dbgmsg(vd, "vdev_raidz_load: parity epoch "
+				    "table together with expansion state");
+				return (SET_ERROR(ENOTSUP));
+			}
+
 			uint64_t *table = kmem_alloc(
 			    num_ints * sizeof (uint64_t), KM_SLEEP);
 			err = zap_lookup(vd->vdev_spa->spa_meta_objset,
@@ -5829,7 +5852,8 @@ vdev_raidz_load(vdev_t *vd)
 			    sizeof (uint64_t), num_ints, table);
 			if (err == 0) {
 				err = vdev_raidz_parity_epochs_check(table,
-				    num_ints / 3, vdrz->vd_physical_width);
+				    num_ints / 3, vdrz->vd_physical_width,
+				    vdrz->vd_nparity);
 			}
 			if (err != 0) {
 				vdev_dbgmsg(vd, "vdev_raidz_load: rejecting "
@@ -5837,17 +5861,6 @@ vdev_raidz_load(vdev_t *vd)
 				kmem_free(table,
 				    num_ints * sizeof (uint64_t));
 				return (err);
-			}
-			/*
-			 * Expansion history and a parity-epoch table are
-			 * mutually exclusive until a later subgate defines
-			 * their combination; refuse rather than guess.
-			 */
-			if (avl_numnodes(&vdrz->vd_expand_txgs) != 0 ||
-			    state != DSS_NONE) {
-				kmem_free(table,
-				    num_ints * sizeof (uint64_t));
-				return (SET_ERROR(ENOTSUP));
 			}
 			/*
 			 * The ZAP copy is authoritative: it replaces the copy
@@ -5994,11 +6007,14 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 	    (pe_label_size % 3) == 0) {
 		/*
 		 * Validate BEFORE the table can influence any read.  A
-		 * malformed or tampered label table is ignored (the
-		 * authoritative ZAP copy loads later).
+		 * malformed or tampered label table, or one next to
+		 * expansion state, is ignored (the authoritative ZAP copy
+		 * loads later and refuses the same cases).
 		 */
-		pe_ok = (vdev_raidz_parity_epochs_check(pe_label,
-		    pe_label_size / 3, children) == 0);
+		pe_ok = !reflow_in_progress &&
+		    !nvlist_exists(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_TXGS) &&
+		    vdev_raidz_parity_epochs_check(pe_label,
+		    pe_label_size / 3, children, nparity) == 0;
 	}
 	if (pe_ok) {
 		uint64_t *table = kmem_alloc(
