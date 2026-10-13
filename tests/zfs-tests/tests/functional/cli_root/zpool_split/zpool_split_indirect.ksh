@@ -41,8 +41,13 @@ function cleanup
 		destroy_pool $TESTPOOL2
 	fi
 	rm -fd $VDEV_TEMP $VDEV_M1 $VDEV_M2 $altroot
+	restore_tunable RETIRE_INDIRECT_VDEVS
 }
 log_onexit cleanup
+
+# Only metadata is left on the removed device, so keep its indirect vdev.
+log_must save_tunable RETIRE_INDIRECT_VDEVS
+log_must set_tunable32 RETIRE_INDIRECT_VDEVS 0
 
 typeset vdev_m12_mb=400
 typeset vdev_temp_mb=$(( floor($vdev_m12_mb / 2) ))
