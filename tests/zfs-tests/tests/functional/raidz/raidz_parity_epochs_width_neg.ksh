@@ -80,7 +80,7 @@ for width in 6 256; do
 	log_mustnot zpool import -d $workdir $pool
 	log_must zpool import -o readonly=on -d $workdir $pool
 	log_must cmp $workdir/expected $mnt/file
-	log_must zpool export $pool
+	log_must_busy zpool export $pool
 	log_must set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 0
 done
 
