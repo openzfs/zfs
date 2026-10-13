@@ -1242,6 +1242,56 @@ test_nv_replace_name_type(const MunitParameter params[], void *data)
 	return (MUNIT_OK);
 }
 
+/*
+ * Replacing a pair has to take the old one off the list itself, not only out
+ * of the lookup table. Counting, walking and packing all use the list.
+ */
+static MunitResult
+test_nv_replace_count(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	nvlist_t *nvl = nvl_create_from_params(params);
+
+	/* add a key */
+	unit_ok(nvlist_add_uint64(nvl, nvl_unique_key, nvl_unique_u64_val));
+
+	/* confirm internal counter is correct */
+	unit_eq(fnvlist_num_pairs(nvl), 1);
+
+	/* count elements via walk */
+	uint_t count = 0;
+	for (nvpair_t *pair = nvlist_next_nvpair(nvl, NULL);
+	    pair != NULL; pair = nvlist_next_nvpair(nvl, pair))
+		count++;
+	unit_eq(count, 1);
+
+	/* record packed size for comparison below */
+	size_t sz;
+	unit_ok(nvlist_size(nvl, &sz, NV_ENCODE_NATIVE));
+
+	/* add a key with same name; replace the existing one */
+	unit_ok(nvlist_add_uint64(nvl, nvl_unique_key, ~nvl_unique_u64_val));
+
+	/* confirm internal counter is correct */
+	unit_eq(fnvlist_num_pairs(nvl), 1);
+
+	/* count elements via walk */
+	count = 0;
+	for (nvpair_t *pair = nvlist_next_nvpair(nvl, NULL);
+	    pair != NULL; pair = nvlist_next_nvpair(nvl, pair))
+		count++;
+	unit_eq(count, 1);
+
+	/* compare with earlier packed size */
+	size_t sz2;
+	unit_ok(nvlist_size(nvl, &sz2, NV_ENCODE_NATIVE));
+	unit_eq(sz, sz2);
+
+	nvlist_free(nvl);
+	return (MUNIT_OK);
+}
+
 /* ========== */
 
 /* Adding a pair taken from one list to another makes a copy. */
@@ -1927,6 +1977,8 @@ static const MunitTest nvpair_tests[] = {
 	/* replace existing pairs, according to config */
 	UNIT_TEST("nv_replace_name",		test_nv_replace_name),
 	UNIT_TEST("nv_replace_name_type",	test_nv_replace_name_type),
+	UNIT_TEST("nv_replace_count",		test_nv_replace_count,
+	    nv_unique_only_params),
 
 	/* copy between nvlists */
 	UNIT_TEST("nv_add_nvpair",	test_nv_add_nvpair),
