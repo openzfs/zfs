@@ -478,6 +478,8 @@ boolean_t dsl_dataset_is_before(dsl_dataset_t *later, dsl_dataset_t *earlier,
 void dsl_dataset_long_hold(dsl_dataset_t *ds, const void *tag);
 void dsl_dataset_long_rele(dsl_dataset_t *ds, const void *tag);
 boolean_t dsl_dataset_long_held(dsl_dataset_t *ds);
+boolean_t dsl_dataset_long_held_by_others(dsl_dataset_t *ds,
+    const void *owner);
 
 int dsl_dataset_clone_swap_check_impl(dsl_dataset_t *clone,
     dsl_dataset_t *origin_head, boolean_t force, void *owner, dmu_tx_t *tx);
