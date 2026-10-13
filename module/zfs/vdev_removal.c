@@ -1310,6 +1310,13 @@ vdev_remove_complete_sync(void *arg, dmu_tx_t *tx)
 	}
 	fnvlist_free(svr->svr_zaplist);
 
+	/*
+	 * This may have been the last special or dedup vdev.  Checking on
+	 * every removal also clears the feature on pools that lost their last
+	 * one before this check existed.
+	 */
+	spa_deactivate_allocation_classes(spa, tx);
+
 	spa_finish_removal(dmu_tx_pool(tx)->dp_spa, DSS_FINISHED, tx);
 	/* vd->vdev_path is not available here */
 	spa_history_log_internal(spa, "vdev remove completed",  tx,
