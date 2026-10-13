@@ -251,9 +251,10 @@ the first physical birth transaction group of the epoch, its number of
 columns, and its parity.
 The first triplet must be
 .Sy 0 Ns \&: Ns Ar width Ns \&: Ns Ar parity
-of the vdev itself, every
+of the vdev itself, no
 .Ar width
-must be the vdev's, and the starts must increase.
+may be larger than the vdev's or leave no column for data, and the starts
+must increase.
 A table can only grow: it must begin with every triplet the vdev already has,
 unchanged, and may add new ones after them.
 A table that does not fit the vdev, or a vdev that has been expanded, is
