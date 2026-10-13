@@ -10416,7 +10416,7 @@ main(int argc, char **argv)
 					    "--class=\"%s\" must be a "
 					    "comma-separated list of either "
 					    "\"normal\", \"special\", "
-					    "\"asize\" or \"other\"; "
+					    "\"dedup\" or \"other\"; "
 					    "got \"%s\"\n",
 					    optarg, next);
 					usage();
@@ -10427,7 +10427,7 @@ main(int argc, char **argv)
 				(void) fprintf(stderr,
 				    "--class= must be a comma-separated "
 				    "list of either \"normal\", \"special\", "
-				    "\"asize\" or \"other\"; got empty\n");
+				    "\"dedup\" or \"other\"; got empty\n");
 				usage();
 			}
 
