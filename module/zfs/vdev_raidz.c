@@ -349,7 +349,7 @@ unsigned long raidz_expand_max_reflow_bytes = 0;
  * the parity decode wrongly while it is set, so a pool with the feature
  * active can then only be imported read-only.
  */
-int raidz_ignore_parity_epochs = 0;
+static int raidz_ignore_parity_epochs = 0;
 
 /*
  * For testing only: pause the raidz expansion at a certain point.
