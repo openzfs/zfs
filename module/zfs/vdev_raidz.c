@@ -2554,9 +2554,11 @@ vdev_raidz_asize_to_psize(vdev_t *vd, uint64_t asize, uint64_t txg)
  * Note: If the RAIDZ vdev has been expanded, older BP's may have allocated
  * more space due to the lower data-to-parity ratio.  In this case it's
  * important to pass in the correct txg.  Note that vdev_gang_header_asize()
- * relies on a constant asize for psize=SPA_GANGBLOCKSIZE=SPA_MINBLOCKSIZE,
- * regardless of txg.  This is assured because for a single data sector, we
- * allocate P+1 sectors regardless of width ("cols", which is at least P+1).
+ * relies on an asize for psize=SPA_GANGBLOCKSIZE=SPA_MINBLOCKSIZE that does
+ * not depend on the width at the given txg.  This is assured because for a
+ * single data sector, we allocate P+1 sectors regardless of width ("cols",
+ * which is at least P+1).  It does depend on the parity at the given txg, so
+ * callers pass the physical birth txg of the block.
  */
 static uint64_t
 vdev_raidz_psize_to_asize_width(vdev_t *vd, uint64_t psize, uint64_t cols,
@@ -2621,7 +2623,8 @@ vdev_raidz_io_exceeds_dva(zio_t *zio, vdev_raidz_layout_t layout,
 			continue;
 
 		uint64_t asize = DVA_GET_GANG(dva) ?
-		    vdev_gang_header_asize(tvd) : DVA_GET_ASIZE(dva);
+		    vdev_gang_header_asize(tvd, BP_GET_PHYSICAL_BIRTH(bp)) :
+		    DVA_GET_ASIZE(dva);
 		/*
 		 * A second DVA at the same top vdev and offset can only
 		 * occur in an already-malformed BP; keep the smallest owned

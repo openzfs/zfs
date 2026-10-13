@@ -5823,7 +5823,7 @@ metaslab_unalloc_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 	ASSERT0P(vd->vdev_indirect_mapping);
 
 	if (DVA_GET_GANG(dva))
-		size = vdev_gang_header_asize(vd);
+		size = vdev_gang_header_asize(vd, txg);
 
 	msp = vd->vdev_ms[offset >> vd->vdev_ms_shift];
 
@@ -5847,7 +5847,8 @@ metaslab_unalloc_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
  * Free the block represented by the given DVA.
  */
 void
-metaslab_free_dva(spa_t *spa, const dva_t *dva, boolean_t checkpoint)
+metaslab_free_dva(spa_t *spa, const dva_t *dva, uint64_t birth,
+    boolean_t checkpoint)
 {
 	uint64_t vdev = DVA_GET_VDEV(dva);
 	uint64_t offset = DVA_GET_OFFSET(dva);
@@ -5858,7 +5859,7 @@ metaslab_free_dva(spa_t *spa, const dva_t *dva, boolean_t checkpoint)
 	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_READER), !=, 0);
 
 	if (DVA_GET_GANG(dva)) {
-		size = vdev_gang_header_asize(vd);
+		size = vdev_gang_header_asize(vd, birth);
 	}
 
 	metaslab_free_impl(vd, offset, size, checkpoint);
@@ -6028,7 +6029,7 @@ metaslab_claim_impl(vdev_t *vd, uint64_t offset, uint64_t size, uint64_t txg)
  * group didn't commit yet.
  */
 static int
-metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
+metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t birth, uint64_t txg)
 {
 	uint64_t vdev = DVA_GET_VDEV(dva);
 	uint64_t offset = DVA_GET_OFFSET(dva);
@@ -6042,7 +6043,7 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 	ASSERT(DVA_IS_VALID(dva));
 
 	if (DVA_GET_GANG(dva))
-		size = vdev_gang_header_asize(vd);
+		size = vdev_gang_header_asize(vd, birth);
 
 	return (metaslab_claim_impl(vd, offset, size, txg));
 }
@@ -6164,7 +6165,8 @@ metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg, boolean_t now)
 			metaslab_unalloc_dva(spa, &dva[d], txg);
 		} else {
 			ASSERT3U(txg, ==, spa_syncing_txg(spa));
-			metaslab_free_dva(spa, &dva[d], checkpoint);
+			metaslab_free_dva(spa, &dva[d],
+			    BP_GET_PHYSICAL_BIRTH(bp), checkpoint);
 		}
 	}
 
@@ -6192,7 +6194,8 @@ metaslab_claim(spa_t *spa, const blkptr_t *bp, uint64_t txg)
 	spa_config_enter(spa, SCL_ALLOC, FTAG, RW_READER);
 
 	for (int d = 0; d < ndvas; d++) {
-		error = metaslab_claim_dva(spa, &dva[d], txg);
+		error = metaslab_claim_dva(spa, &dva[d],
+		    BP_GET_PHYSICAL_BIRTH(bp), txg);
 		if (error != 0)
 			break;
 	}
@@ -6278,7 +6281,8 @@ metaslab_check_free(spa_t *spa, const blkptr_t *bp)
 		uint64_t size = DVA_GET_ASIZE(&bp->blk_dva[i]);
 
 		if (DVA_GET_GANG(&bp->blk_dva[i]))
-			size = vdev_gang_header_asize(vd);
+			size = vdev_gang_header_asize(vd,
+			    BP_GET_PHYSICAL_BIRTH(bp));
 
 		ASSERT3P(vd, !=, NULL);
 

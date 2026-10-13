@@ -135,14 +135,17 @@ extern uint64_t vdev_get_min_alloc(vdev_t *vd);
 extern uint64_t vdev_alloc_factor(vdev_t *vd);
 
 /*
- * Return the amount of space allocated for a gang block header.  Note that
- * since the physical birth txg is not provided, this must be constant for
- * a given vdev.  (e.g. raidz expansion can't change this)
+ * Return the amount of space allocated for a gang block header.  The DVA
+ * asize of a gang block also counts its children, so the header extent is
+ * recomputed from the layout in force when it was allocated: pass the
+ * physical birth txg of the block pointer, or the allocating txg while the
+ * header is still being allocated.  A change of width (raidz expansion)
+ * cannot alter the result, but a change of parity (raidz parity epochs) can.
  */
 static inline uint64_t
-vdev_gang_header_asize(vdev_t *vd)
+vdev_gang_header_asize(vdev_t *vd, uint64_t birth)
 {
-	return (vdev_psize_to_asize_txg(vd, SPA_OLD_GANGBLOCKSIZE, 0));
+	return (vdev_psize_to_asize_txg(vd, SPA_OLD_GANGBLOCKSIZE, birth));
 }
 
 /*
