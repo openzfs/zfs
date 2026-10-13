@@ -6834,6 +6834,7 @@
       <enumerator name='ZFS_IOC_OBJECT_PUT' value='23134'/>
       <enumerator name='ZFS_IOC_OBJECT_GET' value='23135'/>
       <enumerator name='ZFS_IOC_OBJECT_DELETE' value='23136'/>
+      <enumerator name='ZFS_IOC_OBJECT_LIST' value='23137'/>
       <enumerator name='ZFS_IOC_PLATFORM' value='23168'/>
       <enumerator name='ZFS_IOC_EVENTS_NEXT' value='23169'/>
       <enumerator name='ZFS_IOC_EVENTS_CLEAR' value='23170'/>

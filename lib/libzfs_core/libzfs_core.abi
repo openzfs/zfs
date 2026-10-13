@@ -222,6 +222,7 @@
     <elf-symbol name='lzc_load_key' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_object_delete' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_object_get' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzc_object_list' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_object_put' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_pool_checkpoint' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_pool_checkpoint_discard' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -2832,6 +2833,7 @@
       <enumerator name='ZFS_IOC_OBJECT_PUT' value='23134'/>
       <enumerator name='ZFS_IOC_OBJECT_GET' value='23135'/>
       <enumerator name='ZFS_IOC_OBJECT_DELETE' value='23136'/>
+      <enumerator name='ZFS_IOC_OBJECT_LIST' value='23137'/>
       <enumerator name='ZFS_IOC_PLATFORM' value='23168'/>
       <enumerator name='ZFS_IOC_EVENTS_NEXT' value='23169'/>
       <enumerator name='ZFS_IOC_EVENTS_CLEAR' value='23170'/>
@@ -4539,6 +4541,12 @@
       <parameter type-id='80f4b756' name='key'/>
       <parameter type-id='95e97e5e' name='fd'/>
       <parameter type-id='5d6479ae' name='size'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_object_list' mangled-name='lzc_object_list' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_object_list'>
+      <parameter type-id='80f4b756' name='pool'/>
+      <parameter type-id='80f4b756' name='bucket'/>
+      <parameter type-id='857bb57e' name='objects'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='lzc_ioctl_fd_os' visibility='default' binding='global' size-in-bits='64'>
