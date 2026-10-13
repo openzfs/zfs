@@ -34,6 +34,14 @@
  *	import of FreeBSD does before it opens the pool, outside spa_load(),
  *	and print the result, the size of the parity-epoch table in the label
  *	and the number of entries the parse put in force.
+ *   label <dir> <pool> [now]
+ *	Give the raidz vdev of the pool a parity-epoch table that changes the
+ *	parity at a txg the pool never reaches, in core and in the config only,
+ *	so that the labels and the MOS config carry it and the vdev ZAP does
+ *	not: no table the setter stores looks like that.  With "now", the
+ *	parity changes at the first txg the setter would allow instead, and a
+ *	block is written in that epoch.  Print the start and the birth txg of
+ *	that block.
  *   write <dir> <pool> <blocksize>
  *	Write one block of reproducible data to a new MOS object and print its
  *	object number, the offsets of its DVAs on vdev 0 and its birth txg.
@@ -102,6 +110,7 @@ usage(void)
 	    "       raidz_epoch_test forge <dir> <pool> <children> <parity> "
 	    "create|add\n"
 	    "       raidz_epoch_test rootparse <dir> <pool>\n"
+	    "       raidz_epoch_test label <dir> <pool> [now]\n"
 	    "       raidz_epoch_test write <dir> <pool> <blocksize>\n"
 	    "       raidz_epoch_test corrupt <dir> <offsets> <psize> <width> "
 	    "<parity> <ashift> <column>...\n"
@@ -515,24 +524,18 @@ do_rootparse(const char *dir, const char *pool)
 	return (0);
 }
 
-static int
-do_write(const char *dir, const char *pool, uint64_t blksz)
+/*
+ * Write one block of reproducible data to a new MOS object of the open pool,
+ * wait for it to sync, and return the object; *bp is its block pointer.
+ */
+static uint64_t
+write_block(spa_t *spa, uint64_t blksz, blkptr_t *bp)
 {
-	spa_t *spa;
-	objset_t *mos;
+	objset_t *mos = spa_meta_objset(spa);
 	dmu_tx_t *tx;
 	dmu_buf_t *db;
-	blkptr_t bp;
 	uint64_t obj;
 	uint64_t *buf;
-	int err;
-
-	err = open_pool(dir, pool, B_FALSE, &spa);
-	if (err != 0) {
-		(void) printf("RESULT write rc=%d\n", err);
-		return (err);
-	}
-	mos = spa_meta_objset(spa);
 
 	buf = malloc(blksz);
 	fill_pattern(buf, blksz);
@@ -548,8 +551,77 @@ do_write(const char *dir, const char *pool, uint64_t blksz)
 	txg_wait_synced(spa_get_dsl(spa), 0);
 
 	VERIFY0(dmu_buf_hold(mos, obj, 0, FTAG, &db, DMU_READ_NO_PREFETCH));
-	bp = *dmu_buf_get_blkptr(db);
+	*bp = *dmu_buf_get_blkptr(db);
 	dmu_buf_rele(db, FTAG);
+	return (obj);
+}
+
+typedef struct label_arg {
+	uint64_t	la_table[6];
+	boolean_t	la_now;
+} label_arg_t;
+
+static void
+label_table_sync(void *arg, dmu_tx_t *tx)
+{
+	label_arg_t *la = arg;
+	vdev_t *vd = dmu_tx_pool(tx)->dp_spa->spa_root_vdev->vdev_child[0];
+
+	if (la->la_now)
+		la->la_table[3] = vdev_raidz_parity_epochs_first_start(tx);
+	vdev_raidz_parity_epochs_install(vd, la->la_table, 2);
+	vdev_config_dirty(vd);
+}
+
+static int
+do_label(const char *dir, const char *pool, boolean_t now)
+{
+	label_arg_t la = { .la_now = now };
+	vdev_raidz_t *vdrz;
+	blkptr_t bp;
+	uint64_t birth = 0;
+	spa_t *spa;
+	int err;
+
+	err = open_pool(dir, pool, B_FALSE, &spa);
+	if (err != 0) {
+		(void) printf("RESULT label rc=%d\n", err);
+		return (err);
+	}
+	vdrz = spa->spa_root_vdev->vdev_child[0]->vdev_tsd;
+	la.la_table[0] = 0;
+	la.la_table[1] = la.la_table[4] = vdrz->vd_physical_width;
+	la.la_table[2] = vdrz->vd_nparity;
+	la.la_table[3] = FORGED_EPOCH_START;
+	la.la_table[5] = vdrz->vd_nparity % 3 + 1;
+	VERIFY0(dsl_sync_task(pool, NULL, label_table_sync, &la, 0,
+	    ZFS_SPACE_CHECK_NONE));
+	if (now) {
+		txg_wait_synced(spa_get_dsl(spa), la.la_table[3]);
+		(void) write_block(spa, 8192, &bp);
+		birth = BP_GET_PHYSICAL_BIRTH(&bp);
+	}
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	(void) printf("RESULT label rc=0 start=%llu birth=%llu\n",
+	    (u_longlong_t)la.la_table[3], (u_longlong_t)birth);
+	close_pool(spa, pool);
+	return (0);
+}
+
+static int
+do_write(const char *dir, const char *pool, uint64_t blksz)
+{
+	spa_t *spa;
+	blkptr_t bp;
+	uint64_t obj;
+	int err;
+
+	err = open_pool(dir, pool, B_FALSE, &spa);
+	if (err != 0) {
+		(void) printf("RESULT write rc=%d\n", err);
+		return (err);
+	}
+	obj = write_block(spa, blksz, &bp);
 
 	(void) printf("RESULT write rc=0 object=%llu psize=%llu birth=%llu "
 	    "offsets=", (u_longlong_t)obj, (u_longlong_t)BP_GET_PSIZE(&bp),
@@ -892,6 +964,9 @@ main(int argc, char **argv)
 		    argv[6]);
 	} else if (strcmp(argv[1], "rootparse") == 0 && argc == 4) {
 		rv = do_rootparse(argv[2], argv[3]);
+	} else if (strcmp(argv[1], "label") == 0 && (argc == 4 ||
+	    (argc == 5 && strcmp(argv[4], "now") == 0))) {
+		rv = do_label(argv[2], argv[3], argc == 5);
 	} else if (strcmp(argv[1], "write") == 0 && argc == 5) {
 		rv = do_write(argv[2], argv[3], strtoull(argv[4], NULL, 10));
 	} else if (strcmp(argv[1], "read") == 0 && argc == 6) {
