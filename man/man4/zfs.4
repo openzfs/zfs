@@ -1159,6 +1159,8 @@ of the obsolete space map object is greater than this number of bytes
 .It Sy zfs_condense_min_mapping_bytes Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq u64
 Minimum size vdev mapping to attempt to condense
 .Pq see Sy zfs_condense_indirect_vdevs_enable .
+A smaller mapping is condensed once all of it is obsolete, which leaves it
+without entries.
 .
 .It Sy zfs_dbgmsg_enable Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Internally ZFS keeps a small log to facilitate debugging.
