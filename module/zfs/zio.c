@@ -3324,8 +3324,11 @@ zio_gang_tree_assemble_done(zio_t *zio)
 	ASSERT(gio == zio_unique_parent(zio));
 	ASSERT(list_is_empty(&zio->io_child_list));
 
-	if (zio->io_error)
+	if (zio->io_error) {
+		/* free the ABD from zio_gang_tree_assemble() on failure too */
+		abd_free(zio->io_abd);
 		return;
+	}
 
 	/* this ABD was created from a linear buf in zio_gang_tree_assemble */
 	if (BP_SHOULD_BYTESWAP(bp))
