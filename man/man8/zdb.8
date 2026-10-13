@@ -15,7 +15,7 @@
 .\" Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 .\" Copyright (c) 2017 Intel Corporation.
 .\"
-.Dd September 10, 2026
+.Dd October 14, 2026
 .Dt ZDB 8
 .Os
 .
@@ -163,6 +163,93 @@ in all three columns.
 When used with
 .Fl bb ,
 only consider blocks from these allocation classes.
+.It Fl -vdev Ns = Ns Ar vdev
+When used with
+.Fl b
+or
+.Fl c ,
+also report what still holds the space allocated on the top-level vdev
+.Ar vdev ,
+for instance while emptying it with
+.Nm zpool Cm set Sy allocating Ns = Ns Sy off
+and
+.Nm zfs Cm rewrite .
+.Ar vdev
+is a top-level vdev index, the whole top-level vdev name shown by
+.Nm zpool Cm status
+.Pq for example Sy mirror-1 , Sy raidz1-0 or Sy draid2:4d:8c:1s-0 ,
+the full path or base name of a device in it, or a vdev GUID.
+Hole, missing and removed
+.Pq indirect
+vdevs are rejected, as is a name that matches more than one vdev.
+.Fl -vdev
+cannot be combined with
+.Fl B , E , l , O , r , R
+or
+.Fl S ,
+a dataset, or object arguments.
+.Pp
+Each allocated block is counted once, by the space it occupies on
+.Ar vdev :
+all of its copies, the header and members of gang blocks, and the new
+location of copies that name a removed vdev.
+The groups below do not overlap:
+.Bl -tag -width Ds
+.It Sy pool metadata (MOS)
+Pool-wide metadata, which moves only as ZFS rewrites it.
+.It Sy dedup (DDT)
+Blocks with a deduplication table entry, with one or several
+references, released when the last reference is freed.
+A pending free of such a block is counted here.
+.It Sy block cloning (BRT)
+Blocks referenced more than once through block cloning, released when
+every reference is freed;
+.Nm zfs Cm rewrite Fl C
+leaves them in place.
+A pending free of such a block is counted here.
+.It Sy pending free
+Blocks already freed and waiting for background processing; see
+.Nm zpool Cm wait Fl t Sy free .
+.It Sy gang members, header unreadable
+Members of gang blocks whose header could not be read, so that their
+vdev is unknown.
+They are not included in the space accounted for.
+.It Sy datasets that could not be opened
+Blocks that the traversal found in a dataset that
+.Nm
+could not open to name it.
+.It Sy checkpoint
+Space freed since the pool checkpoint was taken, kept until
+.Nm zpool Cm checkpoint Fl d .
+.It Ar dataset Ns Sy : live, in no snapshot
+Blocks written since the dataset's last snapshot.
+.It Ar dataset Ns Sy : born in snapshots
+Blocks first written before the dataset's last snapshot, whether the
+dataset still references them or only its snapshots do.
+.It Ar dataset Ns Sy : intent log
+Intent log blocks, released when the log is replayed or discarded.
+.El
+.Pp
+The report ends with the space accounted for, the space the vdev's
+space maps record as allocated, and their difference.
+On a consistent exported pool, the difference is zero but for:
+.Bl -bullet -compact
+.It
+the copies made by a device removal in progress;
+.It
+the members of gang blocks whose header could not be read;
+.It
+the legacy dedup ditto copies made under the former
+.Sy dedupditto
+pool property;
+.It
+the blocks of datasets that the traversal could not open, and the copies
+on a removed vdev that its indirect mapping does not cover.
+.El
+A note follows the report for each of these but the ditto copies.
+On an imported pool the report describes the last synced state and
+may not balance.
+Other output is unchanged.
 .It Fl B , -backup
 Generate a backup stream, similar to
 .Nm zfs Cm send ,
