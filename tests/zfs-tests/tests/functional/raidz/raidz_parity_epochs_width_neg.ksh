@@ -53,10 +53,12 @@ log_must cp $workdir/expected $mnt/file
 sync_pool $pool
 log_must zpool export $pool
 
-# A future start keeps the intentionally malformed table out of the debug
-# writer's own sync I/O. The loader must reject it even before it is used.
+# zhack refuses to store a table that is too wide for the vdev, so -f writes
+# the ZAP entry as given.  The loader must reject it even before it is used.
 for width in 6 256; do
-	log_must zhack -d $workdir raidz_epochs $pool 0 \
+	log_mustnot zhack -d $workdir raidz_epochs $pool 0 \
+	    0:4:1 18446744073709551615:$width:1
+	log_must zhack -d $workdir raidz_epochs -f $pool 0 \
 	    0:4:1 18446744073709551615:$width:1
 	log_mustnot zdb -e -p $workdir -m $pool
 	log_mustnot zpool import -d $workdir $pool
