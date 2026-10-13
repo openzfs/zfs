@@ -2036,10 +2036,9 @@ vdev_raidz_reconstruct_general(raidz_row_t *rr, int *tgts, int ntgts)
 	 * If every reconstruction target is a parity column there are no data
 	 * columns to solve for.  Return here rather than calling
 	 * vdev_raidz_matrix_reconstruct() with nmissing_rows == 0 (which would
-	 * dereference the uninitialized missing_rows[0]).  This makes combrec
-	 * fail closed on a block whose on-disk parity geometry does not match
-	 * its classified layout -- e.g. an inconsistent parity-epoch table --
-	 * instead of reading out of bounds.
+	 * dereference the uninitialized missing_rows[0]).  combrec and the
+	 * known-missing path always pass at least one data column, so this is
+	 * only a guard.
 	 */
 	if (nmissing_rows == 0) {
 		if (bufs != NULL) {
@@ -3670,7 +3669,7 @@ raidz_simulate_failure(int physical_width, int original_width, int ashift,
  * returns 0 on successful reconstruction
  */
 static int
-raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
+raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts)
 {
 	vdev_t *vd = zio->io_vd;
 	raidz_map_t *rm = zio->io_vsd;
@@ -3706,7 +3705,7 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
 			ASSERT0(rc->rc_need_orig_restore);
 			if (rc->rc_error != 0) {
 				dead++;
-				if (c >= nparity)
+				if (c >= rr->rr_firstdatacol)
 					dead_data++;
 				continue;
 			}
@@ -3727,7 +3726,7 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
 					rc->rc_need_orig_restore = B_TRUE;
 
 					dead++;
-					if (c >= nparity)
+					if (c >= rr->rr_firstdatacol)
 						dead_data++;
 					/*
 					 * Note: simulating failure of a
@@ -3738,8 +3737,8 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
 					 * also more than the size of my_tgts.
 					 * This check prevents accessing past
 					 * the end of my_tgts.  The "dead >
-					 * nparity" check below will fail this
-					 * reconstruction attempt.
+					 * rr_firstdatacol" check below will
+					 * fail this reconstruction attempt.
 					 */
 					if (t < VDEV_RAIDZ_MAXPARITY) {
 						my_tgts[t++] = c;
@@ -3754,7 +3753,11 @@ raidz_reconstruct(zio_t *zio, int *ltgts, int ntgts, int nparity)
 				}
 			}
 		}
-		if (dead > nparity) {
+		/*
+		 * The parity of a row is that of the layout the block was
+		 * born in, which need not be the vdev's own.
+		 */
+		if (dead > rr->rr_firstdatacol) {
 			/* reconstruction not possible */
 			if (dbgmsg) {
 				zfs_dbgmsg("reconstruction not possible; "
@@ -3874,35 +3877,23 @@ static int
 vdev_raidz_combrec(zio_t *zio)
 {
 	vdev_t *vd = zio->io_vd;
-	int nparity = vdev_get_nparity(vd);
 	raidz_map_t *rm = zio->io_vsd;
 	int physical_width = zio->io_vd->vdev_children;
+	int nparity = 0;
 
 	if (vd->vdev_ops == &vdev_draid_ops) {
 		vdev_draid_config_t *vdc = vd->vdev_tsd;
-		nparity = vdc->vdc_nparity;
 		physical_width = vdc->vdc_children;
-	} else if (vd->vdev_ops == &vdev_raidz_ops) {
-		/*
-		 * A raidz vdev promoted in place (reparity) keeps its base
-		 * nparity, but once the completion marker is honored every
-		 * block has been re-encoded to the higher target parity. Use
-		 * the honored parity so combinatorial reconstruction searches
-		 * all the parity columns a promoted block actually has. With
-		 * only the base parity, a born>=epoch block that has lost
-		 * `target` children -- e.g. a parity-2 ZIL log block read by
-		 * spa_check_logs during a 2-disk-degraded import -- is wrongly
-		 * declared unrecoverable (ENXIO), failing the import even
-		 * though the block is fully reconstructable (its data column
-		 * may even be intact). When no marker is honored this returns
-		 * the base nparity, so non-reparitied vdevs are unaffected.
-		 */
-		nparity = vdev_raidz_honored_parity(vd);
 	}
 
 	int original_width = (rm->rm_original_width != 0) ?
 	    rm->rm_original_width : physical_width;
 
+	/*
+	 * The parity of a block is that of the layout it was born in, not
+	 * the vdev's, so each row is bounded by its own parity columns and
+	 * the search goes as far as the largest of them.
+	 */
 	for (int i = 0; i < rm->rm_nrows; i++) {
 		raidz_row_t *rr = rm->rm_row[i];
 		int total_errors = 0;
@@ -3912,8 +3903,10 @@ vdev_raidz_combrec(zio_t *zio)
 				total_errors++;
 		}
 
-		if (total_errors > nparity)
+		if (total_errors > rr->rr_firstdatacol)
 			return (vdev_raidz_worst_error(rr));
+
+		nparity = MAX(nparity, rr->rr_firstdatacol);
 	}
 
 	for (int num_failures = 1; num_failures <= nparity; num_failures++) {
@@ -3942,8 +3935,7 @@ vdev_raidz_combrec(zio_t *zio)
 		ltgts[num_failures] = n;
 
 		for (;;) {
-			int err = raidz_reconstruct(zio, ltgts, num_failures,
-			    nparity);
+			int err = raidz_reconstruct(zio, ltgts, num_failures);
 			if (err == EINVAL) {
 				/*
 				 * Reconstruction not possible with this #
