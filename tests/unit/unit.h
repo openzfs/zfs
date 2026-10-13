@@ -132,4 +132,10 @@ _UNIT_CHECK_DECLARE(double, double)
 extern uint64_t unit_rand_uint64(void);
 extern char *unit_rand_str(char *buf, size_t bufsz);
 
+/* abort test when reaching unreachable code */
+#define	unit_unreachable() do { \
+	munit_error("reached unreachable code!"); \
+	__builtin_unreachable(); \
+	} while (0)
+
 #endif /* UNIT_H */
