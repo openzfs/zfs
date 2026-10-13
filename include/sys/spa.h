@@ -1201,6 +1201,7 @@ extern uint64_t spa_total_metaslabs(spa_t *spa);
 extern boolean_t spa_multihost(spa_t *spa);
 extern uint32_t spa_get_hostid(spa_t *spa);
 extern void spa_activate_allocation_classes(spa_t *, dmu_tx_t *);
+extern void spa_deactivate_allocation_classes(spa_t *, dmu_tx_t *);
 extern boolean_t spa_livelist_delete_check(spa_t *spa);
 
 extern boolean_t spa_mmp_remote_host_activity(spa_t *spa);
