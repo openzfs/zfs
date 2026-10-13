@@ -8191,8 +8191,8 @@ dump_block_stats(spa_t *spa)
 		}
 
 		char mem[32];
-		zdb_nicenum(vdev_indirect_mapping_num_entries(vim),
-		    mem, vdev_indirect_mapping_size(vim));
+		zdb_nicebytes(vdev_indirect_mapping_size(vim),
+		    mem, sizeof (mem));
 
 		(void) printf("\tindirect vdev id %llu has %llu segments "
 		    "(%s in memory)\n",
