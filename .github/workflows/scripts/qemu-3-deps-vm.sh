@@ -280,7 +280,6 @@ case "$1" in
     sudo -E rc-update add qemu-guest-agent
     sudo -E rc-update add nfs
     sudo -E rc-update add samba
-    sudo -E rc-update add dhcpcd
     # Remove services related to cloud-init.
     sudo -E rc-update del cloud-init-local boot
     sudo -E rc-update del cloud-init default
