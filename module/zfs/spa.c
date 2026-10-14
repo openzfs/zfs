@@ -8464,7 +8464,9 @@ spa_vdev_new_spare_would_cause_double_spares(vdev_t *newvd, vdev_t *pvd)
  * Attach a device to a vdev specified by its guid.  The vdev type can be
  * a mirror, a raidz, or a leaf device that is also a top-level (e.g. a
  * single device). When the vdev is a single device, a mirror vdev will be
- * automatically inserted.
+ * automatically inserted.  A raidz vdev can be given several new devices at
+ * once; they are added in order, and one expansion makes room for all of
+ * them.
  *
  * If 'replacing' is specified, the new device is intended to replace the
  * existing device; in this case the two devices are made into their own
@@ -8486,7 +8488,8 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	vdev_t *rvd = spa->spa_root_vdev;
 	vdev_t *oldvd, *newvd, *newrootvd, *pvd, *tvd;
 	vdev_ops_t *pvops;
-	char *oldvdpath, *newvdpath;
+	char *oldvdpath, **newvdpaths;
+	uint64_t newchildren;
 	int newvd_isspare = B_FALSE;
 	int error;
 
@@ -8533,9 +8536,12 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 			return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
 
 		/*
-		 * Can't expand a raidz while prior expand is in progress.
+		 * Can't expand a raidz while prior expand is in progress,
+		 * or while the end of a prior several-disk expansion is
+		 * still being recorded.
 		 */
-		if (spa->spa_raidz_expand != NULL) {
+		if (spa->spa_raidz_expand != NULL ||
+		    spa_raidz_expand_multi_pending(spa)) {
 			return (spa_vdev_exit(spa, NULL, txg,
 			    ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS));
 		}
@@ -8552,13 +8558,31 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	    VDEV_ALLOC_ATTACH) != 0)
 		return (spa_vdev_exit(spa, NULL, txg, EINVAL));
 
-	if (newrootvd->vdev_children != 1)
+	/*
+	 * A raidz vdev can be expanded by several disks at once.  Any other
+	 * attach, and any replace, takes exactly one disk.
+	 */
+	newchildren = newrootvd->vdev_children;
+	if (newchildren == 0 || (newchildren > 1 && (!raidz || replacing)))
 		return (spa_vdev_exit(spa, newrootvd, txg, EINVAL));
+
+	if (newchildren > 1 &&
+	    !spa_feature_is_enabled(spa, SPA_FEATURE_RAIDZ_EXPANSION_MULTI))
+		return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
+
+	for (uint64_t c = 0; c < newchildren; c++) {
+		if (!newrootvd->vdev_child[c]->vdev_ops->vdev_op_leaf)
+			return (spa_vdev_exit(spa, newrootvd, txg, EINVAL));
+	}
 
 	newvd = newrootvd->vdev_child[0];
 
-	if (!newvd->vdev_ops->vdev_op_leaf)
-		return (spa_vdev_exit(spa, newrootvd, txg, EINVAL));
+	/*
+	 * This lets vdev_create() see that a disk given twice is in use.
+	 * spa_vdev_exit() will clear it.
+	 */
+	if (newchildren > 1)
+		spa->spa_pending_vdev = newrootvd;
 
 	if ((error = vdev_create(newrootvd, txg, replacing)) != 0)
 		return (spa_vdev_exit(spa, newrootvd, txg, error));
@@ -8582,9 +8606,12 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	/*
 	 * A dRAID spare can only replace a child of its parent dRAID vdev.
 	 */
-	if (newvd->vdev_ops == &vdev_draid_spare_ops &&
-	    oldvd->vdev_top != vdev_draid_spare_get_parent(newvd)) {
-		return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
+	for (uint64_t c = 0; c < newchildren; c++) {
+		vdev_t *cvd = newrootvd->vdev_child[c];
+		if (cvd->vdev_ops == &vdev_draid_spare_ops &&
+		    oldvd->vdev_top != vdev_draid_spare_get_parent(cvd)) {
+			return (spa_vdev_exit(spa, newrootvd, txg, ENOTSUP));
+		}
 	}
 
 	if (rebuild) {
@@ -8655,26 +8682,26 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	}
 
 	/*
-	 * Make sure the new device is big enough.
+	 * Make sure each new device is big enough, and has no higher
+	 * alignment requirement than the top-level vdev.
 	 */
 	vdev_t *min_vdev = raidz ? oldvd->vdev_child[0] : oldvd;
-	if (newvd->vdev_asize < vdev_get_min_asize(min_vdev))
-		return (spa_vdev_exit(spa, newrootvd, txg, EOVERFLOW));
+	for (uint64_t c = 0; c < newchildren; c++) {
+		vdev_t *cvd = newrootvd->vdev_child[c];
+		if (cvd->vdev_asize < vdev_get_min_asize(min_vdev))
+			return (spa_vdev_exit(spa, newrootvd, txg, EOVERFLOW));
 
-	/*
-	 * The new device cannot have a higher alignment requirement
-	 * than the top-level vdev.
-	 */
-	if (newvd->vdev_ashift > oldvd->vdev_top->vdev_ashift) {
-		return (spa_vdev_exit(spa, newrootvd, txg,
-		    ZFS_ERR_ASHIFT_MISMATCH));
+		if (cvd->vdev_ashift > oldvd->vdev_top->vdev_ashift) {
+			return (spa_vdev_exit(spa, newrootvd, txg,
+			    ZFS_ERR_ASHIFT_MISMATCH));
+		}
 	}
 
 	/*
 	 * RAIDZ-expansion-specific checks.
 	 */
 	if (raidz) {
-		error = vdev_raidz_attach_check(oldvd);
+		error = vdev_raidz_attach_check(oldvd, newchildren);
 		if (error != 0)
 			return (spa_vdev_exit(spa, newrootvd, txg, error));
 
@@ -8709,18 +8736,20 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	} else {
 		oldvdpath = spa_strdup(oldvd->vdev_path);
 	}
-	newvdpath = spa_strdup(newvd->vdev_path);
+	newvdpaths = kmem_alloc(newchildren * sizeof (char *), KM_SLEEP);
+	for (uint64_t c = 0; c < newchildren; c++)
+		newvdpaths[c] = spa_strdup(newrootvd->vdev_child[c]->vdev_path);
 
 	/*
 	 * If this is an in-place replacement, update oldvd's path and devid
 	 * to make it distinguishable from newvd, and unopenable from now on.
 	 */
-	if (strcmp(oldvdpath, newvdpath) == 0) {
+	if (strcmp(oldvdpath, newvdpaths[0]) == 0) {
 		spa_strfree(oldvd->vdev_path);
-		oldvd->vdev_path = kmem_alloc(strlen(newvdpath) + 5,
+		oldvd->vdev_path = kmem_alloc(strlen(newvdpaths[0]) + 5,
 		    KM_SLEEP);
 		(void) sprintf(oldvd->vdev_path, "%s/old",
-		    newvdpath);
+		    newvdpaths[0]);
 		if (oldvd->vdev_devid != NULL) {
 			spa_strfree(oldvd->vdev_devid);
 			oldvd->vdev_devid = NULL;
@@ -8742,12 +8771,16 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	ASSERT(pvd->vdev_top->vdev_parent == rvd);
 
 	/*
-	 * Extract the new device from its root and add it to pvd.
+	 * Extract the new devices from their root and add them to pvd, in
+	 * the order given.  newvd is left pointing at the last one.
 	 */
-	vdev_remove_child(newrootvd, newvd);
-	newvd->vdev_id = pvd->vdev_children;
-	newvd->vdev_crtxg = oldvd->vdev_crtxg;
-	vdev_add_child(pvd, newvd);
+	for (uint64_t c = 0; c < newchildren; c++) {
+		newvd = newrootvd->vdev_child[c];
+		vdev_remove_child(newrootvd, newvd);
+		newvd->vdev_id = pvd->vdev_children;
+		newvd->vdev_crtxg = oldvd->vdev_crtxg;
+		vdev_add_child(pvd, newvd);
+	}
 
 	/*
 	 * Reevaluate the parent vdev state.
@@ -8831,24 +8864,34 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 		}
 	}
 
-	if (spa->spa_bootfs)
-		spa_event_notify(spa, newvd, NULL, ESC_ZFS_BOOTFS_VDEV_ATTACH);
+	/* The new devices are the last children of pvd. */
+	for (uint64_t c = 0; c < newchildren; c++) {
+		vdev_t *cvd =
+		    pvd->vdev_child[pvd->vdev_children - newchildren + c];
+		if (spa->spa_bootfs) {
+			spa_event_notify(spa, cvd, NULL,
+			    ESC_ZFS_BOOTFS_VDEV_ATTACH);
+		}
 
-	spa_event_notify(spa, newvd, NULL, ESC_ZFS_VDEV_ATTACH);
+		spa_event_notify(spa, cvd, NULL, ESC_ZFS_VDEV_ATTACH);
+	}
 
 	/*
 	 * Commit the config
 	 */
 	(void) spa_vdev_exit(spa, newrootvd, dtl_max_txg, 0);
 
-	spa_history_log_internal(spa, "vdev attach", NULL,
-	    "%s vdev=%s %s vdev=%s",
-	    replacing && newvd_isspare ? "spare in" :
-	    replacing ? "replace" : "attach", newvdpath,
-	    replacing ? "for" : "to", oldvdpath);
+	for (uint64_t c = 0; c < newchildren; c++) {
+		spa_history_log_internal(spa, "vdev attach", NULL,
+		    "%s vdev=%s %s vdev=%s",
+		    replacing && newvd_isspare ? "spare in" :
+		    replacing ? "replace" : "attach", newvdpaths[c],
+		    replacing ? "for" : "to", oldvdpath);
+		spa_strfree(newvdpaths[c]);
+	}
+	kmem_free(newvdpaths, newchildren * sizeof (char *));
 
 	spa_strfree(oldvdpath);
-	spa_strfree(newvdpath);
 
 	return (0);
 }
@@ -12025,7 +12068,15 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 	case ZPOOL_WAIT_RAIDZ_EXPAND:
 	{
 		vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
-		*in_progress = (vre != NULL && vre->vre_state == DSS_SCANNING);
+		/*
+		 * A several-disk expansion is not over until its feature is
+		 * back to enabled.  The feature stays active from the attach
+		 * until then, which covers the end of the reflow too.
+		 */
+		*in_progress =
+		    (vre != NULL && vre->vre_state == DSS_SCANNING) ||
+		    spa_feature_is_active(spa,
+		    SPA_FEATURE_RAIDZ_EXPANSION_MULTI);
 		break;
 	}
 	case ZPOOL_WAIT_CONDENSE: {

@@ -1284,7 +1284,7 @@ get_parity(const char *type)
  * the specified type.  On error NULL is returned, otherwise the
  * type prefix is returned (raidz, mirror, etc).
  */
-static const char *
+const char *
 is_grouping(const char *type, int *mindev, int *maxdev)
 {
 	int nparity;
