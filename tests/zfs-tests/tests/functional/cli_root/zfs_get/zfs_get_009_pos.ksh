@@ -36,8 +36,9 @@
 
 verify_runnable "both"
 
-if is_kmemleak; then
-	log_unsupported "Test case runs slowly when kmemleak is enabled"
+if is_kmemleak && has_mitigations; then
+	log_unsupported "Test case runs slowly when kmemleak and CPU" \
+	    "mitigations are enabled"
 fi
 
 log_assert "'zfs get -d <n>' should get expected output."
