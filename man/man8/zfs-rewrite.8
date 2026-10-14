@@ -92,6 +92,12 @@ this expansion.
 Holes that were never written or were previously zero-compressed are
 not rewritten and will remain holes even if compression is disabled.
 .Pp
+On a RAID-Z vdev, rewritten blocks use the width of the vdev once its
+expansion has completed, see
+.Xr zpool-attach 8 .
+Blocks rewritten while the expansion is in progress keep their old width.
+Blocks that are already deduplicated stay where they are, and keep their width.
+.Pp
 If a
 .Fl l
 or
@@ -110,4 +116,5 @@ there are no user data changes.
 .
 .Sh SEE ALSO
 .Xr zfsprops 7 ,
-.Xr zpool-features 7
+.Xr zpool-features 7 ,
+.Xr zpool-attach 8
