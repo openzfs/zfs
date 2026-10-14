@@ -161,7 +161,8 @@ typedef struct vdev_raidz {
 	 * vdev_raidz_fini frees the current one.  Once the vdev is in use
 	 * only vdev_raidz_parity_epochs_install() replaces it.  The pointer
 	 * and the count are protected by vd_expand_lock: take it to read
-	 * either.
+	 * either, except to tell whether the pointer is NULL, as
+	 * vdev_raidz_alloc_factor() does.
 	 */
 	uint64_t *vd_parity_epochs;
 	uint64_t vd_parity_epoch_count;

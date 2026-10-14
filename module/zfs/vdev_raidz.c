@@ -6594,8 +6594,23 @@ static uint64_t
 vdev_raidz_alloc_factor(vdev_t *vd, uint64_t txg)
 {
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
-	vdev_raidz_layout_t layout = vdev_raidz_layout_for_alloc(vdrz, txg);
+	vdev_raidz_layout_t layout;
 
+	/*
+	 * Without a table, every txg has the vdev's own parity, which
+	 * expansion does not change; this is called for every allocation, so
+	 * do not take the lock for that.  Only the pointer is read without
+	 * it, and nothing behind it.  vdev_raidz_parity_epochs_set() installs
+	 * a first table while txg T syncs, starting with the vdev's own
+	 * layout and adding epochs from T + TXG_CONCURRENT_STATES on: a txg
+	 * that late opens only once T has synced, through the txg locks, so
+	 * whoever allocates in it sees the table, and an earlier txg that
+	 * misses it has the vdev's own parity in the table too.
+	 */
+	if (atomic_load_ptr(&vdrz->vd_parity_epochs) == NULL)
+		return ((vdrz->vd_nparity + 1) << vd->vdev_ashift);
+
+	layout = vdev_raidz_layout_for_alloc(vdrz, txg);
 	return ((layout.vrl_nparity + 1) << vd->vdev_ashift);
 }
 
