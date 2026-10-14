@@ -390,6 +390,18 @@ feature_enable_sync(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
 	 */
 	if (feature->fi_feature == SPA_FEATURE_HEAD_ERRLOG)
 		spa_upgrade_errlog(spa, tx);
+
+	/*
+	 * If raidz_expansion_accounting is enabled on a pool that has
+	 * already been expanded, activate it immediately so the new
+	 * per-block deflation ratios take effect from this txg onward.
+	 */
+	if (feature->fi_feature == SPA_FEATURE_RAIDZ_EXPANSION_ACCOUNTING &&
+	    spa_feature_is_active(spa, SPA_FEATURE_RAIDZ_EXPANSION)) {
+		spa_feature_incr(spa,
+		    SPA_FEATURE_RAIDZ_EXPANSION_ACCOUNTING, tx);
+		spa->spa_raidz_expand_acct_txg = dmu_tx_get_txg(tx);
+	}
 }
 
 static void
@@ -526,4 +538,26 @@ spa_feature_enabled_txg(spa_t *spa, spa_feature_t fid, uint64_t *txg)
 	ASSERT(err == 0 || err == ENOTSUP);
 
 	return (err == 0);
+}
+
+/*
+ * Overwrite the recorded enabled_txg of an enabled feature (which must
+ * depend on SPA_FEATURE_ENABLED_TXG).  Used by features whose on-disk
+ * meaning is tied to the txg they were activated in, rather than the txg
+ * they were enabled in.
+ */
+void
+spa_feature_set_enabled_txg(spa_t *spa, spa_feature_t fid, uint64_t txg,
+    dmu_tx_t *tx)
+{
+	zfeature_info_t *feature = &spa_feature_table[fid];
+
+	ASSERT(VALID_FEATURE_FID(fid));
+	ASSERT(dmu_tx_is_syncing(tx));
+	ASSERT(spa_feature_is_enabled(spa, fid));
+	ASSERT3U(spa->spa_feat_enabled_txg_obj, !=, 0);
+
+	VERIFY0(zap_update(spa->spa_meta_objset,
+	    spa->spa_feat_enabled_txg_obj, feature->fi_guid,
+	    sizeof (uint64_t), 1, &txg, tx));
 }

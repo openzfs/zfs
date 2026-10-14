@@ -4104,9 +4104,17 @@ zio_ddt_child_write_layout_matches(zio_t *zio, uint64_t phys_birth)
 		    DVA_GET_VDEV(&bp->blk_dva[d]));
 		ASSERT3P(vd, !=, NULL);
 
+		/*
+		 * The new DVAs are charged at the entry's phys birth (see
+		 * ddt_bp_fill()), so they must also have that birth's
+		 * deflate ratio.  With the RAID-Z expansion accounting
+		 * feature inactive both ratios are the legacy one.
+		 */
 		if (vd->vdev_ops == &vdev_raidz_ops &&
-		    !vdev_raidz_same_logical_width(vd, phys_birth,
-		    zio->io_txg))
+		    (!vdev_raidz_same_logical_width(vd, phys_birth,
+		    zio->io_txg) ||
+		    vdev_get_deflate_ratio(vd, phys_birth) !=
+		    vdev_get_deflate_ratio(vd, zio->io_txg)))
 			return (B_FALSE);
 	}
 

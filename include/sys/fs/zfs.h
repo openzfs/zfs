@@ -1075,6 +1075,8 @@ typedef struct zpool_load_policy {
 	"org.openzfs:raidz_expand_end_time"
 #define	VDEV_TOP_ZAP_RAIDZ_EXPAND_BYTES_COPIED \
 	"org.openzfs:raidz_expand_bytes_copied"
+#define	VDEV_TOP_ZAP_RAIDZ_EXPAND_ACCT_EXCESS \
+	"org.openzfs:raidz_expand_acct_excess"
 
 /* vdev metaslab allocation bias */
 #define	VDEV_ALLOC_BIAS_LOG		"log"
