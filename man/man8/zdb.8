@@ -441,6 +441,18 @@ Dump gang block header
 Dump indirect block
 .It Sy r
 Dump raw uninterpreted block data
+.It Sy t Ar txg
+Read the block as born in transaction group
+.Ar txg ,
+in decimal, as the
+.Sy B=
+field of
+.Fl ddddd
+prints its physical birth.
+On a RAID-Z vdev that has been expanded, or has parity epochs
+.Pq see Xr zpool-features 7 ,
+this selects the width and parity the block was written with.
+Without this flag, the block is read with the first layout of the vdev.
 .It Sy v
 Verbose output for guessing compression algorithm
 .El
