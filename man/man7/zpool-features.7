@@ -975,6 +975,20 @@ whether a device can be taken offline, is the lowest parity in its table.
 Reads, writes, scrubs and resilvers use the width and parity of each block's
 epoch.
 .Pp
+The name of such a vdev keeps the parity it was created with, for instance
+.Sy raidz2-0
+for a raidz2 vdev whose table adds an epoch of parity 1, in the output of
+.Nm zpool Cm status
+and wherever a command takes a vdev name, so that scripts and commands that
+name it keep working; it does not show the table.
+The
+.Sy parity
+vdev property
+.Pq see Xr vdevprops 7
+reports the lowest parity in the table, and
+.Nm zdb Fl m
+prints the table itself.
+.Pp
 A table found only in the labels or MOS configuration, without a copy in
 the vdev ZAP, was not stored by
 .Nm zhack
