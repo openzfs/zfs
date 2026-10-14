@@ -11,7 +11,7 @@
 .\"
 .\" Copyright (c) 2021, 2025, Klara, Inc.
 .\"
-.Dd October 13, 2026
+.Dd November 1, 2026
 .Dt VDEVPROPS 7
 .Os
 .
@@ -228,13 +228,17 @@ If this device should perform new allocations, used to disable a device
 when it is scheduled for later removal.
 While it is
 .Sy off ,
-a deduplicated write whose existing copies are on this device is written
-as a new block that is not deduplicated, so that it adds no reference to
-those copies.
+a deduplicated write adds no reference to existing copies on this device.
+If it replaces the only block that references them, is not a physical
+rewrite, and the deduplication table was created with the
+.Sy fast_dedup
+feature enabled, its new copies take their place in the table;
+otherwise it is written as a new block that is not deduplicated.
 This does not apply while the device is being removed by
 .Nm zpool Cm remove ,
 which moves those copies itself.
 See
+.Xr zpool-features 7 ,
 .Xr zpool-remove 8
 and
 .Xr zfs-rewrite 8 .

@@ -12,7 +12,7 @@
 .\" Copyright (c) 2025 iXsystems, Inc.
 .\" Copyright (c) 2025, Klara, Inc.
 .\"
-.Dd November 3, 2026
+.Dd November 4, 2026
 .Dt ZFS-REWRITE 8
 .Os
 .
@@ -112,7 +112,19 @@ On a RAID-Z vdev, rewritten blocks use the width of the vdev once its
 expansion has completed, see
 .Xr zpool-attach 8 .
 Blocks rewritten while the expansion is in progress keep their old width.
-Blocks that are already deduplicated stay where they are, and keep their width.
+.Pp
+Blocks that are already deduplicated stay where they are, and keep their width,
+unless they have a copy on a vdev whose
+.Sy allocating
+property is
+.Sy off ,
+see
+.Xr vdevprops 7 .
+Such a block is written again on the other vdevs, and stays deduplicated only
+if no other block referenced its copies and the deduplication table was created
+with the
+.Sy fast_dedup
+feature enabled.
 .Pp
 If a
 .Fl l
@@ -140,6 +152,7 @@ format, or to the copies of other data with the same content, it gets a new
 logical birth time.
 .
 .Sh SEE ALSO
+.Xr vdevprops 7 ,
 .Xr zfsprops 7 ,
 .Xr zpool-features 7 ,
 .Xr zpool-attach 8
