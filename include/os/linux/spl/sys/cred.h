@@ -96,7 +96,7 @@ static inline boolean_t zfs_no_idmapping(struct user_namespace *mnt_userns,
 	    mnt_userns == fs_userns);
 }
 
-static inline uid_t zfs_uid_to_vfsuid(zidmap_t *idmap,
+static inline uid_t zfs_uid_to_vfsuid(const zidmap_t *idmap,
     struct user_namespace *fs_userns, uid_t uid)
 {
 	struct user_namespace *owner;
@@ -120,7 +120,7 @@ static inline uid_t zfs_uid_to_vfsuid(zidmap_t *idmap,
 	return (__kuid_val(make_kuid(owner, uid)));
 }
 
-static inline gid_t zfs_gid_to_vfsgid(zidmap_t *idmap,
+static inline gid_t zfs_gid_to_vfsgid(const zidmap_t *idmap,
     struct user_namespace *fs_userns, gid_t gid)
 {
 	struct user_namespace *owner;
@@ -144,7 +144,7 @@ static inline gid_t zfs_gid_to_vfsgid(zidmap_t *idmap,
 	return (__kgid_val(make_kgid(owner, gid)));
 }
 
-static inline uid_t zfs_vfsuid_to_uid(zidmap_t *idmap,
+static inline uid_t zfs_vfsuid_to_uid(const zidmap_t *idmap,
     struct user_namespace *fs_userns, uid_t uid)
 {
 	struct user_namespace *owner;
@@ -169,7 +169,7 @@ static inline uid_t zfs_vfsuid_to_uid(zidmap_t *idmap,
 	return (__kuid_val(make_kuid(fs_userns, uid)));
 }
 
-static inline gid_t zfs_vfsgid_to_gid(zidmap_t *idmap,
+static inline gid_t zfs_vfsgid_to_gid(const zidmap_t *idmap,
     struct user_namespace *fs_userns, gid_t gid)
 {
 	struct user_namespace *owner;
