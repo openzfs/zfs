@@ -1,0 +1,9 @@
+# generated file, do not edit. run `make syms` to regenerate
+lzbe_add_pair
+lzbe_bootenv_print
+lzbe_get_boot_device
+lzbe_nvlist_free
+lzbe_nvlist_get
+lzbe_nvlist_set
+lzbe_remove_pair
+lzbe_set_boot_device
