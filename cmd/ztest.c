@@ -10079,6 +10079,9 @@ ztest_raidz_epochs_run(ztest_shared_t *zs, spa_t *spa)
  *    full, which takes in those gaps and the end of the metaslabs it fills,
  *    and each must leave room for the block it will hold;
  *  - writes objects of 256K that are all forced to gang, to be freed later;
+ *  - writes the same data to several objects, deduplicated, asking for one
+ *    more copy than in the epoch before, so that the entry born in the first
+ *    epoch is extended or read in the layout of another;
  *  - writes objects through the ZIL, with commits, and checks the log blocks;
  *  - reads everything back from disk, checks the epoch every block was born
  *    in and that its extent holds its layout.
@@ -10106,6 +10109,7 @@ ztest_raidz_epochs_run(ztest_shared_t *zs, spa_t *spa)
 #define	ZTEST_PE_ZIL		20	/* objects written through the ZIL */
 #define	ZTEST_PE_LOG		12	/* objects only the log holds */
 #define	ZTEST_PE_DEG		72	/* objects written while degraded */
+#define	ZTEST_PE_DD		16	/* identical objects per epoch */
 #define	ZTEST_PE_BIGSZ		(256 * 1024)
 #define	ZTEST_PE_LWBSZ		(128 * 1024)	/* the ZIL's largest block */
 #define	ZTEST_PE_DYN_MIN	(12 * 1024)	/* the ZIL's smallest ask */
@@ -10117,11 +10121,12 @@ enum ztest_pe_kind {
 	ZTEST_PE_K_GANG,
 	ZTEST_PE_K_ZIL,
 	ZTEST_PE_K_LOG,
-	ZTEST_PE_K_DEG
+	ZTEST_PE_K_DEG,
+	ZTEST_PE_K_DD
 };
 
 static const char *const ztest_pe_tag[] = {
-	"pe_plain", "pe_gang", "pe_zil", "pe_log", "pe_deg"
+	"pe_plain", "pe_gang", "pe_zil", "pe_log", "pe_deg", "pe_dd"
 };
 
 static uint64_t ztest_pe_failed;
@@ -10204,6 +10209,8 @@ ztest_pe_size(int kind, uint64_t idx)
 		return (idx % 2 == 0 ? ZTEST_PE_BIGSZ : zil[idx % 3]);
 	case ZTEST_PE_K_DEG:
 		return (deg[idx % (sizeof (deg) / sizeof (deg[0]))]);
+	case ZTEST_PE_K_DD:
+		return (16 * 1024);
 	default:
 		return (ZTEST_PE_BIGSZ);
 	}
@@ -10217,7 +10224,12 @@ static void
 ztest_pe_fill(void *buf, uint64_t size, int kind, uint64_t epoch, uint64_t idx)
 {
 	uint64_t *p = buf;
-	uint64_t x = (kind + 1) * 0x9e3779b97f4a7c15ULL ^
+	uint64_t x;
+
+	/* The objects that are to be deduplicated all hold the same data. */
+	if (kind == ZTEST_PE_K_DD)
+		epoch = idx = 0;
+	x = (kind + 1) * 0x9e3779b97f4a7c15ULL ^
 	    (epoch + 1) * 0xbf58476d1ce4e5b9ULL ^
 	    (idx + 1) * 0x94d049bb133111ebULL;
 
@@ -10296,6 +10308,7 @@ typedef struct ztest_pe_ctx {
 	uint64_t	ps_ngang[ZTEST_PE_EPOCHS];
 	boolean_t	ps_has_log;	/* the log's objects are to be there */
 	boolean_t	ps_has_deg;	/* so are those written degraded */
+	boolean_t	ps_dd_freed;	/* the deduplicated objects are gone */
 	boolean_t	ps_gang_freed;	/* the gang blocks are gone */
 } ztest_pe_ctx_t;
 
@@ -10348,7 +10361,8 @@ ztest_pe_check_object(ztest_pe_ctx_t *ps, int kind, uint64_t epoch,
 			uint64_t born = ztest_pe_epoch_of(ps->ps_table,
 			    ps->ps_nent, birth);
 
-			ztest_pe_expect(born == epoch, "%s object %llu/%llu "
+			ztest_pe_expect(born == epoch ||
+			    kind == ZTEST_PE_K_DD, "%s object %llu/%llu "
 			    "was written in epoch %llu and born at txg %llu "
 			    "in epoch %llu", ztest_pe_tag[kind],
 			    (u_longlong_t)epoch, (u_longlong_t)idx,
@@ -10406,6 +10420,11 @@ ztest_pe_check_all(ztest_pe_ctx_t *ps, uint64_t current, boolean_t synced)
 		    e == ZTEST_PE_EPOCHS - 1 && i < ZTEST_PE_DEG; i++)
 			ztest_pe_check_object(ps, ZTEST_PE_K_DEG, e, i,
 			    synced);
+		for (uint64_t i = 0; !ps->ps_dd_freed && i < ZTEST_PE_DD; i++) {
+			if (e == current || i % 2 == 0)
+				ztest_pe_check_object(ps, ZTEST_PE_K_DD, e, i,
+				    synced);
+		}
 	}
 }
 
@@ -10566,6 +10585,43 @@ ztest_pe_settle(spa_t *spa)
 		txg_wait_synced(spa_get_dsl(spa), 0);
 }
 
+/*
+ * Write the same data to several objects of the epoch, deduplicated, after
+ * freeing half of those of the epoch before.  The number of copies goes 1,
+ * 2, 3, 1, ... (an encrypted dataset holds at most 2).  The dedup table
+ * entry of the data was born in the first epoch, and with fast dedup it has
+ * a single set of DVAs for every number of copies: a write that asks for
+ * more copies than the entry has would add DVAs allocated in the layout of
+ * another epoch to an entry read in the layout of the first, so it has to
+ * be written as a block of its own instead.  The epoch that asks for one
+ * copy again reads the entry in the layout of the first epoch.
+ */
+static void
+ztest_pe_dedup_burst(ztest_pe_ctx_t *ps, uint64_t epoch)
+{
+	ztest_ds_t *zd = ps->ps_zd;
+
+	if (epoch > 0) {
+		for (uint64_t i = 1; i < ZTEST_PE_DD; i += 2)
+			ztest_pe_free(zd, ZTEST_PE_K_DD, epoch - 1, i);
+	}
+	(void) ztest_dsl_prop_set_uint64(zd->zd_name, ZFS_PROP_COMPRESSION,
+	    ZIO_COMPRESS_OFF, B_FALSE);
+	(void) ztest_dsl_prop_set_uint64(zd->zd_name, ZFS_PROP_DEDUP,
+	    ZIO_CHECKSUM_SHA256, B_FALSE);
+	(void) ztest_dsl_prop_set_uint64(zd->zd_name, ZFS_PROP_COPIES,
+	    1 + epoch % 3, B_FALSE);
+	for (uint64_t i = 0; i < ZTEST_PE_DD; i++)
+		ztest_pe_put(zd, ZTEST_PE_K_DD, epoch, i, ps->ps_buf);
+	txg_wait_synced(spa_get_dsl(ps->ps_spa), 0);
+	(void) ztest_dsl_prop_set_uint64(zd->zd_name, ZFS_PROP_COPIES, 1,
+	    B_TRUE);
+	(void) ztest_dsl_prop_set_uint64(zd->zd_name, ZFS_PROP_DEDUP,
+	    ZIO_CHECKSUM_OFF, B_TRUE);
+	(void) ztest_dsl_prop_set_uint64(zd->zd_name, ZFS_PROP_COMPRESSION,
+	    ZIO_COMPRESS_OFF, B_TRUE);
+}
+
 static void
 ztest_pe_epoch_work(ztest_pe_ctx_t *ps, uint64_t epoch)
 {
@@ -10588,6 +10644,7 @@ ztest_pe_epoch_work(ztest_pe_ctx_t *ps, uint64_t epoch)
 	for (uint64_t i = 0; i < ZTEST_PE_PLAIN; i++)
 		ztest_pe_put(zd, ZTEST_PE_K_PLAIN, epoch, i, ps->ps_buf);
 	txg_wait_synced(spa_get_dsl(spa), 0);
+	ztest_pe_dedup_burst(ps, epoch);
 
 	/*
 	 * The threshold is above the ZIL's largest block, so that forced
@@ -11234,9 +11291,12 @@ ztest_pe_check(ztest_shared_t *zs, spa_t *spa)
 	for (uint64_t e = 0; e < ZTEST_PE_EPOCHS; e++) {
 		for (uint64_t i = 0; i < ZTEST_PE_GANG; i++)
 			ztest_pe_free(ps->ps_zd, ZTEST_PE_K_GANG, e, i);
+		for (uint64_t i = 0; i < ZTEST_PE_DD; i++)
+			ztest_pe_free(ps->ps_zd, ZTEST_PE_K_DD, e, i);
 	}
 	txg_wait_synced(spa_get_dsl(spa), 0);
 	ps->ps_gang_freed = B_TRUE;
+	ps->ps_dd_freed = B_TRUE;
 	ztest_pe_check_all(ps, current, B_TRUE);
 	ztest_pe_report("the frees");
 
@@ -11631,9 +11691,12 @@ ztest_init(ztest_shared_t *zs)
 			continue;
 
 		/*
-		 * split 50/50 between legacy and fast dedup
+		 * split 50/50 between legacy and fast dedup; the dedicated
+		 * parity-epoch test needs the entries of fast dedup, which
+		 * can gain DVAs in another epoch than they were born in
 		 */
-		if (i == SPA_FEATURE_FAST_DEDUP && ztest_random(2) != 0)
+		if (i == SPA_FEATURE_FAST_DEDUP && ztest_random(2) != 0 &&
+		    ztest_opts.zo_pe_test == ZTEST_PE_NONE)
 			continue;
 
 		VERIFY3S(-1, !=, asprintf(&buf, "feature@%s",

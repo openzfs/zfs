@@ -217,9 +217,13 @@ vdev, the last one with a single data column, whose blocks span several rows.
 In each epoch the test writes objects of many sizes, frees some of them in the
 next epoch to leave gaps, allocates ZIL-sized blocks until the vdev is nearly
 full, which takes in the gaps and the end of the metaslabs it fills, writes
-blocks that are forced to gang, writes through the ZIL, and reads everything
-back, checking the epoch every block was born in and that its extent holds its
-layout.
+blocks that are forced to gang, writes the same data to several objects with
+deduplication and one more copy than in the epoch before, writes through the
+ZIL, and reads everything back, checking the epoch every block was born in and
+that its extent holds its layout.
+The pool always has
+.Sy feature@fast_dedup ,
+whose table entries can gain copies in another epoch than they were born in.
 It then writes a last burst that only the log holds and kills itself.
 The next pass imports the pool, so that the log is claimed and replayed, reads
 everything from a cold cache, scrubs, damages as many disks of every block as
