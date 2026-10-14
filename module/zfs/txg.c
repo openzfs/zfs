@@ -548,9 +548,18 @@ txg_sync_thread(void *arg)
 		 * MMP we don't want to bump anything that would make it
 		 * harder to detect if another host is changing it when
 		 * resuming after a MMP suspend.
+		 *
+		 * Sleep before going round again.  Whatever ended the wait
+		 * above (an expired timer, a txg_wait_synced() caller, an
+		 * active scan) is still true while the pool is suspended, so
+		 * a bare "continue" would spin here holding tx_sync_lock.
+		 * Nothing signals us on resume, so poll once a second.  A
+		 * thread asked to exit goes on, to exit below.
 		 */
-		if (spa_suspended(spa))
+		if (spa_suspended(spa) && !tx->tx_exiting) {
+			txg_thread_wait(tx, &cpr, &tx->tx_sync_more_cv, hz);
 			continue;
+		}
 
 		/*
 		 * Wait until the quiesce thread hands off a txg to us,
