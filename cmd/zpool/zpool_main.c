@@ -6253,7 +6253,7 @@ print_zpool_script_help(char *name, char *path)
 
 	for (int i = 0; i < lines_cnt; i++)
 		if (!is_blank_str(lines[i]))
-			printf("  %-14s  %s\n", name, lines[i]);
+			printf("  %-33s  %s\n", name, lines[i]);
 
 	libzfs_free_str_array(lines, lines_cnt);
 }

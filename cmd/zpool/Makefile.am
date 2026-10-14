@@ -62,6 +62,19 @@ dist_zpoolexec_SCRIPTS = \
 	%D%/zpool.d/nvme_err \
 	%D%/zpool.d/off_ucor \
 	%D%/zpool.d/pend_sec \
+	%D%/zpool.d/phy \
+	%D%/zpool.d/phy_errors \
+	%D%/zpool.d/phy_invalid_dword_count \
+	%D%/zpool.d/phy_link \
+	%D%/zpool.d/phy_loss_of_dword_sync_count \
+	%D%/zpool.d/phy_maximum_linkrate \
+	%D%/zpool.d/phy_minimum_linkrate \
+	%D%/zpool.d/phy_name \
+	%D%/zpool.d/phy_negotiated_linkrate \
+	%D%/zpool.d/phy_reset_problem_count \
+	%D%/zpool.d/phy_running_disparity_error_count \
+	%D%/zpool.d/phy_topo \
+	%D%/zpool.d/phy_total_errors \
 	%D%/zpool.d/pwr_cyc \
 	%D%/zpool.d/r_proc \
 	%D%/zpool.d/r_ucor \
@@ -97,6 +110,19 @@ zpoolconfdefaults = \
 	lsblk \
 	media \
 	model \
+	phy \
+	phy_errors \
+	phy_invalid_dword_count \
+	phy_link \
+	phy_loss_of_dword_sync_count \
+	phy_maximum_linkrate \
+	phy_minimum_linkrate \
+	phy_name \
+	phy_negotiated_linkrate \
+	phy_reset_problem_count \
+	phy_running_disparity_error_count \
+	phy_topo \
+	phy_total_errors \
 	serial \
 	ses \
 	size \
