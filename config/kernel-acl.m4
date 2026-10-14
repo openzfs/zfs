@@ -129,11 +129,27 @@ dnl #
 dnl # 6.3 API change,
 dnl # set_acl() first parameter changed to struct mnt_idmap *
 dnl #
+dnl # 7.4 API change,
+dnl # mnt_idmap is passed to inode ops as const, so we need a second check
+dnl # with a const prototype.
+dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_SET_ACL], [
 	ZFS_LINUX_TEST_SRC([inode_operations_set_acl_mntidmap_dentry], [
 		#include <linux/fs.h>
 
 		static int set_acl_fn(struct mnt_idmap *idmap,
+		    struct dentry *dent, struct posix_acl *acl,
+		    int type) { return 0; }
+
+		static const struct inode_operations
+		    iops __attribute__ ((unused)) = {
+			.set_acl = set_acl_fn,
+		};
+	],[])
+	ZFS_LINUX_TEST_SRC([inode_operations_set_acl_mntidmap_dentry_const], [
+		#include <linux/fs.h>
+
+		static int set_acl_fn(const struct mnt_idmap *idmap,
 		    struct dentry *dent, struct posix_acl *acl,
 		    int type) { return 0; }
 
@@ -170,7 +186,12 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_INODE_OPERATIONS_SET_ACL], [
 
 AC_DEFUN([ZFS_AC_KERNEL_INODE_OPERATIONS_SET_ACL], [
 	AC_MSG_CHECKING([whether iops->set_acl() takes struct dentry])
-	ZFS_LINUX_TEST_RESULT([inode_operations_set_acl_mntidmap_dentry], [
+	_result=no
+	ZFS_LINUX_TEST_RESULT([inode_operations_set_acl_mntidmap_dentry],
+	    [_result=yes])
+	ZFS_LINUX_TEST_RESULT([inode_operations_set_acl_mntidmap_dentry_const],
+	    [_result=yes])
+	AS_IF([test "x$_result" = "xyes"], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_SET_ACL_DENTRY, 1,
 		    [iops->set_acl() takes struct dentry])
