@@ -1807,6 +1807,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/lease/setup.ksh \
 	functional/l2arc/cleanup.ksh \
 	functional/l2arc/l2arc_arcstats_pos.ksh \
+	functional/l2arc/l2arc_compressed_arc_disabled_pos.ksh \
 	functional/l2arc/l2arc_l2miss_pos.ksh \
 	functional/l2arc/l2arc_mfuonly_pos.ksh \
 	functional/l2arc/l2arc_dwpd_ratelimit_pos.ksh \
