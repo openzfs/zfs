@@ -1737,11 +1737,11 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 			 * The batch is dispatched to the taskq chosen for
 			 * whichever member arrives last, so they all have to
 			 * choose the same one.  The flags that steer the choice
-			 * are vdev-inherited, and type and priority come from
-			 * the parent at every call site.
+			 * are vdev-inherited, and type comes from the parent at
+			 * every call site.  Priority can mismatch though, since
+			 * zio_change_priority() may change it at any time.
 			 */
 			ASSERT3U(zio->io_type, ==, pio->io_type);
-			ASSERT3U(zio->io_priority, ==, pio->io_priority);
 			zio_batch_join(pio->io_child_batch, zio);
 		}
 	}
