@@ -5,6 +5,7 @@
 ######################################################################
 
 set -eu
+shopt -s nullglob
 
 function output() {
   echo -e $* >> "out-$logfile.md"
