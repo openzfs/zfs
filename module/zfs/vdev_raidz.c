@@ -5811,8 +5811,9 @@ vdev_raidz_parity_epochs_set_check_tx(vdev_t *vd, const uint64_t *table,
 /*
  * Store a parity-epoch table on a top-level RAID-Z vdev: write the vdev ZAP
  * entry, activate the feature if this is the first table, replace the
- * in-core table and dirty the config so that the labels and the MOS config
- * carry it.  The ZAP entry and the in-core table change in the same txg.
+ * in-core table, dirty the config so that the labels and the MOS config
+ * carry it, and have the cachefile rewritten.  The ZAP entry and the in-core
+ * table change in the same txg.
  *
  * The table must keep every epoch the vdev has and may only add epochs, each
  * starting at or after vdev_raidz_parity_epochs_first_start(tx): an epoch
@@ -5847,6 +5848,13 @@ vdev_raidz_parity_epochs_set(vdev_t *vd, const uint64_t *table,
 
 	vdev_raidz_parity_epochs_install(vd, table, nent);
 	vdev_config_dirty(vd);
+	/*
+	 * Nothing else rewrites the cachefile after this sync task, as
+	 * spa_vdev_config_exit() does after the other changes of the vdev
+	 * tree; until it is rewritten, an open from it takes the table from
+	 * the labels.
+	 */
+	spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
 
 	return (0);
 }
