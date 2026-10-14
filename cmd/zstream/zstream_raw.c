@@ -462,7 +462,10 @@ zstream_do_raw(int argc, char *argv[])
 			context.volume.freeop = DIOCGDELETE;
 		}
 #elif defined(__linux__)
-		if (ioctl(fd, BLKSSZGET, &context.volume.sectorsize) == 0) {
+		int sectorsize;
+
+		if (ioctl(fd, BLKSSZGET, &sectorsize) == 0) {
+			context.volume.sectorsize = sectorsize;
 			/* TODO: optional BLKSECDISCARD/BLKZEROOUT */
 			context.volume.freeop = BLKDISCARD;
 		}
