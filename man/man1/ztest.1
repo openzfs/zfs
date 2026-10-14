@@ -236,11 +236,15 @@ It cannot be combined with
 or
 .Fl Z .
 .It Fl Z , -raidz-parity-epochs-mix
-Change the parity of the raidz vdevs in the course of the run.
+Change the parity and the logical width of the raidz vdevs in the course of
+the run.
 The pool gets raidz top-level vdevs of at least four disks, and from time to
 time the parity-epoch table of one of them is extended by an epoch of another
-parity, which starts a few transaction groups later.
-Blocks then have the parity of the epoch they are born in, while the other
+layout, which starts a few transaction groups later.
+The new epoch has a random parity and, half of the time, a random logical
+width narrower than the vdev, with at least one data column, so that its
+blocks span several rows of that width.
+Blocks then have the layout of the epoch they are born in, while the other
 operations go on: gang blocks, the ZIL, scrub, resilver, replace, fault
 injection, export and import, and the kill that ends a pass.
 The tables stored are checked after each kill.

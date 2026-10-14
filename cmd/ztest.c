@@ -847,7 +847,7 @@ static ztest_option_t option_table[] = {
 	    "Perform a dedicated raidz parity-epoch allocation test",
 	    NO_DEFAULT, NULL},
 	{ 'Z', "raidz-parity-epochs-mix", NULL,
-	    "Change the parity of raidz vdevs during the run",
+	    "Change the parity and width of raidz vdevs during the run",
 	    NO_DEFAULT, NULL},
 	{ 'W', "raidz-parity-epochs-test", NULL,
 	    "Perform a dedicated raidz parity-epoch test",
@@ -4473,11 +4473,14 @@ out:
  * that is checked in open context first.  A new epoch starts further ahead
  * of the sync task than the open txg can be, so it lies after every block
  * written before the table changed: a table only ever describes the future.
- * It keeps the width of the vdev, takes a parity of 1 to 3 that differs from
- * the last epoch's, and is never added to a vdev that has been expanded.
+ * It takes a parity of 1 to 3 and, half of the time, a logical width
+ * narrower than the vdev, with at least one data column, so that its blocks
+ * span several rows of its own width.  It differs from the last epoch in
+ * width, parity or both, and is never added to a vdev that has been expanded.
  */
 typedef struct ztest_pe_append {
 	uint64_t	pa_vdev;	/* id of the top-level vdev */
+	uint64_t	pa_width;	/* logical width of the new epoch */
 	uint64_t	pa_parity;	/* parity of the new epoch */
 	uint64_t	pa_lead;	/* txgs from sync task to epoch */
 	uint64_t	pa_nent;	/* entries of the stored table */
@@ -4502,12 +4505,13 @@ ztest_pe_get_table(vdev_t *vd, uint64_t *table, uint64_t max)
 }
 
 /*
- * The table of vd with an epoch of the given parity appended, starting at
- * start or just after the last epoch if that is later.  A vdev that has no
- * table yet gets the entry that describes its own geometry first.
+ * The table of vd with an epoch of the given width and parity appended,
+ * starting at start or just after the last epoch if that is later.  A vdev
+ * that has no table yet gets the entry that describes its own geometry first.
  */
 static uint64_t
-ztest_pe_extend(vdev_t *vd, uint64_t parity, uint64_t start, uint64_t *table)
+ztest_pe_extend(vdev_t *vd, uint64_t width, uint64_t parity, uint64_t start,
+    uint64_t *table)
 {
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 	uint64_t n = ztest_pe_get_table(vd, table, ZTEST_PE_MAX_ENTRIES);
@@ -4519,7 +4523,7 @@ ztest_pe_extend(vdev_t *vd, uint64_t parity, uint64_t start, uint64_t *table)
 		n = 1;
 	}
 	table[3 * n] = MAX(start, table[3 * (n - 1)] + 1);
-	table[3 * n + 1] = vdrz->vd_physical_width;
+	table[3 * n + 1] = width;
 	table[3 * n + 2] = parity;
 
 	return (n + 1);
@@ -4552,12 +4556,13 @@ ztest_pe_append_check(void *arg, dmu_tx_t *tx)
 	if (vd == NULL || vd->vdev_ops != &vdev_raidz_ops) {
 		error = SET_ERROR(ENOENT);
 	} else if (lock) {
-		uint64_t n = ztest_pe_extend(vd, pa->pa_parity, 0, table);
+		uint64_t n = ztest_pe_extend(vd, pa->pa_width, pa->pa_parity,
+		    0, table);
 
 		error = vdev_raidz_parity_epochs_set_check(vd, table, n,
 		    NULL);
 	} else {
-		uint64_t n = ztest_pe_extend(vd, pa->pa_parity,
+		uint64_t n = ztest_pe_extend(vd, pa->pa_width, pa->pa_parity,
 		    dmu_tx_get_txg(tx) + pa->pa_lead, table);
 
 		error = vdev_raidz_parity_epochs_set_check_tx(vd, table, n,
@@ -4576,7 +4581,7 @@ ztest_pe_append_sync(void *arg, dmu_tx_t *tx)
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	vdev_t *vd = vdev_lookup_top(spa, pa->pa_vdev);
 
-	pa->pa_nent = ztest_pe_extend(vd, pa->pa_parity,
+	pa->pa_nent = ztest_pe_extend(vd, pa->pa_width, pa->pa_parity,
 	    dmu_tx_get_txg(tx) + pa->pa_lead, pa->pa_table);
 	/* Checked above, so this cannot fail. */
 	VERIFY0(vdev_raidz_parity_epochs_set(vd, pa->pa_table, pa->pa_nent,
@@ -4723,20 +4728,21 @@ ztest_pe_quiesce(spa_t *spa)
 }
 
 /*
- * Store the table of a top-level raidz vdev with an epoch of the given parity
- * appended, which starts lead txgs after the sync task.  On success *startp
- * is the first txg of the new epoch, and the table is remembered so that the
- * next pass can check that the pool gives it back.
+ * Store the table of a top-level raidz vdev with an epoch of the given width
+ * and parity appended, which starts lead txgs after the sync task.  On
+ * success *startp is the first txg of the new epoch, and the table is
+ * remembered so that the next pass can check that the pool gives it back.
  */
 static int
-ztest_pe_store(spa_t *spa, uint64_t vdev_id, uint64_t parity, uint64_t lead,
-    uint64_t *startp)
+ztest_pe_store(spa_t *spa, uint64_t vdev_id, uint64_t width, uint64_t parity,
+    uint64_t lead, uint64_t *startp)
 {
 	ztest_shared_t *zs = ztest_shared;
 	ztest_pe_append_t *pa = kmem_zalloc(sizeof (*pa), KM_SLEEP);
 	int error;
 
 	pa->pa_vdev = vdev_id;
+	pa->pa_width = width;
 	pa->pa_parity = parity;
 	pa->pa_lead = lead;
 	for (int tries = 0; tries < 100; tries++) {
@@ -4783,8 +4789,10 @@ ztest_pe_append(ztest_ds_t *zd, uint64_t id)
 	uint64_t n;
 	uint64_t last;
 	uint64_t cur;
+	uint64_t curw;
 	uint64_t maxp;
 	uint64_t parity;
+	uint64_t phys;
 	uint64_t width;
 	uint64_t vdev_id;
 	uint64_t start;
@@ -4809,12 +4817,13 @@ ztest_pe_append(ztest_ds_t *zd, uint64_t id)
 	}
 	vdev_id = cand[ztest_random(ncand)];
 	vd = rvd->vdev_child[vdev_id];
-	width = ((vdev_raidz_t *)vd->vdev_tsd)->vd_physical_width;
+	phys = ((vdev_raidz_t *)vd->vdev_tsd)->vd_physical_width;
 	n = ztest_pe_get_table(vd, table, ZTEST_PE_MAX_ENTRIES);
 	cur = n != 0 ? table[3 * (n - 1) + 2] :
 	    ((vdev_raidz_t *)vd->vdev_tsd)->vd_nparity;
+	curw = n != 0 ? table[3 * (n - 1) + 1] : phys;
 	last = n != 0 ? table[3 * (n - 1)] : 0;
-	maxp = MIN(VDEV_RAIDZ_MAXPARITY, width - 1);
+	maxp = MIN(VDEV_RAIDZ_MAXPARITY, phys - 1);
 
 	/*
 	 * Let the last epoch run for a few txgs before the next one, so each
@@ -4826,10 +4835,16 @@ ztest_pe_append(ztest_ds_t *zd, uint64_t id)
 		goto out;
 	}
 
-	/* Any parity but the current one, from 1 to maxp. */
-	parity = 1 + ztest_random(maxp - 1);
-	if (parity >= cur)
-		parity++;
+	/*
+	 * A parity from 1 to maxp and, half of the time, a width from one
+	 * column more than the parity to the vdev's: any layout the table
+	 * accepts but the current one.
+	 */
+	do {
+		parity = 1 + ztest_random(maxp);
+		width = ztest_random(2) == 0 ? phys :
+		    parity + 1 + ztest_random(phys - parity);
+	} while (parity == cur && width == curw);
 	lowers = parity < ztest_pe_min_parity_all(spa);
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 
@@ -4841,8 +4856,8 @@ ztest_pe_append(ztest_ds_t *zd, uint64_t id)
 		goto out;
 	}
 
-	error = ztest_pe_store(spa, vdev_id, parity, 4 + ztest_random(12),
-	    &start);
+	error = ztest_pe_store(spa, vdev_id, width, parity,
+	    4 + ztest_random(12), &start);
 	switch (error) {
 	case 0:
 	case EBUSY:	/* the config lock stayed busy, next time */
@@ -4853,9 +4868,9 @@ ztest_pe_append(ztest_ds_t *zd, uint64_t id)
 		ztest_record_enospc(FTAG);
 		break;
 	default:
-		fatal(B_FALSE, "appending parity %llu to the table of vdev "
-		    "%llu returned %d", (u_longlong_t)parity,
-		    (u_longlong_t)vdev_id, error);
+		fatal(B_FALSE, "appending width %llu parity %llu to the table "
+		    "of vdev %llu returned %d", (u_longlong_t)width,
+		    (u_longlong_t)parity, (u_longlong_t)vdev_id, error);
 	}
 out:
 	mutex_exit(&ztest_vdev_lock);
@@ -10838,7 +10853,8 @@ ztest_pe_run(ztest_shared_t *zs, spa_t *spa)
 		uint64_t start;
 
 		if (epoch > 0) {
-			VERIFY0(ztest_pe_store(spa, 0, parity[epoch],
+			VERIFY0(ztest_pe_store(spa, 0,
+			    vdrz->vd_physical_width, parity[epoch],
 			    4 + ztest_random(4), &start));
 			ztest_pe_wait_epoch(spa, start);
 		}
