@@ -10089,7 +10089,12 @@ ztest_raidz_epochs_run(ztest_shared_t *zs, spa_t *spa)
  * the table comes back from disk.  It reads everything again from a cold
  * cache, scrubs, damages as many children of every block as the block's own
  * parity can lose and reads again, which reconstructs each row with the
- * parity it was written with, checks that the vdev claims no more
+ * parity it was written with.  It takes as many children offline as the
+ * lowest parity, reads everything and writes more while they are away, and
+ * requires the resilver that brings them back to leave nothing for a scrub
+ * to repair.  With the children offline again, it damages as many more
+ * children of every block as its own parity can lose on top of them and
+ * reads everything again.  It checks that the vdev claims no more
  * redundancy than its lowest parity, and frees the gang blocks, born in
  * every epoch.  The zdb run that follows the pass fails on leaked space.
  */
@@ -10099,6 +10104,7 @@ ztest_raidz_epochs_run(ztest_shared_t *zs, spa_t *spa)
 #define	ZTEST_PE_GANG		8	/* objects forced to gang per epoch */
 #define	ZTEST_PE_ZIL		20	/* objects written through the ZIL */
 #define	ZTEST_PE_LOG		12	/* objects only the log holds */
+#define	ZTEST_PE_DEG		72	/* objects written while degraded */
 #define	ZTEST_PE_BIGSZ		(256 * 1024)
 #define	ZTEST_PE_LWBSZ		(128 * 1024)	/* the ZIL's largest block */
 #define	ZTEST_PE_DYN_MIN	(12 * 1024)	/* the ZIL's smallest ask */
@@ -10109,11 +10115,12 @@ enum ztest_pe_kind {
 	ZTEST_PE_K_PLAIN,
 	ZTEST_PE_K_GANG,
 	ZTEST_PE_K_ZIL,
-	ZTEST_PE_K_LOG
+	ZTEST_PE_K_LOG,
+	ZTEST_PE_K_DEG
 };
 
 static const char *const ztest_pe_tag[] = {
-	"pe_plain", "pe_gang", "pe_zil", "pe_log"
+	"pe_plain", "pe_gang", "pe_zil", "pe_log", "pe_deg"
 };
 
 static uint64_t ztest_pe_failed;
@@ -10183,6 +10190,8 @@ ztest_pe_size(int kind, uint64_t idx)
 	static const uint64_t plain[] =
 	    { 512, 1024, 2048, 4096, 8192, 16384, 32768 };
 	static const uint64_t zil[] = { 4096, 8192, 16384, 32768, 65536 };
+	static const uint64_t deg[] =
+	    { 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 512 };
 
 	switch (kind) {
 	case ZTEST_PE_K_PLAIN:
@@ -10192,6 +10201,8 @@ ztest_pe_size(int kind, uint64_t idx)
 	case ZTEST_PE_K_LOG:
 		/* The big ones are written indirectly, and gang. */
 		return (idx % 2 == 0 ? ZTEST_PE_BIGSZ : zil[idx % 3]);
+	case ZTEST_PE_K_DEG:
+		return (deg[idx % (sizeof (deg) / sizeof (deg[0]))]);
 	default:
 		return (ZTEST_PE_BIGSZ);
 	}
@@ -10283,6 +10294,7 @@ typedef struct ztest_pe_ctx {
 	uint64_t	ps_nent;
 	uint64_t	ps_ngang[ZTEST_PE_EPOCHS];
 	boolean_t	ps_has_log;	/* the log's objects are to be there */
+	boolean_t	ps_has_deg;	/* so are those written degraded */
 	boolean_t	ps_gang_freed;	/* the gang blocks are gone */
 } ztest_pe_ctx_t;
 
@@ -10388,6 +10400,10 @@ ztest_pe_check_all(ztest_pe_ctx_t *ps, uint64_t current, boolean_t synced)
 		for (uint64_t i = 0; ps->ps_has_log &&
 		    e == ZTEST_PE_EPOCHS - 1 && i < ZTEST_PE_LOG; i++)
 			ztest_pe_check_object(ps, ZTEST_PE_K_LOG, e, i,
+			    synced);
+		for (uint64_t i = 0; ps->ps_has_deg &&
+		    e == ZTEST_PE_EPOCHS - 1 && i < ZTEST_PE_DEG; i++)
+			ztest_pe_check_object(ps, ZTEST_PE_K_DEG, e, i,
 			    synced);
 	}
 }
@@ -10680,15 +10696,16 @@ ztest_pe_invert(vdev_t *cvd, uint64_t offset, uint64_t size)
 }
 
 /*
- * Damage a block on as many children as its own parity can lose: every
- * column the block has on them, in every row.  The children are those of
- * the first row, its data columns first.  A block laid out narrower than
- * the vdev has rows of its own width over consecutive children, so a child
- * holds a column of several rows, and each row loses at most as many
- * columns as its parity.  Return the number of columns damaged.
+ * Damage a block on as many children as its own parity can lose, less the
+ * children in the mask of those that are missing: every column the block
+ * has on them, in every row.  The children are those of the first row, its
+ * data columns first.  A block laid out narrower than the vdev has rows of
+ * its own width over consecutive children, so a child holds a column of
+ * several rows, and each row loses at most as many columns as its parity.
+ * Return the number of columns damaged.
  */
 static int
-ztest_pe_damage_block(ztest_pe_ctx_t *ps, const blkptr_t *bp)
+ztest_pe_damage_block(ztest_pe_ctx_t *ps, const blkptr_t *bp, uint64_t missing)
 {
 	vdev_t *vd = ps->ps_vd;
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
@@ -10696,6 +10713,7 @@ ztest_pe_damage_block(ztest_pe_ctx_t *ps, const blkptr_t *bp)
 	uint64_t ashift = vd->vdev_ashift;
 	uint64_t width;
 	uint64_t parity;
+	uint64_t want;
 	uint64_t chosen = 0;
 	uint64_t nchosen = 0;
 	zio_t zio;
@@ -10706,6 +10724,9 @@ ztest_pe_damage_block(ztest_pe_ctx_t *ps, const blkptr_t *bp)
 	VERIFY3U(vd->vdev_children, <=, 64);
 	ztest_pe_layout_of(ps->ps_table, ps->ps_nent, vd, birth, &width,
 	    &parity);
+	want = parity - MIN(parity, (uint64_t)__builtin_popcountll(missing));
+	if (want == 0)
+		return (0);
 
 	memset(&zio, 0, sizeof (zio));
 	zio.io_offset = DVA_GET_OFFSET(&bp->blk_dva[0]);
@@ -10727,12 +10748,12 @@ ztest_pe_damage_block(ztest_pe_ctx_t *ps, const blkptr_t *bp)
 
 	/* Data columns, then parity columns, as far as the parity goes. */
 	rr = rm->rm_row[0];
-	for (int i = 0; i < rr->rr_cols && nchosen < parity; i++) {
+	for (int i = 0; i < rr->rr_cols && nchosen < want; i++) {
 		raidz_col_t *rc =
 		    &rr->rr_col[(rr->rr_firstdatacol + i) % rr->rr_cols];
 		uint64_t bit = 1ULL << rc->rc_devidx;
 
-		if (rc->rc_size == 0 || (chosen & bit) != 0)
+		if (rc->rc_size == 0 || ((missing | chosen) & bit) != 0)
 			continue;
 		chosen |= bit;
 		nchosen++;
@@ -10758,12 +10779,31 @@ ztest_pe_damage_block(ztest_pe_ctx_t *ps, const blkptr_t *bp)
 	return (ndamaged);
 }
 
+/* The number of objects of a kind written in an epoch. */
+static uint64_t
+ztest_pe_count(int kind)
+{
+	switch (kind) {
+	case ZTEST_PE_K_PLAIN:
+		return (ZTEST_PE_PLAIN);
+	case ZTEST_PE_K_GANG:
+		return (ZTEST_PE_GANG);
+	case ZTEST_PE_K_ZIL:
+		return (ZTEST_PE_ZIL);
+	case ZTEST_PE_K_LOG:
+		return (ZTEST_PE_LOG);
+	default:
+		return (ZTEST_PE_DEG);
+	}
+}
+
 /*
  * Damage the block of every object that is on disk, as far as its own
- * parity allows, read all of them back and compare.
+ * parity allows on top of the missing children, and return the number of
+ * blocks.
  */
-static void
-ztest_pe_reconstruct_check(ztest_pe_ctx_t *ps, uint64_t current)
+static uint64_t
+ztest_pe_damage_all(ztest_pe_ctx_t *ps, uint64_t current, uint64_t missing)
 {
 	ztest_ds_t *zd = ps->ps_zd;
 	objset_t *os = zd->zd_os;
@@ -10771,16 +10811,15 @@ ztest_pe_reconstruct_check(ztest_pe_ctx_t *ps, uint64_t current)
 	uint64_t nblocks = 0;
 
 	/* The big blocks that gang are read through their header, not hit. */
-	for (int kind = ZTEST_PE_K_PLAIN; kind <= ZTEST_PE_K_LOG; kind++) {
-		uint64_t count = kind == ZTEST_PE_K_PLAIN ? ZTEST_PE_PLAIN :
-		    kind == ZTEST_PE_K_ZIL ? ZTEST_PE_ZIL : ZTEST_PE_LOG;
-
-		if (kind == ZTEST_PE_K_GANG)
+	for (int kind = ZTEST_PE_K_PLAIN; kind <= ZTEST_PE_K_DEG; kind++) {
+		if (kind == ZTEST_PE_K_GANG ||
+		    (kind == ZTEST_PE_K_DEG && !ps->ps_has_deg))
 			continue;
 		for (uint64_t e = 0; e < ZTEST_PE_EPOCHS; e++) {
-			if (kind == ZTEST_PE_K_LOG && e != current)
+			if ((kind == ZTEST_PE_K_LOG ||
+			    kind == ZTEST_PE_K_DEG) && e != current)
 				continue;
-			for (uint64_t i = 0; i < count; i++) {
+			for (uint64_t i = 0; i < ztest_pe_count(kind); i++) {
 				ztest_od_t od;
 				dmu_buf_t *db;
 				const blkptr_t *bp;
@@ -10802,7 +10841,7 @@ ztest_pe_reconstruct_check(ztest_pe_ctx_t *ps, uint64_t current)
 				    !BP_IS_EMBEDDED(bp) && !BP_IS_GANG(bp) &&
 				    BP_GET_NDVAS(bp) == 1) {
 					ndamaged += ztest_pe_damage_block(ps,
-					    bp);
+					    bp, missing);
 					nblocks++;
 				}
 				dmu_buf_rele(db, FTAG);
@@ -10810,13 +10849,117 @@ ztest_pe_reconstruct_check(ztest_pe_ctx_t *ps, uint64_t current)
 		}
 	}
 
-	ztest_pe_expect(nblocks != 0, "no block to damage");
 	if (ztest_opts.zo_verbose >= 1)
 		(void) printf("parity epochs: damaged %llu columns of %llu "
 		    "blocks\n", (u_longlong_t)ndamaged, (u_longlong_t)nblocks);
 
+	return (nblocks);
+}
+
+/*
+ * Damage the block of every object that is on disk, as far as its own
+ * parity allows, read all of them back and compare.
+ */
+static void
+ztest_pe_reconstruct_check(ztest_pe_ctx_t *ps, uint64_t current)
+{
+	ztest_pe_expect(ztest_pe_damage_all(ps, current, 0) != 0,
+	    "no block to damage");
+
 	/* Everything has to read back as written, from the repaired disks. */
 	ztest_pe_check_all(ps, current, B_TRUE);
+}
+
+/*
+ * Take count children of the vdev offline, at random, and return them as a
+ * mask of child ids.
+ */
+static uint64_t
+ztest_pe_offline(ztest_pe_ctx_t *ps, uint64_t count)
+{
+	spa_t *spa = ps->ps_spa;
+	vdev_t *vd = ps->ps_vd;
+	uint64_t guids[VDEV_RAIDZ_MAXPARITY];
+	uint64_t missing = 0;
+	uint64_t n = 0;
+
+	VERIFY3U(count, <=, VDEV_RAIDZ_MAXPARITY);
+	VERIFY3U(count, <, vd->vdev_children);
+	VERIFY3U(vd->vdev_children, <=, 64);
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+	while (n < count) {
+		uint64_t c = ztest_random(vd->vdev_children);
+
+		if ((missing & (1ULL << c)) != 0)
+			continue;
+		missing |= 1ULL << c;
+		guids[n++] = vd->vdev_child[c]->vdev_guid;
+	}
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+
+	for (uint64_t i = 0; i < n; i++) {
+		int error = vdev_offline(spa, guids[i], ZFS_OFFLINE_TEMPORARY);
+
+		ztest_pe_expect(error == 0, "offlining child %llu of %llu of a "
+		    "raidz vdev returned %d", (u_longlong_t)i + 1,
+		    (u_longlong_t)n, error);
+	}
+	if (ztest_opts.zo_verbose >= 1)
+		(void) printf("parity epochs: children 0x%llx offline\n",
+		    (u_longlong_t)missing);
+
+	return (missing);
+}
+
+/*
+ * With as many children offline as the lowest parity of the vdev, read
+ * everything back and write more, then bring the children back.  The blocks
+ * written meanwhile lack their columns on those children, and the resilver
+ * has to find every such block, whatever the layout of its epoch: the scrub
+ * that follows may not find anything to repair.
+ */
+static void
+ztest_pe_degraded_check(ztest_pe_ctx_t *ps, uint64_t current)
+{
+	spa_t *spa = ps->ps_spa;
+
+	(void) ztest_pe_offline(ps, ztest_pe_min_parity(ps->ps_vd));
+	ztest_pe_report("the offlining");
+	ztest_pe_check_all(ps, current, B_TRUE);
+	ztest_pe_report("the degraded reads");
+
+	for (uint64_t i = 0; i < ZTEST_PE_DEG; i++)
+		ztest_pe_put(ps->ps_zd, ZTEST_PE_K_DEG, current, i, ps->ps_buf);
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	ps->ps_has_deg = B_TRUE;
+	ztest_pe_check_all(ps, current, B_TRUE);
+	ztest_pe_report("the degraded writes");
+
+	ztest_pe_expect(ztest_pe_quiesce(spa), "the children are not back");
+	ztest_pe_scrub(ps, "after the resilver", B_FALSE);
+}
+
+/*
+ * With as many children offline as the lowest parity of the vdev, damage
+ * every block on as many other children as its own parity can lose on top
+ * of them, read everything back, and bring the children back.  The reads
+ * rebuild each row from what is missing and what is wrong together.
+ */
+static void
+ztest_pe_degraded_damage_check(ztest_pe_ctx_t *ps, uint64_t current)
+{
+	spa_t *spa = ps->ps_spa;
+	uint64_t missing;
+
+	missing = ztest_pe_offline(ps, ztest_pe_min_parity(ps->ps_vd));
+	ztest_pe_report("the offlining");
+	(void) ztest_pe_damage_all(ps, current, missing);
+	ztest_pe_check_all(ps, current, B_TRUE);
+	ztest_pe_report("the degraded reconstruction");
+
+	ztest_pe_expect(ztest_pe_quiesce(spa), "the children are not back");
+	ztest_pe_scrub(ps, "after the degraded damage", B_TRUE);
+	ztest_pe_scrub(ps, "after its repair", B_FALSE);
 }
 
 /*
@@ -10902,8 +11045,8 @@ ztest_pe_run(ztest_shared_t *zs, spa_t *spa)
 	 * Then two epochs narrower than the vdev, of parities that differ from
 	 * the epoch before; the vdev has four children or more, so there are
 	 * two such parities.  The last one has a single data column, so that
-	 * a block spans as many rows as it has sectors, and the log of the
-	 * kill is written in it.
+	 * a block spans as many rows as it has sectors: the log and the writes
+	 * made while children are missing are born in it.
 	 */
 	VERIFY3U(phys, >=, 4);
 	maxp = MIN(VDEV_RAIDZ_MAXPARITY, phys - 2);
@@ -11017,6 +11160,12 @@ ztest_pe_check(ztest_shared_t *zs, spa_t *spa)
 	ztest_pe_report("the reconstruction");
 	ztest_pe_scrub(ps, "after the damage", B_TRUE);
 	ztest_pe_scrub(ps, "after the repair", B_FALSE);
+
+	/* Children missing, and children missing with others damaged. */
+	ztest_pe_degraded_check(ps, current);
+	ztest_pe_report("the resilver");
+	ztest_pe_degraded_damage_check(ps, current);
+	ztest_pe_report("the degraded damage");
 
 	ztest_pe_attach_refused(spa, rzvd);
 	ztest_pe_tolerance_check(ps);
