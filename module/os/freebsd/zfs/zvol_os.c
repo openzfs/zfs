@@ -887,7 +887,7 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 			break;
 		}
 		error = dmu_write_uio_dnode(zv->zv_dn, &uio, bytes, tx,
-		    DMU_READ_PREFETCH);
+		    DMU_READ_PREFETCH, B_FALSE);
 		if (error == 0)
 			zvol_log_write(zv, tx, off, bytes, commit);
 		dmu_tx_commit(tx);
