@@ -567,6 +567,20 @@ AC_DEFUN([ZFS_AC_DPKG], [
 		AC_MSG_RESULT([$HAVE_DPKGBUILD])
 	])
 
+	AC_MSG_CHECKING([whether to use $DPKGBUILD configure caching])
+	AS_IF([test "x$cache_file" != x/dev/null], [
+		# Cannot use the main cache file because it can have
+		# different build/host/target (and usually does). So
+		# treat the presence of a cache file as an indicator
+		# that caching should be enabled and use a new cache
+		# file.
+		DEB_CONFCACHE="${ac_pwd}/config.deb.cache"
+		AC_SUBST([DEB_CONFCACHE])
+		AC_MSG_RESULT([yes (${DEB_CONFCACHE})])
+	],[
+		AC_MSG_RESULT([no])
+	])
+
 	AC_SUBST(HAVE_DPKG)
 	AC_SUBST(DPKG)
 	AC_SUBST(DPKG_VERSION)
