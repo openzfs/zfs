@@ -43,7 +43,7 @@ function cleanup
 {
 	if poolexists $TESTPOOL ; then
 		if [[ $(get_pool_prop readonly $TESTPOOL) == "on" ]]; then
-			log_must zpool export $TESTPOOL
+			log_must_busy zpool export $TESTPOOL
 			log_must zpool import $TESTPOOL -d $VDEV
 		fi
 		destroy_pool $TESTPOOL
@@ -85,7 +85,7 @@ log_must test $(kstat arcstats.l2_misses) -eq $starting_miss_count
 log_must test $(kstat arcstats.l2_ndev) -gt 0
 
 # I/O to pool with l2arc - expect that l2_misses rises
-log_must zpool export $TESTPOOL
+log_must_busy zpool export $TESTPOOL
 log_must zpool import $TESTPOOL -d $VDEV
 export DIRECTORY=/$TESTPOOL
 log_must fio $FIO_SCRIPTS/mkfiles.fio
