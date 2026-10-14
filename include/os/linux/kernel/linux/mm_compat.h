@@ -55,4 +55,12 @@
 #define	ClearPagePrivate(p)	do {} while (0)
 #endif
 
+/*
+ * 7.4 removes the PageWriteback flag test macro. We can use the equivalent
+ * folio macro instead.
+ */
+#ifndef HAVE_MM_PAGE_WRITEBACK
+#define	PageWriteback(p)	folio_test_writeback(page_folio(p))
+#endif
+
 #endif /* _ZFS_MM_COMPAT_H */
