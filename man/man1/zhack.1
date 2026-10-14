@@ -257,6 +257,11 @@ may be larger than the vdev's or leave no column for data, and the starts
 must increase.
 A table can only grow: it must begin with every triplet the vdev already has,
 unchanged, and may add new ones after them.
+An added triplet may not have a lower
+.Ar parity
+than the number of children of the vdev that cannot be read or written when
+the table is stored: its blocks could not be written, and the vdev could not
+be opened, while those children are missing.
 A table that does not fit the vdev, or a vdev that has been expanded, is
 refused, with the rule it breaks in the message, and nothing is changed.
 The pool must be exported.
