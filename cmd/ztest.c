@@ -10089,14 +10089,15 @@ ztest_raidz_epochs_run(ztest_shared_t *zs, spa_t *spa)
  * the table comes back from disk.  It reads everything again from a cold
  * cache, scrubs, damages as many children of every block as the block's own
  * parity can lose and reads again, which reconstructs each row with the
- * parity it was written with.  It takes as many children offline as the
- * lowest parity, reads everything and writes more while they are away, and
- * requires the resilver that brings them back to leave nothing for a scrub
- * to repair.  With the children offline again, it damages as many more
- * children of every block as its own parity can lose on top of them and
- * reads everything again.  It checks that the vdev claims no more
- * redundancy than its lowest parity, and frees the gang blocks, born in
- * every epoch.  The zdb run that follows the pass fails on leaked space.
+ * parity it was written with.  It replaces a child with an empty file, and
+ * takes as many children offline as the lowest parity, reads everything
+ * and writes more while they are away: the resilver that follows either
+ * has to leave nothing for a scrub to repair.  With the children offline
+ * again, it damages as many more children of every block as its own parity
+ * can lose on top of them and reads everything again.  It checks that the
+ * vdev claims no more redundancy than its lowest parity, and frees the gang
+ * blocks, born in every epoch.  The zdb run that follows the pass fails on
+ * leaked space.
  */
 #define	ZTEST_PE_EPOCHS		6	/* base, two others, two narrower */
 #define	ZTEST_PE_FULL		4	/* the epochs as wide as the vdev */
@@ -10912,6 +10913,62 @@ ztest_pe_offline(ztest_pe_ctx_t *ps, uint64_t count)
 }
 
 /*
+ * Replace a child of the vdev with a new file and wait for the replacement
+ * to finish.  The new child starts empty, so the resilver has to rebuild
+ * the columns of every block it holds, in every epoch: the scrub that
+ * follows may not find anything to repair.
+ */
+static void
+ztest_pe_replace_check(ztest_pe_ctx_t *ps)
+{
+	spa_t *spa = ps->ps_spa;
+	vdev_t *vd = ps->ps_vd;
+	char *newpath = kmem_alloc(MAXPATHLEN, KM_SLEEP);
+	vdev_t *oldvd;
+	uint64_t oldguid;
+	uint64_t size;
+	nvlist_t *root;
+	boolean_t gone = B_FALSE;
+	int error;
+
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+	oldvd = vd->vdev_child[ztest_random(vd->vdev_children)];
+	oldguid = oldvd->vdev_guid;
+	size = vdev_get_min_asize(oldvd);
+	(void) strlcpy(newpath, oldvd->vdev_path, MAXPATHLEN);
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+	newpath[strlen(newpath) - 1] =
+	    newpath[strlen(newpath) - 1] == 'a' ? 'b' : 'a';
+
+	root = make_vdev_root(newpath, NULL, NULL, size + size / 10,
+	    ztest_get_ashift(), NULL, 0, 0, 1);
+	error = spa_vdev_attach(spa, oldguid, root, B_TRUE, B_FALSE);
+	nvlist_free(root);
+	ztest_pe_expect(error == 0, "replacing a child of a raidz vdev with "
+	    "%s returned %d", newpath, error);
+
+	/* The old child goes once the resilver is done. */
+	for (int i = 0; error == 0 && !gone && i < 2400; i++) {
+		txg_wait_synced(spa_get_dsl(spa), 0);
+		spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+		gone = vdev_lookup_by_guid(spa->spa_root_vdev, oldguid) ==
+		    NULL;
+		spa_config_exit(spa, SCL_VDEV, FTAG);
+		if (!gone)
+			(void) poll(NULL, 0, 50);
+	}
+	ztest_pe_expect(error != 0 || gone, "the replacement by %s did not "
+	    "finish", newpath);
+	if (ztest_opts.zo_verbose >= 1)
+		(void) printf("parity epochs: replaced a child by %s\n",
+		    newpath);
+	kmem_free(newpath, MAXPATHLEN);
+
+	ztest_pe_report("the replacement");
+	ztest_pe_scrub(ps, "after the replacement", B_FALSE);
+}
+
+/*
  * With as many children offline as the lowest parity of the vdev, read
  * everything back and write more, then bring the children back.  The blocks
  * written meanwhile lack their columns on those children, and the resilver
@@ -11161,7 +11218,9 @@ ztest_pe_check(ztest_shared_t *zs, spa_t *spa)
 	ztest_pe_scrub(ps, "after the damage", B_TRUE);
 	ztest_pe_scrub(ps, "after the repair", B_FALSE);
 
-	/* Children missing, and children missing with others damaged. */
+	/* A new child, children missing, and missing with others damaged. */
+	ztest_pe_replace_check(ps);
+	ztest_pe_report("the replacement scrub");
 	ztest_pe_degraded_check(ps, current);
 	ztest_pe_report("the resilver");
 	ztest_pe_degraded_damage_check(ps, current);
