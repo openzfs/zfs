@@ -65,6 +65,11 @@
  */
 #ifdef HAVE_IDMAP_MNTIDMAP
 typedef struct mnt_idmap	zidmap_t;
+#ifdef HAVE_IDMAP_MNTIDMAP_CONST
+#define	MNTIDMAP_CONST	const
+#else
+#define	MNTIDMAP_CONST
+#endif
 #else
 typedef struct user_namespace	zidmap_t;
 #endif
@@ -126,7 +131,8 @@ extern zidmap_t *zfs_init_idmap;
 /* Define the appropriate wrapper by the configure checks. */
 #if defined(HAVE_IDMAP_MNTIDMAP)
 #define	_ZPL_IDMAP_IOP_WRAPPER(rty, fn, n, ...)				\
-static rty fn(struct mnt_idmap *idmap, __ZPL_ARGS_##n(__VA_ARGS__))	\
+static rty fn(MNTIDMAP_CONST struct mnt_idmap *idmap,			\
+    __ZPL_ARGS_##n(__VA_ARGS__))	\
 {									\
 	return (__##fn(idmap, __ZPL_ARGNAMES_##n(__VA_ARGS__)));	\
 }

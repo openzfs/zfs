@@ -1,6 +1,20 @@
 dnl # SPDX-License-Identifier: CDDL-1.0
 AC_DEFUN([ZFS_AC_KERNEL_SRC_IDMAP], [
 	dnl #
+	dnl # 7.4 API change
+	dnl # The first arg is changed to const struct mnt_idmap *
+	dnl #
+	ZFS_LINUX_TEST_SRC([generic_permission_idmap_mntidmap_const], [
+		#include <linux/fs.h>
+	], [
+		const struct mnt_idmap *idmap = NULL;
+		struct inode *inode = NULL;
+		int mask = 0;
+		int ret = generic_permission(idmap, inode, mask);
+		(void) ret;
+	])
+
+	dnl #
 	dnl # 6.3 API change
 	dnl # The first arg is changed to struct mnt_idmap *
 	dnl #
@@ -47,6 +61,11 @@ AC_DEFUN([ZFS_AC_KERNEL_IDMAP], [
 		AC_MSG_RESULT([mnt_idmap])
 		AC_DEFINE(HAVE_IDMAP_MNTIDMAP, 1,
 		    [id mapping mechanism is mnt_idmap])
+		ZFS_LINUX_TEST_RESULT([generic_permission_idmap_mntidmap_const], [
+			AC_MSG_RESULT([const mnt_idmap])
+			AC_DEFINE(HAVE_IDMAP_MNTIDMAP_CONST, 1,
+			    [id mapping mechanism is const mnt_idmap])
+		])
 	],[
 		ZFS_LINUX_TEST_RESULT([generic_permission_idmap_userns], [
 			AC_MSG_RESULT([user_namespace])
