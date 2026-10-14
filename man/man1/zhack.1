@@ -297,11 +297,15 @@ Every
 must then be a number.
 .Pp
 This is for tests, and it can make a pool impossible to import.
-A pool whose table is damaged cannot be repaired in place: the
+A pool whose table is damaged cannot be repaired in place.
+The
 .Sy raidz_ignore_parity_epochs
 module parameter
 .Pq see Xr zfs 4
-lets it be imported read-only, to copy its data off.
+lets it be imported read-only, to copy off the data written in the vdev's own
+width and parity, but only while no epoch of another width or parity has
+started: the blocks of such an epoch cannot be read that way, and the metadata
+of the pool is among them once it has started.
 .
 .El
 .

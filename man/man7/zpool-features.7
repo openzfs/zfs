@@ -990,8 +990,10 @@ The
 .Sy raidz_ignore_parity_epochs
 module parameter makes every RAID-Z vdev of a pool imported while it is set
 ignore its table, so that the blocks written under the vdev's own layout can be
-read from a pool whose table is damaged; blocks of an epoch with another parity
-cannot.
+read from a pool whose table is damaged; blocks of an epoch with another width
+or parity cannot.
+Since the metadata of the pool is rewritten in every transaction group, it can
+only be relied on to import a pool while no such epoch has started.
 Such a pool can only be imported read-only.
 See
 .Xr zfs 4 .
