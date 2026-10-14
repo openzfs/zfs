@@ -24,6 +24,7 @@
 #	3. Test default rewrite behavior (updates logical birth time).
 #	4. Test -P flag behavior (preserves logical birth time).
 #	5. Verify incremental send behavior difference.
+#	6. Rewrite a deduplicated file and its copy with -P, twice.
 
 . $STF_SUITE/include/libtest.shlib
 
@@ -33,6 +34,8 @@ typeset send_physical=$(mktemp)
 
 function cleanup
 {
+	datasetexists $TESTPOOL/$TESTFS/dedup && \
+	    destroy_dataset $TESTPOOL/$TESTFS/dedup
 	rm -rf $tmp $send_default $send_physical $TESTDIR/*
 	zfs destroy -R $TESTPOOL/$TESTFS@snap1 2>/dev/null || true
 	zfs destroy -R $TESTPOOL/$TESTFS@snap2 2>/dev/null || true
@@ -86,5 +89,21 @@ else
 	log_fail "FAIL: -P flag should produce smaller incremental send" \
 	    "($physical_size >= $default_size)"
 fi
+
+# zio_ddt_write() turns the rewrite of a block that the DDT holds
+# unchanged into a NOP.
+log_must zfs create -o dedup=on -o recordsize=128k $TESTPOOL/$TESTFS/dedup
+typeset ddir=$(get_prop mountpoint $TESTPOOL/$TESTFS/dedup)
+log_must dd if=/dev/urandom of=$ddir/file1 bs=128k count=4
+log_must dd if=$ddir/file1 of=$ddir/file2 bs=128k
+log_must sync_pool $TESTPOOL
+typeset dedup_hash=$(xxh128digest $ddir/file1)
+for pass in 1 2; do
+	log_note "Physical rewrite of the deduplicated files, pass $pass"
+	log_must zfs rewrite -P -r $ddir
+	log_must sync_pool $TESTPOOL
+done
+log_must [ "$(xxh128digest $ddir/file1)" = "$dedup_hash" ]
+log_must [ "$(xxh128digest $ddir/file2)" = "$dedup_hash" ]
 
 log_pass
