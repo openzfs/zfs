@@ -1675,7 +1675,7 @@ zhack_raidz_epochs_verdict(spa_t *spa, zhack_repochs_t *ra, dmu_tx_t *tx)
 		}
 		if (error == EINVAL)
 			ra->re_why = "the table is not valid for this vdev";
-		else if (error == ENOTSUP)
+		else if (error == ENOTSUP || error == ENXIO)
 			ra->re_why = ra->re_rule;
 		else if (error == ERANGE)
 			ra->re_why = "an added epoch starts too early";

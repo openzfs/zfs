@@ -4863,6 +4863,7 @@ ztest_pe_append(ztest_ds_t *zd, uint64_t id)
 	case EBUSY:	/* the config lock stayed busy, next time */
 	case ENOENT:	/* the vdev is gone */
 	case ENOTSUP:	/* the feature is off, or the vdev was expanded */
+	case ENXIO:	/* more children are missing than the parity */
 		break;
 	case ENOSPC:
 		ztest_record_enospc(FTAG);

@@ -5687,13 +5687,34 @@ vdev_raidz_parity_epochs_first_start(dmu_tx_t *tx)
 }
 
 /*
+ * The children of a raidz vdev that vdev_propagate_state() counts as
+ * faulted: those that cannot be read, or written while the pool is.
+ */
+static uint64_t
+vdev_raidz_unavailable_children(vdev_t *vd)
+{
+	spa_t *spa = vd->vdev_spa;
+	uint64_t n = 0;
+
+	for (uint64_t c = 0; c < vd->vdev_children; c++) {
+		vdev_t *cvd = vd->vdev_child[c];
+
+		if (!vdev_readable(cvd) ||
+		    (!vdev_writeable(cvd) && spa_writeable(spa)))
+			n++;
+	}
+	return (n);
+}
+
+/*
  * What vdev_raidz_parity_epochs_set_check() and _set_check_tx() decide.  A
  * first of 0 leaves out the rule on the start of added epochs, which needs
- * the txg of the sync task.
+ * the txg of the sync task.  Without health, the rule on the children that
+ * are unavailable is left out.
  */
 static int
 vdev_raidz_parity_epochs_verdict(vdev_t *vd, const uint64_t *table,
-    uint64_t nent, uint64_t first, const char **why)
+    uint64_t nent, uint64_t first, boolean_t health, const char **why)
 {
 	vdev_raidz_t *vdrz;
 	uint64_t base[3];
@@ -5765,6 +5786,28 @@ vdev_raidz_parity_epochs_verdict(vdev_t *vd, const uint64_t *table,
 		return (SET_ERROR(ERANGE));
 	}
 
+	/*
+	 * The blocks of an added epoch are written to the children the vdev
+	 * has now, and the vdev opens only while no more of its children are
+	 * missing than the lowest parity of its table: an epoch of a lower
+	 * parity than the children it cannot use leaves those blocks
+	 * unwritable and the vdev unable to open.
+	 */
+	if (health) {
+		uint64_t out = vdev_raidz_unavailable_children(vd);
+
+		for (uint64_t i = ncur; i < nent; i++) {
+			if (table[3 * i + 2] < out) {
+				if (why != NULL) {
+					*why = "an added epoch has less parity "
+					    "than the vdev has children it "
+					    "cannot read or write";
+				}
+				return (SET_ERROR(ENXIO));
+			}
+		}
+	}
+
 	return (0);
 }
 
@@ -5784,13 +5827,16 @@ vdev_raidz_parity_epochs_verdict(vdev_t *vd, const uint64_t *table,
  *	   one that changes or drops an epoch the vdev has.
  * ENOTSUP: the feature is not enabled, or the vdev has expansion state or
  *	   history, which cannot coexist with a table.
+ * ENXIO:  an added epoch has a lower parity than the number of children of
+ *	   the vdev that cannot be read or written now.
  * On an error, *why, if why is not NULL, says which rule was broken.
  */
 int
 vdev_raidz_parity_epochs_set_check(vdev_t *vd, const uint64_t *table,
     uint64_t nent, const char **why)
 {
-	return (vdev_raidz_parity_epochs_verdict(vd, table, nent, 0, why));
+	return (vdev_raidz_parity_epochs_verdict(vd, table, nent, 0, B_TRUE,
+	    why));
 }
 
 /*
@@ -5805,7 +5851,7 @@ vdev_raidz_parity_epochs_set_check_tx(vdev_t *vd, const uint64_t *table,
     uint64_t nent, dmu_tx_t *tx, const char **why)
 {
 	return (vdev_raidz_parity_epochs_verdict(vd, table, nent,
-	    vdev_raidz_parity_epochs_first_start(tx), why));
+	    vdev_raidz_parity_epochs_first_start(tx), B_TRUE, why));
 }
 
 /*
@@ -5824,6 +5870,8 @@ vdev_raidz_parity_epochs_set_check_tx(vdev_t *vd, const uint64_t *table,
  * config lock held as reader (spa_sync() holds it).  Returns the error of
  * vdev_raidz_parity_epochs_set_check_tx() with nothing changed: a caller
  * whose check function got 0 from it for the same table cannot see it fail.
+ * The rule on unavailable children is left to that check function, so that
+ * a child that fails between the two cannot make this one fail.
  */
 int
 vdev_raidz_parity_epochs_set(vdev_t *vd, const uint64_t *table,
@@ -5835,8 +5883,8 @@ vdev_raidz_parity_epochs_set(vdev_t *vd, const uint64_t *table,
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT(spa_config_held(spa, SCL_CONFIG, RW_READER));
 
-	error = vdev_raidz_parity_epochs_set_check_tx(vd, table, nent, tx,
-	    NULL);
+	error = vdev_raidz_parity_epochs_verdict(vd, table, nent,
+	    vdev_raidz_parity_epochs_first_start(tx), B_FALSE, NULL);
 	if (error != 0)
 		return (error);
 
