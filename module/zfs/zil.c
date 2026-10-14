@@ -1505,6 +1505,17 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_WRITE_DONE);
 	lwb->lwb_state = LWB_STATE_FLUSH_DONE;
 
+	/*
+	 * If this lwb failed, the lwbs after it can't be reached by replay
+	 * until zil_sync() moves the head of the log past it; see
+	 * zil_lwb_set_zio_dependency().
+	 */
+	int error = zio->io_error;
+	if (error == 0 && (lwb->lwb_flags & LWB_FLAG_ERROR))
+		error = SET_ERROR(EIO);
+	if (error != 0)
+		lwb->lwb_flags |= LWB_FLAG_ERROR;
+
 	if (zilog->zl_last_lwb_opened == lwb) {
 		/*
 		 * Remember the highest committed log sequence number
@@ -1533,7 +1544,7 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 		 * errors not being handled correctly here. See the
 		 * comment above the call to "zio_flush" for details.
 		 */
-		zil_commit_waiter_done(zcw, zio->io_error);
+		zil_commit_waiter_done(zcw, error);
 	}
 
 	uint64_t txg = lwb->lwb_issued_txg;
@@ -1707,15 +1718,26 @@ zil_lwb_write_done(zio_t *zio)
  * so this zio dependency graph ensures the waiters are woken in the correct
  * order (the same order the lwbs were created).
  */
-static void
+static boolean_t
 zil_lwb_set_zio_dependency(zilog_t *zilog, lwb_t *lwb)
 {
 	ASSERT(MUTEX_HELD(&zilog->zl_lock));
 
+	/*
+	 * If the previous lwb has already failed, this lwb can't be reached
+	 * by replay: the block that should point to it was not written.  The
+	 * same holds if zil_sync() has just moved the head of the log past a
+	 * failed lwb to this one, until that txg is synced.  The caller must
+	 * then fail this lwb, rather than signal its waiters that their itxs
+	 * are on stable storage, and stop the chain here.
+	 */
 	lwb_t *prev_lwb = list_prev(&zilog->zl_lwb_list, lwb);
 	if (prev_lwb == NULL ||
-	    prev_lwb->lwb_state == LWB_STATE_FLUSH_DONE)
-		return;
+	    prev_lwb->lwb_state == LWB_STATE_FLUSH_DONE) {
+		return ((lwb->lwb_flags & LWB_FLAG_ERROR) ||
+		    (prev_lwb != NULL &&
+		    (prev_lwb->lwb_flags & LWB_FLAG_ERROR)));
+	}
 
 	/*
 	 * If the previous lwb's write hasn't already completed, we also want
@@ -1748,6 +1770,8 @@ zil_lwb_set_zio_dependency(zilog_t *zilog, lwb_t *lwb)
 
 	ASSERT3P(prev_lwb->lwb_root_zio, !=, NULL);
 	zio_add_child(lwb->lwb_root_zio, prev_lwb->lwb_root_zio);
+
+	return ((lwb->lwb_flags & LWB_FLAG_ERROR) != 0);
 }
 
 
@@ -2122,7 +2146,11 @@ next_lwb:
 	 * nlwb and allow it proceed without possible lock order reversals.
 	 */
 	mutex_enter(&zilog->zl_lock);
-	zil_lwb_set_zio_dependency(zilog, lwb);
+	if (zil_lwb_set_zio_dependency(zilog, lwb)) {
+		lwb->lwb_root_zio->io_error = SET_ERROR(EIO);
+		if (error == 0)
+			error = SET_ERROR(EIO);
+	}
 	lwb->lwb_state = LWB_STATE_ISSUED;
 
 	if (nlwb) {
@@ -4216,12 +4244,15 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 		}
 	}
 
+	boolean_t failed = B_FALSE;
 	while ((lwb = list_head(&zilog->zl_lwb_list)) != NULL) {
 		zh->zh_log = lwb->lwb_blk;
 		if (lwb->lwb_state != LWB_STATE_FLUSH_DONE ||
 		    lwb->lwb_alloc_txg > txg || lwb->lwb_max_txg > txg)
 			break;
 		list_remove(&zilog->zl_lwb_list, lwb);
+		if (lwb->lwb_flags & LWB_FLAG_ERROR)
+			failed = B_TRUE;
 		if (!BP_IS_HOLE(&lwb->lwb_blk))
 			zio_free(spa, txg, &lwb->lwb_blk);
 		zil_free_lwb(zilog, lwb);
@@ -4235,6 +4266,13 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 		if (list_is_empty(&zilog->zl_lwb_list))
 			BP_ZERO(&zh->zh_log);
 	}
+
+	/*
+	 * The new head of the log is only reachable once this txg is synced.
+	 * If it is not issued yet, it must not be trusted before then.
+	 */
+	if (failed && lwb != NULL && lwb->lwb_state < LWB_STATE_ISSUED)
+		lwb->lwb_flags |= LWB_FLAG_ERROR;
 
 	mutex_exit(&zilog->zl_lock);
 }
