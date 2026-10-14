@@ -609,7 +609,7 @@ zfs_get_name(znode_t *dzp, char *name, znode_t *zp)
 int
 zfs_create_idmap(znode_t *dzp, char *name, vattr_t *vap, int excl,
     int mode, znode_t **zpp, cred_t *cr, int flag, vsecattr_t *vsecp,
-    zidmap_t *idmap)
+    const zidmap_t *idmap)
 {
 	znode_t		*zp;
 	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
@@ -861,7 +861,7 @@ zfs_create(znode_t *dzp, char *name, vattr_t *vap, int excl,
 int
 zfs_tmpfile_idmap(struct inode *dip, vattr_t *vap, int excl,
     int mode, struct inode **ipp, cred_t *cr, int flag, vsecattr_t *vsecp,
-    zidmap_t *idmap)
+    const zidmap_t *idmap)
 {
 	(void) excl, (void) mode, (void) flag;
 	znode_t		*zp = NULL, *dzp = ITOZ(dip);
@@ -1251,7 +1251,7 @@ out:
  */
 int
 zfs_mkdir_idmap(znode_t *dzp, char *dirname, vattr_t *vap, znode_t **zpp,
-    cred_t *cr, int flags, vsecattr_t *vsecp, zidmap_t *idmap)
+    cred_t *cr, int flags, vsecattr_t *vsecp, const zidmap_t *idmap)
 {
 	znode_t		*zp;
 	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
@@ -1735,7 +1735,7 @@ out:
  *	RETURN:	0 (always succeeds)
  */
 int
-zfs_getattr_fast(zidmap_t *idmap, u32 request_mask, struct inode *ip,
+zfs_getattr_fast(const zidmap_t *idmap, u32 request_mask, struct inode *ip,
     struct kstat *sp)
 {
 	znode_t *zp = ITOZ(ip);
@@ -1957,7 +1957,7 @@ next:
  */
 int
 zfs_setattr_idmap(znode_t *zp, vattr_t *vap, int flags, cred_t *cr,
-    zidmap_t *idmap)
+    const zidmap_t *idmap)
 {
 	struct inode	*ip;
 	zfsvfs_t	*zfsvfs = ZTOZSB(zp);
@@ -2815,7 +2815,8 @@ zfs_rename_lock(znode_t *szp, znode_t *tdzp, znode_t *sdzp, zfs_zlock_t **zlpp)
  */
 int
 zfs_rename_idmap(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
-    cred_t *cr, int flags, uint64_t rflags, vattr_t *wo_vap, zidmap_t *idmap)
+    cred_t *cr, int flags, uint64_t rflags, vattr_t *wo_vap,
+    const zidmap_t *idmap)
 {
 	znode_t		*szp, *tzp;
 	zfsvfs_t	*zfsvfs = ZTOZSB(sdzp);
@@ -3362,7 +3363,7 @@ zfs_rename(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
  */
 int
 zfs_symlink_idmap(znode_t *dzp, char *name, vattr_t *vap, char *link,
-    znode_t **zpp, cred_t *cr, int flags, zidmap_t *idmap)
+    znode_t **zpp, cred_t *cr, int flags, const zidmap_t *idmap)
 {
 	znode_t		*zp;
 	zfs_dirlock_t	*dl;
