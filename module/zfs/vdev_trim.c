@@ -924,6 +924,18 @@ vdev_trim_thread(void *arg)
 
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
 		metaslab_disable(msp);
+
+		/*
+		 * Translating the ranges walks up the vdev tree, so hold the
+		 * config lock for it.  The leaf may have been detached, and
+		 * its parent cleared, while the lock was dropped.
+		 */
+		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+		if (vd->vdev_detached) {
+			metaslab_enable(msp, B_FALSE, B_FALSE);
+			break;
+		}
+
 		mutex_enter(&msp->ms_lock);
 		VERIFY0(metaslab_load(msp));
 
@@ -934,7 +946,6 @@ vdev_trim_thread(void *arg)
 		if (msp->ms_sm == NULL && vd->vdev_trim_partial) {
 			mutex_exit(&msp->ms_lock);
 			metaslab_enable(msp, B_FALSE, B_FALSE);
-			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 			vdev_trim_calculate_progress(vd);
 			continue;
 		}
@@ -944,6 +955,7 @@ vdev_trim_thread(void *arg)
 		    &ta);
 		zfs_range_tree_vacate(msp->ms_trim, NULL, NULL);
 		mutex_exit(&msp->ms_lock);
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 		error = vdev_trim_ranges(&ta);
 		metaslab_enable(msp, B_TRUE, B_FALSE);
