@@ -91,13 +91,14 @@ extern zidmap_t *zfs_init_idmap;
  * This emits a trampoline function for the inode_operations table, with
  * first arg appropriate to the idmap type, one of:
  *
+ *   static int zpl_create(const struct mnt_idmap *, [args...])
  *   static int zpl_create(struct mnt_idmap *, [args...])
  *   static int zpl_create(struct user_namespace *, [args...])
  *   static int zpl_create([args...])
  *
  * and the header for the implementing function:
  *
- * static int __zpl_create(zidmap_t *idmap, struct inode * dir,
+ * static int __zpl_create(const zidmap_t *idmap, struct inode * dir,
  *   struct dentry * dentry, umode_t mode, bool flag)
  *
  * The trampoline function calls the implementing function with the first arg
@@ -151,9 +152,10 @@ static rty fn(__ZPL_ARGS_##n(__VA_ARGS__))				\
  * (most of them) to have to silence the compiler warning.
  */
 #define	_ZPL_IDMAP_IOP_DEFINE(rty, fn, n, ...)				\
-static rty __##fn(zidmap_t *idmap, __ZPL_ARGS_##n(__VA_ARGS__));	\
+static rty __##fn(const zidmap_t *idmap, __ZPL_ARGS_##n(__VA_ARGS__));	\
 _ZPL_IDMAP_IOP_WRAPPER(rty, fn, n, __VA_ARGS__)				\
-static rty __##fn(zidmap_t *idmap __maybe_unused, __ZPL_ARGS_##n(__VA_ARGS__))
+static rty __##fn(const zidmap_t *idmap __maybe_unused,			\
+    __ZPL_ARGS_##n(__VA_ARGS__))
 
 #define	ZPL_IDMAP_IOP_DEFINE(rty, fn, n, ...)	\
 	_ZPL_IDMAP_IOP_DEFINE(rty, fn, n, ##__VA_ARGS__)
