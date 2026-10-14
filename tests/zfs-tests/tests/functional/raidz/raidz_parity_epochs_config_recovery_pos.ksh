@@ -21,12 +21,15 @@
 # DESCRIPTION:
 #	A native import retains config-only epochs for read-only recovery.
 #	Neither a refused writable import nor recovery may change the vdevs.
+#	A writable import drops a config-only table that no block can use yet.
 #
 # STRATEGY:
 #	Create a filesystem with known data and a config-only table, including
-#	a case with metadata born in its new parity epoch.  Refuse writable
-#	import, read the filesystem read-only, and compare the complete vdev
-#	checksums before and after both operations.
+#	a case with metadata born in its new parity epoch.  In that case,
+#	refuse a writable import.  Read the filesystem read-only, and compare
+#	the complete vdev checksums before and after both operations.  In the
+#	case whose epoch the pool has not reached, import the pool writable,
+#	read the filesystem and require the labels to lose the table.
 #
 
 verify_runnable "global"
@@ -75,8 +78,10 @@ for phase in future reached; do
 	fi
 
 	log_must eval "cksum $dir/v* > $dir/before.cksum"
-	log_mustnot zpool import -d $dir $POOL
-	check_unchanged
+	if [[ $phase == reached ]]; then
+		log_mustnot zpool import -d $dir $POOL
+		check_unchanged
+	fi
 	# A config-only table does not activate the feature.  The rescue
 	# tunable must still refuse writes that would erase its layout.
 	log_must set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 1
@@ -89,6 +94,15 @@ for phase in future reached; do
 	check_unchanged
 	log_must eval "zdb -l ${disks[0]} > $dir/labels.out"
 	log_must grep -q 'org.openzfs:raidz_parity_epochs\[' $dir/labels.out
+	[[ $phase == reached ]] && continue
+
+	# No block can be born in the epoch yet: the table is dropped.
+	log_must zpool import -d $dir $POOL
+	log_must cmp $BASEDIR/expected $mnt/payload
+	log_must zpool export $POOL
+	log_must eval "zdb -l ${disks[0]} > $dir/labels.out"
+	log_mustnot grep -q 'org.openzfs:raidz_parity_epochs\[' \
+	    $dir/labels.out
 done
 
 log_pass "native read-only recovery retains layout, vdev bytes and data"

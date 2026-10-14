@@ -20,17 +20,22 @@
 #
 # DESCRIPTION:
 #	A config-only parity-epoch table may describe live blocks.  Preserve
-#	it for read-only recovery and refuse a writable import.  The refusal
-#	and recovery reads must leave the labels and MOS config unchanged.
-#	A table in the vdev ZAP only remains authoritative and is propagated
-#	to the config on a writable import.
+#	it for read-only recovery.  Refuse a writable import while the pool
+#	may hold blocks of an epoch it adds, and drop the table on a writable
+#	import otherwise.  The refusal and recovery reads must leave the
+#	labels and MOS config unchanged.  A table in the vdev ZAP only remains
+#	authoritative and is propagated to the config on a writable import.
 #
 # STRATEGY:
 #	1. Create config-only tables with future and reached parity epochs.
-#	2. Refuse a writable import and compare all vdev bytes before/after.
+#	2. For the reached epoch, refuse a writable import and compare all
+#	   vdev bytes before/after.
 #	3. Read the known block through a read-only import, and compare all
 #	   vdev bytes again.  Verify that labels and MOS config keep the table.
-#	4. Store a ZAP-only table and verify its normal import and propagation.
+#	4. For the future epoch, require a writable import to drop the table
+#	   from the labels and the MOS config, and the known block to read
+#	   back afterwards.
+#	5. Store a ZAP-only table and verify its normal import and propagation.
 #
 
 verify_runnable "global"
@@ -92,9 +97,11 @@ function config_case
 	count_values $dir label
 	(( n >= 6 )) || log_fail "the labels do not carry the table"
 	log_must eval "cksum $dir/v* > $dir/before.cksum"
-	log_mustnot raidz_epoch_test write $dir $POOL 8192
-	log_must eval "cksum $dir/v* > $dir/after.cksum"
-	log_must cmp $dir/before.cksum $dir/after.cksum
+	if [[ $name == reached ]]; then
+		log_mustnot raidz_epoch_test write $dir $POOL 8192
+		log_must eval "cksum $dir/v* > $dir/after.cksum"
+		log_must cmp $dir/before.cksum $dir/after.cksum
+	fi
 	out=$(raidz_epoch_test read $dir $POOL $obj 8192 readonly) ||
 	    log_fail "read-only import failed: $out"
 	log_note "$out"
@@ -107,6 +114,21 @@ function config_case
 	(( n == 6 )) || log_fail "the MOS config lost the recovery table"
 	log_must eval "cksum $dir/v* > $dir/after.cksum"
 	log_must cmp $dir/before.cksum $dir/after.cksum
+	[[ $name == reached ]] && return
+
+	# No block can be born in the future epoch yet: a writable import
+	# drops the table and writes the config without it.
+	out=$(raidz_epoch_test write $dir $POOL 8192) ||
+	    log_fail "a writable import refused a table nothing uses: $out"
+	log_note "$out"
+	count_values $dir label
+	(( n == 0 )) || log_fail "the labels still carry the dropped table"
+	count_values $dir config
+	(( n == 0 )) || log_fail "the MOS config still carries the table"
+	out=$(raidz_epoch_test read $dir $POOL $obj 8192) ||
+	    log_fail "import after the drop failed: $out"
+	log_note "$out"
+	[[ $out == *"rc=0 match=1"* ]] || log_fail "read mismatch: $out"
 }
 
 log_onexit cleanup

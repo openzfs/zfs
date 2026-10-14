@@ -976,9 +976,15 @@ Reads, writes, scrubs and resilvers use the width and parity of each block's
 epoch.
 .Pp
 A table found only in the labels or MOS configuration, without a copy in
-the vdev ZAP, is retained for read-only recovery.
-A writable import is refused so that it cannot erase the layout needed by
-existing blocks.
+the vdev ZAP, was not stored by
+.Nm zhack
+or
+.Xr ztest 1 .
+A read-only import retains it for recovery.
+A writable import drops it when the pool cannot hold blocks of an epoch whose
+width or parity differs from the vdev's own, that is when every such epoch
+starts after the transaction groups that may have been written, and is refused
+otherwise, so that it cannot erase the layout needed by existing blocks.
 .Pp
 The
 .Sy raidz_ignore_parity_epochs

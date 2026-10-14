@@ -156,7 +156,8 @@ typedef struct vdev_raidz {
 	 * the count is in triplets.  vdev_raidz_init copies it from the label
 	 * or MOS config (needed to read the MOS before vdev_load),
 	 * vdev_raidz_load replaces that copy with the vdev ZAP's, the only
-	 * authoritative one, or retains it for read-only recovery, and
+	 * authoritative one, or, without one, drops it or retains it for
+	 * read-only recovery, and
 	 * vdev_raidz_fini frees the current one.  Once the vdev is in use
 	 * only vdev_raidz_parity_epochs_install() replaces it.  The pointer
 	 * and the count are protected by vd_expand_lock: take it to read

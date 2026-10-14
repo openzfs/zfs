@@ -5916,17 +5916,23 @@ vdev_raidz_parity_epochs_set(vdev_t *vd, const uint64_t *table,
  * config lacks is not the one the MOS was read with.  Log how the copy of
  * the config differs from the ZAP copy, NULL if there is none, before it is
  * replaced or dropped, and have the config rewritten from what remains.
+ *
+ * Without a ZAP copy, return B_TRUE instead, and change nothing, if the copy
+ * of the config cannot be dropped: it has an epoch of another layout than
+ * the vdev's that the pool may hold blocks of, one that starts in a txg that
+ * has synced or that could have been open when the last one did.
  */
-static void
+static boolean_t
 vdev_raidz_parity_epochs_reconcile(vdev_t *vd, const uint64_t *table,
     uint64_t nent)
 {
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 	spa_t *spa = vd->vdev_spa;
+	uint64_t reach = spa_last_synced_txg(spa) + TXG_CONCURRENT_STATES;
 	uint64_t cfg[3] = { 0, 0, 0 };
-	uint64_t lost[2] = { 0, 0 };
 	uint64_t ncfg;
 	uint64_t i = 0;
+	boolean_t lost = B_FALSE;
 
 	mutex_enter(&vdrz->vd_expand_lock);
 	ncfg = vdrz->vd_parity_epoch_count;
@@ -5939,24 +5945,30 @@ vdev_raidz_parity_epochs_reconcile(vdev_t *vd, const uint64_t *table,
 		if (i < ncfg)
 			memcpy(cfg, &cur[3 * i], sizeof (cfg));
 
-		/*
-		 * The first epoch of another parity than the vdev's that the
-		 * pool has reached: blocks born in it were laid out with a
-		 * table that only the config has.
-		 */
 		for (uint64_t j = 1; table == NULL && j < ncfg; j++) {
-			if (cur[3 * j] <= spa_last_synced_txg(spa) &&
-			    cur[3 * j + 2] != vdrz->vd_nparity) {
-				lost[0] = cur[3 * j];
-				lost[1] = cur[3 * j + 2];
+			if (cur[3 * j] <= reach &&
+			    (cur[3 * j + 1] != vdrz->vd_physical_width ||
+			    cur[3 * j + 2] != vdrz->vd_nparity)) {
+				memcpy(cfg, &cur[3 * j], sizeof (cfg));
+				lost = B_TRUE;
 				break;
 			}
 		}
 	}
 	mutex_exit(&vdrz->vd_expand_lock);
 
+	if (lost) {
+		vdev_dbgmsg(vd, "vdev_raidz_load: no parity epoch table in "
+		    "the vdev ZAP, and the config's has an epoch of width "
+		    "%llu and parity %llu from txg %llu, which the pool may "
+		    "hold blocks of: they cannot be read without it",
+		    (u_longlong_t)cfg[1], (u_longlong_t)cfg[2],
+		    (u_longlong_t)cfg[0]);
+		return (B_TRUE);
+	}
+
 	if (i == ncfg && i == nent)
-		return;
+		return (B_FALSE);
 
 	if (ncfg == 0) {
 		vdev_dbgmsg(vd, "vdev_raidz_load: no parity epoch table in "
@@ -5964,15 +5976,9 @@ vdev_raidz_parity_epochs_reconcile(vdev_t *vd, const uint64_t *table,
 		    (u_longlong_t)nent);
 	} else if (table == NULL) {
 		vdev_dbgmsg(vd, "vdev_raidz_load: no parity epoch table in "
-		    "the vdev ZAP, dropping the %llu entries of the config's",
+		    "the vdev ZAP, dropping the %llu entries of the config's: "
+		    "the pool holds no block of an epoch they add",
 		    (u_longlong_t)ncfg);
-		if (lost[1] != 0) {
-			vdev_dbgmsg(vd, "vdev_raidz_load: the dropped table "
-			    "has an epoch of parity %llu from txg %llu, which "
-			    "the pool has reached: blocks born in it cannot "
-			    "be read without it", (u_longlong_t)lost[1],
-			    (u_longlong_t)lost[0]);
-		}
 	} else {
 		vdev_dbgmsg(vd, "vdev_raidz_load: the parity epoch table of "
 		    "the config (%llu entries) differs from the vdev ZAP's "
@@ -5994,6 +6000,7 @@ vdev_raidz_parity_epochs_reconcile(vdev_t *vd, const uint64_t *table,
 	}
 	if (spa_writeable(spa))
 		spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
+	return (B_FALSE);
 }
 
 int
@@ -6054,7 +6061,8 @@ vdev_raidz_load(vdev_t *vd)
 	 * logical width, parity} triplets sorted by start, which must be
 	 * valid for this vdev or the vdev fails to load.  Layout selection
 	 * consumes it as soon as it is installed.  A config-only table is
-	 * retained for read-only recovery, but does not permit writing.
+	 * retained for read-only recovery, and permits writing only once it
+	 * is dropped, which it can be when no block depends on it.
 	 */
 	if (!raidz_ignore_parity_epochs) {
 		uint64_t int_size = 0;
@@ -6116,7 +6124,7 @@ vdev_raidz_load(vdev_t *vd)
 			 * The ZAP copy is authoritative: it replaces the copy
 			 * vdev_raidz_init() took from the label or MOS config.
 			 */
-			vdev_raidz_parity_epochs_reconcile(vd, table,
+			(void) vdev_raidz_parity_epochs_reconcile(vd, table,
 			    num_ints / 3);
 			vdev_raidz_parity_epochs_install(vd, table,
 			    num_ints / 3);
@@ -6130,20 +6138,26 @@ vdev_raidz_load(vdev_t *vd)
 			}
 			/*
 			 * A config-only table may already describe live blocks.
-			 * Keep it available for recovery reads.  A writable
-			 * import must not erase their layout or write without
-			 * the ZAP copy and active feature that protect it.
+			 * A read-only import keeps it for recovery reads.  A
+			 * writable one drops it if no block can depend on it,
+			 * and is refused otherwise: it must not erase the
+			 * layout of those blocks, or write without the ZAP copy
+			 * and active feature that protect it.
 			 */
-			if (vdev_raidz_has_parity_epochs(vd)) {
+			if (vdev_raidz_has_parity_epochs(vd) &&
+			    !spa_writeable(vd->vdev_spa)) {
 				vdev_dbgmsg(vd, "vdev_raidz_load: no parity "
 				    "epoch table in the vdev ZAP, preserving "
 				    "the config table for read-only recovery");
-				if (spa_writeable(vd->vdev_spa)) {
+			} else if (vdev_raidz_has_parity_epochs(vd)) {
+				if (vdev_raidz_parity_epochs_reconcile(vd,
+				    NULL, 0)) {
 					spa_load_failed(vd->vdev_spa,
 					    "config-only parity epoch table: "
 					    "import read-only for recovery");
 					return (SET_ERROR(EROFS));
 				}
+				vdev_raidz_parity_epochs_install(vd, NULL, 0);
 			}
 		} else {
 			return (err);
