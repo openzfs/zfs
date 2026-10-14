@@ -307,11 +307,9 @@ zil_prt_rec_setsaxattr(zilog_t *zilog, int txtype, const void *arg)
 		(void) printf("%sXAT_VALUE  NULL\n", tab_prefix);
 	} else {
 		(void) printf("%sXAT_VALUE  ", tab_prefix);
-		const char *val = (const char *)&lr->lr_data[strlen(name) + 1];
-		for (int i = 0; i < lr->lr_size; i++) {
-			(void) printf("%c", *val);
-			val++;
-		}
+		dump_xattr_value(&lr->lr_data[strlen(name) + 1],
+		    lr->lr_size);
+		(void) printf("\n");
 	}
 }
 

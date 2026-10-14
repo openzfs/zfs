@@ -4093,6 +4093,29 @@ dump_uidgid(objset_t *os, uint64_t uid, uint64_t gid)
 	print_idstr(gid, "gid");
 }
 
+/*
+ * Print an xattr value.  If it contains non-printable bytes, or -P was
+ * specified, print every byte in octal (\ooo).  Otherwise, print as a
+ * string.
+ */
+void
+dump_xattr_value(const uint8_t *value, uint64_t len)
+{
+	boolean_t can_print = !dump_opt['P'];
+
+	for (uint64_t i = 0; can_print && i < len; i++) {
+		if (!isprint(value[i]))
+			can_print = B_FALSE;
+	}
+
+	for (uint64_t i = 0; i < len; i++) {
+		if (can_print)
+			(void) putchar(value[i]);
+		else
+			(void) printf("\\%3.3o", value[i]);
+	}
+}
+
 static void
 dump_znode_sa_xattr(sa_handle_t *hdl)
 {
@@ -4130,26 +4153,12 @@ dump_znode_sa_xattr(sa_handle_t *hdl)
 	(void) printf("\tSA xattrs: %d bytes, %d entries\n\n",
 	    sa_xattr_size, sa_xattr_entries);
 	while ((elem = nvlist_next_nvpair(sa_xattr, elem)) != NULL) {
-		boolean_t can_print = !dump_opt['P'];
 		uchar_t *value;
-		uint_t cnt, idx;
+		uint_t cnt;
 
 		(void) printf("\t\t%s = ", nvpair_name(elem));
 		nvpair_value_byte_array(elem, &value, &cnt);
-
-		for (idx = 0; idx < cnt; ++idx) {
-			if (!isprint(value[idx])) {
-				can_print = B_FALSE;
-				break;
-			}
-		}
-
-		for (idx = 0; idx < cnt; ++idx) {
-			if (can_print)
-				(void) putchar(value[idx]);
-			else
-				(void) printf("\\%3.3o", value[idx]);
-		}
+		dump_xattr_value(value, cnt);
 		(void) putchar('\n');
 	}
 
