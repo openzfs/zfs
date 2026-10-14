@@ -275,6 +275,12 @@ vdev_mirror_map_init(zio_t *zio)
 		 * checked by their respective sorted IOs. Only if we
 		 * hit an error will we try all DVAs upon retrying.
 		 *
+		 * Gang blocks are not sorted: dsl_scan_enqueue() issues
+		 * them whole, and their gang headers and gang members
+		 * are read by gang children of that one IO. No other
+		 * IO checks their other DVAs, so gang children check
+		 * them all, as they would in a legacy scrub.
+		 *
 		 * Note: This check is safe even if the user switches
 		 * from a legacy scrub to a sequential one in the middle
 		 * of processing, since scn_is_sorted isn't updated until
@@ -283,6 +289,7 @@ vdev_mirror_map_init(zio_t *zio)
 		 */
 		if ((zio->io_flags & ZIO_FLAG_SCRUB) &&
 		    !(zio->io_flags & ZIO_FLAG_IO_RETRY) &&
+		    !(zio->io_flags & ZIO_FLAG_GANG_CHILD) &&
 		    dsl_scan_scrubbing(spa->spa_dsl_pool) &&
 		    scn->scn_is_sorted) {
 			c = 1;
