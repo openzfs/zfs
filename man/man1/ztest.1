@@ -223,9 +223,14 @@ layout.
 It then writes a last burst that only the log holds and kills itself.
 The next pass imports the pool, so that the log is claimed and replayed, reads
 everything from a cold cache, scrubs, damages as many disks of every block as
-the block's own parity can lose and reads again, checks that the vdev does not
-claim more redundancy than the lowest parity of its table, and frees the gang
-blocks.
+the block's own parity can lose and reads again.
+It takes as many disks offline as the lowest parity of the table, reads
+everything and writes more while they are away, and requires the scrub that
+follows their resilver to find nothing to repair.
+It takes disks offline again, damages as many other disks of every block as
+its parity can lose on top of them, and reads everything again.
+It checks that the vdev does not claim more redundancy than the lowest parity
+of its table, and frees the gang blocks.
 The zdb run that follows fails on leaked space.
 The test needs at least four raidz disks, and
 .Fl R
