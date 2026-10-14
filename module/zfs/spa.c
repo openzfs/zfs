@@ -5047,6 +5047,80 @@ spa_ld_select_uberblock(spa_t *spa, spa_import_type_t type)
 	return (0);
 }
 
+/*
+ * The config we were given can be older than the labels: the cachefile is
+ * rewritten some txgs after a change of the vdev tree has reached the labels
+ * and the MOS config, so a crash in between leaves a cachefile that describes
+ * a top-level vdev as it was before the change.  The MOS of the selected
+ * uberblock was written with the RAID-Z layout described by the newest label
+ * of the vdev not written after that uberblock.  Where that label is newer
+ * than the config, take the layout from it, so that the MOS can be read; the
+ * MOS config then replaces this vdev tree.  Returns whether it took one.
+ */
+static boolean_t
+spa_ld_label_layout(spa_t *spa)
+{
+	vdev_t *rvd = spa->spa_root_vdev;
+	uint64_t ub_txg = spa->spa_uberblock.ub_txg;
+	boolean_t taken = B_FALSE;
+
+	/* A device scan passes a config of txg 0, made from the labels. */
+	if (spa->spa_config_txg == 0)
+		return (B_FALSE);
+
+	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *tvd = rvd->vdev_child[c];
+		nvlist_t *label;
+		nvlist_t *nv;
+		uint64_t label_txg;
+		boolean_t changed = B_FALSE;
+		const char *why = NULL;
+
+		/*
+		 * At the width of the config, a newer label can only differ
+		 * by having completed the expansion the config has running:
+		 * an attach changes the width, and a completion is neither
+		 * undone nor, once the reflow has synced progress, rewound
+		 * across (see vdev_uberblock_load()).
+		 */
+		if (tvd->vdev_ops != &vdev_raidz_ops || !tvd->vdev_rz_expanding)
+			continue;
+
+		label = vdev_top_label_read_config(tvd, ub_txg);
+		if (label == NULL)
+			continue;
+
+		label_txg = fnvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_TXG);
+		if (label_txg > spa->spa_config_txg) {
+			if (nvlist_lookup_nvlist(label, ZPOOL_CONFIG_VDEV_TREE,
+			    &nv) != 0)
+				why = "it has no vdev tree";
+			else
+				(void) vdev_raidz_config_from_label(tvd, nv,
+				    &changed, &why);
+		}
+		if (changed) {
+			spa_load_note(spa, "vdev %llu: using the RAID-Z layout "
+			    "of its label of txg %llu, newer than the config "
+			    "(txg %llu)", (u_longlong_t)tvd->vdev_id,
+			    (u_longlong_t)label_txg,
+			    (u_longlong_t)spa->spa_config_txg);
+			taken = B_TRUE;
+		} else if (why != NULL) {
+			spa_load_note(spa, "vdev %llu: not using its label of "
+			    "txg %llu, newer than the config (txg %llu): %s",
+			    (u_longlong_t)tvd->vdev_id,
+			    (u_longlong_t)label_txg,
+			    (u_longlong_t)spa->spa_config_txg, why);
+		}
+		nvlist_free(label);
+	}
+	spa_config_exit(spa, SCL_ALL, FTAG);
+
+	return (taken);
+}
+
 static int
 spa_ld_open_rootbp(spa_t *spa)
 {
@@ -5931,7 +6005,8 @@ spa_ld_read_checkpoint_txg(spa_t *spa)
 }
 
 static int
-spa_ld_mos_init(spa_t *spa, spa_import_type_t type)
+spa_ld_mos_init(spa_t *spa, spa_import_type_t type,
+    boolean_t *update_config_cache)
 {
 	int error = 0;
 
@@ -5992,6 +6067,16 @@ spa_ld_mos_init(spa_t *spa, spa_import_type_t type)
 	error = spa_ld_select_uberblock(spa, type);
 	if (error != 0)
 		return (error);
+
+	/*
+	 * The labels of a pool being assembled from a split have not been
+	 * written yet, and its config is trusted anyway.  A config that a
+	 * label corrected is out of date wherever it came from, so have the
+	 * cachefile rewritten.
+	 */
+	if (type != SPA_IMPORT_ASSEMBLE && spa_ld_label_layout(spa) &&
+	    update_config_cache != NULL)
+		*update_config_cache = B_TRUE;
 
 	/*
 	 * Pass that uberblock to the dsl_pool layer which will open the root
@@ -6109,7 +6194,7 @@ spa_ld_mos_with_trusted_config(spa_t *spa, spa_import_type_t type,
 	 * select an uberblock, and use that uberblock to open
 	 * the MOS.
 	 */
-	error = spa_ld_mos_init(spa, type);
+	error = spa_ld_mos_init(spa, type, update_config_cache);
 	if (error != 0)
 		return (error);
 
@@ -6128,7 +6213,7 @@ spa_ld_mos_with_trusted_config(spa_t *spa, spa_import_type_t type,
 		 */
 		spa_ld_prepare_for_reload(spa);
 		spa_load_note(spa, "RELOADING");
-		error = spa_ld_mos_init(spa, type);
+		error = spa_ld_mos_init(spa, type, update_config_cache);
 		if (error != 0)
 			return (error);
 
