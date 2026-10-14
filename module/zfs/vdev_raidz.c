@@ -4218,7 +4218,20 @@ vdev_raidz_need_resilver(vdev_t *vd, const dva_t *dva, size_t psize,
 	if (s + nparity >= dcols)
 		return (B_TRUE);
 
-	for (uint64_t c = 0; c < s + nparity; c++) {
+	/*
+	 * The block is laid out in rows of the logical width it was born
+	 * with, each with nparity parity columns, over consecutive
+	 * children.  A block born before an expansion can need several
+	 * rows where a block of the vdev's width needs one.
+	 */
+	uint64_t ncols = s + nparity *
+	    howmany(s, vdev_raidz_get_logical_width(vdrz, phys_birth) -
+	    nparity);
+
+	if (ncols >= dcols)
+		return (B_TRUE);
+
+	for (uint64_t c = 0; c < ncols; c++) {
 		uint64_t devidx = (f + c) % dcols;
 		vdev_t *cvd = vd->vdev_child[devidx];
 
