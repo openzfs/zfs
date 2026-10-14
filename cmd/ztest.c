@@ -10064,10 +10064,13 @@ ztest_raidz_epochs_run(ztest_shared_t *zs, spa_t *spa)
  * The usual mix of operations (-Z) reaches a bad epoch boundary only by
  * chance, and a defect that needs a particular layout may take many passes
  * to show.  This test builds the layouts and looks at the result, the same
- * way every time.  One raidz vdev gets four epochs in turn: its own parity,
+ * way every time.  One raidz vdev gets six epochs in turn: its own parity,
  * the next parity in the cycle 1, 2, 3, the one after that, and the second
- * again, so blocks are laid out with a higher and with a lower parity than
- * the vdev's own, and neighbours in the pool differ.  In each epoch it:
+ * again, all as wide as the vdev, then two epochs narrower than the vdev, of
+ * parities that differ from each other, whose blocks span several rows of
+ * their own width.  Blocks are laid out with a higher and with a lower
+ * parity than the vdev's own, and neighbours in the pool differ.  In each
+ * epoch it:
  *
  *  - writes small objects of many sizes, and in the next epoch frees two
  *    of every three, leaving gaps in the allocations of a parity that is no
@@ -10084,13 +10087,14 @@ ztest_raidz_epochs_run(ztest_shared_t *zs, spa_t *spa)
  * forced to gang among them, and by killing the process.
  * The next pass imports the pool, so the log is claimed and replayed, and
  * the table comes back from disk.  It reads everything again from a cold
- * cache, scrubs, damages as many columns of every block as the block's own
+ * cache, scrubs, damages as many children of every block as the block's own
  * parity can lose and reads again, which reconstructs each row with the
  * parity it was written with, checks that the vdev claims no more
  * redundancy than its lowest parity, and frees the gang blocks, born in
  * every epoch.  The zdb run that follows the pass fails on leaked space.
  */
-#define	ZTEST_PE_EPOCHS		4	/* base, two others, the second */
+#define	ZTEST_PE_EPOCHS		6	/* base, two others, two narrower */
+#define	ZTEST_PE_FULL		4	/* the epochs as wide as the vdev */
 #define	ZTEST_PE_PLAIN		48	/* small objects per epoch */
 #define	ZTEST_PE_GANG		8	/* objects forced to gang per epoch */
 #define	ZTEST_PE_ZIL		20	/* objects written through the ZIL */
@@ -10152,13 +10156,25 @@ ztest_pe_epoch_of(const uint64_t *table, uint64_t n, uint64_t birth)
 	return (i);
 }
 
-/* The parity blocks born in the given txg are laid out with. */
-static uint64_t
-ztest_pe_parity_of(const uint64_t *table, uint64_t n, uint64_t base,
-    uint64_t birth)
+/*
+ * The logical width and the parity blocks born in the given txg are laid out
+ * with, read from the table alone.
+ */
+static void
+ztest_pe_layout_of(const uint64_t *table, uint64_t n, vdev_t *vd,
+    uint64_t birth, uint64_t *widthp, uint64_t *parityp)
 {
-	return (n == 0 ? base :
-	    table[3 * ztest_pe_epoch_of(table, n, birth) + 2]);
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	uint64_t e;
+
+	if (n == 0) {
+		*widthp = vdrz->vd_physical_width;
+		*parityp = vdrz->vd_nparity;
+		return;
+	}
+	e = ztest_pe_epoch_of(table, n, birth);
+	*widthp = table[3 * e + 1];
+	*parityp = table[3 * e + 2];
 }
 
 static uint64_t
@@ -10645,9 +10661,31 @@ ztest_pe_scrub(ztest_pe_ctx_t *ps, const char *when, boolean_t damaged)
 	ztest_pe_clear_errors(spa);
 }
 
+/* Invert a range of a leaf, in its file, below the pool's back. */
+static void
+ztest_pe_invert(vdev_t *cvd, uint64_t offset, uint64_t size)
+{
+	uint64_t off = offset + VDEV_LABEL_START_SIZE;
+	uint8_t *data = malloc(size);
+	int fd = open(cvd->vdev_path, O_RDWR);
+
+	if (fd == -1 || data == NULL || pread(fd, data, size, off) != size)
+		fatal(B_TRUE, "can't read %s", cvd->vdev_path);
+	for (uint64_t b = 0; b < size; b++)
+		data[b] = ~data[b];
+	if (pwrite(fd, data, size, off) != size)
+		fatal(B_TRUE, "can't write %s", cvd->vdev_path);
+	(void) close(fd);
+	free(data);
+}
+
 /*
- * Damage as many columns of a block as its own parity can lose, data columns
- * first, in the files of the leaves, below the pool's back.
+ * Damage a block on as many children as its own parity can lose: every
+ * column the block has on them, in every row.  The children are those of
+ * the first row, its data columns first.  A block laid out narrower than
+ * the vdev has rows of its own width over consecutive children, so a child
+ * holds a column of several rows, and each row loses at most as many
+ * columns as its parity.  Return the number of columns damaged.
  */
 static int
 ztest_pe_damage_block(ztest_pe_ctx_t *ps, const blkptr_t *bp)
@@ -10655,14 +10693,19 @@ ztest_pe_damage_block(ztest_pe_ctx_t *ps, const blkptr_t *bp)
 	vdev_t *vd = ps->ps_vd;
 	vdev_raidz_t *vdrz = vd->vdev_tsd;
 	uint64_t birth = BP_GET_PHYSICAL_BIRTH(bp);
-	uint64_t parity = ztest_pe_parity_of(ps->ps_table, ps->ps_nent,
-	    vdrz->vd_nparity, birth);
 	uint64_t ashift = vd->vdev_ashift;
+	uint64_t width;
+	uint64_t parity;
+	uint64_t chosen = 0;
+	uint64_t nchosen = 0;
 	zio_t zio;
 	raidz_map_t *rm;
 	raidz_row_t *rr;
 	int ndamaged = 0;
-	int order[VDEV_RAIDZ_MAXPARITY];
+
+	VERIFY3U(vd->vdev_children, <=, 64);
+	ztest_pe_layout_of(ps->ps_table, ps->ps_nent, vd, birth, &width,
+	    &parity);
 
 	memset(&zio, 0, sizeof (zio));
 	zio.io_offset = DVA_GET_OFFSET(&bp->blk_dva[0]);
@@ -10671,36 +10714,42 @@ ztest_pe_damage_block(ztest_pe_ctx_t *ps, const blkptr_t *bp)
 	zio.io_type = ZIO_TYPE_READ;
 	zio.io_abd = abd_alloc_for_io(zio.io_size, B_FALSE);
 
-	rm = vdev_raidz_map_alloc(&zio, ashift, vdrz->vd_physical_width,
-	    parity);
-	ASSERT3U(rm->rm_nrows, ==, 1);
-	rr = rm->rm_row[0];
-	ASSERT3U(rr->rr_firstdatacol, ==, parity);
+	if (width == vdrz->vd_physical_width) {
+		rm = vdev_raidz_map_alloc(&zio, ashift, width, parity);
+		ASSERT3U(rm->rm_nrows, ==, 1);
+	} else {
+		rm = vdev_raidz_map_alloc_expanded(&zio, ashift,
+		    vdrz->vd_physical_width, width, parity, UINT64_MAX,
+		    UINT64_MAX, B_FALSE);
+	}
+	for (int r = 0; r < rm->rm_nrows; r++)
+		ASSERT3U(rm->rm_row[r]->rr_firstdatacol, ==, parity);
 
 	/* Data columns, then parity columns, as far as the parity goes. */
-	for (int c = rr->rr_firstdatacol; c < rr->rr_cols &&
-	    ndamaged < (int)parity; c++)
-		order[ndamaged++] = c;
-	for (int c = 0; c < rr->rr_firstdatacol && ndamaged < (int)parity;
-	    c++)
-		order[ndamaged++] = c;
+	rr = rm->rm_row[0];
+	for (int i = 0; i < rr->rr_cols && nchosen < parity; i++) {
+		raidz_col_t *rc =
+		    &rr->rr_col[(rr->rr_firstdatacol + i) % rr->rr_cols];
+		uint64_t bit = 1ULL << rc->rc_devidx;
 
-	for (int i = 0; i < ndamaged; i++) {
-		raidz_col_t *rc = &rr->rr_col[order[i]];
-		vdev_t *cvd = vd->vdev_child[rc->rc_devidx];
-		uint64_t off = rc->rc_offset + VDEV_LABEL_START_SIZE;
-		uint8_t *data = malloc(rc->rc_size);
-		int fd = open(cvd->vdev_path, O_RDWR);
+		if (rc->rc_size == 0 || (chosen & bit) != 0)
+			continue;
+		chosen |= bit;
+		nchosen++;
+	}
 
-		if (fd == -1 || data == NULL ||
-		    pread(fd, data, rc->rc_size, off) != rc->rc_size)
-			fatal(B_TRUE, "can't read %s", cvd->vdev_path);
-		for (uint64_t b = 0; b < rc->rc_size; b++)
-			data[b] = ~data[b];
-		if (pwrite(fd, data, rc->rc_size, off) != rc->rc_size)
-			fatal(B_TRUE, "can't write %s", cvd->vdev_path);
-		(void) close(fd);
-		free(data);
+	for (int r = 0; r < rm->rm_nrows; r++) {
+		rr = rm->rm_row[r];
+		for (int c = 0; c < rr->rr_cols; c++) {
+			raidz_col_t *rc = &rr->rr_col[c];
+
+			if (rc->rc_size == 0 ||
+			    (chosen & (1ULL << rc->rc_devidx)) == 0)
+				continue;
+			ztest_pe_invert(vd->vdev_child[rc->rc_devidx],
+			    rc->rc_offset, rc->rc_size);
+			ndamaged++;
+		}
 	}
 
 	vdev_raidz_map_free(rm);
@@ -10819,6 +10868,9 @@ ztest_pe_run(ztest_shared_t *zs, spa_t *spa)
 	vdev_raidz_t *vdrz = rzvd->vdev_tsd;
 	ztest_pe_ctx_t *ps = kmem_zalloc(sizeof (*ps), KM_SLEEP);
 	uint64_t parity[ZTEST_PE_EPOCHS];
+	uint64_t width[ZTEST_PE_EPOCHS];
+	uint64_t phys;
+	uint64_t maxp;
 	uint64_t bufsz = ZTEST_PE_BIGSZ;
 
 	ASSERT3U(ztest_opts.zo_pe_test, ==, ZTEST_PE_REQUESTED);
@@ -10838,10 +10890,31 @@ ztest_pe_run(ztest_shared_t *zs, spa_t *spa)
 	 * second again.  Whatever the vdev's own parity is, one epoch is above
 	 * it or below it, and the last one is not its own.
 	 */
+	phys = vdrz->vd_physical_width;
 	parity[0] = vdrz->vd_nparity;
 	parity[1] = parity[0] % 3 + 1;
 	parity[2] = parity[1] % 3 + 1;
 	parity[3] = parity[1];
+	for (uint64_t e = 0; e < ZTEST_PE_FULL; e++)
+		width[e] = phys;
+
+	/*
+	 * Then two epochs narrower than the vdev, of parities that differ from
+	 * the epoch before; the vdev has four children or more, so there are
+	 * two such parities.  The last one has a single data column, so that
+	 * a block spans as many rows as it has sectors, and the log of the
+	 * kill is written in it.
+	 */
+	VERIFY3U(phys, >=, 4);
+	maxp = MIN(VDEV_RAIDZ_MAXPARITY, phys - 2);
+	for (uint64_t e = ZTEST_PE_FULL; e < ZTEST_PE_EPOCHS; e++) {
+		do {
+			parity[e] = 1 + ztest_random(maxp);
+		} while (parity[e] == parity[e - 1]);
+		width[e] = parity[e] + 1;
+		if (e + 1 < ZTEST_PE_EPOCHS)
+			width[e] += ztest_random(phys - 1 - parity[e]);
+	}
 
 	ps->ps_spa = spa;
 	ps->ps_vd = rzvd;
@@ -10853,15 +10926,15 @@ ztest_pe_run(ztest_shared_t *zs, spa_t *spa)
 		uint64_t start;
 
 		if (epoch > 0) {
-			VERIFY0(ztest_pe_store(spa, 0,
-			    vdrz->vd_physical_width, parity[epoch],
-			    4 + ztest_random(4), &start));
+			VERIFY0(ztest_pe_store(spa, 0, width[epoch],
+			    parity[epoch], 4 + ztest_random(4), &start));
 			ztest_pe_wait_epoch(spa, start);
 		}
 		ps->ps_nent = ztest_pe_get_all(rzvd, ps->ps_table);
 		if (ztest_opts.zo_verbose >= 1)
-			(void) printf("parity epochs: epoch %llu, parity %llu, "
-			    "%llu entries\n", (u_longlong_t)epoch,
+			(void) printf("parity epochs: epoch %llu, width %llu, "
+			    "parity %llu, %llu entries\n", (u_longlong_t)epoch,
+			    (u_longlong_t)width[epoch],
 			    (u_longlong_t)parity[epoch],
 			    (u_longlong_t)ps->ps_nent);
 

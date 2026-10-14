@@ -209,10 +209,11 @@ Specify a 64-digit hexadecimal seed to reproduce the same sequence of random
 numbers, or pass a single 0 to disable this feature.
 .It Fl W , -raidz-parity-epochs-test
 Perform a dedicated raidz parity-epoch test.
-The pool gets one raidz vdev, and its parity-epoch table gets three epochs in
+The pool gets one raidz vdev, and its parity-epoch table gets five epochs in
 turn: the next parity in the cycle 1, 2, 3, the one after that, and the second
 one again, so that blocks are laid out with a higher and with a lower parity
-than the vdev's own.
+than the vdev's own, then two epochs of random parities narrower than the
+vdev, the last one with a single data column, whose blocks span several rows.
 In each epoch the test writes objects of many sizes, frees some of them in the
 next epoch to leave gaps, allocates ZIL-sized blocks until the vdev is nearly
 full, which takes in the gaps and the end of the metaslabs it fills, writes
@@ -221,7 +222,7 @@ back, checking the epoch every block was born in and that its extent holds its
 layout.
 It then writes a last burst that only the log holds and kills itself.
 The next pass imports the pool, so that the log is claimed and replayed, reads
-everything from a cold cache, scrubs, damages as many columns of every block as
+everything from a cold cache, scrubs, damages as many disks of every block as
 the block's own parity can lose and reads again, checks that the vdev does not
 claim more redundancy than the lowest parity of its table, and frees the gang
 blocks.
