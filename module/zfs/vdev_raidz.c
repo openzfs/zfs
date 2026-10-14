@@ -6014,6 +6014,7 @@ vdev_raidz_load(vdev_t *vd)
 	uint64_t end_time = 0;
 	uint64_t bytes_copied = 0;
 
+	vdrz->vd_parity_epochs_refusal = 0;
 	if (vd->vdev_top_zap != 0) {
 		err = zap_lookup(vd->vdev_spa->spa_meta_objset,
 		    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_STATE,
@@ -6052,6 +6053,7 @@ vdev_raidz_load(vdev_t *vd)
 	    SPA_FEATURE_RAIDZ_PARITY_EPOCHS))) {
 		spa_load_failed(vd->vdev_spa, "raidz_ignore_parity_epochs "
 		    "is set with stored parity epochs: import read-only");
+		vdrz->vd_parity_epochs_refusal = EROFS;
 		return (SET_ERROR(EROFS));
 	}
 
@@ -6096,6 +6098,7 @@ vdev_raidz_load(vdev_t *vd)
 			    state != DSS_NONE) {
 				vdev_dbgmsg(vd, "vdev_raidz_load: parity epoch "
 				    "table together with expansion state");
+				vdrz->vd_parity_epochs_refusal = ENOTSUP;
 				return (SET_ERROR(ENOTSUP));
 			}
 
@@ -6155,6 +6158,7 @@ vdev_raidz_load(vdev_t *vd)
 					spa_load_failed(vd->vdev_spa,
 					    "config-only parity epoch table: "
 					    "import read-only for recovery");
+					vdrz->vd_parity_epochs_refusal = EROFS;
 					return (SET_ERROR(EROFS));
 				}
 				vdev_raidz_parity_epochs_install(vd, NULL, 0);
@@ -6175,6 +6179,33 @@ vdev_raidz_load(vdev_t *vd)
 	vdrz->vn_vre.vre_bytes_copied = bytes_copied;
 
 	return (0);
+}
+
+/*
+ * After vdev_load() of the root vdev failed: tell zpool import, in the load
+ * info, when a parity-epoch table is why, so that it does not report a
+ * read-only device or an unsupported version.  The top-level vdevs load in
+ * parallel, so each one only records its reason, and this reads them once
+ * they are done.
+ */
+void
+vdev_raidz_load_info(vdev_t *rvd, nvlist_t *info)
+{
+	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *tvd = rvd->vdev_child[c];
+		vdev_raidz_t *vdrz;
+
+		if (tvd->vdev_ops != &vdev_raidz_ops)
+			continue;
+		vdrz = tvd->vdev_tsd;
+		if (vdrz->vd_parity_epochs_refusal == EROFS) {
+			fnvlist_add_boolean(info,
+			    ZPOOL_CONFIG_RAIDZ_EPOCHS_RDONLY);
+		} else if (vdrz->vd_parity_epochs_refusal == ENOTSUP) {
+			fnvlist_add_boolean(info,
+			    ZPOOL_CONFIG_RAIDZ_EPOCHS_EXPANDED);
+		}
+	}
 }
 
 int

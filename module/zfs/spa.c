@@ -5798,6 +5798,7 @@ spa_ld_load_vdev_metadata(spa_t *spa)
 	error = vdev_load(rvd);
 	if (error != 0) {
 		spa_load_failed(spa, "vdev_load failed [error=%d]", error);
+		vdev_raidz_load_info(rvd, spa->spa_load_info);
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, error));
 	}
 

@@ -168,6 +168,8 @@ typedef struct vdev_raidz {
 	uint64_t vd_parity_epoch_count;
 	/* Also remember ignored or invalid config tables for import checks. */
 	boolean_t vd_parity_epochs_config_present;
+	/* Why vdev_raidz_load() refused the table: EROFS, ENOTSUP or 0. */
+	int vd_parity_epochs_refusal;
 } vdev_raidz_t;
 
 extern int vdev_raidz_attach_check(vdev_t *);
@@ -189,6 +191,7 @@ extern void vdev_raidz_attach_sync(void *, dmu_tx_t *);
 extern void spa_start_raidz_expansion_thread(spa_t *);
 extern int spa_raidz_expand_get_stats(spa_t *, pool_raidz_expand_stat_t *);
 extern int vdev_raidz_load(vdev_t *);
+extern void vdev_raidz_load_info(vdev_t *, nvlist_t *);
 
 /* RAIDZ scratch area pause points (for testing) */
 #define	RAIDZ_EXPAND_PAUSE_NONE	0

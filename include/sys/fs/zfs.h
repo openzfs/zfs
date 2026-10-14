@@ -976,6 +976,9 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_UNSUP_FEAT		"unsup_feat"	/* not stored on disk */
 #define	ZPOOL_CONFIG_ENABLED_FEAT	"enabled_feat"	/* not stored on disk */
 #define	ZPOOL_CONFIG_CAN_RDONLY		"can_rdonly"	/* not stored on disk */
+/* A RAID-Z parity-epoch table refused the import; not stored on disk */
+#define	ZPOOL_CONFIG_RAIDZ_EPOCHS_RDONLY	"raidz_epochs_rdonly"
+#define	ZPOOL_CONFIG_RAIDZ_EPOCHS_EXPANDED	"raidz_epochs_expanded"
 #define	ZPOOL_CONFIG_FEATURES_FOR_READ	"features_for_read"
 #define	ZPOOL_CONFIG_FEATURE_STATS	"feature_stats"	/* not stored on disk */
 #define	ZPOOL_CONFIG_ERRATA		"errata"	/* not stored on disk */
