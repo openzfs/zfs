@@ -2545,6 +2545,15 @@ top:
 	}
 
 	if ((mask & ATTR_ATIME) || zp->z_atime_dirty) {
+		/*
+		 * zpl_setattr() updates the inode before calling here, but
+		 * ZIL replay does not, so apply the requested access time.
+		 */
+		if (mask & ATTR_ATIME) {
+			zpl_inode_set_atime_to_ts(ip,
+			    zpl_inode_timestamp_truncate(vap->va_atime, ip));
+		}
+
 		zp->z_atime_dirty = B_FALSE;
 		inode_timespec_t tmp_atime = zpl_inode_get_atime(ip);
 		ZFS_TIME_ENCODE(&tmp_atime, atime);

@@ -3720,6 +3720,20 @@ function stat_blocks #<path>
 	esac
 }
 
+function stat_atime #<path>
+{
+	typeset path=$1
+
+	case "$UNAME" in
+	FreeBSD)
+		stat -f %a "$path"
+		;;
+	*)
+		stat -c %X "$path"
+		;;
+	esac
+}
+
 function stat_mtime #<path>
 {
 	typeset path=$1
