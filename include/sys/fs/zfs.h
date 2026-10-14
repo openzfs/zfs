@@ -24,7 +24,6 @@
  * Copyright (c) 2024, Klara, Inc.
  */
 
-#include "sys/zos.h"
 #ifndef	_SYS_FS_ZFS_H
 #define	_SYS_FS_ZFS_H extern __attribute__((visibility("default")))
 

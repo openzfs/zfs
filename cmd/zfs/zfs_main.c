@@ -57,7 +57,6 @@
 #include <time.h>
 #include <sys/zfs_project.h>
 #include <sys/zfs_ioctl.h>
-#include <sys/zos.h>
 
 #include <libzfs.h>
 #include <libzfs_core.h>

@@ -23,9 +23,7 @@
 
 #include <sys/param.h>
 #include <sys/types.h>
-
-typedef struct spa spa_t;
-typedef struct objset objset_t;
+#include <sys/dmu.h>
 
 #ifdef __cplusplus
 extern "C" {
