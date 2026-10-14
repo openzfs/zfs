@@ -1362,8 +1362,8 @@ zvol_alloc_blk_mq(zvol_state_t *zv, zvol_queue_limits_t *limits)
  * request queue and generic disk structures for the block device.
  */
 static int
-zvol_alloc(dev_t dev, const char *name, uint64_t volsize, uint64_t volblocksize,
-    zvol_state_t **zvp)
+zvol_alloc(dev_t dev, const char *name, uint64_t dsobj, uint64_t volsize,
+    uint64_t volblocksize, zvol_state_t **zvp)
 {
 	zvol_state_t *zv;
 	struct zvol_state_os *zso;
@@ -1435,6 +1435,7 @@ zvol_alloc(dev_t dev, const char *name, uint64_t volsize, uint64_t volblocksize,
 	zso->zvo_dev = dev;
 	zv->zv_open_count = 0;
 	strlcpy(zv->zv_name, name, sizeof (zv->zv_name));
+	zv->zv_dsobj = dsobj;
 
 	zfs_rangelock_init(&zv->zv_rangelock, NULL, NULL);
 	rw_init(&zv->zv_suspend_lock, NULL, RW_DEFAULT, NULL);
@@ -1693,7 +1694,7 @@ zvol_os_create_minor(const char *name)
 	if (error)
 		goto out_dmu_objset_disown;
 
-	error = zvol_alloc(MKDEV(zvol_major, minor), name,
+	error = zvol_alloc(MKDEV(zvol_major, minor), name, dmu_objset_id(os),
 	    volsize, doi->doi_data_block_size, &zv);
 	if (error || zv == NULL)
 		goto out_dmu_objset_disown;
