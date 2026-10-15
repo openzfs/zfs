@@ -7717,26 +7717,34 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 	}
 
 	/*
-	 * Check that several new devices go to a raidz vdev before
-	 * make_root_vdev() labels any of them.
+	 * Look up the type of the target before make_root_vdev() labels any
+	 * new device.  It decides which new devices and options are allowed,
+	 * and what -w waits for.
 	 */
-	if (argc > 1) {
-		nvlist_t *tgt = zpool_find_vdev(zhp, old_disk, NULL, NULL,
-		    NULL);
-		const char *type = NULL;
+	nvlist_t *tgt = zpool_find_vdev(zhp, old_disk, NULL, NULL, NULL);
+	const char *tgt_type = NULL;
 
-		if (tgt != NULL)
-			(void) nvlist_lookup_string(tgt, ZPOOL_CONFIG_TYPE,
-			    &type);
-		if (type == NULL || strcmp(type, VDEV_TYPE_RAIDZ) != 0) {
-			(void) fprintf(stderr, "cannot attach to %s: %s\n",
-			    old_disk, tgt == NULL ? "no such device in pool" :
-			    "several new devices can only be attached to a "
-			    "raidz vdev");
-			zpool_close(zhp);
-			nvlist_free(props);
-			return (1);
-		}
+	if (tgt != NULL)
+		(void) nvlist_lookup_string(tgt, ZPOOL_CONFIG_TYPE, &tgt_type);
+	boolean_t raidz = tgt_type != NULL &&
+	    strcmp(tgt_type, VDEV_TYPE_RAIDZ) == 0;
+
+	if (argc > 1 && !raidz) {
+		(void) fprintf(stderr, "cannot attach to %s: %s\n",
+		    old_disk, tgt == NULL ? "no such device in pool" :
+		    "several new devices can only be attached to a "
+		    "raidz vdev");
+		zpool_close(zhp);
+		nvlist_free(props);
+		return (1);
+	}
+
+	if (rebuild && raidz && !replacing) {
+		(void) fprintf(stderr, "cannot attach to %s: %s\n",
+		    old_disk, "-s does not apply to raidz expansion");
+		zpool_close(zhp);
+		nvlist_free(props);
+		return (1);
 	}
 
 	/* unless manually specified use "ashift" pool property (if set) */
@@ -7766,13 +7774,10 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 
 	if (ret == 0 && wait) {
 		zpool_wait_activity_t activity = ZPOOL_WAIT_RESILVER;
-		char raidz_prefix[] = "raidz";
-		if (replacing) {
+		if (replacing)
 			activity = ZPOOL_WAIT_REPLACE;
-		} else if (strncmp(old_disk,
-		    raidz_prefix, strlen(raidz_prefix)) == 0) {
+		else if (raidz)
 			activity = ZPOOL_WAIT_RAIDZ_EXPAND;
-		}
 		ret = zpool_wait(zhp, activity);
 	}
 
@@ -7804,6 +7809,7 @@ zpool_do_replace(int argc, char **argv)
  *
  *	-f	Force attach, even if <new_device> appears to be in use.
  *	-s	Use sequential instead of healing reconstruction for resilver.
+ *		Not allowed for raidz expansion.
  *	-o	Set property=value.
  *	-w	Wait for resilvering (mirror) or expansion (raidz) to complete
  *		before returning.
