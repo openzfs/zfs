@@ -3295,8 +3295,7 @@ static void
 zio_gang_tree_assemble(zio_t *gio, blkptr_t *bp, zio_gang_node_t **gnpp)
 {
 	uint64_t gangblocksize = UINT64_MAX;
-	if (spa_feature_is_active(gio->io_spa,
-	    SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
+	if (spa_dynamic_gang_header(gio->io_spa)) {
 		spa_config_enter(gio->io_spa, SCL_VDEV, FTAG, RW_READER);
 		for (int dva = 0; dva < BP_GET_NDVAS(bp); dva++) {
 			vdev_t *vd = vdev_lookup_top(gio->io_spa,
@@ -3494,6 +3493,20 @@ zio_update_feature(void *arg, dmu_tx_t *tx)
 	spa_feature_incr(spa, (spa_feature_t)(uintptr_t)arg, tx);
 }
 
+/*
+ * An allocation fails with ENOSPC when no vdev in the class can be
+ * written, too. Report that as EIO to a zio that may fail. Other
+ * zios keep ENOSPC, which makes zio_done() suspend the pool.
+ */
+static int
+zio_alloc_error(zio_t *zio, metaslab_class_t *mc, int error)
+{
+	if (error == ENOSPC && (zio->io_flags & ZIO_FLAG_CANFAIL) &&
+	    metaslab_class_unwritable(mc))
+		return (SET_ERROR(EIO));
+	return (error);
+}
+
 static zio_t *
 zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 {
@@ -3545,7 +3558,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	    bp, gbh_copies, txg, pio == gio ? NULL : gio->io_bp, flags,
 	    ZIO_ALLOC_LIST(pio), pio->io_allocator, pio, &candidate);
 	if (error) {
-		pio->io_error = error;
+		pio->io_error = zio_alloc_error(pio, mc, error);
 		return (pio);
 	}
 	if (spa_feature_is_active(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER))
@@ -4869,7 +4882,7 @@ again:
 			    spa_name(spa), zio, (u_longlong_t)zio->io_size,
 			    error);
 		}
-		zio->io_error = error;
+		zio->io_error = zio_alloc_error(zio, mc, error);
 	} else if (zio->io_prop.zp_rewrite) {
 		/*
 		 * For rewrite operations, preserve the logical birth time

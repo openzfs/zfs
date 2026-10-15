@@ -114,6 +114,11 @@ zfs_scratch_dir=$(mktemp -d /var/tmp/zfs-zloop.XXXXXX) || exit 1
 
 ## Patch preparation
 
+- Before opening an upstream PR, push the final branch to your fork and
+  wait for CI to pass for the exact PR head SHA. Supported PR workflows can
+  then reuse the completed fork results.
+- Open no more than five upstream PRs per day unless agreed in advance
+  with the maintainers.
 - Base ordinary PRs on `master`; use commit subject/body lines <= 72 characters
   and end the message with `Signed-off-by: Name <email>` (`git commit -s`).
 - Keep changes small and independently reviewable; avoid unrelated refactoring.

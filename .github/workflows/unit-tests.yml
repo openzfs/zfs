@@ -5,26 +5,49 @@ on:
   pull_request:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: >-
+    ${{ github.workflow }}-${{ github.head_ref ||
+    (github.event_name == 'push' && github.ref) || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   unit-tests:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
     steps:
     - uses: actions/checkout@v6
       with:
         ref: ${{ github.event.pull_request.head.sha }}
+    - name: Find completed fork job
+      id: reuse
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        jobs=$(python3 .github/workflows/scripts/reuse-ci.py unit-tests)
+        echo "url=$(jq -r '.["unit-tests"] // ""' <<< "$jobs")" >> "$GITHUB_OUTPUT"
+    - name: Reuse successful fork job
+      if: steps.reuse.outputs.url != ''
+      env:
+        REUSED_JOB: ${{ steps.reuse.outputs.url }}
+      run: |
+        printf 'Reused successful unit tests for this commit.\n\n[Original job and logs](%s)\n' \
+          "$REUSED_JOB" | tee -a "$GITHUB_STEP_SUMMARY"
     - name: Install dependencies
+      if: steps.reuse.outputs.url == ''
       run: |
         sudo apt-get purge -y snapd google-chrome-stable firefox
         ONLY_DEPS=1 .github/workflows/scripts/qemu-3-deps-vm.sh ubuntu24
     - name: Autogen
+      if: steps.reuse.outputs.url == ''
       run: |
         ./autogen.sh
     - name: Configure
+      if: steps.reuse.outputs.url == ''
       run: |
         ./configure --with-config=user --enable-debug --enable-debuginfo
     - name: Unit tests
+      if: steps.reuse.outputs.url == ''
       run: |
         make -j$(nproc) unit

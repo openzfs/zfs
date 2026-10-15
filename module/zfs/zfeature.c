@@ -474,6 +474,15 @@ spa_feature_decr(spa_t *spa, spa_feature_t fid, dmu_tx_t *tx)
 	feature_do_action(spa, fid, FEATURE_ACTION_DECR, tx);
 }
 
+/*
+ * spa_feature_is_enabled() and spa_feature_is_active() answer from the
+ * in-core refcount cache, which spa_ld_check_features() fills in while a
+ * pool is being imported.  Until then every feature reads as disabled, so
+ * code that can run earlier in the import, such as reads of the MOS, can't
+ * rely on them.  An active ZFEATURE_FLAG_MOS feature is also listed in the
+ * label's features_for_read, which is available from the start of the
+ * import; spa_dynamic_gang_header() checks spa_label_features for that.
+ */
 boolean_t
 spa_feature_is_enabled(spa_t *spa, spa_feature_t fid)
 {

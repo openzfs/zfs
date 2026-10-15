@@ -1716,6 +1716,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/failmode/failmode_syncalways_continue.ksh \
 	functional/failmode/failmode_nowait_wait.ksh \
 	functional/failmode/failmode_vdev_state.ksh \
+	functional/failmode/failmode_dio_unwritable.ksh \
 	functional/failmode/setup.ksh \
 	functional/fallocate/cleanup.ksh \
 	functional/fallocate/fallocate_extend_timestamps.ksh \
@@ -1767,6 +1768,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/gang_blocks/gang_blocks_redundant.ksh \
 	functional/gang_blocks/gang_blocks_special_fallback.ksh \
 	functional/gang_blocks/gang_blocks_dyn_header_neg.ksh \
+	functional/gang_blocks/gang_blocks_dyn_header_import.ksh \
 	functional/gang_blocks/gang_blocks_dyn_header_pos.ksh \
 	functional/gang_blocks/gang_blocks_dyn_multi.ksh \
 	functional/gang_blocks/setup.ksh \
@@ -2030,6 +2032,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/raidz/raidz_expand_006_neg.ksh \
 	functional/raidz/raidz_expand_007_neg.ksh \
 	functional/raidz/raidz_expand_008_pos.ksh \
+	functional/raidz/raidz_expand_010_pos.ksh \
 	functional/raidz/raidz_expand_rewrite.ksh \
 	functional/raidz/raidz_zinject.ksh \
 	functional/raidz/raidz_parity_epochs_dedup_pos.ksh \

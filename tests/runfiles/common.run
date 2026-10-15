@@ -249,6 +249,7 @@ tests = ['zfs_get_001_pos', 'zfs_get_002_pos', 'zfs_get_003_pos',
     'zfs_get_004_pos', 'zfs_get_005_neg', 'zfs_get_006_neg', 'zfs_get_007_neg',
     'zfs_get_008_pos', 'zfs_get_009_pos', 'zfs_get_010_neg']
 tags = ['functional', 'cli_root', 'zfs_get']
+timeout = 900
 
 [tests/functional/cli_root/zfs_ids_to_path]
 tests = ['zfs_ids_to_path_001_pos']
@@ -772,7 +773,7 @@ tests = ['failmode_dmu_tx_wait', 'failmode_dmu_tx_continue',
     'failmode_msync_wait', 'failmode_msync_continue',
     'failmode_osync_wait', 'failmode_osync_continue',
     'failmode_syncalways_wait', 'failmode_syncalways_continue',
-    'failmode_vdev_state']
+    'failmode_vdev_state', 'failmode_dio_unwritable']
 tags = ['functional', 'failmode']
 
 [tests/functional/fallocate]
@@ -791,8 +792,9 @@ tags = ['functional', 'features', 'large_dnode']
 [tests/functional/gang_blocks]
 tests = ['gang_blocks_001_pos', 'gang_blocks_redundant',
     'gang_blocks_ddt_copies', 'gang_blocks_dyn_header_pos',
-    'gang_blocks_dyn_header_neg', 'gang_blocks_dyn_multi',
-    'gang_blocks_special_fallback', 'gang_blocks_degraded_vdev']
+    'gang_blocks_dyn_header_neg', 'gang_blocks_dyn_header_import',
+    'gang_blocks_dyn_multi', 'gang_blocks_special_fallback',
+    'gang_blocks_degraded_vdev']
 tags = ['functional', 'gang_blocks']
 
 [tests/functional/grow]
@@ -938,7 +940,8 @@ tests = ['raidz_001_neg', 'raidz_002_pos', 'raidz_dedup_overrun',
     'raidz_expand_001_pos',
     'raidz_expand_002_pos', 'raidz_expand_003_neg', 'raidz_expand_003_pos',
     'raidz_expand_004_pos', 'raidz_expand_005_pos', 'raidz_expand_006_neg',
-    'raidz_expand_007_neg', 'raidz_expand_008_pos', 'raidz_expand_rewrite',
+    'raidz_expand_007_neg', 'raidz_expand_008_pos', 'raidz_expand_010_pos',
+    'raidz_expand_rewrite',
     'raidz_zinject', 'raidz_parity_epochs_pos', 'raidz_recon_pos',
     'raidz_parity_epochs_dedup_pos', 'raidz_detach_neg',
     'raidz_parity_epochs_expand_neg', 'raidz_parity_epochs_width_neg',

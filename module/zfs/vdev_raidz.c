@@ -4354,8 +4354,8 @@ vdev_raidz_need_resilver(vdev_t *vd, const dva_t *dva, size_t psize,
 	/*
 	 * The block is laid out in rows of the layout's width, each with
 	 * nparity parity columns, over consecutive children.  A layout
-	 * narrower than the vdev can need several rows where a full-width
-	 * one needs one.
+	 * narrower than the vdev, from an epoch or a previous expansion,
+	 * can need several rows where a full-width one needs one.
 	 */
 	uint64_t ncols = s + nparity *
 	    howmany(s, layout.vrl_width - nparity);

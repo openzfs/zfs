@@ -20,7 +20,9 @@ on:
         description: "(optional) install specific GCC version, like '16'"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: >-
+    ${{ github.workflow }}-${{ github.head_ref ||
+    (github.event_name == 'push' && github.ref) || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -28,12 +30,30 @@ jobs:
     name: ZFS ARM build
     if: github.event_name == 'pull_request' || github.repository != 'openzfs/zfs'
     runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      actions: read
     steps:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 0
         ref: ${{ github.event.pull_request.head.sha }}
+    - name: Find completed fork job
+      id: reuse
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        jobs=$(python3 .github/workflows/scripts/reuse-ci.py zfs-arm)
+        echo "url=$(jq -r '.["zfs-arm"] // ""' <<< "$jobs")" >> "$GITHUB_OUTPUT"
+    - name: Reuse successful fork job
+      if: steps.reuse.outputs.url != ''
+      env:
+        REUSED_JOB: ${{ steps.reuse.outputs.url }}
+      run: |
+        printf 'Reused successful ARM build for this commit.\n\n[Original job and logs](%s)\n' \
+          "$REUSED_JOB" | tee -a "$GITHUB_STEP_SUMMARY"
     - name: Install dependencies
+      if: steps.reuse.outputs.url == ''
       timeout-minutes: 20
       run: |
         sudo apt-get -y remove firefox || true
@@ -70,6 +90,7 @@ jobs:
           echo "127.0.0.1 vm$i" | sudo tee -a /etc/hosts
         done
     - name: Build modules
+      if: steps.reuse.outputs.url == ''
       timeout-minutes: 30
       run: |
         # Even though we may have installed a newer GCC, the kernel builds don't

@@ -17,7 +17,9 @@ on:
         description: "(optional) Only run on this specific OS (like 'fedora44' or 'alpine3-24')"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: >-
+    ${{ github.workflow }}-${{ github.head_ref ||
+    (github.event_name == 'push' && github.ref) || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -103,7 +105,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ZTS_TARGETS: ${{ steps.os.outputs.os }}
         run: |
-          jobs=$(python3 .github/workflows/scripts/reuse-qemu.py)
+          jobs=$(python3 .github/workflows/scripts/reuse-ci.py)
           echo "jobs=$jobs" >> "$GITHUB_OUTPUT"
           all_reused=$(jq -n --argjson jobs "$jobs" --argjson targets "$ZTS_TARGETS" \
             '$targets | all(.[]; $jobs[.] != null)')
@@ -129,7 +131,10 @@ jobs:
         os: ${{ fromJson(needs.test-config.outputs.test_os) }}
     runs-on: ubuntu-24.04
     env:
-      REUSED_JOB: ${{ fromJSON(needs.test-config.outputs.reused_jobs)[matrix.os] }}
+      # Setup outputs survive a selective matrix job rerun.
+      REUSED_JOB: >-
+        ${{ github.run_attempt == '1' &&
+        fromJSON(needs.test-config.outputs.reused_jobs)[matrix.os] || '' }}
     steps:
     - name: Reuse successful fork job
       if: env.REUSED_JOB != ''
@@ -206,10 +211,14 @@ jobs:
       with:
         ref: ${{ github.event.pull_request.head.sha }}
     - uses: actions/download-artifact@v8
-      if: needs.test-config.outputs.all_reused != 'true'
+      if: >-
+        github.run_attempt != '1' ||
+        needs.test-config.outputs.all_reused != 'true'
     - name: Reused fork results
       env:
-        REUSED_JOBS: ${{ needs.test-config.outputs.reused_jobs || '{}' }}
+        REUSED_JOBS: >-
+          ${{ github.run_attempt == '1' &&
+          needs.test-config.outputs.reused_jobs || '{}' }}
       run: |
         jq -r 'to_entries[] | "- \(.key): [original job and logs](\(.value))"' \
           <<< "$REUSED_JOBS" >> "$GITHUB_STEP_SUMMARY"
@@ -252,7 +261,9 @@ jobs:
     - name: Generating summary...
       run: .github/workflows/scripts/qemu-9-summary-page.sh 19
     - uses: actions/upload-artifact@v7
-      if: needs.test-config.outputs.all_reused != 'true'
+      if: >-
+        github.run_attempt != '1' ||
+        needs.test-config.outputs.all_reused != 'true'
       with:
         name: Summary Files
         path: out-*

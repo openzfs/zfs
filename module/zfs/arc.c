@@ -7067,8 +7067,13 @@ arc_write_done(zio_t *zio)
 				exists = buf_hash_insert(hdr, &hash_lock);
 				VERIFY0P(exists);
 			} else if (zio->io_flags & ZIO_FLAG_NOPWRITE) {
-				/* nopwrite */
-				ASSERT(zio->io_prop.zp_nopwrite);
+				/*
+				 * nopwrite, or a physical rewrite of a dedup
+				 * block that zio_ddt_write() left unchanged
+				 */
+				ASSERT(zio->io_prop.zp_nopwrite ||
+				    (zio->io_prop.zp_rewrite &&
+				    BP_GET_DEDUP(zio->io_bp)));
 				if (!BP_EQUAL(&zio->io_bp_orig, zio->io_bp))
 					panic("bad nopwrite, hdr=%p exists=%p",
 					    (void *)hdr, (void *)exists);

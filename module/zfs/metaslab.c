@@ -6059,6 +6059,32 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t birth, uint64_t txg)
 	return (metaslab_claim_impl(vd, offset, size, txg));
 }
 
+/*
+ * Return B_TRUE if the class has vdevs and none of them can take
+ * writes.
+ */
+boolean_t
+metaslab_class_unwritable(metaslab_class_t *mc)
+{
+	spa_t *spa = mc->mc_spa;
+	metaslab_group_t *mg, *rotor;
+	boolean_t unwritable = B_FALSE;
+
+	spa_config_enter(spa, SCL_ALLOC, FTAG, RW_READER);
+	if ((mg = rotor = mc->mc_allocator[0].mca_rotor) != NULL) {
+		unwritable = B_TRUE;
+		do {
+			if (vdev_allocatable(mg->mg_vd)) {
+				unwritable = B_FALSE;
+				break;
+			}
+		} while ((mg = mg->mg_next) != rotor);
+	}
+	spa_config_exit(spa, SCL_ALLOC, FTAG);
+
+	return (unwritable);
+}
+
 int
 metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
     int ndvas, uint64_t txg, const blkptr_t *hintbp, int flags,

@@ -13,12 +13,17 @@ on:
       - '.gitignore'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: >-
+    ${{ github.workflow }}-${{ github.head_ref ||
+    (github.event_name == 'push' && github.ref) || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   zloop:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
     env:
       WORK_DIR: /mnt/zloop
       CORE_DIR: /mnt/zloop/cores
@@ -26,28 +31,48 @@ jobs:
     - uses: actions/checkout@v6
       with:
         ref: ${{ github.event.pull_request.head.sha }}
+    - name: Find completed fork job
+      id: reuse
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        jobs=$(python3 .github/workflows/scripts/reuse-ci.py zloop)
+        echo "url=$(jq -r '.zloop // ""' <<< "$jobs")" >> "$GITHUB_OUTPUT"
+    - name: Reuse successful fork job
+      if: steps.reuse.outputs.url != ''
+      env:
+        REUSED_JOB: ${{ steps.reuse.outputs.url }}
+      run: |
+        printf 'Reused successful zloop tests for this commit.\n\n[Original job and logs](%s)\n' \
+          "$REUSED_JOB" | tee -a "$GITHUB_STEP_SUMMARY"
     - name: Install dependencies
+      if: steps.reuse.outputs.url == ''
       run: |
         sudo apt-get purge -y snapd google-chrome-stable firefox
         ONLY_DEPS=1 .github/workflows/scripts/qemu-3-deps-vm.sh ubuntu24
     - name: Autogen.sh
+      if: steps.reuse.outputs.url == ''
       run: |
         sed -i '/DEBUG_CFLAGS="-Werror"/s/^/#/' config/zfs-build.m4
         ./autogen.sh
     - name: Configure
+      if: steps.reuse.outputs.url == ''
       run: |
         ./configure --prefix=/usr --enable-debug --enable-debuginfo \
            --enable-asan --enable-ubsan \
            --enable-debug-kmem --enable-debug-kmem-tracking
     - name: Make
+      if: steps.reuse.outputs.url == ''
       run: |
         make -j$(nproc)
     - name: Install
+      if: steps.reuse.outputs.url == ''
       run: |
         sudo make install
         sudo depmod
         sudo modprobe zfs
     - name: Tests
+      if: steps.reuse.outputs.url == ''
       run: |
         sudo truncate -s 256G /mnt/vdev
         sudo zpool create cipool -m $WORK_DIR -O compression=on -o autotrim=on /mnt/vdev
@@ -62,23 +87,23 @@ jobs:
         sudo rm -rf $WORK_DIR/parity-epochs
         sudo /usr/share/zfs/zloop.sh -t 600 -I 6 -l -m 1 -M -c $CORE_DIR -f $WORK_DIR -- -T 120 -P 60
     - name: Prepare artifacts
-      if: failure()
+      if: failure() && steps.reuse.outputs.url == ''
       run: |
         sudo chmod +r -R $WORK_DIR/
     - name: Ztest log
-      if: failure()
+      if: failure() && steps.reuse.outputs.url == ''
       run: |
         grep -B10 -A1000 'ASSERT' $CORE_DIR/*/ztest.out || tail -n 1000 $CORE_DIR/*/ztest.out
     - name: Gdb log
-      if: failure()
+      if: failure() && steps.reuse.outputs.url == ''
       run: |
         sed -n '/Backtraces (full)/q;p' $CORE_DIR/*/ztest.gdb
     - name: Zdb log
-      if: failure()
+      if: failure() && steps.reuse.outputs.url == ''
       run: |
         cat $CORE_DIR/*/ztest.zdb
     - uses: actions/upload-artifact@v7
-      if: failure()
+      if: failure() && steps.reuse.outputs.url == ''
       with:
         name: Logs
         path: |
@@ -86,7 +111,7 @@ jobs:
           !/mnt/zloop/cores/*/vdev/
         if-no-files-found: ignore
     - uses: actions/upload-artifact@v7
-      if: failure()
+      if: failure() && steps.reuse.outputs.url == ''
       with:
         name: Pool files
         path: |
