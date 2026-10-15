@@ -566,9 +566,17 @@ rep_consistent(replication_level_t *lastrep, replication_level_t *rep,
  * Given a list of toplevel vdevs, return the current replication level.  If
  * the config is inconsistent, then NULL is returned.  If 'fatal' is set, then
  * an error message will be displayed for each self-inconsistent vdev.
+ *
+ * Normal vdevs must all match each other.  Special and dedup vdevs are each
+ * compared with the normal vdevs, and not with one another, so they may
+ * differ from each other as long as each one satisfies the normal vdevs.  If
+ * the list has no normal vdevs, special and dedup vdevs are compared with
+ * 'normal' (the replication level of an existing pool) when it is given, or
+ * else with each other.
  */
 static replication_level_t *
-get_replication(nvlist_t *nvroot, boolean_t fatal)
+get_replication(nvlist_t *nvroot, boolean_t fatal,
+    replication_level_t *normal)
 {
 	nvlist_t **top;
 	uint_t t, toplevels;
@@ -580,7 +588,7 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 	replication_level_t lastbias = {0};
 	replication_level_t rep;
 	replication_level_t *ret;
-	replication_level_t *same, *other;
+	replication_level_t *ref;
 	boolean_t dontreport;
 
 	ret = safe_malloc(sizeof (replication_level_t));
@@ -588,10 +596,19 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 	verify(nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
 	    &top, &toplevels) == 0);
 
-	for (t = 0; t < toplevels; t++) {
+	/*
+	 * Walk the toplevel vdevs twice: normal vdevs on the first pass and
+	 * special and dedup vdevs on the second, so that the latter can be
+	 * compared with the normal vdevs regardless of their order.
+	 */
+	for (t = 0; t < 2 * toplevels; t++) {
 		uint64_t is_log = B_FALSE;
 
-		nv = top[t];
+		nv = top[t % toplevels];
+		rep.zprl_bias = nvlist_exists(nv,
+		    ZPOOL_CONFIG_ALLOCATION_BIAS);
+		if (rep.zprl_bias != (t >= toplevels))
+			continue;
 
 		/*
 		 * For separate logs we ignore the top level vdev replication
@@ -775,25 +792,29 @@ get_replication(nvlist_t *nvroot, boolean_t fatal)
 
 		/*
 		 * At this point, we have the replication of the last toplevel
-		 * vdev in 'rep'.  Compare it to the last vdev of the same class
-		 * (normal, or special and dedup), and to the last vdev of the
-		 * other class.
+		 * vdev in 'rep'.  Compare a normal vdev to the previous normal
+		 * vdev, and a special or dedup vdev to the normal vdevs, all
+		 * of which have been seen by now.
 		 */
-		rep.zprl_bias = nvlist_exists(nv,
-		    ZPOOL_CONFIG_ALLOCATION_BIAS);
-		same = rep.zprl_bias ? &lastbias : &lastrep;
-		other = rep.zprl_bias ? &lastrep : &lastbias;
+		if (!rep.zprl_bias || lastrep.zprl_type != NULL)
+			ref = &lastrep;
+		else if (normal != NULL)
+			ref = normal;
+		else
+			ref = &lastbias;
 
-		if ((same->zprl_type != NULL &&
-		    !rep_consistent(same, &rep, fatal)) ||
-		    (other->zprl_type != NULL &&
-		    !rep_consistent(other, &rep, fatal))) {
+		if (ref->zprl_type != NULL &&
+		    !rep_consistent(ref, &rep, fatal)) {
 			free(ret);
 			ret = NULL;
 			if (!fatal)
 				return (NULL);
 		}
-		*same = rep;
+
+		if (rep.zprl_bias)
+			lastbias = rep;
+		else
+			lastrep = rep;
 	}
 
 	/*
@@ -831,7 +852,8 @@ check_replication(nvlist_t *config, nvlist_t *newroot)
 
 		verify(nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE,
 		    &nvroot) == 0);
-		if ((current = get_replication(nvroot, B_FALSE)) == NULL)
+		if ((current = get_replication(nvroot, B_FALSE, NULL)) ==
+		    NULL)
 			return (0);
 	}
 	/*
@@ -856,7 +878,7 @@ check_replication(nvlist_t *config, nvlist_t *newroot)
 	 * Get the replication level of the new vdev spec, reporting any
 	 * inconsistencies found.
 	 */
-	if ((new = get_replication(newroot, B_TRUE)) == NULL) {
+	if ((new = get_replication(newroot, B_TRUE, current)) == NULL) {
 		free(current);
 		return (-1);
 	}
