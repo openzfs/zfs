@@ -262,6 +262,7 @@ struct vdev {
 	uint64_t	vdev_islog;	/* is an intent log device	*/
 	uint64_t	vdev_noalloc;	/* device is passivated?	*/
 	uint64_t	vdev_removing;	/* device is being removed?	*/
+	boolean_t	vdev_removing_empty; /* empty, becoming a hole	*/
 	uint64_t	vdev_failfast;	/* device failfast setting	*/
 	boolean_t	vdev_autosit;	/* automatic sitout management	*/
 	boolean_t	vdev_rz_expanding; /* raidz is being expanded?	*/
