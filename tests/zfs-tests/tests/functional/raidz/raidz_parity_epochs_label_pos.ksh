@@ -44,7 +44,7 @@
 #	   before it or to a checkpoint taken before it, both of which the
 #	   import writes past, and crash after its first txg: the labels must
 #	   have lost the table, and the pool must import and read back the
-#	   known block.
+#	   known block.  Protect the txg used by -T with a checkpoint too.
 #	7. At the boundary of the txgs whose blocks the ZIL may hold, the last
 #	   synced txg plus three: refuse a writable import for an epoch that
 #	   starts there with another parity, or only another width, and drop
@@ -61,7 +61,7 @@ typeset -r MSG_KEEP="preserving the config table for read-only recovery"
 typeset -r MSG_ZAP="no parity epoch table in the config, using"
 typeset -i WIDTH=5
 typeset -i n
-typeset dir out start birth obj first how to
+typeset dir out start birth obj first how to saved
 
 function cleanup
 {
@@ -236,16 +236,24 @@ for how in txg checkpoint; do
 	    log_fail "write failed: $out"
 	obj=$(print -r -- "$out" | sed -n 's/.* object=\([0-9]*\).*/\1/p')
 	[[ $obj == +([0-9]) ]] || log_fail "no object in: $out"
-	[[ $how == checkpoint ]] &&
-	    log_must raidz_epoch_test checkpoint $dir $POOL
+	# Both rewind paths need a protected MOS root.  An arbitrary old
+	# uberblock can point to metadata reused by the later setter.
+	out=$(raidz_epoch_test checkpoint $dir $POOL) ||
+	    log_fail "checkpoint failed: $out"
+	log_note "$out"
+	saved=$(print -r -- "$out" |
+	    sed -n 's/.* txg=\([0-9]*\).*/\1/p')
+	[[ $saved == +([0-9]) ]] && (( saved > 0 )) ||
+	    log_fail "no checkpoint txg in: $out"
 	out=$(zhack -d $dir raidz_epochs $POOL 0 0:$WIDTH:1 next:$WIDTH:2) ||
 	    log_fail "zhack failed: $out"
 	log_note "$out"
 	start=$(print -r -- "$out" | sed -n "s/.* \([0-9]*\):$WIDTH:2\$/\1/p")
 	[[ $start == +([0-9]) ]] || log_fail "no start in: $out"
-	# zhack ran its task three txgs before the start, the first allowed.
+	(( saved < start - 3 )) ||
+	    log_fail "checkpoint $saved does not precede the setter: $out"
 	to=$how
-	[[ $how == txg ]] && to=$((start - 4))
+	[[ $how == txg ]] && to=$saved
 	out=$(raidz_epoch_test crash $dir $POOL $to) ||
 	    log_fail "the rewound import failed: $out"
 	log_note "$out"

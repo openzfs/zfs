@@ -52,7 +52,7 @@
  *	Import the pool writable as zpool import -F does, rewinding it by the
  *	few txgs that allows if the latest cannot be imported, and export it.
  *   checkpoint <dir> <pool>
- *	Take a checkpoint of the pool.
+ *	Take a checkpoint of the pool and print its protected txg.
  *   crash <dir> <pool> [<txg>|checkpoint]
  *	Import the pool writable, rewound to <txg> or before as zpool import -T
  *	does, or to its checkpoint, if either is given, and leave the disks as
@@ -767,14 +767,18 @@ static int
 do_checkpoint(const char *dir, const char *pool)
 {
 	spa_t *spa;
+	uint64_t txg = 0;
 	int err;
 
 	err = open_pool(dir, pool, B_FALSE, &spa);
 	if (err == 0) {
 		err = spa_checkpoint(pool);
+		if (err == 0)
+			txg = spa->spa_checkpoint_txg;
 		close_pool(spa, pool);
 	}
-	(void) printf("RESULT checkpoint rc=%d\n", err);
+	(void) printf("RESULT checkpoint rc=%d txg=%llu\n", err,
+	    (u_longlong_t)txg);
 	return (err);
 }
 
