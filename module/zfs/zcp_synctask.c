@@ -33,6 +33,7 @@
 #include <sys/zfs_znode.h>
 #include <sys/zfeature.h>
 #include <sys/metaslab.h>
+#include "zfs_namecheck.h"
 
 #define	DST_AVG_BLKSHIFT 14
 
@@ -329,6 +330,23 @@ zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	}
 
 	/*
+	 * zfs_ioc_snapshot() checks snapshot names before they get here, but
+	 * channel programs pass them straight from Lua.  An empty or invalid
+	 * name would be added to the snapshot ZAP and break the dataset, so
+	 * check the part after the '@' the same way.  Names that are too long
+	 * are left to dsl_dataset_snapshot_check(), which returns
+	 * ENAMETOOLONG.
+	 */
+	const char *atp = strchr(dsname, '@');
+	namecheck_err_t why;
+	char what;
+	if (atp == NULL)
+		return (SET_ERROR(EINVAL));
+	if (zfs_component_namecheck(atp + 1, &why, &what) != 0 &&
+	    why != NAME_ERR_TOOLONG)
+		return (SET_ERROR(EINVAL));
+
+	/*
 	 * We only allow for a single snapshot rather than a list, so the
 	 * error list output is unnecessary.
 	 */
@@ -383,6 +401,13 @@ zcp_synctask_rename_snapshot(lua_State *state, boolean_t sync,
 	const char *fsname = lua_tostring(state, 1);
 	const char *oldsnapname = lua_tostring(state, 2);
 	const char *newsnapname = lua_tostring(state, 3);
+
+	/* As for snapshot: check the new name as zfs_ioc_rename() would. */
+	namecheck_err_t why;
+	char what;
+	if (zfs_component_namecheck(newsnapname, &why, &what) != 0 &&
+	    why != NAME_ERR_TOOLONG)
+		return (SET_ERROR(EINVAL));
 
 	struct dsl_dataset_rename_snapshot_arg ddrsa = { 0 };
 	ddrsa.ddrsa_fsname = fsname;
