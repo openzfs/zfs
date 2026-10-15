@@ -835,14 +835,17 @@ vdev_rebuild_thread(void *arg)
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
 		metaslab_disable(msp);
 
+		/*
+		 * Wait for remaining sync passes and outstanding allocations
+		 * so all allocated ranges are on disk before rebuilding them.
+		 * Later sync passes can rewrite blocks in place without
+		 * allocating, so waiting for allocations alone is insufficient.
+		 */
+		txg_wait_synced(dp, spa_syncing_txg(spa));
+
 		mutex_enter(&msp->ms_sync_lock);
 		mutex_enter(&msp->ms_lock);
 
-		/*
-		 * If there are outstanding allocations wait for them to be
-		 * synced.  This is needed to ensure all allocated ranges are
-		 * on disk and therefore will be rebuilt.
-		 */
 		for (int j = 0; j < TXG_SIZE; j++) {
 			if (zfs_range_tree_space(msp->ms_allocating[j])) {
 				mutex_exit(&msp->ms_lock);
