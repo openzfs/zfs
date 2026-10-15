@@ -139,10 +139,15 @@ When attaching to a mirror or plain vdev, the
 is reconstructed sequentially to restore redundancy as quickly as possible.
 Checksums are not verified during sequential reconstruction so a scrub is
 started when the resilver completes.
+This option does not apply to RAID-Z expansion, and is refused when
+.Ar vdev
+is a RAID-Z device.
 .It Fl w
 Waits until
 .Ar new_device
 has finished resilvering or expanding before returning.
+For a RAID-Z expansion, it does not wait for the scrub that is started when
+the expansion completes.
 .El
 .
 .Sh EXAMPLES
