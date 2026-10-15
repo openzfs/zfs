@@ -167,6 +167,15 @@ function is_kmemleak
 	grep -q '^kmemleak_object ' /proc/slabinfo
 }
 
+# Determine if CPU mitigations are enabled
+#
+# Return 0 if CPU mitigations are enabled, 1 if otherwise
+
+function has_mitigations
+{
+	! is_linux || ! grep -qw 'mitigations=off' /proc/cmdline
+}
+
 # Determine whether a dataset is mounted
 #
 # $1 dataset name

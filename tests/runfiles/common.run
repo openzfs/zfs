@@ -248,6 +248,7 @@ tests = ['zfs_get_001_pos', 'zfs_get_002_pos', 'zfs_get_003_pos',
     'zfs_get_004_pos', 'zfs_get_005_neg', 'zfs_get_006_neg', 'zfs_get_007_neg',
     'zfs_get_008_pos', 'zfs_get_009_pos', 'zfs_get_010_neg']
 tags = ['functional', 'cli_root', 'zfs_get']
+timeout = 900
 
 [tests/functional/cli_root/zfs_ids_to_path]
 tests = ['zfs_ids_to_path_001_pos']
