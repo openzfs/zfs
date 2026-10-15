@@ -135,9 +135,8 @@ spl_kvmalloc(size_t size, gfp_t lflags)
 {
 	/*
 	 * GFP_KERNEL allocations can safely use kvmalloc which may
-	 * improve performance by avoiding a) high latency caused by
-	 * vmalloc's on-access allocation, b) performance loss due to
-	 * MMU memory address mapping and c) vmalloc locking overhead.
+	 * improve performance by avoiding vmalloc's mapping and locking
+	 * overhead when physically contiguous memory is available.
 	 * This has the side-effect that the slab statistics will
 	 * incorrectly report this as a vmem allocation, but that is
 	 * purely cosmetic.
@@ -158,13 +157,16 @@ spl_kvmalloc(size_t size, gfp_t lflags)
 		kmalloc_lflags |= __GFP_NOWARN;
 
 		/*
-		 * N.B. __GFP_RETRY_MAYFAIL is supported only for large
-		 * e (>32kB) allocations.
-		 *
-		 * We have to override __GFP_RETRY_MAYFAIL by __GFP_NORETRY
-		 * for !costly requests because there is no other way to tell
-		 * the allocator that we want to fail rather than retry
-		 * endlessly.
+		 * Avoid direct reclaim for the physical attempt unless the
+		 * caller prefers it with __GFP_RETRY_MAYFAIL.  Keep lflags
+		 * unchanged so vmalloc retains its reclaim permissions.
+		 */
+		if (!(kmalloc_lflags & __GFP_RETRY_MAYFAIL))
+			kmalloc_lflags &= ~__GFP_DIRECT_RECLAIM;
+
+		/*
+		 * Limit physical allocation retries for non-costly requests,
+		 * including those with __GFP_RETRY_MAYFAIL.
 		 */
 		if (!(kmalloc_lflags & __GFP_RETRY_MAYFAIL) ||
 		    (size <= PAGE_SIZE << PAGE_ALLOC_COSTLY_ORDER)) {
@@ -176,11 +178,9 @@ spl_kvmalloc(size_t size, gfp_t lflags)
 	 * We first try kmalloc - even for big sizes - and fall back to
 	 * spl_vmalloc if that fails.
 	 *
-	 * For non-__GFP-RECLAIM allocations we always stick to
-	 * kmalloc_node, and fail when kmalloc is not successful (returns
-	 * NULL).
-	 * We cannot fall back to spl_vmalloc in this case because spl_vmalloc
-	 * internally uses GPF_KERNEL allocations.
+	 * Require both direct and kswapd reclaim permission in the original
+	 * mask for fallback.
+	 * Older kernels do not support nonblocking vmalloc allocations.
 	 */
 	void *ptr = kmalloc_node(size, kmalloc_lflags, NUMA_NO_NODE);
 	if (ptr || size <= PAGE_SIZE ||
@@ -230,8 +230,8 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 	 */
 	do {
 		/*
-		 * Calling kmalloc_node() when the size >= spl_kmem_alloc_max
-		 * is unsafe.  This must fail for all for kmem_alloc() and
+		 * Calling kmalloc_node() when the size > spl_kmem_alloc_max
+		 * is unsafe.  This must fail for all kmem_alloc() and
 		 * kmem_zalloc() callers.
 		 *
 		 * For vmem_alloc() and vmem_zalloc() callers it is permissible
