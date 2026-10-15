@@ -2764,8 +2764,15 @@ prune_candidates_sync(void *arg, dmu_tx_t *tx)
 		ddt_bp_create(ddt->ddt_checksum, &dpe->dpe_key,
 		    dpe->dpe_phys, DDT_PHYS_FLAT, &blk);
 
+		/*
+		 * The walk read this candidate from the unique-class store
+		 * object, which lags the log. If a log flush has since
+		 * rewritten the stored entry, it may have more references.
+		 */
 		ddt_entry_t *dde = ddt_lookup(ddt, &blk, B_TRUE);
-		if (dde != NULL && !(dde->dde_flags & DDE_FLAG_LOGGED)) {
+		if (dde != NULL && !(dde->dde_flags & DDE_FLAG_LOGGED) &&
+		    memcmp(&dde->dde_phys->ddp_flat, &dpe->dpe_phys->ddp_flat,
+		    DDT_FLAT_PHYS_SIZE) == 0) {
 			ASSERT(dde->dde_flags & DDE_FLAG_LOADED);
 			/*
 			 * Zero the physical, so we don't try to free DVAs
