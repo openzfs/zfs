@@ -21,7 +21,8 @@ UNIT_TESTS = \
 	%D%/test_fletcher \
 	%D%/test_sha2 \
 	%D%/test_cityhash \
-	%D%/test_nvpair
+	%D%/test_nvpair \
+	%D%/test_timer
 noinst_PROGRAMS = $(UNIT_TESTS)
 
 
@@ -133,6 +134,16 @@ nodist_%C%_test_nvpair_SOURCES = \
 	libspl.la \
 	$(LIBTIRPC_LIBS) \
 	libunit.la
+
+
+%C%_test_timer_CFLAGS = $(AM_CFLAGS)
+
+%C%_test_timer_SOURCES = \
+	%D%/test_timer.c
+
+%C%_test_timer_LDADD = \
+	libunit.la \
+	libspl.la
 
 
 # test run and coverage targets below
