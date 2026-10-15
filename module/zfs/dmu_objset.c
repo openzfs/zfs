@@ -51,6 +51,7 @@
 #include <sys/dsl_destroy.h>
 #include <sys/vdev.h>
 #include <sys/zfeature.h>
+#include <sys/zfs_changelog.h>
 #include <sys/policy.h>
 #include <sys/spa_impl.h>
 #include <sys/dmu_recv.h>
@@ -284,6 +285,19 @@ sync_changed_cb(void *arg, uint64_t newval)
 	os->os_sync = newval;
 	if (os->os_zil)
 		zil_set_sync(os->os_zil, newval);
+}
+
+/*
+ * Turning this on starts changelog records being appended for metadata
+ * changes; turning it off stops new records but keeps what is already
+ * there.
+ */
+static void
+changelog_changed_cb(void *arg, uint64_t newval)
+{
+	objset_t *os = arg;
+
+	os->os_changelog = newval;
 }
 
 static void
@@ -555,9 +569,16 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	if (ds != NULL) {
 		os->os_encrypted = (ds->ds_dir->dd_crypto_obj != 0);
 
-		err = dsl_prop_register(ds,
-		    zfs_prop_to_name(ZFS_PROP_PRIMARYCACHE),
-		    primary_cache_changed_cb, os);
+		if (err == 0) {
+			err = dsl_prop_register(ds,
+			    zfs_prop_to_name(ZFS_PROP_CHANGELOG),
+			    changelog_changed_cb, os);
+		}
+		if (err == 0) {
+			err = dsl_prop_register(ds,
+			    zfs_prop_to_name(ZFS_PROP_PRIMARYCACHE),
+			    primary_cache_changed_cb, os);
+		}
 		if (err == 0) {
 			err = dsl_prop_register(ds,
 			    zfs_prop_to_name(ZFS_PROP_SECONDARYCACHE),

@@ -195,6 +195,7 @@ typedef enum {
 	ZFS_PROP_DEFAULTPROJECTOBJQUOTA,
 	ZFS_PROP_SNAPSHOTS_CHANGED_NSECS,
 	ZFS_PROP_ZONED_UID,
+	ZFS_PROP_CHANGELOG,
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -1708,6 +1709,10 @@ typedef enum zfs_ioc {
 	ZFS_IOC_POOL_PREFETCH,			/* 0x5a58 */
 	ZFS_IOC_DDT_PRUNE,			/* 0x5a59 */
 	ZFS_IOC_POOL_CONDENSE,			/* 0x5a5a */
+	ZFS_IOC_CHANGELOG_REGISTER,		/* 0x5a5b */
+	ZFS_IOC_CHANGELOG_READ,			/* 0x5a5c */
+	ZFS_IOC_CHANGELOG_CLEAR,		/* 0x5a5d */
+	ZFS_IOC_CHANGELOG_UNREGISTER,		/* 0x5a5e */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.
@@ -1986,6 +1991,22 @@ typedef enum {
  */
 #define	ZFS_WAIT_ACTIVITY		"wait_activity"
 #define	ZFS_WAIT_WAITED			"wait_waited"
+
+/*
+ * The following are names used with the ZFS_IOC_CHANGELOG_* ioctls.
+ */
+#define	ZFS_CHANGELOG_CONSUMER	"changelog_consumer"
+#define	ZFS_CHANGELOG_MASK	"changelog_mask"
+#define	ZFS_CHANGELOG_CURSOR	"changelog_cursor"
+#define	ZFS_CHANGELOG_MAXRECS	"changelog_maxrecs"
+#define	ZFS_CHANGELOG_WAIT_MS	"changelog_wait_ms"
+#define	ZFS_CHANGELOG_SEQ	"changelog_seq"
+#define	ZFS_CHANGELOG_RECORDS	"changelog_records"
+#define	ZFS_CHANGELOG_NRECS	"changelog_nrecs"
+#define	ZFS_CHANGELOG_HEAD	"changelog_head"
+#define	ZFS_CHANGELOG_TAIL	"changelog_tail"
+#define	ZFS_CHANGELOG_GEN	"changelog_generation"
+#define	ZFS_CHANGELOG_GAP	"changelog_gap"
 
 /*
  * The following are names used when invoking ZFS_IOC_POOL_PREFETCH.
