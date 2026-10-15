@@ -315,17 +315,16 @@ nvt_hash(const char *p)
 static boolean_t
 nvt_nvpair_match(const nvpair_t *nvp1, const nvpair_t *nvp2, uint32_t nvflag)
 {
-	boolean_t match = B_FALSE;
-	if (nvflag & NV_UNIQUE_NAME_TYPE) {
-		if (strcmp(NVP_NAME(nvp1), NVP_NAME(nvp2)) == 0 &&
-		    NVP_TYPE(nvp1) == NVP_TYPE(nvp2))
-			match = B_TRUE;
-	} else {
-		ASSERT(nvflag == 0 || nvflag & NV_UNIQUE_NAME);
-		if (strcmp(NVP_NAME(nvp1), NVP_NAME(nvp2)) == 0)
-			match = B_TRUE;
-	}
-	return (match);
+	/* hashes must match */
+	if (NVPAIR2I_NVP(nvp1)->nvi_hash != NVPAIR2I_NVP(nvp2)->nvi_hash)
+		return (B_FALSE);
+
+	/* if NV_UNIQUE_NAME_TYPE, types must match too */
+	if ((nvflag & NV_UNIQUE_NAME_TYPE) && NVP_TYPE(nvp1) != NVP_TYPE(nvp2))
+		return (B_FALSE);
+
+	/* compare the names proper, in case of hash collisions */
+	return (strcmp(NVP_NAME(nvp1), NVP_NAME(nvp2)) == 0);
 }
 
 static nvpair_t *
@@ -346,14 +345,15 @@ nvt_lookup_name_type(const nvlist_t *nvl, const char *name, data_type_t type)
 		ASSERT(priv->nvp_nbuckets != 0);
 	}
 
-	uint64_t hash = nvt_hash(name);
-	uint64_t index = hash & (priv->nvp_nbuckets - 1);
+	uint32_t hash = nvt_hash(name);
+	uint32_t index = hash & (priv->nvp_nbuckets - 1);
 
 	ASSERT3U(index, <, priv->nvp_nbuckets);
 	i_nvp_t *entry = tab[index];
 
 	for (i_nvp_t *e = entry; e != NULL; e = e->nvi_hashtable_next) {
-		if (strcmp(NVP_NAME(&e->nvi_nvp), name) == 0 &&
+		if (e->nvi_hash == hash &&
+		    strcmp(NVP_NAME(&e->nvi_nvp), name) == 0 &&
 		    (type == DATA_TYPE_DONTCARE ||
 		    NVP_TYPE(&e->nvi_nvp) == type))
 			return (&e->nvi_nvp);
@@ -392,8 +392,7 @@ nvt_resize(nvpriv_t *priv, uint32_t new_size)
 		while (e != NULL) {
 			next = e->nvi_hashtable_next;
 
-			uint32_t hash = nvt_hash(NVP_NAME(&e->nvi_nvp));
-			uint32_t index = hash & new_mask;
+			uint32_t index = e->nvi_hash & new_mask;
 
 			e->nvi_hashtable_next = new_tab[index];
 			new_tab[index] = e;
@@ -479,9 +478,7 @@ nvt_remove_nvpair(nvlist_t *nvl, const nvpair_t *nvp)
 	}
 	i_nvp_t **tab = priv->nvp_hashtable;
 
-	const char *name = NVP_NAME(nvp);
-	uint64_t hash = nvt_hash(name);
-	uint64_t index = hash & (priv->nvp_nbuckets - 1);
+	uint32_t index = NVPAIR2I_NVP(nvp)->nvi_hash & (priv->nvp_nbuckets - 1);
 
 	ASSERT3U(index, <, priv->nvp_nbuckets);
 	i_nvp_t *bucket = tab[index];
@@ -518,6 +515,16 @@ nvt_add_nvpair(nvlist_t *nvl, nvpair_t *nvp, boolean_t check_dup)
 	}
 
 	/*
+	 * Compute the hash and add it to the entry. We have to do this early
+	 * so it's usable by nvt_remove_nvpair() below.
+	 */
+	const char *name = NVP_NAME(nvp);
+	uint32_t hash = nvt_hash(name);
+
+	i_nvp_t *entry = NVPAIR2I_NVP(nvp);
+	entry->nvi_hash = hash;
+
+	/*
 	 * if we don't allow duplicate entries, make sure to
 	 * unlink any existing entries from the table.  A caller that
 	 * has already removed them passes B_FALSE to skip the search.
@@ -535,20 +542,16 @@ nvt_add_nvpair(nvlist_t *nvl, nvpair_t *nvp, boolean_t check_dup)
 	}
 	i_nvp_t **tab = priv->nvp_hashtable;
 
-	const char *name = NVP_NAME(nvp);
-	uint64_t hash = nvt_hash(name);
-	uint64_t index = hash & (priv->nvp_nbuckets - 1);
-
+	uint32_t index = hash & (priv->nvp_nbuckets - 1);
 	ASSERT3U(index, <, priv->nvp_nbuckets);
 	// cppcheck-suppress nullPointerRedundantCheck
 	i_nvp_t *bucket = tab[index];
 
 	/* insert link at the beginning of the bucket */
-	i_nvp_t *new_entry = NVPAIR2I_NVP(nvp);
-	ASSERT0P(new_entry->nvi_hashtable_next);
-	new_entry->nvi_hashtable_next = bucket;
+	ASSERT0P(entry->nvi_hashtable_next);
+	entry->nvi_hashtable_next = bucket;
 	// cppcheck-suppress nullPointerRedundantCheck
-	tab[index] = new_entry;
+	tab[index] = entry;
 
 	priv->nvp_nentries++;
 	return (0);

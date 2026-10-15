@@ -16,6 +16,7 @@
 
 /*
  * Copyright (c) 2017 by Delphix. All rights reserved.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #ifndef	_NVPAIR_IMPL_H
@@ -51,6 +52,9 @@ struct i_nvp {
 
 			/* next pair in table bucket */
 			i_nvp_t	*_nvi_hashtable_next;
+
+			/* hash value of key */
+			uint32_t _nvi_hash;
 		} _nvi;
 	} _nvi_un;
 
@@ -60,6 +64,7 @@ struct i_nvp {
 #define	nvi_next	_nvi_un._nvi._nvi_next
 #define	nvi_prev	_nvi_un._nvi._nvi_prev
 #define	nvi_hashtable_next	_nvi_un._nvi._nvi_hashtable_next
+#define	nvi_hash	_nvi_un._nvi._nvi_hash
 
 typedef struct {
 	i_nvp_t		*nvp_list;	/* linked list of nvpairs */
