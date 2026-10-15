@@ -4886,7 +4886,7 @@ io_error_exit:
 	 */
 	RAIDZ_REFLOW_SET(&spa->spa_ubsync, RRSS_SCRATCH_VALID, logical_size);
 	spa->spa_ubsync.ub_timestamp++;
-	ASSERT0(vdev_uberblock_sync_list(spa, &spa->spa_root_vdev, 1,
+	VERIFY0(vdev_uberblock_sync_list(spa, &spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
 	if (spa_multihost(spa))
 		mmp_update_uberblock(spa, &spa->spa_ubsync);
@@ -4948,7 +4948,7 @@ overwrite:
 	RAIDZ_REFLOW_SET(&spa->spa_ubsync, RRSS_SCRATCH_INVALID_SYNCED,
 	    logical_size);
 	spa->spa_ubsync.ub_timestamp++;
-	ASSERT0(vdev_uberblock_sync_list(spa, &spa->spa_root_vdev, 1,
+	VERIFY0(vdev_uberblock_sync_list(spa, &spa->spa_root_vdev, 1,
 	    &spa->spa_ubsync, ZIO_FLAG_CONFIG_WRITER));
 	if (spa_multihost(spa))
 		mmp_update_uberblock(spa, &spa->spa_ubsync);
