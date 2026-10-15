@@ -76,8 +76,9 @@ PRs can reuse QEMU results from their source fork without a repository
 allowlist or additional configuration.
 
 For each requested OS, `test-config` looks for a successful job in the
-latest push run for the exact PR head SHA. The run must be completed and
-no more than seven days old. Build, test and summary steps must all have
+push runs for the exact PR head SHA (the latest ten, newest first). A run
+must be no more than seven days old, and only jobs in completed runs are
+reused. Build, test and summary steps must all have
 completed successfully on `ubuntu-24.04`.
 Push runs use full tests, so they also cover PRs requesting quick tests.
 `ZTS_OS_OVERRIDE` in a fork can reduce the available OS results; missing
@@ -87,10 +88,13 @@ reused because they can select different inputs or test suites.
 Reused matrix jobs report success with a link to the original job and
 logs. The cleanup summary links to these results; their artifacts remain
 in the fork. Failed jobs, unavailable API responses and incomplete runs
-fall back to normal testing. Only the latest run and its latest job
-results are considered, so an older success cannot replace a
-newer failure. Only completed workflows are reused, even if individual
-jobs in a running workflow have already finished.
+fall back to normal testing. The newest finished result for each job
+decides it, using each job's latest attempt, so an older success cannot
+replace a newer failure. Jobs that were cancelled, skipped or are still
+running have no result, so pushing an already tested commit to a PR branch
+(which starts another push run for it) or cancelling a run does not hide
+an older successful job of the same commit. The other reused workflows
+below search the same way.
 
 Fork results are reused only on the first workflow attempt. Requested
 reruns execute the selected jobs in the base repository, including
