@@ -2637,6 +2637,14 @@ vdev_validate(vdev_t *vd)
 	}
 
 	/*
+	 * spa_ld_label_layout() only reads again the labels of the leaves
+	 * whose label here is newer than the config.
+	 */
+	if (nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_TXG,
+	    &vd->vdev_label_txg) != 0)
+		vd->vdev_label_txg = 0;
+
+	/*
 	 * Determine if this vdev has been split off into another
 	 * pool.  If so, then refuse to open it.
 	 */

@@ -944,6 +944,57 @@ retry:
 	return (config);
 }
 
+static void
+vdev_top_label_newest(vdev_t *vd, uint64_t txg, nvlist_t **best,
+    uint64_t *best_txg)
+{
+	nvlist_t *label;
+	uint64_t pool_guid;
+	uint64_t top_guid;
+	uint64_t label_txg;
+
+	for (uint64_t c = 0; c < vd->vdev_children; c++)
+		vdev_top_label_newest(vd->vdev_child[c], txg, best, best_txg);
+
+	if (!vd->vdev_ops->vdev_op_leaf || vd->vdev_label_txg <= *best_txg)
+		return;
+
+	label = vdev_label_read_config(vd, txg, VDEV_TRUSTED_LABELS(vd));
+	if (label == NULL)
+		return;
+
+	if (nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_GUID,
+	    &pool_guid) == 0 && pool_guid == spa_guid(vd->vdev_spa) &&
+	    nvlist_lookup_uint64(label, ZPOOL_CONFIG_TOP_GUID,
+	    &top_guid) == 0 && top_guid == vd->vdev_top->vdev_guid &&
+	    nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_TXG,
+	    &label_txg) == 0 && label_txg > *best_txg) {
+		nvlist_free(*best);
+		*best = label;
+		*best_txg = label_txg;
+	} else {
+		nvlist_free(label);
+	}
+}
+
+/*
+ * Return the newest label that the leaves of top-level vdev tvd hold for it
+ * with a txg above after and no later than txg, or NULL if there is none.
+ * Every leaf of a top-level vdev gets a label when its config changes, except
+ * one that cannot be written then, which keeps an older label.  A leaf is only
+ * read if the label vdev_validate() read from it, its newest, is above after.
+ */
+nvlist_t *
+vdev_top_label_read_config(vdev_t *tvd, uint64_t txg, uint64_t after)
+{
+	nvlist_t *best = NULL;
+	uint64_t best_txg = after;
+
+	ASSERT3P(tvd, ==, tvd->vdev_top);
+	vdev_top_label_newest(tvd, txg, &best, &best_txg);
+	return (best);
+}
+
 /*
  * Determine if a device is in use.  The 'spare_guid' parameter will be filled
  * in with the device guid if this spare is active elsewhere on the system.
