@@ -10169,6 +10169,26 @@ dedup_stats_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *item)
 	}
 }
 
+/*
+ * Get the width of an expanding raidz vdev before and after the expansion.
+ * The width after is its number of children.  The config records the width
+ * before only when several disks are being added at once; otherwise it is
+ * one less.
+ */
+static void
+raidz_expand_widths(nvlist_t *rzvd, uint64_t *old_width, uint64_t *new_width)
+{
+	nvlist_t **child;
+	uint_t children = 0;
+
+	(void) nvlist_lookup_nvlist_array(rzvd, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children);
+	*new_width = children;
+	if (nvlist_lookup_uint64(rzvd, ZPOOL_CONFIG_RAIDZ_EXPAND_OLD_WIDTH,
+	    old_width) != 0)
+		*old_width = children > 0 ? children - 1 : 0;
+}
+
 static void
 raidz_expand_status_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb,
     nvlist_t *nvroot, nvlist_t *item)
@@ -10192,6 +10212,15 @@ raidz_expand_status_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb,
 		nice_num_str_nvlist(nv, "expanding_vdev",
 		    pres->pres_expanding_vdev, B_TRUE, cb->cb_json_as_int,
 		    ZFS_NICENUM_1024);
+		if (pres->pres_state == DSS_SCANNING) {
+			uint64_t old_width, new_width;
+			raidz_expand_widths(child[pres->pres_expanding_vdev],
+			    &old_width, &new_width);
+			nice_num_str_nvlist(nv, "old_width", old_width, B_TRUE,
+			    cb->cb_json_as_int, ZFS_NICENUM_1024);
+			nice_num_str_nvlist(nv, "new_width", new_width, B_TRUE,
+			    cb->cb_json_as_int, ZFS_NICENUM_1024);
+		}
 		nice_num_str_nvlist(nv, "start_time", pres->pres_start_time,
 		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICE_TIMESTAMP);
 		nice_num_str_nvlist(nv, "end_time", pres->pres_end_time,
@@ -10693,6 +10722,7 @@ print_raidz_expand_status(zpool_handle_t *zhp, pool_raidz_expand_stat_t *pres)
 	} else {
 		char examined_buf[7], total_buf[7], rate_buf[7];
 		uint64_t copied, total, elapsed, rate, secs_left;
+		uint64_t old_width, new_width;
 		double fraction_done;
 
 		assert(pres->pres_state == DSS_SCANNING);
@@ -10700,9 +10730,13 @@ print_raidz_expand_status(zpool_handle_t *zhp, pool_raidz_expand_stat_t *pres)
 		/*
 		 * Expansion is in progress.
 		 */
+		raidz_expand_widths(child[pres->pres_expanding_vdev],
+		    &old_width, &new_width);
 		(void) printf(
-		    "expansion of %s-%u in progress since %s",
-		    vname, (int)pres->pres_expanding_vdev, ctime(&start));
+		    "expansion of %s-%u from %llu to %llu disks in progress "
+		    "since %s", vname, (int)pres->pres_expanding_vdev,
+		    (u_longlong_t)old_width, (u_longlong_t)new_width,
+		    ctime(&start));
 
 		copied = pres->pres_reflowed > 0 ? pres->pres_reflowed : 1;
 		total = pres->pres_to_reflow;
