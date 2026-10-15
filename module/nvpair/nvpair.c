@@ -283,18 +283,33 @@ nvt_tab_free(nvpriv_t *priv)
 	priv->nvp_nentries = 0;
 }
 
+/*
+ * FNV-1a: https://www.rfc-editor.org/rfc/rfc9923.html
+ *
+ * FNV has a problem in that the low K bits of the hash only depend on the low
+ * K bits of each input byte, and since we select the hash bucket by masking
+ * the bits, low variance in the strings (and particular the later bytes in the
+ * strings) will push them towards the same or nearer buckets. To combat this,
+ * we mix the hash with the MurmurHash3 fmix32 finaliser, which should
+ * distribute similar strings much further across the range of buckets.
+ */
 static uint32_t
 nvt_hash(const char *p)
 {
-	uint32_t g, hval = 0;
-
+	uint32_t h = 0x811c9dc5;	/* FNV 32-bit offset_basis */
 	while (*p) {
-		hval = (hval << 4) + *p++;
-		if ((g = (hval & 0xf0000000)) != 0)
-			hval ^= g >> 24;
-		hval &= ~g;
+		h ^= (uint8_t)*p++;	/* unsigned to avoid sign extension */
+		h *= 0x01000193;	/* FNV 32-bit prime */
 	}
-	return (hval);
+
+	/* MurmurHash3 fmix32() */
+	h ^= h >> 16;
+	h *= 0x85ebca6b;
+	h ^= h >> 13;
+	h *= 0xc2b2ae35;
+	h ^= h >> 16;
+
+	return (h);
 }
 
 static boolean_t
