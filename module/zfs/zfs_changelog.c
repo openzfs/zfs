@@ -55,6 +55,8 @@
 static uint64_t changelog_retention_recs = 2ULL * 1024 * 1024;
 /* Slots per chunk object (64Ki x 256B = 16MB per chunk). */
 static uint64_t changelog_chunk_recs = 64ULL * 1024;
+/* Upper bound on records returned by one read ioctl. */
+static uint_t changelog_read_max = 2048;
 /* Perf attribution only: keep the tx holds but skip the record write. */
 static uint_t changelog_test_nowrite = 0;
 /* Async: the op path only queues records, the txg sync path flushes. */
@@ -1098,11 +1100,316 @@ zfs_changelog_flush_notify(objset_t *os)
 }
 #endif	/* _KERNEL */
 
+/*
+ * Consumer state lives in the consumer ZAP, keyed by name, so a consumer
+ * survives reboots and can resume where it stopped.
+ */
+static int
+cl_consumer_get(objset_t *os, changelog_t *dl, const char *cname,
+    changelog_consumer_phys_t *cp)
+{
+	return (zap_lookup(os, dl->cl_phys.clp_consumer_obj, cname,
+	    sizeof (uint64_t), CL_CONSUMER_INTS, cp));
+}
+
+static int
+cl_consumer_put(objset_t *os, changelog_t *dl, const char *cname,
+    const changelog_consumer_phys_t *cp)
+{
+	dmu_tx_t *tx;
+	int err;
+
+	tx = dmu_tx_create(os);
+	dmu_tx_hold_zap(tx, dl->cl_phys.clp_consumer_obj, B_TRUE, cname);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (err != 0) {
+		dmu_tx_abort(tx);
+		return (err);
+	}
+	err = zap_update(os, dl->cl_phys.clp_consumer_obj, cname,
+	    sizeof (uint64_t), CL_CONSUMER_INTS, cp, tx);
+	dmu_tx_commit(tx);
+	return (err);
+}
+
+/* Lowest clear point across all consumers; also counts them. */
+static int
+cl_min_clear(objset_t *os, changelog_t *dl, uint64_t *minp, uint64_t *ncons)
+{
+	zap_cursor_t zc;
+	zap_attribute_t *za;
+	uint64_t min = UINT64_MAX, n = 0;
+	int err;
+
+	za = zap_attribute_alloc();
+	for (zap_cursor_init(&zc, os, dl->cl_phys.clp_consumer_obj);
+	    (err = zap_cursor_retrieve(&zc, za)) == 0;
+	    zap_cursor_advance(&zc)) {
+		changelog_consumer_phys_t c;
+
+		if (cl_consumer_get(os, dl, za->za_name, &c) != 0)
+			continue;
+		if (c.clc_clear < min)
+			min = c.clc_clear;
+		n++;
+	}
+	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
+
+	*minp = min;
+	*ncons = n;
+	return (err == ENOENT ? 0 : err);
+}
+
+int
+zfs_changelog_register(objset_t *os, const char *cname, uint64_t mask,
+    uint64_t *seqp)
+{
+	changelog_t *dl;
+	changelog_consumer_phys_t c;
+	int err;
+
+	if (cname == NULL || cname[0] == '\0' ||
+	    strlen(cname) >= CL_CONSUMER_NAME_MAX)
+		return (SET_ERROR(EINVAL));
+
+	dl = cl_state(os);
+	if ((err = cl_open(os, dl)) != 0)
+		return (err);
+
+	err = cl_consumer_get(os, dl, cname, &c);
+	if (err == ENOENT) {
+		/* A new consumer is only promised changes from here on. */
+		memset(&c, 0, sizeof (c));
+		mutex_enter(&dl->cl_lock);
+		c.clc_clear = dl->cl_head;
+		c.clc_gen = dl->cl_phys.clp_generation;
+		mutex_exit(&dl->cl_lock);
+		c.clc_read = c.clc_clear;
+	} else if (err != 0) {
+		return (err);
+	}
+
+	c.clc_mask = mask;
+	c.clc_time = gethrestime_sec();
+	err = cl_consumer_put(os, dl, cname, &c);
+	if (err == 0 && seqp != NULL)
+		*seqp = c.clc_clear;
+	return (err);
+}
+
+int
+zfs_changelog_unregister(objset_t *os, const char *cname)
+{
+	changelog_t *dl;
+	dmu_tx_t *tx;
+	uint64_t min, ncons;
+	int err;
+
+	if (cname == NULL || cname[0] == '\0')
+		return (SET_ERROR(EINVAL));
+
+	dl = cl_state(os);
+	if ((err = cl_open(os, dl)) != 0)
+		return (err);
+
+	tx = dmu_tx_create(os);
+	dmu_tx_hold_zap(tx, dl->cl_phys.clp_consumer_obj, B_FALSE, cname);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (err != 0) {
+		dmu_tx_abort(tx);
+		return (err);
+	}
+	err = zap_remove(os, dl->cl_phys.clp_consumer_obj, cname, tx);
+	dmu_tx_commit(tx);
+	if (err != 0)
+		return (err);
+
+	/* Dropping a consumer can release records the others already have. */
+	if (cl_min_clear(os, dl, &min, &ncons) == 0 && ncons > 0 &&
+	    min != UINT64_MAX)
+		cl_trim(os, dl, min, B_FALSE, 64);
+	return (0);
+}
+
+int
+zfs_changelog_clear(objset_t *os, const char *cname, uint64_t seq)
+{
+	changelog_t *dl;
+	changelog_consumer_phys_t c;
+	uint64_t head, min, ncons;
+	int err;
+
+	dl = cl_state(os);
+	if ((err = cl_open(os, dl)) != 0)
+		return (err);
+	if ((err = cl_consumer_get(os, dl, cname, &c)) != 0)
+		return (err);
+
+	mutex_enter(&dl->cl_lock);
+	head = dl->cl_head;
+	mutex_exit(&dl->cl_lock);
+
+	if (seq > head)
+		seq = head;
+	if (seq > c.clc_clear) {
+		c.clc_clear = seq;
+		c.clc_read = seq;
+		c.clc_time = gethrestime_sec();
+		if ((err = cl_consumer_put(os, dl, cname, &c)) != 0)
+			return (err);
+	}
+
+	/* Records every consumer has acked can be freed. */
+	if (cl_min_clear(os, dl, &min, &ncons) == 0 && ncons > 0 &&
+	    min != UINT64_MAX)
+		cl_trim(os, dl, min, B_FALSE, 64);
+	return (0);
+}
+
+int
+zfs_changelog_read(objset_t *os, const char *cname, uint64_t cursor,
+    boolean_t use_cursor, uint64_t maxrecs, uint64_t wait_ms,
+    changelog_rec_t *buf, uint64_t *nrecsp, uint64_t *next_cursorp,
+    uint64_t *headp, uint64_t *tailp, uint64_t *genp, boolean_t *gapp)
+{
+	changelog_t *dl;
+	changelog_consumer_phys_t c;
+	changelog_rec_t *batch;
+	uint64_t nrecs = 0, head, tail, gen, cpc, mask = 0;
+	boolean_t waited = B_FALSE;
+	hrtime_t deadline;
+	int err;
+
+	*nrecsp = 0;
+	*gapp = B_FALSE;
+
+	if (maxrecs == 0)
+		return (SET_ERROR(EINVAL));
+	if (maxrecs > changelog_read_max)
+		maxrecs = changelog_read_max;
+
+	dl = cl_state(os);
+	if ((err = cl_open(os, dl)) != 0)
+		return (err);
+	cpc = dl->cl_phys.clp_recs_per_chunk;
+
+	if (cname != NULL && cname[0] != '\0') {
+		if ((err = cl_consumer_get(os, dl, cname, &c)) != 0)
+			return (err);
+		mask = c.clc_mask;
+		/*
+		 * A generation newer than the consumer's means a gap was
+		 * declared since it last ran (crash or trim) - flag it and
+		 * remember, so the consumer rescans instead of silently
+		 * missing changes.
+		 */
+		mutex_enter(&dl->cl_lock);
+		if (c.clc_gen != dl->cl_phys.clp_generation) {
+			c.clc_gen = dl->cl_phys.clp_generation;
+			mutex_exit(&dl->cl_lock);
+			*gapp = B_TRUE;
+			c.clc_time = gethrestime_sec();
+			(void) cl_consumer_put(os, dl, cname, &c);
+		} else {
+			mutex_exit(&dl->cl_lock);
+		}
+		/*
+		 * Without an explicit cursor, resume from what the consumer
+		 * last cleared: delivery is at least once, never silently
+		 * short.
+		 */
+		if (!use_cursor)
+			cursor = c.clc_clear;
+	} else if (!use_cursor) {
+		return (SET_ERROR(EINVAL));
+	}
+
+	deadline = gethrtime() + MSEC2NSEC(wait_ms);
+	batch = vmem_alloc(CL_READ_BATCH * sizeof (changelog_rec_t), KM_SLEEP);
+
+again:
+	mutex_enter(&dl->cl_lock);
+	head = dl->cl_head;
+	tail = dl->cl_phys.clp_tail;
+	gen = dl->cl_phys.clp_generation;
+	mutex_exit(&dl->cl_lock);
+
+	if (cursor < tail) {
+		/* Records were dropped before this consumer got to them. */
+		*gapp = B_TRUE;
+		cursor = tail;
+	}
+
+	if (cursor >= head && wait_ms > 0 && !waited) {
+		hrtime_t left = deadline - gethrtime();
+
+		waited = B_TRUE;
+		if (left > 0) {
+			mutex_enter(&dl->cl_lock);
+			dl->cl_waiters++;
+			(void) cv_timedwait_hires(&dl->cl_cv, &dl->cl_lock,
+			    left, MSEC2NSEC(1), 0);
+			dl->cl_waiters--;
+			mutex_exit(&dl->cl_lock);
+		}
+		goto again;
+	}
+
+	err = 0;
+	while (nrecs < maxrecs && cursor < head) {
+		uint64_t idx = cursor / cpc;
+		uint64_t slot = cursor % cpc;
+		uint64_t obj, navail, nbatch;
+
+		navail = MIN(head - cursor, cpc - slot);
+		nbatch = MIN(navail, MIN(maxrecs - nrecs, CL_READ_BATCH));
+
+		err = cl_chunk_lookup(os, dl, idx, &obj);
+		if (err == ENOENT) {
+			/* Trimmed underneath us: skip to the next chunk. */
+			*gapp = B_TRUE;
+			cursor = (idx + 1) * cpc;
+			err = 0;
+			continue;
+		}
+		if (err != 0)
+			break;
+
+		err = dmu_read(os, obj, slot * sizeof (changelog_rec_t),
+		    nbatch * sizeof (changelog_rec_t), batch,
+		    DMU_READ_PREFETCH);
+		if (err != 0)
+			break;
+
+		for (uint64_t i = 0; i < nbatch; i++) {
+			changelog_rec_t *r = &batch[i];
+
+			cursor++;
+			if (r->clr_magic != CL_REC_MAGIC)
+				continue;
+			if (mask != 0 && (mask & CL_OP_MASK(r->clr_op)) == 0)
+				continue;
+			buf[nrecs++] = *r;
+		}
+	}
+
+	vmem_free(batch, CL_READ_BATCH * sizeof (changelog_rec_t));
+
+	*nrecsp = nrecs;
+	*next_cursorp = cursor;
+	*headp = head;
+	*tailp = tail;
+	*genp = gen;
+	return (err);
+}
 
 ZFS_MODULE_PARAM(zfs_changelog, changelog_, retention_recs, U64, ZMOD_RW,
 	"Records kept per dataset before the oldest are dropped");
 ZFS_MODULE_PARAM(zfs_changelog, changelog_, chunk_recs, U64, ZMOD_RW,
 	"Record slots per chunk object, fixed when a log is created");
+ZFS_MODULE_PARAM(zfs_changelog, changelog_, read_max, UINT, ZMOD_RW,
+	"Maximum records returned by one changelog read");
 ZFS_MODULE_PARAM(zfs_changelog, changelog_, test_nowrite, UINT, ZMOD_RW,
 	"Perf attribution only: keep holds but skip record writes");
 ZFS_MODULE_PARAM(zfs_changelog, changelog_, async, UINT, ZMOD_RW,
