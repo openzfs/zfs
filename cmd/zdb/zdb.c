@@ -9911,10 +9911,12 @@ zdb_read_block(char *thing, spa_t *spa)
 
 			p = &flagstr[i + 1];
 			if (bit == ZDB_FLAG_BIRTH) {
-				char *end;
+				char *end = p;
 
+				/* strtoull() alone takes a sign and spaces. */
 				errno = 0;
-				birth = strtoull(p, &end, 10);
+				if (isdigit((uchar_t)*p))
+					birth = strtoull(p, &end, 10);
 				if (end == p || errno != 0 || birth == 0) {
 					(void) printf("Invalid birth txg in "
 					    "block specifier: %s\n", thing);

@@ -444,11 +444,16 @@ Dump raw uninterpreted block data
 .It Sy t Ar txg
 Read the block as born in transaction group
 .Ar txg ,
-in decimal, as the
+given in decimal digits.
+Give its physical birth, the second number of the
 .Sy B=
-field of
+field that
 .Fl ddddd
-prints its physical birth.
+prints: the layout follows the physical birth, which differs from the logical
+birth, the first number, for a block that deduplication or block cloning
+shares, or that
+.Nm zfs Cm rewrite Fl P
+has rewritten.
 On a RAID-Z vdev that has been expanded, or has parity epochs
 .Pq see Xr zpool-features 7 ,
 this selects the width and parity the block was written with.

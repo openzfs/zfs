@@ -33,6 +33,7 @@
 #	4. Require zdb -R with the t flag and the birth of the block to read
 #	   the block, whose fletcher4 checksum is then the one of its block
 #	   pointer.
+#	5. Require zdb -R to refuse a birth that is not only decimal digits.
 #
 
 verify_runnable "global"
@@ -102,5 +103,14 @@ read_cksum 0:$off:$psize:c
 read_cksum 0:$off:$psize:ct$birth
 [[ $got == "$cksum" ]] ||
     log_fail "zdb -R with t$birth read $got, the block has $cksum"
+
+# strtoull() alone would read t-1 as the last txg there is, and take a sign
+# or spaces before the digits.
+for t in "t-1" "t+$birth" "t $birth" "tx"; do
+	log_must eval "zdb -e -p $BASEDIR -R $POOL '0:$off:$psize:c$t' \
+	    > $BASEDIR/bad.out 2>&1"
+	grep -q "Invalid birth txg" $BASEDIR/bad.out ||
+	    log_fail "zdb -R took the birth in c$t: $(head -3 $BASEDIR/bad.out)"
+done
 
 log_pass "zdb -R reads a raidz block with the layout of the txg it is given"
