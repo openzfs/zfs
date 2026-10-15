@@ -4867,54 +4867,47 @@ metaslab_trace_fini(zio_alloc_list_t *zal)
 
 /*
  * The queue depth of a group is counted in allocated bytes, as its queue
- * target is.  The callers pass the psize and the txg of the allocation,
- * and both ends convert them the same way, so that the decrement removes
- * what the increment added even if a RAID-Z expansion completes between
- * the two.
+ * target is.  The callers pass the asize of the DVA.
  */
 static void
 metaslab_group_alloc_increment(spa_t *spa, uint64_t vdev, int allocator,
-    int flags, uint64_t psize, uint64_t txg, const void *tag)
+    int flags, uint64_t asize, const void *tag)
 {
 	if (!(flags & METASLAB_ASYNC_ALLOC) || tag == NULL)
 		return;
 
-	vdev_t *vd = vdev_lookup_top(spa, vdev);
-	metaslab_group_t *mg = vd->vdev_mg;
+	metaslab_group_t *mg = vdev_lookup_top(spa, vdev)->vdev_mg;
 	if (!mg->mg_class->mc_alloc_throttle_enabled)
 		return;
 
 	metaslab_group_allocator_t *mga = &mg->mg_allocator[allocator];
-	(void) zfs_refcount_add_many(&mga->mga_queue_depth,
-	    vdev_psize_to_asize_txg(vd, psize, txg), tag);
+	(void) zfs_refcount_add_many(&mga->mga_queue_depth, asize, tag);
 }
 
 void
 metaslab_group_alloc_increment_all(spa_t *spa, blkptr_t *bp, int allocator,
-    int flags, uint64_t psize, uint64_t txg, const void *tag)
+    int flags, const void *tag)
 {
 	for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
-		uint64_t vdev = DVA_GET_VDEV(&bp->blk_dva[d]);
-		metaslab_group_alloc_increment(spa, vdev, allocator, flags,
-		    psize, txg, tag);
+		const dva_t *dva = &bp->blk_dva[d];
+		metaslab_group_alloc_increment(spa, DVA_GET_VDEV(dva),
+		    allocator, flags, DVA_GET_ASIZE(dva), tag);
 	}
 }
 
 void
 metaslab_group_alloc_decrement(spa_t *spa, uint64_t vdev, int allocator,
-    int flags, uint64_t psize, uint64_t txg, const void *tag)
+    int flags, uint64_t asize, const void *tag)
 {
 	if (!(flags & METASLAB_ASYNC_ALLOC) || tag == NULL)
 		return;
 
-	vdev_t *vd = vdev_lookup_top(spa, vdev);
-	metaslab_group_t *mg = vd->vdev_mg;
+	metaslab_group_t *mg = vdev_lookup_top(spa, vdev)->vdev_mg;
 	if (!mg->mg_class->mc_alloc_throttle_enabled)
 		return;
 
 	metaslab_group_allocator_t *mga = &mg->mg_allocator[allocator];
-	(void) zfs_refcount_remove_many(&mga->mga_queue_depth,
-	    vdev_psize_to_asize_txg(vd, psize, txg), tag);
+	(void) zfs_refcount_remove_many(&mga->mga_queue_depth, asize, tag);
 }
 
 static uint64_t
@@ -6132,7 +6125,7 @@ metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 				metaslab_unalloc_dva(spa, &dva[d], txg);
 				metaslab_group_alloc_decrement(spa,
 				    DVA_GET_VDEV(&dva[d]), allocator, flags,
-				    psize, txg, tag);
+				    DVA_GET_ASIZE(&dva[d]), tag);
 				memset(&dva[d], 0, sizeof (dva_t));
 			}
 			spa_config_exit(spa, SCL_ALLOC, FTAG);
@@ -6143,8 +6136,8 @@ metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 			 * based on the newly allocated dva.
 			 */
 			metaslab_group_alloc_increment(spa,
-			    DVA_GET_VDEV(&dva[d]), allocator, flags, psize,
-			    txg, tag);
+			    DVA_GET_VDEV(&dva[d]), allocator, flags,
+			    DVA_GET_ASIZE(&dva[d]), tag);
 			if (actual_psize)
 				smallest_psize = MIN(cur_psize, smallest_psize);
 		}
