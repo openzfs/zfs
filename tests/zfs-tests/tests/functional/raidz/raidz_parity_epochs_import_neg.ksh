@@ -75,7 +75,8 @@ log_must zpool export $POOL
 log_must raidz_epoch_test label $dir $POOL now
 log_mustnot_expect "$RDONLY" zpool import -d $dir $POOL
 log_must zpool import -o readonly=on -d $dir $POOL
-log_must zpool export $POOL
+# External mount scanners may still hold the read-only filesystem busy.
+log_must_busy zpool export $POOL
 
 dir=$BASEDIR/tunable
 new_pool $dir 4
