@@ -131,6 +131,14 @@ software that does not support the feature cannot import the pool.
 Only one device can be given when
 .Ar vdev
 is a mirror or plain device.
+.Pp
+The new devices become part of the RAID-Z vdev as soon as they are attached,
+before any data has been copied to them, and cannot be detached.
+From then on they count like the existing devices: if more devices than the
+parity level are unavailable, the RAID-Z vdev has insufficient replicas to
+continue functioning, and the pool cannot be imported.
+When more devices than the parity level are added in one expansion, the
+failure of new devices alone can therefore make the pool unavailable.
 .Bl -tag -width Ds
 .It Fl f
 Forces use of
