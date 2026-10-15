@@ -3492,6 +3492,20 @@ zio_update_feature(void *arg, dmu_tx_t *tx)
 	spa_feature_incr(spa, (spa_feature_t)(uintptr_t)arg, tx);
 }
 
+/*
+ * An allocation fails with ENOSPC when no vdev in the class can be
+ * written, too. Report that as EIO to a zio that may fail. Other
+ * zios keep ENOSPC, which makes zio_done() suspend the pool.
+ */
+static int
+zio_alloc_error(zio_t *zio, metaslab_class_t *mc, int error)
+{
+	if (error == ENOSPC && (zio->io_flags & ZIO_FLAG_CANFAIL) &&
+	    metaslab_class_unwritable(mc))
+		return (SET_ERROR(EIO));
+	return (error);
+}
+
 static zio_t *
 zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 {
@@ -3543,7 +3557,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	    bp, gbh_copies, txg, pio == gio ? NULL : gio->io_bp, flags,
 	    ZIO_ALLOC_LIST(pio), pio->io_allocator, pio, &candidate);
 	if (error) {
-		pio->io_error = error;
+		pio->io_error = zio_alloc_error(pio, mc, error);
 		return (pio);
 	}
 	if (spa_feature_is_active(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER))
@@ -4867,7 +4881,7 @@ again:
 			    spa_name(spa), zio, (u_longlong_t)zio->io_size,
 			    error);
 		}
-		zio->io_error = error;
+		zio->io_error = zio_alloc_error(zio, mc, error);
 	} else if (zio->io_prop.zp_rewrite) {
 		/*
 		 * For rewrite operations, preserve the logical birth time
