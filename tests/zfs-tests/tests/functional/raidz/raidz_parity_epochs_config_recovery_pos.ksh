@@ -43,7 +43,7 @@ typeset -a disks
 function cleanup
 {
 	set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 0
-	poolexists $POOL && log_must zpool export $POOL
+	poolexists $POOL && log_must_busy zpool export $POOL
 	rm -rf $BASEDIR
 }
 
@@ -90,7 +90,8 @@ for phase in future reached; do
 	log_must set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 0
 	log_must zpool import -o readonly=on -d $dir $POOL
 	log_must cmp $BASEDIR/expected $mnt/payload
-	log_must zpool export $POOL
+	# Mount scanners may still hold the read-only filesystem busy.
+	log_must_busy zpool export $POOL
 	check_unchanged
 	log_must eval "zdb -l ${disks[0]} > $dir/labels.out"
 	log_must grep -q 'org.openzfs:raidz_parity_epochs\[' $dir/labels.out
