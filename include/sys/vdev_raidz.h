@@ -122,6 +122,14 @@ typedef struct vdev_raidz_expand {
 	uint64_t vre_bytes_copied;
 } vdev_raidz_expand_t;
 
+/* Why vdev_raidz_load() refused an import because of a parity-epoch table. */
+typedef enum vdev_raidz_refusal {
+	VDEV_RAIDZ_REFUSED_NONE = 0,
+	VDEV_RAIDZ_REFUSED_CONFIG,	/* EROFS: config-only table in use */
+	VDEV_RAIDZ_REFUSED_IGNORED,	/* EROFS: raidz_ignore_parity_epochs */
+	VDEV_RAIDZ_REFUSED_EXPANDED,	/* ENOTSUP: table and expansion */
+} vdev_raidz_refusal_t;
+
 typedef struct vdev_raidz {
 	/*
 	 * Number of child vdevs when this raidz vdev was created (i.e. before
@@ -168,8 +176,8 @@ typedef struct vdev_raidz {
 	uint64_t vd_parity_epoch_count;
 	/* Also remember ignored or invalid config tables for import checks. */
 	boolean_t vd_parity_epochs_config_present;
-	/* Why vdev_raidz_load() refused the table: EROFS, ENOTSUP or 0. */
-	int vd_parity_epochs_refusal;
+	/* Why vdev_raidz_load() refused the import, for the load info. */
+	vdev_raidz_refusal_t vd_parity_epochs_refusal;
 	/* vdev_raidz_load() dropped a config-only table. */
 	boolean_t vd_parity_epochs_dropped;
 } vdev_raidz_t;

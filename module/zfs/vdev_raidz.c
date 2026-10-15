@@ -6014,7 +6014,7 @@ vdev_raidz_load(vdev_t *vd)
 	uint64_t end_time = 0;
 	uint64_t bytes_copied = 0;
 
-	vdrz->vd_parity_epochs_refusal = 0;
+	vdrz->vd_parity_epochs_refusal = VDEV_RAIDZ_REFUSED_NONE;
 	vdrz->vd_parity_epochs_dropped = B_FALSE;
 	if (vd->vdev_top_zap != 0) {
 		err = zap_lookup(vd->vdev_spa->spa_meta_objset,
@@ -6054,7 +6054,7 @@ vdev_raidz_load(vdev_t *vd)
 	    SPA_FEATURE_RAIDZ_PARITY_EPOCHS))) {
 		spa_load_failed(vd->vdev_spa, "raidz_ignore_parity_epochs "
 		    "is set with stored parity epochs: import read-only");
-		vdrz->vd_parity_epochs_refusal = EROFS;
+		vdrz->vd_parity_epochs_refusal = VDEV_RAIDZ_REFUSED_IGNORED;
 		return (SET_ERROR(EROFS));
 	}
 
@@ -6099,7 +6099,8 @@ vdev_raidz_load(vdev_t *vd)
 			    state != DSS_NONE) {
 				vdev_dbgmsg(vd, "vdev_raidz_load: parity epoch "
 				    "table together with expansion state");
-				vdrz->vd_parity_epochs_refusal = ENOTSUP;
+				vdrz->vd_parity_epochs_refusal =
+				    VDEV_RAIDZ_REFUSED_EXPANDED;
 				return (SET_ERROR(ENOTSUP));
 			}
 
@@ -6159,7 +6160,8 @@ vdev_raidz_load(vdev_t *vd)
 					spa_load_failed(vd->vdev_spa,
 					    "config-only parity epoch table: "
 					    "import read-only for recovery");
-					vdrz->vd_parity_epochs_refusal = EROFS;
+					vdrz->vd_parity_epochs_refusal =
+					    VDEV_RAIDZ_REFUSED_CONFIG;
 					return (SET_ERROR(EROFS));
 				}
 				vdev_raidz_parity_epochs_install(vd, NULL, 0);
@@ -6200,10 +6202,16 @@ vdev_raidz_load_info(vdev_t *rvd, nvlist_t *info)
 		if (tvd->vdev_ops != &vdev_raidz_ops)
 			continue;
 		vdrz = tvd->vdev_tsd;
-		if (vdrz->vd_parity_epochs_refusal == EROFS) {
+		if (vdrz->vd_parity_epochs_refusal ==
+		    VDEV_RAIDZ_REFUSED_CONFIG) {
 			fnvlist_add_boolean(info,
 			    ZPOOL_CONFIG_RAIDZ_EPOCHS_RDONLY);
-		} else if (vdrz->vd_parity_epochs_refusal == ENOTSUP) {
+		} else if (vdrz->vd_parity_epochs_refusal ==
+		    VDEV_RAIDZ_REFUSED_IGNORED) {
+			fnvlist_add_boolean(info,
+			    ZPOOL_CONFIG_RAIDZ_EPOCHS_IGNORED);
+		} else if (vdrz->vd_parity_epochs_refusal ==
+		    VDEV_RAIDZ_REFUSED_EXPANDED) {
 			fnvlist_add_boolean(info,
 			    ZPOOL_CONFIG_RAIDZ_EPOCHS_EXPANDED);
 		}

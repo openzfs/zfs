@@ -2495,6 +2495,16 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 			if (nv != NULL && nvlist_lookup_nvlist(nv,
 			    ZPOOL_CONFIG_LOAD_INFO, &nvinfo) == 0 &&
 			    nvlist_exists(nvinfo,
+			    ZPOOL_CONFIG_RAIDZ_EPOCHS_IGNORED)) {
+				zfs_error_aux(hdl, "the "
+				    "raidz_ignore_parity_epochs module "
+				    "parameter only allows a read-only import "
+				    "of a pool with RAID-Z parity epochs\nThe "
+				    "pool can be imported using "
+				    "'-o readonly=on'");
+			} else if (nv != NULL && nvlist_lookup_nvlist(nv,
+			    ZPOOL_CONFIG_LOAD_INFO, &nvinfo) == 0 &&
+			    nvlist_exists(nvinfo,
 			    ZPOOL_CONFIG_RAIDZ_EPOCHS_RDONLY)) {
 				zfs_error_aux(hdl, "the parity-epoch table of "
 				    "a RAID-Z vdev only allows a read-only "

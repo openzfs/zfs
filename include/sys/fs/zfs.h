@@ -979,6 +979,8 @@ typedef struct zpool_load_policy {
 /* A RAID-Z parity-epoch table refused the import; not stored on disk */
 #define	ZPOOL_CONFIG_RAIDZ_EPOCHS_RDONLY	"raidz_epochs_rdonly"
 #define	ZPOOL_CONFIG_RAIDZ_EPOCHS_EXPANDED	"raidz_epochs_expanded"
+/* raidz_ignore_parity_epochs refused it; not stored on disk */
+#define	ZPOOL_CONFIG_RAIDZ_EPOCHS_IGNORED	"raidz_epochs_ignored"
 #define	ZPOOL_CONFIG_FEATURES_FOR_READ	"features_for_read"
 #define	ZPOOL_CONFIG_FEATURE_STATS	"feature_stats"	/* not stored on disk */
 #define	ZPOOL_CONFIG_ERRATA		"errata"	/* not stored on disk */

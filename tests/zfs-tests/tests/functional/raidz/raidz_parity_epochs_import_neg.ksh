@@ -28,7 +28,8 @@
 #	   the labels and the MOS config only.  Require zpool import to fail
 #	   and to name '-o readonly=on', and a read-only import to succeed.
 #	2. Store a table the usual way on another pool, and set the rescue
-#	   tunable.  Require the same of zpool import.
+#	   tunable.  Require the same of zpool import, and the message to
+#	   name the tunable.
 #	3. Expand a third pool, then store a table in its vdev ZAP with
 #	   zhack -f.  Require zpool import to fail and to name the expansion
 #	   history.
@@ -40,6 +41,7 @@ typeset -r BASEDIR=$TEST_BASE_DIR/raidz_pe_import.$$
 typeset -r POOL=${TESTPOOL}_pe_import
 typeset -r RDONLY="readonly=on"
 typeset -r EXPANDED="parity-epoch table and expansion history"
+typeset -r IGNORED="raidz_ignore_parity_epochs module parameter"
 typeset dir
 
 function cleanup
@@ -81,6 +83,7 @@ log_must zpool export $POOL
 log_must zhack -d $dir raidz_epochs $POOL 0 0:4:1 next:4:2
 log_must set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 1
 log_mustnot_expect "$RDONLY" zpool import -d $dir $POOL
+log_mustnot_expect "$IGNORED" zpool import -d $dir $POOL
 log_must set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 0
 log_must zpool import -d $dir $POOL
 log_must zpool export $POOL
