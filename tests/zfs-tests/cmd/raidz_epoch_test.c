@@ -42,6 +42,15 @@
  *	parity changes at the first txg the setter would allow instead, and a
  *	block is written in that epoch.  Print the start and the birth txg of
  *	that block.
+ *   checkpoint <dir> <pool>
+ *	Take a checkpoint of the pool.
+ *   crash <dir> <pool> [<txg>|checkpoint]
+ *	Import the pool writable, rewound to <txg> or before as zpool import -T
+ *	does, or to its checkpoint, if either is given, and leave the disks as
+ *	a crash right after the first txg the import writes would: nothing
+ *	written after it reaches the labels or the uberblocks, and the process
+ *	ends without an export.  Print the result of the import and that txg,
+ *	or 0 if the import synced it before it could be told.
  *   write <dir> <pool> <blocksize>
  *	Write one block of reproducible data to a new MOS object and print its
  *	object number, the offsets of its DVAs on vdev 0 and its birth txg.
@@ -95,6 +104,7 @@
 #include <sys/vdev_raidz_impl.h>
 #include <sys/fs/zfs.h>
 #include <sys/zfeature.h>
+#include <sys/spa_checkpoint.h>
 #include <zfeature_common.h>
 #include <libzutil.h>
 #include <libzpool.h>
@@ -116,6 +126,8 @@ usage(void)
 	    "create|add\n"
 	    "       raidz_epoch_test rootparse <dir> <pool>\n"
 	    "       raidz_epoch_test label <dir> <pool> [now]\n"
+	    "       raidz_epoch_test checkpoint <dir> <pool>\n"
+	    "       raidz_epoch_test crash <dir> <pool> [<txg>|checkpoint]\n"
 	    "       raidz_epoch_test write <dir> <pool> <blocksize>\n"
 	    "       raidz_epoch_test put <dir> <pool> <blocksize>\n"
 	    "       raidz_epoch_test corrupt <dir> <offsets> <psize> <width> "
@@ -617,6 +629,114 @@ do_label(const char *dir, const char *pool, boolean_t now)
 	return (0);
 }
 
+/*
+ * For "crash": freeze the pool at the first txg its import writes as soon as
+ * the import has chosen it, so that no later txg reaches the labels or the
+ * uberblocks.  The import drops the namespace lock while it loads, so
+ * spa_next() finds the pool then.  A freeze that comes once that txg has
+ * synced is too late to tell, and is reported.
+ */
+static kmutex_t crash_lock;
+static uint64_t crash_first;
+static boolean_t crash_late;
+
+static void
+crash_freeze(void *arg)
+{
+	const char *pool = arg;
+
+	for (;;) {
+		spa_namespace_enter(FTAG);
+		for (spa_t *spa = spa_next(NULL); spa != NULL;
+		    spa = spa_next(spa)) {
+			if (strcmp(spa_name(spa), pool) != 0 ||
+			    spa->spa_first_txg == 0)
+				continue;
+			spa->spa_freeze_txg = spa->spa_first_txg;
+			mutex_enter(&crash_lock);
+			crash_first = spa->spa_first_txg;
+			crash_late = spa_last_synced_txg(spa) >= crash_first;
+			mutex_exit(&crash_lock);
+		}
+		spa_namespace_exit(FTAG);
+		if (crash_first != 0)
+			break;
+		(void) usleep(1000);
+	}
+}
+
+static __attribute__((noreturn)) void
+do_crash(const char *dir, const char *pool, const char *txg)
+{
+	importargs_t ia;
+	char *paths[1];
+	nvlist_t *config = NULL;
+	int err;
+
+	libpc_handle_t lpch = {
+		.lpc_lib_handle = NULL,
+		.lpc_ops = &libzpool_config_ops,
+		.lpc_printerr = B_TRUE
+	};
+
+	memset(&ia, 0, sizeof (ia));
+	paths[0] = (char *)dir;
+	ia.path = paths;
+	ia.paths = 1;
+	ia.can_be_active = B_TRUE;
+	err = zpool_find_config(&lpch, pool, &config, &ia);
+	if (err != 0 || config == NULL) {
+		(void) printf("RESULT crash rc=%d first=0\n",
+		    err != 0 ? err : ENOENT);
+		exit(1);
+	}
+	if (txg != NULL && strcmp(txg, "checkpoint") != 0) {
+		nvlist_t *policy = fnvlist_alloc();
+
+		fnvlist_add_uint32(policy, ZPOOL_LOAD_REWIND_POLICY,
+		    ZPOOL_DO_REWIND | ZPOOL_EXTREME_REWIND);
+		fnvlist_add_uint64(policy, ZPOOL_LOAD_REQUEST_TXG,
+		    strtoull(txg, NULL, 10));
+		fnvlist_add_nvlist(config, ZPOOL_LOAD_POLICY, policy);
+		fnvlist_free(policy);
+	}
+
+	/*
+	 * spa_import() writes the cachefile once it is done, which a crash
+	 * after the first txg would not let it do.
+	 */
+	if (asprintf((char **)&spa_config_path, "%s/crash.cache", dir) == -1)
+		exit(1);
+	mutex_init(&crash_lock, NULL, MUTEX_DEFAULT, NULL);
+	(void) thread_create(NULL, 0, crash_freeze, (void *)pool, 0, NULL,
+	    TS_RUN, defclsyspri);
+	err = spa_import((char *)pool, config, NULL, txg != NULL &&
+	    strcmp(txg, "checkpoint") == 0 ? ZFS_IMPORT_CHECKPOINT :
+	    ZFS_IMPORT_NORMAL);
+
+	mutex_enter(&crash_lock);
+	(void) printf("RESULT crash rc=%d first=%llu\n", err,
+	    (u_longlong_t)(crash_late ? 0 : crash_first));
+	mutex_exit(&crash_lock);
+	(void) fflush(stdout);
+	_exit(err != 0);
+}
+
+static int
+do_checkpoint(const char *dir, const char *pool)
+{
+	spa_t *spa;
+	int err;
+
+	err = open_pool(dir, pool, B_FALSE, &spa);
+	if (err == 0) {
+		err = spa_checkpoint(pool);
+		close_pool(spa, pool);
+	}
+	(void) printf("RESULT checkpoint rc=%d\n", err);
+	return (err);
+}
+
 static int
 do_write(const char *dir, const char *pool, uint64_t blksz)
 {
@@ -1021,6 +1141,11 @@ main(int argc, char **argv)
 	} else if (strcmp(argv[1], "label") == 0 && (argc == 4 ||
 	    (argc == 5 && strcmp(argv[4], "now") == 0))) {
 		rv = do_label(argv[2], argv[3], argc == 5);
+	} else if (strcmp(argv[1], "checkpoint") == 0 && argc == 4) {
+		rv = do_checkpoint(argv[2], argv[3]);
+	} else if (strcmp(argv[1], "crash") == 0 && (argc == 4 ||
+	    argc == 5)) {
+		do_crash(argv[2], argv[3], argc == 5 ? argv[4] : NULL);
 	} else if (strcmp(argv[1], "write") == 0 && argc == 5) {
 		rv = do_write(argv[2], argv[3], strtoull(argv[4], NULL, 10));
 	} else if (strcmp(argv[1], "put") == 0 && argc == 5) {

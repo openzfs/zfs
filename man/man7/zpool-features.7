@@ -989,16 +989,28 @@ reports the lowest parity in the table, and
 .Nm zdb Fl m
 prints the table itself.
 .Pp
-A table found only in the labels or MOS configuration, without a copy in
-the vdev ZAP, was not stored by
+A table found in the MOS configuration, without a copy in the vdev ZAP, was
+not stored by
 .Nm zhack
 or
-.Xr ztest 1 .
+.Xr ztest 1 ,
+which write both in the same transaction group.
 A read-only import retains it for recovery.
 A writable import drops it when the pool cannot hold blocks of an epoch whose
 width or parity differs from the vdev's own, that is when every such epoch
 starts after the transaction groups that may have been written, and is refused
 otherwise, so that it cannot erase the layout needed by existing blocks.
+.Pp
+An import that rewinds the pool to a transaction group before the one that
+stored a table, with
+.Nm zpool Cm import Fl F , Fl T
+or
+.Fl -rewind-to-checkpoint ,
+finds the table in labels newer than that transaction group, and uses the MOS
+configuration of that transaction group instead.
+A writable import rewrites such labels, and those of a table it drops, in the
+first transaction group it writes, before any block it writes can be read with
+the layout they describe.
 .Pp
 The
 .Sy raidz_ignore_parity_epochs
