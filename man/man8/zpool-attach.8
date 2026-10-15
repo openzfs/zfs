@@ -35,7 +35,10 @@
 Attaches
 .Ar new_device
 to the existing
-.Ar vdev .
+.Ar vdev ,
+or several new devices when
+.Ar vdev
+is a RAID-Z device.
 The behavior differs depending on if the existing
 .Ar vdev
 is a RAID-Z device, or a mirror/plain device.
@@ -108,6 +111,14 @@ the checksums of all blocks which have been copied during the expansion.
 Several new devices can be given for a RAID-Z vdev.
 They are added in the order given, and one expansion makes room for all of
 them, so the existing data is read and rewritten only once.
+After the expansion completes, new blocks are written with the data-to-parity
+ratio of the final width
+.Pq e.g. a 6-wide RAID-Z2 expanded by 3 disks has 7 data and 2 parity .
+One expansion can make the RAID-Z vdev at most 32/7 (about 4.5) times as wide
+as it was, because each existing disk supplies its part of the scratch copy in
+one read of at most 16 MiB
+.Pq e.g. a 3-wide RAID-Z1 can be expanded to at most 13 disks at once ;
+more devices have to be attached in a later expansion.
 This requires the
 .Sy raidz_expansion_multi
 pool feature, which is
