@@ -18,7 +18,7 @@
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\" Copyright (c) 2026 Seagate Technology, LLC.
 .\"
-.Dd September 21, 2026
+.Dd October 15, 2026
 .Dt ZPOOLCONCEPTS 7
 .Os
 .
@@ -88,6 +88,10 @@ A raidz group with
 The minimum number of devices in a raidz group is one more than the number of
 parity disks.
 The recommended number is between 3 and 9 to help increase performance.
+An existing raidz group can be expanded by one or more disks with
+.Nm zpool Cm attach ;
+see
+.Xr zpool-attach 8 .
 .It Sy draid , draid1 , draid2 , draid3
 A variant of raidz that provides integrated distributed hot spares, allowing
 for faster resilvering, while retaining the benefits of raidz.
