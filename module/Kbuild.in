@@ -443,6 +443,7 @@ ZFS_OBJS := \
 	zfs_replay.o \
 	zfs_rlock.o \
 	zfs_sa.o \
+	zfs_changelog.o \
 	zfs_vnops.o \
 	zfs_znode.o \
 	zil.o \

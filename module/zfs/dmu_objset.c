@@ -1042,6 +1042,8 @@ dmu_objset_evict_done(objset_t *os)
 {
 	ASSERT3P(list_head(&os->os_dnodes), ==, NULL);
 
+	zfs_changelog_objset_fini(os);
+
 	dnode_special_close(&os->os_meta_dnode);
 	if (DMU_USERUSED_DNODE(os)) {
 		if (DMU_PROJECTUSED_DNODE(os))
