@@ -67,6 +67,7 @@ typedef struct {
 	const i_nvp_t	*nvp_curr;	/* current walker nvpair */
 	nv_alloc_t	*nvp_nva;	/* pluggable allocator */
 	uint32_t	nvp_stat;	/* internal state */
+	uint32_t	nvp_npairs;	/* # of nvpairs on list */
 
 	i_nvp_t		**nvp_hashtable; /* table of entries used for lookup */
 	uint32_t	nvp_nbuckets;	/* # of buckets in hash table */

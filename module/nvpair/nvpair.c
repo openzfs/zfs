@@ -14,6 +14,7 @@
  * Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2015, 2017 by Delphix. All rights reserved.
  * Copyright 2018 RackTop Systems.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 /*
@@ -322,6 +323,7 @@ nvt_lookup_name_type(const nvlist_t *nvl, const char *name, data_type_t type)
 
 	if (tab == NULL) {
 		ASSERT0P(priv->nvp_list);
+		ASSERT0(priv->nvp_npairs);
 		ASSERT0(priv->nvp_nbuckets);
 		ASSERT0(priv->nvp_nentries);
 		return (NULL);
@@ -650,12 +652,16 @@ nvp_buf_link(nvlist_t *nvl, nvpair_t *nvp)
 
 	/* Put element at end of nvlist */
 	if (priv->nvp_list == NULL) {
+		ASSERT0(priv->nvp_npairs);
 		priv->nvp_list = priv->nvp_last = curr;
 	} else {
+		ASSERT3U(priv->nvp_npairs, >, 0);
 		curr->nvi_prev = priv->nvp_last;
 		priv->nvp_last->nvi_next = curr;
 		priv->nvp_last = curr;
 	}
+
+	priv->nvp_npairs++;
 }
 
 /*
@@ -682,6 +688,9 @@ nvp_buf_unlink(nvlist_t *nvl, nvpair_t *nvp)
 		priv->nvp_last = curr->nvi_prev;
 	else
 		curr->nvi_next->nvi_prev = curr->nvi_prev;
+
+	ASSERT3U(priv->nvp_npairs, >, 0);
+	priv->nvp_npairs--;
 }
 
 /*
