@@ -3118,6 +3118,17 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 	}
 	case ZFS_PROP_ZONED_UID:
 	{
+		/*
+		 * Reject values that do not fit in a uid_t, as well as
+		 * (uid_t)-1 which is never a valid uid.  Otherwise the
+		 * (uid_t) casts below would silently truncate the value
+		 * and delegate the dataset to an unintended uid (e.g.
+		 * 4294967296 would become uid 0).
+		 */
+		if (intval >= UINT32_MAX) {
+			err = SET_ERROR(EINVAL);
+			break;
+		}
 		uint64_t old_uid = 0;
 		(void) dsl_prop_get(dsname, "zoned_uid", 8, 1, &old_uid, NULL);
 		if (old_uid != 0)

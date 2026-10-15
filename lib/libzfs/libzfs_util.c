@@ -26,6 +26,7 @@
  * Internal utility routines for the ZFS library.
  */
 
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
@@ -1837,6 +1838,24 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 				isnone = B_TRUE;
 			} else if (strcmp(value, "auto") == 0) {
 				isauto = B_TRUE;
+			} else if ((type & ZFS_TYPE_DATASET) &&
+			    prop == ZFS_PROP_ZONED_UID) {
+				/*
+				 * A uid is an identifier, not a quantity:
+				 * accept only a plain decimal number, without
+				 * size suffixes.
+				 */
+				char *end;
+
+				errno = 0;
+				*ivalp = strtoull(value, &end, 10);
+				if (!isdigit((unsigned char)value[0]) ||
+				    *end != '\0' || errno != 0) {
+					zfs_error_aux(hdl,
+					    "'%s' must be a numeric uid",
+					    propname);
+					goto error;
+				}
 			} else if (zfs_nicestrtonum(hdl, value, ivalp) != 0) {
 				goto error;
 			}
@@ -1865,6 +1884,17 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 		    prop == ZPOOL_PROP_DEDUP_TABLE_QUOTA) {
 			zfs_error_aux(hdl,
 			    "use 'none' to disable ddt table quota");
+			goto error;
+		}
+
+		/*
+		 * zoned_uid must fit in a uid_t, and (uid_t)-1 is not a
+		 * valid uid.
+		 */
+		if ((type & ZFS_TYPE_DATASET) && prop == ZFS_PROP_ZONED_UID &&
+		    *ivalp >= UINT32_MAX) {
+			zfs_error_aux(hdl, "'%s' must be less than %llu",
+			    propname, (u_longlong_t)UINT32_MAX);
 			goto error;
 		}
 
