@@ -441,6 +441,23 @@ Dump gang block header
 Dump indirect block
 .It Sy r
 Dump raw uninterpreted block data
+.It Sy t Ar txg
+Read the block as born in transaction group
+.Ar txg ,
+given in decimal digits.
+Give its physical birth, the second number of the
+.Sy B=
+field that
+.Fl ddddd
+prints: the layout follows the physical birth, which differs from the logical
+birth, the first number, for a block that deduplication or block cloning
+shares, or that
+.Nm zfs Cm rewrite Fl P
+has rewritten.
+On a RAID-Z vdev that has been expanded, this selects the width the block was
+written with.
+Without this flag, the block is read with the width the vdev had before its
+first expansion.
 .It Sy v
 Verbose output for guessing compression algorithm
 .El
