@@ -4863,7 +4863,13 @@ ztest_pe_append(ztest_ds_t *zd, uint64_t id)
 	case EBUSY:	/* the config lock stayed busy, next time */
 	case ENOENT:	/* the vdev is gone */
 	case ENOTSUP:	/* the feature is off, or the vdev was expanded */
+		break;
 	case ENXIO:	/* more children are missing than the parity */
+		if (ztest_opts.zo_verbose >= 3)
+			(void) printf("parity epochs: more children missing "
+			    "than parity %llu, keeping the table of vdev "
+			    "%llu\n", (u_longlong_t)parity,
+			    (u_longlong_t)vdev_id);
 		break;
 	case ENOSPC:
 		ztest_record_enospc(FTAG);
@@ -9442,21 +9448,46 @@ typedef struct ztest_epochs_install {
 	vdev_t		*ei_vd;
 	uint64_t	*ei_table;
 	uint64_t	ei_entries;
+	const char	*ei_rule;	/* the rule of the setter it breaks */
 } ztest_epochs_install_t;
+
+/* The epochs after the first start one window apart from the first allowed. */
+static void
+ztest_epochs_install_starts(ztest_epochs_install_t *ei, dmu_tx_t *tx)
+{
+	uint64_t first = vdev_raidz_parity_epochs_first_start(tx);
+
+	for (uint64_t i = 1; i < ei->ei_entries; i++)
+		ei->ei_table[3 * i] = first + (i - 1) * ZTEST_EPOCHS_WINDOW;
+}
+
+/*
+ * Check the table the way zhack(1) does, in syncing context, where the
+ * verdict cannot change before the sync function runs: the setter itself
+ * does not refuse an epoch of less parity than the children missing.
+ */
+static int
+ztest_epochs_install_check(void *arg, dmu_tx_t *tx)
+{
+	ztest_epochs_install_t *ei = arg;
+
+	if (!dmu_tx_is_syncing(tx))
+		return (0);
+	ztest_epochs_install_starts(ei, tx);
+	return (vdev_raidz_parity_epochs_set_check_tx(ei->ei_vd, ei->ei_table,
+	    ei->ei_entries, tx, &ei->ei_rule));
+}
 
 /*
  * Store the table the way zhack(1) does: the vdev ZAP entry, the feature,
- * the in-core copy and the config, in one txg.  The epochs after the first
- * start at the first txg the setter allows, one window apart.
+ * the in-core copy and the config, in one txg.
  */
 static void
 ztest_epochs_install_sync(void *arg, dmu_tx_t *tx)
 {
 	ztest_epochs_install_t *ei = arg;
-	uint64_t first = vdev_raidz_parity_epochs_first_start(tx);
 
-	for (uint64_t i = 1; i < ei->ei_entries; i++)
-		ei->ei_table[3 * i] = first + (i - 1) * ZTEST_EPOCHS_WINDOW;
+	ztest_epochs_install_starts(ei, tx);
 	VERIFY0(vdev_raidz_parity_epochs_set(ei->ei_vd, ei->ei_table,
 	    ei->ei_entries, tx));
 }
@@ -9804,6 +9835,7 @@ ztest_raidz_epochs_run(ztest_shared_t *zs, spa_t *spa)
 	uint64_t txg;
 	uint64_t epoch_parity[ZTEST_EPOCHS_ENTRIES];
 	int checks = ztest_opts.zo_raidz_epochs_checks;
+	int error;
 	uint_t old_pct = metaslab_force_ganging_pct;
 	int old_flags = zfs_flags;
 
@@ -9862,8 +9894,15 @@ ztest_raidz_epochs_run(ztest_shared_t *zs, spa_t *spa)
 	ei.ei_vd = rzvd;
 	ei.ei_table = table;
 	ei.ei_entries = ZTEST_EPOCHS_ENTRIES;
-	VERIFY0(dsl_sync_task(spa_name(spa), NULL, ztest_epochs_install_sync,
-	    &ei, 5, ZFS_SPACE_CHECK_NORMAL));
+	ei.ei_rule = NULL;
+	error = dsl_sync_task(spa_name(spa), ztest_epochs_install_check,
+	    ztest_epochs_install_sync, &ei, 5, ZFS_SPACE_CHECK_NORMAL);
+	if (error != 0) {
+		fatal(B_FALSE, "the setter refused the table of the "
+		    "parity-epoch test (error %d)%s%s", error,
+		    ei.ei_rule != NULL ? ": " : "",
+		    ei.ei_rule != NULL ? ei.ei_rule : "");
+	}
 	if (checks & ZTEST_EPOCHS_ARITH)
 		ztest_epochs_arith_check(rzvd, table, ZTEST_EPOCHS_ENTRIES);
 	if (ztest_opts.zo_verbose >= 1) {
