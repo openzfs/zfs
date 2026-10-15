@@ -12,6 +12,7 @@
 
 /*
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #include <sys/nvpair.h>
@@ -110,13 +111,7 @@ fnvlist_merge(nvlist_t *dst, nvlist_t *src)
 size_t
 fnvlist_num_pairs(nvlist_t *nvl)
 {
-	size_t count = 0;
-	nvpair_t *pair;
-
-	for (pair = nvlist_next_nvpair(nvl, 0); pair != NULL;
-	    pair = nvlist_next_nvpair(nvl, pair))
-		count++;
-	return (count);
+	return (nvlist_num_pairs(nvl));
 }
 
 void

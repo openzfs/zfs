@@ -1542,16 +1542,22 @@ nvlist_prev_nvpair(nvlist_t *nvl, const nvpair_t *nvp)
 	return (curr != NULL ? &curr->nvi_nvp : NULL);
 }
 
-boolean_t
-nvlist_empty(const nvlist_t *nvl)
+size_t
+nvlist_num_pairs(const nvlist_t *nvl)
 {
 	const nvpriv_t *priv;
 
 	if (nvl == NULL ||
 	    (priv = (const nvpriv_t *)(uintptr_t)nvl->nvl_priv) == NULL)
-		return (B_TRUE);
+		return (0);
 
-	return (priv->nvp_list == NULL);
+	return (priv->nvp_npairs);
+}
+
+boolean_t
+nvlist_empty(const nvlist_t *nvl)
+{
+	return (nvlist_num_pairs(nvl) == 0);
 }
 
 const char *
@@ -4017,6 +4023,7 @@ EXPORT_SYMBOL(nvlist_add_string_array);
 EXPORT_SYMBOL(nvlist_add_nvlist_array);
 EXPORT_SYMBOL(nvlist_next_nvpair);
 EXPORT_SYMBOL(nvlist_prev_nvpair);
+EXPORT_SYMBOL(nvlist_num_pairs);
 EXPORT_SYMBOL(nvlist_empty);
 EXPORT_SYMBOL(nvlist_add_hrtime);
 
