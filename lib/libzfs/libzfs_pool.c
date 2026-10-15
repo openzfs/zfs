@@ -4112,6 +4112,10 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 				zfs_error_aux(hdl,
 				    "cannot replace a replacing device");
 			}
+		} else if (strcmp(type, VDEV_TYPE_RAIDZ) == 0 && rebuild) {
+			zfs_error_aux(hdl,
+			    "sequential reconstruction does not apply to "
+			    "raidz expansion");
 		} else if (strcmp(type, VDEV_TYPE_RAIDZ) == 0 &&
 		    children > 1) {
 			zfs_error_aux(hdl,
@@ -4206,7 +4210,7 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		 */
 		if (strcmp(type, VDEV_TYPE_RAIDZ) == 0) {
 			zfs_error_aux(hdl,
-			    "raidz vdev has devices that are are offline or "
+			    "raidz vdev has devices that are offline or "
 			    "being replaced");
 			(void) zfs_error(hdl, EZFS_BADDEV, errbuf);
 			break;
