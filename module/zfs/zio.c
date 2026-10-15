@@ -5964,10 +5964,17 @@ zio_dva_throttle_done(zio_t *zio)
 		asize = vdev_psize_to_asize_txg(vd, SPA_OLD_GANGBLOCKSIZE,
 		    pio->io_txg);
 	} else {
+		/*
+		 * zio_vdev_child_io() moved the offset of a leaf top-level
+		 * vdev past its front labels.
+		 */
+		uint64_t offset = zio->io_offset;
+		if (vd->vdev_ops->vdev_op_leaf)
+			offset -= VDEV_LABEL_START_SIZE;
 		for (int d = 0; d < BP_GET_NDVAS(zio->io_bp); d++) {
 			const dva_t *dva = &zio->io_bp->blk_dva[d];
 			if (DVA_GET_VDEV(dva) == vd->vdev_id &&
-			    DVA_GET_OFFSET(dva) == zio->io_offset) {
+			    DVA_GET_OFFSET(dva) == offset) {
 				asize = DVA_GET_ASIZE(dva);
 				break;
 			}
