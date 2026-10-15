@@ -28,7 +28,9 @@ on:
         description: "(optional) OS to test on (default: ubuntu24)"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  group: >-
+    ${{ github.workflow }}-${{ github.head_ref ||
+    (github.event_name == 'push' && github.ref) || github.run_id }}
   cancel-in-progress: true
 
 env:
