@@ -57,6 +57,14 @@ static uint64_t changelog_retention_recs = 2ULL * 1024 * 1024;
 static uint64_t changelog_chunk_recs = 64ULL * 1024;
 /* Perf attribution only: keep the tx holds but skip the record write. */
 static uint_t changelog_test_nowrite = 0;
+/* Async: the op path only queues records, the txg sync path flushes. */
+uint_t changelog_async = 1;
+
+/* Queued record; the txg sync path writes it with its own transaction. */
+typedef struct changelog_qent {
+	list_node_t	ql_link;
+	changelog_rec_t	ql_rec;
+} changelog_qent_t;
 
 #define	CL_HDR_BLKSZ		512
 #define	CL_CHUNK_BLKSZ		4096
@@ -68,6 +76,10 @@ typedef struct changelog {
 	kmutex_t	cl_open_lock;	/* serializes first-use setup */
 	kcondvar_t	cl_cv;		/* readers waiting for an append */
 	uint_t		cl_waiters;
+	kmutex_t	cl_qlock;	/* guards the async record queue */
+	list_t		cl_queue;	/* pending records (changelog_qent_t) */
+	uint64_t	cl_qlen;
+	boolean_t	cl_flushing;	/* one flusher at a time */
 	boolean_t	cl_ready;
 	uint64_t	cl_hdr_obj;
 	uint64_t	cl_head;	/* next seq; authoritative in core */
@@ -99,6 +111,7 @@ static changelog_kstat_t cl_kstat = {
 
 static kmutex_t		cl_state_lock;	/* guards os_changelog_state setup */
 static kmem_cache_t	*cl_rec_cache;
+static kmem_cache_t	*cl_qent_cache;
 
 #define	CL_STAT_BUMP(f)	\
 	atomic_inc_64(&cl_kstat.f.value.ui64)
@@ -125,6 +138,8 @@ zfs_changelog_init(void)
 	mutex_init(&cl_state_lock, NULL, MUTEX_DEFAULT, NULL);
 	cl_rec_cache = kmem_cache_create("changelog_rec",
 	    sizeof (changelog_rec_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
+	cl_qent_cache = kmem_cache_create("changelog_qent",
+	    sizeof (changelog_qent_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
 
 	cl_ksp = kstat_create("zfs", 0, "changelog", "misc", KSTAT_TYPE_NAMED,
 	    sizeof (changelog_kstat_t) / sizeof (kstat_named_t),
@@ -147,6 +162,9 @@ zfs_changelog_fini(void)
 		kmem_cache_destroy(cl_rec_cache);
 		cl_rec_cache = NULL;
 	}
+	if (cl_qent_cache != NULL) {
+		kmem_cache_destroy(cl_qent_cache);
+		cl_qent_cache = NULL;
 	}
 	mutex_destroy(&cl_state_lock);
 }
@@ -167,6 +185,9 @@ cl_state(objset_t *os)
 		(void) dmu_objset_name(os, dl->cl_dsname);
 		mutex_init(&dl->cl_lock, NULL, MUTEX_DEFAULT, NULL);
 		mutex_init(&dl->cl_open_lock, NULL, MUTEX_DEFAULT, NULL);
+		mutex_init(&dl->cl_qlock, NULL, MUTEX_DEFAULT, NULL);
+		list_create(&dl->cl_queue, sizeof (changelog_qent_t),
+		    offsetof(changelog_qent_t, ql_link));
 		cv_init(&dl->cl_cv, NULL, CV_DEFAULT, NULL);
 		dl->cl_chunk_idx = UINT64_MAX;
 		membar_producer();
@@ -185,7 +206,15 @@ zfs_changelog_objset_fini(objset_t *os)
 		return;
 
 	os->os_changelog_state = NULL;
+	/* Records queued without a sync (should not happen) are dropped. */
+	mutex_enter(&dl->cl_qlock);
+	changelog_qent_t *qe;
+	while ((qe = list_remove_head(&dl->cl_queue)) != NULL)
+		kmem_cache_free(cl_rec_cache, qe);
+	mutex_exit(&dl->cl_qlock);
+	list_destroy(&dl->cl_queue);
 	cv_destroy(&dl->cl_cv);
+	mutex_destroy(&dl->cl_qlock);
 	mutex_destroy(&dl->cl_open_lock);
 	mutex_destroy(&dl->cl_lock);
 	kmem_free(dl, sizeof (changelog_t));
@@ -720,6 +749,27 @@ cl_rename_pack_name(changelog_rec_t *rec, const char *oldname,
 	rec->clr_namelen = (uint16_t)olen;
 }
 
+/*
+ * Queue a record for the txg sync flusher.  Stamps enq_txg once per txg,
+ * in the change's own txg, so mount can detect a crash that lost the
+ * queued tail by comparing it with the flusher's covered stamp.
+ */
+static void
+cl_enqueue(objset_t *os, changelog_t *dl, changelog_qent_t *qe, dmu_tx_t *tx)
+{
+	changelog_rec_t *rec = &qe->ql_rec;
+
+	mutex_enter(&dl->cl_qlock);
+	list_insert_tail(&dl->cl_queue, qe);
+	dl->cl_qlen++;
+	mutex_exit(&dl->cl_qlock);
+
+	if (dl->cl_phys.clp_enq_txg != rec->clr_txg) {
+		mutex_enter(&dl->cl_lock);
+		dl->cl_phys.clp_enq_txg = rec->clr_txg;
+		cl_phys_sync(os, dl, tx);
+		mutex_exit(&dl->cl_lock);
+	}
 }
 
 /*
@@ -793,6 +843,8 @@ zfs_changelog_tx_hold(objset_t *os, dmu_tx_t *tx, changelog_res_t *res)
 
 	if (os == NULL || os->os_changelog == 0)
 		return;
+	if (changelog_async)	/* no reservation needed on the op path */
+		return;
 	if (dmu_objset_type(os) != DMU_OST_ZFS)
 		return;
 
@@ -844,6 +896,23 @@ zfs_changelog_record(objset_t *os, dmu_tx_t *tx, changelog_res_t *res,
 		return;
 	dl = os->os_changelog_state;
 
+	if (changelog_async) {
+		changelog_qent_t *qe;
+
+		if (changelog_test_nowrite)
+			return;
+		if (dl == NULL)
+			dl = cl_state(os);
+		if (!dl->cl_ready && cl_open(os, dl) != 0) {
+			CL_STAT_BUMP(dlk_errors);
+			return;
+		}
+		qe = kmem_cache_alloc(cl_qent_cache, KM_SLEEP);
+		cl_rec_init(&qe->ql_rec, op, tx, object, parent);
+		cl_rec_name(&qe->ql_rec, name);
+		cl_enqueue(os, dl, qe, tx);
+		return;
+	}
 	if (res == NULL || !res->clr_held)
 		return;
 	res->clr_held = B_FALSE;
@@ -860,6 +929,175 @@ zfs_changelog_record(objset_t *os, dmu_tx_t *tx, changelog_res_t *res,
 	cl_append_sync(os, tx, dl, res, rec);
 }
 
+/* Forward decls for the async flusher. */
+#ifdef _KERNEL
+static void cl_flush_task(void *);
+static void cl_flush_objset(objset_t *);
+#endif
+
+#ifdef _KERNEL
+/*
+ * Called from the txg sync path with NO side effects: it only checks
+ * the queue and dispatches.  The write itself runs in open context
+ * with its own transaction - dirtying dataset dnodes here, in syncing
+ * context, corrupts the dirty-dnodes multilist (the kernel panic the
+ * first version of this hook caused).
+ */
+void
+zfs_changelog_flush_notify(objset_t *os)
+{
+	char *name;
+	changelog_t *dl = os->os_changelog_state;
+
+	if (dl == NULL || !dl->cl_ready)
+		return;
+
+	mutex_enter(&dl->cl_qlock);
+	boolean_t have = (dl->cl_qlen > 0);
+	mutex_exit(&dl->cl_qlock);
+	if (!have)
+		return;
+
+	name = kmem_strdup(dl->cl_dsname);
+	if (name == NULL)
+		return;
+	if (taskq_dispatch(system_taskq, cl_flush_task, name,
+	    TQ_SLEEP) == TASKQID_INVALID)
+		kmem_strfree(name);
+}
+
+/*
+ * The flusher runs in open context with its own transaction - the same
+ * safety model as the ioctl writers.  Records become durable with the
+ * flush tx's txg, which may be one past the change's txg: the
+ * documented async contract.
+ */
+static void
+cl_flush_task(void *arg)
+{
+	char *dsname = arg;
+	objset_t *os;
+	zfsvfs_t *zfsvfs;
+
+	if (zfs_changelog_os_hold(dsname, &zfsvfs, &os) != 0) {
+		kmem_strfree(dsname);
+		return;
+	}
+	cl_flush_objset(os);
+	zfs_changelog_os_rele(zfsvfs, os);
+	kmem_strfree(dsname);
+}
+
+/*
+ * Splice the queue and write the batch with one transaction.  On chunk
+ * rollover past the reservation, the rest stays queued for the next
+ * dispatch (one per txg, so progress is guaranteed).
+ */
+static void
+cl_flush_objset(objset_t *os)
+{
+	changelog_t *dl = os->os_changelog_state;
+	changelog_qent_t *qe;
+	dmu_tx_t *tx;
+	list_t batch;
+	uint64_t seq, idx, off, obj, next, cpc, wrote = 0, maxtxg = 0;
+	boolean_t retry = B_TRUE;
+
+	if (dl == NULL || !dl->cl_ready)
+		return;
+
+	mutex_enter(&dl->cl_qlock);
+	if (dl->cl_qlen == 0 || dl->cl_flushing) {
+		mutex_exit(&dl->cl_qlock);
+		return;
+	}
+	dl->cl_flushing = B_TRUE;
+	list_create(&batch, sizeof (changelog_qent_t),
+	    offsetof(changelog_qent_t, ql_link));
+	list_move_tail(&batch, &dl->cl_queue);
+	mutex_exit(&dl->cl_qlock);
+
+	cpc = dl->cl_phys.clp_recs_per_chunk;
+retry:
+	mutex_enter(&dl->cl_lock);
+	seq = dl->cl_head;
+	mutex_exit(&dl->cl_lock);
+
+	idx = seq / cpc;
+	if (cl_chunks_ready(os, dl, idx, &obj, &next) != 0)
+		goto out;
+
+	tx = dmu_tx_create(os);
+	dmu_tx_hold_append(tx, obj, 0, CL_REC_SIZE);
+	dmu_tx_hold_append(tx, next, 0, CL_REC_SIZE);
+	dmu_tx_hold_write(tx, dl->cl_hdr_obj, 0, sizeof (changelog_phys_t));
+	if (dmu_tx_assign(tx, DMU_TX_WAIT) != 0) {
+		dmu_tx_abort(tx);
+		goto out;
+	}
+
+	mutex_enter(&dl->cl_lock);
+	if (dl->cl_head != seq) {
+		mutex_exit(&dl->cl_lock);
+		dmu_tx_commit(tx);
+		if (retry) {
+			retry = B_FALSE;
+			goto retry;
+		}
+		goto out;
+	}
+
+	while ((qe = list_remove_head(&batch)) != NULL) {
+		if (seq / cpc != idx) {
+			/* Past the reservation: leave the rest queued. */
+			mutex_enter(&dl->cl_qlock);
+			list_move_tail(&dl->cl_queue, &batch);
+			mutex_exit(&dl->cl_qlock);
+			mutex_exit(&dl->cl_lock);
+			dmu_tx_commit(tx);
+			goto done;
+		}
+		off = (seq % cpc) * CL_REC_SIZE;
+		qe->ql_rec.clr_seq = seq++;
+		if (qe->ql_rec.clr_txg > maxtxg)
+			maxtxg = qe->ql_rec.clr_txg;
+		dmu_write(os, obj, off, CL_REC_SIZE, &qe->ql_rec, tx,
+		    DMU_READ_NO_PREFETCH);
+		wrote++;
+	}
+
+	dl->cl_head = seq;
+	if (wrote > 0)
+		dl->cl_phys.clp_covered_txg = maxtxg;
+	cl_phys_sync(os, dl, tx);
+	if (dl->cl_waiters > 0)
+		cv_broadcast(&dl->cl_cv);
+	mutex_exit(&dl->cl_lock);
+	dmu_tx_commit(tx);
+	CL_STAT_ADD(dlk_records, wrote);
+	CL_STAT_BUMP(dlk_flushes);
+	goto done;
+
+out:
+	/* Put everything back so the next dispatch retries. */
+	mutex_enter(&dl->cl_qlock);
+	list_move_tail(&dl->cl_queue, &batch);
+	mutex_exit(&dl->cl_qlock);
+done:
+	mutex_enter(&dl->cl_qlock);
+	dl->cl_flushing = B_FALSE;
+	mutex_exit(&dl->cl_qlock);
+	list_destroy(&batch);
+}
+
+#else
+void
+zfs_changelog_flush_notify(objset_t *os)
+{
+	(void) os;
+}
+#endif	/* _KERNEL */
+
 
 ZFS_MODULE_PARAM(zfs_changelog, changelog_, retention_recs, U64, ZMOD_RW,
 	"Records kept per dataset before the oldest are dropped");
@@ -867,6 +1105,8 @@ ZFS_MODULE_PARAM(zfs_changelog, changelog_, chunk_recs, U64, ZMOD_RW,
 	"Record slots per chunk object, fixed when a log is created");
 ZFS_MODULE_PARAM(zfs_changelog, changelog_, test_nowrite, UINT, ZMOD_RW,
 	"Perf attribution only: keep holds but skip record writes");
+ZFS_MODULE_PARAM(zfs_changelog, changelog_, async, UINT, ZMOD_RW,
+	"Op path only queues records; the txg sync path flushes them");
 
 
 /*
@@ -885,6 +1125,25 @@ zfs_changelog_record_rename(objset_t *os, dmu_tx_t *tx, changelog_res_t *res,
 		return;
 	dl = os->os_changelog_state;
 
+	if (changelog_async) {
+		changelog_qent_t *qe;
+
+		if (changelog_test_nowrite)
+			return;
+		if (dl == NULL)
+			dl = cl_state(os);
+		if (!dl->cl_ready && cl_open(os, dl) != 0) {
+			CL_STAT_BUMP(dlk_errors);
+			return;
+		}
+		qe = kmem_cache_alloc(cl_qent_cache, KM_SLEEP);
+		cl_rec_init(&qe->ql_rec, CL_OP_RENAME, tx, object, newparent);
+		qe->ql_rec.clr_flags |= CL_F_RENAME2;
+		qe->ql_rec.clr_spare = oldparent;
+		cl_rename_pack_name(&qe->ql_rec, oldname, newname);
+		cl_enqueue(os, dl, qe, tx);
+		return;
+	}
 	if (res == NULL || !res->clr_held)
 		return;
 	res->clr_held = B_FALSE;
