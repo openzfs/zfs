@@ -11,7 +11,7 @@
 .\"
 .\" Copyright (c) 2016 Gvozden Nešković. All rights reserved.
 .\"
-.Dd May 26, 2021
+.Dd October 15, 2026
 .Dt RAIDZ_TEST 1
 .Os
 .
@@ -26,6 +26,7 @@
 .Op Fl d Ar raidz_data_disks
 .Op Fl s Ar zio_size_shift
 .Op Fl r Ar reflow_offset
+.Op Fl k Ar expand_added
 .
 .Sh DESCRIPTION
 The purpose of this tool is to run all supported raidz implementation and verify
@@ -58,6 +59,13 @@ The real size is
 Set raidz expansion offset.
 The expanded raidz map allocation function will
 produce different map configurations depending on this value.
+.It Fl k Ar expand_added Pq default: Sy 1
+Number of disks added by the raidz expansion that the expanded raidz map
+simulates.
+Values outside 1 to 255 are clamped to that range.
+Only used with the
+.Fl e
+option.
 .It Fl S Ns Pq weep
 Sweep parameter space while verifying the raidz implementations.
 This option
