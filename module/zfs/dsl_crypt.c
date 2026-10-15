@@ -2570,10 +2570,14 @@ dsl_crypto_populate_key_nvlist(objset_t *os, uint64_t from_ivset_guid,
 	if (ret != 0)
 		goto error;
 
-	/* see zfs_disable_ivset_guid_check tunable for errata info */
+	/*
+	 * See zfs_disable_ivset_guid_check tunable for errata info.  Only
+	 * snapshots get an IVset guid: a raw send of a file system (or zdb -B
+	 * of its objset) has none, which is not the errata.
+	 */
 	ret = zap_lookup(mos, ds->ds_object, DS_FIELD_IVSET_GUID, 8, 1,
 	    &to_ivset_guid);
-	if (ret != 0)
+	if (ret != 0 && ds->ds_is_snapshot)
 		ASSERT3U(dp->dp_spa->spa_errata, !=, 0);
 
 	/*
