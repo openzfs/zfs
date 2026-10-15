@@ -42,6 +42,15 @@
  *	parity changes at the first txg the setter would allow instead, and a
  *	block is written in that epoch.  Print the start and the birth txg of
  *	that block.
+ *   label <dir> <pool> at <txgs> <width> <parity> <last>
+ *	The same, with an epoch of that width and parity that starts <txgs>
+ *	after the txg T of the sync task, and with the pool left as a crash
+ *	right after T + <last> would leave it, with blocks written until then:
+ *	that is the last synced txg the next import finds, unless a block went
+ *	to a later txg.  Print T too.
+ *   recover <dir> <pool>
+ *	Import the pool writable as zpool import -F does, rewinding it by the
+ *	few txgs that allows if the latest cannot be imported, and export it.
  *   checkpoint <dir> <pool>
  *	Take a checkpoint of the pool.
  *   crash <dir> <pool> [<txg>|checkpoint]
@@ -126,6 +135,9 @@ usage(void)
 	    "create|add\n"
 	    "       raidz_epoch_test rootparse <dir> <pool>\n"
 	    "       raidz_epoch_test label <dir> <pool> [now]\n"
+	    "       raidz_epoch_test label <dir> <pool> at <txgs> <width> "
+	    "<parity> <last>\n"
+	    "       raidz_epoch_test recover <dir> <pool>\n"
 	    "       raidz_epoch_test checkpoint <dir> <pool>\n"
 	    "       raidz_epoch_test crash <dir> <pool> [<txg>|checkpoint]\n"
 	    "       raidz_epoch_test write <dir> <pool> <blocksize>\n"
@@ -578,6 +590,10 @@ write_block(spa_t *spa, uint64_t blksz, blkptr_t *bp)
 typedef struct label_arg {
 	uint64_t	la_table[6];
 	boolean_t	la_now;
+	boolean_t	la_at;
+	uint64_t	la_after;	/* the start, after the task's txg */
+	uint64_t	la_last;	/* the last txg to reach the disks */
+	uint64_t	la_txg;
 } label_arg_t;
 
 static void
@@ -586,16 +602,22 @@ label_table_sync(void *arg, dmu_tx_t *tx)
 	label_arg_t *la = arg;
 	vdev_t *vd = dmu_tx_pool(tx)->dp_spa->spa_root_vdev->vdev_child[0];
 
+	la->la_txg = dmu_tx_get_txg(tx);
 	if (la->la_now)
 		la->la_table[3] = vdev_raidz_parity_epochs_first_start(tx);
+	if (la->la_at) {
+		la->la_table[3] = la->la_txg + la->la_after;
+		dmu_tx_pool(tx)->dp_spa->spa_freeze_txg =
+		    la->la_txg + la->la_last;
+	}
 	vdev_raidz_parity_epochs_install(vd, la->la_table, 2);
 	vdev_config_dirty(vd);
 }
 
 static int
-do_label(const char *dir, const char *pool, boolean_t now)
+do_label(const char *dir, const char *pool, boolean_t now, char **at)
 {
-	label_arg_t la = { .la_now = now };
+	label_arg_t la = { .la_now = now, .la_at = at != NULL };
 	vdev_raidz_t *vdrz;
 	blkptr_t bp;
 	uint64_t birth = 0;
@@ -603,6 +625,10 @@ do_label(const char *dir, const char *pool, boolean_t now)
 	spa_t *spa;
 	int err;
 
+	/* No export follows "at": the cachefile must not list the pool. */
+	if (at != NULL && asprintf((char **)&spa_config_path,
+	    "%s/crash.cache", dir) == -1)
+		return (1);
 	err = open_pool(dir, pool, B_FALSE, &spa);
 	if (err != 0) {
 		(void) printf("RESULT label rc=%d\n", err);
@@ -614,8 +640,23 @@ do_label(const char *dir, const char *pool, boolean_t now)
 	la.la_table[2] = vdrz->vd_nparity;
 	la.la_table[3] = FORGED_EPOCH_START;
 	la.la_table[5] = vdrz->vd_nparity % 3 + 1;
+	if (at != NULL) {
+		la.la_after = strtoull(at[0], NULL, 10);
+		la.la_table[4] = strtoull(at[1], NULL, 10);
+		la.la_table[5] = strtoull(at[2], NULL, 10);
+		la.la_last = strtoull(at[3], NULL, 10);
+	}
 	VERIFY0(dsl_sync_task(pool, NULL, label_table_sync, &la, 0,
 	    ZFS_SPACE_CHECK_NONE));
+	if (at != NULL) {
+		/* A txg that changes nothing writes no uberblock. */
+		while (spa_last_synced_txg(spa) < la.la_txg + la.la_last)
+			(void) write_block(spa, 8192, &bp);
+		(void) printf("RESULT label rc=0 start=%llu txg=%llu\n",
+		    (u_longlong_t)la.la_table[3], (u_longlong_t)la.la_txg);
+		(void) fflush(stdout);
+		_exit(0);
+	}
 	if (now) {
 		txg_wait_synced(spa_get_dsl(spa), la.la_table[3]);
 		obj = write_block(spa, 8192, &bp);
@@ -735,6 +776,45 @@ do_checkpoint(const char *dir, const char *pool)
 	}
 	(void) printf("RESULT checkpoint rc=%d\n", err);
 	return (err);
+}
+
+static int
+do_recover(const char *dir, const char *pool)
+{
+	importargs_t ia;
+	char *paths[1];
+	nvlist_t *config = NULL;
+	nvlist_t *policy;
+	spa_t *spa;
+	int err;
+
+	libpc_handle_t lpch = {
+		.lpc_lib_handle = NULL,
+		.lpc_ops = &libzpool_config_ops,
+		.lpc_printerr = B_TRUE
+	};
+
+	memset(&ia, 0, sizeof (ia));
+	paths[0] = (char *)dir;
+	ia.path = paths;
+	ia.paths = 1;
+	ia.can_be_active = B_TRUE;
+	err = zpool_find_config(&lpch, pool, &config, &ia);
+	if (err != 0 || config == NULL)
+		return (err != 0 ? err : ENOENT);
+	policy = fnvlist_alloc();
+	fnvlist_add_uint32(policy, ZPOOL_LOAD_REWIND_POLICY, ZPOOL_DO_REWIND);
+	fnvlist_add_nvlist(config, ZPOOL_LOAD_POLICY, policy);
+	fnvlist_free(policy);
+
+	err = spa_import((char *)pool, config, NULL, ZFS_IMPORT_NORMAL);
+	fnvlist_free(config);
+	(void) printf("RESULT recover rc=%d\n", err);
+	if (err != 0)
+		return (err);
+	VERIFY0(spa_open(pool, &spa, FTAG));
+	close_pool(spa, pool);
+	return (0);
 }
 
 static int
@@ -1140,7 +1220,12 @@ main(int argc, char **argv)
 		rv = do_rootparse(argv[2], argv[3]);
 	} else if (strcmp(argv[1], "label") == 0 && (argc == 4 ||
 	    (argc == 5 && strcmp(argv[4], "now") == 0))) {
-		rv = do_label(argv[2], argv[3], argc == 5);
+		rv = do_label(argv[2], argv[3], argc == 5, NULL);
+	} else if (strcmp(argv[1], "label") == 0 && argc == 9 &&
+	    strcmp(argv[4], "at") == 0) {
+		rv = do_label(argv[2], argv[3], B_FALSE, argv + 5);
+	} else if (strcmp(argv[1], "recover") == 0 && argc == 4) {
+		rv = do_recover(argv[2], argv[3]);
 	} else if (strcmp(argv[1], "checkpoint") == 0 && argc == 4) {
 		rv = do_checkpoint(argv[2], argv[3]);
 	} else if (strcmp(argv[1], "crash") == 0 && (argc == 4 ||

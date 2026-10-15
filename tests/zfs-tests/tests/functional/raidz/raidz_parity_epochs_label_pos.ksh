@@ -45,6 +45,11 @@
 #	   import writes past, and crash after its first txg: the labels must
 #	   have lost the table, and the pool must import and read back the
 #	   known block.
+#	7. At the boundary of the txgs whose blocks the ZIL may hold, the last
+#	   synced txg plus three: refuse a writable import for an epoch that
+#	   starts there with another parity, or only another width, and drop
+#	   a table whose epoch starts one txg later or has the vdev's layout.
+#	   With zpool import -F, take the boundary from the txg rewound to.
 #
 
 verify_runnable "global"
@@ -147,6 +152,53 @@ function config_case
 	[[ $out == *"rc=0 match=1"* ]] || log_fail "read mismatch: $out"
 }
 
+# boundary_case <name> <txgs> <width> <parity> <last> <want>: give the labels
+# and the MOS config a table whose added epoch starts <txgs> after the txg T
+# of the task that writes it, with T + <last> the last synced txg, and want
+# a writable import to refuse it, to drop it, or, as zpool import -F, to
+# drop it at the txg it rewinds to once the last one is refused.
+function boundary_case
+{
+	typeset name=$1 after=$2 width=$3 parity=$4 last=$5 want=$6
+	typeset txg ub
+
+	dir=$BASEDIR/boundary_$name
+	log_must mkdir -p $dir
+	log_must raidz_epoch_test create $dir $POOL $WIDTH 1
+	out=$(raidz_epoch_test write $dir $POOL 8192) ||
+	    log_fail "write failed: $out"
+	obj=$(print -r -- "$out" | sed -n 's/.* object=\([0-9]*\).*/\1/p')
+	[[ $obj == +([0-9]) ]] || log_fail "no object in: $out"
+	out=$(raidz_epoch_test label $dir $POOL at $after $width $parity \
+	    $last) || log_fail "label failed: $out"
+	log_note "$name: $out"
+	txg=$(print -r -- "$out" | sed -n 's/.* txg=\([0-9]*\).*/\1/p')
+	ub=$(zdb -lu $dir/v0 |
+	    sed -n 's/^[[:space:]]*txg = \([0-9]*\)$/\1/p' | sort -n | tail -1)
+	(( ub == txg + last )) ||
+	    log_fail "$name: the last synced txg is $ub, not $txg + $last"
+
+	out=$(raidz_epoch_test write $dir $POOL 8192)
+	log_note "$name: $out"
+	if [[ $want != dropped ]]; then
+		[[ $out == *"RESULT write rc=30"* ]] ||
+		    log_fail "$name: the epoch was not refused: $out"
+		[[ $want == refused ]] && return
+		out=$(raidz_epoch_test recover $dir $POOL)
+		log_note "$name: $out"
+		[[ $out == *"RESULT recover rc=0"* ]] ||
+		    log_fail "$name: -F did not drop the epoch: $out"
+	else
+		[[ $out == *"RESULT write rc=0 "* ]] ||
+		    log_fail "$name: the epoch was not dropped: $out"
+	fi
+	count_values $dir label
+	(( n == 0 )) || log_fail "$name: the labels kept the dropped table"
+	out=$(raidz_epoch_test read $dir $POOL $obj 8192) ||
+	    log_fail "$name: import after the drop failed: $out"
+	[[ $out == *"rc=0 match=1"* ]] || log_fail "$name: read mismatch: $out"
+}
+
 log_onexit cleanup
 log_assert "config-only epochs preserve data through read-only recovery"
 config_case future
@@ -208,5 +260,11 @@ for how in txg checkpoint; do
 	log_note "$out"
 	[[ $out == *"rc=0 match=1"* ]] || log_fail "read mismatch: $out"
 done
+
+boundary_case parity3 3 $WIDTH 2 0 refused
+boundary_case parity4 4 $WIDTH 2 0 dropped
+boundary_case width3 3 $((WIDTH - 1)) 1 0 refused
+boundary_case same3 3 $WIDTH 1 0 dropped
+boundary_case rewound 4 $WIDTH 2 1 recovered
 
 log_pass "config-only epochs preserve data; ZAP epochs propagate normally"
