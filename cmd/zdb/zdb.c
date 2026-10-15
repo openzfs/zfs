@@ -9518,6 +9518,7 @@ dump_zpool(spa_t *spa)
 #define	ZDB_FLAG_RAW		0x0020
 #define	ZDB_FLAG_PRINT_BLKPTR	0x0040
 #define	ZDB_FLAG_VERBOSE	0x0080
+#define	ZDB_FLAG_BIRTH		0x0100
 
 static int flagbits[256];
 static char flagbitstr[16];
@@ -9824,6 +9825,7 @@ zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
  *		 g: Display data as a gang block header
  *		 i: Display as an indirect block
  *		 r: Dump raw data to stdout
+ *		 t: Read the block as born in the txg that follows, in decimal
  *		 v: Verbose
  *
  */
@@ -9834,6 +9836,7 @@ zdb_read_block(char *thing, spa_t *spa)
 	dva_t *dva = bp->blk_dva;
 	int flags = 0;
 	uint64_t offset = 0, psize = 0, lsize = 0, blkptr_offset = 0;
+	uint64_t birth = TXG_INITIAL;
 	zio_t *zio;
 	vdev_t *vd;
 	abd_t *pabd;
@@ -9881,7 +9884,20 @@ zdb_read_block(char *thing, spa_t *spa)
 			flags |= bit;
 
 			p = &flagstr[i + 1];
-			if (*p != ':' && *p != '\0') {
+			if (bit == ZDB_FLAG_BIRTH) {
+				char *end = p;
+
+				/* strtoull() alone takes a sign and spaces. */
+				errno = 0;
+				if (isdigit((uchar_t)*p))
+					birth = strtoull(p, &end, 10);
+				if (end == p || errno != 0 || birth == 0) {
+					(void) printf("Invalid birth txg in "
+					    "block specifier: %s\n", thing);
+					goto done;
+				}
+				i += end - p;
+			} else if (*p != ':' && *p != '\0') {
 				int j = 0, nextbit = flagbits[(uchar_t)*p];
 				char *end, offstr[8] = { 0 };
 				if ((bit == ZDB_FLAG_PRINT_BLKPTR) &&
@@ -9938,9 +9954,18 @@ zdb_read_block(char *thing, spa_t *spa)
 	DVA_SET_VDEV(&dva[0], vd->vdev_id);
 	DVA_SET_OFFSET(&dva[0], offset);
 	DVA_SET_GANG(&dva[0], 0);
-	DVA_SET_ASIZE(&dva[0], vdev_psize_to_asize(vd, psize));
+	/*
+	 * The birth txg selects the width of a raidz vdev that has been
+	 * expanded; without one, the width before the first expansion is used.
+	 */
+	if (flags & ZDB_FLAG_BIRTH) {
+		DVA_SET_ASIZE(&dva[0],
+		    vdev_psize_to_asize_txg(vd, psize, birth));
+	} else {
+		DVA_SET_ASIZE(&dva[0], vdev_psize_to_asize(vd, psize));
+	}
 
-	BP_SET_BIRTH(bp, TXG_INITIAL, TXG_INITIAL);
+	BP_SET_BIRTH(bp, birth, birth);
 
 	BP_SET_LSIZE(bp, lsize);
 	BP_SET_PSIZE(bp, psize);
@@ -10937,6 +10962,7 @@ retry_lookup:
 		flagbits['g'] = ZDB_FLAG_GBH;
 		flagbits['i'] = ZDB_FLAG_INDIRECT;
 		flagbits['r'] = ZDB_FLAG_RAW;
+		flagbits['t'] = ZDB_FLAG_BIRTH;
 		flagbits['v'] = ZDB_FLAG_VERBOSE;
 
 		for (int i = 0; i < argc; i++)
