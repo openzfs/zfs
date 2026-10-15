@@ -6440,6 +6440,14 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 		spa_ld_claim_log_blocks(spa);
 
 		/*
+		 * Have the first txg rewrite the labels of the raidz vdevs
+		 * that may describe another layout.  Not from vdev_load(): a
+		 * load that fails after it frees the vdevs without syncing,
+		 * and they must not be dirty then.
+		 */
+		vdev_raidz_dirty_stale_labels(spa);
+
+		/*
 		 * Kick-off the syncing thread.
 		 */
 		spa->spa_sync_on = B_TRUE;

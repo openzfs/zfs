@@ -6015,6 +6015,7 @@ vdev_raidz_load(vdev_t *vd)
 	uint64_t bytes_copied = 0;
 
 	vdrz->vd_parity_epochs_refusal = 0;
+	vdrz->vd_parity_epochs_dropped = B_FALSE;
 	if (vd->vdev_top_zap != 0) {
 		err = zap_lookup(vd->vdev_spa->spa_meta_objset,
 		    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_STATE,
@@ -6162,6 +6163,7 @@ vdev_raidz_load(vdev_t *vd)
 					return (SET_ERROR(EROFS));
 				}
 				vdev_raidz_parity_epochs_install(vd, NULL, 0);
+				vdrz->vd_parity_epochs_dropped = B_TRUE;
 			}
 		} else {
 			return (err);
@@ -6206,6 +6208,58 @@ vdev_raidz_load_info(vdev_t *rvd, nvlist_t *info)
 			    ZPOOL_CONFIG_RAIDZ_EPOCHS_EXPANDED);
 		}
 	}
+}
+
+/* Whether a leaf under vd holds a label written after txg. */
+static boolean_t
+vdev_raidz_label_newer(vdev_t *vd, uint64_t txg)
+{
+	if (vd->vdev_ops->vdev_op_leaf)
+		return (vd->vdev_label_txg > txg);
+	for (uint64_t c = 0; c < vd->vdev_children; c++) {
+		if (vdev_raidz_label_newer(vd->vdev_child[c], txg))
+			return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+/*
+ * Before the first txg of a writable import syncs, have it rewrite the
+ * config of each raidz vdev whose labels may describe another layout than
+ * the one it writes with: a vdev whose config-only table vdev_raidz_load()
+ * dropped, or one with a label newer than the MOS config the load took its
+ * vdev tree from.  Labels and MOS config are written in the same txgs, so
+ * such a label was left by the txgs a rewind (-F, -T, checkpoint) discards,
+ * with the parity-epoch table or expansion state they had.  The config
+ * update of spa_import() only runs after the first txgs, which a rewind
+ * numbers above every uberblock on disk: they can be past the start of an
+ * epoch the labels still describe, and a crash before that update would
+ * leave labels by which their blocks are read with the wrong layout.
+ */
+void
+vdev_raidz_dirty_stale_labels(spa_t *spa)
+{
+	vdev_t *rvd = spa->spa_root_vdev;
+	uint64_t config_txg;
+
+	if (nvlist_lookup_uint64(spa->spa_config, ZPOOL_CONFIG_POOL_TXG,
+	    &config_txg) != 0)
+		config_txg = UINT64_MAX;
+
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_WRITER);
+	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *tvd = rvd->vdev_child[c];
+		vdev_raidz_t *vdrz;
+
+		if (tvd->vdev_ops != &vdev_raidz_ops)
+			continue;
+		vdrz = tvd->vdev_tsd;
+		if (vdrz->vd_parity_epochs_dropped ||
+		    vdev_raidz_label_newer(tvd, config_txg))
+			vdev_config_dirty(tvd);
+		vdrz->vd_parity_epochs_dropped = B_FALSE;
+	}
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
 }
 
 int
