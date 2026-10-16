@@ -1786,6 +1786,7 @@ typedef struct zfs_rewrite_args {
 #define	ZFS_REWRITE_PHYSICAL		0x1 /* Preserve logical birth time. */
 #define	ZFS_REWRITE_SKIP_SNAPSHOT	0x2 /* Skip snapshot-shared blocks. */
 #define	ZFS_REWRITE_SKIP_BRT		0x4 /* Skip BRT-cloned blocks. */
+#define	ZFS_REWRITE_SKIP_CURRENT_ASIZE	0x8 /* Skip blocks of current asize. */
 
 #define	ZFS_IOC_REWRITE		_IOW(0x83, 3, zfs_rewrite_args_t)
 
@@ -1832,6 +1833,7 @@ typedef enum {
 	ZFS_ERR_STREAM_LARGE_MICROZAP,
 	ZFS_ERR_TOO_MANY_SITOUTS,
 	ZFS_ERR_NO_USER_NS_SUPPORT,
+	ZFS_ERR_CRYPTO_KEY_MISMATCH,
 } zfs_errno_t;
 
 /*

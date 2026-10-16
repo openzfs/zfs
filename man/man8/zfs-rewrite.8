@@ -12,7 +12,7 @@
 .\" Copyright (c) 2025 iXsystems, Inc.
 .\" Copyright (c) 2025, Klara, Inc.
 .\"
-.Dd November 5, 2025
+.Dd October 13, 2026
 .Dt ZFS-REWRITE 8
 .Os
 .
@@ -22,7 +22,7 @@
 .Sh SYNOPSIS
 .Nm zfs
 .Cm rewrite
-.Oo Fl CPSrvx Ns Oc
+.Oo Fl CPSWrvx Ns Oc
 .Op Fl l Ar length
 .Op Fl o Ar offset
 .Ar file Ns | Ns Ar directory Ns …
@@ -55,6 +55,18 @@ Blocks created before the most recent snapshot are shared with that snapshot.
 Rewriting these blocks would create new copies, leaving the old copies for
 the snapshot and increasing space usage.
 This flag prevents such expansion by skipping snapshot-shared blocks.
+.It Fl W
+Skip blocks whose rewrite would not change their allocated size.
+After a RAID-Z expansion, only the blocks written before it completed that the
+new width stores in less space are rewritten, so an interrupted rewrite can be
+run again without rewriting the same blocks twice.
+Blocks smaller than the old width keep their size and stay in place, which can
+leave the space freed around them fragmented.
+A size change that a property change would cause, as with
+.Sy compression ,
+is not taken into account.
+On vdevs other than RAID-Z, only gang blocks and blocks on removed devices
+are rewritten.
 .It Fl l Ar length
 Rewrite at most this number of bytes.
 .It Fl o Ar offset

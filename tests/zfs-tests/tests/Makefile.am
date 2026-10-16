@@ -973,6 +973,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_physical_accounting.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_skip_clone.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_skip_snapshot.ksh \
+	functional/cli_root/zfs_rewrite/zfs_rewrite_skip_width.ksh \
 	functional/cli_root/zfs_rollback/cleanup.ksh \
 	functional/cli_root/zfs_rollback/setup.ksh \
 	functional/cli_root/zfs_rollback/zfs_rollback_001_pos.ksh \

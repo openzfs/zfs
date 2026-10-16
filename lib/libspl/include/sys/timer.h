@@ -44,9 +44,10 @@ extern void delay(clock_t ticks);
 
 #define	usleep_range(min, max)						\
 	do {								\
+		hrtime_t _usec = (min);					\
 		struct timespec ts;					\
-		ts.tv_sec = min / MICROSEC;				\
-		ts.tv_nsec = USEC2NSEC(min);				\
+		ts.tv_sec = _usec / MICROSEC;				\
+		ts.tv_nsec = USEC2NSEC(_usec % MICROSEC);		\
 		(void) nanosleep(&ts, NULL);				\
 	} while (0)
 
