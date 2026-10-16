@@ -46,8 +46,8 @@
  *	The same, with an epoch of that width and parity that starts <txgs>
  *	after the txg T of the sync task, and with the pool left as a crash
  *	right after T + <last> would leave it, with blocks written until then:
- *	that is the last synced txg the next import finds, unless a block went
- *	to a later txg.  Print T too.
+ *	that is the last synced txg the next import finds. Hold the following
+ *	TXG uncommitted to prevent later writes. Print T and the synced TXG.
  *   recover <dir> <pool>
  *	Import the pool writable as zpool import -F does, rewinding it by the
  *	few txgs that allows if the latest cannot be imported, and export it.
@@ -614,6 +614,60 @@ label_table_sync(void *arg, dmu_tx_t *tx)
 	vdev_config_dirty(vd);
 }
 
+/*
+ * Freeze suppresses uberblocks, not later syncing TXGs. Those TXGs can
+ * recycle blocks freed at the freeze point, invalidating an earlier root
+ * needed by -F. Queue the table and each dirty TXG before releasing its
+ * predecessor, then hold the following TXG uncommitted until _exit().
+ */
+static __attribute__((noreturn)) void
+label_at_crash(spa_t *spa, label_arg_t *la)
+{
+	dsl_pool_t *dp = spa_get_dsl(spa);
+	dmu_tx_t *held = dmu_tx_create_dd(dp->dp_mos_dir);
+	VERIFY0(dmu_tx_assign(held, DMU_TX_WAIT));
+	uint64_t first = dmu_tx_get_txg(held);
+	uint64_t last = first + la->la_last;
+	dsl_sync_task_nowait(dp, label_table_sync, la, held);
+
+	for (uint64_t txg = first; txg <= last; txg++) {
+		txg_kick(dp, txg);
+		hrtime_t deadline = gethrtime() + SEC2NSEC(10);
+		while (spa_open_txg(spa) < txg + 1) {
+			if (gethrtime() >= deadline) {
+				(void) fprintf(stderr, "label: no next TXG\n");
+				_exit(1);
+			}
+			(void) usleep(1000);
+		}
+		dmu_tx_t *next = dmu_tx_create_dd(dp->dp_mos_dir);
+		if (txg < last)
+			dmu_tx_hold_write(next, DMU_NEW_OBJECT, 0, 8192);
+		VERIFY0(dmu_tx_assign(next, DMU_TX_WAIT));
+		VERIFY3U(dmu_tx_get_txg(next), ==, txg + 1);
+		if (txg < last) {
+			uint64_t obj = dmu_object_alloc(spa_meta_objset(spa),
+			    DMU_OT_PLAIN_FILE_CONTENTS, 8192, DMU_OT_NONE, 0,
+			    next);
+			uint64_t *buf = malloc(8192);
+			fill_pattern(buf, 8192);
+			dmu_write(spa_meta_objset(spa), obj, 0, 8192, buf,
+			    next, DMU_READ_NO_PREFETCH);
+			free(buf);
+		}
+		dmu_tx_commit(held);
+		held = next;
+	}
+	txg_wait_synced(dp, last);
+	VERIFY3U(la->la_txg, ==, first);
+	VERIFY3U(spa_last_synced_txg(spa), ==, last);
+	(void) printf("RESULT label rc=0 start=%llu txg=%llu synced=%llu\n",
+	    (u_longlong_t)la->la_table[3], (u_longlong_t)first,
+	    (u_longlong_t)spa_last_synced_txg(spa));
+	(void) fflush(stdout);
+	_exit(0);
+}
+
 static int
 do_label(const char *dir, const char *pool, boolean_t now, char **at)
 {
@@ -645,18 +699,12 @@ do_label(const char *dir, const char *pool, boolean_t now, char **at)
 		la.la_table[4] = strtoull(at[1], NULL, 10);
 		la.la_table[5] = strtoull(at[2], NULL, 10);
 		la.la_last = strtoull(at[3], NULL, 10);
+		if (la.la_last > TXG_DEFER_SIZE)
+			return (EINVAL);
+		label_at_crash(spa, &la);
 	}
 	VERIFY0(dsl_sync_task(pool, NULL, label_table_sync, &la, 0,
 	    ZFS_SPACE_CHECK_NONE));
-	if (at != NULL) {
-		/* A txg that changes nothing writes no uberblock. */
-		while (spa_last_synced_txg(spa) < la.la_txg + la.la_last)
-			(void) write_block(spa, 8192, &bp);
-		(void) printf("RESULT label rc=0 start=%llu txg=%llu\n",
-		    (u_longlong_t)la.la_table[3], (u_longlong_t)la.la_txg);
-		(void) fflush(stdout);
-		_exit(0);
-	}
 	if (now) {
 		txg_wait_synced(spa_get_dsl(spa), la.la_table[3]);
 		obj = write_block(spa, 8192, &bp);

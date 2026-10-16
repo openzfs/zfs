@@ -160,7 +160,7 @@ function config_case
 function boundary_case
 {
 	typeset name=$1 after=$2 width=$3 parity=$4 last=$5 want=$6
-	typeset txg ub
+	typeset txg ub synced
 
 	dir=$BASEDIR/boundary_$name
 	log_must mkdir -p $dir
@@ -173,6 +173,9 @@ function boundary_case
 	    $last) || log_fail "label failed: $out"
 	log_note "$name: $out"
 	txg=$(print -r -- "$out" | sed -n 's/.* txg=\([0-9]*\).*/\1/p')
+	synced=$(print -r -- "$out" | sed -n 's/.* synced=\([0-9]*\).*/\1/p')
+	[[ $synced == +([0-9]) ]] && (( synced == txg + last )) || \
+	    log_fail "$name: later TXGs reached the disks: $out"
 	ub=$(zdb -lu $dir/v0 |
 	    sed -n 's/^[[:space:]]*txg = \([0-9]*\)$/\1/p' | sort -n | tail -1)
 	(( ub == txg + last )) ||
