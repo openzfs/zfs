@@ -85,7 +85,6 @@ fi
 log_must [ "$(kstat_pool $TESTPOOL state)" != "SUSPENDED" ]
 log_must [ $rc -ne 0 ]
 log_mustnot grep -q "No space left on device" $errfile
-# glibc and musl use different messages for EIO.
-log_must grep -Eq "write: (Input/output|I/O) error" $errfile
+log_must grep -qE "Input/output error|I/O error" $errfile
 
 log_pass "A Direct I/O write to an unwritable pool fails with EIO"
