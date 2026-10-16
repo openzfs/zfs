@@ -1549,7 +1549,7 @@ test_nv_replace_count(const MunitParameter params[], void *data)
 	unit_ok(nvlist_add_uint64(nvl, nvl_unique_key, nvl_unique_u64_val));
 
 	/* confirm internal counter is correct */
-	unit_eq(fnvlist_num_pairs(nvl), 1);
+	unit_eq(nvlist_num_pairs(nvl), 1);
 
 	/* count elements via walk */
 	uint_t count = 0;
@@ -1566,7 +1566,7 @@ test_nv_replace_count(const MunitParameter params[], void *data)
 	unit_ok(nvlist_add_uint64(nvl, nvl_unique_key, ~nvl_unique_u64_val));
 
 	/* confirm internal counter is correct */
-	unit_eq(fnvlist_num_pairs(nvl), 1);
+	unit_eq(nvlist_num_pairs(nvl), 1);
 
 	/* count elements via walk */
 	count = 0;
@@ -2059,14 +2059,14 @@ test_nv_fnvlist_misc(const MunitParameter params[], void *data)
 	fnvlist_add_nvlist(nvl, "child", child);
 	fnvlist_free(child);
 
-	unit_eq(fnvlist_num_pairs(nvl), 2);
+	unit_eq(nvlist_num_pairs(nvl), 2);
 
 	nvpair_t *pair = fnvlist_lookup_nvpair(nvl, "child");
 	unit_notnull(pair);
 	unit_str_eq(nvpair_name(pair), "child");
 
 	fnvlist_remove(nvl, "flag");
-	unit_eq(fnvlist_num_pairs(nvl), 1);
+	unit_eq(nvlist_num_pairs(nvl), 1);
 
 	fnvlist_free(nvl);
 	return (MUNIT_OK);

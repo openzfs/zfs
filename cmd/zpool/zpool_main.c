@@ -10278,7 +10278,7 @@ condense_status_nvlist(nvlist_t *nvroot, status_cbdata_t *cb, nvlist_t *item)
 		fnvlist_free(nv);
 	}
 
-	if (fnvlist_num_pairs(onv))
+	if (nvlist_num_pairs(onv))
 		fnvlist_add_nvlist(item, "condense", onv);
 
 	fnvlist_free(onv);
