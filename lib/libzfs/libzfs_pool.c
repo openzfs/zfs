@@ -4472,7 +4472,8 @@ zpool_vdev_remove(zpool_handle_t *zhp, const char *path)
 			    "Mount encrypted datasets to replay logs.");
 		} else {
 			zfs_error_aux(hdl,
-			    "Pool busy; removal may already be in progress");
+			    "Pool busy; removal may already be in progress, "
+			    "or a device is still being resilvered");
 		}
 		(void) zfs_error(hdl, EZFS_BUSY, errbuf);
 		break;

@@ -2283,6 +2283,21 @@ spa_vdev_remove_top_check(vdev_t *vd)
 		return (SET_ERROR(EBUSY));
 
 	/*
+	 * DTL_MISSING of a mirror only records ranges missing from every
+	 * child, so it is empty while a single child is still being
+	 * resilvered or rebuilt.  The removal copy neither consults the
+	 * children's DTLs nor verifies checksums, so it may read stale data
+	 * from such a child.  Wait until no child's DTL_MISSING needs to be
+	 * resilvered; a sequential rebuild keeps it until it completes.
+	 * Children that can't be written (e.g. offline or faulted) are not
+	 * counted: the copy doesn't read them either, and a degraded mirror
+	 * can still be removed.  DTL_PARTIAL of the mirror would also
+	 * include the txgs only those children are missing.
+	 */
+	if (vdev_resilver_needed(vd, NULL, NULL))
+		return (SET_ERROR(EBUSY));
+
+	/*
 	 * The device must be healthy.
 	 */
 	if (!vdev_readable(vd))
