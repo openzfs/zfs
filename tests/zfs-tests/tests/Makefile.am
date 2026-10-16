@@ -2011,6 +2011,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/projectquota/projectquota_007_pos.ksh \
 	functional/projectquota/projectquota_008_pos.ksh \
 	functional/projectquota/projectquota_009_pos.ksh \
+	functional/projectquota/projectquota_010_pos.ksh \
 	functional/projectquota/defaultprojectquota_001_pos.ksh \
 	functional/projectquota/defaultprojectquota_002_pos.ksh \
 	functional/projectquota/defaultprojectquota_003_neg.ksh \
