@@ -46,10 +46,16 @@
  * file handle that already hit a benign DIO read verify failure).
  * UIO_DIO_CKSUM_RETRIED: set by zfs_read when a DIO read verify failed but the
  * buffered re-read succeeded -- a recycled O_DIRECT buffer, not an on-disk
- * error.
+ * error.  dmu_write_uio_direct sets it when a DIO write verify failed and it
+ * writes the range again from a private copy.
+ * UIO_DIO_BOUNCE: issue DIO writes from a private copy of the data instead of
+ * the user pages.  The zpl caller sets it for a file handle that already
+ * failed a DIO write verify; dmu_write_uio_direct sets it for the rest of the
+ * request after a failure.
  */
 #define	UIO_DIO_DENY		0x0004
 #define	UIO_DIO_CKSUM_RETRIED	0x0008
+#define	UIO_DIO_BOUNCE		0x0010
 
 #if defined(HAVE_FAULT_IN_IOV_ITER_READABLE)
 #define	iov_iter_fault_in_readable(a, b)	fault_in_iov_iter_readable(a, b)
