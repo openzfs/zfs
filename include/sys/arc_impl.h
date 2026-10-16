@@ -412,6 +412,7 @@ typedef struct l2arc_dev {
 	boolean_t		l2ad_writing;	/* currently writing */
 	kmutex_t		l2ad_mtx;	/* lock for buffer list */
 	list_t			l2ad_buflist;	/* buffer list */
+	arc_buf_hdr_t		*l2ad_prune_marker; /* pruning position */
 	list_node_t		l2ad_node;	/* device list node */
 	zfs_refcount_t		l2ad_alloc;	/* allocated bytes */
 	/*
@@ -851,6 +852,7 @@ typedef struct arc_stats {
 	kstat_named_t arcstat_l2_evict_l1cached;
 	kstat_named_t arcstat_l2_free_on_write;
 	kstat_named_t arcstat_l2_abort_lowmem;
+	kstat_named_t arcstat_l2_hdr_pruned;
 	kstat_named_t arcstat_l2_cksum_bad;
 	kstat_named_t arcstat_l2_io_error;
 	kstat_named_t arcstat_l2_lsize;
@@ -1022,6 +1024,7 @@ typedef struct arc_sums {
 	wmsum_t arcstat_l2_evict_l1cached;
 	wmsum_t arcstat_l2_free_on_write;
 	wmsum_t arcstat_l2_abort_lowmem;
+	wmsum_t arcstat_l2_hdr_pruned;
 	wmsum_t arcstat_l2_cksum_bad;
 	wmsum_t arcstat_l2_io_error;
 	wmsum_t arcstat_l2_lsize;

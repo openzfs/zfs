@@ -3929,21 +3929,26 @@ function zero_range # offset length file
 # Wait for the specified arcstat to reach non-zero quiescence.
 # If echo is 1 echo the value after reaching quiescence, otherwise
 # if echo is 0 print the arcstat we are waiting on.
+# An optional timeout in seconds returns 1 on expiry.  Zero means no timeout.
 #
-function arcstat_quiescence # stat echo
+function arcstat_quiescence # stat echo [timeout]
 {
 	typeset stat=$1
 	typeset echo=$2
 	typeset do_once=true
+	typeset -i timeout=${3:-0}
+	typeset -i polls=0
 
 	if [[ $echo -eq 0 ]]; then
 		echo "Waiting for arcstat $1 quiescence."
 	fi
 
 	while $do_once || [ $stat1 -ne $stat2 ] || [ $stat2 -eq 0 ]; do
+		(( timeout > 0 && polls >= timeout * 2 )) && return 1
 		typeset stat1=$(kstat arcstats.$stat)
 		sleep 0.5
 		typeset stat2=$(kstat arcstats.$stat)
+		(( polls += 1 ))
 		do_once=false
 	done
 
@@ -3952,16 +3957,31 @@ function arcstat_quiescence # stat echo
 	fi
 }
 
-function arcstat_quiescence_noecho # stat
+function arcstat_quiescence_noecho # stat [timeout]
 {
 	typeset stat=$1
-	arcstat_quiescence $stat 0
+	arcstat_quiescence $stat 0 ${2:-0}
 }
 
-function arcstat_quiescence_echo # stat
+function arcstat_quiescence_echo # stat [timeout]
 {
 	typeset stat=$1
-	arcstat_quiescence $stat 1
+	arcstat_quiescence $stat 1 ${2:-0}
+}
+
+#
+# Wait up to $4 seconds for arcstat $1 to satisfy "test <value> $2 $3",
+# for example "wait_arcstat l2_feeds -gt 5 60".  Return 1 on timeout.
+#
+function wait_arcstat # stat op value timeout
+{
+	typeset -i i
+
+	for (( i = 0; i < $4; i++ )); do
+		test $(kstat arcstats.$1) $2 $3 && return 0
+		sleep 1
+	done
+	return 1
 }
 
 #
