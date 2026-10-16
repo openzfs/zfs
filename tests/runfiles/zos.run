@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+
+[DEFAULT]
+pre = setup
+pre_user = root
+user = root
+post_user = root
+post = cleanup
+failsafe_user = root
+failsafe = callbacks/zfs_failsafe
+timeout = 600
+tags = ['zos']
+
+[tests/functional/zos/bucket]
+tests = ['zos_bucket_create_001_pos', 'zos_bucket_create_002_neg',
+    'zos_bucket_create_003_pos', 'zos_bucket_delete_001_pos',
+    'zos_bucket_delete_002_neg', 'zos_bucket_delete_003_pos',
+    'zos_bucket_delete_004_pos', 'zos_bucket_delete_005_neg',
+    'zos_bucket_list_001_pos', 'zos_bucket_list_002_pos',
+    'zos_bucket_list_003_pos', 'zos_bucket_list_004_pos']
+tags = ['zos', 'functional']
+
+[tests/functional/zos/object]
+tests = ['zos_object_put_001_pos', 'zos_object_put_002_pos',
+    'zos_object_delete_001_pos', 'zos_object_delete_002_neg',
+    'zos_object_get_001_pos', 'zos_object_get_002_neg',
+    'zos_object_list_001_pos', 'zos_object_list_002_pos',
+    'zos_object_list_003_pos', 'zos_object_list_004_pos']
+tags = ['zos', 'functional']

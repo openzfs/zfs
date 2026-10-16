@@ -205,6 +205,7 @@
 #include <sys/brt.h>
 #include <sys/ddt.h>
 
+#include "sys/zos.h"
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 #include "zfs_deleg.h"
@@ -4761,6 +4762,9 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 	ost = dmu_objset_type(os);
 	dmu_objset_rele(os, FTAG);
 
+	if (ost == DMU_OST_BUCKET)
+		return (SET_ERROR(EINVAL));
+
 	if (ost == DMU_OST_ZFS)
 		zfs_unmount_snap(zc->zc_name);
 
@@ -5026,6 +5030,157 @@ zfs_ioc_ddt_prune(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	spa_close(spa, FTAG);
 
 	return (error);
+}
+
+static const zfs_ioc_key_t zfs_keys_bucket_create[] = {
+	{ZFS_BUCKET,	DATA_TYPE_STRING,	0},
+};
+
+static int
+zfs_ioc_bucket_create(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	const char *bucketname = fnvlist_lookup_string(innvl, ZFS_BUCKET);
+	return (create_bucket(poolname, bucketname));
+}
+
+static const zfs_ioc_key_t zfs_keys_bucket_delete[] = {
+	{ZFS_BUCKET,	DATA_TYPE_STRING,	0},
+};
+
+static int
+zfs_ioc_bucket_delete(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	const char *bucketname = fnvlist_lookup_string(innvl, ZFS_BUCKET);
+	return (delete_bucket(poolname, bucketname));
+}
+
+static int
+zfs_ioc_bucket_list(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	spa_t *spa;
+	objset_t *os;
+	zap_cursor_t zc;
+	zap_attribute_t *za;
+	int error;
+
+	error = spa_open(poolname, &spa, FTAG);
+	if (error)
+		return (error);
+
+	error = zos_get_objset(spa, &os);
+	if (error == ENOENT) {
+		spa_close(spa, FTAG);
+		return (0);
+	}
+	if (error) {
+		spa_close(spa, FTAG);
+		return (error);
+	}
+
+	za = zap_attribute_alloc();
+	for (zap_cursor_init(&zc, os, ZOS_BUCKET_DIR_OBJ);
+	    zap_cursor_retrieve(&zc, za) == 0;
+	    zap_cursor_advance(&zc)) {
+		fnvlist_add_boolean(outnvl, za->za_name);
+	}
+	zap_attribute_free(za);
+	zap_cursor_fini(&zc);
+	zos_release_objset(os);
+	spa_close(spa, FTAG);
+	return (0);
+}
+
+static const zfs_ioc_key_t zfs_keys_object_put[] = {
+	{ZFS_BUCKET,	DATA_TYPE_STRING,	0},
+	{ZFS_KEY,	DATA_TYPE_STRING,	0},
+	{ZFS_SIZE,	DATA_TYPE_UINT64,	0},
+	{"fd",		DATA_TYPE_INT32,	0},
+};
+
+static int
+zfs_ioc_object_put(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl) {
+	const char *bucket = fnvlist_lookup_string(innvl, ZFS_BUCKET);
+	const char *key = fnvlist_lookup_string(innvl, ZFS_KEY);
+	uint64_t size = fnvlist_lookup_uint64(innvl, ZFS_SIZE);
+	int fd = fnvlist_lookup_int32(innvl, "fd");
+	return (put_object(poolname, bucket, key, fd, size));
+}
+
+static const zfs_ioc_key_t zfs_keys_object_delete[] = {
+	{ZFS_BUCKET,	DATA_TYPE_STRING,	0},
+	{ZFS_KEY,	DATA_TYPE_STRING,	0},
+};
+
+static int
+zfs_ioc_object_delete(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl) {
+	const char *bucket = fnvlist_lookup_string(innvl, ZFS_BUCKET);
+	const char *key = fnvlist_lookup_string(innvl, ZFS_KEY);
+	return (delete_object(poolname, bucket, key));
+}
+
+static const zfs_ioc_key_t zfs_keys_object_get[] = {
+	{ZFS_BUCKET,	DATA_TYPE_STRING,	0},
+	{ZFS_KEY,	DATA_TYPE_STRING,	0},
+	{"fd",		DATA_TYPE_INT32,	0},
+};
+
+static int
+zfs_ioc_object_get(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl) {
+	const char *bucket = fnvlist_lookup_string(innvl, ZFS_BUCKET);
+	const char *key = fnvlist_lookup_string(innvl, ZFS_KEY);
+	int fd = fnvlist_lookup_int32(innvl, "fd");
+
+	uint64_t size = 0;
+
+	int error = get_object(poolname, bucket, key, fd, &size);
+	if (error) {
+		return (error);
+	}
+
+	fnvlist_add_uint64(outnvl, ZFS_SIZE, size);
+
+	return (0);
+}
+
+static const zfs_ioc_key_t zfs_keys_object_list[] = {
+	{ZFS_BUCKET,	DATA_TYPE_STRING,	0},
+};
+
+static int
+zfs_ioc_object_list(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl) {
+	spa_t *spa;
+	objset_t *os;
+	uint64_t bucket_zap;
+	zap_cursor_t zc;
+	zap_attribute_t *za;
+	int error;
+	const char *bucket = fnvlist_lookup_string(innvl, ZFS_BUCKET);
+
+	error = spa_open(poolname, &spa, FTAG);
+	if (error) {
+		return (error);
+	}
+
+	error = get_bucket(spa, bucket, &os, &bucket_zap);
+	if (error) {
+		if (os != NULL) {
+			zos_release_objset(os);
+		}
+		spa_close(spa, FTAG);
+		return (error);
+	}
+
+	za = zap_attribute_alloc();
+	for (zap_cursor_init(&zc, os, bucket_zap);
+	    zap_cursor_retrieve(&zc, za) == 0;
+	    zap_cursor_advance(&zc)) {
+		fnvlist_add_boolean(outnvl, za->za_name);
+	}
+	zap_attribute_free(za);
+	zap_cursor_fini(&zc);
+	zos_release_objset(os);
+	spa_close(spa, FTAG);
+	return (0);
 }
 
 /*
@@ -8220,6 +8375,41 @@ zfs_ioctl_init(void)
 	    zfs_ioc_wait_fs, zfs_secpolicy_none, DATASET_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_FALSE,
 	    zfs_keys_fs_wait, ARRAY_SIZE(zfs_keys_fs_wait));
+
+	zfs_ioctl_register("bucket_create", ZFS_IOC_BUCKET_CREATE,
+	    zfs_ioc_bucket_create, zfs_secpolicy_none, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
+	    zfs_keys_bucket_create, ARRAY_SIZE(zfs_keys_bucket_create));
+
+	zfs_ioctl_register("bucket_delete", ZFS_IOC_BUCKET_DELETE,
+	    zfs_ioc_bucket_delete, zfs_secpolicy_none, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
+	    zfs_keys_bucket_delete, ARRAY_SIZE(zfs_keys_bucket_delete));
+
+	zfs_ioctl_register("bucket_list", ZFS_IOC_BUCKET_LIST,
+	    zfs_ioc_bucket_list, zfs_secpolicy_none, POOL_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
+	    NULL, 0);
+
+	zfs_ioctl_register("object_put", ZFS_IOC_OBJECT_PUT,
+	    zfs_ioc_object_put, zfs_secpolicy_none, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
+	    zfs_keys_object_put, ARRAY_SIZE(zfs_keys_object_put));
+
+	zfs_ioctl_register("object_delete", ZFS_IOC_OBJECT_DELETE,
+	    zfs_ioc_object_delete, zfs_secpolicy_none, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
+	    zfs_keys_object_delete, ARRAY_SIZE(zfs_keys_object_delete));
+
+	zfs_ioctl_register("object_get", ZFS_IOC_OBJECT_GET,
+	    zfs_ioc_object_get, zfs_secpolicy_none, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
+	    zfs_keys_object_get, ARRAY_SIZE(zfs_keys_object_get));
+
+	zfs_ioctl_register("object_list", ZFS_IOC_OBJECT_LIST,
+	    zfs_ioc_object_list, zfs_secpolicy_none, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_TRUE,
+	    zfs_keys_object_list, ARRAY_SIZE(zfs_keys_object_list));
 
 	zfs_ioctl_register("set_bootenv", ZFS_IOC_SET_BOOTENV,
 	    zfs_ioc_set_bootenv, zfs_secpolicy_config, POOL_NAME,
