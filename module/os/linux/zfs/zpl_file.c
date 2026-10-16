@@ -865,7 +865,7 @@ zpl_fadvise(struct file *filp, loff_t offset, loff_t len, int advice)
 	struct inode *ip = file_inode(filp);
 	znode_t *zp = ITOZ(ip);
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
-	objset_t *os = zfsvfs->z_os;
+	objset_t *os;
 	int error = 0;
 
 	if (S_ISFIFO(ip->i_mode))
@@ -876,6 +876,9 @@ zpl_fadvise(struct file *filp, loff_t offset, loff_t len, int advice)
 
 	if ((error = zpl_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
+
+	/* A 'zfs recv' may have replaced the objset while we waited. */
+	os = zfsvfs->z_os;
 
 	if (advice == POSIX_FADV_WILLNEED) {
 		loff_t rlen = len ? len : i_size_read(ip) - offset;
