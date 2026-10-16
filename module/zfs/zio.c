@@ -1294,8 +1294,10 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp,
 		}
 		uint64_t offset = DVA_GET_OFFSET(dva);
 		uint64_t asize = DVA_GET_ASIZE(dva);
-		if (DVA_GET_GANG(dva))
-			asize = vdev_gang_header_asize(vd);
+		if (DVA_GET_GANG(dva)) {
+			asize = vdev_gang_header_asize(vd,
+			    BP_GET_PHYSICAL_BIRTH(bp));
+		}
 		if (unlikely(offset + asize > vd->vdev_asize)) {
 			errors += zfs_blkptr_verify_log(spa, bp, blk_verify,
 			    "blkptr at %px DVA %u has invalid OFFSET %llu",
@@ -1312,7 +1314,6 @@ zfs_blkptr_verify(spa_t *spa, const blkptr_t *bp,
 boolean_t
 zfs_dva_valid(spa_t *spa, const dva_t *dva, const blkptr_t *bp)
 {
-	(void) bp;
 	uint64_t vdevid = DVA_GET_VDEV(dva);
 
 	if (vdevid >= spa->spa_root_vdev->vdev_children)
@@ -1333,7 +1334,7 @@ zfs_dva_valid(spa_t *spa, const dva_t *dva, const blkptr_t *bp)
 	uint64_t asize = DVA_GET_ASIZE(dva);
 
 	if (DVA_GET_GANG(dva))
-		asize = vdev_gang_header_asize(vd);
+		asize = vdev_gang_header_asize(vd, BP_GET_PHYSICAL_BIRTH(bp));
 	if (offset + asize > vd->vdev_asize)
 		return (B_FALSE);
 

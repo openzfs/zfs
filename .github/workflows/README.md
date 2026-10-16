@@ -173,7 +173,12 @@ looks for a *test commit*:
 For each test commit (up to four), a `Verify` job builds that commit with
 `--enable-debug` in one `ubuntu24` VM and runs the tests it adds or
 modifies; at least one of them must fail, be killed, hang or crash the
-kernel.  Another `Verify` job builds the PR head and runs the same tests;
+kernel. A positive test added after its implementation, or a test-only
+fix that should already pass, can declare `ZFS-Test-Expect: pass` in its
+commit message. That commit is still built and tested, with success
+required instead of failure. The default is `fail`; duplicate or invalid
+declarations are rejected. Another `Verify` job builds the PR head and runs
+the same tests;
 all of them must pass without kernel errors.  Tests run one at a time
 with `zfs-tests.sh -t`, and the VM is restarted after a crash or hang.
 The `Verdict` job collects the results.  PRs without a test commit finish

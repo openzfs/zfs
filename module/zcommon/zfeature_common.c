@@ -763,6 +763,11 @@ zpool_feature_init(void)
 	    "Support for raidz expansion",
 	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL, sfeatures);
 
+	zfeature_register(SPA_FEATURE_RAIDZ_PARITY_EPOCHS,
+	    "org.openzfs:raidz_parity_epochs", "raidz_parity_epochs",
+	    "Support for persisted mixed-parity RAIDZ layout epochs",
+	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL, sfeatures);
+
 	zfeature_register(SPA_FEATURE_FAST_DEDUP,
 	    "com.klarasystems:fast_dedup", "fast_dedup",
 	    "Support for advanced deduplication",

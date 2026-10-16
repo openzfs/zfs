@@ -272,13 +272,14 @@ while (( timeout == 0 )) || (( curtime <= (starttime + timeout) )); do
 	draid_data=0
 	draid_spares=0
 	expand=0
+	epochs=0
 
 	# randomly use special classes
 	class="special=random"
 
-	# choose between four types of configs
-	# (basic, raidz mix, raidz expansion, and draid mix)
-	case $((RANDOM % 4)) in
+	# choose between five types of configs (basic, raidz mix,
+	# raidz expansion, draid mix, and raidz parity epochs)
+	case $((RANDOM % 5)) in
 
 	# basic mirror configuration
 	0)	parity=1
@@ -324,6 +325,24 @@ while (( timeout == 0 )) || (( curtime <= (starttime + timeout) )); do
 		vdevs=$((RANDOM % 3))
 		raid_type="draid"
 		;;
+
+	# raidz whose parity changes during the run (one or more top-level
+	# raidz vdevs, never expanded: the parity-epoch tables live on them)
+	4)	mirrors=0
+		vdevs=$(((RANDOM % 3) + 1))
+		raid_children=$(((RANDOM % 5) + (parity * 2) + 1))
+		raid_type="raidz"
+		epochs=1
+
+		# 1/3 of the time use the dedicated '-W' test instead, which
+		# runs its checks by itself and ends the run with them
+		if [[ $((RANDOM % 3)) -eq 0 ]]; then
+			zopt="$zopt -W"
+		else
+			zopt="$zopt -Z"
+		fi
+		;;
+
 	*)
 		# avoid shellcheck SC2249
 		;;
@@ -347,7 +366,9 @@ while (( timeout == 0 )) || (( curtime <= (starttime + timeout) )); do
 	# running it everywhere would remove that coverage from the loop.
 	# A raidz expansion run is skipped because ztest forces -M off for
 	# one, which would spend a multihost iteration on a run that does
-	# no multihost testing.
+	# no multihost testing.  A parity epoch run is skipped too: -W forces
+	# -M off as well, and under -Z multihost would suppress the fault
+	# injection that run exists to mix with the parity epochs.
 	#
 	# ztest needs a non-zero hostid to set the multihost property, and
 	# ZFS_HOSTID provides one without creating /etc/hostid, which the ZTS
@@ -355,7 +376,8 @@ while (( timeout == 0 )) || (( curtime <= (starttime + timeout) )); do
 	#
 	if [[ $multihost -eq 1 ]]; then
 		unset ZFS_HOSTID
-		if [[ $expand -eq 0 ]] && [[ $((RANDOM % 5)) -eq 0 ]]; then
+		if [[ $expand -eq 0 ]] && [[ $epochs -eq 0 ]] &&
+		   [[ $((RANDOM % 5)) -eq 0 ]]; then
 			zopt="$zopt -M"
 			export ZFS_HOSTID=$((RANDOM + 1))
 		fi

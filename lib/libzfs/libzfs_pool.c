@@ -2387,6 +2387,16 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 		case ENOTSUP:
 			if (nv != NULL && nvlist_lookup_nvlist(nv,
 			    ZPOOL_CONFIG_LOAD_INFO, &nvinfo) == 0 &&
+			    nvlist_exists(nvinfo,
+			    ZPOOL_CONFIG_RAIDZ_EPOCHS_EXPANDED)) {
+				zfs_error_aux(hdl, "a RAID-Z vdev has both a "
+				    "parity-epoch table and expansion history, "
+				    "which cannot be imported together");
+				(void) zfs_error(hdl, EZFS_BADVERSION, desc);
+				break;
+			}
+			if (nv != NULL && nvlist_lookup_nvlist(nv,
+			    ZPOOL_CONFIG_LOAD_INFO, &nvinfo) == 0 &&
 			    nvlist_exists(nvinfo, ZPOOL_CONFIG_UNSUP_FEAT)) {
 				(void) printf("This "
 				    "pool uses the following feature(s) not "
@@ -2482,8 +2492,28 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 			break;
 
 		case EROFS:
-			zfs_error_aux(hdl,
-			    "one or more devices is read only");
+			if (nv != NULL && nvlist_lookup_nvlist(nv,
+			    ZPOOL_CONFIG_LOAD_INFO, &nvinfo) == 0 &&
+			    nvlist_exists(nvinfo,
+			    ZPOOL_CONFIG_RAIDZ_EPOCHS_IGNORED)) {
+				zfs_error_aux(hdl, "the "
+				    "raidz_ignore_parity_epochs module "
+				    "parameter only allows a read-only import "
+				    "of a pool with RAID-Z parity epochs\nThe "
+				    "pool can be imported using "
+				    "'-o readonly=on'");
+			} else if (nv != NULL && nvlist_lookup_nvlist(nv,
+			    ZPOOL_CONFIG_LOAD_INFO, &nvinfo) == 0 &&
+			    nvlist_exists(nvinfo,
+			    ZPOOL_CONFIG_RAIDZ_EPOCHS_RDONLY)) {
+				zfs_error_aux(hdl, "the parity-epoch table of "
+				    "a RAID-Z vdev only allows a read-only "
+				    "import\nThe pool can be imported using "
+				    "'-o readonly=on'");
+			} else {
+				zfs_error_aux(hdl,
+				    "one or more devices is read only");
+			}
 			(void) zfs_error(hdl, EZFS_BADDEV, desc);
 			break;
 
@@ -4065,6 +4095,17 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		    "The new device cannot have a higher alignment requirement "
 		    "than the top-level vdev.");
 		(void) zfs_error(hdl, EZFS_BADTARGET, errbuf);
+		break;
+
+	case ZFS_ERR_VDEV_NOTSUP:
+		if (strcmp(type, VDEV_TYPE_RAIDZ) == 0) {
+			zfs_error_aux(hdl, "raidz vdev has a parity-epoch "
+			    "table (feature@raidz_parity_epochs) and cannot be "
+			    "expanded");
+			(void) zfs_error(hdl, EZFS_VDEV_NOTSUP, errbuf);
+		} else {
+			(void) zpool_standard_error(hdl, errno, errbuf);
+		}
 		break;
 	default:
 		(void) zpool_standard_error(hdl, errno, errbuf);

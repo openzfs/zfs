@@ -122,6 +122,14 @@ typedef struct vdev_raidz_expand {
 	uint64_t vre_bytes_copied;
 } vdev_raidz_expand_t;
 
+/* Why vdev_raidz_load() refused an import because of a parity-epoch table. */
+typedef enum vdev_raidz_refusal {
+	VDEV_RAIDZ_REFUSED_NONE = 0,
+	VDEV_RAIDZ_REFUSED_CONFIG,	/* EROFS: config-only table in use */
+	VDEV_RAIDZ_REFUSED_IGNORED,	/* EROFS: raidz_ignore_parity_epochs */
+	VDEV_RAIDZ_REFUSED_EXPANDED,	/* ENOTSUP: table and expansion */
+} vdev_raidz_refusal_t;
+
 typedef struct vdev_raidz {
 	/*
 	 * Number of child vdevs when this raidz vdev was created (i.e. before
@@ -149,13 +157,52 @@ typedef struct vdev_raidz {
 	 * If this vdev is being expanded, spa_raidz_expand is set to this
 	 */
 	vdev_raidz_expand_t vn_vre;
+
+	/*
+	 * Parity-epoch table (org.openzfs:raidz_parity_epochs): triplets of
+	 * {start physical-birth txg, logical width, parity}, sorted by start;
+	 * the count is in triplets.  vdev_raidz_init copies it from the label
+	 * or MOS config (needed to read the MOS before vdev_load),
+	 * vdev_raidz_load replaces that copy with the vdev ZAP's, the only
+	 * authoritative one, or, without one, drops it or retains it for
+	 * read-only recovery, and
+	 * vdev_raidz_fini frees the current one.  Once the vdev is in use
+	 * only vdev_raidz_parity_epochs_install() replaces it.  The pointer
+	 * and the count are protected by vd_expand_lock: take it to read
+	 * either, except to tell whether the pointer is NULL, as
+	 * vdev_raidz_alloc_factor() does.
+	 */
+	uint64_t *vd_parity_epochs;
+	uint64_t vd_parity_epoch_count;
+	/* Also remember ignored or invalid config tables for import checks. */
+	boolean_t vd_parity_epochs_config_present;
+	/* Why vdev_raidz_load() refused the import, for the load info. */
+	vdev_raidz_refusal_t vd_parity_epochs_refusal;
+	/* vdev_raidz_load() dropped a config-only table. */
+	boolean_t vd_parity_epochs_dropped;
 } vdev_raidz_t;
 
 extern int vdev_raidz_attach_check(vdev_t *);
+extern boolean_t vdev_raidz_has_parity_epochs(vdev_t *);
+extern void vdev_raidz_layout_for_birth(vdev_t *, uint64_t, uint64_t *,
+    uint64_t *);
+extern void vdev_raidz_parity_epochs_install(vdev_t *, const uint64_t *,
+    uint64_t);
+extern int vdev_raidz_config_from_label(vdev_t *, nvlist_t *, boolean_t *,
+    const char **);
+extern uint64_t vdev_raidz_parity_epochs_first_start(dmu_tx_t *);
+extern int vdev_raidz_parity_epochs_set_check(vdev_t *, const uint64_t *,
+    uint64_t, const char **);
+extern int vdev_raidz_parity_epochs_set_check_tx(vdev_t *, const uint64_t *,
+    uint64_t, dmu_tx_t *, const char **);
+extern int vdev_raidz_parity_epochs_set(vdev_t *, const uint64_t *, uint64_t,
+    dmu_tx_t *);
 extern void vdev_raidz_attach_sync(void *, dmu_tx_t *);
 extern void spa_start_raidz_expansion_thread(spa_t *);
 extern int spa_raidz_expand_get_stats(spa_t *, pool_raidz_expand_stat_t *);
 extern int vdev_raidz_load(vdev_t *);
+extern void vdev_raidz_load_info(vdev_t *, nvlist_t *);
+extern void vdev_raidz_dirty_stale_labels(spa_t *);
 
 /* RAIDZ scratch area pause points (for testing) */
 #define	RAIDZ_EXPAND_PAUSE_NONE	0

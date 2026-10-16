@@ -178,7 +178,8 @@ tests = ['zdb_002_pos', 'zdb_003_pos', 'zdb_004_pos', 'zdb_005_pos',
     'zdb_file_layout_neg', 'zdb_label_checksum', 'zdb_object_range_neg',
     'zdb_object_range_pos', 'zdb_objset_id', 'zdb_decompress_zstd',
     'zdb_recover', 'zdb_recover_2', 'zdb_backup', 'zdb_tunables',
-    'zdb_il_saxattr']
+    'zdb_il_saxattr',
+    'zdb_read_block_birth']
 pre =
 post =
 tags = ['functional', 'cli_root', 'zdb']
@@ -324,7 +325,8 @@ tags = ['functional', 'cli_root', 'zfs_reservation']
 
 [tests/functional/cli_root/zfs_rewrite]
 tests = ['zfs_rewrite', 'zfs_rewrite_physical', 'zfs_rewrite_skip_clone',
-    'zfs_rewrite_skip_snapshot', 'zfs_rewrite_skip_width']
+    'zfs_rewrite_skip_snapshot', 'zfs_rewrite_skip_width',
+    'zfs_rewrite_physical_accounting']
 tags = ['functional', 'cli_root', 'zfs_rewrite']
 
 [tests/functional/cli_root/zfs_rollback]
@@ -941,7 +943,19 @@ tests = ['raidz_001_neg', 'raidz_002_pos', 'raidz_dedup_overrun',
     'raidz_expand_004_pos', 'raidz_expand_005_pos', 'raidz_expand_006_neg',
     'raidz_expand_007_neg', 'raidz_expand_008_pos', 'raidz_expand_010_pos',
     'raidz_expand_rewrite',
-    'raidz_zinject']
+    'raidz_zinject', 'raidz_parity_epochs_pos', 'raidz_recon_pos',
+    'raidz_parity_epochs_dedup_pos', 'raidz_detach_neg',
+    'raidz_parity_epochs_expand_neg', 'raidz_parity_epochs_width_neg',
+    'raidz_recon_mixed_pos', 'raidz_tolerance_epochs_pos',
+    'raidz_tolerance_marker_neg', 'raidz_parity_epochs_validate_neg',
+    'raidz_parity_epochs_gang', 'raidz_parity_epochs_append_neg',
+    'raidz_parity_epochs_config_neg', 'raidz_parity_epochs_label_pos',
+    'raidz_parity_epochs_layout_pos',
+    'raidz_parity_epochs_cachefile_pos',
+    'raidz_parity_epochs_config_recovery_pos',
+    'raidz_parity_epochs_degraded_neg', 'raidz_parity_epochs_import_neg',
+    'raidz_parity_epochs_properties_pos',
+    'raidz_parity_epochs_resilver_pos']
 tags = ['functional', 'raidz']
 timeout = 1200
 

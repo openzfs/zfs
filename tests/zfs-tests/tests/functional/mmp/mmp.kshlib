@@ -131,11 +131,12 @@ function mmp_pool_create_simple # pool dir enriched
 	log_must zpool set multihost=on $pool
 }
 
-function mmp_pool_create_zhack # pool dir
+function mmp_pool_create_zhack # pool dir [duration]
 {
 	typeset pool=${1:-$MMP_POOL}
 	typeset dir=${2:-$MMP_DIR}
-	typeset opts="-d $dir action idle -t120 $pool"
+	typeset duration=${3:-120}
+	typeset opts="-d $dir action idle -t$duration $pool"
 
 	mmp_pool_create_simple $pool $dir
 

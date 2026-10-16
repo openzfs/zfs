@@ -440,6 +440,22 @@ vdev_get_nparity(vdev_t *vd)
 	return (nparity);
 }
 
+/*
+ * Get the number of failed children that every block of a top-level vdev
+ * survives.  It is the parity level, except for a vdev that holds blocks of
+ * a lower parity as well, which a raidz vdev with a parity-epoch table may.
+ * Whatever the vdev claims about its redundancy, to open, to offline a child
+ * or to sit one out, must hold for those blocks too.
+ */
+uint64_t
+vdev_get_min_nparity(vdev_t *vd)
+{
+	if (vd->vdev_ops->vdev_op_min_nparity != NULL)
+		return (vd->vdev_ops->vdev_op_min_nparity(vd));
+
+	return (vdev_get_nparity(vd));
+}
+
 static int
 vdev_prop_get_objid(vdev_t *vd, uint64_t *objid)
 {
@@ -906,6 +922,19 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 		    !spa_feature_is_enabled(spa, SPA_FEATURE_DRAID)) {
 			return (SET_ERROR(ENOTSUP));
 		}
+	}
+
+	/*
+	 * vdev_raidz_init() puts in force the parity-epoch table of a config,
+	 * which only vdev_raidz_parity_epochs_set() makes, together with the
+	 * vdev ZAP copy and the feature that keep it.  The config of a vdev
+	 * that pool creation or vdev add makes cannot carry one.
+	 */
+	if (alloctype == VDEV_ALLOC_ADD && ops == &vdev_raidz_ops &&
+	    nvlist_exists(nv, ZPOOL_CONFIG_RAIDZ_PARITY_EPOCHS)) {
+		zfs_dbgmsg("%s: refusing the parity-epoch table in the config "
+		    "of a new raidz vdev", spa_name(spa));
+		return (SET_ERROR(EINVAL));
 	}
 
 	/*
@@ -1777,8 +1806,8 @@ vdev_metaslab_fini(vdev_t *vd)
 	if (vd->vdev_checkpoint_sm != NULL) {
 		ASSERT(spa_feature_is_active(vd->vdev_spa,
 		    SPA_FEATURE_POOL_CHECKPOINT));
-		vd->vdev_spa->spa_checkpoint_info.sci_dspace -=
-		    vd->vdev_stat.vs_checkpoint_space;
+		atomic_add_64(&vd->vdev_spa->spa_checkpoint_info.sci_dspace,
+		    -vd->vdev_stat.vs_checkpoint_space);
 		vd->vdev_stat.vs_checkpoint_space = 0;
 		space_map_close(vd->vdev_checkpoint_sm);
 		/*
@@ -2606,6 +2635,14 @@ vdev_validate(vdev_t *vd)
 		    "txg %llu", (u_longlong_t)txg);
 		return (0);
 	}
+
+	/*
+	 * spa_ld_label_layout() only reads again the labels of the leaves
+	 * whose label here is newer than the config.
+	 */
+	if (nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_TXG,
+	    &vd->vdev_label_txg) != 0)
+		vd->vdev_label_txg = 0;
 
 	/*
 	 * Determine if this vdev has been split off into another
@@ -3540,7 +3577,7 @@ vdev_dtl_reassess_impl(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 				minref = 1;
 			} else if (vdev_get_nparity(vd) != 0) {
 				/* RAIDZ, DRAID */
-				minref = vdev_get_nparity(vd) + 1;
+				minref = vdev_get_min_nparity(vd) + 1;
 				if (vd->vdev_ops == &vdev_draid_ops) {
 					vdev_draid_config_t *vdc = vd->vdev_tsd;
 					minref = vdc->vdc_nparity + 1;
@@ -4168,8 +4205,9 @@ vdev_load(vdev_t *vd)
 			 */
 			vd->vdev_stat.vs_checkpoint_space =
 			    -space_map_allocated(vd->vdev_checkpoint_sm);
-			vd->vdev_spa->spa_checkpoint_info.sci_dspace +=
-			    vd->vdev_stat.vs_checkpoint_space;
+			atomic_add_64(
+			    &vd->vdev_spa->spa_checkpoint_info.sci_dspace,
+			    vd->vdev_stat.vs_checkpoint_space);
 		} else if (error != 0) {
 			vdev_dbgmsg(vd, "vdev_load: failed to retrieve "
 			    "checkpoint space map object from vdev ZAP "
@@ -4462,13 +4500,16 @@ vdev_psize_to_asize(vdev_t *vd, uint64_t psize)
  * aligned properly, which can result in sizes changing when passing back forth
  * through the asize/psize conversion logic. This can lead to frees and
  * allocations not matching in size, which is problematic.
+ *
+ * The requirement can depend on the layout in force, so the txg the allocation
+ * is made in is passed, as it is to vdev_psize_to_asize_txg().
  */
 uint64_t
-vdev_alloc_factor(vdev_t *vd)
+vdev_alloc_factor(vdev_t *vd, uint64_t txg)
 {
 	if (vd->vdev_ops->vdev_op_alloc_factor == NULL)
 		return (1ULL << vd->vdev_ashift);
-	return (vd->vdev_ops->vdev_op_alloc_factor(vd));
+	return (vd->vdev_ops->vdev_op_alloc_factor(vd, txg));
 }
 
 /*
@@ -6532,7 +6573,7 @@ vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 						sitouts++;
 					}
 				}
-				if (sitouts >= vdev_get_nparity(pvd)) {
+				if (sitouts >= vdev_get_min_nparity(pvd)) {
 					error = ZFS_ERR_TOO_MANY_SITOUTS;
 					break;
 				}
@@ -6823,7 +6864,7 @@ vdev_prop_get(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 				continue;
 			case VDEV_PROP_PARITY:
 				vdev_prop_add_list(outnvl, propname, NULL,
-				    vdev_get_nparity(vd), ZPROP_SRC_NONE);
+				    vdev_get_min_nparity(vd), ZPROP_SRC_NONE);
 				continue;
 			case VDEV_PROP_FDOMAIN:
 			case VDEV_PROP_FGROUP:
