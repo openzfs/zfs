@@ -18,6 +18,7 @@
  * Copyright (c) 2021, 2022 by Pawel Jakub Dawidek
  * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  * Copyright (c) 2025, Klara, Inc.
+ * Copyright 2026 Oxide Computer Company
  */
 
 /* Portions Copyright 2007 Jeremy Teo */
@@ -1522,19 +1523,6 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 			 */
 			if (error == 0)
 				return (0);
-
-			if (error == EALREADY) {
-				lr->lr_common.lrc_txtype = TX_WRITE2;
-				/*
-				 * TX_WRITE2 relies on the data previously
-				 * written by the TX_WRITE that caused
-				 * EALREADY.  We zero out the BP because
-				 * it is the old, currently-on-disk BP.
-				 */
-				zgd->zgd_bp = NULL;
-				BP_ZERO(bp);
-				error = 0;
-			}
 		}
 	}
 

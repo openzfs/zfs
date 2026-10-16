@@ -12,6 +12,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright 2026 Oxide Computer Company
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -219,6 +220,7 @@ struct zilog {
 	list_t		zl_lwb_list;	/* in-flight log write list */
 	list_t		zl_lwb_crash_list; /* log writes in-flight at crash */
 	avl_tree_t	zl_bp_tree;	/* track bps during log parse */
+	boolean_t	zl_replay_write2; /* replaying a log with TX_WRITE2 */
 	clock_t		zl_replay_time;	/* lbolt of when replay started */
 	uint64_t	zl_replay_blks;	/* number of log blocks replayed */
 	zil_header_t	zl_old_header;	/* debugging aid */
