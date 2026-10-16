@@ -18,6 +18,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -31,6 +32,7 @@
 #endif
 
 static char *filename = NULL;
+static int inherited_fd = -1;
 static int blocksize = 131072; /* 128K */
 static int err_expected = 0;
 static int read_op = 0;
@@ -50,7 +52,8 @@ static void
 usage(void)
 {
 	(void) fprintf(stderr,
-	    "usage %s -f filename [-b blocksize] [-e wr_error_expected]\n"
+	    "usage %s (-f filename | -F fd) [-b blocksize]\n"
+	    "         [-e wr_error_expected]\n"
 	    "         [-n numblocks] [-p randompattern] -r read_op \n"
 	    "         -w write_op [-h help]\n"
 	    "\n"
@@ -58,6 +61,7 @@ usage(void)
 	    "when manipulating the contents of a userspace buffer.\n"
 	    "\n"
 	    "    filename:       File to read or write to.\n"
+	    "    fd:             Inherited file descriptor to duplicate.\n"
 	    "    blocksize:      Size of each block to write (must be at \n"
 	    "                    least >= 512).\n"
 	    "    err_expected:   Whether write() is expected to return EIO\n"
@@ -75,7 +79,7 @@ usage(void)
 	    "    help:           Print usage information and exit.\n"
 	    "\n"
 	    "    Required parameters:\n"
-	    "    filename\n"
+	    "    filename or fd\n"
 	    "    read_op or write_op\n"
 	    "\n"
 	    "    Default Values:\n"
@@ -96,7 +100,7 @@ parse_options(int argc, char *argv[])
 	extern int optind, optopt;
 	execname = argv[0];
 
-	while ((c = getopt(argc, argv, "b:ef:hn:rw")) != -1) {
+	while ((c = getopt(argc, argv, "b:ef:F:hn:rw")) != -1) {
 		switch (c) {
 			case 'b':
 				blocksize = atoi(optarg);
@@ -110,6 +114,22 @@ parse_options(int argc, char *argv[])
 				filename = optarg;
 				break;
 
+			case 'F': {
+				char *end;
+				long value;
+
+				errno = 0;
+				value = strtol(optarg, &end, 10);
+				if (errno != 0 || end == optarg ||
+				    *end != '\0' || value < 0 ||
+				    value > INT_MAX) {
+					(void) fprintf(stderr,
+					    "Invalid fd: %s\n", optarg);
+					exit(1);
+				}
+				inherited_fd = value;
+				break;
+			}
 
 			case 'h':
 				print_usage = 1;
@@ -145,7 +165,9 @@ parse_options(int argc, char *argv[])
 	if (errflag || print_usage == 1)
 		(void) usage();
 
-	if (blocksize < 512 || filename == NULL || numblocks <= 0 ||
+	if (blocksize < 512 || numblocks <= 0 ||
+	    (filename == NULL && inherited_fd < 0) ||
+	    (filename != NULL && inherited_fd >= 0) ||
 	    (read_op == 0 && write_op == 0)) {
 		(void) fprintf(stderr,
 		    "Required paramater(s) missing or invalid.\n");
@@ -252,11 +274,25 @@ main(int argc, char *argv[])
 		fd_flags |= O_RDONLY;
 	}
 
-	fd = open(filename, fd_flags, mode);
-	if (fd == -1) {
-		(void) fprintf(stderr, "%s, %s\n", execname, filename);
-		perror("open");
-		exit(2);
+	if (inherited_fd >= 0) {
+		/* dup() keeps the open file description and its DIO state. */
+		fd = dup(inherited_fd);
+		if (fd == -1) {
+			perror("dup");
+			exit(2);
+		}
+		int flags = fcntl(fd, F_GETFL);
+		if (flags == -1 || fcntl(fd, F_SETFL, flags | O_DIRECT) == -1) {
+			perror("fcntl");
+			exit(2);
+		}
+	} else {
+		fd = open(filename, fd_flags, mode);
+		if (fd == -1) {
+			(void) fprintf(stderr, "%s, %s\n", execname, filename);
+			perror("open");
+			exit(2);
+		}
 	}
 
 	int err = posix_memalign((void **)&buf, sysconf(_SC_PAGE_SIZE),
