@@ -253,11 +253,7 @@ mount > mount.txt
 df -h > df-prerun.txt
 RV=0
 KMEMLEAK=""
-case "$OS" in
-  *kmemleak*)
-    KMEMLEAK="-m"
-    ;;
-esac
+grep -qw kmemleak=on /proc/cmdline && KMEMLEAK="-m"
 $TDIR/zfs-tests.sh -vKO $KMEMLEAK -s 3GB -T $TAGS || RV=$?
 
 df -h > df-postrun.txt
