@@ -359,10 +359,13 @@ esac
 
 case "$1" in
   alpine*)
-    if [[ "$1" == *kmemleak* ]]; then
-      # linux-stable has kmemleak built in, but off by default.
-      sudo sed -i '/^\s*cmdline:/s/$/ kmemleak=on/' /boot/limine/limine.conf
-    fi
+    # kmemleak on and CPU mitigations off by default. The -nokmemleak
+    # and -mitigations suffixes keep the kernel's defaults instead.
+    kmemleak=on mitigations=off
+    [[ "$1" == *-nokmemleak* ]] && kmemleak=off
+    [[ "$1" == *-mitigations* ]] && mitigations=auto
+    opts="kmemleak=$kmemleak mitigations=$mitigations"
+    sudo sed -i "/^\s*cmdline:/s/\$/ $opts/" /boot/limine/limine.conf
     ;;
   archlinux|freebsd*)
     true
