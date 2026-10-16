@@ -1254,6 +1254,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_import/import_log_missing.ksh \
 	functional/cli_root/zpool_import/import_paths_changed.ksh \
 	functional/cli_root/zpool_import/import_relax_metadata_damaged.ksh \
+	functional/cli_root/zpool_import/import_rewind_brt_retry.ksh \
 	functional/cli_root/zpool_import/import_rewind_config_changed.ksh \
 	functional/cli_root/zpool_import/import_rewind_device_replaced.ksh \
 	functional/cli_root/zpool_import/import_rewind_dryrun_no_writes.ksh \
