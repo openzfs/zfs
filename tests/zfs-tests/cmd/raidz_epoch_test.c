@@ -814,8 +814,10 @@ do_recover(const char *dir, const char *pool)
 	err = spa_import((char *)pool, config, NULL, ZFS_IMPORT_NORMAL);
 	fnvlist_free(config);
 	(void) printf("RESULT recover rc=%d\n", err);
-	if (err != 0)
+	if (err != 0) {
+		zfs_dbgmsg_print(STDERR_FILENO, "raidz_epoch_test");
 		return (err);
+	}
 	VERIFY0(spa_open(pool, &spa, FTAG));
 	close_pool(spa, pool);
 	return (0);
