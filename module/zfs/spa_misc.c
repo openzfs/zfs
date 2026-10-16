@@ -2435,6 +2435,40 @@ bp_get_dsize(spa_t *spa, const blkptr_t *bp)
 	return (dsize);
 }
 
+/*
+ * Return B_TRUE if every DVA of the block has the allocated size that its
+ * physical size would get on the same vdev in the given txg, so that writing
+ * it again would take the same space there.  A gang block's DVAs have the size
+ * of its header, and a block on an indirect vdev would move, so their size is
+ * not current.  Holes and embedded blocks allocate nothing.
+ */
+boolean_t
+bp_asize_is_current(spa_t *spa, const blkptr_t *bp, uint64_t txg)
+{
+	if (BP_IS_GANG(bp))
+		return (B_FALSE);
+	if (BP_GET_NDVAS(bp) == 0)
+		return (B_TRUE);
+
+	boolean_t same = B_TRUE;
+	uint64_t psize = BP_GET_PSIZE(bp);
+
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+
+	for (int d = 0; same && d < BP_GET_NDVAS(bp); d++) {
+		const dva_t *dva = &bp->blk_dva[d];
+		vdev_t *vd = vdev_lookup_top(spa, DVA_GET_VDEV(dva));
+
+		same = vd != NULL && vdev_is_concrete(vd) &&
+		    DVA_GET_ASIZE(dva) ==
+		    vdev_psize_to_asize_txg(vd, psize, txg);
+	}
+
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+
+	return (same);
+}
+
 uint64_t
 spa_dirty_data(spa_t *spa)
 {
