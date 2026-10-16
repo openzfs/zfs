@@ -977,7 +977,6 @@ zfs_replay_setsaxattr(void *arg1, void *arg2, boolean_t byteswap)
 	lr_setsaxattr_t *lr = arg2;
 	znode_t *zp;
 	nvlist_t *nvl;
-	size_t sa_size;
 	char *name;
 	char *value;
 	size_t size;
@@ -1014,22 +1013,15 @@ zfs_replay_setsaxattr(void *arg1, void *arg2, boolean_t byteswap)
 		error = nvlist_remove(nvl, name, DATA_TYPE_BYTE_ARRAY);
 	} else {
 		value = &lr->lr_data[strlen(name) + 1];
-		/* Limited to 32k to keep nvpair memory allocations small */
-		if (size > DXATTR_MAX_ENTRY_SIZE) {
-			error = SET_ERROR(EFBIG);
+		/*
+		 * Fail before nvlist_add() if the packed list would
+		 * not fit.  The value is already in the log record.
+		 * Replay does not spill to the directory: a spill is
+		 * a different log record.  The cache stays.
+		 */
+		error = zfs_sa_xattr_fits(zp, name, size);
+		if (error != 0)
 			goto out;
-		}
-
-		/* Prevent the DXATTR SA from consuming the entire SA region */
-		error = nvlist_size(nvl, &sa_size, NV_ENCODE_XDR);
-		if (error)
-			goto out;
-
-		if (sa_size > DXATTR_MAX_SA_SIZE) {
-			error = SET_ERROR(EFBIG);
-			goto out;
-		}
-
 		error = nvlist_add_byte_array(nvl, name, (uchar_t *)value,
 		    size);
 	}
