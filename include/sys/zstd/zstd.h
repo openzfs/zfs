@@ -78,7 +78,7 @@ typedef struct zfs_zstd_meta {
 /*
  * kstat helper macros
  */
-#define	ZSTDSTAT(stat)		(zstd_stats.stat.value.ui64)
+#define	ZSTDSTAT(stat)		atomic_load_64(&zstd_stats.stat.value.ui64)
 #define	ZSTDSTAT_ZERO(stat)	\
 	atomic_store_64(&zstd_stats.stat.value.ui64, 0)
 #define	ZSTDSTAT_ADD(stat, val) \
@@ -90,6 +90,17 @@ typedef struct zfs_zstd_meta {
 /* (de)init for user space / kernel emulation */
 int zstd_init(void);
 void zstd_fini(void);
+#ifdef ZFS_UNIT_TEST
+uint64_t zfs_zstd_cctx_cache_reuse_count(void);
+void zfs_zstd_cctx_cache_get_stats(uint64_t *buffers, uint64_t *size,
+    uint64_t *reaps);
+void zfs_zstd_cctx_cache_reset_stats(void);
+void zfs_zstd_cctx_cache_test_expire(void);
+void zfs_zstd_cctx_cache_test_disable(void);
+void zfs_zstd_cctx_cache_test_enable(void);
+void zfs_zstd_cctx_cache_test_set_alloc_fail(int fail);
+uint64_t zfs_zstd_cctx_cache_test_populate_attempts(void);
+#endif
 
 size_t zfs_zstd_compress(abd_t *src, abd_t *dst, size_t s_len,
     size_t d_len, int level);

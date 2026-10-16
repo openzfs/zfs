@@ -21,7 +21,8 @@ UNIT_TESTS = \
 	%D%/test_fletcher \
 	%D%/test_sha2 \
 	%D%/test_cityhash \
-	%D%/test_nvpair
+	%D%/test_nvpair \
+	%D%/test_zstd_cctx
 noinst_PROGRAMS = $(UNIT_TESTS)
 
 
@@ -132,6 +133,25 @@ nodist_%C%_test_nvpair_SOURCES = \
 %C%_test_nvpair_LDADD = \
 	libspl.la \
 	$(LIBTIRPC_LIBS) \
+	libunit.la
+
+
+%C%_test_zstd_cctx_CFLAGS = $(AM_CFLAGS) -fno-tree-vectorize
+%C%_test_zstd_cctx_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS) \
+	-DZFS_UNIT_TEST \
+	-include $(top_srcdir)/module/zstd/include/zstd_compat_wrapper.h
+
+nodist_%C%_test_zstd_cctx_SOURCES = \
+	module/zstd/zfs_zstd.c \
+	module/zfs/lz4.c \
+	module/zfs/lz4_zfs.c
+
+%C%_test_zstd_cctx_SOURCES = \
+	%D%/test_zstd_cctx.c
+
+%C%_test_zstd_cctx_LDADD = \
+	libzstd.la \
+	libspl.la \
 	libunit.la
 
 
