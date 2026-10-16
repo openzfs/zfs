@@ -346,6 +346,13 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 	ASSERT(zv == NULL || (MUTEX_HELD(&zv->zv_state_lock) &&
 	    RW_READ_HELD(&zv->zv_suspend_lock)));
 
+	/* A minor that is being removed is about to be freed. */
+	if (zv != NULL && (zv->zv_flags & ZVOL_REMOVING)) {
+		rw_exit(&zv->zv_suspend_lock);
+		mutex_exit(&zv->zv_state_lock);
+		zv = NULL;
+	}
+
 	if (zv == NULL || zv->zv_objset == NULL) {
 		if (zv != NULL)
 			rw_exit(&zv->zv_suspend_lock);
@@ -384,13 +391,48 @@ out:
 		rw_exit(&zv->zv_suspend_lock);
 	}
 
-	if (zv != NULL)
-		mutex_exit(&zv->zv_state_lock);
+	if (zv == NULL)
+		return (error);
 
-	if (error == 0 && zv != NULL)
+	/*
+	 * The OS side is updated without zv_state_lock, which it may take.
+	 * Hold a suspend reference so that zvol_remove_minors_impl() waits
+	 * for it, and leave alone a minor that is already being removed.
+	 */
+	boolean_t update = (error == 0 && !(zv->zv_flags & ZVOL_REMOVING));
+	if (update)
+		atomic_inc(&zv->zv_suspend_ref);
+	mutex_exit(&zv->zv_state_lock);
+
+	if (update) {
 		zvol_os_update_volsize(zv, volsize);
 
+		mutex_enter(&zv->zv_state_lock);
+		atomic_dec(&zv->zv_suspend_ref);
+		if (zv->zv_flags & ZVOL_REMOVING)
+			cv_broadcast(&zv->zv_removing_cv);
+		mutex_exit(&zv->zv_state_lock);
+	}
+
 	return (error);
+}
+
+/*
+ * Find a zvol whose minor is not being removed, with only zv_state_lock
+ * held. zvol_os_remove_minor() drops zv_state_lock while it tears down
+ * the OS side of a ZVOL_REMOVING zvol, which is then freed, so it must
+ * not be touched.
+ */
+static zvol_state_t *
+zvol_find_by_name_live(const char *name)
+{
+	zvol_state_t *zv = zvol_find_by_name(name, RW_NONE);
+
+	if (zv != NULL && (zv->zv_flags & ZVOL_REMOVING)) {
+		mutex_exit(&zv->zv_state_lock);
+		zv = NULL;
+	}
+	return (zv);
 }
 
 /*
@@ -399,7 +441,7 @@ out:
 int
 zvol_set_volthreading(const char *name, boolean_t value)
 {
-	zvol_state_t *zv = zvol_find_by_name(name, RW_NONE);
+	zvol_state_t *zv = zvol_find_by_name_live(name);
 	if (zv == NULL)
 		return (-1);
 	zv->zv_threading = value;
@@ -413,7 +455,7 @@ zvol_set_volthreading(const char *name, boolean_t value)
 int
 zvol_set_ro(const char *name, boolean_t value)
 {
-	zvol_state_t *zv = zvol_find_by_name(name, RW_NONE);
+	zvol_state_t *zv = zvol_find_by_name_live(name);
 	if (zv == NULL)
 		return (-1);
 	if (value) {
@@ -1792,6 +1834,14 @@ zvol_remove_minors_impl(zvol_task_t *task)
 		rw_enter(&zvol_state_lock, RW_WRITER);
 		zvol_remove(zv);
 		rw_exit(&zvol_state_lock);
+
+		/*
+		 * A lookup that found it before it was removed may still
+		 * hold zv_state_lock, to see ZVOL_REMOVING and back off.
+		 * Wait for it before the zvol is freed.
+		 */
+		mutex_enter(&zv->zv_state_lock);
+		mutex_exit(&zv->zv_state_lock);
 	}
 
 	/*
