@@ -4115,6 +4115,8 @@ zil_commit_impl(zilog_t *zilog, uint64_t foid)
 	zil_commit_itx_assign(zilog, zcw);
 
 	uint64_t wtxg = zil_commit_writer(zilog, zcw);
+	if (wtxg != 0)
+		txg_kick(zilog->zl_dmu_pool, wtxg);
 	zil_commit_waiter(zilog, zcw);
 
 	int err = 0;
