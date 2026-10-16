@@ -92,6 +92,10 @@ dmu_write_direct_done(zio_t *zio)
 	db->db_state = DB_UNCACHED;
 	mutex_exit(&db->db_mtx);
 
+	if ((zio->io_post & ZIO_POST_DIO_CHKSUM_ERR) &&
+	    dsa->dsa_dio_verify_fails != NULL)
+		atomic_inc_32(dsa->dsa_dio_verify_fails);
+
 	/*
 	 * dmu_sync_done() owns dsa and frees it after publishing the final
 	 * override state.  The direct-I/O error path still needs the original
@@ -125,7 +129,8 @@ dmu_write_direct_done(zio_t *zio)
 }
 
 int
-dmu_write_direct(zio_t *pio, dmu_buf_impl_t *db, abd_t *data, dmu_tx_t *tx)
+dmu_write_direct(zio_t *pio, dmu_buf_impl_t *db, abd_t *data, dmu_tx_t *tx,
+    uint32_t *verify_fails)
 {
 	objset_t *os = db->db_objset;
 	dsl_dataset_t *ds = dmu_objset_ds(os);
@@ -188,6 +193,7 @@ dmu_write_direct(zio_t *pio, dmu_buf_impl_t *db, abd_t *data, dmu_tx_t *tx)
 	dmu_sync_arg_t *dsa = kmem_zalloc(sizeof (dmu_sync_arg_t), KM_SLEEP);
 	dsa->dsa_dr = dr_head;
 	dsa->dsa_tx = tx;
+	dsa->dsa_dio_verify_fails = verify_fails;
 
 	zio_t *zio = zio_write(pio, os->os_spa, txg, bp, data,
 	    db->db.db_size, db->db.db_size, &zp,
@@ -202,9 +208,9 @@ dmu_write_direct(zio_t *pio, dmu_buf_impl_t *db, abd_t *data, dmu_tx_t *tx)
 	return (0);
 }
 
-int
-dmu_write_abd(dnode_t *dn, uint64_t offset, uint64_t size,
-    abd_t *data, dmu_flags_t flags, dmu_tx_t *tx)
+static int
+dmu_write_abd_impl(dnode_t *dn, uint64_t offset, uint64_t size,
+    abd_t *data, dmu_flags_t flags, dmu_tx_t *tx, uint32_t *verify_fails)
 {
 	dmu_buf_t **dbp;
 	spa_t *spa = dn->dn_objset->os_spa;
@@ -226,7 +232,7 @@ dmu_write_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 		    db->db.db_offset - offset, dn->dn_datablksz);
 
 		zfs_racct_write(spa, db->db.db_size, 1, flags);
-		err = dmu_write_direct(pio, db, abd, tx);
+		err = dmu_write_direct(pio, db, abd, tx, verify_fails);
 		ASSERT0(err);
 	}
 
@@ -239,6 +245,13 @@ dmu_write_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 	dmu_buf_rele_array(dbp, numbufs, FTAG);
 
 	return (err);
+}
+
+int
+dmu_write_abd(dnode_t *dn, uint64_t offset, uint64_t size,
+    abd_t *data, dmu_flags_t flags, dmu_tx_t *tx)
+{
+	return (dmu_write_abd_impl(dn, offset, size, data, flags, tx, NULL));
 }
 
 int
@@ -368,12 +381,39 @@ dmu_read_uio_direct(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
 	return (err);
 }
 
+/*
+ * Issue the write from a private copy of the data, so the checksum covers
+ * the bytes written even if the caller changes its buffer meanwhile.
+ * abd_alloc_for_io() takes at most SPA_MAXBLOCKSIZE, so a larger range goes
+ * out in pieces of whole blocks.
+ */
+static int
+dmu_write_abd_copy(dnode_t *dn, uint64_t offset, uint64_t size,
+    abd_t *data, dmu_flags_t flags, dmu_tx_t *tx)
+{
+	uint64_t chunk = (SPA_MAXBLOCKSIZE / dn->dn_datablksz) *
+	    dn->dn_datablksz;
+	int err = 0;
+
+	for (uint64_t off = 0; off < size && err == 0; off += chunk) {
+		uint64_t len = MIN(chunk, size - off);
+		abd_t *copy = abd_alloc_for_io(len, B_FALSE);
+
+		abd_copy_off(copy, data, 0, off, len);
+		err = dmu_write_abd(dn, offset + off, len, copy, flags, tx);
+		abd_free(copy);
+	}
+
+	return (err);
+}
+
 int
 dmu_write_uio_direct(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
     dmu_flags_t flags, dmu_tx_t *tx)
 {
 	offset_t offset = zfs_uio_offset(uio);
 	offset_t page_index = (offset - zfs_uio_soffset(uio)) >> PAGESHIFT;
+	uint32_t verify_fails = 0;
 	int err;
 
 	ASSERT(uio->uio_extflg & UIO_DIRECT);
@@ -381,7 +421,23 @@ dmu_write_uio_direct(dnode_t *dn, zfs_uio_t *uio, uint64_t size,
 
 	abd_t *data = abd_alloc_from_pages(&uio->uio_dio.pages[page_index],
 	    offset & (PAGESIZE - 1), size);
-	err = dmu_write_abd(dn, offset, size, data, flags, tx);
+	if (uio->uio_extflg & UIO_DIO_BOUNCE) {
+		err = dmu_write_abd_copy(dn, offset, size, data, flags, tx);
+	} else {
+		err = dmu_write_abd_impl(dn, offset, size, data, flags, tx,
+		    &verify_fails);
+		/*
+		 * The verify fails when the caller changes the buffer while
+		 * the write is in flight.  Write this range again from a
+		 * private copy, and copy for the rest of this request too.
+		 */
+		if (err != 0 && verify_fails != 0) {
+			uio->uio_extflg |= UIO_DIO_BOUNCE |
+			    UIO_DIO_CKSUM_RETRIED;
+			err = dmu_write_abd_copy(dn, offset, size, data,
+			    flags, tx);
+		}
+	}
 	abd_free(data);
 
 	if (err == 0)

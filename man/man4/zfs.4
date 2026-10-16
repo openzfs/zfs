@@ -507,7 +507,12 @@ but this may negatively impact pool space efficiency.
 .It Sy zfs_vdev_direct_write_verify Ns = Ns Sy Linux 1 | FreeBSD 0 Pq uint
 If non-zero, then a Direct I/O write's checksum will be verified every
 time the write is issued and before it is committed to the block pointer.
-In the event the checksum is not valid then the I/O operation will return EIO.
+If the checksum is not valid, the block is not committed and ZFS writes
+the request again from a private copy of the data.
+If the checksum of the copy is also not valid, the I/O operation will
+return EIO.
+On Linux, ZFS also copies the data of every later Direct I/O write
+through the same open file.
 This module parameter can be used to detect if the
 contents of the users buffer have changed in the process of doing a Direct I/O
 write.
