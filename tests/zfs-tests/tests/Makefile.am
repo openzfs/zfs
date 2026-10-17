@@ -1379,6 +1379,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_scrub/zpool_scrub_txg_continue_from_last.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_date_range_001.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_date_range_002.ksh \
+	functional/cli_root/zpool_scrub/zpool_scrub_metascrub.ksh \
 	functional/cli_root/zpool_scrub/zpool_error_scrub_001_pos.ksh \
 	functional/cli_root/zpool_scrub/zpool_error_scrub_002_pos.ksh \
 	functional/cli_root/zpool_scrub/zpool_error_scrub_003_pos.ksh \

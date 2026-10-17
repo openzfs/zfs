@@ -10041,7 +10041,8 @@ spa_scan_range(spa_t *spa, pool_scan_func_t func, uint64_t txgstart,
 	    !spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER))
 		return (SET_ERROR(ENOTSUP));
 
-	if (func != POOL_SCAN_SCRUB && (txgstart != 0 || txgend != 0))
+	if (func != POOL_SCAN_SCRUB && func != POOL_SCAN_METASCRUB &&
+	    (txgstart != 0 || txgend != 0))
 		return (SET_ERROR(ENOTSUP));
 
 	/*
@@ -12002,7 +12003,8 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		boolean_t scanning, paused, is_scrub, finishing;
 		dsl_scan_t *scn =  spa->spa_dsl_pool->dp_scan;
 
-		is_scrub = (scn->scn_phys.scn_func == POOL_SCAN_SCRUB);
+		is_scrub = (scn->scn_phys.scn_func == POOL_SCAN_SCRUB ||
+		    scn->scn_phys.scn_func == POOL_SCAN_METASCRUB);
 		scanning = (scn->scn_phys.scn_state == DSS_SCANNING);
 		paused = dsl_scan_is_paused_scrub(scn);
 

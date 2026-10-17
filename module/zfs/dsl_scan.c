@@ -220,15 +220,20 @@ static uint_t zfs_resilver_defer_percent = 10;
  */
 static uint_t zfs_import_defer_txgs = 5;
 
-#define	DSL_SCAN_IS_SCRUB_RESILVER(scn) \
+#define	DSL_SCAN_IS_SCRUB_RESILVER_META(scn) \
 	((scn)->scn_phys.scn_func == POOL_SCAN_SCRUB || \
-	(scn)->scn_phys.scn_func == POOL_SCAN_RESILVER)
+	(scn)->scn_phys.scn_func == POOL_SCAN_RESILVER || \
+	(scn)->scn_phys.scn_func == POOL_SCAN_METASCRUB)
 
 #define	DSL_SCAN_IS_SCRUB(scn)		\
-	((scn)->scn_phys.scn_func == POOL_SCAN_SCRUB)
+	((scn)->scn_phys.scn_func == POOL_SCAN_SCRUB || \
+	(scn)->scn_phys.scn_func == POOL_SCAN_METASCRUB)
 
 #define	DSL_SCAN_IS_RESILVER(scn) \
 	((scn)->scn_phys.scn_func == POOL_SCAN_RESILVER)
+
+#define	DSL_SCAN_IS_METASCRUB(scn) \
+	((scn)->scn_phys.scn_func == POOL_SCAN_METASCRUB)
 
 /*
  * Enable/disable the processing of the free_bpobj object.
@@ -243,6 +248,8 @@ static scan_cb_t *scan_funcs[POOL_SCAN_FUNCS] = {
 	NULL,
 	dsl_scan_scrub_cb,	/* POOL_SCAN_SCRUB */
 	dsl_scan_scrub_cb,	/* POOL_SCAN_RESILVER */
+	NULL,			/* POOL_SCAN_ERRORSCRUB (separate path) */
+	dsl_scan_scrub_cb,	/* POOL_SCAN_METASCRUB */
 };
 
 /* In core node for the scn->scn_queue. Represents a dataset to be scanned */
@@ -624,6 +631,18 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 			return (err);
 
 		err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_LAST_SCRUB, sizeof (uint64_t),
+		    SCAN_SUMMARY_PHYS_NUMINTS, &scn->scn_last_scrub);
+		if (err != 0 && err != ENOENT)
+			return (err);
+
+		err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_LAST_METASCRUB, sizeof (uint64_t),
+		    SCAN_SUMMARY_PHYS_NUMINTS, &scn->scn_last_metascrub);
+		if (err != 0 && err != ENOENT)
+			return (err);
+
+		err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_SCAN, sizeof (uint64_t), SCAN_PHYS_NUMINTS,
 		    &scn->scn_phys);
 
@@ -780,7 +799,17 @@ dsl_scan_scrubbing(const dsl_pool_t *dp)
 	dsl_scan_phys_t *scn_phys = &dp->dp_scan->scn_phys;
 
 	return (scn_phys->scn_state == DSS_SCANNING &&
-	    scn_phys->scn_func == POOL_SCAN_SCRUB);
+	    (scn_phys->scn_func == POOL_SCAN_SCRUB ||
+	    scn_phys->scn_func == POOL_SCAN_METASCRUB));
+}
+
+boolean_t
+dsl_scan_metascrubbing(const dsl_pool_t *dp)
+{
+	dsl_scan_phys_t *scn_phys = &dp->dp_scan->scn_phys;
+
+	return (scn_phys->scn_state == DSS_SCANNING &&
+	    scn_phys->scn_func == POOL_SCAN_METASCRUB);
 }
 
 boolean_t
@@ -1000,7 +1029,7 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	spa_scan_stat_init(spa);
 	vdev_scan_stat_init(spa->spa_root_vdev);
 
-	if (DSL_SCAN_IS_SCRUB_RESILVER(scn)) {
+	if (DSL_SCAN_IS_SCRUB_RESILVER_META(scn)) {
 		scn->scn_phys.scn_ddt_class_max = zfs_scrub_ddt_class_max;
 
 		/* rewrite all disk labels */
@@ -1091,7 +1120,8 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, uint64_t txgstart,
 	dsl_scan_t *scn = dp->dp_scan;
 	setup_sync_arg_t setup_sync_arg;
 
-	if (func != POOL_SCAN_SCRUB && (txgstart != 0 || txgend != 0)) {
+	if (func != POOL_SCAN_SCRUB && func != POOL_SCAN_METASCRUB &&
+	    (txgstart != 0 || txgend != 0)) {
 		return (EINVAL);
 	}
 
@@ -1136,7 +1166,8 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, uint64_t txgstart,
 		    &func, 0, ZFS_SPACE_CHECK_RESERVED));
 	}
 
-	if (func == POOL_SCAN_SCRUB && dsl_scan_is_paused_scrub(scn)) {
+	if ((func == POOL_SCAN_SCRUB || func == POOL_SCAN_METASCRUB) &&
+	    dsl_scan_is_paused_scrub(scn)) {
 		/* got scrub start cmd, resume paused scrub */
 		if ((flags & DSF_SCRUB_THOROUGH) == 0 && flags != 0)
 			return (SET_ERROR(ENOTSUP));
@@ -1192,6 +1223,26 @@ dsl_errorscrub_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		spa->spa_errata = 0;
 
 	ASSERT(!dsl_errorscrubbing(scn->scn_dp));
+}
+
+/*
+ * Record the result of the scan that just completed in summary and persist
+ * it in the MOS under key.
+ */
+static void
+dsl_scan_save_summary(dsl_scan_t *scn, const char *key,
+    dsl_scan_summary_phys_t *summary, dmu_tx_t *tx)
+{
+	summary->ss_start_time = scn->scn_phys.scn_start_time;
+	summary->ss_end_time = scn->scn_phys.scn_end_time;
+	summary->ss_to_examine = scn->scn_phys.scn_to_examine;
+	summary->ss_examined = scn->scn_phys.scn_examined;
+	summary->ss_processed = scn->scn_phys.scn_processed;
+	summary->ss_errors = scn->scn_phys.scn_errors;
+
+	VERIFY0(zap_update(scn->scn_dp->dp_meta_objset,
+	    DMU_POOL_DIRECTORY_OBJECT, key, sizeof (uint64_t),
+	    SCAN_SUMMARY_PHYS_NUMINTS, summary, tx));
 }
 
 static void
@@ -1257,7 +1308,7 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 	} else {
 		spa_history_log_internal(spa, "scan done", tx,
 		    "errors=%llu", (u_longlong_t)spa_approx_errlog_size(spa));
-		if (DSL_SCAN_IS_SCRUB(scn)) {
+		if (scn->scn_phys.scn_func == POOL_SCAN_SCRUB) {
 			VERIFY0(zap_update(dp->dp_meta_objset,
 			    DMU_POOL_DIRECTORY_OBJECT,
 			    DMU_POOL_LAST_SCRUBBED_TXG,
@@ -1267,7 +1318,7 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		}
 	}
 
-	if (DSL_SCAN_IS_SCRUB_RESILVER(scn)) {
+	if (DSL_SCAN_IS_SCRUB_RESILVER_META(scn)) {
 		spa->spa_scrub_active = B_FALSE;
 
 		/*
@@ -1300,7 +1351,14 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 			vdev_dtl_reassess(spa->spa_root_vdev, tx->tx_txg,
 			    0, B_TRUE, B_FALSE);
 		}
-		spa_errlog_rotate(spa);
+
+		/*
+		 * A metascrub does not verify data blocks, so it must not
+		 * replace the existing error log; its errors were logged
+		 * directly into the last error log (see spa_log_error()).
+		 */
+		if (!DSL_SCAN_IS_METASCRUB(scn))
+			spa_errlog_rotate(spa);
 
 		/*
 		 * Don't clear flag until after vdev_dtl_reassess to ensure that
@@ -1316,6 +1374,20 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		 */
 		scn->scn_finished_txg = tx->tx_txg;
 		spa->spa_scrub_started = B_FALSE;
+
+		/*
+		 * Save a summary of a successful full scrub or metascrub under
+		 * its own key, so the previous run of the other type is not
+		 * lost when scn_phys gets reused for the next scan.
+		 */
+		if (complete && scn->scn_phys.scn_func == POOL_SCAN_SCRUB) {
+			dsl_scan_save_summary(scn, DMU_POOL_LAST_SCRUB,
+			    &scn->scn_last_scrub, tx);
+		} else if (complete &&
+		    scn->scn_phys.scn_func == POOL_SCAN_METASCRUB) {
+			dsl_scan_save_summary(scn, DMU_POOL_LAST_METASCRUB,
+			    &scn->scn_last_metascrub, tx);
+		}
 
 		/*
 		 * We may have finished replacing a device.
@@ -3231,7 +3303,8 @@ dsl_scan_visit(dsl_scan_t *scn, dmu_tx_t *tx)
 	scan_ds_t *sds;
 	dsl_pool_t *dp = scn->scn_dp;
 
-	if (scn->scn_phys.scn_ddt_bookmark.ddb_class <=
+	if (!DSL_SCAN_IS_METASCRUB(scn) &&
+	    scn->scn_phys.scn_ddt_bookmark.ddb_class <=
 	    scn->scn_phys.scn_ddt_class_max) {
 		scn->scn_phys.scn_cur_min_txg = scn->scn_phys.scn_min_txg;
 		scn->scn_phys.scn_cur_max_txg = scn->scn_phys.scn_max_txg;
@@ -5010,10 +5083,13 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	/* Embedded BP's have phys_birth==0, so we reject them above. */
 	ASSERT(!BP_IS_EMBEDDED(bp));
 
-	ASSERT(DSL_SCAN_IS_SCRUB_RESILVER(scn));
+	ASSERT(DSL_SCAN_IS_SCRUB_RESILVER_META(scn));
 	if (scn->scn_phys.scn_func == POOL_SCAN_SCRUB) {
 		zio_flags |= ZIO_FLAG_SCRUB;
 		needs_io = B_TRUE;
+	} else if (scn->scn_phys.scn_func == POOL_SCAN_METASCRUB) {
+		zio_flags |= ZIO_FLAG_SCRUB;
+		needs_io = BP_IS_METADATA(bp);
 	} else {
 		ASSERT3U(scn->scn_phys.scn_func, ==, POOL_SCAN_RESILVER);
 		zio_flags |= ZIO_FLAG_RESILVER;

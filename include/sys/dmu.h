@@ -392,6 +392,8 @@ typedef struct dmu_buf {
 #define	DMU_POOL_SCAN			"scan"
 #define	DMU_POOL_ERRORSCRUB		"error_scrub"
 #define	DMU_POOL_LAST_SCRUBBED_TXG	"last_scrubbed_txg"
+#define	DMU_POOL_LAST_SCRUB		"last_scrub"
+#define	DMU_POOL_LAST_METASCRUB		"last_metascrub"
 #define	DMU_POOL_FREE_BPOBJ		"free_bpobj"
 #define	DMU_POOL_BPTREE_OBJ		"bptree_obj"
 #define	DMU_POOL_EMPTY_BPOBJ		"empty_bpobj"

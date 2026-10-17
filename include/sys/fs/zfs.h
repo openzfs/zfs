@@ -1216,6 +1216,7 @@ typedef enum pool_scan_func {
 	POOL_SCAN_SCRUB,
 	POOL_SCAN_RESILVER,
 	POOL_SCAN_ERRORSCRUB,
+	POOL_SCAN_METASCRUB,
 	POOL_SCAN_FUNCS
 } pool_scan_func_t;
 
@@ -1325,6 +1326,24 @@ typedef struct pool_scan_stat {
 	uint64_t	pss_pass_error_scrub_pause;
 	uint64_t	pss_pass_scrub_flags;
 
+	/*
+	 * Summary of the most recent completed full scrub. Survives later
+	 * metascrub / resilver runs that overwrite the pss_* fields above.
+	 */
+	uint64_t	pss_last_scrub_start;
+	uint64_t	pss_last_scrub_end;
+	uint64_t	pss_last_scrub_to_examine;
+	uint64_t	pss_last_scrub_examined;
+	uint64_t	pss_last_scrub_processed;
+	uint64_t	pss_last_scrub_errors;
+
+	/* Summary of the most recent completed metadata-only scrub. */
+	uint64_t	pss_metascrub_start;
+	uint64_t	pss_metascrub_end;
+	uint64_t	pss_metascrub_to_examine;
+	uint64_t	pss_metascrub_examined;
+	uint64_t	pss_metascrub_processed;
+	uint64_t	pss_metascrub_errors;
 } pool_scan_stat_t;
 
 #define	POOL_SCAN_STAT_VALID(field, uint64_t_field_count) \
