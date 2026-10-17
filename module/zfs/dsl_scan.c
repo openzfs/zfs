@@ -1006,7 +1006,8 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 		/* rewrite all disk labels */
 		vdev_config_dirty(spa->spa_root_vdev);
 
-		if (vdev_resilver_needed(spa->spa_root_vdev,
+		if (scn->scn_phys.scn_func == POOL_SCAN_RESILVER &&
+		    vdev_resilver_needed(spa->spa_root_vdev,
 		    &scn->scn_phys.scn_min_txg, &scn->scn_phys.scn_max_txg)) {
 			nvlist_t *aux = fnvlist_alloc();
 			fnvlist_add_string(aux, ZFS_EV_RESILVER_TYPE,
