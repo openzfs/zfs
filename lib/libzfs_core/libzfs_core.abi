@@ -253,6 +253,7 @@
     <elf-symbol name='lzc_wait' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_wait_fs' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_wait_tag' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzc_zvol_rewrite' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='membar_consumer' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='membar_enter' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='membar_exit' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -2832,6 +2833,7 @@
       <enumerator name='ZFS_IOC_POOL_PREFETCH' value='23128'/>
       <enumerator name='ZFS_IOC_DDT_PRUNE' value='23129'/>
       <enumerator name='ZFS_IOC_POOL_CONDENSE' value='23130'/>
+      <enumerator name='ZFS_IOC_ZVOL_REWRITE' value='23131'/>
       <enumerator name='ZFS_IOC_PLATFORM' value='23168'/>
       <enumerator name='ZFS_IOC_EVENTS_NEXT' value='23169'/>
       <enumerator name='ZFS_IOC_EVENTS_CLEAR' value='23170'/>
@@ -4486,6 +4488,13 @@
     <function-decl name='lzc_get_bootenv' mangled-name='lzc_get_bootenv' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_get_bootenv'>
       <parameter type-id='80f4b756' name='pool'/>
       <parameter type-id='857bb57e' name='outnvl'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_zvol_rewrite' mangled-name='lzc_zvol_rewrite' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_zvol_rewrite'>
+      <parameter type-id='80f4b756' name='volume'/>
+      <parameter type-id='9c313c2d' name='offset'/>
+      <parameter type-id='9c313c2d' name='length'/>
+      <parameter type-id='9c313c2d' name='flags'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='lzc_ddt_prune' mangled-name='lzc_ddt_prune' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_ddt_prune'>

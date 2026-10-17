@@ -1114,39 +1114,6 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 }
 
 /*
- * Check if a block should be skipped during rewrite.
- * Returns B_TRUE if block should be skipped.
- */
-static boolean_t
-zfs_rewrite_skip(dmu_buf_t *db, objset_t *os, uint64_t flags, uint64_t txg)
-{
-	/*
-	 * This may be slightly stale and racy, but should be OK for
-	 * the advisory use.
-	 */
-	blkptr_t *bp = dmu_buf_get_blkptr(db);
-	if (bp == NULL)
-		return (B_TRUE);
-
-	if (flags & ZFS_REWRITE_SKIP_SNAPSHOT) {
-		if (dmu_objset_block_is_shared(os, bp))
-			return (B_TRUE);
-	}
-
-	if (flags & ZFS_REWRITE_SKIP_BRT) {
-		if (brt_maybe_exists(os->os_spa, bp))
-			return (B_TRUE);
-	}
-
-	if (flags & ZFS_REWRITE_SKIP_CURRENT_ASIZE) {
-		if (bp_asize_is_current(os->os_spa, bp, txg))
-			return (B_TRUE);
-	}
-
-	return (B_FALSE);
-}
-
-/*
  * Rewrite a range of file as-is without modification.
  *
  *	IN:	zp	- znode of file to be rewritten.
@@ -1163,10 +1130,6 @@ zfs_rewrite(znode_t *zp, uint64_t off, uint64_t len, uint64_t flags,
     uint64_t arg)
 {
 	int error;
-
-#define	ZFS_REWRITE_VALID_FLAGS \
-	(ZFS_REWRITE_PHYSICAL | ZFS_REWRITE_SKIP_SNAPSHOT | \
-	ZFS_REWRITE_SKIP_BRT | ZFS_REWRITE_SKIP_CURRENT_ASIZE)
 
 	if ((flags & ~ZFS_REWRITE_VALID_FLAGS) != 0 || arg != 0)
 		return (SET_ERROR(EINVAL));
@@ -1257,30 +1220,11 @@ zfs_rewrite(znode_t *zp, uint64_t off, uint64_t len, uint64_t flags,
 		}
 
 		/* Mark all dbufs within range as dirty to trigger rewrite. */
-		dmu_buf_t **dbp;
-		int numbufs;
-		error = dmu_buf_hold_array_by_dnode(dn, off, n, TRUE, FTAG,
-		    &numbufs, &dbp, DMU_READ_PREFETCH | DMU_UNCACHEDIO);
+		error = dmu_rewrite_by_dnode(dn, off, n, flags, tx, &nr, &nw);
 		if (error) {
 			dmu_tx_commit(tx);
 			break;
 		}
-		for (int i = 0; i < numbufs; i++) {
-			nr += dbp[i]->db_size;
-			if (dmu_buf_is_dirty(dbp[i], tx))
-				continue;
-
-			if (zfs_rewrite_skip(dbp[i], zfsvfs->z_os, flags,
-			    dmu_tx_get_txg(tx)))
-				continue;
-
-			nw += dbp[i]->db_size;
-			if (flags & ZFS_REWRITE_PHYSICAL)
-				dmu_buf_will_rewrite(dbp[i], tx);
-			else
-				dmu_buf_will_dirty(dbp[i], tx);
-		}
-		dmu_buf_rele_array(dbp, numbufs, FTAG);
 
 		dmu_tx_commit(tx);
 
