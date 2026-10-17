@@ -11,7 +11,7 @@
 .\"
 .\" Copyright (c) 2012 by Delphix. All rights reserved.
 .\"
-.Dd May 26, 2021
+.Dd October 17, 2026
 .Dt RUN 1
 .Os
 .
@@ -21,6 +21,7 @@
 .Sh SYNOPSIS
 .Nm
 .Op Fl dgq
+.Op Fl l Ar logfile
 .Op Fl o Ar outputdir
 .Op Fl pP Ar script
 .Op Fl t seconds
@@ -39,6 +40,7 @@
 .Nm
 .Fl c Ar runfile
 .Op Fl dq
+.Op Fl l Ar logfile
 .Pp
 .Nm
 .Op Fl h
@@ -216,6 +218,12 @@ Execute no tests, but print a description of each test that would have been run.
 Enable kmemleak reporting (Linux only)
 .It Fl g
 Create test groups from any directories found while searching for tests.
+.It Fl l Ar logfile
+Limit the supplied test selection to tests recorded as
+.Sy FAIL
+in
+.Ar logfile .
+If a test group's setup failed, select the entire group.
 .It Fl o Ar outputdir
 Specify the directory in which to write test results.
 .It Fl p Ar script

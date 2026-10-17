@@ -783,20 +783,21 @@ class TestRun(object):
 
     def filter(self, keeplist):
         for group in list(self.testgroups.keys()):
-            if group not in keeplist:
+            g = self.testgroups[group]
+            key = (g.pathname, g.identifier or None)
+            if key not in keeplist:
                 del self.testgroups[group]
                 continue
 
-            g = self.testgroups[group]
-
-            if g.pre and os.path.basename(g.pre) in keeplist[group]:
+            if g.pre and os.path.basename(g.pre) in keeplist[key]:
                 continue
 
-            g.filter(keeplist[group])
+            g.filter(keeplist[key])
 
         for test in list(self.tests.keys()):
             directory, base = os.path.split(test)
-            if directory not in keeplist or base not in keeplist[directory]:
+            key = (directory, self.tests[test].identifier or None)
+            if key not in keeplist or base not in keeplist[key]:
                 del self.tests[test]
 
     def read(self, options):
@@ -1126,14 +1127,18 @@ def filter_tests(testrun, options):
         line = fh.readline()
         if not line:
             break
-        m = re.match(r'Test: .*(tests/.*)/(\S+).*\[FAIL\]', line)
+        m = re.match(r'(?:\[[0-9\-T:.]+\]\s+)?'
+                     r'Test(?: \(([^)]+)\))?: (.+) '
+                     r'\(run as [^)]+\)\s+\[\S+\]\s+\[FAIL\]', line)
         if not m:
             continue
-        group, test = m.group(1, 2)
+        identifier, pathname = m.group(1, 2)
+        directory, test = os.path.split(pathname)
+        key = (directory, identifier)
         try:
-            failed[group].append(test)
+            failed[key].append(test)
         except KeyError:
-            failed[group] = [test]
+            failed[key] = [test]
     fh.close()
 
     testrun.filter(failed)

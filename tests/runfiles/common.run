@@ -1107,6 +1107,12 @@ tests = ['suid_write_to_suid', 'suid_write_to_sgid', 'suid_write_to_suid_sgid',
     'suid_write_to_none', 'suid_write_zil_replay']
 tags = ['functional', 'suid']
 
+[tests/functional/test_runner]
+tests = ['test_runner_rerun']
+pre =
+post =
+tags = ['functional', 'test_runner']
+
 [tests/functional/trim]
 tests = ['autotrim_integrity', 'autotrim_config', 'autotrim_trim_integrity',
     'trim_integrity', 'trim_config', 'trim_l2arc']
