@@ -37,6 +37,7 @@
 /mmap_write_sync
 /mount_null_source
 /nvlist_to_lua
+/open_by_fid
 /randfree_file
 /randwritecomp
 /read_dos_attributes
