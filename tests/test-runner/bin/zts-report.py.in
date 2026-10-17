@@ -420,7 +420,7 @@ if __name__ == "__main__":
     if not results:
         print("\n\nNo test results were found.")
         print("Log directory:", logdir)
-        sys.exit(0)
+        sys.exit(1)
 
     expected = []
     unexpected = []
