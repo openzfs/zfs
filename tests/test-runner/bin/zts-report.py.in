@@ -374,19 +374,19 @@ def process_results(pathname):
         r'\s*\(run as (\S+)\)\s*\[(\S+)\]\s*\[(\S+)\]'
     pattern_log = r'^\s*Log directory:\s*(\S*)'
 
-    d = {}
+    results = []
     logdir = 'Could not determine log directory.'
     for line in f.readlines():
         m = re.match(pattern, line)
         if m and len(m.groups()) == 4:
-            d[m.group(1)] = m.group(4)
+            results.append((m.group(1), m.group(4)))
             continue
 
         m = re.match(pattern_log, line)
         if m:
             logdir = m.group(1)
 
-    return d, logdir
+    return results, logdir
 
 
 class ListMaybesAction(argparse.Action):
@@ -426,30 +426,30 @@ if __name__ == "__main__":
     unexpected = []
     all_maybes = True
 
-    for test in list(results.keys()):
-        if results[test] == "PASS":
+    for test, result in results:
+        if result == "PASS":
             continue
 
         setup = test.replace(os.path.basename(test), "setup")
-        if results[test] == "SKIP" and test != setup:
+        if result == "SKIP" and test != setup:
             if setup in known and known[setup][0] == "SKIP":
                 continue
             if setup in maybe and maybe[setup][0] == "SKIP":
                 continue
 
-        if (test in known and results[test] in known[test][0]):
-            expected.append(test)
-        elif test in maybe and results[test] in maybe[test][0]:
-            if results[test] == 'SKIP' or args.maybes:
-                expected.append(test)
+        if (test in known and result in known[test][0]):
+            expected.append((test, result))
+        elif test in maybe and result in maybe[test][0]:
+            if result == 'SKIP' or args.maybes:
+                expected.append((test, result))
             elif not args.maybes:
-                unexpected.append(test)
+                unexpected.append((test, result))
         else:
-            unexpected.append(test)
+            unexpected.append((test, result))
             all_maybes = False
 
     print("\nTests with results other than PASS that are expected:")
-    for test in sorted(expected):
+    for test, result in sorted(expected):
         issue_url = 'https://github.com/openzfs/zfs/issues/'
 
         # Include the reason why the result is expected, given the following:
@@ -468,26 +468,20 @@ if __name__ == "__main__":
                 expect = f"{issue_url}{maybe[test][1]}"
             else:
                 expect = maybe[test][1]
-        elif setup in known and known[setup][0] == "SKIP" and setup != test:
-            continue
-        elif setup in maybe and maybe[setup][0] == "SKIP" and setup != test:
-            continue
         else:
             expect = "UNKNOWN REASON"
-        print(f"    {results[test]} {test} ({expect})")
+        print(f"    {result} {test} ({expect})")
 
     print("\nTests with result of PASS that are unexpected:")
-    for test in sorted(known.keys()):
-        # We probably should not be silently ignoring the case
-        # where "test" is not in "results".
-        if test not in results or results[test] != "PASS":
+    for test, result in sorted(results):
+        if test not in known or result != "PASS":
             continue
-        print(f"    {results[test]} {test} (expected {known[test][0]})")
+        print(f"    {result} {test} (expected {known[test][0]})")
 
     print("\nTests with results other than PASS that are unexpected:")
-    for test in sorted(unexpected):
+    for test, result in sorted(unexpected):
         expect = "PASS" if test not in known else known[test][0]
-        print(f"    {results[test]} {test} (expected {expect})")
+        print(f"    {result} {test} (expected {expect})")
 
     if len(unexpected) == 0:
         sys.exit(0)
