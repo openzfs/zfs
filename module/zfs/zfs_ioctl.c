@@ -160,6 +160,7 @@
 #include <sys/zfs_quota.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_znode.h>
+#include <sys/zfs_changelog.h>
 #include <sys/zap.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
@@ -8051,6 +8052,205 @@ zfs_ioctl_register_dataset_modify(zfs_ioc_t ioc, zfs_ioc_legacy_func_t *func,
 	    DATASET_NAME, B_TRUE, POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY);
 }
 
+/*
+ * changelog consumer ioctls.
+ *
+ * The handlers need a writable objset (registering and clearing update
+ * the consumer ZAP), so they must not run under the pool config lock:
+ * a mounted dataset is reached through its zfsvfs, an unmounted one is
+ * owned for the duration of the call.
+ */
+int
+zfs_changelog_os_hold(const char *dsname, zfsvfs_t **zfvp, objset_t **osp)
+{
+	if (getzfsvfs(dsname, zfvp) == 0) {
+		*osp = (*zfvp)->z_os;
+		return (0);
+	}
+	*zfvp = NULL;
+	return (dmu_objset_own(dsname, DMU_OST_ZFS, B_FALSE, B_TRUE, FTAG,
+	    osp));
+}
+
+void
+zfs_changelog_os_rele(zfsvfs_t *zfsvfs, objset_t *os)
+{
+	if (zfsvfs != NULL)
+		zfs_vfs_rele(zfsvfs);
+	else
+		dmu_objset_disown(os, B_TRUE, FTAG);
+}
+
+/*
+ * inputs:
+ * changelog_consumer	consumer name
+ * changelog_mask	(optional) bitmap of ops to deliver, 0 means all
+ *
+ * outputs:
+ * changelog_seq		cursor this consumer resumes from
+ */
+static const zfs_ioc_key_t zfs_keys_changelog_register[] = {
+	{ZFS_CHANGELOG_CONSUMER,	DATA_TYPE_STRING,	0},
+	{ZFS_CHANGELOG_MASK,	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+};
+
+static int
+zfs_ioc_changelog_register(const char *dsname, nvlist_t *innvl,
+    nvlist_t *outnvl)
+{
+	zfsvfs_t *zfsvfs;
+	objset_t *os;
+	const char *cname;
+	uint64_t mask = 0, seq = 0;
+	int error;
+
+	cname = fnvlist_lookup_string(innvl, ZFS_CHANGELOG_CONSUMER);
+	(void) nvlist_lookup_uint64(innvl, ZFS_CHANGELOG_MASK, &mask);
+
+	error = zfs_changelog_os_hold(dsname, &zfsvfs, &os);
+	if (error != 0)
+		return (error);
+	error = zfs_changelog_register(os, cname, mask, &seq);
+	zfs_changelog_os_rele(zfsvfs, os);
+
+	if (error == 0)
+		fnvlist_add_uint64(outnvl, ZFS_CHANGELOG_SEQ, seq);
+	return (error);
+}
+
+/*
+ * inputs:
+ * changelog_consumer	(optional) consumer name, supplies mask and cursor
+ * changelog_cursor	(optional) explicit cursor, overrides the consumer's
+ * changelog_maxrecs	(optional) record limit for this call
+ * changelog_wait_ms	(optional) block this long for the first record
+ *
+ * outputs:
+ * changelog_records	records, as a byte array of changelog_rec_t
+ * changelog_nrecs	how many records the array holds
+ * changelog_cursor	cursor to pass to the next call
+ * changelog_head	next seq the dataset will assign
+ * changelog_tail	oldest seq still on disk
+ * changelog_generation	bumped whenever records were force-dropped
+ * changelog_gap	set when records were missed and a rescan is needed
+ */
+static const zfs_ioc_key_t zfs_keys_changelog_read[] = {
+	{ZFS_CHANGELOG_CONSUMER,	DATA_TYPE_STRING,	ZK_OPTIONAL},
+	{ZFS_CHANGELOG_CURSOR,	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{ZFS_CHANGELOG_MAXRECS,	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{ZFS_CHANGELOG_WAIT_MS,	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+};
+
+static int
+zfs_ioc_changelog_read(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	zfsvfs_t *zfsvfs;
+	objset_t *os;
+	changelog_rec_t *buf;
+	const char *cname = NULL;
+	uint64_t cursor = 0, maxrecs = 0, wait_ms = 0;
+	uint64_t nrecs = 0, next = 0, head = 0, tail = 0, gen = 0;
+	boolean_t use_cursor, gap = B_FALSE;
+	size_t bufsize;
+	int error;
+
+	(void) nvlist_lookup_string(innvl, ZFS_CHANGELOG_CONSUMER, &cname);
+	use_cursor = (nvlist_lookup_uint64(innvl, ZFS_CHANGELOG_CURSOR,
+	    &cursor) == 0);
+	(void) nvlist_lookup_uint64(innvl, ZFS_CHANGELOG_MAXRECS, &maxrecs);
+	(void) nvlist_lookup_uint64(innvl, ZFS_CHANGELOG_WAIT_MS, &wait_ms);
+
+	if (maxrecs == 0 || maxrecs > 2048)
+		maxrecs = 2048;
+	if (wait_ms > 60000)
+		wait_ms = 60000;
+	bufsize = maxrecs * sizeof (changelog_rec_t);
+	buf = vmem_alloc(bufsize, KM_SLEEP);
+
+	error = zfs_changelog_os_hold(dsname, &zfsvfs, &os);
+	if (error == 0) {
+		error = zfs_changelog_read(os, cname, cursor, use_cursor,
+		    maxrecs, wait_ms, buf, &nrecs, &next, &head, &tail, &gen,
+		    &gap);
+		zfs_changelog_os_rele(zfsvfs, os);
+	}
+
+	if (error == 0) {
+		fnvlist_add_uint64(outnvl, ZFS_CHANGELOG_NRECS, nrecs);
+		fnvlist_add_uint64(outnvl, ZFS_CHANGELOG_CURSOR, next);
+		fnvlist_add_uint64(outnvl, ZFS_CHANGELOG_HEAD, head);
+		fnvlist_add_uint64(outnvl, ZFS_CHANGELOG_TAIL, tail);
+		fnvlist_add_uint64(outnvl, ZFS_CHANGELOG_GEN, gen);
+		fnvlist_add_boolean_value(outnvl, ZFS_CHANGELOG_GAP, gap);
+		if (nrecs > 0) {
+			fnvlist_add_uint8_array(outnvl, ZFS_CHANGELOG_RECORDS,
+			    (uint8_t *)buf,
+			    (uint_t)(nrecs * sizeof (changelog_rec_t)));
+		}
+	}
+	vmem_free(buf, bufsize);
+	return (error);
+}
+
+/*
+ * inputs:
+ * changelog_consumer	consumer name
+ * changelog_seq	records below this seq are acked and may be freed
+ */
+static const zfs_ioc_key_t zfs_keys_changelog_clear[] = {
+	{ZFS_CHANGELOG_CONSUMER,	DATA_TYPE_STRING,	0},
+	{ZFS_CHANGELOG_SEQ,	DATA_TYPE_UINT64,	0},
+};
+
+static int
+zfs_ioc_changelog_clear(const char *dsname, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	zfsvfs_t *zfsvfs;
+	objset_t *os;
+	const char *cname;
+	uint64_t seq;
+	int error;
+
+	(void) outnvl;
+	cname = fnvlist_lookup_string(innvl, ZFS_CHANGELOG_CONSUMER);
+	seq = fnvlist_lookup_uint64(innvl, ZFS_CHANGELOG_SEQ);
+
+	error = zfs_changelog_os_hold(dsname, &zfsvfs, &os);
+	if (error != 0)
+		return (error);
+	error = zfs_changelog_clear(os, cname, seq);
+	zfs_changelog_os_rele(zfsvfs, os);
+	return (error);
+}
+
+/*
+ * inputs:
+ * changelog_consumer	consumer name
+ */
+static const zfs_ioc_key_t zfs_keys_changelog_unregister[] = {
+	{ZFS_CHANGELOG_CONSUMER,	DATA_TYPE_STRING,	0},
+};
+
+static int
+zfs_ioc_changelog_unregister(const char *dsname, nvlist_t *innvl,
+    nvlist_t *outnvl)
+{
+	zfsvfs_t *zfsvfs;
+	objset_t *os;
+	const char *cname;
+	int error;
+
+	(void) outnvl;
+	cname = fnvlist_lookup_string(innvl, ZFS_CHANGELOG_CONSUMER);
+
+	error = zfs_changelog_os_hold(dsname, &zfsvfs, &os);
+	if (error != 0)
+		return (error);
+	error = zfs_changelog_unregister(os, cname);
+	zfs_changelog_os_rele(zfsvfs, os);
+	return (error);
+}
+
 static void
 zfs_ioctl_init(void)
 {
@@ -8255,6 +8455,28 @@ zfs_ioctl_init(void)
 	    zfs_ioc_ddt_prune, zfs_secpolicy_config, POOL_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
 	    zfs_keys_ddt_prune, ARRAY_SIZE(zfs_keys_ddt_prune));
+
+	zfs_ioctl_register("changelog_register", ZFS_IOC_CHANGELOG_REGISTER,
+	    zfs_ioc_changelog_register, zfs_secpolicy_config, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
+	    zfs_keys_changelog_register,
+	    ARRAY_SIZE(zfs_keys_changelog_register));
+
+	zfs_ioctl_register("changelog_read", ZFS_IOC_CHANGELOG_READ,
+	    zfs_ioc_changelog_read, zfs_secpolicy_config, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED, B_FALSE, B_FALSE,
+	    zfs_keys_changelog_read, ARRAY_SIZE(zfs_keys_changelog_read));
+
+	zfs_ioctl_register("changelog_clear", ZFS_IOC_CHANGELOG_CLEAR,
+	    zfs_ioc_changelog_clear, zfs_secpolicy_config, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_FALSE,
+	    zfs_keys_changelog_clear, ARRAY_SIZE(zfs_keys_changelog_clear));
+
+	zfs_ioctl_register("changelog_unregister", ZFS_IOC_CHANGELOG_UNREGISTER,
+	    zfs_ioc_changelog_unregister, zfs_secpolicy_config, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
+	    zfs_keys_changelog_unregister,
+	    ARRAY_SIZE(zfs_keys_changelog_unregister));
 
 	/* IOCTLS that use the legacy function signature */
 
