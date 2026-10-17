@@ -951,30 +951,84 @@ zilog_is_dirty(zilog_t *zilog)
 static void zil_crash(zilog_t *zilog);
 
 /*
+ * Per-dataset features for log record types that older software cannot
+ * replay: TX_SETSAXATTR (zilsaxattr) and TX_TMPFILE (ziltmpfile).  Each is
+ * active on a dataset while its log chain may hold such records: it is
+ * activated, and the activation has synced, before a chain is written to
+ * (zil_create(), or zil_commit_activate_features() for an existing chain),
+ * and deactivated when the chain is destroyed (zil_sync()).
+ *
+ * zilsaxattr is wanted whenever it is enabled, and writers may create its
+ * records whenever it is enabled.  ziltmpfile is wanted only once a
+ * publication on this dataset has called zil_want_tmpfile(), before it
+ * creates its first TX_TMPFILE record; datasets that never publish an
+ * O_TMPFILE file this way, and platforms that never log one, leave it
+ * enabled.
+ */
+static const spa_feature_t zil_log_features[] = {
+	SPA_FEATURE_ZILSAXATTR,
+	SPA_FEATURE_ZILTMPFILE,
+};
+
+static boolean_t
+zil_log_feature_wanted(zilog_t *zilog, spa_feature_t f)
+{
+	if (f == SPA_FEATURE_ZILTMPFILE && !zilog->zl_tmpfile_wanted)
+		return (B_FALSE);
+	return (spa_feature_is_enabled(zilog->zl_spa, f) &&
+	    dmu_objset_type(zilog->zl_os) != DMU_OST_ZVOL);
+}
+
+/*
+ * Called by a publication before it creates its first TX_TMPFILE record,
+ * in open context.  Once set, ziltmpfile stays wanted for the life of the
+ * zilog, so that every chain that may carry such a record activates it:
+ * the commit that writes the record first evaluates the features wanted
+ * (zil_process_commit_list(), after zil_get_commit_list() has taken the
+ * itxg lock that the record's zil_itx_assign() released), and activates
+ * ziltmpfile if it is not active yet, which waits for one TXG.
+ */
+void
+zil_want_tmpfile(zilog_t *zilog)
+{
+	ASSERT(spa_feature_is_enabled(zilog->zl_spa, SPA_FEATURE_ZILTMPFILE));
+	if (!zilog->zl_tmpfile_wanted)
+		zilog->zl_tmpfile_wanted = B_TRUE;
+}
+
+/*
  * Its called in zil_commit context (zil_process_commit_list()/zil_create()).
- * It activates SPA_FEATURE_ZILSAXATTR feature, if its enabled.
- * Check dsl_dataset_feature_is_active to avoid txg_wait_synced() on every
+ * It activates the log features that are wanted but not yet active on this
+ * dataset, e.g. after they were enabled on a pool with existing ZIL headers,
+ * or ziltmpfile for the first publication on an existing chain.  Check
+ * dsl_dataset_feature_is_active to avoid txg_wait_synced() on every
  * zil_commit.
  */
 static int
-zil_commit_activate_saxattr_feature(zilog_t *zilog)
+zil_commit_activate_features(zilog_t *zilog)
 {
 	dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
 	uint64_t txg = 0;
 	dmu_tx_t *tx = NULL;
 
-	if (spa_feature_is_enabled(zilog->zl_spa, SPA_FEATURE_ZILSAXATTR) &&
-	    dmu_objset_type(zilog->zl_os) != DMU_OST_ZVOL &&
-	    !dsl_dataset_feature_is_active(ds, SPA_FEATURE_ZILSAXATTR)) {
-		tx = dmu_tx_create(zilog->zl_os);
-		VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
-		dsl_dataset_dirty(ds, tx);
-		txg = dmu_tx_get_txg(tx);
+	for (int i = 0; i < ARRAY_SIZE(zil_log_features); i++) {
+		spa_feature_t f = zil_log_features[i];
 
+		if (!zil_log_feature_wanted(zilog, f) ||
+		    dsl_dataset_feature_is_active(ds, f))
+			continue;
+		if (tx == NULL) {
+			tx = dmu_tx_create(zilog->zl_os);
+			VERIFY0(dmu_tx_assign(tx,
+			    DMU_TX_WAIT | DMU_TX_SUSPEND));
+			dsl_dataset_dirty(ds, tx);
+			txg = dmu_tx_get_txg(tx);
+		}
 		mutex_enter(&ds->ds_lock);
-		ds->ds_feature_activation[SPA_FEATURE_ZILSAXATTR] =
-		    (void *)B_TRUE;
+		ds->ds_feature_activation[f] = (void *)B_TRUE;
 		mutex_exit(&ds->ds_lock);
+	}
+	if (tx != NULL) {
 		dmu_tx_commit(tx);
 		int err = txg_wait_synced_flags(zilog->zl_dmu_pool,
 		    txg, TXG_WAIT_SUSPEND);
@@ -1002,7 +1056,14 @@ zil_create(zilog_t *zilog)
 	int error = 0;
 	boolean_t slog = FALSE;
 	dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
+	boolean_t wanted[ARRAY_SIZE(zil_log_features)];
 
+	/*
+	 * zil_want_tmpfile() may be called meanwhile; a record created after
+	 * it is not in this commit, and the next commit activates the feature.
+	 */
+	for (int i = 0; i < ARRAY_SIZE(zil_log_features); i++)
+		wanted[i] = zil_log_feature_wanted(zilog, zil_log_features[i]);
 
 	/*
 	 * Wait for any previous destroy to complete.
@@ -1055,17 +1116,19 @@ zil_create(zilog_t *zilog)
 	 */
 	if (tx != NULL) {
 		/*
-		 * If "zilsaxattr" feature is enabled on zpool, then activate
-		 * it now when we're creating the ZIL chain. We can't wait with
-		 * this until we write the first xattr log record because we
-		 * need to wait for the feature activation to sync out.
+		 * If log features ("zilsaxattr", "ziltmpfile") are enabled on
+		 * the zpool, then activate them now when we're creating the ZIL
+		 * chain. We can't wait with this until we write the first such
+		 * log record because we need to wait for the feature
+		 * activation to sync out.
 		 */
-		if (spa_feature_is_enabled(zilog->zl_spa,
-		    SPA_FEATURE_ZILSAXATTR) && dmu_objset_type(zilog->zl_os) !=
-		    DMU_OST_ZVOL) {
+		for (int i = 0; i < ARRAY_SIZE(zil_log_features); i++) {
+			spa_feature_t f = zil_log_features[i];
+
+			if (!wanted[i])
+				continue;
 			mutex_enter(&ds->ds_lock);
-			ds->ds_feature_activation[SPA_FEATURE_ZILSAXATTR] =
-			    (void *)B_TRUE;
+			ds->ds_feature_activation[f] = (void *)B_TRUE;
 			mutex_exit(&ds->ds_lock);
 		}
 
@@ -1082,12 +1145,13 @@ zil_create(zilog_t *zilog)
 		 * This branch covers the case where we enable the feature on a
 		 * zpool that has existing ZIL headers.
 		 */
-		if (zil_commit_activate_saxattr_feature(zilog) != 0)
+		if (zil_commit_activate_features(zilog) != 0)
 			return (NULL);
 	}
-	IMPLY(spa_feature_is_enabled(zilog->zl_spa, SPA_FEATURE_ZILSAXATTR) &&
-	    dmu_objset_type(zilog->zl_os) != DMU_OST_ZVOL,
-	    dsl_dataset_feature_is_active(ds, SPA_FEATURE_ZILSAXATTR));
+	for (int i = 0; i < ARRAY_SIZE(zil_log_features); i++) {
+		IMPLY(wanted[i],
+		    dsl_dataset_feature_is_active(ds, zil_log_features[i]));
+	}
 
 	ASSERT(error != 0 || memcmp(&blk, &zh->zh_log, sizeof (blk)) == 0);
 	IMPLY(error == 0, lwb != NULL);
@@ -3207,7 +3271,7 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 			return;
 
 		lwb = zil_create(zilog);
-	} else if (zil_commit_activate_saxattr_feature(zilog) != 0) {
+	} else if (zil_commit_activate_features(zilog) != 0) {
 		/*
 		 * Activation failed because the pool suspended, and
 		 * zil_crash() took the lwb list. Drop the lwb so the
@@ -4244,13 +4308,18 @@ zil_sync(zilog_t *zilog, dmu_tx_t *tx)
 		} else {
 			/*
 			 * A destroyed ZIL chain can't contain any TX_SETSAXATTR
-			 * records. So, deactivate the feature for this dataset.
-			 * We activate it again when we start a new ZIL chain.
+			 * or TX_TMPFILE records. So, deactivate the features
+			 * for this dataset. We activate them again when we
+			 * start a new ZIL chain.
 			 */
-			if (dsl_dataset_feature_is_active(ds,
-			    SPA_FEATURE_ZILSAXATTR))
-				dsl_dataset_deactivate_feature(ds,
-				    SPA_FEATURE_ZILSAXATTR, tx);
+			for (int i = 0; i < ARRAY_SIZE(zil_log_features);
+			    i++) {
+				spa_feature_t f = zil_log_features[i];
+
+				if (dsl_dataset_feature_is_active(ds, f))
+					dsl_dataset_deactivate_feature(ds, f,
+					    tx);
+			}
 		}
 	}
 

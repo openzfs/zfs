@@ -2197,6 +2197,15 @@ The number of bytes which should be prefetched during a pool traversal, like
 .Nm zfs Cm send
 or other data crawling operations.
 .
+.It Sy zfs_tmpfile_log_max_blocks Ns = Ns Sy 4096 Pq uint
+The most blocks, holes included, that an
+.Sy O_TMPFILE
+file published with
+.Xr linkat 2
+may have for its publication to be recorded in the intent log.
+A larger file's publication waits for the transaction group that links it,
+as do publications that cannot be logged for other reasons.
+.
 .It Sy zfs_traverse_indirect_prefetch_limit Ns = Ns Sy 32 Pq uint
 The number of blocks pointed by indirect (non-L0) block which should be
 prefetched during a pool traversal, like

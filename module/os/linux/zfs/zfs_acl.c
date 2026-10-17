@@ -1639,6 +1639,81 @@ zfs_acl_chmod_setattr(znode_t *zp, zfs_acl_t **aclp, uint64_t mode)
 	return (error);
 }
 
+static void
+zfs_acl_want_ace(uint32_t *wmask, uint16_t *wtype, uint16_t *wflags, int *n,
+    uint32_t mask, uint16_t type, uint16_t flags)
+{
+	wmask[*n] = mask;
+	wtype[*n] = type;
+	wflags[*n] = flags;
+	(*n)++;
+}
+
+/*
+ * Returns B_TRUE if zp's ACL is the one zfs_acl_ids_create() gives a new
+ * file of zp's mode in a directory without inheritable ACEs, entry for
+ * entry, and its ACL-wide pflags are those of such a file.  Only then does
+ * creating the file again from its mode, as replay of a TX_TMPFILE record
+ * does, reproduce the ACL.  ZFS_ACL_TRIVIAL alone does not say so:
+ * ace_trivial_common() accepts inherited owner@, group@ and everyone@
+ * entries whose masks and ACE_INHERITED_ACE flags differ from what
+ * zfs_acl_chmod() builds, and on acltype=posix datasets the mode a umask
+ * or a POSIX ACL gives a new file is applied after the ACL was built,
+ * without rebuilding it (zpl_init_acl(), zpl_set_acl_impl()).  The cached
+ * ACL is compared with the entries zfs_acl_chmod() would build, in its
+ * order, without building them.
+ */
+boolean_t
+zfs_acl_is_from_mode(znode_t *zp)
+{
+	trivial_acl_t masks;
+	uint32_t wmask[6];
+	uint16_t wtype[6], wflags[6];
+	zfs_acl_t *aclp;
+	void *acep = NULL;
+	uint64_t who;
+	uint32_t mask;
+	uint16_t iflags, type;
+	int n = 0, i = 0;
+	boolean_t same;
+
+	if ((zp->z_pflags & ZFS_ACL_WIDE_FLAGS) != ZFS_ACL_TRIVIAL)
+		return (B_FALSE);
+
+	acl_trivial_access_masks((mode_t)zp->z_mode,
+	    S_ISDIR(ZTOI(zp)->i_mode), &masks);
+	if (masks.allow0 != 0)
+		zfs_acl_want_ace(wmask, wtype, wflags, &n, masks.allow0, ALLOW,
+		    ACE_OWNER);
+	if (masks.deny1 != 0)
+		zfs_acl_want_ace(wmask, wtype, wflags, &n, masks.deny1, DENY,
+		    ACE_OWNER);
+	if (masks.deny2 != 0)
+		zfs_acl_want_ace(wmask, wtype, wflags, &n, masks.deny2, DENY,
+		    OWNING_GROUP);
+	zfs_acl_want_ace(wmask, wtype, wflags, &n, masks.owner, ALLOW,
+	    ACE_OWNER);
+	zfs_acl_want_ace(wmask, wtype, wflags, &n, masks.group, ALLOW,
+	    OWNING_GROUP);
+	zfs_acl_want_ace(wmask, wtype, wflags, &n, masks.everyone, ALLOW,
+	    ACE_EVERYONE);
+
+	mutex_enter(&zp->z_acl_lock);
+	if (zfs_acl_node_read(zp, B_FALSE, &aclp, B_FALSE) != 0) {
+		mutex_exit(&zp->z_acl_lock);
+		return (B_FALSE);
+	}
+	same = aclp->z_acl_count == n;
+	while (same && (acep = zfs_acl_next_ace(aclp, acep, &who, &mask,
+	    &iflags, &type)) != NULL) {
+		same = i < n && mask == wmask[i] && type == wtype[i] &&
+		    iflags == wflags[i];
+		i++;
+	}
+	mutex_exit(&zp->z_acl_lock);
+	return (same && i == n);
+}
+
 /*
  * Should ACE be inherited?
  */

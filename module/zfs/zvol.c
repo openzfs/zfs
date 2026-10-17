@@ -923,6 +923,7 @@ zil_replay_func_t *const zvol_replay_vector[TX_MAX_TYPE] = {
 	zvol_replay_err,	/* TX_RENAME_EXCHANGE */
 	zvol_replay_err,	/* TX_RENAME_WHITEOUT */
 	zvol_replay_clone_range,	/* TX_CLONE_RANGE */
+	zvol_replay_err,	/* TX_TMPFILE */
 };
 
 /*
