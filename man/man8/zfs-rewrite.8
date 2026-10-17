@@ -60,17 +60,23 @@ Rewriting these blocks would create new copies, leaving the old copies for
 the snapshot and increasing space usage.
 This flag prevents such expansion by skipping snapshot-shared blocks.
 .It Fl W
-Skip blocks whose rewrite would not change their allocated size.
+Skip blocks that a rewrite would leave as they are: blocks that already have
+the checksum, compression, number of copies and deduplication that the
+properties of their dataset would give them now, and that would be allocated
+in the same class, as
+.Sy special_small_blocks
+decides, and take the same space where they are.
 After a RAID-Z expansion, only the blocks written before it completed that the
 new width stores in less space are rewritten, so an interrupted rewrite can be
 run again without rewriting the same blocks twice.
 Blocks smaller than the old width keep their size and stay in place, which can
 leave the space freed around them fragmented.
-A size change that a property change would cause, as with
-.Sy compression ,
-is not taken into account.
-On vdevs other than RAID-Z, only gang blocks and blocks on removed devices
-are rewritten.
+Gang blocks, and blocks on removed devices or on vdevs that take no new
+allocations, are always rewritten.
+A block stored uncompressed is taken as one that compression did not shrink,
+so it is not rewritten only to be compressed, and a change of the
+.Sy compression
+level alone is not seen.
 .It Fl l Ar length
 Rewrite at most this number of bytes.
 .It Fl o Ar offset
