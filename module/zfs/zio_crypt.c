@@ -899,10 +899,19 @@ error:
  * values. In the code, should_bswap is the value from BP_SHOULD_BYTESWAP()
  * and le_bswap indicates whether a byteswap is needed to get this block
  * into little endian format.
+ *
+ * The local_mac has two forms, selected by "project". The with-project form
+ * covers whichever of the user, group and project accounting dnodes exist,
+ * and is zeroed until user accounting is complete. The without-project form,
+ * which illumos ZFS writes, covers just the user and group accounting dnodes,
+ * whenever any accounting dnode exists. Both forms are zeroed when there are
+ * no accounting dnodes, and they are the same when there is no project
+ * accounting dnode and user accounting is complete.
  */
 int
 zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
-    boolean_t should_bswap, uint8_t *portable_mac, uint8_t *local_mac)
+    boolean_t should_bswap, boolean_t project, uint8_t *portable_mac,
+    uint8_t *local_mac)
 {
 	int err;
 	zio_crypt_hmac_t hmac;
@@ -961,7 +970,7 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 	intval = osp->os_flags;
 	if (should_bswap)
 		intval = BSWAP_64(intval);
-	boolean_t uacct_incomplete =
+	boolean_t uacct_incomplete = project &&
 	    !(intval & OBJSET_FLAG_USERACCOUNTING_COMPLETE);
 
 	/*
@@ -1000,24 +1009,39 @@ zio_crypt_do_objset_hmacs(zio_crypt_key_t *key, void *data, uint_t datalen,
 		goto error;
 
 	/* add in fields from the user accounting dnodes */
-	if (osp->os_userused_dnode.dn_type != DMU_OT_NONE) {
+	if (project) {
+		if (osp->os_userused_dnode.dn_type != DMU_OT_NONE) {
+			err = zio_crypt_do_dnode_hmac_updates(&hmac,
+			    key->zk_version, should_bswap,
+			    &osp->os_userused_dnode);
+			if (err)
+				goto error;
+		}
+
+		if (osp->os_groupused_dnode.dn_type != DMU_OT_NONE) {
+			err = zio_crypt_do_dnode_hmac_updates(&hmac,
+			    key->zk_version, should_bswap,
+			    &osp->os_groupused_dnode);
+			if (err)
+				goto error;
+		}
+
+		if (osp->os_projectused_dnode.dn_type != DMU_OT_NONE &&
+		    datalen >= OBJSET_PHYS_SIZE_V3) {
+			err = zio_crypt_do_dnode_hmac_updates(&hmac,
+			    key->zk_version, should_bswap,
+			    &osp->os_projectused_dnode);
+			if (err)
+				goto error;
+		}
+	} else {
 		err = zio_crypt_do_dnode_hmac_updates(&hmac, key->zk_version,
 		    should_bswap, &osp->os_userused_dnode);
 		if (err)
 			goto error;
-	}
 
-	if (osp->os_groupused_dnode.dn_type != DMU_OT_NONE) {
 		err = zio_crypt_do_dnode_hmac_updates(&hmac, key->zk_version,
 		    should_bswap, &osp->os_groupused_dnode);
-		if (err)
-			goto error;
-	}
-
-	if (osp->os_projectused_dnode.dn_type != DMU_OT_NONE &&
-	    datalen >= OBJSET_PHYS_SIZE_V3) {
-		err = zio_crypt_do_dnode_hmac_updates(&hmac, key->zk_version,
-		    should_bswap, &osp->os_projectused_dnode);
 		if (err)
 			goto error;
 	}

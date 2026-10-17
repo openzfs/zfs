@@ -800,6 +800,13 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			error = nvpair_value_uint64(elem, &intval);
 			break;
 
+		case ZPOOL_PROP_PROJECTMAC:
+			error = nvpair_value_uint64(elem, &intval);
+			if (!error && zpool_prop_index_to_string(prop, intval,
+			    &strval) != 0)
+				error = SET_ERROR(EINVAL);
+			break;
+
 		case ZPOOL_PROP_DELEGATION:
 		case ZPOOL_PROP_AUTOREPLACE:
 		case ZPOOL_PROP_LISTSNAPS:
@@ -1034,12 +1041,15 @@ spa_prop_set(spa_t *spa, nvlist_t *nvp)
 		break;
 	}
 
-	if (need_sync) {
-		return (dsl_sync_task(spa->spa_name, NULL, spa_sync_props,
-		    nvp, 6, ZFS_SPACE_CHECK_RESERVED));
-	}
+	if (!need_sync)
+		return (0);
 
-	return (0);
+	error = dsl_sync_task(spa->spa_name, NULL, spa_sync_props, nvp, 6,
+	    ZFS_SPACE_CHECK_RESERVED);
+	if (error == 0 && spa_projectmac(spa) != ZFS_PROJECTMAC_MIXED &&
+	    nvlist_exists(nvp, zpool_prop_to_name(ZPOOL_PROP_PROJECTMAC)))
+		error = dmu_objset_local_mac_convert(spa);
+	return (error);
 }
 
 /*
@@ -5575,6 +5585,7 @@ spa_ld_get_props(spa_t *spa)
 	}
 	nvlist_free(mos_config);
 
+	spa->spa_projectmac = ZFS_PROJECTMAC_MIXED;
 	spa->spa_delegation = zpool_prop_default_numeric(ZPOOL_PROP_DELEGATION);
 
 	error = spa_dir_prop(spa, DMU_POOL_PROPS, &spa->spa_pool_props_object,
@@ -5594,6 +5605,10 @@ spa_ld_get_props(spa_t *spa)
 		    &spa->spa_dedup_table_quota);
 		spa_prop_find(spa, ZPOOL_PROP_MULTIHOST, &spa->spa_multihost);
 		spa_prop_find(spa, ZPOOL_PROP_AUTOTRIM, &spa->spa_autotrim);
+		spa_prop_find(spa, ZPOOL_PROP_PROJECTMAC, &spa->spa_projectmac);
+		/* A value this release doesn't know is treated as mixed. */
+		if (spa->spa_projectmac > ZFS_PROJECTMAC_OFF)
+			spa->spa_projectmac = ZFS_PROJECTMAC_MIXED;
 		spa->spa_autoreplace = (autoreplace != 0);
 	}
 
@@ -7589,10 +7604,23 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	spa->spa_dedup_table_quota =
 	    zpool_prop_default_numeric(ZPOOL_PROP_DEDUP_TABLE_QUOTA);
 
-	if (props != NULL) {
-		spa_configfile_set(spa, props, B_FALSE);
-		spa_sync_props(props, tx);
+	/*
+	 * A new pool records the platform default projectmac unless it's
+	 * given one, so that it keeps its form on every platform. Pools
+	 * created by older releases are "mixed".
+	 */
+	nvlist_t *pprops = (props != NULL) ? fnvlist_dup(props) :
+	    fnvlist_alloc();
+	if (version >= SPA_VERSION_FEATURES && !nvlist_exists(pprops,
+	    zpool_prop_to_name(ZPOOL_PROP_PROJECTMAC))) {
+		fnvlist_add_uint64(pprops,
+		    zpool_prop_to_name(ZPOOL_PROP_PROJECTMAC),
+		    SPA_PROJECTMAC_DEFAULT);
 	}
+	if (props != NULL)
+		spa_configfile_set(spa, props, B_FALSE);
+	spa_sync_props(pprops, tx);
+	fnvlist_free(pprops);
 
 	for (int i = 0; i < ndraid; i++)
 		spa_feature_incr(spa, SPA_FEATURE_DRAID, tx);
@@ -11019,6 +11047,9 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 					break;
 				case ZPOOL_PROP_DEDUP_TABLE_QUOTA:
 					spa->spa_dedup_table_quota = intval;
+					break;
+				case ZPOOL_PROP_PROJECTMAC:
+					spa->spa_projectmac = intval;
 					break;
 				default:
 					break;
