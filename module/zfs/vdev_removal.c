@@ -1975,8 +1975,17 @@ spa_vdev_remove_cancel_sync(void *arg, dmu_tx_t *tx)
 			ASSERT0(zfs_range_tree_space(msp->ms_defer[i]));
 		ASSERT0(zfs_range_tree_space(msp->ms_freed));
 
-		if (msp->ms_sm != NULL)
+		/*
+		 * Do not hold ms_lock while reading the space map (see
+		 * spa_vdev_remove_thread()).  In syncing context nothing else
+		 * changes this metaslab's space map or trees meanwhile.
+		 */
+		mutex_exit(&msp->ms_lock);
+		if (msp->ms_sm != NULL) {
+			ASSERT(!MUTEX_HELD(&msp->ms_lock));
 			VERIFY0(space_map_load(msp->ms_sm, segs, SM_ALLOC));
+		}
+		mutex_enter(&msp->ms_lock);
 
 		zfs_range_tree_walk(msp->ms_unflushed_allocs,
 		    zfs_range_tree_add, segs);
