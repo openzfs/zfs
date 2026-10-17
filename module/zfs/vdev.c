@@ -3351,7 +3351,10 @@ vdev_dtl_should_excise(vdev_t *vd, boolean_t rebuild_done)
 		}
 	} else {
 		dsl_scan_t *scn = vd->vdev_spa->spa_dsl_pool->dp_scan;
-		dsl_scan_phys_t *scnp __maybe_unused = &scn->scn_phys;
+		dsl_scan_phys_t *scnp = &scn->scn_phys;
+
+		if (scnp->scn_min_txg > vdev_dtl_min(vd))
+			return (B_FALSE);
 
 		/* Resilver not initiated by attach */
 		if (vd->vdev_resilver_txg == 0)
