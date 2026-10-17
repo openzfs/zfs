@@ -331,19 +331,7 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 	vd->vdev_rebuilding = B_FALSE;
 	mutex_exit(&vd->vdev_rebuild_lock);
 
-	/*
-	 * While we're in syncing context take the opportunity to
-	 * setup the scrub when there are no more active rebuilds.
-	 */
-	setup_sync_arg_t setup_sync_arg = {
-		.func = POOL_SCAN_SCRUB,
-		.txgstart = 0,
-		.txgend = 0,
-	};
-	if (dsl_scan_setup_check(&setup_sync_arg.func, tx) == 0 &&
-	    zfs_rebuild_scrub_enabled) {
-		dsl_scan_setup_sync(&setup_sync_arg, tx);
-	}
+	dsl_scan_rebuild_scrub(zfs_rebuild_scrub_enabled != 0, tx);
 
 	cv_broadcast(&vd->vdev_rebuild_cv);
 
@@ -381,6 +369,8 @@ vdev_rebuild_cancel_sync(void *arg, dmu_tx_t *tx)
 	vd->vdev_rebuild_cancel_wanted = B_FALSE;
 	vd->vdev_rebuilding = B_FALSE;
 	mutex_exit(&vd->vdev_rebuild_lock);
+
+	dsl_scan_rebuild_scrub(B_FALSE, tx);
 
 	spa_notify_waiters(spa);
 	cv_broadcast(&vd->vdev_rebuild_cv);
@@ -757,14 +747,6 @@ vdev_rebuild_thread(void *arg)
 	vdev_t *rvd = spa->spa_root_vdev;
 	dsl_pool_t *dp = spa_get_dsl(spa);
 	int error = 0;
-
-	/*
-	 * If there's a scrub in process request that it be stopped.  This
-	 * is not required for a correct rebuild, but we do want rebuilds to
-	 * emulate the resilver behavior as much as possible.
-	 */
-	if (dsl_scan_scrubbing(dp))
-		dsl_scan_cancel(dp);
 
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 	mutex_enter(&vd->vdev_rebuild_lock);

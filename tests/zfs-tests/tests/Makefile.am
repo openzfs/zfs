@@ -2149,6 +2149,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/replacement/attach_resilver_sit_out.ksh \
 	functional/replacement/cleanup.ksh \
 	functional/replacement/detach.ksh \
+	functional/replacement/errorscrub_rebuild.ksh \
+	functional/replacement/errorscrub_rebuild_dtl.ksh \
 	functional/replacement/rebuild_disabled_feature.ksh \
 	functional/replacement/rebuild_draid_speculative.ksh \
 	functional/replacement/rebuild_multiple.ksh \
@@ -2160,6 +2162,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/replacement/resilver_restart_001.ksh \
 	functional/replacement/resilver_restart_002.ksh \
 	functional/replacement/scrub_cancel.ksh \
+	functional/replacement/scrub_rebuild.ksh \
+	functional/replacement/scrub_rebuild_ddt.ksh \
+	functional/replacement/scrub_rebuild_residual.ksh \
+	functional/replacement/scrub_rebuild_resilver.ksh \
 	functional/replacement/setup.ksh \
 	functional/reservation/cleanup.ksh \
 	functional/reservation/reservation_001_pos.ksh \
