@@ -2116,6 +2116,33 @@ vdev_remove_make_hole_and_free(vdev_t *vd)
 }
 
 /*
+ * Put a hole in place of a top-level vdev, and leave the vdev out of the tree
+ * for the caller to free.
+ */
+static void
+vdev_remove_replace_with_hole(vdev_t *vd)
+{
+	uint64_t id = vd->vdev_id;
+	spa_t *spa = vd->vdev_spa;
+	vdev_t *rvd = spa->spa_root_vdev;
+	vdev_t *hvd;
+
+	ASSERT(spa_namespace_held());
+	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+
+	vdev_remove_child(rvd, vd);
+
+	hvd = vdev_alloc_common(spa, id, 0, &vdev_hole_ops);
+	vdev_add_child(rvd, hvd);
+	vdev_config_dirty(rvd);
+
+	/*
+	 * Reassess the health of our root vdev.
+	 */
+	vdev_reopen(rvd);
+}
+
+/*
  * Remove a log device.  The config lock is held for the specified TXG.
  */
 static int
@@ -2666,8 +2693,6 @@ spa_vdev_remove_empty(vdev_t *vd, uint64_t *txg)
 	/* The leaf ZAPs should have been destroyed by vdev_dtl_sync. */
 	ASSERT0(vd->vdev_leaf_zap);
 
-	vdev_remove_empty_label_remove(vd);
-
 	if (list_link_active(&vd->vdev_state_dirty_node))
 		vdev_state_clean(vd);
 	if (list_link_active(&vd->vdev_config_dirty_node))
@@ -2683,7 +2708,20 @@ spa_vdev_remove_empty(vdev_t *vd, uint64_t *txg)
 		vdev_remove_empty_draid_spares(vd);
 	vdev_remove_empty_features(vd, *txg);
 
-	vdev_remove_make_hole_and_free(vd);
+	vdev_remove_replace_with_hole(vd);
+
+	/*
+	 * Erase the labels only once the hole is on disk, as
+	 * vdev_remove_complete() does.  An import that scans the devices
+	 * ignores an erased label, so a crash before the hole is written
+	 * would otherwise lose a vdev that the pool still has.  The vdev is
+	 * out of the tree, so nothing uses it meanwhile.
+	 */
+	spa_vdev_config_exit(spa, NULL, *txg, 0, FTAG);
+	*txg = spa_vdev_config_enter(spa);
+
+	vdev_remove_empty_label_remove(vd);
+	vdev_free(vd);
 
 	if (ev != NULL)
 		spa_event_post(ev);
