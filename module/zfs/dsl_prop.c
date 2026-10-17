@@ -1038,7 +1038,7 @@ dsl_props_set(const char *dsname, zprop_source_t source, nvlist_t *props)
 	 * from the ZAP object.  In that case don't check for ENOSPC.
 	 */
 	if ((source & ZPROP_SRC_NONE) == 0)
-		nblks = 2 * fnvlist_num_pairs(props);
+		nblks = 2 * nvlist_num_pairs(props);
 
 	return (dsl_sync_task(dsname, dsl_props_set_check, dsl_props_set_sync,
 	    &dpsa, nblks, ZFS_SPACE_CHECK_RESERVED));

@@ -27,7 +27,7 @@ static boolean_t unexpected_failures;
 static boolean_t
 nvlist_equal(nvlist_t *nvla, nvlist_t *nvlb)
 {
-	if (fnvlist_num_pairs(nvla) != fnvlist_num_pairs(nvlb))
+	if (nvlist_num_pairs(nvla) != nvlist_num_pairs(nvlb))
 		return (B_FALSE);
 	/*
 	 * The nvlists have the same number of pairs and keys are unique, so

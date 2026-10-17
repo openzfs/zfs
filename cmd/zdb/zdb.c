@@ -5202,21 +5202,21 @@ dump_nvlist_stats(nvlist_t *nvl, size_t cap)
 	size -= noise;
 	sum += size;
 	(void) printf("%12s %4d %6d bytes (%5.2f%%)\n", "integers:",
-	    (int)fnvlist_num_pairs(stats.zns_uint64),
+	    (int)nvlist_num_pairs(stats.zns_uint64),
 	    (int)size, 100.0 * size / total);
 
 	VERIFY0(nvlist_size(stats.zns_string, &size, NV_ENCODE_XDR));
 	size -= noise;
 	sum += size;
 	(void) printf("%12s %4d %6d bytes (%5.2f%%)\n", "strings:",
-	    (int)fnvlist_num_pairs(stats.zns_string),
+	    (int)nvlist_num_pairs(stats.zns_string),
 	    (int)size, 100.0 * size / total);
 
 	VERIFY0(nvlist_size(stats.zns_boolean, &size, NV_ENCODE_XDR));
 	size -= noise;
 	sum += size;
 	(void) printf("%12s %4d %6d bytes (%5.2f%%)\n", "booleans:",
-	    (int)fnvlist_num_pairs(stats.zns_boolean),
+	    (int)nvlist_num_pairs(stats.zns_boolean),
 	    (int)size, 100.0 * size / total);
 
 	size = total - sum;	/* treat remainder as nvlist overhead */

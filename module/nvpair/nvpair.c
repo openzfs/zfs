@@ -14,6 +14,7 @@
  * Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2015, 2017 by Delphix. All rights reserved.
  * Copyright 2018 RackTop Systems.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 /*
@@ -282,34 +283,48 @@ nvt_tab_free(nvpriv_t *priv)
 	priv->nvp_nentries = 0;
 }
 
+/*
+ * FNV-1a: https://www.rfc-editor.org/rfc/rfc9923.html
+ *
+ * FNV has a problem in that the low K bits of the hash only depend on the low
+ * K bits of each input byte, and since we select the hash bucket by masking
+ * the bits, low variance in the strings (and particular the later bytes in the
+ * strings) will push them towards the same or nearer buckets. To combat this,
+ * we mix the hash with the MurmurHash3 fmix32 finaliser, which should
+ * distribute similar strings much further across the range of buckets.
+ */
 static uint32_t
 nvt_hash(const char *p)
 {
-	uint32_t g, hval = 0;
-
+	uint32_t h = 0x811c9dc5;	/* FNV 32-bit offset_basis */
 	while (*p) {
-		hval = (hval << 4) + *p++;
-		if ((g = (hval & 0xf0000000)) != 0)
-			hval ^= g >> 24;
-		hval &= ~g;
+		h ^= (uint8_t)*p++;	/* unsigned to avoid sign extension */
+		h *= 0x01000193;	/* FNV 32-bit prime */
 	}
-	return (hval);
+
+	/* MurmurHash3 fmix32() */
+	h ^= h >> 16;
+	h *= 0x85ebca6b;
+	h ^= h >> 13;
+	h *= 0xc2b2ae35;
+	h ^= h >> 16;
+
+	return (h);
 }
 
 static boolean_t
 nvt_nvpair_match(const nvpair_t *nvp1, const nvpair_t *nvp2, uint32_t nvflag)
 {
-	boolean_t match = B_FALSE;
-	if (nvflag & NV_UNIQUE_NAME_TYPE) {
-		if (strcmp(NVP_NAME(nvp1), NVP_NAME(nvp2)) == 0 &&
-		    NVP_TYPE(nvp1) == NVP_TYPE(nvp2))
-			match = B_TRUE;
-	} else {
-		ASSERT(nvflag == 0 || nvflag & NV_UNIQUE_NAME);
-		if (strcmp(NVP_NAME(nvp1), NVP_NAME(nvp2)) == 0)
-			match = B_TRUE;
-	}
-	return (match);
+	/* hashes must match */
+	if (NVPAIR2I_NVP(nvp1)->nvi_hash != NVPAIR2I_NVP(nvp2)->nvi_hash)
+		return (B_FALSE);
+
+	/* if NV_UNIQUE_NAME_TYPE, types must match too */
+	if ((nvflag & NV_UNIQUE_NAME_TYPE) && NVP_TYPE(nvp1) != NVP_TYPE(nvp2))
+		return (B_FALSE);
+
+	/* compare the names proper, in case of hash collisions */
+	return (strcmp(NVP_NAME(nvp1), NVP_NAME(nvp2)) == 0);
 }
 
 static nvpair_t *
@@ -322,6 +337,7 @@ nvt_lookup_name_type(const nvlist_t *nvl, const char *name, data_type_t type)
 
 	if (tab == NULL) {
 		ASSERT0P(priv->nvp_list);
+		ASSERT0(priv->nvp_npairs);
 		ASSERT0(priv->nvp_nbuckets);
 		ASSERT0(priv->nvp_nentries);
 		return (NULL);
@@ -329,14 +345,15 @@ nvt_lookup_name_type(const nvlist_t *nvl, const char *name, data_type_t type)
 		ASSERT(priv->nvp_nbuckets != 0);
 	}
 
-	uint64_t hash = nvt_hash(name);
-	uint64_t index = hash & (priv->nvp_nbuckets - 1);
+	uint32_t hash = nvt_hash(name);
+	uint32_t index = hash & (priv->nvp_nbuckets - 1);
 
 	ASSERT3U(index, <, priv->nvp_nbuckets);
 	i_nvp_t *entry = tab[index];
 
 	for (i_nvp_t *e = entry; e != NULL; e = e->nvi_hashtable_next) {
-		if (strcmp(NVP_NAME(&e->nvi_nvp), name) == 0 &&
+		if (e->nvi_hash == hash &&
+		    strcmp(NVP_NAME(&e->nvi_nvp), name) == 0 &&
 		    (type == DATA_TYPE_DONTCARE ||
 		    NVP_TYPE(&e->nvi_nvp) == type))
 			return (&e->nvi_nvp);
@@ -375,8 +392,7 @@ nvt_resize(nvpriv_t *priv, uint32_t new_size)
 		while (e != NULL) {
 			next = e->nvi_hashtable_next;
 
-			uint32_t hash = nvt_hash(NVP_NAME(&e->nvi_nvp));
-			uint32_t index = hash & new_mask;
+			uint32_t index = e->nvi_hash & new_mask;
 
 			e->nvi_hashtable_next = new_tab[index];
 			new_tab[index] = e;
@@ -462,9 +478,7 @@ nvt_remove_nvpair(nvlist_t *nvl, const nvpair_t *nvp)
 	}
 	i_nvp_t **tab = priv->nvp_hashtable;
 
-	const char *name = NVP_NAME(nvp);
-	uint64_t hash = nvt_hash(name);
-	uint64_t index = hash & (priv->nvp_nbuckets - 1);
+	uint32_t index = NVPAIR2I_NVP(nvp)->nvi_hash & (priv->nvp_nbuckets - 1);
 
 	ASSERT3U(index, <, priv->nvp_nbuckets);
 	i_nvp_t *bucket = tab[index];
@@ -501,6 +515,16 @@ nvt_add_nvpair(nvlist_t *nvl, nvpair_t *nvp, boolean_t check_dup)
 	}
 
 	/*
+	 * Compute the hash and add it to the entry. We have to do this early
+	 * so it's usable by nvt_remove_nvpair() below.
+	 */
+	const char *name = NVP_NAME(nvp);
+	uint32_t hash = nvt_hash(name);
+
+	i_nvp_t *entry = NVPAIR2I_NVP(nvp);
+	entry->nvi_hash = hash;
+
+	/*
 	 * if we don't allow duplicate entries, make sure to
 	 * unlink any existing entries from the table.  A caller that
 	 * has already removed them passes B_FALSE to skip the search.
@@ -518,20 +542,16 @@ nvt_add_nvpair(nvlist_t *nvl, nvpair_t *nvp, boolean_t check_dup)
 	}
 	i_nvp_t **tab = priv->nvp_hashtable;
 
-	const char *name = NVP_NAME(nvp);
-	uint64_t hash = nvt_hash(name);
-	uint64_t index = hash & (priv->nvp_nbuckets - 1);
-
+	uint32_t index = hash & (priv->nvp_nbuckets - 1);
 	ASSERT3U(index, <, priv->nvp_nbuckets);
 	// cppcheck-suppress nullPointerRedundantCheck
 	i_nvp_t *bucket = tab[index];
 
 	/* insert link at the beginning of the bucket */
-	i_nvp_t *new_entry = NVPAIR2I_NVP(nvp);
-	ASSERT0P(new_entry->nvi_hashtable_next);
-	new_entry->nvi_hashtable_next = bucket;
+	ASSERT0P(entry->nvi_hashtable_next);
+	entry->nvi_hashtable_next = bucket;
 	// cppcheck-suppress nullPointerRedundantCheck
-	tab[index] = new_entry;
+	tab[index] = entry;
 
 	priv->nvp_nentries++;
 	return (0);
@@ -650,12 +670,16 @@ nvp_buf_link(nvlist_t *nvl, nvpair_t *nvp)
 
 	/* Put element at end of nvlist */
 	if (priv->nvp_list == NULL) {
+		ASSERT0(priv->nvp_npairs);
 		priv->nvp_list = priv->nvp_last = curr;
 	} else {
+		ASSERT3U(priv->nvp_npairs, >, 0);
 		curr->nvi_prev = priv->nvp_last;
 		priv->nvp_last->nvi_next = curr;
 		priv->nvp_last = curr;
 	}
+
+	priv->nvp_npairs++;
 }
 
 /*
@@ -682,6 +706,9 @@ nvp_buf_unlink(nvlist_t *nvl, nvpair_t *nvp)
 		priv->nvp_last = curr->nvi_prev;
 	else
 		curr->nvi_next->nvi_prev = curr->nvi_prev;
+
+	ASSERT3U(priv->nvp_npairs, >, 0);
+	priv->nvp_npairs--;
 }
 
 /*
@@ -1533,16 +1560,22 @@ nvlist_prev_nvpair(nvlist_t *nvl, const nvpair_t *nvp)
 	return (curr != NULL ? &curr->nvi_nvp : NULL);
 }
 
-boolean_t
-nvlist_empty(const nvlist_t *nvl)
+size_t
+nvlist_num_pairs(const nvlist_t *nvl)
 {
 	const nvpriv_t *priv;
 
 	if (nvl == NULL ||
 	    (priv = (const nvpriv_t *)(uintptr_t)nvl->nvl_priv) == NULL)
-		return (B_TRUE);
+		return (0);
 
-	return (priv->nvp_list == NULL);
+	return (priv->nvp_npairs);
+}
+
+boolean_t
+nvlist_empty(const nvlist_t *nvl)
+{
+	return (nvlist_num_pairs(nvl) == 0);
 }
 
 const char *
@@ -2134,22 +2167,9 @@ int nvlist_lookup_nvpair_embedded_index(nvlist_t *nvl,
 boolean_t
 nvlist_exists(const nvlist_t *nvl, const char *name)
 {
-	nvpriv_t *priv;
-	nvpair_t *nvp;
-	i_nvp_t *curr;
-
-	if (name == NULL || nvl == NULL ||
-	    (priv = (nvpriv_t *)(uintptr_t)nvl->nvl_priv) == NULL)
+	if (name == NULL || nvl == NULL || nvl->nvl_priv == 0)
 		return (B_FALSE);
-
-	for (curr = priv->nvp_list; curr != NULL; curr = curr->nvi_next) {
-		nvp = &curr->nvi_nvp;
-
-		if (strcmp(name, NVP_NAME(nvp)) == 0)
-			return (B_TRUE);
-	}
-
-	return (B_FALSE);
+	return (nvt_lookup_name(nvl, name) != NULL);
 }
 
 int
@@ -4008,6 +4028,7 @@ EXPORT_SYMBOL(nvlist_add_string_array);
 EXPORT_SYMBOL(nvlist_add_nvlist_array);
 EXPORT_SYMBOL(nvlist_next_nvpair);
 EXPORT_SYMBOL(nvlist_prev_nvpair);
+EXPORT_SYMBOL(nvlist_num_pairs);
 EXPORT_SYMBOL(nvlist_empty);
 EXPORT_SYMBOL(nvlist_add_hrtime);
 

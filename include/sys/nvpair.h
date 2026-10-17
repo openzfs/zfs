@@ -12,6 +12,7 @@
 /*
  * Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #ifndef	_SYS_NVPAIR_H
@@ -263,6 +264,7 @@ _SYS_NVPAIR_H int nvlist_lookup_nvpair(nvlist_t *, const char *, nvpair_t **);
 _SYS_NVPAIR_H int nvlist_lookup_nvpair_embedded_index(nvlist_t *, const char *,
     nvpair_t **, int *, const char **);
 _SYS_NVPAIR_H boolean_t nvlist_exists(const nvlist_t *, const char *);
+_SYS_NVPAIR_H size_t nvlist_num_pairs(const nvlist_t *);
 _SYS_NVPAIR_H boolean_t nvlist_empty(const nvlist_t *);
 
 /* processing nvpair */

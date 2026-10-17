@@ -604,7 +604,7 @@ zcp_synctask_wrapper(lua_State *state)
 	}
 
 	lua_pushnumber(state, (lua_Number)err);
-	if (fnvlist_num_pairs(err_details) > 0) {
+	if (nvlist_num_pairs(err_details) > 0) {
 		(void) zcp_nvlist_to_lua(state, err_details, NULL, 0);
 		num_ret++;
 	}

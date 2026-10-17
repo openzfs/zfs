@@ -5252,7 +5252,7 @@ zfs_ioc_redact(const char *snapname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	if (nvlist_lookup_nvlist(innvl, "snapnv", &redactnvl) != 0)
 		return (SET_ERROR(EINVAL));
-	if (fnvlist_num_pairs(redactnvl) == 0)
+	if (nvlist_num_pairs(redactnvl) == 0)
 		return (SET_ERROR(ENXIO));
 	if (nvlist_lookup_string(innvl, "bookname", &redactbook) != 0)
 		return (SET_ERROR(EINVAL));

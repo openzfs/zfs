@@ -98,9 +98,9 @@ dsl_dataset_user_hold_check(void *arg, dmu_tx_t *tx)
 		fnvlist_add_string(tmp_holds, nameval, "");
 		kmem_free(nameval, len + 2);
 	}
-	size_t tmp_count = fnvlist_num_pairs(tmp_holds);
+	size_t tmp_count = nvlist_num_pairs(tmp_holds);
 	fnvlist_free(tmp_holds);
-	if (tmp_count != fnvlist_num_pairs(dduha->dduha_holds))
+	if (tmp_count != nvlist_num_pairs(dduha->dduha_holds))
 		return (SET_ERROR(EEXIST));
 	for (nvpair_t *pair = nvlist_next_nvpair(dduha->dduha_holds, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(dduha->dduha_holds, pair)) {
@@ -331,7 +331,7 @@ dsl_dataset_user_hold(nvlist_t *holds, minor_t cleanup_minor, nvlist_t *errlist)
 
 	ret = dsl_sync_task(nvpair_name(pair), dsl_dataset_user_hold_check,
 	    dsl_dataset_user_hold_sync, &dduha,
-	    fnvlist_num_pairs(holds), ZFS_SPACE_CHECK_RESERVED);
+	    nvlist_num_pairs(holds), ZFS_SPACE_CHECK_RESERVED);
 	fnvlist_free(dduha.dduha_chkholds);
 
 	return (ret);

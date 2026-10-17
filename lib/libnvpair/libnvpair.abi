@@ -349,6 +349,7 @@
     <elf-symbol name='nvlist_lookup_uint8_array' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_merge' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_next_nvpair' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='nvlist_num_pairs' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_nvflag' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_pack' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='nvlist_prev_nvpair' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -5393,6 +5394,10 @@
       <parameter type-id='5ce45b60' name='nvl'/>
       <parameter type-id='dace003f' name='nvp'/>
       <return type-id='3fa542f0'/>
+    </function-decl>
+    <function-decl name='nvlist_num_pairs' mangled-name='nvlist_num_pairs' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_num_pairs'>
+      <parameter type-id='22cce67b' name='nvl'/>
+      <return type-id='b59d7dce'/>
     </function-decl>
     <function-decl name='nvlist_empty' mangled-name='nvlist_empty' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='nvlist_empty'>
       <parameter type-id='22cce67b' name='nvl'/>

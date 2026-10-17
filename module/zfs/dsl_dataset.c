@@ -2009,7 +2009,7 @@ dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors)
 	if (error == 0) {
 		error = dsl_sync_task(firstname, dsl_dataset_snapshot_check,
 		    dsl_dataset_snapshot_sync, &ddsa,
-		    fnvlist_num_pairs(snaps) * 3, ZFS_SPACE_CHECK_NORMAL);
+		    nvlist_num_pairs(snaps) * 3, ZFS_SPACE_CHECK_NORMAL);
 	}
 
 	crfree(cr);

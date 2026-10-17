@@ -1019,7 +1019,7 @@ dmu_redact_snap(const char *snapname, nvlist_t *redactnvl,
 		goto out;
 	}
 
-	numsnaps = fnvlist_num_pairs(redactnvl);
+	numsnaps = nvlist_num_pairs(redactnvl);
 	if (numsnaps > 0)
 		args = vmem_zalloc(numsnaps * sizeof (*args), KM_SLEEP);
 

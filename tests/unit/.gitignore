@@ -9,3 +9,4 @@
 /test_cityhash
 /test_nvpair
 /test_timer
+/test_nvpair_stress
