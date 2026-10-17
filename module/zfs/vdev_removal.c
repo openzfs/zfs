@@ -1678,13 +1678,22 @@ again:
 		 * If the metaslab has ever been synced (ms_sm != NULL),
 		 * read the allocated segments from the space map object
 		 * into svr_allocd_segs. Since we do this while holding
-		 * ms_lock and ms_sync_lock, concurrent frees (which
-		 * would have modified the space map) will wait for us
-		 * to finish loading the spacemap, and then take the
-		 * appropriate action (see free_from_removing_vdev()).
+		 * ms_sync_lock, the space map can not change under us.
+		 *
+		 * Do not hold ms_lock while reading it, as metaslab_load()
+		 * does not.  A read error makes the read wait for repair
+		 * writes, whose completion may be queued behind a ZIO
+		 * thread freeing a block in this metaslab, which needs
+		 * ms_lock.  Frees that happen meanwhile only add to
+		 * ms_freeing, which we subtract below, after taking
+		 * ms_lock again (see free_from_removing_vdev()).
 		 */
-		if (msp->ms_sm != NULL)
+		mutex_exit(&msp->ms_lock);
+		if (msp->ms_sm != NULL) {
+			ASSERT(!MUTEX_HELD(&msp->ms_lock));
 			VERIFY0(space_map_load(msp->ms_sm, segs, SM_ALLOC));
+		}
+		mutex_enter(&msp->ms_lock);
 
 		/*
 		 * We could not hold svr_lock while loading space map, or we
