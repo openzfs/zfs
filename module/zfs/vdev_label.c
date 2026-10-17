@@ -563,10 +563,11 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		}
 
 		/*
-		 * Slog devices are removed synchronously so don't
-		 * persist the vdev_removing flag to the label.
+		 * Slog devices and empty devices are removed synchronously
+		 * so don't persist the vdev_removing flag to the label.
 		 */
-		if (vd->vdev_removing && !vd->vdev_islog) {
+		if (vd->vdev_removing && !vd->vdev_islog &&
+		    !vd->vdev_removing_empty) {
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_REMOVING,
 			    vd->vdev_removing);
 		}
