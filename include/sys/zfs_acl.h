@@ -209,6 +209,7 @@ void zfs_acl_data_locator(void **, uint32_t *, uint32_t, boolean_t, void *);
 uint64_t zfs_mode_compute(uint64_t, zfs_acl_t *,
     uint64_t *, uint64_t, uint64_t);
 int zfs_acl_node_read(struct znode *, boolean_t, zfs_acl_t **, boolean_t);
+boolean_t zfs_acl_is_from_mode(struct znode *);	/* Linux */
 int zfs_acl_chown_setattr(struct znode *);
 
 /* Shared core implementations. */

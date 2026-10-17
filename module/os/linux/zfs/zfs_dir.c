@@ -510,7 +510,19 @@ zfs_unlinked_drain_task(void *arg)
 		if (error != 0)
 			continue;
 
+		/*
+		 * Skip unnamed files held by ZIL replay, which may still be
+		 * published, and files that have been linked since the
+		 * entry was read.
+		 */
+		mutex_enter(&zp->z_lock);
+		if (zp->z_replay_tmpfile || ZTOI(zp)->i_nlink > 0) {
+			mutex_exit(&zp->z_lock);
+			zrele(zp);
+			continue;
+		}
 		zp->z_unlinked = B_TRUE;
+		mutex_exit(&zp->z_lock);
 
 		/*
 		 * zrele() decrements the znode's ref count and may cause
