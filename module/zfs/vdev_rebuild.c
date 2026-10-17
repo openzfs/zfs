@@ -339,10 +339,17 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 		.func = POOL_SCAN_SCRUB,
 		.txgstart = 0,
 		.txgend = 0,
+		/* Healing restarts must retain full verification afterward. */
+		.flags = DSF_SCRUB_AFTER_RESILVER,
 	};
-	if (dsl_scan_setup_check(&setup_sync_arg.func, tx) == 0 &&
-	    zfs_rebuild_scrub_enabled) {
-		dsl_scan_setup_sync(&setup_sync_arg, tx);
+	if (zfs_rebuild_scrub_enabled &&
+	    !vdev_rebuild_active(spa->spa_root_vdev)) {
+		/* Full verification supersedes deferred partial scans. */
+		if (dsl_errorscrubbing(spa_get_dsl(spa)) ||
+		    dsl_scan_resilvering(spa_get_dsl(spa)))
+			dsl_scan_cancel_sync(NULL, tx);
+		if (dsl_scan_setup_check(&setup_sync_arg.func, tx) == 0)
+			dsl_scan_setup_sync(&setup_sync_arg, tx);
 	}
 
 	cv_broadcast(&vd->vdev_rebuild_cv);
@@ -757,14 +764,6 @@ vdev_rebuild_thread(void *arg)
 	vdev_t *rvd = spa->spa_root_vdev;
 	dsl_pool_t *dp = spa_get_dsl(spa);
 	int error = 0;
-
-	/*
-	 * If there's a scrub in process request that it be stopped.  This
-	 * is not required for a correct rebuild, but we do want rebuilds to
-	 * emulate the resilver behavior as much as possible.
-	 */
-	if (dsl_scan_scrubbing(dp))
-		dsl_scan_cancel(dp);
 
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 	mutex_enter(&vd->vdev_rebuild_lock);

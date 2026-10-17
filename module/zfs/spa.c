@@ -11107,6 +11107,14 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
 		spa_errlog_sync(spa, txg);
 		dsl_pool_sync(dp, txg);
 
+		/*
+		 * Rebuild initialization runs in dsl_pool_sync(). Cancel the
+		 * scrub before DDT class changes can issue scan reads.
+		 */
+		if (dsl_scan_scrubbing(dp) &&
+		    vdev_rebuild_active(spa->spa_root_vdev))
+			dsl_scan_cancel_sync(NULL, tx);
+
 		if (pass < zfs_sync_pass_deferred_free ||
 		    spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP)) {
 			/*
@@ -12011,14 +12019,15 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		 * context, ahead of the config and label writes that the
 		 * same txg carries, so the scan is not over for anyone
 		 * reading the pool until that txg has synced.  Keep
-		 * reporting it as in progress until then, the way the
-		 * initialize and trim waits cover the whole operation.
+		 * reporting it as in progress until then, even if a different
+		 * scan has started, the way initialize and trim waits cover
+		 * the whole operation.
 		 */
 		finishing = (scn->scn_finished_txg != 0 &&
 		    spa_last_synced_txg(spa) < scn->scn_finished_txg);
 
-		*in_progress = ((scanning || finishing) && !paused &&
-		    is_scrub == (activity == ZPOOL_WAIT_SCRUB));
+		*in_progress = (finishing || (scanning && !paused &&
+		    is_scrub == (activity == ZPOOL_WAIT_SCRUB)));
 		break;
 	}
 	case ZPOOL_WAIT_RAIDZ_EXPAND:
