@@ -1870,6 +1870,16 @@ function verify_pool
 
 	log_must zpool scrub $pool
 	log_must wait_scrubbed $pool
+	verify_pool_scrubbed "$pool"
+}
+
+#
+# Verify a completed scrub and the device checksum error counters.
+#
+function verify_pool_scrubbed
+{
+	typeset pool=${1:-$TESTPOOL}
+
 	log_must check_pool_status $pool scan \
 	    "scrub repaired .* with 0 errors"
 

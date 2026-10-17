@@ -67,6 +67,7 @@ typedef enum dsl_scan_flags {
 	DSF_VISIT_DS_AGAIN = 1<<0,
 	DSF_SCRUB_PAUSED = 1<<1,
 	DSF_SCRUB_THOROUGH = 1<<2,
+	DSF_SCRUB_AFTER_RESILVER = 1<<3,
 } dsl_scan_flags_t;
 
 typedef struct dsl_errorscrub_phys {
@@ -192,6 +193,7 @@ void dsl_scan_setup_sync(void *, dmu_tx_t *);
 void dsl_scan_fini(struct dsl_pool *dp);
 void dsl_scan_sync(struct dsl_pool *, dmu_tx_t *);
 int dsl_scan_cancel(struct dsl_pool *);
+void dsl_scan_cancel_sync(void *, dmu_tx_t *);
 int dsl_scan(struct dsl_pool *, pool_scan_func_t, uint64_t starttxg,
     uint64_t txgend, dsl_scan_flags_t flags);
 void dsl_scan_assess_vdev(struct dsl_pool *dp, vdev_t *vd);

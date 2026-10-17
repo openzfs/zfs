@@ -1228,7 +1228,8 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 	scan_ds_queue_clear(scn);
 	scan_ds_prefetch_queue_clear(scn);
 
-	scn->scn_phys.scn_flags &= ~DSF_SCRUB_PAUSED;
+	scn->scn_phys.scn_flags &=
+	    ~(DSF_SCRUB_PAUSED | DSF_SCRUB_AFTER_RESILVER);
 
 	/*
 	 * If we were "restarted" from a stopped state, don't bother
@@ -1435,18 +1436,6 @@ dsl_errorscrub_cancel_check(void *arg, dmu_tx_t *tx)
 	return (0);
 }
 
-static void
-dsl_errorscrub_cancel_sync(void *arg, dmu_tx_t *tx)
-{
-	(void) arg;
-	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
-
-	dsl_errorscrub_done(scn, B_FALSE, tx);
-	dsl_errorscrub_sync_state(scn, tx);
-	spa_event_notify(scn->scn_dp->dp_spa, NULL, NULL,
-	    ESC_ZFS_ERRORSCRUB_ABORT);
-}
-
 static int
 dsl_scan_cancel_check(void *arg, dmu_tx_t *tx)
 {
@@ -1458,11 +1447,22 @@ dsl_scan_cancel_check(void *arg, dmu_tx_t *tx)
 	return (0);
 }
 
-static void
+void
 dsl_scan_cancel_sync(void *arg, dmu_tx_t *tx)
 {
 	(void) arg;
 	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
+
+	ASSERT(dsl_pool_sync_context(scn->scn_dp));
+	ASSERT0P(scn->scn_zio_root);
+
+	if (dsl_errorscrubbing(scn->scn_dp)) {
+		dsl_errorscrub_done(scn, B_FALSE, tx);
+		dsl_errorscrub_sync_state(scn, tx);
+		spa_event_notify(scn->scn_dp->dp_spa, NULL, NULL,
+		    ESC_ZFS_ERRORSCRUB_ABORT);
+		return;
+	}
 
 	dsl_scan_done(scn, B_FALSE, tx);
 	dsl_scan_sync_state(scn, tx, SYNC_MANDATORY);
@@ -1472,12 +1472,10 @@ dsl_scan_cancel_sync(void *arg, dmu_tx_t *tx)
 int
 dsl_scan_cancel(dsl_pool_t *dp)
 {
-	if (dsl_errorscrubbing(dp)) {
-		return (dsl_sync_task(spa_name(dp->dp_spa),
-		    dsl_errorscrub_cancel_check, dsl_errorscrub_cancel_sync,
-		    NULL, 3, ZFS_SPACE_CHECK_RESERVED));
-	}
-	return (dsl_sync_task(spa_name(dp->dp_spa), dsl_scan_cancel_check,
+	dsl_checkfunc_t *checkfunc = dsl_errorscrubbing(dp) ?
+	    dsl_errorscrub_cancel_check : dsl_scan_cancel_check;
+
+	return (dsl_sync_task(spa_name(dp->dp_spa), checkfunc,
 	    dsl_scan_cancel_sync, NULL, 3, ZFS_SPACE_CHECK_RESERVED));
 }
 
@@ -4366,6 +4364,10 @@ dsl_errorscrub_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		return;
 	}
 
+	/* Reconstructed copies must be complete before verifying them. */
+	if (vdev_rebuild_active(spa->spa_root_vdev))
+		return;
+
 	spa->spa_scrub_active = B_TRUE;
 	scn->scn_sync_start_time = getlrtime();
 
@@ -4544,11 +4546,15 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	 * deferred resilvers via zfs_resilver_disable_defer, or if the
 	 * current scan progress is below zfs_resilver_defer_percent.
 	 */
-	if (dsl_scan_restarting(scn, tx) || restart_early) {
+	if ((dsl_scan_restarting(scn, tx) || restart_early) &&
+	    !vdev_rebuild_active(spa->spa_root_vdev)) {
 		setup_sync_arg_t setup_sync_arg = {
 			.func = POOL_SCAN_SCRUB,
 			.txgstart = 0,
 			.txgend = 0,
+			.flags = dsl_scan_is_running(scn) ?
+			    scn->scn_phys.scn_flags & DSF_SCRUB_AFTER_RESILVER :
+			    0,
 		};
 		dsl_scan_done(scn, B_FALSE, tx);
 		if (vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL))
@@ -4612,19 +4618,24 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	if (!dsl_scan_is_running(scn) || dsl_scan_is_paused_scrub(scn))
 		return;
 
+	boolean_t rebuilding = vdev_rebuild_active(spa->spa_root_vdev);
+
 	/*
-	 * zfs_scan_suspend_progress can be set to disable scan progress.
-	 * We don't want to spin the txg_sync thread, so we add a delay
-	 * here to simulate the time spent doing a scan. This is mostly
-	 * useful for testing and debugging.
+	 * Imported healing scans can overlap a rebuild. Defer their main
+	 * traversal without spinning the txg_sync thread, but allow TXGs
+	 * needed by the rebuild to proceed. The progress tunable also uses
+	 * this delay to simulate scan work while testing.
 	 */
-	if (zfs_scan_suspend_progress) {
+	if (rebuilding || zfs_scan_suspend_progress) {
 		uint64_t scan_time_ns = getlrtime() - scn->scn_sync_start_time;
 		uint_t mintime = (scn->scn_phys.scn_func ==
 		    POOL_SCAN_RESILVER) ? zfs_resilver_min_time_ms :
 		    zfs_scrub_min_time_ms;
 
-		while (zfs_scan_suspend_progress &&
+		if (rebuilding)
+			mintime = MAX(mintime, 1);
+
+		while ((rebuilding || zfs_scan_suspend_progress) &&
 		    !txg_sync_waiting(scn->scn_dp) &&
 		    !spa_shutting_down(scn->scn_dp->dp_spa) &&
 		    NSEC2MSEC(scan_time_ns) < mintime) {
@@ -4812,7 +4823,16 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		ASSERT3U(scn->scn_done_txg, !=, 0);
 		ASSERT0(spa->spa_scrub_inflight);
 		ASSERT0(scn->scn_queues_pending);
+		boolean_t scrub_after_resilver = DSL_SCAN_IS_RESILVER(scn) &&
+		    (scn->scn_phys.scn_flags & DSF_SCRUB_AFTER_RESILVER);
 		dsl_scan_done(scn, B_TRUE, tx);
+		if (scrub_after_resilver) {
+			setup_sync_arg_t setup_sync_arg = {
+				.func = POOL_SCAN_SCRUB,
+				.flags = DSF_SCRUB_AFTER_RESILVER,
+			};
+			dsl_scan_setup_sync(&setup_sync_arg, tx);
+		}
 		sync_type = SYNC_MANDATORY;
 	}
 
