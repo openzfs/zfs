@@ -781,7 +781,14 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 		flock64_t bf;
 
 		if (mode & FALLOC_FL_KEEP_SIZE) {
-			if (offset > olen)
+			/*
+			 * At EOF the clamp below makes len zero,
+			 * which zfs_space() treats as a truncate
+			 * to offset. That would discard a
+			 * concurrent O_DIRECT append that grew
+			 * the file after olen was read.
+			 */
+			if (offset >= olen)
 				goto out_unmark;
 
 			if (offset + len > olen)
@@ -827,11 +834,11 @@ zpl_fallocate_common(struct inode *ip, int mode, loff_t offset, loff_t len)
 				goto out_unmark;
 
 			/*
-			 * extend file: log=TRUE drives z_seq bump,
-			 * mtime/ctime advance, and TX_TRUNCATE ZIL
-			 * record; matches zfs_space().
+			 * zfs_extend() never shrinks the file, so it
+			 * keeps a concurrent O_DIRECT append that
+			 * already grew the file past offset + len.
 			 */
-			error = -zfs_freesp(zp, offset + len, 0, 0, TRUE);
+			error = -zfs_extend(zp, offset + len, B_TRUE);
 			zfs_exit(zfsvfs, FTAG);
 		}
 	}
