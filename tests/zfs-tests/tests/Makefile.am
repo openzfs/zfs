@@ -2413,6 +2413,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/suid/suid_write_to_suid.ksh \
 	functional/suid/suid_write_to_suid_sgid.ksh \
 	functional/suid/suid_write_zil_replay.ksh \
+	functional/test_runner/test_runner_report.ksh \
 	functional/test_runner/test_runner_rerun.ksh \
 	functional/test_runner/test_runner_selection.ksh \
 	functional/trim/autotrim_config.ksh \
