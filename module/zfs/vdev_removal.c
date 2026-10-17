@@ -345,7 +345,7 @@ spa_vdev_alloc(spa_t *spa, uint64_t guid)
 		error = SET_ERROR(ENOENT);
 	else if (vd->vdev_mg == NULL)
 		error = SET_ERROR(ZFS_ERR_VDEV_NOTSUP);
-	else if (!vd->vdev_removing)
+	else if (!vd->vdev_removing && vd->vdev_noalloc)
 		vdev_activate(vd);
 
 	if (error == 0) {
