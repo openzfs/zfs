@@ -46,7 +46,8 @@ typeset -i cnt=$(random_int_between 2 5)
 setup_test_env $TESTPOOL "" $cnt
 
 damage_devs $TESTPOOL 1 "keep_label"
-log_must zpool scrub -w $TESTPOOL
+# Use a thorough scrub to test on-disk redundancy without repair from ARC.
+log_must zpool scrub -t -w $TESTPOOL
 
 if is_healthy $TESTPOOL ; then
 	log_fail "$pool should not be healthy."

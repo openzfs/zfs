@@ -77,11 +77,12 @@ log_must_busy zpool export $TESTPOOL
 log_must zpool import $TESTPOOL
 
 # Corrupt the MOS.  We do two scrubs here since the MOS error doesn't always
-# show up after the first scrub for some reason.
+# show up after the first scrub for some reason.  Use thorough scrubs so
+# cached MOS copies cannot repair the injected error.
 log_must zinject -t mosdir $TESTPOOL
-log_must zpool scrub $TESTPOOL
+log_must zpool scrub -t $TESTPOOL
 log_must wait_scrubbed $TESTPOOL
-log_must zpool scrub $TESTPOOL
+log_must zpool scrub -t $TESTPOOL
 log_must wait_scrubbed $TESTPOOL
 
 log_must zinject -t data -e checksum -f 100 /$TESTPOOL/4k/4k_file1
