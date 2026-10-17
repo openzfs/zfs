@@ -151,6 +151,12 @@ extern boolean_t zfs_relatime_need_update(const struct inode *);
 extern void	zfs_zero_eof_page(struct znode *, struct zfs_locked_range *,
     uint64_t);
 extern zil_replay_func_t *const zfs_replay_vector[TX_MAX_TYPE];
+extern void zfs_replay_tmpfile_adopt(zfsvfs_t *);
+extern void zfs_replay_tmpfile_fini(zfsvfs_t *);
+extern int zfs_replay_create_unnamed(struct znode *, vattr_t *, int,
+    struct znode **);
+extern void zfs_replay_tmpfile_linkable(struct znode *);
+#define	zfs_znode_nlink(zp)	(ZTOI(zp)->i_nlink)
 
 #ifdef	__cplusplus
 }
