@@ -1124,6 +1124,7 @@ zvol_setup_zv(zvol_state_t *zv)
 	int error;
 	uint64_t ro;
 	objset_t *os = zv->zv_objset;
+	dsl_pool_t *dp = dmu_objset_pool(os);
 
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
 	ASSERT(RW_LOCK_HELD(&zv->zv_suspend_lock));
@@ -1131,7 +1132,10 @@ zvol_setup_zv(zvol_state_t *zv)
 	zv->zv_zilog = NULL;
 	zv->zv_flags &= ~ZVOL_WRITTEN_TO;
 
-	error = dsl_prop_get_integer(zv->zv_name, "readonly", &ro, NULL);
+	/* Not by zv_name, which may not follow a rename yet. */
+	dsl_pool_config_enter(dp, FTAG);
+	error = dsl_prop_get_int_ds(dmu_objset_ds(os), "readonly", &ro);
+	dsl_pool_config_exit(dp, FTAG);
 	if (error)
 		return (error);
 
@@ -1253,10 +1257,17 @@ zvol_resume(zvol_state_t *zv)
 	mutex_enter(&zv->zv_state_lock);
 
 	if (zv->zv_open_count > 0) {
-		VERIFY0(dmu_objset_hold(zv->zv_name, zv, &zv->zv_objset));
-		VERIFY3P(zv->zv_objset->os_dsl_dataset->ds_owner, ==, zv);
-		VERIFY(dsl_dataset_long_held(zv->zv_objset->os_dsl_dataset));
-		dmu_objset_rele(zv->zv_objset, zv);
+		dsl_pool_t *dp;
+		dsl_dataset_t *ds;
+
+		/* By object number, as zv_name may not follow a rename yet. */
+		VERIFY0(dsl_pool_hold(zv->zv_name, FTAG, &dp));
+		VERIFY0(dsl_dataset_hold_obj(dp, zv->zv_dsobj, FTAG, &ds));
+		VERIFY3P(ds->ds_owner, ==, zv);
+		VERIFY(dsl_dataset_long_held(ds));
+		VERIFY0(dmu_objset_from_ds(ds, &zv->zv_objset));
+		dsl_dataset_rele(ds, FTAG);
+		dsl_pool_rele(dp, FTAG);
 
 		error = zvol_setup_zv(zv);
 	}
@@ -1297,8 +1308,20 @@ zvol_first_open(zvol_state_t *zv, boolean_t readonly)
 	if (spa_lookup_would_wait(zv->zv_name))
 		return (SET_ERROR(ENXIO));
 
+	/*
+	 * Find the dataset by its object number: zv_name only follows a rename
+	 * once zvol_rename_minors() has run, and may name no dataset, or
+	 * another one, until then.  User accounting, which dmu_objset_own()
+	 * would also upgrade, does not apply to volumes.
+	 */
+	dsl_pool_t *dp;
+	error = dsl_pool_hold(zv->zv_name, FTAG, &dp);
+	if (error)
+		return (error);
 	boolean_t ro = (readonly || (strchr(zv->zv_name, '@') != NULL));
-	error = dmu_objset_own(zv->zv_name, DMU_OST_ZVOL, ro, B_TRUE, zv, &os);
+	error = dmu_objset_own_obj(dp, zv->zv_dsobj, DMU_OST_ZVOL, ro, B_TRUE,
+	    zv, &os);
+	dsl_pool_rele(dp, FTAG);
 	if (error)
 		return (error);
 
