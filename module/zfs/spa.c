@@ -5214,8 +5214,8 @@ spa_ld_trusted_config(spa_t *spa, spa_import_type_t type,
 		 * an extreme rewind.
 		 */
 		healthy_tvds_mos = spa_healthy_core_tvds(spa);
-		if (healthy_tvds_mos - healthy_tvds >=
-		    SPA_SYNC_MIN_VDEVS) {
+		if (healthy_tvds_mos > healthy_tvds &&
+		    healthy_tvds_mos - healthy_tvds >= SPA_SYNC_MIN_VDEVS) {
 			spa_load_note(spa, "config provided misses too many "
 			    "top-level vdevs compared to MOS (%lld vs %lld). ",
 			    (u_longlong_t)healthy_tvds,
