@@ -862,10 +862,21 @@ vdev_rebuild_thread(void *arg)
 		 * ranges from the space map object into the vr_scan_tree.
 		 * Then add inflight / unflushed ranges and remove inflight /
 		 * unflushed frees.  This is the minimum range to be rebuilt.
+		 *
+		 * ms_sync_lock keeps the space map and the unflushed trees
+		 * from changing.  Do not hold ms_lock while reading the space
+		 * map, as metaslab_load() does not.  A read error makes the
+		 * read wait for repair writes, whose completion may be queued
+		 * behind a ZIO thread freeing a block in this metaslab, which
+		 * needs ms_lock.  Such a free only adds to ms_freeing, which
+		 * the rebuild does not use.
 		 */
 		if (msp->ms_sm != NULL) {
+			mutex_exit(&msp->ms_lock);
+			ASSERT(!MUTEX_HELD(&msp->ms_lock));
 			VERIFY0(space_map_load(msp->ms_sm,
 			    vr->vr_scan_tree, SM_ALLOC));
+			mutex_enter(&msp->ms_lock);
 
 			for (int i = 0; i < TXG_SIZE; i++) {
 				ASSERT0(zfs_range_tree_space(
