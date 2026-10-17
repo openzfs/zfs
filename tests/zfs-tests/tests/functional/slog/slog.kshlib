@@ -17,6 +17,7 @@
 
 #
 # Copyright (c) 2013, 2016 by Delphix. All rights reserved.
+# Copyright 2026 Oxide Computer Company
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -145,4 +146,33 @@ function verify_slog_device
 	log_note "Can not find device: $device"
 
 	return 1
+}
+
+#
+# Lose log block $2 (counting from 1) of dataset $1, as if the system had
+# crashed before it reached disk: export the pool and overwrite the block
+# with zeros on each of the log devices in $LDEV, so that the log ends
+# before it both when it is claimed and when it is replayed.
+#
+function lose_zil_block
+{
+	typeset ds=$1
+	typeset n=$2
+	typeset dva off size dev
+
+	# zdb prints xattr values (e.g. SELinux labels) raw, NUL included;
+	# -a keeps grep from taking that for binary output.
+	dva=$(zdb -ivvvvv $ds | grep -a "Block seqno" | \
+	    sed -n "${n}s/.*DVA\[0\]=<\([0-9a-f:]*\)>.*/\1/p")
+	[[ -n $dva ]] || log_fail "$ds has no log block $n"
+	# A DVA is vdev:offset:asize, in hex.  The offset is from the end of
+	# the 4M of labels and boot block at the start of the device.
+	dva=${dva#*:}
+	off=$(( (16#${dva%%:*} + 4 * 1024 * 1024) / 512 ))
+	size=$(( 16#${dva#*:} / 512 ))
+	log_must_busy zpool export ${ds%%/*}
+	for dev in $LDEV; do
+		log_must dd if=/dev/zero of=$dev bs=512 seek=$off count=$size \
+		    conv=notrunc
+	done
 }
