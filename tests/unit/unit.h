@@ -120,6 +120,11 @@ _UNIT_CHECK_DECLARE(double, double)
 #define	unit_str_eq(a, b)	munit_assert_string_equal(a, b)
 #define	unit_str_ne(a, b)	munit_assert_string_not_equal(a, b)
 
+/* shortcuts for pointer comparisons */
+#define	unit_ptr_eq(a, b)	munit_assert_ptr((a), ==, (b))
+#define	unit_ptr_ne(a, b)	munit_assert_ptr((a), !=, (b))
+#define	unit_ptr_null(a)	munit_assert_ptr((a), ==, NULL)
+
 /* shortcuts for error-returning function call */
 #define	unit_ok(a)	munit_assert_int((a), ==, 0)
 #define	unit_err(a, e)	munit_assert_int((a), ==, (e))

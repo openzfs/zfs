@@ -22,7 +22,8 @@ UNIT_TESTS = \
 	%D%/test_sha2 \
 	%D%/test_cityhash \
 	%D%/test_nvpair \
-	%D%/test_timer
+	%D%/test_timer \
+	%D%/test_zalgo
 noinst_PROGRAMS = $(UNIT_TESTS)
 
 
@@ -143,6 +144,21 @@ nodist_%C%_test_nvpair_SOURCES = \
 
 %C%_test_timer_LDADD = \
 	libunit.la \
+	libspl.la
+
+
+%C%_test_zalgo_CFLAGS = $(AM_CFLAGS)
+
+nodist_%C%_test_zalgo_SOURCES = \
+	module/zalgo/zalgo.c \
+	module/zalgo/zalgo_bench.c
+
+%C%_test_zalgo_SOURCES = \
+	%D%/test_zalgo.c
+
+%C%_test_zalgo_LDADD = \
+	libunit.la \
+	libavl.la \
 	libspl.la
 
 
