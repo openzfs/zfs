@@ -1958,6 +1958,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/pool_checkpoint/checkpoint_sm_scale.ksh \
 	functional/pool_checkpoint/checkpoint_twice.ksh \
 	functional/pool_checkpoint/checkpoint_vdev_add.ksh \
+	functional/pool_checkpoint/checkpoint_vdev_add_many.ksh \
 	functional/pool_checkpoint/checkpoint_zdb.ksh \
 	functional/pool_checkpoint/checkpoint_zhack_feat.ksh \
 	functional/pool_checkpoint/cleanup.ksh \

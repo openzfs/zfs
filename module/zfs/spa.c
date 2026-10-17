@@ -6074,6 +6074,15 @@ spa_ld_checkpoint_rewind(spa_t *spa)
 			    !vdev_is_concrete(vd))
 				continue;
 
+			/*
+			 * A vdev added after the checkpoint is not part of
+			 * the checkpointed pool: an uberblock written only to
+			 * such vdevs would not be found once the pool is
+			 * opened with the checkpointed config.
+			 */
+			if (vd->vdev_crtxg > checkpoint.ub_checkpoint_txg)
+				continue;
+
 			svd[svdcount++] = vd;
 			if (svdcount == SPA_SYNC_MIN_VDEVS)
 				break;
