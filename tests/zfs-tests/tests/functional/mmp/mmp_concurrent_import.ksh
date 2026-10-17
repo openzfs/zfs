@@ -45,6 +45,7 @@ function cleanup
 
 	mmp_pool_destroy $MMP_POOL $MMP_DIR
 	log_must mmp_clear_hostid
+	restore_tunable RETIRE_INDIRECT_VDEVS
 }
 
 # Verify that pool was imported by at most one of the zhack processes.
@@ -87,7 +88,8 @@ function verify_zhack # <pid>...
 	fi
 }
 
-OPTS="-d $MMP_DIR action idle -t5 $MMP_POOL"
+# zhack keeps the indirect vdev of the enriched pool, as the kernel does.
+OPTS="-o zfs_retire_indirect_vdevs=0 -d $MMP_DIR action idle -t5 $MMP_POOL"
 
 log_assert "multihost=on concurrent imports"
 log_onexit cleanup

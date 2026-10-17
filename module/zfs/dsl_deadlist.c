@@ -325,6 +325,28 @@ dsl_deadlist_is_open(dsl_deadlist_t *dl)
 	return (dl->dl_os != NULL);
 }
 
+/*
+ * Return whether the deadlist holds no block pointer.  An entry's bpobj
+ * only gets subobjs that are not empty (see bpobj_enqueue_subobj()).
+ */
+boolean_t
+dsl_deadlist_is_empty(dsl_deadlist_t *dl)
+{
+	boolean_t empty = B_TRUE;
+
+	if (dl->dl_oldfmt)
+		return (bpobj_is_empty(&dl->dl_bpobj));
+
+	mutex_enter(&dl->dl_lock);
+	dsl_deadlist_load_tree(dl);
+	for (dsl_deadlist_entry_t *dle = avl_first(&dl->dl_tree);
+	    dle != NULL && empty; dle = AVL_NEXT(&dl->dl_tree, dle))
+		empty = bpobj_is_empty(&dle->dle_bpobj);
+	mutex_exit(&dl->dl_lock);
+
+	return (empty);
+}
+
 void
 dsl_deadlist_close(dsl_deadlist_t *dl)
 {
