@@ -91,6 +91,30 @@ extern const struct inode_operations zpl_ops_snapdirs;
 extern const struct file_operations zpl_fops_shares;
 extern const struct inode_operations zpl_ops_shares;
 
+extern const struct file_operations zpl_fops_spacedir;
+extern const struct inode_operations zpl_ops_spacedir;
+
+extern const struct file_operations zpl_fops_userspace_file;
+extern const struct inode_operations zpl_ops_userspace_file;
+
+extern const struct file_operations zpl_fops_groupspace_file;
+extern const struct inode_operations zpl_ops_groupspace_file;
+
+extern const struct file_operations zpl_fops_projectspace_file;
+extern const struct inode_operations zpl_ops_projectspace_file;
+
+extern const struct file_operations zpl_fops_quotadir;
+extern const struct inode_operations zpl_ops_quotadir;
+
+extern const struct file_operations zpl_fops_userquota_file;
+extern const struct inode_operations zpl_ops_userquota_file;
+
+extern const struct file_operations zpl_fops_groupquota_file;
+extern const struct inode_operations zpl_ops_groupquota_file;
+
+extern const struct file_operations zpl_fops_projectquota_file;
+extern const struct inode_operations zpl_ops_projectquota_file;
+
 /*
  * Snapentry. Held on the snapdir dentry, coordinates mount, unmount and
  * access through the snapdir mountpoint.
