@@ -11,7 +11,7 @@
 .\"
 .\" Copyright (c) 2012 by Delphix. All rights reserved.
 .\"
-.Dd May 26, 2021
+.Dd October 17, 2026
 .Dt RUN 1
 .Os
 .
@@ -105,6 +105,11 @@ tests as a group.
 Rather than running before and after each test,
 these scripts are run only once each at the start and end of the test group.
 .Ss Test Execution
+Selected tests, auxiliary scripts and execution users are verified before
+any test is executed.
+A missing or non-executable script, or an unavailable execution user,
+aborts the run.
+.Pp
 The specified tests run serially, and are typically assigned results according
 to exit values.
 Tests that exit zero and non-zero are marked

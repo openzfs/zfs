@@ -525,21 +525,20 @@ Tags: %s
 
     def verify(self):
         """
-        Check the pre/post/failsafe scripts, user and Test. Omit the Test from
-        this run if there are any problems.
+        Check the pre/post/failsafe scripts, user and Test.
         """
         files = [self.pre, self.pathname, self.post, self.failsafe]
         users = [self.pre_user, self.user, self.post_user, self.failsafe_user]
 
         for f in [f for f in files if len(f)]:
             if not verify_file(f):
-                write_log("Warning: Test '%s' not added to this run because"
-                          " it failed verification.\n" % f, LOG_ERR)
+                write_log("Test '%s' is not an executable regular file.\n" %
+                          f, LOG_ERR)
                 return False
 
         for user in [user for user in users if len(user)]:
             if not verify_user(user):
-                write_log("Not adding Test '%s' to this run.\n" %
+                write_log("User verification failed for Test '%s'.\n" %
                           self.pathname, LOG_ERR)
                 return False
 
@@ -622,8 +621,6 @@ Tags: %s
     def verify(self):
         """
         Check the pre/post/failsafe scripts, user and tests in this TestGroup.
-        Omit the TestGroup entirely, or simply delete the relevant tests in the
-        group, if that's all that's required.
         """
         # If the pre/post/failsafe scripts are relative pathnames, convert to
         # absolute, so they stand a chance of passing verification.
@@ -632,39 +629,38 @@ Tags: %s
         if len(self.post) and not os.path.isabs(self.post):
             self.post = os.path.join(self.pathname, self.post)
         if len(self.failsafe) and not os.path.isabs(self.failsafe):
-            self.post = os.path.join(self.pathname, self.post)
+            self.failsafe = os.path.join(self.pathname, self.failsafe)
 
         auxfiles = [self.pre, self.post, self.failsafe]
         users = [self.pre_user, self.user, self.post_user, self.failsafe_user]
 
         for f in [f for f in auxfiles if len(f)]:
             if f != self.failsafe and self.pathname != os.path.dirname(f):
-                write_log("Warning: TestGroup '%s' not added to this run. "
+                write_log("TestGroup '%s' failed verification. "
                           "Auxiliary script '%s' exists in a different "
                           "directory.\n" % (self.pathname, f), LOG_ERR)
                 return False
 
             if not verify_file(f):
-                write_log("Warning: TestGroup '%s' not added to this run. "
-                          "Auxiliary script '%s' failed verification.\n" %
+                write_log("TestGroup '%s' failed verification. "
+                          "Auxiliary script '%s' is not an executable "
+                          "regular file.\n" %
                           (self.pathname, f), LOG_ERR)
                 return False
 
         for user in [user for user in users if len(user)]:
             if not verify_user(user):
-                write_log("Not adding TestGroup '%s' to this run.\n" %
+                write_log("User verification failed for TestGroup '%s'.\n" %
                           self.pathname, LOG_ERR)
                 return False
 
-        # If one of the tests is invalid, delete it, log it, and drive on.
         for test in self.tests:
             if not verify_file(os.path.join(self.pathname, test)):
-                del self.tests[self.tests.index(test)]
-                write_log("Warning: Test '%s' removed from TestGroup '%s' "
-                          "because it failed verification.\n" %
-                          (test, self.pathname), LOG_ERR)
+                write_log("Test '%s' in TestGroup '%s' is not an executable "
+                          "regular file.\n" % (test, self.pathname), LOG_ERR)
+                return False
 
-        return len(self.tests) != 0
+        return True
 
     def run(self, options, dryrun=None, kmemleak=None):
         """
@@ -672,10 +668,6 @@ Tags: %s
         script doesn't pass, skip all the tests in this TestGroup. Run the
         post script regardless. Run the failsafe script when a test is killed.
         """
-        # tags assigned to this test group also include the test names
-        if options.tags and not set(self.tags).intersection(set(options.tags)):
-            return
-
         odir = os.path.join(self.outputdir, os.path.basename(self.pre))
         pretest = Cmd(self.pre, outputdir=odir, timeout=self.timeout,
                       user=self.pre_user, identifier=self.identifier)
@@ -750,21 +742,18 @@ class TestRun(object):
     def addtest(self, pathname, options):
         """
         Create a new Test, and apply any properties that were passed in
-        from the command line. If it passes verification, add it to the
-        TestRun.
+        from the command line.
         """
         test = Test(pathname)
         for prop in Test.props:
             setattr(test, prop, getattr(options, prop))
 
-        if test.verify():
-            self.tests[pathname] = test
+        self.tests[pathname] = test
 
     def addtestgroup(self, dirname, filenames, options):
         """
         Create a new TestGroup, and apply any properties that were passed
-        in from the command line. If it passes verification, add it to the
-        TestRun.
+        in from the command line.
         """
         if dirname not in self.testgroups:
             testgroup = TestGroup(dirname)
@@ -776,10 +765,20 @@ class TestRun(object):
                 if f in filenames:
                     del filenames[filenames.index(f)]
 
-            self.testgroups[dirname] = testgroup
-            self.testgroups[dirname].tests = sorted(filenames)
+            if filenames:
+                testgroup.tests = sorted(filenames)
+                self.testgroups[dirname] = testgroup
 
-            testgroup.verify()
+    def filter_tags(self, tags):
+        if tags:
+            for name, group in list(self.testgroups.items()):
+                if not set(group.tags).intersection(tags):
+                    del self.testgroups[name]
+
+    def verify(self):
+        for test in list(self.tests.values()) + list(self.testgroups.values()):
+            if not test.verify():
+                fail("Verification failed for '%s'." % test.pathname)
 
     def filter(self, keeplist):
         for group in list(self.testgroups.keys()):
@@ -805,8 +804,7 @@ class TestRun(object):
         listed in the 'DEFAULT' section to our TestRun. Then read each
         section, and apply the appropriate properties to the Test or
         TestGroup. Properties from individual sections override those set
-        in the 'DEFAULT' section. If the Test or TestGroup passes
-        verification, add it to the TestRun.
+        in the 'DEFAULT' section.
         """
         config = configparser.RawConfigParser()
         parsed = config.read(options.runfiles)
@@ -861,7 +859,7 @@ class TestRun(object):
                 # Repopulate tests using eval to convert the string to a list
                 testgroup.tests = eval(config.get(section, 'tests'))
 
-                if testgroup.verify():
+                if testgroup.tests:
                     self.testgroups[section] = testgroup
             else:
                 test = Test(section)
@@ -880,8 +878,7 @@ class TestRun(object):
                             else:
                                 setattr(test, prop, config.get(sect, prop))
 
-                if test.verify():
-                    self.tests[section] = test
+                self.tests[section] = test
 
     def write(self, options):
         """
@@ -1106,10 +1103,17 @@ def find_tests(testrun, options):
     for p in sorted(options.pathnames):
         if os.path.isdir(p):
             for dirname, _, filenames in os.walk(p):
+                executables = []
+                for f in filenames:
+                    pathname = os.path.join(dirname, f)
+                    if (os.path.isfile(pathname) and
+                            not os.path.islink(pathname) and
+                            os.access(pathname, os.X_OK)):
+                        executables.append(f)
                 if options.do_groups:
-                    testrun.addtestgroup(dirname, filenames, options)
+                    testrun.addtestgroup(dirname, executables, options)
                 else:
-                    for f in sorted(filenames):
+                    for f in sorted(executables):
                         testrun.addtest(os.path.join(dirname, f), options)
         else:
             testrun.addtest(p, options)
@@ -1265,6 +1269,10 @@ def main():
 
         if options.logfile:
             filter_tests(testrun, options)
+
+        if not options.template:
+            testrun.filter_tags(options.tags)
+        testrun.verify()
 
         if options.template:
             testrun.write(options)
