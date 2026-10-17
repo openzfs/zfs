@@ -217,6 +217,10 @@ zpool_prop_init(void)
 	zprop_register_index(ZPOOL_PROP_AUTOTRIM, "autotrim",
 	    SPA_AUTOTRIM_OFF, PROP_DEFAULT, ZFS_TYPE_POOL,
 	    "on | off", "AUTOTRIM", boolean_table, sfeatures);
+	zprop_register_index(ZPOOL_PROP_PROJECTMAC, "projectmac",
+	    ZFS_PROJECTMAC_MIXED, PROP_DEFAULT, ZFS_TYPE_POOL,
+	    "on | off | mixed", "PROJECTMAC", zfs_projectmac_table,
+	    sfeatures);
 
 	/* hidden properties */
 	zprop_register_hidden(ZPOOL_PROP_NAME, "name", PROP_TYPE_STRING,
