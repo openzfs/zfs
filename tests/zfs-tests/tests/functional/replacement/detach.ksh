@@ -52,7 +52,7 @@ function cleanup
 	[[ -e $TESTDIR ]] && log_must rm -rf $TESTDIR/*
 }
 
-log_assert "Replacing a disk during I/O completes."
+log_assert "Detaching a disk during I/O completes."
 
 options=""
 options_display="default options"
@@ -69,7 +69,7 @@ log_onexit cleanup
 
 [[ -n "$HOLES_FILEOFFSET" ]] && options="$options -o $HOLES_FILEOFFSET "
 
-ptions="$options -r "
+options="$options -r "
 
 [[ -n "$options" ]] && options_display=$options
 
@@ -136,7 +136,7 @@ for type in "" "raidz" "raidz1" "draid"; do
 	log_must zfs create $TESTPOOL1/$TESTFS1
 	log_must zfs set mountpoint=$TESTDIR1 $TESTPOOL1/$TESTFS1
 
-	log_mustnot zpool detach $TESTDIR/$TESTFILE1.1
+	log_mustnot zpool detach $TESTPOOL1 $TESTDIR/$TESTFILE1.1
 
 	log_must eval "zpool iostat -v $TESTPOOL1 | grep \"$TESTFILE1.1\""
 
