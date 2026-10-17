@@ -2198,6 +2198,7 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 	dsa->dsa_done = done;
 	dsa->dsa_zgd = zgd;
 	dsa->dsa_tx = tx;
+	dsa->dsa_dio_verify_fails = NULL;
 
 	/*
 	 * Since we are currently syncing this txg, it's nontrivial to
@@ -2390,6 +2391,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	dsa->dsa_done = done;
 	dsa->dsa_zgd = zgd;
 	dsa->dsa_tx = NULL;
+	dsa->dsa_dio_verify_fails = NULL;
 
 	zio_nowait(arc_write(pio, os->os_spa, txg, zgd->zgd_bp,
 	    dr->dt.dl.dr_data, !DBUF_IS_CACHEABLE(db),

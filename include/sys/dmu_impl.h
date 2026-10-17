@@ -249,6 +249,7 @@ typedef struct {
 	void (*dsa_done)(struct zgd *, int);
 	struct zgd		*dsa_zgd;
 	dmu_tx_t		*dsa_tx;
+	uint32_t		*dsa_dio_verify_fails;
 } dmu_sync_arg_t;
 
 void dmu_sync_done(zio_t *, arc_buf_t *buf, void *varg);
@@ -257,7 +258,8 @@ void dmu_sync_ready(zio_t *, arc_buf_t *buf, void *varg);
 void dmu_object_zapify(objset_t *, uint64_t, dmu_object_type_t, dmu_tx_t *);
 void dmu_object_free_zapified(objset_t *, uint64_t, dmu_tx_t *);
 
-int dmu_write_direct(zio_t *, dmu_buf_impl_t *, abd_t *, dmu_tx_t *);
+int dmu_write_direct(zio_t *, dmu_buf_impl_t *, abd_t *, dmu_tx_t *,
+    uint32_t *);
 int dmu_read_abd(dnode_t *, uint64_t, uint64_t, abd_t *, dmu_flags_t);
 int dmu_write_abd(dnode_t *, uint64_t, uint64_t, abd_t *, dmu_flags_t,
     dmu_tx_t *);
