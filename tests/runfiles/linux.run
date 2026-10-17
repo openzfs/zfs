@@ -33,7 +33,9 @@ tags = ['functional', 'acl', 'posix-sa']
 
 [tests/functional/block_cloning:Linux]
 tests = ['block_cloning_ficlone', 'block_cloning_ficlonerange',
-    'block_cloning_ficlonerange_partial', 'block_cloning_disabled_ficlone',
+    'block_cloning_ficlonerange_partial',
+    'block_cloning_ficlonerange_tail_past_eof',
+    'block_cloning_disabled_ficlone',
     'block_cloning_disabled_ficlonerange', 'block_cloning_fideduperange',
     'block_cloning_fideduperange_blksz',
     'block_cloning_fideduperange_compress',
