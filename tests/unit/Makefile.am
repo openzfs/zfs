@@ -25,7 +25,8 @@ UNIT_TESTS = \
 	%D%/test_backtrace \
 	%D%/test_timer \
 	%D%/test_zfs_file \
-	%D%/test_indirect_mapping
+	%D%/test_indirect_mapping \
+	%D%/test_libzfs_mount
 noinst_PROGRAMS = $(UNIT_TESTS)
 
 
@@ -181,6 +182,18 @@ nodist_%C%_test_indirect_mapping_SOURCES = \
 %C%_test_indirect_mapping_LDADD = \
 	libspl.la \
 	libunit.la
+
+
+%C%_test_libzfs_mount_CFLAGS = $(AM_CFLAGS)
+
+%C%_test_libzfs_mount_SOURCES = \
+	%D%/test_libzfs_mount.c
+
+%C%_test_libzfs_mount_LDADD = \
+	libunit.la \
+	libzfs.la \
+	libzfs_core.la \
+	libnvpair.la
 
 
 # test run and coverage targets below
