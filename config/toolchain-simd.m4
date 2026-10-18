@@ -82,6 +82,8 @@ ZFS_AC_SIMD_CHECK([PCLMULQDQ],  ["pclmulqdq %0, %%xmm0, %%xmm1" :: "i"(0)])
 ZFS_AC_SIMD_CHECK([MOVBE],      ["movbe 0(%eax), %eax"])
 ZFS_AC_SIMD_CHECK([VAES],       ["vaesenc %ymm0, %ymm1, %ymm0"])
 ZFS_AC_SIMD_CHECK([VPCLMULQDQ], ["vpclmulqdq %0, %%ymm4, %%ymm3, %%ymm5" :: "i"(0)])
+ZFS_AC_SIMD_CHECK([GFNI],       ["vgf2p8affineqb %0, %%ymm0, %%ymm1, %%ymm2;"
+    "vgf2p8affineqb %0, %%zmm0, %%zmm1, %%zmm2" :: "i"(0)])
 ZFS_AC_SIMD_CHECK([SHA512EXT],  ["vsha512msg2 %ymm5, %ymm6"])
 ZFS_AC_SIMD_CHECK([XSAVE],      ["xsave 0"])
 ZFS_AC_SIMD_CHECK([XSAVEOPT],   ["xsaveopt 0"])
