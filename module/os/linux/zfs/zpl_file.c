@@ -322,6 +322,7 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 	struct inode *ip = filp->f_mapping->host;
 	zfs_uio_t uio;
 	size_t count = 0;
+	int ioflag = filp->f_flags | zfs_io_flags(kiocb);
 	ssize_t ret;
 
 	ret = zpl_generic_write_checks(kiocb, from, &count);
@@ -334,8 +335,7 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 	crhold(cr);
 	cookie = spl_fstrans_mark();
 
-	ret = -zfs_write(ITOZ(ip), &uio,
-	    filp->f_flags | zfs_io_flags(kiocb), cr);
+	ret = -zfs_write(ITOZ(ip), &uio, ioflag, cr);
 
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
@@ -344,7 +344,10 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 		return (ret);
 
 	ssize_t wrote = count - uio.uio_resid;
-	kiocb->ki_pos += wrote;
+	if (ioflag & O_APPEND)
+		kiocb->ki_pos = zfs_uio_offset(&uio);
+	else
+		kiocb->ki_pos += wrote;
 
 	return (wrote);
 }
