@@ -60,11 +60,13 @@ zfs_file_open(const char *path, int flags, int mode, cred_t *cr,
 		old_umask = umask(0);
 
 	fd = open64(path, flags, mode);
-	if (fd == -1)
-		return (errno);
+	err = errno;
 
 	if (flags & O_CREAT)
 		(void) umask(old_umask);
+
+	if (fd == -1)
+		return (err);
 
 	if (vn_dumpdir != NULL) {
 		char *dumppath = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
