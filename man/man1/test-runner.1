@@ -144,7 +144,7 @@ will print one line on standard output at the conclusion
 of each test indicating the test name, result and elapsed time.
 Additionally, for each invocation of
 .Nm ,
-a directory is created using the ISO 8601 date format.
+a unique directory is created with an ISO 8601 date prefix.
 Within this directory is a file named
 .Sy log
 containing all the
@@ -277,7 +277,7 @@ PASS       3
 
 Running Time:   00:00:07
 Percent passed: 100.0%
-Log directory:  /var/tmp/test_results/20120923T180654
+Log directory:  /var/tmp/test_results/20120923T180654-a1b2c3d4
 .Ed
 .It Sy Example 2 : No Creating a Ar runfile No for future use .
 This example demonstrates creating a

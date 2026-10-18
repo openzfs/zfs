@@ -36,6 +36,7 @@ from subprocess import PIPE
 from subprocess import Popen
 from subprocess import check_output
 from subprocess import run
+from tempfile import mkdtemp
 from threading import Timer
 from time import time, CLOCK_MONOTONIC
 from os.path import exists
@@ -698,8 +699,7 @@ class TestRun(object):
         self.testgroups = {}
         self.starttime = time()
         self.timestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
-        self.outputdir = os.path.join(options.outputdir, self.timestamp)
-        self.setup_logging(options)
+        self.outputdir = options.outputdir
         self.defaults = [
             ('outputdir', BASEDIR),
             ('quiet', False),
@@ -801,11 +801,7 @@ class TestRun(object):
 
         for opt in TestRun.props:
             if config.has_option('DEFAULT', opt):
-                if opt == 'outputdir':
-                    outputdir = config.get('DEFAULT', opt)
-                    setattr(self, opt, os.path.join(outputdir, self.timestamp))
-                else:
-                    setattr(self, opt, config.get('DEFAULT', opt))
+                setattr(self, opt, config.get('DEFAULT', opt))
 
         testdir = options.testdir
 
@@ -930,25 +926,25 @@ class TestRun(object):
             uniq = path.split('/', cut)[-1]
             alltests[path].outputdir = os.path.join(base, uniq)
 
-    def setup_logging(self, options):
+    def setup_logging(self):
         """
-        This function creates the output directory and gets a file object
-        for the logfile. This function must be called before write_log()
-        can be used.
+        Create the run directory and open its main log.
         """
-        if options.dryrun is True:
-            return
-
         global LOG_FILE_OBJ
-        if not options.template:
+        self.outputdir = os.path.abspath(self.outputdir)
+        try:
+            old = os.umask(0)
             try:
-                old = os.umask(0)
-                os.makedirs(self.outputdir, mode=0o777)
+                os.makedirs(self.outputdir, mode=0o777, exist_ok=True)
+                self.outputdir = mkdtemp(prefix=self.timestamp + '-',
+                                         dir=self.outputdir)
+                os.chmod(self.outputdir, 0o777)
+            finally:
                 os.umask(old)
-                filename = os.path.join(self.outputdir, 'log')
-                LOG_FILE_OBJ = open(filename, buffering=0, mode='wb')
-            except OSError as e:
-                fail('%s' % e)
+            filename = os.path.join(self.outputdir, 'log')
+            LOG_FILE_OBJ = open(filename, buffering=0, mode='wb')
+        except OSError as e:
+            fail('%s' % e)
 
     def run(self, options):
         """
@@ -960,13 +956,13 @@ class TestRun(object):
             fail('Could not change to directory %s' % self.outputdir)
         # make a symlink to the output for the currently running test
         logsymlink = os.path.join(self.outputdir, '../current')
-        if os.path.islink(logsymlink):
-            os.unlink(logsymlink)
-        if not os.path.exists(logsymlink):
-            os.symlink(self.outputdir, logsymlink)
-        else:
+        if os.path.exists(logsymlink) and not os.path.islink(logsymlink):
             write_log('Could not make a symlink to directory %s\n' %
                       self.outputdir, LOG_ERR)
+        else:
+            link = os.path.join(self.outputdir, 'current')
+            os.symlink(self.outputdir, link)
+            os.replace(link, logsymlink)
 
         if options.kmemleak:
             cmd = f'{SUDO} sh -c "echo scan=0 > {KMEMLEAK_FILE}"'
@@ -1250,6 +1246,12 @@ def main():
             testrun.verify()
             testrun.write(options)
             exit(0)
+
+        if options.dryrun:
+            testrun.outputdir = os.path.join(
+                os.path.abspath(testrun.outputdir), '<unique-run>')
+        else:
+            testrun.setup_logging()
 
         testrun.complete_outputdirs()
         testrun.filter_tags(options.tags)
