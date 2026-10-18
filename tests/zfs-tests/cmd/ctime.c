@@ -50,6 +50,22 @@ typedef struct timetest {
 static char tfile[BUFSIZ] = { 0 };
 
 /*
+ * File timestamps come from the kernel's coarse clock. musl's time()
+ * reads CLOCK_REALTIME, which can be up to a tick ahead of it.
+ */
+static time_t
+coarse_time(void)
+{
+#ifdef CLOCK_REALTIME_COARSE
+	struct timespec ts;
+
+	if (clock_gettime(CLOCK_REALTIME_COARSE, &ts) == 0)
+		return (ts.tv_sec);
+#endif
+	return (time(NULL));
+}
+
+/*
  * DESCRIPTION:
  * 	Verify time will be changed correctly after each operation.
  *
@@ -343,12 +359,12 @@ main(void)
 		 * Wait until at least 2 wall-clock seconds have passed.  Sleep
 		 * may be interrupted, or the wall clock may be adjusted.
 		 */
-		before = time(NULL);
+		before = coarse_time();
 		do {
 			remaining = 2;
 			while (remaining != 0)
 				remaining = sleep(remaining);
-		} while (time(NULL) < before + 2);
+		} while (coarse_time() < before + 2);
 		timetest_table[i].func(tfile);
 		after = time(NULL);
 
