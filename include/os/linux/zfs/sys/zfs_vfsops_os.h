@@ -89,6 +89,7 @@ struct zfsvfs {
 	boolean_t	z_utf8;		/* utf8-only */
 	int		z_norm;		/* normalization flags */
 	boolean_t	z_relatime;	/* enable relatime mount option */
+	boolean_t	z_dirsync;	/* sync namespace operations */
 	boolean_t	z_unmounted;	/* unmounted */
 	boolean_t	z_use_hold;	/* held via dmu_objset_hold */
 	rrmlock_t	z_teardown_lock;

@@ -169,6 +169,19 @@
  *	zfs_exit(zfsvfs);		// finished in zfs
  *	return (error);			// done, report error
  */
+
+/*
+ * Namespace operations in dzp are synchronous with dirsync=on, or when
+ * mounted with dirsync or sync.  Extended attribute directories are left
+ * out, as setting an extended attribute does not update the namespace.
+ */
+static boolean_t
+zfs_dirsync(znode_t *dzp)
+{
+	return ((ZTOZSB(dzp)->z_dirsync || IS_DIRSYNC(ZTOI(dzp))) &&
+	    !(dzp->z_pflags & ZFS_XATTR));
+}
+
 int
 zfs_open(struct inode *ip, int mode, int flag, cred_t *cr)
 {
@@ -837,6 +850,8 @@ out:
 
 		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 			error = zil_commit(zilog, 0);
+		else if (zfs_dirsync(dzp))
+			error = zil_commit(zilog, dzp->z_id);
 	}
 
 	if (error == 0)
@@ -1216,6 +1231,8 @@ out:
 
 	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		error = zil_commit(zilog, 0);
+	else if (error == 0 && zfs_dirsync(dzp))
+		error = zil_commit(zilog, dzp->z_id);
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
@@ -1406,6 +1423,8 @@ out:
 
 		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 			error = zil_commit(zilog, 0);
+		else if (zfs_dirsync(dzp))
+			error = zil_commit(zilog, dzp->z_id);
 	}
 
 	if (error == 0)
@@ -1550,6 +1569,8 @@ out:
 
 	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		error = zil_commit(zilog, 0);
+	else if (error == 0 && zfs_dirsync(dzp))
+		error = zil_commit(zilog, dzp->z_id);
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
@@ -3324,6 +3345,8 @@ out:
 
 	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		error = zil_commit(zilog, 0);
+	else if (error == 0 && zfs_dirsync(tdzp))
+		error = zil_commit(zilog, tdzp->z_id);
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
@@ -3530,6 +3553,8 @@ top:
 
 	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		error = zil_commit(zilog, 0);
+	else if (error == 0 && zfs_dirsync(dzp))
+		error = zil_commit(zilog, dzp->z_id);
 
 	if (error == 0)
 		*zpp = zp;
@@ -3776,6 +3801,8 @@ top:
 	if (error == 0) {
 		if (!is_tmpfile && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 			error = zil_commit(zilog, 0);
+		else if (!is_tmpfile && zfs_dirsync(tdzp))
+			error = zil_commit(zilog, tdzp->z_id);
 
 		if (is_tmpfile && zfsvfs->z_os->os_sync != ZFS_SYNC_DISABLED) {
 			txg_wait_flag_t wait_flags =
