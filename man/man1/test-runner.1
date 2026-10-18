@@ -11,7 +11,7 @@
 .\"
 .\" Copyright (c) 2012 by Delphix. All rights reserved.
 .\"
-.Dd October 17, 2026
+.Dd October 19, 2026
 .Dt RUN 1
 .Os
 .
@@ -172,7 +172,9 @@ describing tests and test groups respectively.
 The legal option names are:
 .Bl -tag -width "tests = ['filename', …]"
 .It Sy outputdir No = Ar pathname
-The name of the directory that holds test logs.
+The root directory for the run's logs, specified in the
+.Sy DEFAULT
+section.
 .It Sy pre No = Ar script
 Run
 .Ar script

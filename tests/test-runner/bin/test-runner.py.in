@@ -472,7 +472,7 @@ echo "##### /proc/sysrq-trigger stack #####"
 
 
 class Test(Cmd):
-    props = ['outputdir', 'timeout', 'user', 'pre', 'pre_user', 'post',
+    props = ['timeout', 'user', 'pre', 'pre_user', 'post',
              'post_user', 'failsafe', 'failsafe_user', 'tags']
 
     def __init__(self, pathname,
@@ -833,11 +833,6 @@ class TestRun(object):
                                 failsafe = config.get(sect, prop)
                                 setattr(testgroup, prop,
                                         os.path.join(testdir, failsafe))
-                            elif prop == 'outputdir':
-                                outputdir = config.get(sect, prop)
-                                setattr(self, opt,
-                                        os.path.join(outputdir,
-                                                     self.timestamp))
                             else:
                                 setattr(testgroup, prop,
                                         config.get(sect, prop))
@@ -856,11 +851,6 @@ class TestRun(object):
                                 failsafe = config.get(sect, prop)
                                 setattr(test, prop,
                                         os.path.join(testdir, failsafe))
-                            elif prop == 'outputdir':
-                                outputdir = config.get(sect, prop)
-                                setattr(self, opt,
-                                        os.path.join(outputdir,
-                                                     self.timestamp))
                             else:
                                 setattr(test, prop, config.get(sect, prop))
 
