@@ -325,7 +325,7 @@ insert_duplicate(void)
 		_exit(0);
 
 	/* Crash on inserting a duplicate */
-	zfs_btree_add_idx(&bt, &i, NULL);
+	zfs_btree_add(&bt, &i);
 }
 
 /*
@@ -352,7 +352,10 @@ test_btree_insert_duplicate(const MunitParameter params[], void *data)
 {
 	(void) params, (void) data;
 
-	unit_true(WIFSIGNALED(do_negative_test(insert_duplicate)));
+	int status = do_negative_test(insert_duplicate);
+
+	unit_true(WIFSIGNALED(status));
+	unit_eq(WTERMSIG(status), SIGABRT);
 	return (MUNIT_OK);
 }
 

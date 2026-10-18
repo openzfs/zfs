@@ -298,7 +298,7 @@ insert_duplicate(zfs_btree_t *bt)
 	}
 
 	/* Crash on inserting a duplicate */
-	zfs_btree_add_idx(bt, &i, NULL);
+	zfs_btree_add(bt, &i);
 
 	return (0);
 }
