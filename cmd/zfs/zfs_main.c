@@ -5360,6 +5360,7 @@ zfs_do_receive(int argc, char **argv)
 #define	ZFS_DELEG_PERM_PROJECTQUOTA	"projectquota"
 #define	ZFS_DELEG_PERM_PROJECTOBJUSED	"projectobjused"
 #define	ZFS_DELEG_PERM_PROJECTOBJQUOTA	"projectobjquota"
+#define	ZFS_DELEG_PERM_REDACT		"redact"
 
 #define	ZFS_NUM_DELEG_NOTES ZFS_DELEG_NOTE_NONE
 
@@ -5374,6 +5375,7 @@ static zfs_deleg_perm_tab_t zfs_deleg_perm_tbl[] = {
 	{ ZFS_DELEG_PERM_PROMOTE, ZFS_DELEG_NOTE_PROMOTE },
 	{ ZFS_DELEG_PERM_RECEIVE, ZFS_DELEG_NOTE_RECEIVE },
 	{ ZFS_DELEG_PERM_RECEIVE_APPEND, ZFS_DELEG_NOTE_RECEIVE_APPEND },
+	{ ZFS_DELEG_PERM_REDACT, ZFS_DELEG_NOTE_REDACT },
 	{ ZFS_DELEG_PERM_RELEASE, ZFS_DELEG_NOTE_RELEASE },
 	{ ZFS_DELEG_PERM_RENAME, ZFS_DELEG_NOTE_RENAME },
 	{ ZFS_DELEG_PERM_ROLLBACK, ZFS_DELEG_NOTE_ROLLBACK },
@@ -5869,6 +5871,10 @@ deleg_perm_comment(zfs_deleg_note_t note)
 	case ZFS_DELEG_NOTE_RECEIVE_APPEND:
 		str = "Must also have the 'mount' and 'create'"
 		    "\n\t\t\t\tability; 'receive -F' is not allowed";
+		break;
+	case ZFS_DELEG_NOTE_REDACT:
+		str = "Must also have the 'redact' ability in the"
+		    "\n\t\t\t\tdatasets of the redaction snapshots";
 		break;
 	case ZFS_DELEG_NOTE_RELEASE:
 		str = "Allows releasing a user hold which\n\t\t\t\t"
