@@ -379,7 +379,7 @@ loff_t
 zfs_file_off(zfs_file_t *zfp)
 {
 	file_t *fp = zfp;
-	return (lseek(fp->f_fd, SEEK_CUR, 0));
+	return (lseek(fp->f_fd, 0, SEEK_CUR));
 }
 
 /*
