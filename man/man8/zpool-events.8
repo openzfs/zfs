@@ -18,7 +18,7 @@
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\" Copyright (c) 2024, 2025, Klara, Inc.
 .\"
-.Dd July 3, 2025
+.Dd October 18, 2026
 .Dt ZPOOL-EVENTS 8
 .Os
 .
@@ -163,6 +163,12 @@ Issued when a spare have kicked in to replace a failed device.
 Issued when a vdev can be automatically expanded.
 .It Sy vdev_add
 Issued when a vdev is added to a pool.
+One event is issued for each top-level vdev added, carrying its
+.Sy vdev_guid
+and, for a disk or file, its
+.Sy vdev_path .
+Spares and cache devices added at the same time are not described.
+Adding only spares or cache devices issues a single event without vdev details.
 .It Sy vdev_attach
 Issued when a vdev is attached to a mirror or raidz vdev type.
 .It Sy vdev_online
