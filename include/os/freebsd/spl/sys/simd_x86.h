@@ -192,6 +192,15 @@ zfs_shani_available(void)
 }
 
 /*
+ * Check if GFNI instruction set is available
+ */
+static inline boolean_t
+zfs_gfni_available(void)
+{
+	return ((cpu_stdext_feature2 & CPUID_STDEXT2_GFNI) != 0);
+}
+
+/*
  * Check if SHA-512 extension is available
  */
 static inline boolean_t

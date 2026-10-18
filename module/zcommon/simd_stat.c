@@ -113,6 +113,8 @@ simd_stat_kstat_data(char *buf, size_t size, void *data)
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
 		    "vpclmulqdq", zfs_vpclmulqdq_available());
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
+		    "gfni", zfs_gfni_available());
+		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
 		    "sha512ext", zfs_sha512ext_available());
 
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,

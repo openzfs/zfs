@@ -581,6 +581,15 @@ zfs_vpclmulqdq_available(void)
 }
 
 /*
+ * Check if GFNI instruction set is available
+ */
+static inline boolean_t
+zfs_gfni_available(void)
+{
+	return (!!boot_cpu_has(X86_FEATURE_GFNI));
+}
+
+/*
  * Check if SHA512 instructions are available
  * Kernel added X86_FEATURE_SHA512 in 6.13 (torvalds/linux@a0423af92cb3)
  */

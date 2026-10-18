@@ -161,6 +161,8 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/vdev_raidz_math_aarch64_neon.c \
 	module/zfs/vdev_raidz_math_aarch64_neonx2.c \
 	module/zfs/vdev_raidz_math_avx2.c \
+	module/zfs/vdev_raidz_math_avx2_gfni.c \
+	module/zfs/vdev_raidz_math_avx512_gfni.c \
 	module/zfs/vdev_raidz_math_avx512bw.c \
 	module/zfs/vdev_raidz_math_avx512f.c \
 	module/zfs/vdev_raidz_math_powerpc_altivec.c \

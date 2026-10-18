@@ -96,6 +96,7 @@ typedef enum cpuid_inst_sets {
 	VAES,
 	VPCLMULQDQ,
 	SHA512EXT,
+	GFNI,
 } cpuid_inst_sets_t;
 
 /*
@@ -124,6 +125,7 @@ typedef struct cpuid_feature_desc {
 #define	_VPCLMULQDQ_BIT		(1U << 10)
 #define	_SHA_NI_BIT		(1U << 29)
 #define	_SHA512_BIT		(1U << 0)
+#define	_GFNI_BIT		(1U << 8)
 
 /*
  * Descriptions of supported instruction sets
@@ -156,6 +158,7 @@ static const cpuid_feature_desc_t cpuid_features[] = {
 	[VAES]		= {7U, 0U, _VAES_BIT,		ECX	},
 	[VPCLMULQDQ]	= {7U, 0U, _VPCLMULQDQ_BIT,	ECX	},
 	[SHA512EXT]	= {7U, 1U, _SHA512_BIT,		EAX	},
+	[GFNI]		= {7U, 0U, _GFNI_BIT,		ECX	},
 };
 
 /*
@@ -233,6 +236,7 @@ CPUID_FEATURE_CHECK(shani, SHA_NI);
 CPUID_FEATURE_CHECK(vaes, VAES);
 CPUID_FEATURE_CHECK(vpclmulqdq, VPCLMULQDQ);
 CPUID_FEATURE_CHECK(sha512ext, SHA512EXT);
+CPUID_FEATURE_CHECK(gfni, GFNI);
 
 /*
  * Detect register set support
@@ -408,6 +412,15 @@ static inline boolean_t
 zfs_sha512ext_available(void)
 {
 	return (__cpuid_has_sha512ext());
+}
+
+/*
+ * Check if GFNI instruction set is available
+ */
+static inline boolean_t
+zfs_gfni_available(void)
+{
+	return (__cpuid_has_gfni());
 }
 
 /*

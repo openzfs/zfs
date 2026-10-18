@@ -50,7 +50,8 @@ CFLAGS+= -D__KERNEL__ -DFREEBSD_NAMECACHE -DBUILDING_ZFS -D__BSD_VISIBLE=1 \
 CFLAGS+= -D__x86_64 -DHAVE_TOOLCHAIN_SSE2 -DHAVE_TOOLCHAIN_SSSE3 \
 	-DHAVE_TOOLCHAIN_SSE4_1 -DHAVE_TOOLCHAIN_AVX -DHAVE_TOOLCHAIN_AVX2 \
 	-DHAVE_TOOLCHAIN_AVX512F -DHAVE_TOOLCHAIN_AVX512VL \
-	-DHAVE_TOOLCHAIN_AVX512BW -DHAVE_TOOLCHAIN_SHA512EXT
+	-DHAVE_TOOLCHAIN_AVX512BW -DHAVE_TOOLCHAIN_SHA512EXT \
+	-DHAVE_TOOLCHAIN_GFNI
 .endif
 
 .if defined(WITH_DEBUG) && ${WITH_DEBUG} == "true"
@@ -339,6 +340,8 @@ SRCS+=	abd.c \
 	vdev_queue.c \
 	vdev_raidz.c \
 	vdev_raidz_math_avx2.c \
+	vdev_raidz_math_avx2_gfni.c \
+	vdev_raidz_math_avx512_gfni.c \
 	vdev_raidz_math_avx512bw.c \
 	vdev_raidz_math_avx512f.c \
 	vdev_raidz_math.c \
@@ -480,6 +483,8 @@ CFLAGS.vdev_draid.c= -Wno-cast-qual
 CFLAGS.vdev_raidz.c= -Wno-cast-qual
 CFLAGS.vdev_raidz_math.c= -Wno-cast-qual
 CFLAGS.vdev_raidz_math_avx2.c= -Wno-cast-qual -Wno-duplicate-decl-specifier
+CFLAGS.vdev_raidz_math_avx2_gfni.c= -Wno-cast-qual -Wno-duplicate-decl-specifier
+CFLAGS.vdev_raidz_math_avx512_gfni.c= -Wno-cast-qual -Wno-duplicate-decl-specifier
 CFLAGS.vdev_raidz_math_avx512f.c= -Wno-cast-qual -Wno-duplicate-decl-specifier
 CFLAGS.vdev_raidz_math_scalar.c= -Wno-cast-qual
 CFLAGS.vdev_raidz_math_sse2.c= -Wno-cast-qual -Wno-duplicate-decl-specifier

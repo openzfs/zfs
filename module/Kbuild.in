@@ -499,6 +499,8 @@ ZFS_OBJS_OS := \
 
 ZFS_OBJS_X86 := \
 	vdev_raidz_math_avx2.o \
+	vdev_raidz_math_avx2_gfni.o \
+	vdev_raidz_math_avx512_gfni.o \
 	vdev_raidz_math_avx512bw.o \
 	vdev_raidz_math_avx512f.o \
 	vdev_raidz_math_sse2.o \
