@@ -2532,6 +2532,22 @@ vdev_validate(vdev_t *vd)
 	if (vdev_validate_skip)
 		return (0);
 
+	/*
+	 * If we are performing an extreme rewind, we allow for a label that
+	 * was modified at a point after the current txg.
+	 * If config lock is not held do not check for the txg. spa_sync could
+	 * be updating the vdev's label before updating spa_last_synced_txg.
+	 * Children are validated in threads that do not hold the lock, so
+	 * they use the txg chosen in the thread that called us.
+	 */
+	if (vd->vdev_validate_thread == curthread)
+		txg = vd->vdev_validate_txg;
+	else if (spa->spa_extreme_rewind || spa_last_synced_txg(spa) == 0 ||
+	    spa_config_held(spa, SCL_CONFIG, RW_WRITER) != SCL_CONFIG)
+		txg = UINT64_MAX;
+	else
+		txg = spa_last_synced_txg(spa);
+
 	if (children > 0) {
 		tq = taskq_create("vdev_validate", children, minclsyspri,
 		    children, children, TASKQ_PREPOPULATE);
@@ -2540,6 +2556,7 @@ vdev_validate(vdev_t *vd)
 	for (uint64_t c = 0; c < children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
 
+		cvd->vdev_validate_txg = txg;
 		if (tq == NULL || vdev_uses_zvols(cvd)) {
 			vdev_validate_child(cvd);
 		} else {
@@ -2568,18 +2585,6 @@ vdev_validate(vdev_t *vd)
 		return (0);
 
 	/*
-	 * If we are performing an extreme rewind, we allow for a label that
-	 * was modified at a point after the current txg.
-	 * If config lock is not held do not check for the txg. spa_sync could
-	 * be updating the vdev's label before updating spa_last_synced_txg.
-	 */
-	if (spa->spa_extreme_rewind || spa_last_synced_txg(spa) == 0 ||
-	    spa_config_held(spa, SCL_CONFIG, RW_WRITER) != SCL_CONFIG)
-		txg = UINT64_MAX;
-	else
-		txg = spa_last_synced_txg(spa);
-
-	/*
 	 * Labels 2 and 3 live at offsets relative to the end of the device, so
 	 * growing one moves them onto space this pool has never written: what
 	 * is found there belongs to whatever used the device before us, as
@@ -2591,12 +2596,27 @@ vdev_validate(vdev_t *vd)
 	 * the two whose position does not depend on the size of the device,
 	 * and fall back to the trailing pair only if those cannot be read.
 	 */
+retry:
 	label = vdev_label_read_config(vd, txg, VDEV_LABELS_HEAD);
 	if (label != NULL) {
 		vdev_check_tail_labels(vd, label);
 	} else {
 		vd->vdev_tail_labels_foreign = B_FALSE;
 		label = vdev_label_read_config(vd, txg, VDEV_LABELS_TAIL);
+	}
+
+	/*
+	 * Labels are ordered by txg only within one pool.  When none is within
+	 * the txg, as after a rewind to before they were last written, or the
+	 * one within it names another pool, as on a device split off into a
+	 * new pool, check the newest one instead.
+	 */
+	if (txg != UINT64_MAX && (label == NULL || (spa->spa_trust_config &&
+	    (nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_GUID, &guid) != 0 ||
+	    guid != spa_guid(spa))))) {
+		nvlist_free(label);
+		txg = UINT64_MAX;
+		goto retry;
 	}
 
 	if (label == NULL) {

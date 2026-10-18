@@ -239,6 +239,7 @@ struct vdev {
 	int		vdev_validate_error; /* error on last validate	*/
 	kthread_t	*vdev_open_thread; /* thread opening children	*/
 	kthread_t	*vdev_validate_thread; /* thread validating children */
+	uint64_t	vdev_validate_txg; /* label txg bound for validate */
 	uint64_t	vdev_crtxg;	/* txg when top-level was added */
 	uint64_t	vdev_root_zap;
 
