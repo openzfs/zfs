@@ -977,4 +977,5 @@ if [ -n "$SINGLETEST" ]; then
 	rm -f "$RUNFILES" >/dev/null 2>&1
 fi
 
+[ "$RUNRESULT" -eq 2 ] && exit 1
 [ "$RUNRESULT" -gt 3 ] && exit "$RUNRESULT" || exit "$RESULT"
