@@ -22,7 +22,8 @@ UNIT_TESTS = \
 	%D%/test_sha2 \
 	%D%/test_cityhash \
 	%D%/test_nvpair \
-	%D%/test_timer
+	%D%/test_timer \
+	%D%/test_zfs_file
 noinst_PROGRAMS = $(UNIT_TESTS)
 
 
@@ -144,6 +145,16 @@ nodist_%C%_test_nvpair_SOURCES = \
 %C%_test_timer_LDADD = \
 	libunit.la \
 	libspl.la
+
+
+%C%_test_zfs_file_CFLAGS = $(AM_CFLAGS)
+
+%C%_test_zfs_file_SOURCES = \
+	%D%/test_zfs_file.c
+
+%C%_test_zfs_file_LDADD = \
+	libunit.la \
+	libzpool.la
 
 
 # test run and coverage targets below
