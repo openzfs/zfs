@@ -179,15 +179,6 @@ class Cmd(object):
         if self.timeout is None:
             self.timeout = 60
 
-    def __str__(self):
-        return '''\
-Pathname: %s
-Identifier: %s
-Outputdir: %s
-Timeout: %d
-User: %s
-''' % (self.pathname, self.identifier, self.outputdir, self.timeout, self.user)
-
     def kill_cmd(self, proc, options, kmemleak, keyboard_interrupt=False):
 
         """
@@ -275,7 +266,7 @@ echo "##### /proc/sysrq-trigger stack #####"
             if int(self.timeout) > runtime:
                 self.killed = False
                 self.reran = False
-                self.run(options, dryrun=False, kmemleak=kmemleak)
+                self.run(options, kmemleak=kmemleak)
                 self.reran = True
 
     def update_cmd_privs(self, cmd, user):
@@ -329,17 +320,12 @@ echo "##### /proc/sysrq-trigger stack #####"
 
         return out.lines, err.lines
 
-    def run(self, options, dryrun=None, kmemleak=None):
+    def run(self, options, kmemleak=None):
         """
         This is the main function that runs each individual test.
         Determine whether or not the command requires sudo, and modify it
         if needed. Run the command, and update the result object.
         """
-        if dryrun is None:
-            dryrun = options.dryrun
-        if dryrun is True:
-            print(self)
-            return
         if kmemleak is None:
             kmemleak = options.kmemleak
 
@@ -513,7 +499,7 @@ class Test(Cmd):
 Pathname: %s
 Identifier: %s
 Outputdir: %s
-Timeout: %d
+Timeout: %s
 User: %s
 Pre: %s%s
 Post: %s%s
@@ -544,7 +530,7 @@ Tags: %s
 
         return True
 
-    def run(self, options, dryrun=None, kmemleak=None):
+    def run(self, options, kmemleak=None):
         """
         Create Cmd instances for the pre/post/failsafe scripts. If the pre
         script doesn't pass, skip this Test. Run the post script regardless.
@@ -662,7 +648,7 @@ Tags: %s
 
         return True
 
-    def run(self, options, dryrun=None, kmemleak=None):
+    def run(self, options, kmemleak=None):
         """
         Create Cmd instances for the pre/post/failsafe scripts. If the pre
         script doesn't pass, skip all the tests in this TestGroup. Run the
@@ -677,7 +663,7 @@ Tags: %s
 
         cont = True
         if len(pretest.pathname):
-            pretest.run(options, dryrun=dryrun, kmemleak=False)
+            pretest.run(options, kmemleak=False)
             cont = pretest.result.result == 'PASS'
             pretest.log(options)
 
@@ -690,9 +676,9 @@ Tags: %s
             failsafe = Cmd(self.failsafe, outputdir=odir, timeout=self.timeout,
                            user=self.failsafe_user, identifier=self.identifier)
             if cont:
-                test.run(options, dryrun=dryrun, kmemleak=kmemleak)
+                test.run(options, kmemleak=kmemleak)
                 if test.result.result == 'KILLED' and len(failsafe.pathname):
-                    failsafe.run(options, dryrun=dryrun, kmemleak=False)
+                    failsafe.run(options, kmemleak=False)
                     failsafe.log(options, suppress_console=True)
             else:
                 test.skip()
@@ -700,7 +686,7 @@ Tags: %s
             test.log(options)
 
         if len(posttest.pathname):
-            posttest.run(options, dryrun=dryrun, kmemleak=False)
+            posttest.run(options, kmemleak=False)
             posttest.log(options)
 
 
@@ -1270,15 +1256,19 @@ def main():
         if options.logfile:
             filter_tests(testrun, options)
 
-        if not options.template:
-            testrun.filter_tags(options.tags)
-        testrun.verify()
-
         if options.template:
+            testrun.verify()
             testrun.write(options)
             exit(0)
 
         testrun.complete_outputdirs()
+        testrun.filter_tags(options.tags)
+        testrun.verify()
+
+        if options.dryrun:
+            print(testrun)
+            return
+
         testrun.run(options)
         exit(testrun.summary())
 
