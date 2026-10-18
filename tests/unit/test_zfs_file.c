@@ -34,7 +34,8 @@
  * it, as the kernel implementations return f_pos (Linux) or f_offset
  * (FreeBSD) without touching them.  The stateful zfs_file_read() and
  * zfs_file_write() move the offset, the positional zfs_file_pread() and
- * zfs_file_pwrite() do not.
+ * zfs_file_pwrite() do not.  Errors are returned as errno values, as the
+ * kernel implementations do.
  */
 
 static const char testdata[] = "0123456789";
@@ -301,6 +302,77 @@ test_open_create(const MunitParameter params[], void *data)
 	return (MUNIT_OK);
 }
 
+/*
+ * zfs_file_deallocate() punches a hole that reads back as zeros and keeps
+ * the file size, and returns errno values on failure.
+ */
+static MunitResult
+test_deallocate(const MunitParameter params[], void *data)
+{
+	(void) params, (void) data;
+	char dir[64], path[80];
+	zfs_file_t *fp;
+	zfs_file_attr_t za;
+	static char buf[3 * 4096], zeros[4096];
+	int err;
+
+	tmpdir_get(dir, sizeof (dir));
+	(void) snprintf(path, sizeof (path), "%s/file", dir);
+	memset(buf, 0xaa, sizeof (buf));
+
+	unit_ok(zfs_file_open(path, O_RDWR | O_CREAT, 0644, kcred, &fp));
+	unit_ok(zfs_file_pwrite(fp, buf, sizeof (buf), 0, 12, NULL));
+	err = zfs_file_deallocate(fp, 4096, 4096);
+	if (err == EOPNOTSUPP) {
+		zfs_file_close(fp);
+		unit_ok(unlink(path));
+		tmpdir_put(dir);
+		return (MUNIT_SKIP);
+	}
+	unit_ok(err);
+
+	unit_ok(zfs_file_getattr(fp, &za));
+	unit_eq(za.zfa_size, sizeof (buf));
+	unit_ok(zfs_file_pread(fp, buf, sizeof (buf), 0, NULL));
+	unit_eq(memcmp(buf + 4096, zeros, 4096), 0);
+	unit_eq((uint8_t)buf[4095], 0xaa);
+	unit_eq((uint8_t)buf[2 * 4096], 0xaa);
+	zfs_file_close(fp);
+
+	/* Deallocation needs a file open for writing. */
+	unit_ok(zfs_file_open(path, O_RDONLY, 0, kcred, &fp));
+	unit_err(zfs_file_deallocate(fp, 0, 4096), EBADF);
+	zfs_file_close(fp);
+
+	unit_ok(unlink(path));
+	tmpdir_put(dir);
+	return (MUNIT_OK);
+}
+
+/* zfs_file_unlink() removes a file, and fails with ENOENT once it is gone. */
+static MunitResult
+test_unlink(const MunitParameter params[], void *data)
+{
+	(void) params, (void) data;
+	char dir[64], path[80];
+	zfs_file_t *fp;
+	struct stat st;
+
+	tmpdir_get(dir, sizeof (dir));
+	(void) snprintf(path, sizeof (path), "%s/file", dir);
+
+	unit_ok(zfs_file_open(path, O_RDWR | O_CREAT, 0644, kcred, &fp));
+	zfs_file_close(fp);
+
+	unit_ok(zfs_file_unlink(path));
+	unit_eq(stat(path, &st), -1);
+	unit_eq(errno, ENOENT);
+	unit_err(zfs_file_unlink(path), ENOENT);
+
+	tmpdir_put(dir);
+	return (MUNIT_OK);
+}
+
 /* ========== */
 
 static const MunitTest zfs_file_tests[] = {
@@ -313,6 +385,8 @@ static const MunitTest zfs_file_tests[] = {
 	UNIT_TEST("read_short",		test_read_short),
 	UNIT_TEST("seek",		test_seek),
 	UNIT_TEST("open_create",	test_open_create),
+	UNIT_TEST("deallocate",		test_deallocate),
+	UNIT_TEST("unlink",		test_unlink),
 	{ 0 },
 };
 

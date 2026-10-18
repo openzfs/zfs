@@ -353,12 +353,16 @@ zfs_file_deallocate(zfs_file_t *zfp, loff_t offset, loff_t len)
 #if defined(__linux__)
 	rc = fallocate(fp->f_fd,
 	    FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, offset, len);
+	if (rc == -1)
+		rc = errno;
 #elif defined(__FreeBSD__) && (__FreeBSD_version >= 1400029)
 	struct spacectl_range rqsr = {
 		.r_offset = offset,
 		.r_len = len,
 	};
 	rc = fspacectl(fp->f_fd, SPACECTL_DEALLOC, &rqsr, 0, &rqsr);
+	if (rc == -1)
+		rc = errno;
 #else
 	(void) fp, (void) offset, (void) len;
 	rc = EOPNOTSUPP;
@@ -387,14 +391,17 @@ zfs_file_off(zfs_file_t *zfp)
  *
  * path - fully qualified file path
  *
- * Returns 0 on success.
+ * Returns 0 on success errno on failure.
  *
  * OPTIONAL
  */
 int
 zfs_file_unlink(const char *path)
 {
-	return (remove(path));
+	if (remove(path) == -1)
+		return (errno);
+
+	return (0);
 }
 
 /*
