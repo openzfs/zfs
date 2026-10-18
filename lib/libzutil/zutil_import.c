@@ -211,6 +211,7 @@ typedef struct name_entry {
 typedef struct pool_list {
 	pool_entry_t		*pools;
 	name_entry_t		*names;
+	name_entry_t		*txg0_names;	/* see add_txg0_name() */
 } pool_list_t;
 
 /*
@@ -264,7 +265,7 @@ best_name(name_entry_t *names, uint64_t guid, const char *path,
  * configuration of the pool with the given guid.
  */
 static int
-fix_paths(libpc_handle_t *hdl, nvlist_t *nv, name_entry_t *names,
+fix_paths(libpc_handle_t *hdl, nvlist_t *nv, pool_list_t *pl,
     uint64_t pool_guid)
 {
 	nvlist_t **child;
@@ -276,7 +277,7 @@ fix_paths(libpc_handle_t *hdl, nvlist_t *nv, name_entry_t *names,
 	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
 	    &child, &children) == 0) {
 		for (c = 0; c < children; c++)
-			if (fix_paths(hdl, child[c], names, pool_guid) != 0)
+			if (fix_paths(hdl, child[c], pl, pool_guid) != 0)
 				return (-1);
 		return (0);
 	}
@@ -297,15 +298,18 @@ fix_paths(libpc_handle_t *hdl, nvlist_t *nv, name_entry_t *names,
 	 * have the same vdev guid (and path) as a device of another pool.
 	 * Prefer devices whose label belongs to this pool; fall back to any
 	 * device, as a reguid interrupted by a crash leaves labels of the
-	 * same pool with different pool guids.
+	 * same pool with different pool guids.  As a last resort, use a
+	 * device of this pool whose labels have txg 0.
 	 */
 	verify(nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) == 0);
 	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_PATH, &path) != 0)
 		path = NULL;
 
-	best = best_name(names, guid, path, pool_guid);
+	best = best_name(pl->names, guid, path, pool_guid);
 	if (best == NULL && pool_guid != 0)
-		best = best_name(names, guid, path, 0);
+		best = best_name(pl->names, guid, path, 0);
+	if (best == NULL && pool_guid != 0)
+		best = best_name(pl->txg0_names, guid, path, pool_guid);
 
 	if (best == NULL)
 		return (0);
@@ -523,6 +527,36 @@ add_config(libpc_handle_t *hdl, pool_list_t *pl, const char *path,
 	ne->ne_num_labels = num_labels;
 	ne->ne_next = pl->names;
 	pl->names = ne;
+
+	return (0);
+}
+
+/*
+ * Add a device whose labels have txg 0 to the names of last resort.  A
+ * detach, or the removal of a log device, gives a device such labels before
+ * the txg that takes it out of the pool is synced, and vdev_validate()
+ * accepts them when the pool is opened in place.  The device is not a member
+ * of a pool in its own right, but it gives the path of a leaf that the pool
+ * still names.
+ */
+static int
+add_txg0_name(libpc_handle_t *hdl, pool_list_t *pl, const rdsk_node_t *slice)
+{
+	name_entry_t *ne;
+
+	if ((ne = zutil_alloc(hdl, sizeof (name_entry_t))) == NULL)
+		return (-1);
+
+	if ((ne->ne_name = zutil_strdup(hdl, slice->rn_name)) == NULL) {
+		free(ne);
+		return (-1);
+	}
+
+	ne->ne_guid = slice->rn_txg0_guid;
+	ne->ne_pool_guid = slice->rn_txg0_pool_guid;
+	ne->ne_order = slice->rn_order;
+	ne->ne_next = pl->txg0_names;
+	pl->txg0_names = ne;
 
 	return (0);
 }
@@ -903,7 +937,7 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		 * Go through and fix up any paths and/or devids based on our
 		 * known list of vdev GUID -> path mappings.
 		 */
-		if (fix_paths(hdl, nvroot, pl->names, pe->pe_guid) != 0) {
+		if (fix_paths(hdl, nvroot, pl, pe->pe_guid) != 0) {
 			nvlist_free(nvroot);
 			goto nomem;
 		}
@@ -974,7 +1008,7 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 					update_vdev_config_dev_strs(spares[i]);
 					continue;
 				}
-				if (fix_paths(hdl, spares[i], pl->names,
+				if (fix_paths(hdl, spares[i], pl,
 				    pe->pe_guid) != 0)
 					goto nomem;
 			}
@@ -991,7 +1025,7 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 					update_vdev_config_dev_strs(l2cache[i]);
 					continue;
 				}
-				if (fix_paths(hdl, l2cache[i], pl->names,
+				if (fix_paths(hdl, l2cache[i], pl,
 				    pe->pe_guid) != 0)
 					goto nomem;
 			}
@@ -1052,12 +1086,61 @@ label_offset(uint64_t size, int l)
 }
 
 /*
- * The same description applies as to zpool_read_label below,
+ * Unpack a label read from a device, and return it with its vdev guid when
+ * it is valid.  The label of a device of a pool must have a txg: one left
+ * with txg 0 belongs to a device being added to the pool, or whose labels a
+ * detach or a removal erased.  Return the pool and vdev guids of the first
+ * such label in *txg0_pool_guid and *txg0_guid; see add_txg0_name().
+ */
+static nvlist_t *
+label_unpack(vdev_phys_t *label, uint64_t *guidp, uint64_t *txg0_pool_guid,
+    uint64_t *txg0_guid)
+{
+	nvlist_t *config;
+	uint64_t guid;
+	uint64_t state;
+	uint64_t pool_guid;
+	uint64_t txg = 0;
+
+	if (nvlist_unpack(label->vp_nvlist, sizeof (label->vp_nvlist),
+	    &config, 0) != 0)
+		return (NULL);
+
+	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_GUID, &guid) != 0 ||
+	    guid == 0 ||
+	    nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE,
+	    &state) != 0 || state > POOL_STATE_L2CACHE) {
+		nvlist_free(config);
+		return (NULL);
+	}
+
+	if (state != POOL_STATE_SPARE && state != POOL_STATE_L2CACHE) {
+		(void) nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_TXG,
+		    &txg);
+		if (txg == 0) {
+			if (*txg0_guid == 0 && nvlist_lookup_uint64(config,
+			    ZPOOL_CONFIG_POOL_GUID, &pool_guid) == 0 &&
+			    pool_guid != 0) {
+				*txg0_pool_guid = pool_guid;
+				*txg0_guid = guid;
+			}
+			nvlist_free(config);
+			return (NULL);
+		}
+	}
+
+	*guidp = guid;
+	return (config);
+}
+
+/*
+ * The same description applies as to zpool_read_label_txg0 below,
  * except here we do it without aio, presumably because an aio call
  * errored out in a way we think not using it could circumvent.
  */
 static int
-zpool_read_label_slow(int fd, nvlist_t **config, int *num_labels)
+zpool_read_label_slow(int fd, nvlist_t **config, int *num_labels,
+    uint64_t *txg0_pool_guid, uint64_t *txg0_guid)
 {
 	struct stat64 statbuf;
 	int l, count = 0;
@@ -1066,6 +1149,8 @@ zpool_read_label_slow(int fd, nvlist_t **config, int *num_labels)
 	uint64_t expected_guid = 0, size;
 
 	*config = NULL;
+	*txg0_pool_guid = 0;
+	*txg0_guid = 0;
 
 	if (fstat64_blk(fd, &statbuf) == -1)
 		return (0);
@@ -1077,35 +1162,16 @@ zpool_read_label_slow(int fd, nvlist_t **config, int *num_labels)
 		return (-1);
 
 	for (l = 0; l < VDEV_LABELS; l++) {
-		uint64_t state, guid, txg;
+		uint64_t guid;
 		off_t offset = label_offset(size, l) + VDEV_SKIP_SIZE;
 
 		if (pread64(fd, label, sizeof (vdev_phys_t),
 		    offset) != sizeof (vdev_phys_t))
 			continue;
 
-		if (nvlist_unpack(label->vp_nvlist,
-		    sizeof (label->vp_nvlist), config, 0) != 0)
+		if ((*config = label_unpack(label, &guid, txg0_pool_guid,
+		    txg0_guid)) == NULL)
 			continue;
-
-		if (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_GUID,
-		    &guid) != 0 || guid == 0) {
-			nvlist_free(*config);
-			continue;
-		}
-
-		if (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_POOL_STATE,
-		    &state) != 0 || state > POOL_STATE_L2CACHE) {
-			nvlist_free(*config);
-			continue;
-		}
-
-		if (state != POOL_STATE_SPARE && state != POOL_STATE_L2CACHE &&
-		    (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_POOL_TXG,
-		    &txg) != 0 || txg == 0)) {
-			nvlist_free(*config);
-			continue;
-		}
 
 		if (expected_guid) {
 			if (expected_guid == guid)
@@ -1136,8 +1202,24 @@ zpool_read_label_slow(int fd, nvlist_t **config, int *num_labels)
 int
 zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 {
+	uint64_t txg0_pool_guid;
+	uint64_t txg0_guid;
+
+	return (zpool_read_label_txg0(fd, config, num_labels, &txg0_pool_guid,
+	    &txg0_guid));
+}
+
+/*
+ * As zpool_read_label(), and return in *txg0_pool_guid and *txg0_guid the
+ * pool and vdev guids of a label left with txg 0, or 0.
+ */
+int
+zpool_read_label_txg0(int fd, nvlist_t **config, int *num_labels,
+    uint64_t *txg0_pool_guid, uint64_t *txg0_guid)
+{
 #ifndef HAVE_AIO_H
-	return (zpool_read_label_slow(fd, config, num_labels));
+	return (zpool_read_label_slow(fd, config, num_labels, txg0_pool_guid,
+	    txg0_guid));
 #else
 	struct stat64 statbuf;
 	struct aiocb aiocbs[VDEV_LABELS];
@@ -1148,6 +1230,8 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 	int error, l, count = 0;
 
 	*config = NULL;
+	*txg0_pool_guid = 0;
+	*txg0_guid = 0;
 
 	if (fstat64_blk(fd, &statbuf) == -1)
 		return (0);
@@ -1217,7 +1301,8 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 			 * At least some IO involved access unsafe-for-AIO
 			 * files. Let's try again, without AIO this time.
 			 */
-			error = zpool_read_label_slow(fd, config, num_labels);
+			error = zpool_read_label_slow(fd, config, num_labels,
+			    txg0_pool_guid, txg0_guid);
 			saved_errno = errno;
 		}
 		kmem_free_aligned(labels, VDEV_LABELS * sizeof (*labels));
@@ -1226,33 +1311,14 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 	}
 
 	for (l = 0; l < VDEV_LABELS; l++) {
-		uint64_t state, guid, txg;
+		uint64_t guid;
 
 		if (aio_return(&aiocbs[l]) != sizeof (vdev_phys_t))
 			continue;
 
-		if (nvlist_unpack(labels[l].vp_nvlist,
-		    sizeof (labels[l].vp_nvlist), config, 0) != 0)
+		if ((*config = label_unpack(&labels[l], &guid, txg0_pool_guid,
+		    txg0_guid)) == NULL)
 			continue;
-
-		if (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_GUID,
-		    &guid) != 0 || guid == 0) {
-			nvlist_free(*config);
-			continue;
-		}
-
-		if (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_POOL_STATE,
-		    &state) != 0 || state > POOL_STATE_L2CACHE) {
-			nvlist_free(*config);
-			continue;
-		}
-
-		if (state != POOL_STATE_SPARE && state != POOL_STATE_L2CACHE &&
-		    (nvlist_lookup_uint64(*config, ZPOOL_CONFIG_POOL_TXG,
-		    &txg) != 0 || txg == 0)) {
-			nvlist_free(*config);
-			continue;
-		}
 
 		if (expected_guid) {
 			if (expected_guid == guid)
@@ -1567,6 +1633,25 @@ error:
 }
 
 /*
+ * Verify that a device found by the scan can be opened exclusively.  This
+ * will prune all underlying multipath devices which otherwise could result
+ * in the vdev appearing as UNAVAIL.
+ *
+ * Under zdb, this step isn't required and would prevent a zdb -e of active
+ * pools with no cachefile.
+ */
+static boolean_t
+slice_open_excl(const rdsk_node_t *slice, boolean_t can_be_active)
+{
+	int fd = open(slice->rn_name, O_RDONLY | O_EXCL | O_CLOEXEC);
+
+	if (fd >= 0)
+		(void) close(fd);
+
+	return (fd >= 0 || can_be_active);
+}
+
+/*
  * Given a list of directories to search, find all pools stored on disk.  This
  * includes partial pools which are not available to import.  If no args are
  * given (argc is 0), then the default directory (/dev/dsk) is searched.
@@ -1628,7 +1713,6 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg,
 			nvlist_t *config = slice->rn_config;
 			boolean_t matched = B_TRUE;
 			boolean_t aux = B_FALSE;
-			int fd;
 
 			/*
 			 * Check if it's a spare or l2cache device. If it is,
@@ -1656,28 +1740,16 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg,
 				    ZPOOL_CONFIG_POOL_GUID, &this_guid) == 0 &&
 				    iarg->guid == this_guid;
 			}
-			if (matched) {
-				/*
-				 * Verify all remaining entries can be opened
-				 * exclusively. This will prune all underlying
-				 * multipath devices which otherwise could
-				 * result in the vdev appearing as UNAVAIL.
-				 *
-				 * Under zdb, this step isn't required and
-				 * would prevent a zdb -e of active pools with
-				 * no cachefile.
-				 */
-				fd = open(slice->rn_name,
-				    O_RDONLY | O_EXCL | O_CLOEXEC);
-				if (fd >= 0 || iarg->can_be_active) {
-					if (fd >= 0)
-						close(fd);
-					add_config(hdl, &pools,
-					    slice->rn_name, slice->rn_order,
-					    slice->rn_num_labels, config);
-				}
+			if (matched && slice_open_excl(slice,
+			    iarg->can_be_active)) {
+				add_config(hdl, &pools, slice->rn_name,
+				    slice->rn_order, slice->rn_num_labels,
+				    config);
 			}
 			nvlist_free(config);
+		} else if (slice->rn_txg0_guid != 0 &&
+		    slice_open_excl(slice, iarg->can_be_active)) {
+			(void) add_txg0_name(hdl, &pools, slice);
 		}
 		free(slice->rn_name);
 		free(slice);
@@ -1710,6 +1782,12 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg,
 	}
 
 	for (ne = pools.names; ne != NULL; ne = nenext) {
+		nenext = ne->ne_next;
+		free(ne->ne_name);
+		free(ne);
+	}
+
+	for (ne = pools.txg0_names; ne != NULL; ne = nenext) {
 		nenext = ne->ne_next;
 		free(ne->ne_name);
 		free(ne);
