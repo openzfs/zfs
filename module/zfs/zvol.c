@@ -219,13 +219,16 @@ zvol_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
 	zfs_creat_t *zct = arg;
 	nvlist_t *nvprops = zct->zct_props;
 	int error;
-	uint64_t volblocksize, volsize;
+	uint64_t volblocksize, volsize, volsectorsize;
+	boolean_t has_sectorsize;
 
 	VERIFY0(nvlist_lookup_uint64(nvprops,
 	    zfs_prop_to_name(ZFS_PROP_VOLSIZE), &volsize));
 	if (nvlist_lookup_uint64(nvprops,
 	    zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE), &volblocksize) != 0)
 		volblocksize = zfs_prop_default_numeric(ZFS_PROP_VOLBLOCKSIZE);
+	has_sectorsize = (nvlist_lookup_uint64(nvprops,
+	    zfs_prop_to_name(ZFS_PROP_VOLSECTORSIZE), &volsectorsize) == 0);
 
 	/*
 	 * These properties must be removed from the list so the generic
@@ -234,6 +237,8 @@ zvol_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
 	VERIFY0(nvlist_remove_all(nvprops, zfs_prop_to_name(ZFS_PROP_VOLSIZE)));
 	(void) nvlist_remove_all(nvprops,
 	    zfs_prop_to_name(ZFS_PROP_VOLBLOCKSIZE));
+	(void) nvlist_remove_all(nvprops,
+	    zfs_prop_to_name(ZFS_PROP_VOLSECTORSIZE));
 
 	error = dmu_object_claim(os, ZVOL_OBJ, DMU_OT_ZVOL, volblocksize,
 	    DMU_OT_NONE, 0, tx);
@@ -245,6 +250,33 @@ zvol_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
 
 	error = zap_update(os, ZVOL_ZAP_OBJ, "size", 8, 1, &volsize, tx);
 	ASSERT0(error);
+
+	/*
+	 * Only volumes that asked for a sector size record one, so that
+	 * older implementations see no difference in the others.
+	 */
+	if (has_sectorsize) {
+		error = zap_update(os, ZVOL_ZAP_OBJ, "sectorsize", 8, 1,
+		    &volsectorsize, tx);
+		ASSERT0(error);
+	}
+}
+
+/*
+ * Volumes created without volsectorsize have no ZAP entry for it.
+ */
+int
+zvol_get_volsectorsize(objset_t *os, uint64_t *volsectorsize)
+{
+	int error;
+
+	error = zap_lookup(os, ZVOL_ZAP_OBJ, "sectorsize", 8, 1,
+	    volsectorsize);
+	if (error == ENOENT) {
+		*volsectorsize = ZVOL_DEFAULT_SECTORSIZE;
+		error = 0;
+	}
+	return (error);
 }
 
 /*
@@ -268,6 +300,11 @@ zvol_get_stats(objset_t *os, nvlist_t *nv)
 	if (error == 0) {
 		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_VOLBLOCKSIZE,
 		    doi->doi_data_block_size);
+		/* The caller asserts success: leave out a damaged entry. */
+		if (zvol_get_volsectorsize(os, &val) == 0) {
+			dsl_prop_nvlist_add_uint64(nv,
+			    ZFS_PROP_VOLSECTORSIZE, val);
+		}
 	}
 
 	kmem_free(doi, sizeof (dmu_object_info_t));
@@ -466,6 +503,22 @@ zvol_check_volblocksize(const char *name, uint64_t volblocksize)
 	if (volblocksize < SPA_MINBLOCKSIZE ||
 	    volblocksize > SPA_MAXBLOCKSIZE ||
 	    !ISP2(volblocksize))
+		return (SET_ERROR(EDOM));
+
+	return (0);
+}
+
+/*
+ * The block layer needs a logical block size no larger than a page, and one
+ * larger than the volume block size would make it span several blocks.
+ */
+int
+zvol_check_volsectorsize(uint64_t volsectorsize, uint64_t volblocksize)
+{
+	if (volsectorsize < SPA_MINBLOCKSIZE ||
+	    volsectorsize > ZVOL_MAX_SECTORSIZE ||
+	    volsectorsize > volblocksize ||
+	    !ISP2(volsectorsize))
 		return (SET_ERROR(EDOM));
 
 	return (0);

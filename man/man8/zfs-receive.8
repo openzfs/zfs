@@ -20,7 +20,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd March 12, 2023
+.Dd October 19, 2026
 .Dt ZFS-RECEIVE 8
 .Os
 .
@@ -439,6 +439,11 @@ See
 .Fl L
 in
 .Xr zfs-send 8 .
+.Pp
+A forced receive of a full stream onto an existing volume fails if the
+.Sy volsectorsize
+of the received volume differs from that of the existing one.
+Destroy the volume first, or receive the stream under another name.
 .
 .Sh EXAMPLES
 .\" These are, respectively, examples 12, 13 from zfs.8

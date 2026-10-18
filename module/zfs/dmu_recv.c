@@ -5111,6 +5111,57 @@ out:
 }
 
 static int
+recv_volsectorsize(objset_t *os, uint64_t *volsectorsize)
+{
+	int error;
+
+	error = zap_lookup(os, ZVOL_ZAP_OBJ, "sectorsize", 8, 1,
+	    volsectorsize);
+	if (error == ENOENT) {
+		*volsectorsize = ZVOL_DEFAULT_SECTORSIZE;
+		error = 0;
+	}
+	return (error);
+}
+
+/*
+ * Refuse to replace a volume with one of another sector size: its block
+ * device cannot change its sector size safely while it may be opened.
+ * This only checks in syncing context, where the received objset can be
+ * read.
+ */
+static int
+recv_check_volsectorsize(dmu_recv_cookie_t *drc, dsl_dataset_t *origin_head,
+    dmu_tx_t *tx)
+{
+	objset_t *os;
+	objset_t *head_os;
+	uint64_t volsectorsize;
+	uint64_t head_volsectorsize;
+	int error;
+
+	if (!dmu_tx_is_syncing(tx) ||
+	    dmu_objset_from_ds(drc->drc_ds, &os) != 0 ||
+	    dmu_objset_type(os) != DMU_OST_ZVOL)
+		return (0);
+
+	error = dmu_objset_from_ds(origin_head, &head_os);
+	if (error == 0)
+		error = recv_volsectorsize(os, &volsectorsize);
+	if (error == 0)
+		error = recv_volsectorsize(head_os, &head_volsectorsize);
+	if (error != 0) {
+		zfs_dbgmsg("receive into %s: volsectorsize check skipped, "
+		    "error %d", drc->drc_tofs, error);
+		return (0);
+	}
+
+	if (volsectorsize != head_volsectorsize)
+		return (SET_ERROR(ZFS_ERR_VOLSECTORSIZE_MISMATCH));
+	return (0);
+}
+
+static int
 dmu_recv_end_check(void *arg, dmu_tx_t *tx)
 {
 	dmu_recv_cookie_t *drc = arg;
@@ -5171,6 +5222,9 @@ dmu_recv_end_check(void *arg, dmu_tx_t *tx)
 
 		error = dsl_dataset_clone_swap_check_impl(drc->drc_ds,
 		    origin_head, drc->drc_force, drc->drc_owner, tx);
+		if (error == 0)
+			error = recv_check_volsectorsize(drc, origin_head,
+			    tx);
 		if (error != 0) {
 			dsl_dataset_rele(origin_head, FTAG);
 			return (error);
@@ -5398,6 +5452,9 @@ dmu_recv_end(dmu_recv_cookie_t *drc, void *owner)
 		error = dmu_recv_existing_end(drc);
 
 	if (error != 0) {
+		/* Resuming would be refused the same way. */
+		if (error == ZFS_ERR_VOLSECTORSIZE_MISMATCH)
+			drc->drc_should_save = B_FALSE;
 		dmu_recv_cleanup_ds(drc);
 		nvlist_free(drc->drc_keynvl);
 	} else if (!drc->drc_heal) {

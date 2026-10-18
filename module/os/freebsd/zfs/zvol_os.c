@@ -1101,7 +1101,7 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 
 	switch (cmd) {
 	case DIOCGSECTORSIZE:
-		*(uint32_t *)data = DEV_BSIZE;
+		*(uint32_t *)data = zv->zv_volsectorsize;
 		break;
 	case DIOCGMEDIASIZE:
 		*(off_t *)data = zv->zv_volsize;
@@ -1279,7 +1279,7 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 
 		pp = g_new_providerf(gp, "%s/%s", ZVOL_DRIVER, newname);
 		pp->flags |= G_PF_DIRECT_RECEIVE | G_PF_DIRECT_SEND;
-		pp->sectorsize = DEV_BSIZE;
+		pp->sectorsize = zv->zv_volsectorsize;
 		pp->mediasize = zv->zv_volsize;
 		pp->private = zv;
 		zsg->zsg_provider = pp;
@@ -1327,7 +1327,7 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
  */
 static int
 zvol_alloc(const char *name, uint64_t dsobj, uint64_t volsize,
-    uint64_t volblocksize, zvol_state_t **zvp)
+    uint64_t volblocksize, uint64_t volsectorsize, zvol_state_t **zvp)
 {
 	zvol_state_t *zv;
 	uint64_t volmode;
@@ -1351,6 +1351,7 @@ zvol_alloc(const char *name, uint64_t dsobj, uint64_t volsize,
 	zv->zv_volmode = volmode;
 	zv->zv_volsize = volsize;
 	zv->zv_volblocksize = volblocksize;
+	zv->zv_volsectorsize = volsectorsize;
 	if (zv->zv_volmode == ZFS_VOLMODE_GEOM) {
 		struct zvol_state_geom *zsg = &zv->zv_zso->zso_geom;
 		struct g_provider *pp;
@@ -1362,7 +1363,7 @@ zvol_alloc(const char *name, uint64_t dsobj, uint64_t volsize,
 		gp->access = zvol_geom_access;
 		pp = g_new_providerf(gp, "%s/%s", ZVOL_DRIVER, name);
 		pp->flags |= G_PF_DIRECT_RECEIVE | G_PF_DIRECT_SEND;
-		pp->sectorsize = DEV_BSIZE;
+		pp->sectorsize = zv->zv_volsectorsize;
 		pp->mediasize = 0;
 		pp->private = zv;
 
@@ -1482,6 +1483,7 @@ zvol_os_create_minor(const char *name)
 	objset_t *os;
 	dmu_object_info_t *doi;
 	uint64_t volsize;
+	uint64_t volsectorsize;
 	uint64_t hash, len;
 	int error;
 	bool replayed_zil = B_FALSE;
@@ -1514,8 +1516,16 @@ zvol_os_create_minor(const char *name)
 	if (error)
 		goto out_dmu_objset_disown;
 
+	error = zvol_get_volsectorsize(os, &volsectorsize);
+	if (error == 0) {
+		error = zvol_check_volsectorsize(volsectorsize,
+		    doi->doi_data_block_size);
+	}
+	if (error)
+		goto out_dmu_objset_disown;
+
 	error = zvol_alloc(name, dmu_objset_id(os), volsize,
-	    doi->doi_data_block_size, &zv);
+	    doi->doi_data_block_size, volsectorsize, &zv);
 	if (error || zv == NULL)
 		goto out_dmu_objset_disown;
 

@@ -4015,7 +4015,7 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 		return (SET_ERROR(EINVAL));
 
 	if (type == DMU_OST_ZVOL) {
-		uint64_t volsize, volblocksize;
+		uint64_t volsize, volblocksize, volsectorsize;
 
 		if (nvprops == NULL)
 			return (SET_ERROR(EINVAL));
@@ -4032,9 +4032,19 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 			volblocksize = zfs_prop_default_numeric(
 			    ZFS_PROP_VOLBLOCKSIZE);
 
+		if ((error = nvlist_lookup_uint64(nvprops,
+		    zfs_prop_to_name(ZFS_PROP_VOLSECTORSIZE),
+		    &volsectorsize)) != 0 && error != ENOENT)
+			return (SET_ERROR(EINVAL));
+
+		if (error != 0)
+			volsectorsize = ZVOL_DEFAULT_SECTORSIZE;
+
 		if ((error = zvol_check_volblocksize(fsname,
 		    volblocksize)) != 0 ||
 		    (error = zvol_check_volsize(volsize,
+		    volblocksize)) != 0 ||
+		    (error = zvol_check_volsectorsize(volsectorsize,
 		    volblocksize)) != 0)
 			return (error);
 	} else if (type == DMU_OST_ZFS) {

@@ -32,6 +32,7 @@ props['referenced']           = {{true,       nil}, {true, nil}, {true,       ni
 props['compressratio']        = {{true,       nil}, {true, nil}, {true,       nil}}
 props['refcompressratio']     = {{true,       nil}, {true, nil}, {true,       nil}}
 props['volblocksize']         = {{nil,        nil}, {nil,  nil}, {true,       nil}}
+props['volsectorsize']        = {{nil,        nil}, {nil,  nil}, {true,       nil}}
 props['usedbysnapshots']      = {{true,       nil}, {nil,  nil}, {true,       nil}}
 props['usedbydataset']        = {{true,       nil}, {nil,  nil}, {true,       nil}}
 props['usedbychildren']       = {{true,       nil}, {nil,  nil}, {true,       nil}}

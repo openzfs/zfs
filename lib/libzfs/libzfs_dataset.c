@@ -1064,6 +1064,17 @@ zfs_valid_proplist(libzfs_handle_t *hdl, zfs_type_t type, nvlist_t *nvl,
 			break;
 		}
 
+		case ZFS_PROP_VOLSECTORSIZE:
+			if (intval < SPA_MINBLOCKSIZE ||
+			    intval > ZVOL_MAX_SECTORSIZE || !ISP2(intval)) {
+				zfs_error_aux(hdl,
+				    "'%s' must be power of 2 from 512B "
+				    "to 4KiB", propname);
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			}
+			break;
+
 		case ZFS_PROP_SPECIAL_SMALL_BLOCKS:
 		{
 			int maxbs = SPA_MAXBLOCKSIZE;
@@ -3612,6 +3623,7 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 	int ret;
 	uint64_t size = 0;
 	uint64_t blocksize = zfs_prop_default_numeric(ZFS_PROP_VOLBLOCKSIZE);
+	uint64_t sectorsize;
 	uint64_t zoned;
 	enum lzc_dataset_type ost;
 	zpool_handle_t *zpool_handle;
@@ -3718,6 +3730,16 @@ zfs_create(libzfs_handle_t *hdl, const char *path, zfs_type_t type,
 			zfs_error_aux(hdl,
 			    "volume size must be a multiple of volume block "
 			    "size");
+			return (zfs_error(hdl, EZFS_BADPROP, errbuf));
+		}
+
+		if (nvlist_lookup_uint64(props,
+		    zfs_prop_to_name(ZFS_PROP_VOLSECTORSIZE),
+		    &sectorsize) == 0 && sectorsize > blocksize) {
+			nvlist_free(props);
+			zfs_error_aux(hdl,
+			    "volume sector size cannot be larger than volume "
+			    "block size");
 			return (zfs_error(hdl, EZFS_BADPROP, errbuf));
 		}
 	}

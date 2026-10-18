@@ -641,6 +641,10 @@ zfs_prop_init(void)
 	    ZVOL_DEFAULT_BLOCKSIZE, PROP_ONETIME,
 	    ZFS_TYPE_VOLUME, "512 to 16M, power of 2", "VOLBLOCK", B_FALSE,
 	    sfeatures);
+	zprop_register_number(ZFS_PROP_VOLSECTORSIZE, "volsectorsize",
+	    ZVOL_DEFAULT_SECTORSIZE, PROP_ONETIME_DEFAULT,
+	    ZFS_TYPE_VOLUME, "512 to 4K, power of 2", "VOLSECTOR", B_FALSE,
+	    sfeatures);
 	zprop_register_index(ZFS_PROP_VOLTHREADING, "volthreading",
 	    1, PROP_DEFAULT, ZFS_TYPE_VOLUME, "on | off",
 	    "VOLTHREAD", boolean_table, sfeatures);

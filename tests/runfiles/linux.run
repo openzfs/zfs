@@ -278,7 +278,8 @@ tests = ['groupspace_001_pos', 'groupspace_002_pos', 'groupspace_003_pos',
 tags = ['functional', 'userquota']
 
 [tests/functional/zvol/zvol_misc:Linux]
-tests = ['zvol_misc_fua', 'zvol_misc_rename_open', 'zvol_misc_rename_write']
+tests = ['zvol_misc_fua', 'zvol_misc_rename_open', 'zvol_misc_rename_write',
+    'zvol_misc_sectorsize']
 tags = ['functional', 'zvol', 'zvol_misc']
 
 [tests/functional/idmap_mount:Linux]

@@ -30,6 +30,7 @@ typedef struct zvol_state {
 	char			zv_name[MAXNAMELEN];	/* name */
 	uint64_t		zv_volsize;		/* advertised space */
 	uint64_t		zv_volblocksize;	/* volume block size */
+	uint64_t		zv_volsectorsize;	/* sector size */
 	objset_t		*zv_objset;	/* objset handle */
 	uint64_t		zv_dsobj;	/* dataset object number */
 	uint32_t		zv_flags;	/* ZVOL_* flags */

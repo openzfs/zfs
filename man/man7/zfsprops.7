@@ -29,7 +29,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd September 9, 2026
+.Dd October 19, 2026
 .Dt ZFSPROPS 7
 .Os
 .
@@ -595,6 +595,35 @@ The default size is
 .Pp
 This property can also be referred to by its shortened column name,
 .Sy volblock .
+.It Sy volsectorsize
+For volumes, specifies the logical sector size that the volume's device
+reports to the operating system, the smallest unit in which it can be read or
+written.
+The size must be a power of two from
+.Ar 512 B
+to
+.Ar 4 KiB ,
+and no larger than
+.Sy volblocksize ,
+which is reported as the physical sector size.
+The default is
+.Ar 512 B .
+.Pp
+The sector size can only be set when the volume is created: changing it under
+an existing partition table or file system would make them unreadable.
+It is stored in the volume, so snapshots, clones and received copies of the
+volume keep it.
+A full receive onto an existing volume of another sector size is refused,
+since the sector size of its device cannot be changed safely while it may be
+open.
+.Pp
+Implementations that do not support this property, such as an older system
+the volume is sent to, expose every volume with 512-byte sectors.
+A partition table or file system created with larger sectors is then not
+found on the volume, which must not be repartitioned or reformatted there.
+.Pp
+This property can also be referred to by its shortened column name,
+.Sy volsector .
 .It Sy written
 The amount of space
 .Sy referenced

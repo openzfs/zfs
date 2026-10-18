@@ -1132,6 +1132,7 @@ typedef struct zvol_queue_limits {
 	unsigned short	zql_max_segments;
 	unsigned int	zql_max_segment_size;
 	unsigned int	zql_io_opt;
+	unsigned int	zql_logical_block_size;
 	unsigned int	zql_physical_block_size;
 	unsigned int	zql_max_discard_sectors;
 	unsigned int	zql_discard_granularity;
@@ -1202,6 +1203,7 @@ zvol_queue_limits_init(zvol_queue_limits_t *limits, zvol_state_t *zv,
 
 	limits->zql_io_opt = DMU_MAX_ACCESS / 2;
 
+	limits->zql_logical_block_size = zv->zv_volsectorsize;
 	limits->zql_physical_block_size = zv->zv_volblocksize;
 	limits->zql_max_discard_sectors =
 	    (zvol_max_discard_blocks * zv->zv_volblocksize) >> 9;
@@ -1218,6 +1220,7 @@ zvol_queue_limits_convert(zvol_queue_limits_t *limits,
 	qlimits->max_segments = limits->zql_max_segments;
 	qlimits->max_segment_size = limits->zql_max_segment_size;
 	qlimits->io_opt = limits->zql_io_opt;
+	qlimits->logical_block_size = limits->zql_logical_block_size;
 	qlimits->physical_block_size = limits->zql_physical_block_size;
 	qlimits->max_discard_sectors = limits->zql_max_discard_sectors;
 	qlimits->max_hw_discard_sectors = limits->zql_max_discard_sectors;
@@ -1238,6 +1241,7 @@ zvol_queue_limits_apply(zvol_queue_limits_t *limits,
 	blk_queue_max_segments(queue, limits->zql_max_segments);
 	blk_queue_max_segment_size(queue, limits->zql_max_segment_size);
 	blk_queue_io_opt(queue, limits->zql_io_opt);
+	blk_queue_logical_block_size(queue, limits->zql_logical_block_size);
 	blk_queue_physical_block_size(queue, limits->zql_physical_block_size);
 	blk_queue_max_discard_sectors(queue, limits->zql_max_discard_sectors);
 	blk_queue_discard_granularity(queue, limits->zql_discard_granularity);
@@ -1364,7 +1368,7 @@ zvol_alloc_blk_mq(zvol_state_t *zv, zvol_queue_limits_t *limits)
  */
 static int
 zvol_alloc(dev_t dev, const char *name, uint64_t dsobj, uint64_t volsize,
-    uint64_t volblocksize, zvol_state_t **zvp)
+    uint64_t volblocksize, uint64_t volsectorsize, zvol_state_t **zvp)
 {
 	zvol_state_t *zv;
 	struct zvol_state_os *zso;
@@ -1387,6 +1391,7 @@ zvol_alloc(dev_t dev, const char *name, uint64_t dsobj, uint64_t volsize,
 	zv->zv_volmode = volmode;
 	zv->zv_volsize = volsize;
 	zv->zv_volblocksize = volblocksize;
+	zv->zv_volsectorsize = volsectorsize;
 
 	list_link_init(&zv->zv_next);
 	mutex_init(&zv->zv_state_lock, NULL, MUTEX_DEFAULT, NULL);
@@ -1650,6 +1655,7 @@ zvol_os_create_minor(const char *name)
 	objset_t *os;
 	dmu_object_info_t *doi;
 	uint64_t volsize;
+	uint64_t volsectorsize;
 	uint64_t len;
 	unsigned minor = 0;
 	int error = 0;
@@ -1695,8 +1701,16 @@ zvol_os_create_minor(const char *name)
 	if (error)
 		goto out_dmu_objset_disown;
 
+	error = zvol_get_volsectorsize(os, &volsectorsize);
+	if (error == 0) {
+		error = zvol_check_volsectorsize(volsectorsize,
+		    doi->doi_data_block_size);
+	}
+	if (error)
+		goto out_dmu_objset_disown;
+
 	error = zvol_alloc(MKDEV(zvol_major, minor), name, dmu_objset_id(os),
-	    volsize, doi->doi_data_block_size, &zv);
+	    volsize, doi->doi_data_block_size, volsectorsize, &zv);
 	if (error || zv == NULL)
 		goto out_dmu_objset_disown;
 

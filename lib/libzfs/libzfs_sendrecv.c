@@ -5291,6 +5291,13 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 				    flags->resumable, ioctl_err == ECKSUM);
 			(void) zfs_error(hdl, EZFS_BADSTREAM, errbuf);
 			break;
+		case ZFS_ERR_VOLSECTORSIZE_MISMATCH:
+			zfs_error_aux(hdl,
+			    "the stream's volume sector size differs from "
+			    "that of %s: destroy the volume first, or receive "
+			    "it under another name", name);
+			(void) zfs_error(hdl, EZFS_BADRESTORE, errbuf);
+			break;
 		case ZFS_ERR_STREAM_LARGE_BLOCK_MISMATCH:
 			zfs_error_aux(hdl,
 			    "destination contains large blocks, but the\n"

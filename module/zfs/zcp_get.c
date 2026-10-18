@@ -373,6 +373,18 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 		}
 		break;
 	}
+	case ZFS_PROP_VOLSECTORSIZE:
+		ASSERT(ds_type == ZFS_TYPE_VOLUME);
+		error = dmu_objset_from_ds(ds, &os);
+		if (error == 0) {
+			error = zap_lookup(os, ZVOL_ZAP_OBJ, "sectorsize",
+			    sizeof (numval), 1, &numval);
+			if (error == ENOENT) {
+				numval = ZVOL_DEFAULT_SECTORSIZE;
+				error = 0;
+			}
+		}
+		break;
 
 	case ZFS_PROP_ENCRYPTION:
 	case ZFS_PROP_KEYSTATUS:
