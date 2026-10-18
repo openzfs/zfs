@@ -28,11 +28,19 @@ extern "C" {
 /*
  * Does the build chain support all instructions needed for the GCM assembler
  * routines. AVX support should imply AES-NI and PCLMULQDQ, but make sure
- * anyhow.
+ * anyhow. Level 2 adds the VAES AVX2 routines, level 3 the VAES AVX-512 ones.
  */
 #if defined(__x86_64__) && HAVE_SIMD(AVX) && \
     HAVE_SIMD(AES) && HAVE_SIMD(PCLMULQDQ)
-#define	CAN_USE_GCM_ASM (HAVE_SIMD(VAES) && HAVE_SIMD(VPCLMULQDQ) ? 2 : 1)
+#if HAVE_SIMD(VAES) && HAVE_SIMD(VPCLMULQDQ)
+#if HAVE_SIMD(AVX512BW) && HAVE_SIMD(AVX512VL)
+#define	CAN_USE_GCM_ASM 3
+#else
+#define	CAN_USE_GCM_ASM 2
+#endif
+#else
+#define	CAN_USE_GCM_ASM 1
+#endif
 extern boolean_t gcm_avx_can_use_movbe;
 #endif
 
@@ -124,6 +132,7 @@ typedef enum gcm_impl {
 	GCM_IMPL_GENERIC = 0,
 	GCM_IMPL_AVX,
 	GCM_IMPL_AVX2,
+	GCM_IMPL_AVX512,
 	GCM_IMPL_MAX,
 } gcm_impl;
 #endif
