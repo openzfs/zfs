@@ -278,6 +278,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/devices/devices_common.kshlib \
 	functional/direct/dio.cfg \
 	functional/direct/dio.kshlib \
+	functional/dirsync/dirsync.kshlib \
 	functional/events/events.cfg \
 	functional/events/events_common.kshlib \
 	functional/failmode/failmode.kshlib \
@@ -1690,6 +1691,12 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/direct/dio_write_stable_pages.ksh \
 	functional/direct/setup.ksh \
 	functional/direct/cleanup.ksh \
+	functional/dirsync/cleanup.ksh \
+	functional/dirsync/dirsync_inherit.ksh \
+	functional/dirsync/dirsync_mount.ksh \
+	functional/dirsync/dirsync_ops.ksh \
+	functional/dirsync/dirsync_replay.ksh \
+	functional/dirsync/setup.ksh \
 	functional/dos_attributes/cleanup.ksh \
 	functional/dos_attributes/read_dos_attrs_001.ksh \
 	functional/dos_attributes/setup.ksh \
