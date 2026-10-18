@@ -10234,13 +10234,32 @@ spa_async_thread(void *arg)
 	}
 
 	/*
-	 * Kick off a resilver.
+	 * Rebuild-ended notifications preserve a scrub covering the missing
+	 * writes, so serialize their assessment with scan setup.  Drop the
+	 * config locks before assigning the restart transaction.
 	 */
-	if (tasks & SPA_ASYNC_RESILVER &&
-	    !vdev_rebuild_active(spa->spa_root_vdev) &&
-	    (!dsl_scan_resilvering(dp) ||
-	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER)))
-		dsl_scan_restart_resilver(dp, 0);
+	if (tasks & (SPA_ASYNC_RESILVER | SPA_ASYNC_REBUILD_DONE)) {
+		boolean_t resilver = (tasks & SPA_ASYNC_RESILVER) != 0;
+		uint64_t min;
+		uint64_t max;
+
+		spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG,
+		    (tasks & SPA_ASYNC_REBUILD_DONE) ? RW_WRITER : RW_READER);
+		if ((tasks & SPA_ASYNC_REBUILD_DONE) &&
+		    vdev_resilver_needed(spa->spa_root_vdev, &min, &max) &&
+		    (!dsl_scan_scrubbing(dp) ||
+		    dp->dp_scan->scn_phys.scn_min_txg > min ||
+		    dp->dp_scan->scn_phys.scn_max_txg < max))
+			resilver = B_TRUE;
+		resilver = resilver &&
+		    !vdev_rebuild_active(spa->spa_root_vdev) &&
+		    (!dsl_scan_resilvering(dp) ||
+		    !spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER));
+		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+
+		if (resilver)
+			dsl_scan_restart_resilver(dp, 0);
+	}
 
 	if (tasks & SPA_ASYNC_INITIALIZE_RESTART) {
 		spa_namespace_enter(FTAG);
