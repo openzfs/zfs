@@ -592,6 +592,37 @@ zfs_vpclmulqdq_available(void)
 }
 
 /*
+ * Check if 512-bit vectors should be avoided since they lower the clock
+ * frequency of the CPU. Kernel added X86_FEATURE_PREFER_YMM in 6.15
+ * (torvalds/linux@968e9bc4cef8); match the same CPUs on older kernels.
+ */
+static inline boolean_t
+zfs_prefer_ymm(void)
+{
+#if defined(X86_FEATURE_PREFER_YMM)
+	return (!!boot_cpu_has(X86_FEATURE_PREFER_YMM));
+#else
+	if (boot_cpu_data.x86_vendor != X86_VENDOR_INTEL ||
+	    boot_cpu_data.x86 != 6)
+		return (B_FALSE);
+
+	switch (boot_cpu_data.x86_model) {
+	case 0x55:	/* Skylake-X, Cascade Lake, Cooper Lake */
+	case 0x6a:	/* Ice Lake-X */
+	case 0x6c:	/* Ice Lake-D */
+	case 0x7d:	/* Ice Lake */
+	case 0x7e:	/* Ice Lake-L */
+	case 0x8c:	/* Tiger Lake-L */
+	case 0x8d:	/* Tiger Lake */
+	case 0x9d:	/* Ice Lake NNPI */
+		return (B_TRUE);
+	default:
+		return (B_FALSE);
+	}
+#endif
+}
+
+/*
  * Check if SHA512 instructions are available
  * Kernel added X86_FEATURE_SHA512 in 6.13 (torvalds/linux@a0423af92cb3)
  */

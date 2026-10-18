@@ -1,5 +1,5 @@
 This directory contains the original BoringSSL [1] GCM x86-64 assembly
-files [2].
+files [2] [3].
 
 The assembler files where then further modified to fit the ICP conventions.
 
@@ -9,3 +9,4 @@ included and modified in the ICP.
 
 [1] https://github.com/google/boringssl
 [2] https://github.com/google/boringssl/blob/d5440dd2c2c500ac2d3bba4afec47a054b4d99ae/gen/bcm/aes-gcm-avx2-x86_64-linux.S
+[3] https://github.com/google/boringssl/blob/d5440dd2c2c500ac2d3bba4afec47a054b4d99ae/gen/bcm/aes-gcm-avx512-x86_64-linux.S
