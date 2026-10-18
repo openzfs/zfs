@@ -19,10 +19,12 @@
 
 #
 # DESCRIPTION:
-# A pool still imports from devices that have moved after a crash in the
+# A pool imports healthy from devices that have moved after a crash in the
 # middle of the txg that detaches one side of a mirror: the remaining
 # device, whose newest labels already describe it as the top-level vdev
-# with the guid of the mirror, is found under the guid it had before.
+# with the guid of the mirror, is found under the guid it had before, and
+# the detached device, which those labels no longer name, by its own
+# erased labels.
 #
 # STRATEGY:
 # 1. Create a mirror on file vdevs, export it and copy the devices
@@ -31,7 +33,7 @@
 #    device from its copy, leaving labels 0 and 2 from after the detach:
 #    what a crash right before the uberblocks of the detach txg leaves
 # 4. Rename the devices and move them to another directory
-# 5. Verify that the pool imports from there, with the remaining device
+# 5. Verify that the pool imports from there, healthy with both devices
 #    online, and scrubs without errors
 #
 
@@ -64,8 +66,8 @@ function restore_pre_detach # <device>
 	    skip=$((n - 3)) seek=$((n - 3)) count=3 conv=notrunc
 }
 
-log_assert "A pool imports from moved devices after a crash in the" \
-    "middle of 'zpool detach'."
+log_assert "A pool imports healthy from moved devices after a crash in" \
+    "the middle of 'zpool detach'."
 log_onexit cleanup
 
 log_must mkdir -p $PRE_DIR $MOVED_DIR
@@ -86,9 +88,12 @@ for dev in vdev0 vdev1; do
 done
 
 log_must zpool import -d $MOVED_DIR $TESTPOOL1
-log_must check_vdev_state $TESTPOOL1 $MOVED_DIR/moved_vdev0 ONLINE
+log_must check_pool_status $TESTPOOL1 "state" "ONLINE"
+for dev in vdev0 vdev1; do
+	log_must check_vdev_state $TESTPOOL1 $MOVED_DIR/moved_$dev ONLINE
+done
 log_must zpool scrub -w $TESTPOOL1
 log_must check_pool_status $TESTPOOL1 "errors" "No known data errors"
 
-log_pass "A pool imports from moved devices after a crash in the middle" \
-    "of 'zpool detach'."
+log_pass "A pool imports healthy from moved devices after a crash in the" \
+    "middle of 'zpool detach'."

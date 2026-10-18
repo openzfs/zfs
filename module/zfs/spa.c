@@ -5070,6 +5070,7 @@ spa_ld_trusted_config(spa_t *spa, spa_import_type_t type,
 {
 	vdev_t *mrvd, *rvd = spa->spa_root_vdev;
 	nvlist_t *nv, *mos_config, *policy;
+	nvlist_t *leaf_paths;
 	int error = 0, copy_error;
 	uint64_t healthy_tvds, healthy_tvds_mos;
 	uint64_t mos_config_txg;
@@ -5128,7 +5129,8 @@ spa_ld_trusted_config(spa_t *spa, spa_import_type_t type,
 	 * We first try to copy the paths with vdev_copy_path_strict, which
 	 * succeeds only when both configs have exactly the same vdev tree.
 	 * If that fails, we fall back to a more flexible method that has a
-	 * best effort policy.
+	 * best effort policy, and take the path of a leaf the untrusted
+	 * config does not name from ZPOOL_CONFIG_LEAF_PATHS, if passed.
 	 */
 	copy_error = vdev_copy_path_strict(rvd, mrvd);
 	if (copy_error != 0 || spa_load_print_vdev_tree) {
@@ -5141,6 +5143,9 @@ spa_ld_trusted_config(spa_t *spa, spa_import_type_t type,
 		spa_load_note(spa, "vdev_copy_path_strict failed, falling "
 		    "back to vdev_copy_path_relaxed");
 		vdev_copy_path_relaxed(rvd, mrvd);
+		if (nvlist_lookup_nvlist(spa->spa_config,
+		    ZPOOL_CONFIG_LEAF_PATHS, &leaf_paths) == 0)
+			vdev_copy_leaf_paths(rvd, mrvd, leaf_paths);
 	}
 
 	vdev_close(rvd);

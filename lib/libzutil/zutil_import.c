@@ -215,9 +215,10 @@ typedef struct pool_list {
 } pool_list_t;
 
 /*
- * Find the best name for the leaf vdev with the given guid.  With
- * pool_guid != 0, only consider devices whose label has that pool guid
- * (or none: spares and l2cache devices).
+ * Find the best name for the leaf vdev with the given guid: path if a device
+ * was found there, or else the device with the most labels found first in
+ * the search order.  With pool_guid != 0, only consider devices whose label
+ * has that pool guid (or none: spares and l2cache devices).
  */
 static name_entry_t *
 best_name(name_entry_t *names, uint64_t guid, const char *path,
@@ -232,10 +233,7 @@ best_name(name_entry_t *names, uint64_t guid, const char *path,
 		    ne->ne_pool_guid != pool_guid)
 			continue;
 
-		if (path == NULL)
-			return (ne);
-
-		if ((strlen(path) == strlen(ne->ne_name)) &&
+		if (path != NULL && strlen(path) == strlen(ne->ne_name) &&
 		    strncmp(path, ne->ne_name, strlen(path)) == 0)
 			return (ne);
 
@@ -559,6 +557,79 @@ add_txg0_name(libpc_handle_t *hdl, pool_list_t *pl, const rdsk_node_t *slice)
 	pl->txg0_names = ne;
 
 	return (0);
+}
+
+/*
+ * Return whether the vdev config nv or one of its descendants has the guid.
+ */
+static boolean_t
+vdev_has_guid(nvlist_t *nv, uint64_t guid)
+{
+	nvlist_t **child;
+	uint_t c, children;
+	uint64_t vdev_guid;
+
+	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &vdev_guid) == 0 &&
+	    vdev_guid == guid)
+		return (B_TRUE);
+
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) == 0) {
+		for (c = 0; c < children; c++)
+			if (vdev_has_guid(child[c], guid))
+				return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+/*
+ * The vdev tree of a pool is built from the newest label of each top-level
+ * vdev, which can describe a change that the MOS config does not have yet:
+ * after a crash in the txg that detaches one side of a mirror, the other
+ * side is the whole top-level vdev, and the detached leaf is named nowhere.
+ * Pass the kernel, as ZPOOL_CONFIG_LEAF_PATHS, the paths of the devices of
+ * the pool that the tree does not name, keyed by vdev guid in decimal, so
+ * that such leaves of the MOS config can be found.
+ */
+static int
+add_leaf_paths(nvlist_t *config, nvlist_t *nvroot, pool_list_t *pl,
+    uint64_t pool_guid)
+{
+	name_entry_t *lists[] = { pl->names, pl->txg0_names };
+	name_entry_t *ne;
+	name_entry_t *best;
+	nvlist_t *paths;
+	char guid[21];	/* 64-bit num + '\0' */
+	int error = 0;
+
+	if (nvlist_alloc(&paths, NV_UNIQUE_NAME, 0) != 0)
+		return (-1);
+
+	for (int i = 0; i < ARRAY_SIZE(lists) && error == 0; i++) {
+		for (ne = lists[i]; ne != NULL && error == 0;
+		    ne = ne->ne_next) {
+			if (ne->ne_pool_guid != pool_guid ||
+			    vdev_has_guid(nvroot, ne->ne_guid))
+				continue;
+
+			(void) snprintf(guid, sizeof (guid), "%llu",
+			    (u_longlong_t)ne->ne_guid);
+			if (nvlist_exists(paths, guid))
+				continue;
+
+			best = best_name(lists[i], ne->ne_guid, NULL,
+			    pool_guid);
+			error = nvlist_add_string(paths, guid, best->ne_name);
+		}
+	}
+
+	if (error == 0 && !nvlist_empty(paths))
+		error = nvlist_add_nvlist(config, ZPOOL_CONFIG_LEAF_PATHS,
+		    paths);
+	nvlist_free(paths);
+
+	return (error == 0 ? 0 : -1);
 }
 
 static int
@@ -937,7 +1008,8 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 		 * Go through and fix up any paths and/or devids based on our
 		 * known list of vdev GUID -> path mappings.
 		 */
-		if (fix_paths(hdl, nvroot, pl, pe->pe_guid) != 0) {
+		if (fix_paths(hdl, nvroot, pl, pe->pe_guid) != 0 ||
+		    add_leaf_paths(config, nvroot, pl, pe->pe_guid) != 0) {
 			nvlist_free(nvroot);
 			goto nomem;
 		}

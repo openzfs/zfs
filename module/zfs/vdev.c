@@ -2753,7 +2753,8 @@ vdev_validate(vdev_t *vd)
 }
 
 static void
-vdev_update_path(const char *prefix, char *svd, char **dvd, uint64_t guid)
+vdev_update_path(const char *prefix, const char *svd, char **dvd,
+    uint64_t guid)
 {
 	if (svd != NULL && *dvd != NULL) {
 		if (strcmp(svd, *dvd) != 0) {
@@ -2923,6 +2924,34 @@ vdev_copy_path_relaxed(vdev_t *srvd, vdev_t *drvd)
 		vdev_copy_path_search(srvd->vdev_child[i],
 		    drvd->vdev_child[i]);
 	}
+}
+
+/*
+ * Give the leaves of the destination tree that the source tree does not name,
+ * by guid or former guid, the path of the device with their guid from paths,
+ * an nvlist keyed by vdev guid in decimal.  An import passes the paths of the
+ * devices it found but did not name in the config it built from their
+ * labels, which can describe a change that the MOS config does not have yet.
+ */
+void
+vdev_copy_leaf_paths(vdev_t *srvd, vdev_t *dvd, nvlist_t *paths)
+{
+	const char *path;
+	char guid[21];	/* 64-bit num + '\0' */
+
+	for (uint64_t c = 0; c < dvd->vdev_children; c++)
+		vdev_copy_leaf_paths(srvd, dvd->vdev_child[c], paths);
+
+	if (!dvd->vdev_ops->vdev_op_leaf || !vdev_is_concrete(dvd) ||
+	    vdev_lookup_by_guid(srvd, dvd->vdev_guid) != NULL ||
+	    vdev_lookup_by_orig_guid(srvd, dvd->vdev_guid) != NULL)
+		return;
+
+	(void) snprintf(guid, sizeof (guid), "%llu",
+	    (u_longlong_t)dvd->vdev_guid);
+	if (nvlist_lookup_string(paths, guid, &path) == 0)
+		vdev_update_path("vdev_path", path, &dvd->vdev_path,
+		    dvd->vdev_guid);
 }
 
 /*
