@@ -303,6 +303,33 @@ test_open_create(const MunitParameter params[], void *data)
 }
 
 /*
+ * zfs_file_open() of a missing file fails with ENOENT, and one that cannot
+ * create the file leaves the process umask as it found it.
+ */
+static MunitResult
+test_open_fail(const MunitParameter params[], void *data)
+{
+	(void) params, (void) data;
+	char dir[64], path[80];
+	zfs_file_t *fp;
+	mode_t mask;
+
+	tmpdir_get(dir, sizeof (dir));
+
+	(void) snprintf(path, sizeof (path), "%s/missing", dir);
+	unit_err(zfs_file_open(path, O_RDONLY, 0, kcred, &fp), ENOENT);
+
+	(void) snprintf(path, sizeof (path), "%s/missing/file", dir);
+	mask = umask(022);
+	unit_err(zfs_file_open(path, O_RDWR | O_CREAT, 0644, kcred, &fp),
+	    ENOENT);
+	unit_eq(umask(mask), 022);
+
+	tmpdir_put(dir);
+	return (MUNIT_OK);
+}
+
+/*
  * zfs_file_deallocate() punches a hole that reads back as zeros and keeps
  * the file size, and returns errno values on failure.
  */
@@ -385,6 +412,7 @@ static const MunitTest zfs_file_tests[] = {
 	UNIT_TEST("read_short",		test_read_short),
 	UNIT_TEST("seek",		test_seek),
 	UNIT_TEST("open_create",	test_open_create),
+	UNIT_TEST("open_fail",		test_open_fail),
 	UNIT_TEST("deallocate",		test_deallocate),
 	UNIT_TEST("unlink",		test_unlink),
 	{ 0 },
