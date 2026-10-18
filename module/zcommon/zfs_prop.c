@@ -495,6 +495,9 @@ zfs_prop_init(void)
 #endif
 	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "on | off", "RELATIME",
 	    boolean_table, sfeatures);
+	zprop_register_index(ZFS_PROP_DIRSYNC, "dirsync", 0, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM, "on | off", "DIRSYNC", boolean_table,
+	    sfeatures);
 	zprop_register_index(ZFS_PROP_DEVICES, "devices", 1, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "on | off", "DEVICES",
 	    boolean_table, sfeatures);

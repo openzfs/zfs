@@ -1148,6 +1148,31 @@ Currently Direct I/O is not supported with zvols.
 If dedup is enabled on a dataset, Direct I/O writes will not check for
 deduplication.
 Deduplication and Direct I/O writes are currently incompatible.
+.It Sy dirsync Ns = Ns Sy on Ns | Ns Sy off
+Controls whether directory updates are synchronous.
+When set to
+.Sy on ,
+creating, linking, renaming and removing files, directories, symbolic links
+and special files
+.Pq device nodes, FIFOs and sockets
+are committed to stable storage before the system call returns, as with
+.Sy sync Ns = Ns Sy always ,
+while other transactions, such as writes to files, keep the behavior set by
+.Sy sync .
+A rename also commits the pending writes of the renamed file.
+Changes to attributes and extended attributes are not affected.
+The default value is
+.Sy off .
+.Pp
+On Linux, the
+.Sy dirsync
+and
+.Sy sync
+mount options also make directory updates synchronous, whatever the value
+of this property, which they do not change.
+With
+.Sy sync Ns = Ns Sy disabled ,
+directory updates are never synchronous.
 .It Xo
 .Sy dnodesize Ns = Ns Sy legacy Ns | Ns Sy auto Ns | Ns Sy 1k Ns | Ns
 .Sy 2k Ns | Ns Sy 4k Ns | Ns Sy 8k Ns | Ns Sy 16k

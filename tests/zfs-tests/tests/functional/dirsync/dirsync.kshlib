@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+#
+# Run a command and check whether it committed the ZIL of a dataset.
+#
+# dirsync_check <dataset> <yes|no> <command> [args]
+#
+function dirsync_check
+{
+	typeset ds=$1
+	typeset expect=$2
+	shift 2
+
+	typeset -i before=$(kstat_dataset $ds zil_commit_count)
+	log_must "$@"
+	typeset -i after=$(kstat_dataset $ds zil_commit_count)
+
+	if [[ $expect == "yes" ]] && (( after <= before )); then
+		log_fail "$*: no ZIL commit on $ds"
+	elif [[ $expect == "no" ]] && (( after != before )); then
+		log_fail "$*: $((after - before)) ZIL commits on $ds"
+	fi
+}
+
+#
+# Run each namespace operation in a directory of a dataset and check
+# whether it committed the ZIL.
+#
+# dirsync_ops <dataset> <directory> <yes|no>
+#
+function dirsync_ops
+{
+	typeset ds=$1
+	typeset dir=$2
+	typeset expect=$3
+
+	dirsync_check $ds $expect touch $dir/file
+	dirsync_check $ds $expect mkfifo $dir/fifo
+	dirsync_check $ds $expect mkdir $dir/dir
+	dirsync_check $ds $expect ln $dir/file $dir/link
+	dirsync_check $ds $expect ln -s file $dir/symlink
+	dirsync_check $ds $expect mv $dir/file $dir/renamed
+	dirsync_check $ds $expect rm $dir/renamed
+	dirsync_check $ds $expect rmdir $dir/dir
+	log_must rm $dir/fifo $dir/link $dir/symlink
+}
+
+#
+# Remove what dirsync_ops may have left in a directory.
+#
+# dirsync_cleanup <directory>
+#
+function dirsync_cleanup
+{
+	typeset dir=$1
+
+	rm -f $dir/file $dir/fifo $dir/link $dir/symlink $dir/renamed
+	[[ -d $dir/dir ]] && rmdir $dir/dir
+}
