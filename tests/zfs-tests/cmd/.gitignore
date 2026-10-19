@@ -21,6 +21,7 @@
 /largest_file
 /libzfs_input_check
 /libzfs_mnttab_cache_check
+/log_writes_replay
 /manipulate_user_buffer
 /makedir
 /mkbusy
@@ -49,6 +50,7 @@
 /statfs_nomount
 /stride_dd
 /threadsappend
+/tmpfile_crash
 /user_ns_exec
 /write_dos_attributes
 /xattrtest

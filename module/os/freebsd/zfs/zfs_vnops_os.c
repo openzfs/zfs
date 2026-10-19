@@ -1182,6 +1182,76 @@ out:
 }
 
 /*
+ * ZIL replay of TX_TMPFILE (written by Linux O_TMPFILE publication): create
+ * the unnamed object, with no links, in the unlinked set, and record the
+ * replay progress in the same transaction.  Returns it referenced and
+ * unlocked.  Replay holds it until its TX_LINK names it (zfs_link()) or
+ * replay ends; see zfs_replay_tmpfile_hold().
+ */
+int
+zfs_replay_create_unnamed(znode_t *dzp, vattr_t *vap, int mode,
+    znode_t **zpp)
+{
+	(void) mode;
+	zfsvfs_t	*zfsvfs = dzp->z_zfsvfs;
+	zfs_acl_ids_t	acl_ids;
+	boolean_t	fuid_dirtied;
+	dmu_tx_t	*tx;
+	znode_t		*zp;
+	int		error;
+
+	ASSERT(zfsvfs->z_replay);
+	ASSERT3S(vap->va_type, ==, VREG);
+
+	if ((error = zfs_enter_verify_zp(zfsvfs, dzp, FTAG)) != 0)
+		return (error);
+	if ((error = zfs_acl_ids_create(dzp, 0, vap, kcred, NULL,
+	    &acl_ids)) != 0) {
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+
+	getnewvnode_reserve();
+	tx = dmu_tx_create(zfsvfs->z_os);
+	dmu_tx_hold_sa_create(tx, acl_ids.z_aclp->z_acl_bytes +
+	    ZFS_SA_BASE_ATTR_SIZE);
+	dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
+	fuid_dirtied = zfsvfs->z_fuid_dirty;
+	if (fuid_dirtied)
+		zfs_fuid_txhold(zfsvfs, tx);
+	if (!zfsvfs->z_use_sa &&
+	    acl_ids.z_aclp->z_acl_bytes > ZFS_ACE_SPACE) {
+		dmu_tx_hold_write(tx, DMU_NEW_OBJECT,
+		    0, acl_ids.z_aclp->z_acl_bytes);
+	}
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (error != 0) {
+		zfs_acl_ids_free(&acl_ids);
+		dmu_tx_abort(tx);
+		getnewvnode_drop_reserve();
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+	zfs_mknode(dzp, vap, tx, kcred, 0, &zp, &acl_ids);
+	if (fuid_dirtied)
+		zfs_fuid_sync(zfsvfs, tx);
+
+	ASSERT0(zp->z_links);
+	zp->z_unlinked = B_TRUE;
+	zfs_unlinked_add(zp, tx);
+	/* Nothing is logged: record the replay progress in this TX. */
+	(void) zil_replaying(zfsvfs->z_log, tx);
+	zfs_acl_ids_free(&acl_ids);
+	dmu_tx_commit(tx);
+	getnewvnode_drop_reserve();
+
+	VOP_UNLOCK(ZTOV(zp));
+	*zpp = zp;
+	zfs_exit(zfsvfs, FTAG);
+	return (0);
+}
+
+/*
  * Remove an entry from a directory.
  *
  *	IN:	dvp	- vnode of directory to remove entry from.
@@ -3799,6 +3869,11 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 	int		error;
 	uint64_t	parent;
 	uid_t		owner;
+	/*
+	 * Replay names an unnamed file created by TX_TMPFILE (Linux
+	 * O_TMPFILE publication): it is in the unlinked set, with no links.
+	 */
+	boolean_t	is_tmpfile = zfsvfs->z_replay && szp->z_replay_tmpfile;
 
 	ASSERT3S(ZTOV(tdzp)->v_type, ==, VDIR);
 
@@ -3896,6 +3971,8 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 	dmu_tx_hold_sa(tx, szp->z_sa_hdl, ZFS_SEQ_MAY_GROW(szp));
 	dmu_tx_hold_sa(tx, tdzp->z_sa_hdl, ZFS_SEQ_MAY_GROW(tdzp));
 	dmu_tx_hold_zap(tx, tdzp->z_id, TRUE, name);
+	if (is_tmpfile)
+		dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
 	zfs_sa_upgrade_txholds(tx, szp);
 	zfs_sa_upgrade_txholds(tx, tdzp);
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
@@ -3905,11 +3982,23 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 		return (error);
 	}
 
+	/* unmark z_unlinked so zfs_link_create will not reject */
+	if (is_tmpfile)
+		szp->z_unlinked = B_FALSE;
 	error = zfs_link_create(tdzp, name, szp, tx, 0);
 
 	if (error == 0) {
 		uint64_t txtype = TX_LINK;
+		/* remove from unlinked set */
+		if (is_tmpfile) {
+			VERIFY0(zap_remove_int(zfsvfs->z_os,
+			    zfsvfs->z_unlinkedobj, szp->z_id, tx));
+		}
+		/* During replay this records the replay progress. */
 		zfs_log_link(zilog, tx, txtype, tdzp, szp, name);
+	} else if (is_tmpfile) {
+		/* restore z_unlinked since when linking failed */
+		szp->z_unlinked = B_TRUE;
 	}
 
 	dmu_tx_commit(tx);

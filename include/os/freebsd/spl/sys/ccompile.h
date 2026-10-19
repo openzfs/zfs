@@ -82,6 +82,7 @@ typedef int enum_t;
 #define	ATTR_CTIME	AT_CTIME
 #define	ATTR_MTIME	AT_MTIME
 #define	ATTR_ATIME	AT_ATIME
+#define	ATTR_SIZE	AT_SIZE
 #if defined(_STANDALONE)
 #define	vmem_free kmem_free
 #define	vmem_zalloc kmem_zalloc

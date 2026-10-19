@@ -202,6 +202,7 @@ struct zilog {
 	uint8_t		zl_suspending;	/* log is currently suspending */
 	uint8_t		zl_keep_first;	/* keep first log block in destroy */
 	uint8_t		zl_replay;	/* replaying records while set */
+	uint8_t		zl_tmpfile_wanted; /* TX_TMPFILE may be logged */
 	uint8_t		zl_stop_sync;	/* for debugging */
 	kmutex_t	zl_issuer_lock;	/* single writer, per ZIL, at a time */
 	uint8_t		zl_logbias;	/* latency or throughput */

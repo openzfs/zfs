@@ -3572,28 +3572,60 @@ function set_tunable_impl
 	esac
 }
 
-function save_tunable
+#
+# Save a tunable's value for restore_tunable, in $TEST_BASE_DIR/$2-$1.
+#
+function save_tunable_as
 {
 	typeset val
 
 	if tunable_exists $1 ; then
 		[[ ! -d $TEST_BASE_DIR ]] && return 1
-		[[ -e $TEST_BASE_DIR/tunable-$1 ]] && return 2
+		[[ -e $TEST_BASE_DIR/$2-$1 ]] && return 2
 		val="$(get_tunable "$1")" || return $?
-		echo "$val" > "$TEST_BASE_DIR"/tunable-"$1"
+		echo "$val" > "$TEST_BASE_DIR"/"$2"-"$1"
 	fi
 }
 
-function restore_tunable
+function restore_tunable_as
 {
 	typeset val
 
 	if tunable_exists $1 ; then
-		[[ ! -e $TEST_BASE_DIR/tunable-$1 ]] && return 1
-		val="$(cat "$TEST_BASE_DIR/tunable-$1")" || return $?
+		[[ ! -e $TEST_BASE_DIR/$2-$1 ]] && return 1
+		val="$(cat "$TEST_BASE_DIR/$2-$1")" || return $?
 		set_tunable64 "$1" "$val" || return $?
-		rm $TEST_BASE_DIR/tunable-$1
+		rm $TEST_BASE_DIR/$2-$1
 	fi
+}
+
+#
+# A test saves and restores the tunables it changes.  If it is killed, the
+# failsafe restores what it saved.
+#
+function save_tunable
+{
+	save_tunable_as "$1" tunable
+}
+
+function restore_tunable
+{
+	restore_tunable_as "$1" tunable
+}
+
+#
+# A group's setup.ksh saves a tunable that it sets for all of the group's
+# tests, and its cleanup.ksh restores it.  The failsafe leaves these alone,
+# since the group's remaining tests still need the value.
+#
+function save_group_tunable
+{
+	save_tunable_as "$1" group-tunable
+}
+
+function restore_group_tunable
+{
+	restore_tunable_as "$1" group-tunable
 }
 
 #

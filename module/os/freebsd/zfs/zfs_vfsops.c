@@ -1076,6 +1076,8 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 	mutex_init(&zfsvfs->z_lock, NULL, MUTEX_DEFAULT, NULL);
 	list_create(&zfsvfs->z_all_znodes, sizeof (znode_t),
 	    offsetof(znode_t, z_link_node));
+	list_create(&zfsvfs->z_replay_tmpfiles, sizeof (znode_t),
+	    offsetof(znode_t, z_replay_node));
 	TASK_INIT(&zfsvfs->z_unlinked_drain_task, 0,
 	    zfsvfs_task_unlinked_drain, zfsvfs);
 	ZFS_TEARDOWN_INIT(zfsvfs);
@@ -1136,8 +1138,17 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 		 * allow replays to succeed.
 		 */
 		readonly = zfsvfs->z_vfs->vfs_flag & VFS_RDONLY;
+		/*
+		 * Hold unnamed files that an interrupted replay created,
+		 * before the drain could free them, whenever replay will
+		 * resume, including on a read-only mount.
+		 */
+		boolean_t replay = !zil_replay_disable &&
+		    spa_writeable(dmu_objset_spa(zfsvfs->z_os));
 		if (readonly != 0) {
 			zfsvfs->z_vfs->vfs_flag &= ~VFS_RDONLY;
+			if (replay)
+				zfs_replay_tmpfile_adopt(zfsvfs);
 		} else {
 			dsl_dir_t *dd;
 			zap_stats_t zs;
@@ -1151,6 +1162,8 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 				    (u_longlong_t)zs.zs_num_entries);
 			}
 
+			if (replay)
+				zfs_replay_tmpfile_adopt(zfsvfs);
 			zfs_unlinked_drain(zfsvfs);
 			dd = zfsvfs->z_os->os_dsl_dataset->ds_dir;
 			dd->dd_activity_cancelled = B_FALSE;
@@ -1195,6 +1208,8 @@ zfsvfs_setup(zfsvfs_t *zfsvfs, boolean_t mounting)
 				zfsvfs->z_replay = B_FALSE;
 				zfsvfs->z_use_namecache = use_nc;
 			}
+			/* Free unnamed files that were never published. */
+			zfs_replay_tmpfile_fini(zfsvfs);
 		}
 
 		/* restore readonly bit */
@@ -1226,6 +1241,7 @@ zfsvfs_free(zfsvfs_t *zfsvfs)
 	mutex_destroy(&zfsvfs->z_znodes_lock);
 	mutex_destroy(&zfsvfs->z_lock);
 	list_destroy(&zfsvfs->z_all_znodes);
+	list_destroy(&zfsvfs->z_replay_tmpfiles);
 	ZFS_TEARDOWN_DESTROY(zfsvfs);
 	ZFS_TEARDOWN_INACTIVE_DESTROY(zfsvfs);
 	rw_destroy(&zfsvfs->z_fuid_lock);
