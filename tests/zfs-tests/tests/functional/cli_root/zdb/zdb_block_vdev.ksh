@@ -25,7 +25,8 @@
 #	   snapshot and clone a file: the block cloning and snapshot rows
 #	   are filled, every way of naming the vdev gives the same report,
 #	   and both vdevs balance.
-#	2. Bad arguments are rejected.
+#	2. Bad arguments, a dataset, snapshot or bookmark target among
+#	   them, are rejected.
 #	3. The rest of the output is unchanged by --vdev.
 #	4. Take a checkpoint, stop allocating on the special mirror and
 #	   rewrite the files, skipping cloned and snapshot blocks: the
@@ -51,6 +52,11 @@
 #	   add up to usedbysnapshots, and the live rows to referenced.
 #	11. Clone the middle snapshot: the rows name the clone, and no
 #	   snapshot-only range includes its origin.
+#	12. Corrupt every copy of the blocks of a dataset's deadlist: the
+#	   blocks born in its snapshots are reported as not classified,
+#	   not as live, and a note names the dataset.
+#	13. On a pool on a whole disk, the name that zpool status gives
+#	   the disk selects its vdev.
 #
 
 verify_runnable "global"
@@ -69,7 +75,7 @@ function cleanup
 
 	for pool in $TESTPOOL $TESTPOOL1 $TESTPOOL2; do
 		poolexists $pool || zpool import -d $VDEV_DIR $pool \
-		    >/dev/null 2>&1
+		    >/dev/null 2>&1 || zpool import $pool >/dev/null 2>&1
 		poolexists $pool && destroy_pool $pool
 	done
 	rm -rf $VDEV_DIR
@@ -170,6 +176,7 @@ log_must dd if=/dev/urandom of=$mnt/A bs=1M count=8
 log_must dd if=/dev/urandom of=$mnt/B bs=1M count=8
 sync_pool $TESTPOOL true
 log_must zfs snapshot $TESTPOOL/fs@s
+log_must zfs bookmark $TESTPOOL/fs@s $TESTPOOL/fs#bm
 log_must dd if=/dev/urandom of=$mnt/B bs=1M count=4 conv=notrunc
 log_must clonefile -f $mnt/A $mnt/C
 
@@ -205,6 +212,8 @@ log_mustnot zdb -e -p $VDEV_DIR -b --vdev=raidz3-0 $TESTPOOL
 log_mustnot zdb -e -p $VDEV_DIR -b --vdev= $TESTPOOL
 log_mustnot zdb -e -p $VDEV_DIR -b --vdev=$pool_guid $TESTPOOL
 log_mustnot zdb -e -p $VDEV_DIR -b --vdev=1 $TESTPOOL/fs
+log_mustnot zdb -e -p $VDEV_DIR -b --vdev=1 $TESTPOOL/fs@s
+log_mustnot zdb -e -p $VDEV_DIR -b --vdev=1 $TESTPOOL/fs#bm
 log_mustnot zdb -e -p $VDEV_DIR -bd --vdev=1 $TESTPOOL 1
 log_mustnot zdb -e -p $VDEV_DIR -bS --vdev=1 $TESTPOOL
 
@@ -458,5 +467,62 @@ log_must test "$(row $OUT.c \
     "$fs2: live or held through clones of $fs2@b (${fs2}c)")" -gt 0
 log_mustnot grep -Eq "$fs2: only in snapshots ($fs2@b|.*%(b|c)$)" $OUT.c
 log_must test "$(row $OUT.c "${fs2}c: live, in no snapshot")" -gt 0
+
+#
+# 12. An unreadable deadlist. On a single file vdev, every copy of a block
+# is on vdev 0, at its DVA offset past the 4 MiB of front labels.
+#
+import_pool $TESTPOOL2
+destroy_pool $TESTPOOL2
+# zdb -e -p scans the whole directory and would find two such pools.
+log_must zpool labelclear -f $VDEV_DIR/s0
+log_must truncate -s $MINVDEVSIZE $VDEV_DIR/u0
+log_must zpool create -f $TESTPOOL2 $VDEV_DIR/u0
+fs3=$TESTPOOL2/fs
+log_must zfs create -o recordsize=128K -o compression=off $fs3
+mnt=$(get_prop mountpoint $fs3)
+log_must dd if=/dev/urandom of=$mnt/F bs=128K count=64
+log_must zfs snapshot $fs3@a
+log_must dd if=/dev/urandom of=$mnt/F bs=128K count=32 conv=notrunc
+export_pool $TESTPOOL2
+zdbv $TESTPOOL2 0 $OUT.u -bbP
+log_must test "$(row $OUT.u "$fs3: only in snapshots $fs3@a")" -gt 0
+zdb="zdb -e -p $VDEV_DIR"
+dsobj=$($zdb -d $fs3 | sed -n 's/.*, ID \([0-9]*\),.*/\1/p')
+dl=$($zdb -dddd $TESTPOOL2 $dsobj | awk '$1 == "deadlist_obj" { print $3 }')
+corrupted=0
+for bpobj in $($zdb -dddd $TESTPOOL2 $dl | \
+    awk '$1 ~ /^[0-9]+$/ && $2 == "=" { print $3 }'); do
+	for dva in $($zdb -dddddd $TESTPOOL2 $bpobj | awk '$2 == "L0" {
+	    for (i = 3; i <= NF && $i ~ /^0:[0-9a-f]+:[0-9a-f]+$/; i++)
+		print $i }'); do
+		typeset -i off=16#$(echo $dva | cut -d: -f2)
+		typeset -i asize=16#$(echo $dva | cut -d: -f3)
+		log_must dd if=/dev/urandom of=$VDEV_DIR/u0 bs=512 \
+		    seek=$(((off + 4 * 1024 * 1024) / 512)) \
+		    count=$((asize / 512)) conv=notrunc
+		corrupted=$((corrupted + 1))
+	done
+done
+log_must test $corrupted -gt 0
+zdbv $TESTPOOL2 0 $OUT.u2 -bbP
+log_must test "$(row $OUT.u2 \
+    "$fs3: born in snapshots, not classified (deadlist unreadable)")" -gt 0
+log_mustnot grep -q "$fs3: live, also in snapshots" $OUT.u2
+log_must grep -q "note: a deadlist of $fs3 could not be read in full" $OUT.u2
+import_pool $TESTPOOL2
+destroy_pool $TESTPOOL2
+log_must zpool labelclear -f $VDEV_DIR/u0
+
+#
+# 13. A whole disk is named without its partition.
+#
+log_must zpool create -f $TESTPOOL2 ${DISKS%% *}
+name=$(zpool list -Hv $TESTPOOL2 | awk 'NR == 2 { print $1 }')
+export_pool $TESTPOOL2
+log_must eval "zdb -e -bP --vdev=$name $TESTPOOL2 > $OUT.wd"
+balanced $OUT.wd
+log_must zpool import $TESTPOOL2
+destroy_pool $TESTPOOL2
 
 log_pass "'zdb -b --vdev' accounts for the space allocated on a vdev"
