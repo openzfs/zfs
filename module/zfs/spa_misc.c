@@ -1856,17 +1856,36 @@ spa_deactivate_allocation_classes(spa_t *spa, dmu_tx_t *tx)
 	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
 		vdev_t *cvd = rvd->vdev_child[c];
 		metaslab_group_t *mg = cvd->vdev_mg;
+		char bias[64];
+		int error;
+
+		if (!vdev_is_concrete(cvd))
+			continue;
 
 		/*
 		 * The alloc_bias property changes vdev_alloc_bias at once, but
 		 * the metaslab group keeps its class until the pool is imported
 		 * again, so either one keeps the feature active.
 		 */
-		if (vdev_is_concrete(cvd) &&
-		    (cvd->vdev_alloc_bias == VDEV_BIAS_SPECIAL ||
+		if (cvd->vdev_alloc_bias == VDEV_BIAS_SPECIAL ||
 		    cvd->vdev_alloc_bias == VDEV_BIAS_DEDUP ||
 		    (mg != NULL && (mg->mg_class == spa_special_class(spa) ||
-		    mg->mg_class == spa_dedup_class(spa)))))
+		    mg->mg_class == spa_dedup_class(spa))))
+			return;
+
+		/*
+		 * vdev_prop_set() changes vdev_alloc_bias before it knows
+		 * whether the change will be written, so the bias that the
+		 * next import reads keeps the feature active too.
+		 */
+		if (cvd->vdev_top_zap == 0)
+			continue;
+		error = zap_lookup(spa_meta_objset(spa), cvd->vdev_top_zap,
+		    VDEV_TOP_ZAP_ALLOCATION_BIAS, 1, sizeof (bias), bias);
+		if (error != 0 && error != ENOENT)
+			return;
+		if (error == 0 && (strcmp(bias, VDEV_ALLOC_BIAS_SPECIAL) == 0 ||
+		    strcmp(bias, VDEV_ALLOC_BIAS_DEDUP) == 0))
 			return;
 	}
 

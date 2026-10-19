@@ -53,6 +53,7 @@
 /stride_dd
 /threadsappend
 /user_ns_exec
+/vdev_set_props
 /write_dos_attributes
 /xattrtest
 /zed_fd_spill-zedlet

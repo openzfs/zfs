@@ -35,14 +35,6 @@ claim="Removing the last allocation class vdev deactivates the feature."
 log_assert $claim
 log_onexit cleanup
 
-function check_feature # pool state
-{
-	typeset state=$(get_pool_prop feature@allocation_classes $1)
-
-	[[ "$state" == "$2" ]] || log_fail \
-	    "feature@allocation_classes is '$state', expected '$2'"
-}
-
 log_must disk_setup
 log_must zpool create $TESTPOOL $ZPOOL_DISKS special $CLASS_DISK0 \
     dedup $CLASS_DISK1
