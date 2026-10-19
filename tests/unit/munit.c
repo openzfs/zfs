@@ -152,10 +152,6 @@
 #  define MUNIT_NO_FORK
 #endif
 
-#if defined(__EMSCRIPTEN__)
-#  define MUNIT_NO_BUFFER
-#endif
-
 /*** Logging ***/
 
 static MunitLogLevel munit_log_level_visible = MUNIT_LOG_INFO;
@@ -1331,6 +1327,27 @@ static MunitResult munit_test_runner_exec(MunitTestRunner *runner,
   return result;
 }
 
+static MunitResult munit_test_runner_exec_no_fork(MunitTestRunner *runner,
+                                                  const MunitTest *test,
+                                                  const MunitParameter params[],
+                                                  MunitReport *report) {
+#if defined(MUNIT_THREAD_LOCAL)
+  MunitResult result;
+  if (MUNIT_UNLIKELY(setjmp(munit_error_jmp_buf) != 0)) {
+    memset(report, 0, sizeof(*report));
+    report->failed = 1;
+    result = MUNIT_FAIL;
+  } else {
+    munit_error_jmp_buf_valid = 1;
+    result = munit_test_runner_exec(runner, test, params, report);
+  }
+  munit_error_jmp_buf_valid = 0;
+  return result;
+#else
+  return munit_test_runner_exec(runner, test, params, report);
+#endif
+}
+
 #if defined(MUNIT_EMOTICON)
 #  define MUNIT_RESULT_STRING_OK ":)"
 #  define MUNIT_RESULT_STRING_SKIP ":|"
@@ -1353,38 +1370,12 @@ static void munit_test_runner_print_color(const MunitTestRunner *runner,
     fputs(string, MUNIT_OUTPUT_FILE);
 }
 
-#if !defined(MUNIT_NO_BUFFER)
-static int munit_replace_stderr(FILE *stderr_buf) {
-  if (stderr_buf != NULL) {
-    const int orig_stderr = dup(STDERR_FILENO);
-
-    int errfd = fileno(stderr_buf);
-    if (MUNIT_UNLIKELY(errfd == -1)) {
-      exit(EXIT_FAILURE);
-    }
-
-    dup2(errfd, STDERR_FILENO);
-
-    return orig_stderr;
-  }
-
-  return -1;
-}
-
-static void munit_restore_stderr(int orig_stderr) {
-  if (orig_stderr != -1) {
-    dup2(orig_stderr, STDERR_FILENO);
-    close(orig_stderr);
-  }
-}
-#endif /* !defined(MUNIT_NO_BUFFER) */
-
 /* Run a test with the specified parameters. */
 static void
 munit_test_runner_run_test_with_params(MunitTestRunner *runner,
                                        const MunitTest *test,
                                        const MunitParameter params[]) {
-  MunitResult result = MUNIT_OK;
+  MunitResult result MUNIT_UNUSED = MUNIT_OK;
   MunitReport report = {0, 0, 0, 0,
 #if defined(MUNIT_ENABLE_TIMING)
                         0, 0
@@ -1428,20 +1419,15 @@ munit_test_runner_run_test_with_params(MunitTestRunner *runner,
   fflush(MUNIT_OUTPUT_FILE);
 
   stderr_buf = NULL;
-#if !defined(_WIN32) || defined(__MINGW32__)
-  stderr_buf = tmpfile();
-#else
-  tmpfile_s(&stderr_buf);
-#endif
-  if (stderr_buf == NULL) {
-    munit_log_errno(MUNIT_LOG_ERROR, stderr,
-                    "unable to create buffer for stderr");
-    result = MUNIT_ERROR;
-    goto print_result;
-  }
-
 #if !defined(MUNIT_NO_FORK)
   if (runner->fork) {
+    stderr_buf = tmpfile();
+    if (stderr_buf == NULL) {
+      munit_log_errno(MUNIT_LOG_ERROR, stderr,
+                      "unable to create buffer for stderr");
+      result = MUNIT_ERROR;
+      goto print_result;
+    }
     pipefd[0] = -1;
     pipefd[1] = -1;
     if (pipe(pipefd) != 0) {
@@ -1452,17 +1438,17 @@ munit_test_runner_run_test_with_params(MunitTestRunner *runner,
 
     fork_pid = fork();
     if (fork_pid == 0) {
-      int orig_stderr;
-
       close(pipefd[0]);
 
-      orig_stderr = munit_replace_stderr(stderr_buf);
+      if (dup2(fileno(stderr_buf), STDERR_FILENO) == -1) {
+        munit_log_errno(MUNIT_LOG_ERROR, stderr,
+                        "unable to prepare child stderr");
+        exit(EXIT_FAILURE);
+      }
       munit_test_runner_exec(runner, test, params, &report);
 
-      /* Note that we don't restore stderr.  This is so we can buffer
-       * things written to stderr later on (such as by
+      /* Leave stderr redirected to capture exit-time diagnostics (such as by
        * asan/tsan/ubsan, valgrind, etc.) */
-      close(orig_stderr);
 
       do {
         write_res =
@@ -1538,25 +1524,7 @@ munit_test_runner_run_test_with_params(MunitTestRunner *runner,
   } else
 #endif
   {
-#if !defined(MUNIT_NO_BUFFER)
-    const volatile int orig_stderr = munit_replace_stderr(stderr_buf);
-#endif
-
-#if defined(MUNIT_THREAD_LOCAL)
-    if (MUNIT_UNLIKELY(setjmp(munit_error_jmp_buf) != 0)) {
-      result = MUNIT_FAIL;
-      report.failed++;
-    } else {
-      munit_error_jmp_buf_valid = 1;
-      result = munit_test_runner_exec(runner, test, params, &report);
-    }
-#else
-    result = munit_test_runner_exec(runner, test, params, &report);
-#endif
-
-#if !defined(MUNIT_NO_BUFFER)
-    munit_restore_stderr(orig_stderr);
-#endif
+    result = munit_test_runner_exec_no_fork(runner, test, params, &report);
 
     /* Here just so that the label is used on Windows and we don't get
      * a warning */
