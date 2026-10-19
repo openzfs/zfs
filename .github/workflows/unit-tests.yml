@@ -37,7 +37,8 @@ jobs:
     - name: Install dependencies
       if: steps.reuse.outputs.url == ''
       run: |
-        ONLY_DEPS=1 .github/workflows/scripts/qemu-3-deps-vm.sh ubuntu24
+          sudo apt-get update
+          .github/workflows/scripts/debian-user-deps.sh
     - name: Autogen
       if: steps.reuse.outputs.url == ''
       run: |
