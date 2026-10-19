@@ -19,7 +19,6 @@
 #include <assert.h>
 #include <pthread.h>
 #include <errno.h>
-#include <string.h>
 #include <sys/timer.h>
 #include <sys/condvar.h>
 
@@ -45,9 +44,9 @@ cv_destroy(kcondvar_t *cv)
 void
 cv_wait(kcondvar_t *cv, kmutex_t *mp)
 {
-	memset(&mp->m_owner, 0, sizeof (pthread_t));
+	__atomic_store_n(&mp->m_owner, 0, __ATOMIC_RELAXED);
 	VERIFY0(pthread_cond_wait(cv, &mp->m_lock));
-	mp->m_owner = pthread_self();
+	__atomic_store_n(&mp->m_owner, pthread_self(), __ATOMIC_RELAXED);
 }
 
 int
@@ -78,9 +77,9 @@ cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime)
 		ts.tv_nsec -= NANOSEC;
 	}
 
-	memset(&mp->m_owner, 0, sizeof (pthread_t));
+	__atomic_store_n(&mp->m_owner, 0, __ATOMIC_RELAXED);
 	error = pthread_cond_timedwait(cv, &mp->m_lock, &ts);
-	mp->m_owner = pthread_self();
+	__atomic_store_n(&mp->m_owner, pthread_self(), __ATOMIC_RELAXED);
 
 	if (error == ETIMEDOUT)
 		return (-1);
@@ -118,9 +117,9 @@ cv_timedwait_hires(kcondvar_t *cv, kmutex_t *mp, hrtime_t tim, hrtime_t res,
 		ts.tv_nsec -= NANOSEC;
 	}
 
-	memset(&mp->m_owner, 0, sizeof (pthread_t));
+	__atomic_store_n(&mp->m_owner, 0, __ATOMIC_RELAXED);
 	error = pthread_cond_timedwait(cv, &mp->m_lock, &ts);
-	mp->m_owner = pthread_self();
+	__atomic_store_n(&mp->m_owner, pthread_self(), __ATOMIC_RELAXED);
 
 	if (error == ETIMEDOUT)
 		return (-1);

@@ -31,7 +31,9 @@ typedef struct kmutex {
 
 #define	MUTEX_DEFAULT		0
 #define	MUTEX_NOLOCKDEP		MUTEX_DEFAULT
-#define	MUTEX_HELD(mp)		pthread_equal((mp)->m_owner, pthread_self())
+/* Ownership may be queried without holding the mutex. */
+#define	MUTEX_HELD(mp)		pthread_equal( \
+	__atomic_load_n(&(mp)->m_owner, __ATOMIC_RELAXED), pthread_self())
 #define	MUTEX_NOT_HELD(mp)	!MUTEX_HELD(mp)
 
 extern void mutex_init(kmutex_t *mp, char *name, int type, void *cookie);
