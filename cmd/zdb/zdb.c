@@ -6348,6 +6348,8 @@ typedef struct zdb_vdir {
 	/* zvdr_born[i]: the space born in the first i snapshots */
 	uint64_t	*zvdr_born;
 	boolean_t	zvdr_inconsistent;
+	/* a deadlist of its datasets could not be read in full */
+	boolean_t	zvdr_unclassified;
 } zdb_vdir_t;
 
 typedef struct zdb_cb {
@@ -6673,11 +6675,13 @@ static uint64_t zdb_bp_vdev_asize(zdb_cb_t *, const blkptr_t *, boolean_t);
 /*
  * The space that the members of a gang block occupy on the --vdev target.
  * The header names the members, so it is read here, once per gang block
- * pointer counted. If it cannot be read, the members' space, as given by
- * the gang DVAs, goes to its own group when count_unread is set.
+ * pointer counted, unless readable is false. If it is not read, the
+ * members' space, as given by the gang DVAs, goes to its own group when
+ * count_unread is set.
  */
 static uint64_t
-zdb_gang_vdev_asize(zdb_cb_t *zcb, const blkptr_t *bp, boolean_t count_unread)
+zdb_gang_vdev_asize(zdb_cb_t *zcb, const blkptr_t *bp, boolean_t count_unread,
+    boolean_t readable)
 {
 	spa_t *spa = zcb->zcb_spa;
 	uint64_t gbsize = SPA_OLD_GANGBLOCKSIZE;
@@ -6713,7 +6717,7 @@ zdb_gang_vdev_asize(zdb_cb_t *zcb, const blkptr_t *bp, boolean_t count_unread)
 	 */
 	int err = EIO;
 	abd_t *abd = NULL;
-	if (gbsize != UINT64_MAX) {
+	if (gbsize != UINT64_MAX && readable) {
 		zio_gang_node_t gn = { .gn_gangblocksize = gbsize };
 
 		abd = abd_alloc_linear(gbsize, B_TRUE);
@@ -6759,6 +6763,7 @@ zdb_bp_vdev_asize(zdb_cb_t *zcb, const blkptr_t *bp, boolean_t count_unread)
 {
 	spa_t *spa = zcb->zcb_spa;
 	uint64_t asize = 0;
+	boolean_t unmapped = B_FALSE;
 
 	if (BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp) || BP_IS_REDACTED(bp))
 		return (0);
@@ -6778,6 +6783,7 @@ zdb_bp_vdev_asize(zdb_cb_t *zcb, const blkptr_t *bp, boolean_t count_unread)
 		    !zdb_indirect_mapped(spa, vd, DVA_GET_OFFSET(dva), size,
 		    0)) {
 			zcb->zcb_vremap_errors++;
+			unmapped = B_TRUE;
 		} else if (vd->vdev_ops == &vdev_indirect_ops) {
 			zdb_vremap_arg_t zvra = {
 				.zvra_target = block_vdev,
@@ -6792,8 +6798,9 @@ zdb_bp_vdev_asize(zdb_cb_t *zcb, const blkptr_t *bp, boolean_t count_unread)
 	}
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
+	/* Reading through a copy that is not mapped would assert. */
 	if (BP_IS_GANG(bp))
-		asize += zdb_gang_vdev_asize(zcb, bp, count_unread);
+		asize += zdb_gang_vdev_asize(zcb, bp, count_unread, !unmapped);
 
 	return (asize);
 }
@@ -8719,7 +8726,11 @@ zdb_vdl_count_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
 			return (0);
 	}
 
+	/* A block whose share of the vdev is not known is not classified. */
+	uint64_t errors = zcb->zcb_vgang_errors + zcb->zcb_vremap_errors;
 	asize = zdb_bp_vdev_asize(zcb, bp, B_FALSE);
+	if (zcb->zcb_vgang_errors + zcb->zcb_vremap_errors != errors)
+		zvd->zvd_vdir->zvdr_unclassified = B_TRUE;
 	if (asize != 0) {
 		zvd->zvd_dead.zvs_blocks++;
 		zvd->zvd_dead.zvs_asize += asize;
@@ -8733,6 +8744,8 @@ zdb_vdl_count_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
  * The deadlist of a dataset holds the blocks that its previous snapshot
  * references and it does not. Count those that only snapshots of its own
  * directory can hold. Only the -bb split of the snapshot rows needs this.
+ * If the deadlist cannot be read in full, the blocks it would have counted
+ * would pass for live, so the directory is marked as not classified.
  */
 static void
 zdb_vds_count_dead(spa_t *spa, zdb_cb_t *zcb, zdb_vds_t *zvd)
@@ -8762,20 +8775,23 @@ zdb_vds_count_dead(spa_t *spa, zdb_cb_t *zcb, zdb_vds_t *zvd)
 	dsl_pool_config_enter(dp, FTAG);
 	if (dsl_dataset_hold_obj(dp, zvd->zvd_obj, FTAG, &ds) != 0) {
 		dsl_pool_config_exit(dp, FTAG);
+		zvdr->zvdr_unclassified = B_TRUE;
 		return;
 	}
 	dsl_pool_config_exit(dp, FTAG);
 
 	zdb_vdl_arg_t zvda = { .zvda_zcb = zcb, .zvda_vds = zvd };
 	dsl_deadlist_t *dl = &ds->ds_deadlist;
+	int err = 0;
 	zcb->zcb_vdl_datasets++;
 	if (dl->dl_oldfmt) {
 		zcb->zcb_vdl_entries++;
-		(void) bpobj_iterate_nofree(&dl->dl_bpobj, zdb_vdl_count_cb,
+		err = bpobj_iterate_nofree(&dl->dl_bpobj, zdb_vdl_count_cb,
 		    &zvda, NULL);
 	} else {
 		zap_cursor_t zc;
 		zap_attribute_t *za = zap_attribute_alloc();
+		int zerr;
 
 		/*
 		 * Each key of the ZAP names a bpobj, most of them empty
@@ -8783,7 +8799,7 @@ zdb_vds_count_dead(spa_t *spa, zdb_cb_t *zcb, zdb_vds_t *zvd)
 		 * opening them, as dsl_deadlist_iterate() does not.
 		 */
 		for (zap_cursor_init(&zc, dl->dl_os, dl->dl_object);
-		    zap_cursor_retrieve(&zc, za) == 0;
+		    (zerr = zap_cursor_retrieve(&zc, za)) == 0;
 		    zap_cursor_advance(&zc)) {
 			bpobj_t bpo;
 
@@ -8791,15 +8807,22 @@ zdb_vds_count_dead(spa_t *spa, zdb_cb_t *zcb, zdb_vds_t *zvd)
 				continue;
 			zcb->zcb_vdl_entries++;
 			if (bpobj_open(&bpo, dl->dl_os,
-			    za->za_first_integer) != 0)
+			    za->za_first_integer) != 0) {
+				err = EIO;
 				continue;
-			(void) bpobj_iterate_nofree(&bpo, zdb_vdl_count_cb,
-			    &zvda, NULL);
+			}
+			if (bpobj_iterate_nofree(&bpo, zdb_vdl_count_cb,
+			    &zvda, NULL) != 0)
+				err = EIO;
 			bpobj_close(&bpo);
 		}
+		if (zerr != ENOENT)
+			err = zerr;
 		zap_cursor_fini(&zc);
 		zap_attribute_free(za);
 	}
+	if (err != 0)
+		zvdr->zvdr_unclassified = B_TRUE;
 	dsl_dataset_rele(ds, FTAG);
 }
 
@@ -8995,7 +9018,11 @@ zdb_vdir_print(zdb_cb_t *zcb, zdb_vdir_t *zvdr, boolean_t split)
 		}
 		if (held.zvs_asize != 0) {
 			zdb_vdev_print_stat(&held);
-			if (branched) {
+			if (zvdr->zvdr_unclassified) {
+				(void) printf("%.*s: born in snapshots, not "
+				    "classified (deadlist unreadable)\n", len,
+				    name);
+			} else if (branched) {
 				(void) printf("%.*s: live or held through "
 				    "clones of ", len, name);
 				zdb_vdir_print_clones(zvdr);
@@ -9010,8 +9037,8 @@ zdb_vdir_print(zdb_cb_t *zcb, zdb_vdir_t *zvdr, boolean_t split)
 		 * The blocks that a dataset killed were born no earlier than
 		 * the first snapshot taken after the oldest of them, and are
 		 * held up to its previous snapshot. Ranges that overlap or
-		 * touch are merged, so that each row is what destroying that
-		 * range of snapshots would free.
+		 * touch are merged, so that each row is the space that only
+		 * that range of snapshots holds.
 		 */
 		zdb_vrange_t *ranges = kmem_zalloc((zvdr->zvdr_nsnaps + 1) *
 		    sizeof (zdb_vrange_t), KM_SLEEP);
@@ -9165,6 +9192,13 @@ zdb_vdev_report(spa_t *spa, zdb_cb_t *zcb)
 			(void) printf("\n\tnote: inconsistent: %.*s dead > "
 			    "born\n", (int)zvdr->zvdr_namelen,
 			    zvdr->zvdr_name);
+		}
+		if (zvdr->zvdr_unclassified) {
+			(void) printf("\n\tnote: a deadlist of %.*s could not "
+			    "be read in full; the\n\t      snapshot-only rows "
+			    "of %.*s may be short\n",
+			    (int)zvdr->zvdr_namelen, zvdr->zvdr_name,
+			    (int)zvdr->zvdr_namelen, zvdr->zvdr_name);
 		}
 	}
 	if (!zdb_pool_exported) {
@@ -10944,8 +10978,8 @@ name:
 }
 
 /*
- * Find the top-level vdevs whose leaves have exactly this path or base
- * name. Stops at the first ambiguity.
+ * Find the top-level vdevs whose leaves have exactly this path, base name
+ * or name in zpool status. Stops at the first ambiguity.
  */
 static vdev_t *
 zdb_vdev_leaf_top(vdev_t *vd, const char *name, boolean_t *ambiguous)
@@ -10953,15 +10987,24 @@ zdb_vdev_leaf_top(vdev_t *vd, const char *name, boolean_t *ambiguous)
 	vdev_t *found = NULL;
 
 	if (vd->vdev_ops->vdev_op_leaf) {
-		const char *p;
+		const char *p, *s;
+		boolean_t match;
 
 		if (vd->vdev_path == NULL)
 			return (NULL);
 		p = strrchr(vd->vdev_path, '/');
 		p = (p != NULL) ? p + 1 : vd->vdev_path;
-		if (strcmp(vd->vdev_path, name) == 0 || strcmp(p, name) == 0)
-			return (vd->vdev_top);
-		return (NULL);
+		s = zfs_strip_path(vd->vdev_path);
+		match = strcmp(vd->vdev_path, name) == 0 ||
+		    strcmp(p, name) == 0 || strcmp(s, name) == 0;
+		/* zpool status names a whole disk without its partition. */
+		if (!match && vd->vdev_wholedisk == 1) {
+			char *disk = zfs_strip_partition(s);
+
+			match = disk != NULL && strcmp(disk, name) == 0;
+			free(disk);
+		}
+		return (match ? vd->vdev_top : NULL);
 	}
 
 	for (uint64_t c = 0; c < vd->vdev_children; c++) {
@@ -10980,8 +11023,9 @@ zdb_vdev_leaf_top(vdev_t *vd, const char *name, boolean_t *ambiguous)
 /*
  * Resolve the --vdev argument to a concrete top-level vdev. It may be a
  * top-level index, a vdev GUID, the name that zpool status shows for it
- * (mirror-1, raidz1-0, draid2:4d:8c:1s-0), or the path or base name of a
- * leaf. All the forms that match must name the same top-level vdev.
+ * (mirror-1, raidz1-0, draid2:4d:8c:1s-0), or the path, base name or
+ * zpool status name of a leaf. All the forms that match must name the same
+ * top-level vdev.
  */
 static uint64_t
 zdb_block_vdev_resolve(spa_t *spa, const char *arg)
@@ -11026,7 +11070,7 @@ zdb_block_vdev_resolve(spa_t *spa, const char *arg)
 		}
 	}
 
-	/* The exact path or base name of a leaf. */
+	/* The exact path, base name or zpool status name of a leaf. */
 	vdev_t *leaf_tvd = zdb_vdev_leaf_top(rvd, arg, &ambiguous);
 	if (leaf_tvd != NULL) {
 		if (tvd != NULL && tvd != leaf_tvd)
@@ -11945,7 +11989,8 @@ main(int argc, char **argv)
 
 	argc -= optind;
 	argv += optind;
-	if (block_vdev_arg != NULL && argc < 1) {
+	if (block_vdev_arg != NULL &&
+	    (argc < 1 || strpbrk(argv[0], "/@#") != NULL)) {
 		(void) fprintf(stderr, "--vdev needs a pool name\n");
 		usage();
 	}
@@ -12317,10 +12362,8 @@ retry_lookup:
 	argc--;
 	if (block_vdev_arg != NULL) {
 		/* Otherwise the block statistics would not be reached. */
-		if (os != NULL || (argc > 0 &&
-		    (dump_opt['d'] || dump_opt['f'])))
-			fatal("--vdev needs a pool name, without a dataset "
-			    "or object arguments");
+		if (argc > 0 && (dump_opt['d'] || dump_opt['f']))
+			fatal("--vdev cannot be used with object arguments");
 		block_vdev = zdb_block_vdev_resolve(spa, block_vdev_arg);
 	}
 	if (dump_opt['r']) {
