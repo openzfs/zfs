@@ -238,6 +238,17 @@ update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
 		uint64_t nbytes = MIN(PAGE_SIZE - off, len);
 
 		struct page *pp = find_lock_page(mp, start >> PAGE_SHIFT);
+		if (pp != NULL && !PageUptodate(pp) && !PageDirty(pp)) {
+			/*
+			 * Nobody has filled this page yet.  Copying in only
+			 * the bytes written here would mark the rest of it up
+			 * to date.  Its filler needs the range lock our caller
+			 * holds as writer, so it will read this data instead.
+			 */
+			unlock_page(pp);
+			put_page(pp);
+			pp = NULL;
+		}
 		if (pp) {
 			if (mapping_writably_mapped(mp))
 				flush_dcache_page(pp);
