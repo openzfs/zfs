@@ -1153,9 +1153,11 @@ static void munit_print_time(FILE *fp, munit_uint64_t nanoseconds) {
 static MunitResult munit_parameters_add(size_t *params_size,
                                         MunitParameter **params, char *name,
                                         char *value) {
-  *params = realloc(*params, sizeof(MunitParameter) * (*params_size + 2));
-  if (*params == NULL)
+  MunitParameter *new_params =
+    realloc(*params, sizeof(MunitParameter) * (*params_size + 2));
+  if (new_params == NULL)
     return MUNIT_ERROR;
+  *params = new_params;
 
   (*params)[*params_size].name = name;
   (*params)[*params_size].value = value;
@@ -1214,37 +1216,36 @@ static munit_uint32_t munit_str_hash(const char *name) {
   return h;
 }
 
-static void munit_splice(int from, int to) {
+#if !defined(MUNIT_NO_FORK)
+static int munit_splice(int from, int to) {
   munit_uint8_t buf[1024];
-#if !defined(_WIN32)
   ssize_t len;
   ssize_t bytes_written;
   ssize_t write_res;
-#else
-  int len;
-  int bytes_written;
-  int write_res;
-#endif
   do {
     len = read(from, buf, sizeof(buf));
     if (len > 0) {
       bytes_written = 0;
       do {
         write_res = write(to, buf + bytes_written,
-#if !defined(_WIN32)
-                          (size_t)
-#else
-                          (unsigned int)
-#endif
-                            (len - bytes_written));
-        if (write_res < 0)
-          break;
+                          (size_t)(len - bytes_written));
+        if (write_res < 0 && errno == EINTR)
+          continue;
+        if (write_res <= 0) {
+          if (write_res == 0)
+            errno = EIO;
+          return -1;
+        }
         bytes_written += write_res;
       } while (bytes_written < len);
-    } else
-      break;
+    } else if (len == 0) {
+      return 0;
+    } else if (errno != EINTR) {
+      return -1;
+    }
   } while (1);
 }
+#endif
 
 /* This is the part that should be handled in the child process */
 static MunitResult munit_test_runner_exec(MunitTestRunner *runner,
@@ -1318,7 +1319,9 @@ static MunitResult munit_test_runner_exec(MunitTestRunner *runner,
         report->errored++;
         break;
       default:
-        break;
+        munit_logf_internal(MUNIT_LOG_ERROR, stderr,
+                            "invalid test result: %d", (int)result);
+        exit(EXIT_FAILURE);
       }
       break;
     }
@@ -1384,7 +1387,9 @@ munit_test_runner_run_test_with_params(MunitTestRunner *runner,
   unsigned int output_l;
   munit_bool first;
   const MunitParameter *param;
-  FILE *stderr_buf;
+  FILE *stderr_buf = NULL;
+  munit_bool framework_error = 0;
+  unsigned int *outcome = NULL;
 #if !defined(MUNIT_NO_FORK)
   int pipefd[2];
   pid_t fork_pid;
@@ -1416,77 +1421,109 @@ munit_test_runner_run_test_with_params(MunitTestRunner *runner,
     }
   }
 
-  fflush(MUNIT_OUTPUT_FILE);
+  if (fflush(MUNIT_OUTPUT_FILE) != 0) {
+    munit_log_errno(MUNIT_LOG_ERROR, stderr,
+                    "unable to flush test output");
+    framework_error = 1;
+    goto print_result;
+  }
 
-  stderr_buf = NULL;
 #if !defined(MUNIT_NO_FORK)
   if (runner->fork) {
     stderr_buf = tmpfile();
     if (stderr_buf == NULL) {
       munit_log_errno(MUNIT_LOG_ERROR, stderr,
                       "unable to create buffer for stderr");
-      result = MUNIT_ERROR;
+      framework_error = 1;
       goto print_result;
     }
-    pipefd[0] = -1;
-    pipefd[1] = -1;
     if (pipe(pipefd) != 0) {
       munit_log_errno(MUNIT_LOG_ERROR, stderr, "unable to create pipe");
-      result = MUNIT_ERROR;
+      framework_error = 1;
       goto print_result;
     }
 
     fork_pid = fork();
     if (fork_pid == 0) {
-      close(pipefd[0]);
-
-      if (dup2(fileno(stderr_buf), STDERR_FILENO) == -1) {
+      if (close(pipefd[0]) != 0 ||
+          dup2(fileno(stderr_buf), STDERR_FILENO) == -1) {
         munit_log_errno(MUNIT_LOG_ERROR, stderr,
                         "unable to prepare child stderr");
         exit(EXIT_FAILURE);
       }
+
       munit_test_runner_exec(runner, test, params, &report);
 
       /* Leave stderr redirected to capture exit-time diagnostics (such as by
        * asan/tsan/ubsan, valgrind, etc.) */
+      if (fflush(stderr) != 0 || ferror(stderr)) {
+        munit_log_errno(MUNIT_LOG_ERROR, stderr,
+                        "unable to flush child stderr");
+        exit(EXIT_FAILURE);
+      }
 
       do {
         write_res =
           write(pipefd[1], ((munit_uint8_t *)(&report)) + bytes_written,
                 sizeof(report) - (size_t)bytes_written);
-        if (write_res < 0) {
-          if (stderr_buf != NULL) {
-            munit_log_errno(MUNIT_LOG_ERROR, stderr, "unable to write to pipe");
-          }
+        if (write_res < 0 && errno == EINTR)
+          continue;
+        if (write_res <= 0) {
+          if (write_res == 0)
+            errno = EIO;
+          munit_log_errno(MUNIT_LOG_ERROR, stderr, "unable to write to pipe");
           exit(EXIT_FAILURE);
         }
         bytes_written += write_res;
       } while ((size_t)bytes_written < sizeof(report));
 
-      if (stderr_buf != NULL)
-        fclose(stderr_buf);
-      close(pipefd[1]);
+      if (fclose(stderr_buf) != 0 || close(pipefd[1]) != 0) {
+        munit_log_errno(MUNIT_LOG_ERROR, stderr,
+                        "unable to close child reporting channel");
+        exit(EXIT_FAILURE);
+      }
 
       exit(EXIT_SUCCESS);
     } else if (fork_pid == -1) {
+      munit_log_errno(MUNIT_LOG_ERROR, stderr, "unable to fork");
       close(pipefd[0]);
       close(pipefd[1]);
-      if (stderr_buf != NULL) {
-        munit_log_errno(MUNIT_LOG_ERROR, stderr, "unable to fork");
-      }
-      report.errored++;
-      result = MUNIT_ERROR;
+      framework_error = 1;
     } else {
-      close(pipefd[1]);
+      if (close(pipefd[1]) != 0) {
+        munit_log_errno(MUNIT_LOG_ERROR, stderr, "unable to close pipe writer");
+        framework_error = 1;
+      }
       do {
         read_res = read(pipefd[0], ((munit_uint8_t *)(&report)) + bytes_read,
                         sizeof(report) - (size_t)bytes_read);
-        if (read_res < 1)
+        if (read_res < 0 && errno == EINTR)
+          continue;
+        if (read_res < 0) {
+          munit_log_errno(MUNIT_LOG_ERROR, stderr, "unable to read from pipe");
+          framework_error = 1;
+          break;
+        }
+        if (read_res == 0)
           break;
         bytes_read += read_res;
       } while (bytes_read < (ssize_t)sizeof(report));
 
-      changed_pid = waitpid(fork_pid, &status, 0);
+      do {
+        changed_pid = waitpid(fork_pid, &status, 0);
+        if (changed_pid == -1 && errno == EINTR)
+          continue;
+        if (changed_pid == -1) {
+          munit_log_errno(MUNIT_LOG_ERROR, stderr, "unable to wait for child");
+          framework_error = 1;
+          break;
+        }
+        if (WIFEXITED(status) || WIFSIGNALED(status))
+          break;
+        munit_log_internal(MUNIT_LOG_ERROR, stderr,
+                           "child has not terminated");
+        framework_error = 1;
+      } while (1);
 
       if (MUNIT_LIKELY(changed_pid == fork_pid) &&
           MUNIT_LIKELY(WIFEXITED(status))) {
@@ -1495,14 +1532,18 @@ munit_test_runner_run_test_with_params(MunitTestRunner *runner,
                               "child exited unexpectedly with status %d",
                               WEXITSTATUS(status));
           report.errored++;
+          framework_error = 1;
         } else if (WEXITSTATUS(status) != EXIT_SUCCESS) {
           munit_logf_internal(MUNIT_LOG_ERROR, stderr_buf,
                               "child exited with status %d",
                               WEXITSTATUS(status));
           report.errored++;
+          framework_error = 1;
         }
       } else {
-        if (WIFSIGNALED(status)) {
+        if (changed_pid == fork_pid && WIFSIGNALED(status)) {
+          if (bytes_read == sizeof(report))
+            framework_error = 1;
 #  if defined(_XOPEN_VERSION) && (_XOPEN_VERSION >= 700)
           munit_logf_internal(MUNIT_LOG_ERROR, stderr_buf,
                               "child killed by signal %d (%s)",
@@ -1511,52 +1552,52 @@ munit_test_runner_run_test_with_params(MunitTestRunner *runner,
           munit_logf_internal(MUNIT_LOG_ERROR, stderr_buf,
                               "child killed by signal %d", WTERMSIG(status));
 #  endif
-        } else if (WIFSTOPPED(status)) {
-          munit_logf_internal(MUNIT_LOG_ERROR, stderr_buf,
-                              "child stopped by signal %d", WSTOPSIG(status));
         }
         report.errored++;
       }
 
-      close(pipefd[0]);
-      waitpid(fork_pid, NULL, 0);
+      if (close(pipefd[0]) != 0) {
+        munit_log_errno(MUNIT_LOG_ERROR, stderr, "unable to close pipe reader");
+        framework_error = 1;
+      }
     }
   } else
 #endif
   {
     result = munit_test_runner_exec_no_fork(runner, test, params, &report);
-
-    /* Here just so that the label is used on Windows and we don't get
-     * a warning */
-    goto print_result;
   }
 
 print_result:
 
   fputs("[ ", MUNIT_OUTPUT_FILE);
-  if ((test->options & MUNIT_TEST_OPTION_TODO) == MUNIT_TEST_OPTION_TODO) {
+  if (framework_error) {
+    munit_test_runner_print_color(runner, MUNIT_RESULT_STRING_ERROR, '1');
+    outcome = &runner->report.errored;
+    result = MUNIT_ERROR;
+  } else if ((test->options & MUNIT_TEST_OPTION_TODO) ==
+             MUNIT_TEST_OPTION_TODO) {
     if (report.failed != 0 || report.errored != 0 || report.skipped != 0) {
       munit_test_runner_print_color(runner, MUNIT_RESULT_STRING_TODO, '3');
       result = MUNIT_OK;
     } else {
       munit_test_runner_print_color(runner, MUNIT_RESULT_STRING_ERROR, '1');
-      if (MUNIT_LIKELY(stderr_buf != NULL))
-        munit_log_internal(MUNIT_LOG_ERROR, stderr_buf,
-                           "Test marked TODO, but was successful.");
-      runner->report.failed++;
+      munit_log_internal(MUNIT_LOG_ERROR,
+                         stderr_buf != NULL ? stderr_buf : stderr,
+                         "Test marked TODO, but was successful.");
+      outcome = &runner->report.failed;
       result = MUNIT_ERROR;
     }
   } else if (report.failed > 0) {
     munit_test_runner_print_color(runner, MUNIT_RESULT_STRING_FAIL, '1');
-    runner->report.failed++;
+    outcome = &runner->report.failed;
     result = MUNIT_FAIL;
   } else if (report.errored > 0) {
     munit_test_runner_print_color(runner, MUNIT_RESULT_STRING_ERROR, '1');
-    runner->report.errored++;
+    outcome = &runner->report.errored;
     result = MUNIT_ERROR;
   } else if (report.skipped > 0) {
     munit_test_runner_print_color(runner, MUNIT_RESULT_STRING_SKIP, '3');
-    runner->report.skipped++;
+    outcome = &runner->report.skipped;
     result = MUNIT_SKIP;
   } else if (report.successful > 1) {
     munit_test_runner_print_color(runner, MUNIT_RESULT_STRING_OK, '2');
@@ -1573,7 +1614,7 @@ print_result:
     munit_print_time(MUNIT_OUTPUT_FILE, report.cpu_clock);
     fputs(" CPU", MUNIT_OUTPUT_FILE);
 #endif
-    runner->report.successful++;
+    outcome = &runner->report.successful;
     result = MUNIT_OK;
   } else if (report.successful > 0) {
     munit_test_runner_print_color(runner, MUNIT_RESULT_STRING_OK, '2');
@@ -1584,23 +1625,43 @@ print_result:
     munit_print_time(MUNIT_OUTPUT_FILE, report.cpu_clock);
     fputs(" CPU", MUNIT_OUTPUT_FILE);
 #endif
-    runner->report.successful++;
+    outcome = &runner->report.successful;
     result = MUNIT_OK;
   }
   fputs(" ]\n", MUNIT_OUTPUT_FILE);
 
+#if !defined(MUNIT_NO_FORK)
   if (stderr_buf != NULL) {
-    if (result == MUNIT_FAIL || result == MUNIT_ERROR || runner->show_stderr) {
-      fflush(MUNIT_OUTPUT_FILE);
-
-      rewind(stderr_buf);
-      munit_splice(fileno(stderr_buf), STDERR_FILENO);
-
-      fflush(stderr);
+    if (fflush(stderr_buf) != 0 || ferror(stderr_buf)) {
+      munit_log_errno(MUNIT_LOG_ERROR, stderr,
+                      "unable to flush captured stderr");
+      framework_error = 1;
+    }
+    if (framework_error || result == MUNIT_FAIL || result == MUNIT_ERROR ||
+        runner->show_stderr) {
+      if (fflush(MUNIT_OUTPUT_FILE) != 0) {
+        munit_log_errno(MUNIT_LOG_ERROR, stderr, "unable to flush test output");
+        framework_error = 1;
+      }
+      if (fseek(stderr_buf, 0, SEEK_SET) != 0 ||
+          munit_splice(fileno(stderr_buf), STDERR_FILENO) != 0) {
+        munit_log_errno(MUNIT_LOG_ERROR, stderr,
+                        "unable to replay captured stderr");
+        framework_error = 1;
+      }
     }
 
-    fclose(stderr_buf);
+    if (fclose(stderr_buf) != 0) {
+      munit_log_errno(MUNIT_LOG_ERROR, stderr,
+                      "unable to close captured stderr");
+      framework_error = 1;
+    }
   }
+#endif
+  if (framework_error)
+    outcome = &runner->report.errored;
+  if (outcome != NULL)
+    (*outcome)++;
 }
 
 static void munit_test_runner_run_test_wild(MunitTestRunner *runner,
@@ -1681,7 +1742,7 @@ static void munit_test_runner_run_test(MunitTestRunner *runner,
         if (strcmp(cli_p->name, pe->name) == 0) {
           if (MUNIT_UNLIKELY(munit_parameters_add(&params_l, &params, pe->name,
                                                   cli_p->value) != MUNIT_OK))
-            goto cleanup;
+            goto parameter_error;
           filled = 1;
           break;
         }
@@ -1707,13 +1768,13 @@ static void munit_test_runner_run_test(MunitTestRunner *runner,
         pidx = (int)munit_rand_at_most(munit_str_hash(test_name), possible - 1);
         if (MUNIT_UNLIKELY(munit_parameters_add(&params_l, &params, pe->name,
                                                 pe->values[pidx]) != MUNIT_OK))
-          goto cleanup;
+          goto parameter_error;
       } else {
         /* We want to try every permutation.  Put in a placeholder
          * entry, we'll iterate through them later. */
         if (MUNIT_UNLIKELY(munit_parameters_add(&wild_params_l, &wild_params,
                                                 pe->name, NULL) != MUNIT_OK))
-          goto cleanup;
+          goto parameter_error;
       }
     }
 
@@ -1726,7 +1787,7 @@ static void munit_test_runner_run_test(MunitTestRunner *runner,
             if (MUNIT_UNLIKELY(munit_parameters_add(&params_l, &params,
                                                     pe->name,
                                                     pe->values[0]) != MUNIT_OK))
-              goto cleanup;
+              goto parameter_error;
           }
         }
       }
@@ -1737,6 +1798,11 @@ static void munit_test_runner_run_test(MunitTestRunner *runner,
       munit_test_runner_run_test_with_params(runner, test, params);
     }
 
+    goto cleanup;
+  parameter_error:
+    munit_log_errno(MUNIT_LOG_ERROR, stderr,
+                    "unable to prepare test parameters");
+    runner->report.errored++;
   cleanup:
     free(params);
     free(wild_params);
@@ -2034,18 +2100,13 @@ int munit_suite_main_custom(const MunitSuite *suite, void *user_data, int argc,
           goto cleanup;
         }
 
-        runner.parameters = realloc(runner.parameters, sizeof(MunitParameter) *
-                                                         (parameters_size + 2));
-        if (runner.parameters == NULL) {
+        if (munit_parameters_add(&parameters_size, &runner.parameters,
+                                  (char *)argv[arg + 1],
+                                  (char *)argv[arg + 2]) != MUNIT_OK) {
           munit_log_internal(MUNIT_LOG_ERROR, stderr,
                              "failed to allocate memory");
           goto cleanup;
         }
-        runner.parameters[parameters_size].name = (char *)argv[arg + 1];
-        runner.parameters[parameters_size].value = (char *)argv[arg + 2];
-        parameters_size++;
-        runner.parameters[parameters_size].name = NULL;
-        runner.parameters[parameters_size].value = NULL;
         arg += 2;
       } else if (strcmp("color", argv[arg] + 2) == 0) {
         if (arg + 1 >= argc) {
@@ -2170,6 +2231,12 @@ int munit_suite_main_custom(const MunitSuite *suite, void *user_data, int argc,
   }
 
 cleanup:
+  if (fflush(MUNIT_OUTPUT_FILE) != 0 || ferror(MUNIT_OUTPUT_FILE)) {
+    munit_log_errno(MUNIT_LOG_ERROR, stderr, "unable to flush test output");
+    result = EXIT_FAILURE;
+  }
+  if (fflush(stderr) != 0 || ferror(stderr))
+    result = EXIT_FAILURE;
   free(runner.parameters);
   free((void *)runner.tests);
 
