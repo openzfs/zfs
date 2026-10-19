@@ -23,7 +23,7 @@ verify_runnable "global"
 default_cleanup_noexit
 
 if tunable_exists BCLONE_ENABLED ; then
-	log_must restore_tunable BCLONE_ENABLED
+	log_must restore_group_tunable BCLONE_ENABLED
 fi
 
 log_pass
