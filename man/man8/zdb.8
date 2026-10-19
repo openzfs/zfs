@@ -245,12 +245,23 @@ the hidden clone of an interrupted
 .Pq released by Nm zfs Cm receive Fl A .
 They may be referenced by the dataset, by the clones, or only by
 snapshots.
+.It Ar dataset Ns Sy ": born in snapshots, not classified (deadlist unreadable)"
+With
+.Fl bb ,
+the rest of the blocks born in snapshots, when a deadlist of the dataset
+or of its snapshots could not be read in full.
+They may be live or held only by snapshots, and the
+.Sy only in snapshots
+rows of the dataset may be short.
 .It Ar dataset Ns Sy : only in snapshots Ar dataset Ns @ Ns Ar first Ns Op % Ns Ar last
 Blocks referenced only by the snapshot
 .Ar dataset Ns @ Ns Ar first ,
 or by the range of snapshots
-.Ar dataset Ns @ Ns Ar first Ns % Ns Ar last ;
-destroying that snapshot or range releases them.
+.Ar dataset Ns @ Ns Ar first Ns % Ns Ar last .
+Destroying that snapshot or range releases them, but a pool checkpoint
+keeps their space allocated until it is discarded.
+Blocks with a dedup table or block cloning entry, which other references
+may hold, are counted in those groups instead.
 .It Ar dataset Ns Sy : intent log
 Intent log blocks, released when the log is replayed or discarded.
 .El
