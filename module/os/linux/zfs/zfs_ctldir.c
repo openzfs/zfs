@@ -332,6 +332,7 @@
 int zfs_expire_snapshot = ZFSCTL_EXPIRE_SNAPSHOT;
 static int zfs_admin_snapshot = 0;
 static int zfs_snapshot_no_setuid = 0;
+int zfs_ctldir_spacefiles = 0;
 
 static void zfsctl_snapshot_timer_set(zfs_snapentry_t *se, unsigned long delay);
 static int zfsctl_snapshot_invalidate(zfs_snapentry_t *se,
@@ -880,6 +881,14 @@ zfsctl_root_lookup(struct inode *dip, const char *name, struct inode **ipp,
 	} else if (strcmp(name, ZFS_SHAREDIR_NAME) == 0) {
 		*ipp = zfsctl_inode_lookup(zfsvfs, ZFSCTL_INO_SHARES,
 		    &zpl_fops_shares, &zpl_ops_shares);
+	} else if (strcmp(name, ZFS_SPACEDIR_NAME) == 0 &&
+	    zfs_ctldir_spacefiles) {
+		*ipp = zfsctl_inode_lookup(zfsvfs, ZFSCTL_INO_SPACEDIR,
+		    &zpl_fops_spacedir, &zpl_ops_spacedir);
+	} else if (strcmp(name, ZFS_QUOTADIR_NAME) == 0 &&
+	    zfs_ctldir_spacefiles) {
+		*ipp = zfsctl_inode_lookup(zfsvfs, ZFSCTL_INO_QUOTADIR,
+		    &zpl_fops_quotadir, &zpl_ops_quotadir);
 	} else {
 		*ipp = NULL;
 	}
@@ -1704,6 +1713,82 @@ zfsctl_shares_lookup(struct inode *dip, char *name, struct inode **ipp,
 	return (error);
 }
 
+/*
+ * Lookup entry point for the '.zfs/space' directory.  Returns the
+ * pseudo-file inode for the given user/group/project space file.
+ */
+int
+zfsctl_spacedir_lookup(struct inode *dip, const char *name,
+    struct inode **ipp, int flags, cred_t *cr, int *direntflags,
+    pathname_t *realpnp)
+{
+	zfsvfs_t *zfsvfs = ITOZSB(dip);
+	int error;
+
+	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (error);
+
+	if (strcmp(name, ZFS_USERFILE_NAME) == 0) {
+		*ipp = zfsctl_inode_lookup(zfsvfs, ZFSCTL_INO_SPACE_USER,
+		    &zpl_fops_userspace_file, &zpl_ops_userspace_file);
+	} else if (strcmp(name, ZFS_GROUPFILE_NAME) == 0) {
+		*ipp = zfsctl_inode_lookup(zfsvfs, ZFSCTL_INO_SPACE_GROUP,
+		    &zpl_fops_groupspace_file, &zpl_ops_groupspace_file);
+	} else if (strcmp(name, ZFS_PROJECTFILE_NAME) == 0) {
+		*ipp = zfsctl_inode_lookup(zfsvfs, ZFSCTL_INO_SPACE_PROJ,
+		    &zpl_fops_projectspace_file, &zpl_ops_projectspace_file);
+	} else {
+		*ipp = NULL;
+	}
+
+	if (*ipp != NULL)
+		(*ipp)->i_mode = (S_IFREG | S_IRUGO);
+	else
+		error = SET_ERROR(ENOENT);
+
+	zfs_exit(zfsvfs, FTAG);
+
+	return (error);
+}
+
+/*
+ * Lookup entry point for the '.zfs/quota' directory.  Returns the
+ * pseudo-file inode for the given user/group/project quota file.
+ */
+int
+zfsctl_quotadir_lookup(struct inode *dip, const char *name,
+    struct inode **ipp, int flags, cred_t *cr, int *direntflags,
+    pathname_t *realpnp)
+{
+	zfsvfs_t *zfsvfs = ITOZSB(dip);
+	int error;
+
+	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (error);
+
+	if (strcmp(name, ZFS_USERFILE_NAME) == 0) {
+		*ipp = zfsctl_inode_lookup(zfsvfs, ZFSCTL_INO_QUOTA_USER,
+		    &zpl_fops_userquota_file, &zpl_ops_userquota_file);
+	} else if (strcmp(name, ZFS_GROUPFILE_NAME) == 0) {
+		*ipp = zfsctl_inode_lookup(zfsvfs, ZFSCTL_INO_QUOTA_GROUP,
+		    &zpl_fops_groupquota_file, &zpl_ops_groupquota_file);
+	} else if (strcmp(name, ZFS_PROJECTFILE_NAME) == 0) {
+		*ipp = zfsctl_inode_lookup(zfsvfs, ZFSCTL_INO_QUOTA_PROJ,
+		    &zpl_fops_projectquota_file, &zpl_ops_projectquota_file);
+	} else {
+		*ipp = NULL;
+	}
+
+	if (*ipp != NULL)
+		(*ipp)->i_mode = (S_IFREG | S_IRUGO);
+	else
+		error = SET_ERROR(ENOENT);
+
+	zfs_exit(zfsvfs, FTAG);
+
+	return (error);
+}
+
 module_param(zfs_admin_snapshot, int, 0644);
 MODULE_PARM_DESC(zfs_admin_snapshot, "Enable mkdir/rmdir/mv in .zfs/snapshot");
 
@@ -1713,3 +1798,7 @@ MODULE_PARM_DESC(zfs_expire_snapshot, "Seconds to expire .zfs/snapshot");
 module_param(zfs_snapshot_no_setuid, int, 0644);
 MODULE_PARM_DESC(zfs_snapshot_no_setuid,
 	"Disable setuid/setgid for automounts in .zfs/snapshot");
+
+module_param(zfs_ctldir_spacefiles, int, 0644);
+MODULE_PARM_DESC(zfs_ctldir_spacefiles,
+	"Enable user/group/project space/quota files in .zfs/");
