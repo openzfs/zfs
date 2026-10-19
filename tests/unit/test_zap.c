@@ -1354,7 +1354,7 @@ test_norm_nfkd(const MunitParameter params[], void *data)
 	static const char plain_key[] = "file";
 
 	dnode_t *dn =
-	    mock_zap_create_norm_params(params, "type", U8_TEXTPREP_NFKC);
+	    mock_zap_create_norm_params(params, "type", U8_TEXTPREP_NFKD);
 	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
 
 	/* Insert the plain form. */
