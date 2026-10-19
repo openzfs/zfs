@@ -594,6 +594,60 @@ dsl_destroy_snapshot_sync(void *arg, dmu_tx_t *tx)
 	dsl_dataset_rele(ds, FTAG);
 }
 
+typedef struct dsl_destroy_snapshots_arg {
+	nvlist_t *ddsa_snaps;
+	nvlist_t *ddsa_errlist;
+	boolean_t ddsa_defer;
+} dsl_destroy_snapshots_arg_t;
+
+static int
+dsl_destroy_snapshots_check(void *arg, dmu_tx_t *tx)
+{
+	dsl_destroy_snapshots_arg_t *ddsa = arg;
+	nvpair_t *pair;
+	int rv = 0;
+
+	/* dsl_sync_task() may call the check more than once. */
+	while ((pair = nvlist_next_nvpair(ddsa->ddsa_errlist, NULL)) != NULL)
+		fnvlist_remove_nvpair(ddsa->ddsa_errlist, pair);
+
+	for (pair = nvlist_next_nvpair(ddsa->ddsa_snaps, NULL);
+	    pair != NULL;
+	    pair = nvlist_next_nvpair(ddsa->ddsa_snaps, pair)) {
+		dsl_destroy_snapshot_arg_t snap = {
+			.ddsa_name = nvpair_name(pair),
+			.ddsa_defer = ddsa->ddsa_defer
+		};
+		int error = dsl_destroy_snapshot_check(&snap, tx);
+
+		if (error != 0) {
+			if (rv == 0)
+				rv = error;
+			fnvlist_add_int32(ddsa->ddsa_errlist, snap.ddsa_name,
+			    (int32_t)error);
+		}
+	}
+
+	return (rv);
+}
+
+static void
+dsl_destroy_snapshots_sync(void *arg, dmu_tx_t *tx)
+{
+	dsl_destroy_snapshots_arg_t *ddsa = arg;
+
+	for (nvpair_t *pair = nvlist_next_nvpair(ddsa->ddsa_snaps, NULL);
+	    pair != NULL;
+	    pair = nvlist_next_nvpair(ddsa->ddsa_snaps, pair)) {
+		dsl_destroy_snapshot_arg_t snap = {
+			.ddsa_name = nvpair_name(pair),
+			.ddsa_defer = ddsa->ddsa_defer
+		};
+
+		dsl_destroy_snapshot_sync(&snap, tx);
+	}
+}
+
 /*
  * The semantics of this function are described in the comment above
  * lzc_destroy_snaps().  To summarize:
@@ -615,30 +669,24 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 		return (0);
 
 	const char *pool = nvpair_name(nvlist_next_nvpair(snaps, NULL));
+	dsl_destroy_snapshots_arg_t ddsa = {
+		.ddsa_snaps = snaps,
+		.ddsa_errlist = errlist,
+		.ddsa_defer = defer
+	};
+	int error = dsl_sync_task(pool, dsl_destroy_snapshots_check,
+	    dsl_destroy_snapshots_sync, &ddsa, 0, ZFS_SPACE_CHECK_DESTROY);
 
-	for (nvpair_t *pair = nvlist_next_nvpair(snaps, NULL);
-	    pair != NULL; pair = nvlist_next_nvpair(snaps, pair)) {
-		dsl_destroy_snapshot_arg_t ddsa = {
-			.ddsa_name = nvpair_name(pair),
-			.ddsa_defer = defer
-		};
-
-		int error = dsl_sync_task(pool, dsl_destroy_snapshot_check,
-		    dsl_destroy_snapshot_sync, &ddsa, 0,
-		    ZFS_SPACE_CHECK_DESTROY);
-
-		/*
-		 * lzc_destroy_snaps() is documented to fill the errlist with
-		 * int32 values.
-		 */
-		if (error != 0) {
-			fnvlist_add_int32(errlist, ddsa.ddsa_name,
+	/* A task-level failure applies to every snapshot in the batch. */
+	if (error != 0 && nvlist_empty(errlist)) {
+		for (nvpair_t *pair = nvlist_next_nvpair(snaps, NULL);
+		    pair != NULL; pair = nvlist_next_nvpair(snaps, pair)) {
+			fnvlist_add_int32(errlist, nvpair_name(pair),
 			    (int32_t)error);
-			return (error);
 		}
 	}
 
-	return (0);
+	return (error);
 }
 
 int
