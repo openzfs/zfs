@@ -78,8 +78,9 @@ mock_zap_create_norm_fatzap(int normflags)
 	dnode_t *dn = mock_zap_create_norm_microzap(normflags);
 	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
 	uint16_t upgrade = 0;
-	zap_add_by_dnode(dn, "_upgrade", sizeof (uint16_t), 1, &upgrade, tx);
-	zap_remove_by_dnode(dn, "_upgrade", tx);
+	unit_ok(zap_add_by_dnode(dn, "_upgrade", sizeof (uint16_t), 1,
+	    &upgrade, tx));
+	unit_ok(zap_remove_by_dnode(dn, "_upgrade", tx));
 	mock_tx_destroy((mock_dmu_tx_t *)tx);
 	return (dn);
 }

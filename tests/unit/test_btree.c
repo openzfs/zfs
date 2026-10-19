@@ -296,7 +296,10 @@ do_negative_test(void (*func)(void))
 	if (pid == 0) {
 		struct rlimit rlim = {0};
 
-		(void) setrlimit(RLIMIT_CORE, &rlim);
+		if (setrlimit(RLIMIT_CORE, &rlim) != 0) {
+			perror("setrlimit");
+			_exit(EXIT_FAILURE);
+		}
 		func();
 		_exit(0);
 	}
