@@ -1323,7 +1323,7 @@ test_nv_add_nvpair(const MunitParameter params[], void *data)
 	unit_eq(val, nvl_simple_u64_val);
 
 	const char *str;
-	unit_ok(nvlist_lookup_string(src, nvl_simple_str_key, &str));
+	unit_ok(nvlist_lookup_string(dst, nvl_simple_str_key, &str));
 	unit_str_eq(str, nvl_simple_str_val);
 
 	nvlist_free(src);
@@ -1342,6 +1342,7 @@ test_nv_dup(const MunitParameter params[], void *data)
 	nvlist_t *copy = NULL;
 	unit_ok(nvlist_dup(orig, &copy, KM_SLEEP));
 	unit_notnull(copy);
+	unit_eq(nvlist_nvflag(copy), nvlist_nvflag(orig));
 
 	/*
 	 * Walk and compare pairs. Even though this is only the "simple" test
@@ -1374,6 +1375,8 @@ test_nv_dup(const MunitParameter params[], void *data)
 			unit_unreachable();
 		}
 	}
+	unit_null(origpair);
+	unit_null(copypair);
 
 	/* a key overwritten in the original does not change the copy */
 	unit_ok(nvlist_add_uint64(orig,
