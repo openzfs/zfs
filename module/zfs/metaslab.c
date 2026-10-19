@@ -5877,6 +5877,7 @@ metaslab_unalloc_range(vdev_t *vd, uint64_t offset, uint64_t size,
 	    offset, size);
 	msp->ms_allocating_total -= size;
 	zfs_range_tree_add(msp->ms_allocatable, offset, size);
+	msp->ms_max_size = metaslab_largest_allocatable(msp);
 	mutex_exit(&msp->ms_lock);
 
 	return (B_TRUE);
