@@ -961,19 +961,38 @@ static void
 unalloc_seg(void *arg, uint64_t start, uint64_t size)
 {
 	vdev_copy_segment_arg_t *vcsa = arg;
-	dva_t dva = {{ 0 }};
-
-	DVA_SET_VDEV(&dva, DVA_GET_VDEV(vcsa->vcsa_dest_dva));
-	DVA_SET_OFFSET(&dva,
-	    DVA_GET_OFFSET(vcsa->vcsa_dest_dva) + start);
-	DVA_SET_ASIZE(&dva, size);
+	spa_t *spa = vcsa->vcsa_spa;
+	vdev_t *dest_vd = vdev_lookup_top(spa,
+	    DVA_GET_VDEV(vcsa->vcsa_dest_dva));
+	blkptr_t bp = { { { {0} } } };
 
 	/*
 	 * This gap was allocated in the same txg as the copied segment. The
 	 * I/O is complete, so undo the allocation now rather than deferring
-	 * the free for TXG_DEFER_SIZE txgs.
+	 * the free for TXG_DEFER_SIZE txgs.  This runs in open context, so
+	 * the syncing txg may be condensing the metaslab; then free it.
 	 */
-	metaslab_unalloc_dva(vcsa->vcsa_spa, &dva, vcsa->vcsa_txg);
+	if (metaslab_unalloc_range(dest_vd,
+	    DVA_GET_OFFSET(vcsa->vcsa_dest_dva) + start, size,
+	    vcsa->vcsa_txg))
+		return;
+
+	BP_SET_BIRTH(&bp, TXG_INITIAL, TXG_INITIAL);
+	BP_SET_LSIZE(&bp, size);
+	BP_SET_PSIZE(&bp, size);
+	BP_SET_COMPRESS(&bp, ZIO_COMPRESS_OFF);
+	BP_SET_CHECKSUM(&bp, ZIO_CHECKSUM_OFF);
+	BP_SET_TYPE(&bp, DMU_OT_NONE);
+	BP_SET_LEVEL(&bp, 0);
+	BP_SET_DEDUP(&bp, 0);
+	BP_SET_BYTEORDER(&bp, ZFS_HOST_BYTEORDER);
+
+	DVA_SET_VDEV(&bp.blk_dva[0], DVA_GET_VDEV(vcsa->vcsa_dest_dva));
+	DVA_SET_OFFSET(&bp.blk_dva[0],
+	    DVA_GET_OFFSET(vcsa->vcsa_dest_dva) + start);
+	DVA_SET_ASIZE(&bp.blk_dva[0], size);
+
+	zio_free(spa, vcsa->vcsa_txg, &bp);
 }
 
 /*
