@@ -1170,12 +1170,16 @@ zfs_create(znode_t *dzp, const char *name, vattr_t *vap, int excl, int mode,
 out:
 	VNASSERT(ZTOV(dzp)->v_holdcnt > 0 && ZTOV(dzp)->v_usecount > 0,
 	    ZTOV(dzp), ("%s: wrong ref counts", __func__));
-	if (error == 0) {
-		*zpp = zp;
+	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS) {
+		error = zil_commit(zilog, 0);
+		if (error != 0) {
+			VOP_UNLOCK(ZTOV(zp));
+			zrele(zp);
+		}
 	}
 
-	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-		error = zil_commit(zilog, 0);
+	if (error == 0)
+		*zpp = zp;
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
@@ -1523,8 +1527,6 @@ zfs_mkdir(znode_t *dzp, const char *dirname, vattr_t *vap, znode_t **zpp,
 	if (fuid_dirtied)
 		zfs_fuid_sync(zfsvfs, tx);
 
-	*zpp = zp;
-
 	txtype = zfs_log_create_txtype(Z_DIR, NULL, vap);
 	zfs_log_create(zilog, tx, txtype, dzp, zp, dirname, NULL,
 	    acl_ids.z_fuidp, vap);
@@ -1536,8 +1538,16 @@ out:
 
 	getnewvnode_drop_reserve();
 
-	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS) {
 		error = zil_commit(zilog, 0);
+		if (error != 0) {
+			VOP_UNLOCK(ZTOV(zp));
+			zrele(zp);
+		}
+	}
+
+	if (error == 0)
+		*zpp = zp;
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
@@ -3723,12 +3733,16 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 
 	getnewvnode_drop_reserve();
 
-	if (error == 0) {
-		*zpp = zp;
-
-		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-			error = zil_commit(zilog, 0);
+	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS) {
+		error = zil_commit(zilog, 0);
+		if (error != 0) {
+			VOP_UNLOCK(ZTOV(zp));
+			zrele(zp);
+		}
 	}
+
+	if (error == 0)
+		*zpp = zp;
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);

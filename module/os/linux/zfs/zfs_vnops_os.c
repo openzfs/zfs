@@ -835,17 +835,18 @@ out:
 	if (dl)
 		zfs_dirent_unlock(dl);
 
-	if (error) {
-		if (zp)
-			zrele(zp);
-	} else {
+	if (error == 0) {
 		zfs_znode_update_vfs(dzp);
 		zfs_znode_update_vfs(zp);
-		*zpp = zp;
+
+		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+			error = zil_commit(zilog, 0);
 	}
 
-	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-		error = zil_commit(zilog, 0);
+	if (error == 0)
+		*zpp = zp;
+	else if (zp != NULL)
+		zrele(zp);
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
@@ -1396,8 +1397,6 @@ top:
 	if (fuid_dirtied)
 		zfs_fuid_sync(zfsvfs, tx);
 
-	*zpp = zp;
-
 	txtype = zfs_log_create_txtype(Z_DIR, vsecp, vap);
 	if (flags & FIGNORECASE)
 		txtype |= TX_CI;
@@ -1411,16 +1410,19 @@ out:
 
 	zfs_dirent_unlock(dl);
 
-	if (error != 0) {
-		zrele(zp);
-	} else {
+	if (error == 0) {
 		zfs_znode_update_vfs(dzp);
 		zfs_znode_update_vfs(zp);
 
 		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 			error = zil_commit(zilog, 0);
-
 	}
+
+	if (error == 0)
+		*zpp = zp;
+	else
+		zrele(zp);
+
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
 }
@@ -3502,14 +3504,13 @@ top:
 
 	zfs_dirent_unlock(dl);
 
-	if (error == 0) {
-		*zpp = zp;
+	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+		error = zil_commit(zilog, 0);
 
-		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-			error = zil_commit(zilog, 0);
-	} else {
+	if (error == 0)
+		*zpp = zp;
+	else
 		zrele(zp);
-	}
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);

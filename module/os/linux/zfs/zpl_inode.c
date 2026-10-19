@@ -192,6 +192,12 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_create, 4,
 		} else {
 			d_instantiate(dentry, ZTOI(zp));
 		}
+	} else {
+		/*
+		 * The entry may exist despite the error, e.g. after a
+		 * failed zil_commit().
+		 */
+		d_drop(dentry);
 	}
 
 	spl_fstrans_unmark(cookie);
@@ -242,6 +248,12 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_mknod, 4,
 		} else {
 			d_instantiate(dentry, ZTOI(zp));
 		}
+	} else {
+		/*
+		 * The entry may exist despite the error, e.g. after a
+		 * failed zil_commit().
+		 */
+		d_drop(dentry);
 	}
 
 	spl_fstrans_unmark(cookie);
@@ -374,6 +386,12 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_mkdir, 3,
 		} else {
 			d_instantiate(dentry, ZTOI(zp));
 		}
+	} else {
+		/*
+		 * The entry may exist despite the error, e.g. after a
+		 * failed zil_commit().
+		 */
+		d_drop(dentry);
 	}
 
 	spl_fstrans_unmark(cookie);
@@ -609,6 +627,12 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_symlink, 3,
 		} else {
 			d_instantiate(dentry, ZTOI(zp));
 		}
+	} else {
+		/*
+		 * The entry may exist despite the error, e.g. after a
+		 * failed zil_commit().
+		 */
+		d_drop(dentry);
 	}
 
 	spl_fstrans_unmark(cookie);
@@ -698,6 +722,7 @@ zpl_link(struct dentry *old_dentry, struct inode *dir, struct dentry *dentry)
 	error = -zfs_link(ITOZ(dir), ITOZ(ip), dname(dentry), cr, 0);
 	if (error) {
 		iput(ip);
+		d_drop(dentry);
 		goto out;
 	}
 
