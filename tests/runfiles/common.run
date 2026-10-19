@@ -730,7 +730,8 @@ tags = ['functional', 'deadman']
 
 [tests/functional/dedup]
 tests = ['dedup_bclone', 'dedup_bclone_pruned',
-    'dedup_extend_birth_checkpoint', 'dedup_extend_birth_resilver',
+    'dedup_extend_birth_checkpoint', 'dedup_extend_birth_prune',
+    'dedup_extend_birth_resilver',
     'dedup_fdt_create',
     'dedup_fdt_import',
     'dedup_fdt_pacing', 'dedup_legacy_create', 'dedup_legacy_import',
