@@ -82,17 +82,16 @@ function debian() {
   echo "##[endgroup]"
 
   echo "##[group]Install Development Tools"
-  sudo apt-get install -y \
-    acl alien attr autoconf bc cpio cryptsetup curl dbench dh-python dkms \
+  "$(dirname "${BASH_SOURCE[0]}")/debian-user-deps.sh" \
+    acl alien attr bc cpio cryptsetup curl dbench dh-python dkms \
     fakeroot fio gdb gdebi git ksh lcov isc-dhcp-client jq libacl1-dev \
-    libaio-dev libattr1-dev libblkid-dev libcurl4-openssl-dev libdevmapper-dev \
-    libelf-dev libffi-dev libmount-dev libpam0g-dev libselinux-dev libssl-dev \
-    libtool libtool-bin libudev-dev libunwind-dev linux-headers-$(uname -r) \
+    libaio-dev libattr1-dev libcurl4-openssl-dev libdevmapper-dev \
+    libelf-dev libffi-dev libmount-dev libpam0g-dev libselinux-dev \
+    libtool-bin libudev-dev linux-headers-$(uname -r) \
     lsscsi nfs-kernel-server pamtester parted python3 python3-all-dev \
-    python3-cffi python3-dev python3-distlib python3-packaging libtirpc-dev \
+    python3-cffi python3-dev python3-distlib python3-packaging \
     python3-setuptools python3-sphinx qemu-guest-agent rng-tools rpm2cpio \
-    rsync samba strace sysstat uuid-dev watchdog wget xfslibs-dev xxhash \
-    zlib1g-dev
+    rsync samba strace sysstat watchdog wget xfslibs-dev xxhash
   echo "##[endgroup]"
 }
 
@@ -233,13 +232,9 @@ case "$1" in
   ubuntu22|ubuntu24)
     debian
     echo "##[group]Install Ubuntu specific"
-    sudo apt-get install -yq linux-tools-common libtirpc-dev \
+    sudo apt-get install -yq linux-tools-common \
       linux-modules-extra-$(uname -r)
     sudo apt-get install -yq dh-sequence-dkms
-
-    # Need 'build-essential' explicitly for ARM builder
-    # https://github.com/actions/runner-images/issues/9946
-    sudo apt-get install -yq build-essential
 
     echo "##[endgroup]"
     echo "##[group]Delete Ubuntu OpenZFS modules"
@@ -251,12 +246,7 @@ case "$1" in
     echo "##[group]Install Ubuntu specific"
     # Skip linux-modules-extra which is already installed
     sudo apt-get install -yq linux-tools-common
-    sudo apt-get install -yq libtirpc-dev
     sudo apt-get install -yq dh-sequence-dkms
-
-    # Need 'build-essential' explicitly for ARM builder
-    # https://github.com/actions/runner-images/issues/9946
-    sudo apt-get install -yq build-essential
 
     # Replace sudo-rs with sudo for now because the Rust version
     # does not support -E to preserve the entire environment

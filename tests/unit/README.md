@@ -59,7 +59,7 @@ assist with understanding issues.
 	--with-config=user \
 	--enable-debug --enable-debuginfo \
 	--disable-sysvinit --disable-systemd --disable-pam --disable-pyzfs
-make -j$(nproc)
+make -j$(nproc) unit
 ```
 
 TODO: add `--with-config=unit` that disables _everything_ not needed for the
