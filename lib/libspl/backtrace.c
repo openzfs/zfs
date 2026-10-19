@@ -19,6 +19,14 @@
 #include <sys/debug.h>
 #include <unistd.h>
 
+#ifdef HAVE_VALGRIND_VALGRIND_H
+#include <valgrind/valgrind.h>
+#endif
+
+#if !defined(HAVE_LIBUNWIND) && defined(HAVE_BACKTRACE)
+#include <execinfo.h>
+#endif
+
 /*
  * Output helpers. libspl_backtrace() must not block, must be thread-safe and
  * must be safe to call from a signal handler. At least, that means not having
@@ -79,10 +87,18 @@ spl_bt_u64_to_hex_str(uint64_t v, size_t n, char *buf, size_t buflen)
 	}
 	return (pos);
 }
+#endif
 
 void
 libspl_backtrace(int fd)
 {
+#if defined(VALGRIND_DISABLE_ERROR_REPORTING) && \
+	defined(VALGRIND_ENABLE_ERROR_REPORTING)
+	/* Unwinder memory probes must not obscure the original failure. */
+	VALGRIND_DISABLE_ERROR_REPORTING;
+#endif
+
+#ifdef HAVE_LIBUNWIND
 	unw_context_t uc;
 	unw_cursor_t cp;
 	unw_word_t v;
@@ -273,21 +289,17 @@ libspl_backtrace(int fd)
 #endif
 		spl_bt_write(fd, "\n");
 	} while (unw_step(&cp) > 0);
-}
 #elif defined(HAVE_BACKTRACE)
-#include <execinfo.h>
-
-void
-libspl_backtrace(int fd)
-{
 	void *btptrs[64];
 	size_t nptrs = backtrace(btptrs, 64);
 	spl_bt_write(fd, "Call trace:\n");
 	backtrace_symbols_fd(btptrs, nptrs, fd);
-}
 #else
-void
-libspl_backtrace(int fd __maybe_unused)
-{
-}
+	(void) fd;
 #endif
+
+#if defined(VALGRIND_DISABLE_ERROR_REPORTING) && \
+	defined(VALGRIND_ENABLE_ERROR_REPORTING)
+	VALGRIND_ENABLE_ERROR_REPORTING;
+#endif
+}
