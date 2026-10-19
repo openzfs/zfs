@@ -795,6 +795,7 @@ tests = ['gang_blocks_001_pos', 'gang_blocks_redundant',
     'gang_blocks_ddt_copies', 'gang_blocks_dyn_header_pos',
     'gang_blocks_dyn_header_neg', 'gang_blocks_dyn_header_import',
     'gang_blocks_dyn_multi', 'gang_blocks_special_fallback',
+    'gang_blocks_scrub_copies',
     'gang_blocks_degraded_vdev']
 tags = ['functional', 'gang_blocks']
 
@@ -941,7 +942,8 @@ tests = ['raidz_001_neg', 'raidz_002_pos', 'raidz_dedup_overrun',
     'raidz_expand_001_pos',
     'raidz_expand_002_pos', 'raidz_expand_003_neg', 'raidz_expand_003_pos',
     'raidz_expand_004_pos', 'raidz_expand_005_pos', 'raidz_expand_006_neg',
-    'raidz_expand_007_neg', 'raidz_expand_008_pos', 'raidz_expand_010_pos',
+    'raidz_expand_007_neg', 'raidz_expand_008_pos', 'raidz_expand_009_neg',
+    'raidz_expand_010_pos',
     'raidz_expand_rewrite',
     'raidz_zinject', 'raidz_parity_epochs_pos', 'raidz_recon_pos',
     'raidz_parity_epochs_dedup_pos', 'raidz_detach_neg',
@@ -1086,7 +1088,10 @@ tests = ['slog_001_pos', 'slog_002_pos', 'slog_003_pos', 'slog_004_pos',
     'slog_005_pos', 'slog_006_pos', 'slog_007_pos', 'slog_008_neg',
     'slog_009_neg', 'slog_010_neg', 'slog_011_neg', 'slog_012_neg',
     'slog_013_pos', 'slog_014_pos', 'slog_015_neg', 'slog_replay_fs_001',
-    'slog_replay_fs_002', 'slog_replay_volume', 'slog_016_pos']
+    'slog_replay_fs_002', 'slog_replay_fs_split_truncate',
+    'slog_replay_fs_split_write', 'slog_replay_volume',
+    'slog_replay_volume_split_boundary', 'slog_replay_volume_split_write',
+    'slog_016_pos']
 tags = ['functional', 'slog']
 
 [tests/functional/snapdir]
@@ -1120,6 +1125,12 @@ tags = ['functional', 'stat']
 tests = ['suid_write_to_suid', 'suid_write_to_sgid', 'suid_write_to_suid_sgid',
     'suid_write_to_none', 'suid_write_zil_replay']
 tags = ['functional', 'suid']
+
+[tests/functional/test_runner]
+tests = ['test_runner_selection']
+pre =
+post =
+tags = ['functional', 'test_runner']
 
 [tests/functional/trim]
 tests = ['autotrim_integrity', 'autotrim_config', 'autotrim_trim_integrity',

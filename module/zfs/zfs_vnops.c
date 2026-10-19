@@ -18,6 +18,7 @@
  * Copyright (c) 2021, 2022 by Pawel Jakub Dawidek
  * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
  * Copyright (c) 2025, Klara, Inc.
+ * Copyright 2026 Oxide Computer Company
  */
 
 /* Portions Copyright 2007 Jeremy Teo */
@@ -1403,10 +1404,19 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 	ASSERT3U(size, !=, 0);
 
 	/*
-	 * Nothing to do if the file has been removed
+	 * Nothing to do if the file has been removed.  Any other failure
+	 * to get the znode (e.g. EBUSY on FreeBSD while the file system is
+	 * being unmounted, or ENOENT because a znode couldn't be allocated
+	 * for an object that still exists) is not a sign that the file is
+	 * gone: report EIO, and the ZIL waits for the txg to sync instead.
 	 */
-	if (zfs_zget(zfsvfs, object, &zp) != 0)
-		return (SET_ERROR(ENOENT));
+	error = zfs_zget(zfsvfs, object, &zp);
+	if (error != 0) {
+		if (error == ENOENT &&
+		    dmu_object_info(os, object, NULL) == ENOENT)
+			return (SET_ERROR(ENOENT));
+		return (SET_ERROR(EIO));
+	}
 	if (zp->z_unlinked) {
 		/*
 		 * Release the vnode asynchronously as we currently have the

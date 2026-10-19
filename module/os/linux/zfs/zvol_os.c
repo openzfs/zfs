@@ -23,6 +23,7 @@
 #include <sys/dsl_dir.h>
 #include <sys/zap.h>
 #include <sys/zfeature.h>
+#include <sys/zfs_file.h>
 #include <sys/zil_impl.h>
 #include <sys/dmu_tx.h>
 #include <sys/zio.h>
@@ -1362,8 +1363,8 @@ zvol_alloc_blk_mq(zvol_state_t *zv, zvol_queue_limits_t *limits)
  * request queue and generic disk structures for the block device.
  */
 static int
-zvol_alloc(dev_t dev, const char *name, uint64_t volsize, uint64_t volblocksize,
-    zvol_state_t **zvp)
+zvol_alloc(dev_t dev, const char *name, uint64_t dsobj, uint64_t volsize,
+    uint64_t volblocksize, zvol_state_t **zvp)
 {
 	zvol_state_t *zv;
 	struct zvol_state_os *zso;
@@ -1435,6 +1436,7 @@ zvol_alloc(dev_t dev, const char *name, uint64_t volsize, uint64_t volblocksize,
 	zso->zvo_dev = dev;
 	zv->zv_open_count = 0;
 	strlcpy(zv->zv_name, name, sizeof (zv->zv_name));
+	zv->zv_dsobj = dsobj;
 
 	zfs_rangelock_init(&zv->zv_rangelock, NULL, NULL);
 	rw_init(&zv->zv_suspend_lock, NULL, RW_DEFAULT, NULL);
@@ -1693,7 +1695,7 @@ zvol_os_create_minor(const char *name)
 	if (error)
 		goto out_dmu_objset_disown;
 
-	error = zvol_alloc(MKDEV(zvol_major, minor), name,
+	error = zvol_alloc(MKDEV(zvol_major, minor), name, dmu_objset_id(os),
 	    volsize, doi->doi_data_block_size, &zv);
 	if (error || zv == NULL)
 		goto out_dmu_objset_disown;
@@ -1781,11 +1783,39 @@ out_doi:
 	return (error);
 }
 
+/*
+ * Make udev notice that a zvol was renamed, so that it fixes the /dev/zvol
+ * links.  This is what kobject_uevent(KOBJ_CHANGE) would do, but that is a
+ * GPL-only symbol.  Instead write "change" to the uevent attribute of the
+ * disk in sysfs, the way "udevadm trigger --action=change" does.  The
+ * previous workaround, briefly flipping the disk read-only to get a change
+ * uevent, made concurrent writes to the zvol fail with EPERM.
+ *
+ * This is best effort, the rename itself has already happened.
+ */
+static void
+zvol_os_change_uevent(struct gendisk *disk)
+{
+	zfs_file_t *fp;
+	char *path;
+	int error;
+
+	path = kmem_asprintf("/sys/class/block/%s/uevent", disk->disk_name);
+	error = zfs_file_open(path, O_WRONLY, 0, kcred, &fp);
+	if (error == 0) {
+		error = zfs_file_write(fp, "change", strlen("change"), NULL);
+		zfs_file_close(fp);
+	}
+	if (error != 0) {
+		zfs_dbgmsg("zvol: change uevent for %s failed: %d",
+		    disk->disk_name, error);
+	}
+	kmem_strfree(path);
+}
+
 int
 zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 {
-	int readonly = get_disk_ro(zv->zv_zso->zvo_disk);
-
 	ASSERT(RW_WRITE_HELD(&zvol_state_lock));
 	ASSERT(MUTEX_HELD(&zv->zv_state_lock));
 
@@ -1796,16 +1826,7 @@ zvol_os_rename_minor(zvol_state_t *zv, const char *newname)
 	hlist_del(&zv->zv_hlink);
 	hlist_add_head(&zv->zv_hlink, ZVOL_HT_HEAD(zv->zv_hash));
 
-	/*
-	 * The block device's read-only state is briefly changed causing
-	 * a KOBJ_CHANGE uevent to be issued.  This ensures udev detects
-	 * the name change and fixes the symlinks.  This does not change
-	 * ZVOL_RDONLY in zv->zv_flags so the actual read-only state never
-	 * changes.  This would normally be done using kobject_uevent() but
-	 * that is a GPL-only symbol which is why we need this workaround.
-	 */
-	set_disk_ro(zv->zv_zso->zvo_disk, !readonly);
-	set_disk_ro(zv->zv_zso->zvo_disk, readonly);
+	zvol_os_change_uevent(zv->zv_zso->zvo_disk);
 
 	dataset_kstats_rename(&zv->zv_kstat, newname);
 

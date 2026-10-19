@@ -1767,6 +1767,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/gang_blocks/gang_blocks_ddt_copies.ksh \
 	functional/gang_blocks/gang_blocks_degraded_vdev.ksh \
 	functional/gang_blocks/gang_blocks_redundant.ksh \
+	functional/gang_blocks/gang_blocks_scrub_copies.ksh \
 	functional/gang_blocks/gang_blocks_special_fallback.ksh \
 	functional/gang_blocks/gang_blocks_dyn_header_neg.ksh \
 	functional/gang_blocks/gang_blocks_dyn_header_import.ksh \
@@ -2033,6 +2034,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/raidz/raidz_expand_006_neg.ksh \
 	functional/raidz/raidz_expand_007_neg.ksh \
 	functional/raidz/raidz_expand_008_pos.ksh \
+	functional/raidz/raidz_expand_009_neg.ksh \
 	functional/raidz/raidz_expand_010_pos.ksh \
 	functional/raidz/raidz_expand_rewrite.ksh \
 	functional/raidz/raidz_zinject.ksh \
@@ -2342,7 +2344,11 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/slog/slog_016_pos.ksh \
 	functional/slog/slog_replay_fs_001.ksh \
 	functional/slog/slog_replay_fs_002.ksh \
+	functional/slog/slog_replay_fs_split_truncate.ksh \
+	functional/slog/slog_replay_fs_split_write.ksh \
 	functional/slog/slog_replay_volume.ksh \
+	functional/slog/slog_replay_volume_split_boundary.ksh \
+	functional/slog/slog_replay_volume_split_write.ksh \
 	functional/snapdir/cleanup.ksh \
 	functional/snapdir/setup.ksh \
 	functional/snapdir/snapdir_admin_create_destroy.ksh \
@@ -2408,6 +2414,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/suid/suid_write_to_suid.ksh \
 	functional/suid/suid_write_to_suid_sgid.ksh \
 	functional/suid/suid_write_zil_replay.ksh \
+	functional/test_runner/test_runner_selection.ksh \
 	functional/trim/autotrim_config.ksh \
 	functional/trim/autotrim_integrity.ksh \
 	functional/trim/autotrim_trim_integrity.ksh \
@@ -2596,6 +2603,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zvol/zvol_misc/zvol_misc_fua.ksh \
 	functional/zvol/zvol_misc/zvol_misc_hierarchy.ksh \
 	functional/zvol/zvol_misc/zvol_misc_rename_inuse.ksh \
+	functional/zvol/zvol_misc/zvol_misc_rename_open.ksh \
+	functional/zvol/zvol_misc/zvol_misc_rename_write.ksh \
 	functional/zvol/zvol_misc/zvol_misc_snapdev.ksh \
 	functional/zvol/zvol_misc/zvol_misc_trim.ksh \
 	functional/zvol/zvol_misc/zvol_misc_volmode.ksh \

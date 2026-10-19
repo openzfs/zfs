@@ -12,6 +12,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright 2026 Oxide Computer Company
  */
 
 /* Portions Copyright 2010 Robert Milkowski */
@@ -345,11 +346,23 @@ typedef struct {
 	uint64_t	lr_foid;	/* file object to write */
 	uint64_t	lr_offset;	/* offset to write to */
 	uint64_t	lr_length;	/* user data length to write */
-	uint64_t	lr_blkoff;	/* no longer used */
+	uint64_t	lr_flags;	/* LR_WRITE_* flags, see below */
 	blkptr_t	lr_blkptr;	/* spa block pointer for replay */
 	/* write data will follow for small writes */
 	uint8_t		lr_data[];
 } lr_write_t;
+
+/*
+ * A TX_WRITE record that carries data (WR_NEED_COPY) may be split across log
+ * blocks.  Its pieces are marked in lr_flags so that replay will apply the
+ * write only once all pieces are present, except that a write larger than
+ * replay can gather (32M) may be applied in parts that end at multiples of
+ * SPA_MAXBLOCKSIZE (block boundaries).  Older software (before 2026) named
+ * the field lr_blkoff.  Software from 2007 to 2009 set it to the offset
+ * within the block; other software ignored it.
+ */
+#define	LR_WRITE_MORE	(1ULL << 63)	/* next record continues this write */
+#define	LR_WRITE_CONT	(1ULL << 62)	/* continues the previous record */
 
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */
@@ -534,6 +547,14 @@ typedef struct zil_stats {
 	kstat_named_t zil_itx_metaslab_slog_bytes;
 	kstat_named_t zil_itx_metaslab_slog_write;
 	kstat_named_t zil_itx_metaslab_slog_alloc;
+
+	/*
+	 * Replay of WR_NEED_COPY writes that were split across log blocks:
+	 * the number of such writes replayed whole, and the number of pieces
+	 * not replayed because their write was missing a piece.
+	 */
+	kstat_named_t zil_replay_split_merged;
+	kstat_named_t zil_replay_split_dropped;
 } zil_kstat_values_t;
 
 typedef struct zil_sums {
@@ -558,6 +579,8 @@ typedef struct zil_sums {
 	wmsum_t zil_itx_metaslab_slog_bytes;
 	wmsum_t zil_itx_metaslab_slog_write;
 	wmsum_t zil_itx_metaslab_slog_alloc;
+	wmsum_t zil_replay_split_merged;
+	wmsum_t zil_replay_split_dropped;
 } zil_sums_t;
 
 #define	ZIL_STAT_INCR(zil, stat, val) \

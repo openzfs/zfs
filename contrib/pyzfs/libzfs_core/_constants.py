@@ -110,6 +110,7 @@ zfs_errno = enum_with_offset(1024, [
         'ZFS_ERR_TOO_MANY_SITOUTS',
         'ZFS_ERR_NO_USER_NS_SUPPORT',
         'ZFS_ERR_CRYPTO_KEY_MISMATCH',
+        'ZFS_ERR_RAIDZ_EXPAND_TOO_WIDE',
     ],
     {}
 )
