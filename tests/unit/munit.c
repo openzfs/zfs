@@ -205,7 +205,10 @@ static void munit_logf_exv(MunitLogLevel level, FILE *fp, const char *filename,
   fputs(": ", fp);
   if (filename != NULL)
     fprintf(fp, "%s:%d: ", filename, line);
-  vfprintf(fp, format, ap);
+  if (format != NULL)
+    vfprintf(fp, format, ap);
+  else
+    fputs("(null format)", fp);
   fputc('\n', fp);
 }
 

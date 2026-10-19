@@ -282,11 +282,15 @@ test_btree_drain(const MunitParameter params[], void *data)
 
 /* ========== */
 
+
 /*
  * The negative tests from tests/zfs-tests/cmd/btree_test.c.  The B-Tree
  * crashes on these rather than returning a failure, so each runs in a child
  * process with core dumps disabled; a child that returns at all is a failure.
+ * By design the negative tests are incompatible with ASAN and disabled for
+ * these builds.
  */
+#ifndef __SANITIZE_ADDRESS__
 static int
 do_negative_test(void (*func)(void))
 {
@@ -366,6 +370,7 @@ test_btree_remove_missing(const MunitParameter params[], void *data)
 	unit_eq(WTERMSIG(status), SIGABRT);
 	return (MUNIT_OK);
 }
+#endif /* __SANITIZE_ADDRESS__ */
 
 /* ========== */
 
@@ -376,8 +381,10 @@ static const MunitTest btree_tests[] = {
 	UNIT_TEST("walk",		test_btree_walk),
 	UNIT_TEST("find_without_index",	test_btree_find_without_index),
 	UNIT_TEST("drain",		test_btree_drain),
+#ifndef __SANITIZE_ADDRESS__
 	UNIT_TEST("insert_duplicate",	test_btree_insert_duplicate),
 	UNIT_TEST("remove_missing",	test_btree_remove_missing),
+#endif
 	{ 0 },
 };
 

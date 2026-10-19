@@ -45,7 +45,8 @@ jobs:
     - name: Configure
       if: steps.reuse.outputs.url == ''
       run: |
-        ./configure --with-config=user --enable-debug --enable-debuginfo
+        ./configure --with-config=user --enable-debug --enable-debuginfo \
+          --enable-asan --enable-ubsan
     - name: Unit tests
       if: steps.reuse.outputs.url == ''
       run: |
