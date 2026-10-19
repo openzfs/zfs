@@ -37,7 +37,8 @@ jobs:
     - name: Install dependencies
       if: steps.reuse.outputs.url == ''
       run: |
-        ONLY_DEPS=1 .github/workflows/scripts/qemu-3-deps-vm.sh ubuntu24
+          sudo apt-get update
+          .github/workflows/scripts/debian-user-deps.sh valgrind
     - name: Autogen
       if: steps.reuse.outputs.url == ''
       run: |
@@ -45,8 +46,26 @@ jobs:
     - name: Configure
       if: steps.reuse.outputs.url == ''
       run: |
-        ./configure --with-config=user --enable-debug --enable-debuginfo
+        mkdir build-sanitizers
+        cd build-sanitizers
+        ../configure --with-config=user --enable-debug --enable-debuginfo \
+          --enable-asan --enable-ubsan
     - name: Unit tests
       if: steps.reuse.outputs.url == ''
+      env:
+        UBSAN_OPTIONS: print_stacktrace=1
       run: |
-        make -j$(nproc) unit
+        make -C build-sanitizers -j"$(nproc)" unit
+    - name: Configure Memcheck
+      if: steps.reuse.outputs.url == ''
+      run: |
+        mkdir build-memcheck
+        cd build-memcheck
+        ../configure --with-config=user --enable-debug --enable-debuginfo
+    - name: Memcheck unit tests
+      if: steps.reuse.outputs.url == ''
+      run: |
+        make -C build-memcheck -j"$(nproc)" unit \
+          LOG_COMPILER=valgrind \
+          LOG_FLAGS="--quiet --leak-check=full --track-origins=yes \
+            --error-exitcode=1 --exit-on-first-error=yes"

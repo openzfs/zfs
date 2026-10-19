@@ -65,6 +65,21 @@ make -j$(nproc)
 TODO: add `--with-config=unit` that disables _everything_ not needed for the
 tests
 
+### Running with Valgrind
+
+Install Valgrind, including its development headers, before configuring an
+ordinary debug build without ASan. Run Memcheck through the same unit target:
+
+```sh
+make -j$(nproc) unit LOG_COMPILER=valgrind \
+    LOG_FLAGS="--quiet --leak-check=full --track-origins=yes \
+    --error-exitcode=1 --exit-on-first-error=yes"
+```
+
+`T=` and `TOPT=` select tests as usual. The exit options make findings fail the
+run, including findings in children that tests expect to abort. Assertions
+use Valgrind's symbolized backtrace while running under it.
+
 ### Generating a coverage report
 
 If `configure` was run with `--enable-code-coverage`, then two additional build
