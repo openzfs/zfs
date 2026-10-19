@@ -2327,8 +2327,14 @@ dbuf_dirty_lightweight(dnode_t *dn, uint64_t blkid, dmu_tx_t *tx)
 	return (dr);
 }
 
-dbuf_dirty_record_t *
-dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
+/*
+ * Dirty the buffer in the txg of tx.  A rewrite, of level 0 only, leaves a
+ * buffer already dirty in that txg as it is, and otherwise marks the dirty
+ * record it creates, under db_mtx: a write that dirties the buffer before or
+ * after is never taken for the rewrite (dbuf_redirty() clears the mark).
+ */
+static dbuf_dirty_record_t *
+dbuf_dirty_impl(dmu_buf_impl_t *db, dmu_tx_t *tx, boolean_t rewrite)
 {
 	dnode_t *dn;
 	objset_t *os;
@@ -2338,6 +2344,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 
 	ASSERT(tx->tx_txg != 0);
 	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
+	ASSERT(!rewrite || db->db_level == 0);
 	DMU_TX_DIRTY_BUF(tx, db);
 
 	DB_DNODE_ENTER(db);
@@ -2383,7 +2390,8 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	if (dr_next && dr_next->dr_txg == tx->tx_txg) {
 		DB_DNODE_EXIT(db);
 
-		dbuf_redirty(dr_next);
+		if (!rewrite)
+			dbuf_redirty(dr_next);
 		mutex_exit(&db->db_mtx);
 		return (dr_next);
 	}
@@ -2449,6 +2457,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 			ASSERT(data_old != NULL);
 		}
 		dr->dt.dl.dr_data = data_old;
+		dr->dt.dl.dr_rewrite = rewrite;
 	} else {
 		mutex_init(&dr->dt.di.dr_mtx, NULL, MUTEX_NOLOCKDEP, NULL);
 		list_create(&dr->dt.di.dr_children,
@@ -2584,6 +2593,12 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	dnode_setdirty(dn, tx);
 	DB_DNODE_EXIT(db);
 	return (dr);
+}
+
+dbuf_dirty_record_t *
+dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
+{
+	return (dbuf_dirty_impl(db, tx, B_FALSE));
 }
 
 static void
@@ -2787,6 +2802,7 @@ void
 dmu_buf_will_rewrite(dmu_buf_t *db_fake, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+	dmu_flags_t flags = DMU_READ_NO_PREFETCH;
 
 	ASSERT(tx->tx_txg != 0);
 	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
@@ -2802,17 +2818,18 @@ dmu_buf_will_rewrite(dmu_buf_t *db_fake, dmu_tx_t *tx)
 	}
 	mutex_exit(&db->db_mtx);
 
-	/*
-	 * The dbuf is not dirty, so we need to make it dirty and
-	 * mark it for rewrite (preserve logical birth time).
-	 */
-	dmu_buf_will_dirty_flags(db_fake, tx, DMU_READ_NO_PREFETCH);
+	DB_DNODE_ENTER(db);
+	if (RW_WRITE_HELD(&DB_DNODE(db)->dn_struct_rwlock))
+		flags |= DB_RF_HAVESTRUCT;
+	DB_DNODE_EXIT(db);
+	(void) dbuf_read(db, NULL, flags | DB_RF_MUST_SUCCEED);
 
-	mutex_enter(&db->db_mtx);
-	dbuf_dirty_record_t *dr = dbuf_find_dirty_eq(db, tx->tx_txg);
-	if (dr != NULL && db->db_level == 0)
-		dr->dt.dl.dr_rewrite = B_TRUE;
-	mutex_exit(&db->db_mtx);
+	/*
+	 * The dbuf is not dirty, so make it dirty and mark it for rewrite
+	 * (preserve logical birth time), unless it has been dirtied since:
+	 * a write must never be taken for a rewrite.
+	 */
+	(void) dbuf_dirty_impl(db, tx, db->db_level == 0);
 }
 
 boolean_t
