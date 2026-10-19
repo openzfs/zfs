@@ -228,6 +228,8 @@ vdev_rebuild_initiate_sync(void *arg, dmu_tx_t *tx)
 
 	spa_feature_incr(vd->vdev_spa, SPA_FEATURE_DEVICE_REBUILD, tx);
 
+	/* For vdev_resilver_needed(), see vdev_rebuild_should_cancel(). */
+	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 	mutex_enter(&vd->vdev_rebuild_lock);
 	memset(vrp, 0, sizeof (uint64_t) * REBUILD_PHYS_ENTRIES);
 	vrp->vrp_rebuild_state = VDEV_REBUILD_ACTIVE;
@@ -259,6 +261,7 @@ vdev_rebuild_initiate_sync(void *arg, dmu_tx_t *tx)
 	    vdev_rebuild_thread, vd, 0, &p0, TS_RUN, maxclsyspri);
 
 	mutex_exit(&vd->vdev_rebuild_lock);
+	spa_config_exit(spa, SCL_STATE, FTAG);
 }
 
 static void
@@ -407,6 +410,8 @@ vdev_rebuild_reset_sync(void *arg, dmu_tx_t *tx)
 	vdev_rebuild_t *vr = &vd->vdev_rebuild_config;
 	vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
 
+	/* For vdev_resilver_needed(), see vdev_rebuild_should_cancel(). */
+	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 	mutex_enter(&vd->vdev_rebuild_lock);
 
 	ASSERT(vrp->vrp_rebuild_state == VDEV_REBUILD_ACTIVE);
@@ -440,6 +445,7 @@ vdev_rebuild_reset_sync(void *arg, dmu_tx_t *tx)
 	    vdev_rebuild_thread, vd, 0, &p0, TS_RUN, maxclsyspri);
 
 	mutex_exit(&vd->vdev_rebuild_lock);
+	spa_config_exit(spa, SCL_STATE, FTAG);
 }
 
 /*
