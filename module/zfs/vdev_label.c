@@ -1682,12 +1682,14 @@ vdev_uberblock_load_impl(zio_t *zio, vdev_t *vd, int flags,
  * vdev, keeping track of the uberblock with the highest txg in each array.
  * Then, we read the configuration from the same vdev as the best uberblock.
  */
-void
-vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
+static void
+vdev_uberblock_load_common(vdev_t *rvd, uberblock_t *ub, nvlist_t **config,
+    boolean_t shared_config)
 {
 	zio_t *zio;
 	spa_t *spa = rvd->vdev_spa;
 	struct ubl_cbdata cb;
+	int locks = SCL_ALL;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_SPECULATIVE | ZIO_FLAG_TRYHARD;
 
@@ -1700,7 +1702,17 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 
 	cb.ubl_ubbest = ub;
 
-	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
+	if (shared_config) {
+		/*
+		 * Pool clear can run while spa_sync() waits for zio_resume()
+		 * with SCL_CONFIG held as a reader.  Share that lock so the MMP
+		 * check reads labels without blocking the sync thread.
+		 */
+		spa_config_enter_priority(spa, SCL_CONFIG, FTAG,
+		    RW_READER);
+		locks &= ~SCL_CONFIG;
+	}
+	spa_config_enter(spa, locks, FTAG, RW_WRITER);
 	zio = zio_root(spa, NULL, &cb, flags);
 	vdev_uberblock_load_impl(zio, rvd, flags, &cb);
 	(void) zio_wait(zio);
@@ -1717,7 +1729,8 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 	 * above this one, or a later import would find the discarded ones and
 	 * prefer them.
 	 */
-	spa->spa_load_latest_ub_txg = cb.ubl_latest.ub_txg;
+	if (!shared_config)
+		spa->spa_load_latest_ub_txg = cb.ubl_latest.ub_txg;
 
 	if (cb.ubl_vd != NULL) {
 		vdev_dbgmsg(cb.ubl_vd, "best uberblock found for spa %s, "
@@ -1737,8 +1750,7 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 			    (u_longlong_t)cb.ubl_latest.ub_txg,
 			    (u_longlong_t)cb.ubl_latest.ub_raidz_reflow_info);
 			memset(ub, 0, sizeof (uberblock_t));
-			spa_config_exit(spa, SCL_ALL, FTAG);
-			return;
+			goto out;
 		}
 
 		*config = vdev_label_read_config(cb.ubl_vd, ub->ub_txg,
@@ -1753,7 +1765,23 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 			vdev_dbgmsg(cb.ubl_vd, "failed to read label config");
 		}
 	}
-	spa_config_exit(spa, SCL_ALL, FTAG);
+
+out:
+	spa_config_exit(spa, locks, FTAG);
+	if (shared_config)
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+}
+
+void
+vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
+{
+	vdev_uberblock_load_common(rvd, ub, config, B_FALSE);
+}
+
+void
+vdev_uberblock_load_shared(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
+{
+	vdev_uberblock_load_common(rvd, ub, config, B_TRUE);
 }
 
 /*
