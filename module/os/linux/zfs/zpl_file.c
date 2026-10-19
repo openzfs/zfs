@@ -485,14 +485,18 @@ zpl_mmap(struct file *filp, struct vm_area_struct *vma)
  * data in the ARC which is kept up to date via .write() and .writepage().
  */
 static inline int
-zpl_readpage_common(struct page *pp)
+zpl_readpage_common(struct page *pp, boolean_t readahead)
 {
 	fstrans_cookie_t cookie;
+	int error;
 
 	ASSERT(PageLocked(pp));
 
 	cookie = spl_fstrans_mark();
-	int error = -zfs_getpage(pp->mapping->host, pp);
+	if (readahead)
+		error = -zfs_getpage_readahead(pp->mapping->host, pp);
+	else
+		error = -zfs_getpage(pp->mapping->host, pp);
 	spl_fstrans_unmark(cookie);
 
 	unlock_page(pp);
@@ -504,20 +508,20 @@ zpl_readpage_common(struct page *pp)
 static int
 zpl_read_folio(struct file *filp, struct folio *folio)
 {
-	return (zpl_readpage_common(&folio->page));
+	return (zpl_readpage_common(&folio->page, B_FALSE));
 }
 #else
 static int
 zpl_readpage(struct file *filp, struct page *pp)
 {
-	return (zpl_readpage_common(pp));
+	return (zpl_readpage_common(pp, B_FALSE));
 }
 #endif
 
 static int
 zpl_readpage_filler(void *data, struct page *pp)
 {
-	return (zpl_readpage_common(pp));
+	return (zpl_readpage_common(pp, B_TRUE));
 }
 
 /*
