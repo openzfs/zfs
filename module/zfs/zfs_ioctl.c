@@ -5156,6 +5156,42 @@ zfs_ioc_wait_fs(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
 }
 
 /*
+ * Rewrite a range of a volume as-is without modification, the volume
+ * counterpart of the file rewrite.  The volume can be in use, and does not
+ * need to be exposed as a device.
+ *
+ * innvl: {
+ *     "rewrite_offset" -> uint64_t (optional, defaults to 0)
+ *     "rewrite_length" -> uint64_t (optional, defaults to the rest of the
+ *         volume)
+ *     "rewrite_flags" -> uint64_t (optional, ZFS_REWRITE_* flags)
+ * }
+ *
+ * outnvl is unused.
+ */
+static const zfs_ioc_key_t zfs_keys_zvol_rewrite[] = {
+	{ZVOL_REWRITE_OFFSET,	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{ZVOL_REWRITE_LENGTH,	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{ZVOL_REWRITE_FLAGS,	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+};
+
+static int
+zfs_ioc_zvol_rewrite(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	uint64_t off = 0;
+	uint64_t len = 0;
+	uint64_t flags = 0;
+
+	if (innvl != NULL) {
+		(void) nvlist_lookup_uint64(innvl, ZVOL_REWRITE_OFFSET, &off);
+		(void) nvlist_lookup_uint64(innvl, ZVOL_REWRITE_LENGTH, &len);
+		(void) nvlist_lookup_uint64(innvl, ZVOL_REWRITE_FLAGS, &flags);
+	}
+
+	return (zvol_rewrite(name, off, len, flags));
+}
+
+/*
  * fsname is name of dataset to rollback (to most recent snapshot)
  *
  * innvl may contain name of expected target snapshot
@@ -8255,6 +8291,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_ddt_prune, zfs_secpolicy_config, POOL_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
 	    zfs_keys_ddt_prune, ARRAY_SIZE(zfs_keys_ddt_prune));
+
+	zfs_ioctl_register("zvol_rewrite", ZFS_IOC_ZVOL_REWRITE,
+	    zfs_ioc_zvol_rewrite, zfs_secpolicy_config, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
+	    zfs_keys_zvol_rewrite, ARRAY_SIZE(zfs_keys_zvol_rewrite));
 
 	/* IOCTLS that use the legacy function signature */
 

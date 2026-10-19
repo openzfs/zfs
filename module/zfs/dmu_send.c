@@ -2907,6 +2907,17 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 			if (err == 0)
 				owned = B_TRUE;
 		}
+
+		/*
+		 * Owning the dataset does not keep out what changes it under
+		 * a long hold, such as the rewrite of a volume.
+		 */
+		if (err == 0 && owned &&
+		    dsl_dataset_long_held_by_others(dspp.to_ds, FTAG)) {
+			dsl_dataset_disown(dspp.to_ds, dsflags, FTAG);
+			owned = B_FALSE;
+			err = SET_ERROR(EBUSY);
+		}
 	} else {
 		err = dsl_dataset_hold_flags(dspp.dp, tosnap, dsflags, FTAG,
 		    &dspp.to_ds);
