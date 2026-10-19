@@ -3069,6 +3069,7 @@ dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
 	dmu_buf_will_dirty_flags(db_fake, tx,
 	    DMU_READ_NO_PREFETCH | DMU_READ_NO_DECRYPT);
 
+	mutex_enter(&db->db_mtx);
 	dr = dbuf_find_dirty_eq(db, tx->tx_txg);
 
 	ASSERT3P(dr, !=, NULL);
@@ -3079,6 +3080,7 @@ dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
 	memcpy(dr->dt.dl.dr_salt, salt, ZIO_DATA_SALT_LEN);
 	memcpy(dr->dt.dl.dr_iv, iv, ZIO_DATA_IV_LEN);
 	memcpy(dr->dt.dl.dr_mac, mac, ZIO_DATA_MAC_LEN);
+	mutex_exit(&db->db_mtx);
 }
 
 static void
