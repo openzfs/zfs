@@ -164,13 +164,21 @@ vdev_rebuild_should_stop(vdev_t *vd)
 static boolean_t
 vdev_rebuild_should_cancel(vdev_t *vd)
 {
+	spa_t *spa = vd->vdev_spa;
 	vdev_rebuild_t *vr = &vd->vdev_rebuild_config;
 	vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
+	boolean_t needed;
 
-	if (!vdev_resilver_needed(vd, &vrp->vrp_min_txg, &vrp->vrp_max_txg))
-		return (B_TRUE);
+	/*
+	 * vdev_reopen() closes every leaf under SCL_STATE, and a leaf that
+	 * is being reopened has not stopped needing the rebuild.
+	 */
+	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
+	needed = vdev_resilver_needed(vd, &vrp->vrp_min_txg,
+	    &vrp->vrp_max_txg);
+	spa_config_exit(spa, SCL_STATE, FTAG);
 
-	return (B_FALSE);
+	return (!needed);
 }
 
 /*
