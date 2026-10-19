@@ -3,7 +3,7 @@
  * @description Detects functions whose usage is banned from the OpenZFS
  *              codebase due to QA concerns.
  * @kind problem
- * @severity error
+ * @problem.severity error
  * @id cpp/deprecated-function-usage
 */
 

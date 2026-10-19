@@ -1,0 +1,6 @@
+name: openzfs/cpp-query-tests
+dependencies:
+  openzfs/cpp-queries: ${workspace}
+extractor: cpp
+tests: .
+warnOnImplicitThis: true

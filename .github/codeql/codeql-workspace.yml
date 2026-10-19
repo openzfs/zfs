@@ -1,0 +1,3 @@
+provide:
+  - custom-queries/cpp/qlpack.yml
+  - custom-queries/cpp-tests/qlpack.yml
