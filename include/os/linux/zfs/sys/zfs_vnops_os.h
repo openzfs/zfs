@@ -60,6 +60,7 @@ extern int zfs_link(znode_t *tdzp, znode_t *szp,
 extern void zfs_inactive(struct inode *ip);
 extern int zfs_space(znode_t *zp, int cmd, flock64_t *bfp, int flag,
     offset_t offset, cred_t *cr);
+extern int zfs_extend(znode_t *zp, uint64_t end, boolean_t log);
 extern int zfs_fid(struct inode *ip, fid_t *fidp);
 extern int zfs_getpage(struct inode *ip, struct page *pp);
 extern int zfs_putpage(struct inode *ip, struct page *pp,
