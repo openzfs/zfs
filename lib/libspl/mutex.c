@@ -33,7 +33,7 @@ mutex_init(kmutex_t *mp, char *name, int type, void *cookie)
 {
 	(void) name, (void) type, (void) cookie;
 	VERIFY0(pthread_mutex_init(&mp->m_lock, NULL));
-	memset(&mp->m_owner, 0, sizeof (pthread_t));
+	mp->m_owner = NULL;
 }
 
 void
@@ -46,7 +46,7 @@ void
 mutex_enter(kmutex_t *mp)
 {
 	VERIFY0(pthread_mutex_lock(&mp->m_lock));
-	mp->m_owner = pthread_self();
+	mp->m_owner = curthread;
 }
 
 int
@@ -54,7 +54,7 @@ mutex_enter_check_return(kmutex_t *mp)
 {
 	int error = pthread_mutex_lock(&mp->m_lock);
 	if (error == 0)
-		mp->m_owner = pthread_self();
+		mp->m_owner = curthread;
 	return (error);
 }
 
@@ -63,7 +63,7 @@ mutex_tryenter(kmutex_t *mp)
 {
 	int error = pthread_mutex_trylock(&mp->m_lock);
 	if (error == 0) {
-		mp->m_owner = pthread_self();
+		mp->m_owner = curthread;
 		return (1);
 	} else {
 		VERIFY3S(error, ==, EBUSY);
@@ -74,6 +74,6 @@ mutex_tryenter(kmutex_t *mp)
 void
 mutex_exit(kmutex_t *mp)
 {
-	memset(&mp->m_owner, 0, sizeof (pthread_t));
+	mp->m_owner = NULL;
 	VERIFY0(pthread_mutex_unlock(&mp->m_lock));
 }

@@ -20,18 +20,19 @@
 #define	_SYS_MUTEX_H
 
 #include <pthread.h>
+#include <sys/thread.h>
 
 /*
  * Mutexes
  */
 typedef struct kmutex {
 	pthread_mutex_t		m_lock;
-	pthread_t		m_owner;
+	kthread_t		*m_owner;
 } kmutex_t;
 
 #define	MUTEX_DEFAULT		0
 #define	MUTEX_NOLOCKDEP		MUTEX_DEFAULT
-#define	MUTEX_HELD(mp)		pthread_equal((mp)->m_owner, pthread_self())
+#define	MUTEX_HELD(mp)		((mp)->m_owner == curthread)
 #define	MUTEX_NOT_HELD(mp)	!MUTEX_HELD(mp)
 
 extern void mutex_init(kmutex_t *mp, char *name, int type, void *cookie);
