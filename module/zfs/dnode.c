@@ -651,7 +651,9 @@ dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 }
 
 /*
- * Caller must be holding the dnode handle, which is released upon return.
+ * Caller owns the dnode through an exclusive live-slot handle, or as a
+ * special dnode or detached dnode-children array after references drain.
+ * Handle ownership stays with the caller.
  */
 static void
 dnode_destroy(dnode_t *dn)
@@ -670,10 +672,6 @@ dnode_destroy(dnode_t *dn)
 		    list_link_active(&os->os_evicting_node);
 	}
 	mutex_exit(&os->os_lock);
-
-	/* the dnode can no longer move, so we can release the handle */
-	if (!zrl_is_locked(&dn->dn_handle->dnh_zrlock))
-		zrl_remove(&dn->dn_handle->dnh_zrlock);
 
 	dn->dn_allocated_txg = 0;
 	dn->dn_free_txg = 0;
@@ -1336,8 +1334,7 @@ dnode_special_close(dnode_handle_t *dnh)
 
 	ASSERT(dn->dn_dbuf == NULL ||
 	    dmu_buf_get_user(&dn->dn_dbuf->db) == NULL);
-	zrl_add(&dnh->dnh_zrlock);
-	dnode_destroy(dn); /* implicit zrl_remove() */
+	dnode_destroy(dn);
 	zrl_destroy(&dnh->dnh_zrlock);
 	dnh->dnh_dnode = NULL;
 }
@@ -1368,18 +1365,12 @@ dnode_buf_evict_async(void *dbu)
 		dnode_handle_t *dnh = &dnc->dnc_children[i];
 		dnode_t *dn;
 
-		/*
-		 * The dnode handle lock guards against the dnode moving to
-		 * another valid address, so there is no need here to guard
-		 * against changes to or from NULL.
-		 */
 		if (!DN_SLOT_IS_PTR(dnh->dnh_dnode)) {
 			zrl_destroy(&dnh->dnh_zrlock);
 			dnh->dnh_dnode = DN_SLOT_UNINIT;
 			continue;
 		}
 
-		zrl_add(&dnh->dnh_zrlock);
 		dn = dnh->dnh_dnode;
 		/*
 		 * If there are holds on this dnode, then there should
@@ -1390,7 +1381,7 @@ dnode_buf_evict_async(void *dbu)
 		ASSERT(zfs_refcount_is_zero(&dn->dn_holds));
 		ASSERT(zfs_refcount_is_zero(&dn->dn_tx_holds));
 
-		dnode_destroy(dn); /* implicit zrl_remove() for first slot */
+		dnode_destroy(dn);
 		zrl_destroy(&dnh->dnh_zrlock);
 		dnh->dnh_dnode = DN_SLOT_UNINIT;
 	}
