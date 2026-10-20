@@ -873,9 +873,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		dmu_tx_t *tx = dmu_tx_create(zfsvfs->z_os);
 		dmu_tx_hold_sa(tx, zp->z_sa_hdl, ZFS_SEQ_MAY_GROW(zp));
 		dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
-		DB_DNODE_ENTER(db);
-		dmu_tx_hold_write_by_dnode(tx, DB_DNODE(db), woff, nbytes);
-		DB_DNODE_EXIT(db);
+		dmu_tx_hold_write_by_dnode(tx, db->db_dnode, woff, nbytes);
 		zfs_sa_upgrade_txholds(tx, zp);
 		error = dmu_tx_assign(tx, DMU_TX_WAIT);
 		if (error) {
@@ -1208,8 +1206,7 @@ zfs_rewrite(znode_t *zp, uint64_t off, uint64_t len, uint64_t flags,
 	const uint64_t projid = zp->z_projid;
 
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
-	DB_DNODE_ENTER(db);
-	dnode_t *dn = DB_DNODE(db);
+	dnode_t *dn = db->db_dnode;
 
 	uint64_t n, noff = off, nr = 0, nw = 0;
 	while (len > 0) {
@@ -1293,8 +1290,6 @@ zfs_rewrite(znode_t *zp, uint64_t off, uint64_t len, uint64_t flags,
 			break;
 		}
 	}
-
-	DB_DNODE_EXIT(db);
 
 	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, nr);
 	dataset_kstats_update_write_kstats(&zfsvfs->z_kstat, nw);
@@ -1889,10 +1884,8 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 		tx = dmu_tx_create(outos);
 		dmu_tx_hold_sa(tx, outzp->z_sa_hdl, ZFS_SEQ_MAY_GROW(outzp));
 		db = (dmu_buf_impl_t *)sa_get_db(outzp->z_sa_hdl);
-		DB_DNODE_ENTER(db);
-		dmu_tx_hold_clone_by_dnode(tx, DB_DNODE(db), outoff, size,
+		dmu_tx_hold_clone_by_dnode(tx, db->db_dnode, outoff, size,
 		    inblksz);
-		DB_DNODE_EXIT(db);
 		zfs_sa_upgrade_txholds(tx, outzp);
 		error = dmu_tx_assign(tx, DMU_TX_WAIT);
 		if (error != 0) {
@@ -2942,9 +2935,7 @@ zfs_clone_range_replay(znode_t *zp, uint64_t off, uint64_t len, uint64_t blksz,
 
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, ZFS_SEQ_MAY_GROW(zp));
 	db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
-	DB_DNODE_ENTER(db);
-	dmu_tx_hold_clone_by_dnode(tx, DB_DNODE(db), off, len, blksz);
-	DB_DNODE_EXIT(db);
+	dmu_tx_hold_clone_by_dnode(tx, db->db_dnode, off, len, blksz);
 	zfs_sa_upgrade_txholds(tx, zp);
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error != 0) {

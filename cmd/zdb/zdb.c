@@ -4453,7 +4453,7 @@ dump_object(objset_t *os, uint64_t object, int verbosity,
 				    object, error);
 			bonus = db->db_data;
 			bsize = db->db_size;
-			dn = DB_DNODE((dmu_buf_impl_t *)db);
+			dn = ((dmu_buf_impl_t *)db)->db_dnode;
 		}
 	}
 
@@ -4639,7 +4639,7 @@ dump_object_file_layout(objset_t *os, uint64_t object, int verbosity)
 			if (error)
 				fatal("dmu_bonus_hold(%llu) failed, errno %u",
 				    object, error);
-			dn = DB_DNODE((dmu_buf_impl_t *)db);
+			dn = ((dmu_buf_impl_t *)db)->db_dnode;
 		}
 	}
 

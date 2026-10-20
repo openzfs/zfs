@@ -1928,8 +1928,7 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 
 	/* First make of copy of the old data */
 
-	DB_DNODE_ENTER(db);
-	if (DB_DNODE(db)->dn_bonuslen != 0) {
+	if (db->db_dnode->dn_bonuslen != 0) {
 		bonus_data_size = hdl->sa_bonus->db_size;
 		old_data[0] = kmem_alloc(bonus_data_size, KM_SLEEP);
 		memcpy(old_data[0], hdl->sa_bonus->db_data,
@@ -1938,8 +1937,6 @@ sa_modify_attrs(sa_handle_t *hdl, sa_attr_type_t newattr,
 	} else {
 		old_data[0] = NULL;
 	}
-	DB_DNODE_EXIT(db);
-
 	/* Bring spill buffer online if it isn't currently */
 
 	if ((error = sa_get_spill(hdl)) == 0) {

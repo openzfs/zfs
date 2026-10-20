@@ -113,12 +113,11 @@ typedef struct dbuf_dirty_record {
 	list_node_t dr_dbuf_node;
 
 	/*
-	 * The dnode we are part of.  Note that the dnode can not be moved or
-	 * evicted due to the hold that's added by dnode_setdirty() or
-	 * dmu_objset_sync_dnodes(), and released by dnode_rele_task() or
-	 * userquota_updates_task().  This hold is necessary for
-	 * dirty_lightweight_leaf-type dirty records, which don't have a hold
-	 * on a dbuf.
+	 * The dnode we are part of.  Holds from dnode_setdirty() and
+	 * dmu_objset_sync_dnodes() prevent eviction through sync completion.
+	 * dnode_rele_task() or userquota_updates_task() releases the final
+	 * hold.  This is necessary for dirty_lightweight_leaf-type dirty
+	 * records, which don't have a hold on a dbuf.
 	 */
 	dnode_t *dr_dnode;
 
@@ -199,20 +198,12 @@ typedef struct dmu_buf_impl {
 	/* the objset we belong to */
 	struct objset *db_objset;
 
-	/*
-	 * Handle to safely access the dnode we belong to (NULL when evicted)
-	 * if dnode_move() is used on the platform, or just dnode otherwise.
-	 */
-#if !defined(__linux__) && !defined(__FreeBSD__)
-#define	USE_DNODE_HANDLE	1
-	struct dnode_handle *db_dnode_handle;
-#else
+	/* the dnode we belong to (NULL when evicted) */
 	struct dnode *db_dnode;
-#endif
 
 	/*
 	 * our parent buffer; if the dnode points to us directly,
-	 * db_parent == db_dnode_handle->dnh_dnode->dn_dbuf
+	 * db_parent == db_dnode->dn_dbuf
 	 * only accessed by sync thread ???
 	 * (NULL when evicted)
 	 * May change from NULL to non-NULL under the protection of db_mtx
@@ -412,20 +403,6 @@ void dbuf_stats_destroy(void);
 
 int dbuf_dnode_findbp(dnode_t *dn, uint64_t level, uint64_t blkid,
     blkptr_t *bp, uint16_t *datablkszsec, uint8_t *indblkshift);
-
-#ifdef USE_DNODE_HANDLE
-#define	DB_DNODE(_db)		((_db)->db_dnode_handle->dnh_dnode)
-#define	DB_DNODE_LOCK(_db)	((_db)->db_dnode_handle->dnh_zrlock)
-#define	DB_DNODE_ENTER(_db)	(zrl_add(&DB_DNODE_LOCK(_db)))
-#define	DB_DNODE_EXIT(_db)	(zrl_remove(&DB_DNODE_LOCK(_db)))
-#define	DB_DNODE_HELD(_db)	(!zrl_is_zero(&DB_DNODE_LOCK(_db)))
-#else
-#define	DB_DNODE(_db)		((_db)->db_dnode)
-#define	DB_DNODE_LOCK(_db)
-#define	DB_DNODE_ENTER(_db)
-#define	DB_DNODE_EXIT(_db)
-#define	DB_DNODE_HELD(_db)	(B_TRUE)
-#endif
 
 void dbuf_init(void);
 void dbuf_fini(void);

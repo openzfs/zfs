@@ -173,11 +173,9 @@ dnode_cons(void *arg, void *unused, int kmflag)
 	dn->dn_newprojid = ZFS_DEFAULT_PROJID;
 	dn->dn_id_flags = 0;
 
-	dn->dn_dbufs_count = 0;
 	avl_create(&dn->dn_dbufs, dbuf_compare, sizeof (dmu_buf_impl_t),
 	    offsetof(dmu_buf_impl_t, db_link));
 
-	dn->dn_moved = 0;
 	return (0);
 }
 
@@ -227,7 +225,6 @@ dnode_dest(void *arg, void *unused)
 	ASSERT0(dn->dn_newprojid);
 	ASSERT0(dn->dn_id_flags);
 
-	ASSERT0(dn->dn_dbufs_count);
 	avl_destroy(&dn->dn_dbufs);
 }
 
@@ -311,7 +308,6 @@ dnode_init(void)
 	wmsum_init(&dnode_sums.dnode_alloc_next_chunk, 0);
 	wmsum_init(&dnode_sums.dnode_alloc_race, 0);
 	wmsum_init(&dnode_sums.dnode_alloc_next_block, 0);
-
 	dnode_ksp = kstat_create("zfs", 0, "dnodestats", "misc",
 	    KSTAT_TYPE_NAMED, sizeof (dnode_stats) / sizeof (kstat_named_t),
 	    KSTAT_FLAG_VIRTUAL);
@@ -351,7 +347,6 @@ dnode_fini(void)
 	wmsum_fini(&dnode_sums.dnode_alloc_next_chunk);
 	wmsum_fini(&dnode_sums.dnode_alloc_race);
 	wmsum_fini(&dnode_sums.dnode_alloc_next_block);
-
 	kmem_cache_destroy(dnode_cache);
 	dnode_cache = NULL;
 }
@@ -551,12 +546,8 @@ dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 	dnode_t *dn;
 
 	dn = kmem_cache_alloc(dnode_cache, KM_SLEEP);
-	dn->dn_moved = 0;
 
-	/*
-	 * Defer setting dn_objset until the dnode is ready to be a candidate
-	 * for the dnode_move() callback.
-	 */
+	dn->dn_objset = os;
 	dn->dn_object = object;
 	dn->dn_dbuf = db;
 	dn->dn_handle = dnh;
@@ -601,13 +592,6 @@ dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 	 */
 	if (!DMU_OBJECT_IS_SPECIAL(object))
 		list_insert_head(&os->os_dnodes, dn);
-	membar_producer();
-
-	/*
-	 * Everything else must be valid before assigning dn_objset
-	 * makes the dnode eligible for dnode_move().
-	 */
-	dn->dn_objset = os;
 
 	dnh->dnh_dnode = dn;
 	mutex_exit(&os->os_lock);
@@ -618,7 +602,8 @@ dnode_create(objset_t *os, dnode_phys_t *dnp, dmu_buf_impl_t *db,
 }
 
 /*
- * Caller must be holding the dnode handle, which is released upon return.
+ * Caller must hold the dnode handle.  A shared hold is consumed; an exclusive
+ * hold remains with the caller.
  */
 static void
 dnode_destroy(dnode_t *dn)
@@ -629,7 +614,6 @@ dnode_destroy(dnode_t *dn)
 	ASSERT0((dn->dn_id_flags & DN_ID_NEW_EXIST));
 
 	mutex_enter(&os->os_lock);
-	POINTER_INVALIDATE(&dn->dn_objset);
 	if (!DMU_OBJECT_IS_SPECIAL(dn->dn_object)) {
 		list_remove(&os->os_dnodes, dn);
 		complete_os_eviction =
@@ -638,7 +622,7 @@ dnode_destroy(dnode_t *dn)
 	}
 	mutex_exit(&os->os_lock);
 
-	/* the dnode can no longer move, so we can release the handle */
+	/* Release the caller's shared handle hold, if it is not exclusive. */
 	if (!zrl_is_locked(&dn->dn_handle->dnh_zrlock))
 		zrl_remove(&dn->dn_handle->dnh_zrlock);
 
@@ -857,7 +841,6 @@ dnode_reallocate(dnode_t *dn, dmu_object_type_t ot, int blocksize,
 	mutex_exit(&dn->dn_mtx);
 }
 
-
 static void
 dnode_slots_hold(dnode_children_t *children, int idx, int slots)
 {
@@ -1044,11 +1027,6 @@ dnode_buf_evict_async(void *dbu)
 		dnode_handle_t *dnh = &dnc->dnc_children[i];
 		dnode_t *dn;
 
-		/*
-		 * The dnode handle lock guards against the dnode moving to
-		 * another valid address, so there is no need here to guard
-		 * against changes to or from NULL.
-		 */
 		if (!DN_SLOT_IS_PTR(dnh->dnh_dnode)) {
 			zrl_destroy(&dnh->dnh_zrlock);
 			dnh->dnh_dnode = DN_SLOT_UNINIT;
@@ -1197,7 +1175,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 	idx = object & (epb - 1);
 	dn_block = (dnode_phys_t *)db->db.db_data;
 
-	ASSERT(DB_DNODE(db)->dn_type == DMU_OT_DNODE);
+	ASSERT(db->db_dnode->dn_type == DMU_OT_DNODE);
 	dnc = dmu_buf_get_user(&db->db);
 	dnh = NULL;
 	if (dnc == NULL) {
@@ -1390,7 +1368,7 @@ dnode_hold_impl(objset_t *os, uint64_t object, int flag, int slots,
 
 	mutex_exit(&dn->dn_mtx);
 
-	/* Now we can rely on the hold to prevent the dnode from moving. */
+	/* The dnode hold now protects against slot reclamation. */
 	dnode_slots_rele(dnc, idx, slots);
 
 	DNODE_VERIFY(dn);
@@ -1448,7 +1426,7 @@ void
 dnode_rele_and_unlock(dnode_t *dn, const void *tag, boolean_t evicting)
 {
 	uint64_t refs;
-	/* Get while the hold prevents the dnode from moving. */
+	/* Save these before releasing the hold can destroy the dnode. */
 	dmu_buf_impl_t *db = dn->dn_dbuf;
 	dnode_handle_t *dnh = dn->dn_handle;
 
@@ -1457,13 +1435,7 @@ dnode_rele_and_unlock(dnode_t *dn, const void *tag, boolean_t evicting)
 		cv_broadcast(&dn->dn_nodnholds);
 
 	/*
-	 * It's unsafe to release the last hold on a dnode by dnode_rele() or
-	 * indirectly by dbuf_rele() while relying on the dnode handle to
-	 * prevent the dnode from moving, since releasing the last hold could
-	 * result in the dnode's parent dbuf evicting its dnode handles. For
-	 * that reason anyone calling dnode_rele() or dbuf_rele() without some
-	 * other direct or indirect hold on the dnode must first drop the dnode
-	 * handle.
+	 * The last hold can release the parent dbuf and evict its handles.
 	 */
 #ifdef ZFS_DEBUG
 	ASSERT(refs > 0 || zrl_owner(&dnh->dnh_zrlock) != curthread);
@@ -1471,20 +1443,12 @@ dnode_rele_and_unlock(dnode_t *dn, const void *tag, boolean_t evicting)
 
 	mutex_exit(&dn->dn_mtx);
 	/*
-	 * After the dn_mtx is released the dn and dnh may be destroyed,
-	 * they are no longer safe to use after this point.
+	 * After dn_mtx is released, dn may be destroyed.  The parent dbuf hold
+	 * keeps the saved db and dnh address valid until it is released below.
 	 */
 
 	/* NOTE: the DNODE_DNODE does not have a dn_dbuf */
 	if (refs == 0 && db != NULL) {
-		/*
-		 * Another thread could add a hold to the dnode handle in
-		 * dnode_hold_impl() while holding the parent dbuf. Since the
-		 * hold on the parent dbuf prevents the handle from being
-		 * destroyed, the hold on the handle is OK. We can't yet assert
-		 * that the handle has zero references, but that will be
-		 * asserted anyway when the handle gets destroyed.
-		 */
 		mutex_enter(&db->db_mtx);
 		dbuf_rele_and_unlock(db, dnh, evicting);
 	}

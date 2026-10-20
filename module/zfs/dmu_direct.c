@@ -135,11 +135,9 @@ dmu_write_direct(zio_t *pio, dmu_buf_impl_t *db, abd_t *data, dmu_tx_t *tx)
 	SET_BOOKMARK(&zb, ds->ds_object,
 	    db->db.db_object, db->db_level, db->db_blkid);
 
-	DB_DNODE_ENTER(db);
 	zio_prop_t zp;
-	dmu_write_policy(os, DB_DNODE(db), db->db_level,
+	dmu_write_policy(os, db->db_dnode, db->db_level,
 	    WP_DMU_SYNC | WP_DIRECT_WR, &zp);
-	DB_DNODE_EXIT(db);
 
 	/*
 	 * Dirty this dbuf with DB_NOFILL since we will not have any data
