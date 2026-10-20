@@ -29,7 +29,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd September 9, 2026
+.Dd October 29, 2026
 .Dt ZFSPROPS 7
 .Os
 .
@@ -93,6 +93,19 @@ there is no other activity in the pool.
 Because space is shared within a pool, availability can be limited by any number
 of factors, including physical pool size, quotas, reservations, or other
 datasets within the pool.
+.Pp
+On RAID-Z pools, space is converted with a ratio computed for a 128 KiB block
+on the original layout of each RAID-Z vdev.
+The value is accurate for datasets that store 128 KiB blocks on a vdev that has
+not been expanded.
+A dataset with smaller blocks, such as one with a small
+.Sy recordsize
+or
+.Sy volblocksize ,
+or one holding many small files, can store less data than shown, because parity
+and padding take a larger share of each block.
+Datasets with larger blocks can store more.
+Compression changes the amount further.
 .Pp
 This property can also be referred to by its shortened column name,
 .Sy avail .
