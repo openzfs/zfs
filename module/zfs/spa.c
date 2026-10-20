@@ -8345,6 +8345,8 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t check_ashift)
 
 	for (int c = 0; c < vd->vdev_children; c++) {
 		tvd = vd->vdev_child[c];
+		if (tvd->vdev_ops == &vdev_anyraid_ops)
+			nanyraid++;
 		vdev_remove_child(vd, tvd);
 		tvd->vdev_id = rvd->vdev_children;
 		vdev_add_child(rvd, tvd);
@@ -8384,10 +8386,6 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t check_ashift)
 
 		dmu_tx_commit(tx);
 	}
-
-	for (uint64_t i = 0; i < vd->vdev_children; i++)
-		if (vd->vdev_child[i]->vdev_ops == &vdev_anyraid_ops)
-			nanyraid++;
 	if (nanyraid > 0) {
 		dmu_tx_t *tx;
 
