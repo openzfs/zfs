@@ -62,8 +62,6 @@ static int sha2_mac_update(crypto_ctx_t *, crypto_data_t *);
 static int sha2_mac_final(crypto_ctx_t *, crypto_data_t *);
 static int sha2_mac_atomic(crypto_mechanism_t *, crypto_key_t *,
     crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
-static int sha2_mac_verify_atomic(crypto_mechanism_t *, crypto_key_t *,
-    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
 
 static const crypto_mac_ops_t sha2_mac_ops = {
 	.mac_init = sha2_mac_init,
@@ -71,7 +69,6 @@ static const crypto_mac_ops_t sha2_mac_ops = {
 	.mac_update = sha2_mac_update,
 	.mac_final = sha2_mac_final,
 	.mac_atomic = sha2_mac_atomic,
-	.mac_verify_atomic = sha2_mac_verify_atomic
 };
 
 static int sha2_create_ctx_template(crypto_mechanism_t *, crypto_key_t *,
@@ -638,147 +635,6 @@ sha2_mac_atomic(crypto_mechanism_t *mechanism,
 		mac->cd_length = digest_len;
 		return (CRYPTO_SUCCESS);
 	}
-bail:
-	memset(&sha2_hmac_ctx, 0, sizeof (sha2_hmac_ctx_t));
-	mac->cd_length = 0;
-	return (ret);
-}
-
-static int
-sha2_mac_verify_atomic(crypto_mechanism_t *mechanism,
-    crypto_key_t *key, crypto_data_t *data, crypto_data_t *mac,
-    crypto_spi_ctx_template_t ctx_template)
-{
-	int ret = CRYPTO_SUCCESS;
-	uchar_t digest[SHA512_DIGEST_LENGTH];
-	sha2_hmac_ctx_t sha2_hmac_ctx;
-	uint32_t sha_digest_len, digest_len, sha_hmac_block_size;
-	uint_t keylen_in_bytes = CRYPTO_BITS2BYTES(key->ck_length);
-
-	/*
-	 * Set the digest length and block size to values appropriate to the
-	 * mechanism
-	 */
-	switch (mechanism->cm_type) {
-	case SHA512_HMAC_MECH_INFO_TYPE:
-		sha_digest_len = digest_len = SHA512_DIGEST_LENGTH;
-		sha_hmac_block_size = SHA512_HMAC_BLOCK_SIZE;
-		break;
-	default:
-		return (CRYPTO_MECHANISM_INVALID);
-	}
-
-	if (ctx_template != NULL) {
-		/* reuse context template */
-		memcpy(&sha2_hmac_ctx, ctx_template, sizeof (sha2_hmac_ctx_t));
-	} else {
-		sha2_hmac_ctx.hc_mech_type = mechanism->cm_type;
-		/* no context template, initialize context */
-		if (keylen_in_bytes > sha_hmac_block_size) {
-			/*
-			 * Hash the passed-in key to get a smaller key.
-			 * The inner context is used since it hasn't been
-			 * initialized yet.
-			 */
-			PROV_SHA2_DIGEST_KEY(mechanism->cm_type / 3,
-			    &sha2_hmac_ctx.hc_icontext,
-			    key->ck_data, keylen_in_bytes, digest);
-			sha2_mac_init_ctx(&sha2_hmac_ctx, digest,
-			    sha_digest_len);
-		} else {
-			sha2_mac_init_ctx(&sha2_hmac_ctx, key->ck_data,
-			    keylen_in_bytes);
-		}
-	}
-
-	if (mac->cd_length != digest_len) {
-		ret = CRYPTO_INVALID_MAC;
-		goto bail;
-	}
-
-	/* do a SHA2 update of the inner context using the specified data */
-	SHA2_MAC_UPDATE(data, sha2_hmac_ctx, ret);
-	if (ret != CRYPTO_SUCCESS)
-		/* the update failed, free context and bail */
-		goto bail;
-
-	/* do a SHA2 final on the inner context */
-	SHA2Final(digest, &sha2_hmac_ctx.hc_icontext);
-
-	/*
-	 * Do an SHA2 update on the outer context, feeding the inner
-	 * digest as data.
-	 */
-	ASSERT3U(mechanism->cm_type, ==, SHA512_HMAC_MECH_INFO_TYPE);
-	SHA2Update(&sha2_hmac_ctx.hc_ocontext, digest, sha_digest_len);
-
-	/*
-	 * Do a SHA2 final on the outer context, storing the computed
-	 * digest in the users buffer.
-	 */
-	SHA2Final(digest, &sha2_hmac_ctx.hc_ocontext);
-
-	/*
-	 * Compare the computed digest against the expected digest passed
-	 * as argument.
-	 */
-
-	switch (mac->cd_format) {
-
-	case CRYPTO_DATA_RAW:
-		if (memcmp(digest, (unsigned char *)mac->cd_raw.iov_base +
-		    mac->cd_offset, digest_len) != 0)
-			ret = CRYPTO_INVALID_MAC;
-		break;
-
-	case CRYPTO_DATA_UIO: {
-		off_t offset = mac->cd_offset;
-		uint_t vec_idx = 0;
-		off_t scratch_offset = 0;
-		size_t length = digest_len;
-		size_t cur_len;
-
-		/* we support only kernel buffer */
-		if (zfs_uio_segflg(mac->cd_uio) != UIO_SYSSPACE)
-			return (CRYPTO_ARGUMENTS_BAD);
-
-		/* jump to the first iovec containing the expected digest */
-		offset = zfs_uio_index_at_offset(mac->cd_uio, offset, &vec_idx);
-		if (vec_idx == zfs_uio_iovcnt(mac->cd_uio)) {
-			/*
-			 * The caller specified an offset that is
-			 * larger than the total size of the buffers
-			 * it provided.
-			 */
-			ret = CRYPTO_DATA_LEN_RANGE;
-			break;
-		}
-
-		/* do the comparison of computed digest vs specified one */
-		while (vec_idx < zfs_uio_iovcnt(mac->cd_uio) && length > 0) {
-			cur_len = MIN(zfs_uio_iovlen(mac->cd_uio, vec_idx) -
-			    offset, length);
-
-			if (memcmp(digest + scratch_offset,
-			    zfs_uio_iovbase(mac->cd_uio, vec_idx) + offset,
-			    cur_len) != 0) {
-				ret = CRYPTO_INVALID_MAC;
-				break;
-			}
-
-			length -= cur_len;
-			vec_idx++;
-			scratch_offset += cur_len;
-			offset = 0;
-		}
-		break;
-	}
-
-	default:
-		ret = CRYPTO_ARGUMENTS_BAD;
-	}
-
-	return (ret);
 bail:
 	memset(&sha2_hmac_ctx, 0, sizeof (sha2_hmac_ctx_t));
 	mac->cd_length = 0;

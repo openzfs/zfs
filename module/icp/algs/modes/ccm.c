@@ -880,15 +880,3 @@ ccm_init_ctx(ccm_ctx_t *ccm_ctx, char *param, int kmflag,
 	}
 	return (rv);
 }
-
-void *
-ccm_alloc_ctx(int kmflag)
-{
-	ccm_ctx_t *ccm_ctx;
-
-	if ((ccm_ctx = kmem_zalloc(sizeof (ccm_ctx_t), kmflag)) == NULL)
-		return (NULL);
-
-	ccm_ctx->ccm_flags = CCM_MODE;
-	return (ccm_ctx);
-}

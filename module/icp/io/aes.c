@@ -55,11 +55,9 @@ static const crypto_cipher_ops_t aes_cipher_ops = {
 
 static int aes_create_ctx_template(crypto_mechanism_t *, crypto_key_t *,
     crypto_spi_ctx_template_t *, size_t *);
-static int aes_free_context(crypto_ctx_t *);
 
 static const crypto_ctx_ops_t aes_ctx_ops = {
 	.create_ctx_template = aes_create_ctx_template,
-	.free_context = aes_free_context
 };
 
 static const crypto_ops_t aes_crypto_ops = {
@@ -106,35 +104,24 @@ aes_mod_fini(void)
 }
 
 static int
-aes_check_mech_param(crypto_mechanism_t *mechanism, aes_ctx_t **ctx)
+aes_check_mech_param(crypto_mechanism_t *mechanism)
 {
-	void *p = NULL;
-	boolean_t param_required = B_TRUE;
 	size_t param_len;
-	void *(*alloc_fun)(int);
-	int rv = CRYPTO_SUCCESS;
 
 	switch (mechanism->cm_type) {
 	case AES_CCM_MECH_INFO_TYPE:
 		param_len = sizeof (CK_AES_CCM_PARAMS);
-		alloc_fun = ccm_alloc_ctx;
 		break;
 	case AES_GCM_MECH_INFO_TYPE:
 		param_len = sizeof (CK_AES_GCM_PARAMS);
-		alloc_fun = gcm_alloc_ctx;
 		break;
 	default:
 		__builtin_unreachable();
 	}
-	if (param_required && mechanism->cm_param != NULL &&
-	    mechanism->cm_param_len != param_len) {
-		rv = CRYPTO_MECHANISM_PARAM_INVALID;
-	}
-	if (ctx != NULL) {
-		p = (alloc_fun)(KM_SLEEP);
-		*ctx = p;
-	}
-	return (rv);
+	if (mechanism->cm_param != NULL &&
+	    mechanism->cm_param_len != param_len)
+		return (CRYPTO_MECHANISM_PARAM_INVALID);
+	return (CRYPTO_SUCCESS);
 }
 
 /*
@@ -174,7 +161,7 @@ aes_encrypt_atomic(crypto_mechanism_t *mechanism,
 
 	ASSERT(ciphertext != NULL);
 
-	if ((ret = aes_check_mech_param(mechanism, NULL)) != CRYPTO_SUCCESS)
+	if ((ret = aes_check_mech_param(mechanism)) != CRYPTO_SUCCESS)
 		return (ret);
 
 	ret = aes_common_init_ctx(&aes_ctx, template, mechanism, key,
@@ -273,7 +260,7 @@ aes_decrypt_atomic(crypto_mechanism_t *mechanism,
 
 	ASSERT(plaintext != NULL);
 
-	if ((ret = aes_check_mech_param(mechanism, NULL)) != CRYPTO_SUCCESS)
+	if ((ret = aes_check_mech_param(mechanism)) != CRYPTO_SUCCESS)
 		return (ret);
 
 	ret = aes_common_init_ctx(&aes_ctx, template, mechanism, key,
@@ -402,27 +389,6 @@ aes_create_ctx_template(crypto_mechanism_t *mechanism, crypto_key_t *key,
 
 	*tmpl = keysched;
 	*tmpl_size = size;
-
-	return (CRYPTO_SUCCESS);
-}
-
-
-static int
-aes_free_context(crypto_ctx_t *ctx)
-{
-	aes_ctx_t *aes_ctx = ctx->cc_provider_private;
-
-	if (aes_ctx != NULL) {
-		if (aes_ctx->ac_flags & PROVIDER_OWNS_KEY_SCHEDULE) {
-			ASSERT(aes_ctx->ac_keysched_len != 0);
-			memset(aes_ctx->ac_keysched, 0,
-			    aes_ctx->ac_keysched_len);
-			kmem_free(aes_ctx->ac_keysched,
-			    aes_ctx->ac_keysched_len);
-		}
-		crypto_free_mode_ctx(aes_ctx);
-		ctx->cc_provider_private = NULL;
-	}
 
 	return (CRYPTO_SUCCESS);
 }
