@@ -82,7 +82,7 @@ jobs:
           sudo update-alternatives --set g++ "/usr/bin/g++-$ver"
         fi
 
-        .github/workflows/scripts/qemu-3-deps-vm.sh ubuntu24
+        ONLY_DEPS=1 .github/workflows/scripts/qemu-3-deps-vm.sh ubuntu24
 
         # We're running the VM scripts locally on the runner, so need to fix
         # up hostnames to make it work.
