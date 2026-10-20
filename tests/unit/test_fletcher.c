@@ -17,6 +17,7 @@
 #include <string.h>
 
 #include <sys/types.h>
+#include <sys/sysmacros.h>
 #include <sys/spa_checksum.h>
 #include "zfs_fletcher.h"
 
@@ -33,6 +34,17 @@
 #define	DATA_SIZE	8192
 
 static uint8_t databuf[DATA_SIZE] __attribute__((aligned(64)));
+
+/* Large enough for the SIMD loops to run many strides. */
+#define	RAND_SIZE	(128 * 1024)
+
+static uint8_t randbuf[RAND_SIZE] __attribute__((aligned(64)));
+
+static const char *const fletcher4_impls[] = {
+	"scalar", "superscalar", "superscalar4",
+	"sse2", "ssse3", "avx2", "avx512f", "avx512bw",
+	"aarch64_neon", NULL,
+};
 
 /* Deterministic; distinct bytes per word so native and byteswap differ. */
 static void
@@ -138,12 +150,6 @@ test_fletcher4_impls(const MunitParameter params[], void *data)
 	(void) params, (void) data;
 	fill_data();
 
-	static const char *const impls[] = {
-		"scalar", "superscalar", "superscalar4",
-		"sse2", "ssse3", "avx2", "avx512f", "avx512bw",
-		"aarch64_neon", NULL,
-	};
-
 	/* The generic implementations are always available. */
 	unit_eq(fletcher_4_impl_set("scalar"), 0);
 	unit_eq(fletcher_4_impl_set("superscalar"), 0);
@@ -152,8 +158,8 @@ test_fletcher4_impls(const MunitParameter params[], void *data)
 	zio_cksum_t ref = { { 0 } };
 	boolean_t have_ref = B_FALSE;
 
-	for (int i = 0; impls[i] != NULL; i++) {
-		if (fletcher_4_impl_set(impls[i]) != 0)
+	for (int i = 0; fletcher4_impls[i] != NULL; i++) {
+		if (fletcher_4_impl_set(fletcher4_impls[i]) != 0)
 			continue;	/* not supported on this host */
 
 		zio_cksum_t zc;
@@ -164,6 +170,86 @@ test_fletcher4_impls(const MunitParameter params[], void *data)
 			have_ref = B_TRUE;
 		} else {
 			unit_true(ZIO_CHECKSUM_EQUAL(ref, zc));
+		}
+	}
+
+	(void) fletcher_4_impl_set("fastest");
+	return (MUNIT_OK);
+}
+
+/* Plain Fletcher-4 over 32-bit words, the reference for every impl. */
+static void
+fletcher4_ref(const uint8_t *buf, uint64_t size, boolean_t swap,
+    zio_cksum_t *zcp)
+{
+	uint64_t a = 0, b = 0, c = 0, d = 0;
+
+	for (uint64_t i = 0; i + 4 <= size; i += 4) {
+		uint32_t w;
+		memcpy(&w, buf + i, sizeof (w));
+		if (swap)
+			w = __builtin_bswap32(w);
+		a += w;
+		b += a;
+		c += b;
+		d += c;
+	}
+	ZIO_SET_CHECKSUM(zcp, a, b, c, d);
+}
+
+/*
+ * Every supported implementation, native and byteswap, in one call and
+ * split in two incremental calls, must match the reference on random data.
+ * The sizes include ones that leave a remainder after the SIMD loops.
+ */
+static MunitResult
+test_fletcher4_reference(const MunitParameter params[], void *data)
+{
+	(void) params, (void) data;
+	static const uint64_t sizes[] = { 4, 60, 64, 1020, 4108, RAND_SIZE };
+
+	munit_rand_memory(RAND_SIZE, randbuf);
+
+	for (int i = 0; fletcher4_impls[i] != NULL; i++) {
+		const char *impl = fletcher4_impls[i];
+		if (fletcher_4_impl_set(impl) != 0)
+			continue;	/* not supported on this host */
+
+		for (size_t j = 0; j < ARRAY_SIZE(sizes); j++) {
+			uint64_t size = sizes[j];
+			uint64_t cut =
+			    (unit_rand_uint64() % (size / 4 + 1)) * 4;
+
+			for (int swap = 0; swap < 2; swap++) {
+				zio_cksum_t ref, zc, inc;
+				fletcher4_ref(randbuf, size, swap, &ref);
+
+				fletcher_init(&inc);
+				if (swap) {
+					fletcher_4_byteswap(randbuf, size,
+					    NULL, &zc);
+					(void) fletcher_4_incremental_byteswap(
+					    randbuf, cut, &inc);
+					(void) fletcher_4_incremental_byteswap(
+					    randbuf + cut, size - cut, &inc);
+				} else {
+					fletcher_4_native(randbuf, size,
+					    NULL, &zc);
+					(void) fletcher_4_incremental_native(
+					    randbuf, cut, &inc);
+					(void) fletcher_4_incremental_native(
+					    randbuf + cut, size - cut, &inc);
+				}
+
+				if (!ZIO_CHECKSUM_EQUAL(ref, zc) ||
+				    !ZIO_CHECKSUM_EQUAL(ref, inc)) {
+					munit_errorf("%s %s, size %llu, "
+					    "cut %llu: mismatch", impl,
+					    swap ? "byteswap" : "native",
+					    (u_longlong_t)size,
+					    (u_longlong_t)cut);
+				}
+			}
 		}
 	}
 
@@ -230,6 +316,7 @@ static const MunitTest fletcher_tests[] = {
 	UNIT_TEST("fletcher4_varsize",		test_fletcher4_varsize),
 	UNIT_TEST("fletcher4_byteswap",		test_fletcher4_byteswap),
 	UNIT_TEST("fletcher4_impls",		test_fletcher4_impls),
+	UNIT_TEST("fletcher4_reference",	test_fletcher4_reference),
 	UNIT_TEST("fletcher2_known",		test_fletcher2_known),
 	UNIT_TEST("fletcher2_incremental",	test_fletcher2_incremental),
 	{ 0 },
