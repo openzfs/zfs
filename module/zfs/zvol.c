@@ -581,9 +581,6 @@ zvol_replay_clone_range(void *arg1, void *arg2, boolean_t byteswap)
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
-	ASSERT(spa_feature_is_enabled(dmu_objset_spa(os),
-	    SPA_FEATURE_BLOCK_CLONING));
-
 	off = lr->lr_offset;
 	len = lr->lr_length;
 	blksz = lr->lr_blksz;
