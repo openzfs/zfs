@@ -20,6 +20,8 @@
 #include <sys/nvpair.h>
 #include <sys/zap.h>
 #include <sys/dmu_tx.h>
+#include <sys/dsl_pool.h>
+#include <sys/dsl_synctask.h>
 #include "zfeature_common.h"
 #include <sys/spa_impl.h>
 
@@ -70,9 +72,20 @@
  *
  * Each feature may depend on other features. The only effect of this
  * relationship is that when a feature is enabled all of its dependencies are
- * automatically enabled as well. Any future work to support disabling of
- * features would need to ensure that features cannot be disabled if other
- * enabled features depend on them.
+ * automatically enabled as well, and that a feature cannot be disabled again
+ * while an enabled feature depends on it.
+ *
+ * Disabling
+ * ---------
+ *
+ * An enabled feature can be disabled again while its reference count is 0
+ * and no enabled feature depends on it: spa_feature_disable() removes what
+ * feature_enable_sync() wrote, and the feature reads as never enabled.
+ * Code may still have checked that the feature was enabled before that, and
+ * take a reference on it in a later transaction group, for example when it
+ * writes a block with a checksum a dataset property selected long ago.  So
+ * spa_feature_incr() enables a feature that is not enabled, and records it
+ * in the pool history as an explicit enable would.
  *
  * On-disk Format
  * --------------
@@ -392,6 +405,34 @@ feature_enable_sync(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
 		spa_upgrade_errlog(spa, tx);
 }
 
+/*
+ * Enable a feature that is about to be referenced, see "Disabling" above.
+ * spa_feature_incr() also runs on dp_sync_taskq threads, hence
+ * spa_feat_enable_lock.
+ */
+static void
+feature_reenable_sync(spa_t *spa, spa_feature_t fid, dmu_tx_t *tx)
+{
+	boolean_t enabled = B_FALSE;
+
+	/*
+	 * feature_enable_sync() increments ENABLED_TXG only once it is
+	 * enabled, so this does not recurse.
+	 */
+	ASSERT(!MUTEX_HELD(&spa->spa_feat_enable_lock));
+	mutex_enter(&spa->spa_feat_enable_lock);
+	if (!spa_feature_is_enabled(spa, fid)) {
+		spa_feature_enable(spa, fid, tx);
+		enabled = B_TRUE;
+	}
+	mutex_exit(&spa->spa_feat_enable_lock);
+
+	if (enabled) {
+		spa_history_log_internal(spa, "set", tx, "feature@%s=enabled",
+		    spa_feature_table[fid].fi_uname);
+	}
+}
+
 static void
 feature_do_action(spa_t *spa, spa_feature_t fid, feature_action_t action,
     dmu_tx_t *tx)
@@ -408,6 +449,10 @@ feature_do_action(spa_t *spa, spa_feature_t fid, feature_action_t action,
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT3U(spa_version(spa), >=, SPA_VERSION_FEATURES);
+
+	/* Before spa_feat_stats_lock, which feature_enable_sync() takes. */
+	if (action == FEATURE_ACTION_INCR && !spa_feature_is_enabled(spa, fid))
+		feature_reenable_sync(spa, fid, tx);
 
 	mutex_enter(&spa->spa_feat_stats_lock);
 	VERIFY3U(feature_get_refcount(spa, feature, &refcount), !=, ENOTSUP);
@@ -472,6 +517,93 @@ void
 spa_feature_decr(spa_t *spa, spa_feature_t fid, dmu_tx_t *tx)
 {
 	feature_do_action(spa, fid, FEATURE_ACTION_DECR, tx);
+}
+
+/*
+ * zfeature_depends_on() only looks at direct dependencies, and a pool may
+ * have a feature enabled without one of them, as errata #4 pools have
+ * encryption without bookmark_v2.
+ */
+static boolean_t
+feature_depends_on(spa_feature_t fid, spa_feature_t check)
+{
+	zfeature_info_t *feature = &spa_feature_table[fid];
+
+	for (int i = 0; feature->fi_depends[i] != SPA_FEATURE_NONE; i++) {
+		if (feature->fi_depends[i] == check ||
+		    feature_depends_on(feature->fi_depends[i], check))
+			return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+static int
+feature_disable_check(void *arg, dmu_tx_t *tx)
+{
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	spa_feature_t fid = *(spa_feature_t *)arg;
+	uint64_t refcount;
+
+	if (spa_version(spa) < SPA_VERSION_FEATURES)
+		return (SET_ERROR(ENOTSUP));
+	if (!spa_writeable(spa))
+		return (SET_ERROR(EROFS));
+	if (feature_get_refcount(spa, &spa_feature_table[fid], &refcount) != 0)
+		return (0);
+	if (refcount != 0)
+		return (SET_ERROR(EBUSY));
+	for (spa_feature_t f = 0; f < SPA_FEATURES; f++) {
+		if (spa_feature_is_enabled(spa, f) &&
+		    feature_depends_on(f, fid))
+			return (SET_ERROR(EBUSY));
+	}
+	return (0);
+}
+
+static void
+feature_disable_sync(void *arg, dmu_tx_t *tx)
+{
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	spa_feature_t fid = *(spa_feature_t *)arg;
+	zfeature_info_t *feature = &spa_feature_table[fid];
+	objset_t *mos = spa->spa_meta_objset;
+	uint64_t zapobj = (feature->fi_flags & ZFEATURE_FLAG_READONLY_COMPAT) ?
+	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj;
+
+	if (!spa_feature_is_enabled(spa, fid))
+		return;
+
+	mutex_enter(&spa->spa_feat_enable_lock);
+	mutex_enter(&spa->spa_feat_stats_lock);
+	VERIFY0(atomic_swap_64(&spa->spa_feat_refcount_cache[fid],
+	    SPA_FEATURE_DISABLED));
+	if (spa->spa_feat_stats != NULL)
+		(void) nvlist_remove_all(spa->spa_feat_stats, feature->fi_guid);
+	mutex_exit(&spa->spa_feat_stats_lock);
+
+	VERIFY0(zap_remove(mos, zapobj, feature->fi_guid, tx));
+	(void) zap_remove(mos, spa->spa_feat_desc_obj, feature->fi_guid, tx);
+	if (spa->spa_feat_enabled_txg_obj != 0 &&
+	    zap_remove(mos, spa->spa_feat_enabled_txg_obj, feature->fi_guid,
+	    tx) == 0)
+		spa_feature_decr(spa, SPA_FEATURE_ENABLED_TXG, tx);
+	mutex_exit(&spa->spa_feat_enable_lock);
+
+	spa_history_log_internal(spa, "set", tx, "feature@%s=disabled",
+	    feature->fi_uname);
+}
+
+/*
+ * Disable an enabled feature that nothing uses, so that it reads as never
+ * enabled.  Disabling a feature that is not enabled does nothing.
+ */
+int
+spa_feature_disable(spa_t *spa, spa_feature_t fid)
+{
+	ASSERT(VALID_FEATURE_FID(fid));
+
+	return (dsl_sync_task(spa_name(spa), feature_disable_check,
+	    feature_disable_sync, &fid, 6, ZFS_SPACE_CHECK_RESERVED));
 }
 
 /*

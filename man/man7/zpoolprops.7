@@ -19,7 +19,7 @@
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\" Copyright (c) 2023, 2026, Klara Inc.
 .\"
-.Dd September 9, 2026
+.Dd October 20, 2026
 .Dt ZPOOLPROPS 7
 .Os
 .
@@ -572,14 +572,22 @@ Any write requests that have yet to be committed to disk would be blocked.
 .It Sy panic
 Prints out a message to the console and generates a system crash dump.
 .El
-.It Sy feature@ Ns Ar feature_name Ns = Ns Sy enabled
+.It Sy feature@ Ns Ar feature_name Ns = Ns Sy enabled Ns | Ns Sy disabled
 The value of this property is the current state of
 .Ar feature_name .
-The only valid value when setting this property is
+Setting it to
 .Sy enabled
-which moves
+moves
 .Ar feature_name
 to the enabled state.
+Setting it to
+.Sy disabled
+on an existing pool moves an enabled
+.Ar feature_name
+back to the disabled state.
+This is refused while the feature is
+.Sy active
+and while another enabled feature depends on it.
 See
 .Xr zpool-features 7
 for details on feature states.

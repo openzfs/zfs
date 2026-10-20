@@ -16,7 +16,7 @@
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd July 23, 2025
+.Dd October 20, 2026
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -96,11 +96,25 @@ state after becoming
 See feature-specific documentation for details.
 .It Sy disabled
 This feature's on-disk format changes have not been made and will not be made
-unless an administrator moves the feature to the
+unless the feature is moved to the
 .Sy enabled
 state.
-Features cannot be disabled once they have been enabled.
 .El
+.Pp
+An
+.Sy enabled
+feature that is not
+.Sy active ,
+and on which no other enabled feature depends,
+can be returned to the
+.Sy disabled
+state, see
+.Xr zpoolprops 7 .
+Anything that later needs the feature enables it again,
+for example a dataset property still set to a value the feature provides,
+such as
+.Sy checksum Ns = Ns Sy sha512 ,
+and the pool history records it.
 .Pp
 The state of supported features is exposed through pool properties of the form
 .Sy feature Ns @ Ns Ar short-name .
