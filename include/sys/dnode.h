@@ -296,11 +296,11 @@ struct dnode {
 	uint8_t dn_nlevels;
 	uint8_t dn_indblkshift;
 	uint8_t dn_datablkshift;	/* zero if blksz not power of 2! */
+	uint8_t dn_num_slots;		/* metadnode slots consumed on disk */
 	uint16_t dn_datablkszsec;	/* in 512b sectors */
 	uint32_t dn_datablksz;		/* in bytes */
 	uint64_t dn_maxblkid;
 	uint8_t dn_next_type[TXG_SIZE];
-	uint8_t dn_num_slots;		/* metadnode slots consumed on disk */
 	uint8_t dn_next_nblkptr[TXG_SIZE];
 	uint8_t dn_next_nlevels[TXG_SIZE];
 	uint8_t dn_next_indblkshift[TXG_SIZE];
