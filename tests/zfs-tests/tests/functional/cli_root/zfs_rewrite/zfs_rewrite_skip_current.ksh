@@ -18,13 +18,14 @@
 #
 # STRATEGY:
 #	1. Create a pool with a special vdev and lz4 compression, and write a
-#	   compressible file Z and an incompressible file R.
+#	   compressible file Z, an incompressible file R, and a file E small
+#	   enough to be embedded in its block pointer.
 #	2. Verify -W moves no block.
 #	3. Change one property at a time, and verify that -W moves the blocks
 #	   of the files that the change affects, and only those, then that a
 #	   second -W moves nothing:
 #	   - compression=zstd and compression=off move Z only, since R is
-#	     stored uncompressed,
+#	     stored uncompressed, and rewrite E,
 #	   - checksum=sha256 and copies=2 move both,
 #	   - special_small_blocks=128K moves both to the special vdev,
 #	   - dedup=on moves both,
@@ -44,11 +45,13 @@ typeset z0=$(mktemp)
 typeset z1=$(mktemp)
 typeset r0=$(mktemp)
 typeset r1=$(mktemp)
+typeset e0=$(mktemp)
+typeset e1=$(mktemp)
 
 function cleanup
 {
 	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
-	rm -f $dev0 $dev1 $tmp $z0 $z1 $r0 $r1
+	rm -f $dev0 $dev1 $tmp $z0 $z1 $r0 $r1 $e0 $e1
 	rm -rf $TESTDIR1
 }
 
@@ -94,6 +97,31 @@ function rewrite_current # Z-moves R-moves
 	log_must cmp $r0 $r1
 }
 
+# Save the birth of the one block of a file.
+function save_birth # file output
+{
+	log_must eval "zdb -Ovv $TESTPOOL1 $1 > $tmp"
+	log_must eval "grep ' L0 ' $tmp | grep -o 'B=[0-9/]*' > $2"
+	log_must test $(wc -l < $2) -eq 1
+}
+
+# Rewrite E with -W and check that it was rewritten, then rewrite it with
+# -W again and check that it was not.  An embedded block has no DVA, so its
+# birth tells.
+function rewrite_embedded
+{
+	save_birth E $e0
+	log_must zfs rewrite -W $TESTDIR1/E
+	log_must sync_pool $TESTPOOL1
+	save_birth E $e1
+	log_mustnot cmp -s $e0 $e1
+
+	log_must zfs rewrite -W $TESTDIR1/E
+	log_must sync_pool $TESTPOOL1
+	save_birth E $e0
+	log_must cmp $e0 $e1
+}
+
 log_assert "zfs rewrite -W rewrites the blocks a property change affects"
 
 log_onexit cleanup
@@ -104,16 +132,21 @@ log_must zpool create -f -o ashift=12 -O compression=lz4 -O recordsize=128k \
 
 log_must eval "seq -w 1 200000 | head -c 1048576 > $TESTDIR1/Z"
 log_must dd if=/dev/urandom of=$TESTDIR1/R bs=128k count=8
+log_must eval "head -c 1000 /dev/zero | tr '\\0' a > $TESTDIR1/E"
 log_must sync_pool $TESTPOOL1
+log_must eval "zdb -Ovv $TESTPOOL1 E | grep -q ' L0 EMBEDDED '"
 typeset hash_z=$(xxh128digest $TESTDIR1/Z)
 typeset hash_r=$(xxh128digest $TESTDIR1/R)
+typeset hash_e=$(xxh128digest $TESTDIR1/E)
 
 rewrite_current no no
 
 log_must zfs set compression=zstd $TESTPOOL1
 rewrite_current yes no
+rewrite_embedded
 log_must zfs set compression=off $TESTPOOL1
 rewrite_current yes no
+rewrite_embedded
 
 log_must zfs set checksum=sha256 $TESTPOOL1
 rewrite_current yes yes
@@ -139,6 +172,7 @@ log_must test "$(kstat_pool $TESTPOOL1 $lookup)" -eq "$lookups"
 
 log_must [ "$(xxh128digest $TESTDIR1/Z)" = "$hash_z" ]
 log_must [ "$(xxh128digest $TESTDIR1/R)" = "$hash_r" ]
+log_must [ "$(xxh128digest $TESTDIR1/E)" = "$hash_e" ]
 log_must zpool scrub -w $TESTPOOL1
 log_must check_pool_status $TESTPOOL1 "errors" "No known data errors"
 

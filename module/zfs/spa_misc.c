@@ -2455,7 +2455,8 @@ bp_get_dsize(spa_t *spa, const blkptr_t *bp)
  * block keeps the DVAs of a flat DDT entry, which can be more than zp asks
  * for.  A gang block's DVAs have the size of its header, and a block on an
  * indirect vdev, or on a vdev that takes no allocations, would move, so they
- * are not current.  Holes and embedded blocks allocate nothing.
+ * are not current.  Holes allocate nothing, and an embedded block is current
+ * if it was compressed as zp would compress it.
  *
  * A block stored uncompressed may be one that compression did not shrink, so
  * it is not taken as one to compress.  The compression level is not recorded
@@ -2467,6 +2468,10 @@ bp_rewrite_is_current(spa_t *spa, const blkptr_t *bp, const zio_prop_t *zp,
 {
 	if (BP_IS_GANG(bp))
 		return (B_FALSE);
+	/* A rewrite embeds the data again only if it compresses it alike. */
+	if (BP_IS_EMBEDDED(bp))
+		return (BPE_GET_ETYPE(bp) != BP_EMBEDDED_TYPE_DATA ||
+		    BP_GET_COMPRESS(bp) == zp->zp_compress);
 	if (BP_GET_NDVAS(bp) == 0)
 		return (B_TRUE);
 
