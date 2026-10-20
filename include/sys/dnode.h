@@ -566,9 +566,7 @@ typedef struct dnode_stats {
 	 * next meta dnode dbuf due to an error from  dmu_object_next().
 	 */
 	kstat_named_t dnode_alloc_next_block;
-	/*
-	 * Statistics for tracking dnodes which have been moved.
-	 */
+	/* Retained for kstat compatibility; dnodes are no longer moved. */
 	kstat_named_t dnode_move_invalid;
 	kstat_named_t dnode_move_recheck1;
 	kstat_named_t dnode_move_recheck2;
@@ -600,13 +598,6 @@ typedef struct dnode_sums {
 	wmsum_t dnode_alloc_next_chunk;
 	wmsum_t dnode_alloc_race;
 	wmsum_t dnode_alloc_next_block;
-	wmsum_t dnode_move_invalid;
-	wmsum_t dnode_move_recheck1;
-	wmsum_t dnode_move_recheck2;
-	wmsum_t dnode_move_special;
-	wmsum_t dnode_move_handle;
-	wmsum_t dnode_move_rwlock;
-	wmsum_t dnode_move_active;
 } dnode_sums_t;
 
 extern dnode_stats_t dnode_stats;
