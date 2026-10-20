@@ -1878,30 +1878,40 @@ ddt_unload(spa_t *spa)
 	}
 }
 
+/*
+ * Whether the DDT walk of a scan, which covers the classes up to
+ * max_class, visits this block.  The key alone is not enough: a block
+ * whose unique entry was pruned keeps its dedup bit, and the same data
+ * written again creates a new entry with that key at other DVAs.
+ */
 boolean_t
 ddt_class_contains(spa_t *spa, ddt_class_t max_class, const blkptr_t *bp)
 {
 	ddt_t *ddt;
 	ddt_key_t ddk;
+	ddt_entry_t *dde;
+	boolean_t found = B_FALSE;
 
 	if (!BP_GET_DEDUP(bp))
 		return (B_FALSE);
 
-	if (max_class == DDT_CLASS_UNIQUE)
-		return (B_TRUE);
-
 	ddt = spa->spa_ddt[BP_GET_CHECKSUM(bp)];
 
 	ddt_key_fill(&ddk, bp);
+	dde = ddt_alloc(ddt, &ddk);
 
 	for (ddt_type_t type = 0; type < DDT_TYPES; type++) {
 		for (ddt_class_t class = 0; class <= max_class; class++) {
-			if (ddt_object_contains(ddt, type, class, &ddk) == 0)
-				return (B_TRUE);
+			if (ddt_object_lookup(ddt, type, class, dde) == 0) {
+				found = (ddt_phys_select(ddt, dde, bp) !=
+				    DDT_PHYS_NONE);
+				goto out;
+			}
 		}
 	}
-
-	return (B_FALSE);
+out:
+	ddt_free(ddt, dde);
+	return (found);
 }
 
 ddt_entry_t *
