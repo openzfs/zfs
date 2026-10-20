@@ -880,7 +880,8 @@ typedef enum arc_fill_flags {
 	ARC_FILL_COMPRESSED	= 1 << 1, /* fill with compressed data */
 	ARC_FILL_ENCRYPTED	= 1 << 2, /* fill with encrypted data */
 	ARC_FILL_NOAUTH		= 1 << 3, /* don't attempt to authenticate */
-	ARC_FILL_IN_PLACE	= 1 << 4  /* fill in place (special case) */
+	ARC_FILL_IN_PLACE	= 1 << 4, /* fill in place (special case) */
+	ARC_FILL_EXISTING	= 1 << 5  /* buf already holds data */
 } arc_fill_flags_t;
 
 typedef enum arc_ovf_level {
@@ -2084,6 +2085,11 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 		}
 	}
 
+	if ((flags & ARC_FILL_EXISTING) != 0 &&
+	    (ARC_BUF_COMPRESSED(buf) != 0) == compressed &&
+	    (ARC_BUF_ENCRYPTED(buf) != 0) == encrypted)
+		return (0);
+
 	/*
 	 * There is a special case here for dnode blocks which are
 	 * decrypting their bonus buffers. These blocks may request to
@@ -2225,7 +2231,7 @@ arc_untransform(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
     boolean_t in_place)
 {
 	int ret;
-	arc_fill_flags_t flags = 0;
+	arc_fill_flags_t flags = ARC_FILL_EXISTING;
 
 	if (in_place)
 		flags |= ARC_FILL_IN_PLACE;
