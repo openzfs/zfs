@@ -25,8 +25,11 @@
 #	   second -W moves nothing:
 #	   - compression=zstd and compression=off move Z only, since R is
 #	     stored uncompressed,
-#	   - checksum=sha256, copies=2 and dedup=on move both,
-#	   - special_small_blocks=128K moves both to the special vdev.
+#	   - checksum=sha256 and copies=2 move both,
+#	   - special_small_blocks=128K moves both to the special vdev,
+#	   - dedup=on moves both,
+#	   - copies=1 after dedup=on moves neither, since the flat DDT entries
+#	     keep two DVAs.
 #	4. Verify the data and scrub the pool.
 
 . $STF_SUITE/include/libtest.shlib
@@ -124,6 +127,15 @@ log_must [ -z "$other" ]
 
 log_must zfs set dedup=on $TESTPOOL1
 rewrite_current yes yes
+
+# A rewrite would give the deduplicated blocks the two DVAs of their flat
+# DDT entries again, so -W must skip them without a DDT lookup.
+log_must zfs set copies=1 $TESTPOOL1
+typeset -r lookup=ddt_stats_sha256.lookup
+typeset lookups
+lookups=$(kstat_pool $TESTPOOL1 $lookup)
+rewrite_current no no
+log_must test "$(kstat_pool $TESTPOOL1 $lookup)" -eq "$lookups"
 
 log_must [ "$(xxh128digest $TESTDIR1/Z)" = "$hash_z" ]
 log_must [ "$(xxh128digest $TESTDIR1/R)" = "$hash_r" ]
