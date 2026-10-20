@@ -2968,9 +2968,6 @@ zfs_clone_range_replay(znode_t *zp, uint64_t off, uint64_t len, uint64_t blksz,
 
 	zfsvfs = ZTOZSB(zp);
 
-	ASSERT(spa_feature_is_enabled(dmu_objset_spa(zfsvfs->z_os),
-	    SPA_FEATURE_BLOCK_CLONING));
-
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
 
