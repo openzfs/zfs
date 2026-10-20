@@ -1813,11 +1813,11 @@ metaslab_block_picker(zfs_range_tree_t *rt, uint64_t *cursor, uint64_t size,
 }
 
 static uint64_t metaslab_df_alloc(metaslab_t *msp, uint64_t size,
-    uint64_t max_size, uint64_t *found_size);
+    uint64_t max_size, uint64_t txg, uint64_t *found_size);
 static uint64_t metaslab_cf_alloc(metaslab_t *msp, uint64_t size,
-    uint64_t max_size, uint64_t *found_size);
+    uint64_t max_size, uint64_t txg, uint64_t *found_size);
 static uint64_t metaslab_ndf_alloc(metaslab_t *msp, uint64_t size,
-    uint64_t max_size, uint64_t *found_size);
+    uint64_t max_size, uint64_t txg, uint64_t *found_size);
 metaslab_ops_t *metaslab_allocator(spa_t *spa);
 
 static metaslab_ops_t metaslab_allocators[] = {
@@ -1904,7 +1904,7 @@ metaslab_allocator(spa_t *spa)
  */
 static uint64_t
 metaslab_df_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
-    uint64_t *found_size)
+    uint64_t txg, uint64_t *found_size)
 {
 	/*
 	 * Find the largest power of 2 block size that evenly divides the
@@ -1918,7 +1918,7 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 	zfs_range_tree_t *rt = msp->ms_allocatable;
 	uint_t free_pct = zfs_range_tree_space(rt) * 100 / msp->ms_size;
 	uint64_t offset;
-	uint64_t mult = vdev_alloc_factor(msp->ms_group->mg_vd);
+	uint64_t mult = vdev_alloc_factor(msp->ms_group->mg_vd, txg);
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
 	/*
@@ -1986,14 +1986,14 @@ metaslab_df_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
  */
 static uint64_t
 metaslab_cf_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
-    uint64_t *found_size)
+    uint64_t txg, uint64_t *found_size)
 {
 	zfs_range_tree_t *rt = msp->ms_allocatable;
 	zfs_btree_t *t = &msp->ms_allocatable_by_size;
 	uint64_t *cursor = &msp->ms_lbas[0];
 	uint64_t *cursor_end = &msp->ms_lbas[1];
 	uint64_t offset = 0;
-	uint64_t mult = vdev_alloc_factor(msp->ms_group->mg_vd);
+	uint64_t mult = vdev_alloc_factor(msp->ms_group->mg_vd, txg);
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
@@ -2044,7 +2044,7 @@ uint64_t metaslab_ndf_clump_shift = 4;
 
 static uint64_t
 metaslab_ndf_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
-    uint64_t *found_size)
+    uint64_t txg, uint64_t *found_size)
 {
 	zfs_btree_t *t = &msp->ms_allocatable->rt_root;
 	zfs_range_tree_t *rt = msp->ms_allocatable;
@@ -2054,7 +2054,7 @@ metaslab_ndf_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 	uint64_t hbit = highbit64(max_size);
 	uint64_t *cursor = &msp->ms_lbas[hbit - 1];
 	uint64_t max_possible_size = metaslab_largest_allocatable(msp);
-	uint64_t mult = vdev_alloc_factor(msp->ms_group->mg_vd);
+	uint64_t mult = vdev_alloc_factor(msp->ms_group->mg_vd, txg);
 
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 
@@ -4916,7 +4916,7 @@ metaslab_block_alloc(metaslab_t *msp, uint64_t size, uint64_t max_size,
 	VERIFY0(msp->ms_disabled);
 	VERIFY0(msp->ms_new);
 
-	start = mc->mc_ops->msop_alloc(msp, size, max_size, actual_size);
+	start = mc->mc_ops->msop_alloc(msp, size, max_size, txg, actual_size);
 	if (start != -1ULL) {
 		size = *actual_size;
 		metaslab_group_t *mg = msp->ms_group;
@@ -5500,6 +5500,17 @@ top:
 		    max_asize, txg, dva, d, allocator, try_hard, &asize);
 
 		if (offset != -1ULL) {
+			/*
+			 * The psize that fits the allocation must not need
+			 * more space than the allocation, or the I/O for a
+			 * block of that size runs past the DVA.  The pickers
+			 * round to the vdev's allocation factor, which only
+			 * the vdev types that need one provide.
+			 */
+			IMPLY(vd->vdev_ops->vdev_op_alloc_factor != NULL,
+			    vdev_psize_to_asize_txg(vd,
+			    vdev_asize_to_psize_txg(vd, asize, txg), txg) <=
+			    asize);
 			if (actual_psize)
 				*actual_psize = vdev_asize_to_psize_txg(vd,
 				    asize, txg);
@@ -5823,7 +5834,7 @@ metaslab_unalloc_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 	ASSERT0P(vd->vdev_indirect_mapping);
 
 	if (DVA_GET_GANG(dva))
-		size = vdev_gang_header_asize(vd);
+		size = vdev_gang_header_asize(vd, txg);
 
 	msp = vd->vdev_ms[offset >> vd->vdev_ms_shift];
 
@@ -5847,7 +5858,8 @@ metaslab_unalloc_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
  * Free the block represented by the given DVA.
  */
 void
-metaslab_free_dva(spa_t *spa, const dva_t *dva, boolean_t checkpoint)
+metaslab_free_dva(spa_t *spa, const dva_t *dva, uint64_t birth,
+    boolean_t checkpoint)
 {
 	uint64_t vdev = DVA_GET_VDEV(dva);
 	uint64_t offset = DVA_GET_OFFSET(dva);
@@ -5858,7 +5870,7 @@ metaslab_free_dva(spa_t *spa, const dva_t *dva, boolean_t checkpoint)
 	ASSERT3U(spa_config_held(spa, SCL_ALL, RW_READER), !=, 0);
 
 	if (DVA_GET_GANG(dva)) {
-		size = vdev_gang_header_asize(vd);
+		size = vdev_gang_header_asize(vd, birth);
 	}
 
 	metaslab_free_impl(vd, offset, size, checkpoint);
@@ -6028,7 +6040,7 @@ metaslab_claim_impl(vdev_t *vd, uint64_t offset, uint64_t size, uint64_t txg)
  * group didn't commit yet.
  */
 static int
-metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
+metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t birth, uint64_t txg)
 {
 	uint64_t vdev = DVA_GET_VDEV(dva);
 	uint64_t offset = DVA_GET_OFFSET(dva);
@@ -6042,7 +6054,7 @@ metaslab_claim_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 	ASSERT(DVA_IS_VALID(dva));
 
 	if (DVA_GET_GANG(dva))
-		size = vdev_gang_header_asize(vd);
+		size = vdev_gang_header_asize(vd, birth);
 
 	return (metaslab_claim_impl(vd, offset, size, txg));
 }
@@ -6190,7 +6202,8 @@ metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg, boolean_t now)
 			metaslab_unalloc_dva(spa, &dva[d], txg);
 		} else {
 			ASSERT3U(txg, ==, spa_syncing_txg(spa));
-			metaslab_free_dva(spa, &dva[d], checkpoint);
+			metaslab_free_dva(spa, &dva[d],
+			    BP_GET_PHYSICAL_BIRTH(bp), checkpoint);
 		}
 	}
 
@@ -6218,7 +6231,8 @@ metaslab_claim(spa_t *spa, const blkptr_t *bp, uint64_t txg)
 	spa_config_enter(spa, SCL_ALLOC, FTAG, RW_READER);
 
 	for (int d = 0; d < ndvas; d++) {
-		error = metaslab_claim_dva(spa, &dva[d], txg);
+		error = metaslab_claim_dva(spa, &dva[d],
+		    BP_GET_PHYSICAL_BIRTH(bp), txg);
 		if (error != 0)
 			break;
 	}
@@ -6304,7 +6318,8 @@ metaslab_check_free(spa_t *spa, const blkptr_t *bp)
 		uint64_t size = DVA_GET_ASIZE(&bp->blk_dva[i]);
 
 		if (DVA_GET_GANG(&bp->blk_dva[i]))
-			size = vdev_gang_header_asize(vd);
+			size = vdev_gang_header_asize(vd,
+			    BP_GET_PHYSICAL_BIRTH(bp));
 
 		ASSERT3P(vd, !=, NULL);
 

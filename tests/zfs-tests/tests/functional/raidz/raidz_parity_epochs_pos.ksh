@@ -1,0 +1,96 @@
+#!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
+#
+# CDDL HEADER START
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+# CDDL HEADER END
+#
+
+#
+# Copyright (c) 2026 RAIDZ Reshape MVP.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+#
+# DESCRIPTION:
+#	The org.openzfs:raidz_parity_epochs feature persists a parity-epoch
+#	table on a top-level RAIDZ vdev. This test verifies, on a disposable
+#	pool, that:
+#	  1. a new RAIDZ pool enables the feature,
+#	  2. the debug writer stores a table and activates the feature,
+#	  3. zdb prints the stored table,
+#	  4. a structurally damaged table fails import closed,
+#	  5. the raidz_ignore_parity_epochs rescue tunable imports it read-only
+#	     with intact data, and refuses a read-write import, and
+#	  6. zhack cannot open it for writing with the tunable either.
+#
+
+verify_runnable "global"
+
+typeset TESTPOOL2=${TESTPOOL}_pe
+typeset BASEDIR=$TEST_BASE_DIR/raidz_pe.$$
+typeset -a VDEVS
+
+function cleanup
+{
+	set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 0
+	poolexists $TESTPOOL2 && destroy_pool $TESTPOOL2
+	rm -rf $BASEDIR
+}
+
+log_onexit cleanup
+log_assert "raidz_parity_epochs persists, is inspectable, is rescued read-only"
+
+mkdir -p $BASEDIR
+for i in 0 1 2; do
+	VDEVS[$i]=$BASEDIR/vdev$i
+	log_must truncate -s 512M ${VDEVS[$i]}
+done
+
+log_must zpool create -f $TESTPOOL2 raidz1 ${VDEVS[0]} ${VDEVS[1]} ${VDEVS[2]}
+log_must eval "zpool get -H -o value feature@raidz_parity_epochs $TESTPOOL2 | grep -q enabled"
+
+log_must dd if=/dev/urandom of=/$TESTPOOL2/payload bs=1M count=8
+log_must cp /$TESTPOOL2/payload $BASEDIR/payload.ref
+log_must zpool export $TESTPOOL2
+
+# Store a geometry-identical table and activate the feature.
+log_must zhack -d $BASEDIR raidz_epochs $TESTPOOL2 0 0:3:1
+log_must eval "zdb -e -p $BASEDIR -m $TESTPOOL2 > $BASEDIR/zdb.out"
+log_must grep -q raidz_parity_epochs $BASEDIR/zdb.out
+
+log_must zpool import -d $BASEDIR $TESTPOOL2
+log_must eval "zpool get -H -o value feature@raidz_parity_epochs $TESTPOOL2 | grep -q active"
+log_must zpool export $TESTPOOL2
+
+# A structurally damaged table (first entry does not cover txg 0) is refused.
+# zhack refuses to store it, so -f writes the ZAP entry as given.
+log_mustnot zhack -d $BASEDIR raidz_epochs $TESTPOOL2 0 5:3:1
+log_must zhack -d $BASEDIR raidz_epochs -f $TESTPOOL2 0 5:3:1
+log_mustnot zpool import -d $BASEDIR $TESTPOOL2
+
+# The rescue tunable ignores the table.  Blocks born in an epoch that changed
+# the parity would decode wrongly, so only a read-only import is allowed.
+log_must set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 1
+log_mustnot zpool import -d $BASEDIR $TESTPOOL2
+log_must zpool import -d $BASEDIR -o readonly=on $TESTPOOL2
+log_must cmp /$TESTPOOL2/payload $BASEDIR/payload.ref
+log_must_busy zpool export $TESTPOOL2
+
+# zhack opens a pool for writing, so it cannot open this one with the tunable
+# either: the damaged table can be read around, not repaired in place.
+log_mustnot zhack -o raidz_ignore_parity_epochs=1 -d $BASEDIR \
+    raidz_epochs $TESTPOOL2 0 0:3:1
+log_must set_tunable32 RAIDZ_IGNORE_PARITY_EPOCHS 0
+
+log_pass "raidz_parity_epochs persists, is inspectable, is rescued read-only"

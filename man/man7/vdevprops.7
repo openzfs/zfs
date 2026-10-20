@@ -78,7 +78,9 @@ How much this vdev can expand by
 .It Sy fragmentation
 Percent of fragmentation in this vdev
 .It Sy parity
-The level of parity for this vdev
+The minimum level of parity guaranteed for blocks on this vdev.
+For a RAID-Z vdev with a parity-epoch table, this is the lowest parity in
+that table, including the original layout.
 .It Sy failure_domain
 Failure domain id of this child vdev in
 .Sy dRAID

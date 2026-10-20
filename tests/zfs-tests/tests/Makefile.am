@@ -728,6 +728,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zdb/zdb_object_range_neg.ksh \
 	functional/cli_root/zdb/zdb_object_range_pos.ksh \
 	functional/cli_root/zdb/zdb_objset_id.ksh \
+	functional/cli_root/zdb/zdb_read_block_birth.ksh \
 	functional/cli_root/zdb/zdb_recover_2.ksh \
 	functional/cli_root/zdb/zdb_recover.ksh \
 	functional/cli_root/zdb/zdb_tunables.ksh \
@@ -969,6 +970,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_rewrite/setup.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_physical.ksh \
+	functional/cli_root/zfs_rewrite/zfs_rewrite_physical_accounting.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_skip_clone.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_skip_snapshot.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_skip_width.ksh \
@@ -2037,6 +2039,27 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/raidz/raidz_expand_010_pos.ksh \
 	functional/raidz/raidz_expand_rewrite.ksh \
 	functional/raidz/raidz_zinject.ksh \
+	functional/raidz/raidz_parity_epochs_dedup_pos.ksh \
+	functional/raidz/raidz_detach_neg.ksh \
+	functional/raidz/raidz_parity_epochs_pos.ksh \
+	functional/raidz/raidz_parity_epochs_properties_pos.ksh \
+	functional/raidz/raidz_parity_epochs_resilver_pos.ksh \
+	functional/raidz/raidz_parity_epochs_append_neg.ksh \
+	functional/raidz/raidz_parity_epochs_cachefile_pos.ksh \
+	functional/raidz/raidz_parity_epochs_config_neg.ksh \
+	functional/raidz/raidz_parity_epochs_config_recovery_pos.ksh \
+	functional/raidz/raidz_parity_epochs_degraded_neg.ksh \
+	functional/raidz/raidz_parity_epochs_expand_neg.ksh \
+	functional/raidz/raidz_parity_epochs_gang.ksh \
+	functional/raidz/raidz_parity_epochs_import_neg.ksh \
+	functional/raidz/raidz_parity_epochs_label_pos.ksh \
+	functional/raidz/raidz_parity_epochs_layout_pos.ksh \
+	functional/raidz/raidz_parity_epochs_validate_neg.ksh \
+	functional/raidz/raidz_parity_epochs_width_neg.ksh \
+	functional/raidz/raidz_recon_mixed_pos.ksh \
+	functional/raidz/raidz_recon_pos.ksh \
+	functional/raidz/raidz_tolerance_epochs_pos.ksh \
+	functional/raidz/raidz_tolerance_marker_neg.ksh \
 	functional/raidz/setup.ksh \
 	functional/redacted_send/cleanup.ksh \
 	functional/redacted_send/redacted_compressed.ksh \

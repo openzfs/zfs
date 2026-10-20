@@ -23,12 +23,12 @@
 #	l2arc_misses does not increment upon reads from a pool without l2arc
 #
 # STRATEGY:
-#	1. Create pool without a cache device.
-#	2. Create a random file in the no-cache-device pool,
+#	1. Create a read-only pool with a cache device.
+#	2. Create pool without a cache device.
+#	3. Create a random file in the no-cache-device pool,
 #		and random read for 10 sec.
-#	3. Check that l2arc_misses hasn't risen
-#	4. Create pool with a cache device.
-#	5. Create a random file in the pool with the cache device,
+#	4. Check that l2arc_misses hasn't risen
+#	5. Reimport the cache-device pool writable and create a random file,
 #		and random read for 10 sec.
 #	6. Check that l2arc_misses has risen
 #
@@ -42,6 +42,10 @@ log_assert "l2arc_misses does not increment upon reads from a pool without l2arc
 function cleanup
 {
 	if poolexists $TESTPOOL ; then
+		if [[ $(get_pool_prop readonly $TESTPOOL) == "on" ]]; then
+			log_must_busy zpool export $TESTPOOL
+			log_must zpool import $TESTPOOL -d $VDEV
+		fi
 		destroy_pool $TESTPOOL
 	fi
 	if poolexists $TESTPOOL1 ; then
@@ -56,7 +60,14 @@ export FILE_SIZE=$(( floor($fill_mb / $NUMJOBS) ))M
 
 log_must truncate -s ${cache_sz}M $VDEV_CACHE
 
+log_must zpool create -O compression=off -f $TESTPOOL $VDEV cache $VDEV_CACHE
 log_must zpool create -O compression=off -f $TESTPOOL1 $VDEV1
+
+# l2_misses is global. Keep the other pool's sync and L2ARC feed threads
+# from adding unrelated misses while retaining its configured cache device.
+log_must zpool export $TESTPOOL
+log_must zpool import -o readonly=on $TESTPOOL -d $VDEV
+log_must test $(kstat arcstats.l2_ndev) -gt 0
 
 # I/O to pool without l2arc - expect that l2_misses stays constant
 export DIRECTORY=/$TESTPOOL1
@@ -71,15 +82,11 @@ typeset starting_miss_count=$(kstat arcstats.l2_misses)
 
 log_must fio $FIO_SCRIPTS/random_reads.fio
 log_must test $(kstat arcstats.l2_misses) -eq $starting_miss_count
-
-#
-# Create the pool with the cache device only now: l2_misses counts the
-# reads of every pool with a cache device, so any read from that pool in
-# the meantime would be counted.
-#
-log_must zpool create -O compression=off -f $TESTPOOL $VDEV cache $VDEV_CACHE
+log_must test $(kstat arcstats.l2_ndev) -gt 0
 
 # I/O to pool with l2arc - expect that l2_misses rises
+log_must_busy zpool export $TESTPOOL
+log_must zpool import $TESTPOOL -d $VDEV
 export DIRECTORY=/$TESTPOOL
 log_must fio $FIO_SCRIPTS/mkfiles.fio
 log_must fio $FIO_SCRIPTS/random_reads.fio

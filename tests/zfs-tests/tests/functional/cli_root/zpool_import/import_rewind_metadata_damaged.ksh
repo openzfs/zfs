@@ -25,8 +25,8 @@
 #
 # STRATEGY:
 #	1. Create a pool with a single file and remember its hashsum.
-#	2. Checkpoint the pool, so that the blocks of the txgs below are
-#	   guaranteed to stay on disk, and note the last synced txg.
+#	2. Record an on-disk root and checkpoint the pool to protect it,
+#	   then note the last synced txg before the overwrite.
 #	3. Overwrite the file in a single txg, allocating a new indirect block
 #	   for it, and note the last synced txg again.
 #	4. Corrupt every copy of that indirect block on disk.
@@ -66,7 +66,7 @@ typeset -i blocks=8
 
 log_must zpool create $TESTPOOL1 $VDEV0
 
-log_must dd if=/dev/urandom of=$file bs=128k count=$blocks
+log_must dd if=/dev/urandom of=$file bs=128k count=$blocks conv=fsync
 log_must sync_pool $TESTPOOL1
 typeset digest=$(xxh128digest $file)
 
@@ -78,16 +78,23 @@ log_must save_tunable TXG_TIMEOUT
 log_must set_tunable32 TXG_TIMEOUT 5000
 
 #
-# The checkpoint keeps the blocks of the txg we are going to rewind to,
-# including the MOS ones, from being reused.
+# Flush the file and its atime update, and persist an uberblock before
+# recording the root.  Empty txgs before checkpoint creation then keep
+# that same block tree, including its MOS blocks.
 #
+log_must sync_pool $TESTPOOL1 true
+typeset -i protectedtxg=$(get_last_txg_synced $TESTPOOL1)
+log_must test $protectedtxg -gt 0
 log_must zpool checkpoint $TESTPOOL1
 typeset -i goodtxg=$(get_last_txg_synced $TESTPOOL1)
+log_must test $goodtxg -ge $protectedtxg
 
 # This allocates a new indirect block for the file.
-log_must dd if=/dev/urandom of=$file bs=128k count=$blocks conv=notrunc
-log_must sync_pool $TESTPOOL1
+log_must dd if=/dev/urandom of=$file bs=128k count=$blocks conv=notrunc,fsync
+log_must sync_pool $TESTPOOL1 true
 typeset -i badtxg=$(get_last_txg_synced $TESTPOOL1)
+log_must test $badtxg -gt $goodtxg
+log_note "Protected txg $protectedtxg, last good $goodtxg, damaged $badtxg"
 
 # The old indirect block is protected by the checkpoint, not listed here.
 corrupt_blocks_at_level $file 1
@@ -99,8 +106,15 @@ typeset out
 out=$(zpool import -d $DEVICE_DIR -nFX -T $badtxg $TESTPOOL1 2>&1) &&
     log_fail "Loading the damaged txg $badtxg unexpectedly succeeded"
 log_note "$out"
-echo "$out" | grep -q "(txg $goodtxg)" ||
-    log_fail "The txg $goodtxg was not reported as the rewind target"
+# Roots newer than the checkpoint are not protected from block reuse.
+# The newest usable root can therefore precede goodtxg, but must not
+# precede the protected root or include the damaged write.  The checkpoint's
+# own txg need not have an uberblock in the label ring if that txg was empty.
+typeset rewindtxg=$(echo "$out" | \
+    sed -n 's/.*(txg \([0-9][0-9]*\)).*/\1/p')
+[[ $rewindtxg == +([0-9]) ]] || log_fail "No rewind target was reported"
+((rewindtxg >= protectedtxg && rewindtxg <= goodtxg)) ||
+    log_fail "Rewind target $rewindtxg is outside [$protectedtxg, $goodtxg]"
 
 log_must zpool import -d $DEVICE_DIR -T $badtxg $TESTPOOL1
 
@@ -111,7 +125,10 @@ if [[ "$(xxh128digest $file)" != "$digest" ]]; then
 fi
 
 # Nothing references the damaged block anymore.
-log_must zpool checkpoint -d $TESTPOOL1
+# A root preceding checkpoint creation no longer has a checkpoint to discard.
+if [[ "$(get_pool_prop checkpoint $TESTPOOL1)" != "-" ]]; then
+	log_must zpool checkpoint -d $TESTPOOL1
+fi
 log_must zpool scrub -w $TESTPOOL1
 log_must check_pool_healthy $TESTPOOL1
 

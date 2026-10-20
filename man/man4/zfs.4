@@ -16,7 +16,7 @@
 .\" Copyright (c) 2026, Mateusz Piotrowski <0mp@FreeBSD.org>
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd September 9, 2026
+.Dd October 13, 2026
 .Dt ZFS 4
 .Os
 .
@@ -585,6 +585,26 @@ This limits how much I/O can be outstanding at once.
 .
 .It Sy raidz_expand_max_reflow_bytes Ns = Ns Sy 0 Pq ulong
 For testing, pause RAID-Z expansion when reflow amount reaches this value.
+.
+.It Sy raidz_ignore_parity_epochs Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Ignore the parity-epoch tables of all RAID-Z vdevs.
+Neither the copy in the vdev labels and the pool configuration nor the copy in
+the vdev's ZAP is used, so every block is read with the vdev's own width and
+parity.
+Only the blocks written in that layout can be read: this gets at the data of a
+pool whose table is damaged as long as no epoch of another width or parity has
+started, and at the blocks written before the first such epoch.
+Once one has started, the metadata of the pool, which is rewritten in every
+transaction group, is laid out with it, so the import fails with an I/O error,
+or, if the blocks it needs happen to be read back, the blocks born in that
+epoch fail their checksum.
+While the
+.Sy raidz_parity_epochs
+feature is active, or while the vdev labels or the pool configuration carry a
+table, the pool can only be imported read-only, and a read-write import fails.
+Set it before importing the pool.
+See
+.Xr zpool-features 7 .
 .
 .It Sy raidz_io_aggregate_rows Ns = Ns Sy 4 Pq ulong
 For expanded RAID-Z, aggregate reads that have more rows than this.

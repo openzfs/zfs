@@ -38,9 +38,8 @@
 #	   while another thread continuously modifies the shared buffer
 #	   (manipulate_user_buffer), forcing read checksum verify failures.
 #	4. Confirm at least one dio_verify_rd event was triggered.
-#	5. Confirm the direct read count is bounded to a small number: the
-#	   handle declined Direct I/O after the first benign failure instead
-#	   of issuing a direct read (and verify failure) for every request.
+#	5. Read the file again through the same open file description and
+#	   confirm that no further direct reads are issued.
 #	6. Confirm the pool reports no data errors.
 #
 
@@ -55,16 +54,15 @@ verify_runnable "global"
 NUMBLOCKS=500
 BS=$((128 * 1024)) # 128k
 
-# With the fix a single direct read hits the benign failure and the handle
-# then declines Direct I/O, so the direct read count stays at a small handful.
-# Without it every one of the NUMBLOCKS reads is a direct read that fails the
-# verify.  Allow a generous margin for the reads issued before the first
-# failure is seen.
-MAX_DIRECT_READS=10
+function cleanup
+{
+	exec 3<&-
+	dio_cleanup
+}
 
 log_assert "A benign Direct I/O read verify failure declines Direct I/O " \
     "for the file handle."
-log_onexit dio_cleanup
+log_onexit cleanup
 
 log_must truncate -s $MINVDEVSIZE $DIO_VDEVS
 
@@ -79,14 +77,15 @@ log_must stride_dd -o "$mntpnt/direct-read.iso" -i /dev/urandom \
 log_must zpool sync $TESTPOOL1
 log_must zpool events -c
 
+#
+# Keep the open file description alive across both helper invocations.
+# The first verify failure can happen late in the read, so only measure
+# the decline after confirming that it has actually been triggered.
+#
+exec 3< "$mntpnt/direct-read.iso" || log_fail "Could not open the test file"
 prev_dio_rd=$(kstat_pool $TESTPOOL1 iostats.direct_read_count)
-
-#
-# A single file handle, sequential O_DIRECT reads, buffer scribbled by a
-# concurrent thread the whole time.
-#
-log_must manipulate_user_buffer -f "$mntpnt/direct-read.iso" \
-    -n $NUMBLOCKS -b $BS -r
+log_must manipulate_user_buffer -F 3 \
+    -n $NUMBLOCKS -b $BS -r 3<&3
 
 curr_dio_rd=$(kstat_pool $TESTPOOL1 iostats.direct_read_count)
 total_dio_rd=$((curr_dio_rd - prev_dio_rd))
@@ -94,19 +93,26 @@ dio_verify=$(get_zed_dio_verify_events $TESTPOOL1 "rd")
 
 log_note "Direct I/O reads: $total_dio_rd, dio_verify_rd events: $dio_verify"
 
-# The benign failure must actually have been triggered, otherwise the bound
-# below is vacuous.
+# The benign failure must actually have been triggered, otherwise the
+# subsequent buffered reads do not test the decline.
 if [[ $dio_verify -lt 1 ]]; then
 	log_fail "Expected the benign Direct I/O read verify failure to be " \
 	    "triggered, saw $dio_verify dio_verify_rd events"
 fi
 
-# The handle declined Direct I/O after the first benign failure, so the
-# direct read count is bounded well below NUMBLOCKS ($NUMBLOCKS).
-if [[ $total_dio_rd -gt $MAX_DIRECT_READS ]]; then
+prev_dio_rd=$curr_dio_rd
+log_must manipulate_user_buffer -F 3 -n $NUMBLOCKS -b $BS -r 3<&3
+curr_dio_rd=$(kstat_pool $TESTPOOL1 iostats.direct_read_count)
+total_dio_rd=$((curr_dio_rd - prev_dio_rd))
+log_note "Direct I/O reads after the verify failure: $total_dio_rd"
+
+# The first helper has finished, so no direct reads remain in flight.
+if [[ $total_dio_rd -ne 0 ]]; then
 	log_fail "Direct I/O was not declined: $total_dio_rd direct reads " \
-	    "(> $MAX_DIRECT_READS); the file handle kept issuing direct reads"
+	    "after the confirmed verify failure on the same file handle"
 fi
+
+exec 3<&-
 
 log_note "Making sure there are no checksum errors with the ZPool"
 log_must check_pool_status $TESTPOOL1 "errors" "No known data errors"

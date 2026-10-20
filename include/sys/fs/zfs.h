@@ -939,6 +939,8 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_NPARITY		"nparity"
 #define	ZPOOL_CONFIG_RAIDZ_EXPANDING	"raidz_expanding"
 #define	ZPOOL_CONFIG_RAIDZ_EXPAND_TXGS	"raidz_expand_txgs"
+#define	ZPOOL_CONFIG_RAIDZ_PARITY_EPOCHS \
+	"org.openzfs:raidz_parity_epochs"
 #define	ZPOOL_CONFIG_HOSTID		"hostid"
 #define	ZPOOL_CONFIG_HOSTNAME		"hostname"
 #define	ZPOOL_CONFIG_LOADED_TIME	"initial_load_time"
@@ -974,6 +976,11 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_UNSUP_FEAT		"unsup_feat"	/* not stored on disk */
 #define	ZPOOL_CONFIG_ENABLED_FEAT	"enabled_feat"	/* not stored on disk */
 #define	ZPOOL_CONFIG_CAN_RDONLY		"can_rdonly"	/* not stored on disk */
+/* A RAID-Z parity-epoch table refused the import; not stored on disk */
+#define	ZPOOL_CONFIG_RAIDZ_EPOCHS_RDONLY	"raidz_epochs_rdonly"
+#define	ZPOOL_CONFIG_RAIDZ_EPOCHS_EXPANDED	"raidz_epochs_expanded"
+/* raidz_ignore_parity_epochs refused it; not stored on disk */
+#define	ZPOOL_CONFIG_RAIDZ_EPOCHS_IGNORED	"raidz_epochs_ignored"
 #define	ZPOOL_CONFIG_FEATURES_FOR_READ	"features_for_read"
 #define	ZPOOL_CONFIG_FEATURE_STATS	"feature_stats"	/* not stored on disk */
 #define	ZPOOL_CONFIG_ERRATA		"errata"	/* not stored on disk */
@@ -1075,6 +1082,8 @@ typedef struct zpool_load_policy {
 	"org.openzfs:raidz_expand_end_time"
 #define	VDEV_TOP_ZAP_RAIDZ_EXPAND_BYTES_COPIED \
 	"org.openzfs:raidz_expand_bytes_copied"
+#define	VDEV_TOP_ZAP_RAIDZ_PARITY_EPOCHS \
+	"org.openzfs:raidz_parity_epochs"
 
 /* vdev metaslab allocation bias */
 #define	VDEV_ALLOC_BIAS_LOG		"log"

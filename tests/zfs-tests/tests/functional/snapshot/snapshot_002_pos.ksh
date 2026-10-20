@@ -75,7 +75,6 @@ CWD=$PWD
 log_must cd $TESTDIR
 log_must tar cf $SNAPSHOT_TARDIR/original.tar .
 log_must cd $CWD
-log_must touch -r $TESTDIR $SNAPSHOT_TARDIR/original.times
 
 log_note "Create a snapshot and mount it..."
 log_must zfs snapshot $SNAPFS
@@ -94,20 +93,15 @@ log_must mkdir $TESTDIR/original $TESTDIR/snapshot
 CWD=$PWD
 log_must cd $TESTDIR/original
 log_must tar xf $SNAPSHOT_TARDIR/original.tar
+# Some tar implementations restore the existing root before its children.
+# Reapply only the archived root metadata after the children are extracted.
+log_must tar xf $SNAPSHOT_TARDIR/original.tar --exclude './?*'
 
 log_must cd $TESTDIR/snapshot
 log_must tar xf $SNAPSHOT_TARDIR/snapshot.tar
+log_must tar xf $SNAPSHOT_TARDIR/snapshot.tar --exclude './?*'
 
 log_must cd $CWD
-
-#
-# bsdtar does not restore the times of "." when extracting, so the
-# two directories would keep the times of their extraction, which
-# differ whenever the extractions straddle a second.  Give them the
-# times of the directories that were archived, as GNU tar does.
-#
-log_must touch -r $SNAPSHOT_TARDIR/original.times $TESTDIR/original
-log_must touch -r $SNAPDIR $TESTDIR/snapshot
 
 log_must directory_diff $TESTDIR/original $TESTDIR/snapshot
 log_pass "Directory structures match."

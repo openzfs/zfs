@@ -2551,8 +2551,9 @@ vdev_draid_ndisks(vdev_t *vd)
  * size.
  */
 static uint64_t
-vdev_draid_alloc_factor(vdev_t *vd)
+vdev_draid_alloc_factor(vdev_t *vd, uint64_t txg)
 {
+	(void) txg;
 	vdev_draid_config_t *vdc = vd->vdev_tsd;
 	return (vdc->vdc_groupwidth << vd->vdev_ashift);
 }
