@@ -2,6 +2,7 @@
 /test_*_coverage
 
 /test_fletcher
+/test_icp
 /test_zap
 /test_namecheck
 /test_btree
