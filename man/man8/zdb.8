@@ -15,7 +15,7 @@
 .\" Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 .\" Copyright (c) 2017 Intel Corporation.
 .\"
-.Dd September 10, 2026
+.Dd October 20, 2026
 .Dt ZDB 8
 .Os
 .
@@ -594,7 +594,11 @@ on success,
 .Sy 1
 if a fatal error occurs,
 .Sy 2
-if invalid command line options were specified, or
+if invalid command line options were specified or the block traversal of
+.Fl b
+or
+.Fl c
+found leaked space, or
 .Sy 3
 if on-disk corruption was detected, but was not fatal.
 .Sh EXAMPLES
