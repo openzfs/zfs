@@ -1946,6 +1946,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/pool_checkpoint/checkpoint_after_rewind.ksh \
 	functional/pool_checkpoint/checkpoint_big_rewind.ksh \
 	functional/pool_checkpoint/checkpoint_capacity.ksh \
+	functional/pool_checkpoint/checkpoint_claimed_zil.ksh \
 	functional/pool_checkpoint/checkpoint_conf_change.ksh \
 	functional/pool_checkpoint/checkpoint_discard_busy.ksh \
 	functional/pool_checkpoint/checkpoint_discard.ksh \

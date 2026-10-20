@@ -886,8 +886,8 @@ tags = ['functional', 'online_offline']
 
 [tests/functional/pool_checkpoint]
 tests = ['checkpoint_after_rewind', 'checkpoint_big_rewind',
-    'checkpoint_capacity', 'checkpoint_conf_change', 'checkpoint_discard',
-    'checkpoint_discard_busy', 'checkpoint_discard_many',
+    'checkpoint_capacity', 'checkpoint_claimed_zil', 'checkpoint_conf_change',
+    'checkpoint_discard', 'checkpoint_discard_busy', 'checkpoint_discard_many',
     'checkpoint_indirect', 'checkpoint_invalid', 'checkpoint_lun_expsz',
     'checkpoint_open', 'checkpoint_removal', 'checkpoint_rewind',
     'checkpoint_ro_rewind', 'checkpoint_sm_scale', 'checkpoint_twice',
