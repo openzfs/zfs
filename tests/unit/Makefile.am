@@ -102,7 +102,6 @@ nodist_%C%_test_icp_SOURCES = \
 
 %C%_test_icp_LDADD = \
 	libicp.la \
-	libavl.la \
 	libspl.la \
 	libunit.la
 

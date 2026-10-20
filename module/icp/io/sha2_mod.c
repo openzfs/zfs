@@ -17,119 +17,14 @@
 
 #include <sys/zfs_context.h>
 #include <sys/crypto/common.h>
-#include <sys/crypto/spi.h>
-#include <sys/crypto/icp.h>
+#include <sys/crypto/impl.h>
 #include <sys/sha2.h>
 #include <sha2/sha2_impl.h>
-
-/*
- * Macros to access the SHA2 or SHA2-HMAC contexts from a context passed
- * by KCF to one of the entry points.
- */
-
-#define	PROV_SHA2_CTX(ctx)	((sha2_ctx_t *)(ctx)->cc_provider_private)
-#define	PROV_SHA2_HMAC_CTX(ctx)	((sha2_hmac_ctx_t *)(ctx)->cc_provider_private)
-
-/* to extract the digest length passed as mechanism parameter */
-#define	PROV_SHA2_GET_DIGEST_LEN(m, len) {				\
-	if (IS_P2ALIGNED((m)->cm_param, sizeof (ulong_t)))		\
-		(len) = (uint32_t)*((ulong_t *)(m)->cm_param);	\
-	else {								\
-		ulong_t tmp_ulong;					\
-		memcpy(&tmp_ulong, (m)->cm_param, sizeof (ulong_t));	\
-		(len) = (uint32_t)tmp_ulong;				\
-	}								\
-}
 
 #define	PROV_SHA2_DIGEST_KEY(mech, ctx, key, len, digest) {	\
 	SHA2Init(mech, ctx);				\
 	SHA2Update(ctx, key, len);			\
 	SHA2Final(digest, ctx);				\
-}
-
-/*
- * Mechanism info structure passed to KCF during registration.
- */
-static const crypto_mech_info_t sha2_mech_info_tab[] = {
-	/* SHA512-HMAC */
-	{SUN_CKM_SHA512_HMAC, SHA512_HMAC_MECH_INFO_TYPE,
-	    CRYPTO_FG_MAC | CRYPTO_FG_MAC_ATOMIC},
-};
-
-static int sha2_mac_init(crypto_ctx_t *, crypto_mechanism_t *, crypto_key_t *,
-    crypto_spi_ctx_template_t);
-static int sha2_mac_update(crypto_ctx_t *, crypto_data_t *);
-static int sha2_mac_final(crypto_ctx_t *, crypto_data_t *);
-static int sha2_mac_atomic(crypto_mechanism_t *, crypto_key_t *,
-    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
-
-static const crypto_mac_ops_t sha2_mac_ops = {
-	.mac_init = sha2_mac_init,
-	.mac = NULL,
-	.mac_update = sha2_mac_update,
-	.mac_final = sha2_mac_final,
-	.mac_atomic = sha2_mac_atomic,
-};
-
-static int sha2_create_ctx_template(crypto_mechanism_t *, crypto_key_t *,
-    crypto_spi_ctx_template_t *, size_t *);
-static int sha2_free_context(crypto_ctx_t *);
-
-static const crypto_ctx_ops_t sha2_ctx_ops = {
-	.create_ctx_template = sha2_create_ctx_template,
-	.free_context = sha2_free_context
-};
-
-static const crypto_ops_t sha2_crypto_ops = {
-	NULL,
-	&sha2_mac_ops,
-	&sha2_ctx_ops,
-};
-
-static const crypto_provider_info_t sha2_prov_info = {
-	"SHA2 Software Provider",
-	&sha2_crypto_ops,
-	sizeof (sha2_mech_info_tab) / sizeof (crypto_mech_info_t),
-	sha2_mech_info_tab
-};
-
-static crypto_kcf_provider_handle_t sha2_prov_handle = 0;
-
-int
-sha2_mod_init(void)
-{
-	int ret;
-
-	/*
-	 * Register with KCF. If the registration fails, log an
-	 * error but do not uninstall the module, since the functionality
-	 * provided by misc/sha2 should still be available.
-	 */
-	if ((ret = crypto_register_provider(&sha2_prov_info,
-	    &sha2_prov_handle)) != CRYPTO_SUCCESS)
-		cmn_err(CE_WARN, "sha2 _init: "
-		    "crypto_register_provider() failed (0x%x)", ret);
-
-	return (0);
-}
-
-int
-sha2_mod_fini(void)
-{
-	int ret = 0;
-
-	if (sha2_prov_handle != 0) {
-		if ((ret = crypto_unregister_provider(sha2_prov_handle)) !=
-		    CRYPTO_SUCCESS) {
-			cmn_err(CE_WARN,
-			    "sha2 _fini: crypto_unregister_provider() "
-			    "failed (0x%x)", ret);
-			return (EBUSY);
-		}
-		sha2_prov_handle = 0;
-	}
-
-	return (ret);
 }
 
 /*
@@ -286,7 +181,7 @@ sha2_digest_final_uio(SHA2_CTX *sha2_ctx, crypto_data_t *digest,
 }
 
 /*
- * KCF software provider mac entry points.
+ * SHA2 MAC entry points.
  *
  * SHA2 HMAC is: SHA2(key XOR opad, SHA2(key XOR ipad, text))
  *
@@ -349,13 +244,11 @@ sha2_mac_init_ctx(sha2_hmac_ctx_t *ctx, void *keyval, uint_t length_in_bytes)
 	SHA2Update(&ctx->hc_ocontext, (uint8_t *)opad, block_size);
 }
 
-/*
- */
-static int
-sha2_mac_init(crypto_ctx_t *ctx, crypto_mechanism_t *mechanism,
-    crypto_key_t *key, crypto_spi_ctx_template_t ctx_template)
+int
+icp_sha2_mac_init(crypto_mechanism_t *mechanism, crypto_key_t *key,
+    crypto_spi_ctx_template_t ctx_template, crypto_context_t *ctxp)
 {
-	int ret = CRYPTO_SUCCESS;
+	sha2_hmac_ctx_t *ctx;
 	uint_t keylen_in_bytes = CRYPTO_BITS2BYTES(key->ck_length);
 	uint_t sha_digest_len, sha_hmac_block_size;
 
@@ -372,21 +265,16 @@ sha2_mac_init(crypto_ctx_t *ctx, crypto_mechanism_t *mechanism,
 		return (CRYPTO_MECHANISM_INVALID);
 	}
 
-	ctx->cc_provider_private =
-	    kmem_alloc(sizeof (sha2_hmac_ctx_t), KM_SLEEP);
-	if (ctx->cc_provider_private == NULL)
-		return (CRYPTO_HOST_MEMORY);
+	ctx = kmem_alloc(sizeof (*ctx), KM_SLEEP);
 
-	PROV_SHA2_HMAC_CTX(ctx)->hc_mech_type = mechanism->cm_type;
+	ctx->hc_mech_type = mechanism->cm_type;
 	if (ctx_template != NULL) {
 		/* reuse context template */
-		memcpy(PROV_SHA2_HMAC_CTX(ctx), ctx_template,
-		    sizeof (sha2_hmac_ctx_t));
+		memcpy(ctx, ctx_template, sizeof (*ctx));
 	} else {
 		/* no context template, compute context */
 		if (keylen_in_bytes > sha_hmac_block_size) {
 			uchar_t digested_key[SHA512_DIGEST_LENGTH];
-			sha2_hmac_ctx_t *hmac_ctx = ctx->cc_provider_private;
 
 			/*
 			 * Hash the passed-in key to get a smaller key.
@@ -394,31 +282,24 @@ sha2_mac_init(crypto_ctx_t *ctx, crypto_mechanism_t *mechanism,
 			 * initialized yet.
 			 */
 			PROV_SHA2_DIGEST_KEY(mechanism->cm_type / 3,
-			    &hmac_ctx->hc_icontext,
+			    &ctx->hc_icontext,
 			    key->ck_data, keylen_in_bytes, digested_key);
-			sha2_mac_init_ctx(PROV_SHA2_HMAC_CTX(ctx),
+			sha2_mac_init_ctx(ctx,
 			    digested_key, sha_digest_len);
 		} else {
-			sha2_mac_init_ctx(PROV_SHA2_HMAC_CTX(ctx),
+			sha2_mac_init_ctx(ctx,
 			    key->ck_data, keylen_in_bytes);
 		}
 	}
 
-	if (ret != CRYPTO_SUCCESS) {
-		memset(ctx->cc_provider_private, 0, sizeof (sha2_hmac_ctx_t));
-		kmem_free(ctx->cc_provider_private, sizeof (sha2_hmac_ctx_t));
-		ctx->cc_provider_private = NULL;
-	}
-
-	return (ret);
+	*ctxp = ctx;
+	return (CRYPTO_SUCCESS);
 }
 
-static int
-sha2_mac_update(crypto_ctx_t *ctx, crypto_data_t *data)
+int
+icp_sha2_mac_update(sha2_hmac_ctx_t *ctx, crypto_data_t *data)
 {
 	int ret = CRYPTO_SUCCESS;
-
-	ASSERT(ctx->cc_provider_private != NULL);
 
 	/*
 	 * Do a SHA2 update of the inner context using the specified
@@ -426,13 +307,13 @@ sha2_mac_update(crypto_ctx_t *ctx, crypto_data_t *data)
 	 */
 	switch (data->cd_format) {
 	case CRYPTO_DATA_RAW:
-		SHA2Update(&PROV_SHA2_HMAC_CTX(ctx)->hc_icontext,
+		SHA2Update(&ctx->hc_icontext,
 		    (uint8_t *)data->cd_raw.iov_base + data->cd_offset,
 		    data->cd_length);
 		break;
 	case CRYPTO_DATA_UIO:
 		ret = sha2_digest_update_uio(
-		    &PROV_SHA2_HMAC_CTX(ctx)->hc_icontext, data);
+		    &ctx->hc_icontext, data);
 		break;
 	default:
 		ret = CRYPTO_ARGUMENTS_BAD;
@@ -441,17 +322,15 @@ sha2_mac_update(crypto_ctx_t *ctx, crypto_data_t *data)
 	return (ret);
 }
 
-static int
-sha2_mac_final(crypto_ctx_t *ctx, crypto_data_t *mac)
+int
+icp_sha2_mac_final(sha2_hmac_ctx_t *ctx, crypto_data_t *mac)
 {
 	int ret = CRYPTO_SUCCESS;
 	uchar_t digest[SHA512_DIGEST_LENGTH];
 	uint32_t digest_len, sha_digest_len;
 
-	ASSERT(ctx->cc_provider_private != NULL);
-
 	/* Set the digest lengths to values appropriate to the mechanism */
-	switch (PROV_SHA2_HMAC_CTX(ctx)->hc_mech_type) {
+	switch (ctx->hc_mech_type) {
 	case SHA512_HMAC_MECH_INFO_TYPE:
 		sha_digest_len = digest_len = SHA512_DIGEST_LENGTH;
 		break;
@@ -471,13 +350,13 @@ sha2_mac_final(crypto_ctx_t *ctx, crypto_data_t *mac)
 	/*
 	 * Do a SHA2 final on the inner context.
 	 */
-	SHA2Final(digest, &PROV_SHA2_HMAC_CTX(ctx)->hc_icontext);
+	SHA2Final(digest, &ctx->hc_icontext);
 
 	/*
 	 * Do a SHA2 update on the outer context, feeding the inner
 	 * digest as data.
 	 */
-	SHA2Update(&PROV_SHA2_HMAC_CTX(ctx)->hc_ocontext, digest,
+	SHA2Update(&ctx->hc_ocontext, digest,
 	    sha_digest_len);
 
 	/*
@@ -493,18 +372,18 @@ sha2_mac_final(crypto_ctx_t *ctx, crypto_data_t *mac)
 			 * the user only what was requested.
 			 */
 			SHA2Final(digest,
-			    &PROV_SHA2_HMAC_CTX(ctx)->hc_ocontext);
+			    &ctx->hc_ocontext);
 			memcpy((unsigned char *)mac->cd_raw.iov_base +
 			    mac->cd_offset, digest, digest_len);
 		} else {
 			SHA2Final((unsigned char *)mac->cd_raw.iov_base +
 			    mac->cd_offset,
-			    &PROV_SHA2_HMAC_CTX(ctx)->hc_ocontext);
+			    &ctx->hc_ocontext);
 		}
 		break;
 	case CRYPTO_DATA_UIO:
 		ret = sha2_digest_final_uio(
-		    &PROV_SHA2_HMAC_CTX(ctx)->hc_ocontext, mac,
+		    &ctx->hc_ocontext, mac,
 		    digest_len, digest);
 		break;
 	default:
@@ -516,30 +395,14 @@ sha2_mac_final(crypto_ctx_t *ctx, crypto_data_t *mac)
 	else
 		mac->cd_length = 0;
 
-	memset(ctx->cc_provider_private, 0, sizeof (sha2_hmac_ctx_t));
-	kmem_free(ctx->cc_provider_private, sizeof (sha2_hmac_ctx_t));
-	ctx->cc_provider_private = NULL;
+	memset(ctx, 0, sizeof (*ctx));
+	kmem_free(ctx, sizeof (*ctx));
 
 	return (ret);
 }
 
-#define	SHA2_MAC_UPDATE(data, ctx, ret) {				\
-	switch (data->cd_format) {					\
-	case CRYPTO_DATA_RAW:						\
-		SHA2Update(&(ctx).hc_icontext,				\
-		    (uint8_t *)data->cd_raw.iov_base +			\
-		    data->cd_offset, data->cd_length);			\
-		break;							\
-	case CRYPTO_DATA_UIO:						\
-		ret = sha2_digest_update_uio(&(ctx).hc_icontext, data);	\
-		break;							\
-	default:							\
-		ret = CRYPTO_ARGUMENTS_BAD;				\
-	}								\
-}
-
-static int
-sha2_mac_atomic(crypto_mechanism_t *mechanism,
+int
+icp_sha2_mac_atomic(crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *data, crypto_data_t *mac,
     crypto_spi_ctx_template_t ctx_template)
 {
@@ -586,7 +449,7 @@ sha2_mac_atomic(crypto_mechanism_t *mechanism,
 	}
 
 	/* do a SHA2 update of the inner context using the specified data */
-	SHA2_MAC_UPDATE(data, sha2_hmac_ctx, ret);
+	ret = icp_sha2_mac_update(&sha2_hmac_ctx, data);
 	if (ret != CRYPTO_SUCCESS)
 		/* the update failed, free context and bail */
 		goto bail;
@@ -641,12 +504,10 @@ bail:
 	return (ret);
 }
 
-/*
- * KCF software provider context management entry points.
- */
+/* SHA2 context management entry points. */
 
-static int
-sha2_create_ctx_template(crypto_mechanism_t *mechanism, crypto_key_t *key,
+int
+icp_sha2_create_ctx_template(crypto_mechanism_t *mechanism, crypto_key_t *key,
     crypto_spi_ctx_template_t *ctx_template, size_t *ctx_template_size)
 {
 	sha2_hmac_ctx_t *sha2_hmac_ctx_tmpl;
@@ -670,8 +531,6 @@ sha2_create_ctx_template(crypto_mechanism_t *mechanism, crypto_key_t *key,
 	 * Allocate and initialize SHA2 context.
 	 */
 	sha2_hmac_ctx_tmpl = kmem_alloc(sizeof (sha2_hmac_ctx_t), KM_SLEEP);
-	if (sha2_hmac_ctx_tmpl == NULL)
-		return (CRYPTO_HOST_MEMORY);
 
 	sha2_hmac_ctx_tmpl->hc_mech_type = mechanism->cm_type;
 
@@ -695,25 +554,6 @@ sha2_create_ctx_template(crypto_mechanism_t *mechanism, crypto_key_t *key,
 
 	*ctx_template = (crypto_spi_ctx_template_t)sha2_hmac_ctx_tmpl;
 	*ctx_template_size = sizeof (sha2_hmac_ctx_t);
-
-	return (CRYPTO_SUCCESS);
-}
-
-static int
-sha2_free_context(crypto_ctx_t *ctx)
-{
-	uint_t ctx_len;
-
-	if (ctx->cc_provider_private == NULL)
-		return (CRYPTO_SUCCESS);
-
-	ASSERT3U(PROV_SHA2_CTX(ctx)->sc_mech_type, ==,
-	    SHA512_HMAC_MECH_INFO_TYPE);
-	ctx_len = sizeof (sha2_hmac_ctx_t);
-
-	memset(ctx->cc_provider_private, 0, ctx_len);
-	kmem_free(ctx->cc_provider_private, ctx_len);
-	ctx->cc_provider_private = NULL;
 
 	return (CRYPTO_SUCCESS);
 }
