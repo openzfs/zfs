@@ -10327,6 +10327,17 @@ free_header(anyraid_header_t *header, uint64_t header_size) {
 	abd_free(header->ah_abd);
 }
 
+static inline uint64_t
+anyraid_header_offset(vdev_t *vd, int id)
+{
+	uint64_t full_size = VDEV_ANYRAID_SINGLE_MAP_SIZE;
+	if (id < VDEV_ANYRAID_START_COPIES)
+		return (VDEV_LABEL_START_SIZE + id * full_size);
+	else
+		return (vd->vdev_psize - VDEV_LABEL_END_SIZE -
+		    (VDEV_ANYRAID_MAP_COPIES - id) * full_size);
+}
+
 /*
  * Print one of the anyraid maps from the given vdev child. This prints the
  * mapping entries themselves, rather than the kernel's interpretation of them,
@@ -10344,8 +10355,7 @@ print_anyraid_mapping(vdev_t *vd, int child, int mapping,
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_SPECULATIVE;
 
-	uint64_t header_offset = VDEV_LABEL_START_SIZE +
-	    mapping * VDEV_ANYRAID_SINGLE_MAP_SIZE;
+	uint64_t header_offset = anyraid_header_offset(cvd, mapping);
 	uint64_t header_size = VDEV_ANYRAID_MAP_HEADER_SIZE(ashift);
 	uint64_t map_offset = header_offset + header_size;
 
