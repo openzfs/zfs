@@ -2451,10 +2451,11 @@ bp_get_dsize(spa_t *spa, const blkptr_t *bp)
  * Return B_TRUE if writing the block again in the given txg, with the write
  * properties zp, would leave it as it is: same checksum, compression, number
  * of copies and dedup, and on every DVA the same allocation class and the
- * allocated size that its physical size would get there.  A gang block's DVAs
- * have the size of its header, and a block on an indirect vdev, or on a vdev
- * that takes no allocations, would move, so they are not current.  Holes and
- * embedded blocks allocate nothing.
+ * allocated size that its physical size would get there.  A deduplicated
+ * block keeps the DVAs of a flat DDT entry, which can be more than zp asks
+ * for.  A gang block's DVAs have the size of its header, and a block on an
+ * indirect vdev, or on a vdev that takes no allocations, would move, so they
+ * are not current.  Holes and embedded blocks allocate nothing.
  *
  * A block stored uncompressed may be one that compression did not shrink, so
  * it is not taken as one to compress.  The compression level is not recorded
@@ -2472,8 +2473,18 @@ bp_rewrite_is_current(spa_t *spa, const blkptr_t *bp, const zio_prop_t *zp,
 	enum zio_compress compress = BP_GET_COMPRESS(bp);
 	if (BP_GET_CHECKSUM(bp) != zp->zp_checksum ||
 	    (compress != ZIO_COMPRESS_OFF && compress != zp->zp_compress) ||
-	    BP_GET_NDVAS(bp) != zp->zp_copies ||
 	    BP_GET_DEDUP(bp) != zp->zp_dedup)
+		return (B_FALSE);
+
+	/*
+	 * A rewrite that deduplicates the block again gives it the DVAs of
+	 * its DDT entry.  A flat entry serves every copies value, so it can
+	 * hold more DVAs than requested, and the rewrite keeps them all.
+	 */
+	int ndvas = BP_GET_NDVAS(bp);
+	boolean_t flat = BP_GET_DEDUP(bp) &&
+	    (ddt_select(spa, bp)->ddt_flags & DDT_FLAG_FLAT);
+	if (ndvas < zp->zp_copies || (ndvas > zp->zp_copies && !flat))
 		return (B_FALSE);
 
 	boolean_t same = B_TRUE;
@@ -2483,7 +2494,7 @@ bp_rewrite_is_current(spa_t *spa, const blkptr_t *bp, const zio_prop_t *zp,
 
 	metaslab_class_t *mc = spa_class_select(spa, zp, psize, B_FALSE,
 	    B_FALSE);
-	for (int d = 0; same && d < BP_GET_NDVAS(bp); d++) {
+	for (int d = 0; same && d < ndvas; d++) {
 		const dva_t *dva = &bp->blk_dva[d];
 		vdev_t *vd = vdev_lookup_top(spa, DVA_GET_VDEV(dva));
 

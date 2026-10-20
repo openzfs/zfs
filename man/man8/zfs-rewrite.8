@@ -12,7 +12,7 @@
 .\" Copyright (c) 2025 iXsystems, Inc.
 .\" Copyright (c) 2025, Klara, Inc.
 .\"
-.Dd October 17, 2026
+.Dd October 20, 2026
 .Dt ZFS-REWRITE 8
 .Os
 .
@@ -69,6 +69,10 @@ Blocks smaller than the old width keep their size and stay in place, which can
 leave the space freed around them fragmented.
 Gang blocks, and blocks on removed devices or on vdevs that take no new
 allocations, are always rewritten.
+A deduplicated block of a fast dedup table keeps all the copies of its table
+entry, which can be more than the
+.Sy copies
+property asks for, and is not rewritten for that.
 A block stored uncompressed is taken as one that compression did not shrink,
 so it is not rewritten only to be compressed, and a change of the
 .Sy compression
