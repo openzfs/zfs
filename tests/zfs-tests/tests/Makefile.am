@@ -1280,6 +1280,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_import/zpool_import_aux_paths.ksh \
 	functional/cli_root/zpool_import/zpool_import_encrypted.ksh \
 	functional/cli_root/zpool_import/zpool_import_encrypted_load.ksh \
+	functional/cli_root/zpool_import/zpool_import_encrypted_zplprops.ksh \
 	functional/cli_root/zpool_import/zpool_import_errata3.ksh \
 	functional/cli_root/zpool_import/zpool_import_errata4.ksh \
 	functional/cli_root/zpool_import/zpool_import_features_001_pos.ksh \
