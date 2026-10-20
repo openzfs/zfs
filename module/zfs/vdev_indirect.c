@@ -1781,7 +1781,11 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 			return;
 		}
 
-		iv->iv_unique_combinations *= is->is_unique_children;
+		if (iv->iv_unique_combinations >
+		    UINT64_MAX / is->is_unique_children)
+			iv->iv_unique_combinations = UINT64_MAX;
+		else
+			iv->iv_unique_combinations *= is->is_unique_children;
 	}
 
 	if (iv->iv_unique_combinations <= iv->iv_attempts_max)
