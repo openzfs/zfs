@@ -4043,8 +4043,8 @@ vdev_raidz_io_done(zio_t *zio)
 						char *physbuf = abd_to_buf(
 						    prc->rc_abd);
 						void *physloc = physbuf +
-						    rc->rc_offset -
-						    prc->rc_offset;
+						    (rc->rc_offset -
+						    prc->rc_offset);
 
 						abd_copy_from_buf(rc->rc_abd,
 						    physloc, rc->rc_size);
