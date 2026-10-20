@@ -53,7 +53,8 @@ mock_crc64_init(void)
 
 /* Create a microzap backed by a mock dnode. */
 static dnode_t *
-mock_zap_create_norm_microzap(int normflags) {
+mock_zap_create_norm_microzap(int normflags)
+{
 	/*
 	 * We use DMU_OTN_ZAP_DATA so that DMU_OT_BYTESWAP() returns
 	 * DMU_BSWAP_ZAP without consulting dmu_ot[], which is not currently
@@ -115,7 +116,8 @@ mock_zap_destroy(dnode_t *dn)
 /* Create a ZAP of the type named in the given test params. */
 static dnode_t *
 mock_zap_create_norm_params(const MunitParameter params[], const char *key,
-    int normflags) {
+    int normflags)
+{
 	const char *type = munit_parameters_get(params, key);
 	if (type == NULL)
 		munit_error("mock_zap_create_params: missing type param");

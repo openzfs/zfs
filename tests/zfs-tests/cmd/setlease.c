@@ -34,7 +34,8 @@
 #include <string.h>
 
 static int
-get_lease(int fd) {
+get_lease(int fd)
+{
 	int r = fcntl(fd, F_GETLEASE);
 	if (r < 0) {
 		perror("fcntl(GETLEASE)");
@@ -44,7 +45,8 @@ get_lease(int fd) {
 }
 
 static int
-set_lease(int fd, int lease) {
+set_lease(int fd, int lease)
+{
 	return (fcntl(fd, F_SETLEASE, lease) < 0 ? errno : 0);
 }
 
@@ -55,7 +57,8 @@ static const char *lease_str[] = {
 };
 
 static void
-assert_lease(int fd, int expect) {
+assert_lease(int fd, int expect)
+{
 	int got = get_lease(fd);
 	if (got != expect) {
 		fprintf(stderr, "ASSERT_LEASE: expected %s [%d], got %s [%d]\n",
@@ -66,7 +69,8 @@ assert_lease(int fd, int expect) {
 }
 
 static void
-assert_set_lease(int fd, int lease) {
+assert_set_lease(int fd, int lease)
+{
 	int err = set_lease(fd, lease);
 	if (err != 0) {
 		fprintf(stderr, "ASSERT_SET_LEASE: tried %s [%d], error: %s\n",

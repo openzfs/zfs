@@ -1653,7 +1653,7 @@ dsl_dir_transfer_space(dsl_dir_t *dd, int64_t delta,
 static void
 dsl_dir_diduse_transfer_space_impl(dsl_dir_t *dd, int64_t used,
     int64_t compressed, int64_t uncompressed, int64_t tonew,
-	dd_used_t oldtype, dd_used_t newtype, boolean_t nested, dmu_tx_t *tx)
+    dd_used_t oldtype, dd_used_t newtype, boolean_t nested, dmu_tx_t *tx)
 {
 	int64_t accounted_delta;
 

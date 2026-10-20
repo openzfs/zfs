@@ -611,7 +611,7 @@ static const struct fs_parameter_spec zpl_param_spec[] = {
  */
 static int
 zpl_fs_parse(struct fs_context *fc, struct fs_parameter *param,
-	struct fs_parse_result *result)
+    struct fs_parse_result *result)
 {
 #ifdef HAVE_FS_PARSE_TAKES_SPEC
 	return (fs_parse(fc, zpl_param_spec, param, result));
