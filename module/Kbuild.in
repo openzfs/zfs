@@ -542,7 +542,7 @@ z_cdirs = $(sort $(filter-out $(luajmp) $(addprefix icp/asm-aarch64/, aes/ blake
   $(addprefix icp/asm-x86_64/, aes/ blake3/ modes/ sha2/)                                          \
   $(addprefix icp/asm-ppc/, aes/ blake3/ modes/ sha2/)                                             \
   $(addprefix icp/asm-ppc64/, aes/ blake3/ modes/ sha2/), $(zobjdirs)))
-z_sdirs = $(sort $(filter $(luajmp) $(addprefix icp/asm-aarch64/, aes/ blake3/ modes/ sha2/)     \
+z_sdirs = $(sort $(filter $(luajmp) zcommon/ $(addprefix icp/asm-aarch64/, aes/ blake3/ modes/ sha2/) \
   $(addprefix icp/asm-x86_64/, aes/ blake3/ modes/ sha2/)                                          \
   $(addprefix icp/asm-ppc/, aes/ blake3/ modes/ sha2/)                                             \
   $(addprefix icp/asm-ppc64/, aes/ blake3/ modes/ sha2/), $(zobjdirs)))

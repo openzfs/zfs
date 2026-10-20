@@ -1,10 +1,21 @@
+// SPDX-License-Identifier: BSD-2-Clause OR GPL-2.0-only
 /*
  * GNU C source file that we manually compile with Clang for aarch64.
  * The compiled assembly goes into:
  *
  * module/zcommon/zfs_fletcher_aarch64_neon_impl.S
  *
- * This works around bad code generation from GCC.
+ * This works around bad code generation from GCC before version 12.
+ * It is not built as part of OpenZFS.  To regenerate the assembly:
+ *
+ *	clang -O2 --target=aarch64-linux-gnu -ffreestanding \
+ *	    -mbranch-protection=standard -S -o - \
+ *	    contrib/zcommon/zfs_fletcher_aarch64_neon_impl.c
+ *
+ * then replace the two function bodies in the .S file with the output,
+ * keeping its license header, #if guard, GNU property and GNU-stack
+ * notes.  Instruction scheduling may differ slightly between compiler
+ * versions.
  *
  * Copyright (C) 2022 Zettabyte Software, LLC.
  *
@@ -49,25 +60,24 @@ typedef uint32_t u32x8 __attribute__((vector_size(32)));
 typedef uint64_t u64x4 __attribute__((vector_size(32)));
 
 typedef union {
-    u8x16   u8;
-    u32x4   u32;
+	u8x16	u8;
+	u32x4	u32;
 } v128;
 
 typedef union {
-    u32x8   u32;
-    u64x4   u64;
+	u32x8	u32;
+	u64x4	u64;
 } v256;
 
 typedef v256 zfs_fletcher_aarch64_neon_t;
 
 typedef union fletcher_4_ctx {
-    zfs_fletcher_aarch64_neon_t aarch64_neon[4];
-
+	zfs_fletcher_aarch64_neon_t aarch64_neon[4];
 } fletcher_4_ctx_t;
 
 void
-fletcher_4_aarch64_neon_native(
-		fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
+zfs_fletcher_4_aarch64_neon_native(
+    fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 {
 	const v128 *ip = buf;
 	const v128 *ipend = (const v128 *)((uint8_t *)ip + size);
@@ -92,7 +102,7 @@ fletcher_4_aarch64_neon_native(
 }
 
 void
-fletcher_4_aarch64_neon_byteswap(
+zfs_fletcher_4_aarch64_neon_byteswap(
     fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
 {
 	const v128 *ip = buf;
