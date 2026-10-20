@@ -148,7 +148,6 @@ bpobj_open(bpobj_t *bpo, objset_t *os, uint64_t object)
 		return (err);
 
 	memset(bpo, 0, sizeof (*bpo));
-	mutex_init(&bpo->bpo_lock, NULL, MUTEX_DEFAULT, NULL);
 
 	ASSERT0P(bpo->bpo_dbuf);
 	ASSERT0P(bpo->bpo_phys);
@@ -167,6 +166,7 @@ bpobj_open(bpobj_t *bpo, objset_t *os, uint64_t object)
 	bpo->bpo_havesubobj = (doi.doi_bonus_size > BPOBJ_SIZE_V1);
 	bpo->bpo_havefreed = (doi.doi_bonus_size > BPOBJ_SIZE_V2);
 	bpo->bpo_phys = bpo->bpo_dbuf->db_data;
+	mutex_init(&bpo->bpo_lock, NULL, MUTEX_DEFAULT, NULL);
 	return (0);
 }
 
