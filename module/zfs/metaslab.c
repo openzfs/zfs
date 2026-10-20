@@ -3339,6 +3339,28 @@ metaslab_space_weight(metaslab_t *msp)
 }
 
 /*
+ * Anyraid vdevs strongly prefer allocations from earlier regions, in
+ * order to prevent premature region placement. While this optimization
+ * is not usually good for segment-based weighting, we enable it for
+ * that case specifically.
+ */
+static uint64_t
+metaslab_apply_anyraid_weight(metaslab_t *msp, uint64_t weight)
+{
+	metaslab_group_t *mg = msp->ms_group;
+	vdev_t *vd = mg->mg_vd;
+	if (vd->vdev_ops == &vdev_anyraid_ops &&
+	    WEIGHT_GET_INDEX(weight) > SPA_MAXBLOCKSHIFT) {
+		uint64_t id = msp->ms_id;
+		uint64_t count = vd->vdev_ms_count;
+		WEIGHT_SET_INDEX(weight, WEIGHT_GET_INDEX(weight) + 3 -
+		    ((id * 4) / count));
+		weight = MIN(weight, METASLAB_MAX_WEIGHT);
+	}
+	return (weight);
+}
+
+/*
  * Return the weight of the specified metaslab, according to the segment-based
  * weighting algorithm. The metaslab must be loaded. This function can
  * be called within a sync pass since it relies only on the metaslab's
@@ -3377,7 +3399,7 @@ metaslab_weight_from_range_tree(metaslab_t *msp)
 			break;
 		}
 	}
-	return (weight);
+	return (metaslab_apply_anyraid_weight(msp, weight));
 }
 
 /*
@@ -3424,7 +3446,7 @@ metaslab_weight_from_spacemap(metaslab_t *msp)
 			break;
 		}
 	}
-	return (weight);
+	return (metaslab_apply_anyraid_weight(msp, weight));
 }
 
 /*
@@ -3476,22 +3498,6 @@ metaslab_segment_weight(metaslab_t *msp)
 		weight = metaslab_weight_from_range_tree(msp);
 	} else {
 		weight = metaslab_weight_from_spacemap(msp);
-	}
-
-	/*
-	 * Anyraid vdevs strongly prefer allocations from earlier regions, in
-	 * order to prevent premature region placement. While this optimization
-	 * is not usually good for segment-based weighting, we enable it for
-	 * that case specifically.
-	 */
-	vdev_t *vd = mg->mg_vd;
-	if (vd->vdev_ops == &vdev_anyraid_ops &&
-	    WEIGHT_GET_INDEX(weight) > SPA_MAXBLOCKSHIFT) {
-		uint64_t id = msp->ms_id;
-		uint64_t count = vd->vdev_ms_count;
-		WEIGHT_SET_INDEX(weight, WEIGHT_GET_INDEX(weight) + 3 -
-		    ((id * 4) / count));
-		weight = MIN(weight, METASLAB_MAX_WEIGHT);
 	}
 
 	/*
