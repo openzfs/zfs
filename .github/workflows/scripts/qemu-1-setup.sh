@@ -46,8 +46,17 @@ cat /etc/apt/apt-mirrors.txt
 # install needed packages
 export DEBIAN_FRONTEND="noninteractive"
 sudo apt-get -y update
+
+# zfs.ko comes from linux-modules-extra on older runner kernels.  Newer ones
+# (7.0.0-*-azure) have no linux-modules-extra package and ship zfs.ko in
+# linux-modules, which is already installed.
+EXTRA="linux-modules-extra-$(uname -r)"
+if ! apt-cache show "$EXTRA" >/dev/null 2>&1; then
+  echo "No $EXTRA package for this kernel"
+  EXTRA=""
+fi
 sudo apt-get install -y axel cloud-image-utils daemonize guestfs-tools \
-  virt-manager linux-modules-extra-$(uname -r) zfsutils-linux
+  virt-manager $EXTRA zfsutils-linux
 
 # generate ssh keys
 rm -f ~/.ssh/id_ed25519
@@ -111,6 +120,7 @@ fi
 
 sudo modprobe loop
 sudo modprobe zfs
+modinfo -F filename zfs
 
 if [ -e /dev/disk/cloud/azure_resource-part1 ] ; then
   echo "We have two 75GB block devices"

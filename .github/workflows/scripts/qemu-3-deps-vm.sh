@@ -233,8 +233,14 @@ case "$1" in
   ubuntu22|ubuntu24)
     debian
     echo "##[group]Install Ubuntu specific"
-    sudo apt-get install -yq linux-tools-common libtirpc-dev \
-      linux-modules-extra-$(uname -r)
+    # The ubuntu-24.04 runner itself (smatch, unit-tests, zfs-arm, zloop)
+    # may boot a kernel with no linux-modules-extra package (7.0.0-*-azure).
+    EXTRA="linux-modules-extra-$(uname -r)"
+    if ! apt-cache show "$EXTRA" >/dev/null 2>&1; then
+      echo "No $EXTRA package for this kernel"
+      EXTRA=""
+    fi
+    sudo apt-get install -yq linux-tools-common libtirpc-dev $EXTRA
     sudo apt-get install -yq dh-sequence-dkms
 
     # Need 'build-essential' explicitly for ARM builder
