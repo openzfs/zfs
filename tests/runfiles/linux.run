@@ -231,7 +231,7 @@ tags = ['functional', 'renameat2']
 
 [tests/functional/rsend:Linux]
 tests = ['send_realloc_dnode_size', 'send_encrypted_files',
-    'send-c_longname']
+    'send-c_longname', 'recv_longname_disabled']
 tags = ['functional', 'rsend']
 
 [tests/functional/simd:Linux]

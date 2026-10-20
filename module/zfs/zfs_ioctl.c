@@ -3026,29 +3026,24 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 	}
 	case ZFS_PROP_LONGNAME:
 	{
-		zfsvfs_t *zfsvfs;
+		spa_t *spa;
 
 		/*
-		 * Ignore the checks if the property is being applied as part of
-		 * 'zfs receive'. Because, we already check if the local pool
-		 * has SPA_FEATURE_LONGNAME enabled in dmu_recv_begin_check().
+		 * A send stream carries DMU_BACKUP_FEATURE_LONGNAME only once
+		 * the source holds a long name, so dmu_recv_begin_check()
+		 * does not cover a received "on": check it here too.  A
+		 * received "off" needs no feature.
 		 */
-		if (source == ZPROP_SRC_RECEIVED) {
-			cmn_err(CE_NOTE, "Skipping ZFS_PROP_LONGNAME checks "
-			    "for dsname=%s\n", dsname);
+		if (source == ZPROP_SRC_RECEIVED && intval == 0) {
 			err = -1;
 			break;
 		}
 
-		if ((err = zfsvfs_hold(dsname, FTAG, &zfsvfs, B_FALSE)) != 0) {
-			cmn_err(CE_WARN, "%s:%d Failed to hold for dsname=%s "
-			    "err=%d\n", __FILE__, __LINE__, dsname, err);
+		if ((err = spa_open(dsname, &spa, FTAG)) != 0)
 			break;
-		}
 
-		if (!spa_feature_is_enabled(zfsvfs->z_os->os_spa,
-		    SPA_FEATURE_LONGNAME)) {
-			err = ENOTSUP;
+		if (!spa_feature_is_enabled(spa, SPA_FEATURE_LONGNAME)) {
+			err = SET_ERROR(ENOTSUP);
 		} else {
 			/*
 			 * Set err to -1 to force the zfs_set_prop_nvlist code
@@ -3056,7 +3051,7 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 			 */
 			err = -1;
 		}
-		zfsvfs_rele(zfsvfs, FTAG);
+		spa_close(spa, FTAG);
 		break;
 	}
 	case ZFS_PROP_DEFAULTUSERQUOTA:

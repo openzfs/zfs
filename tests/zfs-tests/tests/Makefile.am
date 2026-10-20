@@ -2215,6 +2215,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/recv_dedup_encrypted_zvol.ksh \
 	functional/rsend/recv_dedup.ksh \
 	functional/rsend/recv_dot_name_neg.ksh \
+	functional/rsend/recv_longname_disabled.ksh \
 	functional/rsend/recv_validate_001_neg.ksh \
 	functional/rsend/rsend_001_pos.ksh \
 	functional/rsend/rsend_002_pos.ksh \
