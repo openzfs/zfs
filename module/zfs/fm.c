@@ -258,41 +258,6 @@ zfs_zevent_track_duplicate(void)
 	atomic_inc_64(&erpt_kstat_data.erpt_duplicates.value.ui64);
 }
 
-static int
-zfs_zevent_minor_to_state(minor_t minor, zfs_zevent_t **ze)
-{
-	*ze = zfsdev_get_state(minor, ZST_ZEVENT);
-	if (*ze == NULL)
-		return (SET_ERROR(EBADF));
-
-	return (0);
-}
-
-zfs_file_t *
-zfs_zevent_fd_hold(int fd, minor_t *minorp, zfs_zevent_t **ze)
-{
-	zfs_file_t *fp = zfs_file_get(fd);
-	if (fp == NULL)
-		return (NULL);
-
-	int error = zfsdev_getminor(fp, minorp);
-	if (error == 0)
-		error = zfs_zevent_minor_to_state(*minorp, ze);
-
-	if (error) {
-		zfs_zevent_fd_rele(fp);
-		fp = NULL;
-	}
-
-	return (fp);
-}
-
-void
-zfs_zevent_fd_rele(zfs_file_t *fp)
-{
-	zfs_file_put(fp);
-}
-
 /*
  * Get the next zevent in the stream and place a copy in 'event'.  This
  * may fail with ENOMEM if the encoded nvlist size exceeds the passed
@@ -357,7 +322,7 @@ out:
  * Wait in an interruptible state for any new events.
  */
 int
-zfs_zevent_wait(zfs_zevent_t *ze)
+zfs_zevent_wait(void)
 {
 	int error = EAGAIN;
 
@@ -449,23 +414,19 @@ out:
 }
 
 void
-zfs_zevent_init(zfs_zevent_t **zep)
+zfs_zevent_init(zfs_zevent_t *ze)
 {
-	zfs_zevent_t *ze;
-
-	ze = *zep = kmem_zalloc(sizeof (zfs_zevent_t), KM_SLEEP);
+	memset(ze, 0, sizeof (*ze));
 	list_link_init(&ze->ze_node);
 }
 
 void
-zfs_zevent_destroy(zfs_zevent_t *ze)
+zfs_zevent_fini(zfs_zevent_t *ze)
 {
 	mutex_enter(&zevent_lock);
 	if (ze->ze_zevent)
 		list_remove(&ze->ze_zevent->ev_ze_list, ze);
 	mutex_exit(&zevent_lock);
-
-	kmem_free(ze, sizeof (zfs_zevent_t));
 }
 #endif /* _KERNEL */
 

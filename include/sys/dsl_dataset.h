@@ -43,6 +43,7 @@ struct dsl_pool;
 struct dsl_crypto_params;
 struct dsl_key_mapping;
 struct zfs_bookmark_phys;
+struct zfs_onexit;
 
 #define	DS_FLAG_INCONSISTENT	(1ULL<<0)
 #define	DS_IS_INCONSISTENT(ds)	\
@@ -394,7 +395,7 @@ int dsl_dataset_promote(const char *name, char *conflsnap);
 int dsl_dataset_rename_snapshot(const char *fsname,
     const char *oldsnapname, const char *newsnapname, boolean_t recursive);
 int dsl_dataset_snapshot_tmp(const char *fsname, const char *snapname,
-    minor_t cleanup_minor, const char *htag);
+    struct zfs_onexit *onexit, const char *htag);
 
 blkptr_t *dsl_dataset_get_blkptr(dsl_dataset_t *ds);
 

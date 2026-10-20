@@ -346,23 +346,6 @@ zfs_file_off(zfs_file_t *zfp)
 	return (fp->f_offset);
 }
 
-void *
-zfs_file_private(zfs_file_t *zfp)
-{
-	struct file *fp = zfp;
-	file_t *tmpfp;
-	void *data;
-	int error;
-
-	tmpfp = curthread->td_fpop;
-	curthread->td_fpop = fp;
-	error = devfs_get_cdevpriv(&data);
-	curthread->td_fpop = tmpfp;
-	if (error != 0)
-		return (NULL);
-	return (data);
-}
-
 int
 zfs_file_unlink(const char *fnamep)
 {

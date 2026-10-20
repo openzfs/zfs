@@ -31,7 +31,7 @@ typedef struct dsl_dataset_user_hold_arg {
 	nvlist_t *dduha_holds;
 	nvlist_t *dduha_chkholds;
 	nvlist_t *dduha_errlist;
-	minor_t dduha_minor;
+	zfs_onexit_t *dduha_onexit;
 } dsl_dataset_user_hold_arg_t;
 
 /*
@@ -121,7 +121,7 @@ dsl_dataset_user_hold_check(void *arg, dmu_tx_t *tx)
 
 		if (error == 0) {
 			error = dsl_dataset_user_hold_check_one(ds, htag,
-			    dduha->dduha_minor != 0, tx);
+			    dduha->dduha_onexit != NULL, tx);
 			dsl_dataset_rele(ds, FTAG);
 		}
 
@@ -144,7 +144,7 @@ dsl_dataset_user_hold_check(void *arg, dmu_tx_t *tx)
 
 static void
 dsl_dataset_user_hold_sync_one_impl(nvlist_t *tmpholds, dsl_dataset_t *ds,
-    const char *htag, minor_t minor, uint64_t now, dmu_tx_t *tx)
+    const char *htag, uint64_t now, dmu_tx_t *tx)
 {
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	objset_t *mos = dp->dp_meta_objset;
@@ -167,7 +167,7 @@ dsl_dataset_user_hold_sync_one_impl(nvlist_t *tmpholds, dsl_dataset_t *ds,
 
 	VERIFY0(zap_add(mos, zapobj, htag, 8, 1, &now, tx));
 
-	if (minor != 0) {
+	if (tmpholds != NULL) {
 		char name[MAXNAMELEN];
 		nvlist_t *tags;
 
@@ -188,7 +188,7 @@ dsl_dataset_user_hold_sync_one_impl(nvlist_t *tmpholds, dsl_dataset_t *ds,
 
 	spa_history_log_internal_ds(ds, "hold", tx,
 	    "tag=%s temp=%d refs=%llu",
-	    htag, minor != 0, (u_longlong_t)ds->ds_userrefs);
+	    htag, tmpholds != NULL, (u_longlong_t)ds->ds_userrefs);
 }
 
 typedef struct zfs_hold_cleanup_arg {
@@ -226,11 +226,11 @@ dsl_dataset_user_release_onexit(void *arg)
 }
 
 static void
-dsl_onexit_hold_cleanup(spa_t *spa, nvlist_t *holds, minor_t minor)
+dsl_onexit_hold_cleanup(spa_t *spa, nvlist_t *holds, zfs_onexit_t *zo)
 {
 	zfs_hold_cleanup_arg_t *ca;
 
-	if (minor == 0 || nvlist_empty(holds)) {
+	if (zo == NULL || nvlist_empty(holds)) {
 		fnvlist_free(holds);
 		return;
 	}
@@ -242,22 +242,21 @@ dsl_onexit_hold_cleanup(spa_t *spa, nvlist_t *holds, minor_t minor)
 	    sizeof (ca->zhca_spaname));
 	ca->zhca_spa_load_guid = spa_load_guid(spa);
 	ca->zhca_holds = holds;
-	VERIFY0(zfs_onexit_add_cb(minor,
-	    dsl_dataset_user_release_onexit, ca, NULL));
+	zfs_onexit_add_cb(zo, dsl_dataset_user_release_onexit, ca);
 }
 
 void
 dsl_dataset_user_hold_sync_one(dsl_dataset_t *ds, const char *htag,
-    minor_t minor, uint64_t now, dmu_tx_t *tx)
+    zfs_onexit_t *zo, uint64_t now, dmu_tx_t *tx)
 {
 	nvlist_t *tmpholds;
 
-	if (minor != 0)
+	if (zo != NULL)
 		tmpholds = fnvlist_alloc();
 	else
 		tmpholds = NULL;
-	dsl_dataset_user_hold_sync_one_impl(tmpholds, ds, htag, minor, now, tx);
-	dsl_onexit_hold_cleanup(dsl_dataset_get_spa(ds), tmpholds, minor);
+	dsl_dataset_user_hold_sync_one_impl(tmpholds, ds, htag, now, tx);
+	dsl_onexit_hold_cleanup(dsl_dataset_get_spa(ds), tmpholds, zo);
 }
 
 static void
@@ -268,7 +267,7 @@ dsl_dataset_user_hold_sync(void *arg, dmu_tx_t *tx)
 	nvlist_t *tmpholds;
 	uint64_t now = gethrestime_sec();
 
-	if (dduha->dduha_minor != 0)
+	if (dduha->dduha_onexit != NULL)
 		tmpholds = fnvlist_alloc();
 	else
 		tmpholds = NULL;
@@ -279,10 +278,10 @@ dsl_dataset_user_hold_sync(void *arg, dmu_tx_t *tx)
 
 		VERIFY0(dsl_dataset_hold(dp, nvpair_name(pair), FTAG, &ds));
 		dsl_dataset_user_hold_sync_one_impl(tmpholds, ds,
-		    fnvpair_value_string(pair), dduha->dduha_minor, now, tx);
+		    fnvpair_value_string(pair), now, tx);
 		dsl_dataset_rele(ds, FTAG);
 	}
-	dsl_onexit_hold_cleanup(dp->dp_spa, tmpholds, dduha->dduha_minor);
+	dsl_onexit_hold_cleanup(dp->dp_spa, tmpholds, dduha->dduha_onexit);
 }
 
 /*
@@ -300,8 +299,9 @@ dsl_dataset_user_hold_sync(void *arg, dmu_tx_t *tx)
  * If none of the snapshots for requested holds exist then ENOENT will be
  * returned.
  *
- * If cleanup_minor is not 0, the holds will be temporary, which will be cleaned
- * up when the process exits.
+ * If onexit is not NULL, the holds will be temporary, and will be cleaned up
+ * when the cleanup file is closed.  The caller must hold onexit's owner until
+ * this synchronous operation returns.
  *
  * On success all the holds, for snapshots that existed, will be created and 0
  * will be returned.
@@ -313,7 +313,7 @@ dsl_dataset_user_hold_sync(void *arg, dmu_tx_t *tx)
  * didn't exist.
  */
 int
-dsl_dataset_user_hold(nvlist_t *holds, minor_t cleanup_minor, nvlist_t *errlist)
+dsl_dataset_user_hold(nvlist_t *holds, zfs_onexit_t *onexit, nvlist_t *errlist)
 {
 	dsl_dataset_user_hold_arg_t dduha;
 	nvpair_t *pair;
@@ -327,7 +327,7 @@ dsl_dataset_user_hold(nvlist_t *holds, minor_t cleanup_minor, nvlist_t *errlist)
 	/* chkholds can have non-unique name */
 	VERIFY0(nvlist_alloc(&dduha.dduha_chkholds, 0, KM_SLEEP));
 	dduha.dduha_errlist = errlist;
-	dduha.dduha_minor = cleanup_minor;
+	dduha.dduha_onexit = onexit;
 
 	ret = dsl_sync_task(nvpair_name(pair), dsl_dataset_user_hold_check,
 	    dsl_dataset_user_hold_sync, &dduha,
