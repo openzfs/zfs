@@ -8415,7 +8415,7 @@ zdb_ddt_add_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	return (0);
 }
 
-static void
+static int
 dump_simulated_ddt(spa_t *spa)
 {
 	avl_tree_t t;
@@ -8423,13 +8423,14 @@ dump_simulated_ddt(spa_t *spa)
 	zdb_ddt_entry_t *zdde;
 	ddt_histogram_t ddh_total = {{{0}}};
 	ddt_stat_t dds_total = {0};
+	int err;
 
 	avl_create(&t, ddt_key_compare,
 	    sizeof (zdb_ddt_entry_t), offsetof(zdb_ddt_entry_t, zdde_node));
 
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
-	(void) traverse_pool(spa, 0, TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA |
+	err = traverse_pool(spa, 0, TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA |
 	    TRAVERSE_NO_DECRYPT, zdb_ddt_add_cb, &t);
 
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
@@ -8462,6 +8463,18 @@ dump_simulated_ddt(spa_t *spa)
 	zpool_dump_ddt(&dds_total, &ddh_total, dump_opt['P'] > 0);
 
 	dump_dedup_ratio(&dds_total);
+
+	/*
+	 * The traversal stops at the first block it can't read, so the
+	 * histogram only covers the blocks visited before it.
+	 */
+	if (err != 0) {
+		(void) fprintf(stderr, "zdb: traversing the pool failed: %s; "
+		    "the simulated DDT histogram is incomplete\n",
+		    err == ECKSUM ? "checksum mismatch" : strerror(err));
+	}
+
+	return (err);
 }
 
 static int
@@ -9377,7 +9390,9 @@ dump_zpool(spa_t *spa)
 	}
 
 	if (dump_opt['S']) {
-		dump_simulated_ddt(spa);
+		rc = dump_simulated_ddt(spa);
+		if (rc != 0)
+			zdb_exit(rc);
 		return;
 	}
 
