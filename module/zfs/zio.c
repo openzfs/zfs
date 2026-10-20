@@ -4153,6 +4153,25 @@ zio_ddt_child_write_reject(zio_t *zio)
 	zio->io_error = EAGAIN;
 }
 
+/*
+ * Fill a dedup BP from its DDT entry.  A physical rewrite keeps the
+ * original logical birth, as zio_dva_allocate() does for other blocks, but
+ * only when the entry was written in this txg: the physical birth must be
+ * the entry's, and with the rewrite flag BP_GET_BIRTH() takes it as the
+ * allocation time that space accounting needs.
+ */
+static void
+zio_ddt_bp_fill(zio_t *zio, const ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
+{
+	uint64_t txg = zio->io_txg;
+	uint64_t logical_birth = BP_GET_LOGICAL_BIRTH(&zio->io_bp_orig);
+	boolean_t rewrite = zio->io_prop.zp_rewrite && logical_birth != 0 &&
+	    logical_birth < txg && ddt_phys_birth(ddp, v) == txg;
+
+	ddt_bp_fill(ddp, v, zio->io_bp, rewrite ? logical_birth : txg);
+	BP_SET_REWRITE(zio->io_bp, rewrite);
+}
+
 static void
 zio_ddt_child_write_ready(zio_t *zio)
 {
@@ -4187,7 +4206,7 @@ zio_ddt_child_write_ready(zio_t *zio)
 	zl = NULL;
 	while ((pio = zio_walk_parents(zio, &zl)) != NULL) {
 		if (!(pio->io_flags & ZIO_FLAG_DDT_CHILD))
-			ddt_bp_fill(dde->dde_phys, v, pio->io_bp, zio->io_txg);
+			zio_ddt_bp_fill(pio, dde->dde_phys, v);
 	}
 
 	mutex_exit(&dde->dde_io->dde_io_lock);
@@ -4367,13 +4386,15 @@ zio_ddt_write(zio_t *zio)
 
 			/*
 			 * For rewrite operations, try preserving the original
-			 * logical birth time.  If the result matches the
-			 * original BP, this becomes a NOP.
+			 * logical birth time and rewrite flag.  If the result
+			 * matches the original BP, this becomes a NOP.
 			 */
 			if (zp->zp_rewrite) {
 				uint64_t orig_logical_birth =
 				    BP_GET_LOGICAL_BIRTH(&zio->io_bp_orig);
 				ddt_bp_fill(ddp, v, bp, orig_logical_birth);
+				BP_SET_REWRITE(bp,
+				    BP_GET_REWRITE(&zio->io_bp_orig));
 				if (BP_EQUAL(bp, &zio->io_bp_orig)) {
 					/* We can skip accounting. */
 					ddt_exit(ddt);
@@ -4382,7 +4403,7 @@ zio_ddt_write(zio_t *zio)
 				}
 			}
 
-			ddt_bp_fill(ddp, v, bp, txg);
+			zio_ddt_bp_fill(zio, ddp, v);
 			ddt_phys_addref(ddp, v);
 			ddt_exit(ddt);
 			return (zio);
@@ -4438,7 +4459,7 @@ zio_ddt_write(zio_t *zio)
 			 * after the in-flight write has passed READY, and so
 			 * missed out.
 			 */
-			ddt_bp_fill(ddp, v, bp, txg);
+			zio_ddt_bp_fill(zio, ddp, v);
 piggyback:
 			zio_add_child(zio, dde_io->dde_lead_zio[p]);
 

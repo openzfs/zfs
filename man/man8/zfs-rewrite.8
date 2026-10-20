@@ -12,7 +12,7 @@
 .\" Copyright (c) 2025 iXsystems, Inc.
 .\" Copyright (c) 2025, Klara, Inc.
 .\"
-.Dd October 13, 2026
+.Dd October 20, 2026
 .Dt ZFS-REWRITE 8
 .Os
 .
@@ -125,6 +125,15 @@ When the
 .Fl P
 flag is used, rewritten blocks preserve their logical birth time, since
 there are no user data changes.
+A deduplicated block whose copies change keeps it only when the rewrite writes
+all of its copies.
+If the block still points to a copy that was already in the deduplication
+table, as when
+.Sy copies
+is raised on a pool whose deduplication table uses the
+.Sy fast_dedup
+format, or to the copies of other data with the same content, it gets a new
+logical birth time.
 .
 .Sh SEE ALSO
 .Xr zfsprops 7 ,
