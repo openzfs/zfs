@@ -2185,6 +2185,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/removal/removal_with_send.ksh \
 	functional/removal/removal_with_send_recv.ksh \
 	functional/removal/removal_with_snapshot.ksh \
+	functional/removal/removal_with_split_damage.ksh \
 	functional/removal/removal_with_write.ksh \
 	functional/removal/removal_with_zdb.ksh \
 	functional/removal/removal_with_zil.ksh \
