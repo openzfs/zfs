@@ -122,6 +122,10 @@ tests = ['case_all_values', 'norm_all_values', 'mixed_create_failure',
     'mixed_formd_lookup', 'mixed_formd_lookup_ci', 'mixed_formd_delete']
 tags = ['functional', 'casenorm']
 
+[tests/functional/changelog]
+tests = ['changelog_001_pos', 'changelog_002_pos', 'changelog_003_pos']
+tags = ['functional', 'changelog']
+
 [tests/functional/channel_program/lua_core]
 tests = ['tst.args_to_lua', 'tst.divide_by_zero', 'tst.exists', 'tst.encryption',
     'tst.integer_illegal', 'tst.integer_overflow', 'tst.language_functions_neg',
