@@ -6403,6 +6403,17 @@ metaslab_disable_cancellable(metaslab_t *msp,
 void
 metaslab_wakeup_waiters(vdev_t *vd)
 {
+	/*
+	 * vdev_remove_parent() may have freed a detached leaf's vdev_top
+	 * and moved its groups to the surviving child.  Wake every group.
+	 */
+	if (vd->vdev_detached) {
+		vdev_t *rvd = vd->vdev_spa->spa_root_vdev;
+		for (uint64_t c = 0; c < rvd->vdev_children; c++)
+			metaslab_wakeup_waiters(rvd->vdev_child[c]);
+		return;
+	}
+
 	if (vd->vdev_top != NULL)
 		vd = vd->vdev_top;
 
