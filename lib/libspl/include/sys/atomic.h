@@ -351,53 +351,52 @@ atomic_swap_ptr(volatile void *target, void *bits)
 /*
  * Atomically read variable.
  */
-#define	atomic_load_char(p)	(*(volatile uchar_t *)(p))
-#define	atomic_load_short(p)	(*(volatile ushort_t *)(p))
-#define	atomic_load_int(p)	(*(volatile uint_t *)(p))
-#define	atomic_load_long(p)	(*(volatile ulong_t *)(p))
-#define	atomic_load_ptr(p)	(*(volatile __typeof(*p) *)(p))
-#define	atomic_load_8(p)	(*(volatile uint8_t *)(p))
-#define	atomic_load_16(p)	(*(volatile uint16_t *)(p))
-#define	atomic_load_32(p)	(*(volatile uint32_t *)(p))
-#ifdef _LP64
-#define	atomic_load_64(p)	(*(volatile uint64_t *)(p))
-#else
-static inline uint64_t
-atomic_load_64(volatile uint64_t *target)
+#define	SPL_ATOMIC_LOAD(name, type) \
+	static inline type						\
+	atomic_load_##name(volatile type *target) {			\
+		return (__atomic_load_n(target, __ATOMIC_RELAXED));	\
+	}
+
+SPL_ATOMIC_LOAD(8, uint8_t)
+SPL_ATOMIC_LOAD(16, uint16_t)
+SPL_ATOMIC_LOAD(32, uint32_t)
+SPL_ATOMIC_LOAD(64, uint64_t)
+SPL_ATOMIC_LOAD(char, uchar_t)
+SPL_ATOMIC_LOAD(short, ushort_t)
+SPL_ATOMIC_LOAD(int, uint_t)
+SPL_ATOMIC_LOAD(long, ulong_t)
+#undef SPL_ATOMIC_LOAD
+
+static inline void *
+atomic_load_ptr(volatile void *target)
 {
-	return (__atomic_load_n(target, __ATOMIC_RELAXED));
+	return (__atomic_load_n((void **)target, __ATOMIC_RELAXED));
 }
-#endif
 
 /*
  * Atomically write variable.
  */
-#define	atomic_store_char(p, v)		\
-	(*(volatile uchar_t *)(p) = (uchar_t)(v))
-#define	atomic_store_short(p, v)	\
-	(*(volatile ushort_t *)(p) = (ushort_t)(v))
-#define	atomic_store_int(p, v)		\
-	(*(volatile uint_t *)(p) = (uint_t)(v))
-#define	atomic_store_long(p, v)		\
-	(*(volatile ulong_t *)(p) = (ulong_t)(v))
-#define	atomic_store_ptr(p, v)		\
-	(*(volatile __typeof(*p) *)(p) = (v))
-#define	atomic_store_8(p, v)		\
-	(*(volatile uint8_t *)(p) = (uint8_t)(v))
-#define	atomic_store_16(p, v)		\
-	(*(volatile uint16_t *)(p) = (uint16_t)(v))
-#define	atomic_store_32(p, v)		\
-	(*(volatile uint32_t *)(p) = (uint32_t)(v))
-#ifdef _LP64
-#define	atomic_store_64(p, v)		\
-	(*(volatile uint64_t *)(p) = (uint64_t)(v))
-#else
+#define	SPL_ATOMIC_STORE(name, type) \
+	static inline void						\
+	atomic_store_##name(volatile type *target, type bits) {		\
+		__atomic_store_n(target, bits, __ATOMIC_RELAXED);	\
+	}
+
+SPL_ATOMIC_STORE(8, uint8_t)
+SPL_ATOMIC_STORE(16, uint16_t)
+SPL_ATOMIC_STORE(32, uint32_t)
+SPL_ATOMIC_STORE(64, uint64_t)
+SPL_ATOMIC_STORE(char, uchar_t)
+SPL_ATOMIC_STORE(short, ushort_t)
+SPL_ATOMIC_STORE(int, uint_t)
+SPL_ATOMIC_STORE(long, ulong_t)
+#undef SPL_ATOMIC_LOAD
+
 static inline void
-atomic_store_64(volatile uint64_t *target, uint64_t bits)
+atomic_store_ptr(volatile void *target, void *bits)
 {
-	return (__atomic_store_n(target, bits, __ATOMIC_RELAXED));
+	__atomic_store_n((void **)target, bits, __ATOMIC_RELAXED);
 }
-#endif
 
 /*
  * Perform an exclusive atomic bit set/clear on a target.
