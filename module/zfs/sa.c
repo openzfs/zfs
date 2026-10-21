@@ -1636,6 +1636,8 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 	sa_bulk_attr_t *bulk, *attrs;
 	zfs_acl_locator_cb_t locate = { 0 };
 	uint64_t uid, gid, mode, rdev, xattr = 0, parent, gen, links;
+	uint64_t cookie;
+	boolean_t has_cookie = B_FALSE;
 	uint64_t crtime[2], mtime[2], ctime[2], atime[2];
 	zfs_acl_phys_t znode_acl = { 0 };
 	char scanstamp[AV_SCANSTAMP_SZ];
@@ -1722,6 +1724,11 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 	if (err != 0 && err != ENOENT)
 		goto out;
 
+	err = sa_lookup_locked(hdl, SA_ZPL_PARENT_COOKIE(zfsvfs), &cookie, 8);
+	if (err != 0 && err != ENOENT)
+		goto out;
+	has_cookie = (err == 0);
+
 	err = sa_size_locked(hdl, SA_ZPL_DXATTR(zfsvfs), &dxattr_size);
 	if (err != 0 && err != ENOENT)
 		goto out;
@@ -1759,6 +1766,10 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 	if (Z_ISBLK(ZTOTYPE(zp)) || Z_ISCHR(ZTOTYPE(zp)))
 		SA_ADD_BULK_ATTR(attrs, count, SA_ZPL_RDEV(zfsvfs), NULL,
 		    &rdev, 8);
+
+	if (has_cookie)
+		SA_ADD_BULK_ATTR(attrs, count, SA_ZPL_PARENT_COOKIE(zfsvfs),
+		    NULL, &cookie, 8);
 
 	if (zp->z_acl_cached != NULL) {
 		SA_ADD_BULK_ATTR(attrs, count, SA_ZPL_DACL_COUNT(zfsvfs), NULL,
