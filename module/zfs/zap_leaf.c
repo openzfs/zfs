@@ -451,6 +451,37 @@ zap_leaf_lookup(zap_leaf_t *l, zap_name_t *zn, zap_entry_handle_t *zeh)
 	return (SET_ERROR(ENOENT));
 }
 
+int
+zap_leaf_lookup_hashcd(zap_leaf_t *l, uint64_t h, uint32_t cd,
+    zap_entry_handle_t *zeh)
+{
+	struct zap_leaf_entry *le;
+
+	ASSERT3U(zap_leaf_phys(l)->l_hdr.lh_magic, ==, ZAP_LEAF_MAGIC);
+
+	for (uint16_t *chunkp = LEAF_HASH_ENTPTR(l, h);
+	    *chunkp != CHAIN_END; chunkp = &le->le_next) {
+		uint16_t chunk = *chunkp;
+		le = ZAP_LEAF_ENTRY(l, chunk);
+
+		ASSERT3U(chunk, <, ZAP_LEAF_NUMCHUNKS(l));
+		ASSERT3U(le->le_type, ==, ZAP_CHUNK_ENTRY);
+
+		if (le->le_hash != h || le->le_cd != cd)
+			continue;
+
+		zeh->zeh_num_integers = le->le_value_numints;
+		zeh->zeh_integer_size = le->le_value_intlen;
+		zeh->zeh_cd = le->le_cd;
+		zeh->zeh_hash = le->le_hash;
+		zeh->zeh_chunkp = chunkp;
+		zeh->zeh_leaf = l;
+		return (0);
+	}
+
+	return (SET_ERROR(ENOENT));
+}
+
 /* Return (h1,cd1 >= h2,cd2) */
 #define	HCD_GTEQ(h1, cd1, h2, cd2) \
 	((h1 > h2) ? TRUE : ((h1 == h2 && cd1 >= cd2) ? TRUE : FALSE))
