@@ -22,6 +22,7 @@
 #include <sys/dmu_tx.h>
 #include "zfeature_common.h"
 #include <sys/spa_impl.h>
+#include <sys/vdev.h>
 
 /*
  * ZFS Feature Flags
@@ -400,7 +401,7 @@ feature_enable_sync(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
 	    spa_feature_is_active(spa, SPA_FEATURE_RAIDZ_EXPANSION)) {
 		spa_feature_incr(spa,
 		    SPA_FEATURE_RAIDZ_EXPANSION_ACCOUNTING, tx);
-		spa->spa_raidz_expand_acct_txg = dmu_tx_get_txg(tx);
+		vdev_raidz_expand_acct_activate(spa, dmu_tx_get_txg(tx));
 	}
 }
 

@@ -5412,7 +5412,7 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 		    SPA_FEATURE_RAIDZ_EXPANSION_ACCOUNTING, tx);
 		spa_feature_set_enabled_txg(spa,
 		    SPA_FEATURE_RAIDZ_EXPANSION_ACCOUNTING, txg, tx);
-		spa->spa_raidz_expand_acct_txg = txg;
+		vdev_raidz_expand_acct_activate(spa, txg);
 	}
 
 	vdrz->vd_physical_width++;

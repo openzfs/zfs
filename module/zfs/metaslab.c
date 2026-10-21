@@ -1124,6 +1124,9 @@ metaslab_group_destroy(metaslab_group_t *mg)
 	 * because we're done, and possibly removing the vdev.
 	 */
 	ASSERT(mg->mg_activation_count <= 0);
+	ASSERT0(mg->mg_space);
+	ASSERT0(mg->mg_alloc);
+	ASSERT0(mg->mg_dspace_corr);
 
 	avl_destroy(&mg->mg_metaslab_tree);
 	mutex_destroy(&mg->mg_lock);
@@ -2909,6 +2912,59 @@ metaslab_set_selected_txg(metaslab_t *msp, uint64_t txg)
 	multilist_sublist_unlock(mls);
 }
 
+/*
+ * Add deflated space beyond the vdev's legacy deflate ratio to the stats
+ * of a metaslab group's class, its vdev and the root vdev: dalloc_delta
+ * to the allocated space and dspace_delta to the space.  If the group's
+ * vdev is non-allocating, its space is subtracted from spa_rdspace via
+ * spa_nonallocating_dspace, which then has to follow.
+ */
+void
+metaslab_group_dspace_update(metaslab_group_t *mg, int64_t dalloc_delta,
+    int64_t dspace_delta)
+{
+	vdev_t *vd = mg->mg_vd;
+
+	atomic_add_64(&mg->mg_dspace_corr, dspace_delta);
+	metaslab_class_space_update(mg->mg_class, 0, dalloc_delta, 0, 0, 0,
+	    dspace_delta);
+	vdev_dspace_update(vd, dspace_delta);
+	if (mg == vd->vdev_mg && vd->vdev_noalloc_corr) {
+		atomic_add_64(&vd->vdev_spa->spa_nonallocating_dspace,
+		    dspace_delta);
+	}
+}
+
+/*
+ * The free deflate ratio of the group's vdev changed (a RAID-Z expansion
+ * completed, or raidz_expansion_accounting was activated): count the group's
+ * free space at the new ratio.  The activation runs in a sync task, where
+ * spa_sync()'s SCL_CONFIG keeps out the holders of SCL_ALL, and the syncing
+ * context's other updates of these counters run outside the sync tasks.
+ */
+void
+metaslab_group_rebase_dspace(metaslab_group_t *mg, uint64_t old_ratio,
+    uint64_t new_ratio)
+{
+	uint64_t free_space = mg->mg_space - mg->mg_alloc;
+
+	ASSERT(spa_config_held(mg->mg_vd->vdev_spa, SCL_ALL, RW_WRITER) ==
+	    SCL_ALL ||
+	    dsl_pool_sync_context(spa_get_dsl(mg->mg_vd->vdev_spa)) ||
+	    (mg->mg_space == 0 && mg->mg_alloc == 0));
+
+	metaslab_group_dspace_update(mg, 0, (int64_t)(free_space >>
+	    SPA_MINBLOCKSHIFT) * ((int64_t)new_ratio - (int64_t)old_ratio));
+}
+
+/*
+ * Allocated space is deflated at the vdev's legacy ratio, the ratio at
+ * which blocks born before the RAID-Z expansion accounting boundary are
+ * charged; blocks charged at a larger birth ratio add their excess via
+ * vdev_acct_excess.  Free space is deflated at vdev_free_deflate_ratio(),
+ * the ratio at which new blocks are charged.  Both are equal unless the
+ * vdev is an expanded RAID-Z with raidz_expansion_accounting active.
+ */
 void
 metaslab_space_update(metaslab_group_t *mg, int64_t alloc_delta,
     int64_t defer_delta, int64_t space_delta)
@@ -2917,6 +2973,17 @@ metaslab_space_update(metaslab_group_t *mg, int64_t alloc_delta,
 	int64_t dalloc_delta = vdev_deflated_space(vd, alloc_delta);
 	int64_t ddefer_delta = vdev_deflated_space(vd, defer_delta);
 	int64_t dspace_delta = vdev_deflated_space(vd, space_delta);
+	int64_t corr_delta = 0;
+
+	uint64_t free_ratio = vdev_free_deflate_ratio(vd);
+	if (free_ratio > vd->vdev_deflate_ratio) {
+		corr_delta = ((space_delta - alloc_delta) >>
+		    SPA_MINBLOCKSHIFT) * (int64_t)
+		    (free_ratio - vd->vdev_deflate_ratio);
+	}
+
+	atomic_add_64(&mg->mg_space, space_delta);
+	atomic_add_64(&mg->mg_alloc, alloc_delta);
 
 	vdev_space_update(vd, alloc_delta, defer_delta, space_delta);
 
@@ -2925,6 +2992,8 @@ metaslab_space_update(metaslab_group_t *mg, int64_t alloc_delta,
 
 	metaslab_class_space_update(mg->mg_class, alloc_delta, dalloc_delta,
 	    defer_delta, ddefer_delta, space_delta, dspace_delta);
+	if (corr_delta != 0)
+		metaslab_group_dspace_update(mg, 0, corr_delta);
 }
 
 int

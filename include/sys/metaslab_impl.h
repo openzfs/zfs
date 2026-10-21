@@ -259,6 +259,15 @@ struct metaslab_group {
 	uint64_t		mg_fragmentation;
 	uint64_t		mg_histogram[ZFS_RANGE_TREE_HISTOGRAM_SIZE];
 
+	/*
+	 * Space and allocated space this group has added to its class, and
+	 * the deflated space added beyond the vdev's legacy deflate ratio.
+	 * See metaslab_space_update().
+	 */
+	uint64_t		mg_space;
+	uint64_t		mg_alloc;
+	uint64_t		mg_dspace_corr;
+
 	int			mg_ms_disabled;
 	boolean_t		mg_disabled_updating;
 	kmutex_t		mg_ms_disabled_lock;
