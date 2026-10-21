@@ -179,6 +179,9 @@ struct objset {
 	/* Protects changes to DMU_{USER,GROUP,PROJECT}USED_OBJECT */
 	kmutex_t os_userused_lock;
 
+	/* Free the user/group/project accounting objects in this txg */
+	uint64_t os_free_used_txg;
+
 	/* stuff we store for the user */
 	kmutex_t os_user_ptr_lock;
 	void *os_user_ptr;
