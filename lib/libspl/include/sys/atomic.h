@@ -415,31 +415,6 @@ atomic_clear_long_excl(volatile ulong_t *target, uint_t value)
 }
 
 /*
- * Generic memory barrier used during lock entry, placed after the
- * memory operation that acquires the lock to guarantee that the lock
- * protects its data.  No stores from after the memory barrier will
- * reach visibility, and no loads from after the barrier will be
- * resolved, before the lock acquisition reaches global visibility.
- */
-static inline void
-membar_enter(void)
-{
-	__atomic_thread_fence(__ATOMIC_SEQ_CST);
-}
-
-/*
- * Generic memory barrier used during lock exit, placed before the
- * memory operation that releases the lock to guarantee that the lock
- * protects its data.  All loads and stores issued before the barrier
- * will be resolved before the subsequent lock update reaches visibility.
- */
-static inline void
-membar_exit(void)
-{
-	__atomic_thread_fence(__ATOMIC_SEQ_CST);
-}
-
-/*
  * Make all stores and loads emitted prior to the the barrier complete before
  * crossing it, while also making sure stores and loads emitted after the
  * barrier only start being executed after crossing it.
