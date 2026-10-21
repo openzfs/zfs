@@ -142,7 +142,7 @@ print_scan_status(nvlist_t *nvroot, const char *pool_name)
 	uint_t c;
 	int64_t elapsed;
 	uint64_t examined, pass_exam, paused_time, paused_ts, rate;
-	uint64_t remaining_time;
+	uint64_t remaining_time, total_i, issue_rate;
 	pool_scan_stat_t *ps = NULL;
 	double pct_done;
 	const char *const state[DSS_NUM_STATES] = {
@@ -213,7 +213,15 @@ print_scan_status(nvlist_t *nvroot, const char *pool_name)
 		pass_exam = ps->pss_pass_exam ? ps->pss_pass_exam : 1;
 		rate = pass_exam / elapsed;
 		rate = (rate > 0) ? rate : 1;
-		remaining_time = ps->pss_to_examine - examined / rate;
+		/*
+		 * As zpool status: a block is done once its I/O is issued,
+		 * so estimate from the bytes still to issue and the issue
+		 * rate of this pass.
+		 */
+		total_i = ps->pss_to_examine - ps->pss_skipped;
+		issue_rate = ps->pss_pass_issued / elapsed;
+		remaining_time = (issue_rate > 0 && total_i > ps->pss_issued) ?
+		    (total_i - ps->pss_issued) / issue_rate : 0;
 	} else {
 		elapsed =
 		    (int64_t)ps->pss_end_time - (int64_t)ps->pss_pass_start -
