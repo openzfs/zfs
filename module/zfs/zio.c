@@ -3648,8 +3648,7 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		if (allocated) {
 			metaslab_trace_move(&cio_list, ZIO_ALLOC_LIST(cio));
 			metaslab_group_alloc_increment_all(spa,
-			    &cio->io_bp_orig, zio->io_allocator, flags, psize,
-			    cio);
+			    &cio->io_bp_orig, zio->io_allocator, flags, cio);
 		}
 		/*
 		 * We do not reserve for the child writes, since we already
@@ -4146,7 +4145,7 @@ zio_ddt_child_write_reject(zio_t *zio)
 			dva_t *dva = &zio->io_bp->blk_dva[d];
 			metaslab_group_alloc_decrement(zio->io_spa,
 			    DVA_GET_VDEV(dva), zio->io_allocator,
-			    METASLAB_ASYNC_ALLOC, zio->io_size, zio);
+			    METASLAB_ASYNC_ALLOC, DVA_GET_ASIZE(dva), zio);
 		}
 	}
 
@@ -5959,7 +5958,7 @@ zio_dva_throttle_done(zio_t *zio)
 	vdev_t *vd = zio->io_vd;
 	int flags = METASLAB_ASYNC_ALLOC;
 	const void *tag = pio;
-	uint64_t size = pio->io_size;
+	uint64_t asize = 0;
 
 	ASSERT3P(zio->io_bp, !=, NULL);
 	ASSERT3U(zio->io_type, ==, ZIO_TYPE_WRITE);
@@ -5975,12 +5974,33 @@ zio_dva_throttle_done(zio_t *zio)
 	 * Parents of gang children can have two flavors -- ones that allocated
 	 * the gang header (will have ZIO_FLAG_IO_REWRITE set) and ones that
 	 * allocated the constituent blocks.  The first use their parent as tag.
-	 * We set the size to match the original allocation call for that case.
+	 * The others release the asize of the DVA this write is for.  The gang
+	 * header cannot: zio_write_gang_member_ready() has added the asize of
+	 * its children to its DVAs by now, so convert the size it was
+	 * allocated with.
 	 */
 	if (pio->io_child_type == ZIO_CHILD_GANG &&
 	    (pio->io_flags & ZIO_FLAG_IO_REWRITE)) {
 		tag = zio_unique_parent(pio);
-		size = SPA_OLD_GANGBLOCKSIZE;
+		asize = vdev_psize_to_asize_txg(vd, SPA_OLD_GANGBLOCKSIZE,
+		    pio->io_txg);
+	} else {
+		/*
+		 * zio_vdev_child_io() moved the offset of a leaf top-level
+		 * vdev past its front labels.
+		 */
+		uint64_t offset = zio->io_offset;
+		if (vd->vdev_ops->vdev_op_leaf)
+			offset -= VDEV_LABEL_START_SIZE;
+		for (int d = 0; d < BP_GET_NDVAS(zio->io_bp); d++) {
+			const dva_t *dva = &zio->io_bp->blk_dva[d];
+			if (DVA_GET_VDEV(dva) == vd->vdev_id &&
+			    DVA_GET_OFFSET(dva) == offset) {
+				asize = DVA_GET_ASIZE(dva);
+				break;
+			}
+		}
+		ASSERT3U(asize, !=, 0);
 	}
 
 	ASSERT(IO_IS_ALLOCATING(pio) || (pio->io_child_type == ZIO_CHILD_GANG &&
@@ -5994,7 +6014,7 @@ zio_dva_throttle_done(zio_t *zio)
 	ASSERT(zio->io_metaslab_class->mc_alloc_throttle_enabled);
 
 	metaslab_group_alloc_decrement(zio->io_spa, vd->vdev_id,
-	    pio->io_allocator, flags, size, tag);
+	    pio->io_allocator, flags, asize, tag);
 
 	if (metaslab_class_throttle_unreserve(pio->io_metaslab_class,
 	    pio->io_allocator, 1, pio->io_size)) {
