@@ -4192,6 +4192,47 @@ dump_znode_symlink(sa_handle_t *hdl)
 		(void) printf("\ttarget	%s\n", linktarget);
 }
 
+/*
+ * Print the SA_ZPL_PARENT_COOKIE hint and whether it is "valid" (the entry
+ * at the cookie in the parent directory refers to this object) or "stale".
+ * The entry of a valid cookie must also be found by its name, and a search
+ * of the directory must find the same name, or another entry for this
+ * object if it has several links; if not, print "inconsistent".
+ */
+static void
+dump_znode_cookie(objset_t *os, sa_handle_t *hdl, uint64_t object,
+    uint64_t parent, uint64_t links)
+{
+	uint64_t cookie, value;
+	const char *state;
+
+	if (sa_lookup(hdl, sa_attr_table[ZPL_PARENT_COOKIE], &cookie,
+	    sizeof (cookie)) != 0)
+		return;
+	if (cookie == ZFS_COOKIE_NONE) {
+		(void) printf("\tcookie	none\n");
+		return;
+	}
+
+	char *name = kmem_zalloc(ZAP_MAXNAMELEN_NEW, KM_SLEEP);
+	char *found = kmem_zalloc(ZAP_MAXNAMELEN_NEW, KM_SLEEP);
+	if (zap_lookup_cookie(os, parent, cookie, &value, name,
+	    ZAP_MAXNAMELEN_NEW) != 0 || ZFS_DIRENT_OBJ(value) != object) {
+		state = "stale";
+	} else if (zap_lookup(os, parent, name, 8, 1, &value) != 0 ||
+	    ZFS_DIRENT_OBJ(value) != object ||
+	    zap_value_search(os, parent, object, ZFS_DIRENT_OBJ(-1ULL), found,
+	    ZAP_MAXNAMELEN_NEW) != 0 ||
+	    (strcmp(name, found) != 0 && links < 2)) {
+		state = "inconsistent";
+	} else {
+		state = "valid";
+	}
+	(void) printf("\tcookie	%llx %s\n", (u_longlong_t)cookie, state);
+	kmem_free(found, ZAP_MAXNAMELEN_NEW);
+	kmem_free(name, ZAP_MAXNAMELEN_NEW);
+}
+
 static void
 dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
 {
@@ -4268,6 +4309,7 @@ dump_znode(objset_t *os, uint64_t object, void *data, size_t size)
 	(void) printf("\tmode	%llo\n", (u_longlong_t)mode);
 	(void) printf("\tsize	%llu\n", (u_longlong_t)fsize);
 	(void) printf("\tparent	%llu\n", (u_longlong_t)parent);
+	dump_znode_cookie(os, hdl, object, parent, links);
 	(void) printf("\tlinks	%llu\n", (u_longlong_t)links);
 	(void) printf("\tpflags	%llx\n", (u_longlong_t)pflags);
 	if (dmu_objset_projectquota_enabled(os) && (pflags & ZFS_PROJID)) {

@@ -28,6 +28,8 @@
 #include <sys/sa.h>
 #include <sys/zfs_sa.h>
 #include <sys/zfs_stat.h>
+#include <sys/kstat.h>
+#include <sys/wmsum.h>
 
 #include "zfs_prop.h"
 #include "zfs_comutil.h"
@@ -160,6 +162,130 @@ zfs_obj_to_stats_legacy(sa_handle_t *hdl, sa_attr_type_t *sa_table,
 	return (sa_bulk_lookup(hdl, bulk, count));
 }
 
+/*
+ * Record the directory entry cookie of each object linked into a directory
+ * (SA_ZPL_PARENT_COOKIE, see zfs_link_create()).  When 0, links and renames
+ * leave the attribute as it is, as an implementation that doesn't know it
+ * does, so the cookies of objects linked meanwhile go stale.
+ */
+int zfs_parent_cookie = 1;
+
+#ifdef _KERNEL
+/*
+ * How zfs_dirent_name() found names: by the SA_ZPL_PARENT_COOKIE hint
+ * (cookie_hits), or by searching the directory because the hint was stale
+ * (cookie_stale) or missing (cookie_missing).  searches counts the searches.
+ */
+static struct {
+	kstat_named_t cookie_hits;
+	kstat_named_t cookie_stale;
+	kstat_named_t cookie_missing;
+	kstat_named_t searches;
+} zfs_dirent_name_stats = {
+	{ "cookie_hits",	KSTAT_DATA_UINT64 },
+	{ "cookie_stale",	KSTAT_DATA_UINT64 },
+	{ "cookie_missing",	KSTAT_DATA_UINT64 },
+	{ "searches",		KSTAT_DATA_UINT64 },
+};
+
+static struct {
+	wmsum_t cookie_hits;
+	wmsum_t cookie_stale;
+	wmsum_t cookie_missing;
+	wmsum_t searches;
+} zfs_dirent_name_sums;
+
+static kstat_t *zfs_dirent_name_ksp;
+
+#define	DIRENT_NAME_BUMP(stat)	wmsum_add(&zfs_dirent_name_sums.stat, 1)
+
+static int
+zfs_dirent_name_kstat_update(kstat_t *ksp, int rw)
+{
+	(void) ksp;
+	if (rw == KSTAT_WRITE)
+		return (SET_ERROR(EACCES));
+	zfs_dirent_name_stats.cookie_hits.value.ui64 =
+	    wmsum_value(&zfs_dirent_name_sums.cookie_hits);
+	zfs_dirent_name_stats.cookie_stale.value.ui64 =
+	    wmsum_value(&zfs_dirent_name_sums.cookie_stale);
+	zfs_dirent_name_stats.cookie_missing.value.ui64 =
+	    wmsum_value(&zfs_dirent_name_sums.cookie_missing);
+	zfs_dirent_name_stats.searches.value.ui64 =
+	    wmsum_value(&zfs_dirent_name_sums.searches);
+	return (0);
+}
+
+void
+zfs_dirent_name_init(void)
+{
+	wmsum_init(&zfs_dirent_name_sums.cookie_hits, 0);
+	wmsum_init(&zfs_dirent_name_sums.cookie_stale, 0);
+	wmsum_init(&zfs_dirent_name_sums.cookie_missing, 0);
+	wmsum_init(&zfs_dirent_name_sums.searches, 0);
+
+	zfs_dirent_name_ksp = kstat_create("zfs", 0, "dirent_name", "misc",
+	    KSTAT_TYPE_NAMED, sizeof (zfs_dirent_name_stats) /
+	    sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
+	if (zfs_dirent_name_ksp != NULL) {
+		zfs_dirent_name_ksp->ks_data = &zfs_dirent_name_stats;
+		zfs_dirent_name_ksp->ks_update = zfs_dirent_name_kstat_update;
+		kstat_install(zfs_dirent_name_ksp);
+	}
+}
+
+void
+zfs_dirent_name_fini(void)
+{
+	if (zfs_dirent_name_ksp != NULL) {
+		kstat_delete(zfs_dirent_name_ksp);
+		zfs_dirent_name_ksp = NULL;
+	}
+
+	wmsum_fini(&zfs_dirent_name_sums.cookie_hits);
+	wmsum_fini(&zfs_dirent_name_sums.cookie_stale);
+	wmsum_fini(&zfs_dirent_name_sums.cookie_missing);
+	wmsum_fini(&zfs_dirent_name_sums.searches);
+}
+#else
+#define	DIRENT_NAME_BUMP(stat)
+#endif
+
+/*
+ * Find a name of object obj in directory dobj: the entry at obj's
+ * SA_ZPL_PARENT_COOKIE hint if that entry refers to obj, otherwise by
+ * searching the directory.  The hint is only a shortcut, so any entry it
+ * finds is checked and a stale or missing hint costs only the search.
+ * hdl is obj's SA handle (or NULL to search), sa_table the dataset's ZPL
+ * attribute table.
+ */
+int
+zfs_dirent_name(objset_t *os, sa_handle_t *hdl, sa_attr_type_t *sa_table,
+    uint64_t dobj, uint64_t obj, char *name, uint64_t namelen)
+{
+	uint64_t cookie, value;
+	int error;
+
+	if (hdl != NULL && sa_lookup(hdl, sa_table[ZPL_PARENT_COOKIE],
+	    &cookie, sizeof (cookie)) == 0 && cookie != ZFS_COOKIE_NONE) {
+		/* A name too long for the buffer is too long for the search */
+		error = zap_lookup_cookie(os, dobj, cookie, &value, name,
+		    namelen);
+		if ((error == 0 || error == ENAMETOOLONG) &&
+		    ZFS_DIRENT_OBJ(value) == obj) {
+			DIRENT_NAME_BUMP(cookie_hits);
+			return (error);
+		}
+		DIRENT_NAME_BUMP(cookie_stale);
+	} else {
+		DIRENT_NAME_BUMP(cookie_missing);
+	}
+
+	DIRENT_NAME_BUMP(searches);
+	return (zap_value_search(os, dobj, obj, ZFS_DIRENT_OBJ(-1ULL), name,
+	    namelen));
+}
+
 static int
 zfs_obj_to_path_impl(objset_t *osp, uint64_t obj, sa_handle_t *hdl,
     sa_attr_type_t *sa_table, char *buf, int len)
@@ -211,9 +337,8 @@ zfs_obj_to_path_impl(objset_t *osp, uint64_t obj, sa_handle_t *hdl,
 		if (is_xattrdir) {
 			strcpy(component + 1, "<xattrdir>");
 		} else {
-			error = zap_value_search(osp, pobj, obj,
-			    ZFS_DIRENT_OBJ(-1ULL), component + 1,
-			    ZAP_MAXNAMELEN_NEW);
+			error = zfs_dirent_name(osp, sa_hdl, sa_table, pobj,
+			    obj, component + 1, ZAP_MAXNAMELEN_NEW);
 			if (error != 0)
 				break;
 		}
@@ -441,3 +566,6 @@ zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value)
 
 	return (error);
 }
+
+ZFS_MODULE_PARAM(zfs, zfs_, parent_cookie, INT, ZMOD_RW,
+	"Record the directory entry cookie of each linked object");

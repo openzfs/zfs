@@ -582,6 +582,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	uint64_t	dzp_pflags = 0;
 	uint64_t	projid = ZFS_DEFAULT_PROJID;
 	uint64_t	rdev = 0;
+	uint64_t	nocookie = ZFS_COOKIE_NONE;
 	zfsvfs_t	*zfsvfs = dzp->z_zfsvfs;
 	dmu_buf_t	*db;
 	timestruc_t	now;
@@ -802,6 +803,14 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 		SA_ADD_BULK_ATTR(sa_attrs, cnt, SA_ZPL_RDEV(zfsvfs),
 		    NULL, &rdev, 8);
 
+	}
+	/*
+	 * Reserve the SA_ZPL_PARENT_COOKIE slot that zfs_link_create() fills
+	 * in, so that linking the new object doesn't grow its SA layout.
+	 */
+	if (obj_type != DMU_OT_ZNODE) {
+		SA_ADD_BULK_ATTR(sa_attrs, cnt, SA_ZPL_PARENT_COOKIE(zfsvfs),
+		    NULL, &nocookie, 8);
 	}
 	if (obj_type == DMU_OT_ZNODE) {
 		SA_ADD_BULK_ATTR(sa_attrs, cnt, SA_ZPL_FLAGS(zfsvfs),
@@ -1987,8 +1996,8 @@ zfs_znode_parent_and_name(znode_t *zp, znode_t **dzpp, char *buf,
 	if (parent == zp->z_id)
 		return (SET_ERROR(EINVAL));
 
-	err = zap_value_search(zfsvfs->z_os, parent, zp->z_id,
-	    ZFS_DIRENT_OBJ(-1ULL), buf, buflen);
+	err = zfs_dirent_name(zfsvfs->z_os, zp->z_sa_hdl, zfsvfs->z_attr_table,
+	    parent, zp->z_id, buf, buflen);
 	if (err != 0)
 		return (err);
 	err = zfs_zget(zfsvfs, parent, dzpp);
