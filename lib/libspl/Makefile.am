@@ -16,7 +16,6 @@ libspl_assert_la_SOURCES = \
 
 libspl_la_SOURCES = \
 	%D%/libspl_impl.h \
-	%D%/atomic.c \
 	%D%/condvar.c \
 	%D%/cred.c \
 	%D%/getexecname.c \
