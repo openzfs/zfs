@@ -19,7 +19,7 @@
 #include <assert.h>
 #include <pthread.h>
 #include <errno.h>
-#include <atomic.h>
+#include <sys/atomic.h>
 #include <sys/rwlock.h>
 
 /*

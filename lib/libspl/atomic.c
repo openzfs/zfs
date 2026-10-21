@@ -14,7 +14,7 @@
  * Use is subject to license terms.
  */
 
-#include <atomic.h>
+#include <sys/atomic.h>
 
 /*
  * These are the void returning variants
