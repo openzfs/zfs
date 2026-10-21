@@ -90,6 +90,9 @@ my $typename = '(int|char|short|long|unsigned|float|double' .
 # cast or compound-literal type, e.g. "(foo_t *)"
 my $cast = qr/\($typename(?: \*+)?\)/;
 
+# macros should be uppercase, underscores, or digits
+my $macro = '[A-Z_][A-Z_0-9]*\(';
+
 # mapping of old types to POSIX compatible types
 my %old2posix = (
 	'unchar' => 'uchar_t',
@@ -392,7 +395,7 @@ line: while (<$filehandle>) {
 
 	# If this looks like a top-level macro invocation, remember it so we
 	# don't mistake it for a function declaration below.
-	if (/^[A-Za-z_][A-Za-z_0-9]*\(/) {
+	if (/^$macro/) {
 		$in_macro_call = 1;
 	}
 
@@ -691,7 +694,7 @@ line: while (<$filehandle>) {
 			err("unary * followed by space");
 		}
 	}
-	if ($check_posix_types && !$in_macro_call) {
+	if ($check_posix_types && !$in_macro_call && !/\bmodule_param\(/) {
 		# try to detect old non-POSIX types.
 		# POSIX requires all non-standard typedefs to end in _t,
 		# but historically these have been used.
@@ -792,7 +795,6 @@ process_indent($)
 
 	# regexps used below; keywords taking (), macros, and continued cases
 	my $special = '(?:(?:\}\s*)?else\s+)?(?:if|for|while|switch)\b';
-	my $macro = '[A-Z_][A-Z_0-9]*\(';
 	my $case = 'case\b[^:]*$';
 
 	# skip over enumerations, array definitions, initializers, etc.

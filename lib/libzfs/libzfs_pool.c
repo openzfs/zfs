@@ -2973,7 +2973,8 @@ out:
  * Scan the pool.
  */
 int
-zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func, pool_scrub_cmd_t cmd) {
+zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func, pool_scrub_cmd_t cmd)
+{
 	return (zpool_scan_range(zhp, func, cmd, 0, 0, 0));
 }
 
