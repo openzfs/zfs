@@ -1612,7 +1612,7 @@ zfs_root(vfs_t *vfsp, int flags, vnode_t **vpp)
 	if (error == 0) {
 		error = vn_lock(*vpp, flags);
 		if (error != 0) {
-			VN_RELE(*vpp);
+			vrele(*vpp);
 			*vpp = NULL;
 		}
 	}
