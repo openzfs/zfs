@@ -161,7 +161,7 @@ nodist_%C%_test_nvpair_SOURCES = \
 PHONY += unit unit-coverage unit-coverage-html
 
 _unit_run_%: %D%/%
-	@echo "  UNITTEST $<" ; $< $(TOPT)
+	@echo "  UNITTEST $<" ; $(LOG_COMPILER) $(LOG_FLAGS) $< $(TOPT)
 
 # note: any changes in switches to lcov or genhtml must be carefully checked
 #       on 1.x and 2.x; the current option set is carefully chosen to allow
@@ -174,7 +174,7 @@ _unit_run_%: %D%/%
 %D%/%.info: %D%/%
 	@-${RM} $@
 	@${LCOV} --quiet --quiet --zerocounters --directory $(top_srcdir)
-	@echo "  UNITTEST $<" ; $< $(TOPT)
+	@echo "  UNITTEST $<" ; $(LOG_COMPILER) $(LOG_FLAGS) $< $(TOPT)
 	@${LCOV} --quiet --quiet --capture  \
 		--test-name $(notdir $<) \
 		--directory $(top_srcdir) \
