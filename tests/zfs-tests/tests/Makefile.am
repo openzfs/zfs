@@ -713,6 +713,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zdb/zdb_args_pos.ksh \
 	functional/cli_root/zdb/zdb_backup.ksh \
 	functional/cli_root/zdb/zdb_block_size_histogram.ksh \
+	functional/cli_root/zdb/zdb_block_vdev.ksh \
 	functional/cli_root/zdb/zdb_checksum.ksh \
 	functional/cli_root/zdb/zdb_decompress.ksh \
 	functional/cli_root/zdb/zdb_decompress_zstd.ksh \

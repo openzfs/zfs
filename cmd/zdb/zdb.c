@@ -80,6 +80,7 @@
 #include <zfs_comutil.h>
 #include <sys/vdev_raidz.h>
 #include <sys/vdev_raidz_impl.h>
+#include <sys/vdev_draid.h>
 #include <sys/zstd/zstd.h>
 #include <sys/backtrace.h>
 
@@ -105,6 +106,7 @@ enum {
 	ARG_ALLOCATED = 256,
 	ARG_BLOCK_BIN_MODE,
 	ARG_BLOCK_CLASSES,
+	ARG_BLOCK_VDEV,
 };
 
 static const char cmdname[] = "zdb";
@@ -143,6 +145,12 @@ static enum {
 	CLASS_DEDUP = 1 << 3,
 	CLASS_OTHER = 1 << 4,
 } block_classes = 0;
+
+/* --vdev: the argument, and the top-level vdev it resolves to */
+static const char *block_vdev_arg = NULL;
+static uint64_t block_vdev = UINT64_MAX;
+/* -e found the pool exported, so nothing can be changing it */
+static boolean_t zdb_pool_exported = B_FALSE;
 
 static void snprintf_blkptr_compact(char *, size_t, const blkptr_t *,
     boolean_t);
@@ -756,6 +764,8 @@ usage(void)
 	    "           --class=(normal|special|dedup|other)[,...]\n"
 	    "                                     only consider blocks from "
 	    "these allocation classes\n");
+	(void) fprintf(stderr, "           --vdev=<vdev>             "
+	    "report what holds the space on a top-level vdev\n");
 	(void) fprintf(stderr, "        -B --backup                  "
 	    "backup stream\n");
 	(void) fprintf(stderr, "        -c --checksum                "
@@ -6267,6 +6277,77 @@ typedef struct zdb_brt_entry {
 	avl_node_t	zbre_node;
 } zdb_brt_entry_t;
 
+/*
+ * --vdev: what holds the space allocated on one top-level vdev. Each
+ * allocated block is counted once, in one of these groups, by the
+ * space it occupies on that vdev.
+ */
+typedef enum zdb_vcat {
+	ZVC_MOS,
+	ZVC_DDT_UNIQUE,
+	ZVC_DDT_SHARED,
+	ZVC_BRT,
+	ZVC_DEFERRED,
+	ZVC_FREEING,
+	ZVC_ASYNC_DESTROY,
+	ZVC_LIVELIST,
+	ZVC_DDT_LOG,
+	ZVC_GANG_UNREAD,
+	ZVC_DS_UNOPENED,
+	ZVC_DATASET,
+	ZVC_NUM
+} zdb_vcat_t;
+
+typedef struct zdb_vstat {
+	uint64_t	zvs_blocks;
+	uint64_t	zvs_asize;
+} zdb_vstat_t;
+
+/* One dataset (head or snapshot), for the per-dataset rows of --vdev */
+typedef struct zdb_vds {
+	avl_node_t	zvd_node;
+	uint64_t	zvd_obj;
+	uint64_t	zvd_dir_obj;
+	uint64_t	zvd_creation_txg;
+	uint64_t	zvd_prev_obj;
+	uint64_t	zvd_prev_snap_txg;
+	uint64_t	zvd_num_children;
+	uint64_t	zvd_dl_used;
+	/* see zdb_vds_branch_txg() */
+	uint64_t	zvd_nb;
+	uint64_t	zvd_branch_txg;
+	/* the index of a snapshot among those of its directory */
+	uint64_t	zvd_index;
+	uint64_t	zvd_dead_minbirth;
+	boolean_t	zvd_is_snapshot;
+	boolean_t	zvd_is_origin;
+	boolean_t	zvd_zil_skipped;
+	char		*zvd_name;
+	size_t		zvd_dir_namelen;
+	struct zdb_vdir	*zvd_vdir;
+	/* the first datasets of the clones of a snapshot */
+	struct zdb_vds	*zvd_clones;
+	struct zdb_vds	*zvd_next_clone;
+	zdb_vstat_t	zvd_born;
+	zdb_vstat_t	zvd_zil;
+	/* blocks of its previous snapshot that this dataset killed */
+	zdb_vstat_t	zvd_dead;
+} zdb_vds_t;
+
+/* The datasets of one DSL directory: its head and its snapshots */
+typedef struct zdb_vdir {
+	const char	*zvdr_name;
+	size_t		zvdr_namelen;
+	zdb_vds_t	*zvdr_head;
+	zdb_vds_t	**zvdr_snaps;
+	uint64_t	zvdr_nsnaps;
+	/* zvdr_born[i]: the space born in the first i snapshots */
+	uint64_t	*zvdr_born;
+	boolean_t	zvdr_inconsistent;
+	/* a deadlist of its datasets could not be read in full */
+	boolean_t	zvdr_unclassified;
+} zdb_vdir_t;
+
 typedef struct zdb_cb {
 	zdb_blkstats_t	zcb_type[ZB_TOTAL + 1][ZDB_OT_TOTAL + 1];
 	uint64_t	zcb_removing_size;
@@ -6297,6 +6378,22 @@ typedef struct zdb_cb {
 	uint32_t	**zcb_vd_obsolete_counts;
 	avl_tree_t	zcb_brt;
 	boolean_t	zcb_brt_is_active;
+	zdb_vcat_t	zcb_vcat;
+	boolean_t	zcb_vzil;
+	zdb_vds_t	*zcb_vds;
+	avl_tree_t	zcb_vds_tree;
+	zdb_vds_t	**zcb_vds_sorted;
+	uint64_t	zcb_vds_nsorted;
+	zdb_vdir_t	*zcb_vdirs;
+	uint64_t	zcb_nvdirs;
+	zdb_vstat_t	zcb_vstat[ZVC_NUM];
+	uint64_t	zcb_vds_unopened;
+	uint64_t	zcb_vremap_errors;
+	uint64_t	zcb_vgang_reads;
+	uint64_t	zcb_vgang_errors;
+	uint64_t	zcb_vrefcnt_errors;
+	uint64_t	zcb_vdl_entries;
+	uint64_t	zcb_vdl_datasets;
 } zdb_cb_t;
 
 /* test if two DVA offsets from same vdev are within the same metaslab */
@@ -6503,6 +6600,237 @@ dump_size_histograms(zdb_cb_t *zcb)
 	}
 }
 
+typedef struct zdb_vremap_arg {
+	uint64_t	zvra_target;
+	uint64_t	zvra_asize;
+} zdb_vremap_arg_t;
+
+static void
+zdb_vdev_remap_cb(uint64_t inner_offset, vdev_t *vd, uint64_t offset,
+    uint64_t size, void *arg)
+{
+	(void) inner_offset, (void) offset;
+	zdb_vremap_arg_t *zvra = arg;
+
+	/* The remap also calls back for intermediate indirect vdevs. */
+	if (vdev_is_concrete(vd) && vd->vdev_id == zvra->zvra_target)
+		zvra->zvra_asize += size;
+}
+
+/*
+ * Whether the indirect mappings, from vd on, cover the extent without a
+ * gap, as vdev_indirect_remap() asserts: a corrupt mapping must not make
+ * zdb crash, even under -L, where nothing else remaps.
+ */
+static boolean_t
+zdb_indirect_mapped(spa_t *spa, vdev_t *vd, uint64_t offset, uint64_t size,
+    uint64_t depth)
+{
+	vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
+
+	if (vim == NULL || depth > spa->spa_root_vdev->vdev_children)
+		return (B_FALSE);
+
+	while (size > 0) {
+		vdev_indirect_mapping_entry_phys_t *m = NULL;
+		vdev_indirect_mapping_entry_phys_t entry;
+
+		rw_enter(&vd->vdev_indirect_rwlock, RW_READER);
+		if (vdev_indirect_mapping_num_entries(vim) != 0)
+			m = vdev_indirect_mapping_entry_for_offset(vim, offset);
+		if (m != NULL)
+			entry = *m;
+		rw_exit(&vd->vdev_indirect_rwlock);
+		if (m == NULL)
+			return (B_FALSE);
+
+		uint64_t src = DVA_MAPPING_GET_SRC_OFFSET(&entry);
+		uint64_t msize = DVA_GET_ASIZE(&entry.vimep_dst);
+		if (offset < src || offset - src >= msize)
+			return (B_FALSE);
+		uint64_t inner = offset - src;
+		uint64_t len = MIN(size, msize - inner);
+		vdev_t *dvd = vdev_lookup_top(spa,
+		    DVA_GET_VDEV(&entry.vimep_dst));
+
+		if (dvd == NULL || dvd == vd)
+			return (B_FALSE);
+		if (dvd->vdev_ops == &vdev_indirect_ops &&
+		    !zdb_indirect_mapped(spa, dvd,
+		    DVA_GET_OFFSET(&entry.vimep_dst) + inner, len, depth + 1))
+			return (B_FALSE);
+		offset += len;
+		size -= len;
+	}
+
+	return (B_TRUE);
+}
+
+static uint64_t zdb_bp_vdev_asize(zdb_cb_t *, const blkptr_t *, boolean_t);
+
+/*
+ * The space that the members of a gang block occupy on the --vdev target.
+ * The header names the members, so it is read here, once per gang block
+ * pointer counted, unless readable is false. If it is not read, the
+ * members' space, as given by the gang DVAs, goes to its own group when
+ * count_unread is set.
+ */
+static uint64_t
+zdb_gang_vdev_asize(zdb_cb_t *zcb, const blkptr_t *bp, boolean_t count_unread,
+    boolean_t readable)
+{
+	spa_t *spa = zcb->zcb_spa;
+	uint64_t gbsize = SPA_OLD_GANGBLOCKSIZE;
+	uint64_t members = 0;
+	uint64_t asize = 0;
+	boolean_t dynamic = spa_feature_is_active(spa,
+	    SPA_FEATURE_DYNAMIC_GANG_HEADER);
+
+	/* The header size is chosen as zio_gang_tree_assemble() does. */
+	if (dynamic)
+		gbsize = UINT64_MAX;
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+	for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
+		const dva_t *dva = &bp->blk_dva[d];
+		vdev_t *vd = vdev_lookup_top(spa, DVA_GET_VDEV(dva));
+
+		if (vd == NULL)
+			continue;
+		if (dynamic)
+			gbsize = MIN(gbsize, vdev_gang_header_psize(vd));
+		if (DVA_GET_ASIZE(dva) > vdev_gang_header_asize(vd))
+			members += DVA_GET_ASIZE(dva) -
+			    vdev_gang_header_asize(vd);
+	}
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+
+	/*
+	 * A header written before dynamic_gang_header became active has the
+	 * old size.  Read at the larger size, it fails its checksum, and
+	 * zio_checksum_error() checks it again at the old size and records
+	 * that size in the gang tree node of the read, so the read must have
+	 * one, as in zio_gang_tree_assemble().
+	 */
+	int err = EIO;
+	abd_t *abd = NULL;
+	if (gbsize != UINT64_MAX && readable) {
+		zio_gang_node_t gn = { .gn_gangblocksize = gbsize };
+
+		abd = abd_alloc_linear(gbsize, B_TRUE);
+		err = zio_wait(zio_read(NULL, spa, bp, abd, gbsize, NULL, &gn,
+		    ZIO_PRIORITY_SYNC_READ,
+		    ZIO_FLAG_GANG_CHILD | ZIO_FLAG_CANFAIL, NULL));
+		zcb->zcb_vgang_reads++;
+		if (err == 0)
+			gbsize = gn.gn_gangblocksize;
+	}
+	if (err != 0) {
+		zcb->zcb_vgang_errors++;
+		if (count_unread) {
+			zcb->zcb_vstat[ZVC_GANG_UNREAD].zvs_blocks++;
+			zcb->zcb_vstat[ZVC_GANG_UNREAD].zvs_asize += members;
+		}
+		if (abd != NULL)
+			abd_free(abd);
+		return (0);
+	}
+
+	void *gbh = abd_to_buf(abd);
+	if (BP_SHOULD_BYTESWAP(bp))
+		byteswap_uint64_array(gbh, gbsize);
+	for (int g = 0; g < gbh_nblkptrs(gbsize); g++) {
+		blkptr_t *gbp = gbh_bp(gbh, g);
+
+		if (!BP_IS_HOLE(gbp))
+			asize += zdb_bp_vdev_asize(zcb, gbp, count_unread);
+	}
+	abd_free(abd);
+
+	return (asize);
+}
+
+/*
+ * The space that a block occupies on the --vdev target: every copy, the
+ * gang header and members of a gang block, and the new location of a copy
+ * on a removed vdev.
+ */
+static uint64_t
+zdb_bp_vdev_asize(zdb_cb_t *zcb, const blkptr_t *bp, boolean_t count_unread)
+{
+	spa_t *spa = zcb->zcb_spa;
+	uint64_t asize = 0;
+	boolean_t unmapped = B_FALSE;
+
+	if (BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp) || BP_IS_REDACTED(bp))
+		return (0);
+
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+	for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
+		const dva_t *dva = &bp->blk_dva[d];
+		vdev_t *vd = vdev_lookup_top(spa, DVA_GET_VDEV(dva));
+
+		if (vd == NULL)
+			continue;
+
+		uint64_t size = DVA_GET_GANG(dva) ?
+		    vdev_gang_header_asize(vd) : DVA_GET_ASIZE(dva);
+
+		if (vd->vdev_ops == &vdev_indirect_ops &&
+		    !zdb_indirect_mapped(spa, vd, DVA_GET_OFFSET(dva), size,
+		    0)) {
+			zcb->zcb_vremap_errors++;
+			unmapped = B_TRUE;
+		} else if (vd->vdev_ops == &vdev_indirect_ops) {
+			zdb_vremap_arg_t zvra = {
+				.zvra_target = block_vdev,
+				.zvra_asize = 0
+			};
+			vd->vdev_ops->vdev_op_remap(vd, DVA_GET_OFFSET(dva),
+			    size, zdb_vdev_remap_cb, &zvra);
+			asize += zvra.zvra_asize;
+		} else if (vd->vdev_id == block_vdev) {
+			asize += size;
+		}
+	}
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+
+	/* Reading through a copy that is not mapped would assert. */
+	if (BP_IS_GANG(bp))
+		asize += zdb_gang_vdev_asize(zcb, bp, count_unread, !unmapped);
+
+	return (asize);
+}
+
+/*
+ * Add a block to its --vdev group, the first time it is counted. A block
+ * with a DDT or a BRT entry goes to that group, whichever pass saw it
+ * first.
+ */
+static void
+zdb_vdev_count_block(zdb_cb_t *zcb, const blkptr_t *bp, boolean_t ddt_block,
+    uint64_t ddt_refcnt, boolean_t brt_block)
+{
+	zdb_vstat_t *zvs;
+	uint64_t asize = zdb_bp_vdev_asize(zcb, bp, B_TRUE);
+
+	if (asize == 0)
+		return;
+
+	if (ddt_block) {
+		zvs = &zcb->zcb_vstat[ddt_refcnt > 1 ?
+		    ZVC_DDT_SHARED : ZVC_DDT_UNIQUE];
+	} else if (brt_block) {
+		zvs = &zcb->zcb_vstat[ZVC_BRT];
+	} else if (zcb->zcb_vcat == ZVC_DATASET) {
+		zvs = zcb->zcb_vzil ? &zcb->zcb_vds->zvd_zil :
+		    &zcb->zcb_vds->zvd_born;
+	} else {
+		zvs = &zcb->zcb_vstat[zcb->zcb_vcat];
+	}
+	zvs->zvs_blocks++;
+	zvs->zvs_asize += asize;
+}
+
 static void
 zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
     dmu_object_type_t type)
@@ -6511,6 +6839,8 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 	boolean_t claimed = B_FALSE;
 	boolean_t ddt_block = B_FALSE;
 	boolean_t brt_block = B_FALSE;
+	boolean_t first_ref = B_TRUE;
+	uint64_t ddt_refcnt = 0;
 
 	ASSERT(type < ZDB_OT_TOTAL);
 
@@ -6584,15 +6914,18 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 		if (!seen)
 			dde->dde_io =
 			    (void *)(((uintptr_t)dde->dde_io) | (1 << v));
+		first_ref = !seen;
 
 		/*
 		 * Consume a reference.  If this variant's refcount is already
 		 * zero, the DDT tracking is exhausted — more filesystem
 		 * references exist than the DDT accounts for.
 		 */
-		boolean_t ddt_refcnt_exhausted =
-		    (ddt_phys_refcnt(dde->dde_phys, v) == 0);
-		if (!ddt_refcnt_exhausted)
+		ddt_refcnt = ddt_phys_refcnt(dde->dde_phys, v);
+		boolean_t ddt_refcnt_exhausted = (ddt_refcnt == 0);
+		if (ddt_refcnt_exhausted)
+			zcb->zcb_vrefcnt_errors++;
+		else
 			ddt_phys_decref(dde->dde_phys, v);
 
 		/*
@@ -6664,11 +6997,14 @@ ddt_done:
 			}
 		} else {
 			brt_block = B_TRUE;
+			first_ref = B_FALSE;
 			if (zbre->zbre_refcount > 0) {
 				zcb->zcb_clone_asize += BP_GET_ASIZE(bp);
 				zcb->zcb_clone_blocks++;
 				zbre->zbre_refcount--;
 				claimed = B_TRUE;
+			} else {
+				zcb->zcb_vrefcnt_errors++;
 			}
 		}
 	}
@@ -6745,6 +7081,11 @@ ddt_done:
 	}
 
 	spa_config_exit(zcb->zcb_spa, SCL_CONFIG, FTAG);
+
+	if (block_vdev != UINT64_MAX && first_ref) {
+		zdb_vdev_count_block(zcb, bp, ddt_block, ddt_refcnt,
+		    brt_block);
+	}
 
 	if (BP_IS_EMBEDDED(bp)) {
 		zcb->zcb_embedded_blocks[BPE_GET_ETYPE(bp)]++;
@@ -6917,6 +7258,34 @@ zdb_blkptr_done(zio_t *zio)
 	abd_free(zio->io_abd);
 }
 
+/*
+ * Set the --vdev group of the blocks the traversal visits: the MOS, the
+ * $ORIGIN snapshot that every dataset descends from, or the dataset the
+ * block was born in, or its intent log. A dataset that zdb_vds_init()
+ * could not hold has a group of its own.
+ */
+static void
+zdb_vds_select(zdb_cb_t *zcb, const zbookmark_phys_t *zb)
+{
+	zdb_vds_t *zvd = zcb->zcb_vds;
+
+	zcb->zcb_vzil = (zb->zb_level == ZB_ZIL_LEVEL);
+	if (zb->zb_objset == 0) {
+		zcb->zcb_vcat = ZVC_MOS;
+		return;
+	}
+	if (zvd == NULL || zvd->zvd_obj != zb->zb_objset) {
+		zdb_vds_t search = { .zvd_obj = zb->zb_objset };
+
+		zvd = avl_find(&zcb->zcb_vds_tree, &search, NULL);
+		zcb->zcb_vds = zvd;
+	}
+	if (zvd == NULL)
+		zcb->zcb_vcat = ZVC_DS_UNOPENED;
+	else
+		zcb->zcb_vcat = zvd->zvd_is_origin ? ZVC_MOS : ZVC_DATASET;
+}
+
 static int
 zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
@@ -6942,6 +7311,9 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 	if (BP_IS_HOLE(bp) || BP_IS_REDACTED(bp))
 		return (0);
+
+	if (block_vdev != UINT64_MAX)
+		zdb_vds_select(zcb, zb);
 
 	type = BP_GET_TYPE(bp);
 
@@ -7945,6 +8317,920 @@ zdb_brt_entry_compare(const void *zcn1, const void *zcn2)
 }
 
 static int
+zdb_vds_compare(const void *a, const void *b)
+{
+	const zdb_vds_t *zvd1 = a;
+	const zdb_vds_t *zvd2 = b;
+
+	return (TREE_CMP(zvd1->zvd_obj, zvd2->zvd_obj));
+}
+
+static int
+zdb_vds_zil_blk_cb(zilog_t *zilog, const blkptr_t *bp, void *arg,
+    uint64_t claim_txg)
+{
+	boolean_t *skipped = arg;
+
+	if (claim_txg == 0 && !BP_IS_HOLE(bp) &&
+	    BP_GET_BIRTH(bp) >= spa_min_claim_txg(zilog->zl_spa)) {
+		*skipped = B_TRUE;
+		return (-1);
+	}
+	return (0);
+}
+
+static int
+zdb_vds_zil_lr_cb(zilog_t *zilog, const lr_t *lr, void *arg,
+    uint64_t claim_txg)
+{
+	(void) zilog, (void) lr, (void) arg, (void) claim_txg;
+	return (0);
+}
+
+/*
+ * Whether the walk of the intent log of a head dataset will stop early:
+ * read-only zdb walks an unclaimed log, but stops at the first block born
+ * at or after spa_min_claim_txg() (see traverse_zil_block()), wherever it
+ * is in the chain.
+ */
+static boolean_t
+zdb_vds_zil_skipped(spa_t *spa, uint64_t dsobj, const blkptr_t *rootbp)
+{
+	arc_flags_t aflags = ARC_FLAG_WAIT;
+	zio_flag_t zflags = ZIO_FLAG_CANFAIL;
+	arc_buf_t *buf = NULL;
+	zbookmark_phys_t zb;
+	boolean_t skipped = B_FALSE;
+
+	if (BP_IS_PROTECTED(rootbp))
+		zflags |= ZIO_FLAG_RAW;
+	SET_BOOKMARK(&zb, dsobj, ZB_ROOT_OBJECT, ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
+	if (arc_read(NULL, spa, rootbp, arc_getbuf_func, &buf,
+	    ZIO_PRIORITY_SYNC_READ, zflags, &aflags, &zb) != 0)
+		return (B_FALSE);
+
+	zil_header_t *zh = &((objset_phys_t *)buf->b_data)->os_zil_header;
+	if (zh->zh_claim_txg == 0 && !BP_IS_HOLE(&zh->zh_log)) {
+		/* As traverse_zil() does, with TRAVERSE_NO_DECRYPT. */
+		zilog_t *zilog = zil_alloc(spa->spa_meta_objset, zh);
+
+		(void) zil_parse(zilog, zdb_vds_zil_blk_cb, zdb_vds_zil_lr_cb,
+		    &skipped, 0, B_FALSE);
+		zil_free(zilog);
+	}
+	arc_buf_destroy(buf, &buf);
+
+	return (skipped);
+}
+
+/*
+ * Record every dataset for --vdev, as traverse_pool() finds them.
+ */
+static void
+zdb_vds_init(spa_t *spa, zdb_cb_t *zcb)
+{
+	dsl_pool_t *dp = spa_get_dsl(spa);
+	objset_t *mos = dp->dp_meta_objset;
+	uint64_t origin_dir = 0;
+	char name[ZFS_MAX_DATASET_NAME_LEN];
+	int err = 0;
+
+	avl_create(&zcb->zcb_vds_tree, zdb_vds_compare, sizeof (zdb_vds_t),
+	    offsetof(zdb_vds_t, zvd_node));
+
+	if (dp->dp_origin_snap != NULL)
+		origin_dir = dp->dp_origin_snap->ds_dir->dd_object;
+
+	for (uint64_t obj = 1; err == 0;
+	    err = dmu_object_next(mos, &obj, B_FALSE, 0)) {
+		dmu_object_info_t doi;
+		dsl_dataset_t *ds;
+
+		if (dmu_object_info(mos, obj, &doi) != 0 ||
+		    doi.doi_bonus_type != DMU_OT_DSL_DATASET)
+			continue;
+
+		dsl_pool_config_enter(dp, FTAG);
+		if (dsl_dataset_hold_obj(dp, obj, FTAG, &ds) != 0) {
+			dsl_pool_config_exit(dp, FTAG);
+			zcb->zcb_vds_unopened++;
+			continue;
+		}
+		dsl_dataset_phys_t *dsp = dsl_dataset_phys(ds);
+		zdb_vds_t *zvd = kmem_zalloc(sizeof (zdb_vds_t), KM_SLEEP);
+		zvd->zvd_obj = obj;
+		zvd->zvd_dir_obj = ds->ds_dir->dd_object;
+		zvd->zvd_creation_txg = dsp->ds_creation_txg;
+		zvd->zvd_prev_obj = dsp->ds_prev_snap_obj;
+		zvd->zvd_prev_snap_txg = dsp->ds_prev_snap_txg;
+		zvd->zvd_num_children = dsp->ds_num_children;
+		if (dsl_deadlist_is_open(&ds->ds_deadlist)) {
+			uint64_t comp, uncomp;
+
+			dsl_deadlist_space(&ds->ds_deadlist,
+			    &zvd->zvd_dl_used, &comp, &uncomp);
+		}
+		zvd->zvd_nb = UINT64_MAX;
+		zvd->zvd_dead_minbirth = UINT64_MAX;
+		zvd->zvd_is_snapshot = ds->ds_is_snapshot;
+		zvd->zvd_is_origin = (zvd->zvd_dir_obj == origin_dir);
+		dsl_dataset_name(ds, name);
+		zvd->zvd_name = spa_strdup(name);
+		zvd->zvd_dir_namelen = strcspn(name, "@");
+		blkptr_t rootbp = dsl_dataset_phys(ds)->ds_bp;
+		dsl_pool_config_exit(dp, FTAG);
+
+		if (!zvd->zvd_is_snapshot && !BP_IS_HOLE(&rootbp))
+			zvd->zvd_zil_skipped = zdb_vds_zil_skipped(spa, obj,
+			    &rootbp);
+		dsl_dataset_rele(ds, FTAG);
+
+		avl_add(&zcb->zcb_vds_tree, zvd);
+	}
+}
+
+static void
+zdb_vds_fini(zdb_cb_t *zcb)
+{
+	void *cookie = NULL;
+	zdb_vds_t *zvd;
+
+	if (zcb->zcb_vdirs != NULL) {
+		for (uint64_t d = 0; d < zcb->zcb_nvdirs; d++) {
+			zdb_vdir_t *zvdr = &zcb->zcb_vdirs[d];
+
+			kmem_free(zvdr->zvdr_born,
+			    (zvdr->zvdr_nsnaps + 1) * sizeof (uint64_t));
+		}
+		kmem_free(zcb->zcb_vdirs, MAX(zcb->zcb_vds_nsorted, 1) *
+		    sizeof (zdb_vdir_t));
+		kmem_free(zcb->zcb_vds_sorted, MAX(zcb->zcb_vds_nsorted, 1) *
+		    sizeof (zdb_vds_t *));
+		zcb->zcb_vdirs = NULL;
+		zcb->zcb_vds_sorted = NULL;
+	}
+	while ((zvd = avl_destroy_nodes(&zcb->zcb_vds_tree, &cookie)) != NULL) {
+		spa_strfree(zvd->zvd_name);
+		kmem_free(zvd, sizeof (zdb_vds_t));
+	}
+	avl_destroy(&zcb->zcb_vds_tree);
+}
+
+static zdb_vds_t *
+zdb_vds_find(zdb_cb_t *zcb, uint64_t obj)
+{
+	zdb_vds_t search = { .zvd_obj = obj };
+
+	return (avl_find(&zcb->zcb_vds_tree, &search, NULL));
+}
+
+/* Group by directory, head first, then snapshots by creation */
+static int
+zdb_vds_dir_compare(const void *a, const void *b)
+{
+	const zdb_vds_t *zvd1 = *(zdb_vds_t * const *)a;
+	const zdb_vds_t *zvd2 = *(zdb_vds_t * const *)b;
+	int cmp;
+
+	cmp = TREE_CMP(zvd1->zvd_dir_obj, zvd2->zvd_dir_obj);
+	if (cmp == 0)
+		cmp = TREE_CMP(zvd1->zvd_is_snapshot, zvd2->zvd_is_snapshot);
+	if (cmp == 0)
+		cmp = TREE_CMP(zvd1->zvd_creation_txg, zvd2->zvd_creation_txg);
+	if (cmp == 0)
+		cmp = TREE_CMP(zvd1->zvd_obj, zvd2->zvd_obj);
+	return (cmp);
+}
+
+static int
+zdb_vdir_name_compare(const void *a, const void *b)
+{
+	const zdb_vdir_t *zvdr1 = a;
+	const zdb_vdir_t *zvdr2 = b;
+	size_t len = MIN(zvdr1->zvdr_namelen, zvdr2->zvdr_namelen);
+	int cmp = strncmp(zvdr1->zvdr_name, zvdr2->zvdr_name, len);
+
+	if (cmp == 0)
+		return (TREE_CMP(zvdr1->zvdr_namelen, zvdr2->zvdr_namelen));
+	return (cmp < 0 ? -1 : 1);
+}
+
+/*
+ * Build the directories from the dataset table, sorted by name, once the
+ * traversal has filled in what was born where. The $ORIGIN directory is
+ * left out: its blocks are counted as pool metadata.
+ */
+static void
+zdb_vdirs_init(zdb_cb_t *zcb)
+{
+	uint64_t nvds = avl_numnodes(&zcb->zcb_vds_tree);
+	zdb_vds_t **zvds = kmem_zalloc(MAX(nvds, 1) * sizeof (zdb_vds_t *),
+	    KM_SLEEP);
+	zdb_vdir_t *dirs = kmem_zalloc(MAX(nvds, 1) * sizeof (zdb_vdir_t),
+	    KM_SLEEP);
+	uint64_t n = 0;
+	uint64_t ndirs = 0;
+
+	for (zdb_vds_t *zvd = avl_first(&zcb->zcb_vds_tree); zvd != NULL;
+	    zvd = AVL_NEXT(&zcb->zcb_vds_tree, zvd)) {
+		if (!zvd->zvd_is_origin)
+			zvds[n++] = zvd;
+	}
+	qsort(zvds, n, sizeof (zdb_vds_t *), zdb_vds_dir_compare);
+
+	for (uint64_t i = 0; i < n; ) {
+		zdb_vdir_t *zvdr = &dirs[ndirs++];
+		uint64_t j = i;
+
+		if (!zvds[i]->zvd_is_snapshot)
+			zvdr->zvdr_head = zvds[j++];
+		zvdr->zvdr_snaps = &zvds[j];
+		while (j < n && zvds[j]->zvd_dir_obj == zvds[i]->zvd_dir_obj)
+			j++;
+		zvdr->zvdr_nsnaps = &zvds[j] - zvdr->zvdr_snaps;
+		zvdr->zvdr_name = zvds[i]->zvd_name;
+		zvdr->zvdr_namelen = zvds[i]->zvd_dir_namelen;
+		zvdr->zvdr_born = kmem_zalloc((zvdr->zvdr_nsnaps + 1) *
+		    sizeof (uint64_t), KM_SLEEP);
+		for (uint64_t s = 0; s < zvdr->zvdr_nsnaps; s++) {
+			zvdr->zvdr_snaps[s]->zvd_index = s;
+			zvdr->zvdr_born[s + 1] = zvdr->zvdr_born[s] +
+			    zvdr->zvdr_snaps[s]->zvd_born.zvs_asize;
+		}
+		i = j;
+	}
+	qsort(dirs, ndirs, sizeof (zdb_vdir_t), zdb_vdir_name_compare);
+	for (uint64_t d = 0; d < ndirs; d++) {
+		if (dirs[d].zvdr_head != NULL)
+			dirs[d].zvdr_head->zvd_vdir = &dirs[d];
+		for (uint64_t s = 0; s < dirs[d].zvdr_nsnaps; s++)
+			dirs[d].zvdr_snaps[s]->zvd_vdir = &dirs[d];
+	}
+	for (uint64_t i = n; i > 0; i--) {
+		zdb_vds_t *zvd = zvds[i - 1];
+		zdb_vds_t *prev = zdb_vds_find(zcb, zvd->zvd_prev_obj);
+
+		if (prev != NULL && !prev->zvd_is_origin &&
+		    prev->zvd_dir_obj != zvd->zvd_dir_obj) {
+			zvd->zvd_next_clone = prev->zvd_clones;
+			prev->zvd_clones = zvd;
+		}
+	}
+
+	zcb->zcb_vds_sorted = zvds;
+	zcb->zcb_vds_nsorted = nvds;
+	zcb->zcb_vdirs = dirs;
+	zcb->zcb_nvdirs = ndirs;
+}
+
+/* The index of the first snapshot of a directory taken at or after txg */
+static uint64_t
+zdb_vdir_first_snap(const zdb_vdir_t *zvdr, uint64_t txg)
+{
+	uint64_t lo = 0;
+	uint64_t hi = zvdr->zvdr_nsnaps;
+
+	while (lo < hi) {
+		uint64_t mid = lo + (hi - lo) / 2;
+
+		if (zvdr->zvdr_snaps[mid]->zvd_creation_txg < txg)
+			lo = mid + 1;
+		else
+			hi = mid;
+	}
+	return (lo);
+}
+
+/*
+ * The creation txg of the latest snapshot, at or before y, that is the
+ * origin of a clone (and so has more than one child), or 0 if there is
+ * none. A snapshot missing from the table counts as one.
+ */
+static uint64_t
+zdb_vds_nb(zdb_cb_t *zcb, zdb_vds_t *y)
+{
+	uint64_t steps = avl_numnodes(&zcb->zcb_vds_tree);
+	uint64_t nb = 0;
+	zdb_vds_t *p;
+
+	for (p = y; p != NULL; ) {
+		if (p->zvd_nb != UINT64_MAX) {
+			nb = p->zvd_nb;
+			break;
+		}
+		if (p->zvd_num_children > 1) {
+			nb = p->zvd_creation_txg;
+			break;
+		}
+		if (p->zvd_prev_obj == 0 || steps-- == 0) {
+			nb = 0;
+			break;
+		}
+		zdb_vds_t *prev = zdb_vds_find(zcb, p->zvd_prev_obj);
+		if (prev == NULL) {
+			nb = p->zvd_prev_snap_txg;
+			break;
+		}
+		p = prev;
+	}
+
+	/* Every snapshot walked through has the same answer. */
+	for (p = y; p != NULL && p->zvd_nb == UINT64_MAX; ) {
+		p->zvd_nb = nb;
+		if (p->zvd_num_children > 1 || p->zvd_prev_obj == 0)
+			break;
+		p = zdb_vds_find(zcb, p->zvd_prev_obj);
+	}
+	return (nb);
+}
+
+/*
+ * Blocks born after this txg and killed by the dataset are held only by
+ * the snapshots of its own directory, from the first one taken after the
+ * block's birth to its previous snapshot. Blocks born earlier may still
+ * be held by a clone.
+ */
+static uint64_t
+zdb_vds_branch_txg(zdb_cb_t *zcb, zdb_vds_t *x)
+{
+	zdb_vds_t *prev;
+
+	if (x->zvd_prev_obj == 0)
+		return (0);
+	prev = zdb_vds_find(zcb, x->zvd_prev_obj);
+	if (prev == NULL)
+		return (x->zvd_prev_snap_txg);
+	return (zdb_vds_nb(zcb, prev));
+}
+
+typedef struct zdb_vdl_arg {
+	zdb_cb_t	*zvda_zcb;
+	zdb_vds_t	*zvda_vds;
+} zdb_vdl_arg_t;
+
+/*
+ * Whether the traversal counted this block in a dedup group. Only the
+ * entries it loaded are looked at, so that none is created here.
+ */
+static boolean_t
+zdb_vdl_is_ddt(spa_t *spa, const blkptr_t *bp)
+{
+	ddt_t *ddt;
+	ddt_key_t key;
+	ddt_entry_t *dde;
+	boolean_t seen = B_FALSE;
+
+	if (!BP_GET_DEDUP(bp) || (ddt = ddt_select(spa, bp)) == NULL)
+		return (B_FALSE);
+
+	ddt_key_fill(&key, bp);
+	ddt_enter(ddt);
+	dde = avl_find(&ddt->ddt_tree, &key, NULL);
+	if (dde != NULL && (dde->dde_flags & DDE_FLAG_LOADED) &&
+	    !(dde->dde_flags & DDE_FLAG_OVERQUOTA)) {
+		ddt_phys_variant_t v = ddt_phys_select(ddt, dde, bp);
+
+		if (v != DDT_PHYS_NONE)
+			seen = !!(((uintptr_t)dde->dde_io) & (1 << v));
+	}
+	ddt_exit(ddt);
+
+	return (seen);
+}
+
+static int
+zdb_vdl_count_cb(void *arg, const blkptr_t *bp, boolean_t bp_freed,
+    dmu_tx_t *tx)
+{
+	(void) tx;
+	zdb_vdl_arg_t *zvda = arg;
+	zdb_cb_t *zcb = zvda->zvda_zcb;
+	zdb_vds_t *zvd = zvda->zvda_vds;
+	uint64_t asize;
+
+	if (bp_freed || BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp) ||
+	    BP_GET_BIRTH(bp) <= zvd->zvd_branch_txg)
+		return (0);
+
+	/* Counted in the dedup or block cloning group instead. */
+	if (zdb_vdl_is_ddt(zcb->zcb_spa, bp))
+		return (0);
+	if (zcb->zcb_brt_is_active) {
+		zdb_brt_entry_t zbre_search;
+
+		zbre_search.zbre_dva = bp->blk_dva[0];
+		if (avl_find(&zcb->zcb_brt, &zbre_search, NULL) != NULL)
+			return (0);
+	}
+
+	/* A block whose share of the vdev is not known is not classified. */
+	uint64_t errors = zcb->zcb_vgang_errors + zcb->zcb_vremap_errors;
+	asize = zdb_bp_vdev_asize(zcb, bp, B_FALSE);
+	if (zcb->zcb_vgang_errors + zcb->zcb_vremap_errors != errors)
+		zvd->zvd_vdir->zvdr_unclassified = B_TRUE;
+	if (asize != 0) {
+		zvd->zvd_dead.zvs_blocks++;
+		zvd->zvd_dead.zvs_asize += asize;
+		zvd->zvd_dead_minbirth = MIN(zvd->zvd_dead_minbirth,
+		    BP_GET_BIRTH(bp));
+	}
+	return (0);
+}
+
+/*
+ * The deadlist of a dataset holds the blocks that its previous snapshot
+ * references and it does not. Count those that only snapshots of its own
+ * directory can hold. Only the -bb split of the snapshot rows needs this.
+ * If the deadlist cannot be read in full, the blocks it would have counted
+ * would pass for live, so the directory is marked as not classified.
+ */
+static void
+zdb_vds_count_dead(spa_t *spa, zdb_cb_t *zcb, zdb_vds_t *zvd)
+{
+	dsl_pool_t *dp = spa_get_dsl(spa);
+	zdb_vds_t *prev;
+	zdb_vdir_t *zvdr;
+	dsl_dataset_t *ds;
+
+	if (zvd->zvd_dl_used == 0 || zvd->zvd_is_origin ||
+	    (prev = zdb_vds_find(zcb, zvd->zvd_prev_obj)) == NULL ||
+	    prev->zvd_dir_obj != zvd->zvd_dir_obj || !prev->zvd_is_snapshot)
+		return;
+
+	zvd->zvd_branch_txg = zdb_vds_branch_txg(zcb, zvd);
+
+	/*
+	 * Skip it if nothing was born on the vdev in the snapshots it could
+	 * count: those taken after the branch txg, up to its previous one.
+	 */
+	zvdr = zvd->zvd_vdir;
+	uint64_t lo = zdb_vdir_first_snap(zvdr, zvd->zvd_branch_txg + 1);
+	uint64_t hi = prev->zvd_index + 1;
+	if (lo >= hi || zvdr->zvdr_born[hi] == zvdr->zvdr_born[lo])
+		return;
+
+	dsl_pool_config_enter(dp, FTAG);
+	if (dsl_dataset_hold_obj(dp, zvd->zvd_obj, FTAG, &ds) != 0) {
+		dsl_pool_config_exit(dp, FTAG);
+		zvdr->zvdr_unclassified = B_TRUE;
+		return;
+	}
+	dsl_pool_config_exit(dp, FTAG);
+
+	zdb_vdl_arg_t zvda = { .zvda_zcb = zcb, .zvda_vds = zvd };
+	dsl_deadlist_t *dl = &ds->ds_deadlist;
+	int err = 0;
+	zcb->zcb_vdl_datasets++;
+	if (dl->dl_oldfmt) {
+		zcb->zcb_vdl_entries++;
+		err = bpobj_iterate_nofree(&dl->dl_bpobj, zdb_vdl_count_cb,
+		    &zvda, NULL);
+	} else {
+		zap_cursor_t zc;
+		zap_attribute_t *za = zap_attribute_alloc();
+		int zerr;
+
+		/*
+		 * Each key of the ZAP names a bpobj, most of them empty
+		 * in a long chain of snapshots: skip those without
+		 * opening them, as dsl_deadlist_iterate() does not.
+		 */
+		for (zap_cursor_init(&zc, dl->dl_os, dl->dl_object);
+		    (zerr = zap_cursor_retrieve(&zc, za)) == 0;
+		    zap_cursor_advance(&zc)) {
+			bpobj_t bpo;
+
+			if (za->za_first_integer == dp->dp_empty_bpobj)
+				continue;
+			zcb->zcb_vdl_entries++;
+			if (bpobj_open(&bpo, dl->dl_os,
+			    za->za_first_integer) != 0) {
+				err = EIO;
+				continue;
+			}
+			if (bpobj_iterate_nofree(&bpo, zdb_vdl_count_cb,
+			    &zvda, NULL) != 0)
+				err = EIO;
+			bpobj_close(&bpo);
+		}
+		if (zerr != ENOENT)
+			err = zerr;
+		zap_cursor_fini(&zc);
+		zap_attribute_free(za);
+	}
+	if (err != 0)
+		zvdr->zvdr_unclassified = B_TRUE;
+	dsl_dataset_rele(ds, FTAG);
+}
+
+typedef struct zdb_vunflushed_arg {
+	uint64_t	zvua_target;
+	int64_t		zvua_delta;
+} zdb_vunflushed_arg_t;
+
+/*
+ * As count_unflushed_space_cb(), for the --vdev target only. Read-only
+ * zdb does not apply the log space maps to vs_alloc (see
+ * spa_ld_log_sm_data()), whatever -L says.
+ */
+static int
+zdb_vdev_unflushed_cb(spa_t *spa, space_map_entry_t *sme, uint64_t txg,
+    void *arg)
+{
+	zdb_vunflushed_arg_t *zvua = arg;
+
+	if (sme->sme_vdev != zvua->zvua_target)
+		return (0);
+
+	vdev_t *vd = vdev_lookup_top(spa, sme->sme_vdev);
+	uint64_t msi = sme->sme_offset >> vd->vdev_ms_shift;
+	if (msi >= vd->vdev_ms_count ||
+	    txg < metaslab_unflushed_txg(vd->vdev_ms[msi]))
+		return (0);
+
+	if (sme->sme_type == SM_ALLOC)
+		zvua->zvua_delta += sme->sme_run;
+	else
+		zvua->zvua_delta -= sme->sme_run;
+	return (0);
+}
+
+static void
+zdb_vdev_name(vdev_t *vd, char *buf, size_t len)
+{
+	const char *type = vd->vdev_ops->vdev_op_type;
+
+	if (vd->vdev_ops->vdev_op_leaf && vd->vdev_path != NULL) {
+		(void) snprintf(buf, len, "%s", vd->vdev_path);
+	} else if (vd->vdev_ops == &vdev_raidz_ops) {
+		(void) snprintf(buf, len, "%s%llu-%llu", type,
+		    (u_longlong_t)vdev_get_nparity(vd),
+		    (u_longlong_t)vd->vdev_id);
+	} else if (vd->vdev_ops == &vdev_draid_ops) {
+		vdev_draid_config_t *vdc = vd->vdev_tsd;
+		char width[32] = "";
+
+		/* As zpool_draid_name() in libzfs. */
+		if (vdc->vdc_children < vdc->vdc_width) {
+			(void) snprintf(width, sizeof (width), "%lluw:",
+			    (u_longlong_t)vdc->vdc_width);
+		}
+		(void) snprintf(buf, len, "%s%llu:%llud:%lluc:%s%llus-%llu",
+		    type, (u_longlong_t)vdc->vdc_nparity,
+		    (u_longlong_t)vdc->vdc_ndata,
+		    (u_longlong_t)vdc->vdc_children, width,
+		    (u_longlong_t)vdc->vdc_nspares,
+		    (u_longlong_t)vd->vdev_id);
+	} else {
+		(void) snprintf(buf, len, "%s-%llu", type,
+		    (u_longlong_t)vd->vdev_id);
+	}
+}
+
+static void
+zdb_vdev_print_row(uint64_t blocks, boolean_t show_blocks, int64_t asize)
+{
+	char bbuf[32];
+	char abuf[32];
+
+	if (show_blocks)
+		zdb_nicenum(blocks, bbuf, sizeof (bbuf));
+	else
+		(void) strlcpy(bbuf, blocks == 0 ? "" : "-", sizeof (bbuf));
+	if (asize < 0) {
+		abuf[0] = '-';
+		zdb_nicebytes(-asize, abuf + 1, sizeof (abuf) - 1);
+	} else {
+		zdb_nicebytes(asize, abuf, sizeof (abuf));
+	}
+	(void) printf("\t%12s %13s  ", bbuf, abuf);
+}
+
+static void
+zdb_vdev_print_stat(const zdb_vstat_t *zvs)
+{
+	zdb_vdev_print_row(zvs->zvs_blocks, B_TRUE, zvs->zvs_asize);
+}
+
+/* Snapshots first..last of a directory hold blocks that no other does */
+typedef struct zdb_vrange {
+	uint64_t	zvr_first;
+	uint64_t	zvr_last;
+	zdb_vstat_t	zvr_stat;
+} zdb_vrange_t;
+
+static int
+zdb_vrange_compare(const void *a, const void *b)
+{
+	const zdb_vrange_t *zvr1 = a;
+	const zdb_vrange_t *zvr2 = b;
+	int cmp = TREE_CMP(zvr1->zvr_first, zvr2->zvr_first);
+
+	if (cmp == 0)
+		cmp = TREE_CMP(zvr1->zvr_last, zvr2->zvr_last);
+	return (cmp);
+}
+
+/* Name the clones of the snapshots of a directory that have some */
+static void
+zdb_vdir_print_clones(const zdb_vdir_t *zvdr)
+{
+	const char *sep = "";
+
+	for (uint64_t s = 0; s < zvdr->zvdr_nsnaps; s++) {
+		zdb_vds_t *origin = zvdr->zvdr_snaps[s];
+		const char *csep = " (";
+
+		if (origin->zvd_num_children <= 1)
+			continue;
+		(void) printf("%s%s", sep, origin->zvd_name);
+		for (zdb_vds_t *zvd = origin->zvd_clones; zvd != NULL;
+		    zvd = zvd->zvd_next_clone) {
+			(void) printf("%s%.*s", csep,
+			    (int)zvd->zvd_dir_namelen, zvd->zvd_name);
+			csep = ", ";
+		}
+		if (*csep == ',')
+			(void) printf(")");
+		sep = ", ";
+	}
+}
+
+/*
+ * Print the rows of one directory and return the space they account for.
+ * With split, the blocks born in its snapshots are told apart through the
+ * deadlists: those that only a range of snapshots holds, and the others,
+ * which the head references, or which may be held through a clone.
+ */
+static uint64_t
+zdb_vdir_print(zdb_cb_t *zcb, zdb_vdir_t *zvdr, boolean_t split)
+{
+	int len = (int)zvdr->zvdr_namelen;
+	const char *name = zvdr->zvdr_name;
+	zdb_vds_t *head = zvdr->zvdr_head;
+	zdb_vstat_t born = { 0 };
+	zdb_vstat_t dead = { 0 };
+	boolean_t branched = B_FALSE;
+	uint64_t accounted = 0;
+
+	for (uint64_t s = 0; s < zvdr->zvdr_nsnaps; s++) {
+		zdb_vds_t *snap = zvdr->zvdr_snaps[s];
+
+		born.zvs_blocks += snap->zvd_born.zvs_blocks;
+		born.zvs_asize += snap->zvd_born.zvs_asize;
+		dead.zvs_blocks += snap->zvd_dead.zvs_blocks;
+		dead.zvs_asize += snap->zvd_dead.zvs_asize;
+		if (snap->zvd_num_children > 1)
+			branched = B_TRUE;
+	}
+	accounted += born.zvs_asize;
+
+	if (head != NULL) {
+		dead.zvs_blocks += head->zvd_dead.zvs_blocks;
+		dead.zvs_asize += head->zvd_dead.zvs_asize;
+		accounted += head->zvd_born.zvs_asize +
+		    head->zvd_zil.zvs_asize;
+		if (head->zvd_born.zvs_asize != 0) {
+			zdb_vdev_print_stat(&head->zvd_born);
+			(void) printf("%.*s: live, in no snapshot\n",
+			    len, name);
+		}
+	}
+
+	if (!split) {
+		if (born.zvs_asize != 0) {
+			zdb_vdev_print_stat(&born);
+			(void) printf("%.*s: born in snapshots (live and/or "
+			    "snapshot-only; use -bb to split)\n", len, name);
+		}
+	} else {
+		zdb_vstat_t held = { 0 };
+
+		if (dead.zvs_asize > born.zvs_asize ||
+		    dead.zvs_blocks > born.zvs_blocks) {
+			zvdr->zvdr_inconsistent = B_TRUE;
+		} else {
+			held.zvs_blocks = born.zvs_blocks - dead.zvs_blocks;
+			held.zvs_asize = born.zvs_asize - dead.zvs_asize;
+		}
+		if (held.zvs_asize != 0) {
+			zdb_vdev_print_stat(&held);
+			if (zvdr->zvdr_unclassified) {
+				(void) printf("%.*s: born in snapshots, not "
+				    "classified (deadlist unreadable)\n", len,
+				    name);
+			} else if (branched) {
+				(void) printf("%.*s: live or held through "
+				    "clones of ", len, name);
+				zdb_vdir_print_clones(zvdr);
+				(void) printf("\n");
+			} else {
+				(void) printf("%.*s: live, also in "
+				    "snapshots\n", len, name);
+			}
+		}
+
+		/*
+		 * The blocks that a dataset killed were born no earlier than
+		 * the first snapshot taken after the oldest of them, and are
+		 * held up to its previous snapshot. Ranges that overlap or
+		 * touch are merged, so that each row is the space that only
+		 * that range of snapshots holds.
+		 */
+		zdb_vrange_t *ranges = kmem_zalloc((zvdr->zvdr_nsnaps + 1) *
+		    sizeof (zdb_vrange_t), KM_SLEEP);
+		uint64_t nranges = 0;
+		for (uint64_t s = 0; s <= zvdr->zvdr_nsnaps; s++) {
+			zdb_vds_t *zvd = (s < zvdr->zvdr_nsnaps) ?
+			    zvdr->zvdr_snaps[s] : head;
+			zdb_vds_t *prev;
+
+			if (zvd == NULL || zvd->zvd_dead.zvs_asize == 0 ||
+			    (prev = zdb_vds_find(zcb, zvd->zvd_prev_obj)) ==
+			    NULL || prev->zvd_vdir != zvdr)
+				continue;
+			zdb_vrange_t *zvr = &ranges[nranges++];
+			zvr->zvr_last = prev->zvd_index;
+			zvr->zvr_first = MIN(zvr->zvr_last,
+			    zdb_vdir_first_snap(zvdr, zvd->zvd_dead_minbirth));
+			zvr->zvr_stat = zvd->zvd_dead;
+		}
+		qsort(ranges, nranges, sizeof (zdb_vrange_t),
+		    zdb_vrange_compare);
+		for (uint64_t r = 0; r < nranges; ) {
+			zdb_vrange_t merged = ranges[r++];
+
+			while (r < nranges &&
+			    ranges[r].zvr_first <= merged.zvr_last + 1) {
+				merged.zvr_last = MAX(merged.zvr_last,
+				    ranges[r].zvr_last);
+				merged.zvr_stat.zvs_blocks +=
+				    ranges[r].zvr_stat.zvs_blocks;
+				merged.zvr_stat.zvs_asize +=
+				    ranges[r].zvr_stat.zvs_asize;
+				r++;
+			}
+			zdb_vds_t *first = zvdr->zvdr_snaps[merged.zvr_first];
+			zdb_vds_t *last = zvdr->zvdr_snaps[merged.zvr_last];
+			zdb_vdev_print_stat(&merged.zvr_stat);
+			(void) printf("%.*s: only in snapshots %s", len, name,
+			    first->zvd_name);
+			if (last != first) {
+				(void) printf("%%%s", last->zvd_name +
+				    last->zvd_dir_namelen + 1);
+			}
+			(void) printf("\n");
+		}
+		kmem_free(ranges, (zvdr->zvdr_nsnaps + 1) *
+		    sizeof (zdb_vrange_t));
+	}
+
+	if (head != NULL && head->zvd_zil.zvs_asize != 0) {
+		zdb_vdev_print_stat(&head->zvd_zil);
+		(void) printf("%.*s: intent log\n", len, name);
+	}
+
+	return (accounted);
+}
+
+static const char *const zdb_vcat_label[ZVC_DATASET] = {
+	[ZVC_MOS] = "pool metadata (MOS)",
+	[ZVC_DDT_UNIQUE] = "dedup (DDT), 1 reference",
+	[ZVC_DDT_SHARED] = "dedup (DDT), 2 or more references",
+	[ZVC_BRT] = "block cloning (BRT)",
+	[ZVC_DEFERRED] = "pending free: deferred",
+	[ZVC_FREEING] = "pending free: freeing",
+	[ZVC_ASYNC_DESTROY] = "pending free: async destroy",
+	[ZVC_LIVELIST] = "pending free: destroyed clones",
+	[ZVC_DDT_LOG] = "pending free: DDT log",
+	[ZVC_GANG_UNREAD] = "gang members, header unreadable",
+	[ZVC_DS_UNOPENED] = "datasets that could not be opened",
+};
+
+/*
+ * Print what holds the space allocated on the --vdev target, and check
+ * the sum against the vdev's space maps. A difference is reported, and
+ * does not change the exit status.
+ */
+static void
+zdb_vdev_report(spa_t *spa, zdb_cb_t *zcb)
+{
+	vdev_t *vd = spa->spa_root_vdev->vdev_child[block_vdev];
+	boolean_t split = (dump_opt['b'] >= 2);
+	uint64_t accounted = 0;
+	char name[MAXNAMELEN];
+	const char *class;
+
+	zdb_vdev_name(vd, name, sizeof (name));
+	if (vd->vdev_islog || vd->vdev_alloc_bias == VDEV_BIAS_LOG)
+		class = "log";
+	else if (vd->vdev_alloc_bias == VDEV_BIAS_SPECIAL)
+		class = "special";
+	else if (vd->vdev_alloc_bias == VDEV_BIAS_DEDUP)
+		class = "dedup";
+	else
+		class = "normal";
+	(void) printf("\nBlocks on vdev %llu (%s, %s class%s):\n\n",
+	    (u_longlong_t)vd->vdev_id, name, class,
+	    vd->vdev_noalloc ? ", allocating=off" : "");
+	(void) printf("\t%12s %13s  %s\n", "blocks", "ASIZE", "held by");
+
+	for (zdb_vcat_t c = 0; c < ZVC_DATASET; c++) {
+		zdb_vdev_print_stat(&zcb->zcb_vstat[c]);
+		(void) printf("%s\n", zdb_vcat_label[c]);
+		/* Its vdev is unknown, so it is not counted below. */
+		if (c != ZVC_GANG_UNREAD)
+			accounted += zcb->zcb_vstat[c].zvs_asize;
+	}
+
+	uint64_t checkpoint = vd->vdev_stat.vs_checkpoint_space;
+	zdb_vdev_print_row(1, B_FALSE, checkpoint);
+	(void) printf("checkpoint\n");
+	accounted += checkpoint;
+
+	if (zcb->zcb_vdirs == NULL)
+		zdb_vdirs_init(zcb);
+	for (uint64_t d = 0; d < zcb->zcb_nvdirs; d++)
+		accounted += zdb_vdir_print(zcb, &zcb->zcb_vdirs[d], split);
+
+	zdb_vunflushed_arg_t zvua = {
+		.zvua_target = block_vdev,
+		.zvua_delta = 0
+	};
+	iterate_through_spacemap_logs(spa, zdb_vdev_unflushed_cb, &zvua);
+	int64_t allocated = (int64_t)vd->vdev_stat.vs_alloc +
+	    zvua.zvua_delta;
+
+	zdb_vdev_print_row(0, B_FALSE, accounted);
+	(void) printf("accounted for\n");
+	zdb_vdev_print_row(0, B_FALSE, allocated);
+	(void) printf("allocated (space maps)\n");
+	zdb_vdev_print_row(0, B_FALSE, allocated - (int64_t)accounted);
+	(void) printf("not accounted for\n");
+
+	/* ub_checkpoint_txg is set only in the checkpointed uberblock. */
+	if (spa_has_checkpoint(spa)) {
+		(void) printf("\n\tnote: a checkpoint exists; space freed "
+		    "since it was taken stays\n\t      allocated until "
+		    "\"zpool checkpoint -d\"\n");
+	}
+	for (uint64_t d = 0; d < zcb->zcb_nvdirs; d++) {
+		zdb_vdir_t *zvdr = &zcb->zcb_vdirs[d];
+		zdb_vds_t *head = zvdr->zvdr_head;
+
+		if (head != NULL && head->zvd_zil_skipped) {
+			(void) printf("\n\tnote: intent log of %.*s not "
+			    "walked\n\t      from its first block born at or "
+			    "after txg %llu\n",
+			    (int)zvdr->zvdr_namelen, zvdr->zvdr_name,
+			    (u_longlong_t)spa_min_claim_txg(spa));
+		}
+		if (zvdr->zvdr_inconsistent) {
+			(void) printf("\n\tnote: inconsistent: %.*s dead > "
+			    "born\n", (int)zvdr->zvdr_namelen,
+			    zvdr->zvdr_name);
+		}
+		if (zvdr->zvdr_unclassified) {
+			(void) printf("\n\tnote: a deadlist of %.*s could not "
+			    "be read in full; the\n\t      snapshot-only rows "
+			    "of %.*s may be short\n",
+			    (int)zvdr->zvdr_namelen, zvdr->zvdr_name,
+			    (int)zvdr->zvdr_namelen, zvdr->zvdr_name);
+		}
+	}
+	if (!zdb_pool_exported) {
+		(void) printf("\n\tnote: the pool may be in use; these rows "
+		    "describe its last synced state\n");
+	}
+	if (spa->spa_vdev_removal != NULL) {
+		(void) printf("\n\tnote: a device removal is in progress; "
+		    "the copies it made are not attributed\n");
+	}
+	if (zcb->zcb_vrefcnt_errors != 0) {
+		(void) printf("\n\tnote: %llu inconsistent DDT/BRT "
+		    "refcounts\n", (u_longlong_t)zcb->zcb_vrefcnt_errors);
+	}
+	if (zcb->zcb_vds_unopened != 0) {
+		(void) printf("\n\tnote: %llu datasets could not be opened; "
+		    "their blocks may not be\n\t      accounted for\n",
+		    (u_longlong_t)zcb->zcb_vds_unopened);
+	}
+	if (zcb->zcb_vremap_errors != 0) {
+		(void) printf("\n\tnote: %llu copies on removed vdevs not "
+		    "counted: the indirect\n\t      mapping does not cover "
+		    "them\n", (u_longlong_t)zcb->zcb_vremap_errors);
+	}
+	if (dump_opt['b'] >= 3) {
+		(void) printf("\n\tnote: %llu gang headers read, %llu "
+		    "unreadable\n", (u_longlong_t)zcb->zcb_vgang_reads,
+		    (u_longlong_t)zcb->zcb_vgang_errors);
+		(void) printf("\n\tnote: deadlist pass read %llu entries in "
+		    "%llu datasets\n", (u_longlong_t)zcb->zcb_vdl_entries,
+		    (u_longlong_t)zcb->zcb_vdl_datasets);
+	}
+}
+
+static int
 dump_block_stats(spa_t *spa)
 {
 	zdb_cb_t *zcb;
@@ -7986,29 +9272,37 @@ dump_block_stats(spa_t *spa)
 	 * pool claiming each block we discover, but we skip opening any space
 	 * maps.
 	 */
+	if (block_vdev != UINT64_MAX)
+		zdb_vds_init(spa, zcb);
+
 	zdb_leak_init(spa, zcb);
 
 	/*
 	 * If there's a deferred-free bplist, process that first.
 	 */
+	zcb->zcb_vcat = ZVC_DEFERRED;
 	(void) bpobj_iterate_nofree(&spa->spa_deferred_bpobj,
 	    bpobj_count_block_cb, zcb, NULL);
 
+	zcb->zcb_vcat = ZVC_FREEING;
 	if (spa_version(spa) >= SPA_VERSION_DEADLISTS) {
 		(void) bpobj_iterate_nofree(&spa->spa_dsl_pool->dp_free_bpobj,
 		    bpobj_count_block_cb, zcb, NULL);
 	}
 
+	zcb->zcb_vcat = ZVC_DDT_LOG;
 	zdb_count_ddt_log_frees(spa, zcb);
 
 	zdb_claim_removing(spa, zcb);
 
+	zcb->zcb_vcat = ZVC_ASYNC_DESTROY;
 	if (spa_feature_is_active(spa, SPA_FEATURE_ASYNC_DESTROY)) {
 		VERIFY3U(0, ==, bptree_iterate(spa->spa_meta_objset,
 		    spa->spa_dsl_pool->dp_bptree_obj, B_FALSE, count_block_cb,
 		    zcb, NULL));
 	}
 
+	zcb->zcb_vcat = ZVC_LIVELIST;
 	deleted_livelists_count_blocks(spa, zcb);
 
 	if (dump_opt['c'] > 1)
@@ -8056,6 +9350,14 @@ dump_block_stats(spa_t *spa)
 		}
 	}
 
+	/* Before zdb_leak_fini(), which discards the BRT entries seen. */
+	if (block_vdev != UINT64_MAX && dump_opt['b'] >= 2) {
+		zdb_vdirs_init(zcb);
+		for (zdb_vds_t *zvd = avl_first(&zcb->zcb_vds_tree);
+		    zvd != NULL; zvd = AVL_NEXT(&zcb->zcb_vds_tree, zvd))
+			zdb_vds_count_dead(spa, zcb, zvd);
+	}
+
 	/*
 	 * Report any leaked segments.
 	 */
@@ -8090,6 +9392,8 @@ dump_block_stats(spa_t *spa)
 	}
 
 	if (tzb->zb_count == 0) {
+		if (block_vdev != UINT64_MAX)
+			zdb_vds_fini(zcb);
 		kmem_free(zcb, sizeof (zdb_cb_t));
 		return (2);
 	}
@@ -8207,6 +9511,11 @@ dump_block_stats(spa_t *spa)
 		    "(%s in memory)\n",
 		    (longlong_t)vd->vdev_id,
 		    (longlong_t)vdev_indirect_mapping_num_entries(vim), mem);
+	}
+
+	if (block_vdev != UINT64_MAX) {
+		zdb_vdev_report(spa, zcb);
+		zdb_vds_fini(zcb);
 	}
 
 	if (dump_opt['b'] >= 2) {
@@ -9649,6 +10958,126 @@ name:
 	return (NULL);
 }
 
+/*
+ * Find the top-level vdevs whose leaves have exactly this path, base name
+ * or name in zpool status. Stops at the first ambiguity.
+ */
+static vdev_t *
+zdb_vdev_leaf_top(vdev_t *vd, const char *name, boolean_t *ambiguous)
+{
+	vdev_t *found = NULL;
+
+	if (vd->vdev_ops->vdev_op_leaf) {
+		const char *p, *s;
+		boolean_t match;
+
+		if (vd->vdev_path == NULL)
+			return (NULL);
+		p = strrchr(vd->vdev_path, '/');
+		p = (p != NULL) ? p + 1 : vd->vdev_path;
+		s = zfs_strip_path(vd->vdev_path);
+		match = strcmp(vd->vdev_path, name) == 0 ||
+		    strcmp(p, name) == 0 || strcmp(s, name) == 0;
+		/* zpool status names a whole disk without its partition. */
+		if (!match && vd->vdev_wholedisk == 1) {
+			char *disk = zfs_strip_partition(s);
+
+			match = disk != NULL && strcmp(disk, name) == 0;
+			free(disk);
+		}
+		return (match ? vd->vdev_top : NULL);
+	}
+
+	for (uint64_t c = 0; c < vd->vdev_children; c++) {
+		vdev_t *tvd = zdb_vdev_leaf_top(vd->vdev_child[c], name,
+		    ambiguous);
+
+		if (tvd == NULL)
+			continue;
+		if (found != NULL && found != tvd)
+			*ambiguous = B_TRUE;
+		found = tvd;
+	}
+	return (found);
+}
+
+/*
+ * Resolve the --vdev argument to a concrete top-level vdev. It may be a
+ * top-level index, a vdev GUID, the name that zpool status shows for it
+ * (mirror-1, raidz1-0, draid2:4d:8c:1s-0), or the path, base name or
+ * zpool status name of a leaf. All the forms that match must name the same
+ * top-level vdev.
+ */
+static uint64_t
+zdb_block_vdev_resolve(spa_t *spa, const char *arg)
+{
+	vdev_t *rvd = spa->spa_root_vdev;
+	vdev_t *tvd = NULL;
+	boolean_t ambiguous = B_FALSE;
+	char *end;
+
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+
+	/* A top-level index, or else a GUID. */
+	if (isdigit((unsigned char)arg[0])) {
+		uint64_t n;
+
+		errno = 0;
+		n = strtoull(arg, &end, 10);
+		if (errno == 0 && *end == '\0') {
+			if (n < rvd->vdev_children) {
+				tvd = rvd->vdev_child[n];
+			} else {
+				vdev_t *vd = vdev_lookup_by_guid(rvd, n);
+
+				if (vd != NULL && vd != rvd)
+					tvd = vd->vdev_top;
+			}
+		}
+	}
+
+	/* The whole name that zpool status gives an interior vdev. */
+	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *vd = rvd->vdev_child[c];
+		char name[MAXNAMELEN];
+
+		if (vd->vdev_ops->vdev_op_leaf)
+			continue;
+		zdb_vdev_name(vd, name, sizeof (name));
+		if (strcmp(arg, name) == 0) {
+			if (tvd != NULL && tvd != vd)
+				ambiguous = B_TRUE;
+			tvd = vd;
+		}
+	}
+
+	/* The exact path, base name or zpool status name of a leaf. */
+	vdev_t *leaf_tvd = zdb_vdev_leaf_top(rvd, arg, &ambiguous);
+	if (leaf_tvd != NULL) {
+		if (tvd != NULL && tvd != leaf_tvd)
+			ambiguous = B_TRUE;
+		tvd = leaf_tvd;
+	}
+
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+
+	if (ambiguous)
+		fatal("--vdev=%s matches more than one vdev", arg);
+	if (tvd == NULL)
+		fatal("--vdev=%s: no such vdev", arg);
+	if (tvd->vdev_ops == &vdev_indirect_ops) {
+		fatal("--vdev=%s: vdev %llu was removed; its blocks now live "
+		    "on other vdevs", arg, (u_longlong_t)tvd->vdev_id);
+	}
+	if (!vdev_is_concrete(tvd)) {
+		fatal("--vdev=%s: vdev %llu is a %s vdev, which holds no "
+		    "blocks", arg, (u_longlong_t)tvd->vdev_id,
+		    tvd->vdev_ops->vdev_op_type);
+	}
+
+	return (tvd->vdev_id);
+}
+
 static int
 name_from_objset_id(spa_t *spa, uint64_t objset_id, char *outstr)
 {
@@ -10275,6 +11704,8 @@ main(int argc, char **argv)
 		    ARG_BLOCK_BIN_MODE},
 		{"class",		required_argument,	NULL,
 		    ARG_BLOCK_CLASSES},
+		{"vdev",		required_argument,	NULL,
+		    ARG_BLOCK_VDEV},
 		{0, 0, 0, 0}
 	};
 
@@ -10443,6 +11874,14 @@ main(int argc, char **argv)
 			free(buf);
 			break;
 		}
+		case ARG_BLOCK_VDEV:
+			if (optarg[0] == '\0') {
+				(void) fprintf(stderr,
+				    "--vdev= must name a vdev\n");
+				usage();
+			}
+			block_vdev_arg = optarg;
+			break;
 		default:
 			usage();
 			break;
@@ -10516,8 +11955,26 @@ main(int argc, char **argv)
 			dump_opt[c] += verbose;
 	}
 
+	if (block_vdev_arg != NULL && !dump_opt['b'] && !dump_opt['c']) {
+		(void) fprintf(stderr, "--vdev requires -b or -c\n");
+		usage();
+	}
+	/* These never reach the block statistics. */
+	if (block_vdev_arg != NULL && (dump_opt['B'] || dump_opt['E'] ||
+	    dump_opt['l'] || dump_opt['O'] || dump_opt['r'] ||
+	    dump_opt['R'] || dump_opt['S'])) {
+		(void) fprintf(stderr, "--vdev cannot be used with -B, -E, -l, "
+		    "-O, -r, -R or -S\n");
+		usage();
+	}
+
 	argc -= optind;
 	argv += optind;
+	if (block_vdev_arg != NULL &&
+	    (argc < 1 || strpbrk(argv[0], "/@#") != NULL)) {
+		(void) fprintf(stderr, "--vdev needs a pool name\n");
+		usage();
+	}
 	if (argc < 2 && dump_opt['R'])
 		usage();
 
@@ -10679,6 +12136,11 @@ main(int argc, char **argv)
 		error = zpool_find_config(&lpch, target_pool, &cfg, &args);
 
 		if (error == 0) {
+			uint64_t state;
+
+			if (nvlist_lookup_uint64(cfg, ZPOOL_CONFIG_POOL_STATE,
+			    &state) == 0 && state == POOL_STATE_EXPORTED)
+				zdb_pool_exported = B_TRUE;
 
 			if (nvlist_add_nvlist(cfg,
 			    ZPOOL_LOAD_POLICY, policy) != 0) {
@@ -10879,6 +12341,12 @@ retry_lookup:
 
 	argv++;
 	argc--;
+	if (block_vdev_arg != NULL) {
+		/* Otherwise the block statistics would not be reached. */
+		if (argc > 0 && (dump_opt['d'] || dump_opt['f']))
+			fatal("--vdev cannot be used with object arguments");
+		block_vdev = zdb_block_vdev_resolve(spa, block_vdev_arg);
+	}
 	if (dump_opt['r']) {
 		error = zdb_copy_object(os, object, argv[1]);
 	} else if (!dump_opt['R']) {
