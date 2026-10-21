@@ -124,6 +124,8 @@ uint64_t metaslab_class_get_dspace(metaslab_class_t *);
 uint64_t metaslab_class_get_deferred(metaslab_class_t *);
 
 void metaslab_space_update(metaslab_group_t *, int64_t, int64_t, int64_t);
+void metaslab_group_dspace_update(metaslab_group_t *, int64_t, int64_t);
+void metaslab_group_rebase_dspace(metaslab_group_t *, uint64_t, uint64_t);
 
 metaslab_group_t *metaslab_group_create(metaslab_class_t *, vdev_t *);
 void metaslab_group_destroy(metaslab_group_t *);

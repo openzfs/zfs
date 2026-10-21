@@ -946,7 +946,8 @@ tests = ['raidz_001_neg', 'raidz_002_pos', 'raidz_dedup_overrun',
     'raidz_expand_010_pos', 'raidz_expand_011_pos', 'raidz_expand_012_pos',
     'raidz_expand_013_pos', 'raidz_expand_014_pos', 'raidz_expand_015_pos',
     'raidz_expand_016_pos', 'raidz_expand_017_pos', 'raidz_expand_018_pos',
-    'raidz_expand_019_pos', 'raidz_expand_rewrite',
+    'raidz_expand_019_pos', 'raidz_expand_020_pos',
+    'raidz_expand_rewrite',
     'raidz_zinject']
 tags = ['functional', 'raidz']
 timeout = 1200

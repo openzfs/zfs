@@ -2091,76 +2091,6 @@ void
 spa_update_dspace(spa_t *spa)
 {
 	spa->spa_rdspace = metaslab_class_get_dspace(spa_normal_class(spa));
-
-	/*
-	 * For expanded RAIDZ vdevs, the metaslab class dspace was computed
-	 * using the original (txg 0) deflation ratio, which understates the
-	 * usable capacity.  Apply a correction using the current geometry
-	 * ratio, but only for the FREE portion of the vdev.
-	 *
-	 * The allocated portion stays at the old ratio, plus
-	 * vdev_acct_excess: dd_used_bytes (tracked per-block via
-	 * bp_get_dsize_sync) charges blocks born before the expansion
-	 * accounting boundary at the old ratio and later blocks at their
-	 * birth ratio, and vdev_acct_excess is what the latter add beyond
-	 * the old ratio.  This keeps spa_rdspace - dd_used_bytes = true
-	 * available.
-	 *
-	 * As old blocks are rewritten with the new geometry, vs_alloc
-	 * shrinks (less physical space per block) and the correction
-	 * automatically grows, converging to the full correction after
-	 * a complete rewrite.
-	 *
-	 * Only correct vdevs in the normal class, matching spa_rdspace's
-	 * derivation from spa_normal_class().  RAIDZ vdevs in the special
-	 * or dedup class contribute only allocated (not free) space to
-	 * spa_dspace via metaslab_class_get_dalloc(), so they do not need
-	 * a free-space correction.
-	 *
-	 * Skip non-allocating vdevs.  Their whole deflated space, at the
-	 * original ratio, is subtracted below via spa_nonallocating_dspace.
-	 * Correcting their free space would credit space that new blocks
-	 * cannot be allocated from.
-	 */
-	uint64_t alloc_class_excess = 0;
-	if (spa_deflate(spa)) {
-		metaslab_class_t *mc = spa_normal_class(spa);
-		vdev_t *rvd = spa->spa_root_vdev;
-		for (uint64_t c = 0; c < rvd->vdev_children; c++) {
-			vdev_t *vd = rvd->vdev_child[c];
-			if (vd->vdev_mg != NULL &&
-			    (vd->vdev_mg->mg_class == spa_special_class(spa) ||
-			    vd->vdev_mg->mg_class == spa_dedup_class(spa))) {
-				/*
-				 * Their allocated space enters spa_dspace
-				 * at the old ratio (via dalloc below), but
-				 * blocks on them are charged at their birth
-				 * ratio.
-				 */
-				alloc_class_excess += vd->vdev_acct_excess;
-				continue;
-			}
-			if (vd->vdev_mg == NULL ||
-			    vd->vdev_mg->mg_class != mc || vd->vdev_noalloc)
-				continue;
-			if (vd->vdev_deflate_ratio_current != 0 &&
-			    vd->vdev_deflate_ratio_current !=
-			    vd->vdev_deflate_ratio) {
-				uint64_t space = vd->vdev_stat.vs_space;
-				uint64_t aspace = vd->vdev_stat.vs_alloc;
-				uint64_t fspace = space - aspace;
-				int64_t old_fs = (fspace >>
-				    SPA_MINBLOCKSHIFT) *
-				    vd->vdev_deflate_ratio;
-				int64_t new_fs = (fspace >>
-				    SPA_MINBLOCKSHIFT) *
-				    vd->vdev_deflate_ratio_current;
-				spa->spa_rdspace += (new_fs - old_fs) +
-				    vd->vdev_acct_excess;
-			}
-		}
-	}
-
 	if (spa->spa_nonallocating_dspace > 0) {
 		/*
 		 * Subtract the space provided by all non-allocating vdevs that
@@ -2186,7 +2116,6 @@ spa_update_dspace(spa_t *spa)
 	spa->spa_dspace = spa->spa_rdspace +
 	    metaslab_class_get_dalloc(spa_special_class(spa)) +
 	    metaslab_class_get_dalloc(spa_dedup_class(spa)) +
-	    alloc_class_excess +
 	    ddt_get_dedup_dspace(spa) +
 	    brt_get_dspace(spa);
 }
