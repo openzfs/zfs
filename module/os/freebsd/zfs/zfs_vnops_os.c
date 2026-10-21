@@ -1240,8 +1240,6 @@ zfs_remove_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 		goto out;
 	}
 
-	vnevent_remove(vp, dvp, name, ct);
-
 	obj = zp->z_id;
 
 	/* are there any extended attributes? */
@@ -1597,8 +1595,6 @@ zfs_rmdir_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 		error = SET_ERROR(ENOTDIR);
 		goto out;
 	}
-
-	vnevent_rmdir(vp, dvp, name, ct);
 
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_zap(tx, dzp->z_id, FALSE, name);
@@ -3461,18 +3457,6 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 	if (tdvp != *tvpp)
 		vn_seqc_write_begin(tdvp);
 
-	vnevent_rename_src(*svpp, sdvp, scnp->cn_nameptr, ct);
-	if (tzp)
-		vnevent_rename_dest(*tvpp, tdvp, tnm, ct);
-
-	/*
-	 * notify the target directory if it is not the same
-	 * as source directory.
-	 */
-	if (tdvp != sdvp) {
-		vnevent_rename_dest_dir(tdvp, ct);
-	}
-
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_sa(tx, szp->z_sa_hdl, ZFS_SEQ_MAY_GROW(szp));
 	dmu_tx_hold_sa(tx, sdzp->z_sa_hdl, ZFS_SEQ_MAY_GROW(sdzp));
@@ -3927,10 +3911,6 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 	}
 
 	dmu_tx_commit(tx);
-
-	if (error == 0) {
-		vnevent_link(ZTOV(szp), ct);
-	}
 
 	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		error = zil_commit(zilog, 0);

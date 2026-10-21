@@ -73,9 +73,6 @@ typedef	struct vop_vector	vnodeops_t;
 #define	vop_fid_args	vop_vptofh_args
 #define	a_fid		a_fhp
 
-#define	vn_vfswlock(vp)		(0)
-#define	vn_vfsunlock(vp)	do { } while (0)
-
 #ifndef IN_BASE
 #define	vn_has_cached_data(vp)	\
 	((vp)->v_object != NULL && \
@@ -94,14 +91,6 @@ vn_flush_cached_data(vnode_t *vp, boolean_t sync)
 #endif
 
 #define	vn_matchops(vp, vops)	((vp)->v_op == &(vops))
-
-#define	vnevent_create(vp, ct)			do { } while (0)
-#define	vnevent_link(vp, ct)			do { } while (0)
-#define	vnevent_remove(vp, dvp, name, ct)	do { } while (0)
-#define	vnevent_rmdir(vp, dvp, name, ct)	do { } while (0)
-#define	vnevent_rename_src(vp, dvp, name, ct)	do { } while (0)
-#define	vnevent_rename_dest(vp, dvp, name, ct)	do { } while (0)
-#define	vnevent_rename_dest_dir(vp, ct)		do { } while (0)
 
 /*
  * We will use va_spare is place of Solaris' va_mask.
