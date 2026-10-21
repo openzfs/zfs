@@ -20,6 +20,7 @@
 #ifndef	_SYS_ATOMIC_H
 #define	_SYS_ATOMIC_H
 
+#include <assert.h>	/* for __has_feature */
 #include <sys/types.h>
 
 #ifdef	__cplusplus
@@ -415,6 +416,26 @@ atomic_clear_long_excl(volatile ulong_t *target, uint_t value)
 }
 
 /*
+ * ThreadSanitizer doesn't currently support fences:
+ *   https://github.com/google/sanitizers/issues/1352
+ *   https://github.com/llvm/llvm-project/pull/142579
+ *
+ * GCC >= 11 will throw a warning [-Wtsan] when emitting a fence from
+ * __atomic_thread_fence() with fsanitize=thread, making it difficult to work
+ * with TSan. So we silence it.
+ *
+ * Note that the fences are still emitted, just TSan doesn't know about them.
+ * This may result in false positive reports, but we can work out how to deal
+ * with those in the future.
+ */
+#if (defined(__SANITIZE_THREAD__) || __has_feature(thread_sanitizer)) && \
+	defined(__GNUC__) && __GNUC__ >= 11 && !defined(__clang__)
+#define	HAVE_GCC_TSAN 1
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wtsan"
+#endif
+
+/*
  * Make all stores and loads emitted prior to the the barrier complete before
  * crossing it, while also making sure stores and loads emitted after the
  * barrier only start being executed after crossing it.
@@ -450,6 +471,11 @@ membar_consumer(void)
 {
 	__atomic_thread_fence(__ATOMIC_ACQUIRE);
 }
+
+#if defined(HAVE_GCC_TSAN)
+#pragma GCC diagnostic pop
+#undef	HAVE_GCC_TSAN
+#endif
 
 #undef	_SPL_ATOMIC_CAST
 #undef	_SPL_ATOMIC_CAST_void
