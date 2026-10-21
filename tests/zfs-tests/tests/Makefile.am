@@ -1447,6 +1447,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_trim/zpool_trim_partial.ksh \
 	functional/cli_root/zpool_trim/zpool_trim_rate.ksh \
 	functional/cli_root/zpool_trim/zpool_trim_rate_neg.ksh \
+	functional/cli_root/zpool_trim/zpool_trim_rate_stop_wait.ksh \
+	functional/cli_root/zpool_trim/zpool_trim_rate_stop_rebuild.ksh \
 	functional/cli_root/zpool_trim/zpool_trim_secure.ksh \
 	functional/cli_root/zpool_trim/zpool_trim_split.ksh \
 	functional/cli_root/zpool_trim/zpool_trim_start_and_cancel_neg.ksh \
