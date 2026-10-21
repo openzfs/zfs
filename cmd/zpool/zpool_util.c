@@ -56,6 +56,22 @@ safe_realloc(void *from, size_t size)
 }
 
 /*
+ * Utility function to guarantee strdup() success.
+ */
+char *
+safe_strdup(const char *src)
+{
+	char *new_str = strdup(src);
+
+	if (new_str == NULL) {
+		(void) fprintf(stderr, "internal error: out of memory\n");
+		exit(1);
+	}
+
+	return (new_str);
+}
+
+/*
  * Display an out of memory error message and abort the current program.
  */
 void

@@ -66,6 +66,7 @@ typedef struct importargs {
 	int paths;		/* number of paths to search		*/
 	const char *poolname;	/* name of a pool to find		*/
 	uint64_t guid;		/* guid of a pool to find		*/
+	nvlist_t *pool_list;	/* list of names/guids to import	*/
 	const char *cachefile;	/* cachefile to use for import		*/
 	boolean_t can_be_active; /* can the pool be active?		*/
 	boolean_t scan;		/* prefer scanning to libblkid cache    */
