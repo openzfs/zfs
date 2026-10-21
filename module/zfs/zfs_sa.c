@@ -59,6 +59,7 @@ const sa_attr_reg_t zfs_attr_table[ZPL_END+1] = {
 	{"ZPL_DXATTR", 0, SA_UINT8_ARRAY, 0},
 	{"ZPL_PROJID", sizeof (uint64_t), SA_UINT64_ARRAY, 0},
 	{"ZPL_SEQ", sizeof (uint64_t), SA_UINT64_ARRAY, 0},
+	{"ZPL_PARENT_COOKIE", sizeof (uint64_t), SA_UINT64_ARRAY, 0},
 	{NULL, 0, 0, 0}
 };
 
@@ -449,6 +450,19 @@ zfs_sa_upgrade_txholds(dmu_tx_t *tx, znode_t *zp)
 	}
 }
 
+/*
+ * True if zp is an SA znode without SA_ZPL_PARENT_COOKIE, so that
+ * zfs_link_create() adding it grows the SA layout (ZFS_LINK_MAY_GROW()).
+ */
+boolean_t
+zfs_parent_cookie_absent(znode_t *zp)
+{
+	int size;
+
+	return (zp->z_is_sa && sa_size(zp->z_sa_hdl,
+	    SA_ZPL_PARENT_COOKIE(ZTOZSB(zp)), &size) != 0);
+}
+
 ZFS_MODULE_PARAM(zfs, zfs_, zil_saxattr, INT, ZMOD_RW,
 	"Disable xattr=sa extended attribute logging in ZIL by settng 0.");
 
@@ -461,5 +475,6 @@ EXPORT_SYMBOL(zfs_sa_get_xattr);
 EXPORT_SYMBOL(zfs_sa_set_xattr);
 EXPORT_SYMBOL(zfs_sa_upgrade);
 EXPORT_SYMBOL(zfs_sa_upgrade_txholds);
+EXPORT_SYMBOL(zfs_parent_cookie_absent);
 
 #endif

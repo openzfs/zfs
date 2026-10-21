@@ -799,9 +799,10 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	uint64_t value;
 	int zp_is_dir = S_ISDIR(ZTOI(zp)->i_mode);
-	sa_bulk_attr_t bulk[6];
+	boolean_t was_sa;
+	sa_bulk_attr_t bulk[7];
 	uint64_t mtime[2], ctime[2];
-	uint64_t links;
+	uint64_t links, cookie;
 	int count = 0;
 	int error;
 
@@ -826,8 +827,8 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 	}
 
 	value = zfs_dirent(zp, zp->z_mode);
-	error = zap_add(ZTOZSB(zp)->z_os, dzp->z_id, dl->dl_name, 8, 1,
-	    &value, tx);
+	error = zap_add_cookie(ZTOZSB(zp)->z_os, dzp->z_id, dl->dl_name, 8, 1,
+	    &value, &cookie, tx);
 
 	/*
 	 * zap_add could fail to add the entry if it exceeds the capacity of the
@@ -863,9 +864,27 @@ zfs_link_create(zfs_dirlock_t *dl, znode_t *zp, dmu_tx_t *tx, int flag)
 		    ctime);
 		ZFS_PERSIST_SEQ(zp, bulk, count);
 	}
+	/* Before the update, which may upgrade zp to SA (zfs_sa_upgrade()) */
+	was_sa = zp->z_is_sa;
 	ASSERT3S(count, <=, ARRAY_SIZE(bulk));
 	error = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
 	ASSERT0(error);
+
+	/*
+	 * The cookie is a hint, so it gets an update of its own: failing to
+	 * record it must not keep the attributes above from being updated,
+	 * and leaves only a stale or missing cookie, which costs a directory
+	 * search on use.  If zp has no cookie, adding one grows its SA
+	 * layout, which the caller's tx reserved for only if the caller said
+	 * so (ZLINKGROW, from ZFS_LINK_MAY_GROW()); sa_update_hint() checks
+	 * again under the SA handle's lock, since an update that needed the
+	 * room (an xattr=sa xattr) may have left the cookie out since.
+	 */
+	if (was_sa && zfs_parent_cookie) {
+		(void) sa_update_hint(zp->z_sa_hdl,
+		    SA_ZPL_PARENT_COOKIE(zfsvfs), &cookie, sizeof (cookie),
+		    (flag & ZLINKGROW) != 0, tx);
+	}
 
 	mutex_exit(&zp->z_lock);
 

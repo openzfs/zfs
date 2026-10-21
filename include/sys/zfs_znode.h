@@ -103,6 +103,32 @@ extern "C" {
 #define	SA_ZPL_PAD(z)		z->z_attr_table[ZPL_PAD]
 #define	SA_ZPL_PROJID(z)	z->z_attr_table[ZPL_PROJID]
 #define	SA_ZPL_SEQ(z)		z->z_attr_table[ZPL_SEQ]
+#define	SA_ZPL_PARENT_COOKIE(z)	z->z_attr_table[ZPL_PARENT_COOKIE]
+
+/*
+ * SA_ZPL_PARENT_COOKIE is a hint: the ZAP cookie (zap_add_cookie()) of the
+ * directory entry that last linked this object into SA_ZPL_PARENT, so
+ * that its name can be found without searching the directory.  It is
+ * written whenever SA_ZPL_PARENT is (zfs_link_create()), but it may be
+ * stale (that name was removed, or an implementation that doesn't know the
+ * attribute renamed the object) or missing (objects created before it
+ * existed), so a reader must check that the entry at the cookie refers to
+ * this object, and search the directory if it doesn't
+ * (zfs_dirent_name()).  ZFS_COOKIE_NONE is the placeholder zfs_mknode()
+ * writes before the object has a directory entry.  Being a hint, it is
+ * never the reason for a spill block (sa_set_hint()): it is left out of
+ * an object whose other attributes fit in the bonus buffer only without
+ * it, for example after a large xattr=sa xattr is set.
+ */
+#define	ZFS_COOKIE_NONE		ZAP_COOKIE_NONE
+
+/*
+ * may_grow for a dmu_tx_hold_sa() on an object that zfs_link_create()
+ * will link: true if adding SA_ZPL_PARENT_COOKIE or SA_ZPL_SEQ would grow
+ * its SA layout.
+ */
+#define	ZFS_LINK_MAY_GROW(zp)	\
+	(ZFS_SEQ_MAY_GROW(zp) || zfs_parent_cookie_absent(zp))
 
 /*
  * may_grow for a dmu_tx_hold_sa() that may persist z_seq: the SA layout
@@ -173,8 +199,12 @@ extern "C" {
 #define	ZFS_DIRENT_OBJ(de) BF64_GET(de, 0, 48)
 
 extern int zfs_obj_to_path(objset_t *osp, uint64_t obj, char *buf, int len);
+extern int zfs_dirent_name(objset_t *os, sa_handle_t *hdl,
+    sa_attr_type_t *sa_table, uint64_t dobj, uint64_t obj, char *name,
+    uint64_t namelen);
 extern int zfs_obj_to_pobj(objset_t *osp, sa_handle_t *hdl,
     sa_attr_type_t *sa_table, uint64_t *pobjp, int *is_xattrdir);
+extern int zfs_parent_cookie;
 extern int zfs_get_zplprop(objset_t *os, zfs_prop_t prop, uint64_t *value);
 
 #ifdef _KERNEL
@@ -288,6 +318,8 @@ extern void	zfs_grow_blocksize(znode_t *, uint64_t, dmu_tx_t *);
 extern int	zfs_freesp(znode_t *, uint64_t, uint64_t, int, boolean_t);
 extern void	zfs_znode_init(void);
 extern void	zfs_znode_fini(void);
+extern void	zfs_dirent_name_init(void);
+extern void	zfs_dirent_name_fini(void);
 extern int	zfs_znode_hold_compare(const void *, const void *);
 extern znode_hold_t *zfs_znode_hold_enter(zfsvfs_t *, uint64_t);
 extern void	zfs_znode_hold_exit(zfsvfs_t *, znode_hold_t *);
