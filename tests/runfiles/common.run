@@ -1304,5 +1304,5 @@ tests = ['l2arc_arcstats_pos', 'l2arc_mfuonly_pos', 'l2arc_l2miss_pos',
 tags = ['functional', 'l2arc']
 
 [tests/functional/zpool_influxdb]
-tests = ['zpool_influxdb']
+tests = ['zpool_influxdb', 'zpool_influxdb_scan_remaining']
 tags = ['functional', 'zpool_influxdb']
