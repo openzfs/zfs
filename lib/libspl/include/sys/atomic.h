@@ -9,10 +9,12 @@
  * source.  A copy of the CDDL is also available via the Internet at
  * https://opensource.org/license/CDDL-1.0.
  */
-
 /*
- * Copyright 2005 Sun Microsystems, Inc.  All rights reserved.
+ * Copyright (c) 2009 by Sun Microsystems, Inc.  All rights reserved.
  * Use is subject to license terms.
+ */
+/*
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #ifndef	_SYS_ATOMIC_H
@@ -28,76 +30,128 @@ extern "C" {
 /*
  * Increment target.
  */
-extern void atomic_inc_8(volatile uint8_t *);
-extern void atomic_inc_uchar(volatile uchar_t *);
-extern void atomic_inc_16(volatile uint16_t *);
-extern void atomic_inc_ushort(volatile ushort_t *);
-extern void atomic_inc_32(volatile uint32_t *);
-extern void atomic_inc_uint(volatile uint_t *);
-extern void atomic_inc_ulong(volatile ulong_t *);
-extern void atomic_inc_64(volatile uint64_t *);
+#define	SPL_ATOMIC_INC(name, type) \
+	static inline void						\
+	atomic_inc_##name(volatile type *target) {			\
+		__atomic_add_fetch(target, 1, __ATOMIC_SEQ_CST);	\
+	}
+
+SPL_ATOMIC_INC(8, uint8_t)
+SPL_ATOMIC_INC(16, uint16_t)
+SPL_ATOMIC_INC(32, uint32_t)
+SPL_ATOMIC_INC(64, uint64_t)
+SPL_ATOMIC_INC(uchar, uchar_t)
+SPL_ATOMIC_INC(ushort, ushort_t)
+SPL_ATOMIC_INC(uint, uint_t)
+SPL_ATOMIC_INC(ulong, ulong_t)
+#undef SPL_ATOMIC_INC
 
 /*
  * Decrement target
  */
-extern void atomic_dec_8(volatile uint8_t *);
-extern void atomic_dec_uchar(volatile uchar_t *);
-extern void atomic_dec_16(volatile uint16_t *);
-extern void atomic_dec_ushort(volatile ushort_t *);
-extern void atomic_dec_32(volatile uint32_t *);
-extern void atomic_dec_uint(volatile uint_t *);
-extern void atomic_dec_ulong(volatile ulong_t *);
-extern void atomic_dec_64(volatile uint64_t *);
+#define	SPL_ATOMIC_DEC(name, type) \
+	static inline void						\
+	atomic_dec_##name(volatile type *target) {			\
+		__atomic_sub_fetch(target, 1, __ATOMIC_SEQ_CST);	\
+	}
+
+SPL_ATOMIC_DEC(8, uint8_t)
+SPL_ATOMIC_DEC(16, uint16_t)
+SPL_ATOMIC_DEC(32, uint32_t)
+SPL_ATOMIC_DEC(64, uint64_t)
+SPL_ATOMIC_DEC(uchar, uchar_t)
+SPL_ATOMIC_DEC(ushort, ushort_t)
+SPL_ATOMIC_DEC(uint, uint_t)
+SPL_ATOMIC_DEC(ulong, ulong_t)
+#undef SPL_ATOMIC_DEC
 
 /*
  * Add delta to target
  */
-extern void atomic_add_8(volatile uint8_t *, int8_t);
-extern void atomic_add_char(volatile uchar_t *, signed char);
-extern void atomic_add_16(volatile uint16_t *, int16_t);
-extern void atomic_add_short(volatile ushort_t *, short);
-extern void atomic_add_32(volatile uint32_t *, int32_t);
-extern void atomic_add_int(volatile uint_t *, int);
-extern void atomic_add_ptr(volatile void *, ssize_t);
-extern void atomic_add_long(volatile ulong_t *, long);
-extern void atomic_add_64(volatile uint64_t *, int64_t);
+#define	SPL_ATOMIC_ADD(name, type1, type2) \
+	static inline void						\
+	atomic_add_##name(volatile type1 *target, type2 bits) {		\
+		__atomic_add_fetch(target, bits, __ATOMIC_SEQ_CST);	\
+	}
+
+SPL_ATOMIC_ADD(8, uint8_t, int8_t)
+SPL_ATOMIC_ADD(16, uint16_t, int16_t)
+SPL_ATOMIC_ADD(32, uint32_t, int32_t)
+SPL_ATOMIC_ADD(64, uint64_t, int64_t)
+SPL_ATOMIC_ADD(char, uchar_t, signed char)
+SPL_ATOMIC_ADD(short, ushort_t, short)
+SPL_ATOMIC_ADD(int, uint_t, int)
+SPL_ATOMIC_ADD(long, ulong_t, long)
+#undef SPL_ATOMIC_ADD
+
+static inline void
+atomic_add_ptr(volatile void *target, ssize_t bits)
+{
+	(void) __atomic_add_fetch((void **)target, bits, __ATOMIC_SEQ_CST);
+}
 
 /*
  * Subtract delta from target
  */
-extern void atomic_sub_8(volatile uint8_t *, int8_t);
-extern void atomic_sub_char(volatile uchar_t *, signed char);
-extern void atomic_sub_16(volatile uint16_t *, int16_t);
-extern void atomic_sub_short(volatile ushort_t *, short);
-extern void atomic_sub_32(volatile uint32_t *, int32_t);
-extern void atomic_sub_int(volatile uint_t *, int);
-extern void atomic_sub_ptr(volatile void *, ssize_t);
-extern void atomic_sub_long(volatile ulong_t *, long);
-extern void atomic_sub_64(volatile uint64_t *, int64_t);
+#define	SPL_ATOMIC_SUB(name, type1, type2) \
+	static inline void						\
+	atomic_sub_##name(volatile type1 *target, type2 bits) {		\
+		__atomic_sub_fetch(target, bits, __ATOMIC_SEQ_CST);	\
+	}
+
+SPL_ATOMIC_SUB(8, uint8_t, int8_t)
+SPL_ATOMIC_SUB(16, uint16_t, int16_t)
+SPL_ATOMIC_SUB(32, uint32_t, int32_t)
+SPL_ATOMIC_SUB(64, uint64_t, int64_t)
+SPL_ATOMIC_SUB(char, uchar_t, signed char)
+SPL_ATOMIC_SUB(short, ushort_t, short)
+SPL_ATOMIC_SUB(int, uint_t, int)
+SPL_ATOMIC_SUB(long, ulong_t, long)
+#undef SPL_ATOMIC_SUB
+
+static inline void
+atomic_sub_ptr(volatile void *target, ssize_t bits)
+{
+	(void) __atomic_sub_fetch((void **)target, bits, __ATOMIC_SEQ_CST);
+}
 
 /*
  * logical OR bits with target
  */
-extern void atomic_or_8(volatile uint8_t *, uint8_t);
-extern void atomic_or_uchar(volatile uchar_t *, uchar_t);
-extern void atomic_or_16(volatile uint16_t *, uint16_t);
-extern void atomic_or_ushort(volatile ushort_t *, ushort_t);
-extern void atomic_or_32(volatile uint32_t *, uint32_t);
-extern void atomic_or_uint(volatile uint_t *, uint_t);
-extern void atomic_or_ulong(volatile ulong_t *, ulong_t);
-extern void atomic_or_64(volatile uint64_t *, uint64_t);
+#define	SPL_ATOMIC_OR(name, type) \
+	static inline void						\
+	atomic_or_##name(volatile type *target, type bits) {		\
+		__atomic_or_fetch(target, bits, __ATOMIC_SEQ_CST);	\
+	}
+
+SPL_ATOMIC_OR(8, uint8_t)
+SPL_ATOMIC_OR(16, uint16_t)
+SPL_ATOMIC_OR(32, uint32_t)
+SPL_ATOMIC_OR(64, uint64_t)
+SPL_ATOMIC_OR(uchar, uchar_t)
+SPL_ATOMIC_OR(ushort, ushort_t)
+SPL_ATOMIC_OR(uint, uint_t)
+SPL_ATOMIC_OR(ulong, ulong_t)
+#undef SPL_ATOMIC_OR
 
 /*
  * logical AND bits with target
  */
-extern void atomic_and_8(volatile uint8_t *, uint8_t);
-extern void atomic_and_uchar(volatile uchar_t *, uchar_t);
-extern void atomic_and_16(volatile uint16_t *, uint16_t);
-extern void atomic_and_ushort(volatile ushort_t *, ushort_t);
-extern void atomic_and_32(volatile uint32_t *, uint32_t);
-extern void atomic_and_uint(volatile uint_t *, uint_t);
-extern void atomic_and_ulong(volatile ulong_t *, ulong_t);
-extern void atomic_and_64(volatile uint64_t *, uint64_t);
+#define	SPL_ATOMIC_AND(name, type) \
+	static inline void						\
+	atomic_and_##name(volatile type *target, type bits) {		\
+		__atomic_and_fetch(target, bits, __ATOMIC_SEQ_CST);	\
+	}
+
+SPL_ATOMIC_AND(8, uint8_t)
+SPL_ATOMIC_AND(16, uint16_t)
+SPL_ATOMIC_AND(32, uint32_t)
+SPL_ATOMIC_AND(64, uint64_t)
+SPL_ATOMIC_AND(uchar, uchar_t)
+SPL_ATOMIC_AND(ushort, ushort_t)
+SPL_ATOMIC_AND(uint, uint_t)
+SPL_ATOMIC_AND(ulong, ulong_t)
+#undef SPL_ATOMIC_AND
 
 /*
  * As above, but return the new value.  Note that these _nv() variants are
@@ -110,102 +164,189 @@ extern void atomic_and_64(volatile uint64_t *, uint64_t);
 /*
  * Increment target and return new value.
  */
-extern uint8_t atomic_inc_8_nv(volatile uint8_t *);
-extern uchar_t atomic_inc_uchar_nv(volatile uchar_t *);
-extern uint16_t atomic_inc_16_nv(volatile uint16_t *);
-extern ushort_t atomic_inc_ushort_nv(volatile ushort_t *);
-extern uint32_t atomic_inc_32_nv(volatile uint32_t *);
-extern uint_t atomic_inc_uint_nv(volatile uint_t *);
-extern ulong_t atomic_inc_ulong_nv(volatile ulong_t *);
-extern uint64_t atomic_inc_64_nv(volatile uint64_t *);
+#define	SPL_ATOMIC_INC_NV(name, type) \
+	static inline type						\
+	atomic_inc_##name##_nv(volatile type *target) {			\
+		return (__atomic_add_fetch(target, 1, __ATOMIC_SEQ_CST)); \
+	}
+
+SPL_ATOMIC_INC_NV(8, uint8_t)
+SPL_ATOMIC_INC_NV(16, uint16_t)
+SPL_ATOMIC_INC_NV(32, uint32_t)
+SPL_ATOMIC_INC_NV(64, uint64_t)
+SPL_ATOMIC_INC_NV(uchar, uchar_t)
+SPL_ATOMIC_INC_NV(ushort, ushort_t)
+SPL_ATOMIC_INC_NV(uint, uint_t)
+SPL_ATOMIC_INC_NV(ulong, ulong_t)
+#undef SPL_ATOMIC_INC_NV
 
 /*
  * Decrement target and return new value.
  */
-extern uint8_t atomic_dec_8_nv(volatile uint8_t *);
-extern uchar_t atomic_dec_uchar_nv(volatile uchar_t *);
-extern uint16_t atomic_dec_16_nv(volatile uint16_t *);
-extern ushort_t atomic_dec_ushort_nv(volatile ushort_t *);
-extern uint32_t atomic_dec_32_nv(volatile uint32_t *);
-extern uint_t atomic_dec_uint_nv(volatile uint_t *);
-extern ulong_t atomic_dec_ulong_nv(volatile ulong_t *);
-extern uint64_t atomic_dec_64_nv(volatile uint64_t *);
+#define	SPL_ATOMIC_DEC_NV(name, type) \
+	static inline type						\
+	atomic_dec_##name##_nv(volatile type *target) {			\
+		return (__atomic_sub_fetch(target, 1, __ATOMIC_SEQ_CST)); \
+	}
+
+SPL_ATOMIC_DEC_NV(8, uint8_t)
+SPL_ATOMIC_DEC_NV(16, uint16_t)
+SPL_ATOMIC_DEC_NV(32, uint32_t)
+SPL_ATOMIC_DEC_NV(64, uint64_t)
+SPL_ATOMIC_DEC_NV(uchar, uchar_t)
+SPL_ATOMIC_DEC_NV(ushort, ushort_t)
+SPL_ATOMIC_DEC_NV(uint, uint_t)
+SPL_ATOMIC_DEC_NV(ulong, ulong_t)
+#undef SPL_ATOMIC_DEC_NV
 
 /*
  * Add delta to target
  */
-extern uint8_t atomic_add_8_nv(volatile uint8_t *, int8_t);
-extern uchar_t atomic_add_char_nv(volatile uchar_t *, signed char);
-extern uint16_t atomic_add_16_nv(volatile uint16_t *, int16_t);
-extern ushort_t atomic_add_short_nv(volatile ushort_t *, short);
-extern uint32_t atomic_add_32_nv(volatile uint32_t *, int32_t);
-extern uint_t atomic_add_int_nv(volatile uint_t *, int);
-extern void *atomic_add_ptr_nv(volatile void *, ssize_t);
-extern ulong_t atomic_add_long_nv(volatile ulong_t *, long);
-extern uint64_t atomic_add_64_nv(volatile uint64_t *, int64_t);
+#define	SPL_ATOMIC_ADD_NV(name, type1, type2) \
+	static inline type1						\
+	atomic_add_##name##_nv(volatile type1 *target, type2 bits) {	\
+		return (__atomic_add_fetch(target, bits, __ATOMIC_SEQ_CST)); \
+	}
+
+SPL_ATOMIC_ADD_NV(8, uint8_t, int8_t)
+SPL_ATOMIC_ADD_NV(16, uint16_t, int16_t)
+SPL_ATOMIC_ADD_NV(32, uint32_t, int32_t)
+SPL_ATOMIC_ADD_NV(64, uint64_t, int64_t)
+SPL_ATOMIC_ADD_NV(char, uchar_t, signed char)
+SPL_ATOMIC_ADD_NV(short, ushort_t, short)
+SPL_ATOMIC_ADD_NV(int, uint_t, int)
+SPL_ATOMIC_ADD_NV(long, ulong_t, long)
+#undef SPL_ATOMIC_ADD_NV
+
+static inline void *
+atomic_add_ptr_nv(volatile void *target, ssize_t bits)
+{
+	return (__atomic_add_fetch((void **)target, bits, __ATOMIC_SEQ_CST));
+}
 
 /*
  * Subtract delta from target
  */
-extern uint8_t atomic_sub_8_nv(volatile uint8_t *, int8_t);
-extern uchar_t atomic_sub_char_nv(volatile uchar_t *, signed char);
-extern uint16_t atomic_sub_16_nv(volatile uint16_t *, int16_t);
-extern ushort_t atomic_sub_short_nv(volatile ushort_t *, short);
-extern uint32_t atomic_sub_32_nv(volatile uint32_t *, int32_t);
-extern uint_t atomic_sub_int_nv(volatile uint_t *, int);
-extern void *atomic_sub_ptr_nv(volatile void *, ssize_t);
-extern ulong_t atomic_sub_long_nv(volatile ulong_t *, long);
-extern uint64_t atomic_sub_64_nv(volatile uint64_t *, int64_t);
+#define	SPL_ATOMIC_SUB_NV(name, type1, type2) \
+	static inline type1						\
+	atomic_sub_##name##_nv(volatile type1 *target, type2 bits) {	\
+		return (__atomic_sub_fetch(target, bits, __ATOMIC_SEQ_CST)); \
+	}
+
+SPL_ATOMIC_SUB_NV(8, uint8_t, int8_t)
+SPL_ATOMIC_SUB_NV(16, uint16_t, int16_t)
+SPL_ATOMIC_SUB_NV(32, uint32_t, int32_t)
+SPL_ATOMIC_SUB_NV(64, uint64_t, int64_t)
+SPL_ATOMIC_SUB_NV(char, uchar_t, signed char)
+SPL_ATOMIC_SUB_NV(short, ushort_t, short)
+SPL_ATOMIC_SUB_NV(int, uint_t, int)
+SPL_ATOMIC_SUB_NV(long, ulong_t, long)
+#undef SPL_ATOMIC_SUB_NV
+
+static inline void *
+atomic_sub_ptr_nv(volatile void *target, ssize_t bits)
+{
+	return (__atomic_sub_fetch((void **)target, bits, __ATOMIC_SEQ_CST));
+}
 
 /*
  * logical OR bits with target and return new value.
  */
-extern uint8_t atomic_or_8_nv(volatile uint8_t *, uint8_t);
-extern uchar_t atomic_or_uchar_nv(volatile uchar_t *, uchar_t);
-extern uint16_t atomic_or_16_nv(volatile uint16_t *, uint16_t);
-extern ushort_t atomic_or_ushort_nv(volatile ushort_t *, ushort_t);
-extern uint32_t atomic_or_32_nv(volatile uint32_t *, uint32_t);
-extern uint_t atomic_or_uint_nv(volatile uint_t *, uint_t);
-extern ulong_t atomic_or_ulong_nv(volatile ulong_t *, ulong_t);
-extern uint64_t atomic_or_64_nv(volatile uint64_t *, uint64_t);
+#define	SPL_ATOMIC_OR_NV(name, type) \
+	static inline type						\
+	atomic_or_##name##_nv(volatile type *target, type bits)	{	\
+		return (__atomic_or_fetch(target, bits, __ATOMIC_SEQ_CST)); \
+	}
+
+SPL_ATOMIC_OR_NV(8, uint8_t)
+SPL_ATOMIC_OR_NV(16, uint16_t)
+SPL_ATOMIC_OR_NV(32, uint32_t)
+SPL_ATOMIC_OR_NV(64, uint64_t)
+SPL_ATOMIC_OR_NV(uchar, uchar_t)
+SPL_ATOMIC_OR_NV(ushort, ushort_t)
+SPL_ATOMIC_OR_NV(uint, uint_t)
+SPL_ATOMIC_OR_NV(ulong, ulong_t)
+#undef SPL_ATOMIC_OR_NV
 
 /*
  * logical AND bits with target and return new value.
  */
-extern uint8_t atomic_and_8_nv(volatile uint8_t *, uint8_t);
-extern uchar_t atomic_and_uchar_nv(volatile uchar_t *, uchar_t);
-extern uint16_t atomic_and_16_nv(volatile uint16_t *, uint16_t);
-extern ushort_t atomic_and_ushort_nv(volatile ushort_t *, ushort_t);
-extern uint32_t atomic_and_32_nv(volatile uint32_t *, uint32_t);
-extern uint_t atomic_and_uint_nv(volatile uint_t *, uint_t);
-extern ulong_t atomic_and_ulong_nv(volatile ulong_t *, ulong_t);
-extern uint64_t atomic_and_64_nv(volatile uint64_t *, uint64_t);
+
+#define	SPL_ATOMIC_AND_NV(name, type) \
+	static inline type						\
+	atomic_and_##name##_nv(volatile type *target, type bits) {	\
+		return (__atomic_and_fetch(target, bits, __ATOMIC_SEQ_CST)); \
+	}
+
+SPL_ATOMIC_AND_NV(8, uint8_t)
+SPL_ATOMIC_AND_NV(16, uint16_t)
+SPL_ATOMIC_AND_NV(32, uint32_t)
+SPL_ATOMIC_AND_NV(64, uint64_t)
+SPL_ATOMIC_AND_NV(uchar, uchar_t)
+SPL_ATOMIC_AND_NV(ushort, ushort_t)
+SPL_ATOMIC_AND_NV(uint, uint_t)
+SPL_ATOMIC_AND_NV(ulong, ulong_t)
+#undef SPL_ATOMIC_AND_NV
 
 /*
- * If *arg1 == arg2, set *arg1 = arg3; return old value
+ * If *tgt == exp, set *tgt = des; return old value
+ *
+ * This may not look right on the first pass (or the sixteenth), but,
+ * from https://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html:
+ * > If they are not equal, the operation is a read
+ * > and the current contents of *ptr are written into *expected.
+ * And, in the converse case, exp is already *target by definition.
  */
-extern uint8_t atomic_cas_8(volatile uint8_t *, uint8_t, uint8_t);
-extern uchar_t atomic_cas_uchar(volatile uchar_t *, uchar_t, uchar_t);
-extern uint16_t atomic_cas_16(volatile uint16_t *, uint16_t, uint16_t);
-extern ushort_t atomic_cas_ushort(volatile ushort_t *, ushort_t, ushort_t);
-extern uint32_t atomic_cas_32(volatile uint32_t *, uint32_t, uint32_t);
-extern uint_t atomic_cas_uint(volatile uint_t *, uint_t, uint_t);
-extern void *atomic_cas_ptr(volatile void *, void *, void *);
-extern ulong_t atomic_cas_ulong(volatile ulong_t *, ulong_t, ulong_t);
-extern uint64_t atomic_cas_64(volatile uint64_t *, uint64_t, uint64_t);
+#define	SPL_ATOMIC_CAS(name, type) \
+	static inline type						\
+	atomic_cas_##name(volatile type *target, type exp, type des) {	\
+		__atomic_compare_exchange_n(target, &exp, des, B_FALSE,	\
+		    __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);		\
+		return (exp);						\
+	}
+
+SPL_ATOMIC_CAS(8, uint8_t)
+SPL_ATOMIC_CAS(16, uint16_t)
+SPL_ATOMIC_CAS(32, uint32_t)
+SPL_ATOMIC_CAS(64, uint64_t)
+SPL_ATOMIC_CAS(uchar, uchar_t)
+SPL_ATOMIC_CAS(ushort, ushort_t)
+SPL_ATOMIC_CAS(uint, uint_t)
+SPL_ATOMIC_CAS(ulong, ulong_t)
+#undef SPL_ATOMIC_CAS
+
+static inline void *
+atomic_cas_ptr(volatile void *target, void *exp, void *des)
+{
+	__atomic_compare_exchange_n((void **)target, &exp, des, B_FALSE,
+	    __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+	return (exp);
+}
 
 /*
  * Swap target and return old value
  */
-extern uint8_t atomic_swap_8(volatile uint8_t *, uint8_t);
-extern uchar_t atomic_swap_uchar(volatile uchar_t *, uchar_t);
-extern uint16_t atomic_swap_16(volatile uint16_t *, uint16_t);
-extern ushort_t atomic_swap_ushort(volatile ushort_t *, ushort_t);
-extern uint32_t atomic_swap_32(volatile uint32_t *, uint32_t);
-extern uint_t atomic_swap_uint(volatile uint_t *, uint_t);
-extern void *atomic_swap_ptr(volatile void *, void *);
-extern ulong_t atomic_swap_ulong(volatile ulong_t *, ulong_t);
-extern uint64_t atomic_swap_64(volatile uint64_t *, uint64_t);
+#define	SPL_ATOMIC_SWAP(name, type) \
+	static inline type						\
+	atomic_swap_##name(volatile type *target, type bits) {		\
+		return (__atomic_exchange_n(target, bits, __ATOMIC_SEQ_CST)); \
+	}
+
+SPL_ATOMIC_SWAP(8, uint8_t)
+SPL_ATOMIC_SWAP(16, uint16_t)
+SPL_ATOMIC_SWAP(32, uint32_t)
+SPL_ATOMIC_SWAP(64, uint64_t)
+SPL_ATOMIC_SWAP(uchar, uchar_t)
+SPL_ATOMIC_SWAP(ushort, ushort_t)
+SPL_ATOMIC_SWAP(uint, uint_t)
+SPL_ATOMIC_SWAP(ulong, ulong_t)
+#undef SPL_ATOMIC_SWAP
+
+static inline void *
+atomic_swap_ptr(volatile void *target, void *bits)
+{
+	return (__atomic_exchange_n((void **)target, bits, __ATOMIC_SEQ_CST));
+}
 
 /*
  * Atomically read variable.
@@ -221,7 +362,11 @@ extern uint64_t atomic_swap_64(volatile uint64_t *, uint64_t);
 #ifdef _LP64
 #define	atomic_load_64(p)	(*(volatile uint64_t *)(p))
 #else
-extern uint64_t atomic_load_64(volatile uint64_t *);
+static inline uint64_t
+atomic_load_64(volatile uint64_t *target)
+{
+	return (__atomic_load_n(target, __ATOMIC_RELAXED));
+}
 #endif
 
 /*
@@ -247,7 +392,11 @@ extern uint64_t atomic_load_64(volatile uint64_t *);
 #define	atomic_store_64(p, v)		\
 	(*(volatile uint64_t *)(p) = (uint64_t)(v))
 #else
-extern void atomic_store_64(volatile uint64_t *, uint64_t);
+static inline void
+atomic_store_64(volatile uint64_t *target, uint64_t bits)
+{
+	return (__atomic_store_n(target, bits, __ATOMIC_RELAXED));
+}
 #endif
 
 /*
@@ -255,8 +404,21 @@ extern void atomic_store_64(volatile uint64_t *, uint64_t);
  * Returns 0 if bit was successfully set/cleared, or -1
  * if the bit was already set/cleared.
  */
-extern int atomic_set_long_excl(volatile ulong_t *, uint_t);
-extern int atomic_clear_long_excl(volatile ulong_t *, uint_t);
+static inline int
+atomic_set_long_excl(volatile ulong_t *target, uint_t value)
+{
+	ulong_t bit = 1UL << value;
+	ulong_t old = __atomic_fetch_or(target, bit, __ATOMIC_SEQ_CST);
+	return ((old & bit) ? -1 : 0);
+}
+
+static inline int
+atomic_clear_long_excl(volatile ulong_t *target, uint_t value)
+{
+	ulong_t bit = 1UL << value;
+	ulong_t old = __atomic_fetch_and(target, ~bit, __ATOMIC_SEQ_CST);
+	return ((old & bit) ? 0 : -1);
+}
 
 /*
  * Generic memory barrier used during lock entry, placed after the
@@ -265,7 +427,11 @@ extern int atomic_clear_long_excl(volatile ulong_t *, uint_t);
  * reach visibility, and no loads from after the barrier will be
  * resolved, before the lock acquisition reaches global visibility.
  */
-extern void membar_enter(void);
+static inline void
+membar_enter(void)
+{
+	__atomic_thread_fence(__ATOMIC_SEQ_CST);
+}
 
 /*
  * Generic memory barrier used during lock exit, placed before the
@@ -273,14 +439,22 @@ extern void membar_enter(void);
  * protects its data.  All loads and stores issued before the barrier
  * will be resolved before the subsequent lock update reaches visibility.
  */
-extern void membar_exit(void);
+static inline void
+membar_exit(void)
+{
+	__atomic_thread_fence(__ATOMIC_SEQ_CST);
+}
 
 /*
  * Make all stores and loads emitted prior to the the barrier complete before
  * crossing it, while also making sure stores and loads emitted after the
  * barrier only start being executed after crossing it.
  */
-extern void membar_sync(void);
+static inline void
+membar_sync(void)
+{
+	__atomic_thread_fence(__ATOMIC_SEQ_CST);
+}
 
 /*
  * Arrange that all stores issued before this point in the code reach
@@ -289,7 +463,11 @@ extern void membar_sync(void);
  * The memory barrier guarantees that the available flag is not visible
  * earlier than the updated data, i.e. it imposes store ordering.
  */
-extern void membar_producer(void);
+static inline void
+membar_producer(void)
+{
+	__atomic_thread_fence(__ATOMIC_RELEASE);
+}
 
 /*
  * Arrange that all loads issued before this point in the code are
@@ -298,7 +476,12 @@ extern void membar_producer(void);
  * The memory barrier guarantees that the data is not sampled until
  * after the available flag has been seen, i.e. it imposes load ordering.
  */
-extern void membar_consumer(void);
+static inline void
+membar_consumer(void)
+{
+	__atomic_thread_fence(__ATOMIC_ACQUIRE);
+}
+
 #endif  /* __STDC__ */
 
 #ifdef	__cplusplus
