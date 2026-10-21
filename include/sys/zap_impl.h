@@ -300,6 +300,9 @@ int fzap_cursor_retrieve(zap_t *zap, zap_cursor_t *zc, zap_attribute_t *za);
 void fzap_get_stats(zap_t *zap, zap_stats_t *zs);
 int fzap_value_search(zap_t *zap, uint64_t value, uint64_t mask,
     char *name, uint64_t namelen);
+int fzap_lookup_hashcd(zap_name_t *zn, uint64_t *hashp, uint32_t *cdp);
+int fzap_lookup_cookie(zap_t *zap, uint64_t hash, uint32_t cd,
+    uint64_t *valuep, char *name, uint64_t namelen);
 void zap_put_leaf(struct zap_leaf *l);
 int fzap_add_cd(zap_name_t *zn, uint64_t integer_size, uint64_t num_integers,
     const void *val, uint32_t cd, dmu_tx_t *tx);
