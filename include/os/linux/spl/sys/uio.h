@@ -50,6 +50,7 @@
  */
 #define	UIO_DIO_DENY		0x0004
 #define	UIO_DIO_CKSUM_RETRIED	0x0008
+#define	UIO_ASYNC	0x0010 /* Async DIO: pre-pinned, runs on a taskq */
 
 #if defined(HAVE_FAULT_IN_IOV_ITER_READABLE)
 #define	iov_iter_fault_in_readable(a, b)	fault_in_iov_iter_readable(a, b)
