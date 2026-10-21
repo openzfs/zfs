@@ -95,10 +95,6 @@ vn_flush_cached_data(vnode_t *vp, boolean_t sync)
 
 #define	vn_matchops(vp, vops)	((vp)->v_op == &(vops))
 
-#define	VN_HOLD(v)	vref(v)
-#define	VN_RELE(v)	vrele(v)
-#define	VN_URELE(v)	vput(v)
-
 #define	vnevent_create(vp, ct)			do { } while (0)
 #define	vnevent_link(vp, ct)			do { } while (0)
 #define	vnevent_remove(vp, dvp, name, ct)	do { } while (0)
