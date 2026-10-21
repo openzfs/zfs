@@ -55,7 +55,7 @@
  */
 
 #include <assert.h>
-#include <atomic.h>
+#include <sys/atomic.h>
 #include <err.h>
 #include <pthread.h>
 #include <stdalign.h>

@@ -2,7 +2,6 @@
 libspldir = $(includedir)/libspl
 libspl_HEADERS = \
 	%D%/assert.h \
-	%D%/atomic.h \
 	%D%/libgen.h \
 	%D%/libspl.h \
 	%D%/statcommon.h \
@@ -27,6 +26,7 @@ libspl_sys_HEADERS = \
 	%D%/sys/acl.h \
 	%D%/sys/acl_impl.h \
 	%D%/sys/asm_linkage.h \
+	%D%/sys/atomic.h \
 	%D%/sys/backtrace.h \
 	%D%/sys/callb.h \
 	%D%/sys/cmn_err.h \
