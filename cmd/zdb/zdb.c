@@ -3773,6 +3773,9 @@ zdb_derive_key(dsl_dir_t *dd, uint8_t *key_out)
 		    dd->dd_crypto_obj, zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS),
 		    sizeof (uint64_t), 1, &iters));
 
+		/* libzfs derives the key from the salt in little-endian */
+		salt = LE_64(salt);
+
 		if (PKCS5_PBKDF2_HMAC_SHA1(key_material, strlen(key_material),
 		    ((uint8_t *)&salt), sizeof (uint64_t), iters,
 		    WRAPPING_KEY_LEN, key_out) != 1)
