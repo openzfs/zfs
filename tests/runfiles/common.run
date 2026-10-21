@@ -770,6 +770,10 @@ tags = ['functional', 'direct']
 tests = ['exec_001_pos', 'exec_002_neg']
 tags = ['functional', 'exec']
 
+[tests/functional/exportfs]
+tests = ['exportfs_parent_cookie']
+tags = ['functional', 'exportfs']
+
 [tests/functional/fadvise]
 tests = ['fadvise_dontneed', 'fadvise_willneed', 'fadvise_willneed_limit']
 tags = ['functional', 'fadvise']
