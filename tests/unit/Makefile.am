@@ -150,11 +150,12 @@ nodist_%C%_test_nvpair_SOURCES = \
 %C%_test_zfs_file_CFLAGS = $(AM_CFLAGS)
 
 %C%_test_zfs_file_SOURCES = \
+	lib/libzpool/zfs_file_os.c \
 	%D%/test_zfs_file.c
 
 %C%_test_zfs_file_LDADD = \
 	libunit.la \
-	libzpool.la
+	libspl.la
 
 
 # test run and coverage targets below
