@@ -3405,7 +3405,7 @@ function zed_start
 function zed_stop
 {
 	if ! is_linux; then
-		return ""
+		return 0
 	fi
 
 	log_note "Stopping ZED"
