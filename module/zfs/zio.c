@@ -4350,7 +4350,7 @@ zio_ddt_write(zio_t *zio)
 				ASSERT(BP_GET_BIRTH(bp) == txg);
 				ASSERT(BP_EQUAL(bp, zio->io_bp_override));
 				ddt_phys_extend(ddp, v, bp);
-				ddt_phys_addref(ddp, v);
+				ddt_entry_addref(dde, v);
 				ddt_exit(ddt);
 				return (zio);
 			}
@@ -4398,7 +4398,7 @@ zio_ddt_write(zio_t *zio)
 			}
 
 			zio_ddt_bp_fill(zio, ddp, v);
-			ddt_phys_addref(ddp, v);
+			ddt_entry_addref(dde, v);
 			ddt_exit(ddt);
 			return (zio);
 		}
@@ -4462,7 +4462,7 @@ piggyback:
 			 * If the write fails, zio_ddt_child_write_done() will
 			 * decrement for all non-DDT-child parents.
 			 */
-			ddt_phys_addref(ddp, v);
+			ddt_entry_addref(dde, v);
 			mutex_exit(&dde_io->dde_io_lock);
 			ddt_exit(ddt);
 			return (zio);
@@ -4575,7 +4575,7 @@ piggyback:
 	 * If the write fails, zio_ddt_child_write_done() will decrement
 	 * for all non-DDT-child parents.
 	 */
-	ddt_phys_addref(ddp, v);
+	ddt_entry_addref(dde, v);
 
 	ddt_exit(ddt);
 
