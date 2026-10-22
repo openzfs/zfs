@@ -23,7 +23,7 @@
 .\" OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 .\" WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 .\"
-.Dd November 30, 2021
+.Dd October 22, 2026
 .Dt ZFS-MOUNT-GENERATOR 8
 .Os
 .
@@ -50,7 +50,7 @@ units for configured ZFS datasets.
 .No Skipped if Sy off .
 .No Skipped if only Sy noauto
 datasets exist for a given mountpoint and there's more than one.
-.No Datasets with Sy yes No take precedence over ones with Sy noauto No for the same mountpoint .
+.No Datasets with Sy on No take precedence over ones with Sy noauto No for the same mountpoint .
 .No Sets logical Em noauto No flag if Sy noauto .
 Encryption roots always generate
 .Sy zfs-load-key@ Ns Ar root Ns Sy .service ,
@@ -62,9 +62,12 @@ Used to generate mount options equivalent to
 .Nm zfs Cm mount .
 .
 .It Sy encroot Ns = , Sy keylocation Ns =
-If the dataset is an encryption root, its mount unit will bind to
+If the dataset is encrypted, its mount unit binds to
 .Sy zfs-load-key@ Ns Ar root Ns Sy .service ,
-with additional dependencies as follows:
+where
+.Ar root
+is its encryption root.
+That service has additional dependencies as follows:
 .Bl -tag -compact -offset Ds -width "keylocation=https://URL (et al.)"
 .It Sy keylocation Ns = Ns Sy prompt
 None, uses
@@ -80,9 +83,9 @@ The service also uses the same
 .Sy After Ns = ,
 .Sy Requires Ns = , No and
 .Sy RequiresMountsFor Ns = ,
-as the mount unit.
+as the encryption root's mount unit.
 .
-.It Sy org.openzfs.systemd:requires Ns = Ns Pa path Ns Oo " " Ns Pa path Oc Ns …
+.It Sy org.openzfs.systemd:requires Ns = Ns Pa unit Ns Oo " " Ns Pa unit Oc Ns …
 .No Sets Sy Requires Ns = for the mount- and key-loading unit.
 .
 .It Sy org.openzfs.systemd:requires-mounts-for Ns = Ns Pa path Ns Oo " " Ns Pa path Oc Ns …
@@ -176,8 +179,8 @@ to re-run all generators:
 .Sh SEE ALSO
 .Xr systemd.mount 5 ,
 .Xr systemd.target 5 ,
-.Xr zfs 5 ,
 .Xr systemd.generator 7 ,
 .Xr systemd.special 7 ,
 .Xr zed 8 ,
+.Xr zfs 8 ,
 .Xr zpool-events 8
