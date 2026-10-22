@@ -22,6 +22,7 @@
 #	2. Override the received value locally with zero.
 #	3. Revert to the received value with inherit -S.
 #	4. Confirm the assigned UID can see the dataset again.
+#	5. Verify root limits are protected and child limits remain delegatable.
 #
 
 verify_runnable "global"
@@ -48,5 +49,19 @@ log_must set_zoned_uid "$received" 0
 log_mustnot run_in_userns "$ZONED_TEST_UID" list "$received"
 log_must zfs inherit -S zoned_uid "$received"
 log_must run_in_userns "$ZONED_TEST_UID" list "$received"
+
+log_must grant_deleg "$received" "$ZONED_TEST_UID" \
+    filesystem_limit,snapshot_limit,destroy,mount
+log_must zfs set filesystem_limit=10 snapshot_limit=20 "$received"
+log_must zfs create "$received/child"
+for property in filesystem_limit snapshot_limit; do
+	log_mustnot run_in_userns "$ZONED_TEST_UID" set "$property=none" \
+	    "$received"
+	log_must run_in_userns "$ZONED_TEST_UID" set "$property=5" \
+	    "$received/child"
+done
+log_must run_in_userns "$ZONED_TEST_UID" destroy "$received/child"
+log_must zfs destroy "$received@send"
+log_mustnot run_in_userns "$ZONED_TEST_UID" destroy "$received"
 
 log_pass "inherit -S restores received zoned_uid authority"

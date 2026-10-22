@@ -323,8 +323,12 @@ zfs_get_zoned_uid(const char *dataset, char *root_out, size_t root_size)
 			if (zoned_uid_val != 0 &&
 			    zone_dataset_uid_check(kcred, zoned_uid_val) != 0)
 				return (0);
-			if (zoned_uid_val != 0 && root_out != NULL)
-				(void) strlcpy(root_out, setpoint, root_size);
+			if (zoned_uid_val != 0 && root_out != NULL) {
+				const char *root =
+				    dsl_prop_setpoint_is_direct(path,
+				    setpoint) ? path : setpoint;
+				(void) strlcpy(root_out, root, root_size);
+			}
 			return ((uid_t)zoned_uid_val);
 		}
 		if (error != ENOENT)
@@ -710,10 +714,13 @@ zfs_secpolicy_setprop(const char *dsname, zfs_prop_t prop, nvpair_t *propval,
 		    prop == ZFS_PROP_SNAPSHOT_LIMIT) {
 			char setpoint[ZFS_MAX_DATASET_NAME_LEN];
 			uint64_t zoned_uid_val = 0;
-			if (dsl_prop_get(dsname, "zoned_uid", 8, 1,
-			    &zoned_uid_val, setpoint) == 0 &&
-			    zoned_uid_val != 0 &&
-			    strcmp(dsname, setpoint) == 0)
+			int error;
+
+			error = dsl_prop_get(dsname, "zoned_uid", 8, 1,
+			    &zoned_uid_val, setpoint);
+			if (error != 0)
+				return (error);
+			if (dsl_prop_setpoint_is_direct(dsname, setpoint))
 				return (SET_ERROR(EPERM));
 		}
 		return (zfs_secpolicy_zoned_uid_deleg(dsname,

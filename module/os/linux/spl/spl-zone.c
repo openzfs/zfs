@@ -469,28 +469,6 @@ zone_unregister_zoned_uid_callback(void)
 }
 EXPORT_SYMBOL(zone_unregister_zoned_uid_callback);
 
-#ifdef CONFIG_USER_NS
-/*
- * Check if a dataset is the delegation root (has zoned_uid set locally).
- */
-static boolean_t
-zone_dataset_is_zoned_uid_root(const char *dataset, uid_t zoned_uid)
-{
-	char *root;
-	uid_t found_uid;
-	boolean_t is_root;
-
-	if (zone_get_zoned_uid_fn == NULL)
-		return (B_FALSE);
-
-	root = kmem_alloc(MAXPATHLEN, KM_SLEEP);
-	found_uid = zone_get_zoned_uid_fn(dataset, root, MAXPATHLEN);
-	is_root = (found_uid == zoned_uid && strcmp(root, dataset) == 0);
-	kmem_free(root, MAXPATHLEN);
-	return (is_root);
-}
-#endif /* CONFIG_USER_NS */
-
 /*
  * Core authorization check for zoned_uid write delegation.
  */
@@ -555,7 +533,7 @@ zone_dataset_admin_check(const char *dataset, zone_uid_op_t op,
 	switch (op) {
 	case ZONE_OP_DESTROY:
 		/* Cannot destroy the delegation root itself */
-		if (zone_dataset_is_zoned_uid_root(dataset, zoned_uid)) {
+		if (strcmp(dataset, delegation_root) == 0) {
 			result = ZONE_ADMIN_DENIED;
 			goto out;
 		}
