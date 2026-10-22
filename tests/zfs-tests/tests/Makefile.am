@@ -1257,6 +1257,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_import/import_cachefile_mirror_detached.ksh \
 	functional/cli_root/zpool_import/import_cachefile_paths_changed.ksh \
 	functional/cli_root/zpool_import/import_cachefile_shared_device.ksh \
+	functional/cli_root/zpool_import/import_deadlist_damaged.ksh \
 	functional/cli_root/zpool_import/import_devices_missing.ksh \
 	functional/cli_root/zpool_import/import_log_missing.ksh \
 	functional/cli_root/zpool_import/import_paths_changed.ksh \
