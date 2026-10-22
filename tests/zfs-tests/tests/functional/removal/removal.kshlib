@@ -136,6 +136,55 @@ function test_removal_with_operation # callback [args]
 }
 
 #
+# Prints the type of the top-level vdev with the given id, as recorded in
+# the MOS config.
+#
+function top_vdev_type # pool id
+{
+	zdb -C $1 | awk -v id="$2" '
+		/^MOS Configuration:/ { mos = 1; next }
+		!mos { next }
+		/^ *children\[/ && ind == 0 { ind = index($0, "c") }
+		/^ *children\[/ && index($0, "c") == ind {
+			want = ($1 == "children[" id "]:")
+			next
+		}
+		want && $1 == "type:" {
+			gsub("\047", "", $2)
+			print $2
+			exit
+		}'
+}
+
+#
+# Waits until the top-level vdev with the given id has the given type,
+# syncing the pool so that condensing and the retirement of indirect vdevs
+# make progress.  Each pass also writes and removes a file in the given
+# directory, so that metadata still left on the removed vdev is rewritten.
+#
+function wait_for_top_vdev_type # pool id type dir [passes]
+{
+	typeset pool=$1
+	typeset id=$2
+	typeset type=$3
+	typeset dir=$4
+	typeset -i passes=${5:-120}
+	typeset -i i
+
+	for ((i = 0; i < passes; i++)); do
+		[[ $(top_vdev_type $pool $id) == "$type" ]] && return 0
+		dd if=/dev/urandom of=$dir/wait_for_top_vdev_type bs=128k \
+		    count=1 2>/dev/null
+		rm -f $dir/wait_for_top_vdev_type
+		sync_pool $pool
+		sleep 0.5
+	done
+	log_note "vdev $id of $pool is $(top_vdev_type $pool $id), not $type"
+	zpool status -v $pool
+	return 1
+}
+
+#
 # Kill the background job use by the test_removal_with_operation function.
 #
 function test_removal_with_operation_kill

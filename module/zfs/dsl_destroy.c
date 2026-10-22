@@ -276,8 +276,12 @@ dsl_destroy_snapshot_handle_remaps(dsl_dataset_t *ds, dsl_dataset_t *ds_next,
 {
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 
-	/* Move blocks to be obsoleted to pool's obsolete list. */
-	if (dsl_dataset_remap_deadlist_exists(ds_next)) {
+	/*
+	 * Move blocks to be obsoleted to pool's obsolete list.  Without
+	 * indirect vdevs, both remap deadlists are empty and are destroyed
+	 * instead (see dsl_dataset_keep_remap_deadlist()).
+	 */
+	if (dsl_dataset_keep_remap_deadlist(ds_next, tx)) {
 		if (!bpobj_is_open(&dp->dp_obsolete_bpobj))
 			dsl_pool_create_obsolete_bpobj(dp, tx);
 
@@ -287,7 +291,7 @@ dsl_destroy_snapshot_handle_remaps(dsl_dataset_t *ds, dsl_dataset_t *ds_next,
 	}
 
 	/* Merge our deadlist into next's and free it. */
-	if (dsl_dataset_remap_deadlist_exists(ds)) {
+	if (dsl_dataset_keep_remap_deadlist(ds, tx)) {
 		uint64_t remap_deadlist_object =
 		    dsl_dataset_get_remap_deadlist_object(ds);
 		ASSERT(remap_deadlist_object != 0);
