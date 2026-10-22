@@ -348,17 +348,9 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 	 * While we're in syncing context take the opportunity to
 	 * setup the scrub when there are no more active rebuilds.
 	 */
-	setup_sync_arg_t setup_sync_arg = {
-		.func = POOL_SCAN_SCRUB,
-		.txgstart = 0,
-		.txgend = 0,
-	};
-	if (dsl_scan_setup_check(&setup_sync_arg.func, tx) == 0 &&
-	    zfs_rebuild_scrub_enabled) {
-		dsl_scan_setup_sync(&setup_sync_arg, tx);
-	} else {
-		vdev_rebuild_resilver_request(spa);
-	}
+	vdev_rebuild_resilver_request(spa);
+	if (zfs_rebuild_scrub_enabled)
+		dsl_scan_setup_verify(spa->spa_dsl_pool, tx);
 
 	cv_broadcast(&vd->vdev_rebuild_cv);
 

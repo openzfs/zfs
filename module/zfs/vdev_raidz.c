@@ -4423,15 +4423,8 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	 * setup a scrub. All the data has been sucessfully copied
 	 * but we have not validated any checksums.
 	 */
-	setup_sync_arg_t setup_sync_arg = {
-		.func = POOL_SCAN_SCRUB,
-		.txgstart = 0,
-		.txgend = 0,
-	};
-	if (zfs_scrub_after_expand &&
-	    dsl_scan_setup_check(&setup_sync_arg.func, tx) == 0) {
-		dsl_scan_setup_sync(&setup_sync_arg, tx);
-	}
+	if (zfs_scrub_after_expand)
+		dsl_scan_setup_verify(spa->spa_dsl_pool, tx);
 }
 
 /*
