@@ -92,7 +92,11 @@
  */
 uint64_t zfs_dirty_data_max = 0;
 uint64_t zfs_dirty_data_max_max = 0;
+#ifdef __LP64__
+uint_t zfs_dirty_data_max_percent = 20;
+#else
 uint_t zfs_dirty_data_max_percent = 10;
+#endif
 uint_t zfs_dirty_data_max_max_percent = 25;
 
 /*
@@ -126,8 +130,9 @@ uint_t zfs_delay_min_dirty_percent = 60;
  * by the maximum number of operations per second.  This will smoothly
  * handle between 10x and 1/10th this number.
  *
- * Note: zfs_delay_scale * zfs_dirty_data_max must be < 2^64, due to the
- * multiply in dmu_tx_delay().
+ * Note: zfs_delay_scale multiplied by either zfs_dirty_data_max or
+ * zfs_wrlog_data_max must be < 2^64, due to the multiplies in
+ * dmu_tx_delay().
  */
 uint64_t zfs_delay_scale = 1000 * 1000 * 1000 / 2000;
 

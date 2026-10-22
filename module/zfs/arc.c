@@ -8181,13 +8181,20 @@ arc_init(void)
 	 *
 	 * If it has been set by a module parameter, take that.
 	 * Otherwise, use a percentage of physical memory defined by
-	 * zfs_dirty_data_max_percent (default 10%) with a cap at
-	 * zfs_dirty_data_max_max (default 4G or 25% of physical memory).
+	 * zfs_dirty_data_max_percent (default 20% on 64-bit, 10% on 32-bit)
+	 * with a cap at zfs_dirty_data_max_max (default 25% of physical
+	 * memory, additionally capped at 1G on 32-bit).
 	 */
 #ifdef __LP64__
-	if (zfs_dirty_data_max_max == 0)
-		zfs_dirty_data_max_max = MIN(4ULL * 1024 * 1024 * 1024,
-		    allmem * zfs_dirty_data_max_max_percent / 100);
+	if (zfs_dirty_data_max_max == 0) {
+		/*
+		 * The automatic write-log limit is twice the dirty limit.
+		 * Keep both delay calculations within uint64_t range.
+		 */
+		zfs_dirty_data_max_max = MIN(
+		    allmem * zfs_dirty_data_max_max_percent / 100,
+		    UINT64_MAX / 2 / MAX(zfs_delay_scale, 1));
+	}
 #else
 	if (zfs_dirty_data_max_max == 0)
 		zfs_dirty_data_max_max = MIN(1ULL * 1024 * 1024 * 1024,
