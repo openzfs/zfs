@@ -3106,15 +3106,15 @@ dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
 		return;
 
 	/*
-	 * This function is special because it is the only thing
-	 * that can add scan_io_t's to the vdev scan queues from
+	 * This function and dsl_scan_brt_entry() are special because
+	 * they can add scan_io_t's to the vdev scan queues from
 	 * outside dsl_scan_sync(). For the most part this is ok
 	 * as long as it is called from within syncing context.
 	 * However, dsl_scan_sync() expects that no new sio's will
 	 * be added between when all the work for a scan is done
 	 * and the next txg when the scan is actually marked as
-	 * completed. This check ensures we do not issue new sio's
-	 * during this period.
+	 * completed. This check, and the same one in
+	 * dsl_scan_brt_wanted(), keep new sio's out of this period.
 	 */
 	if (scn->scn_done_txg != 0)
 		return;
@@ -3870,6 +3870,16 @@ dsl_scan_active(dsl_scan_t *scn)
 	}
 	clones_left = spa_livelist_delete_check(spa);
 	return ((used != 0) || (clones_left));
+}
+
+boolean_t
+dsl_scan_brt_wanted(const dsl_scan_t *scn)
+{
+	if (spa_shutting_down(scn->scn_dp->dp_spa) ||
+	    dsl_errorscrubbing(scn->scn_dp))
+		return (B_FALSE);
+	/* See dsl_scan_ddt_entry() for scn_done_txg. */
+	return (dsl_scan_is_running(scn) && scn->scn_done_txg == 0);
 }
 
 boolean_t
@@ -4900,13 +4910,18 @@ scan_io_queue_insert_impl(dsl_scan_io_queue_t *queue, scan_io_t *sio)
 {
 	avl_index_t idx;
 	dsl_scan_t *scn = queue->q_scn;
+	scan_io_t *found;
 
 	ASSERT(MUTEX_HELD(&queue->q_vd->vdev_scan_io_queue_lock));
 
 	if (unlikely(avl_is_empty(&queue->q_sios_by_addr)))
 		atomic_add_64(&scn->scn_queues_pending, 1);
-	if (avl_find(&queue->q_sios_by_addr, sio, &idx) != NULL) {
+	found = avl_find(&queue->q_sios_by_addr, sio, &idx);
+	if (found != NULL) {
 		/* block is already scheduled for reading */
+		/* Keep the walk's bookmark over a hook's zero one. */
+		if (ZB_IS_ZERO(&found->sio_zb))
+			found->sio_zb = sio->sio_zb;
 		sio_free(sio);
 		return;
 	}
@@ -5049,6 +5064,50 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 
 	/* do not relocate this block */
 	return (0);
+}
+
+/*
+ * The walk did not visit this block, so it adds nothing to the
+ * examined counts.
+ */
+void
+dsl_scan_brt_entry(dsl_scan_t *scn, const blkptr_t *bp)
+{
+	spa_t *spa = scn->scn_dp->dp_spa;
+	uint64_t phys_birth = BP_GET_PHYSICAL_BIRTH(bp);
+	zbookmark_phys_t zb = { 0 };
+	int zio_flags = ZIO_FLAG_SCAN_THREAD | ZIO_FLAG_CANFAIL;
+	boolean_t needs_io = B_FALSE;
+
+	ASSERT(dsl_scan_is_running(scn));
+	ASSERT0(scn->scn_done_txg);
+
+	if (phys_birth <= scn->scn_phys.scn_min_txg ||
+	    phys_birth >= scn->scn_phys.scn_max_txg ||
+	    zfs_no_scrub_io)
+		return;
+
+	if (!dsl_scan_is_thorough_scrub(scn))
+		zio_flags |= ZIO_FLAG_RAW;
+	if (scn->scn_phys.scn_func == POOL_SCAN_SCRUB) {
+		zio_flags |= ZIO_FLAG_SCRUB;
+		needs_io = B_TRUE;
+	} else {
+		ASSERT3U(scn->scn_phys.scn_func, ==,
+		    POOL_SCAN_RESILVER);
+		zio_flags |= ZIO_FLAG_RESILVER;
+	}
+	for (int d = 0; d < BP_GET_NDVAS(bp) && !needs_io; d++) {
+		needs_io = dsl_scan_need_resilver(spa,
+		    &bp->blk_dva[d], BP_GET_PSIZE(bp), phys_birth);
+	}
+	if (!needs_io)
+		return;
+
+	/* As dsl_scan_sync() does, so the read can be queued. */
+	if (!zfs_scan_legacy)
+		scn->scn_is_sorted = B_TRUE;
+	dsl_scan_enqueue(scn->scn_dp, bp, zio_flags, &zb);
 }
 
 static void

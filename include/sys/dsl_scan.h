@@ -207,11 +207,13 @@ boolean_t dsl_scan_resilver_scheduled(struct dsl_pool *dp);
 boolean_t dsl_dataset_unstable(struct dsl_dataset *ds);
 void dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
     ddt_t *ddt, ddt_lightweight_entry_t *ddlwe, dmu_tx_t *tx);
+void dsl_scan_brt_entry(dsl_scan_t *scn, const blkptr_t *bp);
 void dsl_scan_ds_destroyed(struct dsl_dataset *ds, struct dmu_tx *tx);
 void dsl_scan_ds_snapshotted(struct dsl_dataset *ds, struct dmu_tx *tx);
 void dsl_scan_ds_clone_swapped(struct dsl_dataset *ds1, struct dsl_dataset *ds2,
     struct dmu_tx *tx);
 boolean_t dsl_scan_active(dsl_scan_t *scn);
+boolean_t dsl_scan_brt_wanted(const dsl_scan_t *scn);
 boolean_t dsl_scan_is_paused_scrub(const dsl_scan_t *scn);
 boolean_t dsl_errorscrub_is_paused(const dsl_scan_t *scn);
 void dsl_scan_freed(spa_t *spa, const blkptr_t *bp);

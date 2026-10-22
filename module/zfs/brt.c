@@ -1442,6 +1442,34 @@ brt_pending_apply_dedup(void *arg)
 	}
 }
 
+/*
+ * A new reference may lie behind the bookmark of a running scan, so
+ * the scan must see the block before this txg frees an older one.
+ */
+static void
+brt_pending_scan(spa_t *spa, brt_pending_vdev_arg_t *bpva,
+    uint64_t nvdevs)
+{
+	dsl_scan_t *scn = spa->spa_dsl_pool->dp_scan;
+
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+	ASSERT0P(scn->scn_zio_root);
+	scn->scn_zio_root = zio_root(spa, NULL, NULL,
+	    ZIO_FLAG_CANFAIL | ZIO_FLAG_SPECULATIVE |
+	    ZIO_FLAG_SELF_HEAL);
+	for (uint64_t vdevid = 0; vdevid < nvdevs; vdevid++) {
+		brt_vdev_t *brtvd = bpva[vdevid].bpva_brtvd;
+		if (brtvd == NULL)
+			continue;
+		for (brt_entry_t *bre = avl_first(&brtvd->bv_tree);
+		    bre != NULL; bre = AVL_NEXT(&brtvd->bv_tree, bre))
+			dsl_scan_brt_entry(scn, &bre->bre_bp);
+	}
+	(void) zio_wait(scn->scn_zio_root);
+	scn->scn_zio_root = NULL;
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+}
+
 void
 brt_pending_apply(spa_t *spa, uint64_t txg)
 {
@@ -1502,6 +1530,7 @@ brt_pending_apply(spa_t *spa, uint64_t txg)
 		return;
 	brt_pending_vdev_arg_t *bpva =
 	    kmem_zalloc(sizeof (*bpva) * nvdevs, KM_SLEEP);
+	boolean_t pending = B_FALSE;
 	brt_rlock(spa);
 	for (uint64_t vdevid = 0; vdevid < nvdevs; vdevid++) {
 		brt_vdev_t *brtvd = spa->spa_brt_vdevs[vdevid];
@@ -1510,6 +1539,7 @@ brt_pending_apply(spa_t *spa, uint64_t txg)
 		bpva[vdevid].bpva_spa = spa;
 		bpva[vdevid].bpva_brtvd = brtvd;
 		bpva[vdevid].bpva_txg = txg;
+		pending = B_TRUE;
 	}
 	brt_unlock(spa);
 	for (uint64_t vdevid = 0; vdevid < nvdevs; vdevid++) {
@@ -1519,6 +1549,9 @@ brt_pending_apply(spa_t *spa, uint64_t txg)
 		    &bpva[vdevid], TQ_SLEEP) != TASKQID_INVALID);
 	}
 	taskq_wait(tq);
+	if (pending &&
+	    dsl_scan_brt_wanted(spa->spa_dsl_pool->dp_scan))
+		brt_pending_scan(spa, bpva, nvdevs);
 	kmem_free(bpva, sizeof (*bpva) * nvdevs);
 }
 
