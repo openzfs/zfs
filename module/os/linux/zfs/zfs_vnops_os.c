@@ -1871,7 +1871,7 @@ zfs_setattr_dir(znode_t *dzp)
 	while ((err = zap_cursor_retrieve(&zc, zap)) == 0) {
 		count = 0;
 		if (zap->za_integer_length != 8 || zap->za_num_integers != 1) {
-			err = ENXIO;
+			err = SET_ERROR(ENXIO);
 			break;
 		}
 
@@ -2402,7 +2402,7 @@ top:
 		    zfs_id_overquota(zfsvfs, DMU_PROJECTUSED_OBJECT, projid)) {
 			if (attrzp)
 				zrele(attrzp);
-			err = EDQUOT;
+			err = SET_ERROR(EDQUOT);
 			goto out2;
 		}
 	}
@@ -2415,7 +2415,7 @@ top:
 
 		if (ZTOZSB(zp)->z_acl_mode == ZFS_ACL_RESTRICTED &&
 		    !(zp->z_pflags & ZFS_ACL_TRIVIAL)) {
-			err = EPERM;
+			err = SET_ERROR(EPERM);
 			goto out;
 		}
 
@@ -3029,7 +3029,7 @@ top:
 			rw_exit(&sdzp->z_name_lock);
 
 		if (strcmp(snm, "..") == 0)
-			serr = EINVAL;
+			serr = SET_ERROR(EINVAL);
 		zfs_exit(zfsvfs, FTAG);
 		return (serr);
 	}
@@ -3041,7 +3041,7 @@ top:
 			rw_exit(&sdzp->z_name_lock);
 
 		if (strcmp(tnm, "..") == 0)
-			terr = EINVAL;
+			terr = SET_ERROR(EINVAL);
 		zfs_exit(zfsvfs, FTAG);
 		return (terr);
 	}
@@ -3908,7 +3908,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	    (zp->z_projid != ZFS_DEFAULT_PROJID &&
 	    zfs_id_overblockquota(zfsvfs, DMU_PROJECTUSED_OBJECT,
 	    zp->z_projid))) {
-		err = EDQUOT;
+		err = SET_ERROR(EDQUOT);
 	}
 #endif
 
