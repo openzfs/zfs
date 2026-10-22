@@ -3164,6 +3164,10 @@ dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
  * reference class transitions to a higher level (i.e DDT_CLASS_UNIQUE to
  * DDT_CLASS_DUPLICATE); if it transitions from refcnt == 1 to refcnt > 1
  * while a scrub is in progress, it scrubs the block right then.
+ *
+ * A block whose class lies above scn_ddt_class_max can also gain a
+ * reference behind the top-down scrub, so ddt_sync_scan_entry()
+ * reports every entry that gained one.
  */
 static void
 dsl_scan_ddt(dsl_scan_t *scn, dmu_tx_t *tx)
