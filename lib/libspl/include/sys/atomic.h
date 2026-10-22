@@ -27,6 +27,33 @@ extern "C" {
 #endif
 
 #if defined(__STDC__)
+
+/*
+ * "token override" machinery. _SELECT_OVERRIDE expands the first token if it
+ * is defined with _OVERRIDE(), otherwise the second.
+ */
+/* CSTYLED */
+#define	_SPL_ATOMIC_OVERRIDE(v)		, v
+#define	_SPL_ATOMIC_SELECT_3(a, b, c, ...)	c
+#define	_SPL_ATOMIC_SELECT_OVERRIDE(...) \
+	_SPL_ATOMIC_SELECT_3(, __VA_ARGS__)
+
+/*
+ * Emit type for param or return in signature. If type is void, use void*,
+ * otherwise use as-is.
+ */
+#define	_SPL_ATOMIC_PARAM_void		_SPL_ATOMIC_OVERRIDE(void *)
+#define	_SPL_ATOMIC_PARAM(type)	\
+	_SPL_ATOMIC_SELECT_OVERRIDE(_SPL_ATOMIC_PARAM_##type, type)
+
+/*
+ * Emit target token, with cast if necessary. If type is void, cast to void**,
+ * otherwise use as-is.
+ */
+#define	_SPL_ATOMIC_CAST_void(target)	_SPL_ATOMIC_OVERRIDE((void **)target)
+#define	_SPL_ATOMIC_CAST(type, target)	\
+	_SPL_ATOMIC_SELECT_OVERRIDE(_SPL_ATOMIC_CAST_##type(target), target)
+
 /*
  * Increment target.
  */
@@ -71,7 +98,8 @@ SPL_ATOMIC_DEC(ulong, ulong_t)
 #define	SPL_ATOMIC_ADD(name, type1, type2) \
 	static inline void						\
 	atomic_add_##name(volatile type1 *target, type2 bits) {		\
-		__atomic_add_fetch(target, bits, __ATOMIC_SEQ_CST);	\
+		__atomic_add_fetch(_SPL_ATOMIC_CAST(type1, target),	\
+		    bits, __ATOMIC_SEQ_CST);				\
 	}
 
 SPL_ATOMIC_ADD(8, uint8_t, int8_t)
@@ -82,13 +110,8 @@ SPL_ATOMIC_ADD(char, uchar_t, signed char)
 SPL_ATOMIC_ADD(short, ushort_t, short)
 SPL_ATOMIC_ADD(int, uint_t, int)
 SPL_ATOMIC_ADD(long, ulong_t, long)
+SPL_ATOMIC_ADD(ptr, void, ssize_t)
 #undef SPL_ATOMIC_ADD
-
-static inline void
-atomic_add_ptr(volatile void *target, ssize_t bits)
-{
-	(void) __atomic_add_fetch((void **)target, bits, __ATOMIC_SEQ_CST);
-}
 
 /*
  * Subtract delta from target
@@ -96,7 +119,8 @@ atomic_add_ptr(volatile void *target, ssize_t bits)
 #define	SPL_ATOMIC_SUB(name, type1, type2) \
 	static inline void						\
 	atomic_sub_##name(volatile type1 *target, type2 bits) {		\
-		__atomic_sub_fetch(target, bits, __ATOMIC_SEQ_CST);	\
+		__atomic_sub_fetch(_SPL_ATOMIC_CAST(type1, target),	\
+		    bits, __ATOMIC_SEQ_CST);				\
 	}
 
 SPL_ATOMIC_SUB(8, uint8_t, int8_t)
@@ -107,13 +131,8 @@ SPL_ATOMIC_SUB(char, uchar_t, signed char)
 SPL_ATOMIC_SUB(short, ushort_t, short)
 SPL_ATOMIC_SUB(int, uint_t, int)
 SPL_ATOMIC_SUB(long, ulong_t, long)
+SPL_ATOMIC_SUB(ptr, void, ssize_t)
 #undef SPL_ATOMIC_SUB
-
-static inline void
-atomic_sub_ptr(volatile void *target, ssize_t bits)
-{
-	(void) __atomic_sub_fetch((void **)target, bits, __ATOMIC_SEQ_CST);
-}
 
 /*
  * logical OR bits with target
@@ -203,9 +222,10 @@ SPL_ATOMIC_DEC_NV(ulong, ulong_t)
  * Add delta to target
  */
 #define	SPL_ATOMIC_ADD_NV(name, type1, type2) \
-	static inline type1						\
+	static inline _SPL_ATOMIC_PARAM(type1)				\
 	atomic_add_##name##_nv(volatile type1 *target, type2 bits) {	\
-		return (__atomic_add_fetch(target, bits, __ATOMIC_SEQ_CST)); \
+		return (__atomic_add_fetch(_SPL_ATOMIC_CAST(type1, target), \
+		    bits, __ATOMIC_SEQ_CST)); \
 	}
 
 SPL_ATOMIC_ADD_NV(8, uint8_t, int8_t)
@@ -216,21 +236,17 @@ SPL_ATOMIC_ADD_NV(char, uchar_t, signed char)
 SPL_ATOMIC_ADD_NV(short, ushort_t, short)
 SPL_ATOMIC_ADD_NV(int, uint_t, int)
 SPL_ATOMIC_ADD_NV(long, ulong_t, long)
+SPL_ATOMIC_ADD_NV(ptr, void, ssize_t)
 #undef SPL_ATOMIC_ADD_NV
-
-static inline void *
-atomic_add_ptr_nv(volatile void *target, ssize_t bits)
-{
-	return (__atomic_add_fetch((void **)target, bits, __ATOMIC_SEQ_CST));
-}
 
 /*
  * Subtract delta from target
  */
 #define	SPL_ATOMIC_SUB_NV(name, type1, type2) \
-	static inline type1						\
+	static inline _SPL_ATOMIC_PARAM(type1)				\
 	atomic_sub_##name##_nv(volatile type1 *target, type2 bits) {	\
-		return (__atomic_sub_fetch(target, bits, __ATOMIC_SEQ_CST)); \
+		return (__atomic_sub_fetch(_SPL_ATOMIC_CAST(type1, target), \
+		    bits, __ATOMIC_SEQ_CST)); \
 	}
 
 SPL_ATOMIC_SUB_NV(8, uint8_t, int8_t)
@@ -241,13 +257,8 @@ SPL_ATOMIC_SUB_NV(char, uchar_t, signed char)
 SPL_ATOMIC_SUB_NV(short, ushort_t, short)
 SPL_ATOMIC_SUB_NV(int, uint_t, int)
 SPL_ATOMIC_SUB_NV(long, ulong_t, long)
+SPL_ATOMIC_SUB_NV(ptr, void, ssize_t)
 #undef SPL_ATOMIC_SUB_NV
-
-static inline void *
-atomic_sub_ptr_nv(volatile void *target, ssize_t bits)
-{
-	return (__atomic_sub_fetch((void **)target, bits, __ATOMIC_SEQ_CST));
-}
 
 /*
  * logical OR bits with target and return new value.
@@ -298,10 +309,11 @@ SPL_ATOMIC_AND_NV(ulong, ulong_t)
  * And, in the converse case, exp is already *target by definition.
  */
 #define	SPL_ATOMIC_CAS(name, type) \
-	static inline type						\
-	atomic_cas_##name(volatile type *target, type exp, type des) {	\
-		__atomic_compare_exchange_n(target, &exp, des, B_FALSE,	\
-		    __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);		\
+	static inline _SPL_ATOMIC_PARAM(type)				\
+	atomic_cas_##name(volatile type *target,			\
+	    _SPL_ATOMIC_PARAM(type) exp, _SPL_ATOMIC_PARAM(type) des) { \
+		__atomic_compare_exchange_n(_SPL_ATOMIC_CAST(type, target), \
+		    &exp, des, B_FALSE,	__ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST); \
 		return (exp);						\
 	}
 
@@ -313,23 +325,18 @@ SPL_ATOMIC_CAS(uchar, uchar_t)
 SPL_ATOMIC_CAS(ushort, ushort_t)
 SPL_ATOMIC_CAS(uint, uint_t)
 SPL_ATOMIC_CAS(ulong, ulong_t)
+SPL_ATOMIC_CAS(ptr, void)
 #undef SPL_ATOMIC_CAS
-
-static inline void *
-atomic_cas_ptr(volatile void *target, void *exp, void *des)
-{
-	__atomic_compare_exchange_n((void **)target, &exp, des, B_FALSE,
-	    __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
-	return (exp);
-}
 
 /*
  * Swap target and return old value
  */
 #define	SPL_ATOMIC_SWAP(name, type) \
-	static inline type						\
-	atomic_swap_##name(volatile type *target, type bits) {		\
-		return (__atomic_exchange_n(target, bits, __ATOMIC_SEQ_CST)); \
+	static inline _SPL_ATOMIC_PARAM(type)				\
+	atomic_swap_##name(volatile type *target,			\
+	    _SPL_ATOMIC_PARAM(type) bits) {				\
+		return (__atomic_exchange_n(_SPL_ATOMIC_CAST(type, target), \
+		    bits, __ATOMIC_SEQ_CST));				\
 	}
 
 SPL_ATOMIC_SWAP(8, uint8_t)
@@ -340,21 +347,17 @@ SPL_ATOMIC_SWAP(uchar, uchar_t)
 SPL_ATOMIC_SWAP(ushort, ushort_t)
 SPL_ATOMIC_SWAP(uint, uint_t)
 SPL_ATOMIC_SWAP(ulong, ulong_t)
+SPL_ATOMIC_SWAP(ptr, void)
 #undef SPL_ATOMIC_SWAP
-
-static inline void *
-atomic_swap_ptr(volatile void *target, void *bits)
-{
-	return (__atomic_exchange_n((void **)target, bits, __ATOMIC_SEQ_CST));
-}
 
 /*
  * Atomically read variable.
  */
 #define	SPL_ATOMIC_LOAD(name, type) \
-	static inline type						\
+	static inline _SPL_ATOMIC_PARAM(type)				\
 	atomic_load_##name(volatile type *target) {			\
-		return (__atomic_load_n(target, __ATOMIC_RELAXED));	\
+		return (__atomic_load_n(_SPL_ATOMIC_CAST(type, target), \
+		    __ATOMIC_RELAXED));					\
 	}
 
 SPL_ATOMIC_LOAD(8, uint8_t)
@@ -365,21 +368,18 @@ SPL_ATOMIC_LOAD(char, uchar_t)
 SPL_ATOMIC_LOAD(short, ushort_t)
 SPL_ATOMIC_LOAD(int, uint_t)
 SPL_ATOMIC_LOAD(long, ulong_t)
+SPL_ATOMIC_LOAD(ptr, void)
 #undef SPL_ATOMIC_LOAD
-
-static inline void *
-atomic_load_ptr(volatile void *target)
-{
-	return (__atomic_load_n((void **)target, __ATOMIC_RELAXED));
-}
 
 /*
  * Atomically write variable.
  */
 #define	SPL_ATOMIC_STORE(name, type) \
 	static inline void						\
-	atomic_store_##name(volatile type *target, type bits) {		\
-		__atomic_store_n(target, bits, __ATOMIC_RELAXED);	\
+	atomic_store_##name(volatile type *target,			\
+	    _SPL_ATOMIC_PARAM(type) bits) {				\
+		__atomic_store_n(_SPL_ATOMIC_CAST(type, target), bits,	\
+		    __ATOMIC_RELAXED);					\
 	}
 
 SPL_ATOMIC_STORE(8, uint8_t)
@@ -390,13 +390,8 @@ SPL_ATOMIC_STORE(char, uchar_t)
 SPL_ATOMIC_STORE(short, ushort_t)
 SPL_ATOMIC_STORE(int, uint_t)
 SPL_ATOMIC_STORE(long, ulong_t)
-#undef SPL_ATOMIC_LOAD
-
-static inline void
-atomic_store_ptr(volatile void *target, void *bits)
-{
-	__atomic_store_n((void **)target, bits, __ATOMIC_RELAXED);
-}
+SPL_ATOMIC_STORE(ptr, void)
+#undef SPL_ATOMIC_STORE
 
 /*
  * Perform an exclusive atomic bit set/clear on a target.
@@ -480,6 +475,14 @@ membar_consumer(void)
 {
 	__atomic_thread_fence(__ATOMIC_ACQUIRE);
 }
+
+#undef	_SPL_ATOMIC_CAST
+#undef	_SPL_ATOMIC_CAST_void
+#undef	_SPL_ATOMIC_PARAM
+#undef	_SPL_ATOMIC_PARAM_void
+#undef	_SPL_ATOMIC_SELECT_OVERRIDE
+#undef	_SPL_ATOMIC_SELECT_3
+#undef	_SPL_ATOMIC_OVERRIDE
 
 #endif  /* __STDC__ */
 
