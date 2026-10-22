@@ -21,8 +21,9 @@
 # STRATEGY:
 #	1. Create a delegated root with an inheriting child.
 #	2. Export and import the pool.
-#	3. Clear the root delegation.
-#	4. Confirm the former owner cannot see the child.
+#	3. Unload and reopen the pool, retaining visibility.
+#	4. Clear the root delegation.
+#	5. Confirm the former owner cannot see the child.
 #
 
 verify_runnable "global"
@@ -44,6 +45,14 @@ log_must zfs create "$child"
 
 log_must zpool export "$TESTPOOL"
 log_must zpool import "$TESTPOOL"
+log_must run_in_userns "$ZONED_TEST_UID" list "$child"
+
+log_must zfs unmount "$child"
+log_must zfs unmount "$root"
+log_must zfs unmount "$TESTPOOL/$TESTFS"
+log_must zfs unmount "$TESTPOOL"
+log_must zinject -u "$TESTPOOL"
+log_must zfs list "$child"
 log_must run_in_userns "$ZONED_TEST_UID" list "$child"
 
 log_must set_zoned_uid "$root" 0
