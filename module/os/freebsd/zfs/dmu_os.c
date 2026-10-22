@@ -103,7 +103,7 @@ dmu_write_pages(objset_t *os, uint64_t object, uint64_t offset, uint64_t size,
 				else
 					flags |= DMU_PARTIAL_MORE;
 			}
-			dmu_buf_will_dirty_flags(db, tx, flags);
+			dmu_buf_will_dirty_flags(db, tx, flags, B_FALSE);
 		}
 
 		for (copied = 0; copied < tocpy; copied += PAGESIZE) {
