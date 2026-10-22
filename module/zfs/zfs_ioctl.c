@@ -1011,44 +1011,32 @@ zfs_secpolicy_destroy_snaps(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 int
 zfs_secpolicy_rename_perms(const char *from, const char *to, cred_t *cr)
 {
-	char	parentname[ZFS_MAX_DATASET_NAME_LEN];
-	int	error;
+	char parentname[ZFS_MAX_DATASET_NAME_LEN];
+	int error;
+	int (*secpolicy)(const char *, const char *, cred_t *);
 	zone_admin_result_t result;
 
-	/* Check zoned_uid delegation first */
 	result = zone_dataset_admin_check(from, ZONE_OP_RENAME, to);
-	if (result == ZONE_ADMIN_ALLOWED) {
-		if ((error = zfs_secpolicy_zoned_uid_deleg(from,
-		    ZFS_DELEG_PERM_RENAME, cr)) != 0)
-			return (error);
-		return (zfs_secpolicy_zoned_uid_deleg(from,
-		    ZFS_DELEG_PERM_MOUNT, cr));
-	}
 	if (result == ZONE_ADMIN_DENIED)
 		return (SET_ERROR(EPERM));
 
-	/* NOT_APPLICABLE: continue with existing checks */
-	if ((error = zfs_secpolicy_write_perms(from,
-	    ZFS_DELEG_PERM_RENAME, cr)) != 0)
+	secpolicy = result == ZONE_ADMIN_ALLOWED ?
+	    zfs_secpolicy_zoned_uid_deleg : zfs_secpolicy_write_perms;
+
+	if ((error = secpolicy(from, ZFS_DELEG_PERM_RENAME, cr)) != 0)
 		return (error);
 
-	if ((error = zfs_secpolicy_write_perms(from,
-	    ZFS_DELEG_PERM_MOUNT, cr)) != 0)
+	if ((error = secpolicy(from, ZFS_DELEG_PERM_MOUNT, cr)) != 0)
 		return (error);
 
 	if ((error = zfs_get_parent(to, parentname,
 	    sizeof (parentname))) != 0)
 		return (error);
 
-	if ((error = zfs_secpolicy_write_perms(parentname,
-	    ZFS_DELEG_PERM_CREATE, cr)) != 0)
+	if ((error = secpolicy(parentname, ZFS_DELEG_PERM_CREATE, cr)) != 0)
 		return (error);
 
-	if ((error = zfs_secpolicy_write_perms(parentname,
-	    ZFS_DELEG_PERM_MOUNT, cr)) != 0)
-		return (error);
-
-	return (error);
+	return (secpolicy(parentname, ZFS_DELEG_PERM_MOUNT, cr));
 }
 
 static int
