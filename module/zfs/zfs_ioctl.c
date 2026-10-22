@@ -320,6 +320,9 @@ zfs_get_zoned_uid(const char *dataset, char *root_out, size_t root_size)
 		    &zoned_uid_val, setpoint);
 
 		if (error == 0) {
+			if (zoned_uid_val != 0 &&
+			    zone_dataset_uid_check(kcred, zoned_uid_val) != 0)
+				return (0);
 			if (zoned_uid_val != 0 && root_out != NULL)
 				(void) strlcpy(root_out, setpoint, root_size);
 			return ((uid_t)zoned_uid_val);

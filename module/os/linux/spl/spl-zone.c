@@ -32,6 +32,7 @@
 #include <sys/types.h>
 #include <sys/sysmacros.h>
 #include <sys/kmem.h>
+#include <sys/param.h>
 #include <linux/file.h>
 #include <linux/magic.h>
 #include <sys/zone.h>
@@ -284,6 +285,8 @@ zone_dataset_uid_check(cred_t *cred, uint64_t owner_uid)
 
 	if ((error = zone_dataset_cred_check(cred)) != 0)
 		return (error);
+	if (owner_uid >= MAXUID)
+		return (EINVAL);
 	return (uid_valid(make_kuid(&init_user_ns, (uid_t)owner_uid)) ?
 	    0 : EINVAL);
 #else
@@ -300,6 +303,9 @@ zone_dataset_set_uid(const char *dataset, uint64_t owner_uid)
 	zone_uid_dataset_t *zud;
 	size_t dsnamelen = strlen(dataset);
 
+	/* Invalid stored values must not expose ancestor grants. */
+	if (owner_uid >= MAXUID)
+		owner_uid = 0;
 	new_zud = kmem_alloc(sizeof (*new_zud) + dsnamelen + 1, KM_SLEEP);
 	new_zud->zud_uid = (uid_t)owner_uid;
 	new_zud->zud_dsnamelen = dsnamelen;
