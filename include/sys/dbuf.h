@@ -444,6 +444,8 @@ dbuf_find_dirty_lte(dmu_buf_impl_t *db, uint64_t txg)
 {
 	dbuf_dirty_record_t *dr;
 
+	/* Open context can add and remove records: walk under db_mtx. */
+	ASSERT(MUTEX_HELD(&db->db_mtx));
 	for (dr = list_head(&db->db_dirty_records);
 	    dr != NULL && dr->dr_txg > txg;
 	    dr = list_next(&db->db_dirty_records, dr))
