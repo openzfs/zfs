@@ -40,6 +40,6 @@ zed_LDADD = \
 	libzfs_core.la \
 	libnvpair.la
 
-zed_LDADD += -lrt $(LIBATOMIC_LIBS) $(LIBUDEV_LIBS) $(LIBUUID_LIBS)
+zed_LDADD += -lrt $(LIBUDEV_LIBS) $(LIBUUID_LIBS)
 
 dist_noinst_DATA += %D%/agents/README.md
