@@ -28,6 +28,7 @@
  * Copyright (c) 2023, Rob Norris <robn@despairlabs.com>
  * Copyright (c) 2026, TrueNAS.
  * Copyright 2026 Edgecast Cloud LLC.
+ * Copyright 2026 Oxide Computer Company
  */
 
 #include <stdio.h>
@@ -6507,8 +6508,7 @@ dump_size_histograms(zdb_cb_t *zcb)
 }
 
 static void
-zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
-    dmu_object_type_t type)
+zdb_count_block(zdb_cb_t *zcb, const blkptr_t *bp, dmu_object_type_t type)
 {
 	int i;
 	boolean_t claimed = B_FALSE;
@@ -6516,9 +6516,6 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 	boolean_t brt_block = B_FALSE;
 
 	ASSERT(type < ZDB_OT_TOTAL);
-
-	if (zilog && zil_bp_tree_add(zilog, bp) != 0)
-		return;
 
 	spa_config_enter(zcb->zcb_spa, SCL_CONFIG, FTAG, RW_READER);
 
@@ -6924,6 +6921,7 @@ static int
 zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
+	(void) zilog;
 	zdb_cb_t *zcb = arg;
 	dmu_object_type_t type;
 	boolean_t is_metadata;
@@ -6948,8 +6946,7 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 	type = BP_GET_TYPE(bp);
 
-	zdb_count_block(zcb, zilog, bp,
-	    (type & DMU_OT_NEWTYPE) ? ZDB_OT_OTHER : type);
+	zdb_count_block(zcb, bp, (type & DMU_OT_NEWTYPE) ? ZDB_OT_OTHER : type);
 
 	is_metadata = (BP_GET_LEVEL(bp) != 0 || DMU_OT_IS_METADATA(type));
 
@@ -7775,7 +7772,7 @@ count_block_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 		(void) printf("[%s] %s\n",
 		    "deferred free", blkbuf);
 	}
-	zdb_count_block(zcb, NULL, bp, ZDB_OT_DEFERRED);
+	zdb_count_block(zcb, bp, ZDB_OT_DEFERRED);
 	return (0);
 }
 
@@ -7869,7 +7866,7 @@ zdb_count_ddt_log_frees(spa_t *spa, zdb_cb_t *zcb)
 					    v, &blk);
 					/* As ddt_phys_free() does at flush. */
 					BP_SET_DEDUP(&blk, 0);
-					zdb_count_block(zcb, NULL, &blk,
+					zdb_count_block(zcb, &blk,
 					    ZDB_OT_DDT_PENDING);
 				}
 			}

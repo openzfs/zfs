@@ -184,16 +184,20 @@ dmu_write_direct(zio_t *pio, dmu_buf_impl_t *db, abd_t *data, dmu_tx_t *tx,
 
 	ASSERT0(dr_head->dt.dl.dr_has_raw_params);
 	ASSERT3S(dr_head->dt.dl.dr_override_state, ==, DR_NOT_OVERRIDDEN);
-	dr_head->dt.dl.dr_override_state = DR_IN_DMU_SYNC;
-
-	mutex_exit(&db->db_mtx);
-
-	dmu_objset_willuse_space(os, dr_head->dr_accounted, tx);
 
 	dmu_sync_arg_t *dsa = kmem_zalloc(sizeof (dmu_sync_arg_t), KM_SLEEP);
 	dsa->dsa_dr = dr_head;
 	dsa->dsa_tx = tx;
 	dsa->dsa_dio_verify_fails = verify_fails;
+	list_create(&dsa->dsa_waiters, sizeof (dmu_sync_waiter_t),
+	    offsetof(dmu_sync_waiter_t, dsw_node));
+
+	dr_head->dt.dl.dr_override_state = DR_IN_DMU_SYNC;
+	dr_head->dt.dl.dr_sync_arg = dsa;
+
+	mutex_exit(&db->db_mtx);
+
+	dmu_objset_willuse_space(os, dr_head->dr_accounted, tx);
 
 	zio_t *zio = zio_write(pio, os->os_spa, txg, bp, data,
 	    db->db.db_size, db->db.db_size, &zp,
