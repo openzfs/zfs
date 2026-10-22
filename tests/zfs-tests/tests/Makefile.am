@@ -2176,6 +2176,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/replacement/rebuild_disabled_feature.ksh \
 	functional/replacement/rebuild_draid_speculative.ksh \
 	functional/replacement/rebuild_multiple.ksh \
+	functional/replacement/rebuild_online_leaf.ksh \
 	functional/replacement/rebuild_raidz.ksh \
 	functional/replacement/replace_import.ksh \
 	functional/replacement/replace_rebuild.ksh \
