@@ -20,9 +20,7 @@
 #
 # DESCRIPTION:
 #	Verify that the 'zoned' property cannot be modified from within
-#	a delegated namespace. The ZFS_PROP_ZONED case blocks this via
-#	!INGLOBALZONE(curproc), but this is never tested in the zoned_uid
-#	delegation context.
+#	a delegated namespace, even with a delegated property permission.
 #
 # STRATEGY:
 #	1. Create delegation root with zoned_uid
@@ -44,8 +42,9 @@ log_assert "Cannot set 'zoned' property from delegated namespace"
 log_onexit cleanup
 
 # Step 1-2: Create delegation root and child
-log_must zfs create "$TESTPOOL/$TESTFS/deleg_root"
+log_must zfs create -o mountpoint=none "$TESTPOOL/$TESTFS/deleg_root"
 log_must set_zoned_uid "$TESTPOOL/$TESTFS/deleg_root" "$ZONED_TEST_UID"
+log_must grant_deleg "$TESTPOOL/$TESTFS/deleg_root" "$ZONED_TEST_UID" zoned
 log_must zfs create "$TESTPOOL/$TESTFS/deleg_root/child"
 
 log_note "Created delegation root and child"
