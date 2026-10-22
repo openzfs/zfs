@@ -10148,6 +10148,13 @@ spa_async_thread(void *arg)
 	mutex_enter(&spa->spa_async_lock);
 	tasks = spa->spa_async_tasks;
 	spa->spa_async_tasks = 0;
+	/*
+	 * Keep a resilver request visible to dsl_scan_resilver_scheduled()
+	 * until it has been handled below.  The tasks before it can wake
+	 * "zpool wait" waiters, which must not see it as gone.
+	 */
+	if (tasks & SPA_ASYNC_RESILVER)
+		spa->spa_async_resilver = B_TRUE;
 	mutex_exit(&spa->spa_async_lock);
 
 	/*
@@ -10241,6 +10248,12 @@ spa_async_thread(void *arg)
 	    (!dsl_scan_resilvering(dp) ||
 	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER)))
 		dsl_scan_restart_resilver(dp, 0);
+	if (tasks & SPA_ASYNC_RESILVER) {
+		mutex_enter(&spa->spa_async_lock);
+		spa->spa_async_resilver = B_FALSE;
+		mutex_exit(&spa->spa_async_lock);
+		spa_notify_waiters(spa);
+	}
 
 	if (tasks & SPA_ASYNC_INITIALIZE_RESTART) {
 		spa_namespace_enter(FTAG);
@@ -11997,6 +12010,17 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		*in_progress = vdev_rebuild_active(spa->spa_root_vdev);
 		if (*in_progress)
 			break;
+		/*
+		 * A resilver queued by the async thread has not started
+		 * scanning yet.  Count it, so that a scrub started once
+		 * the wait returns does not find it still pending.  A
+		 * read-only pool never starts it.
+		 */
+		if (spa_writeable(spa) &&
+		    dsl_scan_resilver_scheduled(spa->spa_dsl_pool)) {
+			*in_progress = B_TRUE;
+			break;
+		}
 		zfs_fallthrough;
 	case ZPOOL_WAIT_SCRUB:
 	{

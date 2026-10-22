@@ -772,7 +772,8 @@ boolean_t
 dsl_scan_resilver_scheduled(dsl_pool_t *dp)
 {
 	return ((dp->dp_scan && dp->dp_scan->scn_restart_txg != 0) ||
-	    (spa_async_tasks(dp->dp_spa) & SPA_ASYNC_RESILVER));
+	    (spa_async_tasks(dp->dp_spa) & SPA_ASYNC_RESILVER) ||
+	    dp->dp_spa->spa_async_resilver);
 }
 
 boolean_t
