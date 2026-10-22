@@ -1201,7 +1201,9 @@ tests = ['zoned_uid_001_pos', 'zoned_uid_002_pos', 'zoned_uid_003_pos',
     'zoned_uid_023_pos', 'zoned_uid_024_neg',
     'zoned_uid_025_pos', 'zoned_uid_026_pos',
     'zoned_uid_027_pos', 'zoned_uid_028_neg',
-    'zoned_uid_029_neg', 'zoned_uid_031_pos']
+    'zoned_uid_029_neg', 'zoned_uid_031_pos',
+    'zoned_uid_032_neg', 'zoned_uid_033_neg', 'zoned_uid_034_pos',
+    'zoned_uid_036_pos']
 tags = ['functional', 'zoned_uid']
 
 [tests/functional/zstream]

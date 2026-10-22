@@ -59,15 +59,12 @@ typedef struct zone_dataset {
 	char zd_dsname[];		/* name of the member dataset */
 } zone_dataset_t;
 
-/*
- * UID-based dataset zoning: allows delegating datasets to all user
- * namespaces owned by a specific UID, enabling rootless container support.
- */
-typedef struct zone_uid_datasets {
-	struct list_head zuds_list;	/* zone_uid_datasets linkage */
-	kuid_t zuds_owner;		/* owner UID */
-	struct list_head zuds_datasets;	/* datasets for this UID */
-} zone_uid_datasets_t;
+typedef struct zone_uid_dataset {
+	struct list_head zud_list;	/* zone_uid_datasets linkage */
+	uid_t zud_uid;			/* directly configured UID */
+	size_t zud_dsnamelen;		/* length of name */
+	char zud_dsname[];		/* local or received setpoint */
+} zone_uid_dataset_t;
 
 static struct list_head zone_uid_datasets;
 
@@ -150,18 +147,6 @@ zone_datasets_lookup(unsigned int nsinum)
 }
 
 #ifdef CONFIG_USER_NS
-static zone_uid_datasets_t *
-zone_uid_datasets_lookup(kuid_t owner)
-{
-	zone_uid_datasets_t *zuds;
-
-	list_for_each_entry(zuds, &zone_uid_datasets, zuds_list) {
-		if (uid_eq(zuds->zuds_owner, owner))
-			return (zuds);
-	}
-	return (NULL);
-}
-
 static struct zone_dataset *
 zone_dataset_lookup(zone_datasets_t *zds, const char *dataset, size_t dsnamelen)
 {
@@ -174,6 +159,19 @@ zone_dataset_lookup(zone_datasets_t *zds, const char *dataset, size_t dsnamelen)
 			return (zd);
 	}
 
+	return (NULL);
+}
+
+static zone_uid_dataset_t *
+zone_dataset_lookup_uid(const char *dataset, size_t dsnamelen)
+{
+	zone_uid_dataset_t *zud;
+
+	list_for_each_entry(zud, &zone_uid_datasets, zud_list) {
+		if (zud->zud_dsnamelen == dsnamelen &&
+		    memcmp(zud->zud_dsname, dataset, dsnamelen) == 0)
+			return (zud);
+	}
 	return (NULL);
 }
 
@@ -202,6 +200,29 @@ zone_dataset_name_check(const char *dataset, size_t *dsnamelen)
 
 	return (0);
 }
+
+#ifdef CONFIG_USER_NS
+static boolean_t
+zone_dataset_name_contains(const char *root, size_t rootlen,
+    const char *dataset, size_t dsnamelen)
+{
+	if (rootlen > dsnamelen || memcmp(root, dataset, rootlen) != 0)
+		return (B_FALSE);
+	if (rootlen == dsnamelen)
+		return (B_TRUE);
+	return (dataset[rootlen] == '/' || dataset[rootlen] == '@' ||
+	    dataset[rootlen] == '#');
+}
+
+static boolean_t
+zone_dataset_name_is_parent(const char *parent, size_t parentlen,
+    const char *dataset, size_t dsnamelen)
+{
+	return (parentlen < dsnamelen &&
+	    memcmp(parent, dataset, parentlen) == 0 &&
+	    dataset[parentlen] == '/');
+}
+#endif
 
 int
 zone_dataset_attach(cred_t *cred, const char *dataset, int userns_fd)
@@ -256,60 +277,48 @@ zone_dataset_attach(cred_t *cred, const char *dataset, int userns_fd)
 EXPORT_SYMBOL(zone_dataset_attach);
 
 int
-zone_dataset_attach_uid(cred_t *cred, const char *dataset, uid_t owner_uid)
+zone_dataset_uid_check(cred_t *cred, uint64_t owner_uid)
 {
 #ifdef CONFIG_USER_NS
-	zone_uid_datasets_t *zuds;
-	zone_dataset_t *zd;
 	int error;
-	size_t dsnamelen;
-	kuid_t kowner;
 
-	/* Only root can attach datasets to UIDs */
 	if ((error = zone_dataset_cred_check(cred)) != 0)
 		return (error);
-	if ((error = zone_dataset_name_check(dataset, &dsnamelen)) != 0)
-		return (error);
-
-	kowner = make_kuid(current_user_ns(), owner_uid);
-	if (!uid_valid(kowner))
-		return (EINVAL);
-
-	mutex_enter(&zone_datasets_lock);
-
-	/* Find or create UID entry */
-	zuds = zone_uid_datasets_lookup(kowner);
-	if (zuds == NULL) {
-		zuds = kmem_alloc(sizeof (zone_uid_datasets_t), KM_SLEEP);
-		INIT_LIST_HEAD(&zuds->zuds_list);
-		INIT_LIST_HEAD(&zuds->zuds_datasets);
-		zuds->zuds_owner = kowner;
-		list_add_tail(&zuds->zuds_list, &zone_uid_datasets);
-	} else {
-		/* Check if dataset already attached */
-		list_for_each_entry(zd, &zuds->zuds_datasets, zd_list) {
-			if (zd->zd_dsnamelen == dsnamelen &&
-			    strncmp(zd->zd_dsname, dataset, dsnamelen) == 0) {
-				mutex_exit(&zone_datasets_lock);
-				return (EEXIST);
-			}
-		}
-	}
-
-	/* Add dataset to UID's list */
-	zd = kmem_alloc(sizeof (zone_dataset_t) + dsnamelen + 1, KM_SLEEP);
-	zd->zd_dsnamelen = dsnamelen;
-	strlcpy(zd->zd_dsname, dataset, dsnamelen + 1);
-	INIT_LIST_HEAD(&zd->zd_list);
-	list_add_tail(&zd->zd_list, &zuds->zuds_datasets);
-
-	mutex_exit(&zone_datasets_lock);
-	return (0);
+	return (uid_valid(make_kuid(&init_user_ns, (uid_t)owner_uid)) ?
+	    0 : EINVAL);
 #else
 	return (ENXIO);
+#endif
+}
+EXPORT_SYMBOL(zone_dataset_uid_check);
+
+void
+zone_dataset_set_uid(const char *dataset, uint64_t owner_uid)
+{
+#ifdef CONFIG_USER_NS
+	zone_uid_dataset_t *new_zud;
+	zone_uid_dataset_t *zud;
+	size_t dsnamelen = strlen(dataset);
+
+	new_zud = kmem_alloc(sizeof (*new_zud) + dsnamelen + 1, KM_SLEEP);
+	new_zud->zud_uid = (uid_t)owner_uid;
+	new_zud->zud_dsnamelen = dsnamelen;
+	strlcpy(new_zud->zud_dsname, dataset, dsnamelen + 1);
+	INIT_LIST_HEAD(&new_zud->zud_list);
+
+	mutex_enter(&zone_datasets_lock);
+	zud = zone_dataset_lookup_uid(dataset, dsnamelen);
+	if (zud != NULL) {
+		zud->zud_uid = (uid_t)owner_uid;
+		mutex_exit(&zone_datasets_lock);
+		kmem_free(new_zud, sizeof (*new_zud) + dsnamelen + 1);
+		return;
+	}
+	list_add_tail(&new_zud->zud_list, &zone_uid_datasets);
+	mutex_exit(&zone_datasets_lock);
 #endif /* CONFIG_USER_NS */
 }
-EXPORT_SYMBOL(zone_dataset_attach_uid);
+EXPORT_SYMBOL(zone_dataset_set_uid);
 
 int
 zone_dataset_detach(cred_t *cred, const char *dataset, int userns_fd)
@@ -360,58 +369,80 @@ zone_dataset_detach(cred_t *cred, const char *dataset, int userns_fd)
 }
 EXPORT_SYMBOL(zone_dataset_detach);
 
-int
-zone_dataset_detach_uid(cred_t *cred, const char *dataset, uid_t owner_uid)
+void
+zone_dataset_unset_uid(const char *dataset)
 {
 #ifdef CONFIG_USER_NS
-	zone_uid_datasets_t *zuds;
-	zone_dataset_t *zd;
-	int error;
-	size_t dsnamelen;
-	kuid_t kowner;
-
-	if ((error = zone_dataset_cred_check(cred)) != 0)
-		return (error);
-	if ((error = zone_dataset_name_check(dataset, &dsnamelen)) != 0)
-		return (error);
-
-	kowner = make_kuid(current_user_ns(), owner_uid);
-	if (!uid_valid(kowner))
-		return (EINVAL);
+	zone_uid_dataset_t *zud;
+	size_t dsnamelen = strlen(dataset);
 
 	mutex_enter(&zone_datasets_lock);
-
-	zuds = zone_uid_datasets_lookup(kowner);
-	if (zuds == NULL) {
+	zud = zone_dataset_lookup_uid(dataset, dsnamelen);
+	if (zud == NULL) {
 		mutex_exit(&zone_datasets_lock);
-		return (ENOENT);
+		return;
 	}
-
-	/* Find and remove dataset */
-	list_for_each_entry(zd, &zuds->zuds_datasets, zd_list) {
-		if (zd->zd_dsnamelen == dsnamelen &&
-		    strncmp(zd->zd_dsname, dataset, dsnamelen) == 0) {
-			list_del(&zd->zd_list);
-			kmem_free(zd, sizeof (*zd) + zd->zd_dsnamelen + 1);
-
-			/* Remove UID entry if no more datasets */
-			if (list_empty(&zuds->zuds_datasets)) {
-				list_del(&zuds->zuds_list);
-				kmem_free(zuds, sizeof (*zuds));
-			}
-
-			mutex_exit(&zone_datasets_lock);
-			return (0);
-		}
-	}
-
+	list_del(&zud->zud_list);
 	mutex_exit(&zone_datasets_lock);
-	return (ENOENT);
-#else
-	return (ENXIO);
+
+	kmem_free(zud, sizeof (*zud) + zud->zud_dsnamelen + 1);
 #endif /* CONFIG_USER_NS */
 }
-EXPORT_SYMBOL(zone_dataset_detach_uid);
+EXPORT_SYMBOL(zone_dataset_unset_uid);
+
+void
+zone_dataset_remove_uid(const char *dataset)
+{
+#ifdef CONFIG_USER_NS
+	zone_uid_dataset_t *next;
+	zone_uid_dataset_t *zud;
+	size_t dsnamelen = strlen(dataset);
+
+	mutex_enter(&zone_datasets_lock);
+	list_for_each_entry_safe(zud, next, &zone_uid_datasets, zud_list) {
+		if (!zone_dataset_name_contains(dataset, dsnamelen,
+		    zud->zud_dsname, zud->zud_dsnamelen))
+			continue;
+		list_del(&zud->zud_list);
+		kmem_free(zud, sizeof (*zud) + zud->zud_dsnamelen + 1);
+	}
+	mutex_exit(&zone_datasets_lock);
+#endif /* CONFIG_USER_NS */
+}
+EXPORT_SYMBOL(zone_dataset_remove_uid);
+
+void
+zone_dataset_rename_uid(const char *from, const char *to)
+{
+#ifdef CONFIG_USER_NS
+	zone_uid_dataset_t *next;
+	zone_uid_dataset_t *new_zud;
+	zone_uid_dataset_t *zud;
+	size_t fromlen = strlen(from);
+	size_t suffixlen;
+	size_t tolen = strlen(to);
+
+	mutex_enter(&zone_datasets_lock);
+	list_for_each_entry_safe(zud, next, &zone_uid_datasets, zud_list) {
+		if (!zone_dataset_name_contains(from, fromlen,
+		    zud->zud_dsname, zud->zud_dsnamelen))
+			continue;
+
+		suffixlen = zud->zud_dsnamelen - fromlen;
+		new_zud = kmem_alloc(sizeof (*new_zud) + tolen + suffixlen + 1,
+		    KM_SLEEP);
+		new_zud->zud_uid = zud->zud_uid;
+		new_zud->zud_dsnamelen = tolen + suffixlen;
+		memcpy(new_zud->zud_dsname, to, tolen);
+		memcpy(new_zud->zud_dsname + tolen,
+		    zud->zud_dsname + fromlen, suffixlen + 1);
+		list_replace(&zud->zud_list, &new_zud->zud_list);
+		kmem_free(zud, sizeof (*zud) + zud->zud_dsnamelen + 1);
+	}
+	mutex_exit(&zone_datasets_lock);
+#endif /* CONFIG_USER_NS */
+}
+EXPORT_SYMBOL(zone_dataset_rename_uid);
 
 /*
  * Callback for looking up zoned_uid property (registered by ZFS module).
@@ -649,12 +680,30 @@ zone_dataset_check_list(struct list_head *datasets, const char *dataset,
 static int
 zone_dataset_visible_uid(const char *dataset, size_t dsnamelen, int *write)
 {
-	zone_uid_datasets_t *zuds;
+	zone_uid_dataset_t *best = NULL;
+	zone_uid_dataset_t *zud;
+	uid_t owner;
 
-	zuds = zone_uid_datasets_lookup(curproc->cred->user_ns->owner);
-	if (zuds != NULL)
-		return (zone_dataset_check_list(&zuds->zuds_datasets, dataset,
-		    dsnamelen, write));
+	owner = from_kuid(&init_user_ns, current_user_ns()->owner);
+	list_for_each_entry(zud, &zone_uid_datasets, zud_list) {
+		if (zone_dataset_name_contains(zud->zud_dsname,
+		    zud->zud_dsnamelen, dataset, dsnamelen) &&
+		    (best == NULL ||
+		    zud->zud_dsnamelen > best->zud_dsnamelen))
+			best = zud;
+	}
+	if (best != NULL && best->zud_uid != 0 && best->zud_uid == owner) {
+		if (write != NULL)
+			*write = 1;
+		return (1);
+	}
+
+	list_for_each_entry(zud, &zone_uid_datasets, zud_list) {
+		if (zud->zud_uid != 0 && zud->zud_uid == owner &&
+		    zone_dataset_name_is_parent(dataset, dsnamelen,
+		    zud->zud_dsname, zud->zud_dsnamelen))
+			return (1);
+	}
 	return (0);
 }
 #endif
@@ -755,7 +804,7 @@ void
 spl_zone_fini(void)
 {
 	zone_datasets_t *zds;
-	zone_uid_datasets_t *zuds;
+	zone_uid_dataset_t *zud;
 	zone_dataset_t *zd;
 
 	/*
@@ -767,16 +816,10 @@ spl_zone_fini(void)
 
 	/* Clean up UID-based delegations */
 	while (!list_empty(&zone_uid_datasets)) {
-		zuds = list_entry(zone_uid_datasets.next,
-		    zone_uid_datasets_t, zuds_list);
-		while (!list_empty(&zuds->zuds_datasets)) {
-			zd = list_entry(zuds->zuds_datasets.next,
-			    zone_dataset_t, zd_list);
-			list_del(&zd->zd_list);
-			kmem_free(zd, sizeof (*zd) + zd->zd_dsnamelen + 1);
-		}
-		list_del(&zuds->zuds_list);
-		kmem_free(zuds, sizeof (*zuds));
+		zud = list_entry(zone_uid_datasets.next,
+		    zone_uid_dataset_t, zud_list);
+		list_del(&zud->zud_list);
+		kmem_free(zud, sizeof (*zud) + zud->zud_dsnamelen + 1);
 	}
 
 	/* Clean up namespace-based delegations */
