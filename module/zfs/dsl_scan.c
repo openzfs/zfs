@@ -966,13 +966,27 @@ dsl_scan_resilver_first(dsl_pool_t *dp)
 int
 dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 {
-	(void) arg;
+	pool_scan_func_t func = *(pool_scan_func_t *)arg;
 	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
 	vdev_t *rvd = scn->scn_dp->dp_spa->spa_root_vdev;
 
 	if (dsl_scan_is_running(scn) || vdev_rebuild_active(rvd) ||
 	    dsl_errorscrubbing(scn->scn_dp))
 		return (SET_ERROR(EBUSY));
+
+	/*
+	 * A scrub started now would be narrowed to the DTL range of a
+	 * device that missed writes, and dsl_scan_setup_sync() would clear
+	 * the pending restart of the resilver that heals it.  Let that
+	 * resilver run first.  A restart with no device to heal starts a
+	 * scrub (see dsl_scan_sync()), so it does not refuse one.  The
+	 * vdev tree is only walked in syncing context, where spa_sync()
+	 * holds SCL_CONFIG.
+	 */
+	if (func == POOL_SCAN_SCRUB && dmu_tx_is_syncing(tx) &&
+	    dsl_scan_resilver_scheduled(scn->scn_dp) &&
+	    vdev_resilver_needed(rvd, NULL, NULL))
+		return (SET_ERROR(ZFS_ERR_RESILVER_IN_PROGRESS));
 
 	return (0);
 }

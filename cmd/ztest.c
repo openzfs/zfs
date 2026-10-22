@@ -595,6 +595,7 @@ enum ztest_object {
 };
 
 static __attribute__((noreturn)) void usage(boolean_t requested);
+static int ztest_scrub_start(spa_t *spa);
 static int ztest_scrub_impl(spa_t *spa);
 
 static void
@@ -4378,7 +4379,7 @@ ztest_device_removal(ztest_ds_t *zd, uint64_t id)
 	 * strategy employed by ztest_fault_inject() when selecting which
 	 * offset are redundant and can be damaged.
 	 */
-	error = spa_scan(spa, POOL_SCAN_SCRUB, 0);
+	error = ztest_scrub_start(spa);
 	if (error == 0) {
 		while (dsl_scan_scrubbing(spa_get_dsl(spa)))
 			txg_wait_synced(spa_get_dsl(spa), 0);
@@ -6844,6 +6845,41 @@ out:
 }
 
 /*
+ * A scrub is refused while another scan runs, or while a resilver is
+ * scheduled for a device that needs one.
+ */
+static boolean_t
+ztest_scrub_refused(int error)
+{
+	return (error == EBUSY || error == ZFS_ERR_RESILVER_IN_PROGRESS);
+}
+
+/*
+ * Start a scrub.  While a resilver is scheduled for a device that needs
+ * one, the scrub is refused, so wait for the resilver and try again.
+ * Stop waiting at the end of the pass: while a checkpoint exists, a
+ * resilver does not clear DTLs, and another one can be scheduled after
+ * each.
+ */
+static int
+ztest_scrub_start(spa_t *spa)
+{
+	dsl_pool_t *dp = spa_get_dsl(spa);
+	int error = spa_scan(spa, POOL_SCAN_SCRUB, 0);
+
+	while ((error == ZFS_ERR_RESILVER_IN_PROGRESS ||
+	    (error == EBUSY && dsl_scan_resilvering(dp))) &&
+	    gethrtime() < ztest_shared->zs_thread_stop) {
+		txg_wait_synced(dp, 0);
+		if (!dsl_scan_resilvering(dp) &&
+		    !dsl_scan_resilver_scheduled(dp))
+			error = spa_scan(spa, POOL_SCAN_SCRUB, 0);
+	}
+
+	return (error);
+}
+
+/*
  * By design ztest will never inject uncorrectable damage in to the pool.
  * Issue a scrub, wait for it to complete, and verify there is never any
  * persistent damage.
@@ -6865,7 +6901,7 @@ out:
 static int
 ztest_scrub_impl(spa_t *spa)
 {
-	int error = spa_scan(spa, POOL_SCAN_SCRUB, 0);
+	int error = ztest_scrub_start(spa);
 	if (error)
 		return (error);
 
@@ -6903,7 +6939,7 @@ ztest_scrub(ztest_ds_t *zd, uint64_t id)
 	(void) poll(NULL, 0, 100);
 
 	error = ztest_scrub_impl(spa);
-	if (error == EBUSY)
+	if (ztest_scrub_refused(error))
 		error = 0;
 	ASSERT0(error);
 }
@@ -8509,7 +8545,7 @@ ztest_raidz_expand_check(spa_t *spa)
 
 	/* Will fail here if there is non-recoverable corruption detected */
 	int error = ztest_scrub_impl(spa);
-	if (error == EBUSY)
+	if (ztest_scrub_refused(error))
 		error = 0;
 
 	VERIFY0(error);
@@ -8899,7 +8935,7 @@ ztest_run(ztest_shared_t *zs)
 			txg_wait_synced(spa_get_dsl(spa), 0);
 
 		error = ztest_scrub_impl(spa);
-		if (error == EBUSY)
+		if (ztest_scrub_refused(error))
 			error = 0;
 		ASSERT0(error);
 	}
