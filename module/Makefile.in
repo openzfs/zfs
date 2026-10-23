@@ -3,7 +3,7 @@ include Kbuild
 INSTALL_MOD_DIR ?= extra
 INSTALL_MOD_PATH ?= $(DESTDIR)
 
-all: modules gitrev
+all: modules
 distclean maintainer-clean: clean
 install: modules_install data_install
 uninstall: modules_uninstall data_uninstall
@@ -54,7 +54,7 @@ FMAKE = env -u MAKEFLAGS make $(FMAKEFLAGS)
 gitrev:
 	$(MAKE) -C "@abs_top_builddir@" gitrev
 
-modules-Linux:
+modules-Linux: gitrev
 	mkdir -p $(sort $(dir $(spl-objs) $(spl-)))
 	mkdir -p $(sort $(dir $(zfs-objs) $(zfs-)))
 	# Pre-6.10 kernel builds didn't need to copy over the source files to the
@@ -72,7 +72,7 @@ modules-Linux:
 		$(if @OBJTOOL_DISABLE_WERROR@,objtool=@abs_top_builddir@/scripts/objtool-wrapper) \
 		M="$$PWD" @KERNEL_MAKE@ CONFIG_ZFS=m modules
 
-modules-FreeBSD:
+modules-FreeBSD: gitrev
 	+$(FMAKE)
 
 modules-unknown:
