@@ -71,6 +71,9 @@ boolean_t dsl_prop_hascb(struct dsl_dataset *ds);
 
 int dsl_prop_get(const char *ddname, const char *propname,
     int intsz, int numints, void *buf, char *setpoint);
+/* The effective property is set on this dataset, locally or as received. */
+boolean_t dsl_prop_setpoint_is_direct(const char *dsname,
+    const char *setpoint);
 int dsl_prop_get_integer(const char *ddname, const char *propname,
     uint64_t *valuep, char *setpoint);
 int dsl_prop_get_all(objset_t *os, nvlist_t **nvp);

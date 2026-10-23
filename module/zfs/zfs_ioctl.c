@@ -319,11 +319,20 @@ zfs_get_zoned_uid(const char *dataset, char *root_out, size_t root_size)
 		error = dsl_prop_get(path, "zoned_uid", 8, 1,
 		    &zoned_uid_val, setpoint);
 
-		if (error == 0 && zoned_uid_val != 0) {
-			if (root_out != NULL)
-				(void) strlcpy(root_out, setpoint, root_size);
+		if (error == 0) {
+			if (zoned_uid_val != 0 &&
+			    zone_dataset_uid_check(kcred, zoned_uid_val) != 0)
+				return (0);
+			if (zoned_uid_val != 0 && root_out != NULL) {
+				const char *root =
+				    dsl_prop_setpoint_is_direct(path,
+				    setpoint) ? path : setpoint;
+				(void) strlcpy(root_out, root, root_size);
+			}
 			return ((uid_t)zoned_uid_val);
 		}
+		if (error != ENOENT)
+			return (0);
 
 		slash = strrchr(path, '/');
 		if (slash == NULL)
@@ -679,10 +688,13 @@ zfs_secpolicy_setprop(const char *dsname, zfs_prop_t prop, nvpair_t *propval,
 		    prop == ZFS_PROP_SNAPSHOT_LIMIT) {
 			char setpoint[ZFS_MAX_DATASET_NAME_LEN];
 			uint64_t zoned_uid_val = 0;
-			if (dsl_prop_get(dsname, "zoned_uid", 8, 1,
-			    &zoned_uid_val, setpoint) == 0 &&
-			    zoned_uid_val != 0 &&
-			    strcmp(dsname, setpoint) == 0)
+			int error;
+
+			error = dsl_prop_get(dsname, "zoned_uid", 8, 1,
+			    &zoned_uid_val, setpoint);
+			if (error != 0)
+				return (error);
+			if (dsl_prop_setpoint_is_direct(dsname, setpoint))
 				return (SET_ERROR(EPERM));
 		}
 		return (zfs_secpolicy_zoned_uid_deleg(dsname,
@@ -3073,28 +3085,6 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 		zfsvfs_rele(zfsvfs, FTAG);
 		break;
 	}
-	case ZFS_PROP_ZONED_UID:
-	{
-		uint64_t old_uid = 0;
-		(void) dsl_prop_get(dsname, "zoned_uid", 8, 1, &old_uid, NULL);
-		if (old_uid != 0)
-			(void) zone_dataset_detach_uid(CRED(), dsname,
-			    (uid_t)old_uid);
-		if (intval != 0) {
-			err = zone_dataset_attach_uid(CRED(), dsname,
-			    (uid_t)intval);
-			if (err == ENXIO)
-				err = ZFS_ERR_NO_USER_NS_SUPPORT;
-			if (err != 0)
-				break;
-		}
-		/*
-		 * Set err to -1 to force the zfs_set_prop_nvlist code down the
-		 * default path to set the value in the nvlist.
-		 */
-		err = -1;
-		break;
-	}
 	default:
 		err = -1;
 	}
@@ -4724,14 +4714,6 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 	if (strchr(zc->zc_name, '@')) {
 		err = dsl_destroy_snapshot(zc->zc_name, zc->zc_defer_destroy);
 	} else {
-		/*
-		 * Save zoned_uid before destroying so we can clean up
-		 * kernel-side zone tracking after a successful destroy.
-		 */
-		uint64_t zoned_uid = 0;
-		(void) dsl_prop_get(zc->zc_name, "zoned_uid",
-		    8, 1, &zoned_uid, NULL);
-
 		err = dsl_destroy_head(zc->zc_name);
 		if (err == EEXIST) {
 			/*
@@ -4762,10 +4744,6 @@ zfs_ioc_destroy(zfs_cmd_t *zc)
 				err = SET_ERROR(EEXIST);
 		}
 
-		if (err == 0 && zoned_uid != 0) {
-			(void) zone_dataset_detach_uid(kcred,
-			    zc->zc_name, (uid_t)zoned_uid);
-		}
 	}
 
 	return (err);
@@ -5272,23 +5250,7 @@ zfs_ioc_rename(zfs_cmd_t *zc)
 
 		return (error);
 	} else {
-		/*
-		 * For dataset renames, update kernel-side zone tracking
-		 * if the dataset has a zoned_uid delegation.  Read the
-		 * property before rename, then detach old / attach new.
-		 */
-		uint64_t zoned_uid = 0;
-		(void) dsl_prop_get(zc->zc_name, "zoned_uid",
-		    8, 1, &zoned_uid, NULL);
-
 		err = dsl_dir_rename(zc->zc_name, zc->zc_value);
-
-		if (err == 0 && zoned_uid != 0) {
-			(void) zone_dataset_detach_uid(kcred,
-			    zc->zc_name, (uid_t)zoned_uid);
-			(void) zone_dataset_attach_uid(kcred,
-			    zc->zc_value, (uid_t)zoned_uid);
-		}
 		return (err);
 	}
 }
@@ -5487,6 +5449,20 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 			}
 			spa_close(spa, FTAG);
 		}
+		break;
+
+	case ZFS_PROP_ZONED_UID:
+		if (nvpair_type(pair) == DATA_TYPE_UINT64)
+			VERIFY0(nvpair_value_uint64(pair, &intval));
+		else
+			intval = 0;
+		err = zone_dataset_uid_check(cr, intval);
+		if (err == ENXIO)
+			return (SET_ERROR(ZFS_ERR_NO_USER_NS_SUPPORT));
+		if (err == EINVAL)
+			return (SET_ERROR(ZFS_ERR_BADPROP));
+		if (err != 0)
+			return (SET_ERROR(err));
 		break;
 
 	case ZFS_PROP_SHARESMB:

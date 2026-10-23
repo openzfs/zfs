@@ -105,21 +105,13 @@ typedef uid_t (*zone_get_zoned_uid_fn_t)(const char *dataset,
     char *root_out, size_t root_size);
 
 /*
- * FreeBSD stubs: zoned_uid attach/detach require user namespaces
- * which FreeBSD does not have.  Return ENXIO (consistent with the
- * Linux fallback when CONFIG_USER_NS is not defined).
+ * FreeBSD stubs: zoned_uid requires user namespaces, which FreeBSD does not
+ * have.  Return ENXIO, consistent with Linux without CONFIG_USER_NS.
  */
 static inline int
-zone_dataset_attach_uid(struct ucred *cred, const char *dataset, uid_t uid)
+zone_dataset_uid_check(struct ucred *cred, uint64_t uid)
 {
-	(void) cred, (void) dataset, (void) uid;
-	return (ENXIO);
-}
-
-static inline int
-zone_dataset_detach_uid(struct ucred *cred, const char *dataset, uid_t uid)
-{
-	(void) cred, (void) dataset, (void) uid;
+	(void) cred, (void) uid;
 	return (ENXIO);
 }
 

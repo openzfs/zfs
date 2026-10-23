@@ -44,6 +44,9 @@
 #include <sys/zfs_znode.h>
 #include <sys/zvol.h>
 #include <sys/zthr.h>
+#if defined(__linux__) && defined(_KERNEL)
+#include <sys/zone.h>
+#endif
 #include "zfs_namecheck.h"
 #include "zfs_prop.h"
 
@@ -2245,6 +2248,9 @@ dsl_dir_rename_sync(void *arg, dmu_tx_t *tx)
 	zfsvfs_update_fromname(ddra->ddra_oldname, ddra->ddra_newname);
 	zvol_rename_minors(dp->dp_spa, ddra->ddra_oldname,
 	    ddra->ddra_newname, B_TRUE);
+#if defined(__linux__) && defined(_KERNEL)
+	zone_dataset_rename_uid(ddra->ddra_oldname, ddra->ddra_newname);
+#endif
 
 	dsl_prop_notify_all(dd);
 
