@@ -983,6 +983,34 @@ test_nv_prev_nvpair(const MunitParameter params[], void *data)
 
 /* ========== */
 
+/* next on empty list is always null */
+static MunitResult
+test_nv_next_empty(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	nvlist_t *nvl = nvl_create_from_params(params);
+	unit_null(nvlist_next_nvpair(nvl, NULL));
+
+	nvlist_free(nvl);
+	return (MUNIT_OK);
+}
+
+/* prev on empty list is always null */
+static MunitResult
+test_nv_prev_empty(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	nvlist_t *nvl = nvl_create_from_params(params);
+	unit_null(nvlist_prev_nvpair(nvl, NULL));
+
+	nvlist_free(nvl);
+	return (MUNIT_OK);
+}
+
+/* ========== */
+
 /*
  * When iterating, pairs should always be returned in insertion order. There's
  * three different tests here, because the iteration results will depend on how
@@ -2256,6 +2284,10 @@ static const MunitTest nvpair_tests[] = {
 	UNIT_TEST("nv_lookup_nvpair",	test_nv_lookup_nvpair),
 	UNIT_TEST("nv_next_nvpair",	test_nv_next_nvpair, nv_unique_params),
 	UNIT_TEST("nv_prev_nvpair",	test_nv_prev_nvpair, nv_unique_params),
+
+	/* iteration on empty list */
+	UNIT_TEST("nv_next_empty",	test_nv_next_empty, nv_unique_params),
+	UNIT_TEST("nv_prev_empty",	test_nv_prev_empty, nv_unique_params),
 
 	/* iteration order */
 	UNIT_TEST("nv_next_order_none",		test_nv_next_order_none),
