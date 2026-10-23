@@ -756,9 +756,9 @@ send_worker(void *arg)
  * Returns the error from func(), if nonzero,
  * otherwise the error from the thread.
  *
- * No-op if orig_fd is -1, already a pipe (but the buffer size is bumped),
- * and on not-Linux; as such, it is safe to wrap/call wrapped functions
- * in a wrapped context.
+ * No-op if orig_fd is -1, a regular file, already a pipe (but the buffer
+ * size is bumped), and on not-Linux; as such, it is safe to wrap/call wrapped
+ * functions in a wrapped context.
  */
 int
 lzc_send_wrapper(int (*func)(int, void *), int orig_fd, void *data)
@@ -774,6 +774,8 @@ lzc_send_wrapper(int (*func)(int, void *), int orig_fd, void *data)
 	}
 	if ((fcntl(orig_fd, F_GETFL) & O_ACCMODE) == O_RDONLY)
 		return (errno = EBADF);
+	if (S_ISREG(sb.st_mode))
+		return (func(orig_fd, data));
 
 	int rw[2];
 	if (pipe2(rw, O_CLOEXEC) == -1)
