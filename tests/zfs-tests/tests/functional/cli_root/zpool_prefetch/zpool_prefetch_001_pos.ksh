@@ -59,7 +59,7 @@ function getddtstats
 	[ -z "${gds.incore}" ] && gds.incore="0"
 	[ -z "${gds.cached}" ] && gds.cached="0"
 
-	return true
+	return 0
 }
 
 # Confirm that nothing happens on a standard pool config.
