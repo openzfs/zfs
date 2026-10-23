@@ -1832,7 +1832,9 @@ spa_activate(spa_t *spa, spa_mode_t mode)
 	mutex_enter(&spa->spa_proc_lock);
 	ASSERT(spa->spa_proc_state == SPA_PROC_NONE);
 	ASSERT(spa->spa_proc == &p0);
+#ifdef HAVE_SPA_THREAD
 	spa->spa_did = 0;
+#endif
 
 #ifdef HAVE_SPA_THREAD
 	/* Only create a process if we're going to be around a while. */
@@ -2035,6 +2037,7 @@ spa_deactivate(spa_t *spa)
 	ASSERT(spa->spa_proc == &p0);
 	mutex_exit(&spa->spa_proc_lock);
 
+#ifdef HAVE_SPA_THREAD
 	/*
 	 * We want to make sure spa_thread() has actually exited the ZFS
 	 * module, so that the module can't be unloaded out from underneath
@@ -2044,6 +2047,7 @@ spa_deactivate(spa_t *spa)
 		thread_join(spa->spa_did);
 		spa->spa_did = 0;
 	}
+#endif
 
 	spa_deactivate_os(spa);
 

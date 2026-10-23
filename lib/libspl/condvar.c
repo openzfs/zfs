@@ -45,9 +45,9 @@ cv_destroy(kcondvar_t *cv)
 void
 cv_wait(kcondvar_t *cv, kmutex_t *mp)
 {
-	memset(&mp->m_owner, 0, sizeof (pthread_t));
+	mp->m_owner = NULL;
 	VERIFY0(pthread_cond_wait(cv, &mp->m_lock));
-	mp->m_owner = pthread_self();
+	mp->m_owner = curthread;
 }
 
 int
@@ -78,9 +78,9 @@ cv_timedwait(kcondvar_t *cv, kmutex_t *mp, clock_t abstime)
 		ts.tv_nsec -= NANOSEC;
 	}
 
-	memset(&mp->m_owner, 0, sizeof (pthread_t));
+	mp->m_owner = NULL;
 	error = pthread_cond_timedwait(cv, &mp->m_lock, &ts);
-	mp->m_owner = pthread_self();
+	mp->m_owner = curthread;
 
 	if (error == ETIMEDOUT)
 		return (-1);
@@ -118,9 +118,9 @@ cv_timedwait_hires(kcondvar_t *cv, kmutex_t *mp, hrtime_t tim, hrtime_t res,
 		ts.tv_nsec -= NANOSEC;
 	}
 
-	memset(&mp->m_owner, 0, sizeof (pthread_t));
+	mp->m_owner = NULL;
 	error = pthread_cond_timedwait(cv, &mp->m_lock, &ts);
-	mp->m_owner = pthread_self();
+	mp->m_owner = curthread;
 
 	if (error == ETIMEDOUT)
 		return (-1);
