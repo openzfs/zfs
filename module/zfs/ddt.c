@@ -880,6 +880,13 @@ ddt_phys_addref(ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
 		ddp->ddp_trad[v].ddp_refcnt++;
 }
 
+void
+ddt_entry_addref(ddt_entry_t *dde, ddt_phys_variant_t v)
+{
+	ddt_phys_addref(dde->dde_phys, v);
+	dde->dde_flags |= DDE_FLAG_ADDREF;
+}
+
 uint64_t
 ddt_phys_decref(ddt_univ_phys_t *ddp, ddt_phys_variant_t v)
 {
@@ -2096,9 +2103,10 @@ ddt_sync_update_stats(ddt_t *ddt, dmu_tx_t *tx)
 }
 
 static void
-ddt_sync_scan_entry(ddt_t *ddt, ddt_lightweight_entry_t *ddlwe, dmu_tx_t *tx)
+ddt_sync_scan_entry(ddt_t *ddt, ddt_lightweight_entry_t *ddlwe,
+    boolean_t addref, dmu_tx_t *tx)
 {
-	dsl_pool_t *dp = ddt->ddt_spa->spa_dsl_pool;
+	dsl_scan_t *scn = ddt->ddt_spa->spa_dsl_pool->dp_scan;
 
 	/*
 	 * Compute the target class, so we can decide whether or not to inform
@@ -2121,9 +2129,13 @@ ddt_sync_scan_entry(ddt_t *ddt, ddt_lightweight_entry_t *ddlwe, dmu_tx_t *tx)
 	 * only in the log so far; the blocks on disk won't be freed until
 	 * the log is flushed, and the refcnt might increase before that. If it
 	 * does, then we could miss it in the same way.
+	 *
+	 * A reference added this txg may lie behind the traversal,
+	 * the only reader of classes above scn_ddt_class_max.
 	 */
-	if (refcnt == 0 || nclass < ddlwe->ddlwe_class)
-		dsl_scan_ddt_entry(dp->dp_scan, ddt->ddt_checksum, ddt,
+	if (refcnt == 0 || nclass < ddlwe->ddlwe_class ||
+	    (addref && nclass > scn->scn_phys.scn_ddt_class_max))
+		dsl_scan_ddt_entry(scn, ddt->ddt_checksum, ddt,
 		    ddlwe, tx);
 }
 
@@ -2447,7 +2459,8 @@ ddt_sync_table_log(ddt_t *ddt, dmu_tx_t *tx)
 			}
 
 			ddt_log_entry(ddt, &ddlwe, &dlu);
-			ddt_sync_scan_entry(ddt, &ddlwe, tx);
+			ddt_sync_scan_entry(ddt, &ddlwe,
+			    !!(dde->dde_flags & DDE_FLAG_ADDREF), tx);
 			ddt_free(ddt, dde);
 		}
 
@@ -2515,7 +2528,8 @@ ddt_sync_table_flush(ddt_t *ddt, dmu_tx_t *tx)
 
 		ddt_sync_flush_entry(ddt, &ddlwe,
 		    dde->dde_type, dde->dde_class, tx);
-		ddt_sync_scan_entry(ddt, &ddlwe, tx);
+		ddt_sync_scan_entry(ddt, &ddlwe,
+		    !!(dde->dde_flags & DDE_FLAG_ADDREF), tx);
 		ddt_free(ddt, dde);
 	}
 
@@ -2712,7 +2726,7 @@ ddt_addref(spa_t *spa, const blkptr_t *bp)
 		 */
 		ddt_phys_variant_t v = ddt_phys_select(ddt, dde, bp);
 		VERIFY3U(v, !=, DDT_PHYS_NONE);
-		ddt_phys_addref(dde->dde_phys, v);
+		ddt_entry_addref(dde, v);
 		result = B_TRUE;
 	} else {
 		/*
