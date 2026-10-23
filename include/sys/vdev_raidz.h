@@ -156,6 +156,8 @@ extern void vdev_raidz_attach_sync(void *, dmu_tx_t *);
 extern void spa_start_raidz_expansion_thread(spa_t *);
 extern int spa_raidz_expand_get_stats(spa_t *, pool_raidz_expand_stat_t *);
 extern int vdev_raidz_load(vdev_t *);
+extern int vdev_raidz_config_from_label(vdev_t *, nvlist_t *, boolean_t *,
+    const char **);
 
 /* RAIDZ scratch area pause points (for testing) */
 #define	RAIDZ_EXPAND_PAUSE_NONE	0
