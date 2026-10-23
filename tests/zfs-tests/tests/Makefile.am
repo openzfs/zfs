@@ -1831,6 +1831,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/l2arc/l2arc_mfuonly_pos.ksh \
 	functional/l2arc/l2arc_dwpd_ratelimit_pos.ksh \
 	functional/l2arc/l2arc_dwpd_reimport_pos.ksh \
+	functional/l2arc/l2arc_hdr_prune_arc_shrink_pos.ksh \
+	functional/l2arc/l2arc_hdr_prune_pos.ksh \
 	functional/l2arc/l2arc_multidev_scaling_pos.ksh \
 	functional/l2arc/l2arc_multidev_throughput_pos.ksh \
 	functional/l2arc/persist_l2arc_001_pos.ksh \
