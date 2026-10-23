@@ -141,10 +141,6 @@ zfs_holey_common(znode_t *zp, ulong_t cmd, loff_t *off)
 	else
 		hole = B_FALSE;
 
-	/* Flush any mmap()'d data to disk */
-	if (zn_has_cached_data(zp, 0, file_sz - 1))
-		zn_flush_cached_data(zp, B_TRUE);
-
 	lr = zfs_rangelock_enter(&zp->z_rangelock, 0, UINT64_MAX, RL_READER);
 	error = dmu_offset_next(ZTOZSB(zp)->z_os, zp->z_id, hole, &noff);
 	zfs_rangelock_exit(lr);
@@ -182,7 +178,13 @@ int
 zfs_holey(znode_t *zp, ulong_t cmd, loff_t *off)
 {
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	uint64_t file_sz = zp->z_size;
 	int error;
+
+	/* Flush before zfs_enter(), as in zfs_clone_range(). */
+	if ((uint64_t)*off < file_sz &&
+	    zn_has_cached_data(zp, 0, file_sz - 1))
+		zn_flush_cached_data(zp, B_TRUE);
 
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
@@ -1180,6 +1182,14 @@ zfs_rewrite(znode_t *zp, uint64_t off, uint64_t len, uint64_t flags,
 		return (SET_ERROR(EINVAL));
 
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+
+	/* Flush before zfs_enter(), as in zfs_clone_range(). */
+	uint64_t fsize = zp->z_size;
+	if (off < fsize && zn_has_cached_data(zp, off,
+	    (len == 0 || len > fsize - off) ?
+	    fsize - 1 : off + len - 1))
+		zn_flush_cached_data(zp, B_TRUE);
+
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
 
@@ -1202,10 +1212,6 @@ zfs_rewrite(znode_t *zp, uint64_t off, uint64_t len, uint64_t flags,
 	}
 	if (len == 0 || len > zp->z_size - off)
 		len = zp->z_size - off;
-
-	/* Flush any mmap()'d data to disk */
-	if (zn_has_cached_data(zp, off, off + len - 1))
-		zn_flush_cached_data(zp, B_TRUE);
 
 	zfs_locked_range_t *lr;
 	lr = zfs_rangelock_enter(&zp->z_rangelock, off, len, RL_WRITER);
@@ -2098,7 +2104,18 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	uint64_t	outoff = *outoffp;
 	uint64_t	len = *lenp;
 	uint64_t	done = 0;
+	uint64_t	insize = inzp->z_size;
 	int		error;
+
+	/*
+	 * Flush before zfs_enter().  Writing the pages out enters
+	 * the file system again, and on FreeBSD that nested enter
+	 * waits behind any writer waiting for the teardown lock.
+	 */
+	if (len > 0 && inoff < insize &&
+	    zn_has_cached_data(inzp, inoff,
+	    inoff + MIN(len, insize - inoff) - 1))
+		zn_flush_cached_data(inzp, B_TRUE);
 
 	/*
 	 * We need to call zfs_enter() potentially on two different datasets,
@@ -2160,10 +2177,6 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 			goto out;
 		}
 	}
-
-	/* Flush any mmap()'d data to disk */
-	if (zn_has_cached_data(inzp, inoff, inoff + len - 1))
-		zn_flush_cached_data(inzp, B_TRUE);
 
 	/*
 	 * Maintain predictable lock order.
