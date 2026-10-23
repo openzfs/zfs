@@ -1216,13 +1216,19 @@ dsl_crypto_key_sync(dsl_crypto_key_t *dck, dmu_tx_t *tx)
 {
 	zio_crypt_key_t *key = &dck->dck_key;
 	dsl_wrapping_key_t *wkey = dck->dck_wkey;
-	uint8_t keydata[MASTER_KEY_MAX_LEN];
-	uint8_t hmac_keydata[SHA512_HMAC_KEYLEN];
+	uint8_t *keydata, *hmac_keydata;
 	uint8_t iv[WRAPPING_IV_LEN];
 	uint8_t mac[WRAPPING_MAC_LEN];
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT3U(key->zk_crypt, <, ZIO_CRYPT_FUNCTIONS);
+
+	/*
+	 * The wrapped keys are written by the crypto backend, which may be
+	 * hardware doing DMA, so they can't live on the stack.
+	 */
+	keydata = kmem_zalloc(MASTER_KEY_MAX_LEN, KM_SLEEP);
+	hmac_keydata = kmem_zalloc(SHA512_HMAC_KEYLEN, KM_SLEEP);
 
 	/* encrypt and store the keys along with the IV and MAC */
 	VERIFY0(zio_crypt_key_wrap(&dck->dck_wkey->wk_key, key, iv, mac,
@@ -1233,6 +1239,9 @@ dsl_crypto_key_sync(dsl_crypto_key_t *dck, dmu_tx_t *tx)
 	    key->zk_crypt, wkey->wk_ddobj, key->zk_guid, iv, mac, keydata,
 	    hmac_keydata, wkey->wk_keyformat, wkey->wk_salt, wkey->wk_iters,
 	    tx);
+
+	kmem_free(keydata, MASTER_KEY_MAX_LEN);
+	kmem_free(hmac_keydata, SHA512_HMAC_KEYLEN);
 }
 
 typedef struct spa_keystore_change_key_args {
