@@ -899,7 +899,8 @@ tests = ['checkpoint_after_rewind', 'checkpoint_big_rewind',
     'checkpoint_indirect', 'checkpoint_invalid', 'checkpoint_lun_expsz',
     'checkpoint_open', 'checkpoint_removal', 'checkpoint_rewind',
     'checkpoint_ro_rewind', 'checkpoint_sm_scale', 'checkpoint_twice',
-    'checkpoint_vdev_add', 'checkpoint_zdb', 'checkpoint_zhack_feat']
+    'checkpoint_vdev_add', 'checkpoint_vdev_add_many', 'checkpoint_zdb',
+    'checkpoint_zhack_feat']
 tags = ['functional', 'pool_checkpoint']
 timeout = 1800
 
