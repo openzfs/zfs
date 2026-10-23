@@ -2628,4 +2628,30 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/idmap_mount/idmap_mount_002.ksh \
 	functional/idmap_mount/idmap_mount_003.ksh \
 	functional/idmap_mount/idmap_mount_004.ksh \
-	functional/idmap_mount/idmap_mount_005.ksh
+	functional/idmap_mount/idmap_mount_005.ksh \
+	functional/zos/bucket/cleanup.ksh \
+	functional/zos/bucket/setup.ksh \
+	functional/zos/bucket/zos_bucket_create_001_pos.ksh \
+	functional/zos/bucket/zos_bucket_create_002_neg.ksh \
+	functional/zos/bucket/zos_bucket_create_003_pos.ksh \
+	functional/zos/bucket/zos_bucket_delete_001_pos.ksh \
+	functional/zos/bucket/zos_bucket_delete_002_neg.ksh \
+	functional/zos/bucket/zos_bucket_delete_003_pos.ksh \
+	functional/zos/bucket/zos_bucket_delete_004_pos.ksh \
+	functional/zos/bucket/zos_bucket_delete_005_neg.ksh \
+	functional/zos/bucket/zos_bucket_list_001_pos.ksh \
+	functional/zos/bucket/zos_bucket_list_002_pos.ksh \
+	functional/zos/bucket/zos_bucket_list_003_pos.ksh \
+	functional/zos/bucket/zos_bucket_list_004_pos.ksh \
+	functional/zos/object/cleanup.ksh \
+	functional/zos/object/setup.ksh \
+	functional/zos/object/zos_object_put_001_pos.ksh \
+	functional/zos/object/zos_object_put_002_pos.ksh \
+	functional/zos/object/zos_object_delete_001_pos.ksh \
+	functional/zos/object/zos_object_delete_002_neg.ksh \
+	functional/zos/object/zos_object_get_001_pos.ksh \
+	functional/zos/object/zos_object_get_002_neg.ksh \
+	functional/zos/object/zos_object_list_001_pos.ksh \
+	functional/zos/object/zos_object_list_002_pos.ksh \
+	functional/zos/object/zos_object_list_003_pos.ksh \
+	functional/zos/object/zos_object_list_004_pos.ksh

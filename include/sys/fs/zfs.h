@@ -60,6 +60,7 @@ typedef enum dmu_objset_type {
 	DMU_OST_META,
 	DMU_OST_ZFS,
 	DMU_OST_ZVOL,
+	DMU_OST_BUCKET,
 	DMU_OST_OTHER,			/* For testing only! */
 	DMU_OST_ANY,			/* Be careful! */
 	DMU_OST_NUMTYPES
@@ -1708,6 +1709,13 @@ typedef enum zfs_ioc {
 	ZFS_IOC_POOL_PREFETCH,			/* 0x5a58 */
 	ZFS_IOC_DDT_PRUNE,			/* 0x5a59 */
 	ZFS_IOC_POOL_CONDENSE,			/* 0x5a5a */
+	ZFS_IOC_BUCKET_CREATE,			/* 0x5a5b */
+	ZFS_IOC_BUCKET_DELETE,			/* 0x5a5c */
+	ZFS_IOC_BUCKET_LIST,			/* 0x5a5d */
+	ZFS_IOC_OBJECT_PUT,			/* 0x5a5e */
+	ZFS_IOC_OBJECT_GET,			/* 0x5a5f */
+	ZFS_IOC_OBJECT_DELETE,			/* 0x5a60 */
+	ZFS_IOC_OBJECT_LIST,			/* 0x5a61 */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.

@@ -2097,3 +2097,144 @@ lzc_ddt_prune(const char *pool, zpool_ddt_prune_unit_t unit, uint64_t amount)
 
 	return (error);
 }
+
+int
+lzc_bucket_create(const char *pool, const char *bucket)
+{
+	int error;
+
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = NULL;
+
+	fnvlist_add_string(args, ZFS_BUCKET, bucket);
+
+	error = lzc_ioctl(ZFS_IOC_BUCKET_CREATE, pool, args, &result);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}
+
+int
+lzc_bucket_delete(const char *pool, const char *bucket)
+{
+	int error;
+
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = NULL;
+
+	fnvlist_add_string(args, ZFS_BUCKET, bucket);
+
+	error = lzc_ioctl(ZFS_IOC_BUCKET_DELETE, pool, args, &result);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}
+
+int
+lzc_bucket_list(const char *pool, nvlist_t **buckets)
+{
+	int error;
+
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = NULL;
+
+	error = lzc_ioctl(ZFS_IOC_BUCKET_LIST, pool, args, &result);
+
+	fnvlist_free(args);
+
+	if (error == 0 && result != NULL)
+		*buckets = result;
+	else
+		fnvlist_free(result);
+
+	return (error);
+}
+
+int
+lzc_object_put(const char *pool, const char *bucket, const char *key, int fd,
+    uint64_t size)
+{
+	int error;
+
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = NULL;
+
+	fnvlist_add_string(args, ZFS_BUCKET, bucket);
+	fnvlist_add_string(args, ZFS_KEY, key);
+	fnvlist_add_uint64(args, ZFS_SIZE, size);
+	fnvlist_add_int32(args, "fd", fd);
+
+	error = lzc_ioctl(ZFS_IOC_OBJECT_PUT, pool, args, &result);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}
+
+int
+lzc_object_delete(const char *pool, const char *bucket, const char *key) {
+	int error;
+
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = NULL;
+
+	fnvlist_add_string(args, ZFS_BUCKET, bucket);
+	fnvlist_add_string(args, ZFS_KEY, key);
+
+	error = lzc_ioctl(ZFS_IOC_OBJECT_DELETE, pool, args, &result);
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}
+
+int
+lzc_object_get(const char *pool, const char *bucket, const char *key, int fd,
+		uint64_t *size) {
+	int error;
+
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = fnvlist_alloc();
+
+	fnvlist_add_string(args, ZFS_BUCKET, bucket);
+	fnvlist_add_string(args, ZFS_KEY, key);
+	fnvlist_add_int32(args, "fd", fd);
+
+	error = lzc_ioctl(ZFS_IOC_OBJECT_GET, pool, args, &result);
+	if (error == 0) {
+		*size = fnvlist_lookup_uint64(result, ZFS_SIZE);
+	}
+
+	fnvlist_free(args);
+	fnvlist_free(result);
+
+	return (error);
+}
+
+int
+lzc_object_list(const char *pool, const char *bucket, nvlist_t **objects)
+{
+	int error;
+
+	nvlist_t *args = fnvlist_alloc();
+	nvlist_t *result = NULL;
+
+	fnvlist_add_string(args, ZFS_BUCKET, bucket);
+
+	error = lzc_ioctl(ZFS_IOC_OBJECT_LIST, pool, args, &result);
+
+	fnvlist_free(args);
+
+	if (error == 0 && result != NULL)
+		*objects = result;
+	else
+		fnvlist_free(result);
+
+	return (error);
+}

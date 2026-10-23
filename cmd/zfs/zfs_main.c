@@ -56,6 +56,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <sys/zfs_project.h>
+#include <sys/zfs_ioctl.h>
 
 #include <libzfs.h>
 #include <libzfs_core.h>
@@ -112,6 +113,10 @@ static int zfs_do_version(int argc, char **argv);
 static int zfs_do_redact(int argc, char **argv);
 static int zfs_do_rewrite(int argc, char **argv);
 static int zfs_do_wait(int argc, char **argv);
+// TODO: Move this to a dedicated command?  `zos bucket create ...` vs
+// `zfs bucket create ...`
+static int zfs_do_bucket(int argc, char **argv);
+static int zfs_do_object(int argc, char **argv);
 
 #ifdef __FreeBSD__
 static int zfs_do_jail(int argc, char **argv);
@@ -171,6 +176,8 @@ typedef enum {
 	HELP_WAIT,
 	HELP_ZONE,
 	HELP_UNZONE,
+	HELP_BUCKET,
+	HELP_OBJECT,
 } zfs_help_t;
 
 typedef struct zfs_command {
@@ -238,6 +245,8 @@ static zfs_command_t command_table[] = {
 	{ "program",	zfs_do_channel_program,	HELP_CHANNEL_PROGRAM	},
 	{ "rewrite",	zfs_do_rewrite,		HELP_REWRITE		},
 	{ "wait",	zfs_do_wait,		HELP_WAIT		},
+	{ "bucket",	zfs_do_bucket,		HELP_BUCKET		},
+	{ "object",	zfs_do_object,		HELP_OBJECT		},
 
 #ifdef __FreeBSD__
 	{ NULL },
@@ -420,6 +429,15 @@ get_usage(zfs_help_t idx)
 		return ("\tunjail <jailid|jailname> <filesystem>\n");
 	case HELP_WAIT:
 		return ("\twait [-t <activity>] <filesystem>\n");
+	case HELP_BUCKET:
+		return ("\tbucket create <pool/bucket>\n"
+		    "\tbucket delete <pool/bucket>\n"
+		    "\tbucket list <pool>\n");
+	case HELP_OBJECT:
+		return ("\tobject put <pool/bucket/key> [filename]\n"
+		    "\tobject get <pool/bucket/key> [filename]\n"
+		    "\tobject delete <pool/bucket/key>\n"
+		    "\tobject list <pool/bucket>\n");
 	case HELP_ZONE:
 		return ("\tzone <nsfile> <filesystem>\n");
 	case HELP_UNZONE:
@@ -9343,6 +9361,328 @@ found:;
 	zfs_close(zhp);
 
 	return (error);
+}
+
+static int
+parse_pool_bucket(char *path, char **pool, char **bucket) {
+	char *slash1 = strchr(path, '/');
+	if (slash1 == NULL) {
+		return (-1);
+	}
+	*slash1 = '\0';
+
+	*pool = path;
+	*bucket = slash1 + 1;
+	return (0);
+}
+
+static int
+zfs_do_bucket(int argc, char **argv) {
+	int ret = 0;
+
+	if (argc < 3) {
+		(void) fprintf(stderr, "invalid number of arguments\n");
+		usage(B_FALSE);
+	}
+
+	char *op = argv[1];
+	char *path = argv[2];
+
+	if ((g_zfs = libzfs_init()) == NULL) {
+		(void) fprintf(stderr, "%s\n", libzfs_error_init(errno));
+		return (1);
+	}
+
+	libzfs_print_on_error(g_zfs, B_TRUE);
+
+	if (strcmp(op, "create") == 0) {
+		if (argc != 3) {
+			(void) fprintf(stderr, "invalid number of arguments\n");
+			usage(B_FALSE);
+		}
+
+		char *pool;
+		char *bucket;
+
+		int error = parse_pool_bucket(path, &pool, &bucket);
+		if (error) {
+			(void) fprintf(stderr, "expected pool/bucket\n");
+			usage(B_FALSE);
+		}
+
+		error = lzc_bucket_create(pool, bucket);
+		if (error != 0) {
+			(void) fprintf(stderr,
+			    "cannot create bucket '%s/%s': %s\n", pool,
+			    bucket, strerror(error));
+			usage(B_FALSE);
+		}
+
+		ret = error;
+	} else if (strcmp(op, "delete") == 0) {
+		if (argc != 3) {
+			(void) fprintf(stderr, "invalid number of arguments\n");
+			usage(B_FALSE);
+		}
+
+		char *pool;
+		char *bucket;
+
+		int error = parse_pool_bucket(path, &pool, &bucket);
+		if (error) {
+			(void) fprintf(stderr, "expected pool/bucket\n");
+			usage(B_FALSE);
+		}
+
+		error = lzc_bucket_delete(pool, bucket);
+		if (error != 0) {
+			if (error == ENOTEMPTY) {
+				(void) fprintf(stderr, "cannot delete '%s/%s': "
+				    "bucket is not empty\n", pool, bucket);
+			} else {
+				(void) zfs_standard_error(g_zfs, error,
+						"cannot delete bucket");
+			}
+	}
+
+		ret = error;
+	} else if (strcmp(op, "list") == 0) {
+		if (argc != 3) {
+			(void) fprintf(stderr, "invalid number of arguments\n");
+			usage(B_FALSE);
+		}
+
+		nvlist_t *buckets = NULL;
+		int error = lzc_bucket_list(path, &buckets);
+
+		if (error == 0 && buckets != NULL) {
+			nvpair_t *elem = NULL;
+			while ((elem = nvlist_next_nvpair(buckets, elem)) !=
+			    NULL) {
+				(void) printf("%s\n", nvpair_name(elem));
+			}
+			fnvlist_free(buckets);
+		}
+
+		if (error != 0) {
+			(void) zfs_standard_error(g_zfs, error,
+			    "cannot list buckets");
+		}
+
+		ret = error;
+	} else {
+		(void) fprintf(stderr, "invalid operation: %s\n", op);
+		usage(B_FALSE);
+	}
+
+	return (ret);
+}
+
+static int
+parse_pool_bucket_key(char *path, char **pool, char **bucket, char **key) {
+	char *slash1 = strchr(path, '/');
+	if (slash1 == NULL) {
+		return (-1);
+	}
+	*slash1 = '\0';
+	char *slash2 = strchr(slash1 + 1, '/');
+	if (slash2 == NULL) {
+		return (-1);
+	}
+
+	*slash2 = '\0';
+	*pool = path;
+	*bucket = slash1 + 1;
+	*key = slash2 + 1;
+	return (0);
+}
+
+static int
+zfs_do_object(int argc, char **argv) {
+	int ret = 0;
+
+	if (argc < 3) {
+		(void) fprintf(stderr, "invalid number of arguments\n");
+		usage(B_FALSE);
+	}
+
+	char *op = argv[1];
+	char *path = argv[2];
+
+	if ((g_zfs = libzfs_init()) == NULL) {
+		(void) fprintf(stderr, "%s\n", libzfs_error_init(errno));
+		return (1);
+	}
+
+	libzfs_print_on_error(g_zfs, B_TRUE);
+
+	if (strcmp(op, "put") == 0) {
+		if (argc > 4) {
+			(void) fprintf(stderr, "invalid number of arguments\n");
+			usage(B_FALSE);
+		}
+
+		char *pool;
+		char *bucket;
+		char *key;
+
+		int error = parse_pool_bucket_key(path, &pool, &bucket, &key);
+		if (error) {
+			(void) fprintf(stderr, "expected pool/bucket/key\n");
+			usage(B_FALSE);
+		}
+
+		int fd;
+		uint64_t size;
+		if (argc >= 4) {
+			fd = open(argv[3], O_RDONLY);
+			if (fd < 0) {
+				(void) fprintf(stderr,
+						"cannot open '%s': %s\n",
+						argv[3], strerror(errno));
+				(void) libzfs_fini(g_zfs);
+				return (1);
+			}
+			struct stat st;
+			if (fstat(fd, &st) != 0) {
+				(void) fprintf(stderr,
+						"cannot stat '%s': %s\n",
+						argv[3], strerror(errno));
+				(void) close(fd);
+				(void) libzfs_fini(g_zfs);
+				return (1);
+			}
+			size = st.st_size;
+		} else {
+			fd = STDIN_FILENO;
+			size = 0;
+		}
+
+		error = lzc_object_put(pool, bucket, key, fd, size);
+
+		if (fd != STDIN_FILENO) {
+			(void) close(fd);
+		}
+
+		if (error) {
+			(void) fprintf(stderr,
+			    "cannot put object '%s/%s/%s': %s\n",
+			    pool, bucket, key, strerror(error));
+			usage(B_FALSE);
+		}
+
+		ret = error;
+	} else if (strcmp(op, "delete") == 0) {
+		if (argc != 3) {
+			(void) fprintf(stderr, "invalid number of arguments\n");
+			usage(B_FALSE);
+		}
+
+		char *pool;
+		char *bucket;
+		char *key;
+
+		int error = parse_pool_bucket_key(path, &pool, &bucket, &key);
+		if (error) {
+			(void) fprintf(stderr, "expected pool/bucket/key\n");
+			usage(B_FALSE);
+		}
+
+		error = lzc_object_delete(pool, bucket, key);
+
+		if (error) {
+			(void) fprintf(stderr,
+			    "cannot delete object '%s/%s/%s': %s\n", pool,
+			    bucket, key, strerror(error));
+		}
+
+		ret = error;
+	} else if (strcmp(op, "get") == 0) {
+		if (argc > 4) {
+			(void) fprintf(stderr, "invalid number of arguments\n");
+			usage(B_FALSE);
+		}
+
+		char *pool;
+		char *bucket;
+		char *key;
+
+		int error = parse_pool_bucket_key(path, &pool, &bucket, &key);
+		if (error) {
+			(void) fprintf(stderr, "expected pool/bucket/key\n");
+			usage(B_FALSE);
+		}
+
+		int fd;
+		uint64_t size;
+		if (argc >= 4) {
+			fd = open(argv[3], O_WRONLY|O_CREAT|O_TRUNC, 0644);
+			if (fd < 0) {
+				(void) fprintf(stderr,
+						"cannot open '%s': %s\n",
+						argv[3], strerror(errno));
+				(void) libzfs_fini(g_zfs);
+				return (1);
+			}
+		} else {
+			fd = STDOUT_FILENO;
+		}
+
+		error = lzc_object_get(pool, bucket, key, fd, &size);
+
+		if (fd != STDOUT_FILENO) {
+			(void) close(fd);
+		}
+
+		if (error) {
+			(void) fprintf(stderr,
+			    "cannot get object '%s/%s/%s': %s\n",
+			    pool, bucket, key, strerror(error));
+			usage(B_FALSE);
+		}
+
+		ret = error;
+	} else if (strcmp(op, "list") == 0) {
+		if (argc != 3) {
+			(void) fprintf(stderr, "invalid number of arguments\n");
+			usage(B_FALSE);
+		}
+
+		char *pool;
+		char *bucket;
+
+		int error = parse_pool_bucket(path, &pool, &bucket);
+		if (error) {
+			(void) fprintf(stderr, "expected pool/bucket\n");
+			usage(B_FALSE);
+		}
+
+		nvlist_t *keys = NULL;
+		error = lzc_object_list(pool, bucket, &keys);
+
+		if (error == 0 && keys != NULL) {
+			nvpair_t *elem = NULL;
+			while ((elem = nvlist_next_nvpair(keys, elem)) !=
+			    NULL) {
+				(void) printf("%s\n", nvpair_name(elem));
+			}
+			fnvlist_free(keys);
+		}
+
+		if (error != 0) {
+			(void) zfs_standard_error(g_zfs, error,
+			    "cannot list objects");
+		}
+
+		ret = error;
+	} else {
+		(void) fprintf(stderr,
+				"invalid operation: %s\n", op);
+		usage(B_FALSE);
+	}
+
+	return (ret);
+
 }
 
 /*

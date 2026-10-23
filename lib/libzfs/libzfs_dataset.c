@@ -26,6 +26,7 @@
  * Copyright (c) 2021 Matt Fiddaman
  */
 
+#include <asm-generic/errno-base.h>
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
@@ -441,6 +442,9 @@ make_dataset_handle_common(zfs_handle_t *zhp, zfs_cmd_t *zc)
 		zhp->zfs_head_type = ZFS_TYPE_FILESYSTEM;
 	} else if (zhp->zfs_dmustats.dds_type == DMU_OST_OTHER) {
 		errno = EINVAL;
+		return (-1);
+	} else if (zhp->zfs_dmustats.dds_type == DMU_OST_BUCKET) {
+		errno = ENOENT;
 		return (-1);
 	} else if (zhp->zfs_dmustats.dds_inconsistent) {
 		errno = EBUSY;
