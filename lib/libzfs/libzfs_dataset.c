@@ -2831,6 +2831,7 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 	case ZFS_PROP_CREATETXG:
 	case ZFS_PROP_OBJSETID:
 	case ZFS_PROP_PBKDF2_ITERS:
+	case ZFS_PROP_ZONED_UID:
 		/*
 		 * These properties are stored as numbers, but they are
 		 * identifiers or counters.
