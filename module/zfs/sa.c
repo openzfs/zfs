@@ -524,6 +524,24 @@ sa_copy_data(sa_data_locator_t *func, void *datastart, void *target, int buflen)
 }
 
 /*
+ * Mark attr as a hint: an attribute its consumer can do without, such as
+ * a cache of something it can recompute.  sa_build_layouts() leaves a
+ * hint out of an object rather than give the object a spill block (or
+ * keep one) only to hold it, so an update that adds a hint, or makes
+ * another attribute larger, may leave the object without the hint.
+ */
+void
+sa_set_hint(objset_t *os, sa_attr_type_t attr)
+{
+	sa_os_t *sa = os->os_sa;
+
+	mutex_enter(&sa->sa_lock);
+	ASSERT3U(attr, <, sa->sa_num_attrs);
+	sa->sa_attr_table[attr].sa_hint = B_TRUE;
+	mutex_exit(&sa->sa_lock);
+}
+
+/*
  * Determine several different values pertaining to system attribute
  * buffers.
  *
@@ -642,6 +660,42 @@ sa_find_sizes(sa_os_t *sa, sa_bulk_attr_t *attr_desc, int attr_count,
 #define	BUF_SPACE_NEEDED(total, header) (total + header)
 
 /*
+ * If the attributes need a spill block only because of a hint attribute
+ * (sa_set_hint()), leave the hint out: remove it from attr_desc, update
+ * sa_find_sizes()'s results for the rest and return the new count.
+ * Otherwise return attr_count with attr_desc unchanged.
+ */
+static int
+sa_drop_hint(sa_os_t *sa, dmu_buf_t *db, sa_bulk_attr_t *attr_desc,
+    int attr_count, int full_space, int *hdrsize, int *index, int *total,
+    boolean_t *will_spill)
+{
+	for (int i = 0; i < attr_count; i++) {
+		sa_bulk_attr_t hint = attr_desc[i];
+		int h, idx, tot;
+		boolean_t spill;
+
+		if (!sa->sa_attr_table[hint.sa_attr].sa_hint)
+			continue;
+		memmove(&attr_desc[i], &attr_desc[i + 1],
+		    (attr_count - i - 1) * sizeof (sa_bulk_attr_t));
+		h = sa_find_sizes(sa, attr_desc, attr_count - 1, db, SA_BONUS,
+		    full_space, &idx, &tot, &spill);
+		if (!spill) {
+			*hdrsize = h;
+			*index = idx;
+			*total = tot;
+			*will_spill = B_FALSE;
+			return (attr_count - 1);
+		}
+		memmove(&attr_desc[i + 1], &attr_desc[i],
+		    (attr_count - i - 1) * sizeof (sa_bulk_attr_t));
+		attr_desc[i] = hint;
+	}
+	return (attr_count);
+}
+
+/*
  * Find layout that corresponds to ordering of attributes
  * If not found a new layout number is created and added to
  * persistent layout tables.
@@ -677,6 +731,11 @@ sa_build_layouts(sa_handle_t *hdl, sa_bulk_attr_t *attr_desc, int attr_count,
 	/* first determine bonus header size and sum of all attributes */
 	hdrsize = sa_find_sizes(sa, attr_desc, attr_count, hdl->sa_bonus,
 	    SA_BONUS, bonuslen, &spill_idx, &used, &spilling);
+	if (spilling && !sa->sa_force_spill) {
+		attr_count = sa_drop_hint(sa, hdl->sa_bonus, attr_desc,
+		    attr_count, bonuslen, &hdrsize, &spill_idx, &used,
+		    &spilling);
+	}
 
 	if (used > SPA_OLD_MAXBLOCKSIZE)
 		return (SET_ERROR(EFBIG));
@@ -2274,6 +2333,7 @@ EXPORT_SYMBOL(sa_get_db);
 EXPORT_SYMBOL(sa_handle_object);
 EXPORT_SYMBOL(sa_register_update_callback);
 EXPORT_SYMBOL(sa_setup);
+EXPORT_SYMBOL(sa_set_hint);
 EXPORT_SYMBOL(sa_replace_all_by_template);
 EXPORT_SYMBOL(sa_replace_all_by_template_locked);
 EXPORT_SYMBOL(sa_enabled);
