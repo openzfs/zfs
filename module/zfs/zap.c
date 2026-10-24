@@ -896,45 +896,60 @@ zap_increment(objset_t *os, uint64_t zapobj, const char *name, int64_t delta,
 
 /* zap_value_search */
 
+/*
+ * Find the name of an entry whose value, masked, equals value & mask.  This
+ * is a linear search (the ZAP is indexed by name), so it takes the locks
+ * once per leaf rather than going through a cursor, which takes them for
+ * every entry.
+ */
 static int
-zap_value_search_impl(zap_cursor_t *zc, uint64_t value, uint64_t mask,
+zap_value_search_impl(zap_t *zap, uint64_t value, uint64_t mask,
     char *name, uint64_t namelen)
 {
-	int err;
-
 	if (mask == 0)
 		mask = -1ULL;
 
-	zap_attribute_t *za = zap_attribute_long_alloc();
-	for (; (err = zap_cursor_retrieve(zc, za)) == 0;
-	    zap_cursor_advance(zc)) {
-		if ((za->za_first_integer & mask) == (value & mask)) {
-			if (strlcpy(name, za->za_name, namelen) >= namelen)
-				err = SET_ERROR(ENAMETOOLONG);
-			break;
-		}
+	if (!zap->zap_ismicro)
+		return (fzap_value_search(zap, value, mask, name, namelen));
+
+	for (uint16_t i = 0; i < zap->zap_m.zap_num_chunks; i++) {
+		mzap_ent_phys_t *mze = &zap_m_phys(zap)->mz_chunk[i];
+		if (mze->mze_name[0] == '\0' ||
+		    (mze->mze_value & mask) != (value & mask))
+			continue;
+		if (strlcpy(name, mze->mze_name, namelen) >= namelen)
+			return (SET_ERROR(ENAMETOOLONG));
+		return (0);
 	}
-	zap_cursor_fini(zc);
-	zap_attribute_free(za);
-	return (err);
+	return (SET_ERROR(ENOENT));
 }
 
 int
 zap_value_search(objset_t *os, uint64_t zapobj, uint64_t value, uint64_t mask,
     char *name, uint64_t namelen)
 {
-	zap_cursor_t zc;
-	zap_cursor_init(&zc, os, zapobj);
-	return (zap_value_search_impl(&zc, value, mask, name, namelen));
+	zap_t *zap;
+	int err = zap_lock(os, zapobj, NULL, RW_READER, TRUE, FALSE, FTAG,
+	    &zap);
+	if (err != 0)
+		return (err);
+	err = zap_value_search_impl(zap, value, mask, name, namelen);
+	zap_unlock(zap, FTAG);
+	return (err);
 }
 
 int
 zap_value_search_by_dnode(dnode_t *dn, uint64_t value, uint64_t mask,
     char *name, uint64_t namelen)
 {
-	zap_cursor_t zc;
-	zap_cursor_init_by_dnode(&zc, dn);
-	return (zap_value_search_impl(&zc, value, mask, name, namelen));
+	zap_t *zap;
+	int err = zap_lock_by_dnode(dn, NULL, RW_READER, TRUE, FALSE, FTAG,
+	    &zap);
+	if (err != 0)
+		return (err);
+	err = zap_value_search_impl(zap, value, mask, name, namelen);
+	zap_unlock(zap, FTAG);
+	return (err);
 }
 
 /* zap_*_int */
