@@ -134,17 +134,10 @@ extern int aes_encrypt_contiguous_blocks(void *ctx, char *data, size_t length,
 extern int aes_decrypt_contiguous_blocks(void *ctx, char *data, size_t length,
     crypto_data_t *out);
 
-/*
- * The following definitions and declarations are only used by AES FIPS POST
- */
-#ifdef _AES_IMPL
-
 typedef enum aes_mech_type {
 	AES_CCM_MECH_INFO_TYPE,		/* SUN_CKM_AES_CCM */
 	AES_GCM_MECH_INFO_TYPE,		/* SUN_CKM_AES_GCM */
 } aes_mech_type_t;
-
-#endif /* _AES_IMPL */
 
 /*
  * Methods used to define AES implementation

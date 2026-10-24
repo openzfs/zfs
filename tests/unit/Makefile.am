@@ -19,6 +19,7 @@ UNIT_TESTS = \
 	%D%/test_namecheck \
 	%D%/test_btree \
 	%D%/test_fletcher \
+	%D%/test_icp \
 	%D%/test_sha2 \
 	%D%/test_cityhash \
 	%D%/test_nvpair \
@@ -90,6 +91,22 @@ nodist_%C%_test_fletcher_SOURCES = \
 %C%_test_fletcher_LDADD = \
 	libspl.la \
 	libunit.la
+
+
+%C%_test_icp_CFLAGS = $(AM_CFLAGS)
+
+nodist_%C%_test_icp_SOURCES = \
+	module/zfs/zfs_impl.c
+
+%C%_test_icp_SOURCES = \
+	%D%/test_icp.c
+
+%C%_test_icp_LDADD = \
+	libicp.la \
+	libspl.la \
+	libunit.la
+
+%C%_test_icp_coverage_sources = module/icp/*
 
 
 %C%_test_sha2_CFLAGS = $(AM_CFLAGS)
@@ -182,8 +199,10 @@ _unit_run_%: %D%/%
 		--output-file $@ \
 		--rc lcov_branch_coverage=1 \
 		--rc geninfo_unexecuted_blocks=1 \
-		$(addprefix --include $(abs_top_builddir)/, $(call \
-		    $(join $(join nodist_%C%_, $(notdir $<)), _SOURCES))) \
+		$(foreach source, $(call \
+		    $(join $(join nodist_%C%_, $(notdir $<)), _SOURCES)) \
+		    $(call $(join %C%_, $(notdir $<))_coverage_sources), \
+		    --include "$(abs_top_builddir)/$(source)") \
 		2>/dev/null
 
 _unit_coverage_%: %D%/%.info

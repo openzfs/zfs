@@ -268,9 +268,6 @@ extern void crypto_init_ptrs(crypto_data_t *, void **, offset_t *);
 extern void crypto_get_ptrs(crypto_data_t *, void **, offset_t *,
     uint8_t **, size_t *, uint8_t **, size_t);
 
-extern void *ccm_alloc_ctx(int);
-extern void *gcm_alloc_ctx(int);
-extern void crypto_free_mode_ctx(void *);
 
 #ifdef	__cplusplus
 }
