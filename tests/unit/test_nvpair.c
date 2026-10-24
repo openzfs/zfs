@@ -345,9 +345,9 @@ test_nv_boolean_value(const MunitParameter params[], void *data)
 static MunitResult
 test_nv_byte(const MunitParameter params[], void *data)
 {
-	(void) params; (void) data;
+	(void) data;
 
-	nvlist_t *nvl = nvl_create();
+	nvlist_t *nvl = nvl_create_from_params(params);
 
 	unit_ok(nvlist_add_byte(nvl, "byte", 0x42));
 	unit_true(nvlist_exists(nvl, "byte"));
@@ -385,9 +385,9 @@ test_nv_int8(const MunitParameter params[], void *data)
 static MunitResult
 test_nv_uint8(const MunitParameter params[], void *data)
 {
-	(void) params; (void) data;
+	(void) data;
 
-	nvlist_t *nvl = nvl_create();
+	nvlist_t *nvl = nvl_create_from_params(params);
 
 	unit_ok(nvlist_add_uint8(nvl, "u8", 200));
 	unit_true(nvlist_exists(nvl, "u8"));
@@ -882,18 +882,26 @@ test_nv_nvlist_array(const MunitParameter params[], void *data)
 static MunitResult
 test_nv_lookup_nvpair(const MunitParameter params[], void *data)
 {
-	(void) params; (void) data;
+	(void) data;
 
-	nvlist_t *nvl = nvl_create_simple();
+	nvlist_t *nvl = nvl_create_simple_from_params(params);
 
 	nvpair_t *pair = NULL;
-	unit_ok(nvlist_lookup_nvpair(nvl, nvl_simple_u64_key, &pair));
-	unit_notnull(pair);
-	unit_str_eq(nvpair_name(pair), nvl_simple_u64_key);
-	unit_eq(nvpair_type(pair), DATA_TYPE_UINT64);
+	if (strcmp(munit_parameters_get(params, "unique"), "name") == 0) {
+		unit_ok(nvlist_lookup_nvpair(nvl, nvl_simple_u64_key, &pair));
+		unit_notnull(pair);
+		unit_str_eq(nvpair_name(pair), nvl_simple_u64_key);
+		unit_eq(nvpair_type(pair), DATA_TYPE_UINT64);
 
-	/* weirdly, the pair not found returns EINVAL, not ENOENT */
-	unit_err(nvlist_lookup_nvpair(nvl, nvl_nonexistent_key, &pair), EINVAL);
+		/* weirdly, the pair not found returns EINVAL, not ENOENT */
+		unit_err(nvlist_lookup_nvpair(nvl, nvl_nonexistent_key, &pair),
+		    EINVAL);
+	} else {
+		unit_err(nvlist_lookup_nvpair(nvl, nvl_simple_u64_key, &pair),
+		    ENOTSUP);
+		unit_err(nvlist_lookup_nvpair(nvl, nvl_nonexistent_key, &pair),
+		    ENOTSUP);
+	}
 
 	nvlist_free(nvl);
 	return (MUNIT_OK);
@@ -1315,7 +1323,7 @@ test_nv_add_nvpair(const MunitParameter params[], void *data)
 	unit_eq(val, nvl_simple_u64_val);
 
 	const char *str;
-	unit_ok(nvlist_lookup_string(src, nvl_simple_str_key, &str));
+	unit_ok(nvlist_lookup_string(dst, nvl_simple_str_key, &str));
 	unit_str_eq(str, nvl_simple_str_val);
 
 	nvlist_free(src);
@@ -1334,6 +1342,7 @@ test_nv_dup(const MunitParameter params[], void *data)
 	nvlist_t *copy = NULL;
 	unit_ok(nvlist_dup(orig, &copy, KM_SLEEP));
 	unit_notnull(copy);
+	unit_eq(nvlist_nvflag(copy), nvlist_nvflag(orig));
 
 	/*
 	 * Walk and compare pairs. Even though this is only the "simple" test
@@ -1366,6 +1375,8 @@ test_nv_dup(const MunitParameter params[], void *data)
 			unit_unreachable();
 		}
 	}
+	unit_null(origpair);
+	unit_null(copypair);
 
 	/* a key overwritten in the original does not change the copy */
 	unit_ok(nvlist_add_uint64(orig,
