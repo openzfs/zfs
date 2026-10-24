@@ -858,6 +858,12 @@ brt_vdevs_free(spa_t *spa)
 	}
 	kmem_free(spa->spa_brt_vdevs, sizeof (*spa->spa_brt_vdevs) *
 	    spa->spa_brt_nvdevs);
+	/*
+	 * A failed spa_load() is retried on the same spa_t, and the retry
+	 * computes the pool's space in vdev_load(), before brt_load().
+	 */
+	spa->spa_brt_vdevs = NULL;
+	spa->spa_brt_nvdevs = 0;
 }
 
 static void
