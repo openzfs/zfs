@@ -79,6 +79,15 @@ static int zap_iterate_prefetch = B_TRUE;
  */
 int zap_shrink_enabled = B_TRUE;
 
+/*
+ * For testing only. While nonzero, each time zap_shrink() has to upgrade
+ * zap_rwlock to collapse two leaves it takes the path where the in-place
+ * upgrade failed, and grows the pointer table after reacquiring the lock,
+ * as a concurrent zap_expand_leaf() could have done while the lock was
+ * down. Each use decrements it.
+ */
+static uint_t zap_shrink_test_grow_ptrtbl = 0;
+
 int fzap_default_block_shift = 14; /* 16k blocksize */
 
 static uint64_t zap_allocate_blocks(zap_t *zap, int nblocks);
@@ -1253,6 +1262,22 @@ zap_trunc(zap_t *zap)
 }
 
 /*
+ * Claim one use of zap_shrink_test_grow_ptrtbl, if any are left.
+ */
+static boolean_t
+zap_shrink_test_grow_claim(void)
+{
+	uint_t n;
+
+	while ((n = zap_shrink_test_grow_ptrtbl) != 0) {
+		if (atomic_cas_32((volatile uint32_t *)
+		    &zap_shrink_test_grow_ptrtbl, n, n - 1) == n)
+			return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+/*
  * ZAP shrinking algorithm.
  *
  * We shrink ZAP recuresively removing empty leaves. We can remove an empty leaf
@@ -1281,7 +1306,6 @@ static int
 zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 {
 	zap_t *zap = zn->zn_zap;
-	int64_t zt_shift = zap_f_phys(zap)->zap_ptrtbl.zt_shift;
 	uint64_t hash = zn->zn_hash;
 	uint64_t prefix = zap_leaf_phys(l)->l_hdr.lh_prefix;
 	uint64_t prefix_len = zap_leaf_phys(l)->l_hdr.lh_prefix_len;
@@ -1301,7 +1325,6 @@ zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 	 */
 	while (prefix_len) {
 		zap_leaf_t *sl;
-		int64_t prefix_diff = zt_shift - prefix_len;
 		uint64_t sl_prefix = prefix ^ 1;
 		uint64_t sl_hash = ZAP_PREFIX_HASH(sl_prefix, prefix_len);
 		int slbit = prefix & 1;
@@ -1346,16 +1369,28 @@ zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 		 * If there two empty sibling, we have work to do, so
 		 * we need to lock ZAP ptrtbl as WRITER.
 		 */
-		if (!writer && (writer = zap_lock_try_upgrade(zap, tx)) == 0) {
-			/* We failed to upgrade */
+		boolean_t test_grow = !writer && zap_shrink_test_grow_claim();
+		if (!writer && (test_grow ||
+		    (writer = zap_lock_try_upgrade(zap, tx)) == 0)) {
+			/* We failed to upgrade (or a test makes us act so) */
 			if (l != NULL) {
 				zap_put_leaf(l);
 				l = NULL;
 			}
 
+			/*
+			 * This may drop and reacquire zap_rwlock. While it is
+			 * down, other threads may split, shrink or refill the
+			 * leaves and grow the ptrtbl; everything below that
+			 * depends on that state is re-read under the WRITER
+			 * lock.
+			 */
 			zap_lock_upgrade(zap, tx);
 
-			zt_shift = zap_f_phys(zap)->zap_ptrtbl.zt_shift;
+			/* For testing: zap_shrink_test_grow_ptrtbl */
+			if (test_grow)
+				(void) zap_grow_ptrtbl(zap, tx);
+
 			writer = B_TRUE;
 		}
 
@@ -1395,7 +1430,20 @@ zap_shrink(zap_name_t *zn, zap_leaf_t *l, dmu_tx_t *tx)
 			break;
 		}
 
-		/* If we have gotten here, we have a leaf to collapse */
+		/*
+		 * If we have gotten here, we have a leaf to collapse.
+		 *
+		 * The ptrtbl geometry must be read now, while we hold the
+		 * WRITER lock: if zap_lock_upgrade() had to drop the lock
+		 * above, a concurrent zap_expand_leaf() may have grown the
+		 * ptrtbl in the meantime, and a zt_shift sampled earlier would
+		 * make us repoint the wrong ptrtbl range at l and leave the
+		 * sibling's range pointing to the block we are about to free.
+		 */
+		ASSERT(RW_WRITE_HELD(&zap->zap_rwlock));
+		ASSERT3U(prefix_len, <=, zap_f_phys(zap)->zap_ptrtbl.zt_shift);
+		uint64_t prefix_diff =
+		    zap_f_phys(zap)->zap_ptrtbl.zt_shift - prefix_len;
 		uint64_t idx = (slbit ? prefix : sl_prefix) << prefix_diff;
 		uint64_t nptrs = (1ULL << prefix_diff);
 		uint64_t sl_blkid = sl->l_blkid;
@@ -1446,3 +1494,7 @@ ZFS_MODULE_PARAM(zfs, , zap_iterate_prefetch, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, , zap_shrink_enabled, INT, ZMOD_RW,
 	"Enable ZAP shrinking");
+
+ZFS_MODULE_PARAM(zfs, , zap_shrink_test_grow_ptrtbl, UINT, ZMOD_RW,
+	"For testing: grow the ZAP ptrtbl during the next N zap_shrink() "
+	"lock upgrades");
