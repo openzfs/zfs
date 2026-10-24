@@ -109,6 +109,11 @@ below.
 .No Skip if Sy on .
 .No Defaults to Sy off .
 .El
+.Pp
+The generator ignores an
+.Sy org.openzfs.systemd
+property above that names units or paths if it holds a line break,
+which would end its line in the unit file.
 .
 .Ss Unit Ordering And Dependencies
 Additionally, unless the pool the dataset resides on
@@ -142,6 +147,14 @@ and, if writeable, will be kept synchronized for the entire pool by the
 .Pa history_event-zfs-list-cacher.sh
 ZEDLET, if enabled
 .Pq see Xr zed 8 .
+.Pp
+The generator decodes each
+.Sy \e0 Ns Ar ooo
+that
+.Nm zfs Cm list Fl -escape
+writes.
+The ZEDLET writes escaped output only if a value holds a tab, a newline,
+or a backslash that would read as the start of such a sequence.
 .
 .Sh ENVIRONMENT
 If the

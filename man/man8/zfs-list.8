@@ -20,7 +20,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd August 25, 2025
+.Dd October 21, 2026
 .Dt ZFS-LIST 8
 .Os
 .
@@ -31,7 +31,8 @@
 .Nm zfs
 .Cm list
 .Op Fl r Ns | Ns Fl d Ar depth
-.Op Fl Hp
+.Op Fl H Op Fl -escape
+.Op Fl p
 .Op Fl j Op Ar --json-int
 .Oo Fl o Ar property Ns Oo , Ns Ar property Oc Ns … Oc
 .Oo Fl s Ar property Oc Ns …
@@ -60,6 +61,17 @@ options are specified.
 Used for scripting mode.
 Do not print headers, and separate fields by a single tab instead of arbitrary
 white space.
+.It Fl -escape
+Print each byte of a value that is a space, a control character, a backslash,
+DEL, or not ASCII as
+.Sy \e0 Ns Ar ooo ,
+its value in four octal digits, as
+.Nm zfs Cm diff
+does for paths.
+No value then holds a tab or newline, so each line is one dataset and each
+tab ends a field.
+Requires
+.Fl H .
 .It Fl j , -json Op Ar --json-int
 Print the output in JSON format.
 Specify
