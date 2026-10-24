@@ -4769,6 +4769,112 @@ receive_process_record(struct receive_writer_arg *rwa,
 }
 
 /*
+ * A raw receive can't account for the objects that it changes or frees,
+ * because their owners and sizes are encrypted.  If the dataset already has
+ * user accounting, it is now incorrect, so we throw all of it away.  This
+ * leaves the dataset as a full raw receive does, with no accounting objects
+ * and no accounted flags. When it is next mounted, the accounting will be
+ * rebuilt.
+ *
+ * Each block of dnodes that has accounted flags is rewritten raw with the
+ * crypt params it already has, since its MAC doesn't cover the flags, and
+ * dnode_sync() clears the flags of the dnodes dirtied in a raw receive.
+ * dmu_objset_sync() then frees the accounting objects.
+ *
+ * If this is interrupted, the receive is not complete, so the dataset can't
+ * be mounted; a resumed receive does it again.
+ */
+static int
+receive_reset_accounting(objset_t *os)
+{
+	dnode_t *mdn = DMU_META_DNODE(os);
+	int epbs = mdn->dn_datablkshift - DNODE_SHIFT;
+	dmu_tx_t *tx = NULL;
+	uint64_t txblk = 0;
+	uint64_t obj = 0;
+	int err;
+
+	if (DMU_USERUSED_DNODE(os) == NULL ||
+	    DMU_USERUSED_DNODE(os)->dn_type == DMU_OT_NONE)
+		return (0);
+
+	zfs_dbgmsg("resetting user accounting of objset %llu after raw "
+	    "receive", (u_longlong_t)dmu_objset_id(os));
+
+	/* The dnode blocks' cached crypt params must be the ones on disk. */
+	txg_wait_synced(dmu_objset_pool(os), 0);
+
+	while ((err = dmu_object_next(os, &obj, B_FALSE, 0)) == 0) {
+		dnode_t *dn;
+		uint64_t flags;
+
+		if (tx != NULL && (obj >> epbs) != txblk) {
+			dmu_tx_commit(tx);
+			tx = NULL;
+		}
+		if (issig()) {
+			err = SET_ERROR(EINTR);
+			break;
+		}
+
+		err = dnode_hold(os, obj, FTAG, &dn);
+		if (err != 0)
+			break;
+		mutex_enter(&dn->dn_mtx);
+		flags = dn->dn_phys->dn_flags;
+		mutex_exit(&dn->dn_mtx);
+		if (!(flags & (DNODE_FLAG_USERUSED_ACCOUNTED |
+		    DNODE_FLAG_USEROBJUSED_ACCOUNTED))) {
+			dnode_rele(dn, FTAG);
+			continue;
+		}
+
+		if (tx == NULL) {
+			dmu_buf_t *db;
+
+			tx = dmu_tx_create(os);
+			dmu_tx_hold_bonus(tx, obj);
+			err = dmu_tx_assign(tx, DMU_TX_WAIT);
+			if (err != 0) {
+				dmu_tx_abort(tx);
+				tx = NULL;
+				dnode_rele(dn, FTAG);
+				break;
+			}
+			txblk = obj >> epbs;
+			err = dmu_buf_hold_by_dnode(mdn,
+			    txblk << mdn->dn_datablkshift, FTAG, &db,
+			    DMU_READ_NO_PREFETCH | DMU_READ_NO_DECRYPT);
+			if (err == 0) {
+				err = dmu_buf_will_rewrite_raw(db, tx);
+				dmu_buf_rele(db, FTAG);
+			}
+			if (err != 0) {
+				dnode_rele(dn, FTAG);
+				break;
+			}
+		}
+		dnode_setdirty(dn, tx);
+		dnode_rele(dn, FTAG);
+	}
+	if (tx != NULL)
+		dmu_tx_commit(tx);
+	if (err != ESRCH)
+		return (err);
+
+	tx = dmu_tx_create(os);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (err != 0) {
+		dmu_tx_abort(tx);
+		return (err);
+	}
+	os->os_free_used_txg = dmu_tx_get_txg(tx);
+	dsl_dataset_dirty(dmu_objset_ds(os), tx);
+	dmu_tx_commit(tx);
+	return (0);
+}
+
+/*
  * dmu_recv_stream's worker thread; pull records off the queue, and then call
  * receive_process_record  When we're done, signal the main thread and exit.
  */
@@ -4897,6 +5003,12 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	ASSERT0(drc->drc_os->os_encrypted &&
 	    (drc->drc_featureflags & DMU_BACKUP_FEATURE_EMBED_DATA));
 
+	/*
+	 * Set this before the key payload creates a new dataset's objset,
+	 * so that user accounting is never enabled for it.
+	 */
+	drc->drc_os->os_raw_receive = drc->drc_raw;
+
 	/* handle DSL encryption key payload */
 	if (drc->drc_featureflags & DMU_BACKUP_FEATURE_RAW) {
 		nvlist_t *keynvl = NULL;
@@ -4970,7 +5082,6 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	rwa->spill = drc->drc_spill;
 	rwa->featureflags = drc->drc_featureflags;
 	rwa->full = (drc->drc_drr_begin->drr_u.drr_begin.drr_fromguid == 0);
-	rwa->os->os_raw_receive = drc->drc_raw;
 	if (drc->drc_heal) {
 		rwa->heal_pio = zio_root(drc->drc_os->os_spa, NULL, NULL,
 		    ZIO_FLAG_GODFATHER);
@@ -5073,6 +5184,8 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	avl_destroy(&rwa->defer_ranges);
 	if (err == 0)
 		err = rwa->err;
+	if (err == 0 && drc->drc_raw && !drc->drc_heal)
+		err = receive_reset_accounting(rwa->os);
 
 out:
 	/*

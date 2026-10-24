@@ -438,7 +438,19 @@ dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 }
 
 /*
- * Try to kick all the dnode's dbufs out of the cache...
+ * Free all of a dnode's blocks, including indirect blocks, in syncing
+ * context, as when the dnode itself is freed.
+ */
+void
+dnode_sync_free_all(dnode_t *dn, dmu_tx_t *tx)
+{
+	ASSERT(dmu_tx_is_syncing(tx));
+	dnode_sync_free_range_impl(dn, 0, dn->dn_phys->dn_maxblkid + 1,
+	    B_TRUE, tx);
+}
+
+/*
+ * Try to kick all the dnode's dbufs out of the cache.
  */
 void
 dnode_evict_dbufs(dnode_t *dn)
@@ -694,12 +706,12 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT(dn->dn_dbuf == NULL || arc_released(dn->dn_dbuf->db_buf));
 
 	/*
-	 * Do user accounting if it is enabled and this is not
-	 * an encrypted receive.
+	 * Do user accounting if it is enabled and this is not a raw
+	 * receive.
 	 */
 	if (dmu_objset_userused_enabled(os) &&
 	    !DMU_OBJECT_IS_SPECIAL(dn->dn_object) &&
-	    (!os->os_encrypted || !dmu_objset_is_receiving(os))) {
+	    !os->os_raw_receive) {
 		mutex_enter(&dn->dn_mtx);
 		dn->dn_oldused = DN_USED_BYTES(dn->dn_phys);
 		dn->dn_oldflags = dn->dn_phys->dn_flags;
@@ -709,7 +721,18 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 			    DNODE_FLAG_USEROBJUSED_ACCOUNTED;
 		mutex_exit(&dn->dn_mtx);
 		dmu_objset_userquota_get_ids(dn, B_FALSE, tx);
-	} else if (!(os->os_encrypted && dmu_objset_is_receiving(os))) {
+	} else if (os->os_raw_receive &&
+	    !DMU_OBJECT_IS_SPECIAL(dn->dn_object)) {
+		/*
+		 * A raw receive throws the accounting away, see
+		 * receive_reset_accounting().  The block's MAC doesn't
+		 * cover these flags.
+		 */
+		mutex_enter(&dn->dn_mtx);
+		dn->dn_phys->dn_flags &= ~(DNODE_FLAG_USERUSED_ACCOUNTED |
+		    DNODE_FLAG_USEROBJUSED_ACCOUNTED);
+		mutex_exit(&dn->dn_mtx);
+	} else if (!os->os_raw_receive) {
 		/*
 		 * Once we account for it, we should always account for it,
 		 * except for the case of a raw receive. We will not be able

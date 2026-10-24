@@ -1127,11 +1127,10 @@ dmu_objset_create_impl_dnstats(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	os->os_phys->os_type = type;
 
 	/*
-	 * Enable user accounting if it is enabled and this is not an
-	 * encrypted receive.
+	 * Enable user accounting if it is enabled and this is not a raw
+	 * receive.
 	 */
-	if (dmu_objset_userused_enabled(os) &&
-	    (!os->os_encrypted || !dmu_objset_is_receiving(os))) {
+	if (dmu_objset_userused_enabled(os) && !os->os_raw_receive) {
 		os->os_phys->os_flags |= OBJSET_FLAG_USERACCOUNTING_COMPLETE;
 		if (dmu_objset_userobjused_enabled(os)) {
 			ASSERT3P(ds, !=, NULL);
@@ -1623,6 +1622,29 @@ sync_meta_dnode_task(void *arg)
 	kmem_free(soa, sizeof (*soa));
 }
 
+/*
+ * Free a user/group/project accounting object, as if the objset had never
+ * had accounting.  The next accounted txg creates it again.
+ */
+static void
+dmu_objset_free_used_dnode(dnode_t *dn, dmu_tx_t *tx)
+{
+	if (dn == NULL || dn->dn_type == DMU_OT_NONE)
+		return;
+
+	dnode_sync_free_all(dn, tx);
+	dnode_evict_dbufs(dn);
+	ASSERT(avl_is_empty(&dn->dn_dbufs));
+	memset(dn->dn_phys, 0, sizeof (dnode_phys_t));
+	mutex_enter(&dn->dn_mtx);
+	dn->dn_type = DMU_OT_NONE;
+	dn->dn_maxblkid = 0;
+	dn->dn_allocated_txg = 0;
+	dn->dn_free_txg = 0;
+	dn->dn_have_spill = B_FALSE;
+	mutex_exit(&dn->dn_mtx);
+}
+
 /* called from dsl */
 void
 dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
@@ -1684,6 +1706,15 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	 */
 	DMU_META_DNODE(os)->dn_zio = zio;
 	dnode_sync(DMU_META_DNODE(os), tx);
+
+	if (os->os_free_used_txg == tx->tx_txg) {
+		dmu_objset_free_used_dnode(DMU_USERUSED_DNODE(os), tx);
+		dmu_objset_free_used_dnode(DMU_GROUPUSED_DNODE(os), tx);
+		dmu_objset_free_used_dnode(DMU_PROJECTUSED_DNODE(os), tx);
+		os->os_flags &= ~(OBJSET_FLAG_USERACCOUNTING_COMPLETE |
+		    OBJSET_FLAG_USEROBJACCOUNTING_COMPLETE |
+		    OBJSET_FLAG_PROJECTQUOTA_COMPLETE);
+	}
 
 	os->os_phys->os_flags = os->os_flags;
 
@@ -2092,7 +2123,7 @@ dmu_objset_do_userquota_updates_prep(objset_t *os, dmu_tx_t *tx)
 	 * for the duration of claiming and this txg should only be
 	 * used for recovery.
 	 */
-	if (os->os_encrypted && dmu_objset_is_receiving(os))
+	if (os->os_raw_receive)
 		return (B_FALSE);
 
 	if (tx->tx_txg <= os->os_spa->spa_claim_max_txg)
@@ -2197,20 +2228,25 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 	 * receives cannot update the user accounting info because the
 	 * user ids and the sizes are encrypted. To guarantee that we
 	 * never end up with bad user accounting, we simply disable it
-	 * during raw receives. We also disable this for normal receives
-	 * so that an incremental raw receive may be done on top of an
-	 * existing non-raw receive.
+	 * during raw receives, and receive_reset_accounting() discards
+	 * any existing accounting.
 	 */
-	if (os->os_encrypted && dmu_objset_is_receiving(os))
+	if (os->os_raw_receive)
 		return;
 
 	if (before && (flags & (DN_ID_CHKED_BONUS|DN_ID_OLD_EXIST|
 	    DN_ID_CHKED_SPILL)))
 		return;
 
-	if (before && dn->dn_bonuslen != 0)
+	if (before && dn->dn_bonuslen != 0) {
+		if (dnode_decrypt_bonus(dn) != 0) {
+			mutex_enter(&dn->dn_mtx);
+			dn->dn_id_flags |= DN_ID_CHKED_BONUS;
+			mutex_exit(&dn->dn_mtx);
+			return;
+		}
 		data = DN_BONUS(dn->dn_phys);
-	else if (!before && dn->dn_bonuslen != 0) {
+	} else if (!before && dn->dn_bonuslen != 0) {
 		if (dn->dn_bonus) {
 			db = dn->dn_bonus;
 			mutex_enter(&db->db_mtx);
