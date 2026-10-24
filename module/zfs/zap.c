@@ -597,6 +597,26 @@ zap_lookup_cookie(objset_t *os, uint64_t zapobj, uint64_t cookie,
 }
 
 int
+zap_cookie_by_name(objset_t *os, uint64_t zapobj, const char *name,
+    uint64_t *cookiep)
+{
+	zap_t *zap;
+	int err = zap_lock(os, zapobj, NULL, RW_READER, TRUE, FALSE, FTAG,
+	    &zap);
+	if (err != 0)
+		return (err);
+	zap_name_t *zn = zap_name_alloc_str(zap, name, 0);
+	if (zn == NULL) {
+		zap_unlock(zap, FTAG);
+		return (SET_ERROR(ENOTSUP));
+	}
+	err = zap_name_cookie(zn, cookiep);
+	zap_name_free(zn);
+	zap_unlock(zap, FTAG);
+	return (err);
+}
+
+int
 zap_add(objset_t *os, uint64_t zapobj, const char *key,
     int integer_size, uint64_t num_integers,
     const void *val, dmu_tx_t *tx)
@@ -1390,6 +1410,7 @@ EXPORT_SYMBOL(zap_add);
 EXPORT_SYMBOL(zap_add_by_dnode);
 EXPORT_SYMBOL(zap_add_cookie);
 EXPORT_SYMBOL(zap_lookup_cookie);
+EXPORT_SYMBOL(zap_cookie_by_name);
 EXPORT_SYMBOL(zap_add_uint64);
 EXPORT_SYMBOL(zap_add_uint64_by_dnode);
 EXPORT_SYMBOL(zap_update);

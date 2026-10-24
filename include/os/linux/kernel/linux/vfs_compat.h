@@ -24,6 +24,7 @@
 #include <sys/cred.h>
 #include <linux/backing-dev.h>
 #include <linux/compat.h>
+#include <linux/mount.h>
 
 /*
  * 4.14 adds SB_* flag definitions, define them to MS_* equivalents
@@ -238,6 +239,34 @@ zpl_generic_permission(zidmap_t *idmap, struct inode *ip, int mask)
 	(void) idmap;
 	return (generic_permission(ip, mask));
 #endif
+}
+
+/*
+ * The idmap of the mount a file was opened through, for permission checks
+ * that must see inode ownership as that mount presents it.
+ */
+static inline zidmap_t *
+zpl_file_mnt_idmap(struct file *filp)
+{
+#if defined(HAVE_IDMAP_MNTIDMAP)
+	return ((zidmap_t *)file_mnt_idmap(filp));
+#elif defined(HAVE_IDMAP_USERNS)
+	return ((zidmap_t *)file_mnt_user_ns(filp));
+#else
+	(void) filp;
+	return (zfs_init_idmap);
+#endif
+}
+
+/*
+ * True if the mount a file was opened through is read-only, as a
+ * read-only bind mount of a writable file system is.  mnt_want_write_file()
+ * would also hold off a remount, but it is GPL-only.
+ */
+static inline boolean_t
+zpl_file_mnt_readonly(struct file *filp)
+{
+	return ((filp->f_path.mnt->mnt_flags & MNT_READONLY) != 0);
 }
 
 #ifdef HAVE_INODE_GENERIC_DROP

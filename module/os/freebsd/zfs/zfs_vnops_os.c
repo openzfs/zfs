@@ -381,7 +381,14 @@ zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag, cred_t *cred,
 	}
 	case ZFS_IOC_REWRITE: {
 		zfs_rewrite_args_t *args = (zfs_rewrite_args_t *)data;
-		if ((flag & FWRITE) == 0)
+		/*
+		 * A writable descriptor is needed, except for -N on a
+		 * directory, which can't have one: zfs_rewrite() checks
+		 * write permission itself.
+		 */
+		if ((flag & FWRITE) == 0 &&
+		    (!(args->flags & ZFS_REWRITE_PARENT_COOKIE) ||
+		    vp->v_type != VDIR))
 			return (SET_ERROR(EBADF));
 		error = vn_lock(vp, LK_SHARED);
 		if (error)
