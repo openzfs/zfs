@@ -244,7 +244,7 @@ struct zilog {
 	 */
 	uint64_t	zl_max_block_size;
 
-	/* After crash, txg to restart zil */
+	/* After crash or lwb error, txg to restart zil */
 	uint64_t	zl_restart_txg;
 
 	/* Pointer for per dataset zil sums */

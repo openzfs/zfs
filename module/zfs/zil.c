@@ -1483,6 +1483,23 @@ zil_lwb_add_txg(lwb_t *lwb, uint64_t txg)
 }
 
 /*
+ * Bypass the ZIL until all txgs that may be open now have synced, relying on
+ * txg_wait_synced() instead.  zil_clean() restarts the ZIL then.
+ */
+static void
+zil_restart_later(zilog_t *zilog)
+{
+	ASSERT(MUTEX_HELD(&zilog->zl_lock));
+
+	uint64_t txg = spa_syncing_txg(zilog->zl_spa);
+	zilog->zl_restart_txg = MAX(zilog->zl_restart_txg,
+	    txg + TXG_CONCURRENT_STATES);
+
+	/* Make sure that zil_clean() is called. */
+	zilog_dirty(zilog, txg + 1);
+}
+
+/*
  * This function is a called after all vdevs associated with a given lwb write
  * have completed their flush command; or as soon as the lwb write completes,
  * if "zil_nocacheflush" is set. Further, all "previous" lwb's will have
@@ -1525,6 +1542,14 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 		 */
 		zilog->zl_commit_lr_seq = zilog->zl_lr_seq;
 	}
+
+	/*
+	 * This lwb may not be on disk, in which case the on-disk log chain
+	 * ends here, and lwbs issued from now on won't depend on this one's
+	 * zio.  Don't trust the ZIL until this lwb has been freed.
+	 */
+	if (zio->io_error != 0)
+		zil_restart_later(zilog);
 
 	while ((itx = list_remove_head(&lwb->lwb_itxs)) != NULL)
 		zil_itx_destroy(itx, 0);
@@ -2135,6 +2160,14 @@ next_lwb:
 	mutex_enter(&zilog->zl_lock);
 	zil_lwb_set_zio_dependency(zilog, lwb);
 	lwb->lwb_state = LWB_STATE_ISSUED;
+
+	/*
+	 * If we couldn't allocate the next block, this lwb's zc_next_blk is a
+	 * hole, so zil_parse() won't accept this lwb even if it's written.
+	 * Treat it as failed.
+	 */
+	if (error != 0)
+		zil_restart_later(zilog);
 
 	if (nlwb) {
 		nlwb->lwb_blk = *bp;
@@ -2885,10 +2918,17 @@ zil_crash_clean(zilog_t *zilog, uint64_t synced_txg)
 	}
 
 	/*
+	 * In a frozen pool (ztest, slog_replay tests), txgs after the freeze
+	 * sync without reaching disk, so the on-disk log is never fixed, and
+	 * the ZIL must not restart.
+	 */
+	if (zilog->zl_restart_txg > spa_freeze_txg(zilog->zl_spa))
+		return;
+
+	/*
 	 * Reached the restart txg, so we can allow new calls to zil_commit().
 	 * All ZIL txgs have long past so there should be no IO waiting.
 	 */
-	ASSERT(list_is_empty(&zilog->zl_lwb_list));
 	ASSERT(list_is_empty(&zilog->zl_lwb_crash_list));
 
 	zilog->zl_restart_txg = 0;
@@ -3496,9 +3536,10 @@ zil_commit_writer(zilog_t *zilog, zil_commit_waiter_t *zcw)
 	 * point (eg zil_commit_writer_stall()). All cases should issue and
 	 * empty ilwbs, so there will be nothing to in the issue loop below.
 	 * That's why we don't have to plumb the error value back from
-	 * zil_process_commit_list(), and don't have to skip it.
+	 * zil_process_commit_list(), and don't have to skip it.  (A failed
+	 * lwb also restarts the ZIL, but leaves the lwb list alone.)
 	 */
-	IMPLY(zilog->zl_restart_txg > 0, list_is_empty(&ilwbs));
+	IMPLY(list_is_empty(&zilog->zl_lwb_list), list_is_empty(&ilwbs));
 
 out:
 	mutex_exit(&zilog->zl_issuer_lock);
@@ -3810,38 +3851,19 @@ zil_crash(zilog_t *zilog)
 {
 	mutex_enter(&zilog->zl_lock);
 
-	uint64_t txg = spa_syncing_txg(zilog->zl_spa);
-	uint64_t restart_txg =
-	    spa_syncing_txg(zilog->zl_spa) + TXG_CONCURRENT_STATES;
-
-	if (zilog->zl_restart_txg > 0) {
-		/*
-		 * If the ZIL is already crashed, it's almost certainly because
-		 * we lost a race involving multiple callers from
-		 * zil_commit_impl().
-		 */
-
-		/*
-		 * This sanity check is to support my understanding that in the
-		 * event of multiple callers to zil_crash(), only one of them
-		 * can possibly be in the codepath to issue lwbs; the rest
-		 * should be calling from zil_commit_impl() after their waiters
-		 * have completed. As I understand it, a second thread trying
-		 * to issue will eventually wait on zl_issuer_lock, and then
-		 * have no work to do and leave.
-		 *
-		 * If more lwbs had been created an issued between zil_crash()
-		 * calls, then we probably just need to take those too, add
-		 * them to the crash list and clean them up, but it complicates
-		 * this function and I don't think it can happend.
-		 */
-		ASSERT(list_is_empty(&zilog->zl_lwb_list));
-
+	/*
+	 * If the ZIL is already crashed, it's almost certainly because we
+	 * lost a race involving multiple callers from zil_commit_impl().  The
+	 * first one took the lwb list, and no lwbs are created until the ZIL
+	 * restarts.  If instead the ZIL is restarting because an lwb failed,
+	 * its lwbs are still live, and we crash it now.
+	 */
+	if (zilog->zl_restart_txg > 0 && list_is_empty(&zilog->zl_lwb_list)) {
 		mutex_exit(&zilog->zl_lock);
 		return;
 	}
 
-	zilog->zl_restart_txg = restart_txg;
+	zil_restart_later(zilog);
 
 	/*
 	 * Capture any live LWBs. Depending on the state of the pool they may
@@ -3885,12 +3907,6 @@ zil_crash(zilog_t *zilog)
 		zil_header_t *zh = zil_header_in_syncing_context(zilog);
 		BP_ZERO(&zh->zh_log);
 	}
-
-	/*
-	 * Mark this ZIL dirty on the next txg, so that zil_clean() will be
-	 * called for cleanup.
-	 */
-	zilog_dirty(zilog, txg+1);
 
 	mutex_exit(&zilog->zl_lock);
 }
@@ -4150,10 +4166,11 @@ zil_commit_impl(zilog_t *zilog, uint64_t foid)
 	zil_commit_waiter(zilog, zcw);
 
 	int err = 0;
-	if (zcw->zcw_error != 0) {
+	if (zcw->zcw_error != 0 || zilog->zl_restart_txg > 0) {
 		/*
 		 * If there was an error writing out the ZIL blocks that
-		 * this thread is waiting on, then we fallback to
+		 * this thread is waiting on, or an earlier one that the
+		 * on-disk log needs to reach them, then we fallback to
 		 * relying on spa_sync() to write out the data this
 		 * thread is waiting on. Obviously this has performance
 		 * implications, but the expectation is for this to be
@@ -4406,7 +4423,8 @@ zil_free(zilog_t *zilog)
 
 	ASSERT0(zilog->zl_suspend);
 	ASSERT0(zilog->zl_suspending);
-	ASSERT0(zilog->zl_restart_txg);
+	IMPLY(zilog->zl_restart_txg > 0,
+	    zilog->zl_restart_txg > spa_freeze_txg(zilog->zl_spa));
 
 	ASSERT(list_is_empty(&zilog->zl_lwb_list));
 	list_destroy(&zilog->zl_lwb_list);
