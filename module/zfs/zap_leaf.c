@@ -495,6 +495,54 @@ zap_leaf_lookup_closest(zap_leaf_t *l,
 	return (bestcd == -1U ? SET_ERROR(ENOENT) : 0);
 }
 
+/*
+ * Find an entry whose first integer, masked, equals value & mask.  Unlike
+ * stepping a cursor through the leaf (zap_leaf_lookup_closest() for each
+ * entry), this walks the hash chains once.  The value is read as
+ * zap_cursor_retrieve() reads za_first_integer: 0 for an entry with no
+ * integers, and entries with integers wider than 8 bytes never match.
+ */
+int
+zap_leaf_value_search(zap_leaf_t *l, uint64_t value, uint64_t mask,
+    zap_entry_handle_t *zeh)
+{
+	struct zap_leaf_entry *le;
+
+	ASSERT3U(zap_leaf_phys(l)->l_hdr.lh_magic, ==, ZAP_LEAF_MAGIC);
+
+	for (uint_t lh = 0; lh < ZAP_LEAF_HASH_NUMENTRIES(l); lh++) {
+		for (uint16_t chunk = zap_leaf_phys(l)->l_hash[lh];
+		    chunk != CHAIN_END; chunk = le->le_next) {
+			le = ZAP_LEAF_ENTRY(l, chunk);
+
+			ASSERT3U(chunk, <, ZAP_LEAF_NUMCHUNKS(l));
+			ASSERT3U(le->le_type, ==, ZAP_CHUNK_ENTRY);
+
+			uint64_t v = 0;
+			if (le->le_value_numints != 0) {
+				if (le->le_value_intlen > 8)
+					continue;
+				zap_leaf_array_read(l, le->le_value_chunk,
+				    le->le_value_intlen, le->le_value_numints,
+				    8, 1, &v);
+			}
+			if ((v & mask) != (value & mask))
+				continue;
+
+			zeh->zeh_num_integers = le->le_value_numints;
+			zeh->zeh_integer_size = le->le_value_intlen;
+			zeh->zeh_cd = le->le_cd;
+			zeh->zeh_hash = le->le_hash;
+			zeh->zeh_fakechunk = chunk;
+			zeh->zeh_chunkp = &zeh->zeh_fakechunk;
+			zeh->zeh_leaf = l;
+			return (0);
+		}
+	}
+
+	return (SET_ERROR(ENOENT));
+}
+
 int
 zap_entry_read(const zap_entry_handle_t *zeh,
     uint8_t integer_size, uint64_t num_integers, void *buf)
