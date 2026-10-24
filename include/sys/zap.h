@@ -390,6 +390,8 @@ int zap_value_search_by_dnode(dnode_t *dn,
  * one, 8 bytes wide) and the name of the entry at a cookie, or ENOENT if
  * there is no such entry.  ENAMETOOLONG if the name doesn't fit namelen
  * (the value is still returned).
+ * zap_cookie_by_name() returns the cookie of the entry with exactly this
+ * name (no normalization), or ENOENT.
  */
 #define	ZAP_COOKIE_NONE	(-1ULL)
 int zap_add_cookie(objset_t *os, uint64_t zapobj, const char *key,
@@ -397,6 +399,8 @@ int zap_add_cookie(objset_t *os, uint64_t zapobj, const char *key,
     uint64_t *cookiep, dmu_tx_t *tx);
 int zap_lookup_cookie(objset_t *os, uint64_t zapobj, uint64_t cookie,
     uint64_t *valuep, char *name, uint64_t namelen);
+int zap_cookie_by_name(objset_t *os, uint64_t zapobj, const char *name,
+    uint64_t *cookiep);
 
 /*
  * Manipulate entries where the name + value are the "same" (the name is

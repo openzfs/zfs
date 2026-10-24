@@ -54,6 +54,7 @@
 #include <sys/zfs_quota.h>
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_znode.h>
+#include <sys/zap.h>
 
 /*
  * Enables access to the block cloning feature. If this setting is 0, then even
@@ -1155,6 +1156,100 @@ zfs_rewrite_skip(dmu_buf_t *db, objset_t *os, uint64_t flags, uint64_t txg)
 }
 
 /*
+ * zfs rewrite -N: record the cookie of the directory entry that links zp
+ * into its parent (SA_ZPL_PARENT_COOKIE) if it has none or a stale one,
+ * as for objects linked before cookies were recorded.  Nothing else is
+ * written.  arg, if not 0, points to zp's name in its parent (as the
+ * caller found it by readdir), which saves searching the parent; a name
+ * that isn't zp's entry there is ignored.  The caller needs write
+ * permission on zp, as for a rewrite of data, but not a writable
+ * descriptor, which a directory can't have (on Linux, where zfs_zaccess()
+ * leaves mode bits to the VFS, the ioctl handler checks them).  A rename
+ * racing with this may leave the cookie stale, which costs a directory
+ * search on use, as any stale cookie does.
+ */
+static int
+zfs_rewrite_parent_cookie(znode_t *zp, uint64_t flags, uint64_t arg)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	objset_t *os = zfsvfs->z_os;
+	uint64_t parent, cookie, value;
+	dmu_tx_t *tx;
+	char *name;
+	int error;
+
+	if (flags != ZFS_REWRITE_PARENT_COOKIE)
+		return (SET_ERROR(EINVAL));
+
+	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+		return (error);
+	if (zfs_is_readonly(zfsvfs)) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EROFS));
+	}
+	if ((error = zfs_zaccess(zp, ACE_WRITE_DATA, 0, B_FALSE,
+	    CRED())) != 0) {
+		zfs_exit(zfsvfs, FTAG);
+		return (error);
+	}
+	/* Only SA objects linked into a directory have a cookie. */
+	if (!zp->z_is_sa || !zfs_parent_cookie || zp->z_unlinked ||
+	    (zp->z_pflags & ZFS_XATTR) || zp->z_id == zfsvfs->z_root ||
+	    sa_lookup(zp->z_sa_hdl, SA_ZPL_PARENT(zfsvfs), &parent,
+	    sizeof (parent)) != 0 || parent == zp->z_id) {
+		zfs_exit(zfsvfs, FTAG);
+		return (0);
+	}
+
+	name = kmem_alloc(ZAP_MAXNAMELEN_NEW, KM_SLEEP);
+	if (sa_lookup(zp->z_sa_hdl, SA_ZPL_PARENT_COOKIE(zfsvfs), &cookie,
+	    sizeof (cookie)) == 0 && cookie != ZFS_COOKIE_NONE &&
+	    zap_lookup_cookie(os, parent, cookie, &value, name,
+	    ZAP_MAXNAMELEN_NEW) == 0 && ZFS_DIRENT_OBJ(value) == zp->z_id)
+		goto out;	/* already valid */
+
+	error = SET_ERROR(ENOENT);
+	if (arg != 0) {
+		error = copyinstr((const char *)(uintptr_t)arg, name,
+		    ZAP_MAXNAMELEN_NEW, NULL);
+		if (error != 0)
+			goto out;
+		if (zap_cookie_by_name(os, parent, name, &cookie) != 0 ||
+		    zap_lookup_cookie(os, parent, cookie, &value, name,
+		    ZAP_MAXNAMELEN_NEW) != 0 ||
+		    ZFS_DIRENT_OBJ(value) != zp->z_id)
+			error = SET_ERROR(ENOENT);
+	}
+	if (error != 0) {
+		error = zap_value_search(os, parent, zp->z_id,
+		    ZFS_DIRENT_OBJ(-1ULL), name, ZAP_MAXNAMELEN_NEW);
+		if (error == 0)
+			error = zap_cookie_by_name(os, parent, name, &cookie);
+	}
+	if (error != 0) {
+		/* Not linked into its parent (any more): nothing to record. */
+		if (error == ENOENT)
+			error = 0;
+		goto out;
+	}
+
+	tx = dmu_tx_create(os);
+	dmu_tx_hold_sa(tx, zp->z_sa_hdl, zfs_parent_cookie_absent(zp));
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (error != 0) {
+		dmu_tx_abort(tx);
+		goto out;
+	}
+	error = sa_update(zp->z_sa_hdl, SA_ZPL_PARENT_COOKIE(zfsvfs), &cookie,
+	    sizeof (cookie), tx);
+	dmu_tx_commit(tx);
+out:
+	kmem_free(name, ZAP_MAXNAMELEN_NEW);
+	zfs_exit(zfsvfs, FTAG);
+	return (error);
+}
+
+/*
  * Rewrite a range of file as-is without modification.
  *
  *	IN:	zp	- znode of file to be rewritten.
@@ -1175,6 +1270,9 @@ zfs_rewrite(znode_t *zp, uint64_t off, uint64_t len, uint64_t flags,
 #define	ZFS_REWRITE_VALID_FLAGS \
 	(ZFS_REWRITE_PHYSICAL | ZFS_REWRITE_SKIP_SNAPSHOT | \
 	ZFS_REWRITE_SKIP_BRT | ZFS_REWRITE_SKIP_CURRENT_ASIZE)
+
+	if (flags & ZFS_REWRITE_PARENT_COOKIE)
+		return (zfs_rewrite_parent_cookie(zp, flags, arg));
 
 	if ((flags & ~ZFS_REWRITE_VALID_FLAGS) != 0 || arg != 0)
 		return (SET_ERROR(EINVAL));

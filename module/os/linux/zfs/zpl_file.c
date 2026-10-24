@@ -1275,8 +1275,17 @@ zpl_ioctl_rewrite(struct file *filp, void __user *arg)
 	if (copy_from_user(&args, arg, sizeof (args)))
 		return (-EFAULT);
 
-	if (unlikely(!(filp->f_mode & FMODE_WRITE)))
-		return (-EBADF);
+	/*
+	 * -N needs write permission, but not a writable descriptor, which
+	 * a directory can't have.
+	 */
+	if (unlikely(!(filp->f_mode & FMODE_WRITE))) {
+		if (!(args.flags & ZFS_REWRITE_PARENT_COOKIE))
+			return (-EBADF);
+		err = zpl_generic_permission(zfs_init_idmap, ip, MAY_WRITE);
+		if (err != 0)
+			return (err);
+	}
 
 	cookie = spl_fstrans_mark();
 	err = -zfs_rewrite(ITOZ(ip), args.off, args.len, args.flags, args.arg);
