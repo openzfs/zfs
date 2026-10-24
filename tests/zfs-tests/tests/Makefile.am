@@ -195,6 +195,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/cli_root/zpool_get/zpool_get.cfg \
 	functional/cli_root/zpool_get/zpool_get_parsable.cfg \
 	functional/cli_root/zpool_import/blockfiles/cryptv0.dat.bz2 \
+	functional/cli_root/zpool_import/blockfiles/invalid_bp.dat.bz2 \
 	functional/cli_root/zpool_import/blockfiles/missing_ivset.dat.bz2 \
 	functional/cli_root/zpool_import/blockfiles/unclean_export.dat.bz2 \
 	functional/cli_root/zpool_import/zpool_import.cfg \
@@ -1292,6 +1293,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_import/zpool_import_encrypted_zplprops.ksh \
 	functional/cli_root/zpool_import/zpool_import_errata3.ksh \
 	functional/cli_root/zpool_import/zpool_import_errata4.ksh \
+	functional/cli_root/zpool_import/zpool_import_invalid_bp_free.ksh \
 	functional/cli_root/zpool_import/zpool_import_features_001_pos.ksh \
 	functional/cli_root/zpool_import/zpool_import_features_002_neg.ksh \
 	functional/cli_root/zpool_import/zpool_import_features_003_pos.ksh \
