@@ -782,20 +782,28 @@ class TestRun(object):
 
     def filter(self, keeplist):
         for group in list(self.testgroups.keys()):
-            if group not in keeplist:
+            g = self.testgroups[group]
+            key = (g.pathname, g.identifier or None)
+            tests = keeplist.get(key, [])
+            directory = os.path.normpath(group.split(':', 1)[0])
+            if not tests and not os.path.isabs(directory):
+                for (path, identifier), names in keeplist.items():
+                    if identifier == key[1] and \
+                            path.endswith(os.sep + directory):
+                        tests.extend(names)
+            if not tests:
                 del self.testgroups[group]
                 continue
 
-            g = self.testgroups[group]
-
-            if g.pre and os.path.basename(g.pre) in keeplist[group]:
+            if g.pre and os.path.basename(g.pre) in tests:
                 continue
 
-            g.filter(keeplist[group])
+            g.filter(tests)
 
         for test in list(self.tests.keys()):
             directory, base = os.path.split(test)
-            if directory not in keeplist or base not in keeplist[directory]:
+            key = (directory, self.tests[test].identifier or None)
+            if key not in keeplist or base not in keeplist[key]:
                 del self.tests[test]
 
     def read(self, options):
@@ -1130,14 +1138,18 @@ def filter_tests(testrun, options):
         line = fh.readline()
         if not line:
             break
-        m = re.match(r'Test: .*(tests/.*)/(\S+).*\[FAIL\]', line)
+        m = re.match(r'(?:\[[0-9\-T:.]+\]\s+)?'
+                     r'Test(?: \(([^)]+)\))?: (.+) '
+                     r'\(run as [^)]+\)\s+\[\S+\]\s+\[FAIL\]', line)
         if not m:
             continue
-        group, test = m.group(1, 2)
+        identifier, pathname = m.group(1, 2)
+        directory, test = os.path.split(pathname)
+        key = (directory, identifier)
         try:
-            failed[group].append(test)
+            failed[key].append(test)
         except KeyError:
-            failed[group] = [test]
+            failed[key] = [test]
     fh.close()
 
     testrun.filter(failed)
