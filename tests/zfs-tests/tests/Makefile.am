@@ -1712,6 +1712,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/exec/setup.ksh \
 	functional/fadvise/cleanup.ksh \
 	functional/fadvise/fadvise_dontneed.ksh \
+	functional/fadvise/fadvise_recv.ksh \
 	functional/fadvise/fadvise_willneed.ksh \
 	functional/fadvise/fadvise_willneed_limit.ksh \
 	functional/fadvise/setup.ksh \
