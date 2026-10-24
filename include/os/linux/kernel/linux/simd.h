@@ -29,9 +29,13 @@
 #include <linux/simd_powerpc.h>
 
 #else
+/* No state is kept between kfpu_begin() and kfpu_end(). */
+typedef struct kfpu_ctx {
+	char kfpu_unused;
+} kfpu_ctx_t;
 #define	kfpu_allowed()		0
-#define	kfpu_begin()		do {} while (0)
-#define	kfpu_end()		do {} while (0)
+#define	kfpu_begin(ctx)		((void) (ctx))
+#define	kfpu_end(ctx)		((void) (ctx))
 #define	kfpu_init()		0
 #define	kfpu_fini()		((void) 0)
 

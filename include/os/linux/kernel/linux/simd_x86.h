@@ -19,10 +19,14 @@
  *
  * Kernel fpu methods:
  *	kfpu_allowed()
- *	kfpu_begin()
- *	kfpu_end()
+ *	kfpu_begin(kfpu_ctx_t *)
+ *	kfpu_end(kfpu_ctx_t *)
  *	kfpu_init()
  *	kfpu_fini()
+ *
+ * A region of FPU use is bracketed by kfpu_begin() and kfpu_end(), which
+ * take a kfpu_ctx_t that the caller declares for that region. It holds
+ * whatever the platform needs to keep between the two calls.
  *
  * SIMD support:
  *
@@ -70,6 +74,11 @@
 #include <sys/types.h>
 #include <asm/cpufeature.h>
 
+/* No state is kept between kfpu_begin() and kfpu_end(). */
+typedef struct kfpu_ctx {
+	char kfpu_unused;
+} kfpu_ctx_t;
+
 /*
  * Disable the WARN_ON_FPU() macro to prevent additional dependencies
  * when providing the kfpu_* functions.  Relevant warnings are included
@@ -99,20 +108,22 @@
 #define	kfpu_fini()		((void) 0)
 
 #if defined(HAVE_UNDERSCORE_KERNEL_FPU)
-#define	kfpu_begin()		\
+#define	kfpu_begin(ctx)		\
 {				\
+	(void) (ctx);		\
 	preempt_disable();	\
 	__kernel_fpu_begin();	\
 }
-#define	kfpu_end()		\
+#define	kfpu_end(ctx)		\
 {				\
+	(void) (ctx);		\
 	__kernel_fpu_end();	\
 	preempt_enable();	\
 }
 
 #elif defined(HAVE_KERNEL_FPU)
-#define	kfpu_begin()		kernel_fpu_begin()
-#define	kfpu_end()		kernel_fpu_end()
+#define	kfpu_begin(ctx)		((void) (ctx), kernel_fpu_begin())
+#define	kfpu_end(ctx)		((void) (ctx), kernel_fpu_end())
 
 #else
 /*
@@ -289,7 +300,7 @@ kfpu_save_fsave(uint8_t *addr)
 }
 
 static inline void
-kfpu_begin(void)
+kfpu_begin(kfpu_ctx_t *ctx)
 {
 	/*
 	 * Preemption and interrupts must be disabled for the critical
@@ -367,7 +378,7 @@ kfpu_restore_fsave(uint8_t *addr)
 }
 
 static inline void
-kfpu_end(void)
+kfpu_end(kfpu_ctx_t *ctx)
 {
 	uint8_t  *state = zfs_kfpu_fpregs[smp_processor_id()];
 #if HAVE_SIMD(XSAVES)

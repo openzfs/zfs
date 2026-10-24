@@ -290,11 +290,11 @@ static const uint8_t __attribute__((aligned(32))) _mul_mask = 0x0F;
 	}								\
 }
 
-#define	raidz_math_begin()	kfpu_begin()
-#define	raidz_math_end()						\
+#define	raidz_math_begin(ctx)	kfpu_begin(ctx)
+#define	raidz_math_end(ctx)						\
 {									\
 	FLUSH();							\
-	kfpu_end();							\
+	kfpu_end(ctx);							\
 }
 
 

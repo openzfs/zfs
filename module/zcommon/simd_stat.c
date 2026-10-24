@@ -32,6 +32,9 @@ kstat_t *simd_stat_kstat;
 #ifndef HAVE_KERNEL_NEON
 #define	HAVE_KERNEL_NEON (0)
 #endif
+#ifndef HAVE_KERNEL_NEON_STATE
+#define	HAVE_KERNEL_NEON_STATE (0)
+#endif
 #ifndef HAVE_KERNEL_FPU_INTERNAL
 #define	HAVE_KERNEL_FPU_INTERNAL (0)
 #endif
@@ -129,6 +132,8 @@ simd_stat_kstat_data(char *buf, size_t size, void *data)
 #if defined(__arm__) || defined(__aarch64__)
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
 		    "kernel_neon", HAVE_KERNEL_NEON);
+		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
+		    "kernel_neon_state", HAVE_KERNEL_NEON_STATE);
 #if defined(CONFIG_KERNEL_MODE_NEON)
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
 		    "kernel_mode_neon", CONFIG_KERNEL_MODE_NEON);
