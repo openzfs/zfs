@@ -1894,6 +1894,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/mmap/setup.ksh \
 	functional/mmp/cleanup.ksh \
 	functional/mmp/mmp_active_import.ksh \
+	functional/mmp/mmp_clear_sync_deadlock.ksh \
+	functional/mmp/mmp_clear_timestamp.ksh \
 	functional/mmp/mmp_concurrent_import.ksh \
 	functional/mmp/mmp_degraded_import.ksh \
 	functional/mmp/mmp_exported_import.ksh \
