@@ -302,13 +302,11 @@ echo "##### /proc/sysrq-trigger stack #####"
         # glibc (at least) will not pass TMPDIR through to setuid programs.
         # if set, arrange for it to be reset before running the target cmd
         tmpdir = os.getenv('TMPDIR')
+        ret = [SUDO, '-E', '-u', user]
         if tmpdir:
-            tmpdirarg = 'env TMPDIR=%s' % tmpdir
-        else:
-            tmpdirarg = ''
-
-        ret = '%s -E -u %s %s %s' % (SUDO, user, tmpdirarg, cmd)
-        return ret.split(' ')
+            ret.extend(['env', 'TMPDIR=%s' % tmpdir])
+        ret.append(cmd)
+        return ret
 
     def collect_output(self, proc, debug=False):
         """
