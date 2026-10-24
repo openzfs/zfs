@@ -40,7 +40,6 @@ extern void zrl_add_impl(zrlock_t *, const char *);
 extern void zrl_remove(zrlock_t *);
 extern int zrl_tryenter(zrlock_t *);
 extern void zrl_exit(zrlock_t *);
-extern int zrl_is_zero(zrlock_t *);
 extern int zrl_is_locked(zrlock_t *);
 #ifdef	ZFS_DEBUG
 extern kthread_t *zrl_owner(zrlock_t *);

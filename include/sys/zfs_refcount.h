@@ -78,7 +78,6 @@ void zfs_refcount_add_few(zfs_refcount_t *, uint64_t, const void *);
 void zfs_refcount_remove_few(zfs_refcount_t *, uint64_t, const void *);
 int64_t zfs_refcount_add_many(zfs_refcount_t *, uint64_t, const void *);
 int64_t zfs_refcount_remove_many(zfs_refcount_t *, uint64_t, const void *);
-void zfs_refcount_transfer(zfs_refcount_t *, zfs_refcount_t *);
 void zfs_refcount_transfer_ownership(zfs_refcount_t *, const void *,
     const void *);
 void zfs_refcount_transfer_ownership_many(zfs_refcount_t *, uint64_t,
@@ -112,11 +111,6 @@ typedef struct refcount {
 	atomic_add_64_nv(&(rc)->rc_count, number)
 #define	zfs_refcount_remove_many(rc, number, holder) \
 	atomic_add_64_nv(&(rc)->rc_count, -number)
-#define	zfs_refcount_transfer(dst, src) { \
-	uint64_t __tmp = zfs_refcount_count(src); \
-	atomic_add_64(&(src)->rc_count, -__tmp); \
-	atomic_add_64(&(dst)->rc_count, __tmp); \
-}
 #define	zfs_refcount_transfer_ownership(rc, ch, nh)		((void)0)
 #define	zfs_refcount_transfer_ownership_many(rc, nr, ch, nh)	((void)0)
 #define	zfs_refcount_held(rc, holder)		(zfs_refcount_count(rc) > 0)
