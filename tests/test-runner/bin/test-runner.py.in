@@ -467,6 +467,10 @@ echo "##### /proc/sysrq-trigger stack #####"
                                   encoding='utf-8')
             write_log(b'%s %s\n' % (timestamp, line), LOG_FILE)
 
+        # Add the kmemleak report too, so it shows up with the test's output
+        for line in self.result.kmemleak.splitlines():
+            write_log(b'kmemleak: %s\n' % line, LOG_FILE)
+
         # Write the separate stdout/stderr/merged files, if the data exists
         if len(self.result.stdout):
             with open(os.path.join(self.outputdir, 'stdout'), 'wb') as out:
