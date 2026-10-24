@@ -87,7 +87,7 @@ static inline boolean_t
 zfs_sha256_available(void)
 {
 	unsigned long ftr = ((get_ftr(ID_AA64ISAR0_EL1)) >> 12) & 0x3;
-	return (ftr & 0x1);
+	return (ftr != 0);
 }
 
 /*
