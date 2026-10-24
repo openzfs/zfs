@@ -425,10 +425,11 @@ def lzc_hold(holds, fd=None):
 
     The snapshots must all be in the same pool.
 
-    If ``fd`` is not None, then when the ``fd`` is closed (including on process
-    termination), the holds will be released.  If the system is shut down
-    uncleanly, the holds will be released when the pool is next opened
-    or imported.
+    If ``fd`` is not None, the holds are released when the last reference to
+    the associated open file description is released.  Duplicated, inherited,
+    or transferred descriptors can keep the holds alive after ``fd`` is
+    closed or its process exits.  If the system is shut down uncleanly, the
+    holds will be released when the pool is next opened or imported.
 
     Holds for snapshots which don't exist will be skipped and have an entry
     added to the return value, but will not cause an overall failure.

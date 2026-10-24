@@ -572,8 +572,6 @@ typedef struct zfs_useracct {
 	uint64_t zu_space;
 } zfs_useracct_t;
 
-#define	ZFSDEV_MAX_MINOR	(1 << 16)
-
 #define	ZPOOL_EXPORT_AFTER_SPLIT 0x1
 
 #ifdef _KERNEL
@@ -592,29 +590,6 @@ extern void zfs_unmount_snap(const char *);
 extern void zfs_destroy_unmount_origin(const char *);
 extern int getzfsvfs_impl(struct objset *, struct zfsvfs **);
 extern int getzfsvfs(const char *, struct zfsvfs **);
-
-enum zfsdev_state_type {
-	ZST_ONEXIT,
-	ZST_ZEVENT,
-	ZST_ALL,
-};
-
-/*
- * The zfsdev_state_t structure is managed as a singly-linked list
- * from which items are never deleted.  This allows for lock-free
- * reading of the list so long as assignments to the zs_next and
- * reads from zs_minor are performed atomically.  Empty items are
- * indicated by storing -1 into zs_minor.
- */
-typedef struct zfsdev_state {
-	struct zfsdev_state	*zs_next;	/* next zfsdev_state_t link */
-	minor_t			zs_minor;	/* made up minor number */
-	void			*zs_onexit;	/* onexit data */
-	void			*zs_zevent;	/* zevent data */
-} zfsdev_state_t;
-
-extern void *zfsdev_get_state(minor_t minor, enum zfsdev_state_type which);
-extern int zfsdev_getminor(zfs_file_t *fp, minor_t *minorp);
 
 extern uint_t zfs_allow_log_key;
 

@@ -219,8 +219,8 @@
 
 #include <sys/zfs_ioctl_impl.h>
 
-kmutex_t zfsdev_state_lock;
-static zfsdev_state_t zfsdev_state_listhead;
+static int zfsdev_state_fd_hold(int, zfsdev_state_hold_t *);
+static void zfsdev_state_fd_rele(zfsdev_state_hold_t *);
 
 /*
  * Limit maximum nvlist size.  We don't want users passing in insane values
@@ -7026,24 +7026,23 @@ zfs_ioc_tmp_snapshot(zfs_cmd_t *zc)
 {
 	char *snap_name;
 	char *hold_name;
-	minor_t minor;
+	zfsdev_state_hold_t hold;
 
-	zfs_file_t *fp = zfs_onexit_fd_hold(zc->zc_cleanup_fd, &minor);
-	if (fp == NULL)
+	if (zfsdev_state_fd_hold(zc->zc_cleanup_fd, &hold) != 0)
 		return (SET_ERROR(EBADF));
 
 	snap_name = kmem_asprintf("%s-%016llx", zc->zc_value,
 	    (u_longlong_t)ddi_get_lbolt64());
 	hold_name = kmem_asprintf("%%%s", zc->zc_value);
 
-	int error = dsl_dataset_snapshot_tmp(zc->zc_name, snap_name, minor,
-	    hold_name);
+	int error = dsl_dataset_snapshot_tmp(zc->zc_name, snap_name,
+	    &hold.zsh_state->zs_onexit, hold_name);
 	if (error == 0)
 		(void) strlcpy(zc->zc_value, snap_name,
 		    sizeof (zc->zc_value));
 	kmem_strfree(snap_name);
 	kmem_strfree(hold_name);
-	zfs_onexit_fd_rele(fp);
+	zfsdev_state_fd_rele(&hold);
 	return (error);
 }
 
@@ -7104,8 +7103,8 @@ zfs_ioc_hold(const char *pool, nvlist_t *args, nvlist_t *errlist)
 	nvlist_t *holds;
 	int cleanup_fd = -1;
 	int error;
-	minor_t minor = 0;
-	zfs_file_t *fp = NULL;
+	zfs_onexit_t *zo = NULL;
+	zfsdev_state_hold_t hold;
 
 	holds = fnvlist_lookup_nvlist(args, "holds");
 
@@ -7123,16 +7122,14 @@ zfs_ioc_hold(const char *pool, nvlist_t *args, nvlist_t *errlist)
 	}
 
 	if (nvlist_lookup_int32(args, "cleanup_fd", &cleanup_fd) == 0) {
-		fp = zfs_onexit_fd_hold(cleanup_fd, &minor);
-		if (fp == NULL)
+		if (zfsdev_state_fd_hold(cleanup_fd, &hold) != 0)
 			return (SET_ERROR(EBADF));
+		zo = &hold.zsh_state->zs_onexit;
 	}
 
-	error = dsl_dataset_user_hold(holds, minor, errlist);
-	if (fp != NULL) {
-		ASSERT3U(minor, !=, 0);
-		zfs_onexit_fd_rele(fp);
-	}
+	error = dsl_dataset_user_hold(holds, zo, errlist);
+	if (zo != NULL)
+		zfsdev_state_fd_rele(&hold);
 	return (SET_ERROR(error));
 }
 
@@ -7189,18 +7186,16 @@ zfs_ioc_release(const char *pool, nvlist_t *holds, nvlist_t *errlist)
 static int
 zfs_ioc_events_next(zfs_cmd_t *zc)
 {
-	zfs_zevent_t *ze;
+	zfsdev_state_hold_t hold;
 	nvlist_t *event = NULL;
-	minor_t minor;
 	uint64_t dropped = 0;
 	int error;
 
-	zfs_file_t *fp = zfs_zevent_fd_hold(zc->zc_cleanup_fd, &minor, &ze);
-	if (fp == NULL)
+	if (zfsdev_state_fd_hold(zc->zc_cleanup_fd, &hold) != 0)
 		return (SET_ERROR(EBADF));
 
 	do {
-		error = zfs_zevent_next(ze, &event,
+		error = zfs_zevent_next(&hold.zsh_state->zs_zevent, &event,
 		    &zc->zc_nvlist_dst_size, &dropped);
 		if (event != NULL) {
 			zc->zc_cookie = dropped;
@@ -7214,12 +7209,12 @@ zfs_ioc_events_next(zfs_cmd_t *zc)
 		if ((error == 0) || (error != ENOENT))
 			break;
 
-		error = zfs_zevent_wait(ze);
+		error = zfs_zevent_wait();
 		if (error != 0)
 			break;
 	} while (1);
 
-	zfs_zevent_fd_rele(fp);
+	zfsdev_state_fd_rele(&hold);
 
 	return (error);
 }
@@ -7247,16 +7242,14 @@ zfs_ioc_events_clear(zfs_cmd_t *zc)
 static int
 zfs_ioc_events_seek(zfs_cmd_t *zc)
 {
-	zfs_zevent_t *ze;
-	minor_t minor;
+	zfsdev_state_hold_t hold;
 	int error;
 
-	zfs_file_t *fp = zfs_zevent_fd_hold(zc->zc_cleanup_fd, &minor, &ze);
-	if (fp == NULL)
+	if (zfsdev_state_fd_hold(zc->zc_cleanup_fd, &hold) != 0)
 		return (SET_ERROR(EBADF));
 
-	error = zfs_zevent_seek(ze, zc->zc_guid);
-	zfs_zevent_fd_rele(fp);
+	error = zfs_zevent_seek(&hold.zsh_state->zs_zevent, zc->zc_guid);
+	zfsdev_state_fd_rele(&hold);
 
 	return (error);
 }
@@ -8450,153 +8443,51 @@ pool_status_check(const char *name, zfs_ioc_namecheck_t type,
 	return (error);
 }
 
-int
-zfsdev_getminor(zfs_file_t *fp, minor_t *minorp)
+static int
+zfsdev_state_fd_hold(int fd, zfsdev_state_hold_t *hold)
 {
-	zfsdev_state_t *zs, *fpd;
+	zfs_file_t *fp = zfs_file_get(fd);
+	int error;
 
-	ASSERT(!MUTEX_HELD(&zfsdev_state_lock));
-
-	fpd = zfs_file_private(fp);
-	if (fpd == NULL)
+	if (fp == NULL)
 		return (SET_ERROR(EBADF));
 
-	mutex_enter(&zfsdev_state_lock);
-
-	for (zs = &zfsdev_state_listhead; zs != NULL; zs = zs->zs_next) {
-
-		if (zs->zs_minor == -1)
-			continue;
-
-		if (fpd == zs) {
-			*minorp = fpd->zs_minor;
-			mutex_exit(&zfsdev_state_lock);
-			return (0);
-		}
+	error = zfsdev_file_state_hold(fp, hold);
+	if (error != 0) {
+		zfs_file_put(fp);
+		return (error);
 	}
 
-	mutex_exit(&zfsdev_state_lock);
-
-	return (SET_ERROR(EBADF));
-}
-
-void *
-zfsdev_get_state(minor_t minor, enum zfsdev_state_type which)
-{
-	zfsdev_state_t *zs;
-
-	for (zs = &zfsdev_state_listhead; zs != NULL; zs = zs->zs_next) {
-		if (zs->zs_minor == minor) {
-			membar_consumer();
-			switch (which) {
-			case ZST_ONEXIT:
-				return (zs->zs_onexit);
-			case ZST_ZEVENT:
-				return (zs->zs_zevent);
-			case ZST_ALL:
-				return (zs);
-			}
-		}
-	}
-
-	return (NULL);
-}
-
-/*
- * Find a free minor number.  The zfsdev_state_list is expected to
- * be short since it is only a list of currently open file handles.
- */
-static minor_t
-zfsdev_minor_alloc(void)
-{
-	static minor_t last_minor = 0;
-	minor_t m;
-
-	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
-
-	for (m = last_minor + 1; m != last_minor; m++) {
-		if (m > ZFSDEV_MAX_MINOR)
-			m = 1;
-		if (zfsdev_get_state(m, ZST_ALL) == NULL) {
-			last_minor = m;
-			return (m);
-		}
-	}
-
+	hold->zsh_file = fp;
 	return (0);
 }
 
-int
-zfsdev_state_init(void *priv)
+static void
+zfsdev_state_fd_rele(zfsdev_state_hold_t *hold)
 {
-	zfsdev_state_t *zs, *zsprev = NULL;
-	minor_t minor;
-	boolean_t newzs = B_FALSE;
+	zfsdev_file_state_rele(hold);
+	zfs_file_put(hold->zsh_file);
+}
 
-	ASSERT(MUTEX_HELD(&zfsdev_state_lock));
+zfsdev_state_t *
+zfsdev_state_create(void)
+{
+	zfsdev_state_t *zs = kmem_alloc(sizeof (*zs), KM_SLEEP);
 
-	minor = zfsdev_minor_alloc();
-	if (minor == 0)
-		return (SET_ERROR(ENXIO));
+	zfs_onexit_init(&zs->zs_onexit);
+	zfs_zevent_init(&zs->zs_zevent);
 
-	for (zs = &zfsdev_state_listhead; zs != NULL; zs = zs->zs_next) {
-		if (zs->zs_minor == -1)
-			break;
-		zsprev = zs;
-	}
-
-	if (!zs) {
-		zs = kmem_zalloc(sizeof (zfsdev_state_t), KM_SLEEP);
-		newzs = B_TRUE;
-	}
-
-	zfsdev_private_set_state(priv, zs);
-
-	zfs_onexit_init((zfs_onexit_t **)&zs->zs_onexit);
-	zfs_zevent_init((zfs_zevent_t **)&zs->zs_zevent);
-
-	/*
-	 * In order to provide for lock-free concurrent read access
-	 * to the minor list in zfsdev_get_state(), new entries
-	 * must be completely written before linking them into the
-	 * list whereas existing entries are already linked; the last
-	 * operation must be updating zs_minor (from -1 to the new
-	 * value).
-	 */
-	if (newzs) {
-		zs->zs_minor = minor;
-		membar_producer();
-		zsprev->zs_next = zs;
-	} else {
-		membar_producer();
-		zs->zs_minor = minor;
-	}
-
-	return (0);
+	return (zs);
 }
 
 void
-zfsdev_state_destroy(void *priv)
+zfsdev_state_destroy(zfsdev_state_t *zs)
 {
-	zfsdev_state_t *zs = zfsdev_private_get_state(priv);
-
 	ASSERT(zs != NULL);
-	ASSERT3S(zs->zs_minor, >, 0);
 
-	/*
-	 * The last reference to this zfsdev file descriptor is being dropped.
-	 * We don't have to worry about lookup grabbing this state object, and
-	 * zfsdev_state_init() will not try to reuse this object until it is
-	 * invalidated by setting zs_minor to -1.  Invalidation must be done
-	 * last, with a memory barrier to ensure ordering.  This lets us avoid
-	 * taking the global zfsdev state lock around destruction.
-	 */
-	zfs_onexit_destroy(zs->zs_onexit);
-	zfs_zevent_destroy(zs->zs_zevent);
-	zs->zs_onexit = NULL;
-	zs->zs_zevent = NULL;
-	membar_producer();
-	zs->zs_minor = -1;
+	zfs_onexit_fini(&zs->zs_onexit);
+	zfs_zevent_fini(&zs->zs_zevent);
+	kmem_free(zs, sizeof (*zs));
 }
 
 long
@@ -8837,9 +8728,6 @@ zfs_kmod_init(void)
 	/* Register zoned_uid property lookup callback with SPL */
 	zone_register_zoned_uid_callback(zfs_get_zoned_uid);
 
-	mutex_init(&zfsdev_state_lock, NULL, MUTEX_DEFAULT, NULL);
-	zfsdev_state_listhead.zs_minor = -1;
-
 	if ((error = zfsdev_attach()) != 0)
 		goto out;
 
@@ -8858,21 +8746,7 @@ out:
 void
 zfs_kmod_fini(void)
 {
-	zfsdev_state_t *zs, *zsnext = NULL;
-
 	zfsdev_detach();
-
-	mutex_destroy(&zfsdev_state_lock);
-
-	for (zs = &zfsdev_state_listhead; zs != NULL; zs = zsnext) {
-		zsnext = zs->zs_next;
-		if (zs->zs_onexit)
-			zfs_onexit_destroy(zs->zs_onexit);
-		if (zs->zs_zevent)
-			zfs_zevent_destroy(zs->zs_zevent);
-		if (zs != &zfsdev_state_listhead)
-			kmem_free(zs, sizeof (zfsdev_state_t));
-	}
 
 	zfs_ereport_taskq_fini();	/* run before zfs_fini() on Linux */
 

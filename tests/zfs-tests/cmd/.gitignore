@@ -60,6 +60,7 @@
 /ctime
 /truncate_test
 /ereports
+/events_fd
 /zfs_diff-socket
 /dosmode_readonly_write
 /blake3_test

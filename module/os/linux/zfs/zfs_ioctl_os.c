@@ -59,6 +59,8 @@
 #include <linux/miscdevice.h>
 #include <linux/slab.h>
 
+static const struct file_operations zfsdev_fops;
+
 boolean_t
 zfs_vfs_held(zfsvfs_t *zfsvfs)
 {
@@ -81,38 +83,35 @@ zfs_vfs_rele(zfsvfs_t *zfsvfs)
 	deactivate_super(zfsvfs->z_sb);
 }
 
-void
-zfsdev_private_set_state(void *priv, zfsdev_state_t *zs)
+int
+zfsdev_file_state_hold(zfs_file_t *fp, zfsdev_state_hold_t *hold)
 {
-	struct file *filp = priv;
+	struct file *filp = fp;
 
-	filp->private_data = zs;
+	if (filp->f_op != &zfsdev_fops || filp->private_data == NULL)
+		return (SET_ERROR(EBADF));
+
+	hold->zsh_state = filp->private_data;
+	return (0);
 }
 
-zfsdev_state_t *
-zfsdev_private_get_state(void *priv)
+void
+zfsdev_file_state_rele(zfsdev_state_hold_t *hold)
 {
-	struct file *filp = priv;
-
-	return (filp->private_data);
+	(void) hold;
 }
 
 static int
 zfsdev_open(struct inode *ino, struct file *filp)
 {
-	int error;
-
-	mutex_enter(&zfsdev_state_lock);
-	error = zfsdev_state_init(filp);
-	mutex_exit(&zfsdev_state_lock);
-
-	return (-error);
+	filp->private_data = zfsdev_state_create();
+	return (0);
 }
 
 static int
 zfsdev_release(struct inode *ino, struct file *filp)
 {
-	zfsdev_state_destroy(filp);
+	zfsdev_state_destroy(filp->private_data);
 
 	return (0);
 }
