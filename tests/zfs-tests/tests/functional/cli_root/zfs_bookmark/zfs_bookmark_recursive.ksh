@@ -25,6 +25,9 @@
 # 3. Verify a descendant created after the snapshot is skipped (not an error)
 #    while the others still get a new bookmark.
 # 4. Verify 'zfs bookmark -r' rejects a bookmark source.
+# 5. Verify 'zfs bookmark -r' rejects a new bookmark on a dataset other than
+#    the source snapshot's, and creates no bookmarks at all.
+# 6. Verify the short forms ('#bookmark' and '@snapshot') still work with -r.
 #
 
 verify_runnable "both"
@@ -32,6 +35,8 @@ verify_runnable "both"
 typeset TESTSNAP="testsnap"
 typeset TESTBM="testbm"
 typeset TESTBM2="testbm2"
+typeset TESTBM3="testbm3"
+typeset TESTBM4="testbm4"
 
 typeset ROOT="$TESTPOOL/$TESTFS"
 typeset -a SUBTREE=("$ROOT" "$ROOT/child" "$ROOT/recv")
@@ -80,5 +85,24 @@ log_mustnot eval "bkmarkexists $LATE#$TESTBM2"
 
 # 4. A bookmark source is not valid with -r.
 log_mustnot zfs bookmark -r "$ROOT#$TESTBM" "$ROOT#$TESTBM2"
+
+# 5. The new bookmark must be on the source snapshot's dataset: naming a
+#    different dataset (here one that also has the snapshot) must fail and
+#    must not create a bookmark anywhere.
+log_mustnot zfs bookmark -r "$ROOT@$TESTSNAP" "$OUTSIDE#$TESTBM3"
+log_mustnot zfs bookmark -r "$ROOT@$TESTSNAP" "$ROOT/child#$TESTBM3"
+for ds in "${SUBTREE[@]}" "$OUTSIDE"; do
+	log_mustnot eval "bkmarkexists $ds#$TESTBM3"
+done
+
+# 6. The short forms take the dataset from the other argument.
+log_must zfs bookmark -r "$ROOT@$TESTSNAP" "#$TESTBM3"
+log_must zfs bookmark -r "@$TESTSNAP" "$ROOT#$TESTBM4"
+for ds in "${SUBTREE[@]}"; do
+	log_must eval "bkmarkexists $ds#$TESTBM3"
+	log_must eval "bkmarkexists $ds#$TESTBM4"
+done
+log_mustnot eval "bkmarkexists $OUTSIDE#$TESTBM3"
+log_mustnot eval "bkmarkexists $OUTSIDE#$TESTBM4"
 
 log_pass "'zfs bookmark -r' creates recursive bookmarks as expected"
