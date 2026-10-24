@@ -192,6 +192,13 @@ extern int zap_leaf_lookup_closest(zap_leaf_t *l,
     uint64_t hash, uint32_t cd, zap_entry_handle_t *zeh);
 
 /*
+ * Return a handle to an entry whose first integer, masked, equals
+ * value & mask, or ENOENT if there is none in this leaf.
+ */
+extern int zap_leaf_value_search(zap_leaf_t *l,
+    uint64_t value, uint64_t mask, zap_entry_handle_t *zeh);
+
+/*
  * Read the first num_integers in the attribute.  Integer size
  * conversion will be done without sign extension.  Return EINVAL if
  * integer_size is too small.  Return EOVERFLOW if there are more than
