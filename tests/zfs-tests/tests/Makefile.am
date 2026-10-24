@@ -2431,6 +2431,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/uncached/setup.ksh \
 	functional/uncached/uncached_dontcache.ksh \
 	functional/uncached/uncached_noreuse.ksh \
+	functional/uncached/uncached_partial_write.ksh \
 	functional/unlink/cleanup.ksh \
 	functional/unlink/setup.ksh \
 	functional/unlink/unlinked_fh_accessible.ksh \
