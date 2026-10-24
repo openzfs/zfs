@@ -5087,6 +5087,25 @@ spa_raidz_expand_thread_check(void *arg, zthr_t *zthr)
 }
 
 /*
+ * Pause the reflow until raidz_dtl_reassessed() resumes it.  If the DTLs
+ * were reassessed during this pass, that wakeup was already delivered
+ * (and ignored), so leave the thread runnable to retry immediately.
+ */
+static void
+raidz_reflow_wait_for_resilver(vdev_raidz_expand_t *vre)
+{
+	ASSERT(MUTEX_HELD(&vre->vre_lock));
+
+	if (vre->vre_dtl_reassessed) {
+		zfs_dbgmsg("DTL reassessed during reflow, retrying "
+		    "raidz expansion at offset=%llu",
+		    (u_longlong_t)vre->vre_offset);
+	} else {
+		vre->vre_waiting_for_resilver = B_TRUE;
+	}
+}
+
+/*
  * RAIDZ expansion background thread
  *
  * Can be called multiple times if the reflow is paused
@@ -5096,6 +5115,11 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 {
 	spa_t *spa = arg;
 	vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
+
+	/* Only reassessments made after this point can cause a retry. */
+	mutex_enter(&vre->vre_lock);
+	vre->vre_dtl_reassessed = B_FALSE;
+	mutex_exit(&vre->vre_lock);
 
 	if (RRSS_GET_STATE(&spa->spa_ubsync) == RRSS_SCRATCH_VALID)
 		vre->vre_offset = 0;
@@ -5111,7 +5135,7 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 		/* if we encountered errors then pause */
 		if (vre->vre_offset == 0) {
 			mutex_enter(&vre->vre_lock);
-			vre->vre_waiting_for_resilver = B_TRUE;
+			raidz_reflow_wait_for_resilver(vre);
 			mutex_exit(&vre->vre_lock);
 			return;
 		}
@@ -5302,7 +5326,7 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 			 */
 			vre->vre_offset = vre->vre_failed_offset;
 			vre->vre_failed_offset = UINT64_MAX;
-			vre->vre_waiting_for_resilver = B_TRUE;
+			raidz_reflow_wait_for_resilver(vre);
 		}
 		mutex_exit(&vre->vre_lock);
 	}
@@ -5335,6 +5359,8 @@ raidz_dtl_reassessed(vdev_t *vd)
 				    "continuing raidz expansion");
 				vre->vre_waiting_for_resilver = B_FALSE;
 				zthr_wakeup(spa->spa_raidz_expand_zthr);
+			} else {
+				vre->vre_dtl_reassessed = B_TRUE;
 			}
 			mutex_exit(&vre->vre_lock);
 		}

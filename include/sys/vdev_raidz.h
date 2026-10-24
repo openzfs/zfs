@@ -92,10 +92,19 @@ typedef struct vdev_raidz_expand {
 	 * Lowest offset of a failed expansion i/o.  The expansion will retry
 	 * from here.  Once the expansion thread notices the failure and exits,
 	 * vre_failed_offset is reset back to UINT64_MAX, and
-	 * vre_waiting_for_resilver will be set.
+	 * vre_waiting_for_resilver will be set, unless vre_dtl_reassessed
+	 * is set.
 	 */
 	uint64_t vre_failed_offset;
 	boolean_t vre_waiting_for_resilver;
+
+	/*
+	 * Set when the DTLs were reassessed (e.g. a resilver completed)
+	 * since the current pass of the expansion thread started.  A pass
+	 * that then fails retries instead of waiting, as that wakeup has
+	 * already been missed.  Protected by vre_lock.
+	 */
+	boolean_t vre_dtl_reassessed;
 
 	/*
 	 * Offset that is completing each txg
