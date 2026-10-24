@@ -1567,7 +1567,7 @@ test_nv_print_simple(const MunitParameter params[], void *data)
 	unit_notnull(fp);
 
 	nvlist_print(fp, nvl);
-	fclose(fp);
+	unit_ok(fclose(fp));
 
 	unit_str_eq(out,
 	    "nvlist version: 0\n"
@@ -1593,7 +1593,7 @@ test_nv_print_deep(const MunitParameter params[], void *data)
 	unit_notnull(fp);
 
 	nvlist_print(fp, nvl);
-	fclose(fp);
+	unit_ok(fclose(fp));
 
 	unit_str_eq(out,
 	    "nvlist version: 0\n"
