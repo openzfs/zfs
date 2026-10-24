@@ -2391,8 +2391,17 @@ spa_set_deadman_synctime(hrtime_t ns)
 	}
 }
 
+/*
+ * Compute the deflated size of a DVA.  The birth_txg parameter is used to
+ * determine the correct deflation ratio for RAIDZ vdevs that have been
+ * expanded.  Blocks born under an older (narrower) geometry used more
+ * physical space per unit of data; using the birth-txg-appropriate ratio
+ * ensures accurate per-block accounting.  For callers that do not have a
+ * birth txg (or for non-expanded vdevs), the cached vdev_deflate_ratio
+ * based on current geometry is used.
+ */
 uint64_t
-dva_get_dsize_sync(spa_t *spa, const dva_t *dva)
+dva_get_dsize_sync(spa_t *spa, const dva_t *dva, uint64_t birth_txg)
 {
 	uint64_t asize = DVA_GET_ASIZE(dva);
 	uint64_t dsize = asize;
@@ -2401,9 +2410,10 @@ dva_get_dsize_sync(spa_t *spa, const dva_t *dva)
 
 	if (asize != 0 && spa->spa_deflate) {
 		vdev_t *vd = vdev_lookup_top(spa, DVA_GET_VDEV(dva));
-		if (vd != NULL)
-			dsize = (asize >> SPA_MINBLOCKSHIFT) *
-			    vd->vdev_deflate_ratio;
+		if (vd != NULL) {
+			uint64_t ratio = vdev_get_deflate_ratio(vd, birth_txg);
+			dsize = (asize >> SPA_MINBLOCKSHIFT) * ratio;
+		}
 	}
 
 	return (dsize);
@@ -2414,8 +2424,16 @@ bp_get_dsize_sync(spa_t *spa, const blkptr_t *bp)
 {
 	uint64_t dsize = 0;
 
+	/*
+	 * Use physical birth: this reflects when the DVAs were actually
+	 * allocated, and thus which RAIDZ geometry was in effect.  For
+	 * dedup/clones the logical birth may differ, but the physical
+	 * birth matches the on-disk allocation geometry.
+	 */
+	uint64_t birth_txg = BP_GET_PHYSICAL_BIRTH(bp);
+
 	for (int d = 0; d < BP_GET_NDVAS(bp); d++)
-		dsize += dva_get_dsize_sync(spa, &bp->blk_dva[d]);
+		dsize += dva_get_dsize_sync(spa, &bp->blk_dva[d], birth_txg);
 
 	return (dsize);
 }
@@ -2424,11 +2442,12 @@ uint64_t
 bp_get_dsize(spa_t *spa, const blkptr_t *bp)
 {
 	uint64_t dsize = 0;
+	uint64_t birth_txg = BP_GET_PHYSICAL_BIRTH(bp);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 
 	for (int d = 0; d < BP_GET_NDVAS(bp); d++)
-		dsize += dva_get_dsize_sync(spa, &bp->blk_dva[d]);
+		dsize += dva_get_dsize_sync(spa, &bp->blk_dva[d], birth_txg);
 
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 

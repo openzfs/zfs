@@ -5411,6 +5411,19 @@ spa_ld_check_features(spa_t *spa, boolean_t *missing_feat_writep)
 	}
 
 	/*
+	 * Cache the txg at which per-block deflate ratio accounting was
+	 * activated, which is stored as the feature's enabled_txg.  Blocks
+	 * born in or before this txg use the legacy fixed ratio; blocks
+	 * born after this txg use per-birth-txg ratios.
+	 */
+	if (spa_feature_is_active(spa,
+	    SPA_FEATURE_RAIDZ_EXPANSION_ACCOUNTING)) {
+		(void) spa_feature_enabled_txg(spa,
+		    SPA_FEATURE_RAIDZ_EXPANSION_ACCOUNTING,
+		    &spa->spa_raidz_expand_acct_txg);
+	}
+
+	/*
 	 * Encryption was added before bookmark_v2, even though bookmark_v2
 	 * is now a dependency. If this pool has encryption enabled without
 	 * bookmark_v2, trigger an errata message.

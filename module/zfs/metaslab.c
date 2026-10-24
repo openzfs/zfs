@@ -1124,6 +1124,9 @@ metaslab_group_destroy(metaslab_group_t *mg)
 	 * because we're done, and possibly removing the vdev.
 	 */
 	ASSERT(mg->mg_activation_count <= 0);
+	ASSERT0(mg->mg_space);
+	ASSERT0(mg->mg_alloc);
+	ASSERT0(mg->mg_dspace_corr);
 
 	avl_destroy(&mg->mg_metaslab_tree);
 	mutex_destroy(&mg->mg_lock);
@@ -2909,6 +2912,54 @@ metaslab_set_selected_txg(metaslab_t *msp, uint64_t txg)
 	multilist_sublist_unlock(mls);
 }
 
+/*
+ * Add deflated space beyond the vdev's legacy deflate ratio to the stats
+ * of a metaslab group's class, its vdev and the root vdev: dalloc_delta
+ * to the allocated space and dspace_delta to the space.  If the group's
+ * vdev is non-allocating, its space is subtracted from spa_rdspace via
+ * spa_nonallocating_dspace, which then has to follow.
+ */
+void
+metaslab_group_dspace_update(metaslab_group_t *mg, int64_t dalloc_delta,
+    int64_t dspace_delta)
+{
+	vdev_t *vd = mg->mg_vd;
+
+	atomic_add_64(&mg->mg_dspace_corr, dspace_delta);
+	metaslab_class_space_update(mg->mg_class, 0, dalloc_delta, 0, 0, 0,
+	    dspace_delta);
+	vdev_dspace_update(vd, dspace_delta);
+	if (mg == vd->vdev_mg && vd->vdev_noalloc_corr) {
+		atomic_add_64(&vd->vdev_spa->spa_nonallocating_dspace,
+		    dspace_delta);
+	}
+}
+
+/*
+ * The current deflate ratio of the group's vdev changed (a RAID-Z
+ * expansion completed): count the group's free space at the new ratio.
+ */
+void
+metaslab_group_rebase_dspace(metaslab_group_t *mg, uint64_t old_ratio,
+    uint64_t new_ratio)
+{
+	uint64_t free_space = mg->mg_space - mg->mg_alloc;
+
+	ASSERT(spa_config_held(mg->mg_vd->vdev_spa, SCL_ALL, RW_WRITER) ==
+	    SCL_ALL || (mg->mg_space == 0 && mg->mg_alloc == 0));
+
+	metaslab_group_dspace_update(mg, 0, (int64_t)(free_space >>
+	    SPA_MINBLOCKSHIFT) * ((int64_t)new_ratio - (int64_t)old_ratio));
+}
+
+/*
+ * Allocated space is deflated at the vdev's legacy ratio, the ratio at
+ * which blocks born before the RAID-Z expansion accounting boundary are
+ * charged; blocks charged at a larger birth ratio add their excess via
+ * vdev_acct_excess.  Free space is deflated at the ratio of the current
+ * geometry, at which new blocks are charged.  Both are equal unless the
+ * vdev is an expanded RAID-Z.
+ */
 void
 metaslab_space_update(metaslab_group_t *mg, int64_t alloc_delta,
     int64_t defer_delta, int64_t space_delta)
@@ -2917,6 +2968,16 @@ metaslab_space_update(metaslab_group_t *mg, int64_t alloc_delta,
 	int64_t dalloc_delta = vdev_deflated_space(vd, alloc_delta);
 	int64_t ddefer_delta = vdev_deflated_space(vd, defer_delta);
 	int64_t dspace_delta = vdev_deflated_space(vd, space_delta);
+	int64_t corr_delta = 0;
+
+	if (vd->vdev_deflate_ratio_current > vd->vdev_deflate_ratio) {
+		corr_delta = ((space_delta - alloc_delta) >>
+		    SPA_MINBLOCKSHIFT) * (int64_t)
+		    (vd->vdev_deflate_ratio_current - vd->vdev_deflate_ratio);
+	}
+
+	atomic_add_64(&mg->mg_space, space_delta);
+	atomic_add_64(&mg->mg_alloc, alloc_delta);
 
 	vdev_space_update(vd, alloc_delta, defer_delta, space_delta);
 
@@ -2925,6 +2986,8 @@ metaslab_space_update(metaslab_group_t *mg, int64_t alloc_delta,
 
 	metaslab_class_space_update(mg->mg_class, alloc_delta, dalloc_delta,
 	    defer_delta, ddefer_delta, space_delta, dspace_delta);
+	if (corr_delta != 0)
+		metaslab_group_dspace_update(mg, 0, corr_delta);
 }
 
 int
@@ -6087,6 +6150,29 @@ metaslab_class_unwritable(metaslab_class_t *mc)
 	return (unwritable);
 }
 
+/*
+ * Update the RAID-Z expansion accounting excess (see
+ * vdev_acct_excess_update()) for every DVA of a block.  The size used must
+ * match the space actually allocated or freed for each DVA.
+ */
+static void
+metaslab_acct_excess(spa_t *spa, const blkptr_t *bp, int ndvas,
+    uint64_t birth_txg, uint64_t txg, boolean_t alloc)
+{
+	if (spa->spa_raidz_expand_acct_txg == 0)
+		return;
+
+	for (int d = 0; d < ndvas; d++) {
+		const dva_t *dva = &bp->blk_dva[d];
+		vdev_t *vd = vdev_lookup_top(spa, DVA_GET_VDEV(dva));
+		if (vd == NULL)
+			continue;
+		uint64_t size = DVA_GET_GANG(dva) ?
+		    vdev_gang_header_asize(vd) : DVA_GET_ASIZE(dva);
+		vdev_acct_excess_update(vd, size, birth_txg, txg, alloc);
+	}
+}
+
 int
 metaslab_alloc(spa_t *spa, metaslab_class_t *mc, uint64_t psize, blkptr_t *bp,
     int ndvas, uint64_t txg, const blkptr_t *hintbp, int flags,
@@ -6154,6 +6240,8 @@ metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	if (actual_psize)
 		*actual_psize = smallest_psize;
 
+	metaslab_acct_excess(spa, bp, ndvas, txg, txg, B_TRUE);
+
 	spa_config_exit(spa, SCL_ALLOC, FTAG);
 
 	BP_SET_BIRTH(bp, txg, 0);
@@ -6199,6 +6287,14 @@ metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg, boolean_t now)
 
 	spa_config_enter(spa, SCL_FREE, FTAG, RW_READER);
 
+	/*
+	 * Checkpointed blocks stay allocated until the checkpoint is
+	 * discarded, but we drop their excess now: that only understates
+	 * the available space while the checkpoint exists.
+	 */
+	metaslab_acct_excess(spa, bp, ndvas, BP_GET_PHYSICAL_BIRTH(bp), txg,
+	    B_FALSE);
+
 	for (int d = 0; d < ndvas; d++) {
 		if (now) {
 			metaslab_unalloc_dva(spa, &dva[d], txg);
@@ -6235,6 +6331,11 @@ metaslab_claim(spa_t *spa, const blkptr_t *bp, uint64_t txg)
 		error = metaslab_claim_dva(spa, &dva[d], txg);
 		if (error != 0)
 			break;
+	}
+
+	if (error == 0 && txg != 0) {
+		metaslab_acct_excess(spa, bp, ndvas,
+		    BP_GET_PHYSICAL_BIRTH(bp), txg, B_TRUE);
 	}
 
 	spa_config_exit(spa, SCL_ALLOC, FTAG);
