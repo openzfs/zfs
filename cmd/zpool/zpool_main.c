@@ -260,7 +260,8 @@ static const char *pool_scan_func_str[] = {
 	"NONE",
 	"SCRUB",
 	"RESILVER",
-	"ERRORSCRUB"
+	"ERRORSCRUB",
+	"METASCRUB"
 };
 
 static const char *pool_scan_state_str[] = {
@@ -498,8 +499,9 @@ get_usage(zpool_help_t idx)
 		return ("\tinitialize [-c | -s | -u] [-w] [-z] "
 		    "<-a | <pool> [<device> ...]>\n");
 	case HELP_SCRUB:
-		return ("\tscrub [-e | -s | -p | -t | -C [-t] | "
-		    "[-S date] [-E date] [-t]] [-w]\n"
+		return ("\tscrub [-e | -s | -p | -m | -t | "
+		    "-C [-m | -t] |\n"
+		    "\t    [-S date] [-E date] [-m | -t]] [-w]\n"
 		    "\t    <-a | <pool> [<pool> ...]>\n");
 	case HELP_RESILVER:
 		return ("\tresilver <pool> ...\n");
@@ -8502,7 +8504,8 @@ scrub_callback(zpool_handle_t *zhp, void *data)
 	err = zpool_scan_range(zhp, cb->cb_type, cb->cb_scrub_cmd,
 	    cb->cb_scrub_flags, cb->cb_date_start, cb->cb_date_end);
 	if (err == 0 && zpool_has_checkpoint(zhp) &&
-	    cb->cb_type == POOL_SCAN_SCRUB) {
+	    (cb->cb_type == POOL_SCAN_SCRUB ||
+	    cb->cb_type == POOL_SCAN_METASCRUB)) {
 		(void) printf("warning: will not scrub state that "
 		    "belongs to the checkpoint of pool '%s'\n",
 		    zpool_get_name(zhp));
@@ -8541,10 +8544,12 @@ date_string_to_sec(const char *timestr, boolean_t rounding)
 }
 
 /*
- * zpool scrub [-e | -s | -p | -C | -E | -S | -t] [-w] [-a | <pool> ...]
+ * zpool scrub [-e | -m | -s | -p | -C | -E | -S | -t] [-w]
+ *     [-a | <pool> ...]
  *
  *	-a	Scrub all pools.
  *	-e	Only scrub blocks in the error log.
+ *	-m	Metadata-only scrub. Skips data block I/O.
  *	-E	End date of scrub.
  *	-S	Start date of scrub.
  *	-s	Stop.  Stops any in-progress scrub.
@@ -8567,12 +8572,13 @@ zpool_do_scrub(int argc, char **argv)
 	cb.cb_date_start = cb.cb_date_end = 0;
 
 	boolean_t is_error_scrub = B_FALSE;
+	boolean_t is_metascrub = B_FALSE;
 	boolean_t is_pause = B_FALSE;
 	boolean_t is_stop = B_FALSE;
 	boolean_t scrub_all = B_FALSE;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "aspweCE:S:t")) != -1) {
+	while ((c = getopt(argc, argv, "aspwemCE:S:t")) != -1) {
 		switch (c) {
 		case 'a':
 			scrub_all = B_TRUE;
@@ -8582,6 +8588,9 @@ zpool_do_scrub(int argc, char **argv)
 			break;
 		case 't':
 			cb.cb_scrub_flags |= POOL_SCRUB_THOROUGH;
+			break;
+		case 'm':
+			is_metascrub = B_TRUE;
 			break;
 		case 'E':
 			/*
@@ -8650,9 +8659,23 @@ zpool_do_scrub(int argc, char **argv)
 		(void) fprintf(stderr, "invalid option "
 		    "combination: -s and -t are mutually exclusive\n");
 		usage(B_FALSE);
+	} else if (is_error_scrub && is_metascrub) {
+		(void) fprintf(stderr, "invalid option "
+		    "combination: -e and -m are mutually exclusive\n");
+		usage(B_FALSE);
+	} else if (is_metascrub && (cb.cb_scrub_flags & POOL_SCRUB_THOROUGH)) {
+		(void) fprintf(stderr, "invalid option "
+		    "combination: -m and -t are mutually exclusive\n");
+		usage(B_FALSE);
+	} else if (is_metascrub && (is_pause || is_stop)) {
+		(void) fprintf(stderr, "invalid option "
+		    "combination: -m cannot be combined with -p or -s\n");
+		usage(B_FALSE);
 	} else {
 		if (is_error_scrub)
 			cb.cb_type = POOL_SCAN_ERRORSCRUB;
+		else if (is_metascrub)
+			cb.cb_type = POOL_SCAN_METASCRUB;
 
 		if (is_pause) {
 			cb.cb_scrub_cmd = POOL_SCRUB_PAUSE;
@@ -9147,6 +9170,41 @@ print_err_scrub_status(pool_scan_stat_t *ps)
 }
 
 /*
+ * Print a one-line summary of the most recently completed scrub or
+ * metascrub from its persisted snapshot. Used so that a metascrub run
+ * does not erase the visible record of the previous full scrub (and
+ * vice versa).
+ */
+static void
+print_last_scrub_summary(uint64_t start, uint64_t end, uint64_t processed,
+    uint64_t errors, boolean_t is_metascrub)
+{
+	char processed_buf[7], time_buf[32];
+	time_t end_time = end;
+
+	/* A zero end time means no run of this type has completed yet. */
+	if (end == 0)
+		return;
+
+	zfs_nicebytes(processed, processed_buf, sizeof (processed_buf));
+	secs_to_dhms(end - start, time_buf);
+
+	printf("  ");
+	(void) printf_color(ANSI_BOLD, "scan:");
+	printf(" ");
+
+	if (is_metascrub) {
+		(void) printf("metadata scrub repaired %s in %s "
+		    "with %llu errors on %s", processed_buf, time_buf,
+		    (u_longlong_t)errors, ctime(&end_time));
+	} else {
+		(void) printf("scrub repaired %s in %s "
+		    "with %llu errors on %s", processed_buf, time_buf,
+		    (u_longlong_t)errors, ctime(&end_time));
+	}
+}
+
+/*
  * Print out detailed scrub status.
  */
 static void
@@ -9178,13 +9236,19 @@ print_scan_scrub_resilver_status(pool_scan_stat_t *ps, boolean_t is_thorough)
 
 	int is_resilver = ps->pss_func == POOL_SCAN_RESILVER;
 	int is_scrub = ps->pss_func == POOL_SCAN_SCRUB;
-	assert(is_resilver || is_scrub);
+	int is_metascrub = ps->pss_func == POOL_SCAN_METASCRUB;
+	assert(is_resilver || is_scrub || is_metascrub);
 
 	/* Scan is finished or canceled. */
 	if (ps->pss_state == DSS_FINISHED) {
 		secs_to_dhms(end - start, time_buf);
 
-		if (is_scrub) {
+		if (is_metascrub) {
+			(void) printf("metadata scrub repaired %s "
+			    "in %s with %llu errors on %s", processed_buf,
+			    time_buf, (u_longlong_t)ps->pss_errors,
+			    ctime(&end));
+		} else if (is_scrub) {
 			if (is_thorough) {
 				(void) printf("thorough scrub "
 				    "repaired %s in %s with %llu errors on %s",
@@ -9204,7 +9268,10 @@ print_scan_scrub_resilver_status(pool_scan_stat_t *ps, boolean_t is_thorough)
 		}
 		return;
 	} else if (ps->pss_state == DSS_CANCELED) {
-		if (is_scrub) {
+		if (is_metascrub) {
+			(void) printf("metadata scrub canceled on %s",
+			    ctime(&end));
+		} else if (is_scrub) {
 			if (is_thorough) {
 				(void) printf("thorough scrub canceled "
 				    "on %s", ctime(&end));
@@ -9222,7 +9289,17 @@ print_scan_scrub_resilver_status(pool_scan_stat_t *ps, boolean_t is_thorough)
 	assert(ps->pss_state == DSS_SCANNING);
 
 	/* Scan is in progress. Resilvers can't be paused. */
-	if (is_scrub) {
+	if (is_metascrub) {
+		if (pause == 0) {
+			(void) printf("metadata scrub in progress "
+			    "since %s", ctime(&start));
+		} else {
+			(void) printf("metadata scrub paused "
+			    "since %s", ctime(&pause));
+			(void) printf("\tmetadata scrub started "
+			    "on %s", ctime(&start));
+		}
+	} else if (is_scrub) {
 		if (pause == 0) {
 			if (is_thorough) {
 				(void) printf("thorough scrub "
@@ -9289,7 +9366,7 @@ print_scan_scrub_resilver_status(pool_scan_stat_t *ps, boolean_t is_thorough)
 	if (is_resilver) {
 		(void) printf("\t%s resilvered, %.2f%% done",
 		    processed_buf, 100 * fraction_done);
-	} else if (is_scrub) {
+	} else if (is_scrub || is_metascrub) {
 		(void) printf("\t%s repaired, %.2f%% done",
 		    processed_buf, 100 * fraction_done);
 	}
@@ -9305,7 +9382,7 @@ print_scan_scrub_resilver_status(pool_scan_stat_t *ps, boolean_t is_thorough)
 		 */
 		if (total_i >= issued && issue_rate >= 10 * 1024 * 1024 &&
 		    ((is_resilver && ps->pss_processed > 0) ||
-		    (is_scrub && issued > 0))) {
+		    ((is_scrub || is_metascrub) && issued > 0))) {
 			secs_to_dhms((total_i - issued) / issue_rate, time_buf);
 			(void) printf(", %s to go\n", time_buf);
 		} else {
@@ -10356,6 +10433,57 @@ scan_status_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb,
 			    ps->pss_pass_error_scrub_pause,
 			    B_TRUE, cb->cb_json_as_int, ZFS_NICENUM_1024);
 		}
+		if (POOL_SCAN_STAT_VALID(pss_metascrub_errors, c)) {
+			if (ps->pss_last_scrub_end != 0) {
+				nice_num_str_nvlist(scan,
+				    "last_scrub_start_time",
+				    ps->pss_last_scrub_start,
+				    cb->cb_literal, cb->cb_json_as_int,
+				    ZFS_NICE_TIMESTAMP);
+				nice_num_str_nvlist(scan,
+				    "last_scrub_end_time",
+				    ps->pss_last_scrub_end,
+				    cb->cb_literal, cb->cb_json_as_int,
+				    ZFS_NICE_TIMESTAMP);
+				nice_num_str_nvlist(scan,
+				    "last_scrub_examined",
+				    ps->pss_last_scrub_examined,
+				    cb->cb_literal, cb->cb_json_as_int,
+				    ZFS_NICENUM_BYTES);
+				nice_num_str_nvlist(scan,
+				    "last_scrub_processed",
+				    ps->pss_last_scrub_processed,
+				    cb->cb_literal, cb->cb_json_as_int,
+				    ZFS_NICENUM_BYTES);
+				nice_num_str_nvlist(scan, "last_scrub_errors",
+				    ps->pss_last_scrub_errors,
+				    cb->cb_literal, cb->cb_json_as_int,
+				    ZFS_NICENUM_1024);
+			}
+			if (ps->pss_metascrub_end != 0) {
+				nice_num_str_nvlist(scan,
+				    "metascrub_start_time",
+				    ps->pss_metascrub_start,
+				    cb->cb_literal, cb->cb_json_as_int,
+				    ZFS_NICE_TIMESTAMP);
+				nice_num_str_nvlist(scan, "metascrub_end_time",
+				    ps->pss_metascrub_end,
+				    cb->cb_literal, cb->cb_json_as_int,
+				    ZFS_NICE_TIMESTAMP);
+				nice_num_str_nvlist(scan, "metascrub_examined",
+				    ps->pss_metascrub_examined,
+				    cb->cb_literal, cb->cb_json_as_int,
+				    ZFS_NICENUM_BYTES);
+				nice_num_str_nvlist(scan, "metascrub_processed",
+				    ps->pss_metascrub_processed,
+				    cb->cb_literal, cb->cb_json_as_int,
+				    ZFS_NICENUM_BYTES);
+				nice_num_str_nvlist(scan, "metascrub_errors",
+				    ps->pss_metascrub_errors,
+				    cb->cb_literal, cb->cb_json_as_int,
+				    ZFS_NICENUM_1024);
+			}
+		}
 	}
 
 	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
@@ -10452,11 +10580,14 @@ print_scan_status(zpool_handle_t *zhp, nvlist_t *nvroot)
 	boolean_t have_resilver = B_FALSE, have_scrub = B_FALSE;
 	boolean_t have_errorscrub = B_FALSE;
 	boolean_t active_resilver = B_FALSE;
+	boolean_t have_snapshots = B_FALSE;
 	pool_checkpoint_stat_t *pcs = NULL;
 	pool_scan_stat_t *ps = NULL;
 	uint_t c;
 	boolean_t is_thorough = B_FALSE;
 	time_t scrub_start = 0, errorscrub_start = 0;
+	boolean_t cur_is_scrub = B_FALSE, cur_is_metascrub = B_FALSE;
+	boolean_t scan_in_progress = B_FALSE;
 
 	if (nvlist_lookup_uint64_array(nvroot, ZPOOL_CONFIG_SCAN_STATS,
 	    (uint64_t **)&ps, &c) == 0) {
@@ -10466,7 +10597,11 @@ print_scan_status(zpool_handle_t *zhp, nvlist_t *nvroot)
 		}
 
 		have_resilver = (ps->pss_func == POOL_SCAN_RESILVER);
-		have_scrub = (ps->pss_func == POOL_SCAN_SCRUB);
+		have_scrub = (ps->pss_func == POOL_SCAN_SCRUB ||
+		    ps->pss_func == POOL_SCAN_METASCRUB);
+		cur_is_scrub = (ps->pss_func == POOL_SCAN_SCRUB);
+		cur_is_metascrub = (ps->pss_func == POOL_SCAN_METASCRUB);
+		scan_in_progress = (ps->pss_state == DSS_SCANNING);
 		scrub_start = ps->pss_start_time;
 		if (POOL_SCAN_STAT_VALID(pss_pass_scrub_flags, c) &&
 		    (ps->pss_pass_scrub_flags & POOL_SCRUB_THOROUGH) != 0)
@@ -10476,6 +10611,8 @@ print_scan_status(zpool_handle_t *zhp, nvlist_t *nvroot)
 			    POOL_SCAN_ERRORSCRUB);
 			errorscrub_start = ps->pss_error_scrub_start;
 		}
+		if (POOL_SCAN_STAT_VALID(pss_metascrub_errors, c))
+			have_snapshots = B_TRUE;
 	}
 
 	boolean_t active_rebuild = check_rebuilding(nvroot, &rebuild_end_time);
@@ -10486,6 +10623,23 @@ print_scan_status(zpool_handle_t *zhp, nvlist_t *nvroot)
 		print_scan_scrub_resilver_status(ps, is_thorough);
 	else if (have_errorscrub && errorscrub_start >= scrub_start)
 		print_err_scrub_status(ps);
+
+	/*
+	 * If the most recent scan reported above is not a full scrub (e.g.
+	 * the pool just finished a metascrub or resilver), surface the last
+	 * completed full scrub from its snapshot so its timestamp and stats
+	 * stay visible. Symmetrically for metascrub.
+	 */
+	if (have_snapshots && (!cur_is_scrub || scan_in_progress)) {
+		print_last_scrub_summary(ps->pss_last_scrub_start,
+		    ps->pss_last_scrub_end, ps->pss_last_scrub_processed,
+		    ps->pss_last_scrub_errors, B_FALSE);
+	}
+	if (have_snapshots && (!cur_is_metascrub || scan_in_progress)) {
+		print_last_scrub_summary(ps->pss_metascrub_start,
+		    ps->pss_metascrub_end, ps->pss_metascrub_processed,
+		    ps->pss_metascrub_errors, B_TRUE);
+	}
 
 	/*
 	 * When there is an active resilver or rebuild print its status.
@@ -13850,7 +14004,8 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 	if (pss != NULL && pss->pss_state == DSS_SCANNING &&
 	    pss->pss_pass_scrub_pause == 0) {
 		int64_t rem = pss->pss_to_examine - pss->pss_issued;
-		if (pss->pss_func == POOL_SCAN_SCRUB)
+		if (pss->pss_func == POOL_SCAN_SCRUB ||
+		    pss->pss_func == POOL_SCAN_METASCRUB)
 			bytes_rem[ZPOOL_WAIT_SCRUB] = rem;
 		else
 			bytes_rem[ZPOOL_WAIT_RESILVER] = rem;
