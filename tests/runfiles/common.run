@@ -1123,7 +1123,7 @@ tests = ['suid_write_to_suid', 'suid_write_to_sgid', 'suid_write_to_suid_sgid',
 tags = ['functional', 'suid']
 
 [tests/functional/test_runner]
-tests = ['test_runner_selection']
+tests = ['test_runner_report', 'test_runner_selection']
 pre =
 post =
 tags = ['functional', 'test_runner']
