@@ -17,7 +17,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd October 13, 2026
+.Dd October 19, 2026
 .Dt ZPOOL-ATTACH 8
 .Os
 .
@@ -29,13 +29,16 @@
 .Cm attach
 .Op Fl fsw
 .Oo Fl o Ar property Ns = Ns Ar value Oc
-.Ar pool vdev new_device
+.Ar pool vdev new_device Ns …
 .
 .Sh DESCRIPTION
 Attaches
 .Ar new_device
 to the existing
-.Ar vdev .
+.Ar vdev ,
+or several new devices when
+.Ar vdev
+is a RAID-Z device.
 The behavior differs depending on if the existing
 .Ar vdev
 is a RAID-Z device, or a mirror/plain device.
@@ -104,6 +107,38 @@ and similar tools.
 .Pp
 A pool-wide scrub is initiated at the end of the expansion in order to verify
 the checksums of all blocks which have been copied during the expansion.
+.Pp
+Several new devices can be given for a RAID-Z vdev.
+They are added in the order given, and one expansion makes room for all of
+them, so the existing data is read and rewritten only once.
+After the expansion completes, new blocks are written with the data-to-parity
+ratio of the final width
+.Pq e.g. a 6-wide RAID-Z2 expanded by 3 disks has 7 data and 2 parity .
+One expansion can make the RAID-Z vdev at most 32/7 (about 4.5) times as wide
+as it was, because each existing disk supplies its part of the scratch copy in
+one read of at most 16 MiB
+.Pq e.g. a 3-wide RAID-Z1 can be expanded to at most 13 disks at once ;
+more devices have to be attached in a later expansion.
+This requires the
+.Sy raidz_expansion_multi
+pool feature, which is
+.Sy active
+while such an expansion runs and for a few transaction groups after it
+completes.
+While it is
+.Sy active ,
+software that does not support the feature cannot import the pool.
+Only one device can be given when
+.Ar vdev
+is a mirror or plain device.
+.Pp
+The new devices become part of the RAID-Z vdev as soon as they are attached,
+before any data has been copied to them, and cannot be detached.
+From then on they count like the existing devices: if more devices than the
+parity level are unavailable, the RAID-Z vdev has insufficient replicas to
+continue functioning, and the pool cannot be imported.
+When more devices than the parity level are added in one expansion, the
+failure of new devices alone can therefore make the pool unavailable.
 .Bl -tag -width Ds
 .It Fl f
 Forces use of
@@ -123,10 +158,15 @@ When attaching to a mirror or plain vdev, the
 is reconstructed sequentially to restore redundancy as quickly as possible.
 Checksums are not verified during sequential reconstruction so a scrub is
 started when the resilver completes.
+This option does not apply to RAID-Z expansion, and is refused when
+.Ar vdev
+is a RAID-Z device.
 .It Fl w
 Waits until
 .Ar new_device
 has finished resilvering or expanding before returning.
+For a RAID-Z expansion, it does not wait for the scrub that is started when
+the expansion completes.
 .El
 .
 .Sh EXAMPLES
@@ -157,6 +197,24 @@ pool feature, and
 must be at least as large as the smallest existing disk in the vdev.
 Old blocks keep their original data-to-parity ratio; only blocks written
 after the expansion use the new ratio.
+.
+.Ss Example 3 : No Expanding a RAID-Z vdev with several disks at once
+The following command adds
+.Ar sdf ,
+.Ar sdg
+and
+.Ar sdh
+to the existing
+.Ar raidz1-0
+vdev in
+.Ar tank
+in one expansion, turning a 5-wide RAID-Z1 into an 8-wide RAID-Z1:
+.Dl # Nm zpool Cm attach Ar tank raidz1-0 Pa sdf sdg sdh
+The operation requires the
+.Sy raidz_expansion
+and
+.Sy raidz_expansion_multi
+pool features.
 .
 .Sh SEE ALSO
 .Xr zfs-rewrite 8 ,

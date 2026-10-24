@@ -442,7 +442,7 @@ get_usage(zpool_help_t idx)
 		    "<pool> <vdev> ...\n");
 	case HELP_ATTACH:
 		return ("\tattach [-fsw] [-o property=value] "
-		    "<pool> <vdev> <new-device>\n");
+		    "<pool> <vdev> <new-device>...\n");
 	case HELP_CLEAR:
 		return ("\tclear [--power] <pool> [device]\n");
 	case HELP_CREATE:
@@ -7688,9 +7688,19 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 		argv += 2;
 	}
 
-	if (argc > 1) {
+	/* Only attach to a raidz vdev takes several new devices. */
+	if (argc > 1 && replacing) {
 		(void) fprintf(stderr, "too many arguments\n");
 		usage(B_FALSE);
+	}
+
+	/* Several new devices must all be devices, not vdev types. */
+	for (int i = 0; argc > 1 && i < argc; i++) {
+		if (is_grouping(argv[i], NULL, NULL) != NULL) {
+			(void) fprintf(stderr, "invalid new device '%s': only "
+			    "devices can be attached\n", argv[i]);
+			usage(B_FALSE);
+		}
 	}
 
 	if ((zhp = zpool_open(g_zfs, poolname)) == NULL) {
@@ -7701,6 +7711,37 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 	if (zpool_get_config(zhp, NULL) == NULL) {
 		(void) fprintf(stderr, "pool '%s' is unavailable\n",
 		    poolname);
+		zpool_close(zhp);
+		nvlist_free(props);
+		return (1);
+	}
+
+	/*
+	 * Look up the type of the target before make_root_vdev() labels any
+	 * new device.  It decides which new devices and options are allowed,
+	 * and what -w waits for.
+	 */
+	nvlist_t *tgt = zpool_find_vdev(zhp, old_disk, NULL, NULL, NULL);
+	const char *tgt_type = NULL;
+
+	if (tgt != NULL)
+		(void) nvlist_lookup_string(tgt, ZPOOL_CONFIG_TYPE, &tgt_type);
+	boolean_t raidz = tgt_type != NULL &&
+	    strcmp(tgt_type, VDEV_TYPE_RAIDZ) == 0;
+
+	if (argc > 1 && !raidz) {
+		(void) fprintf(stderr, "cannot attach to %s: %s\n",
+		    old_disk, tgt == NULL ? "no such device in pool" :
+		    "several new devices can only be attached to a "
+		    "raidz vdev");
+		zpool_close(zhp);
+		nvlist_free(props);
+		return (1);
+	}
+
+	if (rebuild && raidz && !replacing) {
+		(void) fprintf(stderr, "cannot attach to %s: %s\n",
+		    old_disk, "-s does not apply to raidz expansion");
 		zpool_close(zhp);
 		nvlist_free(props);
 		return (1);
@@ -7733,13 +7774,10 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 
 	if (ret == 0 && wait) {
 		zpool_wait_activity_t activity = ZPOOL_WAIT_RESILVER;
-		char raidz_prefix[] = "raidz";
-		if (replacing) {
+		if (replacing)
 			activity = ZPOOL_WAIT_REPLACE;
-		} else if (strncmp(old_disk,
-		    raidz_prefix, strlen(raidz_prefix)) == 0) {
+		else if (raidz)
 			activity = ZPOOL_WAIT_RAIDZ_EXPAND;
-		}
 		ret = zpool_wait(zhp, activity);
 	}
 
@@ -7767,10 +7805,11 @@ zpool_do_replace(int argc, char **argv)
 }
 
 /*
- * zpool attach [-fsw] [-o property=value] <pool> <vdev> <new_device>
+ * zpool attach [-fsw] [-o property=value] <pool> <vdev> <new_device>...
  *
  *	-f	Force attach, even if <new_device> appears to be in use.
  *	-s	Use sequential instead of healing reconstruction for resilver.
+ *		Not allowed for raidz expansion.
  *	-o	Set property=value.
  *	-w	Wait for resilvering (mirror) or expansion (raidz) to complete
  *		before returning.
@@ -7781,7 +7820,8 @@ zpool_do_replace(int argc, char **argv)
  * is involved, <new_device> will begin life with a DTL of [0, now], and will
  * immediately begin to resilver itself. For the raidz case, a expansion will
  * commence and reflow the raidz data across all the disks including the
- * <new_device>.
+ * <new_device>.  Several new devices can be given for a raidz; one expansion
+ * then adds all of them.
  */
 int
 zpool_do_attach(int argc, char **argv)
@@ -10129,6 +10169,26 @@ dedup_stats_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *item)
 	}
 }
 
+/*
+ * Get the width of an expanding raidz vdev before and after the expansion.
+ * The width after is its number of children.  The config records the width
+ * before only when several disks are being added at once; otherwise it is
+ * one less.
+ */
+static void
+raidz_expand_widths(nvlist_t *rzvd, uint64_t *old_width, uint64_t *new_width)
+{
+	nvlist_t **child;
+	uint_t children = 0;
+
+	(void) nvlist_lookup_nvlist_array(rzvd, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children);
+	*new_width = children;
+	if (nvlist_lookup_uint64(rzvd, ZPOOL_CONFIG_RAIDZ_EXPAND_OLD_WIDTH,
+	    old_width) != 0)
+		*old_width = children > 0 ? children - 1 : 0;
+}
+
 static void
 raidz_expand_status_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb,
     nvlist_t *nvroot, nvlist_t *item)
@@ -10152,6 +10212,15 @@ raidz_expand_status_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb,
 		nice_num_str_nvlist(nv, "expanding_vdev",
 		    pres->pres_expanding_vdev, B_TRUE, cb->cb_json_as_int,
 		    ZFS_NICENUM_1024);
+		if (pres->pres_state == DSS_SCANNING) {
+			uint64_t old_width, new_width;
+			raidz_expand_widths(child[pres->pres_expanding_vdev],
+			    &old_width, &new_width);
+			nice_num_str_nvlist(nv, "old_width", old_width, B_TRUE,
+			    cb->cb_json_as_int, ZFS_NICENUM_1024);
+			nice_num_str_nvlist(nv, "new_width", new_width, B_TRUE,
+			    cb->cb_json_as_int, ZFS_NICENUM_1024);
+		}
 		nice_num_str_nvlist(nv, "start_time", pres->pres_start_time,
 		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICE_TIMESTAMP);
 		nice_num_str_nvlist(nv, "end_time", pres->pres_end_time,
@@ -10653,6 +10722,7 @@ print_raidz_expand_status(zpool_handle_t *zhp, pool_raidz_expand_stat_t *pres)
 	} else {
 		char examined_buf[7], total_buf[7], rate_buf[7];
 		uint64_t copied, total, elapsed, rate, secs_left;
+		uint64_t old_width, new_width;
 		double fraction_done;
 
 		assert(pres->pres_state == DSS_SCANNING);
@@ -10660,9 +10730,13 @@ print_raidz_expand_status(zpool_handle_t *zhp, pool_raidz_expand_stat_t *pres)
 		/*
 		 * Expansion is in progress.
 		 */
+		raidz_expand_widths(child[pres->pres_expanding_vdev],
+		    &old_width, &new_width);
 		(void) printf(
-		    "expansion of %s-%u in progress since %s",
-		    vname, (int)pres->pres_expanding_vdev, ctime(&start));
+		    "expansion of %s-%u from %llu to %llu disks in progress "
+		    "since %s", vname, (int)pres->pres_expanding_vdev,
+		    (u_longlong_t)old_width, (u_longlong_t)new_width,
+		    ctime(&start));
 
 		copied = pres->pres_reflowed > 0 ? pres->pres_reflowed : 1;
 		total = pres->pres_to_reflow;

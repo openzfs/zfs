@@ -38,6 +38,7 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/zfs_sysfs.h>
 #include <sys/vdev_disk.h>
+#include <sys/vdev_impl.h>
 #include <sys/types.h>
 #include <dlfcn.h>
 #include <libzutil.h>
@@ -3844,6 +3845,24 @@ is_replacing_spare(nvlist_t *search, nvlist_t *tgt, int which)
 }
 
 /*
+ * How many more disks the boot-area scratch space that a raidz expansion uses
+ * has room for.  This is the first check in vdev_raidz_attach_check().
+ */
+static uint64_t
+zpool_raidz_boot_room(nvlist_t *raidz)
+{
+	nvlist_t **child;
+	uint_t children = 0;
+	uint64_t ashift = 0;
+
+	(void) nvlist_lookup_nvlist_array(raidz, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children);
+	(void) nvlist_lookup_uint64(raidz, ZPOOL_CONFIG_ASHIFT, &ashift);
+	uint64_t width = VDEV_BOOT_SIZE >> ashift;
+	return (width > children ? width - children : 0);
+}
+
+/*
  * Attach new_disk (fully described by nvroot) to old_disk.
  * If 'replacing' is specified, the new disk will replace the old one.
  */
@@ -3857,6 +3876,7 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 	nvlist_t *tgt;
 	boolean_t avail_spare, l2cache, islog;
 	uint64_t val;
+	uint64_t room;
 	char *newname;
 	const char *type;
 	nvlist_t **child;
@@ -3902,10 +3922,49 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 	}
 
 	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
-	    &child, &children) != 0 || children != 1) {
+	    &child, &children) != 0 || children == 0 ||
+	    (children > 1 &&
+	    (replacing || strcmp(type, VDEV_TYPE_RAIDZ) != 0))) {
 		zfs_error_aux(hdl,
 		    "new device must be a single disk");
 		return (zfs_error(hdl, EZFS_INVALCONFIG, errbuf));
+	}
+
+	if (children > 1) {
+		(void) snprintf(errbuf, sizeof (errbuf),
+		    "cannot attach %s and %u more to %s", new_disk,
+		    children - 1, old_disk);
+
+		if (zfeature_lookup_guid("org.openzfs:raidz_expansion_multi",
+		    NULL) != 0) {
+			zfs_error_aux(hdl, "the loaded zfs module doesn't "
+			    "support adding several devices to raidz at once");
+			return (zfs_error(hdl, EZFS_POOL_NOTSUP, errbuf));
+		}
+
+		/*
+		 * Each new device must be a plain disk or file, not a log,
+		 * special, dedup, cache or spare device.
+		 */
+		boolean_t plain =
+		    !nvlist_exists(nvroot, ZPOOL_CONFIG_SPARES) &&
+		    !nvlist_exists(nvroot, ZPOOL_CONFIG_L2CACHE);
+		for (uint_t c = 0; plain && c < children; c++) {
+			const char *ctype =
+			    fnvlist_lookup_string(child[c], ZPOOL_CONFIG_TYPE);
+			uint64_t islog = 0;
+			(void) nvlist_lookup_uint64(child[c],
+			    ZPOOL_CONFIG_IS_LOG, &islog);
+			plain = (strcmp(ctype, VDEV_TYPE_DISK) == 0 ||
+			    strcmp(ctype, VDEV_TYPE_FILE) == 0) &&
+			    islog == 0 && !nvlist_exists(child[c],
+			    ZPOOL_CONFIG_ALLOCATION_BIAS);
+		}
+		if (!plain) {
+			zfs_error_aux(hdl,
+			    "each new device must be a single disk");
+			return (zfs_error(hdl, EZFS_INVALCONFIG, errbuf));
+		}
 	}
 
 	config_root = fnvlist_lookup_nvlist(zpool_get_config(zhp, NULL),
@@ -3968,6 +4027,16 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 				zfs_error_aux(hdl,
 				    "cannot replace a replacing device");
 			}
+		} else if (strcmp(type, VDEV_TYPE_RAIDZ) == 0 && rebuild) {
+			zfs_error_aux(hdl,
+			    "sequential reconstruction does not apply to "
+			    "raidz expansion");
+		} else if (strcmp(type, VDEV_TYPE_RAIDZ) == 0 &&
+		    children > 1) {
+			zfs_error_aux(hdl,
+			    "raidz_expansion and raidz_expansion_multi "
+			    "features must be enabled in order to attach "
+			    "several devices to raidz");
 		} else if (strcmp(type, VDEV_TYPE_RAIDZ) == 0) {
 			zfs_error_aux(hdl,
 			    "raidz_expansion feature must be enabled "
@@ -4001,8 +4070,13 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		break;
 
 	case EBUSY:
-		zfs_error_aux(hdl, "%s is busy",
-		    new_disk);
+		if (children > 1) {
+			zfs_error_aux(hdl, "one or more of the new devices "
+			    "is busy, or the same device was given twice");
+		} else {
+			zfs_error_aux(hdl, "%s is busy",
+			    new_disk);
+		}
 		(void) zfs_error(hdl, EZFS_BADDEV, errbuf);
 		break;
 
@@ -4038,7 +4112,7 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		 */
 		if (strcmp(type, VDEV_TYPE_RAIDZ) == 0) {
 			zfs_error_aux(hdl,
-			    "raidz vdev has devices that are are offline or "
+			    "raidz vdev has devices that are offline or "
 			    "being replaced");
 			(void) zfs_error(hdl, EZFS_BADDEV, errbuf);
 			break;
@@ -4069,8 +4143,20 @@ zpool_vdev_attach(zpool_handle_t *zhp, const char *old_disk,
 		break;
 
 	case ZFS_ERR_RAIDZ_EXPAND_TOO_WIDE:
-		zfs_error_aux(hdl,
-		    "this raidz vdev is too wide to be expanded");
+		room = zpool_raidz_boot_room(tgt);
+		if (children > 1 && children <= room) {
+			/* Only the limit on the width added in one step. */
+			zfs_error_aux(hdl, "this raidz vdev would be too "
+			    "wide to add this many devices in one step; "
+			    "attach fewer at a time");
+		} else if (room > 0) {
+			zfs_error_aux(hdl, "this raidz vdev can be expanded "
+			    "by at most %llu more device%s", (u_longlong_t)room,
+			    room == 1 ? "" : "s");
+		} else {
+			zfs_error_aux(hdl,
+			    "this raidz vdev is too wide to be expanded");
+		}
 		(void) zfs_error(hdl, EZFS_BADTARGET, errbuf);
 		break;
 	default:

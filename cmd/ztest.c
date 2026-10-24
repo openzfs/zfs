@@ -1673,6 +1673,40 @@ make_vdev_root(const char *path, const char *aux, const char *pool, size_t size,
 }
 
 /*
+ * Build a root nvlist of "count" new file vdevs, named after leaf ids
+ * first .. first + count - 1, to attach to a raidz vdev.  If "twice" is set,
+ * the last one repeats the first path instead.
+ */
+static nvlist_t *
+make_vdev_raidz_attach(uint64_t first, int count, size_t size,
+    uint64_t ashift, boolean_t twice)
+{
+	nvlist_t *root, **child;
+	char *path = kmem_alloc(MAXPATHLEN, KM_SLEEP);
+
+	child = kmem_alloc(count * sizeof (nvlist_t *), KM_SLEEP);
+	for (int c = 0; c < count; c++) {
+		uint64_t leaf = (twice && c == count - 1) ? first : first + c;
+		(void) snprintf(path, MAXPATHLEN, ztest_dev_template,
+		    ztest_opts.zo_dir, ztest_opts.zo_pool, leaf);
+		child[c] = make_vdev_file(path, NULL, NULL, size, ashift);
+		fnvlist_add_uint64(child[c], ZPOOL_CONFIG_IS_LOG, 0);
+	}
+
+	root = fnvlist_alloc();
+	fnvlist_add_string(root, ZPOOL_CONFIG_TYPE, VDEV_TYPE_ROOT);
+	fnvlist_add_nvlist_array(root, ZPOOL_CONFIG_CHILDREN,
+	    (const nvlist_t **)child, count);
+
+	for (int c = 0; c < count; c++)
+		fnvlist_free(child[c]);
+	kmem_free(child, count * sizeof (nvlist_t *));
+	kmem_free(path, MAXPATHLEN);
+
+	return (root);
+}
+
+/*
  * Find a random spa version. Returns back a random spa version in the
  * range [initial_version, SPA_VERSION_FEATURES].
  */
@@ -4220,6 +4254,8 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	nvlist_t *root;
 	char *newpath = kmem_alloc(MAXPATHLEN, KM_SLEEP);
 	int error, expected_error = 0;
+	int added = ztest_random(3) + 1;
+	boolean_t twice = (added > 1 && ztest_random(8) == 0);
 
 	mutex_enter(&ztest_vdev_lock);
 
@@ -4259,24 +4295,28 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	leaves = MAX(zs->zs_mirrors + zs->zs_splits, 1) * raidz_children;
 	zs->zs_vdev_next_leaf = spa_num_top_vdevs(spa) * leaves;
 
-	if (spa->spa_raidz_expand)
+	if (spa->spa_raidz_expand || spa_raidz_expand_multi_pending(spa))
 		expected_error = ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS;
 	else
-		expected_error = vdev_raidz_attach_check(pvd);
+		expected_error = vdev_raidz_attach_check(pvd, added);
 
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
 	/*
-	 * Path to vdev to be attached
+	 * Path to the first vdev to be attached
 	 */
 	(void) snprintf(newpath, MAXPATHLEN, ztest_dev_template,
 	    ztest_opts.zo_dir, ztest_opts.zo_pool, zs->zs_vdev_next_leaf);
 
 	/*
-	 * Build the nvlist describing newpath.
+	 * Build the nvlist describing the "added" new vdevs.  Sometimes the
+	 * same path is given twice, which must be refused.  vdev_create()
+	 * finds that before vdev_raidz_attach_check() runs.
 	 */
-	root = make_vdev_root(newpath, NULL, NULL, newsize, ashift, NULL,
-	    0, 0, 1);
+	root = make_vdev_raidz_attach(zs->zs_vdev_next_leaf, added, newsize,
+	    ashift, twice);
+	if (twice && expected_error != ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS)
+		expected_error = EBUSY;
 
 	/*
 	 * 50% of the time, set raidz_expand_pause_point to cause
@@ -4295,19 +4335,33 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 
 	nvlist_free(root);
 
-	if (error == EOVERFLOW || error == ENXIO ||
-	    error == ZFS_ERR_CHECKPOINT_EXISTS ||
-	    error == ZFS_ERR_DISCARDING_CHECKPOINT)
+	/*
+	 * A disk given twice is found by vdev_create(), before the checks
+	 * that return EOVERFLOW or ENXIO.
+	 */
+	if (error == ZFS_ERR_CHECKPOINT_EXISTS ||
+	    error == ZFS_ERR_DISCARDING_CHECKPOINT ||
+	    (!twice && (error == EOVERFLOW || error == ENXIO)))
 		expected_error = error;
 
-	if (error != 0 && error != expected_error) {
-		fatal(0, "raidz attach (%s %"PRIu64") returned %d, expected %d",
-		    newpath, newsize, error, expected_error);
+	/*
+	 * The expansion seen above may have ended before spa_vdev_attach()
+	 * got the config lock.  Then the disk given twice is found instead.
+	 */
+	if (twice && error == EBUSY &&
+	    expected_error == ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS)
+		expected_error = error;
+
+	if ((error != 0 || twice) && error != expected_error) {
+		fatal(0, "raidz attach (%s and %d more%s, %"PRIu64") returned "
+		    "%d, expected %d", newpath, added - 1,
+		    twice ? ", one given twice" : "", newsize, error,
+		    expected_error);
 	}
 
 	if (error == 0 && expected_error == ZFS_ERR_RAIDZ_EXPAND_TOO_WIDE) {
-		fatal(0, "raidz attach (%s %"PRIu64") succeeded, expected %d",
-		    newpath, newsize, expected_error);
+		fatal(0, "raidz attach (%s and %d more, %"PRIu64") succeeded, "
+		    "expected %d", newpath, added - 1, newsize, expected_error);
 	}
 
 	if (raidz_expand_pause_point) {
@@ -8534,6 +8588,7 @@ ztest_raidz_expand_run(ztest_shared_t *zs, spa_t *spa)
 	kthread_t **run_threads;
 	vdev_t *cvd, *rzvd = spa->spa_root_vdev->vdev_child[0];
 	int total_disks = rzvd->vdev_children;
+	int added = ztest_random(4) + 1;
 	int data_disks = total_disks - vdev_get_nparity(rzvd);
 	uint64_t alloc_goal;
 	uint64_t csize;
@@ -8630,29 +8685,29 @@ ztest_raidz_expand_run(ztest_shared_t *zs, spa_t *spa)
 	csize = vdev_get_min_asize(cvd);
 	csize += csize / 10;
 	/*
-	 * Path to vdev to be attached
+	 * Path to the first vdev to be attached
 	 */
 	char *newpath = kmem_alloc(MAXPATHLEN, KM_SLEEP);
 	(void) snprintf(newpath, MAXPATHLEN, ztest_dev_template,
 	    ztest_opts.zo_dir, ztest_opts.zo_pool, rzvd->vdev_children);
 	/*
-	 * Build the nvlist describing newpath.
+	 * Build the nvlist describing the "added" new vdevs.
 	 */
-	root = make_vdev_root(newpath, NULL, NULL, csize, ztest_get_ashift(),
-	    NULL, 0, 0, 1);
+	root = make_vdev_raidz_attach(rzvd->vdev_children, added, csize,
+	    ztest_get_ashift(), B_FALSE);
 	/*
-	 * Expand the raidz vdev by attaching the new disk
+	 * Expand the raidz vdev by attaching the new disks
 	 */
 	if (ztest_opts.zo_verbose >= 1) {
-		(void) printf("expanding raidz: %d wide to %d wide with '%s'\n",
-		    (int)rzvd->vdev_children, (int)rzvd->vdev_children + 1,
-		    newpath);
+		(void) printf("expanding raidz: %d wide to %d wide with '%s'"
+		    " and %d more\n", (int)rzvd->vdev_children,
+		    (int)rzvd->vdev_children + added, newpath, added - 1);
 	}
 	error = spa_vdev_attach(spa, rzvd->vdev_guid, root, B_FALSE, B_FALSE);
 	nvlist_free(root);
 	if (error != 0) {
-		fatal(0, "raidz expand: attach (%s %llu) returned %d",
-		    newpath, (long long)csize, error);
+		fatal(0, "raidz expand: attach (%s and %d more, %llu) "
+		    "returned %d", newpath, added - 1, (long long)csize, error);
 	}
 
 	/*
