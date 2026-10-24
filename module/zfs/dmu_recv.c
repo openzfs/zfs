@@ -1491,6 +1491,10 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 	zio_t *io;
 	zbookmark_phys_t zb;
 	dnode_t *dn;
+	/*
+	 * The caller frees rrd->abd once we return, so rrd->abd must be
+	 * updated whenever abd is swapped for a new buffer below.
+	 */
 	abd_t *abd = rrd->abd;
 	zio_cksum_t bp_cksum = bp->blk_cksum;
 	zio_flag_t flags = ZIO_FLAG_SPECULATIVE | ZIO_FLAG_DONT_RETRY |
@@ -1521,6 +1525,7 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		/* Swap in the newly decompressed data into the abd */
 		abd_free(abd);
 		abd = dabd;
+		rrd->abd = abd;
 	}
 
 	if (!rwa->raw && BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF) {
@@ -1534,6 +1539,7 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		/* Swap in newly compressed data into the abd */
 		abd_free(abd);
 		abd = cabd;
+		rrd->abd = abd;
 		flags |= ZIO_FLAG_RAW_COMPRESS;
 	}
 
@@ -1557,8 +1563,16 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		zio_crypt_decode_mac_bp(bp, mac);
 
 		dsl_pool_config_enter(dp, FTAG);
+		/*
+		 * dmu_recv_begin_check() only allows a non-raw healing
+		 * receive with the key loaded, and the receive owns the
+		 * snapshot being healed with DS_HOLD_FLAG_DECRYPT, which
+		 * keeps the key mapped, so neither the hold nor the key
+		 * lookup below should fail.
+		 */
 		err = dsl_dataset_hold_flags(dp, rwa->tofs,
 		    DS_HOLD_FLAG_DECRYPT, FTAG, &ds);
+		ASSERT0(err);
 		if (err != 0) {
 			dsl_pool_config_exit(dp, FTAG);
 			abd_free(eabd);
@@ -1568,6 +1582,7 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		/* Look up the key from the spa's keystore */
 		err = spa_keystore_lookup_key(rwa->os->os_spa,
 		    zb.zb_objset, FTAG, &dck);
+		ASSERT0(err);
 		if (err != 0) {
 			dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT,
 			    FTAG);
@@ -1585,6 +1600,7 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		dsl_pool_config_exit(dp, FTAG);
 
 		ASSERT0(no_crypt);
+		ASSERT0(err);
 		if (err != 0) {
 			abd_free(eabd);
 			return (err);
@@ -1592,6 +1608,7 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		/* Swap in the newly encrypted data into the abd */
 		abd_free(abd);
 		abd = eabd;
+		rrd->abd = abd;
 
 		/*
 		 * We want to prevent zio_rewrite() from trying to
@@ -1599,7 +1616,6 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		 */
 		flags |= ZIO_FLAG_RAW_ENCRYPT;
 	}
-	rrd->abd = abd;
 
 	io = zio_rewrite(NULL, rwa->os->os_spa, BP_GET_BIRTH(bp), bp,
 	    abd, BP_GET_PSIZE(bp), NULL, NULL, ZIO_PRIORITY_SYNC_WRITE, flags,
