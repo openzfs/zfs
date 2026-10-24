@@ -22,6 +22,7 @@ UNIT_TESTS = \
 	%D%/test_sha2 \
 	%D%/test_cityhash \
 	%D%/test_nvpair \
+	%D%/test_arc_growth \
 	%D%/test_timer \
 	%D%/test_zfs_file
 noinst_PROGRAMS = $(UNIT_TESTS)
@@ -135,6 +136,16 @@ nodist_%C%_test_nvpair_SOURCES = \
 	libspl.la \
 	$(LIBTIRPC_LIBS) \
 	libunit.la
+
+
+%C%_test_arc_growth_CFLAGS = $(AM_CFLAGS)
+
+%C%_test_arc_growth_SOURCES = \
+	%D%/test_arc_growth.c
+
+%C%_test_arc_growth_LDADD = \
+	libunit.la \
+	libspl.la
 
 
 %C%_test_timer_CFLAGS = $(AM_CFLAGS)
