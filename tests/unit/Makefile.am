@@ -15,6 +15,7 @@ libunit_la_SOURCES = \
 
 # all test binaries
 UNIT_TESTS = \
+	%D%/test_munit \
 	%D%/test_zap \
 	%D%/test_namecheck \
 	%D%/test_btree \
@@ -25,6 +26,16 @@ UNIT_TESTS = \
 	%D%/test_timer \
 	%D%/test_zfs_file
 noinst_PROGRAMS = $(UNIT_TESTS)
+
+
+%C%_test_munit_CFLAGS = $(AM_CFLAGS)
+
+%C%_test_munit_SOURCES = \
+	%D%/test_munit.c
+
+%C%_test_munit_LDADD = \
+	libunit.la \
+	libspl.la
 
 
 %C%_test_zap_CFLAGS = $(AM_CFLAGS)
