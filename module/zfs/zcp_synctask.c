@@ -33,6 +33,7 @@
 #include <sys/zfs_znode.h>
 #include <sys/zfeature.h>
 #include <sys/metaslab.h>
+#include "zfs_namecheck.h"
 
 #define	DST_AVG_BLKSHIFT 14
 
@@ -125,6 +126,25 @@ static const zcp_synctask_info_t zcp_synctask_clone_info = {
 	.space_check = ZFS_SPACE_CHECK_NORMAL,
 	.blocks_modified = 3
 };
+
+/*
+ * Check the new name as zfs_ioc_clone() does.  Names that are too long are
+ * left to dsl_dataset_clone_check(), which returns ENAMETOOLONG.
+ */
+static int
+zcp_synctask_clone_check(void *arg, dmu_tx_t *tx)
+{
+	dsl_dataset_clone_arg_t *ddca = arg;
+	namecheck_err_t why;
+	char what;
+
+	if (clone_namecheck(ddca->ddca_clone, &why, &what) != 0 &&
+	    why != NAME_ERR_TOOLONG)
+		return (SET_ERROR(EINVAL));
+
+	return (dsl_dataset_clone_check(arg, tx));
+}
+
 static int
 zcp_synctask_clone(lua_State *state, boolean_t sync, nvlist_t *err_details)
 {
@@ -138,7 +158,7 @@ zcp_synctask_clone(lua_State *state, boolean_t sync, nvlist_t *err_details)
 		.ddca_cred = ri->zri_cred,
 	};
 
-	err = zcp_sync_task(state, dsl_dataset_clone_check,
+	err = zcp_sync_task(state, zcp_synctask_clone_check,
 	    dsl_dataset_clone_sync, &ddca, sync, ddca.ddca_origin);
 
 	if (err == 0)
