@@ -28,6 +28,11 @@ end
 assert(zfs.sync.snapshot("ceci_nest_pas_une_dataset") == EINVAL);
 assert(zfs.sync.snapshot(fs1) == EINVAL)
 assert(zfs.sync.snapshot(fs1 .. "@" .. longstring) == ENAMETOOLONG)
+-- empty or invalid snapshot names must be rejected, as zfs(8) does
+assert(zfs.sync.snapshot(fs1 .. "@") == EINVAL)
+assert(zfs.sync.snapshot(fs1 .. "@bad%name") == EINVAL)
+assert(zfs.sync.rename_snapshot(fs1, "snap1", "") == EINVAL)
+assert(zfs.sync.rename_snapshot(fs1, "snap1", "bad%name") == EINVAL)
 
 assert(zfs.sync.snapshot(fs2 .. "@snap1") == 0)
 -- only one snapshot of a filesystem is allowed per TXG.
