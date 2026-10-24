@@ -36,6 +36,7 @@ from subprocess import PIPE
 from subprocess import Popen
 from subprocess import check_output
 from subprocess import run
+from tempfile import mkdtemp
 from threading import Timer
 from time import time, CLOCK_MONOTONIC
 from os.path import exists
@@ -179,15 +180,6 @@ class Cmd(object):
         if self.timeout is None:
             self.timeout = 60
 
-    def __str__(self):
-        return '''\
-Pathname: %s
-Identifier: %s
-Outputdir: %s
-Timeout: %d
-User: %s
-''' % (self.pathname, self.identifier, self.outputdir, self.timeout, self.user)
-
     def kill_cmd(self, proc, options, kmemleak, keyboard_interrupt=False):
 
         """
@@ -275,7 +267,7 @@ echo "##### /proc/sysrq-trigger stack #####"
             if int(self.timeout) > runtime:
                 self.killed = False
                 self.reran = False
-                self.run(options, dryrun=False, kmemleak=kmemleak)
+                self.run(options, kmemleak=kmemleak)
                 self.reran = True
 
     def update_cmd_privs(self, cmd, user):
@@ -329,17 +321,12 @@ echo "##### /proc/sysrq-trigger stack #####"
 
         return out.lines, err.lines
 
-    def run(self, options, dryrun=None, kmemleak=None):
+    def run(self, options, kmemleak=None):
         """
         This is the main function that runs each individual test.
         Determine whether or not the command requires sudo, and modify it
         if needed. Run the command, and update the result object.
         """
-        if dryrun is None:
-            dryrun = options.dryrun
-        if dryrun is True:
-            print(self)
-            return
         if kmemleak is None:
             kmemleak = options.kmemleak
 
@@ -486,7 +473,7 @@ echo "##### /proc/sysrq-trigger stack #####"
 
 
 class Test(Cmd):
-    props = ['outputdir', 'timeout', 'user', 'pre', 'pre_user', 'post',
+    props = ['timeout', 'user', 'pre', 'pre_user', 'post',
              'post_user', 'failsafe', 'failsafe_user', 'tags']
 
     def __init__(self, pathname,
@@ -513,7 +500,7 @@ class Test(Cmd):
 Pathname: %s
 Identifier: %s
 Outputdir: %s
-Timeout: %d
+Timeout: %s
 User: %s
 Pre: %s%s
 Post: %s%s
@@ -544,7 +531,7 @@ Tags: %s
 
         return True
 
-    def run(self, options, dryrun=None, kmemleak=None):
+    def run(self, options, kmemleak=None):
         """
         Create Cmd instances for the pre/post/failsafe scripts. If the pre
         script doesn't pass, skip this Test. Run the post script regardless.
@@ -662,7 +649,7 @@ Tags: %s
 
         return True
 
-    def run(self, options, dryrun=None, kmemleak=None):
+    def run(self, options, kmemleak=None):
         """
         Create Cmd instances for the pre/post/failsafe scripts. If the pre
         script doesn't pass, skip all the tests in this TestGroup. Run the
@@ -677,7 +664,7 @@ Tags: %s
 
         cont = True
         if len(pretest.pathname):
-            pretest.run(options, dryrun=dryrun, kmemleak=False)
+            pretest.run(options, kmemleak=False)
             cont = pretest.result.result == 'PASS'
             pretest.log(options)
 
@@ -690,9 +677,9 @@ Tags: %s
             failsafe = Cmd(self.failsafe, outputdir=odir, timeout=self.timeout,
                            user=self.failsafe_user, identifier=self.identifier)
             if cont:
-                test.run(options, dryrun=dryrun, kmemleak=kmemleak)
+                test.run(options, kmemleak=kmemleak)
                 if test.result.result == 'KILLED' and len(failsafe.pathname):
-                    failsafe.run(options, dryrun=dryrun, kmemleak=False)
+                    failsafe.run(options, kmemleak=False)
                     failsafe.log(options, suppress_console=True)
             else:
                 test.skip()
@@ -700,7 +687,7 @@ Tags: %s
             test.log(options)
 
         if len(posttest.pathname):
-            posttest.run(options, dryrun=dryrun, kmemleak=False)
+            posttest.run(options, kmemleak=False)
             posttest.log(options)
 
 
@@ -712,8 +699,7 @@ class TestRun(object):
         self.testgroups = {}
         self.starttime = time()
         self.timestamp = datetime.now().strftime('%Y%m%dT%H%M%S')
-        self.outputdir = os.path.join(options.outputdir, self.timestamp)
-        self.setup_logging(options)
+        self.outputdir = options.outputdir
         self.defaults = [
             ('outputdir', BASEDIR),
             ('quiet', False),
@@ -815,11 +801,7 @@ class TestRun(object):
 
         for opt in TestRun.props:
             if config.has_option('DEFAULT', opt):
-                if opt == 'outputdir':
-                    outputdir = config.get('DEFAULT', opt)
-                    setattr(self, opt, os.path.join(outputdir, self.timestamp))
-                else:
-                    setattr(self, opt, config.get('DEFAULT', opt))
+                setattr(self, opt, config.get('DEFAULT', opt))
 
         testdir = options.testdir
 
@@ -847,11 +829,6 @@ class TestRun(object):
                                 failsafe = config.get(sect, prop)
                                 setattr(testgroup, prop,
                                         os.path.join(testdir, failsafe))
-                            elif prop == 'outputdir':
-                                outputdir = config.get(sect, prop)
-                                setattr(self, opt,
-                                        os.path.join(outputdir,
-                                                     self.timestamp))
                             else:
                                 setattr(testgroup, prop,
                                         config.get(sect, prop))
@@ -870,11 +847,6 @@ class TestRun(object):
                                 failsafe = config.get(sect, prop)
                                 setattr(test, prop,
                                         os.path.join(testdir, failsafe))
-                            elif prop == 'outputdir':
-                                outputdir = config.get(sect, prop)
-                                setattr(self, opt,
-                                        os.path.join(outputdir,
-                                                     self.timestamp))
                             else:
                                 setattr(test, prop, config.get(sect, prop))
 
@@ -954,25 +926,25 @@ class TestRun(object):
             uniq = path.split('/', cut)[-1]
             alltests[path].outputdir = os.path.join(base, uniq)
 
-    def setup_logging(self, options):
+    def setup_logging(self):
         """
-        This function creates the output directory and gets a file object
-        for the logfile. This function must be called before write_log()
-        can be used.
+        Create the run directory and open its main log.
         """
-        if options.dryrun is True:
-            return
-
         global LOG_FILE_OBJ
-        if not options.template:
+        self.outputdir = os.path.abspath(self.outputdir)
+        try:
+            old = os.umask(0)
             try:
-                old = os.umask(0)
-                os.makedirs(self.outputdir, mode=0o777)
+                os.makedirs(self.outputdir, mode=0o777, exist_ok=True)
+                self.outputdir = mkdtemp(prefix=self.timestamp + '-',
+                                         dir=self.outputdir)
+                os.chmod(self.outputdir, 0o777)
+            finally:
                 os.umask(old)
-                filename = os.path.join(self.outputdir, 'log')
-                LOG_FILE_OBJ = open(filename, buffering=0, mode='wb')
-            except OSError as e:
-                fail('%s' % e)
+            filename = os.path.join(self.outputdir, 'log')
+            LOG_FILE_OBJ = open(filename, buffering=0, mode='wb')
+        except OSError as e:
+            fail('%s' % e)
 
     def run(self, options):
         """
@@ -984,13 +956,13 @@ class TestRun(object):
             fail('Could not change to directory %s' % self.outputdir)
         # make a symlink to the output for the currently running test
         logsymlink = os.path.join(self.outputdir, '../current')
-        if os.path.islink(logsymlink):
-            os.unlink(logsymlink)
-        if not os.path.exists(logsymlink):
-            os.symlink(self.outputdir, logsymlink)
-        else:
+        if os.path.exists(logsymlink) and not os.path.islink(logsymlink):
             write_log('Could not make a symlink to directory %s\n' %
                       self.outputdir, LOG_ERR)
+        else:
+            link = os.path.join(self.outputdir, 'current')
+            os.symlink(self.outputdir, link)
+            os.replace(link, logsymlink)
 
         if options.kmemleak:
             cmd = f'{SUDO} sh -c "echo scan=0 > {KMEMLEAK_FILE}"'
@@ -1270,15 +1242,25 @@ def main():
         if options.logfile:
             filter_tests(testrun, options)
 
-        if not options.template:
-            testrun.filter_tags(options.tags)
-        testrun.verify()
-
         if options.template:
+            testrun.verify()
             testrun.write(options)
             exit(0)
 
+        if options.dryrun:
+            testrun.outputdir = os.path.join(
+                os.path.abspath(testrun.outputdir), '<unique-run>')
+        else:
+            testrun.setup_logging()
+
         testrun.complete_outputdirs()
+        testrun.filter_tags(options.tags)
+        testrun.verify()
+
+        if options.dryrun:
+            print(testrun)
+            return
+
         testrun.run(options)
         exit(testrun.summary())
 
