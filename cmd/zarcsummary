@@ -224,7 +224,7 @@ def handle_Exception(ex_cls, ex, tb):
     if ex_cls is KeyboardInterrupt:
         sys.exit()
 
-    if ex_cls is BrokenPipeError:
+    if ex_cls in (BrokenPipeError, ConnectionResetError):
         # It turns out that while sys.exit() triggers an exception
         # not handled message on Python 3.8+, os._exit() does not.
         os._exit(0)
