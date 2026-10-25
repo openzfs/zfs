@@ -452,6 +452,7 @@ ZFS_OBJS := \
 	zio_crypt.o \
 	zio_inject.o \
 	zle.o \
+	zos.o \
 	zrlock.o \
 	zthr.o \
 	zvol.o \

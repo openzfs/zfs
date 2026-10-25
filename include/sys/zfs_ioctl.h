@@ -576,6 +576,10 @@ typedef struct zfs_useracct {
 
 #define	ZPOOL_EXPORT_AFTER_SPLIT 0x1
 
+#define	ZFS_BUCKET	"bucket"
+#define	ZFS_KEY	"key"
+#define	ZFS_SIZE	"size"
+
 #ifdef _KERNEL
 struct objset;
 struct zfsvfs;

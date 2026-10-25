@@ -1228,7 +1228,8 @@ dmu_objset_create_check(void *arg, dmu_tx_t *tx)
 		dsl_dir_rele(pdd, FTAG);
 		return (error);
 	}
-	if (dmu_objset_type(parentos) != DMU_OST_ZFS) {
+	if (dmu_objset_type(parentos) != DMU_OST_ZFS &&
+	    dmu_objset_type(parentos) != DMU_OST_BUCKET) {
 		dsl_dataset_rele(parentds, FTAG);
 		dsl_dir_rele(pdd, FTAG);
 		return (SET_ERROR(ZFS_ERR_WRONG_PARENT));
