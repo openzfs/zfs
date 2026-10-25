@@ -18,7 +18,6 @@
 
 #include <assert.h>
 #include <pthread.h>
-#include <string.h>
 #include <errno.h>
 #include <sys/mutex.h>
 
@@ -33,7 +32,7 @@ mutex_init(kmutex_t *mp, char *name, int type, void *cookie)
 {
 	(void) name, (void) type, (void) cookie;
 	VERIFY0(pthread_mutex_init(&mp->m_lock, NULL));
-	memset(&mp->m_owner, 0, sizeof (pthread_t));
+	__atomic_store_n(&mp->m_owner, 0, __ATOMIC_RELAXED);
 }
 
 void
@@ -46,7 +45,7 @@ void
 mutex_enter(kmutex_t *mp)
 {
 	VERIFY0(pthread_mutex_lock(&mp->m_lock));
-	mp->m_owner = pthread_self();
+	__atomic_store_n(&mp->m_owner, pthread_self(), __ATOMIC_RELAXED);
 }
 
 int
@@ -54,7 +53,8 @@ mutex_enter_check_return(kmutex_t *mp)
 {
 	int error = pthread_mutex_lock(&mp->m_lock);
 	if (error == 0)
-		mp->m_owner = pthread_self();
+		__atomic_store_n(&mp->m_owner, pthread_self(),
+		    __ATOMIC_RELAXED);
 	return (error);
 }
 
@@ -63,7 +63,8 @@ mutex_tryenter(kmutex_t *mp)
 {
 	int error = pthread_mutex_trylock(&mp->m_lock);
 	if (error == 0) {
-		mp->m_owner = pthread_self();
+		__atomic_store_n(&mp->m_owner, pthread_self(),
+		    __ATOMIC_RELAXED);
 		return (1);
 	} else {
 		VERIFY3S(error, ==, EBUSY);
@@ -74,6 +75,6 @@ mutex_tryenter(kmutex_t *mp)
 void
 mutex_exit(kmutex_t *mp)
 {
-	memset(&mp->m_owner, 0, sizeof (pthread_t));
+	__atomic_store_n(&mp->m_owner, 0, __ATOMIC_RELAXED);
 	VERIFY0(pthread_mutex_unlock(&mp->m_lock));
 }

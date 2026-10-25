@@ -37,8 +37,11 @@ typedef int krw_t;
 #define	RW_DEFAULT		RW_READER
 #define	RW_NOLOCKDEP		RW_READER
 
-#define	RW_READ_HELD(rw)	((rw)->rw_readers > 0)
-#define	RW_WRITE_HELD(rw)	pthread_equal((rw)->rw_owner, pthread_self())
+/* Concurrent readers share the count; ownership queries need no lock. */
+#define	RW_READ_HELD(rw)	\
+	(__atomic_load_n(&(rw)->rw_readers, __ATOMIC_RELAXED) > 0)
+#define	RW_WRITE_HELD(rw)	pthread_equal( \
+	__atomic_load_n(&(rw)->rw_owner, __ATOMIC_RELAXED), pthread_self())
 #define	RW_LOCK_HELD(rw)	(RW_READ_HELD(rw) || RW_WRITE_HELD(rw))
 
 extern void rw_init(krwlock_t *rwlp, char *name, int type, void *arg);

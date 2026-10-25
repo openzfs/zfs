@@ -23,6 +23,7 @@ UNIT_TESTS = \
 	%D%/test_cityhash \
 	%D%/test_nvpair \
 	%D%/test_backtrace \
+	%D%/test_locks \
 	%D%/test_timer \
 	%D%/test_zfs_file
 noinst_PROGRAMS = $(UNIT_TESTS)
@@ -144,6 +145,16 @@ nodist_%C%_test_nvpair_SOURCES = \
 	%D%/test_backtrace.c
 
 %C%_test_backtrace_LDADD = \
+	libunit.la \
+	libspl.la
+
+
+%C%_test_locks_CFLAGS = $(AM_CFLAGS)
+
+%C%_test_locks_SOURCES = \
+	%D%/test_locks.c
+
+%C%_test_locks_LDADD = \
 	libunit.la \
 	libspl.la
 
