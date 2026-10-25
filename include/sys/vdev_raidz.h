@@ -39,7 +39,8 @@ struct kernel_param {};
 struct raidz_map *vdev_raidz_map_alloc(struct zio *, uint64_t, uint64_t,
     uint64_t);
 struct raidz_map *vdev_raidz_map_alloc_expanded(struct zio *,
-    uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, boolean_t);
+    uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t,
+    boolean_t);
 void vdev_raidz_map_free(struct raidz_map *);
 void vdev_raidz_free(struct vdev_raidz *);
 void vdev_raidz_generate_parity_row(struct raidz_map *, struct raidz_row *);
@@ -74,6 +75,12 @@ int vdev_raidz_impl_get(char *buffer, size_t size);
 
 typedef struct vdev_raidz_expand {
 	uint64_t vre_vdev_id;
+
+	/*
+	 * Number of children before this expansion.  The children added by
+	 * this expansion are the last (vdev_children - vre_old_width).
+	 */
+	uint64_t vre_old_width;
 
 	kmutex_t vre_lock;
 	kcondvar_t vre_cv;
@@ -151,11 +158,12 @@ typedef struct vdev_raidz {
 	vdev_raidz_expand_t vn_vre;
 } vdev_raidz_t;
 
-extern int vdev_raidz_attach_check(vdev_t *);
+extern int vdev_raidz_attach_check(vdev_t *, uint64_t);
 extern void vdev_raidz_attach_sync(void *, dmu_tx_t *);
 extern void spa_start_raidz_expansion_thread(spa_t *);
 extern int spa_raidz_expand_get_stats(spa_t *, pool_raidz_expand_stat_t *);
 extern int vdev_raidz_load(vdev_t *);
+extern boolean_t spa_raidz_expand_multi_pending(spa_t *);
 
 /* RAIDZ scratch area pause points (for testing) */
 #define	RAIDZ_EXPAND_PAUSE_NONE	0

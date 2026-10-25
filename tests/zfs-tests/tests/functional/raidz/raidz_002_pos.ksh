@@ -28,7 +28,7 @@
 #	time is set to 5 min, but actual runtime might be longer.
 #
 
-case $((RANDOM % 3)) in
+case $((RANDOM % 5)) in
 	0)
 		# Basic sweep test
 		log_must raidz_test -S -t 300
@@ -44,6 +44,18 @@ case $((RANDOM % 3)) in
 		# Using expanded raidz map ('-e') to test all supported raidz
 		# implementations with expanded map and zero reflow offset.
 		log_must raidz_test -S -e -r 0 -t 300
+		log_pass "raidz_test sweep test with expanded map succeeded."
+		;;
+	3)
+		# Using an expanded raidz map that 2 disks were added to at
+		# once ('-e -k 2'), with the default reflow offset.
+		log_must raidz_test -S -e -k 2 -t 300
+		log_pass "raidz_test sweep test with expanded map succeeded."
+		;;
+	4)
+		# Using an expanded raidz map that 2 disks were added to at
+		# once ('-e -k 2'), with zero reflow offset.
+		log_must raidz_test -S -e -k 2 -r 0 -t 300
 		log_pass "raidz_test sweep test with expanded map succeeded."
 		;;
 	*)

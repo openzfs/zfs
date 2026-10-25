@@ -16,7 +16,7 @@
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd July 23, 2025
+.Dd October 14, 2026
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -924,6 +924,27 @@ This feature enables the
 .Nm zpool Cm attach
 subcommand to attach a new device to a RAID-Z group, expanding the total
 amount usable space in the pool.
+See
+.Xr zpool-attach 8 .
+.
+.feature org.openzfs raidz_expansion_multi no
+This feature enables the
+.Nm zpool Cm attach
+subcommand to attach several new devices to a RAID-Z group in one expansion.
+The
+.Sy raidz_expansion
+feature must also be enabled.
+.Pp
+This feature becomes
+.Sy active
+when such an expansion starts, and returns to being
+.Sy enabled
+a few transaction groups after the expansion completes.
+While it is
+.Sy active ,
+the pool cannot be imported by software that does not support this feature,
+not even read-only.
+An expansion by one device does not use this feature.
 See
 .Xr zpool-attach 8 .
 .

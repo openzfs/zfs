@@ -779,7 +779,8 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
  * uberblock has not yet been written). If reflow is not in progress,
  * reflow_offset_synced should be UINT64_MAX. For each row, if the row is
  * entirely before reflow_offset_synced, it will come from the new location.
- * Otherwise this row will come from the old location.  Therefore, rows that
+ * Otherwise this row will come from the old location, which is laid out
+ * across the first old_physical_cols children.  Therefore, rows that
  * straddle the reflow_offset_synced will come from the old location.
  *
  * For writes, reflow_offset_next is the next offset to copy.  If a sector has
@@ -789,8 +790,8 @@ vdev_raidz_map_alloc(zio_t *zio, uint64_t ashift, uint64_t dcols,
  */
 noinline raidz_map_t *
 vdev_raidz_map_alloc_expanded(zio_t *zio,
-    uint64_t ashift, uint64_t physical_cols, uint64_t logical_cols,
-    uint64_t nparity, uint64_t reflow_offset_synced,
+    uint64_t ashift, uint64_t physical_cols, uint64_t old_physical_cols,
+    uint64_t logical_cols, uint64_t nparity, uint64_t reflow_offset_synced,
     uint64_t reflow_offset_next, boolean_t use_scratch)
 {
 	abd_t *abd = zio->io_abd;
@@ -857,7 +858,7 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 		 */
 		int row_phys_cols = physical_cols;
 		if (b + cols > reflow_offset_synced >> ashift)
-			row_phys_cols--;
+			row_phys_cols = old_physical_cols;
 		else if (use_scratch)
 			row_use_scratch = B_TRUE;
 
@@ -2241,8 +2242,12 @@ vdev_raidz_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	}
 
 	if (vd->vdev_rz_expanding) {
-		*asize *= vd->vdev_children - 1;
-		*max_asize *= vd->vdev_children - 1;
+		uint64_t old_width = vdrz->vn_vre.vre_old_width;
+
+		ASSERT3U(old_width, >, nparity);
+		ASSERT3U(old_width, <, vd->vdev_children);
+		*asize *= old_width;
+		*max_asize *= old_width;
 
 		vd->vdev_min_asize = *asize;
 	} else {
@@ -2826,6 +2831,7 @@ vdev_raidz_io_start(zio_t *zio)
 		}
 
 		zfs_locked_range_t *lr = NULL;
+		uint64_t old_width = vdrz->vd_physical_width;
 		uint64_t synced_offset = UINT64_MAX;
 		uint64_t next_offset = UINT64_MAX;
 		boolean_t use_scratch = B_FALSE;
@@ -2846,6 +2852,7 @@ vdev_raidz_io_start(zio_t *zio)
 			    &vdrz->vn_vre);
 			lr = zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock,
 			    zio->io_offset, zio->io_size, RL_READER);
+			old_width = vdrz->vn_vre.vre_old_width;
 			use_scratch =
 			    (RRSS_GET_STATE(&vd->vdev_spa->spa_ubsync) ==
 			    RRSS_SCRATCH_VALID);
@@ -2864,7 +2871,7 @@ vdev_raidz_io_start(zio_t *zio)
 		}
 
 		rm = vdev_raidz_map_alloc_expanded(zio,
-		    tvd->vdev_ashift, vdrz->vd_physical_width,
+		    tvd->vdev_ashift, vdrz->vd_physical_width, old_width,
 		    logical_width, vdrz->vd_nparity,
 		    synced_offset, next_offset, use_scratch);
 		rm->rm_lr = lr;
@@ -4355,11 +4362,25 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	for (int i = 0; i < TXG_SIZE; i++)
 		VERIFY0(vre->vre_offset_pertxg[i]);
 
-	reflow_node_t *re = kmem_zalloc(sizeof (*re), KM_SLEEP);
-	re->re_txg = tx->tx_txg + TXG_CONCURRENT_STATES;
-	re->re_logical_width = vdrz->vd_physical_width;
+	/*
+	 * Record one width step per added child, in consecutive txgs that
+	 * have not opened yet.  The on-disk format only stores the txgs and
+	 * derives each step's width as one less than the next step's, so
+	 * this is what lets older software read the widths back.  Blocks
+	 * born in the intermediate txgs simply use the intermediate widths.
+	 */
+	uint64_t txg = tx->tx_txg + TXG_CONCURRENT_STATES;
 	mutex_enter(&vdrz->vd_expand_lock);
-	avl_add(&vdrz->vd_expand_txgs, re);
+	reflow_node_t *last = avl_last(&vdrz->vd_expand_txgs);
+	if (last != NULL)
+		txg = MAX(txg, last->re_txg + 1);
+	for (uint64_t w = vre->vre_old_width + 1;
+	    w <= vdrz->vd_physical_width; w++, txg++) {
+		reflow_node_t *re = kmem_zalloc(sizeof (*re), KM_SLEEP);
+		re->re_txg = txg;
+		re->re_logical_width = w;
+		avl_add(&vdrz->vd_expand_txgs, re);
+	}
 	mutex_exit(&vdrz->vd_expand_lock);
 
 	vdev_t *vd = vdev_lookup_top(spa, vre->vre_vdev_id);
@@ -4567,14 +4588,17 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, zfs_range_tree_t *rt,
 	ASSERT(IS_P2ALIGNED(size, 1 << ashift));
 
 	uint64_t blkid = offset >> ashift;
-	uint_t old_children = vd->vdev_children - 1;
+	uint_t old_children = vre->vre_old_width;
+	uint_t added_children = vd->vdev_children - old_children;
 
 	/*
 	 * We can only progress to the point that writes will not overlap
 	 * with blocks whose progress has not yet been recorded on disk.
 	 * Since partially-copied rows are still read from the old location,
 	 * we need to stop one row before the sector-wise overlap, to prevent
-	 * row-wise overlap.
+	 * row-wise overlap.  With k added children the limit is
+	 * ubsync + k * (ubsync / old_children) - new_children + 1, which is
+	 * ubsync + ubsync / old_children - old_children when k is 1.
 	 *
 	 * Note that even if we are skipping over a large unallocated region,
 	 * we can't move the on-disk progress to `offset`, because concurrent
@@ -4584,7 +4608,8 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, zfs_range_tree_t *rt,
 	uint64_t ubsync_blkid =
 	    RRSS_GET_OFFSET(&spa->spa_ubsync) >> ashift;
 	uint64_t next_overwrite_blkid = ubsync_blkid +
-	    ubsync_blkid / old_children - old_children;
+	    added_children * (ubsync_blkid / old_children) -
+	    vd->vdev_children + 1;
 	VERIFY3U(next_overwrite_blkid, >, ubsync_blkid);
 	if (blkid >= next_overwrite_blkid) {
 		raidz_reflow_record_progress(vre,
@@ -4734,11 +4759,12 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 	vdev_t *raidvd = vdev_lookup_top(spa, vre->vre_vdev_id);
 	int ashift = raidvd->vdev_ashift;
+	uint64_t old_children = vre->vre_old_width;
 	uint64_t write_size = P2ALIGN_TYPED(VDEV_BOOT_SIZE, 1 << ashift,
 	    uint64_t);
 	uint64_t logical_size = write_size * raidvd->vdev_children;
 	uint64_t read_size =
-	    P2ROUNDUP(DIV_ROUND_UP(logical_size, (raidvd->vdev_children - 1)),
+	    P2ROUNDUP(DIV_ROUND_UP(logical_size, old_children),
 	    1 << ashift);
 
 	/*
@@ -4753,10 +4779,15 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	zfs_locked_range_t *lr = zfs_rangelock_enter(&vre->vre_rangelock,
 	    0, logical_size, RL_WRITER);
 
+	/*
+	 * The old children are read up to read_size; the added children
+	 * are only written, so write_size is enough for them.
+	 */
 	abd_t **abds = kmem_alloc(raidvd->vdev_children * sizeof (abd_t *),
 	    KM_SLEEP);
 	for (int i = 0; i < raidvd->vdev_children; i++) {
-		abds[i] = abd_alloc_linear(read_size, B_FALSE);
+		abds[i] = abd_alloc_linear(i < old_children ?
+		    read_size : write_size, B_FALSE);
 	}
 
 	raidz_expand_pause(RAIDZ_EXPAND_PAUSE_PRE_SCRATCH_1);
@@ -4799,7 +4830,7 @@ raidz_reflow_scratch_sync(void *arg, dmu_tx_t *tx)
 	 * Read from original location.
 	 */
 	pio = zio_root(spa, NULL, NULL, ZIO_FLAG_CANFAIL);
-	for (int i = 0; i < raidvd->vdev_children - 1; i++) {
+	for (int i = 0; i < old_children; i++) {
 		ASSERT0(vdev_is_dead(raidvd->vdev_child[i]));
 		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
 		    0, abds[i], read_size, ZIO_TYPE_READ,
@@ -4821,12 +4852,13 @@ io_error_exit:
 	raidz_expand_pause(RAIDZ_EXPAND_PAUSE_PRE_SCRATCH_2);
 
 	/*
-	 * Reflow in memory.
+	 * Reflow in memory.  The first old_children sectors are already in
+	 * place (row 0 of the old children).
 	 */
 	uint64_t logical_sectors = logical_size >> ashift;
-	for (int i = raidvd->vdev_children - 1; i < logical_sectors; i++) {
-		int oldchild = i % (raidvd->vdev_children - 1);
-		uint64_t oldoff = (i / (raidvd->vdev_children - 1)) << ashift;
+	for (int i = old_children; i < logical_sectors; i++) {
+		int oldchild = i % old_children;
+		uint64_t oldoff = (i / old_children) << ashift;
 
 		int newchild = i % raidvd->vdev_children;
 		uint64_t newoff = (i / raidvd->vdev_children) << ashift;
@@ -5076,14 +5108,97 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	spa_config_exit(spa, SCL_STATE, FTAG);
 }
 
+/*
+ * After an expansion that added several children, the raidz_expansion_multi
+ * feature stays active until the txgs of all the width steps recorded by
+ * raidz_reflow_complete_sync() have synced.  Until then, software that does
+ * not know the feature cannot import the pool, so it cannot start another
+ * expansion whose width step would land on or before one of ours.
+ */
+boolean_t
+spa_raidz_expand_multi_pending(spa_t *spa)
+{
+	return (spa->spa_raidz_expand == NULL &&
+	    spa_feature_is_active(spa, SPA_FEATURE_RAIDZ_EXPANSION_MULTI));
+}
+
+/*
+ * Return the txg of the last width step of any raidz vdev in the pool.
+ */
+static uint64_t
+spa_raidz_last_step_txg(spa_t *spa)
+{
+	vdev_t *rvd = spa->spa_root_vdev;
+	uint64_t txg = 0;
+
+	ASSERT(spa_config_held(spa, SCL_CONFIG, RW_READER));
+	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *tvd = rvd->vdev_child[c];
+		if (tvd->vdev_ops != &vdev_raidz_ops)
+			continue;
+		vdev_raidz_t *vdrz = tvd->vdev_tsd;
+		mutex_enter(&vdrz->vd_expand_lock);
+		reflow_node_t *re = avl_last(&vdrz->vd_expand_txgs);
+		if (re != NULL)
+			txg = MAX(txg, re->re_txg);
+		mutex_exit(&vdrz->vd_expand_lock);
+	}
+	return (txg);
+}
+
+static void
+raidz_expand_multi_done_sync(void *arg, dmu_tx_t *tx)
+{
+	spa_t *spa = arg;
+
+	if (!spa_raidz_expand_multi_pending(spa))
+		return;
+
+	VERIFY3U(dmu_tx_get_txg(tx), >, spa_raidz_last_step_txg(spa));
+	spa_feature_decr(spa, SPA_FEATURE_RAIDZ_EXPANSION_MULTI, tx);
+}
+
+/*
+ * Wait for the last width step to sync, then set the raidz_expansion_multi
+ * feature back to enabled.  This is only a few txgs, and it is not stopped
+ * by zthr_cancel(), so that "zpool export" finishes it rather than leaving
+ * the pool unimportable by older software.
+ *
+ * The sync task is given an assigned tx, as raidz_reflow_impl() does, rather
+ * than going through dsl_sync_task().  dsl_sync_task() opens the pool, which
+ * takes spa_namespace_lock, and a failed import can hold that lock while it
+ * waits in spa_unload() for this thread.
+ */
+static void
+spa_raidz_expand_multi_done(spa_t *spa)
+{
+	dsl_pool_t *dp = spa_get_dsl(spa);
+
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+	uint64_t txg = spa_raidz_last_step_txg(spa);
+	spa_config_exit(spa, SCL_CONFIG, FTAG);
+
+	txg_wait_synced(dp, txg);
+
+	dmu_tx_t *tx = dmu_tx_create_dd(dp->dp_mos_dir);
+	VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
+	txg = dmu_tx_get_txg(tx);
+	dsl_sync_task_nowait(dp, raidz_expand_multi_done_sync, spa, tx);
+	dmu_tx_commit(tx);
+
+	txg_wait_synced(dp, txg);
+	spa_notify_waiters(spa);
+}
+
 static boolean_t
 spa_raidz_expand_thread_check(void *arg, zthr_t *zthr)
 {
 	(void) zthr;
 	spa_t *spa = arg;
 
-	return (spa->spa_raidz_expand != NULL &&
-	    !spa->spa_raidz_expand->vre_waiting_for_resilver);
+	return ((spa->spa_raidz_expand != NULL &&
+	    !spa->spa_raidz_expand->vre_waiting_for_resilver) ||
+	    spa_raidz_expand_multi_pending(spa));
 }
 
 /*
@@ -5096,6 +5211,12 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 {
 	spa_t *spa = arg;
 	vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
+
+	/* Only the end of a finished several-disk expansion is left. */
+	if (vre == NULL) {
+		spa_raidz_expand_multi_done(spa);
+		return;
+	}
 
 	if (RRSS_GET_STATE(&spa->spa_ubsync) == RRSS_SCRATCH_VALID)
 		vre->vre_offset = 0;
@@ -5285,6 +5406,8 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 		    raidz_reflow_complete_sync, spa,
 		    0, ZFS_SPACE_CHECK_NONE));
 		(void) vdev_online(spa, guid, ZFS_ONLINE_EXPAND, NULL);
+		if (spa_raidz_expand_multi_pending(spa))
+			spa_raidz_expand_multi_done(spa);
 	} else {
 		/*
 		 * Wait for all copy zio's to complete and for all the
@@ -5342,15 +5465,17 @@ raidz_dtl_reassessed(vdev_t *vd)
 }
 
 int
-vdev_raidz_attach_check(vdev_t *raidvd)
+vdev_raidz_attach_check(vdev_t *raidvd, uint64_t added)
 {
 	/*
-	 * The new child is not attached yet, so size up the raidz vdev as it
-	 * will be once the child has been added.
+	 * The new children are not attached yet, so size up the raidz vdev as
+	 * it will be once the "added" children have been added.
 	 */
-	uint64_t new_children = raidvd->vdev_children + 1;
+	uint64_t old_children = raidvd->vdev_children;
+	uint64_t new_children = old_children + added;
 
 	ASSERT3P(raidvd->vdev_ops, ==, &vdev_raidz_ops);
+	ASSERT3U(added, >, 0);
 
 	/*
 	 * We use the "boot" space as scratch space to handle overwriting the
@@ -5361,6 +5486,20 @@ vdev_raidz_attach_check(vdev_t *raidvd)
 	if (new_children << raidvd->vdev_ashift > VDEV_BOOT_SIZE) {
 		return (SET_ERROR(ZFS_ERR_RAIDZ_EXPAND_TOO_WIDE));
 	}
+
+	/*
+	 * raidz_reflow_scratch_sync() reads, from each old child, the data
+	 * that fills the scratch area of all the new children, into one
+	 * linear buffer of at most SPA_MAXBLOCKSIZE.  Only expansions that
+	 * add several children at once can reach that limit.
+	 */
+	uint64_t write_size = P2ALIGN_TYPED(VDEV_BOOT_SIZE,
+	    1ULL << raidvd->vdev_ashift, uint64_t);
+	uint64_t read_size = P2ROUNDUP(DIV_ROUND_UP(write_size *
+	    new_children, old_children), 1ULL << raidvd->vdev_ashift);
+	if (read_size > SPA_MAXBLOCKSIZE)
+		return (SET_ERROR(ZFS_ERR_RAIDZ_EXPAND_TOO_WIDE));
+
 	return (0);
 }
 
@@ -5371,16 +5510,21 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 	spa_t *spa = new_child->vdev_spa;
 	vdev_t *raidvd = new_child->vdev_parent;
 	vdev_raidz_t *vdrz = raidvd->vdev_tsd;
+	uint64_t old_width = vdrz->vd_physical_width;
 	ASSERT3P(raidvd->vdev_ops, ==, &vdev_raidz_ops);
 	ASSERT3P(raidvd->vdev_top, ==, raidvd);
 	ASSERT3U(raidvd->vdev_children, >, vdrz->vd_original_width);
-	ASSERT3U(raidvd->vdev_children, ==, vdrz->vd_physical_width + 1);
+	ASSERT3U(raidvd->vdev_children, >, old_width);
 	ASSERT3P(raidvd->vdev_child[raidvd->vdev_children - 1], ==,
 	    new_child);
 
 	spa_feature_incr(spa, SPA_FEATURE_RAIDZ_EXPANSION, tx);
+	if (raidvd->vdev_children > old_width + 1) {
+		spa_feature_incr(spa, SPA_FEATURE_RAIDZ_EXPANSION_MULTI, tx);
+	}
 
-	vdrz->vd_physical_width++;
+	vdrz->vd_physical_width = raidvd->vdev_children;
+	vdrz->vn_vre.vre_old_width = old_width;
 
 	VERIFY0(spa->spa_uberblock.ub_raidz_reflow_info);
 	vdrz->vn_vre.vre_vdev_id = raidvd->vdev_id;
@@ -5555,6 +5699,26 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 		nparity = 1;
 	}
 
+	/*
+	 * While an expansion runs, the width before it is the number of
+	 * children minus one, unless several children were added at once,
+	 * in which case the label records it.
+	 */
+	boolean_t reflow_in_progress =
+	    nvlist_exists(nv, ZPOOL_CONFIG_RAIDZ_EXPANDING);
+	uint64_t old_width = children - 1;
+	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_OLD_WIDTH,
+	    &old_width) == 0) {
+		uint64_t *txgs;
+		unsigned int txgs_size = 0;
+		(void) nvlist_lookup_uint64_array(nv,
+		    ZPOOL_CONFIG_RAIDZ_EXPAND_TXGS, &txgs, &txgs_size);
+		if (!reflow_in_progress || old_width >= children ||
+		    children - old_width < 2 ||
+		    old_width < nparity + 1 + txgs_size)
+			return (SET_ERROR(EINVAL));
+	}
+
 	vdev_raidz_t *vdrz = kmem_zalloc(sizeof (*vdrz), KM_SLEEP);
 	vdrz->vn_vre.vre_vdev_id = -1;
 	vdrz->vn_vre.vre_offset = UINT64_MAX;
@@ -5573,14 +5737,16 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 	(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_ID,
 	    &vdrz->vn_vre.vre_vdev_id);
 
-	boolean_t reflow_in_progress =
-	    nvlist_exists(nv, ZPOOL_CONFIG_RAIDZ_EXPANDING);
+	/* The width of the newest completed expansion, or the original. */
+	uint64_t width = children;
 	if (reflow_in_progress) {
 		spa->spa_raidz_expand = &vdrz->vn_vre;
 		vdrz->vn_vre.vre_state = DSS_SCANNING;
+		vdrz->vn_vre.vre_old_width = old_width;
+		width = old_width;
 	}
 
-	vdrz->vd_original_width = children;
+	vdrz->vd_original_width = width;
 	uint64_t *txgs;
 	unsigned int txgs_size = 0;
 	error = nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_TXGS,
@@ -5589,18 +5755,13 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 		for (int i = 0; i < txgs_size; i++) {
 			reflow_node_t *re = kmem_zalloc(sizeof (*re), KM_SLEEP);
 			re->re_txg = txgs[txgs_size - i - 1];
-			re->re_logical_width = vdrz->vd_physical_width - i;
-
-			if (reflow_in_progress)
-				re->re_logical_width--;
-
+			re->re_logical_width = width - i;
 			avl_add(&vdrz->vd_expand_txgs, re);
 		}
 
-		vdrz->vd_original_width = vdrz->vd_physical_width - txgs_size;
+		vdrz->vd_original_width = width - txgs_size;
 	}
 	if (reflow_in_progress) {
-		vdrz->vd_original_width--;
 		zfs_dbgmsg("reflow_in_progress, %u wide, %d prior expansions",
 		    children, txgs_size);
 	}
@@ -5657,6 +5818,11 @@ vdev_raidz_config_generate(vdev_t *vd, nvlist_t *nv)
 
 	if (vdrz->vn_vre.vre_state == DSS_SCANNING) {
 		fnvlist_add_boolean(nv, ZPOOL_CONFIG_RAIDZ_EXPANDING);
+		if (vdrz->vd_physical_width > vdrz->vn_vre.vre_old_width + 1) {
+			fnvlist_add_uint64(nv,
+			    ZPOOL_CONFIG_RAIDZ_EXPAND_OLD_WIDTH,
+			    vdrz->vn_vre.vre_old_width);
+		}
 	}
 
 	mutex_enter(&vdrz->vd_expand_lock);
