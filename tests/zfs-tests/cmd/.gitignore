@@ -29,6 +29,7 @@
 /mktree
 /mmap_eof_extend
 /mmap_exec
+/mmap_fadvise_readahead_subpage
 /mmap_ftruncate
 /mmap_libaio
 /mmap_read_truncate
