@@ -36,6 +36,21 @@ aes_x86_64_generate(aes_key_t *key, const uint32_t *keyarr32, int keybits)
 	    keyarr32, keybits);
 }
 
+/* Users of ASMABI requires all calls to be from wrappers */
+static void
+aes_x86_64_encrypt(const uint32_t rk[], int Nr, const uint32_t pt[4],
+    uint32_t ct[4])
+{
+	aes_encrypt_amd64(rk, Nr, pt, ct);
+}
+
+static void
+aes_x86_64_decrypt(const uint32_t rk[], int Nr, const uint32_t ct[4],
+    uint32_t pt[4])
+{
+	aes_decrypt_amd64(rk, Nr, ct, pt);
+}
+
 static boolean_t
 aes_x86_64_will_work(void)
 {
@@ -44,8 +59,8 @@ aes_x86_64_will_work(void)
 
 const aes_impl_ops_t aes_x86_64_impl = {
 	.generate = &aes_x86_64_generate,
-	.encrypt = &aes_encrypt_amd64,
-	.decrypt = &aes_decrypt_amd64,
+	.encrypt = &aes_x86_64_encrypt,
+	.decrypt = &aes_x86_64_decrypt,
 	.is_supported = &aes_x86_64_will_work,
 	.needs_byteswap = B_FALSE,
 	.name = "x86_64"
