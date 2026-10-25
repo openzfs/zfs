@@ -5097,6 +5097,15 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 	spa_t *spa = arg;
 	vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
 
+	/*
+	 * raidz_dtl_reassessed() only wakes us up once we are waiting, so
+	 * if this pass fails, we must not wait for a reassessment that
+	 * happened while it ran.
+	 */
+	mutex_enter(&vre->vre_lock);
+	uint64_t dtl_gen = vre->vre_dtl_gen;
+	mutex_exit(&vre->vre_lock);
+
 	if (RRSS_GET_STATE(&spa->spa_ubsync) == RRSS_SCRATCH_VALID)
 		vre->vre_offset = 0;
 	else
@@ -5111,7 +5120,8 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 		/* if we encountered errors then pause */
 		if (vre->vre_offset == 0) {
 			mutex_enter(&vre->vre_lock);
-			vre->vre_waiting_for_resilver = B_TRUE;
+			vre->vre_waiting_for_resilver =
+			    (vre->vre_dtl_gen == dtl_gen);
 			mutex_exit(&vre->vre_lock);
 			return;
 		}
@@ -5302,7 +5312,8 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 			 */
 			vre->vre_offset = vre->vre_failed_offset;
 			vre->vre_failed_offset = UINT64_MAX;
-			vre->vre_waiting_for_resilver = B_TRUE;
+			vre->vre_waiting_for_resilver =
+			    (vre->vre_dtl_gen == dtl_gen);
 		}
 		mutex_exit(&vre->vre_lock);
 	}
@@ -5330,6 +5341,7 @@ raidz_dtl_reassessed(vdev_t *vd)
 		if (vd->vdev_top->vdev_id == vre->vre_vdev_id &&
 		    !vdev_raidz_expand_child_replacing(vd->vdev_top)) {
 			mutex_enter(&vre->vre_lock);
+			vre->vre_dtl_gen++;
 			if (vre->vre_waiting_for_resilver) {
 				vdev_dbgmsg(vd, "DTL reassessed, "
 				    "continuing raidz expansion");

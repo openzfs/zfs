@@ -92,10 +92,14 @@ typedef struct vdev_raidz_expand {
 	 * Lowest offset of a failed expansion i/o.  The expansion will retry
 	 * from here.  Once the expansion thread notices the failure and exits,
 	 * vre_failed_offset is reset back to UINT64_MAX, and
-	 * vre_waiting_for_resilver will be set.
+	 * vre_waiting_for_resilver will be set, unless vre_dtl_gen shows
+	 * that the DTLs were reassessed during that pass.
 	 */
 	uint64_t vre_failed_offset;
 	boolean_t vre_waiting_for_resilver;
+
+	/* Incremented by raidz_dtl_reassessed() */
+	uint64_t vre_dtl_gen;
 
 	/*
 	 * Offset that is completing each txg
