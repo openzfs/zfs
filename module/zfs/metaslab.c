@@ -6313,26 +6313,34 @@ metaslab_check_free(spa_t *spa, const blkptr_t *bp)
 	spa_config_exit(spa, SCL_VDEV, FTAG);
 }
 
-static void
-metaslab_group_disable_wait(metaslab_group_t *mg)
+static boolean_t
+metaslab_group_disable_wait(metaslab_group_t *mg,
+    metaslab_disable_check_f *check, void *arg)
 {
 	ASSERT(MUTEX_HELD(&mg->mg_ms_disabled_lock));
 	while (mg->mg_disabled_updating) {
+		if (check != NULL && check(arg))
+			return (B_FALSE);
 		cv_wait(&mg->mg_ms_disabled_cv, &mg->mg_ms_disabled_lock);
 	}
+	return (B_TRUE);
 }
 
-static void
-metaslab_group_disabled_increment(metaslab_group_t *mg)
+static boolean_t
+metaslab_group_disabled_increment(metaslab_group_t *mg,
+    metaslab_disable_check_f *check, void *arg)
 {
 	ASSERT(MUTEX_HELD(&mg->mg_ms_disabled_lock));
 	ASSERT(mg->mg_disabled_updating);
 
 	while (mg->mg_ms_disabled >= max_disabled_ms) {
+		if (check != NULL && check(arg))
+			return (B_FALSE);
 		cv_wait(&mg->mg_ms_disabled_cv, &mg->mg_ms_disabled_lock);
 	}
 	mg->mg_ms_disabled++;
 	ASSERT3U(mg->mg_ms_disabled, <=, max_disabled_ms);
+	return (B_TRUE);
 }
 
 /*
@@ -6344,10 +6352,21 @@ metaslab_group_disabled_increment(metaslab_group_t *mg)
 void
 metaslab_disable(metaslab_t *msp)
 {
+	VERIFY(metaslab_disable_cancellable(msp, NULL, NULL));
+}
+
+boolean_t
+metaslab_disable_cancellable(metaslab_t *msp,
+    metaslab_disable_check_f *check, void *arg)
+{
 	ASSERT(!MUTEX_HELD(&msp->ms_lock));
 	metaslab_group_t *mg = msp->ms_group;
 
 	mutex_enter(&mg->mg_ms_disabled_lock);
+	if (check != NULL && check(arg)) {
+		mutex_exit(&mg->mg_ms_disabled_lock);
+		return (B_FALSE);
+	}
 
 	/*
 	 * To keep an accurate count of how many threads have disabled
@@ -6358,10 +6377,18 @@ metaslab_disable(metaslab_t *msp)
 	 * to wait till the metaslab's mg_disabled_updating flag is no
 	 * longer set.
 	 */
-	metaslab_group_disable_wait(mg);
+	if (!metaslab_group_disable_wait(mg, check, arg)) {
+		mutex_exit(&mg->mg_ms_disabled_lock);
+		return (B_FALSE);
+	}
 	mg->mg_disabled_updating = B_TRUE;
 	if (msp->ms_disabled == 0) {
-		metaslab_group_disabled_increment(mg);
+		if (!metaslab_group_disabled_increment(mg, check, arg)) {
+			mg->mg_disabled_updating = B_FALSE;
+			cv_broadcast(&mg->mg_ms_disabled_cv);
+			mutex_exit(&mg->mg_ms_disabled_lock);
+			return (B_FALSE);
+		}
 	}
 	mutex_enter(&msp->ms_lock);
 	msp->ms_disabled++;
@@ -6370,6 +6397,39 @@ metaslab_disable(metaslab_t *msp)
 	mg->mg_disabled_updating = B_FALSE;
 	cv_broadcast(&mg->mg_ms_disabled_cv);
 	mutex_exit(&mg->mg_ms_disabled_lock);
+	return (B_TRUE);
+}
+
+void
+metaslab_wakeup_waiters(vdev_t *vd)
+{
+	/*
+	 * vdev_remove_parent() may have freed a detached leaf's vdev_top
+	 * and moved its groups to the surviving child.  Wake every group.
+	 */
+	if (vd->vdev_detached) {
+		vdev_t *rvd = vd->vdev_spa->spa_root_vdev;
+		for (uint64_t c = 0; c < rvd->vdev_children; c++)
+			metaslab_wakeup_waiters(rvd->vdev_child[c]);
+		return;
+	}
+
+	if (vd->vdev_top != NULL)
+		vd = vd->vdev_top;
+
+	metaslab_group_t *mg = vd->vdev_mg;
+	if (mg != NULL) {
+		mutex_enter(&mg->mg_ms_disabled_lock);
+		cv_broadcast(&mg->mg_ms_disabled_cv);
+		mutex_exit(&mg->mg_ms_disabled_lock);
+	}
+
+	mg = vd->vdev_log_mg;
+	if (mg != NULL && mg != vd->vdev_mg) {
+		mutex_enter(&mg->mg_ms_disabled_lock);
+		cv_broadcast(&mg->mg_ms_disabled_cv);
+		mutex_exit(&mg->mg_ms_disabled_lock);
+	}
 }
 
 void
