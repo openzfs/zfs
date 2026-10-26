@@ -86,7 +86,7 @@ done
 log_must zfs create $TESTPOOL/$TESTFS/renameme
 
 
-if is_global_zone && ! is_linux
+if is_global_zone
 then
 	# create a filesystem we can share
 	log_must zfs create $TESTPOOL/$TESTFS/unshared

@@ -35,17 +35,19 @@
 
 verify_runnable "global"
 
-if is_linux || is_freebsd; then
+if is_freebsd; then
 	log_unsupported "Requires additional dependencies"
 fi
 
 log_assert "zfs share returns an error when run as a user"
 
-log_mustnot is_shared $TESTDIR/unshared
+log_must user_run root \
+    '. "$STF_SUITE/include/libtest.shlib"; not_shared "$TESTDIR/unshared"'
 
 log_mustnot zfs share $TESTPOOL/$TESTFS/unshared
 
 # Now verify that the above command didn't actually do anything
-log_mustnot is_shared $TESTDIR/unshared
+log_must user_run root \
+    '. "$STF_SUITE/include/libtest.shlib"; not_shared "$TESTDIR/unshared"'
 
 log_pass "zfs share returns an error when run as a user"
