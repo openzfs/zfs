@@ -178,6 +178,7 @@ my @path_license_tags = (
 
 	# Third-party code should keep it's original license
 	'module/zstd/lib' => ['BSD-3-Clause OR GPL-2.0-only'],
+	'module/lz4/lib' => ['BSD-2-Clause'],
 	'module/lua' => ['MIT'],
 
 	# lua/setjmp is platform-specific code sourced from various places
