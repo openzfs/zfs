@@ -32,6 +32,6 @@ if datasetexists $TESTPOOL2 ; then
 	log_must zpool destroy -f $TESTPOOL2
 fi
 
-log_must rm -rf $VDIR $VDIR2
+log_must rm -rf $TESTDIR
 
 log_pass
