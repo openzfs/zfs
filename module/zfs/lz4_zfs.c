@@ -87,11 +87,16 @@ zfs_lz4_decompress_buf(void *s_start, void *d_start, size_t s_len,
 {
 	(void) n;
 	const char *src = s_start;
-	uint32_t bufsiz = BE_IN32(src);
+	uint32_t bufsiz;
 	int decoded;
 
+	/* too short to hold the compressed buffer size */
+	if (s_len < sizeof (bufsiz))
+		return (1);
+
 	/* invalid compressed buffer size encoded at start */
-	if (bufsiz + sizeof (bufsiz) > s_len)
+	bufsiz = BE_IN32(src);
+	if (bufsiz > s_len - sizeof (bufsiz))
 		return (1);
 
 	/*
