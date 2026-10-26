@@ -11,3 +11,4 @@
 /test_backtrace
 /test_timer
 /test_zfs_file
+/test_fmd_timer
