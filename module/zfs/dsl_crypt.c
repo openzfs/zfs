@@ -77,6 +77,12 @@
  */
 int zfs_disable_ivset_guid_check = 0;
 
+/*
+ * Derive the salt and IV of dedup blocks with keyed BLAKE3 rather than
+ * HMAC-SHA512 in keys created from now on. See dsl_crypto_key_dedup_prf_sync().
+ */
+int zfs_crypt_dedup_blake3 = 1;
+
 static void
 dsl_wrapping_key_hold(dsl_wrapping_key_t *wkey, const void *tag)
 {
@@ -543,6 +549,7 @@ dsl_crypto_key_open(objset_t *mos, dsl_wrapping_key_t *wkey,
 {
 	int ret;
 	uint64_t crypt = 0, guid = 0, version = 0;
+	uint64_t dedup_prf = ZIO_CRYPT_DEDUP_PRF_HMAC_SHA512;
 	uint8_t raw_keydata[MASTER_KEY_MAX_LEN];
 	uint8_t raw_hmac_keydata[SHA512_HMAC_KEYLEN];
 	uint8_t iv[WRAPPING_IV_LEN];
@@ -592,6 +599,23 @@ dsl_crypto_key_open(objset_t *mos, dsl_wrapping_key_t *wkey,
 	(void) zap_lookup(mos, dckobj, DSL_CRYPTO_KEY_VERSION, 8, 1, &version);
 
 	/*
+	 * An absent entry means HMAC-SHA512. The PRF only decides the salt and
+	 * IV of dedup blocks written from now on, so a value we cannot read
+	 * or do not know falls back to it rather than failing the key.
+	 */
+	ret = zap_lookup(mos, dckobj, DSL_CRYPTO_KEY_DEDUP_PRF, 8, 1,
+	    &dedup_prf);
+	if (ret != 0 || dedup_prf >= ZIO_CRYPT_DEDUP_PRF_FUNCTIONS) {
+		if (ret != ENOENT) {
+			zfs_dbgmsg("DSL Crypto Key %llu: unsupported dedup "
+			    "PRF %llu (error %d), using HMAC-SHA512",
+			    (u_longlong_t)dckobj,
+			    (u_longlong_t)(ret == 0 ? dedup_prf : 0), ret);
+		}
+		dedup_prf = ZIO_CRYPT_DEDUP_PRF_HMAC_SHA512;
+	}
+
+	/*
 	 * Unwrap the keys. If there is an error return EACCES to indicate
 	 * an authentication failure.
 	 */
@@ -599,6 +623,12 @@ dsl_crypto_key_open(objset_t *mos, dsl_wrapping_key_t *wkey,
 	    raw_keydata, raw_hmac_keydata, iv, mac, &dck->dck_key);
 	if (ret != 0) {
 		ret = SET_ERROR(EACCES);
+		goto error;
+	}
+
+	ret = zio_crypt_key_set_dedup_prf(&dck->dck_key, dedup_prf);
+	if (ret != 0) {
+		zio_crypt_key_destroy(&dck->dck_key);
 		goto error;
 	}
 
@@ -2387,6 +2417,14 @@ dsl_crypto_recv_raw_key_check(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 	if (ret != 0 || (is_passphrase == (intval == 0)))
 		return (SET_ERROR(EINVAL));
 
+	/*
+	 * Optional, and any value is accepted: dsl_crypto_key_open() falls back
+	 * to HMAC-SHA512 for one it does not know.
+	 */
+	ret = nvlist_lookup_uint64(nvl, DSL_CRYPTO_KEY_DEDUP_PRF, &intval);
+	if (ret != 0 && ret != ENOENT)
+		return (SET_ERROR(EINVAL));
+
 	return (0);
 }
 
@@ -2399,7 +2437,7 @@ dsl_crypto_recv_raw_key_sync(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 	uint_t len;
 	uint64_t rddobj, one = 1;
 	uint8_t *keydata, *hmac_keydata, *iv, *mac;
-	uint64_t crypt, key_guid, keyformat, iters, salt;
+	uint64_t crypt, key_guid, keyformat, iters, salt, dedup_prf;
 	uint64_t version = ZIO_CRYPT_KEY_CURRENT_VERSION;
 	const char *keylocation = "prompt";
 
@@ -2462,6 +2500,18 @@ dsl_crypto_recv_raw_key_sync(dsl_dataset_t *ds, nvlist_t *nvl, dmu_tx_t *tx)
 	dsl_crypto_key_sync_impl(mos, dd->dd_crypto_obj, crypt,
 	    rddobj, key_guid, iv, mac, keydata, hmac_keydata, keyformat, salt,
 	    iters, tx);
+
+	/*
+	 * Keep the dedup PRF of the sender's key, so that blocks written here
+	 * after a failover dedup against the received ones. A stream without
+	 * it leaves an existing key's entry as it was.
+	 */
+	if (nvlist_lookup_uint64(nvl, DSL_CRYPTO_KEY_DEDUP_PRF,
+	    &dedup_prf) == 0) {
+		VERIFY0(zap_update(mos, dd->dd_crypto_obj,
+		    DSL_CRYPTO_KEY_DEDUP_PRF, sizeof (uint64_t), 1, &dedup_prf,
+		    tx));
+	}
 }
 
 static int
@@ -2555,8 +2605,9 @@ dsl_crypto_populate_key_nvlist(objset_t *os, uint64_t from_ivset_guid,
 	dsl_pool_t *dp = ds->ds_dir->dd_pool;
 	objset_t *mos = dp->dp_meta_objset;
 	uint64_t crypt = 0, key_guid = 0, format = 0;
-	uint64_t iters = 0, salt = 0, version = 0;
+	uint64_t iters = 0, salt = 0, version = 0, dedup_prf = 0;
 	uint64_t to_ivset_guid = 0;
+	boolean_t has_dedup_prf;
 	uint8_t raw_keydata[MASTER_KEY_MAX_LEN];
 	uint8_t raw_hmac_keydata[SHA512_HMAC_KEYLEN];
 	uint8_t iv[WRAPPING_IV_LEN];
@@ -2619,6 +2670,10 @@ dsl_crypto_populate_key_nvlist(objset_t *os, uint64_t from_ivset_guid,
 		goto error;
 	}
 
+	/* absent from keys that use HMAC-SHA512, see dsl_crypto_key_open() */
+	has_dedup_prf = (zap_lookup(mos, dckobj, DSL_CRYPTO_KEY_DEDUP_PRF, 8,
+	    1, &dedup_prf) == 0);
+
 	/*
 	 * Lookup wrapping key properties. An early version of the code did
 	 * not correctly add these values to the wrapping key or the DSL
@@ -2659,6 +2714,8 @@ dsl_crypto_populate_key_nvlist(objset_t *os, uint64_t from_ivset_guid,
 	fnvlist_add_uint64(nvl, DSL_CRYPTO_KEY_CRYPTO_SUITE, crypt);
 	fnvlist_add_uint64(nvl, DSL_CRYPTO_KEY_GUID, key_guid);
 	fnvlist_add_uint64(nvl, DSL_CRYPTO_KEY_VERSION, version);
+	if (has_dedup_prf)
+		fnvlist_add_uint64(nvl, DSL_CRYPTO_KEY_DEDUP_PRF, dedup_prf);
 	VERIFY0(nvlist_add_uint8_array(nvl, DSL_CRYPTO_KEY_MASTER_KEY,
 	    raw_keydata, MASTER_KEY_MAX_LEN));
 	VERIFY0(nvlist_add_uint8_array(nvl, DSL_CRYPTO_KEY_HMAC_KEY,
@@ -2696,6 +2753,31 @@ error:
 	return (ret);
 }
 
+/*
+ * Record which PRF derives the salt and IV of the dedup blocks of a new key:
+ * keyed BLAKE3, unless the tunable disables it or feature@blake3 is not
+ * enabled, which keeps HMAC-SHA512 on pools kept compatible with releases
+ * older than BLAKE3. Without the entry, a key uses HMAC-SHA512, the only PRF
+ * of older releases, which ignore the entry. Nothing changes the choice
+ * afterwards, so that the dedup blocks of a clone family keep matching, but
+ * a raw receive, which gives the key that of the sending key
+ * (dsl_crypto_recv_raw_key_sync()).
+ */
+void
+dsl_crypto_key_dedup_prf_sync(uint64_t dckobj, dmu_tx_t *tx)
+{
+	uint64_t dedup_prf = ZIO_CRYPT_DEDUP_PRF_BLAKE3;
+
+	ASSERT(dmu_tx_is_syncing(tx));
+
+	if (!zfs_crypt_dedup_blake3 ||
+	    !spa_feature_is_enabled(tx->tx_pool->dp_spa, SPA_FEATURE_BLAKE3))
+		return;
+
+	VERIFY0(zap_update(tx->tx_pool->dp_meta_objset, dckobj,
+	    DSL_CRYPTO_KEY_DEDUP_PRF, sizeof (uint64_t), 1, &dedup_prf, tx));
+}
+
 uint64_t
 dsl_crypto_key_create_sync(uint64_t crypt, dsl_wrapping_key_t *wkey,
     dmu_tx_t *tx)
@@ -2721,6 +2803,7 @@ dsl_crypto_key_create_sync(uint64_t crypt, dsl_wrapping_key_t *wkey,
 	    DSL_CRYPTO_KEY_REFCOUNT, sizeof (uint64_t), 1, &one, tx));
 	VERIFY0(zap_update(tx->tx_pool->dp_meta_objset, dck.dck_obj,
 	    DSL_CRYPTO_KEY_VERSION, sizeof (uint64_t), 1, &version, tx));
+	dsl_crypto_key_dedup_prf_sync(dck.dck_obj, tx);
 
 	zio_crypt_key_destroy(&dck.dck_key);
 	memset(&dck.dck_key, 0, sizeof (zio_crypt_key_t));
@@ -3033,3 +3116,6 @@ error:
 
 ZFS_MODULE_PARAM(zfs, zfs_, disable_ivset_guid_check, INT, ZMOD_RW,
 	"Set to allow raw receives without IVset guids");
+
+ZFS_MODULE_PARAM(zfs, zfs_, crypt_dedup_blake3, INT, ZMOD_RW,
+	"Derive dedup salt and IV with keyed BLAKE3 in new encryption keys");

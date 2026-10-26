@@ -37,6 +37,7 @@
 #define	DSL_CRYPTO_KEY_ROOT_DDOBJ	"DSL_CRYPTO_ROOT_DDOBJ"
 #define	DSL_CRYPTO_KEY_REFCOUNT		"DSL_CRYPTO_REFCOUNT"
 #define	DSL_CRYPTO_KEY_VERSION		"DSL_CRYPTO_VERSION"
+#define	DSL_CRYPTO_KEY_DEDUP_PRF	"DSL_CRYPTO_DEDUP_PRF"
 
 /*
  * In-memory representation of a wrapping key. One of these structs will exist
@@ -209,6 +210,7 @@ void dsl_dataset_create_crypt_sync(uint64_t dsobj, dsl_dir_t *dd,
     struct dsl_dataset *origin, dsl_crypto_params_t *dcp, dmu_tx_t *tx);
 uint64_t dsl_crypto_key_create_sync(uint64_t crypt, dsl_wrapping_key_t *wkey,
     dmu_tx_t *tx);
+void dsl_crypto_key_dedup_prf_sync(uint64_t dckobj, dmu_tx_t *tx);
 uint64_t dsl_crypto_key_clone_sync(dsl_dir_t *origindd, dmu_tx_t *tx);
 void dsl_crypto_key_destroy_sync(uint64_t dckobj, dmu_tx_t *tx);
 

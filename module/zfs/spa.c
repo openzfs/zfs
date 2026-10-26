@@ -7588,6 +7588,15 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 		spa_sync_props(props, tx);
 	}
 
+	/*
+	 * An encrypted root dataset got its key before the features were
+	 * enabled just above, which its dedup PRF depends on.
+	 */
+	if (dp->dp_root_dir->dd_crypto_obj != 0) {
+		dsl_crypto_key_dedup_prf_sync(dp->dp_root_dir->dd_crypto_obj,
+		    tx);
+	}
+
 	for (int i = 0; i < ndraid; i++)
 		spa_feature_incr(spa, SPA_FEATURE_DRAID, tx);
 

@@ -28,6 +28,7 @@
 #define	MASTER_KEY_MAX_LEN	32
 #define	SHA512_HMAC_KEYLEN	64
 #define	SHA512_HMAC_LEN		64
+#define	DEDUP_BLAKE3_KEYLEN	32
 
 #define	ZIO_CRYPT_KEY_CURRENT_VERSION	1ULL
 
@@ -36,6 +37,16 @@ typedef enum zio_crypt_type {
 	ZC_TYPE_CCM,
 	ZC_TYPE_GCM
 } zio_crypt_type_t;
+
+/*
+ * PRF that derives the salt and IV of a dedup block from its plaintext. It is
+ * chosen when a DSL Crypto Key is created, and recorded with it on disk.
+ */
+typedef enum zio_crypt_dedup_prf {
+	ZIO_CRYPT_DEDUP_PRF_HMAC_SHA512 = 0,
+	ZIO_CRYPT_DEDUP_PRF_BLAKE3,
+	ZIO_CRYPT_DEDUP_PRF_FUNCTIONS
+} zio_crypt_dedup_prf_t;
 
 /* table of supported crypto algorithms, modes and keylengths. */
 typedef struct zio_crypt_info {
@@ -71,6 +82,12 @@ typedef struct zio_crypt_key {
 	/* buffer for hmac key */
 	uint8_t zk_hmac_keydata[SHA512_HMAC_KEYLEN];
 
+	/* PRF deriving the salt and IV of dedup blocks */
+	zio_crypt_dedup_prf_t zk_dedup_prf;
+
+	/* key of ZIO_CRYPT_DEDUP_PRF_BLAKE3, derived from the hmac key */
+	uint8_t zk_dedup_keydata[DEDUP_BLAKE3_KEYLEN];
+
 	/* buffer for current encryption key derived from master key */
 	uint8_t zk_current_keydata[MASTER_KEY_MAX_LEN];
 
@@ -105,6 +122,8 @@ int zio_crypt_key_wrap(crypto_key_t *cwkey, zio_crypt_key_t *key, uint8_t *iv,
 int zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
     uint64_t guid, uint8_t *keydata, uint8_t *hmac_keydata, uint8_t *iv,
     uint8_t *mac, zio_crypt_key_t *key);
+int zio_crypt_key_set_dedup_prf(zio_crypt_key_t *key,
+    zio_crypt_dedup_prf_t prf);
 int zio_crypt_generate_iv(uint8_t *ivbuf);
 int zio_crypt_generate_iv_salt_dedup(zio_crypt_key_t *key, uint8_t *data,
     uint_t datalen, uint8_t *ivbuf, uint8_t *salt);
