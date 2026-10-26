@@ -118,6 +118,30 @@ zio_crypt_key_reopen_os(zio_crypt_key_t *key, const zio_crypt_info_t *ci)
 	return (0);
 }
 
+int
+zio_crypt_session_init_os(zio_crypt_session_t *sess,
+    const zio_crypt_info_t *ci, crypto_key_t *key)
+{
+	struct crypto_aead *aead;
+
+	aead = zio_crypt_aead_create(ci, key);
+	if (IS_ERR(aead))
+		return (SET_ERROR(-PTR_ERR(aead)));
+
+	sess->zs_aead = aead;
+	sess->zs_shash = NULL;
+
+	return (0);
+}
+
+void
+zio_crypt_session_fini_os(zio_crypt_session_t *sess)
+{
+	if (sess->zs_aead != NULL)
+		crypto_free_aead(sess->zs_aead);
+	sess->zs_aead = NULL;
+}
+
 /*
  * Initialise a pair of uios with the requested number of data iovecs. The
  * AAD and MAC are carried separately (see below), so no extra iovecs are

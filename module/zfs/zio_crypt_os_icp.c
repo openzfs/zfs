@@ -66,6 +66,27 @@ zio_crypt_key_reopen_os(zio_crypt_key_t *key, const zio_crypt_info_t *ci)
 	return (0);
 }
 
+int
+zio_crypt_session_init_os(zio_crypt_session_t *sess,
+    const zio_crypt_info_t *ci, crypto_key_t *key)
+{
+	crypto_mechanism_t mech = {0};
+
+	/* as above, a template is only an optimization */
+	mech.cm_type = crypto_mech2id(ci->ci_mechname);
+	if (crypto_create_ctx_template(&mech, key, &sess->zs_tmpl) !=
+	    CRYPTO_SUCCESS)
+		sess->zs_tmpl = NULL;
+	return (0);
+}
+
+void
+zio_crypt_session_fini_os(zio_crypt_session_t *sess)
+{
+	crypto_destroy_ctx_template(sess->zs_tmpl);
+	sess->zs_tmpl = NULL;
+}
+
 /*
  * Initialise a pair of uios with the requested number of data iovecs. An
  * additional iovec will be allocated for at the end for the ICP to use for the

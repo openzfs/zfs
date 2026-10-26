@@ -25,6 +25,8 @@
 #include <sys/sha2.h>
 #include <sys/hkdf.h>
 #include <sys/qat.h>
+#include <sys/kstat.h>
+#include <sys/wmsum.h>
 
 /*
  * This file is responsible for handling all of the details of generating
@@ -186,6 +188,342 @@
 	(MIN(zfs_key_max_salt_uses, ZFS_KEY_MAX_SALT_USES_DEFAULT))
 uint64_t zfs_key_max_salt_uses = ZFS_KEY_MAX_SALT_USES_DEFAULT;
 
+/*
+ * Every key load and every salt rotation starts a new salt, so most blocks
+ * that are read were written under a salt other than zk_salt. To spare them
+ * an HKDF and a new backend session per block, each key keeps the keys and
+ * sessions of a few such salts, indexed by salt.
+ *
+ * Every dedup block has a salt of its own (see
+ * zio_crypt_generate_iv_salt_dedup()), so a salt is only cached when a
+ * decryption misses it a second time while it is still among the last
+ * ZIO_CRYPT_SALT_GHOST_SIZE missed salts (the ghost list). Encryption only
+ * looks up, since its non-current salts are mostly those of dedup writes.
+ * Entries are replaced by CLOCK.
+ *
+ * zsc_lock protects the slots, and zsc_ghost_lock the ghost list, so that
+ * hits do not wait behind the misses of dedup blocks. Neither is held with
+ * the other or with zk_salt_lock, nor across key derivation, allocation,
+ * backend calls or encryption. Entries are reference counted: the slot
+ * holds one reference and each user holds one while it uses the key, so an
+ * entry evicted while in use is freed by its last user.
+ *
+ * Hits, misses, admissions and evictions are counted in the zio_crypt_stats
+ * kstat.
+ */
+#define	ZIO_CRYPT_SALT_CACHE_SIZE	16
+#define	ZIO_CRYPT_SALT_GHOST_SIZE	(2 * ZIO_CRYPT_SALT_CACHE_SIZE)
+
+typedef struct zio_crypt_salt_key {
+	uint32_t		zsk_refcount;
+	uint8_t			zsk_keydata[MASTER_KEY_MAX_LEN];
+	crypto_key_t		zsk_key;
+	zio_crypt_session_t	zsk_sess;
+} zio_crypt_salt_key_t;
+
+typedef struct zio_crypt_salt_cache {
+	krwlock_t		zsc_lock;
+	uint_t			zsc_hand;
+	uint64_t		zsc_salt[ZIO_CRYPT_SALT_CACHE_SIZE];
+	zio_crypt_salt_key_t	*zsc_key[ZIO_CRYPT_SALT_CACHE_SIZE];
+	/* set by readers with atomic_store_32(), cleared by the writer */
+	uint32_t		zsc_used[ZIO_CRYPT_SALT_CACHE_SIZE];
+
+	kmutex_t		zsc_ghost_lock;
+	uint_t			zsc_ghost_next;
+	uint32_t		zsc_ghost_valid;
+	uint64_t		zsc_ghost[ZIO_CRYPT_SALT_GHOST_SIZE];
+} zio_crypt_salt_cache_t;
+
+_Static_assert(ZIO_DATA_SALT_LEN == sizeof (uint64_t),
+	"zio_crypt_salt_cache_t stores salts as uint64_t");
+_Static_assert(ZIO_CRYPT_SALT_GHOST_SIZE <= 32,
+	"zsc_ghost_valid is a uint32_t");
+
+typedef struct zio_crypt_stats {
+	kstat_named_t	zcs_salt_cache_hits;
+	kstat_named_t	zcs_salt_cache_misses;
+	kstat_named_t	zcs_salt_cache_admissions;
+	kstat_named_t	zcs_salt_cache_evictions;
+} zio_crypt_stats_t;
+
+static zio_crypt_stats_t zio_crypt_stats = {
+	{ "salt_cache_hits",		KSTAT_DATA_UINT64 },
+	{ "salt_cache_misses",		KSTAT_DATA_UINT64 },
+	{ "salt_cache_admissions",	KSTAT_DATA_UINT64 },
+	{ "salt_cache_evictions",	KSTAT_DATA_UINT64 },
+};
+
+static struct {
+	wmsum_t	zcs_salt_cache_hits;
+	wmsum_t	zcs_salt_cache_misses;
+	wmsum_t	zcs_salt_cache_admissions;
+	wmsum_t	zcs_salt_cache_evictions;
+} zio_crypt_sums;
+
+#define	ZIO_CRYPT_STAT_BUMP(stat)	wmsum_add(&zio_crypt_sums.stat, 1)
+
+static kstat_t *zio_crypt_ksp;
+
+static int
+zio_crypt_kstats_update(kstat_t *ksp, int rw)
+{
+	zio_crypt_stats_t *zcs = ksp->ks_data;
+
+	if (rw == KSTAT_WRITE)
+		return (EACCES);
+
+	zcs->zcs_salt_cache_hits.value.ui64 =
+	    wmsum_value(&zio_crypt_sums.zcs_salt_cache_hits);
+	zcs->zcs_salt_cache_misses.value.ui64 =
+	    wmsum_value(&zio_crypt_sums.zcs_salt_cache_misses);
+	zcs->zcs_salt_cache_admissions.value.ui64 =
+	    wmsum_value(&zio_crypt_sums.zcs_salt_cache_admissions);
+	zcs->zcs_salt_cache_evictions.value.ui64 =
+	    wmsum_value(&zio_crypt_sums.zcs_salt_cache_evictions);
+
+	return (0);
+}
+
+void
+zio_crypt_init(void)
+{
+	wmsum_init(&zio_crypt_sums.zcs_salt_cache_hits, 0);
+	wmsum_init(&zio_crypt_sums.zcs_salt_cache_misses, 0);
+	wmsum_init(&zio_crypt_sums.zcs_salt_cache_admissions, 0);
+	wmsum_init(&zio_crypt_sums.zcs_salt_cache_evictions, 0);
+
+	zio_crypt_ksp = kstat_create("zfs", 0, "zio_crypt_stats", "misc",
+	    KSTAT_TYPE_NAMED, sizeof (zio_crypt_stats) / sizeof (kstat_named_t),
+	    KSTAT_FLAG_VIRTUAL);
+	if (zio_crypt_ksp != NULL) {
+		zio_crypt_ksp->ks_data = &zio_crypt_stats;
+		zio_crypt_ksp->ks_update = zio_crypt_kstats_update;
+		kstat_install(zio_crypt_ksp);
+	}
+}
+
+void
+zio_crypt_fini(void)
+{
+	if (zio_crypt_ksp != NULL) {
+		kstat_delete(zio_crypt_ksp);
+		zio_crypt_ksp = NULL;
+	}
+
+	wmsum_fini(&zio_crypt_sums.zcs_salt_cache_hits);
+	wmsum_fini(&zio_crypt_sums.zcs_salt_cache_misses);
+	wmsum_fini(&zio_crypt_sums.zcs_salt_cache_admissions);
+	wmsum_fini(&zio_crypt_sums.zcs_salt_cache_evictions);
+}
+
+static zio_crypt_salt_cache_t *
+zio_crypt_salt_cache_create(void)
+{
+	zio_crypt_salt_cache_t *zsc = kmem_zalloc(sizeof (*zsc), KM_SLEEP);
+
+	rw_init(&zsc->zsc_lock, NULL, RW_DEFAULT, NULL);
+	mutex_init(&zsc->zsc_ghost_lock, NULL, MUTEX_DEFAULT, NULL);
+
+	return (zsc);
+}
+
+static void
+zio_crypt_salt_key_rele(zio_crypt_salt_key_t *zsk)
+{
+	/*
+	 * atomic_dec_32_nv() is not ordered on every platform (FreeBSD), so
+	 * fence as FreeBSD's refcount_release() does: this user's accesses to
+	 * the entry come before the decrement, and the free after it.
+	 */
+	membar_sync();
+	if (atomic_dec_32_nv(&zsk->zsk_refcount) != 0)
+		return;
+	membar_consumer();
+
+	zio_crypt_session_fini_os(&zsk->zsk_sess);
+	memset(zsk, 0, sizeof (zio_crypt_salt_key_t));
+	kmem_free(zsk, sizeof (zio_crypt_salt_key_t));
+}
+
+static void
+zio_crypt_salt_cache_destroy(zio_crypt_salt_cache_t *zsc)
+{
+	for (int i = 0; i < ZIO_CRYPT_SALT_CACHE_SIZE; i++) {
+		zio_crypt_salt_key_t *zsk = zsc->zsc_key[i];
+
+		if (zsk == NULL)
+			continue;
+
+		/* the key is being destroyed, so it has no other user */
+		ASSERT3U(zsk->zsk_refcount, ==, 1);
+		zio_crypt_salt_key_rele(zsk);
+	}
+
+	mutex_destroy(&zsc->zsc_ghost_lock);
+	rw_destroy(&zsc->zsc_lock);
+	memset(zsc, 0, sizeof (zio_crypt_salt_cache_t));
+	kmem_free(zsc, sizeof (zio_crypt_salt_cache_t));
+}
+
+static zio_crypt_salt_key_t *
+zio_crypt_salt_key_lookup(zio_crypt_salt_cache_t *zsc, uint64_t salt)
+{
+	zio_crypt_salt_key_t *zsk = NULL;
+
+	rw_enter(&zsc->zsc_lock, RW_READER);
+	for (int i = 0; i < ZIO_CRYPT_SALT_CACHE_SIZE; i++) {
+		if (zsc->zsc_salt[i] != salt || zsc->zsc_key[i] == NULL)
+			continue;
+
+		zsk = zsc->zsc_key[i];
+		atomic_inc_32(&zsk->zsk_refcount);
+		/* written only when clear, so hits rarely dirty the line */
+		if (atomic_load_32(&zsc->zsc_used[i]) == 0)
+			atomic_store_32(&zsc->zsc_used[i], 1);
+		break;
+	}
+	rw_exit(&zsc->zsc_lock);
+
+	return (zsk);
+}
+
+/*
+ * Note a decryption that missed the cache. Returns B_TRUE if the salt
+ * already missed recently and should be cached.
+ */
+static boolean_t
+zio_crypt_salt_cache_admit(zio_crypt_salt_cache_t *zsc, uint64_t salt)
+{
+	boolean_t admit = B_FALSE;
+
+	mutex_enter(&zsc->zsc_ghost_lock);
+	for (int i = 0; i < ZIO_CRYPT_SALT_GHOST_SIZE; i++) {
+		if ((zsc->zsc_ghost_valid & (1U << i)) != 0 &&
+		    zsc->zsc_ghost[i] == salt) {
+			/* if it is evicted later, it must miss twice again */
+			zsc->zsc_ghost_valid &= ~(1U << i);
+			admit = B_TRUE;
+			break;
+		}
+	}
+	if (!admit) {
+		zsc->zsc_ghost[zsc->zsc_ghost_next] = salt;
+		zsc->zsc_ghost_valid |= 1U << zsc->zsc_ghost_next;
+		zsc->zsc_ghost_next =
+		    (zsc->zsc_ghost_next + 1) % ZIO_CRYPT_SALT_GHOST_SIZE;
+	}
+	mutex_exit(&zsc->zsc_ghost_lock);
+
+	return (admit);
+}
+
+/*
+ * Insert a new entry, which holds one reference for the caller. Returns the
+ * entry the caller should use: the new one, or the one another thread
+ * inserted for the same salt in the meantime, in which case the new one is
+ * freed.
+ */
+static zio_crypt_salt_key_t *
+zio_crypt_salt_key_insert(zio_crypt_salt_cache_t *zsc, uint64_t salt,
+    zio_crypt_salt_key_t *zsk)
+{
+	zio_crypt_salt_key_t *old = NULL;
+	boolean_t inserted = B_FALSE;
+	int slot = -1;
+
+	rw_enter(&zsc->zsc_lock, RW_WRITER);
+	for (int i = 0; i < ZIO_CRYPT_SALT_CACHE_SIZE; i++) {
+		if (zsc->zsc_key[i] == NULL) {
+			if (slot == -1)
+				slot = i;
+		} else if (zsc->zsc_salt[i] == salt) {
+			old = zsk;
+			zsk = zsc->zsc_key[i];
+			atomic_inc_32(&zsk->zsk_refcount);
+			zsc->zsc_used[i] = 1;
+			goto out;
+		}
+	}
+
+	if (slot == -1) {
+		while (zsc->zsc_used[zsc->zsc_hand] != 0) {
+			zsc->zsc_used[zsc->zsc_hand] = 0;
+			zsc->zsc_hand =
+			    (zsc->zsc_hand + 1) % ZIO_CRYPT_SALT_CACHE_SIZE;
+		}
+		slot = zsc->zsc_hand;
+		zsc->zsc_hand = (zsc->zsc_hand + 1) % ZIO_CRYPT_SALT_CACHE_SIZE;
+		old = zsc->zsc_key[slot];
+	}
+
+	/* the slot's reference */
+	atomic_inc_32(&zsk->zsk_refcount);
+	zsc->zsc_salt[slot] = salt;
+	zsc->zsc_key[slot] = zsk;
+	zsc->zsc_used[slot] = 1;
+	inserted = B_TRUE;
+out:
+	rw_exit(&zsc->zsc_lock);
+
+	if (inserted) {
+		ZIO_CRYPT_STAT_BUMP(zcs_salt_cache_admissions);
+		if (old != NULL)
+			ZIO_CRYPT_STAT_BUMP(zcs_salt_cache_evictions);
+	}
+	if (old != NULL)
+		zio_crypt_salt_key_rele(old);
+
+	return (zsk);
+}
+
+/*
+ * Returns a held entry with the key and session for the given salt, which
+ * is not the current one, or NULL if the caller should derive a temporary
+ * key instead.
+ */
+static zio_crypt_salt_key_t *
+zio_crypt_salt_key_hold(zio_crypt_key_t *key, boolean_t encrypt,
+    uint8_t *salt)
+{
+	zio_crypt_salt_cache_t *zsc = key->zk_salt_cache;
+	const zio_crypt_info_t *ci = &zio_crypt_table[key->zk_crypt];
+	zio_crypt_salt_key_t *zsk;
+	uint64_t salt64;
+
+	memcpy(&salt64, salt, sizeof (salt64));
+
+	zsk = zio_crypt_salt_key_lookup(zsc, salt64);
+	if (zsk != NULL) {
+		ZIO_CRYPT_STAT_BUMP(zcs_salt_cache_hits);
+		return (zsk);
+	}
+	ZIO_CRYPT_STAT_BUMP(zcs_salt_cache_misses);
+	if (encrypt || !zio_crypt_salt_cache_admit(zsc, salt64))
+		return (NULL);
+
+	zsk = kmem_zalloc(sizeof (zio_crypt_salt_key_t), KM_SLEEP);
+	zsk->zsk_refcount = 1;
+
+	if (hkdf_sha512(key->zk_master_keydata, ci->ci_keylen, NULL, 0,
+	    salt, ZIO_DATA_SALT_LEN, zsk->zsk_keydata, ci->ci_keylen) != 0)
+		goto error;
+
+	zsk->zsk_key.ck_data = zsk->zsk_keydata;
+	zsk->zsk_key.ck_length = CRYPTO_BYTES2BITS(ci->ci_keylen);
+
+	/* a failed session holds nothing, so it needs no fini */
+	if (zio_crypt_session_init_os(&zsk->zsk_sess, ci, &zsk->zsk_key) != 0)
+		goto error;
+
+	return (zio_crypt_salt_key_insert(zsc, salt64, zsk));
+
+error:
+	memset(zsk, 0, sizeof (zio_crypt_salt_key_t));
+	kmem_free(zsk, sizeof (zio_crypt_salt_key_t));
+	return (NULL);
+}
+
 typedef struct blkptr_auth_buf {
 	uint64_t bab_prop;			/* blk_prop - portable mask */
 	uint8_t bab_mac[ZIO_DATA_MAC_LEN];	/* MAC from blk_cksum */
@@ -207,6 +545,9 @@ const zio_crypt_info_t zio_crypt_table[ZIO_CRYPT_FUNCTIONS] = {
 void
 zio_crypt_key_destroy(zio_crypt_key_t *key)
 {
+	if (key->zk_salt_cache != NULL)
+		zio_crypt_salt_cache_destroy(key->zk_salt_cache);
+
 	zio_crypt_key_close_os(key);
 
 	rw_destroy(&key->zk_salt_lock);
@@ -269,6 +610,7 @@ zio_crypt_key_init(uint64_t crypt, zio_crypt_key_t *key)
 	key->zk_crypt = crypt;
 	key->zk_version = ZIO_CRYPT_KEY_CURRENT_VERSION;
 	key->zk_salt_count = 0;
+	key->zk_salt_cache = zio_crypt_salt_cache_create();
 
 	return (0);
 }
@@ -474,6 +816,7 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
 	key->zk_version = version;
 	key->zk_guid = guid;
 	key->zk_salt_count = 0;
+	key->zk_salt_cache = zio_crypt_salt_cache_create();
 
 	return (0);
 
@@ -1522,14 +1865,16 @@ zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
 	uint8_t enc_keydata[MASTER_KEY_MAX_LEN];
 	crypto_key_t tmp_ckey, *ckey = NULL;
 	zio_crypt_session_t *sess;
+	zio_crypt_salt_key_t *zsk = NULL;
 	uint8_t *authbuf = NULL;
 
 	memset(&puio, 0, sizeof (puio));
 	memset(&cuio, 0, sizeof (cuio));
 
 	/*
-	 * If the needed key is the current one, just use it. Otherwise we
-	 * need to generate a temporary one from the given salt + master key.
+	 * If the needed key is the current one, just use it. Otherwise use
+	 * the one cached for this salt, or generate a temporary one from the
+	 * given salt + master key.
 	 * If we are encrypting, we must return a copy of the current salt
 	 * so that it can be stored in the blkptr_t.
 	 */
@@ -1543,16 +1888,23 @@ zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
 		rw_exit(&key->zk_salt_lock);
 		locked = B_FALSE;
 
-		ret = hkdf_sha512(key->zk_master_keydata, ci->ci_keylen, NULL,
-		    0, salt, ZIO_DATA_SALT_LEN, enc_keydata, ci->ci_keylen);
-		if (ret != 0)
-			goto error;
+		zsk = zio_crypt_salt_key_hold(key, encrypt, salt);
+		if (zsk != NULL) {
+			ckey = &zsk->zsk_key;
+			sess = &zsk->zsk_sess;
+		} else {
+			ret = hkdf_sha512(key->zk_master_keydata,
+			    ci->ci_keylen, NULL, 0, salt, ZIO_DATA_SALT_LEN,
+			    enc_keydata, ci->ci_keylen);
+			if (ret != 0)
+				goto error;
 
-		tmp_ckey.ck_data = enc_keydata;
-		tmp_ckey.ck_length = CRYPTO_BYTES2BITS(ci->ci_keylen);
+			tmp_ckey.ck_data = enc_keydata;
+			tmp_ckey.ck_length = CRYPTO_BYTES2BITS(ci->ci_keylen);
 
-		ckey = &tmp_ckey;
-		sess = NULL;
+			ckey = &tmp_ckey;
+			sess = NULL;
+		}
 	}
 
 	/*
@@ -1601,6 +1953,8 @@ out:
 	if (locked) {
 		rw_exit(&key->zk_salt_lock);
 	}
+	if (zsk != NULL)
+		zio_crypt_salt_key_rele(zsk);
 
 	if (authbuf != NULL)
 		zio_buf_free(authbuf, datalen);
@@ -1615,6 +1969,8 @@ out:
 error:
 	if (locked)
 		rw_exit(&key->zk_salt_lock);
+	if (zsk != NULL)
+		zio_crypt_salt_key_rele(zsk);
 	if (authbuf != NULL)
 		zio_buf_free(authbuf, datalen);
 	if (ckey == &tmp_ckey)
