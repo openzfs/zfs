@@ -3051,7 +3051,10 @@ function vdevs_in_pool
 	typeset tmpfile=$(mktemp)
 	zpool status -v "$pool" | grep -A 1000 "config:" >$tmpfile
 	for vdev in "$@"; do
-		grep -wq ${vdev##*/} $tmpfile || return 1
+		if ! grep -wq ${vdev##*/} $tmpfile; then
+			rm -f $tmpfile
+			return 1
+		fi
 	done
 
 	rm -f $tmpfile
