@@ -33,6 +33,7 @@
 #include <sys/zfs_znode.h>
 #include <sys/zfeature.h>
 #include <sys/metaslab.h>
+#include "zfs_namecheck.h"
 
 #define	DST_AVG_BLKSHIFT 14
 
@@ -294,6 +295,39 @@ zcp_synctask_rollback(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	return (err);
 }
 
+/*
+ * Check a snapshot name ("fs@snap") from a channel program.  Channel programs
+ * are the only callers of zfs.sync.snapshot() and zfs.sync.rename_snapshot(),
+ * and they pass names straight from Lua, so nothing has checked them yet.
+ * The dsl checks only look at the length and the '@': an empty snapshot
+ * name would be added to the snapshot ZAP and break the dataset.  Apply the
+ * checks zfs(8) gets from snapshot_namecheck(), reject '%' in the snapshot
+ * name as zfs_ioc_snapshot() and zfs_ioc_rename() do, and check that the
+ * name is in this pool.  Names that are too long return ENAMETOOLONG, as
+ * the dsl checks do.
+ */
+static int
+zcp_snapshot_namecheck(dsl_pool_t *dp, const char *snapname)
+{
+	const char *poolname = spa_name(dp->dp_spa);
+	size_t poollen = strlen(poolname);
+	namecheck_err_t why;
+	char what;
+
+	if (snapshot_namecheck(snapname, &why, &what) != 0) {
+		if (why == NAME_ERR_TOOLONG)
+			return (SET_ERROR(ENAMETOOLONG));
+		return (SET_ERROR(EINVAL));
+	}
+	if (strchr(strchr(snapname, '@'), '%') != NULL)
+		return (SET_ERROR(EINVAL));
+	if (strncmp(snapname, poolname, poollen) != 0 ||
+	    (snapname[poollen] != '/' && snapname[poollen] != '@'))
+		return (SET_ERROR(EXDEV));
+
+	return (0);
+}
+
 static int zcp_synctask_snapshot(lua_State *, boolean_t, nvlist_t *);
 static const zcp_synctask_info_t zcp_synctask_snapshot_info = {
 	.name = "snapshot",
@@ -309,6 +343,25 @@ static const zcp_synctask_info_t zcp_synctask_snapshot_info = {
 	.space_check = ZFS_SPACE_CHECK_NORMAL,
 	.blocks_modified = 3
 };
+
+/*
+ * Check the name in the check function, so that zcp_sync_task() handles the
+ * error as any other: zfs.check.snapshot() returns it, and
+ * zfs.sync.snapshot() still fails in open context.
+ */
+static int
+zcp_synctask_snapshot_check(void *arg, dmu_tx_t *tx)
+{
+	dsl_dataset_snapshot_arg_t *ddsa = arg;
+	nvpair_t *pair = nvlist_next_nvpair(ddsa->ddsa_snaps, NULL);
+	int err;
+
+	err = zcp_snapshot_namecheck(dmu_tx_pool(tx), nvpair_name(pair));
+	if (err != 0)
+		return (err);
+
+	return (dsl_dataset_snapshot_check(arg, tx));
+}
 
 static int
 zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
@@ -341,7 +394,7 @@ zcp_synctask_snapshot(lua_State *state, boolean_t sync, nvlist_t *err_details)
 	zcp_cleanup_handler_t *zch = zcp_register_cleanup(state,
 	    zcp_synctask_cleanup, ddsa.ddsa_snaps);
 
-	err = zcp_sync_task(state, dsl_dataset_snapshot_check,
+	err = zcp_sync_task(state, zcp_synctask_snapshot_check,
 	    dsl_dataset_snapshot_sync, &ddsa, sync, dsname);
 
 	if (err == 0) {
@@ -374,6 +427,32 @@ static const zcp_synctask_info_t zcp_synctask_rename_snapshot_info = {
 	.blocks_modified = 1
 };
 
+/* As for snapshot: check both full names, as zfs_ioc_rename() does. */
+static int
+zcp_synctask_rename_snapshot_check(void *arg, dmu_tx_t *tx)
+{
+	dsl_dataset_rename_snapshot_arg_t *ddrsa = arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	char *name;
+	int err;
+
+	name = kmem_asprintf("%s@%s", ddrsa->ddrsa_fsname,
+	    ddrsa->ddrsa_oldsnapname);
+	err = zcp_snapshot_namecheck(dp, name);
+	kmem_strfree(name);
+	if (err != 0)
+		return (err);
+
+	name = kmem_asprintf("%s@%s", ddrsa->ddrsa_fsname,
+	    ddrsa->ddrsa_newsnapname);
+	err = zcp_snapshot_namecheck(dp, name);
+	kmem_strfree(name);
+	if (err != 0)
+		return (err);
+
+	return (dsl_dataset_rename_snapshot_check(arg, tx));
+}
+
 static int
 zcp_synctask_rename_snapshot(lua_State *state, boolean_t sync,
     nvlist_t *err_details)
@@ -390,7 +469,7 @@ zcp_synctask_rename_snapshot(lua_State *state, boolean_t sync,
 	ddrsa.ddrsa_newsnapname = newsnapname;
 	ddrsa.ddrsa_recursive = B_FALSE;
 
-	err = zcp_sync_task(state, dsl_dataset_rename_snapshot_check,
+	err = zcp_sync_task(state, zcp_synctask_rename_snapshot_check,
 	    dsl_dataset_rename_snapshot_sync, &ddrsa, sync, NULL);
 
 	return (err);
