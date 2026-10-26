@@ -489,6 +489,7 @@ systemctl --system daemon-reload >/dev/null || true
 # Core utilities
 %{_sbindir}/*
 %{_bindir}/raidz_test
+%{_bindir}/timemachine_dfree
 %{_bindir}/zvol_wait
 # Optional Python 3 scripts
 %{_bindir}/zarcsummary

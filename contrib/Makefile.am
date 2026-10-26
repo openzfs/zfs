@@ -8,6 +8,7 @@ if BUILD_LINUX
 include $(srcdir)/%D%/bpftrace/Makefile.am
 include $(srcdir)/%D%/dracut/Makefile.am
 include $(srcdir)/%D%/initramfs/Makefile.am
+include $(srcdir)/%D%/samba/Makefile.am
 endif
 
 if PAM_ZFS_ENABLED
