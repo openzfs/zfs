@@ -19,27 +19,30 @@
 #
 # DESCRIPTION:
 #	An extending fallocate, a keep-size punch at EOF and a
-#	keep-size zero-range at EOF each keep a concurrent O_DIRECT
-#	append that grew the file.
+#	keep-size zero-range at EOF each keep a concurrent O_DIRECT or
+#	buffered append that grew the file.
 #
 # STRATEGY:
-#	1. Set recordsize=128k and direct=standard so the append
+#	1. Set recordsize=128k and direct=standard so the O_DIRECT append
 #	   takes the Direct I/O path
 #	2. For each of the three fallocate modes, run
-#	   dio_append_fallocate for ROUNDS rounds
-#	3. Each round writes one block, then appends a block with
-#	   O_DIRECT while another thread calls fallocate
-#	4. Log each mode's count of rounds that left the file smaller
+#	   dio_append_fallocate for ROUNDS rounds with an O_DIRECT
+#	   append, then for BUF_ROUNDS rounds with a buffered one (-b),
+#	   whose shorter window loses fewer rounds
+#	3. Each round writes one block, then appends a block while
+#	   another thread calls fallocate
+#	4. Log each run's count of rounds that left the file smaller
 #	   than the append made it
 #	5. Skip a mode the kernel does not support
-#	6. Fail if any mode lost a round
+#	6. Fail if any run lost a round
 #
 
 verify_runnable "global"
 
-log_assert "fallocate does not discard a racing O_DIRECT append"
+log_assert "fallocate does not discard a racing O_DIRECT or buffered append"
 
 typeset -i ROUNDS=100
+typeset -i BUF_ROUNDS=1000
 
 function cleanup
 {
@@ -50,35 +53,39 @@ function cleanup
 log_onexit cleanup
 
 typeset f=$TESTDIR/racefile
-typeset mode out failed=""
+typeset io mode out failed=""
+typeset -i n
 typeset -i rc
 
 log_must zfs set recordsize=128k direct=standard $TESTPOOL/$TESTFS
 
-for mode in extend punch zero; do
-	out=$(dio_append_fallocate $mode $f $ROUNDS 2>&1)
-	rc=$?
-	case $rc in
-	0)
-		log_note "$out"
-		;;
-	1)
-		log_note "$out"
-		failed="$failed $mode"
-		;;
-	4)
-		log_note "$mode is not supported: $out"
-		;;
-	*)
-		log_fail "$mode: dio_append_fallocate exited $rc:" \
-		    "$out"
-		;;
-	esac
+for io in "" "-b"; do
+	n=$ROUNDS
+	[[ -n $io ]] && n=$BUF_ROUNDS
+	for mode in extend punch zero; do
+		out=$(dio_append_fallocate $io $mode $f $n 2>&1)
+		rc=$?
+		case $rc in
+		0)
+			log_note "$out"
+			;;
+		1)
+			log_note "$out"
+			failed="$failed ${io:+buffered-}$mode"
+			;;
+		4)
+			log_note "$mode is not supported: $out"
+			;;
+		*)
+			log_fail "$io $mode: dio_append_fallocate" \
+			    "exited $rc: $out"
+			;;
+		esac
+	done
 done
 
 if [[ -n $failed ]]; then
-	log_fail "fallocate discarded a racing O_DIRECT append" \
-	    "in:$failed"
+	log_fail "fallocate discarded a racing append in:$failed"
 fi
 
-log_pass "fallocate does not discard a racing O_DIRECT append"
+log_pass "fallocate does not discard a racing O_DIRECT or buffered append"
