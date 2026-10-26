@@ -12,3 +12,5 @@
 /test_timer
 /test_zfs_file
 /test_indirect_mapping
+/test_lz4_header
+/test_zstd_header
