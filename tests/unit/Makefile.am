@@ -25,7 +25,9 @@ UNIT_TESTS = \
 	%D%/test_backtrace \
 	%D%/test_timer \
 	%D%/test_zfs_file \
-	%D%/test_indirect_mapping
+	%D%/test_indirect_mapping \
+	%D%/test_lz4_header \
+	%D%/test_zstd_header
 
 # extra test binaries. not unit/correctness tests as such, but use the same
 # framework. not run by `make unit`, but will work with `T=` etc
@@ -203,6 +205,32 @@ nodist_%C%_test_nvpair_stress_SOURCES = \
 	libspl.la \
 	$(LIBTIRPC_LIBS) \
 	libunit.la
+
+
+%C%_test_lz4_header_CFLAGS = $(AM_CFLAGS)
+
+nodist_%C%_test_lz4_header_SOURCES = \
+	module/zfs/lz4.c \
+	module/zfs/lz4_zfs.c
+
+%C%_test_lz4_header_SOURCES = \
+	%D%/test_lz4_header.c
+
+%C%_test_lz4_header_LDADD = \
+	libspl.la \
+	libunit.la
+
+
+%C%_test_zstd_header_CFLAGS = $(AM_CFLAGS)
+
+%C%_test_zstd_header_SOURCES = \
+	%D%/test_zstd_header.c
+
+%C%_test_zstd_header_LDADD = \
+	libzstd.la \
+	libspl.la \
+	libunit.la
+
 
 
 # test run and coverage targets below
