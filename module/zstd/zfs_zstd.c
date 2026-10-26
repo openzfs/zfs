@@ -627,6 +627,12 @@ zfs_zstd_decompress_level_buf(void *s_start, void *d_start, size_t s_len,
 	const zfs_zstdhdr_t *hdr;
 	zfs_zstdhdr_t hdr_copy;
 
+	/* too short to hold the compressed block header */
+	if (s_len < sizeof (*hdr)) {
+		ZSTDSTAT_BUMP(zstd_stat_dec_header_inval);
+		return (1);
+	}
+
 	hdr = (const zfs_zstdhdr_t *)s_start;
 	c_len = BE_32(hdr->c_len);
 
@@ -657,7 +663,7 @@ zfs_zstd_decompress_level_buf(void *s_start, void *d_start, size_t s_len,
 	ASSERT3U(curlevel, !=, ZIO_COMPLEVEL_INHERIT);
 
 	/* Invalid compressed buffer size encoded at start */
-	if (c_len + sizeof (*hdr) > s_len) {
+	if (c_len > s_len - sizeof (*hdr)) {
 		ZSTDSTAT_BUMP(zstd_stat_dec_header_inval);
 		return (1);
 	}
