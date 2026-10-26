@@ -107,6 +107,8 @@ SPL_OBJS := \
 
 spl-objs += $(addprefix os/linux/spl/,$(SPL_OBJS))
 
+$(addprefix $(obj)/,$(spl-objs)) : ccflags-y += -DSPL_BUILD
+
 zfs-objs += avl/avl.o
 
 ICP_OBJS := \
