@@ -25,7 +25,8 @@ UNIT_TESTS = \
 	%D%/test_backtrace \
 	%D%/test_timer \
 	%D%/test_zfs_file \
-	%D%/test_indirect_mapping
+	%D%/test_indirect_mapping \
+	%D%/test_zio_crypt
 
 # extra test binaries. not unit/correctness tests as such, but use the same
 # framework. not run by `make unit`, but will work with `T=` etc
@@ -202,6 +203,24 @@ nodist_%C%_test_nvpair_stress_SOURCES = \
 %C%_test_nvpair_stress_LDADD = \
 	libspl.la \
 	$(LIBTIRPC_LIBS) \
+	libunit.la
+
+
+%C%_test_zio_crypt_CFLAGS = $(AM_CFLAGS)
+
+nodist_%C%_test_zio_crypt_SOURCES = \
+	module/zfs/hkdf.c \
+	module/zfs/zfs_impl.c \
+	module/zfs/zio_crypt.c \
+	module/zfs/zio_crypt_os_icp.c
+
+%C%_test_zio_crypt_SOURCES = \
+	%D%/test_zio_crypt.c
+
+%C%_test_zio_crypt_LDADD = \
+	libicp.la \
+	libavl.la \
+	libspl.la \
 	libunit.la
 
 

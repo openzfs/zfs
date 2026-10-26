@@ -13,3 +13,4 @@
 /test_zfs_file
 /test_indirect_mapping
 /test_nvpair_stress
+/test_zio_crypt
