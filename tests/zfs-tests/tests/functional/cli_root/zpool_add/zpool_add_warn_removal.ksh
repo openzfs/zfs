@@ -114,3 +114,5 @@ zpool_create_rm_add redundancy3_create_args redundancy3_add_args cache_args
 zpool_create_rm_add redundancy1_create_args redundancy1_add_args spare_args
 zpool_create_rm_add redundancy2_create_args redundancy2_add_args spare_args
 zpool_create_rm_add redundancy3_create_args redundancy3_add_args spare_args
+
+log_pass "Verify 'zpool add' warns for differing redundancy."
