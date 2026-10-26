@@ -45,7 +45,7 @@ log_must zpool create -f \
 # disable compression so our writes create predictable results on disk, and
 # use 'xattr=sa' to prevent selinux xattrs influencing our accounting
 log_must zfs create \
-    -o dedup=on \
+    -o dedup=sha256 \
     -o compression=off \
     -o xattr=sa \
     -o checksum=sha256 \

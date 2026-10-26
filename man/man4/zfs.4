@@ -16,7 +16,7 @@
 .\" Copyright (c) 2026, Mateusz Piotrowski <0mp@FreeBSD.org>
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd September 9, 2026
+.Dd October 29, 2026
 .Dt ZFS 4
 .Os
 .
@@ -1251,6 +1251,33 @@ As long as the operation remains "hung",
 the deadman will be invoked every
 .Sy zfs_deadman_checktime_ms
 milliseconds until the operation completes.
+.
+.It Sy zfs_dedup_default_checksum Ns = Ns Sy 0 Ns | Ns 1 Pq uint
+The default deduplication checksum recorded by a pool created with the
+.Sy blake3
+feature enabled, which
+.Sy dedup Ns = Ns Sy on
+and
+.Sy dedup Ns = Ns Sy verify
+use on that pool from then on
+.Po see
+.Sy dedup
+in
+.Xr zfsprops 7
+.Pc :
+.Sy 0
+for
+.Sy blake3 ,
+.Sy 1
+for
+.Sy sha256 .
+Other values mean 0.
+It is read only when a pool is created: changing it, or importing the pool
+on another system, does not change the checksum of an existing pool.
+A pool created with the
+.Sy blake3
+feature disabled always uses
+.Sy sha256 .
 .
 .It Sy zfs_dedup_prefetch Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Enable prefetching dedup-ed blocks which are going to be freed.
