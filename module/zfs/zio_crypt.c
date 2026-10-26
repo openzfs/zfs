@@ -1575,14 +1575,8 @@ zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
 
 		ret = qat_crypt((encrypt) ? QAT_ENCRYPT : QAT_DECRYPT, srcbuf,
 		    dstbuf, NULL, 0, iv, mac, ckey, key->zk_crypt, datalen);
-		if (ret == CPA_STATUS_SUCCESS) {
-			if (locked) {
-				rw_exit(&key->zk_salt_lock);
-				locked = B_FALSE;
-			}
-
-			return (0);
-		}
+		if (ret == CPA_STATUS_SUCCESS)
+			goto out;
 		/* If the hardware implementation fails fall back to software */
 	}
 
@@ -1603,12 +1597,14 @@ zio_do_crypt_data(boolean_t encrypt, zio_crypt_key_t *key,
 	if (ret != 0)
 		goto error;
 
+out:
 	if (locked) {
 		rw_exit(&key->zk_salt_lock);
 	}
 
 	if (authbuf != NULL)
 		zio_buf_free(authbuf, datalen);
+	/* followed by a call, so that it is not a dead store */
 	if (ckey == &tmp_ckey)
 		memset(enc_keydata, 0, ci->ci_keylen);
 
