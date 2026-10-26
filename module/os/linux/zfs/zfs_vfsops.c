@@ -118,6 +118,7 @@ atime_changed_cb(void *arg, uint64_t newval)
 
 	if (sb == NULL)
 		return;
+	zfsvfs->z_vfs->vfs_atime = newval;
 	/*
 	 * Update SB_NOATIME bit in VFS super block.  Since atime update is
 	 * determined by atime_needs_update(), atime_needs_update() needs to
@@ -267,8 +268,10 @@ zfs_register_callbacks(vfs_t *vfsp)
 	objset_t *os = NULL;
 	zfsvfs_t *zfsvfs = NULL;
 	int error = 0;
+	boolean_t atime;
 
 	ASSERT(vfsp);
+	atime = vfsp->vfs_atime;
 	zfsvfs = vfsp->vfs_data;
 	ASSERT(zfsvfs);
 	os = zfsvfs->z_os;
@@ -340,7 +343,7 @@ zfs_register_callbacks(vfs_t *vfsp)
 	if (vfsp->vfs_do_xattr)
 		xattr_changed_cb(zfsvfs, vfsp->vfs_xattr);
 	if (vfsp->vfs_do_atime)
-		atime_changed_cb(zfsvfs, vfsp->vfs_atime);
+		atime_changed_cb(zfsvfs, atime);
 	if (vfsp->vfs_do_relatime)
 		relatime_changed_cb(zfsvfs, vfsp->vfs_relatime);
 	if (vfsp->vfs_do_nbmand)
@@ -1522,6 +1525,7 @@ zfs_domount(struct super_block *sb, const char *osname,
 	error = zfs_root(zfsvfs, &root_inode);
 	if (error) {
 		/* Caller still owns vfs_t; detach before zfs_umount(). */
+		zfs_unregister_callbacks(zfsvfs);
 		zfsvfs->z_vfs = NULL;
 		(void) zfs_umount(sb);
 		zfsvfs = NULL; /* avoid double-free; first in zfs_umount */
@@ -1532,6 +1536,7 @@ zfs_domount(struct super_block *sb, const char *osname,
 	sb->s_root = d_make_root(root_inode);
 	if (sb->s_root == NULL) {
 		/* Caller still owns vfs_t; detach before zfs_umount(). */
+		zfs_unregister_callbacks(zfsvfs);
 		zfsvfs->z_vfs = NULL;
 		(void) zfs_umount(sb);
 		zfsvfs = NULL; /* avoid double-free; first in zfs_umount */
@@ -1551,6 +1556,7 @@ out:
 			 * the mount options vfs_t. Remove them from zfsvfs
 			 * so we don't try to free them.
 			 */
+			zfs_unregister_callbacks(zfsvfs);
 			zfsvfs->z_vfs = NULL;
 
 			dmu_objset_disown(zfsvfs->z_os, B_TRUE, zfsvfs);
