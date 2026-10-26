@@ -16,7 +16,8 @@
 
 /*
  * Race fallocate() against a 128 KiB O_DIRECT append and check that
- * the file keeps the appended block.
+ * the file keeps the appended block.  With -b the append is a buffered
+ * write instead.
  *
  * Exit 0 if every round kept it, 1 if any round lost it, 4 if
  * fallocate() fails with EOPNOTSUPP, and 2 on any other error.
@@ -49,7 +50,7 @@ typedef struct falloc_arg {
 static __attribute__((noreturn)) void
 usage(void)
 {
-	(void) fprintf(stderr, "usage: dio_append_fallocate "
+	(void) fprintf(stderr, "usage: dio_append_fallocate [-b] "
 	    "<extend|punch|zero> <file> <rounds>\n");
 	exit(2);
 }
@@ -77,22 +78,36 @@ main(int argc, char **argv)
 	long rounds, lost = 0, first = 0;
 	off_t sz, first_size = 0, first_want = 0;
 	ssize_t n;
-	int fd, dfd, mode, rc;
+	const char *how = "O_DIRECT";
+	int fd, dfd, mode, rc, c, oflags = O_RDWR | O_DIRECT;
 
-	if (argc != 4)
+	while ((c = getopt(argc, argv, "b")) != -1) {
+		switch (c) {
+		case 'b':
+			oflags = O_RDWR;
+			how = "buffered";
+			break;
+		default:
+			usage();
+		}
+	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc != 3)
 		usage();
-	if (strcmp(argv[1], "extend") == 0)
+	if (strcmp(argv[0], "extend") == 0)
 		mode = 0;
-	else if (strcmp(argv[1], "punch") == 0)
+	else if (strcmp(argv[0], "punch") == 0)
 		mode = FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE;
-	else if (strcmp(argv[1], "zero") == 0)
+	else if (strcmp(argv[0], "zero") == 0)
 		mode = FALLOC_FL_ZERO_RANGE | FALLOC_FL_KEEP_SIZE;
 	else
 		usage();
-	path = argv[2];
+	path = argv[1];
 	errno = 0;
-	rounds = strtol(argv[3], &end, 10);
-	if (errno != 0 || end == argv[3] || *end != '\0' ||
+	rounds = strtol(argv[2], &end, 10);
+	if (errno != 0 || end == argv[2] || *end != '\0' ||
 	    rounds < 1)
 		usage();
 
@@ -118,9 +133,9 @@ main(int argc, char **argv)
 			err(2, "fstat %s", path);
 		sz = st.st_size;
 
-		dfd = open(path, O_RDWR | O_DIRECT);
+		dfd = open(path, oflags);
 		if (dfd == -1)
-			err(2, "open %s O_DIRECT", path);
+			err(2, "open %s %s", path, how);
 
 		fa.fa_fd = fd;
 		fa.fa_mode = mode;
@@ -140,9 +155,9 @@ main(int argc, char **argv)
 		}
 		n = pwrite(dfd, buf, BLKSZ, sz);
 		if (n == -1)
-			err(2, "O_DIRECT write %s", path);
+			err(2, "%s write %s", how, path);
 		if (n != BLKSZ)
-			errx(2, "short O_DIRECT write to %s", path);
+			errx(2, "short %s write to %s", how, path);
 		rc = pthread_join(tid, NULL);
 		if (rc != 0) {
 			errno = rc;
@@ -152,10 +167,10 @@ main(int argc, char **argv)
 		if (fa.fa_ret == -1) {
 			errno = fa.fa_errno;
 			if (errno == EOPNOTSUPP) {
-				warn("fallocate %s", argv[1]);
+				warn("fallocate %s", argv[0]);
 				exit(4);
 			}
-			err(2, "fallocate %s", argv[1]);
+			err(2, "fallocate %s", argv[0]);
 		}
 
 		if (fstat(fd, &st) == -1)
@@ -174,8 +189,8 @@ main(int argc, char **argv)
 	}
 	free(buf);
 
-	(void) printf("%s: %ld of %ld rounds lost the appended block",
-	    argv[1], lost, rounds);
+	(void) printf("%s %s: %ld of %ld rounds lost the appended block",
+	    how, argv[0], lost, rounds);
 	if (lost == 0) {
 		(void) printf("\n");
 		return (0);
