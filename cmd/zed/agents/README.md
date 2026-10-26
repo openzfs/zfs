@@ -97,7 +97,7 @@ in the pool.
 * The FMD modules are called one at a time from a single thread that
   consumes events queued to the modules. These events are sourced from
   the normal ZED events and also include events posted from the diagnosis
-  engine and the libudev disk event monitor.
+  engine, the libudev disk event monitor and expired module timers.
 
 * The FMD code modules have minimal changes and were intentionally left
   as similar as possible to their upstream source files.
