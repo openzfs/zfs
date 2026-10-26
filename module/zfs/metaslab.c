@@ -2710,11 +2710,17 @@ metaslab_load_impl(metaslab_t *msp)
 	 * because the old weight does not take into account the
 	 * consolidation of adjacent segments between TXGs. [see
 	 * comment for ms_synchist and ms_deferhist[] for more info]
+	 *
+	 * A pool that is not writeable does not load the unflushed
+	 * changes of its log space maps (see spa_ld_log_sm_data()), while
+	 * the old weight came from a histogram that includes them, so the
+	 * new weight can then be lower.
 	 */
 	uint64_t weight = msp->ms_weight;
 	uint64_t max_size = msp->ms_max_size;
 	metaslab_recalculate_weight_and_sort(msp);
-	if (!WEIGHT_IS_SPACEBASED(weight))
+	if (!WEIGHT_IS_SPACEBASED(weight) && (spa_writeable(spa) ||
+	    !spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP)))
 		ASSERT3U(weight, <=, msp->ms_weight);
 	msp->ms_max_size = metaslab_largest_allocatable(msp);
 	ASSERT3U(max_size, <=, msp->ms_max_size);

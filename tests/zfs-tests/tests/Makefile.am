@@ -1868,6 +1868,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/log_spacemap/log_spacemap_flushall.ksh \
 	functional/log_spacemap/log_spacemap_import_logs.ksh \
 	functional/log_spacemap/log_spacemap_verify_weight.ksh \
+	functional/log_spacemap/log_spacemap_zdb_unflushed.ksh \
 	functional/migration/cleanup.ksh \
 	functional/migration/migration_001_pos.ksh \
 	functional/migration/migration_002_pos.ksh \
