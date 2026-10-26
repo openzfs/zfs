@@ -859,8 +859,8 @@ tests = ['migration_001_pos', 'migration_002_pos', 'migration_003_pos',
 tags = ['functional', 'migration']
 
 [tests/functional/mmap]
-tests = ['mmap_mixed', 'mmap_read_001_pos', 'mmap_seek_001_pos',
-    'mmap_write_001_pos', 'mmap_ftruncate',
+tests = ['mmap_flush_teardown', 'mmap_mixed', 'mmap_read_001_pos',
+    'mmap_seek_001_pos', 'mmap_write_001_pos', 'mmap_ftruncate',
     'mmap_read_truncate', 'mmap_eof_extend']
 tags = ['functional', 'mmap']
 
