@@ -61,7 +61,7 @@ function try_pool_import # pool opts message
 
 function mmp_set_hostid
 {
-	typeset hostid=$1
+	typeset hostid=${1#0x}
 
 	zgenhostid $1
 
