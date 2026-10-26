@@ -54,10 +54,10 @@ function cleanup
 	default_cleanup_noexit
 	log_must rm -rf $DISKDIR
 
-	# reset REMOVE_MAX_SEGMENT to 1M
-	set_tunable32 REMOVE_MAX_SEGMENT 1048576
+	set_tunable32 REMOVE_MAX_SEGMENT $saved_max_segment
 }
 
+typeset saved_max_segment=$(get_tunable REMOVE_MAX_SEGMENT)
 log_onexit cleanup
 
 # set REMOVE_MAX_SEGMENT to 32k
