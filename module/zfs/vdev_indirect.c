@@ -353,24 +353,30 @@ spa_vdev_indirect_mark_obsolete(spa_t *spa, uint64_t vdev_id, uint64_t offset,
 	vdev_indirect_mark_obsolete(vd, offset, size);
 }
 
-static spa_condensing_indirect_t *
-spa_condensing_indirect_create(spa_t *spa)
+static int
+spa_condensing_indirect_create(spa_t *spa, spa_condensing_indirect_t **sci_out)
 {
 	spa_condensing_indirect_phys_t *scip =
 	    &spa->spa_condensing_indirect_phys;
-	spa_condensing_indirect_t *sci = kmem_zalloc(sizeof (*sci), KM_SLEEP);
-	objset_t *mos = spa->spa_meta_objset;
+	vdev_indirect_mapping_t *vim;
+	spa_condensing_indirect_t *sci;
+	int error;
 
+	error = vdev_indirect_mapping_open(spa->spa_meta_objset,
+	    scip->scip_next_mapping_object, &vim);
+	if (error != 0)
+		return (error);
+
+	sci = kmem_zalloc(sizeof (*sci), KM_SLEEP);
 	for (int i = 0; i < TXG_SIZE; i++) {
 		list_create(&sci->sci_new_mapping_entries[i],
 		    sizeof (vdev_indirect_mapping_entry_t),
 		    offsetof(vdev_indirect_mapping_entry_t, vime_node));
 	}
+	sci->sci_new_mapping = vim;
 
-	sci->sci_new_mapping =
-	    vdev_indirect_mapping_open(mos, scip->scip_next_mapping_object);
-
-	return (sci);
+	*sci_out = sci;
+	return (0);
 }
 
 static void
@@ -789,7 +795,8 @@ spa_condense_indirect_start_sync(vdev_t *vd, dmu_tx_t *tx)
 	    sizeof (*scip) / sizeof (uint64_t), scip, tx));
 
 	ASSERT0P(spa->spa_condensing_indirect);
-	spa->spa_condensing_indirect = spa_condensing_indirect_create(spa);
+	VERIFY0(spa_condensing_indirect_create(spa,
+	    &spa->spa_condensing_indirect));
 
 	zfs_dbgmsg("starting condense of vdev %llu in txg %llu: "
 	    "posm=%llu nm=%llu",
@@ -855,10 +862,10 @@ spa_condense_init(spa_t *spa)
 	    &spa->spa_condensing_indirect_phys);
 	if (error == 0) {
 		if (spa_writeable(spa)) {
-			spa->spa_condensing_indirect =
-			    spa_condensing_indirect_create(spa);
+			error = spa_condensing_indirect_create(spa,
+			    &spa->spa_condensing_indirect);
 		}
-		return (0);
+		return (error);
 	} else if (error == ENOENT) {
 		return (0);
 	} else {

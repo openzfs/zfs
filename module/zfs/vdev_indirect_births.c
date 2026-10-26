@@ -94,27 +94,44 @@ vdev_indirect_births_alloc(objset_t *os, dmu_tx_t *tx)
 	    tx));
 }
 
-vdev_indirect_births_t *
-vdev_indirect_births_open(objset_t *os, uint64_t births_object)
+/*
+ * Open the births object.  The object is on disk, so it may be unreadable:
+ * return the error, with nothing left held or allocated.
+ */
+int
+vdev_indirect_births_open(objset_t *os, uint64_t births_object,
+    vdev_indirect_births_t **vibp)
 {
 	vdev_indirect_births_t *vib = kmem_zalloc(sizeof (*vib), KM_SLEEP);
+	int error;
 
 	vib->vib_objset = os;
 	vib->vib_object = births_object;
 
-	VERIFY0(dmu_bonus_hold(os, vib->vib_object, vib, &vib->vib_dbuf));
+	error = dmu_bonus_hold(os, vib->vib_object, vib, &vib->vib_dbuf);
+	if (error != 0) {
+		kmem_free(vib, sizeof (*vib));
+		return (error);
+	}
 	vib->vib_phys = vib->vib_dbuf->db_data;
 
 	if (vib->vib_phys->vib_count > 0) {
 		uint64_t births_size = vdev_indirect_births_size_impl(vib);
 		vib->vib_entries = vmem_alloc(births_size, KM_SLEEP);
-		VERIFY0(dmu_read(vib->vib_objset, vib->vib_object, 0,
-		    births_size, vib->vib_entries, DMU_READ_PREFETCH));
+		error = dmu_read(vib->vib_objset, vib->vib_object, 0,
+		    births_size, vib->vib_entries, DMU_READ_PREFETCH);
+		if (error != 0) {
+			vmem_free(vib->vib_entries, births_size);
+			dmu_buf_rele(vib->vib_dbuf, vib);
+			kmem_free(vib, sizeof (*vib));
+			return (error);
+		}
 	}
 
 	ASSERT(vdev_indirect_births_verify(vib));
 
-	return (vib);
+	*vibp = vib;
+	return (0);
 }
 
 void

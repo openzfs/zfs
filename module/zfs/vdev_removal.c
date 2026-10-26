@@ -469,11 +469,11 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 	}
 
 	vic->vic_mapping_object = vdev_indirect_mapping_alloc(mos, tx);
-	vd->vdev_indirect_mapping =
-	    vdev_indirect_mapping_open(mos, vic->vic_mapping_object);
+	VERIFY0(vdev_indirect_mapping_open(mos, vic->vic_mapping_object,
+	    &vd->vdev_indirect_mapping));
 	vic->vic_births_object = vdev_indirect_births_alloc(mos, tx);
-	vd->vdev_indirect_births =
-	    vdev_indirect_births_open(mos, vic->vic_births_object);
+	VERIFY0(vdev_indirect_births_open(mos, vic->vic_births_object,
+	    &vd->vdev_indirect_births));
 	spa->spa_removing_phys.sr_removing_vdev = vd->vdev_id;
 	spa->spa_removing_phys.sr_start_time = gethrestime_sec();
 	spa->spa_removing_phys.sr_end_time = 0;
@@ -562,6 +562,34 @@ vdev_remove_initiate_sync(void *arg, dmu_tx_t *tx)
 }
 
 /*
+ * Open the mapping and births objects of a removing or indirect vdev.
+ * vdev_free() expects both or neither, so on error neither is left open.
+ */
+static int
+spa_remove_open_mapping(spa_t *spa, vdev_t *vd)
+{
+	vdev_indirect_config_t *vic = &vd->vdev_indirect_config;
+	int error;
+
+	ASSERT0P(vd->vdev_indirect_mapping);
+	ASSERT0P(vd->vdev_indirect_births);
+
+	error = vdev_indirect_mapping_open(spa->spa_meta_objset,
+	    vic->vic_mapping_object, &vd->vdev_indirect_mapping);
+	if (error != 0)
+		return (error);
+
+	error = vdev_indirect_births_open(spa->spa_meta_objset,
+	    vic->vic_births_object, &vd->vdev_indirect_births);
+	if (error != 0) {
+		vdev_indirect_mapping_close(vd->vdev_indirect_mapping);
+		vd->vdev_indirect_mapping = NULL;
+	}
+
+	return (error);
+}
+
+/*
  * When we are opening a pool, we must read the mapping for each
  * indirect vdev in order from most recently removed to least
  * recently removed.  We do this because the blocks for the mapping
@@ -601,25 +629,20 @@ spa_remove_init(spa_t *spa)
 		vdev_t *vd = vdev_lookup_top(spa,
 		    spa->spa_removing_phys.sr_removing_vdev);
 
-		if (vd == NULL) {
+		if (vd == NULL || !vdev_is_concrete(vd) || !vd->vdev_removing) {
 			spa_config_exit(spa, SCL_STATE, FTAG);
-			return (EINVAL);
+			return (SET_ERROR(EINVAL));
 		}
 
-		vdev_indirect_config_t *vic = &vd->vdev_indirect_config;
-
-		ASSERT(vdev_is_concrete(vd));
-		spa_vdev_removal_t *svr = spa_vdev_removal_create(vd);
-		ASSERT3U(svr->svr_vdev_id, ==, vd->vdev_id);
-		ASSERT(vd->vdev_removing);
-
-		vd->vdev_indirect_mapping = vdev_indirect_mapping_open(
-		    spa->spa_meta_objset, vic->vic_mapping_object);
-		vd->vdev_indirect_births = vdev_indirect_births_open(
-		    spa->spa_meta_objset, vic->vic_births_object);
+		error = spa_remove_open_mapping(spa, vd);
+		if (error == 0) {
+			spa_vdev_removal_t *svr = spa_vdev_removal_create(vd);
+			ASSERT3U(svr->svr_vdev_id, ==, vd->vdev_id);
+			spa->spa_vdev_removal = svr;
+		}
 		spa_config_exit(spa, SCL_STATE, FTAG);
-
-		spa->spa_vdev_removal = svr;
+		if (error != 0)
+			return (error);
 	}
 
 	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
@@ -627,17 +650,29 @@ spa_remove_init(spa_t *spa)
 	    spa->spa_removing_phys.sr_prev_indirect_vdev;
 	while (indirect_vdev_id != UINT64_MAX) {
 		vdev_t *vd = vdev_lookup_top(spa, indirect_vdev_id);
+
+		/*
+		 * The list comes from the pool, so it may name a vdev that
+		 * is missing or not indirect, or come back to one already
+		 * opened.
+		 */
+		if (vd == NULL || vd->vdev_ops != &vdev_indirect_ops ||
+		    vd->vdev_indirect_mapping != NULL) {
+			error = SET_ERROR(EINVAL);
+			break;
+		}
+
 		vdev_indirect_config_t *vic = &vd->vdev_indirect_config;
 
-		ASSERT3P(vd->vdev_ops, ==, &vdev_indirect_ops);
-		vd->vdev_indirect_mapping = vdev_indirect_mapping_open(
-		    spa->spa_meta_objset, vic->vic_mapping_object);
-		vd->vdev_indirect_births = vdev_indirect_births_open(
-		    spa->spa_meta_objset, vic->vic_births_object);
+		error = spa_remove_open_mapping(spa, vd);
+		if (error != 0)
+			break;
 
 		indirect_vdev_id = vic->vic_prev_indirect_vdev;
 	}
 	spa_config_exit(spa, SCL_STATE, FTAG);
+	if (error != 0)
+		return (error);
 
 	/*
 	 * Now that we've loaded all the indirect mappings, we can allow
@@ -2618,6 +2653,11 @@ spa_removal_get_stats(spa_t *spa, pool_removal_stat_t *prs)
 	prs->prs_copied = spa->spa_removing_phys.sr_copied;
 
 	prs->prs_mapping_memory = 0;
+
+	/* The mappings are not open if the pool failed to load them. */
+	if (!spa->spa_indirect_vdevs_loaded)
+		return (0);
+
 	uint64_t indirect_vdev_id =
 	    spa->spa_removing_phys.sr_prev_indirect_vdev;
 	while (indirect_vdev_id != -1) {

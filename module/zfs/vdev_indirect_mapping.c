@@ -337,18 +337,31 @@ vdev_indirect_mapping_alloc(objset_t *os, dmu_tx_t *tx)
 }
 
 
-vdev_indirect_mapping_t *
-vdev_indirect_mapping_open(objset_t *os, uint64_t mapping_object)
+/*
+ * Open the mapping object.  The object is on disk, so it may be unreadable:
+ * return the error, with nothing left held or allocated.
+ */
+int
+vdev_indirect_mapping_open(objset_t *os, uint64_t mapping_object,
+    vdev_indirect_mapping_t **vimp)
 {
-	vdev_indirect_mapping_t *vim = kmem_zalloc(sizeof (*vim), KM_SLEEP);
+	vdev_indirect_mapping_t *vim;
 	dmu_object_info_t doi;
-	VERIFY0(dmu_object_info(os, mapping_object, &doi));
+	int error;
 
+	error = dmu_object_info(os, mapping_object, &doi);
+	if (error != 0)
+		return (error);
+
+	vim = kmem_zalloc(sizeof (*vim), KM_SLEEP);
 	vim->vim_objset = os;
 	vim->vim_object = mapping_object;
 
-	VERIFY0(dmu_bonus_hold(os, vim->vim_object, vim,
-	    &vim->vim_dbuf));
+	error = dmu_bonus_hold(os, vim->vim_object, vim, &vim->vim_dbuf);
+	if (error != 0) {
+		kmem_free(vim, sizeof (*vim));
+		return (error);
+	}
 	vim->vim_phys = vim->vim_dbuf->db_data;
 
 	vim->vim_havecounts =
@@ -357,19 +370,28 @@ vdev_indirect_mapping_open(objset_t *os, uint64_t mapping_object)
 	if (vim->vim_phys->vimp_num_entries > 0) {
 		uint64_t map_size = vdev_indirect_mapping_size(vim);
 		vim->vim_entries = vmem_alloc(map_size, KM_SLEEP);
-		VERIFY0(dmu_read(os, vim->vim_object, 0, map_size,
-		    vim->vim_entries, DMU_READ_PREFETCH));
+		error = dmu_read(os, vim->vim_object, 0, map_size,
+		    vim->vim_entries, DMU_READ_PREFETCH);
+		if (error != 0) {
+			vmem_free(vim->vim_entries, map_size);
+			dmu_buf_rele(vim->vim_dbuf, vim);
+			kmem_free(vim, sizeof (*vim));
+			return (error);
+		}
 	}
 
 	ASSERT(vdev_indirect_mapping_verify(vim));
 
-	return (vim);
+	*vimp = vim;
+	return (0);
 }
 
 void
 vdev_indirect_mapping_free(objset_t *os, uint64_t object, dmu_tx_t *tx)
 {
-	vdev_indirect_mapping_t *vim = vdev_indirect_mapping_open(os, object);
+	vdev_indirect_mapping_t *vim;
+
+	VERIFY0(vdev_indirect_mapping_open(os, object, &vim));
 	if (vim->vim_havecounts) {
 		VERIFY0(dmu_object_free(os, vim->vim_phys->vimp_counts_object,
 		    tx));
