@@ -86,6 +86,7 @@ function default_degrade
 	do_setup
 
 	log_must mkfile $FILESIZE $FILEPATH
+	log_must zpool sync $POOL
 	log_must zinject -a -t data -e checksum -T read -f 100 $FILEPATH
 
 	blk=0
@@ -107,6 +108,7 @@ function checksum_t_no_degrade
 
 	log_must zpool set checksum_t=1 $POOL $VDEV
 	log_must mkfile $FILESIZE $FILEPATH
+	log_must zpool sync $POOL
 	log_must zinject -a -t data -e checksum -T read -f 100 $FILEPATH
 
 	blk=0
@@ -129,6 +131,7 @@ function checksum_n_degrade
 
 	log_must zpool set checksum_n=1 $POOL $VDEV
 	log_must mkfile $FILESIZE $FILEPATH
+	log_must zpool sync $POOL
 	log_must zinject -a -t data -e checksum -T read -f 100 $FILEPATH
 
 	dd if=$FILEPATH of=/dev/null bs=1 count=1 2>/dev/null
