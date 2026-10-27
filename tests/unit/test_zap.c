@@ -17,6 +17,7 @@
 #include <stdbool.h>
 
 #include <sys/zap.h>
+#include <sys/u8_textprep.h>
 #include <sys/btree.h>
 typedef struct spa spa_t;	/* forward decl for zap_impl.h */
 #include <sys/zap_impl.h>
@@ -1590,6 +1591,107 @@ static const MunitParameterEnum zap_type_params[] = {
 #define	UNIT_TEST_ZAP_TYPES(name, func)	\
 	UNIT_TEST(name, func, zap_type_params)
 
+static MunitResult
+test_norm_compare_bounds(const MunitParameter params[], void *arg)
+{
+	(void) params;
+	(void) arg;
+	struct {
+		const char *left;
+		const char *right;
+		size_t length;
+		int result;
+		int error;
+	} pairs[] = {
+		{ "a", "\xff", 0, -1, EILSEQ },
+		{ "\xff", "", 0, 1, 0 },
+		{ "", "\xff", 0, -1, 0 },
+		{ "\xc3", "\xff", 1, -1, EILSEQ },
+		{ "\xff", "\xc3", 1, 1, EINVAL },
+		{ "\xc3\xa9", "", 1, 1, 0 },
+		{ "a", "\xc3\xa9", 1, -1, EINVAL },
+	};
+	int forms[] = { U8_STRCMP_NFD, U8_STRCMP_NFC,
+	    U8_STRCMP_NFKD, U8_STRCMP_NFKC };
+	for (int i = 0; i < ARRAY_SIZE(pairs); i++) {
+		for (int j = 0; j < ARRAY_SIZE(forms); j++) {
+			int error = 0;
+			int result = u8_strcmp(pairs[i].left, pairs[i].right,
+			    pairs[i].length, forms[j] | U8_STRCMP_CI_UPPER,
+			    U8_UNICODE_LATEST, &error);
+			unit_eq((result > 0) - (result < 0), pairs[i].result);
+			unit_eq(error, pairs[i].error);
+		}
+	}
+	int decomposed[] = { U8_STRCMP_NFD, U8_STRCMP_NFKD };
+	for (int i = 0; i < ARRAY_SIZE(decomposed); i++) {
+		int error = 0;
+		int result = u8_strcmp("\xc3\xa9", "e\xcc\x81", 2,
+		    decomposed[i] | U8_STRCMP_CI_UPPER,
+		    U8_UNICODE_LATEST, &error);
+		unit_gt(result, 0);
+		unit_eq(error, EINVAL);
+	}
+	return (MUNIT_OK);
+}
+
+static MunitResult
+test_norm_compare(const MunitParameter params[], void *arg)
+{
+	(void) params;
+	(void) arg;
+	struct {
+		const char *left;
+		const char *right;
+		int form;
+	} pairs[] = {
+		{ "o\xef\xac\x83" "ce", "office", U8_STRCMP_NFKD },
+		{ "o\xef\xac\x83" "ce", "office", U8_STRCMP_NFKC },
+		{ "\xc7\xb0", "j\xcc\x8c", U8_STRCMP_NFD },
+		{ "\xc7\xb0", "j\xcc\x8c", U8_STRCMP_NFC },
+		{ "\xc7\xb0", "j\xcc\x8c", U8_STRCMP_NFKD },
+		{ "\xc7\xb0", "j\xcc\x8c", U8_STRCMP_NFKC },
+	};
+	int cases[] = { U8_STRCMP_CS, U8_STRCMP_CI_UPPER };
+
+	for (int i = 0; i < ARRAY_SIZE(pairs); i++) {
+		for (int j = 0; j < ARRAY_SIZE(cases); j++) {
+			char left[128];
+			char right[128];
+			int flags = pairs[i].form |
+			    (cases[j] & U8_STRCMP_CI_UPPER);
+			for (int k = 0; k < 2; k++) {
+				const char *input = k ?
+				    pairs[i].right : pairs[i].left;
+				char *output = k ? right : left;
+				size_t in = strlen(input);
+				size_t out = sizeof (left) - 1;
+				int error = 0;
+				unit_ne(u8_textprep_str((char *)input, &in,
+				    output, &out, flags, U8_UNICODE_LATEST,
+				    &error), (size_t)-1);
+				unit_zero(error);
+				unit_zero(in);
+				output[sizeof (left) - 1 - out] = '\0';
+			}
+			int expected = strcmp(left, right);
+			expected = (expected > 0) - (expected < 0);
+			int error = 0;
+			int result = u8_strcmp(pairs[i].left, pairs[i].right,
+			    0, pairs[i].form | cases[j],
+			    U8_UNICODE_LATEST, &error);
+			munit_assert_int(error, ==, 0);
+			unit_eq((result > 0) - (result < 0), expected);
+			result = u8_strcmp(pairs[i].right, pairs[i].left,
+			    0, pairs[i].form | cases[j],
+			    U8_UNICODE_LATEST, &error);
+			munit_assert_int(error, ==, 0);
+			unit_eq((result > 0) - (result < 0), -expected);
+		}
+	}
+	return (MUNIT_OK);
+}
+
 static const MunitTest zap_tests[] = {
 	UNIT_TEST("mock_microzap_sanity",	test_mock_microzap_sanity),
 	UNIT_TEST("mock_fatzap_sanity",		test_mock_fatzap_sanity),
@@ -1630,6 +1732,8 @@ static const MunitTest zap_tests[] = {
 	UNIT_TEST_ZAP_TYPES(
 	    "zap_value_search_mask",	test_zap_value_search_mask),
 
+	UNIT_TEST("norm_compare",		test_norm_compare),
+	UNIT_TEST("norm_compare_bounds",	test_norm_compare_bounds),
 	UNIT_TEST("norm_toupper",	test_norm_toupper, zap_type_params),
 	UNIT_TEST("norm_match_case",	test_norm_match_case, zap_type_params),
 	UNIT_TEST("norm_nfc",		test_norm_nfc, zap_type_params),
