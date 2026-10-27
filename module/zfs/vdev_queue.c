@@ -242,8 +242,7 @@ vdev_queue_class_add(vdev_queue_t *vq, zio_t *zio)
 	if (vdev_queue_class_fifo(p)) {
 		list_insert_tail(&vq->vq_class[p].vqc_list, zio);
 		vq->vq_class[p].vqc_list_numnodes++;
-	}
-	else
+	} else
 		avl_add(&vq->vq_class[p].vqc_tree, zio);
 }
 

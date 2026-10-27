@@ -673,8 +673,7 @@ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param,
 	if (gcm_ctx->impl != GCM_IMPL_GENERIC) {
 		rv = gcm_init_avx(gcm_ctx, iv, iv_len, aad, aad_len,
 		    block_size);
-	}
-	else
+	} else
 #endif /* ifdef CAN_USE_GCM_ASM */
 	if (gcm_init(gcm_ctx, iv, iv_len, aad, aad_len, block_size,
 	    encrypt_block, copy_block, xor_block) != CRYPTO_SUCCESS) {
