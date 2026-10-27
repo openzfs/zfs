@@ -181,6 +181,9 @@ sub err_prefix($$) {
 		} else {
 			printf $fmt, $filename, $., $error;
 		}
+		if ($github_workflow) {
+			printf "::error file=%s,line=%s::%s\n", $filename, $., $error;
+		}
 		$err_stat = 1;
 	}
 }
@@ -192,6 +195,9 @@ sub err_prev($) {
 			printf $fmt, $filename, $. - 1, $error, $prev;
 		} else {
 			printf $fmt, $filename, $. - 1, $error;
+		}
+		if ($github_workflow) {
+			printf "::error file=%s,line=%s::%s\n", $filename, $., $error;
 		}
 		$err_stat = 1;
 	}
@@ -705,7 +711,7 @@ line: while (<$filehandle>) {
 			err("non-POSIX typedef $1 used: use $old2posix{$1} instead");
 		}
 	}
-	if (/^\s*else\W/) {
+	if (/^\s*else\b/) {
 		if ($prev =~ /^\s*\}$/) {
 			err_prefix($prev,
 			    "else and right brace should be on same line");
@@ -759,6 +765,7 @@ reset_indent()
 {
 	$cont_in = 0;
 	$cont_off = 0;
+    $cont_noerr = 0;
 }
 
 sub
@@ -950,7 +957,7 @@ process_indent($)
 					$cont_in = 0;
 					last;
 				}
-				if ($rest =~ /^\s*special/) {
+				if ($rest =~ /^\s*$special/) {
 					err("if/for/while/switch not started ".
 					    "on its own line");
 				}
@@ -973,7 +980,7 @@ process_indent($)
 				last;
 			}
 		} elsif (/\:/ && $cont_case && @cont_paren == 0) {
-			err("stuff after multi-line case") if ($rest !~ /$^/);
+			err("stuff after multi-line case") if ($rest !~ /^$/);
 			$cont_in = 0;
 			last;
 		}
