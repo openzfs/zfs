@@ -59,6 +59,8 @@
 #include <sys/dsl_dir.h>
 #include <sys/dmu_objset.h>
 #include <sys/dbuf.h>
+#include <sys/dsl_pool.h>
+#include <sys/dsl_scan.h>
 #include <sys/zfs_znode.h>
 
 #define	NAME_MAX_LEN 64
@@ -189,9 +191,14 @@ spa_log_error(spa_t *spa, const zbookmark_phys_t *zb, const uint64_t birth)
 
 	/*
 	 * If we have had a request to rotate the log, log it to the next list
-	 * instead of the current one.
+	 * instead of the current one. A metascrub only verifies metadata,
+	 * so it never rotates the log; its errors are merged into the
+	 * current list instead of replacing it.
 	 */
-	if (spa->spa_scrub_active || spa->spa_scrub_finished)
+	if (spa->spa_scrub_finished ||
+	    (spa->spa_scrub_active && (spa->spa_dsl_pool == NULL ||
+	    spa->spa_dsl_pool->dp_scan == NULL ||
+	    !dsl_scan_metascrubbing(spa->spa_dsl_pool))))
 		tree = &spa->spa_errlist_scrub;
 	else
 		tree = &spa->spa_errlist_last;
