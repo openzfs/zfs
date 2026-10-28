@@ -1849,7 +1849,7 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 	    dsl_dataset_phys(ds)->ds_prev_snap_txg, tx);
 	dsl_bookmark_snapshotted(ds, tx);
 
-	if (dsl_dataset_remap_deadlist_exists(ds)) {
+	if (dsl_dataset_keep_remap_deadlist(ds, tx)) {
 		uint64_t remap_deadlist_obj =
 		    dsl_dataset_get_remap_deadlist_object(ds);
 		/*
@@ -5250,6 +5250,33 @@ dsl_dataset_destroy_remap_deadlist(dsl_dataset_t *ds, dmu_tx_t *tx)
 	dsl_deadlist_free(spa_meta_objset(spa), remap_deadlist_object, tx);
 	dsl_dataset_unset_remap_deadlist_object(ds, tx);
 	spa_feature_decr(spa, SPA_FEATURE_OBSOLETE_COUNTS, tx);
+}
+
+/*
+ * Return whether ds has a remap deadlist to keep, destroying it if the
+ * pool has no indirect vdev any more (device_removal counts them and a
+ * removal in progress).  A remap deadlist then has no entry: an entry is
+ * a range of an indirect vdev that a snapshot still references, so the
+ * mapping entry that covers it is not obsolete, and neither a condense
+ * nor the retirement of the vdev, which needs an empty mapping, could
+ * have happened.  Destroying it instead of moving or merging it lets
+ * obsolete_counts return to enabled.
+ */
+boolean_t
+dsl_dataset_keep_remap_deadlist(dsl_dataset_t *ds, dmu_tx_t *tx)
+{
+	spa_t *spa = ds->ds_dir->dd_pool->dp_spa;
+
+	ASSERT(dmu_tx_is_syncing(tx));
+
+	if (!dsl_dataset_remap_deadlist_exists(ds))
+		return (B_FALSE);
+	if (spa_feature_is_active(spa, SPA_FEATURE_DEVICE_REMOVAL))
+		return (B_TRUE);
+
+	ASSERT(dsl_deadlist_is_empty(&ds->ds_remap_deadlist));
+	dsl_dataset_destroy_remap_deadlist(ds, tx);
+	return (B_FALSE);
 }
 
 void

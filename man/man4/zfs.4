@@ -16,7 +16,7 @@
 .\" Copyright (c) 2026, Mateusz Piotrowski <0mp@FreeBSD.org>
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd September 9, 2026
+.Dd October 13, 2026
 .Dt ZFS 4
 .Os
 .
@@ -1173,6 +1173,8 @@ of the obsolete space map object is greater than this number of bytes
 .It Sy zfs_condense_min_mapping_bytes Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq u64
 Minimum size vdev mapping to attempt to condense
 .Pq see Sy zfs_condense_indirect_vdevs_enable .
+A smaller mapping is condensed once all of it is obsolete, which leaves it
+without entries.
 .
 .It Sy zfs_dbgmsg_enable Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Internally ZFS keeps a small log to facilitate debugging.
@@ -2321,6 +2323,23 @@ feature is enabled.
 Resilvers are processed by the sync thread.
 While resilvering, it will spend at least this much time
 working on a resilver between TXG flushes.
+.
+.It Sy zfs_retire_indirect_vdevs Ns = Ns Sy 1 Ns | Ns 0 Pq int
+Turn the indirect vdev left by a device removal into a hole once nothing
+refers to it any more, that is, once its mapping has no entries, because the
+removal copied nothing or condensing has dropped them all
+.Pq see Sy zfs_condense_indirect_vdevs_enable .
+Its mapping and other on-disk objects are then freed, and the
+.Sy device_removal
+and
+.Sy obsolete_counts
+features stop counting it.
+This waits while the pool has a checkpoint.
+The limits are described with the
+.Sy device_removal
+feature in
+.Xr zpool-features 7 .
+When unset, such indirect vdevs are kept.
 .
 .It Sy zfs_scan_ignore_errors Ns = Ns Sy 0 Ns | Ns 1 Pq int
 If set, remove the DTL (dirty time list) upon completion of a pool scan (scrub),
