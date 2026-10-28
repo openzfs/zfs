@@ -5858,6 +5858,46 @@ metaslab_unalloc_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 }
 
 /*
+ * Give back part of an allocation made in a txg that has not synced yet,
+ * so that it can be allocated again in that txg.  Unlike
+ * metaslab_unalloc_dva(), this may be called in open context, while the
+ * syncing txg condenses the metaslab with ms_lock dropped; then the range
+ * is left allocated, B_FALSE is returned, and the caller must free it.
+ */
+boolean_t
+metaslab_unalloc_range(vdev_t *vd, uint64_t offset, uint64_t size,
+    uint64_t txg)
+{
+	ASSERT(vdev_is_concrete(vd));
+	ASSERT3U(spa_config_held(vd->vdev_spa, SCL_ALL, RW_READER), !=, 0);
+	VERIFY3U(offset >> vd->vdev_ms_shift, <, vd->vdev_ms_count);
+
+	metaslab_t *msp = vd->vdev_ms[offset >> vd->vdev_ms_shift];
+
+	mutex_enter(&msp->ms_lock);
+	if (msp->ms_condensing) {
+		mutex_exit(&msp->ms_lock);
+		return (B_FALSE);
+	}
+
+	/* Its pending allocations keep the metaslab loaded. */
+	ASSERT(msp->ms_loaded);
+	VERIFY3U(offset, >=, msp->ms_start);
+	VERIFY3U(offset + size, <=, msp->ms_start + msp->ms_size);
+	VERIFY0(P2PHASE(offset, 1ULL << vd->vdev_ashift));
+	VERIFY0(P2PHASE(size, 1ULL << vd->vdev_ashift));
+
+	zfs_range_tree_remove(msp->ms_allocating[txg & TXG_MASK],
+	    offset, size);
+	msp->ms_allocating_total -= size;
+	zfs_range_tree_add(msp->ms_allocatable, offset, size);
+	msp->ms_max_size = metaslab_largest_allocatable(msp);
+	mutex_exit(&msp->ms_lock);
+
+	return (B_TRUE);
+}
+
+/*
  * Free the block represented by the given DVA.
  */
 void
