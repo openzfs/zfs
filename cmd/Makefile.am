@@ -22,7 +22,8 @@ zfs_ids_to_path_SOURCES = \
 	%D%/zfs_ids_to_path.c
 
 zfs_ids_to_path_LDADD = \
-	libzfs.la
+	libzfs.la \
+	libzfs_core.la
 
 
 zhack_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
