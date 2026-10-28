@@ -23,7 +23,7 @@
 .\" OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 .\" WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 .\"
-.Dd November 30, 2021
+.Dd August 9, 2026
 .Dt ZFS-MOUNT-GENERATOR 8
 .Os
 .
@@ -62,7 +62,7 @@ Used to generate mount options equivalent to
 .Nm zfs Cm mount .
 .
 .It Sy encroot Ns = , Sy keylocation Ns =
-If the dataset is an encryption root, its mount unit will bind to
+If the dataset is an encryption root, its mount unit will require
 .Sy zfs-load-key@ Ns Ar root Ns Sy .service ,
 with additional dependencies as follows:
 .Bl -tag -compact -offset Ds -width "keylocation=https://URL (et al.)"
