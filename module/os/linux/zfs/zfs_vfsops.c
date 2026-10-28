@@ -54,6 +54,9 @@
 #include <sys/zpl.h>
 #include <linux/vfs_compat.h>
 #include <linux/fs.h>
+#ifdef HAVE_QUOTACTL_OPS
+#include <linux/quota.h>
+#endif
 #include "zfs_comutil.h"
 
 vfs_t *
@@ -1483,6 +1486,20 @@ zfs_domount(struct super_block *sb, const char *osname,
 	sb->s_op = &zpl_super_operations;
 	sb->s_xattr = zpl_xattr_handlers;
 	sb->s_export_op = &zpl_export_operations;
+#if defined(HAVE_QUOTACTL_OPS) && defined(CONFIG_QUOTA)
+	/*
+	 * Hook up Linux VFS quota control operations and advertise supported
+	 * quota types (user, group, and optional project quotas) so the VFS
+	 * quota layer permits quotactl_fd(2) requests.
+	 */
+	sb->s_qcop = &zpl_quotactl_operations;
+#ifdef HAVE_SUPER_BLOCK_S_QUOTA_TYPES
+	sb->s_quota_types = QTYPE_MASK_USR | QTYPE_MASK_GRP;
+#if defined(QTYPE_MASK_PRJ)
+	sb->s_quota_types |= QTYPE_MASK_PRJ;
+#endif
+#endif
+#endif /* HAVE_QUOTACTL_OPS && CONFIG_QUOTA */
 
 #ifdef HAVE_SET_DEFAULT_D_OP
 	set_default_d_op(sb, &zpl_dentry_operations);

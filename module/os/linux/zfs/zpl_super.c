@@ -22,12 +22,18 @@
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_ctldir.h>
+#include <sys/zfs_quota.h>
+#include <sys/dmu_objset.h>
 #include <sys/zpl.h>
 #include <linux/iversion.h>
 #include <linux/version.h>
 #include <linux/vfs_compat.h>
 #include <linux/fs_context.h>
 #include <linux/fs_parser.h>
+#if defined(HAVE_QUOTACTL_OPS) && defined(CONFIG_QUOTA)
+#include <linux/quota.h>
+#include <linux/quotaops.h>
+#endif
 
 /*
  * What to do when the last reference to an inode is released. If 0, the kernel
@@ -1081,6 +1087,297 @@ zpl_dentry_delete(const struct dentry *dentry)
 const struct dentry_operations zpl_dentry_operations = {
 	.d_delete = zpl_dentry_delete,
 };
+
+#if defined(HAVE_QUOTACTL_OPS) && defined(CONFIG_QUOTA)
+/*
+ * Linux VFS quota operations (sb->s_qcop).
+ *
+ * Because ZFS datasets are not backed by a single block device node,
+ * device-based quotactl(2) cannot resolve a ZFS superblock via lookup_bdev().
+ * Instead, Linux 5.14+ quotactl_fd(2) operates on an open mountpoint file
+ * descriptor and dispatches directly to sb->s_qcop, allowing quota-aware
+ * services such as Samba to query and modify ZFS user, group, and project
+ * quotas through the VFS.
+ */
+
+struct zpl_quota_prop_map {
+	zfs_userquota_prop_t quota_prop;
+	zfs_userquota_prop_t used_prop;
+	zfs_userquota_prop_t objquota_prop;
+	zfs_userquota_prop_t objused_prop;
+};
+
+static const struct zpl_quota_prop_map zpl_quota_maps[MAXQUOTAS] = {
+	[USRQUOTA] = {
+		.quota_prop = ZFS_PROP_USERQUOTA,
+		.used_prop = ZFS_PROP_USERUSED,
+		.objquota_prop = ZFS_PROP_USEROBJQUOTA,
+		.objused_prop = ZFS_PROP_USEROBJUSED,
+	},
+	[GRPQUOTA] = {
+		.quota_prop = ZFS_PROP_GROUPQUOTA,
+		.used_prop = ZFS_PROP_GROUPUSED,
+		.objquota_prop = ZFS_PROP_GROUPOBJQUOTA,
+		.objused_prop = ZFS_PROP_GROUPOBJUSED,
+	},
+	[PRJQUOTA] = {
+		.quota_prop = ZFS_PROP_PROJECTQUOTA,
+		.used_prop = ZFS_PROP_PROJECTUSED,
+		.objquota_prop = ZFS_PROP_PROJECTOBJQUOTA,
+		.objused_prop = ZFS_PROP_PROJECTOBJUSED,
+	},
+};
+
+/*
+ * Translate an internal ZFS error code into an appropriate Linux VFS
+ * quotactl errno. Standard Linux quota consumers expect ENOSYS rather
+ * than ENOTSUP/EOPNOTSUPP when a quota feature is not implemented.
+ */
+static inline int
+zpl_quota_err(int err)
+{
+	if (err == ENOTSUP || err == EOPNOTSUPP)
+		return (ENOSYS);
+	return (err);
+}
+
+static uint64_t
+zpl_default_quota(zfsvfs_t *zfsvfs, enum quota_type type)
+{
+	switch (type) {
+	case USRQUOTA:
+		return (zfsvfs->z_defaultuserquota);
+	case GRPQUOTA:
+		return (zfsvfs->z_defaultgroupquota);
+	case PRJQUOTA:
+		return (zfsvfs->z_defaultprojectquota);
+	default:
+		return (0);
+	}
+}
+
+static uint64_t
+zpl_default_objquota(zfsvfs_t *zfsvfs, enum quota_type type)
+{
+	switch (type) {
+	case USRQUOTA:
+		return (zfsvfs->z_defaultuserobjquota);
+	case GRPQUOTA:
+		return (zfsvfs->z_defaultgroupobjquota);
+	case PRJQUOTA:
+		return (zfsvfs->z_defaultprojectobjquota);
+	default:
+		return (0);
+	}
+}
+
+/*
+ * Fetch a quota limit and current usage from the DMU. If no explicit limit
+ * is configured, fall back to the dataset default if present.
+ */
+static inline int
+zpl_fetch_quota(zfsvfs_t *zfsvfs, zfs_userquota_prop_t qprop,
+    zfs_userquota_prop_t uprop, uint64_t def_q, qid_t id,
+    uint64_t *limit, uint64_t *used)
+{
+	int err;
+
+	if ((err = zfs_userspace_one(zfsvfs, qprop, "", id, limit)) != 0)
+		return (err);
+	if (*limit == 0)
+		*limit = def_q;
+	return (zfs_userspace_one(zfsvfs, uprop, "", id, used));
+}
+
+/*
+ * Retrieve quota limits and current space/inode usage for the given ID.
+ */
+static int
+zpl_get_dqblk(struct super_block *sb, struct kqid qid, struct qc_dqblk *fdq)
+{
+	zfsvfs_t *zfsvfs = sb->s_fs_info;
+	const struct zpl_quota_prop_map *m;
+	fstrans_cookie_t cookie;
+	uint64_t quota = 0;
+	uint64_t used = 0;
+	uint64_t objquota = 0;
+	uint64_t objused = 0;
+	qid_t id;
+	int err;
+
+	if (zfsvfs == NULL || (uint_t)qid.type >= MAXQUOTAS)
+		return (-EINVAL);
+
+	id = from_kqid(sb->s_user_ns, qid);
+	if (id == (qid_t)-1)
+		return (-EINVAL);
+
+	if ((err = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (-err);
+
+	if (zfsvfs->z_replay) {
+		err = ENOENT;
+		goto out;
+	}
+
+	cookie = spl_fstrans_mark();
+	m = &zpl_quota_maps[qid.type];
+
+	err = zpl_fetch_quota(zfsvfs, m->quota_prop, m->used_prop,
+	    zpl_default_quota(zfsvfs, qid.type), id, &quota, &used);
+	if (err != 0) {
+		spl_fstrans_unmark(cookie);
+		goto out;
+	}
+
+	/*
+	 * Inode (object) quota accounting is optional; ignore failure to read
+	 * object quotas so standard block quotas are still reported.
+	 */
+	if (dmu_objset_userobjspace_present(zfsvfs->z_os)) {
+		(void) zpl_fetch_quota(zfsvfs, m->objquota_prop,
+		    m->objused_prop, zpl_default_objquota(zfsvfs, qid.type),
+		    id, &objquota, &objused);
+	}
+	spl_fstrans_unmark(cookie);
+
+out:
+	zfs_exit(zfsvfs, FTAG);
+	if (err != 0)
+		return (-zpl_quota_err(err));
+
+	if ((quota | used | objquota | objused) == 0)
+		return (-ENOENT);
+
+	memset(fdq, 0, sizeof (*fdq));
+	fdq->d_spc_hardlimit = quota;
+	fdq->d_spc_softlimit = quota;
+	fdq->d_space = used;
+	fdq->d_ino_hardlimit = objquota;
+	fdq->d_ino_softlimit = objquota;
+	fdq->d_ino_count = objused;
+
+	return (0);
+}
+
+/*
+ * Set quota limits for the given user, group, or project.
+ */
+static int
+zpl_set_dqblk(struct super_block *sb, struct kqid qid, struct qc_dqblk *fdq)
+{
+	zfsvfs_t *zfsvfs = sb->s_fs_info;
+	const struct zpl_quota_prop_map *m;
+	fstrans_cookie_t cookie;
+	qid_t id;
+	int err = 0;
+
+	if (zfsvfs == NULL || (uint_t)qid.type >= MAXQUOTAS)
+		return (-EINVAL);
+
+	id = from_kqid(sb->s_user_ns, qid);
+	if (id == (qid_t)-1)
+		return (-EINVAL);
+
+	if ((err = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (-err);
+
+	if (zfs_is_readonly(zfsvfs) || dmu_objset_is_snapshot(zfsvfs->z_os) ||
+	    zfsvfs->z_replay) {
+		err = EROFS;
+		goto out;
+	}
+
+	cookie = spl_fstrans_mark();
+	m = &zpl_quota_maps[qid.type];
+
+	if (fdq->d_fieldmask & (QC_SPC_HARD | QC_SPC_SOFT)) {
+		uint64_t quota;
+
+		if (fdq->d_fieldmask & QC_SPC_HARD)
+			quota = fdq->d_spc_hardlimit;
+		else
+			quota = fdq->d_spc_softlimit;
+
+		err = zfs_set_userquota(zfsvfs, m->quota_prop, "", id, quota);
+		if (err != 0) {
+			spl_fstrans_unmark(cookie);
+			goto out;
+		}
+	}
+
+	if (fdq->d_fieldmask & (QC_INO_HARD | QC_INO_SOFT)) {
+		uint64_t objquota;
+
+		if (fdq->d_fieldmask & QC_INO_HARD)
+			objquota = fdq->d_ino_hardlimit;
+		else
+			objquota = fdq->d_ino_softlimit;
+
+		err = zfs_set_userquota(zfsvfs, m->objquota_prop, "", id,
+		    objquota);
+	}
+	spl_fstrans_unmark(cookie);
+
+out:
+	zfs_exit(zfsvfs, FTAG);
+	if (err != 0)
+		return (-zpl_quota_err(err));
+
+	return (0);
+}
+
+/*
+ * Report overall quota enforcement and accounting state for the filesystem.
+ */
+static int
+zpl_get_quota_state(struct super_block *sb, struct qc_state *state)
+{
+	zfsvfs_t *zfsvfs = sb->s_fs_info;
+	int err;
+
+	if (zfsvfs == NULL)
+		return (-EIO);
+
+	if ((err = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (-err);
+
+	memset(state, 0, sizeof (*state));
+
+	if (dmu_objset_userspace_present(zfsvfs->z_os)) {
+		state->s_state[USRQUOTA].flags =
+		    QCI_ACCT_ENABLED | QCI_LIMITS_ENFORCED;
+		state->s_state[GRPQUOTA].flags =
+		    QCI_ACCT_ENABLED | QCI_LIMITS_ENFORCED;
+	}
+
+	if (dmu_objset_projectquota_present(zfsvfs->z_os)) {
+		state->s_state[PRJQUOTA].flags =
+		    QCI_ACCT_ENABLED | QCI_LIMITS_ENFORCED;
+	}
+
+	zfs_exit(zfsvfs, FTAG);
+	return (0);
+}
+
+/*
+ * Flush dirty quota accounting data to disk. For ZFS, syncing the filesystem
+ * commits all outstanding DMU transactions.
+ */
+static int
+zpl_quota_sync(struct super_block *sb, int type)
+{
+	(void) type;
+	return (zpl_sync_fs(sb, 1));
+}
+
+const struct quotactl_ops zpl_quotactl_operations = {
+	.get_dqblk	= zpl_get_dqblk,
+	.set_dqblk	= zpl_set_dqblk,
+	.get_state	= zpl_get_quota_state,
+	.quota_sync	= zpl_quota_sync,
+};
+#endif /* HAVE_QUOTACTL_OPS && CONFIG_QUOTA */
 
 struct file_system_type zpl_fs_type = {
 	.owner			= THIS_MODULE,
