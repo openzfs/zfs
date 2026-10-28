@@ -62,12 +62,6 @@
 #include <sys/cred.h>
 
 /*
- * Needed to close a window in dnode_move() that allows the objset to be freed
- * before it can be safely accessed.
- */
-krwlock_t os_lock;
-
-/*
  * Tunable to overwrite the maximum number of threads for the parallelization
  * of dmu_objset_find_dp, needed to speed up the import of pools with many
  * datasets.
@@ -88,18 +82,6 @@ static void dmu_objset_find_dp_cb(void *arg);
 
 static void dmu_objset_upgrade(objset_t *os, dmu_objset_upgrade_cb_t cb);
 static void dmu_objset_upgrade_stop(objset_t *os);
-
-void
-dmu_objset_init(void)
-{
-	rw_init(&os_lock, NULL, RW_DEFAULT, NULL);
-}
-
-void
-dmu_objset_fini(void)
-{
-	rw_destroy(&os_lock);
-}
 
 spa_t *
 dmu_objset_spa(objset_t *os)
@@ -1031,15 +1013,6 @@ dmu_objset_evict_done(objset_t *os)
 	zil_free(os->os_zil);
 
 	arc_buf_destroy(os->os_phys_buf, &os->os_phys_buf);
-
-	/*
-	 * This is a barrier to prevent the objset from going away in
-	 * dnode_move() until we can safely ensure that the objset is still in
-	 * use. We consider the objset valid before the barrier and invalid
-	 * after the barrier.
-	 */
-	rw_enter(&os_lock, RW_READER);
-	rw_exit(&os_lock);
 
 	kmem_free(os->os_obj_next_percpu,
 	    os->os_obj_next_percpu_len * sizeof (os->os_obj_next_percpu[0]));
@@ -2043,16 +2016,9 @@ userquota_updates_task(void *arg)
 }
 
 /*
- * Release dnode holds from dmu_objset_sync_dnodes().  When the dnode is being
- * synced (i.e. we have issued the zio's for blocks in the dnode), it can't be
- * evicted because the block containing the dnode can't be evicted until it is
- * written out.  However, this hold is necessary to prevent the dnode_t from
- * being moved (via dnode_move()) while it's still referenced by
- * dbuf_dirty_record_t:dr_dnode.  And dr_dnode is needed for
- * dirty_lightweight_leaf-type dirty records.
- *
- * If we are doing user-object accounting, the dnode_rele() happens from
- * userquota_updates_task() instead.
+ * Release the synced-dnode holds after I/O completion, when dn_dirtycnt
+ * can be decremented.  With user accounting enabled, userquota_updates_task()
+ * owns the decrement and release instead.
  */
 static void
 dnode_rele_task(void *arg)

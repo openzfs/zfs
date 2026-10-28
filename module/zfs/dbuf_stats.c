@@ -57,7 +57,7 @@ __dbuf_stats_hash_table_data(char *buf, size_t size, dmu_buf_impl_t *db)
 {
 	arc_buf_info_t abi = { 0 };
 	dmu_object_info_t doi = { 0 };
-	dnode_t *dn = DB_DNODE(db);
+	dnode_t *dn = db->db_dnode;
 	size_t nwritten;
 
 	if (db->db_buf)

@@ -272,7 +272,7 @@ struct dnode {
 	 */
 	krwlock_t dn_struct_rwlock;
 
-	/* Our link on dn_objset->os_dnodes list; protected by os_lock.  */
+	/* Our link on dn_objset->os_dnodes; protected by dn_objset->os_lock. */
 	list_node_t dn_link;
 
 	/* immutable: */
@@ -296,12 +296,11 @@ struct dnode {
 	uint8_t dn_nlevels;
 	uint8_t dn_indblkshift;
 	uint8_t dn_datablkshift;	/* zero if blksz not power of 2! */
-	uint8_t dn_moved;		/* Has this dnode been moved? */
+	uint8_t dn_num_slots;		/* metadnode slots consumed on disk */
 	uint16_t dn_datablkszsec;	/* in 512b sectors */
 	uint32_t dn_datablksz;		/* in bytes */
 	uint64_t dn_maxblkid;
 	uint8_t dn_next_type[TXG_SIZE];
-	uint8_t dn_num_slots;		/* metadnode slots consumed on disk */
 	uint8_t dn_next_nblkptr[TXG_SIZE];
 	uint8_t dn_next_nlevels[TXG_SIZE];
 	uint8_t dn_next_indblkshift[TXG_SIZE];
@@ -311,10 +310,7 @@ struct dnode {
 	uint32_t dn_next_blksz[TXG_SIZE];	/* next block size in bytes */
 	uint64_t dn_next_maxblkid[TXG_SIZE];	/* next maxblkid in bytes */
 
-	/* protected by dn_dbufs_mtx; declared here to fill 32-bit hole */
-	uint32_t dn_dbufs_count;	/* count of dn_dbufs */
-
-	/* protected by os_lock: */
+	/* protected by the owning multilist sublist lock: */
 	multilist_node_t dn_dirty_link[TXG_SIZE]; /* next on dataset's dirty */
 
 	/* protected by dn_mtx: */
@@ -369,25 +365,17 @@ struct dnode {
 };
 
 /*
- * Since AVL already has embedded element counter, use dn_dbufs_count
- * only for dbufs not counted there (bonus buffers) and just add them.
- */
-#define	DN_DBUFS_COUNT(dn)	((dn)->dn_dbufs_count + \
-    avl_numnodes(&(dn)->dn_dbufs))
-
-/*
  * We use this (otherwise unused) bit to indicate if the value of
  * dn_next_maxblkid[txgoff] is valid to use in dnode_sync().
  */
 #define	DMU_NEXT_MAXBLKID_SET		(1ULL << 63)
 
 /*
- * Adds a level of indirection between the dbuf and the dnode to avoid
- * iterating descendent dbufs in dnode_move(). Handles are not allocated
- * individually, but as an array of child dnodes in dnode_hold_impl().
+ * Dnode handles serialize allocation, reclamation, and eviction of the dnodes
+ * in a metadnode block.  They are allocated as an array in dnode_hold_impl().
  */
 typedef struct dnode_handle {
-	/* Protects dnh_dnode from modification by dnode_move(). */
+	/* Protects dnh_dnode from slot allocation and reclamation. */
 	zrlock_t dnh_zrlock;
 	dnode_t *dnh_dnode;
 } dnode_handle_t;
@@ -566,9 +554,7 @@ typedef struct dnode_stats {
 	 * next meta dnode dbuf due to an error from  dmu_object_next().
 	 */
 	kstat_named_t dnode_alloc_next_block;
-	/*
-	 * Statistics for tracking dnodes which have been moved.
-	 */
+	/* Retained for kstat compatibility; dnodes are no longer moved. */
 	kstat_named_t dnode_move_invalid;
 	kstat_named_t dnode_move_recheck1;
 	kstat_named_t dnode_move_recheck2;
@@ -600,13 +586,6 @@ typedef struct dnode_sums {
 	wmsum_t dnode_alloc_next_chunk;
 	wmsum_t dnode_alloc_race;
 	wmsum_t dnode_alloc_next_block;
-	wmsum_t dnode_move_invalid;
-	wmsum_t dnode_move_recheck1;
-	wmsum_t dnode_move_recheck2;
-	wmsum_t dnode_move_special;
-	wmsum_t dnode_move_handle;
-	wmsum_t dnode_move_rwlock;
-	wmsum_t dnode_move_active;
 } dnode_sums_t;
 
 extern dnode_stats_t dnode_stats;

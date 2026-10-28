@@ -730,20 +730,17 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 	boolean_t match_object = B_FALSE;
 	boolean_t match_offset = B_FALSE;
 
-	DB_DNODE_ENTER(db);
-	dnode_t *dn = DB_DNODE(db);
+	dnode_t *dn = db->db_dnode;
 	ASSERT(tx->tx_txg != 0);
 	ASSERT(tx->tx_objset == NULL || dn->dn_objset == tx->tx_objset);
 	ASSERT3U(dn->dn_object, ==, db->db.db_object);
 
 	if (tx->tx_anyobj) {
-		DB_DNODE_EXIT(db);
 		return;
 	}
 
 	/* XXX No checking on the meta dnode for now */
 	if (db->db.db_object == DMU_META_DNODE_OBJECT) {
-		DB_DNODE_EXIT(db);
 		return;
 	}
 
@@ -852,11 +849,9 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
 			}
 		}
 		if (match_object && match_offset) {
-			DB_DNODE_EXIT(db);
 			return;
 		}
 	}
-	DB_DNODE_EXIT(db);
 	panic("dirtying dbuf obj=%llx lvl=%u blkid=%llx but not tx_held\n",
 	    (u_longlong_t)db->db.db_object, db->db_level,
 	    (u_longlong_t)db->db_blkid);
@@ -1651,9 +1646,7 @@ dmu_tx_hold_sa(dmu_tx_t *tx, sa_handle_t *hdl, boolean_t may_grow)
 	object = sa_handle_object(hdl);
 
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)hdl->sa_bonus;
-	DB_DNODE_ENTER(db);
-	dmu_tx_hold_bonus_by_dnode(tx, DB_DNODE(db));
-	DB_DNODE_EXIT(db);
+	dmu_tx_hold_bonus_by_dnode(tx, db->db_dnode);
 
 	if (tx->tx_objset->os_sa->sa_master_obj == 0)
 		return;
@@ -1675,12 +1668,10 @@ dmu_tx_hold_sa(dmu_tx_t *tx, sa_handle_t *hdl, boolean_t may_grow)
 		ASSERT0(tx->tx_txg);
 		dmu_tx_hold_spill(tx, object);
 	} else {
-		DB_DNODE_ENTER(db);
-		if (DB_DNODE(db)->dn_have_spill) {
+		if (db->db_dnode->dn_have_spill) {
 			ASSERT0(tx->tx_txg);
 			dmu_tx_hold_spill(tx, object);
 		}
-		DB_DNODE_EXIT(db);
 	}
 }
 
