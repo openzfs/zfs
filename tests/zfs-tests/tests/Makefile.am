@@ -1961,6 +1961,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/pam/pam_short_password.ksh \
 	functional/pam/setup.ksh \
 	functional/pool_checkpoint/checkpoint_after_rewind.ksh \
+	functional/pool_checkpoint/checkpoint_bclone.ksh \
 	functional/pool_checkpoint/checkpoint_big_rewind.ksh \
 	functional/pool_checkpoint/checkpoint_capacity.ksh \
 	functional/pool_checkpoint/checkpoint_conf_change.ksh \
