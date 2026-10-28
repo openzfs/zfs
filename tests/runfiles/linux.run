@@ -222,7 +222,7 @@ tests = ['defaultprojectquota_001_pos', 'defaultprojectquota_005_pos',
 tags = ['functional', 'projectquota']
 
 [tests/functional/dos_attributes:Linux]
-tests = ['read_dos_attrs_001', 'write_dos_attrs_001']
+tests = ['dos_readonly_open', 'read_dos_attrs_001', 'write_dos_attrs_001']
 tags = ['functional', 'dos_attributes']
 
 [tests/functional/renameat2:Linux]
