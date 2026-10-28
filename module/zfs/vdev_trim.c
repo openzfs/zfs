@@ -18,6 +18,11 @@
  */
 
 #include <sys/spa.h>
+#ifdef _KERNEL
+#include <sys/atomic.h>
+#else
+#include <atomic.h>
+#endif
 #include <sys/spa_impl.h>
 #include <sys/txg.h>
 #include <sys/vdev_impl.h>
@@ -154,14 +159,57 @@ typedef struct trim_args {
 } trim_args_t;
 
 /*
+ * The stop flags are read by metaslab-disable waiters while holding a
+ * different lock from the stop path.
+ */
+static boolean_t
+vdev_trim_stop_requested(vdev_t *vd)
+{
+	return (atomic_cas_32(
+	    (volatile uint32_t *)&vd->vdev_trim_exit_wanted, B_FALSE,
+	    B_FALSE) != B_FALSE);
+}
+
+static void
+vdev_trim_set_stop_requested(vdev_t *vd, boolean_t stop)
+{
+	(void) atomic_swap_32(
+	    (volatile uint32_t *)&vd->vdev_trim_exit_wanted, stop);
+}
+
+static boolean_t
+vdev_autotrim_stop_requested(vdev_t *vd)
+{
+	return (atomic_cas_32(
+	    (volatile uint32_t *)&vd->vdev_autotrim_exit_wanted, B_FALSE,
+	    B_FALSE) != B_FALSE);
+}
+
+static void
+vdev_autotrim_set_stop_requested(vdev_t *vd, boolean_t stop)
+{
+	(void) atomic_swap_32(
+	    (volatile uint32_t *)&vd->vdev_autotrim_exit_wanted, stop);
+}
+
+/*
  * Determines whether a vdev_trim_thread() should be stopped.
  */
 static boolean_t
 vdev_trim_should_stop(vdev_t *vd)
 {
-	return (vd->vdev_trim_exit_wanted || !vdev_writeable(vd) ||
+	return (vdev_trim_stop_requested(vd) || !vdev_writeable(vd) ||
 	    vd->vdev_detached || vd->vdev_top->vdev_removing ||
 	    vd->vdev_top->vdev_rz_expanding);
+}
+
+/*
+ * Called while the metaslab group lock is held.
+ */
+static boolean_t
+vdev_trim_disable_cancel(void *arg)
+{
+	return (vdev_trim_stop_requested(arg));
 }
 
 /*
@@ -170,10 +218,19 @@ vdev_trim_should_stop(vdev_t *vd)
 static boolean_t
 vdev_autotrim_should_stop(vdev_t *tvd)
 {
-	return (tvd->vdev_autotrim_exit_wanted ||
+	return (vdev_autotrim_stop_requested(tvd) ||
 	    !vdev_writeable(tvd) || tvd->vdev_removing ||
 	    tvd->vdev_rz_expanding ||
 	    spa_get_autotrim(tvd->vdev_spa) == SPA_AUTOTRIM_OFF);
+}
+
+/*
+ * Called while the metaslab group lock is held.
+ */
+static boolean_t
+vdev_autotrim_disable_cancel(void *arg)
+{
+	return (vdev_autotrim_stop_requested(arg));
 }
 
 /*
@@ -185,12 +242,12 @@ vdev_autotrim_wait_kick(vdev_t *vd, int num_of_kick)
 {
 	mutex_enter(&vd->vdev_autotrim_lock);
 	for (int i = 0; i < num_of_kick; i++) {
-		if (vd->vdev_autotrim_exit_wanted)
+		if (vdev_autotrim_stop_requested(vd))
 			break;
 		cv_wait_idle(&vd->vdev_autotrim_kick_cv,
 		    &vd->vdev_autotrim_lock);
 	}
-	boolean_t exit_wanted = vd->vdev_autotrim_exit_wanted;
+	boolean_t exit_wanted = vdev_autotrim_stop_requested(vd);
 	mutex_exit(&vd->vdev_autotrim_lock);
 
 	return (exit_wanted);
@@ -923,7 +980,11 @@ vdev_trim_thread(void *arg)
 		}
 
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
-		metaslab_disable(msp);
+		if (!metaslab_disable_cancellable(msp,
+		    vdev_trim_disable_cancel, vd)) {
+			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+			break;
+		}
 
 		/*
 		 * Translating the ranges walks up the vdev tree, so hold the
@@ -931,7 +992,7 @@ vdev_trim_thread(void *arg)
 		 * its parent cleared, while the lock was dropped.
 		 */
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
-		if (vd->vdev_detached) {
+		if (vdev_trim_should_stop(vd)) {
 			metaslab_enable(msp, B_FALSE, B_FALSE);
 			break;
 		}
@@ -971,7 +1032,7 @@ vdev_trim_thread(void *arg)
 	zfs_range_tree_destroy(ta.trim_tree);
 
 	mutex_enter(&vd->vdev_trim_lock);
-	if (!vd->vdev_trim_exit_wanted) {
+	if (!vdev_trim_stop_requested(vd)) {
 		if (vdev_writeable(vd)) {
 			vdev_trim_change_state(vd, VDEV_TRIM_COMPLETE,
 			    vd->vdev_trim_rate, vd->vdev_trim_partial,
@@ -1015,7 +1076,7 @@ vdev_trim(vdev_t *vd, uint64_t rate, boolean_t partial, boolean_t secure)
 	ASSERT(vdev_is_concrete(vd));
 	ASSERT0P(vd->vdev_trim_thread);
 	ASSERT(!vd->vdev_detached);
-	ASSERT(!vd->vdev_trim_exit_wanted);
+	ASSERT(!vdev_trim_stop_requested(vd));
 	ASSERT(!vd->vdev_top->vdev_removing);
 	ASSERT(!vd->vdev_rz_expanding);
 
@@ -1036,7 +1097,7 @@ vdev_trim_stop_wait_impl(vdev_t *vd)
 		cv_wait(&vd->vdev_trim_cv, &vd->vdev_trim_lock);
 
 	ASSERT0P(vd->vdev_trim_thread);
-	vd->vdev_trim_exit_wanted = B_FALSE;
+	vdev_trim_set_stop_requested(vd, B_FALSE);
 }
 
 /*
@@ -1083,7 +1144,13 @@ vdev_trim_stop(vdev_t *vd, vdev_trim_state_t tgt_state, list_t *vd_list)
 		return;
 
 	vdev_trim_change_state(vd, tgt_state, 0, 0, 0);
-	vd->vdev_trim_exit_wanted = B_TRUE;
+	vdev_trim_set_stop_requested(vd, B_TRUE);
+
+	/*
+	 * Wake a thread waiting for a metaslab group slot so it can observe
+	 * the atomic stop flag.
+	 */
+	metaslab_wakeup_waiters(vd);
 
 	if (vd_list == NULL) {
 		vdev_trim_stop_wait_impl(vd);
@@ -1274,8 +1341,17 @@ vdev_autotrim_thread(void *arg)
 			boolean_t wait_aborted = B_FALSE;
 
 			spa_config_exit(spa, SCL_CONFIG, FTAG);
-			metaslab_disable(msp);
+			if (!metaslab_disable_cancellable(msp,
+			    vdev_autotrim_disable_cancel, vd)) {
+				spa_config_enter(spa, SCL_CONFIG, FTAG,
+				    RW_READER);
+				break;
+			}
 			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+			if (vdev_autotrim_should_stop(vd)) {
+				metaslab_enable(msp, B_FALSE, B_FALSE);
+				break;
+			}
 
 			mutex_enter(&msp->ms_lock);
 
@@ -1537,13 +1613,17 @@ vdev_autotrim_stop_wait(vdev_t *tvd)
 {
 	mutex_enter(&tvd->vdev_autotrim_lock);
 	if (tvd->vdev_autotrim_thread != NULL) {
-		tvd->vdev_autotrim_exit_wanted = B_TRUE;
+		vdev_autotrim_set_stop_requested(tvd, B_TRUE);
 		cv_broadcast(&tvd->vdev_autotrim_kick_cv);
-		cv_wait(&tvd->vdev_autotrim_cv,
-		    &tvd->vdev_autotrim_lock);
+		metaslab_wakeup_waiters(tvd);
+
+		while (tvd->vdev_autotrim_thread != NULL) {
+			cv_wait(&tvd->vdev_autotrim_cv,
+			    &tvd->vdev_autotrim_lock);
+		}
 
 		ASSERT0P(tvd->vdev_autotrim_thread);
-		tvd->vdev_autotrim_exit_wanted = B_FALSE;
+		vdev_autotrim_set_stop_requested(tvd, B_FALSE);
 	}
 	mutex_exit(&tvd->vdev_autotrim_lock);
 }
@@ -1641,7 +1721,7 @@ vdev_trim_l2arc_thread(void *arg)
 	zfs_range_tree_destroy(ta.trim_tree);
 
 	mutex_enter(&vd->vdev_trim_lock);
-	if (!vd->vdev_trim_exit_wanted && vdev_writeable(vd)) {
+	if (!vdev_trim_stop_requested(vd) && vdev_writeable(vd)) {
 		vdev_trim_change_state(vd, VDEV_TRIM_COMPLETE,
 		    vd->vdev_trim_rate, vd->vdev_trim_partial,
 		    vd->vdev_trim_secure);
@@ -1717,7 +1797,7 @@ vdev_trim_l2arc(spa_t *spa)
 		ASSERT(vdev_is_concrete(vd));
 		ASSERT0P(vd->vdev_trim_thread);
 		ASSERT(!vd->vdev_detached);
-		ASSERT(!vd->vdev_trim_exit_wanted);
+		ASSERT(!vdev_trim_stop_requested(vd));
 		ASSERT(!vd->vdev_top->vdev_removing);
 		vdev_trim_change_state(vd, VDEV_TRIM_ACTIVE, 0, 0, 0);
 		vd->vdev_trim_thread = thread_create(NULL, 0,
