@@ -48,7 +48,7 @@ valstr_bitfield_bits(const valstr_bit_t *table, const size_t nelems,
 	ASSERT(out);
 	size_t n = 0;
 	for (int b = 0; b < nelems; b++) {
-		if (n == outlen)
+		if (n == outlen || n == outlen - 1)
 			break;
 		uint64_t mask = (1ULL << b);
 		out[n++] = (bits & mask) ? table[b].vb_bit : ' ';
@@ -76,7 +76,7 @@ valstr_bitfield_pairs(const valstr_bit_t *table, const size_t nelems,
 		uint64_t mask = (1ULL << b);
 		if (bits & mask) {
 			size_t len = (n > 0) ? 3 : 2;
-			if (n > outlen-len)
+			if (len >= outlen - n)
 				break;
 			if (n > 0)
 				out[n++] = '|';
@@ -109,7 +109,7 @@ valstr_bitfield_str(const valstr_bit_t *table, const size_t nelems,
 			size_t len = strlen(table[b].vb_name);
 			if (n > 0)
 				len++;
-			if (n > outlen-len)
+			if (len >= outlen - n)
 				break;
 			if (n > 0) {
 				out[n++] = ' ';
