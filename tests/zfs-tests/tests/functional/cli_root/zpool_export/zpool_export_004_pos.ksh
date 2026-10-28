@@ -41,10 +41,19 @@
 
 verify_runnable "global"
 
-log_assert "Verify zpool export succeed or fail with spare."
-log_onexit zpool_export_cleanup
+function cleanup
+{
+	poolexists "$TESTPOOL1" && destroy_pool "$TESTPOOL1"
+	poolexists "$TESTPOOL2" && destroy_pool "$TESTPOOL2"
+	log_must rm -f "$mntpnt"/vdev[0-4]
+	[[ $cleanupdir == 1 && -d $mntpnt ]] && log_must rmdir "$mntpnt"
+}
 
 mntpnt=$TESTDIR0
+[[ -d $TESTDIR0 ]] || cleanupdir=1
+log_onexit cleanup
+
+log_assert "Verify zpool export succeed or fail with spare."
 log_must mkdir -p $mntpnt
 
 # mntpnt=$(get_prop mountpoint $TESTPOOL)

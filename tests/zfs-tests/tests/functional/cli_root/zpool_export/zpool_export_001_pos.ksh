@@ -36,7 +36,17 @@
 
 verify_runnable "global"
 
-log_onexit zpool_export_cleanup
+function cleanup
+{
+	poolexists "$TESTPOOL" || log_must zpool import -d "${disk%/*}" "$TESTPOOL"
+	ismounted "$TESTPOOL/$TESTFS" || log_must zfs mount "$TESTPOOL/$TESTFS"
+}
+disk=${DISKS%% *}
+case $disk in
+/*) ;;
+*) disk=/dev/$disk ;;
+esac
+log_onexit cleanup
 
 log_assert "Verify a pool can be exported."
 
