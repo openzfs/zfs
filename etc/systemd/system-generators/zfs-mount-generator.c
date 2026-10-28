@@ -319,16 +319,20 @@ line_worker(char *line, const char *cachefile)
 				goto err;
 			}
 
+			/*
+			 * The unit's name holds the dataset escaped as
+			 * systemd escapes it, so %I reads it back
+			 */
 			fprintf(keyloadunit_f,
 			    OUTPUT_HEADER
 			    "[Unit]\n"
-			    "Description=Load ZFS key for %s\n"
+			    "Description=Load ZFS key for %%I\n"
 			    "SourcePath=" FSLIST "/%s\n"
 			    "Documentation=man:zfs-mount-generator(8)\n"
 			    "DefaultDependencies=no\n"
 			    "Wants=%s\n"
 			    "After=%s\n",
-			    dataset, cachefile, wants, after);
+			    cachefile, wants, after);
 
 			if (need_network)
 				fprintf(keyloadunit_f,
@@ -348,7 +352,7 @@ line_worker(char *line, const char *cachefile)
 				    "RequiresMountsFor='%s'\n", keymountdep);
 
 			/* BEGIN CSTYLED */
-			fprintf(keyloadunit_f,
+			fputs(
 			    "\n"
 			    "[Service]\n"
 			    "Type=oneshot\n"
@@ -358,28 +362,28 @@ line_worker(char *line, const char *cachefile)
 			    "StandardOutput=null\n"
 			    "StandardError=null\n"
 			    "ExecStart=/bin/sh -euc '"
-			        "[ \"$$(" ZFS " get -H -o value keystatus \"%s\")\" = \"unavailable\" ] || exit 0;",
-			    dataset);
+			        "[ \"$$(" ZFS " get -H -o value keystatus \"%I\")\" = \"unavailable\" ] || exit 0;",
+			    keyloadunit_f);
 			if (is_prompt)
-				fprintf(keyloadunit_f,
+				fputs(
 				    "for i in 1 2 3; do "
-				        "systemd-ask-password --id=\"zfs:%s\" \"Enter passphrase for %s:\" |"
-				        "" ZFS " load-key \"%s\" && exit 0;"
+				        "systemd-ask-password --id=\"zfs:%I\" \"Enter passphrase for %I:\" |"
+				        "" ZFS " load-key \"%I\" && exit 0;"
 				    "done;"
 				    "exit 1",
-				    dataset, dataset, dataset);
+				    keyloadunit_f);
 			else
-				fprintf(keyloadunit_f,
-				    "exec " ZFS " load-key \"%s\"",
-				    dataset);
+				fputs(
+				    "exec " ZFS " load-key \"%I\"",
+				    keyloadunit_f);
 
-			fprintf(keyloadunit_f,
+			fputs(
 				"'\n"
 				"ExecStop=/bin/sh -euc '"
-				    "[ \"$$(" ZFS " get -H -o value keystatus \"%s\")\" = \"available\" ] || exit 0;"
-				    "exec " ZFS " unload-key \"%s\""
+				    "[ \"$$(" ZFS " get -H -o value keystatus \"%I\")\" = \"available\" ] || exit 0;"
+				    "exec " ZFS " unload-key \"%I\""
 				"'\n",
-				dataset, dataset);
+				keyloadunit_f);
 			/* END CSTYLED */
 
 			(void) fclose(keyloadunit_f);
