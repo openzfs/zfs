@@ -291,6 +291,7 @@ static ztest_shared_ds_t *ztest_shared_ds;
 
 typedef struct ztest_scratch_state {
 	uint64_t	zs_raidz_scratch_verify_pause;
+	uint64_t	zs_raidz_expand_old_asize;
 } ztest_shared_scratch_state_t;
 
 static ztest_shared_scratch_state_t *ztest_scratch_state;
@@ -4129,6 +4130,18 @@ raidz_scratch_verify(void)
 
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_READER);
 
+	/* Killed at RAIDZ_EXPAND_PAUSE_COMPLETED: the vdev has not grown. */
+	if (ztest_scratch_state->zs_raidz_expand_old_asize != 0) {
+		uint64_t old_asize =
+		    ztest_scratch_state->zs_raidz_expand_old_asize;
+		vdev_raidz_t *vdrz;
+
+		raidvd = vdev_lookup_top(spa, 0);
+		vdrz = raidvd->vdev_tsd;
+		VERIFY3U(vdrz->vd_expand_old_asize, ==, old_asize);
+		VERIFY3U(raidvd->vdev_asize, ==, old_asize);
+	}
+
 	vre = spa->spa_raidz_expand;
 	if (vre == NULL)
 		goto out;
@@ -4188,6 +4201,64 @@ out:
 	kernel_fini();
 }
 
+/*
+ * At RAIDZ_EXPAND_PAUSE_COMPLETED, the expansion has completed once the
+ * vdev records the asize it has to grow past.  Wait for that txg to be on
+ * disk and record the asize, which the next run checks.
+ */
+static boolean_t
+ztest_raidz_expand_completed(spa_t *spa)
+{
+	uint64_t old_asize = 0;
+
+	spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_READER);
+	vdev_t *vd = vdev_lookup_top(spa, 0);
+	if (!vd->vdev_rz_expanding)
+		old_asize = ((vdev_raidz_t *)vd->vdev_tsd)->vd_expand_old_asize;
+	if (old_asize != vd->vdev_asize)
+		old_asize = 0;
+	spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+
+	if (old_asize == 0)
+		return (B_FALSE);
+	txg_wait_synced(spa_get_dsl(spa), 0);
+	ztest_scratch_state->zs_raidz_expand_old_asize = old_asize;
+	return (B_TRUE);
+}
+
+/*
+ * After a kill at RAIDZ_EXPAND_PAUSE_COMPLETED, opening the pool read-write
+ * must add the capacity of the completed expansion.
+ */
+static void
+ztest_raidz_expand_grow_check(spa_t *spa)
+{
+	uint64_t old_asize = ztest_scratch_state->zs_raidz_expand_old_asize;
+	uint64_t asize = 0;
+	boolean_t healthy = B_FALSE;
+
+	if (old_asize == 0)
+		return;
+	ztest_scratch_state->zs_raidz_expand_old_asize = 0;
+
+	for (int t = 100; t > 0; t -= 1) {
+		spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_READER);
+		vdev_t *vd = vdev_lookup_top(spa, 0);
+		asize = vd->vdev_asize;
+		healthy = (vd->vdev_state == VDEV_STATE_HEALTHY);
+		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+
+		if (!healthy || asize > old_asize)
+			break;
+		txg_wait_synced(spa_get_dsl(spa), 0);
+		(void) poll(NULL, 0, 100);
+	}
+
+	/* A degraded vdev cannot grow; the next import retries. */
+	if (healthy)
+		VERIFY3U(asize, >, old_asize);
+}
+
 static void
 ztest_scratch_thread(void *arg)
 {
@@ -4197,12 +4268,18 @@ ztest_scratch_thread(void *arg)
 	for (int t = 100; t > 0; t -= 1) {
 		if (raidz_expand_pause_point == RAIDZ_EXPAND_PAUSE_NONE)
 			thread_exit();
+		if (raidz_expand_pause_point == RAIDZ_EXPAND_PAUSE_COMPLETED &&
+		    ztest_raidz_expand_completed(ztest_spa))
+			break;
 
 		(void) poll(NULL, 0, 100);
 	}
 
 	/* killed when the scratch area progress reached a certain point */
 	ztest_kill(ztest_shared);
+
+	/* Not killed: the expansion goes on and the vdev grows. */
+	ztest_scratch_state->zs_raidz_expand_old_asize = 0;
 }
 
 /*
@@ -4282,11 +4359,12 @@ ztest_vdev_raidz_attach(ztest_ds_t *zd, uint64_t id)
 	 * 50% of the time, set raidz_expand_pause_point to cause
 	 * raidz_reflow_scratch_sync() to pause at a certain point and
 	 * then kill the test after 10 seconds so raidz_scratch_verify()
-	 * can confirm consistency when the pool is imported.
+	 * can confirm consistency when the pool is imported.  The last
+	 * point pauses after the expansion has completed instead.
 	 */
 	if (ztest_random(2) == 0 && expected_error == 0) {
 		raidz_expand_pause_point =
-		    ztest_random(RAIDZ_EXPAND_PAUSE_SCRATCH_POST_REFLOW_2) + 1;
+		    ztest_random(RAIDZ_EXPAND_PAUSE_COMPLETED) + 1;
 		scratch_thread = _thread_create(NULL, 0, ztest_scratch_thread,
 		    ztest_shared, 0, NULL, TS_RUN | TS_JOINABLE, defclsyspri);
 	}
@@ -8818,6 +8896,8 @@ ztest_run(ztest_shared_t *zs)
 
 	metaslab_preload_limit = ztest_random(20) + 1;
 	ztest_spa = spa;
+
+	ztest_raidz_expand_grow_check(spa);
 
 	/*
 	 * XXX - BUGBUG raidz expansion do not run this for generic for now

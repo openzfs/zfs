@@ -10216,6 +10216,10 @@ spa_async_thread(void *arg)
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
 	}
 
+	if ((tasks & SPA_ASYNC_RAIDZ_EXPAND_GROW) && spa_writeable(spa) &&
+	    !spa_suspended(spa))
+		vdev_raidz_expand_grow(spa);
+
 	/*
 	 * See if any devices need to be marked faulted.
 	 */
