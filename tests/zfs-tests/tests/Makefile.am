@@ -1698,6 +1698,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/events/slow_vdev_degraded_sit_out.ksh \
 	functional/events/slow_vdev_sit_out.ksh \
 	functional/events/slow_vdev_sit_out_neg.ksh \
+	functional/events/vdev_add_event.ksh \
 	functional/events/zed_cksum_config.ksh \
 	functional/events/zed_cksum_reported.ksh \
 	functional/events/zed_diagnose_multiple.ksh \

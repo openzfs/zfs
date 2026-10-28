@@ -8323,12 +8323,23 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t check_ashift)
 		}
 	}
 
-	for (int c = 0; c < vd->vdev_children; c++) {
+	/*
+	 * Build one event per added top-level vdev while they are still
+	 * stable, and post them once the new configuration is in place.
+	 */
+	uint64_t nadded = vd->vdev_children;
+	sysevent_t **evs = NULL;
+
+	if (nadded > 0)
+		evs = kmem_zalloc(nadded * sizeof (sysevent_t *), KM_SLEEP);
+
+	for (uint64_t c = 0; c < nadded; c++) {
 		tvd = vd->vdev_child[c];
 		vdev_remove_child(vd, tvd);
 		tvd->vdev_id = rvd->vdev_children;
 		vdev_add_child(rvd, tvd);
 		vdev_config_dirty(tvd);
+		evs[c] = spa_event_create(spa, tvd, NULL, ESC_ZFS_VDEV_ADD);
 	}
 
 	if (nspares != 0) {
@@ -8382,8 +8393,13 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t check_ashift)
 
 	spa_namespace_enter(FTAG);
 	spa_config_update(spa, SPA_CONFIG_UPDATE_POOL);
-	spa_event_notify(spa, NULL, NULL, ESC_ZFS_VDEV_ADD);
+	if (nadded == 0)
+		spa_event_notify(spa, NULL, NULL, ESC_ZFS_VDEV_ADD);
+	for (uint64_t c = 0; c < nadded; c++)
+		spa_event_post(evs[c]);
 	spa_namespace_exit(FTAG);
+	if (nadded > 0)
+		kmem_free(evs, nadded * sizeof (sysevent_t *));
 
 	return (0);
 }
