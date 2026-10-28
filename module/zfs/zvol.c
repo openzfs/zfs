@@ -128,10 +128,13 @@ typedef struct {
 } zvol_task_t;
 
 zv_request_task_t *
-zv_request_task_create(zv_request_t zvr)
+zv_request_task_create(zv_request_t zvr, int alloc_flags)
 {
 	zv_request_task_t *task;
-	task = kmem_alloc(sizeof (zv_request_task_t), KM_SLEEP);
+	task = kmem_alloc(sizeof (zv_request_task_t), alloc_flags);
+	if (task == NULL)
+		return (NULL);
+
 	taskq_init_ent(&task->ent);
 	task->zvr = zvr;
 	return (task);
