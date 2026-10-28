@@ -1626,6 +1626,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/dedup/dedup_prune.ksh \
 	functional/dedup/dedup_prune_leak.ksh \
 	functional/dedup/dedup_prune_percentage.ksh \
+	functional/dedup/dedup_prune_scrub.ksh \
 	functional/dedup/dedup_quota.ksh \
 	functional/dedup/dedup_zap_shrink.ksh \
 	functional/delegate/cleanup.ksh \
