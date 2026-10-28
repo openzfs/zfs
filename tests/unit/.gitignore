@@ -9,5 +9,6 @@
 /test_cityhash
 /test_nvpair
 /test_backtrace
+/test_vdev
 /test_timer
 /test_zfs_file
