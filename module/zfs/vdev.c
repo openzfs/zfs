@@ -1655,6 +1655,13 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 
 	ASSERT(oldc <= newc);
 
+	/*
+	 * A non-allocating vdev is accounted again below with its new size,
+	 * so take its old size out first.
+	 */
+	if (expanding && vd->vdev_noalloc)
+		vdev_update_nonallocating_space(vd, B_FALSE);
+
 	mspp = vmem_zalloc(newc * sizeof (*mspp), KM_SLEEP);
 
 	if (expanding) {
