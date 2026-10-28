@@ -1300,13 +1300,14 @@ dnode_reclaim_slots(dnode_children_t *children, int idx, int slots)
 void
 dnode_free_interior_slots(dnode_t *dn)
 {
-	dnode_children_t *children = dmu_buf_get_user(&dn->dn_dbuf->db);
-	int epb = dn->dn_dbuf->db.db_size >> DNODE_SHIFT;
-	int idx = (dn->dn_object & (epb - 1)) + 1;
 	int slots = dn->dn_num_slots - 1;
 
 	if (slots == 0)
 		return;
+
+	dnode_children_t *children = dmu_buf_get_user(&dn->dn_dbuf->db);
+	int epb = dn->dn_dbuf->db.db_size >> DNODE_SHIFT;
+	int idx = (dn->dn_object & (epb - 1)) + 1;
 
 	ASSERT3S(idx + slots, <=, DNODES_PER_BLOCK);
 

@@ -1511,33 +1511,15 @@ dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
 }
 
 /*
- * This function ensures that, when doing a decrypting read of a block,
- * we make sure we have decrypted the dnode associated with it. We must do
- * this so that we ensure we are fully authenticating the checksum-of-MACs
- * tree from the root of the objset down to this block. Indirect blocks are
- * always verified against their secure checksum-of-MACs assuming that the
- * dnode containing them is correct. Now that we are doing a decrypting read,
- * we can be sure that the key is loaded and verify that assumption. This is
- * especially important considering that we always read encrypted dnode
- * blocks as raw data (without verifying their MACs) to start, and
- * decrypt / authenticate them when we need to read an encrypted bonus buffer.
+ * Decrypt a block of dnodes that was read raw.
  */
 static int
-dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, dnode_t *dn,
-    dmu_flags_t flags)
+dbuf_decrypt_dnode_block(objset_t *os, dmu_buf_impl_t *dndb)
 {
-	objset_t *os = db->db_objset;
-	dmu_buf_impl_t *dndb;
-	arc_buf_t *dnbuf;
+	arc_buf_t *dnbuf = dndb->db_buf;
 	zbookmark_phys_t zb;
 	int err;
 
-	if ((flags & DMU_READ_NO_DECRYPT) != 0 ||
-	    !os->os_encrypted || os->os_raw_receive ||
-	    (dndb = dn->dn_dbuf) == NULL)
-		return (0);
-
-	dnbuf = dndb->db_buf;
 	if (!arc_is_encrypted(dnbuf))
 		return (0);
 
@@ -1565,6 +1547,38 @@ dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, dnode_t *dn,
 	    DMU_META_DNODE_OBJECT, 0, dndb->db_blkid);
 	err = arc_untransform(dnbuf, os->os_spa, &zb, B_TRUE);
 
+	mutex_exit(&dndb->db_mtx);
+
+	return (err);
+}
+
+/*
+ * This function ensures that, when doing a decrypting read of a block,
+ * we make sure we have decrypted the dnode associated with it. We must do
+ * this so that we ensure we are fully authenticating the checksum-of-MACs
+ * tree from the root of the objset down to this block. Indirect blocks are
+ * always verified against their secure checksum-of-MACs assuming that the
+ * dnode containing them is correct. Now that we are doing a decrypting read,
+ * we can be sure that the key is loaded and verify that assumption. This is
+ * especially important considering that we always read encrypted dnode
+ * blocks as raw data (without verifying their MACs) to start, and
+ * decrypt / authenticate them when we need to read an encrypted bonus buffer.
+ */
+static int
+dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, dnode_t *dn,
+    dmu_flags_t flags)
+{
+	objset_t *os = db->db_objset;
+	dmu_buf_impl_t *dndb;
+	int err;
+
+	if ((flags & DMU_READ_NO_DECRYPT) != 0 ||
+	    !os->os_encrypted || os->os_raw_receive ||
+	    (dndb = dn->dn_dbuf) == NULL)
+		return (0);
+
+	err = dbuf_decrypt_dnode_block(os, dndb);
+
 	/*
 	 * An error code of EACCES tells us that the key is still not
 	 * available. This is ok if we are only reading authenticated
@@ -1576,9 +1590,21 @@ dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, dnode_t *dn,
 	    !DMU_OT_IS_ENCRYPTED(dn->dn_bonustype))))
 		err = 0;
 
-	mutex_exit(&dndb->db_mtx);
-
 	return (err);
+}
+
+/*
+ * Make the bonus buffer in dn_phys readable: dnode_hold() reads blocks of
+ * dnodes raw, so in an encrypted objset they may still be encrypted.
+ */
+int
+dnode_decrypt_bonus(dnode_t *dn)
+{
+	objset_t *os = dn->dn_objset;
+
+	if (!os->os_encrypted || os->os_raw_receive || dn->dn_dbuf == NULL)
+		return (0);
+	return (dbuf_decrypt_dnode_block(os, dn->dn_dbuf));
 }
 
 /*
@@ -3079,6 +3105,34 @@ dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
 	memcpy(dr->dt.dl.dr_salt, salt, ZIO_DATA_SALT_LEN);
 	memcpy(dr->dt.dl.dr_iv, iv, ZIO_DATA_IV_LEN);
 	memcpy(dr->dt.dl.dr_mac, mac, ZIO_DATA_MAC_LEN);
+}
+
+/*
+ * This function is effectively the same as dmu_buf_will_dirty(), but
+ * indicates the caller expects raw encrypted data in the db, which will not
+ * be modified by the caller.  Changes that the block's MAC doesn't cover,
+ * such as non-portable dnode flags, can then be made without the key.  This
+ * is only used for blocks of dnodes, during raw receive.
+ */
+int
+dmu_buf_will_rewrite_raw(dmu_buf_t *db_fake, dmu_tx_t *tx)
+{
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+	boolean_t byteorder;
+	uint8_t salt[ZIO_DATA_SALT_LEN];
+	uint8_t iv[ZIO_DATA_IV_LEN];
+	uint8_t mac[ZIO_DATA_MAC_LEN];
+
+	mutex_enter(&db->db_mtx);
+	if (db->db_buf == NULL || !arc_is_encrypted(db->db_buf)) {
+		mutex_exit(&db->db_mtx);
+		return (SET_ERROR(EIO));
+	}
+	arc_get_raw_params(db->db_buf, &byteorder, salt, iv, mac);
+	mutex_exit(&db->db_mtx);
+
+	dmu_buf_set_crypt_params(db_fake, byteorder, salt, iv, mac, tx);
+	return (0);
 }
 
 static void

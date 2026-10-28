@@ -1127,11 +1127,10 @@ dmu_objset_create_impl_dnstats(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	os->os_phys->os_type = type;
 
 	/*
-	 * Enable user accounting if it is enabled and this is not an
-	 * encrypted receive.
+	 * Enable user accounting if it is enabled and this is not a raw
+	 * receive.
 	 */
-	if (dmu_objset_userused_enabled(os) &&
-	    (!os->os_encrypted || !dmu_objset_is_receiving(os))) {
+	if (dmu_objset_userused_enabled(os) && !os->os_raw_receive) {
 		os->os_phys->os_flags |= OBJSET_FLAG_USERACCOUNTING_COMPLETE;
 		if (dmu_objset_userobjused_enabled(os)) {
 			ASSERT3P(ds, !=, NULL);
@@ -2092,7 +2091,7 @@ dmu_objset_do_userquota_updates_prep(objset_t *os, dmu_tx_t *tx)
 	 * for the duration of claiming and this txg should only be
 	 * used for recovery.
 	 */
-	if (os->os_encrypted && dmu_objset_is_receiving(os))
+	if (os->os_raw_receive)
 		return (B_FALSE);
 
 	if (tx->tx_txg <= os->os_spa->spa_claim_max_txg)
@@ -2197,20 +2196,25 @@ dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx)
 	 * receives cannot update the user accounting info because the
 	 * user ids and the sizes are encrypted. To guarantee that we
 	 * never end up with bad user accounting, we simply disable it
-	 * during raw receives. We also disable this for normal receives
-	 * so that an incremental raw receive may be done on top of an
-	 * existing non-raw receive.
+	 * during raw receives, and receive_reset_accounting() discards
+	 * any existing accounting.
 	 */
-	if (os->os_encrypted && dmu_objset_is_receiving(os))
+	if (os->os_raw_receive)
 		return;
 
 	if (before && (flags & (DN_ID_CHKED_BONUS|DN_ID_OLD_EXIST|
 	    DN_ID_CHKED_SPILL)))
 		return;
 
-	if (before && dn->dn_bonuslen != 0)
+	if (before && dn->dn_bonuslen != 0) {
+		if (dnode_decrypt_bonus(dn) != 0) {
+			mutex_enter(&dn->dn_mtx);
+			dn->dn_id_flags |= DN_ID_CHKED_BONUS;
+			mutex_exit(&dn->dn_mtx);
+			return;
+		}
 		data = DN_BONUS(dn->dn_phys);
-	else if (!before && dn->dn_bonuslen != 0) {
+	} else if (!before && dn->dn_bonuslen != 0) {
 		if (dn->dn_bonus) {
 			db = dn->dn_bonus;
 			mutex_enter(&db->db_mtx);
