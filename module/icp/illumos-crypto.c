@@ -13,11 +13,11 @@
  * Copyright (c) 2017, Datto, Inc. All rights reserved.
  */
 
-#include <sys/crypto/common.h>
-#include <sys/crypto/api.h>
-#include <sys/crypto/impl.h>
-#include <sys/crypto/sched_impl.h>
+#include <sys/zfs_context.h>
 #include <sys/crypto/icp.h>
+#include <sys/crypto/impl.h>
+#include <aes/aes_impl.h>
+#include <modes/gcm_impl.h>
 
 /*
  * Changes made to the original Illumos Crypto Layer for the ICP:
@@ -85,35 +85,25 @@
  * ZFS Makefiles.
  */
 
+static uint32_t icp_initialized = B_FALSE;
+
+boolean_t
+icp_is_ready(void)
+{
+	return (atomic_load_32(&icp_initialized) != B_FALSE);
+}
+
 void
 icp_fini(void)
 {
-	sha2_mod_fini();
-	aes_mod_fini();
-	kcf_sched_destroy();
-	kcf_prov_tab_destroy();
-	kcf_destroy_mech_tabs();
+	atomic_swap_32(&icp_initialized, B_FALSE);
 }
 
-/* roughly equivalent to kcf.c: _init() */
 int __init
 icp_init(void)
 {
-	/* initialize the mechanisms tables supported out-of-the-box */
-	kcf_init_mech_tabs();
-
-	/* initialize the providers tables */
-	kcf_prov_tab_init();
-
-	/*
-	 * Initialize scheduling structures. Note that this does NOT
-	 * start any threads since it might not be safe to do so.
-	 */
-	kcf_sched_init();
-
-	/* initialize algorithms */
-	aes_mod_init();
-	sha2_mod_init();
-
+	aes_impl_init();
+	gcm_impl_init();
+	atomic_swap_32(&icp_initialized, B_TRUE);
 	return (0);
 }

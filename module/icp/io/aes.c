@@ -13,128 +13,37 @@
  * Copyright (c) 2003, 2010, Oracle and/or its affiliates. All rights reserved.
  */
 
-/*
- * AES provider for the Kernel Cryptographic Framework (KCF)
- */
+/* AES encryption and decryption */
 
 #include <sys/zfs_context.h>
 #include <sys/crypto/common.h>
 #include <sys/crypto/impl.h>
-#include <sys/crypto/spi.h>
-#include <sys/crypto/icp.h>
 #include <modes/modes.h>
-#define	_AES_IMPL
 #include <aes/aes_impl.h>
 #include <modes/gcm_impl.h>
-
-/*
- * Mechanism info structure passed to KCF during registration.
- */
-static const crypto_mech_info_t aes_mech_info_tab[] = {
-	/* AES_CCM */
-	{SUN_CKM_AES_CCM, AES_CCM_MECH_INFO_TYPE,
-	    CRYPTO_FG_ENCRYPT_ATOMIC | CRYPTO_FG_DECRYPT_ATOMIC},
-	/* AES_GCM */
-	{SUN_CKM_AES_GCM, AES_GCM_MECH_INFO_TYPE,
-	    CRYPTO_FG_ENCRYPT_ATOMIC | CRYPTO_FG_DECRYPT_ATOMIC},
-};
 
 static int aes_common_init_ctx(aes_ctx_t *, crypto_spi_ctx_template_t *,
     crypto_mechanism_t *, crypto_key_t *, int, boolean_t);
 
-static int aes_encrypt_atomic(crypto_mechanism_t *, crypto_key_t *,
-    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
-
-static int aes_decrypt_atomic(crypto_mechanism_t *, crypto_key_t *,
-    crypto_data_t *, crypto_data_t *, crypto_spi_ctx_template_t);
-
-static const crypto_cipher_ops_t aes_cipher_ops = {
-	.encrypt_atomic = aes_encrypt_atomic,
-	.decrypt_atomic = aes_decrypt_atomic
-};
-
-static int aes_create_ctx_template(crypto_mechanism_t *, crypto_key_t *,
-    crypto_spi_ctx_template_t *, size_t *);
-static int aes_free_context(crypto_ctx_t *);
-
-static const crypto_ctx_ops_t aes_ctx_ops = {
-	.create_ctx_template = aes_create_ctx_template,
-	.free_context = aes_free_context
-};
-
-static const crypto_ops_t aes_crypto_ops = {
-	&aes_cipher_ops,
-	NULL,
-	&aes_ctx_ops,
-};
-
-static const crypto_provider_info_t aes_prov_info = {
-	"AES Software Provider",
-	&aes_crypto_ops,
-	sizeof (aes_mech_info_tab) / sizeof (crypto_mech_info_t),
-	aes_mech_info_tab
-};
-
-static crypto_kcf_provider_handle_t aes_prov_handle = 0;
-
-int
-aes_mod_init(void)
-{
-	/* Determine the fastest available implementation. */
-	aes_impl_init();
-	gcm_impl_init();
-
-	/* Register with KCF.  If the registration fails, remove the module. */
-	if (crypto_register_provider(&aes_prov_info, &aes_prov_handle))
-		return (EACCES);
-
-	return (0);
-}
-
-int
-aes_mod_fini(void)
-{
-	/* Unregister from KCF if module is registered */
-	if (aes_prov_handle != 0) {
-		if (crypto_unregister_provider(aes_prov_handle))
-			return (EBUSY);
-
-		aes_prov_handle = 0;
-	}
-
-	return (0);
-}
-
 static int
-aes_check_mech_param(crypto_mechanism_t *mechanism, aes_ctx_t **ctx)
+aes_check_mech_param(crypto_mechanism_t *mechanism)
 {
-	void *p = NULL;
-	boolean_t param_required = B_TRUE;
 	size_t param_len;
-	void *(*alloc_fun)(int);
-	int rv = CRYPTO_SUCCESS;
 
 	switch (mechanism->cm_type) {
 	case AES_CCM_MECH_INFO_TYPE:
 		param_len = sizeof (CK_AES_CCM_PARAMS);
-		alloc_fun = ccm_alloc_ctx;
 		break;
 	case AES_GCM_MECH_INFO_TYPE:
 		param_len = sizeof (CK_AES_GCM_PARAMS);
-		alloc_fun = gcm_alloc_ctx;
 		break;
 	default:
 		__builtin_unreachable();
 	}
-	if (param_required && mechanism->cm_param != NULL &&
-	    mechanism->cm_param_len != param_len) {
-		rv = CRYPTO_MECHANISM_PARAM_INVALID;
-	}
-	if (ctx != NULL) {
-		p = (alloc_fun)(KM_SLEEP);
-		*ctx = p;
-	}
-	return (rv);
+	if (mechanism->cm_param != NULL &&
+	    mechanism->cm_param_len != param_len)
+		return (CRYPTO_MECHANISM_PARAM_INVALID);
+	return (CRYPTO_SUCCESS);
 }
 
 /*
@@ -156,11 +65,9 @@ init_keysched(crypto_key_t *key, void *newbie)
 	return (CRYPTO_SUCCESS);
 }
 
-/*
- * KCF software provider encrypt entry points.
- */
-static int
-aes_encrypt_atomic(crypto_mechanism_t *mechanism,
+/* AES encrypt and decrypt entry points. */
+int
+icp_aes_encrypt(crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *plaintext, crypto_data_t *ciphertext,
     crypto_spi_ctx_template_t template)
 {
@@ -174,7 +81,7 @@ aes_encrypt_atomic(crypto_mechanism_t *mechanism,
 
 	ASSERT(ciphertext != NULL);
 
-	if ((ret = aes_check_mech_param(mechanism, NULL)) != CRYPTO_SUCCESS)
+	if ((ret = aes_check_mech_param(mechanism)) != CRYPTO_SUCCESS)
 		return (ret);
 
 	ret = aes_common_init_ctx(&aes_ctx, template, mechanism, key,
@@ -258,8 +165,8 @@ out:
 	return (ret);
 }
 
-static int
-aes_decrypt_atomic(crypto_mechanism_t *mechanism,
+int
+icp_aes_decrypt(crypto_mechanism_t *mechanism,
     crypto_key_t *key, crypto_data_t *ciphertext, crypto_data_t *plaintext,
     crypto_spi_ctx_template_t template)
 {
@@ -273,7 +180,7 @@ aes_decrypt_atomic(crypto_mechanism_t *mechanism,
 
 	ASSERT(plaintext != NULL);
 
-	if ((ret = aes_check_mech_param(mechanism, NULL)) != CRYPTO_SUCCESS)
+	if ((ret = aes_check_mech_param(mechanism)) != CRYPTO_SUCCESS)
 		return (ret);
 
 	ret = aes_common_init_ctx(&aes_ctx, template, mechanism, key,
@@ -371,11 +278,9 @@ out:
 	return (ret);
 }
 
-/*
- * KCF software provider context template entry points.
- */
-static int
-aes_create_ctx_template(crypto_mechanism_t *mechanism, crypto_key_t *key,
+/* AES context template entry point. */
+int
+icp_aes_create_ctx_template(crypto_mechanism_t *mechanism, crypto_key_t *key,
     crypto_spi_ctx_template_t *tmpl, size_t *tmpl_size)
 {
 	void *keysched;
@@ -402,27 +307,6 @@ aes_create_ctx_template(crypto_mechanism_t *mechanism, crypto_key_t *key,
 
 	*tmpl = keysched;
 	*tmpl_size = size;
-
-	return (CRYPTO_SUCCESS);
-}
-
-
-static int
-aes_free_context(crypto_ctx_t *ctx)
-{
-	aes_ctx_t *aes_ctx = ctx->cc_provider_private;
-
-	if (aes_ctx != NULL) {
-		if (aes_ctx->ac_flags & PROVIDER_OWNS_KEY_SCHEDULE) {
-			ASSERT(aes_ctx->ac_keysched_len != 0);
-			memset(aes_ctx->ac_keysched, 0,
-			    aes_ctx->ac_keysched_len);
-			kmem_free(aes_ctx->ac_keysched,
-			    aes_ctx->ac_keysched_len);
-		}
-		crypto_free_mode_ctx(aes_ctx);
-		ctx->cc_provider_private = NULL;
-	}
 
 	return (CRYPTO_SUCCESS);
 }
