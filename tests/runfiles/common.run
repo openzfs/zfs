@@ -586,7 +586,7 @@ tests = ['zpool_scrub_001_neg', 'zpool_scrub_002_pos', 'zpool_scrub_003_pos',
     'zpool_scrub_multiple_pools',
     'zpool_error_scrub_001_pos', 'zpool_error_scrub_002_pos',
     'zpool_error_scrub_003_pos', 'zpool_error_scrub_004_pos',
-    'zpool_scrub_date_range_001', 'zpool_scrub_date_range_002',
+    'zpool_scrub_date_range_001', 'zpool_scrub_date_range_002', 'zpool_scrub_dtl',
     'zpool_scrub_thorough', 'zpool_scrub_txg_continue_from_last']
 tags = ['functional', 'cli_root', 'zpool_scrub']
 
@@ -1005,12 +1005,14 @@ tags = ['functional', 'rename_dirs']
 
 [tests/functional/replacement]
 tests = ['attach_import', 'attach_multiple', 'attach_rebuild',
-    'attach_resilver', 'attach_resilver_sit_out', 'detach',
+    'attach_resilver', 'attach_resilver_sit_out', 'detach', 'errorscrub_rebuild',
+    'errorscrub_rebuild_dtl',
     'rebuild_disabled_feature', 'rebuild_draid_speculative',
     'rebuild_multiple', 'rebuild_raidz',
     'replace_import', 'replace_rebuild', 'replace_resilver',
     'replace_resilver_sit_out', 'resilver_restart_001',
-    'resilver_restart_002', 'scrub_cancel']
+    'resilver_restart_002', 'scrub_cancel', 'scrub_rebuild', 'scrub_rebuild_ddt',
+    'scrub_rebuild_residual', 'scrub_rebuild_resilver']
 tags = ['functional', 'replacement']
 
 [tests/functional/reservation]

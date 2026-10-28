@@ -16,7 +16,7 @@
 .\" Copyright (c) 2026, Mateusz Piotrowski <0mp@FreeBSD.org>
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd September 9, 2026
+.Dd October 18, 2026
 .Dt ZFS 4
 .Os
 .
@@ -2260,9 +2260,11 @@ Maximum read segment size to issue when sequentially resilvering a
 top-level vdev.
 .
 .It Sy zfs_rebuild_scrub_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
-Automatically start a pool scrub when the last active sequential resilver
-completes in order to verify the checksums of all blocks which have been
-resilvered.
+Request a full pool scrub when a sequential resilver completes, to verify
+the checksums of all blocks which have been resilvered.
+Verification waits for all active sequential resilvers to finish or be
+canceled, and survives internal scan interruptions and pool export.
+Disabling this parameter does not cancel verification already requested.
 This is enabled by default and strongly recommended.
 .
 .It Sy zfs_rebuild_vdev_limit Ns = Ns Sy 67108864 Ns B Po 64 MiB Pc Pq u64
