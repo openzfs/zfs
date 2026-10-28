@@ -83,6 +83,14 @@ ZED_EMAIL_ADDR="root"
 #ZED_SLACK_WEBHOOK_URL=""
 
 ##
+# Wechat Work Webhook URL.
+# This allows posting to the given channel and includes an access token.
+#   <https://developer.work.weixin.qq.com/document/path/91770>
+# Disabled by default; uncomment to enable.
+#
+#ZED_WECHAT_WORK_WEBHOOK_URL=""
+
+##
 # Pushover token.
 # This defines the application from which the notification will be sent.
 #   <https://pushover.net/api#registration>
