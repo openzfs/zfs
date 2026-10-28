@@ -4266,7 +4266,15 @@ spa_activity_check_tryimport(spa_t *spa, uberblock_t *spa_ub,
 			    NSEC2SEC(import_expire - gethrtime()));
 		}
 
-		vdev_uberblock_load(rvd, &mmp_ub, &mmp_label);
+		/*
+		 * zpool clear calls this while the pool is suspended.  In that
+		 * case txg_sync may still hold SCL_CONFIG while waiting for the
+		 * resume, so the load must share that lock as well.
+		 */
+		if (importing)
+			vdev_uberblock_load(rvd, &mmp_ub, &mmp_label);
+		else
+			vdev_uberblock_load_shared(rvd, &mmp_ub, &mmp_label);
 
 		if (vdev_uberblock_compare(spa_ub, &mmp_ub)) {
 			spa_load_failed(spa, "mmp: activity detected during "
@@ -4579,7 +4587,8 @@ spa_mmp_remote_host_activity(spa_t *spa)
 	/*
 	 * Locate the best uberblock on disk
 	 */
-	vdev_uberblock_load(spa->spa_root_vdev, &best_ub, &best_label);
+	vdev_uberblock_load_shared(spa->spa_root_vdev, &best_ub,
+	    &best_label);
 	if (best_label) {
 		/*
 		 * confirm that the best hostid matches our hostid
@@ -4601,8 +4610,12 @@ spa_mmp_remote_host_activity(spa_t *spa)
 		return (B_TRUE);
 	}
 
-	if (best_ub.ub_txg != spa->spa_uberblock.ub_txg ||
-	    best_ub.ub_timestamp != spa->spa_uberblock.ub_timestamp) {
+	/*
+	 * MMP writes advance the timestamp without advancing the txg.  Use the
+	 * activity check below to distinguish a local MMP update from a remote
+	 * writer instead of rejecting the pool on the timestamp alone.
+	 */
+	if (best_ub.ub_txg != spa->spa_uberblock.ub_txg) {
 		zfs_dbgmsg("mmp: txg mismatch detected during pool clear, "
 		    "spa=%s txg=%llu ub_txg=%llu timestamp=%llu "
 		    "ub_timestamp=%llu", spa_name(spa),
