@@ -309,7 +309,7 @@ spa_vdev_noalloc(spa_t *spa, uint64_t guid)
 	vd = spa_lookup_by_guid(spa, guid, B_FALSE);
 
 	if (vd == NULL)
-		error = SET_ERROR(ENOENT);
+		error = SET_ERROR(ENODEV);
 	else if (vd->vdev_mg == NULL)
 		error = SET_ERROR(ZFS_ERR_VDEV_NOTSUP);
 	else if (!vd->vdev_noalloc)
@@ -342,7 +342,7 @@ spa_vdev_alloc(spa_t *spa, uint64_t guid)
 	vd = spa_lookup_by_guid(spa, guid, B_FALSE);
 
 	if (vd == NULL)
-		error = SET_ERROR(ENOENT);
+		error = SET_ERROR(ENODEV);
 	else if (vd->vdev_mg == NULL)
 		error = SET_ERROR(ZFS_ERR_VDEV_NOTSUP);
 	else if (!vd->vdev_removing)
