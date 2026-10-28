@@ -382,6 +382,8 @@ vdev_rebuild_cancel_sync(void *arg, dmu_tx_t *tx)
 	vd->vdev_rebuilding = B_FALSE;
 	mutex_exit(&vd->vdev_rebuild_lock);
 
+	spa_async_request(spa, SPA_ASYNC_REBUILD_DONE);
+
 	spa_notify_waiters(spa);
 	cv_broadcast(&vd->vdev_rebuild_cv);
 }
