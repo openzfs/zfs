@@ -190,7 +190,7 @@ static int zvol_geom_close(struct g_provider *pp, int flag, int count);
 static int zvol_geom_access(struct g_provider *pp, int acr, int acw, int ace);
 static void zvol_geom_bio_start(struct bio *bp);
 static int zvol_geom_bio_getattr(struct bio *bp);
-static void zvol_geom_bio_strategy(struct bio *bp, boolean_t sync);
+static void zvol_geom_bio_strategy(struct bio *bp);
 
 /*
  * GEOM mode implementation
@@ -482,8 +482,7 @@ zvol_geom_bio_start(struct bio *bp)
 		return;
 	}
 
-	zvol_geom_bio_strategy(bp, !g_is_geom_thread(curthread) &&
-	    THREAD_CAN_SLEEP());
+	zvol_geom_bio_strategy(bp);
 }
 
 static int
@@ -742,7 +741,7 @@ zvol_strategy_task(void *arg)
 }
 
 static void
-zvol_geom_bio_strategy(struct bio *bp, boolean_t sync)
+zvol_geom_bio_strategy(struct bio *bp)
 {
 	zv_taskq_t *ztqs = &zvol_taskqs;
 	zv_request_task_t *task;
@@ -770,7 +769,7 @@ zvol_geom_bio_strategy(struct bio *bp, boolean_t sync)
 		.bio = bp,
 	};
 
-	if (sync || zvol_request_sync) {
+	if (zvol_request_sync && THREAD_CAN_SLEEP()) {
 		zvol_strategy_impl(&zvr);
 		return;
 	}
@@ -778,7 +777,13 @@ zvol_geom_bio_strategy(struct bio *bp, boolean_t sync)
 	taskq_hash = cityhash3((uintptr_t)zv, curcpu, bp->bio_offset >>
 	    ZVOL_TASKQ_OFFSET_SHIFT);
 	tq_idx = taskq_hash % ztqs->tqs_cnt;
-	task = zv_request_task_create(zvr);
+	task = zv_request_task_create(zvr, bp->bio_to ? KM_NOSLEEP : KM_SLEEP);
+	if (task == NULL) {
+		error = SET_ERROR(ENOMEM);
+		g_io_deliver(bp, error);
+		return;
+	}
+
 	taskq_dispatch_ent(ztqs->tqs_taskq[tq_idx], zvol_strategy_task, task,
 	    0, &task->ent);
 }
@@ -786,7 +791,7 @@ zvol_geom_bio_strategy(struct bio *bp, boolean_t sync)
 static void
 zvol_cdev_bio_strategy(struct bio *bp)
 {
-	zvol_geom_bio_strategy(bp, B_FALSE);
+	zvol_geom_bio_strategy(bp);
 }
 
 /*

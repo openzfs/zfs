@@ -626,7 +626,7 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 			if (force_sync) {
 				zvol_discard(&zvr);
 			} else {
-				task = zv_request_task_create(zvr);
+				task = zv_request_task_create(zvr, KM_SLEEP);
 				taskq_dispatch_ent(ztqs->tqs_taskq[tq_idx],
 				    zvol_discard_task, task, 0, &task->ent);
 			}
@@ -634,7 +634,7 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 			if (force_sync) {
 				zvol_write(&zvr);
 			} else {
-				task = zv_request_task_create(zvr);
+				task = zv_request_task_create(zvr, KM_SLEEP);
 				taskq_dispatch_ent(ztqs->tqs_taskq[tq_idx],
 				    zvol_write_task, task, 0, &task->ent);
 			}
@@ -656,7 +656,7 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 		if (force_sync) {
 			zvol_read(&zvr);
 		} else {
-			task = zv_request_task_create(zvr);
+			task = zv_request_task_create(zvr, KM_SLEEP);
 			taskq_dispatch_ent(ztqs->tqs_taskq[tq_idx],
 			    zvol_read_task, task, 0, &task->ent);
 		}

@@ -116,7 +116,7 @@ int zvol_clone_range(zvol_state_handle_t *, uint64_t,
 void zvol_log_clone_range(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     uint64_t off, uint64_t len, uint64_t blksz, const blkptr_t *bps,
     size_t nbps);
-zv_request_task_t *zv_request_task_create(zv_request_t zvr);
+zv_request_task_t *zv_request_task_create(zv_request_t zvr, int alloc_flags);
 void zv_request_task_free(zv_request_task_t *task);
 
 /*
