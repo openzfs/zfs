@@ -1309,6 +1309,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_import/zpool_import_parallel_admin.ksh \
 	functional/cli_root/zpool_import/zpool_import_parallel_neg.ksh \
 	functional/cli_root/zpool_import/zpool_import_parallel_pos.ksh \
+	functional/cli_root/zpool_import/zpool_import_multi_pos.ksh \
+	functional/cli_root/zpool_import/zpool_import_multi_neg.ksh \
+	functional/cli_root/zpool_import/zpool_import_multi_parallel.ksh \
 	functional/cli_root/zpool_iostat/setup.ksh \
 	functional/cli_root/zpool_iostat/cleanup.ksh \
 	functional/cli_root/zpool_iostat/zpool_iostat_interval_all.ksh \

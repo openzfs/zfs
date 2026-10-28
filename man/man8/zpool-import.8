@@ -51,6 +51,17 @@
 .Op Fl s
 .Ar pool Ns | Ns Ar id
 .Op Ar newpool
+.Nm zpool
+.Cm import
+.Op Fl DflmMN
+.Op Fl F Op Fl nTX
+.Op Fl -rewind-to-checkpoint
+.Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns Ar device
+.Op Fl o Ar mntopts
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
+.Op Fl R Ar root
+.Op Fl s
+.Ar pool Ns | Ns Ar id Ns Oo , Ns Ar pool Ns | Ns Ar id Oc Ns …
 .
 .Sh DESCRIPTION
 .Bl -tag -width Ds
@@ -412,6 +423,23 @@ Will also set
 .Fl o Sy cachefile Ns = Ns Sy none
 when not explicitly specified.
 .El
+.It Xo
+.Nm zpool
+.Cm import
+.Op Fl DflmMN
+.Op Fl F Op Fl nTX
+.Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns Ar device
+.Op Fl o Ar mntopts
+.Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
+.Op Fl R Ar root
+.Op Fl s
+.Ar pool Ns | Ns Ar id Ns Oo , Ns Ar pool Ns | Ns Ar id Oc Ns …
+.Xc
+Imports multiple pools in parallel by name or GUID.
+Supply a comma-separated list as a single argument.
+The
+.Ar newpool
+argument is not allowed when importing multiple pools.
 .El
 .
 .Sh EXAMPLES

@@ -347,3 +347,58 @@ function get_last_txg_synced
 
 	zdb -u $pool | awk '$1 == "txg" { print $3 }' | sort -n | tail -n 1
 }
+
+#
+# Create and export N single-disk pools named ${prefix}-0 .. ${prefix}-(N-1)
+# using DEVICE_DIR/DEVICE_FILE vdevs.
+#
+function multi_import_create_exported_pools
+{
+	typeset prefix=$1
+	typeset -i count=$2
+	typeset -i i=0
+
+	while (( i < count )); do
+		log_must zpool create ${prefix}-$i \
+		    ${DEVICE_DIR}/${DEVICE_FILE}$i
+		log_must zpool export ${prefix}-$i
+		(( i += 1 ))
+	done
+}
+
+#
+# Destroy any pools named ${prefix}-0 .. ${prefix}-(count-1).
+#
+function multi_import_destroy_pools
+{
+	typeset prefix=$1
+	typeset -i count=$2
+	typeset -i i=0
+
+	while (( i < count )); do
+		destroy_pool ${prefix}-$i
+		(( i += 1 ))
+	done
+}
+
+#
+# Join pool names with commas: multi_import_join_names prefix 0 2 -> p-0,p-1,p-2
+#
+function multi_import_join_names
+{
+	typeset prefix=$1
+	typeset -i first=$2
+	typeset -i last=$3
+	typeset -i i=$first
+	typeset list=""
+
+	while (( i <= last )); do
+		if [[ -z $list ]]; then
+			list="${prefix}-$i"
+		else
+			list="${list},${prefix}-$i"
+		fi
+		(( i += 1 ))
+	done
+	echo "$list"
+}
