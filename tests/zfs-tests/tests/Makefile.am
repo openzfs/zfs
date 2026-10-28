@@ -2149,6 +2149,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/removal/removal_with_snapshot.ksh \
 	functional/removal/removal_with_write.ksh \
 	functional/removal/removal_with_zdb.ksh \
+	functional/removal/removal_with_zil.ksh \
 	functional/removal/remove_attach_mirror.ksh \
 	functional/removal/remove_expanded.ksh \
 	functional/removal/remove_indirect.ksh \
