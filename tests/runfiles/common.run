@@ -459,7 +459,8 @@ post =
 tags = ['functional', 'cli_root', 'zpool_destroy']
 
 [tests/functional/cli_root/zpool_detach]
-tests = ['zpool_detach_001_neg']
+tests = ['zpool_detach_001_neg', 'zpool_detach_002_pos',
+    'zpool_detach_003_pos']
 tags = ['functional', 'cli_root', 'zpool_detach']
 
 [tests/functional/cli_root/zpool_events]

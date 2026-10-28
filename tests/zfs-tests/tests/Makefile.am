@@ -1205,6 +1205,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_detach/cleanup.ksh \
 	functional/cli_root/zpool_detach/setup.ksh \
 	functional/cli_root/zpool_detach/zpool_detach_001_neg.ksh \
+	functional/cli_root/zpool_detach/zpool_detach_002_pos.ksh \
+	functional/cli_root/zpool_detach/zpool_detach_003_pos.ksh \
 	functional/cli_root/zpool_events/cleanup.ksh \
 	functional/cli_root/zpool_events/setup.ksh \
 	functional/cli_root/zpool_events/zpool_events_clear.ksh \

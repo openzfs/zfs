@@ -399,7 +399,6 @@ struct vdev {
 	boolean_t	vdev_has_securetrim; /* secure TRIM is supported */
 	boolean_t	vdev_checkremove; /* temporary online test	*/
 	boolean_t	vdev_forcefault; /* force online fault		*/
-	boolean_t	vdev_splitting;	/* split or repair in progress  */
 	boolean_t	vdev_delayed_close; /* delayed device close?	*/
 	boolean_t	vdev_tmpoffline; /* device taken offline temporarily? */
 	boolean_t	vdev_detached;	/* device detached?		*/

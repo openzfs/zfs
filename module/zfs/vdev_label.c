@@ -780,7 +780,12 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 				nvlist_remove_all(nv, ZPOOL_CONFIG_AUX_STATE);
 		}
 
-		if (vd->vdev_splitting && vd->vdev_orig_guid != 0LL) {
+		/*
+		 * A leaf that took the guid of its parent may have its label
+		 * written before the MOS config that knows the new guid is
+		 * committed, so give the label its former guid as well.
+		 */
+		if (vd->vdev_orig_guid != 0 && !(flags & VDEV_CONFIG_MOS)) {
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_ORIG_GUID,
 			    vd->vdev_orig_guid);
 		}

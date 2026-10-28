@@ -54,6 +54,7 @@ extern void vdev_open_children_subset(vdev_t *, cred_t *,
 extern int vdev_validate(vdev_t *);
 extern int vdev_copy_path_strict(vdev_t *, vdev_t *);
 extern void vdev_copy_path_relaxed(vdev_t *, vdev_t *);
+extern void vdev_copy_leaf_paths(vdev_t *, vdev_t *, nvlist_t *);
 extern void vdev_close(vdev_t *);
 extern int vdev_create(vdev_t *, uint64_t txg, boolean_t isreplace);
 extern void vdev_reopen(vdev_t *);

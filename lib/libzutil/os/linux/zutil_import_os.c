@@ -145,6 +145,8 @@ zpool_open_func(void *arg)
 	libpc_handle_t *hdl = rn->rn_hdl;
 	nvlist_t *config;
 	uint64_t vdev_guid = 0;
+	uint64_t txg0_pool_guid;
+	uint64_t txg0_guid;
 	int error;
 	int num_labels = 0;
 	int fd;
@@ -165,13 +167,16 @@ zpool_open_func(void *arg)
 	if (fd < 0)
 		return;
 
-	error = zpool_read_label(fd, &config, &num_labels);
+	error = zpool_read_label_txg0(fd, &config, &num_labels,
+	    &txg0_pool_guid, &txg0_guid);
 	if (error != 0) {
 		(void) close(fd);
 		return;
 	}
 
 	if (num_labels == 0) {
+		rn->rn_txg0_pool_guid = txg0_pool_guid;
+		rn->rn_txg0_guid = txg0_guid;
 		(void) close(fd);
 		nvlist_free(config);
 		return;

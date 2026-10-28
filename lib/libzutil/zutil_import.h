@@ -43,8 +43,11 @@ typedef struct rdsk_node {
 	avl_node_t rn_node;
 	pthread_mutex_t *rn_lock;
 	boolean_t rn_labelpaths;
+	uint64_t rn_txg0_pool_guid;	/* Pool guid of a txg 0 label */
+	uint64_t rn_txg0_guid;		/* Vdev guid of a txg 0 label */
 } rdsk_node_t;
 
+int zpool_read_label_txg0(int, nvlist_t **, int *, uint64_t *, uint64_t *);
 int slice_cache_compare(const void *, const void *);
 
 boolean_t zpool_dev_probe_ok(const char *path);
