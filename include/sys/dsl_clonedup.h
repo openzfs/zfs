@@ -98,6 +98,7 @@ typedef struct dsl_clonedup_phys {
 #define	DCE_F_SPECIAL		0x10	/* DVA[0] on special class */
 #define	DCE_F_REPEAT		0x20	/* block counted already */
 #define	DCE_F_REMOVED		0x40	/* DVA[0] on a removed vdev */
+#define	DCE_F_KEPT		0x80	/* held at another locator */
 
 /*
  * A block older than the run's window that matched a group.  It is
@@ -151,6 +152,7 @@ typedef enum dsl_clonedup_kstat_id {
 	DCK_VERIFY_READS,	/* blocks read to verify candidates */
 	DCK_VERIFY_BYTES,
 	DCK_CLONES,		/* blocks redirected to a survivor */
+	DCK_PUNCHED,		/* all-zero blocks turned to holes */
 	DCK_YIELDS,		/* yield requests that found a hold */
 	DCK_YIELD_WAITS,	/* holds delayed by a yield */
 	DCK_INDEX_WALKS,
@@ -191,9 +193,12 @@ typedef struct dsl_clonedup_pend {
 	struct abd	*dcp_dabd;
 	int		dcp_serr;
 	int		dcp_derr;
+	int		dcp_cerr;	/* a clone's refusal */
 	boolean_t	dcp_sowner;	/* issued the source read */
+	boolean_t	dcp_punch;
 	boolean_t	dcp_trusted;	/* checksums prove equality */
 	boolean_t	dcp_drop;	/* did not verify */
+	boolean_t	dcp_src_punch;	/* punch the source if zero */
 } dsl_clonedup_pend_t;
 
 /*
@@ -222,6 +227,19 @@ typedef struct dsl_clonedup_batch {
 
 #define	DCL_MAX_WORKERS	64
 
+/*
+ * The checksum of dcz_size zero bytes under one checksum function
+ * and byte order.  A dcz_size of 0 marks an unused slot.
+ */
+typedef struct dsl_clonedup_zcksum {
+	zio_cksum_t	dcz_cksum;
+	uint64_t	dcz_size;
+	uint8_t		dcz_func;
+	uint8_t		dcz_bswap;
+} dsl_clonedup_zcksum_t;
+
+#define	DCL_ZCKSUM_SLOTS	8
+
 typedef struct dsl_clonedup_worker {
 	dsl_clonedup_batch_t dcw_batch;
 	struct zfs_clonedup_dst *dcw_dst; /* cached destination */
@@ -244,6 +262,9 @@ typedef struct dsl_clonedup_worker {
 	uint64_t	dcw_dscache_txg;
 	boolean_t	dcw_dscache_ready;
 	uint64_t	dcw_gen;	/* dcl_gen it serves */
+	/* zero checksums, the oldest replaced first */
+	dsl_clonedup_zcksum_t dcw_zcksum[DCL_ZCKSUM_SLOTS];
+	uint_t		dcw_zcksum_next;
 } dsl_clonedup_worker_t;
 
 typedef struct dsl_clonedup {
@@ -289,6 +310,7 @@ typedef struct dsl_clonedup {
 	uint64_t	dcl_grow_txg[TXG_SIZE];
 	uint64_t	dcl_grow[TXG_SIZE];
 	avl_tree_t	dcl_apply;	/* entries in apply order */
+	avl_tree_t	dcl_punch;	/* zero sources to punch */
 	avl_tree_t	dcl_dry;	/* what a dry run took */
 	boolean_t	dcl_apply_ready; /* order pass has run */
 	/* per group, see dsl_clonedup_gsrc_t */
@@ -369,14 +391,14 @@ int zfs_clonedup_dst_prepare(zfs_clonedup_dst_t *dst, uint64_t blkid,
 int zfs_clonedup_dst_clone_check(zfs_clonedup_dst_t *dst,
     objset_t *sos);
 void zfs_clonedup_dst_tx_hold(dmu_tx_t *tx, zfs_clonedup_dst_t *dst,
-    uint64_t blkid, uint64_t blksz);
+    uint64_t blkid, uint64_t blksz, boolean_t punch);
 int zfs_clonedup_src_validate(objset_t *sos, uint64_t sobj,
     uint64_t sblkid, const blkptr_t *sexp, blkptr_t *bp,
     zfs_clonedup_result_t *resp);
 int zfs_clonedup_dst_finish(zfs_clonedup_dst_t *dst, uint64_t blkid,
     const blkptr_t *dexp, objset_t *sos, uint64_t sobj,
     uint64_t sblkid, const blkptr_t *sexp, const blkptr_t *sval,
-    dmu_tx_t *tx, zfs_clonedup_result_t *resp);
+    boolean_t punch, dmu_tx_t *tx, zfs_clonedup_result_t *resp);
 void zfs_clonedup_dst_unlock(void *lock);
 int zfs_clonedup_src_pin(objset_t *sos, zfs_clonedup_dst_t *dst,
     struct zfs_clonedup_spin **pinp);
@@ -386,6 +408,10 @@ int zfs_clonedup_src_lock(struct zfs_clonedup_spin *pin,
     uint64_t sobj, uint64_t sblkid, const blkptr_t *sexp,
     boolean_t nowait, void **lockp, zfs_clonedup_result_t *resp);
 void zfs_clonedup_src_unlock(void *lock);
+int zfs_clonedup_dst_apply(zfs_clonedup_dst_t *dst, uint64_t blkid,
+    const blkptr_t *dexp, objset_t *sos, uint64_t sobj,
+    uint64_t sblkid, const blkptr_t *sexp, boolean_t punch,
+    boolean_t dryrun, zfs_clonedup_result_t *resp);
 
 /* what dsl_scan_sync() should do after a phase completes */
 typedef enum dsl_clonedup_next {
@@ -421,6 +447,8 @@ dsl_clonedup_next_t dsl_clonedup_walk_done(dsl_clonedup_t *dcl,
     uint64_t *min_txgp, dmu_tx_t *tx);
 boolean_t dsl_clonedup_apply_done(dsl_clonedup_t *dcl, uint64_t txg);
 boolean_t dsl_clonedup_apply_paced(dmu_tx_t *tx, uint_t n);
+int dsl_clonedup_punch_held(objset_t *os, const blkptr_t *bp,
+    dmu_tx_t *tx, boolean_t *heldp);
 boolean_t dsl_clonedup_apply_check(void *arg, struct zthr *zthr);
 void dsl_clonedup_apply_thread(void *arg, struct zthr *zthr);
 void dsl_clonedup_apply_wakeup(spa_t *spa);

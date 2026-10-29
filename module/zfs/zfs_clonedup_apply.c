@@ -708,9 +708,9 @@ zfs_clonedup_lock(zfs_rangelock_t *rl, uint64_t off, uint64_t len,
 }
 
 /*
- * The three prep functions run the checks of their kind and confirm
- * the block still exists at that size.  The rest of the checks are
- * zfs_clonedup_dst_clone_check()'s.
+ * The three prep functions run the checks of their kind that a clone
+ * and a punch share, and confirm the block still exists at that size.
+ * The checks only a clone makes are zfs_clonedup_dst_clone_check()'s.
  * They return a policy errno, or 0 with *gop set when the block may
  * be written and, for files and volumes, *lrp holding its range
  * lock.  With *gop clear, *resp says why not.  With nowait set, a
@@ -833,7 +833,9 @@ zfs_clonedup_own_prep(zfs_clonedup_dst_t *dst, uint64_t off,
 }
 
 /*
- * The checks the prep functions leave out.  A clone takes
+ * The checks a clone makes and a punch does not.  A punch only frees
+ * the block, as a hole punch through zfs_space() does, and needs
+ * neither matching properties nor room under a quota.  A clone takes
  * the source's block whole.  zfs_clone_range() checks properties,
  * special_small_blocks and quotas, and this checks properties and
  * quotas.  It skips special_small_blocks on purpose.
@@ -962,9 +964,14 @@ zfs_clonedup_dst_prepare(zfs_clonedup_dst_t *dst, uint64_t blkid,
 
 void
 zfs_clonedup_dst_tx_hold(dmu_tx_t *tx, zfs_clonedup_dst_t *dst,
-    uint64_t blkid, uint64_t blksz)
+    uint64_t blkid, uint64_t blksz, boolean_t punch)
 {
-	zfs_clonedup_tx_hold_clone(tx, dst, blkid * blksz, blksz);
+	uint64_t off = blkid * blksz;
+
+	if (punch)
+		dmu_tx_hold_free(tx, dst->zcd_object, off, blksz);
+	else
+		zfs_clonedup_tx_hold_clone(tx, dst, off, blksz);
 }
 
 void
@@ -1255,7 +1262,7 @@ int
 zfs_clonedup_dst_finish(zfs_clonedup_dst_t *dst, uint64_t blkid,
     const blkptr_t *dexp, objset_t *sos, uint64_t sobj,
     uint64_t sblkid, const blkptr_t *sexp, const blkptr_t *sval,
-    dmu_tx_t *tx, zfs_clonedup_result_t *resp)
+    boolean_t punch, dmu_tx_t *tx, zfs_clonedup_result_t *resp)
 {
 	objset_t *os = zfs_clonedup_dst_objset(dst);
 	uint64_t object = dst->zcd_object;
@@ -1266,6 +1273,17 @@ zfs_clonedup_dst_finish(zfs_clonedup_dst_t *dst, uint64_t blkid,
 	int err;
 
 	*resp = ZCR_ERROR;
+
+	if (punch && tx == NULL) {
+		*resp = ZCR_APPLIED;
+		return (0);
+	}
+	if (punch) {
+		err = dmu_free_range(os, object, off, blksz, tx);
+		zfs_clonedup_dst_wrote(dst, tx);
+		*resp = (err == 0) ? ZCR_APPLIED : ZCR_ERROR;
+		return (err);
+	}
 
 	if (sval != NULL) {
 		bp = *sval;
@@ -1312,5 +1330,94 @@ zfs_clonedup_dst_finish(zfs_clonedup_dst_t *dst, uint64_t blkid,
 	}
 	dmu_buf_rele(db, FTAG);
 	*resp = (err == 0) ? ZCR_APPLIED : ZCR_ERROR;
+	return (err);
+}
+
+/*
+ * Replace block blkid of the destination, expected to still be dexp,
+ * with a clone of the source block, expected to still be sexp.  With
+ * punch set the block is known to be all zeros and is freed instead.
+ * Returns a policy errno (EPERM, EROFS, and for a clone EDQUOT or
+ * EXDEV) or an I/O errno; *resp says what happened otherwise.  With
+ * dryrun set it makes the same checks and writes nothing.
+ *
+ * The destination is protected by its range lock or by ownership.
+ * The source is not locked at all: a writer may already hold a
+ * transaction in the txg before ours without having dirtied the block
+ * yet, and a clone of the bp it is about to free would reference
+ * freed space once both txgs sync.  Waiting for the previous txg
+ * after assigning ours makes every such writer visible, either as a
+ * dirty record or as a changed bp.  Writers in our own txg dirty
+ * after our clone, and brt_pending_apply() runs before any free of a
+ * txg, so those are safe.  A writer in a later txg either dirtied the
+ * block before we read its bp, which dmu_read_l0_bps() reports as
+ * EAGAIN, or frees it in a txg that syncs after ours.  A punch frees
+ * a block of its own dataset, so it waits only to learn whether a
+ * snapshot holds that block, see dsl_clonedup_punch_held().
+ */
+int
+zfs_clonedup_dst_apply(zfs_clonedup_dst_t *dst, uint64_t blkid,
+    const blkptr_t *dexp, objset_t *sos, uint64_t sobj,
+    uint64_t sblkid, const blkptr_t *sexp, boolean_t punch,
+    boolean_t dryrun, zfs_clonedup_result_t *resp)
+{
+	objset_t *os = zfs_clonedup_dst_objset(dst);
+	dsl_pool_t *dp = dmu_objset_pool(os);
+	uint64_t blksz = BP_GET_LSIZE(dexp);
+	boolean_t ready = B_FALSE;
+	boolean_t held = B_FALSE;
+	void *lock = NULL;
+	dmu_tx_t *tx;
+	int err;
+
+	err = zfs_clonedup_dst_prepare(dst, blkid, dexp, B_FALSE,
+	    dryrun, &ready, &lock, resp);
+	if (err != 0 || !ready)
+		return (err);
+	if (!punch)
+		err = zfs_clonedup_dst_clone_check(dst, sos);
+	if (err == 0 && dryrun) {
+		err = zfs_clonedup_dst_finish(dst, blkid, dexp, sos,
+		    sobj, sblkid, sexp, NULL, punch, NULL, resp);
+	}
+	if (err != 0 || dryrun) {
+		zfs_clonedup_dst_unlock(lock);
+		return (err);
+	}
+
+	do {
+		tx = dmu_tx_create(os);
+		zfs_clonedup_dst_tx_hold(tx, dst, blkid, blksz,
+		    punch);
+		/* as dmu_free_long_range() marks its frees */
+		if (punch)
+			dmu_tx_mark_netfree(tx);
+		err = dmu_tx_assign(tx, DMU_TX_WAIT);
+		if (err != 0) {
+			dmu_tx_abort(tx);
+			zfs_clonedup_dst_unlock(lock);
+			return (err);
+		}
+	} while (!dsl_clonedup_apply_paced(tx, 1));
+
+	if (punch) {
+		err = dsl_clonedup_punch_held(os, dexp, tx, &held);
+	} else {
+		err = txg_wait_synced_flags(dp,
+		    dmu_tx_get_txg(tx) - 1, TXG_WAIT_SUSPEND);
+	}
+	if (err != 0) {
+		dmu_tx_commit(tx);
+		zfs_clonedup_dst_unlock(lock);
+		return (err);
+	}
+	if (held) {
+		*resp = ZCR_SRC_STALE;
+	} else {
+		err = zfs_clonedup_dst_finish(dst, blkid, dexp, sos,
+		    sobj, sblkid, sexp, NULL, punch, tx, resp);
+	}
+	dmu_tx_commit(tx);
+	zfs_clonedup_dst_unlock(lock);
 	return (err);
 }

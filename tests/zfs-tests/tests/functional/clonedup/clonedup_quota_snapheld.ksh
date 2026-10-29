@@ -24,7 +24,7 @@
 #	takes on disk.  A run keeps that growth within the quota and
 #	counts what it leaves as skipped.  A dataset already at its
 #	quota takes no clones, which counts as skipped and not as a
-#	run error.
+#	run error, and its all-zero blocks still become holes.
 #
 # STRATEGY:
 #	1. On raidz1 over three disks, write a file and run clonedup,
@@ -34,15 +34,24 @@
 #	   block and half the gap between a block's allocated and
 #	   deflated size, room for one redirect but not for the space
 #	   a block takes on disk.
-#	3. Copy the file into f.  Set f's quota to what f uses.
+#	3. Copy the file into f, and write an all-zero file and a
+#	   copy of it there.  Set f's quota to what f uses.
 #	4. Run clonedup.
 #	5. Check that the run redirected one of q's blocks, that q
 #	   is within its quota and its copy is intact,
 #	   that the run counted no errors and skipped what it
-#	   refused, and that f's copy kept its own blocks.
+#	   refused, that f's copy kept its own blocks and that both
+#	   zero files are holes throughout.
 #
 
 verify_runnable "global"
+
+# How many of a file's blocks hold data rather than a hole.
+function cd_data_blocks # ds file
+{
+	zdb -vvvvv $1 -O $2 | awk '/ L0 / && /L\/[0-9a-f]+P/ { n++ }
+	    END { print n + 0 }'
+}
 
 log_assert "snapshot-held redirects stay within the quota"
 log_onexit clonedup_cleanup
@@ -63,6 +72,9 @@ log_must [ $(clonedup_last_txg) -gt 0 ]
 
 clonedup_dup /$TESTPOOL/w/o /$TESTPOOL/q/h
 clonedup_dup /$TESTPOOL/w/o /$TESTPOOL/f/d
+log_must dd if=/dev/zero of=/$TESTPOOL/f/z1 bs=$CD_BS \
+    count=$CD_BLOCKS status=none
+clonedup_dup /$TESTPOOL/f/z1 /$TESTPOOL/f/z2
 clonedup_sync
 log_must zfs snapshot $TESTPOOL/q@s
 # written since q@s, so the run may still rewrite q
@@ -102,6 +114,16 @@ clonedup_jstat_is errors 0
 clonedup_jstat_gt clonedup_skipped_policy $CD_BLOCKS
 clonedup_check_shared $TESTPOOL/w o $TESTPOOL/f d ""
 log_must cmp /$TESTPOOL/w/o /$TESTPOOL/f/d
+
+typeset z
+typeset -i got
+for z in z1 z2; do
+	got=$(cd_data_blocks $TESTPOOL/f $z)
+	log_note "f/$z: $got data blocks, want 0"
+	log_must [ $got -eq 0 ]
+done
+log_must cmp /$TESTPOOL/f/z1 /$TESTPOOL/f/z2
+log_must [ $(get_prop used $TESTPOOL/f) -lt $fused ]
 clonedup_leakcheck
 
 log_pass "snapshot-held redirects stay within the quota"

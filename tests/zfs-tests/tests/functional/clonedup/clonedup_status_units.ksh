@@ -24,11 +24,14 @@
 #	On a quiet pool a finished walk ends at or below its total,
 #	short of it only by space no block pointer reaches.  The walk
 #	leaves out a dataset with clonedup=off but still counts its
-#	blocks.  A dry run reports what the real run then saves.
+#	blocks.  Saved bytes count a punched source block at its
+#	allocated size, as they count every other block, and a dry
+#	run reports what the real run then saves.
 #
 # STRATEGY:
-#	1. Write a file, four clones of it and a byte copy, and the
-#	   same data twice into a dedup=on dataset.
+#	1. Write a file, four clones of it and a byte copy, the same
+#	   data twice into a dedup=on dataset, and zero blocks into a
+#	   copies=2 dataset.
 #	2. In a clonedup=off dataset write a file, snapshot it, then
 #	   write a second file and clone the first.  Write a file into
 #	   a clonedup=off clone of the snapshot.
@@ -38,7 +41,7 @@
 #	   4 MiB of it.
 #	5. Check that the apply and the partitions end complete.
 #	6. Check that saved is the allocated size of every block the
-#	   run redirected.
+#	   run redirected or punched.
 #	7. Check that the dry run counted the same blocks and bytes.
 #
 
@@ -75,6 +78,11 @@ done
 log_must zfs create -o dedup=on $TESTPOOL/dd
 clonedup_write /$TESTPOOL/dd/d $n
 clonedup_dup /$TESTPOOL/dd/d /$TESTPOOL/dd/e
+log_must zfs create -o copies=2 $TESTPOOL/z
+for i in 1 2; do
+	log_must dd if=/dev/zero of=/$TESTPOOL/z/z$i bs=$CD_BS \
+	    count=$CD_BLOCKS status=none
+done
 # each of off@s, off and offc holds 8 MiB or more the walk skips
 log_must zfs create -o clonedup=off $TESTPOOL/off
 clonedup_write /$TESTPOOL/off/o $n
@@ -89,11 +97,14 @@ clonedup_dup /$TESTPOOL/a /$TESTPOOL/b
 clonedup_sync
 
 typeset -i asz_b=$(clonedup_blk_asize $TESTPOOL b)
+# copies=2 writes two DVAs of the same size
+typeset -i asz_z=$((2 * $(clonedup_blk_asize $TESTPOOL/z z1)))
 typeset -i bsaved=$(zpool get -Hpo value bclonesaved $TESTPOOL)
 typeset -i dsaved=$(zpool get -Hpo value dedupsaved $TESTPOOL)
 log_note "bclonesaved $bsaved, dedupsaved $dsaved," \
-    "block asize $asz_b"
+    "block asize $asz_b, zero block asize $asz_z"
 log_must [ $asz_b -gt 0 ]
+log_must [ $asz_z -gt 0 ]
 log_must [ $bsaved -gt $((2 * n * CD_BS)) ]
 log_must [ $dsaved -gt $((n * CD_BS / 2)) ]
 
@@ -137,11 +148,12 @@ log_must [ $atotal -gt 0 ]
 log_must [ $adone -eq $atotal ]
 log_must [ $((part + 1)) -eq $parts ]
 
-# b's blocks
-typeset -i want=$((n * asz_b))
+# b's blocks, then every zero block, the punched source included
+typeset -i want=$((n * asz_b + 2 * CD_BLOCKS * asz_z))
 log_note "saved $saved, want $want"
-log_must [ $applied -eq $n ]
+log_must [ $applied -eq $((n + 2 * CD_BLOCKS)) ]
 log_must [ $saved -eq $want ]
+# the dry run counts the source it would punch as well
 log_must [ $dry_applied -eq $applied ]
 log_must [ $dry_saved -eq $saved ]
 clonedup_leakcheck

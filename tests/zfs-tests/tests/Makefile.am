@@ -1619,6 +1619,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/clonedup/clonedup_cross_dataset.ksh \
 	functional/clonedup/clonedup_destroy_during_apply.ksh \
 	functional/clonedup/clonedup_dry_run.ksh \
+	functional/clonedup/clonedup_dry_run_punches.ksh \
 	functional/clonedup/clonedup_dry_run_refusals.ksh \
 	functional/clonedup/clonedup_dst_open_error.ksh \
 	functional/clonedup/clonedup_dst_truncated.ksh \
@@ -1647,6 +1648,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/clonedup/clonedup_precedence.ksh \
 	functional/clonedup/clonedup_promote_rollback_during_apply.ksh \
 	functional/clonedup/clonedup_property.ksh \
+	functional/clonedup/clonedup_punch_counts.ksh \
 	functional/clonedup/clonedup_queue_obj.ksh \
 	functional/clonedup/clonedup_quick.ksh \
 	functional/clonedup/clonedup_quota_snapheld.ksh \
@@ -1701,6 +1703,11 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/clonedup/clonedup_yield_send.ksh \
 	functional/clonedup/clonedup_yield_timeout.ksh \
 	functional/clonedup/clonedup_yield_vdev_change.ksh \
+	functional/clonedup/clonedup_zero_blocks.ksh \
+	functional/clonedup/clonedup_zero_reflink.ksh \
+	functional/clonedup/clonedup_zero_snap_window.ksh \
+	functional/clonedup/clonedup_zero_span.ksh \
+	functional/clonedup/clonedup_zero_trusted.ksh \
 	functional/clonedup/clonedup_zvol_dst.ksh \
 	functional/clonedup/clonedup_zvol_open_yield.ksh \
 	functional/clonedup/clonedup_zvol_shrunk.ksh \

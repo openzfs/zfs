@@ -2352,7 +2352,7 @@ Run the clonedup apply thread.
 When this is zero, a run stops at the apply phase until it is set again.
 .
 .It Sy zfs_clonedup_apply_blocks_per_txg Ns = Ns Sy 8192 Pq uint
-The most blocks the apply workers together clone in one
+The most blocks the apply workers together clone or punch in one
 transaction group.
 A transaction that would take its group past this waits for the next
 group.

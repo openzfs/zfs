@@ -104,6 +104,7 @@ its parents, so the run skips it where a quota has no room for the block.
 Among copies that are otherwise equal, the run prefers one in a 16 MiB
 region of its vdev that already holds a reference table entry, since ZFS
 searches the table before it frees any block in such a region.
+All-zero blocks become holes instead of clones.
 .Pp
 The walks share a scrub's scan code and limits:
 .Sy zfs_scrub_min_time_ms
@@ -116,8 +117,8 @@ The counters in the kstat
 .Pa zfs/ Ns Ar pool Ns Pa /clonedup
 start at zero when the pool is imported or created and add up across every
 run and dry run.
-They include the walks, the blocks read to verify a match, the clones
-made, the pairs whose data turned out to differ, the times the apply
+They include the walks, the blocks read to verify a match, the clones and
+holes made, the pairs whose data turned out to differ, the times the apply
 thread stepped aside for an administrative operation, and
 .Sy mem_peak ,
 the most memory the index has held at once.
@@ -166,9 +167,11 @@ or
 File systems and volumes that nothing has mounted or open and whose intent
 log still needs replaying.
 .It
-Immutable files.
+Immutable files, whose all-zero blocks stay as they are too.
 .It
 Files whose owner, group or project has reached its block quota.
+Their all-zero blocks still become holes, since punching a hole makes no
+quota check.
 .El
 A run does rewrite append-only files, as
 .Fn copy_file_range 2
@@ -201,7 +204,7 @@ single copy of its data, since a gang block pointer does not tell how many
 copies its data has.
 It counts every other such pair as a policy skip.
 It skips clones into a dataset at its quota or refquota, or into a pool that
-is out of space.
+is out of space, but still turns all-zero blocks there into holes.
 In mounted filesystems and open volumes, the run rewrites blocks under the
 object's range lock.
 For a pair it compares byte for byte, it also keeps the source block from

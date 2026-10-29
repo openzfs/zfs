@@ -160,6 +160,7 @@ function clonedup_dump_stats
 	log_note "scan_stats: $(zpool status -j --json-int $TESTPOOL |
 	    jq -c --arg p $TESTPOOL '.pools[$p].scan_stats')"
 	log_note "kstat: clones $(clonedup_kstat clones)" \
+	    "punched $(clonedup_kstat punched)" \
 	    "dst mounted/zvol/owned $(clonedup_kstat dst_mounted)/" \
 	    "$(clonedup_kstat dst_zvol)/$(clonedup_kstat dst_owned)" \
 	    "yields $(clonedup_kstat yields)"

@@ -167,6 +167,32 @@ dsl_clonedup_apply_compare_src(const void *a, const void *b)
 }
 
 /*
+ * An all-zero source to punch once the apply is done, see
+ * dsl_clonedup_batch_punch_src().
+ */
+typedef struct dsl_clonedup_punch {
+	avl_node_t	dcu_node;
+	dsl_clonedup_loc_t dcu_loc;
+	blkptr_t	dcu_bp;
+} dsl_clonedup_punch_t;
+
+static int
+dsl_clonedup_punch_compare(const void *a, const void *b)
+{
+	const dsl_clonedup_loc_t *x =
+	    &((const dsl_clonedup_punch_t *)a)->dcu_loc;
+	const dsl_clonedup_loc_t *y =
+	    &((const dsl_clonedup_punch_t *)b)->dcu_loc;
+	int c;
+
+	if ((c = TREE_CMP(x->l_objset, y->l_objset)) != 0)
+		return (c);
+	if ((c = TREE_CMP(x->l_object, y->l_object)) != 0)
+		return (c);
+	return (TREE_CMP(x->l_blkid, y->l_blkid));
+}
+
+/*
  * What the apply has learned about one group.  A group's destinations
  * lie far apart in the apply tree, so the apply keeps this record per
  * group, by key and prop.  dcg_counted says dclp_groups holds the
@@ -261,7 +287,7 @@ bad:
 }
 
 static const char *const dsl_clonedup_kstat_names[DCK_NUM] = {
-	"verify_reads", "verify_bytes", "clones",
+	"verify_reads", "verify_bytes", "clones", "punched",
 	"yields", "yield_waits", "index_walks", "match_walks",
 	"dst_mounted", "dst_zvol", "dst_owned", "batches",
 	"key_collisions", "cksum_collisions",
@@ -321,11 +347,13 @@ dsl_clonedup_kstat_destroy(dsl_clonedup_t *dcl)
 
 /*
  * What a dry run has taken, so that it takes each thing once, as a
- * real run does.  A DCD_DIR entry holds the growth that
+ * real run does.  A DCD_SRC entry is an all-zero source whose punch
+ * the run has counted.  A DCD_DIR entry holds the growth that
  * snapshot-held redirects have brought a dsl_dir.  A real run's
  * growth reaches the disk, where its next quota check reads it.  A
  * dry run's stays here until the next run starts.
  */
+#define	DCD_SRC		1	/* objset, object, blkid */
 #define	DCD_DIR		2	/* dd_object */
 
 typedef struct dsl_clonedup_dry {
@@ -537,6 +565,9 @@ dsl_clonedup_index_create(dsl_clonedup_t *dcl)
 	avl_create(&dcl->dcl_apply, dsl_clonedup_apply_compare_src,
 	    sizeof (dsl_clonedup_entry_t),
 	    offsetof(dsl_clonedup_entry_t, dce_node));
+	avl_create(&dcl->dcl_punch, dsl_clonedup_punch_compare,
+	    sizeof (dsl_clonedup_punch_t),
+	    offsetof(dsl_clonedup_punch_t, dcu_node));
 	avl_create(&dcl->dcl_gsrc, dsl_clonedup_gsrc_compare,
 	    sizeof (dsl_clonedup_gsrc_t),
 	    offsetof(dsl_clonedup_gsrc_t, dcg_node));
@@ -570,6 +601,7 @@ static void
 dsl_clonedup_index_destroy(dsl_clonedup_t *dcl)
 {
 	dsl_clonedup_entry_t *e;
+	dsl_clonedup_punch_t *u;
 	dsl_clonedup_gsrc_t *gs;
 	void *cookie = NULL;
 
@@ -584,6 +616,13 @@ dsl_clonedup_index_destroy(dsl_clonedup_t *dcl)
 	    &cookie)) != NULL)
 		dsl_clonedup_entry_free(dcl, e);
 	avl_destroy(&dcl->dcl_apply);
+	cookie = NULL;
+	while ((u = avl_destroy_nodes(&dcl->dcl_punch,
+	    &cookie)) != NULL) {
+		dcl->dcl_mem_used -= sizeof (*u);
+		kmem_free(u, sizeof (*u));
+	}
+	avl_destroy(&dcl->dcl_punch);
 	cookie = NULL;
 	while ((gs = avl_destroy_nodes(&dcl->dcl_gsrc,
 	    &cookie)) != NULL) {
@@ -1194,8 +1233,8 @@ dsl_clonedup_walk_done(dsl_clonedup_t *dcl, uint64_t *min_txgp,
  * The record of the next partition, or of the end of the run, goes
  * out in txg.  A clone in a later txg would reach the disk after the
  * record that covers it.  A batch whose source no writer can reach
- * skips the wait for the previous txg, so it can commit ahead of the
- * sync.  Wait until txg reaches the newest one.
+ * and a source punch skip the wait for the previous txg, so they can
+ * commit ahead of the sync.  Wait until txg reaches the newest one.
  */
 boolean_t
 dsl_clonedup_apply_done(dsl_clonedup_t *dcl, uint64_t txg)
@@ -1208,7 +1247,8 @@ dsl_clonedup_apply_done(dsl_clonedup_t *dcl, uint64_t txg)
 		return (B_FALSE);
 	}
 	done = dcl->dcl_phys.dclp_phase == POOL_CLONEDUP_APPLY &&
-	    (!dcl->dcl_index_active || dcl->dcl_nentries == 0) &&
+	    (!dcl->dcl_index_active || (dcl->dcl_nentries == 0 &&
+	    avl_is_empty(&dcl->dcl_punch))) &&
 	    dcl->dcl_apply_busy == 0;
 	mutex_exit(&dcl->dcl_lock);
 	return (done);
@@ -1459,6 +1499,72 @@ dsl_clonedup_verify_read(dsl_clonedup_t *dcl, zio_t *pio,
 	    &zb));
 }
 
+/*
+ * Whether a block's checksum is the one it would have if it held only
+ * zeros.  The checksum of a compressed block covers the compressed
+ * bytes, and an encrypted block's checksum holds part of its MAC, so
+ * neither one qualifies.  All-zero data of one size has one checksum
+ * under one function and byte order.  Each worker computes it as
+ * zio_checksum_compute() would, with the pool's salt, and keeps the
+ * last few it needed.  Under any function, a mismatch proves the
+ * block holds more than zeros.
+ */
+static boolean_t
+dsl_clonedup_bp_zero_cksum(dsl_clonedup_t *dcl,
+    dsl_clonedup_worker_t *w, const blkptr_t *bp)
+{
+	enum zio_checksum ck = BP_GET_CHECKSUM(bp);
+	zio_checksum_info_t *ci = &zio_checksum_table[ck];
+	uint64_t size = BP_GET_PSIZE(bp);
+	int bswap = BP_SHOULD_BYTESWAP(bp);
+	dsl_clonedup_zcksum_t *z;
+	void *tmpl = NULL;
+	abd_t *abd;
+
+	if (BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF ||
+	    BP_USES_CRYPT(bp))
+		return (B_FALSE);
+	for (uint_t i = 0; i < DCL_ZCKSUM_SLOTS; i++) {
+		z = &w->dcw_zcksum[i];
+		if (z->dcz_size == size && z->dcz_func == ck &&
+		    z->dcz_bswap == bswap)
+			return (ZIO_CHECKSUM_EQUAL(z->dcz_cksum,
+			    bp->blk_cksum));
+	}
+
+	z = &w->dcw_zcksum[w->dcw_zcksum_next];
+	w->dcw_zcksum_next = (w->dcw_zcksum_next + 1) %
+	    DCL_ZCKSUM_SLOTS;
+	if (ci->ci_tmpl_init != NULL)
+		tmpl = ci->ci_tmpl_init(
+		    &dcl->dcl_dp->dp_spa->spa_cksum_salt);
+	abd = abd_get_zeros(size);
+	ci->ci_func[bswap](abd, size, tmpl, &z->dcz_cksum);
+	abd_free(abd);
+	if (tmpl != NULL)
+		ci->ci_tmpl_free(tmpl);
+	z->dcz_size = size;
+	z->dcz_func = ck;
+	z->dcz_bswap = bswap;
+	return (ZIO_CHECKSUM_EQUAL(z->dcz_cksum, bp->blk_cksum));
+}
+
+/*
+ * Whether a block holds only zeros, judged by its checksum.  Only a
+ * checksum strong enough for dedup is believed.
+ */
+static boolean_t
+dsl_clonedup_bp_zero(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
+    const blkptr_t *bp)
+{
+	enum zio_checksum ck = BP_GET_CHECKSUM(bp);
+
+	if (!(zio_checksum_table[ck].ci_flags &
+	    ZCHECKSUM_FLAG_DEDUP))
+		return (B_FALSE);
+	return (dsl_clonedup_bp_zero_cksum(dcl, w, bp));
+}
+
 static void
 dsl_clonedup_verify_one(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
     dsl_clonedup_pend_t *pd, abd_t *sabd, int serr,
@@ -1482,7 +1588,33 @@ dsl_clonedup_verify_one(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
 		st->s_differs++;
 		dsl_clonedup_count_collision(dcl, w, pd);
 		pd->dcp_drop = B_TRUE;
+	} else if (BP_GET_COMPRESS(&pd->dcp_dbp) ==
+	    ZIO_COMPRESS_OFF &&
+	    abd_cmp_zero(pd->dcp_dabd, size) == 0) {
+		/*
+		 * An all-zero block is the most common duplicate.  A
+		 * hole frees it outright and adds no reference to an
+		 * entry a scrub would then read once per reference.
+		 */
+		pd->dcp_punch = B_TRUE;
 	}
+	if (!pd->dcp_punch)
+		pd->dcp_src_punch = B_FALSE;
+}
+
+/*
+ * The compare never reads a trusted pair, so the pair's checksum
+ * decides whether it holds zeros.  The flush then punches it as it
+ * punches a pair the compare found to be zero.
+ */
+static void
+dsl_clonedup_verify_trusted(dsl_clonedup_t *dcl,
+    dsl_clonedup_worker_t *w, dsl_clonedup_pend_t *pd)
+{
+	if (dsl_clonedup_bp_zero(dcl, w, &pd->dcp_dbp))
+		pd->dcp_punch = B_TRUE;
+	if (!pd->dcp_punch)
+		pd->dcp_src_punch = B_FALSE;
 }
 
 /*
@@ -1613,6 +1745,16 @@ dsl_clonedup_batch_verify(dsl_clonedup_t *dcl,
 	for (i = 0; i < n; i++) {
 		dsl_clonedup_pend_t *pd = &b->dcb_pend[i];
 
+		if (pd->dcp_trusted)
+			dsl_clonedup_verify_trusted(dcl, w, pd);
+		/* no hole after all, so the clone's refusal stands */
+		if (pd->dcp_cerr != 0 && !pd->dcp_drop &&
+		    !pd->dcp_punch) {
+			st->s_policy++;
+			pd->dcp_drop = B_TRUE;
+			zfs_clonedup_src_unlock(pd->dcp_slock);
+			pd->dcp_slock = NULL;
+		}
 		if (pd->dcp_drop) {
 			zfs_clonedup_dst_unlock(pd->dcp_lock);
 			continue;
@@ -2902,6 +3044,209 @@ dsl_clonedup_walk_unchanged(dsl_dataset_t *ds)
 }
 
 /*
+ * Whether a snapshot of os will hold bp when tx's txg syncs, so that
+ * a punch of bp in tx would free nothing.  dsl_clonedup_punch_one()
+ * asks before it has a transaction, which misses a snapshot whose
+ * check runs after that.  A real run asks again here, in the punch's
+ * transaction, after the wait dsl_clonedup_batch_flush() makes for
+ * the same reason.  A snapshot in tx's own txg syncs after the punch
+ * and does not hold bp.
+ */
+int
+dsl_clonedup_punch_held(objset_t *os, const blkptr_t *bp,
+    dmu_tx_t *tx, boolean_t *heldp)
+{
+	dsl_pool_t *dp = dmu_objset_pool(os);
+	uint64_t txg = dmu_tx_get_txg(tx);
+	int err;
+
+	if (spa_syncing_txg(dp->dp_spa) < txg - 1 ||
+	    dsl_clonedup_snap_pending(os, txg)) {
+		err = txg_wait_synced_flags(dp, txg - 1,
+		    TXG_WAIT_SUSPEND);
+		if (err != 0)
+			return (err);
+	}
+	*heldp = BP_GET_BIRTH(bp) <= dsl_dataset_phys(
+	    dmu_objset_ds(os))->ds_prev_snap_txg;
+	return (0);
+}
+
+/*
+ * Punch one all-zero source, or in a dry run check the punch and
+ * count it.  The worker's batch is empty, so taking a handle cannot
+ * re-enter a flush.  A punch that does not happen counts as the skip
+ * dsl_clonedup_group_process() counts for a destination.
+ */
+static void
+dsl_clonedup_punch_one(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
+    const dsl_clonedup_loc_t *sl, const blkptr_t *sbp,
+    boolean_t dryrun, dsl_clonedup_stats_t *st)
+{
+	dsl_clonedup_dsinfo_t di;
+	zfs_clonedup_dst_t *dst;
+	zfs_clonedup_result_t res = ZCR_ERROR;
+	objset_t *os;
+	int err;
+
+	if (dsl_clonedup_ds_info(dcl, w, sl->l_objset, &di) != 0) {
+		st->s_stale++;
+		return;
+	}
+	if (di.di_snapshot || di.di_inconsistent ||
+	    di.di_mode != ZFS_CLONEDUP_ON) {
+		st->s_policy++;
+		return;
+	}
+	while ((err = dsl_clonedup_dst_hold(dcl, w, sl->l_objset,
+	    sl->l_object, &dst)) == ERESTART)
+		dsl_clonedup_yield_release(dcl, w);
+	if (err == 0) {
+		os = zfs_clonedup_dst_objset(dst);
+		/*
+		 * The walk leaves a source that a snapshot holds
+		 * whole, see dsl_clonedup_group_process().  One
+		 * taken since holds it too, and one on its way may.
+		 * Either way the punch would free nothing, and it
+		 * counts as stale, as a source changed since does.
+		 * A real run asks again in the punch's transaction,
+		 * see dsl_clonedup_punch_held(), and a dry run
+		 * takes the answer as it stands.
+		 */
+		if (BP_GET_BIRTH(sbp) <= dsl_dataset_phys(
+		    dmu_objset_ds(os))->ds_prev_snap_txg ||
+		    dsl_clonedup_snap_pending(os, UINT64_MAX)) {
+			st->s_stale++;
+			return;
+		}
+		err = zfs_clonedup_dst_apply(dst, sl->l_blkid, sbp,
+		    os, sl->l_object,
+		    sl->l_blkid, sbp, B_TRUE, dryrun, &res);
+	} else if (dsl_clonedup_err_moved(err)) {
+		st->s_stale++;
+		return;
+	}
+	if (err == EBUSY || err == EINTR) {
+		st->s_busy++;
+	} else if (err == EROFS || err == EPERM) {
+		st->s_policy++;
+	} else if (err != 0) {
+		st->s_errors++;
+	} else if (res == ZCR_APPLIED) {
+		st->s_applied++;
+		st->s_saved += BP_GET_ASIZE(sbp);
+		if (!dryrun)
+			DCL_BUMP(dcl, DCK_PUNCHED, 1);
+	} else if (res == ZCR_SRC_STALE || res == ZCR_DST_STALE) {
+		st->s_stale++;
+	} else if (res == ZCR_SRC_DIRTY || res == ZCR_DST_DIRTY) {
+		st->s_dirty++;
+	} else {
+		st->s_errors++;
+	}
+}
+
+/*
+ * Every block of an all-zero group becomes a hole, so the copy kept
+ * as their source ends up holding zeros nothing refers to.  The
+ * apply punches it too, or a scrub would keep reading it, but only
+ * once every candidate is done.  A later batch of the group still
+ * verifies against the source, and a destination that found a hole
+ * there would take itself as the source and be skipped.  A real run
+ * keeps each source here once, however many batches name it, for
+ * dsl_clonedup_punch_srcs().  A dry run punches nothing and counts
+ * the punch here.
+ */
+static void
+dsl_clonedup_batch_punch_src(dsl_clonedup_t *dcl,
+    dsl_clonedup_worker_t *w, uint_t n, dsl_clonedup_stats_t *st)
+{
+	dsl_clonedup_batch_t *b = &w->dcw_batch;
+	const blkptr_t *last = NULL;
+
+	ASSERT0(b->dcb_count);
+	for (uint_t i = 0; i < n; i++) {
+		dsl_clonedup_pend_t *pd = &b->dcb_pend[i];
+		dsl_clonedup_loc_t sl = { b->dcb_srcobj,
+		    pd->dcp_sobject, pd->dcp_sblkid };
+		dsl_clonedup_punch_t *u;
+		avl_index_t where;
+
+		if (!pd->dcp_src_punch)
+			continue;
+		if (last != NULL &&
+		    zfs_dedupe_bp_same_block(&pd->dcp_sbp, last))
+			continue;
+		last = &pd->dcp_sbp;
+
+		if (b->dcb_dryrun) {
+			dsl_clonedup_punch_one(dcl, w, &sl,
+			    &pd->dcp_sbp, B_TRUE, st);
+			continue;
+		}
+		u = kmem_alloc(sizeof (*u), KM_SLEEP);
+		u->dcu_loc = sl;
+		u->dcu_bp = pd->dcp_sbp;
+		mutex_enter(&dcl->dcl_lock);
+		if (w->dcw_gen == dcl->dcl_gen &&
+		    avl_find(&dcl->dcl_punch, u, &where) == NULL) {
+			avl_insert(&dcl->dcl_punch, u, where);
+			dcl->dcl_mem_used += sizeof (*u);
+			u = NULL;
+		}
+		mutex_exit(&dcl->dcl_lock);
+		if (u != NULL)
+			kmem_free(u, sizeof (*u));
+	}
+}
+
+/*
+ * Punch the sources dsl_clonedup_batch_punch_src() kept.  The apply
+ * has taken every candidate and every worker has flushed, so nothing
+ * reads them any more.  This holds dcl_apply_busy until its counts
+ * are folded in, so the partition cannot end under it.  A cancel
+ * leaves the rest for the thread's next run.
+ */
+static void
+dsl_clonedup_punch_srcs(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
+    zthr_t *zthr)
+{
+	dsl_clonedup_stats_t st = { 0 };
+	dsl_clonedup_punch_t *u;
+
+	mutex_enter(&dcl->dcl_lock);
+	if (w->dcw_gen != dcl->dcl_gen || dcl->dcl_nentries != 0 ||
+	    avl_is_empty(&dcl->dcl_punch)) {
+		mutex_exit(&dcl->dcl_lock);
+		return;
+	}
+	dcl->dcl_apply_busy++;
+	mutex_exit(&dcl->dcl_lock);
+	dsl_clonedup_src_rele(dcl, w);
+	while (!dsl_clonedup_stop(dcl, zthr)) {
+		dsl_clonedup_yield_release(dcl, w);
+		mutex_enter(&dcl->dcl_lock);
+		u = NULL;
+		if (w->dcw_gen == dcl->dcl_gen &&
+		    (u = avl_first(&dcl->dcl_punch)) != NULL) {
+			avl_remove(&dcl->dcl_punch, u);
+			dcl->dcl_mem_used -= sizeof (*u);
+		}
+		mutex_exit(&dcl->dcl_lock);
+		if (u == NULL)
+			break;
+		dsl_clonedup_punch_one(dcl, w, &u->dcu_loc,
+		    &u->dcu_bp, B_FALSE, &st);
+		kmem_free(u, sizeof (*u));
+	}
+	dsl_clonedup_stats_fold(dcl, w, &st);
+	mutex_enter(&dcl->dcl_lock);
+	if (dcl->dcl_apply_busy > 0)
+		dcl->dcl_apply_busy--;
+	mutex_exit(&dcl->dcl_lock);
+}
+
+/*
  * A redirect of a block that a snapshot also holds leaves the old
  * block on the head's deadlist and charges the clone to the head, so
  * USED grows by the block in the head's dsl_dir and in every
@@ -2968,22 +3313,27 @@ dsl_clonedup_quota_take(dsl_clonedup_t *dcl, objset_t *os,
  * leaves out the transaction's own reservation, so a smaller batch
  * would fail the same way, as would zfs_clone_range().  Skip the
  * clones, and mark them dropped the way a failed verify does, so the
- * release still unlocks them.
+ * release still unlocks them.  The punches only free space, so they
+ * stay for a netfree transaction.  Returns how many stay.
  */
-static void
+static uint_t
 dsl_clonedup_batch_refuse(dsl_clonedup_worker_t *w,
     dsl_clonedup_stats_t *st)
 {
 	dsl_clonedup_batch_t *b = &w->dcw_batch;
+	uint_t left = 0;
 
 	for (uint_t i = 0; i < b->dcb_count; i++) {
 		dsl_clonedup_pend_t *pd = &b->dcb_pend[i];
 
-		if (!pd->dcp_drop) {
+		if (pd->dcp_punch) {
+			left++;
+		} else if (!pd->dcp_drop) {
 			pd->dcp_drop = B_TRUE;
 			st->s_policy++;
 		}
 	}
+	return (left);
 }
 
 /* Bytes a dry run has booked against dd, see dsl_clonedup_dry_t. */
@@ -3121,6 +3471,45 @@ dsl_clonedup_dry_take(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
 }
 
 /*
+ * Whether pd is the first destination of its all-zero source that
+ * the dry run found would become a hole.  A real run punches such a
+ * source once if any destination of it became a hole, so the dry run
+ * counts the punch at the first one.
+ */
+static boolean_t
+dsl_clonedup_dry_first(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
+    const dsl_clonedup_pend_t *pd)
+{
+	dsl_clonedup_batch_t *b = &w->dcw_batch;
+	dsl_clonedup_dry_t *d = NULL;
+	dsl_clonedup_dry_t probe;
+	avl_index_t where;
+	boolean_t first = B_FALSE;
+
+	dsl_clonedup_dry_key(&probe, DCD_SRC, b->dcb_srcobj,
+	    pd->dcp_sobject, pd->dcp_sblkid);
+	mutex_enter(&dcl->dcl_lock);
+	while (w->dcw_gen == dcl->dcl_gen &&
+	    avl_find(&dcl->dcl_dry, &probe, &where) == NULL) {
+		if (d != NULL) {
+			avl_insert(&dcl->dcl_dry, d, where);
+			d = NULL;
+			first = B_TRUE;
+			break;
+		}
+		mutex_exit(&dcl->dcl_lock);
+		d = kmem_zalloc(sizeof (*d), KM_SLEEP);
+		memcpy(d->dcd_key, probe.dcd_key,
+		    sizeof (d->dcd_key));
+		mutex_enter(&dcl->dcl_lock);
+	}
+	mutex_exit(&dcl->dcl_lock);
+	if (d != NULL)
+		kmem_free(d, sizeof (*d));
+	return (first);
+}
+
+/*
  * Check and finish, in tx, every pair the verify kept.  A dry run
  * passes no tx.  It makes every check a real run makes here, counts
  * what a real run would finish, and writes nothing.
@@ -3178,12 +3567,14 @@ dsl_clonedup_batch_finish(dsl_clonedup_t *dcl,
 		if (pd->dcp_drop)
 			continue;
 		if (unchanged) {
+			pd->dcp_src_punch = B_FALSE;
 			st->s_policy++;
 			continue;
 		}
 		held = BP_GET_BIRTH(&pd->dcp_dbp) <= prev_snap;
-		if (!shave || pd->dcp_sobject != sobj ||
-		    pd->dcp_sblkid != sblkid) {
+		if (!pd->dcp_punch && (!shave ||
+		    pd->dcp_sobject != sobj ||
+		    pd->dcp_sblkid != sblkid)) {
 			err = zfs_clonedup_src_validate(b->dcb_sos,
 			    pd->dcp_sobject, pd->dcp_sblkid,
 			    &pd->dcp_sbp, &sval, &sres);
@@ -3193,7 +3584,7 @@ dsl_clonedup_batch_finish(dsl_clonedup_t *dcl,
 			sblkid = pd->dcp_sblkid;
 			shave = B_TRUE;
 		}
-		if (sres == ZCR_APPLIED && held) {
+		if (!pd->dcp_punch && sres == ZCR_APPLIED && held) {
 			room = tx != NULL ?
 			    dsl_clonedup_quota_take(dcl, b->dcb_os,
 			    &sval, tx) :
@@ -3204,13 +3595,15 @@ dsl_clonedup_batch_finish(dsl_clonedup_t *dcl,
 				continue;
 			}
 		}
-		if (sres != ZCR_APPLIED) {
+		if (!pd->dcp_punch && sres != ZCR_APPLIED) {
 			res = sres;
 		} else {
 			err = zfs_clonedup_dst_finish(pd->dcp_dst,
 			    pd->dcp_blkid, &pd->dcp_dbp, b->dcb_sos,
 			    pd->dcp_sobject, pd->dcp_sblkid,
-			    &pd->dcp_sbp, &sval, tx, &res);
+			    &pd->dcp_sbp,
+			    pd->dcp_punch ? NULL : &sval,
+			    pd->dcp_punch, tx, &res);
 		}
 		switch (res) {
 		case ZCR_APPLIED:
@@ -3221,7 +3614,8 @@ dsl_clonedup_batch_finish(dsl_clonedup_t *dcl,
 			else
 				st->s_saved += pd->dcp_dasize;
 			if (tx != NULL)
-				DCL_BUMP(dcl, DCK_CLONES, 1);
+				DCL_BUMP(dcl, pd->dcp_punch ?
+				    DCK_PUNCHED : DCK_CLONES, 1);
 			break;
 		case ZCR_SRC_STALE:
 		case ZCR_DST_STALE:
@@ -3243,6 +3637,11 @@ dsl_clonedup_batch_finish(dsl_clonedup_t *dcl,
 			    pd->dcp_dobject, pd->dcp_blkid, &sl, err,
 			    res);
 		}
+		if (res != ZCR_APPLIED || !pd->dcp_punch)
+			pd->dcp_src_punch = B_FALSE;
+		else if (tx == NULL && pd->dcp_src_punch)
+			pd->dcp_src_punch =
+			    dsl_clonedup_dry_first(dcl, w, pd);
 	}
 }
 
@@ -3265,6 +3664,7 @@ dsl_clonedup_batch_flush(dsl_clonedup_t *dcl,
 	dsl_clonedup_batch_t *b = &w->dcw_batch;
 	dsl_clonedup_stats_t st = { 0 };
 	dsl_pool_t *dp = dcl->dcl_dp;
+	boolean_t cloned = B_FALSE;
 	uint_t n = b->dcb_count;
 	uint64_t txg = 0;
 	dmu_tx_t *tx;
@@ -3282,12 +3682,14 @@ dsl_clonedup_batch_flush(dsl_clonedup_t *dcl,
 		goto release;
 	if (b->dcb_dryrun) {
 		if (dsl_clonedup_dry_full(dcl, b->dcb_os))
-			dsl_clonedup_batch_refuse(w, &st);
+			(void) dsl_clonedup_batch_refuse(w, &st);
 		dsl_clonedup_batch_finish(dcl, w, n, NULL, &st);
+		cloned = B_TRUE;
 		goto release;
 	}
 
 	for (;;) {
+		boolean_t frees = B_TRUE;
 		uint_t live = 0;
 
 		tx = dmu_tx_create(b->dcb_os);
@@ -3297,9 +3699,15 @@ dsl_clonedup_batch_flush(dsl_clonedup_t *dcl,
 			if (pd->dcp_drop)
 				continue;
 			zfs_clonedup_dst_tx_hold(tx, pd->dcp_dst,
-			    pd->dcp_blkid, pd->dcp_blksz);
+			    pd->dcp_blkid, pd->dcp_blksz,
+			    pd->dcp_punch);
+			if (!pd->dcp_punch)
+				frees = B_FALSE;
 			live++;
 		}
+		/* as dmu_free_long_range() marks its frees */
+		if (frees)
+			dmu_tx_mark_netfree(tx);
 		err = dmu_tx_assign(tx, DMU_TX_WAIT);
 		if (err == 0) {
 			if (dsl_clonedup_apply_paced(tx, live))
@@ -3307,11 +3715,16 @@ dsl_clonedup_batch_flush(dsl_clonedup_t *dcl,
 			continue;
 		}
 		dmu_tx_abort(tx);
-		if (err != EDQUOT && err != ENOSPC)
+		if (err != EDQUOT && err != ENOSPC) {
 			st.s_errors += live;
-		else
-			dsl_clonedup_batch_refuse(w, &st);
-		goto release;
+			goto release;
+		}
+		if (frees) {
+			st.s_policy += live;
+			goto release;
+		}
+		if (dsl_clonedup_batch_refuse(w, &st) == 0)
+			goto release;
 	}
 	txg = dmu_tx_get_txg(tx);
 	if (!b->dcb_src_stable ||
@@ -3329,6 +3742,7 @@ dsl_clonedup_batch_flush(dsl_clonedup_t *dcl,
 	}
 	dsl_clonedup_batch_finish(dcl, w, n, tx, &st);
 	dmu_tx_commit(tx);
+	cloned = B_TRUE;
 	DCL_BUMP(dcl, DCK_BATCHES, 1);
 release:
 	for (uint_t i = 0; i < n; i++) {
@@ -3344,6 +3758,8 @@ release:
 	}
 	b->dcb_ndst = 0;
 	b->dcb_count = 0;
+	if (cloned)
+		dsl_clonedup_batch_punch_src(dcl, w, n, &st);
 	dsl_clonedup_stats_fold(dcl, w, &st);
 }
 
@@ -3391,13 +3807,15 @@ dsl_clonedup_batch_add(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
     objset_t *sos, boolean_t stable, uint64_t object, uint64_t blkid,
     uint64_t blksz, const blkptr_t *dexp, const blkptr_t *sexp,
     uint64_t sobject, uint64_t sblkid, uint64_t dasize,
-    boolean_t trusted, boolean_t dryrun, zfs_clonedup_result_t *resp)
+    boolean_t trusted, boolean_t src_punch, boolean_t dryrun,
+    zfs_clonedup_result_t *resp)
 {
 	dsl_clonedup_batch_t *b = &w->dcw_batch;
 	dsl_clonedup_pend_t *pd;
 	boolean_t ready = B_FALSE;
 	void *lock = NULL;
 	void *slock = NULL;
+	int cerr;
 	int err;
 
 	if (b->dcb_count == 0 && w->dcw_spin == NULL) {
@@ -3405,12 +3823,19 @@ dsl_clonedup_batch_add(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
 		if (err != 0 && (err != EBUSY || !trusted))
 			return (err);
 	}
-	/* a refused pair never takes the range lock */
-	err = zfs_clonedup_dst_clone_check(dst, sos);
-	if (err == 0 && !dsl_clonedup_copies_kept(dcl, sexp, dexp))
-		err = SET_ERROR(EXDEV);
-	if (err != 0)
-		return (err);
+	/*
+	 * A pair that holds zeros becomes a hole, which needs neither
+	 * matching properties, room under a quota nor a source with
+	 * as many copies.  The verify tells which pairs hold zeros,
+	 * so a pair whose checksum is that of zeros keeps its refusal
+	 * until then.  No test needs the range lock, so a refused
+	 * pair never takes it.
+	 */
+	cerr = zfs_clonedup_dst_clone_check(dst, sos);
+	if (cerr == 0 && !dsl_clonedup_copies_kept(dcl, sexp, dexp))
+		cerr = SET_ERROR(EXDEV);
+	if (cerr != 0 && !dsl_clonedup_bp_zero_cksum(dcl, w, dexp))
+		return (cerr);
 	err = zfs_clonedup_dst_prepare(dst, blkid, dexp,
 	    b->dcb_count > 0, dryrun, &ready, &lock, resp);
 	if (err != 0 || !ready)
@@ -3451,7 +3876,10 @@ dsl_clonedup_batch_add(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
 	pd->dcp_sbp = *sexp;
 	pd->dcp_dasize = dasize;
 	pd->dcp_trusted = trusted;
+	pd->dcp_src_punch = src_punch;
+	pd->dcp_punch = B_FALSE;
 	pd->dcp_drop = B_FALSE;
+	pd->dcp_cerr = cerr;
 	pd->dcp_sabd = pd->dcp_dabd = NULL;
 	*resp = ZCR_QUEUED;
 
@@ -3485,6 +3913,52 @@ dsl_clonedup_src_in_range(objset_t *os, uint64_t object,
 	return (0);
 }
 
+/*
+ * Whether a reference other than src names src's block: an entry of
+ * g from start on or, with index set, the next entry in the index,
+ * since a block's references sort together.  That reference keeps
+ * the block, so a punch of src would free nothing.  src and the
+ * worker's cached source keep the answer for the takes that follow.
+ * Only the order pass sets index.  It empties the index before the
+ * apply starts, and the apply finds its answer in the entry's src.
+ */
+static boolean_t
+dsl_clonedup_src_kept(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
+    const dsl_clonedup_group_t *g, uint_t start,
+    dsl_clonedup_src_t *src, boolean_t index)
+{
+	dsl_clonedup_src_t *c = &w->dcw_group_src;
+	dsl_clonedup_entry_t *e;
+	boolean_t kept = (src->dcs_flags & DCE_F_KEPT) != 0;
+
+	for (uint_t i = start; i < g->g_count && !kept; i++) {
+		e = g->g_entries[i];
+		kept = e != NULL &&
+		    DVA_EQUAL(&e->dce_dva, &src->dcs_dva) &&
+		    e->dce_birth == src->dcs_birth &&
+		    (e->dce_objset != src->dcs_objset ||
+		    e->dce_object != src->dcs_object ||
+		    e->dce_blkid != src->dcs_blkid);
+	}
+	if (!kept && index) {
+		mutex_enter(&dcl->dcl_lock);
+		e = dcl->dcl_index_active ?
+		    avl_first(&dcl->dcl_index) : NULL;
+		kept = e != NULL &&
+		    DVA_EQUAL(&e->dce_dva, &src->dcs_dva) &&
+		    e->dce_birth == src->dcs_birth;
+		mutex_exit(&dcl->dcl_lock);
+	}
+	if (kept) {
+		src->dcs_flags |= DCE_F_KEPT;
+		if (w->dcw_group_src_valid &&
+		    DVA_EQUAL(&c->dcs_dva, &src->dcs_dva) &&
+		    c->dcs_birth == src->dcs_birth)
+			c->dcs_flags |= DCE_F_KEPT;
+	}
+	return (kept);
+}
+
 static void
 dsl_clonedup_group_process(dsl_clonedup_t *dcl,
     dsl_clonedup_worker_t *w, dsl_clonedup_group_t *g,
@@ -3500,6 +3974,7 @@ dsl_clonedup_group_process(dsl_clonedup_t *dcl,
 	boolean_t src_stable = B_FALSE;
 	boolean_t counted = g->g_counted;
 	boolean_t trusted;
+	boolean_t src_punch;
 	uint_t start = 0;
 	int tier = 0;
 	int used;
@@ -3512,6 +3987,9 @@ again:
 		goto out;
 	used = dsl_clonedup_group_choose_src(w, g, start, tier, &src);
 	sblksz = (uint64_t)src.dcs_blkszsec << SPA_MINBLOCKSHIFT;
+	src_punch =
+	    !(src.dcs_flags & (DCE_F_SNAPHELD | DCE_F_SRCONLY)) &&
+	    !dsl_clonedup_src_kept(dcl, w, g, start, &src, B_FALSE);
 
 	if (w->dcw_batch.dcb_count > 0 &&
 	    w->dcw_batch.dcb_srcobj != src.dcs_objset)
@@ -3753,7 +4231,7 @@ redo:
 		    src.dcs_objset, sos, src_stable, e->dce_object,
 		    e->dce_blkid, dblksz,
 		    &dbp, &sbp, src.dcs_object, src.dcs_blkid, dasize,
-		    trusted, dryrun, &res);
+		    trusted, src_punch, dryrun, &res);
 		if (err == EAGAIN) {
 			dsl_clonedup_batch_flush(dcl, w);
 			goto redo;
@@ -3856,6 +4334,7 @@ dsl_clonedup_group_decide(dsl_clonedup_t *dcl,
 	/* the best copy ranks this low only when every copy does */
 	if (src.dcs_flags & DCE_F_REMOVED)
 		return;
+	(void) dsl_clonedup_src_kept(dcl, w, g, 0, &src, B_TRUE);
 
 	for (uint_t i = 0; i < g->g_count; i++) {
 		dsl_clonedup_entry_t *e = g->g_entries[i];
@@ -4315,7 +4794,8 @@ dsl_clonedup_apply_check(void *arg, zthr_t *zthr)
 	mutex_enter(&dcl->dcl_lock);
 	work = dcl->dcl_phys.dclp_state == DSS_SCANNING &&
 	    dcl->dcl_phys.dclp_phase == POOL_CLONEDUP_APPLY &&
-	    dcl->dcl_index_active && dcl->dcl_nentries > 0;
+	    dcl->dcl_index_active && (dcl->dcl_nentries > 0 ||
+	    !avl_is_empty(&dcl->dcl_punch));
 	mutex_exit(&dcl->dcl_lock);
 	return (work);
 }
@@ -4454,6 +4934,7 @@ dsl_clonedup_apply_groups(dsl_clonedup_t *dcl,
 		dsl_clonedup_order_index(dcl, w, zthr);
 	dsl_clonedup_apply_parallel(dcl, w, zthr);
 	dsl_clonedup_batch_flush(dcl, w);
+	dsl_clonedup_punch_srcs(dcl, w, zthr);
 	dsl_clonedup_dscache_fini(w);
 	dsl_clonedup_batch_fini(w);
 	dsl_clonedup_dst_rele(dcl, w);
