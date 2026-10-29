@@ -39,9 +39,11 @@
  *    Multiple writes at the end of the file must coordinate zp_size updates
  *    to ensure data isn't lost. A compare and swap loop is currently used
  *    to ensure the file size is at least the offset last written.
- * 3. For reads (zfs_read, zfs_get_data & zfs_putapage) just the range being
- *    read needs to be locked as RL_READER. A check against zp_size can then
- *    be made for reading beyond end of file.
+ * 3. For reads (zfs_read, zfs_get_data & zfs_getpage) just the
+ *    range being read needs to be locked as RL_READER. A check
+ *    against zp_size can then be made for reading beyond end of
+ *    file.  zfs_read asks for RL_READER_FAST, which may lock the
+ *    range rounded out to 4 KiB (see zfs_rlock.h).
  *
  * AVL tree
  * --------
@@ -99,11 +101,38 @@
  * So if the block size needs to be grown then the whole file is
  * exclusively locked, then later the caller will reduce the lock
  * range to just the range to be written using rangelock_reduce().
+ *
+ * Fast readers
+ * ------------
+ * An RL_READER_FAST request stays out of the tree and out of rl_lock
+ * when it can.  It packs its range, rounded out to 4 KiB, into
+ * one 64-bit word and stores it with a CAS into a free entry of
+ * rl_slots.  A writer scans the slots under rl_lock and waits for
+ * each slot that overlaps its range.  It sets RL_SLOT_WANTED in that
+ * slot and sleeps on the lr_write_cv of rl_drainer.  The reader that
+ * clears a slot with RL_SLOT_WANTED set takes rl_lock and wakes it.
+ *
+ * rl_closed keeps new readers out of the slots while a writer exists.
+ * It is 0 only while rl_slots is allocated and rl_writers is 0, and
+ * it changes only under rl_lock.  The first writer stores 1 and runs
+ * membar_sync() before it scans.  A reader stores its slot and runs
+ * membar_sync() before it loads rl_closed.  One of the two sees the
+ * other.  A reader that finds rl_closed set clears its slot and takes
+ * the tree as an RL_READER.
+ *
+ * rl_slots takes 256 bytes, so a fast request allocates it only when
+ * it finds another range in the tree and no writer.  Two range locks
+ * then overlap in time, and that is when they start to contend on
+ * rl_lock.  zvols and RAID-Z expansion never ask for RL_READER_FAST,
+ * so their range locks never allocate the array.  The reader
+ * installs the array with a CAS, so of two racing readers one frees
+ * its copy.  zfs_rangelock_fini() frees the array.
  */
 
 #include <sys/zfs_context.h>
 #include <sys/zfs_rlock.h>
 
+#define	RL_SLOTS_SIZE	(RL_SLOTS * sizeof (uint64_t))
 
 /*
  * AVL comparison function used to order range locks
@@ -131,13 +160,196 @@ zfs_rangelock_init(zfs_rangelock_t *rl, zfs_rangelock_cb_t *cb, void *arg)
 	    sizeof (zfs_locked_range_t), offsetof(zfs_locked_range_t, lr_node));
 	rl->rl_cb = cb;
 	rl->rl_arg = arg;
+	rl->rl_slots = NULL;
+	rl->rl_drainer = NULL;
+	rl->rl_writers = 0;
+	rl->rl_closed = 1;
 }
 
 void
 zfs_rangelock_fini(zfs_rangelock_t *rl)
 {
+	ASSERT0(rl->rl_writers);
+	ASSERT0P(rl->rl_drainer);
+	if (rl->rl_slots != NULL) {
+		for (int i = 0; i < RL_SLOTS; i++)
+			ASSERT0(rl->rl_slots[i]);
+		kmem_free(rl->rl_slots, RL_SLOTS_SIZE);
+	}
 	mutex_destroy(&rl->rl_lock);
 	avl_destroy(&rl->rl_tree);
+}
+
+static boolean_t
+zfs_rangelock_slot_pack(uint64_t off, uint64_t len, uint64_t *packed)
+{
+	if (len == 0)
+		return (B_FALSE);
+	uint64_t s = off >> RL_SLOT_SHIFT;
+	uint64_t n = ((off + len - 1) >> RL_SLOT_SHIFT) - s + 1;
+	if (s >= (1ULL << (62 - RL_SLOT_LENBITS)) ||
+	    n >= (1ULL << RL_SLOT_LENBITS))
+		return (B_FALSE);
+	*packed = (s << RL_SLOT_LENBITS) | n;
+	return (B_TRUE);
+}
+
+/*
+ * Like the overlap checks in zfs_rangelock_enter_writer(), this
+ * assumes the end of new does not wrap.  zfs_rangelock_enter_impl()
+ * clamps lr_length before rl_cb() runs.
+ */
+static boolean_t
+zfs_rangelock_slot_overlaps(uint64_t v, const zfs_locked_range_t *new)
+{
+	uint64_t n = v & ((1ULL << RL_SLOT_LENBITS) - 1);
+	if (n == 0)
+		return (B_FALSE);
+	uint64_t s = (v & ~RL_SLOT_WANTED) >> RL_SLOT_LENBITS;
+	uint64_t len = new->lr_length == 0 ? 1 : new->lr_length;
+	uint64_t ws = new->lr_offset >> RL_SLOT_SHIFT;
+	uint64_t we = (new->lr_offset + len - 1) >> RL_SLOT_SHIFT;
+	return (s <= we && ws <= s + n - 1);
+}
+
+/*
+ * The reader's loads of file data must be done before a writer can
+ * see the slot clear.  membar_producer() is a release fence on
+ * FreeBSD.  On Linux it is smp_wmb(), which orders only stores, but
+ * atomic_swap_64() is atomic64_xchg(), which is fully ordered.  So on
+ * both the loads stay ahead of the clear, and the membar_sync() that
+ * ends the writer's scan keeps the writer's stores behind it.
+ */
+static void
+zfs_rangelock_slot_clear(zfs_rangelock_t *rl, uint64_t *slots,
+    uint_t i)
+{
+	membar_producer();
+	if (atomic_swap_64(&slots[i], 0) & RL_SLOT_WANTED) {
+		mutex_enter(&rl->rl_lock);
+		if (rl->rl_drainer != NULL)
+			cv_broadcast(&rl->rl_drainer->lr_write_cv);
+		mutex_exit(&rl->rl_lock);
+	}
+}
+
+static boolean_t
+zfs_rangelock_slot_enter(zfs_rangelock_t *rl, uint64_t *slots,
+    zfs_locked_range_t *new)
+{
+	uint64_t packed;
+
+	if (atomic_load_32(&rl->rl_closed) ||
+	    !zfs_rangelock_slot_pack(new->lr_offset, new->lr_length,
+	    &packed))
+		return (B_FALSE);
+	uint_t i = CPU_SEQID_UNSTABLE % RL_SLOTS;
+	for (int n = 0; n < RL_SLOTS; n++) {
+		if (atomic_load_64(&slots[i]) == 0 &&
+		    atomic_cas_64(&slots[i], 0, packed) == 0) {
+			membar_sync();
+			if (atomic_load_32(&rl->rl_closed) == 0) {
+				membar_consumer();
+				new->lr_slot = i;
+				return (B_TRUE);
+			}
+			zfs_rangelock_slot_clear(rl, slots, i);
+			return (B_FALSE);
+		}
+		i = (i + 1) % RL_SLOTS;
+	}
+	return (B_FALSE);
+}
+
+/*
+ * Let readers into the slots once the array exists and no writer is
+ * left.  The membar_producer() makes the writers' stores visible
+ * before rl_closed reads 0.
+ */
+static void
+zfs_rangelock_open(zfs_rangelock_t *rl)
+{
+	ASSERT(MUTEX_HELD(&rl->rl_lock));
+
+	if (rl->rl_writers == 0 &&
+	    atomic_load_ptr(&rl->rl_slots) != NULL) {
+		membar_producer();
+		atomic_store_32(&rl->rl_closed, 0);
+	}
+}
+
+static void
+zfs_rangelock_slots_alloc(zfs_rangelock_t *rl)
+{
+	uint64_t *slots = kmem_zalloc(RL_SLOTS_SIZE, KM_SLEEP);
+
+	membar_producer();
+	if (atomic_cas_ptr(&rl->rl_slots, NULL, slots) != NULL) {
+		kmem_free(slots, RL_SLOTS_SIZE);
+		return;
+	}
+	mutex_enter(&rl->rl_lock);
+	zfs_rangelock_open(rl);
+	mutex_exit(&rl->rl_lock);
+}
+
+static void
+zfs_rangelock_writer_done(zfs_rangelock_t *rl)
+{
+	ASSERT(MUTEX_HELD(&rl->rl_lock));
+	ASSERT3U(rl->rl_writers, >, 0);
+
+	rl->rl_writers--;
+	zfs_rangelock_open(rl);
+}
+
+/*
+ * Return 0 if no slot overlaps new, 1 after waiting for one (start
+ * over), or -1 if one does and nonblock is set.
+ */
+static int
+zfs_rangelock_slot_wait(zfs_rangelock_t *rl, zfs_locked_range_t *new,
+    boolean_t nonblock)
+{
+	uint64_t *slots = atomic_load_ptr(&rl->rl_slots);
+
+	ASSERT(MUTEX_HELD(&rl->rl_lock));
+	ASSERT3U(rl->rl_closed, ==, 1);
+
+	if (slots == NULL)
+		return (0);
+	for (int i = 0; i < RL_SLOTS; i++) {
+		uint64_t v = atomic_load_64(&slots[i]);
+		if (!zfs_rangelock_slot_overlaps(v, new))
+			continue;
+		if (nonblock)
+			return (-1);
+		uint64_t o;
+		while (!(v & RL_SLOT_WANTED) && (o = atomic_cas_64(
+		    &slots[i], v, v | RL_SLOT_WANTED)) != v) {
+			v = o;
+			if (!zfs_rangelock_slot_overlaps(v, new))
+				break;
+		}
+		if (!zfs_rangelock_slot_overlaps(v, new))
+			continue;
+		if (rl->rl_drainer == NULL) {
+			if (!new->lr_write_wanted) {
+				cv_init(&new->lr_write_cv, NULL,
+				    CV_DEFAULT, NULL);
+				new->lr_write_wanted = B_TRUE;
+			}
+			rl->rl_drainer = new;
+		}
+		cv_wait(&rl->rl_drainer->lr_write_cv, &rl->rl_lock);
+		return (1);
+	}
+	if (rl->rl_drainer == new) {
+		rl->rl_drainer = NULL;
+		cv_broadcast(&new->lr_write_cv);
+	}
+	membar_sync();
+	return (0);
 }
 
 /*
@@ -155,6 +367,10 @@ zfs_rangelock_enter_writer(zfs_rangelock_t *rl, zfs_locked_range_t *new,
 	uint64_t orig_len = new->lr_length;
 	zfs_rangelock_type_t orig_type = new->lr_type;
 
+	if (rl->rl_writers++ == 0 && rl->rl_closed == 0) {
+		atomic_store_32(&rl->rl_closed, 1);
+		membar_sync();
+	}
 	for (;;) {
 		/*
 		 * Call callback which can modify new->r_off,len,type.
@@ -170,6 +386,14 @@ zfs_rangelock_enter_writer(zfs_rangelock_t *rl, zfs_locked_range_t *new,
 		 * WRITER.
 		 */
 		ASSERT3U(new->lr_type, ==, RL_WRITER);
+
+		int sw = zfs_rangelock_slot_wait(rl, new, nonblock);
+		if (sw < 0) {
+			zfs_rangelock_writer_done(rl);
+			return (B_FALSE);
+		}
+		if (sw > 0)
+			goto reset;
 
 		/*
 		 * First check for the usual case of no locks
@@ -199,14 +423,16 @@ zfs_rangelock_enter_writer(zfs_rangelock_t *rl, zfs_locked_range_t *new,
 		avl_insert(tree, new, where);
 		return (B_TRUE);
 wait:
-		if (nonblock)
+		if (nonblock) {
+			zfs_rangelock_writer_done(rl);
 			return (B_FALSE);
+		}
 		if (!lr->lr_write_wanted) {
 			cv_init(&lr->lr_write_cv, NULL, CV_DEFAULT, NULL);
 			lr->lr_write_wanted = B_TRUE;
 		}
 		cv_wait(&lr->lr_write_cv, &rl->rl_lock);
-
+reset:
 		/* reset to original */
 		new->lr_offset = orig_off;
 		new->lr_length = orig_len;
@@ -474,8 +700,10 @@ zfs_rangelock_enter_impl(zfs_rangelock_t *rl, uint64_t off, uint64_t len,
     zfs_rangelock_type_t type, boolean_t nonblock)
 {
 	zfs_locked_range_t *new;
+	boolean_t alloc = B_FALSE;
 
-	ASSERT(type == RL_READER || type == RL_WRITER || type == RL_APPEND);
+	ASSERT(type == RL_READER || type == RL_WRITER ||
+	    type == RL_APPEND || type == RL_READER_FAST);
 
 	new = kmem_alloc(sizeof (zfs_locked_range_t), KM_SLEEP);
 	new->lr_rangelock = rl;
@@ -489,7 +717,20 @@ zfs_rangelock_enter_impl(zfs_rangelock_t *rl, uint64_t off, uint64_t len,
 	new->lr_write_wanted = B_FALSE;
 	new->lr_read_wanted = B_FALSE;
 
-	mutex_enter(&rl->rl_lock);
+	if (type == RL_READER_FAST) {
+		uint64_t *slots = atomic_load_ptr(&rl->rl_slots);
+		if (slots != NULL &&
+		    zfs_rangelock_slot_enter(rl, slots, new))
+			return (new);
+		type = RL_READER;
+		new->lr_type = type;
+		mutex_enter(&rl->rl_lock);
+		alloc = rl->rl_writers == 0 &&
+		    avl_numnodes(&rl->rl_tree) != 0 &&
+		    atomic_load_ptr(&rl->rl_slots) == NULL;
+	} else {
+		mutex_enter(&rl->rl_lock);
+	}
 	if (type == RL_READER) {
 		/*
 		 * First check for the usual case of no locks
@@ -505,6 +746,8 @@ zfs_rangelock_enter_impl(zfs_rangelock_t *rl, uint64_t off, uint64_t len,
 		new = NULL;
 	}
 	mutex_exit(&rl->rl_lock);
+	if (alloc)
+		zfs_rangelock_slots_alloc(rl);
 	return (new);
 }
 
@@ -609,9 +852,18 @@ zfs_rangelock_exit(zfs_locked_range_t *lr)
 	list_t free_list;
 	zfs_locked_range_t *free_lr;
 
-	ASSERT(lr->lr_type == RL_WRITER || lr->lr_type == RL_READER);
+	ASSERT(lr->lr_type == RL_WRITER || lr->lr_type == RL_READER ||
+	    lr->lr_type == RL_READER_FAST);
 	ASSERT(lr->lr_count == 1 || lr->lr_count == 0);
 	ASSERT(!lr->lr_proxy);
+
+	if (lr->lr_type == RL_READER_FAST) {
+		ASSERT(!lr->lr_write_wanted && !lr->lr_read_wanted);
+		zfs_rangelock_slot_clear(rl, rl->rl_slots,
+		    lr->lr_slot);
+		kmem_free(lr, sizeof (*lr));
+		return;
+	}
 
 	/*
 	 * The free list is used to defer the cv_destroy() and
@@ -629,6 +881,7 @@ zfs_rangelock_exit(zfs_locked_range_t *lr)
 		if (lr->lr_read_wanted)
 			cv_broadcast(&lr->lr_read_cv);
 		list_insert_tail(&free_list, lr);
+		zfs_rangelock_writer_done(rl);
 	} else {
 		/*
 		 * lock may be shared, let rangelock_exit_reader()

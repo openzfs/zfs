@@ -382,7 +382,7 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	 * Lock the range against changes.
 	 */
 	zfs_locked_range_t *lr = zfs_rangelock_enter(&zp->z_rangelock,
-	    zfs_uio_offset(uio), zfs_uio_resid(uio), RL_READER);
+	    zfs_uio_offset(uio), zfs_uio_resid(uio), RL_READER_FAST);
 
 	/*
 	 * If we are reading past end-of-file we can skip

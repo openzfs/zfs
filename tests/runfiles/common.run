@@ -955,6 +955,12 @@ tests = ['raidz_001_neg', 'raidz_002_pos', 'raidz_dedup_overrun',
 tags = ['functional', 'raidz']
 timeout = 1200
 
+[tests/functional/rangelock]
+tests = ['rangelock_append', 'rangelock_blksz', 'rangelock_clone',
+    'rangelock_cold', 'rangelock_direct', 'rangelock_regions',
+    'rangelock_truncate']
+tags = ['functional', 'rangelock']
+
 [tests/functional/redundancy]
 tests = ['redundancy_draid', 'redundancy_draid1', 'redundancy_draid2',
     'redundancy_draid3', 'redundancy_draid_width', 'redundancy_draid_damaged1',
