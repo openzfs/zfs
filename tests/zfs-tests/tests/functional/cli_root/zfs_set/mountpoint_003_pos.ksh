@@ -40,8 +40,9 @@ function cleanup
 {
 	ismounted $tmpmnt && log_must umount $tmpmnt
 	[[ -d $tmpmnt ]] && log_must rm -rf $tmpmnt
-	[[ -n $oldmpt ]] && log_must zfs set mountpoint=$oldmpt $testfs
-	! ismounted $oldmpt && log_must zfs mount $testfs
+	if datasetexists $testfs; then
+		log_must zfs destroy $testfs
+	fi
 }
 
 log_assert "With legacy mount, FSType-specific option works well."
@@ -88,10 +89,9 @@ fi
 
 tmpmnt=/tmpmnt.$$
 [[ -d $tmpmnt ]] && rm -rf $tmpmnt
-testfs=$TESTPOOL/$TESTFS
+testfs=$TESTPOOL/$TESTFS.$$
 log_must mkdir $tmpmnt
-oldmpt=$(get_prop mountpoint $testfs)
-log_must zfs set mountpoint=legacy $testfs
+log_must zfs create -o mountpoint=legacy $testfs
 
 typeset i=0
 while ((i < ${#args[@]})); do
@@ -100,8 +100,8 @@ while ((i < ${#args[@]})); do
 		
 		msg=$(mount | grep "$tmpmnt ")
 
-		if ! echo $msg | grep -q "${args[((i))]}"; then
-			if echo $msg | grep -q "${args[((i-1))]}"; then
+		if ! echo $msg | grep -qw "${args[((i))]}"; then
+			if echo $msg | grep -qw "${args[((i^1))]}"; then
 				log_fail "Expected option: ${args[((i))]} \n" \
 					 "Real option: $msg"
 			fi
