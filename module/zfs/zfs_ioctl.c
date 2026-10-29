@@ -4126,8 +4126,7 @@ zfs_ioc_clone(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	origin_name = fnvlist_lookup_string(innvl, "origin");
 	(void) nvlist_lookup_nvlist(innvl, "props", &nvprops);
 
-	if (strchr(fsname, '@') ||
-	    strchr(fsname, '%'))
+	if (clone_namecheck(fsname, NULL, NULL) != 0)
 		return (SET_ERROR(EINVAL));
 
 	if (dataset_namecheck(origin_name, NULL, NULL) != 0)
