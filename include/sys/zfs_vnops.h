@@ -20,6 +20,9 @@
 #include <sys/zfs_vnops_os.h>
 
 extern int zfs_bclone_enabled;
+extern boolean_t zfs_bclone_props_match(objset_t *, objset_t *);
+extern boolean_t zfs_bclone_smallblk_match(objset_t *, objset_t *,
+    uint64_t);
 
 extern int zfs_fsync(znode_t *, int, cred_t *);
 extern int zfs_read(znode_t *, zfs_uio_t *, int, cred_t *);

@@ -28,6 +28,10 @@ void encode_embedded_bp_compressed(blkptr_t *, void *,
     enum zio_compress, int, int);
 void decode_embedded_bp_compressed(const blkptr_t *, void *);
 int decode_embedded_bp(const blkptr_t *, void *, int);
+boolean_t zfs_dedupe_bp_same_block(const blkptr_t *,
+    const blkptr_t *);
+boolean_t zfs_dedupe_bp_provably_equal(const blkptr_t *,
+    const blkptr_t *);
 
 #ifdef	__cplusplus
 }

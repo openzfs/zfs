@@ -563,6 +563,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/block_cloning/block_cloning_replay_encrypted.ksh \
 	functional/block_cloning/block_cloning_lwb_buffer_overflow.ksh \
 	functional/block_cloning/block_cloning_rlimit_fsize.ksh \
+	functional/block_cloning/block_cloning_strict_properties.ksh \
 	functional/block_cloning/block_cloning_large_offset.ksh \
 	functional/block_cloning/block_cloning_after_device_removal.ksh \
 	functional/block_cloning/block_cloning_after_trunc.ksh \

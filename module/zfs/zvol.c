@@ -91,6 +91,8 @@
 #include <sys/spa_impl.h>
 #include <sys/zvol.h>
 #include <sys/zvol_impl.h>
+#include <sys/zfs_znode.h>
+#include <sys/zfs_vnops.h>
 
 unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_prefetch_bytes = (128 * 1024);
@@ -102,7 +104,6 @@ unsigned int zvol_request_sync = 0;
 struct hlist_head *zvol_htable;
 static list_t zvol_state_list;
 krwlock_t zvol_state_lock;
-extern int zfs_bclone_strict_properties;
 extern int zfs_bclone_wait_dirty;
 zv_taskq_t zvol_taskqs;
 
@@ -678,17 +679,7 @@ zvol_clone_range(zvol_state_t *zv_src, uint64_t inoff, zvol_state_t *zv_dst,
 		goto out;
 	}
 
-	/*
-	 * Cloning between datasets with different properties is possible,
-	 * but it may cause confusions when copying data between them and
-	 * expecting new properties to apply.
-	 */
-	if (zfs_bclone_strict_properties && inos != outos &&
-	    !dmu_objset_is_snapshot(inos) &&
-	    (inos->os_checksum != outos->os_checksum ||
-	    inos->os_compress != outos->os_compress ||
-	    inos->os_copies != outos->os_copies ||
-	    inos->os_dedup_checksum != outos->os_dedup_checksum)) {
+	if (!zfs_bclone_props_match(inos, outos)) {
 		error = SET_ERROR(EXDEV);
 		goto out;
 	}
@@ -698,25 +689,10 @@ zvol_clone_range(zvol_state_t *zv_src, uint64_t inoff, zvol_state_t *zv_dst,
 		goto out;
 	}
 
-	/*
-	 * Cloning between datasets with different special_small_blocks would
-	 * bypass storage tier migration that would occur with a regular copy.
-	 */
-	if (zfs_bclone_strict_properties && inos != outos &&
-	    !dmu_objset_is_snapshot(inos) &&
-	    spa_has_special(dmu_objset_spa(inos))) {
-		uint64_t in_smallblk = inos->os_zpl_special_smallblock;
-		uint64_t out_smallblk = outos->os_zpl_special_smallblock;
-		if (in_smallblk != out_smallblk) {
-			uint64_t min_smallblk = MIN(in_smallblk, out_smallblk);
-			uint64_t max_smallblk = MAX(in_smallblk, out_smallblk);
-			if (min_smallblk < zv_src->zv_volblocksize &&
-			    (inos->os_compress != ZIO_COMPRESS_OFF ||
-			    max_smallblk >= zv_src->zv_volblocksize)) {
-				error = SET_ERROR(EXDEV);
-				goto out;
-			}
-		}
+	if (!zfs_bclone_smallblk_match(inos, outos,
+	    zv_src->zv_volblocksize)) {
+		error = SET_ERROR(EXDEV);
+		goto out;
 	}
 
 	if (inoff >= zv_src->zv_volsize || outoff >= zv_dst->zv_volsize) {
