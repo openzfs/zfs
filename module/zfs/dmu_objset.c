@@ -1401,9 +1401,14 @@ dmu_objset_upgrade_task_cb(void *data)
 		os->os_upgrade_status = status;
 	}
 	os->os_upgrade_exit = B_TRUE;
+	/*
+	 * dmu_objset_upgrade_stop() does not wait for a task whose id is
+	 * cleared, and the dataset can be evicted as soon as it returns,
+	 * so release the hold first.
+	 */
+	dsl_dataset_long_rele(dmu_objset_ds(os), upgrade_tag);
 	os->os_upgrade_id = 0;
 	mutex_exit(&os->os_upgrade_lock);
-	dsl_dataset_long_rele(dmu_objset_ds(os), upgrade_tag);
 }
 
 static void
