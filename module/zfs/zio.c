@@ -2994,10 +2994,13 @@ zio_reexecute(void *arg)
 
 	/*
 	 * Now that all children have been reexecuted, execute the parent.
-	 * We don't reexecute "The Godfather" I/O here as it's the
-	 * responsibility of the caller to wait on it.
+	 * "The Godfather" I/O is executed by zio_wait(), so we don't execute
+	 * it here when zio_resume() reexecutes it before waiting on it.  But
+	 * when zio_done() reexecutes it because some of its children must
+	 * be reexecuted, it has already been executed, so it must be
+	 * executed again here or it will never complete.
 	 */
-	if (!(pio->io_flags & ZIO_FLAG_GODFATHER)) {
+	if (!(pio->io_flags & ZIO_FLAG_GODFATHER) || pio->io_executor != NULL) {
 		pio->io_queued_timestamp = gethrtime();
 		__zio_execute(pio);
 	}
