@@ -1708,6 +1708,7 @@ typedef enum zfs_ioc {
 	ZFS_IOC_POOL_PREFETCH,			/* 0x5a58 */
 	ZFS_IOC_DDT_PRUNE,			/* 0x5a59 */
 	ZFS_IOC_POOL_CONDENSE,			/* 0x5a5a */
+	ZFS_IOC_ZVOL_REWRITE,			/* 0x5a5b */
 
 	/*
 	 * Per-platform (Optional) - 8/128 numbers reserved.
@@ -1778,6 +1779,9 @@ typedef struct zfs_rewrite_args {
 #define	ZFS_REWRITE_SKIP_SNAPSHOT	0x2 /* Skip snapshot-shared blocks. */
 #define	ZFS_REWRITE_SKIP_BRT		0x4 /* Skip BRT-cloned blocks. */
 #define	ZFS_REWRITE_SKIP_CURRENT_ASIZE	0x8 /* Skip blocks of current asize. */
+#define	ZFS_REWRITE_VALID_FLAGS \
+	(ZFS_REWRITE_PHYSICAL | ZFS_REWRITE_SKIP_SNAPSHOT | \
+	ZFS_REWRITE_SKIP_BRT | ZFS_REWRITE_SKIP_CURRENT_ASIZE)
 
 #define	ZFS_IOC_REWRITE		_IOW(0x83, 3, zfs_rewrite_args_t)
 
@@ -2000,6 +2004,14 @@ typedef enum {
  */
 #define	DDT_PRUNE_UNIT		"ddt_prune_unit"
 #define	DDT_PRUNE_AMOUNT	"ddt_prune_amount"
+
+/*
+ * The following are names used when invoking ZFS_IOC_ZVOL_REWRITE.  The
+ * flags are the ZFS_REWRITE_* flags of zfs_rewrite_args_t.
+ */
+#define	ZVOL_REWRITE_OFFSET	"rewrite_offset"
+#define	ZVOL_REWRITE_LENGTH	"rewrite_length"
+#define	ZVOL_REWRITE_FLAGS	"rewrite_flags"
 
 /*
  * Flags for ZFS_IOC_VDEV_SET_STATE
