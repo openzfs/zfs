@@ -1243,6 +1243,10 @@ dump_clonedup_scan(const uint64_t *words, uint64_t nwords)
 	DO(skipped_policy);
 	DO(errors);
 	DO(scrub_end);
+	DO(filter_slots);
+	DO(planned_entries);
+	DO(filter_seen);
+	DO(keep_pct);
 #undef DO
 }
 

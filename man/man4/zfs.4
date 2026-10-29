@@ -2336,7 +2336,9 @@ working on a scrub between TXG flushes.
 Error blocks to be scrubbed in one txg.
 .
 .It Sy zfs_clonedup_scan_mem_max Ns = Ns Sy 0 Ns B Pq u64
-The most memory, in bytes, the clonedup index may use.
+The most memory, in bytes, the clonedup index and the counting filter may
+use together.
+The filter takes at most half of it.
 Zero derives the limit the way a scrub sizes its queues, from
 .Sy zfs_scan_mem_lim_fact ,
 capped at a twentieth of the space the pool has allocated and floored at
@@ -2346,6 +2348,45 @@ A full run walks all of it each time, a quick run only what was written
 since
 .Sy last_clonedup_txg ,
 and a default run makes both walks.
+.
+.It Sy zfs_clonedup_index_filter Ns = Ns Sy 2 Pq uint
+Whether to count keys in a pre-pass before the index walk, so the
+index can skip a key the pass saw only once.
+Only a run with no matching walk can take the pass: a full run, a quick
+run, or a default run while
+.Sy last_clonedup_txg
+is still 0.
+Any later default run also matches new blocks against older ones, which
+the pass does not count, so that run never takes the pass, whatever this
+is set to.
+A run restarted after an export or import does not take it either, and
+neither does a run that replaces a running one.
+.Sy 0
+never runs the pass,
+.Sy 1
+runs it on every run that can take it, and
+.Sy 2
+decides from the figures of the previous run, a dry run included, when that
+run completed over the same window.
+Without such figures
+.Sy 2
+declines, so the pass does not run on a pool where clonedup has never
+completed a run.
+Any other value acts as
+.Sy 2 .
+.
+.It Sy zfs_clonedup_index_filter_shift Ns = Ns Sy 0 Pq uint
+The number of slots in the counting pre-pass, as a power of two.
+.Sy 0
+derives the count from the previous run's block count, when that run
+completed over the same window.
+Without one, a run over the whole pool estimates the block count from the
+pool's allocated space, and a run with a window uses the smallest count, 16.
+Each slot is two bits, so the pass uses a quarter of the slot count in
+bytes.
+A count whose slots would take more than half of the memory cap is reduced
+until they fit.
+Values from 1 to 15 are taken as 16, and values above 40 as 40.
 .
 .It Sy zfs_clonedup_apply_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Run the clonedup apply thread.

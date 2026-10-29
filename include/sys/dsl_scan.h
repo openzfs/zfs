@@ -188,6 +188,8 @@ typedef struct {
 	dsl_scan_flags_t flags;
 	boolean_t	 replace;	/* cancel running clonedup */
 	boolean_t	 restart;	/* keep clonedup partition */
+	/* the clonedup counting filter, made in open context */
+	struct dsl_clonedup_filter *clonedup_filter;
 } setup_sync_arg_t;
 
 typedef struct dsl_scan_io_queue dsl_scan_io_queue_t;

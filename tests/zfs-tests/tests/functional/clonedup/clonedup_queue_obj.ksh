@@ -40,6 +40,7 @@ verify_runnable "global"
 function cleanup
 {
 	log_must restore_tunable CLONEDUP_APPLY_ENABLED
+	log_must restore_tunable CLONEDUP_INDEX_FILTER
 	poolexists $TESTPOOL || zpool import $TESTPOOL >/dev/null 2>&1
 	clonedup_cleanup
 }
@@ -79,6 +80,10 @@ function mos_leakcheck # [-e]
 log_assert "a clonedup walk keeps no scan queue object"
 log_onexit cleanup
 log_must save_tunable CLONEDUP_APPLY_ENABLED
+log_must save_tunable CLONEDUP_INDEX_FILTER
+
+# No counting pass, so the second run's walks are index then match.
+log_must set_tunable32 CLONEDUP_INDEX_FILTER 0
 
 clonedup_pool_create
 clonedup_write /$TESTPOOL/a

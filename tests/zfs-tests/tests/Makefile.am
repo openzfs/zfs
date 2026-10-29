@@ -1628,9 +1628,15 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/clonedup/clonedup_events.ksh \
 	functional/clonedup/clonedup_export_import.ksh \
 	functional/clonedup/clonedup_feature_disabled.ksh \
+	functional/clonedup/clonedup_filter_export.ksh \
+	functional/clonedup/clonedup_filter_scope.ksh \
+	functional/clonedup/clonedup_filter_shift.ksh \
 	functional/clonedup/clonedup_full.ksh \
 	functional/clonedup/clonedup_gang_survivor.ksh \
 	functional/clonedup/clonedup_incremental.ksh \
+	functional/clonedup/clonedup_index_filter.ksh \
+	functional/clonedup/clonedup_index_filter_incremental.ksh \
+	functional/clonedup/clonedup_index_plan.ksh \
 	functional/clonedup/clonedup_lock_order.ksh \
 	functional/clonedup/clonedup_mem_cap.ksh \
 	functional/clonedup/clonedup_mmap_writeback.ksh \

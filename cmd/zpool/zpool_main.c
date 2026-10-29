@@ -278,7 +278,8 @@ static const char *pool_clonedup_phase_str[] = {
 	"NONE",
 	"INDEX",
 	"MATCH",
-	"APPLY"
+	"APPLY",
+	"COUNT"
 };
 
 static const char *vdev_rebuild_state_str[] = {
@@ -9433,9 +9434,12 @@ print_clonedup_status(pool_scan_stat_t *ps, uint_t c)
 			    ctime(&start));
 		}
 		switch (phase) {
+		case POOL_CLONEDUP_COUNT:
 		case POOL_CLONEDUP_INDEX:
-			(void) printf("\tindexing new data, "
+			(void) printf("\t%s new data, "
 			    "partition %llu of %llu: %s",
+			    phase == POOL_CLONEDUP_COUNT ?
+			    "counting" : "indexing",
 			    (u_longlong_t)part + 1,
 			    (u_longlong_t)parts,
 			    examined);
@@ -9445,9 +9449,11 @@ print_clonedup_status(pool_scan_stat_t *ps, uint_t c)
 			} else {
 				(void) printf(" walked\n");
 			}
-			(void) printf("\t%s blocks indexed, "
-			    "%llu errors\n", idx,
-			    (u_longlong_t)ps->pss_errors);
+			if (phase == POOL_CLONEDUP_INDEX) {
+				(void) printf("\t%s blocks "
+				    "indexed, %llu errors\n", idx,
+				    (u_longlong_t)ps->pss_errors);
+			}
 			break;
 		case POOL_CLONEDUP_MATCH:
 			(void) printf("\tmatching against "

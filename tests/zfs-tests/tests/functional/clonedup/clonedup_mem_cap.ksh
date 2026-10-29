@@ -21,8 +21,9 @@
 #	A run's memory stays within zfs_clonedup_scan_mem_max.  The
 #	order pass gives each copy it moves into the apply tree a
 #	source of its own, so the index splits early enough to leave
-#	room for them.  The mem_peak kstat records the most the index
-#	held at once.
+#	room for them.  The counting filter takes at most half the
+#	cap and the index the rest.  The mem_peak kstat records the
+#	most the index and the filter held at once.
 #
 # STRATEGY:
 #	1. Write a file of 8K blocks and four byte copies of it, so
@@ -30,9 +31,10 @@
 #	   moves four of them.
 #	2. Cap the run at 64 KiB, far below what one partition would
 #	   need.
-#	3. Run clonedup.
-#	4. Check that the run split into partitions, cloned every
-#	   copy, and held no more than the cap at once.
+#	3. Run clonedup without the counting filter, then on a new
+#	   pool with the filter forced on.
+#	4. After each run, check that it split into partitions,
+#	   cloned every copy, and held no more than the cap at once.
 #
 
 verify_runnable "global"
@@ -43,6 +45,7 @@ typeset all="$(clonedup_all_blocks $nblk)"
 
 function cleanup
 {
+	log_must restore_tunable CLONEDUP_INDEX_FILTER
 	log_must restore_tunable CLONEDUP_SCAN_MEM_MAX
 	clonedup_cleanup
 }
@@ -84,11 +87,20 @@ function check_run
 
 log_assert "a run holds no more memory than its cap"
 log_onexit cleanup
+log_must save_tunable CLONEDUP_INDEX_FILTER
 log_must save_tunable CLONEDUP_SCAN_MEM_MAX
 
+log_must set_tunable32 CLONEDUP_INDEX_FILTER 0
 log_must set_tunable64 CLONEDUP_SCAN_MEM_MAX $cap
 build_pool
 clonedup_run
+check_run
+log_must zpool destroy $TESTPOOL
+
+log_must set_tunable32 CLONEDUP_INDEX_FILTER 1
+build_pool
+clonedup_run
+clonedup_kstat_gt count_walks 0
 check_run
 
 log_pass "a run holds no more memory than its cap"

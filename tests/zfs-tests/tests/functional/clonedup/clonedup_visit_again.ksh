@@ -64,6 +64,7 @@ function cleanup
 {
 	zinject -c all >/dev/null 2>&1
 	log_must restore_tunable TXG_TIMEOUT
+	log_must restore_tunable CLONEDUP_INDEX_FILTER
 	log_must restore_tunable NO_SCRUB_PREFETCH
 	clonedup_cleanup
 }
@@ -122,7 +123,10 @@ function cd_x_on_z
 log_assert "two apply entries can share a destination locator"
 log_onexit cleanup
 log_must save_tunable TXG_TIMEOUT
+log_must save_tunable CLONEDUP_INDEX_FILTER
 log_must save_tunable NO_SCRUB_PREFETCH
+# a counting pass would walk x@s1 before the index walk does
+log_must set_tunable32 CLONEDUP_INDEX_FILTER 0
 
 clonedup_pool_create -O recordsize=4k
 log_must zfs create $TESTPOOL/q

@@ -52,10 +52,17 @@ pool property
 .Pq see Xr zpoolprops 7 ,
 and the counts of the last run.
 .Pp
-A run has three phases.
+A run has three phases, and a counting pass may come before them.
 First it walks the pool's block pointers the way a scrub does, without
 reading any file data, and indexes in memory the blocks written since the
 last completed run.
+When
+.Sy zfs_clonedup_index_filter
+allows it, a counting pass walks the same block pointers first and notes
+which checksums occur more than once, so that the index can leave out most
+blocks whose checksum occurs only once.
+The counts of the last run that completed over the same window, a dry run
+included, decide whether the pass runs and how much memory it takes.
 Then it walks the block pointers again and looks up every older block in
 that index, which matches new data against everything already in the pool.
 Finally a background apply thread redirects one block of each match onto
@@ -70,6 +77,8 @@ bytes, or by default the share of memory a scrub may use for its queues
 When the new data does not fit, the run splits the checksum space into
 partitions and repeats the phases for each one, so the index stays within
 the cap.
+The counting pass takes at most half of the cap, and the index gets the
+rest.
 .Pp
 A copy on a device that is being removed, or on the indirect device that a
 finished removal leaves, never survives, but the run can redirect it.
@@ -121,12 +130,14 @@ They include the walks, the blocks read to verify a match, the clones and
 holes made, the pairs whose data turned out to differ, the times the apply
 thread stepped aside for an administrative operation, and
 .Sy mem_peak ,
-the most memory the index has held at once.
+the most memory the index and the counting filter have held at once.
 .Sy walk_resumes
 counts the transaction groups that resumed a walk where an earlier one
 suspended it.
 .Sy canceled_runs
 counts the runs and dry runs that ended before they finished.
+.Sy filter_bytes
+adds up the size of every counting filter a run has taken.
 .Pp
 A run never touches:
 .Bl -bullet -compact

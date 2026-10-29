@@ -69,6 +69,10 @@ typedef struct dsl_clonedup_phys {
 	uint64_t dclp_errors;
 	/* end of the scrub whose scan record a run took over */
 	uint64_t dclp_scrub_end;
+	uint64_t dclp_filter_slots;	/* 0 if no pre-pass ran */
+	uint64_t dclp_planned_entries;	/* 2*A + B of the pre-pass */
+	uint64_t dclp_filter_seen;	/* blocks the pre-pass saw */
+	uint64_t dclp_keep_pct;		/* percent the filter kept */
 } dsl_clonedup_phys_t;
 
 #define	DSL_CLONEDUP_PHYS_VERSION	1
@@ -163,9 +167,12 @@ typedef enum dsl_clonedup_kstat_id {
 	DCK_BATCHES,		/* transactions carrying clones */
 	DCK_KEY_COLLISIONS,	/* key matched, checksum did not */
 	DCK_CKSUM_COLLISIONS,	/* checksum matched, data did not */
-	DCK_MEM_PEAK,		/* most index bytes */
+	DCK_MEM_PEAK,		/* most index and filter bytes */
 	DCK_CANCELED_RUNS,	/* runs ended before finishing */
 	DCK_WALK_RESUMES,	/* walks resumed in a later txg */
+	DCK_COUNT_WALKS,	/* counting pre-passes run */
+	DCK_FILTER_DROPPED,	/* blocks the filter kept out */
+	DCK_FILTER_BYTES,	/* bytes of the filters runs took */
 	DCK_NUM
 } dsl_clonedup_kstat_id_t;
 
@@ -267,6 +274,31 @@ typedef struct dsl_clonedup_worker {
 	uint_t		dcw_zcksum_next;
 } dsl_clonedup_worker_t;
 
+/*
+ * Counting pre-pass.  Two bits a slot, four slots a byte, indexed by
+ * the block key: never seen, seen once, seen twice or more.  A key
+ * that never repeats cannot pair with anything, so phase 1 declines
+ * to store an entry for it.
+ *
+ * A slot is shared by unrelated keys.  That reports a block as
+ * repeated when it is not, which costs one index entry, the cost of
+ * every block without the filter.  It never reports a repeated key
+ * as unique, so nothing that could pair is lost.
+ *
+ * dcf_once counts slots that went from one to two and dcf_extra
+ * counts blocks that landed on a slot already at two, so
+ * 2 * dcf_once + dcf_extra is exactly how many entries phase 1 will
+ * store.  That is known before the index is allocated.
+ */
+typedef struct dsl_clonedup_filter {
+	uint8_t		*dcf_bits;
+	uint64_t	dcf_slots;	/* power of two */
+	uint64_t	dcf_bytes;
+	uint64_t	dcf_once;	/* A: slots at two */
+	uint64_t	dcf_extra;	/* B: blocks past two */
+	uint64_t	dcf_seen;	/* blocks offered */
+} dsl_clonedup_filter_t;
+
 typedef struct dsl_clonedup {
 	struct dsl_pool	*dcl_dp;
 	kmutex_t	dcl_lock;
@@ -285,6 +317,7 @@ typedef struct dsl_clonedup {
 	uint64_t	dcl_nrepeat;
 	uint64_t	dcl_mem_peak;	/* DCK_MEM_PEAK */
 	uint64_t	dcl_splits;
+	dsl_clonedup_filter_t *dcl_filter;
 
 	/*
 	 * What one apply worker holds while it works: its batch, the
@@ -432,7 +465,10 @@ void dsl_clonedup_note_scrub(dsl_clonedup_t *dcl,
 
 void dsl_clonedup_run_setup(dsl_clonedup_t *dcl, uint64_t flags,
     uint64_t min_txg, uint64_t max_txg, boolean_t restart,
-    dmu_tx_t *tx);
+    dsl_clonedup_filter_t **filterp, dmu_tx_t *tx);
+dsl_clonedup_filter_t *dsl_clonedup_filter_prepare(
+    struct dsl_pool *dp, uint64_t flags);
+void dsl_clonedup_filter_free(dsl_clonedup_filter_t *f);
 void dsl_clonedup_run_done(dsl_clonedup_t *dcl, boolean_t complete,
     boolean_t restart, dmu_tx_t *tx);
 boolean_t dsl_clonedup_bp_eligible(spa_t *spa, const blkptr_t *bp,
@@ -440,6 +476,7 @@ boolean_t dsl_clonedup_bp_eligible(spa_t *spa, const blkptr_t *bp,
     uint8_t *flagsp);
 boolean_t dsl_clonedup_wanted(dsl_clonedup_t *dcl,
     const blkptr_t *bp);
+boolean_t dsl_clonedup_counting(dsl_clonedup_t *dcl);
 void dsl_clonedup_visit(dsl_clonedup_t *dcl, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const struct dnode_phys *dnp,
     uint8_t flags);

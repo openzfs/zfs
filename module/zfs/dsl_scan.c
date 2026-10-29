@@ -1137,7 +1137,8 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 		    scn->scn_phys.scn_flags & DSL_CLONEDUP_MODE_FLAGS,
 		    scn->scn_phys.scn_min_txg,
 		    scn->scn_phys.scn_max_txg,
-		    setup_sync_arg->restart, tx);
+		    setup_sync_arg->restart,
+		    &setup_sync_arg->clonedup_filter, tx);
 		if (!dryrun)
 			spa_feature_incr(spa, SPA_FEATURE_CLONEDUP,
 			    tx);
@@ -1200,6 +1201,7 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, uint64_t txgstart,
 	spa_t *spa = dp->dp_spa;
 	dsl_scan_t *scn = dp->dp_scan;
 	setup_sync_arg_t setup_sync_arg;
+	int error;
 
 	if (func != POOL_SCAN_SCRUB && (txgstart != 0 || txgend != 0)) {
 		return (EINVAL);
@@ -1301,9 +1303,23 @@ dsl_scan(dsl_pool_t *dp, pool_scan_func_t func, uint64_t txgstart,
 		return (SET_ERROR(err));
 	}
 
-	return (dsl_sync_task(spa_name(spa), dsl_scan_setup_check,
+	/*
+	 * Make here first the tests dsl_scan_setup_check() makes.  A
+	 * request it refuses, and a run that replaces a running one
+	 * and so takes no filter, would only zero a filter and free
+	 * it.
+	 */
+	if (func == POOL_SCAN_CLONEDUP && !dsl_scan_is_running(scn) &&
+	    !vdev_rebuild_active(spa->spa_root_vdev) &&
+	    !dsl_errorscrubbing(dp)) {
+		setup_sync_arg.clonedup_filter =
+		    dsl_clonedup_filter_prepare(dp, flags);
+	}
+	error = dsl_sync_task(spa_name(spa), dsl_scan_setup_check,
 	    dsl_scan_setup_sync, &setup_sync_arg, 0,
-	    ZFS_SPACE_CHECK_EXTRA_RESERVED));
+	    ZFS_SPACE_CHECK_EXTRA_RESERVED);
+	dsl_clonedup_filter_free(setup_sync_arg.clonedup_filter);
+	return (error);
 }
 
 static void
@@ -5487,7 +5503,8 @@ dsl_scan_clonedup_cb(dsl_pool_t *dp, const blkptr_t *bp,
 		flags |= DCE_F_SNAPHELD;
 	if (scn->scn_clonedup_dsmode == ZFS_CLONEDUP_SOURCE)
 		flags |= DCE_F_SRCONLY;
-	if (brt_maybe_exists(spa, bp))
+	/* the counting pass uses only the key */
+	if (!dsl_clonedup_counting(dcl) && brt_maybe_exists(spa, bp))
 		flags |= DCE_F_MAYBE_SHARED;
 	dsl_clonedup_visit(dcl, bp, zb, dnp, flags);
 	return (0);

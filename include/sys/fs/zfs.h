@@ -1256,6 +1256,11 @@ typedef enum pool_clonedup_phase {
 	POOL_CLONEDUP_INDEX,	/* index blocks born since last run */
 	POOL_CLONEDUP_MATCH,	/* look older blocks up in index */
 	POOL_CLONEDUP_APPLY,	/* verify and clone */
+	/*
+	 * The value is stored on disk, so new phases are appended
+	 * even when they run first.
+	 */
+	POOL_CLONEDUP_COUNT,	/* count keys before indexing them */
 } pool_clonedup_phase_t;
 
 typedef enum {
