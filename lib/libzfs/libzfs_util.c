@@ -248,6 +248,14 @@ libzfs_error_description(libzfs_handle_t *hdl)
 	case EZFS_ERRORSCRUB_PAUSED:
 		return ("error scrub is paused; "
 		    "use 'zpool scrub -e' to resume error scrub");
+	case EZFS_CLONEDUP_RUNNING:
+		return ("clonedup is running; "
+		    "use 'zpool clonedup -s' to cancel it");
+	case EZFS_CLONEDUP_PAUSED:
+		return ("clonedup is paused; "
+		    "use 'zpool clonedup' with the paused run's "
+		    "flags to resume or 'zpool clonedup -s' to "
+		    "cancel it");
 	case EZFS_NO_SCRUB:
 		return ("there is no active scrub");
 	case EZFS_DIFF:

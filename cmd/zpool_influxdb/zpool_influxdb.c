@@ -182,6 +182,9 @@ print_scan_status(nvlist_t *nvroot, const char *pool_name)
 	case POOL_SCAN_RESILVER:
 		func = "resilver";
 		break;
+	case POOL_SCAN_CLONEDUP:
+		func = "clonedup";
+		break;
 #ifdef POOL_SCAN_REBUILD
 	case POOL_SCAN_REBUILD:
 		func = "rebuild";

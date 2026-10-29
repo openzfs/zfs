@@ -19,7 +19,7 @@
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\" Copyright (c) 2023, 2026, Klara Inc.
 .\"
-.Dd September 9, 2026
+.Dd September 27, 2026
 .Dt ZPOOLPROPS 7
 .Os
 .
@@ -161,6 +161,13 @@ property in
 The current health of the pool.
 Health can be one of
 .Sy ONLINE , DEGRADED , FAULTED , OFFLINE, REMOVED , UNAVAIL .
+.It Sy last_clonedup_txg
+The transaction group (TXG) that the most recent completed
+.Nm zpool Cm clonedup
+run started in.
+The next default or quick run indexes only blocks written after it.
+A full run indexes every block.
+Dry runs, quick runs and canceled runs do not update this property.
 .It Sy last_scrubbed_txg
 Indicates the transaction group (TXG) up to which the most recent scrub
 operation has checked and repaired the dataset.

@@ -49,6 +49,7 @@
 #include <sys/sa.h>
 #include <sys/zfs_onexit.h>
 #include <sys/dsl_destroy.h>
+#include <sys/dsl_clonedup.h>
 #include <sys/vdev.h>
 #include <sys/zfeature.h>
 #include <sys/policy.h>
@@ -799,32 +800,65 @@ dmu_objset_own_impl(dsl_dataset_t *ds, dmu_objset_type_t type,
 }
 
 /*
- * dsl_pool must not be held when this is called.
- * Upon successful return, there will be a longhold on the dataset,
- * and the dsl_pool will not be held.
+ * The clonedup apply may own or long-hold the dataset.  With
+ * may_wait set the caller holds no lock the apply needs to let go,
+ * and the own waits for it once.  Without, the own does not wait.
+ * With obj set the own finds the dataset by its object number, and
+ * name only finds the pool.
  */
-int
-dmu_objset_own(const char *name, dmu_objset_type_t type,
-    boolean_t readonly, boolean_t decrypt, const void *tag, objset_t **osp)
+static int
+dmu_objset_own_common(const char *name, uint64_t obj,
+    dmu_objset_type_t type, boolean_t readonly, boolean_t decrypt,
+    boolean_t may_wait, const void *tag, objset_t **osp)
 {
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
+	dsl_clonedup_t *dy = NULL;
 	int err;
+	boolean_t yielded = B_FALSE;
 	ds_hold_flags_t flags;
 
+	ASSERT(obj == 0 || !may_wait);
 	flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : DS_HOLD_FLAG_NONE;
-	err = dsl_pool_hold(name, FTAG, &dp);
-	if (err != 0)
-		return (err);
-	err = dsl_dataset_own(dp, name, flags, tag, &ds);
-	if (err != 0) {
+	for (;;) {
+		err = dsl_pool_hold(name, FTAG, &dp);
+		if (err != 0) {
+			dsl_clonedup_yield_end(dy);
+			return (err);
+		}
+		if (obj != 0) {
+			err = dsl_dataset_own_obj(dp, obj, flags, tag,
+			    &ds);
+		} else {
+			err = dsl_dataset_own(dp, name, flags, tag,
+			    &ds);
+		}
+		if (err == 0 && !ds->ds_is_snapshot &&
+		    dsl_clonedup_src_held(dp, ds->ds_object)) {
+			dsl_dataset_disown(ds, flags, tag);
+			err = SET_ERROR(EBUSY);
+		}
+		if (err == 0)
+			break;
+		if (err == EBUSY && !may_wait) {
+			dsl_pool_rele(dp, FTAG);
+			return (err);
+		}
 		dsl_pool_rele(dp, FTAG);
-		return (err);
+		/* never wait with spa_namespace_lock held */
+		if (err != EBUSY || yielded || spa_namespace_held()) {
+			dsl_clonedup_yield_end(dy);
+			return (err);
+		}
+		/* the clonedup apply thread may be the owner */
+		dy = dsl_clonedup_yield_begin_name(name);
+		yielded = B_TRUE;
 	}
 	err = dmu_objset_own_impl(ds, type, readonly, decrypt, tag, osp);
 	if (err != 0) {
 		dsl_dataset_disown(ds, flags, tag);
 		dsl_pool_rele(dp, FTAG);
+		dsl_clonedup_yield_end(dy);
 		return (err);
 	}
 
@@ -834,7 +868,7 @@ dmu_objset_own(const char *name, dmu_objset_type_t type,
 	 * speed up pool import times and to keep this txg reserved
 	 * completely for recovery work.
 	 */
-	if (!readonly && !dp->dp_spa->spa_claiming &&
+	if (obj == 0 && !readonly && !dp->dp_spa->spa_claiming &&
 	    (ds->ds_dir->dd_crypto_obj == 0 || decrypt)) {
 		if (dmu_objset_userobjspace_upgradable(*osp) ||
 		    dmu_objset_projectquota_upgradable(*osp)) {
@@ -845,7 +879,48 @@ dmu_objset_own(const char *name, dmu_objset_type_t type,
 	}
 
 	dsl_pool_rele(dp, FTAG);
+	dsl_clonedup_yield_end(dy);
 	return (0);
+}
+
+/*
+ * dsl_pool must not be held when this is called.
+ * Upon successful return, there will be a longhold on the dataset,
+ * and the dsl_pool will not be held.
+ */
+int
+dmu_objset_own(const char *name, dmu_objset_type_t type,
+    boolean_t readonly, boolean_t decrypt, const void *tag,
+    objset_t **osp)
+{
+	return (dmu_objset_own_common(name, 0, type, readonly,
+	    decrypt, B_TRUE, tag, osp));
+}
+
+/*
+ * dmu_objset_own() without the wait for the clonedup apply, for a
+ * caller that holds a volume's zv_state_lock or spa_namespace_lock.
+ */
+int
+dmu_objset_own_nowait(const char *name, dmu_objset_type_t type,
+    boolean_t readonly, boolean_t decrypt, const void *tag,
+    objset_t **osp)
+{
+	return (dmu_objset_own_common(name, 0, type, readonly,
+	    decrypt, B_FALSE, tag, osp));
+}
+
+/*
+ * dmu_objset_own_nowait() of the dataset with object number obj in
+ * the pool that name is in.
+ */
+int
+dmu_objset_own_obj_nowait(const char *name, uint64_t obj,
+    dmu_objset_type_t type, boolean_t readonly, boolean_t decrypt,
+    const void *tag, objset_t **osp)
+{
+	return (dmu_objset_own_common(name, obj, type, readonly,
+	    decrypt, B_FALSE, tag, osp));
 }
 
 int

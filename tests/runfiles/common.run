@@ -734,6 +734,50 @@ pre =
 post =
 tags = ['functional', 'deadman']
 
+[tests/functional/clonedup]
+tests = ['clonedup_apply_progress', 'clonedup_apply_txgs',
+    'clonedup_bad_options', 'clonedup_basic', 'clonedup_batching',
+    'clonedup_bclone_disabled', 'clonedup_clone_after_snap',
+    'clonedup_copies_groups', 'clonedup_cross_dataset',
+    'clonedup_destroy_during_apply', 'clonedup_dry_run',
+    'clonedup_dry_run_refusals',
+    'clonedup_dst_open_error',
+    'clonedup_dst_truncated', 'clonedup_embedded_skipped',
+    'clonedup_empty_incremental', 'clonedup_events', 'clonedup_export_import',
+    'clonedup_feature_disabled', 'clonedup_full',
+    'clonedup_gang_survivor', 'clonedup_incremental',
+    'clonedup_lock_order', 'clonedup_mem_cap', 'clonedup_mmap_writeback',
+    'clonedup_mount_during_apply', 'clonedup_owned_projid',
+    'clonedup_parallel_cancel',
+    'clonedup_parallel_export', 'clonedup_parallel_finish',
+    'clonedup_parallel_txg_cap', 'clonedup_partitions',
+    'clonedup_pause_export', 'clonedup_pause_resume', 'clonedup_policy_owned',
+    'clonedup_policy_skips', 'clonedup_precedence',
+    'clonedup_promote_rollback_during_apply',
+    'clonedup_queue_obj', 'clonedup_quick',
+    'clonedup_read_error', 'clonedup_readonly_pool', 'clonedup_rebuild_scrub',
+    'clonedup_removing_vdev',
+    'clonedup_replace_during_apply', 'clonedup_resilver_cancels',
+    'clonedup_restart_window', 'clonedup_resume_flags',
+    'clonedup_saved_once',
+    'clonedup_scrub_errors',
+    'clonedup_scrub_interplay', 'clonedup_scrub_pause',
+    'clonedup_scrub_paused_busy', 'clonedup_skipped_data',
+    'clonedup_small_arc',
+    'clonedup_snaponly_pairs', 'clonedup_special_small',
+    'clonedup_split_groups', 'clonedup_src_fallback', 'clonedup_src_rank',
+    'clonedup_src_truncated', 'clonedup_stale_dst', 'clonedup_status',
+    'clonedup_status_units', 'clonedup_stop_guard', 'clonedup_stop_raced',
+    'clonedup_teardown_mmap', 'clonedup_teardown_writer',
+    'clonedup_unmounted_dst', 'clonedup_verify_error', 'clonedup_verify_freed',
+    'clonedup_verify_kstat', 'clonedup_walk_total',
+    'clonedup_writer_race', 'clonedup_yield_program',
+    'clonedup_yield_send', 'clonedup_yield_timeout',
+    'clonedup_yield_vdev_change']
+pre =
+post =
+tags = ['functional', 'clonedup']
+
 [tests/functional/dedup]
 tests = ['dedup_bclone', 'dedup_bclone_pruned', 'dedup_fdt_create',
     'dedup_fdt_import',

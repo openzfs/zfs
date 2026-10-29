@@ -812,6 +812,18 @@ zpool_feature_init(void)
 		    ZFEATURE_TYPE_BOOLEAN, physical_rewrite_deps, sfeatures);
 	}
 
+	/*
+	 * block_cloning is checked when a run starts rather than
+	 * declared here: a declared dependency would enable
+	 * block_cloning on every pool created with
+	 * feature@block_cloning=disabled.
+	 */
+	zfeature_register(SPA_FEATURE_CLONEDUP,
+	    "org.openzfs:clonedup", "clonedup",
+	    "Offline deduplication via block cloning.",
+	    ZFEATURE_FLAG_READONLY_COMPAT, ZFEATURE_TYPE_BOOLEAN,
+	    NULL, sfeatures);
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 

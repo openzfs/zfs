@@ -58,6 +58,7 @@ COMMON_H = \
 	sys/dsl_deleg.h \
 	sys/dsl_destroy.h \
 	sys/dsl_dir.h \
+	sys/dsl_clonedup.h \
 	sys/dsl_pool.h \
 	sys/dsl_prop.h \
 	sys/dsl_scan.h \

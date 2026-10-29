@@ -80,6 +80,7 @@
 #include <sys/systeminfo.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/dsl_scan.h>
+#include <sys/dsl_clonedup.h>
 #include <sys/zfeature.h>
 #include <sys/dsl_destroy.h>
 #include <sys/zvol.h>
@@ -535,6 +536,8 @@ spa_prop_get_config(spa_t *spa, nvlist_t *nv)
 		    rvd->vdev_state, src);
 		spa_prop_add_list(nv, ZPOOL_PROP_LAST_SCRUBBED_TXG, NULL,
 		    spa_get_last_scrubbed_txg(spa), src);
+		spa_prop_add_list(nv, ZPOOL_PROP_LAST_CLONEDUP_TXG,
+		    NULL, spa_get_last_clonedup_txg(spa), src);
 
 		version = spa_version(spa);
 		if (version == zpool_prop_default_numeric(ZPOOL_PROP_VERSION)) {
@@ -2183,6 +2186,10 @@ spa_destroy_aux_threads(spa_t *spa)
 		zthr_destroy(spa->spa_raidz_expand_zthr);
 		spa->spa_raidz_expand_zthr = NULL;
 	}
+	if (spa->spa_clonedup_apply_zthr != NULL) {
+		zthr_destroy(spa->spa_clonedup_apply_zthr);
+		spa->spa_clonedup_apply_zthr = NULL;
+	}
 }
 
 static void
@@ -3680,6 +3687,12 @@ spa_spawn_aux_threads(spa_t *spa)
 	    zthr_create("z_checkpoint_discard",
 	    spa_checkpoint_discard_thread_check,
 	    spa_checkpoint_discard_thread, spa, minclsyspri);
+
+	ASSERT0P(spa->spa_clonedup_apply_zthr);
+	spa->spa_clonedup_apply_zthr =
+	    zthr_create("z_clonedup_apply",
+	    dsl_clonedup_apply_check, dsl_clonedup_apply_thread, spa,
+	    minclsyspri);
 }
 
 /*
@@ -5507,6 +5520,13 @@ spa_ld_get_props(spa_t *spa)
 	    &spa->spa_scrubbed_last_txg, B_FALSE);
 	if (error != 0 && error != ENOENT)
 		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
+
+	/*
+	 * Publish the last clonedup txg, which dsl_clonedup_init()
+	 * loaded with the rest of the clonedup record.
+	 */
+	spa->spa_clonedup_last_txg =
+	    dsl_clonedup_last_txg(spa->spa_dsl_pool);
 
 	/*
 	 * Load the livelist deletion field. If a livelist is queued for
@@ -10034,9 +10054,26 @@ spa_scan_range(spa_t *spa, pool_scan_func_t func, uint64_t txgstart,
 
 	if (flags & POOL_SCRUB_THOROUGH)
 		dsl_flags |= DSF_SCRUB_THOROUGH;
+	if (flags & POOL_SCRUB_CLONEDUP_FULL)
+		dsl_flags |= DSF_CLONEDUP_FULL;
+	if (flags & POOL_SCRUB_CLONEDUP_QUICK)
+		dsl_flags |= DSF_CLONEDUP_QUICK;
+	if (flags & POOL_SCRUB_CLONEDUP_DRYRUN)
+		dsl_flags |= DSF_CLONEDUP_DRYRUN;
 
 	if (func >= POOL_SCAN_FUNCS || func == POOL_SCAN_NONE)
 		return (SET_ERROR(ENOTSUP));
+
+	if (func == POOL_SCAN_CLONEDUP) {
+		if (!zfs_clonedup_bclone_enabled() ||
+		    !spa_feature_is_enabled(spa,
+		    SPA_FEATURE_BLOCK_CLONING))
+			return (SET_ERROR(ENOTSUP));
+		if (!(dsl_flags & DSF_CLONEDUP_DRYRUN) &&
+		    !spa_feature_is_enabled(spa,
+		    SPA_FEATURE_CLONEDUP))
+			return (SET_ERROR(ENOTSUP));
+	}
 
 	if (func == POOL_SCAN_RESILVER &&
 	    !spa_feature_is_enabled(spa, SPA_FEATURE_RESILVER_DEFER))
@@ -10339,6 +10376,10 @@ spa_async_suspend(spa_t *spa)
 	zthr_t *ll_condense_thread = spa->spa_livelist_condense_zthr;
 	if (ll_condense_thread != NULL)
 		zthr_cancel(ll_condense_thread);
+
+	zthr_t *clonedup_thread = spa->spa_clonedup_apply_zthr;
+	if (clonedup_thread != NULL)
+		zthr_cancel(clonedup_thread);
 }
 
 void
@@ -10369,6 +10410,10 @@ spa_async_resume(spa_t *spa)
 	zthr_t *ll_condense_thread = spa->spa_livelist_condense_zthr;
 	if (ll_condense_thread != NULL)
 		zthr_resume(ll_condense_thread);
+
+	zthr_t *clonedup_thread = spa->spa_clonedup_apply_zthr;
+	if (clonedup_thread != NULL)
+		zthr_resume(clonedup_thread);
 }
 
 static boolean_t
@@ -11999,11 +12044,18 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 			break;
 		zfs_fallthrough;
 	case ZPOOL_WAIT_SCRUB:
+	case ZPOOL_WAIT_CLONEDUP:
 	{
-		boolean_t scanning, paused, is_scrub, finishing;
+		boolean_t scanning, paused, finishing;
 		dsl_scan_t *scn =  spa->spa_dsl_pool->dp_scan;
+		pool_scan_func_t want;
 
-		is_scrub = (scn->scn_phys.scn_func == POOL_SCAN_SCRUB);
+		if (activity == ZPOOL_WAIT_SCRUB)
+			want = POOL_SCAN_SCRUB;
+		else if (activity == ZPOOL_WAIT_CLONEDUP)
+			want = POOL_SCAN_CLONEDUP;
+		else
+			want = POOL_SCAN_RESILVER;
 		scanning = (scn->scn_phys.scn_state == DSS_SCANNING);
 		paused = dsl_scan_is_paused_scrub(scn);
 
@@ -12018,8 +12070,8 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		finishing = (scn->scn_finished_txg != 0 &&
 		    spa_last_synced_txg(spa) < scn->scn_finished_txg);
 
-		*in_progress = ((scanning || finishing) && !paused &&
-		    is_scrub == (activity == ZPOOL_WAIT_SCRUB));
+		*in_progress = (scn->scn_phys.scn_func == want &&
+		    (scanning || finishing) && !paused);
 		break;
 	}
 	case ZPOOL_WAIT_RAIDZ_EXPAND:

@@ -20,7 +20,7 @@
 .\" Copyright (c) 2024-2026, Klara, Inc.
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd May 26, 2026
+.Dd September 27, 2026
 .Dt ZPOOL-WAIT 8
 .Os
 .
@@ -73,6 +73,8 @@ Manual trim to cease
 Attaching to a RAID-Z vdev to complete
 .It Sy condense
 Metadata condense operations to complete
+.It Sy clonedup
+Clonedup run to complete
 .El
 .Pp
 If an
@@ -104,6 +106,7 @@ See
 .
 .Sh SEE ALSO
 .Xr zpool-checkpoint 8 ,
+.Xr zpool-clonedup 8 ,
 .Xr zpool-condense 8 ,
 .Xr zpool-initialize 8 ,
 .Xr zpool-remove 8 ,

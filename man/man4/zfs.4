@@ -16,7 +16,7 @@
 .\" Copyright (c) 2026, Mateusz Piotrowski <0mp@FreeBSD.org>
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd September 9, 2026
+.Dd September 27, 2026
 .Dt ZFS 4
 .Os
 .
@@ -1576,6 +1576,8 @@ though the feature is disabled.
 .It Sy zfs_bclone_strict_properties Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Restricts block cloning between datasets with different properties
 (checksum, compression, copies, dedup, or special_small_blocks).
+.Xr zpool-clonedup 8
+applies the same rule but ignores special_small_blocks.
 .
 .It Sy zfs_bclone_wait_dirty Ns = Ns Sy 1 Ns | Ns 0 Pq int
 When set to 1 the FICLONE and FICLONERANGE ioctls will wait for any dirty
@@ -2332,6 +2334,75 @@ working on a scrub between TXG flushes.
 .
 .It Sy zfs_scrub_error_blocks_per_txg Ns = Ns Sy 4096 Pq uint
 Error blocks to be scrubbed in one txg.
+.
+.It Sy zfs_clonedup_scan_mem_max Ns = Ns Sy 0 Ns B Pq u64
+The most memory, in bytes, the clonedup index may use.
+Zero derives the limit the way a scrub sizes its queues, from
+.Sy zfs_scan_mem_lim_fact ,
+capped at a twentieth of the space the pool has allocated and floored at
+64 MiB.
+Each partition walks the pool's metadata again.
+A full run walks all of it each time, a quick run only what was written
+since
+.Sy last_clonedup_txg ,
+and a default run makes both walks.
+.
+.It Sy zfs_clonedup_apply_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
+Run the clonedup apply thread.
+When this is zero, a run stops at the apply phase until it is set again.
+.
+.It Sy zfs_clonedup_apply_blocks_per_txg Ns = Ns Sy 8192 Pq uint
+The most blocks the apply workers together clone in one
+transaction group.
+A transaction that would take its group past this waits for the next
+group.
+The same value caps the clones in one transaction, which never holds more
+than 256.
+A small pool or a low
+.Sy zfs_dirty_data_max
+lowers that cap further, but not below 64 unless this value is lower.
+It also caps one take from the index, which holds at least 2 and at most
+1024 entries.
+Each transaction first waits for the previous transaction group to sync.
+The apply does not hurry the next group, so on a quiet pool it clones
+into mounted file systems at most this many blocks per
+.Sy zfs_txg_timeout ,
+and a setting of 1 costs a whole timeout for every such block.
+.Sy 0
+acts as
+.Sy 1 .
+.
+.It Sy zfs_clonedup_apply_threads Ns = Ns Sy 0 Pq uint
+The number of worker threads in the apply phase.
+.Sy 0
+starts one worker per four cores, rounded up.
+The count is held to 64.
+A worker takes an unmounted file system exclusively, and the other workers
+stay off it until that worker is done with it.
+Workers share mounted file systems.
+.
+.It Sy zfs_clonedup_apply_txg_delay Ns = Ns Sy 0 Ns ms Pq uint
+Sleep this long after the apply checks a candidate's block pointers and
+before it locks and queues the block.
+The verify read and the clone both come later, when the worker commits its
+queue.
+Intended for use with the test suite to widen race windows.
+.
+.It Sy zfs_clonedup_apply_flush_delay Ns = Ns Sy 0 Ns ms Pq uint
+Sleep this long before an apply worker commits the clones it still has
+queued when it stops.
+Intended for use with the test suite to widen race windows.
+.
+.It Sy zfs_clonedup_yield_timeout_ms Ns = Ns Sy 10000 Ns ms Pq uint
+How long an operation waits for the clonedup apply thread to let go of the
+datasets it holds.
+The destroy of a file system or volume, a rollback, the end of a receive, or
+a channel program run in syncing context waits whenever the thread holds any
+dataset in the pool.
+A mount or a send of a file system waits only when it finds its dataset
+busy.
+After this time the operation goes ahead, and fails with EBUSY only if the
+thread still holds a dataset it needs.
 .
 .It Sy zfs_scan_blkstats Ns = Ns Sy 0 Ns | Ns 1 Pq int
 When enabled, ZFS counts blocks by type and indirection level during a scrub.

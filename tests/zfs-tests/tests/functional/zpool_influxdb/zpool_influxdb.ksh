@@ -56,4 +56,10 @@ log_must zpool scrub $TESTPOOL
 log_must eval "zpool_influxdb > $tmpfile"
 check_for zpool_scan_stats
 
+# a clonedup run is reported under its own function
+log_must zpool wait -t scrub $TESTPOOL
+log_must zpool clonedup -w $TESTPOOL
+log_must eval "zpool_influxdb > $tmpfile"
+log_must grep -q "^zpool_scan_stats,function=clonedup," $tmpfile
+
 log_pass "zpool_influxdb gathers statistics"

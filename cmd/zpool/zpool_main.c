@@ -102,6 +102,7 @@ static int zpool_do_split(int, char **);
 
 static int zpool_do_initialize(int, char **);
 static int zpool_do_scrub(int, char **);
+static int zpool_do_clonedup(int, char **);
 static int zpool_do_resilver(int, char **);
 static int zpool_do_trim(int, char **);
 
@@ -164,6 +165,7 @@ typedef enum {
 	HELP_REMOVE,
 	HELP_INITIALIZE,
 	HELP_SCRUB,
+	HELP_CLONEDUP,
 	HELP_RESILVER,
 	HELP_TRIM,
 	HELP_STATUS,
@@ -260,7 +262,8 @@ static const char *pool_scan_func_str[] = {
 	"NONE",
 	"SCRUB",
 	"RESILVER",
-	"ERRORSCRUB"
+	"ERRORSCRUB",
+	"CLONEDUP"
 };
 
 static const char *pool_scan_state_str[] = {
@@ -269,6 +272,13 @@ static const char *pool_scan_state_str[] = {
 	"FINISHED",
 	"CANCELED",
 	"ERRORSCRUBBING"
+};
+
+static const char *pool_clonedup_phase_str[] = {
+	"NONE",
+	"INDEX",
+	"MATCH",
+	"APPLY"
 };
 
 static const char *vdev_rebuild_state_str[] = {
@@ -400,6 +410,7 @@ static zpool_command_t command_table[] = {
 	{ "initialize",	zpool_do_initialize,	HELP_INITIALIZE		},
 	{ "resilver",	zpool_do_resilver,	HELP_RESILVER		},
 	{ "scrub",	zpool_do_scrub,		HELP_SCRUB		},
+	{ "clonedup",	zpool_do_clonedup,	HELP_CLONEDUP	},
 	{ "trim",	zpool_do_trim,		HELP_TRIM		},
 	{ "condense",	zpool_do_condense,	HELP_CONDENSE		},
 	{ NULL },
@@ -501,6 +512,11 @@ get_usage(zpool_help_t idx)
 		return ("\tscrub [-e | -s | -p | -t | -C [-t] | "
 		    "[-S date] [-E date] [-t]] [-w]\n"
 		    "\t    <-a | <pool> [<pool> ...]>\n");
+	case HELP_CLONEDUP:
+		return ("\tclonedup [-w] [-f | -q] [-n] "
+		    "<-a | <pool> [<pool> ...]>\n"
+		    "\tclonedup -p | -s "
+		    "<-a | <pool> [<pool> ...]>\n");
 	case HELP_RESILVER:
 		return ("\tresilver <pool> ...\n");
 	case HELP_TRIM:
@@ -8713,6 +8729,166 @@ zpool_do_scrub(int argc, char **argv)
 }
 
 /*
+ * zpool clonedup [-w] [-f | -q] [-n] <-a | <pool> ...>
+ * zpool clonedup -p | -s <-a | <pool> ...>
+ *
+ *	-a	Run on all pools.
+ *	-s	Stop.  Cancels an in-progress clonedup run.
+ *	-p	Pause.  Pauses an in-progress clonedup run.
+ *	-w	Wait.  Blocks until the run has completed.
+ *	-f	Full.  Index every block, not only those born since
+ *		the last completed run.
+ *	-q	Quick.  Clone duplicates among new blocks only; do not
+ *		match them against older data.
+ *	-n	Dry run.  Count and report, clone nothing.
+ */
+static int
+clonedup_callback(zpool_handle_t *zhp, void *data)
+{
+	scrub_cbdata_t *cb = data;
+	int err;
+
+	if (zpool_get_state(zhp) == POOL_STATE_UNAVAIL) {
+		(void) fprintf(stderr, "cannot run clonedup "
+		    "on '%s': pool is currently unavailable\n",
+		    zpool_get_name(zhp));
+		return (1);
+	}
+
+	/*
+	 * Stop and pause act on a clonedup run only, never on a scrub
+	 * that happens to be running.  A scrub can replace the run
+	 * after this check, so the kernel checks a stop again when it
+	 * takes effect.
+	 */
+	if ((cb->cb_scrub_flags & POOL_SCRUB_CLONEDUP_STOP) ||
+	    cb->cb_scrub_cmd == POOL_SCRUB_PAUSE) {
+		nvlist_t *nvroot;
+		pool_scan_stat_t *ps = NULL;
+		uint_t c;
+
+		nvroot = fnvlist_lookup_nvlist(
+		    zpool_get_config(zhp, NULL),
+		    ZPOOL_CONFIG_VDEV_TREE);
+		(void) nvlist_lookup_uint64_array(nvroot,
+		    ZPOOL_CONFIG_SCAN_STATS, (uint64_t **)&ps, &c);
+		if (ps == NULL ||
+		    ps->pss_func != POOL_SCAN_CLONEDUP ||
+		    ps->pss_state != DSS_SCANNING) {
+			(void) fprintf(stderr, "cannot %s "
+			    "clonedup on '%s': no clonedup run "
+			    "in progress\n",
+			    cb->cb_scrub_cmd == POOL_SCRUB_PAUSE ?
+			    "pause" : "stop", zpool_get_name(zhp));
+			return (1);
+		}
+	}
+
+	err = zpool_scan_range(zhp, cb->cb_type, cb->cb_scrub_cmd,
+	    cb->cb_scrub_flags, 0, 0);
+	return (err != 0);
+}
+
+static int
+zpool_do_clonedup(int argc, char **argv)
+{
+	int c;
+	scrub_cbdata_t cb;
+	boolean_t wait = B_FALSE;
+	boolean_t is_pause = B_FALSE;
+	boolean_t is_stop = B_FALSE;
+	boolean_t run_all = B_FALSE;
+	int error;
+
+	cb.cb_type = POOL_SCAN_CLONEDUP;
+	cb.cb_scrub_cmd = POOL_SCRUB_NORMAL;
+	cb.cb_scrub_flags = 0;
+	cb.cb_date_start = cb.cb_date_end = 0;
+
+	while ((c = getopt(argc, argv, "aspwfqn")) != -1) {
+		switch (c) {
+		case 'a':
+			run_all = B_TRUE;
+			break;
+		case 's':
+			is_stop = B_TRUE;
+			break;
+		case 'p':
+			is_pause = B_TRUE;
+			break;
+		case 'w':
+			wait = B_TRUE;
+			break;
+		case 'f':
+			cb.cb_scrub_flags |=
+			    POOL_SCRUB_CLONEDUP_FULL;
+			break;
+		case 'q':
+			cb.cb_scrub_flags |=
+			    POOL_SCRUB_CLONEDUP_QUICK;
+			break;
+		case 'n':
+			cb.cb_scrub_flags |=
+			    POOL_SCRUB_CLONEDUP_DRYRUN;
+			log_history = B_FALSE;
+			break;
+		case '?':
+			(void) fprintf(stderr,
+			    "invalid option '%c'\n", optopt);
+			usage(B_FALSE);
+		}
+	}
+
+	if (is_pause && is_stop) {
+		(void) fprintf(stderr, "invalid option "
+		    "combination: -s and -p are mutually "
+		    "exclusive\n");
+		usage(B_FALSE);
+	} else if ((is_pause || is_stop) && cb.cb_scrub_flags != 0) {
+		(void) fprintf(stderr, "invalid option "
+		    "combination: -s and -p cannot be combined with "
+		    "-f, -q or -n\n");
+		usage(B_FALSE);
+	} else if ((cb.cb_scrub_flags & POOL_SCRUB_CLONEDUP_FULL) &&
+	    (cb.cb_scrub_flags & POOL_SCRUB_CLONEDUP_QUICK)) {
+		(void) fprintf(stderr, "invalid option "
+		    "combination: -f and -q are mutually "
+		    "exclusive\n");
+		usage(B_FALSE);
+	} else if (wait && (is_pause || is_stop)) {
+		(void) fprintf(stderr, "invalid option "
+		    "combination: -w cannot be used with -p "
+		    "or -s\n");
+		usage(B_FALSE);
+	}
+
+	if (is_pause)
+		cb.cb_scrub_cmd = POOL_SCRUB_PAUSE;
+	else if (is_stop)
+		cb.cb_scrub_flags = POOL_SCRUB_CLONEDUP_STOP;
+
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 1 && !run_all) {
+		(void) fprintf(stderr,
+		    "missing pool name argument\n");
+		usage(B_FALSE);
+	}
+
+	error = for_each_pool(argc, argv, B_TRUE, NULL, ZFS_TYPE_POOL,
+	    B_FALSE, clonedup_callback, &cb);
+
+	if (wait && !error) {
+		zpool_wait_activity_t act = ZPOOL_WAIT_CLONEDUP;
+		error = for_each_pool(argc, argv, B_TRUE, NULL,
+		    ZFS_TYPE_POOL, B_FALSE, wait_callback, &act);
+	}
+
+	return (error);
+}
+
+/*
  * zpool resilver <pool> ...
  *
  *	Restarts any in-progress resilver
@@ -9144,6 +9320,182 @@ print_err_scrub_status(pool_scan_stat_t *ps)
 	    " blocks", 100 * fraction_done, (u_longlong_t)examined);
 
 	(void) printf("\n");
+}
+
+/*
+ * Print out detailed clonedup status.
+ */
+static void
+print_clonedup_status(pool_scan_stat_t *ps, uint_t c)
+{
+	time_t start = ps->pss_start_time;
+	time_t end = ps->pss_end_time;
+	time_t pause = ps->pss_pass_scrub_pause;
+	char time_buf[32];
+	char saved[32];
+	char applied[32];
+	char cand[32];
+	char idx[32];
+	char groups[32];
+	char examined[32];
+	char total[32];
+	char held[64];
+	boolean_t dryrun = B_FALSE;
+	boolean_t full = B_TRUE;
+	const char *mode = "";
+	uint64_t phase = POOL_CLONEDUP_NONE;
+	uint64_t part = 0;
+	uint64_t parts = 1;
+	double walk_pct = 0;
+	double apply_pct = 0;
+
+	if (ps->pss_func != POOL_SCAN_CLONEDUP)
+		return;
+
+	held[0] = '\0';
+	if (POOL_SCAN_STAT_VALID(pss_clonedup_last_txg, c)) {
+		dryrun = (ps->pss_clonedup_flags &
+		    POOL_SCRUB_CLONEDUP_DRYRUN) != 0;
+		if (ps->pss_clonedup_flags & POOL_SCRUB_CLONEDUP_FULL)
+			mode = "full ";
+		else if (ps->pss_clonedup_flags &
+		    POOL_SCRUB_CLONEDUP_QUICK)
+			mode = "quick ";
+		/*
+		 * An index walk with a window covers only the new
+		 * data, so a share of the pool means nothing there.
+		 */
+		full = (ps->pss_clonedup_flags &
+		    POOL_SCRUB_CLONEDUP_FULL) != 0 ||
+		    ps->pss_clonedup_last_txg == 0;
+		phase = ps->pss_clonedup_phase;
+		part = ps->pss_clonedup_partition;
+		parts = ps->pss_clonedup_partitions;
+		/*
+		 * Snapshot-held space counts as saved, since the run
+		 * redirected it.  The held part is also printed alone
+		 * because it comes back only when those snapshots go.
+		 */
+		zfs_nicebytes(ps->pss_clonedup_saved +
+		    ps->pss_clonedup_saved_snapheld, saved,
+		    sizeof (saved));
+		if (ps->pss_clonedup_saved_snapheld != 0) {
+			char snap[32];
+
+			zfs_nicebytes(ps->pss_clonedup_saved_snapheld,
+			    snap, sizeof (snap));
+			(void) snprintf(held, sizeof (held),
+			    " (%s held by snapshots)", snap);
+		}
+		zfs_nicenum(ps->pss_clonedup_applied, applied,
+		    sizeof (applied));
+		zfs_nicenum(ps->pss_clonedup_candidates, cand,
+		    sizeof (cand));
+		zfs_nicenum(ps->pss_clonedup_indexed, idx,
+		    sizeof (idx));
+		zfs_nicenum(ps->pss_clonedup_groups, groups,
+		    sizeof (groups));
+	} else {
+		(void) strlcpy(saved, "-", sizeof (saved));
+		(void) strlcpy(applied, "-", sizeof (applied));
+		(void) strlcpy(cand, "-", sizeof (cand));
+		(void) strlcpy(idx, "-", sizeof (idx));
+		(void) strlcpy(groups, "-", sizeof (groups));
+	}
+	zfs_nicebytes(ps->pss_examined, examined, sizeof (examined));
+	zfs_nicebytes(ps->pss_to_examine, total, sizeof (total));
+	if (ps->pss_to_examine != 0) {
+		walk_pct = MIN(100.0, 100.0 *
+		    (double)ps->pss_examined /
+		    (double)ps->pss_to_examine);
+	}
+	if (POOL_SCAN_STAT_VALID(pss_clonedup_apply_done, c) &&
+	    ps->pss_clonedup_apply_total != 0) {
+		apply_pct = MIN(100.0, 100.0 *
+		    (double)ps->pss_clonedup_apply_done /
+		    (double)ps->pss_clonedup_apply_total);
+	}
+
+	(void) printf("  scan: ");
+
+	if (ps->pss_state == DSS_SCANNING) {
+		if (pause != 0) {
+			(void) printf("%sclonedup%s paused "
+			    "since %s", mode,
+			    dryrun ? " dry run" : "",
+			    ctime(&pause));
+			(void) printf("\t%sclonedup started "
+			    "on %s", mode, ctime(&start));
+		} else {
+			(void) printf("%sclonedup%s in "
+			    "progress since %s", mode,
+			    dryrun ? " dry run" : "",
+			    ctime(&start));
+		}
+		switch (phase) {
+		case POOL_CLONEDUP_INDEX:
+			(void) printf("\tindexing new data, "
+			    "partition %llu of %llu: %s",
+			    (u_longlong_t)part + 1,
+			    (u_longlong_t)parts,
+			    examined);
+			if (full) {
+				(void) printf(" of %s walked "
+				    "(%.2f%%)\n", total, walk_pct);
+			} else {
+				(void) printf(" walked\n");
+			}
+			(void) printf("\t%s blocks indexed, "
+			    "%llu errors\n", idx,
+			    (u_longlong_t)ps->pss_errors);
+			break;
+		case POOL_CLONEDUP_MATCH:
+			(void) printf("\tmatching against "
+			    "existing data, partition %llu of %llu: "
+			    "%s of %s walked (%.2f%%)\n",
+			    (u_longlong_t)part + 1,
+			    (u_longlong_t)parts,
+			    examined, total, walk_pct);
+			break;
+		case POOL_CLONEDUP_APPLY:
+			(void) printf("\tapplying, partition "
+			    "%llu of %llu: %s blocks %s, %s %s%s "
+			    "(%.2f%% done)\n",
+			    (u_longlong_t)part + 1,
+			    (u_longlong_t)parts,
+			    applied,
+			    dryrun ? "to clone" :
+			    "cloned", saved,
+			    dryrun ? "reclaimable" :
+			    "saved", held, apply_pct);
+			break;
+		default:
+			break;
+		}
+	} else if (ps->pss_state == DSS_FINISHED) {
+		secs_to_dhms(end - start, time_buf);
+		if (dryrun) {
+			(void) printf("%sclonedup dry run "
+			    "completed: %s candidates, %s "
+			    "reclaimable%s in %s with "
+			    "%llu errors on %s", mode, cand,
+			    saved, held, time_buf,
+			    (u_longlong_t)ps->pss_errors,
+			    ctime(&end));
+		} else {
+			(void) printf("%sclonedup completed: "
+			    "%s blocks cloned, %s saved%s in %s with "
+			    "%llu errors on %s", mode, applied, saved,
+			    held, time_buf,
+			    (u_longlong_t)ps->pss_errors,
+			    ctime(&end));
+		}
+	} else if (ps->pss_state == DSS_CANCELED) {
+		(void) printf("%sclonedup%s canceled on %s",
+		    mode, dryrun ? " dry run" : "", ctime(&end));
+	} else {
+		(void) printf("\n");
+	}
 }
 
 /*
@@ -10298,9 +10650,11 @@ scan_status_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb,
 	if (nvlist_lookup_uint64_array(nvroot, ZPOOL_CONFIG_SCAN_STATS,
 	    (uint64_t **)&ps, &c) == 0) {
 		fnvlist_add_string(scan, "function",
-		    pool_scan_func_str[ps->pss_func]);
+		    ps->pss_func < POOL_SCAN_FUNCS ?
+		    pool_scan_func_str[ps->pss_func] : "UNKNOWN");
 		fnvlist_add_string(scan, "state",
-		    pool_scan_state_str[ps->pss_state]);
+		    ps->pss_state < DSS_NUM_STATES ?
+		    pool_scan_state_str[ps->pss_state] : "UNKNOWN");
 		nice_num_str_nvlist(scan, "start_time", ps->pss_start_time,
 		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICE_TIMESTAMP);
 		nice_num_str_nvlist(scan, "end_time", ps->pss_end_time,
@@ -10330,6 +10684,109 @@ scan_status_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb,
 		    cb->cb_json_as_int, ZFS_NICENUM_BYTES);
 		nice_num_str_nvlist(scan, "issued", ps->pss_issued,
 		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+		if (ps->pss_func == POOL_SCAN_CLONEDUP &&
+		    POOL_SCAN_STAT_VALID(pss_clonedup_last_txg, c)) {
+			nvlist_t *fl = fnvlist_alloc();
+			uint64_t ph = ps->pss_clonedup_phase;
+
+			fnvlist_add_boolean_value(fl, "full",
+			    (ps->pss_clonedup_flags &
+			    POOL_SCRUB_CLONEDUP_FULL) != 0);
+			fnvlist_add_boolean_value(fl, "quick",
+			    (ps->pss_clonedup_flags &
+			    POOL_SCRUB_CLONEDUP_QUICK) != 0);
+			fnvlist_add_boolean_value(fl, "dry_run",
+			    (ps->pss_clonedup_flags &
+			    POOL_SCRUB_CLONEDUP_DRYRUN) != 0);
+			fnvlist_add_nvlist(scan, "clonedup_flags",
+			    fl);
+			fnvlist_free(fl);
+			fnvlist_add_string(scan, "clonedup_phase",
+			    ph < ARRAY_SIZE(pool_clonedup_phase_str) ?
+			    pool_clonedup_phase_str[ph] : "UNKNOWN");
+			nice_num_str_nvlist(scan,
+			    "clonedup_partition",
+			    ps->pss_clonedup_partition, B_TRUE,
+			    cb->cb_json_as_int, ZFS_NICENUM_1024);
+			nice_num_str_nvlist(scan,
+			    "clonedup_partitions",
+			    ps->pss_clonedup_partitions, B_TRUE,
+			    cb->cb_json_as_int, ZFS_NICENUM_1024);
+			nice_num_str_nvlist(scan, "clonedup_indexed",
+			    ps->pss_clonedup_indexed, cb->cb_literal,
+			    cb->cb_json_as_int, ZFS_NICENUM_1024);
+			nice_num_str_nvlist(scan, "clonedup_groups",
+			    ps->pss_clonedup_groups, cb->cb_literal,
+			    cb->cb_json_as_int, ZFS_NICENUM_1024);
+			nice_num_str_nvlist(scan,
+			    "clonedup_candidates",
+			    ps->pss_clonedup_candidates,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_1024);
+			nice_num_str_nvlist(scan, "clonedup_applied",
+			    ps->pss_clonedup_applied, cb->cb_literal,
+			    cb->cb_json_as_int, ZFS_NICENUM_1024);
+			nice_num_str_nvlist(scan, "clonedup_saved",
+			    ps->pss_clonedup_saved +
+			    ps->pss_clonedup_saved_snapheld,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_BYTES);
+			nice_num_str_nvlist(scan,
+			    "clonedup_saved_snapheld",
+			    ps->pss_clonedup_saved_snapheld,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_BYTES);
+			nice_num_str_nvlist(scan, "clonedup_skipped",
+			    ps->pss_clonedup_skipped, cb->cb_literal,
+			    cb->cb_json_as_int, ZFS_NICENUM_1024);
+			nice_num_str_nvlist(scan,
+			    "clonedup_skipped_stale",
+			    ps->pss_clonedup_skipped_stale,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_1024);
+			nice_num_str_nvlist(scan,
+			    "clonedup_skipped_dirty",
+			    ps->pss_clonedup_skipped_dirty,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_1024);
+			nice_num_str_nvlist(scan,
+			    "clonedup_skipped_differs",
+			    ps->pss_clonedup_skipped_differs,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_1024);
+			nice_num_str_nvlist(scan,
+			    "clonedup_skipped_busy",
+			    ps->pss_clonedup_skipped_busy,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_1024);
+			nice_num_str_nvlist(scan,
+			    "clonedup_skipped_policy",
+			    ps->pss_clonedup_skipped_policy,
+			    cb->cb_literal, cb->cb_json_as_int,
+			    ZFS_NICENUM_1024);
+			if (POOL_SCAN_STAT_VALID(
+			    pss_clonedup_apply_done, c)) {
+				nice_num_str_nvlist(scan,
+				    "clonedup_apply_total",
+				    ps->pss_clonedup_apply_total,
+				    B_TRUE, cb->cb_json_as_int,
+				    ZFS_NICENUM_1024);
+				nice_num_str_nvlist(scan,
+				    "clonedup_apply_done",
+				    ps->pss_clonedup_apply_done,
+				    B_TRUE, cb->cb_json_as_int,
+				    ZFS_NICENUM_1024);
+			}
+			nice_num_str_nvlist(scan, "clonedup_min_txg",
+			    ps->pss_clonedup_min_txg, B_TRUE,
+			    cb->cb_json_as_int, ZFS_NICENUM_1024);
+			nice_num_str_nvlist(scan, "clonedup_max_txg",
+			    ps->pss_clonedup_max_txg, B_TRUE,
+			    cb->cb_json_as_int, ZFS_NICENUM_1024);
+			nice_num_str_nvlist(scan, "clonedup_last_txg",
+			    ps->pss_clonedup_last_txg, B_TRUE,
+			    cb->cb_json_as_int, ZFS_NICENUM_1024);
+		}
 		if (ps->pss_error_scrub_func == POOL_SCAN_ERRORSCRUB &&
 		    ps->pss_error_scrub_start > ps->pss_start_time) {
 			fnvlist_add_string(scan, "err_scrub_func",
@@ -10451,6 +10908,7 @@ print_scan_status(zpool_handle_t *zhp, nvlist_t *nvroot)
 	uint64_t rebuild_end_time = 0, resilver_end_time = 0;
 	boolean_t have_resilver = B_FALSE, have_scrub = B_FALSE;
 	boolean_t have_errorscrub = B_FALSE;
+	boolean_t have_clonedup = B_FALSE;
 	boolean_t active_resilver = B_FALSE;
 	pool_checkpoint_stat_t *pcs = NULL;
 	pool_scan_stat_t *ps = NULL;
@@ -10467,6 +10925,7 @@ print_scan_status(zpool_handle_t *zhp, nvlist_t *nvroot)
 
 		have_resilver = (ps->pss_func == POOL_SCAN_RESILVER);
 		have_scrub = (ps->pss_func == POOL_SCAN_SCRUB);
+		have_clonedup = (ps->pss_func == POOL_SCAN_CLONEDUP);
 		scrub_start = ps->pss_start_time;
 		if (POOL_SCAN_STAT_VALID(pss_pass_scrub_flags, c) &&
 		    (ps->pss_pass_scrub_flags & POOL_SCRUB_THOROUGH) != 0)
@@ -10484,6 +10943,8 @@ print_scan_status(zpool_handle_t *zhp, nvlist_t *nvroot)
 	/* Always print the scrub status when available. */
 	if (have_scrub && scrub_start > errorscrub_start)
 		print_scan_scrub_resilver_status(ps, is_thorough);
+	else if (have_clonedup && scrub_start > errorscrub_start)
+		print_clonedup_status(ps, c);
 	else if (have_errorscrub && errorscrub_start >= scrub_start)
 		print_err_scrub_status(ps);
 
@@ -13797,7 +14258,7 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 	nvlist_t *cnv = NULL;
 	const char *const headers[] = {"DISCARD", "FREE", "INITIALIZE",
 	    "REPLACE", "REMOVE", "RESILVER", "SCRUB", "TRIM", "RAIDZ_EXPAND",
-	    "CONDENSE"};
+	    "CONDENSE", "CLONEDUP"};
 	int col_widths[ZPOOL_WAIT_NUM_ACTIVITIES];
 
 	/* Calculate the width of each column */
@@ -13852,6 +14313,10 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 		int64_t rem = pss->pss_to_examine - pss->pss_issued;
 		if (pss->pss_func == POOL_SCAN_SCRUB)
 			bytes_rem[ZPOOL_WAIT_SCRUB] = rem;
+		else if (pss->pss_func == POOL_SCAN_CLONEDUP)
+			bytes_rem[ZPOOL_WAIT_CLONEDUP] = MAX(0,
+			    (int64_t)(pss->pss_to_examine -
+			    pss->pss_examined));
 		else
 			bytes_rem[ZPOOL_WAIT_RESILVER] = rem;
 	} else if (check_rebuilding(nvroot, NULL)) {
@@ -14020,7 +14485,8 @@ zpool_do_wait(int argc, char **argv)
 				static const char *const col_opts[] = {
 				    "discard", "free", "initialize", "replace",
 				    "remove", "resilver", "scrub", "trim",
-				    "raidz_expand", "condense" };
+				    "raidz_expand", "condense",
+				    "clonedup" };
 
 				for (i = 0; i < ARRAY_SIZE(col_opts); ++i)
 					if (strcmp(tok, col_opts[i]) == 0) {

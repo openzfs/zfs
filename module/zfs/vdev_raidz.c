@@ -4417,9 +4417,11 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 		.func = POOL_SCAN_SCRUB,
 		.txgstart = 0,
 		.txgend = 0,
+		.replace = dsl_scan_clonedup_scanning(
+		    spa_get_dsl(spa)),
 	};
 	if (zfs_scrub_after_expand &&
-	    dsl_scan_setup_check(&setup_sync_arg.func, tx) == 0) {
+	    dsl_scan_setup_check(&setup_sync_arg, tx) == 0) {
 		dsl_scan_setup_sync(&setup_sync_arg, tx);
 	}
 }

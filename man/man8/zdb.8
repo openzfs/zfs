@@ -15,7 +15,7 @@
 .\" Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 .\" Copyright (c) 2017 Intel Corporation.
 .\"
-.Dd September 10, 2026
+.Dd October 18, 2026
 .Dt ZDB 8
 .Os
 .
@@ -213,6 +213,12 @@ as a string (dataset name) or a number (objset ID) when
 datasets have numeric names.
 .Pp
 If specified multiple times provides greater and greater verbosity.
+Specified four or more times, it also shows the progress record of a
+.Nm zpool Cm clonedup
+run one field to a line, below the record's raw values in the MOS object
+directory, object 1.
+While the scan record belongs to such a run, it shows that record the same
+way, with a line for each of its flags.
 .Pp
 If object IDs or object ID ranges are specified, display information about
 those specific objects or ranges only.

@@ -74,6 +74,7 @@
 #include <sys/blkptr.h>
 #include <sys/dsl_crypt.h>
 #include <sys/dsl_scan.h>
+#include <sys/dsl_clonedup.h>
 #include <sys/btree.h>
 #include <sys/brt.h>
 #include <sys/brt_impl.h>
@@ -1147,6 +1148,104 @@ dump_uint64(objset_t *os, uint64_t object, void *data, size_t size)
 		kmem_free(arr, oursize);
 }
 
+/*
+ * The scan record of a clonedup run, one field to a line, its two
+ * bookmarks a part to a line and its flags a bit to a line.  Words
+ * past the end of a shorter record read as zero.  The record of any
+ * other scan shows only its raw words.
+ */
+static void
+dump_scan_phys(const uint64_t *words, uint64_t nwords)
+{
+	dsl_scan_phys_t p = { 0 };
+
+	memcpy(&p, words, MIN(nwords, SCAN_PHYS_NUMINTS) *
+	    sizeof (uint64_t));
+	if (p.scn_func != POOL_SCAN_CLONEDUP)
+		return;
+#define	DO(name, field) \
+	(void) printf("\t\t\t" name " = %llu\n", \
+	    (u_longlong_t)p.field)
+	DO("func", scn_func);
+	DO("state", scn_state);
+	DO("queue_obj", scn_queue_obj);
+	DO("min_txg", scn_min_txg);
+	DO("max_txg", scn_max_txg);
+	DO("cur_min_txg", scn_cur_min_txg);
+	DO("cur_max_txg", scn_cur_max_txg);
+	DO("start_time", scn_start_time);
+	DO("end_time", scn_end_time);
+	DO("to_examine", scn_to_examine);
+	DO("examined", scn_examined);
+	DO("skipped", scn_skipped);
+	DO("processed", scn_processed);
+	DO("errors", scn_errors);
+	DO("ddt_class_max", scn_ddt_class_max);
+	DO("ddt_bookmark_class", scn_ddt_bookmark.ddb_class);
+	DO("ddt_bookmark_type", scn_ddt_bookmark.ddb_type);
+	DO("ddt_bookmark_checksum", scn_ddt_bookmark.ddb_checksum);
+	DO("ddt_bookmark_cursor", scn_ddt_bookmark.ddb_cursor);
+	DO("bookmark_objset", scn_bookmark.zb_objset);
+	DO("bookmark_object", scn_bookmark.zb_object);
+	(void) printf("\t\t\tbookmark_level = %lld\n",
+	    (longlong_t)p.scn_bookmark.zb_level);
+	DO("bookmark_blkid", scn_bookmark.zb_blkid);
+	DO("flags", scn_flags);
+#undef DO
+#define	FLAG(name, bit) \
+	(void) printf("\t\t\tflag_" name " = %d\n", \
+	    (p.scn_flags & (bit)) != 0)
+	FLAG("visit_ds_again", DSF_VISIT_DS_AGAIN);
+	FLAG("scrub_paused", DSF_SCRUB_PAUSED);
+	FLAG("scrub_thorough", DSF_SCRUB_THOROUGH);
+	FLAG("clonedup_full", DSF_CLONEDUP_FULL);
+	FLAG("clonedup_quick", DSF_CLONEDUP_QUICK);
+	FLAG("clonedup_dryrun", DSF_CLONEDUP_DRYRUN);
+#undef FLAG
+}
+
+/*
+ * The clonedup progress record, one field to a line.  Words past the
+ * end of a shorter record read as zero, as the kernel reads them.
+ */
+static void
+dump_clonedup_scan(const uint64_t *words, uint64_t nwords)
+{
+	dsl_clonedup_phys_t p = { 0 };
+
+	memcpy(&p, words, MIN(nwords, DSL_CLONEDUP_PHYS_NUMINTS) *
+	    sizeof (uint64_t));
+#define	DO(field) \
+	(void) printf("\t\t\t" #field " = %llu\n", \
+	    (u_longlong_t)p.dclp_ ## field)
+	DO(version);
+	DO(state);
+	DO(flags);
+	DO(phase);
+	DO(partition_shift);
+	DO(partition);
+	DO(min_txg);
+	DO(max_txg);
+	DO(start_time);
+	DO(end_time);
+	DO(last_txg);
+	DO(blocks_examined);
+	DO(blocks_indexed);
+	DO(groups);
+	DO(candidates);
+	DO(applied);
+	DO(bytes_saved);
+	DO(bytes_saved_snapheld);
+	DO(skipped_stale);
+	DO(skipped_dirty);
+	DO(skipped_differs);
+	DO(skipped_busy);
+	DO(skipped_policy);
+	DO(errors);
+	DO(scrub_end);
+#undef DO
+}
+
 static void
 dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 {
@@ -1228,6 +1327,18 @@ dump_zap(objset_t *os, uint64_t object, void *data, size_t size)
 			}
 		}
 		(void) printf("\n");
+		if (!key64 && attrp->za_integer_length == 8 &&
+		    object == DMU_POOL_DIRECTORY_OBJECT &&
+		    os == os->os_spa->spa_meta_objset) {
+			if (strcmp(attrp->za_name,
+			    DMU_POOL_CLONEDUP_SCAN) == 0)
+				dump_clonedup_scan(prop,
+				    attrp->za_num_integers);
+			else if (strcmp(attrp->za_name,
+			    DMU_POOL_SCAN) == 0)
+				dump_scan_phys(prop,
+				    attrp->za_num_integers);
+		}
 		kmem_free(prop,
 		    attrp->za_num_integers * attrp->za_integer_length);
 	}

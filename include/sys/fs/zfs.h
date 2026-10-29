@@ -195,6 +195,7 @@ typedef enum {
 	ZFS_PROP_DEFAULTPROJECTOBJQUOTA,
 	ZFS_PROP_SNAPSHOTS_CHANGED_NSECS,
 	ZFS_PROP_ZONED_UID,
+	ZFS_PROP_CLONEDUP,
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -323,6 +324,7 @@ typedef enum {
 	ZPOOL_PROP_SELOG_USED,
 	ZPOOL_PROP_SELOG_EXPANDSZ,
 	ZPOOL_PROP_SELOG_FRAGMENTATION,
+	ZPOOL_PROP_LAST_CLONEDUP_TXG,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -649,6 +651,11 @@ typedef enum {
 	ZFS_REDUNDANT_METADATA_SOME,
 	ZFS_REDUNDANT_METADATA_NONE
 } zfs_redundant_metadata_type_t;
+
+typedef enum {
+	ZFS_CLONEDUP_ON,
+	ZFS_CLONEDUP_OFF
+} zfs_clonedup_mode_t;
 
 typedef enum {
 	ZFS_VOLMODE_DEFAULT = 0,
@@ -1216,6 +1223,7 @@ typedef enum pool_scan_func {
 	POOL_SCAN_SCRUB,
 	POOL_SCAN_RESILVER,
 	POOL_SCAN_ERRORSCRUB,
+	POOL_SCAN_CLONEDUP,
 	POOL_SCAN_FUNCS
 } pool_scan_func_t;
 
@@ -1231,7 +1239,23 @@ typedef enum pool_scrub_cmd {
 
 typedef enum pool_scrub_flags {
 	POOL_SCRUB_THOROUGH = 1 << 0,
+	POOL_SCRUB_CLONEDUP_FULL = 1 << 1,
+	POOL_SCRUB_CLONEDUP_QUICK = 1 << 2,
+	POOL_SCRUB_CLONEDUP_DRYRUN = 1 << 3,
+	POOL_SCRUB_CLONEDUP_STOP = 1 << 4,
 } pool_scrub_flags_t;
+
+/* All the possible pool_scrub_flags_t bits */
+#define	POOL_SCRUB_FLAGS_MASK	(POOL_SCRUB_THOROUGH | \
+	    POOL_SCRUB_CLONEDUP_FULL | POOL_SCRUB_CLONEDUP_QUICK | \
+	    POOL_SCRUB_CLONEDUP_DRYRUN | POOL_SCRUB_CLONEDUP_STOP)
+
+typedef enum pool_clonedup_phase {
+	POOL_CLONEDUP_NONE = 0,
+	POOL_CLONEDUP_INDEX,	/* index blocks born since last run */
+	POOL_CLONEDUP_MATCH,	/* look older blocks up in index */
+	POOL_CLONEDUP_APPLY,	/* verify and clone */
+} pool_clonedup_phase_t;
 
 typedef enum {
 	CS_NONE,
@@ -1325,6 +1349,34 @@ typedef struct pool_scan_stat {
 	uint64_t	pss_pass_error_scrub_pause;
 	uint64_t	pss_pass_scrub_flags;
 
+	/* clonedup values stored on disk */
+	uint64_t	pss_clonedup_flags; /* pool_scrub_flags_t */
+	/* pool_clonedup_phase_t */
+	uint64_t	pss_clonedup_phase;
+	uint64_t	pss_clonedup_partition;
+	uint64_t	pss_clonedup_partitions;
+	uint64_t	pss_clonedup_indexed;	/* blocks indexed */
+	uint64_t	pss_clonedup_groups;	/* duplicate groups */
+	uint64_t	pss_clonedup_candidates;
+	uint64_t	pss_clonedup_applied;	/* blocks cloned */
+	uint64_t	pss_clonedup_saved;	/* bytes saved */
+	uint64_t	pss_clonedup_saved_snapheld;
+	uint64_t	pss_clonedup_skipped; /* candidates skipped */
+	/* pss_clonedup_skipped by reason */
+	uint64_t	pss_clonedup_skipped_stale;
+	uint64_t	pss_clonedup_skipped_dirty;
+	uint64_t	pss_clonedup_skipped_differs;
+	uint64_t	pss_clonedup_skipped_busy;
+	uint64_t	pss_clonedup_skipped_policy;
+	uint64_t	pss_clonedup_min_txg;	/* window start */
+	uint64_t	pss_clonedup_max_txg;	/* window end */
+	uint64_t	pss_clonedup_last_txg;
+	/* end of the scrub whose record a run took over */
+	uint64_t	pss_clonedup_scrub_end;
+
+	/* clonedup values not stored on disk */
+	uint64_t	pss_clonedup_apply_total; /* to apply */
+	uint64_t	pss_clonedup_apply_done; /* applied */
 } pool_scan_stat_t;
 
 #define	POOL_SCAN_STAT_VALID(field, uint64_t_field_count) \
@@ -1852,6 +1904,7 @@ typedef enum {
 	ZPOOL_WAIT_TRIM,
 	ZPOOL_WAIT_RAIDZ_EXPAND,
 	ZPOOL_WAIT_CONDENSE,
+	ZPOOL_WAIT_CLONEDUP,
 	ZPOOL_WAIT_NUM_ACTIVITIES
 } zpool_wait_activity_t;
 

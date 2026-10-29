@@ -858,7 +858,61 @@ test_scrub(const char *pool)
 	required = fnvlist_alloc();
 	fnvlist_add_uint64(required, "scan_type", POOL_SCAN_SCRUB);
 	fnvlist_add_uint64(required, "scan_command", POOL_SCRUB_NORMAL);
-	fnvlist_add_uint64(optional, "scan_flags", POOL_SCRUB_THOROUGH << 1);
+	fnvlist_add_uint64(optional, "scan_flags",
+	    POOL_SCRUB_FLAGS_MASK + 1);
+	IOC_INPUT_TEST(ZFS_IOC_POOL_SCRUB, pool, required, optional,
+	    EINVAL);
+	nvlist_free(optional);
+	nvlist_free(required);
+
+	/* clonedup flags on a scrub */
+	required = fnvlist_alloc();
+	optional = fnvlist_alloc();
+	fnvlist_add_uint64(required, "scan_type", POOL_SCAN_SCRUB);
+	fnvlist_add_uint64(required, "scan_command",
+	    POOL_SCRUB_NORMAL);
+	fnvlist_add_uint64(optional, "scan_flags",
+	    POOL_SCRUB_CLONEDUP_FULL);
+	IOC_INPUT_TEST(ZFS_IOC_POOL_SCRUB, pool, required, optional,
+	    EINVAL);
+	nvlist_free(optional);
+	nvlist_free(required);
+
+	/* thorough, dates, and from-last-txg on a clonedup */
+	required = fnvlist_alloc();
+	optional = fnvlist_alloc();
+	fnvlist_add_uint64(required, "scan_type", POOL_SCAN_CLONEDUP);
+	fnvlist_add_uint64(required, "scan_command",
+	    POOL_SCRUB_NORMAL);
+	fnvlist_add_uint64(optional, "scan_flags",
+	    POOL_SCRUB_THOROUGH);
+	IOC_INPUT_TEST(ZFS_IOC_POOL_SCRUB, pool, required, optional,
+	    EINVAL);
+	nvlist_free(optional);
+
+	optional = fnvlist_alloc();
+	fnvlist_add_uint64(optional, "scan_date_start", 1);
+	IOC_INPUT_TEST(ZFS_IOC_POOL_SCRUB, pool, required, optional,
+	    EINVAL);
+	nvlist_free(optional);
+	nvlist_free(required);
+
+	required = fnvlist_alloc();
+	fnvlist_add_uint64(required, "scan_type", POOL_SCAN_CLONEDUP);
+	fnvlist_add_uint64(required, "scan_command",
+	    POOL_SCRUB_FROM_LAST_TXG);
+	IOC_INPUT_TEST(ZFS_IOC_POOL_SCRUB, pool, required, NULL,
+	    EINVAL);
+	nvlist_free(required);
+
+	/* full and quick together */
+	required = fnvlist_alloc();
+	optional = fnvlist_alloc();
+	fnvlist_add_uint64(required, "scan_type", POOL_SCAN_CLONEDUP);
+	fnvlist_add_uint64(required, "scan_command",
+	    POOL_SCRUB_NORMAL);
+	fnvlist_add_uint64(optional, "scan_flags",
+	    POOL_SCRUB_CLONEDUP_FULL | POOL_SCRUB_CLONEDUP_QUICK);
 	IOC_INPUT_TEST(ZFS_IOC_POOL_SCRUB, pool, required, optional, EINVAL);
 	nvlist_free(optional);
 	nvlist_free(required);

@@ -53,6 +53,20 @@ zfs_vfs_ref(zfsvfs_t **zfvp)
 	return (error);
 }
 
+/* An unmount in progress is answered with ESRCH, not waited for. */
+int
+zfs_vfs_ref_nowait(zfsvfs_t **zfvp)
+{
+	if (*zfvp == NULL)
+		return (SET_ERROR(ESRCH));
+
+	if (vfs_busy((*zfvp)->z_vfs, MBF_NOWAIT) != 0) {
+		*zfvp = NULL;
+		return (SET_ERROR(ESRCH));
+	}
+	return (0);
+}
+
 boolean_t
 zfs_vfs_held(zfsvfs_t *zfsvfs)
 {

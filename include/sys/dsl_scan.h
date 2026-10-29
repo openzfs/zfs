@@ -67,6 +67,9 @@ typedef enum dsl_scan_flags {
 	DSF_VISIT_DS_AGAIN = 1<<0,
 	DSF_SCRUB_PAUSED = 1<<1,
 	DSF_SCRUB_THOROUGH = 1<<2,
+	DSF_CLONEDUP_FULL = 1<<3,
+	DSF_CLONEDUP_QUICK = 1<<4,
+	DSF_CLONEDUP_DRYRUN = 1<<5,
 } dsl_scan_flags_t;
 
 typedef struct dsl_errorscrub_phys {
@@ -139,6 +142,9 @@ typedef struct dsl_scan {
 	boolean_t scn_checkpointing;	/* scan is issuing all queued extents */
 	boolean_t scn_suspending;	/* scan is suspending until next txg */
 	uint64_t scn_last_checkpoint;	/* time of last checkpoint */
+	boolean_t scn_clonedup_restart;	/* restart after import */
+	boolean_t scn_clonedup_applying; /* apply phase active */
+	uint64_t scn_clonedup_dsmode;	/* property of the ds */
 
 	/* members for thread synchronization */
 	zio_t *scn_zio_root;		/* root zio for waiting on IO */
@@ -180,6 +186,8 @@ typedef struct {
 	uint64_t	 txgstart;
 	uint64_t	 txgend;
 	dsl_scan_flags_t flags;
+	boolean_t	 replace;	/* cancel running clonedup */
+	boolean_t	 restart;	/* keep clonedup partition */
 } setup_sync_arg_t;
 
 typedef struct dsl_scan_io_queue dsl_scan_io_queue_t;
@@ -192,10 +200,12 @@ void dsl_scan_setup_sync(void *, dmu_tx_t *);
 void dsl_scan_fini(struct dsl_pool *dp);
 void dsl_scan_sync(struct dsl_pool *, dmu_tx_t *);
 int dsl_scan_cancel(struct dsl_pool *);
+int dsl_scan_cancel_clonedup(struct dsl_pool *);
 int dsl_scan(struct dsl_pool *, pool_scan_func_t, uint64_t starttxg,
     uint64_t txgend, dsl_scan_flags_t flags);
 void dsl_scan_assess_vdev(struct dsl_pool *dp, vdev_t *vd);
 boolean_t dsl_scan_scrubbing(const struct dsl_pool *dp);
+boolean_t dsl_scan_clonedup_scanning(const struct dsl_pool *dp);
 boolean_t dsl_errorscrubbing(const struct dsl_pool *dp);
 boolean_t dsl_errorscrub_active(dsl_scan_t *scn);
 void dsl_scan_restart_resilver(struct dsl_pool *, uint64_t txg);
@@ -211,6 +221,7 @@ void dsl_scan_ds_destroyed(struct dsl_dataset *ds, struct dmu_tx *tx);
 void dsl_scan_ds_snapshotted(struct dsl_dataset *ds, struct dmu_tx *tx);
 void dsl_scan_ds_clone_swapped(struct dsl_dataset *ds1, struct dsl_dataset *ds2,
     struct dmu_tx *tx);
+uint64_t dsl_scan_mem_lim(spa_t *spa);
 boolean_t dsl_scan_active(dsl_scan_t *scn);
 boolean_t dsl_scan_is_paused_scrub(const dsl_scan_t *scn);
 boolean_t dsl_errorscrub_is_paused(const dsl_scan_t *scn);

@@ -77,6 +77,7 @@ void zfs_ioctl_init_os(void);
 
 boolean_t zfs_vfs_held(zfsvfs_t *);
 int zfs_vfs_ref(zfsvfs_t **);
+int zfs_vfs_ref_nowait(zfsvfs_t **);
 void zfs_vfs_rele(zfsvfs_t *);
 
 long zfsdev_ioctl_common(uint_t, zfs_cmd_t *, int);

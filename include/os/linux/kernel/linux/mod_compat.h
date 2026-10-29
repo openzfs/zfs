@@ -30,6 +30,7 @@ enum scope_prefix_types {
 	zfs,
 	zfs_arc,
 	zfs_brt,
+	zfs_clonedup,
 	zfs_condense,
 	zfs_dbuf,
 	zfs_dbuf_cache,
