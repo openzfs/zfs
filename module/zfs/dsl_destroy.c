@@ -624,9 +624,15 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 			.ddsa_defer = defer
 		};
 
-		int error = dsl_sync_task(pool, dsl_destroy_snapshot_check,
+		dsl_clonedup_t *dy;
+		int error;
+
+		dy = dsl_clonedup_yield_begin_name(pool);
+		error = dsl_sync_task(pool,
+		    dsl_destroy_snapshot_check,
 		    dsl_destroy_snapshot_sync, &ddsa, 0,
 		    ZFS_SPACE_CHECK_DESTROY);
+		dsl_clonedup_yield_end(dy);
 
 		/*
 		 * lzc_destroy_snaps() is documented to fill the errlist with

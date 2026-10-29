@@ -382,6 +382,7 @@ zfs_prop_init(void)
 	static const zprop_index_t clonedup_table[] = {
 		{ "on",	ZFS_CLONEDUP_ON },
 		{ "off",	ZFS_CLONEDUP_OFF },
+		{ "source",	ZFS_CLONEDUP_SOURCE },
 		{ NULL }
 	};
 
@@ -428,7 +429,7 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_CLONEDUP, "clonedup",
 	    ZFS_CLONEDUP_ON, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
-	    "on | off", "CLONEDUP", clonedup_table,
+	    "on | off | source", "CLONEDUP", clonedup_table,
 	    sfeatures);
 	zprop_register_index(ZFS_PROP_COMPRESSION, "compression",
 	    ZIO_COMPRESS_DEFAULT, PROP_INHERIT,

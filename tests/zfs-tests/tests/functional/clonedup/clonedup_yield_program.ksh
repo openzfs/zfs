@@ -18,9 +18,11 @@
 
 #
 # DESCRIPTION:
-#	A channel program destroys a snapshot while the apply holds a
-#	dataset.  The program runs in syncing context and cannot wait
-#	there, so the ioctl asks the apply to let go before it starts.
+#	A channel program destroys a snapshot that the apply holds as
+#	a group's surviving copy.  The program runs in syncing
+#	context and cannot wait there, so the ioctl asks the apply to
+#	let go before it starts, instead of the destroy failing with
+#	EBUSY.
 #
 # STRATEGY:
 #	1. Write a file and copy it twice into another filesystem,
@@ -47,7 +49,7 @@ function cleanup
 	clonedup_cleanup
 }
 
-log_assert "a channel program destroys a snapshot during the apply"
+log_assert "a channel program destroys a snapshot the apply holds"
 log_onexit cleanup
 log_must save_tunable CLONEDUP_APPLY_TXG_DELAY
 log_must save_tunable CLONEDUP_APPLY_BLOCKS_PER_TXG
@@ -88,4 +90,4 @@ log_must zpool wait -t clonedup $TESTPOOL
 clonedup_jstat_is errors 0
 clonedup_leakcheck
 
-log_pass "a channel program destroys a snapshot during the apply"
+log_pass "a channel program destroys a snapshot the apply holds"

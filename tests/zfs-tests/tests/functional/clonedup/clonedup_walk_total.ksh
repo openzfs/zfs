@@ -21,7 +21,9 @@
 #	On a pool nothing writes to, a clonedup walk never passes its
 #	total.  A walk that suspends in many txgs counts each block
 #	pointer once, though every resume walks down again to the
-#	block it stopped at.
+#	block it stopped at.  The last partition's walk counts the
+#	pointers an earlier partition redirected onto blocks that a
+#	snapshot holds, and its total holds them too.
 #
 # STRATEGY:
 #	1. Write many files of two blocks.  Export and import the
@@ -31,7 +33,14 @@
 #	2. Keep a txg sync waited on during a full dry run, so that
 #	   the walk suspends at almost every slow read.  Check that
 #	   it resumed at least minres times.
-#	3. Check that the walk ends at or below its total, and within
+#	3. Recreate the pool.  Write a file and snapshot it, then
+#	   copy it, snapshot the copy and write one more block.
+#	4. Run a full dry run uncapped, then a full clonedup under an
+#	   index cap of two thirds of the mem_peak the dry run left.
+#	   Check that the run had more than one partition, and that
+#	   it redirected every block of the copy, all of them held by
+#	   the second snapshot.
+#	5. Check that each walk ends at or below its total, and within
 #	   4 MiB of it.
 #
 
@@ -41,6 +50,8 @@ verify_runnable "global"
 typeset -ri nfiles=512
 typeset -ri delay_ms=20
 typeset -ri minres=100
+# blocks in the file the second run copies
+typeset -ri n=256
 #
 # A quiet pool leaves the walk short of its total by what it cannot
 # reach: MOS blocks rewritten after the total was taken, frees the
@@ -49,9 +60,9 @@ typeset -ri minres=100
 #
 typeset -ri margin=$((4 * 1024 * 1024))
 typeset waitflag="" waitpid="" json dev over=""
-typeset walked1 total1
-typeset -i i resumed
-typeset r0 r1
+typeset walked1 total1 walked2 total2 part parts applied held
+typeset -i i resumed asz cap
+typeset peak r0 r1
 
 function cleanup
 {
@@ -60,6 +71,7 @@ function cleanup
 	log_must restore_tunable SCRUB_MIN_TIME_MS
 	log_must restore_tunable NO_SCRUB_PREFETCH
 	log_must restore_tunable TXG_TIMEOUT
+	log_must restore_tunable CLONEDUP_SCAN_MEM_MAX
 	clonedup_cleanup
 }
 
@@ -107,6 +119,7 @@ log_onexit cleanup
 log_must save_tunable SCRUB_MIN_TIME_MS
 log_must save_tunable NO_SCRUB_PREFETCH
 log_must save_tunable TXG_TIMEOUT
+log_must save_tunable CLONEDUP_SCAN_MEM_MAX
 
 clonedup_pool_create -O recordsize=4k
 for ((i = 0; i < nfiles; i++)); do
@@ -143,11 +156,60 @@ log_must [ "$(cd_scan state)" = "FINISHED" ]
 log_must [ $resumed -ge $minres ]
 log_must [ $walked1 -gt 0 ]
 
+destroy_pool $TESTPOOL
+clonedup_pool_create
+clonedup_write /$TESTPOOL/a $n
+clonedup_sync
+# a's blocks are the older and held by s1, so they are the sources
+log_must zfs snapshot $TESTPOOL@s1
+clonedup_dup /$TESTPOOL/a /$TESTPOOL/h
+clonedup_sync
+log_must zfs snapshot $TESTPOOL@s2
+# written since s2, so the run may still rewrite h
+clonedup_write /$TESTPOOL/n 1
+clonedup_sync
+asz=$(clonedup_blk_asize $TESTPOOL a)
+log_must [ $asz -gt 0 ]
+
+# An uncapped dry run indexes the same entries.  Two thirds of the
+# most memory it held cannot hold them all, but holds the half that
+# stays in the first partition, so the capped run splits.
+clonedup_run -n -f
+peak=$(clonedup_kstat mem_peak)
+log_note "uncapped mem_peak '$peak'"
+[[ $peak == +([0-9]) ]] || log_fail "no mem_peak kstat: '$peak'"
+log_must [ $peak -gt 0 ]
+((cap = peak * 2 / 3))
+log_must set_tunable64 CLONEDUP_SCAN_MEM_MAX $cap
+clonedup_run -f
+
+json=$(zpool status -j --json-int $TESTPOOL)
+walked2=$(cd_scan examined)
+total2=$(cd_scan to_examine)
+part=$(cd_scan clonedup_partition)
+parts=$(cd_scan clonedup_partitions)
+applied=$(cd_scan clonedup_applied)
+held=$(cd_scan clonedup_saved_snapheld)
+log_note "partitioned walk: walked $walked2 of $total2 in partition" \
+    "$part of $parts, applied $applied, $held held by snapshots"
+cd_counts "$walked2" "$total2" "$part" "$parts" "$applied" "$held"
+log_must [ "$(cd_scan state)" = "FINISHED" ]
+log_must [ $parts -ge 2 ]
+log_must [ $((part + 1)) -eq $parts ]
+log_must [ $applied -eq $n ]
+log_must [ $held -eq $((n * asz)) ]
+log_must [ $walked2 -gt 0 ]
+clonedup_check_shared $TESTPOOL a $TESTPOOL h \
+    "$(clonedup_all_blocks $n)"
+
 # Name every walk that passed its total before failing.
 (( walked1 <= total1 )) ||
     over="$over, the suspending walk by $((walked1 - total1))"
+(( walked2 <= total2 )) ||
+    over="$over, the partitioned walk by $((walked2 - total2))"
 [[ -z $over ]] || log_fail "walked past the total:${over#,}"
 log_must [ $((total1 - walked1)) -le $margin ]
+log_must [ $((total2 - walked2)) -le $margin ]
 clonedup_leakcheck
 
 log_pass "a clonedup walk never passes its total on a quiet pool"

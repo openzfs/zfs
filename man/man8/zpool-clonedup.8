@@ -84,6 +84,23 @@ The run never redirects a copy on a special vdev onto a block elsewhere, so
 a block that
 .Sy special_small_blocks
 put there stays there.
+Otherwise the run picks the surviving copy so that space is actually freed.
+A block held by a snapshot cannot be freed, so it survives and the run
+redirects the other copies onto it.
+A run never rewrites a file system or volume that nothing has written to
+since its latest snapshot, whether it is mounted or not.
+Its blocks serve only as surviving copies.
+All its data sits in that snapshot, so a redirect there would write past the
+snapshot, add to the used space and free nothing.
+A snapshot taken during a run, with nothing written after it, has the same
+effect for the rest of the run, which counts the dataset's pairs as policy
+skips.
+When snapshots hold every copy, the run still redirects the live file's
+block in a dataset that has changed since its latest snapshot, so later
+snapshots share it.
+The space returns when the old snapshots are destroyed.
+Until then the redirect adds the block to the used space of the dataset and
+its parents, so the run skips it where a quota has no room for the block.
 Among copies that are otherwise equal, the run prefers one in a 16 MiB
 region of its vdev that already holds a reference table entry, since ZFS
 searches the table before it frees any block in such a region.
@@ -113,7 +130,10 @@ counts the runs and dry runs that ended before they finished.
 A run never touches:
 .Bl -bullet -compact
 .It
-Blocks that a snapshot holds.
+Snapshots, whose blocks serve as the surviving copy only.
+.It
+File systems and volumes that nothing has written to since their latest
+snapshot, whose blocks also serve as the surviving copy only.
 .It
 Encrypted datasets.
 .It
@@ -125,7 +145,10 @@ Blocks written with
 which the deduplication table already shares.
 .It
 Blocks whose datasets have
-.Sy clonedup Ns = Ns Sy off .
+.Sy clonedup Ns = Ns Sy off ,
+and the files of datasets with
+.Sy clonedup Ns = Ns Sy source ,
+which can only be the surviving copy.
 See
 .Xr zfsprops 7 .
 .It
@@ -186,8 +209,9 @@ changing until the clone is committed.
 The apply thread owns an unmounted filesystem or a closed volume while it
 writes to it, the way a mount or a volume open owns a dataset.
 Each
-.Nm zfs Cm destroy
-of a file system or volume, each
+.Nm zfs Cm destroy ,
+.Nm zfs Cm promote
+and
 .Nm zfs Cm rollback ,
 the end of each
 .Nm zfs Cm receive ,
@@ -197,11 +221,15 @@ run without
 .Fl n
 asks the thread to let go of everything it holds, whichever dataset the
 operation names.
+So on a pool where snapshots are destroyed often, the apply steps aside
+often.
 An operation that owns a dataset, such as
 .Nm zfs Cm mount ,
-asks only when it finds that dataset busy, and so does
+asks only when it finds that dataset busy, and so do
 .Nm zfs Cm send
-of a file system.
+of a file system and
+.Nm zfs Cm release
+of the last hold on a snapshot marked for deferred destroy.
 Each of these waits at most
 .Sy zfs_clonedup_yield_timeout_ms
 and then goes ahead.
@@ -210,6 +238,26 @@ Opening a volume, or resizing one that is not open, asks without waiting and
 retries until the thread lets go, and fails with EBUSY if that takes longer.
 After letting go, the thread holds nothing until the operation has
 completed.
+.Pp
+Redirecting a block gives it a new logical birth time.
+For an incremental
+.Nm zfs Cm send ,
+redirecting a block written since the last snapshot adds nothing to the
+stream, which carries that block anyway.
+Redirecting a block that an earlier snapshot already holds makes the stream
+carry it again.
+To avoid that, run
+.Nm zpool Cm clonedup
+before taking the snapshot that will be sent, or set
+.Sy clonedup Ns = Ns Sy source
+on replicated datasets.
+A redirected block also counts as a change to its dataset since the last
+snapshot.
+A run rewrites only datasets written to since their latest snapshot, so it
+leaves alone a dataset that changes only by
+.Nm zfs Cm receive ,
+and incremental receives into it still apply without
+.Fl F .
 .Pp
 Only one scan runs at a time, and a run uses the pool's one scan record.
 Once a run starts,
@@ -274,6 +322,10 @@ feature is active only while a run is in progress.
 After an export or a crash, a run begins its current partition again, and
 the counts it reports from then on cover only the partitions after the
 restart.
+.Pp
+On a pool that only receives streams, every block is held by a snapshot
+and no dataset has changed since its latest one, so a run there rewrites
+nothing.
 .Bl -tag -width "-a"
 .It Fl a
 Run on all pools.
@@ -340,7 +392,8 @@ flags that resume a paused run.
 It also shows the phase and partition a run is in and how far the current
 walk has got.
 While the run applies, it shows how much of the apply is done, the blocks
-cloned and the space saved.
+cloned and the space saved, and the part of that space that returns only
+when snapshots are destroyed.
 A dry run shows the blocks it would clone and the space it would reclaim,
 and the number of candidates once it completes.
 .Nm zpool Cm status Fl j
@@ -392,6 +445,10 @@ rather than its deflated size, at one of its references.
 If the run skips that reference, the block counts nothing.
 If the run redirects that reference but skips another, the block counts in
 full although the other reference keeps it allocated.
+The run never rewrites a reference in a dataset with
+.Sy clonedup Ns = Ns Sy source
+or in one that nothing has written to since its latest snapshot, so a block
+that such a reference keeps counts nothing.
 .Pp
 .Xr zpool-wait 8
 can wait for the

@@ -319,6 +319,84 @@ dsl_clonedup_kstat_destroy(dsl_clonedup_t *dcl)
 		wmsum_fini(&dcl->dcl_wsums[i]);
 }
 
+/*
+ * What a dry run has taken, so that it takes each thing once, as a
+ * real run does.  A DCD_DIR entry holds the growth that
+ * snapshot-held redirects have brought a dsl_dir.  A real run's
+ * growth reaches the disk, where its next quota check reads it.  A
+ * dry run's stays here until the next run starts.
+ */
+#define	DCD_DIR		2	/* dd_object */
+
+typedef struct dsl_clonedup_dry {
+	avl_node_t	dcd_node;
+	uint64_t	dcd_key[4];	/* kind, then ids */
+	uint64_t	dcd_grow;	/* DCD_DIR: bytes booked */
+} dsl_clonedup_dry_t;
+
+static int
+dsl_clonedup_dry_compare(const void *a, const void *b)
+{
+	const dsl_clonedup_dry_t *x = a;
+	const dsl_clonedup_dry_t *y = b;
+	int c = 0;
+
+	for (int i = 0; i < 4 && c == 0; i++)
+		c = TREE_CMP(x->dcd_key[i], y->dcd_key[i]);
+	return (c);
+}
+
+static void
+dsl_clonedup_dry_key(dsl_clonedup_dry_t *d, uint64_t kind, uint64_t a,
+    uint64_t b, uint64_t c)
+{
+	d->dcd_key[0] = kind;
+	d->dcd_key[1] = a;
+	d->dcd_key[2] = b;
+	d->dcd_key[3] = c;
+}
+
+static void
+dsl_clonedup_dry_clear(dsl_clonedup_t *dcl)
+{
+	dsl_clonedup_dry_t *d;
+
+	while ((d = avl_first(&dcl->dcl_dry)) != NULL) {
+		avl_remove(&dcl->dcl_dry, d);
+		kmem_free(d, sizeof (*d));
+	}
+}
+
+/*
+ * The walk's answers from dsl_clonedup_unchanged(), one per dsl_dir,
+ * for the txg in dcl_unch_txg.
+ */
+typedef struct dsl_clonedup_unch {
+	avl_node_t	dcn_node;
+	uint64_t	dcn_dir;	/* dsl_dir object */
+	boolean_t	dcn_unchanged;
+} dsl_clonedup_unch_t;
+
+static int
+dsl_clonedup_unch_compare(const void *a, const void *b)
+{
+	const dsl_clonedup_unch_t *x = a;
+	const dsl_clonedup_unch_t *y = b;
+
+	return (TREE_CMP(x->dcn_dir, y->dcn_dir));
+}
+
+static void
+dsl_clonedup_unch_vacate(dsl_clonedup_t *dcl)
+{
+	dsl_clonedup_unch_t *u;
+	void *cookie = NULL;
+
+	while ((u = avl_destroy_nodes(&dcl->dcl_unch,
+	    &cookie)) != NULL)
+		kmem_free(u, sizeof (*u));
+}
+
 int
 dsl_clonedup_init(dsl_pool_t *dp)
 {
@@ -331,6 +409,12 @@ dsl_clonedup_init(dsl_pool_t *dp)
 	mutex_init(&dcl->dcl_yield_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&dcl->dcl_yield_cv, NULL, CV_DEFAULT, NULL);
 	cv_init(&dcl->dcl_apply_cv, NULL, CV_DEFAULT, NULL);
+	avl_create(&dcl->dcl_dry, dsl_clonedup_dry_compare,
+	    sizeof (dsl_clonedup_dry_t),
+	    offsetof(dsl_clonedup_dry_t, dcd_node));
+	avl_create(&dcl->dcl_unch, dsl_clonedup_unch_compare,
+	    sizeof (dsl_clonedup_unch_t),
+	    offsetof(dsl_clonedup_unch_t, dcn_node));
 	dsl_clonedup_load_phys(dp, &dcl->dcl_phys);
 	dcl->dcl_phys_written = dcl->dcl_phys;
 	dsl_clonedup_kstat_create(dcl);
@@ -348,6 +432,10 @@ dsl_clonedup_fini(dsl_pool_t *dp)
 	if (dcl == NULL)
 		return;
 	dsl_clonedup_index_destroy(dcl);
+	dsl_clonedup_dry_clear(dcl);
+	avl_destroy(&dcl->dcl_dry);
+	dsl_clonedup_unch_vacate(dcl);
+	avl_destroy(&dcl->dcl_unch);
 	dsl_clonedup_kstat_destroy(dcl);
 	cv_destroy(&dcl->dcl_apply_cv);
 	cv_destroy(&dcl->dcl_yield_cv);
@@ -454,6 +542,7 @@ dsl_clonedup_index_create(dsl_clonedup_t *dcl)
 	    offsetof(dsl_clonedup_gsrc_t, dcg_node));
 	dcl->dcl_apply_ready = B_FALSE;
 	dcl->dcl_take_birth = 0;
+	dcl->dcl_kept_birth = 0;
 	dcl->dcl_apply_shared = 0;
 	dcl->dcl_apply_total = 0;
 	dcl->dcl_nentries = 0;
@@ -933,6 +1022,7 @@ dsl_clonedup_run_setup(dsl_clonedup_t *dcl, uint64_t flags,
 	mutex_enter(&dcl->dcl_lock);
 	*saved = *p;
 	dsl_clonedup_index_destroy(dcl);
+	dsl_clonedup_dry_clear(dcl);
 	dcl->dcl_dbg_left = 16;
 	dcl->dcl_apply_total = 0;
 	memset(p, 0, sizeof (*p));
@@ -1060,6 +1150,7 @@ dsl_clonedup_walk_done(dsl_clonedup_t *dcl, uint64_t *min_txgp,
 	dsl_clonedup_phys_t *p = &dcl->dcl_phys;
 	dsl_clonedup_next_t next;
 
+	dsl_clonedup_unch_vacate(dcl);
 	mutex_enter(&dcl->dcl_lock);
 	switch (p->dclp_phase) {
 	case POOL_CLONEDUP_INDEX:
@@ -1102,7 +1193,9 @@ dsl_clonedup_walk_done(dsl_clonedup_t *dcl, uint64_t *min_txgp,
 /*
  * The record of the next partition, or of the end of the run, goes
  * out in txg.  A clone in a later txg would reach the disk after the
- * record that covers it.  Wait until txg reaches the newest one.
+ * record that covers it.  A batch whose source no writer can reach
+ * skips the wait for the previous txg, so it can commit ahead of the
+ * sync.  Wait until txg reaches the newest one.
  */
 boolean_t
 dsl_clonedup_apply_done(dsl_clonedup_t *dcl, uint64_t txg)
@@ -1186,6 +1279,7 @@ typedef struct dsl_clonedup_stats {
 	uint64_t	s_candidates;
 	uint64_t	s_applied;
 	uint64_t	s_saved;
+	uint64_t	s_saved_snapheld;
 	uint64_t	s_stale;
 	uint64_t	s_dirty;
 	uint64_t	s_differs;
@@ -1195,6 +1289,7 @@ typedef struct dsl_clonedup_stats {
 } dsl_clonedup_stats_t;
 
 typedef struct dsl_clonedup_dsinfo {
+	uint64_t	di_head;	/* head of the dsl_dir */
 	uint64_t	di_mode;	/* clonedup property */
 	boolean_t	di_snapshot;
 	boolean_t	di_inconsistent;
@@ -1541,6 +1636,8 @@ dsl_clonedup_ds_info_read(dsl_pool_t *dp, uint64_t dsobj,
 	dsl_pool_config_enter(dp, FTAG);
 	err = dsl_dataset_hold_obj(dp, dsobj, FTAG, &ds);
 	if (err == 0) {
+		di->di_head =
+		    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj;
 		di->di_snapshot = ds->ds_is_snapshot;
 		di->di_inconsistent =
 		    (dsl_dataset_phys(ds)->ds_flags &
@@ -1605,11 +1702,13 @@ static uint64_t dsl_clonedup_unpaused;
 /*
  * The apply thread publishes the datasets it holds, or is about to
  * hold, under dcl_yield_lock.  An operation that a long hold would
- * make fail (destroy, rollback, receive, mount, volume open)
+ * make fail (destroy, promote, rollback, receive, mount, volume open)
  * brackets itself with dsl_clonedup_yield_begin() and _end(): begin
  * asks the thread to let go of everything and waits for that, and
  * the thread holds nothing again until the last such operation has
- * ended.  The pause counts operations, not txgs, because the
+ * ended.  The pause is global rather than per dataset because promote
+ * cannot name the snapshots it is about to move without repeating
+ * its own work.  It counts operations, not txgs, because the
  * thread's own txg waits push txgs through in milliseconds on a
  * quiet pool.  An owner that holds a lock the thread could need to
  * let go cannot wait, and uses dsl_clonedup_yield_nudge() instead.
@@ -2210,7 +2309,8 @@ dsl_clonedup_entry_to_src(const dsl_clonedup_entry_t *e,
 /*
  * Source preference: a block that is not a gang block, so the
  * redirects free the gang trees; then a block on a special-class
- * vdev; then a block whose BRT range held an entry when
+ * vdev; then a snapshot-held or source-only block, which cannot be
+ * rewritten anyway; then a block whose BRT range held an entry when
  * the walk saw it, an entry that may be another block's; then the
  * older block; then the lowest locator.  A block on a removing or
  * indirect vdev ranks below every other, since it never survives,
@@ -2227,6 +2327,8 @@ dsl_clonedup_src_rank(const dsl_clonedup_src_t *s)
 		rank += 8;
 	if (s->dcs_flags & DCE_F_SPECIAL)
 		rank += 4;
+	if (s->dcs_flags & (DCE_F_SNAPHELD | DCE_F_SRCONLY))
+		rank += 2;
 	if (s->dcs_flags & DCE_F_MAYBE_SHARED)
 		rank += 1;
 	return (rank);
@@ -2403,18 +2505,47 @@ dsl_clonedup_same_ref(const dsl_clonedup_entry_t *a,
  * e is the first reference to its block that the takes reach, and
  * next follows it in the index.  A block's references sort together,
  * so the rest are all still there.  Saved counts the block at one of
- * them, and this flags the others.
+ * them, and this flags the others.  A block that a snapshot holds
+ * through any reference frees nothing until the snapshot goes, so
+ * the first snapshot-held reference carries the count, and the block
+ * lands in saved_snapheld whatever order the objsets sort in.
  */
 static void
 dsl_clonedup_count_at(dsl_clonedup_t *dcl, dsl_clonedup_entry_t *e,
     dsl_clonedup_entry_t *next)
 {
+	dsl_clonedup_entry_t *c = e;
 	dsl_clonedup_entry_t *n;
+	boolean_t kept;
 
 	ASSERT(MUTEX_HELD(&dcl->dcl_lock));
+	/*
+	 * The run never rewrites a source-only reference, so one
+	 * keeps the block whatever happens to the rest, and none of
+	 * them counts.  dsl_clonedup_group_take() notes one that
+	 * sorts before e.
+	 */
+	kept = e->dce_birth == dcl->dcl_kept_birth &&
+	    DVA_EQUAL(&e->dce_dva, &dcl->dcl_kept_dva);
+	for (n = next; !kept && dsl_clonedup_same_ref(e, n);
+	    n = AVL_NEXT(&dcl->dcl_index, n))
+		kept = (n->dce_flags & DCE_F_SRCONLY) != 0;
+	if (kept)
+		c = NULL;
+	if (!(e->dce_flags & DCE_F_SNAPHELD)) {
+		for (n = next; c == e && dsl_clonedup_same_ref(e, n);
+		    n = AVL_NEXT(&dcl->dcl_index, n)) {
+			if ((n->dce_flags & (DCE_F_SNAPHELD |
+			    DCE_F_SRCONLY)) == DCE_F_SNAPHELD)
+				c = n;
+		}
+	}
+	if (c != e)
+		e->dce_flags |= DCE_F_REPEAT;
 	for (n = next; dsl_clonedup_same_ref(e, n);
 	    n = AVL_NEXT(&dcl->dcl_index, n)) {
-		n->dce_flags |= DCE_F_REPEAT;
+		if (n != c && !(n->dce_flags & DCE_F_SRCONLY))
+			n->dce_flags |= DCE_F_REPEAT;
 	}
 }
 
@@ -2459,18 +2590,27 @@ dsl_clonedup_group_take(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
 				    sizeof (*e->dce_src));
 			e->dce_src = NULL;
 		}
+		if (e->dce_flags & DCE_F_SRCONLY) {
+			dcl->dcl_kept_dva = e->dce_dva;
+			dcl->dcl_kept_birth = e->dce_birth;
+		}
 		/*
 		 * References to one physical block share DVA[0] and
 		 * physical birth, as zfs_dedupe_bp_same_block()
 		 * checks, so they sort together and the takes reach
-		 * them in a row.  At the first of them,
-		 * dsl_clonedup_count_at() flags the rest.
+		 * them in a row.  At the first of them that can be a
+		 * destination, dsl_clonedup_count_at() picks the one
+		 * that carries the count.
 		 */
-		if (e->dce_birth != dcl->dcl_take_birth ||
-		    !DVA_EQUAL(&e->dce_dva, &dcl->dcl_take_dva))
-			dsl_clonedup_count_at(dcl, e, next);
-		dcl->dcl_take_dva = e->dce_dva;
-		dcl->dcl_take_birth = e->dce_birth;
+		if (!(e->dce_flags & DCE_F_SRCONLY)) {
+			dva_t *last = &dcl->dcl_take_dva;
+
+			if (e->dce_birth != dcl->dcl_take_birth ||
+			    !DVA_EQUAL(&e->dce_dva, last))
+				dsl_clonedup_count_at(dcl, e, next);
+			*last = e->dce_dva;
+			dcl->dcl_take_birth = e->dce_birth;
+		}
 		g->g_entries[g->g_count++] = e;
 		e = next;
 	}
@@ -2549,6 +2689,7 @@ dsl_clonedup_stats_add(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
 	p->dclp_candidates += st->s_candidates;
 	p->dclp_applied += st->s_applied;
 	p->dclp_bytes_saved += st->s_saved;
+	p->dclp_bytes_saved_snapheld += st->s_saved_snapheld;
 	p->dclp_skipped_stale += st->s_stale;
 	p->dclp_skipped_dirty += st->s_dirty;
 	p->dclp_skipped_differs += st->s_differs;
@@ -2574,6 +2715,7 @@ dsl_clonedup_stats_sum(dsl_clonedup_stats_t *a,
 	a->s_candidates += b->s_candidates;
 	a->s_applied += b->s_applied;
 	a->s_saved += b->s_saved;
+	a->s_saved_snapheld += b->s_saved_snapheld;
 	a->s_stale += b->s_stale;
 	a->s_dirty += b->s_dirty;
 	a->s_differs += b->s_differs;
@@ -2670,6 +2812,158 @@ dsl_clonedup_batch_fini(dsl_clonedup_worker_t *w)
 }
 
 /*
+ * Whether a snapshot of os has passed its check, which sets
+ * ds_trysnap_txg in open context, and may still sync in a txg before
+ * txg.  Once on disk such a snapshot holds the old blocks of os that
+ * a transaction in txg replaces.  The check runs in a transaction
+ * that holds its txg open, so the answer is complete for a txg only
+ * once that txg has quiesced.  A caller that needs txg - 1 covered
+ * first sees spa_syncing_txg() reach it, and the barrier keeps that
+ * read ahead of this one.
+ */
+static boolean_t
+dsl_clonedup_snap_pending(objset_t *os, uint64_t txg)
+{
+	uint64_t snap;
+
+	membar_consumer();
+	snap = dmu_objset_ds(os)->ds_trysnap_txg;
+	return (snap < txg &&
+	    snap > spa_last_synced_txg(dmu_objset_spa(os)));
+}
+
+/*
+ * Whether the head of ds's dsl_dir has a snapshot and nothing written
+ * since its latest one, as dsl_dataset_modified_since_snap() tells
+ * zfs receive.  ds is the head or one of its snapshots, and the
+ * caller holds the pool's config lock.  Such a head is never a
+ * destination.  All its data sits in that snapshot, so a redirect
+ * there would write past the snapshot, grow USED and free nothing.
+ * Its blocks still serve as sources, as those of a clonedup=source
+ * dataset do.  A clone with no snapshot of its own compares with
+ * its origin.  Any other head with no snapshot of its own has
+ * $ORIGIN@$ORIGIN as its previous one, which has no objset to
+ * compare, so such a head counts as changed.
+ */
+static boolean_t
+dsl_clonedup_unchanged(dsl_dataset_t *ds)
+{
+	dsl_pool_t *dp = ds->ds_dir->dd_pool;
+	dsl_dataset_t *head = ds;
+	boolean_t unchanged;
+
+	ASSERT(dsl_pool_config_held(dp));
+	if (ds->ds_is_snapshot && dsl_dataset_hold_obj(dp,
+	    dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj, FTAG,
+	    &head) != 0)
+		return (B_FALSE);
+	unchanged = head->ds_prev != NULL &&
+	    head->ds_prev != dp->dp_origin_snap &&
+	    !dsl_dataset_modified_since_snap(head, head->ds_prev);
+	if (head != ds)
+		dsl_dataset_rele(head, FTAG);
+	return (unchanged);
+}
+
+/*
+ * dsl_clonedup_unchanged() for the walk, which visits every snapshot
+ * of a dsl_dir and needs the same answer for each.  The walk runs in
+ * sync pass 1, after the txg's datasets and sync tasks, so the answer
+ * holds until the next txg.  The walk keeps it per dsl_dir until
+ * then, as dsl_clonedup_ds_info() keeps a dataset's facts.
+ */
+boolean_t
+dsl_clonedup_walk_unchanged(dsl_dataset_t *ds)
+{
+	dsl_pool_t *dp = ds->ds_dir->dd_pool;
+	dsl_clonedup_t *dcl = dp->dp_clonedup;
+	uint64_t txg = spa_syncing_txg(dp->dp_spa);
+	dsl_clonedup_unch_t probe;
+	dsl_clonedup_unch_t *u;
+	avl_index_t where;
+	boolean_t unchanged;
+
+	if (dcl->dcl_unch_txg != txg) {
+		dsl_clonedup_unch_vacate(dcl);
+		dcl->dcl_unch_txg = txg;
+	}
+	probe.dcn_dir = ds->ds_dir->dd_object;
+	u = avl_find(&dcl->dcl_unch, &probe, &where);
+	if (u != NULL)
+		return (u->dcn_unchanged);
+	unchanged = dsl_clonedup_unchanged(ds);
+	if (avl_numnodes(&dcl->dcl_unch) < DCL_DSINFO_MAX) {
+		u = kmem_alloc(sizeof (*u), KM_SLEEP);
+		u->dcn_dir = probe.dcn_dir;
+		u->dcn_unchanged = unchanged;
+		avl_insert(&dcl->dcl_unch, u, where);
+	}
+	return (unchanged);
+}
+
+/*
+ * A redirect of a block that a snapshot also holds leaves the old
+ * block on the head's deadlist and charges the clone to the head, so
+ * USED grows by the block in the head's dsl_dir and in every
+ * ancestor.  The referenced bytes, the owner's usage and the pool's
+ * free space do not change.  A clone that zfs_clone_range() makes
+ * over such a block is charged the same way.  dmu_tx_count_clone()
+ * holds only the indirect blocks, and zfs_clone_range() refuses only
+ * an owner already over its quota, so dmu_tx_assign() never sees the
+ * data.  Each quota on the way up therefore needs room for the
+ * growth, the deflated size that dsl_dataset_block_born() charges.
+ * The room is the quota less the dsl_dir's usage on disk and less
+ * what the run booked in txgs that have not synced.  dcl_lock keeps
+ * two workers from taking the same room, and dsl_dir_willuse_space()
+ * shows the growth to other writers until it syncs.
+ */
+static boolean_t
+dsl_clonedup_quota_take(dsl_clonedup_t *dcl, objset_t *os,
+    const blkptr_t *bp, dmu_tx_t *tx)
+{
+	dsl_dir_t *dd = dmu_objset_ds(os)->ds_dir;
+	uint64_t synced = spa_last_synced_txg(dcl->dcl_dp->dp_spa);
+	uint64_t txg = dmu_tx_get_txg(tx);
+	uint64_t room = UINT64_MAX;
+	uint64_t held = 0;
+	uint64_t grow;
+	int t = txg & TXG_MASK;
+
+	for (dsl_dir_t *d = dd; d != NULL; d = d->dd_parent) {
+		uint64_t quota = dsl_dir_phys(d)->dd_quota;
+		uint64_t used;
+
+		if (quota == 0)
+			continue;
+		mutex_enter(&d->dd_lock);
+		used = dsl_dir_phys(d)->dd_used_bytes;
+		mutex_exit(&d->dd_lock);
+		room = MIN(room, quota > used ? quota - used : 0);
+	}
+	if (room == UINT64_MAX)
+		return (B_TRUE);
+
+	grow = bp_get_dsize(dcl->dcl_dp->dp_spa, bp);
+	mutex_enter(&dcl->dcl_lock);
+	if (dcl->dcl_grow_txg[t] != txg) {
+		dcl->dcl_grow_txg[t] = txg;
+		dcl->dcl_grow[t] = 0;
+	}
+	for (int i = 0; i < TXG_SIZE; i++) {
+		if (dcl->dcl_grow_txg[i] > synced)
+			held += dcl->dcl_grow[i];
+	}
+	if (held + grow > room) {
+		mutex_exit(&dcl->dcl_lock);
+		return (B_FALSE);
+	}
+	dcl->dcl_grow[t] += grow;
+	mutex_exit(&dcl->dcl_lock);
+	dsl_dir_willuse_space(dd, grow, tx);
+	return (B_TRUE);
+}
+
+/*
  * dmu_tx_assign() found a quota, or the pool, out of room.  Its test
  * leaves out the transaction's own reservation, so a smaller batch
  * would fail the same way, as would zfs_clone_range().  Skip the
@@ -2692,12 +2986,26 @@ dsl_clonedup_batch_refuse(dsl_clonedup_worker_t *w,
 	}
 }
 
+/* Bytes a dry run has booked against dd, see dsl_clonedup_dry_t. */
+static uint64_t
+dsl_clonedup_dry_booked(dsl_clonedup_t *dcl, dsl_dir_t *dd)
+{
+	dsl_clonedup_dry_t probe;
+	dsl_clonedup_dry_t *d;
+
+	ASSERT(MUTEX_HELD(&dcl->dcl_lock));
+	dsl_clonedup_dry_key(&probe, DCD_DIR, dd->dd_object, 0, 0);
+	d = avl_find(&dcl->dcl_dry, &probe, NULL);
+	return (d != NULL ? d->dcd_grow : 0);
+}
+
 /*
  * Whether dmu_tx_assign() would find no room for a batch of clones
  * into os.  A dry run assigns no tx, so this makes the test
  * dsl_dir_tempreserve_space() makes on a quiet pool.  A refquota, or
  * a quota on the way up, is already reached, or the pool's unreserved
- * space is used up.  A real run then skips the batch's clones, see
+ * space is used up, with the growth the run booked counted as used.
+ * A real run then skips the batch's clones, see
  * dsl_clonedup_batch_refuse().
  */
 static boolean_t
@@ -2719,6 +3027,9 @@ dsl_clonedup_dry_full(dsl_clonedup_t *dcl, objset_t *os)
 			used = dsl_dir_phys(d)->dd_used_bytes;
 			mutex_exit(&d->dd_lock);
 		}
+		mutex_enter(&dcl->dcl_lock);
+		used += dsl_clonedup_dry_booked(dcl, d);
+		mutex_exit(&dcl->dcl_lock);
 		if (d->dd_parent == NULL) {
 			uint64_t avail = dsl_pool_unreserved_space(
 			    dcl->dcl_dp, ZFS_SPACE_CHECK_NORMAL);
@@ -2734,6 +3045,79 @@ dsl_clonedup_dry_full(dsl_clonedup_t *dcl, objset_t *os)
 			break;
 	}
 	return (B_FALSE);
+}
+
+/*
+ * dsl_clonedup_quota_take() for a dry run, which has no tx.  The
+ * growth is booked against every dsl_dir on the way up, so the room
+ * later redirects and dsl_clonedup_dry_full() see has it taken out.
+ * A dsl_dir booked for the first time gets its node with dcl_lock
+ * dropped, and the room is measured again after that.
+ */
+static boolean_t
+dsl_clonedup_dry_take(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
+    objset_t *os, const blkptr_t *bp)
+{
+	dsl_dir_t *dd = dmu_objset_ds(os)->ds_dir;
+	uint64_t grow = bp_get_dsize(dcl->dcl_dp->dp_spa, bp);
+	dsl_clonedup_dry_t *spare = NULL;
+	dsl_clonedup_dry_t probe;
+	dsl_clonedup_dry_t *d;
+	avl_index_t where;
+	dsl_dir_t *p;
+	boolean_t ok;
+
+	mutex_enter(&dcl->dcl_lock);
+	for (;;) {
+		uint64_t room = UINT64_MAX;
+
+		ok = w->dcw_gen == dcl->dcl_gen;
+		for (p = dd; ok && p != NULL; p = p->dd_parent) {
+			uint64_t quota = dsl_dir_phys(p)->dd_quota;
+			uint64_t used;
+
+			if (quota == 0)
+				continue;
+			mutex_enter(&p->dd_lock);
+			used = dsl_dir_phys(p)->dd_used_bytes;
+			mutex_exit(&p->dd_lock);
+			used += dsl_clonedup_dry_booked(dcl, p);
+			room = MIN(room,
+			    quota > used ? quota - used : 0);
+		}
+		ok = ok && grow <= room;
+		for (p = dd; ok && p != NULL; p = p->dd_parent) {
+			dsl_clonedup_dry_key(&probe, DCD_DIR,
+			    p->dd_object, 0, 0);
+			if (avl_find(&dcl->dcl_dry, &probe,
+			    &where) == NULL)
+				break;
+		}
+		if (!ok || p == NULL)
+			break;
+		if (spare != NULL) {
+			memcpy(spare->dcd_key, probe.dcd_key,
+			    sizeof (probe.dcd_key));
+			avl_insert(&dcl->dcl_dry, spare, where);
+			spare = NULL;
+			continue;
+		}
+		mutex_exit(&dcl->dcl_lock);
+		spare = kmem_zalloc(sizeof (*spare), KM_SLEEP);
+		mutex_enter(&dcl->dcl_lock);
+	}
+	for (p = dd; ok && p != NULL; p = p->dd_parent) {
+		dsl_clonedup_dry_key(&probe, DCD_DIR, p->dd_object,
+		    0, 0);
+		/* a rename can have moved dd since the loop above */
+		d = avl_find(&dcl->dcl_dry, &probe, NULL);
+		if (d != NULL)
+			d->dcd_grow += grow;
+	}
+	mutex_exit(&dcl->dcl_lock);
+	if (spare != NULL)
+		kmem_free(spare, sizeof (*spare));
+	return (ok);
 }
 
 /*
@@ -2758,30 +3142,46 @@ dsl_clonedup_batch_finish(dsl_clonedup_t *dcl,
 	uint64_t sobj = 0;
 	uint64_t sblkid = 0;
 	boolean_t shave = B_FALSE;
+	boolean_t room;
 	uint64_t prev_snap;
+	boolean_t unchanged;
 	int err = 0;
 
 	/*
 	 * Whether a snapshot holds a destination's old block, decided
 	 * as dsl_dataset_block_kill() will decide it, from the
 	 * dataset's last snapshot as it is now.  The walk's answer
-	 * misses a snapshot taken since, and the pair counts as
-	 * stale.  A run has waited for every snapshot that has passed
+	 * misses a snapshot taken since, and keeps one destroyed
+	 * since.  A run has waited for every snapshot that has passed
 	 * its check before its txg, see dsl_clonedup_batch_flush(),
 	 * and a dry run takes the answer as it stands.
 	 */
 	prev_snap = dsl_dataset_phys(
 	    dmu_objset_ds(b->dcb_os))->ds_prev_snap_txg;
+	/*
+	 * The walk keeps a head out of the destinations when nothing
+	 * was written to it since its latest snapshot, see
+	 * dsl_clonedup_unchanged().  A snapshot taken since the walk,
+	 * with nothing written after it, leaves a head so too, and
+	 * each of its pairs counts as a policy skip.  A run decides
+	 * it after the same wait as the test above, and a dry run
+	 * takes the answer as it stands.
+	 */
+	dsl_pool_config_enter(dcl->dcl_dp, FTAG);
+	unchanged = dsl_clonedup_unchanged(dmu_objset_ds(b->dcb_os));
+	dsl_pool_config_exit(dcl->dcl_dp, FTAG);
 	for (uint_t i = 0; i < n; i++) {
 		dsl_clonedup_pend_t *pd = &b->dcb_pend[i];
 		zfs_clonedup_result_t res;
+		boolean_t held;
 
 		if (pd->dcp_drop)
 			continue;
-		if (BP_GET_BIRTH(&pd->dcp_dbp) <= prev_snap) {
-			st->s_stale++;
+		if (unchanged) {
+			st->s_policy++;
 			continue;
 		}
+		held = BP_GET_BIRTH(&pd->dcp_dbp) <= prev_snap;
 		if (!shave || pd->dcp_sobject != sobj ||
 		    pd->dcp_sblkid != sblkid) {
 			err = zfs_clonedup_src_validate(b->dcb_sos,
@@ -2792,6 +3192,17 @@ dsl_clonedup_batch_finish(dsl_clonedup_t *dcl,
 			sobj = pd->dcp_sobject;
 			sblkid = pd->dcp_sblkid;
 			shave = B_TRUE;
+		}
+		if (sres == ZCR_APPLIED && held) {
+			room = tx != NULL ?
+			    dsl_clonedup_quota_take(dcl, b->dcb_os,
+			    &sval, tx) :
+			    dsl_clonedup_dry_take(dcl, w, b->dcb_os,
+			    &sval);
+			if (!room) {
+				st->s_policy++;
+				continue;
+			}
 		}
 		if (sres != ZCR_APPLIED) {
 			res = sres;
@@ -2804,7 +3215,11 @@ dsl_clonedup_batch_finish(dsl_clonedup_t *dcl,
 		switch (res) {
 		case ZCR_APPLIED:
 			st->s_applied++;
-			st->s_saved += pd->dcp_dasize;
+			if (held)
+				st->s_saved_snapheld +=
+				    pd->dcp_dasize;
+			else
+				st->s_saved += pd->dcp_dasize;
 			if (tx != NULL)
 				DCL_BUMP(dcl, DCK_CLONES, 1);
 			break;
@@ -2834,8 +3249,14 @@ dsl_clonedup_batch_finish(dsl_clonedup_t *dcl,
 /*
  * Send every queued clone out in one transaction.  The wait for the
  * previous txg, which keeps a writer that still holds it from freeing
- * a source under us, is paid once per batch.  Anything that has moved
- * is dropped; the next run finds the block again.
+ * a source under us, is paid once per batch.  A source no writer can
+ * reach skips it, unless the destination is an open volume, see
+ * zfs_clonedup_zvol_recheck(), or a snapshot of it may still sync
+ * first, see dsl_clonedup_batch_finish().  A snapshot passes its
+ * check in a transaction, which can hold the previous txg open after
+ * ours has opened.  So the skip also needs that txg to have begun to
+ * sync.  Anything that has moved is dropped; the next run finds the
+ * block again.
  */
 static void
 dsl_clonedup_batch_flush(dsl_clonedup_t *dcl,
@@ -2893,11 +3314,18 @@ dsl_clonedup_batch_flush(dsl_clonedup_t *dcl,
 		goto release;
 	}
 	txg = dmu_tx_get_txg(tx);
-	err = txg_wait_synced_flags(dp, txg - 1, TXG_WAIT_SUSPEND);
-	if (err != 0) {
-		dmu_tx_commit(tx);
-		st.s_errors += n;
-		goto release;
+	if (!b->dcb_src_stable ||
+	    spa_syncing_txg(dp->dp_spa) < txg - 1 ||
+	    dsl_clonedup_snap_pending(b->dcb_os, txg) ||
+	    zfs_clonedup_dst_kind(b->dcb_pend[0].dcp_dst) ==
+	    DCK_DST_ZVOL) {
+		err = txg_wait_synced_flags(dp, txg - 1,
+		    TXG_WAIT_SUSPEND);
+		if (err != 0) {
+			dmu_tx_commit(tx);
+			st.s_errors += n;
+			goto release;
+		}
 	}
 	dsl_clonedup_batch_finish(dcl, w, n, tx, &st);
 	dmu_tx_commit(tx);
@@ -2960,10 +3388,10 @@ dsl_clonedup_copies_kept(dsl_clonedup_t *dcl, const blkptr_t *sbp,
 static int
 dsl_clonedup_batch_add(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
     zfs_clonedup_dst_t *dst, uint64_t dsobj, uint64_t srcobj,
-    objset_t *sos, uint64_t object, uint64_t blkid, uint64_t blksz,
-    const blkptr_t *dexp, const blkptr_t *sexp, uint64_t sobject,
-    uint64_t sblkid, uint64_t dasize, boolean_t trusted,
-    boolean_t dryrun, zfs_clonedup_result_t *resp)
+    objset_t *sos, boolean_t stable, uint64_t object, uint64_t blkid,
+    uint64_t blksz, const blkptr_t *dexp, const blkptr_t *sexp,
+    uint64_t sobject, uint64_t sblkid, uint64_t dasize,
+    boolean_t trusted, boolean_t dryrun, zfs_clonedup_result_t *resp)
 {
 	dsl_clonedup_batch_t *b = &w->dcw_batch;
 	dsl_clonedup_pend_t *pd;
@@ -3007,6 +3435,7 @@ dsl_clonedup_batch_add(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
 		b->dcb_srcobj = srcobj;
 		b->dcb_os = zfs_clonedup_dst_objset(dst);
 		b->dcb_sos = sos;
+		b->dcb_src_stable = stable;
 		b->dcb_dryrun = dryrun;
 	}
 	pd = &b->dcb_pend[b->dcb_count++];
@@ -3067,6 +3496,8 @@ dsl_clonedup_group_process(dsl_clonedup_t *dcl,
 	blkptr_t sbp;
 	blkptr_t dbp;
 	uint64_t sblksz;
+	dsl_clonedup_dsinfo_t sdi;
+	boolean_t src_stable = B_FALSE;
 	boolean_t counted = g->g_counted;
 	boolean_t trusted;
 	uint_t start = 0;
@@ -3123,6 +3554,8 @@ again:
 			goto again;
 		goto out;
 	}
+	src_stable = dsl_clonedup_ds_info(dcl, w, src.dcs_objset,
+	    &sdi) == 0 && sdi.di_snapshot;
 
 	for (uint_t i = start; i < g->g_count &&
 	    !dsl_clonedup_stale(dcl, w);
@@ -3132,6 +3565,13 @@ again:
 		uint64_t dblksz =
 		    (uint64_t)e->dce_blkszsec << SPA_MINBLOCKSHIFT;
 		uint64_t dsobj = e->dce_objset;
+		/*
+		 * Mapped from a snapshot to its head.  A head that no
+		 * longer holds the snapshot's block has nothing to
+		 * redirect, so the pair is no candidate and the apply
+		 * does not count it as stale.
+		 */
+		boolean_t insnap = B_FALSE;
 		dsl_clonedup_dsinfo_t di;
 		zfs_clonedup_dst_t *dst;
 		zfs_clonedup_result_t res;
@@ -3139,6 +3579,8 @@ again:
 redo:
 		/* count what a stop leaves as skipped */
 		if (dsl_clonedup_stop(dcl, zthr)) {
+			if (e->dce_flags & DCE_F_SRCONLY)
+				continue;
 			if (!DVA_EQUAL(&e->dce_dva, &src.dcs_dva) ||
 			    e->dce_birth != src.dcs_birth)
 				st.s_busy++;
@@ -3165,6 +3607,8 @@ redo:
 				goto again;
 			}
 		}
+		if (e->dce_flags & DCE_F_SRCONLY)
+			continue;
 		if (DVA_EQUAL(&e->dce_dva, &src.dcs_dva) &&
 		    e->dce_birth == src.dcs_birth) {
 			if (lost != 0)
@@ -3183,6 +3627,17 @@ redo:
 		if (dsl_clonedup_ds_info(dcl, w, dsobj, &di) != 0) {
 			st.s_stale++;
 			continue;
+		}
+		if (e->dce_flags & DCE_F_SNAPHELD) {
+			if (di.di_snapshot) {
+				dsobj = di.di_head;
+				insnap = B_TRUE;
+				if (dsl_clonedup_ds_info(dcl, w,
+				    dsobj, &di) != 0) {
+					st.s_stale++;
+					continue;
+				}
+			}
 		}
 		if (di.di_snapshot || di.di_mode != ZFS_CLONEDUP_ON ||
 		    di.di_inconsistent) {
@@ -3210,7 +3665,8 @@ redo:
 			continue;
 		}
 		if (err != 0) {
-			st.s_stale++;
+			if (!insnap)
+				st.s_stale++;
 			continue;
 		}
 		if (!zfs_clonedup_dst_exclusive(dst)) {
@@ -3241,7 +3697,7 @@ redo:
 		if (err != 0) {
 			if (!dsl_clonedup_err_moved(err))
 				st.s_errors++;
-			else
+			else if (!insnap)
 				st.s_stale++;
 			continue;
 		}
@@ -3259,7 +3715,8 @@ redo:
 		if (err != 0 || nb != 1 ||
 		    !dsl_clonedup_bp_matches(&dbp, &e->dce_dva,
 		    e->dce_birth)) {
-			st.s_stale++;
+			if (!insnap)
+				st.s_stale++;
 			continue;
 		}
 		if (zfs_dedupe_bp_same_block(&dbp, &sbp))
@@ -3293,7 +3750,7 @@ redo:
 			    zfs_clonedup_apply_txg_delay));
 
 		err = dsl_clonedup_batch_add(dcl, w, dst, dsobj,
-		    src.dcs_objset, sos, e->dce_object,
+		    src.dcs_objset, sos, src_stable, e->dce_object,
 		    e->dce_blkid, dblksz,
 		    &dbp, &sbp, src.dcs_object, src.dcs_blkid, dasize,
 		    trusted, dryrun, &res);
@@ -3403,6 +3860,8 @@ dsl_clonedup_group_decide(dsl_clonedup_t *dcl,
 	for (uint_t i = 0; i < g->g_count; i++) {
 		dsl_clonedup_entry_t *e = g->g_entries[i];
 
+		if (e->dce_flags & DCE_F_SRCONLY)
+			continue;
 		if (DVA_EQUAL(&e->dce_dva, &src.dcs_dva) &&
 		    e->dce_birth == src.dcs_birth)
 			continue;

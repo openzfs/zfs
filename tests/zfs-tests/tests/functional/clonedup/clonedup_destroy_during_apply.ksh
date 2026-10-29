@@ -18,9 +18,8 @@
 
 #
 # DESCRIPTION:
-#	Destroying the dataset being written to succeeds while the
-#	apply runs, and so does destroying a snapshot that holds a
-#	copy of the data.
+#	Destroying the dataset being written to, and the snapshot
+#	serving as the surviving copy, succeeds while the apply runs.
 #
 
 verify_runnable "global"
@@ -42,7 +41,7 @@ log_must save_tunable TXG_TIMEOUT
 clonedup_pool_create
 typeset nblk=64
 
-# a copy that lives only in a snapshot
+# the surviving copy lives only in a snapshot
 clonedup_write /$TESTPOOL/a $nblk
 clonedup_sync
 log_must zfs snapshot $TESTPOOL@snap

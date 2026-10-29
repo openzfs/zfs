@@ -1041,7 +1041,8 @@ zfs_clonedup_src_pin(objset_t *sos, zfs_clonedup_dst_t *dst,
 	char *name;
 
 	*pinp = NULL;
-	if ((dst != NULL && zfs_clonedup_dst_objset(dst) == sos) ||
+	if (ds->ds_is_snapshot ||
+	    (dst != NULL && zfs_clonedup_dst_objset(dst) == sos) ||
 	    zfs_clonedup_src_unowned(sos))
 		return (0);
 	if (dmu_objset_type(sos) == DMU_OST_ZFS &&
@@ -1131,7 +1132,8 @@ zfs_clonedup_src_lock(struct zfs_clonedup_spin *pin,
 	} else if (same) {
 		if (dst->zcd_os == NULL)
 			zfsvfs = dst->zcd_zfsvfs;
-	} else if (!zfs_clonedup_src_unowned(sos)) {
+	} else if (!dmu_objset_ds(sos)->ds_is_snapshot &&
+	    !zfs_clonedup_src_unowned(sos)) {
 		return (SET_ERROR(EBUSY));
 	}
 	if (zfsvfs != NULL) {
@@ -1243,11 +1245,11 @@ zfs_clonedup_dst_wrote(zfs_clonedup_dst_t *dst, dmu_tx_t *tx)
 
 /*
  * Finish one prepared block inside a transaction the caller assigned
- * and already waited out the previous txg for.  The destination range
- * lock has been held since zfs_clonedup_dst_prepare(), so only the
- * source and a volume that shrank behind the range lock still need
- * re-checking.  A dry run passes no tx.  It gets the same checks, and
- * nothing changes.
+ * and, unless the source is a snapshot, already waited out the
+ * previous txg for.  The destination range lock has been held since
+ * zfs_clonedup_dst_prepare(), so only the source and a volume that
+ * shrank behind the range lock still need re-checking.  A dry run
+ * passes no tx.  It gets the same checks, and nothing changes.
  */
 int
 zfs_clonedup_dst_finish(zfs_clonedup_dst_t *dst, uint64_t blkid,

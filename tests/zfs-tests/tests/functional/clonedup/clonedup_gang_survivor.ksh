@@ -20,12 +20,12 @@
 # DESCRIPTION:
 #	A run takes gang blocks like any other block.  In a group that
 #	holds gang copies and a copy that is not a gang block, that
-#	copy survives even when a gang copy is older, and the run
-#	redirects the gang copies onto it.  In a group of gang
-#	copies only, the older one survives.  A redirect of a gang
-#	copy counts all of its gang tree as saved.  No copy moves
-#	onto a gang block that may hold fewer copies of the data,
-#	as the gang header's DVA count does not tell.
+#	copy survives even when a gang copy is older or a snapshot
+#	holds it, and the run redirects the gang copies onto it.  In a
+#	group of gang copies only, the older one survives.  A redirect
+#	of a gang copy counts all of its gang tree as saved.  No copy
+#	moves onto a gang block that may hold fewer copies of the
+#	data, as the gang header's DVA count does not tell.
 #
 # STRATEGY:
 #	1. Each case gets a new pool.  Forcing every block of 100000
@@ -38,17 +38,20 @@
 #	   shares them and has no gang block left, that saved is the
 #	   allocated size of the file's gang blocks, and that both
 #	   read back as written.
-#	3. With the default redundant_metadata=all, write a file and
+#	3. The same with a snapshot of the file taken before the
+#	   copy.  The snapshot keeps its gang blocks, and the space
+#	   counts as held by snapshots.
+#	4. With the default redundant_metadata=all, write a file and
 #	   a copy of it, both with ganging forced.  Run, and check
 #	   that the copy shares the file's gang blocks.
-#	4. In one dataset, write a gang file with copies=2, then a
+#	5. In one dataset, write a gang file with copies=2, then a
 #	   gang copy with copies=3.  Both have three DVAs, the gang
 #	   headers' count.  Run, and check that the copy keeps its
 #	   blocks and counts as a policy skip.
-#	5. In one dataset, write a gang file with copies=1, then a
+#	6. In one dataset, write a gang file with copies=1, then a
 #	   copy that is not a gang block with copies=2.  Both have two
 #	   DVAs.  Run, and check that the file moves onto the copy.
-#	6. After each case the pool scrubs clean and zdb finds no
+#	7. After each case the pool scrubs clean and zdb finds no
 #	   leak.
 #
 
@@ -196,6 +199,33 @@ gs_check_gang $TESTPOOL/most g none
 clonedup_jstat_is clonedup_applied $CD_BLOCKS
 clonedup_jstat_is clonedup_saved $asz
 clonedup_jstat_is clonedup_saved_snapheld 0
+clonedup_jstat_is errors 0
+gs_verify
+gs_check_data most g n $hash
+
+# The gang copy also held by a snapshot.
+gs_pool most most
+gs_gang_on
+clonedup_write /$TESTPOOL/most/g
+clonedup_sync
+gs_gang_off
+log_must zfs snapshot $TESTPOOL/most@s
+clonedup_dup /$TESTPOOL/most/g /$TESTPOOL/most/n
+clonedup_sync
+gs_check_gang $TESTPOOL/most@s g all
+gs_check_gang $TESTPOOL/most n none
+hash=$(xxh128digest /$TESTPOOL/most/g)
+keep=$(clonedup_file_blocks $TESTPOOL/most n)
+asz=$(gs_asize $TESTPOOL/most g)
+clonedup_run
+log_must [ "$(clonedup_file_blocks $TESTPOOL/most n)" = "$keep" ]
+clonedup_check_shared $TESTPOOL/most g $TESTPOOL/most n "$all"
+clonedup_check_shared $TESTPOOL/most@s g $TESTPOOL/most n ""
+gs_check_gang $TESTPOOL/most g none
+gs_check_gang $TESTPOOL/most@s g all
+clonedup_jstat_is clonedup_applied $CD_BLOCKS
+clonedup_jstat_is clonedup_saved $asz
+clonedup_jstat_is clonedup_saved_snapheld $asz
 clonedup_jstat_is errors 0
 gs_verify
 gs_check_data most g n $hash

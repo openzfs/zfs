@@ -19,9 +19,10 @@
 #
 # DESCRIPTION:
 #	A pair of copies that only snapshots hold is no candidate.
-#	The walk leaves out every block a snapshot holds, so a full
-#	run counts such a pair neither as a group nor as stale, and
-#	still counts and clones a live pair.
+#	The apply maps a snapshot's block to the head of its dataset,
+#	and a head that no longer holds the block leaves nothing to
+#	redirect.  A full run counts such a pair neither as a group
+#	nor as stale, and still counts and clones a live pair.
 #
 # STRATEGY:
 #	1. Write a file into one dataset and copy it byte for byte

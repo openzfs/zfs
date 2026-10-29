@@ -1614,6 +1614,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/clonedup/clonedup_batching.ksh \
 	functional/clonedup/clonedup_bclone_disabled.ksh \
 	functional/clonedup/clonedup_clone_after_snap.ksh \
+	functional/clonedup/clonedup_clone_destroy.ksh \
 	functional/clonedup/clonedup_copies_groups.ksh \
 	functional/clonedup/clonedup_cross_dataset.ksh \
 	functional/clonedup/clonedup_destroy_during_apply.ksh \
@@ -1645,24 +1646,36 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/clonedup/clonedup_policy_skips.ksh \
 	functional/clonedup/clonedup_precedence.ksh \
 	functional/clonedup/clonedup_promote_rollback_during_apply.ksh \
+	functional/clonedup/clonedup_property.ksh \
 	functional/clonedup/clonedup_queue_obj.ksh \
 	functional/clonedup/clonedup_quick.ksh \
+	functional/clonedup/clonedup_quota_snapheld.ksh \
 	functional/clonedup/clonedup_read_error.ksh \
 	functional/clonedup/clonedup_readonly_pool.ksh \
 	functional/clonedup/clonedup_rebuild_scrub.ksh \
+	functional/clonedup/clonedup_receiving_skipped.ksh \
+	functional/clonedup/clonedup_recv_during_apply.ksh \
+	functional/clonedup/clonedup_recv_force_swap.ksh \
 	functional/clonedup/clonedup_removing_vdev.ksh \
 	functional/clonedup/clonedup_replace_during_apply.ksh \
 	functional/clonedup/clonedup_resilver_cancels.ksh \
 	functional/clonedup/clonedup_restart_window.ksh \
 	functional/clonedup/clonedup_resume_flags.ksh \
+	functional/clonedup/clonedup_saved_kept.ksh \
 	functional/clonedup/clonedup_saved_once.ksh \
+	functional/clonedup/clonedup_saved_snapheld.ksh \
 	functional/clonedup/clonedup_scrub_errors.ksh \
 	functional/clonedup/clonedup_scrub_interplay.ksh \
 	functional/clonedup/clonedup_scrub_pause.ksh \
 	functional/clonedup/clonedup_scrub_paused_busy.ksh \
 	functional/clonedup/clonedup_skipped_data.ksh \
 	functional/clonedup/clonedup_small_arc.ksh \
+	functional/clonedup/clonedup_snapheld.ksh \
+	functional/clonedup/clonedup_snapheld_clone.ksh \
+	functional/clonedup/clonedup_snapheld_survivor.ksh \
+	functional/clonedup/clonedup_snapheld_window.ksh \
 	functional/clonedup/clonedup_snaponly_pairs.ksh \
+	functional/clonedup/clonedup_sources.ksh \
 	functional/clonedup/clonedup_special_small.ksh \
 	functional/clonedup/clonedup_split_groups.ksh \
 	functional/clonedup/clonedup_src_fallback.ksh \
@@ -1675,13 +1688,16 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/clonedup/clonedup_stop_raced.ksh \
 	functional/clonedup/clonedup_teardown_mmap.ksh \
 	functional/clonedup/clonedup_teardown_writer.ksh \
+	functional/clonedup/clonedup_unchanged_head.ksh \
 	functional/clonedup/clonedup_unmounted_dst.ksh \
 	functional/clonedup/clonedup_verify_error.ksh \
 	functional/clonedup/clonedup_verify_freed.ksh \
 	functional/clonedup/clonedup_verify_kstat.ksh \
+	functional/clonedup/clonedup_visit_again.ksh \
 	functional/clonedup/clonedup_walk_total.ksh \
 	functional/clonedup/clonedup_writer_race.ksh \
 	functional/clonedup/clonedup_yield_program.ksh \
+	functional/clonedup/clonedup_yield_release.ksh \
 	functional/clonedup/clonedup_yield_send.ksh \
 	functional/clonedup/clonedup_yield_timeout.ksh \
 	functional/clonedup/clonedup_yield_vdev_change.ksh \

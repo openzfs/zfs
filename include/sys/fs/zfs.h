@@ -654,7 +654,8 @@ typedef enum {
 
 typedef enum {
 	ZFS_CLONEDUP_ON,
-	ZFS_CLONEDUP_OFF
+	ZFS_CLONEDUP_OFF,
+	ZFS_CLONEDUP_SOURCE
 } zfs_clonedup_mode_t;
 
 typedef enum {

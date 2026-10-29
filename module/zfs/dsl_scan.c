@@ -3221,6 +3221,12 @@ dsl_scan_visitds(dsl_scan_t *scn, uint64_t dsobj, dmu_tx_t *tx)
 		dsl_scan_zil(dp, &os->os_zil_header);
 	}
 
+	/* see dsl_clonedup_unchanged() */
+	if (DSL_SCAN_IS_CLONEDUP(scn) &&
+	    scn->scn_clonedup_dsmode == ZFS_CLONEDUP_ON &&
+	    dsl_clonedup_walk_unchanged(ds))
+		scn->scn_clonedup_dsmode = ZFS_CLONEDUP_SOURCE;
+
 	/*
 	 * Iterate over the bps in this ds.  A clonedup run skips a
 	 * dataset the property excludes, rather than reading its
@@ -5476,10 +5482,11 @@ dsl_scan_clonedup_cb(dsl_pool_t *dp, const blkptr_t *bp,
 	    !dsl_clonedup_wanted(dcl, bp))
 		return (0);
 
-	/* a block that a snapshot holds takes no part */
 	if (ds->ds_is_snapshot || BP_GET_BIRTH(bp) <=
 	    dsl_dataset_phys(ds)->ds_prev_snap_txg)
-		return (0);
+		flags |= DCE_F_SNAPHELD;
+	if (scn->scn_clonedup_dsmode == ZFS_CLONEDUP_SOURCE)
+		flags |= DCE_F_SRCONLY;
 	if (brt_maybe_exists(spa, bp))
 		flags |= DCE_F_MAYBE_SHARED;
 	dsl_clonedup_visit(dcl, bp, zb, dnp, flags);

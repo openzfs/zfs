@@ -91,6 +91,8 @@ typedef struct dsl_clonedup_phys {
 #define	DCE_PROP_SET_NDVAS(p, x)	BF64_SET((p), 48, 2, x)
 
 /* dce_flags and dcs_flags */
+#define	DCE_F_SNAPHELD		0x01	/* held by a snapshot */
+#define	DCE_F_SRCONLY		0x02	/* clonedup=source dataset */
 #define	DCE_F_MAYBE_SHARED	0x04	/* brt_maybe_exists() true */
 #define	DCE_F_ZVOL		0x08	/* DMU_OT_ZVOL object */
 #define	DCE_F_SPECIAL		0x10	/* DVA[0] on special class */
@@ -205,6 +207,7 @@ typedef struct dsl_clonedup_batch {
 	uint64_t	dcb_srcobj;	/* source dataset */
 	objset_t	*dcb_os;	/* destination objset */
 	objset_t	*dcb_sos;	/* source objset */
+	boolean_t	dcb_src_stable;	/* source cannot change */
 	boolean_t	dcb_dryrun;	/* count, never clone */
 	uint_t		dcb_count;
 	uint_t		dcb_ndst;	/* handles to close */
@@ -282,13 +285,23 @@ typedef struct dsl_clonedup {
 	/* apply state the workers share, written under dcl_lock */
 	uint64_t	dcl_apply_txg;	/* newest txg counted */
 	uint64_t	dcl_apply_in_txg; /* blocks counted in it */
+	/* growth dsl_clonedup_quota_take() booked, by txg */
+	uint64_t	dcl_grow_txg[TXG_SIZE];
+	uint64_t	dcl_grow[TXG_SIZE];
 	avl_tree_t	dcl_apply;	/* entries in apply order */
+	avl_tree_t	dcl_dry;	/* what a dry run took */
 	boolean_t	dcl_apply_ready; /* order pass has run */
 	/* per group, see dsl_clonedup_gsrc_t */
 	avl_tree_t	dcl_gsrc;
 	/* last block taken; birth 0 is none */
 	dva_t		dcl_take_dva;
 	uint64_t	dcl_take_birth;
+	/* last block a source-only ref named; birth 0 is none */
+	dva_t		dcl_kept_dva;
+	uint64_t	dcl_kept_birth;
+	/* the walk's dsl_clonedup_unchanged() answers, by dsl_dir */
+	avl_tree_t	dcl_unch;
+	uint64_t	dcl_unch_txg;	/* the txg they hold for */
 	/* apply entries at a locator another already holds */
 	uint64_t	dcl_apply_shared;
 	struct zthr	*dcl_zthr;
@@ -412,6 +425,7 @@ boolean_t dsl_clonedup_apply_check(void *arg, struct zthr *zthr);
 void dsl_clonedup_apply_thread(void *arg, struct zthr *zthr);
 void dsl_clonedup_apply_wakeup(spa_t *spa);
 boolean_t dsl_clonedup_src_held(struct dsl_pool *dp, uint64_t dsobj);
+boolean_t dsl_clonedup_walk_unchanged(struct dsl_dataset *ds);
 int dsl_clonedup_src_in_range(objset_t *os, uint64_t object,
     uint64_t blkid, uint64_t blksz);
 dsl_clonedup_next_t dsl_clonedup_partition_done(dsl_clonedup_t *dcl,

@@ -2363,7 +2363,10 @@ A small pool or a low
 lowers that cap further, but not below 64 unless this value is lower.
 It also caps one take from the index, which holds at least 2 and at most
 1024 entries.
-Each transaction first waits for the previous transaction group to sync.
+A transaction waits for the previous transaction group to sync.
+It skips the wait only when its source is a snapshot, its destination is not
+an open volume, no snapshot of the destination can still sync ahead of it, and
+the previous group has begun to sync.
 The apply does not hurry the next group, so on a quiet pool it clones
 into mounted file systems at most this many blocks per
 .Sy zfs_txg_timeout ,
@@ -2396,10 +2399,11 @@ Intended for use with the test suite to widen race windows.
 .It Sy zfs_clonedup_yield_timeout_ms Ns = Ns Sy 10000 Ns ms Pq uint
 How long an operation waits for the clonedup apply thread to let go of the
 datasets it holds.
-The destroy of a file system or volume, a rollback, the end of a receive, or
-a channel program run in syncing context waits whenever the thread holds any
-dataset in the pool.
-A mount or a send of a file system waits only when it finds its dataset
+A destroy, a promote, a rollback, the end of a receive, or a channel program
+run in syncing context waits whenever the thread holds any dataset in the
+pool.
+A mount, a send of a file system, or the release of the last hold on a
+snapshot marked for deferred destroy waits only when it finds its dataset
 busy.
 After this time the operation goes ahead, and fails with EBUSY only if the
 thread still holds a dataset it needs.

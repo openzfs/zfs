@@ -20,11 +20,11 @@
 # DESCRIPTION:
 #	When a group has copies on the special class and on the normal
 #	class, the copy on the special class survives, whichever copy
-#	is older.  When the group has a special copy, an older block
-#	the match walk finds is its source only if that block is on
-#	the special class too.  With zfs_bclone_strict_properties set,
-#	the datasets' checksum, compression, copies and dedup must
-#	still match.
+#	is older and even when a snapshot holds the normal one.  When
+#	the group has a special copy, an older block the match walk
+#	finds is its source only if that block is on the special class
+#	too.  With zfs_bclone_strict_properties set, the datasets'
+#	checksum, compression, copies and dedup must still match.
 #
 # STRATEGY:
 #	1. Each case gets a new pool with a special vdev, and datasets
@@ -33,10 +33,13 @@
 #	2. With the special copy older, and then with the normal copy
 #	   older, a run leaves both sharing one block on the special
 #	   vdev.
-#	3. A normal block older than the run's window does not replace
+#	3. With a snapshot holding the normal copy, the run moves the
+#	   head's copy onto the special block, and the snapshot keeps
+#	   its own.
+#	4. A normal block older than the run's window does not replace
 #	   a new special copy.  Of a normal and a special older block,
 #	   the special one becomes the source of a new copy.
-#	4. After plain's compression changes, the run clones nothing
+#	5. After plain's compression changes, the run clones nothing
 #	   and counts every candidate as a policy skip.  With
 #	   zfs_bclone_strict_properties clear, a full run clones them.
 #
@@ -142,6 +145,25 @@ check_class $TESTPOOL/tier d special
 clonedup_run
 clonedup_check_shared $TESTPOOL/plain c $TESTPOOL/tier d "$all"
 check_class $TESTPOOL/plain c special
+clonedup_jstat_is errors 0
+clonedup_leakcheck
+
+# The normal copy held by a snapshot, the special copy live.
+special_pool
+clonedup_write /$TESTPOOL/plain/e
+clonedup_sync
+log_must zfs snapshot $TESTPOOL/plain@s
+# written since plain@s, so the run may still rewrite plain/e
+clonedup_write /$TESTPOOL/plain/n 1
+clonedup_dup /$TESTPOOL/plain/e /$TESTPOOL/tier/f
+clonedup_sync
+check_class $TESTPOOL/plain@s e normal
+check_class $TESTPOOL/tier f special
+clonedup_run
+clonedup_check_shared $TESTPOOL/plain e $TESTPOOL/tier f "$all"
+clonedup_check_shared $TESTPOOL/plain@s e $TESTPOOL/tier f ""
+check_class $TESTPOOL/plain e special
+check_class $TESTPOOL/plain@s e normal
 clonedup_jstat_is errors 0
 clonedup_leakcheck
 

@@ -24,6 +24,7 @@
 #include <sys/zfs_onexit.h>
 #include <sys/dsl_pool.h>
 #include <sys/dsl_dir.h>
+#include <sys/dsl_clonedup.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zap.h>
 
@@ -642,7 +643,41 @@ dsl_dataset_user_release_impl(nvlist_t *holds, nvlist_t *errlist,
 int
 dsl_dataset_user_release(nvlist_t *holds, nvlist_t *errlist)
 {
-	return (dsl_dataset_user_release_impl(holds, errlist, NULL));
+	nvpair_t *pair = nvlist_next_nvpair(holds, NULL);
+	dsl_clonedup_t *dy;
+	nvlist_t *errs;
+	int error;
+
+	if (pair == NULL)
+		return (0);
+	/*
+	 * Releasing the last hold on a snapshot marked for deferred
+	 * destroy fails with EBUSY while the snapshot is long held,
+	 * and the clonedup apply thread may be the holder.  Ask it to
+	 * let go and try once more.  The first try reports into a
+	 * list of its own, so the caller sees only the errors of the
+	 * try that counts.  While no apply runs, one try is enough,
+	 * and an apply that starts meanwhile waits for it.
+	 */
+	dy = dsl_clonedup_yield_idle();
+	if (dy != NULL) {
+		error = dsl_dataset_user_release_impl(holds, errlist,
+		    NULL);
+		dsl_clonedup_yield_end(dy);
+		return (error);
+	}
+	errs = fnvlist_alloc();
+	error = dsl_dataset_user_release_impl(holds, errs, NULL);
+	if (error == EBUSY) {
+		dy = dsl_clonedup_yield_begin_name(nvpair_name(pair));
+		error = dsl_dataset_user_release_impl(holds, errlist,
+		    NULL);
+		dsl_clonedup_yield_end(dy);
+	} else if (errlist != NULL) {
+		fnvlist_merge(errlist, errs);
+	}
+	fnvlist_free(errs);
+	return (error);
 }
 
 /*
