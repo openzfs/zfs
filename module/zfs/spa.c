@@ -6165,6 +6165,9 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 	spa_load_note(spa, "LOADING");
 
 	error = spa_ld_mos_with_trusted_config(spa, type, &update_config_cache);
+	if (error == 0 && zio_injection_enabled)
+		zio_handle_func_injection(spa, "spa_load:trusted-config",
+		    &error);
 	if (error != 0)
 		return (error);
 
@@ -6188,6 +6191,9 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 		 * uberblock to the labels, making the rewind permanent.
 		 */
 		error = spa_ld_checkpoint_rewind(spa);
+		if (error == 0 && zio_injection_enabled)
+			zio_handle_func_injection(spa, "spa_load:checkpoint",
+			    &error);
 		if (error != 0)
 			return (error);
 
@@ -6198,6 +6204,9 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 		spa_ld_prepare_for_reload(spa);
 		spa_load_note(spa, "LOADING checkpointed uberblock");
 		error = spa_ld_mos_with_trusted_config(spa, type, NULL);
+		if (error == 0 && zio_injection_enabled)
+			zio_handle_func_injection(spa, "spa_load:uberblock",
+			    &error);
 		if (error != 0)
 			return (error);
 	}
@@ -6213,6 +6222,9 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 	 */
 	spa_import_progress_set_notes(spa, "Loading checkpoint txg");
 	error = spa_ld_read_checkpoint_txg(spa);
+	if (error == 0 && zio_injection_enabled)
+		zio_handle_func_injection(spa, "spa_load:checkpoint-txg",
+		    &error);
 	if (error != 0)
 		goto fail;
 
@@ -6226,6 +6238,9 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 	 */
 	spa_import_progress_set_notes(spa, "Loading indirect vdev metadata");
 	error = spa_ld_open_indirect_vdev_metadata(spa);
+	if (error == 0 && zio_injection_enabled)
+		zio_handle_func_injection(spa,
+		    "spa_load:indirect-vdev-metadata", &error);
 	if (error != 0)
 		goto fail;
 
@@ -6235,6 +6250,9 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 	 */
 	spa_import_progress_set_notes(spa, "Checking feature flags");
 	error = spa_ld_check_features(spa, &missing_feat_write);
+	if (error == 0 && zio_injection_enabled)
+		zio_handle_func_injection(spa, "spa_load:missing-feat-write",
+		    &error);
 	if (error != 0)
 		goto fail;
 
@@ -6244,6 +6262,9 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 	 */
 	spa_import_progress_set_notes(spa, "Loading special MOS directories");
 	error = spa_ld_load_special_directories(spa);
+	if (error == 0 && zio_injection_enabled)
+		zio_handle_func_injection(spa, "spa_load:special-mos-dirs",
+		    &error);
 	if (error != 0)
 		goto fail;
 
@@ -6252,6 +6273,9 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 	 */
 	spa_import_progress_set_notes(spa, "Loading properties");
 	error = spa_ld_get_props(spa);
+	if (error == 0 && zio_injection_enabled)
+		zio_handle_func_injection(spa, "spa_load:properties",
+		    &error);
 	if (error != 0)
 		goto fail;
 
@@ -6261,6 +6285,9 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 	 */
 	spa_import_progress_set_notes(spa, "Loading AUX vdevs");
 	error = spa_ld_open_aux_vdevs(spa, type);
+	if (error == 0 && zio_injection_enabled)
+		zio_handle_func_injection(spa, "spa_load:load-aux-vdevs",
+		    &error);
 	if (error != 0)
 		goto fail;
 
@@ -6270,16 +6297,25 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 	 */
 	spa_import_progress_set_notes(spa, "Loading vdev metadata");
 	error = spa_ld_load_vdev_metadata(spa);
+	if (error == 0 && zio_injection_enabled)
+		zio_handle_func_injection(spa, "spa_load:vdev-metadata",
+		    &error);
 	if (error != 0)
 		goto fail;
 
 	spa_import_progress_set_notes(spa, "Loading dedup tables");
 	error = spa_ld_load_dedup_tables(spa);
+	if (error == 0 && zio_injection_enabled)
+		zio_handle_func_injection(spa, "spa_load:dedup-tables",
+		    &error);
 	if (error != 0)
 		goto fail;
 
 	spa_import_progress_set_notes(spa, "Loading BRT");
 	error = spa_ld_load_brt(spa);
+	if (error == 0 && zio_injection_enabled)
+		zio_handle_func_injection(spa, "spa_load:brt",
+		    &error);
 	if (error != 0)
 		goto fail;
 
@@ -6289,6 +6325,9 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 	 */
 	spa_import_progress_set_notes(spa, "Verifying Log Devices");
 	error = spa_ld_verify_logs(spa, type, ereport);
+	if (error == 0 && zio_injection_enabled)
+		zio_handle_func_injection(spa, "spa_load:verify-log-devs",
+		    &error);
 	if (error != 0)
 		goto fail;
 
@@ -6312,6 +6351,9 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 	 */
 	spa_import_progress_set_notes(spa, "Verifying pool data");
 	error = spa_ld_verify_pool_data(spa);
+	if (error == 0 && zio_injection_enabled)
+		zio_handle_func_injection(spa, "spa_load:verify-pool",
+		    &error);
 	if (error != 0)
 		goto fail;
 

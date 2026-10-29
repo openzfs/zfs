@@ -730,6 +730,8 @@ extern int zio_inject_fault(char *name, int flags, int *id,
 extern int zio_inject_list_next(int *id, char *name, size_t buflen,
     struct zinject_record *record);
 extern int zio_clear_fault(int id);
+extern int zio_handle_func_injection(spa_t *spa, const char *tag,
+    int *error);
 extern void zio_handle_panic_injection(spa_t *spa, const char *tag,
     uint64_t type);
 extern int zio_handle_decrypt_injection(spa_t *spa, const zbookmark_phys_t *zb,
