@@ -2577,8 +2577,13 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 		if (rc->rc_size == 0)
 			continue;
 
-		ASSERT3U(rc->rc_offset + rc->rc_size, <,
-		    cvd->vdev_psize - VDEV_LABEL_END_SIZE);
+		/*
+		 * rc_offset is relative to the end of the front labels.  For
+		 * scratch area columns it wraps below zero, so compare the
+		 * physical offset.
+		 */
+		ASSERT3U(VDEV_LABEL_START_SIZE + rc->rc_offset + rc->rc_size,
+		    <=, cvd->vdev_psize - VDEV_LABEL_END_SIZE);
 
 		ASSERT3P(rc->rc_abd, !=, NULL);
 		zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
@@ -2589,8 +2594,8 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 		if (rc->rc_shadow_devidx != INT_MAX) {
 			vdev_t *cvd2 = vd->vdev_child[rc->rc_shadow_devidx];
 
-			ASSERT3U(
-			    rc->rc_shadow_offset + abd_get_size(rc->rc_abd), <,
+			ASSERT3U(VDEV_LABEL_START_SIZE + rc->rc_shadow_offset +
+			    abd_get_size(rc->rc_abd), <=,
 			    cvd2->vdev_psize - VDEV_LABEL_END_SIZE);
 
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd2,
