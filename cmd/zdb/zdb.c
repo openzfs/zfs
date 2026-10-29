@@ -10350,18 +10350,15 @@ free_header(anyraid_header_t *header, uint64_t header_size)
  * which can be useful for debugging.
  */
 static void
-print_anyraid_mapping(vdev_t *vd, int child, int mapping,
-    anyraid_header_t *header)
+print_anyraid_mapping(vdev_t *vd, int child, anyraid_header_t *header)
 {
 	vdev_anyraid_t *var = vd->vdev_tsd;
 	vdev_t *cvd = vd->vdev_child[child];
-	uint64_t ashift = cvd->vdev_top->vdev_ashift;
 	int error = 0;
 	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
 	    ZIO_FLAG_SPECULATIVE;
 
-	uint64_t header_size = VDEV_ANYRAID_MAP_HEADER_SIZE(ashift);
-
+	int mapping = header->ah_mapping;
 	nvlist_t *hnvl = header->ah_nvl;
 	// Look up and print map metadata.
 	uint16_t version;
@@ -10506,21 +10503,32 @@ static void
 zdb_print_anyraid_ondisk_maps(vdev_t *vd, int verbosity)
 {
 	int child = 0;
-	spa_config_enter(spa, SCL_ZIO, FTAG, RW_READER);
+
+	uint64_t ashift = vd->vdev_ashift;
+	uint64_t header_size = VDEV_ANYRAID_MAP_HEADER_SIZE(ashift);
 	if (verbosity == 2) {
-		anyraid_header_t header = {0};
-		int mapping;
-		uint64_t txg = 0;
-		int error = vdev_anyraid_pick_best_mapping(
-		    vd->vdev_child[child], &txg, &header, &mapping);
+		avl_tree_t t;
+		avl_create(&t, vdev_anyraid_header_compar,
+		    sizeof (anyraid_header_t),
+		    offsetof(anyraid_header_t, ah_node));
+		spa_config_enter(spa, SCL_ZIO, FTAG, RW_READER);
+		int error = vdev_anyraid_open_mappings(
+		    vd->vdev_child[child], &t);
 		if (error != 0) {
 			(void) printf("Could not print mapping: %s\n",
 			    strerror(error));
 			spa_config_exit(spa, SCL_ZIO, FTAG);
 			return;
 		}
-		(void) printf("anyraid map %d:\n", mapping);
-		print_anyraid_mapping(vd, child, mapping, &header);
+		anyraid_header_t *header = avl_first(&t);
+		(void) printf("anyraid map %d:\n", header->ah_mapping);
+		print_anyraid_mapping(vd, child, header);
+
+		void *cookie = NULL;
+		while ((header = avl_destroy_nodes(&t, &cookie)) != NULL) {
+			free_header(header, header_size);
+		}
+		avl_destroy(&t);
 	} else if (verbosity == 3) {
 		for (int i = 0; i < VDEV_ANYRAID_MAP_COPIES; i++) {
 			(void) printf("anyraid map %d:\n", i);
@@ -10533,7 +10541,8 @@ zdb_print_anyraid_ondisk_maps(vdev_t *vd, int verbosity)
 				spa_config_exit(spa, SCL_ZIO, FTAG);
 				return;
 			}
-			print_anyraid_mapping(vd, child, i, &header);
+			print_anyraid_mapping(vd, child, &header);
+			free_header(&header, header_size);
 		}
 	} else {
 		for (; child < vd->vdev_children; child++) {
@@ -10547,7 +10556,8 @@ zdb_print_anyraid_ondisk_maps(vdev_t *vd, int verbosity)
 					    "mapping: %s\n", strerror(error));
 					continue;
 				}
-				print_anyraid_mapping(vd, child, i, &header);
+				print_anyraid_mapping(vd, child, &header);
+				free_header(&header, header_size);
 			}
 		}
 

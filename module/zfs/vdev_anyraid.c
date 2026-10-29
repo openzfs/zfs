@@ -240,9 +240,8 @@ vdev_anyraid_config_generate(vdev_t *vd, nvlist_t *nv)
  * Add an entry to the tile map for the provided tile.
  */
 static void
-create_tile_entry(spa_t *spa, vdev_anyraid_t *var,
-    anyraid_map_loc_entry_t *amle, uint8_t *pat_cnt, anyraid_tile_t **out_at,
-    uint32_t *cur_tile)
+create_tile_entry(vdev_anyraid_t *var, anyraid_map_loc_entry_t *amle,
+    uint8_t *pat_cnt, anyraid_tile_t **out_at, uint32_t *cur_tile)
 {
 	uint8_t disk = amle_get_disk(amle);
 	uint16_t offset = amle_get_offset(amle);
@@ -388,6 +387,9 @@ vdev_anyraid_open_header(vdev_t *cvd, int header, anyraid_header_t *out_header)
 	out_header->ah_abd = header_abd;
 	out_header->ah_buf = header_buf;
 	out_header->ah_nvl = header_nvl;
+	out_header->ah_mapping = header;
+	out_header->ah_target = spa_load_max_txg(spa);
+	out_header->ah_vd = cvd;
 
 	return (0);
 }
@@ -403,12 +405,11 @@ free_header(anyraid_header_t *header, uint64_t header_size)
 /*
  * This function is non-static for ZDB, and shouldn't be used for anything else.
  *
- * Iterate over all the copies of the map for the given child vdev and select
- * the best one.
+ * Iterate over all the copies of the map for the given child vdev. For each,
+ * if it passes sanity checks, add it to the tree
  */
 int
-vdev_anyraid_pick_best_mapping(vdev_t *cvd, uint64_t *out_txg,
-    anyraid_header_t *best_header, int *out_mapping)
+vdev_anyraid_open_mappings(vdev_t *cvd, avl_tree_t *tree)
 {
 	vdev_t *vd = cvd->vdev_top;
 	spa_t *spa = cvd->vdev_spa;
@@ -416,28 +417,25 @@ vdev_anyraid_pick_best_mapping(vdev_t *cvd, uint64_t *out_txg,
 	int error = 0;
 	uint64_t header_size = VDEV_ANYRAID_MAP_HEADER_SIZE(ashift);
 
-	int best_mapping = -1;
-	uint64_t best_txg = 0;
-	uint64_t min_txg = *out_txg;
-	uint64_t best_dist = UINT64_MAX;
+	anyraid_header_t *header = kmem_alloc(sizeof (*header),
+	    KM_SLEEP);
 	for (int i = 0; i < VDEV_ANYRAID_MAP_COPIES; i++) {
-		anyraid_header_t header;
-		error = vdev_anyraid_open_header(cvd, i, &header);
+		error = vdev_anyraid_open_header(cvd, i, header);
 
 		if (error)
 			continue;
 
-		nvlist_t *hnvl = header.ah_nvl;
+		nvlist_t *hnvl = header->ah_nvl;
 		uint16_t version;
 		if ((error = nvlist_lookup_uint16(hnvl,
 		    VDEV_ANYRAID_HEADER_VERSION, &version)) != 0) {
-			free_header(&header, header_size);
+			free_header(header, header_size);
 			zfs_dbgmsg("Anyraid header %d on vdev %s: missing "
 			    "version", i, cvd->vdev_path);
 			continue;
 		}
 		if (version != 0) {
-			free_header(&header, header_size);
+			free_header(header, header_size);
 			error = SET_ERROR(ENOTSUP);
 			zfs_dbgmsg("Anyraid header %d on vdev %s: invalid "
 			    "version", i, cvd->vdev_path);
@@ -447,7 +445,7 @@ vdev_anyraid_pick_best_mapping(vdev_t *cvd, uint64_t *out_txg,
 		uint64_t pool_guid = 0;
 		if (nvlist_lookup_uint64(hnvl, VDEV_ANYRAID_HEADER_GUID,
 		    &pool_guid) != 0 || pool_guid != spa_guid(spa)) {
-			free_header(&header, header_size);
+			free_header(header, header_size);
 			error = SET_ERROR(EINVAL);
 			zfs_dbgmsg("Anyraid header %d on vdev %s: guid "
 			    "mismatch: %llu %llu", i, cvd->vdev_path,
@@ -459,28 +457,19 @@ vdev_anyraid_pick_best_mapping(vdev_t *cvd, uint64_t *out_txg,
 		uint64_t written_txg;
 		if (nvlist_lookup_uint64(hnvl, VDEV_ANYRAID_HEADER_TXG,
 		    &written_txg) != 0) {
-			free_header(&header, header_size);
+			free_header(header, header_size);
 			error = SET_ERROR(EINVAL);
 			zfs_dbgmsg("Anyraid header %d on vdev %s: no txg",
 			    i, cvd->vdev_path);
 			continue;
 		}
+		header->ah_txg = written_txg;
 
-		if (written_txg < min_txg) {
-			free_header(&header, header_size);
-			error = SET_ERROR(EINVAL);
-			zfs_dbgmsg("Anyraid header %d on vdev %s: txg %llu too "
-			    "old (min %llu)", i, cvd->vdev_path,
-			    (u_longlong_t)written_txg,
-			    (u_longlong_t)min_txg);
-			continue;
-		}
-
-		nvlist_t *nvl = header.ah_nvl;
+		nvlist_t *nvl = header->ah_nvl;
 		if (!nvlist_exists(nvl, VDEV_ANYRAID_HEADER_DISK) ||
 		    !nvlist_exists(nvl, VDEV_ANYRAID_HEADER_TILE_SIZE) ||
 		    !nvlist_exists(nvl, VDEV_ANYRAID_HEADER_LENGTH)) {
-			free_header(&header, header_size);
+			free_header(header, header_size);
 			error = SET_ERROR(EINVAL);
 			continue;
 		}
@@ -489,39 +478,44 @@ vdev_anyraid_pick_best_mapping(vdev_t *cvd, uint64_t *out_txg,
 		uint_t count;
 		if (nvlist_lookup_uint16_array(nvl,
 		    VDEV_ANYRAID_HEADER_DISK_SIZES, &caps, &count) != 0) {
-			free_header(&header, header_size);
+			free_header(header, header_size);
 			error = SET_ERROR(EINVAL);
 			continue;
 		}
 		if (count != vd->vdev_children) {
-			free_header(&header, header_size);
+			free_header(header, header_size);
 			error = SET_ERROR(EINVAL);
 			continue;
 		}
-		uint64_t target_txg = spa_load_max_txg(spa);
-		uint64_t dist = written_txg > target_txg ?
-		    written_txg - target_txg : target_txg - written_txg;
-		if (dist < best_dist) {
-			best_txg = written_txg;
-			best_mapping = i;
-			best_dist = dist;
-			if (best_header->ah_nvl)
-				free_header(best_header, header_size);
-			*best_header = header;
-		} else {
-			free_header(&header, header_size);
-		}
+		avl_add(tree, header);
+		header = kmem_alloc(sizeof (*header), KM_SLEEP);
 	}
-
-	if (best_txg != 0) {
-		*out_txg = best_txg;
-		*out_mapping = best_mapping;
-		return (0);
-	} else if (error == 0) {
-		return (EALREADY);
-	}
-	ASSERT(error);
+	kmem_free(header, sizeof (*header));
 	return (error);
+}
+
+/*
+ * This function is non-static for ZDB
+ */
+int
+vdev_anyraid_header_compar(const void *a, const void *b)
+{
+	const anyraid_header_t *ha = a, *hb = b;
+	uint64_t target_txg = ha->ah_target;
+	uint64_t dist_a = ha->ah_txg > target_txg ?
+	    ha->ah_txg - target_txg : target_txg - ha->ah_txg;
+	uint64_t dist_b = hb->ah_txg > target_txg ?
+	    hb->ah_txg - target_txg : target_txg - hb->ah_txg;
+
+	int cmp = TREE_CMP(dist_a, dist_b);
+	if (cmp != 0)
+		return (cmp);
+	cmp = TREE_CMP(ha->ah_mapping, hb->ah_mapping);
+	if (cmp != 0)
+		return (cmp);
+	cmp = TREE_PCMP(ha->ah_vd, hb->ah_vd);
+	ASSERT(cmp);
+	return (cmp);
 }
 
 static int
@@ -535,46 +529,55 @@ anyraid_open_existing(vdev_t *vd, int32_t **child_capacities)
 	uint64_t header_size = VDEV_ANYRAID_MAP_HEADER_SIZE(ashift);
 	boolean_t checkpoint_rb = spa_importing_checkpoint(spa);
 
-	vdev_t *best_cvd = NULL;
-	uint64_t txg = 0;
-	int mapping = 0;
-	anyraid_header_t header = {0};
 	int lasterror = 0;
+	avl_tree_t t;
+	avl_create(&t, vdev_anyraid_header_compar, sizeof (anyraid_header_t),
+	    offsetof(anyraid_header_t, ah_node));
 	for (uint64_t i = 0; i < vd->vdev_children; i++) {
 		vdev_t *cvd = vd->vdev_child[i];
 		if (cvd->vdev_open_error != 0) {
 			cvd = NULL;
 			continue;
 		}
-		int error = vdev_anyraid_pick_best_mapping(cvd, &txg,
-		    &header, &mapping);
+		int error = vdev_anyraid_open_mappings(cvd, &t);
 		if (error != 0) {
 			lasterror = error;
 			continue;
 		}
-		best_cvd = cvd;
 	}
-	if (best_cvd == NULL)
+	if (avl_numnodes(&t) == 0) {
+		avl_destroy(&t);
 		return (lasterror);
-	var->vd_last_map = mapping;
-
+	}
 	uint64_t min_txg = spa_current_txg(spa) -
 	    (vd->vdev_reopening ? 1 : 0);
+	anyraid_header_t *header = avl_first(&t);
+	ASSERT(header);
+loop:
+	/* We've tried every mapping, time to give up */
+	if (header == NULL) {
+		vd->vdev_stat.vs_aux = VDEV_AUX_NO_REPLICAS;
+		goto out;
+	}
+	int mapping = header->ah_mapping;
+	uint64_t txg = header->ah_txg;
+	vdev_t *cvd = header->ah_vd;
 	if (txg < min_txg) {
 		zfs_dbgmsg("Anyraid opening header from child %llu mapping "
 		    "%d, which was written in txg %llu, which is before the "
-		    "current txg of %llu", (u_longlong_t)best_cvd->vdev_id,
+		    "current txg of %llu", (u_longlong_t)cvd->vdev_id,
 		    mapping, (u_longlong_t)txg,
 		    (u_longlong_t)min_txg);
 	}
 
-	nvlist_t *nvl = header.ah_nvl;
+	var->vd_last_map = mapping;
+	nvlist_t *nvl = header->ah_nvl;
 	uint64_t tile_size = fnvlist_lookup_uint64(nvl,
 	    VDEV_ANYRAID_HEADER_TILE_SIZE);
 	uint32_t map_length = fnvlist_lookup_uint32(nvl,
 	    VDEV_ANYRAID_HEADER_LENGTH);
 	uint_t count;
-	uint16_t *caps = fnvlist_lookup_uint16_array(header.ah_nvl,
+	uint16_t *caps = fnvlist_lookup_uint16_array(nvl,
 	    VDEV_ANYRAID_HEADER_DISK_SIZES, &count);
 	ASSERT3U(count, ==, vd->vdev_children);
 
@@ -583,12 +586,12 @@ anyraid_open_existing(vdev_t *vd, int32_t **child_capacities)
 	for (int i = 0; i < count; i++)
 		(*child_capacities)[i] = caps[i] + 1;
 	if (vd->vdev_reopening) {
-		free_header(&header, header_size);
-		return (0);
+		lasterror = 0;
+		goto out;
 	}
 
 	var->vd_checkpoint_tile = INT64_MAX;
-	(void) nvlist_lookup_int64(header.ah_nvl,
+	(void) nvlist_lookup_int64(nvl,
 	    VDEV_ANYRAID_HEADER_CHECKPOINT, &var->vd_checkpoint_tile);
 
 	/*
@@ -597,19 +600,19 @@ anyraid_open_existing(vdev_t *vd, int32_t **child_capacities)
 	 */
 	abd_t *map_abds[VDEV_ANYRAID_MAP_SIZE / SPA_MAXBLOCKSIZE] = {0};
 	int i;
-	int error = vdev_anyraid_read_map(best_cvd, mapping, &header,
+	int error = vdev_anyraid_read_map(cvd, mapping, header,
 	    map_length, map_abds, flags);
 	if (error != 0) {
 		for (i = 0; i < ARRAY_SIZE(map_abds); i++)
 			abd_free(map_abds[i]);
-		free_header(&header, header_size);
 		zfs_dbgmsg("Error opening anyraid vdev %llu: map read error %d",
 		    (u_longlong_t)vd->vdev_id, error);
+		header = AVL_NEXT(&t, header);
 		kmem_free(*child_capacities, sizeof (**child_capacities) *
 		    count);
-		return (error);
+		lasterror = error;
+		goto loop;
 	}
-	free_header(&header, header_size);
 
 	uint32_t map = -1, cur_tile = 0;
 	/*
@@ -663,7 +666,7 @@ anyraid_open_existing(vdev_t *vd, int32_t **child_capacities)
 			case AMET_LOC: {
 				anyraid_map_loc_entry_t *amle =
 				    &entry->ame_u.ame_amle;
-				create_tile_entry(vd->vdev_spa, var, amle,
+				create_tile_entry(var, amle,
 				    &pat_cnt, &at, &cur_tile);
 				break;
 			}
@@ -681,8 +684,13 @@ anyraid_open_existing(vdev_t *vd, int32_t **child_capacities)
 	for (i = 0; i < ARRAY_SIZE(map_abds); i++)
 		abd_free(map_abds[i]);
 
-	if (error != 0)
-		return (error);
+	if (error != 0) {
+		header = AVL_NEXT(&t, header);
+		kmem_free(*child_capacities, sizeof (**child_capacities) *
+		    count);
+		lasterror = error;
+		goto loop;
+	}
 	/*
 	 * Now that we have the tile map read in, we have to reopen the
 	 * children to properly set and handle the min_asize
@@ -704,12 +712,20 @@ anyraid_open_existing(vdev_t *vd, int32_t **child_capacities)
 		}
 	}
 
-	if (numerrors > var->vd_nparity) {
+	if (numerrors > var->vd_nparity)
 		vd->vdev_stat.vs_aux = VDEV_AUX_NO_REPLICAS;
-		return (lasterror);
-	}
+	else
+		lasterror = 0;
 
-	return (0);
+out:
+	{
+		void *cookie = NULL;
+		while ((header = avl_destroy_nodes(&t, &cookie)) != NULL) {
+			free_header(header, header_size);
+		}
+	}
+	avl_destroy(&t);
+	return (lasterror);
 }
 
 /*
