@@ -199,6 +199,7 @@ _VALSTR_BITFIELD_IMPL(zio_flag,
 	{ '.', "TH", "TRYHARD" },
 	{ '.', "OP", "OPTIONAL" },
 	{ '.', "RD", "DIO_READ" },
+	{ '.', "BQ", "BYPASSED_QUEUE" },
 	{ '.', "DQ", "DONT_QUEUE" },
 	{ '.', "DP", "DONT_PROPAGATE" },
 	{ '.', "BY", "IO_BYPASS" },
@@ -212,6 +213,8 @@ _VALSTR_BITFIELD_IMPL(zio_flag,
 	{ '.', "EX", "REEXECUTED" },
 	{ '.', "DG", "DELEGATED" },
 	{ '.', "PA", "PREALLOCATED" },
+	{ '.', "PO", "POSTREAD" },
+	{ '.', "LW", "LIGHTWEIGHT" },
 )
 
 /*
