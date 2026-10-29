@@ -3552,10 +3552,9 @@ metaslab_should_allocate(metaslab_t *msp, uint64_t asize, boolean_t try_hard,
 	 * case, if we're using an anyraid vdev, we can't use a tile that isn't
 	 * mapped yet.
 	 */
-	if (mapped && msp->ms_group->mg_vd->vdev_ops == &vdev_anyraid_ops) {
-		return (vdev_anyraid_mapped(msp->ms_group->mg_vd,
-		    msp->ms_start, txg));
-	}
+	if (mapped && msp->ms_group->mg_vd->vdev_ops == &vdev_anyraid_ops &&
+	    !vdev_anyraid_mapped(msp->ms_group->mg_vd, msp->ms_start, txg))
+		return (B_FALSE);
 
 	/*
 	 * If the metaslab is loaded, ms_max_size is definitive and we can use

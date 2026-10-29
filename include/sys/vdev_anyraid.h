@@ -283,13 +283,18 @@ extern void vdev_anyraid_map(vdev_t *vd, uint64_t tile_id);
  */
 
 typedef struct anyraid_header {
+	avl_node_t ah_node;
 	abd_t *ah_abd;
 	char *ah_buf;
 	nvlist_t *ah_nvl;
+	uint64_t ah_txg;
+	vdev_t *ah_vd;
+	int ah_mapping;
+	uint64_t ah_target;
 } anyraid_header_t;
 
-extern int vdev_anyraid_pick_best_mapping(vdev_t *cvd,
-    uint64_t *out_txg, anyraid_header_t *out_header, int *out_mapping);
+extern int vdev_anyraid_open_mappings(vdev_t *cvd, avl_tree_t *tree);
+extern int vdev_anyraid_header_compar(const void *a, const void *b);
 extern int vdev_anyraid_open_header(vdev_t *cvd, int header,
     anyraid_header_t *out_header);
 extern int vdev_anyraid_read_map(vdev_t *cvd, int mapping,
