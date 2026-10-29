@@ -743,7 +743,7 @@ tests = ['dedup_bclone', 'dedup_bclone_pruned', 'dedup_fdt_create',
     'dedup_legacy_repair', 'dedup_quota',
     'dedup_log_zdb_leak',
     'dedup_prune', 'dedup_prune_leak', 'dedup_prune_percentage',
-    'dedup_zap_shrink']
+    'dedup_resilver_behind', 'dedup_zap_shrink']
 pre =
 post =
 tags = ['functional', 'dedup']
