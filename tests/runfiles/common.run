@@ -1253,7 +1253,7 @@ tags = ['functional', 'libzfs']
 
 [tests/functional/log_spacemap]
 tests = ['log_spacemap_import_logs', 'log_spacemap_flushall',
-    'log_spacemap_verify_weight']
+    'log_spacemap_verify_weight', 'log_spacemap_zdb_unflushed']
 pre =
 post =
 tags = ['functional', 'log_spacemap']
