@@ -4085,6 +4085,11 @@ receive_write_embedded(struct receive_writer_arg *rwa,
 	if (err != 0)
 		return (err);
 
+	dmu_object_info_t doi;
+	err = dmu_object_info(rwa->os, drrwe->drr_object, &doi);
+	if (err != 0)
+		return (err);
+
 	if (drrwe->drr_object > rwa->max_object)
 		rwa->max_object = drrwe->drr_object;
 
@@ -4098,10 +4103,35 @@ receive_write_embedded(struct receive_writer_arg *rwa,
 		return (err);
 	}
 
-	dmu_write_embedded(rwa->os, drrwe->drr_object,
-	    drrwe->drr_offset, data, drrwe->drr_etype,
-	    drrwe->drr_compression, drrwe->drr_lsize, drrwe->drr_psize,
-	    rwa->byteswap ^ ZFS_HOST_BYTEORDER, tx);
+	if (drrwe->drr_lsize == doi.doi_data_block_size) {
+		dmu_write_embedded(rwa->os, drrwe->drr_object,
+		    drrwe->drr_offset, data, drrwe->drr_etype,
+		    drrwe->drr_compression, drrwe->drr_lsize, drrwe->drr_psize,
+		    rwa->byteswap ^ ZFS_HOST_BYTEORDER, tx);
+	} else {
+		/*
+		 * If src and tgt blksz is different, we need to use normal
+		 * dmu_write instead.
+		 */
+		abd_t cabd;
+		abd_t *dabd = abd_alloc_linear(drrwe->drr_lsize, B_FALSE);
+
+		abd_get_from_buf_struct(&cabd, data, drrwe->drr_psize);
+		err = zio_decompress_data(drrwe->drr_compression, &cabd, dabd,
+		    drrwe->drr_psize, drrwe->drr_lsize, NULL);
+		abd_free(&cabd);
+
+		if (err != 0) {
+			abd_free(dabd);
+			dmu_tx_abort(tx);
+			return (err);
+		}
+
+		dmu_write(rwa->os, drrwe->drr_object, drrwe->drr_offset,
+		    drrwe->drr_lsize, abd_to_buf(dabd), tx,
+		    DMU_READ_NO_PREFETCH | DMU_UNCACHEDIO);
+		abd_free(dabd);
+	}
 
 	/* See comment in restore_write. */
 	save_resume_state(rwa, drrwe->drr_object, drrwe->drr_offset, tx);
