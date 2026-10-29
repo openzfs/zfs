@@ -427,7 +427,7 @@ zfs_prop_init(void)
 	    "DEDUP", dedup_table, sfeatures);
 	zprop_register_index(ZFS_PROP_CLONEDUP, "clonedup",
 	    ZFS_CLONEDUP_ON, PROP_INHERIT,
-	    ZFS_TYPE_FILESYSTEM,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
 	    "on | off", "CLONEDUP", clonedup_table,
 	    sfeatures);
 	zprop_register_index(ZFS_PROP_COMPRESSION, "compression",

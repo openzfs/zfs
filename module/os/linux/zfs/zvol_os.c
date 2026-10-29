@@ -826,6 +826,25 @@ retry:
 
 		if (drop_namespace)
 			spa_namespace_exit(FTAG);
+
+		/*
+		 * The clonedup apply holds the volume and was asked
+		 * to let go.  Give it the time with every lock
+		 * dropped.
+		 */
+		if (error == -ERESTART) {
+			mutex_exit(&zv->zv_state_lock);
+			rw_exit(&zv->zv_suspend_lock);
+			drop_suspend = B_FALSE;
+#ifdef HAVE_BLKDEV_GET_ERESTARTSYS
+			schedule();
+			return (-SET_ERROR(ERESTARTSYS));
+#else
+			schedule_timeout_interruptible(
+			    MSEC_TO_TICK(10));
+			goto retry;
+#endif
+		}
 	}
 
 	if (error == 0) {

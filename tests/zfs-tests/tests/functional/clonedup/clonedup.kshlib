@@ -160,8 +160,8 @@ function clonedup_dump_stats
 	log_note "scan_stats: $(zpool status -j --json-int $TESTPOOL |
 	    jq -c --arg p $TESTPOOL '.pools[$p].scan_stats')"
 	log_note "kstat: clones $(clonedup_kstat clones)" \
-	    "dst mounted/owned $(clonedup_kstat dst_mounted)/" \
-	    "$(clonedup_kstat dst_owned)" \
+	    "dst mounted/zvol/owned $(clonedup_kstat dst_mounted)/" \
+	    "$(clonedup_kstat dst_zvol)/$(clonedup_kstat dst_owned)" \
 	    "yields $(clonedup_kstat yields)"
 	log_note "status: $(zpool status $TESTPOOL | grep -A3 scan:)"
 }
@@ -290,8 +290,18 @@ function clonedup_check_shared # ds1 file1 ds2 file2 expected [key]
 	log_must [ "$got" = "$5" ]
 }
 
-# The L0 block addresses of a file, found by path within its dataset,
-# one per line, indexed from 0.
+# The L0 block addresses of a volume's data object, one per line,
+# indexed from 0.  zdb takes the dataset name and object 1; naming
+# the pool alone would dump the meta-objset instead.
+function clonedup_vol_blocks # vol
+{
+	typeset out
+
+	out=$(zdb -dddddd $1 1) || return 1
+	print -r -- "$out" | awk '/ L0 / { print l++ " " $3 }'
+}
+
+# The same for a file, found by path within its dataset.
 function clonedup_file_blocks # ds file
 {
 	typeset out
@@ -314,6 +324,28 @@ function clonedup_blk_asize # ds file
 	printf "%d\n" 0x${dva##*:}
 }
 
+# Assert a file and a volume share exactly the given block list.
+function clonedup_check_shared_vol # ds file vol expected
+{
+	typeset out1=$(mktemp) out2=$(mktemp)
+	typeset got
+
+	if ! clonedup_file_blocks $1 $2 > $out1 ||
+	    ! clonedup_vol_blocks $3 > $out2; then
+		rm -f $out1 $out2
+		log_fail "zdb failed on $1/$2 or $3"
+	fi
+	if [[ ! -s $out1 || ! -s $out2 ]]; then
+		rm -f $out1 $out2
+		log_fail "zdb listed no blocks for $1/$2 or $3"
+	fi
+	got=$(echo $(sort -n $out1 $out2 | uniq -d | cut -f1 -d' '))
+	rm -f $out1 $out2
+	log_note "shared blocks of $1/$2 and $3: '$got' (want '$4')"
+	[[ "$got" == "$4" ]] || clonedup_dump_stats
+	log_must [ "$got" = "$4" ]
+}
+
 # Delay every write to the pool's disks, one at a time, so each txg
 # takes long to sync.  zinject -c all removes it.
 function clonedup_delay_writes # ms
@@ -323,6 +355,34 @@ function clonedup_delay_writes # ms
 	for d in $(get_disklist $TESTPOOL); do
 		log_must zinject -d $d -D $1:1 -T write $TESTPOOL
 	done
+}
+
+# Create a volume of CD_BLOCKS blocks of CD_BS bytes and wait for its
+# device node.
+function clonedup_zvol_create # name
+{
+	log_must zfs create -V $((CD_BS * CD_BLOCKS)) -b $CD_BS $1
+	block_device_wait $ZVOL_DEVDIR/$1
+}
+
+# Read a volume through direct I/O where the platform allows it,
+# so the compare sees what ZFS holds rather than the page cache.
+function clonedup_zvol_read # name
+{
+	if is_linux; then
+		dd if=$ZVOL_DEVDIR/$1 bs=$CD_BS count=$CD_BLOCKS \
+		    iflag=direct status=none
+	else
+		dd if=$ZVOL_DEVDIR/$1 bs=$CD_BS count=$CD_BLOCKS \
+		    status=none
+	fi
+}
+
+# Write a file's content into a volume and flush it to ZFS.
+function clonedup_zvol_fill # file name
+{
+	log_must dd if=$1 of=$ZVOL_DEVDIR/$2 bs=$CD_BS \
+	    conv=notrunc,fsync status=none
 }
 
 # Wait for a run to reach the apply phase.

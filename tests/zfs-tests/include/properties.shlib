@@ -39,7 +39,7 @@ typeset -a fs_props=('compress' 'checksum' 'recsize'
     'canmount' 'copies' 'logbias' 'primarycache' 'redundant_metadata'
     'secondarycache' 'snapdir' 'sync' 'clonedup')
 typeset -a vol_props=('compress' 'checksum' 'copies' 'logbias' 'primarycache'
-    'secondarycache' 'redundant_metadata' 'sync')
+    'secondarycache' 'redundant_metadata' 'sync' 'clonedup')
 
 #
 # Given the 'prop' passed in, return 'num_vals' elements of the corresponding

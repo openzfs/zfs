@@ -1685,6 +1685,11 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/clonedup/clonedup_yield_send.ksh \
 	functional/clonedup/clonedup_yield_timeout.ksh \
 	functional/clonedup/clonedup_yield_vdev_change.ksh \
+	functional/clonedup/clonedup_zvol_dst.ksh \
+	functional/clonedup/clonedup_zvol_open_yield.ksh \
+	functional/clonedup/clonedup_zvol_shrunk.ksh \
+	functional/clonedup/clonedup_zvol_skips.ksh \
+	functional/clonedup/clonedup_zvol_writer_race.ksh \
 	functional/dedup/cleanup.ksh \
 	functional/dedup/setup.ksh \
 	functional/dedup/dedup_bclone.ksh \

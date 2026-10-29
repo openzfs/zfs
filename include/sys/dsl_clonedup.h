@@ -92,6 +92,7 @@ typedef struct dsl_clonedup_phys {
 
 /* dce_flags and dcs_flags */
 #define	DCE_F_MAYBE_SHARED	0x04	/* brt_maybe_exists() true */
+#define	DCE_F_ZVOL		0x08	/* DMU_OT_ZVOL object */
 #define	DCE_F_SPECIAL		0x10	/* DVA[0] on special class */
 #define	DCE_F_REPEAT		0x20	/* block counted already */
 #define	DCE_F_REMOVED		0x40	/* DVA[0] on a removed vdev */
@@ -153,6 +154,7 @@ typedef enum dsl_clonedup_kstat_id {
 	DCK_INDEX_WALKS,
 	DCK_MATCH_WALKS,
 	DCK_DST_MOUNTED,	/* destinations opened as files */
+	DCK_DST_ZVOL,		/* destinations opened as volumes */
 	DCK_DST_OWNED,		/* destinations opened by ownership */
 	DCK_BATCHES,		/* transactions carrying clones */
 	DCK_KEY_COLLISIONS,	/* key matched, checksum did not */
@@ -298,6 +300,8 @@ typedef struct dsl_clonedup {
 	kmutex_t	dcl_yield_lock;
 	kcondvar_t	dcl_yield_cv;
 	uint_t		dcl_yield_pause; /* operations in progress */
+	int64_t		dcl_yield_lease; /* nudged off until */
+	int64_t		dcl_yield_since; /* nudges began at */
 
 	kstat_t		*dcl_ksp;
 	kstat_named_t	dcl_kstat[DCK_NUM];
@@ -331,8 +335,8 @@ dsl_clonedup_err_moved(int err)
 /*
  * Destination side of the apply, implemented in zfs_clonedup_apply.c
  * (kernel only; libzpool stubs return ENOTSUP).  A handle is a file
- * in a mounted filesystem or an object of a dataset the apply thread
- * owns.
+ * in a mounted filesystem, a block device of an open volume, or an
+ * object of a dataset the apply thread owns.
  */
 typedef struct zfs_clonedup_dst zfs_clonedup_dst_t;
 int zfs_clonedup_dst_open(spa_t *spa, uint64_t dsobj, uint64_t object,
@@ -416,6 +420,7 @@ dsl_clonedup_t *dsl_clonedup_yield_begin(spa_t *spa);
 dsl_clonedup_t *dsl_clonedup_yield_begin_name(const char *name);
 dsl_clonedup_t *dsl_clonedup_yield_idle(void);
 void dsl_clonedup_yield_end(dsl_clonedup_t *dcl);
+boolean_t dsl_clonedup_yield_nudge(spa_t *spa);
 
 #ifdef	__cplusplus
 }

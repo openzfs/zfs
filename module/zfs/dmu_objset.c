@@ -802,7 +802,8 @@ dmu_objset_own_impl(dsl_dataset_t *ds, dmu_objset_type_t type,
 /*
  * The clonedup apply may own or long-hold the dataset.  With
  * may_wait set the caller holds no lock the apply needs to let go,
- * and the own waits for it once.  Without, the own does not wait.
+ * and the own waits for it once.  Without, the apply is only asked,
+ * and ERESTART tells the caller to drop its locks and try again.
  * With obj set the own finds the dataset by its object number, and
  * name only finds the pool.
  */
@@ -841,7 +842,13 @@ dmu_objset_own_common(const char *name, uint64_t obj,
 		if (err == 0)
 			break;
 		if (err == EBUSY && !may_wait) {
+			spa_t *spa = dp->dp_spa;
+
+			spa_open_ref(spa, FTAG);
 			dsl_pool_rele(dp, FTAG);
+			if (dsl_clonedup_yield_nudge(spa))
+				err = SET_ERROR(ERESTART);
+			spa_close(spa, FTAG);
 			return (err);
 		}
 		dsl_pool_rele(dp, FTAG);
@@ -898,8 +905,9 @@ dmu_objset_own(const char *name, dmu_objset_type_t type,
 }
 
 /*
- * dmu_objset_own() without the wait for the clonedup apply, for a
- * caller that holds a volume's zv_state_lock or spa_namespace_lock.
+ * dmu_objset_own() for a caller that holds a lock the clonedup apply
+ * could need to let go, such as a volume's zv_state_lock or
+ * spa_namespace_lock.  ERESTART asks it to drop them and try again.
  */
 int
 dmu_objset_own_nowait(const char *name, dmu_objset_type_t type,

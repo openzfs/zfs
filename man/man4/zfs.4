@@ -2377,9 +2377,9 @@ The number of worker threads in the apply phase.
 .Sy 0
 starts one worker per four cores, rounded up.
 The count is held to 64.
-A worker takes an unmounted file system exclusively, and the other workers
-stay off it until that worker is done with it.
-Workers share mounted file systems.
+A worker takes an unmounted file system or a closed volume exclusively, and
+the other workers stay off it until that worker is done with it.
+Workers share mounted file systems and open volumes.
 .
 .It Sy zfs_clonedup_apply_txg_delay Ns = Ns Sy 0 Ns ms Pq uint
 Sleep this long after the apply checks a candidate's block pointers and
@@ -2403,6 +2403,9 @@ A mount or a send of a file system waits only when it finds its dataset
 busy.
 After this time the operation goes ahead, and fails with EBUSY only if the
 thread still holds a dataset it needs.
+A volume open, or a resize of a volume that is not open, does not wait.
+It keeps the thread off for 100 ms at a time and retries, and fails with
+EBUSY once the retries have taken this long.
 .
 .It Sy zfs_scan_blkstats Ns = Ns Sy 0 Ns | Ns 1 Pq int
 When enabled, ZFS counts blocks by type and indirection level during a scrub.

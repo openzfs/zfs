@@ -53,6 +53,7 @@ clonedup_kstat_is verify_bytes $((2 * CD_BLOCKS * CD_BS))
 clonedup_kstat_is clones $((2 * CD_BLOCKS))
 clonedup_kstat_gt dst_mounted 0
 clonedup_kstat_is dst_owned 0
+clonedup_kstat_is dst_zvol 0
 clonedup_leakcheck
 
 log_pass "a strong checksum match skips the verify reads"

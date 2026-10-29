@@ -98,6 +98,8 @@ extern zv_taskq_t zvol_taskqs;
  */
 zvol_state_t *zvol_find_by_name_hash(const char *name,
     uint64_t hash, int mode);
+zvol_state_t *zvol_tryfind_by_name_hash(const char *name,
+    uint64_t hash);
 int zvol_first_open(zvol_state_t *zv, boolean_t readonly);
 uint64_t zvol_name_hash(const char *name);
 void zvol_last_close(zvol_state_t *zv);

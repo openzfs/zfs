@@ -263,7 +263,7 @@ bad:
 static const char *const dsl_clonedup_kstat_names[DCK_NUM] = {
 	"verify_reads", "verify_bytes", "clones",
 	"yields", "yield_waits", "index_walks", "match_walks",
-	"dst_mounted", "dst_owned", "batches",
+	"dst_mounted", "dst_zvol", "dst_owned", "batches",
 	"key_collisions", "cksum_collisions",
 	"mem_peak", "canceled_runs", "walk_resumes",
 };
@@ -679,7 +679,8 @@ dsl_clonedup_bp_eligible(spa_t *spa, const blkptr_t *bp,
 	if (zb->zb_blkid == DMU_SPILL_BLKID ||
 	    zb->zb_blkid == DMU_BONUS_BLKID)
 		return (B_FALSE);
-	if (dnp->dn_type != DMU_OT_PLAIN_FILE_CONTENTS)
+	if (dnp->dn_type != DMU_OT_PLAIN_FILE_CONTENTS &&
+	    dnp->dn_type != DMU_OT_ZVOL)
 		return (B_FALSE);
 	if (BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp) ||
 	    BP_IS_REDACTED(bp) || BP_GET_DEDUP(bp) ||
@@ -719,6 +720,8 @@ dsl_clonedup_entry_fill(dsl_clonedup_entry_t *e, const blkptr_t *bp,
 	e->dce_blkszsec = dnp->dn_datablkszsec;
 	e->dce_dntype = dnp->dn_type;
 	e->dce_flags = flags;
+	if (dnp->dn_type == DMU_OT_ZVOL)
+		e->dce_flags |= DCE_F_ZVOL;
 }
 
 static void
@@ -735,6 +738,8 @@ dsl_clonedup_src_fill(dsl_clonedup_src_t *s, const blkptr_t *bp,
 	s->dcs_blkszsec = dnp->dn_datablkszsec;
 	s->dcs_dntype = dnp->dn_type;
 	s->dcs_flags = flags;
+	if (dnp->dn_type == DMU_OT_ZVOL)
+		s->dcs_flags |= DCE_F_ZVOL;
 }
 
 /*
@@ -1143,8 +1148,9 @@ static uint_t zfs_clonedup_apply_threads = 0;
 #define	DCL_GROUP_MAX		1024
 
 /*
- * A destination that is being mounted or unmounted answers EBUSY
- * for a few ticks.  The open is retried this often, this far apart.
+ * A destination that is being mounted, unmounted or opened as a
+ * volume answers EBUSY for a few ticks.  The open is retried this
+ * often, this far apart.
  */
 #define	DCL_OPEN_RETRIES	100
 #define	DCL_OPEN_RETRY_MS	10
@@ -1599,19 +1605,22 @@ static uint64_t dsl_clonedup_unpaused;
 /*
  * The apply thread publishes the datasets it holds, or is about to
  * hold, under dcl_yield_lock.  An operation that a long hold would
- * make fail (destroy, rollback, receive, mount)
+ * make fail (destroy, rollback, receive, mount, volume open)
  * brackets itself with dsl_clonedup_yield_begin() and _end(): begin
  * asks the thread to let go of everything and waits for that, and
  * the thread holds nothing again until the last such operation has
  * ended.  The pause counts operations, not txgs, because the
  * thread's own txg waits push txgs through in milliseconds on a
- * quiet pool.
+ * quiet pool.  An owner that holds a lock the thread could need to
+ * let go cannot wait, and uses dsl_clonedup_yield_nudge() instead.
  */
 static boolean_t
 dsl_clonedup_yield_pending(dsl_clonedup_t *dcl)
 {
 	return (atomic_load_32(&dcl->dcl_yield_pause) != 0 ||
-	    atomic_load_64(&dsl_clonedup_unpaused) != 0);
+	    atomic_load_64(&dsl_clonedup_unpaused) != 0 ||
+	    ddi_get_lbolt64() < (int64_t)atomic_load_64(
+	    (volatile uint64_t *)&dcl->dcl_yield_lease));
 }
 
 /* zthr_iscancelled() is for the zthr's own thread alone */
@@ -1654,8 +1663,10 @@ dsl_clonedup_hold_begin(dsl_clonedup_t *dcl, dsl_clonedup_worker_t *w,
 			waited = B_TRUE;
 			DCL_BUMP(dcl, DCK_YIELD_WAITS, 1);
 			zfs_dbgmsg("clonedup hold %llu waits for %u "
-			    "operations", (u_longlong_t)dsobj,
-			    dcl->dcl_yield_pause);
+			    "operations and a lease of %lld ticks",
+			    (u_longlong_t)dsobj, dcl->dcl_yield_pause,
+			    (longlong_t)MAX(0, dcl->dcl_yield_lease -
+			    ddi_get_lbolt64()));
 		}
 		(void) cv_timedwait(&dcl->dcl_yield_cv,
 		    &dcl->dcl_yield_lock, ddi_get_lbolt() + hz);
@@ -1810,6 +1821,49 @@ dsl_clonedup_yield_begin_name(const char *name)
 	dcl = dsl_clonedup_yield_begin(spa);
 	spa_close(spa, FTAG);
 	return (dcl);
+}
+
+/*
+ * For an owner that holds a lock the apply could need to let go, a
+ * volume's state lock or spa_namespace_lock, and so cannot wait in
+ * dsl_clonedup_yield_begin().  Keep the workers off for a moment
+ * without waiting for them.  The request lapses by itself.  The
+ * caller drops its locks, tries again, and nudges again for as long
+ * as the dataset stays busy.  B_TRUE says a worker still holds a
+ * dataset, so a retry can succeed.  After
+ * zfs_clonedup_yield_timeout_ms of nudges the answer is B_FALSE, as
+ * for a yield that times out.
+ */
+boolean_t
+dsl_clonedup_yield_nudge(spa_t *spa)
+{
+	dsl_pool_t *dp = spa_get_dsl(spa);
+	dsl_clonedup_t *dcl;
+	int64_t now = ddi_get_lbolt64();
+	boolean_t lapsed;
+	boolean_t held;
+
+	if (dp == NULL || (dcl = dp->dp_clonedup) == NULL)
+		return (B_FALSE);
+
+	mutex_enter(&dcl->dcl_yield_lock);
+	lapsed = now >= dcl->dcl_yield_lease;
+	if (lapsed)
+		dcl->dcl_yield_since = now;
+	held = dsl_clonedup_any_held(dcl) &&
+	    now - dcl->dcl_yield_since <
+	    MSEC_TO_TICK(zfs_clonedup_yield_timeout_ms);
+	if (held) {
+		if (lapsed)
+			DCL_BUMP(dcl, DCK_YIELDS, 1);
+		atomic_store_64(
+		    (volatile uint64_t *)&dcl->dcl_yield_lease,
+		    now + MSEC_TO_TICK(100));
+	}
+	mutex_exit(&dcl->dcl_yield_lock);
+	if (held)
+		dsl_clonedup_apply_wakeup(spa);
+	return (held);
 }
 
 boolean_t

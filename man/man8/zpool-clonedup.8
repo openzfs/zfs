@@ -132,15 +132,16 @@ See
 Datasets in the middle of a
 .Nm zfs Cm receive .
 .It
-Embedded and redacted blocks, and every block that is not file data.
+Embedded and redacted blocks, and every block that is not file or volume
+data.
 .It
 Blocks written with
 .Sy checksum Ns = Ns Sy off
 or
 .Sy checksum Ns = Ns Sy noparity .
 .It
-File systems that nothing has mounted and whose intent log still needs
-replaying.
+File systems and volumes that nothing has mounted or open and whose intent
+log still needs replaying.
 .It
 Immutable files.
 .It
@@ -168,8 +169,8 @@ says.
 A gang block has as many copies as its gang header.
 With
 .Sy redundant_metadata Ns = Ns Sy all ,
-the default, the gang header of file data has one copy more than the data,
-up to three.
+the default, the gang header of file or volume data has one copy more than
+the data, up to three.
 There a gang copy pairs with a copy that is not a gang block only when that
 copy has one more copy of the data, or when both have three.
 The run redirects a block onto a gang block only when the block holds a
@@ -178,12 +179,12 @@ copies its data has.
 It counts every other such pair as a policy skip.
 It skips clones into a dataset at its quota or refquota, or into a pool that
 is out of space.
-In mounted filesystems, the run rewrites blocks under the object's range
-lock.
+In mounted filesystems and open volumes, the run rewrites blocks under the
+object's range lock.
 For a pair it compares byte for byte, it also keeps the source block from
 changing until the clone is committed.
-The apply thread owns an unmounted filesystem while it writes to it, the way
-a mount owns a dataset.
+The apply thread owns an unmounted filesystem or a closed volume while it
+writes to it, the way a mount or a volume open owns a dataset.
 Each
 .Nm zfs Cm destroy
 of a file system or volume, each
@@ -205,6 +206,8 @@ Each of these waits at most
 .Sy zfs_clonedup_yield_timeout_ms
 and then goes ahead.
 It fails with EBUSY only where the thread still holds a dataset it needs.
+Opening a volume, or resizing one that is not open, asks without waiting and
+retries until the thread lets go, and fails with EBUSY if that takes longer.
 After letting go, the thread holds nothing until the operation has
 completed.
 .Pp

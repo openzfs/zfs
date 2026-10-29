@@ -773,7 +773,9 @@ tests = ['clonedup_apply_progress', 'clonedup_apply_txgs',
     'clonedup_verify_kstat', 'clonedup_walk_total',
     'clonedup_writer_race', 'clonedup_yield_program',
     'clonedup_yield_send', 'clonedup_yield_timeout',
-    'clonedup_yield_vdev_change']
+    'clonedup_yield_vdev_change',
+    'clonedup_zvol_dst', 'clonedup_zvol_open_yield', 'clonedup_zvol_shrunk',
+    'clonedup_zvol_skips', 'clonedup_zvol_writer_race']
 pre =
 post =
 tags = ['functional', 'clonedup']
