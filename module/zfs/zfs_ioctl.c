@@ -3075,6 +3075,10 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 	}
 	case ZFS_PROP_ZONED_UID:
 	{
+		if (intval >= MAXUID) {
+			err = SET_ERROR(EINVAL);
+			break;
+		}
 		uint64_t old_uid = 0;
 		(void) dsl_prop_get(dsname, "zoned_uid", 8, 1, &old_uid, NULL);
 		if (old_uid != 0)
