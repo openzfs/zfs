@@ -1266,6 +1266,14 @@ function verify_fs_aedsx
 	typeset user=$1
 	typeset perm=$2
 	typeset fs=$3
+	typeset remount=false
+
+	# Linux requires CAP_SYS_ADMIN to change per-mount flags.
+	if is_linux && [[ $perm == @(atime|devices|exec|setuid) ]] &&
+	    ismounted $fs; then
+		log_must zfs unmount $fs
+		remount=true
+	fi
 
 	typeset oldval
 	set -A modes "on" "off"
@@ -1277,6 +1285,7 @@ function verify_fs_aedsx
 	fi
 	log_note "$user zfs set $perm=${modes[$n]} $fs"
 	user_run $user zfs set $perm=${modes[$n]} $fs
+	$remount && log_must zfs mount $fs
 	if [[ ${modes[$n]} != $(get_prop $perm $fs) ]]; then
 		return 1
 	fi
