@@ -1611,6 +1611,44 @@ zfs_exit_two(zfsvfs_t *zfsvfs1, zfsvfs_t *zfsvfs2, const char *tag)
 }
 
 /*
+ * Cloning between datasets with different properties is possible,
+ * but it may cause confusions when copying data between them and
+ * expecting new properties to apply.
+ */
+boolean_t
+zfs_bclone_props_match(objset_t *inos, objset_t *outos)
+{
+	if (!zfs_bclone_strict_properties || inos == outos ||
+	    dmu_objset_is_snapshot(inos))
+		return (B_TRUE);
+	return (inos->os_checksum == outos->os_checksum &&
+	    inos->os_compress == outos->os_compress &&
+	    inos->os_copies == outos->os_copies &&
+	    inos->os_dedup_checksum == outos->os_dedup_checksum);
+}
+
+/*
+ * Cloning between datasets with different special_small_blocks would
+ * bypass storage tier migration that would occur with a regular copy.
+ */
+boolean_t
+zfs_bclone_smallblk_match(objset_t *inos, objset_t *outos,
+    uint64_t blksz)
+{
+	uint64_t in_smallblk = inos->os_zpl_special_smallblock;
+	uint64_t out_smallblk = outos->os_zpl_special_smallblock;
+
+	if (!zfs_bclone_strict_properties || inos == outos ||
+	    dmu_objset_is_snapshot(inos) ||
+	    !spa_has_special(dmu_objset_spa(inos)) ||
+	    in_smallblk == out_smallblk)
+		return (B_TRUE);
+	return (MIN(in_smallblk, out_smallblk) >= blksz ||
+	    (inos->os_compress == ZIO_COMPRESS_OFF &&
+	    MAX(in_smallblk, out_smallblk) < blksz));
+}
+
+/*
  * Checks shared by zfs_clone_range() and zfs_dedupe_range() that do not
  * depend on the offsets or length of the request.  Both datasets must
  * already be entered with zfs_enter_two().
@@ -1655,17 +1693,7 @@ zfs_clone_range_precheck(znode_t *inzp, znode_t *outzp)
 	    !dmu_objset_crypto_key_equal(inos, outos))
 		return (SET_ERROR(EXDEV));
 
-	/*
-	 * Cloning between datasets with different properties is possible,
-	 * but it may cause confusions when copying data between them and
-	 * expecting new properties to apply.
-	 */
-	if (zfs_bclone_strict_properties && inos != outos &&
-	    !inzfsvfs->z_issnap &&
-	    (inos->os_checksum != outos->os_checksum ||
-	    inos->os_compress != outos->os_compress ||
-	    inos->os_copies != outos->os_copies ||
-	    inos->os_dedup_checksum != outos->os_dedup_checksum))
+	if (!zfs_bclone_props_match(inos, outos))
 		return (SET_ERROR(EXDEV));
 
 	error = zfs_verify_zp(inzp);
@@ -1727,24 +1755,8 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 
 	inblksz = inzp->z_blksz;
 
-	/*
-	 * Cloning between datasets with different special_small_blocks would
-	 * bypass storage tier migration that would occur with a regular copy.
-	 */
-	if (zfs_bclone_strict_properties && inos != outos &&
-	    !inzfsvfs->z_issnap && spa_has_special(dmu_objset_spa(inos))) {
-		uint64_t in_smallblk = inos->os_zpl_special_smallblock;
-		uint64_t out_smallblk = outos->os_zpl_special_smallblock;
-		if (in_smallblk != out_smallblk) {
-			uint64_t min_smallblk = MIN(in_smallblk, out_smallblk);
-			uint64_t max_smallblk = MAX(in_smallblk, out_smallblk);
-			if (min_smallblk < inblksz &&
-			    (inos->os_compress != ZIO_COMPRESS_OFF ||
-			    max_smallblk >= inblksz)) {
-				return (SET_ERROR(EXDEV));
-			}
-		}
-	}
+	if (!zfs_bclone_smallblk_match(inos, outos, inblksz))
+		return (SET_ERROR(EXDEV));
 
 	/*
 	 * We cannot clone into a file with different block size if we can't
@@ -2428,131 +2440,6 @@ zfs_dedupe_range_memcmp(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 	dnode_rele(indn, FTAG);
 
 	return (error);
-}
-
-/*
- * Decide, from the two L0 block pointers alone, whether they already name the
- * same data: the same physical block, or two holes.  This is what a
- * previously cloned or deduped pair of ranges looks like, and it is the one
- * case where the clone step itself would have nothing left to do.
- */
-static boolean_t
-zfs_dedupe_bp_same_block(const blkptr_t *bi, const blkptr_t *bo)
-{
-	/*
-	 * Two holes are both a run of zeros over the same block, so they are
-	 * equal without either one naming any storage.  Their sizes are not
-	 * worth comparing and must not be: our caller pairs the two files
-	 * block for block over a block size they share, but a block that was
-	 * never written at all reaches us as an all-zero block pointer (see
-	 * dmu_read_l0_bps()), whose BP_GET_LSIZE() decodes to the minimum
-	 * block size rather than to the file's.  Reading a hole to compare
-	 * its zeros against another hole's zeros is exactly what this avoids.
-	 */
-	if (BP_IS_HOLE(bi) && BP_IS_HOLE(bo))
-		return (B_TRUE);
-
-	if (BP_IS_HOLE(bi) || BP_IS_HOLE(bo) ||
-	    BP_IS_EMBEDDED(bi) || BP_IS_EMBEDDED(bo) ||
-	    BP_IS_REDACTED(bi) || BP_IS_REDACTED(bo))
-		return (B_FALSE);
-
-	/*
-	 * One allocation is one DVA born in one txg, so a matching first DVA
-	 * at a matching physical birth means both pointers name the same
-	 * physical block - typically because the ranges were already cloned
-	 * or deduped.  This needs no checksum and holds even where the
-	 * checksum test below cannot (encryption, weak checksums): the same
-	 * block under the same key decrypts to the same data.  BP_EQUAL() is
-	 * too strict for this: it also compares the logical births, and
-	 * cloning restamps those on every clone.
-	 */
-	return (BP_GET_PHYSICAL_BIRTH(bi) == BP_GET_PHYSICAL_BIRTH(bo) &&
-	    DVA_EQUAL(&bi->blk_dva[0], &bo->blk_dva[0]));
-}
-
-/*
- * Decide, from the two L0 block pointers alone, whether the blocks provably
- * hold identical logical data.  Modeled on the nopwrite guard set in
- * zio_nop_write(): a match of a cryptographically strong (dedup-grade)
- * checksum is trusted to imply data equality, exactly as ZFS dedup relies on
- * it.  This can only ever prove equality; a mismatch (or any non-provable
- * case) is inconclusive and the caller must fall back to reading the data.
- * Embedded blocks are the exception to needing a checksum: their payload
- * lives in the pointer itself, so two of them are compared directly.
- *
- * All of the following must hold for a checksum match to be trusted:
- *   - neither BP is embedded, a hole, or redacted (no usable blk_cksum);
- *   - neither BP is encrypted (per-block IV/salt make the checksum data-
- *     independent, so equal plaintext yields different checksums);
- *   - both BPs use the same checksum function and it carries the DEDUP flag
- *     (sha256/sha512/skein/blake3; fletcher and edonr are excluded);
- *   - compression, PSIZE, LSIZE and byteorder match, since blk_cksum is
- *     computed over the physical (post-compression) bytes.
- * Salted checksums (skein/blake3) are safe here because block cloning is
- * always intra-pool (zfs_clone_range_precheck() returns EXDEV otherwise) and
- * the salt is per-pool, so identical data yields identical checksums.
- */
-static boolean_t
-zfs_dedupe_bp_provably_equal(const blkptr_t *bi, const blkptr_t *bo)
-{
-	enum zio_checksum ck;
-
-	if (zfs_dedupe_bp_same_block(bi, bo))
-		return (B_TRUE);
-
-	/*
-	 * Two embedded blocks carry their (possibly compressed) payload in
-	 * the pointers themselves.  The same payload bytes under the same
-	 * compression function decompress to the same data, so equality is
-	 * provable without decompressing anything.  A payload mismatch
-	 * proves nothing - equal data can compress to different bytes - and
-	 * falls through to the read path like any other unprovable case.
-	 */
-	if (BP_IS_EMBEDDED(bi) && BP_IS_EMBEDDED(bo)) {
-		uint8_t pi[BPE_PAYLOAD_SIZE], po[BPE_PAYLOAD_SIZE];
-
-		if (BPE_GET_ETYPE(bi) != BP_EMBEDDED_TYPE_DATA ||
-		    BPE_GET_ETYPE(bo) != BP_EMBEDDED_TYPE_DATA ||
-		    BP_GET_COMPRESS(bi) != BP_GET_COMPRESS(bo) ||
-		    BPE_GET_LSIZE(bi) != BPE_GET_LSIZE(bo) ||
-		    BPE_GET_PSIZE(bi) != BPE_GET_PSIZE(bo) ||
-		    BP_GET_BYTEORDER(bi) != BP_GET_BYTEORDER(bo))
-			return (B_FALSE);
-
-		/*
-		 * The psize bit field can encode more than the payload area
-		 * holds.  No valid pointer does, but this is cheaper than
-		 * trusting that.
-		 */
-		if (BPE_GET_PSIZE(bi) > BPE_PAYLOAD_SIZE)
-			return (B_FALSE);
-
-		decode_embedded_bp_compressed(bi, pi);
-		decode_embedded_bp_compressed(bo, po);
-
-		return (memcmp(pi, po, BPE_GET_PSIZE(bi)) == 0);
-	}
-
-	if (BP_IS_EMBEDDED(bi) || BP_IS_EMBEDDED(bo) ||
-	    BP_IS_HOLE(bi) || BP_IS_HOLE(bo) ||
-	    BP_IS_REDACTED(bi) || BP_IS_REDACTED(bo) ||
-	    BP_IS_ENCRYPTED(bi) || BP_IS_ENCRYPTED(bo))
-		return (B_FALSE);
-
-	ck = BP_GET_CHECKSUM(bi);
-	if (ck != BP_GET_CHECKSUM(bo))
-		return (B_FALSE);
-	if ((zio_checksum_table[ck].ci_flags & ZCHECKSUM_FLAG_DEDUP) == 0)
-		return (B_FALSE);
-
-	if (BP_GET_COMPRESS(bi) != BP_GET_COMPRESS(bo) ||
-	    BP_GET_PSIZE(bi) != BP_GET_PSIZE(bo) ||
-	    BP_GET_LSIZE(bi) != BP_GET_LSIZE(bo) ||
-	    BP_GET_BYTEORDER(bi) != BP_GET_BYTEORDER(bo))
-		return (B_FALSE);
-
-	return (ZIO_CHECKSUM_EQUAL(bi->blk_cksum, bo->blk_cksum));
 }
 
 /*

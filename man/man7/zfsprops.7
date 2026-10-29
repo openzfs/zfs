@@ -29,7 +29,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd September 9, 2026
+.Dd September 27, 2026
 .Dt ZFSPROPS 7
 .Os
 .
@@ -841,6 +841,27 @@ Please see
 for more information on these algorithms.
 .Pp
 Changing this property affects only newly-written data.
+.It Sy clonedup Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy source
+Controls how
+.Xr zpool-clonedup 8
+treats the dataset.
+With
+.Sy on ,
+the default, a run may rewrite duplicate blocks in the dataset to share
+another block, and other datasets may share the dataset's blocks.
+With
+.Sy source ,
+the dataset's blocks are never rewritten, but other datasets may still
+share them.
+Use
+.Sy source
+on datasets replicated with incremental
+.Nm zfs Cm send ,
+because a rewritten block that a snapshot already holds is sent again.
+With
+.Sy off ,
+the dataset takes no part in a run.
+Snapshots follow the value of their filesystem or volume.
 .It Xo
 .Sy compression Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy gzip Ns | Ns
 .Sy gzip- Ns Ar N Ns | Ns Sy lz4 Ns | Ns Sy lzjb Ns | Ns Sy zle Ns | Ns Sy zstd Ns | Ns

@@ -119,6 +119,11 @@ extern "C" {
 #define	ESC_ZFS_ERRORSCRUB_ABORT	"errorscrub_abort"
 #define	ESC_ZFS_ERRORSCRUB_RESUME	"errorscrub_resume"
 #define	ESC_ZFS_ERRORSCRUB_PAUSED	"errorscrub_paused"
+#define	ESC_ZFS_CLONEDUP_START		"clonedup_start"
+#define	ESC_ZFS_CLONEDUP_FINISH		"clonedup_finish"
+#define	ESC_ZFS_CLONEDUP_ABORT		"clonedup_abort"
+#define	ESC_ZFS_CLONEDUP_RESUME		"clonedup_resume"
+#define	ESC_ZFS_CLONEDUP_PAUSED		"clonedup_paused"
 
 /*
  * datalink subclass definitions.

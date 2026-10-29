@@ -22,6 +22,7 @@
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_synctask.h>
 #include <sys/dsl_destroy.h>
+#include <sys/dsl_clonedup.h>
 #include <sys/dsl_bookmark.h>
 #include <sys/dmu_tx.h>
 #include <sys/dsl_pool.h>
@@ -623,9 +624,15 @@ dsl_destroy_snapshots_nvl(nvlist_t *snaps, boolean_t defer,
 			.ddsa_defer = defer
 		};
 
-		int error = dsl_sync_task(pool, dsl_destroy_snapshot_check,
+		dsl_clonedup_t *dy;
+		int error;
+
+		dy = dsl_clonedup_yield_begin_name(pool);
+		error = dsl_sync_task(pool,
+		    dsl_destroy_snapshot_check,
 		    dsl_destroy_snapshot_sync, &ddsa, 0,
 		    ZFS_SPACE_CHECK_DESTROY);
+		dsl_clonedup_yield_end(dy);
 
 		/*
 		 * lzc_destroy_snaps() is documented to fill the errlist with
@@ -1260,8 +1267,8 @@ dsl_destroy_head_begin_sync(void *arg, dmu_tx_t *tx)
 	dsl_dataset_rele(ds, FTAG);
 }
 
-int
-dsl_destroy_head(const char *name)
+static int
+dsl_destroy_head_impl(const char *name)
 {
 	dsl_destroy_head_arg_t ddha;
 	int error;
@@ -1313,6 +1320,18 @@ dsl_destroy_head(const char *name)
 
 	return (dsl_sync_task(name, dsl_destroy_head_check,
 	    dsl_destroy_head_sync, &ddha, 0, ZFS_SPACE_CHECK_DESTROY));
+}
+
+int
+dsl_destroy_head(const char *name)
+{
+	dsl_clonedup_t *dy;
+	int error;
+
+	dy = dsl_clonedup_yield_begin_name(name);
+	error = dsl_destroy_head_impl(name);
+	dsl_clonedup_yield_end(dy);
+	return (error);
 }
 
 /*

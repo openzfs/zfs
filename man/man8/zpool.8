@@ -19,7 +19,7 @@
 .\" Copyright (c) 2024-2026, Klara, Inc.
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd May 26, 2026
+.Dd September 27, 2026
 .Dt ZPOOL 8
 .Os
 .
@@ -172,6 +172,8 @@ specified.
 Prefetches specific types of pool data.
 .It Xr zpool-scrub 8
 Begins a scrub or resumes a paused scrub.
+.It Xr zpool-clonedup 8
+Deduplicates the pool after the fact with block cloning.
 .It Xr zpool-condense 8
 Condense, flush, garbage collect or otherwise clean up pool metadata.
 .It Xr zpool-checkpoint 8
@@ -623,6 +625,7 @@ don't wait.
 .Xr zpool-attach 8 ,
 .Xr zpool-checkpoint 8 ,
 .Xr zpool-clear 8 ,
+.Xr zpool-clonedup 8 ,
 .Xr zpool-create 8 ,
 .Xr zpool-ddtprune 8 ,
 .Xr zpool-destroy 8 ,

@@ -18,7 +18,7 @@
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\" Copyright (c) 2024, 2025, Klara, Inc.
 .\"
-.Dd July 3, 2025
+.Dd October 16, 2026
 .Dt ZPOOL-EVENTS 8
 .Os
 .
@@ -201,6 +201,18 @@ Issued when a errorscrub is aborted on a pool.
 Issued when a errorscrub is resumed on a pool.
 .It Sy errorscrub_paused
 Issued when a errorscrub is paused on a pool.
+.It Sy clonedup_start
+Issued when a
+.Nm zpool Cm clonedup
+run is started on a pool.
+.It Sy clonedup_finish
+Issued when a pool has finished a clonedup run.
+.It Sy clonedup_abort
+Issued when a clonedup run is stopped on a pool.
+.It Sy clonedup_resume
+Issued when a clonedup run is resumed on a pool.
+.It Sy clonedup_paused
+Issued when a clonedup run is paused on a pool.
 .It Sy trim_start
 Issued when a trim is started on a pool.
 .It Sy trim_finish
@@ -575,4 +587,5 @@ ZIO_PRIORITY_NOW:0xa:non-queued i/os (e.g. free)
 .Sh SEE ALSO
 .Xr zfs 4 ,
 .Xr zed 8 ,
+.Xr zpool-clonedup 8 ,
 .Xr zpool-wait 8

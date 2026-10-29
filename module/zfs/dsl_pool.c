@@ -23,6 +23,7 @@
 #include <sys/dsl_dir.h>
 #include <sys/dsl_synctask.h>
 #include <sys/dsl_scan.h>
+#include <sys/dsl_clonedup.h>
 #include <sys/dnode.h>
 #include <sys/dmu_tx.h>
 #include <sys/dmu_objset.h>
@@ -356,6 +357,8 @@ dsl_pool_open(dsl_pool_t *dp)
 		goto out;
 
 	err = dsl_scan_init(dp, dp->dp_tx.tx_open_txg);
+	if (err == 0)
+		err = dsl_clonedup_init(dp);
 
 out:
 	rrw_exit(&dp->dp_config_rwlock, FTAG);
@@ -417,6 +420,7 @@ dsl_pool_close(dsl_pool_t *dp)
 
 	mmp_fini(dp->dp_spa);
 	txg_fini(dp);
+	dsl_clonedup_fini(dp);
 	dsl_scan_fini(dp);
 	dmu_buf_user_evict_wait();
 
@@ -500,6 +504,7 @@ dsl_pool_create(spa_t *spa, nvlist_t *zplprops __attribute__((unused)),
 
 	/* Initialize scan structures */
 	VERIFY0(dsl_scan_init(dp, txg));
+	VERIFY0(dsl_clonedup_init(dp));
 
 	/* create and open the root dir */
 	dp->dp_root_dir_obj = dsl_dir_create_sync(dp, NULL, NULL, tx);

@@ -287,6 +287,15 @@ retry:
 		err = zvol_first_open(zv, !(flag & FWRITE));
 		if (drop_namespace)
 			spa_namespace_exit(FTAG);
+		if (err == ERESTART) {
+			/* the clonedup apply was asked to let go */
+			mutex_exit(&zv->zv_state_lock);
+			rw_exit(&zv->zv_suspend_lock);
+			drop_suspend = B_FALSE;
+			pause("zvolcd", MAX(1, MSEC_TO_TICK(10)));
+			g_topology_lock();
+			goto retry;
+		}
 		if (err)
 			goto out_locked;
 		pp->mediasize = zv->zv_volsize;
@@ -975,6 +984,14 @@ retry:
 		err = zvol_first_open(zv, !(flags & FWRITE));
 		if (drop_namespace)
 			spa_namespace_exit(FTAG);
+		if (err == ERESTART) {
+			/* the clonedup apply was asked to let go */
+			mutex_exit(&zv->zv_state_lock);
+			rw_exit(&zv->zv_suspend_lock);
+			drop_suspend = B_FALSE;
+			pause("zvolcd", MAX(1, MSEC_TO_TICK(10)));
+			goto retry;
+		}
 		if (err)
 			goto out_locked;
 	}

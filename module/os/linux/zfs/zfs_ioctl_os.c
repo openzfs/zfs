@@ -75,6 +75,12 @@ zfs_vfs_ref(zfsvfs_t **zfvp)
 	return (0);
 }
 
+int
+zfs_vfs_ref_nowait(zfsvfs_t **zfvp)
+{
+	return (zfs_vfs_ref(zfvp));
+}
+
 void
 zfs_vfs_rele(zfsvfs_t *zfsvfs)
 {

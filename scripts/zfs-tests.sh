@@ -207,7 +207,8 @@ find_runfile() {
 # called by the CI.  It will periodically need to be updated as new
 # tests are added, but everything will still work even if a test is not in
 # the database.
-declare -A testdb=(["redundancy"]=1608 ["mmp"]=1423 ["events"]=926
+declare -A testdb=(["clonedup"]=1900
+["redundancy"]=1608 ["mmp"]=1423 ["events"]=926
 ["rsend"]=754 ["raidz"]=683 ["zpool_import"]=606 ["bclone"]=541 ["slog"]=515
 ["replacement"]=504 ["l2arc"]=498 ["fault"]=484 ["pool_checkpoint"]=429
 ["zpool_scrub"]=422 ["trim"]=402 ["zpool_create"]=380 ["zdb"]=353

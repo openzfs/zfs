@@ -19,7 +19,7 @@
 .\" Copyright (c) 2024-2026, Klara, Inc.
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd June 16, 2026
+.Dd October 16, 2026
 .Dt ZPOOL-STATUS 8
 .Os
 .
@@ -58,6 +58,12 @@ Both of these are only approximate, because the amount of data in the pool and
 the other workloads on the system can change.
 Due to concurrent writes on a live system, it is possible for both scrubs and
 resilvers to progress beyond 100% completion.
+For a
+.Nm zpool Cm clonedup
+run it reports the phase, how far the current walk or apply has got, and
+the space saved, as
+.Xr zpool-clonedup 8
+describes.
 .Bl -tag -width Ds
 .It Fl c Ar script1 Ns Oo , Ns Ar script2 Ns ,… Oc
 Run a script (or scripts) on each vdev and include the output as a new column
@@ -362,6 +368,7 @@ can be used to run a script on each VDEV.
 .Ed
 .
 .Sh SEE ALSO
+.Xr zpool-clonedup 8 ,
 .Xr zpool-condense 8 ,
 .Xr zpool-events 8 ,
 .Xr zpool-history 8 ,

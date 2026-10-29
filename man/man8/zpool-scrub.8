@@ -18,7 +18,7 @@
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\" Copyright (c) 2025 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd May 1, 2026
+.Dd October 16, 2026
 .Dt ZPOOL-SCRUB 8
 .Os
 .
@@ -98,6 +98,18 @@ If a scrub is paused, the
 resumes it.
 If a resilver is in progress, ZFS does not allow a scrub to be started until the
 resilver completes.
+.Pp
+A scrub replaces a
+.Nm zpool Cm clonedup
+run, running or paused, and
+.Fl s
+cancels one.
+.Fl p
+does not pause a clonedup run, and
+.Fl e
+fails while one is in progress.
+See
+.Xr zpool-clonedup 8 .
 .Pp
 Note that, due to changes in pool data on a live system, it is possible for
 scrubs and resilvers to progress beyond 100% completion.
@@ -266,6 +278,7 @@ timer units are provided.
 .
 .Sh SEE ALSO
 .Xr systemd.timer 5 ,
+.Xr zpool-clonedup 8 ,
 .Xr zpool-iostat 8 ,
 .Xr zpool-resilver 8 ,
 .Xr zpool-status 8

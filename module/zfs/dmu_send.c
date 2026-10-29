@@ -46,6 +46,7 @@
 #include <sys/dmu_send.h>
 #include <sys/dmu_recv.h>
 #include <sys/dsl_destroy.h>
+#include <sys/dsl_clonedup.h>
 #include <sys/blkptr.h>
 #include <sys/dsl_bookmark.h>
 #include <sys/zfeature.h>
@@ -2818,6 +2819,26 @@ dmu_send_obj(const char *pool, uint64_t tosnap, uint64_t fromsnap,
 	return (err);
 }
 
+/*
+ * The clonedup apply thread owns a dataset it writes to that nothing
+ * has mounted or open.  Ask it to let go, with the pool config lock
+ * dropped since its txg waits may need it, and try once more.
+ */
+static int
+dmu_send_reown(dsl_pool_t *dp, const char *name,
+    ds_hold_flags_t dsflags, const void *tag, dsl_dataset_t **dsp)
+{
+	dsl_clonedup_t *dy;
+	int err;
+
+	dsl_pool_config_exit(dp, tag);
+	dy = dsl_clonedup_yield_begin(dp->dp_spa);
+	dsl_pool_config_enter(dp, tag);
+	err = dsl_dataset_own(dp, name, dsflags, tag, dsp);
+	dsl_clonedup_yield_end(dy);
+	return (err);
+}
+
 int
 dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
     boolean_t large_block_ok, boolean_t compressok, boolean_t rawok,
@@ -2904,6 +2925,10 @@ dmu_send(const char *tosnap, const char *fromsnap, boolean_t embedok,
 		} else {
 			err = dsl_dataset_own(dspp.dp, tosnap, dsflags,
 			    FTAG, &dspp.to_ds);
+			if (err == EBUSY) {
+				err = dmu_send_reown(dspp.dp, tosnap,
+				    dsflags, FTAG, &dspp.to_ds);
+			}
 			if (err == 0)
 				owned = B_TRUE;
 		}

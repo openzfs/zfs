@@ -101,6 +101,8 @@ SYSCTL_NODE(_vfs_zfs, OID_AUTO, condense, CTLFLAG_RW, 0, "ZFS condense");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, dbuf, CTLFLAG_RW, 0, "ZFS disk buf cache");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, dbuf_cache, CTLFLAG_RW, 0,
 	"ZFS disk buf cache");
+SYSCTL_NODE(_vfs_zfs, OID_AUTO, clonedup, CTLFLAG_RW, 0,
+	"ZFS clonedup");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, deadman, CTLFLAG_RW, 0, "ZFS deadman");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, dedup, CTLFLAG_RW, 0, "ZFS dedup");
 SYSCTL_NODE(_vfs_zfs, OID_AUTO, l2arc, CTLFLAG_RW, 0, "ZFS l2arc");

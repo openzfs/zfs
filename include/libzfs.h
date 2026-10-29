@@ -153,6 +153,8 @@ typedef enum zfs_error {
 	EZFS_RAIDZ_EXPAND_IN_PROGRESS,	/* a raidz is currently expanding */
 	EZFS_ASHIFT_MISMATCH,   /* can't add vdevs with different ashifts */
 	EZFS_NO_USER_NS_SUPPORT, /* kernel built without CONFIG_USER_NS */
+	EZFS_CLONEDUP_RUNNING,	/* clonedup currently running */
+	EZFS_CLONEDUP_PAUSED,	/* clonedup currently paused */
 	EZFS_UNKNOWN
 } zfs_error_t;
 

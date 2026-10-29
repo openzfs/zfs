@@ -2969,6 +2969,105 @@ out:
 	return (retval);
 }
 
+static boolean_t
+zpool_scan_resilvering(nvlist_t *nvroot, const pool_scan_stat_t *ps)
+{
+	vdev_rebuild_stat_t *vrs;
+	nvlist_t **child;
+	uint_t c;
+	uint_t children;
+	uint_t n;
+
+	if (ps != NULL && ps->pss_func == POOL_SCAN_RESILVER &&
+	    ps->pss_state == DSS_SCANNING)
+		return (B_TRUE);
+	if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) != 0)
+		return (B_FALSE);
+	for (c = 0; c < children; c++) {
+		if (nvlist_lookup_uint64_array(child[c],
+		    ZPOOL_CONFIG_REBUILD_STATS, (uint64_t **)&vrs,
+		    &n) == 0 && vrs->vrs_state == VDEV_REBUILD_ACTIVE)
+			return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+static int
+zpool_clonedup_busy(libzfs_handle_t *hdl, nvlist_t *nvroot,
+    const pool_scan_stat_t *ps, uint_t psc, const char *errbuf)
+{
+	uint64_t fl;
+
+	if (ps != NULL && ps->pss_func == POOL_SCAN_CLONEDUP &&
+	    ps->pss_state == DSS_SCANNING) {
+		if (ps->pss_pass_scrub_pause == 0) {
+			return (zfs_error(hdl, EZFS_CLONEDUP_RUNNING,
+			    errbuf));
+		}
+		if (POOL_SCAN_STAT_VALID(pss_clonedup_flags, psc)) {
+			fl = ps->pss_clonedup_flags;
+			zfs_error_aux(hdl,
+			    "clonedup is paused; use "
+			    "'zpool clonedup%s%s%s' to resume or "
+			    "'zpool clonedup -s' to cancel it",
+			    (fl & POOL_SCRUB_CLONEDUP_FULL) ?
+			    " -f" : "",
+			    (fl & POOL_SCRUB_CLONEDUP_QUICK) ?
+			    " -q" : "",
+			    (fl & POOL_SCRUB_CLONEDUP_DRYRUN) ?
+			    " -n" : "");
+		}
+		return (zfs_error(hdl, EZFS_CLONEDUP_PAUSED, errbuf));
+	}
+	if (ps != NULL && ps->pss_func == POOL_SCAN_SCRUB &&
+	    ps->pss_state == DSS_SCANNING) {
+		return (zfs_error(hdl, ps->pss_pass_scrub_pause == 0 ?
+		    EZFS_SCRUBBING : EZFS_SCRUB_PAUSED_TO_CANCEL,
+		    errbuf));
+	}
+	if (ps != NULL &&
+	    ps->pss_error_scrub_func == POOL_SCAN_ERRORSCRUB &&
+	    ps->pss_error_scrub_state == DSS_ERRORSCRUBBING) {
+		return (zfs_error(hdl,
+		    ps->pss_pass_error_scrub_pause == 0 ?
+		    EZFS_ERRORSCRUBBING : EZFS_ERRORSCRUB_PAUSED,
+		    errbuf));
+	}
+	if (zpool_scan_resilvering(nvroot, ps))
+		return (zfs_error(hdl, EZFS_RESILVERING, errbuf));
+	return (zfs_error(hdl, EZFS_BUSY, errbuf));
+}
+
+/*
+ * Name what a clonedup request that failed with ENOTSUP lacks.  A dry
+ * run does not need the clonedup feature.
+ */
+static void
+zpool_clonedup_notsup(zpool_handle_t *zhp, pool_scrub_flags_t flags)
+{
+	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	nvlist_t *features = zpool_get_features(zhp);
+
+	if (features == NULL) {
+		zfs_error_aux(hdl, "clonedup needs the block_cloning "
+		    "feature, the clonedup feature unless it is a "
+		    "dry run, and zfs_bclone_enabled set to 1");
+	} else if (!nvlist_exists(features,
+	    spa_feature_table[SPA_FEATURE_BLOCK_CLONING].fi_guid)) {
+		zfs_error_aux(hdl,
+		    "the block_cloning feature is not enabled");
+	} else if (!(flags & POOL_SCRUB_CLONEDUP_DRYRUN) &&
+	    !nvlist_exists(features,
+	    spa_feature_table[SPA_FEATURE_CLONEDUP].fi_guid)) {
+		zfs_error_aux(hdl,
+		    "the clonedup feature is not enabled");
+	} else {
+		zfs_error_aux(hdl, "block cloning is disabled "
+		    "(zfs_bclone_enabled)");
+	}
+}
+
 /*
  * Scan the pool.
  */
@@ -3051,6 +3150,20 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 			    "cannot scrub %s",
 			    zhp->zpool_name);
 		}
+	} else if (func == POOL_SCAN_CLONEDUP) {
+		if (cmd == POOL_SCRUB_PAUSE) {
+			(void) snprintf(errbuf, sizeof (errbuf),
+			    "cannot pause clonedup on %s",
+			    zhp->zpool_name);
+		} else if (flags & POOL_SCRUB_CLONEDUP_STOP) {
+			(void) snprintf(errbuf, sizeof (errbuf),
+			    "cannot stop clonedup on %s",
+			    zhp->zpool_name);
+		} else {
+			(void) snprintf(errbuf, sizeof (errbuf),
+			    "cannot start clonedup on %s",
+			    zhp->zpool_name);
+		}
 	} else if (func == POOL_SCAN_RESILVER) {
 		assert(cmd == POOL_SCRUB_NORMAL);
 		(void) snprintf(errbuf, sizeof (errbuf),
@@ -3063,7 +3176,10 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 	}
 
 	/*
-	 * With EBUSY, six cases are possible:
+	 * A clonedup request goes to zpool_clonedup_busy(), which
+	 * names whichever of a clonedup, scrub, error scrub or
+	 * resilver is in the way.  With EBUSY on the other
+	 * requests, seven cases are possible:
 	 *
 	 * Current state		Requested
 	 * 1. Normal Scrub Running	Normal Scrub or Error Scrub
@@ -3072,6 +3188,7 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 	 * 4. Error Scrub Running	Normal Scrub or Error Scrub
 	 * 5. Error Scrub Paused	Pause Error Scrub
 	 * 6. Resilvering		Anything else
+	 * 7. Clonedup Running/Paused	Error Scrub
 	 */
 	if (err == EBUSY) {
 		nvlist_t *nvroot;
@@ -3082,6 +3199,10 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 		    ZPOOL_CONFIG_VDEV_TREE);
 		(void) nvlist_lookup_uint64_array(nvroot,
 		    ZPOOL_CONFIG_SCAN_STATS, (uint64_t **)&ps, &psc);
+		if (func == POOL_SCAN_CLONEDUP) {
+			return (zpool_clonedup_busy(hdl, nvroot, ps,
+			    psc, errbuf));
+		}
 		if (ps && ps->pss_func == POOL_SCAN_SCRUB &&
 		    ps->pss_state == DSS_SCANNING) {
 			if (ps->pss_pass_scrub_pause == 0) {
@@ -3119,14 +3240,29 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 				return (zfs_error(hdl, EZFS_ERRORSCRUB_PAUSED,
 				    errbuf));
 			}
+		} else if (func == POOL_SCAN_ERRORSCRUB && ps &&
+		    ps->pss_func == POOL_SCAN_CLONEDUP &&
+		    ps->pss_state == DSS_SCANNING) {
+			/* handles case 7 */
+			return (zfs_error(hdl,
+			    ps->pss_pass_scrub_pause == 0 ?
+			    EZFS_CLONEDUP_RUNNING :
+			    EZFS_CLONEDUP_PAUSED, errbuf));
 		} else {
 			/* handles case 6 */
 			return (zfs_error(hdl, EZFS_RESILVERING, errbuf));
 		}
 	} else if (err == ENOENT) {
+		if (flags & POOL_SCRUB_CLONEDUP_STOP) {
+			zfs_error_aux(hdl,
+			    "no clonedup run in progress");
+		}
 		return (zfs_error(hdl, EZFS_NO_SCRUB, errbuf));
 	} else if (err == ENOTSUP && func == POOL_SCAN_RESILVER) {
 		return (zfs_error(hdl, EZFS_NO_RESILVER_DEFER, errbuf));
+	} else if (err == ENOTSUP && func == POOL_SCAN_CLONEDUP) {
+		zpool_clonedup_notsup(zhp, flags);
+		return (zfs_error(hdl, EZFS_BADVERSION, errbuf));
 	} else {
 		return (zpool_standard_error(hdl, err, errbuf));
 	}

@@ -341,6 +341,12 @@ int dmu_objset_hold(const char *name, const void *tag, objset_t **osp);
 int dmu_objset_own(const char *name, dmu_objset_type_t type,
     boolean_t readonly, boolean_t key_required, const void *tag,
     objset_t **osp);
+int dmu_objset_own_nowait(const char *name, dmu_objset_type_t type,
+    boolean_t readonly, boolean_t key_required, const void *tag,
+    objset_t **osp);
+int dmu_objset_own_obj_nowait(const char *name, uint64_t obj,
+    dmu_objset_type_t type, boolean_t readonly,
+    boolean_t key_required, const void *tag, objset_t **osp);
 void dmu_objset_rele(objset_t *os, const void *tag);
 void dmu_objset_disown(objset_t *os, boolean_t key_required, const void *tag);
 int dmu_objset_open_ds(struct dsl_dataset *ds, objset_t **osp);
@@ -406,6 +412,7 @@ typedef struct dmu_buf {
 #define	DMU_POOL_TXG_LOG_TIME_MINUTES	"com.klarasystems:txg_log_time:minutes"
 #define	DMU_POOL_TXG_LOG_TIME_DAYS	"com.klarasystems:txg_log_time:days"
 #define	DMU_POOL_TXG_LOG_TIME_MONTHS	"com.klarasystems:txg_log_time:months"
+#define	DMU_POOL_CLONEDUP_SCAN		"org.openzfs:clonedup_scan"
 
 /*
  * Allocate an object from this objset.  The range of object numbers

@@ -30,15 +30,16 @@ typeset -a copies_prop_vals=('1' '2' '3')
 typeset -a logbias_prop_vals=('latency' 'throughput')
 typeset -a primarycache_prop_vals=('all' 'none' 'metadata')
 typeset -a redundant_metadata_prop_vals=('all' 'most' 'some' 'none')
+typeset -a clonedup_prop_vals=('on' 'off' 'source')
 typeset -a secondarycache_prop_vals=('all' 'none' 'metadata')
 typeset -a snapdir_prop_vals=('disabled' 'hidden' 'visible')
 typeset -a sync_prop_vals=('standard' 'always' 'disabled')
 
 typeset -a fs_props=('compress' 'checksum' 'recsize'
     'canmount' 'copies' 'logbias' 'primarycache' 'redundant_metadata'
-    'secondarycache' 'snapdir' 'sync')
+    'secondarycache' 'snapdir' 'sync' 'clonedup')
 typeset -a vol_props=('compress' 'checksum' 'copies' 'logbias' 'primarycache'
-    'secondarycache' 'redundant_metadata' 'sync')
+    'secondarycache' 'redundant_metadata' 'sync' 'clonedup')
 
 #
 # Given the 'prop' passed in, return 'num_vals' elements of the corresponding

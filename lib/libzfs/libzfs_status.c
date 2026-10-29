@@ -292,8 +292,21 @@ check_status(nvlist_t *config, boolean_t isimport,
 		 * was before the last rebuild completed, then recommend
 		 * that the pool be scrubbed to verify all checksums.  When
 		 * ps is NULL we can infer the pool has never been scrubbed.
+		 * A clonedup run takes over the scan record and
+		 * keeps what this test would read from the record
+		 * it took.  That is the end time of a finished
+		 * scrub, 0 for none, and UINT64_MAX for any other
+		 * record, which calls for no scrub.
 		 */
-		if (rebuild_end_time > 0) {
+		if (rebuild_end_time > 0 && ps != NULL &&
+		    ps->pss_func == POOL_SCAN_CLONEDUP) {
+			uint64_t end = POOL_SCAN_STAT_VALID(
+			    pss_clonedup_scrub_end, psc) ?
+			    ps->pss_clonedup_scrub_end : 0;
+
+			if (rebuild_end_time > end)
+				return (ZPOOL_STATUS_REBUILD_SCRUB);
+		} else if (rebuild_end_time > 0) {
 			if (ps != NULL) {
 				if ((ps->pss_state == DSS_FINISHED &&
 				    ps->pss_func == POOL_SCAN_SCRUB &&

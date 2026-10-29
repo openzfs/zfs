@@ -16,7 +16,7 @@
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd July 23, 2025
+.Dd September 27, 2026
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -443,6 +443,29 @@ when a bookmark is created and will be
 returned to the
 .Sy enabled
 state when all bookmarks with these fields are destroyed.
+.
+.feature org.openzfs clonedup yes
+This feature marks a pool on which a
+.Nm zpool Cm clonedup
+run is in progress.
+A dry run neither needs nor activates it.
+A run also needs the
+.Sy block_cloning
+feature enabled and checks for it when it starts.
+This feature does not declare
+.Sy block_cloning
+as a dependency, so a pool can still be created with
+.Sy block_cloning
+disabled.
+A run keeps its progress in the pool, and software without this feature
+must not continue a run it finds in progress.
+While a run is active, such software can only import the pool read-only.
+.Pp
+This feature becomes
+.Sy active
+when a run other than a dry run starts and returns to being
+.Sy enabled
+when the run completes or is canceled.
 .
 .feature org.openzfs device_rebuild yes
 This feature enables the ability for the

@@ -379,6 +379,13 @@ zfs_prop_init(void)
 		{ NULL }
 	};
 
+	static const zprop_index_t clonedup_table[] = {
+		{ "on",	ZFS_CLONEDUP_ON },
+		{ "off",	ZFS_CLONEDUP_OFF },
+		{ "source",	ZFS_CLONEDUP_SOURCE },
+		{ NULL }
+	};
+
 	static const zprop_index_t volmode_table[] = {
 		{ "default",	ZFS_VOLMODE_DEFAULT },
 		{ "full",	ZFS_VOLMODE_GEOM },
@@ -419,6 +426,11 @@ zfs_prop_init(void)
 	    "on | off | verify | sha256[,verify] | sha512[,verify] | "
 	    "skein[,verify] | edonr,verify | blake3[,verify]",
 	    "DEDUP", dedup_table, sfeatures);
+	zprop_register_index(ZFS_PROP_CLONEDUP, "clonedup",
+	    ZFS_CLONEDUP_ON, PROP_INHERIT,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,
+	    "on | off | source", "CLONEDUP", clonedup_table,
+	    sfeatures);
 	zprop_register_index(ZFS_PROP_COMPRESSION, "compression",
 	    ZIO_COMPRESS_DEFAULT, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_VOLUME,

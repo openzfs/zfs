@@ -163,6 +163,9 @@ zpool_prop_init(void)
 	zprop_register_number(ZPOOL_PROP_LAST_SCRUBBED_TXG,
 	    "last_scrubbed_txg", 0, PROP_READONLY, ZFS_TYPE_POOL, "<txg>",
 	    "LAST_SCRUBBED_TXG", B_FALSE, sfeatures);
+	zprop_register_number(ZPOOL_PROP_LAST_CLONEDUP_TXG,
+	    "last_clonedup_txg", 0, PROP_READONLY, ZFS_TYPE_POOL,
+	    "<txg>", "LAST_CLONEDUP_TXG", B_FALSE, sfeatures);
 	zprop_register_number(ZPOOL_PROP_AVAILABLE, "available", 0,
 	    PROP_READONLY, ZFS_TYPE_POOL, "<size>", "AVAIL", B_FALSE,
 	    sfeatures);

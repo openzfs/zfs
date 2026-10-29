@@ -92,6 +92,8 @@
 #include <sys/spa_impl.h>
 #include <sys/zvol.h>
 #include <sys/zvol_impl.h>
+#include <sys/zfs_znode.h>
+#include <sys/zfs_vnops.h>
 
 unsigned int zvol_inhibit_dev = 0;
 unsigned int zvol_prefetch_bytes = (128 * 1024);
@@ -103,7 +105,6 @@ unsigned int zvol_request_sync = 0;
 struct hlist_head *zvol_htable;
 static list_t zvol_state_list;
 krwlock_t zvol_state_lock;
-extern int zfs_bclone_strict_properties;
 extern int zfs_bclone_wait_dirty;
 zv_taskq_t zvol_taskqs;
 
@@ -187,6 +188,36 @@ zvol_find_by_name_hash(const char *name, uint64_t hash, int mode)
 				ASSERT(zv->zv_hash == hash &&
 				    strcmp(zv->zv_name, name) == 0);
 			}
+			rw_exit(&zvol_state_lock);
+			return (zv);
+		}
+		mutex_exit(&zv->zv_state_lock);
+	}
+	rw_exit(&zvol_state_lock);
+
+	return (NULL);
+}
+
+/*
+ * zvol_find_by_name_hash() with RW_NONE, for a caller that may hold
+ * another volume's zv_suspend_lock.  zvol_suspend() holds
+ * zvol_state_lock as reader while it waits for a zv_suspend_lock, so
+ * such a caller only tries zvol_state_lock, and NULL also means it
+ * was not free.
+ */
+zvol_state_t *
+zvol_tryfind_by_name_hash(const char *name, uint64_t hash)
+{
+	zvol_state_t *zv;
+	struct hlist_node *p = NULL;
+
+	if (!rw_tryenter(&zvol_state_lock, RW_READER))
+		return (NULL);
+	hlist_for_each(p, ZVOL_HT_HEAD(hash)) {
+		zv = hlist_entry(p, zvol_state_t, zv_hlink);
+		mutex_enter(&zv->zv_state_lock);
+		if (zv->zv_hash == hash &&
+		    strcmp(zv->zv_name, name) == 0) {
 			rw_exit(&zvol_state_lock);
 			return (zv);
 		}
@@ -346,18 +377,30 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 	if (readonly)
 		return (SET_ERROR(EROFS));
 
-	zvol_state_t *zv = zvol_find_by_name(name, RW_READER);
+	zvol_state_t *zv;
+retry:
+	zv = zvol_find_by_name(name, RW_READER);
 
 	ASSERT(zv == NULL || (MUTEX_HELD(&zv->zv_state_lock) &&
 	    RW_READ_HELD(&zv->zv_suspend_lock)));
 
 	if (zv == NULL || zv->zv_objset == NULL) {
-		if (zv != NULL)
+		if (zv != NULL) {
 			rw_exit(&zv->zv_suspend_lock);
-		if ((error = dmu_objset_own(name, DMU_OST_ZVOL, B_FALSE, B_TRUE,
-		    FTAG, &os)) != 0) {
+			/* see zvol_first_open() */
+			error = dmu_objset_own_nowait(name,
+			    DMU_OST_ZVOL, B_FALSE, B_TRUE, FTAG, &os);
+		} else {
+			error = dmu_objset_own(name, DMU_OST_ZVOL,
+			    B_FALSE, B_TRUE, FTAG, &os);
+		}
+		if (error != 0) {
 			if (zv != NULL)
 				mutex_exit(&zv->zv_state_lock);
+			if (error == ERESTART) {
+				delay(MSEC_TO_TICK(10));
+				goto retry;
+			}
 			return (error);
 		}
 		owned = B_TRUE;
@@ -685,17 +728,7 @@ zvol_clone_range(zvol_state_t *zv_src, uint64_t inoff, zvol_state_t *zv_dst,
 		goto out;
 	}
 
-	/*
-	 * Cloning between datasets with different properties is possible,
-	 * but it may cause confusions when copying data between them and
-	 * expecting new properties to apply.
-	 */
-	if (zfs_bclone_strict_properties && inos != outos &&
-	    !dmu_objset_is_snapshot(inos) &&
-	    (inos->os_checksum != outos->os_checksum ||
-	    inos->os_compress != outos->os_compress ||
-	    inos->os_copies != outos->os_copies ||
-	    inos->os_dedup_checksum != outos->os_dedup_checksum)) {
+	if (!zfs_bclone_props_match(inos, outos)) {
 		error = SET_ERROR(EXDEV);
 		goto out;
 	}
@@ -705,25 +738,10 @@ zvol_clone_range(zvol_state_t *zv_src, uint64_t inoff, zvol_state_t *zv_dst,
 		goto out;
 	}
 
-	/*
-	 * Cloning between datasets with different special_small_blocks would
-	 * bypass storage tier migration that would occur with a regular copy.
-	 */
-	if (zfs_bclone_strict_properties && inos != outos &&
-	    !dmu_objset_is_snapshot(inos) &&
-	    spa_has_special(dmu_objset_spa(inos))) {
-		uint64_t in_smallblk = inos->os_zpl_special_smallblock;
-		uint64_t out_smallblk = outos->os_zpl_special_smallblock;
-		if (in_smallblk != out_smallblk) {
-			uint64_t min_smallblk = MIN(in_smallblk, out_smallblk);
-			uint64_t max_smallblk = MAX(in_smallblk, out_smallblk);
-			if (min_smallblk < zv_src->zv_volblocksize &&
-			    (inos->os_compress != ZIO_COMPRESS_OFF ||
-			    max_smallblk >= zv_src->zv_volblocksize)) {
-				error = SET_ERROR(EXDEV);
-				goto out;
-			}
-		}
+	if (!zfs_bclone_smallblk_match(inos, outos,
+	    zv_src->zv_volblocksize)) {
+		error = SET_ERROR(EXDEV);
+		goto out;
 	}
 
 	if (inoff >= zv_src->zv_volsize || outoff >= zv_dst->zv_volsize) {
@@ -1325,14 +1343,15 @@ zvol_first_open(zvol_state_t *zv, boolean_t readonly)
 	 * another one, until then.  User accounting, which dmu_objset_own()
 	 * would also upgrade, does not apply to volumes.
 	 */
-	dsl_pool_t *dp;
-	error = dsl_pool_hold(zv->zv_name, FTAG, &dp);
-	if (error)
-		return (error);
 	boolean_t ro = (readonly || (strchr(zv->zv_name, '@') != NULL));
-	error = dmu_objset_own_obj(dp, zv->zv_dsobj, DMU_OST_ZVOL, ro, B_TRUE,
-	    zv, &os);
-	dsl_pool_rele(dp, FTAG);
+	/*
+	 * Waiting here for the clonedup apply to let go of the volume
+	 * would hold the locks above, and every pool open waits for
+	 * spa_namespace_lock.  ERESTART sends the caller round its
+	 * retry with them dropped.
+	 */
+	error = dmu_objset_own_obj_nowait(zv->zv_name, zv->zv_dsobj,
+	    DMU_OST_ZVOL, ro, B_TRUE, zv, &os);
 	if (error)
 		return (error);
 
