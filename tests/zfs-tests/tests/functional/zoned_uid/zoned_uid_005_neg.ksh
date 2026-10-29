@@ -25,7 +25,8 @@
 #	1. Try to set zoned_uid with invalid string value
 #	2. Verify it fails
 #	3. Try to set zoned_uid with negative value
-#	4. Verify it fails
+#	4. Try values outside the Linux UID range
+#	5. Verify all attempts fail without changing the property
 #
 
 verify_runnable "global"
@@ -50,6 +51,14 @@ log_note "Invalid string value rejected"
 # Try negative value (if shell allows it)
 log_mustnot zfs set zoned_uid=-1 "$TESTPOOL/$TESTFS/neg_test"
 log_note "Negative value rejected"
+
+log_mustnot zfs set zoned_uid=4294967295 \
+    "$TESTPOOL/$TESTFS/neg_test"
+log_note "Invalid UID sentinel rejected"
+
+log_mustnot zfs set zoned_uid=4294969297 \
+    "$TESTPOOL/$TESTFS/neg_test"
+log_note "Value wider than uid_t rejected"
 
 # Verify dataset still has default value
 typeset val

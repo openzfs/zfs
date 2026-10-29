@@ -6735,6 +6735,7 @@ retry:
 			*spapp = NULL;
 			return (error);
 		}
+		spa_import_os(spa);
 	}
 
 	spa_open_ref(spa, tag);

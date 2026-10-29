@@ -38,6 +38,9 @@
 #include <sys/dsl_deadlist.h>
 #include <sys/zthr.h>
 #include <sys/spa_impl.h>
+#if defined(__linux__) && defined(_KERNEL)
+#include <sys/zone.h>
+#endif
 
 extern int zfs_snapshot_history_enabled;
 
@@ -1067,6 +1070,11 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 	objset_t *mos = dp->dp_meta_objset;
 	uint64_t obj, ddobj, prevobj = 0;
 	boolean_t rmorigin;
+#if defined(__linux__) && defined(_KERNEL)
+	char dsname[ZFS_MAX_DATASET_NAME_LEN];
+
+	dsl_dataset_name(ds, dsname);
+#endif
 
 	ASSERT3U(dsl_dataset_phys(ds)->ds_num_children, <=, 1);
 	ASSERT(ds->ds_prev == NULL ||
@@ -1228,6 +1236,9 @@ dsl_destroy_head_sync_impl(dsl_dataset_t *ds, dmu_tx_t *tx)
 	/* Delete errlog. */
 	if (spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_HEAD_ERRLOG))
 		spa_delete_dataset_errlog(dp->dp_spa, ds->ds_object, tx);
+#if defined(__linux__) && defined(_KERNEL)
+	zone_dataset_remove_uid(dsname);
+#endif
 }
 
 void

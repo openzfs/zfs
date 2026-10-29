@@ -24,6 +24,9 @@
 #include <sys/dsl_dataset.h>
 #include <sys/dsl_dir.h>
 #include <sys/dsl_prop.h>
+#if defined(__linux__) && defined(_KERNEL)
+#include <sys/zone.h>
+#endif
 #include <sys/dsl_synctask.h>
 #include <sys/spa.h>
 #include <sys/zap.h>
@@ -349,6 +352,30 @@ dsl_prop_get(const char *dsname, const char *propname,
 	dmu_objset_rele(os, FTAG);
 	return (error);
 }
+
+boolean_t
+dsl_prop_setpoint_is_direct(const char *dsname, const char *setpoint)
+{
+	return (strcmp(dsname, setpoint) == 0 ||
+	    strcmp(setpoint, ZPROP_SOURCE_VAL_RECVD) == 0);
+}
+
+#if defined(__linux__) && defined(_KERNEL)
+static void
+dsl_prop_sync_zoned_uid(dsl_dataset_t *ds, uint64_t zoned_uid,
+    const char *setpoint)
+{
+	char dsname[ZFS_MAX_DATASET_NAME_LEN];
+
+	ASSERT(!ds->ds_is_snapshot);
+
+	dsl_dataset_name(ds, dsname);
+	if (dsl_prop_setpoint_is_direct(dsname, setpoint))
+		zone_dataset_set_uid(dsname, zoned_uid);
+	else
+		zone_dataset_unset_uid(dsname);
+}
+#endif
 
 /*
  * Get the current property value.  It may have changed by the time this
@@ -847,7 +874,19 @@ dsl_prop_set_sync_impl(dsl_dataset_t *ds, const char *propname,
 	}
 
 	if (isint) {
-		VERIFY0(dsl_prop_get_int_ds(ds, propname, &intval));
+#if defined(__linux__) && defined(_KERNEL)
+		if (!ds->ds_is_snapshot &&
+		    zfs_name_to_prop(propname) == ZFS_PROP_ZONED_UID) {
+			char setpoint[ZFS_MAX_DATASET_NAME_LEN];
+
+			VERIFY0(dsl_prop_get_ds(ds, propname, 8, 1, &intval,
+			    setpoint));
+			dsl_prop_sync_zoned_uid(ds, intval, setpoint);
+		} else
+#endif
+		{
+			VERIFY0(dsl_prop_get_int_ds(ds, propname, &intval));
+		}
 
 		if (ds->ds_is_snapshot) {
 			dsl_prop_cb_record_t *cbr;

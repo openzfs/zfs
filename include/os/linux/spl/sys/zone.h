@@ -42,14 +42,16 @@ extern int zone_dataset_attach(cred_t *, const char *, int);
 extern int zone_dataset_detach(cred_t *, const char *, int);
 
 /*
- * Attach the given dataset to all user namespaces owned by the given UID.
+ * Maintain direct local or received zoned_uid setpoints used for visibility.
  */
-extern int zone_dataset_attach_uid(cred_t *, const char *, uid_t);
-
-/*
- * Detach the given dataset from UID-based zoning.
- */
-extern int zone_dataset_detach_uid(cred_t *, const char *, uid_t);
+extern int zone_dataset_uid_check(cred_t *, uint64_t);
+extern void zone_dataset_set_uid(const char *, uint64_t);
+/* Remove only the named dataset's entry. */
+extern void zone_dataset_unset_uid(const char *);
+/* Remove entries for the named dataset and its descendants. */
+extern void zone_dataset_remove_uid(const char *);
+/* Rename entries for the named dataset and its descendants. */
+extern void zone_dataset_rename_uid(const char *, const char *);
 
 /*
  * Returns true if the named pool/dataset is visible in the current zone.

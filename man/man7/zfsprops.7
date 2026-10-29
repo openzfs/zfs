@@ -2230,8 +2230,7 @@ set by the administrator on the delegation root
 .Pp
 Set to
 .Sy 0
-.Pq or inherit
-to disable UID-based delegation.
+to disable UID-based delegation for a subtree.
 .Pp
 Unlike
 .Nm zfs Cm zone
@@ -2240,6 +2239,14 @@ which requires an existing namespace file,
 applies to any user namespace owned by the specified UID,
 making it suitable for container runtimes that create new namespaces
 on each invocation.
+.Pp
+The most specific value set on a dataset, whether local or received, controls
+each dataset subtree.
+A value of
+.Sy 0
+set directly on a dataset prevents an inherited delegation from crossing it.
+Inheriting the property removes the local override and restores the value
+from the nearest ancestor, or the default value when no ancestor sets it.
 See
 .Xr zfs-zone 8
 for namespace-specific delegation.

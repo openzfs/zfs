@@ -118,56 +118,40 @@ static int
 spa_restore_zoned_uid_cb(const char *dsname, void *arg)
 {
 	(void) arg;
+	char setpoint[ZFS_MAX_DATASET_NAME_LEN] = { 0 };
 	uint64_t zoned_uid = 0;
+	int err;
 
-	if (dsl_prop_get(dsname, "zoned_uid", 8, 1, &zoned_uid, NULL) != 0)
+	err = dsl_prop_get(dsname, "zoned_uid", 8, 1, &zoned_uid,
+	    setpoint);
+	if (err != 0)
+		return (err);
+	if (!dsl_prop_setpoint_is_direct(dsname, setpoint))
 		return (0);
 
-	if (zoned_uid != 0) {
-		int err = zone_dataset_attach_uid(kcred, dsname,
-		    (uid_t)zoned_uid);
-		if (err != 0 && err != EEXIST) {
-			cmn_err(CE_WARN, "failed to restore zoned_uid for "
-			    "'%s' (uid %llu): %d", dsname,
-			    (unsigned long long)zoned_uid, err);
-		}
-	}
+	zone_dataset_set_uid(dsname, zoned_uid);
 	return (0);
 }
 
 void
 spa_import_os(spa_t *spa)
 {
-	(void) dmu_objset_find(spa_name(spa),
+	int error;
+
+	zone_dataset_remove_uid(spa_name(spa));
+	error = dmu_objset_find(spa_name(spa),
 	    spa_restore_zoned_uid_cb, NULL, DS_FIND_CHILDREN);
-}
-
-static int
-spa_cleanup_zoned_uid_cb(const char *dsname, void *arg)
-{
-	(void) arg;
-	uint64_t zoned_uid = 0;
-
-	if (dsl_prop_get(dsname, "zoned_uid", 8, 1, &zoned_uid, NULL) != 0)
-		return (0);
-
-	if (zoned_uid != 0) {
-		int err = zone_dataset_detach_uid(kcred, dsname,
-		    (uid_t)zoned_uid);
-		if (err != 0 && err != ENOENT) {
-			cmn_err(CE_WARN, "failed to detach zoned_uid for "
-			    "'%s' (uid %llu): %d", dsname,
-			    (unsigned long long)zoned_uid, err);
-		}
+	if (error != 0) {
+		zone_dataset_remove_uid(spa_name(spa));
+		cmn_err(CE_WARN, "failed to restore zoned_uid for pool "
+		    "'%s': %d", spa_name(spa), error);
 	}
-	return (0);
 }
 
 void
 spa_export_os(spa_t *spa)
 {
-	(void) dmu_objset_find(spa_name(spa),
-	    spa_cleanup_zoned_uid_cb, NULL, DS_FIND_CHILDREN);
+	zone_dataset_remove_uid(spa_name(spa));
 }
 
 void
