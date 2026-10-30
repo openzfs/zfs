@@ -4299,8 +4299,8 @@ zfs_fillpage(struct inode *ip, struct page *pp)
  * Timestamps:
  *	vp - atime updated
  */
-int
-zfs_getpage(struct inode *ip, struct page *pp)
+static int
+zfs_getpage_impl(struct inode *ip, struct page *pp, boolean_t readahead)
 {
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
 	znode_t *zp = ITOZ(ip);
@@ -4337,6 +4337,13 @@ zfs_getpage(struct inode *ip, struct page *pp)
 	zfs_locked_range_t *lr = zfs_rangelock_tryenter(&zp->z_rangelock,
 	    io_off, io_len, RL_READER);
 	if (lr == NULL) {
+		if (readahead) {
+			/*
+			 * Do not block for speculative readahead.
+			 */
+			zfs_exit(zfsvfs, FTAG);
+			return (EAGAIN);
+		}
 		/*
 		 * It is important to drop the page lock before grabbing the
 		 * rangelock to avoid another deadlock between here and
@@ -4359,6 +4366,18 @@ zfs_getpage(struct inode *ip, struct page *pp)
 	zfs_exit(zfsvfs, FTAG);
 
 	return (error);
+}
+
+int
+zfs_getpage(struct inode *ip, struct page *pp)
+{
+	return (zfs_getpage_impl(ip, pp, B_FALSE));
+}
+
+int
+zfs_getpage_readahead(struct inode *ip, struct page *pp)
+{
+	return (zfs_getpage_impl(ip, pp, B_TRUE));
 }
 
 /*
