@@ -67,6 +67,7 @@ typedef enum dsl_scan_flags {
 	DSF_VISIT_DS_AGAIN = 1<<0,
 	DSF_SCRUB_PAUSED = 1<<1,
 	DSF_SCRUB_THOROUGH = 1<<2,
+	DSF_QUEUED_UNWALKED = 1<<3,
 } dsl_scan_flags_t;
 
 typedef struct dsl_errorscrub_phys {
@@ -140,6 +141,13 @@ typedef struct dsl_scan {
 	boolean_t scn_suspending;	/* scan is suspending until next txg */
 	uint64_t scn_last_checkpoint;	/* time of last checkpoint */
 
+	/* see scan_hook_add() */
+	boolean_t scn_in_hook;		/* a hook is enqueueing */
+	boolean_t scn_unwalked_dirty;	/* flag set, not synced yet */
+	boolean_t scn_unwalked_late;	/* hook saw a block late */
+	avl_tree_t scn_hook_reads;	/* hook reads to issue */
+	kmutex_t scn_hook_reads_lock;	/* protects scn_hook_reads */
+
 	/* members for thread synchronization */
 	zio_t *scn_zio_root;		/* root zio for waiting on IO */
 	taskq_t *scn_taskq;		/* task queue for issuing extents */
@@ -207,11 +215,13 @@ boolean_t dsl_scan_resilver_scheduled(struct dsl_pool *dp);
 boolean_t dsl_dataset_unstable(struct dsl_dataset *ds);
 void dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
     ddt_t *ddt, ddt_lightweight_entry_t *ddlwe, dmu_tx_t *tx);
+void dsl_scan_brt_entry(dsl_scan_t *scn, const blkptr_t *bp);
 void dsl_scan_ds_destroyed(struct dsl_dataset *ds, struct dmu_tx *tx);
 void dsl_scan_ds_snapshotted(struct dsl_dataset *ds, struct dmu_tx *tx);
 void dsl_scan_ds_clone_swapped(struct dsl_dataset *ds1, struct dsl_dataset *ds2,
     struct dmu_tx *tx);
 boolean_t dsl_scan_active(dsl_scan_t *scn);
+boolean_t dsl_scan_brt_wanted(const dsl_scan_t *scn);
 boolean_t dsl_scan_is_paused_scrub(const dsl_scan_t *scn);
 boolean_t dsl_errorscrub_is_paused(const dsl_scan_t *scn);
 void dsl_scan_freed(spa_t *spa, const blkptr_t *bp);

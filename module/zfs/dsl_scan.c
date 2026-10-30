@@ -121,6 +121,19 @@ static void scan_ds_queue_remove(dsl_scan_t *scn, uint64_t dsobj);
 static void scan_ds_queue_sync(dsl_scan_t *scn, dmu_tx_t *tx);
 static uint64_t dsl_scan_count_data_disks(spa_t *spa);
 static void read_by_block_level(dsl_scan_t *scn, zbookmark_phys_t zb);
+static int scan_hook_read_compare(const void *a, const void *b);
+static void scan_hook_reads_clear(dsl_scan_t *scn);
+static void dsl_scan_mark_unwalked(dsl_scan_t *scn);
+
+/* What a scan must do with a block, see dsl_scan_bp_need() */
+typedef enum {
+	SCAN_BP_RANGE,	/* born outside the scan's txg range */
+	SCAN_BP_NO_IO,	/* in range, but no DVA needs a read */
+	SCAN_BP_IO,	/* the scan must read it */
+} scan_bp_need_t;
+
+static scan_bp_need_t dsl_scan_bp_need(const dsl_scan_t *scn,
+    const blkptr_t *bp);
 
 extern uint_t zfs_vdev_async_write_active_min_dirty_percent;
 static int zfs_scan_blkstats = 0;
@@ -252,6 +265,13 @@ typedef struct {
 	uint64_t	sds_txg;
 	avl_node_t	sds_node;
 } scan_ds_t;
+
+/* A read a hook found, for dsl_scan_hook_reads() to issue */
+typedef struct {
+	avl_node_t	shr_node;
+	blkptr_t	shr_bp;
+	int		shr_zio_flags;
+} scan_hook_read_t;
 
 /*
  * This controls what conditions are placed on dsl_scan_sync_state():
@@ -595,6 +615,11 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 	avl_create(&scn->scn_prefetch_queue, scan_prefetch_queue_compare,
 	    sizeof (scan_prefetch_issue_ctx_t),
 	    offsetof(scan_prefetch_issue_ctx_t, spic_avl_node));
+	avl_create(&scn->scn_hook_reads, scan_hook_read_compare,
+	    sizeof (scan_hook_read_t),
+	    offsetof(scan_hook_read_t, shr_node));
+	mutex_init(&scn->scn_hook_reads_lock, NULL, MUTEX_DEFAULT,
+	    NULL);
 
 	err = zap_lookup(dp->dp_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
 	    "scrub_func", sizeof (uint64_t), 1, &f);
@@ -693,6 +718,20 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 			    "by old software; restarting in txg %llu",
 			    spa->spa_name,
 			    (longlong_t)scn->scn_restart_txg);
+		} else if (dsl_scan_is_running(scn) &&
+		    (scn->scn_phys.scn_flags & DSF_QUEUED_UNWALKED)) {
+			/*
+			 * A hook saw a block behind the bookmark,
+			 * and its read may still have waited in
+			 * scn_hook_reads.  If so, the read was lost,
+			 * and the walk will not reach the block
+			 * again.
+			 */
+			scn->scn_restart_txg = txg;
+			zfs_dbgmsg("scan may have lost reads queued "
+			    "outside the walk; restarting on %s in "
+			    "txg %llu", spa->spa_name,
+			    (u_longlong_t)scn->scn_restart_txg);
 		} else if (dsl_scan_resilvering(dp)) {
 			/*
 			 * If a resilver is in progress and there are already
@@ -755,6 +794,9 @@ dsl_scan_fini(dsl_pool_t *dp)
 		mutex_destroy(&scn->scn_queue_lock);
 		scan_ds_prefetch_queue_clear(scn);
 		avl_destroy(&scn->scn_prefetch_queue);
+		scan_hook_reads_clear(scn);
+		avl_destroy(&scn->scn_hook_reads);
+		mutex_destroy(&scn->scn_hook_reads_lock);
 
 		kmem_free(dp->dp_scan, sizeof (dsl_scan_t));
 		dp->dp_scan = NULL;
@@ -930,6 +972,7 @@ dsl_scan_sync_state(dsl_scan_t *scn, dmu_tx_t *tx, state_sync_type_t sync_type)
 		    &scn->scn_phys, tx));
 		memcpy(&scn->scn_phys_cached, &scn->scn_phys,
 		    sizeof (scn->scn_phys));
+		scn->scn_unwalked_dirty = B_FALSE;
 
 		if (scn->scn_checkpointing)
 			zfs_dbgmsg("finish scan checkpoint for %s",
@@ -942,6 +985,7 @@ dsl_scan_sync_state(dsl_scan_t *scn, dmu_tx_t *tx, state_sync_type_t sync_type)
 		    DMU_POOL_DIRECTORY_OBJECT,
 		    DMU_POOL_SCAN, sizeof (uint64_t), SCAN_PHYS_NUMINTS,
 		    &scn->scn_phys_cached, tx));
+		scn->scn_unwalked_dirty = B_FALSE;
 	}
 }
 
@@ -1227,8 +1271,11 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 	}
 	scan_ds_queue_clear(scn);
 	scan_ds_prefetch_queue_clear(scn);
+	scan_hook_reads_clear(scn);
 
 	scn->scn_phys.scn_flags &= ~DSF_SCRUB_PAUSED;
+	scn->scn_phys.scn_flags &= ~DSF_QUEUED_UNWALKED;
+	scn->scn_unwalked_late = B_FALSE;
 
 	/*
 	 * If we were "restarted" from a stopped state, don't bother
@@ -1602,6 +1649,32 @@ scan_ds_queue_clear(dsl_scan_t *scn)
 	while ((sds = avl_destroy_nodes(&scn->scn_queue, &cookie)) != NULL) {
 		kmem_free(sds, sizeof (*sds));
 	}
+}
+
+static int
+scan_hook_read_compare(const void *a, const void *b)
+{
+	const scan_hook_read_t *ra = a, *rb = b;
+	const dva_t *da = &ra->shr_bp.blk_dva[0];
+	const dva_t *db = &rb->shr_bp.blk_dva[0];
+	int cmp = TREE_CMP(DVA_GET_VDEV(da), DVA_GET_VDEV(db));
+
+	if (cmp != 0)
+		return (cmp);
+	return (TREE_CMP(DVA_GET_OFFSET(da), DVA_GET_OFFSET(db)));
+}
+
+static void
+scan_hook_reads_clear(dsl_scan_t *scn)
+{
+	void *cookie = NULL;
+	scan_hook_read_t *shr;
+
+	mutex_enter(&scn->scn_hook_reads_lock);
+	while ((shr = avl_destroy_nodes(&scn->scn_hook_reads,
+	    &cookie)) != NULL)
+		kmem_free(shr, sizeof (*shr));
+	mutex_exit(&scn->scn_hook_reads_lock);
 }
 
 static boolean_t
@@ -3097,8 +3170,8 @@ enqueue_cb(dsl_pool_t *dp, dsl_dataset_t *hds, void *arg)
 	return (0);
 }
 
-void
-dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
+static void
+dsl_scan_ddt_entry_impl(dsl_scan_t *scn, enum zio_checksum checksum,
     ddt_t *ddt, ddt_lightweight_entry_t *ddlwe, dmu_tx_t *tx)
 {
 	(void) tx;
@@ -3107,20 +3180,6 @@ dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
 	zbookmark_phys_t zb = { 0 };
 
 	if (!dsl_scan_is_running(scn))
-		return;
-
-	/*
-	 * This function is special because it is the only thing
-	 * that can add scan_io_t's to the vdev scan queues from
-	 * outside dsl_scan_sync(). For the most part this is ok
-	 * as long as it is called from within syncing context.
-	 * However, dsl_scan_sync() expects that no new sio's will
-	 * be added between when all the work for a scan is done
-	 * and the next txg when the scan is actually marked as
-	 * completed. This check ensures we do not issue new sio's
-	 * during this period.
-	 */
-	if (scn->scn_done_txg != 0)
 		return;
 
 	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
@@ -3134,6 +3193,46 @@ dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
 		scn->scn_visited_this_txg++;
 		scan_funcs[scn->scn_phys.scn_func](scn->scn_dp, &bp, &zb);
 	}
+}
+
+/*
+ * The hook that ddt_sync() calls.  The walk's DDT phase,
+ * dsl_scan_ddt(), calls dsl_scan_ddt_entry_impl() instead.
+ */
+void
+dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
+    ddt_t *ddt, ddt_lightweight_entry_t *ddlwe, dmu_tx_t *tx)
+{
+	/*
+	 * After the walk has ended a hook only marks the scan, see
+	 * scan_hook_add(), and the block is not counted again.
+	 */
+	if (dsl_scan_is_running(scn) && scn->scn_done_txg != 0) {
+		const ddt_key_t *ddk = &ddlwe->ddlwe_key;
+		const ddt_univ_phys_t *ddp = &ddlwe->ddlwe_phys;
+		blkptr_t bp;
+
+		for (int p = 0; p < DDT_NPHYS(ddt); p++) {
+			ddt_phys_variant_t v =
+			    DDT_PHYS_VARIANT(ddt, p);
+
+			if (ddt_phys_birth(ddp, v) == 0)
+				continue;
+			ddt_bp_create(checksum, ddk, ddp, v, &bp);
+			if (zfs_no_scrub_io ||
+			    dsl_scan_bp_need(scn, &bp) != SCAN_BP_IO)
+				continue;
+			scn->scn_unwalked_late = B_TRUE;
+			dsl_scan_mark_unwalked(scn);
+			break;
+		}
+		return;
+	}
+
+	/* dsl_scan_enqueue() puts the reads on scn_hook_reads. */
+	scn->scn_in_hook = B_TRUE;
+	dsl_scan_ddt_entry_impl(scn, checksum, ddt, ddlwe, tx);
+	scn->scn_in_hook = B_FALSE;
 }
 
 /*
@@ -3167,7 +3266,8 @@ dsl_scan_ddt_entry(dsl_scan_t *scn, enum zio_checksum checksum,
  * To catch this, ddt_sync_entry() notifies the scrub code whenever a block's
  * reference class transitions to a higher level (i.e DDT_CLASS_UNIQUE to
  * DDT_CLASS_DUPLICATE); if it transitions from refcnt == 1 to refcnt > 1
- * while a scrub is in progress, it scrubs the block right then.
+ * while a scrub is in progress, the scrub reads the block from
+ * scn_hook_reads (see scan_hook_add()).
  */
 static void
 dsl_scan_ddt(dsl_scan_t *scn, dmu_tx_t *tx)
@@ -3192,7 +3292,8 @@ dsl_scan_ddt(dsl_scan_t *scn, dmu_tx_t *tx)
 		ddt = scn->scn_dp->dp_spa->spa_ddt[ddb->ddb_checksum];
 		ASSERT(avl_first(&ddt->ddt_tree) == NULL);
 
-		dsl_scan_ddt_entry(scn, ddb->ddb_checksum, ddt, &ddlwe, tx);
+		dsl_scan_ddt_entry_impl(scn, ddb->ddb_checksum, ddt,
+		    &ddlwe, tx);
 		n++;
 
 		if (dsl_scan_check_suspend(scn, NULL))
@@ -3877,6 +3978,14 @@ dsl_scan_active(dsl_scan_t *scn)
 }
 
 boolean_t
+dsl_scan_brt_wanted(const dsl_scan_t *scn)
+{
+	if (dsl_errorscrubbing(scn->scn_dp))
+		return (B_FALSE);
+	return (dsl_scan_is_running(scn));
+}
+
+boolean_t
 dsl_errorscrub_active(dsl_scan_t *scn)
 {
 	spa_t *spa = scn->scn_dp->dp_spa;
@@ -3957,6 +4066,31 @@ dsl_scan_need_resilver(spa_t *spa, const dva_t *dva, size_t psize,
 		return (B_FALSE);
 
 	return (B_TRUE);
+}
+
+/*
+ * Decides, with no side effects, whether the scan must read bp.  A
+ * scrub reads every block in its txg range.  A resilver reads one
+ * when a DVA needs it.
+ */
+static scan_bp_need_t
+dsl_scan_bp_need(const dsl_scan_t *scn, const blkptr_t *bp)
+{
+	spa_t *spa = scn->scn_dp->dp_spa;
+	uint64_t phys_birth = BP_GET_PHYSICAL_BIRTH(bp);
+
+	if (phys_birth <= scn->scn_phys.scn_min_txg ||
+	    phys_birth >= scn->scn_phys.scn_max_txg)
+		return (SCAN_BP_RANGE);
+	if (scn->scn_phys.scn_func == POOL_SCAN_SCRUB)
+		return (SCAN_BP_IO);
+	ASSERT3U(scn->scn_phys.scn_func, ==, POOL_SCAN_RESILVER);
+	for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
+		if (dsl_scan_need_resilver(spa, &bp->blk_dva[d],
+		    BP_GET_PSIZE(bp), phys_birth))
+			return (SCAN_BP_IO);
+	}
+	return (SCAN_BP_NO_IO);
 }
 
 static int
@@ -4494,6 +4628,61 @@ dsl_errorscrub_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 }
 
 /*
+ * Issues the reads on scn_hook_reads in DVA order, for as long as the
+ * issuing phase of this txg may run, and waits for them.  The rest
+ * wait for later txgs.  Once none is left, the restart flag is
+ * cleared and written in this txg, unless a hook marked the scan
+ * after the walk ended (see scan_hook_add()).
+ */
+static void
+dsl_scan_hook_reads(dsl_scan_t *scn, dmu_tx_t *tx)
+{
+	dsl_pool_t *dp = scn->scn_dp;
+	zbookmark_phys_t zb = { 0 };
+	scan_hook_read_t *shr;
+	uint64_t issued = 0;
+
+	if (!avl_is_empty(&scn->scn_hook_reads)) {
+		ASSERT0P(scn->scn_zio_root);
+		scn->scn_zio_root = zio_root(dp->dp_spa, NULL, NULL,
+		    ZIO_FLAG_CANFAIL);
+		while (!scan_io_queue_check_suspend(scn)) {
+			mutex_enter(&scn->scn_hook_reads_lock);
+			shr = avl_first(&scn->scn_hook_reads);
+			if (shr != NULL)
+				avl_remove(&scn->scn_hook_reads, shr);
+			mutex_exit(&scn->scn_hook_reads_lock);
+			if (shr == NULL)
+				break;
+			scan_exec_io(dp, &shr->shr_bp,
+			    shr->shr_zio_flags, &zb, NULL);
+			kmem_free(shr, sizeof (*shr));
+			issued++;
+		}
+		(void) zio_wait(scn->scn_zio_root);
+		scn->scn_zio_root = NULL;
+		if (issued != 0) {
+			zfs_dbgmsg("scan issued %llu hook reads for "
+			    "%s; %llu left", (u_longlong_t)issued,
+			    dp->dp_spa->spa_name, (u_longlong_t)
+			    avl_numnodes(&scn->scn_hook_reads));
+		}
+	}
+
+	if (avl_is_empty(&scn->scn_hook_reads) &&
+	    !scn->scn_unwalked_late &&
+	    (scn->scn_phys_cached.scn_flags & DSF_QUEUED_UNWALKED)) {
+		dsl_scan_phys_t *cached = &scn->scn_phys_cached;
+
+		scn->scn_phys.scn_flags &= ~DSF_QUEUED_UNWALKED;
+		cached->scn_flags &= ~DSF_QUEUED_UNWALKED;
+		dsl_scan_sync_state(scn, tx, SYNC_CACHED);
+		zfs_dbgmsg("scan read every hook block; cleared the "
+		    "restart flag on %s", dp->dp_spa->spa_name);
+	}
+}
+
+/*
  * This is the primary entry point for scans that is called from syncing
  * context. Scans must happen entirely during syncing context so that we
  * can guarantee that blocks we are currently scanning will not change out
@@ -4509,6 +4698,10 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	spa_t *spa = dp->dp_spa;
 	state_sync_type_t sync_type = SYNC_OPTIONAL;
 	int restart_early = 0;
+
+	/* See dsl_scan_mark_unwalked(). */
+	if (scn->scn_unwalked_dirty)
+		dsl_scan_sync_state(scn, tx, SYNC_CACHED);
 
 	if (spa->spa_resilver_deferred) {
 		uint64_t to_issue, issued;
@@ -4548,14 +4741,28 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	 * current scan progress is below zfs_resilver_defer_percent.
 	 */
 	if (dsl_scan_restarting(scn, tx) || restart_early) {
+		dsl_scan_phys_t *scnp = &scn->scn_phys;
 		setup_sync_arg_t setup_sync_arg = {
 			.func = POOL_SCAN_SCRUB,
 			.txgstart = 0,
 			.txgend = 0,
 		};
+		/* A scrub that lost hook reads restarts as it was. */
+		setup_sync_arg_t scrub_arg = {
+			.func = POOL_SCAN_SCRUB,
+			.txgstart = scnp->scn_min_txg,
+			.txgend = scnp->scn_max_txg,
+			.flags = scnp->scn_flags &
+			    (DSF_SCRUB_THOROUGH | DSF_SCRUB_PAUSED),
+		};
+		boolean_t keep = dsl_scan_scrubbing(dp) &&
+		    (scnp->scn_flags & DSF_QUEUED_UNWALKED);
+
 		dsl_scan_done(scn, B_FALSE, tx);
 		if (vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL))
 			setup_sync_arg.func = POOL_SCAN_RESILVER;
+		else if (keep)
+			setup_sync_arg = scrub_arg;
 		zfs_dbgmsg("restarting scan func=%u on %s txg=%llu early=%d",
 		    setup_sync_arg.func, dp->dp_spa->spa_name,
 		    (longlong_t)tx->tx_txg, restart_early);
@@ -4609,6 +4816,9 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	 * blocks than to scrub them.
 	 */
 	err = dsl_process_async_destroys(dp, tx);
+	/* Its ddt_sync() may have run a hook that marked the scan. */
+	if (scn->scn_unwalked_dirty)
+		dsl_scan_sync_state(scn, tx, SYNC_CACHED);
 	if (err != 0)
 		return;
 
@@ -4646,6 +4856,8 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		scn->scn_issued_before_pass += spa->spa_scan_pass_issued;
 		spa_scan_stat_init(spa);
 	}
+
+	dsl_scan_hook_reads(scn, tx);
 
 	/*
 	 * It is possible to switch from unsorted to sorted at any time,
@@ -4807,7 +5019,9 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		    scn->scn_sync_start_time),
 		    (longlong_t)scn->scn_avg_zio_size_this_txg,
 		    (longlong_t)scn->scn_avg_seg_size_this_txg);
-	} else if (scn->scn_done_txg != 0 && scn->scn_done_txg <= tx->tx_txg) {
+	} else if (scn->scn_done_txg != 0 &&
+	    scn->scn_done_txg <= tx->tx_txg &&
+	    avl_is_empty(&scn->scn_hook_reads)) {
 		/* Finished with everything. Mark the scrub as complete */
 		zfs_dbgmsg("scan issuing complete txg %llu for %s",
 		    (longlong_t)tx->tx_txg,
@@ -4946,6 +5160,62 @@ scan_io_queue_insert(dsl_scan_io_queue_t *queue, const blkptr_t *bp, int dva_i,
 }
 
 /*
+ * A hook put a read on scn_hook_reads for a block that may now be
+ * reachable only from behind the bookmark.  An export or crash before
+ * the read issues loses it, so the scan restarts on import (see
+ * dsl_scan_init()).  dsl_scan_sync() writes the flag in the txg of
+ * the reference.  dsl_scan_hook_reads() clears it once
+ * scn_hook_reads is empty, or dsl_scan_done() does after a late mark.
+ */
+static void
+dsl_scan_mark_unwalked(dsl_scan_t *scn)
+{
+	if (scn->scn_phys_cached.scn_flags & DSF_QUEUED_UNWALKED)
+		return;
+	scn->scn_phys.scn_flags |= DSF_QUEUED_UNWALKED;
+	scn->scn_phys_cached.scn_flags |= DSF_QUEUED_UNWALKED;
+	scn->scn_unwalked_dirty = B_TRUE;
+}
+
+/*
+ * Hooks see new references to blocks in syncing context, outside
+ * dsl_scan_sync().  Their reads never enter the vdev queues, so they
+ * never hold up a checkpoint.  dsl_scan_hook_reads() issues them, and
+ * the scan does not finish while one waits.  A block that already
+ * waits is not added twice.
+ *
+ * No new read starts once the walk has ended.  Every live block in
+ * range was read or queued by then, but the bookmark on disk may lie
+ * before the block's new reference until the scan finishes, so the
+ * scan is marked until then.
+ */
+static void
+scan_hook_add(dsl_scan_t *scn, const blkptr_t *bp, int zio_flags)
+{
+	scan_hook_read_t *shr;
+	avl_index_t where;
+
+	if (scn->scn_done_txg != 0) {
+		scn->scn_unwalked_late = B_TRUE;
+		dsl_scan_mark_unwalked(scn);
+		return;
+	}
+
+	shr = kmem_alloc(sizeof (*shr), KM_SLEEP);
+	shr->shr_bp = *bp;
+	shr->shr_zio_flags = zio_flags;
+	mutex_enter(&scn->scn_hook_reads_lock);
+	if (avl_find(&scn->scn_hook_reads, shr, &where) == NULL) {
+		avl_insert(&scn->scn_hook_reads, shr, where);
+		shr = NULL;
+	}
+	mutex_exit(&scn->scn_hook_reads_lock);
+	if (shr != NULL)
+		kmem_free(shr, sizeof (*shr));
+	dsl_scan_mark_unwalked(scn);
+}
+
+/*
  * Given a set of I/O parameters as discovered by the metadata traversal
  * process, attempts to place the I/O into the sorted queues (if allowed),
  * or immediately executes the I/O.
@@ -4957,6 +5227,13 @@ dsl_scan_enqueue(dsl_pool_t *dp, const blkptr_t *bp, int zio_flags,
 	spa_t *spa = dp->dp_spa;
 
 	ASSERT(!BP_IS_EMBEDDED(bp));
+
+	if (dp->dp_scan->scn_in_hook) {
+		/* The hook's zero bookmark is what the read gets. */
+		ASSERT(ZB_IS_ZERO(zb));
+		scan_hook_add(dp->dp_scan, bp, zio_flags);
+		return;
+	}
 
 	/*
 	 * Gang blocks are hard to issue sequentially, so we just issue them
@@ -4991,9 +5268,7 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 {
 	dsl_scan_t *scn = dp->dp_scan;
 	spa_t *spa = dp->dp_spa;
-	uint64_t phys_birth = BP_GET_PHYSICAL_BIRTH(bp);
-	size_t psize = BP_GET_PSIZE(bp);
-	boolean_t needs_io = B_FALSE;
+	scan_bp_need_t need = dsl_scan_bp_need(scn, bp);
 	int zio_flags = ZIO_FLAG_SCAN_THREAD | ZIO_FLAG_CANFAIL;
 
 	/* A thorough scrub decrypts/decompresses, so it must not read raw. */
@@ -5001,8 +5276,7 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 		zio_flags |= ZIO_FLAG_RAW;
 
 	count_block(dp->dp_blkstats, bp);
-	if (phys_birth <= scn->scn_phys.scn_min_txg ||
-	    phys_birth >= scn->scn_phys.scn_max_txg) {
+	if (need == SCAN_BP_RANGE) {
 		/* Traversed but not scrubbed; both counters must see it. */
 		uint64_t asize = BP_GET_ASIZE(bp);
 		scn->scn_phys.scn_examined += asize;
@@ -5017,11 +5291,9 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 	ASSERT(DSL_SCAN_IS_SCRUB_RESILVER(scn));
 	if (scn->scn_phys.scn_func == POOL_SCAN_SCRUB) {
 		zio_flags |= ZIO_FLAG_SCRUB;
-		needs_io = B_TRUE;
 	} else {
 		ASSERT3U(scn->scn_phys.scn_func, ==, POOL_SCAN_RESILVER);
 		zio_flags |= ZIO_FLAG_RESILVER;
-		needs_io = B_FALSE;
 	}
 
 	/* If it's an intent log block, failure is expected. */
@@ -5038,14 +5310,9 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 		uint64_t asize = DVA_GET_ASIZE(dva);
 		scn->scn_phys.scn_examined += asize;
 		spa->spa_scan_pass_exam += asize;
-
-		/* if it's a resilver, this may not be in the target range */
-		if (!needs_io)
-			needs_io = dsl_scan_need_resilver(spa, dva, psize,
-			    phys_birth);
 	}
 
-	if (needs_io && !zfs_no_scrub_io) {
+	if (need == SCAN_BP_IO && !zfs_no_scrub_io) {
 		dsl_scan_enqueue(dp, bp, zio_flags, zb);
 	} else {
 		count_block_skipped(scn, bp, B_TRUE);
@@ -5053,6 +5320,31 @@ dsl_scan_scrub_cb(dsl_pool_t *dp,
 
 	/* do not relocate this block */
 	return (0);
+}
+
+/*
+ * The walk did not visit this block, so it adds nothing to the
+ * examined counts.
+ */
+void
+dsl_scan_brt_entry(dsl_scan_t *scn, const blkptr_t *bp)
+{
+	int zio_flags = ZIO_FLAG_SCAN_THREAD | ZIO_FLAG_CANFAIL;
+
+	ASSERT(dsl_scan_is_running(scn));
+
+	if (zfs_no_scrub_io ||
+	    dsl_scan_bp_need(scn, bp) != SCAN_BP_IO)
+		return;
+
+	if (!dsl_scan_is_thorough_scrub(scn))
+		zio_flags |= ZIO_FLAG_RAW;
+	if (scn->scn_phys.scn_func == POOL_SCAN_SCRUB)
+		zio_flags |= ZIO_FLAG_SCRUB;
+	else
+		zio_flags |= ZIO_FLAG_RESILVER;
+
+	scan_hook_add(scn, bp, zio_flags);
 }
 
 static void
@@ -5458,6 +5750,7 @@ dsl_scan_freed(spa_t *spa, const blkptr_t *bp)
 {
 	dsl_pool_t *dp = spa->spa_dsl_pool;
 	dsl_scan_t *scn = dp->dp_scan;
+	scan_hook_read_t srch, *shr;
 
 	ASSERT(!BP_IS_EMBEDDED(bp));
 	ASSERT(scn != NULL);
@@ -5466,6 +5759,24 @@ dsl_scan_freed(spa_t *spa, const blkptr_t *bp)
 
 	for (int i = 0; i < BP_GET_NDVAS(bp); i++)
 		dsl_scan_freed_dva(spa, bp, i);
+
+	/*
+	 * A hook read of freed space could read another block once
+	 * the space is reused.
+	 */
+	srch.shr_bp.blk_dva[0] = bp->blk_dva[0];
+	shr = NULL;
+	mutex_enter(&scn->scn_hook_reads_lock);
+	if (!avl_is_empty(&scn->scn_hook_reads)) {
+		shr = avl_find(&scn->scn_hook_reads, &srch, NULL);
+		if (shr != NULL)
+			avl_remove(&scn->scn_hook_reads, shr);
+	}
+	mutex_exit(&scn->scn_hook_reads_lock);
+	if (shr != NULL) {
+		count_block_skipped(scn, &shr->shr_bp, B_TRUE);
+		kmem_free(shr, sizeof (*shr));
+	}
 }
 
 /*
