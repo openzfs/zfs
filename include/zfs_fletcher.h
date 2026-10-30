@@ -123,6 +123,7 @@ typedef struct fletcher_4_func {
 	const char *name;
 } __attribute__((aligned(64))) fletcher_4_ops_t;
 
+_ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_scalar_ops;
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_superscalar_ops;
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_superscalar4_ops;
 

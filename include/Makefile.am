@@ -115,6 +115,7 @@ COMMON_H = \
 	sys/vdev_removal.h \
 	sys/vdev_trim.h \
 	sys/xvattr.h \
+	sys/zalgo.h \
 	sys/zap.h \
 	sys/zap_impl.h \
 	sys/zap_leaf.h \

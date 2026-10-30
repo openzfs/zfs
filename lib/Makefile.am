@@ -60,6 +60,7 @@ include $(srcdir)/%D%/libicp/Makefile.am
 include $(srcdir)/%D%/libnvpair/Makefile.am
 include $(srcdir)/%D%/librange_tree/Makefile.am
 include $(srcdir)/%D%/libspl/Makefile.am
+include $(srcdir)/%D%/libzalgo/Makefile.am
 include $(srcdir)/%D%/libzdb/Makefile.am
 include $(srcdir)/%D%/libzfs_core/Makefile.am
 include $(srcdir)/%D%/libzfs/Makefile.am
