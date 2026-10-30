@@ -929,6 +929,40 @@ zfs_secpolicy_destroy(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 }
 
 /*
+ * Destroying a snapshot does not require mount permissions.
+ */
+int
+zfs_secpolicy_destroy_snaps_perms(const char *name, cred_t *cr)
+{
+	int error;
+	zone_admin_result_t result;
+
+	/* Check zoned_uid delegation first */
+	result = zone_dataset_admin_check(name, ZONE_OP_DESTROY_SNAPSHOT,
+	    NULL);
+	if (result == ZONE_ADMIN_ALLOWED) {
+		/*
+		 * If you are allowed to destroy datasets, you are allowed to
+		 * destroy snapshots implicitly.
+		 */
+		if ((error = zfs_secpolicy_zoned_uid_deleg(name,
+		    ZFS_DELEG_PERM_DESTROY, cr)) == 0)
+			return (0);
+		return (zfs_secpolicy_zoned_uid_deleg(name,
+		    ZFS_DELEG_PERM_DESTROY_SNAPSHOT, cr));
+	}
+	if (result == ZONE_ADMIN_DENIED)
+		return (SET_ERROR(EPERM));
+
+	if ((error = zfs_secpolicy_write_perms(name,
+	    ZFS_DELEG_PERM_DESTROY, cr)) == 0)
+		return (0);
+
+	return (zfs_secpolicy_write_perms(name,
+	    ZFS_DELEG_PERM_DESTROY_SNAPSHOT, cr));
+}
+
+/*
  * Destroying snapshots with delegated permissions requires
  * descendant mount and destroy permissions.
  */
@@ -945,7 +979,8 @@ zfs_secpolicy_destroy_snaps(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 	for (pair = nvlist_next_nvpair(snaps, NULL); pair != NULL;
 	    pair = nextpair) {
 		nextpair = nvlist_next_nvpair(snaps, pair);
-		error = zfs_secpolicy_destroy_perms(nvpair_name(pair), cr);
+		error = zfs_secpolicy_destroy_snaps_perms(nvpair_name(pair),
+		    cr);
 		if (error == ENOENT) {
 			/*
 			 * Ignore any snapshots that don't exist (we consider
@@ -1205,6 +1240,14 @@ zfs_secpolicy_destroy_bookmarks(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 		*hashp = '\0';
 		error = zfs_secpolicy_write_perms(name,
 		    ZFS_DELEG_PERM_DESTROY, cr);
+		if (error != 0) {
+			/*
+			 * If we are not allowed to destroy datasets, see if
+			 * we are allowed to destroy snapshots.
+			 */
+			error = zfs_secpolicy_write_perms(name,
+			    ZFS_DELEG_PERM_DESTROY_SNAPSHOT, cr);
+		}
 		*hashp = '#';
 		if (error == ENOENT) {
 			/*
