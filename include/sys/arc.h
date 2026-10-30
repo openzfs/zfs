@@ -304,6 +304,9 @@ int arc_referenced(arc_buf_t *buf);
 #define	arc_referenced(buf) ((void) sizeof (buf), 0)
 #endif
 
+boolean_t arc_hold_abd_range(spa_t *spa, const blkptr_t *bp, uint64_t off,
+    uint64_t len, abd_t **viewp, arc_buf_hdr_t **hdrp, const void *tag);
+void arc_rele_abd_range(abd_t *view, arc_buf_hdr_t *hdr, const void *tag);
 int arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
     arc_read_done_func_t *done, void *priv, zio_priority_t priority,
     int flags, arc_flags_t *arc_flags, const zbookmark_phys_t *zb);
