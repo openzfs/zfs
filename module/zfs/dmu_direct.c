@@ -305,7 +305,7 @@ dmu_read_abd(dnode_t *dn, uint64_t offset, uint64_t size,
 		 * cached. This will not be considered a direct read for IO
 		 * accounting in the same way that an ARC hit is not counted.
 		 */
-		if (bp == NULL || BP_IS_HOLE(bp) || db->db_state == DB_CACHED) {
+		if (db->db_state == DB_CACHED || dbuf_is_hole(db, dn, bp)) {
 			size_t aoff = offset < db->db.db_offset ?
 			    db->db.db_offset - offset : 0;
 			size_t boff = offset > db->db.db_offset ?

@@ -1454,17 +1454,15 @@ dbuf_handle_indirect_hole(void *data, dnode_t *dn, blkptr_t *dbbp)
 }
 
 /*
- * Handle reads on dbufs that are holes, if necessary.  This function
- * requires that the dbuf's mutex is held. Returns success (0) if action
- * was taken, ENOENT if no action was taken.
+ * Check for a hole, including frees which have not yet been synced.
+ * The caller must hold db_mtx to stabilize the dirty records.
  */
-static int
-dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
+boolean_t
+dbuf_is_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
 {
 	ASSERT(MUTEX_HELD(&db->db_mtx));
-	arc_buf_t *db_data;
 
-	int is_hole = bp == NULL || BP_IS_HOLE(bp);
+	boolean_t is_hole = bp == NULL || BP_IS_HOLE(bp);
 	/*
 	 * For level 0 blocks only, if the above check didn't find a hole,
 	 * consult dnode_block_freed() to check for pending frees.
@@ -1494,7 +1492,21 @@ dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
 		}
 	}
 
-	if (is_hole) {
+	return (is_hole);
+}
+
+/*
+ * Handle reads on dbufs that are holes, if necessary.  This function
+ * requires that the dbuf's mutex is held. Returns success (0) if action
+ * was taken, ENOENT if no action was taken.
+ */
+static int
+dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
+{
+	ASSERT(MUTEX_HELD(&db->db_mtx));
+	arc_buf_t *db_data;
+
+	if (dbuf_is_hole(db, dn, bp)) {
 		db_data = dbuf_alloc_arcbuf(db);
 		memset(db_data->b_data, 0, db->db.db_size);
 
