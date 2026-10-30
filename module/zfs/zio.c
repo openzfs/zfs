@@ -3610,9 +3610,12 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 		zp.zp_dedup = B_FALSE;
 		zp.zp_dedup_verify = B_FALSE;
 		zp.zp_nopwrite = B_FALSE;
+		zp.zp_brtwrite = B_FALSE;
 		zp.zp_encrypt = gio->io_prop.zp_encrypt;
 		zp.zp_byteorder = gio->io_prop.zp_byteorder;
 		zp.zp_direct_write = B_FALSE;
+		zp.zp_rewrite = B_FALSE;
+		zp.zp_zpl_smallblk = 0;
 		memset(zp.zp_salt, 0, ZIO_DATA_SALT_LEN);
 		memset(zp.zp_iv, 0, ZIO_DATA_IV_LEN);
 		memset(zp.zp_mac, 0, ZIO_DATA_MAC_LEN);
