@@ -187,7 +187,7 @@ arc_shrinker_count(struct shrinker *shrink, struct shrink_control *sc)
 	 * See also the comment above zfs_arc_shrinker_limit.
 	 */
 	int64_t can_free = btop(arc_evictable_memory());
-	if (current_is_kswapd() && zfs_arc_shrinker_limit)
+	if (current_is_reclaim_thread() && zfs_arc_shrinker_limit)
 		can_free = MIN(can_free, zfs_arc_shrinker_limit);
 	return (can_free);
 }
@@ -230,7 +230,7 @@ arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 	 * threads were unable to asynchronously keep enough free memory
 	 * available.
 	 */
-	if (current_is_kswapd()) {
+	if (current_is_reclaim_thread()) {
 		ARCSTAT_BUMP(arcstat_memory_indirect_count);
 	} else {
 		ARCSTAT_BUMP(arcstat_memory_direct_count);
@@ -258,7 +258,7 @@ arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
 	 * the arc is already going to be evicting, so we just want to
 	 * continue to let page writes occur as quickly as possible.
 	 */
-	if (current_is_kswapd()) {
+	if (current_is_reclaim_thread()) {
 		if (spa->spa_lowmem_page_load >
 		    MAX(arc_sys_free / 4, free_memory) / 4) {
 			DMU_TX_STAT_BUMP(dmu_tx_memory_reclaim);

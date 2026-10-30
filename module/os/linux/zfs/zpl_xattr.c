@@ -756,7 +756,7 @@ __zpl_xattr_user_get(struct inode *ip, const char *name,
 ZPL_XATTR_GET_WRAPPER(zpl_xattr_user_get);
 
 static int
-__zpl_xattr_user_set(zidmap_t *idmap,
+__zpl_xattr_user_set(const zidmap_t *idmap,
     struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
@@ -859,7 +859,7 @@ __zpl_xattr_trusted_get(struct inode *ip, const char *name,
 ZPL_XATTR_GET_WRAPPER(zpl_xattr_trusted_get);
 
 static int
-__zpl_xattr_trusted_set(zidmap_t *idmap,
+__zpl_xattr_trusted_set(const zidmap_t *idmap,
     struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
@@ -919,7 +919,7 @@ __zpl_xattr_security_get(struct inode *ip, const char *name,
 ZPL_XATTR_GET_WRAPPER(zpl_xattr_security_get);
 
 static int
-__zpl_xattr_security_set(zidmap_t *idmap,
+__zpl_xattr_security_set(const zidmap_t *idmap,
     struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
@@ -1249,7 +1249,7 @@ __zpl_xattr_acl_get_default(struct inode *ip, const char *name,
 ZPL_XATTR_GET_WRAPPER(zpl_xattr_acl_get_default);
 
 static int
-__zpl_xattr_acl_set_access(zidmap_t *idmap,
+__zpl_xattr_acl_set_access(const zidmap_t *idmap,
     struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {
@@ -1285,7 +1285,7 @@ __zpl_xattr_acl_set_access(zidmap_t *idmap,
 ZPL_XATTR_SET_WRAPPER(zpl_xattr_acl_set_access);
 
 static int
-__zpl_xattr_acl_set_default(zidmap_t *idmap,
+__zpl_xattr_acl_set_default(const zidmap_t *idmap,
     struct inode *ip, const char *name,
     const void *value, size_t size, int flags)
 {

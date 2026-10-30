@@ -324,6 +324,7 @@
 #include <sys/zfs_ioctl_impl.h>
 #include <linux/fs_context.h>
 #include <linux/workqueue_compat.h>
+#include <linux/umh.h>
 #include "zfs_namecheck.h"
 
 /*
