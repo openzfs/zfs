@@ -49,7 +49,7 @@ jobs:
           if ${{ github.event_name == 'pull_request' }}; then
             head=${{ github.event.pull_request.head.sha }}
             base=${{ github.event.pull_request.base.sha }}
-            read ci_type ci_source <<< "$(python3 .github/workflows/scripts/generate-ci-type.py $head $base)"
+            read -r ci_type ci_source <<< "$(python3 .github/workflows/scripts/generate-ci-type.py $head $base)"
           fi
 
           case "$ci_type" in
@@ -87,17 +87,17 @@ jobs:
           if ${{ github.event.inputs.fedora_kernel_ver != '' }}; then
               # They specified a custom kernel version for Fedora.
               # Use only Fedora runners.
-              os_json=$(echo ${os_selection} | jq -c '[.[] | select(startswith("fedora"))]')
+              os_json=$(echo "${os_selection}" | jq -c '[.[] | select(startswith("fedora"))]')
           elif ${{ github.event.inputs.specific_os != '' }}; then
               # Use only the specified runner.
               os_json=$(jq -cn --arg os "${{ github.event.inputs.specific_os }}" '[ $os ]')
           else
               # Normal case
-              os_json=$(echo ${os_selection} | jq -c)
+              os_json=$(echo "${os_selection}" | jq -c)
           fi
 
-          echo "os=$os_json" | tee -a $GITHUB_OUTPUT
-          echo "ci_type=$ci_type" | tee -a $GITHUB_OUTPUT
+          echo "os=$os_json" | tee -a "$GITHUB_OUTPUT"
+          echo "ci_type=$ci_type" | tee -a "$GITHUB_OUTPUT"
 
       - name: Find completed fork jobs
         id: reuse
