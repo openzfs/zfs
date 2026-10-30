@@ -1212,6 +1212,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_events/zpool_events_cliargs.ksh \
 	functional/cli_root/zpool_events/zpool_events_duplicates.ksh \
 	functional/cli_root/zpool_events/zpool_events_errors.ksh \
+	functional/cli_root/zpool_events/zpool_events_fd.ksh \
 	functional/cli_root/zpool_events/zpool_events_follow.ksh \
 	functional/cli_root/zpool_events/zpool_events_poolname.ksh \
 	functional/cli_root/zpool_events/zpool_events_scrub_txg_continue_from_last.ksh \

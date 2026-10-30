@@ -14,8 +14,27 @@
 #ifndef _ZFS_IOCTL_IMPL_H_
 #define	_ZFS_IOCTL_IMPL_H_
 
-extern kmutex_t zfsdev_state_lock;
+#include <sys/fm/util.h>
+#include <sys/zfs_onexit.h>
+
 extern uint64_t zfs_max_nvlist_src_size;
+
+typedef struct zfsdev_state {
+	zfs_onexit_t	zs_onexit;
+	zfs_zevent_t	zs_zevent;
+} zfsdev_state_t;
+
+/*
+ * The file reference protects normal close. FreeBSD also retains the cdev
+ * while state is in use because destroy_dev() tears down cdev-private data
+ * even when the file remains open.
+ */
+typedef struct zfsdev_state_hold {
+	zfs_file_t		*zsh_file;
+	zfsdev_state_t		*zsh_state;
+	void			*zsh_device;
+	int			zsh_device_ref;
+} zfsdev_state_hold_t;
 
 typedef int zfs_ioc_legacy_func_t(zfs_cmd_t *);
 typedef int zfs_ioc_func_t(const char *, nvlist_t *, nvlist_t *);
@@ -82,10 +101,10 @@ void zfs_vfs_rele(zfsvfs_t *);
 long zfsdev_ioctl_common(uint_t, zfs_cmd_t *, int);
 int zfsdev_attach(void);
 void zfsdev_detach(void);
-void zfsdev_private_set_state(void *, zfsdev_state_t *);
-zfsdev_state_t *zfsdev_private_get_state(void *);
-int zfsdev_state_init(void *);
-void zfsdev_state_destroy(void *);
+int zfsdev_file_state_hold(zfs_file_t *, zfsdev_state_hold_t *);
+void zfsdev_file_state_rele(zfsdev_state_hold_t *);
+zfsdev_state_t *zfsdev_state_create(void);
+void zfsdev_state_destroy(zfsdev_state_t *);
 int zfs_kmod_init(void);
 void zfs_kmod_fini(void);
 

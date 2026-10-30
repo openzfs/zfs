@@ -6504,7 +6504,7 @@ ztest_dmu_snapshot_hold(ztest_ds_t *zd, uint64_t id)
 
 	holds = fnvlist_alloc();
 	fnvlist_add_string(holds, fullname, tag);
-	error = dsl_dataset_user_hold(holds, 0, NULL);
+	error = dsl_dataset_user_hold(holds, NULL, NULL);
 	fnvlist_free(holds);
 
 	if (error == ENOSPC) {

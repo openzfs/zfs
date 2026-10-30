@@ -337,20 +337,6 @@ zfs_file_off(zfs_file_t *zfp)
 }
 
 /*
- * Request file pointer private data
- *
- * fp - pointer to file
- *
- * Returns pointer to file private data.
- */
-void *
-zfs_file_private(zfs_file_t *zfp)
-{
-	struct file *fp = zfp;
-	return (fp->private_data);
-}
-
-/*
  * unlink file
  *
  * path - fully qualified file path
