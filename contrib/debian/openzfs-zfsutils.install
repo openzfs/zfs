@@ -31,6 +31,7 @@ usr/sbin/zinject
 usr/sbin/zpool
 usr/sbin/zstream
 usr/sbin/zstreamdump
+usr/bin/timemachine_dfree
 usr/bin/zvol_wait
 usr/lib/modules-load.d/
 usr/lib/zfs-linux/zpool.d/
