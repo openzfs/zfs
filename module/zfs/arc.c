@@ -10064,7 +10064,8 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 		    l2arc_next_sublist[pass];
 		int processed_sublists = 0;
 		while (processed_sublists < num_sublists && !full) {
-			if (consumed_headroom >= headroom)
+			if (l2arc_headroom != 0 &&
+			    consumed_headroom >= headroom)
 				break;
 
 			/*
