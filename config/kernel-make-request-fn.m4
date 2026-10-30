@@ -58,6 +58,13 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_MAKE_REQUEST_FN], [
 		lim->features = 0;
 	])
 
+	ZFS_LINUX_TEST_SRC([blkdev_queue_limits_wzeroes_unmap], [
+		#include <linux/blkdev.h>
+	],[
+		struct queue_limits *lim = NULL;
+		lim->max_hw_wzeroes_unmap_sectors = 0;
+	])
+
 	ZFS_LINUX_TEST_SRC([blk_cleanup_disk], [
 		#include <linux/blkdev.h>
 	],[
@@ -124,6 +131,20 @@ AC_DEFUN([ZFS_AC_KERNEL_MAKE_REQUEST_FN], [
 				AC_MSG_RESULT(yes)
 				AC_DEFINE([HAVE_BLKDEV_QUEUE_LIMITS_FEATURES], 1,
 				    [struct queue_limits has a features field])
+			], [
+				AC_MSG_RESULT(no)
+			])
+
+			dnl #
+			dnl # Linux 6.17 API change:
+			dnl # struct queue_limits gains max_hw_wzeroes_unmap_sectors,
+			dnl # for devices whose write-zeroes frees the range
+			dnl #
+			AC_MSG_CHECKING([whether struct queue_limits has wzeroes_unmap])
+			ZFS_LINUX_TEST_RESULT([blkdev_queue_limits_wzeroes_unmap], [
+				AC_MSG_RESULT(yes)
+				AC_DEFINE([HAVE_BLKDEV_QUEUE_LIMITS_WZEROES_UNMAP], 1,
+				    [struct queue_limits has max_hw_wzeroes_unmap_sectors])
 			], [
 				AC_MSG_RESULT(no)
 			])

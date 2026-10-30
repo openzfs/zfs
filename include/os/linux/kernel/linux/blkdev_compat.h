@@ -562,6 +562,14 @@ io_is_discard(struct bio *bio, struct request *rq)
 }
 
 static inline int
+io_is_write_zeroes(struct bio *bio, struct request *rq)
+{
+	if (rq != NULL)
+		return (req_op(rq) == REQ_OP_WRITE_ZEROES);
+	return (bio_op(bio) == REQ_OP_WRITE_ZEROES);
+}
+
+static inline int
 io_is_secure_erase(struct bio *bio, struct request *rq)
 {
 	if (rq != NULL)
