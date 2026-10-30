@@ -29,6 +29,7 @@
 typedef struct sa_attr_table {
 	sa_attr_type_t	sa_attr;
 	uint8_t sa_registered;
+	boolean_t sa_hint;	/* may be left out, see sa_set_hint() */
 	uint16_t sa_length;
 	sa_bswap_type_t sa_byteswap;
 	char *sa_name;

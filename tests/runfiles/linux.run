@@ -132,6 +132,10 @@ tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter', 'zed_fd_spill',
     'slow_vdev_degraded_sit_out']
 tags = ['functional', 'events']
 
+[tests/functional/exportfs:Linux]
+tests = ['exportfs_reconnect_dir']
+tags = ['functional', 'exportfs']
+
 [tests/functional/failmode:Linux]
 tests = ['failmode_nowait_wait']
 tags = ['functional', 'failmode']

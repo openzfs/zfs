@@ -12,7 +12,7 @@
 .\" Copyright (c) 2025 iXsystems, Inc.
 .\" Copyright (c) 2025, Klara, Inc.
 .\"
-.Dd October 13, 2026
+.Dd October 24, 2026
 .Dt ZFS-REWRITE 8
 .Os
 .
@@ -25,6 +25,11 @@
 .Oo Fl CPSWrvx Ns Oc
 .Op Fl l Ar length
 .Op Fl o Ar offset
+.Ar file Ns | Ns Ar directory Ns …
+.Nm zfs
+.Cm rewrite
+.Fl N
+.Oo Fl rvx Ns Oc
 .Ar file Ns | Ns Ar directory Ns …
 .
 .Sh DESCRIPTION
@@ -40,6 +45,20 @@ Skip blocks that are shared via block cloning (BRT).
 Cloned blocks are referenced by multiple files or datasets.
 Rewriting these blocks would create separate copies and increase space usage.
 This flag prevents such expansion by skipping cloned blocks.
+.It Fl N
+Rewrite no data; only record, for each file and directory, the position
+of its entry in its parent directory, if it doesn't have it or has an
+outdated one.
+ZFS records this hint when a file or directory is created, linked or renamed,
+and uses it to find the object's name without searching the directory, as
+the Linux NFS server does to reconnect directory file handles.
+Objects linked by an implementation that doesn't record it, such as older
+versions of ZFS, don't have it.
+Directories given as arguments are included, and with
+.Fl r
+so are the directories found under them.
+Needs write permission on each object, as rewriting its data does.
+Cannot be combined with the options that rewrite data.
 .It Fl P
 Perform physical rewrite, preserving logical birth time of blocks.
 By default, rewrite updates logical birth times, making blocks appear
@@ -74,7 +93,8 @@ Start at this offset in bytes.
 .It Fl r
 Recurse into directories.
 .It Fl v
-Print names of all successfully rewritten files.
+Print names of all successfully rewritten files
+.Pq and directories, with Fl N .
 .It Fl x
 Don't cross file system mount points when recursing.
 .El

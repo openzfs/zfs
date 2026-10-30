@@ -1778,6 +1778,11 @@ typedef struct zfs_rewrite_args {
 #define	ZFS_REWRITE_SKIP_SNAPSHOT	0x2 /* Skip snapshot-shared blocks. */
 #define	ZFS_REWRITE_SKIP_BRT		0x4 /* Skip BRT-cloned blocks. */
 #define	ZFS_REWRITE_SKIP_CURRENT_ASIZE	0x8 /* Skip blocks of current asize. */
+#define	ZFS_REWRITE_PARENT_COOKIE	0x10 /* Only record dirent cookie. */
+/*
+ * With ZFS_REWRITE_PARENT_COOKIE, arg may point to the object's name in its
+ * parent directory, which saves searching the directory for it.
+ */
 
 #define	ZFS_IOC_REWRITE		_IOW(0x83, 3, zfs_rewrite_args_t)
 

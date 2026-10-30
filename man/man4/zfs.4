@@ -2206,6 +2206,25 @@ When enabled forces ZFS to sync data when
 flags are used allowing holes in a file to be accurately reported.
 When disabled holes will not be reported in recently dirtied files.
 .
+.It Sy zfs_parent_cookie Ns = Ns Sy 1 Ns | Ns 0 Pq int
+Record, in each file and directory linked into a directory, the position
+.Pq cookie
+of its directory entry, so that its name can be found without searching the
+directory, for example when NFS reconnects a directory opened by file handle.
+The cookie is checked before use: when it is stale, the directory is searched.
+When set to
+.Sy 0 ,
+links and renames leave the recorded cookies as they are, as older
+implementations do, and the cookies of the objects linked meanwhile go stale.
+The
+.Sy dirent_name
+kstat counts names found by cookie
+.Pq Sy cookie_hits
+and directory searches
+.Pq Sy searches
+for stale or missing cookies
+.Pq Sy cookie_stale , cookie_missing .
+.
 .It Sy zfs_pd_bytes_max Ns = Ns Sy 52428800 Ns B Po 50 MiB Pc Pq int
 The number of bytes which should be prefetched during a pool traversal, like
 .Nm zfs Cm send
