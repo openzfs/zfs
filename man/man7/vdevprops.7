@@ -11,7 +11,7 @@
 .\"
 .\" Copyright (c) 2021, 2025, Klara, Inc.
 .\"
-.Dd July 23, 2024
+.Dd October 13, 2026
 .Dt VDEVPROPS 7
 .Os
 .
@@ -211,8 +211,18 @@ The path to the device for this vdev
 .It Sy allocating
 If this device should perform new allocations, used to disable a device
 when it is scheduled for later removal.
+While it is
+.Sy off ,
+a deduplicated write whose existing copies are on this device is written
+as a new block that is not deduplicated, so that it adds no reference to
+those copies.
+This does not apply while the device is being removed by
+.Nm zpool Cm remove ,
+which moves those copies itself.
 See
-.Xr zpool-remove 8 .
+.Xr zpool-remove 8
+and
+.Xr zfs-rewrite 8 .
 .It Sy alloc_bias Ns = Ns Sy none Ns | Ns Sy log Ns | Ns Sy special Ns | Ns Sy dedup
 Controls the allocation class for a top-level vdev.
 Changes take effect after an export and import of the pool.
