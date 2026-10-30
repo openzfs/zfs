@@ -567,6 +567,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/block_cloning/block_cloning_after_device_removal.ksh \
 	functional/block_cloning/block_cloning_after_trunc.ksh \
 	functional/block_cloning/block_cloning_sparse_past_eof.ksh \
+	functional/block_cloning/block_cloning_resilver_behind.ksh \
 	functional/block_cloning/block_cloning_resilver_free.ksh \
 	functional/bootfs/bootfs_001_pos.ksh \
 	functional/bootfs/bootfs_002_neg.ksh \
@@ -1623,6 +1624,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/dedup/dedup_prune_leak.ksh \
 	functional/dedup/dedup_prune_percentage.ksh \
 	functional/dedup/dedup_quota.ksh \
+	functional/dedup/dedup_resilver_export.ksh \
 	functional/dedup/dedup_zap_shrink.ksh \
 	functional/delegate/cleanup.ksh \
 	functional/delegate/setup.ksh \

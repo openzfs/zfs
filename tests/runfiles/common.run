@@ -86,7 +86,8 @@ tests = ['block_cloning_clone_mmap_cached',
     'block_cloning_lwb_buffer_overflow', 'block_cloning_clone_mmap_write',
     'block_cloning_rlimit_fsize', 'block_cloning_large_offset',
     'block_cloning_after_device_removal',
-    'block_cloning_after_trunc', 'block_cloning_resilver_free']
+    'block_cloning_after_trunc', 'block_cloning_resilver_behind',
+    'block_cloning_resilver_free']
 tags = ['functional', 'block_cloning']
 
 [tests/functional/bootfs]
@@ -741,7 +742,7 @@ tests = ['dedup_bclone', 'dedup_bclone_pruned', 'dedup_fdt_create',
     'dedup_legacy_repair', 'dedup_quota',
     'dedup_log_zdb_leak',
     'dedup_prune', 'dedup_prune_leak', 'dedup_prune_percentage',
-    'dedup_zap_shrink']
+    'dedup_resilver_export', 'dedup_zap_shrink']
 pre =
 post =
 tags = ['functional', 'dedup']

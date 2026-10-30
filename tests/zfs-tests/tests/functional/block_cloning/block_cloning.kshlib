@@ -25,3 +25,366 @@ function have_same_content
 	log_must [ "$hash1" = "$hash2" ]
 }
 
+#
+# For block_cloning_resilver_behind and dedup_resilver_export.
+# Without scan prefetch a resilver pass reads one dnode block, 32
+# files, every RB_DELAY_MS, and with zfs_txg_timeout=1 a pass lasts
+# about 1.5s, so the RB_NFILES files take about 10s to walk.  With
+# prefetch, a pass ends by waiting for reads of the dnode blocks
+# ahead of it, and the next pass walks past S from the cache.
+#
+RB_NFILES=16000
+RB_DELAY_MS=20
+RB_TRIES=3
+
+#
+# Print "txg objset object" for each scan pass of pool $1, or
+# "txg ddt 0" for a pass that starts in the DDT.
+#
+function scan_passes # pool
+{
+	kstat dbgmsg | awk -v re="doing scan sync for $1 txg " '
+		(i = index($0, re)) == 0 { next }
+		{
+			s = substr($0, i + length(re))
+			split(s, f, "[;/= ]+")
+			if (f[2] == "ddt")
+				print f[1], "ddt", 0
+			else
+				print f[1], f[3], f[4]
+		}'
+}
+
+#
+# Freeze the resilver of pool $1 once a pass starts in objset $2 past
+# object $3.  Return 1 if the resilver ends first.
+#
+function freeze_past # pool objset object
+{
+	typeset -a bm
+	typeset -i i
+
+	for (( i = 0; i < 1200; i++ )); do
+		set -A bm -- $(scan_passes $1 | tail -1)
+		if [[ ${bm[1]} == "$2" ]] && (( bm[2] > $3 )); then
+			log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
+			return 0
+		fi
+		is_pool_resilvered $1 && return 1
+		sleep 0.1
+	done
+	return 1
+}
+
+#
+# Freeze the resilver of pool $1 once a checkpoint saves its state
+# after a pass that started in objset $2 past object $3.  Return 1 if
+# the resilver ends first.
+#
+function freeze_past_checkpoint # pool objset object
+{
+	typeset -i i
+
+	for (( i = 0; i < 1200; i++ )); do
+		kstat dbgmsg | awk -v p=$1 -v os=$2 -v obj=$3 \
+		    -v re="doing scan sync for $1 txg " '
+		    (j = index($0, re)) {
+			split(substr($0, j), f, "[;/= ]+")
+			past = f[9] == os && f[10] > obj
+		    }
+		    past && $NF == p && /finish scan checkpoint for/ {
+			s = 1
+		    }
+		    END { exit !s }' && break
+		is_pool_resilvered $1 && return 1
+		sleep 0.1
+	done
+	(( i < 1200 )) || return 1
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
+}
+
+#
+# Print the scan state that pool $1 has on disk, the 24 integers of
+# dsl_scan_phys_t.  The 15th is the DDT class limit, and the 20th and
+# 21st are the objset and object of the bookmark.  zdb reads the MOS
+# of a live pool, which a txg sync can change under it, so a failed
+# read is tried again a few times.  Print nothing if every try fails.
+#
+function scan_phys # pool
+{
+	typeset out
+	typeset -i i
+
+	for (( i = 0; i < 5; i++ )); do
+		out=$(zdb -dddd $1 1 2>/dev/null | awk '
+		    $1 == "scan" && $2 == "=" && NF == 26 {
+			$1 = $2 = ""
+			print
+			exit
+		    }')
+		if [[ -n $out ]]; then
+			print -r -- "$out"
+			return 0
+		fi
+		sleep 1
+	done
+	return 1
+}
+
+#
+# DSF_QUEUED_UNWALKED in scn_flags, the 24th integer of scan_phys.
+# A hook sets it while a read it found waits to be issued.
+#
+RB_UNWALKED=8
+
+#
+# Succeed if dbgmsg shows that pool $1 restarted its scan at import
+# because RB_UNWALKED was set.
+#
+function scan_restarted_unwalked # pool
+{
+	kstat dbgmsg | awk -v s="the walk; restarting on $1 in txg " \
+	    'index($0, s) { f = 1 } END { exit !f }'
+}
+
+#
+# Succeed if dbgmsg shows that pool $1 cleared RB_UNWALKED once every
+# hook read was done.
+#
+function scan_cleared_unwalked # pool
+{
+	kstat dbgmsg | awk -v p=$1 '
+	    $NF == p && /cleared the restart flag on / { f = 1 }
+	    END { exit !f }'
+}
+
+function resilver_behind_cleanup
+{
+	zinject -c all >/dev/null 2>&1
+	restore_tunable SCAN_SUSPEND_PROGRESS
+	restore_tunable SCAN_CHECKPOINT_INTVAL
+	[[ -n $pool ]] && destroy_pool $pool
+	restore_tunable METASLAB_FORCE_GANGING
+	restore_tunable METASLAB_FORCE_GANGING_PCT
+	restore_tunable NO_SCRUB_PREFETCH
+	restore_tunable SCAN_LEGACY
+	restore_tunable TXG_TIMEOUT
+	restore_tunable DBGMSG_ENABLE
+	rm -rf $workdir
+}
+
+function resilver_behind_destroy
+{
+	destroy_pool $pool
+	pool=
+	log_must rm $workdir/disk-0 $workdir/disk-1
+}
+
+#
+# Run one arm on a new pool, one of ahead, noclone, behind, legacy,
+# gang and export.  Return 1 if it missed the window.
+#
+function resilver_behind_arm # arm try
+{
+	typeset arm=$1 try=$2
+	typeset mntpnt fdir os d dobj s sobj txg freeze=freeze_past
+	typeset -i used issued legacy=0 npass intval=$ckpt_intval
+	typeset -a ext bm sp sp2
+
+	[[ $arm == legacy ]] && legacy=1
+	log_must set_tunable32 SCAN_LEGACY $legacy
+	if [[ $arm == export ]]; then
+		freeze=freeze_past_checkpoint
+		intval=1
+	fi
+	log_must set_tunable32 SCAN_CHECKPOINT_INTVAL $intval
+	pool="$TESTPOOL1-${workdir##*.}-$arm-$try"
+	log_must truncate -s 512M $workdir/disk-0 $workdir/disk-1
+	log_must zpool create -o feature@block_cloning=enabled $pool \
+	    mirror $workdir/disk-0 $workdir/disk-1
+	log_must zfs create -o compression=off -o recordsize=128k \
+	    $pool/$TESTFS
+	mntpnt=$(get_prop mountpoint $pool/$TESTFS)
+	fdir=$mntpnt/files
+	log_must mkdir $fdir
+	sync_pool $pool
+	log_must zpool offline $pool $workdir/disk-1
+	log_must mkfiles $fdir/f $RB_NFILES
+	set -A ext -- $(ls -i $fdir | sort -n | sed -n '1p;$p')
+	dobj=${ext[0]}
+	d=$fdir/${ext[1]}
+	sobj=${ext[2]}
+	s=$fdir/${ext[3]}
+	os=$(get_prop objsetid $pool/$TESTFS)
+	log_note "$arm: D is object $dobj, S is $sobj in objset $os"
+	if [[ $arm == gang ]]; then
+		log_must set_tunable64 METASLAB_FORCE_GANGING 100000
+		log_must set_tunable32 METASLAB_FORCE_GANGING_PCT 100
+	fi
+	log_must cp $workdir/expected $s
+	sync_pool $pool
+	if [[ $arm == gang ]]; then
+		log_must set_tunable32 METASLAB_FORCE_GANGING_PCT 0
+		zdb -ddddd $pool/$TESTFS $sobj | awk '
+		    $2 == "L0" && $3 ~ /G$/ { g = 1 } END { exit !g }' ||
+		    log_fail "gang: S's block is not a gang block"
+	fi
+
+	log_must_busy zpool export $pool
+	log_must zpool import -d $workdir $pool
+	[[ $arm == ahead ]] &&
+	    log_must set_tunable32 SCAN_SUSPEND_PROGRESS 1
+	log_must zinject -d $workdir/disk-0 -D $RB_DELAY_MS:1 \
+	    -T read $pool
+	log_must zpool online $pool $workdir/disk-1
+	if [[ $arm != ahead ]] && ! $freeze $pool $os $dobj; then
+		log_note "$arm: try $try missed the window," \
+		    "no pass started past D in time"
+		log_must zinject -c all
+		resilver_behind_destroy
+		return 1
+	fi
+	sync_pool $pool
+	if [[ $arm == export ]]; then
+		# The bookmark an import resumes from must lie between
+		# D and S.
+		set -A sp -- $(scan_phys $pool)
+		npass=$(scan_passes $pool | wc -l)
+		(( ${#sp[@]} == 24 )) ||
+		    log_fail "export: zdb shows no scan state"
+		log_note "export: saved bookmark ${sp[19]}/${sp[20]}"
+		if (( sp[19] != os || sp[20] <= dobj ||
+		    sp[20] >= sobj )); then
+			log_note "export: try $try missed the window"
+			log_must zinject -c all
+			resilver_behind_destroy
+			return 1
+		fi
+	fi
+
+	if [[ $arm != noclone ]]; then
+		used=$(get_pool_prop bcloneused $pool)
+		log_must clonefile -f $s $d
+		sync_pool $pool
+		(( $(get_pool_prop bcloneused $pool) > used )) ||
+		    log_fail "$arm: D does not share S's block"
+		log_must rm $s
+		sync_pool $pool
+		sync_pool $pool
+		(( $(get_pool_prop bcloneused $pool) == 0 )) ||
+		    log_fail "$arm: S still shares D's block"
+	fi
+
+	set -A bm -- $(scan_passes $pool | tail -1)
+	txg=${bm[0]:-0}
+	log_must zinject -c all
+	if [[ $arm == behind || $arm == export ]]; then
+		set -A sp2 -- $(scan_phys $pool)
+		(( ${#sp2[@]} == 24 )) ||
+		    log_fail "$arm: zdb shows no scan state"
+		if (( !(sp2[23] & RB_UNWALKED) )); then
+			log_note "$arm: the scan flag is not on disk"
+			wrong="$wrong $arm:set"
+		fi
+	fi
+	if [[ $arm == export ]]; then
+		[[ ${sp2[19]}/${sp2[20]} == ${sp[19]}/${sp[20]} ]] &&
+		    (( $(scan_passes $pool | wc -l) == npass )) ||
+		    log_fail "export: the resilver moved while frozen"
+		log_must_busy zpool export $pool
+	fi
+	log_must set_tunable32 SCAN_SUSPEND_PROGRESS 0
+	if [[ $arm == export ]]; then
+		log_must zpool import -d $workdir $pool
+	fi
+	log_must zpool wait -t resilver $pool
+	if [[ $arm == behind ]] && ! scan_cleared_unwalked $pool; then
+		log_note "behind: the scan flag was not cleared"
+		wrong="$wrong behind:clear"
+	fi
+	if [[ $arm == export ]] &&
+	    ! scan_restarted_unwalked $pool; then
+		log_note "export: the import did not restart the scan"
+		wrong="$wrong export:restart"
+	fi
+
+	# The first pass after the release, and whether a later pass
+	# started over.
+	set -A bm -- $(scan_passes $pool | awk -v t=$txg '
+	    $1 > t && r == "" { r = $0; next }
+	    r != "" && $2 == "ddt" { r = r " restarted" }
+	    END { print r }')
+	log_note "$arm: the resilver resumed at ${bm[*]:-nothing}"
+	if [[ $arm == ahead ]]; then
+		[[ ${bm[1]} == ddt ]] ||
+		    log_fail "ahead: the walk began before the clone"
+	elif [[ $arm != export ]] && { (( ${#bm[@]} != 3 )) ||
+	    [[ ${bm[1]} != "$os" ]] ||
+	    (( bm[2] <= dobj || bm[2] >= sobj )); }; then
+		log_note "$arm: try $try missed the window," \
+		    "the walk did not stop between D and S"
+		resilver_behind_destroy
+		return 1
+	fi
+	issued=$(kstat dbgmsg |
+	    grep -c "scan issued [0-9]* blocks for $pool (")
+	(( legacy ? issued == 0 : issued > 0 )) || log_fail \
+	    "$arm: the scan issued from sorted queues in $issued txgs"
+
+	log_must zpool detach $pool $workdir/disk-0
+	log_must_busy zpool export $pool
+	log_must zpool import -d $workdir $pool
+	[[ $arm == noclone ]] && d=$s
+	if ! cmp $workdir/expected $d; then
+		log_note "$arm: $d does not read back"
+		lost="$lost $arm"
+	fi
+	resilver_behind_destroy
+	return 0
+}
+
+#
+# Clone S onto a file D that a resilver has passed, remove S, and
+# check that the resilver still copies D's block, on a sorted scan,
+# on a legacy scan, with S's block a gang block, and across an export
+# and import.  The ahead and noclone arms are the controls.
+#
+function resilver_behind
+{
+	typeset arm
+	typeset -i n
+
+	workdir=$(mktemp -d $TEST_BASE_DIR/resilver_behind.XXXXXX) ||
+	    log_fail "cannot create test directory"
+	pool=
+	lost=
+	wrong=
+	log_onexit resilver_behind_cleanup
+
+	log_must save_tunable DBGMSG_ENABLE
+	log_must save_tunable TXG_TIMEOUT
+	log_must save_tunable NO_SCRUB_PREFETCH
+	log_must save_tunable SCAN_LEGACY
+	log_must save_tunable METASLAB_FORCE_GANGING
+	log_must save_tunable METASLAB_FORCE_GANGING_PCT
+	log_must save_tunable SCAN_SUSPEND_PROGRESS
+	log_must save_tunable SCAN_CHECKPOINT_INTVAL
+	ckpt_intval=$(get_tunable SCAN_CHECKPOINT_INTVAL)
+	log_must set_tunable32 DBGMSG_ENABLE 1
+	log_must set_tunable32 TXG_TIMEOUT 1
+	log_must set_tunable32 NO_SCRUB_PREFETCH 1
+	log_must file_write -o create -f $workdir/expected -b 131072 \
+	    -c 1 -d 65
+
+	for arm in ahead noclone behind legacy gang export; do
+		for (( n = 1; n <= RB_TRIES; n++ )); do
+			resilver_behind_arm $arm $n && break
+		done
+		(( n <= RB_TRIES )) || log_fail "$arm: did not hit" \
+		    "the window in $RB_TRIES tries"
+		log_note "$arm: needed $n of $RB_TRIES tries"
+	done
+	[[ -z $lost && -z $wrong ]] || log_fail "the block did not" \
+	    "read back in:${lost:- none}, the flag was wrong" \
+	    "in:${wrong:- none}"
+}
