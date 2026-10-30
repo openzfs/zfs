@@ -197,6 +197,9 @@ well constructed with a thoughtful feature set and some useful properties:
 * A large suite of assertions and other useful functions that make it easy to
   integrate with.
 
+`TOPT=--no-fork` runs tests in the executable's process and writes stderr
+directly, including diagnostics from tests that intentionally abort a child.
+
 All OpenZFS unit tests are ultimately targeting munit, so its expected that
 they will use various features as needed. However, we also supply our own
 facilities to extend those in useful ways.
