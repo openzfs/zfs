@@ -38,6 +38,7 @@ extern void spa_feature_enable(struct spa *, spa_feature_t,
     struct dmu_tx *);
 extern void spa_feature_incr(struct spa *, spa_feature_t, struct dmu_tx *);
 extern void spa_feature_decr(struct spa *, spa_feature_t, struct dmu_tx *);
+extern int spa_feature_disable(struct spa *, spa_feature_t);
 extern boolean_t spa_feature_is_enabled(struct spa *, spa_feature_t);
 extern boolean_t spa_feature_is_active(struct spa *, spa_feature_t);
 extern boolean_t spa_feature_enabled_txg(spa_t *spa, spa_feature_t fid,
