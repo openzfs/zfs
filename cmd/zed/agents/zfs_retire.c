@@ -460,6 +460,7 @@ replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
 	ashift = zpool_get_prop_int(zhp, ZPOOL_PROP_ASHIFT, &source);
 
 	replacement = fmd_nvl_alloc(hdl, FMD_SLEEP);
+	fnvlist_add_boolean(replacement, ZPOOL_CONFIG_REPLACE_IF_UNHEALTHY);
 
 	(void) nvlist_add_string(replacement, ZPOOL_CONFIG_TYPE,
 	    VDEV_TYPE_ROOT);

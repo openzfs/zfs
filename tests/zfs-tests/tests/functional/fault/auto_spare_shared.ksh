@@ -91,12 +91,14 @@ for spare in $SPARE_FILEDEV $SPARE_DISKDEV; do
 	# 5. Verify the ZED kicks in a hot spare and check pool/device status
 	log_note "Wait for ZED to auto-spare"
 	log_must wait_vdev_state $TESTPOOL $FAIL_FILEDEVPOOL1 "FAULTED" 60
+	log_must wait_vdev_state $TESTPOOL1 $FAIL_FILEDEVPOOL2 "FAULTED" 60
 	log_must wait_vdev_state $TESTPOOL $spare "ONLINE" 60
 	log_must wait_hotspare_state $TESTPOOL $spare "INUSE"
 	log_must check_state $TESTPOOL "" "DEGRADED"
 
 	# 6. Clear the fault
 	log_must zinject -c all
+	log_must zpool clear $TESTPOOL1 $FAIL_FILEDEVPOOL2
 	log_must zpool clear $TESTPOOL $FAIL_FILEDEVPOOL1
 
 	# 7. Verify the hot spare is available and check pool/device status
