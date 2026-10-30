@@ -20,10 +20,14 @@
  *
  * Kernel fpu methods:
  *	kfpu_allowed()
- *	kfpu_begin()
- *	kfpu_end()
+ *	kfpu_begin(kfpu_ctx_t *)
+ *	kfpu_end(kfpu_ctx_t *)
  *	kfpu_init()
  *	kfpu_fini()
+ *
+ * A region of FPU use is bracketed by kfpu_begin() and kfpu_end(), which
+ * take a kfpu_ctx_t that the caller declares for that region. It holds
+ * whatever the platform needs to keep between the two calls.
  *
  * SIMD support:
  *
@@ -49,6 +53,11 @@
 #include <linux/version.h>
 #include <asm/cpufeature.h>
 
+/* No state is kept between kfpu_begin() and kfpu_end(). */
+typedef struct kfpu_ctx {
+	char kfpu_unused;
+} kfpu_ctx_t;
+
 #define	kfpu_allowed()			1
 
 #ifdef	CONFIG_ALTIVEC
@@ -72,15 +81,17 @@
 #define	ENABLE_KERNEL_SPE
 #define	DISABLE_KERNEL_SPE
 #endif
-#define	kfpu_begin()				\
+#define	kfpu_begin(ctx)				\
 	{					\
+		(void) (ctx);			\
 		preempt_disable();		\
 		ENABLE_KERNEL_ALTIVEC		\
 		ENABLE_KERNEL_VSX		\
 		ENABLE_KERNEL_SPE		\
 	}
-#define	kfpu_end()				\
+#define	kfpu_end(ctx)				\
 	{					\
+		(void) (ctx);			\
 		DISABLE_KERNEL_SPE		\
 		DISABLE_KERNEL_VSX		\
 		DISABLE_KERNEL_ALTIVEC		\

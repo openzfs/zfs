@@ -1243,6 +1243,7 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 	uint8_t *ct_buf = NULL;
 	uint8_t *tmp = (uint8_t *)ctx->gcm_tmp;
 	int rv = CRYPTO_SUCCESS;
+	kfpu_ctx_t kctx;
 
 	ASSERT(block_size == GCM_BLOCK_LEN);
 	ASSERT3S(((aes_key_t *)ctx->gcm_keysched)->ops->needs_byteswap, ==,
@@ -1282,14 +1283,14 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 
 	/* If we completed an incomplete block, encrypt and write it out. */
 	if (ctx->gcm_remainder_len > 0) {
-		kfpu_begin();
+		kfpu_begin(&kctx);
 		aes_encrypt_intel(key->encr_ks.ks32, key->nr,
 		    (const uint32_t *)cb, (uint32_t *)tmp);
 
 		gcm_xor_avx((const uint8_t *) ctx->gcm_remainder, tmp);
 		GHASH_AVX(ctx, tmp, block_size);
 		clear_fpu_regs();
-		kfpu_end();
+		kfpu_end(&kctx);
 		rv = crypto_put_output_data(tmp, out, block_size);
 		out->cd_offset += block_size;
 		gcm_incr_counter_block(ctx);
@@ -1301,12 +1302,12 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 
 	/* Do the bulk encryption in chunk_size blocks. */
 	for (; bleft >= chunk_size; bleft -= chunk_size) {
-		kfpu_begin();
+		kfpu_begin(&kctx);
 		done = encrypt_blocks(
 		    datap, ct_buf, chunk_size, key, cb, htable, ghash);
 
 		clear_fpu_regs();
-		kfpu_end();
+		kfpu_end(&kctx);
 		if (done != chunk_size) {
 			rv = CRYPTO_FAILED;
 			goto out_nofpu;
@@ -1324,7 +1325,7 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 		goto out_nofpu;
 	}
 	/* Bulk encrypt the remaining data. */
-	kfpu_begin();
+	kfpu_begin(&kctx);
 	if (bleft >= GCM_AVX_MIN_ENCRYPT_BYTES) {
 		done = encrypt_blocks(datap, ct_buf, bleft, key, cb, htable,
 		    ghash);
@@ -1368,7 +1369,7 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 	}
 out:
 	clear_fpu_regs();
-	kfpu_end();
+	kfpu_end(&kctx);
 out_nofpu:
 	if (ct_buf != NULL) {
 		vmem_free(ct_buf, chunk_size);
@@ -1390,6 +1391,7 @@ gcm_encrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 	const void *keysched = ((aes_key_t *)ctx->gcm_keysched)->encr_ks.ks32;
 	int aes_rounds = ((aes_key_t *)keysched)->nr;
 	int rv;
+	kfpu_ctx_t kctx;
 
 	ASSERT(block_size == GCM_BLOCK_LEN);
 	ASSERT3S(((aes_key_t *)ctx->gcm_keysched)->ops->needs_byteswap, ==,
@@ -1399,7 +1401,7 @@ gcm_encrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 		return (CRYPTO_DATA_LEN_RANGE);
 	}
 
-	kfpu_begin();
+	kfpu_begin(&kctx);
 	/* Pad last incomplete block with zeros, encrypt and hash. */
 	if (rem_len > 0) {
 		uint8_t *tmp = (uint8_t *)ctx->gcm_tmp;
@@ -1422,7 +1424,7 @@ gcm_encrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 
 	gcm_xor_avx((uint8_t *)J0, ghash);
 	clear_fpu_regs();
-	kfpu_end();
+	kfpu_end(&kctx);
 
 	/* Output remainder. */
 	if (rem_len > 0) {
@@ -1491,6 +1493,7 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 	uint32_t *tmp = (uint32_t *)ctx->gcm_tmp;
 	int rv = CRYPTO_SUCCESS;
 	size_t bleft, done;
+	kfpu_ctx_t kctx;
 
 	/*
 	 * Decrypt in chunks of gcm_avx_chunk_size, which is asserted to be
@@ -1498,24 +1501,24 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 	 * GCM_AVX_MIN_DECRYPT_BYTES.
 	 */
 	for (bleft = pt_len; bleft >= chunk_size; bleft -= chunk_size) {
-		kfpu_begin();
+		kfpu_begin(&kctx);
 		done = decrypt_blocks(datap, datap, chunk_size,
 		    (const void *)key, ctx->gcm_cb, htable, ghash);
 		clear_fpu_regs();
-		kfpu_end();
+		kfpu_end(&kctx);
 		if (done != chunk_size) {
 			return (CRYPTO_FAILED);
 		}
 		datap += done;
 	}
 	/* Decrypt remainder, which is less than chunk size, in one go. */
-	kfpu_begin();
+	kfpu_begin(&kctx);
 	if (bleft >= GCM_AVX_MIN_DECRYPT_BYTES) {
 		done = decrypt_blocks(datap, datap, bleft,
 		    (const void *)key, ctx->gcm_cb, htable, ghash);
 		if (done == 0) {
 			clear_fpu_regs();
-			kfpu_end();
+			kfpu_end(&kctx);
 			return (CRYPTO_FAILED);
 		}
 		datap += done;
@@ -1553,7 +1556,7 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 	}
 	if (rv != CRYPTO_SUCCESS) {
 		clear_fpu_regs();
-		kfpu_end();
+		kfpu_end(&kctx);
 		return (rv);
 	}
 	/* Decryption done, finish the tag. */
@@ -1566,7 +1569,7 @@ gcm_decrypt_final_avx(gcm_ctx_t *ctx, crypto_data_t *out, size_t block_size)
 
 	/* We are done with the FPU, restore its state. */
 	clear_fpu_regs();
-	kfpu_end();
+	kfpu_end(&kctx);
 
 	/* Compare the input authentication tag with what we calculated. */
 	if (memcmp(&ctx->gcm_pt_buf[pt_len], ghash, ctx->gcm_tag_len)) {
@@ -1602,6 +1605,7 @@ gcm_init_avx(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 	    B_FALSE);
 
 	size_t htab_len = 0;
+	kfpu_ctx_t kctx;
 #if CAN_USE_GCM_ASM >= 2
 	if (ctx->impl == GCM_IMPL_AVX2) {
 		/*
@@ -1625,7 +1629,7 @@ gcm_init_avx(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 
 	/* Init H (encrypt zero block) and create the initial counter block. */
 	memset(H, 0, sizeof (ctx->gcm_H));
-	kfpu_begin();
+	kfpu_begin(&kctx);
 	aes_encrypt_intel(keysched, aes_rounds,
 	    (const uint32_t *)H, (uint32_t *)H);
 
@@ -1653,10 +1657,10 @@ gcm_init_avx(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 		 * kfpu_begin calls.
 		 */
 		clear_fpu_regs();
-		kfpu_end();
+		kfpu_end(&kctx);
 		gcm_format_initial_blocks(iv, iv_len, ctx, block_size,
 		    aes_copy_block, aes_xor_block);
-		kfpu_begin();
+		kfpu_begin(&kctx);
 	}
 
 	memset(ctx->gcm_ghash, 0, sizeof (ctx->gcm_ghash));
@@ -1669,8 +1673,8 @@ gcm_init_avx(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 		GHASH_AVX(ctx, datap, chunk_size);
 		datap += chunk_size;
 		clear_fpu_regs();
-		kfpu_end();
-		kfpu_begin();
+		kfpu_end(&kctx);
+		kfpu_begin(&kctx);
 	}
 	/* Ghash the remainder and handle possible incomplete GCM block. */
 	if (bleft > 0) {
@@ -1691,7 +1695,7 @@ gcm_init_avx(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 		}
 	}
 	clear_fpu_regs();
-	kfpu_end();
+	kfpu_end(&kctx);
 	return (CRYPTO_SUCCESS);
 }
 

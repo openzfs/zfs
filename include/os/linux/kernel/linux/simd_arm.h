@@ -19,10 +19,14 @@
  *
  * Kernel fpu methods:
  *	kfpu_allowed()
- *	kfpu_begin()
- *	kfpu_end()
+ *	kfpu_begin(kfpu_ctx_t *)
+ *	kfpu_end(kfpu_ctx_t *)
  *	kfpu_init()
  *	kfpu_fini()
+ *
+ * A region of FPU use is bracketed by kfpu_begin() and kfpu_end(), which
+ * take a kfpu_ctx_t that the caller declares for that region. It holds
+ * whatever the platform needs to keep between the two calls.
  *
  * SIMD support:
  *
@@ -44,14 +48,19 @@
 #include <asm/elf.h>
 #include <asm/hwcap.h>
 
+/* No state is kept between kfpu_begin() and kfpu_end(). */
+typedef struct kfpu_ctx {
+	char kfpu_unused;
+} kfpu_ctx_t;
+
 #if (defined(HAVE_KERNEL_NEON) && defined(CONFIG_KERNEL_MODE_NEON))
 #define	kfpu_allowed()		1
-#define	kfpu_begin()		kernel_neon_begin()
-#define	kfpu_end()		kernel_neon_end()
+#define	kfpu_begin(ctx)		((void) (ctx), kernel_neon_begin())
+#define	kfpu_end(ctx)		((void) (ctx), kernel_neon_end())
 #else
 #define	kfpu_allowed()		0
-#define	kfpu_begin()		do {} while (0)
-#define	kfpu_end()		do {} while (0)
+#define	kfpu_begin(ctx)		((void) (ctx))
+#define	kfpu_end(ctx)		((void) (ctx))
 #endif
 #define	kfpu_init()		(0)
 #define	kfpu_fini()		do {} while (0)

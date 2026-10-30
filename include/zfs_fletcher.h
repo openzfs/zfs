@@ -123,6 +123,17 @@ typedef struct fletcher_4_func {
 	const char *name;
 } __attribute__((aligned(64))) fletcher_4_ops_t;
 
+/*
+ * Private data of the ABD adapters, provided by the caller through
+ * zio_abd_checksum_data_t.acd_private: the implementation in use, which
+ * may be switched to scalar mid-stream, and the caller's kfpu_ctx_t.
+ */
+struct kfpu_ctx;
+typedef struct fletcher_4_abd_priv {
+	const fletcher_4_ops_t	*fap_ops;
+	struct kfpu_ctx		*fap_kctx;
+} fletcher_4_abd_priv_t;
+
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_superscalar_ops;
 _ZFS_FLETCHER_H const fletcher_4_ops_t fletcher_4_superscalar4_ops;
 

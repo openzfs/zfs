@@ -41,7 +41,8 @@
 #define	kfpu_allowed()		1
 #define	kfpu_initialize(tsk)	do {} while (0)
 
-#define	kfpu_begin() {					\
+#define	kfpu_begin(ctx) {					\
+	(void) (ctx);					\
 	if (__predict_false(!is_fpu_kern_thread(0)))		\
 		fpu_kern_enter(curthread, NULL, FPU_KERN_NOCTX);\
 }
@@ -50,7 +51,8 @@
 #define	PCB_FPUNOSAVE	PCB_NPXNOSAVE
 #endif
 
-#define	kfpu_end()	{			\
+#define	kfpu_end(ctx)	{			\
+	(void) (ctx);					\
 	if (__predict_false(curpcb->pcb_flags & PCB_FPUNOSAVE))	\
 		fpu_kern_leave(curthread, NULL);	\
 }
