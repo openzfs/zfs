@@ -13,9 +13,9 @@
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
  * Copyright (c) 2014 Spectra Logic Corporation, All rights reserved.
- * Copyright 2023 Alexander Stetsenko <alex.stetsenko@gmail.com>
  * Copyright (c) 2023, Klara Inc.
  * Copyright (c) 2026, TrueNAS.
+ * Copyright 2026 Alexander Stetsenko <alex.stetsenko@gmail.com>
  */
 
 /*
@@ -1223,19 +1223,22 @@ fzap_get_stats(zap_t *zap, zap_stats_t *zs)
 static void
 zap_trunc(zap_t *zap)
 {
-	uint64_t nentries;
+	struct zap_table_phys *zt = &zap_f_phys(zap)->zap_ptrtbl;
+	uint64_t nentries = (zt->zt_blk > 0 ? (1ULL << zt->zt_shift) :
+	    (1ULL << ZAP_EMBEDDED_PTRTBL_SHIFT(zap)));
 	uint64_t lastblk;
 
 	ASSERT(RW_WRITE_HELD(&zap->zap_rwlock));
 
-	if (zap_f_phys(zap)->zap_ptrtbl.zt_blk > 0) {
+	/* get the last block allocated for ptrtbl. */
+	if (zt->zt_nextblk > 0) {
+		/* ptrtbl is growing. */
+		lastblk = zt->zt_nextblk + (zt->zt_numblks * 2) - 1;
+	} else if (zt->zt_blk > 0) {
 		/* External ptrtbl */
-		nentries = (1 << zap_f_phys(zap)->zap_ptrtbl.zt_shift);
-		lastblk = zap_f_phys(zap)->zap_ptrtbl.zt_blk +
-		    zap_f_phys(zap)->zap_ptrtbl.zt_numblks - 1;
+		lastblk = zt->zt_blk + zt->zt_numblks - 1;
 	} else {
 		/* Embedded ptrtbl */
-		nentries = (1 << ZAP_EMBEDDED_PTRTBL_SHIFT(zap));
 		lastblk = 0;
 	}
 
