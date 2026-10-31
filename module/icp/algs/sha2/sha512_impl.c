@@ -99,9 +99,16 @@ const sha512_ops_t sha512_sha512ext_impl = {
 
 #elif defined(__aarch64__) || defined(__arm__)
 extern void zfs_sha512_block_armv7(uint64_t s[8], const void *, size_t);
+
+static inline void
+tf_sha512_armv7(uint64_t s[8], const void *d, size_t b)
+{
+	zfs_sha512_block_armv7(s, d, b);
+}
+
 const sha512_ops_t sha512_armv7_impl = {
 	.is_supported = sha2_is_supported,
-	.transform = zfs_sha512_block_armv7,
+	.transform = tf_sha512_armv7,
 	.name = "armv7"
 };
 
