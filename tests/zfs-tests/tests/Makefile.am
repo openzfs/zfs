@@ -2343,10 +2343,12 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/slog/slog_indirect_shared_error.ksh \
 	functional/slog/slog_replay_fs_001.ksh \
 	functional/slog/slog_replay_fs_002.ksh \
+	functional/slog/slog_replay_fs_003.ksh \
 	functional/slog/slog_replay_fs_split_truncate.ksh \
 	functional/slog/slog_replay_fs_split_write.ksh \
 	functional/slog/slog_replay_indirect_eof.ksh \
 	functional/slog/slog_replay_indirect_order.ksh \
+	functional/slog/slog_replay_lwb_error.ksh \
 	functional/slog/slog_replay_volume.ksh \
 	functional/slog/slog_replay_volume_split_boundary.ksh \
 	functional/slog/slog_replay_volume_split_write.ksh \
