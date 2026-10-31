@@ -18,14 +18,6 @@
 #ifndef	_SYS_ZIO_CRYPT_OS_ICP_H
 #define	_SYS_ZIO_CRYPT_OS_ICP_H
 
-#include <sys/crypto/api.h>
-
-typedef struct zio_crypt_session {
-	crypto_ctx_template_t	zs_tmpl;
-} zio_crypt_session_t;
-
-typedef struct zio_crypt_hmac {
-	crypto_context_t	zh_ctx;
-} zio_crypt_hmac_t;
+#include <sys/crypto/common.h>
 
 #endif
