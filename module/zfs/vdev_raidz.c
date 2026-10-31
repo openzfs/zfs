@@ -2577,8 +2577,13 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 		if (rc->rc_size == 0)
 			continue;
 
-		ASSERT3U(rc->rc_offset + rc->rc_size, <,
-		    cvd->vdev_psize - VDEV_LABEL_END_SIZE);
+		/*
+		 * rc_offset is relative to the end of the front labels.  For
+		 * scratch area columns it wraps below zero, so compare the
+		 * physical offset.
+		 */
+		ASSERT3U(VDEV_LABEL_START_SIZE + rc->rc_offset + rc->rc_size,
+		    <=, cvd->vdev_psize - VDEV_LABEL_END_SIZE);
 
 		ASSERT3P(rc->rc_abd, !=, NULL);
 		zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
@@ -2589,8 +2594,8 @@ vdev_raidz_io_start_write(zio_t *zio, raidz_row_t *rr)
 		if (rc->rc_shadow_devidx != INT_MAX) {
 			vdev_t *cvd2 = vd->vdev_child[rc->rc_shadow_devidx];
 
-			ASSERT3U(
-			    rc->rc_shadow_offset + abd_get_size(rc->rc_abd), <,
+			ASSERT3U(VDEV_LABEL_START_SIZE + rc->rc_shadow_offset +
+			    abd_get_size(rc->rc_abd), <=,
 			    cvd2->vdev_psize - VDEV_LABEL_END_SIZE);
 
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd2,
@@ -4983,6 +4988,10 @@ overwrite:
 /*
  * We crashed in the middle of raidz_reflow_scratch_sync(); complete its work
  * here.  No other i/o can be in progress, so we don't need the vre_rangelock.
+ *
+ * If any read or write fails, the scratch area stays RRSS_SCRATCH_VALID: i/o
+ * to the start of the vdev keeps using the scratch area, and the expansion
+ * thread retries the copy in raidz_reflow_scratch_sync().
  */
 void
 vdev_raidz_reflow_copy_scratch(spa_t *spa)
@@ -4997,6 +5006,7 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 	uint64_t write_size = logical_size / raidvd->vdev_children;
 
 	zio_t *pio;
+	int error;
 
 	/*
 	 * Read from scratch space.
@@ -5007,7 +5017,7 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 		abds[i] = abd_alloc_linear(write_size, B_FALSE);
 	}
 
-	pio = zio_root(spa, NULL, NULL, 0);
+	pio = zio_root(spa, NULL, NULL, ZIO_FLAG_CANFAIL);
 	for (int i = 0; i < raidvd->vdev_children; i++) {
 		/*
 		 * Note: zio_vdev_child_io() adds VDEV_LABEL_START_SIZE to
@@ -5016,22 +5026,37 @@ vdev_raidz_reflow_copy_scratch(spa_t *spa)
 		 */
 		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
 		    VDEV_BOOT_OFFSET - VDEV_LABEL_START_SIZE, abds[i],
-		    write_size, ZIO_TYPE_READ, ZIO_PRIORITY_REMOVAL, 0,
-		    raidz_scratch_child_done, pio));
+		    write_size, ZIO_TYPE_READ, ZIO_PRIORITY_REMOVAL,
+		    ZIO_FLAG_CANFAIL, raidz_scratch_child_done, pio));
 	}
-	zio_wait(pio);
+	error = zio_wait(pio);
+	if (error != 0) {
+		zfs_dbgmsg("reflow recovery: error %d reading scratch "
+		    "location", error);
+		goto io_error_exit;
+	}
 
 	/*
 	 * Overwrite real location with reflow'ed data.
 	 */
-	pio = zio_root(spa, NULL, NULL, 0);
+	pio = zio_root(spa, NULL, NULL, ZIO_FLAG_CANFAIL);
 	for (int i = 0; i < raidvd->vdev_children; i++) {
 		zio_nowait(zio_vdev_child_io(pio, NULL, raidvd->vdev_child[i],
 		    0, abds[i], write_size, ZIO_TYPE_WRITE,
-		    ZIO_PRIORITY_REMOVAL, 0,
+		    ZIO_PRIORITY_REMOVAL, ZIO_FLAG_CANFAIL,
 		    raidz_scratch_child_done, pio));
 	}
-	zio_wait(pio);
+	error = zio_wait(pio);
+	if (error != 0) {
+		zfs_dbgmsg("reflow recovery: error %d writing real location",
+		    error);
+io_error_exit:
+		for (int i = 0; i < raidvd->vdev_children; i++)
+			abd_free(abds[i]);
+		kmem_free(abds, raidvd->vdev_children * sizeof (abd_t *));
+		spa_config_exit(spa, SCL_STATE, FTAG);
+		return;
+	}
 	pio = zio_root(spa, NULL, NULL, 0);
 	zio_flush(pio, raidvd);
 	zio_wait(pio);
