@@ -48,7 +48,8 @@ main(int argc, const char *const *argv)
 
 	int rc = EXIT_SUCCESS;
 
-	if (ioctl(fd, ZFS_IOC_CHANNEL_PROGRAM, &zc) == ZFS_ERR_IOC_CMD_UNAVAIL)
+	if (ioctl(fd, ZFS_IOC_CHANNEL_PROGRAM, &zc) == -1 &&
+	    errno == ZFS_ERR_IOC_CMD_UNAVAIL)
 		rc = EXIT_FAILURE;
 
 	close(fd);
