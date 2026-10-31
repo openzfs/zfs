@@ -2892,7 +2892,10 @@ function get_rootfs
 
 	if is_freebsd; then
 		rootfs=$(mount -p | awk '$2 == "/" && $3 == "zfs" {print $1}')
-	elif ! is_linux; then
+	elif is_linux; then
+		rootfs=$(awk '$2 == "/" && $3 == "zfs" {print $1}' \
+		    /proc/self/mounts)
+	else
 		rootfs=$(awk '$2 == "/" && $3 == "zfs" {print $1}' \
 			/etc/mnttab)
 	fi
