@@ -126,6 +126,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/channel_program/synctask_core/tst.bookmark.copy.zcp \
 	functional/channel_program/synctask_core/tst.bookmark.create.zcp \
 	functional/channel_program/synctask_core/tst.clone.zcp \
+	functional/channel_program/synctask_core/tst.clone_neg.zcp \
 	functional/channel_program/synctask_core/tst.get_index_props.out \
 	functional/channel_program/synctask_core/tst.get_index_props.zcp \
 	functional/channel_program/synctask_core/tst.get_number_props.out \
@@ -654,6 +655,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/channel_program/synctask_core/tst.bookmark.copy.ksh \
 	functional/channel_program/synctask_core/tst.bookmark.create.ksh \
 	functional/channel_program/synctask_core/tst.clone.ksh \
+	functional/channel_program/synctask_core/tst.clone_neg.ksh \
 	functional/channel_program/synctask_core/tst.destroy_fs.ksh \
 	functional/channel_program/synctask_core/tst.destroy_bookmark.ksh \
 	functional/channel_program/synctask_core/tst.destroy_snap.ksh \
