@@ -262,6 +262,12 @@ function check_fs_perm
 		receive:append)
 			verify_fs_receive_append $user $perm $fs
 			;;
+		destroy:snapshot)
+			verify_fs_destroy_snap $user $perm $fs
+			;;
+		destroy_bookmark)	# not a real permission
+			verify_fs_destroy_bookmark $user $perm $fs
+			;;
 		*)
 			common_perm $user $perm $fs
 			;;
@@ -295,6 +301,12 @@ function check_vol_perm
 			;;
 		volsize)
 			verify_vol_volsize $user $perm $vol
+			;;
+		destroy:snapshot)
+			verify_fs_destroy_snap $user $perm $vol
+			;;
+		destroy_bookmark)	# not a real permission
+			verify_fs_destroy_bookmark $user $perm $vol
 			;;
 		*)
 			common_perm $user $perm $vol
@@ -586,6 +598,64 @@ function verify_reservation
 	fi
 
 	log_must zfs set reservation=$oldval $dtst
+	return 0
+}
+
+#
+# Verify permission destroy:snapshot allows destroying a snapshot of the
+# dataset, independent of whether the dataset itself can be destroyed.
+#
+# $1 user
+# $2 permission
+# $3 dataset
+#
+function verify_fs_destroy_snap
+{
+	typeset user=$1
+	typeset perm=$2
+	typeset dtst=$3
+
+	typeset stamp=${perm}.${user}.$RANDOM
+	typeset snap=$dtst@snap.$stamp
+
+	log_must zfs snapshot $snap
+	user_run $user zfs destroy $snap
+	if datasetexists $snap ; then
+		log_must zfs destroy $snap
+		return 1
+	fi
+
+	return 0
+}
+
+#
+# Verify permission destroy:snapshot allows destroying a bookmark of the
+# dataset, independent of whether the dataset itself can be destroyed.
+#
+# $1 user
+# $2 permission
+# $3 dataset
+#
+function verify_fs_destroy_bookmark
+{
+	typeset user=$1
+	typeset perm=$2
+	typeset dtst=$3
+
+	typeset stamp=${perm}.${user}.$RANDOM
+	typeset snap=$dtst@snap.$stamp
+	typeset bmark=$dtst#bmark.$stamp
+
+	log_must zfs snapshot $snap
+	log_must zfs bookmark $snap $bmark
+	log_must zfs destroy $snap
+
+	user_run $user zfs destroy $bmark
+	if datasetexists $bmark ; then
+		log_must zfs destroy $bmark
+		return 1
+	fi
+
 	return 0
 }
 

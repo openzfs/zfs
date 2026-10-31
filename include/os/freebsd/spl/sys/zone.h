@@ -75,6 +75,7 @@ typedef enum zone_uid_op {
 	ZONE_OP_SNAPSHOT,
 	ZONE_OP_CLONE,
 	ZONE_OP_DESTROY,
+	ZONE_OP_DESTROY_SNAPSHOT,
 	ZONE_OP_RENAME,
 	ZONE_OP_SETPROP
 } zone_uid_op_t;
