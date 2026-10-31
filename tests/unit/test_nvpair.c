@@ -991,6 +991,298 @@ test_nv_prev_nvpair(const MunitParameter params[], void *data)
 
 /* ========== */
 
+/*
+ * When iterating, pairs should always be returned in insertion order. There's
+ * three different tests here, because the iteration results will depend on how
+ * the nvlist handles duplicates.
+ *
+ * The _prev_ tests should have the exact inverse results, being reverse
+ * insertion order. This is mostly there as a sanity check in case the pair
+ * list is ever implemented as something other than a doubly-linked list.
+ */
+static nvlist_t *
+nvl_fill_order(nvlist_t *nvl)
+{
+	unit_notnull(nvl);
+
+	/* Start by adding some simple keys in order. */
+	unit_ok(nvlist_add_boolean(nvl, "first"));
+	unit_ok(nvlist_add_boolean(nvl, "second"));
+	unit_ok(nvlist_add_boolean(nvl, "third"));
+	unit_ok(nvlist_add_boolean(nvl, "fourth"));
+	unit_ok(nvlist_add_boolean(nvl, "fifth"));
+	unit_ok(nvlist_add_boolean(nvl, "sixth"));
+
+	/* Reuse one of the inbetween keys. same type */
+	unit_ok(nvlist_add_boolean(nvl, "fourth"));
+
+	/* Reuse the first key, different type. */
+	unit_ok(nvlist_add_uint64(nvl, "first", 1));
+
+	/*
+	 * Reuse the last key, different type, twice over. Different value so
+	 * we can know which one we're hitting.
+	 */
+	unit_ok(nvlist_add_uint64(nvl, "sixth", 6));
+	unit_ok(nvlist_add_uint64(nvl, "sixth", 66));
+
+	/* Reuse a middle key, twice, different types each. */
+	unit_ok(nvlist_add_uint64(nvl, "third", 3));
+	unit_ok(nvlist_add_string(nvl, "third", "thirty-three"));
+
+	return (nvl);
+}
+
+static nvpair_t *
+nvl_assert_next_pair(nvlist_t *nvl, nvpair_t *pair, const char *name,
+    data_type_t type)
+{
+	pair = nvlist_next_nvpair(nvl, pair);
+	unit_notnull(pair);
+	unit_str_eq(nvpair_name(pair), name);
+	unit_eq(nvpair_type(pair), type);
+
+	return (pair);
+}
+
+static nvpair_t *
+nvl_assert_prev_pair(nvlist_t *nvl, nvpair_t *pair, const char *name,
+    data_type_t type)
+{
+	pair = nvlist_prev_nvpair(nvl, pair);
+	unit_notnull(pair);
+	unit_str_eq(nvpair_name(pair), name);
+	unit_eq(nvpair_type(pair), type);
+
+	return (pair);
+}
+
+static MunitResult
+test_nv_next_order_none(const MunitParameter params[], void *data)
+{
+	(void) params; (void) data;
+	nvlist_t *nvl = nvl_fill_order(nvl_create_type(0));
+
+	nvpair_t *pair = NULL;
+
+	/* Non-unique nvlist will just return them all in insertion order. */
+
+	pair = nvl_assert_next_pair(nvl, pair, "first", DATA_TYPE_BOOLEAN);
+	pair = nvl_assert_next_pair(nvl, pair, "second", DATA_TYPE_BOOLEAN);
+	pair = nvl_assert_next_pair(nvl, pair, "third", DATA_TYPE_BOOLEAN);
+	pair = nvl_assert_next_pair(nvl, pair, "fourth", DATA_TYPE_BOOLEAN);
+	pair = nvl_assert_next_pair(nvl, pair, "fifth", DATA_TYPE_BOOLEAN);
+	pair = nvl_assert_next_pair(nvl, pair, "sixth", DATA_TYPE_BOOLEAN);
+
+	pair = nvl_assert_next_pair(nvl, pair, "fourth", DATA_TYPE_BOOLEAN);
+
+	pair = nvl_assert_next_pair(nvl, pair, "first", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 1);
+
+	pair = nvl_assert_next_pair(nvl, pair, "sixth", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 6);
+	pair = nvl_assert_next_pair(nvl, pair, "sixth", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 66);
+
+	pair = nvl_assert_next_pair(nvl, pair, "third", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 3);
+	pair = nvl_assert_next_pair(nvl, pair, "third", DATA_TYPE_STRING);
+	unit_str_eq(fnvpair_value_string(pair), "thirty-three");
+
+	unit_null(nvlist_next_nvpair(nvl, pair));
+
+	nvlist_free(nvl);
+	return (MUNIT_OK);
+}
+
+static MunitResult
+test_nv_prev_order_none(const MunitParameter params[], void *data)
+{
+	(void) params; (void) data;
+	nvlist_t *nvl = nvl_fill_order(nvl_create_type(0));
+
+	nvpair_t *pair = NULL;
+
+	pair = nvl_assert_prev_pair(nvl, pair, "third", DATA_TYPE_STRING);
+	unit_str_eq(fnvpair_value_string(pair), "thirty-three");
+	pair = nvl_assert_prev_pair(nvl, pair, "third", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 3);
+
+	pair = nvl_assert_prev_pair(nvl, pair, "sixth", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 66);
+	pair = nvl_assert_prev_pair(nvl, pair, "sixth", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 6);
+
+	pair = nvl_assert_prev_pair(nvl, pair, "first", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 1);
+
+	pair = nvl_assert_prev_pair(nvl, pair, "fourth", DATA_TYPE_BOOLEAN);
+
+	pair = nvl_assert_prev_pair(nvl, pair, "sixth", DATA_TYPE_BOOLEAN);
+	pair = nvl_assert_prev_pair(nvl, pair, "fifth", DATA_TYPE_BOOLEAN);
+	pair = nvl_assert_prev_pair(nvl, pair, "fourth", DATA_TYPE_BOOLEAN);
+	pair = nvl_assert_prev_pair(nvl, pair, "third", DATA_TYPE_BOOLEAN);
+	pair = nvl_assert_prev_pair(nvl, pair, "second", DATA_TYPE_BOOLEAN);
+	pair = nvl_assert_prev_pair(nvl, pair, "first", DATA_TYPE_BOOLEAN);
+
+	unit_null(nvlist_prev_nvpair(nvl, pair));
+
+	nvlist_free(nvl);
+	return (MUNIT_OK);
+}
+
+static MunitResult
+test_nv_next_order_name(const MunitParameter params[], void *data)
+{
+	(void) params; (void) data;
+	nvlist_t *nvl = nvl_fill_order(nvl_create_type(NV_UNIQUE_NAME));
+
+	nvpair_t *pair = NULL;
+
+	/*
+	 * nvlist will hold one and only one pair for each name. Duplicates
+	 * inserted earlier are removed, new ones go to the end. So still
+	 * insertion order, for the last of the name.
+	 */
+
+	/* "first" was replaced */
+	pair = nvl_assert_next_pair(nvl, pair, "second", DATA_TYPE_BOOLEAN);
+	/* "third" was replaced */
+	/* "fourth" was replaced */
+	pair = nvl_assert_next_pair(nvl, pair, "fifth", DATA_TYPE_BOOLEAN);
+	/* "sixth" was replaced */
+
+	pair = nvl_assert_next_pair(nvl, pair, "fourth", DATA_TYPE_BOOLEAN);
+
+	pair = nvl_assert_next_pair(nvl, pair, "first", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 1);
+
+	/* "sixth" = 6 was replaced */
+	pair = nvl_assert_next_pair(nvl, pair, "sixth", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 66);
+
+	/* "third" = 3 was replaced */
+	pair = nvl_assert_next_pair(nvl, pair, "third", DATA_TYPE_STRING);
+	unit_str_eq(fnvpair_value_string(pair), "thirty-three");
+
+	unit_null(nvlist_next_nvpair(nvl, pair));
+
+	nvlist_free(nvl);
+	return (MUNIT_OK);
+}
+
+static MunitResult
+test_nv_prev_order_name(const MunitParameter params[], void *data)
+{
+	(void) params; (void) data;
+	nvlist_t *nvl = nvl_fill_order(nvl_create_type(NV_UNIQUE_NAME));
+
+	nvpair_t *pair = NULL;
+
+	pair = nvl_assert_prev_pair(nvl, pair, "third", DATA_TYPE_STRING);
+	unit_str_eq(fnvpair_value_string(pair), "thirty-three");
+	/* "third" = 3 was replaced */
+
+	pair = nvl_assert_prev_pair(nvl, pair, "sixth", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 66);
+	/* "sixth" = 6 was replaced */
+
+	pair = nvl_assert_prev_pair(nvl, pair, "first", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 1);
+
+	pair = nvl_assert_prev_pair(nvl, pair, "fourth", DATA_TYPE_BOOLEAN);
+
+	/* "sixth" was replaced */
+	pair = nvl_assert_prev_pair(nvl, pair, "fifth", DATA_TYPE_BOOLEAN);
+	/* "fourth" was replaced */
+	/* "third" was replaced */
+	pair = nvl_assert_prev_pair(nvl, pair, "second", DATA_TYPE_BOOLEAN);
+	/* "first" was replaced */
+
+	unit_null(nvlist_prev_nvpair(nvl, pair));
+
+	nvlist_free(nvl);
+	return (MUNIT_OK);
+}
+
+static MunitResult
+test_nv_next_order_name_type(const MunitParameter params[], void *data)
+{
+	(void) params; (void) data;
+	nvlist_t *nvl = nvl_fill_order(nvl_create_type(NV_UNIQUE_NAME_TYPE));
+
+	nvpair_t *pair = NULL;
+
+	/*
+	 * nvlist will hold one pair for each unique name+type. Duplicate
+	 * name+type inserted earlier are removed, new ones go to the end. So
+	 * still insertion order, for the last of the name.
+	 */
+
+	pair = nvl_assert_next_pair(nvl, pair, "first", DATA_TYPE_BOOLEAN);
+	pair = nvl_assert_next_pair(nvl, pair, "second", DATA_TYPE_BOOLEAN);
+	pair = nvl_assert_next_pair(nvl, pair, "third", DATA_TYPE_BOOLEAN);
+	/* ("fourth",BOOLEAN) was replaced */
+	pair = nvl_assert_next_pair(nvl, pair, "fifth", DATA_TYPE_BOOLEAN);
+	pair = nvl_assert_next_pair(nvl, pair, "sixth", DATA_TYPE_BOOLEAN);
+
+	pair = nvl_assert_next_pair(nvl, pair, "fourth", DATA_TYPE_BOOLEAN);
+
+	pair = nvl_assert_next_pair(nvl, pair, "first", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 1);
+
+	/* ("sixth",UINT64) = 6 was replaced */
+	pair = nvl_assert_next_pair(nvl, pair, "sixth", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 66);
+
+	pair = nvl_assert_next_pair(nvl, pair, "third", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 3);
+	pair = nvl_assert_next_pair(nvl, pair, "third", DATA_TYPE_STRING);
+	unit_str_eq(fnvpair_value_string(pair), "thirty-three");
+
+	unit_null(nvlist_next_nvpair(nvl, pair));
+
+	nvlist_free(nvl);
+	return (MUNIT_OK);
+}
+
+static MunitResult
+test_nv_prev_order_name_type(const MunitParameter params[], void *data)
+{
+	(void) params; (void) data;
+	nvlist_t *nvl = nvl_fill_order(nvl_create_type(NV_UNIQUE_NAME_TYPE));
+
+	nvpair_t *pair = NULL;
+
+	pair = nvl_assert_prev_pair(nvl, pair, "third", DATA_TYPE_STRING);
+	unit_str_eq(fnvpair_value_string(pair), "thirty-three");
+	pair = nvl_assert_prev_pair(nvl, pair, "third", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 3);
+
+	pair = nvl_assert_prev_pair(nvl, pair, "sixth", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 66);
+	/* ("sixth",UINT64) = 6 was replaced */
+
+	pair = nvl_assert_prev_pair(nvl, pair, "first", DATA_TYPE_UINT64);
+	unit_eq(fnvpair_value_uint64(pair), 1);
+
+	pair = nvl_assert_prev_pair(nvl, pair, "fourth", DATA_TYPE_BOOLEAN);
+
+	pair = nvl_assert_prev_pair(nvl, pair, "sixth", DATA_TYPE_BOOLEAN);
+	pair = nvl_assert_prev_pair(nvl, pair, "fifth", DATA_TYPE_BOOLEAN);
+	/* ("fourth",BOOLEAN) was replaced */
+	pair = nvl_assert_prev_pair(nvl, pair, "third", DATA_TYPE_BOOLEAN);
+	pair = nvl_assert_prev_pair(nvl, pair, "second", DATA_TYPE_BOOLEAN);
+	pair = nvl_assert_prev_pair(nvl, pair, "first", DATA_TYPE_BOOLEAN);
+
+	unit_null(nvlist_prev_nvpair(nvl, pair));
+
+	nvlist_free(nvl);
+	return (MUNIT_OK);
+}
+
+/* ========== */
+
 /* Lookup is by name+type, so lookup with wrong type returns ENOENT. */
 static MunitResult
 test_nv_type_mismatch(const MunitParameter params[], void *data)
@@ -1969,6 +2261,14 @@ static const MunitTest nvpair_tests[] = {
 	    nv_unique_params),
 	UNIT_TEST("nv_next_nvpair",	test_nv_next_nvpair, nv_unique_params),
 	UNIT_TEST("nv_prev_nvpair",	test_nv_prev_nvpair, nv_unique_params),
+
+	/* iteration order */
+	UNIT_TEST("nv_next_order_none",		test_nv_next_order_none),
+	UNIT_TEST("nv_prev_order_none",		test_nv_prev_order_none),
+	UNIT_TEST("nv_next_order_name",		test_nv_next_order_name),
+	UNIT_TEST("nv_prev_order_name",		test_nv_prev_order_name),
+	UNIT_TEST("nv_next_order_name_type",	test_nv_next_order_name_type),
+	UNIT_TEST("nv_prev_order_name_type",	test_nv_prev_order_name_type),
 
 	/* lookup error cases */
 	UNIT_TEST("nv_type_mismatch",	test_nv_type_mismatch),
