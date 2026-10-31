@@ -1244,7 +1244,10 @@ function is_shared_illumos
 function is_shared_linux
 {
 	typeset fs=$1
-	! exportfs -s | awk -v fs="${fs//\\/\\\\}" '/^\// && $1 == fs {exit 1}'
+	typeset exports
+
+	exports=$(exportfs -s) || log_fail "exportfs -s failed"
+	! awk -v fs="${fs//\\/\\\\}" '/^\// && $1 == fs {exit 1}' <<<"$exports"
 }
 
 #
