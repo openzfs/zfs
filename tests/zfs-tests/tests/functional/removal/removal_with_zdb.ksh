@@ -18,11 +18,11 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/tests/functional/removal/removal.kshlib
 
-zdbout=$(mktemp)
-
 if is_linux; then
 	log_unsupported "ZDB fails during concurrent pool activity."
 fi
+
+zdbout=$(mktemp)
 
 function cleanup
 {
