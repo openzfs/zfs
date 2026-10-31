@@ -2904,8 +2904,23 @@ ddt_prune_walk(spa_t *spa, uint64_t cutoff, ddt_age_histo_t *histogram)
 		uint64_t class_start =
 		    ddlwe.ddlwe_phys.ddp_flat.ddp_class_start;
 
+		/*
+		 * A dedup write asking for more copies than its entry holds
+		 * extends the entry (see zio_ddt_write()), and the BPs written
+		 * before keep fewer DVAs. Pruning clears the entry without
+		 * freeing anything, so if its last reference is one of those
+		 * BPs, the DVAs that BP lacks would be leaked. An extended
+		 * entry cannot be told from one written with that many copies,
+		 * so leave every entry holding more than one DVA. A gang entry
+		 * is never extended.
+		 */
+		const ddt_univ_phys_t *ddp = &ddlwe.ddlwe_phys;
+		boolean_t prunable = ddt_phys_is_gang(ddp, DDT_PHYS_FLAT) ||
+		    ddt_phys_dva_count(ddp, DDT_PHYS_FLAT,
+		    DDK_GET_CRYPT(&ddlwe.ddlwe_key)) <= 1;
+
 		/* prune older entries */
-		if (pruning && class_start < cutoff) {
+		if (pruning && prunable && class_start < cutoff) {
 			if (candidates++ >= zfs_ddt_prunes_per_txg) {
 				/* sync prune candidates in batches */
 				VERIFY0(dsl_sync_task(spa_name(spa),
