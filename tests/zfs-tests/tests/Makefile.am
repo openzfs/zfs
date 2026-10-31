@@ -1233,6 +1233,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_export/zpool_export_005_neg.ksh \
 	functional/cli_root/zpool_export/zpool_export_parallel_admin.ksh \
 	functional/cli_root/zpool_export/zpool_export_parallel_pos.ksh \
+	functional/cli_root/zpool_export/zpool_export_readonly_pos.ksh \
 	functional/cli_root/zpool_export/zpool_export_stats_pos.ksh \
 	functional/cli_root/zpool_export/zpool_export_zvol_open_pos.ksh \
 	functional/cli_root/zpool_export/zpool_export_zvol_remove_pos.ksh \
