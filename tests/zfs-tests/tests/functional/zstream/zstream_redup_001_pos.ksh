@@ -64,7 +64,7 @@ for stem in "${streams[@]}"; do
 	typeset redup_out="$BACKDIR/${stem}.redup"
 
 	bzcat "$src" > "$orig"
-	zstream redup "$orig" > "$redup_out"
+	zstream redup -d "$BACKDIR" "$orig" > "$redup_out"
 
 	if ! cmp -s "$orig" "$redup_out"; then
 		log_note "MISMATCH: zstream redup output differs for $stem"
