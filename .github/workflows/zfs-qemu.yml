@@ -154,7 +154,7 @@ jobs:
 
     - name: Start build machine
       if: env.REUSED_JOB == ''
-      timeout-minutes: 10
+      timeout-minutes: 20
       run: .github/workflows/scripts/qemu-2-start.sh ${{ matrix.os }}
 
     - name: Install dependencies
