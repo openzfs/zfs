@@ -1138,6 +1138,118 @@ again:
 	return (err);
 }
 
+/*
+ * Find the name of an entry whose first integer, masked, equals
+ * value & mask (see zap_value_search()).  Visits the leaves in hash order,
+ * as a cursor would, but searches each leaf with one pass over its hash
+ * chains, taking the leaf lock once per leaf instead of once per entry.
+ * The caller holds zap_rwlock as reader; it is dropped and retaken
+ * between leaves, as a cursor does between entries, so that a pointer
+ * table grow isn't held off for the whole search.
+ */
+int
+fzap_value_search(zap_t *zap, uint64_t value, uint64_t mask, char *name,
+    uint64_t namelen)
+{
+	uint64_t h = 0;
+
+	ASSERT(RW_READ_HELD(&zap->zap_rwlock));
+
+	if (zap_iterate_prefetch && zap_f_phys(zap)->zap_freeblk > 2) {
+		dmu_prefetch_by_dnode(zap->zap_dnode, 0, 0,
+		    zap_f_phys(zap)->zap_freeblk << FZAP_BLOCK_SHIFT(zap),
+		    ZIO_PRIORITY_ASYNC_READ);
+	}
+
+	for (;;) {
+		zap_leaf_t *l;
+		zap_entry_handle_t zeh;
+
+		int err = zap_deref_leaf(zap, h, NULL, RW_READER, &l);
+		if (err != 0)
+			return (err);
+
+		err = zap_leaf_value_search(l, value, mask, &zeh);
+		if (err == 0) {
+			err = zap_entry_read_name(zap, &zeh,
+			    MIN(namelen, UINT16_MAX), name);
+			if (err == EOVERFLOW)
+				err = SET_ERROR(ENAMETOOLONG);
+			zap_put_leaf(l);
+			return (err);
+		}
+
+		/* Skip to the first hash after this leaf's range. */
+		uint16_t prefix_len = zap_leaf_phys(l)->l_hdr.lh_prefix_len;
+		zap_put_leaf(l);
+		if (prefix_len == 0)
+			return (SET_ERROR(ENOENT));
+		uint64_t nocare = (1ULL << (64 - prefix_len)) - 1;
+		h = (h & ~nocare) + nocare + 1;
+		if (h == 0)
+			return (SET_ERROR(ENOENT));
+
+		rw_exit(&zap->zap_rwlock);
+		rw_enter(&zap->zap_rwlock, RW_READER);
+	}
+}
+
+/*
+ * Return the hash and cd of the entry named by zn (see zap_add_cookie()).
+ */
+int
+fzap_lookup_hashcd(zap_name_t *zn, uint64_t *hashp, uint32_t *cdp)
+{
+	zap_leaf_t *l;
+	zap_entry_handle_t zeh;
+
+	ASSERT(RW_LOCK_HELD(&zn->zn_zap->zap_rwlock));
+
+	int err = zap_deref_leaf(zn->zn_zap, zn->zn_hash, NULL, RW_READER,
+	    &l);
+	if (err != 0)
+		return (err);
+	err = zap_leaf_lookup(l, zn, &zeh);
+	if (err == 0) {
+		*hashp = zeh.zeh_hash;
+		*cdp = zeh.zeh_cd;
+	}
+	zap_put_leaf(l);
+	return (err);
+}
+
+/*
+ * Read the value and name of the entry with this hash and cd (see
+ * zap_lookup_cookie()).
+ */
+int
+fzap_lookup_cookie(zap_t *zap, uint64_t hash, uint32_t cd, uint64_t *valuep,
+    char *name, uint64_t namelen)
+{
+	zap_leaf_t *l;
+	zap_entry_handle_t zeh;
+
+	ASSERT(RW_LOCK_HELD(&zap->zap_rwlock));
+
+	int err = zap_deref_leaf(zap, hash, NULL, RW_READER, &l);
+	if (err != 0)
+		return (err);
+	err = zap_leaf_lookup_hashcd(l, hash, cd, &zeh);
+	if (err == 0 && (zeh.zeh_integer_size != 8 ||
+	    zeh.zeh_num_integers != 1))
+		err = SET_ERROR(EINVAL);
+	if (err == 0)
+		err = zap_entry_read(&zeh, 8, 1, valuep);
+	if (err == 0) {
+		err = zap_entry_read_name(zap, &zeh, MIN(namelen, UINT16_MAX),
+		    name);
+		if (err == EOVERFLOW)
+			err = SET_ERROR(ENAMETOOLONG);
+	}
+	zap_put_leaf(l);
+	return (err);
+}
+
 static void
 zap_stats_ptrtbl(zap_t *zap, uint64_t *tbl, int len, zap_stats_t *zs)
 {

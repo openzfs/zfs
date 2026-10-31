@@ -455,10 +455,45 @@ zap_prefetch_object(objset_t *os, uint64_t zapobj)
 
 /* zap_add */
 
-int
-zap_add_by_dnode(dnode_t *dn, const char *key,
+/*
+ * The cookie of an entry: [ cd | hash >> (64 - hashbits) ], as
+ * zap_cursor_serialize() builds it.
+ */
+static uint64_t
+zap_hashcd_to_cookie(zap_t *zap, uint64_t hash, uint32_t cd)
+{
+	int hb = zap_hashbits(zap);
+	return ((hash >> (64 - hb)) | ((uint64_t)cd << hb));
+}
+
+/* The cookie of the entry named by zn, which the caller has just added. */
+static int
+zap_name_cookie(zap_name_t *zn, uint64_t *cookiep)
+{
+	zap_t *zap = zn->zn_zap;
+	uint64_t hash;
+	uint32_t cd;
+
+	if (zap->zap_ismicro) {
+		zfs_btree_index_t idx;
+		mzap_ent_t *mze = mze_find(zn, &idx);
+		if (mze == NULL)
+			return (SET_ERROR(ENOENT));
+		hash = (uint64_t)mze->mze_hash << 32;
+		cd = mze->mze_cd;
+	} else {
+		int err = fzap_lookup_hashcd(zn, &hash, &cd);
+		if (err != 0)
+			return (err);
+	}
+	*cookiep = zap_hashcd_to_cookie(zap, hash, cd);
+	return (0);
+}
+
+static int
+zap_add_by_dnode_impl(dnode_t *dn, const char *key,
     int integer_size, uint64_t num_integers,
-    const void *val, dmu_tx_t *tx)
+    const void *val, uint64_t *cookiep, dmu_tx_t *tx)
 {
 	zap_t *zap;
 	int err =
@@ -490,6 +525,92 @@ zap_add_by_dnode(dnode_t *dn, const char *key,
 		}
 	}
 	ASSERT(zap == zn->zn_zap);
+	if (err == 0 && cookiep != NULL && zap_name_cookie(zn, cookiep) != 0)
+		*cookiep = ZAP_COOKIE_NONE;
+	zap_name_free(zn);
+	zap_unlock(zap, FTAG);
+	return (err);
+}
+
+int
+zap_add_by_dnode(dnode_t *dn, const char *key,
+    int integer_size, uint64_t num_integers,
+    const void *val, dmu_tx_t *tx)
+{
+	return (zap_add_by_dnode_impl(dn, key, integer_size, num_integers,
+	    val, NULL, tx));
+}
+
+int
+zap_add_cookie(objset_t *os, uint64_t zapobj, const char *key,
+    int integer_size, uint64_t num_integers, const void *val,
+    uint64_t *cookiep, dmu_tx_t *tx)
+{
+	dnode_t *dn;
+	int err = dnode_hold(os, zapobj, FTAG, &dn);
+	if (err != 0)
+		return (err);
+	err = zap_add_by_dnode_impl(dn, key, integer_size, num_integers, val,
+	    cookiep, tx);
+	dnode_rele(dn, FTAG);
+	return (err);
+}
+
+int
+zap_lookup_cookie(objset_t *os, uint64_t zapobj, uint64_t cookie,
+    uint64_t *valuep, char *name, uint64_t namelen)
+{
+	zap_t *zap;
+	int err = zap_lock(os, zapobj, NULL, RW_READER, TRUE, FALSE, FTAG,
+	    &zap);
+	if (err != 0)
+		return (err);
+
+	int hb = zap_hashbits(zap);
+	uint64_t hash = cookie << (64 - hb);
+	uint64_t cd = cookie >> hb;
+
+	if (cd >= zap_maxcd(zap)) {
+		err = SET_ERROR(ENOENT);
+	} else if (!zap->zap_ismicro) {
+		err = fzap_lookup_cookie(zap, hash, cd, valuep, name, namelen);
+	} else if (cd > UINT16_MAX) {
+		err = SET_ERROR(ENOENT);
+	} else {
+		zfs_btree_index_t idx;
+		mzap_ent_t mze_tofind;
+		mze_tofind.mze_hash = hash >> 32;
+		mze_tofind.mze_cd = cd;
+		mzap_ent_t *mze = zfs_btree_find(&zap->zap_m.zap_tree,
+		    &mze_tofind, &idx);
+		if (mze == NULL) {
+			err = SET_ERROR(ENOENT);
+		} else {
+			mzap_ent_phys_t *mzep = MZE_PHYS(zap, mze);
+			*valuep = mzep->mze_value;
+			if (strlcpy(name, mzep->mze_name, namelen) >= namelen)
+				err = SET_ERROR(ENAMETOOLONG);
+		}
+	}
+	zap_unlock(zap, FTAG);
+	return (err);
+}
+
+int
+zap_cookie_by_name(objset_t *os, uint64_t zapobj, const char *name,
+    uint64_t *cookiep)
+{
+	zap_t *zap;
+	int err = zap_lock(os, zapobj, NULL, RW_READER, TRUE, FALSE, FTAG,
+	    &zap);
+	if (err != 0)
+		return (err);
+	zap_name_t *zn = zap_name_alloc_str(zap, name, 0);
+	if (zn == NULL) {
+		zap_unlock(zap, FTAG);
+		return (SET_ERROR(ENOTSUP));
+	}
+	err = zap_name_cookie(zn, cookiep);
 	zap_name_free(zn);
 	zap_unlock(zap, FTAG);
 	return (err);
@@ -896,45 +1017,60 @@ zap_increment(objset_t *os, uint64_t zapobj, const char *name, int64_t delta,
 
 /* zap_value_search */
 
+/*
+ * Find the name of an entry whose value, masked, equals value & mask.  This
+ * is a linear search (the ZAP is indexed by name), so it takes the locks
+ * once per leaf rather than going through a cursor, which takes them for
+ * every entry.
+ */
 static int
-zap_value_search_impl(zap_cursor_t *zc, uint64_t value, uint64_t mask,
+zap_value_search_impl(zap_t *zap, uint64_t value, uint64_t mask,
     char *name, uint64_t namelen)
 {
-	int err;
-
 	if (mask == 0)
 		mask = -1ULL;
 
-	zap_attribute_t *za = zap_attribute_long_alloc();
-	for (; (err = zap_cursor_retrieve(zc, za)) == 0;
-	    zap_cursor_advance(zc)) {
-		if ((za->za_first_integer & mask) == (value & mask)) {
-			if (strlcpy(name, za->za_name, namelen) >= namelen)
-				err = SET_ERROR(ENAMETOOLONG);
-			break;
-		}
+	if (!zap->zap_ismicro)
+		return (fzap_value_search(zap, value, mask, name, namelen));
+
+	for (uint16_t i = 0; i < zap->zap_m.zap_num_chunks; i++) {
+		mzap_ent_phys_t *mze = &zap_m_phys(zap)->mz_chunk[i];
+		if (mze->mze_name[0] == '\0' ||
+		    (mze->mze_value & mask) != (value & mask))
+			continue;
+		if (strlcpy(name, mze->mze_name, namelen) >= namelen)
+			return (SET_ERROR(ENAMETOOLONG));
+		return (0);
 	}
-	zap_cursor_fini(zc);
-	zap_attribute_free(za);
-	return (err);
+	return (SET_ERROR(ENOENT));
 }
 
 int
 zap_value_search(objset_t *os, uint64_t zapobj, uint64_t value, uint64_t mask,
     char *name, uint64_t namelen)
 {
-	zap_cursor_t zc;
-	zap_cursor_init(&zc, os, zapobj);
-	return (zap_value_search_impl(&zc, value, mask, name, namelen));
+	zap_t *zap;
+	int err = zap_lock(os, zapobj, NULL, RW_READER, TRUE, FALSE, FTAG,
+	    &zap);
+	if (err != 0)
+		return (err);
+	err = zap_value_search_impl(zap, value, mask, name, namelen);
+	zap_unlock(zap, FTAG);
+	return (err);
 }
 
 int
 zap_value_search_by_dnode(dnode_t *dn, uint64_t value, uint64_t mask,
     char *name, uint64_t namelen)
 {
-	zap_cursor_t zc;
-	zap_cursor_init_by_dnode(&zc, dn);
-	return (zap_value_search_impl(&zc, value, mask, name, namelen));
+	zap_t *zap;
+	int err = zap_lock_by_dnode(dn, NULL, RW_READER, TRUE, FALSE, FTAG,
+	    &zap);
+	if (err != 0)
+		return (err);
+	err = zap_value_search_impl(zap, value, mask, name, namelen);
+	zap_unlock(zap, FTAG);
+	return (err);
 }
 
 /* zap_*_int */
@@ -1272,6 +1408,9 @@ EXPORT_SYMBOL(zap_prefetch_uint64);
 EXPORT_SYMBOL(zap_prefetch_object);
 EXPORT_SYMBOL(zap_add);
 EXPORT_SYMBOL(zap_add_by_dnode);
+EXPORT_SYMBOL(zap_add_cookie);
+EXPORT_SYMBOL(zap_lookup_cookie);
+EXPORT_SYMBOL(zap_cookie_by_name);
 EXPORT_SYMBOL(zap_add_uint64);
 EXPORT_SYMBOL(zap_add_uint64_by_dnode);
 EXPORT_SYMBOL(zap_update);

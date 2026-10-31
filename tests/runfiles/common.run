@@ -327,8 +327,9 @@ tests = ['zfs_reservation_001_pos', 'zfs_reservation_002_pos']
 tags = ['functional', 'cli_root', 'zfs_reservation']
 
 [tests/functional/cli_root/zfs_rewrite]
-tests = ['zfs_rewrite', 'zfs_rewrite_physical', 'zfs_rewrite_skip_clone',
-    'zfs_rewrite_skip_snapshot', 'zfs_rewrite_skip_width']
+tests = ['zfs_rewrite', 'zfs_rewrite_parent_cookie', 'zfs_rewrite_physical',
+    'zfs_rewrite_skip_clone', 'zfs_rewrite_skip_snapshot',
+    'zfs_rewrite_skip_width']
 tags = ['functional', 'cli_root', 'zfs_rewrite']
 
 [tests/functional/cli_root/zfs_rollback]
@@ -770,6 +771,10 @@ tags = ['functional', 'direct']
 [tests/functional/exec]
 tests = ['exec_001_pos', 'exec_002_neg']
 tags = ['functional', 'exec']
+
+[tests/functional/exportfs]
+tests = ['exportfs_parent_cookie']
+tags = ['functional', 'exportfs']
 
 [tests/functional/fadvise]
 tests = ['fadvise_dontneed', 'fadvise_willneed', 'fadvise_willneed_limit']

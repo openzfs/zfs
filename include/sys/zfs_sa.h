@@ -67,6 +67,7 @@ typedef enum zpl_attr {
 	ZPL_DXATTR,
 	ZPL_PROJID,
 	ZPL_SEQ,
+	ZPL_PARENT_COOKIE,
 	ZPL_END
 } zpl_attr_t;
 
@@ -133,6 +134,7 @@ int zfs_sa_get_xattr(struct znode *);
 int zfs_sa_set_xattr(struct znode *, const char *, const void *, size_t);
 void zfs_sa_upgrade(struct sa_handle  *, dmu_tx_t *);
 void zfs_sa_upgrade_txholds(dmu_tx_t *, struct znode *);
+boolean_t zfs_parent_cookie_absent(struct znode *);
 void zfs_sa_init(void);
 void zfs_sa_fini(void);
 #endif

@@ -903,6 +903,7 @@ zfsvfs_init(zfsvfs_t *zfsvfs, objset_t *os)
 	    &zfsvfs->z_attr_table);
 	if (error != 0)
 		return (error);
+	sa_set_hint(os, SA_ZPL_PARENT_COOKIE(zfsvfs));
 
 	if (zfsvfs->z_version >= ZPL_VERSION_SA)
 		sa_register_update_callback(os, zfs_sa_upgrade);
@@ -2200,6 +2201,7 @@ zfs_init(void)
 	 * Initialize znode cache, vnode ops, etc...
 	 */
 	zfs_znode_init();
+	zfs_dirent_name_init();
 
 	/*
 	 * Reduce number of vnodes. Originally number of vnodes is calculated
@@ -2226,6 +2228,7 @@ zfs_fini(void)
 
 	taskq_destroy(zfsvfs_taskq);
 	zfsctl_fini();
+	zfs_dirent_name_fini();
 	zfs_znode_fini();
 	zfs_vnodes_adjust_back();
 }

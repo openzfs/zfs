@@ -381,7 +381,9 @@ zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag, cred_t *cred,
 	}
 	case ZFS_IOC_REWRITE: {
 		zfs_rewrite_args_t *args = (zfs_rewrite_args_t *)data;
-		if ((flag & FWRITE) == 0)
+		/* -N: zfs_rewrite() checks write permission itself */
+		if ((flag & FWRITE) == 0 &&
+		    !(args->flags & ZFS_REWRITE_PARENT_COOKIE))
 			return (SET_ERROR(EBADF));
 		error = vn_lock(vp, LK_SHARED);
 		if (error)
@@ -3464,7 +3466,7 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 	}
 
 	tx = dmu_tx_create(zfsvfs->z_os);
-	dmu_tx_hold_sa(tx, szp->z_sa_hdl, ZFS_SEQ_MAY_GROW(szp));
+	dmu_tx_hold_sa(tx, szp->z_sa_hdl, ZFS_LINK_MAY_GROW(szp));
 	dmu_tx_hold_sa(tx, sdzp->z_sa_hdl, ZFS_SEQ_MAY_GROW(sdzp));
 	dmu_tx_hold_zap(tx, sdzp->z_id, FALSE, snm);
 	dmu_tx_hold_zap(tx, tdzp->z_id, TRUE, tnm);
@@ -3893,7 +3895,7 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 	}
 
 	tx = dmu_tx_create(zfsvfs->z_os);
-	dmu_tx_hold_sa(tx, szp->z_sa_hdl, ZFS_SEQ_MAY_GROW(szp));
+	dmu_tx_hold_sa(tx, szp->z_sa_hdl, ZFS_LINK_MAY_GROW(szp));
 	dmu_tx_hold_sa(tx, tdzp->z_sa_hdl, ZFS_SEQ_MAY_GROW(tdzp));
 	dmu_tx_hold_zap(tx, tdzp->z_id, TRUE, name);
 	zfs_sa_upgrade_txholds(tx, szp);

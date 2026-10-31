@@ -695,6 +695,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	uint64_t	mode, size, links, parent, pflags;
 	uint64_t	projid = ZFS_DEFAULT_PROJID;
 	uint64_t	rdev = 0;
+	uint64_t	nocookie = ZFS_COOKIE_NONE;
 	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
 	dmu_buf_t	*db;
 	inode_timespec_t now;
@@ -911,6 +912,14 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	    (S_ISBLK(vap->va_mode) || S_ISCHR(vap->va_mode))) {
 		SA_ADD_BULK_ATTR(sa_attrs, cnt, SA_ZPL_RDEV(zfsvfs),
 		    NULL, &rdev, 8);
+	}
+	/*
+	 * Reserve the SA_ZPL_PARENT_COOKIE slot that zfs_link_create() fills
+	 * in, so that linking the new object doesn't grow its SA layout.
+	 */
+	if (obj_type != DMU_OT_ZNODE) {
+		SA_ADD_BULK_ATTR(sa_attrs, cnt, SA_ZPL_PARENT_COOKIE(zfsvfs),
+		    NULL, &nocookie, 8);
 	}
 	if (obj_type == DMU_OT_ZNODE) {
 		SA_ADD_BULK_ATTR(sa_attrs, cnt, SA_ZPL_FLAGS(zfsvfs),

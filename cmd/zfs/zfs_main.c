@@ -413,7 +413,8 @@ get_usage(zfs_help_t idx)
 		    "<redaction_snapshot> ...\n");
 	case HELP_REWRITE:
 		return ("\trewrite [-CPSWrvx] [-o <offset>] "
-		    "[-l <length>] <directory|file ...>\n");
+		    "[-l <length>] <directory|file ...>\n"
+		    "\trewrite -N [-rvx] <directory|file ...>\n");
 	case HELP_JAIL:
 		return ("\tjail <jailid|jailname> <filesystem>\n");
 	case HELP_UNJAIL:
@@ -9070,7 +9071,9 @@ zfs_rewrite_file(const char *path, boolean_t verbose, zfs_rewrite_args_t *args)
 {
 	int fd, ret = 0;
 
-	fd = open(path, O_WRONLY);
+	/* -N needs no writable descriptor, and directories can't have one */
+	fd = open(path, (args->flags & ZFS_REWRITE_PARENT_COOKIE) ?
+	    O_RDONLY : O_WRONLY);
 	if (fd < 0) {
 		ret = errno;
 		(void) fprintf(stderr, "failed to open %s: %s\n",
@@ -9078,7 +9081,14 @@ zfs_rewrite_file(const char *path, boolean_t verbose, zfs_rewrite_args_t *args)
 		return (ret);
 	}
 
-	if (ioctl(fd, ZFS_IOC_REWRITE, args) < 0) {
+	/* -N: pass the name, so the kernel needn't search the parent */
+	zfs_rewrite_args_t a = *args;
+	const char *base = strrchr(path, '/');
+	base = (base == NULL) ? path : base + 1;
+	if ((a.flags & ZFS_REWRITE_PARENT_COOKIE) && *base != '\0')
+		a.arg = (uintptr_t)base;
+
+	if (ioctl(fd, ZFS_IOC_REWRITE, &a) < 0) {
 		ret = errno;
 		(void) fprintf(stderr, "failed to rewrite %s: %s\n",
 		    path, strerror(errno));
@@ -9107,6 +9117,11 @@ zfs_rewrite_dir(const char *path, boolean_t verbose, boolean_t xdev, dev_t dev,
 		    path, strerror(errno));
 		return (ret);
 	}
+
+	/* -N records the cookies of directories too */
+	if ((args->flags & ZFS_REWRITE_PARENT_COOKIE) &&
+	    (err = zfs_rewrite_file(path, verbose, args)) != 0)
+		ret = err;
 
 	size_t plen = strlen(path) + 1;
 	while ((ent = readdir(dir)) != NULL) {
@@ -9178,7 +9193,8 @@ zfs_rewrite_path(const char *path, boolean_t verbose, boolean_t recurse,
 		return (ret);
 	}
 
-	if (S_ISREG(st.st_mode)) {
+	if (S_ISREG(st.st_mode) || (S_ISDIR(st.st_mode) && !recurse &&
+	    (args->flags & ZFS_REWRITE_PARENT_COOKIE))) {
 		ret = zfs_rewrite_file(path, verbose, args);
 	} else if (S_ISDIR(st.st_mode) && recurse) {
 		ret = zfs_rewrite_dir(path, verbose, xdev, st.st_dev, args,
@@ -9192,6 +9208,7 @@ zfs_do_rewrite(int argc, char **argv)
 {
 	int ret = 0, err, c;
 	boolean_t recurse = B_FALSE, verbose = B_FALSE, xdev = B_FALSE;
+	boolean_t data_opts = B_FALSE;
 
 	if (argc < 2)
 		usage(B_FALSE);
@@ -9199,10 +9216,15 @@ zfs_do_rewrite(int argc, char **argv)
 	zfs_rewrite_args_t args;
 	memset(&args, 0, sizeof (args));
 
-	while ((c = getopt(argc, argv, "CPSWl:o:rvx")) != -1) {
+	while ((c = getopt(argc, argv, "CNPSWl:o:rvx")) != -1) {
+		if (strchr("CPSWlo", c) != NULL)
+			data_opts = B_TRUE;
 		switch (c) {
 		case 'C':
 			args.flags |= ZFS_REWRITE_SKIP_BRT;
+			break;
+		case 'N':
+			args.flags |= ZFS_REWRITE_PARENT_COOKIE;
 			break;
 		case 'P':
 			args.flags |= ZFS_REWRITE_PHYSICAL;
@@ -9240,6 +9262,11 @@ zfs_do_rewrite(int argc, char **argv)
 	if (argc == 0) {
 		(void) fprintf(stderr,
 		    "missing file or directory target(s)\n");
+		usage(B_FALSE);
+	}
+	if ((args.flags & ZFS_REWRITE_PARENT_COOKIE) && data_opts) {
+		(void) fprintf(stderr, "-N can't be used with -C, -P, -S, -W, "
+		    "-l or -o\n");
 		usage(B_FALSE);
 	}
 
