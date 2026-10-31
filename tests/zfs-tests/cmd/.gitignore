@@ -42,6 +42,7 @@
 /open_by_fid
 /randfree_file
 /randwritecomp
+/rangelock_race
 /read_dos_attributes
 /readmmap
 /renameat2

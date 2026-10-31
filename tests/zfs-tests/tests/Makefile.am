@@ -366,6 +366,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/raidz/blockfiles/raidz_dedup_overrun-1.dat.bz2 \
 	functional/raidz/blockfiles/raidz_dedup_overrun-2.dat.bz2 \
 	functional/raidz/blockfiles/raidz_dedup_overrun-3.dat.bz2 \
+	functional/rangelock/rangelock.kshlib \
 	functional/redacted_send/redacted.cfg \
 	functional/redacted_send/redacted.kshlib \
 	functional/redundancy/redundancy.cfg \
@@ -2057,6 +2058,17 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/raidz/raidz_expand_rewrite.ksh \
 	functional/raidz/raidz_zinject.ksh \
 	functional/raidz/setup.ksh \
+	functional/rangelock/cleanup.ksh \
+	functional/rangelock/rangelock_append.ksh \
+	functional/rangelock/rangelock_blksz.ksh \
+	functional/rangelock/rangelock_clone.ksh \
+	functional/rangelock/rangelock_cold.ksh \
+	functional/rangelock/rangelock_dedupe.ksh \
+	functional/rangelock/rangelock_direct.ksh \
+	functional/rangelock/rangelock_mmap_dirty.ksh \
+	functional/rangelock/rangelock_regions.ksh \
+	functional/rangelock/rangelock_truncate.ksh \
+	functional/rangelock/setup.ksh \
 	functional/redacted_send/cleanup.ksh \
 	functional/redacted_send/redacted_compressed.ksh \
 	functional/redacted_send/redacted_contents.ksh \

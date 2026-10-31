@@ -80,9 +80,11 @@ typedef struct zfs_soft_state {
  *    Multiple writes at the end of the file must coordinate zp_size updates
  *    to ensure data isn't lost. A compare and swap loop is currently used
  *    to ensure the file size is at least the offset last written.
- * 3. For reads (zfs_read, zfs_get_data & zfs_putapage) just the range being
- *    read needs to be locked as RL_READER. A check against zp_size can then
- *    be made for reading beyond end of file.
+ * 3. For reads (zfs_read, zfs_get_data & zfs_getpages) just the
+ *    range being read needs to be locked as RL_READER. A check
+ *    against zp_size can then be made for reading beyond end of
+ *    file.  zfs_read asks for RL_READER_FAST, which may lock the
+ *    range rounded out to 4 KiB (see zfs_rlock.h).
  */
 
 /*

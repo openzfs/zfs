@@ -225,6 +225,10 @@ tags = ['functional', 'projectquota']
 tests = ['read_dos_attrs_001', 'write_dos_attrs_001']
 tags = ['functional', 'dos_attributes']
 
+[tests/functional/rangelock:Linux]
+tests = ['rangelock_dedupe', 'rangelock_mmap_dirty']
+tags = ['functional', 'rangelock']
+
 [tests/functional/renameat2:Linux]
 tests = ['renameat2_noreplace', 'renameat2_exchange', 'renameat2_whiteout']
 tags = ['functional', 'renameat2']

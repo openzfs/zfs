@@ -1,0 +1,117 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+RL_OUT=$TEST_BASE_DIR/rangelock_race.out
+RL_VM="dirty_bytes dirty_ratio dirty_background_bytes"
+RL_VM="$RL_VM dirty_background_ratio"
+
+#
+# rl_stacks pid: log the kernel stacks of the threads of process pid.
+#
+function rl_stacks
+{
+	typeset pid=$1 f
+
+	if is_linux; then
+		for f in /proc/$pid/task/*/stack; do
+			echo "$f:"
+			cat $f
+		done
+	elif is_freebsd; then
+		procstat -kk $pid
+	fi
+}
+
+#
+# rl_run secs hang args...: run rangelock_race -t secs -H hang args
+# in the background and wait for it past both limits.  If it reports
+# a hang or does not finish, log the stacks of its threads and fail.
+# Fail too if it found a bad read, hit an error or never saw the
+# race.
+#
+function rl_run
+{
+	typeset -i secs=$1 hang=$2 limit waited=0 pid ret
+	typeset msg
+	shift 2
+
+	((limit = secs + hang + 60))
+	log_note "rangelock_race -t $secs -H $hang $*"
+	rangelock_race -t $secs -H $hang "$@" > $RL_OUT 2>&1 &
+	pid=$!
+	while kill -0 $pid 2>/dev/null; do
+		if ((waited >= limit)) ||
+		    grep -q '^result hang' $RL_OUT; then
+			cat $RL_OUT
+			rl_stacks $pid
+			kill -9 $pid
+			log_fail "rangelock_race $*: hang"
+		fi
+		sleep 1
+		((waited += 1))
+	done
+	wait $pid
+	ret=$?
+	cat $RL_OUT
+	case $ret in
+	0)	return 0 ;;
+	1)	msg="a read matched no state" ;;
+	3)	msg="hang" ;;
+	4)	msg="no read overlapped a writer" ;;
+	5)	log_unsupported "cannot observe the race" ;;
+	*)	msg="exit status $ret" ;;
+	esac
+	log_fail "rangelock_race $*: $msg"
+}
+
+#
+# rl_stat key: the value of key in the output of the last rl_run.
+#
+function rl_stat
+{
+	awk -v key=$1 '$1 == key { print $2 }' $RL_OUT
+}
+
+#
+# Save the vm.dirty_* sysctls once, as save_tunable does for tunables.
+#
+function rl_save_vm
+{
+	typeset saved=$TEST_BASE_DIR/sysctl-vm- name
+
+	for name in $RL_VM; do
+		[[ -e $saved$name ]] && return 2
+	done
+	for name in $RL_VM; do
+		cat /proc/sys/vm/$name > $saved$name || return 1
+	done
+}
+
+#
+# Restore them.  Setting a byte limit clears the matching ratio and
+# the other way round, so write back whichever of each pair was set.
+#
+function rl_restore_vm
+{
+	typeset saved=$TEST_BASE_DIR/sysctl-vm- vm=/proc/sys/vm
+	typeset kind name
+
+	[[ -e ${saved}dirty_bytes ]] || return 1
+	for kind in dirty dirty_background; do
+		name=${kind}_bytes
+		[[ $(<$saved$name) == 0 ]] && name=${kind}_ratio
+		cat $saved$name > $vm/$name || return 1
+	done
+	rm -f $saved*
+}
