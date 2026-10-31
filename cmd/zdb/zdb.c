@@ -7744,6 +7744,9 @@ zdb_leak_fini(spa_t *spa, zdb_cb_t *zcb)
 				zfs_range_tree_vacate(msp->ms_allocatable,
 				    NULL, NULL);
 			} else {
+				if (!zfs_range_tree_is_empty(
+				    msp->ms_allocatable))
+					leaks = B_TRUE;
 				zfs_range_tree_vacate(msp->ms_allocatable,
 				    zdb_leak, vd);
 			}
@@ -8087,6 +8090,7 @@ dump_block_stats(spa_t *spa)
 		    (u_longlong_t)total_alloc,
 		    (dump_opt['L']) ? "unreachable" : "leaked",
 		    (longlong_t)(total_alloc - total_found));
+		leaks = B_TRUE;
 	}
 
 	if (tzb->zb_count == 0) {
