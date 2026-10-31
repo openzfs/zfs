@@ -1066,9 +1066,31 @@ mount options.
 Configures deduplication for a dataset.
 The default value is
 .Sy off .
-The default deduplication checksum is
+The default deduplication checksum, which
+.Sy on
+and
+.Sy verify
+use, is
+.Sy blake3
+on a pool created with the
+.Sy blake3
+feature enabled, unless
+.Sy zfs_dedup_default_checksum
+in
+.Xr zfs 4
+selected
 .Sy sha256
-(this may change in the future).
+when the pool was created.
+The pool records the choice and keeps it wherever it is imported later.
+On other pools, including pools on which the feature was enabled after they
+were created, it is
+.Sy sha256 :
+each checksum has its own dedup table, and blocks written with one are not
+deduplicated against blocks written with another.
+Releases that predate this choice use
+.Sy sha256
+on every pool; setting the checksum explicitly keeps it the same wherever
+the pool is imported.
 When
 .Sy dedup
 is enabled, the checksum defined here overrides the
@@ -1076,8 +1098,13 @@ is enabled, the checksum defined here overrides the
 property.
 Setting the value to
 .Sy verify
-has the same effect as the setting
-.Sy sha256 , Ns Sy verify .
+has the same effect as setting the default checksum with
+.Sy verify
+.Po
+.Sy blake3 , Ns Sy verify
+or
+.Sy sha256 , Ns Sy verify
+.Pc .
 .Pp
 If set to
 .Sy verify ,

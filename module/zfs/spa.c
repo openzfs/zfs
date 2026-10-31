@@ -7581,6 +7581,9 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 		spa_sync_props(props, tx);
 	}
 
+	/* Depends on the features that spa_sync_props() has just enabled. */
+	ddt_create_dedup_checksum(spa, tx);
+
 	for (int i = 0; i < ndraid; i++)
 		spa_feature_incr(spa, SPA_FEATURE_DRAID, tx);
 
