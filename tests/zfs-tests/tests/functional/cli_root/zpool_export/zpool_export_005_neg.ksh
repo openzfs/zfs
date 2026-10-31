@@ -39,14 +39,14 @@ function cleanup
 {
 	ismounted $mntpnt $NEWFS_DEFAULT_FS && log_must umount $mntpnt
 	[[ -d $mntpnt ]] && log_must rmdir $mntpnt
-	datasetexists $TESTPOOL1/vol && log_must zfs destroy $TESTPOOL1/vol
 	poolexists $TESTPOOL1 && destroy_pool $TESTPOOL1
 	[[ -f $vdev ]] && log_must rm -f $vdev
-	zpool_export_cleanup
+	[[ $cleanupdir == 1 && -d $TESTDIR0 ]] && log_must rmdir "$TESTDIR0"
 }
 
 mntpnt=$TESTDIR0/zvol_export_mnt
 vdev=$TESTDIR0/zvol_export_vdev
+[[ -d $TESTDIR0 ]] || cleanupdir=1
 
 log_onexit cleanup
 
