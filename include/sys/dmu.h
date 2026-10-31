@@ -819,6 +819,7 @@ void dmu_buf_will_rewrite(dmu_buf_t *db, dmu_tx_t *tx);
 boolean_t dmu_buf_is_dirty(dmu_buf_t *db, dmu_tx_t *tx);
 void dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
     const uint8_t *salt, const uint8_t *iv, const uint8_t *mac, dmu_tx_t *tx);
+int dmu_buf_will_rewrite_raw(dmu_buf_t *db_fake, dmu_tx_t *tx);
 
 /*
  * You must create a transaction, then hold the objects which you will

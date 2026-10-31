@@ -2495,6 +2495,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/userquota/userspace_005_pos.ksh \
 	functional/userquota/userspace_encrypted.ksh \
 	functional/userquota/userspace_send_encrypted.ksh \
+	functional/userquota/userspace_send_encrypted_changes.ksh \
 	functional/userquota/userspace_encrypted_13709.ksh \
 	functional/vdev_zaps/cleanup.ksh \
 	functional/vdev_zaps/setup.ksh \

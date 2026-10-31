@@ -446,6 +446,7 @@ void dnode_fini(void);
 int dnode_next_offset(dnode_t *dn, int flags, uint64_t *off,
     int minlvl, uint64_t blkfill, uint64_t txg);
 void dnode_evict_dbufs(dnode_t *dn);
+int dnode_decrypt_bonus(dnode_t *dn);
 void dnode_evict_bonus(dnode_t *dn);
 void dnode_free_interior_slots(dnode_t *dn);
 
