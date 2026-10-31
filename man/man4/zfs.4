@@ -2273,7 +2273,10 @@ resilver per leaf device, given in bytes.
 If an indirect split block contains more than this many possible unique
 combinations when being reconstructed, consider it too computationally
 expensive to check them all.
-Instead, try at most this many randomly selected
+Instead, first try the few combinations that one damaged or stale mirror
+child leaves intact: every segment from the copies not known to be missing,
+then, for each child in turn, every segment from that child.
+Then try at most this many randomly selected
 combinations each time the block is accessed.
 This allows all segment copies to participate fairly
 in the reconstruction when all combinations
