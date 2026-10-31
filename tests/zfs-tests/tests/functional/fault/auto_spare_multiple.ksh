@@ -115,9 +115,7 @@ for type in "mirror" "raidz" "raidz2" "raidz3" "draid2:1s"; do
 	log_must zinject -d $FAULT_DEV2 -e io -T all -f 100 $TESTPOOL
 
 	# 6. Start a scrub
-	while is_pool_scrubbing $TESTPOOL || is_pool_resilvering $TESTPOOL; do
-		sleep 1
-	done
+	log_must zpool wait -t resilver,scrub $TESTPOOL
 	log_must zpool scrub $TESTPOOL
 
 	# 7. Verify the ZED kicks in a second hot spare
@@ -127,9 +125,7 @@ for type in "mirror" "raidz" "raidz2" "raidz3" "draid2:1s"; do
 	log_must wait_hotspare_state $TESTPOOL $SPARE2 "INUSE"
 	log_must check_state $TESTPOOL "" "DEGRADED"
 
-	while is_pool_scrubbing $TESTPOOL || is_pool_resilvering $TESTPOOL; do
-		sleep 1
-	done
+	log_must zpool wait -t resilver,scrub $TESTPOOL
 
 	# 8. Clear the fault on both devices
 	log_must zinject -c all
