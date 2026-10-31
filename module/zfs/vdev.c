@@ -3776,11 +3776,13 @@ vdev_dtl_sync(vdev_t *vd, uint64_t txg)
 
 		/*
 		 * We only destroy the leaf ZAP for detached leaves or for
-		 * removed log devices. Removed data devices handle leaf ZAP
-		 * cleanup later, once cancellation is no longer possible.
+		 * removed log and empty devices. Removed data devices handle
+		 * leaf ZAP cleanup later, once cancellation is no longer
+		 * possible.
 		 */
 		if (vd->vdev_leaf_zap != 0 && (vd->vdev_detached ||
-		    vd->vdev_top->vdev_islog)) {
+		    vd->vdev_top->vdev_islog ||
+		    vd->vdev_top->vdev_removing_empty)) {
 			vdev_destroy_unlink_zap(vd, vd->vdev_leaf_zap, tx);
 			vd->vdev_leaf_zap = 0;
 		}
@@ -4310,11 +4312,11 @@ vdev_destroy_spacemaps(vdev_t *vd, dmu_tx_t *tx)
 }
 
 static void
-vdev_remove_empty_log(vdev_t *vd, uint64_t txg)
+vdev_remove_empty(vdev_t *vd, uint64_t txg)
 {
 	spa_t *spa = vd->vdev_spa;
 
-	ASSERT(vd->vdev_islog);
+	ASSERT(vd->vdev_islog || vd->vdev_removing_empty);
 	ASSERT(vd == vd->vdev_top);
 	ASSERT3U(txg, ==, spa_syncing_txg(spa));
 
@@ -4418,11 +4420,12 @@ vdev_sync(vdev_t *vd, uint64_t txg)
 		vdev_dtl_sync(lvd, txg);
 
 	/*
-	 * If this is an empty log device being removed, destroy the
-	 * metadata associated with it.
+	 * If this is an empty log device, or an empty device that is being
+	 * turned into a hole, destroy the metadata associated with it.
 	 */
-	if (vd->vdev_islog && vd->vdev_stat.vs_alloc == 0 && vd->vdev_removing)
-		vdev_remove_empty_log(vd, txg);
+	if ((vd->vdev_islog || vd->vdev_removing_empty) &&
+	    vd->vdev_stat.vs_alloc == 0 && vd->vdev_removing)
+		vdev_remove_empty(vd, txg);
 
 	(void) txg_list_add(&spa->spa_vdev_txg_list, vd, TXG_CLEAN(txg));
 	dmu_tx_commit(tx);
