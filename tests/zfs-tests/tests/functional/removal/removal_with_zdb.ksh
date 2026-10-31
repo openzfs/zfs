@@ -20,9 +20,6 @@
 
 zdbout=$(mktemp)
 
-if is_linux; then
-	log_unsupported "ZDB fails during concurrent pool activity."
-fi
 
 function cleanup
 {
