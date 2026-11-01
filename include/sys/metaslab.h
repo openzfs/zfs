@@ -142,6 +142,10 @@ void metaslab_group_alloc_decrement(spa_t *, uint64_t, int, int, uint64_t,
     const void *);
 void metaslab_recalculate_weight_and_sort(metaslab_t *);
 void metaslab_disable(metaslab_t *);
+typedef boolean_t metaslab_disable_check_f(void *);
+boolean_t metaslab_disable_cancellable(metaslab_t *,
+    metaslab_disable_check_f *, void *);
+void metaslab_wakeup_waiters(vdev_t *);
 void metaslab_enable(metaslab_t *, boolean_t, boolean_t);
 void metaslab_set_selected_txg(metaslab_t *, uint64_t);
 

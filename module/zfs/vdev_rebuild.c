@@ -146,6 +146,15 @@ clear_rebuild_bytes(vdev_t *vd)
 }
 
 /*
+ * Called while the metaslab group lock is held.
+ */
+static boolean_t
+vdev_rebuild_disable_cancel(void *arg)
+{
+	return (((vdev_t *)arg)->vdev_rebuild_exit_wanted);
+}
+
+/*
  * Determines whether a vdev_rebuild_thread() should be stopped.
  */
 static boolean_t
@@ -833,7 +842,12 @@ vdev_rebuild_thread(void *arg)
 
 		/* Disable any new allocations to this metaslab */
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
-		metaslab_disable(msp);
+		if (!metaslab_disable_cancellable(msp,
+		    vdev_rebuild_disable_cancel, vd)) {
+			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+			error = SET_ERROR(EINTR);
+			break;
+		}
 
 		/*
 		 * Wait for remaining sync passes and outstanding allocations
@@ -1121,6 +1135,7 @@ vdev_rebuild_stop_wait(vdev_t *vd)
 		mutex_enter(&vd->vdev_rebuild_lock);
 		if (vd->vdev_rebuild_thread != NULL) {
 			vd->vdev_rebuild_exit_wanted = B_TRUE;
+			metaslab_wakeup_waiters(vd);
 			while (vd->vdev_rebuilding) {
 				cv_wait(&vd->vdev_rebuild_cv,
 				    &vd->vdev_rebuild_lock);
