@@ -15,7 +15,8 @@
 # DESCRIPTION:
 #	A pool whose indirect vdev mapping or births object cannot be read
 #	fails to import with an error, instead of panicking on the read,
-#	both once a removal has finished and while one is in progress.
+#	both once a removal has finished and while one is in progress, and
+#	a rewind that tries every older txg fails the same way.
 #
 # STRATEGY:
 #	1. Create a pool on a file vdev, write some files, add a second
@@ -23,7 +24,9 @@
 #	2. Export the pool and keep a copy of the remaining vdev.
 #	3. Overwrite every copy of the mapping object's data block.
 #	4. Check that zdb fails to load the pool in spa_remove_init(), and
-#	   that zpool import fails.
+#	   that zpool import fails.  Once the removal has finished, check
+#	   that zdb -F and -X also fail there after rewinding, and that
+#	   zpool import -F, -FX and -T fail.
 #	5. Put the vdev back and do the same with the births object.
 #	6. Put the vdev back and check that the pool imports, that the
 #	   files read back unchanged and that a scrub finds no error.
@@ -115,6 +118,46 @@ function check_unimportable # what
 }
 
 #
+# Once the removal has finished and the first vdev is deleted, every txg
+# in the uberblock ring either still points to the damaged block or is
+# older than the end of the removal and needs the deleted vdev, so no
+# rewind can import the pool.  Each failed attempt is unloaded before
+# the next one is loaded.  zdb runs first again.  While a removal is in
+# progress, its mapping and births blocks are rewritten as it copies, so
+# an older txg can predate the damaged block and a rewind may rightly
+# import the pool: that case is not checked.
+#
+function check_unrewindable # what
+{
+	typeset opt txg
+	typeset -i rc
+
+	for opt in -F -X; do
+		zdb -G -e -p $VDIR $opt -d $TESTPOOL > $ZDBOUT 2>&1
+		rc=$?
+		if (( rc == 0 || rc > 127 )) ||
+		    ! grep -q "spa_remove_init failed" $ZDBOUT ||
+		    ! grep -q "spa_load_retry: rewind" $ZDBOUT; then
+			cat $ZDBOUT
+			log_fail "zdb $opt exited $rc, not failing in" \
+			    "spa_remove_init then rewinding, on a pool with" \
+			    "an unreadable $1"
+		fi
+		log_note "zdb $opt exited $rc after" \
+		    "$(grep -c "spa_load_retry: rewind" $ZDBOUT) rewinds"
+	done
+
+	txg=$(zdb -lu $VDEV_B | awk '$1 == "txg" && $2 == "=" { print $3 }' |
+	    sort -n | tail -n 1)
+	[[ -n $txg ]] || log_fail "no uberblock found on $VDEV_B"
+
+	log_mustnot zpool import -d $VDIR -F $TESTPOOL
+	log_mustnot zpool import -d $VDIR -FX $TESTPOOL
+	log_mustnot zpool import -d $VDIR -T $txg $TESTPOOL
+	log_mustnot poolexists $TESTPOOL
+}
+
+#
 # Count the removal thread's starts on a metaslab with data to copy.
 #
 function copy_starts
@@ -171,6 +214,7 @@ function test_removal # in_progress
 		[[ -n $obj ]] || log_fail "no $what in the configuration"
 		damage_object $obj
 		check_unimportable "$what (removal in progress: $in_progress)"
+		$in_progress || check_unrewindable "$what"
 		log_must cp $SAVED_B $VDEV_B
 	done
 
