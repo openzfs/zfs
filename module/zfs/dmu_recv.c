@@ -1850,6 +1850,42 @@ recv_check_compress_feature(uint8_t compress, uint64_t featureflags,
 }
 
 /*
+ * Check the compression type of a DRR_WRITE or DRR_SPILL payload that is
+ * written to disk as-is: a compressed DRR_WRITE, or a raw DRR_WRITE or
+ * DRR_SPILL.  The record's type becomes the new block pointer's
+ * compression, so it must be one the read path can decode.  The sender
+ * copies it from BP_GET_COMPRESS(), and zio_write_compress() stores only
+ * ZIO_COMPRESS_OFF or an algorithm with a decompressor there: INHERIT and
+ * ON are property values, and EMPTY becomes OFF or a hole.  An OFF block
+ * holds the logical block itself, so its payload size is the logical size;
+ * a smaller one would leave reads of the block running past the end of the
+ * payload.  Raw records carry OFF for uncompressed blocks.  A compressed
+ * (non-raw) DRR_WRITE never does: dump_write() sets the compression fields
+ * only for blocks that are compressed, so off_ok is B_FALSE for those.
+ */
+static int
+recv_check_payload_compress(uint8_t compress, boolean_t off_ok,
+    uint64_t lsize, uint64_t psize, char *errbuf, size_t errbuflen,
+    const char *what)
+{
+	if (compress >= ZIO_COMPRESS_FUNCTIONS ||
+	    (zio_compress_table[compress].ci_decompress == NULL &&
+	    (compress != ZIO_COMPRESS_OFF || !off_ok))) {
+		return (recv_check_fail(EINVAL, errbuf, errbuflen,
+		    "%s has invalid compression type %u", what, compress));
+	}
+
+	if (compress == ZIO_COMPRESS_OFF && psize != lsize) {
+		return (recv_check_fail(EINVAL, errbuf, errbuflen,
+		    "%s payload size %llu must equal logical size %llu "
+		    "when compression is off", what, (u_longlong_t)psize,
+		    (u_longlong_t)lsize));
+	}
+
+	return (0);
+}
+
+/*
  * Publish a stream rejection reason on the receive errors nvlist.
  * Called only from the reader thread (receive_read_record): the writer
  * thread shares no lock with the reader, so it must not mutate this nvlist.
@@ -2371,12 +2407,12 @@ recv_check_drr_spill(const struct drr_spill *drrs, spa_t *spa, boolean_t raw,
 	}
 
 	if (drrs->drr_compressed_size != 0) {
-		/* compression type must be within ZIO_COMPRESS_FUNCTIONS */
-		if (drrs->drr_compressiontype >= ZIO_COMPRESS_FUNCTIONS) {
-			return (recv_check_fail(EINVAL, errbuf, errbuflen,
-			    "DRR_SPILL has invalid compression type %u",
-			    drrs->drr_compressiontype));
-		}
+		/* compression type must be OFF or have a decompressor */
+		err = recv_check_payload_compress(drrs->drr_compressiontype,
+		    B_TRUE, drrs->drr_length, drrs->drr_compressed_size,
+		    errbuf, errbuflen, "DRR_SPILL");
+		if (err != 0)
+			return (err);
 
 		err = recv_check_compress_feature(drrs->drr_compressiontype,
 		    featureflags, errbuf, errbuflen, "DRR_SPILL");
@@ -2459,11 +2495,12 @@ recv_check_drr_write(const struct drr_write *drrw, spa_t *spa, boolean_t raw,
 			    "raw streams"));
 		}
 
-		if (drrw->drr_compressiontype >= ZIO_COMPRESS_FUNCTIONS) {
-			return (recv_check_fail(EINVAL, errbuf, errbuflen,
-			    "DRR_WRITE has invalid compression type %u",
-			    drrw->drr_compressiontype));
-		}
+		/* compression type must be OFF or have a decompressor */
+		err = recv_check_payload_compress(drrw->drr_compressiontype,
+		    B_TRUE, drrw->drr_logical_size, drrw->drr_compressed_size,
+		    errbuf, errbuflen, "DRR_WRITE");
+		if (err != 0)
+			return (err);
 
 		err = recv_check_compress_feature(drrw->drr_compressiontype,
 		    featureflags, errbuf, errbuflen, "DRR_WRITE");
@@ -2484,12 +2521,12 @@ recv_check_drr_write(const struct drr_write *drrw, spa_t *spa, boolean_t raw,
 			    "DMU_BACKUP_FEATURE_COMPRESSED"));
 		}
 
-		/* compression type must be within ZIO_COMPRESS_FUNCTIONS */
-		if (drrw->drr_compressiontype >= ZIO_COMPRESS_FUNCTIONS) {
-			return (recv_check_fail(EINVAL, errbuf, errbuflen,
-			    "DRR_WRITE has invalid compression type %u",
-			    drrw->drr_compressiontype));
-		}
+		/* compression type must have a decompressor */
+		err = recv_check_payload_compress(drrw->drr_compressiontype,
+		    B_FALSE, drrw->drr_logical_size, drrw->drr_compressed_size,
+		    errbuf, errbuflen, "DRR_WRITE");
+		if (err != 0)
+			return (err);
 
 		err = recv_check_compress_feature(drrw->drr_compressiontype,
 		    featureflags, errbuf, errbuflen, "DRR_WRITE");
