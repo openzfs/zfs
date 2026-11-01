@@ -62,6 +62,7 @@
 #include <sys/zil.h>
 #include <sys/sa_impl.h>
 #include <linux/mm_compat.h>
+#include <linux/pagemap_compat.h>
 
 /*
  * Programming rules.
@@ -238,6 +239,17 @@ update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
 		uint64_t nbytes = MIN(PAGE_SIZE - off, len);
 
 		struct page *pp = find_lock_page(mp, start >> PAGE_SHIFT);
+		if (pp != NULL && !PageUptodate(pp) && !PageDirty(pp)) {
+			/*
+			 * Nobody has filled this page yet.  Copying in only
+			 * the bytes written here would mark the rest of it up
+			 * to date.  Its filler needs the range lock our caller
+			 * holds as writer, so it will read this data instead.
+			 */
+			unlock_page(pp);
+			put_page(pp);
+			pp = NULL;
+		}
 		if (pp) {
 			if (mapping_writably_mapped(mp))
 				flush_dcache_page(pp);
@@ -4360,6 +4372,108 @@ zfs_getpage(struct inode *ip, struct page *pp)
 
 	return (error);
 }
+
+#ifndef HAVE_VFS_READPAGES
+/*
+ * Fill a readahead batch from one hold of the dbufs behind it, rather than
+ * one zfs_getpage() per page.
+ *
+ * The pages of the batch arrive locked, so the range lock is only tried:
+ * waiting for it with the batch held would deadlock against zfs_write() ->
+ * update_pages(), which holds the range lock and then locks pages. On
+ * contention, or anything else in the way, the pages not yet filled are
+ * left where they are, untaken. Every page taken from the batch is filled
+ * and marked up to date, so none is left behind locked out of its data.
+ */
+void
+zfs_getpages(struct inode *ip, struct readahead_control *ractl)
+{
+	znode_t *zp = ITOZ(ip);
+	zfsvfs_t *zfsvfs = ITOZSB(ip);
+	uint64_t off = readahead_pos(ractl);
+	uint64_t stop = off + readahead_length(ractl);
+	zfs_locked_range_t *lr;
+	uint64_t isize, filled = 0;
+
+	if (stop == off || zfs_enter_verify_zp(zfsvfs, zp, FTAG) != 0)
+		return;
+
+	lr = zfs_rangelock_tryenter(&zp->z_rangelock, off, stop - off,
+	    RL_READER);
+	if (lr == NULL)
+		goto out;
+
+	/*
+	 * A file of a single block whose size is not a power of two cannot
+	 * be held past the end of that block: read zeroes there, as
+	 * dmu_read() does.
+	 */
+	isize = i_size_read(ip);
+	if (!ISP2(zp->z_blksz))
+		isize = MIN(isize, zp->z_blksz);
+
+	while (off < stop) {
+		uint64_t limit = MIN(stop, off + DMU_MAX_ACCESS / 2);
+		uint64_t end = MIN(limit, isize);
+		dmu_buf_t **dbp = NULL;
+		int numbufs = 0, di = 0;
+
+		if (end > off && dmu_buf_hold_array_by_bonus(
+		    sa_get_db(zp->z_sa_hdl), off, end - off, B_TRUE, FTAG,
+		    &numbufs, &dbp, DMU_READ_PREFETCH) != 0)
+			break;
+
+		for (; off < limit; off += PAGE_SIZE) {
+			struct page *pp = readahead_page(ractl);
+			uint64_t pgoff = 0;
+			void *va;
+
+			if (pp == NULL) {
+				stop = off;
+				break;
+			}
+			ASSERT3U(page_offset(pp), ==, off);
+
+			va = kmap(pp);
+			while (pgoff < PAGE_SIZE && off + pgoff < end) {
+				dmu_buf_t *db;
+				uint64_t bufoff, tocpy;
+
+				ASSERT3S(di, <, numbufs);
+				db = dbp[di];
+				bufoff = off + pgoff - db->db_offset;
+				tocpy = MIN(db->db_size - bufoff,
+				    PAGE_SIZE - pgoff);
+				tocpy = MIN(tocpy, end - off - pgoff);
+				ASSERT(db->db_data != NULL);
+				memcpy((char *)va + pgoff,
+				    (char *)db->db_data + bufoff, tocpy);
+				pgoff += tocpy;
+				if (bufoff + tocpy == db->db_size)
+					di++;
+			}
+			if (pgoff < PAGE_SIZE)
+				memset((char *)va + pgoff, 0,
+				    PAGE_SIZE - pgoff);
+			kunmap(pp);
+
+			ClearPageError(pp);
+			SetPageUptodate(pp);
+			unlock_page(pp);
+			put_page(pp);
+			filled += pgoff;
+		}
+
+		dmu_buf_rele_array(dbp, numbufs, FTAG);
+	}
+
+	if (filled > 0)
+		dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, filled);
+	zfs_rangelock_exit(lr);
+out:
+	zfs_exit(zfsvfs, FTAG);
+}
+#endif
 
 /*
  * Check ZFS specific permissions to memory map a section of a file.
