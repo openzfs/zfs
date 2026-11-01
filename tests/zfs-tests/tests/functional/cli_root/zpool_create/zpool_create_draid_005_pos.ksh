@@ -88,7 +88,7 @@ for (( i = 0; i < 10; i++ )); do
 		done
 	done
 
-	log_must zpool create $TESTPOOL $draid $draid_fgrp_vdevs
+	log_must zpool create $TESTPOOL $draid $draid_fdom_vdevs
 	log_must poolexists $TESTPOOL
 	destroy_pool $TESTPOOL
 
