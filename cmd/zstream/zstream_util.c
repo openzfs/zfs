@@ -28,8 +28,9 @@
 #include <err.h>
 #include <errno.h>
 #include <libzfs.h>
+#include <libzutil.h>
 #include <pthread.h>
-#include <search.h>
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,16 +40,17 @@
 #include <sys/spa_checksum.h>
 #include <sys/stdtypes.h>
 #include <sys/sysmacros.h>
+#include <sys/types.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/zio.h>
 #include <sys/zio_compress.h>
 #include <unistd.h>
 
 #include "zstream_util.h"
+#include "zstream_hash.h"
 
-#define	KEYSIZE 128
-
-libzfs_handle_t *libzfs_handle = NULL;
+libzfs_handle_t		*libzfs_handle = NULL;
+static linear_hash_t	*record_specifiers = NULL;
 
 void *
 safe_malloc(size_t size)
@@ -68,6 +70,61 @@ safe_calloc(size_t size)
 		errx(1, "failed to allocate %zu bytes, aborting...", size);
 	}
 	return (rv);
+}
+
+void *
+safe_realloc(void *buff, size_t new_size)
+{
+	if ((buff = realloc(buff, new_size)) == NULL && new_size != 0)
+		errx(1, "failed to realloc %llu bytes, aborting...",
+		    (u_longlong_t)new_size);
+	return (buff);
+}
+
+void
+safe_pwrite(int fd, const void *buf, size_t count, off_t offset,
+    const char *where)
+{
+	size_t done = 0;
+
+	while (done < count) {
+		ssize_t n = pwrite(fd, (uint8_t *)buf + done, count - done,
+		    offset + done);
+		if (n < 0) {
+			if (errno == EINTR)
+				continue; /* zero progress this call, retry */
+			else if ((errno == ENOSPC || errno == EDQUOT) &&
+			    where != NULL)
+				errx(1, "write failed, out of space in %s"
+				    ", aborting...", where);
+			err(1, "pwrite() failed");
+		}
+		if (n == 0)
+			errx(1, "pwrite of %llu bytes failed",
+			    (u_longlong_t)count);
+		done += (size_t)n;
+	}
+}
+
+void
+safe_pread_zero(int fd, void *buf, size_t count, off_t offset)
+{
+	size_t done = 0;
+
+	while (done < count) {
+		ssize_t n = pread(fd, (uint8_t *)buf + done, count - done,
+		    offset + done);
+		if (n < 0) {
+			if (errno == EINTR)
+				continue; /* zero progress this call, retry */
+			err(1, "pread failed");
+		}
+		if (n == 0) {
+			memset((uint8_t *)buf + done, 0, count - done);
+			return;
+		}
+		done += (size_t)n;
+	}
 }
 
 void
@@ -178,6 +235,10 @@ release_libzfs(void)
 	}
 }
 
+/*
+ * This function calls require_libzfs(). release_libzfs() should be called
+ * at some point after parsing.
+ */
 int
 parse_compression_specifier(const char *str, compression_spec_t *spec)
 {
@@ -204,24 +265,45 @@ parse_compression_specifier(const char *str, compression_spec_t *spec)
 }
 
 /*
+ * Parse "nice" sizes such as "100M"
+ */
+int
+parse_size_specifier(const char *str, size_t *size)
+{
+	uint64_t val;
+
+	/*
+	 * zfs_nicestrtonum() only uses its libzfs handle to record error
+	 * details, and it accepts NULL in that position.
+	 */
+	if (zfs_nicestrtonum(NULL, str, &val) != 0 || (size_t)val != val)
+		return (-1);
+	*size = (size_t)val;
+	return (0);
+}
+
+/*
  * Parse a string of the form "OBJECT,OFFSET" or "OBJECT,OFFSET,COMPRESSION"
  * (with accept_compression == B_TRUE) and fill out a corresponding
- * record_specifier_t. Returns 0 if the string was successfully parsed.
+ * record_compression_t. Returns 0 if the string was successfully parsed.
  *
- * The rs_compression field of the record specifier struct is always
+ * The compression type field of the record specifier struct is always
  * initialized to ZIO_COMPRESS_INHERIT, whether accept_compression is true
  * or not. If accept_compression is B_TRUE but the input string does not
  * specify compression, the value remains at ZIO_COMPRESS_INHERIT.
+ *
+ * If accept_compression is B_TRUE, this function (indirectly) calls
+ * require_libzfs(). release_libzfs() should be called after parsing.
  */
 static int
-parse_record_specifier(const char *str, record_specifier_t *rec,
+parse_record_specifier(const char *str, record_compression_t *rec,
     boolean_t accept_compression)
 {
 	char static_buff[256];
 	char *buff = static_buff;
 	char *loc;
 	char *obj_str, *offset_str, *end;
-	boolean_t bad = B_TRUE;
+	int return_code = -1;
 	size_t in_size = strlen(str) + 1;
 
 	if (in_size > sizeof (static_buff)) {
@@ -230,114 +312,102 @@ parse_record_specifier(const char *str, record_specifier_t *rec,
 	strcpy(buff, str);
 	loc = buff;
 	errno = 0;
-	rec->rs_compression = (compression_spec_t) {
+	rec->rc_compression = (compression_spec_t) {
 		.cs_type = ZIO_COMPRESS_INHERIT
 	};
 
 	obj_str = strsep(&loc, ",");
 	if (loc == NULL)
 		goto bail;
-	rec->rs_object = strtoull(obj_str, &end, 0);
+	rec->rc_key.rs_object = strtoull(obj_str, &end, 0);
 	if (errno != 0 || *end != '\0' || obj_str == end)
 		goto bail;
 	offset_str = strsep(&loc, ",");
-	rec->rs_offset = strtoull(offset_str, &end, 0);
+	rec->rc_key.rs_offset = strtoull(offset_str, &end, 0);
 	if (errno != 0 || *end != '\0' || offset_str == end)
 		goto bail;
 	if (loc != NULL) {
 		if (accept_compression) {
 			int rc = parse_compression_specifier(loc,
-			    &rec->rs_compression);
+			    &rec->rc_compression);
 			if (rc != 0)
 				goto bail;
 		} else {
 			goto bail;
 		}
 	}
-	bad = B_FALSE;
+	return_code = 0;
 
 bail:	if (buff != static_buff)
 		free(buff);
-	return (bad ? -1 : 0);
+	return (return_code);
 }
 
 /*
  * Reads as many OBJECT,OFFSET[,COMPRESSION] record specifiers from the
- * command line as possible, entering them into an hcreate() hash table. The
- * OBJECT/OFFSET pairs become the keys and the compression types become the
- * values. If accept_compression is B_FALSE, ZIO_COMPRESS_INHERIT is used as
- * a placeholder value. This is also the default when accept_compression
- * is B_TRUE but no compression is specified.
+ * command line as possible and enters them into a hash table. If
+ * accept_compression is B_FALSE, ZIO_COMPRESS_INHERIT is used as a
+ * placeholder value. This is also the default when accept_compression is
+ * B_TRUE but no compression is specified.
  *
  * Stops at the first unparseable specifier and returns the number of
- * specifiers successfully parsed. Checks a few return codes that should
- * never fail and exits with a message if they do.
+ * specifiers successfully parsed.
  */
 int
 parse_record_specifiers(int argc, char *argv[], boolean_t accept_compression)
 {
 	int num_parsed = 0;
-	char *key;
-
-	if (hcreate(argc) == 0)
-		errx(1, "hcreate failed");
-
+	ASSERT(record_specifiers == NULL);
+	/*
+	 * A budget of 1MB or less gets page-sized clusters, so a 512KB base
+	 * leaves each of the table's three allocators many clusters, however
+	 * few specifiers there are. Then allow 128 bytes per specifier, about
+	 * 2.5 times the measured cost of an entry.
+	 */
+	record_specifiers = lh_init(sizeof (record_compression_t),
+	    sizeof (record_specifier_t), (1 << 19) + (size_t)argc * 128, NULL);
 	for (int i = 0; i < argc; i++) {
-		record_specifier_t spec;
-		int rc = parse_record_specifier(argv[i], &spec,
-		    accept_compression);
-		if (rc != 0) {
+		record_compression_t comp;
+		if (parse_record_specifier(argv[i], &comp, accept_compression))
 			break;
-		}
-		int n_chars = asprintf(&key, "%llu,%llu",
-		    (u_longlong_t)spec.rs_object,
-		    (u_longlong_t)spec.rs_offset);
-		if (n_chars < 0)
-			err(1, "asprintf");
-		ENTRY e = { .key = key };
-		ENTRY *p = hsearch(e, ENTER);
-		if (p == NULL)
-			errx(1, "hsearch failed");
-		p->data = (void *)(intptr_t)spec.rs_compression.cs_type;
+		if (lh_upsert(record_specifiers, &comp) == LH_UPDATED)
+			warnx("duplicate record specifier %llu,%llu, "
+			    "overwriting...",
+			    (u_longlong_t)comp.rc_key.rs_object,
+			    (u_longlong_t)comp.rc_key.rs_offset);
 		num_parsed++;
 	}
 	/*
 	 * require_libzfs() will not have been called if accept_compression
-	 * is B_FALSE, but it's still fine to call release_libzfs(). In that
-	 * case it's a no-op.
+	 * is B_FALSE, but in that case release_libzfs() is a no-op.
 	 */
 	release_libzfs();
 	return (num_parsed);
 }
 
 /*
- * Returns a raw zio_compress value rather than a compression_spec_t because
- * no clients are interested in compression levels. They just need to know
- * compression type.
+ * Retrieves a raw zio_compress value rather than a compression_spec_t
+ * because no clients are interested in compression levels. Sets the ctype
+ * and returns B_TRUE if a matching record was found.
  */
 boolean_t
 lookup_record_specifier(uint64_t object, uint64_t offset,
     enum zio_compress *ctype)
 {
-	char key[KEYSIZE];
-	boolean_t found = B_FALSE;
-	int n_chars = snprintf(key, sizeof (key), "%llu,%llu",
-	    (u_longlong_t)object, (u_longlong_t)offset);
-	if (n_chars < 0 || (size_t)n_chars >= sizeof (key))
-		errx(1, "snprintf");
-	ENTRY e = { .key = key };
-	ENTRY *p = hsearch(e, FIND);
-	if (p != NULL) {
-		*ctype = (enum zio_compress)(intptr_t)p->data;
-		found = B_TRUE;
-	}
-	return (found);
+	record_compression_t comp = { .rc_key = { object, offset } };
+	if (lh_find(record_specifiers, &comp) == LH_NOT_FOUND)
+		return (B_FALSE);
+	*ctype = comp.rc_compression.cs_type;
+	return (B_TRUE);
 }
 
 void
-destroy_record_specifier_hash(void)
+record_specifier_hash_fini(void)
 {
-	hdestroy();
+	if (record_specifiers != NULL) {
+		lh_fini(record_specifiers);
+		record_specifiers = NULL;
+	}
 }
 
 boolean_t
@@ -414,4 +484,35 @@ compress_buffer(uint8_t *inbuff, size_t inbuff_size,
 	abd_free(&dabd);
 
 	return (outbuff);
+}
+
+nicebuff_t
+nicenums(int count, ...)
+{
+	VERIFY(count > 0 && count <= MAX_NICENUMS);
+	nicebuff_t buff = {0};
+	va_list ap;
+	va_start(ap, count);
+	for (int i = 0; i < count; i++) {
+		uint64_t num = va_arg(ap, uint64_t);
+		zfs_nicenum(num, &buff.nice[i][0], NICENUM_BUFF_SIZE);
+	}
+	va_end(ap);
+	return (buff);
+}
+
+int
+safe_create_temp_file(const char *dir_path)
+{
+	char buff[1024];
+	int length = snprintf(buff, sizeof (buff),
+	    "%s/zstream-temp-XXXXXX", dir_path);
+	if (length >= sizeof (buff))
+		errx(1, "filename too long in %s", __func__);
+	int fd = mkstemp(buff);
+	if (fd < 0)
+		err(1, "unable to create temp file in %s", dir_path);
+	if (unlink(buff) < 0)
+		err(1, "unlink of %s failed", buff);
+	return (fd);
 }

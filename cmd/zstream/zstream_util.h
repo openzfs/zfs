@@ -35,6 +35,9 @@ extern "C" {
 #include <sys/zio_checksum.h>
 #include <sys/zio_compress.h>
 
+#define	NICENUM_BUFF_SIZE	32
+#define	MAX_NICENUMS		10
+
 /*
  * As with the libzfs-native ZIO_* encodings, only zstd compression has a
  * separately-defined level. gzip levels are bundled into the compression
@@ -48,8 +51,16 @@ typedef struct {
 typedef struct {
 	uint64_t		rs_object;
 	uint64_t		rs_offset;
-	compression_spec_t	rs_compression;
 } record_specifier_t;
+
+typedef struct {
+	record_specifier_t	rc_key;
+	compression_spec_t	rc_compression;
+} record_compression_t;
+
+typedef struct {
+	char			nice[MAX_NICENUMS][NICENUM_BUFF_SIZE];
+} nicebuff_t;
 
 typedef void *
 thread_f(void *);
@@ -65,6 +76,27 @@ safe_malloc(size_t size);
 
 void *
 safe_calloc(size_t n);
+
+void *
+safe_realloc(void *buff, size_t new_size);
+
+/*
+ * In addition to quitting on error, safe_pwrite() and safe_pread_zero()
+ * handle partial reads and writes correctly and do not return until the
+ * full buffer has been transferred. If where is not NULL, safe_pwrite()
+ * names it in the message when a write fails for lack of space or quota.
+ */
+void
+safe_pwrite(int fd, const void *buf, size_t count, off_t offset,
+    const char *where);
+
+/*
+ * Like a safe version of pread(), except that reading past end-of-file is
+ * not an error: any portion of the buffer that lies beyond EOF is filled
+ * with zeros.
+ */
+void
+safe_pread_zero(int fd, void *buf, size_t count, off_t offset);
 
 void
 safe_pthread_sigmask(int how, const sigset_t *set, sigset_t *oldset);
@@ -126,11 +158,20 @@ int
 parse_compression_specifier(const char *str, compression_spec_t *spec);
 
 /*
+ * Converts a size such as "512M", "4G", or "1.5T" to a byte count, using
+ * the same notation that zfs(8) accepts for numeric properties. Returns 0
+ * for successful parsing, nonzero if parsing failed or if the value does
+ * not fit in a size_t. In the case of failure, *size remains unmodified.
+ * Does not require libzfs to be initialized.
+ */
+int
+parse_size_specifier(const char *str, size_t *size);
+
+/*
  * Reads as many OBJECT,OFFSET[,COMPRESSION] record specifiers from the
- * command line as possible, entering them into an hcreate() hash table. The
- * OBJECT/OFFSET pairs become the keys and the compression types become the
- * values. If accept_compression is B_FALSE, ZIO_COMPRESS_INHERIT is used as
- * a placeholder value. This is also the default when accept_compression is
+ * command line as possible and enters them into a hash table. If
+ * accept_compression is B_FALSE, ZIO_COMPRESS_INHERIT is used as a
+ * placeholder value. This is also the default when accept_compression is
  * B_TRUE but no compression is specified.
  *
  * Stops at the first unparseable specifier and returns the number of
@@ -141,7 +182,7 @@ int
 parse_record_specifiers(int argc, char *argv[], boolean_t accept_compression);
 
 /*
- * Looks up record specifiers in an hcreate() hash table by object and
+ * Looks up record specifiers in the specifier table by object and
  * offset. Returns B_TRUE and sets the ctype if found.
  */
 boolean_t
@@ -152,7 +193,7 @@ lookup_record_specifier(uint64_t object, uint64_t offset,
  * Frees the hash table used by lookup_record_specifier().
  */
 void
-destroy_record_specifier_hash(void);
+record_specifier_hash_fini(void);
 
 boolean_t
 write_is_encrypted(struct drr_write *drrw);
@@ -164,6 +205,22 @@ decompress_buffer(uint8_t *inbuff, size_t inbuff_size, size_t logical_size,
 uint8_t *
 compress_buffer(uint8_t *inbuff, size_t inbuff_size,
     compression_spec_t compress_type, size_t *compressed_size);
+
+/*
+ * Mass-convert uint64_t's to their zfs_nicenum equivalents.
+ *
+ *   "Nice, nice, very nice / So many different people / In the same device"
+ *     -- Kurt Vonnegut, Cat's Cradle
+ */
+nicebuff_t
+nicenums(int count, ...);
+
+/*
+ * Create a temporary file in the named directory, returning an open file
+ * descriptor. The file is unlinked on creation, so closing deletes it.
+ */
+int
+safe_create_temp_file(const char *dir_path);
 
 #ifdef __cplusplus
 }

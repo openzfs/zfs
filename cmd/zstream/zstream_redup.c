@@ -23,78 +23,64 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/bitops.h>
 #include <sys/param.h>
 #include <sys/stdtypes.h>
 #include <sys/sysmacros.h>
 #include <sys/zfs_ioctl.h>
-#include <sys/kmem.h>
 #include <unistd.h>
 
 #include "zstream.h"
+#include "zstream_hash.h"
 #include "zstream_modules.h"
 #include "zstream_util.h"
 
-#define	MAX_RDT_PHYSMEM_PERCENT		20
-#define	SMALLEST_POSSIBLE_MAX_RDT_MB	128
-
-typedef struct redup_entry {
-	struct redup_entry	*rde_next;
-	uint64_t		rde_guid;
-	uint64_t		rde_object;
-	uint64_t		rde_offset;
-	uint64_t		rde_stream_offset;
-} redup_entry_t;
-
-typedef struct redup_table {
-	redup_entry_t	**redup_hash_array;
-	kmem_cache_t	*ddecache;
-	uint64_t	ddt_count;
-	int		numhashbits;
-} redup_table_t;
+#define	HASH_PHYSMEM_PERCENT			30
+#define	SMALLEST_POSSIBLE_HASH_MEMORY_MB	128
 
 typedef struct {
-	redup_table_t	rc_rdt;
+	uint64_t	rk_toguid;
+	uint64_t	rk_object;
+	uint64_t	rk_offset;
+} redup_key_t;
+
+typedef struct {
+	redup_key_t	rhe_key;
+	uint64_t	rhe_stream_offset;
+} redup_hash_entry_t;
+
+typedef struct {
+	linear_hash_t	*rc_hash;
 	FILE		*rc_fp;
 } redup_context_t;
 
-static void
-rdt_insert(redup_table_t *rdt,
-    uint64_t guid, uint64_t object, uint64_t offset, uint64_t stream_offset)
+static inline void
+hash_insert(linear_hash_t *lh, struct drr_write *drrw, uint64_t stream_offset)
 {
-	uint64_t ch = cityhash3(guid, object, offset);
-	uint64_t hashcode = BF64_GET(ch, 0, rdt->numhashbits);
-	redup_entry_t **rdepp;
-
-	rdepp = &(rdt->redup_hash_array[hashcode]);
-	redup_entry_t *rde = kmem_cache_alloc(rdt->ddecache, KM_SLEEP);
-	rde->rde_next = *rdepp;
-	rde->rde_guid = guid;
-	rde->rde_object = object;
-	rde->rde_offset = offset;
-	rde->rde_stream_offset = stream_offset;
-	*rdepp = rde;
-	rdt->ddt_count++;
+	redup_hash_entry_t rhe = {
+		.rhe_key = {
+			.rk_toguid = drrw->drr_toguid,
+			.rk_object = drrw->drr_object,
+			.rk_offset = drrw->drr_offset
+		},
+		.rhe_stream_offset = stream_offset
+	};
+	if (lh_upsert(lh, &rhe) == LH_UPDATED)
+		warnx("duplicate redup hash table entry, overwriting...");
 }
 
-static void
-rdt_lookup(redup_table_t *rdt,
-    uint64_t guid, uint64_t object, uint64_t offset,
-    uint64_t *stream_offsetp)
+static inline uint64_t
+hash_lookup(linear_hash_t *lh, struct drr_write_byref *drrwb)
 {
-	uint64_t ch = cityhash3(guid, object, offset);
-	uint64_t hashcode = BF64_GET(ch, 0, rdt->numhashbits);
-
-	for (redup_entry_t *rde = rdt->redup_hash_array[hashcode];
-	    rde != NULL; rde = rde->rde_next) {
-		if (rde->rde_guid == guid &&
-		    rde->rde_object == object &&
-		    rde->rde_offset == offset) {
-			*stream_offsetp = rde->rde_stream_offset;
-			return;
-		}
-	}
-	assert(!"could not find expected redup table entry");
+	redup_hash_entry_t rhe = {
+		.rhe_key = {
+			.rk_toguid = drrwb->drr_refguid,
+			.rk_object = drrwb->drr_refobject,
+			.rk_offset = drrwb->drr_refoffset
+		},
+	};
+	if (lh_find(lh, &rhe) == LH_NOT_FOUND)
+		errx(1, "could not find expected redup table entry");
+	return (rhe.rhe_stream_offset);
 }
 
 static disposition_t
@@ -128,14 +114,11 @@ chain_redup_writes(void *item_in, void *context_in)
 
 		/*
 		 * Look up in hash table by drrwb->drr_refguid,
-		 * drr_refobject, drr_refoffset.  Replace this
-		 * record with the found WRITE record, but with
-		 * drr_object,drr_offset,drr_toguid replaced with ours.
+		 * drr_refobject, drr_refoffset. Replace this record with
+		 * the found WRITE record, but with drr_object, drr_offset,
+		 * and drr_toguid replaced with ours.
 		 */
-		uint64_t stream_offset = 0;
-		rdt_lookup(&context->rc_rdt, drrwb.drr_refguid,
-		    drrwb.drr_refobject, drrwb.drr_refoffset,
-		    &stream_offset);
+		uint64_t stream_offset = hash_lookup(context->rc_hash, &drrwb);
 
 		if (fseeko(context->rc_fp, stream_offset, SEEK_SET) != 0) {
 			err(1, "seek into source file failed, offset %llu",
@@ -167,8 +150,7 @@ chain_redup_writes(void *item_in, void *context_in)
 	}
 
 	case DRR_WRITE:
-		rdt_insert(&context->rc_rdt, drrw->drr_toguid, drrw->drr_object,
-		    drrw->drr_offset, item->dp_stream_offset);
+		hash_insert(context->rc_hash, drrw, item->dp_stream_offset);
 		break;
 
 	default:
@@ -192,18 +174,59 @@ serial_redup_writes(redup_context_t *context)
 	return (step);
 }
 
+/*
+ * The default memory budget for the reduplication table
+ */
+static size_t
+default_hash_memory(void)
+{
+#ifdef _ILP32
+	return ((size_t)SMALLEST_POSSIBLE_HASH_MEMORY_MB << 20);
+#else
+	uint64_t physbytes = sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
+	return (MAX((physbytes * HASH_PHYSMEM_PERCENT) / 100,
+	    SMALLEST_POSSIBLE_HASH_MEMORY_MB << 20));
+#endif
+}
+
+static void
+print_redup_summary(chain_attrs_t *attrs, linear_hash_t *lh)
+{
+	record_stats_t *acsi = attrs->ca_stats_in;
+	nicebuff_t b = nicenums(3,
+	    attrs->ca_totals_in.rs_num_records,
+	    acsi[DRR_WRITE].rs_num_records,
+	    acsi[DRR_WRITE_BYREF].rs_num_records);
+	fprintf(stderr, "Converted stream with %s total records, "
+	    "including %s WRITE records and %s WRITE_BYREF "
+	    "records\n", b.nice[0], b.nice[1], b.nice[2]);
+
+	lh_stats_t stats = lh_get_stats(lh);
+	b = nicenums(2, stats.ls_total_records, (uint64_t)stats.ls_memory_use);
+	fprintf(stderr, "Stored %s hash table entries using %s of memory\n",
+	    b.nice[0], b.nice[1]);
+}
+
 int
 zstream_do_redup(int argc, char *argv[])
 {
 	int c;
 	chain_attrs_t attrs = {0};
 	redup_context_t context = {0};
-	uint64_t numbuckets;
+	const char *temp_dir = "/var/tmp";
+	size_t hash_memory = default_hash_memory();
 
-	while ((c = getopt(argc, argv, "v")) != -1) {
+	while ((c = getopt(argc, argv, "vd:m:")) != -1) {
 		switch (c) {
 		case 'v':
 			ENABLE_OPTION(&attrs, CA_VERBOSE);
+			break;
+		case 'd':
+			temp_dir = optarg;
+			break;
+		case 'm':
+			if (parse_size_specifier(optarg, &hash_memory) != 0)
+				errx(1, "invalid memory size '%s'", optarg);
 			break;
 		case '?':
 			warnx("invalid option '%c'", optopt);
@@ -222,24 +245,8 @@ zstream_do_redup(int argc, char *argv[])
 		err(1, "unable to open %s", argv[0]);
 	}
 
-#ifdef _ILP32
-	uint64_t max_rde_size = SMALLEST_POSSIBLE_MAX_RDT_MB << 20;
-#else
-	uint64_t physbytes = sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
-	uint64_t max_rde_size = MAX((physbytes * MAX_RDT_PHYSMEM_PERCENT) / 100,
-	    SMALLEST_POSSIBLE_MAX_RDT_MB << 20);
-#endif
-
-	numbuckets = max_rde_size / (sizeof (redup_entry_t));
-	if (!ISP2(numbuckets))
-		numbuckets = 1ULL << highbit64(numbuckets);
-
-	context.rc_rdt.redup_hash_array =
-	    safe_calloc(numbuckets * sizeof (redup_entry_t *));
-	context.rc_rdt.ddecache = kmem_cache_create("rde",
-	    sizeof (redup_entry_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
-	context.rc_rdt.numhashbits = highbit64(numbuckets) - 1;
-	context.rc_rdt.ddt_count = 0;
+	context.rc_hash = lh_init(sizeof (redup_hash_entry_t),
+	    sizeof (redup_key_t), hash_memory, temp_dir);
 
 	zstream_chain_t redup_chain = {
 		STANDARD_INPUT_STACK(argv[0]),
@@ -248,20 +255,10 @@ zstream_do_redup(int argc, char *argv[])
 	};
 	zstream_chain_exec(redup_chain, &attrs);
 
-	if (attrs.ca_command_opts & CA_VERBOSE) {
-		char mem_str[16];
-		record_stats_t *acsi = attrs.ca_stats_in;
-		zfs_nicenum(context.rc_rdt.ddt_count * sizeof (redup_entry_t),
-		    mem_str, sizeof (mem_str));
-		fprintf(stderr, "Converted stream with %llu total records, "
-		    "including %llu dedup records, using %sB memory.\n",
-		    (u_longlong_t)attrs.ca_totals_in.rs_num_records,
-		    (u_longlong_t)acsi[DRR_WRITE_BYREF].rs_num_records,
-		    mem_str);
-	}
+	if (attrs.ca_command_opts & CA_VERBOSE)
+		print_redup_summary(&attrs, context.rc_hash);
 
 	fclose(context.rc_fp);
-	kmem_cache_destroy(context.rc_rdt.ddecache);
-	free(context.rc_rdt.redup_hash_array);
+	lh_fini(context.rc_hash);
 	return (0);
 }
