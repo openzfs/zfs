@@ -344,6 +344,8 @@ snapshot_namecheck(const char *path, namecheck_err_t *why, char *what)
  *
  *	/[component][/]*[component][/]
  *
+ * The component name must also not be '..'
+ *
  * Returns 0 on success, -1 on error.
  */
 int
@@ -375,6 +377,11 @@ mountpoint_namecheck(const char *path, namecheck_err_t *why)
 		if (end - start >= ZFS_MAX_DATASET_NAME_LEN) {
 			if (why)
 				*why = NAME_ERR_TOOLONG;
+			return (-1);
+		}
+		if (end - start == 2 && start[0] == '.' && start[1] == '.') {
+			if (why)
+				*why = NAME_ERR_PARENT_REF;
 			return (-1);
 		}
 		start = end + 1;
