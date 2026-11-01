@@ -962,7 +962,20 @@ unalloc_seg(void *arg, uint64_t start, uint64_t size)
 {
 	vdev_copy_segment_arg_t *vcsa = arg;
 	spa_t *spa = vcsa->vcsa_spa;
+	vdev_t *dest_vd = vdev_lookup_top(spa,
+	    DVA_GET_VDEV(vcsa->vcsa_dest_dva));
 	blkptr_t bp = { { { {0} } } };
+
+	/*
+	 * This gap was allocated in the same txg as the copied segment. The
+	 * I/O is complete, so undo the allocation now rather than deferring
+	 * the free for TXG_DEFER_SIZE txgs.  This runs in open context, so
+	 * the syncing txg may be condensing the metaslab; then free it.
+	 */
+	if (metaslab_unalloc_range(dest_vd,
+	    DVA_GET_OFFSET(vcsa->vcsa_dest_dva) + start, size,
+	    vcsa->vcsa_txg))
+		return;
 
 	BP_SET_BIRTH(&bp, TXG_INITIAL, TXG_INITIAL);
 	BP_SET_LSIZE(&bp, size);
@@ -991,8 +1004,10 @@ spa_vdev_copy_segment_done(zio_t *zio)
 {
 	vdev_copy_segment_arg_t *vcsa = zio->io_private;
 
+	spa_config_enter(zio->io_spa, SCL_ALLOC, zio->io_spa, RW_READER);
 	zfs_range_tree_vacate(vcsa->vcsa_obsolete_segs,
 	    unalloc_seg, vcsa);
+	spa_config_exit(zio->io_spa, SCL_ALLOC, zio->io_spa);
 	zfs_range_tree_destroy(vcsa->vcsa_obsolete_segs);
 	kmem_free(vcsa, sizeof (*vcsa));
 
