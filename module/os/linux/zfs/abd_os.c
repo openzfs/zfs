@@ -1022,8 +1022,8 @@ abd_borrow_buf_copy(abd_t *abd, size_t n)
  * verifications in the ZIO pipeline check for this issue and handle it by
  * returning an error on checksum verification failure.
  */
-void
-abd_return_buf(abd_t *abd, void *buf, size_t n)
+static void
+abd_return_buf_impl(abd_t *abd, void *buf, size_t n, boolean_t verify)
 {
 	abd_verify(abd);
 	ASSERT3U(abd->abd_size, >=, n);
@@ -1045,7 +1045,7 @@ abd_return_buf(abd_t *abd, void *buf, size_t n)
 		void *cmp_buf = buf;
 
 		for (abd_t *cabd = list_head(&ABD_GANG(abd).abd_gang_chain);
-		    cabd != NULL;
+		    verify && cabd != NULL;
 		    cabd = list_next(&ABD_GANG(abd).abd_gang_chain, cabd)) {
 			if (!abd_is_from_pages(cabd)) {
 				ASSERT0(abd_cmp_buf(cabd, cmp_buf,
@@ -1056,18 +1056,29 @@ abd_return_buf(abd_t *abd, void *buf, size_t n)
 #endif
 		zio_buf_free(buf, n);
 	} else {
-		ASSERT0(abd_cmp_buf(abd, buf, n));
+		if (verify)
+			ASSERT0(abd_cmp_buf(abd, buf, n));
 		zio_buf_free(buf, n);
 	}
 }
 
+void
+abd_return_buf(abd_t *abd, void *buf, size_t n)
+{
+	abd_return_buf_impl(abd, buf, n, B_TRUE);
+}
+
+/*
+ * The ABD now holds buf's contents, so comparing them again proves nothing
+ * and reads any bytes the caller left unwritten, such as a compressor's tail.
+ */
 void
 abd_return_buf_copy(abd_t *abd, void *buf, size_t n)
 {
 	if (!abd_is_linear(abd) || abd_is_from_pages(abd)) {
 		abd_copy_from_buf(abd, buf, n);
 	}
-	abd_return_buf(abd, buf, n);
+	abd_return_buf_impl(abd, buf, n, B_FALSE);
 }
 
 /*
