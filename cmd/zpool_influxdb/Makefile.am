@@ -8,4 +8,5 @@ zpool_influxdb_SOURCES = \
 zpool_influxdb_LDADD = \
 	libspl.la \
 	libnvpair.la \
-	libzfs.la
+	libzfs.la \
+	libzfs_core.la
