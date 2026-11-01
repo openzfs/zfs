@@ -19,7 +19,7 @@
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\" Copyright (c) 2023, 2026, Klara Inc.
 .\"
-.Dd October 20, 2026
+.Dd November 1, 2026
 .Dt ZPOOLPROPS 7
 .Os
 .
@@ -586,8 +586,9 @@ on an existing pool moves an enabled
 .Ar feature_name
 back to the disabled state.
 This is refused while the feature is
-.Sy active
-and while another enabled feature depends on it.
+.Sy active ,
+while another enabled feature depends on it,
+and while a dataset needs it.
 See
 .Xr zpool-features 7
 for details on feature states.
