@@ -524,8 +524,8 @@ typedef struct v {
 	}							\
 }
 
-#define	raidz_math_begin()	kfpu_begin()
-#define	raidz_math_end()	kfpu_end()
+#define	raidz_math_begin(ctx)	kfpu_begin(ctx)
+#define	raidz_math_end(ctx)	kfpu_end(ctx)
 
 /* Overkill... */
 #if 0 // defined(_KERNEL)

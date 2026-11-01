@@ -25,7 +25,7 @@
 #define	TF(E, N) \
 	extern void ASMABI E(uint32_t s[8], const void *, size_t); \
 	static inline void N(uint32_t s[8], const void *d, size_t b) { \
-	kfpu_begin(); E(s, d, b); kfpu_end(); \
+	kfpu_ctx_t kctx; kfpu_begin(&kctx); E(s, d, b); kfpu_end(&kctx); \
 }
 
 #if defined(__x86_64) || defined(__aarch64__) || defined(__arm__) || \
