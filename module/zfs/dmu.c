@@ -1534,6 +1534,96 @@ dmu_write_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
 	return (0);
 }
 
+/*
+ * Check if a block should be skipped during rewrite.
+ * Returns B_TRUE if block should be skipped.
+ */
+static boolean_t
+dmu_rewrite_skip(dmu_buf_t *db, objset_t *os, uint64_t flags, uint64_t txg)
+{
+	/*
+	 * This may be slightly stale and racy, but should be OK for
+	 * the advisory use.
+	 */
+	blkptr_t *bp = dmu_buf_get_blkptr(db);
+	if (bp == NULL || BP_IS_HOLE(bp))
+		return (B_TRUE);
+
+	if (flags & ZFS_REWRITE_SKIP_SNAPSHOT) {
+		if (dmu_objset_block_is_shared(os, bp))
+			return (B_TRUE);
+	}
+
+	if (flags & ZFS_REWRITE_SKIP_BRT) {
+		if (brt_maybe_exists(os->os_spa, bp))
+			return (B_TRUE);
+	}
+
+	if (flags & ZFS_REWRITE_SKIP_CURRENT_ASIZE) {
+		if (bp_asize_is_current(os->os_spa, bp, txg))
+			return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+/*
+ * Mark the existing blocks of the given range of the object for rewrite, so
+ * that they are reallocated as if they were read and written back unchanged.
+ * Blocks excluded by the ZFS_REWRITE_SKIP_* flags are left alone, and so are
+ * holes and blocks that are being freed: rewriting those would only allocate
+ * zeroes.
+ *
+ * The transaction must already be assigned and hold the range for writing.
+ * The amounts of data read and marked for rewrite are added to *readp and
+ * *writtenp, either of which may be NULL.
+ */
+int
+dmu_rewrite_by_dnode(dnode_t *dn, uint64_t offset, uint64_t size,
+    uint64_t rewrite_flags, dmu_tx_t *tx, uint64_t *readp, uint64_t *writtenp)
+{
+	dmu_buf_t **dbp;
+	int numbufs;
+	int error;
+	uint64_t nr = 0;
+	uint64_t nw = 0;
+
+	error = dmu_buf_hold_array_by_dnode(dn, offset, size, TRUE, FTAG,
+	    &numbufs, &dbp, DMU_READ_PREFETCH | DMU_UNCACHEDIO);
+	if (error != 0)
+		return (error);
+
+	for (int i = 0; i < numbufs; i++) {
+		nr += dbp[i]->db_size;
+		if (dmu_buf_is_dirty(dbp[i], tx))
+			continue;
+
+		/*
+		 * A block freed in a transaction group that is not synced yet
+		 * is still a block here, but not worth bringing back.
+		 */
+		if (dnode_block_freed(dn, ((dmu_buf_impl_t *)dbp[i])->db_blkid))
+			continue;
+
+		if (dmu_rewrite_skip(dbp[i], dn->dn_objset, rewrite_flags,
+		    dmu_tx_get_txg(tx)))
+			continue;
+
+		nw += dbp[i]->db_size;
+		if (rewrite_flags & ZFS_REWRITE_PHYSICAL)
+			dmu_buf_will_rewrite(dbp[i], tx);
+		else
+			dmu_buf_will_dirty(dbp[i], tx);
+	}
+	dmu_buf_rele_array(dbp, numbufs, FTAG);
+
+	if (readp != NULL)
+		*readp += nr;
+	if (writtenp != NULL)
+		*writtenp += nw;
+	return (0);
+}
+
 void
 dmu_write_embedded(objset_t *os, uint64_t object, uint64_t offset,
     void *data, uint8_t etype, uint8_t comp, int uncompressed_size,

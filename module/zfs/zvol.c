@@ -373,6 +373,20 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 	    (error = zvol_check_volsize(volsize, doi->doi_data_block_size)))
 		goto out;
 
+	/*
+	 * A rewrite of the volume holds it long without owning it: do not
+	 * free blocks under it.
+	 */
+	uint64_t cursize;
+	if ((error = zap_lookup(os, ZVOL_ZAP_OBJ, "size", 8, 1,
+	    &cursize)) != 0)
+		goto out;
+	if (volsize < cursize &&
+	    dsl_dataset_long_held_by_others(dmu_objset_ds(os), FTAG)) {
+		error = SET_ERROR(EBUSY);
+		goto out;
+	}
+
 	error = zvol_update_volsize(volsize, os);
 	if (error == 0 && zv != NULL) {
 		zv->zv_volsize = volsize;
@@ -395,6 +409,356 @@ out:
 	if (error == 0 && zv != NULL)
 		zvol_os_update_volsize(zv, volsize);
 
+	return (error);
+}
+
+/*
+ * A volume is rewritten in pieces of this size (or of one volume block, if
+ * that is larger).  Each piece is rewritten under its own range lock, and
+ * under the suspend lock if the volume has a zvol_state_t, so that I/O to
+ * the volume waits for one piece at most.
+ */
+#define	ZVOL_REWRITE_CHUNK	(4ULL << 20)
+
+/*
+ * Find the zvol_state_t of the volume of os, named name, and return it in
+ * *zvp with zv_suspend_lock taken as reader, or NULL if it has none.  Writes
+ * to the volume must not escape the range lock: a write that lands on a block
+ * being marked for rewrite could be taken for the rewrite.  The zvol_state_t
+ * of a renamed volume only gets its new name later, from the zvol taskq, so
+ * while the dataset is owned, which an open volume is, look for the one that
+ * has it open.  Return EAGAIN if none has yet, as while its device is being
+ * created, and EBUSY if it is being removed while open.  All is decided under
+ * zvol_state_lock, without which a zvol_state_t being removed may be freed.
+ */
+static int
+zvol_rewrite_find(objset_t *os, const char *name, boolean_t owned,
+    zvol_state_t **zvp)
+{
+	uint64_t hash = zvol_name_hash(name);
+	struct hlist_node *p;
+	zvol_state_t *zv = NULL;
+	zvol_state_t *it;
+	int error = 0;
+
+	*zvp = NULL;
+	rw_enter(&zvol_state_lock, RW_READER);
+	hlist_for_each(p, ZVOL_HT_HEAD(hash)) {
+		it = hlist_entry(p, zvol_state_t, zv_hlink);
+		mutex_enter(&it->zv_state_lock);
+		if (it->zv_hash == hash && strcmp(it->zv_name, name) == 0 &&
+		    (it->zv_objset == os || (it->zv_objset == NULL &&
+		    !owned))) {
+			zv = it;
+			break;
+		}
+		mutex_exit(&it->zv_state_lock);
+	}
+	if (zv == NULL && owned) {
+		for (it = list_head(&zvol_state_list); it != NULL;
+		    it = list_next(&zvol_state_list, it)) {
+			mutex_enter(&it->zv_state_lock);
+			if (it->zv_objset == os) {
+				zv = it;
+				break;
+			}
+			mutex_exit(&it->zv_state_lock);
+		}
+		if (zv == NULL)
+			error = SET_ERROR(EAGAIN);
+	}
+
+	/*
+	 * Once a zvol_state_t is being removed, nothing opens it anymore, so
+	 * nothing writes through it unless it is still open.
+	 */
+	if (zv != NULL && (zv->zv_flags & ZVOL_REMOVING)) {
+		if (zv->zv_objset != NULL)
+			error = SET_ERROR(EBUSY);
+		mutex_exit(&zv->zv_state_lock);
+		zv = NULL;
+	}
+	if (zv != NULL && !rw_tryenter(&zv->zv_suspend_lock, RW_READER)) {
+		mutex_exit(&zv->zv_state_lock);
+		rw_enter(&zv->zv_suspend_lock, RW_READER);
+		mutex_enter(&zv->zv_state_lock);
+		/*
+		 * Meanwhile it may have started being removed or, if it was
+		 * suspended, have changed objsets.
+		 */
+		if (zv->zv_flags & ZVOL_REMOVING) {
+			if (zv->zv_objset != NULL)
+				error = SET_ERROR(EBUSY);
+		} else if (zv->zv_objset != os && zv->zv_objset != NULL) {
+			error = SET_ERROR(EAGAIN);
+		}
+		if ((zv->zv_flags & ZVOL_REMOVING) || error != 0) {
+			rw_exit(&zv->zv_suspend_lock);
+			mutex_exit(&zv->zv_state_lock);
+			zv = NULL;
+		}
+	}
+	if (zv != NULL)
+		mutex_exit(&zv->zv_state_lock);
+	rw_exit(&zvol_state_lock);
+
+	*zvp = zv;
+	return (error);
+}
+
+/*
+ * Rewrite one piece of a volume.  If the volume has a zvol_state_t, hold its
+ * suspend lock, so that it can not go away, and exclude I/O to the piece.
+ * The txg the piece was dirtied in is returned in *txgp, if it was.
+ */
+static int
+zvol_rewrite_chunk(objset_t *os, dnode_t *dn, uint64_t off, uint64_t len,
+    uint64_t flags, uint64_t *txgp)
+{
+	char name[ZFS_MAX_DATASET_NAME_LEN];
+	zvol_state_t *zv;
+	zfs_locked_range_t *lr = NULL;
+	uint64_t nr = 0;
+	uint64_t nw = 0;
+	dmu_tx_t *tx;
+	int error;
+
+	/* Wait while something else briefly owns the volume. */
+	for (;;) {
+		dsl_pool_config_enter(dmu_objset_pool(os), FTAG);
+		dsl_dataset_name(dmu_objset_ds(os), name);
+		dsl_pool_config_exit(dmu_objset_pool(os), FTAG);
+		error = zvol_rewrite_find(os, name,
+		    dsl_dataset_has_owner(dmu_objset_ds(os)), &zv);
+		if (error != EAGAIN)
+			break;
+		if (issig())
+			return (SET_ERROR(EINTR));
+		delay(MSEC_TO_TICK(10));
+	}
+	if (error != 0)
+		return (error);
+
+	if (zv != NULL) {
+		/*
+		 * Writes lock the extent they write.  The DMU rewrites whole
+		 * blocks, so lock whole blocks.
+		 */
+		uint64_t lo = P2ALIGN_TYPED(off, dn->dn_datablksz, uint64_t);
+		uint64_t hi = P2ROUNDUP_TYPED(off + len, dn->dn_datablksz,
+		    uint64_t);
+
+		lr = zfs_rangelock_enter(&zv->zv_rangelock, lo, hi - lo,
+		    RL_WRITER);
+	}
+
+	tx = dmu_tx_create(os);
+	dmu_tx_hold_write_by_dnode(tx, dn, off, len);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (error != 0) {
+		dmu_tx_abort(tx);
+	} else {
+		*txgp = dmu_tx_get_txg(tx);
+		error = dmu_rewrite_by_dnode(dn, off, len, flags, tx, &nr, &nw);
+		dmu_tx_commit(tx);
+	}
+
+	if (zv != NULL) {
+		dataset_kstats_update_read_kstats(&zv->zv_kstat, nr);
+		dataset_kstats_update_write_kstats(&zv->zv_kstat, nw);
+		zfs_rangelock_exit(lr);
+		rw_exit(&zv->zv_suspend_lock);
+	}
+	return (error);
+}
+
+/*
+ * Rewrite a range of a volume as-is without modification, so that its blocks
+ * are reallocated as if they were read and written back.  This is the volume
+ * counterpart of zfs_rewrite().  A length of zero stands for the rest of the
+ * volume.
+ *
+ * The volume can be in use.  It does not even have to be exposed as a device.
+ * I/O to it is not held up for longer than a piece.  The dataset stays long
+ * held and the pool referenced meanwhile, so the volume can not be destroyed,
+ * rolled back, received into, shrunk or sent itself, nor the pool exported,
+ * until the rewrite is done.  It does not return before the rewritten data is
+ * on stable storage.
+ */
+int
+zvol_rewrite(const char *name, uint64_t off, uint64_t len, uint64_t flags)
+{
+	dsl_pool_t *dp;
+	dsl_dataset_t *ds;
+	objset_t *os;
+	spa_t *spa;
+	dnode_t *dn = NULL;
+	uint64_t readonly = 0;
+	uint64_t volsize;
+	uint64_t end;
+	uint64_t chunk;
+	uint64_t last_txg = 0;
+	int error;
+
+	if ((flags & ~ZFS_REWRITE_VALID_FLAGS) != 0)
+		return (SET_ERROR(EINVAL));
+
+	error = dsl_pool_hold(name, FTAG, &dp);
+	if (error != 0)
+		return (error);
+	error = dsl_dataset_hold_flags(dp, name, DS_HOLD_FLAG_DECRYPT, FTAG,
+	    &ds);
+	if (error != 0) {
+		dsl_pool_rele(dp, FTAG);
+		return (error);
+	}
+	error = dmu_objset_from_ds(ds, &os);
+	if (error == 0) {
+		spa = dmu_objset_spa(os);
+		if (dmu_objset_type(os) != DMU_OST_ZVOL)
+			error = SET_ERROR(ENOTSUP);
+		else if (dmu_objset_is_snapshot(os) || !spa_writeable(spa))
+			error = SET_ERROR(EROFS);
+		else if (DS_IS_INCONSISTENT(ds))
+			error = SET_ERROR(EBUSY);
+		/* Volumes that dmu_objset_own() would not write to either. */
+		else if (dsl_dataset_feature_is_active(ds,
+		    SPA_FEATURE_REDACTED_DATASETS) ||
+		    dsl_dir_incompatible_encryption_version(ds->ds_dir))
+			error = SET_ERROR(EROFS);
+		/* A log yet to be replayed may refer to blocks it frees. */
+		else if (os->os_zil_header.zh_flags & ZIL_REPLAY_NEEDED)
+			error = SET_ERROR(EBUSY);
+		else if ((flags & ZFS_REWRITE_PHYSICAL) &&
+		    !spa_feature_is_enabled(spa, SPA_FEATURE_PHYSICAL_REWRITE))
+			error = SET_ERROR(ENOTSUP);
+		/*
+		 * A raw incremental stream leaves physically rewritten blocks
+		 * out, but not the new MACs of the blocks above them: the
+		 * received copy could not be read.
+		 */
+		else if ((flags & ZFS_REWRITE_PHYSICAL) && os->os_encrypted)
+			error = SET_ERROR(ENOTSUP);
+		else if ((error = dsl_prop_get_ds(ds,
+		    zfs_prop_to_name(ZFS_PROP_READONLY), 8, 1, &readonly,
+		    NULL)) == 0 && readonly != 0)
+			error = SET_ERROR(EROFS);
+	}
+
+	/* Authenticate what is going to be written to, as an owner would. */
+	if (error == 0 && arc_is_unauthenticated(os->os_phys_buf)) {
+		zbookmark_phys_t zb;
+
+		SET_BOOKMARK(&zb, ds->ds_object, ZB_ROOT_OBJECT,
+		    ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
+		error = arc_untransform(os->os_phys_buf, spa, &zb, B_FALSE);
+	}
+	if (error != 0) {
+		dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
+		dsl_pool_rele(dp, FTAG);
+		return (error);
+	}
+
+	/*
+	 * The rewrite is long: keep the dataset from being destroyed, and the
+	 * pool from being exported, but not the pool configuration locked,
+	 * since that would stop the transaction groups from syncing.
+	 */
+	dsl_dataset_long_hold(ds, FTAG);
+	spa_open_ref(spa, FTAG);
+	dsl_pool_rele(dp, FTAG);
+
+	error = dnode_hold(os, ZVOL_OBJ, FTAG, &dn);
+	if (error != 0)
+		goto out;
+
+	chunk = MAX(ZVOL_REWRITE_CHUNK, dn->dn_datablksz);
+	end = (len == 0 || len > UINT64_MAX - off) ? UINT64_MAX : off + len;
+
+	while (off < end) {
+		uint64_t stop;
+		uint64_t noff;
+		uint64_t n;
+		uint64_t txg = 0;
+
+		/* The volume may have been resized meanwhile. */
+		error = zap_lookup(os, ZVOL_ZAP_OBJ, "size", 8, 1, &volsize);
+		if (error != 0)
+			break;
+		stop = MIN(end, volsize);
+		if (off >= stop)
+			break;
+
+		/*
+		 * Rewrite only actual data, skipping any holes.  This might
+		 * be inaccurate for volumes in use, but we don't really care:
+		 * what is a hole by the time the piece is dirtied is skipped.
+		 */
+		noff = off;
+		error = dnode_next_offset(dn, 0, &noff, 1, 1, 0);
+		if (error != 0) {
+			if (error == ESRCH)	/* No more data. */
+				error = 0;
+			break;
+		}
+		if (noff >= stop)
+			break;
+		off = noff;
+
+		/* Find where the data end. */
+		if (dnode_next_offset(dn, DNODE_FIND_HOLE, &noff, 1, 1, 0) != 0)
+			noff = stop;
+		if (noff <= off) {
+			/* The block was freed since the data search. */
+			off = P2ALIGN_TYPED(off, dn->dn_datablksz, uint64_t) +
+			    dn->dn_datablksz;
+			continue;
+		}
+
+		n = MIN(MIN(stop, noff) - off, chunk - P2PHASE(off, chunk));
+		error = zvol_rewrite_chunk(os, dn, off, n, flags, &txg);
+		last_txg = MAX(last_txg, txg);
+		if (error != 0)
+			break;
+		off += n;
+
+		if (issig()) {
+			error = SET_ERROR(EINTR);
+			break;
+		}
+	}
+
+	/* Do not return with the rewritten data still in memory only. */
+	if (last_txg != 0) {
+		txg_wait_flag_t wait_flags = TXG_WAIT_SIGNAL;
+		int werror;
+
+		if (spa_get_failmode(spa) == ZIO_FAILURE_MODE_CONTINUE)
+			wait_flags |= TXG_WAIT_SUSPEND;
+		for (;;) {
+			werror = txg_wait_synced_flags(dmu_objset_pool(os),
+			    last_txg, wait_flags);
+			if (werror != EINTR || issig())
+				break;
+			/*
+			 * No signal to act on: a stop, or a FreeBSD process
+			 * being single-threaded, whose sleeps keep failing.
+			 */
+			delay(MSEC_TO_TICK(10));
+		}
+		if (error == 0 && werror != 0)
+			error = (werror == ESHUTDOWN) ? SET_ERROR(EIO) : werror;
+	}
+out:
+	if (dn != NULL)
+		dnode_rele(dn, FTAG);
+	dsl_dataset_long_rele(ds, FTAG);
+	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
+	spa_close(spa, FTAG);
+
+	/* Report damaged data as I/O to the volume does. */
+	if (error == ECKSUM)
+		error = SET_ERROR(EIO);
 	return (error);
 }
 

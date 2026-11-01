@@ -957,6 +957,23 @@ dsl_dataset_long_held(dsl_dataset_t *ds)
 	return (!zfs_refcount_is_zero(&ds->ds_longholds));
 }
 
+/*
+ * Return B_TRUE if the dataset is long held by anything but its owner, if
+ * one is given, and the waiters of dsl_dir_wait().
+ */
+boolean_t
+dsl_dataset_long_held_by_others(dsl_dataset_t *ds, const void *owner)
+{
+	dsl_dir_t *dd = ds->ds_dir;
+	boolean_t held;
+
+	mutex_enter(&dd->dd_activity_lock);
+	held = zfs_refcount_count(&ds->ds_longholds) -
+	    (owner != NULL ? 1 : 0) != dd->dd_activity_waiters;
+	mutex_exit(&dd->dd_activity_lock);
+	return (held);
+}
+
 void
 dsl_dataset_name(dsl_dataset_t *ds, char *name)
 {
@@ -3269,15 +3286,9 @@ dsl_dataset_rename_snapshot(const char *fsname,
 static int
 dsl_dataset_handoff_check(dsl_dataset_t *ds, void *owner, dmu_tx_t *tx)
 {
-	boolean_t held = B_FALSE;
-
 	if (!dmu_tx_is_syncing(tx))
 		return (0);
 
-	dsl_dir_t *dd = ds->ds_dir;
-	mutex_enter(&dd->dd_activity_lock);
-	uint64_t holds = zfs_refcount_count(&ds->ds_longholds) -
-	    (owner != NULL ? 1 : 0);
 	/*
 	 * The value of dd_activity_waiters can chance as soon as we drop the
 	 * lock, but we're fine with that; new waiters coming in or old
@@ -3286,11 +3297,7 @@ dsl_dataset_handoff_check(dsl_dataset_t *ds, void *owner, dmu_tx_t *tx)
 	 * non-waiters have long-holds, and all new long-holds will be
 	 * prevented because we're holding the pool config as writer.
 	 */
-	if (holds != dd->dd_activity_waiters)
-		held = B_TRUE;
-	mutex_exit(&dd->dd_activity_lock);
-
-	if (held)
+	if (dsl_dataset_long_held_by_others(ds, owner))
 		return (SET_ERROR(EBUSY));
 
 	return (0);
