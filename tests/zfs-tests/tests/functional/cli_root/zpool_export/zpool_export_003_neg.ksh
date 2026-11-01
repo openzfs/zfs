@@ -34,8 +34,6 @@
 
 verify_runnable "global"
 
-log_onexit zpool_export_cleanup
-
 set -A args "" "-f" "-? $TESTPOOL" "-QWERTYUIO $TESTPOOL"
 
 log_assert "'zpool export' should return an error with badly-formed parameters."

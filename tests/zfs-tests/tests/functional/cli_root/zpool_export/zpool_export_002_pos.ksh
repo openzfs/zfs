@@ -34,16 +34,6 @@
 
 verify_runnable "global"
 
-function cleanup
-{
-	log_must cd $olddir
-	zpool_export_cleanup
-}
-
-olddir=$PWD
-
-log_onexit cleanup
-
 log_assert "Verify a busy ZPOOL cannot be exported."
 
 log_must ismounted "$TESTPOOL/$TESTFS"
