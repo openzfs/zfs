@@ -3351,25 +3351,21 @@ vdev_dtl_should_excise(vdev_t *vd, boolean_t rebuild_done)
 		}
 	} else {
 		dsl_scan_t *scn = vd->vdev_spa->spa_dsl_pool->dp_scan;
-		dsl_scan_phys_t *scnp __maybe_unused = &scn->scn_phys;
-
-		/* Resilver not initiated by attach */
-		if (vd->vdev_resilver_txg == 0)
-			return (B_TRUE);
+		dsl_scan_phys_t *scnp = &scn->scn_phys;
 
 		/*
-		 * When a resilver is initiated the scan will assign the
-		 * scn_max_txg value to the highest txg value that exists
-		 * in all DTLs. If this device's max DTL is not part of this
-		 * scan (i.e. it is not in the range (scn_min_txg, scn_max_txg]
-		 * then it is not eligible for excision.
+		 * DTL excision removes a prefix, so the scan must include the
+		 * oldest missing TXG.
 		 */
-		if (vdev_dtl_max(vd) <= scn->scn_phys.scn_max_txg) {
-			ASSERT3U(scnp->scn_min_txg, <=, vdev_dtl_min(vd));
-			ASSERT3U(scnp->scn_min_txg, <, vd->vdev_resilver_txg);
-			ASSERT3U(vd->vdev_resilver_txg, <=, scnp->scn_max_txg);
-			return (B_TRUE);
-		}
+		if (scnp->scn_min_txg > vdev_dtl_min(vd))
+			return (B_FALSE);
+
+		/*
+		 * A device attached during the scan can have missing writes
+		 * beyond its upper bound and is not eligible for excision.
+		 */
+		return (vd->vdev_resilver_txg == 0 ||
+		    vdev_dtl_max(vd) <= scnp->scn_max_txg);
 	}
 
 	return (B_FALSE);
