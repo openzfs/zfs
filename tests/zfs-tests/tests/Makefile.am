@@ -1013,6 +1013,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_set/mountpoint_001_pos.ksh \
 	functional/cli_root/zfs_set/mountpoint_002_pos.ksh \
 	functional/cli_root/zfs_set/mountpoint_003_pos.ksh \
+	functional/cli_root/zfs_set/mountpoint_dotdot_neg.ksh \
 	functional/cli_root/zfs_set/onoffs_001_pos.ksh \
 	functional/cli_root/zfs_set/property_alias_001_pos.ksh \
 	functional/cli_root/zfs_set/readonly_001_pos.ksh \
