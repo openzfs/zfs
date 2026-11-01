@@ -88,6 +88,7 @@ vfs_setmntopt(vfs_t *vfsp, const char *name, const char *arg,
 
 	MNT_ILOCK(vfsp);
 	TAILQ_INSERT_TAIL(vfsp->mnt_opt, opt, link);
+	vfsp->mnt_stat.f_flags = vfsp->mnt_flag & MNT_VISFLAGMASK;
 	if (!locked)
 		MNT_IUNLOCK(vfsp);
 }
@@ -112,7 +113,15 @@ vfs_optionisset(const vfs_t *vfsp, const char *opt, char **argp)
 
 	if (opts == NULL)
 		return (0);
+	if (strcmp(opt, "atime") == 0)
+		opt = "nonoatime";
+	else if (strcmp(opt, "exec") == 0)
+		opt = "nonoexec";
 	error = vfs_getopt(opts, opt, (void **)argp, NULL);
+	if (error != 0 && strcmp(opt, "setuid") == 0)
+		error = vfs_getopt(opts, "nonosuid", (void **)argp, NULL);
+	else if (error != 0 && strcmp(opt, "nosetuid") == 0)
+		error = vfs_getopt(opts, "nosuid", (void **)argp, NULL);
 	return (error != 0 ? 0 : 1);
 }
 

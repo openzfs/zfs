@@ -326,6 +326,11 @@ zfs_add_option(zfs_handle_t *zhp, char *options, int len,
 	const char *source;
 	uint64_t value;
 
+#ifdef __FreeBSD__
+	if (prop == ZFS_PROP_SETUID && strstr(options, "suid") != NULL)
+		return (0);
+#endif
+
 	/* Skip adding duplicate default options */
 	if ((strstr(options, on) != NULL) || (strstr(options, off) != NULL))
 		return (0);
