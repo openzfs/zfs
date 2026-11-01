@@ -2553,8 +2553,7 @@ dump_history(spa_t *spa)
 		if ((error = spa_history_get(spa, &off, &len, buf)) != 0) {
 			(void) fprintf(stderr, "Unable to read history: "
 			    "error %d\n", error);
-			free(buf);
-			return;
+			goto out;
 		}
 
 		if (zpool_history_unpack(buf, len, &resid, &events, &num) != 0)
@@ -2647,6 +2646,10 @@ next:
 			dump_nvlist(events[i], 2);
 		}
 	}
+out:
+	for (unsigned i = 0; i < num; i++)
+		nvlist_free(events[i]);
+	free(events);
 	free(buf);
 }
 
