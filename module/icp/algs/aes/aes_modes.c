@@ -74,8 +74,7 @@ aes_encrypt_contiguous_blocks(void *ctx, char *data, size_t length,
 		rv = gcm_mode_encrypt_contiguous_blocks(ctx, data, length,
 		    out, AES_BLOCK_LEN, aes_encrypt_block, aes_copy_block,
 		    aes_xor_block);
-	}
-	else
+	} else
 		__builtin_unreachable();
 	return (rv);
 }
