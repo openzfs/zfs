@@ -78,7 +78,7 @@ log_must zpool create -f \
     -o ashift=9 \
     -o feature@fast_dedup=disabled \
     -o feature@block_cloning=enabled \
-    -O dedup=on \
+    -O dedup=sha256 \
     -O compression=off \
     -O xattr=sa \
     $TESTPOOL $DISKS

@@ -418,6 +418,7 @@ extern void ddt_repair_done(ddt_t *ddt, ddt_entry_t *dde);
 extern int ddt_key_compare(const void *x1, const void *x2);
 
 extern void ddt_create(spa_t *spa);
+extern void ddt_create_dedup_checksum(spa_t *spa, dmu_tx_t *tx);
 extern int ddt_load(spa_t *spa);
 extern void ddt_unload(spa_t *spa);
 extern void ddt_sync(spa_t *spa, uint64_t txg);

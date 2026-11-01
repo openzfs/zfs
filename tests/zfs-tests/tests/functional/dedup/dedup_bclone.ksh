@@ -22,7 +22,7 @@
 #	the DDT rather than in the BRT.
 #
 # STRATEGY:
-#	1. Create a pool with block_cloning enabled and dedup=on
+#	1. Create a pool with block_cloning enabled and dedup=sha256
 #	2. Write a file (4 blocks, unique DDT entries, refcnt=1)
 #	3. Clone the file - ddt_addref() bumps DDT refcnt to 2, entries move
 #	   from unique to duplicate table; no BRT entries are created
@@ -54,7 +54,7 @@ log_onexit cleanup
 # Use 'xattr=sa' to prevent selinux xattrs influencing our accounting
 log_must zpool create -f \
     -o feature@block_cloning=enabled \
-    -O dedup=on \
+    -O dedup=sha256 \
     -O compression=off \
     -O xattr=sa \
     $TESTPOOL $DISKS
