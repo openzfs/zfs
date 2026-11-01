@@ -1746,6 +1746,12 @@ dsl_dataset_snapshot_sync_impl(dsl_dataset_t *ds, const char *snapname,
 	ASSERT(RRW_WRITE_HELD(&dp->dp_config_rwlock));
 
 	/*
+	 * Every caller has checked the snapshot name or made it up itself.
+	 * An empty name would match the free slots of a snapshot microzap.
+	 */
+	ASSERT3U(strlen(snapname), >, 0);
+
+	/*
 	 * If we are on an old pool, the zil must not be active, in which
 	 * case it will be zeroed.  Usually zil_suspend() accomplishes this.
 	 */
@@ -3195,6 +3201,9 @@ dsl_dataset_rename_snapshot_sync_impl(dsl_pool_t *dp,
 		/* ignore nonexistent snapshots */
 		return (0);
 	}
+
+	/* As for a new snapshot, every caller has checked the new name. */
+	ASSERT3U(strlen(ddrsa->ddrsa_newsnapname), >, 0);
 
 	VERIFY0(dsl_dataset_hold_obj(dp, val, FTAG, &ds));
 
