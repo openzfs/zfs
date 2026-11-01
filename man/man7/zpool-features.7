@@ -16,7 +16,7 @@
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd October 20, 2026
+.Dd November 1, 2026
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -105,16 +105,22 @@ An
 .Sy enabled
 feature that is not
 .Sy active ,
-and on which no other enabled feature depends,
+on which no other enabled feature depends,
+and that no dataset needs,
 can be returned to the
 .Sy disabled
 state, see
 .Xr zpoolprops 7 .
-Anything that later needs the feature enables it again,
-for example a dataset property still set to a value the feature provides,
+A dataset needs a feature that it has not activated yet when one of its
+properties, set locally or received, has a value that the feature provides,
 such as
-.Sy checksum Ns = Ns Sy sha512 ,
-and the pool history records it.
+.Sy checksum Ns = Ns Sy sha512
+or a
+.Sy recordsize
+larger than 128 KiB,
+or when it is a volume whose
+.Sy volblocksize
+is larger than 128 KiB.
 .Pp
 The state of supported features is exposed through pool properties of the form
 .Sy feature Ns @ Ns Ar short-name .

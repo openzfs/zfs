@@ -21,6 +21,7 @@
 #include <sys/zap.h>
 #include <sys/dmu_tx.h>
 #include <sys/dsl_pool.h>
+#include <sys/dsl_prop.h>
 #include <sys/dsl_synctask.h>
 #include "zfeature_common.h"
 #include <sys/spa_impl.h>
@@ -557,7 +558,7 @@ feature_disable_check(void *arg, dmu_tx_t *tx)
 		    feature_depends_on(f, fid))
 			return (SET_ERROR(EBUSY));
 	}
-	return (0);
+	return (dsl_prop_feature_check(dmu_tx_pool(tx), fid));
 }
 
 static void
