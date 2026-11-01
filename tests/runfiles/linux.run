@@ -64,6 +64,10 @@ tests = ['zfs_mount_006_pos', 'zfs_mount_008_pos', 'zfs_mount_013_pos',
     'zfs_mount_014_neg', 'zfs_multi_mount']
 tags = ['functional', 'cli_root', 'zfs_mount']
 
+[tests/functional/cli_root/zfs_rollback:Linux]
+tests = ['zfs_rollback_held_unlinked']
+tags = ['functional', 'cli_root', 'zfs_rollback']
+
 [tests/functional/cli_root/zfs_share:Linux]
 tests = ['zfs_share_005_pos', 'zfs_share_007_neg', 'zfs_share_009_neg',
     'zfs_share_012_pos', 'zfs_share_013_pos']
