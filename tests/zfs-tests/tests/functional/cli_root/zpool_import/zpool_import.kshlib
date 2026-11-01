@@ -347,3 +347,23 @@ function get_last_txg_synced
 
 	zdb -u $pool | awk '$1 == "txg" { print $3 }' | sort -n | tail -n 1
 }
+
+#
+# Use zdb to find the txg of the state a checkpoint of an exported pool
+# protects: the birth of the checkpointed uberblock's root block pointer.
+# The checkpoint holds only the blocks born up to that txg, which is older
+# than the last txg synced when "zpool checkpoint" returns, and a txg that
+# changes nothing has no uberblock of its own, so the uberblock's txg can
+# not be used either.
+#
+function get_checkpointed_txg
+{
+	typeset pool=$1
+	typeset dir=$2
+
+	zdb -e -p $dir -k -u $pool | awk '$1 == "bp" {
+		for (i = 1; i <= NF; i++)
+			if (sub(/^birth=/, "", $i)) { sub(/L.*/, "", $i); print $i }
+		exit
+	}'
+}
