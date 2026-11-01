@@ -189,6 +189,24 @@ Since L2ARC buffers are not evicted on memory pressure,
 too many headers on a system with an irrationally large L2ARC
 can render it slow or unusable.
 This parameter limits L2ARC writes and rebuilds to achieve the target.
+If the headers exceed it anyway, for example because the ARC target shrank,
+the oldest L2ARC-only headers are pruned until they fit and writes resume.
+Pruned buffers remain on the cache device, and a later import may restore them.
+.
+.It Sy l2arc_hdr_prune_budget Ns = Ns Sy 65536 Pq u64
+Maximum number of headers each cache device examines per feed iteration
+while pruning headers over
+.Sy l2arc_meta_percent .
+Headers of buffers still in the ARC are examined but kept.
+A value of
+.Sy 0
+disables pruning.
+.
+.It Sy l2arc_hdr_prune_batch_limit Ns = Ns Sy 256 Pq uint
+Number of headers pruning examines each time it takes a cache device's
+buffer list lock.
+Lower values hold the lock for less time,
+at the cost of taking it more often.
 .
 .It Sy l2arc_trim_ahead Ns = Ns Sy 0 Ns % Pq u64
 Trims ahead of the current write size on L2ARC devices by this percentage
