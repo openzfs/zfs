@@ -34,10 +34,15 @@ function cleanup
 {
 	destroy_pool $TESTPOOL
 	log_must rm -f $TEST_BASE_DIR/device-{1,2,3}
+	restore_tunable RETIRE_INDIRECT_VDEVS
 }
 
 log_assert "Device removal should not be able to remove non-concrete vdevs"
 log_onexit cleanup
+
+# Keep the indirect vdev even if nothing refers to it.
+log_must save_tunable RETIRE_INDIRECT_VDEVS
+log_must set_tunable32 RETIRE_INDIRECT_VDEVS 0
 
 # 1. Create a pool with removable devices
 truncate -s $MINVDEVSIZE $TEST_BASE_DIR/device-{1,2,3}

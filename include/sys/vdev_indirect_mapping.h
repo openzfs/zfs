@@ -89,6 +89,13 @@ typedef struct vdev_indirect_mapping {
 
 	dmu_buf_t	*vim_dbuf;
 	vdev_indirect_mapping_phys_t	*vim_phys;
+
+	/*
+	 * Sum of the counts object, read on first use and cleared when
+	 * entries are added (see vdev_indirect_mapping_counts_sum()).
+	 */
+	uint64_t	vim_counts_sum;
+	boolean_t	vim_counts_sum_valid;
 } vdev_indirect_mapping_t;
 
 extern vdev_indirect_mapping_t *vdev_indirect_mapping_open(objset_t *os,
@@ -130,6 +137,8 @@ extern void vdev_indirect_mapping_increment_obsolete_count(
     uint64_t offset, uint64_t asize, uint32_t *counts);
 extern void vdev_indirect_mapping_free_obsolete_counts(
     vdev_indirect_mapping_t *vim, uint32_t *counts);
+extern int vdev_indirect_mapping_counts_sum(vdev_indirect_mapping_t *vim,
+    uint64_t *sump);
 
 #ifdef	__cplusplus
 }
