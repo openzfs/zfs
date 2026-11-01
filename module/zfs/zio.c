@@ -3064,6 +3064,7 @@ zio_resume(spa_t *spa)
 	if (pio == NULL)
 		return (0);
 
+	txg_wait_kick(spa->spa_dsl_pool);
 	zio_reexecute(pio);
 	return (zio_wait(pio));
 }
