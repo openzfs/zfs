@@ -150,6 +150,11 @@ typedef struct vdev_raidz {
 	kmutex_t vd_expand_lock;
 
 	/*
+	 * In-core copy of VDEV_TOP_ZAP_RAIDZ_EXPAND_OLD_ASIZE, 0 if absent.
+	 */
+	uint64_t vd_expand_old_asize;
+
+	/*
 	 * If this vdev is being expanded, spa_raidz_expand is set to this
 	 */
 	vdev_raidz_expand_t vn_vre;
@@ -160,6 +165,7 @@ extern void vdev_raidz_attach_sync(void *, dmu_tx_t *);
 extern void spa_start_raidz_expansion_thread(spa_t *);
 extern int spa_raidz_expand_get_stats(spa_t *, pool_raidz_expand_stat_t *);
 extern int vdev_raidz_load(vdev_t *);
+extern void vdev_raidz_expand_grow(spa_t *);
 
 /* RAIDZ scratch area pause points (for testing) */
 #define	RAIDZ_EXPAND_PAUSE_NONE	0
@@ -170,6 +176,8 @@ extern int vdev_raidz_load(vdev_t *);
 #define	RAIDZ_EXPAND_PAUSE_SCRATCH_REFLOWED 5
 #define	RAIDZ_EXPAND_PAUSE_SCRATCH_POST_REFLOW_1 6
 #define	RAIDZ_EXPAND_PAUSE_SCRATCH_POST_REFLOW_2 7
+/* After the completion txg, before the vdev grows */
+#define	RAIDZ_EXPAND_PAUSE_COMPLETED 8
 
 #ifdef	__cplusplus
 }

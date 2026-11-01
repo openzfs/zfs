@@ -331,6 +331,12 @@
  *   VDEV_TOP_ZAP_RAIDZ_EXPAND_START_TIME
  *   VDEV_TOP_ZAP_RAIDZ_EXPAND_END_TIME
  *   VDEV_TOP_ZAP_RAIDZ_EXPAND_BYTES_COPIED
+ *
+ * VDEV_TOP_ZAP_RAIDZ_EXPAND_OLD_ASIZE is not informational.  The txg that
+ * completes an expansion stores the vdev's asize there, and the entry stays
+ * until the vdev has grown past it.  The growth takes a reopen after that
+ * txg (see the end of spa_raidz_expand_thread()), which a writable import
+ * redoes if it finds the entry.
  */
 
 /*
@@ -4392,6 +4398,12 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_END_TIME,
 	    sizeof (end_time), 1, &end_time, tx));
 
+	vdrz->vd_expand_old_asize = raidvd->vdev_asize;
+	VERIFY0(zap_update(spa->spa_meta_objset,
+	    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_OLD_ASIZE,
+	    sizeof (vdrz->vd_expand_old_asize), 1,
+	    &vdrz->vd_expand_old_asize, tx));
+
 	spa->spa_uberblock.ub_raidz_reflow_info = 0;
 
 	spa_history_log_internal(spa, "raidz vdev expansion completed",  tx,
@@ -4421,6 +4433,80 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	if (zfs_scrub_after_expand &&
 	    dsl_scan_setup_check(&setup_sync_arg.func, tx) == 0) {
 		dsl_scan_setup_sync(&setup_sync_arg, tx);
+	}
+}
+
+static void
+raidz_expand_grown_sync(void *arg, dmu_tx_t *tx)
+{
+	uint64_t guid = *(uint64_t *)arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	vdev_t *vd = spa_lookup_by_guid(spa, guid, B_FALSE);
+
+	if (vd == NULL || vd->vdev_ops != &vdev_raidz_ops)
+		return;
+
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
+	boolean_t grown = vdrz->vd_expand_old_asize != 0 &&
+	    vd->vdev_asize > vdrz->vd_expand_old_asize;
+	spa_config_exit(spa, SCL_STATE, FTAG);
+
+	if (grown) {
+		(void) zap_remove(spa->spa_meta_objset, vd->vdev_top_zap,
+		    VDEV_TOP_ZAP_RAIDZ_EXPAND_OLD_ASIZE, tx);
+		vdrz->vd_expand_old_asize = 0;
+	}
+}
+
+/*
+ * Drop VDEV_TOP_ZAP_RAIDZ_EXPAND_OLD_ASIZE if the vdev has grown past it.
+ * The new asize is already on disk: vdev_online() waits for its txg.
+ */
+static void
+raidz_expand_grown(spa_t *spa, uint64_t guid)
+{
+	VERIFY0(dsl_sync_task(spa_name(spa), NULL, raidz_expand_grown_sync,
+	    &guid, 0, ZFS_SPACE_CHECK_NONE));
+}
+
+/*
+ * Called by the async thread after a writable load found
+ * VDEV_TOP_ZAP_RAIDZ_EXPAND_OLD_ASIZE on a vdev: the pool stopped after
+ * an expansion completed and before the vdev_online() at the end of
+ * spa_raidz_expand_thread() made the new capacity durable.
+ */
+void
+vdev_raidz_expand_grow(spa_t *spa)
+{
+	vdev_t *rvd = spa->spa_root_vdev;
+
+	for (uint64_t c = 0; ; c++) {
+		uint64_t guid = 0;
+		boolean_t grown = B_FALSE;
+
+		spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_READER);
+		if (c >= rvd->vdev_children) {
+			spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+			break;
+		}
+		vdev_t *vd = rvd->vdev_child[c];
+		if (vd->vdev_ops == &vdev_raidz_ops && !vd->vdev_rz_expanding) {
+			vdev_raidz_t *vdrz = vd->vdev_tsd;
+
+			if (vdrz->vd_expand_old_asize != 0) {
+				guid = vd->vdev_guid;
+				grown = vd->vdev_asize >
+				    vdrz->vd_expand_old_asize;
+			}
+		}
+		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+
+		if (guid == 0)
+			continue;
+		if (grown ||
+		    vdev_online(spa, guid, ZFS_ONLINE_EXPAND, NULL) == 0)
+			raidz_expand_grown(spa, guid);
 	}
 }
 
@@ -5294,7 +5380,9 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 		VERIFY0(dsl_sync_task(spa_name(spa), NULL,
 		    raidz_reflow_complete_sync, spa,
 		    0, ZFS_SPACE_CHECK_NONE));
-		(void) vdev_online(spa, guid, ZFS_ONLINE_EXPAND, NULL);
+		raidz_expand_pause(RAIDZ_EXPAND_PAUSE_COMPLETED);
+		if (vdev_online(spa, guid, ZFS_ONLINE_EXPAND, NULL) == 0)
+			raidz_expand_grown(spa, guid);
 	} else {
 		/*
 		 * Wait for all copy zio's to complete and for all the
@@ -5442,6 +5530,7 @@ vdev_raidz_load(vdev_t *vd)
 	uint64_t start_time = 0;
 	uint64_t end_time = 0;
 	uint64_t bytes_copied = 0;
+	uint64_t old_asize = 0;
 
 	if (vd->vdev_top_zap != 0) {
 		err = zap_lookup(vd->vdev_spa->spa_meta_objset,
@@ -5467,6 +5556,12 @@ vdev_raidz_load(vdev_t *vd)
 		    sizeof (bytes_copied), 1, &bytes_copied);
 		if (err != 0 && err != ENOENT)
 			return (err);
+
+		err = zap_lookup(vd->vdev_spa->spa_meta_objset,
+		    vd->vdev_top_zap, VDEV_TOP_ZAP_RAIDZ_EXPAND_OLD_ASIZE,
+		    sizeof (old_asize), 1, &old_asize);
+		if (err != 0 && err != ENOENT)
+			return (err);
 	}
 
 	/*
@@ -5478,6 +5573,10 @@ vdev_raidz_load(vdev_t *vd)
 	vdrz->vn_vre.vre_start_time = start_time;
 	vdrz->vn_vre.vre_end_time = end_time;
 	vdrz->vn_vre.vre_bytes_copied = bytes_copied;
+
+	vdrz->vd_expand_old_asize = old_asize;
+	if (old_asize != 0 && spa_writeable(vd->vdev_spa))
+		spa_async_request(vd->vdev_spa, SPA_ASYNC_RAIDZ_EXPAND_GROW);
 
 	return (0);
 }
