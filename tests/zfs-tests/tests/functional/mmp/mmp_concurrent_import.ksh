@@ -23,7 +23,7 @@
 # 1. Create an multihost enabled pool
 # 2. zhack imports: $HOSTID1 (matching) and $HOSTID1 (matching)
 # 3. zhack imports: $HOSTID1 (matching) and $HOSTID2 (different)
-# 4. zhack imports: $HOSTID3 (different) and $HOSTID4 (different)
+# 4. zhack imports: $HOSTID1 (different) and $HOSTID2 (different)
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -100,24 +100,25 @@ log_must zpool export -F $MMP_POOL
 # Activity check required because the pool was exported with -F above, the
 # claim phase will detect the double import despite matching hostids.
 log_note "zhack import with $HOSTID1 (matching) and $HOSTID1 (matching)"
-ZFS_HOSTID=$HOSTID1 zhack $OPTS >$MMP_ZHACK_LOG.1 2>&1 &
+ZFS_HOSTID=0x$HOSTID1 zhack $OPTS >$MMP_ZHACK_LOG.1 2>&1 &
 pid1=$!
-ZFS_HOSTID=$HOSTID1 zhack $OPTS >$MMP_ZHACK_LOG.2 2>&1 &
+ZFS_HOSTID=0x$HOSTID1 zhack $OPTS >$MMP_ZHACK_LOG.2 2>&1 &
 pid2=$!
 log_must verify_zhack $pid1 $pid2
 
 mmp_clear_hostid
-mmp_set_hostid $HOSTID1
+mmp_set_hostid $HOSTID3
 log_must import_activity_check $MMP_POOL "-d $MMP_DIR"
+log_must mmp_pool_set_hostid $MMP_POOL $HOSTID1
 log_must zpool export $MMP_POOL
 
 # 3. zhack imports: $HOSTID1 (matching) and $HOSTID2 (different)
 # Activity check skipped for HOSTID1 it is expected to import successfully.
 # zhack with HOSTID2 will run the activity check and detect the active pool.
 log_note "zhack import with $HOSTID1 (matching) and $HOSTID2 (different)"
-ZFS_HOSTID=$HOSTID1 zhack $OPTS >$MMP_ZHACK_LOG.1 2>&1 &
+ZFS_HOSTID=0x$HOSTID1 zhack $OPTS >$MMP_ZHACK_LOG.1 2>&1 &
 pid1=$!
-ZFS_HOSTID=$HOSTID2 zhack $OPTS >$MMP_ZHACK_LOG.2 2>&1 &
+ZFS_HOSTID=0x$HOSTID2 zhack $OPTS >$MMP_ZHACK_LOG.2 2>&1 &
 pid2=$!
 log_must verify_zhack $pid1 $pid2
 
@@ -130,9 +131,9 @@ log_must zpool export $MMP_POOL
 # Both zhacks will run the activity checks, depending on the exact timing
 # one may succeed and the other fail, or both may fail.
 log_note "zhack import with $HOSTID1 (different) and $HOSTID2 (different)"
-ZFS_HOSTID=$HOSTID1 zhack $OPTS >$MMP_ZHACK_LOG.1 2>&1 &
+ZFS_HOSTID=0x$HOSTID1 zhack $OPTS >$MMP_ZHACK_LOG.1 2>&1 &
 pid1=$!
-ZFS_HOSTID=$HOSTID2 zhack $OPTS >$MMP_ZHACK_LOG.2 2>&1 &
+ZFS_HOSTID=0x$HOSTID2 zhack $OPTS >$MMP_ZHACK_LOG.2 2>&1 &
 pid2=$!
 log_must verify_zhack $pid1 $pid2
 
