@@ -2568,6 +2568,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zoned_uid/zoned_uid_035_neg.ksh \
 	functional/zap_shrink/cleanup.ksh \
 	functional/zap_shrink/zap_shrink_001_pos.ksh \
+	functional/zap_shrink/zap_shrink_002_pos.ksh \
 	functional/zap_shrink/setup.ksh \
 	functional/zpool_influxdb/cleanup.ksh \
 	functional/zpool_influxdb/setup.ksh \
