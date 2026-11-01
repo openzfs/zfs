@@ -1811,12 +1811,12 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 
 	/*
 	 * Attempt to re-establish all the active inodes with their
-	 * dbufs.  If a zfs_rezget() fails, then we unhash the inode
-	 * and mark it stale.  This prevents a collision if a new
-	 * inode/object is created which must use the same inode
-	 * number.  The stale inode will be released when the VFS
-	 * prunes the dentry holding the remaining references on
-	 * the stale inode.
+	 * dbufs.  If a zfs_rezget() fails, or the inode was unlinked,
+	 * then we unhash the inode and mark it stale.  This prevents a
+	 * collision if a new inode/object is created which must use the
+	 * same inode number.  The stale inode will be released when the
+	 * VFS prunes the dentry holding the remaining references on the
+	 * stale inode.
 	 *
 	 * zfs_rezget() takes the per-object znode hold lock.  Pin each znode
 	 * while holding z_znodes_lock, then drop the list lock before calling
@@ -1832,7 +1832,7 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 		mutex_exit(&zfsvfs->z_znodes_lock);
 
 		err2 = zfs_rezget(zp);
-		if (err2) {
+		if (err2 != 0 || zp->z_unlinked) {
 			zpl_d_drop_aliases(ZTOI(zp));
 			remove_inode_hash(ZTOI(zp));
 		}
