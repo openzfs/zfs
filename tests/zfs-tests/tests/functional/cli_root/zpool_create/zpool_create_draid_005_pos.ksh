@@ -101,6 +101,7 @@ draid_vdevs0=$(echo $TESTDIR/file.{1..$((children / 2))})
 draid_vdevs1=$(echo $TESTDIR/file.{$((children / 2 + 1))..$children})
 draid_vdevs0_less=$(echo $TESTDIR/file.{1..$((children / 2 - 1))})
 draid_vdevs1_more=$(echo $TESTDIR/file.{$((children / 2))..$children})
+draid_vdevs3=$(echo $TESTDIR/file.{1..3})
 log_must truncate -s $MINVDEVSIZE $draid_vdevs
 
 mkdir $TESTDIR
@@ -122,6 +123,19 @@ log_mustnot zpool create $TESTPOOL draid2:14d:32w fgroup $draid_vdevs0_less fgro
 
 # Keywords cannot be mixed
 log_mustnot zpool create $TESTPOOL draid2:14d:32w fdomain $draid_vdevs0 fgroup $draid_vdevs1
+
+# Every device must follow a fdomain or fgroup keyword.  The expected
+# message is checked because these specifications used to crash zpool.
+log_mustnot_expect "before the first failure group" \
+    zpool create $TESTPOOL draid2 $draid_vdevs fgroup fgroup
+log_mustnot_expect "before the first failure domain" \
+    zpool create $TESTPOOL draid2 $draid_vdevs3 fdomain fdomain fdomain fdomain
+
+# Failure groups and domains cannot be empty
+log_mustnot_expect "different number of devices" \
+    zpool create $TESTPOOL draid2 fgroup fgroup $draid_vdevs0 fgroup $draid_vdevs1
+log_mustnot_expect "different number of devices" \
+    zpool create $TESTPOOL draid2 fdomain fdomain $draid_vdevs0 fdomain $draid_vdevs1
 
 # Failure groups and domains can be inferred from keywords
 log_must zpool create $TESTPOOL draid2:14d fgroup $draid_vdevs0 fgroup $draid_vdevs1

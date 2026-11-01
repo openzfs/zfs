@@ -1725,6 +1725,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 			int nfdomain = 0, nfgroup = 0;
 			int fdndev = 0, fgndev = 0;
 			int fdndev_prev = 0, fgndev_prev = 0;
+			int nbefore = 0;
 
 			for (c = 1; c < argc; c++) {
 				if (is_grouping(argv[c], NULL, NULL) != NULL)
@@ -1732,7 +1733,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 
 				if (strcmp(argv[c], "fgroup") == 0 ||
 				    strcmp(argv[c], "failure_group") == 0) {
-					if (fgndev_prev &&
+					if (nfgroup > 1 &&
 					    fgndev_prev != fgndev)
 						break;
 					fgndev_prev = fgndev;
@@ -1743,7 +1744,7 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 
 				if (strcmp(argv[c], "fdomain") == 0 ||
 				    strcmp(argv[c], "failure_domain") == 0) {
-					if (fdndev_prev &&
+					if (nfdomain > 1 &&
 					    fdndev_prev != fdndev)
 						break;
 					fdndev_prev = fdndev;
@@ -1756,6 +1757,8 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 					fgndev++;
 				if (nfdomain)
 					fdndev++;
+				if (!nfgroup && !nfdomain)
+					nbefore++;
 
 				children++;
 				child = realloc(child,
@@ -1847,6 +1850,17 @@ construct_spec(nvlist_t *props, int argc, char **argv)
 				    "devices in failure domain %d than in "
 				    "previous domain: %d != %d\n", argv[0],
 				    nfdomain, fdndev, fdndev_prev);
+				for (c = 0; c < children; c++)
+					nvlist_free(child[c]);
+				free(child);
+				goto spec_out;
+			}
+
+			if ((nfgroup || nfdomain) && nbefore != 0) {
+				(void) fprintf(stderr, "invalid vdev "
+				    "specification: %s has %d devices before "
+				    "the first failure %s\n", argv[0], nbefore,
+				    nfgroup ? "group" : "domain");
 				for (c = 0; c < children; c++)
 					nvlist_free(child[c]);
 				free(child);
