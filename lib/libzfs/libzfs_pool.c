@@ -3046,7 +3046,6 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 			    "cannot pause scrubbing %s",
 			    zhp->zpool_name);
 		} else {
-			assert(cmd == POOL_SCRUB_NORMAL);
 			(void) snprintf(errbuf, sizeof (errbuf),
 			    "cannot scrub %s",
 			    zhp->zpool_name);
@@ -3063,14 +3062,19 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 	}
 
 	/*
-	 * With EBUSY, six cases are possible:
+	 * With EBUSY, six cases are possible.  'zpool scrub -p' sends
+	 * POOL_SCAN_SCRUB even to pause an error scrub, as the kernel pauses
+	 * whichever scrub is in progress, and 'zpool scrub -C' sends
+	 * POOL_SCRUB_FROM_LAST_TXG.  The scan stats date from when the pool
+	 * was opened: they pick the message, and are not asserted against
+	 * the request.
 	 *
 	 * Current state		Requested
 	 * 1. Normal Scrub Running	Normal Scrub or Error Scrub
 	 * 2. Normal Scrub Paused	Error Scrub
-	 * 3. Normal Scrub Paused 	Pause Normal Scrub
+	 * 3. Normal Scrub Paused 	Pause
 	 * 4. Error Scrub Running	Normal Scrub or Error Scrub
-	 * 5. Error Scrub Paused	Pause Error Scrub
+	 * 5. Error Scrub Paused	Normal Scrub or Pause
 	 * 6. Resilvering		Anything else
 	 */
 	if (err == EBUSY) {
@@ -3086,20 +3090,16 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 		    ps->pss_state == DSS_SCANNING) {
 			if (ps->pss_pass_scrub_pause == 0) {
 				/* handles case 1 */
-				assert(cmd == POOL_SCRUB_NORMAL);
 				return (zfs_error(hdl, EZFS_SCRUBBING,
 				    errbuf));
 			} else {
 				if (func == POOL_SCAN_ERRORSCRUB) {
 					/* handles case 2 */
-					ASSERT3U(cmd, ==, POOL_SCRUB_NORMAL);
 					return (zfs_error(hdl,
 					    EZFS_SCRUB_PAUSED_TO_CANCEL,
 					    errbuf));
 				} else {
 					/* handles case 3 */
-					ASSERT3U(func, ==, POOL_SCAN_SCRUB);
-					ASSERT3U(cmd, ==, POOL_SCRUB_PAUSE);
 					return (zfs_error(hdl,
 					    EZFS_SCRUB_PAUSED, errbuf));
 				}
@@ -3109,13 +3109,10 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 		    ps->pss_error_scrub_state == DSS_ERRORSCRUBBING) {
 			if (ps->pss_pass_error_scrub_pause == 0) {
 				/* handles case 4 */
-				ASSERT3U(cmd, ==, POOL_SCRUB_NORMAL);
 				return (zfs_error(hdl, EZFS_ERRORSCRUBBING,
 				    errbuf));
 			} else {
 				/* handles case 5 */
-				ASSERT3U(func, ==, POOL_SCAN_ERRORSCRUB);
-				ASSERT3U(cmd, ==, POOL_SCRUB_PAUSE);
 				return (zfs_error(hdl, EZFS_ERRORSCRUB_PAUSED,
 				    errbuf));
 			}

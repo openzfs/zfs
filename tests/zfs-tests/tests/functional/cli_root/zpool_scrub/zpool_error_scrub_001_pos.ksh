@@ -25,7 +25,9 @@
 #	1. Create a pool and create a 10MB file in it.
 #	2. Start a error scrub (-e) and verify it's doing a scrub.
 #	3. Pause error scrub (-p) and verify it's paused.
-#	4. Try to pause a paused error scrub (-p) and make sure that fails.
+#	4. Try to pause a paused error scrub (-p), and to start a scrub with
+#	   and without -C, and make sure each fails saying that the error
+#	   scrub is paused.
 #	5. Resume the paused error scrub and verify again it's doing a scrub.
 #	6. Verify zpool scrub -s succeed when the system is error scrubbing.
 #
@@ -60,7 +62,9 @@ log_must zpool scrub -e $TESTPOOL
 log_must is_pool_error_scrubbing $TESTPOOL true
 log_must zpool scrub -p $TESTPOOL
 log_must is_pool_error_scrub_paused $TESTPOOL true
-log_mustnot zpool scrub -p $TESTPOOL
+log_mustnot_expect "error scrub is paused" zpool scrub -p $TESTPOOL
+log_mustnot_expect "error scrub is paused" zpool scrub $TESTPOOL
+log_mustnot_expect "error scrub is paused" zpool scrub -C $TESTPOOL
 log_must is_pool_error_scrub_paused $TESTPOOL true
 log_must zpool scrub -e $TESTPOOL
 log_must is_pool_error_scrubbing $TESTPOOL true
