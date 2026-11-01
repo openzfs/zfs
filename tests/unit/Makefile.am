@@ -23,6 +23,7 @@ UNIT_TESTS = \
 	%D%/test_cityhash \
 	%D%/test_nvpair \
 	%D%/test_backtrace \
+	%D%/test_arc_growth \
 	%D%/test_timer \
 	%D%/test_zfs_file \
 	%D%/test_indirect_mapping
@@ -145,6 +146,16 @@ nodist_%C%_test_nvpair_SOURCES = \
 	%D%/test_backtrace.c
 
 %C%_test_backtrace_LDADD = \
+	libunit.la \
+	libspl.la
+
+
+%C%_test_arc_growth_CFLAGS = $(AM_CFLAGS)
+
+%C%_test_arc_growth_SOURCES = \
+	%D%/test_arc_growth.c
+
+%C%_test_arc_growth_LDADD = \
 	libunit.la \
 	libspl.la
 

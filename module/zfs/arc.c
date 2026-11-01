@@ -708,7 +708,7 @@ static kstat_t			*arc_ksp;
 #define	arc_dnode_limit	ARCSTAT(arcstat_dnode_limit) /* max size for dnodes */
 #define	arc_need_free	ARCSTAT(arcstat_need_free) /* waiting to be evicted */
 
-hrtime_t arc_growtime;
+arc_growth_t arc_growth;
 list_t arc_prune_list;
 kmutex_t arc_prune_mtx;
 taskq_t *arc_prune_taskq;
@@ -4969,18 +4969,18 @@ arc_reap_cb_check(void *arg, zthr_t *zthr)
 	 */
 	if (!kmem_cache_reap_active() && free_memory < 0) {
 
-		arc_no_grow = B_TRUE;
 		arc_warm = B_TRUE;
 		/*
 		 * Wait at least zfs_grow_retry (default 5) seconds
 		 * before considering growing.
 		 */
-		arc_growtime = gethrtime() + SEC2NSEC(arc_grow_retry);
+		arc_growth_pause(&arc_growth,
+		    gethrtime() + SEC2NSEC(arc_grow_retry));
 		return (B_TRUE);
 	} else if (free_memory < arc_c >> zfs_arc_no_grow_shift) {
-		arc_no_grow = B_TRUE;
-	} else if (gethrtime() >= arc_growtime) {
-		arc_no_grow = B_FALSE;
+		arc_growth_pause(&arc_growth, gethrtime());
+	} else {
+		arc_growth_resume(&arc_growth, gethrtime());
 	}
 
 	/*
@@ -5105,7 +5105,7 @@ arc_adapt(uint64_t bytes)
 		return;
 	}
 
-	if (arc_no_grow)
+	if (arc_growth_paused(&arc_growth))
 		return;
 
 	if (arc_c >= arc_c_max)
@@ -7219,7 +7219,7 @@ arc_tempreserve_space(spa_t *spa, uint64_t reserve, uint64_t txg)
 	int error;
 	uint64_t anon_size;
 
-	if (!arc_no_grow &&
+	if (!arc_growth_paused(&arc_growth) &&
 	    reserve > arc_c/4 &&
 	    reserve * 4 > (2ULL << SPA_MAXBLOCKSHIFT))
 		arc_c = MIN(arc_c_max, reserve * 4);
@@ -7322,6 +7322,7 @@ arc_kstat_update(kstat_t *ksp, int rw)
 	if (rw == KSTAT_WRITE)
 		return (SET_ERROR(EACCES));
 
+	as->arcstat_no_grow.value.ui64 = arc_growth_paused(&arc_growth);
 	as->arcstat_hits.value.ui64 =
 	    wmsum_value(&arc_sums.arcstat_hits);
 	as->arcstat_iohits.value.ui64 =
@@ -8077,6 +8078,8 @@ void
 arc_init(void)
 {
 	uint64_t percent, allmem = arc_all_memory();
+
+	arc_growth.ag_resume_time = 0;
 	mutex_init(&arc_evict_lock, NULL, MUTEX_DEFAULT, NULL);
 	list_create(&arc_evict_waiters, sizeof (arc_evict_waiter_t),
 	    offsetof(arc_evict_waiter_t, aew_node));
