@@ -1369,7 +1369,14 @@ by the maximum number of operations per second.
 This will smoothly handle between ten times and a tenth of this number.
 .No See Sx ZFS TRANSACTION DELAY .
 .Pp
-.Sy zfs_delay_scale No \(mu Sy zfs_dirty_data_max Em must No be smaller than Sy 2^64 .
+.Sy zfs_delay_scale
+multiplied by either
+.Sy zfs_dirty_data_max
+or
+.Sy zfs_wrlog_data_max
+.Em must
+be smaller than
+.Sy 2^64 .
 .
 .It Sy zfs_dio_write_verify_events_per_second Ns = Ns Sy 20 Ns /s Pq uint
 Rate limit Direct I/O write verify events to this many per second.
@@ -1474,8 +1481,10 @@ This parameter takes precedence over
 .No See Sx ZFS TRANSACTION DELAY .
 .Pp
 Defaults to
-.Sy physical_ram/10 ,
-capped at
+.Sy physical_ram/5
+on 64-bit systems, or
+.Sy physical_ram/10
+on 32-bit systems, capped at
 .Sy zfs_dirty_data_max_max .
 .
 .It Sy zfs_dirty_data_max_max Ns = Pq int
@@ -1490,10 +1499,15 @@ This parameter takes precedence over
 .No See Sx ZFS TRANSACTION DELAY .
 .Pp
 Defaults to
-.Sy min(physical_ram/4, 4GiB) ,
-or
+.Sy physical_ram/4
+on 64-bit systems, or
 .Sy min(physical_ram/4, 1GiB)
 for 32-bit systems.
+On 64-bit systems, the automatic ceiling is also bounded by
+.Sy UINT64_MAX/2/max(zfs_delay_scale,1)
+to avoid overflow in the dirty-data and automatic write-log delay calculations.
+Explicit overrides must respect the limits documented for
+.Sy zfs_delay_scale .
 .
 .It Sy zfs_dirty_data_max_max_percent Ns = Ns Sy 25 Ns % Pq uint
 Maximum allowable value of
@@ -1507,7 +1521,7 @@ The parameter
 takes precedence over this one.
 .No See Sx ZFS TRANSACTION DELAY .
 .
-.It Sy zfs_dirty_data_max_percent Ns = Ns Sy 10 Ns % Pq uint
+.It Sy zfs_dirty_data_max_percent Ns = Pq uint
 Determines the dirty space limit, expressed as a percentage of all memory.
 Once this limit is exceeded, new writes are halted until space frees up.
 The parameter
@@ -1517,6 +1531,7 @@ takes precedence over this one.
 .Pp
 Subject to
 .Sy zfs_dirty_data_max_max .
+Defaults to 20% on 64-bit systems and 10% on 32-bit systems.
 .
 .It Sy zfs_dirty_data_sync_percent Ns = Ns Sy 20 Ns % Pq uint
 Start syncing out a transaction group if there's at least this much dirty data
