@@ -2263,6 +2263,9 @@ top-level vdev.
 Automatically start a pool scrub when the last active sequential resilver
 completes in order to verify the checksums of all blocks which have been
 resilvered.
+If a device needs a healing resilver at that point, the scrub is started
+when that resilver completes.
+The pending scrub is not kept if the pool is exported first.
 This is enabled by default and strongly recommended.
 .
 .It Sy zfs_rebuild_vdev_limit Ns = Ns Sy 67108864 Ns B Po 64 MiB Pc Pq u64
@@ -2332,6 +2335,9 @@ stop resilvering when the pool is next imported.
 Automatically start a pool scrub after a RAIDZ expansion completes
 in order to verify the checksums of all blocks which have been
 copied during the expansion.
+If a device needs a resilver at that point, the scrub is started
+when that resilver completes.
+The pending scrub is not kept if the pool is exported first.
 This is enabled by default and strongly recommended.
 .
 .It Sy zfs_scrub_min_time_ms Ns = Ns Sy 750 Ns ms Pq uint

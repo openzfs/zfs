@@ -3265,6 +3265,7 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 	int parity_errors = 0;
 	int parity_untried = 0;
 	int data_errors = 0;
+	boolean_t stale_errors = B_FALSE;
 	zio_flag_t add_flags = 0;
 
 	ASSERT3U(zio->io_type, ==, ZIO_TYPE_READ);
@@ -3281,6 +3282,8 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 
 			if (!rc->rc_skipped)
 				unexpected_errors++;
+			if (rc->rc_error == ESTALE)
+				stale_errors = B_TRUE;
 		} else if (c < rr->rr_firstdatacol && !rc->rc_tried) {
 			parity_untried++;
 		}
@@ -3332,8 +3335,15 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 		unexpected_errors += n;
 	}
 
+	/*
+	 * A scrub started while a resilver is needed covers only the
+	 * missing txgs (see dsl_scan_setup_sync()), and the DTLs are
+	 * excised when it completes.  So a scrub must repair the columns
+	 * it skipped as stale, as a resilver does, or nothing will.
+	 */
 	if (spa_self_heal_allowed(zio->io_spa) &&
-	    (unexpected_errors > 0 || (zio->io_flags & ZIO_FLAG_RESILVER))) {
+	    (unexpected_errors > 0 || (zio->io_flags & ZIO_FLAG_RESILVER) ||
+	    (stale_errors && (zio->io_flags & ZIO_FLAG_SCRUB)))) {
 		/*
 		 * Use the good data we have in hand to repair damaged children.
 		 */
@@ -4413,15 +4423,8 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	 * setup a scrub. All the data has been sucessfully copied
 	 * but we have not validated any checksums.
 	 */
-	setup_sync_arg_t setup_sync_arg = {
-		.func = POOL_SCAN_SCRUB,
-		.txgstart = 0,
-		.txgend = 0,
-	};
-	if (zfs_scrub_after_expand &&
-	    dsl_scan_setup_check(&setup_sync_arg.func, tx) == 0) {
-		dsl_scan_setup_sync(&setup_sync_arg, tx);
-	}
+	if (zfs_scrub_after_expand)
+		dsl_scan_setup_verify(spa->spa_dsl_pool, tx);
 }
 
 /*

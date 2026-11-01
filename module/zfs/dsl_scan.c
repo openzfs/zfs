@@ -772,7 +772,8 @@ boolean_t
 dsl_scan_resilver_scheduled(dsl_pool_t *dp)
 {
 	return ((dp->dp_scan && dp->dp_scan->scn_restart_txg != 0) ||
-	    (spa_async_tasks(dp->dp_spa) & SPA_ASYNC_RESILVER));
+	    (spa_async_tasks(dp->dp_spa) & SPA_ASYNC_RESILVER) ||
+	    dp->dp_spa->spa_async_resilver);
 }
 
 boolean_t
@@ -945,10 +946,27 @@ dsl_scan_sync_state(dsl_scan_t *scn, dmu_tx_t *tx, state_sync_type_t sync_type)
 	}
 }
 
+/*
+ * A device that missed writes needs a resilver before a full scrub can
+ * run: until then, dsl_scan_setup_sync() limits a scrub to the txg range
+ * of the device's DTLs.  While a checkpoint exists, no scrub or resilver
+ * clears DTLs (see dsl_scan_done()), so waiting would not help then.
+ * This walks the vdev tree, so it is only called in syncing context,
+ * where spa_sync() holds SCL_CONFIG.
+ */
+static boolean_t
+dsl_scan_resilver_first(dsl_pool_t *dp)
+{
+	spa_t *spa = dp->dp_spa;
+
+	return (!spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT) &&
+	    vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL));
+}
+
 int
 dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 {
-	(void) arg;
+	pool_scan_func_t func = *(pool_scan_func_t *)arg;
 	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
 	vdev_t *rvd = scn->scn_dp->dp_spa->spa_root_vdev;
 
@@ -956,7 +974,64 @@ dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 	    dsl_errorscrubbing(scn->scn_dp))
 		return (SET_ERROR(EBUSY));
 
+	/*
+	 * A scrub started now would be narrowed to the DTL range of a
+	 * device that missed writes, and dsl_scan_setup_sync() would clear
+	 * the pending restart of the resilver that heals it.  Let that
+	 * resilver run first.  A restart with no device to heal starts a
+	 * scrub (see dsl_scan_sync()), so it does not refuse one.  The
+	 * vdev tree is only walked in syncing context, where spa_sync()
+	 * holds SCL_CONFIG.
+	 */
+	if (func == POOL_SCAN_SCRUB && dmu_tx_is_syncing(tx) &&
+	    dsl_scan_resilver_scheduled(scn->scn_dp) &&
+	    vdev_resilver_needed(rvd, NULL, NULL))
+		return (SET_ERROR(ZFS_ERR_RESILVER_IN_PROGRESS));
+
 	return (0);
+}
+
+/*
+ * Start the scrub that verifies the blocks copied by a sequential rebuild
+ * or a raidz expansion, which are not checksum-verified when copied.  If
+ * a resilver must run first, the scrub stays pending until a scan
+ * completes.  The pending scrub is only kept in memory.
+ */
+static void
+dsl_scan_verify(dsl_pool_t *dp, dmu_tx_t *tx)
+{
+	dsl_scan_t *scn = dp->dp_scan;
+	setup_sync_arg_t setup_sync_arg = {
+		.func = POOL_SCAN_SCRUB,
+		.txgstart = 0,
+		.txgend = 0,
+	};
+
+	ASSERT(dmu_tx_is_syncing(tx));
+
+	if (dsl_scan_resilvering(dp) || dsl_scan_resilver_scheduled(dp) ||
+	    dsl_scan_resilver_first(dp)) {
+		scn->scn_verify_pending = B_TRUE;
+		return;
+	}
+
+	scn->scn_verify_pending = B_FALSE;
+	if (dsl_scan_setup_check(&setup_sync_arg.func, tx) == 0)
+		dsl_scan_setup_sync(&setup_sync_arg, tx);
+}
+
+void
+dsl_scan_setup_verify(dsl_pool_t *dp, dmu_tx_t *tx)
+{
+	dsl_scan_verify(dp, tx);
+
+	/*
+	 * Nothing may have requested the resilver the scrub waits for, for
+	 * example for writes that failed on a device that stayed online.
+	 */
+	if (dp->dp_scan->scn_verify_pending && !dsl_scan_resilvering(dp) &&
+	    !dsl_scan_resilver_scheduled(dp))
+		spa_async_request(dp->dp_spa, SPA_ASYNC_RESILVER);
 }
 
 void
@@ -1020,6 +1095,13 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 		}
 
 		spa->spa_scrub_started = B_TRUE;
+
+		/* A full scrub also verifies what a pending one would. */
+		if (scn->scn_phys.scn_func == POOL_SCAN_SCRUB &&
+		    scn->scn_phys.scn_min_txg == 0 &&
+		    scn->scn_phys.scn_max_txg == tx->tx_txg)
+			scn->scn_verify_pending = B_FALSE;
+
 		/*
 		 * If this is an incremental scrub, limit the DDT scrub phase
 		 * to just the auto-ditto class (for correctness); the rest
@@ -4817,6 +4899,15 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		ASSERT0(scn->scn_queues_pending);
 		dsl_scan_done(scn, B_TRUE, tx);
 		sync_type = SYNC_MANDATORY;
+
+		/*
+		 * Start the verifying scrub that waited for this scan.  If a
+		 * device still needs a resilver, the scrub stays pending, but
+		 * no resilver is requested, so that a device whose writes keep
+		 * failing does not start resilvers forever.
+		 */
+		if (scn->scn_verify_pending)
+			dsl_scan_verify(dp, tx);
 	}
 
 	dsl_scan_sync_state(scn, tx, sync_type);
