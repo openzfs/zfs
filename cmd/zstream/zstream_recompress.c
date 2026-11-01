@@ -85,6 +85,14 @@ needs_modification(drr_packet_t *item, compression_spec_t *target)
 		return (B_TRUE);
 	}
 	if (target->cs_type == ZIO_COMPRESS_ZSTD) {
+		/*
+		 * A payload too short to hold the ZSTD header cannot be a
+		 * valid ZSTD block; treat it as needing modification so the
+		 * decompress step reports the error, rather than reading the
+		 * header past the end of the payload.
+		 */
+		if (item->dp_payload_size < sizeof (zfs_zstdhdr_t))
+			return (B_TRUE);
 		cur_level = zfs_get_hdrlevel((void *)item->dp_payload);
 		if (target->cs_level == ZIO_COMPLEVEL_DEFAULT) {
 			return (cur_level != ZIO_ZSTD_LEVEL_DEFAULT);
