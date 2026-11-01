@@ -25,7 +25,7 @@
 # 1. Create a pool with all features disabled
 # 2. Verify 'zpool set' is able to enable a single feature
 # 3. Create a pool with all features enabled
-# 4. Verify 'zpool set' is *not* able to disable a single feature
+# 4. Verify 'zpool set' is *not* able to disable an active feature
 # 5. Rinse and repeat for known features
 #
 
@@ -48,6 +48,13 @@ typeset -a features=(
     "userobj_accounting"
     "encryption"
 )
+typeset -a active_features=(
+    "hole_birth"
+    "embedded_data"
+    "lz4_compress"
+    "spacemap_v2"
+    "enabled_txg"
+)
 FILEVDEV="$TEST_BASE_DIR/zpool_set_features.$$.dat"
 
 # Verify 'zpool set' is able to enable a single feature
@@ -61,15 +68,15 @@ do
 	log_must test "$propval" ==  'enabled' -o "$propval" ==  'active'
 	cleanup
 done
-# Verify 'zpool set' is *not* able to disable a single feature
-for feature in "${features[@]}"
+# Verify 'zpool set' is *not* able to disable an active feature
+for feature in "${active_features[@]}"
 do
 	propname="feature@$feature"
 	truncate -s $SPA_MINDEVSIZE $FILEVDEV
 	log_must zpool create -f $TESTPOOL1 $FILEVDEV
 	log_mustnot zpool set "$propname=disabled" $TESTPOOL1
 	propval="$(get_pool_prop $propname $TESTPOOL1)"
-	log_must test "$propval" ==  'enabled' -o "$propval" ==  'active'
+	log_must test "$propval" ==  'active'
 	cleanup
 done
 
