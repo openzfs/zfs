@@ -158,7 +158,8 @@ sync_pool $TESTPOOL
 for DISK in $DISKS ; do
 	log_must zinject -d $DISK -f 10 -e io -T write $TESTPOOL
 done
-log_must dd if=/dev/urandom of=$ZVOL_DEVDIR/$TESTPOOL/testvol1 bs=16M count=1
+log_must dd if=/dev/urandom of=$ZVOL_DEVDIR/$TESTPOOL/testvol1 \
+    bs=16M count=1 conv=fsync
 sync_pool $TESTPOOL
 log_must zinject -c all
 
