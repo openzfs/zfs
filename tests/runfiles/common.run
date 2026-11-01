@@ -768,6 +768,10 @@ tests = ['dio_aligned_block', 'dio_async_always', 'dio_async_fio_ioengines',
     'dio_recordsize', 'dio_unaligned_block', 'dio_unaligned_filesize']
 tags = ['functional', 'direct']
 
+[tests/functional/dirsync]
+tests = ['dirsync_inherit', 'dirsync_ops', 'dirsync_replay']
+tags = ['functional', 'dirsync']
+
 [tests/functional/exec]
 tests = ['exec_001_pos', 'exec_002_neg']
 tags = ['functional', 'exec']

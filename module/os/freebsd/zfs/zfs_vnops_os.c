@@ -204,6 +204,18 @@ static int zfs_check_attrname(const char *name);
  *	zfs_exit(zfsvfs);		// finished in zfs
  *	return (error);			// done, report error
  */
+
+/*
+ * Namespace operations in dzp are synchronous with dirsync=on.  Extended
+ * attribute directories are left out, as setting an extended attribute
+ * does not update the namespace.
+ */
+static boolean_t
+zfs_dirsync(znode_t *dzp)
+{
+	return (dzp->z_zfsvfs->z_dirsync && !(dzp->z_pflags & ZFS_XATTR));
+}
+
 static int
 zfs_open(vnode_t **vpp, int flag, cred_t *cr)
 {
@@ -1176,6 +1188,8 @@ out:
 
 	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		error = zil_commit(zilog, 0);
+	else if (error == 0 && zfs_dirsync(dzp))
+		error = zil_commit(zilog, dzp->z_id);
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
@@ -1307,6 +1321,8 @@ out:
 
 	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		error = zil_commit(zilog, 0);
+	else if (error == 0 && zfs_dirsync(dzp))
+		error = zil_commit(zilog, dzp->z_id);
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
@@ -1538,6 +1554,8 @@ out:
 
 	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		error = zil_commit(zilog, 0);
+	else if (error == 0 && zfs_dirsync(dzp))
+		error = zil_commit(zilog, dzp->z_id);
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
@@ -1620,6 +1638,8 @@ zfs_rmdir_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 out:
 	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		error = zil_commit(zilog, 0);
+	else if (error == 0 && zfs_dirsync(dzp))
+		error = zil_commit(zilog, dzp->z_id);
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
@@ -3537,6 +3557,8 @@ out_seq:
 out:
 	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		error = zil_commit(zilog, 0);
+	else if (error == 0 && zfs_dirsync(tdzp))
+		error = zil_commit(zilog, tdzp->z_id);
 	zfs_exit(zfsvfs, FTAG);
 
 	return (error);
@@ -3728,6 +3750,8 @@ zfs_symlink(znode_t *dzp, const char *name, vattr_t *vap,
 
 		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 			error = zil_commit(zilog, 0);
+		else if (zfs_dirsync(dzp))
+			error = zil_commit(zilog, dzp->z_id);
 	}
 
 	zfs_exit(zfsvfs, FTAG);
@@ -3920,6 +3944,8 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 
 	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		error = zil_commit(zilog, 0);
+	else if (error == 0 && zfs_dirsync(tdzp))
+		error = zil_commit(zilog, tdzp->z_id);
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
