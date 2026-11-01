@@ -1013,6 +1013,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_send/zfs_send_006_pos.ksh \
 	functional/cli_root/zfs_send/zfs_send_007_pos.ksh \
 	functional/cli_root/zfs_send/zfs_send-b.ksh \
+	functional/cli_root/zfs_send/zfs_send_clone_estimate.ksh \
 	functional/cli_root/zfs_send/zfs_send_encrypted.ksh \
 	functional/cli_root/zfs_send/zfs_send_encrypted_unloaded.ksh \
 	functional/cli_root/zfs_send/zfs_send_raw.ksh \
