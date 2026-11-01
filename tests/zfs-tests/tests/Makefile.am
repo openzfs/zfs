@@ -382,6 +382,17 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/rsend/fs.tar.gz \
 	functional/rsend/rsend.cfg \
 	functional/rsend/rsend.kshlib \
+	functional/rsend/spill-raw-compress-empty.zsend.bz2 \
+	functional/rsend/spill-raw-compress-inherit.zsend.bz2 \
+	functional/rsend/spill-raw-compress-off.zsend.bz2 \
+	functional/rsend/spill-raw-compress-on.zsend.bz2 \
+	functional/rsend/write-compress-empty.zsend.bz2 \
+	functional/rsend/write-compress-off.zsend.bz2 \
+	functional/rsend/write-compress-on.zsend.bz2 \
+	functional/rsend/write-raw-compress-empty.zsend.bz2 \
+	functional/rsend/write-raw-compress-inherit.zsend.bz2 \
+	functional/rsend/write-raw-compress-off.zsend.bz2 \
+	functional/rsend/write-raw-compress-on.zsend.bz2 \
 	functional/scrub_mirror/default.cfg \
 	functional/scrub_mirror/scrub_mirror_common.kshlib \
 	functional/send_xdr_encoding/send_xdr_encoding.cfg \
@@ -2223,6 +2234,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/recv_dedup.ksh \
 	functional/rsend/recv_dot_name_neg.ksh \
 	functional/rsend/recv_validate_001_neg.ksh \
+	functional/rsend/recv_write_compress_neg.ksh \
 	functional/rsend/rsend_001_pos.ksh \
 	functional/rsend/rsend_002_pos.ksh \
 	functional/rsend/rsend_003_pos.ksh \
