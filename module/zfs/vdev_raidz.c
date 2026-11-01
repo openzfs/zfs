@@ -5528,6 +5528,133 @@ spa_raidz_expand_get_stats(spa_t *spa, pool_raidz_expand_stat_t *pres)
 }
 
 /*
+ * Set the expansion state of a RAID-Z vdev from its config nv: the reflow
+ * in progress, if any, and the txgs of the expansions it has completed.
+ * The caller holds vd_expand_lock unless vdrz is not in use yet.
+ */
+static void
+vdev_raidz_config_expansion(spa_t *spa, vdev_raidz_t *vdrz, nvlist_t *nv)
+{
+	boolean_t reflow_in_progress =
+	    nvlist_exists(nv, ZPOOL_CONFIG_RAIDZ_EXPANDING);
+	if (reflow_in_progress) {
+		spa->spa_raidz_expand = &vdrz->vn_vre;
+		vdrz->vn_vre.vre_state = DSS_SCANNING;
+	}
+
+	vdrz->vd_original_width = vdrz->vd_physical_width;
+	uint64_t *txgs;
+	unsigned int txgs_size = 0;
+	int error = nvlist_lookup_uint64_array(nv,
+	    ZPOOL_CONFIG_RAIDZ_EXPAND_TXGS, &txgs, &txgs_size);
+	if (error == 0) {
+		for (int i = 0; i < txgs_size; i++) {
+			reflow_node_t *re = kmem_zalloc(sizeof (*re), KM_SLEEP);
+			re->re_txg = txgs[txgs_size - i - 1];
+			re->re_logical_width = vdrz->vd_physical_width - i;
+
+			if (reflow_in_progress)
+				re->re_logical_width--;
+
+			avl_add(&vdrz->vd_expand_txgs, re);
+		}
+
+		vdrz->vd_original_width = vdrz->vd_physical_width - txgs_size;
+	}
+	if (reflow_in_progress) {
+		vdrz->vd_original_width--;
+		zfs_dbgmsg("reflow_in_progress, %llu wide, %d prior expansions",
+		    (u_longlong_t)vdrz->vd_physical_width, txgs_size);
+	}
+}
+
+/*
+ * Replace the expansion state that the config of a top-level RAID-Z vdev
+ * gave it with the one nv, the config of the vdev in a newer label,
+ * describes, for spa_load() to read the MOS with.  Only the expansion state
+ * changes, on a vdev tree that is not in use yet.  vdev_raidz_open() has
+ * already sized the vdev from the expansion state of the config, which does
+ * not matter here: DVAs are not checked against that size while the config
+ * is untrusted, and the MOS config replaces this vdev tree.
+ *
+ * *changed says whether the state differed.  Returns EINVAL, with nothing
+ * changed and *why saying why, if nv does not describe this vdev at its
+ * width and parity with a valid expansion state.
+ */
+int
+vdev_raidz_config_from_label(vdev_t *vd, nvlist_t *nv, boolean_t *changed,
+    const char **why)
+{
+	vdev_raidz_t *vdrz = vd->vdev_tsd;
+	spa_t *spa = vd->vdev_spa;
+	nvlist_t **child;
+	uint_t children;
+	uint64_t guid;
+	uint64_t nparity;
+	uint64_t *txgs = NULL;
+	unsigned int txgs_size = 0;
+	const char *type;
+	boolean_t expanding = nvlist_exists(nv, ZPOOL_CONFIG_RAIDZ_EXPANDING);
+	reflow_node_t *re;
+
+	ASSERT3P(vd->vdev_ops, ==, &vdev_raidz_ops);
+	ASSERT3P(vd, ==, vd->vdev_top);
+	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+
+	*changed = B_FALSE;
+	*why = NULL;
+	(void) nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_TXGS,
+	    &txgs, &txgs_size);
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE, &type) != 0 ||
+	    strcmp(type, VDEV_TYPE_RAIDZ) != 0 ||
+	    nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) != 0 ||
+	    guid != vd->vdev_guid) {
+		*why = "it describes another vdev";
+	} else if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NPARITY,
+	    &nparity) != 0 || nparity != vdrz->vd_nparity) {
+		*why = "its parity differs";
+	} else if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) != 0 || children != vdrz->vd_physical_width) {
+		*why = "its width differs";
+	} else if (expanding && spa->spa_raidz_expand != NULL &&
+	    spa->spa_raidz_expand != &vdrz->vn_vre) {
+		*why = "another vdev is expanding";
+	} else if (txgs_size + (expanding ? 1 : 0) + nparity >= children) {
+		*why = "its expansions leave too few columns";
+	} else {
+		for (unsigned int i = 1; i < txgs_size; i++) {
+			if (txgs[i] <= txgs[i - 1])
+				*why = "its expansion txgs do not increase";
+		}
+	}
+	if (*why != NULL)
+		return (SET_ERROR(EINVAL));
+
+	mutex_enter(&vdrz->vd_expand_lock);
+	*changed = expanding != (vdrz->vn_vre.vre_state == DSS_SCANNING) ||
+	    txgs_size != avl_numnodes(&vdrz->vd_expand_txgs);
+	re = avl_first(&vdrz->vd_expand_txgs);
+	for (unsigned int i = 0; !*changed && i < txgs_size; i++) {
+		*changed = re->re_txg != txgs[i];
+		re = AVL_NEXT(&vdrz->vd_expand_txgs, re);
+	}
+	if (*changed) {
+		if (spa->spa_raidz_expand == &vdrz->vn_vre)
+			spa->spa_raidz_expand = NULL;
+		vdrz->vn_vre.vre_state = DSS_NONE;
+		vd->vdev_rz_expanding = expanding;
+		while ((re = avl_first(&vdrz->vd_expand_txgs)) != NULL) {
+			avl_remove(&vdrz->vd_expand_txgs, re);
+			kmem_free(re, sizeof (*re));
+		}
+		vdev_raidz_config_expansion(spa, vdrz, nv);
+	}
+	mutex_exit(&vdrz->vd_expand_lock);
+
+	return (0);
+}
+
+/*
  * Initialize private RAIDZ specific fields from the nvlist.
  */
 static int
@@ -5585,37 +5712,7 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 	(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_ID,
 	    &vdrz->vn_vre.vre_vdev_id);
 
-	boolean_t reflow_in_progress =
-	    nvlist_exists(nv, ZPOOL_CONFIG_RAIDZ_EXPANDING);
-	if (reflow_in_progress) {
-		spa->spa_raidz_expand = &vdrz->vn_vre;
-		vdrz->vn_vre.vre_state = DSS_SCANNING;
-	}
-
-	vdrz->vd_original_width = children;
-	uint64_t *txgs;
-	unsigned int txgs_size = 0;
-	error = nvlist_lookup_uint64_array(nv, ZPOOL_CONFIG_RAIDZ_EXPAND_TXGS,
-	    &txgs, &txgs_size);
-	if (error == 0) {
-		for (int i = 0; i < txgs_size; i++) {
-			reflow_node_t *re = kmem_zalloc(sizeof (*re), KM_SLEEP);
-			re->re_txg = txgs[txgs_size - i - 1];
-			re->re_logical_width = vdrz->vd_physical_width - i;
-
-			if (reflow_in_progress)
-				re->re_logical_width--;
-
-			avl_add(&vdrz->vd_expand_txgs, re);
-		}
-
-		vdrz->vd_original_width = vdrz->vd_physical_width - txgs_size;
-	}
-	if (reflow_in_progress) {
-		vdrz->vd_original_width--;
-		zfs_dbgmsg("reflow_in_progress, %u wide, %d prior expansions",
-		    children, txgs_size);
-	}
+	vdev_raidz_config_expansion(spa, vdrz, nv);
 
 	*tsd = vdrz;
 
