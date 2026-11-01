@@ -1009,6 +1009,65 @@ run_test_alg_cb(const char *alginfo, void *arg)
 	args->failed += run_tests(alginfo, args->tests, args->outmode);
 }
 
+static void
+test_null_params(crypto_test_alg_t alg)
+{
+	uint8_t keybuf[16] = {0x41};
+	uint8_t inbuf[16] = {0x52};
+	uint8_t outbuf[32 + 3];
+	crypto_key_t key = {
+		.ck_data = keybuf,
+		.ck_length = sizeof (keybuf) * 8,
+	};
+	crypto_mechanism_t mech = {
+		.cm_type = crypto_mech2id(alg == ALG_AES_GCM ?
+		    SUN_CKM_AES_GCM : SUN_CKM_AES_CCM),
+	};
+	size_t param_len = alg == ALG_AES_GCM ?
+	    sizeof (CK_AES_GCM_PARAMS) : sizeof (CK_AES_CCM_PARAMS);
+
+	for (int sized = 0; sized < 2; sized++) {
+		mech.cm_param_len = sized ? param_len : 0;
+		for (int decrypt = 0; decrypt < 2; decrypt++) {
+			crypto_data_t in = {
+				.cd_format = CRYPTO_DATA_RAW,
+				.cd_length = sizeof (inbuf),
+				.cd_raw = {(char *)inbuf, sizeof (inbuf)},
+			};
+			crypto_data_t out = {
+				.cd_format = CRYPTO_DATA_RAW,
+				.cd_offset = 3,
+				.cd_length = sizeof (outbuf) - 3,
+				.cd_raw = {(char *)outbuf, sizeof (outbuf)},
+			};
+			memset(outbuf, 0x63, sizeof (outbuf));
+			int rv = decrypt ?
+			    crypto_decrypt(&mech, &in, &key, NULL, &out) :
+			    crypto_encrypt(&mech, &in, &key, NULL, &out);
+			boolean_t unchanged = B_TRUE;
+			for (size_t i = 0; i < sizeof (outbuf); i++)
+				unchanged &= outbuf[i] == 0x63;
+			if (rv != CRYPTO_MECHANISM_PARAM_INVALID ||
+			    out.cd_offset != 3 ||
+			    out.cd_length != sizeof (outbuf) - 3 ||
+			    !unchanged) {
+				fprintf(stderr, "%s %s: NULL parameters, "
+				    "length %zu, rv %d, output offset %jd, "
+				    "length %zu, unchanged %d\n",
+				    alg == ALG_AES_GCM ? "GCM" : "CCM",
+				    decrypt ? "decrypt" : "encrypt",
+				    mech.cm_param_len, rv,
+				    (intmax_t)out.cd_offset, out.cd_length,
+				    unchanged);
+			}
+			VERIFY3S(rv, ==, CRYPTO_MECHANISM_PARAM_INVALID);
+			VERIFY3S(out.cd_offset, ==, 3);
+			VERIFY3U(out.cd_length, ==, sizeof (outbuf) - 3);
+			VERIFY(unchanged);
+		}
+	}
+}
+
 /* main function for correctness tests */
 static int
 runtests_main(const char *filename, crypto_test_outmode_t outmode)
@@ -1019,6 +1078,7 @@ runtests_main(const char *filename, crypto_test_outmode_t outmode)
 		return (1);
 
 	icp_init();
+	test_null_params(alg);
 
 	run_test_alg_args_t args = {
 		.tests = tests,
