@@ -1899,6 +1899,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/mmap/mmap_cached_receive.ksh \
 	functional/mmap/mmap_fadvise_readahead_subpage.ksh \
 	functional/mmap/mmap_fadvise_readahead_writer.ksh \
+	functional/mmap/mmap_fadvise_readahead_zero_partial.ksh \
 	functional/mmap/setup.ksh \
 	functional/mmp/cleanup.ksh \
 	functional/mmp/mmp_active_import.ksh \

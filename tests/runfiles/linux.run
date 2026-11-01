@@ -186,7 +186,8 @@ tags = ['functional', 'luks']
 
 [tests/functional/mmap:Linux]
 tests = ['mmap_fadvise_readahead_subpage', 'mmap_fadvise_readahead_writer',
-    'mmap_libaio_001_pos', 'mmap_sync_001_pos']
+    'mmap_fadvise_readahead_zero_partial', 'mmap_libaio_001_pos',
+    'mmap_sync_001_pos']
 tags = ['functional', 'mmap']
 
 [tests/functional/mmp:Linux]

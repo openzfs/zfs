@@ -31,6 +31,7 @@
 /mmap_exec
 /mmap_fadvise_readahead_subpage
 /mmap_fadvise_readahead_writer
+/mmap_fadvise_readahead_zero_partial
 /mmap_ftruncate
 /mmap_libaio
 /mmap_read_truncate
