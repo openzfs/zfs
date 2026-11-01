@@ -209,20 +209,21 @@ dsl_dataset_user_release_onexit(void *arg)
 		zfs_dbgmsg("couldn't release holds on pool=%s "
 		    "because pool is no longer loaded",
 		    ca->zhca_spaname);
-		return;
+		goto out;
 	}
 	if (spa_load_guid(spa) != ca->zhca_spa_load_guid) {
 		zfs_dbgmsg("couldn't release holds on pool=%s "
 		    "because pool is no longer loaded (guid doesn't match)",
 		    ca->zhca_spaname);
-		spa_close(spa, FTAG);
-		return;
+	} else {
+		(void) dsl_dataset_user_release_tmp(spa_get_dsl(spa),
+		    ca->zhca_holds);
 	}
+	spa_close(spa, FTAG);
 
-	(void) dsl_dataset_user_release_tmp(spa_get_dsl(spa), ca->zhca_holds);
+out:
 	fnvlist_free(ca->zhca_holds);
 	kmem_free(ca, sizeof (zfs_hold_cleanup_arg_t));
-	spa_close(spa, FTAG);
 }
 
 static void
