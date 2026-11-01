@@ -150,6 +150,28 @@ Available via `specific_os` or `ZTS_OS_OVERRIDE`:
 - `codeql.yml`: CodeQL analysis
 - `smatch.yml`: smatch analysis
 
+#### Custom CodeQL queries
+
+The C++ CodeQL job runs the custom-query fixtures before autobuild.
+CI uses the libraries supplied by the analysis action, so the fixtures
+exercise the same libraries as the production analysis.
+
+To run the fixtures locally with the CodeQL CLI:
+
+```sh
+codeql pack ci -- .github/codeql/custom-queries/cpp
+codeql pack ci -- .github/codeql/custom-queries/cpp-tests
+codeql test run -- .github/codeql/custom-queries/cpp-tests
+```
+
+The committed locks select dependency versions for package-cache or
+registry resolution. Source packs from a workspace or `--additional-packs`
+take precedence over locked versions.
+
+Use `codeql test run --learn` to update a test's `.expected` file after an
+intentional result change. Review the diff for both missing and unexpected
+alerts before committing it.
+
 ### Other workflows
 
 - `zfs-arm.yml`: ARM build on `ubuntu-24.04-arm`
