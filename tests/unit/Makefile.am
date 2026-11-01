@@ -26,6 +26,9 @@ UNIT_TESTS = \
 	%D%/test_timer \
 	%D%/test_zfs_file \
 	%D%/test_indirect_mapping
+if BUILD_LINUX
+UNIT_TESTS += %D%/test_fmd_timer
+endif
 noinst_PROGRAMS = $(UNIT_TESTS)
 
 
@@ -181,6 +184,24 @@ nodist_%C%_test_indirect_mapping_SOURCES = \
 %C%_test_indirect_mapping_LDADD = \
 	libspl.la \
 	libunit.la
+
+
+%C%_test_fmd_timer_CFLAGS = $(AM_CFLAGS) $(LIBUUID_CFLAGS)
+%C%_test_fmd_timer_CPPFLAGS = $(AM_CPPFLAGS) -I$(srcdir)/cmd/zed
+
+nodist_%C%_test_fmd_timer_SOURCES = \
+	cmd/zed/agents/fmd_api.c \
+	cmd/zed/agents/fmd_serd.c
+
+%C%_test_fmd_timer_SOURCES = \
+	%D%/test_fmd_timer.c
+
+%C%_test_fmd_timer_LDADD = \
+	libnvpair.la \
+	libunit.la \
+	libspl.la
+
+%C%_test_fmd_timer_LDADD += -lrt $(LIBUUID_LIBS)
 
 
 # test run and coverage targets below
