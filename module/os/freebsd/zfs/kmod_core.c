@@ -100,6 +100,7 @@ SYSCTL_INT(_vfs_zfs_version, OID_AUTO, ioctl, CTLFLAG_RD, &zfs_version_ioctl,
     0, "ZFS_IOCTL_VERSION");
 
 static struct cdev *zfsdev;
+static struct cdevsw zfs_cdevsw;
 
 static struct root_hold_token *zfs_root_token;
 
@@ -161,28 +162,61 @@ zfsdev_close(void *data)
 	zfsdev_state_destroy(data);
 }
 
-void
-zfsdev_private_set_state(void *priv __unused, zfsdev_state_t *zs)
+int
+zfsdev_file_state_hold(zfs_file_t *zfp, zfsdev_state_hold_t *hold)
 {
-	devfs_set_cdevpriv(zs, zfsdev_close);
+	struct file *fp = zfp;
+	struct cdev *dev;
+	struct cdevsw *dsw;
+	file_t *tmpfp;
+	void *data;
+	int error;
+	int ref;
+
+	if (fp->f_type != DTYPE_VNODE || fp->f_vnode == NULL ||
+	    fp->f_vnode->v_type != VCHR)
+		return (SET_ERROR(EBADF));
+
+	dsw = devvn_refthread(fp->f_vnode, &dev, &ref);
+	if (dsw == NULL)
+		return (SET_ERROR(EBADF));
+
+	if (dev != fp->f_data || dsw != &zfs_cdevsw) {
+		error = SET_ERROR(EBADF);
+	} else {
+		tmpfp = curthread->td_fpop;
+		curthread->td_fpop = fp;
+		error = devfs_get_cdevpriv(&data);
+		curthread->td_fpop = tmpfp;
+		if (error == 0) {
+			hold->zsh_state = data;
+			hold->zsh_device = dev;
+			hold->zsh_device_ref = ref;
+			return (0);
+		} else {
+			error = SET_ERROR(EBADF);
+		}
+	}
+
+	dev_relthread(dev, ref);
+	return (error);
 }
 
-zfsdev_state_t *
-zfsdev_private_get_state(void *priv)
+void
+zfsdev_file_state_rele(zfsdev_state_hold_t *hold)
 {
-	return (priv);
+	dev_relthread(hold->zsh_device, hold->zsh_device_ref);
 }
 
 static int
 zfsdev_open(struct cdev *devp __unused, int flag __unused, int mode __unused,
     struct thread *td __unused)
 {
-	int error;
+	zfsdev_state_t *zs = zfsdev_state_create();
+	int error = devfs_set_cdevpriv(zs, zfsdev_close);
 
-	mutex_enter(&zfsdev_state_lock);
-	error = zfsdev_state_init(NULL);
-	mutex_exit(&zfsdev_state_lock);
-
+	if (error != 0)
+		zfsdev_state_destroy(zs);
 	return (error);
 }
 

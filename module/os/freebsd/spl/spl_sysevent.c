@@ -225,7 +225,7 @@ log_sysevent(nvlist_t *event)
 static void
 sysevent_worker(void *arg __unused)
 {
-	zfs_zevent_t *ze;
+	zfs_zevent_t ze;
 	nvlist_t *event;
 	uint64_t dropped = 0;
 	uint64_t dst_size;
@@ -236,10 +236,10 @@ sysevent_worker(void *arg __unused)
 		dst_size = 131072;
 		dropped = 0;
 		event = NULL;
-		error = zfs_zevent_next(ze, &event,
+		error = zfs_zevent_next(&ze, &event,
 		    &dst_size, &dropped);
 		if (error) {
-			error = zfs_zevent_wait(ze);
+			error = zfs_zevent_wait();
 			if (error == ESHUTDOWN)
 				break;
 		} else {
@@ -250,14 +250,11 @@ sysevent_worker(void *arg __unused)
 	}
 
 	/*
-	 * We avoid zfs_zevent_destroy() here because we're otherwise racing
-	 * against fm_fini() destroying the zevent_lock.  zfs_zevent_destroy()
-	 * will currently only clear `ze->ze_zevent` from an event list then
-	 * free `ze`, so just inline the free() here -- events have already
-	 * been drained.
+	 * We avoid zfs_zevent_fini() here because we're otherwise racing
+	 * against fm_fini() destroying the zevent_lock. Events have already
+	 * been drained, so there is no cursor left to detach.
 	 */
-	VERIFY0P(ze->ze_zevent);
-	kmem_free(ze, sizeof (zfs_zevent_t));
+	VERIFY0P(ze.ze_zevent);
 
 	kthread_exit();
 }
