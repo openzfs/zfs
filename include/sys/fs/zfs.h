@@ -943,6 +943,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_HOSTNAME		"hostname"
 #define	ZPOOL_CONFIG_LOADED_TIME	"initial_load_time"
 #define	ZPOOL_CONFIG_UNSPARE		"unspare"
+#define	ZPOOL_CONFIG_REPLACE_IF_UNHEALTHY	"replace_if_unhealthy"
 #define	ZPOOL_CONFIG_PHYS_PATH		"phys_path"
 #define	ZPOOL_CONFIG_IS_LOG		"is_log"
 #define	ZPOOL_CONFIG_L2CACHE		"l2cache"
