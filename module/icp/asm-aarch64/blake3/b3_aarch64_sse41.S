@@ -22,6 +22,9 @@
  * see: https://github.com/mcmilk/BLAKE3-tests/blob/master/contrib/simde.sh
  */
 
+#define	_ASM
+#include <sys/asm_linkage.h>
+
 #if defined(__aarch64__)
 
 /* check for .cfi_negate_ra_state assembler support */
@@ -31,7 +34,7 @@
 #define CFI_NEGATE_RA_STATE
 #endif
 
-	.text
+SECTION_TEXT
 	.section	.note.gnu.property,"a",@note
 	.p2align	3
 	.word	4
@@ -43,11 +46,8 @@
 	.word	3
 	.word	0
 .Lsec_end0:
-	.text
-	.globl	zfs_blake3_compress_in_place_sse41
-	.p2align	2
-	.type	zfs_blake3_compress_in_place_sse41,@function
-zfs_blake3_compress_in_place_sse41:
+SECTION_TEXT
+ENTRY_ALIGN(zfs_blake3_compress_in_place_sse41, 4)
 	.cfi_startproc
 	hint	#25
 	CFI_NEGATE_RA_STATE
@@ -78,7 +78,7 @@ zfs_blake3_compress_in_place_sse41:
 	hint	#29
 	ret
 .Lfunc_end0:
-	.size	zfs_blake3_compress_in_place_sse41, .Lfunc_end0-zfs_blake3_compress_in_place_sse41
+SET_SIZE(zfs_blake3_compress_in_place_sse41)
 	.cfi_endproc
 
 	.section	.rodata.cst16,"aM",@progbits,16
@@ -120,10 +120,9 @@ zfs_blake3_compress_in_place_sse41:
 	.byte	14
 	.byte	15
 	.byte	12
-	.text
-	.p2align	2
-	.type	compress_pre,@function
-compress_pre:
+SECTION_TEXT
+	.balign	4
+FUNCTION(compress_pre)
 	.cfi_startproc
 	hint	#34
 	fmov	s1, w3
@@ -555,13 +554,10 @@ compress_pre:
 	stp	q2, q3, [x0]
 	ret
 .Lfunc_end1:
-	.size	compress_pre, .Lfunc_end1-compress_pre
+SET_SIZE(compress_pre)
 	.cfi_endproc
 
-	.globl	zfs_blake3_compress_xof_sse41
-	.p2align	2
-	.type	zfs_blake3_compress_xof_sse41,@function
-zfs_blake3_compress_xof_sse41:
+ENTRY_ALIGN(zfs_blake3_compress_xof_sse41, 4)
 	.cfi_startproc
 	hint	#25
 	CFI_NEGATE_RA_STATE
@@ -600,7 +596,7 @@ zfs_blake3_compress_xof_sse41:
 	hint	#29
 	ret
 .Lfunc_end2:
-	.size	zfs_blake3_compress_xof_sse41, .Lfunc_end2-zfs_blake3_compress_xof_sse41
+SET_SIZE(zfs_blake3_compress_xof_sse41)
 	.cfi_endproc
 
 	.section	.rodata.cst16,"aM",@progbits,16
@@ -649,11 +645,8 @@ zfs_blake3_compress_xof_sse41:
 	.word	3144134277
 	.word	1013904242
 	.word	2773480762
-	.text
-	.globl	zfs_blake3_hash_many_sse41
-	.p2align	2
-	.type	zfs_blake3_hash_many_sse41,@function
-zfs_blake3_hash_many_sse41:
+SECTION_TEXT
+ENTRY_ALIGN(zfs_blake3_hash_many_sse41, 4)
 	.cfi_startproc
 	hint	#34
 	stp	d15, d14, [sp, #-144]!
@@ -2391,7 +2384,7 @@ zfs_blake3_hash_many_sse41:
 	ldp	d15, d14, [sp], #144
 	ret
 .Lfunc_end3:
-	.size	zfs_blake3_hash_many_sse41, .Lfunc_end3-zfs_blake3_hash_many_sse41
+SET_SIZE(zfs_blake3_hash_many_sse41)
 	.cfi_endproc
 	.section	".note.GNU-stack","",@progbits
 #endif
