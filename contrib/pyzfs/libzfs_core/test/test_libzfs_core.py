@@ -929,6 +929,75 @@ class ZFSTest(unittest.TestCase):
         for snap in snaps:
             self.assertExists(snap)
 
+    def test_destroy_failure_is_atomic(self):
+        snapname1 = ZFSTest.pool.makeName(b"fs1@atomic1")
+        snapname2 = ZFSTest.pool.makeName(b"fs1@atomic2")
+        snaps = [snapname1, snapname2]
+        held = {snapname2: b"atomic"}
+
+        for snap in snaps:
+            lzc.lzc_snapshot([snap])
+        lzc.lzc_hold(held)
+        try:
+            for ordered in (snaps, list(reversed(snaps))):
+                with self.assertRaises(
+                        lzc_exc.SnapshotDestructionFailure) as ctx:
+                    lzc.lzc_destroy_snaps(ordered, defer=False)
+
+                self.assertEqual(len(ctx.exception.errors), 1)
+                self.assertEqual(
+                    {e.name for e in ctx.exception.errors}, set(held))
+                for e in ctx.exception.errors:
+                    self.assertIsInstance(e, lzc_exc.SnapshotIsHeld)
+                for snap in snaps:
+                    self.assertExists(snap)
+        finally:
+            lzc.lzc_release({snap: [tag] for snap, tag in held.items()})
+
+    def test_destroy_reports_all_failures(self):
+        snapname1 = ZFSTest.pool.makeName(b"fs1@errors1")
+        snapname2 = ZFSTest.pool.makeName(b"fs1@errors2")
+        snaps = [snapname1, snapname2]
+        held = {snapname1: b"errors", snapname2: b"errors"}
+
+        for snap in snaps:
+            lzc.lzc_snapshot([snap])
+        lzc.lzc_hold(held)
+        try:
+            with self.assertRaises(
+                    lzc_exc.SnapshotDestructionFailure) as ctx:
+                lzc.lzc_destroy_snaps(snaps, defer=False)
+
+            self.assertEqual(len(ctx.exception.errors), 2)
+            self.assertEqual(
+                {e.name for e in ctx.exception.errors}, set(held))
+            for e in ctx.exception.errors:
+                self.assertIsInstance(e, lzc_exc.SnapshotIsHeld)
+            for snap in snaps:
+                self.assertExists(snap)
+        finally:
+            lzc.lzc_release({snap: [tag] for snap, tag in held.items()})
+
+    def test_destroy_adjacent_snapshots(self):
+        snapname1 = ZFSTest.pool.makeName(b"fs1@adjacent1")
+        snapname2 = ZFSTest.pool.makeName(b"fs1@adjacent2")
+        missing = ZFSTest.pool.makeName(b"fs1@missing")
+
+        lzc.lzc_snapshot([snapname1])
+        lzc.lzc_snapshot([snapname2])
+        lzc.lzc_destroy_snaps([missing, snapname1, snapname2], defer=False)
+        self.assertNotExists(snapname1)
+        self.assertNotExists(snapname2)
+
+        snapname1 = ZFSTest.pool.makeName(b"fs1@adjacent3")
+        snapname2 = ZFSTest.pool.makeName(b"fs1@adjacent4")
+
+        lzc.lzc_snapshot([snapname1])
+        lzc.lzc_snapshot([snapname2])
+        lzc.lzc_destroy_snaps([snapname2, snapname1], defer=False)
+        self.assertNotExists(snapname1)
+        self.assertNotExists(snapname2)
+
     def test_deferred_destroy_cloned_fs(self):
         snapname1 = ZFSTest.pool.makeName(b"fs2@origin5")
         snapname2 = ZFSTest.pool.makeName(b"fs1@snap")
