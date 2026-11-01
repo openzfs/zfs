@@ -27,9 +27,9 @@
 #
 # Strategy:
 # 1. Create a new encrypted filesystem
-# 2. Create file f1 as the first object in some block (here object 128)
+# 2. Create file f1 as the first object in a dnode block
 # 3. Take snapshot A
-# 4. Create file f2 as the second object in the same block (here object 129)
+# 4. Create file f2 as the second object in the same block
 # 5. Delete f1
 # 6. Take snapshot B
 # 7. Receive a full raw encrypted send of A
@@ -37,24 +37,34 @@
 #
 verify_runnable "both"
 
-function create_object_with_num
+# Reuse one CPU's dnode allocation chunk across the snapshot.
+if is_linux; then
+	cpu=$(taskset -pc $$ | awk -F '[:,-] *' '{print $2}')
+	log_must taskset -pc "$cpu" $$
+elif is_freebsd; then
+	cpu=$(cpuset -g -p $$ | head -n 1 | awk -F '[:,-] *' '{print $2}')
+	log_must cpuset -l $cpu -p $$
+fi
+
+function create_object_with_offset
 {
 	file=$1
-	num=$2
+	offset=$2
 
+	# A dnode block holds 32 legacy-sized objects.
 	tries=100
 	for ((i=0; i<$tries; i++)); do
 		touch $file
 		onum=$(ls -li $file | awk '{print $1}')
 
-		if [[ $onum -ne $num ]] ; then
+		if [[ $((onum % 32)) -ne $offset ]] ; then
 			rm -f $file
 		else
 			break
 		fi
 	done
 	if [[ $i -eq $tries ]]; then
-		log_fail "Failed to create object with number $num"
+		log_fail "Failed to create object with block offset $offset"
 	fi
 }
 
@@ -75,9 +85,12 @@ log_must eval "echo 'password' > $keyfile"
 log_must zfs create -o xattr=sa -o dnodesize=legacy -o encryption=on \
 	-o keyformat=passphrase -o keylocation=file://$keyfile $POOL/$sendds
 
-create_object_with_num $f1 128
+create_object_with_offset $f1 0
+first_object=$onum
 log_must zfs snap $POOL/$sendds@A
-create_object_with_num $f2 129
+create_object_with_offset $f2 1
+log_must test $onum -eq $((first_object + 1))
+log_note "Using objects $first_object and $onum"
 log_must rm $f1
 log_must zfs snap $POOL/$sendds@B
 
