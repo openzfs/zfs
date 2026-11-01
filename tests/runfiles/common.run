@@ -180,7 +180,7 @@ tests = ['zdb_002_pos', 'zdb_003_pos', 'zdb_004_pos', 'zdb_005_pos',
     'zdb_object_range_pos', 'zdb_objset_id', 'zdb_decompress_zstd',
     'zdb_recover', 'zdb_recover_2', 'zdb_simulated_ddt_errors', 'zdb_backup',
     'zdb_tunables',
-    'zdb_il_saxattr']
+    'zdb_il_saxattr', 'zdb_block_vdev']
 pre =
 post =
 tags = ['functional', 'cli_root', 'zdb']
