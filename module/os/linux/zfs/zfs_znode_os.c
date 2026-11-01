@@ -1541,31 +1541,28 @@ zfs_grow_blocksize(znode_t *zp, uint64_t size, dmu_tx_t *tx)
  * Increase the file length
  *
  *	IN:	zp	- znode of file to free data in.
+ *		lr	- caller's RL_WRITER range lock on the whole file
  *		end	- new end-of-file
  *
  *	RETURN:	0 on success, error code on failure
  */
 static int
-zfs_extend(znode_t *zp, uint64_t end)
+zfs_extend(znode_t *zp, zfs_locked_range_t *lr, uint64_t end)
 {
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	dmu_tx_t *tx;
-	zfs_locked_range_t *lr;
 	uint64_t newblksz;
 	int error;
 
-	/*
-	 * We will change zp_size, lock the whole file.
-	 */
-	lr = zfs_rangelock_enter(&zp->z_rangelock, 0, UINT64_MAX, RL_WRITER);
+	ASSERT3U(lr->lr_type, ==, RL_WRITER);
+	ASSERT0(lr->lr_offset);
+	ASSERT3U(lr->lr_length, ==, UINT64_MAX);
 
 	/*
 	 * Nothing to do if file already at desired length.
 	 */
-	if (end <= zp->z_size) {
-		zfs_rangelock_exit(lr);
+	if (end <= zp->z_size)
 		return (0);
-	}
 
 	zfs_zero_eof_page(zp, lr, end);
 
@@ -1596,7 +1593,6 @@ zfs_extend(znode_t *zp, uint64_t end)
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
-		zfs_rangelock_exit(lr);
 		return (error);
 	}
 
@@ -1607,8 +1603,6 @@ zfs_extend(znode_t *zp, uint64_t end)
 
 	VERIFY0(sa_update(zp->z_sa_hdl, SA_ZPL_SIZE(ZTOZSB(zp)),
 	    &zp->z_size, sizeof (zp->z_size), tx));
-
-	zfs_rangelock_exit(lr);
 
 	dmu_tx_commit(tx);
 
@@ -1704,27 +1698,21 @@ zfs_zero_eof_page(znode_t *zp, zfs_locked_range_t *lr, uint64_t end)
  *		off	- start of section to free.
  *		len	- length of section to free.
  *
+ *	The caller holds an RL_WRITER range lock covering the section.
+ *
  *	RETURN:	0 on success, error code on failure
  */
 static int
 zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
 {
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
-	zfs_locked_range_t *lr;
 	int error;
-
-	/*
-	 * Lock the range being freed.
-	 */
-	lr = zfs_rangelock_enter(&zp->z_rangelock, off, len, RL_WRITER);
 
 	/*
 	 * Nothing to do if file already at desired length.
 	 */
-	if (off >= zp->z_size) {
-		zfs_rangelock_exit(lr);
+	if (off >= zp->z_size)
 		return (0);
-	}
 
 	if (off + len > zp->z_size)
 		len = zp->z_size - off;
@@ -1772,7 +1760,6 @@ zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
 				    page_len);
 		}
 	}
-	zfs_rangelock_exit(lr);
 
 	return (error);
 }
@@ -1783,6 +1770,8 @@ zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
  *	IN:	zp	- znode of file to free data in.
  *		end	- new end-of-file.
  *
+ *	The caller holds an RL_WRITER range lock on the whole file.
+ *
  *	RETURN:	0 on success, error code on failure
  */
 static int
@@ -1790,30 +1779,20 @@ zfs_trunc(znode_t *zp, uint64_t end)
 {
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	dmu_tx_t *tx;
-	zfs_locked_range_t *lr;
 	int error;
 	sa_bulk_attr_t bulk[2];
 	int count = 0;
 
 	/*
-	 * We will change zp_size, lock the whole file.
-	 */
-	lr = zfs_rangelock_enter(&zp->z_rangelock, 0, UINT64_MAX, RL_WRITER);
-
-	/*
 	 * Nothing to do if file already at desired length.
 	 */
-	if (end >= zp->z_size) {
-		zfs_rangelock_exit(lr);
+	if (end >= zp->z_size)
 		return (0);
-	}
 
 	error = dmu_free_long_range(zfsvfs->z_os, zp->z_id, end,
 	    DMU_OBJECT_END);
-	if (error) {
-		zfs_rangelock_exit(lr);
+	if (error)
 		return (error);
-	}
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
@@ -1821,7 +1800,6 @@ zfs_trunc(znode_t *zp, uint64_t end)
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);
-		zfs_rangelock_exit(lr);
 		return (error);
 	}
 
@@ -1837,7 +1815,6 @@ zfs_trunc(znode_t *zp, uint64_t end)
 	VERIFY0(sa_bulk_update(zp->z_sa_hdl, bulk, count, tx));
 
 	dmu_tx_commit(tx);
-	zfs_rangelock_exit(lr);
 
 	return (0);
 }
@@ -1859,6 +1836,7 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 	dmu_tx_t *tx;
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	zilog_t *zilog = zfsvfs->z_log;
+	zfs_locked_range_t *lr = NULL;
 	uint64_t mode;
 	uint64_t mtime[2], ctime[2];
 	sa_bulk_attr_t bulk[4];
@@ -1869,8 +1847,26 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 	    sizeof (mode))) != 0)
 		return (error);
 
+	/*
+	 * Keep the range locked until TX_TRUNCATE is assigned: a write logged
+	 * between the change and the record would be freed or cut off when
+	 * the record is replayed after it.  A change of the size locks the
+	 * whole file.  The size cannot shrink while part of it is locked.
+	 */
+	if (len != 0) {
+		lr = zfs_rangelock_enter(&zp->z_rangelock, off, len, RL_WRITER);
+		if (off + len > zp->z_size) {
+			zfs_rangelock_exit(lr);
+			lr = NULL;
+		}
+	}
+	if (lr == NULL) {
+		lr = zfs_rangelock_enter(&zp->z_rangelock, 0, UINT64_MAX,
+		    RL_WRITER);
+	}
+
 	if (off > zp->z_size) {
-		error =  zfs_extend(zp, off+len);
+		error =  zfs_extend(zp, lr, off+len);
 		if (error == 0 && log)
 			goto log;
 		goto out;
@@ -1881,7 +1877,7 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 	} else {
 		if ((error = zfs_free_range(zp, off, len)) == 0 &&
 		    off + len > zp->z_size)
-			error = zfs_extend(zp, off+len);
+			error = zfs_extend(zp, lr, off+len);
 	}
 	if (error || !log)
 		goto out;
@@ -1913,6 +1909,8 @@ log:
 	error = 0;
 
 out:
+	zfs_rangelock_exit(lr);
+
 	/*
 	 * Truncate the page cache - for file truncate operations, use
 	 * the purpose-built API for truncations.  For punching operations,
