@@ -362,6 +362,7 @@ SRCS+=	abd.c \
 	zcp_synctask.c \
 	zfeature.c \
 	zfs_byteswap.c \
+	zfs_changelog.c \
 	zfs_chksum.c \
 	zfs_fm.c \
 	zfs_fuid.c \

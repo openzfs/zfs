@@ -1,0 +1,117 @@
+.\" SPDX-License-Identifier: CDDL-1.0
+.\"
+.\" This file and its contents are supplied under the terms of the
+.\" Common Development and Distribution License ("CDDL"), version 1.0.
+.\" You may only use this file in accordance with the terms of version
+.\" 1.0 of the CDDL.
+.\"
+.\" A full copy of the text of the CDDL should have accompanied this
+.\" source.  A copy of the CDDL is also available via the Internet at
+.\" https://opensource.org/license/CDDL-1.0.
+.\"
+.\" Copyright (c) 2026 by HeonJe Lee
+.\"
+.Dd October 16, 2026
+.Dt ZCHANGELOG 8
+.Os
+.Sh NAME
+.Nm zchangelog
+.Nd read a dataset's metadata change stream
+.Sh SYNOPSIS
+.Nm
+.Cm register
+.Ar dataset
+.Ar consumer
+.Op Ar op,op,...
+.Nm
+.Cm read
+.Ar dataset
+.Op Fl c Ar consumer
+.Op Fl s Ar seq
+.Op Fl n Ar count
+.Op Fl w Ar ms
+.Op Fl fapj
+.Nm
+.Cm clear
+.Ar dataset
+.Ar consumer
+.Ar seq
+.Nm
+.Cm unregister
+.Ar dataset
+.Ar consumer
+.Nm
+.Cm status
+.Ar dataset
+.Op Fl j
+.Sh DESCRIPTION
+Registers a named consumer, reads metadata change records incrementally
+from a cursor, clears processed records and trims the stream.
+The stream itself is produced when the dataset property
+.Sy changelog
+is enabled; see
+.Xr zfsprops 7 .
+.Pp
+A rename produces one record with both names packed as
+.Ql old\0new
+in the name field and the old parent in the spare field
+.Pq Dv CL_F_RENAME2 .
+Names longer than 72 bytes are truncated and flagged
+.Pq Dv CL_F_NAME_TRUNC .
+.Pp
+The subcommands:
+.Bl -tag -width "unregister"
+.It Cm register
+Register
+.Ar consumer
+on
+.Ar dataset .
+The optional comma-separated op list restricts the consumer's mask to
+those operations.
+Prints the seq the consumer starts from.
+.It Cm read
+Read up to
+.Fl n
+records from the cursor
+.Fl s ,
+or from the consumer's clear point when
+.Fl c
+is given.
+.Fl w
+waits for new records up to
+.Ar ms
+milliseconds before returning.
+.Fl f
+follows, reading repeatedly and clearing nothing by itself.
+.Fl a
+clears up to the returned cursor after each read
+.Pq at-least-once delivery .
+.Fl p
+resolves record objects to paths.
+.Fl j
+prints one JSON object per record and a trailing
+.Ql meta
+line with cursor/head/tail/generation.
+A gap warning on stderr means records were dropped
+(retention exceeded or an async flush lost in a crash);
+resync with a full scan.
+.It Cm clear
+Acknowledge records up to
+.Ar seq
+for
+.Ar consumer .
+Records every consumer has acked are freed by trim.
+.It Cm unregister
+Remove
+.Ar consumer .
+.It Cm status
+Print head, tail, generation and pending record count.
+.El
+.Sh EXAMPLES
+.Dl # Nm zchangelog Cm register Ar tank/data consumer1
+.Dl # Nm zchangelog Cm read Ar tank/data Fl c Ar consumer1 Fl a Fl n 512
+.Dl # Nm zchangelog Cm read Ar tank/data Fl f Fl j
+.Dl # Nm zchangelog Cm clear Ar tank/data Ar consumer1 Ar 1048576
+.Sh SEE ALSO
+.Xr zfsprops 7 ,
+.Xr zfs-diff 8

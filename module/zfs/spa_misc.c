@@ -31,6 +31,7 @@
 #include <sys/dmu_tx.h>
 #include <sys/zap.h>
 #include <sys/zil.h>
+#include <sys/zfs_changelog.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_initialize.h>
 #include <sys/vdev_trim.h>
@@ -2821,6 +2822,7 @@ spa_init(spa_mode_t mode)
 	qat_init();
 	spa_import_progress_init();
 	zap_init();
+	zfs_changelog_init();
 }
 
 void
@@ -2846,6 +2848,7 @@ spa_fini(void)
 	qat_fini();
 	spa_import_progress_destroy();
 	zap_fini();
+	zfs_changelog_fini();
 
 	avl_destroy(&spa_namespace_avl);
 	avl_destroy(&spa_spare_avl);

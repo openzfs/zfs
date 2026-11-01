@@ -325,6 +325,29 @@ Default DDT ZAP indirect block size as a power of 2. Note that changing this
 after creating a DDT on the pool will not affect existing DDTs, only newly
 created ones.
 .
+.It Sy changelog_async Ns = Ns Sy 1 Ns | Ns Sy 0 Pq int
+When enabled, the op path only queues changelog records and the txg sync
+path flushes them in open context.
+Default 1 (enabled).
+.
+.It Sy changelog_chunk_recs Ns = Ns Ar count Pq u64
+Record slots per chunk object, fixed when a log is created
+.Pq default 64Ki .
+.
+.It Sy changelog_read_max Ns = Ns Ar count Pq uint
+Maximum records returned by one changelog read ioctl.
+Pq default 2048 .
+.
+.It Sy changelog_retention_recs Ns = Ns Ar count Pq u64
+Records kept per dataset before the oldest are force-dropped and a
+generation gap is declared.
+Pq default 2M .
+.
+.It Sy changelog_test_nowrite Ns = Ns Ar count Pq uint
+Keep the transaction holds but skip the record write; performance
+attribution only.
+Default 0.
+.
 .It Sy zfs_default_bs Ns = Ns Sy 9 Po 512 B Pc Pq int
 Default dnode block size as a power of 2.
 .

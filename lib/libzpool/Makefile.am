@@ -186,6 +186,7 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/zfs_impl.c \
 	module/zfs/zfs_ratelimit.c \
 	module/zfs/zfs_rlock.c \
+	module/zfs/zfs_changelog.c \
 	module/zfs/zfs_sa.c \
 	module/zfs/zfs_znode.c \
 	module/zfs/zil.c \

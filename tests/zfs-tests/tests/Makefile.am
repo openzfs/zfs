@@ -102,6 +102,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/cachefile/cachefile.kshlib \
 	functional/casenorm/casenorm.cfg \
 	functional/casenorm/casenorm.kshlib \
+	functional/changelog/changelog.cfg \
 	functional/channel_program/channel_common.kshlib \
 	functional/channel_program/lua_core/tst.args_to_lua.out \
 	functional/channel_program/lua_core/tst.args_to_lua.zcp \
@@ -612,6 +613,11 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/casenorm/mixed_formd_delete.ksh \
 	functional/casenorm/mixed_formd_lookup_ci.ksh \
 	functional/casenorm/mixed_formd_lookup.ksh \
+	functional/changelog/changelog_001_pos.ksh \
+	functional/changelog/changelog_002_pos.ksh \
+	functional/changelog/changelog_003_pos.ksh \
+	functional/changelog/cleanup.ksh \
+	functional/changelog/setup.ksh \
 	functional/casenorm/mixed_none_delete.ksh \
 	functional/casenorm/mixed_none_lookup_ci.ksh \
 	functional/casenorm/mixed_none_lookup.ksh \

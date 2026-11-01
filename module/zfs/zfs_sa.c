@@ -21,6 +21,7 @@
 #include <sys/dmu_objset.h>
 #include <sys/sa_impl.h>
 #include <sys/zfeature.h>
+#include <sys/zfs_changelog.h>
 
 /*
  * ZPL attribute registration table.
@@ -220,6 +221,7 @@ zfs_sa_set_xattr(znode_t *zp, const char *name, const void *value, size_t vsize)
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	zilog_t *zilog;
 	dmu_tx_t *tx;
+	changelog_res_t clres;
 	char *obj;
 	size_t size;
 	int error, logsaxattr = 0;
@@ -255,6 +257,7 @@ zfs_sa_set_xattr(znode_t *zp, const char *name, const void *value, size_t vsize)
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_sa_create(tx, size);
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_TRUE);
+	zfs_changelog_tx_hold(zfsvfs->z_os, tx, &clres);
 
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
@@ -277,6 +280,8 @@ zfs_sa_set_xattr(znode_t *zp, const char *name, const void *value, size_t vsize)
 		ASSERT3S(count, <=, ARRAY_SIZE(bulk));
 		VERIFY0(sa_bulk_update(zp->z_sa_hdl, bulk, count, tx));
 
+		zfs_changelog_record(zfsvfs->z_os, tx, &clres, CL_OP_SETXATTR,
+		    zp->z_id, 0, name);
 		dmu_tx_commit(tx);
 		if (logsaxattr && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 			error = zil_commit(zilog, 0);

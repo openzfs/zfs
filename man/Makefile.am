@@ -30,6 +30,7 @@ dist_man_MANS = \
 	%D%/man8/mount.zfs.8 \
 	%D%/man8/vdev_id.8 \
 	%D%/man8/zdb.8 \
+	%D%/man8/zchangelog.8 \
 	%D%/man8/zfs.8 \
 	%D%/man8/zfs-allow.8 \
 	%D%/man8/zfs-bookmark.8 \

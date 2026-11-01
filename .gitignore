@@ -86,7 +86,7 @@
 modules.order
 Makefile
 Makefile.in
-changelog
+contrib/debian/changelog
 *.patch
 *.orig
 *.tmp
