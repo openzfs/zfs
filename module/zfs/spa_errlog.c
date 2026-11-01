@@ -483,10 +483,13 @@ process_error_block(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 	 * If zb_birth == 0 or head_ds == 0 it means we failed to retrieve the
 	 * birth txg or the head filesystem of the block pointer. This may
 	 * happen e.g. when an encrypted filesystem is not mounted or when
-	 * the key is not loaded. In this case do not proceed to
-	 * check_filesystem(), instead do the accounting here.
+	 * the key is not loaded. An intent log block is not in the file's
+	 * tree, so failing to find it there does not mean it was freed. In
+	 * these cases do not proceed to check_filesystem(), instead do the
+	 * accounting here.
 	 */
-	if (zep->zb_birth == 0 || head_ds == 0)
+	if (zep->zb_birth == 0 || head_ds == 0 ||
+	    zep->zb_level == ZB_ZIL_LEVEL)
 		return (copyout_unresolved(head_ds, zep, uaddr, count));
 
 	uint64_t top_affected_fs;
@@ -811,6 +814,48 @@ spa_approx_errlog_size(spa_t *spa)
 }
 
 /*
+ * Find the birth of the block an error names, for the upgraded error log.
+ */
+static int
+sync_upgrade_errlog_birth(dsl_dataset_t *ds, zbookmark_err_phys_t *zep)
+{
+	objset_t *os;
+	dnode_t *dn;
+	blkptr_t bp;
+	int error;
+
+	/*
+	 * The objset and the dnode are required for getting the block
+	 * pointer, which is used to determine if BP_IS_HOLE(). If
+	 * getting the objset or the dnode fails, do not create a
+	 * zap entry (presuming we know the dataset) as this may create
+	 * spurious errors that we cannot ever resolve. If an error is
+	 * truly persistent, it should re-appear after a scan.
+	 */
+	error = dmu_objset_from_ds(ds, &os);
+	if (error != 0)
+		return (error);
+	error = dnode_hold(os, zep->zb_object, FTAG, &dn);
+	if (error != 0)
+		return (error);
+
+	/* The birth of a block whose key is not loaded stays unknown. */
+	rw_enter(&dn->dn_struct_rwlock, RW_READER);
+	error = dbuf_dnode_findbp(dn, zep->zb_level, zep->zb_blkid, &bp,
+	    NULL, NULL);
+	if (error == EACCES)
+		error = 0;
+	else if (error == 0 && BP_IS_HOLE(&bp))
+		error = SET_ERROR(ENOENT);
+	else if (error == 0)
+		zep->zb_birth = BP_GET_PHYSICAL_BIRTH(&bp);
+	rw_exit(&dn->dn_struct_rwlock);
+	dnode_rele(dn, FTAG);
+
+	return (error);
+}
+
+/*
  * This function sweeps through an on-disk error log and stores all bookmarks
  * as error bookmarks in a new ZAP object. At the end we discard the old one,
  * and spa_update_errlog() will set the spa's on-disk error log to new ZAP
@@ -855,12 +900,11 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 
 		/*
 		 * In case of an error we should simply continue instead of
-		 * returning prematurely. See the next comment.
+		 * returning prematurely. See sync_upgrade_errlog_birth().
 		 */
 		uint64_t head_ds;
 		dsl_pool_t *dp = spa->spa_dsl_pool;
 		dsl_dataset_t *ds;
-		objset_t *os;
 
 		int error = dsl_dataset_hold_obj_flags(dp, zb.zb_objset,
 		    DS_HOLD_FLAG_DECRYPT, FTAG, &ds);
@@ -870,39 +914,14 @@ sync_upgrade_errlog(spa_t *spa, uint64_t spa_err_obj, uint64_t *newobj,
 		head_ds = dsl_dir_phys(ds->ds_dir)->dd_head_dataset_obj;
 
 		/*
-		 * The objset and the dnode are required for getting the block
-		 * pointer, which is used to determine if BP_IS_HOLE(). If
-		 * getting the objset or the dnode fails, do not create a
-		 * zap entry (presuming we know the dataset) as this may create
-		 * spurious errors that we cannot ever resolve. If an error is
-		 * truly persistent, it should re-appear after a scan.
+		 * An intent log block is not in the file's tree, which may not
+		 * even hold its object yet, so its birth stays unknown.
 		 */
-		if (dmu_objset_from_ds(ds, &os) != 0) {
-			dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
-			continue;
-		}
-
-		dnode_t *dn;
-		blkptr_t bp;
-
-		if (dnode_hold(os, zep.zb_object, FTAG, &dn) != 0) {
-			dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
-			continue;
-		}
-
-		rw_enter(&dn->dn_struct_rwlock, RW_READER);
-		error = dbuf_dnode_findbp(dn, zep.zb_level, zep.zb_blkid, &bp,
-		    NULL, NULL);
-		if (error == EACCES)
-			error = 0;
-		else if (!error)
-			zep.zb_birth = BP_GET_PHYSICAL_BIRTH(&bp);
-
-		rw_exit(&dn->dn_struct_rwlock);
-		dnode_rele(dn, FTAG);
+		if (zep.zb_level != ZB_ZIL_LEVEL)
+			error = sync_upgrade_errlog_birth(ds, &zep);
 		dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
 
-		if (error != 0 || BP_IS_HOLE(&bp))
+		if (error != 0)
 			continue;
 
 		uint64_t err_obj;
