@@ -310,7 +310,8 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 
 	for (t = 0; t < nthreads; t++)
 		VERIFY((tq->tq_threadlist[t] = thread_create_named(tq->tq_name,
-		    NULL, 0, taskq_thread, tq, 0, &p0, TS_RUN, pri)) != NULL);
+		    NULL, 0, taskq_thread, tq, 0, &p0, TS_RUN | TS_JOINABLE,
+		    pri)) != NULL);
 
 	return (tq);
 }
@@ -339,6 +340,13 @@ taskq_destroy(taskq_t *tq)
 	}
 
 	mutex_exit(&tq->tq_lock);
+
+	/*
+	 * A worker drops tq_nthreads before it exits. Join each one so none
+	 * is still running, or still owns its stack and TLS, once we return.
+	 */
+	for (int t = 0; t < nthreads; t++)
+		VERIFY0(thread_join(tq->tq_threadlist[t]));
 
 	kmem_free(tq->tq_threadlist, nthreads * sizeof (kthread_t *));
 
