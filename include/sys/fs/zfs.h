@@ -954,6 +954,7 @@ typedef struct zpool_load_policy {
 #define	ZPOOL_CONFIG_DDT_STATS		"ddt_stats"
 #define	ZPOOL_CONFIG_SPLIT		"splitcfg"
 #define	ZPOOL_CONFIG_ORIG_GUID		"orig_guid"
+#define	ZPOOL_CONFIG_LEAF_PATHS		"leaf_paths"	/* not stored on disk */
 #define	ZPOOL_CONFIG_SPLIT_GUID		"split_guid"
 #define	ZPOOL_CONFIG_SPLIT_LIST		"guid_list"
 #define	ZPOOL_CONFIG_NONALLOCATING	"non_allocating"
