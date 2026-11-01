@@ -2759,6 +2759,7 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 	uint64_t txg;
 	itxg_t *itxg;
 	itxs_t *itxs, *clean = NULL;
+	boolean_t new_itxg = B_FALSE;
 
 	/*
 	 * Ensure the data of a renamed file is committed before the rename.
@@ -2785,6 +2786,7 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 			    "txg %llu", (u_longlong_t)itxg->itxg_txg);
 			clean = itxg->itxg_itxs;
 		}
+		new_itxg = B_TRUE;
 		itxg->itxg_txg = txg;
 		itxs = itxg->itxg_itxs = kmem_zalloc(sizeof (itxs_t),
 		    KM_SLEEP);
@@ -2822,9 +2824,12 @@ zil_itx_assign(zilog_t *zilog, itx_t *itx, dmu_tx_t *tx)
 	 * We don't want to dirty the ZIL using ZILTEST_TXG, because
 	 * zil_clean() will never be called using ZILTEST_TXG. Thus, we
 	 * need to be careful to always dirty the ZIL using the "real"
-	 * TXG (not itxg_txg) even when the SPA is frozen.
+	 * TXG (not itxg_txg) even when the SPA is frozen. Otherwise, the
+	 * ZIL was dirtied when itxg_txg was set, and it stays dirty until
+	 * zil_clean() resets itxg_txg under itxg_lock.
 	 */
-	zilog_dirty(zilog, dmu_tx_get_txg(tx));
+	if (new_itxg || txg == ZILTEST_TXG)
+		zilog_dirty(zilog, dmu_tx_get_txg(tx));
 	mutex_exit(&itxg->itxg_lock);
 
 	/* Release the old itxs now we've dropped the lock */
