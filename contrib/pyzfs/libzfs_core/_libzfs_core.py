@@ -253,7 +253,7 @@ def lzc_destroy_snaps(snaps, defer):
         rather than immediately failing.
 
     :raises SnapshotDestructionFailure: if one or more snapshots could not be
-        created.
+        destroyed.
 
     .. note::
         :exc:`.SnapshotDestructionFailure` is a compound exception that
