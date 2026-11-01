@@ -12,7 +12,7 @@
 .\"
 .\" Copyright (c) 2024, Klara Inc.
 .\"
-.Dd June 17, 2024
+.Dd October 18, 2026
 .Dt ZPOOL-DDTPRUNE 8
 .Os
 .
@@ -33,6 +33,12 @@ newer duplicate entries.
 .Pp
 The amount to prune can be based on a target percentage of the unique entries
 or based on the age (i.e., every unique entry older than N days).
+.Pp
+A unique entry holding more than one copy of its block, as written with
+.Sy copies
+greater than 1, is not pruned:
+a block written before the entry gained its extra copies may still refer to it,
+and pruning it would leak the copies that block does not refer to.
 .
 .Sh SEE ALSO
 .Xr zdb 8 ,

@@ -327,7 +327,8 @@ tests = ['zfs_reservation_001_pos', 'zfs_reservation_002_pos']
 tags = ['functional', 'cli_root', 'zfs_reservation']
 
 [tests/functional/cli_root/zfs_rewrite]
-tests = ['zfs_rewrite', 'zfs_rewrite_physical', 'zfs_rewrite_skip_clone',
+tests = ['zfs_rewrite', 'zfs_rewrite_physical',
+    'zfs_rewrite_physical_raw_send', 'zfs_rewrite_skip_clone',
     'zfs_rewrite_skip_snapshot', 'zfs_rewrite_skip_width']
 tags = ['functional', 'cli_root', 'zfs_rewrite']
 
@@ -472,8 +473,8 @@ tags = ['functional', 'cli_root', 'zpool_events']
 tests = ['zpool_export_001_pos', 'zpool_export_002_pos',
     'zpool_export_003_neg', 'zpool_export_004_pos',
     'zpool_export_005_neg', 'zpool_export_parallel_pos', 'zpool_export_parallel_admin',
-    'zpool_export_stats_pos', 'zpool_export_zvol_remove_pos',
-    'zpool_export_zvol_open_pos']
+    'zpool_export_readonly_pos', 'zpool_export_stats_pos',
+    'zpool_export_zvol_remove_pos', 'zpool_export_zvol_open_pos']
 tags = ['functional', 'cli_root', 'zpool_export']
 
 [tests/functional/cli_root/zpool_get]
@@ -743,6 +744,7 @@ tests = ['dedup_bclone', 'dedup_bclone_pruned', 'dedup_fdt_create',
     'dedup_legacy_repair', 'dedup_quota',
     'dedup_log_zdb_leak',
     'dedup_prune', 'dedup_prune_leak', 'dedup_prune_percentage',
+    'dedup_prune_scrub',
     'dedup_zap_shrink']
 pre =
 post =
@@ -915,8 +917,8 @@ tests = ['defaultprojectquota_002_pos', 'defaultprojectquota_003_neg',
     'defaultprojectquota_004_pos', 'defaultprojectquota_006_pos',
     'defaultprojectquota_007_pos', 'projectquota_002_pos',
     'projectquota_004_neg', 'projectquota_005_pos', 'projectquota_007_pos',
-    'projectquota_008_pos', 'projectquota_009_pos', 'projecttree_002_pos',
-    'projecttree_003_neg', 'projectspace_006_pos']
+    'projectquota_008_pos', 'projectquota_009_pos', 'projectquota_010_pos',
+    'projecttree_002_pos', 'projecttree_003_neg', 'projectspace_006_pos']
 tags = ['functional', 'projectquota']
 
 [tests/functional/poolversion]
@@ -1007,7 +1009,7 @@ tags = ['functional', 'rename_dirs']
 tests = ['attach_import', 'attach_multiple', 'attach_rebuild',
     'attach_resilver', 'attach_resilver_sit_out', 'detach',
     'rebuild_disabled_feature', 'rebuild_draid_speculative',
-    'rebuild_multiple', 'rebuild_raidz',
+    'rebuild_multiple', 'rebuild_online_leaf', 'rebuild_raidz',
     'replace_import', 'replace_rebuild', 'replace_resilver',
     'replace_resilver_sit_out', 'resilver_restart_001',
     'resilver_restart_002', 'scrub_cancel']
@@ -1205,7 +1207,7 @@ tests = ['zoned_uid_001_pos', 'zoned_uid_002_pos', 'zoned_uid_003_pos',
     'zoned_uid_023_pos', 'zoned_uid_024_neg',
     'zoned_uid_025_pos', 'zoned_uid_026_pos',
     'zoned_uid_027_pos', 'zoned_uid_028_neg',
-    'zoned_uid_029_neg', 'zoned_uid_031_pos']
+    'zoned_uid_029_neg', 'zoned_uid_031_pos', 'zoned_uid_035_neg']
 tags = ['functional', 'zoned_uid']
 
 [tests/functional/zstream]

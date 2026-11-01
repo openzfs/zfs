@@ -85,4 +85,21 @@ log_must touch $ZFSROOT/$rst_root/$TESTFS/tmpfile
 log_mustnot eval "zfs receive $rst_inc_snap < $inc_bkup"
 log_mustnot eval "zfs receive -d $rst_root < $inc_bkup"
 
+for length in 249 250; do
+	longfs=$rst_root/r
+	while (( ${#longfs} < length )); do
+		longfs+=x
+	done
+	log_must eval "zfs receive -u $longfs@a < $full_bkup"
+	if (( length == 249 )); then
+		log_must eval "zfs receive -u $longfs@b < $inc_bkup"
+		log_must snapexists $longfs@b
+	else
+		log_mustnot eval "zfs receive -u $longfs@b < $inc_bkup"
+		log_mustnot snapexists $longfs@b
+	fi
+	log_must test "$(get_prop guid $longfs@a)" = \
+	    "$(get_prop guid $init_snap)"
+done
+
 log_pass "Unsupported scenarios to 'zfs receive' fail as expected."

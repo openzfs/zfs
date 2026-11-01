@@ -1622,6 +1622,7 @@ gcm_init_avx(gcm_ctx_t *ctx, const uint8_t *iv, size_t iv_len,
 	if (ctx->gcm_Htable == NULL) {
 		return (CRYPTO_HOST_MEMORY);
 	}
+	ctx->gcm_htab_len = htab_len;
 
 	/* Init H (encrypt zero block) and create the initial counter block. */
 	memset(H, 0, sizeof (ctx->gcm_H));

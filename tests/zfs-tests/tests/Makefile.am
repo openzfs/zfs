@@ -976,6 +976,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_rewrite/setup.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_physical.ksh \
+	functional/cli_root/zfs_rewrite/zfs_rewrite_physical_raw_send.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_skip_clone.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_skip_snapshot.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_skip_width.ksh \
@@ -1233,6 +1234,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_export/zpool_export_005_neg.ksh \
 	functional/cli_root/zpool_export/zpool_export_parallel_admin.ksh \
 	functional/cli_root/zpool_export/zpool_export_parallel_pos.ksh \
+	functional/cli_root/zpool_export/zpool_export_readonly_pos.ksh \
 	functional/cli_root/zpool_export/zpool_export_stats_pos.ksh \
 	functional/cli_root/zpool_export/zpool_export_zvol_open_pos.ksh \
 	functional/cli_root/zpool_export/zpool_export_zvol_remove_pos.ksh \
@@ -1626,6 +1628,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/dedup/dedup_prune.ksh \
 	functional/dedup/dedup_prune_leak.ksh \
 	functional/dedup/dedup_prune_percentage.ksh \
+	functional/dedup/dedup_prune_scrub.ksh \
 	functional/dedup/dedup_quota.ksh \
 	functional/dedup/dedup_zap_shrink.ksh \
 	functional/delegate/cleanup.ksh \
@@ -2011,6 +2014,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/projectquota/projectquota_007_pos.ksh \
 	functional/projectquota/projectquota_008_pos.ksh \
 	functional/projectquota/projectquota_009_pos.ksh \
+	functional/projectquota/projectquota_010_pos.ksh \
 	functional/projectquota/defaultprojectquota_001_pos.ksh \
 	functional/projectquota/defaultprojectquota_002_pos.ksh \
 	functional/projectquota/defaultprojectquota_003_neg.ksh \
@@ -2173,6 +2177,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/replacement/rebuild_disabled_feature.ksh \
 	functional/replacement/rebuild_draid_speculative.ksh \
 	functional/replacement/rebuild_multiple.ksh \
+	functional/replacement/rebuild_online_leaf.ksh \
 	functional/replacement/rebuild_raidz.ksh \
 	functional/replacement/replace_import.ksh \
 	functional/replacement/replace_rebuild.ksh \
@@ -2560,6 +2565,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zoned_uid/zoned_uid_029_neg.ksh \
 	functional/zoned_uid/zoned_uid_030_pos.ksh \
 	functional/zoned_uid/zoned_uid_031_pos.ksh \
+	functional/zoned_uid/zoned_uid_035_neg.ksh \
 	functional/zap_shrink/cleanup.ksh \
 	functional/zap_shrink/zap_shrink_001_pos.ksh \
 	functional/zap_shrink/setup.ksh \

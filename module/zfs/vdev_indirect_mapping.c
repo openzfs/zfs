@@ -174,96 +174,37 @@ vdev_indirect_mapping_entry_for_offset_impl(vdev_indirect_mapping_t *vim,
     uint64_t offset, boolean_t next_if_missing)
 {
 	ASSERT(vdev_indirect_mapping_verify(vim));
-	ASSERT(vim->vim_phys->vimp_num_entries > 0);
 
-	vdev_indirect_mapping_entry_phys_t *entry = NULL;
-
-	uint64_t last = vim->vim_phys->vimp_num_entries - 1;
+	uint64_t num_entries = vim->vim_phys->vimp_num_entries;
 	uint64_t base = 0;
+	uint64_t limit = num_entries;
 
-	/*
-	 * We don't define these inside of the while loop because we use
-	 * their value in the case that offset isn't in the mapping.
-	 */
-	uint64_t mid;
-	int result;
-
-	while (last >= base) {
-		mid = base + ((last - base) >> 1);
-
-		result = dva_mapping_overlap_compare(&offset,
+	while (base < limit) {
+		uint64_t mid = base + ((limit - base) >> 1);
+		int result = dva_mapping_overlap_compare(&offset,
 		    &vim->vim_entries[mid]);
 
-		if (result == 0) {
-			entry = &vim->vim_entries[mid];
-			break;
-		} else if (result < 0) {
-			last = mid - 1;
-		} else {
-			base = mid + 1;
-		}
-	}
-
-	if (entry == NULL && next_if_missing) {
-		ASSERT3U(base, ==, last + 1);
-		ASSERT(mid == base || mid == last);
-		ASSERT3S(result, !=, 0);
-
-		/*
-		 * The offset we're looking for isn't actually contained
-		 * in the mapping table, thus we need to return the
-		 * closest mapping entry that is greater than the
-		 * offset. We reuse the result of the last comparison,
-		 * comparing the mapping entry at index "mid" and the
-		 * offset. The offset is guaranteed to lie between
-		 * indices one less than "mid", and one greater than
-		 * "mid"; we just need to determine if offset is greater
-		 * than, or less than the mapping entry contained at
-		 * index "mid".
-		 */
-
-		uint64_t index;
-		if (result < 0)
-			index = mid;
+		if (result == 0)
+			return (&vim->vim_entries[mid]);
+		else if (result < 0)
+			limit = mid;
 		else
-			index = mid + 1;
-
-		ASSERT3U(index, <=, vim->vim_phys->vimp_num_entries);
-
-		if (index == vim->vim_phys->vimp_num_entries) {
-			/*
-			 * If "index" is past the end of the entries
-			 * array, then not only is the offset not in the
-			 * mapping table, but it's actually greater than
-			 * all entries in the table. In this case, we
-			 * can't return a mapping entry greater than the
-			 * offset (since none exist), so we return NULL.
-			 */
-
-			ASSERT3S(dva_mapping_overlap_compare(&offset,
-			    &vim->vim_entries[index - 1]), >, 0);
-
-			return (NULL);
-		} else {
-			/*
-			 * Just to be safe, we verify the offset falls
-			 * in between the mapping entries at index and
-			 * one less than index. Since we know the offset
-			 * doesn't overlap an entry, and we're supposed
-			 * to return the entry just greater than the
-			 * offset, both of the following tests must be
-			 * true.
-			 */
-			ASSERT3S(dva_mapping_overlap_compare(&offset,
-			    &vim->vim_entries[index]), <, 0);
-			IMPLY(index >= 1, dva_mapping_overlap_compare(&offset,
-			    &vim->vim_entries[index - 1]) > 0);
-
-			return (&vim->vim_entries[index]);
-		}
-	} else {
-		return (entry);
+			base = mid + 1;
 	}
+
+	/*
+	 * The offset isn't in the table.  Entries [0, base) all end at or
+	 * before it, and the entry at base, if any, starts after it.
+	 */
+	if (!next_if_missing || base == num_entries)
+		return (NULL);
+
+	ASSERT3S(dva_mapping_overlap_compare(&offset,
+	    &vim->vim_entries[base]), <, 0);
+	IMPLY(base >= 1, dva_mapping_overlap_compare(&offset,
+	    &vim->vim_entries[base - 1]) > 0);
+
+	return (&vim->vim_entries[base]);
 }
 
 vdev_indirect_mapping_entry_phys_t *

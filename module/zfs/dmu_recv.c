@@ -393,6 +393,11 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 	boolean_t raw = (featureflags & DMU_BACKUP_FEATURE_RAW) != 0;
 	boolean_t embed = (featureflags & DMU_BACKUP_FEATURE_EMBED_DATA) != 0;
 
+	if (!drba->drba_cookie->drc_heal &&
+	    dsl_dir_namelen(ds->ds_dir) + 1 + strlen(recv_clone_name) >=
+	    ZFS_MAX_DATASET_NAME_LEN)
+		return (SET_ERROR(ENAMETOOLONG));
+
 	/* Temporary clone name must not exist. */
 	error = zap_lookup(dp->dp_meta_objset,
 	    dsl_dir_phys(ds->ds_dir)->dd_child_dir_zapobj, recv_clone_name,

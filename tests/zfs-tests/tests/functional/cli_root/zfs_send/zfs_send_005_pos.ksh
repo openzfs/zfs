@@ -37,7 +37,7 @@ verify_runnable "both"
 
 function cleanup
 {
-	poolexists $TESTPOOL && log_must_busy zpool export $TESTPOOL
+	poolexists $TESTPOOL && log_must zpool export $TESTPOOL
 	log_must zpool import $TESTPOOL
 
 	datasetexists $TESTPOOL@snap && \

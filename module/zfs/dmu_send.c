@@ -1215,7 +1215,7 @@ send_traverse_thread(void *arg)
 
 	err = traverse_dataset_resume(st_arg->os->os_dsl_dataset,
 	    st_arg->fromtxg, &st_arg->resume,
-	    st_arg->flags | TRAVERSE_LOGICAL, send_cb, st_arg);
+	    st_arg->flags, send_cb, st_arg);
 
 	if (err != EINTR)
 		st_arg->error_code = err;
@@ -2129,6 +2129,14 @@ setup_to_thread(struct send_thread_arg *to_arg, objset_t *to_os,
 	to_arg->flags = TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA;
 	if (rawok)
 		to_arg->flags |= TRAVERSE_NO_DECRYPT;
+	/*
+	 * zfs rewrite -P keeps a block's logical birth, but gives an encrypted
+	 * block a new IV and MAC.  The dnode block MACs in a raw stream
+	 * authenticate that MAC, so a raw send of an encrypted dataset has to
+	 * compare the physical birth to include such blocks.
+	 */
+	if (!(rawok && to_os->os_encrypted))
+		to_arg->flags |= TRAVERSE_LOGICAL;
 	if (zfs_send_corrupt_data)
 		to_arg->flags |= TRAVERSE_HARD;
 	to_arg->num_blocks_visited = &dssp->dss_blocks;
