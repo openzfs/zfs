@@ -684,18 +684,6 @@ gcm_init_ctx(gcm_ctx_t *gcm_ctx, char *param,
 	return (rv);
 }
 
-void *
-gcm_alloc_ctx(int kmflag)
-{
-	gcm_ctx_t *gcm_ctx;
-
-	if ((gcm_ctx = kmem_zalloc(sizeof (gcm_ctx_t), kmflag)) == NULL)
-		return (NULL);
-
-	gcm_ctx->gcm_flags = GCM_MODE;
-	return (gcm_ctx);
-}
-
 /* GCM implementation that contains the fastest methods */
 static gcm_impl_ops_t gcm_fastest_impl = {
 	.name = "fastest"

@@ -20,7 +20,7 @@
 #include <sys/crypto/impl.h>
 
 /*
- * Utility routine to copy a buffer to a crypto_data structure.
+ * Utility routines for crypto_data buffers.
  */
 
 /*
