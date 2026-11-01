@@ -1,3 +1,6 @@
+#!/bin/bash
+set -e
+
 ######################################################################
 # 3) Wait for VM to boot from previous step and launch dependencies
 #    script on it.
