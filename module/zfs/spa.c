@@ -5296,7 +5296,7 @@ spa_ld_open_indirect_vdev_metadata(spa_t *spa)
 	if (error != 0) {
 		spa_load_failed(spa, "spa_condense_init failed [error=%d]",
 		    error);
-		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, error));
+		return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
 	}
 
 	return (0);
