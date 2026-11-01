@@ -9230,7 +9230,7 @@ zfs_do_rewrite(int argc, char **argv)
 			args.flags |= ZFS_REWRITE_SKIP_SNAPSHOT;
 			break;
 		case 'W':
-			args.flags |= ZFS_REWRITE_SKIP_CURRENT_ASIZE;
+			args.flags |= ZFS_REWRITE_SKIP_CURRENT;
 			break;
 		case 'l':
 			args.len = strtoll(optarg, NULL, 0);
