@@ -182,7 +182,7 @@ zpl_is_32bit_api(void)
 }
 
 static inline void
-zpl_generic_fillattr(zidmap_t *idmap, u32 request_mask, struct inode *ip,
+zpl_generic_fillattr(const zidmap_t *idmap, u32 request_mask, struct inode *ip,
     struct kstat *stat)
 {
 #if defined(HAVE_IDMAP_MNTIDMAP)
@@ -202,7 +202,8 @@ zpl_generic_fillattr(zidmap_t *idmap, u32 request_mask, struct inode *ip,
 }
 
 static inline int
-zpl_setattr_prepare(zidmap_t *idmap, struct dentry *dentry, struct iattr *ia)
+zpl_setattr_prepare(const zidmap_t *idmap, struct dentry *dentry,
+    struct iattr *ia)
 {
 #if defined(HAVE_IDMAP_MNTIDMAP)
 	return (setattr_prepare((struct mnt_idmap *)idmap, dentry, ia));
@@ -215,7 +216,7 @@ zpl_setattr_prepare(zidmap_t *idmap, struct dentry *dentry, struct iattr *ia)
 }
 
 static inline bool
-zpl_inode_owner_or_capable(zidmap_t *idmap, struct inode *ip)
+zpl_inode_owner_or_capable(const zidmap_t *idmap, struct inode *ip)
 {
 #if defined(HAVE_IDMAP_MNTIDMAP)
 	return (inode_owner_or_capable((struct mnt_idmap *)idmap, ip));
@@ -228,7 +229,7 @@ zpl_inode_owner_or_capable(zidmap_t *idmap, struct inode *ip)
 }
 
 static inline int
-zpl_generic_permission(zidmap_t *idmap, struct inode *ip, int mask)
+zpl_generic_permission(const zidmap_t *idmap, struct inode *ip, int mask)
 {
 #if defined(HAVE_IDMAP_MNTIDMAP)
 	return (generic_permission((struct mnt_idmap *)idmap, ip, mask));
