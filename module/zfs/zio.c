@@ -4171,9 +4171,15 @@ zio_ddt_child_write_ready(zio_t *zio)
 	mutex_enter(&dde->dde_io->dde_io_lock);
 
 	uint64_t phys_birth = ddt_phys_birth(dde->dde_phys, v);
+	/*
+	 * The DDT entry stores one physical birth for all of its DVAs.
+	 * Do not add a copy allocated in a later txg: scans use the birth to
+	 * decide whether to visit the block, and checkpoints use it to decide
+	 * which frees belong to the checkpointed state.
+	 */
 	boolean_t reject = ddt_phys_is_gang(dde->dde_phys, v) ||
-	    (phys_birth != 0 &&
-	    !zio_ddt_child_write_layout_matches(zio, phys_birth));
+	    (phys_birth != 0 && (phys_birth != zio->io_txg ||
+	    !zio_ddt_child_write_layout_matches(zio, phys_birth)));
 
 	if (reject) {
 		mutex_exit(&dde->dde_io->dde_io_lock);
@@ -6099,8 +6105,8 @@ zio_done(zio_t *zio)
 	 * The DDT extension path deliberately produces EAGAIN at two
 	 * sites: at allocation, when extending would require ganging
 	 * (zio_write_gang_block()), and at READY, when the live phys is
-	 * already ganged or RAIDZ geometry differs across an expansion
-	 * boundary. Disable dedup and reexecute as a plain write;
+	 * ganged, has a different birth txg, or RAIDZ geometry differs across
+	 * an expansion boundary. Disable dedup and reexecute as a plain write;
 	 * zp_dedup transitions monotonically to false, so the retry
 	 * terminates. A backend EAGAIN can also take this path; it gets
 	 * one non-dedup retry before ordinary error handling.
