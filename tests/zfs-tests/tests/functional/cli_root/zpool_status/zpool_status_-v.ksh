@@ -23,10 +23,16 @@
 # 2. Create a zvol
 # 3. zinject errors into files, zvol, and MOS.  Inject at different byte ranges.
 # 4. Verify error reporting in zpool status with different flags
+# 5. Verify -v prints file names without trailing whitespace, -j reports
+#    the error count but no error list, and an unprivileged user who
+#    cannot read the error log still sees the correct error count
 
 verify_runnable "both"
 
 log_assert "Verify zpool status prints error log ranges"
+
+ZS_USER="zsuser"
+ZS_GROUP="zsgroup"
 
 # Given a list of lines in $1, look for each line somewhere in stdin (the
 # zpool status output).
@@ -49,9 +55,24 @@ function cleanup
 	log_must restore_tunable VOL_PREFETCH_BYTES
 	log_must restore_tunable PREFETCH_DISABLE
 	log_must zinject -c all
-	log_must zfs destroy $TESTPOOL/4k
-	log_must zfs destroy $TESTPOOL/1m
-	log_must zfs destroy $TESTPOOL/$TESTVOL
+	destroy_dataset $TESTPOOL/4k
+	destroy_dataset $TESTPOOL/1m
+	destroy_dataset $TESTPOOL/$TESTVOL
+	del_user $ZS_USER
+	del_group $ZS_GROUP
+}
+
+# Print the error count from the text 'zpool status' output on stdin.
+function text_errcount
+{
+	awk '/^errors: No known data errors/ {print 0}
+	    /^errors: [0-9]+ data errors/ {print $2}'
+}
+
+# Print the '.pools.testpool.<key>' value from the JSON output on stdin.
+function json_val # <key>
+{
+	jq -c --arg k "$1" '.pools.testpool[$k]'
 }
 
 log_onexit cleanup
@@ -164,6 +185,56 @@ val=$(cat << END
 END
 )
 zpool status -vvjp --json-int | jq -c '.pools.testpool.errlist | map(del(.[].dataset)) | map(del(.[].object)) | sort' | check_status "$val"
+
+# With -v, a file name is the last thing on its line; the space before
+# the ranges is only printed with -vv.
+log_must eval "zpool status -v $TESTPOOL |" \
+    "grep -q '^[[:space:]]*/testpool/4k/4k_file1\$'"
+log_mustnot eval "zpool status -v $TESTPOOL |" \
+    "grep -q '4k_file1[[:space:]]\$'"
+
+nerr=$(zpool status $TESTPOOL | text_errcount)
+log_note "text error count: $nerr"
+if [[ -z "$nerr" ]] || (( nerr == 0 )); then
+	log_fail "No data errors reported in 'zpool status $TESTPOOL'"
+fi
+
+# -j always reports the error count, but only includes the list with -v.
+out=$(zpool status -jp --json-int $TESTPOOL)
+[[ "$(echo "$out" | json_val error_count)" == "$nerr" ]] || \
+	log_fail "'zpool status -j' error_count is not $nerr"
+[[ "$(echo "$out" | json_val errlist)" == "null" ]] || \
+	log_fail "'zpool status -j' unexpectedly includes errlist"
+
+out=$(zpool status -jvp --json-int $TESTPOOL)
+[[ "$(echo "$out" | json_val error_count)" == "$nerr" ]] || \
+	log_fail "'zpool status -jv' error_count is not $nerr"
+[[ "$(echo "$out" | json_val errlist)" != "null" ]] || \
+	log_fail "'zpool status -jv' does not include errlist"
+
+#
+# An unprivileged user can run 'zpool status' but is not allowed to read
+# the error log.  The error count must still be reported correctly.
+#
+log_must add_group $ZS_GROUP
+log_must add_user $ZS_GROUP $ZS_USER
+
+if user_run $ZS_USER zpool status $TESTPOOL ; then
+	[[ "$(text_errcount < $TEST_BASE_DIR/out)" == "$nerr" ]] || \
+		log_fail "Unprivileged 'zpool status' error count is not $nerr"
+
+	for flags in "-jp --json-int" "-jvp --json-int"; do
+		log_must user_run $ZS_USER zpool status $flags $TESTPOOL
+		[[ "$(json_val error_count < $TEST_BASE_DIR/out)" == "$nerr" ]] || \
+			log_fail "Unprivileged 'zpool status $flags'" \
+			    "error_count is not $nerr"
+		[[ "$(json_val errlist < $TEST_BASE_DIR/out)" == "null" ]] || \
+			log_fail "Unprivileged 'zpool status $flags'" \
+			    "includes errlist"
+	done
+else
+	log_note "$ZS_USER cannot run zpool status, skipping unprivileged checks"
+fi
 
 # Clear the error log from our pool
 log_must zpool scrub $TESTPOOL

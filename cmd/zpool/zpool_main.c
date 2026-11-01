@@ -9920,22 +9920,30 @@ errors_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *item)
 	char **str_arr = NULL;
 	uint64_t nerr;
 
-	if (zpool_get_errlog(zhp, &nverrlist) != 0) {
-		/* We're expected to always return an error count */
-		nice_num_str_nvlist(item, ZPOOL_CONFIG_ERRCOUNT, 0,
-		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_1024);
-		return;
-	}
-
 	/*
 	 * This 'error_count' entry is just the full error log block count.
 	 * This includes duplicate and overlapping entries so it can be
-	 * inaccurate.  It's only included for historical reasons.
+	 * inaccurate.  It's only included for historical reasons.  It comes
+	 * from the pool config, so it is available even to users who are
+	 * not permitted to read the error log itself.
 	 */
 	nvlist_t *config = zpool_get_config(zhp, NULL);
-	nerr = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_ERRCOUNT);
+	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_ERRCOUNT, &nerr) != 0)
+		return;
+
 	nice_num_str_nvlist(item, ZPOOL_CONFIG_ERRCOUNT, nerr,
 	    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_1024);
+
+	/* The list of files with errors is only included with -v. */
+	if (nerr == 0 || verbosity == 0)
+		return;
+
+	/*
+	 * If we can't read the error log (e.g. EPERM for unprivileged
+	 * users), libzfs has already reported why; just omit the list.
+	 */
+	if (zpool_get_errlog(zhp, &nverrlist) != 0)
+		return;
 
 	pathname = safe_malloc(len);
 
@@ -10821,7 +10829,9 @@ print_error_log(zpool_handle_t *zhp, int verbosity, boolean_t literal)
 				(void) printf("\n");
 			else
 				started = B_TRUE;
-			(void) printf("%7s %s ", "", pathname);
+			(void) printf("%7s %s", "", pathname);
+			if (verbosity > 1)
+				(void) printf(" ");
 		} else if (verbosity > 1) {
 			(void) printf(",");
 		}
@@ -11440,11 +11450,10 @@ status_callback_json(zpool_handle_t *zhp, void *data)
 		dedup_stats_nvlist(zhp, cbp, item);
 
 		/*
-		 * Historically, -j would always print the number of errors
-		 * so check for that in addition to verbosity.
+		 * Historically, -j would always print the number of errors,
+		 * and only include the list of errors with -v.
 		 */
-		if (cbp->cb_verbosity > 0 || cbp->cb_json)
-			errors_nvlist(zhp, cbp, item);
+		errors_nvlist(zhp, cbp, item);
 	}
 	if (cbp->cb_json_pool_key_guid) {
 		fnvlist_add_nvlist(d, pool_guid, item);
