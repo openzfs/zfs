@@ -1031,6 +1031,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_set/zfs_set_002_neg.ksh \
 	functional/cli_root/zfs_set/zfs_set_003_neg.ksh \
 	functional/cli_root/zfs_set/zfs_set_feature_activation.ksh \
+	functional/cli_root/zfs_set/zfs_set_feature_activation_rollback_recv.ksh \
 	functional/cli_root/zfs_set/zfs_set_keylocation.ksh \
 	functional/cli_root/zfs_set/zfs_set_nomount.ksh \
 	functional/cli_root/zfs_share/cleanup.ksh \
