@@ -266,8 +266,7 @@ dmu_set_bonus(dmu_buf_t *db_fake, int newsize, dmu_tx_t *tx)
 	if (newsize < 0 || newsize > db_fake->db_size)
 		return (SET_ERROR(EINVAL));
 
-	DB_DNODE_ENTER(db);
-	dn = DB_DNODE(db);
+	dn = db->db_dnode;
 
 	if (dn->dn_bonus != db) {
 		error = SET_ERROR(EINVAL);
@@ -276,7 +275,6 @@ dmu_set_bonus(dmu_buf_t *db_fake, int newsize, dmu_tx_t *tx)
 		error = 0;
 	}
 
-	DB_DNODE_EXIT(db);
 	return (error);
 }
 
@@ -290,8 +288,7 @@ dmu_set_bonustype(dmu_buf_t *db_fake, dmu_object_type_t type, dmu_tx_t *tx)
 	if (!DMU_OT_IS_VALID(type))
 		return (SET_ERROR(EINVAL));
 
-	DB_DNODE_ENTER(db);
-	dn = DB_DNODE(db);
+	dn = db->db_dnode;
 
 	if (dn->dn_bonus != db) {
 		error = SET_ERROR(EINVAL);
@@ -300,7 +297,6 @@ dmu_set_bonustype(dmu_buf_t *db_fake, dmu_object_type_t type, dmu_tx_t *tx)
 		error = 0;
 	}
 
-	DB_DNODE_EXIT(db);
 	return (error);
 }
 
@@ -308,13 +304,8 @@ dmu_object_type_t
 dmu_get_bonustype(dmu_buf_t *db_fake)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
-	dmu_object_type_t type;
 
-	DB_DNODE_ENTER(db);
-	type = DB_DNODE(db)->dn_bonustype;
-	DB_DNODE_EXIT(db);
-
-	return (type);
+	return (db->db_dnode->dn_bonustype);
 }
 
 int
@@ -355,16 +346,8 @@ int dmu_bonus_hold_by_dnode(dnode_t *dn, const void *tag, dmu_buf_t **dbp,
 	db = dn->dn_bonus;
 
 	/* as long as the bonus buf is held, the dnode will be held */
-	if (zfs_refcount_add(&db->db_holds, tag) == 1) {
+	if (zfs_refcount_add(&db->db_holds, tag) == 1)
 		VERIFY(dnode_add_ref(dn, db));
-		atomic_inc_32(&dn->dn_dbufs_count);
-	}
-
-	/*
-	 * Wait to drop dn_struct_rwlock until after adding the bonus dbuf's
-	 * hold and incrementing the dbuf count to ensure that dnode_move() sees
-	 * a dnode hold for every dbuf.
-	 */
 	rw_exit(&dn->dn_struct_rwlock);
 
 	error = dbuf_read(db, NULL, flags | DB_RF_CANFAIL);
@@ -440,8 +423,7 @@ dmu_spill_hold_existing(dmu_buf_t *bonus, const void *tag, dmu_buf_t **dbp)
 	dnode_t *dn;
 	int err;
 
-	DB_DNODE_ENTER(db);
-	dn = DB_DNODE(db);
+	dn = db->db_dnode;
 
 	if (spa_version(dn->dn_objset->os_spa) < SPA_VERSION_SA) {
 		err = SET_ERROR(EINVAL);
@@ -458,7 +440,6 @@ dmu_spill_hold_existing(dmu_buf_t *bonus, const void *tag, dmu_buf_t **dbp)
 		rw_exit(&dn->dn_struct_rwlock);
 	}
 
-	DB_DNODE_EXIT(db);
 	return (err);
 }
 
@@ -467,13 +448,8 @@ dmu_spill_hold_by_bonus(dmu_buf_t *bonus, dmu_flags_t flags, const void *tag,
     dmu_buf_t **dbp)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)bonus;
-	int err;
 
-	DB_DNODE_ENTER(db);
-	err = dmu_spill_hold_by_dnode(DB_DNODE(db), flags, tag, dbp);
-	DB_DNODE_EXIT(db);
-
-	return (err);
+	return (dmu_spill_hold_by_dnode(db->db_dnode, flags, tag, dbp));
 }
 
 /*
@@ -650,14 +626,9 @@ dmu_buf_hold_array_by_bonus(dmu_buf_t *db_fake, uint64_t offset,
     dmu_buf_t ***dbpp, dmu_flags_t flags)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
-	int err;
 
-	DB_DNODE_ENTER(db);
-	err = dmu_buf_hold_array_by_dnode(DB_DNODE(db), offset, length, read,
-	    tag, numbufsp, dbpp, flags);
-	DB_DNODE_EXIT(db);
-
-	return (err);
+	return (dmu_buf_hold_array_by_dnode(db->db_dnode, offset, length, read,
+	    tag, numbufsp, dbpp, flags));
 }
 
 void
@@ -1626,16 +1597,11 @@ dmu_read_uio_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, uint64_t size,
     dmu_flags_t flags)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)zdb;
-	int err;
 
 	if (size == 0)
 		return (0);
 
-	DB_DNODE_ENTER(db);
-	err = dmu_read_uio_dnode(DB_DNODE(db), uio, size, flags);
-	DB_DNODE_EXIT(db);
-
-	return (err);
+	return (dmu_read_uio_dnode(db->db_dnode, uio, size, flags));
 }
 
 /*
@@ -1780,16 +1746,11 @@ dmu_write_uio_dbuf(dmu_buf_t *zdb, zfs_uio_t *uio, uint64_t size,
     dmu_tx_t *tx, dmu_flags_t flags)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)zdb;
-	int err;
 
 	if (size == 0)
 		return (0);
 
-	DB_DNODE_ENTER(db);
-	err = dmu_write_uio_dnode(DB_DNODE(db), uio, size, tx, flags);
-	DB_DNODE_EXIT(db);
-
-	return (err);
+	return (dmu_write_uio_dnode(db->db_dnode, uio, size, tx, flags));
 }
 
 /*
@@ -2020,14 +1981,10 @@ int
 dmu_assign_arcbuf_by_dbuf(dmu_buf_t *handle, uint64_t offset, arc_buf_t *buf,
     dmu_tx_t *tx, dmu_flags_t flags)
 {
-	int err;
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)handle;
 
-	DB_DNODE_ENTER(db);
-	err = dmu_assign_arcbuf_by_dnode(DB_DNODE(db), offset, buf, tx, flags);
-	DB_DNODE_EXIT(db);
-
-	return (err);
+	return (dmu_assign_arcbuf_by_dnode(db->db_dnode, offset, buf, tx,
+	    flags));
 }
 
 void
@@ -2300,9 +2257,7 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	SET_BOOKMARK(&zb, ds->ds_object,
 	    db->db.db_object, db->db_level, db->db_blkid);
 
-	DB_DNODE_ENTER(db);
-	dmu_write_policy(os, DB_DNODE(db), db->db_level, WP_DMU_SYNC, &zp);
-	DB_DNODE_EXIT(db);
+	dmu_write_policy(os, db->db_dnode, db->db_level, WP_DMU_SYNC, &zp);
 
 	/*
 	 * If we're frozen (running ziltest), we always need to generate a bp.
@@ -2388,10 +2343,8 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	if (dr_next != NULL) {
 		zp.zp_nopwrite = B_FALSE;
 	} else {
-		DB_DNODE_ENTER(db);
-		if (dnode_block_freed(DB_DNODE(db), db->db_blkid))
+		if (dnode_block_freed(db->db_dnode, db->db_blkid))
 			zp.zp_nopwrite = B_FALSE;
-		DB_DNODE_EXIT(db);
 	}
 
 	ASSERT(dr->dr_txg == txg);
@@ -2911,8 +2864,7 @@ dmu_read_l0_bps(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 			    list_head(&db->db_dirty_records);
 			boolean_t freed;
 
-			DB_DNODE_ENTER(db);
-			dnode_t *rdn = DB_DNODE(db);
+			dnode_t *rdn = db->db_dnode;
 			if (dr != NULL && dr->dt.dl.dr_brtwrite) {
 				freed = dnode_block_freed_after(rdn,
 				    db->db_blkid, dr->dr_txg);
@@ -2920,7 +2872,6 @@ dmu_read_l0_bps(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 				freed = dnode_block_freed(rdn,
 				    db->db_blkid);
 			}
-			DB_DNODE_EXIT(db);
 			if (freed) {
 				mutex_exit(&db->db_mtx);
 				error = SET_ERROR(EAGAIN);
@@ -3121,9 +3072,7 @@ dmu_object_info_from_db(dmu_buf_t *db_fake, dmu_object_info_t *doi)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 
-	DB_DNODE_ENTER(db);
-	dmu_object_info_from_dnode(DB_DNODE(db), doi);
-	DB_DNODE_EXIT(db);
+	dmu_object_info_from_dnode(db->db_dnode, doi);
 }
 
 /*
@@ -3136,14 +3085,12 @@ dmu_object_size_from_db(dmu_buf_t *db_fake, uint32_t *blksize,
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 	dnode_t *dn;
 
-	DB_DNODE_ENTER(db);
-	dn = DB_DNODE(db);
+	dn = db->db_dnode;
 
 	*blksize = dn->dn_datablksz;
 	/* add in number of slots used for the dnode itself */
 	*nblk512 = ((DN_USED_BYTES(dn->dn_phys) + SPA_MINBLOCKSIZE/2) >>
 	    SPA_MINBLOCKSHIFT) + dn->dn_num_slots;
-	DB_DNODE_EXIT(db);
 }
 
 void
@@ -3151,9 +3098,7 @@ dmu_object_dnsize_from_db(dmu_buf_t *db_fake, int *dnsize)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 
-	DB_DNODE_ENTER(db);
-	*dnsize = DB_DNODE(db)->dn_num_slots << DNODE_SHIFT;
-	DB_DNODE_EXIT(db);
+	*dnsize = db->db_dnode->dn_num_slots << DNODE_SHIFT;
 }
 
 void
@@ -3207,7 +3152,6 @@ dmu_init(void)
 	abd_init();
 	zfs_dbgmsg_init();
 	sa_cache_init();
-	dmu_objset_init();
 	dnode_init();
 	zfetch_init();
 	dmu_tx_init();
@@ -3235,7 +3179,6 @@ dmu_fini(void)
 	zfetch_fini();
 	dbuf_fini();
 	dnode_fini();
-	dmu_objset_fini();
 	sa_cache_fini();
 	zfs_dbgmsg_fini();
 

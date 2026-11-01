@@ -34,7 +34,6 @@
 #include <sys/trace_dbgmsg.h>
 #include <sys/trace_dbuf.h>
 #include <sys/trace_dmu.h>
-#include <sys/trace_dnode.h>
 #include <sys/trace_multilist.h>
 #include <sys/trace_rrwlock.h>
 #include <sys/trace_txg.h>
