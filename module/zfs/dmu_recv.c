@@ -1059,6 +1059,26 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 	}
 
 	/*
+	 * The stream has these flags when the sender has the feature active,
+	 * and the begin check only made sure that it is enabled here.
+	 * Activate it now, as for large blocks above, rather than when the
+	 * first large dnode or zstd block is synced, possibly many txgs
+	 * later, or never if the sender no longer holds any.
+	 */
+	if (featureflags & DMU_BACKUP_FEATURE_LARGE_DNODE &&
+	    !dsl_dataset_feature_is_active(newds, SPA_FEATURE_LARGE_DNODE)) {
+		dsl_dataset_activate_feature(newds->ds_object,
+		    SPA_FEATURE_LARGE_DNODE, (void *)B_TRUE, tx);
+		newds->ds_feature[SPA_FEATURE_LARGE_DNODE] = (void *)B_TRUE;
+	}
+	if (featureflags & DMU_BACKUP_FEATURE_ZSTD &&
+	    !dsl_dataset_feature_is_active(newds, SPA_FEATURE_ZSTD_COMPRESS)) {
+		dsl_dataset_activate_feature(newds->ds_object,
+		    SPA_FEATURE_ZSTD_COMPRESS, (void *)B_TRUE, tx);
+		newds->ds_feature[SPA_FEATURE_ZSTD_COMPRESS] = (void *)B_TRUE;
+	}
+
+	/*
 	 * Activate longname feature if received
 	 */
 	if (featureflags & DMU_BACKUP_FEATURE_LONGNAME &&
