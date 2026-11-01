@@ -529,8 +529,8 @@ static const char *aes_gcm_impl[][2] = {
 	{ "aesni",   "pclmulqdq" },
 	{ "x86_64",  "avx" },
 	{ "aesni",   "avx" },
-	{ "x86_64",  "avx2" },
-	{ "aesni",   "avx2" },
+	{ "x86_64",  "avx2-vaes" },
+	{ "aesni",   "avx2-vaes" },
 };
 
 /* signature of function to call after setting implementation params */
@@ -705,7 +705,7 @@ encrypt_one(crypto_mechanism_t *mech,
  *   ct, ctlen: raw data and length of ciphertext
  * tag, taglen: raw data and length of tag (MAC)
  * out, outlen: buffer to write output to (min ctlen)
- *       usecp: if not NULL, recieves microseconds in crypto_decrypt()
+ *      format: RAW or fragmented UIO input and output
  */
 static int
 decrypt_one(crypto_mechanism_t *mech,
@@ -713,7 +713,7 @@ decrypt_one(crypto_mechanism_t *mech,
     const uint8_t *ct, size_t ctlen,
     const uint8_t *tag, size_t taglen,
     uint8_t *out, size_t outlen,
-    uint64_t *usecp)
+    crypto_data_format_t format)
 {
 	uint8_t inbuf[1024];
 
@@ -744,20 +744,122 @@ decrypt_one(crypto_mechanism_t *mech,
 		},
 	};
 
-	struct timeval start, end, diff;
-	if (usecp != NULL)
-		gettimeofday(&start, NULL);
+	uint8_t prefix[3] = {0x31, 0x42, 0x53};
+	uint8_t guard[3] = {0x64, 0x75, 0x86};
+	uint8_t scattered[sizeof (inbuf) + 2 * sizeof (guard)];
+	size_t ct_first = MIN(ctlen, 7);
+	size_t tag_first = MIN(taglen, 5);
+	size_t out_first = MIN(outlen, 11);
+	iovec_t input_iov[] = {
+		{(void *)prefix, sizeof (prefix)},
+		{(void *)ct, ct_first},
+		{(void *)(ct + ct_first), ctlen - ct_first},
+		{(void *)prefix, 0},
+		{(void *)tag, tag_first},
+		{(void *)(tag + tag_first), taglen - tag_first},
+	};
+	iovec_t output_iov[] = {
+		{(void *)guard, sizeof (guard)},
+		{scattered, out_first},
+		{scattered + out_first + sizeof (guard), outlen - out_first},
+	};
+	zfs_uio_t input_uio = {0}, output_uio = {0};
+	if (format == CRYPTO_DATA_UIO) {
+		zfs_uio_iov(&input_uio) = input_iov;
+		zfs_uio_iovcnt(&input_uio) = ARRAY_SIZE(input_iov);
+		zfs_uio_segflg(&input_uio) = UIO_SYSSPACE;
+		i.cd_format = format;
+		i.cd_uio = &input_uio;
+		i.cd_offset = sizeof (prefix);
 
-	int rv = crypto_decrypt(mech, &i, &k, NULL, &o);
-
-	if (usecp != NULL) {
-		gettimeofday(&end, NULL);
-		timersub(&start, &end, &diff);
-		*usecp =
-		    ((uint64_t)diff.tv_sec) * 1000000 + (uint64_t)diff.tv_usec;
+		zfs_uio_iov(&output_uio) = output_iov;
+		zfs_uio_iovcnt(&output_uio) = ARRAY_SIZE(output_iov);
+		zfs_uio_segflg(&output_uio) = UIO_SYSSPACE;
+		o.cd_format = format;
+		o.cd_uio = &output_uio;
+		o.cd_offset = sizeof (guard);
 	}
 
+	memset(out, 0xa5, outlen);
+	memset(scattered, 0xa5, sizeof (scattered));
+	int rv = crypto_decrypt(mech, &i, &k, NULL, &o);
+
+	VERIFY3U(o.cd_length, ==,
+	    rv == CRYPTO_SUCCESS || rv == CRYPTO_BUFFER_TOO_SMALL ?
+	    ctlen : outlen);
+	VERIFY3S(o.cd_offset, ==,
+	    format == CRYPTO_DATA_UIO ? sizeof (guard) : 0);
+	VERIFY3U(guard[0], ==, 0x64);
+	VERIFY3U(guard[1], ==, 0x75);
+	VERIFY3U(guard[2], ==, 0x86);
+	if (format == CRYPTO_DATA_UIO) {
+		for (size_t n = 0; n < sizeof (guard); n++) {
+			VERIFY3U(scattered[out_first + n], ==, 0xa5);
+			VERIFY3U(scattered[outlen + sizeof (guard) + n],
+			    ==, 0xa5);
+		}
+		memcpy(out, scattered, out_first);
+		memcpy(out + out_first, scattered + out_first + sizeof (guard),
+		    outlen - out_first);
+	}
+	if (rv != CRYPTO_SUCCESS)
+		for (size_t n = 0; n < outlen; n++)
+			VERIFY3U(out[n], ==, 0xa5);
+
 	return (rv);
+}
+
+static void
+test_gcm_decrypt_errors(crypto_mechanism_t *mech, const crypto_test_t *test)
+{
+	uint8_t out[1024 + 3];
+	crypto_key_t key = {
+		.ck_data = test->key.val,
+		.ck_length = test->key.len << 3,
+	};
+	iovec_t iov[] = {
+		{test->ct.val, test->ct.len},
+		{test->tag.val, test->tag.len},
+	};
+	zfs_uio_t uio = {0};
+	zfs_uio_iov(&uio) = iov;
+	zfs_uio_iovcnt(&uio) = ARRAY_SIZE(iov);
+	zfs_uio_segflg(&uio) = UIO_SYSSPACE;
+	crypto_data_t in = {
+		.cd_format = CRYPTO_DATA_UIO,
+		.cd_length = test->ct.len + test->tag.len,
+		.cd_uio = &uio,
+	};
+
+	for (int truncated = 0; truncated < 2; truncated++) {
+		crypto_data_t output = {
+			.cd_format = CRYPTO_DATA_RAW,
+			.cd_offset = 3,
+			.cd_length = test->ct.len - (truncated ? 0 : 1),
+			.cd_raw = {(char *)out, sizeof (out)},
+		};
+		/*
+		 * First check output admission with complete input. Then
+		 * exhaust the input after a nonempty prefix has been appended.
+		 */
+		iov[1].iov_len = test->tag.len - truncated;
+		memset(out, 0xa5, sizeof (out));
+		int expected = truncated ?
+		    CRYPTO_DATA_LEN_RANGE : CRYPTO_BUFFER_TOO_SMALL;
+		int rv = crypto_decrypt(mech, &in, &key, NULL, &output);
+		if (rv != expected) {
+			fprintf(stderr,
+			    "%s[%ju]: %s returned %d, expected %d\n",
+			    test->fileloc, (uintmax_t)test->id,
+			    truncated ? "truncated input" : "short output",
+			    rv, expected);
+		}
+		VERIFY3S(rv, ==, expected);
+		VERIFY3U(output.cd_length, ==, test->ct.len);
+		VERIFY3S(output.cd_offset, ==, 3);
+		for (size_t n = 0; n < sizeof (out); n++)
+			VERIFY3U(out[n], ==, 0xa5);
+	}
 }
 
 /* ========== */
@@ -936,9 +1038,10 @@ test_result(const crypto_test_t *test, int encrypt_rv, uint8_t *encrypt_buf,
  */
 static int
 run_tests(const char *alginfo, const crypto_test_t *tests,
-    crypto_test_outmode_t outmode)
+    crypto_test_outmode_t outmode, crypto_data_format_t format)
 {
 	int ntests = 0, npass = 0;
+	boolean_t errors_tested = B_FALSE;
 
 	/*
 	 * allocate space for the mechanism description, and alg-specific
@@ -976,7 +1079,22 @@ run_tests(const char *alginfo, const crypto_test_t *tests,
 		    test->key.val, test->key.len,
 		    test->ct.val, test->ct.len,
 		    test->tag.val, test->tag.len,
-		    decrypt_buf, test->ct.len, NULL);
+		    decrypt_buf, test->ct.len, format);
+
+		if (!errors_tested && test->alg == ALG_AES_GCM &&
+		    test->result == RS_VALID && test->ct.len > 0) {
+			test_gcm_decrypt_errors(&mech, test);
+			errors_tested = B_TRUE;
+		}
+
+		if (test->alg == ALG_AES_GCM && test->result == RS_VALID &&
+		    test->ct.len == 0 && test->tag.len > 0) {
+			VERIFY3S(decrypt_one(&mech,
+			    test->key.val, test->key.len,
+			    test->ct.val, 0, test->tag.val, test->tag.len - 1,
+			    decrypt_buf, 0, format), ==,
+			    CRYPTO_ENCRYPTED_DATA_LEN_RANGE);
+		}
 
 		/* consider results and if it passed, count it */
 		if (test_result(test, encrypt_rv, encrypt_buf,
@@ -984,8 +1102,9 @@ run_tests(const char *alginfo, const crypto_test_t *tests,
 			npass++;
 	}
 
-	printf("%s: tests=%d: passed=%d failed=%d\n",
-	    alginfo, ntests, npass, ntests-npass);
+	printf("%s [%s]: tests=%d: passed=%d failed=%d\n",
+	    alginfo, format == CRYPTO_DATA_RAW ? "RAW" : "UIO",
+	    ntests, npass, ntests-npass);
 
 	return (ntests != npass);
 }
@@ -1006,7 +1125,11 @@ run_test_alg_cb(const char *alginfo, void *arg)
 		return;
 	}
 	run_test_alg_args_t *args = arg;
-	args->failed += run_tests(alginfo, args->tests, args->outmode);
+	args->failed += run_tests(alginfo, args->tests, args->outmode,
+	    CRYPTO_DATA_RAW);
+	if (args->tests->alg == ALG_AES_GCM)
+		args->failed += run_tests(alginfo, args->tests, args->outmode,
+		    CRYPTO_DATA_UIO);
 }
 
 /* main function for correctness tests */
