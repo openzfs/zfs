@@ -10853,13 +10853,18 @@ retry_lookup:
 			if (dataset_lookup == B_TRUE) {
 				/*
 				 * Use the supplied id to get the name
-				 * for open_objset.
+				 * for open_objset.  Keep the global spa
+				 * NULL: zdb_exit() would spa_close() it
+				 * again if the lookup fails.
 				 */
-				error = spa_open(target_pool, &spa, FTAG);
+				spa_t *lookup_spa;
+
+				error = spa_open(target_pool, &lookup_spa,
+				    FTAG);
 				if (error == 0) {
-					error = name_from_objset_id(spa,
+					error = name_from_objset_id(lookup_spa,
 					    objset_id, dsname);
-					spa_close(spa, FTAG);
+					spa_close(lookup_spa, FTAG);
 					if (error == 0)
 						target = dsname;
 				}
