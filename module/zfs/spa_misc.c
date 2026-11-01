@@ -1828,10 +1828,71 @@ void
 spa_activate_allocation_classes(spa_t *spa, dmu_tx_t *tx)
 {
 	/*
-	 * We bump the feature refcount for each special vdev added to the pool
+	 * We bump the feature refcount for each special or dedup vdev added
+	 * to the pool, and each time a vdev's alloc_bias property is set to
+	 * special or dedup.  It is not dropped as they go: see
+	 * spa_deactivate_allocation_classes().
 	 */
 	ASSERT(spa_feature_is_enabled(spa, SPA_FEATURE_ALLOCATION_CLASSES));
 	spa_feature_incr(spa, SPA_FEATURE_ALLOCATION_CLASSES, tx);
+}
+
+/*
+ * Return the allocation_classes feature to enabled once no special or dedup
+ * vdev is left in the pool.  Its refcount does not count those vdevs, so it
+ * is dropped to zero rather than decremented once per vdev.
+ */
+void
+spa_deactivate_allocation_classes(spa_t *spa, dmu_tx_t *tx)
+{
+	vdev_t *rvd = spa->spa_root_vdev;
+	uint64_t refcount;
+
+	ASSERT(dmu_tx_is_syncing(tx));
+
+	if (!spa_feature_is_active(spa, SPA_FEATURE_ALLOCATION_CLASSES))
+		return;
+
+	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *cvd = rvd->vdev_child[c];
+		metaslab_group_t *mg = cvd->vdev_mg;
+		char bias[64];
+		int error;
+
+		if (!vdev_is_concrete(cvd))
+			continue;
+
+		/*
+		 * The alloc_bias property changes vdev_alloc_bias at once, but
+		 * the metaslab group keeps its class until the pool is imported
+		 * again, so either one keeps the feature active.
+		 */
+		if (cvd->vdev_alloc_bias == VDEV_BIAS_SPECIAL ||
+		    cvd->vdev_alloc_bias == VDEV_BIAS_DEDUP ||
+		    (mg != NULL && (mg->mg_class == spa_special_class(spa) ||
+		    mg->mg_class == spa_dedup_class(spa))))
+			return;
+
+		/*
+		 * vdev_prop_set() changes vdev_alloc_bias before it knows
+		 * whether the change will be written, so the bias that the
+		 * next import reads keeps the feature active too.
+		 */
+		if (cvd->vdev_top_zap == 0)
+			continue;
+		error = zap_lookup(spa_meta_objset(spa), cvd->vdev_top_zap,
+		    VDEV_TOP_ZAP_ALLOCATION_BIAS, 1, sizeof (bias), bias);
+		if (error != 0 && error != ENOENT)
+			return;
+		if (error == 0 && (strcmp(bias, VDEV_ALLOC_BIAS_SPECIAL) == 0 ||
+		    strcmp(bias, VDEV_ALLOC_BIAS_DEDUP) == 0))
+			return;
+	}
+
+	VERIFY0(feature_get_refcount(spa,
+	    &spa_feature_table[SPA_FEATURE_ALLOCATION_CLASSES], &refcount));
+	for (; refcount > 0; refcount--)
+		spa_feature_decr(spa, SPA_FEATURE_ALLOCATION_CLASSES, tx);
 }
 
 /*
