@@ -4683,6 +4683,63 @@ ztest_objset_create_cb(objset_t *os, void *arg, cred_t *cr, dmu_tx_t *tx)
 	    DMU_OT_ZAP_OTHER, DMU_OT_NONE, 0, tx));
 }
 
+static void
+ztest_crypt_key_wrap(void)
+{
+	const struct {
+		uint64_t crypt;
+		size_t keylen;
+	} cases[] = {
+		{ ZIO_CRYPT_AES_128_CCM, 16 },
+		{ ZIO_CRYPT_AES_192_CCM, 24 },
+		{ ZIO_CRYPT_AES_256_CCM, 32 },
+		{ ZIO_CRYPT_AES_128_GCM, 16 },
+		{ ZIO_CRYPT_AES_192_GCM, 24 },
+		{ ZIO_CRYPT_AES_256_GCM, 32 },
+	};
+	crypto_key_t wkey = {
+		.ck_data = (void *)ztest_wkeydata,
+		.ck_length = CRYPTO_BYTES2BITS(WRAPPING_KEY_LEN),
+	};
+
+	if (ztest_opts.zo_verbose >= 3)
+		(void) printf("testing wrapped key padding...\n");
+
+	for (size_t c = 0; c < ARRAY_SIZE(cases); c++) {
+		zio_crypt_key_t key;
+		uint8_t master[MASTER_KEY_MAX_LEN];
+		uint8_t hmac[SHA512_HMAC_KEYLEN];
+		uint8_t iv[WRAPPING_IV_LEN];
+		uint8_t mac[WRAPPING_MAC_LEN];
+
+		VERIFY0(zio_crypt_key_init(cases[c].crypt, &key));
+		for (uint64_t version = 0;
+		    version <= ZIO_CRYPT_KEY_CURRENT_VERSION; version++) {
+			zio_crypt_key_t unwrapped;
+
+			key.zk_version = version;
+			memset(master, 0xa7, sizeof (master));
+			VERIFY0(zio_crypt_key_wrap(&wkey, &key, iv, mac,
+			    master, hmac));
+			/* Keys wrapped by older releases have stale padding. */
+			for (size_t i = cases[c].keylen;
+			    i < sizeof (master); i++) {
+				VERIFY3U(master[i], ==, 0);
+				master[i] = 0x5c;
+			}
+			VERIFY0(zio_crypt_key_unwrap(&wkey, cases[c].crypt,
+			    version, key.zk_guid, master, hmac, iv, mac,
+			    &unwrapped));
+			VERIFY0(memcmp(key.zk_master_keydata,
+			    unwrapped.zk_master_keydata, cases[c].keylen));
+			VERIFY0(memcmp(key.zk_hmac_keydata,
+			    unwrapped.zk_hmac_keydata, sizeof (hmac)));
+			zio_crypt_key_destroy(&unwrapped);
+		}
+		zio_crypt_key_destroy(&key);
+	}
+}
+
 static int
 ztest_dataset_create_encrypted(char *dsname, uint64_t encryption)
 {
@@ -9039,6 +9096,8 @@ ztest_init(ztest_shared_t *zs)
 
 	raidz_scratch_verify();
 	kernel_init(SPA_MODE_READ | SPA_MODE_WRITE);
+
+	ztest_crypt_key_wrap();
 
 	/*
 	 * Create the storage pool.
