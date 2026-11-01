@@ -66,7 +66,7 @@ log_must zfs set zoned=on "$TESTPOOL/userns"
 
 log_must mkdir -p $IDMAPDIR
 
-unshare -Um /usr/bin/sleep 2h &
+unshare -Um sleep 2h &
 unshared_pid=$!
 if [ "$?" -ne "0" ]; then
 	log_unsupported "Failed to create user namespace"

@@ -56,7 +56,7 @@ unshare -Urm echo test
 if [ "$?" -ne "0" ]; then
 	log_unsupported "Failed to create user namespace"
 fi
-unshare -Urm /usr/bin/sleep 1h &
+unshare -Urm sleep 1h &
 unshared_pid=$!
 if [ "$?" -ne "0" ]; then
 	log_unsupported "Failed to create user namespace"
