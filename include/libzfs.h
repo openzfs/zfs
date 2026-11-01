@@ -29,6 +29,7 @@
 #define	_LIBZFS_H extern __attribute__((visibility("default")))
 
 #include <assert.h>
+#include <stdio.h>
 #include <libnvpair.h>
 #include <sys/mnttab.h>
 #include <sys/param.h>
@@ -662,6 +663,7 @@ _LIBZFS_H int zprop_get_list(libzfs_handle_t *, char *, zprop_list_t **,
 _LIBZFS_H void zprop_free_list(zprop_list_t *);
 
 _LIBZFS_H void zcmd_print_json(nvlist_t *);
+_LIBZFS_H void zfs_print_escaped(FILE *, const char *);
 
 #define	ZFS_GET_NCOLS	5
 
