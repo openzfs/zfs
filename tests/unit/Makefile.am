@@ -24,7 +24,8 @@ UNIT_TESTS = \
 	%D%/test_nvpair \
 	%D%/test_backtrace \
 	%D%/test_timer \
-	%D%/test_zfs_file
+	%D%/test_zfs_file \
+	%D%/test_txg_suspend
 noinst_PROGRAMS = $(UNIT_TESTS)
 
 
@@ -239,3 +240,7 @@ unit-coverage:
 	@false
 unit-coverage-html: unit-coverage
 endif
+
+%C%_test_txg_suspend_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+%C%_test_txg_suspend_SOURCES = %D%/test_txg_suspend.c %D%/munit.c
+%C%_test_txg_suspend_LDADD = libzpool.la libnvpair.la

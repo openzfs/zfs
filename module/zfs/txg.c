@@ -549,8 +549,10 @@ txg_sync_thread(void *arg)
 		 * harder to detect if another host is changing it when
 		 * resuming after a MMP suspend.
 		 */
-		if (spa_suspended(spa))
+		if (spa_suspended(spa) && !tx->tx_exiting) {
+			txg_thread_wait(tx, &cpr, &tx->tx_sync_more_cv, 0);
 			continue;
+		}
 
 		/*
 		 * Wait until the quiesce thread hands off a txg to us,
@@ -763,6 +765,7 @@ txg_wait_kick(dsl_pool_t *dp)
 	tx_state_t *tx = &dp->dp_tx;
 	mutex_enter(&tx->tx_sync_lock);
 	cv_broadcast(&tx->tx_sync_done_cv);
+	cv_broadcast(&tx->tx_sync_more_cv);
 	mutex_exit(&tx->tx_sync_lock);
 }
 
