@@ -1477,6 +1477,85 @@ test_nv_remove_nvpair(const MunitParameter params[], void *data)
 	return (MUNIT_OK);
 }
 
+/* Add two, get a pair and remove it, then ensure that the key still exists. */
+static MunitResult
+test_nv_remove_nvpair_exists_none(const MunitParameter params[], void *data)
+{
+	(void) params, (void) data;
+
+	nvlist_t *nvl = nvl_create_type(0);
+
+	unit_ok(nvlist_add_uint64(nvl, nvl_unique_key, nvl_unique_u64_val));
+	unit_ok(nvlist_add_string(nvl, nvl_unique_key, nvl_unique_str_val));
+
+	/* Get the first and remove it. */
+	nvpair_t *pair = nvlist_next_nvpair(nvl, NULL);
+	unit_ok(nvlist_remove_nvpair(nvl, pair));
+
+	/* Duplicates allowed, so the key exists. */
+	unit_true(nvlist_exists(nvl, nvl_unique_key));
+
+	/* Get the second from start of list, remove it too. */
+	pair = nvlist_next_nvpair(nvl, NULL);
+	unit_ok(nvlist_remove_nvpair(nvl, pair));
+
+	/* Second is removed, so the key no longer exists. */
+	unit_false(nvlist_exists(nvl, nvl_unique_key));
+
+	nvlist_free(nvl);
+	return (MUNIT_OK);
+}
+
+static MunitResult
+test_nv_remove_nvpair_exists_name(const MunitParameter params[], void *data)
+{
+	(void) params, (void) data;
+
+	nvlist_t *nvl = nvl_create_type(NV_UNIQUE_NAME);
+
+	unit_ok(nvlist_add_uint64(nvl, nvl_unique_key, nvl_unique_u64_val));
+	unit_ok(nvlist_add_string(nvl, nvl_unique_key, nvl_unique_str_val));
+
+	/* Get the first and remove it. */
+	nvpair_t *pair = nvlist_next_nvpair(nvl, NULL);
+	unit_ok(nvlist_remove_nvpair(nvl, pair));
+
+	/* Name only, so it would have been replaced, and then removed. */
+	unit_false(nvlist_exists(nvl, nvl_unique_key));
+
+	nvlist_free(nvl);
+	return (MUNIT_OK);
+}
+
+static MunitResult
+test_nv_remove_nvpair_exists_name_type(const MunitParameter params[],
+    void *data)
+{
+	(void) params, (void) data;
+
+	nvlist_t *nvl = nvl_create_type(NV_UNIQUE_NAME_TYPE);
+
+	unit_ok(nvlist_add_uint64(nvl, nvl_unique_key, nvl_unique_u64_val));
+	unit_ok(nvlist_add_string(nvl, nvl_unique_key, nvl_unique_str_val));
+
+	/* Get the first and remove it. */
+	nvpair_t *pair = nvlist_next_nvpair(nvl, NULL);
+	unit_ok(nvlist_remove_nvpair(nvl, pair));
+
+	/* Unique by name & type, so one remains. */
+	unit_true(nvlist_exists(nvl, nvl_unique_key));
+
+	/* Get the second from start of list, remove it too. */
+	pair = nvlist_next_nvpair(nvl, NULL);
+	unit_ok(nvlist_remove_nvpair(nvl, pair));
+
+	/* Second is removed, so the key no longer exists. */
+	unit_false(nvlist_exists(nvl, nvl_unique_key));
+
+	nvlist_free(nvl);
+	return (MUNIT_OK);
+}
+
 /* ========== */
 
 /* Re-adding a key to a NV_UNIQUE_NAME nvlist replaces the existing pair. */
@@ -2306,11 +2385,17 @@ static const MunitTest nvpair_tests[] = {
 	UNIT_TEST("nv_lookup_nvpair_embedded", test_nv_lookup_nvpair_embedded),
 
 	/* remove by name, type, pair */
-	UNIT_TEST("nv_remove",		test_nv_remove),
-	UNIT_TEST("nv_remove_all",	test_nv_remove_all,
+	UNIT_TEST("nv_remove",			test_nv_remove),
+	UNIT_TEST("nv_remove_all",		test_nv_remove_all,
 	    nv_unique_params),
-	UNIT_TEST("nv_remove_nvpair",	test_nv_remove_nvpair,
+	UNIT_TEST("nv_remove_nvpair",		test_nv_remove_nvpair,
 	    nv_unique_params),
+	UNIT_TEST("nv_remove_nvpair_exists_none",
+	    test_nv_remove_nvpair_exists_none),
+	UNIT_TEST("nv_remove_nvpair_exists_name",
+	    test_nv_remove_nvpair_exists_name),
+	UNIT_TEST("nv_remove_nvpair_exists_name_type",
+	    test_nv_remove_nvpair_exists_name_type),
 
 	/* replace existing pairs, according to config */
 	UNIT_TEST("nv_replace_name",		test_nv_replace_name),
