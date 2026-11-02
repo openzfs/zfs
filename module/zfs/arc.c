@@ -143,7 +143,9 @@
  * it will match its on-disk compression characteristics. This behavior can be
  * disabled by setting 'zfs_compressed_arc_enabled' to B_FALSE. When the
  * compressed ARC functionality is disabled, the b_pabd will point to an
- * uncompressed version of the on-disk data.
+ * uncompressed version of the on-disk data, except for blocks that are
+ * authenticated but not encrypted, whose MAC can only be verified on the
+ * on-disk data.
  *
  * Data in the L1ARC is not accessed by consumers of the ARC directly. Each
  * arc_buf_hdr_t can have multiple ARC buffers (arc_buf_t) which reference it.
@@ -1394,8 +1396,9 @@ arc_get_compression(arc_buf_t *buf)
 }
 
 /*
- * Return the compression algorithm used to store this data in the ARC. If ARC
- * compression is enabled or this is an encrypted block, this will be the same
+ * Return the compression algorithm used to store this data in the ARC. If
+ * ARC_FLAG_COMPRESSED_ARC is set (ARC compression is enabled, or this is an
+ * authenticated block, see arc_hdr_keep_compressed()), this will be the same
  * as what's used to store it on-disk. Otherwise, this will be ZIO_COMPRESS_OFF.
  */
 static inline enum zio_compress
@@ -1817,42 +1820,52 @@ arc_hdr_size(arc_buf_hdr_t *hdr)
 	return (size);
 }
 
+/*
+ * The MAC of a block that is authenticated but not encrypted covers the
+ * block as stored on disk.  Compressing the logical data again need not
+ * give back those bytes (another compressor version, or a host of the other
+ * byte order), so such a block is kept as stored even when compressed ARC
+ * is disabled.  Called before b_pabd is allocated.
+ */
+static void
+arc_hdr_keep_compressed(arc_buf_hdr_t *hdr)
+{
+	ASSERT(HDR_EMPTY_OR_LOCKED(hdr));
+	ASSERT(HDR_HAS_L1HDR(hdr));
+	ASSERT0P(hdr->b_l1hdr.b_pabd);
+
+	if (HDR_COMPRESSION_ENABLED(hdr) || HDR_GET_PSIZE(hdr) == 0)
+		return;
+
+	/*
+	 * l2ad_alloc is accounted by arc_hdr_size(), which this changes.  A
+	 * header restored from a persistent L2ARC gets here with an L2 header.
+	 */
+	l2arc_dev_t *dev = HDR_HAS_L2HDR(hdr) ? hdr->b_l2hdr.b_dev : NULL;
+	if (dev != NULL) {
+		(void) zfs_refcount_remove_many(&dev->l2ad_alloc,
+		    arc_hdr_size(hdr), hdr);
+	}
+	arc_hdr_set_flags(hdr, ARC_FLAG_COMPRESSED_ARC);
+	if (dev != NULL) {
+		(void) zfs_refcount_add_many(&dev->l2ad_alloc,
+		    arc_hdr_size(hdr), hdr);
+	}
+}
+
 static int
 arc_hdr_authenticate(arc_buf_hdr_t *hdr, spa_t *spa, uint64_t dsobj)
 {
 	int ret;
-	uint64_t csize;
-	uint64_t lsize = HDR_GET_LSIZE(hdr);
 	uint64_t psize = HDR_GET_PSIZE(hdr);
 	abd_t *abd = hdr->b_l1hdr.b_pabd;
-	boolean_t free_abd = B_FALSE;
 
 	ASSERT(HDR_EMPTY_OR_LOCKED(hdr));
 	ASSERT(HDR_AUTHENTICATED(hdr));
 	ASSERT3P(abd, !=, NULL);
-
-	/*
-	 * The MAC is calculated on the compressed data that is stored on disk.
-	 * However, if compressed arc is disabled we will only have the
-	 * decompressed data available to us now. Compress it into a temporary
-	 * abd so we can verify the MAC. The performance overhead of this will
-	 * be relatively low, since most objects in an encrypted objset will
-	 * be encrypted (instead of authenticated) anyway.
-	 */
-	if (HDR_GET_COMPRESS(hdr) != ZIO_COMPRESS_OFF &&
-	    !HDR_COMPRESSION_ENABLED(hdr)) {
-		abd = NULL;
-		csize = zio_compress_data(HDR_GET_COMPRESS(hdr),
-		    hdr->b_l1hdr.b_pabd, &abd, lsize, MIN(lsize, psize),
-		    hdr->b_complevel);
-		if (csize >= lsize || csize > psize) {
-			ret = SET_ERROR(EIO);
-			return (ret);
-		}
-		ASSERT3P(abd, !=, NULL);
-		abd_zero_off(abd, csize, psize - csize);
-		free_abd = B_TRUE;
-	}
+	/* The MAC covers b_pabd as is; see arc_hdr_keep_compressed(). */
+	ASSERT(HDR_GET_COMPRESS(hdr) == ZIO_COMPRESS_OFF ||
+	    HDR_COMPRESSION_ENABLED(hdr));
 
 	/*
 	 * Authentication is best effort. We authenticate whenever the key is
@@ -1860,7 +1873,7 @@ arc_hdr_authenticate(arc_buf_hdr_t *hdr, spa_t *spa, uint64_t dsobj)
 	 */
 	if (hdr->b_crypt_hdr.b_ot == DMU_OT_OBJSET) {
 		ASSERT3U(HDR_GET_COMPRESS(hdr), ==, ZIO_COMPRESS_OFF);
-		ASSERT3U(lsize, ==, psize);
+		ASSERT3U(HDR_GET_LSIZE(hdr), ==, psize);
 		ret = spa_do_crypt_objset_mac_abd(B_FALSE, spa, dsobj, abd,
 		    psize, hdr->b_l1hdr.b_byteswap != DMU_BSWAP_NUMFUNCS);
 	} else {
@@ -1872,9 +1885,6 @@ arc_hdr_authenticate(arc_buf_hdr_t *hdr, spa_t *spa, uint64_t dsobj)
 		arc_hdr_clear_flags(hdr, ARC_FLAG_NOAUTH);
 	else if (ret == EACCES)
 		ret = 0;
-
-	if (free_abd)
-		abd_free(abd);
 
 	return (ret);
 }
@@ -5602,6 +5612,7 @@ arc_hdr_verify(arc_buf_hdr_t *hdr, blkptr_t *bp)
 			ASSERT3U(arc_hdr_get_compress(hdr), ==,
 			    BP_GET_COMPRESS(bp));
 		}
+		IMPLY(BP_IS_AUTHENTICATED(bp), HDR_COMPRESSION_ENABLED(hdr));
 		ASSERT3U(HDR_GET_LSIZE(hdr), ==, BP_GET_LSIZE(bp));
 		ASSERT3U(HDR_GET_PSIZE(hdr), ==, BP_GET_PSIZE(bp));
 		ASSERT3U(!!HDR_PROTECTED(hdr), ==, BP_IS_PROTECTED(bp));
@@ -6248,6 +6259,8 @@ top:
 		if (!embedded_bp)
 			arc_access(hdr, *arc_flags, B_FALSE);
 		arc_hdr_set_flags(hdr, ARC_FLAG_IO_IN_PROGRESS);
+		if (BP_IS_AUTHENTICATED(bp))
+			arc_hdr_keep_compressed(hdr);
 		arc_hdr_alloc_abd(hdr, alloc_flags);
 		if (encrypted_read) {
 			ASSERT(HDR_HAS_RABD(hdr));
@@ -6946,6 +6959,8 @@ arc_write_ready(zio_t *zio)
 	}
 	HDR_SET_PSIZE(hdr, psize);
 	arc_hdr_set_compress(hdr, compress);
+	if (BP_IS_AUTHENTICATED(bp))
+		arc_hdr_keep_compressed(hdr);
 	hdr->b_complevel = zio->io_prop.zp_complevel;
 
 	if (zio->io_error != 0 || psize == 0)

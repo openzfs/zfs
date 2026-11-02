@@ -1140,7 +1140,10 @@ transaction record (itx).
 .It Sy zfs_compressed_arc_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Enables storing ARC buffers in their on-disk compressed form, reducing
 memory pressure.
-When disabled, buffers are decompressed before being cached.
+When disabled, buffers are decompressed before being cached,
+except the blocks of encrypted datasets that are authenticated but not
+encrypted, such as the ZPL master node:
+these stay in their on-disk form so that their MAC can be verified.
 .
 .It Sy zfs_condense_indirect_commit_entry_delay_ms Ns = Ns Sy 0 Ns ms Pq int
 Vdev indirection layer (used for device removal) sleeps for this many
