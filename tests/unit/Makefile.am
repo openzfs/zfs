@@ -21,6 +21,7 @@ UNIT_TESTS = \
 	%D%/test_fletcher \
 	%D%/test_sha2 \
 	%D%/test_cityhash \
+	%D%/test_zio_crypt_salt_cache \
 	%D%/test_nvpair \
 	%D%/test_backtrace \
 	%D%/test_timer \
@@ -168,6 +169,25 @@ nodist_%C%_test_nvpair_SOURCES = \
 %C%_test_zfs_file_LDADD = \
 	libunit.la \
 	libspl.la
+
+
+%C%_test_zio_crypt_salt_cache_CFLAGS = $(AM_CFLAGS)
+
+nodist_%C%_test_zio_crypt_salt_cache_SOURCES = \
+	module/zfs/aggsum.c \
+	module/zfs/hkdf.c \
+	module/zfs/zfs_impl.c \
+	module/zfs/zio_crypt.c \
+	module/zfs/zio_crypt_os_icp.c
+
+%C%_test_zio_crypt_salt_cache_SOURCES = \
+	%D%/test_zio_crypt_salt_cache.c
+
+%C%_test_zio_crypt_salt_cache_LDADD = \
+	libicp.la \
+	libavl.la \
+	libspl.la \
+	libunit.la
 
 
 %C%_test_indirect_mapping_CFLAGS = $(AM_CFLAGS)
