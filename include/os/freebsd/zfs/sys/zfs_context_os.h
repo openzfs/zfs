@@ -30,17 +30,10 @@
 #ifndef ZFS_CONTEXT_OS_H_
 #define	ZFS_CONTEXT_OS_H_
 
-#include <sys/condvar.h>
 #include <sys/rwlock.h>
 #include <sys/sig.h>
-#include_next <sys/sdt.h>
-#include <sys/misc.h>
 #include <sys/kdb.h>
-#include <sys/pathname.h>
 #include <sys/conf.h>
-#include <sys/types.h>
-#include <sys/ccompat.h>
-#include <linux/types.h>
 
 #if KSTACK_PAGES * PAGE_SIZE >= 16384
 #define	HAVE_LARGE_STACKS	1
