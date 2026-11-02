@@ -172,7 +172,8 @@ zfs_case_unserialize(fmd_hdl_t *hdl, fmd_case_t *cp)
  * Return count of other unique SERD cases under same vdev parent
  */
 static uint_t
-zfs_other_serd_cases(fmd_hdl_t *hdl, const zfs_case_data_t *zfs_case)
+zfs_other_serd_cases(fmd_hdl_t *hdl, const zfs_case_data_t *zfs_case,
+    const char *name)
 {
 	zfs_case_t *zcp;
 	uint_t cases = 0;
@@ -205,20 +206,18 @@ zfs_other_serd_cases(fmd_hdl_t *hdl, const zfs_case_data_t *zfs_case)
 			continue;
 		}
 
-		/*
-		 * Check if there is another active serd case besides zfs_case
-		 *
-		 * Only one serd engine will be assigned to the case
-		 */
-		if (zcd->zc_serd_checksum[0] == zfs_case->zc_serd_checksum[0] &&
+		if (zcd->zc_serd_checksum[0] != '\0' &&
+		    strcmp(name, zfs_case->zc_serd_checksum) == 0 &&
 		    fmd_serd_active(hdl, zcd->zc_serd_checksum)) {
 			cases++;
 		}
-		if (zcd->zc_serd_io[0] == zfs_case->zc_serd_io[0] &&
+		if (zcd->zc_serd_io[0] != '\0' &&
+		    strcmp(name, zfs_case->zc_serd_io) == 0 &&
 		    fmd_serd_active(hdl, zcd->zc_serd_io)) {
 			cases++;
 		}
-		if (zcd->zc_serd_slow_io[0] == zfs_case->zc_serd_slow_io[0] &&
+		if (zcd->zc_serd_slow_io[0] != '\0' &&
+		    strcmp(name, zfs_case->zc_serd_slow_io) == 0 &&
 		    fmd_serd_active(hdl, zcd->zc_serd_slow_io)) {
 			cases++;
 		}
@@ -525,7 +524,8 @@ zfs_fm_serd_record(fmd_hdl_t *hdl, const char *name, fmd_event_t *ep,
 	int fired = fmd_serd_record(hdl, name, ep);
 	int peers = 0;
 
-	if (fired && (peers = zfs_other_serd_cases(hdl, &zcp->zc_data)) > 0) {
+	if (fired && (peers = zfs_other_serd_cases(hdl, &zcp->zc_data,
+	    name)) > 0) {
 		fmd_hdl_debug(hdl, "pool %llu is tracking %d other %s cases "
 		    "-- skip faulting the vdev %llu",
 		    (u_longlong_t)zcp->zc_data.zc_pool_guid,
