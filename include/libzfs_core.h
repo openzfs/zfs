@@ -106,6 +106,10 @@ _LIBZFS_CORE_H int lzc_receive_with_cmdprops(const char *, nvlist_t *,
     nvlist_t *, uint8_t *, uint_t, const char *, boolean_t, boolean_t,
     boolean_t, int, const struct dmu_replay_record *, int, uint64_t *,
     uint64_t *, uint64_t *, nvlist_t **);
+_LIBZFS_CORE_H int lzc_receive_with_local_origin(const char *, nvlist_t *,
+    nvlist_t *, uint8_t *, uint_t, const char *, boolean_t, boolean_t,
+    boolean_t, int, const struct dmu_replay_record *, int, uint64_t *,
+    uint64_t *, uint64_t *, nvlist_t **);
 _LIBZFS_CORE_H int lzc_receive_with_heal(const char *, nvlist_t *, nvlist_t *,
     uint8_t *, uint_t, const char *, boolean_t, boolean_t, boolean_t, boolean_t,
     int, const struct dmu_replay_record *, int, uint64_t *, uint64_t *,

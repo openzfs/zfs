@@ -5741,7 +5741,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, const char *origin,
     nvlist_t *recvprops, nvlist_t *localprops, nvlist_t *hidden_args,
     boolean_t force, boolean_t heal, boolean_t resumable, int input_fd,
     dmu_replay_record_t *begin_record, uint64_t *read_bytes,
-    uint64_t *errflags, nvlist_t **errors)
+    uint64_t *errflags, nvlist_t **errors, boolean_t local_origin)
 {
 	dmu_recv_cookie_t drc;
 	int error = 0;
@@ -5767,7 +5767,7 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, const char *origin,
 	noff = off = zfs_file_off(input_fp);
 	error = dmu_recv_begin(tofs, tosnap, begin_record, force, heal,
 	    resumable, localprops, hidden_args, origin, &drc, input_fp,
-	    &off);
+	    &off, local_origin);
 	if (error != 0)
 		goto out;
 	drc.drc_errors = *errors;
@@ -6130,7 +6130,7 @@ zfs_ioc_recv(zfs_cmd_t *zc)
 
 	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvdprops, localprops,
 	    NULL, zc->zc_guid, B_FALSE, B_FALSE, zc->zc_cookie, &begin_record,
-	    &zc->zc_cookie, &zc->zc_obj, &errors);
+	    &zc->zc_cookie, &zc->zc_obj, &errors, B_FALSE);
 
 	/*
 	 * Now that all props, initial and delayed, are set, report the prop
@@ -6163,6 +6163,7 @@ out:
  *     (optional) "props" -> received properties to set (nvlist)
  *     (optional) "localprops" -> override and exclude properties (nvlist)
  *     (optional) "origin" -> name of clone origin (DRR_FLAG_CLONE)
+ *     (optional) "local_origin" -> allow an origin in the destination
  *     "begin_record" -> non-byteswapped dmu_replay_record_t
  *     "input_fd" -> file descriptor to read stream from (int32)
  *     (optional) "force" -> force flag (value ignored)
@@ -6184,6 +6185,7 @@ static const zfs_ioc_key_t zfs_keys_recv_new[] = {
 	{"props",		DATA_TYPE_NVLIST,	ZK_OPTIONAL},
 	{"localprops",		DATA_TYPE_NVLIST,	ZK_OPTIONAL},
 	{"origin",		DATA_TYPE_STRING,	ZK_OPTIONAL},
+	{"local_origin",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
 	{"begin_record",	DATA_TYPE_BYTE_ARRAY,	0},
 	{"input_fd",		DATA_TYPE_INT32,	0},
 	{"force",		DATA_TYPE_BOOLEAN,	ZK_OPTIONAL},
@@ -6257,7 +6259,8 @@ zfs_ioc_recv_new(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 
 	error = zfs_ioc_recv_impl(tofs, tosnap, origin, recvprops, localprops,
 	    hidden_args, force, heal, resumable, input_fd, begin_record,
-	    &read_bytes, &errflags, &errors);
+	    &read_bytes, &errflags, &errors,
+	    nvlist_exists(innvl, "local_origin"));
 
 	fnvlist_add_uint64(outnvl, "read_bytes", read_bytes);
 	fnvlist_add_uint64(outnvl, "error_flags", errflags);
