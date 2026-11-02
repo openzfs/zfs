@@ -839,6 +839,9 @@ dsl_errorscrub_setup_sync(void *arg, dmu_tx_t *tx)
 	ASSERT(*funcp > POOL_SCAN_NONE && *funcp < POOL_SCAN_FUNCS);
 
 	memset(&scn->errorscrub_phys, 0, sizeof (scn->errorscrub_phys));
+	/* An error scrub canceled while paused leaves its pause time set. */
+	spa->spa_scan_pass_errorscrub_pause = 0;
+	spa->spa_scan_pass_errorscrub_spent_paused = 0;
 	scn->errorscrub_phys.dep_func = *funcp;
 	scn->errorscrub_phys.dep_state = DSS_ERRORSCRUBBING;
 	scn->errorscrub_phys.dep_start_time = gethrestime_sec();
