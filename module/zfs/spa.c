@@ -8530,6 +8530,13 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	if (oldvd == NULL)
 		return (spa_vdev_exit(spa, NULL, txg, ENODEV));
 
+	/* Do not spare a device repaired by a concurrent clear. */
+	if (nvlist_exists(nvroot, ZPOOL_CONFIG_REPLACE_IF_UNHEALTHY) &&
+	    oldvd->vdev_state == VDEV_STATE_HEALTHY &&
+	    vdev_readable(oldvd) && vdev_writeable(oldvd) &&
+	    !oldvd->vdev_remove_wanted)
+		return (spa_vdev_exit(spa, NULL, txg, EBUSY));
+
 	boolean_t raidz = oldvd->vdev_ops == &vdev_raidz_ops;
 
 	if (raidz) {
