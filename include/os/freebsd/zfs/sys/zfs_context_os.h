@@ -63,7 +63,5 @@ extern struct mtx zfs_debug_mtx;
 	}	   \
 } while (0)
 
-typedef struct opensolaris_utsname	utsname_t;
-extern utsname_t *utsname(void);
 extern int spa_import_rootpool(const char *name, bool checkpointrewind);
 #endif

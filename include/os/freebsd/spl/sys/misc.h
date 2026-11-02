@@ -45,13 +45,15 @@
 #define	F_SEEK_DATA	FIOSEEKDATA
 #define	F_SEEK_HOLE	FIOSEEKHOLE
 
-struct opensolaris_utsname {
+typedef struct opensolaris_utsname {
 	const char	*sysname;
 	const char	*nodename;
 	const char	*release;
 	char		version[32];
 	const char	*machine;
-};
+} utsname_t;
+
+extern utsname_t *utsname(void);
 
 #define	task_io_account_read(n)
 #define	task_io_account_write(n)
