@@ -882,26 +882,18 @@ test_nv_nvlist_array(const MunitParameter params[], void *data)
 static MunitResult
 test_nv_lookup_nvpair(const MunitParameter params[], void *data)
 {
-	(void) data;
+	(void) params; (void) data;
 
-	nvlist_t *nvl = nvl_create_simple_from_params(params);
+	nvlist_t *nvl = nvl_create_simple();
 
 	nvpair_t *pair = NULL;
-	if (strcmp(munit_parameters_get(params, "unique"), "name") == 0) {
-		unit_ok(nvlist_lookup_nvpair(nvl, nvl_simple_u64_key, &pair));
-		unit_notnull(pair);
-		unit_str_eq(nvpair_name(pair), nvl_simple_u64_key);
-		unit_eq(nvpair_type(pair), DATA_TYPE_UINT64);
+	unit_ok(nvlist_lookup_nvpair(nvl, nvl_simple_u64_key, &pair));
+	unit_notnull(pair);
+	unit_str_eq(nvpair_name(pair), nvl_simple_u64_key);
+	unit_eq(nvpair_type(pair), DATA_TYPE_UINT64);
 
-		/* weirdly, the pair not found returns EINVAL, not ENOENT */
-		unit_err(nvlist_lookup_nvpair(nvl, nvl_nonexistent_key, &pair),
-		    EINVAL);
-	} else {
-		unit_err(nvlist_lookup_nvpair(nvl, nvl_simple_u64_key, &pair),
-		    ENOTSUP);
-		unit_err(nvlist_lookup_nvpair(nvl, nvl_nonexistent_key, &pair),
-		    ENOTSUP);
-	}
+	/* weirdly, the pair not found returns EINVAL, not ENOENT */
+	unit_err(nvlist_lookup_nvpair(nvl, nvl_nonexistent_key, &pair), EINVAL);
 
 	nvlist_free(nvl);
 	return (MUNIT_OK);
@@ -1874,12 +1866,14 @@ test_nv_unsupported(const MunitParameter params[], void *data)
 	uint_t n;
 	unit_err(nvlist_lookup_uint64_array(nvl, "a", &out, &n), ENOTSUP);
 
+	nvpair_t *pair = NULL;
+	unit_err(nvlist_lookup_nvpair(nvl, "a", &pair), ENOTSUP);
+
 	unit_err(nvlist_lookup_pairs(nvl, 0,
 	    "a", DATA_TYPE_UINT64, &val, NULL), ENOTSUP);
 	unit_err(nvlist_lookup_pairs(nvl, NV_FLAG_NOENTOK,
 	    "a", DATA_TYPE_UINT64, &val, NULL), ENOTSUP);
 
-	nvpair_t *pair;
 	int idx;
 	const char *ep;
 	unit_err(nvlist_lookup_nvpair_embedded_index(nvl, "a[0]",
@@ -1896,7 +1890,9 @@ test_nv_unsupported_name_type(const MunitParameter params[], void *data)
 
 	nvlist_t *nvl = nvl_create_type(NV_UNIQUE_NAME_TYPE);
 
-	nvpair_t *pair;
+	nvpair_t *pair = NULL;
+	unit_err(nvlist_lookup_nvpair(nvl, "a", &pair), ENOTSUP);
+
 	int idx;
 	const char *ep;
 	unit_err(nvlist_lookup_nvpair_embedded_index(nvl, "a[0]",
@@ -1965,8 +1961,7 @@ static const MunitTest nvpair_tests[] = {
 	UNIT_TEST("nv_nvlist_array",	test_nv_nvlist_array),
 
 	/* lookup and traverse by pair */
-	UNIT_TEST("nv_lookup_nvpair",	test_nv_lookup_nvpair,
-	    nv_unique_params),
+	UNIT_TEST("nv_lookup_nvpair",	test_nv_lookup_nvpair),
 	UNIT_TEST("nv_next_nvpair",	test_nv_next_nvpair, nv_unique_params),
 	UNIT_TEST("nv_prev_nvpair",	test_nv_prev_nvpair, nv_unique_params),
 
