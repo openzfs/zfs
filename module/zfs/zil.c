@@ -1526,6 +1526,25 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 		zilog->zl_commit_lr_seq = zilog->zl_lr_seq;
 	}
 
+	/*
+	 * Everything this lwb's contents depend on is in or before its issue
+	 * txg, and the error handling below relies on this.
+	 */
+	ASSERT3U(lwb->lwb_max_txg, <=, lwb->lwb_issued_txg);
+
+	if (zio->io_error != 0) {
+		/*
+		 * This lwb may not be on disk, in which case the on-disk log
+		 * chain ends here.  If another lwb is issued, it will not
+		 * have a zio dependency on this lwb's flush zio, but it
+		 * still needs this lwb for the chain of log records.  Record
+		 * the txg that will eventually free this broken lwb; this
+		 * ensures that zil_commit() waits for it before returning.
+		 */
+		zilog->zl_lwb_error_txg = MAX(zilog->zl_lwb_error_txg,
+		    lwb->lwb_issued_txg);
+	}
+
 	while ((itx = list_remove_head(&lwb->lwb_itxs)) != NULL)
 		zil_itx_destroy(itx, 0);
 
@@ -2135,6 +2154,14 @@ next_lwb:
 	mutex_enter(&zilog->zl_lock);
 	zil_lwb_set_zio_dependency(zilog, lwb);
 	lwb->lwb_state = LWB_STATE_ISSUED;
+
+	/*
+	 * If we couldn't allocate the next block, this lwb's zc_next_blk is a
+	 * hole, so zil_parse() won't accept this lwb even if it's written.
+	 * Treat it as failed.
+	 */
+	if (error != 0)
+		zilog->zl_lwb_error_txg = MAX(zilog->zl_lwb_error_txg, txg);
 
 	if (nlwb) {
 		nlwb->lwb_blk = *bp;
@@ -4168,6 +4195,23 @@ zil_commit_impl(zilog_t *zilog, uint64_t foid)
 		ZIL_STAT_BUMP(zilog, zil_commit_suspend_count);
 		err = txg_wait_synced_flags(zilog->zl_dmu_pool, wtxg,
 		    TXG_WAIT_SUSPEND);
+	}
+
+	/*
+	 * If our lwbs were written, but if an earlier lwb failed, the on-disk
+	 * log ends before them, and we must wait for txg sync.
+	 */
+	if (err == 0) {
+		mutex_enter(&zilog->zl_lock);
+		uint64_t etxg = zilog->zl_lwb_error_txg;
+		mutex_exit(&zilog->zl_lock);
+		/* In a frozen pool, txgs after the freeze never reach disk. */
+		if (etxg > spa_last_synced_txg(zilog->zl_spa) ||
+		    etxg > spa_freeze_txg(zilog->zl_spa)) {
+			ZIL_STAT_BUMP(zilog, zil_commit_error_count);
+			err = txg_wait_synced_flags(zilog->zl_dmu_pool, etxg,
+			    TXG_WAIT_SUSPEND);
+		}
 	}
 
 	zil_free_commit_waiter(zcw);
