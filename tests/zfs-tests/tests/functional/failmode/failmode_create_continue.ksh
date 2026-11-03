@@ -150,6 +150,10 @@ if ((failed)); then
 	log_fail "$desc"
 fi
 
+# Import it again (by guid, in case another exported pool has the same
+# name) so that the cleanup destroys it and its labels.
+typeset guid=$(zpool get -Hpo value guid $TESTPOOL)
 log_must zpool export $TESTPOOL
+log_must zpool import $guid
 
 log_pass $desc
