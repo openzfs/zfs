@@ -19,15 +19,22 @@
 #	resumes, and no reference on its inode may be leaked.
 #
 # STRATEGY:
+#	For each of create, mkdir and symlink, on a new pool:
 #	1. Create a pool with a separate log device and failmode=continue,
 #	   and a dataset with sync=always.
-#	2. For each of create, mkdir and symlink: inject write errors on
-#	   both devices, expect the operation to fail, wait for the pool
-#	   to suspend, then clear the errors and resume the pool.
-#	3. Verify each entry is visible without dropping the dentry cache.
-#	4. Remove the entries and verify their objects are freed; a leaked
-#	   inode reference keeps them on the delete queue.
+#	2. Inject write errors on both devices, expect the operation to
+#	   fail, wait for the pool to suspend, then clear the errors and
+#	   resume the pool.
+#	3. Verify the entry is visible without dropping the dentry cache.
+#	4. Remove the entry and verify its object is freed; a leaked inode
+#	   reference keeps it on the delete queue.
 #	5. Verify the pool exports, which a leaked inode prevents.
+#
+#	Each operation gets its own pool: resuming the pool starts a
+#	resilver, and if its txgs were still syncing when the errors are
+#	injected for the next operation, they would suspend the pool before
+#	that operation assigns its transaction.  It would then fail with
+#	EIO without creating the entry.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -42,15 +49,6 @@ log_onexit failmode_sync_cleanup
 
 read -r DISK1 DISK2 _ <<<"$DISKS"
 typeset mntpnt=$TESTDIR
-typeset ops="create mkdir symlink"
-
-log_must zpool create -f -o failmode=continue $TESTPOOL $DISK1 log $DISK2
-log_must zfs create -o mountpoint=$mntpnt -o sync=always \
-    -o logbias=latency $TESTPOOL/$TESTFS
-
-# Create the ZIL header now, which waits for a full txg sync.
-log_must dd if=/dev/zero of=$mntpnt/base bs=128k count=1 conv=fsync
-log_must zpool sync
 
 function object_listed # obj
 {
@@ -66,8 +64,21 @@ function object_listed # obj
 	log_fail "zdb failed on object $obj: $out"
 }
 
-for op in $ops ; do
+function test_op # op
+{
+	typeset op=$1
+	typeset path=$mntpnt/$op
+	typeset -i failed=0
+
+	log_must zpool create -f -o failmode=continue $TESTPOOL $DISK1 \
+	    log $DISK2
+	log_must zfs create -o mountpoint=$mntpnt -o sync=always \
+	    -o logbias=latency $TESTPOOL/$TESTFS
+
+	# Create the ZIL header now, which waits for a full txg sync.
+	log_must dd if=/dev/zero of=$mntpnt/base bs=128k count=1 conv=fsync
 	log_must zpool sync
+
 	log_must zinject -d $DISK1 -e io -T write $TESTPOOL
 	log_must zinject -d $DISK1 -e nxio -T probe $TESTPOOL
 	log_must zinject -d $DISK2 -e io -T write $TESTPOOL
@@ -77,10 +88,10 @@ for op in $ops ; do
 	# single mkdir(2) too: uutils mkdir (Ubuntu 26.04's default) exits 0
 	# when mkdir(2) fails but the directory exists afterwards.
 	case $op in
-	create)		( : > $mntpnt/$op ) & ;;
+	create)		( : > $path ) & ;;
 	mkdir)		python3 -c 'import os, sys; os.mkdir(sys.argv[1])' \
-			    $mntpnt/$op & ;;
-	symlink)	ln -s base $mntpnt/$op & ;;
+			    $path & ;;
+	symlink)	ln -s base $path & ;;
 	esac
 	typeset -i pid=$!
 
@@ -110,30 +121,25 @@ for op in $ops ; do
 	log_note "$op: blocked=$blocked rc=$rc"
 	log_must test $blocked -eq 0
 	log_must test $rc -ne 0
-done
 
-typeset -i failed=0
-for op in $ops ; do
-	if [[ ! -e $mntpnt/$op && ! -L $mntpnt/$op ]] ; then
+	if [[ ! -e $path && ! -L $path ]] ; then
 		log_note "$op: entry hidden by a stale dentry"
 		failed=1
 	fi
-done
 
-# Drop the dentries so that the leak check below runs in any case.
-log_must eval "echo 2 > /proc/sys/vm/drop_caches"
+	# Drop the dentries so that the leak check below runs in any case.
+	log_must eval "echo 2 > /proc/sys/vm/drop_caches"
 
-log_must zpool sync
-typeset -A objs
-for op in $ops ; do
-	objs[$op]=$(stat -c %i $mntpnt/$op) || log_fail "$op: entry missing"
-	object_listed ${objs[$op]} || log_fail "$op: object not on disk"
-done
-log_must rm $mntpnt/create $mntpnt/symlink
-log_must rmdir $mntpnt/mkdir
+	log_must zpool sync
+	typeset obj
+	obj=$(stat -c %i $path) || log_fail "$op: entry missing"
+	object_listed $obj || log_fail "$op: object not on disk"
+	if [[ $op == mkdir ]] ; then
+		log_must rmdir $path
+	else
+		log_must rm $path
+	fi
 
-for op in $ops ; do
-	typeset obj=${objs[$op]}
 	typeset -i tries=10
 	while object_listed $obj ; do
 		if ((tries-- == 0)); then
@@ -144,16 +150,21 @@ for op in $ops ; do
 		log_must zpool sync
 		sleep 1
 	done
+
+	if ((failed)); then
+		log_fail "$desc"
+	fi
+
+	# Import it again (by guid, in case another exported pool has the
+	# same name) so that it and its labels can be destroyed.
+	typeset guid=$(zpool get -Hpo value guid $TESTPOOL)
+	log_must zpool export $TESTPOOL
+	log_must zpool import $guid
+	destroy_pool $TESTPOOL
+}
+
+for op in create mkdir symlink ; do
+	test_op $op
 done
-
-if ((failed)); then
-	log_fail "$desc"
-fi
-
-# Import it again (by guid, in case another exported pool has the same
-# name) so that the cleanup destroys it and its labels.
-typeset guid=$(zpool get -Hpo value guid $TESTPOOL)
-log_must zpool export $TESTPOOL
-log_must zpool import $guid
 
 log_pass $desc
