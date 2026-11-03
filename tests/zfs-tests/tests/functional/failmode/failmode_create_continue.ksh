@@ -73,10 +73,13 @@ for op in $ops ; do
 	log_must zinject -d $DISK2 -e io -T write $TESTPOOL
 	log_must zinject -d $DISK2 -e nxio -T probe $TESTPOOL
 
-	# A single open(O_CREAT), as touch retries a failed create.
+	# A single open(O_CREAT), as touch retries a failed create.  A
+	# single mkdir(2) too: uutils mkdir (Ubuntu 26.04's default) exits 0
+	# when mkdir(2) fails but the directory exists afterwards.
 	case $op in
 	create)		( : > $mntpnt/$op ) & ;;
-	mkdir)		mkdir $mntpnt/$op & ;;
+	mkdir)		python3 -c 'import os, sys; os.mkdir(sys.argv[1])' \
+			    $mntpnt/$op & ;;
 	symlink)	ln -s base $mntpnt/$op & ;;
 	esac
 	typeset -i pid=$!
