@@ -5967,7 +5967,8 @@ zio_dva_throttle_done(zio_t *zio)
 	ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_VDEV);
 	ASSERT(vd != NULL);
 	ASSERT3P(vd, ==, vd->vdev_top);
-	ASSERT(zio_injection_enabled || !(zio->io_flags & ZIO_FLAG_IO_RETRY));
+	ASSERT((zio->io_flags & ZIO_FLAG_IO_INJECTED) ||
+	    !(zio->io_flags & ZIO_FLAG_IO_RETRY));
 	ASSERT(!(zio->io_flags & ZIO_FLAG_IO_REPAIR));
 	ASSERT(zio->io_flags & ZIO_FLAG_ALLOC_THROTTLED);
 
