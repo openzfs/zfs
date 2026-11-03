@@ -133,7 +133,7 @@ tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter', 'zed_fd_spill',
 tags = ['functional', 'events']
 
 [tests/functional/failmode:Linux]
-tests = ['failmode_nowait_wait']
+tests = ['failmode_create_continue', 'failmode_nowait_wait']
 tags = ['functional', 'failmode']
 
 [tests/functional/fallocate:Linux]
