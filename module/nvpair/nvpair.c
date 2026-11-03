@@ -304,9 +304,11 @@ nvt_nvpair_match(const nvpair_t *nvp1, const nvpair_t *nvp2, uint32_t nvflag)
 		if (strcmp(NVP_NAME(nvp1), NVP_NAME(nvp2)) == 0 &&
 		    NVP_TYPE(nvp1) == NVP_TYPE(nvp2))
 			match = B_TRUE;
-	} else {
-		ASSERT(nvflag == 0 || nvflag & NV_UNIQUE_NAME);
+	} else if (nvflag & NV_UNIQUE_NAME) {
 		if (strcmp(NVP_NAME(nvp1), NVP_NAME(nvp2)) == 0)
+			match = B_TRUE;
+	} else {
+		if (nvp1 == nvp2)
 			match = B_TRUE;
 	}
 	return (match);
