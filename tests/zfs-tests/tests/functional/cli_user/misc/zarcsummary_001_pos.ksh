@@ -32,4 +32,40 @@ done
 log_must eval "zarcsummary | head > /dev/null"
 log_must eval "zarcsummary | head -1 > /dev/null"
 
+#
+# ksh's pipes are socketpairs, and zarcsummary writes unbuffered, a line
+# at a time.  When head(1) starts late, zarcsummary fills the socket and
+# blocks; head then exits with output unread, the socket is reset, and
+# the blocked write fails with ECONNRESET rather than EPIPE.  The
+# pipelines above only hit that by chance, so set it up directly: give
+# zarcsummary a socket with the smallest send buffer, wait until it is
+# blocked writing, then close the other end without reading.
+#
+if is_linux; then
+	log_must python3 - zarcsummary <<-'EOF'
+	import fcntl, socket, struct, subprocess, sys, termios, time
+
+	r, w = socket.socketpair()
+	w.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 1)
+	sndbuf = w.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF)
+	p = subprocess.Popen(sys.argv[1:], stdout=w)
+
+	def blocked():
+	    outq = fcntl.ioctl(w, termios.TIOCOUTQ, b"\0" * 4)
+	    with open("/proc/%d/stat" % p.pid) as f:
+	        state = f.read().rpartition(")")[2].split()[0]
+	    return struct.unpack("i", outq)[0] >= sndbuf and state == "S"
+
+	deadline = time.monotonic() + 60
+	while not blocked():
+	    if p.poll() is not None:
+	        sys.exit("zarcsummary exited before filling the socket")
+	    if time.monotonic() > deadline:
+	        sys.exit("zarcsummary did not block writing")
+	    time.sleep(0.01)
+	r.close()
+	sys.exit(p.wait())
+	EOF
+fi
+
 log_pass "zarcsummary generates output and doesn't return an error code"
