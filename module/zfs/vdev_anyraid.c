@@ -1528,8 +1528,12 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 		if ((skip && map_write_skip_entry(cur->at_tile_id, buf,
 		    &buf_offset, prev_id)) ||
 		    (!skip && map_write_loc_entry(curn, buf, &buf_offset))) {
-			// Let the final write handle it
-			if (next == NULL)
+			/*
+			 * Leave a full last chunk to the final write, but only
+			 * once its last entry is in it.
+			 */
+			if (next == NULL && !skip &&
+			    list_next(&cur->at_list, curn) == NULL)
 				break;
 			abd_return_buf_copy(map_abd, buf, SPA_MAXBLOCKSIZE);
 			map_write_issue(zio, vd, base_offset, written,
