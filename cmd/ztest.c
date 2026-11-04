@@ -8468,6 +8468,34 @@ ztest_freeze(void)
 	kernel_fini();
 }
 
+static nvlist_t *
+ztest_refresh_config(void *unused, nvlist_t *tryconfig)
+{
+	(void) unused;
+	return (spa_tryimport(tryconfig));
+}
+
+/*
+ * A pool that ztest created lives in its own directory and only this
+ * process imports it, so a pool of that name in the kernel is irrelevant.
+ * Asking the kernel, as libzpool_config_ops does, fails when /dev/zfs is
+ * absent.  With --use-existing-pool the pool may be one the kernel has
+ * imported, so the kernel is still asked then.
+ */
+static int
+ztest_pool_active(void *unused, const char *name, uint64_t guid,
+    boolean_t *isactive)
+{
+	(void) unused, (void) name, (void) guid;
+	*isactive = B_FALSE;
+	return (0);
+}
+
+static pool_config_ops_t ztest_config_ops = {
+	.pco_refresh_config = ztest_refresh_config,
+	.pco_pool_active = ztest_pool_active,
+};
+
 static void
 ztest_import_impl(void)
 {
@@ -8484,7 +8512,8 @@ ztest_import_impl(void)
 
 	libpc_handle_t lpch = {
 		.lpc_lib_handle = NULL,
-		.lpc_ops = &libzpool_config_ops,
+		.lpc_ops = ztest_opts.zo_init == 0 ?
+		    &libzpool_config_ops : &ztest_config_ops,
 		.lpc_printerr = B_TRUE
 	};
 	VERIFY0(zpool_find_config(&lpch, ztest_opts.zo_pool, &cfg, &args));
