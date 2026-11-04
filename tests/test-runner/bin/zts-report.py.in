@@ -198,7 +198,6 @@ elif sys.platform.startswith('linux'):
         'casenorm/mixed_formd_delete': ['FAIL', 7633],
         'casenorm/sensitive_formd_lookup': ['FAIL', 7633],
         'casenorm/sensitive_formd_delete': ['FAIL', 7633],
-        'cli_root/zfs_unshare/zfs_unshare_002_pos': ['SKIP', na_reason],
     })
 
 
