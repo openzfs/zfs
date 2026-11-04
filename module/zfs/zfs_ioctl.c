@@ -1679,7 +1679,7 @@ zfsvfs_rele(zfsvfs_t *zfsvfs, const void *tag)
 			 * teardown lock) so that dmu_objset_rele() can exit it.
 			 */
 			dsl_pool_config_enter(dmu_objset_pool(os), zfsvfs);
-			dmu_objset_rele(os, zfsvfs);
+			dmu_objset_rele_flags(os, B_TRUE, zfsvfs);
 		} else {
 			dmu_objset_disown(os, B_TRUE, zfsvfs);
 		}

@@ -1046,14 +1046,14 @@ zfsvfs_create_hold(const char *osname, zfsvfs_t **zfvp)
 
 	zfsvfs = kmem_zalloc(sizeof (zfsvfs_t), KM_SLEEP);
 
-	error = dmu_objset_hold(osname, zfsvfs, &os);
+	error = dmu_objset_hold_flags(osname, B_TRUE, zfsvfs, &os);
 	if (error != 0) {
 		kmem_free(zfsvfs, sizeof (zfsvfs_t));
 		return (error);
 	}
 
 	if (dmu_objset_type(os) != DMU_OST_ZFS) {
-		dmu_objset_rele(os, zfsvfs);
+		dmu_objset_rele_flags(os, B_TRUE, zfsvfs);
 		kmem_free(zfsvfs, sizeof (zfsvfs_t));
 		return (EINVAL);
 	}
@@ -1087,7 +1087,7 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 	error = zfsvfs_init(zfsvfs, os);
 	if (error != 0) {
 		if (zfsvfs->z_use_hold)
-			dmu_objset_rele(os, zfsvfs);
+			dmu_objset_rele_flags(os, B_TRUE, zfsvfs);
 		else
 			dmu_objset_disown(os, B_TRUE, zfsvfs);
 		*zfvp = NULL;
