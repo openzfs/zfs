@@ -143,8 +143,8 @@ static const struct {
 	}								\
 }
 
-#define	raidz_math_begin()	{}
-#define	raidz_math_end()	{}
+#define	raidz_math_begin(ctx)	((void) (ctx))
+#define	raidz_math_end(ctx)	((void) (ctx))
 
 #define	SYN_STRIDE		1
 

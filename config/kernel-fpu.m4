@@ -3,6 +3,11 @@ dnl #
 dnl # Handle differences in kernel FPU code.
 dnl #
 dnl # Kernel
+dnl # 7.0:	On arm64, kernel_neon_{begin,end}() take a caller-provided
+dnl #		struct user_fpsimd_state, so that kernel mode NEON can be
+dnl #		preempted.
+dnl #		HAVE_KERNEL_NEON & HAVE_KERNEL_NEON_STATE
+dnl #
 dnl # 5.19:	The asm/fpu/internal.h header was removed, it has been
 dnl #		effectively empty since the 5.16 kernel.
 dnl #
@@ -86,6 +91,42 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_FPU], [
 		kernel_neon_begin();
 		kernel_neon_end();
 	], [], [ZFS_META_LICENSE])
+
+	ZFS_LINUX_TEST_SRC([kernel_neon_state], [
+		#include <asm/neon.h>
+	], [
+		struct user_fpsimd_state state;
+		kernel_neon_begin(&state);
+		kernel_neon_end(&state);
+	], [], [ZFS_META_LICENSE])
+
+	dnl #
+	dnl # Only used to decide whether a failure of both NEON tests above
+	dnl # deserves a warning, see ZFS_AC_KERNEL_NEON_WARN.
+	dnl #
+	ZFS_LINUX_TEST_SRC([kernel_mode_neon], [
+		#if !defined(CONFIG_KERNEL_MODE_NEON)
+		#error CONFIG_KERNEL_MODE_NEON not defined
+		#endif
+	], [])
+])
+
+dnl #
+dnl # The license variants of the NEON tests fail quietly when the symbols
+dnl # are not exported with a compatible license, which is expected. If
+dnl # neither test compiles at all on a kernel with kernel mode NEON, the
+dnl # interface changed and all SIMD is silently lost, so warn about it.
+dnl #
+AC_DEFUN([ZFS_AC_KERNEL_NEON_WARN], [
+	ZFS_LINUX_TEST_RESULT([kernel_mode_neon], [
+		ZFS_LINUX_TEST_RESULT([kernel_neon], [], [
+			ZFS_LINUX_TEST_RESULT([kernel_neon_state], [], [
+				AC_MSG_WARN([neither kernel_neon_begin() interface
+	*** compiles against this kernel, so SIMD will be disabled;
+	*** include/os/linux/kernel/linux/simd_aarch64.h may need updating.])
+			])
+		])
+	], [])
 ])
 
 AC_DEFUN([ZFS_AC_KERNEL_FPU], [
@@ -121,10 +162,31 @@ AC_DEFUN([ZFS_AC_KERNEL_FPU], [
 				AC_DEFINE(HAVE_KERNEL_NEON, 1,
 				    [kernel has kernel_neon_* functions])
 			],[
-				# catch-all
-				AC_MSG_RESULT(internal)
-				AC_DEFINE(HAVE_KERNEL_FPU_INTERNAL, 1,
-				    [kernel fpu internal])
+				dnl #
+				dnl # Linux 7.0 arm64: the caller provides the
+				dnl # buffer for the kernel mode NEON state.
+				dnl #
+				ZFS_LINUX_TEST_RESULT([kernel_neon_state_license],[
+					AC_MSG_RESULT(kernel_neon_* with state)
+					AC_DEFINE(HAVE_KERNEL_NEON, 1,
+					    [kernel has kernel_neon_* functions])
+					AC_DEFINE(HAVE_KERNEL_NEON_STATE, 1,
+					    [kernel_neon_* take a user_fpsimd_state])
+				],[
+					dnl #
+					dnl # Catch-all: x86 falls back to the
+					dnl # internal implementation; there is
+					dnl # none for NEON, so say so.
+					dnl #
+					ZFS_LINUX_TEST_RESULT([kernel_mode_neon], [
+						AC_MSG_RESULT(unavailable)
+					], [
+						AC_MSG_RESULT(internal)
+					])
+					AC_DEFINE(HAVE_KERNEL_FPU_INTERNAL, 1,
+					    [kernel fpu internal])
+					ZFS_AC_KERNEL_NEON_WARN
+				])
 			])
 		])
 	])

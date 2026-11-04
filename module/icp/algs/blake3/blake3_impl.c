@@ -41,29 +41,35 @@ extern void ASMABI zfs_blake3_hash_many_sse2(const uint8_t * const *inputs,
 static void blake3_compress_in_place_sse2(uint32_t cv[8],
     const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
     uint64_t counter, uint8_t flags) {
-	kfpu_begin();
+	kfpu_ctx_t kctx;
+
+	kfpu_begin(&kctx);
 	zfs_blake3_compress_in_place_sse2(cv, block, block_len, counter,
 	    flags);
-	kfpu_end();
+	kfpu_end(&kctx);
 }
 
 static void blake3_compress_xof_sse2(const uint32_t cv[8],
     const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
     uint64_t counter, uint8_t flags, uint8_t out[64]) {
-	kfpu_begin();
+	kfpu_ctx_t kctx;
+
+	kfpu_begin(&kctx);
 	zfs_blake3_compress_xof_sse2(cv, block, block_len, counter, flags,
 	    out);
-	kfpu_end();
+	kfpu_end(&kctx);
 }
 
 static void blake3_hash_many_sse2(const uint8_t * const *inputs,
     size_t num_inputs, size_t blocks, const uint32_t key[8],
     uint64_t counter, boolean_t increment_counter, uint8_t flags,
     uint8_t flags_start, uint8_t flags_end, uint8_t *out) {
-	kfpu_begin();
+	kfpu_ctx_t kctx;
+
+	kfpu_begin(&kctx);
 	zfs_blake3_hash_many_sse2(inputs, num_inputs, blocks, key, counter,
 	    increment_counter, flags, flags_start, flags_end, out);
-	kfpu_end();
+	kfpu_end(&kctx);
 }
 
 static boolean_t blake3_is_sse2_supported(void)
@@ -107,29 +113,35 @@ extern void ASMABI zfs_blake3_hash_many_sse41(const uint8_t * const *inputs,
 static void blake3_compress_in_place_sse41(uint32_t cv[8],
     const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
     uint64_t counter, uint8_t flags) {
-	kfpu_begin();
+	kfpu_ctx_t kctx;
+
+	kfpu_begin(&kctx);
 	zfs_blake3_compress_in_place_sse41(cv, block, block_len, counter,
 	    flags);
-	kfpu_end();
+	kfpu_end(&kctx);
 }
 
 static void blake3_compress_xof_sse41(const uint32_t cv[8],
     const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
     uint64_t counter, uint8_t flags, uint8_t out[64]) {
-	kfpu_begin();
+	kfpu_ctx_t kctx;
+
+	kfpu_begin(&kctx);
 	zfs_blake3_compress_xof_sse41(cv, block, block_len, counter, flags,
 	    out);
-	kfpu_end();
+	kfpu_end(&kctx);
 }
 
 static void blake3_hash_many_sse41(const uint8_t * const *inputs,
     size_t num_inputs, size_t blocks, const uint32_t key[8],
     uint64_t counter, boolean_t increment_counter, uint8_t flags,
     uint8_t flags_start, uint8_t flags_end, uint8_t *out) {
-	kfpu_begin();
+	kfpu_ctx_t kctx;
+
+	kfpu_begin(&kctx);
 	zfs_blake3_hash_many_sse41(inputs, num_inputs, blocks, key, counter,
 	    increment_counter, flags, flags_start, flags_end, out);
-	kfpu_end();
+	kfpu_end(&kctx);
 }
 
 static boolean_t blake3_is_sse41_supported(void)
@@ -163,10 +175,12 @@ static void blake3_hash_many_avx2(const uint8_t * const *inputs,
     size_t num_inputs, size_t blocks, const uint32_t key[8],
     uint64_t counter, boolean_t increment_counter, uint8_t flags,
     uint8_t flags_start, uint8_t flags_end, uint8_t *out) {
-	kfpu_begin();
+	kfpu_ctx_t kctx;
+
+	kfpu_begin(&kctx);
 	zfs_blake3_hash_many_avx2(inputs, num_inputs, blocks, key, counter,
 	    increment_counter, flags, flags_start, flags_end, out);
-	kfpu_end();
+	kfpu_end(&kctx);
 }
 
 static boolean_t blake3_is_avx2_supported(void)
@@ -203,29 +217,35 @@ extern void ASMABI zfs_blake3_hash_many_avx512(const uint8_t * const *inputs,
 static void blake3_compress_in_place_avx512(uint32_t cv[8],
     const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
     uint64_t counter, uint8_t flags) {
-	kfpu_begin();
+	kfpu_ctx_t kctx;
+
+	kfpu_begin(&kctx);
 	zfs_blake3_compress_in_place_avx512(cv, block, block_len, counter,
 	    flags);
-	kfpu_end();
+	kfpu_end(&kctx);
 }
 
 static void blake3_compress_xof_avx512(const uint32_t cv[8],
     const uint8_t block[BLAKE3_BLOCK_LEN], uint8_t block_len,
     uint64_t counter, uint8_t flags, uint8_t out[64]) {
-	kfpu_begin();
+	kfpu_ctx_t kctx;
+
+	kfpu_begin(&kctx);
 	zfs_blake3_compress_xof_avx512(cv, block, block_len, counter, flags,
 	    out);
-	kfpu_end();
+	kfpu_end(&kctx);
 }
 
 static void blake3_hash_many_avx512(const uint8_t * const *inputs,
     size_t num_inputs, size_t blocks, const uint32_t key[8],
     uint64_t counter, boolean_t increment_counter, uint8_t flags,
     uint8_t flags_start, uint8_t flags_end, uint8_t *out) {
-	kfpu_begin();
+	kfpu_ctx_t kctx;
+
+	kfpu_begin(&kctx);
 	zfs_blake3_hash_many_avx512(inputs, num_inputs, blocks, key, counter,
 	    increment_counter, flags, flags_start, flags_end, out);
-	kfpu_end();
+	kfpu_end(&kctx);
 }
 
 static boolean_t blake3_is_avx512_supported(void)

@@ -287,8 +287,8 @@ static const uint8_t __attribute__((aligned(64))) _mul_mask = 0x0F;
 	}								\
 }
 
-#define	raidz_math_begin()	kfpu_begin()
-#define	raidz_math_end()	kfpu_end()
+#define	raidz_math_begin(ctx)	kfpu_begin(ctx)
+#define	raidz_math_end(ctx)	kfpu_end(ctx)
 
 /*
  * ZERO, COPY, and MUL operations are already 2x unrolled, which means that
