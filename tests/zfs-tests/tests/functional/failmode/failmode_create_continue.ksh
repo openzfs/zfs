@@ -27,7 +27,7 @@
 #	3. Verify each entry is visible without dropping the dentry cache.
 #	4. Remove the entries and verify their objects are freed; a leaked
 #	   inode reference keeps them on the delete queue.
-#	5. Verify the pool exports, which a leaked inode prevents.
+#	5. Verify the pool can be destroyed, which a leaked inode prevents.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -147,6 +147,6 @@ if ((failed)); then
 	log_fail "$desc"
 fi
 
-log_must zpool export $TESTPOOL
+log_must zpool destroy $TESTPOOL
 
 log_pass $desc
