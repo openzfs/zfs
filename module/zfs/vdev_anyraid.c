@@ -1452,7 +1452,8 @@ map_write_issue(zio_t *zio, vdev_t *vd, uint64_t base_offset,
 	abd_return_buf(abd, buf, SPA_MAXBLOCKSIZE);
 #endif
 
-	uint64_t ashift = vd->vdev_ashift;
+	/* The read rounds to the same ashift; a leaf's can be smaller. */
+	uint64_t ashift = vd->vdev_top->vdev_ashift;
 	zio_nowait(zio_write_phys(zio, vd, base_offset +
 	    idx * SPA_MAXBLOCKSIZE +
 	    VDEV_ANYRAID_MAP_HEADER_SIZE(vd->vdev_top->vdev_ashift),
