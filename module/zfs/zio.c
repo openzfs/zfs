@@ -3600,22 +3600,16 @@ zio_write_gang_block(zio_t *pio, metaslab_class_t *mc)
 	for (g = 0; resid != 0; g++) {
 		flags &= METASLAB_ASYNC_ALLOC;
 		flags |= METASLAB_GANG_CHILD;
+		/* Fields added to zio_prop_t later default to zero here. */
+		memset(&zp, 0, sizeof (zp));
 		zp.zp_checksum = gio->io_prop.zp_checksum;
 		zp.zp_compress = ZIO_COMPRESS_OFF;
 		zp.zp_complevel = gio->io_prop.zp_complevel;
 		zp.zp_type = zp.zp_storage_type = DMU_OT_NONE;
-		zp.zp_level = 0;
 		zp.zp_copies = gio->io_prop.zp_copies;
 		zp.zp_gang_copies = gio->io_prop.zp_gang_copies;
-		zp.zp_dedup = B_FALSE;
-		zp.zp_dedup_verify = B_FALSE;
-		zp.zp_nopwrite = B_FALSE;
 		zp.zp_encrypt = gio->io_prop.zp_encrypt;
 		zp.zp_byteorder = gio->io_prop.zp_byteorder;
-		zp.zp_direct_write = B_FALSE;
-		memset(zp.zp_salt, 0, ZIO_DATA_SALT_LEN);
-		memset(zp.zp_iv, 0, ZIO_DATA_IV_LEN);
-		memset(zp.zp_mac, 0, ZIO_DATA_MAC_LEN);
 
 		uint64_t min_size = zio_roundup_alloc_size(spa,
 		    resid / (gbh_nblkptrs(gangblocksize) - g));
