@@ -162,17 +162,20 @@ function log_mustnot_expect
 # Signal numbers are platform-dependent
 case $(uname) in
 Darwin|FreeBSD)
+	SIGFPE=8
 	SIGBUS=10
 	SIGSEGV=11
 	;;
 illumos|Linux|*)
 	SIGBUS=7
+	SIGFPE=8
 	SIGSEGV=11
 	;;
 esac
 EXIT_SUCCESS=0
 EXIT_NOTFOUND=127
 EXIT_SIGNAL=256
+EXIT_SIGFPE=$((EXIT_SIGNAL + SIGFPE))
 EXIT_SIGBUS=$((EXIT_SIGNAL + SIGBUS))
 EXIT_SIGSEGV=$((EXIT_SIGNAL + SIGSEGV))
 
@@ -227,6 +230,10 @@ function log_neg_expect
 	elif (( $status == EXIT_SIGSEGV )); then
 		cat $logfile >&2
 		_printerror "$@" "unexpectedly exited $status (SEGV)"
+	# arithmetic exception - core dump
+	elif (( $status == EXIT_SIGFPE )); then
+		cat $logfile >&2
+		_printerror "$@" "unexpectedly exited $status (FPE)"
 	else
 		if grep -qEi "internal error|assertion failed" $logfile; then
 			cat $logfile >&2

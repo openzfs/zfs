@@ -1443,7 +1443,7 @@ draid_config_by_type(nvlist_t *nv, const char *type, uint64_t width,
 		}
 
 		if (suffix == 'c') {
-			if ((uint64_t)value > width ||
+			if (value == 0 || (uint64_t)value > width ||
 			    width % (uint64_t)value != 0) {
 				fprintf(stderr,
 				    "invalid number of dRAID disks; "
