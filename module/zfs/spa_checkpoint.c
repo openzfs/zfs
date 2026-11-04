@@ -235,7 +235,8 @@ spa_checkpoint_discard_sync_callback(space_map_entry_t *sme, void *arg)
 	    sme->sme_run);
 	ASSERT3U(vd->vdev_stat.vs_checkpoint_space, >=, sme->sme_run);
 
-	vd->vdev_spa->spa_checkpoint_info.sci_dspace -= sme->sme_run;
+	atomic_sub_64(&vd->vdev_spa->spa_checkpoint_info.sci_dspace,
+	    sme->sme_run);
 	vd->vdev_stat.vs_checkpoint_space -= sme->sme_run;
 	sdc->sdc_entry_limit--;
 

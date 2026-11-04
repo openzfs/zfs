@@ -29,6 +29,7 @@
  * Copyright (c) 2016 Actifio, Inc. All rights reserved.
  * Copyright (c) 2012, 2019 by Delphix. All rights reserved.
  * Copyright (c) 2024, 2025, Klara, Inc.
+ * Copyright 2026 Oxide Computer Company
  */
 
 /*
@@ -70,6 +71,10 @@
  * That is why one can be sure that first, zvol_state_t for a given zvol is
  * allocated and placed on zvol_state_list, and then other minor operations for
  * this zvol are going to proceed in the order of issue.
+ *
+ * zvol_remove_minors_impl() shuts down the zvols it removes in parallel on a
+ * taskq of its own, but waits for all of them before it returns, so the minor
+ * operations of a pool still run one at a time.
  */
 
 #include <sys/dataset_kstats.h>
@@ -523,7 +528,13 @@ zvol_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	offset = lr->lr_offset;
 	length = lr->lr_length;
 
-	/* If it's a dmu_sync() block, write the whole block */
+	/*
+	 * If it's a dmu_sync() block, write the whole block.  Older software
+	 * dropped the record when dmu_sync() returned EALREADY, leaving that
+	 * write's data only in the block of the TX_WRITE that caused it.  So
+	 * later writes in the block can be replayed even if their own records
+	 * are lost, which a block device allows.
+	 */
 	if (lr->lr_common.lrc_reclen == sizeof (lr_write_t)) {
 		uint64_t blocksize = BP_GET_LSIZE(&lr->lr_blkptr);
 		if (length < blocksize) {
@@ -1692,6 +1703,51 @@ zvol_create_minors_impl(zvol_task_t *task)
 }
 
 /*
+ * Maximum number of threads that zvol_remove_minors_impl() uses to shut down
+ * zvols in parallel. They mostly sleep while the kernel tears the devices
+ * down, so this doesn't depend on the number of CPUs.
+ */
+#define	ZVOL_REMOVE_MAX_THREADS	32
+
+/*
+ * Shut down a zvol that zvol_remove_minors_impl() marked ZVOL_REMOVING and
+ * take it off the name lookup lists. The caller frees it. Runs directly or as
+ * a taskq task.
+ */
+static void
+zvol_shutdown_minor(void *arg)
+{
+	zvol_state_t *zv = arg;
+
+	mutex_enter(&zv->zv_state_lock);
+
+	/*
+	 * Still open or suspended, just wait. This can happen if, for
+	 * example, we managed to acquire zv_state_lock in the moments
+	 * where zvol_open() or zvol_release() are trading locks to
+	 * call zvol_first_open() or zvol_last_close().
+	 */
+	while (zv->zv_open_count > 0 ||
+	    atomic_read(&zv->zv_suspend_ref))
+		cv_wait(&zv->zv_removing_cv, &zv->zv_state_lock);
+
+	/*
+	 * No users, shut down the OS side. This may not remove the
+	 * minor from view immediately, depending on the kernel
+	 * specifics, but it will ensure that it is unusable and that
+	 * this zvol_state_t can never again be reached from an OS-side
+	 * operation.
+	 */
+	zvol_os_remove_minor(zv);
+	mutex_exit(&zv->zv_state_lock);
+
+	/* Remove it from the name lookup lists */
+	rw_enter(&zvol_state_lock, RW_WRITER);
+	zvol_remove(zv);
+	rw_exit(&zvol_state_lock);
+}
+
+/*
  * Remove minors for specified dataset and, optionally, its children and
  * snapshots.
  */
@@ -1718,6 +1774,7 @@ zvol_remove_minors_impl(zvol_task_t *task)
 	list_t remove_list;
 	list_create(&remove_list, sizeof (zvol_state_t),
 	    offsetof(zvol_state_t, zv_remove_node));
+	uint_t nremove = 0;
 
 	rw_enter(&zvol_state_lock, RW_READER);
 
@@ -1772,6 +1829,7 @@ zvol_remove_minors_impl(zvol_task_t *task)
 
 			/* Put it on the list for the next stage. */
 			list_insert_head(&remove_list, zv);
+			nremove++;
 		} else
 			mutex_exit(&zv->zv_state_lock);
 	}
@@ -1785,36 +1843,30 @@ zvol_remove_minors_impl(zvol_task_t *task)
 		return;
 	}
 
-	/* Actually shut them all down. */
-	for (zv = list_head(&remove_list); zv != NULL; zv = zv_next) {
-		zv_next = list_next(&remove_list, zv);
-
-		mutex_enter(&zv->zv_state_lock);
-
-		/*
-		 * Still open or suspended, just wait. This can happen if, for
-		 * example, we managed to acquire zv_state_lock in the moments
-		 * where zvol_open() or zvol_release() are trading locks to
-		 * call zvol_first_open() or zvol_last_close().
-		 */
-		while (zv->zv_open_count > 0 ||
-		    atomic_read(&zv->zv_suspend_ref))
-			cv_wait(&zv->zv_removing_cv, &zv->zv_state_lock);
-
-		/*
-		 * No users, shut down the OS side. This may not remove the
-		 * minor from view immediately, depending on the kernel
-		 * specifics, but it will ensure that it is unusable and that
-		 * this zvol_state_t can never again be reached from an OS-side
-		 * operation.
-		 */
-		zvol_os_remove_minor(zv);
-		mutex_exit(&zv->zv_state_lock);
-
-		/* Remove it from the name lookup lists */
-		rw_enter(&zvol_state_lock, RW_WRITER);
-		zvol_remove(zv);
-		rw_exit(&zvol_state_lock);
+	/*
+	 * Actually shut them all down. On Linux, removing a block device waits
+	 * for an RCU grace period, which adds up over many zvols, so shut them
+	 * down in parallel on a taskq of our own. The tasks don't touch
+	 * remove_list, and all of them finish before we free anything.
+	 */
+	taskq_t *tq = NULL;
+	if (nremove > 1) {
+		int nthreads = MIN(nremove, ZVOL_REMOVE_MAX_THREADS);
+		tq = taskq_create("zvol_remove", nthreads, defclsyspri,
+		    nthreads, INT_MAX, 0);
+	}
+	for (zv = list_head(&remove_list); zv != NULL;
+	    zv = list_next(&remove_list, zv)) {
+		if (tq == NULL) {
+			zvol_shutdown_minor(zv);
+		} else {
+			VERIFY(taskq_dispatch(tq, zvol_shutdown_minor, zv,
+			    TQ_SLEEP) != TASKQID_INVALID);
+		}
+	}
+	if (tq != NULL) {
+		taskq_wait(tq);
+		taskq_destroy(tq);
 	}
 
 	/*

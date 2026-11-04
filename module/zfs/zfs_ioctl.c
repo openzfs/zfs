@@ -179,6 +179,7 @@
 #include <sys/zone.h>
 #include <sys/nvpair.h>
 #include <sys/pathname.h>
+#include <sys/tsd.h>
 #include <sys/fs/zfs.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zfs_dir.h>
@@ -549,37 +550,13 @@ zfs_secpolicy_write_perms(const char *name, const char *perm, cred_t *cr)
 	return (error);
 }
 
-/*
- * Check dsl_deleg permission for zoned_uid datasets.
- *
- * This bypasses zfs_dozonecheck_ds() (which requires the 'zoned' property)
- * because zoned_uid datasets use a different authentication model.  The zone
- * check was already performed by zone_dataset_admin_check().
- *
- * Returns 0 if permission is granted, error otherwise.
- * ECANCELED from dsl_deleg_access_impl() means delegation is disabled on the
- * pool — in that case we deny access (POLP: no delegation = no access).
- */
+/* UID authority does not require the namespace-specific zoned property. */
 static int
 zfs_secpolicy_zoned_uid_deleg(const char *name, const char *perm, cred_t *cr)
 {
-	dsl_pool_t *dp;
-	dsl_dataset_t *ds;
-	int error;
+	int error = dsl_deleg_access(name, perm, cr);
 
-	error = dsl_pool_hold(name, FTAG, &dp);
-	if (error != 0)
-		return (error);
-	error = dsl_dataset_hold(dp, name, FTAG, &ds);
-	if (error != 0) {
-		dsl_pool_rele(dp, FTAG);
-		return (error);
-	}
-	error = dsl_deleg_access_impl(ds, perm, cr);
-	dsl_dataset_rele(ds, FTAG);
-	dsl_pool_rele(dp, FTAG);
-
-	/* ECANCELED = delegation disabled on pool; deny access (POLP) */
+	/* Disabling delegation must not fall back to namespace capabilities. */
 	if (error == ECANCELED)
 		return (SET_ERROR(EPERM));
 	return (error);
@@ -693,14 +670,12 @@ zfs_secpolicy_setprop(const char *dsname, zfs_prop_t prop, nvpair_t *propval,
 	const char *strval;
 	zone_admin_result_t zone_result;
 
-	/*
-	 * Check zoned_uid delegation first.  However, even delegated
-	 * namespace users must not be allowed to modify zoned_uid itself.
-	 */
+	if (!INGLOBALZONE(curproc) &&
+	    (prop == ZFS_PROP_ZONED || prop == ZFS_PROP_ZONED_UID))
+		return (SET_ERROR(EPERM));
+
 	zone_result = zone_dataset_admin_check(dsname, ZONE_OP_SETPROP, NULL);
 	if (zone_result == ZONE_ADMIN_ALLOWED) {
-		if (prop == ZFS_PROP_ZONED_UID)
-			return (SET_ERROR(EPERM));
 		if (prop == ZFS_PROP_FILESYSTEM_LIMIT ||
 		    prop == ZFS_PROP_SNAPSHOT_LIMIT) {
 			char setpoint[ZFS_MAX_DATASET_NAME_LEN];
@@ -723,23 +698,6 @@ zfs_secpolicy_setprop(const char *dsname, zfs_prop_t prop, nvpair_t *propval,
 	switch (prop) {
 	default:
 		break;
-	case ZFS_PROP_ZONED:
-		/*
-		 * Disallow setting of 'zoned' from within a local zone.
-		 */
-		if (!INGLOBALZONE(curproc))
-			return (SET_ERROR(EPERM));
-		break;
-	case ZFS_PROP_ZONED_UID:
-		/*
-		 * Disallow setting of 'zoned_uid' from within a
-		 * delegated namespace -- only global zone can manage
-		 * delegation assignments.
-		 */
-		if (!INGLOBALZONE(curproc))
-			return (SET_ERROR(EPERM));
-		break;
-
 	case ZFS_PROP_QUOTA:
 	case ZFS_PROP_FILESYSTEM_LIMIT:
 	case ZFS_PROP_SNAPSHOT_LIMIT:
@@ -1011,44 +969,32 @@ zfs_secpolicy_destroy_snaps(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 int
 zfs_secpolicy_rename_perms(const char *from, const char *to, cred_t *cr)
 {
-	char	parentname[ZFS_MAX_DATASET_NAME_LEN];
-	int	error;
+	char parentname[ZFS_MAX_DATASET_NAME_LEN];
+	int error;
+	int (*secpolicy)(const char *, const char *, cred_t *);
 	zone_admin_result_t result;
 
-	/* Check zoned_uid delegation first */
 	result = zone_dataset_admin_check(from, ZONE_OP_RENAME, to);
-	if (result == ZONE_ADMIN_ALLOWED) {
-		if ((error = zfs_secpolicy_zoned_uid_deleg(from,
-		    ZFS_DELEG_PERM_RENAME, cr)) != 0)
-			return (error);
-		return (zfs_secpolicy_zoned_uid_deleg(from,
-		    ZFS_DELEG_PERM_MOUNT, cr));
-	}
 	if (result == ZONE_ADMIN_DENIED)
 		return (SET_ERROR(EPERM));
 
-	/* NOT_APPLICABLE: continue with existing checks */
-	if ((error = zfs_secpolicy_write_perms(from,
-	    ZFS_DELEG_PERM_RENAME, cr)) != 0)
+	secpolicy = result == ZONE_ADMIN_ALLOWED ?
+	    zfs_secpolicy_zoned_uid_deleg : zfs_secpolicy_write_perms;
+
+	if ((error = secpolicy(from, ZFS_DELEG_PERM_RENAME, cr)) != 0)
 		return (error);
 
-	if ((error = zfs_secpolicy_write_perms(from,
-	    ZFS_DELEG_PERM_MOUNT, cr)) != 0)
+	if ((error = secpolicy(from, ZFS_DELEG_PERM_MOUNT, cr)) != 0)
 		return (error);
 
 	if ((error = zfs_get_parent(to, parentname,
 	    sizeof (parentname))) != 0)
 		return (error);
 
-	if ((error = zfs_secpolicy_write_perms(parentname,
-	    ZFS_DELEG_PERM_CREATE, cr)) != 0)
+	if ((error = secpolicy(parentname, ZFS_DELEG_PERM_CREATE, cr)) != 0)
 		return (error);
 
-	if ((error = zfs_secpolicy_write_perms(parentname,
-	    ZFS_DELEG_PERM_MOUNT, cr)) != 0)
-		return (error);
-
-	return (error);
+	return (secpolicy(parentname, ZFS_DELEG_PERM_MOUNT, cr));
 }
 
 static int
@@ -3118,6 +3064,10 @@ zfs_prop_set_special(const char *dsname, zprop_source_t source,
 	}
 	case ZFS_PROP_ZONED_UID:
 	{
+		if (intval >= MAXUID) {
+			err = SET_ERROR(EINVAL);
+			break;
+		}
 		uint64_t old_uid = 0;
 		(void) dsl_prop_get(dsname, "zoned_uid", 8, 1, &old_uid, NULL);
 		if (old_uid != 0)

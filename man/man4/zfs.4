@@ -293,6 +293,15 @@ For blocks that could be forced to be a gang block (due to
 .Sy metaslab_force_ganging ) ,
 force this many of them to be gang blocks.
 .
+.It Sy metaslab_verify_weight_delay_ms Ns = Ns Sy 0 Ns ms Pq uint
+When non-zero and
+.Sy zfs_flags
+includes
+.Sy ZFS_DEBUG_METASLAB_VERIFY ,
+delay the verification of an active metaslab's weight during a log space map
+flush by this many milliseconds.
+This option is used by the test suite to trigger race conditions.
+.
 .It Sy brt_zap_prefetch Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Controls prefetching BRT records for blocks which are going to be cloned.
 .
@@ -507,7 +516,12 @@ but this may negatively impact pool space efficiency.
 .It Sy zfs_vdev_direct_write_verify Ns = Ns Sy Linux 1 | FreeBSD 0 Pq uint
 If non-zero, then a Direct I/O write's checksum will be verified every
 time the write is issued and before it is committed to the block pointer.
-In the event the checksum is not valid then the I/O operation will return EIO.
+If the checksum is not valid, the block is not committed and ZFS writes
+the request again from a private copy of the data.
+If the checksum of the copy is also not valid, the I/O operation will
+return EIO.
+On Linux, ZFS also copies the data of every later Direct I/O write
+through the same open file.
 This module parameter can be used to detect if the
 contents of the users buffer have changed in the process of doing a Direct I/O
 write.

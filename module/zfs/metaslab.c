@@ -54,6 +54,14 @@ uint64_t metaslab_force_ganging = SPA_MAXBLOCKSIZE + 1;
 uint_t metaslab_force_ganging_pct = 3;
 
 /*
+ * For testing, delay the weight verification of active metaslabs by this
+ * many milliseconds (see metaslab_verify_weight_and_frag()).  This widens
+ * the window during which concurrent allocators may observe the metaslab
+ * while it is being verified.
+ */
+static uint_t metaslab_verify_weight_delay_ms = 0;
+
+/*
  * In pools where the log space map feature is not enabled we touch
  * multiple metaslabs (and their respective space maps) with each
  * transaction group. Thus, we benefit from having a small space map
@@ -2395,39 +2403,45 @@ metaslab_verify_weight_and_frag(metaslab_t *msp)
 	uint64_t frag = msp->ms_fragmentation;
 	uint64_t max_segsize = msp->ms_max_size;
 
-	msp->ms_weight = 0;
-	msp->ms_fragmentation = 0;
+	if (was_active != 0 && metaslab_verify_weight_delay_ms != 0) {
+		zfs_dbgmsg("delaying %u ms: spa %s vdev %llu ms %llu",
+		    metaslab_verify_weight_delay_ms, spa_name(vd->vdev_spa),
+		    (u_longlong_t)vd->vdev_id, (u_longlong_t)msp->ms_id);
+		delay(MSEC_TO_TICK(metaslab_verify_weight_delay_ms));
+	}
 
 	/*
 	 * This function is used for verification purposes and thus should
 	 * not introduce any side-effects/mutations on the system's state.
 	 *
-	 * Regardless of whether metaslab_weight() thinks this metaslab
-	 * should be active or not, we want to ensure that the actual weight
-	 * (and therefore the value of ms_weight) would be the same if it
-	 * was to be recalculated at this point.
+	 * In particular, ms_weight must not be modified here, even
+	 * temporarily: it is the sort key of the metaslab group's AVL tree,
+	 * and allocators in open context read the active bits of their
+	 * active metaslabs under mg_lock alone (see metaslab_group_alloc()).
+	 * metaslab_weight() only consults those active bits, which we OR
+	 * back in below, so the computation does not depend on the value
+	 * of ms_weight.
 	 *
-	 * In addition we set the nodirty flag so metaslab_weight() does
-	 * not dirty the metaslab for future TXGs (e.g. when trying to
-	 * force condensing to upgrade the metaslab spacemaps).
+	 * We set the nodirty flag so metaslab_weight() does not dirty the
+	 * metaslab for future TXGs (e.g. when trying to force condensing
+	 * to upgrade the metaslab spacemaps).
 	 */
-	msp->ms_weight = metaslab_weight(msp, B_TRUE) | was_active;
+	uint64_t new_weight = metaslab_weight(msp, B_TRUE) | was_active;
 
 	VERIFY3U(max_segsize, ==, msp->ms_max_size);
 
 	/*
 	 * If the weight type changed then there is no point in doing
-	 * verification. Revert fields to their original values.
+	 * verification. Revert ms_fragmentation to its original value.
 	 */
-	if ((space_based && !WEIGHT_IS_SPACEBASED(msp->ms_weight)) ||
-	    (!space_based && WEIGHT_IS_SPACEBASED(msp->ms_weight))) {
+	if ((space_based && !WEIGHT_IS_SPACEBASED(new_weight)) ||
+	    (!space_based && WEIGHT_IS_SPACEBASED(new_weight))) {
 		msp->ms_fragmentation = frag;
-		msp->ms_weight = weight;
 		return;
 	}
 
 	VERIFY3U(msp->ms_fragmentation, ==, frag);
-	VERIFY3U(msp->ms_weight, ==, weight);
+	VERIFY3U(new_weight, ==, weight);
 }
 
 /*
@@ -4469,8 +4483,8 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 		    msp->ms_checkpointing, SM_FREE, SM_NO_VDEVID, tx);
 		mutex_enter(&msp->ms_lock);
 
-		spa->spa_checkpoint_info.sci_dspace +=
-		    zfs_range_tree_space(msp->ms_checkpointing);
+		atomic_add_64(&spa->spa_checkpoint_info.sci_dspace,
+		    zfs_range_tree_space(msp->ms_checkpointing));
 		vd->vdev_stat.vs_checkpoint_space +=
 		    zfs_range_tree_space(msp->ms_checkpointing);
 		ASSERT3U(vd->vdev_stat.vs_checkpoint_space, ==,
@@ -6513,6 +6527,9 @@ ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, force_ganging, U64, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, force_ganging_pct, UINT, ZMOD_RW,
 	"Percentage of large blocks that will be forced to be gang blocks");
+
+ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, verify_weight_delay_ms, UINT,
+	ZMOD_RW, "Delay weight verification of active metaslabs (testing)");
 
 ZFS_MODULE_PARAM(zfs_metaslab, metaslab_, df_max_search, UINT, ZMOD_RW,
 	"Max distance (bytes) to search forward before using size tree");

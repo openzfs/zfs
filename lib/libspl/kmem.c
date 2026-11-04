@@ -102,7 +102,8 @@ kmem_strdup(const char *str)
 }
 
 void
-kmem_strfree(char *str) {
+kmem_strfree(char *str)
+{
 	kmem_free(str, strlen(str) + 1);
 }
 

@@ -588,6 +588,7 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 	uint64_t guid;
 	uint_t children = 0;
 	nvlist_t **child = NULL;
+	uint64_t *child_txg = NULL;
 	uint64_t *hole_array, max_id;
 	uint_t c;
 	boolean_t isactive;
@@ -735,23 +736,50 @@ get_configs(libpc_handle_t *hdl, pool_list_t *pl, boolean_t active_ok,
 
 			if (id >= children) {
 				nvlist_t **newchild;
+				uint64_t *newtxg;
 
 				newchild = zutil_alloc(hdl, (id + 1) *
 				    sizeof (nvlist_t *));
 				if (newchild == NULL)
 					goto nomem;
+				newtxg = zutil_alloc(hdl, (id + 1) *
+				    sizeof (uint64_t));
+				if (newtxg == NULL) {
+					free(newchild);
+					goto nomem;
+				}
 
-				for (c = 0; c < children; c++)
+				for (c = 0; c < children; c++) {
 					newchild[c] = child[c];
+					newtxg[c] = child_txg[c];
+				}
 
 				free(child);
+				free(child_txg);
 				child = newchild;
+				child_txg = newtxg;
 				children = id + 1;
+			}
+
+			/*
+			 * A device can keep the label of a top-level vdev that
+			 * the pool no longer has, such as one added after a
+			 * checkpoint that the pool was then rewound to, while
+			 * a newer top-level vdev has the same id.  Keep the
+			 * one with the latest label.
+			 */
+			if (child[id] != NULL) {
+				if (child_txg[id] >= best_txg)
+					continue;
+				nvlist_free(child[id]);
+				child[id] = NULL;
 			}
 			if (nvlist_dup(nvtop, &child[id], 0) != 0)
 				goto nomem;
-
+			child_txg[id] = best_txg;
 		}
+		free(child_txg);
+		child_txg = NULL;
 
 		/*
 		 * If we have information about all the top-levels then
@@ -1007,6 +1035,7 @@ error:
 	for (c = 0; c < children; c++)
 		nvlist_free(child[c]);
 	free(child);
+	free(child_txg);
 
 	return (NULL);
 }

@@ -1353,6 +1353,22 @@ zil_check_log_chain(dsl_pool_t *dp, dsl_dataset_t *ds, void *tx)
 }
 
 /*
+ * Returns true if an lwb failed and the txg that frees it hasn't synced.
+ * Until then, the on-disk log may end at the failed lwb, so the waiters of
+ * lwbs written since then must wait for txg sync.
+ */
+static boolean_t
+zil_lwb_error_pending(zilog_t *zilog)
+{
+	ASSERT(MUTEX_HELD(&zilog->zl_lock));
+	uint64_t etxg = zilog->zl_lwb_error_txg;
+
+	/* In a frozen pool, txgs after the freeze never reach disk. */
+	return (etxg > spa_last_synced_txg(zilog->zl_spa) ||
+	    etxg > spa_freeze_txg(zilog->zl_spa));
+}
+
+/*
  * When an itx is "skipped", this function is used to properly mark the
  * waiter as "done, and signal any thread(s) waiting on it. An itx can
  * be skipped (and not committed to an lwb) for a variety of reasons,
@@ -1526,6 +1542,28 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 		zilog->zl_commit_lr_seq = zilog->zl_lr_seq;
 	}
 
+	/*
+	 * Everything this lwb's contents depend on is in or before its issue
+	 * txg, and the error handling below relies on this.
+	 */
+	ASSERT3U(lwb->lwb_max_txg, <=, lwb->lwb_issued_txg);
+
+	int error = zio->io_error;
+	if (error != 0) {
+		/*
+		 * This lwb may not be on disk, in which case the on-disk log
+		 * chain ends here.  If another lwb is issued, it will not
+		 * have a zio dependency on this lwb's flush zio, but it
+		 * still needs this lwb for the chain of log records.  Record
+		 * the txg that will eventually free this broken lwb; this
+		 * ensures that zil_commit() waits for it before returning.
+		 */
+		zilog->zl_lwb_error_txg = MAX(zilog->zl_lwb_error_txg,
+		    lwb->lwb_issued_txg);
+	} else if (zil_lwb_error_pending(zilog)) {
+		error = SET_ERROR(EIO);
+	}
+
 	while ((itx = list_remove_head(&lwb->lwb_itxs)) != NULL)
 		zil_itx_destroy(itx, 0);
 
@@ -1544,7 +1582,7 @@ zil_lwb_flush_vdevs_done(zio_t *zio)
 		 * errors not being handled correctly here. See the
 		 * comment above the call to "zio_flush" for details.
 		 */
-		zil_commit_waiter_done(zcw, zio->io_error);
+		zil_commit_waiter_done(zcw, error);
 	}
 
 	uint64_t txg = lwb->lwb_issued_txg;
@@ -2111,9 +2149,14 @@ next_lwb:
 		ASSERT3U(BP_GET_BIRTH(bp), ==, txg);
 		BP_SET_CHECKSUM(bp, (nlwb->lwb_flags & LWB_FLAG_SLIM) ?
 		    ZIO_CHECKSUM_ZILOG2 : ZIO_CHECKSUM_ZILOG);
-		bp->blk_cksum = lwb->lwb_blk.blk_cksum;
-		bp->blk_cksum.zc_word[ZIL_ZC_SEQ]++;
 	}
+	/*
+	 * zil_read_log_block() accepts this lwb only if zc_next_blk has the
+	 * next block's checksum verifier, so set it even if the allocation
+	 * failed.  This lwb then ends the on-disk log, and the next lwb fails.
+	 */
+	bp->blk_cksum = lwb->lwb_blk.blk_cksum;
+	bp->blk_cksum.zc_word[ZIL_ZC_SEQ]++;
 
 	/*
 	 * Reduce TXG open time by incrementing inflight counter and committing
@@ -2524,8 +2567,8 @@ zil_lwb_commit(zilog_t *zilog, lwb_t *lwb, itx_t *itx)
 
 			/*
 			 * Typically, the only return values we should see from
-			 * ->zl_get_data() are 0, EIO, ENOENT, EEXIST or
-			 *  EALREADY. However, it is also possible to see other
+			 * ->zl_get_data() are 0, EIO, ENOENT or EEXIST.
+			 *  However, it is also possible to see other
 			 *  error values such as ENOSPC or EINVAL from
 			 *  dmu_read() -> dnode_hold() -> dnode_hold_impl() or
 			 *  ENXIO as well as a multitude of others from the
@@ -2573,8 +2616,6 @@ zil_lwb_commit(zilog_t *zilog, lwb_t *lwb, itx_t *itx)
 			case ENOENT:
 				zfs_fallthrough;
 			case EEXIST:
-				zfs_fallthrough;
-			case EALREADY:
 				return (0);
 			}
 		}
@@ -3102,9 +3143,12 @@ zil_prune_commit_list(zilog_t *zilog)
 			 * All of the itxs this waiter was waiting on
 			 * must have already completed (or there were
 			 * never any itx's for it to wait on), so it's
-			 * safe to skip this waiter and mark it done.
+			 * safe to skip this waiter and mark it done.  But
+			 * if a failed lwb ended the on-disk log, it must
+			 * wait for txg sync.
 			 */
-			zil_commit_waiter_done(itx->itx_private, 0);
+			zil_commit_waiter_done(itx->itx_private,
+			    zil_lwb_error_pending(zilog) ? SET_ERROR(EIO) : 0);
 		} else {
 			zil_commit_waiter_link_lwb(itx->itx_private, last_lwb);
 		}
@@ -4946,6 +4990,54 @@ zil_replay_split(zilog_t *zilog, zil_replay_arg_t *zr, const lr_t *lr)
 }
 
 static int
+zil_replay_scan_blk(zilog_t *zilog, const blkptr_t *bp, void *arg,
+    uint64_t claim_txg)
+{
+	(void) zilog, (void) bp, (void) arg, (void) claim_txg;
+
+	return (0);
+}
+
+/*
+ * Before replay, look for a TX_WRITE2, which only older software logged.
+ * Stop at the first one.  Unlike zil_replay_log_record(), this doesn't skip
+ * records already replayed (lrc_seq <= zh_replay_seq): any TX_WRITE2 shows
+ * that the log was written by that software, and the records left to replay
+ * were too.
+ */
+static int
+zil_replay_scan_record(zilog_t *zilog, const lr_t *lr, void *arg,
+    uint64_t claim_txg)
+{
+	(void) arg;
+
+	if ((lr->lrc_txtype & ~TX_CI) == TX_WRITE2 &&
+	    lr->lrc_txg >= claim_txg) {
+		zilog->zl_replay_write2 = B_TRUE;
+		return (SET_ERROR(EEXIST));
+	}
+	return (0);
+}
+
+/*
+ * Return whether the log being replayed has a TX_WRITE2 (or couldn't be
+ * scanned), and therefore needs to be replayed as whole blocks, rather than
+ * just each record's range.
+ * Old software logged a TX_WRITE2, with no data or blkptr, when its data was
+ * in the block written for another WR_INDIRECT TX_WRITE in the same txg.
+ * Replaying that TX_WRITE's whole block restores the TX_WRITE2's data.
+ * (Since lwbs are filled outside zl_issuer_lock, that TX_WRITE can come
+ * later in the log, or be missing from it.)  Newer software logs every
+ * WR_INDIRECT as a TX_WRITE with a blkptr, and each record replays its own
+ * range.
+ */
+boolean_t
+zil_replay_whole_blocks(zilog_t *zilog)
+{
+	return (zilog->zl_replay_write2);
+}
+
+static int
 zil_replay_log_record(zilog_t *zilog, const lr_t *lr, void *zra,
     uint64_t claim_txg)
 {
@@ -5078,6 +5170,7 @@ zil_replay(objset_t *os, void *arg,
 	const zil_header_t *zh = zilog->zl_header;
 	zil_replay_arg_t zr;
 	lr_write_t split_lr;
+	int err;
 
 	if ((zh->zh_flags & ZIL_REPLAY_NEEDED) == 0) {
 		return (zil_destroy(zilog, B_TRUE));
@@ -5097,6 +5190,19 @@ zil_replay(objset_t *os, void *arg,
 	 */
 	txg_wait_synced(zilog->zl_dmu_pool, 0);
 
+	/*
+	 * If the scan stops early on an error, such as a read error, we can't
+	 * tell whether the rest of the log has a TX_WRITE2, so replay whole
+	 * blocks, as older software did.  That replays any log correctly,
+	 * though without keeping write order within a block.  The scan reads
+	 * only record headers, which aren't encrypted, so it doesn't decrypt.
+	 */
+	zilog->zl_replay_write2 = B_FALSE;
+	err = zil_parse(zilog, zil_replay_scan_blk, zil_replay_scan_record,
+	    NULL, zh->zh_claim_txg, B_FALSE);
+	if (err != 0)
+		zilog->zl_replay_write2 = B_TRUE;
+
 	zilog->zl_replay = B_TRUE;
 	zilog->zl_replay_time = ddi_get_lbolt();
 	ASSERT0(zilog->zl_replay_blks);
@@ -5105,6 +5211,7 @@ zil_replay(objset_t *os, void *arg,
 	/* If the log ended inside a split write, count it as dropped. */
 	zil_replay_split_drop(zilog, &zr, 0);
 	vmem_free(zr.zr_lr, ZIL_REPLAY_BUFSZ);
+	zilog->zl_replay_write2 = B_FALSE;
 
 	zil_destroy(zilog, B_FALSE);
 	txg_wait_synced(zilog->zl_dmu_pool, zilog->zl_destroy_txg);
@@ -5149,6 +5256,7 @@ EXPORT_SYMBOL(zil_open);
 EXPORT_SYMBOL(zil_close);
 EXPORT_SYMBOL(zil_replay);
 EXPORT_SYMBOL(zil_replaying);
+EXPORT_SYMBOL(zil_replay_whole_blocks);
 EXPORT_SYMBOL(zil_destroy);
 EXPORT_SYMBOL(zil_destroy_sync);
 EXPORT_SYMBOL(zil_itx_create);

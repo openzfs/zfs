@@ -92,15 +92,6 @@ zcp_reason = 'channel program support required'
 
 
 #
-# Some rewind tests can fail since nothing guarantees that old MOS blocks
-# are not overwritten.  Snapshots protect datasets and data files but not
-# the MOS.  Reasonable efforts are made in the test case to increase the
-# odds that some txgs will have their MOS data left untouched, but it is
-# never a sure thing.
-#
-rewind_reason = 'Arbitrary pool rewind is not guaranteed'
-
-#
 # Some tests require a minimum version of the fio benchmark utility.
 # Older distributions such as CentOS 6.x only provide fio-2.0.13.
 #
@@ -182,7 +173,6 @@ known = {
     'casenorm/mixed_formd_lookup_ci': ['FAIL', 7633],
     'cli_user/misc/zfs_share_001_neg': ['SKIP', na_reason],
     'cli_user/misc/zfs_unshare_001_neg': ['SKIP', na_reason],
-    'pool_checkpoint/checkpoint_discard_busy': ['SKIP', 12053],
     'privilege/setup': ['SKIP', na_reason],
     'refreserv/refreserv_004_pos': ['FAIL', known_reason],
     'rootpool/setup': ['SKIP', na_reason],
@@ -208,7 +198,6 @@ elif sys.platform.startswith('linux'):
         'casenorm/mixed_formd_delete': ['FAIL', 7633],
         'casenorm/sensitive_formd_lookup': ['FAIL', 7633],
         'casenorm/sensitive_formd_delete': ['FAIL', 7633],
-        'removal/removal_with_zdb': ['SKIP', known_reason],
         'cli_root/zfs_unshare/zfs_unshare_002_pos': ['SKIP', na_reason],
     })
 
@@ -228,8 +217,6 @@ maybe = {
     'chattr/setup': ['SKIP', exec_reason],
     'channel_program/lua_core/setup': ['SKIP', zcp_reason],
     'channel_program/synctask_core/setup': ['SKIP', zcp_reason],
-    'cli_root/zpool_import/import_rewind_device_replaced':
-        ['FAIL', rewind_reason],
     'crtime/crtime_001_pos': ['SKIP', statx_reason],
     'cli_root/zfs_share/zfs_share_concurrent_shares': ['FAIL', known_reason],
     'cli_root/zfs_unshare/zfs_unshare_006_pos': ['SKIP', na_reason],
@@ -242,7 +229,6 @@ maybe = {
     'history/history_010_pos': ['SKIP', exec_reason],
     'io/mmap': ['SKIP', fio_reason],
     'pam/setup': ['SKIP', "pamtester might be not available"],
-    'pool_checkpoint/checkpoint_discard_busy': ['FAIL', 11946],
     'projectquota/setup': ['SKIP', exec_reason],
     'renameat2/setup': ['SKIP', renameat2_reason],
     'rsend/send-c_stream_size_estimate': ['FAIL', splice_fpos_reason],
@@ -344,7 +330,6 @@ elif sys.platform.startswith('linux'):
         'fault/auto_online_002_pos': ['FAIL', 11889],
         'fault/auto_replace_001_pos': ['FAIL', 14851],
         'fault/auto_spare_002_pos': ['FAIL', 11889],
-        'fault/auto_spare_multiple': ['FAIL', 11889],
         'fault/auto_spare_shared': ['FAIL', 11889],
         'fault/decompress_fault': ['FAIL', 11889],
         'idmap_mount/idmap_mount_001': ['SKIP', idmap_reason],
@@ -373,19 +358,19 @@ def process_results(pathname):
         r'\s*\(run as (\S+)\)\s*\[(\S+)\]\s*\[(\S+)\]'
     pattern_log = r'^\s*Log directory:\s*(\S*)'
 
-    d = {}
+    results = []
     logdir = 'Could not determine log directory.'
     for line in f.readlines():
         m = re.match(pattern, line)
         if m and len(m.groups()) == 4:
-            d[m.group(1)] = m.group(4)
+            results.append((m.group(1), m.group(4)))
             continue
 
         m = re.match(pattern_log, line)
         if m:
             logdir = m.group(1)
 
-    return d, logdir
+    return results, logdir
 
 
 class ListMaybesAction(argparse.Action):
@@ -425,30 +410,30 @@ if __name__ == "__main__":
     unexpected = []
     all_maybes = True
 
-    for test in list(results.keys()):
-        if results[test] == "PASS":
+    for test, result in results:
+        if result == "PASS":
             continue
 
         setup = test.replace(os.path.basename(test), "setup")
-        if results[test] == "SKIP" and test != setup:
+        if result == "SKIP" and test != setup:
             if setup in known and known[setup][0] == "SKIP":
                 continue
             if setup in maybe and maybe[setup][0] == "SKIP":
                 continue
 
-        if (test in known and results[test] in known[test][0]):
-            expected.append(test)
-        elif test in maybe and results[test] in maybe[test][0]:
-            if results[test] == 'SKIP' or args.maybes:
-                expected.append(test)
+        if (test in known and result in known[test][0]):
+            expected.append((test, result))
+        elif test in maybe and result in maybe[test][0]:
+            if result == 'SKIP' or args.maybes:
+                expected.append((test, result))
             elif not args.maybes:
-                unexpected.append(test)
+                unexpected.append((test, result))
         else:
-            unexpected.append(test)
+            unexpected.append((test, result))
             all_maybes = False
 
     print("\nTests with results other than PASS that are expected:")
-    for test in sorted(expected):
+    for test, result in sorted(expected):
         issue_url = 'https://github.com/openzfs/zfs/issues/'
 
         # Include the reason why the result is expected, given the following:
@@ -467,26 +452,20 @@ if __name__ == "__main__":
                 expect = f"{issue_url}{maybe[test][1]}"
             else:
                 expect = maybe[test][1]
-        elif setup in known and known[setup][0] == "SKIP" and setup != test:
-            continue
-        elif setup in maybe and maybe[setup][0] == "SKIP" and setup != test:
-            continue
         else:
             expect = "UNKNOWN REASON"
-        print(f"    {results[test]} {test} ({expect})")
+        print(f"    {result} {test} ({expect})")
 
     print("\nTests with result of PASS that are unexpected:")
-    for test in sorted(known.keys()):
-        # We probably should not be silently ignoring the case
-        # where "test" is not in "results".
-        if test not in results or results[test] != "PASS":
+    for test, result in sorted(results):
+        if test not in known or result != "PASS":
             continue
-        print(f"    {results[test]} {test} (expected {known[test][0]})")
+        print(f"    {result} {test} (expected {known[test][0]})")
 
     print("\nTests with results other than PASS that are unexpected:")
-    for test in sorted(unexpected):
+    for test, result in sorted(unexpected):
         expect = "PASS" if test not in known else known[test][0]
-        print(f"    {results[test]} {test} (expected {expect})")
+        print(f"    {result} {test} (expected {expect})")
 
     if len(unexpected) == 0:
         sys.exit(0)

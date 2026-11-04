@@ -28,6 +28,7 @@
  * Copyright (c) 2023, Rob Norris <robn@despairlabs.com>
  * Copyright (c) 2026, TrueNAS.
  * Copyright 2026 Edgecast Cloud LLC.
+ * Copyright 2026 Oxide Computer Company
  */
 
 #include <stdio.h>
@@ -2552,8 +2553,7 @@ dump_history(spa_t *spa)
 		if ((error = spa_history_get(spa, &off, &len, buf)) != 0) {
 			(void) fprintf(stderr, "Unable to read history: "
 			    "error %d\n", error);
-			free(buf);
-			return;
+			goto out;
 		}
 
 		if (zpool_history_unpack(buf, len, &resid, &events, &num) != 0)
@@ -2646,6 +2646,10 @@ next:
 			dump_nvlist(events[i], 2);
 		}
 	}
+out:
+	for (unsigned i = 0; i < num; i++)
+		nvlist_free(events[i]);
+	free(events);
 	free(buf);
 }
 
@@ -3772,6 +3776,9 @@ zdb_derive_key(dsl_dir_t *dd, uint8_t *key_out)
 		VERIFY0(zap_lookup(dd->dd_pool->dp_meta_objset,
 		    dd->dd_crypto_obj, zfs_prop_to_name(ZFS_PROP_PBKDF2_ITERS),
 		    sizeof (uint64_t), 1, &iters));
+
+		/* libzfs derives the key from the salt in little-endian */
+		salt = LE_64(salt);
 
 		if (PKCS5_PBKDF2_HMAC_SHA1(key_material, strlen(key_material),
 		    ((uint8_t *)&salt), sizeof (uint64_t), iters,
@@ -6504,8 +6511,7 @@ dump_size_histograms(zdb_cb_t *zcb)
 }
 
 static void
-zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
-    dmu_object_type_t type)
+zdb_count_block(zdb_cb_t *zcb, const blkptr_t *bp, dmu_object_type_t type)
 {
 	int i;
 	boolean_t claimed = B_FALSE;
@@ -6513,9 +6519,6 @@ zdb_count_block(zdb_cb_t *zcb, zilog_t *zilog, const blkptr_t *bp,
 	boolean_t brt_block = B_FALSE;
 
 	ASSERT(type < ZDB_OT_TOTAL);
-
-	if (zilog && zil_bp_tree_add(zilog, bp) != 0)
-		return;
 
 	spa_config_enter(zcb->zcb_spa, SCL_CONFIG, FTAG, RW_READER);
 
@@ -6921,6 +6924,7 @@ static int
 zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
     const zbookmark_phys_t *zb, const dnode_phys_t *dnp, void *arg)
 {
+	(void) zilog;
 	zdb_cb_t *zcb = arg;
 	dmu_object_type_t type;
 	boolean_t is_metadata;
@@ -6945,8 +6949,7 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 
 	type = BP_GET_TYPE(bp);
 
-	zdb_count_block(zcb, zilog, bp,
-	    (type & DMU_OT_NEWTYPE) ? ZDB_OT_OTHER : type);
+	zdb_count_block(zcb, bp, (type & DMU_OT_NEWTYPE) ? ZDB_OT_OTHER : type);
 
 	is_metadata = (BP_GET_LEVEL(bp) != 0 || DMU_OT_IS_METADATA(type));
 
@@ -7744,6 +7747,9 @@ zdb_leak_fini(spa_t *spa, zdb_cb_t *zcb)
 				zfs_range_tree_vacate(msp->ms_allocatable,
 				    NULL, NULL);
 			} else {
+				if (!zfs_range_tree_is_empty(
+				    msp->ms_allocatable))
+					leaks = B_TRUE;
 				zfs_range_tree_vacate(msp->ms_allocatable,
 				    zdb_leak, vd);
 			}
@@ -7772,7 +7778,7 @@ count_block_cb(void *arg, const blkptr_t *bp, dmu_tx_t *tx)
 		(void) printf("[%s] %s\n",
 		    "deferred free", blkbuf);
 	}
-	zdb_count_block(zcb, NULL, bp, ZDB_OT_DEFERRED);
+	zdb_count_block(zcb, bp, ZDB_OT_DEFERRED);
 	return (0);
 }
 
@@ -7866,7 +7872,7 @@ zdb_count_ddt_log_frees(spa_t *spa, zdb_cb_t *zcb)
 					    v, &blk);
 					/* As ddt_phys_free() does at flush. */
 					BP_SET_DEDUP(&blk, 0);
-					zdb_count_block(zcb, NULL, &blk,
+					zdb_count_block(zcb, &blk,
 					    ZDB_OT_DDT_PENDING);
 				}
 			}
@@ -8087,6 +8093,7 @@ dump_block_stats(spa_t *spa)
 		    (u_longlong_t)total_alloc,
 		    (dump_opt['L']) ? "unreachable" : "leaked",
 		    (longlong_t)(total_alloc - total_found));
+		leaks = B_TRUE;
 	}
 
 	if (tzb->zb_count == 0) {
@@ -8412,7 +8419,7 @@ zdb_ddt_add_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 	return (0);
 }
 
-static void
+static int
 dump_simulated_ddt(spa_t *spa)
 {
 	avl_tree_t t;
@@ -8420,13 +8427,14 @@ dump_simulated_ddt(spa_t *spa)
 	zdb_ddt_entry_t *zdde;
 	ddt_histogram_t ddh_total = {{{0}}};
 	ddt_stat_t dds_total = {0};
+	int err;
 
 	avl_create(&t, ddt_key_compare,
 	    sizeof (zdb_ddt_entry_t), offsetof(zdb_ddt_entry_t, zdde_node));
 
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 
-	(void) traverse_pool(spa, 0, TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA |
+	err = traverse_pool(spa, 0, TRAVERSE_PRE | TRAVERSE_PREFETCH_METADATA |
 	    TRAVERSE_NO_DECRYPT, zdb_ddt_add_cb, &t);
 
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
@@ -8459,6 +8467,18 @@ dump_simulated_ddt(spa_t *spa)
 	zpool_dump_ddt(&dds_total, &ddh_total, dump_opt['P'] > 0);
 
 	dump_dedup_ratio(&dds_total);
+
+	/*
+	 * The traversal stops at the first block it can't read, so the
+	 * histogram only covers the blocks visited before it.
+	 */
+	if (err != 0) {
+		(void) fprintf(stderr, "zdb: traversing the pool failed: %s; "
+		    "the simulated DDT histogram is incomplete\n",
+		    err == ECKSUM ? "checksum mismatch" : strerror(err));
+	}
+
+	return (err);
 }
 
 static int
@@ -9374,7 +9394,9 @@ dump_zpool(spa_t *spa)
 	}
 
 	if (dump_opt['S']) {
-		dump_simulated_ddt(spa);
+		rc = dump_simulated_ddt(spa);
+		if (rc != 0)
+			zdb_exit(rc);
 		return;
 	}
 

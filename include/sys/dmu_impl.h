@@ -242,13 +242,28 @@ typedef struct dmu_sendstatus {
 } dmu_sendstatus_t;
 
 /*
+ * A dmu_sync() that found another dmu_sync() of the same buffer in progress,
+ * and is waiting for that write's blkptr.  dsw_zio is an unissued child of
+ * the waiter's log block zio, which holds that log block until
+ * dmu_sync_done() fills in its blkptr and issues dsw_zio.
+ */
+typedef struct dmu_sync_waiter {
+	list_node_t		dsw_node;
+	void (*dsw_done)(struct zgd *, int);
+	struct zgd		*dsw_zgd;
+	zio_t			*dsw_zio;
+} dmu_sync_waiter_t;
+
+/*
  * dmu_sync_{ready/done} args
  */
-typedef struct {
+typedef struct dmu_sync_arg {
 	dbuf_dirty_record_t	*dsa_dr;
 	void (*dsa_done)(struct zgd *, int);
 	struct zgd		*dsa_zgd;
 	dmu_tx_t		*dsa_tx;
+	uint32_t		*dsa_dio_verify_fails;
+	list_t			dsa_waiters;	/* dmu_sync_waiter_t */
 } dmu_sync_arg_t;
 
 void dmu_sync_done(zio_t *, arc_buf_t *buf, void *varg);
@@ -257,7 +272,8 @@ void dmu_sync_ready(zio_t *, arc_buf_t *buf, void *varg);
 void dmu_object_zapify(objset_t *, uint64_t, dmu_object_type_t, dmu_tx_t *);
 void dmu_object_free_zapified(objset_t *, uint64_t, dmu_tx_t *);
 
-int dmu_write_direct(zio_t *, dmu_buf_impl_t *, abd_t *, dmu_tx_t *);
+int dmu_write_direct(zio_t *, dmu_buf_impl_t *, abd_t *, dmu_tx_t *,
+    uint32_t *);
 int dmu_read_abd(dnode_t *, uint64_t, uint64_t, abd_t *, dmu_flags_t);
 int dmu_write_abd(dnode_t *, uint64_t, uint64_t, abd_t *, dmu_flags_t,
     dmu_tx_t *);

@@ -35,7 +35,8 @@
 #define	pdfail(str) _pdfail(__FILE__, __LINE__, str)
 
 int
-main(int argc, char **argv) {
+main(int argc, char **argv)
+{
 	if (argc != 3) {
 		printf("usage: mmap_ftruncate <file> <size>\n");
 		exit(2);

@@ -39,12 +39,14 @@
 
 verify_runnable "global"
 
-log_unsupported "Skipping, issue https://github.com/openzfs/zfs/issues/12053"
+typeset discard_memory_saved=false
 
 function test_cleanup
 {
 	# reset to original value
-	log_must restore_tunable SPA_DISCARD_MEMORY_LIMIT
+	if $discard_memory_saved; then
+		log_must restore_tunable SPA_DISCARD_MEMORY_LIMIT
+	fi
 	cleanup_nested_pools
 }
 
@@ -71,6 +73,7 @@ log_onexit test_cleanup
 #	verify this.
 #
 log_must save_tunable SPA_DISCARD_MEMORY_LIMIT
+discard_memory_saved=true
 set_tunable64 SPA_DISCARD_MEMORY_LIMIT 128
 
 log_must zpool checkpoint $NESTEDPOOL
@@ -105,6 +108,7 @@ log_mustnot zpool reguid $NESTEDPOOL
 
 # reset to original value
 log_must restore_tunable SPA_DISCARD_MEMORY_LIMIT
+discard_memory_saved=false
 
 nested_wait_discard_finish
 

@@ -38,7 +38,7 @@ function usage
 	cat >&2 <<EOF
 
 $0 [-hlM] [-c <dump directory>] [-f <vdev directory>]
-  [-m <max core dumps>] [-s <vdev size>] [-t <timeout>]
+  [-m <max core dumps>] [-s <vdev size>] [-S <seed>] [-t <timeout>]
   [-I <max iterations>] [-- [extra ztest parameters]]
 
   This script runs ztest repeatedly with randomized arguments.
@@ -56,6 +56,8 @@ $0 [-hlM] [-c <dump directory>] [-f <vdev directory>]
         A hostid is exported through ZFS_HOSTID for those runs.
     -m  Max number of core dumps to allow before exiting.
     -s  Size of vdev devices.
+    -S  Seed for the randomized arguments and the ztest seed of
+        every iteration. If not provided, a random seed is used.
     -t  Total time to loop for, in seconds. If not provided,
         zloop runs forever.
     -I  Max number of iterations to loop before exiting.
@@ -199,12 +201,14 @@ coremax=0
 symlink=0
 iterations=0
 multihost=0
-while getopts ":ht:m:I:s:c:f:lM" opt; do
+seed=$RANDOM
+while getopts ":ht:m:I:s:S:c:f:lM" opt; do
 	case $opt in
 		t ) [[ $OPTARG -gt 0 ]] && timeout=$OPTARG ;;
 		m ) [[ $OPTARG -gt 0 ]] && coremax=$OPTARG ;;
 		I ) [[ -n $OPTARG ]] && iterations=$OPTARG ;;
 		s ) [[ -n $OPTARG ]] && size=$OPTARG ;;
+		S ) [[ -n $OPTARG ]] && seed=$OPTARG ;;
 		c ) [[ -n $OPTARG ]] && coredir=$OPTARG ;;
 		f ) [[ -n $OPTARG ]] && basedir=$(readlink -f "$OPTARG") ;;
 		l ) symlink=1 ;;
@@ -243,6 +247,11 @@ if [[ ! -w $coredir ]]; then
 fi
 
 or_die rm -f ztest.history ztest.zdb ztest.cores
+
+# Every RANDOM below is drawn from this seed. The -J seed handed to each
+# ztest run is drawn from it too, so one integer reproduces the whole loop.
+RANDOM=$seed
+echo "zloop seed: $seed" | tee -a ztest.history ztest.out
 
 ztrc=0		# ztest return value
 foundcrashes=0	# number of crashes found so far
@@ -340,6 +349,14 @@ while (( timeout == 0 )) || (( curtime <= (starttime + timeout) )); do
 	zopt="$zopt -C $class"
 	zopt="$zopt -s $size"
 	zopt="$zopt -f $workdir"
+
+	# ztest takes a 64 hex digit seed
+	ztest_seed=""
+	for _ in $(seq 16); do
+		printf -v h '%04x' "$RANDOM"
+		ztest_seed+=$h
+	done
+	zopt="$zopt -J $ztest_seed"
 
 	#
 	# Exercise multihost on a fraction of the iterations rather than all

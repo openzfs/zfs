@@ -170,7 +170,7 @@ for i in $(seq 1 $ITERATIONS); do
 
 	prev_dio_wr=$(kstat_pool $TESTPOOL iostats.direct_write_count)
 	log_must manipulate_user_buffer -f "$mntpnt/direct-write.iso" \
-	    -n $NUMBLOCKS -b $BS -e -w
+	    -n $NUMBLOCKS -b $BS -w
 
 	# Reading file back to verify there no are checksum errors
 	filesize=$(get_file_size "$mntpnt/direct-write.iso")

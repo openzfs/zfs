@@ -25,8 +25,9 @@
 #	1. Verify default zoned_uid is 0 (none)
 #	2. Set zoned_uid to a test UID
 #	3. Verify the property value is correct
-#	4. Clear zoned_uid (set to 0)
-#	5. Verify it returns to 0
+#	4. Verify a uid is displayed as a plain integer, not a nicenum
+#	5. Clear zoned_uid (set to 0)
+#	6. Verify it returns to 0
 #
 
 verify_runnable "global"
@@ -60,6 +61,15 @@ if [[ "$set_val" != "$ZONED_TEST_UID" ]]; then
 	log_fail "zoned_uid should be $ZONED_TEST_UID, got: $set_val"
 fi
 log_note "zoned_uid set to $ZONED_TEST_UID successfully"
+
+# The uid must be displayed verbatim, not abbreviated (e.g. "1.46K")
+log_must set_zoned_uid "$TESTPOOL/$TESTFS/zoned_test" 1500
+typeset disp_val
+disp_val=$(zfs get -H -o value zoned_uid "$TESTPOOL/$TESTFS/zoned_test")
+if [[ "$disp_val" != "1500" ]]; then
+	log_fail "zoned_uid should be displayed as 1500, got: $disp_val"
+fi
+log_note "zoned_uid is displayed as a plain integer"
 
 # Clear zoned_uid
 log_must clear_zoned_uid "$TESTPOOL/$TESTFS/zoned_test"

@@ -62,7 +62,8 @@ function check_count_freq
 
 	# equality check, for 100% frequency, or if we've never matched the rule
 	if [[ $match -eq 0 || $freq -eq 100 ]] ; then
-		return [[ $match -eq 0 $inject ]]
+		[[ $inject -eq $match ]]
+		return
 	fi
 
 	# Compute the expected injection count, and compare. Because we're
@@ -70,7 +71,7 @@ function check_count_freq
 	# the injection account to be within +/- 10% of the expected count.
 	typeset -i expect=$(($match * $freq / 100))
 	typeset -i diff=$((($expect - $inject) / 10))
-	return [[ $diff -ge -1 && $diff -le 1 ]]
+	[[ $diff -ge -1 && $diff -le 1 ]]
 }
 
 # Test device IO injections by injecting write errors, doing some writes,
@@ -99,7 +100,7 @@ function test_object_injection
 	for freq in 100 50 ; do
 		log_must zinject -t data -e checksum -f $freq /$TESTPOOL/file
 
-		cat /tank/file > /dev/null || true
+		cat /$TESTPOOL/file > /dev/null || true
 
 		log_must check_count_freq $freq
 

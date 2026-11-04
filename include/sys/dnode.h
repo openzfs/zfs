@@ -446,6 +446,7 @@ void dnode_fini(void);
 int dnode_next_offset(dnode_t *dn, int flags, uint64_t *off,
     int minlvl, uint64_t blkfill, uint64_t txg);
 void dnode_evict_dbufs(dnode_t *dn);
+int dnode_decrypt_bonus(dnode_t *dn);
 void dnode_evict_bonus(dnode_t *dn);
 void dnode_free_interior_slots(dnode_t *dn);
 
@@ -648,14 +649,20 @@ extern dnode_sums_t dnode_sums;
  * Assert that we are not modifying the range tree for the syncing TXG from
  * a non-syncing thread. We verify that either the transaction group is
  * strictly newer than the one currently syncing (meaning it's being modified
- * in open context), OR the current thread is the sync thread itself. If this
- * triggers, it indicates a race where dn_free_ranges is being modified while
- * dnode_sync() may be iterating over it.
+ * in open context), OR the current thread is the sync thread
+ * itself, OR the dnode is a user, group or project usage object being
+ * updated in syncing context. If this triggers, it indicates a race
+ * where dn_free_ranges is being modified while dnode_sync() may be
+ * iterating over it.
  */
 #define	FREE_RANGE_VERIFY(tx, dn) \
 	ASSERT((tx)->tx_txg > spa_syncing_txg((dn)->dn_objset->os_spa) || \
 	    dmu_objset_pool((dn)->dn_objset)->dp_tx.tx_sync_thread == \
-	    curthread)
+	    curthread || \
+	    (dmu_tx_is_syncing(tx) && \
+	    ((dn)->dn_object == DMU_USERUSED_OBJECT || \
+	    (dn)->dn_object == DMU_GROUPUSED_OBJECT || \
+	    (dn)->dn_object == DMU_PROJECTUSED_OBJECT)))
 
 #ifdef	__cplusplus
 }

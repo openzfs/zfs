@@ -365,6 +365,7 @@ AC_DEFUN([ZFS_AC_CONFIG], [
 	AM_CONDITIONAL([CONFIG_QAT],
 	    [test "$ZFS_CONFIG" = kernel -o "$ZFS_CONFIG" = all] &&
 	    [test "x$qatsrc" != x ])
+	AM_CONDITIONAL([KERNEL_CRYPTO], [test "x$kernel_crypto" = xyes])
 	AM_CONDITIONAL([WANT_DEVNAME2DEVID], [test "x$user_libudev" = xyes ])
 	AM_CONDITIONAL([WANT_MMAP_LIBAIO], [test "x$user_libaio" = xyes ])
 	AM_CONDITIONAL([PAM_ZFS_ENABLED], [test "x$enable_pam" = xyes])
@@ -633,6 +634,8 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 			VENDOR=gentoo ;
 		elif test -f /etc/lunar.release ; then
 			VENDOR=lunar ;
+		elif test -f /etc/macaroni-release ; then
+			VENDOR=macaroni ;
 		elif test -f /etc/openEuler-release ; then
 			VENDOR=openeuler ;
 		elif test -f /etc/SuSE-release ; then
@@ -660,7 +663,7 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default package type])
 	case "$VENDOR" in
-		alpine|arch|artix|gentoo|lunar|slackware)
+		alpine|arch|artix|gentoo|lunar|macaroni|slackware)
 			DEFAULT_PACKAGE=tgz  ;;
 		debian|ubuntu)
 			DEFAULT_PACKAGE=deb  ;;
@@ -683,7 +686,7 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default shell])
 	case "$VENDOR" in
-		alpine|gentoo)	DEFAULT_INIT_SHELL=/sbin/openrc-run
+		alpine|gentoo|macaroni)	DEFAULT_INIT_SHELL=/sbin/openrc-run
 				IS_SYSV_RC=false	;;
 		artix)		DEFAULT_INIT_SHELL=/usr/bin/openrc-run
 				IS_SYSV_RC=false	;;
@@ -705,7 +708,7 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default init config directory])
 	case "$VENDOR" in
-		alpine|artix|gentoo)
+		alpine|artix|gentoo|macaroni)
 			initconfdir=/etc/conf.d
 			;;
 		fedora|openeuler|redhat|sles|toss)
@@ -734,7 +737,7 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default bash completion directory])
 	case "$VENDOR" in
-		alpine|arch|artix|debian|gentoo|ubuntu)
+		alpine|arch|artix|debian|gentoo|macaroni|ubuntu)
 			bashcompletiondir=/usr/share/bash-completion/completions
 			;;
 		freebsd)

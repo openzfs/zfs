@@ -8374,6 +8374,25 @@ zfs_do_bookmark(int argc, char **argv)
 		goto usage;
 	}
 
+	/*
+	 * With -r the bookmarks are created on the source snapshot's dataset
+	 * and its descendants, so the new bookmark must name that same
+	 * dataset.  Anything else would silently create bookmarks somewhere
+	 * other than where the user asked.
+	 */
+	if (recursive) {
+		size_t srclen = strchr(source, '@') - source;
+		size_t booklen = strchr(bookname, '#') - bookname;
+
+		if (srclen != booklen ||
+		    strncmp(source, bookname, srclen) != 0) {
+			(void) fprintf(stderr, "cannot create bookmark '%s': "
+			    "recursive bookmarks (-r) must be created on the "
+			    "source snapshot's dataset\n", bookname);
+			return (1);
+		}
+	}
+
 	/* test the source exists */
 	zfs_handle_t *zhp;
 	zhp = zfs_open(g_zfs, source, source_type);

@@ -92,7 +92,8 @@ zio_crypt_uios_init_os(zfs_uio_t *u1, zfs_uio_t *u2, int iovcnt, int *idx)
 }
 
 void
-zio_crypt_uios_fini_os(zfs_uio_t *u1, zfs_uio_t *u2) {
+zio_crypt_uios_fini_os(zfs_uio_t *u1, zfs_uio_t *u2)
+{
 	ASSERT3U(zfs_uio_iovcnt(u1), ==, zfs_uio_iovcnt(u2));
 
 	kmem_free(zfs_uio_iov(u1), zfs_uio_iovcnt(u1) * sizeof (iovec_t));

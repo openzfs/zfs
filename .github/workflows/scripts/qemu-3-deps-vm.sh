@@ -25,7 +25,8 @@ function alpine() {
     cpio cryptsetup curl curl-dev dhcpcd diffutils eudev eudev-dev eudev-libs \
     findutils fio gawk gdb gettext-dev git grep jq libaio libaio-dev \
     libcap-utils libcurl libtirpc-dev libtool libunwind libunwind-dev \
-    linux-headers linux-tools linux-stable linux-stable-dev lsscsi m4 make \
+    linux-headers linux-pam-dev linux-tools linux-stable linux-stable-dev \
+    lsscsi m4 make \
     nfs-utils openssl-dev parted pax procps py3-cffi py3-distlib py3-packaging \
     py3-setuptools python3 python3-dev qemu-guest-agent rng-tools rsync samba \
     samba-server sed strace sysstat tzdata util-linux util-linux-dev wget \
@@ -233,8 +234,11 @@ case "$1" in
   ubuntu22|ubuntu24)
     debian
     echo "##[group]Install Ubuntu specific"
-    sudo apt-get install -yq linux-tools-common libtirpc-dev \
-      linux-modules-extra-$(uname -r)
+    sudo apt-get install -yq linux-tools-common libtirpc-dev
+    # The runners (ONLY_DEPS) do not need linux-modules-extra
+    if [ -z "${ONLY_DEPS:-}" ] ; then
+      sudo apt-get install -yq linux-modules-extra-$(uname -r)
+    fi
     sudo apt-get install -yq dh-sequence-dkms
 
     # Need 'build-essential' explicitly for ARM builder

@@ -1292,6 +1292,16 @@ badlabel:
 			}
 			break;
 
+		case ZFS_PROP_ZONED_UID:
+			if (intval >= MAXUID) {
+				zfs_error_aux(hdl,
+				    "'%s' must be less than %llu", propname,
+				    (u_longlong_t)MAXUID);
+				(void) zfs_error(hdl, EZFS_BADPROP, errbuf);
+				goto error;
+			}
+			break;
+
 		case ZFS_PROP_UTF8ONLY:
 			chosen_utf = (int)intval;
 			break;
@@ -2831,6 +2841,7 @@ zfs_prop_get(zfs_handle_t *zhp, zfs_prop_t prop, char *propbuf, size_t proplen,
 	case ZFS_PROP_CREATETXG:
 	case ZFS_PROP_OBJSETID:
 	case ZFS_PROP_PBKDF2_ITERS:
+	case ZFS_PROP_ZONED_UID:
 		/*
 		 * These properties are stored as numbers, but they are
 		 * identifiers or counters.
@@ -3127,11 +3138,22 @@ userquota_propname_decode(const char *propname, boolean_t zoned,
 #endif /* HAVE_IDMAP */
 	} else {
 		/* It's a user/group/project ID (eg "12345"). */
+		uint64_t val;
 		uid_t id;
 		char *end;
-		id = strtoul(cp, &end, 10);
-		if (*end != '\0')
+
+		/*
+		 * strtoull() accepts an empty string, leading whitespace
+		 * and a sign, and silently wraps negative values, so require
+		 * a plain string of digits that fits in 32 bits.
+		 */
+		if (!isdigit((unsigned char)*cp))
 			return (EINVAL);
+		errno = 0;
+		val = strtoull(cp, &end, 10);
+		if (errno != 0 || *end != '\0' || val > UINT32_MAX)
+			return (EINVAL);
+		id = (uid_t)val;
 		if (id > MAXUID && !isproject) {
 #ifdef HAVE_IDMAP
 			/* It's an ephemeral ID. */

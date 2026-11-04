@@ -18,8 +18,6 @@
 
 #include <sys/zfs_context.h>
 #include <sys/zfs_file.h>
-#include <libzpool.h>
-#include <libzutil.h>
 
 typedef struct {
 	int f_fd;
@@ -60,15 +58,18 @@ zfs_file_open(const char *path, int flags, int mode, cred_t *cr,
 		old_umask = umask(0);
 
 	fd = open64(path, flags, mode);
-	if (fd == -1)
-		return (errno);
+	err = errno;
 
 	if (flags & O_CREAT)
 		(void) umask(old_umask);
 
+	if (fd == -1)
+		return (err);
+
 	if (vn_dumpdir != NULL) {
 		char *dumppath = kmem_zalloc(MAXPATHLEN, KM_SLEEP);
-		const char *inpath = zfs_basename(path);
+		const char *bn = strrchr(path, '/');
+		const char *inpath = (bn ? bn + 1 : path);
 
 		(void) snprintf(dumppath, MAXPATHLEN,
 		    "%s/%s", vn_dumpdir, inpath);
@@ -353,12 +354,16 @@ zfs_file_deallocate(zfs_file_t *zfp, loff_t offset, loff_t len)
 #if defined(__linux__)
 	rc = fallocate(fp->f_fd,
 	    FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, offset, len);
+	if (rc == -1)
+		rc = errno;
 #elif defined(__FreeBSD__) && (__FreeBSD_version >= 1400029)
 	struct spacectl_range rqsr = {
 		.r_offset = offset,
 		.r_len = len,
 	};
 	rc = fspacectl(fp->f_fd, SPACECTL_DEALLOC, &rqsr, 0, &rqsr);
+	if (rc == -1)
+		rc = errno;
 #else
 	(void) fp, (void) offset, (void) len;
 	rc = EOPNOTSUPP;
@@ -379,7 +384,7 @@ loff_t
 zfs_file_off(zfs_file_t *zfp)
 {
 	file_t *fp = zfp;
-	return (lseek(fp->f_fd, SEEK_CUR, 0));
+	return (lseek(fp->f_fd, 0, SEEK_CUR));
 }
 
 /*
@@ -387,14 +392,17 @@ zfs_file_off(zfs_file_t *zfp)
  *
  * path - fully qualified file path
  *
- * Returns 0 on success.
+ * Returns 0 on success errno on failure.
  *
  * OPTIONAL
  */
 int
 zfs_file_unlink(const char *path)
 {
-	return (remove(path));
+	if (remove(path) == -1)
+		return (errno);
+
+	return (0);
 }
 
 /*

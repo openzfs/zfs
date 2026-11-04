@@ -1777,8 +1777,8 @@ vdev_metaslab_fini(vdev_t *vd)
 	if (vd->vdev_checkpoint_sm != NULL) {
 		ASSERT(spa_feature_is_active(vd->vdev_spa,
 		    SPA_FEATURE_POOL_CHECKPOINT));
-		vd->vdev_spa->spa_checkpoint_info.sci_dspace -=
-		    vd->vdev_stat.vs_checkpoint_space;
+		atomic_sub_64(&vd->vdev_spa->spa_checkpoint_info.sci_dspace,
+		    vd->vdev_stat.vs_checkpoint_space);
 		vd->vdev_stat.vs_checkpoint_space = 0;
 		space_map_close(vd->vdev_checkpoint_sm);
 		/*
@@ -4168,8 +4168,9 @@ vdev_load(vdev_t *vd)
 			 */
 			vd->vdev_stat.vs_checkpoint_space =
 			    -space_map_allocated(vd->vdev_checkpoint_sm);
-			vd->vdev_spa->spa_checkpoint_info.sci_dspace +=
-			    vd->vdev_stat.vs_checkpoint_space;
+			atomic_add_64(
+			    &vd->vdev_spa->spa_checkpoint_info.sci_dspace,
+			    vd->vdev_stat.vs_checkpoint_space);
 		} else if (error != 0) {
 			vdev_dbgmsg(vd, "vdev_load: failed to retrieve "
 			    "checkpoint space map object from vdev ZAP "
@@ -5316,14 +5317,6 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 	vdev_t *vd = zio->io_vd ? zio->io_vd : rvd;
 	vdev_t *pvd;
 	uint64_t txg = zio->io_txg;
-/* Suppress ASAN false positive */
-#ifdef __SANITIZE_ADDRESS__
-	vdev_stat_t *vs = vd ? &vd->vdev_stat : NULL;
-	vdev_stat_ex_t *vsx = vd ? &vd->vdev_stat_ex : NULL;
-#else
-	vdev_stat_t *vs = &vd->vdev_stat;
-	vdev_stat_ex_t *vsx = &vd->vdev_stat_ex;
-#endif
 	zio_type_t type = zio->io_type;
 	int flags = zio->io_flags;
 
@@ -5352,6 +5345,8 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 			return;
 
 		ASSERT(vd == zio->io_vd);
+		vdev_stat_t *vs = &vd->vdev_stat;
+		vdev_stat_ex_t *vsx = &vd->vdev_stat_ex;
 
 		if (flags & ZIO_FLAG_IO_BYPASS)
 			return;
@@ -6419,7 +6414,7 @@ vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 	if ((vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE)) == NULL) {
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
-		return (SET_ERROR(ENOENT));
+		return (SET_ERROR(ENODEV));
 	}
 
 	/* Check that vdev has a zap we can use */
@@ -6472,7 +6467,7 @@ vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 			vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE);
 			if (vd == NULL && error == 0)
-				error = SET_ERROR(ENOENT);
+				error = SET_ERROR(ENODEV);
 			break;
 		case VDEV_PROP_ALLOCATING:
 			if (nvpair_value_uint64(elem, &intval) != 0) {
@@ -6493,7 +6488,7 @@ vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 			vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE);
 			if (vd == NULL && error == 0)
-				error = SET_ERROR(ENOENT);
+				error = SET_ERROR(ENODEV);
 			break;
 		case VDEV_PROP_FAILFAST:
 			if (nvpair_value_uint64(elem, &intval) != 0 ||
@@ -6721,7 +6716,7 @@ vdev_prop_get(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 	if ((vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE)) == NULL) {
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
-		return (SET_ERROR(ENOENT));
+		return (SET_ERROR(ENODEV));
 	}
 
 	/*

@@ -15,7 +15,7 @@
  */
 
 #include <assert.h>
-#include <atomic.h>
+#include <sys/atomic.h>
 #include <err.h>
 #include <errno.h>
 #include <math.h>

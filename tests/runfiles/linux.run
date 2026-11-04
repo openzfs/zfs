@@ -33,7 +33,9 @@ tags = ['functional', 'acl', 'posix-sa']
 
 [tests/functional/block_cloning:Linux]
 tests = ['block_cloning_ficlone', 'block_cloning_ficlonerange',
-    'block_cloning_ficlonerange_partial', 'block_cloning_disabled_ficlone',
+    'block_cloning_ficlonerange_partial',
+    'block_cloning_ficlonerange_tail_past_eof',
+    'block_cloning_disabled_ficlone',
     'block_cloning_disabled_ficlonerange', 'block_cloning_fideduperange',
     'block_cloning_fideduperange_blksz',
     'block_cloning_fideduperange_compress',
@@ -45,7 +47,8 @@ tests = ['block_cloning_ficlone', 'block_cloning_ficlonerange',
     'block_cloning_fideduperange_sparse',
     'block_cloning_fideduperange_subblock',
     'block_cloning_fideduperange_tail',
-    'block_cloning_disabled_fideduperange']
+    'block_cloning_disabled_fideduperange',
+    'block_cloning_sparse_past_eof']
 tags = ['functional', 'block_cloning']
 
 [tests/functional/chattr:Linux]
@@ -117,7 +120,8 @@ tests = ['devices_001_pos', 'devices_002_neg', 'devices_003_pos']
 tags = ['functional', 'devices']
 
 [tests/functional/direct:Linux]
-tests = ['dio_loopback_dev', 'dio_read_verify_decline', 'dio_write_verify']
+tests = ['dio_loopback_dev', 'dio_read_verify_decline', 'dio_write_verify',
+    'dio_write_verify_bounce']
 tags = ['functional', 'direct']
 
 [tests/functional/events:Linux]
@@ -129,7 +133,7 @@ tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter', 'zed_fd_spill',
 tags = ['functional', 'events']
 
 [tests/functional/failmode:Linux]
-tests = ['failmode_nowait_wait']
+tests = ['failmode_create_continue', 'failmode_nowait_wait']
 tags = ['functional', 'failmode']
 
 [tests/functional/fallocate:Linux]
@@ -243,7 +247,8 @@ tests = ['snapdir_admin_create_destroy', 'snapdir_admin_rename_destroy',
     'snapdir_stat_no_mount', 'snapdir_mount_bind', 'snapdir_mount_move',
     'snapdir_mount_expire_bind', 'snapdir_mount_expire_move',
     'snapdir_mount_multiple', 'snapdir_mount_fd_hold', 'snapdir_mount_foreign',
-    'snapdir_mount_destroy_defer', 'snapdir_stat_btime', 'snapdir_statfs_fsid']
+    'snapdir_mount_destroy_defer', 'snapdir_readdir_ino', 'snapdir_stat_btime',
+    'snapdir_statfs_fsid', 'snapdir_lookup_stale', 'snapdir_fh_ctldir']
 tags = ['functional', 'snapdir']
 
 [tests/functional/syncfs:Linux]
@@ -273,7 +278,8 @@ tests = ['groupspace_001_pos', 'groupspace_002_pos', 'groupspace_003_pos',
 tags = ['functional', 'userquota']
 
 [tests/functional/zvol/zvol_misc:Linux]
-tests = ['zvol_misc_fua', 'zvol_misc_rename_open', 'zvol_misc_rename_write']
+tests = ['zvol_misc_fua', 'zvol_misc_rename_open', 'zvol_misc_rename_write',
+    'zvol_misc_write_zeroes']
 tags = ['functional', 'zvol', 'zvol_misc']
 
 [tests/functional/idmap_mount:Linux]

@@ -59,7 +59,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_UBSAN], [
 	AC_MSG_CHECKING([whether to build with -fsanitize=undefined support])
 	AC_ARG_ENABLE([ubsan],
 		[AS_HELP_STRING([--enable-ubsan],
-		[Enable -fsanitize=undefined support  @<:@default=no@:>@])],
+		[Enable UBSan checks that terminate on error  @<:@default=no@:>@])],
 		[],
 		[enable_ubsan=no])
 
@@ -68,18 +68,18 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS_CC_UBSAN], [
 	AC_MSG_RESULT($enable_ubsan)
 
 	AS_IF([ test "$enable_ubsan" = "yes" ], [
-		AC_MSG_CHECKING([whether $CC supports -fsanitize=undefined])
+		UBSAN_CFLAGS="-fsanitize=undefined -fno-sanitize-recover=undefined"
+		AC_MSG_CHECKING([whether $CC supports $UBSAN_CFLAGS])
 		saved_cflags="$CFLAGS"
-		CFLAGS="$CFLAGS -Werror -fsanitize=undefined"
+		CFLAGS="$CFLAGS -Werror $UBSAN_CFLAGS"
 		AC_LINK_IFELSE([
 			AC_LANG_SOURCE([[ int main() { return 0; } ]])
 		], [
-			UBSAN_CFLAGS="-fsanitize=undefined"
 			UBSAN_LDFLAGS="-fsanitize=undefined"
 			UBSAN_ZFS="_with_ubsan"
 			AC_MSG_RESULT([yes])
 		], [
-			AC_MSG_ERROR([$CC does not support -fsanitize=undefined])
+			AC_MSG_ERROR([$CC does not support $UBSAN_CFLAGS])
 		])
 		CFLAGS="$saved_cflags"
 	], [

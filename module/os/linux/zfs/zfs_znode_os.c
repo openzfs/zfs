@@ -88,6 +88,22 @@ zfs_rangelock_cb(zfs_locked_range_t *new, void *arg)
 	}
 
 	/*
+	 * A write starting past the end of the file also extends the file
+	 * over the rest of its last page, which zfs_zero_eof_page() has to
+	 * zero first, so lock from the current end of file.
+	 */
+	if (new->lr_offset > zp->z_size &&
+	    P2PHASE(zp->z_size, PAGE_SIZE) != 0) {
+		uint64_t gap = new->lr_offset - zp->z_size;
+
+		new->lr_offset = zp->z_size;
+		if (new->lr_length > UINT64_MAX - gap)
+			new->lr_length = UINT64_MAX;
+		else
+			new->lr_length += gap;
+	}
+
+	/*
 	 * If we might grow the block size then lock the whole file range.
 	 * NB: this test should match the check in zfs_grow_blocksize
 	 */
@@ -1550,6 +1566,9 @@ zfs_extend(znode_t *zp, uint64_t end)
 		zfs_rangelock_exit(lr);
 		return (0);
 	}
+
+	zfs_zero_eof_page(zp, lr, end);
+
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
@@ -1637,6 +1656,45 @@ zfs_zero_partial_page(znode_t *zp, uint64_t start, uint64_t len)
 		unlock_page(pp);
 		put_page(pp);
 	}
+}
+
+/*
+ * Zero the cached part of the file's last page past the end of the file,
+ * up to end, before the file is extended to end or beyond.
+ *
+ * Stores through a shared mapping can leave data in that part of the page.
+ * zfs_putpage() never writes it out while it is past the end of the file,
+ * but once the file is extended over it, read() would return it from the
+ * page cache, and if the page is (or becomes) dirty, writeback would write
+ * it to disk.  POSIX requires that such modifications are never written
+ * out, and Linux file systems zero this range when the file is extended.
+ *
+ * lr is the caller's RL_WRITER range lock, which zfs_rangelock_cb() extends
+ * down to the end of the file.  Nothing is zeroed outside of it, so the
+ * page cache stays in sync with the ARC if the file was extended by someone
+ * else while the lock was being acquired.
+ */
+void
+zfs_zero_eof_page(znode_t *zp, zfs_locked_range_t *lr, uint64_t end)
+{
+	uint64_t size = zp->z_size;
+	uint64_t len;
+
+	ASSERT3U(lr->lr_type, ==, RL_WRITER);
+
+	if (end <= size || P2PHASE(size, PAGE_SIZE) == 0 ||
+	    lr->lr_offset > size)
+		return;
+
+	end = MIN(end, P2ROUNDUP(size, PAGE_SIZE));
+	if (lr->lr_length != UINT64_MAX)
+		end = MIN(end, lr->lr_offset + lr->lr_length);
+	if (end <= size)
+		return;
+
+	len = end - size;
+	if (zn_has_cached_data(zp, size, size + len - 1))
+		zfs_zero_partial_page(zp, size, len);
 }
 
 /*

@@ -880,7 +880,8 @@ typedef enum arc_fill_flags {
 	ARC_FILL_COMPRESSED	= 1 << 1, /* fill with compressed data */
 	ARC_FILL_ENCRYPTED	= 1 << 2, /* fill with encrypted data */
 	ARC_FILL_NOAUTH		= 1 << 3, /* don't attempt to authenticate */
-	ARC_FILL_IN_PLACE	= 1 << 4  /* fill in place (special case) */
+	ARC_FILL_IN_PLACE	= 1 << 4, /* fill in place (special case) */
+	ARC_FILL_EXISTING	= 1 << 5  /* buf already holds data */
 } arc_fill_flags_t;
 
 typedef enum arc_ovf_level {
@@ -2084,6 +2085,11 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 		}
 	}
 
+	if ((flags & ARC_FILL_EXISTING) != 0 &&
+	    (ARC_BUF_COMPRESSED(buf) != 0) == compressed &&
+	    (ARC_BUF_ENCRYPTED(buf) != 0) == encrypted)
+		return (0);
+
 	/*
 	 * There is a special case here for dnode blocks which are
 	 * decrypting their bonus buffers. These blocks may request to
@@ -2225,7 +2231,7 @@ arc_untransform(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
     boolean_t in_place)
 {
 	int ret;
-	arc_fill_flags_t flags = 0;
+	arc_fill_flags_t flags = ARC_FILL_EXISTING;
 
 	if (in_place)
 		flags |= ARC_FILL_IN_PLACE;
@@ -9610,8 +9616,17 @@ l2arc_apply_transforms(spa_t *spa, arc_buf_hdr_t *hdr, uint64_t asize,
 		if (psize != asize)
 			abd_zero_off(eabd, psize, asize - psize);
 
-		/* assert that the MAC we got here matches the one we saved */
-		ASSERT0(memcmp(mac, hdr->b_crypt_hdr.b_mac, ZIO_DATA_MAC_LEN));
+		/*
+		 * Only a recompression can give another MAC: one that differs
+		 * from the block on disk.  Such a copy would never pass its
+		 * checksum on read, so do not write it.
+		 */
+		if (memcmp(mac, hdr->b_crypt_hdr.b_mac,
+		    ZIO_DATA_MAC_LEN) != 0) {
+			ASSERT3P(to_write, ==, cabd);
+			ret = SET_ERROR(EIO);
+			goto error;
+		}
 		spa_keystore_dsl_key_rele(spa, dck, FTAG);
 
 		if (to_write == cabd)

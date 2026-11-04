@@ -22,7 +22,10 @@ UNIT_TESTS = \
 	%D%/test_sha2 \
 	%D%/test_cityhash \
 	%D%/test_nvpair \
-	%D%/test_timer
+	%D%/test_backtrace \
+	%D%/test_timer \
+	%D%/test_zfs_file \
+	%D%/test_indirect_mapping
 noinst_PROGRAMS = $(UNIT_TESTS)
 
 
@@ -136,6 +139,16 @@ nodist_%C%_test_nvpair_SOURCES = \
 	libunit.la
 
 
+%C%_test_backtrace_CFLAGS = $(AM_CFLAGS)
+
+%C%_test_backtrace_SOURCES = \
+	%D%/test_backtrace.c
+
+%C%_test_backtrace_LDADD = \
+	libunit.la \
+	libspl.la
+
+
 %C%_test_timer_CFLAGS = $(AM_CFLAGS)
 
 %C%_test_timer_SOURCES = \
@@ -144,6 +157,30 @@ nodist_%C%_test_nvpair_SOURCES = \
 %C%_test_timer_LDADD = \
 	libunit.la \
 	libspl.la
+
+
+%C%_test_zfs_file_CFLAGS = $(AM_CFLAGS)
+
+%C%_test_zfs_file_SOURCES = \
+	lib/libzpool/zfs_file_os.c \
+	%D%/test_zfs_file.c
+
+%C%_test_zfs_file_LDADD = \
+	libunit.la \
+	libspl.la
+
+
+%C%_test_indirect_mapping_CFLAGS = $(AM_CFLAGS)
+
+nodist_%C%_test_indirect_mapping_SOURCES = \
+	module/zfs/vdev_indirect_mapping.c
+
+%C%_test_indirect_mapping_SOURCES = \
+	%D%/test_indirect_mapping.c
+
+%C%_test_indirect_mapping_LDADD = \
+	libspl.la \
+	libunit.la
 
 
 # test run and coverage targets below

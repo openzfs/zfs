@@ -227,9 +227,13 @@ vdev_config_generate_stats(vdev_t *vd, nvlist_t *nv)
 	/*
 	 * Add extended stats into a special extended stats nvlist.  This keeps
 	 * all the extended stats nicely grouped together.  The extended stats
-	 * nvlist is then added to the main nvlist.
+	 * nvlist is added to the main nvlist empty and then filled in place,
+	 * so its pairs are not copied.
 	 */
 	nvx = fnvlist_alloc();
+	fnvlist_add_nvlist(nv, ZPOOL_CONFIG_VDEV_STATS_EX, nvx);
+	fnvlist_free(nvx);
+	nvx = fnvlist_lookup_nvlist(nv, ZPOOL_CONFIG_VDEV_STATS_EX);
 
 	/* ZIOs in flight to disk */
 	fnvlist_add_uint64(nvx, ZPOOL_CONFIG_VDEV_SYNC_R_ACTIVE_QUEUE,
@@ -384,10 +388,6 @@ vdev_config_generate_stats(vdev_t *vd, nvlist_t *nv)
 	fnvlist_add_uint64(nvx, ZPOOL_CONFIG_VDEV_DIO_VERIFY_ERRORS,
 	    vs->vs_dio_verify_errors);
 
-	/* Add extended stats nvlist to main nvlist */
-	fnvlist_add_nvlist(nv, ZPOOL_CONFIG_VDEV_STATS_EX, nvx);
-
-	fnvlist_free(nvx);
 	kmem_free(vs, sizeof (*vs));
 	kmem_free(vsx, sizeof (*vsx));
 }
@@ -482,16 +482,14 @@ top_vdev_actions_getprogress(vdev_t *vd, nvlist_t *nvl)
 }
 
 /*
- * Generate the nvlist representing this vdev's config.
+ * Fill the given empty nvlist with this vdev's config.  Child configs are
+ * built in place inside it, so they are not copied.
  */
-nvlist_t *
-vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
-    vdev_config_flag_t flags)
+void
+vdev_config_generate_impl(spa_t *spa, vdev_t *vd, nvlist_t *nv,
+    boolean_t getstats, vdev_config_flag_t flags)
 {
-	nvlist_t *nv = NULL;
 	vdev_indirect_config_t *vic = &vd->vdev_indirect_config;
-
-	nv = fnvlist_alloc();
 
 	fnvlist_add_string(nv, ZPOOL_CONFIG_TYPE, vd->vdev_ops->vdev_op_type);
 	if (!(flags & (VDEV_CONFIG_SPARE | VDEV_CONFIG_L2CACHE)))
@@ -717,6 +715,8 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 
 	if (!vd->vdev_ops->vdev_op_leaf) {
 		nvlist_t **child;
+		nvlist_t *empty = fnvlist_alloc();
+		uint_t children;
 		uint64_t c;
 
 		ASSERT(!vd->vdev_ishole);
@@ -724,18 +724,22 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 		child = kmem_alloc(vd->vdev_children * sizeof (nvlist_t *),
 		    KM_SLEEP);
 
-		for (c = 0; c < vd->vdev_children; c++) {
-			child[c] = vdev_config_generate(spa, vd->vdev_child[c],
-			    getstats, flags);
-		}
+		for (c = 0; c < vd->vdev_children; c++)
+			child[c] = empty;
 
 		fnvlist_add_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
 		    (const nvlist_t * const *)child, vd->vdev_children);
 
-		for (c = 0; c < vd->vdev_children; c++)
-			nvlist_free(child[c]);
-
 		kmem_free(child, vd->vdev_children * sizeof (nvlist_t *));
+		nvlist_free(empty);
+
+		/* Fill each child where it now lives in the array. */
+		VERIFY0(nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+		    &child, &children));
+		for (c = 0; c < children; c++) {
+			vdev_config_generate_impl(spa, vd->vdev_child[c],
+			    child[c], getstats, flags);
+		}
 
 	} else {
 		const char *aux = NULL;
@@ -785,7 +789,18 @@ vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
 			    vd->vdev_orig_guid);
 		}
 	}
+}
 
+/*
+ * Generate the nvlist representing this vdev's config.
+ */
+nvlist_t *
+vdev_config_generate(spa_t *spa, vdev_t *vd, boolean_t getstats,
+    vdev_config_flag_t flags)
+{
+	nvlist_t *nv = fnvlist_alloc();
+
+	vdev_config_generate_impl(spa, vd, nv, getstats, flags);
 	return (nv);
 }
 

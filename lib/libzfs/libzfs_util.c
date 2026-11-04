@@ -1696,6 +1696,36 @@ str2shift(libzfs_handle_t *hdl, const char *buf)
 }
 
 /*
+ * Convert a plain decimal string into a number, without size suffixes.  Used
+ * for properties which are identifiers or counts rather than quantities.
+ */
+static int
+zfs_rawstrtonum(libzfs_handle_t *hdl, const char *value, uint64_t *num)
+{
+	char *end;
+
+	*num = 0;
+
+	if (value[0] < '0' || value[0] > '9') {
+		zfs_error_aux(hdl, "bad numeric value '%s'", value);
+		return (-1);
+	}
+
+	errno = 0;
+	*num = strtoull(value, &end, 10);
+	if (errno == ERANGE) {
+		zfs_error_aux(hdl, "numeric value is too large");
+		return (-1);
+	}
+	if (*end != '\0') {
+		zfs_error_aux(hdl, "bad numeric value '%s'", value);
+		return (-1);
+	}
+
+	return (0);
+}
+
+/*
  * Convert a string of the form '100G' into a real number.  Used when setting
  * properties or creating a volume.  'buf' is used to place an extended error
  * message for the caller to use.
@@ -1842,6 +1872,11 @@ zprop_parse_value(libzfs_handle_t *hdl, nvpair_t *elem, int prop,
 				isnone = B_TRUE;
 			} else if (strcmp(value, "auto") == 0) {
 				isauto = B_TRUE;
+			} else if ((type & ZFS_TYPE_DATASET) &&
+			    (prop == ZFS_PROP_ZONED_UID ||
+			    prop == ZFS_PROP_PBKDF2_ITERS)) {
+				if (zfs_rawstrtonum(hdl, value, ivalp) != 0)
+					goto error;
 			} else if (zfs_nicestrtonum(hdl, value, ivalp) != 0) {
 				goto error;
 			}

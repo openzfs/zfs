@@ -78,7 +78,7 @@ extern "C" {
 #include <setjmp.h>
 #include <assert.h>
 #include <limits.h>
-#include <atomic.h>
+#include <sys/atomic.h>
 #include <dirent.h>
 #include <time.h>
 #include <ctype.h>

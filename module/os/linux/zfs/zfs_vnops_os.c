@@ -835,17 +835,18 @@ out:
 	if (dl)
 		zfs_dirent_unlock(dl);
 
-	if (error) {
-		if (zp)
-			zrele(zp);
-	} else {
+	if (error == 0) {
 		zfs_znode_update_vfs(dzp);
 		zfs_znode_update_vfs(zp);
-		*zpp = zp;
+
+		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+			error = zil_commit(zilog, 0);
 	}
 
-	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-		error = zil_commit(zilog, 0);
+	if (error == 0)
+		*zpp = zp;
+	else if (zp != NULL)
+		zrele(zp);
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
@@ -1396,8 +1397,6 @@ top:
 	if (fuid_dirtied)
 		zfs_fuid_sync(zfsvfs, tx);
 
-	*zpp = zp;
-
 	txtype = zfs_log_create_txtype(Z_DIR, vsecp, vap);
 	if (flags & FIGNORECASE)
 		txtype |= TX_CI;
@@ -1411,16 +1410,19 @@ out:
 
 	zfs_dirent_unlock(dl);
 
-	if (error != 0) {
-		zrele(zp);
-	} else {
+	if (error == 0) {
 		zfs_znode_update_vfs(dzp);
 		zfs_znode_update_vfs(zp);
 
 		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 			error = zil_commit(zilog, 0);
-
 	}
+
+	if (error == 0)
+		*zpp = zp;
+	else
+		zrele(zp);
+
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
 }
@@ -1768,6 +1770,39 @@ zfs_getattr_fast(zidmap_t *idmap, u32 request_mask, struct inode *ip,
 		 */
 		sp->blksize = zfsvfs->z_max_blksz;
 	}
+
+#ifdef STATX_CHANGE_COOKIE
+	if (request_mask & STATX_CHANGE_COOKIE) {
+		/*
+		 * knfsd uses the STATX_CHANGE_COOKIE to surface to clients
+		 * change_info4 data, which is used to implement NFS client
+		 * name caching (see RFC 8881 Section 10.8). This number
+		 * should always increase with changes and should not be
+		 * reused. We cannot simply present ctime here because
+		 * ZFS uses a coarse timer to set them, which may cause
+		 * clients to fail to detect changes and invalidate cache.
+		 *
+		 * z_seq is a per-file 64-bit counter bumped on every change
+		 * and persisted across znode eviction, so it is presented
+		 * directly as a monotonic change cookie. Files that predate
+		 * persistence are seeded from ctime on load so the cookie
+		 * never moves backward across the upgrade.
+		 *
+		 * STATX_ATTR_CHANGE_MONOTONIC is advertised
+		 * to prevent knfsd from generating the change cookie
+		 * based on ctime. C.f. nfsd4_change_attribute in
+		 * fs/nfsd/nfsfh.c.
+		 *
+		 * The cookie is read here, under z_lock and the teardown
+		 * lock. setattr, ACL changes and link/unlink store their
+		 * changes and bump z_seq under z_lock, so the cookie
+		 * returned always matches the attributes returned with it.
+		 */
+		sp->change_cookie = atomic_load_64(&zp->z_seq);
+		sp->attributes |= STATX_ATTR_CHANGE_MONOTONIC;
+		sp->result_mask |= STATX_CHANGE_COOKIE;
+	}
+#endif
 
 	mutex_exit(&zp->z_lock);
 
@@ -3502,14 +3537,13 @@ top:
 
 	zfs_dirent_unlock(dl);
 
-	if (error == 0) {
-		*zpp = zp;
+	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
+		error = zil_commit(zilog, 0);
 
-		if (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
-			error = zil_commit(zilog, 0);
-	} else {
+	if (error == 0)
+		*zpp = zp;
+	else
 		zrele(zp);
-	}
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);

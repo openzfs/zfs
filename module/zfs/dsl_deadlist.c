@@ -298,9 +298,10 @@ dsl_deadlist_open(dsl_deadlist_t *dl, objset_t *os, uint64_t object)
 
 	ASSERT(!dsl_deadlist_is_open(dl));
 
-	mutex_init(&dl->dl_lock, NULL, MUTEX_DEFAULT, NULL);
-	dl->dl_os = os;
-	dl->dl_object = object;
+	/*
+	 * On error, leave dl not open (dl_os == NULL), so that callers
+	 * don't dsl_deadlist_close() it.
+	 */
 	err = dmu_bonus_hold(os, object, dl, &dl->dl_dbuf);
 	if (err != 0)
 		return (err);
@@ -308,14 +309,20 @@ dsl_deadlist_open(dsl_deadlist_t *dl, objset_t *os, uint64_t object)
 	if (doi.doi_type == DMU_OT_BPOBJ) {
 		dmu_buf_rele(dl->dl_dbuf, dl);
 		dl->dl_dbuf = NULL;
+		err = bpobj_open(&dl->dl_bpobj, os, object);
+		if (err != 0)
+			return (err);
 		dl->dl_oldfmt = B_TRUE;
-		return (bpobj_open(&dl->dl_bpobj, os, object));
+	} else {
+		dl->dl_oldfmt = B_FALSE;
+		dl->dl_phys = dl->dl_dbuf->db_data;
+		dl->dl_havetree = B_FALSE;
+		dl->dl_havecache = B_FALSE;
 	}
 
-	dl->dl_oldfmt = B_FALSE;
-	dl->dl_phys = dl->dl_dbuf->db_data;
-	dl->dl_havetree = B_FALSE;
-	dl->dl_havecache = B_FALSE;
+	mutex_init(&dl->dl_lock, NULL, MUTEX_DEFAULT, NULL);
+	dl->dl_os = os;
+	dl->dl_object = object;
 	return (0);
 }
 

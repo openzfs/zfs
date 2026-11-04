@@ -2892,7 +2892,10 @@ function get_rootfs
 
 	if is_freebsd; then
 		rootfs=$(mount -p | awk '$2 == "/" && $3 == "zfs" {print $1}')
-	elif ! is_linux; then
+	elif is_linux; then
+		rootfs=$(awk '$2 == "/" && $3 == "zfs" {print $1}' \
+		    /proc/self/mounts)
+	else
 		rootfs=$(awk '$2 == "/" && $3 == "zfs" {print $1}' \
 			/etc/mnttab)
 	fi
@@ -3051,7 +3054,10 @@ function vdevs_in_pool
 	typeset tmpfile=$(mktemp)
 	zpool status -v "$pool" | grep -A 1000 "config:" >$tmpfile
 	for vdev in "$@"; do
-		grep -wq ${vdev##*/} $tmpfile || return 1
+		if ! grep -wq ${vdev##*/} $tmpfile; then
+			rm -f $tmpfile
+			return 1
+		fi
 	done
 
 	rm -f $tmpfile
@@ -3247,21 +3253,30 @@ function wait_raidz_expand_paused #pool timeout
 	typeset pool=${1:-$TESTPOOL}
 	typeset -i timeout=${2:-300}
 	typeset -i t0=$SECONDS
-	typeset status
-	typeset oldcopied=''
-	typeset newcopied=''
+	typeset pause=$(get_tunable RAIDZ_EXPAND_MAX_REFLOW_BYTES)
+	typeset oldreflowed=''
+	typeset reflowed=''
 
 	while :; do
-		status=$(zpool status $pool)
-
 		# Nothing is left to wait for once it is no longer running.
-		echo "$status" | grep -q 'expansion of .* in progress' || return
+		zpool status $pool | grep -q 'expansion of .* in progress' || \
+		    return
 
-		# It has paused once the amount copied stops changing.
-		newcopied=$(echo "$status" | grep ' copied at ' | \
-		    awk '{print $1}')
-		[[ -n $newcopied && $newcopied == "$oldcopied" ]] && return
-		oldcopied=$newcopied
+		#
+		# It has paused once the amount copied has reached
+		# raidz_expand_max_reflow_bytes and stopped changing (copies
+		# that were already issued are counted once their txg syncs).
+		# The amount alone can stay the same for several seconds
+		# before the pause point, e.g. while the scratch area is
+		# written right after the attach.
+		#
+		reflowed=$(zpool status -jp $pool | \
+		    jq -r '.pools[].raidz_expand_stats.reflowed')
+		if [[ -n $reflowed && $reflowed == "$oldreflowed" ]] &&
+		    (( pause != 0 && reflowed >= pause )); then
+			return
+		fi
+		oldreflowed=$reflowed
 
 		if ((SECONDS - t0 > timeout)); then
 			log_fail "expansion of $pool neither paused nor" \
@@ -3405,7 +3420,7 @@ function zed_start
 function zed_stop
 {
 	if ! is_linux; then
-		return ""
+		return 0
 	fi
 
 	log_note "Stopping ZED"

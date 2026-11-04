@@ -759,6 +759,13 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	if (n > limit - woff)
 		n = limit - woff;
 
+	/*
+	 * A write past the end of the file exposes the rest of its last
+	 * page; clear anything stored there through a mapping.
+	 */
+	if (woff > zp->z_size)
+		zn_zero_eof_page(zp, lr, woff);
+
 	uint64_t end_size = MAX(zp->z_size, woff + n);
 	zilog_t *zilog = zfsvfs->z_log;
 	boolean_t commit = (ioflag & (O_SYNC | O_DSYNC)) ||
@@ -1538,19 +1545,6 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 			 */
 			if (error == 0)
 				return (0);
-
-			if (error == EALREADY) {
-				lr->lr_common.lrc_txtype = TX_WRITE2;
-				/*
-				 * TX_WRITE2 relies on the data previously
-				 * written by the TX_WRITE that caused
-				 * EALREADY.  We zero out the BP because
-				 * it is the old, currently-on-disk BP.
-				 */
-				zgd->zgd_bp = NULL;
-				BP_ZERO(bp);
-				error = 0;
-			}
 		}
 	}
 
@@ -1724,6 +1718,7 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 	uint64_t	uid, gid, projid;
 	blkptr_t	*bps;
 	size_t		maxblocks, nbps;
+	uint64_t	probed = 0, skipped = 0;
 	uint_t		inblksz;
 	uint64_t	clear_setid_bits_txg = 0;
 	uint64_t	last_synced_txg = 0;
@@ -1780,7 +1775,8 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 	 * Length must be multipe of blksz, except for the end of the file.
 	 */
 	if ((len % inblksz) != 0 &&
-	    (len < inzp->z_size - inoff || len < outzp->z_size - outoff))
+	    (len < inzp->z_size - inoff ||
+	    (outoff < outzp->z_size && len < outzp->z_size - outoff)))
 		return (SET_ERROR(EINVAL));
 
 	/*
@@ -1800,6 +1796,13 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 
 	if (inoff >= MAXOFFSET_T || outoff >= MAXOFFSET_T)
 		return (SET_ERROR(EFBIG));
+
+	/*
+	 * Cloning past the end of the file exposes the rest of its last
+	 * page; clear anything stored there through a mapping.
+	 */
+	if (!dedup && outoff > outzp->z_size)
+		zn_zero_eof_page(outzp, outlr, outoff);
 
 	/*
 	 * A dedupe leaves the destination's content and metadata alone: it can
@@ -1838,6 +1841,49 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 	 */
 	while (len > 0) {
 		size = MIN(inblksz * maxblocks, len);
+
+		/*
+		 * A source hole past the destination's EOF needs no
+		 * clone. While the whole destination is locked, the
+		 * clone may still set its block size, so that chunk
+		 * runs and its log record carries the block size for
+		 * replay. The last block always runs too, so replay
+		 * sets the file size with a record that only grows
+		 * it. A skipped hole is done once a later chunk
+		 * extends the file past it. A dirty source is probed
+		 * again at the next chunk, and any other lookup error
+		 * stops the probing.
+		 */
+		if (!dedup && inoff >= probed && len > inblksz &&
+		    outoff >= outzp->z_size &&
+		    outlr->lr_length != UINT64_MAX) {
+			uint64_t next = inoff;
+			int err = dmu_offset_next_nowait(inos,
+			    inzp->z_id, B_FALSE, &next);
+
+			if (err == ESRCH)
+				next = inoff + len;
+			if ((err == 0 || err == ESRCH) &&
+			    next > inoff) {
+				size = MIN(next - inoff,
+				    (len - 1) / inblksz * inblksz);
+				inoff += size;
+				outoff += size;
+				len -= size;
+				skipped += size;
+				continue;
+			}
+			if (err == 0) {
+				err = dmu_offset_next_nowait(inos,
+				    inzp->z_id, B_TRUE, &next);
+				if (err == 0)
+					probed = next;
+			}
+			if (err == EBUSY)
+				probed = inoff + size;
+			else if (err != 0)
+				probed = UINT64_MAX;
+		}
 
 		if (zfs_id_overblockquota(outzfsvfs, DMU_USERUSED_OBJECT,
 		    uid) ||
@@ -2004,7 +2050,8 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 		inoff += size;
 		outoff += size;
 		len -= size;
-		done += size;
+		done += skipped + size;
+		skipped = 0;
 
 		if (issig()) {
 			error = SET_ERROR(EINTR);

@@ -60,7 +60,9 @@ log_onexit cleanup
 # 1. Simulate an active pool on another host with zhack.
 log_note "Simulate an active pool on another host with zhack"
 mmp_pool_destroy $MMP_POOL $MMP_DIR
-mmp_pool_create_zhack $MMP_POOL $MMP_DIR
+# Keep the simulated host alive through all import probes on slow runners.
+# Cleanup terminates it explicitly; the finite lifetime is a failsafe.
+mmp_pool_create_zhack $MMP_POOL $MMP_DIR 600
 
 # 2. Verify 'zpool import' reports an active pool.
 log_note "Verify 'zpool import' reports an active pool"

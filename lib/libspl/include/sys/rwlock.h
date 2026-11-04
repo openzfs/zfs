@@ -20,13 +20,14 @@
 #define	_SYS_RWLOCK_H
 
 #include <pthread.h>
+#include <sys/thread.h>
 
 /*
  * RW locks
  */
 typedef struct krwlock {
 	pthread_rwlock_t	rw_lock;
-	pthread_t		rw_owner;
+	kthread_t		*rw_owner;
 	uint_t			rw_readers;
 } krwlock_t;
 
@@ -38,7 +39,7 @@ typedef int krw_t;
 #define	RW_NOLOCKDEP		RW_READER
 
 #define	RW_READ_HELD(rw)	((rw)->rw_readers > 0)
-#define	RW_WRITE_HELD(rw)	pthread_equal((rw)->rw_owner, pthread_self())
+#define	RW_WRITE_HELD(rw)	((rw)->rw_owner == curthread)
 #define	RW_LOCK_HELD(rw)	(RW_READ_HELD(rw) || RW_WRITE_HELD(rw))
 
 extern void rw_init(krwlock_t *rwlp, char *name, int type, void *arg);

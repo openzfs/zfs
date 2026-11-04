@@ -2973,7 +2973,8 @@ out:
  * Scan the pool.
  */
 int
-zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func, pool_scrub_cmd_t cmd) {
+zpool_scan(zpool_handle_t *zhp, pool_scan_func_t func, pool_scrub_cmd_t cmd)
+{
 	return (zpool_scan_range(zhp, func, cmd, 0, 0, 0));
 }
 
@@ -6227,7 +6228,7 @@ zpool_get_all_vdev_props(zpool_handle_t *zhp, const char *vdevname,
 		(void) snprintf(errbuf, sizeof (errbuf),
 		    "cannot get vdev properties for"
 		    " %s in %s", vdevname, zhp->zpool_name);
-		(void) zpool_standard_error(zhp->zpool_hdl, errno, errbuf);
+		(void) zpool_standard_error(zhp->zpool_hdl, ret, errbuf);
 	}
 
 	return (ret);
@@ -6290,12 +6291,12 @@ zpool_set_vdev_prop(zpool_handle_t *zhp, const char *vdevname,
 	nvlist_free(outnvl);
 
 	if (ret) {
-		if (errno == ENOTSUP) {
+		if (ret == ENOTSUP) {
 			zfs_error_aux(zhp->zpool_hdl,
 			    "property not supported for this vdev");
 			(void) zfs_error(zhp->zpool_hdl, EZFS_PROPTYPE, errbuf);
 		} else {
-			(void) zpool_standard_error(zhp->zpool_hdl, errno,
+			(void) zpool_standard_error(zhp->zpool_hdl, ret,
 			    errbuf);
 		}
 	}

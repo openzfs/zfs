@@ -23,6 +23,6 @@ if poolexists $TESTPOOL ; then
 	log_must destroy_pool $TESTPOOL
 fi
 
-log_must rm -rf $VDIR
+log_must rm -rf $TESTDIR
 
 log_pass

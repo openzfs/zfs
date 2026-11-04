@@ -60,9 +60,11 @@ function cleanup
 function cached_dbufs
 {
 	typeset obj=$(get_objnum $FILE)
+	typeset objset=$(get_prop objsetid $TESTPOOL/$TESTFS)
 
 	kstat dbufs > $DBUFS_FILE
-	dbufstat -bxn -i $DBUFS_FILE -F "object=$obj,level=0,dbc=1" | wc -l
+	dbufstat -bxn -i $DBUFS_FILE \
+	    -F "pool=$TESTPOOL,objset=$objset,object=$obj,level=0,dbc=1" | wc -l
 }
 
 log_assert "POSIX_FADV_NOREUSE I/O is correct and does not fill the cache"

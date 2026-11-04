@@ -93,6 +93,7 @@ void metaslab_trace_move(zio_alloc_list_t *, zio_alloc_list_t *);
 void metaslab_trace_init(zio_alloc_list_t *);
 void metaslab_trace_fini(zio_alloc_list_t *);
 #else
+/* BEGIN CSTYLED */
 static inline void
 metaslab_trace_move(zio_alloc_list_t *old __maybe_unused,
     zio_alloc_list_t *dst __maybe_unused) {}
@@ -100,6 +101,7 @@ static inline void
 metaslab_trace_init(zio_alloc_list_t *zal __maybe_unused) {}
 static inline void
 metaslab_trace_fini(zio_alloc_list_t *zal __maybe_unused) {}
+/* END CSTYLED */
 #endif
 
 metaslab_class_t *metaslab_class_create(spa_t *, const char *,

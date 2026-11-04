@@ -415,9 +415,12 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 		fnvlist_add_uint64(config, ZPOOL_CONFIG_SPLIT_GUID, split_guid);
 	}
 
-	nvroot = vdev_config_generate(spa, vd, getstats, config_gen_flags);
+	/* Add the vdev tree empty and build it in place to avoid a copy. */
+	nvroot = fnvlist_alloc();
 	fnvlist_add_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, nvroot);
 	nvlist_free(nvroot);
+	nvroot = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE);
+	vdev_config_generate_impl(spa, vd, nvroot, getstats, config_gen_flags);
 
 	/*
 	 * Store what's necessary for reading the MOS in the label.

@@ -3345,7 +3345,10 @@ created_before(libzfs_handle_t *hdl, avl_tree_t *avl,
 	if (guid1 == 0)
 		return (1);
 
+	/* Snapshots outside this tree can't be compared: report "same". */
 	nvfs = fsavl_find(avl, guid1, &snapname);
+	if (nvfs == NULL)
+		return (0);
 	fsname = fnvlist_lookup_string(nvfs, "name");
 	(void) snprintf(buf, sizeof (buf), "%s@%s", fsname, snapname);
 	guid1hdl = zfs_open(hdl, buf, ZFS_TYPE_SNAPSHOT);
@@ -3353,6 +3356,10 @@ created_before(libzfs_handle_t *hdl, avl_tree_t *avl,
 		return (-1);
 
 	nvfs = fsavl_find(avl, guid2, &snapname);
+	if (nvfs == NULL) {
+		zfs_close(guid1hdl);
+		return (0);
+	}
 	fsname = fnvlist_lookup_string(nvfs, "name");
 	(void) snprintf(buf, sizeof (buf), "%s@%s", fsname, snapname);
 	guid2hdl = zfs_open(hdl, buf, ZFS_TYPE_SNAPSHOT);
@@ -3483,14 +3490,16 @@ recv_fix_encryption_hierarchy(libzfs_handle_t *hdl, const char *top_zfs,
 
 			/*
 			 * Restore the keylocation only if the stream carried
-			 * properties.  A holds-only raw send has none, and the
-			 * raw receive has already established a usable
-			 * keylocation, so there is nothing to fix up.
+			 * it.  A holds-only raw send has no properties, and a
+			 * 'send -b' stream has only received ones, which
+			 * usually don't include keylocation.  The raw receive
+			 * has then already established a usable keylocation,
+			 * so there is nothing to fix up.
 			 */
-			if (stream_props != NULL) {
-				stream_keylocation = fnvlist_lookup_string(
-				    stream_props,
-				    zfs_prop_to_name(ZFS_PROP_KEYLOCATION));
+			if (stream_props != NULL && nvlist_lookup_string(
+			    stream_props,
+			    zfs_prop_to_name(ZFS_PROP_KEYLOCATION),
+			    &stream_keylocation) == 0) {
 
 				/*
 				 * Refresh the properties in case the call to
@@ -3616,10 +3625,19 @@ again:
 				break;
 		}
 
-		/* check for promote */
+		/*
+		 * Check for promote.  Only an origin inside the received tree
+		 * can have been promoted there: after a 'zfs promote' outside
+		 * it, the local origin is not in local_avl at all.  A zero
+		 * guid means "no origin", which created_before() handles.
+		 */
 		(void) nvlist_lookup_uint64(stream_nvfs, "origin",
 		    &stream_originguid);
-		if (stream_nvfs && originguid != stream_originguid) {
+		if (stream_nvfs && originguid != stream_originguid &&
+		    (originguid == 0 ||
+		    fsavl_find(local_avl, originguid, NULL) != NULL) &&
+		    (stream_originguid == 0 ||
+		    fsavl_find(local_avl, stream_originguid, NULL) != NULL)) {
 			switch (created_before(hdl, local_avl,
 			    stream_originguid, originguid)) {
 			case 1: {

@@ -72,21 +72,31 @@ function verify_trim_io
 }
 
 #
-# Run N txgs which should be enough to trim the entire pool.
+# Wait until each file vdev uses at most size MB on disk.
 #
-function wait_trim_io # pool type txgs
+function wait_trim_io # pool type size vdevs
 {
 	typeset pool="${1-:$TESTPOOL}"
 	typeset type="${2-:ind}"
-	typeset txgs=${3:-10}
+	typeset size=$3
+	typeset vdev
+	shift 3
 	typeset timeout=120
 	typeset stop_time=$(( $(date +%s) + $timeout ))
 
 	typeset -i i=0
-	while [[ $i -lt $txgs ]]; do
+	while :; do
+		typeset trimmed=1
+		for vdev in "$@"; do
+			if (( $(get_size_mb "$vdev") > size )); then
+				trimmed=0
+				break
+			fi
+		done
+		(( trimmed )) && break
 		if [ "$(date +%s)" -ge $stop_time ]; then
+			verify_vdevs "-le" "$size" "$@"
 			log_fail "Exceeded trim time limit of ${timeout}s"
-			return
 		fi
 
 		sync_all_pools true
@@ -94,7 +104,7 @@ function wait_trim_io # pool type txgs
 	done
 
 	typeset ios=$(get_trim_io $pool $type)
-	log_note "Waited for $txgs txgs, $ios $type TRIM IOs"
+	log_note "Waited for $i txgs, $ios $type TRIM IOs"
 }
 
 #

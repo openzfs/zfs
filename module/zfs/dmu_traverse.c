@@ -12,6 +12,7 @@
 /*
  * Copyright (c) 2005, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright (c) 2012, 2018 by Delphix. All rights reserved.
+ * Copyright 2026 Oxide Computer Company
  */
 
 #include <sys/zfs_context.h>
@@ -110,6 +111,10 @@ traverse_zil_record(zilog_t *zilog, const lr_t *lrc, void *arg,
 			return (0);
 
 		if (claim_txg == 0 || get_birth_time(td, bp) < claim_txg)
+			return (0);
+
+		/* Several records can share a dmu_sync() block. */
+		if (zil_bp_tree_add(zilog, bp) != 0)
 			return (0);
 
 		ASSERT3U(BP_GET_LSIZE(bp), !=, 0);

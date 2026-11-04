@@ -24,6 +24,7 @@ function reset
 	log_must set_tunable64 CONDENSE_INDIRECT_OBSOLETE_PCT 25
 	log_must set_tunable64 CONDENSE_MIN_MAPPING_BYTES 131072
 	default_cleanup_noexit
+	log_must rm -rf $TESTDIR1
 }
 
 default_setup_noexit "$DISKS" "true"

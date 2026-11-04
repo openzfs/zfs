@@ -27,8 +27,10 @@
 # 3. Attempt a raw send of both datasets
 # 4. Attempt a raw send with properties of both datasets
 # 5. Attempt a raw replication send of both datasets
-# 6. Unmount and unload the encrypted dataset key
-# 7. Attempt a raw send of the encrypted dataset
+# 6. Unmount the encrypted dataset and attempt a raw send of the file
+#    system itself, with zfs send and with zdb -B
+# 7. Unload the encrypted dataset key
+# 8. Attempt a raw send of the encrypted dataset
 #
 
 verify_runnable "both"
@@ -65,9 +67,15 @@ log_note "Verify ZFS can perform raw replication sends"
 log_must eval "zfs send -wR $snap > /dev/null"
 log_must eval "zfs send -wR $snap1 > /dev/null"
 
+log_note "Verify ZFS can perform a raw send of an unmounted encrypted" \
+	"file system, not just of its snapshots"
+log_must zfs unmount $TESTPOOL/$TESTFS1
+log_must eval "zfs send -w $TESTPOOL/$TESTFS1 > /dev/null"
+typeset objsetid=$(get_prop objsetid $TESTPOOL/$TESTFS1)
+log_must eval "zdb -B $TESTPOOL/$objsetid w > /dev/null"
+
 log_note "Verify ZFS can perform a raw send of an encrypted datasets with" \
 	"its key unloaded"
-log_must zfs unmount $TESTPOOL/$TESTFS1
 log_must zfs unload-key $TESTPOOL/$TESTFS1
 log_must eval "zfs send -w $snap1 > /dev/null"
 

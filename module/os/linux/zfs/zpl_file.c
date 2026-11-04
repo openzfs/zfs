@@ -38,28 +38,55 @@
 #endif
 
 /*
- * Per-open-file state, hung off file->private_data.  Allocated lazily the
- * first time a Direct I/O read on this handle hits a benign checksum verify
- * failure -- a recycled O_DIRECT buffer whose buffered re-read then succeeded.
- * Its presence makes zpl_iter_read route subsequent reads through the uncached
- * buffered path for the remaining lifetime of the handle, which stops the
- * verify-failure / re-read storm without disabling the verify itself (so
- * mirror/raidz self-heal for genuine corruption is unaffected).
+ * Per-open-file state, hung off file->private_data.  zpl_file_data_get()
+ * allocates it the first time one of the flags below is set, and a flag
+ * stays set until the handle is released.
+ *
+ * zfd_dio_read_declined: a Direct I/O read on this handle hit a benign
+ * checksum verify failure, a recycled O_DIRECT buffer whose buffered re-read
+ * then succeeded.  zpl_iter_read sends later reads through the uncached
+ * buffered path.  That stops the verify-failure and re-read storm without
+ * disabling the verify itself, so mirror and raidz self-heal for genuine
+ * corruption still runs.
+ *
+ * zfd_dio_write_bounce: a Direct I/O write on this handle failed its
+ * checksum verify because the caller changed the buffer while the write was
+ * in flight.  zpl_iter_write has later Direct I/O writes issued from a
+ * private copy of the data, so the checksum covers the bytes written.
  */
 typedef struct zpl_file_data {
 	boolean_t	zfd_dio_read_declined;
+	boolean_t	zfd_dio_write_bounce;
 } zpl_file_data_t;
+
+static zpl_file_data_t *
+zpl_file_data_get(struct file *filp)
+{
+	zpl_file_data_t *zfd = atomic_load_ptr(&filp->private_data);
+	if (zfd != NULL)
+		return (zfd);
+
+	zfd = kmem_zalloc(sizeof (*zfd), KM_SLEEP);
+	zpl_file_data_t *old = atomic_cas_ptr(&filp->private_data, NULL, zfd);
+	if (old == NULL)
+		return (zfd);
+
+	kmem_free(zfd, sizeof (*zfd));
+	return (old);
+}
 
 static void
 zpl_dio_read_decline(struct file *filp)
 {
-	if (atomic_load_ptr(&filp->private_data) != NULL)
-		return;
+	zpl_file_data_t *zfd = zpl_file_data_get(filp);
+	atomic_store_32(&zfd->zfd_dio_read_declined, B_TRUE);
+}
 
-	zpl_file_data_t *zfd = kmem_zalloc(sizeof (*zfd), KM_SLEEP);
-	zfd->zfd_dio_read_declined = B_TRUE;
-	if (atomic_cas_ptr(&filp->private_data, NULL, zfd) != NULL)
-		kmem_free(zfd, sizeof (*zfd));
+static void
+zpl_dio_write_bounce(struct file *filp)
+{
+	zpl_file_data_t *zfd = zpl_file_data_get(filp);
+	atomic_store_32(&zfd->zfd_dio_write_bounce, B_TRUE);
 }
 
 /*
@@ -269,7 +296,7 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 	 * verify failure; keep taking the uncached buffered path.
 	 */
 	zpl_file_data_t *zfd = atomic_load_ptr(&filp->private_data);
-	if (zfd != NULL && zfd->zfd_dio_read_declined)
+	if (zfd != NULL && atomic_load_32(&zfd->zfd_dio_read_declined))
 		uio.uio_extflg |= UIO_DIO_DENY;
 
 	crhold(cr);
@@ -331,6 +358,14 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 	zfs_uio_iov_iter_init(&uio, from, kiocb->ki_pos, count);
 	uio.uio_extflg |= zfs_uio_flags(kiocb);
 
+	/*
+	 * A Direct I/O write on this handle already failed its checksum
+	 * verify; keep writing from a private copy of the data.
+	 */
+	zpl_file_data_t *zfd = atomic_load_ptr(&filp->private_data);
+	if (zfd != NULL && atomic_load_32(&zfd->zfd_dio_write_bounce))
+		uio.uio_extflg |= UIO_DIO_BOUNCE;
+
 	crhold(cr);
 	cookie = spl_fstrans_mark();
 
@@ -339,6 +374,14 @@ zpl_iter_write(struct kiocb *kiocb, struct iov_iter *from)
 
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
+
+	/*
+	 * A Direct I/O write failed its checksum verify because the caller
+	 * changed the buffer in flight.  Copy the data for every later
+	 * Direct I/O write on this handle.
+	 */
+	if (uio.uio_extflg & UIO_DIO_CKSUM_RETRIED)
+		zpl_dio_write_bounce(filp);
 
 	if (ret < 0)
 		return (ret);

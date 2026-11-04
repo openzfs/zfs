@@ -53,7 +53,8 @@ mock_crc64_init(void)
 
 /* Create a microzap backed by a mock dnode. */
 static dnode_t *
-mock_zap_create_norm_microzap(int normflags) {
+mock_zap_create_norm_microzap(int normflags)
+{
 	/*
 	 * We use DMU_OTN_ZAP_DATA so that DMU_OT_BYTESWAP() returns
 	 * DMU_BSWAP_ZAP without consulting dmu_ot[], which is not currently
@@ -78,8 +79,9 @@ mock_zap_create_norm_fatzap(int normflags)
 	dnode_t *dn = mock_zap_create_norm_microzap(normflags);
 	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
 	uint16_t upgrade = 0;
-	zap_add_by_dnode(dn, "_upgrade", sizeof (uint16_t), 1, &upgrade, tx);
-	zap_remove_by_dnode(dn, "_upgrade", tx);
+	unit_ok(zap_add_by_dnode(dn, "_upgrade", sizeof (uint16_t), 1,
+	    &upgrade, tx));
+	unit_ok(zap_remove_by_dnode(dn, "_upgrade", tx));
 	mock_tx_destroy((mock_dmu_tx_t *)tx);
 	return (dn);
 }
@@ -115,7 +117,8 @@ mock_zap_destroy(dnode_t *dn)
 /* Create a ZAP of the type named in the given test params. */
 static dnode_t *
 mock_zap_create_norm_params(const MunitParameter params[], const char *key,
-    int normflags) {
+    int normflags)
+{
 	const char *type = munit_parameters_get(params, key);
 	if (type == NULL)
 		munit_error("mock_zap_create_params: missing type param");
@@ -1354,7 +1357,7 @@ test_norm_nfkd(const MunitParameter params[], void *data)
 	static const char plain_key[] = "file";
 
 	dnode_t *dn =
-	    mock_zap_create_norm_params(params, "type", U8_TEXTPREP_NFKC);
+	    mock_zap_create_norm_params(params, "type", U8_TEXTPREP_NFKD);
 	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
 
 	/* Insert the plain form. */

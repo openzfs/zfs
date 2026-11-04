@@ -595,7 +595,7 @@ umount_dataset(zfs_handle_t *zhp, void *data)
 
 static int
 decrypt_mount(pam_handle_t *pamh, zfs_key_config_t *config, const char *ds_name,
-	const char *passphrase, boolean_t noop)
+    const char *passphrase, boolean_t noop)
 {
 	zfs_handle_t *ds = zfs_open(g_zfs, ds_name, ZFS_TYPE_FILESYSTEM);
 	if (ds == NULL) {
