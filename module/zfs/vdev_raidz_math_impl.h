@@ -27,6 +27,7 @@
 #define	_VDEV_RAIDZ_MATH_IMPL_H
 
 #include <sys/types.h>
+#include <sys/simd.h>
 #include <sys/vdev_raidz_impl.h>
 
 #define	raidz_inline inline __attribute__((always_inline))
@@ -364,8 +365,9 @@ raidz_generate_p_impl(raidz_row_t * const rr)
 	const size_t psize = rr->rr_col[CODE_P].rc_size;
 	abd_t *pabd = rr->rr_col[CODE_P].rc_abd;
 	size_t off, size;
+	kfpu_ctx_t kctx;
 
-	raidz_math_begin();
+	raidz_math_begin(&kctx);
 
 	for (off = 0; off < psize; off += CHUNK) {
 
@@ -385,7 +387,7 @@ raidz_generate_p_impl(raidz_row_t * const rr)
 		}
 	}
 
-	raidz_math_end();
+	raidz_math_end(&kctx);
 }
 
 
@@ -441,8 +443,9 @@ raidz_generate_pq_impl(raidz_row_t * const rr)
 		rr->rr_col[CODE_P].rc_abd,
 		rr->rr_col[CODE_Q].rc_abd
 	};
+	kfpu_ctx_t kctx;
 
-	raidz_math_begin();
+	raidz_math_begin(&kctx);
 
 	for (off = 0; off < csize; off += CHUNK) {
 
@@ -460,7 +463,7 @@ raidz_generate_pq_impl(raidz_row_t * const rr)
 		}
 	}
 
-	raidz_math_end();
+	raidz_math_end(&kctx);
 }
 
 
@@ -520,8 +523,9 @@ raidz_generate_pqr_impl(raidz_row_t * const rr)
 		rr->rr_col[CODE_Q].rc_abd,
 		rr->rr_col[CODE_R].rc_abd
 	};
+	kfpu_ctx_t kctx;
 
-	raidz_math_begin();
+	raidz_math_begin(&kctx);
 
 	for (off = 0; off < csize; off += CHUNK) {
 
@@ -540,7 +544,7 @@ raidz_generate_pqr_impl(raidz_row_t * const rr)
 		}
 	}
 
-	raidz_math_end();
+	raidz_math_end(&kctx);
 }
 
 
@@ -615,11 +619,12 @@ raidz_reconstruct_p_impl(raidz_row_t *rr, const int *tgtidx)
 	const size_t xsize = rr->rr_col[x].rc_size;
 	abd_t *xabd = rr->rr_col[x].rc_abd;
 	size_t off, size;
+	kfpu_ctx_t kctx;
 
 	if (xabd == NULL)
 		return (1 << CODE_P);
 
-	raidz_math_begin();
+	raidz_math_begin(&kctx);
 
 	for (off = 0; off < xsize; off += CHUNK) {
 
@@ -641,7 +646,7 @@ raidz_reconstruct_p_impl(raidz_row_t *rr, const int *tgtidx)
 		}
 	}
 
-	raidz_math_end();
+	raidz_math_end(&kctx);
 
 	return (1 << CODE_P);
 }
@@ -704,9 +709,10 @@ raidz_reconstruct_q_impl(raidz_row_t *rr, const int *tgtidx)
 		return (1 << CODE_Q);
 
 	unsigned coeff[MUL_CNT];
+	kfpu_ctx_t kctx;
 	raidz_rec_q_coeff(rr, tgtidx, coeff);
 
-	raidz_math_begin();
+	raidz_math_begin(&kctx);
 
 	/* Start with first data column if present */
 	if (firstdc != x) {
@@ -735,7 +741,7 @@ raidz_reconstruct_q_impl(raidz_row_t *rr, const int *tgtidx)
 	/* transform the syndrome */
 	abd_iterate_func(xabd, 0, xsize, raidz_mul_abd_cb, (void*) coeff);
 
-	raidz_math_end();
+	raidz_math_end(&kctx);
 
 	return (1 << CODE_Q);
 }
@@ -798,9 +804,10 @@ raidz_reconstruct_r_impl(raidz_row_t *rr, const int *tgtidx)
 		return (1 << CODE_R);
 
 	unsigned coeff[MUL_CNT];
+	kfpu_ctx_t kctx;
 	raidz_rec_r_coeff(rr, tgtidx, coeff);
 
-	raidz_math_begin();
+	raidz_math_begin(&kctx);
 
 	/* Start with first data column if present */
 	if (firstdc != x) {
@@ -830,7 +837,7 @@ raidz_reconstruct_r_impl(raidz_row_t *rr, const int *tgtidx)
 	/* transform the syndrome */
 	abd_iterate_func(xabd, 0, xsize, raidz_mul_abd_cb, (void *)coeff);
 
-	raidz_math_end();
+	raidz_math_end(&kctx);
 
 	return (1 << CODE_R);
 }
@@ -945,6 +952,7 @@ raidz_reconstruct_pq_impl(raidz_row_t *rr, const int *tgtidx)
 		return ((1 << CODE_P) | (1 << CODE_Q));
 
 	unsigned coeff[MUL_CNT];
+	kfpu_ctx_t kctx;
 	raidz_rec_pq_coeff(rr, tgtidx, coeff);
 
 	/*
@@ -957,7 +965,7 @@ raidz_reconstruct_pq_impl(raidz_row_t *rr, const int *tgtidx)
 		tabds[1] = yabd;
 	}
 
-	raidz_math_begin();
+	raidz_math_begin(&kctx);
 
 	/* Start with first data column if present */
 	if (firstdc != x) {
@@ -988,7 +996,7 @@ raidz_reconstruct_pq_impl(raidz_row_t *rr, const int *tgtidx)
 	if (ysize < xsize)
 		raidz_copy(rr->rr_col[y].rc_abd, yabd, 0, ysize);
 
-	raidz_math_end();
+	raidz_math_end(&kctx);
 
 	if (ysize < xsize)
 		abd_free(yabd);
@@ -1105,6 +1113,7 @@ raidz_reconstruct_pr_impl(raidz_row_t *rr, const int *tgtidx)
 		return ((1 << CODE_P) | (1 << CODE_R));
 
 	unsigned coeff[MUL_CNT];
+	kfpu_ctx_t kctx;
 	raidz_rec_pr_coeff(rr, tgtidx, coeff);
 
 	/*
@@ -1117,7 +1126,7 @@ raidz_reconstruct_pr_impl(raidz_row_t *rr, const int *tgtidx)
 		tabds[1] = yabd;
 	}
 
-	raidz_math_begin();
+	raidz_math_begin(&kctx);
 
 	/* Start with first data column if present */
 	if (firstdc != x) {
@@ -1150,7 +1159,7 @@ raidz_reconstruct_pr_impl(raidz_row_t *rr, const int *tgtidx)
 	if (ysize < xsize)
 		raidz_copy(rr->rr_col[y].rc_abd, yabd, 0, ysize);
 
-	raidz_math_end();
+	raidz_math_end(&kctx);
 
 	if (ysize < xsize)
 		abd_free(yabd);
@@ -1272,6 +1281,7 @@ raidz_reconstruct_qr_impl(raidz_row_t *rr, const int *tgtidx)
 		return ((1 << CODE_Q) | (1 << CODE_R));
 
 	unsigned coeff[MUL_CNT];
+	kfpu_ctx_t kctx;
 	raidz_rec_qr_coeff(rr, tgtidx, coeff);
 
 	/*
@@ -1284,7 +1294,7 @@ raidz_reconstruct_qr_impl(raidz_row_t *rr, const int *tgtidx)
 		tabds[1] = yabd;
 	}
 
-	raidz_math_begin();
+	raidz_math_begin(&kctx);
 
 	/* Start with first data column if present */
 	if (firstdc != x) {
@@ -1317,7 +1327,7 @@ raidz_reconstruct_qr_impl(raidz_row_t *rr, const int *tgtidx)
 	if (ysize < xsize)
 		raidz_copy(rr->rr_col[y].rc_abd, yabd, 0, ysize);
 
-	raidz_math_end();
+	raidz_math_end(&kctx);
 
 	if (ysize < xsize)
 		abd_free(yabd);
@@ -1463,6 +1473,7 @@ raidz_reconstruct_pqr_impl(raidz_row_t *rr, const int *tgtidx)
 		return ((1 << CODE_P) | (1 << CODE_Q) | (1 << CODE_R));
 
 	unsigned coeff[MUL_CNT];
+	kfpu_ctx_t kctx;
 	raidz_rec_pqr_coeff(rr, tgtidx, coeff);
 
 	/*
@@ -1479,7 +1490,7 @@ raidz_reconstruct_pqr_impl(raidz_row_t *rr, const int *tgtidx)
 		tabds[2] = zabd;
 	}
 
-	raidz_math_begin();
+	raidz_math_begin(&kctx);
 
 	/* Start with first data column if present */
 	if (firstdc != x) {
@@ -1516,7 +1527,7 @@ raidz_reconstruct_pqr_impl(raidz_row_t *rr, const int *tgtidx)
 	if (zsize < xsize)
 		raidz_copy(rr->rr_col[z].rc_abd, zabd, 0, zsize);
 
-	raidz_math_end();
+	raidz_math_end(&kctx);
 
 	if (ysize < xsize)
 		abd_free(yabd);

@@ -31,6 +31,11 @@
 #include <sys/isa_defs.h>
 #include <sys/types.h>
 
+/* No state is kept between kfpu_begin() and kfpu_end(). */
+typedef struct kfpu_ctx {
+	char kfpu_unused;
+} kfpu_ctx_t;
+
 /* including <sys/auxv.h> clashes with AT_UID and others */
 #if defined(__arm__) || defined(__aarch64__) || defined(__powerpc__)
 #if defined(__FreeBSD__)
@@ -57,8 +62,8 @@ extern unsigned long getauxval(unsigned long type);
 #include <cpuid.h>
 
 #define	kfpu_allowed()		1
-#define	kfpu_begin()		do {} while (0)
-#define	kfpu_end()		do {} while (0)
+#define	kfpu_begin(ctx)		((void) (ctx))
+#define	kfpu_end(ctx)		((void) (ctx))
 #define	kfpu_init()		0
 #define	kfpu_fini()		((void) 0)
 
@@ -509,8 +514,8 @@ zfs_avx512vbmi_available(void)
 
 #define	kfpu_allowed()		1
 #define	kfpu_initialize(tsk)	do {} while (0)
-#define	kfpu_begin()		do {} while (0)
-#define	kfpu_end()		do {} while (0)
+#define	kfpu_begin(ctx)		((void) (ctx))
+#define	kfpu_end(ctx)		((void) (ctx))
 
 #define	HWCAP_NEON		0x00001000
 #define	HWCAP2_SHA2		0x00000008
@@ -539,8 +544,8 @@ zfs_sha256_available(void)
 
 #define	kfpu_allowed()		1
 #define	kfpu_initialize(tsk)	do {} while (0)
-#define	kfpu_begin()		do {} while (0)
-#define	kfpu_end()		do {} while (0)
+#define	kfpu_begin(ctx)		((void) (ctx))
+#define	kfpu_end(ctx)		((void) (ctx))
 
 #define	HWCAP_FP		0x00000001
 #define	HWCAP_SHA2		0x00000040
@@ -580,8 +585,8 @@ zfs_sha512_available(void)
 
 #define	kfpu_allowed()		0
 #define	kfpu_initialize(tsk)	do {} while (0)
-#define	kfpu_begin()		do {} while (0)
-#define	kfpu_end()		do {} while (0)
+#define	kfpu_begin(ctx)		((void) (ctx))
+#define	kfpu_end(ctx)		((void) (ctx))
 
 #define	PPC_FEATURE_HAS_ALTIVEC	0x10000000
 #define	PPC_FEATURE_HAS_VSX	0x00000080
@@ -614,8 +619,8 @@ zfs_isa207_available(void)
 
 #define	kfpu_allowed()		0
 #define	kfpu_initialize(tsk)	do {} while (0)
-#define	kfpu_begin()		do {} while (0)
-#define	kfpu_end()		do {} while (0)
+#define	kfpu_begin(ctx)		((void) (ctx))
+#define	kfpu_end(ctx)		((void) (ctx))
 
 #endif
 

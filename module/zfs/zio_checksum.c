@@ -32,6 +32,7 @@
 #include <sys/zio_checksum.h>
 #include <sys/zil.h>
 #include <sys/abd.h>
+#include <sys/simd.h>
 #include <zfs_fletcher.h>
 
 /*
@@ -134,11 +135,14 @@ abd_fletcher_4_native(abd_t *abd, uint64_t size,
 {
 	(void) ctx_template;
 	fletcher_4_ctx_t ctx;
+	kfpu_ctx_t kctx;
+	fletcher_4_abd_priv_t priv = { .fap_kctx = &kctx };
 
 	zio_abd_checksum_data_t acd = {
 		.acd_byteorder	= ZIO_CHECKSUM_NATIVE,
 		.acd_zcp 	= zcp,
-		.acd_ctx	= &ctx
+		.acd_ctx	= &ctx,
+		.acd_private	= &priv
 	};
 
 	abd_fletcher_4_impl(abd, size, &acd);
@@ -151,11 +155,14 @@ abd_fletcher_4_byteswap(abd_t *abd, uint64_t size,
 {
 	(void) ctx_template;
 	fletcher_4_ctx_t ctx;
+	kfpu_ctx_t kctx;
+	fletcher_4_abd_priv_t priv = { .fap_kctx = &kctx };
 
 	zio_abd_checksum_data_t acd = {
 		.acd_byteorder	= ZIO_CHECKSUM_BYTESWAP,
 		.acd_zcp 	= zcp,
-		.acd_ctx	= &ctx
+		.acd_ctx	= &ctx,
+		.acd_private	= &priv
 	};
 
 	abd_fletcher_4_impl(abd, size, &acd);
