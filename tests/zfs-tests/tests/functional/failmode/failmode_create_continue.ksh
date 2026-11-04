@@ -23,7 +23,8 @@
 #	   and a dataset with sync=always.
 #	2. For each of create, mkdir and symlink: inject write errors on
 #	   both devices, expect the operation to fail, wait for the pool
-#	   to suspend, then clear the errors and resume the pool.
+#	   to suspend, then clear the errors and resume the pool.  Retry
+#	   an operation that the suspended pool stopped before its tx.
 #	3. Verify each entry is visible without dropping the dentry cache.
 #	4. Remove the entries and verify their objects are freed; a leaked
 #	   inode reference keeps them on the delete queue.
@@ -66,8 +67,33 @@ function object_listed # obj
 	log_fail "zdb failed on object $obj: $out"
 }
 
-for op in $ops ; do
+# zil_commit() calls on the dataset, whichever path they take.
+function zil_commits
+{
+	typeset -i n=0
+	typeset stat
+
+	for stat in count crash_count suspend_count ; do
+		((n += $(kstat_dataset $TESTPOOL/$TESTFS zil_commit_$stat)))
+	done
+	echo $n
+}
+
+#
+# Run the operation with write errors on both devices.  Return 0 if it
+# failed in zil_commit(), 1 if the pool suspended before its tx.
+#
+function fail_op # op
+{
+	typeset op=$1
+
 	log_must zpool sync
+	# The previous zpool clear started a resilver, and txgs sync back
+	# to back until it ends.  One still syncing when the errors are
+	# injected suspends the pool before the operation assigns its tx.
+	log_must zpool wait -t resilver $TESTPOOL
+	typeset -i commits=$(zil_commits)
+
 	log_must zinject -d $DISK1 -e io -T write $TESTPOOL
 	log_must zinject -d $DISK1 -e nxio -T probe $TESTPOOL
 	log_must zinject -d $DISK2 -e io -T write $TESTPOOL
@@ -107,6 +133,25 @@ for op in $ops ; do
 	log_note "$op: blocked=$blocked rc=$rc"
 	log_must test $blocked -eq 0
 	log_must test $rc -ne 0
+
+	if (($(zil_commits) > commits)) ; then
+		return 0
+	fi
+	# dmu_tx_assign() failed, so the operation changed nothing.
+	if [[ -e $mntpnt/$op || -L $mntpnt/$op ]] ; then
+		log_fail "$op: failed before its tx but left an entry"
+	fi
+	return 1
+}
+
+for op in $ops ; do
+	typeset -i attempts=3
+	until fail_op $op ; do
+		if ((--attempts == 0)) ; then
+			log_fail "$op: never failed in zil_commit"
+		fi
+		log_note "$op: pool suspended before its tx, retrying"
+	done
 done
 
 typeset -i failed=0
