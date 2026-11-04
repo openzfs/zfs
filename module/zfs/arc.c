@@ -112,7 +112,7 @@
  * The L2ARC uses the l2ad_mtx on each vdev for the following:
  *
  *	- L2ARC buflist creation
- *	- L2ARC buflist eviction
+ *	- L2ARC buflist eviction and pruning
  *	- L2ARC write completion, which walks L2ARC buflists
  *	- ARC header destruction, as it removes from L2ARC buflists
  *	- ARC header release, as it removes from L2ARC buflists
@@ -600,6 +600,8 @@ arc_stats_t arc_stats = {
 	{ "l2_evict_l1cached",		KSTAT_DATA_UINT64 },
 	{ "l2_free_on_write",		KSTAT_DATA_UINT64 },
 	{ "l2_abort_lowmem",		KSTAT_DATA_UINT64 },
+	{ "l2_hdr_pruned",		KSTAT_DATA_UINT64 },
+	{ "l2_prune_bytes",		KSTAT_DATA_UINT64 },
 	{ "l2_cksum_bad",		KSTAT_DATA_UINT64 },
 	{ "l2_io_error",		KSTAT_DATA_UINT64 },
 	{ "l2_size",			KSTAT_DATA_UINT64 },
@@ -825,6 +827,8 @@ typedef struct arc_async_flush {
 #define	L2ARC_HEADROOM_BOOST	200
 #define	L2ARC_FEED_SECS		1		/* caching interval secs */
 #define	L2ARC_FEED_MIN_MS	200		/* min caching interval ms */
+#define	L2ARC_HDR_PRUNE_SCAN_LIMIT	65536
+#define	L2ARC_HDR_PRUNE_BATCH_LIMIT	256
 
 /*
  * Min L2ARC capacity to enable persistent markers, adaptive intervals, and
@@ -848,6 +852,8 @@ static int l2arc_noprefetch = B_TRUE;		/* don't cache prefetch bufs */
 static int l2arc_feed_again = B_TRUE;		/* turbo warmup */
 static int l2arc_norw = B_FALSE;		/* no reads during writes */
 static uint_t l2arc_meta_percent = 33;	/* limit on headers size */
+static uint64_t l2arc_hdr_prune_rate_percent = 0;	/* percent of feed */
+static uint_t l2arc_hdr_prune_ramp_secs = 900;	/* ramp seconds */
 
 /*
  * L2ARC Internals
@@ -859,6 +865,9 @@ static list_t L2ARC_free_on_write;		/* free after write buf list */
 static list_t *l2arc_free_on_write;		/* free after write list ptr */
 static kmutex_t l2arc_free_on_write_mtx;	/* mutex for list */
 static uint64_t l2arc_ndev;			/* number of devices */
+/* Shared ramp timer, protected by l2arc_prune_mtx. */
+static kmutex_t l2arc_prune_mtx;
+static hrtime_t l2arc_prune_start;
 
 typedef struct l2arc_read_callback {
 	arc_buf_hdr_t		*l2rcb_hdr;		/* read header */
@@ -7495,6 +7504,10 @@ arc_kstat_update(kstat_t *ksp, int rw)
 	    wmsum_value(&arc_sums.arcstat_l2_free_on_write);
 	as->arcstat_l2_abort_lowmem.value.ui64 =
 	    wmsum_value(&arc_sums.arcstat_l2_abort_lowmem);
+	as->arcstat_l2_hdr_pruned.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_hdr_pruned);
+	as->arcstat_l2_prune_bytes.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_prune_bytes);
 	as->arcstat_l2_cksum_bad.value.ui64 =
 	    wmsum_value(&arc_sums.arcstat_l2_cksum_bad);
 	as->arcstat_l2_io_error.value.ui64 =
@@ -7848,6 +7861,8 @@ arc_state_init(void)
 	wmsum_init(&arc_sums.arcstat_l2_evict_l1cached, 0);
 	wmsum_init(&arc_sums.arcstat_l2_free_on_write, 0);
 	wmsum_init(&arc_sums.arcstat_l2_abort_lowmem, 0);
+	wmsum_init(&arc_sums.arcstat_l2_hdr_pruned, 0);
+	wmsum_init(&arc_sums.arcstat_l2_prune_bytes, 0);
 	wmsum_init(&arc_sums.arcstat_l2_cksum_bad, 0);
 	wmsum_init(&arc_sums.arcstat_l2_io_error, 0);
 	wmsum_init(&arc_sums.arcstat_l2_lsize, 0);
@@ -8007,6 +8022,8 @@ arc_state_fini(void)
 	wmsum_fini(&arc_sums.arcstat_l2_evict_l1cached);
 	wmsum_fini(&arc_sums.arcstat_l2_free_on_write);
 	wmsum_fini(&arc_sums.arcstat_l2_abort_lowmem);
+	wmsum_fini(&arc_sums.arcstat_l2_hdr_pruned);
+	wmsum_fini(&arc_sums.arcstat_l2_prune_bytes);
 	wmsum_fini(&arc_sums.arcstat_l2_cksum_bad);
 	wmsum_fini(&arc_sums.arcstat_l2_io_error);
 	wmsum_fini(&arc_sums.arcstat_l2_lsize);
@@ -9420,6 +9437,11 @@ retry:
 	for (hdr = list_tail(buflist); hdr; hdr = hdr_prev) {
 		hdr_prev = list_prev(buflist, hdr);
 
+		/* Skip any markers. */
+		if (hdr->b_spa == 0) {
+			continue;
+		}
+
 		ASSERT(!HDR_EMPTY(hdr));
 		hash_lock = HDR_LOCK(hdr);
 
@@ -10212,12 +10234,189 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 }
 
 static boolean_t
-l2arc_hdr_limit_reached(void)
+l2arc_hdr_size_exceeded(void)
 {
 	int64_t s = aggsum_upper_bound(&arc_sums.arcstat_l2_hdr_size);
 
-	return (arc_reclaim_needed() ||
-	    (s > (arc_warm ? arc_c : arc_c_max) * l2arc_meta_percent / 100));
+	return (s > (arc_warm ? arc_c : arc_c_max) * l2arc_meta_percent / 100);
+}
+
+static boolean_t
+l2arc_hdr_limit_reached(void)
+{
+	return (arc_reclaim_needed() || l2arc_hdr_size_exceeded());
+}
+
+/* Grow from 1% to 100% of the configured ceiling over the ramp time. */
+static uint64_t
+l2arc_hdr_prune_bytes(hrtime_t now)
+{
+	/* 100^(1/2^n), n = 1..16, in Q24 fixed point. */
+	static const uint32_t roots[] = {
+		167772160, 53054215, 29834577, 22372777,
+		19374026, 18028927, 17391814, 17081751,
+		16928798, 16852837, 16814984, 16796089,
+		16786650, 16781932, 16779574, 16778394
+	};
+	uint64_t percent = MIN(l2arc_hdr_prune_rate_percent, 100);
+	uint64_t rate = l2arc_write_max;
+
+	ASSERT(MUTEX_HELD(&l2arc_prune_mtx));
+	uint64_t ceiling = rate / 100 * percent + rate % 100 * percent / 100;
+	uint64_t elapsed = NSEC2SEC(now - l2arc_prune_start);
+	uint64_t duration = l2arc_hdr_prune_ramp_secs;
+	if (duration == 0 || elapsed >= duration)
+		return (ceiling);
+
+	uint64_t progress = (elapsed << 16) / duration;
+	uint64_t scale = 1ULL << 24;
+	uint64_t factor = scale;
+	for (uint_t i = 0; i < ARRAY_SIZE(roots); i++) {
+		if (progress & (1U << (15 - i)))
+			factor = factor * roots[i] >> 24;
+	}
+	factor /= 100;
+	rate = ceiling / scale * factor + ceiling % scale * factor / scale;
+	return (MAX(ceiling / 100, rate));
+}
+
+static boolean_t
+l2arc_hdr_prune_ready(void)
+{
+	uint64_t limit = (arc_warm ? arc_c : arc_c_max) *
+	    l2arc_meta_percent / 100;
+	if (l2arc_hdr_prune_rate_percent == 0 ||
+	    aggsum_compare(&arc_sums.arcstat_l2_hdr_size, limit) <= 0) {
+		mutex_enter(&l2arc_prune_mtx);
+		l2arc_prune_start = 0;
+		mutex_exit(&l2arc_prune_mtx);
+		return (B_FALSE);
+	}
+	return (B_TRUE);
+}
+
+/* Only this device's feed thread consumes its pruning allowance. */
+static boolean_t
+l2arc_hdr_prune_charge(l2arc_dev_t *dev, uint64_t asize, uint64_t budget,
+    uint64_t *available)
+{
+	boolean_t allowed;
+
+	ASSERT(MUTEX_HELD(&dev->l2ad_feed_thr_lock));
+	hrtime_t now = gethrtime();
+	if (dev->l2ad_prune_window == 0 ||
+	    now - dev->l2ad_prune_window >= SEC2NSEC(1)) {
+		dev->l2ad_prune_window = now;
+		dev->l2ad_prune_used = 0;
+	}
+
+	*available = budget - MIN(dev->l2ad_prune_used, budget);
+	allowed = asize <= *available;
+	if (allowed)
+		dev->l2ad_prune_used += asize;
+
+	return (allowed);
+}
+
+/*
+ * Prune the oldest L2ARC-only headers while they exceed the limit.
+ * l2arc_evict() is not used because it clears a device range ahead of the
+ * write hand.  That would also drop the L2ARC copies of headers that still
+ * have an L1 part, which frees no memory, and would move the hand without
+ * writing.  Pruning only destroys L2ARC-only headers and leaves the device
+ * hands and log blocks alone, so a later import may restore their entries.
+ */
+static void
+l2arc_hdr_prune(l2arc_dev_t *dev)
+{
+	list_t *buflist = &dev->l2ad_buflist;
+	arc_buf_hdr_t *marker = dev->l2ad_prune_marker;
+	uint_t remaining = L2ARC_HDR_PRUNE_SCAN_LIMIT;
+	uint64_t min_asize = 1ULL << dev->l2ad_vdev->vdev_ashift;
+	uint64_t available;
+
+	mutex_enter(&l2arc_prune_mtx);
+	hrtime_t now = gethrtime();
+	if (l2arc_prune_start == 0)
+		l2arc_prune_start = now;
+	uint64_t budget = l2arc_hdr_prune_bytes(now);
+	mutex_exit(&l2arc_prune_mtx);
+
+	(void) l2arc_hdr_prune_charge(dev, 0, budget, &available);
+	if (available < min_asize)
+		return;
+
+	while (remaining != 0 && l2arc_hdr_prune_ready()) {
+		boolean_t done;
+
+		mutex_enter(&dev->l2ad_mtx);
+		if (!list_link_active(&marker->b_l2hdr.b_l2node))
+			list_insert_tail(buflist, marker);
+
+		/* Drop the lock after each batch to bound its hold time. */
+		for (uint_t scanned = 0;
+		    scanned < L2ARC_HDR_PRUNE_BATCH_LIMIT && remaining != 0;
+		    scanned++) {
+			arc_buf_hdr_t *hdr = list_prev(buflist, marker);
+			kmutex_t *hash_lock;
+
+			if (hdr == NULL)
+				break;
+			remaining--;
+
+			/* Move the marker first, since hdr may be destroyed. */
+			list_remove(buflist, marker);
+			list_insert_before(buflist, hdr, marker);
+
+			/*
+			 * Other code takes the hash lock before l2ad_mtx, so
+			 * waiting for it here could deadlock.  Skip a busy
+			 * header until the next full pass.
+			 */
+			hash_lock = HDR_LOCK(hdr);
+			if (!mutex_tryenter(hash_lock))
+				continue;
+
+			/* Only L2ARC-only headers count toward the limit. */
+			if (!HDR_HAS_L1HDR(hdr)) {
+				if (!l2arc_hdr_prune_ready()) {
+					mutex_exit(hash_lock);
+					break;
+				}
+				ASSERT(!HDR_L2_READING(hdr));
+				uint64_t asize = HDR_GET_L2SIZE(hdr);
+				if (asize > budget) {
+					mutex_exit(hash_lock);
+					continue;
+				}
+				if (!l2arc_hdr_prune_charge(dev, asize, budget,
+				    &available)) {
+					mutex_exit(hash_lock);
+					/* Stop if no buffer can fit. */
+					if (available < min_asize) {
+						mutex_exit(&dev->l2ad_mtx);
+						return;
+					}
+					/* Try smaller buffers. */
+					continue;
+				}
+				arc_change_state(arc_anon, hdr);
+				arc_hdr_destroy(hdr);
+				ARCSTAT_BUMP(arcstat_l2_hdr_pruned);
+				ARCSTAT_INCR(arcstat_l2_prune_bytes, asize);
+			}
+			mutex_exit(hash_lock);
+		}
+
+		/* After a complete pass, restart at the tail next time. */
+		done = (list_prev(buflist, marker) == NULL);
+		if (done)
+			list_remove(buflist, marker);
+		mutex_exit(&dev->l2ad_mtx);
+
+		if (done)
+			break;
+	}
 }
 
 /*
@@ -10278,10 +10477,14 @@ l2arc_feed_thread(void *arg)
 		}
 
 		/*
-		 * Avoid contributing to memory pressure.
+		 * Avoid contributing to memory pressure, and prune headers
+		 * that are over their limit so that writes can resume.
 		 */
+		boolean_t prune = l2arc_hdr_prune_ready();
 		if (l2arc_hdr_limit_reached()) {
 			ARCSTAT_BUMP(arcstat_l2_abort_lowmem);
+			if (prune)
+				l2arc_hdr_prune(dev);
 			spa_config_exit(spa, SCL_L2ARC, dev);
 			continue;
 		}
@@ -10497,6 +10700,12 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 	 */
 	list_create(&adddev->l2ad_buflist, sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l2hdr.b_l2node));
+	/*
+	 * Not allocated from hdr_l2only_cache, so that it does not count
+	 * toward the L2ARC header size it is used to reduce.
+	 */
+	adddev->l2ad_prune_marker = kmem_zalloc(HDR_FULL_SIZE, KM_SLEEP);
+	list_link_init(&adddev->l2ad_prune_marker->b_l2hdr.b_l2node);
 
 	/*
 	 * This is a list of pointers to log blocks that are still present
@@ -10619,6 +10828,9 @@ l2arc_device_teardown(void *arg)
 	 * Clear all buflists and ARC references.  L2ARC device flush.
 	 */
 	l2arc_evict(remdev, 0, B_TRUE);
+	if (list_link_active(&remdev->l2ad_prune_marker->b_l2hdr.b_l2node))
+		list_remove(&remdev->l2ad_buflist, remdev->l2ad_prune_marker);
+	kmem_free(remdev->l2ad_prune_marker, HDR_FULL_SIZE);
 	list_destroy(&remdev->l2ad_buflist);
 	ASSERT(list_is_empty(&remdev->l2ad_lbptr_list));
 	list_destroy(&remdev->l2ad_lbptr_list);
@@ -10741,6 +10953,8 @@ l2arc_init(void)
 	mutex_init(&l2arc_rebuild_thr_lock, NULL, MUTEX_DEFAULT, NULL);
 	cv_init(&l2arc_rebuild_thr_cv, NULL, CV_DEFAULT, NULL);
 	mutex_init(&l2arc_dev_mtx, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&l2arc_prune_mtx, NULL, MUTEX_DEFAULT, NULL);
+	l2arc_prune_start = 0;
 	mutex_init(&l2arc_free_on_write_mtx, NULL, MUTEX_DEFAULT, NULL);
 
 	l2arc_dev_list = &L2ARC_dev_list;
@@ -10757,6 +10971,7 @@ l2arc_fini(void)
 	mutex_destroy(&l2arc_rebuild_thr_lock);
 	cv_destroy(&l2arc_rebuild_thr_cv);
 	mutex_destroy(&l2arc_dev_mtx);
+	mutex_destroy(&l2arc_prune_mtx);
 	mutex_destroy(&l2arc_free_on_write_mtx);
 
 	list_destroy(l2arc_dev_list);
@@ -11809,6 +12024,12 @@ ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, norw, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, meta_percent, UINT, ZMOD_RW,
 	"Percent of ARC size allowed for L2ARC-only headers");
+
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, hdr_prune_rate_percent, U64, ZMOD_RW,
+	"Max percent of per-device L2ARC feed rate allowed for pruning");
+
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, hdr_prune_ramp_secs, UINT, ZMOD_RW,
+	"Seconds of header overage until pruning reaches its maximum rate");
 
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, rebuild_enabled, INT, ZMOD_RW,
 	"Rebuild the L2ARC when importing a pool");
