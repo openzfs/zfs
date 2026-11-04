@@ -341,9 +341,9 @@ vdev_anyraid_read_map(vdev_t *cvd, int mapping, anyraid_header_t *header,
 	uint_t num_maps = (((int64_t)map_length - 1) / SPA_MAXBLOCKSIZE) + 1;
 
 	for (int i = 0; i < num_maps; i++) {
-		uint64_t length = MAX(P2ROUNDUP(i == num_maps - 1 ?
-		    map_length % SPA_MAXBLOCKSIZE : SPA_MAXBLOCKSIZE,
-		    1 << ashift), 1 << ashift);
+		uint64_t length = MAX(P2ROUNDUP(MIN(map_length -
+		    i * SPA_MAXBLOCKSIZE, SPA_MAXBLOCKSIZE), 1 << ashift),
+		    1 << ashift);
 		zio_eck_t *cksum = (zio_eck_t *)
 		    &header->ah_buf[VDEV_ANYRAID_NVL_BYTES(ashift) +
 		    i * sizeof (*cksum)];
