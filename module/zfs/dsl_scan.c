@@ -664,10 +664,20 @@ dsl_scan_init(dsl_pool_t *dp, uint64_t txg)
 			}
 		}
 
-		if (err == ENOENT)
+		if (err == ENOENT) {
+			/*
+			 * spa_scan_stat_init() is not reached, and cannot be
+			 * called yet when the pool is being created: restore
+			 * the pause time of a paused error scrub here.
+			 */
+			if (dsl_errorscrub_is_paused(scn)) {
+				spa->spa_scan_pass_errorscrub_pause =
+				    gethrestime_sec();
+			}
 			return (0);
-		else if (err)
+		} else if (err) {
 			return (err);
+		}
 
 		/*
 		 * We might be restarting after a reboot, so jump the issued
