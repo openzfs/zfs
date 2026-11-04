@@ -10341,6 +10341,8 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 		free(table[i]);
 	}
 	free(table);
+	free(printed);
+	free(final);
 }
 
 static void
@@ -10428,10 +10430,10 @@ print_anyraid_mapping(vdev_t *vd, int child, anyraid_header_t *header)
 			// switch maps
 			if (map != -1) {
 				abd_return_buf(map_abds[map], map_buf,
-				    SPA_MAXBLOCKSIZE);
+				    abd_get_size(map_abds[map]));
 			}
 			map_buf = abd_borrow_buf(map_abds[next_map],
-			    SPA_MAXBLOCKSIZE);
+			    abd_get_size(map_abds[next_map]));
 			map = next_map;
 		}
 		uint32_t mo = off % SPA_MAXBLOCKSIZE;
@@ -10448,10 +10450,10 @@ print_anyraid_mapping(vdev_t *vd, int child, anyraid_header_t *header)
 			// switch maps
 			if (map != -1) {
 				abd_return_buf(map_abds[map], map_buf,
-				    SPA_MAXBLOCKSIZE);
+				    abd_get_size(map_abds[map]));
 			}
 			map_buf = abd_borrow_buf(map_abds[next_map],
-			    SPA_MAXBLOCKSIZE);
+			    abd_get_size(map_abds[next_map]));
 			map = next_map;
 			memcpy(buf + rem, map_buf, size - rem);
 		} else {
@@ -10491,7 +10493,8 @@ print_anyraid_mapping(vdev_t *vd, int child, anyraid_header_t *header)
 			kmem_free(buf, size);
 	}
 	if (map_buf)
-		abd_return_buf(map_abds[map], map_buf, SPA_MAXBLOCKSIZE);
+		abd_return_buf(map_abds[map], map_buf,
+		    abd_get_size(map_abds[map]));
 
 	var->vd_tile_size = tile_size;
 
