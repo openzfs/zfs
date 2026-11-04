@@ -54,17 +54,17 @@ jobs:
 
           case "$ci_type" in
           quick)
-            os_selection='["almalinux8", "almalinux9", "almalinux10", "debian12", "fedora44", "freebsd15-1s", "ubuntu26"]'
+            os_selection='["almalinux8", "almalinux9", "almalinux10", "debian12", "fedora45", "freebsd15-1s", "ubuntu26"]'
             ;;
           linux)
-            os_selection='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian11", "debian12", "debian13", "fedora43", "fedora44", "ubuntu22", "ubuntu24", "ubuntu26"]'
+            os_selection='["almalinux8", "almalinux9", "almalinux10", "centos-stream9", "centos-stream10", "debian11", "debian12", "debian13", "fedora43", "fedora44", "fedora45", "ubuntu22", "ubuntu24", "ubuntu26"]'
             ;;
           freebsd)
             os_selection='["freebsd14-4r", "freebsd14-5s", "freebsd15-1r", "freebsd15-1s", "freebsd16-0c"]'
             ;;
           *)
             # default list
-            os_selection='["almalinux8", "almalinux9", "almalinux10", "alpine3-24", "debian12", "debian13", "fedora43", "fedora44", "freebsd14-4r", "freebsd15-1r", "freebsd15-1s", "freebsd16-0c", "ubuntu22", "ubuntu24", "ubuntu26"]'
+            os_selection='["almalinux8", "almalinux9", "almalinux10", "alpine3-24", "debian12", "debian13", "fedora43", "fedora44", "fedora45", "freebsd14-4r", "freebsd15-1r", "freebsd15-1s", "freebsd16-0c", "ubuntu22", "ubuntu24", "ubuntu26"]'
             ;;
           esac
 
