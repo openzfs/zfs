@@ -34,8 +34,9 @@ verify_runnable "global"
 
 cleanup() {
 	log_must zpool destroy $TESTPOOL2
-	rm /$TESTPOOL/vdev_file.*
+	rm -f $TEST_BASE_DIR/vdev_file.*
 	restore_tunable ANYRAID_MIN_TILE_SIZE
+	restore_tunable SPA_NUM_ALLOCATORS
 }
 
 log_onexit cleanup
@@ -44,6 +45,10 @@ log_must truncate -s 512M $TEST_BASE_DIR/vdev_file.{0,1,2,3}
 log_must truncate -s 2G $TEST_BASE_DIR/vdev_file.{4,5,6}
 save_tunable ANYRAID_MIN_TILE_SIZE
 set_tunable64 ANYRAID_MIN_TILE_SIZE 67108864
+# Each allocator maps a tile of its own when the pool is created, and the
+# sizes below assume a single allocator.
+save_tunable SPA_NUM_ALLOCATORS
+set_tunable32 SPA_NUM_ALLOCATORS 1
 
 log_assert "'zpool attach' expands size correctly with anyraid vdevs"
 
