@@ -41,6 +41,7 @@ zhack_LDADD = \
 
 ztest_CFLAGS    = $(AM_CFLAGS) $(KERNEL_CFLAGS)
 ztest_CPPFLAGS  = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+ztest_CPPFLAGS	+= -DZTEST
 
 sbin_PROGRAMS   += ztest
 CPPCHECKTARGETS += ztest
@@ -49,7 +50,7 @@ ztest_SOURCES = \
 	%D%/ztest.c
 
 ztest_LDADD = \
-	libzpool.la \
+	libzpool_ztest.la \
 	libzfs_core.la \
 	libnvpair.la
 

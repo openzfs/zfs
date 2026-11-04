@@ -523,8 +523,11 @@ _SYS_FS_ZFS_H boolean_t zfs_prop_written(const char *);
 _SYS_FS_ZFS_H int zfs_prop_index_to_string(zfs_prop_t, uint64_t, const char **);
 _SYS_FS_ZFS_H int zfs_prop_string_to_index(zfs_prop_t, const char *,
     uint64_t *);
-_SYS_FS_ZFS_H uint64_t zfs_prop_random_value(zfs_prop_t, uint64_t seed);
 _SYS_FS_ZFS_H boolean_t zfs_prop_valid_for_type(int, zfs_type_t, boolean_t);
+
+#ifdef ZTEST
+_SYS_FS_ZFS_H uint64_t zfs_prop_random_value(zfs_prop_t, uint64_t seed);
+#endif
 
 /*
  * Pool property functions shared between libzfs and kernel.
@@ -541,7 +544,10 @@ _SYS_FS_ZFS_H int zpool_prop_index_to_string(zpool_prop_t, uint64_t,
     const char **);
 _SYS_FS_ZFS_H int zpool_prop_string_to_index(zpool_prop_t, const char *,
     uint64_t *);
+
+#ifdef ZTEST
 _SYS_FS_ZFS_H uint64_t zpool_prop_random_value(zpool_prop_t, uint64_t seed);
+#endif
 
 /*
  * VDEV property functions shared between libzfs and kernel.
@@ -557,7 +563,10 @@ _SYS_FS_ZFS_H int vdev_prop_index_to_string(vdev_prop_t, uint64_t,
 _SYS_FS_ZFS_H int vdev_prop_string_to_index(vdev_prop_t, const char *,
     uint64_t *);
 _SYS_FS_ZFS_H boolean_t zpool_prop_vdev(const char *name);
+
+#ifdef ZTEST
 _SYS_FS_ZFS_H uint64_t vdev_prop_random_value(vdev_prop_t prop, uint64_t seed);
+#endif
 
 /*
  * Definitions for the Delegation.

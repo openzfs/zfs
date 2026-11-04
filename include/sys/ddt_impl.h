@@ -223,9 +223,7 @@ typedef struct ddt_age_histo {
 
 void ddt_prune_walk(spa_t *spa, uint64_t cutoff, ddt_age_histo_t *histogram);
 
-#if defined(_KERNEL) || !defined(ZFS_DEBUG)
-#define	ddt_dump_age_histogram(histo, cutoff)	((void)0)
-#else
+#ifdef ZTEST
 static inline void
 ddt_dump_age_histogram(ddt_age_histo_t *histogram, uint64_t cutoff)
 {

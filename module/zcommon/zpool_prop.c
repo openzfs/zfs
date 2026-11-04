@@ -322,11 +322,13 @@ zpool_prop_index_to_string(zpool_prop_t prop, uint64_t index,
 	return (zprop_index_to_string(prop, index, string, ZFS_TYPE_POOL));
 }
 
+#ifdef ZTEST
 uint64_t
 zpool_prop_random_value(zpool_prop_t prop, uint64_t seed)
 {
 	return (zprop_random_value(prop, seed, ZFS_TYPE_POOL));
 }
+#endif
 
 #ifndef _KERNEL
 #include <libzfs.h>
@@ -672,11 +674,13 @@ zpool_prop_vdev(const char *name)
 	return (vdev_name_to_prop(name) != VDEV_PROP_INVAL);
 }
 
+#ifdef ZTEST
 uint64_t
 vdev_prop_random_value(vdev_prop_t prop, uint64_t seed)
 {
 	return (zprop_random_value(prop, seed, ZFS_TYPE_VDEV));
 }
+#endif
 
 #ifndef _KERNEL
 const char *
