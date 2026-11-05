@@ -18,6 +18,7 @@
  * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2021, Datto, Inc.
  * Copyright (c) 2021, 2024 by George Melikov. All rights reserved.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #include <sys/sysmacros.h>
@@ -3016,6 +3017,8 @@ zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t reason)
 		    "I/O failure and has been suspended.", spa_name(spa));
 	}
 
+	spa_misc_stats_bump_suspended(spa);
+
 	(void) zfs_ereport_post(FM_EREPORT_ZFS_IO_FAILURE, spa, NULL,
 	    NULL, NULL, 0);
 
@@ -3046,20 +3049,26 @@ int
 zio_resume(spa_t *spa)
 {
 	zio_t *pio;
+	boolean_t resuming = B_FALSE;
 
 	/*
 	 * Reexecute all previously suspended i/o.
 	 */
 	mutex_enter(&spa->spa_suspend_lock);
-	if (spa->spa_suspended != ZIO_SUSPEND_NONE)
+	if (spa->spa_suspended != ZIO_SUSPEND_NONE) {
 		cmn_err(CE_WARN, "Pool '%s' was suspended and is being "
 		    "resumed. Failed I/O will be retried.",
 		    spa_name(spa));
+		resuming = B_TRUE;
+	}
 	spa->spa_suspended = ZIO_SUSPEND_NONE;
 	cv_broadcast(&spa->spa_suspend_cv);
 	pio = spa->spa_suspend_zio_root;
 	spa->spa_suspend_zio_root = NULL;
 	mutex_exit(&spa->spa_suspend_lock);
+
+	if (resuming)
+		spa_misc_stats_bump_resumed(spa);
 
 	if (pio == NULL)
 		return (0);
