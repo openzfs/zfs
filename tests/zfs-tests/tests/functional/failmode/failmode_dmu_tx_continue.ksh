@@ -51,20 +51,14 @@ log_must zinject -d $DISK -e nxio -T probe $TESTPOOL
 
 # should only take a moment, but give it a chance
 log_note "waiting for pool to suspend"
-typeset -i tries=10
-until [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]] ; do
-	if ((tries-- == 0)); then
-		log_fail "pool didn't suspend"
-	fi
-	sleep 1
-done
+wait_for 10 is_pool_suspended $TESTPOOL || log_fail "pool didn't suspend"
 
 # dmu_tx_try_assign() should have noticed the suspend by now
 typeset -i suspended=$(kstat dmu_tx.dmu_tx_suspended)
 
 # dd should have exited with failure
 typeset -i blocked
-if kill -0 $dd_pid ; then
+if is_process_running $dd_pid ; then
 	blocked=1
 	log_note "dd is blocked in the kernel!"
 else

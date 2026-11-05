@@ -82,7 +82,7 @@ log_note "the write returned $rc: $(<$errfile)"
 if ((after <= before)); then
 	log_fail "the write did not use Direct I/O"
 fi
-log_must [ "$(kstat_pool $TESTPOOL state)" != "SUSPENDED" ]
+log_mustnot is_pool_suspended $TESTPOOL
 log_must [ $rc -ne 0 ]
 log_mustnot grep -q "No space left on device" $errfile
 log_must grep -qE "Input/output error|I/O error" $errfile

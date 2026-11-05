@@ -48,7 +48,7 @@ function cleanup
 	poolexists $TESTPOOL2 && destroy_pool $TESTPOOL2
 
 	log_note "Kill off ufsdump process if still running"
-	kill -0 $PIDUFSDUMP > /dev/null 2>&1 && \
+	is_process_running $PIDUFSDUMP && \
 	    log_must eval "kill -9 $PIDUFSDUMP"
 	#
 	# Note: It would appear that ufsdump spawns a number of processes
@@ -58,7 +58,7 @@ function cleanup
 	kill -9 `pgrep ufsdump` > /dev/null 2>&1
 
 	log_note "Kill off ufsrestore process if still running"
-	kill -0 $PIDUFSRESTORE > /dev/null 2>&1 && \
+	is_process_running $PIDUFSRESTORE && \
 	    log_must eval "kill -9 $PIDUFSRESTORE"
 
 	ismounted $UFSMP ufs && log_must umount $UFSMP

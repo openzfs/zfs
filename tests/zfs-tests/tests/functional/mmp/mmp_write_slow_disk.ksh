@@ -41,7 +41,7 @@ function cleanup
 {
 	log_must zinject -c all
 
-	if [[ $(zpool list -H -o health $MMP_POOL) == "SUSPENDED" ]]; then
+	if poolexists $MMP_POOL && is_pool_suspended $MMP_POOL; then
 		log_must zpool clear $MMP_POOL
 		zpool get state $MMP_POOL $MMP_DIR/file.3
 		zpool events | grep ".fs.zfs." | grep -v "history_event"
@@ -88,8 +88,7 @@ done
 
 # Expect that the pool was not suspended
 log_must check_state $MMP_POOL "" "DEGRADED"
-health=$(zpool list -H -o health $MMP_POOL)
-log_note "$MMP_POOL health is $health"
-[[ "$health" == "SUSPENDED" ]] && log_fail "$MMP_POOL $health unexpected"
+log_note "$MMP_POOL health is $(zpool list -H -o health $MMP_POOL)"
+is_pool_suspended $MMP_POOL && log_fail "$MMP_POOL suspended unexpectedly"
 
 log_pass "A long VDEV probe doesn't cause a MMP check suspend"

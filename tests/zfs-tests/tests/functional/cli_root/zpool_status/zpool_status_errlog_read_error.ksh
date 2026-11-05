@@ -42,7 +42,7 @@ STATUS_PID=
 
 function cleanup
 {
-	if [[ -n "$STATUS_PID" ]] && kill -0 $STATUS_PID 2>/dev/null; then
+	if [[ -n "$STATUS_PID" ]] && is_process_running $STATUS_PID; then
 		# The pool is wedged, don't hang the cleanup as well.
 		log_note "zpool status -v is still running, pool left as is"
 		return
@@ -96,14 +96,8 @@ log_must zinject -b $objset:$object:1:0 -e checksum -a $TESTPOOL2
 
 zpool status -v $TESTPOOL2 > $TEST_BASE_DIR/status_errlog.out 2>&1 &
 STATUS_PID=$!
-typeset -i i=0
-while ((i < 30)) && kill -0 $STATUS_PID 2>/dev/null; do
-	sleep 1
-	((i += 1))
-done
-if kill -0 $STATUS_PID 2>/dev/null; then
-	log_fail "'zpool status -v' hung resolving the error list"
-fi
+wait_for 30 is_process_exited $STATUS_PID || \
+    log_fail "'zpool status -v' hung resolving the error list"
 log_must wait $STATUS_PID
 STATUS_PID=
 log_must grep -q "Permanent errors" $TEST_BASE_DIR/status_errlog.out

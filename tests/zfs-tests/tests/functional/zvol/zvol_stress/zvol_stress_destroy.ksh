@@ -50,7 +50,7 @@ function destroy_zvols_until {
 cpid=$!
 sleep 1
 
-destroy_zvols_until "kill -0 $cpid"
+destroy_zvols_until "is_process_running $cpid"
 destroy_zvols_until "false"
 
 log_pass "stress test done"

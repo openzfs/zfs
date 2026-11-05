@@ -53,13 +53,7 @@ log_must touch /$TESTPOOL/$TESTFS/file2
 
 # wait for the pool to suspend
 log_note "waiting for pool to suspend"
-typeset -i tries=10
-until [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]] ; do
-	if ((tries-- == 0)); then
-		log_fail "pool didn't suspend"
-	fi
-	sleep 1
-done
+wait_for 10 is_pool_suspended $TESTPOOL || log_fail "pool didn't suspend"
 
 # pool suspended. syncfs() in the background, as it may block
 sync -f /$TESTPOOL/$TESTFS &
@@ -72,7 +66,7 @@ sleep 1
 # returned an error, or be blocked in the kernel
 typeset -i blocked
 typeset -i rc
-if kill -0 $syncfs_pid ; then
+if is_process_running $syncfs_pid ; then
 	blocked=1
 	log_note "syncfs() is blocked in the kernel"
 else

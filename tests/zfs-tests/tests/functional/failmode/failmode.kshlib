@@ -84,20 +84,15 @@ function failmode_sync_test
 
 	# should only take a moment, but give it a chance
 	log_note "waiting for pool to suspend"
-	typeset -i tries=10
-	until [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]] ; do
-		if ((tries-- == 0)); then
-			log_fail "pool didn't suspend"
-		fi
-		sleep 1
-	done
+	wait_for 10 is_pool_suspended $TESTPOOL || \
+	    log_fail "pool didn't suspend"
 
 	# zil_commit() should have noticed the suspend by now
 	typeset -i zilerr=$(kstat zil.zil_commit_error_count)
 
 	# see if the helper program blocked
 	typeset -i blocked
-	if kill -0 $pid ; then
+	if is_process_running $pid ; then
 		blocked=1
 		log_note "$helper: blocked in the kernel"
 	else

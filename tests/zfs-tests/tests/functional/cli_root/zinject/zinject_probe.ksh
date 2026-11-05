@@ -55,12 +55,6 @@ log_must zinject -d $DISK1 -e io -T write $TESTPOOL
 log_pos zpool sync &
 
 log_note "waiting for pool to suspend"
-typeset -i tries=30
-until [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]] ; do
-	if ((tries-- == 0)); then
-		log_fail "pool didn't suspend"
-	fi
-	sleep 1
-done
+wait_for 30 is_pool_suspended $TESTPOOL || log_fail "pool didn't suspend"
 
 log_pass "zinject can correctly inject a probe failure."

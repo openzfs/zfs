@@ -86,8 +86,7 @@ function mmp_clear_suspended # pool
 {
 	typeset pool=${1:-$MMP_POOL}
 
-	if poolexists $pool && \
-	    [[ $(zpool list -H -o health $pool) == "SUSPENDED" ]]; then
+	if poolexists $pool && is_pool_suspended $pool; then
 		log_must zpool clear $pool
 	fi
 }

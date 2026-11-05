@@ -62,7 +62,7 @@ for (( attempt = 1; attempt <= 3; attempt++ )); do
 	clear_mmp_history
 	MMP_WRITES=$(count_mmp_writes $TESTPOOL $DURATION)
 
-	[[ $(zpool list -H -o health $TESTPOOL) != "SUSPENDED" ]] && break
+	is_pool_suspended $TESTPOOL || break
 
 	log_note "Pool suspended while counting writes, sample $attempt dropped"
 	mmp_clear_suspended $TESTPOOL

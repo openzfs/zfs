@@ -109,15 +109,12 @@ typeset -i zilerr=$(kstat zil.zil_commit_error_count)
 dd if=/dev/null of=$file conv=notrunc,fsync &
 typeset -i pid=$!
 
-typeset -i tries=60
-until [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]]; do
-	((tries-- > 0)) || log_fail "pool didn't suspend"
-	sleep 1
-done
+wait_for 60 is_pool_suspended $TESTPOOL || log_fail "pool didn't suspend"
 typeset -i zilerr2=$(kstat zil.zil_commit_error_count)
 log_note "zil_commit_error_count $zilerr -> $zilerr2"
 ((zilerr2 > zilerr)) || log_fail "the log write didn't fail"
-kill -0 $pid || log_fail "fsync returned while the pool was suspended"
+is_process_running $pid || \
+    log_fail "fsync returned while the pool was suspended"
 
 #
 # 5. Resume the pool.
