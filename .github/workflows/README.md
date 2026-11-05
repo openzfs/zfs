@@ -154,7 +154,9 @@ Available via `specific_os` or `ZTS_OS_OVERRIDE`:
 
 - `zfs-arm.yml`: ARM build on `ubuntu-24.04-arm`
 - `zloop.yml`: host-side zloop
-- `labels.yml`: maintains PR status labels
+- `labels.yml`: maintains PR labels:
+  - status labels
+  - size labels, from the lines each PR changes
 - `zfs-precheck.yml`: quick checks on one VM; for PRs that add a test in
   one commit and fix the bug in a later commit, checks that the test
   fails on the test commit and passes on the PR head (see below)
