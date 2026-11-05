@@ -1338,9 +1338,45 @@ static size_t aesni_gcm_encrypt_avx512(const uint8_t *in, uint8_t *out,
 #endif /* if CAN_USE_GCM_ASM >= 3 */
 
 /*
+ * Return a pointer to the len bytes of out at its current offset if they are
+ * contiguous in memory, or NULL if they are not.
+ */
+static uint8_t *
+gcm_contig_output(crypto_data_t *out, size_t len)
+{
+	zfs_uio_t *uio;
+	offset_t off;
+	uint_t idx;
+
+	if (out->cd_offset < 0)
+		return (NULL);
+
+	switch (out->cd_format) {
+	case CRYPTO_DATA_RAW:
+		if ((size_t)out->cd_offset > out->cd_raw.iov_len ||
+		    out->cd_raw.iov_len - (size_t)out->cd_offset < len)
+			return (NULL);
+		return ((uint8_t *)out->cd_raw.iov_base + out->cd_offset);
+	case CRYPTO_DATA_UIO:
+		uio = out->cd_uio;
+		if (zfs_uio_segflg(uio) != UIO_SYSSPACE)
+			return (NULL);
+		off = zfs_uio_index_at_offset(uio, out->cd_offset, &idx);
+		if (idx >= (uint_t)zfs_uio_iovcnt(uio) ||
+		    (size_t)zfs_uio_iovlen(uio, idx) - (size_t)off < len)
+			return (NULL);
+		return ((uint8_t *)zfs_uio_iovbase(uio, idx) + off);
+	default:
+		return (NULL);
+	}
+}
+
+/*
  * Encrypt multiple blocks of data in GCM mode.
  * This is done in gcm_avx_chunk_size chunks, utilizing AVX assembler routines
  * if possible. While processing a chunk the FPU is "locked".
+ * The chunks are encrypted straight into the output when the range they are
+ * written to is contiguous, and through a bounce buffer otherwise.
  */
 static int
 gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
@@ -1366,6 +1402,8 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 	uint64_t *htable = ctx->gcm_Htable;
 	uint64_t *cb = ctx->gcm_cb;
 	uint8_t *ct_buf = NULL;
+	uint8_t *direct = NULL;
+	uint8_t *dst;
 	uint8_t *tmp = (uint8_t *)ctx->gcm_tmp;
 	int rv = CRYPTO_SUCCESS;
 	kfpu_ctx_t kctx;
@@ -1398,14 +1436,6 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 		}
 	}
 
-	/* Allocate a buffer to encrypt to if there is enough input. */
-	if (bleft >= GCM_AVX_MIN_ENCRYPT_BYTES) {
-		ct_buf = vmem_alloc(chunk_size, KM_SLEEP);
-		if (ct_buf == NULL) {
-			return (CRYPTO_HOST_MEMORY);
-		}
-	}
-
 	/* If we completed an incomplete block, encrypt and write it out. */
 	if (ctx->gcm_remainder_len > 0) {
 		kfpu_begin(&kctx);
@@ -1425,11 +1455,27 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 		ctx->gcm_remainder_len = 0;
 	}
 
+	/*
+	 * If there is enough input, encrypt straight into the output when the
+	 * whole blocks this call writes are contiguous there, or allocate a
+	 * buffer to encrypt to otherwise.
+	 */
+	if (bleft >= GCM_AVX_MIN_ENCRYPT_BYTES) {
+		direct = gcm_contig_output(out, bleft - bleft % block_size);
+		if (direct == NULL) {
+			ct_buf = vmem_alloc(chunk_size, KM_SLEEP);
+			if (ct_buf == NULL) {
+				return (CRYPTO_HOST_MEMORY);
+			}
+		}
+	}
+	dst = (direct != NULL) ? direct : ct_buf;
+
 	/* Do the bulk encryption in chunk_size blocks. */
 	for (; bleft >= chunk_size; bleft -= chunk_size) {
 		kfpu_begin(&kctx);
 		done = encrypt_blocks(
-		    datap, ct_buf, chunk_size, key, cb, htable, ghash);
+		    datap, dst, chunk_size, key, cb, htable, ghash);
 
 		clear_fpu_regs(ctx);
 		kfpu_end(&kctx);
@@ -1437,9 +1483,13 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 			rv = CRYPTO_FAILED;
 			goto out_nofpu;
 		}
-		rv = crypto_put_output_data(ct_buf, out, chunk_size);
-		if (rv != CRYPTO_SUCCESS) {
-			goto out_nofpu;
+		if (direct != NULL) {
+			dst += chunk_size;
+		} else {
+			rv = crypto_put_output_data(ct_buf, out, chunk_size);
+			if (rv != CRYPTO_SUCCESS) {
+				goto out_nofpu;
+			}
 		}
 		out->cd_offset += chunk_size;
 		datap += chunk_size;
@@ -1452,15 +1502,17 @@ gcm_mode_encrypt_contiguous_blocks_avx(gcm_ctx_t *ctx, char *data,
 	/* Bulk encrypt the remaining data. */
 	kfpu_begin(&kctx);
 	if (bleft >= GCM_AVX_MIN_ENCRYPT_BYTES) {
-		done = encrypt_blocks(datap, ct_buf, bleft, key, cb, htable,
+		done = encrypt_blocks(datap, dst, bleft, key, cb, htable,
 		    ghash);
 		if (done == 0) {
 			rv = CRYPTO_FAILED;
 			goto out;
 		}
-		rv = crypto_put_output_data(ct_buf, out, done);
-		if (rv != CRYPTO_SUCCESS) {
-			goto out;
+		if (direct == NULL) {
+			rv = crypto_put_output_data(ct_buf, out, done);
+			if (rv != CRYPTO_SUCCESS) {
+				goto out;
+			}
 		}
 		out->cd_offset += done;
 		ctx->gcm_processed_data_len += done;
