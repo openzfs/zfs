@@ -1435,7 +1435,17 @@ vdev_top_transfer(vdev_t *svd, vdev_t *tvd)
 	}
 
 	tvd->vdev_deflate_ratio = svd->vdev_deflate_ratio;
+	tvd->vdev_deflate_ratio_current = svd->vdev_deflate_ratio_current;
 	svd->vdev_deflate_ratio = 0;
+	svd->vdev_deflate_ratio_current = 0;
+
+	tvd->vdev_acct_excess = svd->vdev_acct_excess;
+	svd->vdev_acct_excess = 0;
+	for (t = 0; t < TXG_SIZE; t++) {
+		tvd->vdev_acct_excess_delta[t] =
+		    svd->vdev_acct_excess_delta[t];
+		svd->vdev_acct_excess_delta[t] = 0;
+	}
 
 	tvd->vdev_islog = svd->vdev_islog;
 	svd->vdev_islog = 0;
@@ -2141,20 +2151,62 @@ vdev_open_children_subset(vdev_t *vd, cred_t *cred,
 }
 
 /*
+ * The deflate ratio of the geometry that blocks born in txg are written with
+ * (0 for the original geometry, UINT64_MAX for the current one).  Every
+ * ratio a block can be charged with comes from here, so that it is freed
+ * with the ratio it was born with.
+ */
+static uint64_t
+vdev_deflate_ratio_txg(vdev_t *vd, uint64_t txg)
+{
+	return ((1 << 17) /
+	    (vdev_psize_to_asize_txg(vd, 1 << 17, txg) >> SPA_MINBLOCKSHIFT));
+}
+
+/*
+ * Activate raidz_expansion_accounting, recording the accounting boundary.
+ *
+ * Blocks born up to the boundary keep the legacy ratio.  It is set
+ * TXG_CONCURRENT_STATES txgs ahead, like a new reflow_node_t, because
+ * open context (dmu_sync() and the ZIL) may already have allocated blocks
+ * for the txgs after this one, before the boundary existed and without
+ * recording their excess.
+ */
+void
+vdev_raidz_expand_acct_activate(spa_t *spa, dmu_tx_t *tx)
+{
+	uint64_t boundary = dmu_tx_get_txg(tx) + TXG_CONCURRENT_STATES;
+
+	ASSERT(dmu_tx_is_syncing(tx));
+	ASSERT0(spa->spa_raidz_expand_acct_txg);
+
+	spa_feature_incr(spa, SPA_FEATURE_RAIDZ_EXPANSION_ACCOUNTING, tx);
+	VERIFY0(zap_add(spa->spa_meta_objset, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_RAIDZ_EXPAND_ACCT_TXG, sizeof (uint64_t), 1, &boundary,
+	    tx));
+	spa->spa_raidz_expand_acct_txg = boundary;
+}
+
+/*
  * Compute the raidz-deflation ratio.  Note, we hard-code 128k (1 << 17)
  * because it is the "typical" blocksize.  Even though SPA_MAXBLOCKSIZE
  * changed, this algorithm can not change, otherwise it would inconsistently
  * account for existing bp's.  We also hard-code txg 0 for the same reason
  * since expanded RAIDZ vdevs can use a different asize for different birth
  * txg's.
+ *
+ * We also compute vdev_deflate_ratio_current using UINT64_MAX (current
+ * geometry) for use in capacity reporting (vs_dspace).  This reflects
+ * the actual usable capacity for new writes after RAIDZ expansion.
+ * The txg-0-based ratio is preserved for persistent per-block accounting.
  */
 static void
 vdev_set_deflate_ratio(vdev_t *vd)
 {
 	if (vd == vd->vdev_top && !vd->vdev_ishole && vd->vdev_ashift != 0) {
-		vd->vdev_deflate_ratio = (1 << 17) /
-		    (vdev_psize_to_asize_txg(vd, 1 << 17, 0) >>
-		    SPA_MINBLOCKSHIFT);
+		vd->vdev_deflate_ratio = vdev_deflate_ratio_txg(vd, 0);
+		vd->vdev_deflate_ratio_current =
+		    vdev_deflate_ratio_txg(vd, UINT64_MAX);
 	}
 }
 
@@ -4082,6 +4134,24 @@ vdev_load(vdev_t *vd)
 		}
 	}
 
+	if (vd == vd->vdev_top && vd->vdev_top_zap != 0) {
+		spa_t *spa = vd->vdev_spa;
+
+		error = zap_lookup(spa->spa_meta_objset, vd->vdev_top_zap,
+		    VDEV_TOP_ZAP_RAIDZ_EXPAND_ACCT_EXCESS, sizeof (uint64_t),
+		    1, &vd->vdev_acct_excess);
+		if (error == ENOENT) {
+			vd->vdev_acct_excess = 0;
+		} else if (error != 0) {
+			vdev_set_state(vd, B_FALSE, VDEV_STATE_CANT_OPEN,
+			    VDEV_AUX_CORRUPT_DATA);
+			vdev_dbgmsg(vd, "vdev_load: zap_lookup(top_zap=%llu) "
+			    "failed [error=%d]",
+			    (u_longlong_t)vd->vdev_top_zap, error);
+			return (error);
+		}
+	}
+
 	/*
 	 * Load any rebuild state from the top-level vdev zap.
 	 */
@@ -4405,6 +4475,8 @@ vdev_sync_done(vdev_t *vd, uint64_t txg)
 	}
 }
 
+static void vdev_acct_excess_sync(vdev_t *vd, dmu_tx_t *tx);
+
 void
 vdev_sync(vdev_t *vd, uint64_t txg)
 {
@@ -4458,6 +4530,9 @@ vdev_sync(vdev_t *vd, uint64_t txg)
 	 */
 	if (vd->vdev_islog && vd->vdev_stat.vs_alloc == 0 && vd->vdev_removing)
 		vdev_remove_empty_log(vd, txg);
+
+	if (vd == vd->vdev_top)
+		vdev_acct_excess_sync(vd, tx);
 
 	(void) txg_list_add(&spa->spa_vdev_txg_list, vd, TXG_CLEAN(txg));
 	dmu_tx_commit(tx);
@@ -5573,6 +5648,92 @@ vdev_deflated_space(vdev_t *vd, int64_t space)
 	ASSERT(vd->vdev_deflate_ratio != 0 || vd->vdev_isl2cache);
 
 	return ((space >> SPA_MINBLOCKSHIFT) * vd->vdev_deflate_ratio);
+}
+
+/*
+ * Return the deflation ratio appropriate for a block born at the given txg.
+ * For vdevs that have never been expanded (or non-RAIDZ vdevs), this is
+ * simply the cached vdev_deflate_ratio (based on txg 0 geometry).
+ *
+ * For expanded RAIDZ vdevs, the ratio depends on the logical width at the
+ * time the block was written.  The ratio is computed from the block's birth
+ * txg so that a given block always produces the same deflated size,
+ * preserving the consistency of persistent accounting (DN_USED_BYTES).
+ *
+ * The raidz_expansion_accounting feature records an accounting boundary
+ * when it is activated (see vdev_raidz_expand_acct_activate()).  Blocks born
+ * up to it were accounted using the legacy fixed ratio, so we must continue
+ * using it for those blocks to prevent born/free mismatches.
+ */
+uint64_t
+vdev_get_deflate_ratio(vdev_t *vd, uint64_t birth_txg)
+{
+	/*
+	 * If the raidz_expansion_accounting feature is not active, or
+	 * this block was born up to its boundary, use the legacy fixed
+	 * ratio.  This ensures blocks that were accounted under the old
+	 * code are freed with the same ratio they were born with.
+	 */
+	uint64_t acct_txg = vd->vdev_spa->spa_raidz_expand_acct_txg;
+	if (acct_txg == 0 || birth_txg <= acct_txg)
+		return (vd->vdev_deflate_ratio);
+
+	return (vdev_deflate_ratio_txg(vd, birth_txg));
+}
+
+/*
+ * Account for an allocation (or free) of asize bytes on top-level vdev vd,
+ * for a block born in birth_txg, in the given txg.  Blocks charged at a
+ * ratio other than the legacy vdev_deflate_ratio change the deflated space
+ * that is in use beyond alloc * vdev_deflate_ratio, which
+ * spa_update_dspace() must add back.  Only RAID-Z vdevs can differ.
+ */
+void
+vdev_acct_excess_update(vdev_t *vd, uint64_t asize, uint64_t birth_txg,
+    uint64_t txg, boolean_t alloc)
+{
+	ASSERT3P(vd, ==, vd->vdev_top);
+
+	if (vd->vdev_ops != &vdev_raidz_ops || vd->vdev_deflate_ratio == 0)
+		return;
+
+	int64_t diff = (int64_t)vdev_get_deflate_ratio(vd, birth_txg) -
+	    (int64_t)vd->vdev_deflate_ratio;
+	if (diff == 0)
+		return;
+
+	int64_t delta = (int64_t)(asize >> SPA_MINBLOCKSHIFT) * diff;
+	atomic_add_64(&vd->vdev_acct_excess_delta[txg & TXG_MASK],
+	    alloc ? delta : -delta);
+}
+
+/*
+ * Fold this txg's excess delta into the synced value and persist it.
+ */
+static void
+vdev_acct_excess_sync(vdev_t *vd, dmu_tx_t *tx)
+{
+	uint64_t txg = dmu_tx_get_txg(tx);
+	int64_t delta = (int64_t)atomic_swap_64(
+	    &vd->vdev_acct_excess_delta[txg & TXG_MASK], 0);
+
+	if (delta == 0)
+		return;
+
+	int64_t excess = (int64_t)vd->vdev_acct_excess + delta;
+	/*
+	 * Every block's excess is removed with the same ratio it was added
+	 * with, so this cannot go below zero.  Should a mismatch happen,
+	 * erring low in release builds only understates the available space.
+	 */
+	ASSERT3S(excess, >=, 0);
+	vd->vdev_acct_excess = MAX(excess, 0);
+
+	if (vd->vdev_top_zap == 0)
+		return;
+	VERIFY0(zap_update(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
+	    VDEV_TOP_ZAP_RAIDZ_EXPAND_ACCT_EXCESS, sizeof (uint64_t), 1,
+	    &vd->vdev_acct_excess, tx));
 }
 
 /*
@@ -7355,6 +7516,7 @@ EXPORT_SYMBOL(vdev_degrade);
 EXPORT_SYMBOL(vdev_online);
 EXPORT_SYMBOL(vdev_offline);
 EXPORT_SYMBOL(vdev_clear);
+EXPORT_SYMBOL(vdev_get_deflate_ratio);
 
 ZFS_MODULE_PARAM(zfs_vdev, zfs_vdev_, default_ms_count, UINT, ZMOD_RW,
 	"Target number of metaslabs per top-level vdev");
