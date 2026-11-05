@@ -29,6 +29,58 @@ jobs:
         run: |
           gh pr edit $ISSUE --remove-label "Status: Accepted,Status: Inactive,Status: Revision Needed,Status: Stale"
 
+  area:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened' }}
+    concurrency:
+      group: area-${{ github.event.pull_request.number || 'all' }}
+      cancel-in-progress: true
+    steps:
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # A PR that changes nothing but CI, tests or documentation gets
+          # the label of each of these it changes.  Labels are only added,
+          # so labels set by hand stay.  A manual run labels every open PR.
+          labels=$(gh label list --limit 1000 --json name --jq '.[].name')
+          for l in "Component: CI" "Component: Test Suite" \
+              "Type: Documentation"; do
+            if ! grep -qxF "$l" <<< "$labels"; then
+              gh label create "$l" --color ededed
+            fi
+          done
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            prs=$(gh pr list --state open --limit 1000 --json number,labels)
+          else
+            prs=$(jq '[.pull_request]' "$GITHUB_EVENT_PATH")
+          fi
+          jq -r '.[] | [.number, ([.labels[].name] | join(","))] | @tsv' \
+              <<< "$prs" |
+          while IFS=$'\t' read -r pr have; do
+            kinds=$(gh api --paginate "repos/$GH_REPO/pulls/$pr/files" \
+                --jq '.[].filename' < /dev/null |
+                awk '/^\.github\// { print "Component: CI"; next }
+                    /^tests\// { print "Component: Test Suite"; next }
+                    /^man\// || /\.md$/ { print "Type: Documentation"; next }
+                    { print "code" }' | sort -u)
+            if [ -z "$kinds" ] || grep -qx code <<< "$kinds"; then
+              continue
+            fi
+            while read -r l; do
+              if ! tr ',' '\n' <<< "$have" | grep -qxF "$l"; then
+                gh api --silent -X POST "repos/$GH_REPO/issues/$pr/labels" \
+                    -f "labels[]=$l" < /dev/null
+                # GitHub allows 80 label changes a minute; leave room for
+                # another job doing the same.
+                if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+                  sleep 2
+                fi
+              fi
+            done <<< "$kinds"
+          done
+
   draft:
     runs-on: ubuntu-latest
     if: ${{ github.event.action == 'converted_to_draft' }}
