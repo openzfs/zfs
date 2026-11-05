@@ -1441,6 +1441,12 @@ vdev_top_transfer(vdev_t *svd, vdev_t *tvd)
 
 	tvd->vdev_acct_excess = svd->vdev_acct_excess;
 	svd->vdev_acct_excess = 0;
+	tvd->vdev_acct_excess_applied = svd->vdev_acct_excess_applied;
+	svd->vdev_acct_excess_applied = 0;
+	tvd->vdev_acct_excess_on = svd->vdev_acct_excess_on;
+	svd->vdev_acct_excess_on = B_FALSE;
+	tvd->vdev_noalloc_corr = svd->vdev_noalloc_corr;
+	svd->vdev_noalloc_corr = B_FALSE;
 	for (t = 0; t < TXG_SIZE; t++) {
 		tvd->vdev_acct_excess_delta[t] =
 		    svd->vdev_acct_excess_delta[t];
@@ -1661,6 +1667,20 @@ vdev_update_nonallocating_space(vdev_t *vd, boolean_t add)
 	uint64_t raw_space = metaslab_group_get_space(vd->vdev_mg);
 	uint64_t dspace = spa_deflate(spa) ?
 	    vdev_deflated_space(vd, raw_space) : raw_space;
+
+	/*
+	 * The group's space beyond the legacy deflate ratio (see
+	 * metaslab_space_update()) changes as blocks are freed; once added,
+	 * metaslab_group_dspace_update() keeps it current.
+	 */
+	if (add && spa_deflate(spa) && !vd->vdev_noalloc_corr) {
+		dspace += vd->vdev_mg->mg_dspace_corr;
+		vd->vdev_noalloc_corr = B_TRUE;
+	} else if (!add && vd->vdev_noalloc_corr) {
+		dspace += vd->vdev_mg->mg_dspace_corr;
+		vd->vdev_noalloc_corr = B_FALSE;
+	}
+
 	if (add) {
 		spa->spa_nonallocating_dspace += dspace;
 	} else {
@@ -1790,6 +1810,8 @@ vdev_metaslab_init(vdev_t *vd, uint64_t txg)
 		}
 	}
 
+	vdev_acct_excess_account(vd, B_TRUE);
+
 	if (txg == 0)
 		spa_config_enter(spa, SCL_ALLOC, FTAG, RW_WRITER);
 
@@ -1859,6 +1881,7 @@ vdev_metaslab_fini(vdev_t *vd)
 				ASSERT0(vd->vdev_log_mg->mg_histogram[i]);
 		}
 	}
+	vdev_acct_excess_account(vd, B_FALSE);
 	ASSERT0(vd->vdev_ms_count);
 }
 
@@ -2164,7 +2187,22 @@ vdev_deflate_ratio_txg(vdev_t *vd, uint64_t txg)
 }
 
 /*
- * Activate raidz_expansion_accounting, recording the accounting boundary.
+ * The ratio at which the space stats count free space, the one at which new
+ * blocks are charged: the legacy ratio until raidz_expansion_accounting is
+ * active and the current geometry's afterwards.
+ */
+uint64_t
+vdev_free_deflate_ratio(vdev_t *vd)
+{
+	if (vd->vdev_spa->spa_raidz_expand_acct_txg == 0)
+		return (vd->vdev_deflate_ratio);
+	return (MAX(vd->vdev_deflate_ratio, vd->vdev_deflate_ratio_current));
+}
+
+/*
+ * Activate raidz_expansion_accounting, recording the accounting boundary,
+ * and rebase the free space of every top-level vdev to the free deflate
+ * ratio that now applies.
  *
  * Blocks born up to the boundary keep the legacy ratio.  It is set
  * TXG_CONCURRENT_STATES txgs ahead, like a new reflow_node_t, because
@@ -2175,6 +2213,7 @@ vdev_deflate_ratio_txg(vdev_t *vd, uint64_t txg)
 void
 vdev_raidz_expand_acct_activate(spa_t *spa, dmu_tx_t *tx)
 {
+	vdev_t *rvd = spa->spa_root_vdev;
 	uint64_t boundary = dmu_tx_get_txg(tx) + TXG_CONCURRENT_STATES;
 
 	ASSERT(dmu_tx_is_syncing(tx));
@@ -2185,6 +2224,19 @@ vdev_raidz_expand_acct_activate(spa_t *spa, dmu_tx_t *tx)
 	    DMU_POOL_RAIDZ_EXPAND_ACCT_TXG, sizeof (uint64_t), 1, &boundary,
 	    tx));
 	spa->spa_raidz_expand_acct_txg = boundary;
+	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *vd = rvd->vdev_child[c];
+		uint64_t r = vdev_free_deflate_ratio(vd);
+
+		if (vd->vdev_deflate_ratio == 0 || r == vd->vdev_deflate_ratio)
+			continue;
+		if (vd->vdev_mg != NULL)
+			metaslab_group_rebase_dspace(vd->vdev_mg,
+			    vd->vdev_deflate_ratio, r);
+		if (vd->vdev_log_mg != NULL)
+			metaslab_group_rebase_dspace(vd->vdev_log_mg,
+			    vd->vdev_deflate_ratio, r);
+	}
 }
 
 /*
@@ -2196,17 +2248,39 @@ vdev_raidz_expand_acct_activate(spa_t *spa, dmu_tx_t *tx)
  * txg's.
  *
  * We also compute vdev_deflate_ratio_current using UINT64_MAX (current
- * geometry) for use in capacity reporting (vs_dspace).  This reflects
- * the actual usable capacity for new writes after RAIDZ expansion.
+ * geometry), at which the space stats count free space once
+ * raidz_expansion_accounting is active (see vdev_free_deflate_ratio()).  This
+ * reflects the actual usable capacity for new writes after RAIDZ expansion.
  * The txg-0-based ratio is preserved for persistent per-block accounting.
  */
 static void
 vdev_set_deflate_ratio(vdev_t *vd)
 {
 	if (vd == vd->vdev_top && !vd->vdev_ishole && vd->vdev_ashift != 0) {
+		uint64_t old_ratio = vd->vdev_deflate_ratio;
+		uint64_t old_free_ratio = vdev_free_deflate_ratio(vd);
+
 		vd->vdev_deflate_ratio = vdev_deflate_ratio_txg(vd, 0);
 		vd->vdev_deflate_ratio_current =
 		    vdev_deflate_ratio_txg(vd, UINT64_MAX);
+
+		/*
+		 * Free space is counted at the free ratio (see
+		 * metaslab_space_update()), which changes when a RAID-Z
+		 * expansion completes.  The legacy ratio cannot change.
+		 */
+		uint64_t new_free_ratio = vdev_free_deflate_ratio(vd);
+		if (old_ratio == 0 || new_free_ratio == old_free_ratio)
+			return;
+		ASSERT3U(vd->vdev_deflate_ratio, ==, old_ratio);
+		if (vd->vdev_mg != NULL) {
+			metaslab_group_rebase_dspace(vd->vdev_mg,
+			    old_free_ratio, new_free_ratio);
+		}
+		if (vd->vdev_log_mg != NULL) {
+			metaslab_group_rebase_dspace(vd->vdev_log_mg,
+			    old_free_ratio, new_free_ratio);
+		}
 	}
 }
 
@@ -5685,8 +5759,8 @@ vdev_get_deflate_ratio(vdev_t *vd, uint64_t birth_txg)
  * Account for an allocation (or free) of asize bytes on top-level vdev vd,
  * for a block born in birth_txg, in the given txg.  Blocks charged at a
  * ratio other than the legacy vdev_deflate_ratio change the deflated space
- * that is in use beyond alloc * vdev_deflate_ratio, which
- * spa_update_dspace() must add back.  Only RAID-Z vdevs can differ.
+ * that is in use beyond alloc * vdev_deflate_ratio, which the space stats
+ * must add (see vdev_acct_excess_account()).  Only RAID-Z vdevs can differ.
  */
 void
 vdev_acct_excess_update(vdev_t *vd, uint64_t asize, uint64_t birth_txg,
@@ -5705,6 +5779,31 @@ vdev_acct_excess_update(vdev_t *vd, uint64_t asize, uint64_t birth_txg,
 	int64_t delta = (int64_t)(asize >> SPA_MINBLOCKSHIFT) * diff;
 	atomic_add_64(&vd->vdev_acct_excess_delta[txg & TXG_MASK],
 	    alloc ? delta : -delta);
+}
+
+/*
+ * Add vdev_acct_excess to the allocated space and the space of the
+ * vdev's metaslab class (on), or remove what was added (off).  It is
+ * counted while the vdev's metaslabs are, so that it leaves the stats
+ * together with their space.  The excess is persisted per vdev, so that of
+ * ZIL blocks allocated from an embedded log metaslab is counted here too,
+ * in the normal class, until they are freed.
+ */
+void
+vdev_acct_excess_account(vdev_t *vd, boolean_t on)
+{
+	uint64_t target = (on && vd->vdev_mg != NULL) ?
+	    vd->vdev_acct_excess : 0;
+	int64_t delta = (int64_t)target -
+	    (int64_t)vd->vdev_acct_excess_applied;
+
+	ASSERT3P(vd, ==, vd->vdev_top);
+
+	vd->vdev_acct_excess_on = on;
+	if (delta == 0)
+		return;
+	vd->vdev_acct_excess_applied = target;
+	metaslab_group_dspace_update(vd->vdev_mg, delta, delta);
 }
 
 /*
@@ -5728,12 +5827,35 @@ vdev_acct_excess_sync(vdev_t *vd, dmu_tx_t *tx)
 	 */
 	ASSERT3S(excess, >=, 0);
 	vd->vdev_acct_excess = MAX(excess, 0);
+	vdev_acct_excess_account(vd, vd->vdev_acct_excess_on);
 
 	if (vd->vdev_top_zap == 0)
 		return;
 	VERIFY0(zap_update(vd->vdev_spa->spa_meta_objset, vd->vdev_top_zap,
 	    VDEV_TOP_ZAP_RAIDZ_EXPAND_ACCT_EXCESS, sizeof (uint64_t), 1,
 	    &vd->vdev_acct_excess, tx));
+}
+
+/*
+ * Add deflated space to this vdev and the root vdev, without raw space;
+ * see metaslab_group_dspace_update().
+ */
+void
+vdev_dspace_update(vdev_t *vd, int64_t dspace_delta)
+{
+	vdev_t *rvd = vd->vdev_spa->spa_root_vdev;
+
+	ASSERT(vd == vd->vdev_top);
+
+	mutex_enter(&vd->vdev_stat_lock);
+	vd->vdev_stat.vs_dspace += dspace_delta;
+	mutex_exit(&vd->vdev_stat_lock);
+
+	if (vd->vdev_mg != NULL && !vd->vdev_islog) {
+		mutex_enter(&rvd->vdev_stat_lock);
+		rvd->vdev_stat.vs_dspace += dspace_delta;
+		mutex_exit(&rvd->vdev_stat_lock);
+	}
 }
 
 /*

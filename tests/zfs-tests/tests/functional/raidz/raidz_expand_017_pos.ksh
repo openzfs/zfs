@@ -35,10 +35,16 @@
 #	3. Set allocating=off on the RAIDZ1 vdev
 #	4. Verify the pool's available space does not exceed the free
 #	   space of the plain disk
-#	5. Set allocating=on and verify available space grows back
+#	5. Delete the data while the RAIDZ1 vdev is still non-allocating
+#	6. Set allocating=on and verify available space grows back
+#	7. Export and import the pool, which recomputes the space it
+#	   excludes for non-allocating vdevs, and verify available space
+#	   is unchanged
 #
 
 typeset -r dev_size_mb=1024
+# The export and import may change a little metadata, such as the MOS.
+typeset -r tolerance=$((1024 * 1024))
 
 function cleanup
 {
@@ -82,6 +88,13 @@ if [[ $avail_off -gt $plain_free ]]; then
 	    "only allocating vdev ($plain_free)"
 fi
 
+# The excluded space has to follow the frees on the non-allocating vdev.
+log_must rm "/$TESTPOOL/fs/file"
+# Let deferred frees complete.
+for i in {1..3}; do
+	log_must zpool sync "$TESTPOOL"
+done
+
 log_must zpool set allocating=on "$TESTPOOL" raidz1-0
 log_must zpool sync "$TESTPOOL"
 
@@ -90,6 +103,16 @@ log_note "available before=$avail_on after=$avail_back"
 if [[ $avail_back -le $avail_off ]]; then
 	log_fail "available ($avail_back) did not grow after re-enabling" \
 	    "allocation ($avail_off)"
+fi
+
+log_must zpool export "$TESTPOOL"
+log_must zpool import -d "$TEST_BASE_DIR" "$TESTPOOL"
+
+avail_import=$(zfs get -Hp -o value available "$TESTPOOL")
+log_note "available before export=$avail_back after import=$avail_import"
+diff=$((avail_import - avail_back))
+if (( diff > tolerance || -diff > tolerance )); then
+	log_fail "available changed by $diff across an export and import"
 fi
 
 log_pass "Expansion dspace correction skips non-allocating vdevs."
