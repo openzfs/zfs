@@ -2015,7 +2015,7 @@ Size of writes used by
 .Xr zpool-initialize 8 .
 Each device's initialization thread samples this value when it starts,
 including when initialization is resumed.
-The effective size is clamped to the range from the configured vdev sector
+The effective size is clamped to the range from the top-level vdev's sector
 size (2^ashift bytes) to 16 MiB and rounded down to a multiple of that sector
 size.
 Changes do not affect threads that are already running.

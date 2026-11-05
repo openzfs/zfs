@@ -311,7 +311,13 @@ vdev_initialize_block_fill(void *buf, size_t len, void *arg)
 static abd_t *
 vdev_initialize_block_alloc(vdev_t *vd)
 {
-	uint64_t align = 1ULL << vd->vdev_ashift;
+	/*
+	 * Use the top-level vdev's ashift: the ranges we write are aligned
+	 * to it, and it is never smaller than any child's sector size. A
+	 * leaf's own vdev_ashift is only its logical sector size, which can
+	 * be smaller.
+	 */
+	uint64_t align = 1ULL << vd->vdev_top->vdev_ashift;
 	uint64_t chunk_size = zfs_initialize_chunk_size;
 	uint64_t value = vd->vdev_initialize_value;
 
