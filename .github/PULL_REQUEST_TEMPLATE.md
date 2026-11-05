@@ -27,6 +27,14 @@
 - [ ] Library ABI change (libzfs, libzfs\_core, libnvpair and libzfsbootenv)
 - [ ] Documentation (a change to man pages or other documentation)
 
+### Priority
+<!--- How soon should this be merged, whatever its type? Put an `x` in one box. -->
+<!--- It is read once, when the PR is opened; a maintainer may change it. -->
+- [ ] Critical (now: data loss or corruption, a security issue, or the build or CI broken for every PR)
+- [ ] High (for the next release: a panic, hang or unimportable pool in normal use, a regression, a test that fails other PRs, or a feature planned for the release)
+- [ ] Medium (a later release is fine: a fix for an uncommon setup, a new feature, a performance gain, a test or CI improvement)
+- [ ] Low (whenever convenient: messages, documentation, cleanups, debug-only issues)
+
 ### Checklist
 <!--- Go over all the following points, and put an `x` in all the boxes that apply. -->
 <!--- If you're unsure about any of these, don't hesitate to ask. We're here to help! -->
