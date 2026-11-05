@@ -157,6 +157,8 @@ Available via `specific_os` or `ZTS_OS_OVERRIDE`:
 - `labels.yml`: maintains PR labels:
   - status labels
   - size labels, from the lines each PR changes
+  - `Component: CI`, `Component: Test Suite` and `Type: Documentation`,
+    for PRs that change only CI, tests or documentation
 - `zfs-precheck.yml`: quick checks on one VM; for PRs that add a test in
   one commit and fix the bug in a later commit, checks that the test
   fails on the test commit and passes on the PR head (see below)
