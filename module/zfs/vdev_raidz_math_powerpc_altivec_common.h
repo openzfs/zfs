@@ -117,7 +117,8 @@
 
 #define	OFFSET(ptr, val)	(((unsigned char *)(ptr))+val)
 
-extern const uint8_t gf_clmul_mod_lt[4*256][16];
+extern uint8_t gf_mul_nibble_lt[256][2][16];
+extern void gf_mul_nibble_lt_init(void);
 
 #define	ELEM_SIZE 16
 
@@ -454,55 +455,37 @@ typedef struct v {
  * clobbered ones)
  */
 #define	_0f		"15"
-#define	_a_save		"14"
-#define	_b_save		"13"
-#define	_lt_mod_a	"12"
-#define	_lt_clmul_a	"11"
-#define	_lt_mod_b	"10"
-#define	_lt_clmul_b	"15"
+#define	_a_lo		"14"
+#define	_b_lo		"13"
+#define	_lt_lo		"10"
+#define	_lt_hi		"11"
 
 #define	_MULx2(c, r...)						\
 {								\
 	switch (REG_CNT(r)) {					\
 	case 2:							\
 		__asm__ __volatile__(				\
-		/* lts for upper part */			\
 		"vspltisb 15,15\n"				\
-		"lvx 10,0,%[lt0]\n"				\
-		"lvx 11,0,%[lt1]\n"				\
-		/* upper part */				\
+		"lvx 10,0,%[lt_lo]\n"				\
+		"lvx 11,0,%[lt_hi]\n"				\
+								\
 		"vand 14," VR0(r) ",15\n"			\
 		"vand 13," VR1(r) ",15\n"			\
 		"vspltisb 15,4\n"				\
 		"vsrab " VR0(r) "," VR0(r) ",15\n"		\
 		"vsrab " VR1(r) "," VR1(r) ",15\n"		\
 								\
-		"vperm 12,10,10," VR0(r) "\n"			\
-		"vperm 10,10,10," VR1(r) "\n"			\
-		"vperm 15,11,11," VR0(r) "\n"			\
-		"vperm 11,11,11," VR1(r) "\n"			\
+		"vperm " VR0(r) ",11,11," VR0(r) "\n"		\
+		"vperm " VR1(r) ",11,11," VR1(r) "\n"		\
+		"vperm 14,10,10,14\n"				\
+		"vperm 13,10,10,13\n"				\
 								\
-		"vxor " VR0(r) ",15,12\n"			\
-		"vxor " VR1(r) ",11,10\n"			\
-		/* lts for lower part */			\
-		"lvx 10,0,%[lt2]\n"				\
-		"lvx 15,0,%[lt3]\n"				\
-		/* lower part */				\
-		"vperm 12,10,10,14\n"				\
-		"vperm 10,10,10,13\n"				\
-		"vperm 11,15,15,14\n"				\
-		"vperm 15,15,15,13\n"				\
-								\
-		"vxor " VR0(r) "," VR0(r) ",12\n"		\
-		"vxor " VR1(r) "," VR1(r) ",10\n"		\
-		"vxor " VR0(r) "," VR0(r) ",11\n"		\
-		"vxor " VR1(r) "," VR1(r) ",15\n"		\
+		"vxor " VR0(r) "," VR0(r) ",14\n"		\
+		"vxor " VR1(r) "," VR1(r) ",13\n"		\
 		: UVR0(r), UVR1(r)				\
-		: [lt0] "r" (&(gf_clmul_mod_lt[4*(c)+0][0])),	\
-		[lt1] "r" (&(gf_clmul_mod_lt[4*(c)+1][0])),	\
-		[lt2] "r" (&(gf_clmul_mod_lt[4*(c)+2][0])),	\
-		[lt3] "r" (&(gf_clmul_mod_lt[4*(c)+3][0]))	\
-		: "v10", "v11", "v12", "v13", "v14", "v15");	\
+		: [lt_lo] "r" (&(gf_mul_nibble_lt[c][0][0])),	\
+		[lt_hi] "r" (&(gf_mul_nibble_lt[c][1][0]))	\
+		: "v10", "v11", "v13", "v14", "v15");		\
 		break;						\
 	default:						\
 		ZFS_ASM_BUG();					\

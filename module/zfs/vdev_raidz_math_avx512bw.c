@@ -54,7 +54,8 @@
 
 #define	ZFS_ASM_BUG()	ASSERT(0)
 
-extern const uint8_t gf_clmul_mod_lt[4*256][16];
+extern uint8_t gf_mul_nibble_lt[256][2][16];
+extern void gf_mul_nibble_lt_init(void);
 
 #define	ELEM_SIZE 64
 
@@ -220,10 +221,8 @@ typedef struct v {
 #define	_0f		"zmm15"
 #define	_as		"zmm14"
 #define	_bs		"zmm13"
-#define	_ltmod		"zmm12"
-#define	_ltmul		"zmm11"
-#define	_ta		"zmm10"
-#define	_tb		"zmm15"
+#define	_lt_lo		"zmm12"
+#define	_lt_hi		"zmm11"
 
 static const uint8_t __attribute__((aligned(64))) _mul_mask = 0x0F;
 
@@ -233,39 +232,25 @@ static const uint8_t __attribute__((aligned(64))) _mul_mask = 0x0F;
 	case 2:								\
 		__asm(							\
 		    "vpbroadcastb (%[mask]), %%" _0f "\n"		\
-		    /* upper bits */					\
-		    "vbroadcasti32x4 0x00(%[lt]), %%" _ltmod "\n"	\
-		    "vbroadcasti32x4 0x10(%[lt]), %%" _ltmul "\n"	\
+		    "vbroadcasti32x4 0x00(%[lt]), %%" _lt_lo "\n"	\
+		    "vbroadcasti32x4 0x10(%[lt]), %%" _lt_hi "\n"	\
 									\
-		    "vpsraw $0x4, %%" VR0(r) ", %%"_as "\n"		\
-		    "vpsraw $0x4, %%" VR1(r) ", %%"_bs "\n"		\
+		    "vpsraw $0x4, %%" VR0(r) ", %%" _as "\n"		\
+		    "vpsraw $0x4, %%" VR1(r) ", %%" _bs "\n"		\
 		    "vpandq %%" _0f ", %%" VR0(r) ", %%" VR0(r) "\n"	\
 		    "vpandq %%" _0f ", %%" VR1(r) ", %%" VR1(r) "\n"	\
 		    "vpandq %%" _0f ", %%" _as ", %%" _as "\n"		\
 		    "vpandq %%" _0f ", %%" _bs ", %%" _bs "\n"		\
 									\
-		    "vpshufb %%" _as ", %%" _ltmod ", %%" _ta "\n"	\
-		    "vpshufb %%" _bs ", %%" _ltmod ", %%" _tb "\n"	\
-		    "vpshufb %%" _as ", %%" _ltmul ", %%" _as "\n"	\
-		    "vpshufb %%" _bs ", %%" _ltmul ", %%" _bs "\n"	\
-		    /* lower bits */					\
-		    "vbroadcasti32x4 0x20(%[lt]), %%" _ltmod "\n"	\
-		    "vbroadcasti32x4 0x30(%[lt]), %%" _ltmul "\n"	\
+		    "vpshufb %%" VR0(r) ", %%" _lt_lo ", %%" VR0(r) "\n"\
+		    "vpshufb %%" VR1(r) ", %%" _lt_lo ", %%" VR1(r) "\n"\
+		    "vpshufb %%" _as ", %%" _lt_hi ", %%" _as "\n"	\
+		    "vpshufb %%" _bs ", %%" _lt_hi ", %%" _bs "\n"	\
 									\
-		    "vpxorq %%" _ta ", %%" _as ", %%" _as "\n"		\
-		    "vpxorq %%" _tb ", %%" _bs ", %%" _bs "\n"		\
-									\
-		    "vpshufb %%" VR0(r) ", %%" _ltmod ", %%" _ta "\n"	\
-		    "vpshufb %%" VR1(r) ", %%" _ltmod ", %%" _tb "\n"	\
-		    "vpshufb %%" VR0(r) ", %%" _ltmul ", %%" VR0(r) "\n"\
-		    "vpshufb %%" VR1(r) ", %%" _ltmul ", %%" VR1(r) "\n"\
-									\
-		    "vpxorq %%" _ta ", %%" VR0(r) ", %%" VR0(r) "\n"	\
 		    "vpxorq %%" _as ", %%" VR0(r) ", %%" VR0(r) "\n"	\
-		    "vpxorq %%" _tb ", %%" VR1(r) ", %%" VR1(r) "\n"	\
 		    "vpxorq %%" _bs ", %%" VR1(r) ", %%" VR1(r) "\n"	\
 		    : : [mask] "r" (&_mul_mask),			\
-		    [lt] "r" (gf_clmul_mod_lt[4*(c)]));			\
+		    [lt] "r" (gf_mul_nibble_lt[c]));			\
 		break;							\
 	default:							\
 		ZFS_ASM_BUG();						\
@@ -393,7 +378,7 @@ raidz_will_avx512bw_work(void)
 }
 
 const raidz_impl_ops_t vdev_raidz_avx512bw_impl = {
-	.init = NULL,
+	.init = gf_mul_nibble_lt_init,
 	.fini = NULL,
 	.gen = RAIDZ_GEN_METHODS(avx512bw),
 	.rec = RAIDZ_REC_METHODS(avx512bw),

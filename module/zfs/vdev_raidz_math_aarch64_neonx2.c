@@ -216,7 +216,7 @@ raidz_will_aarch64_neonx2_work(void)
 }
 
 const raidz_impl_ops_t vdev_raidz_aarch64_neonx2_impl = {
-	.init = NULL,
+	.init = gf_mul_nibble_lt_init,
 	.fini = NULL,
 	.gen = RAIDZ_GEN_METHODS(aarch64_neonx2),
 	.rec = RAIDZ_REC_METHODS(aarch64_neonx2),
