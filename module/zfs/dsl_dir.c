@@ -1271,6 +1271,7 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 	struct tempreserve *tr;
 	int retval;
 	uint64_t ext_quota;
+	uint64_t ext_limit;
 	uint64_t ref_rsrv;
 	uint64_t est_inflight, used_on_disk, parent_rsrv;
 	dsl_dataset_t *ds;
@@ -1278,6 +1279,7 @@ dsl_dir_tempreserve_impl(dsl_dir_t *dd, uint64_t asize, boolean_t netfree,
 top_of_function:
 	txg = tx->tx_txg;
 	retval = EDQUOT;
+	ext_limit = UINT64_MAX;
 	ref_rsrv = 0;
 	ds = (first && tx->tx_objset) ? tx->tx_objset->os_dsl_dataset : NULL;
 
@@ -1315,6 +1317,9 @@ top_of_function:
 			quota = avail;
 			retval = SET_ERROR(ENOSPC);
 		}
+		ext_limit = dsl_pool_unreserved_space(dd->dd_pool,
+		    (netfree) ? ZFS_SPACE_CHECK_EXTRA_RESERVED :
+		    ZFS_SPACE_CHECK_RESERVED);
 	}
 
 	/*
@@ -1362,6 +1367,15 @@ top_of_function:
 	ext_quota = quota >> 5;
 	if (quota == UINT64_MAX)
 		ext_quota = 0;
+
+	/*
+	 * Estimates are inflated, so without the extension a writer close to
+	 * its quota would get an ever smaller share of each txg and wait for
+	 * many syncs before seeing ENOSPC.  At the root, the real usage can
+	 * pass the quota by as much as the extension, so keep it to half the
+	 * way to the next space check level, whose operations need the rest.
+	 */
+	ext_quota = MIN(ext_quota, (ext_limit - quota) / 2);
 
 	if (used_on_disk >= quota) {
 		if (retval == ENOSPC && (used_on_disk - quota) <
