@@ -342,10 +342,12 @@ static
 #endif	/* _KERNEL */
 unsigned long raidz_expand_max_reflow_bytes = 0;
 
+#ifdef ZTEST
 /*
  * For testing only: pause the raidz expansion at a certain point.
  */
 uint_t raidz_expand_pause_point = 0;
+#endif
 
 /*
  * This represents the duration for a slow drive read sit out.
@@ -4723,6 +4725,7 @@ raidz_reflow_impl(vdev_t *vd, vdev_raidz_expand_t *vre, zfs_range_tree_t *rt,
 	return (B_FALSE);
 }
 
+#ifdef ZTEST
 /*
  * For testing (ztest specific)
  */
@@ -4733,6 +4736,9 @@ raidz_expand_pause(uint_t pause_point)
 	    raidz_expand_pause_point <= pause_point)
 		delay(hz);
 }
+#else
+#define	raidz_expand_pause(pause_point)	((void)(pause_point))
+#endif
 
 static void
 raidz_scratch_child_done(zio_t *zio)

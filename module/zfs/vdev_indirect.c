@@ -214,11 +214,13 @@ static uint_t zfs_condense_indirect_commit_entry_delay_ms = 0;
  */
 uint_t zfs_reconstruct_indirect_combinations_max = 4096;
 
+#ifdef ZTEST
 /*
  * Enable to simulate damaged segments and validate reconstruction.  This
  * is intentionally not exposed as a module parameter.
  */
 unsigned long zfs_reconstruct_indirect_damage_fraction = 0;
+#endif
 
 /*
  * The indirect_child_t represents the vdev that we will read from, when we
@@ -1585,6 +1587,7 @@ vdev_indirect_splits_enumerate_randomly(indirect_vsd_t *iv, zio_t *zio)
 	return (SET_ERROR(ECKSUM));
 }
 
+#ifdef ZTEST
 /*
  * This is a validation function for reconstruction.  It randomly selects
  * a good combination, if one can be found, and then it intentionally
@@ -1665,6 +1668,7 @@ out:
 
 	return (error);
 }
+#endif
 
 /*
  * This function is called when we have read all copies of the data and need
@@ -1729,6 +1733,7 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 	if (zfs_reconstruct_indirect_combinations_max > 0)
 		iv->iv_attempts_max = zfs_reconstruct_indirect_combinations_max;
 
+#ifdef ZTEST
 	/*
 	 * If nonzero, every 1/x blocks will be damaged, in order to validate
 	 * reconstruction when there are split segments with damaged copies.
@@ -1737,6 +1742,7 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 	if (zfs_reconstruct_indirect_damage_fraction != 0 &&
 	    random_in_range(zfs_reconstruct_indirect_damage_fraction) == 0)
 		known_good = (vdev_indirect_splits_damage(iv, zio) == 0);
+#endif
 
 	/*
 	 * Determine the unique children for a split segment and add them

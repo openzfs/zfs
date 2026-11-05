@@ -8089,10 +8089,11 @@ arc_init(void)
 
 	arc_set_limits(allmem);
 
-#ifdef _KERNEL
+#ifndef ZTEST
 	/*
 	 * If zfs_arc_max is non-zero at init, meaning it was set in the kernel
-	 * environment before the module was loaded, don't block setting the
+	 * environment before the module was loaded (or by the libzpool
+	 * consumer before kernel_init()), don't block setting the
 	 * maximum because it is less than arc_c_min, instead, reset arc_c_min
 	 * to a lower value.
 	 * zfs_arc_min will be handled by arc_tuning_update().
@@ -8107,7 +8108,7 @@ arc_init(void)
 	}
 #else
 	/*
-	 * In userland, there's only the memory pressure that we artificially
+	 * In ztest, there's only the memory pressure that we artificially
 	 * create (see arc_available_memory()).  Don't let arc_c get too
 	 * small, because it can cause transactions to be larger than
 	 * arc_c, causing arc_tempreserve_space() to fail.
