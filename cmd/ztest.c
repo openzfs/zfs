@@ -456,6 +456,7 @@ ztest_func_t ztest_pool_prefetch_ddt;
 ztest_func_t ztest_ddt_prune;
 ztest_func_t ztest_spa_log_flushall_start;
 ztest_func_t ztest_spa_log_flushall_cancel;
+ztest_func_t ztest_scrub_prefetch;
 
 static uint64_t zopt_always = 0ULL * NANOSEC;		/* all the time */
 static uint64_t zopt_incessant = 1ULL * NANOSEC / 10;	/* every 1/10 second */
@@ -511,6 +512,7 @@ static ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_ddt_prune, 1, &zopt_rarely),
 	ZTI_INIT(ztest_spa_log_flushall_start, 1, &zopt_rarely),
 	ZTI_INIT(ztest_spa_log_flushall_cancel, 1, &zopt_rarely),
+	ZTI_INIT(ztest_scrub_prefetch, 1, &zopt_rarely),
 };
 
 #define	ZTEST_FUNCS	(sizeof (ztest_info) / sizeof (ztest_info_t))
@@ -7245,6 +7247,91 @@ ztest_pool_prefetch_ddt(ztest_ds_t *zd, uint64_t id)
 
 	spa_close(spa, FTAG);
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
+}
+
+void
+ztest_scrub_prefetch(ztest_ds_t *zd, uint64_t id)
+{
+	const int objects = 32;
+	const int blocks = 4;
+	const int generations = 8;
+	const size_t blocksize = SPA_MINBLOCKSIZE << 3;
+	const uint64_t stride = 1ULL << 20;
+	spa_t *spa = ztest_spa;
+	dsl_pool_t *dp = spa_get_dsl(spa);
+	size_t od_size = objects * sizeof (ztest_od_t);
+	ztest_od_t *od;
+	uint64_t *data;
+	void *verify;
+	int error;
+
+	if (ztest_device_removal_active)
+		return;
+
+	od = kmem_alloc(od_size, KM_SLEEP);
+	data = kmem_alloc(blocksize, KM_SLEEP);
+	verify = kmem_alloc(blocksize, KM_SLEEP);
+	random_get_pseudo_bytes((uint8_t *)data, blocksize);
+	/* Keep ztest_write() from interpreting the payload as a block tag. */
+	data[0] = 0;
+	for (int b = 0; b < objects; b++) {
+		ztest_od_init(&od[b], id, FTAG, b, DMU_OT_UINT64_OTHER,
+		    blocksize, DNODE_MIN_SIZE, 0);
+	}
+
+	for (int gen = 0; gen < generations; gen++) {
+		if (gethrtime() >= ztest_shared->zs_thread_stop)
+			break;
+
+		/* Populate the objects before starting the first scrub. */
+		if (gen != 0 && !ztest_device_removal_active)
+			(void) spa_scan(spa, POOL_SCAN_SCRUB, 0);
+
+		if (ztest_object_init(zd, od, od_size, B_TRUE) != 0)
+			break;
+
+		for (int b = 0; b < objects; b++) {
+			for (int j = 0; j < blocks; j++) {
+				data[1] = gen;
+				data[2] = od[b].od_object;
+				data[3] = j;
+				(void) pthread_rwlock_rdlock(
+				    &zd->zd_zilog_lock);
+				error = ztest_write(zd, od[b].od_object,
+				    j * stride, blocksize, data);
+				(void) pthread_rwlock_unlock(
+				    &zd->zd_zilog_lock);
+				if (error != 0) {
+					VERIFY3S(error, ==, ENOSPC);
+					goto out;
+				}
+			}
+		}
+
+		/* Advance scan shutdown and deferred frees between batches. */
+		txg_wait_synced(dp, 0);
+
+		for (int b = 0; b < objects; b++) {
+			for (int j = 0; j < blocks; j++) {
+				data[1] = gen;
+				data[2] = od[b].od_object;
+				data[3] = j;
+				VERIFY0(dmu_read(zd->zd_os, od[b].od_object,
+				    j * stride, blocksize, verify,
+				    DMU_READ_NO_PREFETCH));
+				VERIFY0(memcmp(data, verify, blocksize));
+			}
+		}
+	}
+
+out:
+	mutex_enter(&zd->zd_dirobj_lock);
+	(void) ztest_remove(zd, od, objects);
+	zd->zd_od = NULL;
+	mutex_exit(&zd->zd_dirobj_lock);
+	kmem_free(verify, blocksize);
+	kmem_free(data, blocksize);
+	kmem_free(od, od_size);
 }
 
 static int
