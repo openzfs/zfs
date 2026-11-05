@@ -2092,8 +2092,17 @@ dsl_scan_prefetch(scan_prefetch_ctx_t *spc, blkptr_t *bp, zbookmark_phys_t *zb)
 	 * thread.
 	 */
 	mutex_enter(&spa->spa_scrub_lock);
-	if (avl_find(&scn->scn_prefetch_queue, spic, &idx) != NULL) {
-		/* this block is already queued for prefetch */
+	/*
+	 * Recheck the stop flag now that we hold the same lock used by
+	 * shutdown to drain and clear the queue. Without this recheck, a
+	 * callback that read scn_prefetch_stop as false just before
+	 * shutdown could still insert a new entry after the prefetch
+	 * worker has already drained and exited, leaving a stale entry
+	 * in the queue across txgs. Also skip if this block is already
+	 * queued for prefetch.
+	 */
+	if (scn->scn_prefetch_stop ||
+	    avl_find(&scn->scn_prefetch_queue, spic, &idx) != NULL) {
 		kmem_free(spic, sizeof (scan_prefetch_issue_ctx_t));
 		scan_prefetch_ctx_rele(spc, scn);
 		mutex_exit(&spa->spa_scrub_lock);
@@ -4756,6 +4765,15 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		taskq_wait_id(dp->dp_sync_taskq, prefetch_tqid);
 		(void) zio_wait(scn->scn_zio_root);
 		scn->scn_zio_root = NULL;
+
+#ifdef ZFS_DEBUG
+		mutex_enter(&spa->spa_scrub_lock);
+		ASSERT0(avl_numnodes(&scn->scn_prefetch_queue));
+		mutex_exit(&spa->spa_scrub_lock);
+#endif
+
+		/* Make sure nothing is left in the queue. */
+		scan_ds_prefetch_queue_clear(scn);
 
 		zfs_dbgmsg("scan visited %llu blocks of %s in %llums "
 		    "(%llu os's, %llu holes, %llu < mintxg, "
