@@ -18,6 +18,7 @@
  * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2021, Datto, Inc.
  * Copyright (c) 2021, 2024 by George Melikov. All rights reserved.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #include <sys/sysmacros.h>
@@ -3014,6 +3015,11 @@ zio_reexecute(void *arg)
 void
 zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t reason)
 {
+	if (reason == ZIO_SUSPEND_IOERR)
+		spa_misc_stats_bump_suspended_ioerr(spa);
+	else if (reason == ZIO_SUSPEND_MMP)
+		spa_misc_stats_bump_suspended_mmp(spa);
+
 	if (spa_get_failmode(spa) == ZIO_FAILURE_MODE_PANIC)
 		fm_panic("Pool '%s' has encountered an uncorrectable I/O "
 		    "failure and the failure mode property for this pool "
@@ -3054,20 +3060,26 @@ int
 zio_resume(spa_t *spa)
 {
 	zio_t *pio;
+	boolean_t resuming = B_FALSE;
 
 	/*
 	 * Reexecute all previously suspended i/o.
 	 */
 	mutex_enter(&spa->spa_suspend_lock);
-	if (spa->spa_suspended != ZIO_SUSPEND_NONE)
+	if (spa->spa_suspended != ZIO_SUSPEND_NONE) {
 		cmn_err(CE_WARN, "Pool '%s' was suspended and is being "
 		    "resumed. Failed I/O will be retried.",
 		    spa_name(spa));
+		resuming = B_TRUE;
+	}
 	spa->spa_suspended = ZIO_SUSPEND_NONE;
 	cv_broadcast(&spa->spa_suspend_cv);
 	pio = spa->spa_suspend_zio_root;
 	spa->spa_suspend_zio_root = NULL;
 	mutex_exit(&spa->spa_suspend_lock);
+
+	if (resuming)
+		spa_misc_stats_bump_resumed(spa);
 
 	if (pio == NULL)
 		return (0);
