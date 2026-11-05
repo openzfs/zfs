@@ -3,6 +3,7 @@ name: labels
 on:
   pull_request_target:
     types: [ opened, synchronize, reopened, converted_to_draft, ready_for_review ]
+  workflow_dispatch:
 
 permissions:
   pull-requests: write
@@ -47,3 +48,67 @@ jobs:
           ISSUE: ${{ github.event.pull_request.html_url }}
         run: |
           gh pr edit $ISSUE --remove-label "Status: Accepted,Status: Inactive,Status: Revision Needed,Status: Stale,Status: Work in Progress" --add-label "Status: Code Review Needed"
+
+  size:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.action == 'opened' || github.event.action == 'synchronize' || github.event.action == 'reopened' }}
+    concurrency:
+      group: size-${{ github.event.pull_request.number || 'all' }}
+      cancel-in-progress: true
+    steps:
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # OpenZFS PR size classes, from the lines added plus removed as
+          # the PR page shows them.  A manual run labels every open PR,
+          # and can be repeated.
+          labels=$(gh label list --limit 1000 --json name --jq '.[].name')
+          for l in "Size: XS|d4e9f7|Fewer than 10 lines changed" \
+              "Size: S|c5def5|10 to 29 lines changed" \
+              "Size: M|9cc8f0|30 to 99 lines changed" \
+              "Size: L|5a9be0|100 to 499 lines changed" \
+              "Size: XL|1d76db|500 to 999 lines changed" \
+              "Size: XXL|0b4ea2|1000 or more lines changed"; do
+            IFS='|' read -r name color desc <<< "$l"
+            if ! grep -qxF "$name" <<< "$labels"; then
+              gh label create "$name" --color "$color" --description "$desc"
+            fi
+          done
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            prs=$(gh pr list --state open --limit 1000 \
+                --json number,additions,deletions,labels)
+          else
+            prs=$(jq '[.pull_request]' "$GITHUB_EVENT_PATH")
+          fi
+          jq -r '.[] | [.number, .additions + .deletions,
+              ([.labels[].name | select(startswith("Size: "))] | join(","))]
+              | @tsv' <<< "$prs" |
+          while IFS=$'\t' read -r pr lines old; do
+            if [ "$lines" -lt 10 ]; then
+              new="Size: XS"
+            elif [ "$lines" -lt 30 ]; then
+              new="Size: S"
+            elif [ "$lines" -lt 100 ]; then
+              new="Size: M"
+            elif [ "$lines" -lt 500 ]; then
+              new="Size: L"
+            elif [ "$lines" -lt 1000 ]; then
+              new="Size: XL"
+            else
+              new="Size: XXL"
+            fi
+            [ "$old" = "$new" ] && continue
+            gh api --silent -X POST "repos/$GH_REPO/issues/$pr/labels" \
+                -f "labels[]=$new" < /dev/null
+            tr ',' '\n' <<< "$old" | while read -r l; do
+              [ -z "$l" ] || [ "$l" = "$new" ] || gh api --silent -X DELETE \
+                  "repos/$GH_REPO/issues/$pr/labels/$(jq -rn --arg l "$l" '$l | @uri')"
+            done
+            # GitHub allows 80 label changes a minute; leave room for
+            # another job doing the same.
+            if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+              sleep 2
+            fi
+          done
