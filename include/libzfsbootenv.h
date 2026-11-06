@@ -12,6 +12,8 @@
 
 /*
  * Copyright 2020 Toomas Soome <tsoome@me.com>
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #ifndef _LIBZFSBOOTENV_H
@@ -36,6 +38,8 @@ _LIBZFSBOOTENV_H int lzbe_set_boot_device(const char *, lzbe_flags_t,
     const char *);
 _LIBZFSBOOTENV_H int lzbe_get_boot_device(const char *, char **);
 _LIBZFSBOOTENV_H int lzbe_bootenv_print(const char *, const char *, FILE *);
+_LIBZFSBOOTENV_H const char *lzbe_loader_get(void);
+_LIBZFSBOOTENV_H int lzbe_loader_set(const char *, size_t);
 
 #ifdef __cplusplus
 }
