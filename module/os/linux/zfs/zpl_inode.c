@@ -127,7 +127,7 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 
 void
 zpl_vap_init(vattr_t *vap, struct inode *dir, umode_t mode, cred_t *cr,
-    zidmap_t *idmap)
+    const zidmap_t *idmap)
 {
 	vap->va_mask = ATTR_MODE;
 	vap->va_mode = mode;
