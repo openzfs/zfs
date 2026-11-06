@@ -347,6 +347,12 @@ typedef struct metaslab_verify {
 	 * What's currently allocated for this metaslab.
 	 */
 	zfs_range_tree_t *mv_allocated;
+
+	/*
+	 * Whether the entries come from the metaslab's own space map, as
+	 * opposed to the log space maps.
+	 */
+	boolean_t mv_ms_sm;
 } metaslab_verify_t;
 
 typedef void ll_iter_t(dsl_deadlist_t *ll, void *arg);
@@ -406,6 +412,15 @@ verify_livelist_allocs(metaslab_verify_t *mv, uint64_t txg,
 	uint64_t end_offset = offset + size;
 
 	/*
+	 * The metaslab's own space map gets FREE entries tagged with a txg
+	 * before the allocations of that txg: a flush runs before vdev_sync()
+	 * and writes the frees of earlier txgs, and a condense writes what
+	 * this txg allocates as free.  A block born in that txg can lie in
+	 * such an entry, so only an older block there is an error.
+	 */
+	uint64_t max_txg = mv->mv_ms_sm ? txg - 1 : txg;
+
+	/*
 	 *  Look for an exact match for spacemap entry in the livelist entries.
 	 *  Then, look for other livelist entries that fall within the range
 	 *  of the spacemap entry as it may have been condensed
@@ -418,7 +433,7 @@ verify_livelist_allocs(metaslab_verify_t *mv, uint64_t txg,
 	for (; found != NULL && DVA_GET_VDEV(&found->svb_dva) == mv->mv_vdid &&
 	    DVA_GET_OFFSET(&found->svb_dva) < end_offset;
 	    found = zfs_btree_next(&mv->mv_livelist_allocs, &where, &where)) {
-		if (found->svb_allocated_txg <= txg) {
+		if (found->svb_allocated_txg <= max_txg) {
 			(void) printf("ERROR: Livelist ALLOC [%llx:%llx] "
 			    "from TXG %llx FREED at TXG %llx\n",
 			    (u_longlong_t)DVA_GET_OFFSET(&found->svb_dva),
@@ -657,7 +672,9 @@ livelist_metaslab_validate(spa_t *spa)
 
 			mv_populate_livelist_allocs(&mv, &sv);
 
+			mv.mv_ms_sm = B_TRUE;
 			spacemap_check_ms_sm(m->ms_sm, &mv);
+			mv.mv_ms_sm = B_FALSE;
 			spacemap_check_sm_log(spa, &mv);
 
 			zfs_range_tree_vacate(mv.mv_allocated, NULL, NULL);
