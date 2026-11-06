@@ -7,6 +7,7 @@
 /test_btree
 /test_sha2
 /test_cityhash
+/test_zio_crypt_salt_cache
 /test_nvpair
 /test_backtrace
 /test_timer
