@@ -1304,14 +1304,15 @@ top_of_function:
 	 * To ensure that it's possible to remove files from a full
 	 * pool without inducing transient overcommits, we throttle
 	 * netfree transactions against a quota that is slightly larger,
-	 * but still within the pool's allocation slop.  In cases where
-	 * we're very close to full, this will allow a steady trickle of
-	 * removes to get through.
+	 * but still within the pool's allocation slop, and beyond the
+	 * reach of the sync tasks that use ZFS_SPACE_CHECK_RESERVED.  In
+	 * cases where we're very close to full, this will allow a steady
+	 * trickle of removes to get through.
 	 */
 	if (dd->dd_parent == NULL) {
 		uint64_t avail = dsl_pool_unreserved_space(dd->dd_pool,
 		    (netfree) ?
-		    ZFS_SPACE_CHECK_RESERVED : ZFS_SPACE_CHECK_NORMAL);
+		    ZFS_SPACE_CHECK_NETFREE : ZFS_SPACE_CHECK_NORMAL);
 
 		if (avail < quota) {
 			quota = avail;
