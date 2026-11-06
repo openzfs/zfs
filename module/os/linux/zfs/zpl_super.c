@@ -23,6 +23,7 @@
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_ctldir.h>
 #include <sys/zpl.h>
+#include <sys/u8_textprep.h>
 #include <linux/iversion.h>
 #include <linux/version.h>
 #include <linux/vfs_compat.h>
@@ -1058,9 +1059,10 @@ const struct super_operations zpl_super_operations = {
  *  return value indicates if the dentry should be destroyed immediately, or
  *  retained in the dentry cache.
  *
- * By default (zfs_delete_dentry=0) the kernel will always cache unused
- * entries.  Each dentry holds an inode reference, so cached dentries can hold
- * the final inode reference indefinitely, leading to the inode and its related
+ * By default (zfs_delete_dentry=0) the kernel caches unused entries unless
+ * normalization makes a negative dentry unsafe.  Each positive dentry holds an
+ * inode reference, so cached dentries can hold the final inode reference
+ * indefinitely, leading to the inode and its related
  * data being pinned (see zpl_drop_inode()).
  *
  * When set to 1, we signal that the dentry should be destroyed immediately and
@@ -1075,6 +1077,13 @@ const struct super_operations zpl_super_operations = {
 static int
 zpl_dentry_delete(const struct dentry *dentry)
 {
+	zfsvfs_t *zfsvfs = dentry->d_sb->s_fs_info;
+
+	if (d_really_is_negative(dentry) &&
+	    (zfsvfs->z_case == ZFS_CASE_INSENSITIVE ||
+	    (zfsvfs->z_norm & ~U8_TEXTPREP_TOUPPER)))
+		return (1);
+
 	return (zfs_delete_dentry ? 1 : 0);
 }
 
