@@ -5416,6 +5416,20 @@ spa_ld_check_features(spa_t *spa, boolean_t *missing_feat_writep)
 	}
 
 	/*
+	 * Cache the accounting boundary of raidz_expansion_accounting (see
+	 * vdev_raidz_expand_acct_activate()).  A retried load may have
+	 * rewound to before the activation, so don't keep an old value.
+	 */
+	spa->spa_raidz_expand_acct_txg = 0;
+	if (spa_feature_is_active(spa,
+	    SPA_FEATURE_RAIDZ_EXPANSION_ACCOUNTING)) {
+		if (spa_dir_prop(spa, DMU_POOL_RAIDZ_EXPAND_ACCT_TXG,
+		    &spa->spa_raidz_expand_acct_txg, B_TRUE) != 0 ||
+		    spa->spa_raidz_expand_acct_txg == 0)
+			return (spa_vdev_err(rvd, VDEV_AUX_CORRUPT_DATA, EIO));
+	}
+
+	/*
 	 * Encryption was added before bookmark_v2, even though bookmark_v2
 	 * is now a dependency. If this pool has encryption enabled without
 	 * bookmark_v2, trigger an errata message.
