@@ -341,9 +341,9 @@ vdev_anyraid_read_map(vdev_t *cvd, int mapping, anyraid_header_t *header,
 	uint_t num_maps = (((int64_t)map_length - 1) / SPA_MAXBLOCKSIZE) + 1;
 
 	for (int i = 0; i < num_maps; i++) {
-		uint64_t length = MAX(P2ROUNDUP(i == num_maps - 1 ?
-		    map_length % SPA_MAXBLOCKSIZE : SPA_MAXBLOCKSIZE,
-		    1 << ashift), 1 << ashift);
+		uint64_t length = MAX(P2ROUNDUP(MIN(map_length -
+		    i * SPA_MAXBLOCKSIZE, SPA_MAXBLOCKSIZE), 1 << ashift),
+		    1 << ashift);
 		zio_eck_t *cksum = (zio_eck_t *)
 		    &header->ah_buf[VDEV_ANYRAID_NVL_BYTES(ashift) +
 		    i * sizeof (*cksum)];
@@ -1452,7 +1452,8 @@ map_write_issue(zio_t *zio, vdev_t *vd, uint64_t base_offset,
 	abd_return_buf(abd, buf, SPA_MAXBLOCKSIZE);
 #endif
 
-	uint64_t ashift = vd->vdev_ashift;
+	/* The read rounds to the same ashift; a leaf's can be smaller. */
+	uint64_t ashift = vd->vdev_top->vdev_ashift;
 	zio_nowait(zio_write_phys(zio, vd, base_offset +
 	    idx * SPA_MAXBLOCKSIZE +
 	    VDEV_ANYRAID_MAP_HEADER_SIZE(vd->vdev_top->vdev_ashift),
@@ -1527,8 +1528,12 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 		if ((skip && map_write_skip_entry(cur->at_tile_id, buf,
 		    &buf_offset, prev_id)) ||
 		    (!skip && map_write_loc_entry(curn, buf, &buf_offset))) {
-			// Let the final write handle it
-			if (next == NULL)
+			/*
+			 * Leave a full last chunk to the final write, but only
+			 * once its last entry is in it.
+			 */
+			if (next == NULL && !skip &&
+			    list_next(&cur->at_list, curn) == NULL)
 				break;
 			abd_return_buf_copy(map_abd, buf, SPA_MAXBLOCKSIZE);
 			map_write_issue(zio, vd, base_offset, written,
