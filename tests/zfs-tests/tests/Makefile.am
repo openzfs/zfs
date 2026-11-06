@@ -1975,6 +1975,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/no_space/enospc_002_pos.ksh \
 	functional/no_space/enospc_003_pos.ksh \
 	functional/no_space/enospc_df.ksh \
+	functional/no_space/enospc_free.ksh \
 	functional/no_space/enospc_ganging.ksh \
 	functional/no_space/enospc_rm.ksh \
 	functional/no_space/setup.ksh \

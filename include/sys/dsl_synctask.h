@@ -50,6 +50,15 @@ typedef enum zfs_space_check {
 	ZFS_SPACE_CHECK_RESERVED,
 
 	/*
+	 * Space check allows use of five eighths of the slop space.  If there
+	 * is less than 1.2% free space, the transaction will fail.  Only
+	 * transactions marked with dmu_tx_mark_netfree() use it (e.g. file
+	 * removal and truncation), so that the operations above cannot use
+	 * up the space that freeing needs.
+	 */
+	ZFS_SPACE_CHECK_NETFREE,
+
+	/*
 	 * Space check allows use of three quarters of the slop space.
 	 * If there is less than 0.8% free space, the operation will
 	 * fail.

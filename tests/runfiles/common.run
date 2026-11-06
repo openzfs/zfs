@@ -896,8 +896,9 @@ tags = ['functional', 'nestedfs']
 
 [tests/functional/no_space]
 tests = ['enospc_001_pos', 'enospc_002_pos', 'enospc_003_pos',
-    'enospc_df', 'enospc_ganging', 'enospc_rm']
+    'enospc_df', 'enospc_free', 'enospc_ganging', 'enospc_rm']
 tags = ['functional', 'no_space']
+timeout = 1200
 
 [tests/functional/nopwrite]
 tests = ['nopwrite_copies', 'nopwrite_mtime', 'nopwrite_negative',
