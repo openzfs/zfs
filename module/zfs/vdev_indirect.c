@@ -223,9 +223,9 @@ unsigned long zfs_reconstruct_indirect_damage_fraction = 0;
 /*
  * The indirect_child_t represents the vdev that we will read from, when we
  * need to read all copies of the data (e.g. for scrub or reconstruction).
- * For plain (non-mirror) top-level vdevs (i.e. is_vdev is not a mirror),
- * ic_vdev is the same as is_vdev.  However, for mirror top-level vdevs,
- * ic_vdev is a child of the mirror.
+ * For plain top-level vdevs, ic_vdev is the same as is_vdev.  For mirror,
+ * replacing and spare top-level vdevs, ic_vdev is one of the vdevs below
+ * them that holds a copy of the data (see vdev_indirect_add_copies()).
  */
 typedef struct indirect_child {
 	abd_t *ic_data;
@@ -237,7 +237,7 @@ typedef struct indirect_child {
 	 */
 	struct indirect_child *ic_duplicate;
 	list_node_t ic_node; /* node on is_unique_child */
-	int ic_error; /* set when a child does not contain the data */
+	int ic_error; /* ESTALE if the DTL says it's missing, or read error */
 } indirect_child_t;
 
 /*
@@ -1187,6 +1187,30 @@ vdev_indirect_child_io_done(zio_t *zio)
 }
 
 /*
+ * Mirror, replacing and spare vdevs keep a copy of the data on each of their
+ * children.  Count the copies below vd, starting at index i, and record them
+ * in is->is_child[] (if not NULL).  Returns the next index.
+ */
+static int
+vdev_indirect_add_copies(indirect_split_t *is, vdev_t *vd, int i)
+{
+	if (vd->vdev_ops != &vdev_mirror_ops &&
+	    vd->vdev_ops != &vdev_replacing_ops &&
+	    vd->vdev_ops != &vdev_spare_ops) {
+		if (is != NULL) {
+			is->is_child[i].ic_vdev = vd;
+			list_link_init(&is->is_child[i].ic_node);
+		}
+		return (i + 1);
+	}
+
+	for (int c = 0; c < vd->vdev_children; c++)
+		i = vdev_indirect_add_copies(is, vd->vdev_child[c], i);
+
+	return (i);
+}
+
+/*
  * This is a callback for vdev_indirect_remap() which allocates an
  * indirect_split_t for each split segment and adds it to iv_splits.
  */
@@ -1202,9 +1226,7 @@ vdev_indirect_gather_splits(uint64_t split_offset, vdev_t *vd, uint64_t offset,
 	if (vd->vdev_ops == &vdev_indirect_ops)
 		return;
 
-	int n = 1;
-	if (vd->vdev_ops == &vdev_mirror_ops)
-		n = vd->vdev_children;
+	int n = vdev_indirect_add_copies(NULL, vd, 0);
 
 	indirect_split_t *is =
 	    kmem_zalloc(offsetof(indirect_split_t, is_child[n]), KM_SLEEP);
@@ -1218,19 +1240,13 @@ vdev_indirect_gather_splits(uint64_t split_offset, vdev_t *vd, uint64_t offset,
 	    offsetof(indirect_child_t, ic_node));
 
 	/*
-	 * Note that we only consider multiple copies of the data for
-	 * *mirror* vdevs.  We don't for "replacing" or "spare" vdevs, even
-	 * though they use the same ops as mirror, because there's only one
-	 * "good" copy under the replacing/spare.
+	 * Record every copy, including each child of a replacing or spare
+	 * vdev.  Those children can differ (e.g. while a new device is
+	 * rebuilt), and without a checksum for the segment the replacing or
+	 * spare vdev can't tell which one is right.  Only the checksum of the
+	 * whole block can choose among the copies.
 	 */
-	if (vd->vdev_ops == &vdev_mirror_ops) {
-		for (int i = 0; i < n; i++) {
-			is->is_child[i].ic_vdev = vd->vdev_child[i];
-			list_link_init(&is->is_child[i].ic_node);
-		}
-	} else {
-		is->is_child[0].ic_vdev = vd;
-	}
+	VERIFY3S(vdev_indirect_add_copies(is, vd, 0), ==, n);
 
 	list_insert_tail(&iv->iv_splits, is);
 }
@@ -1243,10 +1259,11 @@ vdev_indirect_read_split_done(zio_t *zio)
 	if (zio->io_error != 0) {
 		/*
 		 * Clear ic_data to indicate that we do not have data for this
-		 * child.
+		 * child, and record the error.
 		 */
 		abd_free(ic->ic_data);
 		ic->ic_data = NULL;
+		ic->ic_error = zio->io_error;
 	}
 }
 
@@ -1417,24 +1434,37 @@ vdev_indirect_checksum_error(zio_t *zio,
  * (based on which copies actually read bad data, as opposed to which we
  * think might be wrong).  For the same reason, we always use
  * ZIO_FLAG_SELF_HEAL, to bypass the DTL check in zio_vdev_io_start().
+ * Copies that failed to read are rewritten too, and without a checksum
+ * only copies with ic_error set are rewritten.
  */
 static void
 vdev_indirect_repair(zio_t *zio)
 {
 	indirect_vsd_t *iv = zio->io_vsd;
+	const blkptr_t *bp = zio->io_bp;
 
 	if (!spa_self_heal_allowed(zio->io_spa))
 		return;
+
+	/*
+	 * Without a checksum any combination of copies validates, so a copy
+	 * that was read and differs from the chosen one is not known to be
+	 * wrong.
+	 */
+	boolean_t cksum_off = (bp == NULL) ?
+	    zio->io_prop.zp_checksum == ZIO_CHECKSUM_OFF :
+	    !BP_IS_GANG(bp) && BP_GET_CHECKSUM(bp) == ZIO_CHECKSUM_OFF;
 
 	for (indirect_split_t *is = list_head(&iv->iv_splits);
 	    is != NULL; is = list_next(&iv->iv_splits, is)) {
 		for (int c = 0; c < is->is_children; c++) {
 			indirect_child_t *ic = &is->is_child[c];
-			if (ic == is->is_good_child)
+			if (ic == is->is_good_child ||
+			    ic->ic_duplicate == is->is_good_child)
 				continue;
-			if (ic->ic_data == NULL)
-				continue;
-			if (ic->ic_duplicate == is->is_good_child)
+			/* Not read (vdev not readable), or not known bad. */
+			if (ic->ic_error == 0 &&
+			    (ic->ic_data == NULL || cksum_off))
 				continue;
 
 			zio_nowait(zio_vdev_child_io(zio, NULL,
@@ -1446,10 +1476,10 @@ vdev_indirect_repair(zio_t *zio)
 
 			/*
 			 * If ic_error is set the current child does not have
-			 * a copy of the data, so suppress incrementing the
-			 * checksum counter.
+			 * a copy of the data or failed to read it, so suppress
+			 * incrementing the checksum counter.
 			 */
-			if (ic->ic_error == ESTALE)
+			if (ic->ic_error != 0)
 				continue;
 
 			vdev_indirect_checksum_error(zio, is, ic);
@@ -1548,7 +1578,7 @@ vdev_indirect_splits_enumerate_all(indirect_vsd_t *iv, zio_t *zio)
 		}
 	}
 
-	ASSERT3S(iv->iv_attempts, <=, iv->iv_unique_combinations);
+	ASSERT3U(iv->iv_attempts, <=, iv->iv_unique_combinations);
 
 	return (SET_ERROR(ECKSUM));
 }
@@ -1749,26 +1779,38 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 	    is != NULL; is = list_next(&iv->iv_splits, is)) {
 		is->is_unique_children = 0;
 
-		for (int i = 0; i < is->is_children; i++) {
-			indirect_child_t *ic_i = &is->is_child[i];
+		/*
+		 * List the copies that the DTL does not mark as missing
+		 * the data (ic_error == 0) first, so that the first
+		 * combination tried is made of them.
+		 */
+		for (int pass = 0; pass < 2; pass++) {
+			boolean_t stale = (pass == 1);
 
-			if (ic_i->ic_data == NULL ||
-			    ic_i->ic_duplicate != NULL)
-				continue;
+			for (int i = 0; i < is->is_children; i++) {
+				indirect_child_t *ic_i = &is->is_child[i];
 
-			for (int j = i + 1; j < is->is_children; j++) {
-				indirect_child_t *ic_j = &is->is_child[j];
-
-				if (ic_j->ic_data == NULL ||
-				    ic_j->ic_duplicate != NULL)
+				if (ic_i->ic_data == NULL ||
+				    ic_i->ic_duplicate != NULL ||
+				    (ic_i->ic_error != 0) != stale)
 					continue;
 
-				if (abd_cmp(ic_i->ic_data, ic_j->ic_data) == 0)
-					ic_j->ic_duplicate = ic_i;
-			}
+				for (int j = 0; j < is->is_children; j++) {
+					indirect_child_t *ic_j =
+					    &is->is_child[j];
 
-			is->is_unique_children++;
-			list_insert_tail(&is->is_unique_child, ic_i);
+					if (j == i || ic_j->ic_data == NULL ||
+					    ic_j->ic_duplicate != NULL)
+						continue;
+
+					if (abd_cmp(ic_i->ic_data,
+					    ic_j->ic_data) == 0)
+						ic_j->ic_duplicate = ic_i;
+				}
+
+				is->is_unique_children++;
+				list_insert_tail(&is->is_unique_child, ic_i);
+			}
 		}
 
 		/* Reconstruction is impossible, no valid children */
@@ -1781,13 +1823,29 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 			return;
 		}
 
-		iv->iv_unique_combinations *= is->is_unique_children;
+		/* Saturate rather than overflow. */
+		if (iv->iv_unique_combinations >
+		    UINT64_MAX / is->is_unique_children)
+			iv->iv_unique_combinations = UINT64_MAX;
+		else
+			iv->iv_unique_combinations *= is->is_unique_children;
 	}
 
-	if (iv->iv_unique_combinations <= iv->iv_attempts_max)
+	if (iv->iv_unique_combinations <= iv->iv_attempts_max) {
 		error = vdev_indirect_splits_enumerate_all(iv, zio);
-	else
-		error = vdev_indirect_splits_enumerate_randomly(iv, zio);
+	} else {
+		/*
+		 * Before sampling, try the first copy of each segment,
+		 * which the DTL does not mark as missing if any is.
+		 */
+		for (indirect_split_t *is = list_head(&iv->iv_splits);
+		    is != NULL; is = list_next(&iv->iv_splits, is))
+			is->is_good_child = list_head(&is->is_unique_child);
+		error = vdev_indirect_splits_checksum_validate(iv, zio);
+		if (error != 0)
+			error = vdev_indirect_splits_enumerate_randomly(iv,
+			    zio);
+	}
 
 	if (error != 0) {
 		/* All attempted combinations failed. */
