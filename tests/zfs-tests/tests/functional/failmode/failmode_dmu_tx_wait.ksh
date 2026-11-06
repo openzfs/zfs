@@ -55,7 +55,7 @@ log_must zinject -d $DISK -e nxio -T probe $TESTPOOL
 # transition is immediate on a busy system.
 log_note "waiting for pool suspension and blocked writer"
 typeset -i tries=60
-until [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]] &&
+until is_pool_suspended $TESTPOOL &&
     (( $(kstat dmu_tx.dmu_tx_suspended) > suspended_before )); do
 	if ((tries-- == 0)); then
 		log_note "pool state: $(kstat_pool $TESTPOOL state)"
@@ -63,7 +63,7 @@ until [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]] &&
 		    "was $suspended_before"
 		log_fail "pool or writer didn't observe suspension"
 	fi
-	log_must kill -0 $dd_pid
+	log_must is_process_running $dd_pid
 	sleep 1
 done
 
@@ -72,7 +72,7 @@ typeset -i suspended=$(kstat dmu_tx.dmu_tx_suspended)
 
 # dd should still be running, blocked in the kernel
 typeset -i blocked
-if kill -0 $dd_pid ; then
+if is_process_running $dd_pid ; then
 	blocked=1
 	log_note "dd is blocked as expected"
 else

@@ -95,23 +95,12 @@ function test_op # op
 	esac
 	typeset -i pid=$!
 
-	typeset -i tries=10
-	until [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]] ; do
-		if ((tries-- == 0)); then
-			log_fail "$op: pool didn't suspend"
-		fi
-		sleep 1
-	done
+	wait_for 10 is_pool_suspended $TESTPOOL || \
+	    log_fail "$op: pool didn't suspend"
 
 	# With failmode=continue, the operation must return, not block.
 	typeset -i blocked=1
-	for i in {1..10} ; do
-		if ! kill -0 $pid 2>/dev/null ; then
-			blocked=0
-			break
-		fi
-		sleep 1
-	done
+	wait_for 10 is_process_exited $pid && blocked=0
 
 	log_must zinject -c all
 	log_must zpool clear $TESTPOOL

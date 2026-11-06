@@ -42,13 +42,7 @@ typeset -i zpid=0
 #
 function wait_online
 {
-	typeset -i waited=0
-
-	while kill -0 $zpid 2>/dev/null; do
-		((waited++ >= STATE_TIMEOUT)) && return 1
-		sleep 1
-	done
-	return 0
+	wait_for $STATE_TIMEOUT is_process_exited $zpid
 }
 
 function cleanup
@@ -84,7 +78,7 @@ log_must zinject -d $DISK1 -e io -T write $TESTPOOL
 log_must zinject -d $DISK2 -e io -T write $TESTPOOL
 log_must zinject -d $DISK1 -e nxio -T probe $TESTPOOL
 log_must zinject -d $DISK2 -e nxio -T probe $TESTPOOL
-log_must [ "$(kstat_pool $TESTPOOL state)" != "SUSPENDED" ]
+log_mustnot is_pool_suspended $TESTPOOL
 
 zpool online $TESTPOOL $DISK1 &
 zpid=$!
@@ -97,7 +91,7 @@ typeset -i rc=$?
 zpid=0
 
 log_note "zpool online returned $rc"
-log_must [ "$(kstat_pool $TESTPOOL state)" == "SUSPENDED" ]
+log_must is_pool_suspended $TESTPOOL
 log_must [ $rc -ne 0 ]
 
 log_pass "A vdev state change returns when the pool suspends"

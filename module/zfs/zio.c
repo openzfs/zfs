@@ -18,6 +18,7 @@
  * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2021, Datto, Inc.
  * Copyright (c) 2021, 2024 by George Melikov. All rights reserved.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #include <sys/sysmacros.h>
@@ -2994,10 +2995,23 @@ zio_reexecute(void *arg)
 
 	/*
 	 * Now that all children have been reexecuted, execute the parent.
-	 * We don't reexecute "The Godfather" I/O here as it's the
-	 * responsibility of the caller to wait on it.
+	 *
+	 * A "Godfather" I/O is never a child, so we get here with one only
+	 * at the top of a reexecution, in one of two ways:
+	 *
+	 * - zio_resume() reexecutes the pool's suspend root.  That has never
+	 *   been executed, so io_executor is NULL.  zio_resume() executes it
+	 *   with zio_wait() next, so we must not execute it here.
+	 *
+	 * - zio_done() reexecutes a Godfather because some of its children
+	 *   must be reexecuted at once.  It has been executed but has not
+	 *   completed, so io_executor is set, and its waiter will wait
+	 *   forever unless we execute it again here.
+	 *
+	 * We don't need io_lock to read io_executor: nothing else executes
+	 * or completes the Godfather until we execute it below.
 	 */
-	if (!(pio->io_flags & ZIO_FLAG_GODFATHER)) {
+	if (!(pio->io_flags & ZIO_FLAG_GODFATHER) || pio->io_executor != NULL) {
 		pio->io_queued_timestamp = gethrtime();
 		__zio_execute(pio);
 	}
@@ -3015,6 +3029,8 @@ zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t reason)
 		cmn_err(CE_WARN, "Pool '%s' has encountered an uncorrectable "
 		    "I/O failure and has been suspended.", spa_name(spa));
 	}
+
+	spa_misc_stats_bump_suspended(spa);
 
 	(void) zfs_ereport_post(FM_EREPORT_ZFS_IO_FAILURE, spa, NULL,
 	    NULL, NULL, 0);
@@ -3046,20 +3062,26 @@ int
 zio_resume(spa_t *spa)
 {
 	zio_t *pio;
+	boolean_t resuming = B_FALSE;
 
 	/*
 	 * Reexecute all previously suspended i/o.
 	 */
 	mutex_enter(&spa->spa_suspend_lock);
-	if (spa->spa_suspended != ZIO_SUSPEND_NONE)
+	if (spa->spa_suspended != ZIO_SUSPEND_NONE) {
 		cmn_err(CE_WARN, "Pool '%s' was suspended and is being "
 		    "resumed. Failed I/O will be retried.",
 		    spa_name(spa));
+		resuming = B_TRUE;
+	}
 	spa->spa_suspended = ZIO_SUSPEND_NONE;
 	cv_broadcast(&spa->spa_suspend_cv);
 	pio = spa->spa_suspend_zio_root;
 	spa->spa_suspend_zio_root = NULL;
 	mutex_exit(&spa->spa_suspend_lock);
+
+	if (resuming)
+		spa_misc_stats_bump_resumed(spa);
 
 	if (pio == NULL)
 		return (0);

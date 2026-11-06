@@ -51,13 +51,7 @@ log_must cp $DATAFILE /$TESTPOOL/file
 
 # wait until sync starts, and the pool suspends
 log_note "waiting for pool to suspend"
-typeset -i tries=10
-until [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]] ; do
-	if ((tries-- == 0)); then
-		log_fail "pool didn't suspend"
-	fi
-	sleep 1
-done
+wait_for 10 is_pool_suspended $TESTPOOL || log_fail "pool didn't suspend"
 
 # return the disk
 log_must eval "echo running > /sys/block/$sd/device/state"
@@ -72,9 +66,7 @@ log_note "giving pool time to settle and complete txg"
 sleep 7
 
 # if the pool suspended, then everything is bad
-if [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]] ; then
-	log_fail "pool suspended"
-fi
+is_pool_suspended $TESTPOOL && log_fail "pool suspended"
 
 # export the pool, to make sure it exports clean, and also to clear the file
 # out of the cache

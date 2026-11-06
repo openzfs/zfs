@@ -68,13 +68,7 @@ dd if=/dev/urandom of=/$TESTPOOL/fs/file2 bs=4k count=1 conv=fsync &
 typeset dd_pid=$!
 
 log_note "waiting for pool to suspend"
-typeset -i tries=30
-until [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]] ; do
-	if ((tries-- == 0)); then
-		log_fail "pool didn't suspend"
-	fi
-	sleep 1
-done
+wait_for 30 is_pool_suspended $TESTPOOL || log_fail "pool didn't suspend"
 
 log_must eval "echo running > /sys/block/$sd/device/state"
 log_must zpool clear $TESTPOOL

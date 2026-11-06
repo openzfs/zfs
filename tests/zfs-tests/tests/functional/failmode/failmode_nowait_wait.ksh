@@ -59,11 +59,7 @@ log_must zinject -d $DISK -e io -T write $TESTPOOL
 log_must zinject -d $DISK -e nxio -T probe $TESTPOOL
 dd if=/dev/urandom of=$mnt/fill bs=128k count=8 conv=fsync &
 ddpid=$!
-typeset -i tries=30
-until [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]]; do
-	((tries-- > 0)) || log_fail "pool did not suspend"
-	sleep 1
-done
+wait_for 30 is_pool_suspended $TESTPOOL || log_fail "pool did not suspend"
 
 touch $mnt/new &
 cpid=$!
@@ -73,7 +69,7 @@ sleep 5
 typeset -i after=$(stime $cpid)
 log_note "system time went from $before to $after ticks"
 
-log_must kill -0 $cpid
+log_must is_process_running $cpid
 log_must [ $((after - before)) -lt 50 ]
 
 log_pass "A create on a suspended pool blocks instead of spinning"

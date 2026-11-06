@@ -50,12 +50,7 @@ done
 # normal classes and the sync never finishes.
 zpool sync $TESTPOOL &
 typeset pid=$!
-typeset -i waited=0
-while kill -0 $pid 2>/dev/null; do
-	(( waited >= 120 )) && log_fail "zpool sync hung for ${waited}s"
-	sleep 1
-	(( waited += 1 ))
-done
+wait_for 120 is_process_exited $pid || log_fail "zpool sync hung for 120s"
 log_must wait $pid
 
 obj_0_gangs=$(get_object_info $TESTPOOL/$TESTFS 0 L0 | grep G)

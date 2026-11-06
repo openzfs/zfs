@@ -804,6 +804,12 @@ tags = ['functional', 'failmode']
 tests = ['fallocate_punch-hole']
 tags = ['functional', 'fallocate']
 
+[tests/functional/fault]
+tests = ['suspend_resume_reexecute']
+pre =
+post =
+tags = ['functional', 'fault']
+
 [tests/functional/features/async_destroy]
 tests = ['async_destroy_001_pos']
 tags = ['functional', 'features', 'async_destroy']

@@ -112,11 +112,11 @@ for round in 1 2 3 4 5; do
 		    2>/dev/null &
 		typeset pid=$!
 		i=0
-		while kill -0 $pid 2>/dev/null && ((i < 600)); do
+		while is_process_running $pid && ((i < 600)); do
 			sleep 0.1
 			((i++))
 		done
-		kill -0 $pid 2>/dev/null && \
+		is_process_running $pid && \
 		    log_fail "write during weight verification did not complete"
 		wait $pid || log_fail "write during weight verification failed"
 	fi
