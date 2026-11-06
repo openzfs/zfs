@@ -1627,6 +1627,123 @@ sync_meta_dnode_task(void *arg)
 	kmem_free(soa, sizeof (*soa));
 }
 
+/*
+ * Determine the form of the objset's local MAC from os_phys, which is the
+ * version last written or read. Return ZFS_PROJECTMAC_MIXED if it has neither
+ * form, because it is zeroed, the two forms are the same or user accounting is
+ * incomplete, or if the dataset has no key mapping (see
+ * spa_keystore_create_mapping()).
+ */
+static zfs_projectmac_t
+dmu_objset_local_mac_stored(objset_t *os)
+{
+	zfs_projectmac_t form;
+
+	if (spa_crypt_objset_local_mac_form(os->os_spa,
+	    os->os_dsl_dataset->ds_object, os->os_phys,
+	    arc_buf_size(os->os_phys_buf), &form) != 0)
+		return (ZFS_PROJECTMAC_MIXED);
+	return (form);
+}
+
+/*
+ * Return whether to include os_projectused_dnode in the local MAC the objset
+ * is about to be written with. Use the form set by the projectmac pool
+ * property. If it's "mixed", keep the form the objset has, so that the
+ * software that wrote it can still read it, or if it has neither form, use
+ * the platform default. This must be called before os_phys is modified.
+ */
+static boolean_t
+dmu_objset_local_mac_has_project(objset_t *os)
+{
+	dsl_dataset_t *ds = os->os_dsl_dataset;
+	zfs_projectmac_t form;
+
+	if (os->os_local_mac_form == ZFS_PROJECTMAC_MIXED) {
+		form = dmu_objset_local_mac_stored(os);
+		if (form != ZFS_PROJECTMAC_MIXED) {
+			zfs_dbgmsg("objset %llu has a local MAC %s project "
+			    "accounting", (u_longlong_t)ds->ds_object,
+			    form == ZFS_PROJECTMAC_ON ? "with" : "without");
+		}
+		os->os_local_mac_form = form;
+	}
+
+	form = spa_projectmac(os->os_spa);
+	if (form == ZFS_PROJECTMAC_MIXED)
+		form = os->os_local_mac_form;
+	if (form == ZFS_PROJECTMAC_MIXED)
+		form = SPA_PROJECTMAC_DEFAULT;
+
+	if (os->os_local_mac_form != ZFS_PROJECTMAC_MIXED &&
+	    form != os->os_local_mac_form) {
+		zfs_dbgmsg("objset %llu local MAC converted to %s project "
+		    "accounting", (u_longlong_t)ds->ds_object,
+		    form == ZFS_PROJECTMAC_ON ? "with" : "without");
+	}
+	os->os_local_mac_form = form;
+
+	return (form == ZFS_PROJECTMAC_ON);
+}
+
+static int
+dmu_objset_local_mac_convert_cb(const char *name, void *arg)
+{
+	(void) arg;
+	objset_t *os;
+	dsl_dataset_t *ds;
+	zfs_projectmac_t form;
+	dmu_tx_t *tx;
+
+	/* Datasets whose key isn't loaded are converted by their next write. */
+	if (dmu_objset_hold_flags(name, B_TRUE, FTAG, &os) != 0)
+		return (0);
+	ds = dmu_objset_ds(os);
+	if (!os->os_encrypted || !dmu_objset_userused_enabled(os) ||
+	    DS_IS_INCONSISTENT(ds))
+		form = ZFS_PROJECTMAC_MIXED;
+	else
+		form = dmu_objset_local_mac_stored(os);
+	if (form == ZFS_PROJECTMAC_MIXED ||
+	    form == spa_projectmac(os->os_spa)) {
+		dmu_objset_rele_flags(os, B_TRUE, FTAG);
+		return (0);
+	}
+
+	dsl_dataset_long_hold(ds, FTAG);
+	dsl_pool_rele(dmu_objset_pool(os), FTAG);
+
+	/*
+	 * The dataset's next sync writes its objset in the form set by the
+	 * pool property; dsl_dataset_dirty() keeps the dataset and its key
+	 * mapping until then.
+	 */
+	tx = dmu_tx_create(os);
+	if (dmu_tx_assign(tx, DMU_TX_WAIT) == 0) {
+		dsl_dataset_dirty(ds, tx);
+		dmu_tx_commit(tx);
+	} else {
+		dmu_tx_abort(tx);
+	}
+
+	dsl_dataset_long_rele(ds, FTAG);
+	dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT, FTAG);
+	return (0);
+}
+
+/*
+ * Rewrite the objset of every encrypted filesystem whose key is loaded and
+ * whose local MAC isn't in the form set by the projectmac pool property, and
+ * wait for the rewrites.
+ */
+void
+dmu_objset_local_mac_convert(spa_t *spa)
+{
+	(void) dmu_objset_find(spa_name(spa), dmu_objset_local_mac_convert_cb,
+	    NULL, DS_FIND_CHILDREN);
+	txg_wait_synced(spa_get_dsl(spa), 0);
+}
+
 /* called from dsl */
 void
 dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
@@ -1676,6 +1793,9 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 		arc_convert_to_raw(os->os_phys_buf,
 		    os->os_dsl_dataset->ds_object, ZFS_HOST_BYTEORDER,
 		    DMU_OT_OBJSET, NULL, NULL, NULL);
+	} else if (os->os_encrypted) {
+		zp.zp_local_mac_has_project =
+		    dmu_objset_local_mac_has_project(os);
 	}
 
 	zio = arc_write(pio, os->os_spa, tx->tx_txg,
@@ -2487,9 +2607,43 @@ dmu_objset_fast_stat(objset_t *os, dmu_objset_stats_t *stat)
 		dsl_dataset_fast_stat(os->os_dsl_dataset, stat);
 }
 
+/*
+ * Return the value of the projectmac property of an objset: the form of its
+ * local MAC, or if it has neither form, the form its next write will use.
+ * Return ZFS_PROJECTMAC_MIXED, indicating no value, if the objset isn't
+ * encrypted, has no space accounting (e.g. zvols), or its key isn't loaded.
+ */
+zfs_projectmac_t
+dmu_objset_projectmac_prop(objset_t *os)
+{
+	dsl_dataset_t *ds = os->os_dsl_dataset;
+	zfs_projectmac_t form;
+
+	if (!os->os_encrypted || !dmu_objset_userused_enabled(os) ||
+	    spa_keystore_create_mapping(os->os_spa, ds, FTAG, NULL) != 0)
+		return (ZFS_PROJECTMAC_MIXED);
+
+	/*
+	 * Follow dmu_objset_local_mac_has_project(). os_phys can be changing
+	 * while the objset is being written, and then it matches neither
+	 * form, but its last write used os_local_mac_form.
+	 */
+	form = dmu_objset_local_mac_stored(os);
+	(void) spa_keystore_remove_mapping(os->os_spa, ds->ds_object, FTAG);
+	if (form == ZFS_PROJECTMAC_MIXED)
+		form = spa_projectmac(os->os_spa);
+	if (form == ZFS_PROJECTMAC_MIXED)
+		form = os->os_local_mac_form;
+	if (form == ZFS_PROJECTMAC_MIXED)
+		form = SPA_PROJECTMAC_DEFAULT;
+	return (form);
+}
+
 void
 dmu_objset_stats(objset_t *os, nvlist_t *nv)
 {
+	zfs_projectmac_t form;
+
 	ASSERT(os->os_dsl_dataset ||
 	    os->os_phys->os_type == DMU_OST_META);
 
@@ -2500,6 +2654,10 @@ dmu_objset_stats(objset_t *os, nvlist_t *nv)
 	    os->os_phys->os_type);
 	dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_USERACCOUNTING,
 	    dmu_objset_userspace_present(os));
+
+	form = dmu_objset_projectmac_prop(os);
+	if (form != ZFS_PROJECTMAC_MIXED)
+		dsl_prop_nvlist_add_uint64(nv, ZFS_PROP_PROJECTMAC, form);
 }
 
 int

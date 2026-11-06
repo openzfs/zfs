@@ -206,6 +206,10 @@ also display the configuration that would be used were the pool to be imported.
 Display information about datasets.
 Specified once, displays basic dataset information: ID, create transaction,
 size, and object count.
+For an encrypted filesystem, it also shows whether the local MAC, which
+protects its space accounting, is zeroed, and, with
+.Fl K ,
+whether it covers the project accounting.
 See
 .Fl N
 for determining if

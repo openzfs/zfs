@@ -374,6 +374,10 @@ typedef struct zio_prop {
 	boolean_t		zp_byteorder:1;
 	boolean_t		zp_direct_write:1;
 	boolean_t		zp_rewrite:1;
+
+	/* only used when encrypting objset_phys_t blocks */
+	boolean_t		zp_local_mac_has_project:1;
+
 	uint32_t		zp_zpl_smallblk;
 	uint8_t			zp_salt[ZIO_DATA_SALT_LEN];
 	uint8_t			zp_iv[ZIO_DATA_IV_LEN];

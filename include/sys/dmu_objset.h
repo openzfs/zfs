@@ -90,6 +90,7 @@ typedef struct objset_phys {
 typedef int (*dmu_objset_upgrade_cb_t)(objset_t *);
 
 #define	OBJSET_PROP_UNINITIALIZED	((uint64_t)-1)
+
 struct objset {
 	/* Immutable: */
 	struct dsl_dataset *os_dsl_dataset;
@@ -162,6 +163,11 @@ struct objset {
 	/* os_phys_buf should be written raw next txg */
 	boolean_t os_next_write_raw[TXG_SIZE];
 
+	/*
+	 * The form of local MAC to write.
+	 */
+	zfs_projectmac_t os_local_mac_form;
+
 	/* Protected by os_obj_lock */
 	kmutex_t os_obj_lock;
 	uint64_t os_obj_next_chunk;
@@ -230,6 +236,8 @@ boolean_t dmu_objset_block_is_shared(objset_t *os, const blkptr_t *bp);
 
 /* called from dsl */
 void dmu_objset_sync(objset_t *os, zio_t *zio, dmu_tx_t *tx);
+void dmu_objset_local_mac_convert(spa_t *spa);
+zfs_projectmac_t dmu_objset_projectmac_prop(objset_t *os);
 boolean_t dmu_objset_is_dirty(objset_t *os, uint64_t txg);
 objset_t *dmu_objset_create_impl_dnstats(spa_t *spa, struct dsl_dataset *ds,
     blkptr_t *bp, dmu_objset_type_t type, int levels, int blksz, int ibs,
