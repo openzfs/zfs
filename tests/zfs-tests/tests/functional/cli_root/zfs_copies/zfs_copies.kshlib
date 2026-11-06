@@ -146,5 +146,11 @@ function do_vol_test
 
 	# Ubuntu 20.04 wants a sync here
 	log_must sync
-	log_must zfs destroy $vol
+
+	# Closing the volume after writing to it (new_fs, zpool create)
+	# makes udev rescan it, and while that scan has the volume open it
+	# cannot be destroyed.  Let udev settle first, and retry the destroy
+	# while it is busy, as destroy_dataset does.
+	block_device_wait $vol_b_path
+	log_must_busy zfs destroy $vol
 }
