@@ -1639,6 +1639,16 @@ zfs_zero_partial_page(znode_t *zp, uint64_t start, uint64_t len)
 	start &= PAGE_MASK;
 
 	pp = find_lock_page(mp, start >> PAGE_SHIFT);
+	if (pp != NULL && !PageUptodate(pp) && !PageDirty(pp)) {
+		/*
+		 * Nobody has filled this page yet.  Its filler needs the
+		 * range lock our caller holds as writer, so it will read
+		 * the zeroes from the DMU instead.
+		 */
+		unlock_page(pp);
+		put_page(pp);
+		pp = NULL;
+	}
 	if (pp) {
 		if (mapping_writably_mapped(mp))
 			flush_dcache_page(pp);
