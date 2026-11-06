@@ -33,6 +33,7 @@
 #include <sys/vdev_impl.h>
 #include <sys/dmu_tx.h>
 #include <sys/dsl_pool.h>
+#include <sys/dsl_dir.h>
 #include <sys/metaslab.h>
 #include <sys/trace_zfs.h>
 #include <sys/abd.h>
@@ -989,6 +990,19 @@ zil_commit_activate_saxattr_feature(zilog_t *zilog)
 }
 
 /*
+ * A log block from the normal class takes pool space that no hold reserved,
+ * until its records are synced.  Charge it to the pool's root dsl_dir in this
+ * txg, so that dsl_dir_tempreserve_space() makes writers wait for a sync
+ * before the log fills the pool.
+ */
+static void
+zil_charge_normal_blk(zilog_t *zilog, const blkptr_t *bp, dmu_tx_t *tx)
+{
+	dsl_dir_willuse_space(zilog->zl_dmu_pool->dp_root_dir,
+	    bp_get_dsize(zilog->zl_spa, bp), tx);
+}
+
+/*
  * Create an on-disk intent log.
  */
 static lwb_t *
@@ -1001,6 +1015,7 @@ zil_create(zilog_t *zilog)
 	blkptr_t blk;
 	int error = 0;
 	boolean_t slog = FALSE;
+	boolean_t normal;
 	dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
 
 
@@ -1037,9 +1052,12 @@ zil_create(zilog_t *zilog)
 		}
 
 		error = zio_alloc_zil(zilog->zl_spa, zilog->zl_os, txg, &blk,
-		    ZIL_MIN_BLKSZ, ZIL_MIN_BLKSZ, &slog, B_TRUE);
-		if (error == 0)
+		    ZIL_MIN_BLKSZ, ZIL_MIN_BLKSZ, &slog, &normal, B_TRUE);
+		if (error == 0) {
 			zil_init_log_chain(zilog, &blk);
+			if (normal)
+				zil_charge_normal_blk(zilog, &blk, tx);
+		}
 	}
 
 	/*
@@ -2001,7 +2019,7 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 {
 	spa_t *spa = zilog->zl_spa;
 	zil_chain_t *zilc;
-	boolean_t slog;
+	boolean_t slog, normal = B_FALSE;
 	zbookmark_phys_t zb;
 	zio_priority_t prio;
 	int error;
@@ -2133,7 +2151,7 @@ next_lwb:
 		}
 
 		error = zio_alloc_zil(spa, zilog->zl_os, txg, bp,
-		    min_size, max_size, &slog, flexible);
+		    min_size, max_size, &slog, &normal, flexible);
 		if (error == 0) {
 			if (closed_slim)
 				ASSERT3U(BP_GET_LSIZE(bp), ==, max_size);
@@ -2149,6 +2167,8 @@ next_lwb:
 		ASSERT3U(BP_GET_BIRTH(bp), ==, txg);
 		BP_SET_CHECKSUM(bp, (nlwb->lwb_flags & LWB_FLAG_SLIM) ?
 		    ZIO_CHECKSUM_ZILOG2 : ZIO_CHECKSUM_ZILOG);
+		if (normal)
+			zil_charge_normal_blk(zilog, bp, tx);
 	}
 	/*
 	 * zil_read_log_block() accepts this lwb only if zc_next_blk has the

@@ -4966,7 +4966,7 @@ zio_dva_unallocate(zio_t *zio, zio_gang_node_t *gn, blkptr_t *bp)
  */
 int
 zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
-    uint64_t min_size, uint64_t max_size, boolean_t *slog,
+    uint64_t min_size, uint64_t max_size, boolean_t *slog, boolean_t *normal,
     boolean_t allow_larger)
 {
 	int error;
@@ -5026,11 +5026,13 @@ zio_alloc_zil(spa_t *spa, objset_t *os, uint64_t txg, blkptr_t *new_bp,
 	}
 
 	/* Finally fall back to normal class */
+	*normal = B_FALSE;
 	if (error != 0) {
 		ZIOSTAT_BUMP(ziostat_alloc_class_fallbacks);
 		error = metaslab_alloc_range(spa, spa_normal_class(spa),
 		    min_size, max_size, new_bp, 1, txg, NULL, flags,
 		    &io_alloc_list, allocator, NULL, &alloc_size);
+		*normal = (error == 0);
 	}
 	metaslab_trace_fini(&io_alloc_list);
 
