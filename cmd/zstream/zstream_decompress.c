@@ -173,6 +173,6 @@ zstream_do_decompress(int argc, char *argv[])
 	};
 	zstream_chain_exec(decompress_chain, &attrs);
 
-	destroy_record_specifier_hash();
+	record_specifier_hash_fini();
 	return (0);
 }

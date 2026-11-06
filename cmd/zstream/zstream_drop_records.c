@@ -126,6 +126,6 @@ zstream_do_drop_records(int argc, char *argv[])
 	};
 	zstream_chain_exec(drop_chain, &attrs);
 
-	destroy_record_specifier_hash();
+	record_specifier_hash_fini();
 	return (0);
 }
