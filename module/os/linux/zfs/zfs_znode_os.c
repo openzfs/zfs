@@ -50,6 +50,11 @@
 #include <sys/zfs_sa.h>
 #include <sys/zfs_stat.h>
 #include <linux/mm_compat.h>
+#ifdef HAVE_FOLIO_BATCH_HEADER
+#include <linux/folio_batch.h>
+#else
+#include <linux/pagevec.h>
+#endif
 #ifdef CONFIG_FS_POSIX_ACL
 #include <linux/posix_acl.h>
 #endif
@@ -1193,6 +1198,155 @@ again:
 	return (err);
 }
 
+/*
+ * Number of times zfs_rezget_drop_pages() retries after pages which could
+ * not be locked, one clock tick apart.
+ */
+#define	ZFS_REZGET_DROP_RETRIES	3
+
+/*
+ * Remove a locked page from the page cache, whether it is clean or dirty and
+ * whatever else holds a reference to it.  The page must not be under
+ * writeback.  Returns B_TRUE if it was removed.
+ */
+boolean_t
+zfs_page_cache_remove(struct address_space *mapping, struct page *pp)
+{
+	if (pp->mapping != mapping || PageWriteback(pp))
+		return (B_FALSE);
+
+#ifdef HAVE_GENERIC_ERROR_REMOVE_FOLIO
+	return (generic_error_remove_folio(mapping, page_folio(pp)) == 0);
+#else
+	return (generic_error_remove_page(mapping, pp) == 0);
+#endif
+}
+
+/*
+ * Remove one page from the page cache, without sleeping on its lock.
+ * Returns B_TRUE if it was removed.  A page under writeback is waited for
+ * before it is locked: that completes without z_teardown_lock.
+ *
+ * If an up to date page stays, *busy is set; with "final" the page is made
+ * to be read in again instead.  A page which is locked and not up to date is
+ * being read in, and is left alone.
+ */
+static boolean_t
+zfs_rezget_drop_page(struct address_space *mapping, struct page *pp,
+    boolean_t final, boolean_t *busy)
+{
+	boolean_t dropped;
+
+	if (PageWriteback(pp)) {
+#ifdef HAVE_PAGEMAP_FOLIO_WAIT_BIT
+		folio_wait_bit(page_folio(pp), PG_writeback);
+#else
+		wait_on_page_bit(pp, PG_writeback);
+#endif
+	}
+
+	if (!trylock_page(pp)) {
+		if (PageUptodate(pp)) {
+			if (final)
+				ClearPageUptodate(pp);
+			else
+				*busy = B_TRUE;
+		}
+		return (B_FALSE);
+	}
+
+	/* Writeback can only start while the page is locked. */
+	dropped = zfs_page_cache_remove(mapping, pp);
+	if (!dropped && PageUptodate(pp)) {
+		if (final)
+			ClearPageUptodate(pp);
+		else
+			*busy = B_TRUE;
+	}
+	unlock_page(pp);
+
+	return (dropped);
+}
+
+/* Try to remove all pages of a mapping; returns the number removed. */
+static unsigned long
+zfs_rezget_drop_cached(struct address_space *mapping, boolean_t final,
+    boolean_t *busy)
+{
+	unsigned long dropped = 0;
+	pgoff_t start = 0;
+	unsigned int i;
+
+#ifdef HAVE_FILEMAP_GET_FOLIOS
+	struct folio_batch fbatch;
+
+	folio_batch_init(&fbatch);
+	while (filemap_get_folios(mapping, &start, (pgoff_t)-1, &fbatch) != 0) {
+		for (i = 0; i < folio_batch_count(&fbatch); i++) {
+			if (zfs_rezget_drop_page(mapping,
+			    &fbatch.folios[i]->page, final, busy))
+				dropped++;
+		}
+		folio_batch_release(&fbatch);
+		cond_resched();
+	}
+#else
+	struct pagevec pvec;
+
+	pagevec_init(&pvec);
+	while (pagevec_lookup_range(&pvec, mapping, &start, (pgoff_t)-1) != 0) {
+		for (i = 0; i < pagevec_count(&pvec); i++) {
+			if (zfs_rezget_drop_page(mapping, pvec.pages[i],
+			    final, busy))
+				dropped++;
+		}
+		pagevec_release(&pvec);
+		cond_resched();
+	}
+#endif
+
+	return (dropped);
+}
+
+/*
+ * Drop the cached pages of a znode while the filesystem is suspended.
+ *
+ * zfs_resume_fs() calls zfs_rezget() with z_teardown_lock held as writer,
+ * while zfs_getpage() and zfs_putpage() callers hold a page lock and wait for
+ * that lock, so truncate_inode_pages() would wait for them forever.  Pages
+ * are removed unless they can't be locked; that is retried a few times.
+ *
+ * What is left:
+ *  - A page that is locked and not up to date is being read in by
+ *    zfs_getpage(), and will be filled from the new contents.
+ *  - An up to date page that is still locked has the old contents.  It is
+ *    made not up to date, so that it is read in again, and zfs_putpage()
+ *    does not write it back.
+ */
+static void
+zfs_rezget_drop_pages(struct inode *ip)
+{
+	struct address_space *mapping = ip->i_mapping;
+	boolean_t busy = B_FALSE;
+	int retries = 0;
+
+	while (mapping->nrpages != 0) {
+		unmap_mapping_range(mapping, 0, 0, 0);
+		busy = B_FALSE;
+		(void) zfs_rezget_drop_cached(mapping, B_FALSE, &busy);
+		if (!busy || retries++ >= ZFS_REZGET_DROP_RETRIES)
+			break;
+		delay(1);
+	}
+
+	if (busy && mapping->nrpages != 0) {
+		(void) zfs_rezget_drop_cached(mapping, B_TRUE, &busy);
+		unmap_mapping_range(mapping, 0, 0, 0);
+		zfs_dbgmsg("zfs_rezget: object %llu has pages which stay "
+		    "locked", (u_longlong_t)ITOZ(ip)->z_id);
+	}
+}
+
 int
 zfs_rezget(znode_t *zp)
 {
@@ -1226,10 +1380,12 @@ zfs_rezget(znode_t *zp)
 	 * Drop cached pages before reloading the znode.  After a rollback or
 	 * a forced receive the object may hold different data under the same
 	 * inode, size and generation; stale Uptodate pages would otherwise be
-	 * served by mappedread() and mmap() (see #10931).  FreeBSD does the
-	 * same here via vn_pages_remove().
+	 * served by mappedread() and mmap() (see #10931).  Unlike
+	 * vn_pages_remove() on FreeBSD, this cannot wait for pages which are
+	 * locked by a thread that is blocked on the teardown lock; see
+	 * zfs_rezget_drop_pages().
 	 */
-	truncate_inode_pages(ZTOI(zp)->i_mapping, 0);
+	zfs_rezget_drop_pages(ZTOI(zp));
 
 	zh = zfs_znode_hold_enter(zfsvfs, obj_num);
 
@@ -1639,7 +1795,15 @@ zfs_zero_partial_page(znode_t *zp, uint64_t start, uint64_t len)
 	start &= PAGE_MASK;
 
 	pp = find_lock_page(mp, start >> PAGE_SHIFT);
-	if (pp) {
+	if (pp && !PageUptodate(pp)) {
+		/*
+		 * Zeroing part of the page must not make it up to date, see
+		 * update_pages().
+		 */
+		(void) zfs_page_cache_remove(mp, pp);
+		unlock_page(pp);
+		put_page(pp);
+	} else if (pp) {
 		if (mapping_writably_mapped(mp))
 			flush_dcache_page(pp);
 

@@ -147,6 +147,8 @@ extern int	zfs_inode_alloc(struct super_block *, struct inode **ip);
 extern void	zfs_inode_free(struct inode *);
 extern void	zfs_inode_destroy(struct inode *);
 extern void	zfs_mark_inode_dirty(struct inode *);
+extern boolean_t zfs_page_cache_remove(struct address_space *,
+    struct page *);
 extern boolean_t zfs_relatime_need_update(const struct inode *);
 extern void	zfs_zero_eof_page(struct znode *, struct zfs_locked_range *,
     uint64_t);
