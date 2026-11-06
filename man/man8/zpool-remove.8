@@ -17,7 +17,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd November 19, 2024
+.Dd October 15, 2026
 .Dt ZPOOL-REMOVE 8
 .Os
 .
@@ -50,6 +50,42 @@ non-redundant primary top-level vdevs, including dedup and special vdevs.
 Top-level vdevs can only be removed if the primary pool storage does not contain
 a top-level raidz or draid vdev, all top-level vdevs have the same ashift size,
 and the keys for all encrypted datasets are loaded.
+.Pp
+A top-level vdev that has no allocated space is removed differently, whatever
+its type and whatever other vdevs the pool has, which allows undoing the
+addition of a vdev by mistake.
+Nothing is copied: the vdev is replaced by a hole, as is done for log vdevs, and
+the removal is complete when the command returns.
+No indirect vdev is created, and the
+.Sy device_removal
+feature does not become
+.Sy active .
+The vdev must be healthy and fully resilvered, and the removal fails while a
+raidz expansion is in progress.
+The distributed spares of a draid vdev are removed with it, so none of them may
+be in use.
+The
+.Sy draid ,
+.Sy draid_failure_domains
+and
+.Sy raidz_expansion
+features return to being
+.Sy enabled
+when no remaining vdev uses them.
+.Pp
+A vdev stays empty only as long as nothing is allocated from it.
+Unused special and dedup vdevs stay empty.
+The pool starts to allocate from a new normal-class vdev soon after it is added.
+To keep it empty, set its
+.Sy allocating
+property to
+.Sy off
+right after the
+.Nm zpool Cm add ,
+see
+.Xr vdevprops 7 .
+Without it, the removal works only while the pool is idle, and it can be refused
+if the pool is nearly full.
 .Pp
 Removing a top-level vdev reduces the total amount of space in the storage pool.
 The specified device will be evacuated by copying all allocated space from it to
