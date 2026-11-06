@@ -1680,7 +1680,7 @@ issue_data_read(struct send_reader_thread_arg *srta, struct send_range *range)
 	    zioflags, &aflags, &zb);
 	/*
 	 * The ARC only honors a request for compressed data if the header
-	 * is compressed, which is not the case for cached blocks when
+	 * is compressed, which is not always the case for cached blocks when
 	 * zfs_compressed_arc_enabled=0.  Such a buffer holds the logical
 	 * data, while the record is sent with the block's compression and
 	 * psize, so read the block from disk instead.
