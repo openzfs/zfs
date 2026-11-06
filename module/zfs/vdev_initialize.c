@@ -488,6 +488,14 @@ vdev_initialize_load(vdev_t *vd)
 			vd->vdev_initialize_last_offset = 0;
 			err = 0;
 		}
+		/*
+		 * Resume from a sector boundary: an initialize that ran with
+		 * a chunk size that was not a multiple of the top-level
+		 * sector size may have stopped in the middle of a sector.
+		 */
+		vd->vdev_initialize_last_offset = P2ALIGN_TYPED(
+		    vd->vdev_initialize_last_offset,
+		    1ULL << vd->vdev_top->vdev_ashift, uint64_t);
 	}
 
 	vdev_initialize_calculate_progress(vd);
