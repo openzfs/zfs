@@ -5325,6 +5325,7 @@ zfs_do_receive(int argc, char **argv)
 /* copied from zfs/sys/dsl_deleg.h */
 #define	ZFS_DELEG_PERM_CREATE		"create"
 #define	ZFS_DELEG_PERM_DESTROY		"destroy"
+#define	ZFS_DELEG_PERM_DESTROY_SNAPSHOT	"destroy:snapshot"
 #define	ZFS_DELEG_PERM_SNAPSHOT		"snapshot"
 #define	ZFS_DELEG_PERM_ROLLBACK		"rollback"
 #define	ZFS_DELEG_PERM_CLONE		"clone"
