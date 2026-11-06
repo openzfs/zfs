@@ -22,8 +22,9 @@
 #	new location.
 #
 # STRATEGY:
-#	1. Create a raidz1 pool, write a file and attach a new disk with the
-#	   reflow paused early on.
+#	1. Create a raidz1 pool with large metaslabs, so that the file is
+#	   written in one piece, write a file of 1M blocks and attach a new
+#	   disk with the reflow paused early on.
 #	2. Export the pool and zero the part of one disk that holds the data
 #	   the reflow has not copied yet.
 #	3. Import the pool and let the reflow copy some more of the data, in
@@ -32,7 +33,8 @@
 #	   disks.
 #	4. Verify that a block of the file straddles the new reflow offset,
 #	   with its first part copied from the damaged area (if none does,
-#	   move the pause point on a little and look again).  Every row of
+#	   let the reflow copy a little more and look again, until one does
+#	   or the reflow is done).  Every row of
 #	   that block has one damaged sector, on the zeroed disk in the rows
 #	   at the old location and wherever the reflow put it in the others.
 #	5. Scrub with the reflow paused.  Verify that it found no data
@@ -51,6 +53,7 @@ typeset -a disks
 prefetch_disable=$(get_tunable PREFETCH_DISABLE)
 scrub_after_expand=$(get_tunable SCRUB_AFTER_EXPAND)
 max_copy_bytes=$(get_tunable RAIDZ_EXPAND_MAX_COPY_BYTES)
+min_ms_count=$(get_tunable VDEV_MIN_MS_COUNT)
 
 function cleanup
 {
@@ -62,6 +65,7 @@ function cleanup
 	log_must set_tunable32 SCRUB_AFTER_EXPAND $scrub_after_expand
 	log_must set_tunable64 RAIDZ_EXPAND_MAX_REFLOW_BYTES 0
 	log_must set_tunable64 RAIDZ_EXPAND_MAX_COPY_BYTES $max_copy_bytes
+	log_must set_tunable32 VDEV_MIN_MS_COUNT $min_ms_count
 }
 
 function reflowed # pool
@@ -96,6 +100,14 @@ log_must mkdir -p $devdir
 
 log_must set_tunable32 PREFETCH_DISABLE 1
 log_must set_tunable32 SCRUB_AFTER_EXPAND 0
+#
+# With the default 16 metaslabs of 64M, the file ends up in several pieces
+# with free space between them, and the reflow moves through free space in
+# big steps.  Then it only stops in the file's data a few times, and often
+# between two blocks.  With 512M metaslabs the file is in one piece in the
+# first metaslab.
+#
+log_must set_tunable32 VDEV_MIN_MS_COUNT 2
 
 for i in {0..$(($devs - 1))}; do
 	device=$devdir/dev-$i
@@ -106,7 +118,7 @@ log_must truncate -s ${dev_size_mb}M $devdir/dev-$devs
 
 log_must zpool create -f -o cachefile=none -o ashift=12 $TESTPOOL \
     raidz1 ${disks[@]}
-log_must zfs create -o recordsize=128k -o compression=off \
+log_must zfs create -o recordsize=1M -o compression=off \
     -o primarycache=metadata $TESTPOOL/fs
 log_must dd if=/dev/urandom of=/$TESTPOOL/fs/file bs=1M count=400
 typeset -r digest=$(xxh128digest /$TESTPOOL/fs/file)
@@ -136,25 +148,35 @@ log_must zpool import -o cachefile=none -d $devdir $TESTPOOL
 log_must set_tunable64 RAIDZ_EXPAND_MAX_COPY_BYTES $((1024 * 1024 + 4096))
 
 #
-# The reflow can still stop between two blocks, e.g. at the end of a
-# metaslab.  Move the pause point on until a block straddles the offset,
-# with at least one full row on either side (a full row of the block spans
-# every old disk; the last row can be shorter).  Each column of the block is
-# on the same old disk in every row; the column on disk 0 must not be the
-# parity (raidz1 swaps the first two columns in every other MiB), or the
-# scrub finds the data intact and only rewrites the parity.
+# Look for a block that straddles the offset, with at least one full row on
+# either side (a full row of the block spans every old disk; the last row
+# can be shorter).  Each column of the block is on the same old disk in
+# every row; the column on disk 0 must not be the parity (raidz1 swaps the
+# first two columns in every other MiB), or the scrub finds the data intact
+# and only rewrites the parity.  That rules out 1 in 6 blocks, and the
+# reflow can also stop in a block's first or last rows.  If no block
+# qualifies, let the reflow copy a little more and look again.
+#
+# The amount copied only advances when a txg syncs, so the reflow pauses at
+# the first txg boundary after the pause point.  Early in the expansion,
+# that is where it reached the most it may copy per txg (an arbitrary
+# sector, about 1/6 past the previous offset), so with the file in one
+# piece it stops in the file's data some 15 times before the reflow is done.
 #
 typeset -i straddling=0
 rowsize=$((devs * 4096))
-pause=$((allocated / 40))
-for (( i = 0; i < 20 && straddling == 0; i++ )); do
-	log_must set_tunable64 RAIDZ_EXPAND_MAX_REFLOW_BYTES $pause
+while (( straddling == 0 )); do
+	log_must set_tunable64 RAIDZ_EXPAND_MAX_REFLOW_BYTES \
+	    $(($(reflowed $TESTPOOL) + 1))
 	wait_raidz_expand_paused $TESTPOOL
-	pause=$(($(reflowed $TESTPOOL) + allocated / 80))
 	log_must zpool export $TESTPOOL
 
 	offset2=$(reflow_offset)
 	log_note "reflow offset $offset2 after the second pause"
+	if (( offset2 == 0 )); then
+		log_must zpool import -o cachefile=none -d $devdir $TESTPOOL
+		break
+	fi
 	file_blocks $object | while read off asize; do
 		if (( off >= offset1 && off + rowsize <= offset2 &&
 		    offset2 + 2 * rowsize <= off + asize &&
