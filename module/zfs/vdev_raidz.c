@@ -2793,6 +2793,27 @@ vdev_raidz_io_start_read(zio_t *zio, raidz_map_t *rm)
 	}
 }
 
+static void vdev_raidz_io_start_impl(zio_t *zio, boolean_t can_wait);
+
+/*
+ * Restart an I/O that could not get the expansion rangelock without
+ * waiting.  This runs in an issue taskq, where waiting is safe: the I/O
+ * of the reflow (and of the syncing context) that holds the lock as a
+ * writer is issued directly to the leaf vdevs and completes in the
+ * interrupt taskqs, so it never needs an issue thread to finish.
+ */
+static void
+vdev_raidz_io_start_deferred(void *arg)
+{
+	vdev_raidz_io_start_impl(arg, B_TRUE);
+}
+
+static void
+vdev_raidz_io_start(zio_t *zio)
+{
+	vdev_raidz_io_start_impl(zio, B_FALSE);
+}
+
 /*
  * Start an IO operation on a RAIDZ VDev
  *
@@ -2811,7 +2832,7 @@ vdev_raidz_io_start_read(zio_t *zio, raidz_map_t *rm)
  *      columns' VDevs as well.
  */
 static void
-vdev_raidz_io_start(zio_t *zio)
+vdev_raidz_io_start_impl(zio_t *zio, boolean_t can_wait)
 {
 	vdev_t *vd = zio->io_vd;
 	vdev_t *tvd = vd->vdev_top;
@@ -2873,8 +2894,41 @@ vdev_raidz_io_start(zio_t *zio)
 		if (vdrz->vn_vre.vre_state == DSS_SCANNING) {
 			ASSERT3P(vd->vdev_spa->spa_raidz_expand, ==,
 			    &vdrz->vn_vre);
-			lr = zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock,
-			    zio->io_offset, zio->io_size, RL_READER);
+			/*
+			 * The reflow holds this lock as a writer until the
+			 * reads and writes of the range it copies are done,
+			 * and those reads complete in the read interrupt
+			 * taskq.  We may be running in that taskq ourselves,
+			 * e.g. for a repair write or a retry that
+			 * vdev_mirror_io_done() issues to another DVA of a
+			 * block.  Waiting for the lock here would then keep
+			 * the reflow's reads from completing, and if this
+			 * is the only interrupt thread (as on a machine with
+			 * one or two CPUs), nothing would ever release it.
+			 * A writer that is only waiting for an overlapping
+			 * range (spa_sync(), or the reflow's next chunk)
+			 * blocks us too, and the range it waits for can be
+			 * held by a read whose child reads complete in this
+			 * taskq.
+			 * So only wait in an issue taskq.
+			 */
+			if (can_wait) {
+				lr = zfs_rangelock_enter(
+				    &vdrz->vn_vre.vre_rangelock,
+				    zio->io_offset, zio->io_size, RL_READER);
+			} else {
+				lr = zfs_rangelock_tryenter(
+				    &vdrz->vn_vre.vre_rangelock,
+				    zio->io_offset, zio->io_size, RL_READER);
+			}
+			if (lr == NULL) {
+				ASSERT(zio->io_type == ZIO_TYPE_READ ||
+				    zio->io_type == ZIO_TYPE_WRITE);
+				spa_taskq_dispatch(zio->io_spa, zio->io_type,
+				    ZIO_TASKQ_ISSUE,
+				    vdev_raidz_io_start_deferred, zio, B_TRUE);
+				return;
+			}
 			use_scratch =
 			    (RRSS_GET_STATE(&vd->vdev_spa->spa_ubsync) ==
 			    RRSS_SCRATCH_VALID);
