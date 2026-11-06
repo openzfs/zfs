@@ -1754,6 +1754,7 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 	uint64_t mtime[2], ctime[2];
 	sa_bulk_attr_t bulk[4];
 	int count = 0;
+	boolean_t netfree = B_FALSE;
 	int error;
 
 	if ((error = sa_lookup(zp->z_sa_hdl, SA_ZPL_MODE(zfsvfs), &mode,
@@ -1768,6 +1769,7 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 			return (error);
 	}
 
+	netfree = B_TRUE;
 	if (len == 0) {
 		error = zfs_trunc(zp, off);
 	} else {
@@ -1781,6 +1783,9 @@ log:
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_sa(tx, zp->z_sa_hdl, ZFS_SEQ_MAY_GROW(zp));
 	zfs_sa_upgrade_txholds(tx, zp);
+	/* After a free, a full pool must not fail the call that made room. */
+	if (netfree)
+		dmu_tx_mark_netfree(tx);
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		dmu_tx_abort(tx);

@@ -2019,6 +2019,7 @@ zfs_setattr_idmap(znode_t *zp, vattr_t *vap, int flags, cred_t *cr,
 	boolean_t skipaclchk = (flags & ATTR_NOACLCHECK) ? B_TRUE : B_FALSE;
 	boolean_t	fuid_dirtied = B_FALSE;
 	boolean_t	handle_eadir = B_FALSE;
+	boolean_t	shrunk = B_FALSE;
 	sa_bulk_attr_t	*bulk, *xattr_bulk;
 	int		count = 0, xattr_count = 0, bulks = 9;
 
@@ -2151,6 +2152,8 @@ top:
 		 * should be addressed in openat().
 		 */
 		/* XXX - would it be OK to generate a log record here? */
+		if (vap->va_size < zp->z_size)
+			shrunk = B_TRUE;
 		err = zfs_freesp(zp, vap->va_size, 0, 0, FALSE);
 		if (err)
 			goto out3;
@@ -2466,6 +2469,9 @@ top:
 
 	zfs_sa_upgrade_txholds(tx, zp);
 
+	/* After a truncation, a full pool must not fail the call. */
+	if (shrunk)
+		dmu_tx_mark_netfree(tx);
 	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err)
 		goto out;
