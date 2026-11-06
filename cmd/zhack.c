@@ -27,6 +27,7 @@
 #include <ctype.h>
 #include <sys/stat.h>
 #include <sys/zfs_context.h>
+#include <sys/zfs_debug.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/dmu.h>
@@ -35,6 +36,7 @@
 #include <sys/dsl_synctask.h>
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_trim.h>
 #include <sys/mmp.h>
 #include <sys/fs/zfs.h>
 #include <sys/dmu_objset.h>
@@ -120,6 +122,15 @@ usage(void)
 	    "\n"
 	    "    metaslab leak <pool>\n"
 	    "        apply allocation map from zdb to specified pool\n"
+	    "    metaslab corrupt <pool> <type>\n"
+	    "        inject duplicate-free, partial-free, duplicate-alloc,\n"
+	    "        partial-alloc, chained, invalid-summary, invalid-entry,\n"
+	    "        invalid-vdev, invalid-padding, truncated-entry, or\n"
+	    "        log-duplicate-free;\n"
+	    "        pending-free and unloaded-free exercise frees after a\n"
+	    "        duplicate FREE; passivate-repair checks queued loads;\n"
+	    "        unload-repair checks TRIM invalidation\n"
+	    "        and eviction before and during condensation\n"
 	    "\n"
 	    "    mos scan <pool>\n"
 	    "        identify reclaimable leaked MOS objects\n"
@@ -1450,13 +1461,14 @@ zhack_do_mos(int argc, char **argv)
 	return (0);
 }
 
-static void
+static boolean_t
 metaslab_force_alloc(metaslab_t *msp, uint64_t start, uint64_t size,
     dmu_tx_t *tx)
 {
 	ASSERT(msp->ms_disabled);
 	ASSERT(MUTEX_HELD(&msp->ms_lock));
 	uint64_t txg = dmu_tx_get_txg(tx);
+	boolean_t applied = B_FALSE;
 
 	uint64_t off = start;
 	while (off < start + size) {
@@ -1474,14 +1486,18 @@ metaslab_force_alloc(metaslab_t *msp, uint64_t start, uint64_t size,
 		zfs_range_tree_add(msp->ms_allocating[txg & TXG_MASK], ostart,
 		    osize);
 		msp->ms_allocating_total += osize;
+		applied = B_TRUE;
 		off = ostart + osize;
 	}
+	return (applied);
 }
 
-static void
+static int
 zhack_do_metaslab_leak(int argc, char **argv)
 {
 	int c;
+	int error = 0;
+	boolean_t applied = B_FALSE;
 	char *target;
 	spa_t *spa;
 
@@ -1530,6 +1546,7 @@ zhack_do_metaslab_leak(int argc, char **argv)
 			if (vd == NULL) {
 				fprintf(stderr, "error: no such vdev with "
 				    "id %"PRIu64"\n", vdev_id);
+				error = ENXIO;
 				break;
 			}
 			if (tx) {
@@ -1543,6 +1560,7 @@ zhack_do_metaslab_leak(int argc, char **argv)
 				fprintf(stderr, "error: ms_shift mismatch: %"
 				    PRIu64" != %"PRIu64"\n", vd->vdev_ms_shift,
 				    ms_shift);
+				error = EINVAL;
 				break;
 			}
 		} else if (strstarts(line, "\tmetaslabs ")) {
@@ -1554,6 +1572,7 @@ zhack_do_metaslab_leak(int argc, char **argv)
 				fprintf(stderr, "error: ms_count mismatch: %"
 				    PRIu64" != %"PRIu64"\n", vd->vdev_ms_count,
 				    ms_count);
+				error = EINVAL;
 				break;
 			}
 		} else if (strstarts(line, "ALLOC:")) {
@@ -1570,35 +1589,668 @@ zhack_do_metaslab_leak(int argc, char **argv)
 			if (prev != cur) {
 				if (prev) {
 					dmu_tx_commit(tx);
+					tx = NULL;
 					mutex_exit(&prev->ms_lock);
 					metaslab_enable(prev, B_FALSE, B_FALSE);
 				}
 				ASSERT(cur);
 				metaslab_disable(cur);
 				mutex_enter(&cur->ms_lock);
-				metaslab_load(cur);
 				prev = cur;
+				error = metaslab_load(cur);
+				if (error != 0) {
+					const char *reason = error == EAGAIN ?
+					    "load deferred" : error == ECKSUM ?
+					    "space map is unloadable" :
+					    strerror(error);
+					fprintf(stderr,
+					    "error: cannot load vdev "
+					    "%"PRIu64" metaslab %"PRIu64" in "
+					    "'%s': %s (error %d)\n",
+					    vd->vdev_id, cur->ms_id, target,
+					    reason, error);
+					break;
+				}
 				tx = dmu_tx_create_dd(
 				    spa_get_dsl(vd->vdev_spa)->dp_root_dir);
-				dmu_tx_assign(tx, DMU_TX_WAIT);
+				error = dmu_tx_assign(tx, DMU_TX_WAIT);
+				if (error != 0) {
+					fprintf(stderr, "error: cannot assign "
+					    "transaction: %s (error %d)\n",
+					    strerror(error), error);
+					dmu_tx_abort(tx);
+					tx = NULL;
+					break;
+				}
 			}
 
-			metaslab_force_alloc(cur, start, size, tx);
+			applied |= metaslab_force_alloc(cur, start, size, tx);
 		} else {
 			continue;
 		}
 	}
-	if (tx) {
+	/*
+	 * Assigned transactions cannot be aborted, even on error. Keep any
+	 * allocations already made and report the partial application below.
+	 */
+	if (tx)
 		dmu_tx_commit(tx);
+	if (prev) {
 		mutex_exit(&prev->ms_lock);
 		metaslab_enable(prev, B_FALSE, B_FALSE);
-		tx = NULL;
-		prev = NULL;
 	}
 	if (line)
 		free(line);
 
 	spa_config_exit(spa, SCL_VDEV | SCL_ALLOC, FTAG);
+	spa_close(spa, FTAG);
+	if (error != 0) {
+		fprintf(stderr, "error: allocation map was not fully "
+		    "applied%s\n", applied ?
+		    "; earlier changes may already be committed" : "");
+	}
+	return (error != 0);
+}
+
+typedef enum zhack_metaslab_corruption {
+	ZHACK_METASLAB_DUPLICATE_FREE,
+	ZHACK_METASLAB_PARTIAL_FREE,
+	ZHACK_METASLAB_DUPLICATE_ALLOC,
+	ZHACK_METASLAB_PARTIAL_ALLOC,
+	ZHACK_METASLAB_CHAINED,
+	ZHACK_METASLAB_INVALID_SUMMARY,
+	ZHACK_METASLAB_INVALID_ENTRY,
+	ZHACK_METASLAB_INVALID_PADDING,
+	ZHACK_METASLAB_TRUNCATED_ENTRY,
+	ZHACK_METASLAB_INVALID_VDEV,
+	ZHACK_METASLAB_LOG_DUPLICATE_FREE,
+	ZHACK_METASLAB_PENDING_FREE,
+	ZHACK_METASLAB_UNLOADED_FREE,
+	ZHACK_METASLAB_PASSIVATE_REPAIR,
+	ZHACK_METASLAB_UNLOAD_REPAIR
+} zhack_metaslab_corruption_t;
+
+typedef struct zhack_metaslab_corrupt_arg {
+	zhack_metaslab_corruption_t zmca_type;
+	const char *zmca_name;
+	boolean_t zmca_injected;
+	uint64_t zmca_vdev;
+	uint64_t zmca_metaslab;
+	uint64_t zmca_offset;
+	uint64_t zmca_size;
+} zhack_metaslab_corrupt_arg_t;
+
+static boolean_t
+zhack_metaslab_corrupt_range(metaslab_t *msp,
+    zhack_metaslab_corruption_t type, uint64_t *offset, uint64_t *size)
+{
+	zfs_range_tree_t *rt = msp->ms_allocatable;
+	uint64_t unit = 1ULL << msp->ms_sm->sm_shift;
+	uint64_t cursor = msp->ms_start;
+	zfs_btree_index_t where;
+	zfs_range_seg_t *rs;
+
+	for (rs = zfs_btree_first(&rt->rt_root, &where); rs != NULL;
+	    rs = zfs_btree_next(&rt->rt_root, &where, &where)) {
+		uint64_t start = zfs_rs_get_start(rs, rt);
+		uint64_t end = zfs_rs_get_end(rs, rt);
+
+		if ((type == ZHACK_METASLAB_DUPLICATE_ALLOC ||
+		    type == ZHACK_METASLAB_INVALID_VDEV) &&
+		    start - cursor >= unit) {
+			*offset = cursor;
+			*size = unit;
+			return (B_TRUE);
+		}
+		if ((type == ZHACK_METASLAB_DUPLICATE_FREE ||
+		    type == ZHACK_METASLAB_LOG_DUPLICATE_FREE) &&
+		    end - start >= unit) {
+			*offset = start;
+			*size = unit;
+			return (B_TRUE);
+		}
+		if ((type == ZHACK_METASLAB_PARTIAL_FREE ||
+		    type == ZHACK_METASLAB_PARTIAL_ALLOC) &&
+		    start - msp->ms_start >= unit) {
+			*offset = start - unit;
+			*size = 2 * unit;
+			return (B_TRUE);
+		}
+		if (type == ZHACK_METASLAB_CHAINED && end - start >= 2 * unit) {
+			*offset = start;
+			*size = 2 * unit;
+			return (B_TRUE);
+		}
+		if ((type == ZHACK_METASLAB_PARTIAL_FREE ||
+		    type == ZHACK_METASLAB_PARTIAL_ALLOC) &&
+		    msp->ms_start + msp->ms_size - end >= unit) {
+			*offset = end - unit;
+			*size = 2 * unit;
+			return (B_TRUE);
+		}
+		cursor = end;
+	}
+
+	if ((type == ZHACK_METASLAB_DUPLICATE_ALLOC ||
+	    type == ZHACK_METASLAB_INVALID_VDEV) &&
+	    msp->ms_start + msp->ms_size - cursor >= unit) {
+		*offset = cursor;
+		*size = unit;
+		return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+static void
+zhack_metaslab_corrupt_invalid_entry(space_map_t *sm,
+    zhack_metaslab_corruption_t type, dmu_tx_t *tx)
+{
+	uint64_t entry;
+	if (type == ZHACK_METASLAB_INVALID_PADDING) {
+		entry = SM_PREFIX_ENCODE(SM_DEBUG_PREFIX) |
+		    SM_DEBUG_ACTION_ENCODE(SM_FREE);
+	} else if (type == ZHACK_METASLAB_TRUNCATED_ENTRY) {
+		entry = SM_PREFIX_ENCODE(SM2_PREFIX);
+	} else {
+		ASSERT3U(type, ==, ZHACK_METASLAB_INVALID_ENTRY);
+		entry = SM_OFFSET_ENCODE(sm->sm_size >> sm->sm_shift) |
+		    SM_TYPE_ENCODE(SM_ALLOC) | SM_RUN_ENCODE(1);
+	}
+
+	dmu_buf_will_dirty(sm->sm_dbuf, tx);
+	dmu_write(sm->sm_os, space_map_object(sm), space_map_length(sm),
+	    sizeof (entry), &entry, tx, DMU_READ_NO_PREFETCH);
+	sm->sm_phys->smp_length += sizeof (entry);
+}
+
+static void
+zhack_metaslab_corrupt_sync(void *arg, dmu_tx_t *tx)
+{
+	zhack_metaslab_corrupt_arg_t *zmca = arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	vdev_t *rvd = spa->spa_root_vdev;
+
+	spa_generate_syncing_log_sm(spa, tx);
+	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *vd = rvd->vdev_child[c];
+		if (vd->vdev_mg == NULL)
+			continue;
+
+		for (uint64_t m = 0; m < vd->vdev_ms_count; m++) {
+			metaslab_t *msp = vd->vdev_ms[m];
+
+			mutex_enter(&msp->ms_lock);
+			if (msp->ms_sm == NULL || metaslab_load(msp) != 0) {
+				mutex_exit(&msp->ms_lock);
+				continue;
+			}
+
+			boolean_t log_duplicate = zmca->zmca_type ==
+			    ZHACK_METASLAB_LOG_DUPLICATE_FREE;
+			/* Flush legitimate entries before injection. */
+			if (msp->ms_allocator != -1 ||
+			    msp->ms_allocating_total != 0 ||
+			    msp->ms_deferspace != 0 ||
+			    !zfs_range_tree_is_empty(msp->ms_freeing) ||
+			    !zfs_range_tree_is_empty(msp->ms_freed)) {
+				mutex_exit(&msp->ms_lock);
+				continue;
+			}
+			if (!zfs_range_tree_is_empty(
+			    msp->ms_unflushed_allocs) ||
+			    !zfs_range_tree_is_empty(
+			    msp->ms_unflushed_frees)) {
+				if (metaslab_unflushed_txg(msp) >=
+				    dmu_tx_get_txg(tx) ||
+				    !metaslab_flush(msp, tx)) {
+					mutex_exit(&msp->ms_lock);
+					continue;
+				}
+			}
+			/* Keep the allocation summary valid. */
+			if (log_duplicate && space_map_allocated(msp->ms_sm) <
+			    (int64_t)(1ULL << msp->ms_sm->sm_shift)) {
+				mutex_exit(&msp->ms_lock);
+				continue;
+			}
+			uint64_t offset = 0;
+			uint64_t size = 0;
+			boolean_t invalid_summary = zmca->zmca_type ==
+			    ZHACK_METASLAB_INVALID_SUMMARY;
+			boolean_t invalid_entry = zmca->zmca_type ==
+			    ZHACK_METASLAB_INVALID_ENTRY ||
+			    zmca->zmca_type == ZHACK_METASLAB_INVALID_PADDING ||
+			    zmca->zmca_type == ZHACK_METASLAB_TRUNCATED_ENTRY;
+			if (invalid_summary) {
+				dmu_buf_will_dirty(msp->ms_sm->sm_dbuf, tx);
+				msp->ms_sm->sm_phys->smp_alloc =
+				    -(int64_t)(1ULL << msp->ms_sm->sm_shift);
+			} else if (invalid_entry) {
+				if (zmca->zmca_type ==
+				    ZHACK_METASLAB_INVALID_ENTRY) {
+					offset = msp->ms_start + msp->ms_size;
+					size = 1ULL << msp->ms_sm->sm_shift;
+				}
+			} else if (!zhack_metaslab_corrupt_range(msp,
+			    zmca->zmca_type, &offset, &size)) {
+				mutex_exit(&msp->ms_lock);
+				continue;
+			}
+
+			space_map_t *sm = msp->ms_sm;
+			zfs_range_tree_t *rt = NULL;
+			if (!invalid_summary && !invalid_entry &&
+			    !log_duplicate) {
+				rt = zfs_range_tree_create(NULL,
+				    ZFS_RANGE_SEG64, NULL, 0, 0);
+				uint64_t first_size =
+				    zmca->zmca_type == ZHACK_METASLAB_CHAINED ?
+				    size / 2 : size;
+				zfs_range_tree_add(rt, offset, first_size);
+			}
+			if (log_duplicate)
+				metaslab_unload(msp);
+			mutex_exit(&msp->ms_lock);
+
+			if (log_duplicate) {
+				/* Leave the second FREE in the log. */
+				metaslab_free_concrete(vd, offset, size,
+				    B_FALSE);
+			} else if (invalid_entry) {
+				zhack_metaslab_corrupt_invalid_entry(sm,
+				    zmca->zmca_type, tx);
+			} else if (rt != NULL) {
+				maptype_t maptype =
+				    zmca->zmca_type ==
+				    ZHACK_METASLAB_DUPLICATE_ALLOC ||
+				    zmca->zmca_type ==
+				    ZHACK_METASLAB_PARTIAL_ALLOC ?
+				    SM_ALLOC : SM_FREE;
+				space_map_write(sm, rt, maptype,
+				    zmca->zmca_type ==
+				    ZHACK_METASLAB_INVALID_VDEV ?
+				    1 : SM_NO_VDEVID, tx);
+				if (zmca->zmca_type == ZHACK_METASLAB_CHAINED) {
+					zfs_range_tree_vacate(rt, NULL, NULL);
+					zfs_range_tree_add(rt, offset, size);
+					space_map_write(sm, rt, SM_ALLOC,
+					    SM_NO_VDEVID, tx);
+				}
+				zfs_range_tree_vacate(rt, NULL, NULL);
+				zfs_range_tree_destroy(rt);
+			}
+
+			zmca->zmca_injected = B_TRUE;
+			zmca->zmca_vdev = vd->vdev_id;
+			zmca->zmca_metaslab = msp->ms_id;
+			zmca->zmca_offset = offset;
+			zmca->zmca_size = size;
+			return;
+		}
+	}
+}
+
+typedef struct zhack_metaslab_free_arg {
+	metaslab_t *zmfa_ms;
+	boolean_t zmfa_load;
+} zhack_metaslab_free_arg_t;
+
+static void
+zhack_metaslab_reserve_sync(void *arg, dmu_tx_t *tx)
+{
+	metaslab_t *ms = arg;
+	mutex_enter(&ms->ms_lock);
+	VERIFY0(metaslab_load(ms));
+	metaslab_force_alloc(ms, ms->ms_start,
+	    2ULL << ms->ms_group->mg_vd->vdev_ashift, tx);
+	mutex_exit(&ms->ms_lock);
+}
+
+static void
+zhack_metaslab_duplicate_sync(void *arg, dmu_tx_t *tx)
+{
+	metaslab_t *ms = arg;
+	vdev_t *vd = ms->ms_group->mg_vd;
+	spa_generate_syncing_log_sm(vd->vdev_spa, tx);
+	mutex_enter(&ms->ms_lock);
+	if (metaslab_unflushed_txg(ms) != 0)
+		VERIFY(metaslab_flush(ms, tx));
+	metaslab_unload(ms);
+	mutex_exit(&ms->ms_lock);
+	metaslab_free_concrete(vd, ms->ms_start + (4ULL << vd->vdev_ashift),
+	    1ULL << vd->vdev_ashift, B_FALSE);
+}
+
+static void
+zhack_metaslab_flush_sync(void *arg, dmu_tx_t *tx)
+{
+	metaslab_t *ms = arg;
+	spa_generate_syncing_log_sm(ms->ms_group->mg_vd->vdev_spa, tx);
+	mutex_enter(&ms->ms_lock);
+	if (metaslab_unflushed_txg(ms) != 0)
+		VERIFY(metaslab_flush(ms, tx));
+	mutex_exit(&ms->ms_lock);
+}
+
+static void
+zhack_metaslab_free_sync(void *arg, dmu_tx_t *tx)
+{
+	(void) tx;
+	zhack_metaslab_free_arg_t *zmfa = arg;
+	metaslab_t *ms = zmfa->zmfa_ms;
+	vdev_t *vd = ms->ms_group->mg_vd;
+	metaslab_free_concrete(vd, ms->ms_start,
+	    2ULL << vd->vdev_ashift, B_FALSE);
+	mutex_enter(&ms->ms_lock);
+	VERIFY3U(ms->ms_allocated_space, ==, 1ULL << vd->vdev_ashift);
+	if (zmfa->zmfa_load)
+		VERIFY3S(metaslab_load(ms), ==, EAGAIN);
+	mutex_exit(&ms->ms_lock);
+}
+
+static void
+zhack_metaslab_accounting_sync(void *arg, dmu_tx_t *tx)
+{
+	(void) arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	vdev_t *rvd = spa->spa_root_vdev;
+	uint64_t normal_allocated = 0;
+
+	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *vd = rvd->vdev_child[c];
+		if (vd->vdev_mg == NULL)
+			continue;
+		uint64_t allocated = 0;
+		for (uint64_t m = 0; m < vd->vdev_ms_count; m++) {
+			metaslab_t *ms = vd->vdev_ms[m];
+			mutex_enter(&ms->ms_lock);
+			VERIFY0(ms->ms_allocated_this_txg);
+			VERIFY0(zfs_range_tree_space(ms->ms_freed));
+			allocated += ms->ms_allocated_space + ms->ms_deferspace;
+			mutex_exit(&ms->ms_lock);
+		}
+		VERIFY3U(allocated, ==, vd->vdev_stat.vs_alloc);
+		if (vd->vdev_mg->mg_class == spa_normal_class(spa))
+			normal_allocated += allocated;
+	}
+	VERIFY3U(normal_allocated, ==,
+	    metaslab_class_get_alloc(spa_normal_class(spa)));
+}
+
+typedef struct zhack_metaslab_preload_arg {
+	metaslab_t *zmpa_ms;
+	boolean_t zmpa_loaded;
+} zhack_metaslab_preload_arg_t;
+
+static void
+zhack_metaslab_preload(void *arg)
+{
+	zhack_metaslab_preload_arg_t *zmpa = arg;
+	metaslab_t *ms = zmpa->zmpa_ms;
+	spa_t *spa = ms->ms_group->mg_vd->vdev_spa;
+
+	/* Passivation must release this lock before draining queued loads. */
+	spa_config_enter(spa, SCL_ZIO, FTAG, RW_READER);
+	mutex_enter(&ms->ms_lock);
+	VERIFY0(metaslab_load(ms));
+	VERIFY3U(ms->ms_repair.msr_entries, >, 0);
+	zmpa->zmpa_loaded = B_TRUE;
+	mutex_exit(&ms->ms_lock);
+	spa_config_exit(spa, SCL_ZIO, FTAG);
+}
+
+static void
+zhack_metaslab_passivate_test(metaslab_t *ms)
+{
+	metaslab_group_t *mg = ms->ms_group;
+	spa_t *spa = mg->mg_vd->vdev_spa;
+	zhack_metaslab_preload_arg_t zmpa = { .zmpa_ms = ms };
+	uint64_t txg = spa_vdev_enter(spa);
+
+	VERIFY3S(mg->mg_activation_count, ==, 1);
+	metaslab_group_passivate(mg);
+	VERIFY0(mg->mg_activation_count);
+
+	/* Queue a repair after passivation, as deferred-load retries can. */
+	VERIFY(taskq_dispatch(spa->spa_metaslab_taskq,
+	    zhack_metaslab_preload, &zmpa, TQ_SLEEP) != TASKQID_INVALID);
+	metaslab_group_passivate(mg);
+	VERIFY(zmpa.zmpa_loaded);
+	VERIFY3S(mg->mg_activation_count, ==, -1);
+
+	metaslab_group_activate(mg);
+	metaslab_group_activate(mg);
+	VERIFY0(spa_vdev_exit(spa, NULL, txg, 0));
+}
+
+/* Exercise repairs using reserved space, without freeing referenced data. */
+static void
+zhack_metaslab_reservation_test(spa_t *spa, zhack_metaslab_corrupt_arg_t *zmca)
+{
+	boolean_t unload_repair =
+	    zmca->zmca_type == ZHACK_METASLAB_UNLOAD_REPAIR;
+	boolean_t passivate_repair =
+	    zmca->zmca_type == ZHACK_METASLAB_PASSIVATE_REPAIR;
+	uint64_t autotrim = spa_get_autotrim(spa);
+	/* Let workers drain before disabling a metaslab for the test. */
+	if (unload_repair)
+		vdev_autotrim_stop_all(spa);
+
+	metaslab_t *ms = NULL;
+	vdev_t *rvd = spa->spa_root_vdev;
+	for (uint64_t c = 0; c < rvd->vdev_children && ms == NULL; c++) {
+		vdev_t *vd = rvd->vdev_child[c];
+		if (vd->vdev_mg == NULL || vd->vdev_removing ||
+		    (passivate_repair && vd->vdev_mg->mg_activation_count != 1))
+			continue;
+		for (uint64_t m = vd->vdev_ms_count; m != 0; m--) {
+			metaslab_t *candidate = vd->vdev_ms[m - 1];
+			metaslab_disable(candidate);
+			mutex_enter(&candidate->ms_lock);
+			boolean_t empty = !candidate->ms_new &&
+			    candidate->ms_allocated_space == 0 &&
+			    candidate->ms_allocating_total == 0 &&
+			    candidate->ms_deferspace == 0 &&
+			    metaslab_load(candidate) == 0 &&
+			    zfs_range_tree_space(candidate->ms_allocatable) ==
+			    candidate->ms_size;
+			mutex_exit(&candidate->ms_lock);
+			if (empty) {
+				ms = candidate;
+				break;
+			}
+			metaslab_enable(candidate, B_FALSE, B_FALSE);
+		}
+	}
+	if (ms == NULL)
+		fatal(spa, FTAG, "no empty metaslab available in '%s'",
+		    g_pool);
+
+	if (unload_repair) {
+		/* Collect recent frees without an autotrim worker. */
+		spa->spa_autotrim = SPA_AUTOTRIM_ON;
+	}
+
+	/* Keep the reservation and the duplicate FREE in different TXGs. */
+	VERIFY0(dsl_sync_task(spa_name(spa), NULL, zhack_metaslab_reserve_sync,
+	    ms, 5, ZFS_SPACE_CHECK_NONE));
+	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
+	    zhack_metaslab_duplicate_sync, ms, 5, ZFS_SPACE_CHECK_NONE));
+	for (int t = 0; t <= TXG_DEFER_SIZE; t++)
+		txg_wait_synced(spa_get_dsl(spa), 0);
+
+	if (unload_repair || passivate_repair) {
+		VERIFY0(dsl_sync_task(spa_name(spa), NULL,
+		    zhack_metaslab_flush_sync, ms, 5, ZFS_SPACE_CHECK_NONE));
+	}
+	if (passivate_repair) {
+		zhack_metaslab_passivate_test(ms);
+	} else if (unload_repair) {
+		mutex_enter(&ms->ms_lock);
+		VERIFY(!zfs_range_tree_is_empty(ms->ms_trim));
+		uint64_t trim_generation = ms->ms_trim_generation;
+		VERIFY0(metaslab_load(ms));
+		VERIFY(zfs_range_tree_is_empty(ms->ms_trim));
+		VERIFY3U(ms->ms_trim_generation, !=, trim_generation);
+		VERIFY3U(ms->ms_repair.msr_entries, >, 0);
+		VERIFY(ms->ms_condense_wanted);
+		metaslab_unload(ms);
+		VERIFY(ms->ms_loaded);
+		/* Model eviction after condensation has dropped ms_lock. */
+		ms->ms_condense_wanted = B_FALSE;
+		ms->ms_condensing = B_TRUE;
+		metaslab_unload(ms);
+		VERIFY(ms->ms_loaded);
+		ms->ms_condensing = B_FALSE;
+		ms->ms_condense_wanted = B_TRUE;
+		mutex_exit(&ms->ms_lock);
+		spa->spa_autotrim = autotrim;
+	} else {
+		zhack_metaslab_free_arg_t zmfa = {
+			.zmfa_ms = ms,
+			.zmfa_load =
+			    zmca->zmca_type == ZHACK_METASLAB_PENDING_FREE,
+		};
+		VERIFY0(dsl_sync_task(spa_name(spa), NULL,
+		    zhack_metaslab_free_sync, &zmfa, 5, ZFS_SPACE_CHECK_NONE));
+	}
+	for (int t = 0; t < 3 * TXG_SIZE; t++) {
+		txg_wait_synced(spa_get_dsl(spa), 0);
+		taskq_wait(spa->spa_metaslab_taskq);
+	}
+	VERIFY0(dsl_sync_task(spa_name(spa), NULL,
+	    zhack_metaslab_accounting_sync, NULL, 0, ZFS_SPACE_CHECK_NONE));
+
+	vdev_t *vd = ms->ms_group->mg_vd;
+	uint64_t unit = 1ULL << vd->vdev_ashift;
+	uint64_t allocated = (unload_repair || passivate_repair ? 3 : 1) * unit;
+	mutex_enter(&ms->ms_lock);
+	VERIFY3U(ms->ms_load_state, ==, METASLAB_LOAD_NORMAL);
+	VERIFY3U(ms->ms_allocated_space, ==, allocated);
+	VERIFY3S(space_map_allocated(ms->ms_sm), ==, allocated);
+	VERIFY(!ms->ms_smp_alloc_invalid);
+	if (unload_repair) {
+		VERIFY0(ms->ms_repair.msr_entries);
+		VERIFY(!ms->ms_condense_wanted);
+		metaslab_unload(ms);
+		VERIFY(!ms->ms_loaded);
+	}
+	mutex_exit(&ms->ms_lock);
+	metaslab_enable(ms, B_FALSE, B_FALSE);
+
+	zmca->zmca_injected = B_TRUE;
+	zmca->zmca_vdev = vd->vdev_id;
+	zmca->zmca_metaslab = ms->ms_id;
+	zmca->zmca_offset = ms->ms_start + 4 * unit;
+	zmca->zmca_size = unit;
+}
+
+static void
+zhack_do_metaslab_corrupt(int argc, char **argv)
+{
+	char *target;
+	spa_t *spa;
+
+	argc--;
+	argv++;
+	if (argc != 2) {
+		(void) fprintf(stderr,
+		    "error: expected a pool name and corruption type\n");
+		usage();
+	}
+	target = argv[0];
+
+	zhack_metaslab_corrupt_arg_t zmca = {
+		.zmca_name = argv[1],
+	};
+	if (strcmp(zmca.zmca_name, "duplicate-free") == 0) {
+		zmca.zmca_type = ZHACK_METASLAB_DUPLICATE_FREE;
+	} else if (strcmp(zmca.zmca_name, "partial-free") == 0) {
+		zmca.zmca_type = ZHACK_METASLAB_PARTIAL_FREE;
+	} else if (strcmp(zmca.zmca_name, "duplicate-alloc") == 0) {
+		zmca.zmca_type = ZHACK_METASLAB_DUPLICATE_ALLOC;
+	} else if (strcmp(zmca.zmca_name, "partial-alloc") == 0) {
+		zmca.zmca_type = ZHACK_METASLAB_PARTIAL_ALLOC;
+	} else if (strcmp(zmca.zmca_name, "chained") == 0) {
+		zmca.zmca_type = ZHACK_METASLAB_CHAINED;
+	} else if (strcmp(zmca.zmca_name, "invalid-summary") == 0) {
+		zmca.zmca_type = ZHACK_METASLAB_INVALID_SUMMARY;
+	} else if (strcmp(zmca.zmca_name, "invalid-entry") == 0) {
+		zmca.zmca_type = ZHACK_METASLAB_INVALID_ENTRY;
+	} else if (strcmp(zmca.zmca_name, "invalid-padding") == 0) {
+		zmca.zmca_type = ZHACK_METASLAB_INVALID_PADDING;
+	} else if (strcmp(zmca.zmca_name, "truncated-entry") == 0) {
+		zmca.zmca_type = ZHACK_METASLAB_TRUNCATED_ENTRY;
+	} else if (strcmp(zmca.zmca_name, "invalid-vdev") == 0) {
+		zmca.zmca_type = ZHACK_METASLAB_INVALID_VDEV;
+	} else if (strcmp(zmca.zmca_name, "log-duplicate-free") == 0) {
+		zmca.zmca_type = ZHACK_METASLAB_LOG_DUPLICATE_FREE;
+	} else if (strcmp(zmca.zmca_name, "pending-free") == 0) {
+		zmca.zmca_type = ZHACK_METASLAB_PENDING_FREE;
+	} else if (strcmp(zmca.zmca_name, "unloaded-free") == 0) {
+		zmca.zmca_type = ZHACK_METASLAB_UNLOADED_FREE;
+	} else if (strcmp(zmca.zmca_name, "passivate-repair") == 0) {
+		zmca.zmca_type = ZHACK_METASLAB_PASSIVATE_REPAIR;
+	} else if (strcmp(zmca.zmca_name, "unload-repair") == 0) {
+		zmca.zmca_type = ZHACK_METASLAB_UNLOAD_REPAIR;
+	} else {
+		(void) fprintf(stderr, "error: unknown corruption type: %s\n",
+		    zmca.zmca_name);
+		usage();
+	}
+
+	/*
+	 * Committing an intentionally inconsistent space map can make its
+	 * allocation summary disagree with the loaded metaslab.  Leave other
+	 * debug checks enabled while allowing the injector to close the pool.
+	 */
+	boolean_t reservation_test =
+	    zmca.zmca_type == ZHACK_METASLAB_PENDING_FREE ||
+	    zmca.zmca_type == ZHACK_METASLAB_UNLOADED_FREE ||
+	    zmca.zmca_type == ZHACK_METASLAB_PASSIVATE_REPAIR ||
+	    zmca.zmca_type == ZHACK_METASLAB_UNLOAD_REPAIR;
+	if (reservation_test) {
+		VERIFY0(handle_tunable_option("metaslab_preload_enabled=0",
+		    B_FALSE));
+		VERIFY0(handle_tunable_option("metaslab_debug_load=0",
+		    B_FALSE));
+	} else {
+		zfs_flags &= ~ZFS_DEBUG_METASLAB_VERIFY;
+	}
+	zhack_spa_open(target, B_FALSE, FTAG, &spa);
+	if (zmca.zmca_type == ZHACK_METASLAB_LOG_DUPLICATE_FREE &&
+	    !spa_feature_is_enabled(spa, SPA_FEATURE_LOG_SPACEMAP))
+		fatal(spa, FTAG, "log space maps are not enabled in '%s'",
+		    target);
+
+	if ((zmca.zmca_type == ZHACK_METASLAB_INVALID_VDEV ||
+	    zmca.zmca_type == ZHACK_METASLAB_TRUNCATED_ENTRY) &&
+	    !spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_V2))
+		fatal(spa, FTAG, "space map v2 is not enabled in '%s'", target);
+
+	if (reservation_test) {
+		zhack_metaslab_reservation_test(spa, &zmca);
+	} else {
+		VERIFY0(dsl_sync_task(spa_name(spa), NULL,
+		    zhack_metaslab_corrupt_sync, &zmca, 5,
+		    ZFS_SPACE_CHECK_NONE));
+	}
+	if (!zmca.zmca_injected) {
+		fatal(spa, FTAG, "no suitable metaslab range available in '%s'",
+		    target);
+	}
+
+	(void) printf("injected %s: vdev=%" PRIu64
+	    " metaslab=%" PRIu64,
+	    zmca.zmca_name, zmca.zmca_vdev, zmca.zmca_metaslab);
+	if (zmca.zmca_type != ZHACK_METASLAB_INVALID_SUMMARY &&
+	    zmca.zmca_type != ZHACK_METASLAB_INVALID_PADDING &&
+	    zmca.zmca_type != ZHACK_METASLAB_TRUNCATED_ENTRY) {
+		(void) printf(" offset=%" PRIu64 " size=%" PRIu64,
+		    zmca.zmca_offset, zmca.zmca_size);
+	}
+	(void) printf("\n");
 	spa_close(spa, FTAG);
 }
 
@@ -1617,7 +2269,9 @@ zhack_do_metaslab(int argc, char **argv)
 
 	subcommand = argv[0];
 	if (strcmp(subcommand, "leak") == 0) {
-		zhack_do_metaslab_leak(argc, argv);
+		return (zhack_do_metaslab_leak(argc, argv));
+	} else if (strcmp(subcommand, "corrupt") == 0) {
+		zhack_do_metaslab_corrupt(argc, argv);
 	} else {
 		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
 		    subcommand);

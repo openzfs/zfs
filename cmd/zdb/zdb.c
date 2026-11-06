@@ -1716,6 +1716,17 @@ verify_spacemap_refcounts(spa_t *spa)
 }
 
 static void
+dump_spacemap_header(space_map_t *sm)
+{
+	(void) printf("space map object %llu:\n",
+	    (longlong_t)sm->sm_object);
+	(void) printf("  smp_length = 0x%llx\n",
+	    (longlong_t)sm->sm_phys->smp_length);
+	(void) printf("  smp_alloc = 0x%llx\n",
+	    (longlong_t)sm->sm_phys->smp_alloc);
+}
+
+static void
 dump_spacemap(objset_t *os, space_map_t *sm)
 {
 	const char *ddata[] = { "ALLOC", "FREE", "CONDENSE", "INVALID",
@@ -1724,32 +1735,52 @@ dump_spacemap(objset_t *os, space_map_t *sm)
 	if (sm == NULL)
 		return;
 
-	(void) printf("space map object %llu:\n",
-	    (longlong_t)sm->sm_object);
-	(void) printf("  smp_length = 0x%llx\n",
-	    (longlong_t)sm->sm_phys->smp_length);
-	(void) printf("  smp_alloc = 0x%llx\n",
-	    (longlong_t)sm->sm_phys->smp_alloc);
+	dump_spacemap_header(sm);
 
 	if (dump_opt['d'] < 6 && dump_opt['m'] < 4)
 		return;
 
 	/*
-	 * Print out the freelist entries in both encoded and decoded form.
+	 * Raw dumps must work without loading metaslabs (e.g. zdb -L).
+	 * Validate the byte stream independently of allocation replay.
 	 */
-	uint8_t mapshift = sm->sm_shift;
+	uint64_t length = space_map_length(sm);
 	int64_t alloc = 0;
-	uint64_t word, entry_id = 0;
-	for (uint64_t offset = 0; offset < space_map_length(sm);
-	    offset += sizeof (word)) {
+	uint64_t words[2], entry_id = 0, offset = 0;
+	int error = 0;
+	if (sm->sm_blksz == 0 ||
+	    P2PHASE(sm->sm_blksz, sizeof (*words)) != 0 ||
+	    P2PHASE(length, sizeof (*words)) != 0 ||
+	    !space_map_valid_geometry(sm)) {
+		error = ECKSUM;
+		goto out;
+	}
 
-		VERIFY0(dmu_read(os, space_map_object(sm), offset,
-		    sizeof (word), &word, DMU_READ_PREFETCH));
+	for (; offset < length; offset += sizeof (*words)) {
+		error = dmu_read(os, space_map_object(sm), offset,
+		    sizeof (*words), &words[0], DMU_READ_PREFETCH);
+		if (error != 0)
+			break;
 
-		if (sm_entry_is_debug(word)) {
-			uint64_t de_txg = SM_DEBUG_TXG_DECODE(word);
-			uint64_t de_sync_pass = SM_DEBUG_SYNCPASS_DECODE(word);
-			if (de_txg == 0) {
+		boolean_t two_word = sm_entry_is_double_word(words[0]);
+		size_t nwords = MIN(length - offset,
+		    sm->sm_blksz - offset % sm->sm_blksz) / sizeof (*words);
+		if (two_word && nwords >= 2) {
+			error = dmu_read(os, space_map_object(sm),
+			    offset + sizeof (*words), sizeof (*words),
+			    &words[1], DMU_READ_PREFETCH);
+			if (error != 0) {
+				offset += sizeof (*words);
+				break;
+			}
+		}
+
+		space_map_entry_t sme;
+		error = space_map_decode(sm, words, MIN(nwords, 2), &sme);
+		if (error != 0)
+			break;
+		if (sme.sme_run == 0) {
+			if (sme.sme_txg == 0) {
 				(void) printf(
 				    "\t    [%6llu] PADDING\n",
 				    (u_longlong_t)entry_id);
@@ -1757,66 +1788,47 @@ dump_spacemap(objset_t *os, space_map_t *sm)
 				(void) printf(
 				    "\t    [%6llu] %s: txg %llu pass %llu\n",
 				    (u_longlong_t)entry_id,
-				    ddata[SM_DEBUG_ACTION_DECODE(word)],
-				    (u_longlong_t)de_txg,
-				    (u_longlong_t)de_sync_pass);
+				    ddata[SM_DEBUG_ACTION_DECODE(words[0])],
+				    (u_longlong_t)sme.sme_txg,
+				    (u_longlong_t)sme.sme_sync_pass);
 			}
 			entry_id++;
 			continue;
 		}
 
-		char entry_type;
-		uint64_t entry_off, entry_run, entry_vdev;
+		char entry_type = sme.sme_type == SM_ALLOC ? 'A' : 'F';
+		if (two_word)
+			offset += sizeof (*words);
 
-		if (sm_entry_is_single_word(word)) {
-			entry_type = (SM_TYPE_DECODE(word) == SM_ALLOC) ?
-			    'A' : 'F';
-			entry_off = (SM_OFFSET_DECODE(word) << mapshift) +
-			    sm->sm_start;
-			entry_run = SM_RUN_DECODE(word) << mapshift;
-
+		if (!two_word || zopt_metaslab_args == 0 ||
+		    zopt_metaslab[0] == sme.sme_vdev) {
 			(void) printf("\t    [%6llu] %c "
-			    "range: %012llx-%012llx size: %08llx\n",
+			    "range: %012llx-%012llx size: %08llx",
 			    (u_longlong_t)entry_id, entry_type,
-			    (u_longlong_t)entry_off,
-			    (u_longlong_t)(entry_off + entry_run - 1),
-			    (u_longlong_t)entry_run);
-		} else {
-			/* it is a two-word entry so we read another word */
-			ASSERT(sm_entry_is_double_word(word));
-
-			uint64_t extra_word;
-			offset += sizeof (extra_word);
-			ASSERT3U(offset, <, space_map_length(sm));
-			VERIFY0(dmu_read(os, space_map_object(sm), offset,
-			    sizeof (extra_word), &extra_word,
-			    DMU_READ_PREFETCH));
-
-			entry_run = SM2_RUN_DECODE(word) << mapshift;
-			entry_vdev = SM2_VDEV_DECODE(word);
-			entry_type = (SM2_TYPE_DECODE(extra_word) == SM_ALLOC) ?
-			    'A' : 'F';
-			entry_off = (SM2_OFFSET_DECODE(extra_word) <<
-			    mapshift) + sm->sm_start;
-
-			if (zopt_metaslab_args == 0 ||
-			    zopt_metaslab[0] == entry_vdev) {
-				(void) printf("\t    [%6llu] %c "
-				    "range: %012llx-%012llx size: %08llx "
-				    "vdev: %llu\n",
-				    (u_longlong_t)entry_id, entry_type,
-				    (u_longlong_t)entry_off,
-				    (u_longlong_t)(entry_off + entry_run - 1),
-				    (u_longlong_t)entry_run,
-				    (u_longlong_t)entry_vdev);
-			}
+			    (u_longlong_t)sme.sme_offset,
+			    (u_longlong_t)(sme.sme_offset + sme.sme_run - 1),
+			    (u_longlong_t)sme.sme_run);
+			if (two_word)
+				(void) printf(" vdev: %llu",
+				    (u_longlong_t)sme.sme_vdev);
+			(void) printf("\n");
 		}
 
 		if (entry_type == 'A')
-			alloc += entry_run;
+			alloc += sme.sme_run;
 		else
-			alloc -= entry_run;
+			alloc -= sme.sme_run;
 		entry_id++;
+	}
+out:
+	if (error != 0) {
+		(void) fprintf(stderr, "zdb: cannot decode space map %llu "
+		    "at offset 0x%llx: %s (error %d)\n",
+		    (u_longlong_t)space_map_object(sm), (u_longlong_t)offset,
+		    error == ECKSUM ? "invalid entry or layout" :
+		    strerror(error), error);
+		corruption_found = B_TRUE;
+		return;
 	}
 	if (alloc != space_map_allocated(sm)) {
 		(void) printf("space_map_object alloc (%lld) INCONSISTENT "
@@ -1862,33 +1874,66 @@ dump_metaslab(metaslab_t *msp)
 	spa_t *spa = vd->vdev_spa;
 	space_map_t *sm = msp->ms_sm;
 	char freebuf[32];
+	boolean_t need_load = dump_opt[ARG_ALLOCATED] ||
+	    (dump_opt['m'] > 2 && !dump_opt['L']);
+	boolean_t loaded = B_FALSE;
+	const char *load_reason;
+	int load_error = 0;
 
-	zdb_nicenum(msp->ms_size - space_map_allocated(sm), freebuf,
-	    sizeof (freebuf));
+	if (need_load) {
+		mutex_enter(&msp->ms_lock);
+		load_error = metaslab_load(msp);
+		if (load_error == 0) {
+			loaded = B_TRUE;
+		} else {
+			load_reason = load_error == EAGAIN ? "load deferred" :
+			    load_error == ECKSUM ? "space map is unloadable" :
+			    strerror(load_error);
+			(void) fprintf(stderr, "zdb: cannot load vdev %llu "
+			    "metaslab %llu: %s (error %d)\n",
+			    (u_longlong_t)vd->vdev_id,
+			    (u_longlong_t)msp->ms_id, load_reason, load_error);
+			corruption_found = B_TRUE;
+			mutex_exit(&msp->ms_lock);
+		}
+	}
+
+	int64_t allocated = space_map_allocated(sm);
+	if (load_error != 0)
+		(void) strlcpy(freebuf, "unavailable", sizeof (freebuf));
+	else if (loaded)
+		zdb_nicenum(msp->ms_size - msp->ms_allocated_space, freebuf,
+		    sizeof (freebuf));
+	else if (allocated < 0 || (uint64_t)allocated > msp->ms_size)
+		(void) strlcpy(freebuf, "invalid", sizeof (freebuf));
+	else
+		zdb_nicenum(msp->ms_size - (uint64_t)allocated, freebuf,
+		    sizeof (freebuf));
 
 	(void) printf(
 	    "\tmetaslab %6llu   offset %12llx   spacemap %6llu   free    %5s\n",
 	    (u_longlong_t)msp->ms_id, (u_longlong_t)msp->ms_start,
 	    (u_longlong_t)space_map_object(sm), freebuf);
 
-	if (dump_opt[ARG_ALLOCATED] ||
-	    (dump_opt['m'] > 2 && !dump_opt['L'])) {
-		mutex_enter(&msp->ms_lock);
-		VERIFY0(metaslab_load(msp));
-	}
-
-	if (dump_opt['m'] > 2 && !dump_opt['L']) {
+	if (loaded && dump_opt['m'] > 2 && !dump_opt['L']) {
 		zfs_range_tree_stat_verify(msp->ms_allocatable);
 		dump_metaslab_stats(msp);
 	}
 
 	if (dump_opt[ARG_ALLOCATED]) {
-		uint64_t off = msp->ms_start;
-		zfs_range_tree_walk(msp->ms_allocatable, dump_allocated,
-		    &off);
-		if (off != msp->ms_start + msp->ms_size)
-			(void) printf("ALLOC: %"PRIu64" %"PRIu64"\n", off,
-			    msp->ms_size - off);
+		if (loaded) {
+			uint64_t off = msp->ms_start;
+			zfs_range_tree_walk(msp->ms_allocatable, dump_allocated,
+			    &off);
+			if (off != msp->ms_start + msp->ms_size) {
+				(void) printf("ALLOC: %"PRIu64" %"PRIu64"\n",
+				    off, msp->ms_start + msp->ms_size - off);
+			}
+		} else {
+			/* Treat an unavailable metaslab as fully allocated. */
+			(void) printf("ALLOC: %"PRIu64" %"PRIu64"\n",
+			    msp->ms_start, msp->ms_size);
+		}
 	}
 
 	if (dump_opt['m'] > 1 && sm != NULL &&
@@ -1903,8 +1948,7 @@ dump_metaslab(metaslab_t *msp)
 		    SPACE_MAP_HISTOGRAM_SIZE, sm->sm_shift);
 	}
 
-	if (dump_opt[ARG_ALLOCATED] ||
-	    (dump_opt['m'] > 2 && !dump_opt['L'])) {
+	if (loaded) {
 		metaslab_unload(msp);
 		mutex_exit(&msp->ms_lock);
 	}
@@ -1914,7 +1958,12 @@ dump_metaslab(metaslab_t *msp)
 	else
 		ASSERT3U(msp->ms_size, ==, 1ULL << vd->vdev_ms_shift);
 
-	dump_spacemap(spa->spa_meta_objset, msp->ms_sm);
+	if (load_error == 0) {
+		dump_spacemap(spa->spa_meta_objset, sm);
+	} else if (sm != NULL) {
+		/* Retain the summary, but do not decode a malformed map. */
+		dump_spacemap_header(sm);
+	}
 
 	if (spa_feature_is_active(spa, SPA_FEATURE_LOG_SPACEMAP)) {
 		(void) printf("\tFlush data:\n\tunflushed txg=%llu\n\n",
