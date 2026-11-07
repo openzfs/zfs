@@ -249,6 +249,29 @@ zil_prt_rec_truncate(zilog_t *zilog, int txtype, const void *arg)
 	    (u_longlong_t)lr->lr_length);
 }
 
+/*
+ * lr_mask is the va_mask of the kernel that logged the record, and the
+ * replay applies it as is.  The Linux kernel module uses the Linux
+ * ATTR_* values there (include/os/linux/spl/sys/vnode.h), not the
+ * Solaris AT_* values libspl defines, so decode it as the kernel on this
+ * platform would replay it.
+ */
+#ifdef __linux__
+#define	LR_AT_MODE	(1 << 0)	/* ATTR_MODE */
+#define	LR_AT_UID	(1 << 1)	/* ATTR_UID */
+#define	LR_AT_GID	(1 << 2)	/* ATTR_GID */
+#define	LR_AT_SIZE	(1 << 3)	/* ATTR_SIZE */
+#define	LR_AT_ATIME	(1 << 4)	/* ATTR_ATIME */
+#define	LR_AT_MTIME	(1 << 5)	/* ATTR_MTIME */
+#else
+#define	LR_AT_MODE	AT_MODE
+#define	LR_AT_UID	AT_UID
+#define	LR_AT_GID	AT_GID
+#define	LR_AT_SIZE	AT_SIZE
+#define	LR_AT_ATIME	AT_ATIME
+#define	LR_AT_MTIME	AT_MTIME
+#endif
+
 static void
 zil_prt_rec_setattr(zilog_t *zilog, int txtype, const void *arg)
 {
@@ -260,34 +283,34 @@ zil_prt_rec_setattr(zilog_t *zilog, int txtype, const void *arg)
 	(void) printf("%sfoid %llu, mask 0x%llx\n", tab_prefix,
 	    (u_longlong_t)lr->lr_foid, (u_longlong_t)lr->lr_mask);
 
-	if (lr->lr_mask & AT_MODE) {
+	if (lr->lr_mask & LR_AT_MODE) {
 		(void) printf("%sAT_MODE  %llo\n", tab_prefix,
 		    (longlong_t)lr->lr_mode);
 	}
 
-	if (lr->lr_mask & AT_UID) {
+	if (lr->lr_mask & LR_AT_UID) {
 		(void) printf("%sAT_UID   %llu\n", tab_prefix,
 		    (u_longlong_t)lr->lr_uid);
 	}
 
-	if (lr->lr_mask & AT_GID) {
+	if (lr->lr_mask & LR_AT_GID) {
 		(void) printf("%sAT_GID   %llu\n", tab_prefix,
 		    (u_longlong_t)lr->lr_gid);
 	}
 
-	if (lr->lr_mask & AT_SIZE) {
+	if (lr->lr_mask & LR_AT_SIZE) {
 		(void) printf("%sAT_SIZE  %llu\n", tab_prefix,
 		    (u_longlong_t)lr->lr_size);
 	}
 
-	if (lr->lr_mask & AT_ATIME) {
+	if (lr->lr_mask & LR_AT_ATIME) {
 		(void) printf("%sAT_ATIME %llu.%09llu %s", tab_prefix,
 		    (u_longlong_t)lr->lr_atime[0],
 		    (u_longlong_t)lr->lr_atime[1],
 		    ctime(&atime));
 	}
 
-	if (lr->lr_mask & AT_MTIME) {
+	if (lr->lr_mask & LR_AT_MTIME) {
 		(void) printf("%sAT_MTIME %llu.%09llu %s", tab_prefix,
 		    (u_longlong_t)lr->lr_mtime[0],
 		    (u_longlong_t)lr->lr_mtime[1],
