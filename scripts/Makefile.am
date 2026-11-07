@@ -87,6 +87,7 @@ CLEAN_LOCAL += scripts-clean-local
 scripts-clean-local:
 	-$(RM) -r tests/zfs-tests/bin/
 
+if CONFIG_USER
 INSTALL_DATA_HOOKS += scripts-install-data-hook
 scripts-install-data-hook: %D%/common.sh.in Makefile
 	-$(SED) -e '/^export BIN_DIR=/s|$$|$(bindir)|' \
@@ -95,3 +96,4 @@ scripts-install-data-hook: %D%/common.sh.in Makefile
 		-e '/^export ZTS_DIR=/s|$$|$(datadir)/$(PACKAGE)|' \
 		-e '/^export SCRIPT_DIR=/s|$$|$(datadir)/$(PACKAGE)|' \
 		$< >$(DESTDIR)$(datadir)/$(PACKAGE)/common.sh
+endif
