@@ -1402,13 +1402,9 @@ spa_vdev_config_enter(spa_t *spa)
 	return (spa_last_synced_txg(spa) + 1);
 }
 
-/*
- * Used in combination with spa_vdev_config_enter() to allow the syncing
- * of multiple transactions without releasing the spa_namespace_lock.
- */
-void
-spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error,
-    const char *tag)
+static void
+spa_vdev_config_exit_impl(spa_t *spa, vdev_t *vd, uint64_t txg, int error,
+    const char *tag, boolean_t final)
 {
 	ASSERT(spa_namespace_held());
 
@@ -1451,9 +1447,21 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error,
 	 * Note: this txg_wait_synced() is important because it ensures
 	 * that there won't be more than one config change per txg.
 	 * This allows us to use the txg as the generation number.
+	 *
+	 * A suspended pool syncs nothing until zpool clear resumes it,
+	 * and the clear needs spa_namespace_lock.  At the end of the
+	 * operation, wait without the lock, as spa_sync_allpools() does.
+	 * spa_vdev_top_lock still keeps out other vdev changes, and the
+	 * hold makes an export fail with EBUSY.
 	 */
-	if (error == 0)
+	if (error == 0 && txg_wait_synced_flags(spa->spa_dsl_pool, txg,
+	    final ? TXG_WAIT_SUSPEND : TXG_WAIT_NONE) != 0) {
+		spa_open_ref(spa, FTAG);
+		spa_namespace_exit(FTAG);
 		txg_wait_synced(spa->spa_dsl_pool, txg);
+		spa_namespace_enter(FTAG);
+		spa_close(spa, FTAG);
+	}
 
 	if (vd != NULL) {
 		ASSERT(!vd->vdev_detached || vd->vdev_dtl_sm == NULL);
@@ -1486,6 +1494,17 @@ spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error,
 }
 
 /*
+ * Used in combination with spa_vdev_config_enter() to allow the syncing
+ * of multiple transactions without releasing the spa_namespace_lock.
+ */
+void
+spa_vdev_config_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error,
+    const char *tag)
+{
+	spa_vdev_config_exit_impl(spa, vd, txg, error, tag, B_FALSE);
+}
+
+/*
  * Unlock the spa_t after adding or removing a vdev.  Besides undoing the
  * locking of spa_vdev_enter(), we also want make sure the transactions have
  * synced to disk, and then update the global configuration cache with the new
@@ -1497,7 +1516,7 @@ spa_vdev_exit(spa_t *spa, vdev_t *vd, uint64_t txg, int error)
 	vdev_autotrim_restart(spa);
 	vdev_rebuild_restart(spa);
 
-	spa_vdev_config_exit(spa, vd, txg, error, FTAG);
+	spa_vdev_config_exit_impl(spa, vd, txg, error, FTAG, B_TRUE);
 	spa_namespace_exit(FTAG);
 	mutex_exit(&spa->spa_vdev_top_lock);
 
