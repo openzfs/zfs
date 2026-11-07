@@ -148,14 +148,6 @@ zrl_exit(zrlock_t *zrl)
 }
 
 int
-zrl_is_zero(zrlock_t *zrl)
-{
-	ASSERT3S(zrl->zr_refcount, >, ZRL_DESTROYED);
-
-	return (zrl->zr_refcount <= 0);
-}
-
-int
 zrl_is_locked(zrlock_t *zrl)
 {
 	ASSERT3S(zrl->zr_refcount, >, ZRL_DESTROYED);

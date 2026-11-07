@@ -216,44 +216,6 @@ zfs_refcount_remove_few(zfs_refcount_t *rc, uint64_t number, const void *holder)
 }
 
 void
-zfs_refcount_transfer(zfs_refcount_t *dst, zfs_refcount_t *src)
-{
-	avl_tree_t tree;
-	list_t removed;
-	reference_t *ref;
-	void *cookie = NULL;
-	uint64_t count;
-	uint_t removed_count;
-
-	avl_create(&tree, zfs_refcount_compare, sizeof (reference_t),
-	    offsetof(reference_t, ref_link.a));
-	list_create(&removed, sizeof (reference_t),
-	    offsetof(reference_t, ref_link.l));
-
-	mutex_enter(&src->rc_mtx);
-	count = src->rc_count;
-	removed_count = src->rc_removed_count;
-	src->rc_count = 0;
-	src->rc_removed_count = 0;
-	avl_swap(&tree, &src->rc_tree);
-	list_move_tail(&removed, &src->rc_removed);
-	mutex_exit(&src->rc_mtx);
-
-	mutex_enter(&dst->rc_mtx);
-	dst->rc_count += count;
-	dst->rc_removed_count += removed_count;
-	if (avl_is_empty(&dst->rc_tree))
-		avl_swap(&dst->rc_tree, &tree);
-	else while ((ref = avl_destroy_nodes(&tree, &cookie)) != NULL)
-		avl_add(&dst->rc_tree, ref);
-	list_move_tail(&dst->rc_removed, &removed);
-	mutex_exit(&dst->rc_mtx);
-
-	avl_destroy(&tree);
-	list_destroy(&removed);
-}
-
-void
 zfs_refcount_transfer_ownership_many(zfs_refcount_t *rc, uint64_t number,
     const void *current_holder, const void *new_holder)
 {
