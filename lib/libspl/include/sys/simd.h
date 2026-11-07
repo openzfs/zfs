@@ -407,6 +407,38 @@ zfs_vpclmulqdq_available(void)
 }
 
 /*
+ * Check if 512-bit vectors should be avoided since they lower the clock
+ * frequency of the CPU. Same CPUs as X86_FEATURE_PREFER_YMM in Linux.
+ */
+static inline boolean_t
+zfs_prefer_ymm(void)
+{
+	uint32_t eax, ebx, ecx, edx;
+
+	/* "GenuineIntel" */
+	if (__get_cpuid(0, &eax, &ebx, &ecx, &edx) == 0 ||
+	    ebx != 0x756e6547 || edx != 0x49656e69 || ecx != 0x6c65746e)
+		return (B_FALSE);
+	if (__get_cpuid(1, &eax, &ebx, &ecx, &edx) == 0 ||
+	    ((eax >> 8) & 0xf) != 6)
+		return (B_FALSE);
+
+	switch (((eax >> 12) & 0xf0) | ((eax >> 4) & 0xf)) {
+	case 0x55:	/* Skylake-X, Cascade Lake, Cooper Lake */
+	case 0x6a:	/* Ice Lake-X */
+	case 0x6c:	/* Ice Lake-D */
+	case 0x7d:	/* Ice Lake */
+	case 0x7e:	/* Ice Lake-L */
+	case 0x8c:	/* Tiger Lake-L */
+	case 0x8d:	/* Tiger Lake */
+	case 0x9d:	/* Ice Lake NNPI */
+		return (B_TRUE);
+	default:
+		return (B_FALSE);
+	}
+}
+
+/*
  * Check if SHA512 instructions are available
  */
 static inline boolean_t

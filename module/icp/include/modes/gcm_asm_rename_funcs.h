@@ -18,7 +18,8 @@
  * This avoids potential symbol conflicts with linux libcrypto in case of
  * in-tree compilation. To keep the diff noise low, we do this using macros.
  *
- * Currently only done for aesni-gcm-avx2-vaes.S since there is a real conflict.
+ * Currently only done for the files imported from BoringSSL since there is a
+ * real conflict.
  */
 
 /* module/icp/asm-x86_64/modes/aesni-gcm-avx2-vaes.S */
@@ -26,3 +27,9 @@
 #define	gcm_ghash_vpclmulqdq_avx2	icp_gcm_ghash_vpclmulqdq_avx2
 #define	aes_gcm_enc_update_vaes_avx2	icp_aes_gcm_enc_update_vaes_avx2
 #define	aes_gcm_dec_update_vaes_avx2	icp_aes_gcm_dec_update_vaes_avx2
+
+/* module/icp/asm-x86_64/modes/aesni-gcm-avx512-vaes.S */
+#define	gcm_init_vpclmulqdq_avx512	icp_gcm_init_vpclmulqdq_avx512
+#define	gcm_ghash_vpclmulqdq_avx512	icp_gcm_ghash_vpclmulqdq_avx512
+#define	aes_gcm_enc_update_vaes_avx512	icp_aes_gcm_enc_update_vaes_avx512
+#define	aes_gcm_dec_update_vaes_avx512	icp_aes_gcm_dec_update_vaes_avx512
