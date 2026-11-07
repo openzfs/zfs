@@ -1430,11 +1430,49 @@ zio_write_override(zio_t *zio, blkptr_t *bp, int copies, int gang_copies,
 	zio->io_bp_override = bp;
 }
 
+/*
+ * Verify a block pointer before freeing it.  A block pointer that fails
+ * zfs_blkptr_verify() (e.g. a DVA naming a nonexistent vdev, or an offset
+ * past the end of the vdev) must never be handed to metaslab_free(): it
+ * would trip a VERIFY in metaslab_free_concrete(), dereference a NULL vdev,
+ * or corrupt the space maps.  Such a BP comes from damage that the checksum
+ * of its parent does not catch (e.g. a bit flip in memory before the parent
+ * was written), and the free is retried on every writable import, so it
+ * makes the pool unusable.
+ *
+ * As for other on-disk damage, this panics unless zfs_recover is set.  With
+ * zfs_recover set the block is leaked instead: it stays allocated in the
+ * space maps but is no longer referenced or accounted for, which zdb -b
+ * reports as leaked space.  The DSL accounting is unaffected, as it is
+ * derived from the BP's ASIZE and was already updated by the caller.
+ */
+static boolean_t
+zio_free_bp_valid(spa_t *spa, uint64_t txg, const blkptr_t *bp)
+{
+	if (zfs_blkptr_verify(spa, bp, BLK_CONFIG_NEEDED,
+	    BLK_VERIFY_HALT) == 0)
+		return (B_TRUE);
+
+	/*
+	 * Only reached with zfs_recover set; zfs_blkptr_verify() has already
+	 * logged the problem and the full BP to the debug log.
+	 */
+	cmn_err(CE_WARN, "%s: leaking invalid block pointer in txg %llu "
+	    "instead of freeing it: DVA[0]=%llu:%llx:%llx", spa_name(spa),
+	    (u_longlong_t)txg, (u_longlong_t)DVA_GET_VDEV(&bp->blk_dva[0]),
+	    (u_longlong_t)DVA_GET_OFFSET(&bp->blk_dva[0]),
+	    (u_longlong_t)DVA_GET_ASIZE(&bp->blk_dva[0]));
+	return (B_FALSE);
+}
+
+static zio_t *zio_free_sync_impl(zio_t *pio, spa_t *spa, uint64_t txg,
+    const blkptr_t *bp, zio_flag_t flags);
+
 void
 zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 {
-
-	(void) zfs_blkptr_verify(spa, bp, BLK_CONFIG_NEEDED, BLK_VERIFY_HALT);
+	if (!zio_free_bp_valid(spa, txg, bp))
+		return;
 
 	/*
 	 * The check for EMBEDDED is a performance optimization.  We
@@ -1463,7 +1501,7 @@ zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
 		metaslab_check_free(spa, bp);
 		bplist_append(&spa->spa_free_bplist[txg & TXG_MASK], bp);
 	} else {
-		VERIFY0P(zio_free_sync(NULL, spa, txg, bp, 0));
+		VERIFY0P(zio_free_sync_impl(NULL, spa, txg, bp, 0));
 	}
 }
 
@@ -1474,6 +1512,20 @@ zio_free(spa_t *spa, uint64_t txg, const blkptr_t *bp)
  */
 zio_t *
 zio_free_sync(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
+    zio_flag_t flags)
+{
+	/*
+	 * Most BPs freed here come straight from disk (bpobjs, deadlists,
+	 * async destroy, gang members) and have not been verified yet.
+	 */
+	if (!zio_free_bp_valid(spa, txg, bp))
+		return (NULL);
+
+	return (zio_free_sync_impl(pio, spa, txg, bp, flags));
+}
+
+static zio_t *
+zio_free_sync_impl(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
     zio_flag_t flags)
 {
 	ASSERT(!BP_IS_HOLE(bp));
