@@ -11,7 +11,7 @@
 .\"
 .\" Copyright (c) 2012 by Delphix. All rights reserved.
 .\"
-.Dd October 17, 2026
+.Dd October 19, 2026
 .Dt RUN 1
 .Os
 .
@@ -146,7 +146,7 @@ will print one line on standard output at the conclusion
 of each test indicating the test name, result and elapsed time.
 Additionally, for each invocation of
 .Nm ,
-a directory is created using the ISO 8601 date format.
+a unique directory is created with an ISO 8601 date prefix.
 Within this directory is a file named
 .Sy log
 containing all the
@@ -174,7 +174,9 @@ describing tests and test groups respectively.
 The legal option names are:
 .Bl -tag -width "tests = ['filename', …]"
 .It Sy outputdir No = Ar pathname
-The name of the directory that holds test logs.
+The root directory for the run's logs, specified in the
+.Sy DEFAULT
+section.
 .It Sy pre No = Ar script
 Run
 .Ar script
@@ -288,7 +290,7 @@ PASS       3
 
 Running Time:   00:00:07
 Percent passed: 100.0%
-Log directory:  /var/tmp/test_results/20120923T180654
+Log directory:  /var/tmp/test_results/20120923T180654-a1b2c3d4
 .Ed
 .It Sy Example 2 : No Creating a Ar runfile No for future use .
 This example demonstrates creating a
