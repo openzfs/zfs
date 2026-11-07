@@ -16,7 +16,7 @@
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd July 23, 2025
+.Dd October 13, 2026
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -481,8 +481,23 @@ This feature becomes
 when the
 .Nm zpool Cm remove
 command is used
-on a top-level vdev, and will never return to being
-.Sy enabled .
+on a top-level vdev, and will return to being
+.Sy enabled
+once every vdev removed this way has been turned into a hole, which happens
+once its mapping is empty
+.Po see
+.Sy zfs_retire_indirect_vdevs
+in
+.Xr zfs 4
+.Pc .
+A removed vdev is kept while blocks still refer to it, while the pool has a
+checkpoint, and, unless the removal copied nothing, while
+.Sy zfs_condense_indirect_vdevs_enable
+is unset.
+Blocks freed before the
+.Sy obsolete_counts
+feature was enabled are never counted as obsolete, so a vdev removed before
+then may be kept for good.
 .
 .feature org.openzfs draid no
 This feature enables use of the
@@ -874,8 +889,16 @@ This feature becomes
 .Sy active
 when the
 .Nm zpool Cm remove
-command is used on a top-level vdev, and will never return to being
-.Sy enabled .
+command is used on a top-level vdev, and will return to being
+.Sy enabled
+once every vdev removed this way has been turned into a hole
+.Pq see Sy device_removal
+and no list of remapped blocks is left.
+A dataset keeps such a list for blocks remapped while a snapshot still
+referenced them, and its next snapshot takes the list over.
+Once no removed vdev is left, the list of a dataset is dropped when a snapshot
+of it is created or its latest snapshot is destroyed, and the list of a
+snapshot when that snapshot or the one before it is destroyed.
 .
 .feature com.truenas physical_rewrite yes extensible_dataset
 This feature enables physical block rewriting that preserves logical birth
