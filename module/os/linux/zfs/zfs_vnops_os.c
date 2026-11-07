@@ -38,6 +38,7 @@
 #include <sys/cmn_err.h>
 #include <sys/errno.h>
 #include <sys/zfs_dir.h>
+#include <sys/zfs_changelog.h>
 #include <sys/zfs_acl_impl.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/fs/zfs.h>
@@ -611,6 +612,7 @@ zfs_create_idmap(znode_t *dzp, char *name, vattr_t *vap, int excl,
     int mode, znode_t **zpp, cred_t *cr, int flag, vsecattr_t *vsecp,
     zidmap_t *idmap)
 {
+	changelog_res_t clres;
 	znode_t		*zp;
 	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
 	zilog_t		*zilog;
@@ -744,6 +746,8 @@ top:
 			    0, acl_ids.z_aclp->z_acl_bytes);
 		}
 
+		zfs_changelog_tx_hold(zfsvfs->z_os, tx, &clres);
+
 		error = dmu_tx_assign(tx,
 		    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
 		if (error) {
@@ -783,6 +787,9 @@ top:
 		zfs_log_create(zilog, tx, txtype, dzp, zp, name,
 		    vsecp, acl_ids.z_fuidp, vap);
 		zfs_acl_ids_free(&acl_ids);
+		zfs_changelog_record(zfsvfs->z_os, tx, &clres,
+		    S_ISREG(ZTOI(zp)->i_mode) ? CL_OP_CREATE : CL_OP_MKNOD,
+		    zp->z_id, dzp->z_id, name);
 		dmu_tx_commit(tx);
 	} else {
 		int aflags = (flag & O_APPEND) ? V_APPEND : 0;
@@ -1009,6 +1016,7 @@ static uint64_t null_xattr = 0;
 int
 zfs_remove(znode_t *dzp, char *name, cred_t *cr, int flags)
 {
+	changelog_res_t clres;
 	znode_t		*zp;
 	znode_t		*xzp;
 	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
@@ -1115,6 +1123,8 @@ top:
 	 */
 	dmu_tx_mark_netfree(tx);
 
+	zfs_changelog_tx_hold(zfsvfs->z_os, tx, &clres);
+
 	error = dmu_tx_assign(tx,
 	    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
 	if (error) {
@@ -1202,6 +1212,8 @@ top:
 	if (flags & FIGNORECASE)
 		txtype |= TX_CI;
 	zfs_log_remove(zilog, tx, txtype, dzp, name, obj, unlinked);
+	zfs_changelog_record(zfsvfs->z_os, tx, &clres, CL_OP_REMOVE, obj,
+	    dzp->z_id, name);
 
 	dmu_tx_commit(tx);
 out:
@@ -1254,6 +1266,7 @@ int
 zfs_mkdir_idmap(znode_t *dzp, char *dirname, vattr_t *vap, znode_t **zpp,
     cred_t *cr, int flags, vsecattr_t *vsecp, zidmap_t *idmap)
 {
+	changelog_res_t clres;
 	znode_t		*zp;
 	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
 	zilog_t		*zilog;
@@ -1363,6 +1376,8 @@ top:
 	dmu_tx_hold_sa_create(tx, acl_ids.z_aclp->z_acl_bytes +
 	    ZFS_SA_BASE_ATTR_SIZE);
 
+	zfs_changelog_tx_hold(zfsvfs->z_os, tx, &clres);
+
 	error = dmu_tx_assign(tx,
 	    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
 	if (error) {
@@ -1402,6 +1417,8 @@ top:
 		txtype |= TX_CI;
 	zfs_log_create(zilog, tx, txtype, dzp, zp, dirname, vsecp,
 	    acl_ids.z_fuidp, vap);
+	zfs_changelog_record(zfsvfs->z_os, tx, &clres, CL_OP_MKDIR, zp->z_id,
+	    dzp->z_id, dirname);
 
 out:
 	zfs_acl_ids_free(&acl_ids);
@@ -1454,6 +1471,7 @@ int
 zfs_rmdir(znode_t *dzp, char *name, znode_t *cwd, cred_t *cr,
     int flags)
 {
+	changelog_res_t clres;
 	znode_t		*zp;
 	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
 	zilog_t		*zilog;
@@ -1518,6 +1536,7 @@ top:
 	zfs_sa_upgrade_txholds(tx, zp);
 	zfs_sa_upgrade_txholds(tx, dzp);
 	dmu_tx_mark_netfree(tx);
+	zfs_changelog_tx_hold(zfsvfs->z_os, tx, &clres);
 	error = dmu_tx_assign(tx,
 	    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
 	if (error) {
@@ -1545,6 +1564,8 @@ top:
 			txtype |= TX_CI;
 		zfs_log_remove(zilog, tx, txtype, dzp, name, ZFS_NO_OBJECT,
 		    B_FALSE);
+		zfs_changelog_record(zfsvfs->z_os, tx, &clres, CL_OP_RMDIR,
+		    zp->z_id, dzp->z_id, name);
 	}
 
 	dmu_tx_commit(tx);
@@ -1994,6 +2015,7 @@ int
 zfs_setattr_idmap(znode_t *zp, vattr_t *vap, int flags, cred_t *cr,
     zidmap_t *idmap)
 {
+	changelog_res_t clres;
 	struct inode	*ip;
 	zfsvfs_t	*zfsvfs = ZTOZSB(zp);
 	objset_t	*os;
@@ -2466,6 +2488,8 @@ top:
 
 	zfs_sa_upgrade_txholds(tx, zp);
 
+	zfs_changelog_tx_hold(zfsvfs->z_os, tx, &clres);
+
 	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err)
 		goto out;
@@ -2706,6 +2730,8 @@ out:
 		ASSERT3S(count, <=, bulks);
 		if (count > 0)
 			err2 = sa_bulk_update(zp->z_sa_hdl, bulk, count, tx);
+		zfs_changelog_record(zfsvfs->z_os, tx, &clres, CL_OP_SETATTR,
+		    zp->z_id, 0, NULL);
 		dmu_tx_commit(tx);
 		if (attrzp) {
 			if (err2 == 0 && handle_eadir)
@@ -2852,6 +2878,7 @@ int
 zfs_rename_idmap(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
     cred_t *cr, int flags, uint64_t rflags, vattr_t *wo_vap, zidmap_t *idmap)
 {
+	changelog_res_t clres;
 	znode_t		*szp, *tzp;
 	zfsvfs_t	*zfsvfs = ZTOZSB(sdzp);
 	zilog_t		*zilog;
@@ -3175,6 +3202,7 @@ top:
 		zfs_fuid_txhold(zfsvfs, tx);
 	zfs_sa_upgrade_txholds(tx, szp);
 	dmu_tx_hold_zap(tx, zfsvfs->z_unlinkedobj, FALSE, NULL);
+	zfs_changelog_tx_hold(zfsvfs->z_os, tx, &clres);
 	error = dmu_tx_assign(tx,
 	    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
 	if (error) {
@@ -3301,6 +3329,8 @@ top:
 		    sdzp, sdl->dl_name, tdzp, tdl->dl_name, szp);
 		break;
 	}
+	zfs_changelog_record_rename(zfsvfs->z_os, tx, &clres, szp->z_id,
+	    sdzp->z_id, sdl->dl_name, tdzp->z_id, tdl->dl_name);
 
 commit:
 	dmu_tx_commit(tx);
@@ -3399,6 +3429,7 @@ int
 zfs_symlink_idmap(znode_t *dzp, char *name, vattr_t *vap, char *link,
     znode_t **zpp, cred_t *cr, int flags, zidmap_t *idmap)
 {
+	changelog_res_t clres;
 	znode_t		*zp;
 	zfs_dirlock_t	*dl;
 	dmu_tx_t	*tx;
@@ -3479,6 +3510,7 @@ top:
 	}
 	if (fuid_dirtied)
 		zfs_fuid_txhold(zfsvfs, tx);
+	zfs_changelog_tx_hold(zfsvfs->z_os, tx, &clres);
 	error = dmu_tx_assign(tx,
 	    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
 	if (error) {
@@ -3526,6 +3558,8 @@ top:
 		if (flags & FIGNORECASE)
 			txtype |= TX_CI;
 		zfs_log_symlink(zilog, tx, txtype, dzp, zp, name, link);
+		zfs_changelog_record(zfsvfs->z_os, tx, &clres, CL_OP_SYMLINK,
+		    zp->z_id, dzp->z_id, name);
 
 		zfs_znode_update_vfs(dzp);
 		zfs_znode_update_vfs(zp);
@@ -3613,6 +3647,7 @@ int
 zfs_link(znode_t *tdzp, znode_t *szp, char *name, cred_t *cr,
     int flags)
 {
+	changelog_res_t clres;
 	struct inode *sip = ZTOI(szp);
 	znode_t		*tzp;
 	zfsvfs_t	*zfsvfs = ZTOZSB(tdzp);
@@ -3737,6 +3772,7 @@ top:
 
 	zfs_sa_upgrade_txholds(tx, szp);
 	zfs_sa_upgrade_txholds(tx, tdzp);
+	zfs_changelog_tx_hold(zfsvfs->z_os, tx, &clres);
 	error = dmu_tx_assign(tx,
 	    (waited ? DMU_TX_NOTHROTTLE : 0) | DMU_TX_NOWAIT);
 	if (error) {
@@ -3776,6 +3812,10 @@ top:
 	} else if (is_tmpfile) {
 		/* restore z_unlinked since when linking failed */
 		szp->z_unlinked = B_TRUE;
+	}
+	if (error == 0) {
+		zfs_changelog_record(zfsvfs->z_os, tx, &clres, CL_OP_LINK,
+		    szp->z_id, tdzp->z_id, name);
 	}
 	txg = dmu_tx_get_txg(tx);
 	dmu_tx_commit(tx);

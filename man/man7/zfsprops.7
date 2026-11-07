@@ -803,6 +803,27 @@ command or unmounted by the
 command.
 .Pp
 This property is not inherited.
+.It Sy changelog Ns = Ns Sy on Ns | Ns Sy off
+Controls whether metadata changes to this dataset are appended to an
+on-disk change stream.
+When
+.Sy on ,
+namespace operations
+.Pq create, remove, mkdir, rmdir, rename, setattr, link, symlink, setxattr
+append a fixed-size record in the same transaction as the change;
+turning it
+.Sy off
+stops new records but keeps the existing stream.
+Consumers register by name, read records incrementally from a cursor
+with
+.Xr zchangelog 8 ,
+and clear what they have processed; cleared records are trimmed once
+every consumer passed them.
+If records are dropped because the retention bound was exceeded or an
+async flush was lost in a crash, the generation counter is bumped and
+consumers are expected to rescan.
+The default value is
+.Sy off .
 .It Xo
 .Sy checksum Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy fletcher2 Ns | Ns
 .Sy fletcher4 Ns | Ns Sy sha256 Ns | Ns Sy noparity Ns | Ns
