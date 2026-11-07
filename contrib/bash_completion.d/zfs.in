@@ -390,11 +390,18 @@ __zfs_complete()
             esac
             ;;
         destroy)
-            if ! __zfs_complete_switch "d,f,n,p,R,r,v"
-            then
-                __zfs_complete_multiple_options "$(__zfs_match_multiple_snapshots)" "$cur"
-                __zfs_complete_nospace
-            fi
+            case "${prev}" in
+                -t)
+                    __zfs_complete_multiple_options "filesystem volume snapshot bookmark all" "$cur"
+                    ;;
+                *)
+                    if ! __zfs_complete_switch "d,f,n,p,R,r,t,v"
+                    then
+                        __zfs_complete_multiple_options "$(__zfs_match_multiple_snapshots)" "$cur"
+                        __zfs_complete_nospace
+                    fi
+                    ;;
+            esac
             ;;
         *)
             mapfile -t COMPREPLY < <(compgen -W "$(__zfs_match_snapshot)" -- "$cur")

@@ -272,10 +272,12 @@ get_usage(zfs_help_t idx)
 		    "[-o property=value] ... "
 		    "-V <size> <volume>\n");
 	case HELP_DESTROY:
-		return ("\tdestroy [-fnpRrv] <filesystem|volume>\n"
-		    "\tdestroy [-dnpRrv] "
+		return ("\tdestroy [-fnpRrv] [-t <type>[,...]] "
+		    "<filesystem|volume>\n"
+		    "\tdestroy [-dnpRrv] [-t <type>[,...]] "
 		    "<filesystem|volume>@<snap>[%<snap>][,...]\n"
-		    "\tdestroy <filesystem|volume>#<bookmark>\n");
+		    "\tdestroy [-t <type>[,...]] "
+		    "<filesystem|volume>#<bookmark>\n");
 	case HELP_GET:
 		return ("\tget [-rHp] [-j [--json-int]] [-d max] "
 		    "[-o \"all\" | field[,...]]\n"
@@ -1694,6 +1696,80 @@ destroy_clones(destroy_cbdata_t *cb)
 	return (0);
 }
 
+/*
+ * Parse a comma-separated list of dataset types, as accepted by the -t
+ * option of 'zfs list' and 'zfs destroy', into a mask of ZFS_TYPE_* values.
+ * Prints a message and returns -1 if an element is not a known type.
+ */
+static int
+parse_type_list(const char *arg, int *typesp)
+{
+	static const char *const type_subopts[] = {
+		"filesystem",
+		"fs",
+		"volume",
+		"vol",
+		"snapshot",
+		"snap",
+		"bookmark",
+		"all"
+	};
+	static const int type_types[] = {
+		ZFS_TYPE_FILESYSTEM,
+		ZFS_TYPE_FILESYSTEM,
+		ZFS_TYPE_VOLUME,
+		ZFS_TYPE_VOLUME,
+		ZFS_TYPE_SNAPSHOT,
+		ZFS_TYPE_SNAPSHOT,
+		ZFS_TYPE_BOOKMARK,
+		ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK
+	};
+	const char *tok = arg;
+	int types = 0;
+
+	for (;;) {
+		const char *end = strchr(tok, ',');
+		size_t len = (end != NULL) ? (size_t)(end - tok) : strlen(tok);
+		int i;
+
+		for (i = 0; i < ARRAY_SIZE(type_subopts); i++) {
+			if (strlen(type_subopts[i]) == len &&
+			    strncmp(tok, type_subopts[i], len) == 0)
+				break;
+		}
+		if (i == ARRAY_SIZE(type_subopts)) {
+			(void) fprintf(stderr, "invalid type '%.*s'\n",
+			    (int)len, tok);
+			return (-1);
+		}
+		types |= type_types[i];
+
+		if (end == NULL)
+			break;
+		tok = end + 1;
+	}
+
+	*typesp = types;
+	return (0);
+}
+
+/*
+ * Check the type of the argument of 'zfs destroy' against those allowed
+ * with -t.  Only the argument itself is checked: with -r or -R, dependents
+ * of any type are still destroyed along with it.
+ */
+static boolean_t
+destroy_type_matches(const char *name, zfs_type_t type, int types,
+    const char *typestr)
+{
+	if (type & types)
+		return (B_TRUE);
+
+	(void) fprintf(stderr, "cannot destroy '%s': "
+	    "type does not match '%s'\n", name, typestr);
+	return (B_FALSE);
+}
+
 static int
 zfs_do_destroy(int argc, char **argv)
 {
@@ -1704,9 +1780,11 @@ zfs_do_destroy(int argc, char **argv)
 	zfs_handle_t *zhp = NULL;
 	char *at, *pound;
 	zfs_type_t type = ZFS_TYPE_DATASET;
+	int types = ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK;
+	const char *typestr = NULL;
 
 	/* check options */
-	while ((c = getopt(argc, argv, "vpndfrR")) != -1) {
+	while ((c = getopt(argc, argv, "vpndfrRt:")) != -1) {
 		switch (c) {
 		case 'v':
 			cb.cb_verbose = B_TRUE;
@@ -1732,6 +1810,11 @@ zfs_do_destroy(int argc, char **argv)
 			cb.cb_recurse = B_TRUE;
 			cb.cb_doclones = B_TRUE;
 			break;
+		case 't':
+			typestr = optarg;
+			if (parse_type_list(optarg, &types) != 0)
+				usage(B_FALSE);
+			break;
 		case '?':
 		default:
 			(void) fprintf(stderr, "invalid option '%c'\n",
@@ -1756,6 +1839,9 @@ zfs_do_destroy(int argc, char **argv)
 	at = strchr(argv[0], '@');
 	pound = strchr(argv[0], '#');
 	if (at != NULL) {
+		if (typestr != NULL && !destroy_type_matches(argv[0],
+		    ZFS_TYPE_SNAPSHOT, types, typestr))
+			return (1);
 
 		/* Build the list of snaps to destroy in cb_nvl. */
 		cb.cb_nvl = fnvlist_alloc();
@@ -1822,6 +1908,10 @@ zfs_do_destroy(int argc, char **argv)
 		int err;
 		nvlist_t *nvl;
 
+		if (typestr != NULL && !destroy_type_matches(argv[0],
+		    ZFS_TYPE_BOOKMARK, types, typestr))
+			return (1);
+
 		if (cb.cb_dryrun) {
 			(void) fprintf(stderr,
 			    "dryrun is not supported with bookmark\n");
@@ -1869,6 +1959,12 @@ zfs_do_destroy(int argc, char **argv)
 		/* Open the given dataset */
 		if ((zhp = zfs_open(g_zfs, argv[0], type)) == NULL)
 			return (1);
+
+		if (typestr != NULL && !destroy_type_matches(argv[0],
+		    zfs_get_type(zhp), types, typestr)) {
+			rv = 1;
+			goto out;
+		}
 
 		cb.cb_target = zhp;
 
@@ -2332,42 +2428,9 @@ found2:;
 			break;
 
 		case 't':
-			types = 0;
-			flags &= ~ZFS_ITER_PROP_LISTSNAPS;
-
-			for (char *tok; (tok = strsep(&optarg, ",")); ) {
-				static const char *const type_opts[] = {
-					"filesystem",
-					"fs",
-					"volume",
-					"vol",
-					"snapshot",
-					"snap",
-					"bookmark",
-					"all"
-				};
-				static const int type_types[] = {
-					ZFS_TYPE_FILESYSTEM,
-					ZFS_TYPE_FILESYSTEM,
-					ZFS_TYPE_VOLUME,
-					ZFS_TYPE_VOLUME,
-					ZFS_TYPE_SNAPSHOT,
-					ZFS_TYPE_SNAPSHOT,
-					ZFS_TYPE_BOOKMARK,
-					ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK
-				};
-
-				for (i = 0; i < ARRAY_SIZE(type_opts); ++i)
-					if (strcmp(tok, type_opts[i]) == 0) {
-						types |= type_types[i];
-						goto found3;
-					}
-
-				(void) fprintf(stderr,
-				    "invalid type '%s'\n", tok);
+			if (parse_type_list(optarg, &types) != 0)
 				usage(B_FALSE);
-found3:;
-			}
+			flags &= ~ZFS_ITER_PROP_LISTSNAPS;
 			break;
 		case '?':
 			(void) fprintf(stderr, "invalid option '%c'\n",
@@ -3936,43 +3999,10 @@ zfs_do_list(int argc, char **argv)
 			}
 			break;
 		case 't':
-			types = 0;
+			if (parse_type_list(optarg, &types) != 0)
+				usage(B_FALSE);
 			types_specified = B_TRUE;
 			flags &= ~ZFS_ITER_PROP_LISTSNAPS;
-
-			for (char *tok; (tok = strsep(&optarg, ",")); ) {
-				static const char *const type_subopts[] = {
-					"filesystem",
-					"fs",
-					"volume",
-					"vol",
-					"snapshot",
-					"snap",
-					"bookmark",
-					"all"
-				};
-				static const int type_types[] = {
-					ZFS_TYPE_FILESYSTEM,
-					ZFS_TYPE_FILESYSTEM,
-					ZFS_TYPE_VOLUME,
-					ZFS_TYPE_VOLUME,
-					ZFS_TYPE_SNAPSHOT,
-					ZFS_TYPE_SNAPSHOT,
-					ZFS_TYPE_BOOKMARK,
-					ZFS_TYPE_DATASET | ZFS_TYPE_BOOKMARK
-				};
-
-				for (c = 0; c < ARRAY_SIZE(type_subopts); ++c)
-					if (strcmp(tok, type_subopts[c]) == 0) {
-						types |= type_types[c];
-						goto found3;
-					}
-
-				(void) fprintf(stderr,
-				    "invalid type '%s'\n", tok);
-				usage(B_FALSE);
-found3:;
-			}
 			break;
 		case ':':
 			(void) fprintf(stderr, "missing argument for "
