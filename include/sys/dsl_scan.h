@@ -126,6 +126,7 @@ typedef struct dsl_scan {
 	uint64_t scn_finished_txg;
 	uint64_t scn_sync_start_time;
 	uint64_t scn_issued_before_pass;
+	boolean_t scn_verify_pending;	/* scrub after the next resilver */
 
 	/* for freeing blocks */
 	boolean_t scn_is_bptree;
@@ -189,6 +190,7 @@ void scan_fini(void);
 int dsl_scan_init(struct dsl_pool *dp, uint64_t txg);
 int dsl_scan_setup_check(void *, dmu_tx_t *);
 void dsl_scan_setup_sync(void *, dmu_tx_t *);
+void dsl_scan_setup_verify(struct dsl_pool *, dmu_tx_t *);
 void dsl_scan_fini(struct dsl_pool *dp);
 void dsl_scan_sync(struct dsl_pool *, dmu_tx_t *);
 int dsl_scan_cancel(struct dsl_pool *);
