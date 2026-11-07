@@ -1612,7 +1612,7 @@ zfs_root(vfs_t *vfsp, int flags, vnode_t **vpp)
 	if (error == 0) {
 		error = vn_lock(*vpp, flags);
 		if (error != 0) {
-			VN_RELE(*vpp);
+			vrele(*vpp);
 			*vpp = NULL;
 		}
 	}
@@ -2112,10 +2112,8 @@ bail:
 		 * Since we couldn't setup the sa framework, try to force
 		 * unmount this file system.
 		 */
-		if (vn_vfswlock(zfsvfs->z_vfs->vfs_vnodecovered) == 0) {
-			vfs_ref(zfsvfs->z_vfs);
-			(void) dounmount(zfsvfs->z_vfs, MS_FORCE, curthread);
-		}
+		vfs_ref(zfsvfs->z_vfs);
+		(void) dounmount(zfsvfs->z_vfs, MS_FORCE, curthread);
 	}
 	return (err);
 }

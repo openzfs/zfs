@@ -1022,7 +1022,7 @@ again:
 		 * Don't let the vnode disappear after
 		 * ZFS_OBJ_HOLD_EXIT.
 		 */
-		VN_HOLD(vp);
+		vref(vp);
 		*zpp = zp;
 		err = 0;
 
@@ -1060,7 +1060,7 @@ again:
 			 * should also have a reference to the vnode and thus
 			 * our reference is not last.
 			 */
-			VN_RELE(vp);
+			vrele(vp);
 			goto again;
 		}
 		VI_UNLOCK(vp);
