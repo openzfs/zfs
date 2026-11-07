@@ -6304,6 +6304,7 @@ typedef struct zdb_cb {
 	uint64_t	zcb_errors[256];
 	int		zcb_readfails;
 	int		zcb_haderrors;
+	boolean_t	zcb_rebuilding;
 	spa_t		*zcb_spa;
 	uint32_t	**zcb_vd_obsolete_counts;
 	avl_tree_t	zcb_brt;
@@ -6966,6 +6967,16 @@ zdb_blkptr_cb(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		/* If it's an intent log block, failure is expected. */
 		if (zb->zb_level == ZB_ZIL_LEVEL)
 			flags |= ZIO_FLAG_SPECULATIVE;
+
+		/*
+		 * During a sequential rebuild, a scrubbing read of a split
+		 * segment of a removed vdev (no bp, so no checksum) makes a
+		 * replacing or spare vdev compare its children and fail.
+		 * Read it like a normal read instead, which verifies only one
+		 * copy of each block.
+		 */
+		if (zcb->zcb_rebuilding)
+			flags &= ~ZIO_FLAG_SCRUB;
 
 		mutex_enter(&spa->spa_scrub_lock);
 		while (spa->spa_load_verify_bytes > max_inflight_bytes)
@@ -8031,6 +8042,16 @@ dump_block_stats(spa_t *spa)
 	    metaslab_class_get_alloc(spa_embedded_log_class(spa));
 	zcb->zcb_totalasize +=
 	    metaslab_class_get_alloc(spa_special_embedded_log_class(spa));
+	if (vdev_rebuild_active(spa->spa_root_vdev)) {
+		vdev_t *rvd = spa->spa_root_vdev;
+
+		spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+		for (uint64_t v = 0; v < rvd->vdev_children; v++) {
+			if (rvd->vdev_child[v]->vdev_ops == &vdev_indirect_ops)
+				zcb->zcb_rebuilding = B_TRUE;
+		}
+		spa_config_exit(spa, SCL_VDEV, FTAG);
+	}
 	zcb->zcb_start = zcb->zcb_lastprint = gethrtime();
 	err = traverse_pool(spa, 0, flags, zdb_blkptr_cb, zcb);
 
