@@ -38,6 +38,8 @@ do_sync_io(struct iocb *iocb)
 
 	if (io_getevents(io_ctx, 0, 1, &event, &ts) != 1)
 		err(1, "io_getevents failed");
+	if (event.res != iocb->u.c.nbytes)
+		errx(1, "incomplete AIO transfer");
 }
 
 int
@@ -45,7 +47,6 @@ main(int argc, char **argv)
 {
 	(void) argc;
 	char *buf;
-	int page_size = getpagesize();
 	int buf_size = strtol(argv[2], NULL, 0);
 	int rwfd;
 	struct iocb iocb;
@@ -60,7 +61,7 @@ main(int argc, char **argv)
 	if (ftruncate(rwfd, buf_size) < 0)
 		err(1, "ftruncate failed");
 
-	buf = mmap(0, page_size, PROT_READ | PROT_WRITE, MAP_SHARED, rwfd, 0);
+	buf = mmap(0, buf_size, PROT_READ | PROT_WRITE, MAP_SHARED, rwfd, 0);
 	if (buf == MAP_FAILED)
 		err(1, "mmap failed");
 
