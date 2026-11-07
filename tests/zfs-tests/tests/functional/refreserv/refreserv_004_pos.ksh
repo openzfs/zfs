@@ -37,9 +37,6 @@ verify_runnable "both"
 
 function cleanup
 {
-	if is_global_zone ; then
-		log_must zfs set refreservation=none $TESTPOOL
-	fi
 	log_must zfs destroy -rf $TESTPOOL/$TESTFS
 	log_must zfs create $TESTPOOL/$TESTFS
 	log_must zfs set mountpoint=$TESTDIR $TESTPOOL/$TESTFS
@@ -48,12 +45,14 @@ function cleanup
 log_assert "Verify refreservation is limited by available space."
 log_onexit cleanup
 
-pool=$TESTPOOL ; fs=$pool/$TESTFS ; subfs=$fs/subfs
+pool=$TESTPOOL ; fs=$pool/$TESTFS/$TESTFS1 ; subfs=$fs/subfs
+log_must zfs create $fs
 log_must zfs create $subfs
 
 typeset datasets
 if is_global_zone; then
-        datasets="$pool $fs"
+        # The pool root also accounts for changing MOS allocations.
+        datasets="$pool/$TESTFS $fs"
 else
         datasets="$fs"
 fi
@@ -63,16 +62,23 @@ for ds in $datasets; do
 	log_must zfs set refreservation=15M $ds
 
 	typeset -i avail
+	log_must zpool sync $pool
 	avail=$(get_prop avail $subfs)
 	log_must zfs set refreservation=$avail $subfs
 	typeset mntpnt
 	mntpnt=$(get_prop mountpoint $subfs)
-	log_must mkfile $avail $mntpnt/$TESTFILE
+	# File metadata must also fit within the quota.
+	log_must mkfile $((avail / 2)) $mntpnt/$TESTFILE
 
+	log_must zpool sync $pool
+	((avail = $(get_prop usedbydataset $subfs) + $(get_prop avail $subfs)))
+	log_must zfs set refreservation=$avail $subfs
 	typeset -i exceed
 	((exceed = avail + 1))
 	log_mustnot zfs set refreservation=$exceed $subfs
 	log_mustnot mkfile $avail $mntpnt/$TESTFILE
+	log_must rm $mntpnt/$TESTFILE
+	log_must zpool sync $pool
 
 	log_must zfs set quota=none $ds
 	log_must zfs set reservation=15M $ds
