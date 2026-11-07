@@ -2260,8 +2260,9 @@ dsl_crypto_recv_raw_objset_sync(dsl_dataset_t *ds, dmu_objset_type_t ostype,
 	/*
 	 * Set the portable MAC. The local MAC will always be zero since the
 	 * incoming data will all be portable and user accounting will be
-	 * deferred until the next mount. Afterwards, flag the os to be
-	 * written out raw next time.
+	 * rebuilt after the next mount, when the dataset is first written or
+	 * its used space is read. Afterwards, flag the os to be written out
+	 * raw next time.
 	 */
 	arc_release(os->os_phys_buf, &os->os_phys_buf);
 	memcpy(os->os_phys->os_portable_mac, portable_mac, ZIO_OBJSET_MAC_LEN);

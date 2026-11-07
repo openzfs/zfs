@@ -402,6 +402,7 @@ spa_t *dsl_dataset_get_spa(dsl_dataset_t *ds);
 
 boolean_t dsl_dataset_modified_since_snap(dsl_dataset_t *ds,
     dsl_dataset_t *snap);
+boolean_t dsl_dataset_unchanged_since_prev(dsl_dataset_t *ds);
 
 void dsl_dataset_sync(dsl_dataset_t *ds, zio_t *zio, dmu_tx_t *tx);
 void dsl_dataset_sync_done(dsl_dataset_t *ds, dmu_tx_t *tx);
