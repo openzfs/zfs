@@ -1721,123 +1721,91 @@ TURN_STREAM_SAFE:
  * The do_norm_compare() function does string comparison based on Unicode
  * simple case mappings and Unicode Normalization definitions.
  *
- * It does so by collecting a sequence of character at a time and comparing
- * the collected sequences from the strings.
- *
  * The meanings on the return values are the same as the usual strcmp().
  */
 static int
 do_norm_compare(size_t uv, uchar_t *s1, uchar_t *s2, size_t n1, size_t n2,
     int flag, int *errnum)
 {
-	int result;
-	size_t sz1;
-	size_t sz2;
+	size_t sz1 = 0;
+	size_t sz2 = 0;
+	size_t offset1 = 0;
+	size_t offset2 = 0;
 	uchar_t u8s1[U8_STREAM_SAFE_TEXT_MAX + 1];
 	uchar_t u8s2[U8_STREAM_SAFE_TEXT_MAX + 1];
-	uchar_t *s1last;
-	uchar_t *s2last;
-	boolean_t is_it_toupper;
-	boolean_t is_it_tolower;
-	boolean_t canonical_decomposition;
-	boolean_t compatibility_decomposition;
-	boolean_t canonical_composition;
+	uchar_t *s1last = s1 + n1;
+	uchar_t *s2last = s2 + n2;
+	boolean_t is_it_toupper = flag & U8_TEXTPREP_TOUPPER;
+#ifdef U8_STRCMP_CI_LOWER
+	boolean_t is_it_tolower = flag & U8_TEXTPREP_TOLOWER;
+#else
+	boolean_t is_it_tolower = B_FALSE;
+#endif
+	boolean_t canonical_decomposition = flag & U8_CANON_DECOMP;
+	boolean_t compatibility_decomposition = flag & U8_COMPAT_DECOMP;
+	boolean_t canonical_composition = flag & U8_CANON_COMP;
 	u8_normalization_states_t state;
 
-	s1last = s1 + n1;
-	s2last = s2 + n2;
-
-	is_it_toupper = flag & U8_TEXTPREP_TOUPPER;
-#ifdef U8_STRCMP_CI_LOWER
-	is_it_tolower = flag & U8_TEXTPREP_TOLOWER;
-#else
-	is_it_tolower = 0;
-#endif
-	canonical_decomposition = flag & U8_CANON_DECOMP;
-	compatibility_decomposition = flag & U8_COMPAT_DECOMP;
-	canonical_composition = flag & U8_CANON_COMP;
-
-	while (s1 < s1last && s2 < s2last) {
-		/*
-		 * If the current character is a 7-bit ASCII and the last
-		 * character, or, if the current character and the next
-		 * character are both some 7-bit ASCII characters then
-		 * we treat the current character as a sequence.
-		 *
-		 * In any other cases, we need to call collect_a_seq().
-		 */
-
-		if (U8_ISASCII(*s1) && ((s1 + 1) >= s1last ||
-		    ((s1 + 1) < s1last && U8_ISASCII(*(s1 + 1))))) {
-			if (is_it_toupper)
-				u8s1[0] = U8_ASCII_TOUPPER(*s1);
-			else if (is_it_tolower)
-				u8s1[0] = U8_ASCII_TOLOWER(*s1);
-			else
-				u8s1[0] = *s1;
-			u8s1[1] = '\0';
-			sz1 = 1;
-			s1++;
-		} else {
-			state = U8_STATE_START;
-			sz1 = collect_a_seq(uv, u8s1, &s1, s1last,
-			    is_it_toupper, is_it_tolower,
-			    canonical_decomposition,
-			    compatibility_decomposition,
-			    canonical_composition, errnum, &state);
-		}
-
-		if (U8_ISASCII(*s2) && ((s2 + 1) >= s2last ||
-		    ((s2 + 1) < s2last && U8_ISASCII(*(s2 + 1))))) {
-			if (is_it_toupper)
-				u8s2[0] = U8_ASCII_TOUPPER(*s2);
-			else if (is_it_tolower)
-				u8s2[0] = U8_ASCII_TOLOWER(*s2);
-			else
-				u8s2[0] = *s2;
-			u8s2[1] = '\0';
-			sz2 = 1;
-			s2++;
-		} else {
-			state = U8_STATE_START;
-			sz2 = collect_a_seq(uv, u8s2, &s2, s2last,
-			    is_it_toupper, is_it_tolower,
-			    canonical_decomposition,
-			    compatibility_decomposition,
-			    canonical_composition, errnum, &state);
-		}
-
-		/*
-		 * Now compare the two characters. If they are the same,
-		 * we move on to the next character sequences.
-		 */
-		if (sz1 == 1 && sz2 == 1) {
-			if (*u8s1 > *u8s2)
+	for (;;) {
+		if (offset1 == sz1 && offset2 == sz2) {
+			if (s1 >= s1last)
+				return (s2 >= s2last ? 0 : -1);
+			if (s2 >= s2last)
 				return (1);
-			if (*u8s1 < *u8s2)
-				return (-1);
-		} else {
-			result = strcmp((const char *)u8s1, (const char *)u8s2);
-			if (result != 0)
-				return (result);
 		}
-	}
+		if (offset1 == sz1) {
+			if (s1 >= s1last)
+				return (-1);
+			if (U8_ISASCII(*s1) && ((s1 + 1) >= s1last ||
+			    U8_ISASCII(*(s1 + 1)))) {
+				if (is_it_toupper)
+					u8s1[0] = U8_ASCII_TOUPPER(*s1);
+				else if (is_it_tolower)
+					u8s1[0] = U8_ASCII_TOLOWER(*s1);
+				else
+					u8s1[0] = *s1;
+				sz1 = 1;
+				s1++;
+			} else {
+				state = U8_STATE_START;
+				sz1 = collect_a_seq(uv, u8s1, &s1, s1last,
+				    is_it_toupper,
+				    is_it_tolower, canonical_decomposition,
+				    compatibility_decomposition,
+				    canonical_composition, errnum, &state);
+			}
+			offset1 = 0;
+		}
 
-	/*
-	 * We compared until the end of either or both strings.
-	 *
-	 * If we reached to or went over the ends for the both, that means
-	 * they are the same.
-	 *
-	 * If we reached only one end, that means the other string has
-	 * something which then can be used to determine the return value.
-	 */
-	if (s1 >= s1last) {
-		if (s2 >= s2last)
-			return (0);
-		return (-1);
+		if (offset2 == sz2) {
+			if (s2 >= s2last)
+				return (1);
+			if (U8_ISASCII(*s2) && ((s2 + 1) >= s2last ||
+			    U8_ISASCII(*(s2 + 1)))) {
+				if (is_it_toupper)
+					u8s2[0] = U8_ASCII_TOUPPER(*s2);
+				else if (is_it_tolower)
+					u8s2[0] = U8_ASCII_TOLOWER(*s2);
+				else
+					u8s2[0] = *s2;
+				sz2 = 1;
+				s2++;
+			} else {
+				state = U8_STATE_START;
+				sz2 = collect_a_seq(uv, u8s2, &s2, s2last,
+				    is_it_toupper,
+				    is_it_tolower, canonical_decomposition,
+				    compatibility_decomposition,
+				    canonical_composition, errnum, &state);
+			}
+			offset2 = 0;
+		}
+
+		if (u8s1[offset1] != u8s2[offset2])
+			return (u8s1[offset1] > u8s2[offset2] ? 1 : -1);
+		offset1++;
+		offset2++;
 	}
-	return (1);
 }
 
 /*
