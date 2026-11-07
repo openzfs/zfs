@@ -11556,6 +11556,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 
 	spa_sync_close_syncing_log_sm(spa);
 
+	brt_sync_done(spa);
 	spa_update_dspace(spa);
 	spa_log_sm_stats_update(spa);
 

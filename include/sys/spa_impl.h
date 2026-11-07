@@ -440,6 +440,7 @@ struct spa {
 	brt_dedup_shard_t *spa_brt_dedup;	/* pending dedup'd clones */
 	uint64_t	spa_brt_rangesize;	/* pool's BRT range size */
 	krwlock_t	spa_brt_lock;		/* Protects brt_vdevs/nvdevs */
+	uint64_t	spa_brt_unborn;		/* unborn clones saved */
 	kmutex_t	spa_vdev_top_lock;	/* dueling offline/remove */
 	kmutex_t	spa_proc_lock;		/* protects spa_proc* */
 	kcondvar_t	spa_proc_cv;		/* spa_proc_state transitions */

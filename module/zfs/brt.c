@@ -937,7 +937,7 @@ brt_sync_dirty_est(spa_t *spa)
 }
 
 uint64_t
-brt_get_dspace(spa_t *spa)
+brt_get_saved(spa_t *spa)
 {
 	if (spa->spa_brt_nvdevs == 0)
 		return (0);
@@ -948,6 +948,68 @@ brt_get_dspace(spa_t *spa)
 		s += spa->spa_brt_vdevs[vdevid]->bv_savedspace;
 	brt_unlock(spa);
 	return (s);
+}
+
+/*
+ * The space the BRT adds to the pool's dspace (see spa_update_dspace()).
+ *
+ * A cloned block is charged in full to its dataset when it is born in
+ * syncing context (dsl_dataset_block_born()), and the BRT gives the same
+ * amount back as saved space.  But brt_pending_apply() adds the saved space
+ * at the start of spa_sync(), before the clones are born, and spa_dspace is
+ * only recomputed at the end of spa_sync().  So until then the clones born
+ * in this txg were charged without being given back: the pool's available
+ * space dropped by the whole size of the cloned data, and open context got
+ * ENOSPC on a pool with plenty of space while a large clone synced.
+ *
+ * So brt_pending_apply() counts the saved space of the new clones in
+ * spa_brt_unborn, which is left out here, and brt_clone_born() moves each
+ * block's share of it into spa_dspace as the block is born.
+ */
+uint64_t
+brt_get_dspace(spa_t *spa)
+{
+	uint64_t saved = brt_get_saved(spa);
+	uint64_t unborn = atomic_load_64(&spa->spa_brt_unborn);
+
+	return (saved > unborn ? saved - unborn : 0);
+}
+
+/*
+ * Called in syncing context when a cloned block is born.  Give its saved
+ * space to spa_dspace now, at the same time dsl_dataset_block_born() charges
+ * it to the dataset.  Blocks with the DEDUP bit set may be referenced in the
+ * DDT or in the BRT, so they are not counted (see brt_pending_apply_vdev()).
+ */
+void
+brt_clone_born(spa_t *spa, const blkptr_t *bp)
+{
+	if (BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp) || BP_GET_DEDUP(bp))
+		return;
+
+	uint64_t dsize = bp_get_dsize_sync(spa, bp);
+	uint64_t unborn, take;
+
+	/* Never take more than is left, so unborn can't wrap. */
+	do {
+		unborn = atomic_load_64(&spa->spa_brt_unborn);
+		take = MIN(dsize, unborn);
+		if (take == 0)
+			return;
+	} while (atomic_cas_64(&spa->spa_brt_unborn, unborn,
+	    unborn - take) != unborn);
+	atomic_add_64(&spa->spa_dspace, take);
+}
+
+/*
+ * Called at the end of spa_sync(), before spa_update_dspace().  Every clone
+ * of the txg has been born, or was freed in the same txg without being born
+ * (its dnode was freed), so nothing is unborn any more.
+ */
+void
+brt_sync_done(spa_t *spa)
+{
+	atomic_store_64(&spa->spa_brt_unborn, 0);
 }
 
 uint64_t
@@ -962,12 +1024,6 @@ brt_get_used(spa_t *spa)
 		s += spa->spa_brt_vdevs[vdevid]->bv_usedspace;
 	brt_unlock(spa);
 	return (s);
-}
-
-uint64_t
-brt_get_saved(spa_t *spa)
-{
-	return (brt_get_dspace(spa));
 }
 
 uint64_t
@@ -1406,12 +1462,23 @@ brt_pending_apply_vdev(void *arg)
 	 * separate loop, since entcount modifications would cause false
 	 * positives for brt_vdev_lookup() on following iterations.
 	 */
+	uint64_t unborn = 0;
 	for (bre = avl_first(&brtvd->bv_tree); bre;
 	    bre = AVL_NEXT(&brtvd->bv_tree, bre)) {
-		brt_vdev_addref(spa, brtvd, bre,
-		    bp_get_dsize(spa, &bre->bre_bp), bre->bre_pcount);
+		uint64_t dsize = bp_get_dsize(spa, &bre->bre_bp);
+		brt_vdev_addref(spa, brtvd, bre, dsize, bre->bre_pcount);
 		bre->bre_count += bre->bre_pcount;
+		/*
+		 * The clones are born later in this spa_sync(); see
+		 * brt_get_dspace().  Dedup'd blocks that land here because
+		 * the DDT could not take them are left out, like in
+		 * brt_clone_born().
+		 */
+		if (!BP_GET_DEDUP(&bre->bre_bp))
+			unborn += dsize * bre->bre_pcount;
 	}
+	if (unborn != 0)
+		atomic_add_64(&spa->spa_brt_unborn, unborn);
 }
 
 typedef struct brt_pending_dedup_arg {
