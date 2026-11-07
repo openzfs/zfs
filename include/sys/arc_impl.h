@@ -25,6 +25,7 @@
 #include <sys/zio_crypt.h>
 #include <sys/zthr.h>
 #include <sys/aggsum.h>
+#include <sys/arc_growth.h>
 #include <sys/wmsum.h>
 
 #ifdef __cplusplus
@@ -1072,7 +1073,6 @@ typedef struct arc_evict_waiter {
 #define	ARCSTAT_BUMP(stat)	ARCSTAT_INCR(stat, 1)
 #define	ARCSTAT_BUMPDOWN(stat)	ARCSTAT_INCR(stat, -1)
 
-#define	arc_no_grow	ARCSTAT(arcstat_no_grow) /* do not grow cache size */
 #define	arc_meta	ARCSTAT(arcstat_meta)	/* target frac of metadata */
 #define	arc_pd		ARCSTAT(arcstat_pd)	/* target frac of data MRU */
 #define	arc_pm		ARCSTAT(arcstat_pm)	/* target frac of meta MRU */
@@ -1092,7 +1092,7 @@ typedef struct arc_evict_waiter {
 extern taskq_t *arc_prune_taskq;
 extern arc_stats_t arc_stats;
 extern arc_sums_t arc_sums;
-extern hrtime_t arc_growtime;
+extern arc_growth_t arc_growth;
 extern boolean_t arc_warm;
 extern uint_t arc_grow_retry;
 extern uint_t zfs_arc_no_grow_shift;
