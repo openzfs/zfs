@@ -124,6 +124,8 @@ struct receive_writer_arg {
 	boolean_t raw;   /* DMU_BACKUP_FEATURE_RAW set */
 	boolean_t spill; /* DRR_FLAG_SPILL_BLOCK set */
 	boolean_t full;  /* this is a full send stream */
+	uint64_t resume_object; /* where a resumed stream starts */
+	uint64_t resume_offset;
 	uint64_t featureflags; /* from DRR_BEGIN */
 	uint64_t last_object;
 	uint64_t last_offset;
@@ -3188,6 +3190,21 @@ receive_handle_existing_object(struct receive_writer_arg *rwa,
 			 * loaded.
 			 */
 			do_free_range = B_TRUE;
+		} else if (drro->drr_object == rwa->resume_object &&
+		    rwa->resume_offset != 0) {
+			/*
+			 * The resumed stream starts inside this object and
+			 * does not resend the blocks before the resume
+			 * offset, so keep them and the block size, whatever
+			 * the object type.  recv_check_large_blocks() refuses
+			 * a resume that drops -L, so the block size can only
+			 * grow.  At offset 0 the object is sent whole, and
+			 * its OBJECT record may not have been applied.
+			 */
+			if (drro->drr_blksz <
+			    doi->doi_data_block_size)
+				return (SET_ERROR(EINVAL));
+			*new_blksz = doi->doi_data_block_size;
 		} else if (rwa->full) {
 			/*
 			 * This is a full send stream, so it always
@@ -5195,6 +5212,12 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	rwa->spill = drc->drc_spill;
 	rwa->featureflags = drc->drc_featureflags;
 	rwa->full = (drc->drc_drr_begin->drr_u.drr_begin.drr_fromguid == 0);
+	if (drc->drc_featureflags & DMU_BACKUP_FEATURE_RESUMING) {
+		rwa->resume_object = fnvlist_lookup_uint64(
+		    drc->drc_begin_nvl, BEGINNV_RESUME_OBJECT);
+		rwa->resume_offset = fnvlist_lookup_uint64(
+		    drc->drc_begin_nvl, BEGINNV_RESUME_OFFSET);
+	}
 	if (drc->drc_heal) {
 		rwa->heal_pio = zio_root(drc->drc_os->os_spa, NULL, NULL,
 		    ZIO_FLAG_GODFATHER);
