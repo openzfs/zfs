@@ -31,20 +31,12 @@
  */
 
 
+#define	_ASM
+#include <sys/asm_linkage.h>
+
 #ifdef __aarch64__
 
-#define	ENTRY(sym) \
-	.text; \
-	.globl	sym; \
-	.balign	2; \
-	.type	sym,#function; \
-sym:
-
-#define	END(sym) \
-	.size	sym, . - sym
-
-
-ENTRY(setjmp)
+ENTRY_ALIGN(setjmp, 2)
 	/* Store the stack pointer */
 	mov	x8, sp
 	str	x8, [x0], #8
@@ -60,9 +52,9 @@ ENTRY(setjmp)
 	/* Return value */
 	mov	x0, #0
 	ret
-END(setjmp)
+SET_SIZE(setjmp)
 
-ENTRY(longjmp)
+ENTRY_ALIGN(longjmp, 2)
 	/* Restore the stack pointer */
 	ldr	x8, [x0], #8
 	mov	sp, x8
@@ -78,7 +70,7 @@ ENTRY(longjmp)
 	/* Load the return value */
 	mov	x0, x1
 	ret
-END(longjmp)
+SET_SIZE(longjmp)
 
 #ifdef __ELF__
 .section .note.GNU-stack,"",%progbits
