@@ -37,6 +37,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <sys/mnttab.h>
 #include <sys/errno.h>
 #include <libzfs.h>
@@ -118,9 +119,22 @@ do_unmount(zfs_handle_t *zhp, const char *mntpt, int flags)
 	 */
 	flags &= ~(MS_CRYPT | MS_OVERLAY);
 
-	if (unmount(mntpt, flags) < 0)
-		return (errno);
-	return (0);
+	/*
+	 * unmount(2) fails with EBUSY while another thread is updating the
+	 * same mount (MNT_UPDATE).  mountd(8) does that on every exported
+	 * file system it changes when it reloads its exports, which libzfs
+	 * triggers right before unmounting a shared dataset.  Retry for a
+	 * short while (about 1.3 s in all) so that such a transient update
+	 * does not fail the unmount; a file system that is really in use
+	 * still returns EBUSY.
+	 */
+	for (useconds_t delay = 10000; ; delay *= 2) {
+		if (unmount(mntpt, flags) == 0)
+			return (0);
+		if (errno != EBUSY || delay > 640000)
+			return (errno);
+		(void) usleep(delay);
+	}
 }
 
 /*
