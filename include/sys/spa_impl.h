@@ -455,6 +455,7 @@ struct spa {
 	uint64_t	spa_feat_desc_obj;	/* Feature descriptions */
 	uint64_t	spa_feat_enabled_txg_obj; /* Feature enabled txg */
 	kmutex_t	spa_feat_stats_lock;	/* protects spa_feat_stats */
+	kmutex_t	spa_feat_enable_lock;	/* feature re-enable/disable */
 	nvlist_t	*spa_feat_stats;	/* Cache of enabled features */
 	/* cache feature refcounts */
 	uint64_t	spa_feat_refcount_cache[SPA_FEATURES];
