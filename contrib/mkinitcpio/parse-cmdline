@@ -1,0 +1,61 @@
+#!/usr/bin/awk -f
+# input variable:
+#  command: "mode" or "pool" or "dataset" (default to "mode" when non is given)
+#
+#  mode checks the boot mode, returns "dataset", "import", "import_all" or "none"
+#    dataset: use a particular dataset
+#    import: import a specific pool, use bootfs to determine the dataset
+#    import_all: import all pools, use the first one with a bootfs property
+#    none: not using zfs for root
+#  pool checks the root pool, returns the pool name (used with mode "dataset" and "import")
+#  dataset checks the root dataset, returns the dataset name (used with mode "dataset")
+{
+  split($0, args, " ")
+
+  for (i in args) {
+    if (match(args[i], /^root=/)) {
+      root = substr(args[i], 6)
+    }
+  }
+
+  if (root == "zfs") {
+    # import all pools
+    if (command == "pool" || command == "dataset") {
+      print "using auto detection for pool and dataset" > "/dev/stderr"
+      exit 1
+    } else {
+      printf "import_all"
+    }
+  } else if (match(root, /^zfs:[^\/]+$/)) {
+    # import a specific pool
+    if (command == "dataset") {
+      print "using auto detection for dataset" > "/dev/stderr"
+      exit 1
+    } else if (command == "pool") {
+      printf "%s", substr(root, 5)
+    } else {
+      printf "import"
+    }
+  } else if (match(root, /^zfs:[^\/]+(\/[^\/]+)+$/)) {
+    # use a particular dataset
+    dSet = substr(root, 5)
+    paths = split(dSet, p, "/")
+    pool = p[1]
+    if (command == "pool") {
+      printf "%s", pool
+    } else if (command == "dataset") {
+      printf "%s", dSet
+    } else {
+      printf "dataset"
+    }
+  } else {
+    if (command == "pool" || command == "dataset") {
+      print "not using zfs for root" > "/dev/stderr"
+      exit 1
+    } else {
+      printf "none"
+    }
+  }
+
+  exit 0
+}
