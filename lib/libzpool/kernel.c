@@ -429,26 +429,10 @@ kernel_fini(void)
 	libspl_fini();
 }
 
-zfs_file_t *
-zfs_onexit_fd_hold(int fd, minor_t *minorp)
-{
-	(void) fd;
-	*minorp = 0;
-	return (NULL);
-}
-
 void
-zfs_onexit_fd_rele(zfs_file_t *fp)
+zfs_onexit_add_cb(zfs_onexit_t *zo, void (*func)(void *), void *data)
 {
-	(void) fp;
-}
-
-int
-zfs_onexit_add_cb(minor_t minor, void (*func)(void *), void *data,
-    uintptr_t *action_handle)
-{
-	(void) minor, (void) func, (void) data, (void) action_handle;
-	return (0);
+	(void) zo, (void) func, (void) data;
 }
 
 void

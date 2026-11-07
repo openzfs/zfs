@@ -3121,6 +3121,53 @@ class ZFSTest(unittest.TestCase):
             with self.assertRaises(lzc_exc.BadHoldCleanupFD):
                 lzc.lzc_hold({snap: b'tag'}, fd)
 
+    @unittest.skipIf(*illumos_bug_6379())
+    def test_hold_wrong_character_fd(self):
+        snap = ZFSTest.pool.getRoot().getSnap()
+        lzc.lzc_snapshot([snap])
+
+        with os_open('/dev/null', os.O_RDONLY) as fd:
+            with self.assertRaises(lzc_exc.BadHoldCleanupFD):
+                lzc.lzc_hold({snap: b'tag'}, fd)
+
+    @unittest.skipIf(*illumos_bug_6379())
+    def test_hold_pipe_fd(self):
+        snap = ZFSTest.pool.getRoot().getSnap()
+        lzc.lzc_snapshot([snap])
+
+        read_fd, write_fd = os.pipe()
+        self.addCleanup(os.close, read_fd)
+        self.addCleanup(os.close, write_fd)
+        with self.assertRaises(lzc_exc.BadHoldCleanupFD):
+            lzc.lzc_hold({snap: b'tag'}, read_fd)
+
+    @unittest.skipIf(*illumos_bug_6379())
+    def test_hold_reused_fd(self):
+        snap = ZFSTest.pool.getRoot().getSnap()
+        lzc.lzc_snapshot([snap])
+
+        with cleanup_fd() as fd, tempfile.TemporaryFile() as tmp:
+            os.dup2(tmp.fileno(), fd)
+            with self.assertRaises(lzc_exc.BadHoldCleanupFD):
+                lzc.lzc_hold({snap: b'tag'}, fd)
+
+    def test_hold_dup_fd(self):
+        snap = ZFSTest.pool.getRoot().getSnap()
+        lzc.lzc_snapshot([snap])
+
+        with contextlib.ExitStack() as stack:
+            with cleanup_fd() as fd:
+                dup_fd = os.dup(fd)
+                stack.callback(os.close, dup_fd)
+                lzc.lzc_hold({snap: b'tag1'}, fd)
+
+            lzc.lzc_hold({snap: b'tag2'}, dup_fd)
+            holds = lzc.lzc_get_holds(snap)
+            self.assertEqual(len(holds), 2)
+
+        holds = lzc.lzc_get_holds(snap)
+        self.assertEqual(len(holds), 0)
+
     def test_hold_fd(self):
         snap = ZFSTest.pool.getRoot().getSnap()
         lzc.lzc_snapshot([snap])
