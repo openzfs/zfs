@@ -442,7 +442,7 @@ get_usage(zpool_help_t idx)
 		    "<pool> <vdev> ...\n");
 	case HELP_ATTACH:
 		return ("\tattach [-fsw] [-o property=value] "
-		    "<pool> <vdev> <new-device>\n");
+		    "<pool> <vdev> <new-device>...\n");
 	case HELP_CLEAR:
 		return ("\tclear [--power] <pool> [device]\n");
 	case HELP_CREATE:
@@ -7688,9 +7688,19 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 		argv += 2;
 	}
 
-	if (argc > 1) {
+	/* Only attach to a raidz vdev takes several new devices. */
+	if (argc > 1 && replacing) {
 		(void) fprintf(stderr, "too many arguments\n");
 		usage(B_FALSE);
+	}
+
+	/* Several new devices must all be devices, not vdev types. */
+	for (int i = 0; argc > 1 && i < argc; i++) {
+		if (is_grouping(argv[i], NULL, NULL) != NULL) {
+			(void) fprintf(stderr, "invalid new device '%s': only "
+			    "devices can be attached\n", argv[i]);
+			usage(B_FALSE);
+		}
 	}
 
 	if ((zhp = zpool_open(g_zfs, poolname)) == NULL) {
@@ -7704,6 +7714,29 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 		zpool_close(zhp);
 		nvlist_free(props);
 		return (1);
+	}
+
+	/*
+	 * Check that several new devices go to a raidz vdev before
+	 * make_root_vdev() labels any of them.
+	 */
+	if (argc > 1) {
+		nvlist_t *tgt = zpool_find_vdev(zhp, old_disk, NULL, NULL,
+		    NULL);
+		const char *type = NULL;
+
+		if (tgt != NULL)
+			(void) nvlist_lookup_string(tgt, ZPOOL_CONFIG_TYPE,
+			    &type);
+		if (type == NULL || strcmp(type, VDEV_TYPE_RAIDZ) != 0) {
+			(void) fprintf(stderr, "cannot attach to %s: %s\n",
+			    old_disk, tgt == NULL ? "no such device in pool" :
+			    "several new devices can only be attached to a "
+			    "raidz vdev");
+			zpool_close(zhp);
+			nvlist_free(props);
+			return (1);
+		}
 	}
 
 	/* unless manually specified use "ashift" pool property (if set) */
@@ -7767,7 +7800,7 @@ zpool_do_replace(int argc, char **argv)
 }
 
 /*
- * zpool attach [-fsw] [-o property=value] <pool> <vdev> <new_device>
+ * zpool attach [-fsw] [-o property=value] <pool> <vdev> <new_device>...
  *
  *	-f	Force attach, even if <new_device> appears to be in use.
  *	-s	Use sequential instead of healing reconstruction for resilver.
@@ -7781,7 +7814,8 @@ zpool_do_replace(int argc, char **argv)
  * is involved, <new_device> will begin life with a DTL of [0, now], and will
  * immediately begin to resilver itself. For the raidz case, a expansion will
  * commence and reflow the raidz data across all the disks including the
- * <new_device>.
+ * <new_device>.  Several new devices can be given for a raidz; one expansion
+ * then adds all of them.
  */
 int
 zpool_do_attach(int argc, char **argv)
