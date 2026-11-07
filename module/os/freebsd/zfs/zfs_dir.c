@@ -161,12 +161,12 @@ zfs_dirent_lookup(znode_t *dzp, const char *name, znode_t **zpp, int flag)
 	 */
 
 	if (dzp->z_unlinked && !(flag & ZXATTR))
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 	if (flag & ZXATTR) {
 		error = sa_lookup(dzp->z_sa_hdl, SA_ZPL_XATTR(zfsvfs), &zoid,
 		    sizeof (zoid));
 		if (error == 0)
-			error = (zoid == 0 ? ENOENT : 0);
+			error = (zoid == 0 ? SET_ERROR(ENOENT) : 0);
 	} else {
 		error = zfs_match_find(zfsvfs, dzp, name, mt, &zoid);
 	}
@@ -201,7 +201,7 @@ zfs_dd_lookup(znode_t *dzp, znode_t **zpp)
 		ASSERT_VOP_LOCKED(ZTOV(dzp), __func__);
 #endif
 	if (dzp->z_unlinked)
-		return (ENOENT);
+		return (SET_ERROR(ENOENT));
 
 	if ((error = sa_lookup(dzp->z_sa_hdl,
 	    SA_ZPL_PARENT(zfsvfs), &parent, sizeof (parent))) != 0)
