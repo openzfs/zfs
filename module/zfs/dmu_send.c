@@ -933,7 +933,7 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 		ASSERT(range->object > dscp->dsc_resume_object ||
 		    (range->object == dscp->dsc_resume_object &&
 		    (range->start_blkid == DMU_SPILL_BLKID ||
-		    range->start_blkid * srdp->datablksz >=
+		    (range->start_blkid + 1) * srdp->datablksz >
 		    dscp->dsc_resume_offset)));
 		/* it's a level-0 block of a regular object */
 
@@ -988,12 +988,18 @@ do_dump(dmu_send_cookie_t *dscp, struct send_range *range)
 		if (srdp->datablksz > SPA_OLD_MAXBLOCKSIZE &&
 		    !(dscp->dsc_featureflags &
 		    DMU_BACKUP_FEATURE_LARGE_BLOCKS)) {
+			uint64_t resume_off = 0;
+			if (range->object == dscp->dsc_resume_object)
+				resume_off = dscp->dsc_resume_offset;
 			while (srdp->datablksz > 0 && err == 0) {
 				int n = MIN(srdp->datablksz,
 				    SPA_OLD_MAXBLOCKSIZE);
-				err = dmu_dump_write(dscp, srdp->obj_type,
-				    range->object, offset, n, n, NULL, B_FALSE,
-				    data);
+				if (offset >= resume_off) {
+					err = dmu_dump_write(dscp,
+					    srdp->obj_type,
+					    range->object, offset, n,
+					    n, NULL, B_FALSE, data);
+				}
 				offset += n;
 				/*
 				 * When doing dry run, data==NULL is used as a

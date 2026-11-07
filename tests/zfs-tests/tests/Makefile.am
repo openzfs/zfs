@@ -2322,6 +2322,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send_large_microzap_transitive.ksh \
 	functional/rsend/send_leak_keymaps.ksh \
 	functional/rsend/send-L_toggle.ksh \
+	functional/rsend/send-L_toggle_resume.ksh \
 	functional/rsend/send_mixed_raw.ksh \
 	functional/rsend/send_partial_dataset.ksh \
 	functional/rsend/send_raw_ashift.ksh \
@@ -2334,6 +2335,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send_realloc_dnode_size.ksh \
 	functional/rsend/send_realloc_encrypted_files.ksh \
 	functional/rsend/send_realloc_files.ksh \
+	functional/rsend/send_resume_split_large_block.ksh \
 	functional/rsend/send_spill_block.ksh \
 	functional/rsend/send_split_large_block.ksh \
 	functional/rsend/send-wR_encrypted_zvol.ksh \
