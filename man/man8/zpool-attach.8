@@ -17,7 +17,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd October 13, 2026
+.Dd October 19, 2026
 .Dt ZPOOL-ATTACH 8
 .Os
 .
@@ -29,7 +29,7 @@
 .Cm attach
 .Op Fl fsw
 .Oo Fl o Ar property Ns = Ns Ar value Oc
-.Ar pool vdev new_device
+.Ar pool vdev new_device Ns …
 .
 .Sh DESCRIPTION
 Attaches
@@ -104,6 +104,22 @@ and similar tools.
 .Pp
 A pool-wide scrub is initiated at the end of the expansion in order to verify
 the checksums of all blocks which have been copied during the expansion.
+.Pp
+Several new devices can be given for a RAID-Z vdev.
+They are added in the order given, and one expansion makes room for all of
+them, so the existing data is read and rewritten only once.
+This requires the
+.Sy raidz_expansion_multi
+pool feature, which is
+.Sy active
+while such an expansion runs and for a few transaction groups after it
+completes.
+While it is
+.Sy active ,
+software that does not support the feature cannot import the pool.
+Only one device can be given when
+.Ar vdev
+is a mirror or plain device.
 .Bl -tag -width Ds
 .It Fl f
 Forces use of
@@ -157,6 +173,24 @@ pool feature, and
 must be at least as large as the smallest existing disk in the vdev.
 Old blocks keep their original data-to-parity ratio; only blocks written
 after the expansion use the new ratio.
+.
+.Ss Example 3 : No Expanding a RAID-Z vdev with several disks at once
+The following command adds
+.Ar sdf ,
+.Ar sdg
+and
+.Ar sdh
+to the existing
+.Ar raidz1-0
+vdev in
+.Ar tank
+in one expansion, turning a 5-wide RAID-Z1 into an 8-wide RAID-Z1:
+.Dl # Nm zpool Cm attach Ar tank raidz1-0 Pa sdf sdg sdh
+The operation requires the
+.Sy raidz_expansion
+and
+.Sy raidz_expansion_multi
+pool features.
 .
 .Sh SEE ALSO
 .Xr zfs-rewrite 8 ,
