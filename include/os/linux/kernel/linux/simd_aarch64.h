@@ -88,11 +88,13 @@ typedef struct kfpu_ctx {
 #define	kfpu_init()		(0)
 #define	kfpu_fini()		do {} while (0)
 
-#define	get_ftr(id) {				\
+/* BEGIN CSTYLED */
+#define	get_ftr(id) ({				\
 	unsigned long __val;			\
 	asm("mrs %0, "#id : "=r" (__val));	\
 	__val;					\
-}
+})
+/* END CSTYLED */
 
 /*
  * Check if NEON is available
@@ -100,7 +102,7 @@ typedef struct kfpu_ctx {
 static inline boolean_t
 zfs_neon_available(void)
 {
-	unsigned long ftr = ((get_ftr(ID_AA64PFR0_EL1)) >> 20) & 0xf;
+	unsigned long ftr = (get_ftr(ID_AA64PFR0_EL1) >> 20) & 0xf;
 
 	/*
 	 * ID_AA64PFR0_EL1.AdvSIMD is a signed field: 0b1111 means not
@@ -115,7 +117,7 @@ zfs_neon_available(void)
 static inline boolean_t
 zfs_sha256_available(void)
 {
-	unsigned long ftr = ((get_ftr(ID_AA64ISAR0_EL1)) >> 12) & 0xf;
+	unsigned long ftr = (get_ftr(ID_AA64ISAR0_EL1) >> 12) & 0xf;
 	return (ftr >= 1);
 }
 
@@ -125,7 +127,7 @@ zfs_sha256_available(void)
 static inline boolean_t
 zfs_sha512_available(void)
 {
-	unsigned long ftr = ((get_ftr(ID_AA64ISAR0_EL1)) >> 12) & 0xf;
+	unsigned long ftr = (get_ftr(ID_AA64ISAR0_EL1) >> 12) & 0xf;
 	return (ftr >= 2);
 }
 
