@@ -207,6 +207,7 @@ typedef enum {
 #define	DDE_FLAG_OVERQUOTA	(1 << 1)	/* entry unusable, no space */
 #define	DDE_FLAG_LOGGED		(1 << 2)	/* loaded from log */
 #define	DDE_FLAG_FROM_FLUSHING	(1 << 3)	/* loaded from flushing log */
+#define	DDE_FLAG_ADDREF		(1 << 4)	/* reference added */
 
 /*
  * Additional data to support entry update or repair. This is fixed size
@@ -363,6 +364,7 @@ extern void ddt_phys_copy(ddt_univ_phys_t *dst, const ddt_univ_phys_t *src,
     ddt_phys_variant_t v);
 extern void ddt_phys_clear(ddt_univ_phys_t *ddp, ddt_phys_variant_t v);
 extern void ddt_phys_addref(ddt_univ_phys_t *ddp, ddt_phys_variant_t v);
+extern void ddt_entry_addref(ddt_entry_t *dde, ddt_phys_variant_t v);
 extern uint64_t ddt_phys_decref(ddt_univ_phys_t *ddp, ddt_phys_variant_t v);
 extern uint64_t ddt_phys_refcnt(const ddt_univ_phys_t *ddp,
     ddt_phys_variant_t v);
