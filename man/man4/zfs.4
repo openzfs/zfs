@@ -759,15 +759,19 @@ to fit in a single tile.
 Note that any disk that is smaller than the tile size plus the size of the
 anyraid map (260MiB) cannot be added to an anyraid vdev.
 .
-.It Sy vdev_anyraid_disk_shift Ns = Ns Sy 6 GiB Pq int
+.It Sy vdev_anyraid_disk_shift Ns = Ns Sy 10 Pq int
 Power of two divisor for the default size of AnyRAID tiles.
 ZFS takes the size of the smallest disk in the AnyRAID vdev when it
-is created and divides it by two to this power to get the tilesize for that
-vdev.
+is created, divides it by two to this power, takes the larger of that and
+.Sy vdev_anyraid_min_tile_size ,
+and rounds it up to a power of two to get the tile size for that vdev.
+The tile size does not change after the vdev is created.
 Because the maximum number of tiles on a single device is 65536, increasing this
-value can make the anyraid vdev able to handle larger devices in the future.
-Decreasing the value can reduce space waste at the end of the device, if the
-usable device size does not nicely divide into tiles.
+value reduces space waste at the end of each device, if the usable device size
+does not nicely divide into tiles, but also reduces the size of the largest
+device that the AnyRAID vdev can fully use in the future.
+With the default values, that size is at least 64 times the size of the smallest
+disk, and at least 1 PiB.
 .
 .It Sy zap_iterate_prefetch Ns = Ns Sy 1 Ns | Ns 0 Pq int
 If set, when we start iterating over a ZAP object,
