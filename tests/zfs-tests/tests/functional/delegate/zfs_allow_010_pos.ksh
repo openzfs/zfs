@@ -74,6 +74,7 @@ set -A perms	create		true		false	\
 		userprop	true		true	\
 		aclinherit	true		false	\
 		rollback	true		true	\
+		redact		true		false	\
 		clone		true		true	\
 		promote		true		true	\
 		xattr		true		false	\
@@ -114,6 +115,7 @@ set -A perms	create		true		false	\
 		aclmode		true		false	\
 		aclinherit	true		false	\
 		rollback	true		true	\
+		redact		true		false	\
 		clone		true		true	\
 		rename		true		true	\
 		promote		true		true	\
@@ -147,6 +149,7 @@ set -A perms	create		true		false	\
 		aclmode		true		false	\
 		aclinherit	true		false	\
 		rollback	true		true	\
+		redact		true		false	\
 		clone		true		true	\
 		rename		true		true	\
 		promote		true		true	\

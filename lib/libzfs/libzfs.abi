@@ -585,7 +585,7 @@
     <elf-symbol name='libzfs_config_ops' size='16' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='spa_feature_table' size='2744' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfeature_checks_disable' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
-    <elf-symbol name='zfs_deleg_perm_tab' size='560' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='zfs_deleg_perm_tab' size='576' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_history_event_names' size='328' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_max_dataset_nesting' size='4' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='zfs_userquota_prop_prefixes' size='96' type='object-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -10284,7 +10284,8 @@
       <enumerator name='ZFS_DELEG_NOTE_PROJECTQUOTA' value='30'/>
       <enumerator name='ZFS_DELEG_NOTE_PROJECTOBJUSED' value='31'/>
       <enumerator name='ZFS_DELEG_NOTE_PROJECTOBJQUOTA' value='32'/>
-      <enumerator name='ZFS_DELEG_NOTE_NONE' value='33'/>
+      <enumerator name='ZFS_DELEG_NOTE_REDACT' value='33'/>
+      <enumerator name='ZFS_DELEG_NOTE_NONE' value='34'/>
     </enum-decl>
     <typedef-decl name='zfs_deleg_note_t' type-id='729d4547' id='4613c173'/>
     <class-decl name='zfs_deleg_perm_tab' size-in-bits='128' is-struct='yes' visibility='default' id='5aa05c1f'>
