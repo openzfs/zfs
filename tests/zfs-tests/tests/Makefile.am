@@ -584,6 +584,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/block_cloning/block_cloning_after_trunc.ksh \
 	functional/block_cloning/block_cloning_sparse_past_eof.ksh \
 	functional/block_cloning/block_cloning_resilver_free.ksh \
+	functional/block_cloning/block_cloning_avail_during_sync.ksh \
 	functional/bootfs/bootfs_001_pos.ksh \
 	functional/bootfs/bootfs_002_neg.ksh \
 	functional/bootfs/bootfs_003_pos.ksh \
