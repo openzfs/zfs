@@ -296,6 +296,9 @@ zpl_show_devname(struct seq_file *seq, struct dentry *root)
 static int
 __zpl_show_options(struct seq_file *seq, zfsvfs_t *zfsvfs)
 {
+	seq_printf(seq, ",%satime",
+	    zfsvfs->z_sb->s_flags & SB_NOATIME ? "no" : "");
+
 	seq_printf(seq, ",%s",
 	    zfsvfs->z_flags & ZSB_XATTR ? "xattr" : "noxattr");
 
