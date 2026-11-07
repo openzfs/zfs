@@ -2949,6 +2949,14 @@ zio_reexecute(void *arg)
 	pio->io_state[ZIO_WAIT_DONE] = (pio->io_stage >= ZIO_STAGE_DONE);
 
 	/*
+	 * Start a fresh allocation trace.  A write that keeps failing is
+	 * reexecuted indefinitely, and each attempt would otherwise add to
+	 * the same list until it reaches its limit.
+	 */
+	metaslab_trace_fini(ZIO_ALLOC_LIST(pio));
+	metaslab_trace_init(ZIO_ALLOC_LIST(pio));
+
+	/*
 	 * It's possible for a failed ZIO to be a descendant of more than one
 	 * ZIO tree. When reexecuting it, we have to be sure to add its wait
 	 * states to all parent wait counts.
