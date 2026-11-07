@@ -2319,6 +2319,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/send_large_microzap_transitive.ksh \
 	functional/rsend/send_leak_keymaps.ksh \
 	functional/rsend/send-L_toggle.ksh \
+	functional/rsend/send-L_toggle_resume.ksh \
 	functional/rsend/send_mixed_raw.ksh \
 	functional/rsend/send_partial_dataset.ksh \
 	functional/rsend/send_raw_ashift.ksh \
