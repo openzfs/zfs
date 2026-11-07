@@ -114,6 +114,11 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/stride_dd
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/threadsappend
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/vdev_set_props
+%C%_vdev_set_props_LDADD = \
+	libzfs_core.la \
+	libnvpair.la
+
 scripts_zfs_tests_bin_PROGRAMS += %D%/ereports
 %C%_ereports_LDADD = \
 	libnvpair.la \
