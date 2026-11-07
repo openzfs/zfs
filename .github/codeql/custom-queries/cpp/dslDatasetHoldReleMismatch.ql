@@ -4,7 +4,7 @@
  *   - a dataset held with dsl_dataset_hold_obj() ends up in dsl_dataset_rele_flags(), or
  *   - a dataset held with dsl_dataset_hold_obj_flags() ends up in dsl_dataset_rele().
  * @kind problem
- * @severity error
+ * @problem.severity error
  * @tags correctness
  * @id cpp/dslDatasetHoldReleMismatch
  */

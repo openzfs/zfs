@@ -33,10 +33,21 @@ jobs:
       uses: actions/checkout@v6
 
     - name: Initialize CodeQL
+      id: codeql
       uses: github/codeql-action/init@v4
       with:
         config-file: .github/codeql-${{ matrix.language }}.yml
         languages: ${{ matrix.language }}
+
+    - name: Test custom CodeQL queries
+      if: matrix.language == 'cpp'
+      env:
+        CODEQL: ${{ steps.codeql.outputs.codeql-path }}
+      run: |
+        "$CODEQL" pack ci -- .github/codeql/custom-queries/cpp
+        "$CODEQL" pack ci -- .github/codeql/custom-queries/cpp-tests
+        "$CODEQL" test run --threads=0 -- \
+          .github/codeql/custom-queries/cpp-tests
 
     - name: Autobuild
       uses: github/codeql-action/autobuild@v4
