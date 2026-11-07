@@ -112,7 +112,7 @@
  * The L2ARC uses the l2ad_mtx on each vdev for the following:
  *
  *	- L2ARC buflist creation
- *	- L2ARC buflist eviction
+ *	- L2ARC buflist eviction and pruning
  *	- L2ARC write completion, which walks L2ARC buflists
  *	- ARC header destruction, as it removes from L2ARC buflists
  *	- ARC header release, as it removes from L2ARC buflists
@@ -600,6 +600,7 @@ arc_stats_t arc_stats = {
 	{ "l2_evict_l1cached",		KSTAT_DATA_UINT64 },
 	{ "l2_free_on_write",		KSTAT_DATA_UINT64 },
 	{ "l2_abort_lowmem",		KSTAT_DATA_UINT64 },
+	{ "l2_hdr_pruned",		KSTAT_DATA_UINT64 },
 	{ "l2_cksum_bad",		KSTAT_DATA_UINT64 },
 	{ "l2_io_error",		KSTAT_DATA_UINT64 },
 	{ "l2_size",			KSTAT_DATA_UINT64 },
@@ -848,6 +849,9 @@ static int l2arc_noprefetch = B_TRUE;		/* don't cache prefetch bufs */
 static int l2arc_feed_again = B_TRUE;		/* turbo warmup */
 static int l2arc_norw = B_FALSE;		/* no reads during writes */
 static uint_t l2arc_meta_percent = 33;	/* limit on headers size */
+static uint64_t l2arc_hdr_prune_budget = 65536;	/* headers scanned per feed */
+static uint_t l2arc_hdr_prune_batch_limit = 256;	/* per l2ad_mtx hold */
+static uint_t l2arc_hdr_prune_delay = 30;		/* grace seconds */
 
 /*
  * L2ARC Internals
@@ -7495,6 +7499,8 @@ arc_kstat_update(kstat_t *ksp, int rw)
 	    wmsum_value(&arc_sums.arcstat_l2_free_on_write);
 	as->arcstat_l2_abort_lowmem.value.ui64 =
 	    wmsum_value(&arc_sums.arcstat_l2_abort_lowmem);
+	as->arcstat_l2_hdr_pruned.value.ui64 =
+	    wmsum_value(&arc_sums.arcstat_l2_hdr_pruned);
 	as->arcstat_l2_cksum_bad.value.ui64 =
 	    wmsum_value(&arc_sums.arcstat_l2_cksum_bad);
 	as->arcstat_l2_io_error.value.ui64 =
@@ -7848,6 +7854,7 @@ arc_state_init(void)
 	wmsum_init(&arc_sums.arcstat_l2_evict_l1cached, 0);
 	wmsum_init(&arc_sums.arcstat_l2_free_on_write, 0);
 	wmsum_init(&arc_sums.arcstat_l2_abort_lowmem, 0);
+	wmsum_init(&arc_sums.arcstat_l2_hdr_pruned, 0);
 	wmsum_init(&arc_sums.arcstat_l2_cksum_bad, 0);
 	wmsum_init(&arc_sums.arcstat_l2_io_error, 0);
 	wmsum_init(&arc_sums.arcstat_l2_lsize, 0);
@@ -8007,6 +8014,7 @@ arc_state_fini(void)
 	wmsum_fini(&arc_sums.arcstat_l2_evict_l1cached);
 	wmsum_fini(&arc_sums.arcstat_l2_free_on_write);
 	wmsum_fini(&arc_sums.arcstat_l2_abort_lowmem);
+	wmsum_fini(&arc_sums.arcstat_l2_hdr_pruned);
 	wmsum_fini(&arc_sums.arcstat_l2_cksum_bad);
 	wmsum_fini(&arc_sums.arcstat_l2_io_error);
 	wmsum_fini(&arc_sums.arcstat_l2_lsize);
@@ -9420,6 +9428,11 @@ retry:
 	for (hdr = list_tail(buflist); hdr; hdr = hdr_prev) {
 		hdr_prev = list_prev(buflist, hdr);
 
+		/* Skip any markers. */
+		if (hdr->b_spa == 0) {
+			continue;
+		}
+
 		ASSERT(!HDR_EMPTY(hdr));
 		hash_lock = HDR_LOCK(hdr);
 
@@ -10212,12 +10225,107 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 }
 
 static boolean_t
-l2arc_hdr_limit_reached(void)
+l2arc_hdr_size_exceeded(void)
 {
 	int64_t s = aggsum_upper_bound(&arc_sums.arcstat_l2_hdr_size);
 
-	return (arc_reclaim_needed() ||
-	    (s > (arc_warm ? arc_c : arc_c_max) * l2arc_meta_percent / 100));
+	return (s > (arc_warm ? arc_c : arc_c_max) * l2arc_meta_percent / 100);
+}
+
+static boolean_t
+l2arc_hdr_limit_reached(void)
+{
+	return (arc_reclaim_needed() || l2arc_hdr_size_exceeded());
+}
+
+/* Each device's feeder owns its grace period. */
+static boolean_t
+l2arc_hdr_prune_ready(l2arc_dev_t *dev)
+{
+	uint64_t limit = (arc_warm ? arc_c : arc_c_max) *
+	    l2arc_meta_percent / 100;
+	if (l2arc_hdr_prune_budget == 0 ||
+	    aggsum_compare(&arc_sums.arcstat_l2_hdr_size, limit) <= 0) {
+		dev->l2ad_prune_start = 0;
+		return (B_FALSE);
+	}
+
+	hrtime_t now = gethrtime();
+	if (dev->l2ad_prune_start == 0)
+		dev->l2ad_prune_start = now;
+	return (now - dev->l2ad_prune_start >=
+	    SEC2NSEC(l2arc_hdr_prune_delay));
+}
+
+/*
+ * Prune the oldest L2ARC-only headers while they exceed the limit.
+ * l2arc_evict() is not used because it clears a device range ahead of the
+ * write hand.  That would also drop the L2ARC copies of headers that still
+ * have an L1 part, which frees no memory, and would move the hand without
+ * writing.  Pruning only destroys L2ARC-only headers and leaves the device
+ * hands and log blocks alone, so a later import may restore their entries.
+ */
+static void
+l2arc_hdr_prune(l2arc_dev_t *dev)
+{
+	list_t *buflist = &dev->l2ad_buflist;
+	arc_buf_hdr_t *marker = dev->l2ad_prune_marker;
+	uint64_t budget = l2arc_hdr_prune_budget;
+	uint_t batch = MAX(l2arc_hdr_prune_batch_limit, 1);
+
+	while (budget != 0 && l2arc_hdr_prune_ready(dev)) {
+		boolean_t done;
+
+		mutex_enter(&dev->l2ad_mtx);
+		if (!list_link_active(&marker->b_l2hdr.b_l2node))
+			list_insert_tail(buflist, marker);
+
+		/* Drop the lock after each batch to bound its hold time. */
+		for (uint_t scanned = 0; scanned < batch && budget != 0;
+		    scanned++) {
+			arc_buf_hdr_t *hdr = list_prev(buflist, marker);
+			kmutex_t *hash_lock;
+
+			if (hdr == NULL)
+				break;
+			budget--;
+
+			/* Move the marker first, since hdr may be destroyed. */
+			list_remove(buflist, marker);
+			list_insert_before(buflist, hdr, marker);
+
+			/*
+			 * Other code takes the hash lock before l2ad_mtx, so
+			 * waiting for it here could deadlock.  Skip a busy
+			 * header until the next full pass.
+			 */
+			hash_lock = HDR_LOCK(hdr);
+			if (!mutex_tryenter(hash_lock))
+				continue;
+
+			/* Only L2ARC-only headers count toward the limit. */
+			if (!HDR_HAS_L1HDR(hdr)) {
+				if (!l2arc_hdr_prune_ready(dev)) {
+					mutex_exit(hash_lock);
+					break;
+				}
+				ASSERT(!HDR_L2_READING(hdr));
+				arc_change_state(arc_anon, hdr);
+				arc_hdr_destroy(hdr);
+				ARCSTAT_BUMP(arcstat_l2_hdr_pruned);
+			}
+			mutex_exit(hash_lock);
+		}
+
+		/* After a complete pass, restart at the tail next time. */
+		done = (list_prev(buflist, marker) == NULL);
+		if (done)
+			list_remove(buflist, marker);
+		mutex_exit(&dev->l2ad_mtx);
+
+		if (done)
+			break;
+	}
 }
 
 /*
@@ -10278,10 +10386,14 @@ l2arc_feed_thread(void *arg)
 		}
 
 		/*
-		 * Avoid contributing to memory pressure.
+		 * Avoid contributing to memory pressure, and prune headers
+		 * that are over their limit so that writes can resume.
 		 */
+		boolean_t prune = l2arc_hdr_prune_ready(dev);
 		if (l2arc_hdr_limit_reached()) {
 			ARCSTAT_BUMP(arcstat_l2_abort_lowmem);
+			if (prune)
+				l2arc_hdr_prune(dev);
 			spa_config_exit(spa, SCL_L2ARC, dev);
 			continue;
 		}
@@ -10497,6 +10609,12 @@ l2arc_add_vdev(spa_t *spa, vdev_t *vd)
 	 */
 	list_create(&adddev->l2ad_buflist, sizeof (arc_buf_hdr_t),
 	    offsetof(arc_buf_hdr_t, b_l2hdr.b_l2node));
+	/*
+	 * Not allocated from hdr_l2only_cache, so that it does not count
+	 * toward the L2ARC header size it is used to reduce.
+	 */
+	adddev->l2ad_prune_marker = kmem_zalloc(HDR_FULL_SIZE, KM_SLEEP);
+	list_link_init(&adddev->l2ad_prune_marker->b_l2hdr.b_l2node);
 
 	/*
 	 * This is a list of pointers to log blocks that are still present
@@ -10619,6 +10737,9 @@ l2arc_device_teardown(void *arg)
 	 * Clear all buflists and ARC references.  L2ARC device flush.
 	 */
 	l2arc_evict(remdev, 0, B_TRUE);
+	if (list_link_active(&remdev->l2ad_prune_marker->b_l2hdr.b_l2node))
+		list_remove(&remdev->l2ad_buflist, remdev->l2ad_prune_marker);
+	kmem_free(remdev->l2ad_prune_marker, HDR_FULL_SIZE);
 	list_destroy(&remdev->l2ad_buflist);
 	ASSERT(list_is_empty(&remdev->l2ad_lbptr_list));
 	list_destroy(&remdev->l2ad_lbptr_list);
@@ -11809,6 +11930,15 @@ ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, norw, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, meta_percent, UINT, ZMOD_RW,
 	"Percent of ARC size allowed for L2ARC-only headers");
+
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, hdr_prune_budget, U64, ZMOD_RW,
+	"Max headers to scan per feed when pruning L2ARC-only headers");
+
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, hdr_prune_batch_limit, UINT, ZMOD_RW,
+	"Max headers to scan per buffer list lock hold when pruning");
+
+ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, hdr_prune_delay, UINT, ZMOD_RW,
+	"Seconds headers must exceed their limit before pruning");
 
 ZFS_MODULE_PARAM(zfs_l2arc, l2arc_, rebuild_enabled, INT, ZMOD_RW,
 	"Rebuild the L2ARC when importing a pool");
