@@ -236,12 +236,13 @@ uint_t dedup_class_wait_txgs = 5;
  */
 static uint32_t zfs_ddt_prunes_per_txg = 50000;
 
+#ifdef ZTEST
 /*
  * For testing, synthesize aged DDT entries
- * (in global scope for ztest)
  */
 boolean_t ddt_prune_artificial_age = B_FALSE;
 boolean_t ddt_dump_prune_histogram = B_FALSE;
+#endif
 
 /*
  * Minimum time to flush per txg.
@@ -850,6 +851,7 @@ ddt_class_start(void)
 {
 	uint64_t start = gethrestime_sec();
 
+#ifdef ZTEST
 	if (unlikely(ddt_prune_artificial_age)) {
 		/*
 		 * debug aide -- simulate a wider distribution
@@ -865,6 +867,7 @@ ddt_class_start(void)
 		}
 		start -= random_in_range(range);
 	}
+#endif
 
 	return (start);
 }
@@ -3018,8 +3021,10 @@ ddt_prune_unique_entries(spa_t *spa, zpool_ddt_prune_unit_t unit,
 		}
 		cutoff = now - oldest;
 
+#ifdef ZTEST
 		if (ddt_dump_prune_histogram)
 			ddt_dump_age_histogram(&histogram, cutoff);
+#endif
 	} else if (unit == ZPOOL_DDT_PRUNE_AGE) {
 		if (amount >= now)
 			return (SET_ERROR(EINVAL));

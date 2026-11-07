@@ -93,8 +93,7 @@ arc_default_max(uint64_t min, uint64_t allmem)
 }
 
 /*
- * Return maximum amount of memory that we could possibly use.  Reduced
- * to half of all memory in user space which is primarily used for testing.
+ * Return maximum amount of memory that we could possibly use.
  */
 uint64_t
 arc_all_memory(void)
@@ -107,9 +106,7 @@ arc_all_memory(void)
 }
 
 /*
- * Return the amount of memory that is considered free.  In user space
- * which is primarily used for testing we pretend that free memory ranges
- * from 0-20% of all memory.
+ * Return the amount of memory that is considered free.
  */
 uint64_t
 arc_free_memory(void)
