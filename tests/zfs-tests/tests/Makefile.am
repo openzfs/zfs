@@ -2094,6 +2094,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/raidz/raidz_zinject.ksh \
 	functional/raidz/setup.ksh \
 	functional/redacted_send/cleanup.ksh \
+	functional/redacted_send/redacted_bookmark_feature.ksh \
 	functional/redacted_send/redacted_compressed.ksh \
 	functional/redacted_send/redacted_contents.ksh \
 	functional/redacted_send/redacted_deleted.ksh \

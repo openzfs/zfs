@@ -203,6 +203,30 @@ dsl_bookmark_create_nvl_validate(nvlist_t *bmarks)
 }
 
 /*
+ * Check that the pool can store a redaction list of numsnaps snapshots,
+ * as dsl_bookmark_create_sync_impl_snap() writes one.
+ */
+static int
+dsl_bookmark_redaction_list_check(dsl_pool_t *dp, uint64_t numsnaps)
+{
+	if (!spa_feature_is_enabled(dp->dp_spa,
+	    SPA_FEATURE_REDACTION_BOOKMARKS))
+		return (SET_ERROR(ENOTSUP));
+	/*
+	 * If the list of redact snaps will not fit in the bonus buffer (or
+	 * spill block, with the REDACTION_LIST_SPILL feature) with the
+	 * furthest reached object and offset, fail.
+	 */
+	uint64_t snaplimit = ((spa_feature_is_enabled(dp->dp_spa,
+	    SPA_FEATURE_REDACTION_LIST_SPILL) ? spa_maxblocksize(dp->dp_spa) :
+	    dmu_bonus_max()) -
+	    sizeof (redaction_list_phys_t)) / sizeof (uint64_t);
+	if (numsnaps > snaplimit)
+		return (SET_ERROR(E2BIG));
+	return (0);
+}
+
+/*
  * expects that newbm and source have been validated using
  * dsl_bookmark_create_nvl_validate_pair
  */
@@ -239,6 +263,8 @@ dsl_bookmark_create_check_impl(dsl_pool_t *dp,
 	/* error is retval of the following if-cascade */
 	if (strchr(source, '@') != NULL) {
 		dsl_dataset_t *source_snap_ds;
+		uint64_t num_redact_snaps;
+		uint64_t *redact_snaps;
 		ASSERT0(snapshot_namecheck(source, NULL, NULL));
 		error = dsl_dataset_hold(dp, source, FTAG, &source_snap_ds);
 		if (error == 0) {
@@ -247,9 +273,17 @@ dsl_bookmark_create_check_impl(dsl_pool_t *dp,
 			 * Verify that source snapshot is an earlier point in
 			 * newbm_ds's timeline (source may be newbm_ds's origin)
 			 */
-			if (!dsl_dataset_is_before(newbm_ds, source_snap_ds, 0))
+			if (!dsl_dataset_is_before(newbm_ds, source_snap_ds,
+			    0)) {
 				error = SET_ERROR(
 				    ZFS_ERR_BOOKMARK_SOURCE_NOT_ANCESTOR);
+			} else if (dsl_dataset_get_uint64_array_feature(
+			    source_snap_ds, SPA_FEATURE_REDACTED_DATASETS,
+			    &num_redact_snaps, &redact_snaps)) {
+				/* the bookmark copies its redact list */
+				error = dsl_bookmark_redaction_list_check(dp,
+				    num_redact_snaps);
+			}
 			dsl_dataset_rele(source_snap_ds, FTAG);
 		}
 	} else if (strchr(source, '#') != NULL) {
@@ -647,20 +681,9 @@ dsl_bookmark_create_redacted_check(void *arg, dmu_tx_t *tx)
 	dsl_pool_t *dp = dmu_tx_pool(tx);
 	int rv = 0;
 
-	if (!spa_feature_is_enabled(dp->dp_spa,
-	    SPA_FEATURE_REDACTION_BOOKMARKS))
-		return (SET_ERROR(ENOTSUP));
-	/*
-	 * If the list of redact snaps will not fit in the bonus buffer (or
-	 * spill block, with the REDACTION_LIST_SPILL feature) with the
-	 * furthest reached object and offset, fail.
-	 */
-	uint64_t snaplimit = ((spa_feature_is_enabled(dp->dp_spa,
-	    SPA_FEATURE_REDACTION_LIST_SPILL) ? spa_maxblocksize(dp->dp_spa) :
-	    dmu_bonus_max()) -
-	    sizeof (redaction_list_phys_t)) / sizeof (uint64_t);
-	if (dbcra->dbcra_numsnaps > snaplimit)
-		return (SET_ERROR(E2BIG));
+	rv = dsl_bookmark_redaction_list_check(dp, dbcra->dbcra_numsnaps);
+	if (rv != 0)
+		return (rv);
 
 	if (dsl_bookmark_create_nvl_validate_pair(
 	    dbcra->dbcra_bmark, dbcra->dbcra_snap) != 0)
