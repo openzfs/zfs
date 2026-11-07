@@ -15,6 +15,7 @@
  * Copyright 2013 Saso Kiselkov. All rights reserved.
  */
 
+#include <sys/simd.h>
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
@@ -22,7 +23,6 @@
 #include <sys/zio_checksum.h>
 #include <sys/zil.h>
 #include <sys/abd.h>
-#include <sys/simd.h>
 #include <zfs_fletcher.h>
 
 /*

@@ -14,6 +14,7 @@
  * Copyright (C) 2016 Gvozden Nešković. All rights reserved.
  */
 
+#include <sys/simd.h>
 #include <sys/vdev_raidz_impl.h>
 
 /*
