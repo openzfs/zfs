@@ -145,6 +145,30 @@ const struct dentry_operations zpl_dops_spacefiles = {
 };
 
 /*
+ * Give a space/quota dentry the spacefiles dentry operations.  The dentry
+ * comes from the VFS with the superblock default dentry operations already
+ * set (zpl_dentry_operations, which provides .d_delete) and the matching
+ * DCACHE_OP_ flags set.  Overwriting d_op alone would leave DCACHE_OP_DELETE
+ * set with a NULL ->d_delete, and dput() would call through it.  Clear the
+ * op flags first, under the dentry lock, and set only the flag our table
+ * provides, mirroring zpl_snapdir_init_snapentry().
+ */
+static void
+zpl_spacefiles_set_d_op(struct dentry *dentry)
+{
+	static const unsigned int op_flags =
+	    DCACHE_OP_HASH | DCACHE_OP_COMPARE |
+	    DCACHE_OP_REVALIDATE | DCACHE_OP_DELETE |
+	    DCACHE_OP_PRUNE | DCACHE_OP_WEAK_REVALIDATE | DCACHE_OP_REAL;
+
+	spin_lock(&dentry->d_lock);
+	dentry->d_op = &zpl_dops_spacefiles;
+	dentry->d_flags &= ~op_flags;
+	dentry->d_flags |= DCACHE_OP_REVALIDATE;
+	spin_unlock(&dentry->d_lock);
+}
+
+/*
  * Get root directory attributes.
  */
 ZPL_IDMAP_IOP_DEFINE(int, zpl_root_getattr, 4,
@@ -169,8 +193,7 @@ zpl_root_lookup(struct inode *dip, struct dentry *dentry, unsigned int flags)
 	 */
 	if (strcmp(dname(dentry), ZFS_SPACEDIR_NAME) == 0 ||
 	    strcmp(dname(dentry), ZFS_QUOTADIR_NAME) == 0)
-		dentry->d_op = &zpl_dops_spacefiles;
-	dentry->d_flags |= DCACHE_OP_REVALIDATE;
+		zpl_spacefiles_set_d_op(dentry);
 
 	cred_t *cr = CRED();
 	struct inode *ip;
@@ -1077,8 +1100,7 @@ zpl_spacedir_lookup(struct inode *dip, struct dentry *dentry,
 	ASSERT3S(error, <=, 0);
 	crfree(cr);
 
-	dentry->d_op = &zpl_dops_spacefiles;
-	dentry->d_flags |= DCACHE_OP_REVALIDATE;
+	zpl_spacefiles_set_d_op(dentry);
 
 	if (error) {
 		if (error == -ENOENT)
@@ -1192,8 +1214,7 @@ zpl_quotadir_lookup(struct inode *dip, struct dentry *dentry,
 	ASSERT3S(error, <=, 0);
 	crfree(cr);
 
-	dentry->d_op = &zpl_dops_spacefiles;
-	dentry->d_flags |= DCACHE_OP_REVALIDATE;
+	zpl_spacefiles_set_d_op(dentry);
 
 	if (error) {
 		if (error == -ENOENT)
