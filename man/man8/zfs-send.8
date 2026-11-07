@@ -21,7 +21,7 @@
 .\" Copyright 2019 Joyent, Inc.
 .\" Copyright (c) 2024, Klara, Inc.
 .\"
-.Dd February 20, 2026
+.Dd October 22, 2026
 .Dt ZFS-SEND 8
 .Os
 .
@@ -48,7 +48,7 @@
 .Ar snapshot
 .Nm zfs
 .Cm send
-.Op Fl PVenv
+.Op Fl PVenvw
 .Fl t
 .Ar receive_resume_token
 .Nm zfs
@@ -590,7 +590,7 @@ raw sends and redacted sends cannot be combined at this time.
 .It Xo
 .Nm zfs
 .Cm send
-.Op Fl PVenv
+.Op Fl PVenvw
 .Fl t
 .Ar receive_resume_token
 .Xc
@@ -602,6 +602,17 @@ received into.
 See the documentation for
 .Nm zfs Cm receive Fl s
 for more details.
+The token records which snapshot the interrupted send was sending and
+which options it used, including whether it was raw.
+The resumed stream keeps those options.
+.Fl w
+given on the command line makes the resumed stream raw whatever the
+token says, but the token still chooses which snapshot is sent.
+Pass it when the data of an encrypted dataset must never be sent
+unencrypted, for example to a receiving system that is not trusted.
+.Fl w
+protects only snapshots of encrypted datasets, and the token can name
+any snapshot on the sending system.
 .It Xo
 .Nm zfs
 .Cm send
