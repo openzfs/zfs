@@ -32,6 +32,10 @@ tags = ['functional', 'block_cloning']
 tests = ['zfs_jail_001_pos']
 tags = ['functional', 'cli_root', 'zfs_jail']
 
+[tests/functional/cli_root/zfs_unmount:FreeBSD]
+tests = ['zfs_unmount_remount_busy']
+tags = ['functional', 'cli_root', 'zfs_unmount']
+
 [tests/functional/pam:FreeBSD]
 tests = ['pam_basic', 'pam_change_unmounted', 'pam_mount_recursively',
     'pam_nounmount', 'pam_recursive', 'pam_short_password']
