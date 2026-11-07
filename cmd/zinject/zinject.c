@@ -43,7 +43,8 @@
  *
  * This form of the command looks like:
  *
- * 	zinject -d device [-e errno] [-L <uber | nvlist | pad1 | pad2>] pool
+ * 	zinject -d device [-e errno]
+ * 		[-L <uber | nvlist | pad1 | pad2>] [-F] pool
  *
  *
  * DATA FAULTS
@@ -91,51 +92,107 @@
  * object.  Note that 'type' is not strictly necessary for fault injection, but
  * is used when translating existing faults into a human-readable string.
  *
+ * FUNCTION FAULTS
  *
- * The command itself takes one of the forms:
+ * With the -n option, zinject can force errors to happen inside functions
+ * for error paths that would otherwise be difficult to test.
+ *
+ *      zinject -n <error-point> [-e errno] <pool>
+ *
+ * Using `zio_injection_enabled`, and checking with the function handler,
+ * you can force a function to return a specific errno value, by adding
+ * a call to zio_handle_func_injection() at the place you want the error to
+ * be returned. It will only trigger one time; subsequent calls to that
+ * function will succeed - this allows us to test a failure followed by
+ * a success. If '-e' is not specified, it uses 'io' as the default.
+ *
+ */
+
+/*
+ * COMMAND FORMS
  *
  * 	zinject
- * 	zinject <-a | -u pool>
  * 	zinject -c <id|all>
+ * 	zinject -a
+ * 	zinject -u <pool>
+ * 	zinject -p <function> <pool> [<id>]
+ * 	zinject -P <import|export> -s <seconds> <pool>
+ * 	zinject -I [-s <seconds> | -g <txgs>] <pool>
  * 	zinject -E <delay> [-a] [-m] [-f freq] [-l level] [-r range]
  *	    [-T iotype] [-t type object | -b bookmark pool]
- * 	zinject [-q] <-t type> [-f freq] [-u] [-a] [-m] [-e errno] [-l level]
- *	    [-r range] <object>
- * 	zinject [-f freq] [-a] [-m] [-u] -b objset:object:level:start:end pool
+ * 	zinject -b <objset:object:level:blkid> <pool>
+ * 	zinject -d <device> [-e <errno>] [-L <nvlist|uber|pad1|pad2>] [-F]
+ *	    [-T <read|write|free|claim|flush|all>] [-f <freq>] <pool>
+ * 	zinject -d <device> -A <degrade|fault> <pool>
+ * 	zinject -d <device> -D <latency_ms:lanes>
+ *	    [-T <read|write|all>] [-f <freq>] <pool>
+ * 	zinject [-q] -t <type> [-C <dvas>] [-e <errno>] [-l <level>]
+ *	    [-r <range>] [-a] [-m] [-u] [-f <freq>] <object>
  *
- * With no arguments, the command prints all currently registered injection
- * handlers, with their numeric identifiers.
+ * With no arguments, list all registered injection handlers and their IDs.
  *
- * The '-c' option will clear the given handler, or all handlers if 'all' is
- * specified.
+ * -c	Clear handler <id>, or all handlers if 'all'.
  *
- * The '-e' option takes a string describing the errno to simulate.  This must
- * be one of 'io', 'checksum', 'decompress', or 'decrypt'.  In most cases this
- * will result in the same behavior, but RAID-Z will produce a different set of
- * ereports for this situation.
+ * -a	Flush the ARC (alone or with another injection).
+ * -u	Unload the SPA for <pool> (alone or with another injection).
+ * -m	Unmount/remount the dataset after registering a data-fault handler
+ *	(helps flush cached data).
  *
- * The '-a', '-u', and '-m' flags toggle internal flush behavior.  If '-a' is
- * specified, then the ARC cache is flushed appropriately.  If '-u' is
- * specified, then the underlying SPA is unloaded.  Either of these flags can be
- * specified independently of any other handlers.  The '-m' flag automatically
- * does an unmount and remount of the underlying dataset to aid in flushing the
- * cache.
+ * -p	Panic injection: trigger a panic in <function> when it calls
+ *	spa_vdev_config_exit() or spa_vdev_exit(). Optional numeric <id>
+ *	is stored as zi_type.
  *
- * The '-f' flag controls the frequency of errors injected, expressed as a
- * real number percentage between 0.0001 and 100.  The default is 100.
+ * -P / -s
+ *	Delay a future pool import or export by at least <seconds>.
  *
- * The <object> form is responsible for actually injecting the handler into the
- * framework.  It takes the arguments described above, translates them to the
- * internal tuple using libzpool, and then issues an ioctl() to register the
- * handler.
+ * -I / -s / -g
+ *	Ignored-writes injection: stop honoring cache flushes for a
+ *	duration (default 30 seconds), then panic. Duration is either
+ *	-s <seconds> or -g <txgs> (not both).
  *
- * The '-b' option can target a specific bookmark, regardless of whether a
- * human-readable interface has been designed.  It allows developers to specify
- * a particular block by number.
+ * -E	Inject pipeline ready stage delays for the given object or
+ *	bookmark. The delay is specified in milliseconds, and it
+ *	supports I/O type (-T) and range (-r) filters.
  *
- * The '-E' option injects pipeline ready stage delays for the given object or
- * bookmark. The delay is specified in milliseconds, and it supports I/O type
- * and range filters.
+ * -b	Raw data fault by hexadecimal bookmark
+ *	objset:object:level:blkid (single block).
+ *
+ * -d	Device (or label) fault / delay / vdev action on <device>
+ *	(path or vdev GUID) in <pool>.
+ *
+ *	-e	Device errno name (default nxio). From errstrtable:
+ *		io, checksum, decompress, decrypt, nxio, dtl,
+ *		corrupt, noop. Device path effectively uses io, nxio,
+ *		dtl, corrupt, or noop; corrupt also requires
+ *		-T read and -f.
+ *	-L	Label region: nvlist, uber, pad1, or pad2.
+ *	-F	Failfast: do not mark the injected I/O as a retry;
+ *		skip injection on already-retried / TRYHARD I/Os.
+ *	-T	I/O type to match (default all). Also: null, trim, probe
+ *		are recognized by the parser; usage documents the common set.
+ *	-f	Frequency as a percentage in [0.0001, 100] (default 100).
+ *	-A	Set vdev state to degrade or fault (immediate action,
+ *		not a lasting injection record).
+ *	-D	Artificial I/O delay as latency_ms:lanes (minimum service
+ *		time and concurrency lanes). Multiple -D invocations add
+ *		lanes. For delays, -T must be read, write, or all.
+ *
+ * -t	Data / MOS fault. <object> is a file/dir path for data|dnode, or
+ *	the pool name for MOS types: mos, mosdir, config, bpobj,
+ *	spacemap, metaslab, errlog.
+ *
+ *	-e	Error name (default io). Typical data errors: io,
+ *		checksum, decompress, decrypt.
+ *	-C	Comma-separated 0-based DVA indexes (e.g. 0,2). Not valid
+ *		with decompress/decrypt.
+ *	-l	Block level (default 0).
+ *	-r	Logical byte range start[,end] (translated to blkid range).
+ *	-q	Quiet: print only the new handler ID.
+ *	-f	Same frequency semantics as device injection.
+ *
+ * Errno names (-e) are those in errstrtable: io, checksum, decompress,
+ * decrypt, nxio, dtl, corrupt, noop. Which names are legal depends on
+ * the injection mode (device vs data vs raw bookmark).
  */
 
 #include <errno.h>
@@ -206,11 +263,10 @@ type_to_name(uint64_t type)
 	}
 }
 
-struct errstr {
+static const struct errstr {
 	int		err;
 	const char	*str;
-};
-static const struct errstr errstrtable[] = {
+} errstrtable[] = {
 	{ EIO,		"io" },
 	{ ECKSUM,	"checksum" },
 	{ EINVAL,	"decompress" },
@@ -220,6 +276,7 @@ static const struct errstr errstrtable[] = {
 	{ EILSEQ,	"corrupt" },
 	{ ENOSYS,	"noop" },
 	{ EFAULT,	"io-prefail" },
+	{ ENOTSUP,	"unsupported" },
 	{ 0, NULL },
 };
 
@@ -288,26 +345,40 @@ usage(void)
 	    "\t\tClear the particular record (if given a numeric ID), or\n"
 	    "\t\tall records if 'all' is specified.\n"
 	    "\n"
-	    "\tzinject -p <function name> pool\n"
-	    "\t\tInject a panic fault at the specified function. Only \n"
-	    "\t\tfunctions which call spa_vdev_config_exit(), or \n"
+	    "\tzinject -a\n"
+	    "\tzinject -u pool\n"
+	    "\n"
+	    "\t\tFlush the ARC (-a) and/or unload the SPA for the given\n"
+	    "\t\tpool (-u).  These may also be combined with other forms.\n"
+	    "\n"
+	    "\tzinject -p <function name> pool [id]\n"
+	    "\t\tInject a panic fault at the specified function. Only\n"
+	    "\t\tfunctions which call spa_vdev_config_exit(), or\n"
 	    "\t\tspa_vdev_exit() will trigger a panic.\n"
 	    "\n"
 	    "\tzinject -d device [-e errno] [-L <nvlist|uber|pad1|pad2>] [-F]\n"
-	    "\t\t[-T <read|write|free|claim|flush|all>] [-f frequency] pool\n\n"
+	    "\t\t[-T <read|write|free|claim|flush|all>] [-f frequency] pool\n"
+	    "\n"
 	    "\t\tInject a fault into a particular device or the device's\n"
-	    "\t\tlabel.  Label injection can either be 'nvlist', 'uber',\n "
+	    "\t\tlabel.  Label injection can either be 'nvlist', 'uber',\n"
 	    "\t\t'pad1', or 'pad2'.\n"
 	    "\t\t'errno' can be 'nxio' (the default), 'io', 'dtl',\n"
 	    "\t\t'corrupt' (bit flip), 'io-prefail' (unsuccessfully do\n"
-	    "\t\tnothing) or 'noop' (successfully do nothing).\n"
+	    "\t\tnothing), or 'noop' (successfully do nothing).\n"
+	    "\t\t'corrupt' requires '-T read' and a frequency (-f).\n"
 	    "\t\t'frequency' is a value between 0.0001 and 100.0 that limits\n"
 	    "\t\tdevice error injection to a percentage of the IOs.\n"
+	    "\t\t'-F' enables failfast: the error is delivered as a first\n"
+	    "\t\tattempt failure so ZFS can retry; the injector does not\n"
+	    "\t\tforce the same error on IO_RETRY/TRYHARD I/Os.  Without\n"
+	    "\t\t'-F', the error is treated as already retried so fault\n"
+	    "\t\tmanagement stats and ereports are generated immediately.\n"
 	    "\n"
-	    "\tzinject -d device -A <degrade|fault> -D <delay secs> pool\n"
-	    "\t\tPerform a specific action on a particular device.\n"
+	    "\tzinject -d device -A <degrade|fault> pool\n"
+	    "\t\tSet the device to the degraded or faulted state.\n"
 	    "\n"
-	    "\tzinject -d device -D latency:lanes pool\n"
+	    "\tzinject -d device -D latency:lanes [-T <read|write|all>]\n"
+	    "\t\t[-f frequency] pool\n"
 	    "\n"
 	    "\t\tAdd an artificial delay to IO requests on a particular\n"
 	    "\t\tdevice, such that the requests take a minimum of 'latency'\n"
@@ -344,13 +415,6 @@ usage(void)
 	    "\t\tsuch that the operation takes a minimum of supplied seconds\n"
 	    "\t\tto complete.\n"
 	    "\n"
-	    "\tzinject -E <delay> [-a] [-m] [-f freq] [-l level] [-r range]\n"
-	    "\t\t[-T iotype] [-t type object | -b bookmark pool]\n"
-	    "\n"
-	    "\t\tInject pipeline ready stage delays for the given object path\n"
-	    "\t\t(data or dnode) or raw bookmark. The delay is specified in\n"
-	    "\t\tmilliseconds.\n"
-	    "\n"
 	    "\tzinject -I [-s <seconds> | -g <txgs>] pool\n"
 	    "\t\tCause the pool to stop writing blocks yet not\n"
 	    "\t\treport errors for a duration.  Simulates buggy hardware\n"
@@ -358,11 +422,23 @@ usage(void)
 	    "\t\tDefault duration is 30 seconds.  The machine is panicked\n"
 	    "\t\tat the end of the duration.\n"
 	    "\n"
+	    "\tzinject -E <delay> [-a] [-m] [-f freq] [-l level] [-r range]\n"
+	    "\t\t[-T iotype] [-t type object | -b bookmark pool]\n"
+	    "\n"
+	    "\t\tInject pipeline ready stage delays for the given object path\n"
+	    "\t\t(data or dnode) or raw bookmark. The delay is specified in\n"
+	    "\t\tmilliseconds.\n"
+	    "\n"
 	    "\tzinject -b objset:object:level:blkid pool\n"
 	    "\n"
 	    "\t\tInject an error into pool 'pool' with the numeric bookmark\n"
 	    "\t\tspecified by the remaining tuple.  Each number is in\n"
 	    "\t\thexadecimal, and only one block can be specified.\n"
+	    "\n"
+	    "\tzinject -n <error-point> [-e errno] pool\n"
+	    "\n"
+	    "\t\tForce a one-shot error return at a function injection tag.\n"
+	    "\t\tDefault errno is 'io'. Handler is cleared when it fires.\n"
 	    "\n"
 	    "\tzinject [-q] <-t type> [-C dvas] [-e errno] [-l level]\n"
 	    "\t\t[-r range] [-a] [-m] [-u] [-f freq] <object>\n"
@@ -962,7 +1038,7 @@ main(int argc, char **argv)
 	}
 
 	while ((c = getopt(argc, argv,
-	    ":aA:b:C:d:D:E:f:Fg:qhIc:t:T:l:mr:s:e:uL:p:P:")) != -1) {
+	    ":aA:b:C:d:D:E:f:Fg:qhIc:t:T:l:mn:r:s:e:uL:p:P:")) != -1) {
 		switch (c) {
 		case 'a':
 			flags |= ZINJECT_FLUSH_ARC;
@@ -1075,6 +1151,13 @@ main(int argc, char **argv)
 			break;
 		case 'm':
 			domount = 1;
+			break;
+		case 'n':
+			(void) strlcpy(record.zi_func, optarg,
+			    sizeof (record.zi_func));
+			record.zi_cmd = ZINJECT_FUNC_FAULT;
+			if (error == 0)
+				error = EIO;
 			break;
 		case 'p':
 			(void) strlcpy(record.zi_func, optarg,
@@ -1404,6 +1487,17 @@ main(int argc, char **argv)
 			return (2);
 		}
 
+		(void) strlcpy(pool, argv[0], sizeof (pool));
+		dataset[0] = '\0';
+	} else if (record.zi_cmd == ZINJECT_FUNC_FAULT) {
+		/* TODO: handle invalid option settings here */
+		if (argc != 1) {
+			(void) fprintf(stderr, "function fault (-n) "
+			    "requires a single pool name\n");
+			usage();
+			libzfs_fini(g_zfs);
+			return (2);
+		}
 		(void) strlcpy(pool, argv[0], sizeof (pool));
 		dataset[0] = '\0';
 	} else if (type == TYPE_INVAL) {

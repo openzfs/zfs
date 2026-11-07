@@ -445,8 +445,12 @@ zfsvfs_init(zfsvfs_t *zfsvfs, objset_t *os)
 	zfsvfs->z_os = os;
 
 	error = zfs_get_zplprop(os, ZFS_PROP_VERSION, &zfsvfs->z_version);
+	if (error == 0 && zio_injection_enabled)
+		zio_handle_func_injection(dmu_objset_spa(os),
+		    "zfsvfs_init:fail", &error);
 	if (error != 0)
 		return (error);
+
 	if (zfsvfs->z_version >
 	    zfs_zpl_version_map(spa_version(dmu_objset_spa(os)))) {
 		(void) printk("Can't mount a version %lld file system "

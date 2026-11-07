@@ -56,11 +56,13 @@ uint32_t zio_injection_enabled = 0;
  * Data describing each zinject handler registered on the system, and
  * contains the list node linking the handler in the global zinject
  * handler list.
+ *
+ * zi_spa_name is used in ZINJECT_DELAY_IMPORT/EXPORT, and FUNC_FAULT only
  */
 typedef struct inject_handler {
 	int			zi_id;
 	spa_t			*zi_spa;
-	char			*zi_spa_name; /* ZINJECT_DELAY_IMPORT only */
+	char			*zi_spa_name;
 	zinject_record_t	zi_record;
 	uint64_t		*zi_lanes;
 	int			zi_next_lane;
@@ -167,6 +169,47 @@ done:
 		record->zi_inject_count++;
 
 	return (injected);
+}
+
+/*
+ * Inject a one-time error into the middle of a function.
+ */
+int
+zio_handle_func_injection(spa_t *spa, const char *tag, int *error)
+{
+	inject_handler_t *handler;
+	int ret = 0;
+
+	rw_enter(&inject_lock, RW_WRITER);
+
+	for (handler = list_head(&inject_handlers); handler != NULL;
+	    handler = list_next(&inject_handlers, handler)) {
+		if (handler->zi_record.zi_cmd != ZINJECT_FUNC_FAULT ||
+		    handler->zi_spa_name == NULL ||
+		    strcmp(spa_name(spa), handler->zi_spa_name) != 0 ||
+		    strcmp(tag, handler->zi_record.zi_func) != 0)
+			continue;
+
+		*error = handler->zi_record.zi_error;
+		ret = 1;
+		break;
+	}
+	if (handler != NULL)
+		list_remove(&inject_handlers, handler);
+	rw_exit(&inject_lock);
+
+	if (handler != NULL) {
+		ASSERT3U(zio_injection_enabled, >, 0);
+		atomic_dec_32(&zio_injection_enabled);
+
+		ASSERT0P(handler->zi_spa);
+		if (handler->zi_spa_name != NULL)
+			spa_strfree(handler->zi_spa_name);
+
+		kmem_free(handler, sizeof (inject_handler_t));
+	}
+
+	return (ret);
 }
 
 /*
@@ -1029,6 +1072,10 @@ zio_inject_fault(char *name, int flags, int *id, zinject_record_t *record)
 				return (SET_ERROR(EEXIST));
 			if (record->zi_cmd == ZINJECT_DELAY_EXPORT && !has_spa)
 				return (SET_ERROR(ENOENT));
+			spa = NULL;
+		} else if (record->zi_cmd == ZINJECT_FUNC_FAULT) {
+			if (record->zi_func[0] == '\0')
+				return (SET_ERROR(EINVAL));
 			spa = NULL;
 		} else {
 			/*

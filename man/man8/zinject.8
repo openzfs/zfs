@@ -14,7 +14,7 @@
 .\"
 .\" lint-ok: WARNING: sections out of conventional order: Sh SYNOPSIS
 .\"
-.Dd April 1, 2026
+.Dd October 31, 2026
 .Dt ZINJECT 8
 .Os
 .
@@ -24,7 +24,9 @@
 .Sh DESCRIPTION
 .Nm
 creates artificial problems in a ZFS pool by simulating data corruption
-or device failures.
+or device failures, or by forcing a one-shot error return from a tagged
+code path
+.Pq Fl n .
 This program is dangerous.
 .
 .Sh SYNOPSIS
@@ -36,18 +38,40 @@ List injection records.
 .
 .It Xo
 .Nm zinject
-.Fl b Ar objset : Ns Ar object : Ns Ar level : Ns Ar start : Ns Ar end
-.Op Fl f Ar frequency
-.Fl amu
-.Op pool
-.Xc
-Force an error into the pool at a bookmark.
-.
-.It Xo
-.Nm zinject
 .Fl c Ar id Ns | Ns Sy all
 .Xc
 Cancel injection records.
+.
+.It Xo
+.Nm zinject
+.Fl a
+.Xc
+Flush the ARC.
+.
+.It Xo
+.Nm zinject
+.Fl u Ar pool
+.Xc
+Unload the SPA for
+.Ar pool .
+.Fl a
+and
+.Fl u
+may also be combined with other forms.
+.
+.It Xo
+.Nm zinject
+.Fl p Ar function
+.Ar pool
+.Op Ar id
+.Xc
+Panic inside the specified function when it calls
+.Sy spa_vdev_config_exit
+or
+.Sy spa_vdev_exit .
+Optional numeric
+.Ar id
+is stored as the handler type.
 .
 .It Xo
 .Nm zinject
@@ -61,7 +85,8 @@ Force a vdev into the DEGRADED or FAULTED state.
 .Nm zinject
 .Fl d Ar vdev
 .Fl D Ar latency : Ns Ar lanes
-.Op Fl T Ar read|write
+.Op Fl T Ar read|write|all
+.Op Fl f Ar frequency
 .Ar pool
 .Xc
 Add an artificial delay to I/O requests on a particular
@@ -120,11 +145,24 @@ Force a vdev error.
 .
 .It Xo
 .Nm zinject
-.Fl i Ar seconds
+.Fl P Sy import Ns | Ns Sy export
+.Fl s Ar seconds
 .Ar pool
 .Xc
-Add an artificial delay during the future import of a pool.
-This injector is automatically cleared after the import is finished.
+Add an artificial delay of at least
+.Ar seconds
+to a future pool import or export.
+This injector is automatically cleared after the operation finishes.
+.
+.It Xo
+.Nm zinject
+.Fl I
+.Op Fl s Ar seconds Ns | Ns Fl g Ar txgs
+.Ar pool
+.Xc
+Simulate a hardware failure that fails to honor a cache flush.
+Default duration is 30 seconds.
+The machine is panicked at the end of the duration.
 .
 .It Xo
 .Nm zinject
@@ -142,18 +180,22 @@ The delay is specified in milliseconds.
 .
 .It Xo
 .Nm zinject
-.Fl I
-.Op Fl s Ar seconds Ns | Ns Fl g Ar txgs
+.Fl b Ar objset : Ns Ar object : Ns Ar level : Ns Ar blkid
 .Ar pool
 .Xc
-Simulate a hardware failure that fails to honor a cache flush.
+Force an error into the pool at a raw bookmark
+.Pq single block; each field is hexadecimal .
 .
 .It Xo
 .Nm zinject
-.Fl p Ar function
+.Fl n Ar error-point
+.Op Fl e Ar errno
 .Ar pool
 .Xc
-Panic inside the specified function.
+Force a one-shot error return at a function injection tag.
+Default errno is
+.Sy io .
+The handler is cleared when it fires.
 .
 .It Xo
 .Nm zinject
@@ -198,8 +240,8 @@ Force an error into the MOS of a pool.
 .Bl -tag -width "-C dvas"
 .It Fl a
 Flush the ARC before injection.
-.It Fl b Ar objset : Ns Ar object : Ns Ar level : Ns Ar start : Ns Ar end
-Force an error into the pool at this bookmark tuple.
+.It Fl b Ar objset : Ns Ar object : Ns Ar level : Ns Ar blkid
+Force an error into the pool at this raw bookmark.
 Each number is in hexadecimal, and only one block can be specified.
 .It Fl C Ar dvas
 Inject the given error only into specific DVAs.
@@ -227,11 +269,14 @@ for an ECHILD error,
 .It Sy io
 for an EIO error where reopening the device will succeed,
 .It Sy nxio
-for an ENXIO error where reopening the device will fail, or
+for an ENXIO error where reopening the device will fail,
 .It Sy io-prefail
-to drop the IO without executing it and return failure, or
+to drop the IO without executing it and return failure,
 .It Sy noop
-to drop the IO without executing it and return success.
+to drop the IO without executing it and return success, or
+.It Sy unsupported
+for an ENOTSUP error
+.Pq typically with Fl n .
 .El
 .Pp
 For EIO and ENXIO, the "failed" reads or writes still occur.
@@ -245,10 +290,19 @@ Expressed as a real number percentage between
 and
 .Sy 100 .
 .It Fl F
-Fail faster.
-Do fewer checks.
-.It Fl f Ar txgs
-Run for this many transaction groups before reporting failure.
+Failfast for device faults: deliver the error as a first-attempt failure
+so ZFS can retry, and do not inject again on already-retried or
+.Dv TRYHARD
+I/Os.
+Without
+.Fl F ,
+the error is treated as already retried so fault management stats and
+ereports are generated immediately.
+.It Fl g Ar txgs
+Run for this many transaction groups before reporting failure
+.Pq with Fl I ;
+mutually exclusive with
+.Fl s .
 .It Fl h
 Print the usage message.
 .It Fl l Ar level
@@ -264,6 +318,20 @@ or
 .Sy uber .
 .It Fl m
 Automatically remount the underlying filesystem.
+.It Fl n Ar error-point
+Register a one-shot function fault at
+.Ar error-point .
+Requires a matching
+.Fn zio_handle_func_injection
+call in the module.
+Use
+.Fl e
+to choose the errno
+.Pq default Sy io .
+The handler is cleared when it fires.
+.It Fl P Sy import Ns | Ns Sy export
+Delay a future import or export
+.Pq requires Fl s .
 .It Fl q
 Quiet mode.
 Only print the handler number added.
