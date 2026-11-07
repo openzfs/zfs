@@ -14,6 +14,7 @@
  * Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
  * Copyright 2012 Nexenta Systems, Inc.  All rights reserved.
  * Copyright (c) 2018 by Delphix. All rights reserved.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #include <stdio.h>
@@ -24,15 +25,93 @@
 #include <uuid/uuid.h>
 #include <zlib.h>
 #include <sys/types.h>
-#include <sys/dkio.h>
 #include <sys/param.h>
-#include <sys/dktp/fdisk.h>
 #include <sys/efi_partition.h>
 #include <sys/byteorder.h>
 #include <sys/vdev_disk.h>
 #include <sys/sysmacros.h>
 #include <linux/fs.h>
 #include <linux/blkpg.h>
+
+/*
+ * The DK* defines and dk* types were originally from Solaris sys/dkio.h. The
+ * ipart and mboot types and associated defines were from sys/dktp/fdisk.h.
+ *
+ * Here we list only things we need for the rest of this code to continue
+ * working on Linux. It could really use a rewrite, but for now at least it is
+ * contained in this single file.
+ *   -- robn, 2026-11-08
+ */
+
+#define	DK_DEVLEN	16		/* device name max length, including */
+					/* unit # & NULL (ie - "xyc1") */
+
+/* Used for controller info */
+struct dk_cinfo {
+	char	dki_cname[DK_DEVLEN];	/* controller name (no unit #) */
+	ushort_t dki_ctype;		/* controller type */
+	ushort_t dki_flags;		/* flags */
+	ushort_t dki_cnum;		/* controller number */
+	uint_t	dki_addr;		/* controller address */
+	uint_t	dki_space;		/* controller bus type */
+	uint_t	dki_prio;		/* interrupt priority */
+	uint_t	dki_vec;		/* interrupt vector */
+	char	dki_dname[DK_DEVLEN];	/* drive name (no unit #) */
+	uint_t	dki_unit;		/* unit number */
+	ushort_t dki_partition;		/* partition number */
+	ushort_t dki_maxtransfer;	/* max. transfer size in DEV_BSIZE */
+};
+
+/* Controller types */
+#define	DKC_UNKNOWN	0
+#define	DKC_SCSI_CCS	13	/* SCSI CCS compatible */
+#define	DKC_MD		16	/* meta-disk (virtual-disk) driver */
+#define	DKC_DIRECT	20	/* Intel direct attached device i.e. IDE */
+#define	DKC_PCMCIA_MEM	21	/* PCMCIA memory disk-like type */
+#define	DKC_VBD		23	/* virtual block device */
+
+/* Used for Media info or the current profile info */
+struct dk_minfo {
+	uint_t		dki_media_type;	/* Media type or profile info */
+	uint_t		dki_lbsize;	/* Logical blocksize of media */
+	diskaddr_t	dki_capacity;	/* Capacity as # of dki_lbsize blks */
+};
+
+#define	DKIOC		(0x04 << 8)
+#define	DKIOCSETEFI	(DKIOC|17)		/* Set EFI info */
+#define	DKIOCGETEFI	(DKIOC|18)		/* Get EFI info */
+
+#define	BOOTSZ		440	/* size of boot code in master boot block */
+#define	FD_NUMPART	4	/* number of 'partitions' in fdisk table */
+#define	MBB_MAGIC	0xAA55	/* magic number for mboot.signature */
+
+/* structure to hold the fdisk partition table */
+struct ipart {
+	unsigned char bootid;	/* bootable or not */
+	unsigned char beghead;	/* beginning head, sector, cylinder */
+	unsigned char begsect;	/* begcyl is a 10-bit number. High 2 bits */
+	unsigned char begcyl;	/*	are in begsect. */
+	unsigned char systid;	/* OS type */
+	unsigned char endhead;	/* ending head, sector, cylinder */
+	unsigned char endsect;	/* endcyl is a 10-bit number.  High 2 bits */
+	unsigned char endcyl;	/*	are in endsect. */
+	uint32_t relsect;	/* first sector relative to start of disk */
+	uint32_t numsect;	/* number of sectors in partition */
+};
+
+#define	EFI_PMBR	238	/* EFI PMBR */
+
+/* structure to hold master boot block in physical sector 0 of the disk. */
+struct mboot {	/* master boot block */
+	char	bootinst[BOOTSZ];
+	uint16_t win_volserno_lo;
+	uint16_t win_volserno_hi;
+	uint16_t reserved;
+	char	parts[FD_NUMPART * sizeof (struct ipart)];
+	ushort_t signature;
+};
+
+/* End of sys/dkio.h & sys/dktp/fdisk.h */
 
 static struct uuid_to_ptag {
 	struct uuid	uuid;

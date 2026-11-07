@@ -140,7 +140,6 @@
 #endif
 
 #define	_ZFS_BIG_ENDIAN
-#define	_SUNOS_VTOC_16
 
 /* s390 arch specific defines */
 #elif defined(__s390__)
@@ -171,8 +170,6 @@
 #define	_ILP32
 #endif
 
-#define	_SUNOS_VTOC_16
-
 /*
  * RISC-V arch specific defines
  * only RV64G (including atomic) LP64 is supported yet
@@ -194,8 +191,6 @@
 
 #define	_ZFS_LITTLE_ENDIAN
 
-#define	_SUNOS_VTOC_16
-
 /*
  * LoongArch arch specific defines
  * only LoongArch64 is supported yet
@@ -207,7 +202,6 @@
 #endif
 
 #define	_ZFS_LITTLE_ENDIAN
-#define	_SUNOS_VTOC_16
 
 /* not all LoongArch cores support unaligned accesses in hardware */
 #define	_ALIGNMENT_REQUIRED	1

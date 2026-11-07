@@ -49,7 +49,6 @@ extern "C" {
 #define	_ZFS_LITTLE_ENDIAN
 #endif
 
-#define	_SUNOS_VTOC_16
 #define	HAVE_EFFICIENT_UNALIGNED_ACCESS
 
 /* i386 arch specific defines */
@@ -71,7 +70,6 @@ extern "C" {
 #define	_ZFS_LITTLE_ENDIAN
 #endif
 
-#define	_SUNOS_VTOC_16
 #define	HAVE_EFFICIENT_UNALIGNED_ACCESS
 
 /* powerpc arch specific defines */
@@ -95,7 +93,6 @@ extern "C" {
 #endif
 #endif
 
-#define	_SUNOS_VTOC_16
 #define	HAVE_EFFICIENT_UNALIGNED_ACCESS
 
 #if defined(__BYTE_ORDER)
@@ -137,8 +134,6 @@ extern "C" {
 #define	_ZFS_BIG_ENDIAN
 #endif
 
-#define	_SUNOS_VTOC_16
-
 #if defined(__ARM_FEATURE_UNALIGNED)
 #define	HAVE_EFFICIENT_UNALIGNED_ACCESS
 #endif
@@ -156,8 +151,6 @@ extern "C" {
 #define	_ZFS_BIG_ENDIAN
 #endif
 
-#define	_SUNOS_VTOC_16
-
 /* sparc arch specific defines */
 #elif defined(__sparc) || defined(__sparc__)
 
@@ -170,7 +163,6 @@ extern "C" {
 #endif
 
 #define	_ZFS_BIG_ENDIAN
-#define	_SUNOS_VTOC_16
 
 #if defined(__arch64__)
 #if !defined(_LP64)
@@ -195,7 +187,6 @@ extern "C" {
 #endif
 
 #define	_ZFS_BIG_ENDIAN
-#define	_SUNOS_VTOC_16
 
 /* MIPS arch specific defines */
 #elif defined(__mips__)
@@ -211,8 +202,6 @@ extern "C" {
 #if !defined(_LP64) && !defined(_ILP32)
 #define	_ILP32
 #endif
-
-#define	_SUNOS_VTOC_16
 
 /*
  * RISC-V arch specific defines
@@ -235,8 +224,6 @@ extern "C" {
 
 #define	_ZFS_LITTLE_ENDIAN
 
-#define	_SUNOS_VTOC_16
-
 /*
  * LoongArch arch specific defines
  * only LoongArch64 is supported yet
@@ -248,7 +235,6 @@ extern "C" {
 #endif
 
 #define	_ZFS_LITTLE_ENDIAN
-#define	_SUNOS_VTOC_16
 
 /* not all LoongArch cores support unaligned accesses in hardware */
 #define	_ALIGNMENT_REQUIRED	1

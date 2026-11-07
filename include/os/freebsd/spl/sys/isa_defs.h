@@ -51,28 +51,6 @@
  *
  *	In all cases, Char is 8 bits and Short is 16 bits.
  *
- * _SUNOS_VTOC_8 / _SUNOS_VTOC_16 / _SVR4_VTOC_16:
- *	This specifies the form of the disk VTOC (or label):
- *
- *	_SUNOS_VTOC_8:
- *		This is a VTOC form which is upwardly compatible with the
- *		SunOS 4.x disk label and allows 8 partitions per disk.
- *
- *	_SUNOS_VTOC_16:
- *		In this format the incore vtoc image matches the ondisk
- *		version.  It allows 16 slices per disk, and is not
- *		compatible with the SunOS 4.x disk label.
- *
- *	Note that these are not the only two VTOC forms possible and
- *	additional forms may be added.  One possible form would be the
- *	SVr4 VTOC form.  The symbol for that is reserved now, although
- *	it is not implemented.
- *
- *	_SVR4_VTOC_16:
- *		This VTOC form is compatible with the System V Release 4
- *		VTOC (as implemented on the SVr4 Intel and 3b ports) with
- *		16 partitions per disk.
- *
  *
  * __x86
  *	This is ONLY a synonym for defined(__i386) || defined(__amd64)
@@ -104,7 +82,6 @@ extern "C" {
 #if !defined(_LP64)
 #error "_LP64 not defined"
 #endif
-#define	_SUNOS_VTOC_16
 
 /*
  * The feature test macro __i386 is generic for all processors implementing
@@ -127,7 +104,6 @@ extern "C" {
 #if !defined(_ILP32)
 #define	_ILP32
 #endif
-#define	_SUNOS_VTOC_16
 
 #elif defined(__aarch64__)
 
@@ -137,7 +113,6 @@ extern "C" {
 #if !defined(_LP64)
 #error "_LP64 not defined"
 #endif
-#define	_SUNOS_VTOC_16
 
 #elif defined(__riscv)
 
@@ -147,7 +122,6 @@ extern "C" {
 #if !defined(_LP64)
 #define	_LP64
 #endif
-#define	_SUNOS_VTOC_16
 
 #elif defined(__arm__)
 
@@ -157,7 +131,6 @@ extern "C" {
 #if !defined(_ILP32)
 #define	_ILP32
 #endif
-#define	_SUNOS_VTOC_16
 
 #elif defined(__mips__)
 
@@ -176,15 +149,12 @@ extern "C" {
 #define	_ILP32
 #endif
 #endif
-#define	_SUNOS_VTOC_16
 
 #elif defined(__powerpc__)
 
 #if !defined(__powerpc)
 #define	__powerpc
 #endif
-
-#define	_SUNOS_VTOC_16	1
 
 /*
  * The following set of definitions characterize the Solaris on SPARC systems.
@@ -231,7 +201,6 @@ extern "C" {
 /*
  * Define the appropriate "implementation choices" shared between versions.
  */
-#define	_SUNOS_VTOC_8
 
 /*
  * The following set of definitions characterize the implementation of
