@@ -115,6 +115,7 @@ enum zio_checksum {
 #define	ZIO_CHECKSUM_MASK	0xffULL
 #define	ZIO_CHECKSUM_VERIFY	(1U << 8)
 
+/* dedup=on, unless the pool recorded another checksum at creation */
 #define	ZIO_DEDUPCHECKSUM	ZIO_CHECKSUM_SHA256
 
 /* macros defining encryption lengths */

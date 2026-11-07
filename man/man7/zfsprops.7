@@ -29,7 +29,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd October 30, 2026
+.Dd November 1, 2026
 .Dt ZFSPROPS 7
 .Os
 .
@@ -1076,9 +1076,27 @@ mount options.
 Configures deduplication for a dataset.
 The default value is
 .Sy off .
-The default deduplication checksum is
+The default deduplication checksum, which
+.Sy on
+and
+.Sy verify
+use, is
+.Sy blake3
+on a pool created with the
+.Sy blake3
+feature enabled: the pool records it when it is created and keeps it wherever
+it is imported later.
+On other pools, including pools on which the feature was enabled after they
+were created, it is
+.Sy sha256 :
+each checksum has its own dedup table, and blocks written with one are not
+deduplicated against blocks written with another.
+Releases that predate this default use
 .Sy sha256
-(this may change in the future).
+on every pool.
+Setting the checksum explicitly, for example
+.Sy dedup Ns = Ns Sy sha256 ,
+keeps it the same on every pool and with every release.
 When
 .Sy dedup
 is enabled, the checksum defined here overrides the
@@ -1086,8 +1104,13 @@ is enabled, the checksum defined here overrides the
 property.
 Setting the value to
 .Sy verify
-has the same effect as the setting
-.Sy sha256 , Ns Sy verify .
+has the same effect as setting the default checksum with
+.Sy verify
+.Po
+.Sy blake3 , Ns Sy verify
+or
+.Sy sha256 , Ns Sy verify
+.Pc .
 .Pp
 If set to
 .Sy verify ,

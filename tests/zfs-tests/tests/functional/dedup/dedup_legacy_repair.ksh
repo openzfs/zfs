@@ -47,7 +47,7 @@ log_onexit cleanup
 log_assert "legacy DDT self-heal repair from another phys slot works"
 
 log_must truncate -s 256M $VDEV
-log_must zpool create -f -o feature@fast_dedup=disabled -O dedup=on \
+log_must zpool create -f -o feature@fast_dedup=disabled -O dedup=sha256 \
     -O compression=off -O recordsize=128k $TESTPOOL $VDEV
 
 log_must dd if=/dev/urandom of=$DATA bs=128k count=1
