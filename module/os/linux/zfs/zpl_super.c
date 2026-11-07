@@ -124,7 +124,6 @@ zpl_drop_inode(struct inode *ip)
  * end_writeback() which is responsible for completing all outstanding
  * write back.  In either case, once this is done it is safe to cleanup
  * any remaining inode specific data via zfs_inactive().
- * remaining filesystem specific data.
  */
 static void
 zpl_evict_inode(struct inode *ip)
