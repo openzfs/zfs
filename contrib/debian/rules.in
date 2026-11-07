@@ -7,6 +7,8 @@ NAME := $(shell awk '$$1 == "Name:" { print $$2; }' META)
 LINUX_MIN  := $(shell awk '/Linux-Minimum:/{print $$2}' META)
 LINUX_NEXT := $(shell awk -F'[ .]' '/Linux-Maximum:/{print $$2 "." $$3+1}' META)
 
+CFGOPTS ?= @CFGOPTS@
+
 DKMSFILES := module include config zfs.release.in autogen.sh copy-builtin META AUTHORS \
 		COPYRIGHT LICENSE README.md CODE_OF_CONDUCT.md NEWS NOTICE RELEASES.md
 
@@ -35,7 +37,7 @@ override_dh_autoreconf:
 
 override_dh_auto_configure:
 	@# Build the userland, but don't build the kernel modules.
-	dh_auto_configure -- @CFGOPTS@ \
+	dh_auto_configure -- $(CFGOPTS) \
 	  --bindir=/usr/bin \
 	  --sbindir=/usr/sbin \
 	  --with-mounthelperdir=/usr/sbin \
@@ -179,7 +181,7 @@ override_dh_prep-deb-files:
 
 override_dh_configure_modules: override_dh_configure_modules_stamp
 override_dh_configure_modules_stamp:
-	./configure @CFGOPTS@ \
+	./configure $(CFGOPTS) \
 		--with-config=kernel \
 		--with-linux=$(KSRC) \
 		--with-linux-obj=$(KOBJ)

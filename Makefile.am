@@ -214,6 +214,19 @@ pkg-dkms: @DEFAULT_PACKAGE@-dkms
 pkg-kmod: @DEFAULT_PACKAGE@-kmod
 pkg-utils: @DEFAULT_PACKAGE@-utils
 
+# configure is very sensitive about its "precious" variables. So do not
+# include them in the configure cache. Actually a superset is excluded,
+# but that's fine as the extra excludes aren't expensive to generate.
+$(RPM_CONFCACHE) $(DEB_CONFCACHE)::
+	$(AM_V_GEN)SRC_CONFCACHE="$(abs_builddir)/config.cache"; \
+	if test -f "$@"; then \
+		SRC_CONFCACHE="$(@)~"; \
+		mv -f "$@" "$$SRC_CONFCACHE"; \
+	fi; \
+	grep -vE -e "[^=]*(build|host|target)[^=]*=" \
+		-e "^ac_cv_env_" \
+		"$$SRC_CONFCACHE" > $@
+
 include config/rpm.am
 include config/deb.am
 include config/tgz.am
