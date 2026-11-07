@@ -3125,6 +3125,20 @@ dsl_dataset_modified_since_snap(dsl_dataset_t *ds, dsl_dataset_t *snap)
 	return (B_FALSE);
 }
 
+/*
+ * Return B_TRUE if ds has a snapshot of its own and has not been
+ * modified since the latest one.
+ */
+boolean_t
+dsl_dataset_unchanged_since_prev(dsl_dataset_t *ds)
+{
+	ASSERT(dsl_pool_config_held(ds->ds_dir->dd_pool));
+
+	return (ds->ds_prev != NULL &&
+	    ds->ds_prev->ds_dir == ds->ds_dir &&
+	    !dsl_dataset_modified_since_snap(ds, ds->ds_prev));
+}
+
 static int
 dsl_dataset_rename_snapshot_check_impl(dsl_pool_t *dp,
     dsl_dataset_t *hds, void *arg)
@@ -5357,6 +5371,7 @@ EXPORT_SYMBOL(dsl_dataset_get_holds);
 EXPORT_SYMBOL(dsl_dataset_get_blkptr);
 EXPORT_SYMBOL(dsl_dataset_get_spa);
 EXPORT_SYMBOL(dsl_dataset_modified_since_snap);
+EXPORT_SYMBOL(dsl_dataset_unchanged_since_prev);
 EXPORT_SYMBOL(dsl_dataset_space_written);
 EXPORT_SYMBOL(dsl_dataset_space_wouldfree);
 EXPORT_SYMBOL(dsl_dataset_sync);

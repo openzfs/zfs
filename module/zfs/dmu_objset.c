@@ -88,6 +88,7 @@ static void dmu_objset_find_dp_cb(void *arg);
 
 static void dmu_objset_upgrade(objset_t *os, dmu_objset_upgrade_cb_t cb);
 static void dmu_objset_upgrade_stop(objset_t *os);
+static void dmu_objset_upgrade_or_defer(objset_t *os);
 
 void
 dmu_objset_init(void)
@@ -835,14 +836,8 @@ dmu_objset_own(const char *name, dmu_objset_type_t type,
 	 * completely for recovery work.
 	 */
 	if (!readonly && !dp->dp_spa->spa_claiming &&
-	    (ds->ds_dir->dd_crypto_obj == 0 || decrypt)) {
-		if (dmu_objset_userobjspace_upgradable(*osp) ||
-		    dmu_objset_projectquota_upgradable(*osp)) {
-			dmu_objset_id_quota_upgrade(*osp);
-		} else if (dmu_objset_userused_enabled(*osp)) {
-			dmu_objset_userspace_upgrade(*osp);
-		}
-	}
+	    (ds->ds_dir->dd_crypto_obj == 0 || decrypt))
+		dmu_objset_upgrade_or_defer(*osp);
 
 	dsl_pool_rele(dp, FTAG);
 	return (0);
@@ -1411,28 +1406,33 @@ dmu_objset_upgrade_task_cb(void *data)
 }
 
 static void
+dmu_objset_upgrade_locked(objset_t *os, dmu_objset_upgrade_cb_t cb)
+{
+	ASSERT(dsl_pool_config_held(dmu_objset_pool(os)));
+	ASSERT(MUTEX_HELD(&os->os_upgrade_lock));
+
+	if (os->os_upgrade_id != 0 || os->os_upgrade_status != 0)
+		return;
+
+	dsl_dataset_long_hold(dmu_objset_ds(os), upgrade_tag);
+	os->os_upgrade_exit = B_FALSE;
+	os->os_upgrade_cb = cb;
+	os->os_upgrade_id = taskq_dispatch(os->os_spa->spa_upgrade_taskq,
+	    dmu_objset_upgrade_task_cb, os, TQ_SLEEP);
+	if (os->os_upgrade_id == TASKQID_INVALID) {
+		dsl_dataset_long_rele(dmu_objset_ds(os), upgrade_tag);
+		os->os_upgrade_status = ENOMEM;
+	}
+}
+
+static void
 dmu_objset_upgrade(objset_t *os, dmu_objset_upgrade_cb_t cb)
 {
 	if (os->os_upgrade_id != 0)
 		return;
 
-	ASSERT(dsl_pool_config_held(dmu_objset_pool(os)));
-	dsl_dataset_long_hold(dmu_objset_ds(os), upgrade_tag);
-
 	mutex_enter(&os->os_upgrade_lock);
-	if (os->os_upgrade_id == 0 && os->os_upgrade_status == 0) {
-		os->os_upgrade_exit = B_FALSE;
-		os->os_upgrade_cb = cb;
-		os->os_upgrade_id = taskq_dispatch(
-		    os->os_spa->spa_upgrade_taskq,
-		    dmu_objset_upgrade_task_cb, os, TQ_SLEEP);
-		if (os->os_upgrade_id == TASKQID_INVALID) {
-			dsl_dataset_long_rele(dmu_objset_ds(os), upgrade_tag);
-			os->os_upgrade_status = ENOMEM;
-		}
-	} else {
-		dsl_dataset_long_rele(dmu_objset_ds(os), upgrade_tag);
-	}
+	dmu_objset_upgrade_locked(os, cb);
 	mutex_exit(&os->os_upgrade_lock);
 }
 
@@ -1440,6 +1440,7 @@ static void
 dmu_objset_upgrade_stop(objset_t *os)
 {
 	mutex_enter(&os->os_upgrade_lock);
+	os->os_upgrade_deferred = B_FALSE;
 	os->os_upgrade_exit = B_TRUE;
 	if (os->os_upgrade_id != 0) {
 		taskqid_t id = os->os_upgrade_id;
@@ -2443,6 +2444,80 @@ void
 dmu_objset_id_quota_upgrade(objset_t *os)
 {
 	dmu_objset_upgrade(os, dmu_objset_id_quota_upgrade_cb);
+}
+
+static void
+dmu_objset_upgrade_start_locked(objset_t *os)
+{
+	if (dmu_objset_userobjspace_upgradable(os) ||
+	    dmu_objset_projectquota_upgradable(os)) {
+		dmu_objset_upgrade_locked(os, dmu_objset_id_quota_upgrade_cb);
+	} else if (dmu_objset_userused_enabled(os)) {
+		dmu_objset_upgrade_locked(os,
+		    dmu_objset_userspace_upgrade_cb);
+	}
+}
+
+/*
+ * Start the user accounting upgrade of an objset that the caller owns
+ * read-write.  The upgrade dirties every object, so it is put off while
+ * the dataset has no user accounting and has not changed since its own
+ * latest snapshot, as after a raw receive.  The first write or used
+ * space query then starts it.
+ */
+static void
+dmu_objset_upgrade_or_defer(objset_t *os)
+{
+	ASSERT(dsl_pool_config_held(dmu_objset_pool(os)));
+
+	boolean_t defer = dmu_objset_userused_enabled(os) &&
+	    !dmu_objset_userspace_present(os) &&
+	    dsl_dataset_unchanged_since_prev(dmu_objset_ds(os));
+
+	mutex_enter(&os->os_upgrade_lock);
+	os->os_upgrade_deferred = defer;
+	if (!defer)
+		dmu_objset_upgrade_start_locked(os);
+	mutex_exit(&os->os_upgrade_lock);
+}
+
+/*
+ * An online receive or a rollback gives the owner a new objset, which
+ * has no upgrade put off.  For a dataset without user accounting, make
+ * the choice that dmu_objset_own() makes.  The caller holds the pool
+ * config lock.
+ */
+void
+dmu_objset_upgrade_reopened(objset_t *os)
+{
+	if (dmu_objset_userused_enabled(os) &&
+	    !dmu_objset_userspace_present(os))
+		dmu_objset_upgrade_or_defer(os);
+}
+
+/*
+ * Start an upgrade that was put off.  A caller that holds the pool
+ * config lock, such as a channel program, does not start it.  This
+ * clears os_upgrade_deferred in the os_upgrade_lock section that
+ * dispatches the task, so a racing dmu_objset_upgrade_stop() either
+ * clears it first or finds the task to stop.
+ */
+void
+dmu_objset_start_deferred_upgrade(objset_t *os)
+{
+	dsl_pool_t *dp = dmu_objset_pool(os);
+
+	if (!os->os_upgrade_deferred || dsl_pool_config_held(dp))
+		return;
+
+	dsl_pool_config_enter(dp, FTAG);
+	mutex_enter(&os->os_upgrade_lock);
+	if (os->os_upgrade_deferred) {
+		os->os_upgrade_deferred = B_FALSE;
+		dmu_objset_upgrade_start_locked(os);
+	}
+	mutex_exit(&os->os_upgrade_lock);
+	dsl_pool_config_exit(dp, FTAG);
 }
 
 boolean_t
