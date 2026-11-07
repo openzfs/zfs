@@ -34,9 +34,6 @@
 
 verify_runnable "both"
 
-# See issue: https://github.com/openzfs/zfs/issues/6066
-log_unsupported "Occasionally hangs"
-
 #		Origin			Clone
 #
 set -A	dtst	"$POOL"			"$POOL/pclone"		\
@@ -65,10 +62,20 @@ function cleanup
 		log_must zfs promote $POOL2
 	fi
 	log_must cleanup_pool $POOL2
+	log_must cleanup_pool $POOL
+	log_must setup_test_model $POOL
 }
 
 log_assert "Changes made by 'zfs promote' can be properly received."
 log_onexit cleanup
+
+if is_global_zone ; then
+	for vol in $POOL/$FS/vol $POOL/$FS/vclone; do
+		log_must dd if=/dev/urandom of=$ZVOL_RDEVDIR/$vol \
+		    bs=1M count=1
+	done
+fi
+log_must zfs snapshot -r $POOL@promoted
 
 typeset -i i=0
 while ((i < ${#dtst[@]})); do
@@ -80,8 +87,8 @@ done
 #
 # Verify zfs send -R should succeed
 #
-log_must eval "zfs send -R $POOL@final > $BACKDIR/pool-final-R"
-log_must eval "zfs receive -d -F $POOL2 < $BACKDIR/pool-final-R"
+log_must eval "zfs send -R $POOL@promoted > $BACKDIR/pool-promoted-R"
+log_must eval "zfs receive -d -F $POOL2 < $BACKDIR/pool-promoted-R"
 
 dstds=$(get_dst_ds $POOL $POOL2)
 #
@@ -98,6 +105,7 @@ if is_global_zone ; then
 	typeset -i n=${#pair[@]}
 	pair[((n))]="$POOL/vol"; 	pair[((n+1))]="$dstds/vol"
 	pair[((n+2))]="$POOL/$FS/vol"	pair[((n+3))]="$dstds/$FS/vol"
+	pair[((n+4))]="$POOL/$FS/vclone"	pair[((n+5))]="$dstds/$FS/vclone"
 fi
 
 #
@@ -106,7 +114,14 @@ fi
 log_must cmp_ds_subs $POOL $dstds
 typeset -i i=0
 while ((i < ${#pair[@]})); do
-	log_must cmp_ds_cont ${pair[$i]} ${pair[((i+1))]}
+	if [[ $(get_prop type ${pair[$i]}) == volume ]]; then
+		block_device_wait $ZVOL_RDEVDIR/${pair[$i]} \
+		    $ZVOL_RDEVDIR/${pair[((i+1))]}
+		log_must cmp $ZVOL_RDEVDIR/${pair[$i]} \
+		    $ZVOL_RDEVDIR/${pair[((i+1))]}
+	else
+		log_must cmp_ds_cont ${pair[$i]} ${pair[((i+1))]}
+	fi
 	log_must cmp_ds_prop ${pair[$i]} ${pair[((i+1))]}
 
 	((i += 2))
