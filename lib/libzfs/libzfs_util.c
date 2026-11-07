@@ -1319,6 +1319,26 @@ zcmd_print_json(nvlist_t *nvl)
 	nvlist_free(nvl);
 }
 
+/*
+ * Print a string, writing each byte that is not printable ASCII as a
+ * backslash followed by four octal digits.  Space, control characters,
+ * backslash, DEL and all bytes above 0x7f count as not printable, so the
+ * output holds no whitespace and decodes without ambiguity.
+ */
+void
+zfs_print_escaped(FILE *fp, const char *string)
+{
+	char c;
+
+	while ((c = *string++) != '\0') {
+		if (c > ' ' && c != '\\' && c < '\177') {
+			(void) fputc(c, fp);
+		} else {
+			(void) fprintf(fp, "\\%04hho", (uint8_t)c);
+		}
+	}
+}
+
 static void
 zprop_print_headers(zprop_get_cbdata_t *cbp, zfs_type_t type)
 {
