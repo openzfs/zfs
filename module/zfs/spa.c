@@ -11559,8 +11559,11 @@ spa_sync(spa_t *spa, uint64_t txg)
 	spa_update_dspace(spa);
 	spa_log_sm_stats_update(spa);
 
-	if (spa_get_autotrim(spa) == SPA_AUTOTRIM_ON)
-		vdev_autotrim_kick(spa);
+	/*
+	 * Kick even when autotrim is off: a thread still waiting for kicks,
+	 * possibly with a metaslab disabled, only sees the change this way.
+	 */
+	vdev_autotrim_kick(spa);
 
 	/*
 	 * It had better be the case that we didn't dirty anything
