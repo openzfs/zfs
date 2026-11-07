@@ -23,7 +23,7 @@
 # 1. Create an multihost enabled pool
 # 2. zhack imports: $HOSTID1 (matching) and $HOSTID1 (matching)
 # 3. zhack imports: $HOSTID1 (matching) and $HOSTID2 (different)
-# 4. zhack imports: $HOSTID3 (different) and $HOSTID4 (different)
+# 4. zhack imports: $HOSTID1 (different) and $HOSTID2 (different)
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -107,8 +107,9 @@ pid2=$!
 log_must verify_zhack $pid1 $pid2
 
 mmp_clear_hostid
-mmp_set_hostid $HOSTID1
+mmp_set_hostid $HOSTID3
 log_must import_activity_check $MMP_POOL "-d $MMP_DIR"
+log_must mmp_pool_set_hostid $MMP_POOL $HOSTID1
 log_must zpool export $MMP_POOL
 
 # 3. zhack imports: $HOSTID1 (matching) and $HOSTID2 (different)
