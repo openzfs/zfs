@@ -164,6 +164,8 @@ zpool_open_func(void *arg)
 	rdsk_node_t *rn = arg;
 	struct stat64 statbuf;
 	nvlist_t *config;
+	uint64_t txg0_pool_guid;
+	uint64_t txg0_guid;
 	int num_labels;
 	int fd;
 	off_t mediasize = 0;
@@ -203,9 +205,12 @@ zpool_open_func(void *arg)
 		goto out;
 	}
 
-	if (zpool_read_label(fd, &config, &num_labels) != 0)
+	if (zpool_read_label_txg0(fd, &config, &num_labels, &txg0_pool_guid,
+	    &txg0_guid) != 0)
 		goto out;
 	if (num_labels == 0) {
+		rn->rn_txg0_pool_guid = txg0_pool_guid;
+		rn->rn_txg0_guid = txg0_guid;
 		nvlist_free(config);
 		goto out;
 	}
