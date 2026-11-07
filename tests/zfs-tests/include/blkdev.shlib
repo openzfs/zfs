@@ -76,8 +76,9 @@ function block_device_wait
 		typeset start=$SECONDS
 		udevadm settle
 		typeset elapsed=$((SECONDS - start))
-		[[ $elapsed > 60 ]] && \
-		    log_note udevadm settle time too long: $elapsed
+		if (( elapsed > 60 )); then
+			log_note udevadm settle time too long: $elapsed
+		fi
 	elif is_freebsd; then
 		if [[ ${#@} -eq 0 ]]; then
 			# Do something that has to go through the geom event
