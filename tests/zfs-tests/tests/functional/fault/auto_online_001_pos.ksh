@@ -34,8 +34,9 @@
 # Creates a raidz1 zpool using persistent disk path names
 # (ie not /dev/sdc).
 #
-# If loop devices are used, then a scsi_debug device is added to the pool.
-# otherwise just an sd device is used as the auto-online device.
+# Unless the disks are SCSI or multipath devices, which can be removed and
+# reinserted, a scsi_debug device is added to the pool as the auto-online
+# device.
 # Auto-online matches by devid.
 #
 verify_runnable "both"
@@ -63,32 +64,25 @@ log_assert "Testing automated auto-online FMA test"
 
 log_onexit cleanup
 
-# If using the default loop devices, need a scsi_debug device for auto-online
-if is_loop_device $DISK1; then
-	load_scsi_debug $SDSIZE $SDHOSTS $SDTGTS $SDLUNS '512b'
-	SDDEVICE=$(get_debug_device)
-	SDDEVICE_ID=$(get_persistent_disk_name $SDDEVICE)
-	autoonline_disks="$SDDEVICE"
-else
-	autoonline_disks="$DISK1 $DISK2 $DISK3"
-fi
-
 # Clear disk labels
 for i in {0..2}
 do
 	zpool labelclear -f /dev/disk/by-id/"${devs_id[i]}"
 done
 
-if is_loop_device $DISK1; then
-	# create a pool with one scsi_debug device and 3 loop devices
-	log_must zpool create -f $TESTPOOL raidz1 $SDDEVICE_ID $DISK1 \
-	    $DISK2 $DISK3
-elif ( is_real_device $DISK1 || is_mpath_device $DISK1 ); then
-	# else use the persistent names for sd devices
+if is_scsi_device $DISK1 || is_mpath_device $DISK1; then
+	# use the persistent names for disks that can be removed
+	autoonline_disks="$DISK1 $DISK2 $DISK3"
 	log_must zpool create -f $TESTPOOL raidz1 ${devs_id[0]} \
 	    ${devs_id[1]} ${devs_id[2]}
 else
-	log_fail "Disks are not supported for this test"
+	# otherwise auto-online a scsi_debug device in a pool with the 3 disks
+	load_scsi_debug $SDSIZE $SDHOSTS $SDTGTS $SDLUNS '512b'
+	SDDEVICE=$(get_debug_device)
+	SDDEVICE_ID=$(get_persistent_disk_name $SDDEVICE)
+	autoonline_disks="$SDDEVICE"
+	log_must zpool create -f $TESTPOOL raidz1 $SDDEVICE_ID $DISK1 \
+	    $DISK2 $DISK3
 fi
 
 # Add some data to the pool
