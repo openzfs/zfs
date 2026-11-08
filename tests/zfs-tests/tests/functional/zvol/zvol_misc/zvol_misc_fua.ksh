@@ -38,15 +38,17 @@ if ! is_linux ; then
 	log_unsupported "Only linux supports dd with oflag=dsync for FUA writes"
 fi
 
+verify_disk_count "$DISKS" 2
+
 typeset datafile1="$(mktemp -t zvol_misc_fua1.XXXXXX)"
 typeset datafile2="$(mktemp -t zvol_misc_fua2.XXXXXX)"
-typeset datafile3="$(mktemp -t zvol_misc_fua3_log.XXXXXX)"
 typeset zvolpath=${ZVOL_DEVDIR}/$TESTPOOL/$TESTVOL
 
 typeset DISK1=${DISKS%% *}
+typeset logdisk=$(echo $DISKS | awk '{print $2}')
 function cleanup
 {
-	log_must zpool remove $TESTPOOL $datafile3
+	log_must zpool remove $TESTPOOL $logdisk
 	rm "$datafile1" "$datafile2" "$datafile2"
 }
 
@@ -63,14 +65,14 @@ function do_test {
 	block_device_wait $zvolpath
 
 	# Write using sync (creates FLUSH calls after writes, but not FUA)
-	old_log_writes=$(get_sync $datafile3)
+	old_log_writes=$(get_sync $logdisk)
 
 	log_must fio --name=write_iops --size=5M \
 		--ioengine=libaio --verify=0 --bs=4K \
 		--iodepth=1 --rw=randwrite --group_reporting=1 \
 		--filename=$zvolpath --sync=1
 
-	log_writes=$(( $(get_sync $datafile3) - $old_log_writes))
+	log_writes=$(( $(get_sync $logdisk) - $old_log_writes))
 
 	# When doing sync writes, we should see at least one SLOG write per
 	# block (5MB / 4KB) == 1280.
@@ -99,8 +101,7 @@ log_assert "Verify that a ZFS volume can do Force Unit Access (FUA)"
 log_onexit cleanup
 
 log_must zfs set compression=off $TESTPOOL/$TESTVOL
-log_must truncate -s 100M $datafile3
-log_must zpool add $TESTPOOL log $datafile3
+log_must zpool add $TESTPOOL log $logdisk
 
 log_note "Testing without blk-mq"
 
