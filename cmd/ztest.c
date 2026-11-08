@@ -3867,6 +3867,32 @@ ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 }
 
 /*
+ * Returns B_TRUE if ztest_fault_inject() has made a leaf under vd
+ * unreadable (vdev_cant_read, or its fd closed behind its back).  Any
+ * reopen clears vdev_cant_read, but a closed fd survives a reopen and is
+ * only cured by an offline/online or by restarting ztest.
+ */
+static boolean_t
+ztest_vdev_has_injected_fault(vdev_t *vd)
+{
+	if (vd->vdev_ops->vdev_op_leaf) {
+		vdev_file_t *vf = vd->vdev_tsd;
+		zfs_file_attr_t zfa;
+
+		return (vd->vdev_cant_read ||
+		    (vd->vdev_ops == &vdev_file_ops && vf != NULL &&
+		    vf->vf_file != NULL &&
+		    zfs_file_getattr(vf->vf_file, &zfa) != 0));
+	}
+
+	for (uint64_t c = 0; c < vd->vdev_children; c++) {
+		if (ztest_vdev_has_injected_fault(vd->vdev_child[c]))
+			return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+/*
  * Verify that we can attach and detach devices.
  */
 void
@@ -4020,6 +4046,23 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 		    error != ZFS_ERR_DISCARDING_CHECKPOINT)
 			fatal(B_FALSE, "detach (%s) returned %d",
 			    oldpath, error);
+		goto out;
+	}
+
+	/*
+	 * A resilver that can't read its source still completes and
+	 * excises the new device's DTL (vdev_dtl_reassess()), after which
+	 * the old device, possibly the only good copy, can be detached or
+	 * replaced away.  That's by design: otherwise a permanent read
+	 * error would make the resilver run forever, and the errors are
+	 * reported.  So don't attach to or replace in a top-level vdev
+	 * with a leaf that ztest_fault_inject() has made unreadable.
+	 * ztest_fault_inject() holds the ztest_vdev_lock while it injects,
+	 * and after the attach vdev_resilver_needed() keeps it from
+	 * faulting the source.
+	 */
+	if (ztest_vdev_has_injected_fault(oldvd->vdev_top)) {
+		spa_config_exit(spa, SCL_ALL, FTAG);
 		goto out;
 	}
 
