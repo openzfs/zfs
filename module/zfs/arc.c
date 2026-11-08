@@ -3789,6 +3789,62 @@ arc_buf_destroy(arc_buf_t *buf, const void *tag)
 }
 
 /*
+ * Non-blocking variant of arc_buf_destroy(), in two steps so that the caller
+ * can decide what to do while it still holds its own locks:
+ * arc_buf_try_lock() takes the header's hash lock with mutex_tryenter() and
+ * returns B_FALSE if another thread holds it; after a B_TRUE return the
+ * caller must call arc_buf_destroy_locked(), which destroys the buffer and
+ * drops the hash lock.  Anonymous headers have no hash lock; both functions
+ * degrade to the plain arc_buf_destroy() behaviour for them.
+ *
+ * A thread in arc_read() holds the hash lock across the allocation of the
+ * read buffer, and that allocation can sit in memory reclaim for a long
+ * time when the system is short of free memory.  Callers that are merely
+ * trimming a cache, such as dbuf_evict_one(), must not inherit that wait:
+ * they run in the context of whichever thread happened to release a dbuf,
+ * so one slow read would otherwise stall every such thread, including the
+ * dbuf eviction thread and the txg sync thread.
+ */
+boolean_t
+arc_buf_try_lock(arc_buf_t *buf)
+{
+	arc_buf_hdr_t *hdr = buf->b_hdr;
+
+	/*
+	 * Reading b_state without the hash lock is what arc_buf_destroy()
+	 * does too: a buffer held by the caller keeps its header from being
+	 * evicted or re-keyed, and an anonymous header only becomes hashed
+	 * through arc_write(), which the caller would have to issue itself.
+	 */
+	if (hdr->b_l1hdr.b_state == arc_anon)
+		return (B_TRUE);
+	return (mutex_tryenter(HDR_LOCK(hdr)) != 0);
+}
+
+void
+arc_buf_destroy_locked(arc_buf_t *buf, const void *tag)
+{
+	arc_buf_hdr_t *hdr = buf->b_hdr;
+
+	if (hdr->b_l1hdr.b_state == arc_anon) {
+		arc_buf_destroy(buf, tag);
+		return;
+	}
+
+	kmutex_t *hash_lock = HDR_LOCK(hdr);
+	ASSERT(MUTEX_HELD(hash_lock));
+	ASSERT3P(hdr, ==, buf->b_hdr);
+	ASSERT3P(hdr->b_l1hdr.b_buf, !=, NULL);
+	ASSERT3P(hash_lock, ==, HDR_LOCK(hdr));
+	ASSERT3P(hdr->b_l1hdr.b_state, !=, arc_anon);
+	ASSERT3P(buf->b_data, !=, NULL);
+
+	arc_buf_destroy_impl(buf);
+	(void) remove_reference(hdr, tag);
+	mutex_exit(hash_lock);
+}
+
+/*
  * Evict the arc_buf_hdr that is provided as a parameter. The resultant
  * state of the header is dependent on its state prior to entering this
  * function. The following transitions are possible:
