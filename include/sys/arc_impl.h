@@ -131,6 +131,16 @@ struct arc_callback {
 	boolean_t		acb_compressed;
 	boolean_t		acb_noauth;
 	boolean_t		acb_nobuf;
+	/*
+	 * Data buffer of lsize bytes that arc_read() allocated before taking
+	 * the hash lock, for arc_read_done() to use for acb_buf instead of
+	 * allocating under the lock.  NULL once consumed or when not needed,
+	 * and always NULL for a callback without acb_done or with acb_nobuf.
+	 * Its size and type are the header's (lsize, data or metadata), which
+	 * the block pointer fixes for the life of the header.  It is charged
+	 * to arc_size from allocation, including while the read is in flight.
+	 */
+	void			*acb_buf_data;
 	boolean_t		acb_wait;
 	int			acb_wait_error;
 	kmutex_t		acb_wait_lock;
