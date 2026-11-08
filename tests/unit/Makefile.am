@@ -24,6 +24,7 @@ UNIT_TESTS = \
 	%D%/test_nvpair \
 	%D%/test_backtrace \
 	%D%/test_timer \
+	%D%/test_taskq \
 	%D%/test_zfs_file \
 	%D%/test_indirect_mapping
 
@@ -161,6 +162,16 @@ nodist_%C%_test_nvpair_SOURCES = \
 	%D%/test_timer.c
 
 %C%_test_timer_LDADD = \
+	libunit.la \
+	libspl.la
+
+
+%C%_test_taskq_CFLAGS = $(AM_CFLAGS)
+
+%C%_test_taskq_SOURCES = \
+	%D%/test_taskq.c
+
+%C%_test_taskq_LDADD = \
 	libunit.la \
 	libspl.la
 
