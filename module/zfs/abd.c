@@ -1154,83 +1154,100 @@ abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd, size_t off,
 }
 
 /*
- * Iterate over code ABDs and data reconstruction target ABDs and call
- * @func_raidz_rec. Function maps at most 6 pages atomically.
+ * The iterators of abd_raidz_cols_iterate(): about 1 KiB, too much for a
+ * kernel stack frame.  Callers allocate them before their FPU section,
+ * inside which they may not sleep.
+ */
+struct abd_raidz_cols {
+	struct abd_iter	rzc_iters[ABD_RAIDZ_MAXCOLS];
+	abd_t		*rzc_cabds[ABD_RAIDZ_MAXCOLS];
+	void		*rzc_bufs[ABD_RAIDZ_MAXCOLS];
+};
+
+abd_raidz_cols_t *
+abd_raidz_cols_alloc(void)
+{
+	return (kmem_alloc(sizeof (abd_raidz_cols_t), KM_SLEEP));
+}
+
+void
+abd_raidz_cols_free(abd_raidz_cols_t *rzc)
+{
+	kmem_free(rzc, sizeof (abd_raidz_cols_t));
+}
+
+/*
+ * Iterate over up to ABD_RAIDZ_MAXCOLS columns of a RAID-Z row in lockstep,
+ * from @off for @size bytes, and call @func_raidz_cols on each run.  All
+ * the columns are mapped at once.
  *
- * @cabds           parity ABDs, must have equal size
- * @tabds           rec target ABDs, at most 3
- * @tsize           size of data target columns
- * @func_raidz_rec  expects syndrome data in target columns. Function
- *                  reconstructs data and overwrites target columns.
+ * @rzc             iterators, from abd_raidz_cols_alloc()
+ * @abds            columns, NULL for a column that is absent
+ * @sizes           size of each column from its start: a column ends
+ *                  before @off + @size when it is shorter
+ * @func_raidz_cols gets bufs[i] == NULL for a column that is absent or
+ *                  has ended, and bufs[i] with @len bytes otherwise
  */
 void
-abd_raidz_rec_iterate(abd_t **cabds, abd_t **tabds,
-    size_t tsize, const unsigned parity,
-    void (*func_raidz_rec)(void **t, const size_t tsize, void **c,
-    const unsigned *mul),
-    const unsigned *mul)
+abd_raidz_cols_iterate(abd_raidz_cols_t *rzc, abd_t **abds,
+    const size_t *sizes, unsigned ncols, size_t off, size_t size,
+    void (*func_raidz_cols)(void **bufs, unsigned ncols, size_t len,
+    void *private), void *private)
 {
-	int i;
-	size_t len;
-	struct abd_iter citers[3];
-	struct abd_iter xiters[3];
-	void *caddrs[3], *xaddrs[3];
+	struct abd_iter *iters = rzc->rzc_iters;
+	abd_t **c_abds = rzc->rzc_cabds;
+	void **bufs = rzc->rzc_bufs;
 	unsigned long flags __maybe_unused = 0;
-	abd_t *c_cabds[3];
-	abd_t *c_tabds[3];
+	const size_t end = off + size;
+	size_t pos, len;
+	unsigned i;
 
-	ASSERT3U(parity, <=, 3);
+	ASSERT3U(ncols, <=, ABD_RAIDZ_MAXCOLS);
 
-	for (i = 0; i < parity; i++) {
-		abd_verify(cabds[i]);
-		abd_verify(tabds[i]);
-		ASSERT3U(tsize, <=, cabds[i]->abd_size);
-		ASSERT3U(tsize, <=, tabds[i]->abd_size);
-		c_cabds[i] =
-		    abd_init_abd_iter(cabds[i], &citers[i], 0);
-		c_tabds[i] =
-		    abd_init_abd_iter(tabds[i], &xiters[i], 0);
+	for (i = 0; i < ncols; i++) {
+		c_abds[i] = NULL;
+		if (abds[i] == NULL || sizes[i] <= off)
+			continue;
+		abd_verify(abds[i]);
+		ASSERT3U(sizes[i], <=, abds[i]->abd_size);
+		c_abds[i] = abd_init_abd_iter(abds[i], &iters[i], off);
 	}
 
-	abd_enter_critical(flags);
-	while (tsize > 0) {
-		len = tsize;
-		for (i = 0; i < parity; i++) {
-			IMPLY(abd_is_gang(cabds[i]), c_cabds[i] != NULL);
-			IMPLY(abd_is_gang(tabds[i]), c_tabds[i] != NULL);
-			abd_iter_map(&citers[i]);
-			abd_iter_map(&xiters[i]);
-			caddrs[i] = citers[i].iter_mapaddr;
-			xaddrs[i] = xiters[i].iter_mapaddr;
-			len = MIN(citers[i].iter_mapsize, len);
-			len = MIN(xiters[i].iter_mapsize, len);
+	for (pos = off; pos < end; pos += len) {
+		len = end - pos;
+		abd_enter_critical(flags);
+		for (i = 0; i < ncols; i++) {
+			if (abds[i] == NULL || sizes[i] <= pos) {
+				bufs[i] = NULL;
+				continue;
+			}
+			IMPLY(abd_is_gang(abds[i]), c_abds[i] != NULL);
+			abd_iter_map(&iters[i]);
+			bufs[i] = iters[i].iter_mapaddr;
+			len = MIN(len, iters[i].iter_mapsize);
+			len = MIN(len, sizes[i] - pos);
 		}
 
 		/* must be progressive */
-		ASSERT3S(len, >, 0);
+		ASSERT3U(len, >, 0);
 		/*
 		 * The iterated function likely will not do well if each
 		 * segment except the last one is not multiple of 512 (raidz).
 		 */
 		ASSERT3U(((uint64_t)len & 511ULL), ==, 0);
 
-		func_raidz_rec(xaddrs, len, caddrs, mul);
+		func_raidz_cols(bufs, ncols, len, private);
 
-		for (i = parity - 1; i >= 0; i--) {
-			abd_iter_unmap(&xiters[i]);
-			abd_iter_unmap(&citers[i]);
-			c_tabds[i] =
-			    abd_advance_abd_iter(tabds[i], c_tabds[i],
-			    &xiters[i], len);
-			c_cabds[i] =
-			    abd_advance_abd_iter(cabds[i], c_cabds[i],
-			    &citers[i], len);
+		for (i = ncols; i-- > 0; ) {
+			if (bufs[i] == NULL)
+				continue;
+			abd_iter_unmap(&iters[i]);
+			c_abds[i] = abd_advance_abd_iter(abds[i], c_abds[i],
+			    &iters[i], len);
 		}
-
-		tsize -= len;
-		ASSERT3S(tsize, >=, 0);
+		abd_exit_critical(flags);
 	}
-	abd_exit_critical(flags);
 }
+
 
 EXPORT_SYMBOL(abd_free);

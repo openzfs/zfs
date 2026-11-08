@@ -122,11 +122,16 @@ void abd_verify(abd_t *);
 void abd_raidz_gen_iterate(abd_t **cabds, abd_t *dabd, size_t off,
 	size_t csize, size_t dsize, const unsigned parity,
 	void (*func_raidz_gen)(void **, const void *, size_t, size_t));
-void abd_raidz_rec_iterate(abd_t **cabds, abd_t **tabds,
-	size_t tsize, const unsigned parity,
-	void (*func_raidz_rec)(void **t, const size_t tsize, void **c,
-	const unsigned *mul),
-	const unsigned *mul);
+
+/* Most columns abd_raidz_cols_iterate() maps at once. */
+#define	ABD_RAIDZ_MAXCOLS	14
+typedef struct abd_raidz_cols abd_raidz_cols_t;
+abd_raidz_cols_t *abd_raidz_cols_alloc(void);
+void abd_raidz_cols_free(abd_raidz_cols_t *);
+void abd_raidz_cols_iterate(abd_raidz_cols_t *rzc, abd_t **abds,
+	const size_t *sizes, unsigned ncols, size_t off, size_t size,
+	void (*func_raidz_cols)(void **bufs, unsigned ncols, size_t len,
+	void *private), void *private);
 
 /*
  * Wrappers for calls with offsets of 0

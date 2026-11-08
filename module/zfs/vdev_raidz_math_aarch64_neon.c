@@ -20,31 +20,11 @@
 
 #include "vdev_raidz_math_aarch64_neon_common.h"
 
-#define	SYN_STRIDE		4
-
-#define	ZERO_STRIDE		4
-#define	ZERO_DEFINE()	\
-	GEN_X_DEFINE_0_3() \
-	GEN_X_DEFINE_33_36()
-#define	ZERO_D			0, 1, 2, 3
-
 #define	COPY_STRIDE		4
 #define	COPY_DEFINE()	\
 	GEN_X_DEFINE_0_3() \
 	GEN_X_DEFINE_33_36()
 #define	COPY_D			0, 1, 2, 3
-
-#define	ADD_STRIDE		4
-#define	ADD_DEFINE()	\
-	GEN_X_DEFINE_0_3() \
-	GEN_X_DEFINE_33_36()
-#define	ADD_D			0, 1, 2, 3
-
-#define	MUL_STRIDE		4
-#define	MUL_DEFINE()	\
-	GEN_X_DEFINE_0_3()  \
-	GEN_X_DEFINE_33_36()
-#define	MUL_D			0, 1, 2, 3
 
 #define	GEN_P_DEFINE() \
 	GEN_X_DEFINE_0_3() \
@@ -60,56 +40,44 @@
 	GEN_X_DEFINE_17()	\
 	GEN_X_DEFINE_33_36()
 #define	GEN_PQ_STRIDE		4
-#define	GEN_PQ_D		0, 1, 2, 3
-#define	GEN_PQ_C		4, 5, 6, 7
+#define	GEN_PQ_P		0, 1, 2, 3
+#define	GEN_PQ_Q		4, 5, 6, 7
 
 #define	GEN_PQR_DEFINE() \
 	GEN_X_DEFINE_0_3()	\
 	GEN_X_DEFINE_4_5()	\
 	GEN_X_DEFINE_6_7()	\
+	GEN_X_DEFINE_8_9()	\
+	GEN_X_DEFINE_10_11()	\
 	GEN_X_DEFINE_16()	\
 	GEN_X_DEFINE_17()	\
 	GEN_X_DEFINE_33_36()
 #define	GEN_PQR_STRIDE		4
-#define	GEN_PQR_D		0, 1, 2, 3
-#define	GEN_PQR_C		4, 5, 6, 7
+#define	GEN_PQR_P		0, 1, 2, 3
+#define	GEN_PQR_Q		4, 5, 6, 7
+#define	GEN_PQR_R		8, 9, 10, 11
 
-#define	SYN_Q_DEFINE() \
+#define	REC_Q_STRIDE		4
+#define	REC_Q_DEFINE() \
 	GEN_X_DEFINE_0_3()	\
-	GEN_X_DEFINE_4_5()	\
-	GEN_X_DEFINE_6_7()	\
 	GEN_X_DEFINE_16()	\
 	GEN_X_DEFINE_17()	\
 	GEN_X_DEFINE_33_36()
-#define	SYN_Q_STRIDE		4
-#define	SYN_Q_D			0, 1, 2, 3
-#define	SYN_Q_X			4, 5, 6, 7
+#define	REC_Q_X			0, 1, 2, 3
 
-#define	SYN_R_DEFINE() \
+#define	REC_R_STRIDE		4
+#define	REC_R_DEFINE() \
 	GEN_X_DEFINE_0_3()	\
-	GEN_X_DEFINE_4_5()	\
-	GEN_X_DEFINE_6_7()	\
 	GEN_X_DEFINE_16()	\
 	GEN_X_DEFINE_17()	\
 	GEN_X_DEFINE_33_36()
-#define	SYN_R_STRIDE		4
-#define	SYN_R_D			0, 1, 2, 3
-#define	SYN_R_X			4, 5, 6, 7
-
-#define	SYN_PQ_DEFINE() \
-	GEN_X_DEFINE_0_3()	\
-	GEN_X_DEFINE_4_5()	\
-	GEN_X_DEFINE_6_7()	\
-	GEN_X_DEFINE_16()	\
-	GEN_X_DEFINE_17()	\
-	GEN_X_DEFINE_33_36()
-#define	SYN_PQ_STRIDE		4
-#define	SYN_PQ_D		0, 1, 2, 3
-#define	SYN_PQ_X		4, 5, 6, 7
+#define	REC_R_X			0, 1, 2, 3
 
 #define	REC_PQ_DEFINE() \
 	GEN_X_DEFINE_0_3()	\
 	GEN_X_DEFINE_4_5()	\
+	GEN_X_DEFINE_16()	\
+	GEN_X_DEFINE_17()	\
 	GEN_X_DEFINE_31()	\
 	GEN_X_DEFINE_32()	\
 	GEN_X_DEFINE_33_36()
@@ -118,20 +86,11 @@
 #define	REC_PQ_Y		2, 3
 #define	REC_PQ_T		4, 5
 
-#define	SYN_PR_DEFINE() \
-	GEN_X_DEFINE_0_3()	\
-	GEN_X_DEFINE_4_5()	\
-	GEN_X_DEFINE_6_7()	\
-	GEN_X_DEFINE_16()	\
-	GEN_X_DEFINE_17()	\
-	GEN_X_DEFINE_33_36()
-#define	SYN_PR_STRIDE		4
-#define	SYN_PR_D		0, 1, 2, 3
-#define	SYN_PR_X		4, 5, 6, 7
-
 #define	REC_PR_DEFINE()	\
 	GEN_X_DEFINE_0_3()	\
 	GEN_X_DEFINE_4_5()	\
+	GEN_X_DEFINE_16()	\
+	GEN_X_DEFINE_17()	\
 	GEN_X_DEFINE_31()	\
 	GEN_X_DEFINE_32()	\
 	GEN_X_DEFINE_33_36()
@@ -140,20 +99,11 @@
 #define	REC_PR_Y		2, 3
 #define	REC_PR_T		4, 5
 
-#define	SYN_QR_DEFINE() \
-	GEN_X_DEFINE_0_3()	\
-	GEN_X_DEFINE_4_5()	\
-	GEN_X_DEFINE_6_7()	\
-	GEN_X_DEFINE_16()	\
-	GEN_X_DEFINE_17()	\
-	GEN_X_DEFINE_33_36()
-#define	SYN_QR_STRIDE		4
-#define	SYN_QR_D		0, 1, 2, 3
-#define	SYN_QR_X		4, 5, 6, 7
-
 #define	REC_QR_DEFINE()	\
 	GEN_X_DEFINE_0_3()	\
 	GEN_X_DEFINE_4_5()	\
+	GEN_X_DEFINE_16()	\
+	GEN_X_DEFINE_17()	\
 	GEN_X_DEFINE_31()	\
 	GEN_X_DEFINE_32()	\
 	GEN_X_DEFINE_33_36()
@@ -162,22 +112,13 @@
 #define	REC_QR_Y		2, 3
 #define	REC_QR_T		4, 5
 
-#define	SYN_PQR_DEFINE() \
-	GEN_X_DEFINE_0_3()	\
-	GEN_X_DEFINE_4_5()	\
-	GEN_X_DEFINE_6_7()	\
-	GEN_X_DEFINE_16()	\
-	GEN_X_DEFINE_17()	\
-	GEN_X_DEFINE_33_36()
-#define	SYN_PQR_STRIDE		 4
-#define	SYN_PQR_D		 0, 1, 2, 3
-#define	SYN_PQR_X		 4, 5, 6, 7
-
 #define	REC_PQR_DEFINE() \
 	GEN_X_DEFINE_0_3()	\
 	GEN_X_DEFINE_4_5()	\
 	GEN_X_DEFINE_6_7()	\
 	GEN_X_DEFINE_8_9()	\
+	GEN_X_DEFINE_16()	\
+	GEN_X_DEFINE_17()	\
 	GEN_X_DEFINE_31()	\
 	GEN_X_DEFINE_32()	\
 	GEN_X_DEFINE_33_36()
