@@ -52,8 +52,8 @@ extern void kmem_strfree(char *str);
 
 extern char *kmem_vasprintf(const char *fmt, va_list adx);
 extern char *kmem_asprintf(const char *fmt, ...);
-extern int kmem_scnprintf(char *restrict str, size_t size,
-    const char *restrict fmt, ...);
+extern int kmem_scnprintf(char *__restrict str, size_t size,
+    const char *__restrict fmt, ...);
 
 typedef int fstrans_cookie_t;
 
