@@ -6425,6 +6425,8 @@ vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 	uint64_t vdev_guid;
 	nvlist_t *nvprops;
 	int error = 0;
+	boolean_t alloc_set = B_FALSE;
+	uint64_t noalloc_before = 0;
 
 	if (nvlist_lookup_uint64(innvl, ZPOOL_VDEV_PROPS_SET_VDEV,
 	    &vdev_guid) != 0)
@@ -6511,6 +6513,10 @@ vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 			}
 			if (intval != vd->vdev_noalloc)
 				break;
+			if (!alloc_set) {
+				alloc_set = B_TRUE;
+				noalloc_before = vd->vdev_noalloc;
+			}
 			/*
 			 * spa_vdev_noalloc()/spa_vdev_alloc() take SCL_ALL as a
 			 * writer; same locking dance as VDEV_PROP_PATH above.
@@ -6700,13 +6706,31 @@ end:
 		}
 	}
 
+	boolean_t alloc_changed = alloc_set && vd != NULL &&
+	    vd->vdev_noalloc != noalloc_before;
+
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
-	if (error != 0)
-		return (error);
+	if (error == 0) {
+		error = dsl_sync_task(spa->spa_name, NULL,
+		    vdev_props_set_sync, innvl, 6,
+		    ZFS_SPACE_CHECK_EXTRA_RESERVED);
+	}
 
-	return (dsl_sync_task(spa->spa_name, NULL, vdev_props_set_sync,
-	    innvl, 6, ZFS_SPACE_CHECK_EXTRA_RESERVED));
+	/*
+	 * spa_vdev_noalloc() and spa_vdev_alloc() have already written the
+	 * new state of the vdev to the config.  Put it back if the property
+	 * is not written: taking the space of the vdev away can alone make
+	 * the sync task fail with ENOSPC.
+	 */
+	if (error != 0 && alloc_changed) {
+		if (noalloc_before)
+			(void) spa_vdev_noalloc(spa, vdev_guid);
+		else
+			(void) spa_vdev_alloc(spa, vdev_guid);
+	}
+
+	return (error);
 }
 
 static int
