@@ -24,6 +24,19 @@ typeset -r DEV3=/dev/${_disks[2]}
 
 typeset -A _saved_perms
 
+#
+# Set the mode of the devices and their partitions, since ZFS opens
+# partition 1 of a whole disk.  Wait for udev first, since it resets the
+# modes after a relabel.
+#
+function set_perms { #mode, devs...
+	typeset mode="$1"
+	udevadm settle
+	typeset parts=$(lsblk -lnpo NAME,TYPE "${@:2}" | \
+	    awk '$2 == "part" {print $1}')
+	log_must chmod $mode "${@:2}" $parts
+}
+
 function save_perms { # path
 	typeset path="$1"
 	_saved_perms[$path]=$(stat -c '%a' "$path")
@@ -34,13 +47,16 @@ function restore_perms { #path
 	if [[ -z ${_saved_perms[$path]} ]] ; then
 		log_fail "restore_perms($path): must call save_perms first"
 	fi
-	log_must chmod ${_saved_perms[$path]} "$path"
+	set_perms ${_saved_perms[$path]} "$path"
 }
 
 function check_vdevs { #pool, vdevs...
 	typeset pool="$1"
-	typeset want=$(echo "${@:2}" | xargs -n 1 | sort | xargs)
-	typeset have=$(zpool list -HvLP -o name "$pool" | grep /dev | sort | xargs)
+	typeset want=$(echo "${@:2}" | xargs -n 1 | sed 's,.*/,,' | sort | xargs)
+	# Report a whole disk vdev by its disk rather than its partition.
+	typeset have=$(zpool list -HvLP -o name "$pool" | grep /dev | \
+	    xargs -r lsblk -dno NAME,TYPE,PKNAME | \
+	    awk '{print ($2 == "part" ? $3 : $1)}' | sort | xargs)
 	log_must test "$want" == "$have"
 }
 
