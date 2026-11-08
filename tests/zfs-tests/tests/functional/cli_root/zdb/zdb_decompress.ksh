@@ -43,7 +43,8 @@ log_assert "Verify zdb -R :d flag (decompress) works as expected"
 log_onexit cleanup
 init_data=$TESTDIR/file1
 write_count=256
-blksize=4096
+# A 4k block can't save a whole sector at ashift 12, so use 128k.
+blksize=131072
 pattern="_match__pattern_"
 verify_runnable "global"
 verify_disk_count "$DISKS" 2
@@ -52,7 +53,7 @@ default_mirror_setup_noexit $DISKS
 log_must zfs set recordsize=$blksize $TESTPOOL/$TESTFS
 log_must zfs set compression=lzjb $TESTPOOL/$TESTFS
 
-# 16 chars 256 times = 4k = block size
+# 16 chars 256 times = 4k
 typeset four_k=""
 for i in {1..$write_count}
 do
