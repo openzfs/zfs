@@ -31,12 +31,20 @@ function cleanup
 default_setup_noexit "$DISKS"
 log_onexit cleanup
 
+#
+# During a removal, only vdevs with the pool's ashift can be added.  A file
+# vdev gets ashift 9, so give it the largest ashift of the pool's vdevs, which
+# is 12 on disks with 4K sectors.
+#
+ashift=$(zpool get -Hpo value ashift $TESTPOOL all-vdevs | sort -n | tail -n 1)
+[[ -n $ashift ]] || log_fail "could not get the ashift of $TESTPOOL"
+
 function callback
 {
 	log_mustnot zpool attach -f $TESTPOOL $DISKDIR/dsk1 $DISKDIR/dsk2
 	log_mustnot zpool add -f $TESTPOOL \
 	    raidz $DISKDIR/dsk1 $DISKDIR/dsk2
-	log_must zpool add -f $TESTPOOL $DISKDIR/dsk1
+	log_must zpool add -f -o ashift=$ashift $TESTPOOL $DISKDIR/dsk1
 	return 0
 }
 
