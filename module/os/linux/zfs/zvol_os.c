@@ -537,6 +537,17 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 	if (zvol_request_sync || zv->zv_threading == B_FALSE)
 		force_sync = 1;
 
+	/*
+	 * io_uring issues a non-blocking (REQ_NOWAIT) request to a blk-mq
+	 * zvol from the task that submitted it, and processing it here would
+	 * make that task wait for each of its requests in turn: queue it.
+	 * Failing it with EAGAIN would not be safe: queue_rq() may also run
+	 * in kblockd, and io_uring before Linux 6.14 does not retry an error
+	 * that completes there.
+	 */
+	if (force_sync && rq != NULL && io_is_nowait(bio, rq))
+		force_sync = 0;
+
 	zv_request_t zvr = {
 		.zv = zv,
 		.bio = bio,
