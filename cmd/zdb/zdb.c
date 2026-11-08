@@ -10401,8 +10401,8 @@ print_anyraid_mapping(vdev_t *vd, int child, anyraid_header_t *header)
 	    &disk_id) != 0)
 		(void) printf("No valid disk ID\n");
 
-	(void) printf("version:    %6d\ttile size: %#8lx\ttxg: %lu\n",
-	    version, tile_size, written_txg);
+	(void) printf("version:    %6d\ttile size: %#8llx\ttxg: %llu\n",
+	    version, (u_longlong_t)tile_size, (u_longlong_t)written_txg);
 	(void) printf("map length: %6u\tdisk id: %3u\n", map_length, disk_id);
 
 	// Read in and print the actual mapping data
