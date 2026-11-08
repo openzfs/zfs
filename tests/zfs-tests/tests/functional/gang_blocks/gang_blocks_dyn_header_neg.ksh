@@ -33,7 +33,9 @@ log_assert "Verify that we don't use large gang headers on small-ashift pools".
 log_onexit cleanup
 preamble
 
-log_must zpool create -f -o ashift=9 -o feature@dynamic_gang_header=enabled $TESTPOOL $DISKS
+log_must truncate -s $MINVDEVSIZE $FILE_VDEVS
+log_must zpool create -f -o ashift=9 -o feature@dynamic_gang_header=enabled \
+    $TESTPOOL $FILE_VDEVS
 log_must zfs create -o recordsize=1M $TESTPOOL/$TESTFS
 mountpoint=$(get_prop mountpoint $TESTPOOL/$TESTFS)
 set_tunable64 METASLAB_FORCE_GANGING 200000

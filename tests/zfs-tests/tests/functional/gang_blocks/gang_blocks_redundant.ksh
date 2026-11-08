@@ -38,7 +38,8 @@ function cleanup2
 preamble
 log_onexit cleanup2
 
-log_must zpool create -f -o ashift=9 $TESTPOOL $DISKS
+log_must truncate -s $MINVDEVSIZE $FILE_VDEVS
+log_must zpool create -f -o ashift=9 $TESTPOOL $FILE_VDEVS
 set_tunable64 METASLAB_FORCE_GANGING 1500
 set_tunable32 METASLAB_FORCE_GANGING_PCT 100
 for red in all most some none; do
