@@ -7086,6 +7086,15 @@ vdev_prop_get(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 					    &intval);
 					if (err && err != ENOENT)
 						break;
+					/*
+					 * A failed set or an older release
+					 * can leave the ZAP out of step with
+					 * the vdev: report what the vdev does,
+					 * unless a removal stopped it.
+					 */
+					if (vd->vdev_mg != NULL &&
+					    !vd->vdev_removing)
+						intval = !vd->vdev_noalloc;
 
 					if (intval ==
 					    vdev_prop_default_numeric(prop))

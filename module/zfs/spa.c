@@ -5748,6 +5748,8 @@ spa_ld_load_vdev_metadata(spa_t *spa)
 	vdev_dtl_reassess(rvd, 0, 0, B_FALSE, B_FALSE);
 	spa_config_exit(spa, SCL_ALL, FTAG);
 
+	spa_vdev_noalloc_restore(spa);
+
 	return (0);
 }
 
@@ -5872,9 +5874,21 @@ spa_ld_check_for_config_update(spa_t *spa, uint64_t config_cache_txg,
 	    (spa->spa_import_flags & ZFS_IMPORT_VERBATIM))
 		need_update = B_TRUE;
 
-	for (int c = 0; c < rvd->vdev_children; c++)
-		if (rvd->vdev_child[c]->vdev_ms_array == 0)
+	for (int c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *tvd = rvd->vdev_child[c];
+
+		if (tvd->vdev_ms_array == 0)
 			need_update = B_TRUE;
+
+		/* See spa_vdev_noalloc_restore(). */
+		if (tvd->vdev_noalloc_restored) {
+			tvd->vdev_noalloc_restored = B_FALSE;
+			spa_history_log_internal(spa, "vdev noalloc restored",
+			    NULL, "vdev_guid=%llu",
+			    (u_longlong_t)tvd->vdev_guid);
+			need_update = B_TRUE;
+		}
+	}
 
 	/*
 	 * Update the config cache asynchronously in case we're the
