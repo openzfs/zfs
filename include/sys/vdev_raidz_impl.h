@@ -41,6 +41,23 @@ extern "C" {
 #define	TARGET_Z	(2U)
 
 /*
+ * The parity math reads the data columns of a row in groups of up to
+ * RAIDZ_GRP_DCOLS, see vdev_raidz_math_impl.h.  With a group, it maps up to
+ * PARITY_PQR columns that it computes and, to reconstruct, as many parity
+ * columns: RAIDZ_GRP_MAXCOLS columns at once at most, 14 of the 16 pages
+ * that a task can map with kmap_local on a 32-bit Linux kernel with HIGHMEM.
+ */
+#define	RAIDZ_GRP_DCOLS		(8U)
+#define	RAIDZ_GRP_MAXCOLS	(RAIDZ_GRP_DCOLS + 2 * PARITY_PQR)
+
+/*
+ * The most columns that the parity math of a row of @cols columns maps at
+ * once: a row has room for their iterators, see vdev_raidz_row_alloc().
+ */
+#define	RAIDZ_ROW_MAPCOLS(cols)	\
+	MIN((cols) + PARITY_PQR, RAIDZ_GRP_MAXCOLS)
+
+/*
  * Parity generation methods indexes
  */
 enum raidz_math_gen_op {
@@ -127,6 +144,7 @@ typedef struct raidz_row {
 	int rr_nempty;			/* empty sectors included in parity */
 	int rr_outlier_cnt;		/* Count of latency outlier devices */
 	boolean_t rr_old_layout;	/* Not yet reflowed by an expansion */
+	abd_raidz_col_t *rr_rzc;	/* Parity math iterators, past rr_col */
 #ifdef ZFS_DEBUG
 	uint64_t rr_offset;		/* Logical offset for *_io_verify() */
 	uint64_t rr_size;		/* Physical size for *_io_verify() */

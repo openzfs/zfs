@@ -515,6 +515,12 @@ gf_x2_mul_fns[256] = {
 #define	raidz_math_begin(ctx)	kfpu_begin(ctx)
 #define	raidz_math_end(ctx)	kfpu_end(ctx)
 
+/*
+ * Reconstruction from Q or R alone: a data column at a time, which ran
+ * faster than the row-wise code with this implementation on Broadwell.
+ */
+#define	RAIDZ_REC_QR_COLUMNWISE
+
 #define	SYN_STRIDE		4
 
 #define	ZERO_STRIDE		4
@@ -539,13 +545,14 @@ gf_x2_mul_fns[256] = {
 
 #define	GEN_PQ_STRIDE		4
 #define	GEN_PQ_DEFINE() 	{}
-#define	GEN_PQ_D		0, 1, 2, 3
-#define	GEN_PQ_C		4, 5, 6, 7
+#define	GEN_PQ_P		0, 1, 2, 3
+#define	GEN_PQ_Q		4, 5, 6, 7
 
 #define	GEN_PQR_STRIDE		4
 #define	GEN_PQR_DEFINE() 	{}
-#define	GEN_PQR_D		0, 1, 2, 3
-#define	GEN_PQR_C		4, 5, 6, 7
+#define	GEN_PQR_P		0, 1, 2, 3
+#define	GEN_PQR_Q		4, 5, 6, 7
+#define	GEN_PQR_R		8, 9, 10, 11
 
 #define	SYN_Q_DEFINE()		{}
 #define	SYN_Q_D			0, 1, 2, 3
@@ -555,19 +562,11 @@ gf_x2_mul_fns[256] = {
 #define	SYN_R_D			0, 1, 2, 3
 #define	SYN_R_X			4, 5, 6, 7
 
-#define	SYN_PQ_DEFINE() 	{}
-#define	SYN_PQ_D		0, 1, 2, 3
-#define	SYN_PQ_X		4, 5, 6, 7
-
 #define	REC_PQ_STRIDE		2
 #define	REC_PQ_DEFINE() 	MUL2_SETUP()
 #define	REC_PQ_X		0, 1
 #define	REC_PQ_Y		2, 3
 #define	REC_PQ_T		4, 5
-
-#define	SYN_PR_DEFINE() 	{}
-#define	SYN_PR_D		0, 1, 2, 3
-#define	SYN_PR_X		4, 5, 6, 7
 
 #define	REC_PR_STRIDE		2
 #define	REC_PR_DEFINE() 	MUL2_SETUP()
@@ -575,19 +574,11 @@ gf_x2_mul_fns[256] = {
 #define	REC_PR_Y		2, 3
 #define	REC_PR_T		4, 5
 
-#define	SYN_QR_DEFINE() 	{}
-#define	SYN_QR_D		0, 1, 2, 3
-#define	SYN_QR_X		4, 5, 6, 7
-
 #define	REC_QR_STRIDE		2
 #define	REC_QR_DEFINE() 	MUL2_SETUP()
 #define	REC_QR_X		0, 1
 #define	REC_QR_Y		2, 3
 #define	REC_QR_T		4, 5
-
-#define	SYN_PQR_DEFINE() 	{}
-#define	SYN_PQR_D		0, 1, 2, 3
-#define	SYN_PQR_X		4, 5, 6, 7
 
 #define	REC_PQR_STRIDE		1
 #define	REC_PQR_DEFINE() 	MUL2_SETUP()

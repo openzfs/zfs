@@ -377,23 +377,9 @@ gf_x2_mul_fns[256] = {
 #define	raidz_math_end(ctx)	kfpu_end(ctx)
 
 
-#define	SYN_STRIDE		4
-
-#define	ZERO_STRIDE		4
-#define	ZERO_DEFINE()		{}
-#define	ZERO_D			0, 1, 2, 3
-
 #define	COPY_STRIDE		4
 #define	COPY_DEFINE()		{}
 #define	COPY_D			0, 1, 2, 3
-
-#define	ADD_STRIDE		4
-#define	ADD_DEFINE()		{}
-#define	ADD_D 			0, 1, 2, 3
-
-#define	MUL_STRIDE		4
-#define	MUL_DEFINE() 		MUL2_SETUP()
-#define	MUL_D			0, 1, 2, 3
 
 #define	GEN_P_STRIDE		4
 #define	GEN_P_DEFINE()		{}
@@ -401,25 +387,22 @@ gf_x2_mul_fns[256] = {
 
 #define	GEN_PQ_STRIDE		4
 #define	GEN_PQ_DEFINE() 	{}
-#define	GEN_PQ_D		0, 1, 2, 3
-#define	GEN_PQ_C		4, 5, 6, 7
+#define	GEN_PQ_P		0, 1, 2, 3
+#define	GEN_PQ_Q		4, 5, 6, 7
 
 #define	GEN_PQR_STRIDE		4
 #define	GEN_PQR_DEFINE() 	{}
-#define	GEN_PQR_D		0, 1, 2, 3
-#define	GEN_PQR_C		4, 5, 6, 7
+#define	GEN_PQR_P		0, 1, 2, 3
+#define	GEN_PQR_Q		4, 5, 6, 7
+#define	GEN_PQR_R		8, 9, 10, 11
 
-#define	SYN_Q_DEFINE()		{}
-#define	SYN_Q_D			0, 1, 2, 3
-#define	SYN_Q_X			4, 5, 6, 7
+#define	REC_Q_STRIDE		4
+#define	REC_Q_DEFINE()		{}
+#define	REC_Q_X			0, 1, 2, 3
 
-#define	SYN_R_DEFINE()		{}
-#define	SYN_R_D			0, 1, 2, 3
-#define	SYN_R_X			4, 5, 6, 7
-
-#define	SYN_PQ_DEFINE() 	{}
-#define	SYN_PQ_D		0, 1, 2, 3
-#define	SYN_PQ_X		4, 5, 6, 7
+#define	REC_R_STRIDE		4
+#define	REC_R_DEFINE()		{}
+#define	REC_R_X			0, 1, 2, 3
 
 #define	REC_PQ_STRIDE		4
 #define	REC_PQ_DEFINE()		MUL2_SETUP()
@@ -427,29 +410,17 @@ gf_x2_mul_fns[256] = {
 #define	REC_PQ_Y		4, 5, 6, 7
 #define	REC_PQ_T		8, 9, 10, 11
 
-#define	SYN_PR_DEFINE() 	{}
-#define	SYN_PR_D		0, 1, 2, 3
-#define	SYN_PR_X		4, 5, 6, 7
-
 #define	REC_PR_STRIDE		4
 #define	REC_PR_DEFINE() 	MUL2_SETUP()
 #define	REC_PR_X		0, 1, 2, 3
 #define	REC_PR_Y		4, 5, 6, 7
 #define	REC_PR_T		8, 9, 10, 11
 
-#define	SYN_QR_DEFINE() 	{}
-#define	SYN_QR_D		0, 1, 2, 3
-#define	SYN_QR_X		4, 5, 6, 7
-
 #define	REC_QR_STRIDE		4
 #define	REC_QR_DEFINE() 	MUL2_SETUP()
 #define	REC_QR_X		0, 1, 2, 3
 #define	REC_QR_Y		4, 5, 6, 7
 #define	REC_QR_T		8, 9, 10, 11
-
-#define	SYN_PQR_DEFINE() 	{}
-#define	SYN_PQR_D		0, 1, 2, 3
-#define	SYN_PQR_X		4, 5, 6, 7
 
 #define	REC_PQR_STRIDE		4
 #define	REC_PQR_DEFINE() 	MUL2_SETUP()

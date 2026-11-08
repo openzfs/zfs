@@ -81,12 +81,52 @@ raidz_init_scalar(void)
 #define	PREFETCHNTA(ptr, offset)	{}
 #define	PREFETCH(ptr, offset) 		{}
 
-#define	XOR_ACC(src, acc)	acc.e ^= ((v_t *)src)[0].e
-#define	XOR(src, acc)		acc.e ^= src.e
-#define	ZERO(acc)		acc.e = 0
-#define	COPY(src, dst)		dst = src
-#define	LOAD(src, val) 		val = ((v_t *)src)[0]
-#define	STORE(dst, val)		((v_t *)dst)[0] = val
+/*
+ * A register set is a list of 1, 2 or 4 v_t variables, in memory order;
+ * XOR() and COPY() take two sets of equal size, source first.
+ */
+#define	_REG_CNT(_0, _1, _2, _3, _4, _5, _6, _7, N, ...) N
+#define	REG_CNT(r...) _REG_CNT(r, 8, 7, 6, 5, 4, 3, 2, 1)
+
+#define	_SC_CAT_(a, b)		a##b
+#define	_SC_CAT(a, b)		_SC_CAT_(a, b)
+
+#define	_SC_EACH_1(m, a)		m(0, a)
+#define	_SC_EACH_2(m, a, b)		m(0, a); m(1, b)
+#define	_SC_EACH_4(m, a, b, c, d)	m(0, a); m(1, b); m(2, c); m(3, d)
+#define	_SC_EACH(m, r...)	_SC_CAT(_SC_EACH_, REG_CNT(r))(m, r)
+
+#define	_SC_PAIR_2(m, a, b)		m(a, b)
+#define	_SC_PAIR_4(m, a, b, c, d)	m(a, c); m(b, d)
+#define	_SC_PAIR_8(m, a, b, c, d, e, f, g, h)				\
+	m(a, e); m(b, f); m(c, g); m(d, h)
+#define	_SC_PAIR(m, r...)	_SC_CAT(_SC_PAIR_, REG_CNT(r))(m, r)
+
+#define	_SC_XOR_ACC(i, a)	(a).e ^= _sc_src[i].e
+#define	_SC_ZERO(i, a)		(a).e = 0
+#define	_SC_LOAD(i, a)		(a) = _sc_src[i]
+#define	_SC_STORE(i, a)		_sc_dst[i] = (a)
+#define	_SC_XOR(s, d)		(d).e ^= (s).e
+#define	_SC_COPY(s, d)		(d) = (s)
+
+#define	XOR_ACC(src, r...)						\
+{									\
+	const v_t *_sc_src = (const v_t *)(src);			\
+	_SC_EACH(_SC_XOR_ACC, r);					\
+}
+#define	XOR(r...)		_SC_PAIR(_SC_XOR, r)
+#define	ZERO(r...)		_SC_EACH(_SC_ZERO, r)
+#define	COPY(r...)		_SC_PAIR(_SC_COPY, r)
+#define	LOAD(src, r...)							\
+{									\
+	const v_t *_sc_src = (const v_t *)(src);			\
+	_SC_EACH(_SC_LOAD, r);						\
+}
+#define	STORE(dst, r...)						\
+{									\
+	v_t *_sc_dst = (v_t *)(dst);					\
+	_SC_EACH(_SC_STORE, r);						\
+}
 
 /*
  * Constants used for optimized multiplication by 2.
@@ -109,7 +149,7 @@ static const struct {
 
 #define	MUL2_SETUP() {}
 
-#define	MUL2(a)								\
+#define	_SC_MUL2(i, a)							\
 {									\
 	iv_t _mask;							\
 									\
@@ -119,15 +159,16 @@ static const struct {
 	(a).e = (a).e ^ (_mask & scalar_mul2_consts.mod);		\
 }
 
-#define	MUL4(a) 							\
+#define	MUL2(r...)		_SC_EACH(_SC_MUL2, r)
+
+#define	MUL4(r...) 							\
 {									\
-	MUL2(a);							\
-	MUL2(a);							\
+	MUL2(r);							\
+	MUL2(r);							\
 }
 
-#define	MUL(c, a)							\
+#define	_SC_MUL(i, a)							\
 {									\
-	const uint8_t *mul_lt = vdev_raidz_mul_lt[c];			\
 	switch (ELEM_SIZE) {						\
 	case 8:								\
 		a.b[7] = mul_lt[a.b[7]];				\
@@ -144,8 +185,20 @@ static const struct {
 	}								\
 }
 
+#define	MUL(c, r...)							\
+{									\
+	const uint8_t *mul_lt = vdev_raidz_mul_lt[c];			\
+	_SC_EACH(_SC_MUL, r);						\
+}
+
 #define	raidz_math_begin(ctx)	((void) (ctx))
 #define	raidz_math_end(ctx)	((void) (ctx))
+
+/*
+ * Reconstruction from Q or R alone: a data column at a time, which ran
+ * faster than the row-wise code with this implementation on Broadwell.
+ */
+#define	RAIDZ_REC_QR_COLUMNWISE
 
 #define	SYN_STRIDE		1
 
@@ -165,76 +218,56 @@ static const struct {
 #define	MUL_STRIDE		1
 #define	MUL_D			d0
 
-#define	GEN_P_STRIDE		1
-#define	GEN_P_DEFINE()		v_t p0
-#define	GEN_P_P			p0
+#define	GEN_P_STRIDE		4
+#define	GEN_P_DEFINE()		v_t p0, p1, p2, p3
+#define	GEN_P_P			p0, p1, p2, p3
 
-#define	GEN_PQ_STRIDE		1
-#define	GEN_PQ_DEFINE()		v_t d0, c0
-#define	GEN_PQ_D		d0
-#define	GEN_PQ_C		c0
+#define	GEN_PQ_STRIDE		4
+#define	GEN_PQ_DEFINE()		v_t p0, p1, p2, p3, q0, q1, q2, q3
+#define	GEN_PQ_P		p0, p1, p2, p3
+#define	GEN_PQ_Q		q0, q1, q2, q3
 
-#define	GEN_PQR_STRIDE		1
-#define	GEN_PQR_DEFINE()	v_t d0, c0
-#define	GEN_PQR_D		d0
-#define	GEN_PQR_C		c0
+#define	GEN_PQR_STRIDE		4
+#define	GEN_PQR_DEFINE()						\
+	v_t p0, p1, p2, p3, q0, q1, q2, q3, r0, r1, r2, r3
+#define	GEN_PQR_P		p0, p1, p2, p3
+#define	GEN_PQR_Q		q0, q1, q2, q3
+#define	GEN_PQR_R		r0, r1, r2, r3
 
 #define	SYN_Q_DEFINE()		v_t d0, x0
 #define	SYN_Q_D			d0
 #define	SYN_Q_X			x0
 
-
 #define	SYN_R_DEFINE()		v_t d0, x0
 #define	SYN_R_D			d0
 #define	SYN_R_X			x0
 
+#define	REC_PQ_STRIDE		2
+#define	REC_PQ_DEFINE()		v_t x0, x1, y0, y1, t0, t1
+#define	REC_PQ_X		x0, x1
+#define	REC_PQ_Y		y0, y1
+#define	REC_PQ_T		t0, t1
 
-#define	SYN_PQ_DEFINE()		v_t d0, x0
-#define	SYN_PQ_D		d0
-#define	SYN_PQ_X		x0
+#define	REC_PR_STRIDE		2
+#define	REC_PR_DEFINE()		v_t x0, x1, y0, y1, t0, t1
+#define	REC_PR_X		x0, x1
+#define	REC_PR_Y		y0, y1
+#define	REC_PR_T		t0, t1
 
+#define	REC_QR_STRIDE		2
+#define	REC_QR_DEFINE()		v_t x0, x1, y0, y1, t0, t1
+#define	REC_QR_X		x0, x1
+#define	REC_QR_Y		y0, y1
+#define	REC_QR_T		t0, t1
 
-#define	REC_PQ_STRIDE		1
-#define	REC_PQ_DEFINE()		v_t x0, y0, t0
-#define	REC_PQ_X		x0
-#define	REC_PQ_Y		y0
-#define	REC_PQ_T		t0
-
-
-#define	SYN_PR_DEFINE()		v_t d0, x0
-#define	SYN_PR_D		d0
-#define	SYN_PR_X		x0
-
-#define	REC_PR_STRIDE		1
-#define	REC_PR_DEFINE()		v_t x0, y0, t0
-#define	REC_PR_X		x0
-#define	REC_PR_Y		y0
-#define	REC_PR_T		t0
-
-
-#define	SYN_QR_DEFINE()		v_t d0, x0
-#define	SYN_QR_D		d0
-#define	SYN_QR_X		x0
-
-
-#define	REC_QR_STRIDE		1
-#define	REC_QR_DEFINE()		v_t x0, y0, t0
-#define	REC_QR_X		x0
-#define	REC_QR_Y		y0
-#define	REC_QR_T		t0
-
-
-#define	SYN_PQR_DEFINE()	v_t d0, x0
-#define	SYN_PQR_D		d0
-#define	SYN_PQR_X		x0
-
-#define	REC_PQR_STRIDE		1
-#define	REC_PQR_DEFINE()	v_t x0, y0, z0, xs0, ys0
-#define	REC_PQR_X		x0
-#define	REC_PQR_Y		y0
-#define	REC_PQR_Z		z0
-#define	REC_PQR_XS		xs0
-#define	REC_PQR_YS		ys0
+#define	REC_PQR_STRIDE		2
+#define	REC_PQR_DEFINE()						\
+	v_t x0, x1, y0, y1, z0, z1, xs0, xs1, ys0, ys1
+#define	REC_PQR_X		x0, x1
+#define	REC_PQR_Y		y0, y1
+#define	REC_PQR_Z		z0, z1
+#define	REC_PQR_XS		xs0, xs1
+#define	REC_PQR_YS		ys0, ys1
 
 #include "vdev_raidz_math_impl.h"
 
