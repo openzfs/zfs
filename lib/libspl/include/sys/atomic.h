@@ -30,6 +30,15 @@ extern "C" {
 #if defined(__STDC__)
 
 /*
+ * Squash warnings that 64-bit atomics may perform poorly on 32-bit targets
+ * due to their size or alignment.
+ */
+#if defined(__clang__) && defined(_ILP32)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Watomic-alignment"
+#endif
+
+/*
  * "token override" machinery. _SELECT_OVERRIDE expands the first token if it
  * is defined with _OVERRIDE(), otherwise the second.
  */
@@ -484,6 +493,10 @@ membar_consumer(void)
 #undef	_SPL_ATOMIC_SELECT_OVERRIDE
 #undef	_SPL_ATOMIC_SELECT_3
 #undef	_SPL_ATOMIC_OVERRIDE
+
+#if defined(__clang__) && defined(_ILP32)
+#pragma clang diagnostic pop
+#endif
 
 #endif  /* __STDC__ */
 
