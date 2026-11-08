@@ -6170,8 +6170,12 @@ top:
 		abd_t *hdr_abd;
 		int alloc_flags = encrypted_read ? ARC_HDR_ALLOC_RDATA : 0;
 		arc_buf_contents_t type = BP_GET_BUFC_TYPE(bp);
+		boolean_t abd_allocated = B_FALSE;
 		int config_lock;
 		int error;
+
+		if ((*arc_flags & ARC_FLAG_UNCACHED) && !encrypted_read)
+			alloc_flags |= ARC_HDR_ALLOC_LINEAR;
 
 		if (*arc_flags & ARC_FLAG_CACHED_ONLY) {
 			if (hash_lock != NULL)
@@ -6217,6 +6221,22 @@ top:
 			arc_buf_hdr_t *exists = NULL;
 			hdr = arc_hdr_alloc(guid, psize, lsize,
 			    BP_IS_PROTECTED(bp), BP_GET_COMPRESS(bp), 0, type);
+
+			/*
+			 * Allocate the data buffer now, before the header
+			 * is inserted into the hash table.  Nothing else can
+			 * see the header yet, so no lock is needed, and the
+			 * hash lock stays out of the page allocation.  That
+			 * allocation can block in memory reclaim for a long
+			 * time when free memory is short; with the hash lock
+			 * held across it, every other user of this hash
+			 * bucket, dbuf_evict_one() and through it txg sync
+			 * would wait as well.  Should another thread insert
+			 * the same block meanwhile, arc_hdr_destroy() below
+			 * frees the buffer with the header.
+			 */
+			arc_hdr_alloc_abd(hdr, alloc_flags);
+			abd_allocated = B_TRUE;
 
 			if (!embedded_bp) {
 				hdr->b_dva = *BP_IDENTITY(bp);
@@ -6287,11 +6307,8 @@ top:
 				goto top;
 			}
 		}
-		if (*arc_flags & ARC_FLAG_UNCACHED) {
+		if (*arc_flags & ARC_FLAG_UNCACHED)
 			arc_hdr_set_flags(hdr, ARC_FLAG_UNCACHED);
-			if (!encrypted_read)
-				alloc_flags |= ARC_HDR_ALLOC_LINEAR;
-		}
 
 		/*
 		 * Take additional reference for IO_IN_PROGRESS.  It stops
@@ -6303,7 +6320,14 @@ top:
 		if (!embedded_bp)
 			arc_access(hdr, *arc_flags, B_FALSE);
 		arc_hdr_set_flags(hdr, ARC_FLAG_IO_IN_PROGRESS);
-		arc_hdr_alloc_abd(hdr, alloc_flags);
+		/*
+		 * A header found in a ghost state, or one that has the
+		 * decrypted data when the raw data was asked for, is already
+		 * in the hash table, so its buffer is still allocated under
+		 * the hash lock.  New headers were handled above.
+		 */
+		if (!abd_allocated)
+			arc_hdr_alloc_abd(hdr, alloc_flags);
 		if (encrypted_read) {
 			ASSERT(HDR_HAS_RABD(hdr));
 			size = HDR_GET_PSIZE(hdr);
