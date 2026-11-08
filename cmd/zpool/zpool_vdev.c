@@ -1544,7 +1544,7 @@ draid_config_by_type(nvlist_t *nv, const char *type, uint64_t width,
 
 	if (fgrps > 1 && nfdomain && nfdomain != children) {
 		fprintf(stderr, "invalid number of failure domains "
-		    "%d, must be %lu\n", nfdomain, children);
+		    "%d, must be %llu\n", nfdomain, (u_longlong_t)children);
 		return (EINVAL);
 	}
 
