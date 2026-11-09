@@ -8550,7 +8550,6 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	vdev_t *oldvd, *newvd, *newrootvd, *pvd, *tvd;
 	vdev_ops_t *pvops;
 	char *oldvdpath, *newvdpath;
-	int newvd_isspare = B_FALSE;
 	int error;
 
 	ASSERT(spa_writeable(spa));
@@ -8859,9 +8858,22 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	 */
 	dtl_max_txg = txg + TXG_CONCURRENT_STATES;
 
+	/*
+	 * Log the attach in the txg that syncs it.  We can't wait for a new
+	 * tx here: we hold the config lock, which txg sync needs.
+	 */
+	dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
+	spa_history_log_internal(spa, "vdev attach", tx,
+	    "%s vdev=%s %s vdev=%s",
+	    replacing && newvd->vdev_isspare ? "spare in" :
+	    replacing ? "replace" : "attach", newvdpath,
+	    replacing ? "for" : "to", oldvdpath);
+	dmu_tx_commit(tx);
+	spa_strfree(oldvdpath);
+	spa_strfree(newvdpath);
+
 	if (raidz) {
-		dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool,
-		    txg);
+		tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
 		dsl_sync_task_nowait(spa->spa_dsl_pool, vdev_raidz_attach_sync,
 		    newvd, tx);
 		dmu_tx_commit(tx);
@@ -8899,8 +8911,6 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 			spa_spare_activate(newvd);
 			spa_event_notify(spa, newvd, NULL, ESC_ZFS_VDEV_SPARE);
 		}
-
-		newvd_isspare = newvd->vdev_isspare;
 
 		/*
 		 * Mark newvd's DTL dirty in this txg.
@@ -8940,15 +8950,6 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	 */
 	(void) spa_vdev_exit(spa, newrootvd, dtl_max_txg, 0);
 
-	spa_history_log_internal(spa, "vdev attach", NULL,
-	    "%s vdev=%s %s vdev=%s",
-	    replacing && newvd_isspare ? "spare in" :
-	    replacing ? "replace" : "attach", newvdpath,
-	    replacing ? "for" : "to", oldvdpath);
-
-	spa_strfree(oldvdpath);
-	spa_strfree(newvdpath);
-
 	return (0);
 }
 
@@ -8967,7 +8968,6 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	vdev_t *vd, *pvd, *cvd, *tvd;
 	boolean_t unspare = B_FALSE;
 	uint64_t unspare_guid = 0;
-	char *vdpath;
 
 	ASSERT(spa_writeable(spa));
 
@@ -9098,6 +9098,15 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	(void) vdev_label_init(vd, 0, VDEV_LABEL_REMOVE);
 
 	/*
+	 * Log the detach in the txg that syncs it.  We can't wait for a new
+	 * tx here: we hold the config lock, which txg sync needs.
+	 */
+	dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
+	spa_history_log_internal(spa, "detach", tx, "vdev=%s",
+	    vd->vdev_path != NULL ? vd->vdev_path : "none");
+	dmu_tx_commit(tx);
+
+	/*
 	 * Remove vd from its parent and compact the parent's children.
 	 */
 	vdev_remove_child(pvd, vd);
@@ -9167,7 +9176,6 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	 * But first make sure we're not on any *other* txg's DTL list, to
 	 * prevent vd from being accessed after it's freed.
 	 */
-	vdpath = spa_strdup(vd->vdev_path ? vd->vdev_path : "none");
 	for (int t = 0; t < TXG_SIZE; t++)
 		(void) txg_list_remove_this(&tvd->vdev_dtl_list, vd, t);
 	vd->vdev_detached = B_TRUE;
@@ -9180,10 +9188,6 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	spa_open_ref(spa, FTAG);
 
 	error = spa_vdev_exit(spa, vd, txg, 0);
-
-	spa_history_log_internal(spa, "detach", NULL,
-	    "vdev=%s", vdpath);
-	spa_strfree(vdpath);
 
 	/*
 	 * If this was the removal of the original device in a hot spare vdev,
@@ -9796,10 +9800,8 @@ spa_vdev_split_mirror(spa_t *spa, const char *newname, nvlist_t *config,
 
 	/* finally, update the original pool's config */
 	txg = spa_vdev_config_enter(spa);
-	tx = dmu_tx_create_dd(spa_get_dsl(spa)->dp_mos_dir);
-	error = dmu_tx_assign(tx, DMU_TX_WAIT);
-	if (error != 0)
-		dmu_tx_abort(tx);
+	/* We can't wait for a new tx while we hold the config lock. */
+	tx = dmu_tx_create_assigned(spa_get_dsl(spa), txg);
 	for (c = 0; c < children; c++) {
 		if (vml[c] != NULL && vml[c]->vdev_ops != &vdev_indirect_ops) {
 			vdev_t *tvd = vml[c]->vdev_top;
@@ -9839,17 +9841,15 @@ spa_vdev_split_mirror(spa_t *spa, const char *newname, nvlist_t *config,
 				vdev_dirty(rvd->vdev_child[c], VDD_DTL,
 				    vml[c], txg);
 
-			if (error == 0)
-				spa_history_log_internal(spa, "detach", tx,
-				    "vdev=%s", vml[c]->vdev_path);
+			spa_history_log_internal(spa, "detach", tx,
+			    "vdev=%s", vml[c]->vdev_path);
 		}
 	}
 	spa->spa_avz_action = AVZ_ACTION_REBUILD;
 	vdev_config_dirty(spa->spa_root_vdev);
 	spa->spa_config_splitting = NULL;
 	nvlist_free(nvl);
-	if (error == 0)
-		dmu_tx_commit(tx);
+	dmu_tx_commit(tx);
 	(void) spa_vdev_exit(spa, NULL, txg, 0);
 
 	/*
