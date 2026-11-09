@@ -50,19 +50,32 @@ jobs:
           # The labels of the boxes ticked in the "Types of Changes" and
           # "Priority" sections of the PR template, and the Type and active
           # Component labels of the issues the PR closes, which take the
-          # place of the ticked types since a maintainer chose them.  A PR
-          # gets them when it is opened, and later only those of a kind it
-          # has no label of yet, so a label set by hand is never
+          # place of the ticked boxes of their kind since a maintainer chose
+          # them.  A PR gets them when it is opened, and later only those of
+          # a kind it has no label of yet, so a label set by hand is never
           # overridden.  A priority needs exactly one box ticked.  A manual
           # run labels every open PR.
           boxes='Bug fix|Type: Defect|ededed|
           New feature|Type: Feature|ededed|
           Performance enhancement|Type: Performance|ededed|
+          Code cleanup|Type: Code Cleanup|ededed|
+          Quality assurance|Type: QA|ededed|
+          Breaking change|Type: Breaking Change|ededed|
+          Library ABI change|Type: Library API Change|ededed|
           Documentation|Type: Documentation|ededed|
           Critical|Priority: Critical|b60205|Now: data loss or corruption, security, or the build or CI broken for every PR
           High|Priority: High|d93f0b|Next release: panic or hang in normal use, regression, failing tests, planned work
           Medium|Priority: Medium|fbca04|A later release: fixes for uncommon setups, features, performance, test and CI work
           Low|Priority: Low|c2e0c6|Whenever convenient: messages, documentation, cleanups, debug-only issues'
+          # "Breaking change" and "Library ABI change" say what a change does
+          # rather than what it is, which the type of an issue cannot tell:
+          # each is a kind of its own, so other types do not replace it.
+          effects='^Type: (Breaking Change|Library API Change)$'
+          # The lines read that are labels of kind $1: those with that
+          # prefix, or the label itself for an effect.
+          of_kind() {
+            sed -E -n "/$effects/{/^$1\$/p;d;}; /^$1: /p"
+          }
           labels=$(gh label list --limit 1000 --json name --jq '.[].name')
           while IFS='|' read -r box name color desc; do
             if ! grep -qixF "$name" <<< "$labels"; then
@@ -85,6 +98,11 @@ jobs:
             fi
             ticked=$(jq -r '.body // ""' <<< "$p" | tr -d '\r' |
                 sed -n -E 's/^- \[[xX]\] ([^(]*[^ (]) \(.*/\1/p')
+            picked=$(while IFS='|' read -r box name _; do
+                if grep -qxF "$box" <<< "$ticked"; then
+                  echo "$name"
+                fi
+              done <<< "$boxes")
             # At most 10 issues are read; one that cannot be read is skipped.
             issues=$(jq -r --arg repo "$GH_REPO" '[.closingIssuesReferences[] |
                 select(.repository.owner.login + "/" + .repository.name ==
@@ -96,16 +114,13 @@ jobs:
                     < /dev/null || true
               done | sort -u)
             add=()
-            for kind in Type Component Priority; do
-              new=$(sed -n "/^$kind: /p" <<< "$linked")
+            for kind in Type Component Priority \
+                "Type: Breaking Change" "Type: Library API Change"; do
+              new=$(of_kind "$kind" <<< "$linked")
               if [ -z "$new" ]; then
-                new=$(while IFS='|' read -r box name _; do
-                  if [[ $name = "$kind: "* ]] && grep -qxF "$box" <<< "$ticked"; then
-                    echo "$name"
-                  fi
-                done <<< "$boxes")
+                new=$(of_kind "$kind" <<< "$picked")
               fi
-              if [ -z "$new" ] || grep -q "^$kind: " <<< "$have"; then
+              if [ -z "$new" ] || [ -n "$(of_kind "$kind" <<< "$have")" ]; then
                 continue
               fi
               if [ "$kind" = Priority ] && [ "$(wc -l <<< "$new")" -ne 1 ]; then
