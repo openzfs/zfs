@@ -1717,11 +1717,10 @@ ddt_table_alloc_kstats(ddt_t *ddt)
 	wmsum_init(&ddt->ddt_kstat_dds_lookup_stored_miss, 0);
 
 	ddt->ddt_ksp = kstat_create(mod, 0, name, "misc", KSTAT_TYPE_NAMED,
-	    sizeof (ddt_kstats_t) / sizeof (kstat_named_t), KSTAT_FLAG_VIRTUAL);
+	    sizeof (ddt_kstats_t) / sizeof (kstat_named_t), 0);
 	if (ddt->ddt_ksp != NULL) {
-		ddt_kstats_t *dds = kmem_alloc(sizeof (ddt_kstats_t), KM_SLEEP);
-		memcpy(dds, &ddt_kstats_template, sizeof (ddt_kstats_t));
-		ddt->ddt_ksp->ks_data = dds;
+		memcpy(ddt->ddt_ksp->ks_data, &ddt_kstats_template,
+		    sizeof (ddt_kstats_t));
 		ddt->ddt_ksp->ks_update = ddt_kstat_update;
 		ddt->ddt_ksp->ks_private = ddt;
 		kstat_install(ddt->ddt_ksp);
@@ -1761,8 +1760,6 @@ static void
 ddt_table_free(ddt_t *ddt)
 {
 	if (ddt->ddt_ksp != NULL) {
-		kmem_free(ddt->ddt_ksp->ks_data, sizeof (ddt_kstats_t));
-		ddt->ddt_ksp->ks_data = NULL;
 		kstat_delete(ddt->ddt_ksp);
 		ddt->ddt_ksp = NULL;
 	}
