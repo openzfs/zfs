@@ -1247,6 +1247,18 @@ zil_claim(dsl_pool_t *dp, dsl_dataset_t *ds, void *txarg)
 	}
 
 	/*
+	 * A checkpoint rewind only gets here with a log that was claimed
+	 * before the checkpoint was taken, which is kept as it is.
+	 * first_txg is then the txg after the checkpoint, not the first
+	 * txg of the pool.
+	 */
+	if (zilog->zl_spa->spa_uberblock.ub_checkpoint_txg != 0) {
+		ASSERT3U(zh->zh_claim_txg, <, first_txg);
+		dmu_objset_disown(os, B_FALSE, FTAG);
+		return (0);
+	}
+
+	/*
 	 * If we are not rewinding and opening the pool normally, then
 	 * the min_claim_txg should be equal to the first txg of the pool.
 	 */
