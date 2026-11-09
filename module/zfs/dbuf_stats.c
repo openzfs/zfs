@@ -197,11 +197,10 @@ static void
 dbuf_stats_hash_table_destroy(void)
 {
 	dbuf_stats_t *dsh = &dbuf_stats_hash_table;
-	kstat_t *ksp;
-
-	ksp = dsh->kstat;
-	if (ksp)
-		kstat_delete(ksp);
+	if (dsh->kstat) {
+		kstat_delete(dsh->kstat);
+		dsh->kstat = NULL;
+	}
 
 	mutex_destroy(&dsh->lock);
 }
