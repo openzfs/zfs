@@ -503,6 +503,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/anyraid/anyraid_import_ashift.ksh \
 	functional/anyraid/anyraid_offline_write_online_resilver.ksh \
 	functional/anyraid/anyraid_tile_layout.ksh \
+	functional/anyraid/anyraid_tile_size_rounding.ksh \
 	functional/anyraid/anyraid_special_vdev_001_pos.ksh \
 	functional/anyraid/anyraid_special_vdev_002_pos.ksh \
 	functional/anyraid/cleanup.ksh \
