@@ -170,7 +170,7 @@ do_bad_string(zfs_cmd_t *zc, nvlist_t *innvl)
 	 * terminator byte for the last string to the end of the packed nvlist
 	 * buffer.
 	 */
-	packed = (char *)zc->zc_nvlist_src;
+	packed = (char *)(uintptr_t)zc->zc_nvlist_src;
 	size = zc->zc_nvlist_src_size;
 
 	off = memmem(packed, size, str, strlen(str));
@@ -197,7 +197,7 @@ do_fuzz(int zfs_fd, zfs_ioc_t ioc, zfs_cmd_t *zc)
 	unsigned char *pos;
 	zfs_cmd_t orig_zc = *zc;
 
-	pos = (unsigned char *) zc->zc_nvlist_src;
+	pos = (unsigned char *)(uintptr_t)zc->zc_nvlist_src;
 	size = zc->zc_nvlist_src_size;
 
 	/*
