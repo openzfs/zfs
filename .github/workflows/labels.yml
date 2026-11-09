@@ -10,6 +10,12 @@ on:
   schedule:
     - cron: '41 */3 * * *'
   workflow_dispatch:
+    inputs:
+      job:
+        description: Job to run over every open PR
+        type: choice
+        default: all
+        options: [ all, template, area, blocked, reviewed, conflict, size ]
 
 permissions:
   pull-requests: write
@@ -28,7 +34,7 @@ jobs:
 
   template:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.action == 'opened' || (github.event.action == 'edited' && github.event.pull_request.state == 'open') }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'template')) || github.event.action == 'opened' || (github.event.action == 'edited' && github.event.pull_request.state == 'open') }}
     concurrency:
       group: template-${{ github.event.pull_request.number || 'all' }}
       # An edit right after opening waits for the run that labels it.
@@ -139,7 +145,7 @@ jobs:
 
   area:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.action == 'opened' || github.event.action == 'synchronize' || (github.event.action == 'reopened' && github.event_name == 'pull_request_target') }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'area')) || github.event.action == 'opened' || github.event.action == 'synchronize' || (github.event.action == 'reopened' && github.event_name == 'pull_request_target') }}
     concurrency:
       group: area-${{ github.event.pull_request.number || 'all' }}
       cancel-in-progress: true
@@ -197,7 +203,7 @@ jobs:
 
   blocked:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.action == 'opened' || (github.event.action == 'edited' && github.event.pull_request.state == 'open') || github.event.action == 'synchronize' || github.event.action == 'reopened' || github.event.action == 'closed' }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'blocked')) || github.event.action == 'opened' || (github.event.action == 'edited' && github.event.pull_request.state == 'open') || github.event.action == 'synchronize' || github.event.action == 'reopened' || github.event.action == 'closed' }}
     concurrency:
       # An edit or a push right after a reopening must not cancel the
       # update of the PRs that depend on it.
@@ -318,7 +324,7 @@ jobs:
 
   reviewed:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'reviewed')) }}
     permissions:
       # actions: read finds when the last periodic run started.
       actions: read
@@ -411,7 +417,7 @@ jobs:
 
   conflict:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event.action == 'opened' || github.event.action == 'synchronize' || (github.event.action == 'reopened' && github.event_name == 'pull_request_target') }}
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'conflict')) || github.event.action == 'opened' || github.event.action == 'synchronize' || (github.event.action == 'reopened' && github.event_name == 'pull_request_target') }}
     concurrency:
       group: conflict-${{ github.event.pull_request.number || 'all' }}
       # A push cancels the check of the one before; a periodic run waits
@@ -473,7 +479,7 @@ jobs:
 
   size:
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.action == 'opened' || github.event.action == 'synchronize' || (github.event.action == 'reopened' && github.event_name == 'pull_request_target') }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'size')) || github.event.action == 'opened' || github.event.action == 'synchronize' || (github.event.action == 'reopened' && github.event_name == 'pull_request_target') }}
     concurrency:
       group: size-${{ github.event.pull_request.number || 'all' }}
       cancel-in-progress: true
