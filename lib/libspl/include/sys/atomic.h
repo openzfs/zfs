@@ -404,6 +404,28 @@ SPL_ATOMIC_STORE(ptr, void)
 #undef SPL_ATOMIC_STORE
 
 /*
+ * Sequentially consistent variants of the above, for code that needs more
+ * than the relaxed ordering they provide.
+ */
+static inline uint32_t
+atomic_load_32_seq_cst(volatile uint32_t *target)
+{
+	return (__atomic_load_n(target, __ATOMIC_SEQ_CST));
+}
+
+static inline uint64_t
+atomic_load_64_seq_cst(volatile uint64_t *target)
+{
+	return (__atomic_load_n(target, __ATOMIC_SEQ_CST));
+}
+
+static inline void
+atomic_store_32_seq_cst(volatile uint32_t *target, uint32_t bits)
+{
+	__atomic_store_n(target, bits, __ATOMIC_SEQ_CST);
+}
+
+/*
  * Perform an exclusive atomic bit set/clear on a target.
  * Returns 0 if bit was successfully set/cleared, or -1
  * if the bit was already set/cleared.
