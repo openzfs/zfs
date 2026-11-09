@@ -2764,6 +2764,45 @@ The default value of
 .Sy 100%
 will create a maximum of one thread per CPU.
 .
+.It Sy zfs_zil_replay_prime_arc Ns = Ns Sy 0 Ns | Ns 1 Pq int
+When enabled, ZIL replay first parses the log and prefetches what the serial
+replay pass will read: the dnodes of the objects and directories records
+modify, the directory entries of creates, removes, links and renames, the
+partially overwritten data blocks and indirect blocks of writes and truncates,
+and the indirect blocks of clones.
+Prefetches that must first read a dnode or a directory run on a taskq of
+16 threads per replay, with at most 1024 queued at a time.
+This turns most of the serial reads of replay into cache hits and can greatly
+reduce pool import time when the pool has high read latency and the ZIL is
+large.
+.Pp
+The whole log is primed before replay starts, so the benefit depends on the
+prefetched blocks still being in the ARC when replay reaches them.
+Objects that the log creates are not primed.
+Each replay tracks at most 262144 objects; past that, the rest of the log is
+not primed.
+.Pp
+Most priming reads are prefetches.
+As for other prefetches, a checksum error they find on one side of a mirror is
+repaired without being counted in the vdev's error statistics or reported as an
+event.
+Reading a dnode or a directory to issue a prefetch is an ordinary read, whose
+errors are counted and reported as usual.
+Either kind may record an I/O error in the pool's error log for records that
+replay doesn't reach, if replay stops early.
+.
+.It Sy zfs_zil_replay_prime_delay_ms Ns = Ns Sy 0 Ns ms Pq uint
+Delay each asynchronous ARC priming task by this many milliseconds.
+This parameter is available only in debug builds and is intended for testing
+the task drain at the end of ZIL replay.
+.
+.It Sy zfs_zil_replay_record_delay_ms Ns = Ns Sy 0 Ns ms Pq uint
+Delay each record by this many milliseconds during ZIL replay parsing.
+When ARC priming is enabled, the delay applies to both the priming and real
+replay passes.
+This parameter is available only in debug builds and is intended for testing
+replay ordering.
+.
 .It Sy zil_maxblocksize Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq uint
 This sets the maximum block size used by the ZIL.
 On very fragmented pools, lowering this
