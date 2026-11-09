@@ -163,7 +163,10 @@ static const char *const zio_taskq_types[ZIO_TASKQ_TYPES] = {
  * additional degree of parallelism specified by the number of threads per-
  * taskq and the number of taskqs; when dispatching an event in this case, the
  * particular taskq is chosen at random. ZTI_SCALE uses a number of taskqs
- * that scales with the number of CPUs.
+ * that scales with the number of CPUs. With zio_taskq_numa, the read issue
+ * and the read and write interrupt taskqs are split into one group per NUMA
+ * node, and the random choice is made in the group of the dispatching CPU's
+ * node.
  *
  * The different taskq priorities are to handle the different contexts (issue
  * and interrupt) and then to reserve threads for high priority I/Os that
@@ -210,6 +213,14 @@ static const boolean_t spa_create_process = B_TRUE; /* no process => no sysdc */
 #endif
 
 static uint_t	zio_taskq_write_tpq = 16;
+
+/*
+ * Split the read and write interrupt taskqs, and the read issue taskq, into
+ * one group per NUMA node with CPUs, and dispatch a zio to the group of the
+ * node of the CPU that dispatches it, so that its completion is queued on
+ * that node.  The threads are not bound to the node.
+ */
+static uint_t	zio_taskq_numa = 1;
 
 /*
  * Report any spa_load_verify errors found, but do not fail spa_load.
@@ -1202,6 +1213,49 @@ spa_get_errlists(spa_t *spa, avl_tree_t *last, avl_tree_t *scrub)
 	    offsetof(spa_error_entry_t, se_avl));
 }
 
+/*
+ * Return the number of groups to split a taskq set into, one per NUMA node
+ * with CPUs (see zio_taskq_numa), and map the node ids to the groups; or 1
+ * not to split the set.  Node ids need not be consecutive, and nodes without
+ * CPUs share the groups of the others.
+ */
+static uint_t
+spa_taskqs_nodes(spa_taskqs_t *tqs, zio_type_t t, zio_taskq_type_t q,
+    zti_modes_t mode)
+{
+	uint_t ids = max_node_ids;
+	uint_t nodes = 0;
+
+	tqs->stqs_node_ids = 0;
+	tqs->stqs_node_group = NULL;
+	if (!zio_taskq_numa || ids < 2 ||
+	    (mode != ZTI_MODE_FIXED && mode != ZTI_MODE_SCALE))
+		return (1);
+	if (!(q == ZIO_TASKQ_INTERRUPT &&
+	    (t == ZIO_TYPE_READ || t == ZIO_TYPE_WRITE)) &&
+	    !(q == ZIO_TASKQ_ISSUE && t == ZIO_TYPE_READ))
+		return (1);
+
+	for (uint_t n = 0; n < ids; n++) {
+		if (node_has_cpus(n))
+			nodes++;
+	}
+	if (nodes < 2)
+		return (1);
+
+	/*
+	 * A node that gains or loses CPUs between the two loops can only
+	 * share a group, or leave one unused.
+	 */
+	tqs->stqs_node_ids = ids;
+	tqs->stqs_node_group = kmem_alloc(ids * sizeof (uint_t), KM_SLEEP);
+	for (uint_t n = 0, g = 0; n < ids; n++) {
+		tqs->stqs_node_group[n] = (node_has_cpus(n) && g < nodes) ?
+		    g++ : n % nodes;
+	}
+	return (nodes);
+}
+
 static void
 spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 {
@@ -1211,10 +1265,13 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 	uint_t count = ztip->zti_count;
 	spa_taskqs_t *tqs = &spa->spa_zio_taskq[t][q];
 	uint_t cpus, threads, flags = TASKQ_DYNAMIC;
+	uint_t nodes = spa_taskqs_nodes(tqs, t, q, mode);
 
 	switch (mode) {
 	case ZTI_MODE_FIXED:
 		ASSERT3U(value, >, 0);
+		/* Whole groups per node; each taskq keeps its threads. */
+		count = (count + nodes - 1) / nodes * nodes;
 		break;
 
 	case ZTI_MODE_SYNC:
@@ -1274,6 +1331,9 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 				count--;
 		}
 
+		/* Whole groups per node, sharing the same threads. */
+		count = (count + nodes - 1) / nodes * nodes;
+
 		/*
 		 * Try to represent the number of threads per taskq as percent
 		 * of online CPUs to allow scaling with later online/offline.
@@ -1289,6 +1349,7 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 
 	case ZTI_MODE_NULL:
 		tqs->stqs_count = 0;
+		tqs->stqs_nodes = 1;
 		tqs->stqs_taskq = NULL;
 		return;
 
@@ -1300,7 +1361,9 @@ spa_taskqs_init(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 	}
 
 	ASSERT3U(count, >, 0);
+	ASSERT0(count % nodes);
 	tqs->stqs_count = count;
+	tqs->stqs_nodes = nodes;
 	tqs->stqs_taskq = kmem_alloc(count * sizeof (taskq_t *), KM_SLEEP);
 
 	for (uint_t i = 0; i < count; i++) {
@@ -1346,6 +1409,7 @@ spa_taskqs_fini(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 
 	if (tqs->stqs_taskq == NULL) {
 		ASSERT0(tqs->stqs_count);
+		ASSERT3P(tqs->stqs_node_group, ==, NULL);
 		return;
 	}
 
@@ -1356,6 +1420,12 @@ spa_taskqs_fini(spa_t *spa, zio_type_t t, zio_taskq_type_t q)
 
 	kmem_free(tqs->stqs_taskq, tqs->stqs_count * sizeof (taskq_t *));
 	tqs->stqs_taskq = NULL;
+
+	if (tqs->stqs_node_group != NULL) {
+		kmem_free(tqs->stqs_node_group,
+		    tqs->stqs_node_ids * sizeof (uint_t));
+		tqs->stqs_node_group = NULL;
+	}
 }
 
 #ifdef _KERNEL
@@ -1710,6 +1780,14 @@ spa_taskq_dispatch(spa_t *spa, zio_type_t t, zio_taskq_type_t q,
 	} else if ((t == ZIO_TYPE_WRITE) && (q == ZIO_TASKQ_ISSUE) &&
 	    ZIO_HAS_ALLOCATOR(zio)) {
 		tq = tqs->stqs_taskq[zio->io_allocator % tqs->stqs_count];
+	} else if (tqs->stqs_nodes > 1) {
+		/* An unmapped node id (NUMA_NO_NODE) still gets a group. */
+		uint_t node = (uint_t)CPU_NODE_UNSTABLE;
+		uint_t g = node < tqs->stqs_node_ids ?
+		    tqs->stqs_node_group[node] : node % tqs->stqs_nodes;
+		uint_t per = tqs->stqs_count / tqs->stqs_nodes;
+		uint_t i = (uint_t)(((uint64_t)gethrtime()) % per);
+		tq = tqs->stqs_taskq[g * per + i];
 	} else {
 		tq = tqs->stqs_taskq[((uint64_t)gethrtime()) % tqs->stqs_count];
 	}
@@ -12533,6 +12611,9 @@ ZFS_MODULE_VIRTUAL_PARAM_CALL(zfs_zio, zio_, taskq_free,
 
 ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_write_tpq, UINT, ZMOD_RW,
 	"Number of CPUs per write issue taskq");
+
+ZFS_MODULE_PARAM(zfs_zio, zio_, taskq_numa, UINT, ZMOD_RW,
+	"Split read and write interrupt and read issue taskqs per NUMA node");
 
 ZFS_MODULE_PARAM(zfs, zfs_, ccw_retry_interval, INT, ZMOD_RW,
 	"Configuration cache file write, retry after failure, interval "

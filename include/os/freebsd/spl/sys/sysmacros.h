@@ -65,8 +65,14 @@ extern "C" {
 
 #ifdef _STANDALONE
 #define	boot_ncpus 1
+#define	CPU_NODE_UNSTABLE 0
+#define	max_node_ids 1
+#define	node_has_cpus(n) ((n) == 0)
 #else /* _STANDALONE */
 #define	boot_ncpus mp_ncpus
+#define	CPU_NODE_UNSTABLE PCPU_GET(domain)
+#define	max_node_ids vm_ndomains
+#define	node_has_cpus(n) (!CPU_EMPTY(&cpuset_domain[(n)]))
 #endif /* _STANDALONE */
 #define	kpreempt_disable() critical_enter()
 #define	kpreempt_enable() critical_exit()
