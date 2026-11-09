@@ -172,6 +172,9 @@ Available via `specific_os` or `ZTS_OS_OVERRIDE`:
     those PRs or issues is open
   - `Status: Merge Conflict`, on PRs that conflict with their base, checked
     when a PR is opened, pushed to or reopened, and every 3 hours
+  - `Status: Inactive`, every 3 hours, on PRs, drafts included, with no
+    commit, comment, review or change of state by anyone but a bot for 90
+    days; it goes once there is some, unless it was added by hand
 
   Running it by hand applies the jobs that label every open PR, all of
   them or the one chosen.  A first run over many unlabelled PRs is best
