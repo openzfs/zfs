@@ -926,7 +926,8 @@ tags = ['functional', 'pool_checkpoint']
 timeout = 1800
 
 [tests/functional/pool_names]
-tests = ['pool_names_001_pos', 'pool_names_002_neg']
+tests = ['pool_names_001_pos', 'pool_names_002_neg',
+    'pool_names_reserved_fgroup']
 pre =
 post =
 tags = ['functional', 'pool_names']
