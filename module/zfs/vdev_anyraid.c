@@ -807,9 +807,10 @@ anyraid_calculate_size(vdev_t *vd)
 			uint64_t disk_size = MAX(VDEV_ANYRAID_TOTAL_MAP_SIZE,
 			    cvd->vdev_asize) - VDEV_ANYRAID_TOTAL_MAP_SIZE;
 			if (disk_size < need) {
-				char *namebuf = kmem_zalloc(64, KM_SLEEP);
+				char *namebuf = kmem_zalloc(MAXPATHLEN,
+				    KM_SLEEP);
 				vdevs[idx++] = vdev_name(cvd, namebuf,
-				    64);
+				    MAXPATHLEN);
 				ashift = MAX(ashift, cvd->vdev_ashift);
 			}
 		}
@@ -824,7 +825,7 @@ anyraid_calculate_size(vdev_t *vd)
 			spa->spa_create_info = nv;
 		}
 		for (int i = 0; i < toosmall; i++)
-			kmem_free(vdevs[i], 64);
+			kmem_free(vdevs[i], MAXPATHLEN);
 		kmem_free(vdevs, toosmall * sizeof (*vdevs));
 		return (SET_ERROR(ENOLCK));
 	}
