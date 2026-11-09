@@ -683,6 +683,15 @@ loop:
 			case AMET_LOC: {
 				anyraid_map_loc_entry_t *amle =
 				    &entry->ame_u.ame_amle;
+				uint32_t disk = amle_get_disk(amle);
+				if (disk >= vd->vdev_children) {
+					zfs_dbgmsg("Invalid disk %u of %llu",
+					    disk,
+					    (u_longlong_t)vd->vdev_children);
+					error = SET_ERROR(EINVAL);
+					off = map_length;
+					break;
+				}
 				create_tile_entry(var, amle,
 				    &pat_cnt, &at, &cur_tile);
 				break;
