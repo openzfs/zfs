@@ -2049,6 +2049,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/procfs/procfs_list_concurrent_readers.ksh \
 	functional/procfs/procfs_list_stale_read.ksh \
 	functional/procfs/setup.ksh \
+	functional/procfs/taskq_summary_race.ksh \
 	functional/projectquota/cleanup.ksh \
 	functional/projectquota/projectid_001_pos.ksh \
 	functional/projectquota/projectid_002_pos.ksh \
