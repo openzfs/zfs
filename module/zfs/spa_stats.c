@@ -522,11 +522,10 @@ static void
 spa_tx_assign_destroy(spa_t *spa)
 {
 	spa_history_kstat_t *shk = &spa->spa_stats.tx_assign_histogram;
-	kstat_t *ksp;
-
-	ksp = shk->kstat;
-	if (ksp)
-		kstat_delete(ksp);
+	if (shk->kstat) {
+		kstat_delete(shk->kstat);
+		shk->kstat = NULL;
+	}
 
 	kmem_free(shk->priv, shk->size);
 	mutex_destroy(&shk->lock);
@@ -854,9 +853,10 @@ static void
 spa_health_destroy(spa_t *spa)
 {
 	spa_history_kstat_t *shk = &spa->spa_stats.state;
-	kstat_t *ksp = shk->kstat;
-	if (ksp)
-		kstat_delete(ksp);
+	if (shk->kstat) {
+		kstat_delete(shk->kstat);
+		shk->kstat = NULL;
+	}
 
 	mutex_destroy(&shk->lock);
 }
@@ -865,9 +865,10 @@ static void
 spa_guid_destroy(spa_t *spa)
 {
 	spa_history_kstat_t *shk = &spa->spa_stats.guid;
-	kstat_t *ksp = shk->kstat;
-	if (ksp)
-		kstat_delete(ksp);
+	if (shk->kstat) {
+		kstat_delete(shk->kstat);
+		shk->kstat = NULL;
+	}
 
 	mutex_destroy(&shk->lock);
 }
@@ -1023,10 +1024,10 @@ static void
 spa_iostats_destroy(spa_t *spa)
 {
 	spa_history_kstat_t *shk = &spa->spa_stats.iostats;
-	kstat_t *ksp = shk->kstat;
-	if (ksp) {
-		kmem_free(ksp->ks_data, sizeof (spa_iostats_t));
-		kstat_delete(ksp);
+	if (shk->kstat) {
+		kmem_free(shk->kstat->ks_data, sizeof (spa_iostats_t));
+		kstat_delete(shk->kstat);
+		shk->kstat = NULL;
 	}
 
 	mutex_destroy(&shk->lock);
@@ -1103,10 +1104,10 @@ static void
 spa_log_sm_stats_destroy(spa_t *spa)
 {
 	spa_history_kstat_t *shk = &spa->spa_stats.log_spacemaps;
-	kstat_t *ksp = shk->kstat;
-	if (ksp) {
-		kmem_free(ksp->ks_data, sizeof (spa_log_sm_stats_t));
-		kstat_delete(ksp);
+	if (shk->kstat) {
+		kmem_free(shk->kstat->ks_data, sizeof (spa_log_sm_stats_t));
+		kstat_delete(shk->kstat);
+		shk->kstat = NULL;
 	}
 
 	mutex_destroy(&shk->lock);

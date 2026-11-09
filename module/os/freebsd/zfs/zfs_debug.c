@@ -129,8 +129,10 @@ zfs_dbgmsg_init(void)
 void
 zfs_dbgmsg_fini(void)
 {
-	if (zfs_dbgmsg_kstat)
+	if (zfs_dbgmsg_kstat) {
 		kstat_delete(zfs_dbgmsg_kstat);
+		zfs_dbgmsg_kstat = NULL;
+	}
 
 	mutex_enter(&zfs_dbgmsgs_lock);
 	zfs_dbgmsg_purge(0);

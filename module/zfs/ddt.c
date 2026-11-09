@@ -1764,6 +1764,7 @@ ddt_table_free(ddt_t *ddt)
 		kmem_free(ddt->ddt_ksp->ks_data, sizeof (ddt_kstats_t));
 		ddt->ddt_ksp->ks_data = NULL;
 		kstat_delete(ddt->ddt_ksp);
+		ddt->ddt_ksp = NULL;
 	}
 
 	/* Cleanup wmsums for lookup counters */
