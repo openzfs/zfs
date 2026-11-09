@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/byteorder.h>
+#include <sys/atomic.h>
 #include <sys/stdtypes.h>
 #include <sys/sysmacros.h>
 #include <sys/types.h>
@@ -290,15 +291,14 @@ set_stream_attributes(drr_packet_t *item)
 static inline void
 maybe_wait_for_memory(size_t bytes_wanted)
 {
-	uint64_t current = __atomic_load_n(&payloads.dif_current,
-	    __ATOMIC_RELAXED);
+	uint64_t current = atomic_load_64(&payloads.dif_current);
 
 	if (current + bytes_wanted <= payloads.dif_allowed)
 		return;
 
 	pthread_mutex_lock(&payloads.dif_mutex);
-	__atomic_store_n(&payloads.dif_waiting, B_TRUE, __ATOMIC_SEQ_CST);
-	while (__atomic_load_n(&payloads.dif_current, __ATOMIC_SEQ_CST) >
+	atomic_store_32_seq_cst(&payloads.dif_waiting, B_TRUE);
+	while (atomic_load_64_seq_cst(&payloads.dif_current) >
 	    payloads.dif_resume) {
 		pthread_cond_wait(&payloads.dif_cond, &payloads.dif_mutex);
 	}
@@ -307,7 +307,7 @@ maybe_wait_for_memory(size_t bytes_wanted)
 	 * mutex for a broadcast that no one is waiting for, so this store
 	 * needs no ordering of its own.
 	 */
-	__atomic_store_n(&payloads.dif_waiting, B_FALSE, __ATOMIC_RELAXED);
+	atomic_store_32(&payloads.dif_waiting, B_FALSE);
 	pthread_mutex_unlock(&payloads.dif_mutex);
 }
 
@@ -421,8 +421,7 @@ chain_write(void *item_in, void *context_in)
 				err(1, "error closing output stream");
 			context->ic_fp = NULL;
 		}
-		VERIFY0(__atomic_load_n(&payloads.dif_current,
-		    __ATOMIC_SEQ_CST));
+		VERIFY0(atomic_load_64_seq_cst(&payloads.dif_current));
 		return (D_OK);
 	}
 
@@ -676,19 +675,14 @@ set_payload_impl(void *item_in, void *payload_in, uint64_t size,
 	item->dp_payload = payload;
 	item->dp_payload_size = (uint32_t)size;
 
-	/*
-	 * Atomics are nominally unsigned operations, but because of twos
-	 * complement arithmetic it's fine to add a "negative" value.
-	 */
-	uint64_t current = __atomic_add_fetch(&payloads.dif_current, delta,
-	    __ATOMIC_SEQ_CST);
+	uint64_t current = atomic_add_64_nv(&payloads.dif_current, delta);
 
 	/*
 	 * Only a net reduction can release a parked reader, and only if it
 	 * brings us back under the hysteresis threshold.
 	 */
 	if (delta < 0 && current <= payloads.dif_resume &&
-	    __atomic_load_n(&payloads.dif_waiting, __ATOMIC_SEQ_CST)) {
+	    atomic_load_32_seq_cst(&payloads.dif_waiting)) {
 		pthread_mutex_lock(&payloads.dif_mutex);
 		pthread_cond_broadcast(&payloads.dif_cond);
 		pthread_mutex_unlock(&payloads.dif_mutex);
