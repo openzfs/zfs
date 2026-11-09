@@ -18,7 +18,7 @@
 
 ### Types of Changes
 <!--- What types of changes does your code introduce? Put an `x` in all the boxes that apply: -->
-<!--- Bug fix, New feature, Performance enhancement and Documentation set the type labels of a PR that has none, unless an issue it closes has some; a maintainer may change them. -->
+<!--- The boxes ticked set the type labels of a PR that has none, unless an issue it closes has some; Breaking change and Library ABI change set theirs on any PR. A maintainer may change them. -->
 - [ ] Bug fix (non-breaking change which fixes an issue)
 - [ ] New feature (non-breaking change which adds functionality)
 - [ ] Performance enhancement (non-breaking change which improves efficiency)
