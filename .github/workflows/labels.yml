@@ -356,7 +356,9 @@ jobs:
         run: |
           # An open PR gets "Status: Reviewed" once someone other than its
           # author, and not a bot, has submitted a review of it, whatever its
-          # verdict, so that PRs reviewed by anyone stand out.  It gets
+          # verdict, so that PRs reviewed by anyone stand out, and
+          # "Status: Maintainer Reviewed" when one of them can push to the
+          # repository, so that PRs a maintainer has reviewed do too.  It gets
           # "Status: Revision Needed", unless it is a draft, when the latest
           # verdict of someone with write access asks for changes to its
           # head commit, which no push has replaced yet; a push removes it.
@@ -368,7 +370,8 @@ jobs:
           # submitted just before a run); a manual run reads all of them.
           labels=$(gh label list --limit 1000 --json name --jq '.[].name')
           for l in "Status: Reviewed|0e8a16|Reviewed by someone other than its author" \
-              "Status: Revision Needed|e60000|Changes are required for the PR to be accepted"; do
+              "Status: Revision Needed|e60000|Changes are required for the PR to be accepted" \
+              "Status: Maintainer Reviewed|0a5c2b|Reviewed by someone with push access other than its author"; do
             IFS='|' read -r name color desc <<< "$l"
             if ! grep -qixF "$name" <<< "$labels"; then
               gh label create "$name" --color "$color" --description "$desc"
@@ -403,7 +406,12 @@ jobs:
                       isDraft
                       labels(first: 100) { nodes { name } }
                       reviews(last: 100) {
-                        nodes { author { __typename login } state submittedAt }
+                        nodes {
+                          author { __typename login }
+                          state
+                          submittedAt
+                          authorCanPushToRepository
+                        }
                       }
                       latestOpinionatedReviews(first: 100, writersOnly: true) {
                         nodes { state submittedAt commit { oid } }
@@ -417,6 +425,10 @@ jobs:
               (select(any(.reviews.nodes[]; .state != "PENDING" and
                   .submittedAt > $since and .author.__typename != "Bot" and
                   .author.login != $a)) | "Status: Reviewed"),
+              (select(any(.reviews.nodes[]; .state != "PENDING" and
+                  .submittedAt > $since and .author.__typename != "Bot" and
+                  .author.login != $a and .authorCanPushToRepository)) |
+                  "Status: Maintainer Reviewed"),
               (select((.isDraft | not) and
                   any(.latestOpinionatedReviews.nodes[];
                   .state == "CHANGES_REQUESTED" and .commit.oid == $head and

@@ -156,7 +156,8 @@ Available via `specific_os` or `ZTS_OS_OVERRIDE`:
 - `zloop.yml`: host-side zloop
 - `labels.yml`: maintains PR labels:
   - status labels, and every 3 hours `Status: Reviewed` on PRs that someone
-    other than their author has reviewed and `Status: Revision Needed` on
+    other than their author has reviewed, `Status: Maintainer Reviewed` when
+    one of them can push to the repository, and `Status: Revision Needed` on
     PRs other than drafts whose head a reviewer with write access has asked
     to change
   - size labels, from the lines each PR changes
