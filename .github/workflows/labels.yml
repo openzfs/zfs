@@ -2,7 +2,7 @@ name: labels
 
 on:
   pull_request_target:
-    types: [ opened, synchronize, reopened, converted_to_draft, ready_for_review ]
+    types: [ opened, edited, synchronize, reopened, converted_to_draft, ready_for_review ]
   workflow_dispatch:
 
 permissions:
@@ -19,40 +19,84 @@ jobs:
         run: |
           gh pr edit $ISSUE --add-label "Status: Work in Progress"
 
-  priority:
+  template:
     runs-on: ubuntu-latest
-    if: ${{ github.event.action == 'opened' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.action == 'opened' || (github.event.action == 'edited' && github.event.pull_request.state == 'open') }}
+    concurrency:
+      group: template-${{ github.event.pull_request.number || 'all' }}
+      # An edit right after opening waits for the run that labels it.
+      cancel-in-progress: false
     steps:
       - shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
+          ACTION: ${{ github.event.action }}
         run: |
-          # Only the box ticked when the PR is opened counts: later edits
-          # to the description leave the label alone.
-          picked=$(jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH" |
-              tr -d '\r' | sed -n -E 's/^- \[[xX]\] (Critical|High|Medium|Low) \(.*/\1/p')
-          if [ -z "$picked" ] || [ "$(wc -l <<< "$picked")" -ne 1 ]; then
-            exit 0
+          # The labels of the boxes ticked in the "Types of Changes" and
+          # "Priority" sections of the PR template.  A PR gets them when it
+          # is opened, and later only those of a kind it has no label of
+          # yet, so a label set by hand is never overridden.  A priority
+          # needs exactly one box ticked.  A manual run labels every open
+          # PR.
+          boxes='Bug fix|Type: Defect|ededed|
+          New feature|Type: Feature|ededed|
+          Performance enhancement|Type: Performance|ededed|
+          Documentation|Type: Documentation|ededed|
+          Critical|Priority: Critical|b60205|Now: data loss or corruption, security, or the build or CI broken for every PR
+          High|Priority: High|d93f0b|Next release: panic or hang in normal use, regression, failing tests, planned work
+          Medium|Priority: Medium|fbca04|A later release: fixes for uncommon setups, features, performance, test and CI work
+          Low|Priority: Low|c2e0c6|Whenever convenient: messages, documentation, cleanups, debug-only issues'
+          labels=$(gh label list --limit 1000 --json name --jq '.[].name')
+          while IFS='|' read -r box name color desc; do
+            if ! grep -qixF "$name" <<< "$labels"; then
+              gh label create "$name" --color "$color" --description "$desc"
+            fi
+          done <<< "$boxes"
+          fields=number,body,labels
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            prs=$(gh pr list --state open --limit 1000 --json "$fields")
+          else
+            # Read now, not from the event, so that a label added since by
+            # the run for an earlier event counts.
+            prs=$(gh pr view "$PR" --json "$fields" --jq '[.]')
           fi
-          label="Priority: $picked"
-          case $picked in
-            Critical) color=b60205
-              desc="Now: data loss or corruption, security, or the build or CI broken for every PR" ;;
-            High) color=d93f0b
-              desc="Next release: panic or hang in normal use, regression, failing tests, planned work" ;;
-            Medium) color=fbca04
-              desc="A later release: fixes for uncommon setups, features, performance, test and CI work" ;;
-            Low) color=c2e0c6
-              desc="Whenever convenient: messages, documentation, cleanups, debug-only issues" ;;
-          esac
-          if ! gh label list --limit 1000 --json name --jq '.[].name' |
-              grep -qxF "$label"; then
-            gh label create "$label" --color "$color" --description "$desc"
-          fi
-          gh api --silent -X POST "repos/$GH_REPO/issues/$PR/labels" \
-              -f "labels[]=$label"
+          jq -c '.[]' <<< "$prs" | while read -r p; do
+            pr=$(jq -r .number <<< "$p")
+            have=
+            if [ "$ACTION" != opened ]; then
+              have=$(jq -r '.labels[].name' <<< "$p")
+            fi
+            ticked=$(jq -r '.body // ""' <<< "$p" | tr -d '\r' |
+                sed -n -E 's/^- \[[xX]\] ([^(]*[^ (]) \(.*/\1/p')
+            add=()
+            for kind in Type Priority; do
+              new=$(while IFS='|' read -r box name _; do
+                if [[ $name = "$kind: "* ]] && grep -qxF "$box" <<< "$ticked"; then
+                  echo "$name"
+                fi
+              done <<< "$boxes")
+              if [ -z "$new" ] || grep -q "^$kind: " <<< "$have"; then
+                continue
+              fi
+              if [ "$kind" = Priority ] && [ "$(wc -l <<< "$new")" -ne 1 ]; then
+                continue
+              fi
+              while read -r l; do
+                add+=(-f "labels[]=$l")
+              done <<< "$new"
+            done
+            if [ ${#add[@]} -ne 0 ]; then
+              gh api --silent -X POST "repos/$GH_REPO/issues/$pr/labels" \
+                  "${add[@]}" < /dev/null
+              # GitHub allows 80 label changes a minute; leave room for
+              # the other jobs doing the same.
+              if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+                sleep 3
+              fi
+            fi
+          done
 
   push:
     runs-on: ubuntu-latest
