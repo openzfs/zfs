@@ -1398,6 +1398,7 @@ taskq_create(const char *name, int threads_arg, pri_t pri,
 	init_waitqueue_head(&tq->tq_wait_waitq);
 	tq->tq_lock_class = TQ_LOCK_GENERAL;
 	INIT_LIST_HEAD(&tq->tq_taskqs);
+	tq->tq_ksp = NULL;
 	taskq_stats_init(tq);
 
 	if (flags & TASKQ_PREPOPULATE) {
