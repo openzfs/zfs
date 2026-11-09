@@ -335,19 +335,24 @@ jobs:
         run: |
           # An open PR gets "Status: Reviewed" once someone other than its
           # author, and not a bot, has submitted a review of it, whatever its
-          # verdict, so that PRs reviewed by anyone stand out.  A review
-          # event cannot label a PR from a fork, hence a periodic run.  It
-          # reads only the reviews submitted since 10 minutes before the
-          # last successful periodic run started, so that a failed or
-          # skipped run misses none and a label removed by hand comes back
-          # only with a new review (or once more, for a review submitted
-          # just before a run); a manual run reads all of them.
-          label="Status: Reviewed"
+          # verdict, so that PRs reviewed by anyone stand out.  It gets
+          # "Status: Revision Needed", unless it is a draft, when the latest
+          # verdict of someone with write access asks for changes to its
+          # head commit, which no push has replaced yet; a push removes it.
+          # A review event cannot label a PR from a fork, hence a periodic
+          # run.  It reads only the reviews submitted since 10 minutes
+          # before the last successful periodic run started, so that a
+          # failed or skipped run misses none and a label removed by hand
+          # comes back only with a new review (or once more, for a review
+          # submitted just before a run); a manual run reads all of them.
           labels=$(gh label list --limit 1000 --json name --jq '.[].name')
-          if ! grep -qixF "$label" <<< "$labels"; then
-            gh label create "$label" --color 0e8a16 \
-                --description "Reviewed by someone other than its author"
-          fi
+          for l in "Status: Reviewed|0e8a16|Reviewed by someone other than its author" \
+              "Status: Revision Needed|e60000|Changes are required for the PR to be accepted"; do
+            IFS='|' read -r name color desc <<< "$l"
+            if ! grep -qixF "$name" <<< "$labels"; then
+              gh label create "$name" --color "$color" --description "$desc"
+            fi
+          done
           since=
           if [ "$GITHUB_EVENT_NAME" = schedule ]; then
             since=$(gh api -X GET \
@@ -360,8 +365,9 @@ jobs:
               since=$(date -u -d '-4 hours' +%Y-%m-%dT%H:%M:%SZ)
             fi
           fi
-          # The last 100 reviews of every open PR, 50 PRs a request; the
-          # names that start with $ are GraphQL variables.
+          # The last 100 reviews of every open PR, and the latest verdict of
+          # each reviewer with write access, 50 PRs a request; the names that
+          # start with $ are GraphQL variables.
           # shellcheck disable=SC2016
           gh api graphql --paginate -f owner="${GH_REPO%/*}" \
               -f repo="${GH_REPO#*/}" -f query='
@@ -372,19 +378,28 @@ jobs:
                     nodes {
                       number
                       author { login }
+                      headRefOid
+                      isDraft
                       labels(first: 100) { nodes { name } }
                       reviews(last: 100) {
                         nodes { author { __typename login } state submittedAt }
+                      }
+                      latestOpinionatedReviews(first: 100, writersOnly: true) {
+                        nodes { state submittedAt commit { oid } }
                       }
                     }
                   }
                 }
               }' --jq '.data.repository.pullRequests.nodes[]' |
           jq -r --arg since "$since" '.number as $n | .author.login as $a |
-              [.labels.nodes[].name] as $have |
+              .headRefOid as $head | [.labels.nodes[].name] as $have |
               (select(any(.reviews.nodes[]; .state != "PENDING" and
                   .submittedAt > $since and .author.__typename != "Bot" and
-                  .author.login != $a)) | "Status: Reviewed") |
+                  .author.login != $a)) | "Status: Reviewed"),
+              (select((.isDraft | not) and
+                  any(.latestOpinionatedReviews.nodes[];
+                  .state == "CHANGES_REQUESTED" and .commit.oid == $head and
+                  .submittedAt > $since)) | "Status: Revision Needed") |
               select(. as $l | all($have[]; . != $l)) | "\($n)\t\(.)"' |
           while IFS=$'\t' read -r pr l; do
             gh api --silent -X POST "repos/$GH_REPO/issues/$pr/labels" \
