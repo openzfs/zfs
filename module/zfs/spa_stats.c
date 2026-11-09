@@ -1004,7 +1004,7 @@ spa_iostats_init(spa_t *spa)
 	char *name = kmem_asprintf("zfs/%s", spa_name(spa));
 	kstat_t *ksp = kstat_create(name, 0, "iostats", "misc",
 	    KSTAT_TYPE_NAMED, sizeof (spa_iostats_t) / sizeof (kstat_named_t),
-	    KSTAT_FLAG_VIRTUAL);
+	    0);
 
 	shk->kstat = ksp;
 	if (ksp) {
@@ -1012,7 +1012,6 @@ spa_iostats_init(spa_t *spa)
 		ksp->ks_lock = &shk->lock;
 		ksp->ks_private = spa;
 		ksp->ks_update = spa_iostats_update;
-		ksp->ks_data = kmem_alloc(size, KM_SLEEP);
 		memcpy(ksp->ks_data, &spa_iostats_template, size);
 		kstat_install(ksp);
 	}
@@ -1025,7 +1024,6 @@ spa_iostats_destroy(spa_t *spa)
 {
 	spa_history_kstat_t *shk = &spa->spa_stats.iostats;
 	if (shk->kstat) {
-		kmem_free(shk->kstat->ks_data, sizeof (spa_iostats_t));
 		kstat_delete(shk->kstat);
 		shk->kstat = NULL;
 	}
@@ -1085,13 +1083,11 @@ spa_log_sm_stats_init(spa_t *spa)
 	kstat_t *ksp = kstat_create(name, 0, "log_spacemaps", "misc",
 	    KSTAT_TYPE_NAMED,
 	    sizeof (spa_log_sm_stats_t) / sizeof (kstat_named_t),
-	    KSTAT_FLAG_VIRTUAL);
+	    0);
 
 	shk->kstat = ksp;
 	if (ksp) {
 		ksp->ks_lock = &shk->lock;
-		ksp->ks_data =
-		    kmem_alloc(sizeof (spa_log_sm_stats_t), KM_SLEEP);
 		memcpy(ksp->ks_data, &spa_log_sm_stats_template,
 		    sizeof (spa_log_sm_stats_t));
 		kstat_install(ksp);
@@ -1105,7 +1101,6 @@ spa_log_sm_stats_destroy(spa_t *spa)
 {
 	spa_history_kstat_t *shk = &spa->spa_stats.log_spacemaps;
 	if (shk->kstat) {
-		kmem_free(shk->kstat->ks_data, sizeof (spa_log_sm_stats_t));
 		kstat_delete(shk->kstat);
 		shk->kstat = NULL;
 	}
