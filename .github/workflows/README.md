@@ -164,6 +164,8 @@ Available via `specific_os` or `ZTS_OS_OVERRIDE`:
     for PRs that have none of that kind
   - type and component labels, from the issues each PR closes, for PRs
     that have none of that kind
+  - `Status: Blocked`, on PRs that declare "Depends on #N" while any of
+    those PRs or issues is open
 - `zfs-precheck.yml`: quick checks on one VM; for PRs that add a test in
   one commit and fix the bug in a later commit, checks that the test
   fails on the test commit and passes on the PR head (see below)
