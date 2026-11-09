@@ -214,7 +214,7 @@ tags = ['functional', 'pam']
 
 [tests/functional/procfs:Linux]
 tests = ['procfs_list_basic', 'procfs_list_concurrent_readers',
-    'procfs_list_stale_read', 'pool_state']
+    'procfs_list_stale_read', 'pool_state', 'taskq_summary_race']
 tags = ['functional', 'procfs']
 
 [tests/functional/projectquota:Linux]
