@@ -164,7 +164,8 @@ Available via `specific_os` or `ZTS_OS_OVERRIDE`:
     `Type: Building`, for PRs that change only CI, tests, documentation or
     the build and packaging
   - type and priority labels, from the boxes ticked in the PR template,
-    for PRs that have none of that kind
+    for PRs that have none of that kind; `Type: Breaking Change` and
+    `Type: Library API Change` are kinds of their own
   - type and component labels, from the issues each PR closes, for PRs
     that have none of that kind
   - `Status: Blocked`, on PRs that declare "Depends on #N" while any of
