@@ -1816,6 +1816,37 @@ arc_hdr_size(arc_buf_hdr_t *hdr)
 	return (size);
 }
 
+/*
+ * Return the size of a read of the block from the main pool: into b_rabd
+ * if raw is set, otherwise into b_pabd.
+ */
+static uint64_t
+arc_hdr_read_size(arc_buf_hdr_t *hdr, boolean_t raw)
+{
+	return (raw ? HDR_GET_PSIZE(hdr) : arc_hdr_size(hdr));
+}
+
+/*
+ * Return the size of the block's copy on an L2ARC device: the physical
+ * block, padded to the device's allocation size.
+ */
+static l2arc_asize_t
+l2arc_dev_size(vdev_t *vd, arc_psize_t psize)
+{
+	l2arc_asize_t size = { vdev_psize_to_asize(vd, psize.psize) };
+	return (size);
+}
+
+/*
+ * Copy a block read from an L2ARC device into a temporary buffer to its
+ * ARC buffer: the physical block, without the device's padding.
+ */
+static void
+l2arc_copy_unpadded(abd_t *dst, abd_t *src, arc_psize_t psize)
+{
+	abd_copy(dst, src, psize.psize);
+}
+
 static int
 arc_hdr_authenticate(arc_buf_hdr_t *hdr, spa_t *spa, uint64_t dsobj)
 {
@@ -6110,7 +6141,6 @@ top:
 		vdev_t *vd = NULL;
 		uint64_t addr = 0;
 		boolean_t devw = B_FALSE;
-		uint64_t size;
 		abd_t *hdr_abd;
 		int alloc_flags = encrypted_read ? ARC_HDR_ALLOC_RDATA : 0;
 		arc_buf_contents_t type = BP_GET_BUFC_TYPE(bp);
@@ -6248,14 +6278,13 @@ top:
 			arc_access(hdr, *arc_flags, B_FALSE);
 		arc_hdr_set_flags(hdr, ARC_FLAG_IO_IN_PROGRESS);
 		arc_hdr_alloc_abd(hdr, alloc_flags);
+		const uint64_t size = arc_hdr_read_size(hdr, encrypted_read);
 		if (encrypted_read) {
 			ASSERT(HDR_HAS_RABD(hdr));
-			size = HDR_GET_PSIZE(hdr);
 			hdr_abd = hdr->b_crypt_hdr.b_rabd;
 			zio_flags |= ZIO_FLAG_RAW;
 		} else {
 			ASSERT3P(hdr->b_l1hdr.b_pabd, !=, NULL);
-			size = arc_hdr_size(hdr);
 			hdr_abd = hdr->b_l1hdr.b_pabd;
 
 			if (arc_hdr_get_compress(hdr) != ZIO_COMPRESS_OFF) {
@@ -6355,7 +6384,8 @@ top:
 			    !HDR_L2_WRITING(hdr) && !HDR_L2_EVICTED(hdr)) {
 				l2arc_read_callback_t *cb;
 				abd_t *abd;
-				uint64_t l2size, asize;
+				arc_psize_t psize;
+				l2arc_asize_t asize;
 
 				DTRACE_PROBE1(l2arc__hit, arc_buf_hdr_t *, hdr);
 				ARCSTAT_BUMP(arcstat_l2_hits);
@@ -6370,17 +6400,14 @@ top:
 
 				/*
 				 * The cache device holds the block as it is
-				 * stored in the main pool (compressed and/or
-				 * encrypted), i.e. PSIZE bytes padded to the
+				 * stored in the main pool, padded to the
 				 * device's allocation size.  When Compressed
-				 * ARC is disabled, arc_hdr_size() returns
-				 * LSIZE rather than PSIZE.  Keep 'size'
-				 * intact for the zio_read() fallback below.
+				 * ARC is disabled, that is less than 'size'.
 				 */
-				l2size = HDR_GET_PSIZE(hdr);
-				asize = vdev_psize_to_asize(vd, l2size);
-				if (asize != l2size) {
-					abd = abd_alloc_for_io(asize,
+				psize = arc_hdr_psize(hdr);
+				asize = l2arc_dev_size(vd, psize);
+				if (asize.asize != psize.psize) {
+					abd = abd_alloc_for_io(asize.asize,
 					    HDR_ISTYPE_METADATA(hdr));
 					cb->l2rcb_abd = abd;
 				} else {
@@ -6388,7 +6415,7 @@ top:
 				}
 
 				ASSERT(addr >= VDEV_LABEL_START_SIZE &&
-				    addr + asize <= vd->vdev_psize -
+				    addr + asize.asize <= vd->vdev_psize -
 				    VDEV_LABEL_END_SIZE);
 
 				/*
@@ -6400,7 +6427,7 @@ top:
 				ASSERT3U(arc_hdr_get_compress(hdr), !=,
 				    ZIO_COMPRESS_EMPTY);
 				rzio = zio_read_phys(pio, vd, addr,
-				    asize, abd,
+				    asize.asize, abd,
 				    ZIO_CHECKSUM_OFF,
 				    l2arc_read_done, cb, priority,
 				    zio_flags | ZIO_FLAG_CANFAIL |
@@ -6414,7 +6441,7 @@ top:
 				DTRACE_PROBE2(l2arc__read, vdev_t *, vd,
 				    zio_t *, rzio);
 				ARCSTAT_INCR(arcstat_l2_read_bytes,
-				    HDR_GET_PSIZE(hdr));
+				    psize.psize);
 
 				if (*arc_flags & ARC_FLAG_NOWAIT) {
 					zio_nowait(rzio);
@@ -8932,15 +8959,17 @@ l2arc_read_done(zio_t *zio)
 	 * is compressed but Compressed ARC is disabled.
 	 */
 	if (cb->l2rcb_abd != NULL) {
-		ASSERT3U(HDR_GET_PSIZE(hdr), <, zio->io_size);
-		ASSERT3U(HDR_GET_PSIZE(hdr), <=, arc_hdr_size(hdr));
+		arc_psize_t psize = arc_hdr_psize(hdr);
+
+		ASSERT3U(psize.psize, <, zio->io_size);
+		ASSERT3U(psize.psize, <=, arc_hdr_size(hdr));
 		if (zio->io_error == 0) {
 			if (using_rdata) {
-				abd_copy(hdr->b_crypt_hdr.b_rabd,
-				    cb->l2rcb_abd, HDR_GET_PSIZE(hdr));
+				l2arc_copy_unpadded(hdr->b_crypt_hdr.b_rabd,
+				    cb->l2rcb_abd, psize);
 			} else {
-				abd_copy(hdr->b_l1hdr.b_pabd,
-				    cb->l2rcb_abd, HDR_GET_PSIZE(hdr));
+				l2arc_copy_unpadded(hdr->b_l1hdr.b_pabd,
+				    cb->l2rcb_abd, psize);
 			}
 		}
 
@@ -8956,7 +8985,7 @@ l2arc_read_done(zio_t *zio)
 		 * needs real data.
 		 */
 		abd_free(cb->l2rcb_abd);
-		zio->io_size = zio->io_orig_size = HDR_GET_PSIZE(hdr);
+		zio->io_size = zio->io_orig_size = psize.psize;
 
 		if (using_rdata) {
 			ASSERT(HDR_HAS_RABD(hdr));
@@ -9017,20 +9046,18 @@ l2arc_read_done(zio_t *zio)
 			void *abd = (using_rdata) ?
 			    hdr->b_crypt_hdr.b_rabd : hdr->b_l1hdr.b_pabd;
 
+			ASSERT(!pio || pio->io_child_type == ZIO_CHILD_LOGICAL);
+
 			/*
 			 * Retry with the size of the buffer being filled, as
 			 * arc_read() does.  zio->io_size is PSIZE here, or
 			 * LSIZE if l2arc_untransform() already decompressed
 			 * the block.
 			 */
-			uint64_t size = using_rdata ? HDR_GET_PSIZE(hdr) :
-			    arc_hdr_size(hdr);
-
-			ASSERT(!pio || pio->io_child_type == ZIO_CHILD_LOGICAL);
-
 			zio = zio_read(pio, zio->io_spa, zio->io_bp,
-			    abd, size, arc_read_done,
-			    hdr, zio->io_priority, cb->l2rcb_flags,
+			    abd, arc_hdr_read_size(hdr, using_rdata),
+			    arc_read_done, hdr, zio->io_priority,
+			    cb->l2rcb_flags,
 			    &cb->l2rcb_zb);
 
 			/*

@@ -563,6 +563,30 @@ struct arc_buf_hdr {
 	arc_buf_hdr_crypt_t b_crypt_hdr;
 };
 
+/*
+ * Sizes of a block in its different forms have their own types, so that a
+ * size of one form can't be passed or assigned where another is expected,
+ * and the member name says which form a size is wherever it is unwrapped:
+ *  - physical: the block as stored in the main pool, compressed and/or
+ *    encrypted (PSIZE)
+ *  - L2ARC: the physical block padded to a cache device's allocation size
+ * They compile to a bare uint64_t.
+ */
+typedef struct arc_psize {
+	uint64_t psize;
+} arc_psize_t;
+
+typedef struct l2arc_asize {
+	uint64_t asize;
+} l2arc_asize_t;
+
+static inline arc_psize_t
+arc_hdr_psize(const arc_buf_hdr_t *hdr)
+{
+	arc_psize_t size = { HDR_GET_PSIZE(hdr) };
+	return (size);
+}
+
 typedef struct arc_stats {
 	/* Number of requests that were satisfied without I/O. */
 	kstat_named_t arcstat_hits;
