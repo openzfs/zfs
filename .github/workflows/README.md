@@ -169,6 +169,8 @@ Available via `specific_os` or `ZTS_OS_OVERRIDE`:
     that have none of that kind
   - `Status: Blocked`, on PRs that declare "Depends on #N" while any of
     those PRs or issues is open
+  - `Status: Merge Conflict`, on PRs that conflict with their base, checked
+    when a PR is opened, pushed to or reopened, and every 3 hours
 - `zfs-precheck.yml`: quick checks on one VM; for PRs that add a test in
   one commit and fix the bug in a later commit, checks that the test
   fails on the test commit and passes on the PR head (see below)

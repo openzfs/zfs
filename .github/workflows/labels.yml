@@ -409,6 +409,68 @@ jobs:
             sleep 3
           done
 
+  conflict:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event.action == 'opened' || github.event.action == 'synchronize' || (github.event.action == 'reopened' && github.event_name == 'pull_request_target') }}
+    concurrency:
+      group: conflict-${{ github.event.pull_request.number || 'all' }}
+      # A push cancels the check of the one before; a periodic run waits
+      # for a manual one rather than cancelling it.
+      cancel-in-progress: ${{ github.event_name == 'pull_request_target' }}
+    steps:
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          # "Status: Merge Conflict" while GitHub reports that a PR
+          # conflicts with its base, removed once it can be merged again;
+          # only this job sets it.  GitHub works this out in the background:
+          # a PR it reports as UNKNOWN is left as it is, and when a PR is
+          # opened, pushed to or reopened it is asked again for up to a
+          # minute.  The periodic and manual runs check every open PR, as a
+          # change to the base can make them conflict.
+          label="Status: Merge Conflict"
+          labels=$(gh label list --limit 1000 --json name --jq '.[].name')
+          if ! grep -qixF "$label" <<< "$labels"; then
+            gh label create "$label" --color d93f0b \
+                --description "Conflicts with its base branch"
+          fi
+          if [ -n "$PR" ]; then
+            for _ in 1 2 3 4 5 6; do
+              prs=$(gh pr view "$PR" --json number,mergeable,labels --jq '[.]')
+              if [ "$(jq -r '.[].mergeable' <<< "$prs")" != UNKNOWN ]; then
+                break
+              fi
+              sleep 10
+            done
+          else
+            prs=$(gh pr list --state open --limit 1000 \
+                --json number,mergeable,labels)
+          fi
+          jq -r --arg l "$label" '.[] |
+              [.number, .mergeable, any(.labels[]; .name == $l)] | @tsv' \
+              <<< "$prs" |
+          while IFS=$'\t' read -r pr state has; do
+            if [ "$state" = CONFLICTING ] && [ "$has" = false ]; then
+              gh api --silent -X POST "repos/$GH_REPO/issues/$pr/labels" \
+                  -f "labels[]=$label" < /dev/null
+            elif [ "$state" = MERGEABLE ] && [ "$has" = true ]; then
+              # Another run may have removed it already.
+              gh api --silent -X DELETE \
+                  "repos/$GH_REPO/issues/$pr/labels/Status:%20Merge%20Conflict" \
+                  < /dev/null || true
+            else
+              continue
+            fi
+            # GitHub allows 80 label changes a minute; leave room for the
+            # other jobs doing the same.
+            if [ -z "$PR" ]; then
+              sleep 3
+            fi
+          done
+
   size:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.action == 'opened' || github.event.action == 'synchronize' || (github.event.action == 'reopened' && github.event_name == 'pull_request_target') }}
