@@ -457,10 +457,10 @@ struct spa {
 	kmutex_t	spa_feat_stats_lock;	/* protects spa_feat_stats */
 	kmutex_t	spa_feat_enable_lock;	/* feature re-enable/disable */
 	/*
-	 * Receives in progress that may still activate the feature.  Taken
-	 * and checked in syncing context, released with atomics in either.
+	 * Holds on features that an operation in progress may still
+	 * activate, see spa_feature_hold().
 	 */
-	uint64_t	spa_feat_recv_count[SPA_FEATURES];
+	uint64_t	spa_feat_hold_count[SPA_FEATURES];
 	nvlist_t	*spa_feat_stats;	/* Cache of enabled features */
 	/* cache feature refcounts */
 	uint64_t	spa_feat_refcount_cache[SPA_FEATURES];

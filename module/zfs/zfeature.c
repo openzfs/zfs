@@ -88,10 +88,10 @@
  * spa_feature_incr() enables a feature that is not enabled, and records it
  * in the pool history as an explicit enable would.
  *
- * A receive whose stream has the large_dnode or zstd flag activates the
- * feature only when it syncs a large dnode or zstd block, if one arrives.
- * spa_feature_recv_hold() keeps the feature from being disabled until the
- * receive ends.
+ * An operation can find a feature enabled and activate it only much later,
+ * or not at all, such as a receive whose stream may hold large dnodes.
+ * spa_feature_hold() keeps the feature from being disabled until
+ * spa_feature_rele().
  *
  * On-disk Format
  * --------------
@@ -543,11 +543,17 @@ feature_depends_on(spa_feature_t fid, spa_feature_t check)
 	return (B_FALSE);
 }
 
+typedef struct feature_disable_arg {
+	spa_feature_t	fda_feature;
+	int		fda_error;
+} feature_disable_arg_t;
+
 static int
 feature_disable_check(void *arg, dmu_tx_t *tx)
 {
+	feature_disable_arg_t *fda = arg;
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
-	spa_feature_t fid = *(spa_feature_t *)arg;
+	spa_feature_t fid = fda->fda_feature;
 	uint64_t refcount;
 
 	if (spa_version(spa) < SPA_VERSION_FEATURES)
@@ -557,7 +563,7 @@ feature_disable_check(void *arg, dmu_tx_t *tx)
 	if (feature_get_refcount(spa, &spa_feature_table[fid], &refcount) != 0)
 		return (0);
 	if (refcount != 0 ||
-	    atomic_load_64(&spa->spa_feat_recv_count[fid]) != 0)
+	    atomic_load_64(&spa->spa_feat_hold_count[fid]) != 0)
 		return (SET_ERROR(EBUSY));
 	for (spa_feature_t f = 0; f < SPA_FEATURES; f++) {
 		if (spa_feature_is_enabled(spa, f) &&
@@ -570,8 +576,9 @@ feature_disable_check(void *arg, dmu_tx_t *tx)
 static void
 feature_disable_sync(void *arg, dmu_tx_t *tx)
 {
+	feature_disable_arg_t *fda = arg;
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
-	spa_feature_t fid = *(spa_feature_t *)arg;
+	spa_feature_t fid = fda->fda_feature;
 	zfeature_info_t *feature = &spa_feature_table[fid];
 	objset_t *mos = spa->spa_meta_objset;
 	uint64_t zapobj = (feature->fi_flags & ZFEATURE_FLAG_READONLY_COMPAT) ?
@@ -582,6 +589,13 @@ feature_disable_sync(void *arg, dmu_tx_t *tx)
 
 	mutex_enter(&spa->spa_feat_enable_lock);
 	mutex_enter(&spa->spa_feat_stats_lock);
+	/* Taken in open context since feature_disable_check() */
+	if (atomic_load_64(&spa->spa_feat_hold_count[fid]) != 0) {
+		fda->fda_error = SET_ERROR(EBUSY);
+		mutex_exit(&spa->spa_feat_stats_lock);
+		mutex_exit(&spa->spa_feat_enable_lock);
+		return;
+	}
 	VERIFY0(atomic_swap_64(&spa->spa_feat_refcount_cache[fid],
 	    SPA_FEATURE_DISABLED));
 	if (spa->spa_feat_stats != NULL)
@@ -607,38 +621,50 @@ feature_disable_sync(void *arg, dmu_tx_t *tx)
 int
 spa_feature_disable(spa_t *spa, spa_feature_t fid)
 {
+	feature_disable_arg_t fda = { .fda_feature = fid, .fda_error = 0 };
+	int error;
+
 	ASSERT(VALID_FEATURE_FID(fid));
 
-	return (dsl_sync_task(spa_name(spa), feature_disable_check,
-	    feature_disable_sync, &fid, 6, ZFS_SPACE_CHECK_RESERVED));
+	error = dsl_sync_task(spa_name(spa), feature_disable_check,
+	    feature_disable_sync, &fda, 6, ZFS_SPACE_CHECK_RESERVED);
+	return (error != 0 ? error : fda.fda_error);
 }
 
 /*
- * Called from the sync task that checked that the feature is enabled.
- * feature_disable_check() runs in syncing context too, so it either sees
- * the hold or runs first and makes that check fail.
+ * Hold a feature that an operation in progress may still activate, so that
+ * it cannot be disabled until spa_feature_rele().  Returns ENOTSUP, and
+ * takes no hold, if the feature is not enabled.  The disable checks holds
+ * under spa_feat_stats_lock too, so a hold can be taken in any context.
  */
-void
-spa_feature_recv_hold(spa_t *spa, spa_feature_t fid)
+int
+spa_feature_hold(spa_t *spa, spa_feature_t fid)
 {
-	ASSERT(VALID_FEATURE_FID(fid));
-	ASSERT(dsl_pool_sync_context(spa_get_dsl(spa)));
-	ASSERT(spa_feature_is_enabled(spa, fid));
+	int error = 0;
 
-	atomic_inc_64(&spa->spa_feat_recv_count[fid]);
+	ASSERT(VALID_FEATURE_FID(fid));
+
+	mutex_enter(&spa->spa_feat_stats_lock);
+	if (spa_feature_is_enabled(spa, fid))
+		atomic_inc_64(&spa->spa_feat_hold_count[fid]);
+	else
+		error = SET_ERROR(ENOTSUP);
+	mutex_exit(&spa->spa_feat_stats_lock);
+
+	return (error);
 }
 
 /*
- * Called once the receive's writes are synced, which activated the feature
- * on the received dataset if one of its dnodes or blocks needs it.
+ * A disable that sees a hold that is being released is refused, which is
+ * safe, so releasing needs no lock.
  */
 void
-spa_feature_recv_rele(spa_t *spa, spa_feature_t fid)
+spa_feature_rele(spa_t *spa, spa_feature_t fid)
 {
 	ASSERT(VALID_FEATURE_FID(fid));
-	ASSERT3U(atomic_load_64(&spa->spa_feat_recv_count[fid]), >, 0);
+	ASSERT3U(atomic_load_64(&spa->spa_feat_hold_count[fid]), >, 0);
 
-	atomic_dec_64(&spa->spa_feat_recv_count[fid]);
+	atomic_dec_64(&spa->spa_feat_hold_count[fid]);
 }
 
 /*

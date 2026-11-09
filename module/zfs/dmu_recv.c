@@ -674,15 +674,15 @@ static const struct {
 
 /*
  * Keep these features enabled from the sync task that checked them until
- * the receive ends, see spa_feature_recv_hold().
+ * the receive ends, see spa_feature_hold().
  */
 static void
 recv_hold_features(dmu_recv_cookie_t *drc, spa_t *spa)
 {
 	for (int i = 0; i < ARRAY_SIZE(recv_held_features); i++) {
 		if (drc->drc_featureflags & recv_held_features[i].rf_flag) {
-			spa_feature_recv_hold(spa,
-			    recv_held_features[i].rf_feature);
+			VERIFY0(spa_feature_hold(spa,
+			    recv_held_features[i].rf_feature));
 		}
 	}
 }
@@ -692,7 +692,7 @@ recv_rele_features(dmu_recv_cookie_t *drc, spa_t *spa)
 {
 	for (int i = 0; i < ARRAY_SIZE(recv_held_features); i++) {
 		if (drc->drc_featureflags & recv_held_features[i].rf_flag) {
-			spa_feature_recv_rele(spa,
+			spa_feature_rele(spa,
 			    recv_held_features[i].rf_feature);
 		}
 	}
