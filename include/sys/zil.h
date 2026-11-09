@@ -658,6 +658,8 @@ extern int	zil_claim(struct dsl_pool *dp,
     struct dsl_dataset *ds, void *txarg);
 extern int 	zil_check_log_chain(struct dsl_pool *dp,
     struct dsl_dataset *ds, void *tx);
+extern int	zil_check_unplayed(struct dsl_pool *dp,
+    struct dsl_dataset *ds, void *arg);
 extern void	zil_sync(zilog_t *zilog, dmu_tx_t *tx);
 extern void	zil_clean(zilog_t *zilog, uint64_t synced_txg);
 

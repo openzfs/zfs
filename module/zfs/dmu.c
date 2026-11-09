@@ -2989,6 +2989,15 @@ dmu_brt_clone(objset_t *os, uint64_t object, uint64_t offset, uint64_t length,
 
 	spa = os->os_spa;
 
+	/*
+	 * Callers check that block_cloning is enabled before their tx, but a
+	 * disable may start in between.  Checking under the tx bounds the txg
+	 * of the BRT entries, and of the TX_CLONE_RANGE record logged with
+	 * them, to the window in which the disable can still end.
+	 */
+	if (!spa_feature_is_enabled(spa, SPA_FEATURE_BLOCK_CLONING))
+		return (SET_ERROR(EOPNOTSUPP));
+
 	VERIFY0(dmu_buf_hold_array(os, object, offset, length, FALSE, FTAG,
 	    &numbufs, &dbp, DMU_READ_PREFETCH));
 	ASSERT3U(nbps, ==, numbufs);
