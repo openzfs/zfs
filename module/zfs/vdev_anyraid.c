@@ -121,9 +121,9 @@ vdev_anyraid_header_offset(vdev_t *vd, int id)
 {
 	uint64_t full_size = VDEV_ANYRAID_SINGLE_MAP_SIZE;
 	if (id < VDEV_ANYRAID_START_COPIES)
-		return (VDEV_LABEL_START_SIZE + id * full_size);
+		return (VDEV_LABEL_START_SIZE(vd) + id * full_size);
 	else
-		return (vd->vdev_psize - VDEV_LABEL_END_SIZE -
+		return (vd->vdev_psize - VDEV_LABEL_END_SIZE(vd) -
 		    (VDEV_ANYRAID_MAP_COPIES - id) * full_size);
 }
 
@@ -1097,7 +1097,7 @@ vdev_anyraid_mirror_start(zio_t *zio, anyraid_tile_t *tile)
 		mc->mc_offset = VDEV_ANYRAID_START_OFFSET +
 		    atn->atn_offset * rsize + zio->io_offset % rsize;
 		ASSERT3U(mc->mc_offset, <, cvd->vdev_psize -
-		    VDEV_LABEL_END_SIZE);
+		    VDEV_LABEL_END_SIZE(vd));
 		mm->mm_rebuilding = mc->mc_rebuilding = B_FALSE;
 		atn = list_next(&tile->at_list, atn);
 	}

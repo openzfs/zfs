@@ -7301,6 +7301,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	boolean_t has_draid;
 	boolean_t has_draid_fdomains;
 	boolean_t has_anyraid;
+	boolean_t has_large_label;
 	spa_feature_t feat;
 	const char *feat_name;
 	const char *poolname;
@@ -7350,6 +7351,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	has_draid = B_FALSE;
 	has_draid_fdomains = B_FALSE;
 	has_anyraid = B_FALSE;
+	has_large_label = B_FALSE;
 	for (nvpair_t *elem = nvlist_next_nvpair(props, NULL);
 	    elem != NULL; elem = nvlist_next_nvpair(props, elem)) {
 		if (zpool_prop_feature(nvpair_name(elem))) {
@@ -7367,6 +7369,8 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 				has_draid_fdomains = B_TRUE;
 			if (feat == SPA_FEATURE_ANYRAID)
 				has_anyraid = B_TRUE;
+			if (feat == SPA_FEATURE_LARGE_LABEL)
+				has_large_label = B_TRUE;
 		}
 	}
 
@@ -7403,6 +7407,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	spa->spa_removing_phys.sr_prev_indirect_vdev = -1;
 	spa->spa_indirect_vdevs_loaded = B_TRUE;
 	spa->spa_deflate = (version >= SPA_VERSION_RAIDZ_DEFLATE);
+	spa->spa_create_large_label_ok = has_large_label;
 
 	/*
 	 * Create "The Godfather" zio to hold all async IOs
@@ -7428,8 +7433,12 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	if (error == 0 && !zfs_allocatable_devs(nvroot))
 		error = SET_ERROR(EINVAL);
 
+	if (error == 0) {
+		spa->spa_is_initializing = B_TRUE;
+		error = vdev_create(rvd, txg, B_FALSE);
+		spa->spa_is_initializing = B_FALSE;
+	}
 	if (error == 0 &&
-	    (error = vdev_create(rvd, txg, B_FALSE)) == 0 &&
 	    (error = vdev_draid_spare_create(nvroot, rvd, &ndraid,
 	    &draid_nfgroup, 0)) == 0 &&
 	    (ndraid == 0 || has_draid || (error = SET_ERROR(ENOTSUP))) &&
@@ -10830,7 +10839,7 @@ spa_sync_version(void *arg, dmu_tx_t *tx)
 	ASSERT(tx->tx_txg != TXG_INITIAL);
 
 	ASSERT(SPA_VERSION_IS_SUPPORTED(version));
-	ASSERT(version >= spa_version(spa));
+	ASSERT3U(version, >=, spa_version(spa));
 
 	spa->spa_uberblock.ub_version = version;
 	vdev_config_dirty(spa->spa_root_vdev);
@@ -11114,6 +11123,13 @@ spa_sync_upgrades(spa_t *spa, dmu_tx_t *tx)
 		    sizeof (spa->spa_cksum_salt.zcs_bytes),
 		    spa->spa_cksum_salt.zcs_bytes, tx));
 	}
+	if (spa->spa_uberblock.ub_version >= SPA_VERSION_FEATURES &&
+	    spa->spa_root_vdev->vdev_large_label &&
+	    spa_feature_is_enabled(spa, SPA_FEATURE_LARGE_LABEL) &&
+	    !spa_feature_is_active(spa, SPA_FEATURE_LARGE_LABEL)) {
+		spa_feature_incr(spa, SPA_FEATURE_LARGE_LABEL, tx);
+	}
+
 }
 
 static void
