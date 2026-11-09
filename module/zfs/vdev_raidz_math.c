@@ -520,7 +520,6 @@ vdev_raidz_math_init(void)
 	raidz_math_kstat = kstat_create("zfs", 0, "vdev_raidz_bench", "misc",
 	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
 	if (raidz_math_kstat != NULL) {
-		raidz_math_kstat->ks_data = NULL;
 		raidz_math_kstat->ks_ndata = UINT32_MAX;
 		kstat_set_raw_ops(raidz_math_kstat,
 		    raidz_math_kstat_headers,
