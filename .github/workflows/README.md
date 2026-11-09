@@ -171,6 +171,12 @@ Available via `specific_os` or `ZTS_OS_OVERRIDE`:
     those PRs or issues is open
   - `Status: Merge Conflict`, on PRs that conflict with their base, checked
     when a PR is opened, pushed to or reopened, and every 3 hours
+
+  Running it by hand applies the jobs that label every open PR, all of
+  them or the one chosen.  A first run over many unlabelled PRs is best
+  made one job at a time, an hour apart, to stay within GitHub's limits of
+  1,000 REST API requests and 500 label changes an hour for the workflow's
+  token.
 - `zfs-precheck.yml`: quick checks on one VM; for PRs that add a test in
   one commit and fix the bug in a later commit, checks that the test
   fails on the test commit and passes on the PR head (see below)
