@@ -9018,8 +9018,10 @@ l2arc_read_done(zio_t *zio)
 			    hdr->b_crypt_hdr.b_rabd : hdr->b_l1hdr.b_pabd;
 
 			/*
-			 * zio->io_size may be PSIZE here, but a logical read
-			 * of an uncompressed ARC buffer needs arc_hdr_size().
+			 * Retry with the size of the buffer being filled, as
+			 * arc_read() does.  zio->io_size is PSIZE here, or
+			 * LSIZE if l2arc_untransform() already decompressed
+			 * the block.
 			 */
 			uint64_t size = using_rdata ? HDR_GET_PSIZE(hdr) :
 			    arc_hdr_size(hdr);
