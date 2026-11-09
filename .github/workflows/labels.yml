@@ -120,13 +120,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          # A PR that changes nothing but CI, tests or documentation gets
-          # the label of each of these it changes.  Labels are only added,
-          # so labels set by hand stay.  A manual run labels every open PR.
+          # A PR that changes nothing but CI, tests, documentation or the
+          # build and packaging gets the label of each of these it changes.
+          # Labels are only added, so labels set by hand stay.  A manual run
+          # labels every open PR.
           labels=$(gh label list --limit 1000 --json name --jq '.[].name')
           for l in "Component: CI" "Component: Test Suite" \
-              "Type: Documentation"; do
-            if ! grep -qxF "$l" <<< "$labels"; then
+              "Type: Documentation" "Type: Building"; do
+            if ! grep -qixF "$l" <<< "$labels"; then
               gh label create "$l" --color ededed
             fi
           done
@@ -143,6 +144,11 @@ jobs:
                 awk '/^\.github\// { print "Component: CI"; next }
                     /^tests\// { print "Component: Test Suite"; next }
                     /^man\// || /\.md$/ { print "Type: Documentation"; next }
+                    /^(config|contrib\/debian|rpm)\// || /(^|\/)Makefile\.am$/ ||
+                    /^(META|autogen\.sh|configure\.ac|copy-builtin)$/ ||
+                    /^(zfs\.release\.in|module\/(Kbuild\.in|Makefile\.(bsd|in)))$/ ||
+                    /^scripts\/(dkms\.mkconf|dkms\.postbuild|kmodtool|make_gitrev\.sh)$/ {
+                        print "Type: Building"; next }
                     { print "code" }' | sort -u)
             if [ -z "$kinds" ] || grep -qx code <<< "$kinds"; then
               continue
