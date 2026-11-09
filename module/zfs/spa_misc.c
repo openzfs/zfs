@@ -1379,9 +1379,12 @@ spa_vdev_detach_enter(spa_t *spa, uint64_t guid)
 
 	if (guid != 0) {
 		vdev_t *vd = spa_lookup_by_guid(spa, guid, B_FALSE);
-		if (vd) {
+		/*
+		 * spa_vdev_detach() only detaches leaves, and the root vdev
+		 * (the pool GUID) has no vdev_top.
+		 */
+		if (vd != NULL && vd->vdev_ops->vdev_op_leaf)
 			vdev_rebuild_stop_wait(vd->vdev_top);
-		}
 	}
 
 	return (spa_vdev_config_enter(spa));
