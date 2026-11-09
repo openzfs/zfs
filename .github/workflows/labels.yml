@@ -7,6 +7,8 @@ on:
     # Only the blocked job runs on these; the other jobs that run on
     # "reopened" check that a PR was reopened.
     types: [ closed, reopened ]
+  schedule:
+    - cron: '41 */3 * * *'
   workflow_dispatch:
 
 permissions:
@@ -313,6 +315,84 @@ jobs:
           ISSUE: ${{ github.event.pull_request.html_url }}
         run: |
           gh pr edit $ISSUE --remove-label "Status: Accepted,Status: Inactive,Status: Revision Needed,Status: Stale,Status: Work in Progress" --add-label "Status: Code Review Needed"
+
+  reviewed:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    permissions:
+      # actions: read finds when the last periodic run started.
+      actions: read
+      pull-requests: write
+    concurrency:
+      group: reviewed
+      # A periodic run waits for a manual one rather than cancelling it.
+      cancel-in-progress: false
+    steps:
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # An open PR gets "Status: Reviewed" once someone other than its
+          # author, and not a bot, has submitted a review of it, whatever its
+          # verdict, so that PRs reviewed by anyone stand out.  A review
+          # event cannot label a PR from a fork, hence a periodic run.  It
+          # reads only the reviews submitted since 10 minutes before the
+          # last successful periodic run started, so that a failed or
+          # skipped run misses none and a label removed by hand comes back
+          # only with a new review (or once more, for a review submitted
+          # just before a run); a manual run reads all of them.
+          label="Status: Reviewed"
+          labels=$(gh label list --limit 1000 --json name --jq '.[].name')
+          if ! grep -qixF "$label" <<< "$labels"; then
+            gh label create "$label" --color 0e8a16 \
+                --description "Reviewed by someone other than its author"
+          fi
+          since=
+          if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+            since=$(gh api -X GET \
+                "repos/$GH_REPO/actions/workflows/labels.yml/runs" \
+                -f event=schedule -f status=success -f per_page=1 \
+                --jq '.workflow_runs[0].run_started_at // empty |
+                    fromdate - 600 | todate' < /dev/null) || since=
+            # The last 4 hours when there is no such run or it cannot be read.
+            if [ -z "$since" ]; then
+              since=$(date -u -d '-4 hours' +%Y-%m-%dT%H:%M:%SZ)
+            fi
+          fi
+          # The last 100 reviews of every open PR, 50 PRs a request; the
+          # names that start with $ are GraphQL variables.
+          # shellcheck disable=SC2016
+          gh api graphql --paginate -f owner="${GH_REPO%/*}" \
+              -f repo="${GH_REPO#*/}" -f query='
+              query($owner: String!, $repo: String!, $endCursor: String) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequests(states: OPEN, first: 50, after: $endCursor) {
+                    pageInfo { hasNextPage endCursor }
+                    nodes {
+                      number
+                      author { login }
+                      labels(first: 100) { nodes { name } }
+                      reviews(last: 100) {
+                        nodes { author { __typename login } state submittedAt }
+                      }
+                    }
+                  }
+                }
+              }' --jq '.data.repository.pullRequests.nodes[]' |
+          jq -r --arg since "$since" '.number as $n | .author.login as $a |
+              [.labels.nodes[].name] as $have |
+              (select(any(.reviews.nodes[]; .state != "PENDING" and
+                  .submittedAt > $since and .author.__typename != "Bot" and
+                  .author.login != $a)) | "Status: Reviewed") |
+              select(. as $l | all($have[]; . != $l)) | "\($n)\t\(.)"' |
+          while IFS=$'\t' read -r pr l; do
+            gh api --silent -X POST "repos/$GH_REPO/issues/$pr/labels" \
+                -f "labels[]=$l" < /dev/null
+            # GitHub allows 80 label changes a minute; leave room for the
+            # other jobs doing the same.
+            sleep 3
+          done
 
   size:
     runs-on: ubuntu-latest
