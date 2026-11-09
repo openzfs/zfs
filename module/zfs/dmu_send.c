@@ -2000,11 +2000,23 @@ setup_featureflags(struct dmu_send_params *dspp, objset_t *os,
 
 	if (dmu_objset_type(os) == DMU_OST_ZFS) {
 		uint64_t version;
-		if (zfs_get_zplprop(os, ZFS_PROP_VERSION, &version) != 0)
+		int err = zfs_get_zplprop(os, ZFS_PROP_VERSION, &version);
+		if (err != 0 && dspp->savedok && DS_IS_INCONSISTENT(to_ds)) {
+			/*
+			 * A partial receive can stop after the master node
+			 * object was created but before its contents
+			 * arrived, so the ZPL version can't be read yet.
+			 * The flag only tells the receiver that the stream
+			 * may hold spill blocks, so set it whenever this
+			 * pool could have produced them.
+			 */
+			if (spa_version(dp->dp_spa) >= SPA_VERSION_SA)
+				*featureflags |= DMU_BACKUP_FEATURE_SA_SPILL;
+		} else if (err != 0) {
 			return (SET_ERROR(EINVAL));
-
-		if (version >= ZPL_VERSION_SA)
+		} else if (version >= ZPL_VERSION_SA) {
 			*featureflags |= DMU_BACKUP_FEATURE_SA_SPILL;
+		}
 	}
 
 	/* raw sends imply large_block_ok */
