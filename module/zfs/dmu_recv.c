@@ -660,6 +660,44 @@ recv_begin_check_feature_flags_impl(uint64_t featureflags, spa_t *spa)
 	return (0);
 }
 
+/*
+ * Features that a stream's flags allow it to use, but that receiving it does
+ * not activate until a large dnode or zstd block of the stream is synced.
+ */
+static const struct {
+	uint64_t	rf_flag;
+	spa_feature_t	rf_feature;
+} recv_held_features[] = {
+	{ DMU_BACKUP_FEATURE_LARGE_DNODE, SPA_FEATURE_LARGE_DNODE },
+	{ DMU_BACKUP_FEATURE_ZSTD, SPA_FEATURE_ZSTD_COMPRESS },
+};
+
+/*
+ * Keep these features enabled from the sync task that checked them until
+ * the receive ends, see spa_feature_recv_hold().
+ */
+static void
+recv_hold_features(dmu_recv_cookie_t *drc, spa_t *spa)
+{
+	for (int i = 0; i < ARRAY_SIZE(recv_held_features); i++) {
+		if (drc->drc_featureflags & recv_held_features[i].rf_flag) {
+			spa_feature_recv_hold(spa,
+			    recv_held_features[i].rf_feature);
+		}
+	}
+}
+
+static void
+recv_rele_features(dmu_recv_cookie_t *drc, spa_t *spa)
+{
+	for (int i = 0; i < ARRAY_SIZE(recv_held_features); i++) {
+		if (drc->drc_featureflags & recv_held_features[i].rf_flag) {
+			spa_feature_recv_rele(spa,
+			    recv_held_features[i].rf_feature);
+		}
+	}
+}
+
 static int
 dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 {
@@ -1105,6 +1143,7 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 
 	drba->drba_cookie->drc_ds = newds;
 	drba->drba_cookie->drc_os = os;
+	recv_hold_features(drc, dp->dp_spa);
 
 	spa_history_log_internal_ds(newds, "receive", tx, " ");
 }
@@ -1322,6 +1361,7 @@ dmu_recv_resume_begin_sync(void *arg, dmu_tx_t *tx)
 	drba->drba_cookie->drc_ds = ds;
 	VERIFY0(dmu_objset_from_ds(ds, &drba->drba_cookie->drc_os));
 	drba->drba_cookie->drc_should_save = B_TRUE;
+	recv_hold_features(drba->drba_cookie, dp->dp_spa);
 
 	spa_history_log_internal_ds(ds, "resume receive", tx, " ");
 }
@@ -4243,6 +4283,7 @@ static void
 dmu_recv_cleanup_ds(dmu_recv_cookie_t *drc)
 {
 	dsl_dataset_t *ds = drc->drc_ds;
+	spa_t *spa = ds->ds_dir->dd_pool->dp_spa;
 	ds_hold_flags_t dsflags;
 
 	dsflags = (drc->drc_raw) ? DS_HOLD_FLAG_NONE : DS_HOLD_FLAG_DECRYPT;
@@ -4269,6 +4310,7 @@ dmu_recv_cleanup_ds(dmu_recv_cookie_t *drc)
 		if (!drc->drc_heal)
 			(void) dsl_destroy_head(name);
 	}
+	recv_rele_features(drc, spa);
 }
 
 static void
@@ -5581,6 +5623,9 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 	}
 	dsl_dataset_disown(drc->drc_ds, 0, dmu_recv_tag);
 	drc->drc_ds = NULL;
+
+	/* This txg synced the receive's last writes before its sync tasks. */
+	recv_rele_features(drc, dp->dp_spa);
 }
 
 static int dmu_recv_end_modified_blocks = 3;
