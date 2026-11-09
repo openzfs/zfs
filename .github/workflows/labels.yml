@@ -15,7 +15,7 @@ on:
         description: Job to run over every open PR
         type: choice
         default: all
-        options: [ all, template, area, blocked, reviewed, conflict, size ]
+        options: [ all, template, area, blocked, reviewed, conflict, inactive, size ]
 
 permissions:
   pull-requests: write
@@ -490,6 +490,114 @@ jobs:
             if [ -z "$PR" ]; then
               sleep 3
             fi
+          done
+
+  inactive:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'all' || inputs.job == 'inactive')) }}
+    concurrency:
+      group: inactive
+      # A periodic run waits for a manual one rather than cancelling it.
+      cancel-in-progress: false
+    steps:
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          # "Status: Inactive" on an open PR, draft or not, with no activity
+          # by anyone but a bot for 90 days: no commit or force-push, comment,
+          # review or reopening, and no change between draft and ready for
+          # review, so that the events that remove the label count too.  The
+          # PR's updatedAt would not do, as label changes move it.  A commit
+          # counts from its commit date, the date of a push being unknown.
+          # The label is removed once there is activity again, but only from
+          # a PR it was added to by a bot, so one added by hand stays; nor is
+          # it added again after someone removed it by hand, until there is
+          # new activity.  The last 50 of these events and label changes are
+          # read for every open PR, 50 PRs a request; the names that start
+          # with $ are GraphQL variables.
+          label="Status: Inactive"
+          labels=$(gh label list --limit 1000 --json name --jq '.[].name')
+          if ! grep -qixF "$label" <<< "$labels"; then
+            gh label create "$label" --color cfd3d7 \
+                --description "Not being actively updated"
+          fi
+          cutoff=$(date -u -d '-90 days' +%Y-%m-%dT%H:%M:%SZ)
+          # shellcheck disable=SC2016
+          gh api graphql --paginate -f owner="${GH_REPO%/*}" \
+              -f repo="${GH_REPO#*/}" -f query='
+              query($owner: String!, $repo: String!, $endCursor: String) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequests(states: OPEN, first: 50, after: $endCursor) {
+                    pageInfo { hasNextPage endCursor }
+                    nodes {
+                      number
+                      createdAt
+                      labels(first: 100) { nodes { name } }
+                      timelineItems(last: 50, itemTypes: [PULL_REQUEST_COMMIT,
+                          HEAD_REF_FORCE_PUSHED_EVENT, ISSUE_COMMENT,
+                          PULL_REQUEST_REVIEW, REOPENED_EVENT,
+                          READY_FOR_REVIEW_EVENT, CONVERT_TO_DRAFT_EVENT,
+                          LABELED_EVENT, UNLABELED_EVENT]) {
+                        nodes {
+                          __typename
+                          ... on PullRequestCommit { commit { committedDate } }
+                          ... on HeadRefForcePushedEvent {
+                            createdAt actor { __typename }
+                          }
+                          ... on IssueComment { createdAt author { __typename } }
+                          ... on PullRequestReview {
+                            submittedAt author { __typename }
+                          }
+                          ... on ReopenedEvent { createdAt actor { __typename } }
+                          ... on ReadyForReviewEvent {
+                            createdAt actor { __typename }
+                          }
+                          ... on ConvertToDraftEvent {
+                            createdAt actor { __typename }
+                          }
+                          ... on LabeledEvent {
+                            createdAt actor { __typename } label { name }
+                          }
+                          ... on UnlabeledEvent {
+                            createdAt actor { __typename } label { name }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }' --jq '.data.repository.pullRequests.nodes[]' |
+          jq -r --arg l "$label" --arg cutoff "$cutoff" '.number as $n |
+              [.timelineItems.nodes[] | {type: .__typename,
+                  at: (.createdAt // .submittedAt // .commit.committedDate),
+                  bot: ((.author // .actor).__typename == "Bot"),
+                  label: .label.name} | select(.at != null)] as $t |
+              ([.createdAt] + [$t[] | select(.label == null and (.bot | not)) |
+                  .at] | max) as $last |
+              ([$t[] | select(.label == $l)] | last) as $mark |
+              if any(.labels.nodes[]; .name == $l) then
+                select($mark.type == "LabeledEvent" and $mark.bot and
+                    $last > $mark.at) | "\($n)\tDELETE"
+              else
+                select($last < $cutoff and
+                    all($t[]; .label != $l or .bot or .at < $last)) |
+                "\($n)\tPOST"
+              end' |
+          while IFS=$'\t' read -r pr method; do
+            if [ "$method" = POST ]; then
+              gh api --silent -X POST "repos/$GH_REPO/issues/$pr/labels" \
+                  -f "labels[]=$label" < /dev/null
+            else
+              # Another run may have removed it already.
+              gh api --silent -X DELETE \
+                  "repos/$GH_REPO/issues/$pr/labels/Status:%20Inactive" \
+                  < /dev/null || true
+            fi
+            # GitHub allows 80 label changes a minute; leave room for the
+            # other jobs doing the same.
+            sleep 3
           done
 
   size:
