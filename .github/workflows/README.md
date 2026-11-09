@@ -155,7 +155,8 @@ Available via `specific_os` or `ZTS_OS_OVERRIDE`:
 - `zfs-arm.yml`: ARM build on `ubuntu-24.04-arm`
 - `zloop.yml`: host-side zloop
 - `labels.yml`: maintains PR labels:
-  - status labels
+  - status labels, and `Status: Reviewed` every 3 hours on PRs that someone
+    other than their author has reviewed
   - size labels, from the lines each PR changes
   - `Component: CI`, `Component: Test Suite`, `Type: Documentation` and
     `Type: Building`, for PRs that change only CI, tests, documentation or
