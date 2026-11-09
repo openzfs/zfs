@@ -23,6 +23,8 @@
 #include <sys/dsl_pool.h>
 #include <sys/dsl_prop.h>
 #include <sys/dsl_synctask.h>
+#include <sys/dmu_objset.h>
+#include <sys/zil.h>
 #include "zfeature_common.h"
 #include <sys/spa_impl.h>
 
@@ -629,6 +631,18 @@ feature_disable_check(void *arg, dmu_tx_t *tx)
 		    feature_disabling_txg(spa, f) != 0) &&
 		    feature_depends_on(f, fid))
 			return (SET_ERROR(EBUSY));
+	}
+	/*
+	 * A TX_CLONE_RANGE record needs block_cloning when it is replayed,
+	 * but the BRT entries that claiming it added keep the feature active
+	 * only if one of its blocks is neither a hole nor embedded.
+	 */
+	if (fid == SPA_FEATURE_BLOCK_CLONING) {
+		int error = dmu_objset_find_dp(dmu_tx_pool(tx),
+		    dmu_tx_pool(tx)->dp_root_dir_obj, zil_check_unplayed, NULL,
+		    DS_FIND_CHILDREN | DS_FIND_SERIALIZE);
+		if (error != 0)
+			return (error);
 	}
 	return (dsl_prop_feature_check(dmu_tx_pool(tx), fid));
 }

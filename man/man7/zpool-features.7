@@ -126,6 +126,9 @@ A receive whose stream may hold large dnodes or zstd blocks needs
 or
 .Sy zstd_compress
 until it ends.
+A file system or volume whose intent log has not been replayed since the pool
+was imported needs
+.Sy block_cloning .
 .Pp
 The state of supported features is exposed through pool properties of the form
 .Sy feature Ns @ Ns Ar short-name .

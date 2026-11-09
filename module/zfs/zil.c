@@ -1376,6 +1376,25 @@ zil_lwb_error_pending(zilog_t *zilog)
 }
 
 /*
+ * Return EBUSY if the dataset's intent log was claimed when the pool was
+ * imported and has not been replayed yet, as zil_suspend() does.
+ */
+int
+zil_check_unplayed(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
+{
+	(void) dp;
+	(void) arg;
+	objset_t *os;
+	int error;
+
+	if ((error = dmu_objset_from_ds(ds, &os)) != 0)
+		return (error);
+	if (dmu_objset_zil(os)->zl_header->zh_flags & ZIL_REPLAY_NEEDED)
+		return (SET_ERROR(EBUSY));
+	return (0);
+}
+
+/*
  * When an itx is "skipped", this function is used to properly mark the
  * waiter as "done, and signal any thread(s) waiting on it. An itx can
  * be skipped (and not committed to an lwb) for a variety of reasons,
