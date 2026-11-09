@@ -6426,6 +6426,14 @@ top:
 				/* l2arc read error; goto zio_read() */
 				if (hash_lock != NULL)
 					mutex_enter(hash_lock);
+
+				/*
+				 * l2arc_read_done() may have replaced b_pabd
+				 * and freed the buffer hdr_abd points to.
+				 */
+				hdr_abd = encrypted_read ?
+				    hdr->b_crypt_hdr.b_rabd :
+				    hdr->b_l1hdr.b_pabd;
 			} else {
 				DTRACE_PROBE1(l2arc__miss,
 				    arc_buf_hdr_t *, hdr);
