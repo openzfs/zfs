@@ -35,11 +35,13 @@ jobs:
           ACTION: ${{ github.event.action }}
         run: |
           # The labels of the boxes ticked in the "Types of Changes" and
-          # "Priority" sections of the PR template.  A PR gets them when it
-          # is opened, and later only those of a kind it has no label of
-          # yet, so a label set by hand is never overridden.  A priority
-          # needs exactly one box ticked.  A manual run labels every open
-          # PR.
+          # "Priority" sections of the PR template, and the Type and active
+          # Component labels of the issues the PR closes, which take the
+          # place of the ticked types since a maintainer chose them.  A PR
+          # gets them when it is opened, and later only those of a kind it
+          # has no label of yet, so a label set by hand is never
+          # overridden.  A priority needs exactly one box ticked.  A manual
+          # run labels every open PR.
           boxes='Bug fix|Type: Defect|ededed|
           New feature|Type: Feature|ededed|
           Performance enhancement|Type: Performance|ededed|
@@ -54,7 +56,7 @@ jobs:
               gh label create "$name" --color "$color" --description "$desc"
             fi
           done <<< "$boxes"
-          fields=number,body,labels
+          fields=number,body,labels,closingIssuesReferences
           if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
             prs=$(gh pr list --state open --limit 1000 --json "$fields")
           else
@@ -70,13 +72,26 @@ jobs:
             fi
             ticked=$(jq -r '.body // ""' <<< "$p" | tr -d '\r' |
                 sed -n -E 's/^- \[[xX]\] ([^(]*[^ (]) \(.*/\1/p')
+            # At most 10 issues are read; one that cannot be read is skipped.
+            issues=$(jq -r --arg repo "$GH_REPO" '[.closingIssuesReferences[] |
+                select(.repository.owner.login + "/" + .repository.name ==
+                $repo) | .number] | unique | .[:10][]' <<< "$p")
+            linked=$(for i in $issues; do
+                gh api "repos/$GH_REPO/issues/$i" --jq '.labels[] |
+                    select(.archived_at == null) | .name |
+                    select(startswith("Type: ") or startswith("Component: "))' \
+                    < /dev/null || true
+              done | sort -u)
             add=()
-            for kind in Type Priority; do
-              new=$(while IFS='|' read -r box name _; do
-                if [[ $name = "$kind: "* ]] && grep -qxF "$box" <<< "$ticked"; then
-                  echo "$name"
-                fi
-              done <<< "$boxes")
+            for kind in Type Component Priority; do
+              new=$(sed -n "/^$kind: /p" <<< "$linked")
+              if [ -z "$new" ]; then
+                new=$(while IFS='|' read -r box name _; do
+                  if [[ $name = "$kind: "* ]] && grep -qxF "$box" <<< "$ticked"; then
+                    echo "$name"
+                  fi
+                done <<< "$boxes")
+              fi
               if [ -z "$new" ] || grep -q "^$kind: " <<< "$have"; then
                 continue
               fi

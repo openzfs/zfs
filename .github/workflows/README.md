@@ -162,6 +162,8 @@ Available via `specific_os` or `ZTS_OS_OVERRIDE`:
     the build and packaging
   - type and priority labels, from the boxes ticked in the PR template,
     for PRs that have none of that kind
+  - type and component labels, from the issues each PR closes, for PRs
+    that have none of that kind
 - `zfs-precheck.yml`: quick checks on one VM; for PRs that add a test in
   one commit and fix the bug in a later commit, checks that the test
   fails on the test commit and passes on the PR head (see below)
