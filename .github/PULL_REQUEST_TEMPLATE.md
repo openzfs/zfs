@@ -18,6 +18,7 @@
 
 ### Types of Changes
 <!--- What types of changes does your code introduce? Put an `x` in all the boxes that apply: -->
+<!--- Bug fix, New feature, Performance enhancement and Documentation set the type labels of a PR that has none; a maintainer may change them. -->
 - [ ] Bug fix (non-breaking change which fixes an issue)
 - [ ] New feature (non-breaking change which adds functionality)
 - [ ] Performance enhancement (non-breaking change which improves efficiency)
@@ -29,7 +30,7 @@
 
 ### Priority
 <!--- How soon should this be merged, whatever its type? Put an `x` in one box. -->
-<!--- It is read once, when the PR is opened; a maintainer may change it. -->
+<!--- It sets the priority label of a PR that has none; a maintainer may change it. -->
 - [ ] Critical (now: data loss or corruption, a security issue, or the build or CI broken for every PR)
 - [ ] High (for the next release: a panic, hang or unimportable pool in normal use, a regression, a test that fails other PRs, or a feature planned for the release)
 - [ ] Medium (a later release is fine: a fix for an uncommon setup, a new feature, a performance gain, a test or CI improvement)
