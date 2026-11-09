@@ -22,11 +22,11 @@
 #
 # DESCRIPTION:
 #
-# This test ensures that even when child vdevs are unavailable the
-# device removal process copies from readable source children to
-# writable destination children.  This may be different than the
-# default mapping which preferentially pairs up source and destination
-# child vdevs based on their child ids.
+# This test ensures that even when source child vdevs are unavailable
+# the device removal process copies from readable source children to
+# every destination child.  This may be different than the default
+# mapping which preferentially pairs up source and destination child
+# vdevs based on their child ids.
 #
 # Default Mapping:
 #   mirror-0                mirror-1
@@ -34,27 +34,30 @@
 #     DISK1 (child 1) ------> DISK3 (child 1)
 #
 # We want to setup a scenario where the default mapping would make
-# it impossible to copy any data during the removal process.  This
-# is done by faulting both the mirror-0 (child 0) source vdev and
-# mirror-1 (child 1) destination vdev.  As shown below the default
-# mapping cannot be used due to the FAULTED vdevs.  Verify that an
-# alternate mapping is selected and all the readable data is copied.
+# it impossible to copy some of the data during the removal process.
+# This is done by faulting the mirror-0 (child 0) source vdev.  As
+# shown below the default mapping cannot be used due to the FAULTED
+# vdev.  Verify that an alternate mapping is selected and all the
+# readable data is copied.
 #
 # Default Mapping (BAD):
 #   mirror-0                mirror-1
 #     DISK0 (FAULTED) ------> DISK2
-#     DISK1 ----------------> DISK3 (FAULTED)
+#     DISK1 ----------------> DISK3
 #
 # Required Mapping (GOOD):
 #   mirror-0                mirror-1
 #     DISK0 (FAULTED)   +---> DISK2
-#     DISK1 ------------+     DISK3 (FAULTED)
+#     DISK1 ------------+---> DISK3
+#
+# A FAULTED destination child would cancel the removal instead, see
+# removal_with_offline_dest.ksh.
 #
 # STRATEGY:
 #
 # 1. We create a pool with two top-level mirror vdevs.
 # 2. We write some test data to the pool.
-# 3. We fault two children to force the scenario described above.
+# 3. We fault a child to force the scenario described above.
 # 4. We remove the mirror-0 device.
 # 5. We verify that the device has been removed and that all of the
 #    data is still intact.
@@ -79,7 +82,6 @@ default_setup_noexit "mirror $DISK0 $DISK1 mirror $DISK2 $DISK3"
 log_onexit cleanup
 
 log_must zpool offline -f $TESTPOOL $DISK0
-log_must zpool offline -f $TESTPOOL $DISK3
 
 FILE_CONTENTS="Leeloo Dallas mul-ti-pass."
 

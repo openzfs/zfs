@@ -17,7 +17,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd November 19, 2024
+.Dd November 9, 2026
 .Dt ZPOOL-REMOVE 8
 .Os
 .
@@ -61,6 +61,8 @@ the background.
 The removal progress can be monitored with
 .Nm zpool Cm status .
 If an I/O error is encountered during the removal process it will be canceled.
+It is also canceled if a device that receives the data, such as a side of a
+mirror, is offline, faulted or otherwise cannot be written to.
 The
 .Sy device_removal
 feature flag must be enabled to remove a top-level vdev, see
