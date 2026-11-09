@@ -1444,6 +1444,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_set/zpool_set_feature_disable.ksh \
 	functional/cli_root/zpool_set/zpool_set_feature_disable_props.ksh \
 	functional/cli_root/zpool_set/zpool_set_feature_disable_recv.ksh \
+	functional/cli_root/zpool_set/zpool_set_feature_disable_volume.ksh \
 	functional/cli_root/zpool_set/zpool_set_feature_disable_window.ksh \
 	functional/cli_root/zpool_set/zpool_set_clear_userprop.ksh \
 	functional/cli_root/zpool_split/cleanup.ksh \

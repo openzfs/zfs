@@ -3980,6 +3980,8 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	dmu_objset_type_t type;
 	boolean_t is_insensitive = B_FALSE;
 	dsl_crypto_params_t *dcp = NULL;
+	uint64_t volblocksize = 0;
+	spa_t *spa = NULL;
 
 	type = (dmu_objset_type_t)fnvlist_lookup_int32(innvl, "type");
 	(void) nvlist_lookup_nvlist(innvl, "props", &nvprops);
@@ -4008,7 +4010,7 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 		return (SET_ERROR(EINVAL));
 
 	if (type == DMU_OST_ZVOL) {
-		uint64_t volsize, volblocksize;
+		uint64_t volsize;
 
 		if (nvprops == NULL)
 			return (SET_ERROR(EINVAL));
@@ -4056,8 +4058,29 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 		return (error);
 	}
 
+	/*
+	 * A volume activates large_blocks only when it first writes a block:
+	 * hold the feature until the volume exists, so that it cannot be
+	 * disabled in between.
+	 */
+	if (volblocksize > SPA_OLD_MAXBLOCKSIZE) {
+		if ((error = spa_open(fsname, &spa, FTAG)) == 0 &&
+		    (error = spa_feature_hold(spa,
+		    SPA_FEATURE_LARGE_BLOCKS)) != 0)
+			spa_close(spa, FTAG);
+		if (error != 0) {
+			dsl_crypto_params_free(dcp, B_TRUE);
+			return (error);
+		}
+	}
+
 	error = dmu_objset_create(fsname, type,
 	    is_insensitive ? DS_FLAG_CI_DATASET : 0, dcp, cbfunc, &zct);
+
+	if (volblocksize > SPA_OLD_MAXBLOCKSIZE) {
+		spa_feature_rele(spa, SPA_FEATURE_LARGE_BLOCKS);
+		spa_close(spa, FTAG);
+	}
 
 	nvlist_free(zct.zct_zplprops);
 	dsl_crypto_params_free(dcp, !!error);
