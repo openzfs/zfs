@@ -991,7 +991,7 @@ zpool_set_prop(zpool_handle_t *zhp, const char *propname, const char *propval)
 
 	if (ret && errno == EBUSY && zpool_prop_feature(propname) &&
 	    strcmp(propval, ZFS_FEATURE_DISABLED) == 0) {
-		zfs_error_aux(zhp->zpool_hdl, "the feature is active, "
+		zfs_error_aux(zhp->zpool_hdl, "the feature is in use, "
 		    "or an enabled feature depends on it");
 	}
 	if (ret)
