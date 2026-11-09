@@ -988,8 +988,18 @@ vdev_anyraid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 		int error = anyraid_open_existing(vd, &child_capacities);
 		if (error)
 			return (error);
-	} else if ((lasterror = anyraid_calculate_size(vd))) {
-		return (lasterror);
+	} else {
+		int error = anyraid_calculate_size(vd);
+		if (error != 0)
+			return (error);
+		/*
+		 * A new vdev has no capacity recorded for a child that failed
+		 * to open, and vdev_create() needs every child anyway.  Those
+		 * that failed before their size was known are reported as too
+		 * small above.
+		 */
+		if (numerrors != 0)
+			return (lasterror);
 	}
 
 	uint64_t max_size = VDEV_ANYRAID_MAX_TPD * var->vd_tile_size;
