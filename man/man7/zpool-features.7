@@ -16,7 +16,7 @@
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd November 1, 2026
+.Dd November 9, 2026
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -121,6 +121,11 @@ larger than 128 KiB,
 or when it is a volume whose
 .Sy volblocksize
 is larger than 128 KiB.
+A receive whose stream may hold large dnodes or zstd blocks needs
+.Sy large_dnode
+or
+.Sy zstd_compress
+until it ends.
 .Pp
 The state of supported features is exposed through pool properties of the form
 .Sy feature Ns @ Ns Ar short-name .

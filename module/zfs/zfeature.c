@@ -88,6 +88,11 @@
  * spa_feature_incr() enables a feature that is not enabled, and records it
  * in the pool history as an explicit enable would.
  *
+ * A receive whose stream has the large_dnode or zstd flag activates the
+ * feature only when it syncs a large dnode or zstd block, if one arrives.
+ * spa_feature_recv_hold() keeps the feature from being disabled until the
+ * receive ends.
+ *
  * On-disk Format
  * --------------
  *
@@ -551,7 +556,8 @@ feature_disable_check(void *arg, dmu_tx_t *tx)
 		return (SET_ERROR(EROFS));
 	if (feature_get_refcount(spa, &spa_feature_table[fid], &refcount) != 0)
 		return (0);
-	if (refcount != 0)
+	if (refcount != 0 ||
+	    atomic_load_64(&spa->spa_feat_recv_count[fid]) != 0)
 		return (SET_ERROR(EBUSY));
 	for (spa_feature_t f = 0; f < SPA_FEATURES; f++) {
 		if (spa_feature_is_enabled(spa, f) &&
@@ -605,6 +611,34 @@ spa_feature_disable(spa_t *spa, spa_feature_t fid)
 
 	return (dsl_sync_task(spa_name(spa), feature_disable_check,
 	    feature_disable_sync, &fid, 6, ZFS_SPACE_CHECK_RESERVED));
+}
+
+/*
+ * Called from the sync task that checked that the feature is enabled.
+ * feature_disable_check() runs in syncing context too, so it either sees
+ * the hold or runs first and makes that check fail.
+ */
+void
+spa_feature_recv_hold(spa_t *spa, spa_feature_t fid)
+{
+	ASSERT(VALID_FEATURE_FID(fid));
+	ASSERT(dsl_pool_sync_context(spa_get_dsl(spa)));
+	ASSERT(spa_feature_is_enabled(spa, fid));
+
+	atomic_inc_64(&spa->spa_feat_recv_count[fid]);
+}
+
+/*
+ * Called once the receive's writes are synced, which activated the feature
+ * on the received dataset if one of its dnodes or blocks needs it.
+ */
+void
+spa_feature_recv_rele(spa_t *spa, spa_feature_t fid)
+{
+	ASSERT(VALID_FEATURE_FID(fid));
+	ASSERT3U(atomic_load_64(&spa->spa_feat_recv_count[fid]), >, 0);
+
+	atomic_dec_64(&spa->spa_feat_recv_count[fid]);
 }
 
 /*

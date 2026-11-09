@@ -19,7 +19,7 @@
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\" Copyright (c) 2023, 2026, Klara Inc.
 .\"
-.Dd November 1, 2026
+.Dd November 9, 2026
 .Dt ZPOOLPROPS 7
 .Os
 .
@@ -588,7 +588,8 @@ back to the disabled state.
 This is refused while the feature is
 .Sy active ,
 while another enabled feature depends on it,
-and while a dataset needs it.
+while a dataset needs it,
+and while a receive in progress may use it.
 See
 .Xr zpool-features 7
 for details on feature states.
