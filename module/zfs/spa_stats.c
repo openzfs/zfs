@@ -804,7 +804,6 @@ spa_state_init(spa_t *spa)
 	shk->kstat = ksp;
 	if (ksp) {
 		ksp->ks_lock = &shk->lock;
-		ksp->ks_data = NULL;
 		ksp->ks_private = spa;
 		ksp->ks_flags |= KSTAT_FLAG_NO_HEADERS;
 		kstat_set_raw_ops(ksp, NULL, spa_state_data, spa_state_addr);
@@ -839,7 +838,6 @@ spa_guid_init(spa_t *spa)
 	shk->kstat = ksp;
 	if (ksp) {
 		ksp->ks_lock = &shk->lock;
-		ksp->ks_data = NULL;
 		ksp->ks_private = spa;
 		ksp->ks_flags |= KSTAT_FLAG_NO_HEADERS;
 		kstat_set_raw_ops(ksp, NULL, spa_guid_data, spa_state_addr);

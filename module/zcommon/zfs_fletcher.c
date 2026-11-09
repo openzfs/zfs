@@ -795,7 +795,6 @@ fletcher_4_init(void)
 	fletcher_4_kstat = kstat_create("zfs", 0, "fletcher_4_bench", "misc",
 	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
 	if (fletcher_4_kstat != NULL) {
-		fletcher_4_kstat->ks_data = NULL;
 		fletcher_4_kstat->ks_ndata = UINT32_MAX;
 		kstat_set_raw_ops(fletcher_4_kstat,
 		    fletcher_4_kstat_headers,

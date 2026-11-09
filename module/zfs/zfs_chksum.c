@@ -352,7 +352,6 @@ chksum_init(void)
 	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
 
 	if (chksum_kstat != NULL) {
-		chksum_kstat->ks_data = NULL;
 		chksum_kstat->ks_ndata = UINT32_MAX;
 		kstat_set_raw_ops(chksum_kstat,
 		    chksum_kstat_headers,
