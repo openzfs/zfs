@@ -750,6 +750,8 @@ Physical ashift for file-based devices.
 .
 .It Sy vdev_anyraid_min_tile_size Ns = Ns Sy 16 GiB Pq u64
 Minimum size of the tiles that anyraid will use to do its mapping.
+Tile sizes are powers of two, so a value that is not one is rounded up to the
+next power of two.
 Smaller tile sizes let data be spread more evenly across devices, and makes
 smaller devices use more of their capacity.
 Larger tile sizes allow for larger disks to be used in the future, since a given
