@@ -435,7 +435,11 @@ pool_namecheck(const char *pool, namecheck_err_t *why, char *what)
 	    strcmp(pool, "raidz") == 0 ||
 	    strcmp(pool, "draid") == 0 ||
 	    strcmp(pool, "anymirror") == 0 ||
-	    strcmp(pool, "anyraid") == 0) {
+	    strcmp(pool, "anyraid") == 0 ||
+	    strcmp(pool, "fgroup") == 0 ||
+	    strcmp(pool, "fdomain") == 0 ||
+	    strcmp(pool, "failure_group") == 0 ||
+	    strcmp(pool, "failure_domain") == 0) {
 		if (why)
 			*why = NAME_ERR_RESERVED;
 		return (-1);
