@@ -590,6 +590,15 @@ This is refused while the feature is
 while another enabled feature depends on it,
 while a dataset needs it,
 and while a receive in progress may use it.
+The feature reads as
+.Sy disabled
+as soon as the disable starts, and nothing new can use it,
+but it stays enabled on disk until the transaction group in which the disable
+started and the next two have been written.
+If something that found it enabled earlier uses it in the meantime,
+or if it is enabled again,
+it stays enabled and the command fails.
+The command returns once the outcome is known.
 See
 .Xr zpool-features 7
 for details on feature states.

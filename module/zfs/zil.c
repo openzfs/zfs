@@ -983,6 +983,8 @@ zil_commit_activate_saxattr_feature(zilog_t *zilog)
 			zil_crash(zilog);
 			return (err);
 		}
+		ASSERT(dsl_dataset_feature_is_active(ds,
+		    SPA_FEATURE_ZILSAXATTR));
 	}
 
 	return (0);
@@ -1001,6 +1003,7 @@ zil_create(zilog_t *zilog)
 	blkptr_t blk;
 	int error = 0;
 	boolean_t slog = FALSE;
+	boolean_t saxattr = B_FALSE;
 	dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
 
 
@@ -1063,6 +1066,7 @@ zil_create(zilog_t *zilog)
 		if (spa_feature_is_enabled(zilog->zl_spa,
 		    SPA_FEATURE_ZILSAXATTR) && dmu_objset_type(zilog->zl_os) !=
 		    DMU_OST_ZVOL) {
+			saxattr = B_TRUE;
 			mutex_enter(&ds->ds_lock);
 			ds->ds_feature_activation[SPA_FEATURE_ZILSAXATTR] =
 			    (void *)B_TRUE;
@@ -1085,9 +1089,12 @@ zil_create(zilog_t *zilog)
 		if (zil_commit_activate_saxattr_feature(zilog) != 0)
 			return (NULL);
 	}
-	IMPLY(spa_feature_is_enabled(zilog->zl_spa, SPA_FEATURE_ZILSAXATTR) &&
-	    dmu_objset_type(zilog->zl_os) != DMU_OST_ZVOL,
-	    dsl_dataset_feature_is_active(ds, SPA_FEATURE_ZILSAXATTR));
+	/*
+	 * Check what was decided under the tx: the feature can read otherwise
+	 * by now, if a disable or an enable ran since, see zfeature.c.
+	 */
+	IMPLY(saxattr, dsl_dataset_feature_is_active(ds,
+	    SPA_FEATURE_ZILSAXATTR));
 
 	ASSERT(error != 0 || memcmp(&blk, &zh->zh_log, sizeof (blk)) == 0);
 	IMPLY(error == 0, lwb != NULL);

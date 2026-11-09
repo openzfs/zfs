@@ -5414,6 +5414,7 @@ spa_ld_check_features(spa_t *spa, boolean_t *missing_feat_writep)
 		for (spa_feature_t i = 0; i < SPA_FEATURES; i++) {
 			uint64_t refcount;
 
+			spa->spa_feat_disabling_txg[i] = 0;
 			error = feature_get_refcount_from_disk(spa,
 			    &spa_feature_table[i], &refcount);
 			if (error == 0) {
