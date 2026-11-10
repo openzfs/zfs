@@ -253,8 +253,17 @@ zfs_setup_direct(struct znode *zp, zfs_uio_t *uio, zfs_uio_rw_t rw,
 		goto out;
 	}
 
-	if (!zfs_uio_page_aligned(uio) ||
-	    !zfs_uio_aligned(uio, PAGE_SIZE)) {
+	/*
+	 * A request queued by the async Direct I/O path had its user pages
+	 * pinned at submission time and its alignment validated there.  The
+	 * buffer, offset and length are immutable for the request, so do not
+	 * walk the (possibly no longer valid) user iterator to re-check it.
+	 * Everything else below is evaluated again at execution time, as
+	 * eligibility can change while the request is queued.
+	 */
+	if (uio->uio_dio.pages == NULL &&
+	    (!zfs_uio_page_aligned(uio) ||
+	    !zfs_uio_aligned(uio, PAGE_SIZE))) {
 		/*
 		 * Misaligned requests can be executed through the ARC as
 		 * uncached I/O.  But if O_DIRECT was set by user and we
@@ -292,6 +301,19 @@ zfs_setup_direct(struct znode *zp, zfs_uio_t *uio, zfs_uio_rw_t rw,
 	if (rw == UIO_WRITE && zfs_uio_resid(uio) < zp->z_blksz)
 		goto out;
 
+#if defined(__linux__)
+	/*
+	 * The async Direct I/O path pinned the pages at submission time.
+	 * Only the pin itself happened early; the eligibility checks above
+	 * were re-evaluated just now, so mark the request Direct and skip
+	 * re-pinning.
+	 */
+	if (uio->uio_dio.pages != NULL) {
+		uio->uio_extflg |= UIO_DIRECT;
+		goto out;
+	}
+#endif
+
 	error = zfs_uio_get_dio_pages_alloc(uio, rw);
 	if (error)
 		goto out;
@@ -318,44 +340,46 @@ out:
  *
  * Side Effects:
  *	inode - atime updated if byte count > 0
+ *
+ * This is the shared body of zfs_read().  The caller is responsible for
+ * entering the filesystem (zfs_enter_verify_zp()/zfs_exit()).
  */
 int
-zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
+zfs_read_impl(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 {
 	(void) cr;
 	int error = 0;
 	boolean_t frsync = B_FALSE;
 	boolean_t dio_checksum_failure = B_FALSE;
+	zfs_locked_range_t *lr = NULL;
 
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
-	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
-		return (error);
 
 	if (zp->z_pflags & ZFS_AV_QUARANTINED) {
-		zfs_exit(zfsvfs, FTAG);
-		return (SET_ERROR(EACCES));
+		error = SET_ERROR(EACCES);
+		goto out;
 	}
 
 	/* We don't copy out anything useful for directories. */
 	if (Z_ISDIR(ZTOTYPE(zp))) {
-		zfs_exit(zfsvfs, FTAG);
-		return (SET_ERROR(EISDIR));
+		error = SET_ERROR(EISDIR);
+		goto out;
 	}
 
 	/*
 	 * Validate file offset
 	 */
 	if (zfs_uio_offset(uio) < (offset_t)0) {
-		zfs_exit(zfsvfs, FTAG);
-		return (SET_ERROR(EINVAL));
+		error = SET_ERROR(EINVAL);
+		goto out;
 	}
 
 	/*
 	 * Fasttrack empty reads
 	 */
 	if (zfs_uio_resid(uio) == 0) {
-		zfs_exit(zfsvfs, FTAG);
-		return (0);
+		error = 0;
+		goto out;
 	}
 
 #ifdef FRSYNC
@@ -372,16 +396,14 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	if (zfsvfs->z_log &&
 	    (frsync || zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)) {
 		error = zil_commit(zfsvfs->z_log, zp->z_id);
-		if (error != 0) {
-			zfs_exit(zfsvfs, FTAG);
-			return (error);
-		}
+		if (error != 0)
+			goto out;
 	}
 
 	/*
 	 * Lock the range against changes.
 	 */
-	zfs_locked_range_t *lr = zfs_rangelock_enter(&zp->z_rangelock,
+	lr = zfs_rangelock_enter(&zp->z_rangelock,
 	    zfs_uio_offset(uio), zfs_uio_resid(uio), RL_READER);
 
 	/*
@@ -441,6 +463,10 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		chunk_size = MIN(MAX(zfs_vnops_read_chunk_size, blksz),
 		    DMU_MAX_ACCESS / 2);
 	}
+#if defined(__linux__)
+	if (uio->uio_extflg & UIO_ASYNC)
+		dflags |= DMU_ASYNC_READ;
+#endif
 
 	while (n > 0) {
 		ssize_t nbytes = MIN(n, chunk_size -
@@ -526,7 +552,10 @@ zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 
 	dataset_kstats_update_read_kstats(&zfsvfs->z_kstat, nread);
 out:
-	zfs_rangelock_exit(lr);
+	if (lr != NULL) {
+		zfs_rangelock_exit(lr);
+		ZFS_ACCESSTIME_STAMP(zfsvfs, zp);
+	}
 
 	if (dio_checksum_failure == B_TRUE) {
 		uio->uio_extflg |= UIO_DIRECT;
@@ -545,10 +574,37 @@ out:
 	/*
 	 * Cleanup for Direct I/O if requested.
 	 */
+#if defined(__linux__)
+	/*
+	 * The async Direct I/O path pins the pages before it queues the
+	 * request and leaves UIO_DIRECT clear until execution, so test the
+	 * pin set rather than the flag.  The Linux
+	 * zfs_uio_free_dio_pages() clears the pin set.
+	 */
+	if (uio->uio_dio.pages != NULL) {
+		uio->uio_extflg |= UIO_DIRECT;
+		zfs_uio_free_dio_pages(uio, UIO_READ);
+	}
+	ASSERT3P(uio->uio_dio.pages, ==, NULL);
+#else
 	if (uio->uio_extflg & UIO_DIRECT)
 		zfs_uio_free_dio_pages(uio, UIO_READ);
+#endif
 
-	ZFS_ACCESSTIME_STAMP(zfsvfs, zp);
+	return (error);
+}
+
+int
+zfs_read(struct znode *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
+{
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	int error;
+
+	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+		return (error);
+
+	error = zfs_read_impl(zp, uio, ioflag, cr);
+
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
 }
