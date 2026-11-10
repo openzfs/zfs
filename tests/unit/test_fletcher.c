@@ -17,6 +17,7 @@
 #include <string.h>
 
 #include <sys/types.h>
+#include <sys/byteorder.h>
 #include <sys/spa_checksum.h>
 #include "zfs_fletcher.h"
 
@@ -222,6 +223,84 @@ test_fletcher2_incremental(const MunitParameter params[], void *data)
 	return (MUNIT_OK);
 }
 
+/*
+ * The self-test run at init accepts a plain fletcher-4 written here, which
+ * checks its known answers independently of the implementations, and rejects
+ * one that goes wrong in either byte order. The test_fletcher4_impls test
+ * above shows that the real implementations agree.
+ */
+static boolean_t test_broken_native, test_broken_byteswap;
+
+static void
+test_f4_init(fletcher_4_ctx_t *ctx)
+{
+	ZIO_SET_CHECKSUM(&ctx->scalar, 0, 0, 0, 0);
+}
+
+static void
+test_f4_fini(fletcher_4_ctx_t *ctx, zio_cksum_t *zcp)
+{
+	*zcp = ctx->scalar;
+}
+
+static void
+test_f4_compute(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size,
+    boolean_t byteswap)
+{
+	const uint32_t *ip = buf;
+	uint64_t a = 0, b = 0, c = 0, d = 0;
+
+	for (uint64_t i = 0; i < size / sizeof (uint32_t); i++) {
+		a += byteswap ? BSWAP_32(ip[i]) : ip[i];
+		b += a;
+		c += b;
+		d += c;
+	}
+	if (byteswap ? test_broken_byteswap : test_broken_native)
+		d ^= 1;
+	ZIO_SET_CHECKSUM(&ctx->scalar, a, b, c, d);
+}
+
+static void
+test_f4_native(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
+{
+	test_f4_compute(ctx, buf, size, B_FALSE);
+}
+
+static void
+test_f4_byteswap(fletcher_4_ctx_t *ctx, const void *buf, uint64_t size)
+{
+	test_f4_compute(ctx, buf, size, B_TRUE);
+}
+
+static MunitResult
+test_fletcher4_selftest(const MunitParameter params[], void *data)
+{
+	(void) params, (void) data;
+	const fletcher_4_ops_t ops = {
+		.init_native = test_f4_init,
+		.fini_native = test_f4_fini,
+		.compute_native = test_f4_native,
+		.init_byteswap = test_f4_init,
+		.fini_byteswap = test_f4_fini,
+		.compute_byteswap = test_f4_byteswap,
+		.uses_fpu = B_FALSE,
+		.name = "test"
+	};
+
+	unit_true(fletcher_4_selftest(&ops));
+
+	test_broken_native = B_TRUE;
+	unit_false(fletcher_4_selftest(&ops));
+	test_broken_native = B_FALSE;
+
+	test_broken_byteswap = B_TRUE;
+	unit_false(fletcher_4_selftest(&ops));
+	test_broken_byteswap = B_FALSE;
+
+	return (MUNIT_OK);
+}
+
 /* ========== */
 
 static const MunitTest fletcher_tests[] = {
@@ -230,6 +309,7 @@ static const MunitTest fletcher_tests[] = {
 	UNIT_TEST("fletcher4_varsize",		test_fletcher4_varsize),
 	UNIT_TEST("fletcher4_byteswap",		test_fletcher4_byteswap),
 	UNIT_TEST("fletcher4_impls",		test_fletcher4_impls),
+	UNIT_TEST("fletcher4_selftest",		test_fletcher4_selftest),
 	UNIT_TEST("fletcher2_known",		test_fletcher2_known),
 	UNIT_TEST("fletcher2_incremental",	test_fletcher2_incremental),
 	{ 0 },
