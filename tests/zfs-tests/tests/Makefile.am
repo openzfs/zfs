@@ -1900,6 +1900,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/libzfs/cleanup.ksh \
 	functional/libzfs/libzfs_input.ksh \
 	functional/libzfs/libzfs_mnttab_cache.ksh \
+	functional/libzfs/libzfs_unterminated_strings.ksh \
 	functional/libzfs/setup.ksh \
 	functional/limits/cleanup.ksh \
 	functional/limits/filesystem_count.ksh \
