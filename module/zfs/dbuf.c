@@ -1703,9 +1703,12 @@ dbuf_read_impl(dmu_buf_impl_t *db, dnode_t *dn, zio_t *zio, dmu_flags_t flags,
 	 * parent's rwlock, which would be a lock ordering violation.
 	 */
 	blkptr_t copy = *bp;
+	zio_priority_t prio = (flags & DMU_ASYNC_READ) ?
+	    ZIO_PRIORITY_ASYNC_READ : ZIO_PRIORITY_SYNC_READ;
 	dmu_buf_unlock_parent(db, dblt, tag);
+
 	return (arc_read(zio, db->db_objset->os_spa, &copy,
-	    dbuf_read_done, db, ZIO_PRIORITY_SYNC_READ, zio_flags,
+	    dbuf_read_done, db, prio, zio_flags,
 	    &aflags, &zb));
 
 early_unlock:
