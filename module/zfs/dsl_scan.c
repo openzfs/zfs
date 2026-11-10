@@ -4766,14 +4766,10 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 		(void) zio_wait(scn->scn_zio_root);
 		scn->scn_zio_root = NULL;
 
-#ifdef ZFS_DEBUG
+		/* The prefetch queue should be empty now. */
 		mutex_enter(&spa->spa_scrub_lock);
-		ASSERT0(avl_numnodes(&scn->scn_prefetch_queue));
+		VERIFY0(avl_numnodes(&scn->scn_prefetch_queue));
 		mutex_exit(&spa->spa_scrub_lock);
-#endif
-
-		/* Make sure nothing is left in the queue. */
-		scan_ds_prefetch_queue_clear(scn);
 
 		zfs_dbgmsg("scan visited %llu blocks of %s in %llums "
 		    "(%llu os's, %llu holes, %llu < mintxg, "
