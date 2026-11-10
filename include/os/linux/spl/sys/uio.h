@@ -215,8 +215,10 @@ zfs_uio_iov_iter_init(zfs_uio_t *uio, struct iov_iter *iter, offset_t offset,
 
 #if defined(HAVE_ITER_IOV)
 #define	zfs_uio_iter_iov(iter)	iter_iov((iter))
+#define	zfs_uio_iter_iov_set(iter, vec)	((iter)->__iov = (vec))
 #else
 #define	zfs_uio_iter_iov(iter)	(iter)->iov
+#define	zfs_uio_iter_iov_set(iter, vec)	((iter)->iov = (vec))
 #endif
 
 #if defined(HAVE_IOV_ITER_TYPE)

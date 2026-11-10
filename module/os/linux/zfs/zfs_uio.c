@@ -259,13 +259,13 @@ zfs_uiomove_bvec(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 }
 
 /*
- * Copy 'cnt' bytes between the pinned pages of a Direct I/O uio and the
- * kernel buffer 'p'.  Used when a request whose pages were pinned at async
- * submission time is served through the ARC from a taskq thread, which has
- * no user mm: the pages are guaranteed resident, so the copy cannot fault.
+ * Copy 'cnt' bytes from the kernel buffer 'p' into the pinned pages of a
+ * Direct I/O read uio.  Used when a request whose pages were pinned at async
+ * submission time is served through the ARC, from a taskq thread that has no
+ * user mm: the pages are guaranteed resident, so the copy cannot fault.
  */
 static size_t
-zfs_uiomove_pinned_pages(zfs_uio_t *uio, void *p, size_t cnt, zfs_uio_rw_t rw)
+zfs_uiomove_pinned_pages(zfs_uio_t *uio, void *p, size_t cnt)
 {
 	size_t copied = 0;
 
@@ -289,12 +289,7 @@ zfs_uiomove_pinned_pages(zfs_uio_t *uio, void *p, size_t cnt, zfs_uio_rw_t rw)
 		}
 
 		paddr = zfs_kmap_local(uio->uio_dio.pages[idx]);
-		if (rw == UIO_READ)
-			memcpy((char *)paddr + pgoff, (char *)p + copied,
-			    chunk);
-		else
-			memcpy((char *)p + copied, (char *)paddr + pgoff,
-			    chunk);
+		memcpy((char *)paddr + pgoff, (char *)p + copied, chunk);
 		zfs_kunmap_local(paddr);
 		copied += chunk;
 	}
@@ -313,20 +308,27 @@ zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
 
 	/*
 	 * If the request has pages pinned by the async Direct I/O submission
-	 * and is being served through the ARC (UIO_DIRECT was cleared by an
-	 * execution-time decline, the page-unaligned tail, or the checksum
-	 * retry), copy through those pages directly rather than through the
+	 * and is being served through the ARC (an execution-time decline, the
+	 * page-unaligned tail, the checksum retry, or a range that became
+	 * cached), copy through those pages directly rather than through the
 	 * user virtual addresses.  The taskq thread has no user mm, and the
 	 * pinned pages are guaranteed resident, so the copy can never fault.
 	 * The pages are the caller's own buffer pages, so the data lands in
 	 * the same place.
+	 *
+	 * UIO_DIRECT is checked as well for the synchronous path, where the
+	 * pages are pinned by zfs_setup_direct() and a request that keeps
+	 * UIO_DIRECT is DMA'd rather than copied.  An async request always
+	 * copies through the pins: its worker cannot copy through user
+	 * virtual addresses even if UIO_DIRECT is set.
 	 */
 	if (rw == UIO_READ && uio->uio_dio.pages != NULL &&
-	    !(uio->uio_extflg & UIO_DIRECT)) {
+	    ((uio->uio_extflg & UIO_ASYNC) ||
+	    !(uio->uio_extflg & UIO_DIRECT))) {
 #ifdef ZFS_DEBUG
 		zfs_async_read_pinned_copies++;
 #endif
-		cnt = zfs_uiomove_pinned_pages(uio, p, cnt, rw);
+		cnt = zfs_uiomove_pinned_pages(uio, p, cnt);
 		used_iter = B_FALSE;
 	} else {
 		/*

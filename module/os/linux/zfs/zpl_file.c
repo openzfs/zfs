@@ -28,6 +28,9 @@
 #include <sys/zfs_vfsops.h>
 #include <sys/zfs_vnops.h>
 #include <sys/zfs_project.h>
+#include <sys/arc.h>
+#include <sys/spa_impl.h>
+#include <sys/uio_impl.h>
 #include <linux/pagemap_compat.h>
 #include <linux/fadvise.h>
 #ifdef HAVE_VFS_FILEMAP_DIRTY_FOLIO
@@ -279,6 +282,491 @@ zpl_file_accessed(struct file *filp)
 	}
 }
 
+/*
+ * Asynchronous Direct I/O reads.
+ *
+ * A read submitted on an asynchronous kiocb (libaio, io_uring) is handed to
+ * a per-pool worker taskq instead of being executed by the submitting
+ * thread.  The worker runs zfs_read_impl(), so every read semantic stays in
+ * the one shared read path.
+ *
+ * The worker has no user mm.  The submitting thread therefore pins the user
+ * pages before dispatch (the same pin set the Direct I/O path uses) and takes
+ * a private copy of the iov_iter, because libaio frees the backing iovec
+ * array as soon as the submitting system call returns.  A request that is
+ * served through the ARC instead of the DMA path copies through the pinned
+ * pages; see zfs_uiomove_iter().
+ *
+ * Pinned pages cannot be reclaimed or migrated, so admission to this path is
+ * bounded by zfs_async_dio_max_inflight *before* anything is pinned.
+ */
+typedef struct zpl_async_dio_io {
+	struct kiocb	*kiocb;
+	znode_t		*zp;
+	zfsvfs_t	*zfsvfs;
+	zfs_uio_t	uio;
+	struct iov_iter	iter;		/* private copy of the iterator */
+	struct iovec	*iovs;		/* private copy of the iovec array */
+	size_t		iovs_size;	/* allocation size of iovs[] */
+	int		ioflag;
+	cred_t		*cr;
+	size_t		count;		/* bytes charged to admission */
+} zpl_async_dio_io_t;
+
+static kmem_cache_t *zpl_async_dio_io_cache;
+static uint64_t zpl_async_dio_auto_inflight;
+
+/*
+ * Total bytes of user pages currently pinned by queued or executing async
+ * Direct I/O requests, module-wide.  Keeping the budget module-wide (rather
+ * than per dataset or per pool) is what bounds the machine's pinned memory:
+ * the pages are charged to the machine, not to the dataset that submitted
+ * them.
+ */
+static uint64_t zpl_async_dio_pinned_bytes;
+
+static unsigned int zfs_async_dio_enabled = 0;
+module_param(zfs_async_dio_enabled, uint, 0644);
+MODULE_PARM_DESC(zfs_async_dio_enabled,
+	"Enable asynchronous Direct I/O reads");
+
+static unsigned int zfs_async_dio_task_depth = 32;
+module_param(zfs_async_dio_task_depth, uint, 0444);
+MODULE_PARM_DESC(zfs_async_dio_task_depth,
+	"Maximum worker threads in each pool's async Direct I/O taskq");
+
+/*
+ * Maximum bytes of user memory that async Direct I/O may keep pinned,
+ * module-wide, for all datasets and pools.  Admission happens before the
+ * pages are pinned, so this is a hard bound.  A request that would exceed it
+ * is served by the synchronous path instead.
+ *
+ * 0 means the default, which is derived from physical memory at module load:
+ * one quarter of RAM, capped at 4 GiB.  That mirrors the way ARC sizes
+ * zfs_dirty_data_max_max.  The value may be changed at runtime; it applies to
+ * subsequent admissions.
+ */
+static unsigned long zfs_async_dio_max_inflight = 0;
+module_param(zfs_async_dio_max_inflight, ulong, 0644);
+MODULE_PARM_DESC(zfs_async_dio_max_inflight,
+	"Maximum bytes of user pages pinned by async Direct I/O, module-wide "
+	"(0 = one quarter of RAM, capped at 4 GiB)");
+
+/*
+ * Per-pool async Direct I/O workers.  One taskq shared by all datasets of a
+ * pool gives head-of-line isolation between pools: a pool whose reads are
+ * slow cannot occupy the workers of another pool.  Created in spa_add() and
+ * destroyed in spa_remove(), after the pool is closed.
+ */
+typedef struct zpl_async_dio_pool {
+	taskq_t		*read_taskq;
+} zpl_async_dio_pool_t;
+
+static uint64_t
+zpl_async_dio_limit(void)
+{
+	uint64_t limit = zfs_async_dio_max_inflight;
+
+	return (limit != 0 ? limit : zpl_async_dio_auto_inflight);
+}
+
+/*
+ * Reserve 'bytes' against the pinned memory budget.  This is called before
+ * any page is pinned.  Returns EOPNOTSUPP if the request would exceed the
+ * budget and must take the synchronous path.
+ */
+static int
+zpl_async_dio_admit(size_t bytes)
+{
+	uint64_t cur, limit = zpl_async_dio_limit();
+
+	if (bytes == 0)
+		return (0);
+
+	for (;;) {
+		cur = atomic_load_64(&zpl_async_dio_pinned_bytes);
+		if (cur > limit || bytes > limit - cur)
+			return (EOPNOTSUPP);
+		if (atomic_cas_64(&zpl_async_dio_pinned_bytes, cur,
+		    cur + bytes) == cur)
+			return (0);
+	}
+}
+
+static void
+zpl_async_dio_unadmit(size_t bytes)
+{
+	ASSERT3U(atomic_load_64(&zpl_async_dio_pinned_bytes), >=, bytes);
+	atomic_sub_64_nv(&zpl_async_dio_pinned_bytes, bytes);
+}
+
+/*
+ * Admit a request to the async path.  The low 63 bits of
+ * z_async_dio_inflight count the requests that have been admitted but not
+ * yet completed, and bit 63 is a sticky flag set by teardown.  One
+ * compare-and-swap makes the draining check and the count increment atomic,
+ * so a request admitted as teardown starts is always visible to the drain.
+ *
+ * The count does not limit admission; it only lets teardown wait for the
+ * requests that are already executing.
+ */
+static int
+zpl_async_dio_hold(zfsvfs_t *zfsvfs)
+{
+	uint64_t old;
+
+	old = atomic_load_64(&zfsvfs->z_async_dio_inflight);
+	for (;;) {
+		if ((old & ZPL_ASYNC_DIO_DRAINING_BIT) != 0)
+			return (EOPNOTSUPP);
+
+		if (atomic_cas_64(&zfsvfs->z_async_dio_inflight, old,
+		    old + 1) == old)
+			return (0);
+
+		old = atomic_load_64(&zfsvfs->z_async_dio_inflight);
+	}
+}
+
+static void
+zpl_async_dio_rele(zfsvfs_t *zfsvfs)
+{
+	uint64_t inflight;
+
+	ASSERT3U((atomic_load_64(&zfsvfs->z_async_dio_inflight) &
+	    ZPL_ASYNC_DIO_INFLIGHT_MASK), !=, 0);
+
+	inflight = atomic_sub_64_nv(&zfsvfs->z_async_dio_inflight, 1);
+
+	/*
+	 * Wake the teardown drainer when the last in-flight request
+	 * completes while the filesystem is draining.  The broadcast is
+	 * issued with z_async_dio_lock held, which is the lock the drainer
+	 * sleeps on, so the wake cannot be lost between the drainer's
+	 * condition check and cv_wait().
+	 */
+	if (inflight == ZPL_ASYNC_DIO_DRAINING_BIT) {
+		mutex_enter(&zfsvfs->z_async_dio_lock);
+		cv_broadcast(&zfsvfs->z_async_dio_cv);
+		mutex_exit(&zfsvfs->z_async_dio_lock);
+	}
+}
+
+/*
+ * Create the async Direct I/O worker taskq for a pool.  Called from
+ * spa_add(), before the pool can have any datasets.
+ */
+void
+zpl_async_dio_pool_create(struct spa *spa)
+{
+	zpl_async_dio_pool_t *pool;
+	char name[64];
+
+	if (zpl_async_dio_io_cache == NULL || zfs_async_dio_task_depth == 0)
+		return;
+
+	pool = kmem_zalloc(sizeof (*pool), KM_SLEEP);
+	(void) snprintf(name, sizeof (name), "zpl_async_read_%s",
+	    spa_name(spa));
+	pool->read_taskq = taskq_create(name,
+	    MAX(zfs_async_dio_task_depth, 1), maxclsyspri, 0, INT_MAX,
+	    TASKQ_DYNAMIC);
+	if (pool->read_taskq == NULL) {
+		kmem_free(pool, sizeof (*pool));
+		return;
+	}
+
+	spa->spa_zpl_async_dio_pool = pool;
+}
+
+/*
+ * Destroy a pool's async Direct I/O taskq.  Called from spa_remove(), after
+ * the pool is closed, so no dataset of the pool can have a request in flight
+ * and taskq_destroy() joins the workers immediately.
+ */
+void
+zpl_async_dio_pool_destroy(struct spa *spa)
+{
+	zpl_async_dio_pool_t *pool = spa->spa_zpl_async_dio_pool;
+
+	spa->spa_zpl_async_dio_pool = NULL;
+
+	if (pool != NULL) {
+		taskq_destroy(pool->read_taskq);
+		kmem_free(pool, sizeof (*pool));
+	}
+}
+
+/*
+ * Return the async Direct I/O pool for a spa.  The caller holds the
+ * teardown read lock, so spa_remove() cannot free the pool concurrently.
+ * A pool without a taskq (allocation failure or zfs_async_dio_task_depth
+ * set to 0) serves every request synchronously.
+ */
+static zpl_async_dio_pool_t *
+zpl_async_dio_pool_get(spa_t *spa)
+{
+	return (spa->spa_zpl_async_dio_pool);
+}
+
+/*
+ * Take a private copy of the caller's iterator.  libaio frees the backing
+ * iovec array as soon as the submitting system call returns, so the worker
+ * must never dereference the original one.  For a single-buffer request the
+ * iterator carries the user address itself (ITER_UBUF) and copying the
+ * iterator is enough.  Iterator types that do not describe user memory are
+ * not eligible for Direct I/O.
+ */
+static int
+zpl_async_dio_dup_iter(struct iov_iter *dst, const struct iov_iter *src,
+    struct iovec **iovsp, size_t *sizep)
+{
+	struct iovec *iovs;
+
+	*dst = *src;
+	*iovsp = NULL;
+	*sizep = 0;
+
+#if defined(HAVE_ITER_IS_UBUF)
+	if (iter_is_ubuf(src))
+		return (0);
+#endif
+	if (zfs_uio_iov_iter_type(src) != ITER_IOVEC)
+		return (EOPNOTSUPP);
+
+	if (src->nr_segs == 0)
+		return (EOPNOTSUPP);
+
+	*sizep = src->nr_segs * sizeof (struct iovec);
+	iovs = kmem_alloc(*sizep, KM_SLEEP);
+	memcpy(iovs, zfs_uio_iter_iov(src), *sizep);
+	zfs_uio_iter_iov_set(dst, iovs);
+	*iovsp = iovs;
+
+	return (0);
+}
+
+/*
+ * Taskq worker: run the shared read path and complete the kiocb.  This
+ * thread has no user mm, so it must not touch user virtual addresses or
+ * call into the VFS; it only runs the read and releases its accounting.
+ */
+static void
+zpl_async_dio_task(void *arg)
+{
+	zpl_async_dio_io_t *aio = arg;
+	fstrans_cookie_t cookie;
+	ssize_t ret, done;
+
+	cookie = spl_fstrans_mark();
+	ret = -zfs_read_impl(aio->zp, &aio->uio, aio->ioflag, aio->cr);
+	spl_fstrans_unmark(cookie);
+
+	/*
+	 * A benign Direct I/O verify failure makes the synchronous path
+	 * decline Direct I/O reads on this handle from then on.  The flag is
+	 * in this request's uio, which is about to be freed, so record it on
+	 * the handle here.  This touches only ZPL state, not the VFS.
+	 */
+	if (aio->uio.uio_extflg & UIO_DIO_CKSUM_RETRIED)
+		zpl_dio_read_decline(aio->kiocb->ki_filp);
+
+	if (ret < 0) {
+		done = ret;
+	} else {
+		done = (ssize_t)aio->count - aio->uio.uio_resid;
+		aio->kiocb->ki_pos += done;
+	}
+
+	/* zfs_read_impl() released the pinned pages on its way out. */
+	zpl_async_dio_unadmit(aio->count);
+	zpl_async_dio_rele(aio->zfsvfs);
+
+#if defined(HAVE_2ARGS_KI_COMPLETE)
+	aio->kiocb->ki_complete(aio->kiocb, done);
+#else
+	aio->kiocb->ki_complete(aio->kiocb, done, 0);
+#endif
+
+	crfree(aio->cr);
+	if (aio->iovs != NULL)
+		kmem_free(aio->iovs, aio->iovs_size);
+	kmem_cache_free(zpl_async_dio_io_cache, aio);
+}
+
+/*
+ * Queue an O_DIRECT read for asynchronous execution.  Returns 0 if the
+ * request was queued (the caller must return -EIOCBQUEUED), or an errno if
+ * it must be handled by the synchronous path.  On a decline nothing has been
+ * pinned or queued.
+ */
+static int
+zpl_async_dio_queue(struct kiocb *kiocb, struct iov_iter *iter, ssize_t count)
+{
+	struct file *filp = kiocb->ki_filp;
+	struct inode *ip = filp->f_mapping->host;
+	znode_t *zp = ITOZ(ip);
+	zfsvfs_t *zfsvfs = ZTOZSB(zp);
+	zpl_async_dio_pool_t *pool;
+	zpl_async_dio_io_t *aio;
+	fstrans_cookie_t cookie;
+	int ioflag = filp->f_flags | zfs_io_flags(kiocb);
+	int error;
+
+	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+		return (error);
+
+	/*
+	 * Mirror the early checks of the shared read path so no pages are
+	 * pinned for a request that cannot be read anyway.  They are checked
+	 * again by zfs_read_impl() at execution time.
+	 */
+	if (zp->z_pflags & ZFS_AV_QUARANTINED) {
+		error = EACCES;
+		goto out;
+	}
+	if (Z_ISDIR(ZTOTYPE(zp))) {
+		error = EISDIR;
+		goto out;
+	}
+	if (kiocb->ki_pos < 0) {
+		error = EINVAL;
+		goto out;
+	}
+
+	pool = zpl_async_dio_pool_get(dmu_objset_spa(zfsvfs->z_os));
+	if (pool == NULL) {
+		error = EOPNOTSUPP;
+		goto out;
+	}
+
+	if ((error = zpl_async_dio_hold(zfsvfs)) != 0)
+		goto out;
+
+	/*
+	 * Charge the request against the pinned memory budget before
+	 * pinning anything.  A request that does not fit is served by the
+	 * synchronous path.
+	 */
+	if ((error = zpl_async_dio_admit(count)) != 0) {
+		zpl_async_dio_rele(zfsvfs);
+		goto out;
+	}
+
+	aio = kmem_cache_alloc(zpl_async_dio_io_cache, KM_SLEEP);
+	memset(&aio->uio, 0, sizeof (aio->uio));
+	aio->kiocb = kiocb;
+	aio->zp = zp;
+	aio->zfsvfs = zfsvfs;
+	aio->ioflag = ioflag;
+	aio->count = count;
+	aio->cr = CRED();
+	crhold(aio->cr);
+
+	error = zpl_async_dio_dup_iter(&aio->iter, iter, &aio->iovs,
+	    &aio->iovs_size);
+	if (error != 0)
+		goto out_free;
+
+	zfs_uio_iov_iter_init(&aio->uio, &aio->iter, kiocb->ki_pos, count);
+	aio->uio.uio_extflg |= zfs_uio_flags(kiocb);
+
+	/*
+	 * Alignment is immutable for this request and is validated here,
+	 * while the caller's iterator is still valid.  zfs_setup_direct()
+	 * relies on this and does not re-walk the iterator at execution
+	 * time.
+	 */
+	if (!zfs_uio_page_aligned(&aio->uio) ||
+	    !zfs_uio_aligned(&aio->uio, PAGE_SIZE)) {
+		error = EOPNOTSUPP;
+		goto out_free;
+	}
+
+	/*
+	 * Pin the user pages in the submitting thread; the worker has no mm.
+	 * The pin deliberately leaves UIO_DIRECT clear: whether the request
+	 * can use the Direct I/O DMA path is decided by zfs_setup_direct()
+	 * at execution time, because eligibility can change while the
+	 * request is queued.
+	 */
+	cookie = spl_fstrans_mark();
+	error = zfs_dio_pin_pages(&aio->uio, UIO_READ);
+	spl_fstrans_unmark(cookie);
+	if (error != 0) {
+		/* Let the synchronous path report the real error. */
+		error = EOPNOTSUPP;
+		goto out_free;
+	}
+
+	aio->uio.uio_extflg |= UIO_ASYNC;
+
+	if (taskq_dispatch(pool->read_taskq, zpl_async_dio_task, aio,
+	    TQ_SLEEP) == TASKQID_INVALID) {
+		/*
+		 * The request never executed, so release the pin set and the
+		 * budget here instead of in the worker.
+		 */
+		error = EOPNOTSUPP;
+		goto out_free;
+	}
+
+	zfs_exit(zfsvfs, FTAG);
+	return (0);
+
+out_free:
+	if (aio->uio.uio_dio.pages != NULL) {
+		aio->uio.uio_extflg |= UIO_DIRECT;
+		zfs_uio_free_dio_pages(&aio->uio, UIO_READ);
+	}
+	zpl_async_dio_unadmit(aio->count);
+	crfree(aio->cr);
+	if (aio->iovs != NULL)
+		kmem_free(aio->iovs, aio->iovs_size);
+	kmem_cache_free(zpl_async_dio_io_cache, aio);
+	zpl_async_dio_rele(zfsvfs);
+out:
+	zfs_exit(zfsvfs, FTAG);
+	return (error);
+}
+
+void
+zpl_async_dio_init(void)
+{
+	uint64_t allmem = arc_all_memory();
+
+	/*
+	 * Pinned user pages are not reclaimable, so keep the default budget
+	 * modest: a quarter of RAM, capped at 4 GiB.  This follows the shape
+	 * used for zfs_dirty_data_max_max.
+	 */
+	zpl_async_dio_auto_inflight = MIN(4ULL << 30, allmem / 4);
+
+	zpl_async_dio_io_cache = kmem_cache_create("zpl_async_dio_io",
+	    sizeof (zpl_async_dio_io_t), 0, NULL, NULL, NULL, NULL, NULL, 0);
+}
+
+void
+zpl_async_dio_fini(void)
+{
+	if (zpl_async_dio_io_cache != NULL) {
+		kmem_cache_destroy(zpl_async_dio_io_cache);
+		zpl_async_dio_io_cache = NULL;
+	}
+}
+
+/*
+ * Whether Direct I/O reads on this handle were declined after a benign read
+ * verify failure (the caller recycled its O_DIRECT buffer in flight).
+ */
+static inline boolean_t
+zpl_dio_read_declined(struct file *filp)
+{
+	zpl_file_data_t *zfd = atomic_load_ptr(&filp->private_data);
+
+	return (zfd != NULL && atomic_load_32(&zfd->zfd_dio_read_declined));
+}
+
 static ssize_t
 zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 {
@@ -295,8 +783,7 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 	 * This handle previously declined Direct I/O after a benign read
 	 * verify failure; keep taking the uncached buffered path.
 	 */
-	zpl_file_data_t *zfd = atomic_load_ptr(&filp->private_data);
-	if (zfd != NULL && atomic_load_32(&zfd->zfd_dio_read_declined))
+	if (zpl_dio_read_declined(filp))
 		uio.uio_extflg |= UIO_DIO_DENY;
 
 	crhold(cr);
@@ -325,6 +812,44 @@ zpl_iter_read(struct kiocb *kiocb, struct iov_iter *to)
 	zpl_file_accessed(filp);
 
 	return (read);
+}
+
+static ssize_t
+zpl_iter_read_async(struct kiocb *kiocb, struct iov_iter *to)
+{
+	struct file *filp = kiocb->ki_filp;
+	struct inode *ip = filp->f_mapping->host;
+	ssize_t count = iov_iter_count(to);
+
+	/*
+	 * Queue O_DIRECT reads when async Direct I/O is enabled and the
+	 * kiocb will be completed asynchronously.  Everything that needs the
+	 * submitting thread (admission, copying the iterator, pinning the
+	 * pages, validating alignment) happens in zpl_async_dio_queue(); the
+	 * worker only runs the read itself.
+	 *
+	 * The gate is on the open file's O_DIRECT flag, not on the dataset's
+	 * direct property: that property is os_direct in the objset, which
+	 * teardown evicts and zfs_resume_fs() replaces, so it is only stable
+	 * under zfs_enter().  This runs before it, so a direct=always dataset
+	 * keeps taking the synchronous path.
+	 */
+	if (zfs_async_dio_enabled && !is_sync_kiocb(kiocb) && count > 0 &&
+	    kiocb->ki_pos < i_size_read(ip) &&
+	    (filp->f_flags & O_DIRECT) && !zpl_dio_read_declined(filp)) {
+		if (zpl_async_dio_queue(kiocb, to, count) == 0) {
+			/*
+			 * Stamp atime here, in the submitting thread: the
+			 * completion runs on a taskq worker, which must not
+			 * call into the VFS.
+			 */
+			zpl_file_accessed(filp);
+			return ((ssize_t)-EIOCBQUEUED);
+		}
+		/* Declined or failed: fall back to the synchronous path. */
+	}
+
+	return (zpl_iter_read(kiocb, to));
 }
 
 static inline ssize_t
@@ -1422,7 +1947,7 @@ const struct file_operations zpl_file_operations = {
 	.open		= zpl_open,
 	.release	= zpl_release,
 	.llseek		= zpl_llseek,
-	.read_iter	= zpl_iter_read,
+	.read_iter	= zpl_iter_read_async,
 	.write_iter	= zpl_iter_write,
 #ifdef HAVE_COPY_SPLICE_READ
 	.splice_read	= copy_splice_read,
