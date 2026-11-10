@@ -2201,6 +2201,11 @@ function is_pool_replacing #pool
 	zpool status "$1" | grep -qE 'replacing-[0-9]+'
 }
 
+function is_pool_suspended #pool
+{
+	[[ $(kstat_pool "$1" state) == "SUSPENDED" ]]
+}
+
 function wait_for_degraded
 {
 	typeset pool=$1
@@ -4027,6 +4032,39 @@ function arcstat_quiescence_echo # stat
 {
 	typeset stat=$1
 	arcstat_quiescence $stat 1
+}
+
+#
+# Return 0 if the process <pid> is still running, 1 otherwise.  A zombie
+# that has not been reaped yet counts as running.
+#
+function is_process_running #pid
+{
+	kill -0 $1 2>/dev/null
+}
+
+#
+# Return 0 if the process <pid> has exited, 1 otherwise.
+#
+function is_process_exited #pid
+{
+	! kill -0 $1 2>/dev/null
+}
+
+#
+# Run <command> with its arguments once a second until it succeeds, for up to
+# <seconds> seconds, checking once more at the end.  Return 0 if it succeeded,
+# 1 if it never did.
+#
+function wait_for #seconds command [args ...]
+{
+	typeset -i tries=$1
+	shift
+	until "$@"; do
+		((tries-- > 0)) || return 1
+		sleep 1
+	done
+	return 0
 }
 
 #
