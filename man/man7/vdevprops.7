@@ -229,10 +229,8 @@ when it is scheduled for later removal.
 While it is
 .Sy off ,
 a deduplicated write adds no reference to existing copies on this device
-that only one block references, so that a rewrite of this block moves them.
-This does not apply while the device is being removed by
-.Nm zpool Cm remove ,
-which moves those copies itself.
+that only one block references, so that a rewrite of this block moves them;
+its new copies may take their place in the deduplication table.
 See
 .Xr zpool-remove 8
 and

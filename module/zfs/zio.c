@@ -4226,27 +4226,55 @@ zio_ddt_child_write_ready(zio_t *zio)
 	mutex_exit(&dde->dde_io->dde_io_lock);
 }
 
+/*
+ * Whether a copy of the entry's phys v is on a vdev with allocating=off or,
+ * if removed is set, on a vdev that zpool remove is moving or has moved.
+ */
 static boolean_t
 zio_ddt_phys_noalloc(spa_t *spa, const ddt_univ_phys_t *ddp,
-    ddt_phys_variant_t v, int ndvas)
+    ddt_phys_variant_t v, int ndvas, boolean_t removed)
 {
 	const dva_t *dva = (v == DDT_PHYS_FLAT) ?
 	    ddp->ddp_flat.ddp_dva : ddp->ddp_trad[v].ddp_dva;
 
-	/*
-	 * See zio_ddt_child_write_layout_matches() for the config lock.
-	 * A vdev being removed is left out: the removal copies its data
-	 * whatever references it, and these then reach the new copy.
-	 */
+	/* See zio_ddt_child_write_layout_matches() for the config lock. */
 	for (int d = 0; d < ndvas; d++) {
 		vdev_t *vd = vdev_lookup_top(spa, DVA_GET_VDEV(&dva[d]));
 
-		if (vd != NULL && vdev_is_concrete(vd) && vd->vdev_noalloc &&
-		    !vd->vdev_removing)
+		if (vd == NULL)
+			continue;
+		if (!vdev_is_concrete(vd) || vd->vdev_removing) {
+			if (removed)
+				return (B_TRUE);
+		} else if (vd->vdev_noalloc) {
 			return (B_TRUE);
+		}
 	}
 
 	return (B_FALSE);
+}
+
+/*
+ * Whether bp is the block of the entry's phys v, with all its ndvas copies.
+ */
+static boolean_t
+zio_ddt_phys_is_bp(const ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
+    int ndvas, const blkptr_t *bp)
+{
+	const dva_t *dva = (v == DDT_PHYS_FLAT) ?
+	    ddp->ddp_flat.ddp_dva : ddp->ddp_trad[v].ddp_dva;
+
+	if (BP_IS_HOLE(bp) || BP_IS_EMBEDDED(bp) || !BP_GET_DEDUP(bp) ||
+	    BP_GET_NDVAS(bp) != ndvas ||
+	    BP_GET_PHYSICAL_BIRTH(bp) != ddt_phys_birth(ddp, v))
+		return (B_FALSE);
+
+	for (int d = 0; d < ndvas; d++) {
+		if (!DVA_EQUAL(&bp->blk_dva[d], &dva[d]))
+			return (B_FALSE);
+	}
+
+	return (B_TRUE);
 }
 
 static zio_t *
@@ -4376,22 +4404,47 @@ zio_ddt_write(zio_t *zio)
 	/*
 	 * Every path below makes this block reference the DVAs already in
 	 * the entry, which keeps them where they are.  If one is on a vdev
-	 * with allocating=off and the entry has at most one reference, write
-	 * a non-dedup block instead, keeping an override block's own DVAs as
-	 * above, so that a rewrite of that reference frees them.  An entry
-	 * with more references gets one more: a non-dedup block would not be
-	 * deduplicated again without another rewrite.
+	 * with allocating=off, or that zpool remove is moving or has moved
+	 * (dedup blocks are never remapped, see spa_remap_blkptr()), and the
+	 * entry has one reference, which holds all its DVAs, give the entry
+	 * new copies instead: forget the old DVAs without freeing them, and
+	 * fill the entry from this write as if it were new.  The old block no
+	 * longer matches the entry, so it frees its DVAs as a non-dedup block,
+	 * as a block whose entry was pruned does.  As for pruning (see
+	 * ddt_prune_walk()), only an entry with one DVA, or a gang entry, is
+	 * sure to have all of them in its block; any other must be the block
+	 * that this write replaces.  A physical rewrite keeps its logical
+	 * birth, see zio_ddt_bp_fill().  A legacy table is left out:
+	 * ddt_class_contains() matches its entries by key alone, so scrub and
+	 * resilver could skip the old block.
+	 *
+	 * An entry with more references gets one more: a non-dedup block would
+	 * not be deduplicated again without another rewrite.  Otherwise, with
+	 * allocating=off, write a non-dedup block, keeping an override block's
+	 * own DVAs as above.
 	 */
-	if (have_dvas > 0 && ddt_phys_refcnt(ddp, v) <= 1 &&
-	    zio_ddt_phys_noalloc(spa, ddp, v, have_dvas)) {
-		if (dde_io != NULL)
-			mutex_exit(&dde_io->dde_io_lock);
-		ddt_exit(ddt);
-		zp->zp_dedup = B_FALSE;
-		BP_SET_DEDUP(bp, B_FALSE);
-		if (zio->io_bp_override == NULL)
-			zio->io_pipeline = ZIO_WRITE_PIPELINE;
-		return (zio);
+	if (have_dvas > 0 &&
+	    zio_ddt_phys_noalloc(spa, ddp, v, have_dvas, B_TRUE)) {
+		uint64_t refcnt = ddt_phys_refcnt(ddp, v);
+
+		if ((ddt->ddt_flags & DDT_FLAG_FLAT) && refcnt == 1 &&
+		    (dde_io == NULL || dde_io->dde_lead_zio[p] == NULL) &&
+		    (have_dvas == 1 || is_ganged ||
+		    zio_ddt_phys_is_bp(ddp, v, have_dvas, &zio->io_bp_orig))) {
+			ddt_phys_clear(ddp, v);
+			have_dvas = 0;
+			is_ganged = B_FALSE;
+		} else if (refcnt <= 1 &&
+		    zio_ddt_phys_noalloc(spa, ddp, v, have_dvas, B_FALSE)) {
+			if (dde_io != NULL)
+				mutex_exit(&dde_io->dde_io_lock);
+			ddt_exit(ddt);
+			zp->zp_dedup = B_FALSE;
+			BP_SET_DEDUP(bp, B_FALSE);
+			if (zio->io_bp_override == NULL)
+				zio->io_pipeline = ZIO_WRITE_PIPELINE;
+			return (zio);
+		}
 	}
 
 	if (dde_io == NULL || dde_io->dde_lead_zio[p] == NULL) {
@@ -4671,10 +4724,11 @@ zio_ddt_free(zio_t *zio)
 			/*
 			 * No phys matches this BP; ddt_lookup() returned a
 			 * fresh, empty entry because the key is not in the
-			 * table at all (eg the original entry was pruned).
-			 * There is no reference to release, so we need to do
-			 * a normal (not dedup) free. Clear dde so we fall
-			 * into the block below.
+			 * table at all (eg the original entry was pruned), or
+			 * the entry now describes other copies (see
+			 * zio_ddt_write()).  There is no reference to release,
+			 * so we need to do a normal (not dedup) free. Clear
+			 * dde so we fall into the block below.
 			 */
 			dde = NULL;
 	}
@@ -4688,15 +4742,17 @@ zio_ddt_free(zio_t *zio)
 		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
 	} else {
 		/*
-		 * No DDT entry; the block must have been pruned from the
-		 * table.  Clear the DEDUP bit so it is treated as a normal
+		 * No DDT entry describes this block: it was pruned from the
+		 * table, or zio_ddt_write() gave its entry new copies.
+		 * Clear the DEDUP bit so it is treated as a normal
 		 * block from here on.  BRT_FREE and DVA_FREE follow in the
 		 * pipeline and will handle any cloned references and the
 		 * actual block free respectively, along with the gang stages
 		 * for a gang BP.
 		 *
-		 * Only flat (FDT) tables are ever pruned, so a miss against
-		 * a traditional table means the table and the BP disagree,
+		 * Only flat (FDT) tables are ever pruned, or have an entry
+		 * given new copies by zio_ddt_write(), so a miss against a
+		 * traditional table means the table and the BP disagree,
 		 * which should not be possible. The plain free below is
 		 * still the best we can do for this BP, but leave a trace.
 		 */
