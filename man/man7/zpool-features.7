@@ -1086,6 +1086,9 @@ are guaranteed to be durable if either the dataset had
 set at the time the changes were made, or
 .Xr sync 2
 is called on the dataset after the changes were made.
+If the feature is disabled between a change and its commit to the ZIL,
+the commit waits for the change to be written with its transaction group
+instead.
 .Pp
 This feature becomes
 .Sy active
