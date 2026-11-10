@@ -1112,6 +1112,94 @@ spa_log_sm_stats_destroy(spa_t *spa)
 	mutex_destroy(&shk->lock);
 }
 
+/*
+ * Misc per-pool stats.
+ */
+typedef struct spa_misc_stats {
+	kstat_named_t	pool_suspended_ioerr;
+	kstat_named_t	pool_suspended_mmp;
+	kstat_named_t	pool_resumed;
+} spa_misc_stats_t;
+
+static spa_misc_stats_t spa_misc_stats_template = {
+	{ "pool_suspended_ioerr",	KSTAT_DATA_UINT64 },
+	{ "pool_suspended_mmp",		KSTAT_DATA_UINT64 },
+	{ "pool_resumed",		KSTAT_DATA_UINT64 },
+};
+
+#define	SPA_MISC_STATS_BUMP(stat) \
+    atomic_inc_64(&misc_stats->stat.value.ui64)
+
+static inline spa_misc_stats_t *
+spa_misc_stats(spa_t *spa)
+{
+	spa_history_kstat_t *shk = &spa->spa_stats.misc;
+	kstat_t *ksp = shk->kstat;
+	if (ksp == NULL)
+		return (NULL);
+	return (ksp->ks_data);
+}
+
+void
+spa_misc_stats_bump_suspended_ioerr(spa_t *spa)
+{
+	spa_misc_stats_t *misc_stats = spa_misc_stats(spa);
+	if (misc_stats != NULL)
+		SPA_MISC_STATS_BUMP(pool_suspended_ioerr);
+}
+
+void
+spa_misc_stats_bump_suspended_mmp(spa_t *spa)
+{
+	spa_misc_stats_t *misc_stats = spa_misc_stats(spa);
+	if (misc_stats != NULL)
+		SPA_MISC_STATS_BUMP(pool_suspended_mmp);
+}
+
+void
+spa_misc_stats_bump_resumed(spa_t *spa)
+{
+	spa_misc_stats_t *misc_stats = spa_misc_stats(spa);
+	if (misc_stats != NULL)
+		SPA_MISC_STATS_BUMP(pool_resumed);
+}
+
+static void
+spa_misc_stats_init(spa_t *spa)
+{
+	spa_history_kstat_t *shk = &spa->spa_stats.misc;
+
+	mutex_init(&shk->lock, NULL, MUTEX_DEFAULT, NULL);
+
+	char *name = kmem_asprintf("zfs/%s", spa_name(spa));
+	kstat_t *ksp = kstat_create(name, 0, "misc", "misc",
+	    KSTAT_TYPE_NAMED,
+	    sizeof (spa_misc_stats_t) / sizeof (kstat_named_t),
+	    0);
+
+	shk->kstat = ksp;
+	if (ksp) {
+		ksp->ks_lock = &shk->lock;
+		memcpy(ksp->ks_data, &spa_misc_stats_template,
+		    sizeof (spa_misc_stats_t));
+		kstat_install(ksp);
+	}
+
+	kmem_strfree(name);
+}
+
+static void
+spa_misc_stats_destroy(spa_t *spa)
+{
+	spa_history_kstat_t *shk = &spa->spa_stats.misc;
+	if (shk->kstat) {
+		kstat_delete(shk->kstat);
+		shk->kstat = NULL;
+	}
+
+	mutex_destroy(&shk->lock);
+}
+
 void
 spa_stats_init(spa_t *spa)
 {
@@ -1123,11 +1211,13 @@ spa_stats_init(spa_t *spa)
 	spa_guid_init(spa);
 	spa_iostats_init(spa);
 	spa_log_sm_stats_init(spa);
+	spa_misc_stats_init(spa);
 }
 
 void
 spa_stats_destroy(spa_t *spa)
 {
+	spa_misc_stats_destroy(spa);
 	spa_log_sm_stats_destroy(spa);
 	spa_iostats_destroy(spa);
 	spa_health_destroy(spa);
