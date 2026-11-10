@@ -24,7 +24,7 @@
  * optimized for drives of at least that size.
  *
  * Anyraid works by splitting the vdev into "tiles". Each tile is the same
- * size; by default, 1/64th of the size of the smallest disk in the vdev, or
+ * size; by default, 1/1024th of the size of the smallest disk in the vdev, or
  * 16GiB, whichever is larger. A tile represents an area of
  * logical-to-physical mapping: bytes within that logical tile are stored
  * physically together. Subsequent tiles may be stored in different locations
@@ -58,7 +58,7 @@
  * Currently, an anyraid vdev holds at most 2^8 disks and 2^20 tiles per disk
  * (2^16 for vdevs created with version 0 of the tile map). This means that by
  * default, the largest device that can be fully utilized by an anyraid vdev
- * is at least 16384 times the size of the smallest device that was present
+ * is at least 1024 times the size of the smallest device that was present
  * during device creation, and at least 16PiB. The tile map has room for 2^24
  * 4-byte entries, 2^26 bytes = 64MiB, fewer than 2^8 disks of 2^20 tiles
  * would need, so the size of the vdev is capped at what the map can always
@@ -111,9 +111,10 @@
 uint64_t vdev_anyraid_min_tile_size = (16ULL << 30);
 /*
  * This controls how many tiles we have per disk (based on the smallest disk
- * present at creation time)
+ * present at creation time). A larger shift gives smaller tiles: less space
+ * lost at the end of each disk, but a smaller largest usable disk.
  */
-int vdev_anyraid_disk_shift = 6;
+int vdev_anyraid_disk_shift = 10;
 
 static inline uint64_t
 vdev_anyraid_header_offset(vdev_t *vd, int id)
@@ -796,8 +797,8 @@ out:
 
 /*
  * When creating a new anyraid vdev, this function calculates the tile size
- * to use. We take (by default) 1/64th of the size of the smallest disk or 16
- * GiB, whichever is larger.
+ * to use. We take (by default) 1/1024th of the size of the smallest disk or 16
+ * GiB, whichever is larger, rounded up to a power of two.
  */
 static int
 anyraid_calculate_size(vdev_t *vd)
