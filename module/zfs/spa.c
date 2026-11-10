@@ -11029,8 +11029,25 @@ spa_sync(spa_t *spa, uint64_t txg)
 	 * the end of spa_sync() so that consumers of spa_last_synced_txg()
 	 * will be guaranteed that all the processing associated with
 	 * that txg has been completed.
+	 *
+	 * vdev_raidz_io_start() maps i/o to an expanding RAID-Z vdev with
+	 * the reflow progress in spa_ubsync, and once that progress
+	 * advances, the old location of the range it passes can be
+	 * overwritten.  Take the range lock over that range, as
+	 * raidz_reflow_sync() did for spa_uberblock, so that no i/o that
+	 * uses the old location is still in flight.
 	 */
+	vdev_raidz_expand_t *vre = spa->spa_raidz_expand;
+	uint64_t synced_offset = RRSS_GET_OFFSET(&spa->spa_ubsync);
+	uint64_t reflow_offset = RRSS_GET_OFFSET(&spa->spa_uberblock);
+	zfs_locked_range_t *lr = NULL;
+	if (vre != NULL && reflow_offset > synced_offset) {
+		lr = zfs_rangelock_enter(&vre->vre_rangelock, synced_offset,
+		    reflow_offset - synced_offset, RL_WRITER);
+	}
 	spa->spa_ubsync = spa->spa_uberblock;
+	if (lr != NULL)
+		zfs_rangelock_exit(lr);
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 	spa_handle_ignored_writes(spa);
