@@ -1368,6 +1368,15 @@ dmu_recv_begin(const char *tofs, const char *tosnap,
 		return (SET_ERROR(EINVAL));
 	}
 
+	/*
+	 * The BEGIN record comes from userland, and drr_toname is not
+	 * guaranteed to be NUL-terminated.  Terminate it before it is used
+	 * as a string.  The checksum above already covers the record as it
+	 * was sent.
+	 */
+	drc->drc_drrb->drr_toname[sizeof (drc->drc_drrb->drr_toname) - 1] =
+	    '\0';
+
 	drc->drc_fp = fp;
 	drc->drc_voff = *voffp;
 	drc->drc_featureflags =
