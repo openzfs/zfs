@@ -33,6 +33,8 @@ WORKFLOWS = {
 MAX_AGE = datetime.timedelta(days=7)
 # Push runs of one commit to consider, e.g. after pushing it to a PR branch.
 MAX_RUNS = 10
+# Latest push runs in which to look for other commits of the same tree.
+RECENT_RUNS = 100
 
 
 def github_api(path):
@@ -46,18 +48,20 @@ def github_api(path):
         return json.load(response)
 
 
-def usable_run(run, repo, head, filename, now):
+def usable_run(run, repo, tree, filename, now):
     created = datetime.datetime.fromisoformat(
         run["created_at"].replace("Z", "+00:00"))
-    return (run["head_sha"] == head and run["event"] == "push" and
+    return (run["head_commit"] is not None and
+            run["head_commit"]["tree_id"] == tree and
+            run["event"] == "push" and
             run["path"] == f".github/workflows/{filename}" and
             run["repository"]["full_name"].lower() == repo.lower() and
             run["head_repository"]["full_name"].lower() == repo.lower() and
             datetime.timedelta(0) <= now - created <= MAX_AGE)
 
 
-def successful_job(job, run, head, runner, required_steps):
-    if (job["head_sha"] != head or job["run_id"] != run["id"] or
+def successful_job(job, run, runner, required_steps):
+    if (job["head_sha"] != run["head_sha"] or job["run_id"] != run["id"] or
             job["status"] != "completed" or
             job["conclusion"] != "success" or
             job["labels"] != [runner]):
@@ -80,12 +84,18 @@ def reusable_jobs(event, targets, api=github_api, now=None,
     if job_name is None and not targets:
         return {}
 
+    # A push run tests the tree of its commit, so its results also apply
+    # to a commit that differs only in its message or history.
+    tree = api(f"repos/{repo}/git/commits/{head}")["tree"]["sha"]
     # QEMU push runs use full tests, even with ZTS_OS_OVERRIDE. Dispatch
     # and PR runs can use different inputs or a reduced test suite.
-    query = urllib.parse.urlencode({
-        "event": "push", "head_sha": head, "per_page": MAX_RUNS,
-    })
-    runs = api(f"repos/{repo}/actions/workflows/{filename}/runs?{query}")
+    runs = {}
+    for params in ({"head_sha": head, "per_page": MAX_RUNS},
+                   {"per_page": RECENT_RUNS}):
+        query = urllib.parse.urlencode({"event": "push", **params})
+        for run in api(f"repos/{repo}/actions/workflows/{filename}/runs"
+                       f"?{query}")["workflow_runs"]:
+            runs[run["id"]] = run
     now = now or datetime.datetime.now(datetime.timezone.utc)
     names = ({f"qemu-x86 ({target})": target for target in targets}
              if job_name is None else {job_name: workflow})
@@ -96,12 +106,13 @@ def reusable_jobs(event, targets, api=github_api, now=None,
     # success never replaces it.  A job that was cancelled, skipped or has
     # not finished yet (for example in the run started by pushing an
     # already tested commit to the PR branch) has no result, so an older
-    # run of the same commit can still supply one.  Only jobs in completed
+    # run of the same tree can still supply one.  Only jobs in completed
     # runs are reused.
-    for run in runs["workflow_runs"]:
+    for run in sorted(runs.values(), reverse=True,
+                      key=lambda run: (run["created_at"], run["id"])):
         if len(decided) == len(names):
             break
-        if not usable_run(run, repo, head, filename, now):
+        if not usable_run(run, repo, tree, filename, now):
             continue
         jobs = api(f"repos/{repo}/actions/runs/{run['id']}/jobs"
                    "?filter=latest&per_page=100")
@@ -118,7 +129,7 @@ def reusable_jobs(event, targets, api=github_api, now=None,
             if not completed and job["conclusion"] == "success":
                 continue
             decided.add(target)
-            if completed and successful_job(job, run, head, runner,
+            if completed and successful_job(job, run, runner,
                                             required_steps):
                 result[target] = (
                     f"https://github.com/{repo}/actions/runs/{run['id']}"
