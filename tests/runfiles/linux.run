@@ -128,6 +128,11 @@ tests = ['dio_loopback_dev', 'dio_read_verify_decline', 'dio_write_verify',
     'dio_write_verify_bounce']
 tags = ['functional', 'direct']
 
+[tests/functional/async:Linux]
+tests = ['async_read_001_pos', 'async_read_002_pos', 'async_read_003_pos',
+    'async_read_004_pos']
+tags = ['functional', 'async']
+
 [tests/functional/events:Linux]
 tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter', 'zed_fd_spill',
     'zed_cksum_reported', 'zed_cksum_config', 'zed_io_config',

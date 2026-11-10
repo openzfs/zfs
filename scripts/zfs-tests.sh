@@ -227,9 +227,10 @@ declare -A testdb=(["redundancy"]=1608 ["mmp"]=1423 ["events"]=926
 ["nopwrite"]=42 ["history"]=42 ["zpool_split"]=39 ["refreserv"]=39
 ["largest_pool"]=38 ["write_dirs"]=36 ["zpool_events"]=35 ["quota"]=35
 ["snapdir"]=33 ["zfs_set"]=32 ["zfs"]=30 ["zpool_iostat"]=28 ["zfs_copies"]=28
-["zfs_upgrade"]=27 ["mount"]=26 ["zfs_send"]=25 ["misc"]=24 ["zpool_status"]=23
-["zpool_get"]=22 ["upgrade"]=22 ["pool_names"]=22 ["zvol_swap"]=21 ["zhack"]=20
-["inuse"]=20 ["zfs_mount"]=19 ["zap_shrink"]=19 ["synctask_core"]=19
+["zfs_upgrade"]=27 ["mount"]=26 ["zfs_send"]=25 ["misc"]=24 ["async"]=24
+["zpool_status"]=23 ["zpool_get"]=22 ["upgrade"]=22 ["pool_names"]=22
+["zvol_swap"]=21 ["zhack"]=20 ["inuse"]=20 ["zfs_mount"]=19 ["zap_shrink"]=19
+["synctask_core"]=19
 ["zfs_create"]=18 ["online_offline"]=18 ["userquota"]=17 ["link_count"]=17
 ["zfs_rewrite"]=16 ["zstream"]=15 ["failmode"]=15 ["fadvise"]=15
 ["async_destroy"]=15 ["zpool_sync"]=14 ["zfs_diff"]=14 ["reservation"]=14

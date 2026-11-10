@@ -21,14 +21,13 @@
 #	read is in flight does not deadlock.
 #
 # STRATEGY:
-#	1. zfsvfs_teardown() takes the teardown lock as a writer and then waits
-#	   for the in-flight async read count to drain.  The read completion
-#	   updates atime, which wants the same lock for reading, and only
-#	   releases its hold on the count afterwards.  While the completion
-#	   takes that lock the two wait on each other and neither finishes.
-#	2. Set atime=on with relatime=off, so every read is due an atime
-#	   update.  That update is what closes the cycle; under the default
-#	   relatime it is due far less often and the window is much narrower.
+#	1. zfsvfs_teardown() stops new async admissions and drains the reads
+#	   that are already executing before it takes the teardown write lock.
+#	   A completion that still took the teardown lock would deadlock
+#	   against that writer, so an async read held in flight across a
+#	   zfs rollback must not wedge the dataset.
+#	2. Set atime=on with relatime=off so that the atime update runs for
+#	   every read; keep that path covered by the overlap as well.
 #	3. Inject a ready-stage delay on reads of the file so that a single
 #	   O_DIRECT read is still in flight when the rollback begins, rather
 #	   than relying on timing.
@@ -36,7 +35,7 @@
 #	   return.
 #
 # NOTE:	When this test fails it fails by deadlocking.  The rollback and the
-#	taskq thread are left in uninterruptible sleep and the filesystem stays
+#	taskq worker are left in uninterruptible sleep and the filesystem stays
 #	suspended, so the pool is unusable for the rest of the run and until
 #	the machine is rebooted.  That is the condition under test rather than
 #	anything the test can tidy up.  A timeout around the cleanup does not
@@ -45,10 +44,6 @@
 #	every operation that would touch the suspended filesystem, which is
 #	what lets the failure be reported at all instead of the run stalling
 #	with no result.
-# MORE IMPORTANT NODE: This test creates a deadlock before the code
-#   change in this commit. Now with z_async_dio_draining added, and stop
-#   accepting new async reads when the filesystem is in teardown, and
-#   drain, the deadlock is avoided. So this test should pass.
 #
 
 verify_runnable "global"

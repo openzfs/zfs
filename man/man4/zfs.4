@@ -331,6 +331,37 @@ Default dnode block size as a power of 2.
 .It Sy zfs_default_ibs Ns = Ns Sy 17 Po 128 KiB Pc Pq int
 Default dnode indirect block size as a power of 2.
 .
+.It Sy zfs_async_dio_enabled Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Enable asynchronous Direct I/O reads.
+When enabled, a read submitted on an asynchronous kiocb (libaio or io_uring)
+has its user pages pinned by the submitting thread and is executed by a
+per-pool worker, so the submitting thread returns without waiting for the
+read.
+The pinned pages bound the memory the feature can consume.
+This applies to Direct I/O reads only; writes and buffered reads are not
+affected.
+The default is
+.Sy 0 .
+.
+.It Sy zfs_async_dio_max_inflight Ns = Pq u64
+Maximum number of bytes of user memory that asynchronous Direct I/O may keep
+pinned, module-wide across all datasets and pools.
+A read that would exceed this limit is served by the synchronous path
+instead.
+Pinned pages cannot be reclaimed or migrated, so this is a hard bound on the
+memory the feature can consume.
+The default value is derived from physical memory at module load: one quarter
+of RAM, capped at 4 GiB.
+A value of 0 selects that default.
+.
+.It Sy zfs_async_dio_task_depth Ns = Ns Sy 32 Pq uint
+Maximum number of worker threads for asynchronous Direct I/O, per pool.
+A pool runs up to one taskq per online CPU, each starting with one thread and
+adding threads on demand; this budget is split across them, with at least one
+thread per taskq.
+A value of 0 disables asynchronous Direct I/O.
+This parameter is read-only and applies to pools imported after module load.
+.
 .It Sy zfs_dio_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Enable Direct I/O.
 If this setting is 0, then all I/O requests will be directed through the ARC
