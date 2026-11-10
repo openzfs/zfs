@@ -99,11 +99,12 @@ jobs:
           echo "os=$os_json" | tee -a "$GITHUB_OUTPUT"
           echo "ci_type=$ci_type" | tee -a "$GITHUB_OUTPUT"
 
-      - name: Find completed fork jobs
+      - name: Find or wait for fork jobs
         id: reuse
         env:
           GH_TOKEN: ${{ github.token }}
           ZTS_TARGETS: ${{ steps.os.outputs.os }}
+          REUSE_WAIT_MINUTES: ${{ vars.REUSE_WAIT_MINUTES || 240 }}
         run: |
           jobs=$(python3 .github/workflows/scripts/reuse-ci.py)
           echo "jobs=$jobs" >> "$GITHUB_OUTPUT"
