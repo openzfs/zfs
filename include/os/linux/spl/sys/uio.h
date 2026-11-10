@@ -56,6 +56,13 @@
 #define	UIO_DIO_DENY		0x0004
 #define	UIO_DIO_CKSUM_RETRIED	0x0008
 #define	UIO_DIO_BOUNCE		0x0010
+/*
+ * UIO_ASYNC: the request was admitted by the zpl async Direct I/O path, its
+ * user pages were pinned in the submitting thread, and it executes on a
+ * taskq worker.  The worker has no user mm, so it must not fault in or copy
+ * through user virtual addresses.
+ */
+#define	UIO_ASYNC		0x0020
 
 #if defined(HAVE_FAULT_IN_IOV_ITER_READABLE)
 #define	iov_iter_fault_in_readable(a, b)	fault_in_iov_iter_readable(a, b)
