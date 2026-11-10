@@ -1814,6 +1814,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/gang_blocks/gang_blocks_001_pos.ksh \
 	functional/gang_blocks/gang_blocks_ddt_copies.ksh \
 	functional/gang_blocks/gang_blocks_degraded_vdev.ksh \
+	functional/gang_blocks/gang_blocks_free_leak_on_eio.ksh \
 	functional/gang_blocks/gang_blocks_redundant.ksh \
 	functional/gang_blocks/gang_blocks_scrub_copies.ksh \
 	functional/gang_blocks/gang_blocks_special_fallback.ksh \
