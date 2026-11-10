@@ -207,6 +207,7 @@ typedef enum {
 #define	DDE_FLAG_OVERQUOTA	(1 << 1)	/* entry unusable, no space */
 #define	DDE_FLAG_LOGGED		(1 << 2)	/* loaded from log */
 #define	DDE_FLAG_FROM_FLUSHING	(1 << 3)	/* loaded from flushing log */
+#define	DDE_FLAG_UNREADABLE	(1 << 4)	/* entry unusable, read error */
 
 /*
  * Additional data to support entry update or repair. This is fixed size
@@ -402,7 +403,7 @@ extern void ddt_exit(ddt_t *ddt);
 extern void ddt_init(void);
 extern void ddt_fini(void);
 extern ddt_entry_t *ddt_lookup(ddt_t *ddt, const blkptr_t *bp,
-    boolean_t verify);
+    boolean_t verify, boolean_t *unreadablep);
 extern void ddt_remove(ddt_t *ddt, ddt_entry_t *dde);
 extern void ddt_prefetch(spa_t *spa, const blkptr_t *bp);
 extern void ddt_prefetch_all(spa_t *spa);
