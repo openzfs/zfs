@@ -753,7 +753,7 @@ Minimum size of the tiles that anyraid will use to do its mapping.
 Smaller tile sizes let data be spread more evenly across devices, and makes
 smaller devices use more of their capacity.
 Larger tile sizes allow for larger disks to be used in the future, since a given
-device can only store 65536 tiles.
+device can only store 1048576 tiles.
 The minimum valid tile size is 16MiB, since a metaslab always needs to be able
 to fit in a single tile.
 Note that any disk that is smaller than the tile size plus the size of the
@@ -764,8 +764,8 @@ Power of two divisor for the default size of AnyRAID tiles.
 ZFS takes the size of the smallest disk in the AnyRAID vdev when it
 is created and divides it by two to this power to get the tilesize for that
 vdev.
-Because the maximum number of tiles on a single device is 65536, increasing this
-value can make the anyraid vdev able to handle larger devices in the future.
+Because the maximum number of tiles on a single device is 1048576, increasing
+this value can make the anyraid vdev able to handle larger devices in the future.
 Decreasing the value can reduce space waste at the end of the device, if the
 usable device size does not nicely divide into tiles.
 .
