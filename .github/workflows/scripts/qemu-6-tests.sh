@@ -219,7 +219,7 @@ esac
 
 # Distribution-specific settings.
 case "$OS" in
-  almalinux9|almalinux10|centos-stream*)
+  almalinux9|almalinux10*|centos-stream*)
     # Enable io_uring on Enterprise Linux 9 and 10.
     sudo sysctl kernel.io_uring_disabled=0 > /dev/null
     ;;
