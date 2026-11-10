@@ -720,6 +720,8 @@ zfs_rmnode(znode_t *zp)
 		dmu_tx_hold_free(tx, acl_obj, 0, DMU_OBJECT_END);
 
 	zfs_sa_upgrade_txholds(tx, zp);
+	/* Like the frees above, this must not need the space writes need. */
+	dmu_tx_mark_netfree(tx);
 	error = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (error) {
 		/*

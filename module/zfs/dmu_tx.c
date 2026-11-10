@@ -417,8 +417,8 @@ dmu_tx_hold_append_by_dnode(dmu_tx_t *tx, dnode_t *dn, uint64_t off, int len)
 /*
  * This function marks the transaction as being a "net free".  The end
  * result is that refquotas will be disabled for this transaction, and
- * this transaction will be able to use half of the pool space overhead
- * (see dsl_pool_adjustedsize()).  Therefore this function should only
+ * this transaction will be able to use five eighths of the pool space overhead
+ * (see ZFS_SPACE_CHECK_NETFREE).  Therefore this function should only
  * be called for transactions that we expect will not cause a net increase
  * in the amount of space used (but it's OK if that is occasionally not true).
  */

@@ -351,12 +351,13 @@ uint_t spa_asize_inflation = 24;
  * the slop space "proper" (spa_get_slop_space()) is decreased by the embedded
  * log space.
  *
- * Certain operations (e.g. file removal, most administrative actions) can
- * use half the slop space.  They will only return ENOSPC if less than half
- * the slop space is free.  Typically, once the pool has less than the slop
+ * Most administrative actions can use half the slop space.  They will only
+ * return ENOSPC if less than half the slop space is free.  File removal and
+ * truncation can use five eighths of it, so that administrative actions cannot
+ * use up the space they need.  Typically, once the pool has less than the slop
  * space free, the user will use these operations to free up space in the pool.
- * These are the operations that call dsl_pool_adjustedsize() with the netfree
- * argument set to TRUE.
+ * These are the transactions marked with dmu_tx_mark_netfree(), which
+ * dsl_dir_tempreserve_space() checks with ZFS_SPACE_CHECK_NETFREE.
  *
  * Operations that are almost guaranteed to free up space in the absence of
  * a pool checkpoint can use up to three quarters of the slop space
