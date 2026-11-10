@@ -44,6 +44,12 @@ case "$OS" in
     OSv="almalinux9"
     URL="https://repo.almalinux.org/almalinux/10/cloud/x86_64/images/AlmaLinux-10-GenericCloud-latest.x86_64.qcow2"
     ;;
+  almalinux10-v2)
+    # AlmaLinux 10 for x86-64-v2 CPUs (EL10 defaults to x86-64-v3)
+    OSNAME="AlmaLinux 10 (x86_64_v2)"
+    OSv="almalinux9"
+    URL="https://repo.almalinux.org/almalinux/10/cloud/x86_64_v2/images/AlmaLinux-10-GenericCloud-latest.x86_64_v2.qcow2"
+    ;;
   alpine3-24*)
     OSNAME="Alpine Linux 3.24.2"
     # Alpine Linux v3.22 and v3.23 are unknown to osinfo as of 2025-12-26.

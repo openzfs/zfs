@@ -161,6 +161,14 @@ function copy_rpms_to_repo {
     ;;
   esac
 
+  # The x86_64_v2 variant of AlmaLinux 10 builds with -march=x86-64-v2
+  # but still names the RPMs '.x86_64'.  Put them in their own arch
+  # directory so they don't collide with the regular (v3) EL10 RPMs.
+  arch="x86_64"
+  if [ "$(rpm --eval '%{?x86_64_v2}')" == "1" ] ; then
+    arch="x86_64_v2"
+  fi
+
   prefix=/tmp/repo
   dst="$prefix/$d/$os_ver"
 
@@ -175,20 +183,20 @@ function copy_rpms_to_repo {
 
   if [[ "$build_host" =~ "almalinux" ]] ; then
     # Copy kmods+userspace
-    mkdir -p $dst/kmod/x86_64/debug
-    cp $(ls *.rpm | grep -Ev 'src.rpm|dkms|debuginfo') $dst/kmod/x86_64
-    cp *debuginfo*.rpm $dst/kmod/x86_64/debug
+    mkdir -p $dst/kmod/$arch/debug
+    cp $(ls *.rpm | grep -Ev 'src.rpm|dkms|debuginfo') $dst/kmod/$arch
+    cp *debuginfo*.rpm $dst/kmod/$arch/debug
   fi
 
   if [ -n "$DKMS" ] ; then
     # Copy dkms+userspace
-    mkdir -p $dst/x86_64
-    cp $(ls *.rpm | grep -Ev 'src.rpm|kmod|debuginfo') $dst/x86_64
+    mkdir -p $dst/$arch
+    cp $(ls *.rpm | grep -Ev 'src.rpm|kmod|debuginfo') $dst/$arch
   fi
 
   # Copy debug
-  mkdir -p $dst/x86_64/debug
-  cp $(ls *debuginfo*.rpm | grep -v kmod) $dst/x86_64/debug
+  mkdir -p $dst/$arch/debug
+  cp $(ls *debuginfo*.rpm | grep -v kmod) $dst/$arch/debug
 }
 
 function freebsd() {
