@@ -12,16 +12,19 @@
 #
 
 # DESCRIPTION:
-#	Verify zfs rewrite -W skips blocks whose allocated size would not
-#	change, so that after a RAID-Z expansion it rewrites only the blocks
-#	written before the expansion that the new width stores in less space.
+#	Verify zfs rewrite -W skips blocks already at the current width of
+#	their RAID-Z vdev, so that after an expansion it rewrites the blocks
+#	written before it, whatever space the new width stores them in, but
+#	not the deduplicated ones, which a rewrite would leave in place.
 #
 # STRATEGY:
 #	1. Create a 5-wide RAID-Z2 pool and write file A, with 128K blocks,
-#	   and file S, with 4K blocks.
+#	   file S, with 4K blocks, and file D, with 128K blocks, with dedup.
 #	2. Expand the RAID-Z2 vdev to 6 disks and write file B.
-#	3. Rewrite the three files with -W and verify that only the blocks of
-#	   A moved, to the allocated size of the new width.
+#	3. Rewrite the four files with -W and verify that the blocks of A
+#	   moved, to the allocated size of the new width, that those of S
+#	   moved and kept their size, and that those of B and D did not move,
+#	   and D was not looked up in the DDT.
 #	4. Rewrite them with -W again and verify nothing moved.
 #	5. On the single-disk test pool, verify -W moves no block, and that
 #	   a rewrite without it moves them all.
@@ -45,6 +48,9 @@ typeset c0=$(mktemp)
 typeset c1=$(mktemp)
 typeset s0=$(mktemp)
 typeset s1=$(mktemp)
+typeset s2=$(mktemp)
+typeset d0=$(mktemp)
+typeset d1=$(mktemp)
 
 function cleanup
 {
@@ -52,7 +58,8 @@ function cleanup
 	for i in {0..$devs}; do
 		rm -f "$TEST_BASE_DIR/dev-$i"
 	done
-	rm -rf $tmp $a0 $a1 $a2 $b0 $b1 $b2 $c0 $c1 $s0 $s1 $TESTDIR/* $TESTDIR1
+	rm -rf $tmp $a0 $a1 $a2 $b0 $b1 $b2 $c0 $c1 $s0 $s1 $s2 $d0 $d1 \
+	    $TESTDIR/* $TESTDIR1
 }
 
 # Save the DVAs (vdev:offset:asize) of the L0 blocks of a file.
@@ -78,7 +85,7 @@ function check_moved # file1 file2
 	log_must [ -z "$same" ]
 }
 
-log_assert "zfs rewrite -W skips blocks whose allocated size would not change"
+log_assert "zfs rewrite -W skips blocks already at their current width"
 
 log_onexit cleanup
 
@@ -93,15 +100,20 @@ log_must zpool create -f -o ashift=12 -O compression=off -O recordsize=128k \
     -m $TESTDIR1 $TESTPOOL1 raidz2 ${disks[1..$(($devs - 1))]}
 
 log_must zfs create -o recordsize=4k $TESTPOOL1/small
+log_must zfs create -o dedup=on $TESTPOOL1/dedup
 log_must dd if=/dev/urandom of=$TESTDIR1/A bs=128k count=8
 log_must dd if=/dev/urandom of=$TESTDIR1/small/S bs=4k count=8
+log_must dd if=/dev/urandom of=$TESTDIR1/dedup/D bs=128k count=8
 log_must sync_pool $TESTPOOL1
 save_dvas $TESTPOOL1 A $a0
 check_asize $a0 36000
 # A 4K block takes 3 sectors at either width (1 data, 2 parity).
 save_dvas $TESTPOOL1/small S $s0
 check_asize $s0 3000
+save_dvas $TESTPOOL1/dedup D $d0
+check_asize $d0 36000
 typeset hash_a=$(xxh128digest $TESTDIR1/A)
+typeset hash_d=$(xxh128digest $TESTDIR1/dedup/D)
 
 log_must zpool attach -w $TESTPOOL1 raidz2-0 ${disks[$devs]}
 log_must zpool wait -t scrub $TESTPOOL1
@@ -118,26 +130,40 @@ typeset hash_b=$(xxh128digest $TESTDIR1/B)
 save_dvas $TESTPOOL1 A $a1
 log_must cmp $a0 $a1
 
-log_must zfs rewrite -W $TESTDIR1/A $TESTDIR1/B $TESTDIR1/small/S
+# A rewrite would give D the DVAs of its DDT entries again, so -W must skip
+# it without a DDT lookup.
+typeset -r lookup=ddt_stats_sha256.lookup
+typeset lookups
+lookups=$(kstat_pool $TESTPOOL1 $lookup)
+typeset files="$TESTDIR1/A $TESTDIR1/B $TESTDIR1/small/S $TESTDIR1/dedup/D"
+log_must zfs rewrite -W $files
 log_must sync_pool $TESTPOOL1
 save_dvas $TESTPOOL1 A $a1
 check_moved $a0 $a1
 check_asize $a1 30000
 save_dvas $TESTPOOL1 B $b1
 log_must cmp $b0 $b1
+# S keeps its size at the new width, but was written at the old one.
 save_dvas $TESTPOOL1/small S $s1
-log_must cmp $s0 $s1
+check_moved $s0 $s1
+check_asize $s1 3000
+save_dvas $TESTPOOL1/dedup D $d1
+log_must cmp $d0 $d1
+log_must test "$(kstat_pool $TESTPOOL1 $lookup)" -eq "$lookups"
 
-log_must zfs rewrite -W $TESTDIR1/A $TESTDIR1/B $TESTDIR1/small/S
+log_must zfs rewrite -W $files
 log_must sync_pool $TESTPOOL1
 save_dvas $TESTPOOL1 A $a2
 log_must cmp $a1 $a2
 save_dvas $TESTPOOL1 B $b2
 log_must cmp $b1 $b2
-save_dvas $TESTPOOL1/small S $s1
-log_must cmp $s0 $s1
+save_dvas $TESTPOOL1/small S $s2
+log_must cmp $s1 $s2
+save_dvas $TESTPOOL1/dedup D $d1
+log_must cmp $d0 $d1
 
 log_must [ "$(xxh128digest $TESTDIR1/A)" = "$hash_a" ]
+log_must [ "$(xxh128digest $TESTDIR1/dedup/D)" = "$hash_d" ]
 log_must [ "$(xxh128digest $TESTDIR1/B)" = "$hash_b" ]
 log_must zpool scrub -w $TESTPOOL1
 log_must check_pool_status $TESTPOOL1 "errors" "No known data errors"
@@ -158,4 +184,4 @@ log_must sync_pool $TESTPOOL
 save_dvas $TESTPOOL/$TESTFS C $c1
 check_moved $c0 $c1
 
-log_pass "zfs rewrite -W skips blocks whose allocated size would not change"
+log_pass "zfs rewrite -W skips blocks already at their current width"
