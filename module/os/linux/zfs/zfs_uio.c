@@ -44,6 +44,20 @@
 #include <linux/pagemap.h>
 #include <linux/mman.h>
 
+#ifdef ZFS_DEBUG
+/*
+ * Number of read copies served by the pre-pinned page branch of
+ * zfs_uiomove_iter() instead of through user virtual addresses.  Debug
+ * builds only; writable so a test can reset it and verify the branch was
+ * taken.
+ */
+static unsigned long zfs_async_read_pinned_copies = 0;
+module_param(zfs_async_read_pinned_copies, ulong, 0644);
+MODULE_PARM_DESC(zfs_async_read_pinned_copies,
+	"Number of read copies into pages pre-pinned by the async Direct I/O "
+	"path (debug builds only)");
+#endif
+
 /*
  * Move "n" bytes at byte address "p"; "rw" indicates the direction
  * of the move, and the I/O parameters are provided in "uio", which is
@@ -244,25 +258,89 @@ zfs_uiomove_bvec(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio)
 	return (zfs_uiomove_bvec_impl(p, n, rw, uio));
 }
 
+/*
+ * Copy 'cnt' bytes between the pinned pages of a Direct I/O uio and the
+ * kernel buffer 'p'.  Used when a request whose pages were pinned at async
+ * submission time is served through the ARC from a taskq thread, which has
+ * no user mm: the pages are guaranteed resident, so the copy cannot fault.
+ */
+static size_t
+zfs_uiomove_pinned_pages(zfs_uio_t *uio, void *p, size_t cnt, zfs_uio_rw_t rw)
+{
+	size_t copied = 0;
+
+	while (copied < cnt) {
+		size_t rel = uio->uio_loffset + copied -
+		    zfs_uio_soffset(uio);
+		size_t idx = rel >> PAGESHIFT;
+		size_t pgoff = rel & (PAGESIZE - 1);
+		size_t chunk = MIN(cnt - copied, PAGESIZE - pgoff);
+		void *paddr;
+
+		if (idx >= uio->uio_dio.npages) {
+			/*
+			 * The request was page aligned when its pages were
+			 * pinned, so this can only mean the uio no longer
+			 * describes the pin set.  Copy what fits instead of
+			 * indexing past the array; the caller turns a short
+			 * copy into EFAULT.
+			 */
+			break;
+		}
+
+		paddr = zfs_kmap_local(uio->uio_dio.pages[idx]);
+		if (rw == UIO_READ)
+			memcpy((char *)paddr + pgoff, (char *)p + copied,
+			    chunk);
+		else
+			memcpy((char *)p + copied, (char *)paddr + pgoff,
+			    chunk);
+		zfs_kunmap_local(paddr);
+		copied += chunk;
+	}
+
+	return (copied);
+}
+
 static int
 zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
     boolean_t revert)
 {
 	size_t cnt = MIN(n, uio->uio_resid);
 	size_t oldcnt = cnt;
+	boolean_t used_iter = B_TRUE;
 	int error = 0;
 
 	/*
-	 * Use the unchecked variants.  Callers already clamp the length to
-	 * the individual buffer, tighter than the bound __check_object_size()
-	 * knows, which is that of the whole SPL slab.  The user-supplied
-	 * side of the iov_iter is validated within _copy_to_iter() and is
-	 * unaffected.
+	 * If the request has pages pinned by the async Direct I/O submission
+	 * and is being served through the ARC (UIO_DIRECT was cleared by an
+	 * execution-time decline, the page-unaligned tail, or the checksum
+	 * retry), copy through those pages directly rather than through the
+	 * user virtual addresses.  The taskq thread has no user mm, and the
+	 * pinned pages are guaranteed resident, so the copy can never fault.
+	 * The pages are the caller's own buffer pages, so the data lands in
+	 * the same place.
 	 */
-	if (rw == UIO_READ)
-		cnt = _copy_to_iter(p, cnt, uio->uio_iter);
-	else
-		cnt = _copy_from_iter(p, cnt, uio->uio_iter);
+	if (rw == UIO_READ && uio->uio_dio.pages != NULL &&
+	    !(uio->uio_extflg & UIO_DIRECT)) {
+#ifdef ZFS_DEBUG
+		zfs_async_read_pinned_copies++;
+#endif
+		cnt = zfs_uiomove_pinned_pages(uio, p, cnt, rw);
+		used_iter = B_FALSE;
+	} else {
+		/*
+		 * Use the unchecked variants.  Callers already clamp the
+		 * length to the individual buffer, tighter than the bound
+		 * __check_object_size() knows, which is that of the whole
+		 * SPL slab.  The user-supplied side of the iov_iter is
+		 * validated within _copy_to_iter() and is unaffected.
+		 */
+		if (rw == UIO_READ)
+			cnt = _copy_to_iter(p, cnt, uio->uio_iter);
+		else
+			cnt = _copy_from_iter(p, cnt, uio->uio_iter);
+	}
 
 	/*
 	 * When operating on a full pipe no bytes are processed.
@@ -278,11 +356,17 @@ zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
 	 * a zfs_uiomove() which is expected to update the uio.  Partial
 	 * copies are allowed for both copy and move but EFAULT should
 	 * be returned for zfs_uiomove().
+	 *
+	 * The pinned-page branch never advanced the iterator, so there is
+	 * nothing to revert and uio_resid/uio_loffset below are the only
+	 * bookkeeping to undo.
 	 */
-	if (revert)
-		iov_iter_revert(uio->uio_iter, cnt);
-	else if (cnt != oldcnt)
+	if (revert) {
+		if (used_iter)
+			iov_iter_revert(uio->uio_iter, cnt);
+	} else if (cnt != oldcnt) {
 		error = SET_ERROR(EFAULT);
+	}
 
 	uio->uio_resid -= cnt;
 	uio->uio_loffset += cnt;
@@ -528,6 +612,13 @@ zfs_uio_free_dio_pages(zfs_uio_t *uio, zfs_uio_rw_t rw)
 
 	vmem_free(uio->uio_dio.pages,
 	    uio->uio_dio.npages * sizeof (struct page *));
+	/*
+	 * Clear the state so uio_dio.pages != NULL reliably means "this uio
+	 * owns a live pin set", which the async Direct I/O path tests.
+	 */
+	uio->uio_dio.pages = NULL;
+	uio->uio_dio.npages = 0;
+	uio->uio_dio.pinned = B_FALSE;
 }
 
 #if defined(HAVE_PIN_USER_PAGES_UNLOCKED)
@@ -572,8 +663,15 @@ zfs_uio_pin_user_pages(zfs_uio_t *uio, zfs_uio_rw_t rw)
 	}
 #endif
 	const struct iovec *iovp = zfs_uio_iter_iov(uio->uio_iter);
-	for (int i = 0; i < uio->uio_iovcnt; i++) {
-		size_t amt = iovp->iov_len - skip;
+	for (int i = 0; i < uio->uio_iovcnt && len > 0; i++) {
+		/*
+		 * The iterator count may have been truncated (e.g. by
+		 * RLIMIT_FSIZE in generic_write_checks()), so a segment's
+		 * declared length can exceed what remains of this request.
+		 * Clamp to the remaining count; pinning the full segment
+		 * would over-pin and drive 'len' negative.
+		 */
+		size_t amt = MIN(iovp->iov_len - skip, len);
 		if (amt == 0) {
 			iovp++;
 			skip = 0;
@@ -688,6 +786,13 @@ zfs_uio_get_dio_pages_alloc(zfs_uio_t *uio, zfs_uio_rw_t rw)
 		}
 
 		vmem_free(uio->uio_dio.pages, size);
+		/*
+		 * Clear the state so uio_dio.pages != NULL reliably means
+		 * "this uio owns a live pin set".
+		 */
+		uio->uio_dio.pages = NULL;
+		uio->uio_dio.npages = 0;
+		uio->uio_dio.pinned = B_FALSE;
 		return (error);
 	} else {
 		ASSERT3S(uio->uio_dio.npages, ==, npages);
