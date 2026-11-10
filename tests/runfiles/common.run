@@ -612,7 +612,7 @@ tests = ['zpool_set_001_pos', 'zpool_set_002_neg', 'zpool_set_003_neg',
     'zpool_set_feature_disable_clone', 'zpool_set_feature_disable_props',
     'zpool_set_feature_disable_recv',
     'zpool_set_feature_disable_volume', 'zpool_set_feature_disable_window',
-    'zpool_set_inherit',
+    'zpool_set_feature_disable_xattr', 'zpool_set_inherit',
     'vdev_set_001_pos', 'user_property_001_pos', 'user_property_002_neg',
     'zpool_set_clear_userprop','vdev_set_scheduler', 'vdev_set_allocating',
     'vdev_set_path']
