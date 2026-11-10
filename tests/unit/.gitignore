@@ -7,6 +7,7 @@
 /test_btree
 /test_sha2
 /test_blake3
+/test_aes
 /test_cityhash
 /test_nvpair
 /test_backtrace

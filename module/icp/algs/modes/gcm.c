@@ -54,6 +54,10 @@ boolean_t gcm_avx_can_use_movbe = B_FALSE;
 static gcm_impl gcm_impl_used = GCM_IMPL_GENERIC;
 #define	GCM_IMPL_USED	(*(volatile gcm_impl *)&gcm_impl_used)
 
+/* Set when the avx or avx2 implementation fails its self-test. */
+static boolean_t gcm_avx_failed = B_FALSE;
+static boolean_t gcm_avx2_failed = B_FALSE;
+
 extern boolean_t ASMABI atomic_toggle_boolean_nv(volatile boolean_t *);
 
 static inline boolean_t gcm_avx_will_work(void);
@@ -769,6 +773,80 @@ gcm_impl_get_ops(void)
 }
 
 /*
+ * Known answers from Test Case 2 of McGrew and Viega, "The Galois/Counter
+ * Mode of Operation (GCM)", as submitted to NIST: with hash key H, GHASH of
+ * the ciphertext block C is X1 = C.H, then GHASH(H, A, C) = (X1 ^ L).H for
+ * the lengths block L.
+ */
+static const uint8_t gcm_selftest_h[16] = {
+	0x66, 0xe9, 0x4b, 0xd4, 0xef, 0x8a, 0x2c, 0x3b,
+	0x88, 0x4c, 0xfa, 0x59, 0xca, 0x34, 0x2b, 0x2e
+};
+static const uint8_t gcm_selftest_c[16] = {
+	0x03, 0x88, 0xda, 0xce, 0x60, 0xb6, 0xa3, 0x92,
+	0xf3, 0x28, 0xc2, 0xb9, 0x71, 0xb2, 0xfe, 0x78
+};
+static const uint8_t gcm_selftest_x1[16] = {
+	0x5e, 0x2e, 0xc7, 0x46, 0x91, 0x70, 0x62, 0x88,
+	0x2c, 0x85, 0xb0, 0x68, 0x53, 0x53, 0xde, 0xb7
+};
+static const uint8_t gcm_selftest_x2[16] = {
+	0xf3, 0x8c, 0xbb, 0x1a, 0xd6, 0x92, 0x23, 0xdc,
+	0xc3, 0x45, 0x7a, 0xe5, 0xb6, 0xb0, 0xf8, 0x85
+};
+
+/*
+ * Check an implementation's multiplication in GF(2^128) against known
+ * answers. Returns B_TRUE if it passes.
+ */
+boolean_t
+gcm_impl_selftest(const gcm_impl_ops_t *ops)
+{
+	uint64_t h[2], x[2];
+	boolean_t ok;
+
+	memcpy(h, gcm_selftest_h, sizeof (h));
+	memcpy(x, gcm_selftest_c, sizeof (x));
+	ops->mul(x, h, x);
+	ok = memcmp(x, gcm_selftest_x1, sizeof (x)) == 0;
+
+	/* The lengths block: no AAD, and 128 bits of ciphertext. */
+	x[1] ^= htonll(128);
+	ops->mul(x, h, x);
+	if (memcmp(x, gcm_selftest_x2, sizeof (x)) != 0)
+		ok = B_FALSE;
+
+	return (ok);
+}
+
+/*
+ * Stop using the avx2 or avx implementation, whichever is in use, after it
+ * failed a self-test, and fall back to the next one down. Returns the name of
+ * the implementation disabled, or NULL if neither was in use.
+ */
+const char *
+gcm_impl_disable_avx(void)
+{
+#ifdef CAN_USE_GCM_ASM
+	switch (GCM_IMPL_USED) {
+#if CAN_USE_GCM_ASM >= 2
+	case GCM_IMPL_AVX2:
+		atomic_swap_32(&gcm_avx2_failed, B_TRUE);
+		gcm_use_impl(GCM_IMPL_AVX);
+		return ("avx2-vaes");
+#endif
+	case GCM_IMPL_AVX:
+		atomic_swap_32(&gcm_avx_failed, B_TRUE);
+		gcm_use_impl(GCM_IMPL_GENERIC);
+		return ("avx");
+	default:
+		break;
+	}
+#endif
+	return (NULL);
+}
+
+/*
  * Initialize all supported implementations.
  */
 void
@@ -777,29 +855,35 @@ gcm_impl_init(void)
 	gcm_impl_ops_t *curr_impl;
 	int i, c;
 
-	/* Move supported implementations into gcm_supp_impls */
+	/*
+	 * Move supported implementations into gcm_supp_impls, leaving out any
+	 * that compute wrong answers on this CPU. The generic implementation
+	 * comes first and is kept regardless, as there is nothing to fall
+	 * back to.
+	 */
 	for (i = 0, c = 0; i < ARRAY_SIZE(gcm_all_impl); i++) {
 		curr_impl = (gcm_impl_ops_t *)gcm_all_impl[i];
 
-		if (curr_impl->is_supported())
-			gcm_supp_impl[c++] = (gcm_impl_ops_t *)curr_impl;
+		if (!curr_impl->is_supported())
+			continue;
+		if (!gcm_impl_selftest(curr_impl)) {
+			cmn_err(CE_WARN, "ICP: the %s implementation of gcm "
+			    "failed its self-test, and %s", curr_impl->name,
+			    c == 0 ? "can't be disabled" : "has been disabled");
+			if (c != 0)
+				continue;
+		}
+		gcm_supp_impl[c++] = curr_impl;
 	}
 	gcm_supp_impl_cnt = c;
 
 	/*
 	 * Set the fastest implementation given the assumption that the
-	 * hardware accelerated version is the fastest.
+	 * hardware accelerated version is the fastest. Implementations are
+	 * listed slowest first.
 	 */
-#if defined(__x86_64) && HAVE_SIMD(PCLMULQDQ)
-	if (gcm_pclmulqdq_impl.is_supported()) {
-		memcpy(&gcm_fastest_impl, &gcm_pclmulqdq_impl,
-		    sizeof (gcm_fastest_impl));
-	} else
-#endif
-	{
-		memcpy(&gcm_fastest_impl, &gcm_generic_impl,
-		    sizeof (gcm_fastest_impl));
-	}
+	memcpy(&gcm_fastest_impl, gcm_supp_impl[gcm_supp_impl_cnt - 1],
+	    sizeof (gcm_fastest_impl));
 
 	strlcpy(gcm_fastest_impl.name, "fastest", GCM_IMPL_NAME_MAX);
 
@@ -1080,7 +1164,7 @@ extern void ASMABI aes_gcm_dec_update_vaes_avx2(const uint8_t *in,
 static inline boolean_t
 gcm_avx2_will_work(void)
 {
-	return (kfpu_allowed() &&
+	return (kfpu_allowed() && !gcm_avx2_failed &&
 	    zfs_avx2_available() && zfs_vaes_available() &&
 	    zfs_vpclmulqdq_available());
 }
@@ -1089,7 +1173,7 @@ static inline boolean_t
 gcm_avx_will_work(void)
 {
 	/* Avx should imply aes-ni and pclmulqdq, but make sure anyhow. */
-	return (kfpu_allowed() &&
+	return (kfpu_allowed() && !gcm_avx_failed &&
 	    zfs_avx_available() && zfs_aes_available() &&
 	    zfs_pclmulqdq_available());
 }
