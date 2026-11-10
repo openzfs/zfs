@@ -18,10 +18,10 @@
 
 . $STF_SUITE/include/libtest.shlib
 
-if ! is_linux ; then
-	log_unsupported "renameat2 is linux-only"
+if ! is_linux && ! is_freebsd ; then
+	log_unsupported "renameat2 is Linux and FreeBSD only"
 elif ! renameat2 -C ; then
-	log_unsupported "renameat2 not supported on this (pre-3.15) linux kernel"
+	log_unsupported "renameat2 not supported on this kernel"
 fi
 
 DISK=${DISKS%% *}

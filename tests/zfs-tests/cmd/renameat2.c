@@ -26,8 +26,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 #include <sys/syscall.h>
 
+#if defined(__linux__)
 #ifndef SYS_renameat2
 #ifdef __NR_renameat2
 #define	SYS_renameat2 __NR_renameat2
@@ -40,6 +42,10 @@
 #else
 #error "SYS_renameat2 not known for this architecture."
 #endif
+#endif
+#elif defined(__FreeBSD__) && defined(AT_RENAME_NOREPLACE)
+/* FreeBSD's renameat2(2) arrived with AT_RENAME_NOREPLACE. */
+#define	HAVE_RENAMEAT2
 #endif
 
 #ifndef RENAME_NOREPLACE
@@ -57,8 +63,17 @@ static int
 sys_renameat2(int olddirfd, const char *oldpath,
     int newdirfd, const char *newpath, unsigned int flags)
 {
+#if defined(__linux__)
 	int ret = syscall(SYS_renameat2, olddirfd, oldpath, newdirfd, newpath,
 	    flags);
+#elif defined(HAVE_RENAMEAT2)
+	int ret = renameat2(olddirfd, oldpath, newdirfd, newpath, flags);
+#else
+	(void) olddirfd, (void) oldpath, (void) newdirfd, (void) newpath,
+	    (void) flags;
+	int ret = -1;
+	errno = ENOSYS;
+#endif
 	return ((ret < 0) ? -errno : ret);
 }
 
@@ -72,6 +87,8 @@ usage(void)
 static void
 check(void)
 {
+	/* A kernel without the syscall raises SIGSYS instead of ENOSYS. */
+	(void) signal(SIGSYS, SIG_IGN);
 	int err = sys_renameat2(AT_FDCWD, ".", AT_FDCWD, ".", RENAME_EXCHANGE);
 	exit(err == -ENOSYS);
 }
