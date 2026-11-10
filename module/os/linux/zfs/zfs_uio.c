@@ -310,49 +310,50 @@ zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
 {
 	size_t cnt = MIN(n, uio->uio_resid);
 	size_t oldcnt = cnt;
+	boolean_t used_iter = B_TRUE;
 	int error = 0;
 
 	/*
 	 * If the uio has pages pinned by the async Direct I/O submission but
-	 * the request is being served through the ARC (UIO_DIRECT cleared by a
-	 * read-time eligibility decline, the page-unaligned tail, or the
-	 * checksum retry), copy into the pinned pages directly rather than
-	 * through the user virtual addresses.  The taskq thread has no user
-	 * mm, and the pinned pages are guaranteed resident, so the copy can
-	 * never fault.  The pinned pages are the user's buffer pages, so the
-	 * data lands in the same place.  The EOF tail of an ordinary
-	 * synchronous Direct I/O read reaches this branch too which is also ok.
+	 * the request is being served through the ARC (an execution-time
+	 * decline, the page-unaligned tail, or the checksum retry), copy
+	 * through those pages directly rather than through the user virtual
+	 * addresses.  The taskq thread has no user mm, and the pinned pages
+	 * are guaranteed resident, so the copy can never fault.  The pages
+	 * are the caller's own buffer pages, so the data lands in the same
+	 * place.
 	 *
 	 * Writes are symmetric: when pages are pinned, a chunk served through
 	 * the ARC (a decline in zfs_setup_direct(), a partial block at the head
 	 * or tail of an otherwise Direct I/O request, or the first block while
 	 * the file's blocksize is grown) copies from the pinned pages into the
-	 * ARC buffer.  Unlike reads the UIO_DIRECT flag may still be set on
-	 * those chunks (dmu_write_uio_dnode() falls back to the ARC for the
-	 * unaligned head/tail without clearing it), so the flag is not checked
-	 * here: pinned pages are always the user's buffer and always resident.
+	 * ARC buffer.
 	 */
-	if (uio->uio_dio.pages != NULL &&
-	    !(uio->uio_extflg & UIO_DIRECT) && rw == UIO_READ) {
+	if (rw == UIO_READ && uio->uio_dio.pages != NULL &&
+	    !(uio->uio_extflg & UIO_DIRECT)) {
 #ifdef ZFS_DEBUG
 		zfs_async_read_pinned_copies++;
 #endif
 		cnt = zfs_uiomove_pinned_pages(uio, p, cnt, rw);
-	} else if (uio->uio_dio.pages != NULL && rw == UIO_WRITE) {
+		used_iter = B_FALSE;
+	} else if (rw == UIO_WRITE && uio->uio_dio.pages != NULL) {
 #ifdef ZFS_DEBUG
 		zfs_async_write_pinned_copies++;
 #endif
 		cnt = zfs_uiomove_pinned_pages(uio, p, cnt, rw);
+		used_iter = B_FALSE;
 	} else {
+		/*
+		 * Use the unchecked variants.  Callers already clamp the
+		 * length to the individual buffer, tighter than the bound
+		 * __check_object_size() knows, which is that of the whole
+		 * SPL slab.  The user-supplied side of the iov_iter is
+		 * validated within _copy_to_iter() and is unaffected.
+		 */
 		if (rw == UIO_READ)
-			cnt = copy_to_iter(p, cnt, uio->uio_iter);
+			cnt = _copy_to_iter(p, cnt, uio->uio_iter);
 		else
-			cnt = copy_from_iter(p, cnt, uio->uio_iter);
-
-		if (revert)
-			iov_iter_revert(uio->uio_iter, cnt);
-		else if (cnt != oldcnt)
-			error = EFAULT;
+			cnt = _copy_from_iter(p, cnt, uio->uio_iter);
 	}
 
 	/*
@@ -369,11 +370,18 @@ zfs_uiomove_iter(void *p, size_t n, zfs_uio_rw_t rw, zfs_uio_t *uio,
 	 * a zfs_uiomove() which is expected to update the uio.  Partial
 	 * copies are allowed for both copy and move but EFAULT should
 	 * be returned for zfs_uiomove().
+	 *
+	 * The pinned-page branches never advanced the iterator, so there is
+	 * nothing to revert for them; reverting anyway walks behind the start
+	 * of a single-buffer (ITER_UBUF) iterator and trips the BUG() in
+	 * iov_iter_revert().
 	 */
-	if (revert)
-		iov_iter_revert(uio->uio_iter, cnt);
-	else if (cnt != oldcnt)
+	if (revert) {
+		if (used_iter)
+			iov_iter_revert(uio->uio_iter, cnt);
+	} else if (cnt != oldcnt) {
 		error = SET_ERROR(EFAULT);
+	}
 
 	uio->uio_resid -= cnt;
 	uio->uio_loffset += cnt;
