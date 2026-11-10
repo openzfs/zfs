@@ -37,6 +37,10 @@ tests = ['pam_basic', 'pam_change_unmounted', 'pam_mount_recursively',
     'pam_nounmount', 'pam_recursive', 'pam_short_password']
 tags = ['functional', 'pam']
 
+[tests/functional/renameat2:FreeBSD]
+tests = ['renameat2_noreplace', 'renameat2_exchange']
+tags = ['functional', 'renameat2']
+
 [tests/functional/direct:FreeBSD]
 tests = ['dio_write_stable_pages']
 tags = ['functional', 'direct']

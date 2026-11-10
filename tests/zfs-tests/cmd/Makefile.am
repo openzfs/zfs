@@ -144,7 +144,6 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/user_ns_exec
 scripts_zfs_tests_bin_PROGRAMS += %D%/makedir
 scripts_zfs_tests_bin_PROGRAMS += %D%/mount_null_source
 scripts_zfs_tests_bin_PROGRAMS += %D%/open_by_fid
-scripts_zfs_tests_bin_PROGRAMS += %D%/renameat2
 scripts_zfs_tests_bin_PROGRAMS += %D%/statx
 scripts_zfs_tests_bin_PROGRAMS += %D%/statfs_nomount
 scripts_zfs_tests_bin_PROGRAMS += %D%/xattrtest
@@ -160,6 +159,8 @@ scripts_zfs_tests_bin_PROGRAMS  += %D%/read_dos_attributes %D%/write_dos_attribu
 %C%_read_dos_attributes_SOURCES  = %D%/linux_dos_attributes/read_dos_attributes.c
 %C%_write_dos_attributes_SOURCES = %D%/linux_dos_attributes/write_dos_attributes.c
 endif
+
+scripts_zfs_tests_bin_PROGRAMS += %D%/renameat2
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/file_fadvise
 %C%_file_fadvise_SOURCES  = %D%/file/file_fadvise.c
