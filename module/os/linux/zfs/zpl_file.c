@@ -286,9 +286,9 @@ zpl_file_accessed(struct file *filp)
  * Asynchronous Direct I/O reads.
  *
  * A read submitted on an asynchronous kiocb (libaio, io_uring) is handed to
- * a per-pool worker taskq instead of being executed by the submitting
- * thread.  The worker runs zfs_read_impl(), so every read semantic stays in
- * the one shared read path.
+ * a per-pool set of worker taskqs instead of being executed by the
+ * submitting thread.  The worker runs zfs_read_impl(), so every read
+ * semantic stays in the one shared read path.
  *
  * The worker has no user mm.  The submitting thread therefore pins the user
  * pages before dispatch (the same pin set the Direct I/O path uses) and takes
@@ -333,7 +333,8 @@ MODULE_PARM_DESC(zfs_async_dio_enabled,
 static unsigned int zfs_async_dio_task_depth = 32;
 module_param(zfs_async_dio_task_depth, uint, 0444);
 MODULE_PARM_DESC(zfs_async_dio_task_depth,
-	"Maximum worker threads in each pool's async Direct I/O taskq");
+	"Maximum async Direct I/O worker threads per pool, split across its "
+	"per-CPU taskqs");
 
 /*
  * Maximum bytes of user memory that async Direct I/O may keep pinned,
@@ -353,13 +354,18 @@ MODULE_PARM_DESC(zfs_async_dio_max_inflight,
 	"(0 = one quarter of RAM, capped at 4 GiB)");
 
 /*
- * Per-pool async Direct I/O workers.  One taskq shared by all datasets of a
- * pool gives head-of-line isolation between pools: a pool whose reads are
- * slow cannot occupy the workers of another pool.  Created in spa_add() and
+ * Per-pool async Direct I/O read workers.  Each pool has up to one read
+ * taskq per online CPU, shared by all of its datasets.  The shards keep
+ * dispatch and
+ * the taskq locks off a single lock when many CPUs submit at once, and
+ * per-pool ownership keeps a slow pool from occupying another pool's
+ * workers.  The total worker budget is zfs_async_dio_task_depth, split
+ * across the shards with at least one thread each.  Created in spa_add() and
  * destroyed in spa_remove(), after the pool is closed.
  */
 typedef struct zpl_async_dio_pool {
-	taskq_t		*read_taskq;
+	taskq_t		**read_taskqs;	/* per-CPU shards */
+	int		nr_taskqs;
 } zpl_async_dio_pool_t;
 
 static uint64_t
@@ -452,37 +458,65 @@ zpl_async_dio_rele(zfsvfs_t *zfsvfs)
 	}
 }
 
+static void
+zpl_async_dio_pool_free(zpl_async_dio_pool_t *pool)
+{
+	for (int i = 0; i < pool->nr_taskqs; i++) {
+		if (pool->read_taskqs[i] != NULL)
+			taskq_destroy(pool->read_taskqs[i]);
+	}
+	kmem_free(pool->read_taskqs,
+	    sizeof (taskq_t *) * pool->nr_taskqs);
+	kmem_free(pool, sizeof (*pool));
+}
+
 /*
- * Create the async Direct I/O worker taskq for a pool.  Called from
- * spa_add(), before the pool can have any datasets.
+ * Create the async Direct I/O read taskqs for a pool.  Called from
+ * spa_add(), before the pool can have any datasets.  A pool whose taskqs
+ * cannot be created simply serves its reads synchronously.
  */
 void
 zpl_async_dio_pool_create(struct spa *spa)
 {
 	zpl_async_dio_pool_t *pool;
+	int nthreads;
 	char name[64];
 
 	if (zpl_async_dio_io_cache == NULL || zfs_async_dio_task_depth == 0)
 		return;
 
 	pool = kmem_zalloc(sizeof (*pool), KM_SLEEP);
-	(void) snprintf(name, sizeof (name), "zpl_async_read_%s",
-	    spa_name(spa));
-	pool->read_taskq = taskq_create(name,
-	    MAX(zfs_async_dio_task_depth, 1), maxclsyspri, 0, INT_MAX,
-	    TASKQ_DYNAMIC);
-	if (pool->read_taskq == NULL) {
-		kmem_free(pool, sizeof (*pool));
-		return;
+
+	/*
+	 * Use up to one shard per online CPU, capped by the worker budget so
+	 * a pool never creates more taskqs than it has workers, and split
+	 * the budget across them so the aggregate thread count does not
+	 * multiply by the CPU count.
+	 */
+	pool->nr_taskqs = MIN(MAX((int)num_online_cpus(), 1),
+	    MAX((int)zfs_async_dio_task_depth, 1));
+	pool->read_taskqs = kmem_zalloc(
+	    sizeof (taskq_t *) * pool->nr_taskqs, KM_SLEEP);
+	nthreads = MAX((int)zfs_async_dio_task_depth / pool->nr_taskqs, 1);
+
+	for (int i = 0; i < pool->nr_taskqs; i++) {
+		(void) snprintf(name, sizeof (name), "zpl_async_read_%s_%d",
+		    spa_name(spa), i);
+		pool->read_taskqs[i] = taskq_create(name, nthreads,
+		    maxclsyspri, 0, INT_MAX, TASKQ_DYNAMIC);
+		if (pool->read_taskqs[i] == NULL) {
+			zpl_async_dio_pool_free(pool);
+			return;
+		}
 	}
 
 	spa->spa_zpl_async_dio_pool = pool;
 }
 
 /*
- * Destroy a pool's async Direct I/O taskq.  Called from spa_remove(), after
- * the pool is closed, so no dataset of the pool can have a request in flight
- * and taskq_destroy() joins the workers immediately.
+ * Destroy a pool's async Direct I/O read taskqs.  Called from spa_remove(),
+ * after the pool is closed, so no dataset of the pool can have a request in
+ * flight and taskq_destroy() joins the workers immediately.
  */
 void
 zpl_async_dio_pool_destroy(struct spa *spa)
@@ -491,10 +525,8 @@ zpl_async_dio_pool_destroy(struct spa *spa)
 
 	spa->spa_zpl_async_dio_pool = NULL;
 
-	if (pool != NULL) {
-		taskq_destroy(pool->read_taskq);
-		kmem_free(pool, sizeof (*pool));
-	}
+	if (pool != NULL)
+		zpl_async_dio_pool_free(pool);
 }
 
 /*
@@ -610,8 +642,9 @@ zpl_async_dio_queue(struct kiocb *kiocb, struct iov_iter *iter, ssize_t count)
 	zpl_async_dio_pool_t *pool;
 	zpl_async_dio_io_t *aio;
 	fstrans_cookie_t cookie;
+	taskq_t *taskq;
 	int ioflag = filp->f_flags | zfs_io_flags(kiocb);
-	int error;
+	int shard, error;
 
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
@@ -701,7 +734,16 @@ zpl_async_dio_queue(struct kiocb *kiocb, struct iov_iter *iter, ssize_t count)
 
 	aio->uio.uio_extflg |= UIO_ASYNC;
 
-	if (taskq_dispatch(pool->read_taskq, zpl_async_dio_task, aio,
+	/*
+	 * Dispatch to the shard of the submitting CPU: each shard has its
+	 * own taskq lock and wait queue, so concurrent submitters on
+	 * different CPUs do not contend on a single lock.  The shard count
+	 * is fixed for the pool's lifetime, so a modulo is enough.
+	 */
+	shard = raw_smp_processor_id() % pool->nr_taskqs;
+	taskq = pool->read_taskqs[shard];
+
+	if (taskq_dispatch(taskq, zpl_async_dio_task, aio,
 	    TQ_SLEEP) == TASKQID_INVALID) {
 		/*
 		 * The request never executed, so release the pin set and the
