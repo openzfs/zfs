@@ -2553,6 +2553,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/vdev_zaps/vdev_zaps_006_pos.ksh \
 	functional/vdev_zaps/vdev_zaps_007_pos.ksh \
 	functional/vdev_zaps/vdev_zaps_008_pos.ksh \
+	functional/vdev_zaps/vdev_zaps_009_pos.ksh \
 	functional/write_dirs/cleanup.ksh \
 	functional/write_dirs/setup.ksh \
 	functional/write_dirs/write_dirs_001_pos.ksh \

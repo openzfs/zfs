@@ -23,7 +23,7 @@
 .Nd was written by the ZFS Developers as a ZFS unit test
 .Sh SYNOPSIS
 .Nm
-.Op Fl VEG
+.Op Fl VEGZ
 .Op Fl v Ar vdevs
 .Op Fl s Ar size_of_each_vdev
 .Op Fl a Ar alignment_shift
@@ -194,6 +194,15 @@ numbers, or pass a single 0 to disable this feature.
 Verbose (use multiple times for ever more verbosity).
 .It Fl X , -raidz-expansion
 Perform a dedicated raidz expansion test.
+.It Fl Z , -vdev-zaps
+Test root-vdev ZAP activation and recovery using a three-way file-backed mirror,
+then exit without running the random workload.
+Incompatible with
+.Fl E ,
+.Fl B ,
+.Fl M ,
+and
+.Fl X .
 .El
 .
 .Sh EXAMPLES
