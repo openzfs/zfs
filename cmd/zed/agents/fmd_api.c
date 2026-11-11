@@ -31,6 +31,7 @@
 #include <sys/types.h>
 #include <sys/fm/protocol.h>
 #include <uuid/uuid.h>
+#include <errno.h>
 #include <signal.h>
 #include <string.h>
 #include <time.h>
@@ -589,11 +590,12 @@ fmd_timer_t *
 fmd_timer_install(fmd_hdl_t *hdl, void *arg, fmd_event_t *ep, hrtime_t delta)
 {
 	(void) ep;
+	fmd_module_t *mp = (fmd_module_t *)hdl;
 	struct sigevent sev;
 	struct itimerspec its;
 	fmd_timer_t *ftp;
 
-	ftp = fmd_hdl_alloc(hdl, sizeof (fmd_timer_t), FMD_SLEEP);
+	ftp = fmd_hdl_zalloc(hdl, sizeof (fmd_timer_t), FMD_SLEEP);
 	ftp->ft_arg = arg;
 	ftp->ft_hdl = hdl;
 	ftp->ft_id = ++fmd_timer_next_id;
@@ -611,8 +613,22 @@ fmd_timer_install(fmd_hdl_t *hdl, void *arg, fmd_event_t *ep, hrtime_t delta)
 	sev.sigev_value.sival_ptr = (void *)ftp->ft_id;
 	sev.sigev_signo = 0;
 
-	timer_create(CLOCK_REALTIME, &sev, &ftp->ft_tid);
-	timer_settime(ftp->ft_tid, 0, &its, NULL);
+	/*
+	 * Modules expect this to succeed.  A timer that cannot be armed is
+	 * logged and never expires, but stays installed for the module to
+	 * remove as usual.
+	 */
+	if (timer_create(CLOCK_REALTIME, &sev, &ftp->ft_tid) != 0) {
+		zed_log_msg(LOG_ERR, "%s: failed to create timer: %s",
+		    mp->mod_name, strerror(errno));
+		return (ftp);
+	}
+	ftp->ft_created = B_TRUE;
+	if (timer_settime(ftp->ft_tid, 0, &its, NULL) != 0) {
+		zed_log_msg(LOG_ERR, "%s: failed to arm timer: %s",
+		    mp->mod_name, strerror(errno));
+		return (ftp);
+	}
 
 	fmd_hdl_debug(hdl, "installing timer for %d secs (%p)",
 	    (int)its.it_value.tv_sec, ftp->ft_tid);
@@ -640,7 +656,8 @@ fmd_timer_remove(fmd_hdl_t *hdl, fmd_timer_t *ftp)
 	fmd_hdl_debug(hdl, "removing timer (%p)", ftp->ft_tid);
 	*pp = ftp->ft_next;
 
-	timer_delete(ftp->ft_tid);
+	if (ftp->ft_created)
+		timer_delete(ftp->ft_tid);
 
 	fmd_hdl_free(hdl, ftp, sizeof (fmd_timer_t));
 }

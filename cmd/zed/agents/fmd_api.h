@@ -44,6 +44,7 @@ typedef struct fmd_timer {
 	fmd_hdl_t	*ft_hdl;
 	uintptr_t	ft_id;		/* what the notification carries */
 	struct fmd_timer *ft_next;	/* list of installed timers */
+	boolean_t	ft_created;	/* ft_tid is a valid timer */
 } fmd_timer_t;
 
 #define	id_t	fmd_timer_t *

@@ -22,7 +22,9 @@
  */
 
 #include <sys/types.h>
+#include <sys/resource.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,10 +51,16 @@ static pthread_cond_t ev_cv = PTHREAD_COND_INITIALIZER;
 static nvlist_t *ev_queue[MAX_EVENTS];
 static int ev_count;
 
+/* Messages logged at LOG_ERR or above */
+static int err_msgs;
+
 void
 zed_log_msg(int priority, const char *fmt, ...)
 {
-	(void) priority, (void) fmt;
+	(void) fmt;
+
+	if (priority <= LOG_ERR)
+		err_msgs++;
 }
 
 void
@@ -184,6 +192,7 @@ mod_register(void)
 	offthread_calls = 0;
 	timeout_id = NULL;
 	timeout_arg = NULL;
+	err_msgs = 0;
 	dispatcher = pthread_self();
 
 	return (hdl);
@@ -295,6 +304,68 @@ test_fmd_timer_unregister(const MunitParameter params[], void *data)
 	return (MUNIT_OK);
 }
 
+static void
+noop_notify(union sigval sv)
+{
+	(void) sv;
+}
+
+/*
+ * A timer that cannot be created is logged, never expires, and stays
+ * installed until the module removes it.  The kernel refuses to create a
+ * timer once RLIMIT_SIGPENDING is exhausted.
+ */
+static MunitResult
+test_fmd_timer_not_created(const MunitParameter params[], void *data)
+{
+	fmd_hdl_t *hdl = mod_register();
+	fmd_timer_t *ftp = NULL;
+	struct rlimit rl;
+	struct rlimit none;
+	struct sigevent sev;
+	timer_t tid;
+	int err;
+	int n;
+
+	(void) params, (void) data;
+
+	unit_zero(getrlimit(RLIMIT_SIGPENDING, &rl));
+	none = rl;
+	none.rlim_cur = 0;
+	unit_zero(setrlimit(RLIMIT_SIGPENDING, &none));
+
+	memset(&sev, 0, sizeof (sev));
+	sev.sigev_notify = SIGEV_THREAD;
+	sev.sigev_notify_function = noop_notify;
+	err = timer_create(CLOCK_REALTIME, &sev, &tid);
+	if (err != 0)
+		ftp = fmd_timer_install(hdl, NULL, NULL, MSEC2NSEC(1));
+	unit_zero(setrlimit(RLIMIT_SIGPENDING, &rl));
+	if (err == 0) {
+		(void) timer_delete(tid);
+		fmd_hdl_unregister(hdl);
+		return (MUNIT_SKIP);
+	}
+
+	unit_notnull(ftp);
+	unit_eq(err_msgs, 1);
+
+	(void) usleep(100000);
+	(void) pthread_mutex_lock(&ev_lock);
+	n = ev_count;
+	(void) pthread_mutex_unlock(&ev_lock);
+	unit_zero(n);
+
+	/* still installed, so removing it logs no error */
+	fmd_timer_remove(hdl, ftp);
+	unit_eq(err_msgs, 1);
+
+	fmd_hdl_unregister(hdl);
+	unit_zero(timeout_calls);
+
+	return (MUNIT_OK);
+}
+
 /* ========== */
 
 static const MunitTest fmd_timer_tests[] = {
@@ -302,6 +373,7 @@ static const MunitTest fmd_timer_tests[] = {
 	UNIT_TEST("removed",		test_fmd_timer_removed),
 	UNIT_TEST("rearmed",		test_fmd_timer_rearmed),
 	UNIT_TEST("unregister",		test_fmd_timer_unregister),
+	UNIT_TEST("not_created",	test_fmd_timer_not_created),
 	{ 0 },
 };
 
