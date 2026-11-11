@@ -44,7 +44,7 @@ fi
 
 # refresh package index before removing packages
 sudo apt-get -y update
-sudo apt-get -y remove $(dpkg-query -f '${binary:Package}\n' -W | grep -E "'$unneeded'")
+sudo apt-get -y remove $(dpkg-query -f '${binary:Package}\n' -W | grep -E "$unneeded")
 sudo apt-get -y autoremove
 
 # Next, remove unneeded files in /usr.  This frees up an additional 25GB.
