@@ -2302,14 +2302,15 @@ resilver per leaf device, given in bytes.
 If an indirect split block contains more than this many possible unique
 combinations when being reconstructed, consider it too computationally
 expensive to check them all.
-Instead, first try the few combinations that one damaged or stale mirror
-child leaves intact: every segment from the copies not known to be missing,
-then, for each child in turn, every segment from that child.
-Then try at most this many randomly selected
+Instead, try at most this many randomly selected
 combinations each time the block is accessed.
 This allows all segment copies to participate fairly
 in the reconstruction when all combinations
 cannot be checked and prevents repeated use of one bad copy.
+In either case, first try at most this many combinations in which
+the segments on each top-level mirror all come from the same child.
+These find the block whenever each mirror has a child that holds all its
+segments intact.
 .
 .It Sy zfs_recover Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Set to attempt to recover from fatal errors.
