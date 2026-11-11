@@ -149,6 +149,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/crypto/aes_gcm_test.json \
 	functional/crypto/aes_gcm_test.txt \
 	functional/cli_root/cli_common.kshlib \
+	functional/cli_root/zfs_change-key/blockfiles/key_mismatch.dat.bz2 \
 	functional/cli_root/zfs_copies/zfs_copies.cfg \
 	functional/cli_root/zfs_copies/zfs_copies.kshlib \
 	functional/cli_root/zfs_create/properties.kshlib \
