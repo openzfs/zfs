@@ -207,12 +207,12 @@ static uint_t zfs_condense_indirect_commit_entry_delay_ms = 0;
 /*
  * If an indirect split block contains more than this many possible unique
  * combinations when being reconstructed, consider it too computationally
- * expensive to check them all. Instead, try the few combinations that
- * vdev_indirect_splits_enumerate_likely() selects, then at most this many
+ * expensive to check them all. Instead, try at most this many
  * randomly-selected combinations each time the block is accessed.  This
  * allows all segment copies to participate fairly in the reconstruction
  * when all combinations cannot be checked and prevents repeated use of one
- * bad copy.
+ * bad copy.  In either case, vdev_indirect_splits_enumerate_likely() first
+ * tries at most this many combinations.
  */
 uint_t zfs_reconstruct_indirect_combinations_max = 4096;
 
@@ -1588,64 +1588,67 @@ vdev_indirect_splits_enumerate_randomly(indirect_vsd_t *iv, zio_t *zio)
 }
 
 /*
- * Return the unique copy of this split that child c holds.  When child c
- * does not exist or has no data, return the first unique copy held by a
- * child that the DTL does not mark as missing the data, else the first
- * unique copy.
- */
-static indirect_child_t *
-vdev_indirect_split_copy(indirect_split_t *is, int c)
-{
-	indirect_child_t *ic = NULL;
-
-	if (c >= 0 && c < is->is_children && is->is_child[c].ic_data != NULL)
-		ic = &is->is_child[c];
-
-	for (int i = 0; ic == NULL && i < is->is_children; i++) {
-		if (is->is_child[i].ic_data != NULL &&
-		    is->is_child[i].ic_error == 0)
-			ic = &is->is_child[i];
-	}
-
-	if (ic == NULL)
-		return (list_head(&is->is_unique_child));
-
-	return (ic->ic_duplicate != NULL ? ic->ic_duplicate : ic);
-}
-
-/*
- * Before sampling at random, try the combinations a single bad child would
- * leave intact: the copies the DTL does not mark as missing, then for each
- * child index, every split from that child.  When one mirror child is
- * damaged or stale on every split, the good combination is one of these,
- * while random sampling finds it with probability attempts / 2^splits.
+ * Try the combinations in which the splits on each top-level vdev all come
+ * from the same mirror child, chosen per top-level vdev, as child c of one
+ * mirror has no relation to child c of another.  When one child of a
+ * mirror is damaged or stale on every split it holds, the good combination
+ * is one of these: enumerate_all() may try it last, and random sampling
+ * finds it with probability attempts / 2^splits.  A split whose chosen
+ * child has no data takes its first unique copy instead.  At most
+ * iv_attempts_max combinations are tried.
  */
 static int
 vdev_indirect_splits_enumerate_likely(indirect_vsd_t *iv, zio_t *zio)
 {
-	boolean_t stale = B_FALSE;
-	int children = 0;
+	boolean_t found = B_FALSE;
+	uint64_t attempts = 0;
+	uint64_t tops = 0;
 
 	for (indirect_split_t *is = list_head(&iv->iv_splits);
-	    is != NULL; is = list_next(&iv->iv_splits, is)) {
-		children = MAX(children, is->is_children);
-		for (int i = 0; i < is->is_children; i++) {
-			if (is->is_child[i].ic_error != 0)
-				stale = B_TRUE;
-		}
-	}
+	    is != NULL; is = list_next(&iv->iv_splits, is))
+		tops = MAX(tops, is->is_vdev->vdev_id + 1);
 
-	/* Without stale copies, the DTL choice is the one for child 0. */
-	for (int c = stale ? -1 : 0; c < children; c++) {
+	/* The child tried, and the number of children, per top-level vdev. */
+	int *child = kmem_zalloc(tops * sizeof (int), KM_SLEEP);
+	int *width = kmem_zalloc(tops * sizeof (int), KM_SLEEP);
+
+	for (indirect_split_t *is = list_head(&iv->iv_splits);
+	    is != NULL; is = list_next(&iv->iv_splits, is))
+		width[is->is_vdev->vdev_id] = is->is_children;
+
+	while (attempts++ < iv->iv_attempts_max) {
 		for (indirect_split_t *is = list_head(&iv->iv_splits);
-		    is != NULL; is = list_next(&iv->iv_splits, is))
-			is->is_good_child = vdev_indirect_split_copy(is, c);
+		    is != NULL; is = list_next(&iv->iv_splits, is)) {
+			indirect_child_t *ic =
+			    &is->is_child[child[is->is_vdev->vdev_id]];
 
-		if (vdev_indirect_splits_checksum_validate(iv, zio) == 0)
-			return (0);
+			if (ic->ic_data == NULL)
+				ic = list_head(&is->is_unique_child);
+			else if (ic->ic_duplicate != NULL)
+				ic = ic->ic_duplicate;
+			is->is_good_child = ic;
+		}
+
+		if (vdev_indirect_splits_checksum_validate(iv, zio) == 0) {
+			found = B_TRUE;
+			break;
+		}
+
+		/* Count in base width[t], as enumerate_all() does. */
+		uint64_t t;
+		for (t = 0; t < tops; t++) {
+			if (++child[t] < width[t])
+				break;
+			child[t] = 0;
+		}
+		if (t == tops)
+			break;
 	}
 
-	return (SET_ERROR(ECKSUM));
+	kmem_free(child, tops * sizeof (int));
+	kmem_free(width, tops * sizeof (int));
+
+	return (found ? 0 : SET_ERROR(ECKSUM));
 }
 
 /*
@@ -1892,11 +1895,11 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 			iv->iv_unique_combinations *= is->is_unique_children;
 	}
 
-	if (iv->iv_unique_combinations <= iv->iv_attempts_max) {
-		error = vdev_indirect_splits_enumerate_all(iv, zio);
-	} else {
-		error = vdev_indirect_splits_enumerate_likely(iv, zio);
-		if (error != 0)
+	error = vdev_indirect_splits_enumerate_likely(iv, zio);
+	if (error != 0) {
+		if (iv->iv_unique_combinations <= iv->iv_attempts_max)
+			error = vdev_indirect_splits_enumerate_all(iv, zio);
+		else
 			error = vdev_indirect_splits_enumerate_randomly(iv,
 			    zio);
 	}
