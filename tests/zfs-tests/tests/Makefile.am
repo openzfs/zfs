@@ -204,6 +204,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/cli_root/zpool_iostat/zpool_iostat.kshlib \
 	functional/cli_root/zpool_initialize/zpool_initialize.kshlib \
 	functional/cli_root/zpool_labelclear/labelclear.cfg \
+	functional/cli_root/zpool_online/zpool_online.cfg \
 	functional/cli_root/zpool_remove/zpool_remove.cfg \
 	functional/cli_root/zpool_reopen/zpool_reopen.cfg \
 	functional/cli_root/zpool_reopen/zpool_reopen.shlib \
@@ -1372,6 +1373,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_online/setup.ksh \
 	functional/cli_root/zpool_online/zpool_online_001_pos.ksh \
 	functional/cli_root/zpool_online/zpool_online_002_neg.ksh \
+	functional/cli_root/zpool_online/zpool_online_003_pos.ksh \
 	functional/cli_root/zpool_prefetch/cleanup.ksh \
 	functional/cli_root/zpool_prefetch/setup.ksh \
 	functional/cli_root/zpool_prefetch/zpool_prefetch_001_pos.ksh \

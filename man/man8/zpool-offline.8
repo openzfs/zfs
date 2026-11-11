@@ -17,7 +17,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd December 21, 2023
+.Dd November 10, 2026
 .Dt ZPOOL-OFFLINE 8
 .Os
 .
@@ -51,7 +51,7 @@ While the
 .Ar device
 is offline or force-faulted, no attempt is made to read or write to the device.
 dRAID spares can not be offlined or force faulted.
-Traditional spares can only be offlined or force-faulted when they are active.
+Traditional spares can only be force-faulted when they are active.
 .Bl -tag -width Ds
 .It Fl -power
 Power off the device's slot in the storage enclosure.
@@ -75,7 +75,6 @@ Upon reboot, the specified physical device reverts to its previous state.
 .Ar device Ns …
 .Xc
 Brings the specified physical device online.
-This command is not applicable to spares.
 .Bl -tag -width Ds
 .It Fl -power
 Power on the device's slot in the storage enclosure and wait for the device

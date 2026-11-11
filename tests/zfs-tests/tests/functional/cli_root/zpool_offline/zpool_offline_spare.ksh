@@ -23,10 +23,11 @@
 #
 # STRATEGY:
 # 	1. Create pool with traditional spare
-#	2. Verify we can't offline and fault an inactive traditional spare
-#	3. Verify we can offline and fault an active traditional spare
-#	4. Create draid pool with draid spare
-#	5. Verify we can't offline/fault draid spare
+#	2. Verify we can offline an inactive traditional spare
+#	3. Verify we can't fault an inactive traditional spare
+#	4. Verify we can offline and fault an active traditional spare
+#	5. Create draid pool with draid spare
+#	6. Verify we can't offline/fault draid spare
 
 TESTPOOL2=testpool2
 function cleanup
@@ -48,14 +49,21 @@ log_must truncate -s 100M $TESTDIR/file-vdev-{1..3}
 log_must zpool create $TESTPOOL2 mirror $TESTDIR/file-vdev-1 \
     $TESTDIR/file-vdev-2 spare $TESTDIR/file-vdev-3
 
-# Test that we can't offline an inactive spare
-log_mustnot zpool offline $TESTPOOL2 $TESTDIR/file-vdev-3
+# Test that we can offline an inactive spare
+log_must zpool offline $TESTPOOL2 $TESTDIR/file-vdev-3
+log_must check_state $TESTPOOL2 $TESTDIR/file-vdev-3 "offline"
+log_must zpool online $TESTPOOL2 $TESTDIR/file-vdev-3
+log_must check_state $TESTPOOL2 $TESTDIR/file-vdev-3 "avail"
+
+# Test that we can't fault an inactive spare
 log_mustnot zpool offline -f $TESTPOOL2 $TESTDIR/file-vdev-3
 
 # Test that we can offline an active spare
 log_must zpool replace $TESTPOOL2 $TESTDIR/file-vdev-1 $TESTDIR/file-vdev-3
 log_must zpool offline $TESTPOOL2 $TESTDIR/file-vdev-3
+log_must check_state $TESTPOOL2 $TESTDIR/file-vdev-3 "offline"
 log_must zpool online $TESTPOOL2 $TESTDIR/file-vdev-3
+log_must check_state $TESTPOOL2 $TESTDIR/file-vdev-3 "inuse"
 log_must zpool offline -f $TESTPOOL2 $TESTDIR/file-vdev-3
 
 destroy_pool $TESTPOOL2
