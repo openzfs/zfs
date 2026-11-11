@@ -75,6 +75,7 @@ AC_CONFIG_FILES([
 	rpm/redhat/zfs-kmod.spec
 	rpm/redhat/zfs.spec
 	tests/zfs-tests/tests/Makefile
+	tests/zfs-tests/tests/functional/Makefile
 	zfs.release
 ])
 
