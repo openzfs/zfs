@@ -6,6 +6,11 @@
 
 set -eu
 
+# --cache-key: print the key under which the image of this OS is cached
+# --download:  download the image into $QEMU_CACHE, and do nothing else
+MODE=""
+case "$1" in --cache-key|--download) MODE="$1"; shift ;; esac
+
 # short name used in zfs-qemu.yml
 OS="$1"
 
@@ -173,6 +178,69 @@ case "$OS" in
     ;;
 esac
 
+# OSes whose files zfs-qemu-cache.yml does not cache.  A repository has
+# 10 GB of Actions cache by default, and the images of the 16 default OSes
+# with FreeBSD's src.txz measured 11.42 GB on 11 Nov 2026.  AlmaLinux's
+# cost the most per OS: 2.80 GB, 1.66 GB of it for AlmaLinux 8.  An
+# organization or repository admin can raise the limit, billed per GB
+# (GitHub changelog, 2025-11-20); then empty this list to cache them all.
+UNCACHED_OS="almalinux8 almalinux9 almalinux10"
+
+# zfs-qemu-cache.yml saves, and zfs-qemu.yml restores, the files downloaded
+# below, in $QEMU_CACHE/image.
+CACHE="${QEMU_CACHE:+$QEMU_CACHE/image}"
+case " $UNCACHED_OS " in *" $OS "*) CACHE="" ;; esac
+if [ -n "$URLxz" ] ; then
+  URLS="$URLxz $KSRC"
+else
+  URLS="$URL"
+fi
+if [ -n "$MODE" ] && [ -z "$CACHE" ] ; then
+  exit 0
+fi
+
+# The key changes with the URLs, and with the size and date of each file
+# on the server, which unlike its ETag are the same on every mirror.  When
+# the server does not give them, the key is "unverified": the restore then
+# falls back to the files last cached from these URLs, and they are not
+# saved again under that key.
+if [ "$MODE" = "--cache-key" ] ; then
+  prefix="qemu-image-$OS-$(echo "$URLS" | sha256sum | cut -c1-16)-"
+  stamps=""
+  for u in $URLS ; do
+    stamp=$(curl -fsSIL --max-time 30 "$u" | tr -d '\r' | awk '
+      { name = tolower($0); sub(/:.*/, "", name); sub(/^[^:]*: */, "") }
+      name == "content-length" { size = $0 }
+      name == "last-modified" { date = $0 }
+      END { if (size != "" && date != "") print size, date }')
+    if [ -z "$stamp" ] ; then
+      echo "::warning::No size and date for $u" >&2
+      stamps="unverified"
+      break
+    fi
+    echo "$u: $stamp" >&2
+    stamps="$stamps$u $stamp;"
+  done
+  if [ "$stamps" != "unverified" ] ; then
+    stamps=$(echo "$stamps" | sha256sum | cut -c1-16)
+  fi
+  echo "image-key=$prefix$stamps"
+  echo "image-restore-keys=$prefix"
+  exit 0
+fi
+
+if [ "$MODE" = "--download" ] ; then
+  mkdir -p "$CACHE"
+  if [ -n "$URLxz" ] ; then
+    curl --fail -LSs -o "$CACHE/image" "$URLxz"
+    curl --fail -LSs -o "$CACHE/src.txz" "$KSRC"
+  else
+    curl --fail -LSs -o "$CACHE/image" "$URL"
+  fi
+  ls -l "$CACHE"
+  exit 0
+fi
+
 # environment file
 ENV="/var/tmp/env.txt"
 echo "ENV=$ENV" >> $ENV
@@ -210,7 +278,20 @@ while true; do test -b $DISK && break; sleep 1; done
 # to curl if that doesn't work.  It is hoped that the curl fallback will get
 # around the occasional "ERROR 502: Bad Gateway" errors.
 IMG="/mnt/tests/cloud-image"
+
+# The restored cache holds what the server has: no need to download it.
+if [ -n "$CACHE" ] && [ "${IMAGE_CACHE_HIT:-}" = "true" ] ; then
+  echo "Using the cached image"
+  IMG="$CACHE/image"
+  if [ -n "$URLxz" ] ; then
+    mv "$CACHE/src.txz" ~/src.txz
+  fi
+fi
+
 for cmd in 'axel -q -o' 'curl --fail -LSs -o' ; do
+  if [ -s "$IMG" ] ; then
+    break
+  fi
   if [ ! -z "$URLxz" ]; then
     echo "Loading $URLxz with $cmd..."
     time eval "$cmd $IMG $URLxz" || true
@@ -254,20 +335,38 @@ done
 # In this case let's say the raw.xz link in current/ is bad, so look though the
 # other snapshot links for the newest existing raw.xz file.
 if [ ! -z "$URLxz" ] && [ ! -s "$IMG" ] ; then
-  URLxz=$(wget --accept "*.raw.xz" --spider -np --recursive  --no-verbose \
+  SNAPxz=$(wget --accept "*.raw.xz" --spider -np --recursive  --no-verbose \
     $(dirname $(dirname $URLxz)) 2>&1  | awk '/200 OK/{print $(NF-2)}' | \
     sort -n | tail -n 1)
-  echo "Couldn't download FreeBSD raw.xz.  Trying fallback snapshot $URLxz"
-  curl --fail -LSs -o $IMG $URLxz
+  echo "Couldn't download FreeBSD raw.xz.  Trying fallback snapshot $SNAPxz"
+  if [ -n "$SNAPxz" ] ; then
+    curl --fail -LSs -o "$IMG" "$SNAPxz" || true
+  fi
+fi
+
+# When the files could not be downloaded, use the ones last cached from
+# these URLs.
+if [ -n "$CACHE" ] && [ -s "$CACHE/image" ] && { [ ! -s "$IMG" ] ||
+    { [ -n "$URLxz" ] && [ ! -s ~/src.txz ]; }; } ; then
+  echo "::warning::Could not download $OSNAME, using the cached image"
+  rm -f "$IMG"
+  IMG="$CACHE/image"
+  if [ -n "$URLxz" ] ; then
+    mv "$CACHE/src.txz" ~/src.txz
+  fi
+fi
+if [ ! -s "$IMG" ] ; then
+  echo "Could not download $OSNAME"
+  exit 1
 fi
 
 echo "Importing VM image to zvol..."
 if [ ! -z "$URLxz" ]; then
-  xzcat -T0 $IMG | sudo dd of=$DISK bs=4M
+  xzcat -T0 "$IMG" | sudo dd of=$DISK bs=4M
 else
-  sudo qemu-img dd -f qcow2 -O raw if=$IMG of=$DISK bs=4M
+  sudo qemu-img dd -f qcow2 -O raw if="$IMG" of=$DISK bs=4M
 fi
-rm -f $IMG
+rm -f "$IMG"
 
 PUBKEY=$(cat ~/.ssh/id_ed25519.pub)
 if [ ${OS:0:7} != "freebsd" ]; then

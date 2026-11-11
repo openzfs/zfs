@@ -70,6 +70,35 @@ can also alter the selection. The `workflow_dispatch` trigger accepts
 `fedora_kernel_ver` (Fedora-only run with a chosen kernel) and
 `specific_os` (pin the matrix to one OS).
 
+### Caching downloads
+
+Each `qemu-vm` job restores from the Actions cache what it would
+otherwise download before testing: the runner's packages and package
+lists (`qemu-1-setup.sh`), and the image of its OS, with FreeBSD's
+`src.txz` (`qemu-2-start.sh`). With them, a job still starts when the
+Ubuntu archive or an image server cannot be reached; it then installs
+the cached packages, and uses the image last cached from the same URLs.
+
+- The package cache is keyed on the runner image version and the hash
+  of `qemu-1-setup.sh`; a miss restores the newest one for the same
+  runner OS, and apt downloads only what changed.
+- The image cache is keyed on the OS, its URLs, and the size and date
+  the server reports for each file. A job uses the cached image without
+  downloading it when the key matches, and otherwise downloads it,
+  falling back to the newest image cached for the same URLs.
+- `UNCACHED_OS` in `qemu-2-start.sh` lists the OSes whose images are not
+  cached (AlmaLinux): all default images exceed the 10 GB that a
+  repository can cache by default. Empty it if that limit is raised.
+
+`zfs-qemu-cache.yml` saves these caches, for the default branch, whose
+caches every branch and PR can restore (a PR's own cache could only be
+restored by that PR). It runs every 6 hours, on pushes to the default
+branch that change these files, and by hand, one run at a time. Its
+`Plan` job computes the current keys and lists those the cache lacks;
+when there are none, nothing else runs. Otherwise one `Save` job per
+missing entry, four at a time, downloads and saves it. PR and fork runs
+only restore.
+
 ### Reusing fork QEMU results
 
 PRs can reuse QEMU results from their source fork without a repository
@@ -187,6 +216,8 @@ Available via `specific_os` or `ZTS_OS_OVERRIDE`:
   fails on the test commit and passes on the PR head (see below)
 - `zfs-qemu-packages.yml`: manually dispatched, builds release RPMs or
   tests RPM installation from the ZFS yum repo
+- `zfs-qemu-cache.yml`: saves the download caches of `zfs-qemu.yml` (see
+  "Caching downloads" above)
 
 ### Failing test, then fix (`zfs-precheck.yml`)
 

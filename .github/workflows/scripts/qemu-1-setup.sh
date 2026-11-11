@@ -6,6 +6,18 @@
 
 set -eu
 
+# zfs-qemu-cache.yml saves, and zfs-qemu.yml restores, the packages and
+# package lists that apt uses below, in $QEMU_CACHE/apt.  "--cache-key"
+# prints their keys, which change with the runner image and this script.
+APT_CACHE="${QEMU_CACHE:+$QEMU_CACHE/apt}"
+if [ "${1:-}" = "--cache-key" ] ; then
+  key="qemu-apt-${ImageOS:-unknown}-${ImageVersion:-unknown}-"
+  echo "apt-key=$key$(sha256sum "$0" | cut -c1-16)"
+  printf 'apt-restore-keys<<EOF\n%s\nqemu-apt-%s-\nEOF\n' \
+    "$key" "${ImageOS:-unknown}"
+  exit 0
+fi
+
 # The default runner has a bunch of development tools and other things
 # that we do not need.  Remove them here to free up a total of 35GB.
 #
@@ -17,6 +29,19 @@ sudo docker builder prune -a
 unneeded="microsoft-edge-stable|azure-cli|google-cloud|google-chrome-stable|"\
 "temurin|llvm|firefox|mysql-server|snapd|android|dotnet|haskell|ghcup|"\
 "powershell|julia|swift|miniconda|chromium"
+
+# With the cached packages and lists, apt downloads only what changed
+# since they were saved.  If the Ubuntu archive cannot be reached, apt-get
+# update keeps these lists, and every package they lead apt to install is
+# in the cache.  The lists keep their dates, which apt-get update sends
+# to the archive to ask whether they are still current.
+if [ -n "$APT_CACHE" ] && [ -d "$APT_CACHE/lists" ] ; then
+  sudo find "$APT_CACHE/lists" -type f \
+    -exec cp --preserve=timestamps -t /var/lib/apt/lists {} +
+  sudo find "$APT_CACHE/archives" -name '*.deb' \
+    -exec cp -t /var/cache/apt/archives {} +
+fi
+
 # refresh package index before removing packages
 sudo apt-get -y update
 sudo apt-get -y remove $(dpkg-query -f '${binary:Package}\n' -W | grep -E "'$unneeded'")
@@ -48,6 +73,19 @@ export DEBIAN_FRONTEND="noninteractive"
 sudo apt-get -y update
 sudo apt-get install -y axel cloud-image-utils daemonize guestfs-tools \
   virt-manager zfsutils-linux
+
+# Leave what apt has now for zfs-qemu-cache.yml to cache, without the
+# packages that the current lists no longer offer.
+if [ -n "$APT_CACHE" ] ; then
+  sudo apt-get autoclean
+  rm -rf "$APT_CACHE"
+  mkdir -p "$APT_CACHE/archives" "$APT_CACHE/lists"
+  find /var/cache/apt/archives -maxdepth 1 -name '*.deb' \
+    -exec cp -t "$APT_CACHE/archives" {} +
+  find /var/lib/apt/lists -maxdepth 1 -type f ! -name lock \
+    -exec cp --preserve=timestamps -t "$APT_CACHE/lists" {} +
+  du -sh "$APT_CACHE"/*
+fi
 
 # generate ssh keys
 rm -f ~/.ssh/id_ed25519
