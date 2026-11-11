@@ -20,30 +20,26 @@
 #
 function clear_labels #disks
 {
+	# zpool resolves the short name and finds a whole disk's partition.
 	for disk in $@; do
-		if is_loop_device $disk || is_mpath_device $disk; then
-			zpool labelclear -f /dev/$disk
-		else
-			zpool labelclear -f /dev/${disk}1
-		fi
+		zpool labelclear -f $disk
 	done
 }
 
 #
 # Set the REMOVED_DISK and REMOVED_DISK_ID constants for device
-# used for re-plugging. When the disk is loop device use the
-# scsi_debug emulated drive. Otherwise use the real drive.
+# used for re-plugging. When the disk is a SCSI or multipath device
+# use the real drive. Otherwise, e.g. for loop or NVMe devices, use
+# the scsi_debug emulated drive.
 #
 function set_removed_disk
 {
-	if is_loop_device $DISK1; then
-		export REMOVED_DISK=$(get_debug_device)
-		export REMOVED_DISK_ID=$(get_persistent_disk_name $REMOVED_DISK)
-	elif ( is_real_device $DISK1 ) || ( is_mpath_device $DISK1 ); then
+	if is_scsi_device $DISK1 || is_mpath_device $DISK1; then
 		export REMOVED_DISK="$DISK1"
 		export REMOVED_DISK_ID=${devs_id[0]}
 	else
-		log_fail "No drives that supports removal"
+		export REMOVED_DISK=$(get_debug_device)
+		export REMOVED_DISK_ID=$(get_persistent_disk_name $REMOVED_DISK)
 	fi
 }
 

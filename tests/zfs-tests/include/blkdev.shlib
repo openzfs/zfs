@@ -159,6 +159,18 @@ function is_loop_device #disk
 }
 
 #
+# Check if the given device is a disk that on_off_disk can remove and
+# reinsert (SCSI, SATA, scsi_debug), unlike NVMe, virtio or loop devices.
+#
+function is_scsi_device #disk
+{
+	typeset disk=$1
+	[[ -z $disk ]] && log_fail "No argument for disk given."
+
+	is_linux && [[ -d /sys/block/$disk/device/scsi_device ]]
+}
+
+#
 # Linux:
 # Check if the given device is a multipath device and if there is a symbolic
 # link to a device mapper and to a disk
