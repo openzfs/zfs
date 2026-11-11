@@ -25,7 +25,8 @@ UNIT_TESTS = \
 	%D%/test_backtrace \
 	%D%/test_timer \
 	%D%/test_zfs_file \
-	%D%/test_indirect_mapping
+	%D%/test_indirect_mapping \
+	%D%/test_spa_vdev_attach
 
 # extra test binaries. not unit/correctness tests as such, but use the same
 # framework. not run by `make unit`, but will work with `T=` etc
@@ -275,3 +276,7 @@ unit-coverage:
 	@false
 unit-coverage-html: unit-coverage
 endif
+
+%C%_test_spa_vdev_attach_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+%C%_test_spa_vdev_attach_SOURCES = %D%/test_spa_vdev_attach.c
+%C%_test_spa_vdev_attach_LDADD = libzpool.la libnvpair.la libunit.la
