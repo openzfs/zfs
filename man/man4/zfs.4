@@ -2303,10 +2303,15 @@ If an indirect split block contains more than this many possible unique
 combinations when being reconstructed, consider it too computationally
 expensive to check them all.
 Instead, try at most this many randomly selected
-combinations each time the block is accessed.
+combinations in each attempt to reconstruct the block.
 This allows all segment copies to participate fairly
 in the reconstruction when all combinations
 cannot be checked and prevents repeated use of one bad copy.
+In either case, first try the combinations in which the segments on each
+top-level vdev all come from the same device of that vdev.
+These find the block whenever each top-level vdev has a device that holds all
+of its segments intact, provided that there are no more than this many such
+combinations.
 .
 .It Sy zfs_recover Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Set to attempt to recover from fatal errors.

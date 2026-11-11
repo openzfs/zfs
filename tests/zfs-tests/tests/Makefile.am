@@ -2189,6 +2189,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/removal/removal_reservation.ksh \
 	functional/removal/removal_resume_export.ksh \
 	functional/removal/removal_sanity.ksh \
+	functional/removal/removal_scrub_after_replace.ksh \
+	functional/removal/removal_spare_damage.ksh \
+	functional/removal/removal_split_resilver.ksh \
 	functional/removal/removal_with_add.ksh \
 	functional/removal/removal_with_create_fs.ksh \
 	functional/removal/removal_with_dedup.ksh \
@@ -2199,12 +2202,14 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/removal/removal_with_hole.ksh \
 	functional/removal/removal_with_missing_log.ksh \
 	functional/removal/removal_with_indirect.ksh \
+	functional/removal/removal_with_rebuild.ksh \
 	functional/removal/removal_with_remove.ksh \
 	functional/removal/removal_with_resilver.ksh \
 	functional/removal/removal_with_scrub.ksh \
 	functional/removal/removal_with_send.ksh \
 	functional/removal/removal_with_send_recv.ksh \
 	functional/removal/removal_with_snapshot.ksh \
+	functional/removal/removal_with_split_damage.ksh \
 	functional/removal/removal_with_write.ksh \
 	functional/removal/removal_with_zdb.ksh \
 	functional/removal/removal_with_zil.ksh \

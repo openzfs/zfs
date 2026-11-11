@@ -144,3 +144,154 @@ function test_removal_with_operation_kill
 	wait $killpid
 	return 0
 }
+
+#
+# Prints two numbers for the file $3 of the dataset $2, whose blocks were on
+# the removed vdev 0 of the pool $1: the smallest number of segments that
+# one of its blocks is split into, and the number of its blocks that have
+# segments on more than one top-level vdev.
+#
+function get_split_stats # pool dataset file
+{
+	typeset obj=$(get_objnum $3)
+	typeset tmp=$(mktemp -d)
+
+	# The mapping of vdev 0: <0:offset:size> -> <vdev:offset:size>
+	zdb -mmmm $1 0 | awk -F'[<:>]' '/^\t<0:/ { print $3, $4, $7 }' \
+	    >$tmp/segments
+	# The blocks: vdev:offset:size, in hexadecimal like the mapping.
+	zdb -ddddd $2 $obj | awk '$2 == "L0" { gsub(":", " ", $3); print $3 }' \
+	    >$tmp/blocks
+
+	awk '
+	function hex(s,    i, n) {
+		n = 0
+		for (i = 1; i <= length(s); i++)
+			n = n * 16 + index("0123456789abcdef",
+			    substr(s, i, 1)) - 1
+		return (n)
+	}
+	NR == FNR {
+		start[NR] = hex($1)
+		end[NR] = start[NR] + hex($2)
+		vdev[NR] = $3
+		n = NR
+		next
+	}
+	{
+		segments = 0
+		vdevs = 0
+		split("", seen)
+		if ($1 == 0) {
+			s = hex($2)
+			e = s + hex($3)
+			for (i = 1; i <= n; i++) {
+				if (start[i] >= e || end[i] <= s)
+					continue
+				segments++
+				if (!(vdev[i] in seen)) {
+					seen[vdev[i]] = 1
+					vdevs++
+				}
+			}
+		}
+		if (min == "" || segments < min)
+			min = segments
+		if (vdevs > 1)
+			spread++
+	}
+	END { print min + 0, spread + 0 }' $tmp/segments $tmp/blocks
+
+	rm -rf $tmp
+}
+
+#
+# Creates $TESTPOOL on the file vdev $1 and writes a 16M file to it.  Then
+# adds the vdevs given by the remaining arguments and removes $1 with 8K
+# removal segments, so that every 128K block of the file is split into 16
+# segments on the added vdevs.  That is more segments than the copies on a
+# mirror can be combined in zfs_reconstruct_indirect_combinations_max ways.
+# If $SPLIT_POOL_RECORDSIZE is set, the file has blocks of that size.
+#
+# Sets $SPLIT_FILE to the file, $SPLIT_DIGEST to its digest, and
+# $SPLIT_MIN_SEGMENTS to the smallest number of segments in one of its blocks.
+# $SPLIT_POOL_OPTS is passed to zpool create, and the pool is created with
+# the vdevs in $SPLIT_POOL_VDEVS (e.g. "special <vdev>") besides $1.  If
+# $SPLIT_POOL_SPREAD is set, the segments are spread over the top-level
+# vdevs in shorter runs.  $SPLIT_SPREAD_BLOCKS is set to the number of blocks
+# that have segments on more than one top-level vdev.
+#
+function create_split_pool # removed_vdev added_vdev...
+{
+	typeset removed=$1
+	shift
+	typeset segment=$(get_tunable REMOVE_MAX_SEGMENT)
+	typeset aliquot=$(get_tunable METASLAB_ALIQUOT)
+	typeset stats
+
+	log_must zpool create -f -O compression=off \
+	    -O recordsize=${SPLIT_POOL_RECORDSIZE:-128k} \
+	    $SPLIT_POOL_OPTS $TESTPOOL $removed $SPLIT_POOL_VDEVS
+	SPLIT_FILE=$(get_prop mountpoint $TESTPOOL)/file
+	log_must dd if=/dev/urandom of=$SPLIT_FILE bs=1M count=16
+	# All of the file must be on the vdev that is removed.
+	sync_pool $TESTPOOL
+	SPLIT_DIGEST=$(xxh128digest $SPLIT_FILE)
+
+	log_must zpool add -f $TESTPOOL "$@"
+	if [[ -n $SPLIT_POOL_SPREAD ]]; then
+		# Make the allocator move to the next vdev more often, so
+		# that some blocks have segments on more than one vdev.
+		log_must set_tunable64 METASLAB_ALIQUOT 4096
+	fi
+	log_must set_tunable32 REMOVE_MAX_SEGMENT 8192
+	log_must zpool remove -w $TESTPOOL $removed
+	log_must set_tunable32 REMOVE_MAX_SEGMENT $segment
+	log_must set_tunable64 METASLAB_ALIQUOT $aliquot
+	log_must zpool sync $TESTPOOL
+
+	# The file is in the root dataset, which zdb calls "<pool>/".
+	stats=$(get_split_stats $TESTPOOL $TESTPOOL/ $SPLIT_FILE)
+	SPLIT_MIN_SEGMENTS=${stats% *}
+	SPLIT_SPREAD_BLOCKS=${stats#* }
+	log_note "Every block of $SPLIT_FILE has at least $SPLIT_MIN_SEGMENTS" \
+	    "segments; $SPLIT_SPREAD_BLOCKS blocks are on more than one vdev"
+	log_must test "$SPLIT_MIN_SEGMENTS" -gt 12
+}
+
+#
+# Exports $TESTPOOL, overwrites everything but the labels of the file vdevs
+# given by the remaining arguments, and imports the pool from the directory
+# $1.
+#
+function damage_split_pool # vdev_dir vdev...
+{
+	typeset dir=$1
+	shift
+	typeset vdev
+
+	log_must zpool export $TESTPOOL
+	for vdev in "$@"; do
+		log_must dd if=/dev/urandom of=$vdev bs=1M seek=4 \
+		    conv=notrunc count=$((MINVDEVSIZE / 1024 / 1024 - 8))
+	done
+	log_must zpool import -d $dir $TESTPOOL
+}
+
+#
+# Checks that the file written by create_split_pool has its original
+# contents and that a scrub of $TESTPOOL finds no errors.
+#
+function check_split_pool
+{
+	typeset after=$(xxh128digest $SPLIT_FILE)
+	if [[ "$after" != "$SPLIT_DIGEST" ]]; then
+		zpool status -v $TESTPOOL
+		log_fail "$SPLIT_FILE changed: $SPLIT_DIGEST became $after"
+	fi
+	log_must zpool scrub -w $TESTPOOL
+	if ! check_pool_status $TESTPOOL "errors" "No known data errors"; then
+		zpool status -v $TESTPOOL
+		log_fail "$TESTPOOL has data errors"
+	fi
+}
