@@ -16,7 +16,7 @@
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd July 23, 2025
+.Dd October 13, 2026
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -926,6 +926,103 @@ subcommand to attach a new device to a RAID-Z group, expanding the total
 amount usable space in the pool.
 See
 .Xr zpool-attach 8 .
+.
+.feature org.openzfs raidz_parity_epochs no none
+This feature persists a per-top-level-vdev table of
+.Sy {physical-birth-txg , logical-width , parity}
+epochs so that a RAID-Z vdev can decode blocks written under different
+parity layouts.
+A block is laid out with the parity of the last epoch that starts at or
+before its physical birth transaction group.
+The first entry of a table must start at transaction group 0 and describe the
+vdev's own width and parity.
+Later entries may use a narrower logical width, but must have at least one
+data column and cannot exceed the number of physical children.
+A pool with a table that breaks these rules fails to import.
+.Pp
+This feature becomes
+.Sy active
+as soon as a table is stored for a RAID-Z vdev, even one that only restates the
+vdev's own layout.
+While it is
+.Sy active ,
+the pool cannot be imported, not even read-only, by software that does not
+support this feature.
+.Pp
+No
+.Nm zpool
+or
+.Nm zfs
+subcommand stores a table.
+The
+.Nm zhack Cm raidz_epochs
+debugging command does
+.Pq see Xr zhack 1 ,
+and so does
+.Xr ztest 1
+on the pools it creates.
+Both only extend a table: the epochs it has keep their start, width and
+parity, and a new epoch starts after every transaction group that may already
+hold blocks.
+A RAID-Z vdev that has a table cannot be expanded with
+.Nm zpool Cm attach ,
+and a pool in which a vdev has both a table and expansion history cannot be
+imported.
+.Pp
+Where the epochs of a vdev differ in parity, the redundancy assumed for the vdev
+as a whole, for instance when deciding whether it can still be opened or
+whether a device can be taken offline, is the lowest parity in its table.
+Reads, writes, scrubs and resilvers use the width and parity of each block's
+epoch.
+.Pp
+The name of such a vdev keeps the parity it was created with, for instance
+.Sy raidz2-0
+for a raidz2 vdev whose table adds an epoch of parity 1, in the output of
+.Nm zpool Cm status
+and wherever a command takes a vdev name, so that scripts and commands that
+name it keep working; it does not show the table.
+The
+.Sy parity
+vdev property
+.Pq see Xr vdevprops 7
+reports the lowest parity in the table, and
+.Nm zdb Fl m
+prints the table itself.
+.Pp
+A table found in the MOS configuration, without a copy in the vdev ZAP, was
+not stored by
+.Nm zhack
+or
+.Xr ztest 1 ,
+which write both in the same transaction group.
+A read-only import retains it for recovery.
+A writable import drops it when the pool cannot hold blocks of an epoch whose
+width or parity differs from the vdev's own, that is when every such epoch
+starts after the transaction groups that may have been written, and is refused
+otherwise, so that it cannot erase the layout needed by existing blocks.
+.Pp
+An import that rewinds the pool to a transaction group before the one that
+stored a table, with
+.Nm zpool Cm import Fl F , Fl T
+or
+.Fl -rewind-to-checkpoint ,
+finds the table in labels newer than that transaction group, and uses the MOS
+configuration of that transaction group instead.
+A writable import rewrites such labels, and those of a table it drops, in the
+first transaction group it writes, before any block it writes can be read with
+the layout they describe.
+.Pp
+The
+.Sy raidz_ignore_parity_epochs
+module parameter makes every RAID-Z vdev of a pool imported while it is set
+ignore its table, so that the blocks written under the vdev's own layout can be
+read from a pool whose table is damaged; blocks of an epoch with another width
+or parity cannot.
+Since the metadata of the pool is rewritten in every transaction group, it can
+only be relied on to import a pool while no such epoch has started.
+Such a pool can only be imported read-only.
+See
+.Xr zfs 4 .
 .
 .feature com.delphix redaction_bookmarks no bookmarks extensible_dataset
 This feature enables the use of redacted

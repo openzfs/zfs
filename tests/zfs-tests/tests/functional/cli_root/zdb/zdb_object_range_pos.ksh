@@ -14,6 +14,9 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+typeset exported=false
+typeset readonly=false
+
 #
 # Description:
 # Object range parameters passed to zdb -dd work correctly.
@@ -25,7 +28,11 @@
 
 function cleanup
 {
-	poolexists $TESTPOOL || zpool import $TESTPOOL
+	if $readonly; then
+		log_must_busy zpool export $TESTPOOL
+		exported=true
+	fi
+	$exported && log_must zpool import $TESTPOOL
 	datasetexists $TESTPOOL && destroy_pool $TESTPOOL
 }
 
@@ -57,7 +64,11 @@ function get_object_list_range
 #
 function get_object_list
 {
-	zdb -P -dd $@ 2>/dev/null |
+	typeset import_opts=""
+	# Read-only imports are not cached; discover the pool from its devices.
+	$readonly && import_opts="-e"
+
+	zdb $import_opts -P -dd "$@" |
 	sed -E '/^ +-?([0-9]+ +){7}/!d;s/^[[:space:]]*//' |
 	sort -n
 }
@@ -75,9 +86,20 @@ done
 
 sync_all_pools
 
+# Keep the object lists stable across zdb invocations. An active pool can
+# replace space map objects during a background metaslab flush.
+if is_global_zone; then
+	log_must_busy zpool export $TESTPOOL
+	exported=true
+	log_must zpool import -o readonly=on $TESTPOOL
+	exported=false
+	readonly=true
+fi
+
 # Get list of all objects, but filter out user/group objects which don't
 # appear when using object or object range arguments
 all_objects=$(get_object_list $TESTPOOL/$TESTFS | grep -v 'used$')
+[[ -n $all_objects ]] || log_fail "zdb returned no dataset objects"
 
 # Range 0:-1 gets all objects
 expected=$all_objects
@@ -143,30 +165,27 @@ actual=$(get_object_list $TESTPOOL/$TESTFS $objects | awk '{printf("%s ", $1)}' 
 log_must test "${actual% }" == "$expected"
 
 # Get all objects in the meta-objset to test m (spacemap) and z (zap) flags
-log_must zpool export $TESTPOOL
-all_mos_objects=$(get_object_list -e $TESTPOOL 0:-1)
-[[ -n "$all_mos_objects" ]] || log_fail "zdb -e listed no objects"
+all_mos_objects=$(get_object_list $TESTPOOL 0:-1)
+[[ -n $all_mos_objects ]] || log_fail "zdb returned no MOS objects"
 
 # Range 0:-1:m must output all space map objects
 expected=$(grep "SPA space map" <<< $all_mos_objects)
-actual=$(get_object_list -e $TESTPOOL 0:-1:m)
+actual=$(get_object_list $TESTPOOL 0:-1:m)
 log_must test "\n$actual\n" == "\n$expected\n"
 
 # Range 0:-1:z must output all zap objects
 expected=$(grep "zap" <<< $all_mos_objects)
-actual=$(get_object_list -e $TESTPOOL 0:-1:z)
+actual=$(get_object_list $TESTPOOL 0:-1:z)
 log_must test "\n$actual\n" == "\n$expected\n"
 
 # Range 0:-1:A-m-z must output all non-space maps and non-zaps
 expected=$(grep -v -e "zap" -e "SPA space map" <<< $all_mos_objects)
-actual=$(get_object_list -e $TESTPOOL 0:-1:A-m-z)
+actual=$(get_object_list $TESTPOOL 0:-1:A-m-z)
 log_must test "\n$actual\n" == "\n$expected\n"
 
 # Range 0:-1:mz must output all space maps and zaps
 expected=$(grep -e "SPA space map" -e "zap" <<< $all_mos_objects)
-actual=$(get_object_list -e $TESTPOOL 0:-1:mz)
+actual=$(get_object_list $TESTPOOL 0:-1:mz)
 log_must test "\n$actual\n" == "\n$expected\n"
-
-log_must zpool import $TESTPOOL
 
 log_pass "zdb -dd object range arguments work correctly"

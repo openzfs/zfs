@@ -16,6 +16,10 @@ A test commit is a non-merge commit in BASE..HEAD that:
   .ksh test of the same name exists, and
 - is followed by at least one commit that changes files outside tests/.
 
+Test commits are expected to fail by default. A ZFS-Test-Expect: pass
+trailer identifies a positive test or a test-only fix that should already
+pass on its own. Both that commit and the PR head are still tested.
+
 Prints a JSON object to stdout:
 
   {"found": true|false,
@@ -108,6 +112,16 @@ def exists_at(sha, test):
                           capture_output=True).returncode == 0
 
 
+def test_expectation(message):
+    """A test-only fix need not fail before a later unrelated code change."""
+    values = re.findall(r'^ZFS-Test-Expect:[ \t]*(.*)$', message, re.M)
+    if not values:
+        return 'fail'
+    if len(values) != 1 or values[0].strip() not in ('fail', 'pass'):
+        raise ValueError('ZFS-Test-Expect must appear once as fail or pass')
+    return values[0].strip()
+
+
 def main():
     if len(sys.argv) != 3:
         print(__doc__, file=sys.stderr)
@@ -121,11 +135,13 @@ def main():
         files = changed_files(sha)
         only_tests = bool(files) and \
             all(path.startswith('tests/') for _, path in files)
+        message = git('log', '-1', '--format=%B', sha)
         info.append({
             'sha': sha,
-            'title': git('log', '-1', '--format=%s', sha).strip(),
+            'title': message.splitlines()[0],
             'only_tests': only_tests,
             'tests': tests_in(sha, files) if only_tests else [],
+            'expect': test_expectation(message) if only_tests else 'fail',
         })
 
     pairs = []
@@ -146,18 +162,18 @@ def main():
             lines.append(f'Found {len(pairs)} test commits; verifying the '
                          f'first {MAX_TEST_COMMITS} only.')
             pairs = pairs[:MAX_TEST_COMMITS]
-        lines.append('| Test commit | Fixed by | Tests |')
-        lines.append('|---|---|---|')
+        lines.append('| Test commit | Expected | Later code commit | Tests |')
+        lines.append('|---|---|---|---|')
         all_tests = []
         for c, fix in pairs:
             include.append({
                 'role': 'test',
                 'ref': c['sha'],
-                'expect': 'fail',
+                'expect': c['expect'],
                 'tests': ' '.join(c['tests']),
                 'title': c['title'],
             })
-            lines.append(f"| {c['sha'][:9]} {c['title']} | "
+            lines.append(f"| {c['sha'][:9]} {c['title']} | {c['expect']} | "
                          f"{fix['sha'][:9]} {fix['title']} | "
                          f"{'<br>'.join(c['tests'])} |")
             all_tests += [t for t in c['tests'] if t not in all_tests]
@@ -192,8 +208,12 @@ def label(job):
     title = job['title']
     if len(title) > 60:
         title = title[:57] + '...'
-    what = 'Fails without fix' if job['expect'] == 'fail' \
-        else 'Passes with fix'
+    if job['expect'] == 'fail':
+        what = 'Fails without fix'
+    elif job['role'] == 'test':
+        what = 'Passes on test commit'
+    else:
+        what = 'Passes with fix'
     return f"{what}: {job['ref'][:9]} {title}"
 
 

@@ -13,7 +13,7 @@
 .\"
 .\" lint-ok: WARNING: sections out of conventional order: Sh SYNOPSIS
 .\"
-.Dd August 9, 2026
+.Dd October 13, 2026
 .Dt ZHACK 1
 .Os
 .
@@ -225,6 +225,87 @@ Without
 .Fl w
 this is a dry run and no changes are made.
 The pool must be exported.
+.
+.It Xo
+.Nm zhack
+.Cm raidz_epochs
+.Op Fl f
+.Ar pool
+.Ar vdev
+.Ar triplet Ns \&...
+.Xc
+Store the parity-epoch table of top-level RAID-Z vdev number
+.Ar vdev
+of
+.Ar pool ,
+and activate the
+.Sy raidz_parity_epochs
+feature
+.Pq see Xr zpool-features 7 ,
+which must be enabled.
+Each
+.Ar triplet
+is
+.Ar start Ns \&: Ns Ar width Ns \&: Ns Ar parity :
+the first physical birth transaction group of the epoch, its number of
+columns, and its parity.
+The first triplet must be
+.Sy 0 Ns \&: Ns Ar width Ns \&: Ns Ar parity
+of the vdev itself, no
+.Ar width
+may be larger than the vdev's or leave no column for data, and the starts
+must increase.
+A table can only grow: it must begin with every triplet the vdev already has,
+unchanged, and may add new ones after them.
+An added triplet may not have a lower
+.Ar parity
+than the number of children of the vdev that cannot be read or written when
+the table is stored: its blocks could not be written, and the vdev could not
+be opened, while those children are missing.
+A table that does not fit the vdev, or a vdev that has been expanded, is
+refused, with the rule it breaks in the message, and nothing is changed.
+The pool must be exported.
+.Pp
+A block is read with the epoch its physical birth transaction group falls in,
+and nothing already written is rewritten, so a new epoch must start after every
+transaction group that may already hold blocks when the table is stored: the
+first start allowed is three transaction groups after the one in which zhack
+stores the table.
+The pool is imported, and several transaction groups are written, before the
+table is stored, so that transaction group is not known in advance, and each
+run writes transaction groups of its own: an added epoch that starts earlier
+is refused, and the first start allowed that the message names held for that
+run only.
+A
+.Ar start
+of
+.Sy next
+stands for the first start allowed in the run that stores the table.
+On success, zhack prints the table it stored, with
+.Sy next
+replaced by the transaction group it stood for, and if a start was given as
+.Sy next
+it returns only once that transaction group has been written, so that every
+block written afterwards is born in the new epoch.
+.Pp
+The
+.Fl f
+flag writes only the copy of the table in the vdev's ZAP, exactly as given and
+without checking it, so that a damaged table can be made.
+Every
+.Ar start
+must then be a number.
+.Pp
+This is for tests, and it can make a pool impossible to import.
+A pool whose table is damaged cannot be repaired in place.
+The
+.Sy raidz_ignore_parity_epochs
+module parameter
+.Pq see Xr zfs 4
+lets it be imported read-only, to copy off the data written in the vdev's own
+width and parity, but only while no epoch of another width or parity has
+started: the blocks of such an epoch cannot be read that way, and the metadata
+of the pool is among them once it has started.
 .
 .El
 .

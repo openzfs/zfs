@@ -354,6 +354,7 @@ function verify_send
 		ret=0
 	fi
 
+	log_must zfs destroy $snap
 	rm -rf $bak_user $bak_root
 
 	return $ret
