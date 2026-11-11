@@ -193,7 +193,6 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	uint64_t wholedisk = 0ULL;
 	uint64_t offline = 0ULL, faulted = 0ULL;
 	uint64_t guid = 0ULL;
-	uint64_t is_spare = 0;
 	const char *physpath = NULL, *new_devid = NULL, *enc_sysfs_path = NULL;
 	char rawpath[PATH_MAX], fullpath[PATH_MAX];
 	char pathbuf[PATH_MAX];
@@ -236,7 +235,6 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 	(void) nvlist_lookup_uint64(vdev, ZPOOL_CONFIG_FAULTED, &faulted);
 
 	(void) nvlist_lookup_uint64(vdev, ZPOOL_CONFIG_GUID, &guid);
-	(void) nvlist_lookup_uint64(vdev, ZPOOL_CONFIG_IS_SPARE, &is_spare);
 
 	/*
 	 * Special case:
@@ -326,9 +324,6 @@ zfs_process_add(zpool_handle_t *zhp, nvlist_t *vdev, boolean_t labeled)
 			free(spath);
 		}
 	}
-
-	if (is_spare)
-		online_flag |= ZFS_ONLINE_SPARE;
 
 	/*
 	 * Attempt to online the device.
