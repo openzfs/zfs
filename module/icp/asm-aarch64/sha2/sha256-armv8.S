@@ -20,6 +20,9 @@
  * - modified assembly to fit into OpenZFS
  */
 
+#define	_ASM
+#include <sys/asm_linkage.h>
+
 #if defined(__aarch64__)
 
 	.section	.note.gnu.property,"a",@note
@@ -32,10 +35,10 @@
 	.word	4
 	.word	3
 	.word	0
-.text
+SECTION_TEXT
 
-.align	6
-.type	.LK256,%object
+.balign	64
+SET_OBJ(.LK256)
 .LK256:
 	.long	0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5
 	.long	0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5
@@ -54,12 +57,9 @@
 	.long	0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208
 	.long	0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
 	.long	0	//terminator
-.size	.LK256,.-.LK256
+SET_SIZE(.LK256)
 
-.globl	zfs_sha256_block_armv7
-.type	zfs_sha256_block_armv7,%function
-.align	6
-zfs_sha256_block_armv7:
+ENTRY_ALIGN(zfs_sha256_block_armv7, 64)
 	hint	#34					// bti c
 	stp	x29,x30,[sp,#-128]!
 	add	x29,sp,#0
@@ -1021,12 +1021,9 @@ zfs_sha256_block_armv7:
 	ldp	x27,x28,[x29,#80]
 	ldp	x29,x30,[sp],#128
 	ret
-.size	zfs_sha256_block_armv7,.-zfs_sha256_block_armv7
+SET_SIZE(zfs_sha256_block_armv7)
 
-.globl	zfs_sha256_block_armv8
-.type	zfs_sha256_block_armv8,%function
-.align	6
-zfs_sha256_block_armv8:
+ENTRY_ALIGN(zfs_sha256_block_armv8, 64)
 	hint		#34				// bti c
 .Lv8_entry:
 	stp		x29,x30,[sp,#-16]!
@@ -1162,12 +1159,9 @@ zfs_sha256_block_armv8:
 
 	ldr		x29,[sp],#16
 	ret
-.size	zfs_sha256_block_armv8,.-zfs_sha256_block_armv8
+SET_SIZE(zfs_sha256_block_armv8)
 
-.globl	zfs_sha256_block_neon
-.type	zfs_sha256_block_neon,%function
-.align	4
-zfs_sha256_block_neon:
+ENTRY_ALIGN(zfs_sha256_block_neon, 16)
 	hint	#34					// bti c
 .Lneon_entry:
 	stp	x29, x30, [sp, #-16]!
@@ -2008,6 +2002,6 @@ zfs_sha256_block_neon:
 	ldr	x29,[x29]
 	add	sp,sp,#16*4+16
 	ret
-.size	zfs_sha256_block_neon,.-zfs_sha256_block_neon
+SET_SIZE(zfs_sha256_block_neon)
 
 #endif
