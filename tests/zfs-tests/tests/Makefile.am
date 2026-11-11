@@ -2577,6 +2577,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/xattr/xattr_012_pos.ksh \
 	functional/xattr/xattr_013_pos.ksh \
 	functional/xattr/xattr_014_pos.ksh \
+	functional/xattr/xattr_015_neg.ksh \
 	functional/xattr/xattr_compat.ksh \
 	functional/zoned_uid/cleanup.ksh \
 	functional/zoned_uid/setup.ksh \
