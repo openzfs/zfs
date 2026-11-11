@@ -34,20 +34,22 @@ log_onexit cleanup
 log_assert 'device permissions are properly checked for zpool create'
 
 # make device accessible to everyone, ensure pool can be created
-log_must chmod 666 $DEV1
+set_perms 666 $DEV1
 log_must zpool create $TESTPOOL $DEV1
 check_vdevs $TESTPOOL $DEV1
 log_must zpool destroy $TESTPOOL
 
 # remove perms from device, check pool can be created. this is relying
 # on the running user having CAP_DAC_OVERRIDE to bypass the permission check
-log_must chmod 000 $DEV1
+set_perms 000 $DEV1
 log_must zpool create $TESTPOOL $DEV1
 check_vdevs $TESTPOOL $DEV1
 log_must zpool destroy $TESTPOOL
 
 # now remove CAP_DAC_OVERRIDE and try again. this should fail, as the user
-# has no direct permission and has no override capability.
+# has no direct permission and has no override capability. relabeling $DEV1
+# above can restore its perms, so remove them again.
+set_perms 000 $DEV1
 log_mustnot without_cap cap_dac_override zpool create $TESTPOOL $DEV1
 
 # confirm the pool was really not created, not just that the call failed
@@ -55,7 +57,7 @@ log_mustnot poolexists $TESTPOOL
 
 # create a pool with two devs, only one unavailable. ensure that the entire
 # entire pool fails to be created, not just rejecting the inaccessible devices
-log_must chmod 666 $DEV2
+set_perms 666 $DEV2
 log_mustnot without_cap cap_dac_override zpool create $TESTPOOL $DEV1 $DEV2
 log_mustnot poolexists $TESTPOOL
 

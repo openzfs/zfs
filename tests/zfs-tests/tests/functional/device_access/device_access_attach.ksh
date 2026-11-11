@@ -35,7 +35,7 @@ log_assert 'device permissions are properly checked for zpool attach'
 
 # make device accessible to everyone, ensure pool can be created and devices
 # attached.
-log_must chmod 666 $DEV1 $DEV2
+set_perms 666 $DEV1 $DEV2
 log_must zpool create $TESTPOOL $DEV1
 log_must zpool attach $TESTPOOL $DEV1 $DEV2
 check_vdevs $TESTPOOL $DEV1 $DEV2
@@ -44,7 +44,7 @@ log_must zpool destroy $TESTPOOL
 # remove perms from devices, check pool can be created and device attached.
 # this is relying on the running user having CAP_DAC_OVERRIDE to bypass the
 # permission check
-log_must chmod 000 $DEV1 $DEV2
+set_perms 000 $DEV1 $DEV2
 log_must zpool create $TESTPOOL $DEV1
 log_must zpool attach $TESTPOOL $DEV1 $DEV2
 check_vdevs $TESTPOOL $DEV1 $DEV2
@@ -53,6 +53,8 @@ log_must zpool destroy $TESTPOOL
 # recreate the pool, then try to attach without CAP_DAC_OVERRIDE. this should
 # fail, as the user has no direct permission and has no override capability.
 log_must zpool create $TESTPOOL $DEV1
+# the attach above relabeled $DEV2, which can restore its perms
+set_perms 000 $DEV2
 log_mustnot without_cap cap_dac_override zpool attach $TESTPOOL $DEV1 $DEV2
 
 # confirm that the device was really not attached, not just that the call failed

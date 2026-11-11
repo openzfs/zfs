@@ -27,15 +27,15 @@ typeset tmpcache=$(mktemp)
 
 function cleanup
 {
-	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 	restore_perms $DEV1
 	restore_perms $DEV2
 
-	# If the test ends with the pool exported (the normal case) then clear
-	# the vdevs so we don't have the residual pool on there for the next
-	# test.
-	log_must zpool labelclear -f $DEV1
-	log_must zpool labelclear -f $DEV2
+	# If the test ends with the pool exported (the normal case) then
+	# import and destroy it so we don't have the residual pool on there
+	# for the next test. labelclear would miss the labels on a whole disk,
+	# which are in its partition.
+	poolexists $TESTPOOL || zpool import $TESTPOOL 2>/dev/null
+	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 	rm -f $tmpcache
 }
 log_onexit cleanup
@@ -43,7 +43,7 @@ log_onexit cleanup
 log_assert 'device permissions are properly checked for zpool import'
 
 # create a pool with two devices, capture the cache file, and export it
-log_must chmod 666 $DEV1 $DEV2
+set_perms 666 $DEV1 $DEV2
 log_must zpool create $TESTPOOL $DEV1 $DEV2
 check_vdevs $TESTPOOL $DEV1 $DEV2
 log_must cp /etc/zfs/zpool.cache $tmpcache
@@ -52,7 +52,7 @@ log_must zpool export $TESTPOOL
 
 # remove perms from devices, check pool can be imported. this is relying on the
 # running user having CAP_DAC_OVERRIDE to bypass the permission check
-log_must chmod 000 $DEV1 $DEV2
+set_perms 000 $DEV1 $DEV2
 log_must zpool import $TESTPOOL
 check_vdevs $TESTPOOL $DEV1 $DEV2
 log_must zpool export $TESTPOOL
@@ -64,7 +64,7 @@ log_mustnot poolexists $TESTPOOL
 
 # make one device accessible, and try to import again. should fail, because
 # the userspace device scan can't access all the devices
-log_must chmod 666 $DEV1
+set_perms 666 $DEV1
 log_mustnot without_cap cap_dac_override zpool import $TESTPOOL
 log_mustnot poolexists $TESTPOOL
 
