@@ -1136,7 +1136,11 @@ vdev_anyraid_child_done(zio_t *zio)
 /*
  * How many more stripes of the given width the free tiles can form, with at
  * most one tile per child in each stripe: the largest k for which the sum of
- * MIN(nfree[c], k) is at least width * k.
+ * MIN(nfree[c], k) is at least width * k.  That is needed, as a child gives
+ * at most one tile to each of k stripes, and enough, as dealing the tiles out
+ * one child after the other, round-robin over the k stripes, never puts two
+ * tiles of a child in one stripe.  Taking the children with the most free
+ * tiles, as the allocator and calculate_asize() do, forms that many stripes.
  */
 static uint64_t
 anyraid_free_stripes(const uint64_t *nfree, int children, uint_t width)
@@ -1163,10 +1167,13 @@ anyraid_free_stripes(const uint64_t *nfree, int children, uint_t width)
  * Pick the children of a new tile when some children cannot be written.
  * The asize assumes that the free tiles can still form every stripe left to
  * map, which taking the children with the most free tiles always keeps true.
- * Use as few unwriteable children as possible without losing a stripe; for
- * a given number of them, taking the writeable and the unwriteable children
- * with the most free tiles loses the fewest stripes.  Returns B_FALSE when
- * every child is writeable or no choice keeps the stripes.
+ * Use as few unwriteable children as possible while keeping that true: a
+ * choice is taken only if the free tiles left after it can still form every
+ * stripe left to map.  For a given number of unwriteable children, the
+ * writeable and the unwriteable children with the most free tiles leave at
+ * least as many stripes as any other choice, so they are the only ones to
+ * try.  Returns B_FALSE when every child is writeable or no choice keeps the
+ * stripes.
  */
 static boolean_t
 anyraid_pick_writeable(vdev_t *vd, vdev_anyraid_node_t **vans, uint_t width)
