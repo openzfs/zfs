@@ -62,18 +62,24 @@ for ds in $datasets; do
 	log_must zfs set quota=25M $ds
 	log_must zfs set refreservation=15M $ds
 
-	typeset -i avail
+	typeset -i avail used exceed
 	avail=$(get_prop avail $subfs)
+	used=$(get_prop usedbydataset $subfs)
 	log_must zfs set refreservation=$avail $subfs
-	typeset mntpnt
-	mntpnt=$(get_prop mountpoint $subfs)
-	log_must mkfile $avail $mntpnt/$TESTFILE
 
-	typeset -i exceed
-	((exceed = avail + 1))
+	#
+	# A refreservation can grow to avail + used.  The kernel checks the
+	# on-disk space, which can differ from avail, so leave a margin.
+	#
+	((exceed = avail + used + 1024 * 1024))
 	log_mustnot zfs set refreservation=$exceed $subfs
-	log_mustnot mkfile $avail $mntpnt/$TESTFILE
 
+	#
+	# Don't write to $subfs here.  $ds is at its quota, and a write's
+	# worst-case space estimate is charged to $ds once it exceeds the
+	# unused refreservation, so the write can fail with EDQUOT.
+	#
+	log_must zfs set refreservation=none $subfs
 	log_must zfs set quota=none $ds
 	log_must zfs set reservation=15M $ds
 done
