@@ -156,7 +156,6 @@ known = {
     'cli_user/misc/zfs_unshare_001_neg': ['SKIP', na_reason],
     'pool_checkpoint/checkpoint_discard_busy': ['SKIP', 12053],
     'privilege/setup': ['SKIP', na_reason],
-    'refreserv/refreserv_004_pos': ['FAIL', known_reason],
     'rootpool/setup': ['SKIP', na_reason],
     'rsend/rsend_008_pos': ['SKIP', 6066],
     'vdev_zaps/vdev_zaps_007_pos': ['FAIL', known_reason],
