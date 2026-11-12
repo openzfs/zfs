@@ -68,6 +68,7 @@ const zfs_deleg_perm_tab_t zfs_deleg_perm_tab[] = {
 	{ZFS_DELEG_PERM_PROJECTQUOTA},
 	{ZFS_DELEG_PERM_PROJECTOBJUSED},
 	{ZFS_DELEG_PERM_PROJECTOBJQUOTA},
+	{ZFS_DELEG_PERM_REDACT},
 	{NULL}
 };
 

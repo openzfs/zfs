@@ -214,6 +214,9 @@ function check_fs_perm
 		rename)
 			verify_fs_rename $user $perm $fs
 			;;
+		redact)
+			verify_fs_redact $user $perm $fs
+			;;
 		mount)
 			verify_fs_mount $user $perm $fs
 			;;
@@ -389,6 +392,51 @@ function verify_send_raw
 	fi
 
 	rm -rf $bak_user $bak_root
+
+	return $ret
+}
+
+#
+# Verify permission redact for specified user on the file system.  It must
+# be held on both the redacted dataset and the dataset of the redaction
+# snapshot, but only the former is delegated by the caller.
+# $1 user
+# $2 permission
+# $3 file system
+#
+function verify_fs_redact
+{
+	typeset user=$1
+	typeset perm=$2
+	typeset fs=$3
+
+	typeset stamp=${perm}.${user}.$RANDOM
+	typeset basefs=${fs%/*}
+	typeset snap=$fs@snap.$stamp
+	typeset clone=$basefs/cfs.$stamp
+	typeset book=book.$stamp
+	typeset -i ret=1
+
+	log_must zfs snapshot $snap
+	log_must zfs clone $snap $clone
+	log_must zfs snapshot $clone@snap
+
+	# No permission on the dataset of the redaction snapshot
+	user_run $user zfs redact $snap $book $clone@snap
+	if bkmarkexists $fs#$book; then
+		log_fail "$user redacted $snap without permission on $clone"
+	else
+		log_must zfs allow $user $perm $clone
+		user_run $user zfs redact $snap $book $clone@snap
+		log_must zfs unallow $user $perm $clone
+		if bkmarkexists $fs#$book; then
+			ret=0
+		fi
+	fi
+
+	destroy_dataset $clone "-R"
+	destroy_dataset $snap "-R"
+	bkmarkexists $fs#$book && log_must zfs destroy $fs#$book
 
 	return $ret
 }

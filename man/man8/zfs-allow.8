@@ -21,7 +21,7 @@
 .\" Copyright 2019 Joyent, Inc.
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd June 14, 2026
+.Dd October 18, 2026
 .Dt ZFS-ALLOW 8
 .Os
 .
@@ -200,6 +200,7 @@ change-key	subcommand	Allows changing an encryption key via \fBzfs change-key\fR
 mount	subcommand	Allows mounting/unmounting ZFS datasets
 promote	subcommand	Must also have the \fBmount\fR and \fBpromote\fR ability in the origin file system
 receive	subcommand	Must also have the \fBmount\fR and \fBcreate\fR ability, required for \fBzfs receive -F\fR (see also \fBreceive:append\fR for limited, non forced receive)
+redact	subcommand	Allows creating a redaction bookmark with \fBzfs redact\fR, without needing the \fBbookmark\fR permission. Must be granted on the dataset of the snapshot being redacted and on the dataset of each redaction snapshot. The redaction list is stored in pool metadata not charged to any quota.
 release	subcommand	Allows releasing a user hold which might destroy the snapshot
 rename	subcommand	Must also have the \fBmount\fR and \fBcreate\fR ability in the new parent
 rollback	subcommand	Must also have the \fBmount\fR ability

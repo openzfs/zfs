@@ -1173,6 +1173,46 @@ zfs_secpolicy_bookmark(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 	return (error);
 }
 
+/*
+ * Check for permission to redact the snapshot named by zc_name with respect
+ * to each snapshot in "snapnv".  The permission is needed on the dataset
+ * holding the snapshot being redacted, which also receives the bookmark,
+ * and on every dataset holding a redaction snapshot, whose contents are
+ * compared against it.
+ */
+static int
+zfs_secpolicy_redact_perms(const char *snapname, cred_t *cr)
+{
+	char fsname[ZFS_MAX_DATASET_NAME_LEN];
+	int error;
+
+	/* The ioctl decides what to do with a name that is not a snapshot. */
+	if (strchr(snapname, '@') == NULL)
+		return (zfs_secpolicy_write_perms(snapname,
+		    ZFS_DELEG_PERM_REDACT, cr));
+
+	error = dmu_fsname(snapname, fsname);
+	if (error != 0)
+		return (error);
+	return (zfs_secpolicy_write_perms(fsname, ZFS_DELEG_PERM_REDACT, cr));
+}
+
+static int
+zfs_secpolicy_redact(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
+{
+	nvlist_t *snapnv = fnvlist_lookup_nvlist(innvl, "snapnv");
+	int error;
+
+	error = zfs_secpolicy_redact_perms(zc->zc_name, cr);
+
+	for (nvpair_t *pair = nvlist_next_nvpair(snapnv, NULL);
+	    error == 0 && pair != NULL;
+	    pair = nvlist_next_nvpair(snapnv, pair)) {
+		error = zfs_secpolicy_redact_perms(nvpair_name(pair), cr);
+	}
+	return (error);
+}
+
 static int
 zfs_secpolicy_destroy_bookmarks(zfs_cmd_t *zc, nvlist_t *innvl, cred_t *cr)
 {
@@ -8129,7 +8169,7 @@ zfs_ioctl_init(void)
 #endif
 
 	zfs_ioctl_register("redact", ZFS_IOC_REDACT,
-	    zfs_ioc_redact, zfs_secpolicy_config, DATASET_NAME,
+	    zfs_ioc_redact, zfs_secpolicy_redact, DATASET_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
 	    zfs_keys_redact, ARRAY_SIZE(zfs_keys_redact));
 
