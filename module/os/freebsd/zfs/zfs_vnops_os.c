@@ -6728,10 +6728,11 @@ zfs_freebsd_advise(struct vop_advise_args *ap)
 
 	zp = VTOZ(vp);
 	zfsvfs = zp->z_zfsvfs;
-	os = zp->z_zfsvfs->z_os;
 
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		goto out_unlock;
+
+	os = zfsvfs->z_os;
 
 	/* kern_posix_fadvise points to the last byte, we want one past */
 	if (end != OFF_MAX)
