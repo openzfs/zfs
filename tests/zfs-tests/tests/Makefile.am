@@ -2537,6 +2537,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/userquota/userquota_012_neg.ksh \
 	functional/userquota/userquota_013_pos.ksh \
 	functional/userquota/userquota_014_neg.ksh \
+	functional/userquota/userquota_015_neg.ksh \
+	functional/userquota/userquota_015_pos.ksh \
 	functional/userquota/userspace_001_pos.ksh \
 	functional/userquota/userspace_002_pos.ksh \
 	functional/userquota/userspace_003_pos.ksh \
