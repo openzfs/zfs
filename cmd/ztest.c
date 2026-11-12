@@ -8958,6 +8958,18 @@ ztest_run(ztest_shared_t *zs)
 		ASSERT3U(ztest_opts.zo_raidz_expand_test, ==,
 		    RAIDZ_EXPAND_NONE);
 
+		/*
+		 * Under a checkpoint, the destroy below frees only the blocks
+		 * born after it, often too little to create the dataset
+		 * again.  Discard the checkpoint first.
+		 */
+		boolean_t waited;
+		mutex_enter(&ztest_checkpoint_lock);
+		ztest_spa_discard_checkpoint(spa);
+		mutex_exit(&ztest_checkpoint_lock);
+		VERIFY0(spa_wait(ztest_opts.zo_pool, ZPOOL_WAIT_CKPT_DISCARD,
+		    &waited));
+
 		int d = ztest_random(ztest_opts.zo_datasets);
 		ztest_dataset_destroy(d);
 		txg_wait_synced(spa_get_dsl(spa), 0);
