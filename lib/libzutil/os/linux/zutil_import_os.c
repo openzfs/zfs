@@ -599,18 +599,51 @@ zfs_device_get_physical(struct udev_device *dev, char *bufptr, size_t buflen)
 
 #endif /* HAVE_LIBUDEV */
 
+static int
+zpool_label_disk_wait_no_udev(const char *path, int timeout_ms)
+{
+	int settle_ms = 50;
+	long sleep_ms = 10;
+	hrtime_t start, settle;
+	struct stat64 statbuf;
+
+	start = gethrtime();
+	settle = 0;
+
+	do {
+		errno = 0;
+		if ((stat64(path, &statbuf) == 0) && (errno == 0)) {
+			if (settle == 0)
+				settle = gethrtime();
+			else if (NSEC2MSEC(gethrtime() - settle) >= settle_ms)
+				return (0);
+		} else if (errno != ENOENT) {
+			return (errno);
+		}
+
+		usleep(sleep_ms * MILLISEC);
+	} while (NSEC2MSEC(gethrtime() - start) < timeout_ms);
+
+	return (ENODEV);
+}
+
 /*
  * Wait up to timeout_ms for udev to set up the device node.  The device is
  * considered ready when libudev determines it has been initialized, all of
  * the device links have been verified to exist, and it has been allowed to
  * settle.  At this point the device can be accessed reliably. Depending on
  * the complexity of the udev rules this process could take several seconds.
+ * If libudev reports that udev is inactive, wait for the device node.
  */
 int
 zpool_label_disk_wait(const char *path, int timeout_ms)
 {
 #ifdef HAVE_LIBUDEV
 	struct udev *udev;
+#if defined(HAVE_UDEV_QUEUE_NEW) && defined(HAVE_UDEV_QUEUE_UNREF) && \
+	defined(HAVE_UDEV_QUEUE_GET_UDEV_IS_ACTIVE)
+	struct udev_queue *queue;
+#endif
 	struct udev_device *dev = NULL;
 	char nodepath[MAXPATHLEN];
 	char *sysname = NULL;
@@ -621,6 +654,21 @@ zpool_label_disk_wait(const char *path, int timeout_ms)
 
 	if ((udev = udev_new()) == NULL)
 		return (ENXIO);
+
+#if defined(HAVE_UDEV_QUEUE_NEW) && defined(HAVE_UDEV_QUEUE_UNREF) && \
+	defined(HAVE_UDEV_QUEUE_GET_UDEV_IS_ACTIVE)
+	if ((queue = udev_queue_new(udev)) == NULL) {
+		udev_unref(udev);
+		return (ENXIO);
+	}
+	ret = udev_queue_get_udev_is_active(queue);
+	udev_queue_unref(queue);
+	if (!ret) {
+		udev_unref(udev);
+		return (zpool_label_disk_wait_no_udev(path, timeout_ms));
+	}
+	ret = ENODEV;
+#endif
 
 	start = gethrtime();
 	settle = 0;
@@ -676,31 +724,8 @@ zpool_label_disk_wait(const char *path, int timeout_ms)
 	udev_unref(udev);
 
 	return (ret);
-#else
-	int settle_ms = 50;
-	long sleep_ms = 10;
-	hrtime_t start, settle;
-	struct stat64 statbuf;
-
-	start = gethrtime();
-	settle = 0;
-
-	do {
-		errno = 0;
-		if ((stat64(path, &statbuf) == 0) && (errno == 0)) {
-			if (settle == 0)
-				settle = gethrtime();
-			else if (NSEC2MSEC(gethrtime() - settle) >= settle_ms)
-				return (0);
-		} else if (errno != ENOENT) {
-			return (errno);
-		}
-
-		usleep(sleep_ms * MILLISEC);
-	} while (NSEC2MSEC(gethrtime() - start) < timeout_ms);
-
-	return (ENODEV);
 #endif /* HAVE_LIBUDEV */
+	return (zpool_label_disk_wait_no_udev(path, timeout_ms));
 }
 
 /*
