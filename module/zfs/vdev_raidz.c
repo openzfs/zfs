@@ -2874,7 +2874,8 @@ vdev_raidz_io_start(zio_t *zio)
 			ASSERT3P(vd->vdev_spa->spa_raidz_expand, ==,
 			    &vdrz->vn_vre);
 			lr = zfs_rangelock_enter(&vdrz->vn_vre.vre_rangelock,
-			    zio->io_offset, zio->io_size, RL_READER);
+			    zio->io_offset, vdev_raidz_psize_to_asize_width(vd,
+			    zio->io_size, logical_width), RL_READER);
 			use_scratch =
 			    (RRSS_GET_STATE(&vd->vdev_spa->spa_ubsync) ==
 			    RRSS_SCRATCH_VALID);
