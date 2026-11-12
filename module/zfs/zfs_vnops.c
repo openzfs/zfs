@@ -91,6 +91,12 @@ static int zfs_dio_enabled = 1;
  */
 static int zfs_dio_strict = 0;
 
+/*
+ * For testing: while this is set, posix_fadvise() on a file pauses before it
+ * enters the file system, until this is cleared, and notes it in the debug
+ * log.  A test can then suspend and resume the file system under the call.
+ */
+static int zfs_fadvise_pause = 0;
 
 /*
  * Maximum bytes to read per chunk in zfs_read().
@@ -3053,6 +3059,28 @@ zfs_clone_range_replay(znode_t *zp, uint64_t off, uint64_t len, uint64_t blksz,
 	return (error);
 }
 
+/*
+ * The fadvise handlers call this just before they enter the file system.
+ * os is the objset the handler has already read, or NULL if it reads it
+ * only once it has entered.  The resume message notes the former, since a
+ * receive that replaced the objset during the pause leaves the handler with
+ * the old one.
+ */
+void
+zfs_fadvise_test_pause(znode_t *zp, objset_t *os)
+{
+	if (zfs_fadvise_pause == 0)
+		return;
+
+	zfs_dbgmsg("fadvise: pausing on object %llu",
+	    (u_longlong_t)zp->z_id);
+	while (zfs_fadvise_pause)
+		delay(1);
+	zfs_dbgmsg("fadvise: resuming on object %llu%s",
+	    (u_longlong_t)zp->z_id,
+	    os != NULL ? " with the objset read before entering" : "");
+}
+
 EXPORT_SYMBOL(zfs_access);
 EXPORT_SYMBOL(zfs_fsync);
 EXPORT_SYMBOL(zfs_holey);
@@ -3081,3 +3109,6 @@ ZFS_MODULE_PARAM(zfs, zfs_, dio_enabled, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, dio_strict, INT, ZMOD_RW,
 	"Return errors on misaligned Direct I/O");
+
+ZFS_MODULE_PARAM(zfs, zfs_, fadvise_pause, INT, ZMOD_RW,
+	"Pause fadvise before entering the file system (testing)");

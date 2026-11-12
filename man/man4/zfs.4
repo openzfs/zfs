@@ -1565,6 +1565,13 @@ It also should be smaller than the size of the slog device if slog is present.
 Defaults to
 .Sy zfs_dirty_data_max*2
 .
+.It Sy zfs_fadvise_pause Ns = Ns Sy 0 Ns | Ns 1 Pq int
+When set,
+.Xr posix_fadvise 2
+calls on files pause before entering the file system until it is cleared,
+and note it in the debug log.
+This option is used by the test suite to trigger race conditions.
+.
 .It Sy zfs_fallocate_reserve_percent Ns = Ns Sy 110 Ns % Pq uint
 Since ZFS is a copy-on-write filesystem with snapshots, blocks cannot be
 preallocated for a file in order to guarantee that later writes will not

@@ -6730,6 +6730,8 @@ zfs_freebsd_advise(struct vop_advise_args *ap)
 	zfsvfs = zp->z_zfsvfs;
 	os = zp->z_zfsvfs->z_os;
 
+	zfs_fadvise_test_pause(zp, os);
+
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		goto out_unlock;
 

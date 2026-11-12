@@ -924,6 +924,8 @@ zpl_fadvise(struct file *filp, loff_t offset, loff_t len, int advice)
 	if (offset < 0 || len < 0)
 		return (-EINVAL);
 
+	zfs_fadvise_test_pause(zp, os);
+
 	if ((error = zpl_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
 
