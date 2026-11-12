@@ -5373,6 +5373,7 @@ static zfs_deleg_perm_tab_t zfs_deleg_perm_tbl[] = {
 	{ ZFS_DELEG_PERM_MOUNT, ZFS_DELEG_NOTE_MOUNT },
 	{ ZFS_DELEG_PERM_PROMOTE, ZFS_DELEG_NOTE_PROMOTE },
 	{ ZFS_DELEG_PERM_RECEIVE, ZFS_DELEG_NOTE_RECEIVE },
+	{ ZFS_DELEG_PERM_RECEIVE_APPEND, ZFS_DELEG_NOTE_RECEIVE_APPEND },
 	{ ZFS_DELEG_PERM_RELEASE, ZFS_DELEG_NOTE_RELEASE },
 	{ ZFS_DELEG_PERM_RENAME, ZFS_DELEG_NOTE_RENAME },
 	{ ZFS_DELEG_PERM_ROLLBACK, ZFS_DELEG_NOTE_ROLLBACK },
@@ -5864,6 +5865,10 @@ deleg_perm_comment(zfs_deleg_note_t note)
 	case ZFS_DELEG_NOTE_RECEIVE:
 		str = "Must also have the 'mount' and 'create'"
 		    " ability";
+		break;
+	case ZFS_DELEG_NOTE_RECEIVE_APPEND:
+		str = "Must also have the 'mount' and 'create'"
+		    "\n\t\t\t\tability; 'receive -F' is not allowed";
 		break;
 	case ZFS_DELEG_NOTE_RELEASE:
 		str = "Allows releasing a user hold which\n\t\t\t\t"
