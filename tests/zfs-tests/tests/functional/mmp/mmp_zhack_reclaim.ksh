@@ -165,11 +165,8 @@ log_must eval "ZFS_HOSTID=$HOSTID1 zhack -d $PEER_DIR action idle -t120 \
     $MMP_POOL >$MMP_ZHACK_LOG 2>&1 &"
 
 #
-# Wait for the peer to hold the pool the same way mmp_pool_create_zhack does.
-# Grepping its log for the activity check line would work only by accident:
-# ZFS_HOSTID is parsed with strtoull(env, NULL, 0), so a leading zero makes it
-# octal, and the peer's hostid happens not to match the label.  Write the
-# hostid unambiguously and the check is skipped and the line never appears.
+# Wait for the peer to hold the pool.  Its hostid matches the label, so the
+# activity check is skipped and its log cannot be used to detect the import.
 #
 typeset -i tries=0
 while ! is_pool_imported $MMP_POOL "-d $PEER_DIR"; do
