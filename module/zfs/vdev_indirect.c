@@ -1595,18 +1595,37 @@ vdev_indirect_splits_enumerate_randomly(indirect_vsd_t *iv, zio_t *zio)
  * is one of these: enumerate_all() may try it last, and random sampling
  * finds it with probability attempts / 2^splits.  A split whose chosen
  * child has no data takes its first unique copy instead.  At most
- * iv_attempts_max combinations are tried.
+ * iv_attempts_max combinations are enumerated after the DTL choice.
  */
 static int
 vdev_indirect_splits_enumerate_likely(indirect_vsd_t *iv, zio_t *zio)
 {
 	boolean_t found = B_FALSE;
+	boolean_t stale = B_FALSE;
 	uint64_t attempts = 0;
 	uint64_t tops = 0;
 
+	/* A capped enumeration may not reach the non-stale choice. */
 	for (indirect_split_t *is = list_head(&iv->iv_splits);
-	    is != NULL; is = list_next(&iv->iv_splits, is))
+	    is != NULL; is = list_next(&iv->iv_splits, is)) {
+		indirect_child_t *ic = NULL;
+
 		tops = MAX(tops, is->is_vdev->vdev_id + 1);
+		for (int c = 0; c < is->is_children; c++) {
+			indirect_child_t *child = &is->is_child[c];
+
+			if (child->ic_error != 0)
+				stale = B_TRUE;
+			else if (ic == NULL && child->ic_data != NULL)
+				ic = child;
+		}
+		if (ic == NULL)
+			ic = list_head(&is->is_unique_child);
+		is->is_good_child = ic->ic_duplicate != NULL ?
+		    ic->ic_duplicate : ic;
+	}
+	if (stale && vdev_indirect_splits_checksum_validate(iv, zio) == 0)
+		return (0);
 
 	/* The child tried, and the number of children, per top-level vdev. */
 	int *child = kmem_zalloc(tops * sizeof (int), KM_SLEEP);
@@ -1661,6 +1680,7 @@ vdev_indirect_splits_enumerate_likely(indirect_vsd_t *iv, zio_t *zio)
 static int
 vdev_indirect_splits_damage(indirect_vsd_t *iv, zio_t *zio, boolean_t *likely)
 {
+	uint64_t combinations = 1;
 	uint32_t shift;
 	boolean_t keep;
 	int error;
@@ -1696,8 +1716,8 @@ vdev_indirect_splits_damage(indirect_vsd_t *iv, zio_t *zio, boolean_t *likely)
 
 	/*
 	 * Half of the time, keep one child of each top-level vdev intact on
-	 * every split instead, and damage all the other copies, whatever the
-	 * number of splits and the combinations limit.  The kept child varies
+	 * every split instead, if their combinations fit the limit, and
+	 * damage all the other copies.  The kept child varies
 	 * between top-level vdevs, and must already hold the validated copy,
 	 * so that damage on disk stays visible to vdev_indirect_repair().
 	 */
@@ -1710,8 +1730,27 @@ vdev_indirect_splits_damage(indirect_vsd_t *iv, zio_t *zio, boolean_t *likely)
 		indirect_child_t *kept = &is->is_child[k];
 
 		if (kept->ic_data == NULL || (kept != is->is_good_child &&
-		    abd_cmp(kept->ic_data, is->is_good_child->ic_data) != 0))
+		    abd_cmp(kept->ic_data, is->is_good_child->ic_data) != 0)) {
 			keep = B_FALSE;
+			break;
+		}
+		if (is->is_children == 1)
+			continue;
+
+		indirect_split_t *prev;
+		for (prev = list_prev(&iv->iv_splits, is); prev != NULL;
+		    prev = list_prev(&iv->iv_splits, prev)) {
+			if (prev->is_vdev == is->is_vdev)
+				break;
+		}
+		if (prev == NULL) {
+			if (combinations > iv->iv_attempts_max /
+			    is->is_children) {
+				keep = B_FALSE;
+				break;
+			}
+			combinations *= is->is_children;
+		}
 	}
 
 	if (keep) {
@@ -1728,7 +1767,6 @@ vdev_indirect_splits_damage(indirect_vsd_t *iv, zio_t *zio, boolean_t *likely)
 					abd_zero(ic->ic_data, is->is_size);
 			}
 		}
-		iv->iv_attempts_max = UINT64_MAX;
 		*likely = B_TRUE;
 		goto out;
 	}
@@ -1902,7 +1940,8 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 			iv->iv_unique_combinations *= is->is_unique_children;
 	}
 
-	error = vdev_indirect_splits_enumerate_likely(iv, zio);
+	error = known_good && !known_likely ? ECKSUM :
+	    vdev_indirect_splits_enumerate_likely(iv, zio);
 	IMPLY(known_likely, error == 0);
 	if (error != 0) {
 		if (iv->iv_unique_combinations <= iv->iv_attempts_max)
