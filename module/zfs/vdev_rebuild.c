@@ -288,6 +288,19 @@ vdev_rebuild_initiate(vdev_t *vd, uint64_t txg)
 }
 
 /*
+ * spa_async_thread() drops a resilver request while a sequential rebuild
+ * is active, for example when another device is onlined during the
+ * rebuild.  Request it again when the last rebuild ends.
+ */
+static void
+vdev_rebuild_resilver_request(spa_t *spa)
+{
+	if (!vdev_rebuild_active(spa->spa_root_vdev) &&
+	    vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL))
+		spa_async_request(spa, SPA_ASYNC_RESILVER);
+}
+
+/*
  * Update the on-disk state to completed when a rebuild finishes.
  */
 static void
@@ -335,15 +348,9 @@ vdev_rebuild_complete_sync(void *arg, dmu_tx_t *tx)
 	 * While we're in syncing context take the opportunity to
 	 * setup the scrub when there are no more active rebuilds.
 	 */
-	setup_sync_arg_t setup_sync_arg = {
-		.func = POOL_SCAN_SCRUB,
-		.txgstart = 0,
-		.txgend = 0,
-	};
-	if (dsl_scan_setup_check(&setup_sync_arg.func, tx) == 0 &&
-	    zfs_rebuild_scrub_enabled) {
-		dsl_scan_setup_sync(&setup_sync_arg, tx);
-	}
+	vdev_rebuild_resilver_request(spa);
+	if (zfs_rebuild_scrub_enabled)
+		dsl_scan_setup_verify(spa->spa_dsl_pool, tx);
 
 	cv_broadcast(&vd->vdev_rebuild_cv);
 
@@ -381,6 +388,8 @@ vdev_rebuild_cancel_sync(void *arg, dmu_tx_t *tx)
 	vd->vdev_rebuild_cancel_wanted = B_FALSE;
 	vd->vdev_rebuilding = B_FALSE;
 	mutex_exit(&vd->vdev_rebuild_lock);
+
+	vdev_rebuild_resilver_request(spa);
 
 	spa_notify_waiters(spa);
 	cv_broadcast(&vd->vdev_rebuild_cv);
