@@ -92,6 +92,8 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/alloc_class/alloc_class.kshlib \
 	functional/anyraid/anyraid_common.kshlib \
 	functional/anyraid/default.cfg \
+	functional/async/async.cfg \
+	functional/async/async.kshlib \
 	functional/atime/atime.cfg \
 	functional/atime/atime_common.kshlib \
 	functional/bclone/bclone.cfg \
@@ -519,6 +521,12 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/arc/dbufstats_002_pos.ksh \
 	functional/arc/dbufstats_003_pos.ksh \
 	functional/arc/setup.ksh \
+	functional/async/async_read_001_pos.ksh \
+	functional/async/async_read_002_pos.ksh \
+	functional/async/async_read_003_pos.ksh \
+	functional/async/async_read_004_pos.ksh \
+	functional/async/cleanup.ksh \
+	functional/async/setup.ksh \
 	functional/atime/atime_001_pos.ksh \
 	functional/atime/atime_002_neg.ksh \
 	functional/atime/atime_003_pos.ksh \

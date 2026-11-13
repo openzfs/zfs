@@ -38,6 +38,13 @@ typedef struct zfsvfs zfsvfs_t;
 struct znode;
 
 /*
+ * z_async_dio_inflight is split into a request count (low bits) and a
+ * sticky draining flag (top bit).
+ */
+#define	ZPL_ASYNC_DIO_DRAINING_BIT	(1ULL << 63)
+#define	ZPL_ASYNC_DIO_INFLIGHT_MASK	(~ZPL_ASYNC_DIO_DRAINING_BIT)
+
+/*
  * This structure emulates the vfs_t from other platforms.  It's purpose
  * is to facilitate the handling of mount options and minimize structural
  * differences between the platforms.
@@ -93,6 +100,20 @@ struct zfsvfs {
 	boolean_t	z_use_hold;	/* held via dmu_objset_hold */
 	rrmlock_t	z_teardown_lock;
 	krwlock_t	z_teardown_inactive_lock;
+	/*
+	 * Async Direct I/O bookkeeping.  z_async_dio_inflight packs the
+	 * number of admitted but not yet completed requests in the low 63
+	 * bits with a sticky draining flag in bit 63.  One compare-and-swap
+	 * therefore both rejects new admissions once teardown has started
+	 * and records the request for the drain, so a request cannot slip
+	 * past the drain.  The count does not limit admission; it exists so
+	 * teardown can wait for requests that are already executing.  The
+	 * separate pinned memory budget is enforced before the pages are
+	 * pinned.
+	 */
+	kmutex_t	z_async_dio_lock; /* drain condition waiters */
+	kcondvar_t	z_async_dio_cv;	/* wakeup for the teardown drain */
+	uint64_t	z_async_dio_inflight; /* atomic; see above */
 	list_t		z_all_znodes;	/* all znodes in the fs */
 	unsigned long	z_rollback_time; /* last online rollback time */
 	uint64_t	z_snap_atime;	/* last snapshot access time */

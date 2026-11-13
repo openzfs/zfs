@@ -437,6 +437,11 @@ static int zfs_user_indirect_is_special = B_TRUE;
  */
 static uint_t zfs_special_class_metadata_reserve_pct = 25;
 
+#if defined(_KERNEL) && defined(__linux__)
+extern void zpl_async_dio_pool_create(struct spa *);
+extern void zpl_async_dio_pool_destroy(struct spa *);
+#endif
+
 /*
  * ==========================================================================
  * SPA config locking
@@ -944,6 +949,10 @@ spa_add(const char *name, nvlist_t *config, const char *altroot)
 	list_create(&spa->spa_leaf_list, sizeof (vdev_t),
 	    offsetof(vdev_t, vdev_leaf_node));
 
+#if defined(_KERNEL) && defined(__linux__)
+	zpl_async_dio_pool_create(spa);
+#endif
+
 	return (spa);
 }
 
@@ -1030,6 +1039,10 @@ spa_remove(spa_t *spa)
 	mutex_destroy(&spa->spa_activities_lock);
 	mutex_destroy(&spa->spa_txg_log_time_lock);
 	mutex_destroy(&spa->spa_condense_stats_lock);
+
+#if defined(_KERNEL) && defined(__linux__)
+	zpl_async_dio_pool_destroy(spa);
+#endif
 
 	kmem_free(spa, sizeof (spa_t));
 }
