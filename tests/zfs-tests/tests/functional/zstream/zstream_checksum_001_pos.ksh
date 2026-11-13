@@ -50,7 +50,7 @@ for stem in "${streams[@]}"; do
 	typeset redup_out="$BACKDIR/${stem}.zsend.redup"
 
 	bzcat "$src" > "$orig"
-	log_must eval "zstream redup '$orig' > '$redup_out'"
+	log_must eval "zstream redup -d '$BACKDIR' '$orig' > '$redup_out'"
 
 	if ! cmp -s "$orig" "$redup_out" > /dev/null 2>&1; then
 		log_note "MISMATCH: $stem"
