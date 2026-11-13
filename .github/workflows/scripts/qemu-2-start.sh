@@ -378,8 +378,24 @@ else
     ssh 2>/dev/null root@vm0 true && break
     sleep 1
   done
-  scp ~/src.txz "root@vm0:/tmp/src.txz"
-  ssh root@vm0 'tar -C / -zxf /tmp/src.txz'
+  if [ -s ~/src.txz ]; then
+    scp ~/src.txz "root@vm0:/tmp/src.txz"
+    ssh root@vm0 'tar -C / -zxf /tmp/src.txz'
+  else
+    revision=$(ssh root@vm0 'uname -v' | \
+      sed -nE 's/.*-n[0-9]+-([0-9a-f]{12,40}):.*/\1/p')
+    test -n "$revision"
+    curl --fail -LSs -o ~/src.tar.gz \
+      "https://github.com/freebsd/freebsd-src/archive/$revision.tar.gz"
+    scp ~/src.tar.gz "root@vm0:/tmp/src.tar.gz"
+    ssh root@vm0 'mkdir -p /usr/src &&
+      if [ -n "$(ls -A /usr/src)" ]; then
+        echo "/usr/src is not empty" >&2
+        exit 1
+      fi &&
+      tar -C /usr/src \
+      --strip-components=1 -zxf /tmp/src.tar.gz'
+  fi
 fi
 
 #
