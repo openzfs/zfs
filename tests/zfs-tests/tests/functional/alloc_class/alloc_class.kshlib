@@ -101,3 +101,14 @@ if (match($0,"L0 [0-9]+")) {
    }
 }}'
 }
+
+#
+# Fail unless the allocation_classes feature of the pool is in the given state
+#
+function check_feature # <pool> <state>
+{
+	typeset state=$(get_pool_prop feature@allocation_classes $1)
+
+	[[ "$state" == "$2" ]] || log_fail \
+	    "feature@allocation_classes is '$state', expected '$2'"
+}
