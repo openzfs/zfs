@@ -3946,9 +3946,10 @@ open_objset(const char *path, const void *tag, objset_t **osp)
 		}
 	}
 
-	int ds_hold_flags = key_loaded ? DS_HOLD_FLAG_DECRYPT : 0;
-
-	err = dmu_objset_hold_flags(path, ds_hold_flags, tag, osp);
+	if (key_loaded)
+		err = dmu_objset_hold_decrypt(path, tag, osp);
+	else
+		err = dmu_objset_hold(path, tag, osp);
 	if (err != 0) {
 		(void) fprintf(stderr, "failed to hold dataset '%s': %s\n",
 		    path, strerror(err));
@@ -3973,7 +3974,7 @@ open_objset(const char *path, const void *tag, objset_t **osp)
 			    strerror(err));
 			dsl_dataset_long_rele(dmu_objset_ds(*osp), tag);
 			dsl_dataset_rele_flags(dmu_objset_ds(*osp),
-			    ds_hold_flags, tag);
+			    key_loaded ? DS_HOLD_FLAG_DECRYPT : 0, tag);
 			*osp = NULL;
 		}
 	}

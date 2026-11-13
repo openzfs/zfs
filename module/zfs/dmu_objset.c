@@ -800,16 +800,14 @@ dmu_objset_authenticate(objset_t *os)
  * Holds the pool while the objset is held.  Therefore only one objset
  * can be held at a time.
  */
-int
-dmu_objset_hold_flags(const char *name, boolean_t decrypt, const void *tag,
-    objset_t **osp)
+static int
+dmu_objset_hold_flags(const char *name, ds_hold_flags_t flags,
+    const void *tag, objset_t **osp)
 {
 	dsl_pool_t *dp;
 	dsl_dataset_t *ds;
 	int err;
-	ds_hold_flags_t flags;
 
-	flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : DS_HOLD_FLAG_NONE;
 	err = dsl_pool_hold(name, tag, &dp);
 	if (err != 0)
 		return (err);
@@ -831,7 +829,13 @@ dmu_objset_hold_flags(const char *name, boolean_t decrypt, const void *tag,
 int
 dmu_objset_hold(const char *name, const void *tag, objset_t **osp)
 {
-	return (dmu_objset_hold_flags(name, B_FALSE, tag, osp));
+	return (dmu_objset_hold_flags(name, DS_HOLD_FLAG_NONE, tag, osp));
+}
+
+int
+dmu_objset_hold_decrypt(const char *name, const void *tag, objset_t **osp)
+{
+	return (dmu_objset_hold_flags(name, DS_HOLD_FLAG_DECRYPT, tag, osp));
 }
 
 static int
@@ -931,13 +935,11 @@ dmu_objset_own_obj(dsl_pool_t *dp, uint64_t obj, dmu_objset_type_t type,
 	return (0);
 }
 
-void
-dmu_objset_rele_flags(objset_t *os, boolean_t decrypt, const void *tag)
+static void
+dmu_objset_rele_flags(objset_t *os, ds_hold_flags_t flags, const void *tag)
 {
-	ds_hold_flags_t flags;
 	dsl_pool_t *dp = dmu_objset_pool(os);
 
-	flags = (decrypt) ? DS_HOLD_FLAG_DECRYPT : DS_HOLD_FLAG_NONE;
 	dsl_dataset_rele_flags(os->os_dsl_dataset, flags, tag);
 	dsl_pool_rele(dp, tag);
 }
@@ -945,7 +947,13 @@ dmu_objset_rele_flags(objset_t *os, boolean_t decrypt, const void *tag)
 void
 dmu_objset_rele(objset_t *os, const void *tag)
 {
-	dmu_objset_rele_flags(os, B_FALSE, tag);
+	dmu_objset_rele_flags(os, DS_HOLD_FLAG_NONE, tag);
+}
+
+void
+dmu_objset_rele_decrypt(objset_t *os, const void *tag)
+{
+	dmu_objset_rele_flags(os, DS_HOLD_FLAG_DECRYPT, tag);
 }
 
 /*
@@ -3127,10 +3135,10 @@ EXPORT_SYMBOL(dmu_objset_ds);
 EXPORT_SYMBOL(dmu_objset_type);
 EXPORT_SYMBOL(dmu_objset_name);
 EXPORT_SYMBOL(dmu_objset_hold);
-EXPORT_SYMBOL(dmu_objset_hold_flags);
+EXPORT_SYMBOL(dmu_objset_hold_decrypt);
 EXPORT_SYMBOL(dmu_objset_own);
 EXPORT_SYMBOL(dmu_objset_rele);
-EXPORT_SYMBOL(dmu_objset_rele_flags);
+EXPORT_SYMBOL(dmu_objset_rele_decrypt);
 EXPORT_SYMBOL(dmu_objset_disown);
 EXPORT_SYMBOL(dmu_objset_from_ds);
 EXPORT_SYMBOL(dmu_objset_create);
