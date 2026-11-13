@@ -36,14 +36,17 @@
 
 verify_runnable "global"
 
-log_onexit zpool_export_cleanup
-
 log_assert "Verify a pool can be exported."
 
 log_must zfs umount $TESTDIR
-log_must zpool export $TESTPOOL
+if ! log_pos zpool export $TESTPOOL; then
+	log_must zfs mount $TESTPOOL/$TESTFS
+	log_fail "Unable to export $TESTPOOL."
+fi
 
 poolexists $TESTPOOL && \
         log_fail "$TESTPOOL unexpectedly found in 'zpool list' output."
+
+log_must zpool import $TESTPOOL
 
 log_pass "Successfully exported a ZPOOL."
