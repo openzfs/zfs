@@ -91,7 +91,9 @@ zfs_scratch_dir=$(mktemp -d /var/tmp/zfs-zloop.XXXXXX) || exit 1
   source `$STF_SUITE/include/libtest.shlib`, use `log_*` helpers,
   `verify_runnable "global"|"both"`, and `log_onexit` cleanup.
   `.cfg`, `.kshlib` and `.shlib` files must not be executable (`testscheck`).
-- Register tests in `tests/zfs-tests/tests/Makefile.am` (`make regen-tests`)
+- Register tests in `tests/zfs-tests/tests/Makefile.am` (the Linux-only simd
+  and tmpfile groups in `tests/zfs-tests/tests/functional/Makefile.am`;
+  `make regen-tests` writes both)
   and `tests/runfiles/common.run` or the platform runfile. `make regen-tests`
   runs `make clean` for the whole build; rebuild before testing, or edit the
   entries manually to preserve built artifacts. Missing runfile entries

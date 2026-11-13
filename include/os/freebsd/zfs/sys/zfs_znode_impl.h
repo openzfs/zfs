@@ -173,6 +173,12 @@ extern void zfs_zero_eof_page(struct znode *, struct zfs_locked_range *,
     uint64_t);
 
 extern zil_replay_func_t *const zfs_replay_vector[TX_MAX_TYPE];
+extern void zfs_replay_tmpfile_adopt(struct zfsvfs *);
+extern void zfs_replay_tmpfile_fini(struct zfsvfs *);
+extern int zfs_replay_create_unnamed(struct znode *, struct vattr *, int,
+    struct znode **);
+#define	zfs_replay_tmpfile_linkable(zp)	((void) (zp))
+#define	zfs_znode_nlink(zp)	((zp)->z_links)
 
 extern int zfs_znode_parent_and_name(struct znode *zp, struct znode **dzpp,
     char *buf, uint64_t buflen);
