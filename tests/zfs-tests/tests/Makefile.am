@@ -1243,6 +1243,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_detach/cleanup.ksh \
 	functional/cli_root/zpool_detach/setup.ksh \
 	functional/cli_root/zpool_detach/zpool_detach_001_neg.ksh \
+	functional/cli_root/zpool_detach/zpool_detach_004_pos.ksh \
 	functional/cli_root/zpool_events/cleanup.ksh \
 	functional/cli_root/zpool_events/setup.ksh \
 	functional/cli_root/zpool_events/zpool_events_clear.ksh \
@@ -1394,6 +1395,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_reguid/setup.ksh \
 	functional/cli_root/zpool_reguid/zpool_reguid_001_pos.ksh \
 	functional/cli_root/zpool_reguid/zpool_reguid_002_neg.ksh \
+	functional/cli_root/zpool_reguid/zpool_reguid_003_pos.ksh \
 	functional/cli_root/zpool_remove/cleanup.ksh \
 	functional/cli_root/zpool_remove/setup.ksh \
 	functional/cli_root/zpool_remove/zpool_remove_001_neg.ksh \
