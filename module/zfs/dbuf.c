@@ -2254,17 +2254,73 @@ dbuf_release_bp(dmu_buf_impl_t *db)
 }
 
 /*
+ * Block cloning: turn the dirty record of a block cloned in this txg into a
+ * regular dirty record for the data that dbuf_read() has read from the
+ * cloned block.  This replaces undirtying the clone and dirtying the dbuf
+ * again, which had to drop db_mtx in between: concurrent writers into the
+ * same block could then undirty each other's new dirty records, and the dbuf
+ * briefly held data that was not dirty over a hole.
+ */
+static void
+dbuf_redirty_clone(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
+{
+	dmu_buf_impl_t *db = dr->dr_dbuf;
+	blkptr_t *bp = &dr->dt.dl.dr_overridden_by;
+	dbuf_dirty_record_t *dr_prev = list_next(&db->db_dirty_records, dr);
+
+	ASSERT(MUTEX_HELD(&db->db_mtx));
+	ASSERT0(db->db_level);
+	ASSERT3U(db->db_blkid, !=, DMU_BONUS_BLKID);
+	ASSERT3U(db->db.db_object, !=, DMU_META_DNODE_OBJECT);
+	ASSERT3U(db->db_state, ==, DB_CACHED);
+	ASSERT3U(dr->dr_txg, ==, tx->tx_txg);
+	ASSERT(dr->dt.dl.dr_brtwrite);
+	ASSERT(!dr->dt.dl.dr_diowrite);
+	ASSERT3S(dr->dt.dl.dr_override_state, ==, DR_OVERRIDDEN);
+	ASSERT0P(dr->dt.dl.dr_data);
+	ASSERT0(dr->dr_accounted);
+
+	/* Drop the pending clone, as dbuf_undirty() would. */
+	if (!BP_IS_HOLE(bp) && !BP_IS_EMBEDDED(bp))
+		brt_pending_remove(dmu_objset_spa(db->db_objset), bp, tx);
+	BP_ZERO(bp);
+	dr->dt.dl.dr_override_state = DR_NOT_OVERRIDDEN;
+	dr->dt.dl.dr_brtwrite = B_FALSE;
+
+	/*
+	 * Release the buffer from the ARC, as dbuf_dirty() would, so that the
+	 * write does not change the cached copy of the cloned block.  No older
+	 * dirty record references it: dbuf_read() allocated it after the
+	 * clone, which dropped the previous buffer.
+	 */
+	ASSERT(dr_prev == NULL || dr_prev->dt.dl.dr_data != db->db_buf);
+	arc_release(db->db_buf, db);
+	dr->dt.dl.dr_data = db->db_buf;
+
+	/* The clone was not accounted as dirty data; this write is. */
+	dr->dr_accounted = db->db.db_size;
+	dmu_objset_willuse_space(db->db_objset, dr->dr_accounted, tx);
+}
+
+/*
  * We already have a dirty record for this TXG, and we are being
  * dirtied again.
  */
 static void
-dbuf_redirty(dbuf_dirty_record_t *dr)
+dbuf_redirty(dbuf_dirty_record_t *dr, dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db = dr->dr_dbuf;
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 
 	if (db->db_level == 0 && db->db_blkid != DMU_BONUS_BLKID) {
+		/*
+		 * Block cloning: once the cloned block has been read into
+		 * the dbuf, the clone becomes a regular write of that data.
+		 */
+		if (dr->dt.dl.dr_brtwrite && db->db_state == DB_CACHED)
+			dbuf_redirty_clone(dr, tx);
+
 		/*
 		 * If this buffer has already been written out,
 		 * we now need to reset its state.
@@ -2421,7 +2477,7 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	if (dr_next && dr_next->dr_txg == tx->tx_txg) {
 		DB_DNODE_EXIT(db);
 
-		dbuf_redirty(dr_next);
+		dbuf_redirty(dr_next, tx);
 		mutex_exit(&db->db_mtx);
 		return (dr_next);
 	}
@@ -2757,7 +2813,6 @@ void
 dmu_buf_will_dirty_flags(dmu_buf_t *db_fake, dmu_tx_t *tx, dmu_flags_t flags)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
-	boolean_t undirty = B_FALSE;
 
 	ASSERT(tx->tx_txg != 0);
 	ASSERT(!zfs_refcount_is_zero(&db->db_holds));
@@ -2774,23 +2829,17 @@ dmu_buf_will_dirty_flags(dmu_buf_t *db_fake, dmu_tx_t *tx, dmu_flags_t flags)
 		 * go through dmu_buf_will_dirty().
 		 */
 		dbuf_dirty_record_t *dr = dbuf_find_dirty_eq(db, tx->tx_txg);
-		if (dr != NULL) {
-			if (db->db_level == 0 &&
-			    dr->dt.dl.dr_brtwrite) {
-				/*
-				 * Block cloning: If we are dirtying a cloned
-				 * level 0 block, we cannot simply redirty it,
-				 * because this dr has no associated data.
-				 * We will go through a full undirtying below,
-				 * before dirtying it again.
-				 */
-				undirty = B_TRUE;
-			} else {
-				/* This dbuf is already dirty and cached. */
-				dbuf_redirty(dr);
-				mutex_exit(&db->db_mtx);
-				return;
-			}
+		/*
+		 * Block cloning: If we are dirtying a level 0 block cloned
+		 * in this txg, we cannot simply redirty it before the cloned
+		 * data has been read, because this dr has no associated data.
+		 */
+		if (dr != NULL && (db->db_level != 0 ||
+		    !dr->dt.dl.dr_brtwrite || db->db_state == DB_CACHED)) {
+			/* This dbuf is already dirty and cached. */
+			dbuf_redirty(dr, tx);
+			mutex_exit(&db->db_mtx);
+			return;
 		}
 	}
 	mutex_exit(&db->db_mtx);
@@ -2801,17 +2850,13 @@ dmu_buf_will_dirty_flags(dmu_buf_t *db_fake, dmu_tx_t *tx, dmu_flags_t flags)
 	DB_DNODE_EXIT(db);
 
 	/*
-	 * Block cloning: Do the dbuf_read() before undirtying the dbuf, as we
-	 * want to make sure dbuf_read() will read the pending cloned block and
-	 * not the uderlying block that is being replaced. dbuf_undirty() will
-	 * do brt_pending_remove() before removing the dirty record.
+	 * Block cloning: dbuf_read() reads the pending cloned block, not the
+	 * underlying block that is being replaced.  dbuf_dirty() then finds
+	 * the clone's dirty record and dbuf_redirty() turns it into a regular
+	 * write of that data, under db_mtx, so that concurrent writers into
+	 * the block never see it undirtied.
 	 */
 	(void) dbuf_read(db, NULL, flags | DB_RF_MUST_SUCCEED);
-	if (undirty) {
-		mutex_enter(&db->db_mtx);
-		VERIFY(!dbuf_undirty(db, tx));
-		mutex_exit(&db->db_mtx);
-	}
 	(void) dbuf_dirty(db, tx);
 }
 
