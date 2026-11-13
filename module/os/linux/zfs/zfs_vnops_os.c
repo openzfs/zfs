@@ -188,6 +188,18 @@ zfs_open(struct inode *ip, int mode, int flag, cred_t *cr)
 	}
 
 	/*
+	 * Honor the DOS read-only attribute (ZFS_READONLY).  The VFS only
+	 * checks the mode bits, and zfs_write() deliberately lets it through
+	 * so that descriptors opened before it was set stay writable, so the
+	 * open is where it must be enforced.  It is ignored for directories.
+	 */
+	if (blk_mode_is_open_write(mode) && (zp->z_pflags & ZFS_READONLY) &&
+	    !S_ISDIR(ip->i_mode)) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EPERM));
+	}
+
+	/*
 	 * Keep a count of the synchronous opens in the znode.  On first
 	 * synchronous open we must convert all previous async transactions
 	 * into sync to keep correct ordering.
