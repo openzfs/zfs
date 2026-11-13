@@ -770,12 +770,8 @@ kill_blkptr(spa_t *spa, zilog_t *zilog, const blkptr_t *bp,
 		return (0);
 
 	if (zb->zb_level == ZB_ZIL_LEVEL) {
+		/* old_synchronous_dataset_destroy() frees the intent log. */
 		ASSERT(zilog != NULL);
-		/*
-		 * It's a block in the intent log.  It has no
-		 * accounting, so just free it.
-		 */
-		dsl_free(ka->tx->tx_pool, ka->tx->tx_txg, bp);
 	} else {
 		ASSERT0P(zilog);
 		ASSERT3U(BP_GET_BIRTH(bp), >,
@@ -790,6 +786,9 @@ static void
 old_synchronous_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 {
 	struct killarg ka;
+	objset_t *os;
+
+	VERIFY0(dmu_objset_from_ds(ds, &os));
 
 	spa_history_log_internal_ds(ds, "destroy", tx,
 	    "(synchronous, mintxg=%llu)",
@@ -807,6 +806,12 @@ old_synchronous_dataset_destroy(dsl_dataset_t *ds, dmu_tx_t *tx)
 	VERIFY0(traverse_dataset(ds,
 	    dsl_dataset_phys(ds)->ds_prev_snap_txg, TRAVERSE_POST |
 	    TRAVERSE_NO_DECRYPT, kill_blkptr, &ka));
+
+	/*
+	 * As the asynchronous destroys do: the traversal visits the log only
+	 * while it is claimed, and a log used or reset since the import is not.
+	 */
+	zil_destroy_sync(dmu_objset_zil(os), tx);
 
 	/* We are not synced by dsl_pool_sync(), so apply the deltas here. */
 	dsl_dataset_apply_deltas(ds, tx);
