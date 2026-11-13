@@ -376,6 +376,11 @@ zvol_set_volsize(const char *name, uint64_t volsize)
 
 	dmu_object_info_t *doi = kmem_alloc(sizeof (*doi), KM_SLEEP);
 
+	if (!owned && (zv->zv_flags & ZVOL_RESUME_FAILED)) {
+		error = SET_ERROR(EIO);
+		goto out;
+	}
+
 	if ((error = dmu_object_info(os, ZVOL_OBJ, doi)) ||
 	    (error = zvol_check_volsize(volsize, doi->doi_data_block_size)))
 		goto out;
@@ -677,10 +682,12 @@ zvol_clone_range(zvol_state_t *zv_src, uint64_t inoff, zvol_state_t *zv_dst,
 	int error = 0;
 
 	rw_enter(&zv_dst->zv_suspend_lock, RW_READER);
-	if (zv_dst->zv_zilog == NULL) {
+	if (zv_dst->zv_zilog == NULL &&
+	    !(zv_dst->zv_flags & ZVOL_RESUME_FAILED)) {
 		rw_exit(&zv_dst->zv_suspend_lock);
 		rw_enter(&zv_dst->zv_suspend_lock, RW_WRITER);
-		if (zv_dst->zv_zilog == NULL) {
+		if (zv_dst->zv_zilog == NULL &&
+		    !(zv_dst->zv_flags & ZVOL_RESUME_FAILED)) {
 			zv_dst->zv_zilog = zil_open(zv_dst->zv_objset,
 			    zvol_get_data, &zv_dst->zv_kstat.dk_zil_sums);
 			zv_dst->zv_flags |= ZVOL_WRITTEN_TO;
@@ -691,6 +698,11 @@ zvol_clone_range(zvol_state_t *zv_src, uint64_t inoff, zvol_state_t *zv_dst,
 	}
 	if (zv_src != zv_dst)
 		rw_enter(&zv_src->zv_suspend_lock, RW_READER);
+
+	if ((zv_dst->zv_flags | zv_src->zv_flags) & ZVOL_RESUME_FAILED) {
+		error = SET_ERROR(EIO);
+		goto out;
+	}
 
 	inos = zv_src->zv_objset;
 	outos = zv_dst->zv_objset;
@@ -1185,6 +1197,15 @@ zvol_setup_zv(zvol_state_t *zv)
 	zv->zv_zilog = NULL;
 	zv->zv_flags &= ~ZVOL_WRITTEN_TO;
 
+	/*
+	 * After a rollback or receive, zvol_resume() may find an objset
+	 * that was read from disk again, so check its MACs before anything
+	 * can dirty it.
+	 */
+	error = dmu_objset_authenticate(os);
+	if (error)
+		return (error);
+
 	/* Not by zv_name, which may not follow a rename yet. */
 	dsl_pool_config_enter(dp, FTAG);
 	error = dsl_prop_get_int_ds(dmu_objset_ds(os), "readonly", &ro);
@@ -1231,8 +1252,11 @@ zvol_shutdown_zv(zvol_state_t *zv)
 
 	zv->zv_zilog = NULL;
 
-	dnode_rele(zv->zv_dn, zv);
-	zv->zv_dn = NULL;
+	/* zvol_resume() may have failed before holding the dnode. */
+	if (zv->zv_dn != NULL) {
+		dnode_rele(zv->zv_dn, zv);
+		zv->zv_dn = NULL;
+	}
 
 	/*
 	 * Evict cached data. We must write out any dirty data before
@@ -1322,7 +1346,16 @@ zvol_resume(zvol_state_t *zv)
 		dsl_dataset_rele(ds, FTAG);
 		dsl_pool_rele(dp, FTAG);
 
+		/*
+		 * If the volume can't be set up again, all I/O to it fails
+		 * until it's closed, or until another rollback or receive
+		 * resumes it.
+		 */
 		error = zvol_setup_zv(zv);
+		if (error == 0)
+			zv->zv_flags &= ~ZVOL_RESUME_FAILED;
+		else
+			zv->zv_flags |= ZVOL_RESUME_FAILED;
 	}
 
 	mutex_exit(&zv->zv_state_lock);
@@ -1411,6 +1444,7 @@ zvol_last_close(zvol_state_t *zv)
 
 	dmu_objset_disown(zv->zv_objset, 1, zv);
 	zv->zv_objset = NULL;
+	zv->zv_flags &= ~ZVOL_RESUME_FAILED;
 
 	spa_close(spa, zv);
 }

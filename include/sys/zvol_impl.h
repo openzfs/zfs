@@ -22,6 +22,7 @@
 #define	ZVOL_WRITTEN_TO	(1<<1)	/* zvol has been written to (needs flush) */
 #define	ZVOL_EXCL	(1<<2)	/* zvol has O_EXCL client right now */
 #define	ZVOL_REMOVING	(1<<3)	/* zvol waiting to remove minor */
+#define	ZVOL_RESUME_FAILED (1<<4) /* zvol couldn't be reopened (I/O fails) */
 
 /*
  * The in-core state of each volume.
