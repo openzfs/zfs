@@ -4748,6 +4748,15 @@ vdev_online(spa_t *spa, uint64_t guid, uint64_t flags, vdev_state_t *newstate)
 	if ((vd = spa_lookup_by_guid(spa, guid, B_TRUE)) == NULL)
 		return (spa_vdev_state_exit(spa, NULL, SET_ERROR(ENODEV)));
 
+	/*
+	 * RAID-Z expansion onlines a top-level vdev, so interior vdevs are
+	 * allowed here, but the root vdev has no vdev_top to reopen.  zpool
+	 * looks a numeric name up as a GUID, and the pool GUID is the root
+	 * vdev's, so userland can ask for it.
+	 */
+	if (vd == rvd)
+		return (spa_vdev_state_exit(spa, NULL, SET_ERROR(ENOTSUP)));
+
 	wasoffline = (vd->vdev_offline || vd->vdev_tmpoffline);
 	oldstate = vd->vdev_state;
 
