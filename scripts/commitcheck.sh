@@ -3,12 +3,15 @@
 REF="HEAD"
 
 # test commit body for length
-# lines containing urls are exempt for the length limit.
+# lines containing urls, and trailers that end in an email address
+# (Signed-off-by, Reviewed-by, Co-authored-by, ...), are exempt for
+# the length limit.
 test_commit_bodylength()
 {
     length="72"
     body=$(git log --no-show-signature -n 1 --pretty=%b "$REF" |
-        grep -Evi -e "http(s)*://" -e "signed-off-by:" -e "reviewed-by:" |
+        grep -Evi -e "http(s)*://" \
+        -e '^[[:space:]]*[[:alnum:]-]+:[[:space:]].*<[^<>[:space:]]+@[^<>[:space:]]+>[[:space:]]*$' |
         grep -E -m 1 ".{$((length + 1))}")
     if [ -n "$body" ]; then
         echo "error: commit message body contains line over ${length} characters"

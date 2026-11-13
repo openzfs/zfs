@@ -4119,8 +4119,7 @@ zfs_ioc_clone(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	origin_name = fnvlist_lookup_string(innvl, "origin");
 	(void) nvlist_lookup_nvlist(innvl, "props", &nvprops);
 
-	if (strchr(fsname, '@') ||
-	    strchr(fsname, '%'))
+	if (clone_namecheck(fsname, NULL, NULL) != 0)
 		return (SET_ERROR(EINVAL));
 
 	if (dataset_namecheck(origin_name, NULL, NULL) != 0)
@@ -8644,10 +8643,19 @@ zfsdev_ioctl_common(uint_t vecnum, zfs_cmd_t *zc, int flag)
 	}
 
 	/*
+	 * The string fields of zfs_cmd_t are copied in from userland as they
+	 * are and are not guaranteed to be NUL-terminated.  Terminate them
+	 * here, before the secpolicy and handler functions use them as C
+	 * strings.  An unterminated string is truncated to fit its field.
+	 */
+	zc->zc_name[sizeof (zc->zc_name) - 1] = '\0';
+	zc->zc_value[sizeof (zc->zc_value) - 1] = '\0';
+	zc->zc_string[sizeof (zc->zc_string) - 1] = '\0';
+
+	/*
 	 * Ensure that all pool/dataset names are valid before we pass down to
 	 * the lower layers.
 	 */
-	zc->zc_name[sizeof (zc->zc_name) - 1] = '\0';
 	switch (vec->zvec_namecheck) {
 	case POOL_NAME:
 		if (pool_namecheck(zc->zc_name, NULL, NULL) != 0)

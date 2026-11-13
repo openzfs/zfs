@@ -672,7 +672,6 @@ fletcher_4_kstat_addr(kstat_t *ksp, loff_t n)
 	fletcher_4_fastest_impl.init_ ## type = src->init_ ## type;	  \
 	fletcher_4_fastest_impl.fini_ ## type = src->fini_ ## type;	  \
 	fletcher_4_fastest_impl.compute_ ## type = src->compute_ ## type; \
-	fletcher_4_fastest_impl.uses_fpu = src->uses_fpu;		  \
 }
 
 #define	FLETCHER_4_BENCH_NS	(MSEC2NSEC(1))		/* 1ms */
@@ -769,6 +768,16 @@ fletcher_4_benchmark(void)
 	fletcher_4_benchmark_impl(B_FALSE, databuf, data_size);
 	fletcher_4_benchmark_impl(B_TRUE, databuf, data_size);
 
+	/*
+	 * The native and byteswap winners may differ, and uses_fpu covers
+	 * both, so it must be set if either winner uses the FPU.
+	 */
+	struct fletcher_4_kstat *fastest_stat =
+	    &fletcher_4_stat_data[fletcher_4_supp_impls_cnt];
+	fletcher_4_fastest_impl.uses_fpu =
+	    fletcher_4_supp_impls[fastest_stat->native]->uses_fpu ||
+	    fletcher_4_supp_impls[fastest_stat->byteswap]->uses_fpu;
+
 	vmem_free(databuf, data_size);
 #else
 	/*
@@ -795,7 +804,6 @@ fletcher_4_init(void)
 	fletcher_4_kstat = kstat_create("zfs", 0, "fletcher_4_bench", "misc",
 	    KSTAT_TYPE_RAW, 0, KSTAT_FLAG_VIRTUAL);
 	if (fletcher_4_kstat != NULL) {
-		fletcher_4_kstat->ks_data = NULL;
 		fletcher_4_kstat->ks_ndata = UINT32_MAX;
 		kstat_set_raw_ops(fletcher_4_kstat,
 		    fletcher_4_kstat_headers,

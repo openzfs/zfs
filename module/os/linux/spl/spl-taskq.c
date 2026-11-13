@@ -1312,14 +1312,13 @@ taskq_kstats_init(taskq_t *tq)
 
 	kstat_t *ksp = kstat_create("taskq", 0, name, "misc",
 	    KSTAT_TYPE_NAMED, sizeof (taskq_kstats_t) / sizeof (kstat_named_t),
-	    KSTAT_FLAG_VIRTUAL);
+	    0);
 
 	if (ksp == NULL)
 		return;
 
 	ksp->ks_private = tq;
 	ksp->ks_update = taskq_kstats_update;
-	ksp->ks_data = kmem_alloc(sizeof (taskq_kstats_t), KM_SLEEP);
 	memcpy(ksp->ks_data, &taskq_kstats_template, sizeof (taskq_kstats_t));
 	kstat_install(ksp);
 
@@ -1332,9 +1331,7 @@ taskq_kstats_fini(taskq_t *tq)
 	if (tq->tq_ksp == NULL)
 		return;
 
-	kmem_free(tq->tq_ksp->ks_data, sizeof (taskq_kstats_t));
 	kstat_delete(tq->tq_ksp);
-
 	tq->tq_ksp = NULL;
 }
 
@@ -1401,6 +1398,7 @@ taskq_create(const char *name, int threads_arg, pri_t pri,
 	init_waitqueue_head(&tq->tq_wait_waitq);
 	tq->tq_lock_class = TQ_LOCK_GENERAL;
 	INIT_LIST_HEAD(&tq->tq_taskqs);
+	tq->tq_ksp = NULL;
 	taskq_stats_init(tq);
 
 	if (flags & TASKQ_PREPOPULATE) {
@@ -1605,24 +1603,21 @@ spl_taskq_kstat_data(char *buf, size_t size, void *data)
 	list_for_each_prev(tql, &tq_list) {
 		tq = list_entry(tql, taskq_t, tq_taskqs);
 
-		mutex_enter(tq->tq_ksp->ks_lock);
-		taskq_kstats_update(tq->tq_ksp, KSTAT_READ);
-		taskq_kstats_t *tqks = tq->tq_ksp->ks_data;
+		/* tq_sums is valid while the taskq is on tq_list. */
+		taskq_sums_t *tqs = &tq->tq_sums;
 
 		snprintf(name, sizeof (name), "%s.%d", tq->tq_name,
 		    tq->tq_instance);
-		snprintf(threads, sizeof (threads), "%3llu [%3llu %3llu] %3llu",
-		    tqks->tqks_threads_total.value.ui64,
-		    tqks->tqks_threads_active.value.ui64,
-		    tqks->tqks_threads_idle.value.ui64,
-		    tqks->tqks_threads_max.value.ui64);
+		snprintf(threads, sizeof (threads), "%3llu [%3llu %3llu] %3d",
+		    wmsum_value(&tqs->tqs_threads_total),
+		    wmsum_value(&tqs->tqs_threads_active),
+		    wmsum_value(&tqs->tqs_threads_idle),
+		    tq->tq_maxthreads);
 		snprintf(tasks, sizeof (tasks), "%5llu [%5llu %5llu] %3llu",
-		    tqks->tqks_tasks_total.value.ui64,
-		    tqks->tqks_tasks_pending.value.ui64,
-		    tqks->tqks_tasks_priority.value.ui64,
-		    tqks->tqks_tasks_delayed.value.ui64);
-
-		mutex_exit(tq->tq_ksp->ks_lock);
+		    wmsum_value(&tqs->tqs_tasks_total),
+		    wmsum_value(&tqs->tqs_tasks_pending),
+		    wmsum_value(&tqs->tqs_tasks_priority),
+		    wmsum_value(&tqs->tqs_tasks_delayed));
 
 		n = snprintf(buf, size, "%-20s | %-17s | %-23s\n",
 		    name, threads, tasks);

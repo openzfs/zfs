@@ -80,8 +80,17 @@ function do_zvol_stress
 
 	if is_linux ; then
 		engine=libaio
+		verify_async=2
 	else
 		engine=psync
+		# fio gives its verify_async threads a 2 * PTHREAD_STACK_MIN
+		# stack, only 4 KiB on FreeBSD.  Since libthr links libgcc_s
+		# (FreeBSD 16.0-CURRENT, freebsd-src 2734bbbcba3c), the first
+		# pthread_exit() in a process dlopen()s the unwinder, which
+		# overflows that stack and fio dies with SIGSEGV.  Verify in
+		# the job thread instead: every block is still read back and
+		# checked.
+		verify_async=0
 	fi
 
 	# Spawn off one fio per zvol in parallel
@@ -91,7 +100,7 @@ function do_zvol_stress
 		fio --ioengine=$engine --name=zvol_stress$i --direct=0 \
 			--filename="$ZVOL_DEVDIR/$TESTPOOL/testvol$i" --bs=1048576 \
 			--iodepth=10 --readwrite=randwrite --size=${zvol_write_size} \
-			--verify_async=2 --numjobs=1 --verify=sha1 \
+			--verify_async=$verify_async --numjobs=1 --verify=sha1 \
 			--verify_fatal=1 \
 			--continue_on_error=none \
 			--error_dump=1 \
@@ -158,7 +167,8 @@ sync_pool $TESTPOOL
 for DISK in $DISKS ; do
 	log_must zinject -d $DISK -f 10 -e io -T write $TESTPOOL
 done
-log_must dd if=/dev/urandom of=$ZVOL_DEVDIR/$TESTPOOL/testvol1 bs=16M count=1
+log_must dd if=/dev/urandom of=$ZVOL_DEVDIR/$TESTPOOL/testvol1 \
+    bs=16M count=1 conv=fsync
 sync_pool $TESTPOOL
 log_must zinject -c all
 

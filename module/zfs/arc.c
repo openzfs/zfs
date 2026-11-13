@@ -6429,6 +6429,14 @@ top:
 				/* l2arc read error; goto zio_read() */
 				if (hash_lock != NULL)
 					mutex_enter(hash_lock);
+
+				/*
+				 * l2arc_read_done() may have replaced b_pabd
+				 * and freed the buffer hdr_abd points to.
+				 */
+				hdr_abd = encrypted_read ?
+				    hdr->b_crypt_hdr.b_rabd :
+				    hdr->b_l1hdr.b_pabd;
 			} else {
 				DTRACE_PROBE1(l2arc__miss,
 				    arc_buf_hdr_t *, hdr);
@@ -10072,7 +10080,8 @@ l2arc_write_buffers(spa_t *spa, l2arc_dev_t *dev, uint64_t target_sz)
 		    l2arc_next_sublist[pass];
 		int processed_sublists = 0;
 		while (processed_sublists < num_sublists && !full) {
-			if (consumed_headroom >= headroom)
+			if (l2arc_headroom != 0 &&
+			    consumed_headroom >= headroom)
 				break;
 
 			/*

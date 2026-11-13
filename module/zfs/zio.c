@@ -18,6 +18,7 @@
  * Copyright (c) 2019, Allan Jude
  * Copyright (c) 2021, Datto, Inc.
  * Copyright (c) 2021, 2024 by George Melikov. All rights reserved.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #include <sys/sysmacros.h>
@@ -1533,7 +1534,7 @@ zio_claim(zio_t *pio, spa_t *spa, uint64_t txg, const blkptr_t *bp,
 	 */
 	ASSERT3U(BP_GET_LOGICAL_BIRTH(&spa->spa_uberblock.ub_rootbp), <,
 	    spa_min_claim_txg(spa));
-	ASSERT(txg == spa_min_claim_txg(spa) || txg == 0);
+	ASSERT(txg == spa_first_txg(spa) || txg == 0 || !spa_writeable(spa));
 	ASSERT(!BP_GET_DEDUP(bp) || !spa_writeable(spa));	/* zdb(8) */
 
 	zio = zio_create(pio, spa, txg, bp, NULL, BP_GET_PSIZE(bp),
@@ -3014,6 +3015,11 @@ zio_reexecute(void *arg)
 void
 zio_suspend(spa_t *spa, zio_t *zio, zio_suspend_reason_t reason)
 {
+	if (reason == ZIO_SUSPEND_IOERR)
+		spa_misc_stats_bump_suspended_ioerr(spa);
+	else if (reason == ZIO_SUSPEND_MMP)
+		spa_misc_stats_bump_suspended_mmp(spa);
+
 	if (spa_get_failmode(spa) == ZIO_FAILURE_MODE_PANIC)
 		fm_panic("Pool '%s' has encountered an uncorrectable I/O "
 		    "failure and the failure mode property for this pool "
@@ -3054,20 +3060,26 @@ int
 zio_resume(spa_t *spa)
 {
 	zio_t *pio;
+	boolean_t resuming = B_FALSE;
 
 	/*
 	 * Reexecute all previously suspended i/o.
 	 */
 	mutex_enter(&spa->spa_suspend_lock);
-	if (spa->spa_suspended != ZIO_SUSPEND_NONE)
+	if (spa->spa_suspended != ZIO_SUSPEND_NONE) {
 		cmn_err(CE_WARN, "Pool '%s' was suspended and is being "
 		    "resumed. Failed I/O will be retried.",
 		    spa_name(spa));
+		resuming = B_TRUE;
+	}
 	spa->spa_suspended = ZIO_SUSPEND_NONE;
 	cv_broadcast(&spa->spa_suspend_cv);
 	pio = spa->spa_suspend_zio_root;
 	spa->spa_suspend_zio_root = NULL;
 	mutex_exit(&spa->spa_suspend_lock);
+
+	if (resuming)
+		spa_misc_stats_bump_resumed(spa);
 
 	if (pio == NULL)
 		return (0);
@@ -4505,6 +4517,24 @@ piggyback:
 		 * shortfall.
 		 */
 		need_dvas -= parent_dvas;
+	}
+
+	/*
+	 * An override BP skipped the compress and encrypt stages, so we only
+	 * have the logical data, not what the BP describes.  We can't write
+	 * more copies from that, so restart as a regular dedup write, which
+	 * compresses the data again.  dbuf_write_override_done() frees the
+	 * override block.
+	 */
+	if (zio->io_bp_override) {
+		if (dde_io != NULL)
+			mutex_exit(&dde_io->dde_io_lock);
+		ddt_exit(ddt);
+		zio->io_bp_override = NULL;
+		*bp = zio->io_bp_orig;
+		zio->io_pipeline = zio->io_orig_pipeline;
+		zio->io_stage = ZIO_STAGE_OPEN;
+		return (zio);
 	}
 
 	if (is_ganged) {
@@ -5988,7 +6018,8 @@ zio_dva_throttle_done(zio_t *zio)
 	ASSERT3U(zio->io_child_type, ==, ZIO_CHILD_VDEV);
 	ASSERT(vd != NULL);
 	ASSERT3P(vd, ==, vd->vdev_top);
-	ASSERT(zio_injection_enabled || !(zio->io_flags & ZIO_FLAG_IO_RETRY));
+	ASSERT((zio->io_flags & ZIO_FLAG_IO_INJECTED) ||
+	    !(zio->io_flags & ZIO_FLAG_IO_RETRY));
 	ASSERT(!(zio->io_flags & ZIO_FLAG_IO_REPAIR));
 	ASSERT(zio->io_flags & ZIO_FLAG_ALLOC_THROTTLED);
 

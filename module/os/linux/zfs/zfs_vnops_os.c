@@ -2140,8 +2140,12 @@ top:
 		 * block if there are locks present... this
 		 * should be addressed in openat().
 		 */
-		/* XXX - would it be OK to generate a log record here? */
-		err = zfs_freesp(zp, vap->va_size, 0, 0, FALSE);
+		/*
+		 * Log the size change as TX_TRUNCATE under the range lock
+		 * that covers it, not in TX_SETATTR below: a write logged in
+		 * between would be cut off when TX_SETATTR is replayed.
+		 */
+		err = zfs_freesp(zp, vap->va_size, 0, 0, TRUE);
 		if (err)
 			goto out3;
 	}
@@ -2651,10 +2655,18 @@ top:
 		zfs_fuid_sync(zfsvfs, tx);
 
 	if (mask != 0) {
-		zfs_log_setattr(zilog, tx, TX_SETATTR, zp, vap, mask, fuidp);
 		/*
-		 * ATTR_MODE bumps via zfs_aclset_common -> tstamp_update_setup;
-		 * ATTR_SIZE goes through zfs_freesp(log=FALSE) which does not.
+		 * zfs_freesp() has logged the size.  Log the mtime that
+		 * ATTR_SIZE set above as ATTR_MTIME.
+		 */
+		uint_t log_mask = mask;
+
+		if (log_mask & ATTR_SIZE)
+			log_mask = (log_mask & ~ATTR_SIZE) | ATTR_MTIME;
+		zfs_log_setattr(zilog, tx, TX_SETATTR, zp, vap, log_mask,
+		    fuidp);
+		/*
+		 * ATTR_MODE bumps via zfs_aclset_common -> tstamp_update_setup.
 		 */
 		if (!(mask & ATTR_MODE))
 			atomic_inc_64(&zp->z_seq);

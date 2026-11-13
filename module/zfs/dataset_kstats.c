@@ -139,14 +139,12 @@ dataset_kstats_create(dataset_kstats_t *dk, objset_t *objset)
 
 	kstat_t *kstat = kstat_create(kstat_module_name, 0, kstat_name,
 	    "dataset", KSTAT_TYPE_NAMED,
-	    sizeof (empty_dataset_kstats) / sizeof (kstat_named_t),
-	    KSTAT_FLAG_VIRTUAL);
+	    sizeof (empty_dataset_kstats) / sizeof (kstat_named_t), 0);
 	if (kstat == NULL)
 		return (SET_ERROR(ENOMEM));
 
-	dataset_kstat_values_t *dk_kstats =
-	    kmem_alloc(sizeof (empty_dataset_kstats), KM_SLEEP);
-	memcpy(dk_kstats, &empty_dataset_kstats,
+	dataset_kstat_values_t *dk_kstats = kstat->ks_data;
+	memcpy(kstat->ks_data, &empty_dataset_kstats,
 	    sizeof (empty_dataset_kstats));
 
 	char *ds_name = kmem_zalloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
@@ -155,10 +153,8 @@ dataset_kstats_create(dataset_kstats_t *dk, objset_t *objset)
 	KSTAT_NAMED_STR_BUFLEN(&dk_kstats->dkv_ds_name) =
 	    ZFS_MAX_DATASET_NAME_LEN;
 
-	kstat->ks_data = dk_kstats;
 	kstat->ks_update = dataset_kstats_update;
 	kstat->ks_private = dk;
-	kstat->ks_data_size += ZFS_MAX_DATASET_NAME_LEN;
 
 	wmsum_init(&dk->dk_sums.dss_writes, 0);
 	wmsum_init(&dk->dk_sums.dss_nwritten, 0);
@@ -179,12 +175,19 @@ dataset_kstats_destroy(dataset_kstats_t *dk)
 	if (dk->dk_kstats == NULL)
 		return;
 
+	/*
+	 * The kstat owns ks_data, but we allocated the name within it. Take
+	 * the pointer and length so we can free it after the kstat has been
+	 * destroyed.
+	 */
 	dataset_kstat_values_t *dkv = dk->dk_kstats->ks_data;
+	void *buf = KSTAT_NAMED_STR_PTR(&dkv->dkv_ds_name);
+	size_t len = KSTAT_NAMED_STR_BUFLEN(&dkv->dkv_ds_name);
+
 	kstat_delete(dk->dk_kstats);
 	dk->dk_kstats = NULL;
-	kmem_free(KSTAT_NAMED_STR_PTR(&dkv->dkv_ds_name),
-	    KSTAT_NAMED_STR_BUFLEN(&dkv->dkv_ds_name));
-	kmem_free(dkv, sizeof (empty_dataset_kstats));
+
+	kmem_free(buf, len);
 
 	wmsum_fini(&dk->dk_sums.dss_writes);
 	wmsum_fini(&dk->dk_sums.dss_nwritten);

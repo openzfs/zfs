@@ -522,11 +522,10 @@ static void
 spa_tx_assign_destroy(spa_t *spa)
 {
 	spa_history_kstat_t *shk = &spa->spa_stats.tx_assign_histogram;
-	kstat_t *ksp;
-
-	ksp = shk->kstat;
-	if (ksp)
-		kstat_delete(ksp);
+	if (shk->kstat) {
+		kstat_delete(shk->kstat);
+		shk->kstat = NULL;
+	}
 
 	kmem_free(shk->priv, shk->size);
 	mutex_destroy(&shk->lock);
@@ -805,7 +804,6 @@ spa_state_init(spa_t *spa)
 	shk->kstat = ksp;
 	if (ksp) {
 		ksp->ks_lock = &shk->lock;
-		ksp->ks_data = NULL;
 		ksp->ks_private = spa;
 		ksp->ks_flags |= KSTAT_FLAG_NO_HEADERS;
 		kstat_set_raw_ops(ksp, NULL, spa_state_data, spa_state_addr);
@@ -840,7 +838,6 @@ spa_guid_init(spa_t *spa)
 	shk->kstat = ksp;
 	if (ksp) {
 		ksp->ks_lock = &shk->lock;
-		ksp->ks_data = NULL;
 		ksp->ks_private = spa;
 		ksp->ks_flags |= KSTAT_FLAG_NO_HEADERS;
 		kstat_set_raw_ops(ksp, NULL, spa_guid_data, spa_state_addr);
@@ -854,9 +851,10 @@ static void
 spa_health_destroy(spa_t *spa)
 {
 	spa_history_kstat_t *shk = &spa->spa_stats.state;
-	kstat_t *ksp = shk->kstat;
-	if (ksp)
-		kstat_delete(ksp);
+	if (shk->kstat) {
+		kstat_delete(shk->kstat);
+		shk->kstat = NULL;
+	}
 
 	mutex_destroy(&shk->lock);
 }
@@ -865,9 +863,10 @@ static void
 spa_guid_destroy(spa_t *spa)
 {
 	spa_history_kstat_t *shk = &spa->spa_stats.guid;
-	kstat_t *ksp = shk->kstat;
-	if (ksp)
-		kstat_delete(ksp);
+	if (shk->kstat) {
+		kstat_delete(shk->kstat);
+		shk->kstat = NULL;
+	}
 
 	mutex_destroy(&shk->lock);
 }
@@ -1003,7 +1002,7 @@ spa_iostats_init(spa_t *spa)
 	char *name = kmem_asprintf("zfs/%s", spa_name(spa));
 	kstat_t *ksp = kstat_create(name, 0, "iostats", "misc",
 	    KSTAT_TYPE_NAMED, sizeof (spa_iostats_t) / sizeof (kstat_named_t),
-	    KSTAT_FLAG_VIRTUAL);
+	    0);
 
 	shk->kstat = ksp;
 	if (ksp) {
@@ -1011,7 +1010,6 @@ spa_iostats_init(spa_t *spa)
 		ksp->ks_lock = &shk->lock;
 		ksp->ks_private = spa;
 		ksp->ks_update = spa_iostats_update;
-		ksp->ks_data = kmem_alloc(size, KM_SLEEP);
 		memcpy(ksp->ks_data, &spa_iostats_template, size);
 		kstat_install(ksp);
 	}
@@ -1023,10 +1021,9 @@ static void
 spa_iostats_destroy(spa_t *spa)
 {
 	spa_history_kstat_t *shk = &spa->spa_stats.iostats;
-	kstat_t *ksp = shk->kstat;
-	if (ksp) {
-		kmem_free(ksp->ks_data, sizeof (spa_iostats_t));
-		kstat_delete(ksp);
+	if (shk->kstat) {
+		kstat_delete(shk->kstat);
+		shk->kstat = NULL;
 	}
 
 	mutex_destroy(&shk->lock);
@@ -1084,13 +1081,11 @@ spa_log_sm_stats_init(spa_t *spa)
 	kstat_t *ksp = kstat_create(name, 0, "log_spacemaps", "misc",
 	    KSTAT_TYPE_NAMED,
 	    sizeof (spa_log_sm_stats_t) / sizeof (kstat_named_t),
-	    KSTAT_FLAG_VIRTUAL);
+	    0);
 
 	shk->kstat = ksp;
 	if (ksp) {
 		ksp->ks_lock = &shk->lock;
-		ksp->ks_data =
-		    kmem_alloc(sizeof (spa_log_sm_stats_t), KM_SLEEP);
 		memcpy(ksp->ks_data, &spa_log_sm_stats_template,
 		    sizeof (spa_log_sm_stats_t));
 		kstat_install(ksp);
@@ -1103,10 +1098,97 @@ static void
 spa_log_sm_stats_destroy(spa_t *spa)
 {
 	spa_history_kstat_t *shk = &spa->spa_stats.log_spacemaps;
+	if (shk->kstat) {
+		kstat_delete(shk->kstat);
+		shk->kstat = NULL;
+	}
+
+	mutex_destroy(&shk->lock);
+}
+
+/*
+ * Misc per-pool stats.
+ */
+typedef struct spa_misc_stats {
+	kstat_named_t	pool_suspended_ioerr;
+	kstat_named_t	pool_suspended_mmp;
+	kstat_named_t	pool_resumed;
+} spa_misc_stats_t;
+
+static spa_misc_stats_t spa_misc_stats_template = {
+	{ "pool_suspended_ioerr",	KSTAT_DATA_UINT64 },
+	{ "pool_suspended_mmp",		KSTAT_DATA_UINT64 },
+	{ "pool_resumed",		KSTAT_DATA_UINT64 },
+};
+
+#define	SPA_MISC_STATS_BUMP(stat) \
+    atomic_inc_64(&misc_stats->stat.value.ui64)
+
+static inline spa_misc_stats_t *
+spa_misc_stats(spa_t *spa)
+{
+	spa_history_kstat_t *shk = &spa->spa_stats.misc;
 	kstat_t *ksp = shk->kstat;
+	if (ksp == NULL)
+		return (NULL);
+	return (ksp->ks_data);
+}
+
+void
+spa_misc_stats_bump_suspended_ioerr(spa_t *spa)
+{
+	spa_misc_stats_t *misc_stats = spa_misc_stats(spa);
+	if (misc_stats != NULL)
+		SPA_MISC_STATS_BUMP(pool_suspended_ioerr);
+}
+
+void
+spa_misc_stats_bump_suspended_mmp(spa_t *spa)
+{
+	spa_misc_stats_t *misc_stats = spa_misc_stats(spa);
+	if (misc_stats != NULL)
+		SPA_MISC_STATS_BUMP(pool_suspended_mmp);
+}
+
+void
+spa_misc_stats_bump_resumed(spa_t *spa)
+{
+	spa_misc_stats_t *misc_stats = spa_misc_stats(spa);
+	if (misc_stats != NULL)
+		SPA_MISC_STATS_BUMP(pool_resumed);
+}
+
+static void
+spa_misc_stats_init(spa_t *spa)
+{
+	spa_history_kstat_t *shk = &spa->spa_stats.misc;
+
+	mutex_init(&shk->lock, NULL, MUTEX_DEFAULT, NULL);
+
+	char *name = kmem_asprintf("zfs/%s", spa_name(spa));
+	kstat_t *ksp = kstat_create(name, 0, "misc", "misc",
+	    KSTAT_TYPE_NAMED,
+	    sizeof (spa_misc_stats_t) / sizeof (kstat_named_t),
+	    0);
+
+	shk->kstat = ksp;
 	if (ksp) {
-		kmem_free(ksp->ks_data, sizeof (spa_log_sm_stats_t));
-		kstat_delete(ksp);
+		ksp->ks_lock = &shk->lock;
+		memcpy(ksp->ks_data, &spa_misc_stats_template,
+		    sizeof (spa_misc_stats_t));
+		kstat_install(ksp);
+	}
+
+	kmem_strfree(name);
+}
+
+static void
+spa_misc_stats_destroy(spa_t *spa)
+{
+	spa_history_kstat_t *shk = &spa->spa_stats.misc;
+	if (shk->kstat) {
+		kstat_delete(shk->kstat);
+		shk->kstat = NULL;
 	}
 
 	mutex_destroy(&shk->lock);
@@ -1123,11 +1205,13 @@ spa_stats_init(spa_t *spa)
 	spa_guid_init(spa);
 	spa_iostats_init(spa);
 	spa_log_sm_stats_init(spa);
+	spa_misc_stats_init(spa);
 }
 
 void
 spa_stats_destroy(spa_t *spa)
 {
+	spa_misc_stats_destroy(spa);
 	spa_log_sm_stats_destroy(spa);
 	spa_iostats_destroy(spa);
 	spa_health_destroy(spa);

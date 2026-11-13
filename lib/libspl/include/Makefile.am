@@ -25,7 +25,6 @@ libspl_sysdir = $(libspldir)/sys
 libspl_sys_HEADERS = \
 	%D%/sys/acl.h \
 	%D%/sys/acl_impl.h \
-	%D%/sys/asm_linkage.h \
 	%D%/sys/atomic.h \
 	%D%/sys/backtrace.h \
 	%D%/sys/callb.h \
@@ -33,8 +32,6 @@ libspl_sys_HEADERS = \
 	%D%/sys/condvar.h \
 	%D%/sys/cred.h \
 	%D%/sys/debug.h \
-	%D%/sys/dkio.h \
-	%D%/sys/dklabel.h \
 	%D%/sys/feature_tests.h \
 	%D%/sys/isa_defs.h \
 	%D%/sys/kmem.h \
@@ -103,9 +100,3 @@ libspl_sys_HEADERS += \
 libspl_ia32_HEADERS = \
 	%D%/os/freebsd/sys/ia32/asm_linkage.h
 endif
-
-
-libspl_sys_dktpdir = $(libspl_sysdir)/dktp
-libspl_sys_dktp_HEADERS = \
-	%D%/sys/dktp/fdisk.h
-

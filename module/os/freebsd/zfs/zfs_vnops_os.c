@@ -118,7 +118,7 @@ static int zfs_check_attrname(const char *name);
  *	must be checked with zfs_verify_zp(zp).  Both of these macros
  *	can return EIO from the calling function.
  *
- *  (2)	VN_RELE() should always be the last thing except for zil_commit()
+ *  (2)	vrele() should always be the last thing except for zil_commit()
  *	(if necessary) and zfs_exit(). This is for 3 reasons:
  *	First, if it's the last reference, the vnode/znode
  *	can be freed, so the zp may point to freed memory.  Second, the last
@@ -126,7 +126,7 @@ static int zfs_check_attrname(const char *name);
  *	pushing cached pages (which acquires range locks) and syncing out
  *	cached atime changes.  Third, zfs_zinactive() may require a new tx,
  *	which could deadlock the system if you were already holding one.
- *	If you must call VN_RELE() within a tx then use VN_RELE_ASYNC().
+ *	If you must call vrele() within a tx then use vn_rele_async().
  *
  *  (3)	All range locks must be grabbed before calling dmu_tx_assign(),
  *	as they can span dmu_tx_assign() calls.
@@ -173,7 +173,7 @@ static int zfs_check_attrname(const char *name);
  *
  *	zfs_enter(zfsvfs);		// exit if unmounted
  * top:
- *	zfs_dirent_lookup(&dl, ...)	// lock directory entry (may VN_HOLD())
+ *	zfs_dirent_lookup(&dl, ...)	// lock directory entry (may vref())
  *	rw_enter(...);			// grab any other locks you need
  *	tx = dmu_tx_create(...);	// get DMU tx
  *	dmu_tx_hold_*();		// hold each object you might modify
@@ -182,7 +182,7 @@ static int zfs_check_attrname(const char *name);
  *	if (error) {
  *		rw_exit(...);		// drop locks
  *		zfs_dirent_unlock(dl);	// unlock directory entry
- *		VN_RELE(...);		// release held vnodes
+ *		vrele(...);		// release held vnodes
  *		if (error == ERESTART) {
  *			waited = B_TRUE;
  *			dmu_tx_wait(tx);
@@ -199,7 +199,7 @@ static int zfs_check_attrname(const char *name);
  *	dmu_tx_commit(tx);		// commit DMU tx -- error or not
  *	rw_exit(...);			// drop locks
  *	zfs_dirent_unlock(dl);		// unlock directory entry
- *	VN_RELE(...);			// release held vnodes
+ *	vrele(...);			// release held vnodes
  *	zil_commit(zilog, foid);	// synchronous when necessary
  *	zfs_exit(zfsvfs);		// finished in zfs
  *	return (error);			// done, report error
@@ -642,7 +642,7 @@ zfs_zrele_async(znode_t *zp)
 	vnode_t *vp = ZTOV(zp);
 	objset_t *os = ITOZSB(vp)->z_os;
 
-	VN_RELE_ASYNC(vp, dsl_pool_zrele_taskq(dmu_objset_pool(os)));
+	vn_rele_async(vp, dsl_pool_zrele_taskq(dmu_objset_pool(os)));
 }
 
 static int
@@ -1240,8 +1240,6 @@ zfs_remove_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 		goto out;
 	}
 
-	vnevent_remove(vp, dvp, name, ct);
-
 	obj = zp->z_id;
 
 	/* are there any extended attributes? */
@@ -1597,8 +1595,6 @@ zfs_rmdir_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 		error = SET_ERROR(ENOTDIR);
 		goto out;
 	}
-
-	vnevent_rmdir(vp, dvp, name, ct);
 
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_zap(tx, dzp->z_id, FALSE, name);
@@ -3194,7 +3190,7 @@ out:
 }
 
 /*
- * Note that we must use VRELE_ASYNC in this function as it walks
+ * Note that we must use vn_rele_async in this function as it walks
  * up the directory tree and vrele may need to acquire an exclusive
  * lock if a last reference to a vnode is dropped.
  */
@@ -3234,7 +3230,7 @@ zfs_rename_check(znode_t *szp, znode_t *sdzp, znode_t *tdzp)
 			break;
 
 		if (zp != tdzp)
-			VN_RELE_ASYNC(ZTOV(zp),
+			vn_rele_async(ZTOV(zp),
 			    dsl_pool_zrele_taskq(
 			    dmu_objset_pool(zfsvfs->z_os)));
 		zp = zp1;
@@ -3243,7 +3239,7 @@ zfs_rename_check(znode_t *szp, znode_t *sdzp, znode_t *tdzp)
 	if (error == ENOTDIR)
 		panic("checkpath: .. not a directory\n");
 	if (zp != tdzp)
-		VN_RELE_ASYNC(ZTOV(zp),
+		vn_rele_async(ZTOV(zp),
 		    dsl_pool_zrele_taskq(dmu_objset_pool(zfsvfs->z_os)));
 	return (error);
 }
@@ -3460,18 +3456,6 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 		vn_seqc_write_begin(*tvpp);
 	if (tdvp != *tvpp)
 		vn_seqc_write_begin(tdvp);
-
-	vnevent_rename_src(*svpp, sdvp, scnp->cn_nameptr, ct);
-	if (tzp)
-		vnevent_rename_dest(*tvpp, tdvp, tnm, ct);
-
-	/*
-	 * notify the target directory if it is not the same
-	 * as source directory.
-	 */
-	if (tdvp != sdvp) {
-		vnevent_rename_dest_dir(tdvp, ct);
-	}
 
 	tx = dmu_tx_create(zfsvfs->z_os);
 	dmu_tx_hold_sa(tx, szp->z_sa_hdl, ZFS_SEQ_MAY_GROW(szp));
@@ -3927,10 +3911,6 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 	}
 
 	dmu_tx_commit(tx);
-
-	if (error == 0) {
-		vnevent_link(ZTOV(szp), ct);
-	}
 
 	if (error == 0 && zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS)
 		error = zil_commit(zilog, 0);
@@ -6748,10 +6728,11 @@ zfs_freebsd_advise(struct vop_advise_args *ap)
 
 	zp = VTOZ(vp);
 	zfsvfs = zp->z_zfsvfs;
-	os = zp->z_zfsvfs->z_os;
 
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		goto out_unlock;
+
+	os = zfsvfs->z_os;
 
 	/* kern_posix_fadvise points to the last byte, we want one past */
 	if (end != OFF_MAX)

@@ -481,7 +481,8 @@ zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 				 */
 				if (!handler->zi_record.zi_failfast &&
 				    zio != NULL)
-					zio->io_flags |= ZIO_FLAG_IO_RETRY;
+					zio->io_flags |= ZIO_FLAG_IO_RETRY |
+					    ZIO_FLAG_IO_INJECTED;
 
 				/*
 				 * EILSEQ means flip a bit after a read

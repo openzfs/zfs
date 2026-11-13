@@ -27,6 +27,7 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/stdtypes.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -269,32 +270,36 @@ main(int argc, char **argv)
 			printf("gid: %u\n", stx.stx_gid);
 			break;
 		case STATX_ATIME:
-			printf("atime: %ld.%u\n",
-			    stx.stx_atime.tv_sec, stx.stx_atime.tv_nsec);
+			printf("atime: %lld.%u\n",
+			    (longlong_t)stx.stx_atime.tv_sec,
+			    stx.stx_atime.tv_nsec);
 			break;
 		case STATX_MTIME:
-			printf("mtime: %ld.%u\n",
-			    stx.stx_mtime.tv_sec, stx.stx_mtime.tv_nsec);
+			printf("mtime: %lld.%u\n",
+			    (longlong_t)stx.stx_mtime.tv_sec,
+			    stx.stx_mtime.tv_nsec);
 			break;
 		case STATX_CTIME:
-			printf("ctime: %ld.%u\n",
-			    stx.stx_ctime.tv_sec, stx.stx_ctime.tv_nsec);
+			printf("ctime: %lld.%u\n",
+			    (longlong_t)stx.stx_ctime.tv_sec,
+			    stx.stx_ctime.tv_nsec);
 			break;
 		case STATX_INO:
-			printf("ino: %lu\n", stx.stx_ino);
+			printf("ino: %llu\n", (u_longlong_t)stx.stx_ino);
 			break;
 		case STATX_SIZE:
-			printf("size: %lu\n", stx.stx_size);
+			printf("size: %llu\n", (u_longlong_t)stx.stx_size);
 			break;
 		case STATX_BLOCKS:
-			printf("blocks: %lu\n", stx.stx_blocks);
+			printf("blocks: %llu\n", (u_longlong_t)stx.stx_blocks);
 			break;
 		case STATX_BTIME:
-			printf("btime: %ld.%u\n",
-			    stx.stx_btime.tv_sec, stx.stx_btime.tv_nsec);
+			printf("btime: %lld.%u\n",
+			    (longlong_t)stx.stx_btime.tv_sec,
+			    stx.stx_btime.tv_nsec);
 			break;
 		case STATX_MNT_ID:
-			printf("mnt_id: %lu\n", stx.stx_mnt_id);
+			printf("mnt_id: %llu\n", (u_longlong_t)stx.stx_mnt_id);
 			break;
 		case STATX_DIOALIGN:
 			printf("dioalign: %u %u\n",

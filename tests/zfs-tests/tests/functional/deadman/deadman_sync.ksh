@@ -37,14 +37,18 @@ function cleanup
 	log_must zinject -c all
 	default_cleanup_noexit
 
+	log_must set_tunable64 DEADMAN_EVENTS_PER_SECOND $EVENTS_DEFAULT
 	log_must set_tunable64 DEADMAN_SYNCTIME_MS $SYNCTIME_DEFAULT
 	log_must set_tunable64 DEADMAN_CHECKTIME_MS $CHECKTIME_DEFAULT
 	log_must set_tunable64 DEADMAN_FAILMODE $FAILMODE_DEFAULT
 }
 
 log_assert "Verify spa deadman detects a hung txg"
+EVENTS_DEFAULT=$(get_tunable DEADMAN_EVENTS_PER_SECOND)
 log_onexit cleanup
 
+# Timer jitter can put two consecutive checks within one second.
+log_must set_tunable64 DEADMAN_EVENTS_PER_SECOND 2
 log_must set_tunable64 DEADMAN_SYNCTIME_MS 5000
 log_must set_tunable64 DEADMAN_CHECKTIME_MS 1000
 log_must set_tunable64 DEADMAN_FAILMODE "wait"

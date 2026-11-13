@@ -2239,32 +2239,14 @@ spa_special_has_ddt(spa_t *spa)
 }
 
 /*
- * Locate an appropriate allocation class
+ * Choose the allocation class of a block of the given properties and size.
+ * tried_dedup and tried_special say whether an allocation already failed in
+ * the dedup or the special class.
  */
-metaslab_class_t *
-spa_preferred_class(spa_t *spa, const zio_t *zio)
+static metaslab_class_t *
+spa_class_select(spa_t *spa, const zio_prop_t *zp, uint64_t size,
+    boolean_t tried_dedup, boolean_t tried_special)
 {
-	metaslab_class_t *mc = zio->io_metaslab_class;
-	boolean_t tried_dedup = (mc == spa_dedup_class(spa));
-	boolean_t tried_special = (mc == spa_special_class(spa));
-	const zio_prop_t *zp = &zio->io_prop;
-
-	/* Gang children should always use the class of their parents. */
-	if (zio->io_flags & ZIO_FLAG_GANG_CHILD) {
-		ASSERT(mc != NULL);
-		return (mc);
-	}
-
-	/*
-	 * Allocations fall back from the dedup class to the special class
-	 * to the normal class.  The normal class is the last resort: a
-	 * block there has either failed in the other classes already or
-	 * never belonged in them, so the caller must gang it rather than
-	 * fall back again, or it would bounce between the classes forever.
-	 */
-	if (mc == spa_normal_class(spa))
-		return (mc);
-
 	/*
 	 * Override object type for the purposes of selecting a storage class.
 	 * Primarily for DMU_OTN_ types where we can't explicitly control their
@@ -2300,7 +2282,7 @@ spa_preferred_class(spa_t *spa, const zio_t *zio)
 	 * Allow small blocks in special class.  However, leave a reserve of
 	 * zfs_special_class_metadata_reserve_pct exclusively for metadata.
 	 */
-	if (zio->io_size <= zp->zp_zpl_smallblk) {
+	if (size <= zp->zp_zpl_smallblk) {
 		metaslab_class_t *special = spa_special_class(spa);
 		uint64_t limit = metaslab_class_get_space(special) *
 		    (100 - zfs_special_class_metadata_reserve_pct) / 100;
@@ -2310,6 +2292,36 @@ spa_preferred_class(spa_t *spa, const zio_t *zio)
 	}
 
 	return (spa_normal_class(spa));
+}
+
+/*
+ * Locate an appropriate allocation class
+ */
+metaslab_class_t *
+spa_preferred_class(spa_t *spa, const zio_t *zio)
+{
+	metaslab_class_t *mc = zio->io_metaslab_class;
+	boolean_t tried_dedup = (mc == spa_dedup_class(spa));
+	boolean_t tried_special = (mc == spa_special_class(spa));
+
+	/* Gang children should always use the class of their parents. */
+	if (zio->io_flags & ZIO_FLAG_GANG_CHILD) {
+		ASSERT(mc != NULL);
+		return (mc);
+	}
+
+	/*
+	 * Allocations fall back from the dedup class to the special class
+	 * to the normal class.  The normal class is the last resort: a
+	 * block there has either failed in the other classes already or
+	 * never belonged in them, so the caller must gang it rather than
+	 * fall back again, or it would bounce between the classes forever.
+	 */
+	if (mc == spa_normal_class(spa))
+		return (mc);
+
+	return (spa_class_select(spa, &zio->io_prop, zio->io_size,
+	    tried_dedup, tried_special));
 }
 
 void
@@ -2467,32 +2479,73 @@ bp_get_dsize(spa_t *spa, const blkptr_t *bp)
 }
 
 /*
- * Return B_TRUE if every DVA of the block has the allocated size that its
- * physical size would get on the same vdev in the given txg, so that writing
- * it again would take the same space there.  A gang block's DVAs have the size
- * of its header, and a block on an indirect vdev would move, so their size is
- * not current.  Holes and embedded blocks allocate nothing.
+ * Return B_TRUE if writing the block again in the given txg, with the write
+ * properties zp, would leave it as it is: same checksum, compression, number
+ * of copies and dedup, and on every DVA the same allocation class and, on a
+ * RAID-Z vdev, the logical width that the vdev has in that txg.  A block
+ * written at another width is not current even where the new width stores it
+ * in the same space: left in place, it would split the space that rewriting
+ * the blocks around it frees.  A deduplicated block keeps the DVAs of its DDT
+ * entry, and their width, and those of a flat entry can be more than zp asks
+ * for.  A gang block, and a block on an indirect vdev or on a vdev that takes
+ * no allocations, would move, so they are not current.  Holes and embedded
+ * blocks allocate nothing, so an embedded block is current if its compression
+ * is.
+ *
+ * A block stored uncompressed, embedded or not, may be one that compression
+ * did not shrink, so it is not taken as one to compress.  The compression
+ * level is not recorded in the block pointer, and is not compared.
  */
 boolean_t
-bp_asize_is_current(spa_t *spa, const blkptr_t *bp, uint64_t txg)
+bp_rewrite_is_current(spa_t *spa, const blkptr_t *bp, const zio_prop_t *zp,
+    uint64_t txg)
 {
 	if (BP_IS_GANG(bp))
 		return (B_FALSE);
+
+	enum zio_compress compress = BP_GET_COMPRESS(bp);
+	boolean_t compress_current = (compress == ZIO_COMPRESS_OFF ||
+	    compress == zp->zp_compress);
+
+	if (BP_IS_EMBEDDED(bp))
+		return (BPE_GET_ETYPE(bp) != BP_EMBEDDED_TYPE_DATA ||
+		    compress_current);
 	if (BP_GET_NDVAS(bp) == 0)
 		return (B_TRUE);
 
+	if (BP_GET_CHECKSUM(bp) != zp->zp_checksum || !compress_current ||
+	    BP_GET_DEDUP(bp) != zp->zp_dedup)
+		return (B_FALSE);
+
+	/*
+	 * A rewrite that deduplicates the block again gives it the DVAs of
+	 * its DDT entry.  A flat entry serves every copies value, so it can
+	 * hold more DVAs than requested, and the rewrite keeps them all.
+	 */
+	int ndvas = BP_GET_NDVAS(bp);
+	boolean_t flat = BP_GET_DEDUP(bp) &&
+	    (ddt_select(spa, bp)->ddt_flags & DDT_FLAG_FLAT);
+	if (ndvas < zp->zp_copies || (ndvas > zp->zp_copies && !flat))
+		return (B_FALSE);
+
 	boolean_t same = B_TRUE;
+	boolean_t dedup = BP_GET_DEDUP(bp);
+	uint64_t birth = BP_GET_PHYSICAL_BIRTH(bp);
 	uint64_t psize = BP_GET_PSIZE(bp);
 
 	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
 
-	for (int d = 0; same && d < BP_GET_NDVAS(bp); d++) {
+	metaslab_class_t *mc = spa_class_select(spa, zp, psize, B_FALSE,
+	    B_FALSE);
+	for (int d = 0; same && d < ndvas; d++) {
 		const dva_t *dva = &bp->blk_dva[d];
 		vdev_t *vd = vdev_lookup_top(spa, DVA_GET_VDEV(dva));
 
 		same = vd != NULL && vdev_is_concrete(vd) &&
-		    DVA_GET_ASIZE(dva) ==
-		    vdev_psize_to_asize_txg(vd, psize, txg);
+		    !vd->vdev_noalloc && !vd->vdev_removing &&
+		    vd->vdev_mg != NULL && vd->vdev_mg->mg_class == mc &&
+		    (dedup || vd->vdev_ops != &vdev_raidz_ops ||
+		    vdev_raidz_same_logical_width(vd, birth, txg));
 	}
 
 	spa_config_exit(spa, SCL_VDEV, FTAG);
@@ -3277,7 +3330,7 @@ spa_min_claim_txg(spa_t *spa)
 	if (checkpoint_txg != 0)
 		return (checkpoint_txg + 1);
 
-	return (spa->spa_first_txg);
+	return (spa->spa_claim_min_txg);
 }
 
 /*

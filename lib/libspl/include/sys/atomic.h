@@ -30,6 +30,15 @@ extern "C" {
 #if defined(__STDC__)
 
 /*
+ * Squash warnings that 64-bit atomics may perform poorly on 32-bit targets
+ * due to their size or alignment.
+ */
+#if defined(__clang__) && defined(_ILP32)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Watomic-alignment"
+#endif
+
+/*
  * "token override" machinery. _SELECT_OVERRIDE expands the first token if it
  * is defined with _OVERRIDE(), otherwise the second.
  */
@@ -395,6 +404,28 @@ SPL_ATOMIC_STORE(ptr, void)
 #undef SPL_ATOMIC_STORE
 
 /*
+ * Sequentially consistent variants of the above, for code that needs more
+ * than the relaxed ordering they provide.
+ */
+static inline uint32_t
+atomic_load_32_seq_cst(volatile uint32_t *target)
+{
+	return (__atomic_load_n(target, __ATOMIC_SEQ_CST));
+}
+
+static inline uint64_t
+atomic_load_64_seq_cst(volatile uint64_t *target)
+{
+	return (__atomic_load_n(target, __ATOMIC_SEQ_CST));
+}
+
+static inline void
+atomic_store_32_seq_cst(volatile uint32_t *target, uint32_t bits)
+{
+	__atomic_store_n(target, bits, __ATOMIC_SEQ_CST);
+}
+
+/*
  * Perform an exclusive atomic bit set/clear on a target.
  * Returns 0 if bit was successfully set/cleared, or -1
  * if the bit was already set/cleared.
@@ -484,6 +515,10 @@ membar_consumer(void)
 #undef	_SPL_ATOMIC_SELECT_OVERRIDE
 #undef	_SPL_ATOMIC_SELECT_3
 #undef	_SPL_ATOMIC_OVERRIDE
+
+#if defined(__clang__) && defined(_ILP32)
+#pragma clang diagnostic pop
+#endif
 
 #endif  /* __STDC__ */
 

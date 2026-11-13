@@ -41,7 +41,11 @@ mountpoint=$(get_prop mountpoint $TESTPOOL/$TESTFS)
 set_tunable64 METASLAB_FORCE_GANGING 1500
 set_tunable32 METASLAB_FORCE_GANGING_PCT 100
 
-for i in $(seq 1 80); do
+# Create the files from one process.  New objects come from a per-CPU
+# range, so files created by processes on many CPUs leave each meta-dnode
+# block with too few dnodes to compress to 1500 bytes or more.
+log_must mkfiles $mountpoint/f 80
+for i in $(seq 0 79); do
 	dd if=/dev/urandom of=$mountpoint/f$i bs=512 count=1 2>/dev/null || \
 	    log_fail "dd failed"
 done

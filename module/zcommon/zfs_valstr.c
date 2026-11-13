@@ -194,6 +194,7 @@ _VALSTR_BITFIELD_IMPL(zio_flag,
 	{ '.', "ND", "NODATA" },
 	{ '.', "ID", "INDUCE_DAMAGE" },
 	{ '.', "AT", "ALLOC_THROTTLED" },
+	{ '.', "ZW", "ZILWRITE" },
 	{ '.', "RE", "IO_RETRY" },
 	{ '.', "PR", "PROBE" },
 	{ '.', "TH", "TRYHARD" },
@@ -215,6 +216,7 @@ _VALSTR_BITFIELD_IMPL(zio_flag,
 	{ '.', "PA", "PREALLOCATED" },
 	{ '.', "PO", "POSTREAD" },
 	{ '.', "LW", "LIGHTWEIGHT" },
+	{ '.', "IJ", "IO_INJECTED" },
 )
 
 /*

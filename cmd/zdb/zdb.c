@@ -10341,6 +10341,8 @@ zdb_print_anyraid_tile_layout(vdev_t *vd)
 		free(table[i]);
 	}
 	free(table);
+	free(printed);
+	free(final);
 }
 
 static void
@@ -10399,8 +10401,8 @@ print_anyraid_mapping(vdev_t *vd, int child, anyraid_header_t *header)
 	    &disk_id) != 0)
 		(void) printf("No valid disk ID\n");
 
-	(void) printf("version:    %6d\ttile size: %#8lx\ttxg: %lu\n",
-	    version, tile_size, written_txg);
+	(void) printf("version:    %6d\ttile size: %#8llx\ttxg: %llu\n",
+	    version, (u_longlong_t)tile_size, (u_longlong_t)written_txg);
 	(void) printf("map length: %6u\tdisk id: %3u\n", map_length, disk_id);
 
 	// Read in and print the actual mapping data
@@ -10428,10 +10430,10 @@ print_anyraid_mapping(vdev_t *vd, int child, anyraid_header_t *header)
 			// switch maps
 			if (map != -1) {
 				abd_return_buf(map_abds[map], map_buf,
-				    SPA_MAXBLOCKSIZE);
+				    abd_get_size(map_abds[map]));
 			}
 			map_buf = abd_borrow_buf(map_abds[next_map],
-			    SPA_MAXBLOCKSIZE);
+			    abd_get_size(map_abds[next_map]));
 			map = next_map;
 		}
 		uint32_t mo = off % SPA_MAXBLOCKSIZE;
@@ -10448,10 +10450,10 @@ print_anyraid_mapping(vdev_t *vd, int child, anyraid_header_t *header)
 			// switch maps
 			if (map != -1) {
 				abd_return_buf(map_abds[map], map_buf,
-				    SPA_MAXBLOCKSIZE);
+				    abd_get_size(map_abds[map]));
 			}
 			map_buf = abd_borrow_buf(map_abds[next_map],
-			    SPA_MAXBLOCKSIZE);
+			    abd_get_size(map_abds[next_map]));
 			map = next_map;
 			memcpy(buf + rem, map_buf, size - rem);
 		} else {
@@ -10491,7 +10493,8 @@ print_anyraid_mapping(vdev_t *vd, int child, anyraid_header_t *header)
 			kmem_free(buf, size);
 	}
 	if (map_buf)
-		abd_return_buf(map_abds[map], map_buf, SPA_MAXBLOCKSIZE);
+		abd_return_buf(map_abds[map], map_buf,
+		    abd_get_size(map_abds[map]));
 
 	var->vd_tile_size = tile_size;
 
@@ -11332,13 +11335,18 @@ retry_lookup:
 			if (dataset_lookup == B_TRUE) {
 				/*
 				 * Use the supplied id to get the name
-				 * for open_objset.
+				 * for open_objset.  Keep the global spa
+				 * NULL: zdb_exit() would spa_close() it
+				 * again if the lookup fails.
 				 */
-				error = spa_open(target_pool, &spa, FTAG);
+				spa_t *lookup_spa;
+
+				error = spa_open(target_pool, &lookup_spa,
+				    FTAG);
 				if (error == 0) {
-					error = name_from_objset_id(spa,
+					error = name_from_objset_id(lookup_spa,
 					    objset_id, dsname);
-					spa_close(spa, FTAG);
+					spa_close(lookup_spa, FTAG);
 					if (error == 0)
 						target = dsname;
 				}

@@ -12,6 +12,9 @@ AC_DEFUN([ZFS_AC_CONFIG_USER_LIBUDEV], [
 	    LIBS="$LIBUDEV_LIBS $LIBS"
 
 	    AC_CHECK_FUNCS([udev_device_get_is_initialized])
+	    AC_CHECK_FUNCS([udev_queue_new])
+	    AC_CHECK_FUNCS([udev_queue_unref])
+	    AC_CHECK_FUNCS([udev_queue_get_udev_is_active])
 
 	    AX_RESTORE_FLAGS
 	])

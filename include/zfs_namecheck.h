@@ -48,6 +48,7 @@ _ZFS_NAMECHECK_H int get_dataset_depth(const char *);
 _ZFS_NAMECHECK_H int pool_namecheck(const char *, namecheck_err_t *, char *);
 _ZFS_NAMECHECK_H int entity_namecheck(const char *, namecheck_err_t *, char *);
 _ZFS_NAMECHECK_H int dataset_namecheck(const char *, namecheck_err_t *, char *);
+_ZFS_NAMECHECK_H int clone_namecheck(const char *, namecheck_err_t *, char *);
 _ZFS_NAMECHECK_H int snapshot_namecheck(const char *, namecheck_err_t *,
     char *);
 _ZFS_NAMECHECK_H int bookmark_namecheck(const char *, namecheck_err_t *,

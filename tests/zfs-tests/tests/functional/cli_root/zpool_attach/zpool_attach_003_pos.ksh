@@ -29,13 +29,21 @@
 # 5. Verify that all space is now usable
 # 6. Repeat steps 1-5 with anymirror2
 #
+# The expected sizes assume that pool creation mapped only the first tile.
+# Each metaslab allocator activates its own primary and secondary metaslab,
+# so with more than one allocator (the default with eight or more CPUs) the
+# third copy of MOS blocks lands in the second tile, and the attach adds
+# less space. Use one allocator so the result doesn't depend on the CPU
+# count.
+#
 
 verify_runnable "global"
 
 cleanup() {
-	log_must zpool destroy $TESTPOOL2
-	rm /$TESTPOOL/vdev_file.*
 	restore_tunable ANYRAID_MIN_TILE_SIZE
+	restore_tunable SPA_NUM_ALLOCATORS
+	log_must zpool destroy $TESTPOOL2
+	rm -f $TEST_BASE_DIR/vdev_file.*
 }
 
 log_onexit cleanup
@@ -44,6 +52,8 @@ log_must truncate -s 512M $TEST_BASE_DIR/vdev_file.{0,1,2,3}
 log_must truncate -s 2G $TEST_BASE_DIR/vdev_file.{4,5,6}
 save_tunable ANYRAID_MIN_TILE_SIZE
 set_tunable64 ANYRAID_MIN_TILE_SIZE 67108864
+save_tunable SPA_NUM_ALLOCATORS
+set_tunable32 SPA_NUM_ALLOCATORS 1
 
 log_assert "'zpool attach' expands size correctly with anyraid vdevs"
 

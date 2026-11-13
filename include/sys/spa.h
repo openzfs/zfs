@@ -963,6 +963,7 @@ typedef struct spa_stats {
 	spa_history_kstat_t	guid;		/* pool guid */
 	spa_history_kstat_t	iostats;
 	spa_history_kstat_t	log_spacemaps;
+	spa_history_kstat_t	misc;
 } spa_stats_t;
 
 typedef enum txg_state {
@@ -1082,6 +1083,9 @@ extern spa_log_state_t spa_get_log_state(spa_t *spa);
 extern void spa_set_log_state(spa_t *spa, spa_log_state_t state);
 extern int spa_reset_logs(spa_t *spa);
 extern void spa_log_sm_stats_update(spa_t *spa);
+extern void spa_misc_stats_bump_suspended_ioerr(spa_t *spa);
+extern void spa_misc_stats_bump_suspended_mmp(spa_t *spa);
+extern void spa_misc_stats_bump_resumed(spa_t *spa);
 
 /* Log claim callback */
 extern void spa_claim_notify(zio_t *zio);
@@ -1177,8 +1181,8 @@ extern boolean_t spa_has_spare(spa_t *, uint64_t guid);
 extern uint64_t dva_get_dsize_sync(spa_t *spa, const dva_t *dva);
 extern uint64_t bp_get_dsize_sync(spa_t *spa, const blkptr_t *bp);
 extern uint64_t bp_get_dsize(spa_t *spa, const blkptr_t *bp);
-extern boolean_t bp_asize_is_current(spa_t *spa, const blkptr_t *bp,
-    uint64_t txg);
+extern boolean_t bp_rewrite_is_current(spa_t *spa, const blkptr_t *bp,
+    const struct zio_prop *zp, uint64_t txg);
 extern boolean_t spa_has_dedup(spa_t *spa);
 extern boolean_t spa_has_slogs(spa_t *spa);
 extern boolean_t spa_has_special(spa_t *spa);

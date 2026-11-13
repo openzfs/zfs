@@ -234,6 +234,12 @@ function replace_missing_devs
 
 	typeset vdev
 	for vdev in $@; do
+		#
+		# The pool still has the old file open.  Recreating it in place
+		# would let the pool write its labels into the new file, which
+		# would then look in use, so create a new file instead.
+		#
+		log_must rm -f $vdev
 		log_must dd if=/dev/zero of=$vdev \
 		    bs=1024k count=$((MINVDEVSIZE / (1024 * 1024))) \
 		    conv=fdatasync

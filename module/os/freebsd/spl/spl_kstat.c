@@ -367,8 +367,7 @@ __kstat_create(const char *module, int instance, const char *name,
 		if (root == NULL) {
 			printf("%s: Cannot create kstat.%s tree!\n",
 			    __func__, buf);
-			sysctl_ctx_free(&ksp->ks_sysctl_ctx);
-			free(ksp, M_KSTAT);
+			kstat_delete(ksp);
 			return (NULL);
 		}
 		if (p != NULL)
@@ -380,8 +379,7 @@ __kstat_create(const char *module, int instance, const char *name,
 	if (root == NULL) {
 		printf("%s: Cannot create kstat.%s.%s tree!\n",
 		    __func__, buf, class);
-		sysctl_ctx_free(&ksp->ks_sysctl_ctx);
-		free(ksp, M_KSTAT);
+		kstat_delete(ksp);
 		return (NULL);
 	}
 
@@ -392,8 +390,7 @@ __kstat_create(const char *module, int instance, const char *name,
 		if (root == NULL) {
 			printf("%s: Cannot create kstat.%s.%s.%s tree!\n",
 			    __func__, buf, class, name);
-			sysctl_ctx_free(&ksp->ks_sysctl_ctx);
-			free(ksp, M_KSTAT);
+			kstat_delete(ksp);
 			return (NULL);
 		}
 	}
