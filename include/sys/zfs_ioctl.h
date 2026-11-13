@@ -588,6 +588,7 @@ typedef struct zfs_creat {
 extern int zfs_secpolicy_snapshot_perms(const char *, cred_t *);
 extern int zfs_secpolicy_rename_perms(const char *, const char *, cred_t *);
 extern int zfs_secpolicy_destroy_perms(const char *, cred_t *);
+extern int zfs_secpolicy_destroy_snaps_perms(const char *, cred_t *);
 extern void zfs_unmount_snap(const char *);
 extern void zfs_destroy_unmount_origin(const char *);
 extern int getzfsvfs_impl(struct objset *, struct zfsvfs **);

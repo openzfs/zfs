@@ -51,6 +51,7 @@ if is_linux; then
 # - rename      - mount(8) does not permit non-superuser mounts
 # - zoned	- zones are not supported
 # - destroy     - umount(8) does not permit non-superuser umounts
+#		- destroy:snapshot is allowed because it does not need umount
 # - sharenfs	- sharing requires superuser privileges
 # - share	- sharing requires superuser privileges
 # - readonly	- mount(8) does not permit non-superuser remounts
@@ -78,7 +79,8 @@ set -A perms	create		true		false	\
 		promote		true		true	\
 		xattr		true		false	\
 		receive		true		false	\
-		receive:append	true		false
+		receive:append	true		false	\
+		destroy:snapshot true		true	\
 
 elif is_freebsd; then
 #				Results in	Results in
@@ -119,7 +121,8 @@ set -A perms	create		true		false	\
 		promote		true		true	\
 		receive		true		false   \
 		receive:append	true		false	\
-		destroy		true		true
+		destroy		true		true	\
+		destroy:snapshot true		true	\
 
 else
 
@@ -154,7 +157,8 @@ set -A perms	create		true		false	\
 		xattr		true		false	\
 		receive		true		false	\
 		receive:append	true		false	\
-		destroy		true		true
+		destroy		true		true	\
+		destroy:snapshot true		true	\
 
 if is_global_zone; then
 	typeset -i n=${#perms[@]}
