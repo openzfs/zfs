@@ -16,7 +16,7 @@
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd July 23, 2025
+.Dd October 26, 2026
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -380,6 +380,13 @@ dedup.
 BLAKE3 is a secure hash algorithm focused on high performance.
 .Pp
 .checksum-spiel blake3
+.Pp
+Encryption keys created while this feature is enabled also use keyed BLAKE3
+to derive the salt and initialization vector of their deduplicated blocks,
+which does not make the feature
+.Sy active ;
+see
+.Xr zfs-load-key 8 .
 .
 .feature com.fudosecurity block_cloning yes
 When this feature is enabled ZFS will use block cloning for operations like

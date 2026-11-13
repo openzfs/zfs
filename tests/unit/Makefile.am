@@ -20,6 +20,7 @@ UNIT_TESTS = \
 	%D%/test_btree \
 	%D%/test_fletcher \
 	%D%/test_sha2 \
+	%D%/test_zio_crypt_dedup \
 	%D%/test_cityhash \
 	%D%/test_nvpair \
 	%D%/test_backtrace \
@@ -110,6 +111,24 @@ nodist_%C%_test_sha2_SOURCES = \
 
 %C%_test_sha2_LDADD = \
 	libicp.la \
+	libspl.la \
+	libunit.la
+
+
+%C%_test_zio_crypt_dedup_CFLAGS = $(AM_CFLAGS)
+
+nodist_%C%_test_zio_crypt_dedup_SOURCES = \
+	module/zfs/hkdf.c \
+	module/zfs/zfs_impl.c \
+	module/zfs/zio_crypt.c \
+	module/zfs/zio_crypt_os_icp.c
+
+%C%_test_zio_crypt_dedup_SOURCES = \
+	%D%/test_zio_crypt_dedup.c
+
+%C%_test_zio_crypt_dedup_LDADD = \
+	libicp.la \
+	libavl.la \
 	libspl.la \
 	libunit.la
 

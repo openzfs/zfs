@@ -6,6 +6,7 @@
 /test_namecheck
 /test_btree
 /test_sha2
+/test_zio_crypt_dedup
 /test_cityhash
 /test_nvpair
 /test_backtrace
