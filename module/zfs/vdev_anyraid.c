@@ -773,14 +773,31 @@ anyraid_calculate_size(vdev_t *vd)
 		vdev_t *cvd = vd->vdev_child[c];
 		uint64_t disk_size = MAX(VDEV_ANYRAID_TOTAL_MAP_SIZE,
 		    cvd->vdev_asize) - VDEV_ANYRAID_TOTAL_MAP_SIZE;
-		if (disk_size < 1 << disk_shift || disk_size < min_size)
-			toosmall++;
 		smallest_disk_size = MIN(smallest_disk_size, disk_size);
 	}
+	ASSERT3U(smallest_disk_size, !=, UINT64_MAX);
 
-	if (smallest_disk_size < 1 << disk_shift ||
-	    smallest_disk_size < min_size) {
-		ASSERT(toosmall);
+	/*
+	 * Rounding the tile size up to a power of two can take it past the
+	 * smallest disk, with a minimum that is not a power of two or a
+	 * shift of 0, so the disks are checked against the rounded size.
+	 */
+	uint64_t tile_size = 0;
+	uint64_t need = MAX(1 << disk_shift, min_size);
+	if (smallest_disk_size >= need) {
+		tile_size = MAX(smallest_disk_size >> disk_shift, min_size);
+		tile_size = 1ULL << highbit64(tile_size - 1);
+		need = tile_size;
+	}
+
+	if (smallest_disk_size < need) {
+		for (int c = 0; c < vd->vdev_children; c++) {
+			vdev_t *cvd = vd->vdev_child[c];
+			uint64_t disk_size = MAX(VDEV_ANYRAID_TOTAL_MAP_SIZE,
+			    cvd->vdev_asize) - VDEV_ANYRAID_TOTAL_MAP_SIZE;
+			if (disk_size < need)
+				toosmall++;
+		}
 		char **vdevs = kmem_alloc(toosmall * sizeof (*vdevs),
 		    KM_SLEEP);
 		int idx = 0;
@@ -789,11 +806,11 @@ anyraid_calculate_size(vdev_t *vd)
 			vdev_t *cvd = vd->vdev_child[c];
 			uint64_t disk_size = MAX(VDEV_ANYRAID_TOTAL_MAP_SIZE,
 			    cvd->vdev_asize) - VDEV_ANYRAID_TOTAL_MAP_SIZE;
-			if (disk_size < 1 << disk_shift ||
-			    disk_size < min_size) {
-				char *namebuf = kmem_zalloc(64, KM_SLEEP);
+			if (disk_size < need) {
+				char *namebuf = kmem_zalloc(MAXPATHLEN,
+				    KM_SLEEP);
 				vdevs[idx++] = vdev_name(cvd, namebuf,
-				    64);
+				    MAXPATHLEN);
 				ashift = MAX(ashift, cvd->vdev_ashift);
 			}
 		}
@@ -804,21 +821,16 @@ anyraid_calculate_size(vdev_t *vd)
 			fnvlist_add_string_array(nv, ZPOOL_CREATE_INFO_VDEV,
 			    (const char *const *)vdevs, toosmall);
 			fnvlist_add_uint64(nv, ZPOOL_CREATE_INFO_SIZE,
-			    MAX(1 << disk_shift, min_size) +
-			    VDEV_ANYRAID_TOTAL_MAP_SIZE);
+			    need + VDEV_ANYRAID_TOTAL_MAP_SIZE);
 			spa->spa_create_info = nv;
 		}
 		for (int i = 0; i < toosmall; i++)
-			kmem_free(vdevs[i], 64);
+			kmem_free(vdevs[i], MAXPATHLEN);
 		kmem_free(vdevs, toosmall * sizeof (*vdevs));
 		return (SET_ERROR(ENOLCK));
 	}
 
-
-	ASSERT3U(smallest_disk_size, !=, UINT64_MAX);
-	uint64_t tile_size = smallest_disk_size >> disk_shift;
-	tile_size = MAX(tile_size, min_size);
-	var->vd_tile_size = 1ULL << (highbit64(tile_size - 1));
+	var->vd_tile_size = tile_size;
 
 	/*
 	 * Later, we're going to cap the metaslab size at the tile
@@ -976,8 +988,18 @@ vdev_anyraid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 		int error = anyraid_open_existing(vd, &child_capacities);
 		if (error)
 			return (error);
-	} else if ((lasterror = anyraid_calculate_size(vd))) {
-		return (lasterror);
+	} else {
+		int error = anyraid_calculate_size(vd);
+		if (error != 0)
+			return (error);
+		/*
+		 * A new vdev has no capacity recorded for a child that failed
+		 * to open, and vdev_create() needs every child anyway.  Those
+		 * that failed before their size was known are reported as too
+		 * small above.
+		 */
+		if (numerrors != 0)
+			return (lasterror);
 	}
 
 	uint64_t max_size = VDEV_ANYRAID_MAX_TPD * var->vd_tile_size;
