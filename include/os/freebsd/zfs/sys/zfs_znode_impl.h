@@ -55,21 +55,6 @@ extern "C" {
 #define	ZFS_LINK_MAX	UINT64_MAX
 
 /*
- * ZFS minor numbers can refer to either a control device instance or
- * a zvol. Depending on the value of zss_type, zss_data points to either
- * a zvol_state_t or a zfs_onexit_t.
- */
-enum zfs_soft_state_type {
-	ZSST_ZVOL,
-	ZSST_CTLDEV
-};
-
-typedef struct zfs_soft_state {
-	enum zfs_soft_state_type zss_type;
-	void *zss_data;
-} zfs_soft_state_t;
-
-/*
  * Range locking rules
  * --------------------
  * 1. When truncating a file (zfs_create, zfs_setattr, zfs_space) the whole
