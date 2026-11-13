@@ -39,6 +39,19 @@ zio_crypt_key_reopen_os(zio_crypt_key_t *key, const zio_crypt_info_t *ci)
 }
 
 int
+zio_crypt_session_init_os(zio_crypt_session_t *sess,
+    const zio_crypt_info_t *ci, crypto_key_t *key)
+{
+	return (freebsd_crypt_newsession(&sess->zs_sess, ci, key));
+}
+
+void
+zio_crypt_session_fini_os(zio_crypt_session_t *sess)
+{
+	freebsd_crypt_freesession(&sess->zs_sess);
+}
+
+int
 zio_crypt_uios_init_os(zfs_uio_t *u1, zfs_uio_t *u2, int iovcnt, int *idx)
 {
 	/*
