@@ -35,8 +35,6 @@
 extern "C" {
 #endif
 
-extern krwlock_t os_lock;
-
 struct dsl_pool;
 struct dsl_dataset;
 struct dmu_tx;
@@ -99,10 +97,8 @@ struct objset {
 	boolean_t os_encrypted;
 
 	/*
-	 * The following "special" dnodes have no parent, are exempt
-	 * from dnode_move(), and are not recorded in os_dnodes, but they
-	 * root their descendents in this objset using handles anyway, so
-	 * that all access to dnodes from dbufs consistently uses handles.
+	 * The following "special" dnodes have no parent and are not recorded
+	 * in os_dnodes.
 	 */
 	dnode_handle_t os_meta_dnode;
 	dnode_handle_t os_userused_dnode;
@@ -259,9 +255,6 @@ int dmu_fsname(const char *snapname, char *buf);
 
 void dmu_objset_evict_done(objset_t *os);
 void dmu_objset_willuse_space(objset_t *os, int64_t space, dmu_tx_t *tx);
-
-void dmu_objset_init(void);
-void dmu_objset_fini(void);
 
 #ifdef	__cplusplus
 }

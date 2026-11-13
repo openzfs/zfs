@@ -36,9 +36,7 @@
  *     zio_t *, ...);
  */
 #define	DBUF_TP_STRUCT_ENTRY_OS_SPA \
-	    (db != NULL && \
-		POINTER_IS_VALID(DB_DNODE(db)->dn_objset)) \
-	    ? spa_name(DB_DNODE(db)->dn_objset->os_spa) : "NULL"
+	    (db != NULL ? spa_name(db->db_objset->os_spa) : "NULL")
 
 #define	DBUF_TP_STRUCT_ENTRY					\
 	__string(os_spa, DBUF_TP_STRUCT_ENTRY_OS_SPA)		\

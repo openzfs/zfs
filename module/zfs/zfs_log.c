@@ -629,11 +629,9 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		 */
 		if (wr_state == WR_COPIED) {
 			int err;
-			DB_DNODE_ENTER(db);
-			err = dmu_read_by_dnode(DB_DNODE(db), off, len,
+			err = dmu_read_by_dnode(db->db_dnode, off, len,
 			    &lr->lr_data[0], DMU_READ_NO_PREFETCH |
 			    DMU_KEEP_CACHING);
-			DB_DNODE_EXIT(db);
 			if (err != 0) {
 				zil_itx_destroy(itx, 0);
 				itx = zil_itx_create(txtype, sizeof (*lr));
