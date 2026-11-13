@@ -44,6 +44,8 @@ zstream_usage(void)
 	    "\n"
 	    "\tzstream redup [-v] file\n"
 	    "\n"
+	    "\tzstream resume [-v] resume_token [file]\n"
+	    "\n"
 	    "\tzstream token resume_token\n");
 	exit(1);
 }
@@ -92,6 +94,8 @@ main(int argc, char *argv[])
 		return (zstream_do_recompress(argc - 1, argv + 1));
 	} else if (strcmp(subcommand, "redup") == 0) {
 		return (zstream_do_redup(argc - 1, argv + 1));
+	} else if (strcmp(subcommand, "resume") == 0) {
+		return (zstream_do_resume(argc - 1, argv + 1));
 	} else if (strcmp(subcommand, "selftest") == 0) {
 		/* Undocumented; used by the ZFS test suite */
 		return (zstream_do_selftest(argc - 1, argv + 1));

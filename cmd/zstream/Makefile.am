@@ -26,6 +26,7 @@ zstream_SOURCES = \
 	%D%/zstream_recompress.c \
 	%D%/zstream_recompress.h \
 	%D%/zstream_redup.c \
+	%D%/zstream_resume.c \
 	%D%/zstream_selftest.c \
 	%D%/zstream_selftest.h \
 	%D%/zstream_selftest_queue.c \

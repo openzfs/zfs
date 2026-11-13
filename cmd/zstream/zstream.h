@@ -36,6 +36,7 @@ extern int zstream_do_dump(int argc, char *argv[]);
 extern int zstream_do_raw(int argc, char *argv[]);
 extern int zstream_do_recompress(int argc, char *argv[]);
 extern int zstream_do_redup(int argc, char *argv[]);
+extern int zstream_do_resume(int argc, char *argv[]);
 extern int zstream_do_selftest(int argc, char *argv[]);
 extern int zstream_do_token(int argc, char *argv[]);
 extern void zstream_usage(void) __attribute__((noreturn));

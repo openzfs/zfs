@@ -252,7 +252,17 @@ chain_fletcher4(queue_item_t *item_in, void *context_in)
 	}
 	fletcher_4_incremental(swap, drr, ck_offset, stream_cksum);
 	if (drr_type != DRR_BEGIN && !IS_CONCLUSION(drr, drr_type)) {
-		if (context->fc_operation == F4_VALIDATE) {
+		if (context->fc_operation == F4_VALIDATE &&
+		    item->dp_base.dp_cksum_resync) {
+			/*
+			 * The reader skipped the stream up to this record
+			 * without reading it, so take up the stream checksum
+			 * from the record header and validate from here on.
+			 */
+			*stream_cksum = *record_cksum;
+			if (swap)
+				ZIO_CHECKSUM_BSWAP(stream_cksum);
+		} else if (context->fc_operation == F4_VALIDATE) {
 			off_t stream_offset =
 			    item->dp_base.dp_stream_offset + ck_offset;
 			validate_or_exit(stream_cksum, record_cksum,

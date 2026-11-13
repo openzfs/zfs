@@ -58,6 +58,7 @@ typedef struct {
 	uint8_t			*dp_payload;
 	uint32_t		dp_payload_size;
 	off_t			dp_stream_offset;
+	boolean_t		dp_cksum_resync;
 } drr_packet_t;
 
 /*
@@ -67,6 +68,23 @@ typedef struct {
 
 chain_step_t
 serial_read_stream(const char *filename);
+
+/*
+ * A skip function is shown each record header that follows the DRR_BEGIN
+ * record, in native byte order, until it first returns B_FALSE. Records for
+ * which it returns B_TRUE are discarded by seeking past them, without reading
+ * their payloads, provided the input is seekable. It must not depend on
+ * anything other than the header and its argument, as it runs in the reader
+ * ahead of the rest of the chain.
+ *
+ * The last record skipped is not discarded. It is re-read and emitted with
+ * dp_cksum_resync set, so that checksum validation can take up the stream
+ * checksum from its header. Downstream steps must still discard it.
+ */
+typedef boolean_t (*skip_func_t)(const dmu_replay_record_t *drr, void *arg);
+
+chain_step_t
+serial_read_stream_skip(const char *filename, skip_func_t skip, void *arg);
 
 chain_step_t
 serial_write_stream(const char *filename);
