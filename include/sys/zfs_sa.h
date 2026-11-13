@@ -123,7 +123,6 @@ typedef struct znode_phys {
 #ifdef _KERNEL
 
 #define	DXATTR_MAX_ENTRY_SIZE	(32768)
-#define	DXATTR_MAX_SA_SIZE	(SPA_OLD_MAXBLOCKSIZE >> 1)
 
 int zfs_sa_readlink(struct znode *, zfs_uio_t *);
 void zfs_sa_symlink(struct znode *, char *link, int len, dmu_tx_t *);
@@ -131,6 +130,7 @@ void zfs_sa_get_scanstamp(struct znode *, xvattr_t *);
 void zfs_sa_set_scanstamp(struct znode *, xvattr_t *, dmu_tx_t *);
 int zfs_sa_get_xattr(struct znode *);
 int zfs_sa_set_xattr(struct znode *, const char *, const void *, size_t);
+int zfs_sa_xattr_fits(struct znode *, const char *, size_t);
 void zfs_sa_upgrade(struct sa_handle  *, dmu_tx_t *);
 void zfs_sa_upgrade_txholds(dmu_tx_t *, struct znode *);
 void zfs_sa_init(void);
