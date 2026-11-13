@@ -215,6 +215,8 @@ struct objset {
 /* called from zpl */
 int dmu_objset_hold(const char *name, const void *tag, objset_t **osp);
 int dmu_objset_hold_decrypt(const char *name, const void *tag, objset_t **osp);
+int dmu_objset_hold_authenticate(const char *name, const void *tag,
+    objset_t **osp);
 int dmu_objset_own(const char *name, dmu_objset_type_t type,
     boolean_t readonly, boolean_t decrypt, const void *tag, objset_t **osp);
 int dmu_objset_own_obj(struct dsl_pool *dp, uint64_t obj,

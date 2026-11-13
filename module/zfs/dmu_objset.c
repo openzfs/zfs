@@ -832,10 +832,43 @@ dmu_objset_hold(const char *name, const void *tag, objset_t **osp)
 	return (dmu_objset_hold_flags(name, DS_HOLD_FLAG_NONE, tag, osp));
 }
 
+/*
+ * Hold an objset for decryption without checking its MACs. Use this only to
+ * read the objset, e.g. to inspect one whose MACs may be bad; a holder that
+ * may dirty the objset must use dmu_objset_hold_authenticate().
+ */
 int
 dmu_objset_hold_decrypt(const char *name, const void *tag, objset_t **osp)
 {
 	return (dmu_objset_hold_flags(name, DS_HOLD_FLAG_DECRYPT, tag, osp));
+}
+
+/*
+ * Hold an objset for decryption, as dmu_objset_hold_decrypt() does, and check
+ * its MACs. Holders that may dirty the objset must use this, so that they
+ * don't "launder" a bad MAC: the next write would compute new, valid MACs
+ * over metadata that may have been tampered with.
+ */
+int
+dmu_objset_hold_authenticate(const char *name, const void *tag, objset_t **osp)
+{
+	int err = dmu_objset_hold_decrypt(name, tag, osp);
+	if (err != 0)
+		return (err);
+
+	/*
+	 * A receive that owns an encrypted dataset may be writing its objset
+	 * raw, so its MACs can't be checked yet. It's busy, as
+	 * dmu_objset_own() would report.
+	 */
+	if ((*osp)->os_encrypted && dmu_objset_is_receiving(*osp))
+		err = SET_ERROR(EBUSY);
+	else
+		err = dmu_objset_authenticate(*osp);
+	if (err != 0)
+		dmu_objset_rele_decrypt(*osp, tag);
+
+	return (err);
 }
 
 static int
@@ -3136,6 +3169,7 @@ EXPORT_SYMBOL(dmu_objset_type);
 EXPORT_SYMBOL(dmu_objset_name);
 EXPORT_SYMBOL(dmu_objset_hold);
 EXPORT_SYMBOL(dmu_objset_hold_decrypt);
+EXPORT_SYMBOL(dmu_objset_hold_authenticate);
 EXPORT_SYMBOL(dmu_objset_own);
 EXPORT_SYMBOL(dmu_objset_rele);
 EXPORT_SYMBOL(dmu_objset_rele_decrypt);

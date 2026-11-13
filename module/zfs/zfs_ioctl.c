@@ -6903,7 +6903,7 @@ zfs_ioc_userspace_upgrade(zfs_cmd_t *zc)
 		objset_t *os;
 
 		/* XXX kind of reading contents without owning */
-		error = dmu_objset_hold_decrypt(zc->zc_name, FTAG, &os);
+		error = dmu_objset_hold_authenticate(zc->zc_name, FTAG, &os);
 		if (error != 0)
 			return (error);
 
@@ -6942,7 +6942,7 @@ zfs_ioc_id_quota_upgrade(zfs_cmd_t *zc)
 	objset_t *os;
 	int error;
 
-	error = dmu_objset_hold_decrypt(zc->zc_name, FTAG, &os);
+	error = dmu_objset_hold_authenticate(zc->zc_name, FTAG, &os);
 	if (error != 0)
 		return (error);
 

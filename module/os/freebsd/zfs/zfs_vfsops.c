@@ -1046,7 +1046,7 @@ zfsvfs_create_hold(const char *osname, zfsvfs_t **zfvp)
 
 	zfsvfs = kmem_zalloc(sizeof (zfsvfs_t), KM_SLEEP);
 
-	error = dmu_objset_hold_decrypt(osname, zfsvfs, &os);
+	error = dmu_objset_hold_authenticate(osname, zfsvfs, &os);
 	if (error != 0) {
 		kmem_free(zfsvfs, sizeof (zfsvfs_t));
 		return (error);
