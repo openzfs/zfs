@@ -198,6 +198,7 @@ typedef struct ztest_shared_opts {
 	uint64_t zo_metaslab_force_ganging;
 	raidz_expand_test_state_t zo_raidz_expand_test;
 	int zo_mmp_test;
+	boolean_t zo_vdev_zap_test;
 	int zo_special_vdevs;
 	int zo_dump_dbgmsg;
 	int zo_fishing;
@@ -282,7 +283,6 @@ extern uint64_t vdev_anyraid_min_tile_size;
 
 static ztest_shared_opts_t *ztest_shared_opts;
 static ztest_shared_opts_t ztest_opts;
-static boolean_t ztest_vdev_zaps_test;
 static const char *const ztest_wkeydata = "abcdefghijklmnopqrstuvwxyz012345";
 
 typedef struct ztest_shared_ds {
@@ -1245,7 +1245,7 @@ process_options(int argc, char **argv)
 			zo->zo_verbose++;
 			break;
 		case 'Z':
-			ztest_vdev_zaps_test = B_TRUE;
+			zo->zo_vdev_zap_test = B_TRUE;
 			break;
 		case 'X':
 			zo->zo_raidz_expand_test = RAIDZ_EXPAND_REQUESTED;
@@ -1329,7 +1329,7 @@ process_options(int argc, char **argv)
 	fini_options();
 
 	/* Keep one mirror member available throughout the focused test. */
-	if (ztest_vdev_zaps_test) {
+	if (zo->zo_vdev_zap_test) {
 		if (zo->zo_init == 0 || zo->zo_alt_ztest[0] != 0 ||
 		    zo->zo_mmp_test ||
 		    zo->zo_raidz_expand_test != RAIDZ_EXPAND_NONE)
@@ -9212,7 +9212,7 @@ ztest_init(ztest_shared_t *zs)
 	 */
 	fnvlist_add_uint64(props,
 	    zpool_prop_to_name(ZPOOL_PROP_FAILUREMODE),
-	    ztest_vdev_zaps_test ?
+	    ztest_opts.zo_vdev_zap_test ?
 	    ZIO_FAILURE_MODE_CONTINUE :
 	    (MAXFAULTS(zs) ? ZIO_FAILURE_MODE_PANIC :
 	    ZIO_FAILURE_MODE_WAIT));
@@ -9233,7 +9233,7 @@ ztest_init(ztest_shared_t *zs)
 		char *buf;
 
 		if (!spa_feature_table[i].fi_zfs_mod_supported ||
-		    (ztest_vdev_zaps_test &&
+		    (ztest_opts.zo_vdev_zap_test &&
 		    i == SPA_FEATURE_AVZ_V2))
 			continue;
 
@@ -9264,7 +9264,7 @@ ztest_init(ztest_shared_t *zs)
 
 	VERIFY0(spa_open(ztest_opts.zo_pool, &spa, FTAG));
 	ztest_spa = spa;
-	if (ztest_vdev_zaps_test) {
+	if (ztest_opts.zo_vdev_zap_test) {
 		ztest_vdev_zaps(spa);
 		spa_close(spa, FTAG);
 		kernel_fini();
@@ -9580,7 +9580,7 @@ main(int argc, char **argv)
 	    KM_SLEEP);
 	zs = ztest_shared;
 
-	if (ztest_vdev_zaps_test) {
+	if (ztest_opts.zo_vdev_zap_test) {
 		ztest_run_init();
 		return (0);
 	}
