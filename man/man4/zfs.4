@@ -2307,6 +2307,10 @@ combinations each time the block is accessed.
 This allows all segment copies to participate fairly
 in the reconstruction when all combinations
 cannot be checked and prevents repeated use of one bad copy.
+In either case, first try at most this many combinations in which
+the segments on each top-level mirror all come from the same child.
+These find the block whenever each mirror has a child that holds all its
+segments intact.
 .
 .It Sy zfs_recover Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Set to attempt to recover from fatal errors.

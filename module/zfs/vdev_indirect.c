@@ -207,10 +207,12 @@ static uint_t zfs_condense_indirect_commit_entry_delay_ms = 0;
 /*
  * If an indirect split block contains more than this many possible unique
  * combinations when being reconstructed, consider it too computationally
- * expensive to check them all. Instead, try at most 100 randomly-selected
- * combinations each time the block is accessed.  This allows all segment
- * copies to participate fairly in the reconstruction when all combinations
- * cannot be checked and prevents repeated use of one bad copy.
+ * expensive to check them all. Instead, try at most this many
+ * randomly-selected combinations each time the block is accessed.  This
+ * allows all segment copies to participate fairly in the reconstruction
+ * when all combinations cannot be checked and prevents repeated use of one
+ * bad copy.  In either case, vdev_indirect_splits_enumerate_likely() first
+ * tries at most this many combinations.
  */
 uint_t zfs_reconstruct_indirect_combinations_max = 4096;
 
@@ -1586,15 +1588,84 @@ vdev_indirect_splits_enumerate_randomly(indirect_vsd_t *iv, zio_t *zio)
 }
 
 /*
+ * Try the combinations in which the splits on each top-level vdev all come
+ * from the same mirror child, chosen per top-level vdev, as child c of one
+ * mirror has no relation to child c of another.  When one child of a
+ * mirror is damaged or stale on every split it holds, the good combination
+ * is one of these: enumerate_all() may try it last, and random sampling
+ * finds it with probability attempts / 2^splits.  A split whose chosen
+ * child has no data takes its first unique copy instead.  At most
+ * iv_attempts_max combinations are tried.
+ */
+static int
+vdev_indirect_splits_enumerate_likely(indirect_vsd_t *iv, zio_t *zio)
+{
+	boolean_t found = B_FALSE;
+	uint64_t attempts = 0;
+	uint64_t tops = 0;
+
+	for (indirect_split_t *is = list_head(&iv->iv_splits);
+	    is != NULL; is = list_next(&iv->iv_splits, is))
+		tops = MAX(tops, is->is_vdev->vdev_id + 1);
+
+	/* The child tried, and the number of children, per top-level vdev. */
+	int *child = kmem_zalloc(tops * sizeof (int), KM_SLEEP);
+	int *width = kmem_zalloc(tops * sizeof (int), KM_SLEEP);
+
+	for (indirect_split_t *is = list_head(&iv->iv_splits);
+	    is != NULL; is = list_next(&iv->iv_splits, is))
+		width[is->is_vdev->vdev_id] = is->is_children;
+
+	while (attempts++ < iv->iv_attempts_max) {
+		for (indirect_split_t *is = list_head(&iv->iv_splits);
+		    is != NULL; is = list_next(&iv->iv_splits, is)) {
+			indirect_child_t *ic =
+			    &is->is_child[child[is->is_vdev->vdev_id]];
+
+			if (ic->ic_data == NULL)
+				ic = list_head(&is->is_unique_child);
+			else if (ic->ic_duplicate != NULL)
+				ic = ic->ic_duplicate;
+			is->is_good_child = ic;
+		}
+
+		if (vdev_indirect_splits_checksum_validate(iv, zio) == 0) {
+			found = B_TRUE;
+			break;
+		}
+
+		/* Count in base width[t], as enumerate_all() does. */
+		uint64_t t;
+		for (t = 0; t < tops; t++) {
+			if (++child[t] < width[t])
+				break;
+			child[t] = 0;
+		}
+		if (t == tops)
+			break;
+	}
+
+	kmem_free(child, tops * sizeof (int));
+	kmem_free(width, tops * sizeof (int));
+
+	return (found ? 0 : SET_ERROR(ECKSUM));
+}
+
+/*
  * This is a validation function for reconstruction.  It randomly selects
  * a good combination, if one can be found, and then it intentionally
  * damages all other segment copes by zeroing them.  This forces the
  * reconstruction algorithm to locate the one remaining known good copy.
+ * *likely is set when vdev_indirect_splits_enumerate_likely() must find it.
  */
 static int
-vdev_indirect_splits_damage(indirect_vsd_t *iv, zio_t *zio)
+vdev_indirect_splits_damage(indirect_vsd_t *iv, zio_t *zio, boolean_t *likely)
 {
+	uint32_t shift;
+	boolean_t keep;
 	int error;
+
+	*likely = B_FALSE;
 
 	/* Presume all the copies are unique for initial selection. */
 	for (indirect_split_t *is = list_head(&iv->iv_splits);
@@ -1622,6 +1693,45 @@ vdev_indirect_splits_damage(indirect_vsd_t *iv, zio_t *zio)
 	error = vdev_indirect_splits_enumerate_randomly(iv, zio);
 	if (error)
 		goto out;
+
+	/*
+	 * Half of the time, keep one child of each top-level vdev intact on
+	 * every split instead, and damage all the other copies, whatever the
+	 * number of splits and the combinations limit.  The kept child varies
+	 * between top-level vdevs, and must already hold the validated copy,
+	 * so that damage on disk stays visible to vdev_indirect_repair().
+	 */
+	shift = random_in_range(UINT32_MAX);
+	keep = (random_in_range(2) == 0);
+
+	for (indirect_split_t *is = list_head(&iv->iv_splits);
+	    keep && is != NULL; is = list_next(&iv->iv_splits, is)) {
+		int k = (is->is_vdev->vdev_id + shift) % is->is_children;
+		indirect_child_t *kept = &is->is_child[k];
+
+		if (kept->ic_data == NULL || (kept != is->is_good_child &&
+		    abd_cmp(kept->ic_data, is->is_good_child->ic_data) != 0))
+			keep = B_FALSE;
+	}
+
+	if (keep) {
+		for (indirect_split_t *is = list_head(&iv->iv_splits);
+		    is != NULL; is = list_next(&iv->iv_splits, is)) {
+			int k = (is->is_vdev->vdev_id + shift) %
+			    is->is_children;
+			indirect_child_t *kept = &is->is_child[k];
+
+			for (int c = 0; c < is->is_children; c++) {
+				indirect_child_t *ic = &is->is_child[c];
+
+				if (ic != kept && ic->ic_data != NULL)
+					abd_zero(ic->ic_data, is->is_size);
+			}
+		}
+		iv->iv_attempts_max = UINT64_MAX;
+		*likely = B_TRUE;
+		goto out;
+	}
 
 	/*
 	 * Damage all but the known good copy by zeroing it.  This will
@@ -1721,6 +1831,7 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 {
 	indirect_vsd_t *iv = zio->io_vsd;
 	boolean_t known_good = B_FALSE;
+	boolean_t known_likely = B_FALSE;
 	int error;
 
 	iv->iv_unique_combinations = 1;
@@ -1732,11 +1843,14 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 	/*
 	 * If nonzero, every 1/x blocks will be damaged, in order to validate
 	 * reconstruction when there are split segments with damaged copies.
-	 * Known_good will be TRUE when reconstruction is known to be possible.
+	 * Known_good will be TRUE when reconstruction is known to be possible,
+	 * and known_likely when enumerate_likely() is known to find the block.
 	 */
 	if (zfs_reconstruct_indirect_damage_fraction != 0 &&
-	    random_in_range(zfs_reconstruct_indirect_damage_fraction) == 0)
-		known_good = (vdev_indirect_splits_damage(iv, zio) == 0);
+	    random_in_range(zfs_reconstruct_indirect_damage_fraction) == 0) {
+		known_good = (vdev_indirect_splits_damage(iv, zio,
+		    &known_likely) == 0);
+	}
 
 	/*
 	 * Determine the unique children for a split segment and add them
@@ -1781,13 +1895,22 @@ vdev_indirect_reconstruct_io_done(zio_t *zio)
 			return;
 		}
 
-		iv->iv_unique_combinations *= is->is_unique_children;
+		if (iv->iv_unique_combinations >
+		    UINT64_MAX / is->is_unique_children)
+			iv->iv_unique_combinations = UINT64_MAX;
+		else
+			iv->iv_unique_combinations *= is->is_unique_children;
 	}
 
-	if (iv->iv_unique_combinations <= iv->iv_attempts_max)
-		error = vdev_indirect_splits_enumerate_all(iv, zio);
-	else
-		error = vdev_indirect_splits_enumerate_randomly(iv, zio);
+	error = vdev_indirect_splits_enumerate_likely(iv, zio);
+	IMPLY(known_likely, error == 0);
+	if (error != 0) {
+		if (iv->iv_unique_combinations <= iv->iv_attempts_max)
+			error = vdev_indirect_splits_enumerate_all(iv, zio);
+		else
+			error = vdev_indirect_splits_enumerate_randomly(iv,
+			    zio);
+	}
 
 	if (error != 0) {
 		/* All attempted combinations failed. */
