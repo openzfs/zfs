@@ -95,30 +95,6 @@ get_stats_for_obj(differ_info_t *di, const char *dsname, uint64_t obj,
 	}
 }
 
-/*
- * stream_bytes
- *
- * Prints a file name out a character at a time.  If the character is
- * not in the range of what we consider "printable" ASCII, display it
- * as an escaped 4-digit octal value.  ASCII values less than a space
- * are all control characters and we declare the upper end as the
- * DELete character.  This also is the last 7-bit ASCII character.
- * We choose to treat all 8-bit ASCII as not printable for this
- * application.
- */
-static void
-stream_bytes(FILE *fp, const char *string)
-{
-	char c;
-
-	while ((c = *string++) != '\0') {
-		if (c > ' ' && c != '\\' && c < '\177') {
-			(void) fputc(c, fp);
-		} else {
-			(void) fprintf(fp, "\\%04hho", (uint8_t)c);
-		}
-	}
-}
 
 /*
  * Takes the type of change (like `print_file`), outputs the appropriate color
@@ -174,8 +150,8 @@ static void
 print_cmn(FILE *fp, differ_info_t *di, const char *file)
 {
 	if (!di->no_mangle) {
-		stream_bytes(fp, di->dsmnt);
-		stream_bytes(fp, file);
+		zfs_print_escaped(fp, di->dsmnt);
+		zfs_print_escaped(fp, file);
 	} else {
 		(void) fputs(di->dsmnt, fp);
 		(void) fputs(file, fp);
