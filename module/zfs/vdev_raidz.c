@@ -973,8 +973,9 @@ vdev_raidz_map_alloc_expanded(zio_t *zio,
 			 * `b+c < reflow_offset_next` indicates that the copy
 			 * to the new location has been initiated. We know
 			 * that the copy has completed because we have the
-			 * rangelock, which is held exclusively while the
-			 * copy is in progress.
+			 * rangelock over the block's whole allocation (see
+			 * vdev_raidz_io_start()), which the copy holds
+			 * exclusively while it is in progress.
 			 */
 			if (row_use_scratch ||
 			    (row_phys_cols != physical_cols &&
