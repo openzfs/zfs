@@ -114,9 +114,6 @@ typedef struct {
 
 /* Providers */
 
-typedef uint32_t 	crypto_provider_id_t;
-#define	KCF_PROVID_INVALID	((uint32_t)-1)
-
 /* session data structure opaque to the consumer */
 typedef void *crypto_session_t;
 
