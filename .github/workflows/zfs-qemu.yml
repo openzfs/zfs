@@ -136,6 +136,7 @@ jobs:
       REUSED_JOB: >-
         ${{ github.run_attempt == '1' &&
         fromJSON(needs.test-config.outputs.reused_jobs)[matrix.os] || '' }}
+      QEMU_CACHE: /var/tmp/qemu-cache
     steps:
     - name: Reuse successful fork job
       if: env.REUSED_JOB != ''
@@ -148,15 +149,41 @@ jobs:
       with:
         ref: ${{ github.event.pull_request.head.sha }}
 
+    - name: Find cache keys
+      id: keys
+      if: env.REUSED_JOB == ''
+      run: |
+        .github/workflows/scripts/qemu-1-setup.sh --cache-key >> "$GITHUB_OUTPUT"
+        .github/workflows/scripts/qemu-2-start.sh --cache-key ${{ matrix.os }} >> "$GITHUB_OUTPUT"
+
+    - name: Restore runner packages
+      if: env.REUSED_JOB == ''
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ env.QEMU_CACHE }}/apt
+        key: ${{ steps.keys.outputs.apt-key }}
+        restore-keys: ${{ steps.keys.outputs.apt-restore-keys }}
+
     - name: Setup QEMU
       if: env.REUSED_JOB == ''
       timeout-minutes: 60
       run: .github/workflows/scripts/qemu-1-setup.sh
 
+    - name: Restore OS image
+      id: image
+      if: env.REUSED_JOB == '' && steps.keys.outputs.image-key != ''
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ env.QEMU_CACHE }}/image
+        key: ${{ steps.keys.outputs.image-key }}
+        restore-keys: ${{ steps.keys.outputs.image-restore-keys }}
+
     - name: Start build machine
       if: env.REUSED_JOB == ''
       timeout-minutes: 20
       run: .github/workflows/scripts/qemu-2-start.sh ${{ matrix.os }}
+      env:
+        IMAGE_CACHE_HIT: ${{ steps.image.outputs.cache-hit }}
 
     - name: Install dependencies
       if: env.REUSED_JOB == ''

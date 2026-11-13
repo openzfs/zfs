@@ -1,0 +1,130 @@
+name: zfs-qemu-cache
+
+# Save in the Actions cache what each zfs-qemu.yml job would otherwise
+# download before testing: the runner's packages (qemu-1-setup.sh) and the
+# image of its OS (qemu-2-start.sh).  The jobs then download less, and still
+# start when the Ubuntu archive or an image server is down.
+#
+# Only the default branch saves: every branch and pull request can restore
+# its caches, while a pull request's own would serve that pull request only.
+# The plan job computes the current keys and lists those the cache lacks;
+# when it has them all, nothing else runs.  Otherwise the save job saves
+# each missing entry, a few at a time.
+
+on:
+  schedule:
+    - cron: '23 */6 * * *'
+  push:
+    branches: [ master ]
+    paths:
+      - .github/workflows/zfs-qemu-cache.yml
+      - .github/workflows/zfs-qemu.yml
+      - .github/workflows/scripts/qemu-1-setup.sh
+      - .github/workflows/scripts/qemu-2-start.sh
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  QEMU_CACHE: /var/tmp/qemu-cache
+
+jobs:
+  plan:
+    name: Plan
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      missing: ${{ steps.plan.outputs.missing }}
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Find missing caches
+      id: plan
+      env:
+        GH_TOKEN: ${{ github.token }}
+        ZTS_OS_OVERRIDE: ${{ vars.ZTS_OS_OVERRIDE }}
+      run: |
+        scripts=.github/workflows/scripts
+        tmp=$(mktemp -d)
+
+        # The OSes that zfs-qemu.yml tests by default
+        if jq -e 'type == "array"' <<< "$ZTS_OS_OVERRIDE" >/dev/null 2>&1 ; then
+          jq -r '.[]' <<< "$ZTS_OS_OVERRIDE" > "$tmp/os"
+        else
+          sed -n "/^ *\*)$/,/;;/s/.*os_selection='\(.*\)'.*/\1/p" \
+            .github/workflows/zfs-qemu.yml | jq -r '.[]' > "$tmp/os"
+        fi
+        if [ ! -s "$tmp/os" ] ; then
+          echo "::error::No default OS list in zfs-qemu.yml"
+          exit 1
+        fi
+
+        # The keys of the current packages and images, and the saved ones
+        "$scripts/qemu-1-setup.sh" --cache-key | sed -n 's/^apt-key=//p' > "$tmp/apt"
+        while read -r os ; do
+          "$scripts/qemu-2-start.sh" --cache-key "$os" \
+            < /dev/null > "$tmp/$os" 2> "$tmp/$os.log" &
+        done < "$tmp/os"
+        wait
+        cat "$tmp"/*.log
+        gh api --paginate -X GET "repos/$GITHUB_REPOSITORY/actions/caches" \
+          -f ref="$GITHUB_REF" -f key=qemu- -f per_page=100 \
+          --jq '.actions_caches[].key' > "$tmp/saved"
+
+        # A key ending in "-unverified" has no server date to compare with.
+        : > "$tmp/missing"
+        key=$(cat "$tmp/apt")
+        grep -qxF "$key" "$tmp/saved" ||
+          jq -nc --arg key "$key" '{cache: "apt", key: $key, os: ""}' \
+            >> "$tmp/missing"
+        while read -r os ; do
+          key=$(sed -n 's/^image-key=//p' "$tmp/$os")
+          case "$key" in ""|*-unverified) continue ;; esac
+          grep -qxF "$key" "$tmp/saved" ||
+            jq -nc --arg key "$key" --arg os "$os" \
+              '{cache: "image", key: $key, os: $os}' >> "$tmp/missing"
+        done < "$tmp/os"
+        echo "Entries to save: $(wc -l < "$tmp/missing")"
+        cat "$tmp/missing"
+        echo "missing=$(jq -sc . "$tmp/missing")" >> "$GITHUB_OUTPUT"
+
+  save:
+    name: Save
+    needs: [ plan ]
+    if: needs.plan.outputs.missing != '[]'
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include: ${{ fromJson(needs.plan.outputs.missing) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Download ${{ matrix.os || matrix.cache }}
+      env:
+        CACHE: ${{ matrix.cache }}
+        OS: ${{ matrix.os }}
+      run: |
+        if [ "$CACHE" = "apt" ] ; then
+          .github/workflows/scripts/qemu-1-setup.sh
+        else
+          .github/workflows/scripts/qemu-2-start.sh --download "$OS"
+        fi
+
+    - uses: actions/cache/save@v6
+      with:
+        path: ${{ env.QEMU_CACHE }}/${{ matrix.cache }}
+        key: ${{ matrix.key }}
