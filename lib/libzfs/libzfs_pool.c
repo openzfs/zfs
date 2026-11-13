@@ -3093,7 +3093,8 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 	 * failures when an older kernel returns ECANCELED in those cases.
 	 */
 	if (err == ECANCELED && (func == POOL_SCAN_SCRUB ||
-	    func == POOL_SCAN_ERRORSCRUB) && cmd == POOL_SCRUB_NORMAL)
+	    func == POOL_SCAN_ERRORSCRUB ||
+	    func == POOL_SCAN_METASCRUB) && cmd == POOL_SCRUB_NORMAL)
 		return (0);
 	/*
 	 * The following cases have been handled here:
@@ -3107,7 +3108,8 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 	ASSERT3U(func, >=, POOL_SCAN_NONE);
 	ASSERT3U(func, <, POOL_SCAN_FUNCS);
 
-	if (func == POOL_SCAN_SCRUB || func == POOL_SCAN_ERRORSCRUB) {
+	if (func == POOL_SCAN_SCRUB || func == POOL_SCAN_ERRORSCRUB ||
+	    func == POOL_SCAN_METASCRUB) {
 		if (cmd == POOL_SCRUB_PAUSE) {
 			(void) snprintf(errbuf, sizeof (errbuf),
 			    "cannot pause scrubbing %s",
@@ -3149,7 +3151,8 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 		    ZPOOL_CONFIG_VDEV_TREE);
 		(void) nvlist_lookup_uint64_array(nvroot,
 		    ZPOOL_CONFIG_SCAN_STATS, (uint64_t **)&ps, &psc);
-		if (ps && ps->pss_func == POOL_SCAN_SCRUB &&
+		if (ps && (ps->pss_func == POOL_SCAN_SCRUB ||
+		    ps->pss_func == POOL_SCAN_METASCRUB) &&
 		    ps->pss_state == DSS_SCANNING) {
 			if (ps->pss_pass_scrub_pause == 0) {
 				/* handles case 1 */
@@ -3165,7 +3168,8 @@ zpool_scan_range(zpool_handle_t *zhp, pool_scan_func_t func,
 					    errbuf));
 				} else {
 					/* handles case 3 */
-					ASSERT3U(func, ==, POOL_SCAN_SCRUB);
+					ASSERT(func == POOL_SCAN_SCRUB ||
+					    func == POOL_SCAN_METASCRUB);
 					ASSERT3U(cmd, ==, POOL_SCRUB_PAUSE);
 					return (zfs_error(hdl,
 					    EZFS_SCRUB_PAUSED, errbuf));
