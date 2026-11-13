@@ -6551,11 +6551,11 @@ zdb_count_block(zdb_cb_t *zcb, const blkptr_t *bp, dmu_object_type_t type)
 		 * Find the block. This will create the entry in memory, but
 		 * we'll know if that happened by its refcount.
 		 */
-		ddt_entry_t *dde = ddt_lookup(ddt, bp, B_TRUE);
+		ddt_entry_t *dde = ddt_lookup(ddt, bp, B_TRUE, NULL);
 
 		/*
 		 * ddt_lookup() can return NULL when unique entries are pruned
-		 * from the DDT.
+		 * from the DDT, or when the entry could not be read.
 		 */
 		if (dde == NULL) {
 			ddt_exit(ddt);

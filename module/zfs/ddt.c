@@ -1207,8 +1207,14 @@ ddt_entry_lookup_is_valid(ddt_t *ddt, const blkptr_t *bp, ddt_entry_t *dde)
 	return (ddt_phys_select(ddt, dde, bp) != DDT_PHYS_NONE);
 }
 
+/*
+ * If the entry could not be read from a store object, NULL is returned and
+ * *unreadablep is set. The block may then have references we can't see, so
+ * a caller for which NULL is not a safe answer must pass unreadablep.
+ */
 ddt_entry_t *
-ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t verify)
+ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t verify,
+    boolean_t *unreadablep)
 {
 	spa_t *spa = ddt->ddt_spa;
 	ddt_key_t search;
@@ -1219,6 +1225,9 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t verify)
 	int error;
 
 	ASSERT(MUTEX_HELD(&ddt->ddt_lock));
+
+	if (unreadablep != NULL)
+		*unreadablep = B_FALSE;
 
 	if (unlikely(ddt->ddt_version == DDT_VERSION_UNCONFIGURED)) {
 		/*
@@ -1240,6 +1249,13 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t verify)
 		if (dde->dde_flags & DDE_FLAG_OVERQUOTA)
 			return (NULL);
 
+		/* Its load failed; the last waiter will free it */
+		if (dde->dde_flags & DDE_FLAG_UNREADABLE) {
+			if (unreadablep != NULL)
+				*unreadablep = B_TRUE;
+			return (NULL);
+		}
+
 		/* If it's already loaded, we can just return it. */
 		DDT_KSTAT_BUMP(ddt, dds_lookup_live_hit);
 		if (dde->dde_flags & DDE_FLAG_LOADED) {
@@ -1255,8 +1271,12 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t verify)
 			cv_wait(&dde->dde_cv, &ddt->ddt_lock);
 		dde->dde_waiters--;
 
-		/* Loaded but over quota, forget we were ever here */
-		if (dde->dde_flags & DDE_FLAG_OVERQUOTA) {
+		/* Loaded but unusable, forget we were ever here */
+		if (dde->dde_flags &
+		    (DDE_FLAG_OVERQUOTA | DDE_FLAG_UNREADABLE)) {
+			if (unreadablep != NULL &&
+			    (dde->dde_flags & DDE_FLAG_UNREADABLE))
+				*unreadablep = B_TRUE;
 			if (dde->dde_waiters == 0) {
 				avl_remove(&ddt->ddt_tree, dde);
 				ddt_free(ddt, dde);
@@ -1335,13 +1355,20 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t verify)
 	for (type = 0; type < DDT_TYPES; type++) {
 		for (class = 0; class < DDT_CLASSES; class++) {
 			error = ddt_object_lookup(ddt, type, class, dde);
-			if (error != ENOENT) {
-				ASSERT0(error);
+			if (error != ENOENT)
 				break;
-			}
 		}
 		if (error != ENOENT)
 			break;
+	}
+
+	if (error != 0 && error != ENOENT) {
+		char name[DDT_NAMELEN];
+
+		ddt_object_name(ddt, type, class, name);
+		zfs_dbgmsg("%s: error %d reading %s (object %llu), DDT "
+		    "entry not used", spa_name(spa), error, name,
+		    (u_longlong_t)ddt->ddt_object[type][class]);
 	}
 
 	ddt_enter(ddt);
@@ -1353,7 +1380,21 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t verify)
 
 	boolean_t valid = B_TRUE;
 
-	if (dde->dde_type == DDT_TYPES &&
+	if (error != 0 && error != ENOENT) {
+		/*
+		 * The entry may be in the object we could not read, so we
+		 * know nothing about it. It must not be used, nor synced:
+		 * syncing it would read the same block again.
+		 */
+		if (unreadablep != NULL)
+			*unreadablep = B_TRUE;
+		if (dde->dde_waiters == 0) {
+			avl_remove(&ddt->ddt_tree, dde);
+			ddt_free(ddt, dde);
+			return (NULL);
+		}
+		dde->dde_flags |= DDE_FLAG_UNREADABLE;
+	} else if (dde->dde_type == DDT_TYPES &&
 	    dde->dde_class == DDT_CLASSES &&
 	    ddt_over_quota(spa)) {
 		/* Over quota. If no one is waiting, clean up right now. */
@@ -1412,7 +1453,8 @@ ddt_lookup(ddt_t *ddt, const blkptr_t *bp, boolean_t verify)
 	dde->dde_flags |= DDE_FLAG_LOADED;
 	cv_broadcast(&dde->dde_cv);
 
-	if ((dde->dde_flags & DDE_FLAG_OVERQUOTA) || !valid)
+	if ((dde->dde_flags & (DDE_FLAG_OVERQUOTA | DDE_FLAG_UNREADABLE)) ||
+	    !valid)
 		return (NULL);
 
 	return (dde);
@@ -2704,7 +2746,7 @@ ddt_walk(spa_t *spa, ddt_bookmark_t *ddb, ddt_lightweight_entry_t *ddlwe)
  *
  * Return false if the block, despite having the D bit set, is not present
  * in the DDT. This is possible when the DDT has been pruned by an admin
- * or by the DDT quota mechanism.
+ * or by the DDT quota mechanism, or when its entry cannot be read.
  */
 boolean_t
 ddt_addref(spa_t *spa, const blkptr_t *bp)
@@ -2717,9 +2759,17 @@ ddt_addref(spa_t *spa, const blkptr_t *bp)
 	ddt = ddt_select(spa, bp);
 	ddt_enter(ddt);
 
-	dde = ddt_lookup(ddt, bp, B_TRUE);
+	dde = ddt_lookup(ddt, bp, B_TRUE, NULL);
 
-	/* Can be NULL if the entry for this block was pruned. */
+	/*
+	 * Can be NULL if the entry for this block was pruned, or could not be
+	 * read. Either way the caller takes a BRT reference instead. If the
+	 * entry was unreadable, the block may also have references in the
+	 * DDT. That stays safe: frees of the block leak while the entry can't
+	 * be read, and when the DDT later frees the block, it does so without
+	 * the D bit (ddt_phys_free()), so the BRT drops its reference first
+	 * and keeps the block.
+	 */
 	if (dde == NULL) {
 		ddt_exit(ddt);
 		spa_config_exit(spa, SCL_ZIO, FTAG);
@@ -2812,7 +2862,7 @@ prune_candidates_sync(void *arg, dmu_tx_t *tx)
 		 * object, which lags the log. If a log flush has since
 		 * rewritten the stored entry, it may have more references.
 		 */
-		ddt_entry_t *dde = ddt_lookup(ddt, &blk, B_TRUE);
+		ddt_entry_t *dde = ddt_lookup(ddt, &blk, B_TRUE, NULL);
 		if (dde != NULL && !(dde->dde_flags & DDE_FLAG_LOGGED) &&
 		    memcmp(&dde->dde_phys->ddp_flat, &dpe->dpe_phys->ddp_flat,
 		    DDT_FLAT_PHYS_SIZE) == 0) {
