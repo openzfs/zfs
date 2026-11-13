@@ -71,7 +71,10 @@ See the
 .Xr zpoolprops 7
 manual page for a list of valid properties that can be set.
 The only property supported at the moment is
-.Sy ashift .
+.Sy ashift ,
+which must not exceed the
+.Sy ashift
+of the existing vdev.
 .It Fl s
 The
 .Ar new-device
