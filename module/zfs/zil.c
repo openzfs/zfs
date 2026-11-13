@@ -4602,8 +4602,8 @@ static const char *suspend_tag = "zil suspending";
  * very little gain.
  *
  * if cookiep == NULL, this does both the suspend & resume.
- * Otherwise, it returns with the dataset "long held", and the cookie
- * should be passed into zil_resume().
+ * Otherwise, on success it returns with the dataset "long held", and the
+ * cookie should be passed into zil_resume().
  */
 int
 zil_suspend(const char *osname, void **cookiep)
@@ -4753,7 +4753,7 @@ zil_suspend(const char *osname, void **cookiep)
 	if (os->os_encrypted)
 		dsl_dataset_remove_key_mapping(dmu_objset_ds(os));
 
-	if (cookiep == NULL)
+	if (cookiep == NULL || error != 0)
 		zil_resume(os);
 	else
 		*cookiep = os;
