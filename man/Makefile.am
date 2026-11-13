@@ -149,7 +149,7 @@ MANCHECK_TARGETS = $(foreach manfile, $(MANFILES), $(addprefix mancheck-,$(manfi
 PHONY += $(MANCHECK_TARGETS) mancheck
 
 $(MANCHECK_TARGETS): mancheck-%: %
-	$(mancheck_verbose)scripts/mancheck.sh $<
+	$(mancheck_verbose)$(top_srcdir)/scripts/mancheck.sh $<
 
 mancheck: $(MANCHECK_TARGETS)
 
