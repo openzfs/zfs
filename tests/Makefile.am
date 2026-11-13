@@ -23,6 +23,7 @@ dist_scripts_runfiles_DATA = \
 	%D%/runfiles/freebsd.run \
 	%D%/runfiles/linux.run \
 	%D%/runfiles/longevity.run \
+	%D%/runfiles/multi-import.run \
 	%D%/runfiles/perf-regression.run \
 	%D%/runfiles/sanity.run \
 	%D%/runfiles/sunos.run
