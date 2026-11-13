@@ -1003,6 +1003,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_rewrite/setup.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_dedup_birth.ksh \
+	functional/cli_root/zfs_rewrite/zfs_rewrite_parent_cookie.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_physical.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_physical_raw_send.ksh \
 	functional/cli_root/zfs_rewrite/zfs_rewrite_skip_clone.ksh \
@@ -1757,6 +1758,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/exec/exec_001_pos.ksh \
 	functional/exec/exec_002_neg.ksh \
 	functional/exec/setup.ksh \
+	functional/exportfs/cleanup.ksh \
+	functional/exportfs/exportfs_parent_cookie.ksh \
+	functional/exportfs/exportfs_reconnect_dir.ksh \
+	functional/exportfs/setup.ksh \
 	functional/fadvise/cleanup.ksh \
 	functional/fadvise/fadvise_dontneed.ksh \
 	functional/fadvise/fadvise_willneed.ksh \
