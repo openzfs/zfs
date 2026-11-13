@@ -137,8 +137,8 @@ typedef enum {
 typedef struct space_map_entry {
 	maptype_t sme_type;
 	uint32_t sme_vdev;	/* max is 2^24-1; SM_NO_VDEVID if not present */
-	uint64_t sme_offset;	/* max is 2^63-1; units of sm_shift */
-	uint64_t sme_run;	/* max is 2^36; units of sm_shift */
+	uint64_t sme_offset;	/* byte offset, including sm_start */
+	uint64_t sme_run;	/* length in bytes */
 
 	/*
 	 * The following fields are not part of the actual space map entry
@@ -198,11 +198,29 @@ boolean_t sm_entry_is_double_word(uint64_t e);
 
 typedef int (*sm_cb_t)(space_map_entry_t *sme, void *arg);
 
+typedef struct space_map_load_result {
+	/* Allocated bytes reconstructed from the entries that were loaded. */
+	uint64_t smlr_allocated;
+	uint64_t smlr_repaired_entries;
+	uint64_t smlr_affected_bytes;
+	space_map_entry_t smlr_first_entry;
+	space_map_entry_t smlr_last_entry;
+	uint64_t smlr_first_cleared_free_bytes;
+	uint64_t smlr_last_cleared_free_bytes;
+} space_map_load_result_t;
+
 int space_map_load(space_map_t *sm, zfs_range_tree_t *rt, maptype_t maptype);
+int space_map_load_checked(space_map_t *sm, zfs_range_tree_t *rt,
+    maptype_t maptype);
 int space_map_load_length(space_map_t *sm, zfs_range_tree_t *rt,
     maptype_t maptype, uint64_t length);
+int space_map_load_length_repair(space_map_t *sm, zfs_range_tree_t *rt,
+    uint64_t length, space_map_load_result_t *result);
 int space_map_iterate(space_map_t *sm, uint64_t length,
     sm_cb_t callback, void *arg);
+boolean_t space_map_valid_geometry(space_map_t *sm);
+int space_map_decode(space_map_t *sm, const uint64_t *words, size_t nwords,
+    space_map_entry_t *sme);
 int space_map_incremental_destroy(space_map_t *sm, sm_cb_t callback, void *arg,
     dmu_tx_t *tx);
 
@@ -211,12 +229,13 @@ void space_map_histogram_clear(space_map_t *sm);
 void space_map_histogram_add(space_map_t *sm, zfs_range_tree_t *rt,
     dmu_tx_t *tx);
 
+/* These summary accessors return zero for an absent (NULL) space map. */
 uint64_t space_map_object(space_map_t *sm);
 int64_t space_map_allocated(space_map_t *sm);
 uint64_t space_map_length(space_map_t *sm);
-uint64_t space_map_entries(space_map_t *sm, zfs_range_tree_t *rt);
 uint64_t space_map_nblocks(space_map_t *sm);
 
+uint64_t space_map_entries(space_map_t *sm, zfs_range_tree_t *rt);
 void space_map_write(space_map_t *sm, zfs_range_tree_t *rt, maptype_t maptype,
     uint64_t vdev_id, dmu_tx_t *tx);
 uint64_t space_map_estimate_optimal_size(space_map_t *sm, zfs_range_tree_t *rt,

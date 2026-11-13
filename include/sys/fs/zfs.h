@@ -2116,6 +2116,13 @@ typedef enum {
 #define	ZFS_EV_HIST_DSNAME	"history_dsname"
 #define	ZFS_EV_HIST_DSID	"history_dsid"
 #define	ZFS_EV_RESILVER_TYPE	"resilver_type"
+#define	ZFS_EV_METASLAB_ID	"metaslab_id"
+#define	ZFS_EV_METASLAB_OBJECT	"metaslab_object"
+#define	ZFS_EV_METASLAB_TXG	"metaslab_txg"
+#define	ZFS_EV_METASLAB_ENTRIES	"metaslab_entries"
+#define	ZFS_EV_METASLAB_BYTES	"metaslab_bytes"
+#define	ZFS_EV_METASLAB_OLD_ALLOC	"metaslab_old_alloc"
+#define	ZFS_EV_METASLAB_ALLOC	"metaslab_alloc"
 
 /*
  * We currently support block sizes from 512 bytes to 16MB.
