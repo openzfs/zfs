@@ -113,10 +113,14 @@ function mmp_pool_create_simple # pool dir enriched
 		# add then remove a log to leave a hole vdev, so the pool
 		# exercises the non-writeable top-level vdev types skipped by
 		# the MMP claim check.  Round it out with a log, a cache, and
-		# a spare vdev.
+		# a spare vdev.  Little or nothing refers to the removed data
+		# vdev, so keep it indirect: the caller's cleanup restores
+		# RETIRE_INDIRECT_VDEVS.
 		#
 		log_must truncate -s $MINVDEVSIZE $dir/vdev3 $dir/vdev4 \
 		    $dir/vdev5 $dir/vdev6 $dir/vdev7
+		log_must save_tunable RETIRE_INDIRECT_VDEVS
+		log_must set_tunable32 RETIRE_INDIRECT_VDEVS 0
 		log_must zpool add -f $pool $dir/vdev3
 		log_must zpool remove $pool $dir/vdev3
 		log_must zpool wait -t remove $pool
