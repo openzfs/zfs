@@ -1133,6 +1133,101 @@ vdev_anyraid_child_done(zio_t *zio)
 	pio->io_error = zio_worst_error(pio->io_error, zio->io_error);
 }
 
+/*
+ * How many more stripes of the given width the free tiles can form, with at
+ * most one tile per child in each stripe: the largest k for which the sum of
+ * MIN(nfree[c], k) is at least width * k.  That is needed, as a child gives
+ * at most one tile to each of k stripes, and enough, as dealing the tiles out
+ * one child after the other, round-robin over the k stripes, never puts two
+ * tiles of a child in one stripe.  Taking the children with the most free
+ * tiles, as the allocator and calculate_asize() do, forms that many stripes.
+ */
+static uint64_t
+anyraid_free_stripes(const uint64_t *nfree, int children, uint_t width)
+{
+	uint64_t lo = 0;
+	uint64_t hi = 0;
+	for (int c = 0; c < children; c++)
+		hi += nfree[c];
+	hi /= width;
+	while (lo < hi) {
+		uint64_t mid = (lo + hi + 1) / 2;
+		uint64_t sum = 0;
+		for (int c = 0; c < children; c++)
+			sum += MIN(nfree[c], mid);
+		if (sum >= width * mid)
+			lo = mid;
+		else
+			hi = mid - 1;
+	}
+	return (lo);
+}
+
+/*
+ * Pick the children of a new tile when some children cannot be written.
+ * The asize assumes that the free tiles can still form every stripe left to
+ * map, which taking the children with the most free tiles always keeps true.
+ * Use as few unwriteable children as possible while keeping that true: a
+ * choice is taken only if the free tiles left after it can still form every
+ * stripe left to map.  For a given number of unwriteable children, the
+ * writeable and the unwriteable children with the most free tiles leave at
+ * least as many stripes as any other choice, so they are the only ones to
+ * try.  Returns B_FALSE when every child is writeable or no choice keeps the
+ * stripes.
+ */
+static boolean_t
+anyraid_pick_writeable(vdev_t *vd, vdev_anyraid_node_t **vans, uint_t width)
+{
+	vdev_anyraid_t *var = vd->vdev_tsd;
+	int children = vd->vdev_children;
+	int c;
+
+	for (c = 0; c < children; c++) {
+		if (!vdev_writeable(vd->vdev_child[c]))
+			break;
+	}
+	if (c == children)
+		return (B_FALSE);
+
+	uint64_t *nfree = kmem_alloc(sizeof (*nfree) * children, KM_SLEEP);
+	vdev_anyraid_node_t **live = kmem_alloc(sizeof (*live) * children,
+	    KM_SLEEP);
+	vdev_anyraid_node_t **dead = kmem_alloc(sizeof (*dead) * children,
+	    KM_SLEEP);
+	uint_t nlive = 0;
+	uint_t ndead = 0;
+	for (vdev_anyraid_node_t *van = avl_first(&var->vd_children_tree);
+	    van != NULL; van = AVL_NEXT(&var->vd_children_tree, van)) {
+		int32_t left = van->van_capacity - van->van_next_offset;
+		nfree[van->van_id] = MAX(left, 0);
+		if (left <= 0)
+			continue;
+		if (vdev_writeable(vd->vdev_child[van->van_id]))
+			live[nlive++] = van;
+		else
+			dead[ndead++] = van;
+	}
+
+	boolean_t picked = B_FALSE;
+	uint64_t before = anyraid_free_stripes(nfree, children, width);
+	uint_t d = nlive < width ? width - nlive : 0;
+	for (; before > 0 && !picked && d <= MIN(width, ndead); d++) {
+		for (uint_t i = 0; i < width; i++) {
+			vans[i] = i < width - d ? live[i] :
+			    dead[i - (width - d)];
+			nfree[vans[i]->van_id]--;
+		}
+		picked = anyraid_free_stripes(nfree, children, width) ==
+		    before - 1;
+		for (uint_t i = 0; i < width; i++)
+			nfree[vans[i]->van_id]++;
+	}
+	kmem_free(dead, sizeof (*dead) * children);
+	kmem_free(live, sizeof (*live) * children);
+	kmem_free(nfree, sizeof (*nfree) * children);
+	return (picked);
+}
+
 static anyraid_tile_t *
 vdev_anyraid_map_impl(vdev_t *vd, uint64_t tile_id, avl_index_t where)
 {
@@ -1146,25 +1241,10 @@ vdev_anyraid_map_impl(vdev_t *vd, uint64_t tile_id, avl_index_t where)
 	uint_t width = var->vd_nparity + 1;
 	vdev_anyraid_node_t **vans = kmem_alloc(sizeof (*vans) * width,
 	    KM_SLEEP);
+	boolean_t picked = anyraid_pick_writeable(vd, vans, width);
 	for (int i = 0; i < width; i++) {
-		boolean_t try_hard = B_FALSE;
-		vdev_anyraid_node_t *van;
-retry:
-		van = avl_first(&var->vd_children_tree);
-		while (!try_hard && van) {
-			vdev_t *cvd = vd->vdev_child[van->van_id];
-			if (!vdev_writeable(cvd))
-				van = AVL_NEXT(&var->vd_children_tree,
-				    van);
-			else
-				break;
-		}
-		if ((!van || van->van_next_offset >=
-		    van->van_capacity) && !try_hard) {
-			try_hard = B_TRUE;
-			goto retry;
-		}
-		vans[i] = van;
+		if (!picked)
+			vans[i] = avl_first(&var->vd_children_tree);
 		ASSERT(vans[i] && vans[i]->van_next_offset <
 		    vans[i]->van_capacity);
 		avl_remove(&var->vd_children_tree, vans[i]);
