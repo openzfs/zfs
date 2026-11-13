@@ -2064,6 +2064,31 @@ dmu_sync_late_arrival_ready(zio_t *zio)
 	dmu_sync_ready(zio, NULL, zio->io_private);
 }
 
+/*
+ * Give the blkptr of the completed write dsa to the dmu_sync()s that waited
+ * for it.  No more can be added, since the pointer to dsa is cleared.  Their
+ * log blocks wait for their dsw_zio.
+ */
+static void
+dmu_sync_waiters_done(dmu_sync_arg_t *dsa, zio_t *zio)
+{
+	dmu_sync_waiter_t *dsw;
+
+	while ((dsw = list_remove_head(&dsa->dsa_waiters)) != NULL) {
+		if (zio->io_error == 0) {
+			*dsw->dsw_zgd->zgd_bp = *zio->io_bp;
+			zil_lwb_add_block(dsw->dsw_zgd->zgd_lwb,
+			    dsw->dsw_zgd->zgd_bp);
+		} else {
+			dsw->dsw_zio->io_error = zio->io_error;
+		}
+		dsw->dsw_done(dsw->dsw_zgd, zio->io_error);
+		zio_nowait(dsw->dsw_zio);
+		kmem_free(dsw, sizeof (*dsw));
+	}
+	list_destroy(&dsa->dsa_waiters);
+}
+
 void
 dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
 {
@@ -2127,25 +2152,7 @@ dmu_sync_done(zio_t *zio, arc_buf_t *buf, void *varg)
 	if (dsa->dsa_done)
 		dsa->dsa_done(dsa->dsa_zgd, zio->io_error);
 
-	/*
-	 * Give our blkptr to the dmu_sync()s that waited for this write.
-	 * No more can be added, since dr_sync_arg is cleared.  Their log
-	 * blocks wait for their dsw_zio.
-	 */
-	dmu_sync_waiter_t *dsw;
-	while ((dsw = list_remove_head(&dsa->dsa_waiters)) != NULL) {
-		if (zio->io_error == 0) {
-			*dsw->dsw_zgd->zgd_bp = *zio->io_bp;
-			zil_lwb_add_block(dsw->dsw_zgd->zgd_lwb,
-			    dsw->dsw_zgd->zgd_bp);
-		} else {
-			dsw->dsw_zio->io_error = zio->io_error;
-		}
-		dsw->dsw_done(dsw->dsw_zgd, zio->io_error);
-		zio_nowait(dsw->dsw_zio);
-		kmem_free(dsw, sizeof (*dsw));
-	}
-	list_destroy(&dsa->dsa_waiters);
+	dmu_sync_waiters_done(dsa, zio);
 
 	kmem_free(dsa, sizeof (*dsa));
 }
@@ -2156,6 +2163,17 @@ dmu_sync_late_arrival_done(zio_t *zio)
 	blkptr_t *bp = zio->io_bp;
 	dmu_sync_arg_t *dsa = zio->io_private;
 	zgd_t *zgd = dsa->dsa_zgd;
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)zgd->zgd_db;
+
+	/*
+	 * Stop sharing this write.  This must precede dsa_done(), which
+	 * releases the range lock and the dbuf hold that keep the data from
+	 * changing, after which later calls must write their own copy.
+	 */
+	mutex_enter(&db->db_mtx);
+	ASSERT3P(db->db_sync_late_arg, ==, dsa);
+	db->db_sync_late_arg = NULL;
+	mutex_exit(&db->db_mtx);
 
 	if (zio->io_error == 0) {
 		/*
@@ -2178,8 +2196,55 @@ dmu_sync_late_arrival_done(zio_t *zio)
 
 	dsa->dsa_done(dsa->dsa_zgd, zio->io_error);
 
+	/* The block is freed only once above, in the txg it was allocated. */
+	dmu_sync_waiters_done(dsa, zio);
+
 	abd_free(zio->io_abd);
 	kmem_free(dsa, sizeof (*dsa));
+}
+
+/*
+ * Queue this dmu_sync() behind the late arrival write wdsa in flight for the
+ * same block.  Called with db_mtx held, which it drops.
+ *
+ * Sharing the write is safe because the callers of dmu_sync() (see its
+ * comment) exclude every writer of the whole block from before the call
+ * until the done callback: zfs_get_data() and zvol_get_data() hold a reader
+ * range lock on it, while writers take the writer lock.  So the data of the
+ * write in flight cannot change until its first caller is done, and any call
+ * that finds it still in flight had its own data written before that write
+ * was issued: the write holds every waiter's range.  The pointer is cleared
+ * in dmu_sync_late_arrival_done() before the first caller's callback runs.
+ *
+ * Without sharing, a block written in many small chunks and synced while its
+ * txg is syncing was written once per chunk, all at once.  With it, at most
+ * one late arrival write of a block is in flight at a time, so the bytes in
+ * flight are bounded by the dirty data of the syncing txg, which the dirty
+ * data throttle already bounds.
+ */
+static void
+dmu_sync_late_arrival_wait(zio_t *pio, objset_t *os, dmu_sync_cb_t *done,
+    zgd_t *zgd, dmu_buf_impl_t *db)
+{
+	dmu_sync_arg_t *wdsa = db->db_sync_late_arg;
+	dmu_sync_waiter_t *dsw;
+
+	ASSERT(MUTEX_HELD(&db->db_mtx));
+
+	dsw = kmem_alloc(sizeof (*dsw), KM_SLEEP);
+	dsw->dsw_done = done;
+	dsw->dsw_zgd = zgd;
+	dsw->dsw_zio = zio_null(pio, os->os_spa, NULL, NULL, NULL,
+	    ZIO_FLAG_CANFAIL);
+	list_insert_tail(&wdsa->dsa_waiters, dsw);
+
+	/*
+	 * As dmu_sync_late_arrival() does for its own tx, keep the zgd's lwb
+	 * from being free'd before dmu_sync_late_arrival_done() runs for the
+	 * shared write.
+	 */
+	zil_lwb_add_txg(zgd->zgd_lwb, dmu_tx_get_txg(wdsa->dsa_tx));
+	mutex_exit(&db->db_mtx);
 }
 
 static int
@@ -2188,12 +2253,21 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 {
 	dmu_sync_arg_t *dsa;
 	dmu_tx_t *tx;
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)zgd->zgd_db;
 	int error;
 
-	error = dbuf_read((dmu_buf_impl_t *)zgd->zgd_db, NULL,
+	error = dbuf_read(db, NULL,
 	    DB_RF_CANFAIL | DMU_READ_NO_PREFETCH | DMU_KEEP_CACHING);
 	if (error != 0)
 		return (error);
+
+	/* Share a write of this block already in flight. */
+	mutex_enter(&db->db_mtx);
+	if (db->db_sync_late_arg != NULL) {
+		dmu_sync_late_arrival_wait(pio, os, done, zgd, db);
+		return (0);
+	}
+	mutex_exit(&db->db_mtx);
 
 	tx = dmu_tx_create(os);
 	dmu_tx_hold_space(tx, zgd->zgd_db->db_size);
@@ -2209,6 +2283,15 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 		return (SET_ERROR(EIO));
 	}
 
+	/* Another call may have started a write while we assigned the tx. */
+	mutex_enter(&db->db_mtx);
+	if (db->db_sync_late_arg != NULL) {
+		dmu_sync_late_arrival_wait(pio, os, done, zgd, db);
+		/* The tx dirtied nothing; commit it outside db_mtx. */
+		dmu_tx_commit(tx);
+		return (0);
+	}
+
 	/*
 	 * In order to prevent the zgd's lwb from being free'd prior to
 	 * dmu_sync_late_arrival_done() being called, we have to ensure
@@ -2222,6 +2305,10 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 	dsa->dsa_zgd = zgd;
 	dsa->dsa_tx = tx;
 	dsa->dsa_dio_verify_fails = NULL;
+	list_create(&dsa->dsa_waiters, sizeof (dmu_sync_waiter_t),
+	    offsetof(dmu_sync_waiter_t, dsw_node));
+	db->db_sync_late_arg = dsa;
+	mutex_exit(&db->db_mtx);
 
 	/*
 	 * Since we are currently syncing this txg, it's nontrivial to
@@ -2259,7 +2346,11 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
 /*
  * Intent log support: sync the block associated with db to disk.
  * N.B. and XXX: the caller is responsible for making sure that the
- * data isn't changing while dmu_sync() is writing it.
+ * data isn't changing while dmu_sync() is writing it.  That means excluding
+ * every writer of the whole block, not just of the range being logged, from
+ * before dmu_sync() is called until the done callback: calls for the same
+ * block share a write in flight, which holds each of their ranges only
+ * because of that exclusion.
  *
  * Return values:
  *
@@ -2278,10 +2369,10 @@ dmu_sync_late_arrival(zio_t *pio, objset_t *os, dmu_sync_cb_t *done, zgd_t *zgd,
  *		It is possible that the I/O will fail, in which case
  *		the error will be reported to the done callback and
  *		propagated to pio from zio_done().  If another dmu_sync()
- *		of the block in this txg is in progress, *zgd_bp is set to
- *		its blkptr, and the done callback is called with its error,
- *		when it completes.  If one has completed, *zgd_bp is set to
- *		its blkptr and the done callback is called before dmu_sync()
+ *		of the block is in progress, *zgd_bp is set to its blkptr,
+ *		and the done callback is called with its error, when it
+ *		completes.  If one has completed, *zgd_bp is set to its
+ *		blkptr and the done callback is called before dmu_sync()
  *		returns.
  */
 int
@@ -2329,7 +2420,8 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	if (txg <= spa_syncing_txg(os->os_spa)) {
 		/*
 		 * This txg is currently syncing, so we can't mess with
-		 * the dirty record anymore; just write a new log block.
+		 * the dirty record anymore; just write a new log block, or
+		 * share one already being written for this buffer.
 		 */
 		mutex_exit(&db->db_mtx);
 		return (dmu_sync_late_arrival(pio, os, done, zgd, &zp, &zb));

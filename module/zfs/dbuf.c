@@ -3375,6 +3375,7 @@ dbuf_destroy(dmu_buf_impl_t *db)
 
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 	ASSERT(zfs_refcount_is_zero(&db->db_holds));
+	ASSERT3P(db->db_sync_late_arg, ==, NULL);
 
 	if (db->db_buf != NULL) {
 		arc_buf_destroy(db->db_buf, db);
@@ -3603,6 +3604,7 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 	db->db_level = level;
 	db->db_blkid = blkid;
 	db->db_dirtycnt = 0;
+	db->db_sync_late_arg = NULL;
 #ifdef USE_DNODE_HANDLE
 	db->db_dnode_handle = dn->dn_handle;
 #else

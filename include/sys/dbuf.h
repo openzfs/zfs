@@ -316,6 +316,13 @@ typedef struct dmu_buf_impl {
 	/* List of dirty records for the buffer sorted newest to oldest. */
 	list_t db_dirty_records;
 
+	/*
+	 * The dmu_sync() late arrival write in flight for this dbuf, if any,
+	 * which other dmu_sync() calls for the same block can share.
+	 * Protected by db_mtx.
+	 */
+	struct dmu_sync_arg *db_sync_late_arg;
+
 	/* Link in dbuf_cache or dbuf_metadata_cache */
 	multilist_node_t db_cache_link;
 
