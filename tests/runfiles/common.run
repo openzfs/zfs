@@ -159,6 +159,10 @@ tests = ['tst.destroy_fs', 'tst.destroy_snap',
     ]
 tags = ['functional', 'channel_program', 'synctask_core']
 
+[tests/functional/chattr]
+tests = ['chattr_003_neg', 'chattr_004_neg']
+tags = ['functional', 'chattr']
+
 [tests/functional/checksum]
 tests = ['run_edonr_test', 'run_sha2_test', 'run_skein_test', 'run_blake3_test',
     'filetest_001_pos', 'filetest_002_pos']

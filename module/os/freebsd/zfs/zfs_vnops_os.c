@@ -2358,9 +2358,12 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 	xva_init(&tmpxvattr);
 
 	/*
-	 * Immutable files can only alter immutable bit and atime
+	 * Immutable and append-only files can only alter their flags and atime.
+	 * In particular, the size of an append-only file may not be changed
+	 * through setattr: truncation would discard data that has already been
+	 * appended, and extension would bypass the O_APPEND write path.
 	 */
-	if ((zp->z_pflags & ZFS_IMMUTABLE) &&
+	if ((zp->z_pflags & (ZFS_IMMUTABLE | ZFS_APPENDONLY)) &&
 	    ((mask & (AT_SIZE|AT_UID|AT_GID|AT_MTIME|AT_MODE)) ||
 	    ((mask & AT_XVATTR) && XVA_ISSET_REQ(xvap, XAT_CREATETIME)))) {
 		zfs_exit(zfsvfs, FTAG);
@@ -6846,6 +6849,15 @@ zfs_deallocate(struct vop_deallocate_args *ap)
 	if (zfs_is_readonly(zfsvfs)) {
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EROFS));
+	}
+
+	/*
+	 * Deallocating a range would zero data in an immutable or append-only
+	 * file without going through the write path that enforces those flags.
+	 */
+	if (zp->z_pflags & (ZFS_IMMUTABLE | ZFS_APPENDONLY)) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EPERM));
 	}
 
 	zilog = zfsvfs->z_log;
