@@ -27,6 +27,8 @@ static const char *const raidz_impl_names[] = {
 	"avx2",
 	"avx512f",
 	"avx512bw",
+	"avx2_gfni",
+	"avx512_gfni",
 	"aarch64_neon",
 	"aarch64_neonx2",
 	"powerpc_altivec",
