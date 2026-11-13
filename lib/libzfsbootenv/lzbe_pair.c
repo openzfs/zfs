@@ -11,14 +11,15 @@
  */
 /*
  * Copyright 2020 Toomas Soome <tsoome@me.com>
+ * Copyright (c) 2025, Rob Norris <robn@despairlabs.com>
+ * Copyright (c) 2026, TrueNAS.
  */
 
 #include <sys/types.h>
 #include <string.h>
 #include <libzfs.h>
 #include <libzfsbootenv.h>
-#include <sys/zfs_bootenv.h>
-#include <sys/vdev_impl.h>
+#include <sys/fs/zfs.h>
 
 /*
  * Get or create nvlist. If key is not NULL, get nvlist from bootenv,
@@ -98,18 +99,18 @@ lzbe_nvlist_set(const char *pool, const char *key, void *ptr)
 		if (rv == 0) {
 			/*
 			 * We got the nvlist, check for version.
-			 * if version is missing or is not VB_NVLIST,
-			 * create new list.
+			 * if version is missing or is not
+			 * ZFS_BE_VERSION_NVLIST, create new list.
 			 */
-			rv = nvlist_lookup_uint64(nv, BOOTENV_VERSION,
+			rv = nvlist_lookup_uint64(nv, ZFS_BE_VERSION,
 			    &version);
-			if (rv != 0 || version != VB_NVLIST) {
+			if (rv != 0 || version != ZFS_BE_VERSION_NVLIST) {
 				/* Drop this nvlist */
 				fnvlist_free(nv);
 				/* Create and prepare new nvlist */
 				nv = fnvlist_alloc();
-				fnvlist_add_uint64(nv, BOOTENV_VERSION,
-				    VB_NVLIST);
+				fnvlist_add_uint64(nv, ZFS_BE_VERSION,
+				    ZFS_BE_VERSION_NVLIST);
 			}
 			rv = nvlist_add_nvlist(nv, key, ptr);
 			if (rv == 0)

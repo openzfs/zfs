@@ -43,7 +43,6 @@ kernel_sys_HEADERS = \
 	%D%/zfs/sys/trace_zio.h \
 	%D%/zfs/sys/trace_zrlock.h \
 	%D%/zfs/sys/zfs_acl_impl.h \
-	%D%/zfs/sys/zfs_bootenv_os.h \
 	%D%/zfs/sys/zfs_context_os.h \
 	%D%/zfs/sys/zfs_ctldir.h \
 	%D%/zfs/sys/zfs_debug_os.h \
