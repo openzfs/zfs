@@ -1854,6 +1854,16 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 	dsl_pool_config_enter(dp, FTAG);
 	VERIFY0(dmu_objset_from_ds(ds, &os));
 	dsl_pool_config_exit(dp, FTAG);
+	/* Unmounting after a failed resume uses z_os. */
+	zfsvfs->z_os = os;
+
+	/*
+	 * After a rollback or receive, the objset may have been read from
+	 * disk again, so check its MACs before anything dirties it.
+	 */
+	err = dmu_objset_authenticate(os);
+	if (err != 0)
+		goto bail;
 
 	err = zfsvfs_init(zfsvfs, os);
 	if (err != 0)

@@ -4710,6 +4710,12 @@ zil_suspend(const char *osname, void **cookiep)
 	mutex_exit(&zilog->zl_lock);
 
 	/*
+	 * Committing and destroying the log dirties the objset, which may
+	 * not be owned, so its MACs must be checked first.
+	 */
+	error = dmu_objset_authenticate(os);
+
+	/*
 	 * We need to use zil_commit_impl to ensure we wait for all
 	 * LWB_STATE_OPENED, _CLOSED and _READY lwbs to be committed
 	 * to disk before proceeding. If we used zil_commit instead, it
@@ -4722,7 +4728,8 @@ zil_suspend(const char *osname, void **cookiep)
 	 * txg_wait_sync_flushed(), which affects what we do next, so we
 	 * capture that error.
 	 */
-	error = zil_commit_impl(zilog, 0);
+	if (error == 0)
+		error = zil_commit_impl(zilog, 0);
 	if (error == ESHUTDOWN)
 		/* zil_commit_impl() has called zil_crash() already */
 		error = SET_ERROR(EBUSY);
@@ -5254,8 +5261,11 @@ zil_reset(const char *osname, void *arg)
 	(void) arg;
 
 	int error = zil_suspend(osname, NULL);
-	/* EACCES means crypto key not loaded */
-	if ((error == EACCES) || (error == EBUSY))
+	/*
+	 * EACCES means crypto key not loaded, and EIO that the objset
+	 * failed authentication or could not be read.
+	 */
+	if (error == EACCES || error == EBUSY || error == EIO)
 		return (SET_ERROR(error));
 	if (error != 0)
 		return (SET_ERROR(EEXIST));

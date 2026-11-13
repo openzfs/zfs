@@ -5232,6 +5232,17 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	    (drc->drc_featureflags & DMU_BACKUP_FEATURE_EMBED_DATA));
 
 	/*
+	 * The objset was obtained in syncing context, so its MACs haven't
+	 * been checked. A non-raw receive writes the objset with new MACs,
+	 * so check them now. A corrective receive doesn't write the objset.
+	 */
+	if (drc->drc_os->os_encrypted && !drc->drc_raw && !drc->drc_heal) {
+		err = dmu_objset_authenticate(drc->drc_os);
+		if (err != 0)
+			goto out;
+	}
+
+	/*
 	 * Set this before the key payload creates a new dataset's objset,
 	 * so that user accounting is never enabled for it.
 	 */

@@ -5150,9 +5150,12 @@ zfs_ioc_rollback(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 		}
 		zfs_vfs_rele(zfsvfs);
 	} else if (zvol_suspend(fsname, &zv) == 0) {
+		int resume_err;
+
 		error = dsl_dataset_rollback(fsname, target, zvol_tag(zv),
 		    outnvl);
-		zvol_resume(zv);
+		resume_err = zvol_resume(zv);
+		error = error ? error : resume_err;
 	} else {
 		error = dsl_dataset_rollback(fsname, target, NULL, outnvl);
 	}
@@ -5914,8 +5917,11 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, const char *origin,
 			error = error ? error : end_err;
 			zfs_vfs_rele(zfsvfs);
 		} else if (zvol_suspend(tofs, &zv) == 0) {
+			int resume_err;
+
 			error = dmu_recv_end(&drc, zvol_tag(zv));
-			zvol_resume(zv);
+			resume_err = zvol_resume(zv);
+			error = error ? error : resume_err;
 		} else {
 			error = dmu_recv_end(&drc, NULL);
 		}
