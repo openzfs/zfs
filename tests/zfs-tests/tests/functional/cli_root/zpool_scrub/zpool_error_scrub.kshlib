@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_scrub/zpool_scrub.cfg
+
+#
+# Export a pool, failing the test if the export has not completed within
+# the given number of seconds. The export is run in the background, since
+# a hung export is stuck in the kernel and can't be interrupted.
+#
+function export_with_deadline # pool [timeout]
+{
+	typeset pool=$1
+	typeset -i timeout=${2:-60}
+	typeset -i timer=0
+
+	zpool export $pool &
+	typeset pid=$!
+
+	while kill -0 $pid 2>/dev/null; do
+		if ((timer >= timeout)); then
+			log_fail "'zpool export $pool' did not complete" \
+			    "within $timeout seconds"
+		fi
+		sleep 1
+		((timer++))
+	done
+
+	wait $pid || log_fail "'zpool export $pool' failed"
+	log_note "'zpool export $pool' completed in ~$timer seconds"
+}
+
+function is_pool_error_scrubbed # pool
+{
+	check_pool_status "$1" "scrub" "scrubbed "
+}
+
+#
+# Wait for an error scrub to finish, failing the test on timeout.
+#
+function wait_error_scrubbed # pool [timeout]
+{
+	typeset pool=$1
+	typeset -i timeout=${2:-60}
+	typeset -i timer
+
+	for ((timer = 0; timer < timeout; timer++)); do
+		is_pool_error_scrubbed $pool && return 0
+		sleep 1
+	done
+
+	log_must zpool status -v $pool
+	log_fail "error scrub of $pool did not finish within $timeout seconds"
+}
+
+#
+# Create permanent errors for a file by reading it while checksum errors
+# are injected, and sync the error log to disk.
+#
+function create_permanent_errors # pool file
+{
+	typeset pool=$1
+	typeset file=$2
+
+	log_must zinject -t data -e checksum -f 100 -am $file
+	dd if=$file of=/dev/null bs=1M 2>/dev/null
+	log_must zinject -c all
+	log_must sync_pool $pool
+
+	log_must eval "zpool status -v $pool | \
+	    grep 'Permanent errors have been detected'"
+	log_must eval "zpool status -v $pool | grep '$file'"
+}
