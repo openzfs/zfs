@@ -16,7 +16,7 @@
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd July 23, 2025
+.Dd October 15, 2026
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -481,7 +481,9 @@ This feature becomes
 when the
 .Nm zpool Cm remove
 command is used
-on a top-level vdev, and will never return to being
+on a top-level vdev, except for an empty vdev that is replaced by a hole, see
+.Xr zpool-remove 8 ,
+and will never return to being
 .Sy enabled .
 .
 .feature org.openzfs draid no
@@ -500,6 +502,12 @@ when creating a pool which uses the
 vdev type, or when adding a new
 .Sy draid
 vdev to an existing pool.
+It returns to being
+.Sy enabled
+when the last
+.Sy draid
+vdev, holding no data, is removed, see
+.Xr zpool-remove 8 .
 .
 .feature com.seagate draid_failure_domains no draid
 This feature enables use of failure domains in
@@ -874,7 +882,10 @@ This feature becomes
 .Sy active
 when the
 .Nm zpool Cm remove
-command is used on a top-level vdev, and will never return to being
+command is used on a top-level vdev, except for an empty vdev that is replaced
+by a hole, see
+.Xr zpool-remove 8 ,
+and will never return to being
 .Sy enabled .
 .
 .feature com.truenas physical_rewrite yes extensible_dataset
@@ -926,6 +937,14 @@ subcommand to attach a new device to a RAID-Z group, expanding the total
 amount usable space in the pool.
 See
 .Xr zpool-attach 8 .
+.Pp
+This feature becomes
+.Sy active
+when a RAID-Z group is expanded.
+It returns to being
+.Sy enabled
+when the last expanded group, holding no data, is removed, see
+.Xr zpool-remove 8 .
 .
 .feature com.delphix redaction_bookmarks no bookmarks extensible_dataset
 This feature enables the use of redacted
