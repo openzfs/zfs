@@ -4364,8 +4364,12 @@ dsl_errorscrub_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	}
 
 	if (dsl_scan_resilvering(scn->scn_dp)) {
-		/* cancel the error scrub if resilver started */
-		dsl_scan_cancel(scn->scn_dp);
+		/*
+		 * Starting a resilver clears any error scrub (see
+		 * dsl_scan_setup_sync()), so both are in progress here only
+		 * if the pool was imported with both recorded on disk.
+		 */
+		dsl_errorscrub_cancel_sync(NULL, tx);
 		return;
 	}
 
