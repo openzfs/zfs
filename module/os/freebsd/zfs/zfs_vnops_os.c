@@ -1246,8 +1246,13 @@ zfs_remove_(vnode_t *dvp, vnode_t *vp, const char *name, cred_t *cr)
 	error = sa_lookup(zp->z_sa_hdl, SA_ZPL_XATTR(zfsvfs),
 	    &xattr_obj, sizeof (xattr_obj));
 	if (error == 0 && xattr_obj) {
+		/*
+		 * A damaged xattr directory can not be loaded; the file
+		 * is still removed and the directory is leaked.
+		 */
 		error = zfs_zget(zfsvfs, xattr_obj, &xzp);
-		ASSERT0(error);
+		if (error != 0)
+			xzp = NULL;
 	}
 
 	/*
