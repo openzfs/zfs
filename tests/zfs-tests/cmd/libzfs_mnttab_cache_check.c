@@ -98,6 +98,28 @@ main(int argc, char *argv[])
 		rc = 1;
 	}
 
+#ifdef __FreeBSD__
+	const char *options[] = { "suid", "nosuid" };
+
+	libzfs_mnttab_cache(hdl, B_TRUE);
+	for (int i = 0; i < 2; i++) {
+		libzfs_mnttab_remove(hdl, real_ds);
+		libzfs_mnttab_add(hdl, real_ds, "/fake/mountpoint", options[i]);
+		zhp = zfs_open(hdl, real_ds, ZFS_TYPE_FILESYSTEM);
+		if (zhp == NULL) {
+			fprintf(stderr, "zfs_open(%s) failed\n", real_ds);
+			rc = 1;
+			break;
+		}
+		if (zfs_prop_get_int(zhp, ZFS_PROP_SETUID) != (i == 0)) {
+			fprintf(stderr, "incorrect setuid for cached %s\n",
+			    options[i]);
+			rc = 1;
+		}
+		zfs_close(zhp);
+	}
+#endif
+
 	libzfs_fini(hdl);
 	return (rc);
 }

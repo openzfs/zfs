@@ -21,6 +21,11 @@ verify_runnable "global"
 
 log_assert "libzfs mnttab cache works as expected"
 
-log_must libzfs_mnttab_cache_check $TESTPOOL/$TESTFS
+fs=$TESTPOOL/$TESTFS/mnttab_cache
+log_onexit "destroy_dataset $fs -r"
+log_must zfs create -o setuid=off $fs
+log_must libzfs_mnttab_cache_check $fs
+log_must zfs set setuid=on $fs
+log_must libzfs_mnttab_cache_check $fs
 
 log_pass "libzfs mnttab cache works as expected"
