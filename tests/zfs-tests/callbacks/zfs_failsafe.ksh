@@ -11,4 +11,13 @@ if [ -n "$STF_PATH" ]; then
 	export PATH="$STF_PATH"
 fi
 
+. $STF_SUITE/include/libtest.shlib
+
+# A killed test cannot restore the tunables it saved with save_tunable, so
+# restore them here, before the next test runs.  Tunables that a group's
+# setup saved with save_group_tunable are left for its cleanup.
+for f in $TEST_BASE_DIR/tunable-*; do
+	[[ -e $f ]] && restore_tunable ${f##*/tunable-}
+done
+
 zinject -c all

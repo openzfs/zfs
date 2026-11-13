@@ -19,7 +19,7 @@
 verify_runnable "global"
 
 if tunable_exists DIO_ENABLED ; then
-	log_must save_tunable DIO_ENABLED
+	log_must save_group_tunable DIO_ENABLED
 	log_must set_tunable32 DIO_ENABLED 1
 fi
 
