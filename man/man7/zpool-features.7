@@ -16,7 +16,7 @@
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd July 23, 2025
+.Dd November 9, 2026
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -96,11 +96,39 @@ state after becoming
 See feature-specific documentation for details.
 .It Sy disabled
 This feature's on-disk format changes have not been made and will not be made
-unless an administrator moves the feature to the
+unless the feature is moved to the
 .Sy enabled
 state.
-Features cannot be disabled once they have been enabled.
 .El
+.Pp
+An
+.Sy enabled
+feature that is not
+.Sy active ,
+on which no other enabled feature depends,
+and that no dataset needs,
+can be returned to the
+.Sy disabled
+state, see
+.Xr zpoolprops 7 .
+A dataset needs a feature that it has not activated yet when one of its
+properties, set locally or received, has a value that the feature provides,
+such as
+.Sy checksum Ns = Ns Sy sha512
+or a
+.Sy recordsize
+larger than 128 KiB,
+or when it is a volume whose
+.Sy volblocksize
+is larger than 128 KiB.
+A receive whose stream may hold large dnodes or zstd blocks needs
+.Sy large_dnode
+or
+.Sy zstd_compress
+until it ends.
+A file system or volume whose intent log has not been replayed since the pool
+was imported needs
+.Sy block_cloning .
 .Pp
 The state of supported features is exposed through pool properties of the form
 .Sy feature Ns @ Ns Ar short-name .
@@ -1058,6 +1086,9 @@ are guaranteed to be durable if either the dataset had
 set at the time the changes were made, or
 .Xr sync 2
 is called on the dataset after the changes were made.
+If the feature is disabled between a change and its commit to the ZIL,
+the commit waits for the change to be written with its transaction group
+instead.
 .Pp
 This feature becomes
 .Sy active

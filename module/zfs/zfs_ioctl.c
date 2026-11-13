@@ -3980,6 +3980,8 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 	dmu_objset_type_t type;
 	boolean_t is_insensitive = B_FALSE;
 	dsl_crypto_params_t *dcp = NULL;
+	uint64_t volblocksize = 0;
+	spa_t *spa = NULL;
 
 	type = (dmu_objset_type_t)fnvlist_lookup_int32(innvl, "type");
 	(void) nvlist_lookup_nvlist(innvl, "props", &nvprops);
@@ -4008,7 +4010,7 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 		return (SET_ERROR(EINVAL));
 
 	if (type == DMU_OST_ZVOL) {
-		uint64_t volsize, volblocksize;
+		uint64_t volsize;
 
 		if (nvprops == NULL)
 			return (SET_ERROR(EINVAL));
@@ -4056,8 +4058,29 @@ zfs_ioc_create(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 		return (error);
 	}
 
+	/*
+	 * A volume activates large_blocks only when it first writes a block:
+	 * hold the feature until the volume exists, so that it cannot be
+	 * disabled in between.
+	 */
+	if (volblocksize > SPA_OLD_MAXBLOCKSIZE) {
+		if ((error = spa_open(fsname, &spa, FTAG)) == 0 &&
+		    (error = spa_feature_hold(spa,
+		    SPA_FEATURE_LARGE_BLOCKS)) != 0)
+			spa_close(spa, FTAG);
+		if (error != 0) {
+			dsl_crypto_params_free(dcp, B_TRUE);
+			return (error);
+		}
+	}
+
 	error = dmu_objset_create(fsname, type,
 	    is_insensitive ? DS_FLAG_CI_DATASET : 0, dcp, cbfunc, &zct);
+
+	if (volblocksize > SPA_OLD_MAXBLOCKSIZE) {
+		spa_feature_rele(spa, SPA_FEATURE_LARGE_BLOCKS);
+		spa_close(spa, FTAG);
+	}
 
 	nvlist_free(zct.zct_zplprops);
 	dsl_crypto_params_free(dcp, !!error);
@@ -5292,6 +5315,7 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 	boolean_t issnap = (strchr(dsname, '@') != NULL);
 	zfs_prop_t prop = zfs_name_to_prop(propname);
 	uint64_t intval, compval;
+	spa_feature_t feature;
 	int err;
 
 	if (prop == ZPROP_USERPROP) {
@@ -5414,20 +5438,6 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 				}
 				spa_close(spa, FTAG);
 			}
-
-			if (compval == ZIO_COMPRESS_ZSTD) {
-				spa_t *spa;
-
-				if ((err = spa_open(dsname, &spa, FTAG)) != 0)
-					return (err);
-
-				if (!spa_feature_is_enabled(spa,
-				    SPA_FEATURE_ZSTD_COMPRESS)) {
-					spa_close(spa, FTAG);
-					return (SET_ERROR(ENOTSUP));
-				}
-				spa_close(spa, FTAG);
-			}
 		}
 		break;
 
@@ -5438,47 +5448,14 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 
 	case ZFS_PROP_VOLBLOCKSIZE:
 	case ZFS_PROP_RECORDSIZE:
-		/* Record sizes above 128k need the feature to be enabled */
+		/*
+		 * We don't allow setting the property above 1MB,
+		 * unless the tunable has been changed.
+		 */
 		if (nvpair_value_uint64(pair, &intval) == 0 &&
-		    intval > SPA_OLD_MAXBLOCKSIZE) {
-			spa_t *spa;
-
-			/*
-			 * We don't allow setting the property above 1MB,
-			 * unless the tunable has been changed.
-			 */
-			if (intval > zfs_max_recordsize ||
-			    intval > SPA_MAXBLOCKSIZE)
-				return (SET_ERROR(ERANGE));
-
-			if ((err = spa_open(dsname, &spa, FTAG)) != 0)
-				return (err);
-
-			if (!spa_feature_is_enabled(spa,
-			    SPA_FEATURE_LARGE_BLOCKS)) {
-				spa_close(spa, FTAG);
-				return (SET_ERROR(ENOTSUP));
-			}
-			spa_close(spa, FTAG);
-		}
-		break;
-
-	case ZFS_PROP_DNODESIZE:
-		/* Dnode sizes above 512 need the feature to be enabled */
-		if (nvpair_value_uint64(pair, &intval) == 0 &&
-		    intval != ZFS_DNSIZE_LEGACY) {
-			spa_t *spa;
-
-			if ((err = spa_open(dsname, &spa, FTAG)) != 0)
-				return (err);
-
-			if (!spa_feature_is_enabled(spa,
-			    SPA_FEATURE_LARGE_DNODE)) {
-				spa_close(spa, FTAG);
-				return (SET_ERROR(ENOTSUP));
-			}
-			spa_close(spa, FTAG);
-		}
+		    intval > SPA_OLD_MAXBLOCKSIZE &&
+		    (intval > zfs_max_recordsize || intval > SPA_MAXBLOCKSIZE))
+			return (SET_ERROR(ERANGE));
 		break;
 
 	case ZFS_PROP_SHARESMB:
@@ -5495,40 +5472,28 @@ zfs_check_settable(const char *dsname, nvpair_t *pair, cred_t *cr)
 				return (SET_ERROR(ENOTSUP));
 		}
 		break;
-	case ZFS_PROP_CHECKSUM:
 	case ZFS_PROP_DEDUP:
-	{
-		spa_feature_t feature;
-		spa_t *spa;
-		int err;
-
 		/* dedup feature version checks */
-		if (prop == ZFS_PROP_DEDUP &&
-		    zfs_earlier_version(dsname, SPA_VERSION_DEDUP))
+		if (zfs_earlier_version(dsname, SPA_VERSION_DEDUP))
 			return (SET_ERROR(ENOTSUP));
-
-		if (nvpair_type(pair) == DATA_TYPE_UINT64 &&
-		    nvpair_value_uint64(pair, &intval) == 0) {
-			/* check prop value is enabled in features */
-			feature = zio_checksum_to_feature(
-			    intval & ZIO_CHECKSUM_MASK);
-			if (feature == SPA_FEATURE_NONE)
-				break;
-
-			if ((err = spa_open(dsname, &spa, FTAG)) != 0)
-				return (err);
-
-			if (!spa_feature_is_enabled(spa, feature)) {
-				spa_close(spa, FTAG);
-				return (SET_ERROR(ENOTSUP));
-			}
-			spa_close(spa, FTAG);
-		}
 		break;
-	}
 
 	default:
 		break;
+	}
+
+	/* The feature the value needs, see dsl_props_check_feature() too */
+	if (nvpair_value_uint64(pair, &intval) == 0 &&
+	    (feature = dsl_prop_feature(prop, intval)) != SPA_FEATURE_NONE) {
+		spa_t *spa;
+		boolean_t enabled;
+
+		if ((err = spa_open(dsname, &spa, FTAG)) != 0)
+			return (err);
+		enabled = spa_feature_is_enabled(spa, feature);
+		spa_close(spa, FTAG);
+		if (!enabled)
+			return (SET_ERROR(ENOTSUP));
 	}
 
 	return (zfs_secpolicy_setprop(dsname, prop, pair, CRED()));
