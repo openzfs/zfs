@@ -18,6 +18,7 @@
 #define	_ZFS_XATTR_H
 
 #include <linux/posix_acl_xattr.h>
+#include <linux/idmap_compat.h>
 
 /*
  * 2.6.35 API change,
@@ -64,7 +65,8 @@ fn(const struct xattr_handler *handler, struct dentry *dentry,		\
 #if defined(HAVE_IDMAP_MNTIDMAP)
 #define	ZPL_XATTR_SET_WRAPPER(fn)					\
 static int								\
-fn(const struct xattr_handler *handler, struct mnt_idmap *user_ns,	\
+fn(const struct xattr_handler *handler,					\
+    MNTIDMAP_CONST struct mnt_idmap *user_ns,				\
     struct dentry *dentry, struct inode *inode, const char *name,	\
     const void *buffer, size_t size, int flags)	\
 {									\
