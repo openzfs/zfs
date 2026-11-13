@@ -50,6 +50,24 @@ find_zfs_block_devices() {
     done < /proc/self/mountinfo
 }
 
+find_add_zpool_mps() {
+    local dev
+    local mp
+    local fstype
+    local _
+    numfields="$(awk '{print NF; exit}' /proc/self/mountinfo)"
+    if [ "$numfields" = "10" ] ; then
+        fields="_ _ _ _ mp _ _ fstype dev _"
+    else
+        fields="_ _ _ _ mp _ _ _ fstype dev _"
+    fi
+    # shellcheck disable=SC2086
+    while read -r ${fields?} ; do
+       [ "$fstype" = "zfs" ] || continue
+       [ "$dev" = "$1" ] && echo "$mp"
+    done < /proc/self/mountinfo
+}
+
 array_contains () {
   local e
   for e in "${@:2}"; do [[ "$e" == "$1" ]] && return 0; done
@@ -75,6 +93,14 @@ check() {
 # shellcheck disable=SC2154
 if [[ -n "$hostonly" ]]; then
 
+    if [ -f @sysconfdir@/default/zfs ]; then
+        . @sysconfdir@/default/zfs
+        if [ -n "$ZFS_INITRD_ADDITIONAL_DATASETS" ]; then
+           for add_zpool in $ZFS_INITRD_ADDITIONAL_DATASETS; do
+               add_mps+=$(find_add_zpool_mps "$add_zpool")
+            done
+        fi
+    fi
     for mp in \
         "/" \
         "/etc" \
@@ -87,7 +113,8 @@ if [[ -n "$hostonly" ]]; then
         "/usr/sbin" \
         "/usr/lib" \
         "/usr/lib64" \
-        "/boot";
+        "/boot" \
+       "${add_mps[@]}";
     do
         mp=$(readlink -f "$mp")
         mountpoint "$mp" >/dev/null 2>&1 || continue
