@@ -6715,18 +6715,25 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 			 * Make vd0 explicitly claim to be unreadable,
 			 * or unwritable, or reach behind its back
 			 * and close the underlying fd.  We can do this if
-			 * maxfaults == 0 because we'll fail and reexecute,
-			 * and we can do it if maxfaults >= 2 because we'll
-			 * have enough redundancy.  If maxfaults == 1, the
-			 * combination of this with injection of random data
-			 * corruption below exceeds the pool's fault tolerance.
+			 * maxfaults >= 2 because we'll have enough
+			 * redundancy.  If maxfaults == 0, we only make vd0
+			 * unwritable, because a failed write is reexecuted,
+			 * after ztest_resume() if the pool suspends.  A
+			 * failed scrub or resilver read is not: it never
+			 * suspends the pool, and a resilver that can't read
+			 * vd0 still completes.  A closed fd fails reads too.
+			 * If maxfaults == 1, the combination of this with
+			 * injection of random data corruption below exceeds
+			 * the pool's fault tolerance.
 			 */
 			vdev_file_t *vf = vd0->vdev_tsd;
 
 			zfs_dbgmsg("injecting fault to vdev %llu; maxfaults=%d",
 			    (long long)vd0->vdev_id, (int)maxfaults);
 
-			if (vf != NULL && ztest_random(3) == 0) {
+			if (maxfaults == 0) {
+				vd0->vdev_cant_write = B_TRUE;
+			} else if (vf != NULL && ztest_random(3) == 0) {
 				zfs_file_close(vf->vf_file);
 				vf->vf_file = zfs_file_get(-1);
 			} else if (ztest_random(2) == 0) {
@@ -6929,7 +6936,13 @@ ztest_scrub_impl(spa_t *spa)
 	while (dsl_scan_scrubbing(spa_get_dsl(spa)))
 		txg_wait_synced(spa_get_dsl(spa), 0);
 
-	if (spa_approx_errlog_size(spa) > 0)
+	/*
+	 * Without redundancy, ztest_fault_inject() injects no damage, only
+	 * write failures, and zio_done() logs the block of a failed write
+	 * before it is reexecuted.  zdb checks every block after each pass,
+	 * unless -M is used.
+	 */
+	if (MAXFAULTS(ztest_shared) > 0 && spa_approx_errlog_size(spa) > 0)
 		return (ECKSUM);
 
 	ztest_pool_scrubbed = B_TRUE;
