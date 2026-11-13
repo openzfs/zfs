@@ -25,7 +25,8 @@ UNIT_TESTS = \
 	%D%/test_backtrace \
 	%D%/test_timer \
 	%D%/test_zfs_file \
-	%D%/test_indirect_mapping
+	%D%/test_indirect_mapping \
+	%D%/test_libzfs_mount
 
 # extra test binaries. not unit/correctness tests as such, but use the same
 # framework. not run by `make unit`, but will work with `T=` etc
@@ -203,6 +204,18 @@ nodist_%C%_test_nvpair_stress_SOURCES = \
 	libspl.la \
 	$(LIBTIRPC_LIBS) \
 	libunit.la
+
+
+%C%_test_libzfs_mount_CFLAGS = $(AM_CFLAGS)
+
+%C%_test_libzfs_mount_SOURCES = \
+	%D%/test_libzfs_mount.c
+
+%C%_test_libzfs_mount_LDADD = \
+	libunit.la \
+	libzfs.la \
+	libzfs_core.la \
+	libnvpair.la
 
 
 # test run and coverage targets below
