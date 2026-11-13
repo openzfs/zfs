@@ -24,7 +24,7 @@
  * optimized for drives of at least that size.
  *
  * Anyraid works by splitting the vdev into "tiles". Each tile is the same
- * size; by default, 1/64th of the size of the smallest disk in the vdev, or
+ * size; by default, 1/1024th of the size of the smallest disk in the vdev, or
  * 16GiB, whichever is larger. A tile represents an area of
  * logical-to-physical mapping: bytes within that logical tile are stored
  * physically together. Subsequent tiles may be stored in different locations
@@ -55,16 +55,15 @@
  * small number of tiles we are working with, an O(n * log n) runtime is
  * acceptable.
  *
- * Currently, there is a limit of 2^24 tiles in an anyraid vdev: 2^8 disks,
- * and 2^16 tiles per disk. This means that by default, the largest device
- * that can be fully utilized by an anyraid vdev is 1024 times the size of the
- * smallest device that was present during device creation. This is not a
- * fundamental limit, and could be expanded in the future. However, this does
- * affect the size of the tile map. Currently, the tile map can always
- * store all tiles without running out of space; 2^24 4-byte entries is 2^26
- * bytes = 64MiB. Expanding the maximum number of tiles per disk or disks per
- * vdev would necessarily involve either expanding the tile map or adding
- * handling for the tile map running out of space.
+ * Currently, an anyraid vdev holds at most 2^8 disks and 2^20 tiles per disk
+ * (2^16 for vdevs created with version 0 of the tile map). This means that by
+ * default, the largest device that can be fully utilized by an anyraid vdev
+ * is at least 1024 times the size of the smallest device that was present
+ * during device creation, and at least 16PiB. The tile map has room for 2^24
+ * 4-byte entries, 2^26 bytes = 64MiB, fewer than 2^8 disks of 2^20 tiles
+ * would need, so the size of the vdev is capped at what the map can always
+ * store (see VDEV_ANYRAID_MAX_TILES). The cap is only reached beyond 2^24
+ * physical tiles, e.g. 16 disks of 2^20 tiles.
  *
  * When it comes to performance, there is a tradeoff. While the per-disk I/O
  * rates are equivalent to using mirrors (because only a small amount of extra
@@ -112,9 +111,10 @@
 uint64_t vdev_anyraid_min_tile_size = (16ULL << 30);
 /*
  * This controls how many tiles we have per disk (based on the smallest disk
- * present at creation time)
+ * present at creation time). A larger shift gives smaller tiles: less space
+ * lost at the end of each disk, but a smaller largest usable disk.
  */
-int vdev_anyraid_disk_shift = 6;
+int vdev_anyraid_disk_shift = 10;
 
 static inline uint64_t
 vdev_anyraid_header_offset(vdev_t *vd, int id)
@@ -125,6 +125,54 @@ vdev_anyraid_header_offset(vdev_t *vd, int id)
 	else
 		return (vd->vdev_psize - VDEV_LABEL_END_SIZE -
 		    (VDEV_ANYRAID_MAP_COPIES - id) * full_size);
+}
+
+/*
+ * The header stores each child's capacity in tiles, minus one, as a uint16
+ * array in version 0 and a uint32 array in version 1, under the same key.
+ * With caps NULL, only check that there are count valid ones.
+ */
+static int
+anyraid_header_get_sizes(nvlist_t *nvl, uint16_t version, uint_t count,
+    int32_t *caps)
+{
+	uint16_t *sizes16 = NULL;
+	uint32_t *sizes32 = NULL;
+	uint_t n = 0;
+	int error = version == 0 ?
+	    nvlist_lookup_uint16_array(nvl, VDEV_ANYRAID_HEADER_DISK_SIZES,
+	    &sizes16, &n) :
+	    nvlist_lookup_uint32_array(nvl, VDEV_ANYRAID_HEADER_DISK_SIZES,
+	    &sizes32, &n);
+	if (error != 0 || n != count)
+		return (SET_ERROR(EINVAL));
+
+	for (uint_t i = 0; i < count; i++) {
+		uint32_t size = version == 0 ? sizes16[i] : sizes32[i];
+		if (size >= VDEV_ANYRAID_MAX_TPD(version))
+			return (SET_ERROR(EINVAL));
+		if (caps != NULL)
+			caps[i] = size + 1;
+	}
+	return (0);
+}
+
+static void
+anyraid_header_add_sizes(nvlist_t *nvl, uint16_t version,
+    uint32_t *sizes, uint_t count)
+{
+	if (version != 0) {
+		fnvlist_add_uint32_array(nvl, VDEV_ANYRAID_HEADER_DISK_SIZES,
+		    sizes, count);
+		return;
+	}
+
+	uint16_t *sizes16 = kmem_alloc(sizeof (*sizes16) * count, KM_SLEEP);
+	for (uint_t i = 0; i < count; i++)
+		sizes16[i] = sizes[i];
+	fnvlist_add_uint16_array(nvl, VDEV_ANYRAID_HEADER_DISK_SIZES, sizes16,
+	    count);
+	kmem_free(sizes16, sizeof (*sizes16) * count);
 }
 
 static inline int
@@ -243,8 +291,8 @@ static void
 create_tile_entry(vdev_anyraid_t *var, anyraid_map_loc_entry_t *amle,
     uint8_t *pat_cnt, anyraid_tile_t **out_at, uint32_t *cur_tile)
 {
-	uint8_t disk = amle_get_disk(amle);
-	uint16_t offset = amle_get_offset(amle);
+	uint8_t disk = amle_get_disk(amle, var->vd_version);
+	uint32_t offset = amle_get_offset(amle, var->vd_version);
 	anyraid_tile_t *at = *out_at;
 
 	if (*pat_cnt == 0) {
@@ -451,11 +499,11 @@ vdev_anyraid_open_mappings(vdev_t *cvd, avl_tree_t *tree)
 			    "version", i, cvd->vdev_path);
 			continue;
 		}
-		if (version != 0) {
+		if (version > VDEV_ANYRAID_VERSION) {
 			free_header(header, header_size);
 			error = SET_ERROR(ENOTSUP);
 			zfs_dbgmsg("Anyraid header %d on vdev %s: invalid "
-			    "version", i, cvd->vdev_path);
+			    "version %u", i, cvd->vdev_path, version);
 			continue;
 		}
 
@@ -491,15 +539,8 @@ vdev_anyraid_open_mappings(vdev_t *cvd, avl_tree_t *tree)
 			continue;
 		}
 
-		uint16_t *caps = NULL;
-		uint_t count;
-		if (nvlist_lookup_uint16_array(nvl,
-		    VDEV_ANYRAID_HEADER_DISK_SIZES, &caps, &count) != 0) {
-			free_header(header, header_size);
-			error = SET_ERROR(EINVAL);
-			continue;
-		}
-		if (count != vd->vdev_children) {
+		if (anyraid_header_get_sizes(nvl, version, vd->vdev_children,
+		    NULL) != 0) {
 			free_header(header, header_size);
 			error = SET_ERROR(EINVAL);
 			continue;
@@ -593,15 +634,14 @@ loop:
 	    VDEV_ANYRAID_HEADER_TILE_SIZE);
 	uint32_t map_length = fnvlist_lookup_uint32(nvl,
 	    VDEV_ANYRAID_HEADER_LENGTH);
-	uint_t count;
-	uint16_t *caps = fnvlist_lookup_uint16_array(nvl,
-	    VDEV_ANYRAID_HEADER_DISK_SIZES, &count);
-	ASSERT3U(count, ==, vd->vdev_children);
+	var->vd_version = fnvlist_lookup_uint16(nvl,
+	    VDEV_ANYRAID_HEADER_VERSION);
+	uint_t count = vd->vdev_children;
 
 	*child_capacities = kmem_alloc(sizeof (**child_capacities) * count,
 	    KM_SLEEP);
-	for (int i = 0; i < count; i++)
-		(*child_capacities)[i] = caps[i] + 1;
+	VERIFY0(anyraid_header_get_sizes(nvl, var->vd_version, count,
+	    *child_capacities));
 	if (vd->vdev_reopening) {
 		lasterror = 0;
 		goto out;
@@ -666,7 +706,7 @@ loop:
 		}
 		anyraid_map_entry_t *entry =
 		    (anyraid_map_entry_t *)(map_buf + (off % SPA_MAXBLOCKSIZE));
-		uint8_t type = ame_get_type(entry);
+		uint8_t type = ame_get_type(entry, var->vd_version);
 		switch (type) {
 			case AMET_SKIP: {
 				anyraid_map_skip_entry_t *amse =
@@ -677,7 +717,8 @@ loop:
 					error = SET_ERROR(EINVAL);
 					off = map_length;
 				}
-				cur_tile += amse_get_skip_count(amse);
+				cur_tile += amse_get_skip_count(amse,
+				    var->vd_version);
 				break;
 			}
 			case AMET_LOC: {
@@ -756,8 +797,8 @@ out:
 
 /*
  * When creating a new anyraid vdev, this function calculates the tile size
- * to use. We take (by default) 1/64th of the size of the smallest disk or 16
- * GiB, whichever is larger.
+ * to use. We take (by default) 1/1024th of the size of the smallest disk or 16
+ * GiB, whichever is larger, rounded up to a power of two.
  */
 static int
 anyraid_calculate_size(vdev_t *vd)
@@ -819,6 +860,7 @@ anyraid_calculate_size(vdev_t *vd)
 	uint64_t tile_size = smallest_disk_size >> disk_shift;
 	tile_size = MAX(tile_size, min_size);
 	var->vd_tile_size = 1ULL << (highbit64(tile_size - 1));
+	var->vd_version = VDEV_ANYRAID_VERSION;
 
 	/*
 	 * Later, we're going to cap the metaslab size at the tile
@@ -853,7 +895,8 @@ rc_compar(const void *a, const void *b)
  * actually run the allocation algorithm and see what we end up with. It's a
  * variant of the bin-packing problem, which is NP-hard. Thankfully
  * a first-fit descending algorithm seems to give optimal results for this
- * variant.
+ * variant. The result is capped at VDEV_ANYRAID_MAX_TILES / width tiles, so
+ * that the tile map can always store every tile of the vdev.
  */
 static uint64_t
 calculate_asize(vdev_t *vd, uint64_t *num_tiles)
@@ -865,7 +908,7 @@ calculate_asize(vdev_t *vd, uint64_t *num_tiles)
 		for (int c = 0; c < vd->vdev_children; c++) {
 			count += num_tiles[c];
 		}
-		return (count * var->vd_tile_size);
+		return (MIN(count, VDEV_ANYRAID_MAX_TILES) * var->vd_tile_size);
 	}
 
 	/*
@@ -932,7 +975,8 @@ calculate_asize(vdev_t *vd, uint64_t *num_tiles)
 	while ((node = avl_destroy_nodes(&t, &cookie)) != NULL)
 		kmem_free(node, sizeof (*node));
 	avl_destroy(&t);
-	return (count * var->vd_tile_size);
+	return (MIN(count, VDEV_ANYRAID_MAX_TILES / map_width) *
+	    var->vd_tile_size);
 }
 
 static int
@@ -980,7 +1024,8 @@ vdev_anyraid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 		return (lasterror);
 	}
 
-	uint64_t max_size = VDEV_ANYRAID_MAX_TPD * var->vd_tile_size;
+	/* In tiles: 2^20 tiles of 16TiB would overflow a byte count. */
+	uint64_t max_tpd = VDEV_ANYRAID_MAX_TPD(var->vd_version);
 
 	/*
 	 * Calculate the number of tiles each child could fit, then use that
@@ -991,17 +1036,15 @@ vdev_anyraid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	for (int c = 0; c < vd->vdev_children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
 
-		uint64_t casize;
 		if (cvd->vdev_open_error == 0) {
 			vdev_set_min_asize(cvd);
-			casize = MIN(max_size, cvd->vdev_asize -
-			    VDEV_ANYRAID_TOTAL_MAP_SIZE);
+			num_tiles[c] = MIN(max_tpd, (cvd->vdev_asize -
+			    VDEV_ANYRAID_TOTAL_MAP_SIZE) / var->vd_tile_size);
 		} else {
 			ASSERT(child_capacities);
-			casize = child_capacities[c] * var->vd_tile_size;
+			num_tiles[c] = child_capacities[c];
 		}
 
-		num_tiles[c] = casize / var->vd_tile_size;
 		avl_remove(&var->vd_children_tree, var->vd_children[c]);
 		var->vd_children[c]->van_capacity = num_tiles[c];
 		avl_add(&var->vd_children_tree, var->vd_children[c]);
@@ -1016,15 +1059,12 @@ vdev_anyraid_open(vdev_t *vd, uint64_t *asize, uint64_t *max_asize,
 	for (int c = 0; c < vd->vdev_children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
 
-		uint64_t cmasize;
 		if (cvd->vdev_open_error == 0) {
-			cmasize = MIN(max_size, cvd->vdev_max_asize -
-			    VDEV_ANYRAID_TOTAL_MAP_SIZE);
+			num_tiles[c] = MIN(max_tpd, (cvd->vdev_max_asize -
+			    VDEV_ANYRAID_TOTAL_MAP_SIZE) / var->vd_tile_size);
 		} else {
-			cmasize = (child_capacities[c] + 1) * var->vd_tile_size;
+			num_tiles[c] = child_capacities[c] + 1;
 		}
-
-		num_tiles[c] = cmasize / var->vd_tile_size;
 	}
 	*max_asize = calculate_asize(vd, num_tiles);
 
@@ -1414,23 +1454,24 @@ vdev_anyraid_ndisks(vdev_t *vd)
  * Functions related to syncing out the tile map each TXG.
  */
 static boolean_t
-map_write_loc_entry(anyraid_tile_node_t *atn, void *buf, uint32_t *offset)
+map_write_loc_entry(anyraid_tile_node_t *atn, uint16_t version, void *buf,
+    uint32_t *offset)
 {
 	anyraid_map_loc_entry_t *entry = (void *)((char *)buf + *offset);
-	amle_set_type(entry);
-	amle_set_disk(entry, atn->atn_disk);
-	amle_set_offset(entry, atn->atn_offset);
+	amle_set_type(entry, version);
+	amle_set_disk(entry, version, atn->atn_disk);
+	amle_set_offset(entry, version, atn->atn_offset);
 	*offset += sizeof (*entry);
 	return (*offset == SPA_MAXBLOCKSIZE);
 }
 
 static boolean_t
-map_write_skip_entry(uint32_t tile, void *buf, uint32_t *offset,
-    uint32_t prev_id)
+map_write_skip_entry(uint32_t tile, uint16_t version, void *buf,
+    uint32_t *offset, uint32_t prev_id)
 {
 	anyraid_map_skip_entry_t *entry = (void *)((char *)buf + *offset);
-	amse_set_type(entry);
-	amse_set_skip_count(entry, tile - prev_id - 1);
+	amse_set_type(entry, version);
+	amse_set_skip_count(entry, version, tile - prev_id - 1);
 	*offset += sizeof (*entry);
 	return (*offset == SPA_MAXBLOCKSIZE);
 }
@@ -1525,9 +1566,10 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 		    (prev_id != UINT32_MAX && cur->at_tile_id > prev_id + 1);
 		if (cur->at_synced > txg)
 			cur->at_synced = txg;
-		if ((skip && map_write_skip_entry(cur->at_tile_id, buf,
-		    &buf_offset, prev_id)) ||
-		    (!skip && map_write_loc_entry(curn, buf, &buf_offset))) {
+		if ((skip && map_write_skip_entry(cur->at_tile_id,
+		    var->vd_version, buf, &buf_offset, prev_id)) ||
+		    (!skip && map_write_loc_entry(curn, var->vd_version, buf,
+		    &buf_offset))) {
 			/*
 			 * Leave a full last chunk to the final write, but only
 			 * once its last entry is in it.
@@ -1583,7 +1625,7 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 	}
 
 	// Populate the header
-	uint16_t *sizes = kmem_zalloc(sizeof (*sizes) *
+	uint32_t *sizes = kmem_zalloc(sizeof (*sizes) *
 	    anyraidvd->vdev_children, KM_SLEEP);
 	uint64_t disk_id = 0;
 	for (uint64_t i = 0; i < anyraidvd->vdev_children; i++) {
@@ -1591,12 +1633,14 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 		    anyraidvd->vdev_child[i] == vd->vdev_parent)
 			disk_id = i;
 		ASSERT(0 < var->vd_children[i]->van_capacity &&
-		    var->vd_children[i]->van_capacity <= UINT16_MAX);
+		    var->vd_children[i]->van_capacity <=
+		    VDEV_ANYRAID_MAX_TPD(var->vd_version));
 		sizes[i] = var->vd_children[i]->van_capacity - 1;
 	}
 	ASSERT3U(disk_id, <, anyraidvd->vdev_children);
 	nvlist_t *header = fnvlist_alloc();
-	fnvlist_add_uint16(header, VDEV_ANYRAID_HEADER_VERSION, 0);
+	fnvlist_add_uint16(header, VDEV_ANYRAID_HEADER_VERSION,
+	    var->vd_version);
 	fnvlist_add_uint8(header, VDEV_ANYRAID_HEADER_DISK, disk_id);
 	fnvlist_add_uint64(header, VDEV_ANYRAID_HEADER_TXG, txg);
 	fnvlist_add_uint64(header, VDEV_ANYRAID_HEADER_GUID, spa_guid(spa));
@@ -1604,7 +1648,7 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 	    var->vd_tile_size);
 	fnvlist_add_uint32(header, VDEV_ANYRAID_HEADER_LENGTH,
 	    written * SPA_MAXBLOCKSIZE + buf_offset);
-	fnvlist_add_uint16_array(header, VDEV_ANYRAID_HEADER_DISK_SIZES, sizes,
+	anyraid_header_add_sizes(header, var->vd_version, sizes,
 	    anyraidvd->vdev_children);
 	kmem_free(sizes, sizeof (*sizes) * anyraidvd->vdev_children);
 
@@ -1672,9 +1716,8 @@ vdev_anyraid_expand(vdev_t *tvd, vdev_t *newvd)
 	    KM_SLEEP);
 	newchild->van_id = newvd->vdev_id;
 	newchild->van_next_offset = 0;
-	uint64_t max_size = VDEV_ANYRAID_MAX_TPD * var->vd_tile_size;
-	newchild->van_capacity = (MIN(max_size, (newvd->vdev_asize -
-	    VDEV_ANYRAID_TOTAL_MAP_SIZE)) /
+	newchild->van_capacity = MIN(VDEV_ANYRAID_MAX_TPD(var->vd_version),
+	    (newvd->vdev_asize - VDEV_ANYRAID_TOTAL_MAP_SIZE) /
 	    var->vd_tile_size);
 	rw_enter(&var->vd_lock, RW_WRITER);
 	memcpy(nc, var->vd_children, old_children * sizeof (*nc));

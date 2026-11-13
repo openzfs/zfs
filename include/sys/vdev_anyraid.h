@@ -46,6 +46,9 @@ typedef struct vdev_anyraid {
 	uint_t		vd_nparity;
 	uint64_t	vd_tile_size;
 
+	/* Version of the tile map format, kept from the vdev's creation */
+	uint16_t	vd_version;
+
 	krwlock_t	vd_lock;
 	avl_tree_t	vd_tile_map;
 	avl_tree_t	vd_children_tree;
@@ -58,7 +61,7 @@ typedef struct vdev_anyraid {
 typedef struct anyraid_tile_node {
 	list_node_t	atn_node;
 	uint8_t		atn_disk;
-	uint16_t	atn_offset;
+	uint32_t	atn_offset;
 } anyraid_tile_node_t;
 
 typedef struct anyraid_tile {
@@ -83,16 +86,28 @@ typedef struct anyraid_tile {
  * uses the normal ZIO_CHECKSUM_LABEL algorithm.
  *
  * Then, there is a tile of size VDEV_ANYRAID_MAP_SIZE. This stores the actual
- * mapping. It is a series of entries. Right now, there are two entry types:
+ * mapping. It is a series of 32-bit entries, each starting with its type in
+ * the low bits. Right now, there are two entry types:
  *
  * 0: Skip entries represent a gap in logical tile IDs. From the current
- * tile ID, add the value stored in the lower 24 bits of the skip entry.
+ * tile ID, add the value stored in the remaining bits of the skip entry.
  *
  * 1: Location entries represent a mapped tile. Each one represents a single
  * physical tile backing the current logical tile. There can be multiple
  * physical tiles for one logical tile; that number is the stripe width/
- * parity from the header. These entries contain a 8 bit disk ID and a 16 bit
- * offset on that disk.
+ * parity from the header. These entries contain an 8 bit disk ID and, in
+ * the remaining bits, the offset of the tile on that disk.
+ *
+ * The header's version decides how many bits the type takes:
+ *
+ * version  type  skip count  disk  offset  most tiles on a disk
+ * 0        8     24          8     16      2^16
+ * 1        4     28          8     20      2^20
+ *
+ * The header's "sizes" array holds each disk's capacity in tiles, minus one:
+ * a uint16 array in version 0, a uint32 array in version 1. A new vdev is
+ * created with VDEV_ANYRAID_VERSION, and keeps writing the version it was
+ * created with.
  *
  * Here is an example of what the mapping looks like on disk. This is for a
  * 1-parity mirror anyraid device:
@@ -123,6 +138,7 @@ typedef struct anyraid_tile {
  * ==========================================================================
  */
 #define	VDEV_ANYRAID_HEADER_VERSION	"version"
+#define	VDEV_ANYRAID_VERSION		1
 #define	VDEV_ANYRAID_HEADER_DISK	"disk"
 #define	VDEV_ANYRAID_HEADER_TXG		"txg"
 #define	VDEV_ANYRAID_HEADER_TILE_SIZE	"tile_size"
@@ -152,7 +168,11 @@ typedef enum anyraid_map_entry_type {
 	AMET_TYPES
 } anyraid_map_entry_type_t;
 
-#define	AME_TYPE_BITS	8
+static inline uint_t
+ame_type_bits(uint16_t version)
+{
+	return (version == 0 ? 8 : 4);
+}
 
 /*
  * ==========================================================================
@@ -161,24 +181,27 @@ typedef enum anyraid_map_entry_type {
  */
 typedef uint32_t anyraid_map_skip_entry_t;
 
-#define	AMSE_TILE_BITS	24
-
 static inline void
-amse_set_type(anyraid_map_skip_entry_t *amse)
+amse_set_type(anyraid_map_skip_entry_t *amse, uint16_t version)
 {
-	BF32_SET(*amse, 0, AME_TYPE_BITS, AMET_SKIP);
+	BF32_SET(*amse, 0, ame_type_bits(version), AMET_SKIP);
 }
 
 static inline void
-amse_set_skip_count(anyraid_map_skip_entry_t *amse, uint32_t skip_count)
+amse_set_skip_count(anyraid_map_skip_entry_t *amse, uint16_t version,
+    uint32_t skip_count)
 {
-	BF32_SET(*amse, AME_TYPE_BITS, AMSE_TILE_BITS, skip_count);
+	uint_t low = ame_type_bits(version);
+
+	BF32_SET(*amse, low, 32 - low, skip_count);
 }
 
 static inline uint32_t
-amse_get_skip_count(anyraid_map_skip_entry_t *amse)
+amse_get_skip_count(anyraid_map_skip_entry_t *amse, uint16_t version)
 {
-	return (BF32_GET(*amse, AME_TYPE_BITS, AMSE_TILE_BITS));
+	uint_t low = ame_type_bits(version);
+
+	return (BF32_GET(*amse, low, 32 - low));
 }
 
 /*
@@ -189,38 +212,48 @@ amse_get_skip_count(anyraid_map_skip_entry_t *amse)
 typedef uint32_t anyraid_map_loc_entry_t;
 
 #define	AMLE_DISK_BITS		8
-#define	AMLE_OFFSET_BITS	16
 
-static inline void
-amle_set_type(anyraid_map_loc_entry_t *amle)
+static inline uint_t
+amle_offset_bits(uint16_t version)
 {
-	BF32_SET(*amle, 0, AME_TYPE_BITS, AMET_LOC);
+	return (32 - ame_type_bits(version) - AMLE_DISK_BITS);
 }
 
 static inline void
-amle_set_disk(anyraid_map_loc_entry_t *amle, uint8_t disk)
+amle_set_type(anyraid_map_loc_entry_t *amle, uint16_t version)
 {
-	BF32_SET(*amle, AME_TYPE_BITS, AMLE_DISK_BITS, disk);
+	BF32_SET(*amle, 0, ame_type_bits(version), AMET_LOC);
+}
+
+static inline void
+amle_set_disk(anyraid_map_loc_entry_t *amle, uint16_t version, uint8_t disk)
+{
+	uint_t low = ame_type_bits(version);
+
+	BF32_SET(*amle, low, AMLE_DISK_BITS, disk);
 }
 
 static inline uint32_t
-amle_get_disk(anyraid_map_loc_entry_t *amle)
+amle_get_disk(anyraid_map_loc_entry_t *amle, uint16_t version)
 {
-	return (BF32_GET(*amle, AME_TYPE_BITS, AMLE_DISK_BITS));
+	return (BF32_GET(*amle, ame_type_bits(version), AMLE_DISK_BITS));
 }
 
 static inline void
-amle_set_offset(anyraid_map_loc_entry_t *amle, uint16_t offset)
+amle_set_offset(anyraid_map_loc_entry_t *amle, uint16_t version,
+    uint32_t offset)
 {
-	BF32_SET(*amle, (AME_TYPE_BITS + AMLE_DISK_BITS), AMLE_OFFSET_BITS,
-	    offset);
+	uint_t low = ame_type_bits(version) + AMLE_DISK_BITS;
+
+	BF32_SET(*amle, low, amle_offset_bits(version), offset);
 }
 
 static inline uint32_t
-amle_get_offset(anyraid_map_loc_entry_t *amle)
+amle_get_offset(anyraid_map_loc_entry_t *amle, uint16_t version)
 {
-	return (BF32_GET(*amle, (AME_TYPE_BITS + AMLE_DISK_BITS),
-	    AMLE_OFFSET_BITS));
+	uint_t low = ame_type_bits(version) + AMLE_DISK_BITS;
+
+	return (BF32_GET(*amle, low, amle_offset_bits(version)));
 }
 
 /*
@@ -237,19 +270,22 @@ typedef struct anyraid_map_entry {
 } anyraid_map_entry_t;
 
 static inline anyraid_map_entry_type_t
-ame_get_type(anyraid_map_entry_t *ame)
+ame_get_type(anyraid_map_entry_t *ame, uint16_t version)
 {
-	return (BF32_GET(ame->ame_u.ame_amle, 0, AME_TYPE_BITS));
+	return (BF32_GET(ame->ame_u.ame_amle, 0, ame_type_bits(version)));
 }
 
-#define	VDEV_ANYRAID_MAX_DISKS	(1 << 8)
-#define	VDEV_ANYRAID_MAX_TPD	(1 << 16)
-#define	VDEV_ANYRAID_MAX_TILES	(VDEV_ANYRAID_MAX_DISKS * VDEV_ANYRAID_MAX_TPD)
+#define	VDEV_ANYRAID_MAX_DISKS	(1 << AMLE_DISK_BITS)
+/* The most tiles a disk can hold: 2^20, or 2^16 in version 0. */
+#define	VDEV_ANYRAID_MAX_TPD(version)	(1U << amle_offset_bits(version))
 /*
- * The worst case scenario here is that we have a loc entry for every single
- * tile (0 skips). At that point, we're using 4 bytes per tile.
- * That gives us 2^24 * 4 bytes = 64 MB to store the entire map.
+ * The map has room for 2^24 entries of 4 bytes, 64 MiB. A vdev of T logical
+ * tiles, L of them mapped, writes width * L location entries and at most
+ * T - L skip entries, one per run of unmapped tiles: at most width * T. So
+ * its size is capped at VDEV_ANYRAID_MAX_TILES / width tiles, which 2^8
+ * disks of 2^16 tiles, all that version 0 allows, never reach.
  */
+#define	VDEV_ANYRAID_MAX_TILES	(1 << 24)
 #define	VDEV_ANYRAID_MAP_SIZE	(sizeof (anyraid_map_loc_entry_t) * \
 	VDEV_ANYRAID_MAX_TILES)
 #define	VDEV_ANYRAID_HEADER_BUFFER	(1 << 20)

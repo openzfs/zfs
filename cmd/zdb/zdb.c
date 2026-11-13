@@ -10404,6 +10404,10 @@ print_anyraid_mapping(vdev_t *vd, int child, anyraid_header_t *header)
 	(void) printf("version:    %6d\ttile size: %#8llx\ttxg: %llu\n",
 	    version, (u_longlong_t)tile_size, (u_longlong_t)written_txg);
 	(void) printf("map length: %6u\tdisk id: %3u\n", map_length, disk_id);
+	if (version > VDEV_ANYRAID_VERSION) {
+		(void) printf("Unsupported version\n");
+		return;
+	}
 
 	// Read in and print the actual mapping data
 	abd_t *map_abds[VDEV_ANYRAID_MAP_SIZE / SPA_MAXBLOCKSIZE] = {0};
@@ -10439,7 +10443,7 @@ print_anyraid_mapping(vdev_t *vd, int child, anyraid_header_t *header)
 		uint32_t mo = off % SPA_MAXBLOCKSIZE;
 		anyraid_map_entry_t *entry =
 		    (anyraid_map_entry_t *)(map_buf + mo);
-		uint8_t type = ame_get_type(entry);
+		uint8_t type = ame_get_type(entry, version);
 		uint8_t *buf;
 		boolean_t allocated = B_FALSE;
 		if (size > SPA_MAXBLOCKSIZE - mo) {
@@ -10465,9 +10469,9 @@ print_anyraid_mapping(vdev_t *vd, int child, anyraid_header_t *header)
 				anyraid_map_skip_entry_t *amse =
 				    &entry->ame_u.ame_amse;
 				ASSERT0(par_cnt);
-				cur_tile += amse_get_skip_count(amse);
+				cur_tile += amse_get_skip_count(amse, version);
 				(void) printf("skip %u\n",
-				    amse_get_skip_count(amse));
+				    amse_get_skip_count(amse, version));
 				break;
 			}
 			case AMET_LOC: {
@@ -10477,8 +10481,9 @@ print_anyraid_mapping(vdev_t *vd, int child, anyraid_header_t *header)
 					(void) printf("loc %u:", cur_tile);
 					cur_tile++;
 				}
-				(void) printf("\td%u o%u,", amle_get_disk(amle),
-				    amle_get_offset(amle));
+				(void) printf("\td%u o%u,",
+				    amle_get_disk(amle, version),
+				    amle_get_offset(amle, version));
 				par_cnt = (par_cnt + 1) % (var->vd_nparity + 1);
 				if (par_cnt == 0)
 					(void) printf("\n");
