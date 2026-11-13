@@ -166,12 +166,13 @@ cppcheck-Linux:
 		--include=@top_builddir@/zfs_config.h \
 		--config-exclude=@LINUX_OBJ@/include \
 		-i zstd/lib \
+		-i lz4/lib \
 		-I @LINUX_OBJ@/include \
 		-I @top_srcdir@/include/os/linux/kernel \
 		-I @top_srcdir@/include/os/linux/spl \
 		-I @top_srcdir@/include/os/linux/zfs \
 		-I @top_srcdir@/include \
-		avl icp $(lua_dir) nvpair unicode zcommon zfs zstd os/linux
+		avl icp $(lua_dir) lz4 nvpair unicode zcommon zfs zstd os/linux
 
 cppcheck-FreeBSD:
 	@true

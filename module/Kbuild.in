@@ -319,6 +319,14 @@ $(addprefix $(obj)/zstd/,$(ZSTD_UPSTREAM_OBJS)) : ccflags-y += -include $(zstd_i
 $(obj)/zstd/zfs_zstd.o : ccflags-y += -include $(zstd_include)/zstd_compat_wrapper.h
 
 
+# The LZ4 library is built inside zfs_lz4.o, which gives all of it internal
+# linkage. It includes <limits.h>, <stddef.h>, <stdint.h> and <string.h>,
+# which the zstd shims provide in the kernel.
+zfs-objs += lz4/zfs_lz4.o
+
+$(obj)/lz4/zfs_lz4.o : ccflags-y += -I$(zstd_include)
+
+
 @ZCP_ENABLED_TRUE@ZCP_OBJS := \
 @ZCP_ENABLED_TRUE@	zcp.o \
 @ZCP_ENABLED_TRUE@	zcp_get.o \
@@ -375,8 +383,6 @@ ZFS_OBJS := \
 	fm.o \
 	gzip.o \
 	hkdf.o \
-	lz4.o \
-	lz4_zfs.o \
 	lzjb.o \
 	metaslab.o \
 	mmp.o \
