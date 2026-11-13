@@ -23,7 +23,8 @@ failsafe = callbacks/zfs_failsafe
 tags = ['functional']
 
 [tests/functional/block_cloning:FreeBSD]
-tests = ['block_cloning_copyfilerange_clone',
+tests = ['block_cloning_copyfilerange_appendonly',
+    'block_cloning_copyfilerange_clone',
     'block_cloning_copyfilerange_clone_partial',
     'block_cloning_disabled_copyfilerange_clone']
 

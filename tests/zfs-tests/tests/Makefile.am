@@ -553,6 +553,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/block_cloning/block_cloning_copyfilerange_fallback_same_txg.ksh \
 	functional/block_cloning/block_cloning_copyfilerange.ksh \
 	functional/block_cloning/block_cloning_copyfilerange_partial.ksh \
+	functional/block_cloning/block_cloning_copyfilerange_appendonly.ksh \
 	functional/block_cloning/block_cloning_copyfilerange_clone.ksh \
 	functional/block_cloning/block_cloning_copyfilerange_clone_partial.ksh \
 	functional/block_cloning/block_cloning_disabled_copyfilerange.ksh \

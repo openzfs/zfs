@@ -21,6 +21,11 @@
  *
  *   append_only_ops ftruncate <file> <length>
  *   append_only_ops punch <file> <offset> <length>
+ *   append_only_ops clone <src> <dst> <offset> <length>   (FreeBSD only)
+ *
+ * "clone" clears O_APPEND on the destination descriptor with F_SETFL before
+ * calling copy_file_range(2), since an O_APPEND destination is refused
+ * outright.
  *
  * Exits 0 if the operation succeeded and 1 if it failed.
  */
@@ -46,7 +51,8 @@ usage(void)
 {
 	(void) fprintf(stderr,
 	    "usage: append_only_ops ftruncate <file> <length>\n"
-	    "       append_only_ops punch <file> <offset> <length>\n");
+	    "       append_only_ops punch <file> <offset> <length>\n"
+	    "       append_only_ops clone <src> <dst> <offset> <length>\n");
 	exit(1);
 }
 
@@ -120,6 +126,45 @@ do_punch(const char *path, off_t off, off_t len)
 	return (0);
 }
 
+static int
+do_clone(const char *src, const char *dst, off_t off, off_t len)
+{
+#if defined(__FreeBSD__)
+	off_t inoff;
+	off_t outoff;
+	ssize_t n;
+	int sfd;
+	int dfd;
+	int fl;
+
+	sfd = open(src, O_RDONLY);
+	if (sfd == -1)
+		err(1, "open %s", src);
+	dfd = open_append(dst);
+	if ((fl = fcntl(dfd, F_GETFL)) == -1)
+		err(1, "F_GETFL");
+	if (fcntl(dfd, F_SETFL, fl & ~O_APPEND) != 0) {
+		warn("F_SETFL");
+		return (1);
+	}
+	inoff = outoff = off;
+	n = copy_file_range(sfd, &inoff, dfd, &outoff, len, 0);
+	if (n == -1) {
+		warn("copy_file_range");
+		return (1);
+	}
+	(void) close(sfd);
+	(void) close(dfd);
+	return (n == 0);
+#else
+	(void) src;
+	(void) dst;
+	(void) off;
+	(void) len;
+	errx(1, "clone is not supported on this platform");
+#endif
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -131,6 +176,9 @@ main(int argc, char *argv[])
 	if (strcmp(argv[1], "punch") == 0 && argc == 5)
 		return (do_punch(argv[2], parse_off(argv[3]),
 		    parse_off(argv[4])));
+	if (strcmp(argv[1], "clone") == 0 && argc == 6)
+		return (do_clone(argv[2], argv[3], parse_off(argv[4]),
+		    parse_off(argv[5])));
 	usage();
 	return (1);
 }
