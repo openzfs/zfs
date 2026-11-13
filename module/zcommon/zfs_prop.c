@@ -906,11 +906,13 @@ zfs_prop_index_to_string(zfs_prop_t prop, uint64_t index, const char **string)
 	return (zprop_index_to_string(prop, index, string, ZFS_TYPE_DATASET));
 }
 
+#ifdef ZTEST
 uint64_t
 zfs_prop_random_value(zfs_prop_t prop, uint64_t seed)
 {
 	return (zprop_random_value(prop, seed, ZFS_TYPE_DATASET));
 }
+#endif
 
 /*
  * Returns TRUE if the property applies to any of the given dataset types.

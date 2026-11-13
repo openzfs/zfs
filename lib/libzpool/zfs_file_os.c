@@ -151,6 +151,7 @@ zfs_file_pwrite(zfs_file_t *zfp, const void *buf,
     size_t count, loff_t pos, uint8_t ashift, ssize_t *resid)
 {
 	file_t *fp = zfp;
+#ifdef ZTEST
 	ssize_t rc, split, done;
 	int sectors;
 
@@ -182,6 +183,13 @@ zfs_file_pwrite(zfs_file_t *zfp, const void *buf,
 		return (errno);
 
 	done += rc;
+#else
+	(void)ashift;
+	ssize_t done;
+
+	if ((done = pwrite64(fp->f_fd, buf, count, pos)) < 0)
+		return (errno);
+#endif
 
 	if (resid) {
 		*resid = count - done;
@@ -242,7 +250,7 @@ zfs_file_pread(zfs_file_t *zfp, void *buf, size_t count, loff_t off,
 
 	rc = pread64(fp->f_fd, buf, count, off);
 	if (rc < 0) {
-#ifdef __linux__
+#if defined(ZTEST) && defined(__linux__)
 		/*
 		 * Under Linux, this most likely means an alignment issue
 		 * (memory or disk) due to O_DIRECT, so we abort() in order to
