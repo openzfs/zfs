@@ -1,0 +1,13 @@
+| test.c:36:10:36:15 | call to strtok | Use strtok_r(3) instead! |
+| test.c:43:9:43:14 | call to strtok | Use strtok_r(3) instead! |
+| test.c:44:9:44:22 | call to __xpg_basename | basename(3) is underspecified. Use zfs_basename() instead! |
+| test.c:45:9:45:16 | call to basename | basename(3) is underspecified. Use zfs_basename() instead! |
+| test.c:46:9:46:15 | call to dirname | dirname(3) is underspecified. Use zfs_dirnamelen() instead! |
+| test.c:47:2:47:6 | call to bcopy | bcopy(3) is deprecated. Use memcpy(3)/memmove(3) instead! |
+| test.c:48:9:48:12 | call to bcmp | bcmp(3) is deprecated. Use memcmp(3) instead! |
+| test.c:49:2:49:6 | call to bzero | bzero(3) is deprecated. Use memset(3) instead! |
+| test.c:50:9:50:15 | call to asctime | Use strftime(3) instead! |
+| test.c:51:9:51:17 | call to asctime_r | Use strftime(3) instead! |
+| test.c:52:9:52:14 | call to gmtime | gmtime(3) isn't thread-safe. Use gmtime_r(3) instead! |
+| test.c:53:9:53:17 | call to localtime | localtime(3) isn't thread-safe. Use localtime_r(3) instead! |
+| test.c:54:9:54:15 | call to strncpy | strncpy(3) is deprecated. Use strlcpy(3) instead! |
