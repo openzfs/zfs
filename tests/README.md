@@ -120,8 +120,9 @@ Otherwise user can set needed tags to run only specific tests.
 While the ZFS Test Suite is running, one informational line is printed at the
 end of each test, and a results summary is printed at the end of the run. The
 results summary includes the location of the complete logs, which is logged in
-the form `/var/tmp/test_results/[ISO 8601 date]`.  A normal test run launched
-with the `zfs-tests.sh` wrapper script will look something like this:
+the form `/var/tmp/test_results/<ISO 8601 date>-<unique suffix>`.
+A normal test run launched with the `zfs-tests.sh` wrapper script will look
+something like this:
 
     $ /usr/share/zfs/zfs-tests.sh -v -d /tmp/test
 
@@ -153,7 +154,7 @@ with the `zfs-tests.sh` wrapper script will look something like this:
 
     Running Time:	02:35:33
     Percent passed:	95.6%
-    Log directory:	/var/tmp/test_results/20180515T054509
+    Log directory:	/var/tmp/test_results/20180515T054509-a1b2c3d4
 
 ### 4) Example of adding and running test-case (zpool_example)
 
