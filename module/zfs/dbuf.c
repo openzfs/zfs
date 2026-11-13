@@ -4814,7 +4814,6 @@ dbuf_lightweight_ready(zio_t *zio)
 	spa_t *spa = dmu_objset_spa(dn->dn_objset);
 	int64_t delta = bp_get_dsize_sync(spa, bp) -
 	    bp_get_dsize_sync(spa, bp_orig);
-	dnode_diduse_space(dn, delta);
 
 	if (!BP_IS_EMBEDDED(bp)) {
 		uint64_t fill = BP_IS_HOLE(bp) ? 0 : 1;
@@ -4823,6 +4822,7 @@ dbuf_lightweight_ready(zio_t *zio)
 
 	*bp_orig = *bp;
 	rw_exit(&parent_db->db_rwlock);
+	dnode_diduse_space(dn, delta);
 
 	uint64_t blkid = dr->dt.dll.dr_blkid;
 	mutex_enter(&dn->dn_mtx);
