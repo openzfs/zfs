@@ -585,6 +585,14 @@ io_is_fua(struct bio *bio, struct request *rq)
 	return (bio_is_fua(bio));
 }
 
+static inline int
+io_is_nowait(struct bio *bio, struct request *rq)
+{
+	if (rq != NULL)
+		return ((rq->cmd_flags & REQ_NOWAIT) != 0);
+	return ((bio->bi_opf & REQ_NOWAIT) != 0);
+}
+
 
 static inline uint64_t
 io_offset(struct bio *bio, struct request *rq)
