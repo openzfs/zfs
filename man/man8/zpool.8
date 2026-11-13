@@ -19,7 +19,7 @@
 .\" Copyright (c) 2024-2026, Klara, Inc.
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd May 26, 2026
+.Dd October 15, 2026
 .Dt ZPOOL 8
 .Os
 .
@@ -114,6 +114,8 @@ Converts a non-redundant disk into a mirror, or increases
 the redundancy level of an existing mirror
 .Cm ( attach Ns ), or performs the inverse operation (
 .Cm detach Ns ).
+A RAID-Z vdev can be expanded by one or more disks with
+.Nm zpool Cm attach .
 .It Xo
 .Xr zpool-add 8 Ns / Ns Xr zpool-remove 8
 .Xc

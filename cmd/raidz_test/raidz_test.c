@@ -81,6 +81,7 @@ static void print_opts(raidz_test_opts_t *opts, boolean_t force)
 		    "  (-o) zio offset                   : 1 << %zu\n"
 		    "  (-e) expanded map                 : %s\n"
 		    "  (-r) reflow offset                : %llx\n"
+		    "  (-k) children added by expansion  : %zu\n"
 		    "  (-d) number of raidz data columns : %zu\n"
 		    "  (-s) size of DATA                 : 1 << %zu\n"
 		    "  (-S) sweep parameters             : %s \n"
@@ -89,6 +90,7 @@ static void print_opts(raidz_test_opts_t *opts, boolean_t force)
 		    ilog2(opts->rto_offset),			/* -o */
 		    opts->rto_expand ? "yes" : "no",		/* -e */
 		    (u_longlong_t)opts->rto_expand_offset,	/* -r */
+		    opts->rto_expand_added,			/* -k */
 		    opts->rto_dcols,				/* -d */
 		    ilog2(opts->rto_dsize),			/* -s */
 		    opts->rto_sweep ? "yes" : "no",		/* -S */
@@ -112,6 +114,7 @@ static void usage(boolean_t requested)
 	    "\t[-B benchmark all raidz implementations]\n"
 	    "\t[-e use expanded raidz map (default: %s)]\n"
 	    "\t[-r expanded raidz map reflow offset (default: %llx)]\n"
+	    "\t[-k children added by the expansion (default: %zu)]\n"
 	    "\t[-v increase verbosity (default: %d)]\n"
 	    "\t[-h (print help)]\n"
 	    "\t[-T test the test, see if failure would be detected]\n"
@@ -124,6 +127,7 @@ static void usage(boolean_t requested)
 	    rto_opts.rto_sweep ? "yes" : "no",		/* -S */
 	    rto_opts.rto_expand ? "yes" : "no",		/* -e */
 	    (u_longlong_t)o->rto_expand_offset,		/* -r */
+	    o->rto_expand_added,			/* -k */
 	    o->rto_v);					/* -v */
 
 	exit(requested ? 0 : 1);
@@ -137,7 +141,7 @@ static void process_options(int argc, char **argv)
 
 	memcpy(o, &rto_opts_defaults, sizeof (*o));
 
-	while ((opt = getopt(argc, argv, "TDBSvha:er:o:d:s:t:")) != -1) {
+	while ((opt = getopt(argc, argv, "TDBSvha:ek:r:o:d:s:t:")) != -1) {
 		switch (opt) {
 		case 'a':
 			value = strtoull(optarg, NULL, 0);
@@ -148,6 +152,10 @@ static void process_options(int argc, char **argv)
 			break;
 		case 'r':
 			o->rto_expand_offset = strtoull(optarg, NULL, 0);
+			break;
+		case 'k':
+			value = strtoull(optarg, NULL, 0);
+			o->rto_expand_added = MIN(255, MAX(1, value));
 			break;
 		case 'o':
 			value = strtoull(optarg, NULL, 0);
@@ -333,10 +341,12 @@ init_raidz_golden_map(raidz_test_opts_t *opts, const int parity)
 	if (opts->rto_expand) {
 		opts->rm_golden =
 		    vdev_raidz_map_alloc_expanded(opts->zio_golden,
-		    opts->rto_ashift, total_ncols+1, total_ncols,
+		    opts->rto_ashift, total_ncols + opts->rto_expand_added,
+		    total_ncols, total_ncols,
 		    parity, opts->rto_expand_offset, 0, B_FALSE);
 		rm_test = vdev_raidz_map_alloc_expanded(zio_test,
-		    opts->rto_ashift, total_ncols+1, total_ncols,
+		    opts->rto_ashift, total_ncols + opts->rto_expand_added,
+		    total_ncols, total_ncols,
 		    parity, opts->rto_expand_offset, 0, B_FALSE);
 	} else {
 		opts->rm_golden = vdev_raidz_map_alloc(opts->zio_golden,
@@ -384,7 +394,8 @@ init_raidz_map(raidz_test_opts_t *opts, zio_t **zio, const int parity)
 
 	if (opts->rto_expand) {
 		rm = vdev_raidz_map_alloc_expanded(*zio,
-		    opts->rto_ashift, total_ncols+1, total_ncols,
+		    opts->rto_ashift, total_ncols + opts->rto_expand_added,
+		    total_ncols, total_ncols,
 		    parity, opts->rto_expand_offset, 0, B_FALSE);
 	} else {
 		rm = vdev_raidz_map_alloc(*zio, opts->rto_ashift,
@@ -762,6 +773,7 @@ run_sweep(void)
 		opts->rto_dsize = size_v[s];
 		opts->rto_expand = rto_opts.rto_expand;
 		opts->rto_expand_offset = rto_opts.rto_expand_offset;
+		opts->rto_expand_added = rto_opts.rto_expand_added;
 		opts->rto_v = 0; /* be quiet */
 
 		VERIFY3P(thread_create(NULL, 0, sweep_thread, (void *) opts,

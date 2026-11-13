@@ -25,12 +25,16 @@
 #	existing disks contains BTX Server binary (used to boot FreeBSD when
 #	using MBR partitions with ZFS).
 #
+#	The same holds when several devices are attached at once.
+#
 # STRATEGY:
 #	1. Create raidz pool
 #	2. Add a BTX header to the reserved boot area
 #	3. Attempt to attach a device to the raidz vdev
 #	4. Verify that device attached failed
-#	5. Destroy the raidz pool
+#	5. Attempt to attach two devices at once, verify that it failed too
+#	   (elsewhere both attaches work)
+#	6. Destroy the raidz pool
 
 typeset -r devs=4
 typeset -r dev_size_mb=128
@@ -42,20 +46,20 @@ function cleanup
 
 	poolexists "$TESTPOOL" && log_must_busy zpool destroy "$TESTPOOL"
 
-	for i in {0..$devs}; do
+	for i in {0..$((devs + 2))}; do
 		log_must rm -f "$TEST_BASE_DIR/dev-$i"
 	done
 }
 
 log_onexit cleanup
 
-for i in {0..$devs}; do
+for i in {0..$((devs + 2))}; do
 	device=$TEST_BASE_DIR/dev-$i
 	# simulate active BTX Server data by inserting a BTX header
 	printf "\xeb\x0e%s\x01\x02\x80" "BTX" | dd of="$device" \
 		bs=512 seek=1024 status=none
 	log_must truncate -s ${dev_size_mb}M "$device"
-	if [[ $i -ne $devs ]]; then
+	if [[ $i -lt $devs ]]; then
 		disks[${#disks[*]}+1]=$device
 	fi
 done
@@ -66,11 +70,25 @@ if is_freebsd; then
 	# expecting attach to fail
 	log_mustnot_expect "the reserved boot area" zpool attach -f \
 		"$TESTPOOL" raidz1-0 "$TEST_BASE_DIR/dev-$devs"
+	# also with several devices at once
+	log_mustnot_expect "the reserved boot area" zpool attach -f \
+		"$TESTPOOL" raidz1-0 "$TEST_BASE_DIR/dev-$devs" \
+		"$TEST_BASE_DIR/dev-$((devs + 1))"
+	width=$(zpool status "$TESTPOOL" | grep -c "$TEST_BASE_DIR/dev-")
+	if [[ $width -ne $devs ]]; then
+		log_fail "expected $devs disks after the refused attach," \
+		    "found $width"
+	fi
 	log_must zpool destroy "$TESTPOOL"
 	log_pass "raidz attach failed with in-use reserved boot area"
 else
 	# expecting attach to pass everywhere else
-	log_must zpool attach -f "$TESTPOOL" raidz1-0 "$TEST_BASE_DIR/dev-$devs"
+	log_must zpool attach -w -f "$TESTPOOL" raidz1-0 \
+		"$TEST_BASE_DIR/dev-$devs"
+	# also with several devices at once
+	log_must zpool attach -f "$TESTPOOL" raidz1-0 \
+		"$TEST_BASE_DIR/dev-$((devs + 1))" \
+		"$TEST_BASE_DIR/dev-$((devs + 2))"
 	log_must zpool destroy "$TESTPOOL"
 	log_pass "raidz attach passed with in-use reserved boot area"
 fi
