@@ -22,8 +22,8 @@
 #
 # STRATEGY:
 # 1. Create a volume with some data, and a snapshot of it.
-# 2. Send the snapshot into a pipe that is not read yet, so the send holds
-#    the snapshot.
+# 2. Read the first stream byte, then block the pipe so the send keeps
+#    holding the snapshot.
 # 3. Make the snapshot's minor visible and hidden several times.
 # 4. Verify that every change worked, then finish the send and verify that
 #    the stream receives.
@@ -59,12 +59,17 @@ block_device_wait $ZVOL_DEVDIR/$vol
 log_must dd if=/dev/urandom of=$ZVOL_DEVDIR/$vol bs=1M count=8 conv=fsync
 log_must zfs snapshot $snap
 
-# The stream is far larger than a pipe holds, so the send blocks with the
-# snapshot held until the reader starts.
-( zfs send $snap | ( while [[ ! -f $go ]]; do sleep 1; done;
-    cat > $stream ) ) &
+# The first byte proves the send has taken its long hold.  The remaining
+# stream is far larger than a pipe holds, so it cannot finish yet.
+( zfs send $snap | ( dd bs=1 count=1 of=$stream;
+    while [[ ! -f $go ]]; do sleep 1; done; cat >> $stream ) ) &
 send_pid=$!
-log_must sleep 2
+typeset -i deadline
+(( deadline = SECONDS + 30 ))
+while [[ ! -s $stream ]]; do
+	(( SECONDS < deadline )) || log_fail "The send did not start"
+	sleep 1
+done
 
 for i in 1 2 3; do
 	log_must zfs set snapdev=visible $vol
