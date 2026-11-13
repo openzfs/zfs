@@ -355,6 +355,7 @@ SRCS+=	abd.c \
 	zap_impl.c \
 	zap_leaf.c \
 	zap_micro.c \
+	zap_tiny.c \
 	zcp.c \
 	zcp_get.c \
 	zcp_global.c \
