@@ -25,6 +25,18 @@ zfs_ids_to_path_LDADD = \
 	libzfs.la
 
 
+sbin_PROGRAMS   += zchangelog
+CPPCHECKTARGETS += zchangelog
+
+zchangelog_SOURCES = \
+	%D%/zchangelog.c
+
+zchangelog_LDADD = \
+	libzfs.la \
+	libzfs_core.la \
+	libnvpair.la
+
+
 zhack_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
 
 sbin_PROGRAMS   += zhack
