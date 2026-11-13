@@ -45,9 +45,107 @@ function cleanup_quota
 	[[ -f $OFILE ]] && log_must rm -f $OFILE
 	[[ -f $QFILE2 ]] && log_must rm -f $QFILE2
 	[[ -f $OFILE2 ]] && log_must rm -f $OFILE2
+	rm -f "$TEST_BASE_DIR/quota" "$TEST_BASE_DIR/setquota"
 	sync_all_pools
 
 	return 0
+}
+
+#
+# Configure QUOTA_MODE ("quota_tools" or "quotactl_fd") for Linux
+# quotactl_fd(2) tests.
+#
+# Upstream quota-tools added native ZFS quotactl_fd(2) support in
+# commit 8e534bdc8281 ("Enable support for ZFS quotas via quotactl_fd").
+# On distributions shipping older quota-tools (>= 4.10, which added
+# tmpfs quotactl_fd support), copy the binaries and patch "tmpfs" to
+# "zfs\0\0" as a fallback.  On quota-tools <= 4.09 (which only use
+# legacy quotactl(2)), verify the expected error text and fall back to
+# the quotactl_fd test helper on kernels >= 5.14.
+#
+function setup_quota_tools
+{
+	if ! is_linux; then
+		log_unsupported "quotactl_fd is a Linux-specific interface"
+	fi
+
+	typeset sys_quota
+	typeset sys_setquota
+	sys_quota=$(command -v quota)
+	sys_setquota=$(command -v setquota)
+
+	if [[ -n "$sys_quota" && -n "$sys_setquota" ]]; then
+		if "$sys_quota" --filesystem="$TESTDIR" -u $QUSER1 \
+		    >/dev/null 2>&1; then
+			export QUOTA_MODE="quota_tools"
+			export QUOTA_CMD="$sys_quota"
+			export SETQUOTA_CMD="$sys_setquota"
+			return 0
+		fi
+
+		export QUOTA_CMD="$TEST_BASE_DIR/quota"
+		export SETQUOTA_CMD="$TEST_BASE_DIR/setquota"
+		log_must cp "$sys_quota" "$QUOTA_CMD"
+		log_must cp "$sys_setquota" "$SETQUOTA_CMD"
+		log_must env LC_ALL=C sed -i 's/tmpfs/zfs\x0\x0/g' \
+		    "$QUOTA_CMD" "$SETQUOTA_CMD"
+		log_must chmod +x "$QUOTA_CMD" "$SETQUOTA_CMD"
+
+		typeset err
+		err=$("$QUOTA_CMD" --filesystem="$TESTDIR" -u $QUSER1 2>&1)
+		if [[ $? -eq 0 ]]; then
+			export QUOTA_MODE="quota_tools"
+			return 0
+		fi
+
+		rm -f "$QUOTA_CMD" "$SETQUOTA_CMD"
+		unset QUOTA_CMD SETQUOTA_CMD
+
+		if ! echo "$err" | grep -qiE \
+		    "not found or has no quota enabled|Function not implemented"; then
+			log_fail "Unexpected quota(1) failure: $err"
+		fi
+		log_note "quota-tools <= 4.09 failed as expected: $err"
+	fi
+
+	if ! command -v quotactl_fd >/dev/null 2>&1; then
+		log_unsupported "quota-tools >= 4.10 or quotactl_fd required"
+	fi
+
+	typeset qerr
+	qerr=$(quotactl_fd get "$TESTDIR" usr 999999 2>&1)
+	if [[ $? -ne 0 ]]; then
+		if echo "$qerr" | grep -qi "Function not implemented"; then
+			log_unsupported "kernel quotactl_fd(2) not supported"
+		fi
+		log_fail "quotactl_fd probe failed: $qerr"
+	fi
+
+	log_note "Kernel 5.14+ with quota-tools < 4.10: falling back to quotactl_fd"
+	export QUOTA_MODE="quotactl_fd"
+}
+
+function quota_id_to_num
+{
+	typeset qtype=$1
+	typeset id=$2
+
+	if [[ "$id" == +([0-9]) ]]; then
+		echo "$id"
+		return 0
+	fi
+
+	case "$qtype" in
+	usr)
+		id -u "$id"
+		;;
+	grp)
+		getent group "$id" | awk -F: '{print $3}'
+		;;
+	*)
+		echo "$id"
+		;;
+	esac
 }
 
 #

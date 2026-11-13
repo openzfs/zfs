@@ -28,9 +28,9 @@ function alpine() {
     linux-headers linux-pam-dev linux-tools linux-stable linux-stable-dev \
     lsscsi m4 make \
     nfs-utils openssl-dev parted pax procps py3-cffi py3-distlib py3-packaging \
-    py3-setuptools python3 python3-dev qemu-guest-agent rng-tools rsync samba \
-    samba-server sed strace sysstat tzdata util-linux util-linux-dev wget \
-    words xfsprogs xxhash zlib-dev pamtester@testing
+    py3-setuptools python3 python3-dev qemu-guest-agent quota-tools rng-tools \
+    rsync samba samba-server sed strace sysstat tzdata util-linux \
+    util-linux-dev wget words xfsprogs xxhash zlib-dev pamtester@testing
   echo "##[endgroup]"
 
   echo "##[group]Switch to eudev"
@@ -65,7 +65,7 @@ function archlinux() {
   sudo pacman -Sy --noconfirm base-devel bc cpio cryptsetup dhclient dkms \
     fakeroot fio gdb inetutils jq less linux linux-headers lsscsi nfs-utils \
     parted pax perf python-packaging python-setuptools qemu-guest-agent ksh \
-    samba strace sysstat rng-tools rsync wget xxhash
+    quota-tools samba strace sysstat rng-tools rsync wget xxhash
   echo "##[endgroup]"
 }
 
@@ -91,8 +91,8 @@ function debian() {
     libtool-bin libudev-dev linux-headers-$(uname -r) \
     lsscsi nfs-kernel-server pamtester parted python3 python3-all-dev \
     python3-cffi python3-dev python3-distlib python3-packaging \
-    python3-setuptools python3-sphinx qemu-guest-agent rng-tools rpm2cpio \
-    rsync samba strace sysstat watchdog wget xfslibs-dev xxhash
+    python3-setuptools python3-sphinx qemu-guest-agent quota rng-tools \
+    rpm2cpio rsync samba strace sysstat watchdog wget xfslibs-dev xxhash
   echo "##[endgroup]"
 }
 
@@ -135,7 +135,7 @@ function rhel() {
     ncompress libselinux-devel libtirpc-devel libtool libudev-devel \
     libuuid-devel lsscsi mdadm nfs-utils openssl-devel pam-devel pamtester \
     parted perf python3 python3-cffi python3-devel python3-packaging \
-    kernel-devel python3-setuptools qemu-guest-agent rng-tools rpcgen \
+    kernel-devel python3-setuptools qemu-guest-agent quota rng-tools rpcgen \
     rpm-build rsync samba strace sysstat systemd watchdog wget xfsprogs-devel \
     xxhash zlib-devel
 
