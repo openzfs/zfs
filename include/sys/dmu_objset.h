@@ -162,6 +162,18 @@ struct objset {
 	/* os_phys_buf should be written raw next txg */
 	boolean_t os_next_write_raw[TXG_SIZE];
 
+	/*
+	 * os_phys_writing is set while an encrypted objset is being written,
+	 * during which os_phys and os_phys_buf can change. os_authenticated is
+	 * set once the MACs in os_phys_buf have been checked. Both are
+	 * protected by os_phys_lock, and os_phys_cv is signalled when a write
+	 * is done.
+	 */
+	kmutex_t os_phys_lock;
+	kcondvar_t os_phys_cv;
+	boolean_t os_phys_writing;
+	boolean_t os_authenticated;
+
 	/* Protected by os_obj_lock */
 	kmutex_t os_obj_lock;
 	uint64_t os_obj_next_chunk;
@@ -215,6 +227,7 @@ void dmu_objset_rele(objset_t *os, const void *tag);
 void dmu_objset_rele_flags(objset_t *os, boolean_t decrypt, const void *tag);
 void dmu_objset_disown(objset_t *os, boolean_t decrypt, const void *tag);
 int dmu_objset_from_ds(struct dsl_dataset *ds, objset_t **osp);
+int dmu_objset_authenticate(objset_t *os);
 
 void dmu_objset_stats(objset_t *os, nvlist_t *nv);
 void dmu_objset_fast_stat(objset_t *os, dmu_objset_stats_t *stat);
@@ -230,6 +243,7 @@ boolean_t dmu_objset_block_is_shared(objset_t *os, const blkptr_t *bp);
 
 /* called from dsl */
 void dmu_objset_sync(objset_t *os, zio_t *zio, dmu_tx_t *tx);
+void dmu_objset_phys_write_begin(objset_t *os);
 boolean_t dmu_objset_is_dirty(objset_t *os, uint64_t txg);
 objset_t *dmu_objset_create_impl_dnstats(spa_t *spa, struct dsl_dataset *ds,
     blkptr_t *bp, dmu_objset_type_t type, int levels, int blksz, int ibs,
