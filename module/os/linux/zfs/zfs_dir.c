@@ -571,6 +571,76 @@ zfs_unlinked_drain_stop_wait(zfsvfs_t *zfsvfs)
 }
 
 /*
+ * Remove a directory entry of an unlinked xattr directory whose target
+ * object has an unreadable SA, and free the object, without instantiating
+ * a znode.  This is only attempted if the bonus buffer itself can be read
+ * but the SA header is invalid, so a transient I/O error never gets here.
+ *
+ * Space accounting for the object is not updated: user/group/project
+ * usage can not be determined from a damaged SA (see
+ * dmu_objset_userquota_get_ids()), so the usage counters stay slightly
+ * high.  Returns 0 if the entry was removed.
+ */
+static int
+zfs_purge_bad_xattr(zfsvfs_t *zfsvfs, znode_t *dzp, const char *name,
+    uint64_t obj)
+{
+	objset_t *os = zfsvfs->z_os;
+	znode_hold_t *zh;
+	dmu_buf_t *db;
+	sa_handle_t *hdl = NULL;
+	dmu_object_info_t doi;
+	dmu_tx_t *tx;
+	int error;
+
+	zh = zfs_znode_hold_enter(zfsvfs, obj);
+
+	error = sa_buf_hold(os, obj, NULL, &db);
+	if (error != 0)
+		goto out;
+
+	dmu_object_info_from_db(db, &doi);
+	if (doi.doi_type != DMU_OT_PLAIN_FILE_CONTENTS ||
+	    (doi.doi_bonus_type != DMU_OT_SA &&
+	    doi.doi_bonus_type != DMU_OT_ZNODE)) {
+		sa_buf_rele(db, NULL);
+		error = SET_ERROR(EINVAL);
+		goto out;
+	}
+
+	/* The SA must really be unusable, using a private handle. */
+	error = sa_handle_get_from_db(os, db, NULL, SA_HDL_PRIVATE, &hdl);
+	if (error == 0) {
+		sa_handle_destroy(hdl);	/* also drops the bonus hold */
+		error = SET_ERROR(EEXIST);
+		goto out;
+	}
+	sa_handle_destroy(hdl);
+
+	tx = dmu_tx_create(os);
+	dmu_tx_hold_zap(tx, dzp->z_id, FALSE, name);
+	dmu_tx_hold_free(tx, obj, 0, DMU_OBJECT_END);
+	dmu_tx_mark_netfree(tx);
+	error = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (error != 0) {
+		dmu_tx_abort(tx);
+		goto out;
+	}
+	error = zap_remove(os, dzp->z_id, name, tx);
+	if (error == 0)
+		error = dmu_object_free(os, obj, tx);
+	if (error == 0) {
+		zfs_dbgmsg("removed xattr dirent '%s' (object %llu) with "
+		    "damaged SA from unlinked xattr dir %llu", name,
+		    (u_longlong_t)obj, (u_longlong_t)dzp->z_id);
+	}
+	dmu_tx_commit(tx);
+out:
+	zfs_znode_hold_exit(zfsvfs, zh);
+	return (error);
+}
+
+/*
  * Delete the entire contents of a directory.  Return a count
  * of the number of entries that could not be deleted. If we encounter
  * an error, return a count of at least one so that the directory stays
@@ -599,6 +669,16 @@ zfs_purgedir(znode_t *dzp)
 		error = zfs_zget(zfsvfs,
 		    ZFS_DIRENT_OBJ(zap->za_first_integer), &xzp);
 		if (error) {
+			/*
+			 * An entry whose SA is damaged can never be loaded.
+			 * Everything in this directory is being destroyed
+			 * anyway, so drop the entry without a znode instead
+			 * of pinning the directory in the unlinked set.
+			 */
+			if (error == EIO && zfs_purge_bad_xattr(zfsvfs, dzp,
+			    zap->za_name,
+			    ZFS_DIRENT_OBJ(zap->za_first_integer)) == 0)
+				continue;
 			skipped += 1;
 			continue;
 		}
@@ -700,8 +780,13 @@ zfs_rmnode(znode_t *zp)
 	error = sa_lookup(zp->z_sa_hdl, SA_ZPL_XATTR(zfsvfs),
 	    &xattr_obj, sizeof (xattr_obj));
 	if (error == 0 && xattr_obj) {
+		/*
+		 * If the xattr directory can not be loaded (e.g. damaged
+		 * SA) it is leaked rather than unlinked together with zp.
+		 */
 		error = zfs_zget(zfsvfs, xattr_obj, &xzp);
-		ASSERT0(error);
+		if (error != 0)
+			xzp = NULL;
 	}
 
 	acl_obj = zfs_external_acl(zp);

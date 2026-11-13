@@ -1088,10 +1088,18 @@ top:
 	error = sa_lookup(zp->z_sa_hdl, SA_ZPL_XATTR(zfsvfs),
 	    &xattr_obj, sizeof (xattr_obj));
 	if (error == 0 && xattr_obj) {
+		/*
+		 * A damaged xattr directory can not be loaded; the file
+		 * is still removed and the directory is leaked.
+		 */
 		error = zfs_zget(zfsvfs, xattr_obj, &xzp);
-		ASSERT0(error);
-		dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_TRUE);
-		dmu_tx_hold_sa(tx, xzp->z_sa_hdl, ZFS_SEQ_MAY_GROW(xzp));
+		if (error == 0) {
+			dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_TRUE);
+			dmu_tx_hold_sa(tx, xzp->z_sa_hdl,
+			    ZFS_SEQ_MAY_GROW(xzp));
+		} else {
+			xzp = NULL;
+		}
 	}
 
 	mutex_enter(&zp->z_lock);
@@ -1153,8 +1161,8 @@ top:
 		    atomic_read(&ZTOI(zp)->i_count) == 1 &&
 		    !zn_has_cached_data(zp, 0, LLONG_MAX) &&
 		    xattr_obj == xattr_obj_unlinked &&
+		    (xattr_obj_unlinked == 0 || xzp != NULL) &&
 		    zfs_external_acl(zp) == acl_obj;
-		VERIFY_IMPLY(xattr_obj_unlinked, xzp);
 	}
 
 	if (delete_now) {
