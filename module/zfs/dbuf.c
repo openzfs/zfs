@@ -5263,8 +5263,7 @@ dbuf_write_children_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 			rw_exit(&db->db_rwlock);
 			rw_enter(&db->db_rwlock, RW_WRITER);
 			for (i = 0, bp = db->db.db_data; i < 1ULL << epbs;
-				i++, bp++)
-			{
+			    i++, bp++) {
 				if (!BP_IS_HOLE(bp))
 					break;
 			}
