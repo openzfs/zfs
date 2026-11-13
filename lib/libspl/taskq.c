@@ -116,6 +116,7 @@ taskqid_t
 taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t tqflags)
 {
 	taskq_ent_t *t;
+	taskqid_t id;
 
 	mutex_enter(&tq->tq_lock);
 	ASSERT(tq->tq_flags & TASKQ_ACTIVE);
@@ -135,9 +136,13 @@ taskq_dispatch(taskq_t *tq, task_func_t func, void *arg, uint_t tqflags)
 	t->tqent_func = func;
 	t->tqent_arg = arg;
 	t->tqent_flags = 0;
+	t->tqent_id = id = tq->tq_next_id++;
+	/* Skip it on wrap: callers take TASKQID_INVALID as a failure. */
+	if (tq->tq_next_id == TASKQID_INVALID)
+		tq->tq_next_id++;
 	cv_signal(&tq->tq_dispatch_cv);
 	mutex_exit(&tq->tq_lock);
-	return (1);
+	return (id);
 }
 
 taskqid_t
@@ -162,6 +167,7 @@ taskq_init_ent(taskq_ent_t *t)
 	t->tqent_func = NULL;
 	t->tqent_arg = NULL;
 	t->tqent_flags = 0;
+	t->tqent_id = TASKQID_INVALID;
 }
 
 void
@@ -191,6 +197,8 @@ taskq_dispatch_ent(taskq_t *tq, task_func_t func, void *arg, uint_t flags,
 	t->tqent_prev->tqent_next = t;
 	t->tqent_func = func;
 	t->tqent_arg = arg;
+	/* No id is returned, so taskq_cancel_id() can never name it. */
+	t->tqent_id = TASKQID_INVALID;
 	cv_signal(&tq->tq_dispatch_cv);
 	mutex_exit(&tq->tq_lock);
 }
@@ -248,6 +256,17 @@ taskq_thread(void *arg)
 		t->tqent_next = NULL;
 		t->tqent_prev = NULL;
 		prealloc = t->tqent_flags & TQENT_FLAG_PREALLOC;
+		if (!prealloc) {
+			/*
+			 * Keep it on tq_running while it runs, where
+			 * taskq_cancel_id() can find it.  A prealloc'd entry
+			 * may be freed by its own function, and has no id.
+			 */
+			t->tqent_next = &tq->tq_running;
+			t->tqent_prev = tq->tq_running.tqent_prev;
+			t->tqent_next->tqent_prev = t;
+			t->tqent_prev->tqent_next = t;
+		}
 		mutex_exit(&tq->tq_lock);
 
 		rw_enter(&tq->tq_threadlock, RW_READER);
@@ -255,8 +274,13 @@ taskq_thread(void *arg)
 		rw_exit(&tq->tq_threadlock);
 
 		mutex_enter(&tq->tq_lock);
-		if (!prealloc)
+		if (!prealloc) {
+			t->tqent_prev->tqent_next = t->tqent_next;
+			t->tqent_next->tqent_prev = t->tqent_prev;
+			if (t->tqent_flags & TQENT_FLAG_WAITED)
+				cv_broadcast(&tq->tq_wait_cv);
 			task_free(tq, t);
+		}
 	}
 	tq->tq_nthreads--;
 	cv_broadcast(&tq->tq_wait_cv);
@@ -298,6 +322,9 @@ taskq_create(const char *name, int nthreads, pri_t pri,
 	tq->tq_maxalloc = maxalloc;
 	tq->tq_task.tqent_next = &tq->tq_task;
 	tq->tq_task.tqent_prev = &tq->tq_task;
+	tq->tq_running.tqent_next = &tq->tq_running;
+	tq->tq_running.tqent_prev = &tq->tq_running;
+	tq->tq_next_id = TASKQID_INVALID + 1;
 	tq->tq_threadlist = kmem_alloc(nthreads * sizeof (kthread_t *),
 	    KM_SLEEP);
 
@@ -399,11 +426,54 @@ taskq_of_curthread(void)
 	return (pthread_getspecific(taskq_tsd));
 }
 
+static taskq_ent_t *
+taskq_find(taskq_ent_t *head, taskqid_t id)
+{
+	for (taskq_ent_t *t = head->tqent_next; t != head; t = t->tqent_next) {
+		if (t->tqent_id == id)
+			return (t);
+	}
+	return (NULL);
+}
+
+/*
+ * Cancel a dispatched task, as the kernel implementations do.
+ *
+ * Return values:
+ *   0      - Removed before it ran; the caller releases what it holds.
+ *   EBUSY  - Running, and wait is B_FALSE; it finishes on its own.
+ *   ENOENT - Neither pending nor running, once any wait for it is over.
+ */
 int
 taskq_cancel_id(taskq_t *tq, taskqid_t id, boolean_t wait)
 {
-	(void) tq, (void) id, (void) wait;
-	return (ENOENT);
+	taskq_ent_t *t;
+	int rc = ENOENT;
+
+	/* Prealloc'd entries carry TASKQID_INVALID; never match them. */
+	if (id == TASKQID_INVALID)
+		return (ENOENT);
+
+	mutex_enter(&tq->tq_lock);
+	if ((t = taskq_find(&tq->tq_task, id)) != NULL) {
+		ASSERT(!(t->tqent_flags & TQENT_FLAG_PREALLOC));
+		t->tqent_prev->tqent_next = t->tqent_next;
+		t->tqent_next->tqent_prev = t->tqent_prev;
+		task_free(tq, t);
+		rc = 0;
+	} else {
+		while ((t = taskq_find(&tq->tq_running, id)) != NULL) {
+			if (!wait) {
+				rc = EBUSY;
+				break;
+			}
+			t->tqent_flags |= TQENT_FLAG_WAITED;
+			cv_wait(&tq->tq_wait_cv, &tq->tq_lock);
+		}
+	}
+	mutex_exit(&tq->tq_lock);
+
+	return (rc);
 }
 
 void

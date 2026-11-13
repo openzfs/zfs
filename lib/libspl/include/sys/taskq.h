@@ -42,6 +42,7 @@ typedef struct taskq_ent {
 	task_func_t		*tqent_func;
 	void			*tqent_arg;
 	uintptr_t		tqent_flags;
+	taskqid_t		tqent_id;
 } taskq_ent_t;
 
 typedef struct taskq {
@@ -61,9 +62,12 @@ typedef struct taskq {
 	int		tq_maxalloc_wait;
 	taskq_ent_t	*tq_freelist;
 	taskq_ent_t	tq_task;
+	taskq_ent_t	tq_running;	/* tasks being run, for cancel */
+	taskqid_t	tq_next_id;
 } taskq_t;
 
 #define	TQENT_FLAG_PREALLOC	0x1	/* taskq_dispatch_ent used */
+#define	TQENT_FLAG_WAITED	0x2	/* taskq_cancel_id() waits for it */
 
 #define	TASKQ_PREPOPULATE	0x0001
 #define	TASKQ_CPR_SAFE		0x0002	/* Use CPR safe protocol */
