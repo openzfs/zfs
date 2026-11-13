@@ -155,7 +155,7 @@ tests = ['tst.destroy_fs', 'tst.destroy_snap',
     'tst.rollback_one', 'tst.set_props', 'tst.snapshot_destroy', 'tst.snapshot_neg',
     'tst.snapshot_recursive', 'tst.snapshot_rename', 'tst.snapshot_simple',
     'tst.bookmark.create', 'tst.bookmark.copy', 'tst.clone',
-    'tst.readonly_pool', 'tst.terminate_by_signal'
+    'tst.clone_neg', 'tst.readonly_pool', 'tst.terminate_by_signal'
     ]
 tags = ['functional', 'channel_program', 'synctask_core']
 
@@ -532,6 +532,7 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'import_rewind_config_changed',
     'import_rewind_device_replaced',
     'import_rewind_dryrun_no_writes',
+    'import_rewind_zil_claim',
     'import_rewind_metadata_damaged', 'import_stale_top_label',
     'zpool_import_status', 'zpool_import_parallel_pos',
     'zpool_import_parallel_neg', 'zpool_import_parallel_admin']
@@ -759,8 +760,8 @@ tests = ['dedup_bclone', 'dedup_bclone_pruned', 'dedup_fdt_create',
     'dedup_legacy_fdt_upgrade', 'dedup_legacy_fdt_mixed',
     'dedup_legacy_repair', 'dedup_quota',
     'dedup_log_zdb_leak',
-    'dedup_prune', 'dedup_prune_leak', 'dedup_prune_percentage',
-    'dedup_prune_scrub',
+    'dedup_override_copies', 'dedup_prune', 'dedup_prune_leak',
+    'dedup_prune_percentage', 'dedup_prune_scrub',
     'dedup_zap_shrink']
 pre =
 post =
@@ -1067,6 +1068,7 @@ tests = ['recv_dedup', 'recv_dedup_encrypted_zvol',
     'send-c_mixed_compression', 'send-c_stream_size_estimate',
     'send-c_embedded_blocks', 'send-c_resume', 'send-cpL_varied_recsize',
     'send-c_recv_dedup', 'send-c_compressed_arc_disabled', 'send-L_toggle',
+    'send-L_toggle_resume',
     'send_encrypted_incremental',
     'send_encrypted_freeobjects', 'send_encrypted_hierarchy',
     'send_encrypted_holds',
@@ -1074,7 +1076,7 @@ tests = ['recv_dedup', 'recv_dedup_encrypted_zvol',
     'send_freeobjects', 'send_realloc_files', 'send_realloc_encrypted_files',
     'send_realloc_dnode_nblkptr', 'send_realloc_dnode_interior',
     'send_realloc_dnode_mixed',
-    'send_realloc_dnode_resume',
+    'send_realloc_dnode_resume', 'send_resume_split_large_block',
     'send_spill_block', 'send_split_large_block', 'send_holds',
     'send_embedded_large_block', 'send_embedded_spill_block',
     'send_hole_birth', 'send_mixed_raw',
@@ -1084,7 +1086,7 @@ tests = ['recv_dedup', 'recv_dedup_encrypted_zvol',
     'send_large_blocks_reverse',
     'send_large_microzap_incremental', 'send_large_microzap_transitive',
     'send_doall', 'send_raw_spill_block', 'send_raw_ashift',
-    'send_raw_large_blocks', 'send_leak_keymaps']
+    'send_raw_large_blocks', 'send_raw_inherited_key', 'send_leak_keymaps']
 tags = ['functional', 'rsend']
 
 [tests/functional/scrub_mirror]

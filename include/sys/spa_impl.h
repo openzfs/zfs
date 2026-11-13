@@ -267,6 +267,7 @@ struct spa {
 	metaslab_class_t *spa_special_embedded_log_class; /* log on special */
 	metaslab_class_t *spa_dedup_class;	/* dedup allocation class */
 	uint64_t	spa_first_txg;		/* first txg after spa_open() */
+	uint64_t	spa_claim_min_txg;	/* ZIL: first uncommitted txg */
 	uint64_t	spa_final_txg;		/* txg of export/destroy */
 	uint64_t	spa_freeze_txg;		/* freeze pool at this txg */
 	uint64_t	spa_load_max_txg;	/* best initial ub_txg */

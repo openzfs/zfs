@@ -173,7 +173,8 @@ jobs:
           # A PR that changes nothing but CI, tests, documentation or the
           # build and packaging gets the label of each of these it changes.
           # Labels are only added, so labels set by hand stay.  A manual run
-          # labels every open PR.
+          # labels every open PR.  A PR whose files cannot be listed, or that
+          # cannot be labelled, waits for its next push or a manual run.
           labels=$(gh label list --limit 1000 --json name --jq '.[].name')
           for l in "Component: CI" "Component: Test Suite" \
               "Type: Documentation" "Type: Building"; do
@@ -182,15 +183,29 @@ jobs:
             fi
           done
           if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
-            prs=$(gh pr list --state open --limit 1000 --json number,labels)
+            prs=$(gh pr list --state open --limit 1000 \
+                --json number,baseRefName,labels)
           else
-            prs=$(jq '[.pull_request]' "$GITHUB_EVENT_PATH")
+            prs=$(jq '[.pull_request | .baseRefName = .base.ref]' \
+                "$GITHUB_EVENT_PATH")
           fi
-          jq -r '.[] | [.number, ([.labels[].name] | join(","))] | @tsv' \
-              <<< "$prs" |
-          while IFS=$'\t' read -r pr have; do
-            kinds=$(gh api --paginate "repos/$GH_REPO/pulls/$pr/files" \
-                --jq '.[].filename' < /dev/null |
+          # git lists the files a PR changes since the merge base of its
+          # head and its base branch, as GitHub does, but without the diff
+          # service that GitHub's list needs, which fails under load.  One
+          # fetch reads the commits and trees of every PR, and no PR is
+          # checked out or run.
+          export GIT_DIR=$RUNNER_TEMP/prs.git
+          git init -q --bare
+          git remote add origin "$GITHUB_SERVER_URL/$GH_REPO"
+          jq -r '([.[].baseRefName] | unique[] |
+              "+refs/heads/\(.):refs/base/\(.)"),
+              (.[].number | "+refs/pull/\(.)/head:refs/pr/\(.)")' <<< "$prs" |
+              git fetch -q --no-tags --filter=blob:none --stdin origin
+          jq -r '.[] | [.number, .baseRefName,
+              ([.labels[].name] | join(","))] | @tsv' <<< "$prs" |
+          while IFS=$'\t' read -r pr base have; do
+            if ! kinds=$(git diff --name-only \
+                "refs/base/$base...refs/pr/$pr" < /dev/null |
                 awk '/^\.github\// { print "Component: CI"; next }
                     /^tests\// { print "Component: Test Suite"; next }
                     /^man\// || /\.md$/ { print "Type: Documentation"; next }
@@ -199,14 +214,18 @@ jobs:
                     /^(zfs\.release\.in|module\/(Kbuild\.in|Makefile\.(bsd|in)))$/ ||
                     /^scripts\/(dkms\.mkconf|dkms\.postbuild|kmodtool|make_gitrev\.sh)$/ {
                         print "Type: Building"; next }
-                    { print "code" }' | sort -u)
+                    { print "code" }' | sort -u); then
+              echo "::warning::Could not list the files of PR #$pr"
+              continue
+            fi
             if [ -z "$kinds" ] || grep -qx code <<< "$kinds"; then
               continue
             fi
             while read -r l; do
               if ! tr ',' '\n' <<< "$have" | grep -qxF "$l"; then
                 gh api --silent -X POST "repos/$GH_REPO/issues/$pr/labels" \
-                    -f "labels[]=$l" < /dev/null
+                    -f "labels[]=$l" < /dev/null ||
+                    echo "::warning::Could not add \"$l\" to PR #$pr"
                 # GitHub allows 80 label changes a minute; leave room for
                 # another job doing the same.
                 if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
@@ -463,13 +482,49 @@ jobs:
           # a PR it reports as UNKNOWN is left as it is, and when a PR is
           # opened, pushed to or reopened it is asked again for up to a
           # minute.  The periodic and manual runs check every open PR, as a
-          # change to the base can make them conflict.
+          # change to the base can make them conflict.  A PR that cannot be
+          # labelled waits for the next run.
           label="Status: Merge Conflict"
           labels=$(gh label list --limit 1000 --json name --jq '.[].name')
           if ! grep -qixF "$label" <<< "$labels"; then
             gh label create "$label" --color d93f0b \
                 --description "Conflicts with its base branch"
           fi
+          # Prints the open PRs that the GraphQL query $1 reads, $2 a
+          # request.  A request that gets a server error or a body that is
+          # not JSON, as GitHub sends under load, is made again for the
+          # same PRs, half as many down to 10; any other failure, or one
+          # at 10, fails.
+          open_prs() {
+            local first=$2 cursor page status
+            while :; do
+              # -i prints the status line and headers before the body.
+              page=$(gh api -i graphql -F first="$first" \
+                  ${cursor:+-f "endCursor=$cursor"} -f owner="${GH_REPO%/*}" \
+                  -f repo="${GH_REPO#*/}" -f query="$1" < /dev/null) || true
+              status=$(sed -n 's/^HTTP[^ ]* //p; q' <<< "$page")
+              page=$(sed '1,/^\r$/d' <<< "$page")
+              if [ "${status%% *}" = 200 ] &&
+                  jq -e '.data and .errors == null' > /dev/null 2>&1 \
+                  <<< "$page"; then
+                jq -c '.data.repository.pullRequests.nodes[]' <<< "$page"
+                cursor=$(jq -r '.data.repository.pullRequests.pageInfo |
+                    select(.hasNextPage) | .endCursor' <<< "$page")
+                if [ -z "$cursor" ]; then
+                  return 0
+                fi
+              elif [ "$first" -gt 10 ] && { [[ $status = 5* ]] ||
+                  ! jq -e . > /dev/null 2>&1 <<< "$page"; }; then
+                first=$((first / 2 > 10 ? first / 2 : 10))
+                echo "::warning::Listing PRs failed (${status:-no answer})," \
+                    "retrying $first at a time" >&2
+              else
+                echo "::error::Listing PRs failed (${status:-no answer})," \
+                    "$first at a time" >&2
+                return 1
+              fi
+            done
+          }
           if [ -n "$PR" ]; then
             for _ in 1 2 3 4 5 6; do
               prs=$(gh pr view "$PR" --json number,mergeable,labels --jq '[.]')
@@ -479,8 +534,23 @@ jobs:
               sleep 10
             done
           else
-            prs=$(gh pr list --state open --limit 1000 \
-                --json number,mergeable,labels)
+            # The names that start with $ are GraphQL variables.
+            # shellcheck disable=SC2016
+            prs=$(open_prs '
+                query($owner: String!, $repo: String!, $first: Int!,
+                    $endCursor: String) {
+                  repository(owner: $owner, name: $repo) {
+                    pullRequests(states: OPEN, first: $first,
+                        after: $endCursor) {
+                      pageInfo { hasNextPage endCursor }
+                      nodes {
+                        number
+                        mergeable
+                        labels(first: 100) { nodes { name } }
+                      }
+                    }
+                  }
+                }' 100 | jq -s 'map(.labels = .labels.nodes)')
           fi
           jq -r --arg l "$label" '.[] |
               [.number, .mergeable, any(.labels[]; .name == $l)] | @tsv' \
@@ -488,12 +558,15 @@ jobs:
           while IFS=$'\t' read -r pr state has; do
             if [ "$state" = CONFLICTING ] && [ "$has" = false ]; then
               gh api --silent -X POST "repos/$GH_REPO/issues/$pr/labels" \
-                  -f "labels[]=$label" < /dev/null
+                  -f "labels[]=$label" < /dev/null ||
+                  echo "::warning::Could not add \"$label\" to PR #$pr"
             elif [ "$state" = MERGEABLE ] && [ "$has" = true ]; then
               # Another run may have removed it already.
-              gh api --silent -X DELETE \
+              if ! error=$(gh api --silent -X DELETE \
                   "repos/$GH_REPO/issues/$pr/labels/Status:%20Merge%20Conflict" \
-                  < /dev/null || true
+                  2>&1 < /dev/null) && ! grep -q 'HTTP 404' <<< "$error"; then
+                echo "::warning::Could not remove \"$label\" from PR #$pr"
+              fi
             else
               continue
             fi
@@ -526,22 +599,58 @@ jobs:
           # The label is removed once there is activity again, but only from
           # a PR it was added to by a bot, so one added by hand stays; nor is
           # it added again after someone removed it by hand, until there is
-          # new activity.  The last 50 of these events and label changes are
-          # read for every open PR, 50 PRs a request; the names that start
-          # with $ are GraphQL variables.
+          # new activity.  A PR that cannot be labelled waits for the next
+          # run.  The last 50 of these events and label changes are read for
+          # every open PR, 50 PRs a request, or fewer when GitHub is under
+          # load; the names that start with $ are GraphQL variables.
           label="Status: Inactive"
           labels=$(gh label list --limit 1000 --json name --jq '.[].name')
           if ! grep -qixF "$label" <<< "$labels"; then
             gh label create "$label" --color cfd3d7 \
                 --description "Not being actively updated"
           fi
+          # Prints the open PRs that the GraphQL query $1 reads, $2 a
+          # request.  A request that gets a server error or a body that is
+          # not JSON, as GitHub sends under load, is made again for the
+          # same PRs, half as many down to 10; any other failure, or one
+          # at 10, fails.
+          open_prs() {
+            local first=$2 cursor page status
+            while :; do
+              # -i prints the status line and headers before the body.
+              page=$(gh api -i graphql -F first="$first" \
+                  ${cursor:+-f "endCursor=$cursor"} -f owner="${GH_REPO%/*}" \
+                  -f repo="${GH_REPO#*/}" -f query="$1" < /dev/null) || true
+              status=$(sed -n 's/^HTTP[^ ]* //p; q' <<< "$page")
+              page=$(sed '1,/^\r$/d' <<< "$page")
+              if [ "${status%% *}" = 200 ] &&
+                  jq -e '.data and .errors == null' > /dev/null 2>&1 \
+                  <<< "$page"; then
+                jq -c '.data.repository.pullRequests.nodes[]' <<< "$page"
+                cursor=$(jq -r '.data.repository.pullRequests.pageInfo |
+                    select(.hasNextPage) | .endCursor' <<< "$page")
+                if [ -z "$cursor" ]; then
+                  return 0
+                fi
+              elif [ "$first" -gt 10 ] && { [[ $status = 5* ]] ||
+                  ! jq -e . > /dev/null 2>&1 <<< "$page"; }; then
+                first=$((first / 2 > 10 ? first / 2 : 10))
+                echo "::warning::Listing PRs failed (${status:-no answer})," \
+                    "retrying $first at a time" >&2
+              else
+                echo "::error::Listing PRs failed (${status:-no answer})," \
+                    "$first at a time" >&2
+                return 1
+              fi
+            done
+          }
           cutoff=$(date -u -d '-90 days' +%Y-%m-%dT%H:%M:%SZ)
           # shellcheck disable=SC2016
-          gh api graphql --paginate -f owner="${GH_REPO%/*}" \
-              -f repo="${GH_REPO#*/}" -f query='
-              query($owner: String!, $repo: String!, $endCursor: String) {
+          open_prs '
+              query($owner: String!, $repo: String!, $first: Int!,
+                  $endCursor: String) {
                 repository(owner: $owner, name: $repo) {
-                  pullRequests(states: OPEN, first: 50, after: $endCursor) {
+                  pullRequests(states: OPEN, first: $first, after: $endCursor) {
                     pageInfo { hasNextPage endCursor }
                     nodes {
                       number
@@ -580,7 +689,7 @@ jobs:
                     }
                   }
                 }
-              }' --jq '.data.repository.pullRequests.nodes[]' |
+              }' 50 |
           jq -r --arg l "$label" --arg cutoff "$cutoff" '.number as $n |
               [.timelineItems.nodes[] | {type: .__typename,
                   at: (.createdAt // .submittedAt // .commit.committedDate),
@@ -600,12 +709,15 @@ jobs:
           while IFS=$'\t' read -r pr method; do
             if [ "$method" = POST ]; then
               gh api --silent -X POST "repos/$GH_REPO/issues/$pr/labels" \
-                  -f "labels[]=$label" < /dev/null
+                  -f "labels[]=$label" < /dev/null ||
+                  echo "::warning::Could not add \"$label\" to PR #$pr"
             else
               # Another run may have removed it already.
-              gh api --silent -X DELETE \
+              if ! error=$(gh api --silent -X DELETE \
                   "repos/$GH_REPO/issues/$pr/labels/Status:%20Inactive" \
-                  < /dev/null || true
+                  2>&1 < /dev/null) && ! grep -q 'HTTP 404' <<< "$error"; then
+                echo "::warning::Could not remove \"$label\" from PR #$pr"
+              fi
             fi
             # GitHub allows 80 label changes a minute; leave room for the
             # other jobs doing the same.

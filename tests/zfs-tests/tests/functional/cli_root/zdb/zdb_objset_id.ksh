@@ -98,10 +98,15 @@ log_must zfs create $num_ds
 log_must eval "zdb -d $hex_ds | grep -q \"$hex_ds\""
 log_must eval "zdb -d $num_ds | grep -q \"$num_ds\""
 
-# force numeric interpretation, expect fail
-log_mustnot zdb -N $hex_ds
-log_mustnot zdb -N $num_ds
-log_mustnot zdb -Nd $hex_ds
-log_mustnot zdb -Nd $num_ds
+# force numeric interpretation, expect fail: no objset has these IDs, so
+# zdb must exit 1 (log_mustnot would also accept zdb dying by SIGABRT)
+for opt in -N -Nd; do
+	for ds in $hex_ds $num_ds; do
+		zdb $opt $ds
+		typeset -i ret=$?
+		(( ret == 1 )) || log_fail "zdb $opt $ds exited $ret, expected 1"
+		log_note "zdb $opt $ds exited $ret"
+	done
+done
 
 log_pass "zdb -d <pool>/<objset ID> generates the correct names."

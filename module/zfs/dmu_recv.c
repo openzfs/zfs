@@ -124,6 +124,8 @@ struct receive_writer_arg {
 	boolean_t raw;   /* DMU_BACKUP_FEATURE_RAW set */
 	boolean_t spill; /* DRR_FLAG_SPILL_BLOCK set */
 	boolean_t full;  /* this is a full send stream */
+	uint64_t resume_object; /* where a resumed stream starts */
+	uint64_t resume_offset;
 	uint64_t featureflags; /* from DRR_BEGIN */
 	uint64_t last_object;
 	uint64_t last_offset;
@@ -3188,6 +3190,21 @@ receive_handle_existing_object(struct receive_writer_arg *rwa,
 			 * loaded.
 			 */
 			do_free_range = B_TRUE;
+		} else if (drro->drr_object == rwa->resume_object &&
+		    rwa->resume_offset != 0) {
+			/*
+			 * The resumed stream starts inside this object and
+			 * does not resend the blocks before the resume
+			 * offset, so keep them and the block size, whatever
+			 * the object type.  recv_check_large_blocks() refuses
+			 * a resume that drops -L, so the block size can only
+			 * grow.  At offset 0 the object is sent whole, and
+			 * its OBJECT record may not have been applied.
+			 */
+			if (drro->drr_blksz <
+			    doi->doi_data_block_size)
+				return (SET_ERROR(EINVAL));
+			*new_blksz = doi->doi_data_block_size;
 		} else if (rwa->full) {
 			/*
 			 * This is a full send stream, so it always
@@ -5054,7 +5071,8 @@ receive_writer_thread(void *arg)
 }
 
 static int
-resume_check(dmu_recv_cookie_t *drc, nvlist_t *begin_nvl)
+resume_check(dmu_recv_cookie_t *drc, nvlist_t *begin_nvl,
+    uint64_t *resume_objp, uint64_t *resume_offp)
 {
 	uint64_t val;
 	objset_t *mos = dmu_objset_pool(drc->drc_os)->dp_meta_objset;
@@ -5076,6 +5094,8 @@ resume_check(dmu_recv_cookie_t *drc, nvlist_t *begin_nvl)
 	if (resume_off != val)
 		return (SET_ERROR(EINVAL));
 
+	*resume_objp = resume_obj;
+	*resume_offp = resume_off;
 	return (0);
 }
 
@@ -5158,7 +5178,8 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	}
 
 	if (drc->drc_featureflags & DMU_BACKUP_FEATURE_RESUMING) {
-		err = resume_check(drc, drc->drc_begin_nvl);
+		err = resume_check(drc, drc->drc_begin_nvl,
+		    &rwa->resume_object, &rwa->resume_offset);
 		if (err != 0)
 			goto out;
 	}

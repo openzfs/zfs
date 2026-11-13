@@ -134,20 +134,26 @@ function test_panic_fault_neg
 }
 
 # Each registered device/delay/data handler row ends with "match inject".
+# Sum the inject counts of all rows.
 function inject_count
 {
-	zinject | awk '/^ *[0-9]/{print $NF}' | head -n 1
+	zinject | awk '/^ *[0-9]/{n += $NF} END {print n + 0}'
 }
 
 function verify_injection
 {
 	typeset cnt
+	typeset disk
 
 	log_must zfs set primarycache=none $TESTPOOL
 	log_must dd if=/dev/urandom of=$TESTFILE bs=128k count=1
 	log_must zpool sync $TESTPOOL
 
-	log_must eval "zinject -d $DISK1 -e io -T read -f 100 $TESTPOOL"
+	# A mirror reads a block from one child only, picked by load and
+	# offset, so inject on every child for the read to hit one of them.
+	for disk in $DISKS; do
+		log_must eval "zinject -d $disk -e io -T read -f 100 $TESTPOOL"
+	done
 	dd if=$TESTFILE of=/dev/null bs=128k count=1 >/dev/null 2>&1 || true
 	cnt=$(inject_count)
 	[[ -n $cnt && $cnt -gt 0 ]] || \

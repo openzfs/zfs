@@ -109,7 +109,7 @@ systemd_escape(const char *input, const char *prepend, const char *append)
 		    ":_.", *cur))
 			*(out++) = *cur;
 		else {
-			sprintf(out, "\\x%02x", (int)*cur);
+			sprintf(out, "\\x%02hhx", (uint8_t)*cur);
 			out += 4;
 		}
 	}

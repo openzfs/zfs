@@ -4868,6 +4868,11 @@ spa_ld_select_uberblock_done(spa_t *spa, uberblock_t *ub)
 	spa->spa_first_txg = spa->spa_last_ubsync_txg ?
 	    spa->spa_last_ubsync_txg : spa_last_synced_txg(spa) + 1;
 	/*
+	 * ZIL claims stay relative to the loaded txg: log blocks born after
+	 * it were never committed, even if newer uberblocks are on disk.
+	 */
+	spa->spa_claim_min_txg = spa->spa_first_txg;
+	/*
 	 * An explicitly requested txg can be older than uberblocks still on
 	 * disk.  Those belong to the timeline this load discards, so the new
 	 * one has to be numbered above them: otherwise a later import selects
@@ -7394,6 +7399,7 @@ spa_create(const char *pool, nvlist_t *nvroot, nvlist_t *props,
 	ASSERT(SPA_VERSION_IS_SUPPORTED(version));
 
 	spa->spa_first_txg = txg;
+	spa->spa_claim_min_txg = txg;
 	spa->spa_uberblock.ub_txg = txg - 1;
 	spa->spa_uberblock.ub_version = version;
 	spa->spa_ubsync = spa->spa_uberblock;
@@ -11559,8 +11565,11 @@ spa_sync(spa_t *spa, uint64_t txg)
 	spa_update_dspace(spa);
 	spa_log_sm_stats_update(spa);
 
-	if (spa_get_autotrim(spa) == SPA_AUTOTRIM_ON)
-		vdev_autotrim_kick(spa);
+	/*
+	 * Kick even when autotrim is off: a thread still waiting for kicks,
+	 * possibly with a metaslab disabled, only sees the change this way.
+	 */
+	vdev_autotrim_kick(spa);
 
 	/*
 	 * It had better be the case that we didn't dirty anything
