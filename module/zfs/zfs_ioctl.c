@@ -2229,7 +2229,8 @@ zfs_ioc_obj_to_path(zfs_cmd_t *zc)
 	int error;
 
 	/* XXX reading from objset not owned */
-	if ((error = dmu_objset_hold_decrypt(zc->zc_name, FTAG, &os)) != 0)
+	if ((error = dmu_objset_hold_decrypt_unauthenticated(zc->zc_name, FTAG,
+	    &os)) != 0)
 		return (error);
 	if (dmu_objset_type(os) != DMU_OST_ZFS) {
 		dmu_objset_rele_decrypt(os, FTAG);
@@ -2268,7 +2269,8 @@ zfs_ioc_obj_to_stats(zfs_cmd_t *zc)
 	nvlist_t *nv = NULL;
 
 	/* XXX reading from objset not owned */
-	if ((error = dmu_objset_hold_decrypt(zc->zc_name, FTAG, &os)) != 0)
+	if ((error = dmu_objset_hold_decrypt_unauthenticated(zc->zc_name, FTAG,
+	    &os)) != 0)
 		return (error);
 	if (dmu_objset_type(os) != DMU_OST_ZFS) {
 		dmu_objset_rele_decrypt(os, FTAG);

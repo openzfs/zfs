@@ -3947,7 +3947,7 @@ open_objset(const char *path, const void *tag, objset_t **osp)
 	}
 
 	if (key_loaded)
-		err = dmu_objset_hold_decrypt(path, tag, osp);
+		err = dmu_objset_hold_decrypt_unauthenticated(path, tag, osp);
 	else
 		err = dmu_objset_hold(path, tag, osp);
 	if (err != 0) {
