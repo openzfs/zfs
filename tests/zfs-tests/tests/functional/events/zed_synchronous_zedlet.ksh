@@ -110,9 +110,10 @@ log_must zpool trim -w $TESTPOOL2
 # the completion of zedlets for the event.
 log_must file_wait_event $ZED_DEBUG_LOG 'sysevent\.fs\.zfs\.scrub_finish' 10
 
-# At a minimum, scrub_start-slow.sh + scrub_finish-sync-slow.sh will take a
-# total of 6 seconds to run, so wait 7 sec to be sure.
-sleep 7
+for ((i = 0; i < 30; i++)); do
+	grep -q 'trim_start-async\.sh$' "$OUTFILE" && break
+	sleep 1
+done
 
 # If our zedlets were run in the right order, with sync correctly honored, you
 # will see this ordering in $OUTFILE:
