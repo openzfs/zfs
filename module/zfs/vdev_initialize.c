@@ -15,6 +15,11 @@
  */
 
 #include <sys/spa.h>
+#ifdef _KERNEL
+#include <sys/atomic.h>
+#else
+#include <atomic.h>
+#endif
 #include <sys/spa_impl.h>
 #include <sys/txg.h>
 #include <sys/vdev_impl.h>
@@ -36,11 +41,35 @@ static const int zfs_initialize_limit = 1;
 static uint64_t zfs_initialize_chunk_size = 1024 * 1024;
 
 static boolean_t
+vdev_initialize_stop_requested(vdev_t *vd)
+{
+	return (atomic_cas_32(
+	    (volatile uint32_t *)&vd->vdev_initialize_exit_wanted, B_FALSE,
+	    B_FALSE) != B_FALSE);
+}
+
+static void
+vdev_initialize_set_stop_requested(vdev_t *vd, boolean_t stop)
+{
+	(void) atomic_swap_32(
+	    (volatile uint32_t *)&vd->vdev_initialize_exit_wanted, stop);
+}
+
+static boolean_t
 vdev_initialize_should_stop(vdev_t *vd)
 {
-	return (vd->vdev_initialize_exit_wanted || !vdev_writeable(vd) ||
+	return (vdev_initialize_stop_requested(vd) || !vdev_writeable(vd) ||
 	    vd->vdev_detached || vd->vdev_top->vdev_removing ||
 	    vd->vdev_top->vdev_rz_expanding);
+}
+
+/*
+ * Called while the metaslab group lock is held.
+ */
+static boolean_t
+vdev_initialize_disable_cancel(void *arg)
+{
+	return (vdev_initialize_stop_requested(arg));
 }
 
 static void
@@ -560,7 +589,11 @@ vdev_initialize_thread(void *arg)
 		}
 
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
-		metaslab_disable(msp);
+		if (!metaslab_disable_cancellable(msp,
+		    vdev_initialize_disable_cancel, vd)) {
+			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+			break;
+		}
 
 		/*
 		 * Translating the ranges walks up the vdev tree, so hold the
@@ -568,7 +601,7 @@ vdev_initialize_thread(void *arg)
 		 * its parent cleared, while the lock was dropped.
 		 */
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
-		if (vd->vdev_detached) {
+		if (vdev_initialize_should_stop(vd)) {
 			metaslab_enable(msp, B_FALSE, B_FALSE);
 			break;
 		}
@@ -605,7 +638,7 @@ vdev_initialize_thread(void *arg)
 	vd->vdev_initialize_tree = NULL;
 
 	mutex_enter(&vd->vdev_initialize_lock);
-	if (!vd->vdev_initialize_exit_wanted) {
+	if (!vdev_initialize_stop_requested(vd)) {
 		if (vdev_writeable(vd)) {
 			vdev_initialize_change_state(vd,
 			    VDEV_INITIALIZE_COMPLETE);
@@ -648,7 +681,7 @@ vdev_initialize(vdev_t *vd, uint64_t value, boolean_t value_provided)
 	ASSERT(vdev_is_concrete(vd));
 	ASSERT0P(vd->vdev_initialize_thread);
 	ASSERT(!vd->vdev_detached);
-	ASSERT(!vd->vdev_initialize_exit_wanted);
+	ASSERT(!vdev_initialize_stop_requested(vd));
 	ASSERT(!vd->vdev_top->vdev_removing);
 	ASSERT(!vd->vdev_top->vdev_rz_expanding);
 
@@ -683,7 +716,7 @@ vdev_uninitialize(vdev_t *vd)
 	ASSERT(vdev_is_concrete(vd));
 	ASSERT0P(vd->vdev_initialize_thread);
 	ASSERT(!vd->vdev_detached);
-	ASSERT(!vd->vdev_initialize_exit_wanted);
+	ASSERT(!vdev_initialize_stop_requested(vd));
 	ASSERT(!vd->vdev_top->vdev_removing);
 
 	vdev_initialize_change_state(vd, VDEV_INITIALIZE_NONE);
@@ -701,7 +734,7 @@ vdev_initialize_stop_wait_impl(vdev_t *vd)
 		cv_wait(&vd->vdev_initialize_cv, &vd->vdev_initialize_lock);
 
 	ASSERT0P(vd->vdev_initialize_thread);
-	vd->vdev_initialize_exit_wanted = B_FALSE;
+	vdev_initialize_set_stop_requested(vd, B_FALSE);
 }
 
 /*
@@ -751,7 +784,13 @@ vdev_initialize_stop(vdev_t *vd, vdev_initializing_state_t tgt_state,
 	}
 
 	vdev_initialize_change_state(vd, tgt_state);
-	vd->vdev_initialize_exit_wanted = B_TRUE;
+	vdev_initialize_set_stop_requested(vd, B_TRUE);
+
+	/*
+	 * Wake a thread waiting for a metaslab group slot so it can observe
+	 * the atomic stop flag.
+	 */
+	metaslab_wakeup_waiters(vd);
 
 	if (vd_list == NULL) {
 		vdev_initialize_stop_wait_impl(vd);
