@@ -120,7 +120,8 @@
 
 #define	OFFSET(ptr, val)	(((unsigned char *)(ptr))+val)
 
-extern const uint8_t gf_clmul_mod_lt[4*256][16];
+extern uint8_t gf_mul_nibble_lt[256][2][16];
+extern void gf_mul_nibble_lt_init(void);
 
 #define	ELEM_SIZE 16
 
@@ -453,54 +454,36 @@ typedef struct v {
  * clobbered ones)
  */
 #define	_0f		"v15"
-#define	_a_save		"v14"
-#define	_b_save		"v13"
-#define	_lt_mod_a	"v12"
-#define	_lt_clmul_a	"v11"
-#define	_lt_mod_b	"v10"
-#define	_lt_clmul_b	"v15"
+#define	_a_lo		"v14"
+#define	_b_lo		"v13"
+#define	_lt_lo		"v10"
+#define	_lt_hi		"v11"
 
 #define	_MULx2(c, r...)							\
 {									\
 	switch (REG_CNT(r)) {						\
 	case 2:								\
 		__asm(							\
-		/* lts for upper part */				\
 		"movi v15.16b,#0x0f\n"					\
-		"ld1 { v10.4s },%[lt0]\n"				\
-		"ld1 { v11.4s },%[lt1]\n"				\
-		/* upper part */					\
+		"ld1 { v10.4s },%[lt_lo]\n"				\
+		"ld1 { v11.4s },%[lt_hi]\n"				\
+									\
 		"and v14.16b," VR0(r) ".16b,v15.16b\n"			\
 		"and v13.16b," VR1(r) ".16b,v15.16b\n"			\
 		"ushr " VR0(r) ".16b," VR0(r) ".16b,#4\n"		\
 		"ushr " VR1(r) ".16b," VR1(r) ".16b,#4\n"		\
 									\
-		"tbl v12.16b,{v10.16b}," VR0(r) ".16b\n"		\
-		"tbl v10.16b,{v10.16b}," VR1(r) ".16b\n"		\
-		"tbl v15.16b,{v11.16b}," VR0(r) ".16b\n"		\
-		"tbl v11.16b,{v11.16b}," VR1(r) ".16b\n"		\
+		"tbl " VR0(r) ".16b,{v11.16b}," VR0(r) ".16b\n"		\
+		"tbl " VR1(r) ".16b,{v11.16b}," VR1(r) ".16b\n"		\
+		"tbl v14.16b,{v10.16b},v14.16b\n"			\
+		"tbl v13.16b,{v10.16b},v13.16b\n"			\
 									\
-		"eor " VR0(r) ".16b,v15.16b,v12.16b\n"			\
-		"eor " VR1(r) ".16b,v11.16b,v10.16b\n"			\
-		/* lts for lower part */				\
-		"ld1 { v10.4s },%[lt2]\n"				\
-		"ld1 { v15.4s },%[lt3]\n"				\
-		/* lower part */					\
-		"tbl v12.16b,{v10.16b},v14.16b\n"			\
-		"tbl v10.16b,{v10.16b},v13.16b\n"			\
-		"tbl v11.16b,{v15.16b},v14.16b\n"			\
-		"tbl v15.16b,{v15.16b},v13.16b\n"			\
-									\
-		"eor " VR0(r) ".16b," VR0(r) ".16b,v12.16b\n"		\
-		"eor " VR1(r) ".16b," VR1(r) ".16b,v10.16b\n"		\
-		"eor " VR0(r) ".16b," VR0(r) ".16b,v11.16b\n"		\
-		"eor " VR1(r) ".16b," VR1(r) ".16b,v15.16b\n"		\
+		"eor " VR0(r) ".16b," VR0(r) ".16b,v14.16b\n"		\
+		"eor " VR1(r) ".16b," VR1(r) ".16b,v13.16b\n"		\
 		:	UVR0(r), UVR1(r)				\
-		:	[lt0] "Q" ((gf_clmul_mod_lt[4*(c)+0][0])),	\
-		[lt1] "Q" ((gf_clmul_mod_lt[4*(c)+1][0])),		\
-		[lt2] "Q" ((gf_clmul_mod_lt[4*(c)+2][0])),		\
-		[lt3] "Q" ((gf_clmul_mod_lt[4*(c)+3][0]))		\
-		:	"v10", "v11", "v12", "v13", "v14", "v15");	\
+		:	[lt_lo] "Q" ((gf_mul_nibble_lt[c][0][0])),	\
+		[lt_hi] "Q" ((gf_mul_nibble_lt[c][1][0]))		\
+		:	"v10", "v11", "v13", "v14", "v15");		\
 		break;							\
 	default:							\
 		ZFS_ASM_BUG();						\

@@ -54,7 +54,8 @@
 
 #define	ZFS_ASM_BUG()	ASSERT(0)
 
-extern const uint8_t gf_clmul_mod_lt[4*256][16];
+extern uint8_t gf_mul_nibble_lt[256][2][16];
+extern void gf_mul_nibble_lt_init(void);
 
 #define	ELEM_SIZE 64
 
@@ -220,10 +221,8 @@ typedef struct v {
 #define	_0f		"zmm15"
 #define	_as		"zmm14"
 #define	_bs		"zmm13"
-#define	_ltmod		"zmm12"
-#define	_ltmul		"zmm11"
-#define	_ta		"zmm10"
-#define	_tb		"zmm15"
+#define	_lt_lo		"zmm12"
+#define	_lt_hi		"zmm11"
 
 static const uint8_t __attribute__((aligned(64))) _mul_mask = 0x0F;
 
@@ -233,39 +232,25 @@ static const uint8_t __attribute__((aligned(64))) _mul_mask = 0x0F;
 	case 2:								\
 		__asm(							\
 		    "vpbroadcastb (%[mask]), %%" _0f "\n"		\
-		    /* upper bits */					\
-		    "vbroadcasti32x4 0x00(%[lt]), %%" _ltmod "\n"	\
-		    "vbroadcasti32x4 0x10(%[lt]), %%" _ltmul "\n"	\
+		    "vbroadcasti32x4 0x00(%[lt]), %%" _lt_lo "\n"	\
+		    "vbroadcasti32x4 0x10(%[lt]), %%" _lt_hi "\n"	\
 									\
-		    "vpsraw $0x4, %%" VR0(r) ", %%"_as "\n"		\
-		    "vpsraw $0x4, %%" VR1(r) ", %%"_bs "\n"		\
+		    "vpsraw $0x4, %%" VR0(r) ", %%" _as "\n"		\
+		    "vpsraw $0x4, %%" VR1(r) ", %%" _bs "\n"		\
 		    "vpandq %%" _0f ", %%" VR0(r) ", %%" VR0(r) "\n"	\
 		    "vpandq %%" _0f ", %%" VR1(r) ", %%" VR1(r) "\n"	\
 		    "vpandq %%" _0f ", %%" _as ", %%" _as "\n"		\
 		    "vpandq %%" _0f ", %%" _bs ", %%" _bs "\n"		\
 									\
-		    "vpshufb %%" _as ", %%" _ltmod ", %%" _ta "\n"	\
-		    "vpshufb %%" _bs ", %%" _ltmod ", %%" _tb "\n"	\
-		    "vpshufb %%" _as ", %%" _ltmul ", %%" _as "\n"	\
-		    "vpshufb %%" _bs ", %%" _ltmul ", %%" _bs "\n"	\
-		    /* lower bits */					\
-		    "vbroadcasti32x4 0x20(%[lt]), %%" _ltmod "\n"	\
-		    "vbroadcasti32x4 0x30(%[lt]), %%" _ltmul "\n"	\
+		    "vpshufb %%" VR0(r) ", %%" _lt_lo ", %%" VR0(r) "\n"\
+		    "vpshufb %%" VR1(r) ", %%" _lt_lo ", %%" VR1(r) "\n"\
+		    "vpshufb %%" _as ", %%" _lt_hi ", %%" _as "\n"	\
+		    "vpshufb %%" _bs ", %%" _lt_hi ", %%" _bs "\n"	\
 									\
-		    "vpxorq %%" _ta ", %%" _as ", %%" _as "\n"		\
-		    "vpxorq %%" _tb ", %%" _bs ", %%" _bs "\n"		\
-									\
-		    "vpshufb %%" VR0(r) ", %%" _ltmod ", %%" _ta "\n"	\
-		    "vpshufb %%" VR1(r) ", %%" _ltmod ", %%" _tb "\n"	\
-		    "vpshufb %%" VR0(r) ", %%" _ltmul ", %%" VR0(r) "\n"\
-		    "vpshufb %%" VR1(r) ", %%" _ltmul ", %%" VR1(r) "\n"\
-									\
-		    "vpxorq %%" _ta ", %%" VR0(r) ", %%" VR0(r) "\n"	\
 		    "vpxorq %%" _as ", %%" VR0(r) ", %%" VR0(r) "\n"	\
-		    "vpxorq %%" _tb ", %%" VR1(r) ", %%" VR1(r) "\n"	\
 		    "vpxorq %%" _bs ", %%" VR1(r) ", %%" VR1(r) "\n"	\
 		    : : [mask] "r" (&_mul_mask),			\
-		    [lt] "r" (gf_clmul_mod_lt[4*(c)]));			\
+		    [lt] "r" (gf_mul_nibble_lt[c]));			\
 		break;							\
 	default:							\
 		ZFS_ASM_BUG();						\
@@ -291,28 +276,14 @@ static const uint8_t __attribute__((aligned(64))) _mul_mask = 0x0F;
 #define	raidz_math_end(ctx)	kfpu_end(ctx)
 
 /*
- * ZERO, COPY, and MUL operations are already 2x unrolled, which means that
- * the stride of these operations for avx512 must not exceed 4. Otherwise, a
- * single step would exceed 512B block size.
+ * The COPY operation is already 2x unrolled, which means that its stride
+ * for avx512 must not exceed 4. Otherwise, a single step would exceed 512B
+ * block size.
  */
-
-#define	SYN_STRIDE		4
-
-#define	ZERO_STRIDE		4
-#define	ZERO_DEFINE()		{}
-#define	ZERO_D			0, 1, 2, 3
 
 #define	COPY_STRIDE		4
 #define	COPY_DEFINE()		{}
 #define	COPY_D			0, 1, 2, 3
-
-#define	ADD_STRIDE		4
-#define	ADD_DEFINE()		{}
-#define	ADD_D			0, 1, 2, 3
-
-#define	MUL_STRIDE		4
-#define	MUL_DEFINE()		{}
-#define	MUL_D			0, 1, 2, 3
 
 #define	GEN_P_STRIDE		4
 #define	GEN_P_DEFINE()		{}
@@ -320,25 +291,22 @@ static const uint8_t __attribute__((aligned(64))) _mul_mask = 0x0F;
 
 #define	GEN_PQ_STRIDE		4
 #define	GEN_PQ_DEFINE() 	{}
-#define	GEN_PQ_D		0, 1, 2, 3
-#define	GEN_PQ_C		4, 5, 6, 7
+#define	GEN_PQ_P		0, 1, 2, 3
+#define	GEN_PQ_Q		4, 5, 6, 7
 
 #define	GEN_PQR_STRIDE		4
 #define	GEN_PQR_DEFINE() 	{}
-#define	GEN_PQR_D		0, 1, 2, 3
-#define	GEN_PQR_C		4, 5, 6, 7
+#define	GEN_PQR_P		0, 1, 2, 3
+#define	GEN_PQR_Q		4, 5, 6, 7
+#define	GEN_PQR_R		8, 9, 10, 11
 
-#define	SYN_Q_DEFINE()		{}
-#define	SYN_Q_D			0, 1, 2, 3
-#define	SYN_Q_X			4, 5, 6, 7
+#define	REC_Q_STRIDE		4
+#define	REC_Q_DEFINE()		{}
+#define	REC_Q_X			0, 1, 2, 3
 
-#define	SYN_R_DEFINE()		{}
-#define	SYN_R_D			0, 1, 2, 3
-#define	SYN_R_X			4, 5, 6, 7
-
-#define	SYN_PQ_DEFINE() 	{}
-#define	SYN_PQ_D		0, 1, 2, 3
-#define	SYN_PQ_X		4, 5, 6, 7
+#define	REC_R_STRIDE		4
+#define	REC_R_DEFINE()		{}
+#define	REC_R_X			0, 1, 2, 3
 
 #define	REC_PQ_STRIDE		2
 #define	REC_PQ_DEFINE() 	{}
@@ -346,29 +314,17 @@ static const uint8_t __attribute__((aligned(64))) _mul_mask = 0x0F;
 #define	REC_PQ_Y		2, 3
 #define	REC_PQ_T		4, 5
 
-#define	SYN_PR_DEFINE() 	{}
-#define	SYN_PR_D		0, 1, 2, 3
-#define	SYN_PR_X		4, 5, 6, 7
-
 #define	REC_PR_STRIDE		2
 #define	REC_PR_DEFINE() 	{}
 #define	REC_PR_X		0, 1
 #define	REC_PR_Y		2, 3
 #define	REC_PR_T		4, 5
 
-#define	SYN_QR_DEFINE() 	{}
-#define	SYN_QR_D		0, 1, 2, 3
-#define	SYN_QR_X		4, 5, 6, 7
-
 #define	REC_QR_STRIDE		2
 #define	REC_QR_DEFINE() 	{}
 #define	REC_QR_X		0, 1
 #define	REC_QR_Y		2, 3
 #define	REC_QR_T		4, 5
-
-#define	SYN_PQR_DEFINE() 	{}
-#define	SYN_PQR_D		0, 1, 2, 3
-#define	SYN_PQR_X		4, 5, 6, 7
 
 #define	REC_PQR_STRIDE		2
 #define	REC_PQR_DEFINE() 	{}
@@ -393,7 +349,7 @@ raidz_will_avx512bw_work(void)
 }
 
 const raidz_impl_ops_t vdev_raidz_avx512bw_impl = {
-	.init = NULL,
+	.init = gf_mul_nibble_lt_init,
 	.fini = NULL,
 	.gen = RAIDZ_GEN_METHODS(avx512bw),
 	.rec = RAIDZ_REC_METHODS(avx512bw),
