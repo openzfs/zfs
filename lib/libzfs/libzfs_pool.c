@@ -3597,7 +3597,7 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
 	zfs_cmd_t zc = {"\0"};
 	char errbuf[ERRBUFLEN];
 	nvlist_t *tgt;
-	boolean_t avail_spare, l2cache, islog;
+	boolean_t l2cache, islog;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 
 	if (flags & ZFS_ONLINE_EXPAND) {
@@ -3609,14 +3609,11 @@ zpool_vdev_online(zpool_handle_t *zhp, const char *path, int flags,
 	}
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
-	if ((tgt = zpool_find_vdev(zhp, path, &avail_spare, &l2cache,
+	if ((tgt = zpool_find_vdev(zhp, path, NULL, &l2cache,
 	    &islog)) == NULL)
 		return (zfs_error(hdl, EZFS_NODEVICE, errbuf));
 
 	zc.zc_guid = fnvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID);
-
-	if (!(flags & ZFS_ONLINE_SPARE) && avail_spare)
-		return (zfs_error(hdl, EZFS_ISSPARE, errbuf));
 
 #ifndef __FreeBSD__
 	const char *pathname;
@@ -3685,21 +3682,18 @@ zpool_vdev_offline(zpool_handle_t *zhp, const char *path, boolean_t istmp)
 	zfs_cmd_t zc = {"\0"};
 	char errbuf[ERRBUFLEN];
 	nvlist_t *tgt;
-	boolean_t avail_spare, l2cache;
+	boolean_t l2cache;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    "cannot offline %s", path);
 
 	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
-	if ((tgt = zpool_find_vdev(zhp, path, &avail_spare, &l2cache,
+	if ((tgt = zpool_find_vdev(zhp, path, NULL, &l2cache,
 	    NULL)) == NULL)
 		return (zfs_error(hdl, EZFS_NODEVICE, errbuf));
 
 	zc.zc_guid = fnvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID);
-
-	if (avail_spare)
-		return (zfs_error(hdl, EZFS_ISSPARE, errbuf));
 
 	zc.zc_cookie = VDEV_STATE_OFFLINE;
 	zc.zc_obj = istmp ? ZFS_OFFLINE_TEMPORARY : 0;
