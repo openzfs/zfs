@@ -29,6 +29,8 @@
 #include <linux/sched.h>
 #include <linux/sched/rt.h>
 #include <linux/cpumask.h>
+#include <linux/nodemask.h>
+#include <linux/topology.h>
 #include <sys/debug.h>
 #include <sys/zone.h>
 #include <sys/signal.h>
@@ -73,6 +75,9 @@
 #define	boot_ncpus			num_online_cpus()
 #define	CPU_SEQID			smp_processor_id()
 #define	CPU_SEQID_UNSTABLE		raw_smp_processor_id()
+#define	CPU_NODE_UNSTABLE		numa_node_id()
+#define	max_node_ids			nr_node_ids
+#define	node_has_cpus(n)		node_state((n), N_CPU)
 #define	is_system_labeled()		0
 
 #ifndef RLIM64_INFINITY
