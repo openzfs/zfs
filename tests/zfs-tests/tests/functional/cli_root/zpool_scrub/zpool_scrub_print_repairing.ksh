@@ -34,7 +34,7 @@ log_assert "Verify we see '(repairing)' while scrubbing a bad vdev."
 function cleanup
 {
 	log_must zinject -c all
-	log_must set_tunable64 SCAN_VDEV_LIMIT $ZFS_SCAN_VDEV_LIMIT_DEFAULT
+	restore_tunable SCAN_VDEV_LIMIT
 	zpool scrub -s $TESTPOOL || true
 }
 
@@ -45,6 +45,7 @@ log_must zinject -d $DISK1 -e io -T read -f 100 $TESTPOOL
 
 # Make the scrub slow
 log_must zinject -d $DISK1 -D10:1 $TESTPOOL
+save_tunable SCAN_VDEV_LIMIT
 log_must set_tunable64 SCAN_VDEV_LIMIT $ZFS_SCAN_VDEV_LIMIT_SLOW
 
 log_must zpool scrub $TESTPOOL
