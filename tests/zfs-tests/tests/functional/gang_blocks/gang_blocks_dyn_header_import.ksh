@@ -33,7 +33,6 @@
 
 log_assert "A pool with large gang headers in its MOS can be imported"
 
-preamble
 log_onexit cleanup_long_vdevs
 
 typeset vdir=$TEST_BASE_DIR/dyn_header_import

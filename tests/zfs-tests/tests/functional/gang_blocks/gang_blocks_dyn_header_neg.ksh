@@ -31,7 +31,6 @@
 log_assert "Verify that we don't use large gang headers on small-ashift pools".
 
 log_onexit cleanup
-preamble
 
 log_must zpool create -f -o ashift=9 -o feature@dynamic_gang_header=enabled $TESTPOOL $DISKS
 log_must zfs create -o recordsize=1M $TESTPOOL/$TESTFS

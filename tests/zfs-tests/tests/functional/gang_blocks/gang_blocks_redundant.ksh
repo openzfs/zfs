@@ -35,7 +35,6 @@ function cleanup2
 	cleanup
 }
 
-preamble
 log_onexit cleanup2
 
 log_must zpool create -f -o ashift=9 $TESTPOOL $DISKS

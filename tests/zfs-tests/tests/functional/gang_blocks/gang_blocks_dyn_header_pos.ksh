@@ -31,7 +31,6 @@
 log_assert "Verify that we don't use large gang headers on small-ashift pools".
 
 log_onexit cleanup
-preamble
 
 for vdevtype in "" "mirror" "raidz" "raidz2" "draid"; do
 	log_must zpool create -f -o ashift=12 $TESTPOOL $vdevtype $DISKS

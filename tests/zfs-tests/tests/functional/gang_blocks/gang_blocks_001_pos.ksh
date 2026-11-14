@@ -30,7 +30,6 @@
 
 log_assert "Gang blocks behave correctly."
 
-preamble
 log_onexit cleanup
 
 log_must zpool create -f $TESTPOOL $DISKS

@@ -33,6 +33,7 @@ verify_runnable "both"
 
 function cleanup
 {
+	log_must set_tunable64 MULTIHOST_HISTORY $MMP_HISTORY
 	mmp_clear_suspended $MMP_POOL
 	poolexists $MMP_POOL && destroy_pool $MMP_POOL
 	log_must rm $MMP_DIR/file.{0..7}
