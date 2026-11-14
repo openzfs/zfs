@@ -145,7 +145,7 @@ SYSCTL_INT(_vfs_zfs_vol, OID_AUTO, unmap_enabled, CTLFLAG_RWTUN,
  */
 int zvol_maxphys = DMU_MAX_ACCESS / 2;
 
-static void zvol_ensure_zilog(zvol_state_t *zv);
+static int zvol_ensure_zilog(zvol_state_t *zv);
 
 static d_open_t		zvol_cdev_open;
 static d_close_t	zvol_cdev_close;
@@ -609,6 +609,11 @@ zvol_strategy_impl(zv_request_t *zvr)
 		goto resume;
 	}
 
+	if (zv->zv_flags & ZVOL_RESUME_FAILED) {
+		error = SET_ERROR(EIO);
+		goto resume;
+	}
+
 	switch (bp->bio_cmd) {
 	case BIO_READ:
 		doread = B_TRUE;
@@ -620,7 +625,8 @@ zvol_strategy_impl(zv_request_t *zvr)
 			error = SET_ERROR(EROFS);
 			goto resume;
 		}
-		zvol_ensure_zilog(zv);
+		if ((error = zvol_ensure_zilog(zv)) != 0)
+			goto resume;
 		if (bp->bio_cmd == BIO_FLUSH)
 			goto commit;
 		break;
@@ -817,6 +823,10 @@ zvol_cdev_read(struct cdev *dev, struct uio *uio_s, int ioflag)
 		return (SET_ERROR(EIO));
 
 	rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
+	if (zv->zv_flags & ZVOL_RESUME_FAILED) {
+		rw_exit(&zv->zv_suspend_lock);
+		return (SET_ERROR(EIO));
+	}
 	ssize_t start_resid = zfs_uio_resid(&uio);
 	lr = zfs_rangelock_enter(&zv->zv_rangelock, zfs_uio_offset(&uio),
 	    zfs_uio_resid(&uio), RL_READER);
@@ -869,7 +879,11 @@ zvol_cdev_write(struct cdev *dev, struct uio *uio_s, int ioflag)
 	    (zv->zv_objset->os_sync == ZFS_SYNC_ALWAYS);
 
 	rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
-	zvol_ensure_zilog(zv);
+	error = zvol_ensure_zilog(zv);
+	if (error != 0) {
+		rw_exit(&zv->zv_suspend_lock);
+		return (error);
+	}
 
 	lr = zfs_rangelock_enter(&zv->zv_rangelock, zfs_uio_offset(&uio),
 	    zfs_uio_resid(&uio), RL_WRITER);
@@ -1128,7 +1142,11 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 			break;
 		}
 		rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
-		zvol_ensure_zilog(zv);
+		error = zvol_ensure_zilog(zv);
+		if (error != 0) {
+			rw_exit(&zv->zv_suspend_lock);
+			break;
+		}
 		lr = zfs_rangelock_enter(&zv->zv_rangelock, offset, length,
 		    RL_WRITER);
 		dmu_tx_t *tx = dmu_tx_create(zv->zv_objset);
@@ -1192,6 +1210,11 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
 		hole = (cmd == FIOSEEKHOLE);
 		noff = *off;
 		rw_enter(&zv->zv_suspend_lock, ZVOL_RW_READER);
+		if (zv->zv_flags & ZVOL_RESUME_FAILED) {
+			rw_exit(&zv->zv_suspend_lock);
+			error = SET_ERROR(EIO);
+			break;
+		}
 		lr = zfs_rangelock_enter(&zv->zv_rangelock, 0, UINT64_MAX,
 		    RL_READER);
 		error = dmu_offset_next(zv->zv_objset, ZVOL_OBJ, hole, &noff);
@@ -1211,7 +1234,12 @@ zvol_cdev_ioctl(struct cdev *dev, ulong_t cmd, caddr_t data,
  * Misc. helpers
  */
 
-static void
+/*
+ * Prepare to write: returns EIO if zvol_resume() failed, otherwise makes
+ * sure the ZIL is open.  Called and returns with zv_suspend_lock held as
+ * reader, though it may drop the lock in between.
+ */
+static int
 zvol_ensure_zilog(zvol_state_t *zv)
 {
 	ASSERT(ZVOL_RW_READ_HELD(&zv->zv_suspend_lock));
@@ -1222,12 +1250,13 @@ zvol_ensure_zilog(zvol_state_t *zv)
 	 * than zv_state_lock so that we don't need to acquire an
 	 * additional lock in this path.
 	 */
-	if (zv->zv_zilog == NULL) {
+	if (zv->zv_zilog == NULL && !(zv->zv_flags & ZVOL_RESUME_FAILED)) {
 		if (!rw_tryupgrade(&zv->zv_suspend_lock)) {
 			rw_exit(&zv->zv_suspend_lock);
 			rw_enter(&zv->zv_suspend_lock, RW_WRITER);
 		}
-		if (zv->zv_zilog == NULL) {
+		if (zv->zv_zilog == NULL &&
+		    !(zv->zv_flags & ZVOL_RESUME_FAILED)) {
 			zv->zv_zilog = zil_open(zv->zv_objset,
 			    zvol_get_data, &zv->zv_kstat.dk_zil_sums);
 			zv->zv_flags |= ZVOL_WRITTEN_TO;
@@ -1237,6 +1266,14 @@ zvol_ensure_zilog(zvol_state_t *zv)
 		}
 		rw_downgrade(&zv->zv_suspend_lock);
 	}
+
+	/*
+	 * Check only now, as a rollback or receive can suspend and resume
+	 * the volume while the lock is dropped above.
+	 */
+	if (zv->zv_flags & ZVOL_RESUME_FAILED)
+		return (SET_ERROR(EIO));
+	return (0);
 }
 
 boolean_t

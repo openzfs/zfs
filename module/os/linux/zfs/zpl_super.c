@@ -259,9 +259,13 @@ zpl_statfs(struct dentry *dentry, struct kstatfs *statp)
 static int
 __zpl_show_devname(struct seq_file *seq, zfsvfs_t *zfsvfs)
 {
-	int error;
-	if ((error = zpl_enter(zfsvfs, FTAG)) != 0)
-		return (error);
+	/*
+	 * This works even if the filesystem is unusable, e.g. after a
+	 * failed zfs_resume_fs(), since an error here would make
+	 * /proc/self/mounts unreadable.  The teardown lock keeps z_os from
+	 * changing, and it stays valid until unmount.
+	 */
+	ZFS_TEARDOWN_ENTER_READ(zfsvfs, FTAG);
 
 	char *fsname = kmem_alloc(ZFS_MAX_DATASET_NAME_LEN, KM_SLEEP);
 	dmu_objset_name(zfsvfs->z_os, fsname);
@@ -281,7 +285,7 @@ __zpl_show_devname(struct seq_file *seq, zfsvfs_t *zfsvfs)
 
 	kmem_free(fsname, ZFS_MAX_DATASET_NAME_LEN);
 
-	zpl_exit(zfsvfs, FTAG);
+	ZFS_TEARDOWN_EXIT_READ(zfsvfs, FTAG);
 
 	return (0);
 }

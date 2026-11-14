@@ -621,14 +621,14 @@ zfsvfs_create_hold(const char *osname, zfsvfs_t **zfvp)
 
 	zfsvfs = kmem_zalloc(sizeof (zfsvfs_t), KM_SLEEP);
 
-	error = dmu_objset_hold_flags(osname, B_TRUE, zfsvfs, &os);
+	error = dmu_objset_hold_authenticate(osname, zfsvfs, &os);
 	if (error != 0) {
 		kmem_free(zfsvfs, sizeof (zfsvfs_t));
 		return (error);
 	}
 
 	if (dmu_objset_type(os) != DMU_OST_ZFS) {
-		dmu_objset_rele_flags(os, B_TRUE, zfsvfs);
+		dmu_objset_rele_decrypt(os, zfsvfs);
 		kmem_free(zfsvfs, sizeof (zfsvfs_t));
 		return (EINVAL);
 	}
@@ -696,7 +696,7 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 	error = zfsvfs_init(zfsvfs, os);
 	if (error != 0) {
 		if (zfsvfs->z_use_hold)
-			dmu_objset_rele_flags(os, B_TRUE, zfsvfs);
+			dmu_objset_rele_decrypt(os, zfsvfs);
 		else
 			dmu_objset_disown(os, B_TRUE, zfsvfs);
 		*zfvp = NULL;
@@ -1854,6 +1854,16 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 	dsl_pool_config_enter(dp, FTAG);
 	VERIFY0(dmu_objset_from_ds(ds, &os));
 	dsl_pool_config_exit(dp, FTAG);
+	/* Unmounting after a failed resume uses z_os. */
+	zfsvfs->z_os = os;
+
+	/*
+	 * After a rollback or receive, the objset may have been read from
+	 * disk again, so check its MACs before anything dirties it.
+	 */
+	err = dmu_objset_authenticate(os);
+	if (err != 0)
+		goto bail;
 
 	err = zfsvfs_init(zfsvfs, os);
 	if (err != 0)
@@ -1926,8 +1936,25 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 	shrink_dcache_sb(zfsvfs->z_sb);
 
 bail:
-	if (err != 0)
+	if (err != 0) {
 		zfsvfs->z_unmounted = B_TRUE;
+
+		/*
+		 * Drop the references zfs_suspend_fs() took, so that
+		 * unmount can drain z_all_znodes.  zfs_zrele_async() never
+		 * frees a znode here: the last iput runs from a taskq, and
+		 * eviction waits for z_teardown_inactive_lock.
+		 */
+		mutex_enter(&zfsvfs->z_znodes_lock);
+		for (zp = list_head(&zfsvfs->z_all_znodes); zp != NULL;
+		    zp = list_next(&zfsvfs->z_all_znodes, zp)) {
+			if (zp->z_suspended) {
+				zp->z_suspended = B_FALSE;
+				zfs_zrele_async(zp);
+			}
+		}
+		mutex_exit(&zfsvfs->z_znodes_lock);
+	}
 
 	/* release the VFS ops */
 	rw_exit(&zfsvfs->z_teardown_inactive_lock);

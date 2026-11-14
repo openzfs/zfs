@@ -1679,7 +1679,7 @@ zfsvfs_rele(zfsvfs_t *zfsvfs, const void *tag)
 			 * teardown lock) so that dmu_objset_rele() can exit it.
 			 */
 			dsl_pool_config_enter(dmu_objset_pool(os), zfsvfs);
-			dmu_objset_rele_flags(os, B_TRUE, zfsvfs);
+			dmu_objset_rele_decrypt(os, zfsvfs);
 		} else {
 			dmu_objset_disown(os, B_TRUE, zfsvfs);
 		}
@@ -2229,16 +2229,15 @@ zfs_ioc_obj_to_path(zfs_cmd_t *zc)
 	int error;
 
 	/* XXX reading from objset not owned */
-	if ((error = dmu_objset_hold_flags(zc->zc_name, B_TRUE,
-	    FTAG, &os)) != 0)
+	if ((error = dmu_objset_hold_decrypt(zc->zc_name, FTAG, &os)) != 0)
 		return (error);
 	if (dmu_objset_type(os) != DMU_OST_ZFS) {
-		dmu_objset_rele_flags(os, B_TRUE, FTAG);
+		dmu_objset_rele_decrypt(os, FTAG);
 		return (SET_ERROR(EINVAL));
 	}
 	error = zfs_obj_to_path(os, zc->zc_obj, zc->zc_value,
 	    sizeof (zc->zc_value));
-	dmu_objset_rele_flags(os, B_TRUE, FTAG);
+	dmu_objset_rele_decrypt(os, FTAG);
 
 	return (error);
 }
@@ -2269,11 +2268,10 @@ zfs_ioc_obj_to_stats(zfs_cmd_t *zc)
 	nvlist_t *nv = NULL;
 
 	/* XXX reading from objset not owned */
-	if ((error = dmu_objset_hold_flags(zc->zc_name, B_TRUE,
-	    FTAG, &os)) != 0)
+	if ((error = dmu_objset_hold_decrypt(zc->zc_name, FTAG, &os)) != 0)
 		return (error);
 	if (dmu_objset_type(os) != DMU_OST_ZFS) {
-		dmu_objset_rele_flags(os, B_TRUE, FTAG);
+		dmu_objset_rele_decrypt(os, FTAG);
 		return (SET_ERROR(EINVAL));
 	}
 
@@ -2282,7 +2280,7 @@ zfs_ioc_obj_to_stats(zfs_cmd_t *zc)
 
 	error = zfs_obj_to_stats(os, zc->zc_obj, &zc->zc_stat, zc->zc_value,
 	    sizeof (zc->zc_value), nv);
-	dmu_objset_rele_flags(os, B_TRUE, FTAG);
+	dmu_objset_rele_decrypt(os, FTAG);
 
 	if (nv != NULL) {
 		int tmp = put_nvlist(zc, nv);
@@ -5152,9 +5150,12 @@ zfs_ioc_rollback(const char *fsname, nvlist_t *innvl, nvlist_t *outnvl)
 		}
 		zfs_vfs_rele(zfsvfs);
 	} else if (zvol_suspend(fsname, &zv) == 0) {
+		int resume_err;
+
 		error = dsl_dataset_rollback(fsname, target, zvol_tag(zv),
 		    outnvl);
-		zvol_resume(zv);
+		resume_err = zvol_resume(zv);
+		error = error ? error : resume_err;
 	} else {
 		error = dsl_dataset_rollback(fsname, target, NULL, outnvl);
 	}
@@ -5916,8 +5917,11 @@ zfs_ioc_recv_impl(char *tofs, char *tosnap, const char *origin,
 			error = error ? error : end_err;
 			zfs_vfs_rele(zfsvfs);
 		} else if (zvol_suspend(tofs, &zv) == 0) {
+			int resume_err;
+
 			error = dmu_recv_end(&drc, zvol_tag(zv));
-			zvol_resume(zv);
+			resume_err = zvol_resume(zv);
+			error = error ? error : resume_err;
 		} else {
 			error = dmu_recv_end(&drc, NULL);
 		}
@@ -6905,7 +6909,7 @@ zfs_ioc_userspace_upgrade(zfs_cmd_t *zc)
 		objset_t *os;
 
 		/* XXX kind of reading contents without owning */
-		error = dmu_objset_hold_flags(zc->zc_name, B_TRUE, FTAG, &os);
+		error = dmu_objset_hold_authenticate(zc->zc_name, FTAG, &os);
 		if (error != 0)
 			return (error);
 
@@ -6944,7 +6948,7 @@ zfs_ioc_id_quota_upgrade(zfs_cmd_t *zc)
 	objset_t *os;
 	int error;
 
-	error = dmu_objset_hold_flags(zc->zc_name, B_TRUE, FTAG, &os);
+	error = dmu_objset_hold_authenticate(zc->zc_name, FTAG, &os);
 	if (error != 0)
 		return (error);
 
