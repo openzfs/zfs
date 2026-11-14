@@ -2103,18 +2103,18 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 	mutex_exit(&zfsvfs->z_znodes_lock);
 
 bail:
+	if (err != 0) {
+		/*
+		 * Leave the file system mounted but unusable until it's
+		 * unmounted.  The caller holds the mount busy, so
+		 * dounmount() would wait for it forever.
+		 */
+		zfsvfs->z_unmounted = B_TRUE;
+	}
+
 	/* release the VOPs */
 	ZFS_TEARDOWN_INACTIVE_EXIT_WRITE(zfsvfs);
 	ZFS_TEARDOWN_EXIT(zfsvfs, FTAG);
-
-	if (err) {
-		/*
-		 * Since we couldn't setup the sa framework, try to force
-		 * unmount this file system.
-		 */
-		vfs_ref(zfsvfs->z_vfs);
-		(void) dounmount(zfsvfs->z_vfs, MS_FORCE, curthread);
-	}
 	return (err);
 }
 
