@@ -3662,6 +3662,35 @@ function restore_tunable
 }
 
 #
+# Writing 0 (the default) to zfs_arc_max or zfs_arc_min does not change the
+# ARC's limits back, so restore_tunable alone does not undo a change to them.
+# save_arc_limits saves the tunables and the ARC's actual limits;
+# restore_arc_limits sets the actual limits back first, then the tunables.
+#
+function save_arc_limits
+{
+	save_tunable ARC_MAX
+	save_tunable ARC_MIN
+	# Like save_tunable, keep an earlier save that was never restored.
+	[[ -e $TEST_BASE_DIR/tunable-arc_c_max ]] ||
+	    kstat arcstats.c_max > $TEST_BASE_DIR/tunable-arc_c_max
+	[[ -e $TEST_BASE_DIR/tunable-arc_c_min ]] ||
+	    kstat arcstats.c_min > $TEST_BASE_DIR/tunable-arc_c_min
+}
+
+function restore_arc_limits
+{
+	# Maximum first: the tests lower both limits.
+	[[ -s $TEST_BASE_DIR/tunable-arc_c_max ]] &&
+	    set_tunable64 ARC_MAX $(<$TEST_BASE_DIR/tunable-arc_c_max)
+	[[ -s $TEST_BASE_DIR/tunable-arc_c_min ]] &&
+	    set_tunable64 ARC_MIN $(<$TEST_BASE_DIR/tunable-arc_c_min)
+	rm -f $TEST_BASE_DIR/tunable-arc_c_max $TEST_BASE_DIR/tunable-arc_c_min
+	restore_tunable ARC_MAX
+	restore_tunable ARC_MIN
+}
+
+#
 # Get a global system tunable
 #
 # $1 tunable name (use a NAME defined in tunables.cfg)
