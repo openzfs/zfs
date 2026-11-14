@@ -20,6 +20,7 @@
 #include <sys/sysmacros.h>
 #include <sys/sha2.h>
 #include <sys/zfs_impl.h>
+#include <sha2/sha2_impl.h>
 
 #include "unit.h"
 
@@ -392,6 +393,97 @@ test_impls(const MunitParameter params[], void *data)
 	return (MUNIT_OK);
 }
 
+/*
+ * Every supported implementation passes the self-test run at init, and one
+ * that computes wrong answers fails it, whether it goes wrong on every call
+ * or only when given several blocks at once, as a broken SIMD loop would,
+ * or only when given exactly two blocks, a call that only the split-update
+ * pass makes.
+ */
+static const sha256_ops_t *real_sha256;
+static const sha512_ops_t *real_sha512;
+
+static void
+broken_sha256(uint32_t state[8], const void *data, size_t blks)
+{
+	real_sha256->transform(state, data, blks);
+	state[0] ^= 1;
+}
+
+static void
+broken_sha256_multi(uint32_t state[8], const void *data, size_t blks)
+{
+	real_sha256->transform(state, data, blks);
+	if (blks > 1)
+		state[7] ^= 0x80000000;
+}
+
+static void
+broken_sha512(uint64_t state[8], const void *data, size_t blks)
+{
+	real_sha512->transform(state, data, blks);
+	state[0] ^= 1;
+}
+
+static void
+broken_sha512_multi(uint64_t state[8], const void *data, size_t blks)
+{
+	real_sha512->transform(state, data, blks);
+	if (blks > 1)
+		state[7] ^= 1ULL << 63;
+}
+
+static void
+broken_sha256_two(uint32_t state[8], const void *data, size_t blks)
+{
+	real_sha256->transform(state, data, blks);
+	if (blks == 2)
+		state[3] ^= 0x100;
+}
+
+static MunitResult
+test_selftest(const MunitParameter params[], void *data)
+{
+	(void) params, (void) data;
+	const zfs_impl_t *ops256 = zfs_impl_get_ops("sha256");
+	const zfs_impl_t *ops512 = zfs_impl_get_ops("sha512");
+	uint32_t saved256 = ops256->getid();
+	uint32_t saved512 = ops512->getid();
+
+	for (uint32_t id = 0; id < ops256->getcnt(); id++) {
+		ops256->setid(id);
+		unit_true(sha256_impl_selftest(sha256_get_ops()));
+	}
+	for (uint32_t id = 0; id < ops512->getcnt(); id++) {
+		ops512->setid(id);
+		unit_true(sha512_impl_selftest(sha512_get_ops()));
+	}
+
+	ops256->setid(0);
+	ops512->setid(0);
+	real_sha256 = sha256_get_ops();
+	real_sha512 = sha512_get_ops();
+
+	sha256_ops_t bad256 = *real_sha256;
+	bad256.transform = broken_sha256;
+	unit_false(sha256_impl_selftest(&bad256));
+	bad256.transform = broken_sha256_multi;
+	unit_false(sha256_impl_selftest(&bad256));
+	bad256.transform = broken_sha256_two;
+	unit_false(sha256_impl_selftest(&bad256));
+
+	sha512_ops_t bad512 = *real_sha512;
+	bad512.transform = broken_sha512;
+	unit_false(sha512_impl_selftest(&bad512));
+	bad512.transform = broken_sha512_multi;
+	unit_false(sha512_impl_selftest(&bad512));
+
+	ops256->setid(saved256);
+	ops512->setid(saved512);
+
+	return (MUNIT_OK);
+}
+
 /* ========== */
 
 static const MunitTest sha2_tests[] = {
@@ -402,6 +494,7 @@ static const MunitTest sha2_tests[] = {
 	UNIT_TEST("monte_carlo",	test_monte_carlo),
 	UNIT_TEST("incremental",	test_incremental),
 	UNIT_TEST("impls",		test_impls),
+	UNIT_TEST("selftest",		test_selftest),
 	{ 0 },
 };
 

@@ -200,6 +200,11 @@ void aes_impl_init(void);
  */
 const struct aes_impl_ops *aes_impl_get_ops(void);
 
+/*
+ * Checks an implementation against known answers; true if it passes
+ */
+boolean_t aes_impl_selftest(const aes_impl_ops_t *ops);
+
 #ifdef	__cplusplus
 }
 #endif

@@ -469,6 +469,26 @@ SHA2Update(SHA2_CTX *ctx, const void *data, size_t len)
 	}
 }
 
+/*
+ * Feed msg to SHA2Update() in uneven pieces for the self-tests: they leave
+ * partial blocks buffered, complete them, and pass several blocks at once,
+ * as callers hashing a scattered ABD a chunk at a time do.
+ */
+void
+sha2_selftest_update_split(SHA2_CTX *ctx, const void *msg, size_t len)
+{
+	static const size_t splits[] = { 1, 62, 65, 128, 3, 200 };
+	const uint8_t *p = msg;
+
+	for (int i = 0; len > 0; i = (i + 1) % ARRAY_SIZE(splits)) {
+		size_t n = MIN(splits[i], len);
+
+		SHA2Update(ctx, p, n);
+		p += n;
+		len -= n;
+	}
+}
+
 /* SHA2Final function */
 void
 SHA2Final(void *digest, SHA2_CTX *ctx)

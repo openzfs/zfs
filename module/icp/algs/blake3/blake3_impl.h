@@ -58,6 +58,9 @@ typedef struct {
 /* return selected BLAKE3 implementation ops */
 extern const blake3_ops_t *blake3_get_ops(void);
 
+/* Check an implementation against known answers; true if it passes. */
+extern boolean_t blake3_impl_selftest(const blake3_ops_t *ops);
+
 #if defined(__x86_64)
 #define	MAX_SIMD_DEGREE 16
 #else

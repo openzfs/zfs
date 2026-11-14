@@ -54,6 +54,40 @@ static struct generic_impl_selector {
 	{ "fastest",	IMPL_FASTEST }
 };
 
+#ifdef IMPL_SELFTEST
+/*
+ * Check each supported implementation against known answers, and drop the
+ * ones that get them wrong, so that a CPU that computes them incorrectly
+ * can't write bad checksums. The tests hash through the normal entry points,
+ * which call back into generic_impl_init(), so they run once the list is in
+ * place. The first entry is the generic implementation; it stays even if it
+ * fails, as there is nothing to fall back to.
+ */
+static void
+generic_impl_selftest(void)
+{
+	uint32_t i, c;
+
+	if (!IMPL_SELFTEST(generic_supp_impls[0])) {
+		cmn_err(CE_WARN, "ICP: the %s implementation of %s failed its "
+		    "self-test, and can't be disabled",
+		    generic_supp_impls[0]->name, IMPL_NAME);
+	}
+	for (i = 1, c = 1; i < generic_supp_impls_cnt; i++) {
+		const IMPL_OPS_T *impl = generic_supp_impls[i];
+
+		if (IMPL_SELFTEST(impl)) {
+			generic_supp_impls[c++] = impl;
+		} else {
+			cmn_err(CE_WARN, "ICP: the %s implementation of %s "
+			    "failed its self-test, and has been disabled",
+			    impl->name, IMPL_NAME);
+		}
+	}
+	generic_supp_impls_cnt = c;
+}
+#endif
+
 /* check the supported implementations */
 static void
 generic_impl_init(void)
@@ -76,6 +110,10 @@ generic_impl_init(void)
 	/* first init generic impl, may be changed via set_fastest() */
 	memcpy(&generic_fastest_impl, generic_supp_impls[0],
 	    sizeof (generic_fastest_impl));
+
+#ifdef IMPL_SELFTEST
+	generic_impl_selftest();
+#endif
 }
 
 /* get number of supported implementations */
