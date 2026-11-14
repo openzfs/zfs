@@ -91,7 +91,7 @@ for replace_mode in "healing" "sequential"; do
 
 	# Verify that after clearing the 1st faulted vdev, all is healed.
 	log_must zpool clear $TESTPOOL "$BASEDIR/vdev0"
-	log_must wait_resilvered $TESTPOOL
+	log_must wait_hotspare_state $TESTPOOL draid${parity}-0-0 "AVAIL" 300
 	log_must verify_draid_pool $TESTPOOL $replace_mode
 
 	cleanup
