@@ -58,6 +58,7 @@
 #include "zfs_namecheck.h"
 #include <sys/vdev_impl.h>
 #include <sys/arc.h>
+#include <sys/fm/fs/zfs.h>
 #include <cityhash.h>
 #include <sys/cred.h>
 
@@ -536,6 +537,8 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		    ARC_BUFC_METADATA, size);
 		os->os_phys = os->os_phys_buf->b_data;
 		memset(os->os_phys, 0, size);
+		/* A new objset has no MACs to check. */
+		os->os_authenticated = B_TRUE;
 	}
 	/*
 	 * These properties will be filled in by the logic in zfs_get_zplprop()
@@ -669,6 +672,8 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 	mutex_init(&os->os_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&os->os_userused_lock, NULL, MUTEX_DEFAULT, NULL);
 	mutex_init(&os->os_obj_lock, NULL, MUTEX_DEFAULT, NULL);
+	mutex_init(&os->os_phys_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&os->os_phys_cv, NULL, CV_DEFAULT, NULL);
 	mutex_init(&os->os_user_ptr_lock, NULL, MUTEX_DEFAULT, NULL);
 	os->os_obj_next_percpu_len = boot_ncpus;
 	os->os_obj_next_percpu = kmem_zalloc(os->os_obj_next_percpu_len *
@@ -722,6 +727,72 @@ dmu_objset_from_ds(dsl_dataset_t *ds, objset_t **osp)
 	}
 	*osp = ds->ds_objset;
 	mutex_exit(&ds->ds_opening_lock);
+	return (err);
+}
+
+/*
+ * Check the MACs of an objset, unless that's been done already. A dataset's
+ * objset is shared by its holders and owner, so this must happen before any
+ * of them can dirty it, otherwise the next write would compute new MACs over
+ * metadata that was never authenticated.
+ */
+int
+dmu_objset_authenticate(objset_t *os)
+{
+	zbookmark_phys_t zb;
+	int err = 0;
+
+	if (!os->os_encrypted)
+		return (0);
+
+	mutex_enter(&os->os_phys_lock);
+	/*
+	 * If we have already been authenticated, we can avoid re-checking
+	 * (and possibly waiting).
+	 */
+	if (!os->os_authenticated) {
+		/*
+		 * Wait for an in-progress write (e.g. a raw write), which may
+		 * be replacing os_phys_buf. The write finishes without any
+		 * lock a caller may hold: syncing-context callers run before
+		 * this txg writes any objset, and no caller checks an objset
+		 * that a raw receive owns, whose write may come after sync
+		 * tasks that take the pool config lock.
+		 */
+		while (os->os_phys_writing)
+			cv_wait(&os->os_phys_cv, &os->os_phys_lock);
+
+		/*
+		 * The os_phys_buf may not be the one read from the ARC,
+		 * because dmu_objset_open_impl() might have made a copy.
+		 * Therefore we can't use arc_untransform() directly. os_phys
+		 * is in host byte order, objset blocks are never compressed,
+		 * and the MACs don't cover the copy's zero padding.
+		 */
+		uint_t size = arc_buf_size(os->os_phys_buf);
+		abd_t *abd = abd_get_from_buf(os->os_phys, size);
+		err = spa_do_crypt_objset_mac_abd(B_FALSE, os->os_spa,
+		    os->os_dsl_dataset->ds_object, abd, size, B_FALSE);
+		abd_free(abd);
+		if (err == 0)
+			os->os_authenticated = B_TRUE;
+	}
+	mutex_exit(&os->os_phys_lock);
+
+	/* Report a failure as arc_untransform() does. */
+	if (err == ECKSUM) {
+		dsl_dataset_t *ds = os->os_dsl_dataset;
+
+		SET_BOOKMARK(&zb, ds->ds_object, ZB_ROOT_OBJECT,
+		    ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
+		rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
+		spa_log_error(os->os_spa, &zb,
+		    BP_GET_PHYSICAL_BIRTH(os->os_rootbp));
+		rrw_exit(&ds->ds_bp_rwlock, FTAG);
+		(void) zfs_ereport_post(FM_EREPORT_ZFS_AUTHENTICATION,
+		    os->os_spa, NULL, &zb, NULL, 0);
+		err = SET_ERROR(EIO);
+	}
 	return (err);
 }
 
@@ -782,18 +853,8 @@ dmu_objset_own_impl(dsl_dataset_t *ds, dmu_objset_type_t type,
 	}
 
 	/* if we are decrypting, we can now check MACs in os->os_phys_buf */
-	if (decrypt && arc_is_unauthenticated((*osp)->os_phys_buf)) {
-		zbookmark_phys_t zb;
-
-		SET_BOOKMARK(&zb, ds->ds_object, ZB_ROOT_OBJECT,
-		    ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
-		err = arc_untransform((*osp)->os_phys_buf, (*osp)->os_spa,
-		    &zb, B_FALSE);
-		if (err != 0)
-			return (err);
-
-		ASSERT0(arc_is_unauthenticated((*osp)->os_phys_buf));
-	}
+	if (decrypt)
+		return (dmu_objset_authenticate(*osp));
 
 	return (0);
 }
@@ -1047,6 +1108,8 @@ dmu_objset_evict_done(objset_t *os)
 	mutex_destroy(&os->os_lock);
 	mutex_destroy(&os->os_userused_lock);
 	mutex_destroy(&os->os_obj_lock);
+	mutex_destroy(&os->os_phys_lock);
+	cv_destroy(&os->os_phys_cv);
 	mutex_destroy(&os->os_user_ptr_lock);
 	mutex_destroy(&os->os_upgrade_lock);
 	for (int i = 0; i < TXG_SIZE; i++)
@@ -1538,6 +1601,27 @@ dmu_objset_write_done(zio_t *zio, arc_buf_t *abuf, void *arg)
 		dsl_dataset_block_born(ds, bp, tx);
 	}
 	kmem_free(bp, sizeof (*bp));
+
+	if (os->os_encrypted) {
+		mutex_enter(&os->os_phys_lock);
+		os->os_phys_writing = B_FALSE;
+		cv_broadcast(&os->os_phys_cv);
+		mutex_exit(&os->os_phys_lock);
+	}
+}
+
+/*
+ * Mark an encrypted objset as being written. This must be called before
+ * os_phys or os_phys_buf is changed.  The mark is cleared in
+ * dmu_objset_write_done().
+ */
+void
+dmu_objset_phys_write_begin(objset_t *os)
+{
+	ASSERT(os->os_encrypted);
+	mutex_enter(&os->os_phys_lock);
+	os->os_phys_writing = B_TRUE;
+	mutex_exit(&os->os_phys_lock);
 }
 
 typedef struct sync_objset_arg {
@@ -1661,6 +1745,8 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	SET_BOOKMARK(&zb, os->os_dsl_dataset ?
 	    os->os_dsl_dataset->ds_object : DMU_META_OBJSET,
 	    ZB_ROOT_OBJECT, ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
+	if (os->os_encrypted)
+		dmu_objset_phys_write_begin(os);
 	arc_release(os->os_phys_buf, &os->os_phys_buf);
 
 	dmu_write_policy(os, NULL, 0, 0, &zp);
