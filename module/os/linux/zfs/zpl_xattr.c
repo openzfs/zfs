@@ -556,8 +556,17 @@ zpl_xattr_set_sa(struct inode *ip, const char *name, const void *value,
 
 	if (value == NULL) {
 		error = -nvlist_remove(nvl, name, DATA_TYPE_BYTE_ARRAY);
-		if (error == -ENOENT)
-			error = zpl_xattr_set_dir(ip, name, NULL, 0, flags, cr);
+		/*
+		 * Not an SA xattr: remove it from the xattr directory,
+		 * which also updates the ctime.  The SA xattrs have not
+		 * changed, so there is nothing to write or to log for
+		 * them.  Older software cannot replay a logged removal
+		 * of a name they do not hold.
+		 */
+		if (error == -ENOENT) {
+			return (zpl_xattr_set_dir(ip, name, NULL, 0, flags,
+			    cr));
+		}
 	} else {
 		/* Limited to 32k to keep nvpair memory allocations small */
 		if (size > DXATTR_MAX_ENTRY_SIZE)

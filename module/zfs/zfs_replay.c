@@ -1033,6 +1033,18 @@ zfs_replay_setsaxattr(void *arg1, void *arg2, boolean_t byteswap)
 	if (size == 0) {
 		value = NULL;
 		error = nvlist_remove(nvl, name, DATA_TYPE_BYTE_ARRAY);
+		/*
+		 * The system attributes may not hold the name.  Older
+		 * versions logged this record when removing an xattr kept
+		 * in the xattr directory, and a name set while
+		 * zfs_zil_saxattr was off is not in the log either.  There
+		 * is nothing to remove then, and failing here would
+		 * discard the rest of the log.
+		 */
+		if (error == ENOENT) {
+			error = 0;
+			goto out;
+		}
 	} else {
 		value = &lr->lr_data[strlen(name) + 1];
 		/* Limited to 32k to keep nvpair memory allocations small */
