@@ -768,6 +768,29 @@ zfs_replay_rename_whiteout(void *arg1, void *arg2, boolean_t byteswap)
 #endif
 }
 
+/*
+ * Get the znode of a record that can be logged out of order: see TX_OOO().
+ * Such a record can follow the one that removed its object, and
+ * zil_replay_log_record() skips it once the object is gone.  But removal
+ * finishes asynchronously, and a removed file's xattr directory and the
+ * files in it are removed after the file itself.  The object can be
+ * freed, or its znode be on its way out, between that check and
+ * zfs_zget().  ENOENT here is that case, not an error: *zpp is NULL and
+ * the caller drops the record.  As with TX_WRITE before, this also drops
+ * a record when zfs_zget() cannot set up its znode.
+ */
+static int
+zfs_replay_ooo_zget(zfsvfs_t *zfsvfs, uint64_t obj, znode_t **zpp)
+{
+	int error = zfs_zget(zfsvfs, obj, zpp);
+
+	if (error == ENOENT) {
+		*zpp = NULL;
+		error = 0;
+	}
+	return (error);
+}
+
 static int
 zfs_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 {
@@ -783,16 +806,9 @@ zfs_replay_write(void *arg1, void *arg2, boolean_t byteswap)
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
-	if ((error = zfs_zget(zfsvfs, lr->lr_foid, &zp)) != 0) {
-		/*
-		 * As we can log writes out of order, it's possible the
-		 * file has been removed. In this case just drop the write
-		 * and return success.
-		 */
-		if (error == ENOENT)
-			error = 0;
+	error = zfs_replay_ooo_zget(zfsvfs, lr->lr_foid, &zp);
+	if (error != 0 || zp == NULL)
 		return (error);
-	}
 
 	offset = lr->lr_offset;
 	length = lr->lr_length;
@@ -868,7 +884,8 @@ zfs_replay_write2(void *arg1, void *arg2, boolean_t byteswap)
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
-	if ((error = zfs_zget(zfsvfs, lr->lr_foid, &zp)) != 0)
+	error = zfs_replay_ooo_zget(zfsvfs, lr->lr_foid, &zp);
+	if (error != 0 || zp == NULL)
 		return (error);
 
 top:
@@ -917,7 +934,8 @@ zfs_replay_truncate(void *arg1, void *arg2, boolean_t byteswap)
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
-	if ((error = zfs_zget(zfsvfs, lr->lr_foid, &zp)) != 0)
+	error = zfs_replay_ooo_zget(zfsvfs, lr->lr_foid, &zp);
+	if (error != 0 || zp == NULL)
 		return (error);
 
 	fl.l_type = F_WRLCK;
@@ -955,7 +973,8 @@ zfs_replay_setattr(void *arg1, void *arg2, boolean_t byteswap)
 			zfs_replay_swap_attrs((lr_attr_t *)&lr->lr_data[0]);
 	}
 
-	if ((error = zfs_zget(zfsvfs, lr->lr_foid, &zp)) != 0)
+	error = zfs_replay_ooo_zget(zfsvfs, lr->lr_foid, &zp);
+	if (error != 0 || zp == NULL)
 		return (error);
 
 	zfs_init_vattr(vap, lr->lr_mask, lr->lr_mode,
@@ -1012,7 +1031,8 @@ zfs_replay_setsaxattr(void *arg1, void *arg2, boolean_t byteswap)
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
-	if ((error = zfs_zget(zfsvfs, lr->lr_foid, &zp)) != 0)
+	error = zfs_replay_ooo_zget(zfsvfs, lr->lr_foid, &zp);
+	if (error != 0 || zp == NULL)
 		return (error);
 
 	rw_enter(&zp->z_xattr_lock, RW_WRITER);
@@ -1093,7 +1113,8 @@ zfs_replay_acl_v0(void *arg1, void *arg2, boolean_t byteswap)
 		zfs_oldace_byteswap(ace, lr->lr_aclcnt);
 	}
 
-	if ((error = zfs_zget(zfsvfs, lr->lr_foid, &zp)) != 0)
+	error = zfs_replay_ooo_zget(zfsvfs, lr->lr_foid, &zp);
+	if (error != 0 || zp == NULL)
 		return (error);
 
 	vsa.vsa_mask = VSA_ACE | VSA_ACECNT;
@@ -1146,7 +1167,8 @@ zfs_replay_acl(void *arg1, void *arg2, boolean_t byteswap)
 		}
 	}
 
-	if ((error = zfs_zget(zfsvfs, lr->lr_foid, &zp)) != 0)
+	error = zfs_replay_ooo_zget(zfsvfs, lr->lr_foid, &zp);
+	if (error != 0 || zp == NULL)
 		return (error);
 
 	vsa.vsa_mask = VSA_ACE | VSA_ACECNT | VSA_ACE_ACLFLAGS;
@@ -1190,15 +1212,9 @@ zfs_replay_clone_range(void *arg1, void *arg2, boolean_t byteswap)
 	if (byteswap)
 		byteswap_uint64_array(lr, sizeof (*lr));
 
-	if ((error = zfs_zget(zfsvfs, lr->lr_foid, &zp)) != 0) {
-		/*
-		 * Clones can be logged out of order, so don't be surprised if
-		 * the file is gone - just return success.
-		 */
-		if (error == ENOENT)
-			error = 0;
+	error = zfs_replay_ooo_zget(zfsvfs, lr->lr_foid, &zp);
+	if (error != 0 || zp == NULL)
 		return (error);
-	}
 
 	error = zfs_clone_range_replay(zp, lr->lr_offset, lr->lr_length,
 	    lr->lr_blksz, lr->lr_bps, lr->lr_nbps);
