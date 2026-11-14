@@ -964,6 +964,7 @@ typedef struct spa_stats {
 	spa_history_kstat_t	iostats;
 	spa_history_kstat_t	log_spacemaps;
 	spa_history_kstat_t	misc;
+	spa_history_kstat_t	fragmentation[6];
 } spa_stats_t;
 
 typedef enum txg_state {
