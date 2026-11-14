@@ -3062,8 +3062,14 @@ top:
 	 * would otherwise not be renameable within the very directory that
 	 * holds them -- which breaks "ln -sfn", implemented as
 	 * create-under-a-temporary-name-then-rename.
+	 *
+	 * Replay does not repeat the check.  The rename was allowed when it
+	 * was logged, and a record that changed either project ID or the
+	 * flag since the last synced TXG is not always in the log before
+	 * this one.
 	 */
-	if (sdzp != tdzp && tdzp->z_pflags & ZFS_PROJINHERIT &&
+	if (!zfsvfs->z_replay && sdzp != tdzp &&
+	    tdzp->z_pflags & ZFS_PROJINHERIT &&
 	    tdzp->z_projid != szp->z_projid) {
 		error = SET_ERROR(EXDEV);
 		goto out;
@@ -3661,9 +3667,10 @@ zfs_link(znode_t *tdzp, znode_t *szp, char *name, cred_t *cr,
 	 * ZFS_PROJINHERIT set, then its descendant directories will inherit
 	 * not only the project ID, but also the ZFS_PROJINHERIT flag. Under
 	 * such case, we only allow hard link creation in our tree when the
-	 * project IDs are the same.
+	 * project IDs are the same.  Replay does not repeat the check: see
+	 * zfs_rename().
 	 */
-	if (tdzp->z_pflags & ZFS_PROJINHERIT &&
+	if (!zfsvfs->z_replay && tdzp->z_pflags & ZFS_PROJINHERIT &&
 	    tdzp->z_projid != szp->z_projid) {
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EXDEV));

@@ -3395,7 +3395,8 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 	 * holds them -- which breaks "ln -sfn", implemented as
 	 * create-under-a-temporary-name-then-rename.
 	 */
-	if (sdzp != tdzp && tdzp->z_pflags & ZFS_PROJINHERIT &&
+	if (!tdzp->z_zfsvfs->z_replay && sdzp != tdzp &&
+	    tdzp->z_pflags & ZFS_PROJINHERIT &&
 	    tdzp->z_projid != szp->z_projid) {
 		error = SET_ERROR(EXDEV);
 		goto out;
@@ -3831,13 +3832,13 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 	 * such case, we only allow hard link creation in our tree when the
 	 * project IDs are the same.
 	 */
-	if (tdzp->z_pflags & ZFS_PROJINHERIT &&
+	if (!zfsvfs->z_replay && tdzp->z_pflags & ZFS_PROJINHERIT &&
 	    tdzp->z_projid != szp->z_projid) {
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EXDEV));
 	}
 
-	if (szp->z_pflags & (ZFS_APPENDONLY |
+	if (!zfsvfs->z_replay && szp->z_pflags & (ZFS_APPENDONLY |
 	    ZFS_IMMUTABLE | ZFS_READONLY)) {
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EPERM));

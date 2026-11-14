@@ -2570,10 +2570,14 @@ zfs_zaccess_delete(znode_t *dzp, znode_t *zp, cred_t *cr)
 
 	/*
 	 * An append-only file may not be removed or renamed, and neither
-	 * may any entry of an append-only directory.
+	 * may any entry of an append-only directory.  Not in replay: the
+	 * operation was allowed when it was logged, and the record that
+	 * cleared the flag is not always in the log before this one.  See
+	 * zfs_zaccess_common().
 	 */
-	if ((zp->z_pflags & (ZFS_IMMUTABLE | ZFS_NOUNLINK | ZFS_APPENDONLY)) ||
-	    (dzp->z_pflags & ZFS_APPENDONLY))
+	if (!zp->z_zfsvfs->z_replay &&
+	    ((zp->z_pflags & (ZFS_IMMUTABLE | ZFS_NOUNLINK | ZFS_APPENDONLY)) ||
+	    (dzp->z_pflags & ZFS_APPENDONLY)))
 		return (SET_ERROR(EPERM));
 
 	/*
