@@ -593,7 +593,7 @@ tags = ['functional', 'cli_root', 'zpool_replace']
 
 [tests/functional/cli_root/zpool_resilver]
 tests = ['zpool_resilver_bad_args', 'zpool_resilver_restart',
-    'zpool_resilver_concurrent']
+    'zpool_resilver_concurrent', 'zpool_resilver_failing_writes']
 tags = ['functional', 'cli_root', 'zpool_resilver']
 
 [tests/functional/cli_root/zpool_scrub]

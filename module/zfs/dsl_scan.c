@@ -959,6 +959,21 @@ dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 	return (0);
 }
 
+/*
+ * Ask for a resilver restart if a leaf's DTL extends past the scan's
+ * maximum txg and deferred resilvers are not enabled.
+ */
+static void
+dsl_scan_assess_leaves(dsl_pool_t *dp, vdev_t *vd)
+{
+	if (vd->vdev_ops->vdev_op_leaf) {
+		dsl_scan_assess_vdev(dp, vd);
+		return;
+	}
+	for (uint64_t c = 0; c < vd->vdev_children; c++)
+		dsl_scan_assess_leaves(dp, vd->vdev_child[c]);
+}
+
 void
 dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 {
@@ -1009,6 +1024,28 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 
 		if (vdev_resilver_needed(spa->spa_root_vdev,
 		    &scn->scn_phys.scn_min_txg, &scn->scn_phys.scn_max_txg)) {
+			/*
+			 * A failed write can put this txg in the DTL.
+			 * A later sync pass can rewrite these blocks.
+			 * scn_max_txg is exclusive. This cap skips
+			 * blocks born in this txg. Without the cap,
+			 * queued reads can see different data on mirror
+			 * children and report false checksum errors on
+			 * healthy devices.
+			 */
+			if (scn->scn_phys.scn_max_txg > tx->tx_txg) {
+				scn->scn_phys.scn_max_txg = tx->tx_txg;
+				/*
+				 * Deferred scans restart in dsl_scan_done().
+				 * Otherwise request a resilver restart.
+				 * Do not restart a scrub as a resilver.
+				 */
+				if (DSL_SCAN_IS_RESILVER(scn) &&
+				    !spa_feature_is_enabled(spa,
+				    SPA_FEATURE_RESILVER_DEFER))
+					dsl_scan_assess_leaves(scn->scn_dp,
+					    spa->spa_root_vdev);
+			}
 			nvlist_t *aux = fnvlist_alloc();
 			fnvlist_add_string(aux, ZFS_EV_RESILVER_TYPE,
 			    "healing");
