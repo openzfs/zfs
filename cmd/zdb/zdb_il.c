@@ -306,7 +306,9 @@ zil_prt_rec_setsaxattr(zilog_t *zilog, int txtype, const void *arg)
 	    (u_longlong_t)lr->lr_foid);
 
 	(void) printf("%sXAT_NAME  %s\n", tab_prefix, name);
-	if (lr->lr_size == 0) {
+	/* An empty value also has an lr_size of zero: see zil.h. */
+	if (lr->lr_size == 0 && lr->lr_common.lrc_reclen <
+	    LR_SETSAXATTR_EMPTY_RECLEN(strlen(name) + 1)) {
 		(void) printf("%sXAT_VALUE  NULL\n", tab_prefix);
 	} else {
 		(void) printf("%sXAT_VALUE  ", tab_prefix);
