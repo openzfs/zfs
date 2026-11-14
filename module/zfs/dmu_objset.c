@@ -58,6 +58,7 @@
 #include "zfs_namecheck.h"
 #include <sys/vdev_impl.h>
 #include <sys/arc.h>
+#include <sys/fm/fs/zfs.h>
 #include <cityhash.h>
 #include <sys/cred.h>
 
@@ -536,6 +537,8 @@ dmu_objset_open_impl(spa_t *spa, dsl_dataset_t *ds, blkptr_t *bp,
 		    ARC_BUFC_METADATA, size);
 		os->os_phys = os->os_phys_buf->b_data;
 		memset(os->os_phys, 0, size);
+		/* A new objset has no MACs to check. */
+		os->os_authenticated = B_TRUE;
 	}
 	/*
 	 * These properties will be filled in by the logic in zfs_get_zplprop()
@@ -739,6 +742,9 @@ dmu_objset_authenticate(objset_t *os)
 	zbookmark_phys_t zb;
 	int err = 0;
 
+	if (!os->os_encrypted)
+		return (0);
+
 	mutex_enter(&os->os_phys_lock);
 	/*
 	 * If we have already been authenticated, we can avoid re-checking
@@ -756,18 +762,37 @@ dmu_objset_authenticate(objset_t *os)
 		while (os->os_phys_writing)
 			cv_wait(&os->os_phys_cv, &os->os_phys_lock);
 
-		if (arc_is_unauthenticated(os->os_phys_buf)) {
-			SET_BOOKMARK(&zb, os->os_dsl_dataset->ds_object,
-			    ZB_ROOT_OBJECT, ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
-			err = arc_untransform(os->os_phys_buf, os->os_spa,
-			    &zb, B_FALSE);
-			ASSERT(err != 0 ||
-			    !arc_is_unauthenticated(os->os_phys_buf));
-		}
+		/*
+		 * The os_phys_buf may not be the one read from the ARC,
+		 * because dmu_objset_open_impl() might have made a copy.
+		 * Therefore we can't use arc_untransform() directly. os_phys
+		 * is in host byte order, objset blocks are never compressed,
+		 * and the MACs don't cover the copy's zero padding.
+		 */
+		uint_t size = arc_buf_size(os->os_phys_buf);
+		abd_t *abd = abd_get_from_buf(os->os_phys, size);
+		err = spa_do_crypt_objset_mac_abd(B_FALSE, os->os_spa,
+		    os->os_dsl_dataset->ds_object, abd, size, B_FALSE);
+		abd_free(abd);
 		if (err == 0)
 			os->os_authenticated = B_TRUE;
 	}
 	mutex_exit(&os->os_phys_lock);
+
+	/* Report a failure as arc_untransform() does. */
+	if (err == ECKSUM) {
+		dsl_dataset_t *ds = os->os_dsl_dataset;
+
+		SET_BOOKMARK(&zb, ds->ds_object, ZB_ROOT_OBJECT,
+		    ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
+		rrw_enter(&ds->ds_bp_rwlock, RW_READER, FTAG);
+		spa_log_error(os->os_spa, &zb,
+		    BP_GET_PHYSICAL_BIRTH(os->os_rootbp));
+		rrw_exit(&ds->ds_bp_rwlock, FTAG);
+		(void) zfs_ereport_post(FM_EREPORT_ZFS_AUTHENTICATION,
+		    os->os_spa, NULL, &zb, NULL, 0);
+		err = SET_ERROR(EIO);
+	}
 	return (err);
 }
 

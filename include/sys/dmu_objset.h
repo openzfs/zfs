@@ -165,9 +165,9 @@ struct objset {
 	/*
 	 * os_phys_writing is set while an encrypted objset is being written,
 	 * during which os_phys and os_phys_buf can change. os_authenticated is
-	 * set once the MACs in os_phys_buf have been checked. Both are
-	 * protected by os_phys_lock, and os_phys_cv is signalled when a write
-	 * is done.
+	 * set once the MACs in os_phys have been checked, or when the objset
+	 * is new and has none. Both are protected by os_phys_lock, and
+	 * os_phys_cv is signalled when a write is done.
 	 */
 	kmutex_t os_phys_lock;
 	kcondvar_t os_phys_cv;
