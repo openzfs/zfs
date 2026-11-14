@@ -21,12 +21,14 @@
 
 #
 # DESCRIPTION:
-#	'zpool replace' should use the ashift pool property value as default.
+#	'zpool replace' should ignore the ashift pool property; a manually
+#	specified '-o ashift=<n>' must not exceed the existing vdev ashift.
 #
 # STRATEGY:
 #	1. Create a pool with default values.
 #	2. Override the pool ashift property.
-#	3. Verify 'zpool replace' works.
+#	3. Verify 'zpool replace' works regardless of the pool property.
+#	4. Verify '-o ashift=<n>' above the vdev ashift is rejected.
 #
 
 verify_runnable "global"
@@ -38,7 +40,7 @@ function cleanup
 	rm -f $disk1 $disk2
 }
 
-log_assert "'zpool replace' uses the ashift pool property value as default."
+log_assert "'zpool replace' ignores the ashift pool property value."
 log_onexit cleanup
 
 disk1=$TEST_BASE_DIR/disk1
@@ -61,6 +63,13 @@ do
 	do
 		log_must zpool create -o ashift=$ashift $TESTPOOL1 $disk1
 		log_must zpool set ashift=$pprop $TESTPOOL1
+		if [[ $pprop -gt $ashift ]]
+		then
+			# cannot exceed the existing vdev ashift
+			log_mustnot zpool replace -o ashift=$pprop $TESTPOOL1 \
+			    $disk1 $disk2
+		fi
+		# the ashift pool property is ignored
 		log_must zpool replace $TESTPOOL1 $disk1 $disk2
 		wait_replacing $TESTPOOL1
 		log_must verify_ashift $disk2 $ashift
@@ -71,4 +80,4 @@ do
 	done
 done
 
-log_pass "'zpool replace' uses the ashift pool property value."
+log_pass "'zpool replace' ignores the ashift pool property value."

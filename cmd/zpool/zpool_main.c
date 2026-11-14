@@ -7706,20 +7706,6 @@ zpool_do_attach_or_replace(int argc, char **argv, int replacing)
 		return (1);
 	}
 
-	/* unless manually specified use "ashift" pool property (if set) */
-	if (!nvlist_exists(props, ZPOOL_CONFIG_ASHIFT)) {
-		int intval;
-		zprop_source_t src;
-		char strval[ZPOOL_MAXPROPLEN];
-
-		intval = zpool_get_prop_int(zhp, ZPOOL_PROP_ASHIFT, &src);
-		if (src != ZPROP_SRC_DEFAULT) {
-			(void) sprintf(strval, "%" PRId32, intval);
-			verify(add_prop_list(ZPOOL_CONFIG_ASHIFT, strval,
-			    &props, B_TRUE) == 0);
-		}
-	}
-
 	nvroot = make_root_vdev(zhp, props, force, B_FALSE, replacing, B_FALSE,
 	    argc, argv);
 	if (nvroot == NULL) {

@@ -1023,15 +1023,11 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 	    &vd->vdev_not_present);
 
 	/*
-	 * Get the alignment requirement. Ignore pool ashift for vdev
-	 * attach case.
+	 * Get the alignment requirement.
 	 */
-	if (alloctype != VDEV_ALLOC_ATTACH) {
-		(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_ASHIFT,
-		    &vd->vdev_ashift);
-	} else {
+	(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_ASHIFT, &vd->vdev_ashift);
+	if (alloctype == VDEV_ALLOC_ATTACH)
 		vd->vdev_attaching = B_TRUE;
-	}
 
 	/*
 	 * Retrieve the vdev creation time.
