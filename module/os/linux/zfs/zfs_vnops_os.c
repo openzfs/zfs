@@ -2087,9 +2087,13 @@ zfs_setattr_idmap(znode_t *zp, vattr_t *vap, int flags, cred_t *cr,
 	xattr_bulk = kmem_alloc(sizeof (sa_bulk_attr_t) * bulks, KM_SLEEP);
 
 	/*
-	 * Immutable files can only alter immutable bit and atime
+	 * Immutable files can only alter immutable bit and atime.
+	 *
+	 * Replay does not repeat the check: the change was allowed when it
+	 * was logged, and the record that cleared the flag is not always in
+	 * the log before this one.
 	 */
-	if ((zp->z_pflags & ZFS_IMMUTABLE) &&
+	if (!zfsvfs->z_replay && (zp->z_pflags & ZFS_IMMUTABLE) &&
 	    ((mask & (ATTR_SIZE|ATTR_UID|ATTR_GID|ATTR_MTIME|ATTR_MODE)) ||
 	    ((mask & ATTR_XVATTR) && XVA_ISSET_REQ(xvap, XAT_CREATETIME)))) {
 		err = SET_ERROR(EPERM);
@@ -3062,8 +3066,15 @@ top:
 	 * would otherwise not be renameable within the very directory that
 	 * holds them -- which breaks "ln -sfn", implemented as
 	 * create-under-a-temporary-name-then-rename.
+	 *
+	 * Replay does not repeat the check.  The rename was allowed when it
+	 * was logged, and a record that changed the directory's project ID
+	 * or flag since the last synced TXG is not always in the log before
+	 * this one.  Nor is one that changed the file's project ID, unless
+	 * this is a plain rename, which commits the file's records first.
 	 */
-	if (sdzp != tdzp && tdzp->z_pflags & ZFS_PROJINHERIT &&
+	if (!zfsvfs->z_replay && sdzp != tdzp &&
+	    tdzp->z_pflags & ZFS_PROJINHERIT &&
 	    tdzp->z_projid != szp->z_projid) {
 		error = SET_ERROR(EXDEV);
 		goto out;
@@ -3661,9 +3672,11 @@ zfs_link(znode_t *tdzp, znode_t *szp, char *name, cred_t *cr,
 	 * ZFS_PROJINHERIT set, then its descendant directories will inherit
 	 * not only the project ID, but also the ZFS_PROJINHERIT flag. Under
 	 * such case, we only allow hard link creation in our tree when the
-	 * project IDs are the same.
+	 * project IDs are the same.  Replay does not repeat the check: the
+	 * link was allowed when it was logged, and a record that changed
+	 * either project ID or the flag is not always in the log before it.
 	 */
-	if (tdzp->z_pflags & ZFS_PROJINHERIT &&
+	if (!zfsvfs->z_replay && tdzp->z_pflags & ZFS_PROJINHERIT &&
 	    tdzp->z_projid != szp->z_projid) {
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EXDEV));

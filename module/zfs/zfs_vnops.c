@@ -671,10 +671,15 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	 * If immutable or not appending then return EPERM.
 	 * Intentionally allow ZFS_READONLY through here.
 	 * See zfs_zaccess_common()
+	 *
+	 * Not in replay: the write had already been accepted.  A page
+	 * dirtied through a mapping is written, and logged, after the flag
+	 * is set, and the replay of an older log writes whole blocks, which
+	 * start below the end of the file.
 	 */
-	if ((zp->z_pflags & ZFS_IMMUTABLE) ||
+	if (!zfsvfs->z_replay && ((zp->z_pflags & ZFS_IMMUTABLE) ||
 	    ((zp->z_pflags & ZFS_APPENDONLY) && !(ioflag & O_APPEND) &&
-	    (zfs_uio_offset(uio) < zp->z_size))) {
+	    (zfs_uio_offset(uio) < zp->z_size)))) {
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EPERM));
 	}

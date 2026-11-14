@@ -2851,7 +2851,13 @@ zfs_zaccess_delete(znode_t *dzp, znode_t *zp, cred_t *cr, zidmap_t *idmap)
 	boolean_t dzpcheck_privs;
 	boolean_t zpcheck_privs;
 
-	if (zp->z_pflags & (ZFS_IMMUTABLE | ZFS_NOUNLINK))
+	/*
+	 * Not in replay: the operation was allowed when it was logged, and
+	 * the record that cleared the flag is not always in the log before
+	 * this one.  See zfs_zaccess_common().
+	 */
+	if (!ZTOZSB(zp)->z_replay &&
+	    (zp->z_pflags & (ZFS_IMMUTABLE | ZFS_NOUNLINK)))
 		return (SET_ERROR(EPERM));
 
 	/*
