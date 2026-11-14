@@ -556,8 +556,16 @@ zpl_xattr_set_sa(struct inode *ip, const char *name, const void *value,
 
 	if (value == NULL) {
 		error = -nvlist_remove(nvl, name, DATA_TYPE_BYTE_ARRAY);
-		if (error == -ENOENT)
-			error = zpl_xattr_set_dir(ip, name, NULL, 0, flags, cr);
+		/*
+		 * Not a system attribute: remove it from the xattr
+		 * directory.  The system attributes have not changed, so
+		 * there is nothing to write or to log for them.  A logged
+		 * removal of a name they do not hold cannot be replayed.
+		 */
+		if (error == -ENOENT) {
+			return (zpl_xattr_set_dir(ip, name, NULL, 0, flags,
+			    cr));
+		}
 	} else {
 		/* Limited to 32k to keep nvpair memory allocations small */
 		if (size > DXATTR_MAX_ENTRY_SIZE)
