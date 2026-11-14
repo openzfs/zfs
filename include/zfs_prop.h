@@ -86,6 +86,11 @@ _ZFS_PROP_H boolean_t zfs_prop_delegatable(zfs_prop_t prop);
 _ZFS_PROP_H zprop_desc_t *zfs_prop_get_table(void);
 
 /*
+ * Values of the projectmac pool and dataset properties
+ */
+extern const zprop_index_t zfs_projectmac_table[];
+
+/*
  * zpool property functions
  */
 _ZFS_PROP_H void zpool_prop_init(void);

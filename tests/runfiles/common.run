@@ -183,7 +183,8 @@ tags = ['functional', 'cli_root', 'zinject']
 tests = ['zdb_002_pos', 'zdb_003_pos', 'zdb_004_pos', 'zdb_005_pos',
     'zdb_006_pos', 'zdb_args_neg', 'zdb_args_pos',
     'zdb_block_size_histogram', 'zdb_checksum', 'zdb_decompress',
-    'zdb_display_block', 'zdb_encrypted', 'zdb_encrypted_raw',
+    'zdb_display_block', 'zdb_encrypted', 'zdb_encrypted_local_mac',
+    'zdb_encrypted_raw',
     'zdb_file_layout_001', 'zdb_file_layout_002', 'zdb_file_layout_003',
     'zdb_file_layout_neg', 'zdb_label_checksum', 'zdb_object_range_neg',
     'zdb_object_range_pos', 'zdb_objset_id', 'zdb_decompress_zstd',
@@ -518,6 +519,8 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'zpool_import_encrypted', 'zpool_import_encrypted_load',
     'zpool_import_encrypted_zplprops',
     'zpool_import_errata3', 'zpool_import_errata4',
+    'zpool_import_local_mac_no_project',
+    'zpool_import_local_mac_received',
     'import_cachefile_device_added',
     'import_cachefile_device_removed',
     'import_cachefile_device_replaced',
@@ -1197,7 +1200,15 @@ tests = [
     'userspace_001_pos', 'userspace_002_pos', 'userspace_004_pos',
     'userspace_005_pos', 'userspace_encrypted', 'userspace_send_encrypted',
     'userspace_send_encrypted_changes',
-    'userspace_encrypted_13709', 'userspace_encrypted_unmounted']
+    'userspace_encrypted_13709', 'userspace_encrypted_incomplete_mac',
+    'userspace_encrypted_local_mac_project',
+    'userspace_encrypted_projectmac_busy',
+    'userspace_encrypted_projectmac_create',
+    'userspace_encrypted_projectmac_mixed',
+    'userspace_encrypted_projectmac_rollback',
+    'userspace_send_encrypted_local_mac_project',
+    'userspace_send_encrypted_projectmac_resume',
+    'userspace_encrypted_unmounted']
 tags = ['functional', 'userquota']
 
 [tests/functional/vdev_disk:Linux]

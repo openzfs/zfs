@@ -199,6 +199,8 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/cli_root/zpool_get/zpool_get.cfg \
 	functional/cli_root/zpool_get/zpool_get_parsable.cfg \
 	functional/cli_root/zpool_import/blockfiles/cryptv0.dat.bz2 \
+	functional/cli_root/zpool_import/blockfiles/illumos_local_mac_no_project.dat.bz2 \
+	functional/cli_root/zpool_import/blockfiles/illumos_local_mac_received.dat.bz2 \
 	functional/cli_root/zpool_import/blockfiles/missing_ivset.dat.bz2 \
 	functional/cli_root/zpool_import/blockfiles/unclean_export.dat.bz2 \
 	functional/cli_root/zpool_import/zpool_import.cfg \
@@ -414,6 +416,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/userquota/13709_reproducer.bz2 \
 	functional/userquota/userquota.cfg \
 	functional/userquota/userquota_common.kshlib \
+	functional/userquota/projectmac.kshlib \
 	functional/vdev_zaps/vdev_zaps.kshlib \
 	functional/xattr/xattr.cfg \
 	functional/xattr/xattr_common.kshlib \
@@ -748,6 +751,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zdb/zdb_decompress_zstd.ksh \
 	functional/cli_root/zdb/zdb_display_block.ksh \
 	functional/cli_root/zdb/zdb_encrypted.ksh \
+	functional/cli_root/zdb/zdb_encrypted_local_mac.ksh \
 	functional/cli_root/zdb/zdb_encrypted_raw.ksh \
 	functional/cli_root/zdb/zdb_label_checksum.ksh \
 	functional/cli_root/zdb/zdb_file_layout_001.ksh \
@@ -1334,6 +1338,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_import/zpool_import_encrypted_zplprops.ksh \
 	functional/cli_root/zpool_import/zpool_import_errata3.ksh \
 	functional/cli_root/zpool_import/zpool_import_errata4.ksh \
+	functional/cli_root/zpool_import/zpool_import_local_mac_no_project.ksh \
+	functional/cli_root/zpool_import/zpool_import_local_mac_received.ksh \
 	functional/cli_root/zpool_import/zpool_import_features_001_pos.ksh \
 	functional/cli_root/zpool_import/zpool_import_features_002_neg.ksh \
 	functional/cli_root/zpool_import/zpool_import_features_003_pos.ksh \
@@ -2564,8 +2570,16 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/userquota/userspace_encrypted.ksh \
 	functional/userquota/userspace_send_encrypted.ksh \
 	functional/userquota/userspace_send_encrypted_changes.ksh \
+	functional/userquota/userspace_send_encrypted_local_mac_project.ksh \
 	functional/userquota/userspace_encrypted_13709.ksh \
+	functional/userquota/userspace_encrypted_incomplete_mac.ksh \
+	functional/userquota/userspace_encrypted_local_mac_project.ksh \
+	functional/userquota/userspace_encrypted_projectmac_busy.ksh \
+	functional/userquota/userspace_encrypted_projectmac_create.ksh \
+	functional/userquota/userspace_encrypted_projectmac_mixed.ksh \
+	functional/userquota/userspace_encrypted_projectmac_rollback.ksh \
 	functional/userquota/userspace_encrypted_unmounted.ksh \
+	functional/userquota/userspace_send_encrypted_projectmac_resume.ksh \
 	functional/vdev_zaps/cleanup.ksh \
 	functional/vdev_zaps/setup.ksh \
 	functional/vdev_zaps/vdev_zaps_001_pos.ksh \
