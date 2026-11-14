@@ -32,6 +32,9 @@
 #include <sys/dsl_dataset.h>
 #include <sys/vdev_impl.h>
 #include <sys/dmu_tx.h>
+#include <sys/dnode.h>
+#include <sys/zfs_fuid.h>
+#include <sys/zfs_znode.h>
 #include <sys/dsl_pool.h>
 #include <sys/metaslab.h>
 #include <sys/trace_zfs.h>
@@ -85,6 +88,75 @@
  * function (and the comments within it) for more details.
  */
 static uint_t zfs_commit_timeout_pct = 10;
+
+/* Testing only: per-record delay during both ZIL replay passes. */
+#ifdef ZFS_DEBUG
+static uint_t zfs_zil_replay_record_delay_ms = 0;
+#endif
+
+#ifdef ZFS_DEBUG
+/* Testing only: delay each asynchronous ZIL replay prime task. */
+static uint_t zfs_zil_replay_prime_delay_ms = 0;
+#endif
+
+/* Prime the ARC before ZIL replay; see zfs(4). */
+static int zfs_zil_replay_prime_arc = 0;
+
+/*
+ * Each zil_replay() that primes has its own taskq of this many threads.
+ * Prime tasks mostly wait for reads, so this doesn't depend on the number
+ * of CPUs.
+ */
+#define	ZIL_REPLAY_PRIME_THREADS	16
+
+/*
+ * The most prime tasks dispatched between waits for the taskq to drain,
+ * which bounds their memory; not every taskq implementation limits it.
+ */
+#define	ZIL_REPLAY_PRIME_TASKS_MAX	1024
+
+/*
+ * The most objects one zil_replay() tracks, about 8M of memory; past this,
+ * priming stops.
+ */
+#define	ZIL_REPLAY_PRIME_OBJS_MAX	(1ULL << 18)
+
+typedef struct zil_replay_prime_obj {
+	avl_node_t	zpo_node;
+	uint64_t	zpo_obj;
+} zil_replay_prime_obj_t;
+
+/*
+ * Priming state of one zil_replay() invocation, used only by the replay
+ * thread.  zrps_tq runs this invocation's prime tasks, so taskq_wait()
+ * waits for exactly those.  The object sets:
+ *
+ * - zrps_created: objects that records seen so far create.  They don't
+ *   exist before replay, so there's nothing to prime, and a prime task
+ *   could otherwise see a dnode or ZAP that replay is still initializing.
+ * - zrps_primed: objects prime tasks hold.  Before replaying a record that
+ *   creates one of these (its number was freed and reused within the
+ *   log), replay waits for the prime tasks, for the same reason.
+ */
+typedef struct zil_replay_prime_state {
+	taskq_t		*zrps_tq;
+	uint64_t	zrps_queued;	/* dispatched since the last wait */
+	avl_tree_t	zrps_created;
+	avl_tree_t	zrps_primed;
+	boolean_t	zrps_full;	/* too many objects; stop priming */
+	boolean_t	zrps_byteswap;	/* log is of the other byte order */
+} zil_replay_prime_state_t;
+
+/* Argument to zil_replay_prime_task(). */
+typedef struct zil_replay_prime_arg {
+	objset_t	*zrp_os;
+	size_t		zrp_size;	/* allocated size of this struct */
+	uint64_t	zrp_obj;	/* file, or directory if zrp_name[0] */
+	uint64_t	zrp_offset;	/* range to prefetch, if no name */
+	uint64_t	zrp_length;
+	boolean_t	zrp_data;	/* also prefetch partial data blocks */
+	char		zrp_name[];	/* directory entry name, or "" */
+} zil_replay_prime_arg_t;
 
 /*
  * See zil.h for more information about these fields.
@@ -4778,6 +4850,8 @@ zil_resume(void *cookie)
 typedef struct zil_replay_arg {
 	zil_replay_func_t *const *zr_replay;
 	void		*zr_arg;
+	zil_replay_prime_state_t *zr_prime_state; /* non-NULL: priming */
+	zil_replay_prime_state_t *zr_prime_wait; /* prime tasks to wait for */
 	boolean_t	zr_byteswap;
 	char		*zr_lr;
 	lr_write_t	*zr_split_lr;	/* the pending write, minus its data */
@@ -5050,6 +5124,464 @@ zil_replay_whole_blocks(zilog_t *zilog)
 }
 
 static int
+zil_replay_prime_obj_compare(const void *x1, const void *x2)
+{
+	const zil_replay_prime_obj_t *a = x1;
+	const zil_replay_prime_obj_t *b = x2;
+
+	return (TREE_CMP(a->zpo_obj, b->zpo_obj));
+}
+
+static boolean_t
+zil_replay_prime_obj_has(avl_tree_t *t, uint64_t obj)
+{
+	zil_replay_prime_obj_t search = { .zpo_obj = obj };
+
+	return (avl_find(t, &search, NULL) != NULL);
+}
+
+/*
+ * Return B_TRUE if the tree has an object in [start, end).
+ */
+static boolean_t
+zil_replay_prime_obj_range(avl_tree_t *t, uint64_t start, uint64_t end)
+{
+	zil_replay_prime_obj_t search = { .zpo_obj = start };
+	zil_replay_prime_obj_t *zpo;
+	avl_index_t where;
+
+	if ((zpo = avl_find(t, &search, &where)) == NULL)
+		zpo = avl_nearest(t, where, AVL_AFTER);
+	return (zpo != NULL && zpo->zpo_obj < end);
+}
+
+static void
+zil_replay_prime_obj_add(zil_replay_prime_state_t *zrps, avl_tree_t *t,
+    uint64_t obj)
+{
+	zil_replay_prime_obj_t search = { .zpo_obj = obj };
+	avl_index_t where;
+
+	if (avl_find(t, &search, &where) != NULL)
+		return;
+	if (avl_numnodes(&zrps->zrps_created) +
+	    avl_numnodes(&zrps->zrps_primed) >= ZIL_REPLAY_PRIME_OBJS_MAX) {
+		zrps->zrps_full = B_TRUE;
+		return;
+	}
+	zil_replay_prime_obj_t *zpo = kmem_alloc(sizeof (*zpo), KM_SLEEP);
+	zpo->zpo_obj = obj;
+	avl_insert(t, zpo, where);
+}
+
+static void
+zil_replay_prime_obj_destroy(avl_tree_t *t)
+{
+	zil_replay_prime_obj_t *zpo;
+	void *cookie = NULL;
+
+	while ((zpo = avl_destroy_nodes(t, &cookie)) != NULL)
+		kmem_free(zpo, sizeof (*zpo));
+	avl_destroy(t);
+}
+
+/*
+ * Wait for all of one zil_replay() invocation's prime tasks.
+ */
+static void
+zil_replay_prime_wait(zil_replay_prime_state_t *zrps)
+{
+	if (zrps->zrps_queued != 0)
+		zfs_dbgmsg("Waiting for ZIL replay prime tasks");
+	taskq_wait(zrps->zrps_tq);
+	zrps->zrps_queued = 0;
+}
+
+/*
+ * Prefetch what replaying a record will read, in one of two ways:
+ *
+ * - A directory entry (zrp_name[0] != 0): look up the name, which reads
+ *   the ZAP blocks that replay will search or modify, and prefetch the
+ *   dnode it names, if any.
+ * - A range of a file: replay overwrites (TX_WRITE), frees (TX_TRUNCATE)
+ *   or clones over (TX_CLONE_RANGE) whole blocks without reading them,
+ *   so only a partially covered first or last block needs its data
+ *   (zrp_data), but every block in the range needs its indirect blocks.
+ *
+ * Both may block on reads, which is why this runs on a taskq.
+ */
+static void
+zil_replay_prime_task(void *arg)
+{
+	zil_replay_prime_arg_t *zrp = arg;
+	objset_t *os = zrp->zrp_os;
+	uint64_t off = zrp->zrp_offset;
+	uint64_t len = zrp->zrp_length;
+	dnode_t *dn;
+
+#ifdef ZFS_DEBUG
+	if (zfs_zil_replay_prime_delay_ms != 0)
+		delay(MSEC_TO_TICK(zfs_zil_replay_prime_delay_ms));
+#endif
+	if (zrp->zrp_name[0] != '\0') {
+		uint64_t de;
+
+		if (zap_lookup(os, zrp->zrp_obj, zrp->zrp_name, 8, 1,
+		    &de) == 0) {
+			dmu_prefetch_dnode(os, ZFS_DIRENT_OBJ(de),
+			    ZIO_PRIORITY_SYNC_READ);
+		}
+	} else if (len != 0 &&
+	    dnode_hold(os, zrp->zrp_obj, FTAG, &dn) == 0) {
+		rw_enter(&dn->dn_struct_rwlock, RW_READER);
+		uint64_t bs = dn->dn_datablksz;
+		uint8_t nlevels = dn->dn_nlevels;
+		rw_exit(&dn->dn_struct_rwlock);
+
+		/*
+		 * A dnode being allocated has no block size yet.  Objects
+		 * replay creates are not primed, so this shouldn't happen.
+		 */
+		if (bs == 0)
+			goto out;
+
+		uint64_t end = off + len;
+		boolean_t head = zrp->zrp_data &&
+		    (off % bs != 0 || len < bs);
+		boolean_t tail = zrp->zrp_data && end % bs != 0 &&
+		    (!head || (end - 1) / bs != off / bs);
+
+		if (head) {
+			dmu_prefetch_by_dnode(dn, 0, off, 1,
+			    ZIO_PRIORITY_SYNC_READ);
+		}
+		if (tail) {
+			dmu_prefetch_by_dnode(dn, 0, end - 1, 1,
+			    ZIO_PRIORITY_SYNC_READ);
+		}
+		if (nlevels > 1) {
+			dmu_prefetch_by_dnode(dn, 1, off, len,
+			    ZIO_PRIORITY_SYNC_READ);
+		}
+out:
+		dnode_rele(dn, FTAG);
+	}
+	kmem_free(zrp, zrp->zrp_size);
+}
+
+static void
+zil_replay_prime_dispatch(zilog_t *zilog, zil_replay_prime_state_t *zrps,
+    uint64_t obj, const char *name, size_t namelen, uint64_t off,
+    uint64_t len, boolean_t data)
+{
+	if (zrps->zrps_full || (namelen == 0 && len == 0) ||
+	    zil_replay_prime_obj_has(&zrps->zrps_created, obj))
+		return;
+	zil_replay_prime_obj_add(zrps, &zrps->zrps_primed, obj);
+	if (zrps->zrps_full)
+		return;
+
+	size_t size = sizeof (zil_replay_prime_arg_t) + namelen + 1;
+	zil_replay_prime_arg_t *zrp = kmem_alloc(size, KM_SLEEP);
+
+	zrp->zrp_os = zilog->zl_os;
+	zrp->zrp_size = size;
+	zrp->zrp_obj = obj;
+	zrp->zrp_offset = off;
+	/* A length past the largest offset, such as "to EOF", is clamped. */
+	zrp->zrp_length = MIN(len, UINT64_MAX - off);
+	zrp->zrp_data = data;
+	if (namelen != 0)
+		memcpy(zrp->zrp_name, name, namelen);
+	zrp->zrp_name[namelen] = '\0';
+
+	if (zrps->zrps_queued >= ZIL_REPLAY_PRIME_TASKS_MAX)
+		zil_replay_prime_wait(zrps);
+	if (taskq_dispatch(zrps->zrps_tq, zil_replay_prime_task, zrp,
+	    TQ_SLEEP) == TASKQID_INVALID)
+		kmem_free(zrp, size);
+	else
+		zrps->zrps_queued++;
+}
+
+/*
+ * Return the length of the string at *pp, which must end before end, and
+ * advance *pp past it.  Return -1 if it doesn't end before end.
+ */
+static int
+zil_replay_prime_str(const char **pp, const char *end)
+{
+	const char *p = *pp;
+
+	if (p == NULL || p >= end)
+		return (-1);
+	size_t avail = (size_t)(end - p);
+	size_t n = strnlen(p, avail);
+	if (n == avail || n >= ZAP_MAXNAMELEN)
+		return (-1);
+	*pp = p + n + 1;
+	return ((int)n);
+}
+
+/*
+ * Find the name in a create record.  Only the simple layout is handled,
+ * matching zfs_replay_create(): the name follows the record, with no
+ * xvattr, ACL or FUID data before it.  Return NULL for anything else,
+ * which is then not primed.
+ */
+static const char *
+zil_replay_prime_create_name(const lr_t *lr, uint64_t txtype)
+{
+	const lr_create_t *lrc = (const lr_create_t *)lr;
+
+	if (lr->lrc_reclen < sizeof (lr_create_t))
+		return (NULL);
+	switch (txtype) {
+	case TX_CREATE:
+	case TX_MKDIR:
+		/* FUID domains of the owner and group precede the name. */
+		if (FUID_INDEX(lrc->lr_create.lr_uid) != 0 ||
+		    FUID_INDEX(lrc->lr_create.lr_gid) != 0)
+			return (NULL);
+		zfs_fallthrough;
+	case TX_SYMLINK:
+		return ((const char *)&lrc->lr_data[0]);
+	default:
+		return (NULL);
+	}
+}
+
+/*
+ * Prefetch a directory entry: the ZAP blocks holding name, and the dnode
+ * it names.
+ */
+static void
+zil_replay_prime_dirent(zilog_t *zilog, zil_replay_prime_state_t *zrps,
+    uint64_t dir, const char **pp, const char *end)
+{
+	const char *name = *pp;
+	int n;
+
+	/*
+	 * Log blocks of the other byte order are swapped as 64-bit words,
+	 * which scrambles the names.
+	 */
+	if (zrps->zrps_byteswap)
+		return;
+	n = zil_replay_prime_str(pp, end);
+
+	if (n > 0)
+		zil_replay_prime_dispatch(zilog, zrps, dir, name, n, 0, 0,
+		    B_FALSE);
+	else
+		*pp = NULL;
+}
+
+/*
+ * If replaying this record creates an object, return B_TRUE, its number
+ * and the number of dnode slots it takes.
+ */
+static boolean_t
+zil_replay_prime_creates(const lr_t *lr, uint64_t txtype, uint64_t *objp,
+    uint64_t *slotsp)
+{
+	uint64_t foid;
+
+	switch (txtype) {
+	case TX_CREATE:
+	case TX_MKDIR:
+	case TX_MKXATTR:
+	case TX_SYMLINK:
+	case TX_CREATE_ATTR:
+	case TX_MKDIR_ATTR:
+	case TX_CREATE_ACL:
+	case TX_CREATE_ACL_ATTR:
+	case TX_MKDIR_ACL:
+	case TX_MKDIR_ACL_ATTR:
+		if (lr->lrc_reclen < sizeof (lr_create_t))
+			return (B_FALSE);
+		foid = ((const _lr_create_t *)lr)->lr_foid;
+		break;
+	case TX_RENAME_WHITEOUT:
+		if (lr->lrc_reclen < sizeof (lr_rename_whiteout_t))
+			return (B_FALSE);
+		foid = ((const lr_rename_whiteout_t *)lr)->lr_wfoid;
+		break;
+	default:
+		return (B_FALSE);
+	}
+	*objp = LR_FOID_GET_OBJ(foid);
+	*slotsp = LR_FOID_GET_SLOTS(foid);
+	return (B_TRUE);
+}
+
+/*
+ * Start reading what replaying this record will need.  Dnode prefetches
+ * don't block, so issue them here; anything that must first read a dnode
+ * or a directory goes to a taskq.  The layouts of the records must match
+ * the ZPL replay functions in zfs_replay.c.  A record that doesn't parse
+ * is just not primed; replay validates it.
+ */
+static void
+zil_replay_prime_record(zilog_t *zilog, zil_replay_prime_state_t *zrps,
+    const lr_t *lr, uint64_t txtype)
+{
+	objset_t *os = zilog->zl_os;
+	const char *end = (const char *)lr + lr->lrc_reclen;
+	const char *p;
+	uint64_t created, slots;
+
+	if (zrps->zrps_full)
+		return;
+	if (zil_replay_prime_creates(lr, txtype, &created, &slots)) {
+		for (uint64_t i = 0; i < slots; i++) {
+			zil_replay_prime_obj_add(zrps, &zrps->zrps_created,
+			    created + i);
+		}
+	}
+
+	switch (txtype) {
+	case TX_CREATE:
+	case TX_MKDIR:
+	case TX_MKXATTR:
+	case TX_SYMLINK:
+	case TX_CREATE_ATTR:
+	case TX_MKDIR_ATTR:
+	case TX_CREATE_ACL:
+	case TX_CREATE_ACL_ATTR:
+	case TX_MKDIR_ACL:
+	case TX_MKDIR_ACL_ATTR: {
+		const _lr_create_t *lrc = (const _lr_create_t *)lr;
+
+		if (lr->lrc_reclen < sizeof (lr_create_t))
+			break;
+		dmu_prefetch_dnode(os, lrc->lr_doid, ZIO_PRIORITY_SYNC_READ);
+		/* The dnode block that replay will claim the new object in. */
+		dmu_prefetch_dnode(os, LR_FOID_GET_OBJ(lrc->lr_foid),
+		    ZIO_PRIORITY_SYNC_READ);
+		if (txtype != TX_MKXATTR) {
+			p = zil_replay_prime_create_name(lr, txtype);
+			zil_replay_prime_dirent(zilog, zrps, lrc->lr_doid, &p,
+			    end);
+		}
+		break;
+	}
+	case TX_REMOVE:
+	case TX_RMDIR: {
+		const lr_remove_t *lrr = (const lr_remove_t *)lr;
+
+		if (lr->lrc_reclen < sizeof (lr_remove_t))
+			break;
+		dmu_prefetch_dnode(os, lrr->lr_doid, ZIO_PRIORITY_SYNC_READ);
+		p = (const char *)&lrr->lr_data[0];
+		zil_replay_prime_dirent(zilog, zrps, lrr->lr_doid, &p, end);
+		break;
+	}
+	case TX_LINK: {
+		const lr_link_t *lrl = (const lr_link_t *)lr;
+
+		if (lr->lrc_reclen < sizeof (lr_link_t))
+			break;
+		dmu_prefetch_dnode(os, lrl->lr_doid, ZIO_PRIORITY_SYNC_READ);
+		dmu_prefetch_dnode(os, lrl->lr_link_obj,
+		    ZIO_PRIORITY_SYNC_READ);
+		p = (const char *)&lrl->lr_data[0];
+		zil_replay_prime_dirent(zilog, zrps, lrl->lr_doid, &p, end);
+		break;
+	}
+	case TX_RENAME:
+	case TX_RENAME_EXCHANGE:
+	case TX_RENAME_WHITEOUT: {
+		const _lr_rename_t *lrr = (const _lr_rename_t *)lr;
+
+		if (txtype == TX_RENAME_WHITEOUT) {
+			const lr_rename_whiteout_t *lrw =
+			    (const lr_rename_whiteout_t *)lr;
+
+			if (lr->lrc_reclen < sizeof (lr_rename_whiteout_t))
+				break;
+			dmu_prefetch_dnode(os, LR_FOID_GET_OBJ(lrw->lr_wfoid),
+			    ZIO_PRIORITY_SYNC_READ);
+			p = (const char *)&lrw->lr_data[0];
+		} else {
+			const lr_rename_t *lrn = (const lr_rename_t *)lr;
+
+			if (lr->lrc_reclen < sizeof (lr_rename_t))
+				break;
+			p = (const char *)&lrn->lr_data[0];
+		}
+		dmu_prefetch_dnode(os, lrr->lr_sdoid, ZIO_PRIORITY_SYNC_READ);
+		dmu_prefetch_dnode(os, lrr->lr_tdoid, ZIO_PRIORITY_SYNC_READ);
+		/* The source name, then the target name. */
+		zil_replay_prime_dirent(zilog, zrps, lrr->lr_sdoid, &p, end);
+		zil_replay_prime_dirent(zilog, zrps, lrr->lr_tdoid, &p, end);
+		break;
+	}
+	case TX_WRITE:
+	case TX_WRITE2: {
+		const lr_write_t *lrw = (const lr_write_t *)lr;
+
+		if (lr->lrc_reclen < sizeof (lr_write_t))
+			break;
+		zil_replay_prime_dispatch(zilog, zrps, lrw->lr_foid, NULL, 0,
+		    lrw->lr_offset, lrw->lr_length, B_TRUE);
+		break;
+	}
+	case TX_TRUNCATE: {
+		const lr_truncate_t *lrt = (const lr_truncate_t *)lr;
+
+		if (lr->lrc_reclen < sizeof (lr_truncate_t))
+			break;
+		/* A length of zero frees to the end of the file. */
+		zil_replay_prime_dispatch(zilog, zrps, lrt->lr_foid, NULL, 0,
+		    lrt->lr_offset, lrt->lr_length == 0 ? UINT64_MAX :
+		    lrt->lr_length, B_TRUE);
+		break;
+	}
+	case TX_CLONE_RANGE: {
+		const lr_clone_range_t *lrc = (const lr_clone_range_t *)lr;
+
+		if (lr->lrc_reclen < sizeof (lr_clone_range_t))
+			break;
+		/* Cloning replaces whole blocks, so read only indirects. */
+		zil_replay_prime_dispatch(zilog, zrps, lrc->lr_foid, NULL, 0,
+		    lrc->lr_offset, lrc->lr_length, B_FALSE);
+		break;
+	}
+	case TX_SETATTR: {
+		const lr_setattr_t *lrs = (const lr_setattr_t *)lr;
+
+		if (lr->lrc_reclen < sizeof (lr_setattr_t))
+			break;
+		/*
+		 * A size change frees from the new size to the end of the
+		 * file, like TX_TRUNCATE.  lr_mask uses this platform's
+		 * AT_* bits, as replay does.
+		 */
+		if (lrs->lr_mask & AT_SIZE) {
+			zil_replay_prime_dispatch(zilog, zrps, lrs->lr_foid,
+			    NULL, 0, lrs->lr_size, UINT64_MAX, B_TRUE);
+		} else {
+			dmu_prefetch_dnode(os, lrs->lr_foid,
+			    ZIO_PRIORITY_SYNC_READ);
+		}
+		break;
+	}
+	case TX_ACL_V0:
+	case TX_ACL:
+	case TX_SETSAXATTR:
+		/* These all start with lr_ooo_t. */
+		if (lr->lrc_reclen < sizeof (lr_ooo_t))
+			break;
+		dmu_prefetch_dnode(os, ((const lr_ooo_t *)lr)->lr_foid,
+		    ZIO_PRIORITY_SYNC_READ);
+		break;
+	default:
+		break;
+	}
+}
+
+static int
 zil_replay_log_record(zilog_t *zilog, const lr_t *lr, void *zra,
     uint64_t claim_txg)
 {
@@ -5058,6 +5590,11 @@ zil_replay_log_record(zilog_t *zilog, const lr_t *lr, void *zra,
 	uint64_t reclen = lr->lrc_reclen;
 	uint64_t txtype = lr->lrc_txtype;
 	int error = 0;
+
+#ifdef ZFS_DEBUG
+	if (zfs_zil_replay_record_delay_ms != 0)
+		delay(MSEC_TO_TICK(zfs_zil_replay_record_delay_ms));
+#endif
 
 	zilog->zl_replaying_seq = lr->lrc_seq;
 
@@ -5069,6 +5606,16 @@ zil_replay_log_record(zilog_t *zilog, const lr_t *lr, void *zra,
 
 	/* Strip case-insensitive bit, still present in log record */
 	txtype &= ~TX_CI;
+
+	/*
+	 * Priming ignores records it doesn't know, leaving replay to report
+	 * them, and tolerates missing objects, so it skips the check below,
+	 * which may block reading the dnode.
+	 */
+	if (zr->zr_prime_state != NULL) {
+		zil_replay_prime_record(zilog, zr->zr_prime_state, lr, txtype);
+		return (0);
+	}
 
 	if (txtype == 0 || txtype >= TX_MAX_TYPE)
 		return (zil_replay_error(zilog, lr, EINVAL));
@@ -5083,6 +5630,19 @@ zil_replay_log_record(zilog_t *zilog, const lr_t *lr, void *zra,
 		if (error == ENOENT || error == EEXIST)
 			return (0);
 	}
+
+	/*
+	 * Don't create an object while a prime task may hold a dnode in any
+	 * of the slots it takes; see zil_replay_prime_state_t.  Not every
+	 * log records the slot count (ztest's doesn't), so check the rest of
+	 * the dnode block, which a dnode can't extend past.
+	 */
+	uint64_t created, slots;
+	if (zr->zr_prime_wait != NULL &&
+	    zil_replay_prime_creates(lr, txtype, &created, &slots) &&
+	    zil_replay_prime_obj_range(&zr->zr_prime_wait->zrps_primed,
+	    created, P2ROUNDUP(created + 1, DNODES_PER_BLOCK)))
+		zil_replay_prime_wait(zr->zr_prime_wait);
 
 	/*
 	 * Make a copy of the data so we can revise and extend it.  The
@@ -5146,6 +5706,15 @@ again:
 		 * any removes then retry the transaction.  Note that we
 		 * specify B_FALSE for byteswap now, so we don't do it twice.
 		 */
+		/*
+		 * A prime task's dnode hold can also make creating an
+		 * object fail (dnode_try_claim() returns ENOSPC for a held
+		 * slot), so wait for them first.  The wait before a create
+		 * above is what keeps such a hold from arriving after that
+		 * check; this one only lets the retry succeed.
+		 */
+		if (zr->zr_prime_wait != NULL)
+			zil_replay_prime_wait(zr->zr_prime_wait);
 		txg_wait_synced(spa_get_dsl(zilog->zl_spa), 0);
 		error = zr->zr_replay[txtype](zr->zr_arg, zr->zr_lr, B_FALSE);
 		if (error != 0)
@@ -5182,6 +5751,8 @@ zil_replay(objset_t *os, void *arg,
 	const zil_header_t *zh = zilog->zl_header;
 	zil_replay_arg_t zr;
 	lr_write_t split_lr;
+	zil_replay_prime_state_t zrps;
+	boolean_t primed = B_FALSE;
 	int err;
 
 	if ((zh->zh_flags & ZIL_REPLAY_NEEDED) == 0) {
@@ -5191,6 +5762,8 @@ zil_replay(objset_t *os, void *arg,
 	zr.zr_replay = replay_func;
 	zr.zr_arg = arg;
 	zr.zr_byteswap = BP_SHOULD_BYTESWAP(&zh->zh_log);
+	zr.zr_prime_state = NULL;
+	zr.zr_prime_wait = NULL;
 	zr.zr_lr = vmem_alloc(ZIL_REPLAY_BUFSZ, KM_SLEEP);
 	zr.zr_split_lr = &split_lr;
 	zr.zr_split_seq = 0;
@@ -5218,10 +5791,45 @@ zil_replay(objset_t *os, void *arg,
 	zilog->zl_replay = B_TRUE;
 	zilog->zl_replay_time = ddi_get_lbolt();
 	ASSERT0(zilog->zl_replay_blks);
+	/* Priming is optional; replay without it if there's no taskq. */
+	if (zfs_zil_replay_prime_arc &&
+	    (zrps.zrps_tq = taskq_create("z_zil_prime",
+	    ZIL_REPLAY_PRIME_THREADS, minclsyspri, 1, INT_MAX,
+	    TASKQ_DYNAMIC)) != NULL) {
+		primed = B_TRUE;
+		zrps.zrps_queued = 0;
+		zrps.zrps_full = B_FALSE;
+		zrps.zrps_byteswap = zr.zr_byteswap;
+		avl_create(&zrps.zrps_created, zil_replay_prime_obj_compare,
+		    sizeof (zil_replay_prime_obj_t),
+		    offsetof(zil_replay_prime_obj_t, zpo_node));
+		avl_create(&zrps.zrps_primed, zil_replay_prime_obj_compare,
+		    sizeof (zil_replay_prime_obj_t),
+		    offsetof(zil_replay_prime_obj_t, zpo_node));
+		zr.zr_prime_state = &zrps;
+		zr.zr_prime_wait = &zrps;
+		zfs_dbgmsg("Starting zfs_zil_replay_prime_arc");
+		(void) zil_parse(zilog, zil_replay_scan_blk,
+		    zil_replay_log_record, &zr, zh->zh_claim_txg, B_TRUE);
+		zr.zr_prime_state = NULL;
+		zfs_dbgmsg("Finished zfs_zil_replay_prime_arc");
+	}
+
 	(void) zil_parse(zilog, zil_incr_blks, zil_replay_log_record, &zr,
 	    zh->zh_claim_txg, B_TRUE);
 	/* If the log ended inside a split write, count it as dropped. */
 	zil_replay_split_drop(zilog, &zr, 0);
+	/*
+	 * Let prime tasks overlap real replay, then drain only this
+	 * invocation's tasks before zrps goes out of scope.
+	 */
+	if (primed) {
+		zil_replay_prime_wait(&zrps);
+		zr.zr_prime_wait = NULL;
+		taskq_destroy(zrps.zrps_tq);
+		zil_replay_prime_obj_destroy(&zrps.zrps_created);
+		zil_replay_prime_obj_destroy(&zrps.zrps_primed);
+	}
 	vmem_free(zr.zr_lr, ZIL_REPLAY_BUFSZ);
 	zilog->zl_replay_write2 = B_FALSE;
 
@@ -5291,6 +5899,17 @@ EXPORT_SYMBOL(zil_kstat_values_update);
 
 ZFS_MODULE_PARAM(zfs, zfs_, commit_timeout_pct, UINT, ZMOD_RW,
 	"ZIL block open timeout percentage");
+
+ZFS_MODULE_PARAM(zfs_zil, zfs_zil_, replay_prime_arc, INT, ZMOD_RW,
+	"Prime the ARC before serial ZIL replay");
+
+#ifdef ZFS_DEBUG
+ZFS_MODULE_PARAM(zfs, zfs_, zil_replay_record_delay_ms, UINT, ZMOD_RW,
+	"Testing only: delay per ZIL record during replay (ms)");
+
+ZFS_MODULE_PARAM(zfs, zfs_, zil_replay_prime_delay_ms, UINT, ZMOD_RW,
+	"Testing only: delay each ZIL replay prime task (ms)");
+#endif
 
 ZFS_MODULE_PARAM(zfs_zil, zil_, replay_disable, INT, ZMOD_RW,
 	"Disable intent logging replay");
