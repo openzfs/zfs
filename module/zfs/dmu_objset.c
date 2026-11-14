@@ -1788,6 +1788,14 @@ dmu_objset_sync(objset_t *os, zio_t *pio, dmu_tx_t *tx)
 	    ZB_ROOT_OBJECT, ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
 	if (os->os_encrypted)
 		dmu_objset_phys_write_begin(os);
+
+	/*
+	 * A non-raw write computes new MACs, so the old MACs must have been
+	 * checked.
+	 */
+	ASSERT(!os->os_encrypted || os->os_raw_receive ||
+	    os->os_next_write_raw[tx->tx_txg & TXG_MASK] ||
+	    os->os_authenticated);
 	arc_release(os->os_phys_buf, &os->os_phys_buf);
 
 	dmu_write_policy(os, NULL, 0, 0, &zp);
