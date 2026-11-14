@@ -1646,6 +1646,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/crtime/setup.ksh \
 	functional/crypto/icp_aes_ccm.ksh \
 	functional/crypto/icp_aes_gcm.ksh \
+	functional/crypto/zil_large_aad_alloc.ksh \
 	functional/ctime/cleanup.ksh \
 	functional/ctime/ctime_001_pos.ksh \
 	functional/ctime/setup.ksh \
