@@ -40,6 +40,8 @@ function cleanup
 	poolexists $TESTPOOL2 && zpool destroy $TESTPOOL2
 	# reset livelist max size
 	set_tunable64 LIVELIST_MAX_ENTRIES $ORIGINAL_MAX
+	set_tunable32 LIVELIST_CONDENSE_SYNC_PAUSE 0
+	set_tunable32 LIVELIST_CONDENSE_NEW_ALLOC 0
 	[[ -f $VIRTUAL_DISK1 ]] && log_must rm $VIRTUAL_DISK1
 	[[ -f $VIRTUAL_DISK2 ]] && log_must rm $VIRTUAL_DISK2
 }
