@@ -364,7 +364,8 @@ typedef struct metaslab_verify {
 	/*
 	 * Livelist ALLOCs that a FREE entry of the metaslab's own space map
 	 * with their birth txg covers, until an ALLOC entry places them
-	 * again [see verify_livelist_allocs()].
+	 * again or a later FREE entry reports them [see
+	 * verify_livelist_allocs()].
 	 */
 	zfs_btree_t mv_freed_at_birth;
 } metaslab_verify_t;
@@ -428,13 +429,39 @@ report_livelist_alloc_freed(const sublivelist_verify_block_t *svb,
 }
 
 static void
+report_livelist_alloc_freed_at_birth(const sublivelist_verify_block_t *svb)
+{
+	(void) printf("ERROR: Livelist ALLOC [%llx:%llx] from TXG %llx "
+	    "freed in its birth TXG and not allocated again\n",
+	    (u_longlong_t)DVA_GET_OFFSET(&svb->svb_dva),
+	    (u_longlong_t)DVA_GET_ASIZE(&svb->svb_dva),
+	    (u_longlong_t)svb->svb_allocated_txg);
+	corruption_found = B_TRUE;
+}
+
+/*
+ * Return the first block of the tree at or after the offset in the vdev,
+ * and set where to its index.
+ */
+static sublivelist_verify_block_t *
+livelist_block_find(zfs_btree_t *tree, uint64_t vdid, uint64_t offset,
+    zfs_btree_index_t *where)
+{
+	sublivelist_verify_block_t svb = {{{0}}};
+	DVA_SET_VDEV(&svb.svb_dva, vdid);
+	DVA_SET_OFFSET(&svb.svb_dva, offset);
+	DVA_SET_ASIZE(&svb.svb_dva, 0);
+
+	sublivelist_verify_block_t *found = zfs_btree_find(tree, &svb, where);
+	if (found == NULL)
+		found = zfs_btree_next(tree, where, where);
+	return (found);
+}
+
+static void
 verify_livelist_allocs(metaslab_verify_t *mv, uint64_t txg,
     uint64_t offset, uint64_t size)
 {
-	sublivelist_verify_block_t svb = {{{0}}};
-	DVA_SET_VDEV(&svb.svb_dva, mv->mv_vdid);
-	DVA_SET_OFFSET(&svb.svb_dva, offset);
-	DVA_SET_ASIZE(&svb.svb_dva, 0);
 	zfs_btree_index_t where;
 	uint64_t end_offset = offset + size;
 
@@ -443,11 +470,8 @@ verify_livelist_allocs(metaslab_verify_t *mv, uint64_t txg,
 	 *  Then, look for other livelist entries that fall within the range
 	 *  of the spacemap entry as it may have been condensed
 	 */
-	sublivelist_verify_block_t *found =
-	    zfs_btree_find(&mv->mv_livelist_allocs, &svb, &where);
-	if (found == NULL) {
-		found = zfs_btree_next(&mv->mv_livelist_allocs, &where, &where);
-	}
+	sublivelist_verify_block_t *found = livelist_block_find(
+	    &mv->mv_livelist_allocs, mv->mv_vdid, offset, &where);
 	for (; found != NULL && DVA_GET_VDEV(&found->svb_dva) == mv->mv_vdid &&
 	    DVA_GET_OFFSET(&found->svb_dva) < end_offset;
 	    found = zfs_btree_next(&mv->mv_livelist_allocs, &where, &where)) {
@@ -470,6 +494,16 @@ verify_livelist_allocs(metaslab_verify_t *mv, uint64_t txg,
 				    found, &fwhere);
 			}
 		} else {
+			/*
+			 * This entry reports the block, so do not report it
+			 * again when the metaslab is done.
+			 */
+			zfs_btree_index_t fwhere;
+			if (zfs_btree_find(&mv->mv_freed_at_birth, found,
+			    &fwhere) != NULL) {
+				zfs_btree_remove_idx(&mv->mv_freed_at_birth,
+				    &fwhere);
+			}
 			report_livelist_alloc_freed(found, txg);
 		}
 	}
@@ -489,26 +523,21 @@ verify_livelist_allocs_placed(metaslab_verify_t *mv, uint64_t txg,
 	if (zfs_btree_numnodes(&mv->mv_freed_at_birth) == 0)
 		return;
 
-	sublivelist_verify_block_t svb = {{{0}}};
-	DVA_SET_VDEV(&svb.svb_dva, mv->mv_vdid);
-	DVA_SET_OFFSET(&svb.svb_dva, offset);
-	DVA_SET_ASIZE(&svb.svb_dva, 0);
 	zfs_btree_index_t where;
 	uint64_t end_offset = offset + size;
 
-	sublivelist_verify_block_t *found =
-	    zfs_btree_find(&mv->mv_freed_at_birth, &svb, &where);
-	if (found == NULL)
-		found = zfs_btree_next(&mv->mv_freed_at_birth, &where, &where);
+	sublivelist_verify_block_t *found = livelist_block_find(
+	    &mv->mv_freed_at_birth, mv->mv_vdid, offset, &where);
 	while (found != NULL && DVA_GET_OFFSET(&found->svb_dva) < end_offset) {
-		if (found->svb_allocated_txg != txg &&
-		    !(mv->mv_ms_sm && mv->mv_unflushed_txg != 0 &&
-		    found->svb_allocated_txg < txg)) {
+		boolean_t placed = found->svb_allocated_txg == txg ||
+		    (mv->mv_ms_sm && mv->mv_unflushed_txg != 0 &&
+		    found->svb_allocated_txg < txg);
+		if (!placed) {
 			found = zfs_btree_next(&mv->mv_freed_at_birth, &where,
 			    &where);
 			continue;
 		}
-		svb = *found;
+		sublivelist_verify_block_t svb = *found;
 		zfs_btree_remove_idx(&mv->mv_freed_at_birth, &where);
 		found = zfs_btree_find(&mv->mv_freed_at_birth, &svb, &where);
 		ASSERT0P(found);
@@ -700,9 +729,10 @@ mv_populate_livelist_allocs(metaslab_verify_t *mv, sublivelist_verify_t *sv)
  * A FREE entry of the metaslab's own spacemap with the TXG stamp of the
  * block it covers is not an error by itself: flushing the log spacemaps
  * and condensing write such entries for space that the TXG is allocating.
- * The block is reported when the metaslab is done, unless a later ALLOC
- * entry places it again: one with the same TXG or, in a metaslab that
- * uses the log spacemaps, any later one of its own spacemap.
+ * The block is reported when the metaslab is done, as freed in its birth
+ * TXG, unless a later FREE entry reports it first or a later ALLOC entry
+ * places it again: one with the same TXG or, in a metaslab that uses the
+ * log spacemaps, any later one of its own spacemap.
  *
  * Note that this will miss Log Spacemap entries that cancelled each other
  * out before being flushed to the metaslab, and, among the entries written
@@ -767,8 +797,7 @@ livelist_metaslab_validate(spa_t *spa)
 			sublivelist_verify_block_t *svb;
 			while ((svb = zfs_btree_destroy_nodes(
 			    &mv.mv_freed_at_birth, &cookie)) != NULL) {
-				report_livelist_alloc_freed(svb,
-				    svb->svb_allocated_txg);
+				report_livelist_alloc_freed_at_birth(svb);
 			}
 			zfs_btree_destroy(&mv.mv_freed_at_birth);
 
