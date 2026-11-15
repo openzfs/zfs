@@ -87,6 +87,8 @@ test_pool_namecheck(const MunitParameter params[], void *data)
 	check_invalid(pool_namecheck, "mirror", NAME_ERR_RESERVED);
 	check_invalid(pool_namecheck, "raidz", NAME_ERR_RESERVED);
 	check_invalid(pool_namecheck, "draid", NAME_ERR_RESERVED);
+	check_invalid(pool_namecheck, "anymirror", NAME_ERR_RESERVED);
+	check_invalid(pool_namecheck, "anyraid", NAME_ERR_RESERVED);
 
 	/* A pool name carries no hierarchy or snapshot delimiter. */
 	check_invalid(pool_namecheck, "tank/fs", NAME_ERR_INVALCHAR);
