@@ -14,7 +14,7 @@
 .\"
 .\" lint-ok: WARNING: sections out of conventional order: Sh SYNOPSIS
 .\"
-.Dd April 1, 2026
+.Dd November 15, 2026
 .Dt ZINJECT 8
 .Os
 .
@@ -37,6 +37,7 @@ List injection records.
 .It Xo
 .Nm zinject
 .Fl b Ar objset : Ns Ar object : Ns Ar level : Ns Ar start : Ns Ar end
+.Op Fl e Ar device_error
 .Op Fl f Ar frequency
 .Fl amu
 .Op pool
@@ -238,6 +239,14 @@ For EIO and ENXIO, the "failed" reads or writes still occur.
 The probe simply sets the error value reported by the I/O pipeline
 so it appears the read or write failed.
 Decryption errors only currently work with file data.
+.Pp
+A decompression error is injected where the block is decompressed.
+With the compressed ARC, that is in the ARC after the read succeeded:
+the reader gets EIO, but no I/O error is reported.
+Otherwise the read itself fails with EIO.
+An error injected for a
+.Ar mos_type
+always fails the read with EIO.
 .It Fl f Ar frequency
 Only inject errors a fraction of the time.
 Expressed as a real number percentage between

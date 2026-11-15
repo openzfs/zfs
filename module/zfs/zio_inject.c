@@ -235,6 +235,49 @@ zio_handle_decrypt_injection(spa_t *spa, const zbookmark_phys_t *zb,
 }
 
 /*
+ * Inject a decompression failure into a block that the ARC decompresses.
+ * With the compressed ARC, a block is read compressed and decompressed in
+ * arc_buf_fill(), not in zio_decompress(), and a failure there is not an
+ * I/O error of the read.
+ *
+ * Only records that name blocks match here.  A MOS type record matches on
+ * the block type, which the ARC does not keep: it fails the read in the
+ * I/O pipeline, as it always did.
+ */
+int
+zio_handle_decompress_injection(spa_t *spa, const zbookmark_phys_t *zb,
+    int error)
+{
+	int ret = 0;
+	inject_handler_t *handler;
+
+	if (likely(zio_injection_enabled == 0))
+		return (0);
+
+	rw_enter(&inject_lock, RW_READER);
+
+	for (handler = list_head(&inject_handlers); handler != NULL;
+	    handler = list_next(&inject_handlers, handler)) {
+		zinject_record_t *record = &handler->zi_record;
+
+		if (spa != handler->zi_spa ||
+		    record->zi_cmd != ZINJECT_DATA_FAULT ||
+		    (record->zi_objset == DMU_META_OBJSET &&
+		    record->zi_object == DMU_META_DNODE_OBJECT))
+			continue;
+
+		if (zio_match_handler(zb, DMU_OT_NONE, ZI_NO_DVA, record,
+		    error)) {
+			ret = error;
+			break;
+		}
+	}
+
+	rw_exit(&inject_lock);
+	return (ret);
+}
+
+/*
  * If this is a physical I/O for a vdev child determine which DVA it is
  * for. We iterate backwards through the DVAs matching on the offset so
  * that we end up with ZI_NO_DVA (-1) if we don't find a match.

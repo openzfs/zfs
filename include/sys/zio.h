@@ -736,6 +736,8 @@ extern void zio_handle_panic_injection(spa_t *spa, const char *tag,
     uint64_t type);
 extern int zio_handle_decrypt_injection(spa_t *spa, const zbookmark_phys_t *zb,
     uint64_t type, int error);
+extern int zio_handle_decompress_injection(spa_t *spa,
+    const zbookmark_phys_t *zb, int error);
 extern int zio_handle_fault_injection(zio_t *zio, int error);
 extern int zio_handle_device_injection(vdev_t *vd, zio_t *zio, int error);
 extern int zio_handle_device_injections(vdev_t *vd, zio_t *zio, int err1,
