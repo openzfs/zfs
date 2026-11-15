@@ -96,6 +96,7 @@ for dev in $ORIG $SPARE; do
 done
 
 typeset mntpnt=$(get_prop mountpoint $TESTPOOL1)
+typeset -i over_before=$(kstat dmu_tx.dmu_tx_dirty_over_max)
 (
 	trap 'kill $ddpid 2>/dev/null; exit' TERM
 	while true; do
@@ -107,6 +108,8 @@ typeset mntpnt=$(get_prop mountpoint $TESTPOOL1)
 ) &
 wpid=$!
 sleep 5
+(( $(kstat dmu_tx.dmu_tx_dirty_over_max) > over_before )) || \
+    log_fail "pool never reached its dirty data limit"
 
 zpool detach $TESTPOOL1 $ORIG &
 dpid=$!
