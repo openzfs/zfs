@@ -1644,8 +1644,10 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/crtime/cleanup.ksh \
 	functional/crtime/crtime_001_pos.ksh \
 	functional/crtime/setup.ksh \
+	functional/crypto/cleanup.ksh \
 	functional/crypto/icp_aes_ccm.ksh \
 	functional/crypto/icp_aes_gcm.ksh \
+	functional/crypto/setup.ksh \
 	functional/crypto/zil_large_aad_alloc.ksh \
 	functional/ctime/cleanup.ksh \
 	functional/ctime/ctime_001_pos.ksh \
