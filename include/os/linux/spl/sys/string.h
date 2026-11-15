@@ -24,6 +24,7 @@
 #ifndef _SPL_STRING_H
 #define	_SPL_STRING_H
 
+#include <linux/build_bug.h>
 #include <linux/string.h>
 
 #ifndef HAVE_KERNEL_STRLCPY
