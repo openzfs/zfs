@@ -2186,6 +2186,11 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 			    &hdr->b_complevel);
 			abd_free(&dabd);
 
+			if (zio_injection_enabled && error == 0) {
+				error = zio_handle_decompress_injection(spa,
+				    zb, EINVAL);
+			}
+
 			/*
 			 * Absent hardware errors or software bugs, this should
 			 * be impossible, but log it anyway so we can debug it.
