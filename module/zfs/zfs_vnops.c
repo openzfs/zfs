@@ -1391,7 +1391,7 @@ zfs_get_direct_alignment(znode_t *zp, uint64_t *alignp)
 }
 
 #ifdef ZFS_DEBUG
-static int zil_fault_io = 0;
+static int zfs_zil_fault_io = 0;
 #endif
 
 static void zfs_get_done(zgd_t *zgd, int error);
@@ -1495,9 +1495,9 @@ zfs_get_data(void *arg, uint64_t gen, lr_write_t *lr, char *buf,
 		if (lr->lr_offset >= zp->z_size)
 			error = SET_ERROR(ENOENT);
 #ifdef ZFS_DEBUG
-		if (zil_fault_io) {
+		if (zfs_zil_fault_io) {
 			error = SET_ERROR(EIO);
-			zil_fault_io = 0;
+			zfs_zil_fault_io = 0;
 		}
 #endif
 
@@ -3081,3 +3081,8 @@ ZFS_MODULE_PARAM(zfs, zfs_, dio_enabled, INT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs, zfs_, dio_strict, INT, ZMOD_RW,
 	"Return errors on misaligned Direct I/O");
+
+#ifdef ZFS_DEBUG
+ZFS_MODULE_PARAM(zfs, zfs_, zil_fault_io, INT, ZMOD_RW,
+	"Inject a one-shot I/O error into an indirect ZIL write");
+#endif

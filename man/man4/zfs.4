@@ -16,7 +16,7 @@
 .\" Copyright (c) 2026, Mateusz Piotrowski <0mp@FreeBSD.org>
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd September 9, 2026
+.Dd November 16, 2026
 .Dt ZFS 4
 .Os
 .
@@ -2763,6 +2763,16 @@ This controls the number of threads used by
 The default value of
 .Sy 100%
 will create a maximum of one thread per CPU.
+.
+.It Sy zfs_zil_fault_io Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Inject a one-shot I/O error into an indirect ZIL write (debug builds only).
+The parameter resets to
+.Sy 0
+when the error is injected.
+On
+.Fx ,
+this parameter is exposed as
+.Sy vfs.zfs.zil_fault_io .
 .
 .It Sy zil_maxblocksize Ns = Ns Sy 131072 Ns B Po 128 KiB Pc Pq uint
 This sets the maximum block size used by the ZIL.
