@@ -193,6 +193,8 @@ zfs_agent_post_event(const char *class, const char *subclass, nvlist_t *nvl)
 	if (event == NULL || nvlist_dup(nvl, &event->ae_nvl, 0) != 0) {
 		if (event)
 			free(event);
+		zed_log_msg(LOG_WARNING, "agent post event: dropping '%s' "
+		    "'%s': out of memory", class, subclass);
 		return;
 	}
 
