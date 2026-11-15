@@ -896,18 +896,21 @@ zio_calculate_range(const char *pool, zinject_record_t *record)
 		return (error);
 
 	error = dsl_dataset_hold_obj(dp, record->zi_objset, FTAG, &ds);
-	dsl_pool_rele(dp, FTAG);
 	if (error)
-		return (error);
+		goto out_dp;
 
+	/*
+	 * dmu_objset_from_ds() needs the pool config lock, and the objset
+	 * is valid only while the dataset is held, so both holds are kept
+	 * until the dnode is released.
+	 */
 	error = dmu_objset_from_ds(ds, &os);
-	dsl_dataset_rele(ds, FTAG);
 	if (error)
-		return (error);
+		goto out_ds;
 
 	error = dnode_hold(os, record->zi_object, FTAG, &dn);
 	if (error)
-		return (error);
+		goto out_ds;
 
 	/*
 	 * Translate the range into block IDs
@@ -918,8 +921,8 @@ zio_calculate_range(const char *pool, zinject_record_t *record)
 	}
 	if (record->zi_level > 0) {
 		if (record->zi_level >= dn->dn_nlevels) {
-			dnode_rele(dn, FTAG);
-			return (SET_ERROR(EDOM));
+			error = SET_ERROR(EDOM);
+			goto out_dn;
 		}
 
 		if (record->zi_start != 0 || record->zi_end != 0) {
@@ -932,8 +935,13 @@ zio_calculate_range(const char *pool, zinject_record_t *record)
 		}
 	}
 
+out_dn:
 	dnode_rele(dn, FTAG);
-	return (0);
+out_ds:
+	dsl_dataset_rele(ds, FTAG);
+out_dp:
+	dsl_pool_rele(dp, FTAG);
+	return (error);
 }
 
 static boolean_t
