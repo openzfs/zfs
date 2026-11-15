@@ -584,6 +584,12 @@ dnl #   sync erase:    blkdev_issue_secure_erase(...)
 dnl #   async discard: __blkdev_issue_discard(...)
 dnl #   async erase:   [not available]
 dnl #
+dnl # 7.0:
+dnl #   sync discard:  blkdev_issue_discard(...)
+dnl #   sync erase:    blkdev_issue_secure_erase(...)
+dnl #   async discard: __blkdev_issue_discard(...), returns void
+dnl #   async erase:   [not available]
+dnl #
 AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_ISSUE_DISCARD], [
 	ZFS_LINUX_TEST_SRC([blkdev_issue_discard_noflags], [
 		#include <linux/blkdev.h>
@@ -619,6 +625,13 @@ AC_DEFUN([ZFS_AC_KERNEL_SRC_BLKDEV_ISSUE_DISCARD], [
 
 		error = __blkdev_issue_discard(bdev,
 		    sector, nr_sects, GFP_KERNEL, &biop);
+	])
+	ZFS_LINUX_TEST_SRC([blkdev_issue_discard_async_noflags_void], [
+		#include <linux/blkdev.h>
+	],[
+		__attribute__((unused)) void (*f)(struct block_device *,
+		    sector_t, sector_t, gfp_t, struct bio **) =
+		    __blkdev_issue_discard;
 	])
 	ZFS_LINUX_TEST_SRC([blkdev_issue_discard_async_flags], [
 		#include <linux/blkdev.h>
@@ -668,6 +681,14 @@ AC_DEFUN([ZFS_AC_KERNEL_BLKDEV_ISSUE_DISCARD], [
 		AC_MSG_RESULT(yes)
 		AC_DEFINE(HAVE_BLKDEV_ISSUE_DISCARD_ASYNC_NOFLAGS, 1,
 		    [__blkdev_issue_discard() is available])
+	],[
+		AC_MSG_RESULT(no)
+	])
+	AC_MSG_CHECKING([whether __blkdev_issue_discard() returns void])
+	ZFS_LINUX_TEST_RESULT([blkdev_issue_discard_async_noflags_void], [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_BLKDEV_ISSUE_DISCARD_ASYNC_NOFLAGS_VOID, 1,
+		    [__blkdev_issue_discard() returns void])
 	],[
 		AC_MSG_RESULT(no)
 	])
