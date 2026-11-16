@@ -307,6 +307,52 @@ assert_db_data_contents_locked(const dmu_buf_impl_t *db, boolean_t writer)
 		ASSERT(RW_LOCK_HELD(&db->db_rwlock));
 }
 
+/*
+ * db_rwlock protects indirect blocks and the meta-dnode data block, as in
+ * assert_db_data_contents_locked().  A NULL parent is the meta-dnode or an
+ * accounting object; that blkptr lives in dn_phys, already covered by
+ * dn_struct_rwlock.  Bonus and spill buffers are not covered by db_rwlock.
+ * Return whether the lock was taken.  Drop it before dn_dbufs_mtx.
+ */
+static boolean_t
+dbuf_parent_enter(dmu_buf_impl_t *parent)
+{
+	if (parent == NULL)
+		return (B_FALSE);
+	if (parent->db_level == 0 &&
+	    parent->db.db_object != DMU_META_DNODE_OBJECT)
+		return (B_FALSE);
+	if (parent->db_blkid == DMU_BONUS_BLKID ||
+	    parent->db_blkid == DMU_SPILL_BLKID)
+		return (B_FALSE);
+
+	rw_enter(&parent->db_rwlock, RW_READER);
+	return (B_TRUE);
+}
+
+static void
+dbuf_parent_exit(dmu_buf_impl_t *parent, boolean_t locked)
+{
+	if (locked)
+		rw_exit(&parent->db_rwlock);
+}
+
+/*
+ * Copy a blkptr that the caller keeps after db_rwlock is dropped.
+ */
+static void
+dbuf_copy_bp(dmu_buf_impl_t *parent, const blkptr_t *bp, blkptr_t *copy)
+{
+	boolean_t locked;
+
+	ASSERT3P(bp, !=, NULL);
+	ASSERT3P(copy, !=, NULL);
+
+	locked = dbuf_parent_enter(parent);
+	*copy = *bp;
+	dbuf_parent_exit(parent, locked);
+}
+
 static int
 dbuf_cons(void *vdb, void *unused, int kmflag)
 {
@@ -3667,8 +3713,19 @@ dbuf_create(dnode_t *dn, uint8_t level, uint64_t blkid,
 		arc_space_consume(sizeof (dmu_buf_impl_t), ARC_SPACE_DBUF);
 		return (db);
 	} else if (blkid == DMU_SPILL_BLKID) {
-		db->db.db_size = (blkptr != NULL) ?
-		    BP_GET_LSIZE(blkptr) : SPA_MINBLOCKSIZE;
+		/*
+		 * Read the size before dn_dbufs_mtx.  db->db_blkptr keeps
+		 * the live pointer.
+		 */
+		if (blkptr != NULL) {
+			boolean_t locked;
+
+			locked = dbuf_parent_enter(parent);
+			db->db.db_size = BP_GET_LSIZE(blkptr);
+			dbuf_parent_exit(parent, locked);
+		} else {
+			db->db.db_size = SPA_MINBLOCKSIZE;
+		}
 		db->db.db_offset = 0;
 	} else {
 		int blocksize =
@@ -3732,7 +3789,7 @@ dbuf_dnode_findbp(dnode_t *dn, uint64_t level, uint64_t blkid,
 	err = dbuf_findbp(dn, level, blkid, B_FALSE, &dbp, &bp2);
 	if (err == 0) {
 		ASSERT3P(bp2, !=, NULL);
-		*bp = *bp2;
+		dbuf_copy_bp(dbp, bp2, bp);
 		if (dbp != NULL)
 			dbuf_rele(dbp, NULL);
 		if (datablkszsec != NULL)
@@ -4136,8 +4193,14 @@ dbuf_hold_impl(dnode_t *dn, uint8_t level, uint64_t blkid,
 		ASSERT0P(parent);
 		err = dbuf_findbp(dn, level, blkid, fail_sparse, &parent, &bp);
 		if (fail_sparse) {
-			if (err == 0 && bp && BP_IS_HOLE(bp))
-				err = SET_ERROR(ENOENT);
+			if (err == 0 && bp != NULL) {
+				boolean_t locked;
+
+				locked = dbuf_parent_enter(parent);
+				if (BP_IS_HOLE(bp))
+					err = SET_ERROR(ENOENT);
+				dbuf_parent_exit(parent, locked);
+			}
 			if (err) {
 				if (parent)
 					dbuf_rele(parent, NULL);
