@@ -3466,9 +3466,14 @@ vdev_dtl_reassess_impl(vdev_t *vd, uint64_t txg, uint64_t scrub_txg,
 		 * only want to excise regions on vdevs that were available
 		 * during the entire duration of this scan.
 		 */
-		if (rebuild_done &&
-		    vr != NULL && vr->vr_rebuild_phys.vrp_errors == 0) {
-			check_excise = B_TRUE;
+		if (rebuild_done) {
+			/*
+			 * A rebuild that couldn't read some of the data has
+			 * not reconstructed it: leave the DTLs to the scrub
+			 * that follows it.  The scan state doesn't apply.
+			 */
+			if (vr != NULL && vr->vr_rebuild_phys.vrp_errors == 0)
+				check_excise = B_TRUE;
 		} else {
 			if (spa->spa_scrub_started ||
 			    (scn != NULL && scn->scn_phys.scn_errors == 0)) {
