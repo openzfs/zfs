@@ -147,7 +147,9 @@ Unit tests require the complete userspace build and test sequence on
 `ubuntu-24.04`. ARM requires dependency installation and the build/sanity
 test step on `ubuntu-24.04-arm`; manual runs with a custom GCC are not
 reused. Checkstyle requires prepare, configure, build, style, lint and
-ABI checks on `ubuntu-22.04`. Missing or failed results run normally,
+ABI checks on `ubuntu-22.04`. Checkstyle also checks the message of the
+head commit (`make commitcheck`), so it reuses only a job of a commit
+with the same tree and message. Missing or failed results run normally,
 as do manually requested reruns.
 
 ### Supported guests

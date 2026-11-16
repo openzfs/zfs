@@ -31,6 +31,8 @@ WORKFLOWS = {
         "Checkstyle", "Lint", "CheckABI",
     }),
 }
+# make checkstyle also checks the message of the head commit (commitcheck).
+SAME_MESSAGE = {"checkstyle"}
 MAX_AGE = datetime.timedelta(days=7)
 # Push runs of one commit to consider, e.g. after pushing it to a PR branch.
 MAX_RUNS = 10
@@ -59,11 +61,13 @@ def github_api(path):
         return json.load(response)
 
 
-def usable_run(run, repo, tree, filename, now):
+def usable_run(run, repo, tree, message, filename, now):
     created = datetime.datetime.fromisoformat(
         run["created_at"].replace("Z", "+00:00"))
     return (run["head_commit"] is not None and
             run["head_commit"]["tree_id"] == tree and
+            (message is None or
+             message == run["head_commit"]["message"]) and
             run["event"] == "push" and
             run["path"] == f".github/workflows/{filename}" and
             run["repository"]["full_name"].lower() == repo.lower() and
@@ -84,7 +88,7 @@ def successful_job(job, run, runner, required_steps):
                for name in required_steps)
 
 
-def find_jobs(api, repo, head, tree, workflow, names, now):
+def find_jobs(api, repo, head, tree, message, workflow, names, now):
     """Return reusable jobs, and the targets of running and queued jobs."""
     filename, runner, _, required_steps = WORKFLOWS[workflow]
     # QEMU push runs use full tests, even with ZTS_OS_OVERRIDE. Dispatch
@@ -111,7 +115,7 @@ def find_jobs(api, repo, head, tree, workflow, names, now):
                       key=lambda run: (run["created_at"], run["id"])):
         if len(decided) == len(names):
             break
-        if not usable_run(run, repo, tree, filename, now):
+        if not usable_run(run, repo, tree, message, filename, now):
             continue
         jobs = api(f"repos/{repo}/actions/runs/{run['id']}/jobs"
                    "?filter=latest&per_page=100")
@@ -153,7 +157,9 @@ def reusable_jobs(event, targets, api=github_api, now=None,
 
     # A push run tests the tree of its commit, so its results also apply
     # to a commit that differs only in its message or history.
-    tree = api(f"repos/{repo}/git/commits/{head}")["tree"]["sha"]
+    commit = api(f"repos/{repo}/git/commits/{head}")
+    tree = commit["tree"]["sha"]
+    message = commit["message"] if workflow in SAME_MESSAGE else None
     names = ({f"qemu-x86 ({target})": target for target in targets}
              if job_name is None else {job_name: workflow})
     # Wait for jobs that have no result yet, then reuse those that
@@ -162,8 +168,8 @@ def reusable_jobs(event, targets, api=github_api, now=None,
     start = clock()
     late = set()
     while True:
-        result, running, queued = find_jobs(api, repo, head, tree, workflow,
-                                            names, now)
+        result, running, queued = find_jobs(api, repo, head, tree, message,
+                                            workflow, names, now)
         waited = clock() - start
         if waited >= START_WAIT:
             late |= queued
