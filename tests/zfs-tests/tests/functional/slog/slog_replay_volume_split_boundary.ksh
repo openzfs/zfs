@@ -58,8 +58,8 @@ function write_frozen
 	log_must dd if=/dev/zero of=$VOLDEV bs=512 seek=$((47 * M / 512)) \
 	    count=1 oflag=direct,sync
 	log_must zpool freeze $TESTPOOL
-	log_must dd if=$src of=$VOLDEV bs=768k seek=21 count=1 \
-	    oflag=direct,sync
+	# stride_dd, not dd: see slog_replay_volume_split_write.
+	log_must stride_dd -i $src -o $VOLDEV -b $((768 * K)) -c 1 -k 21 -D
 }
 
 #
