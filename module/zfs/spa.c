@@ -3387,6 +3387,23 @@ livelist_delete_sync(void *arg, dmu_tx_t *tx)
 }
 
 /*
+ * livelist deletion failed with ENOSPC.  Wait for another TXG before trying
+ * again, because we may be able to proceed after some deferred frees have been
+ * processed.
+ */
+static void
+spa_livelist_delete_enospc_backoff(spa_t *spa, zthr_t *z, uint64_t ll_obj)
+{
+	zfs_dbgmsg("livelist %llu deletion hit ENOSPC, will retry",
+	    (u_longlong_t)ll_obj);
+	if (zthr_iscancelled(z) || zthr_has_waiters(z)) {
+		/* Return immediately if someone is trying to export the pool */
+		return;
+	}
+	txg_wait_synced(spa_get_dsl(spa), 0);
+}
+
+/*
  * Load in the value for the livelist to be removed and open it. Then,
  * load its first sublist and determine which block pointers should actually
  * be freed. Then, call a synctask which performs the actual frees and updates
@@ -3427,9 +3444,11 @@ spa_livelist_delete_cb(void *arg, zthr_t *z)
 			    " livelist %llu, %lld remaining",
 			    (u_longlong_t)dle->dle_bpobj.bpo_object,
 			    (u_longlong_t)ll_obj, (longlong_t)count - 1);
-			VERIFY0(dsl_sync_task(spa_name(spa), NULL,
+			err = dsl_sync_task(spa_name(spa), NULL,
 			    sublist_delete_sync, &sync_arg, 0,
-			    ZFS_SPACE_CHECK_DESTROY));
+			    ZFS_SPACE_CHECK_DESTROY);
+			if (err != ENOSPC)
+				VERIFY0(err);
 		} else {
 			VERIFY3U(err, ==, EINTR);
 		}
@@ -3437,6 +3456,8 @@ spa_livelist_delete_cb(void *arg, zthr_t *z)
 		bplist_destroy(&to_free);
 		dsl_deadlist_close(ll);
 		kmem_free(ll, sizeof (dsl_deadlist_t));
+		if (err == ENOSPC)
+			spa_livelist_delete_enospc_backoff(spa, z, ll_obj);
 	} else {
 		livelist_delete_arg_t sync_arg = {
 		    .spa = spa,
@@ -3445,8 +3466,13 @@ spa_livelist_delete_cb(void *arg, zthr_t *z)
 		};
 		zfs_dbgmsg("deletion of livelist %llu completed",
 		    (u_longlong_t)ll_obj);
-		VERIFY0(dsl_sync_task(spa_name(spa), NULL, livelist_delete_sync,
-		    &sync_arg, 0, ZFS_SPACE_CHECK_DESTROY));
+		int err = dsl_sync_task(spa_name(spa), NULL,
+		    livelist_delete_sync, &sync_arg, 0,
+		    ZFS_SPACE_CHECK_DESTROY);
+		if (err == ENOSPC)
+			spa_livelist_delete_enospc_backoff(spa, z, ll_obj);
+		else
+			VERIFY0(err);
 	}
 }
 
