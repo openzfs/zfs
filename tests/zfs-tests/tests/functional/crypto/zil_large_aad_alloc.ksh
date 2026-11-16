@@ -78,11 +78,6 @@ log_onexit cleanup
 log_note "This test only exercises the code under test on a build made" \
     "with HAVE_KERNEL_CRYPTO (kernel crypto API backend)"
 
-# The warning is emitted by the SPL and only exists on Linux
-if ! is_linux; then
-	log_unsupported "spl_kmem_alloc_warn is Linux-specific"
-fi
-
 typeset warnfile=/sys/module/spl/parameters/spl_kmem_alloc_warn
 if [[ ! -r $warnfile ]]; then
 	# The SPL may be built into the zfs module.
