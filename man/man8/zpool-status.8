@@ -19,7 +19,7 @@
 .\" Copyright (c) 2024-2026, Klara, Inc.
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd June 16, 2026
+.Dd November 17, 2026
 .Dt ZPOOL-STATUS 8
 .Os
 .
@@ -32,6 +32,7 @@
 .Op Fl DdegiLPpstx
 .Op Fl v|-vv
 .Op Fl c Ar script1 Ns Oo , Ns Ar script2 Ns ,… Oc
+.Op Fl o Ar property Ns Oo , Ns Ar property Ns ,… Oc
 .Oo Fl j|--json
 .Oo Ns Fl -json-flat-vdevs Oc
 .Oo Ns Fl -json-int Oc
@@ -115,6 +116,38 @@ Display real paths for vdevs resolving all symbolic links.
 This can be used to look up the current block device name regardless of the
 .Pa /dev/disk/
 path used to open it.
+.It Fl o Ar property Ns Oo , Ns Ar property Ns ,… Oc
+Display the given pool and vdev properties, user properties included,
+one column each.
+The row of the pool shows the pool property of each name,
+and the row of each vdev, spares and cache devices included,
+the vdev property of that name.
+A name that is both, such as
+.Sy size
+or
+.Sy guid ,
+shows the value of the pool on the row of the pool,
+and the value of each vdev on its row.
+A row shows
+.Sy -
+where the name is not a property of its kind,
+or the property does not apply or cannot be read.
+The values are those
+.Nm zpool Cm get
+reports.
+With
+.Fl j ,
+the pool object gets a
+.Sy properties
+object with the pool properties instead,
+and each vdev object, the root vdev included, one with the vdev properties,
+in the format of
+.Nm zpool Cm get Fl j .
+See
+.Xr zpoolprops 7
+and
+.Xr vdevprops 7
+for the lists of properties.
 .It Fl P
 Display full paths for vdevs instead of only the last component of
 the path.
@@ -362,6 +395,8 @@ can be used to run a script on each VDEV.
 .Ed
 .
 .Sh SEE ALSO
+.Xr vdevprops 7 ,
+.Xr zpoolprops 7 ,
 .Xr zpool-condense 8 ,
 .Xr zpool-events 8 ,
 .Xr zpool-history 8 ,

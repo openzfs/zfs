@@ -1480,6 +1480,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_status/zpool_status_010_pos.ksh \
 	functional/cli_root/zpool_status/zpool_status_011_pos.ksh \
 	functional/cli_root/zpool_status/zpool_status_features_001_pos.ksh \
+	functional/cli_root/zpool_status/zpool_status_-o.ksh \
 	functional/cli_root/zpool_status/zpool_status_-v.ksh \
 	functional/cli_root/zpool_status/zpool_status_errlog_read_error.ksh \
 	functional/cli_root/zpool_sync/cleanup.ksh \

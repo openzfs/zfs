@@ -511,7 +511,8 @@ get_usage(zpool_help_t idx)
 		    "[-c script1[,script2,...]] ...\n"
 		    "\t    [-j|--json [--json-flat-vdevs] [--json-int] "
 		    "[--json-pool-key-guid]] ...\n"
-		    "\t    [-T d|u] [--power] [pool] [interval [count]]\n");
+		    "\t    [-o property[,...]] [-T d|u] [--power] "
+		    "[pool] [interval [count]]\n");
 	case HELP_UPGRADE:
 		return ("\tupgrade\n"
 		    "\tupgrade -v\n"
@@ -2595,6 +2596,18 @@ max_width(zpool_handle_t *zhp, nvlist_t *nv, int depth, int max,
 	return (max);
 }
 
+/*
+ * A column of 'zpool status -o': the pool property of its name, shown on the
+ * row of the pool, and the vdev property of its name, shown on the rows of
+ * the vdevs, either NULL when the name is not a property of that kind.
+ */
+typedef struct status_prop {
+	struct status_prop	*sp_next;
+	zprop_list_t		*sp_pool;
+	zprop_list_t		*sp_vdev;
+	size_t			sp_width;
+} status_prop_t;
+
 typedef struct status_cbdata {
 	int		cb_count;
 	int		cb_name_flags;
@@ -2618,6 +2631,9 @@ typedef struct status_cbdata {
 	nvlist_t	*cb_jsobj;
 	boolean_t	cb_json_as_int;
 	boolean_t	cb_json_pool_key_guid;
+	status_prop_t	*cb_props;
+	nvlist_t	*cb_pool_props;
+	nvlist_t	*cb_vdev_props;
 } status_cbdata_t;
 
 /* Return 1 if string is NULL, empty, or whitespace; return 0 otherwise. */
@@ -2721,6 +2737,282 @@ zpool_print_cmd(vdev_cmd_data_list_t *vcdl, const char *pool, const char *path)
 		}
 		break;
 	}
+}
+
+/* The name of a pool or vdev property list entry, as 'zpool get' shows it. */
+static const char *
+proplist_name(const zprop_list_t *pl, zfs_type_t type)
+{
+	if (pl->pl_prop == ZPROP_USERPROP)
+		return (pl->pl_user_prop);
+	if (type == ZFS_TYPE_POOL)
+		return (zpool_prop_to_name(pl->pl_prop));
+	return (vdev_prop_to_name(pl->pl_prop));
+}
+
+/*
+ * Get the value and source of a pool property, user and feature@ properties
+ * included, as 'zpool get' shows it.
+ */
+static int
+get_pool_prop(zpool_handle_t *zhp, const zprop_list_t *pl, char *value,
+    size_t len, zprop_source_t *srctype, boolean_t literal)
+{
+	if (pl->pl_prop != ZPROP_USERPROP) {
+		return (zpool_get_prop(zhp, pl->pl_prop, value, len, srctype,
+		    literal));
+	}
+	*srctype = ZPROP_SRC_LOCAL;
+	if (zfs_prop_user(pl->pl_user_prop)) {
+		return (zpool_get_userprop(zhp, pl->pl_user_prop, value, len,
+		    srctype));
+	}
+	return (zpool_prop_get_feature(zhp, pl->pl_user_prop, value, len));
+}
+
+/*
+ * The header of a 'zpool status -o' column.  A name of both kinds has the
+ * same column name in both tables.
+ */
+static const char *
+status_prop_header(const status_prop_t *sp)
+{
+	const zprop_list_t *pl = sp->sp_pool != NULL ? sp->sp_pool :
+	    sp->sp_vdev;
+
+	if (pl->pl_prop == ZPROP_USERPROP)
+		return (pl->pl_user_prop);
+	if (pl == sp->sp_pool)
+		return (zpool_prop_column_name(pl->pl_prop));
+	return (vdev_prop_column_name(pl->pl_prop));
+}
+
+/*
+ * Make the columns of 'zpool status -o': each name is looked up as a pool
+ * property and as a vdev property, as 'zpool get' would, and is refused if
+ * it is neither.
+ */
+static int
+status_get_proplist(char *props, status_prop_t **listp)
+{
+	status_prop_t *sp;
+	char *name;
+
+	while ((name = strsep(&props, ",")) != NULL) {
+		/* zprop_get_list() takes "all" for every property. */
+		if (strcmp(name, "all") == 0) {
+			(void) fprintf(stderr, "'-o all' is not supported,"
+			    " list the properties to display\n");
+			return (-1);
+		}
+		sp = safe_malloc(sizeof (*sp));
+		*listp = sp;
+		listp = &sp->sp_next;
+		libzfs_print_on_error(g_zfs, B_FALSE);
+		if (zprop_get_list(g_zfs, name, &sp->sp_pool,
+		    ZFS_TYPE_POOL) != 0) {
+			zprop_free_list(sp->sp_pool);
+			sp->sp_pool = NULL;
+		}
+		if (zprop_get_list(g_zfs, name, &sp->sp_vdev,
+		    ZFS_TYPE_VDEV) != 0) {
+			zprop_free_list(sp->sp_vdev);
+			sp->sp_vdev = NULL;
+		}
+		libzfs_print_on_error(g_zfs, B_TRUE);
+		if (sp->sp_pool == NULL && sp->sp_vdev == NULL) {
+			(void) fprintf(stderr, "invalid property '%s'\n",
+			    name);
+			return (-1);
+		}
+	}
+	return (0);
+}
+
+static void
+status_free_proplist(status_prop_t *sp)
+{
+	status_prop_t *next;
+
+	for (; sp != NULL; sp = next) {
+		next = sp->sp_next;
+		zprop_free_list(sp->sp_pool);
+		zprop_free_list(sp->sp_vdev);
+		free(sp);
+	}
+}
+
+/*
+ * The value and source of a 'zpool status -o' column for the pool, when nv
+ * is NULL, or for a vdev, as fetched by status_get_props(): "-" if there is
+ * none, the name not being a property of that kind for one.
+ */
+static const char *
+status_prop_value(status_cbdata_t *cb, nvlist_t *nv, const status_prop_t *sp,
+    zprop_source_t *src)
+{
+	nvlist_t *props = cb->cb_pool_props, *prop;
+	const zprop_list_t *pl = sp->sp_pool;
+	zfs_type_t type = ZFS_TYPE_POOL;
+	uint64_t guid;
+	char guidstr[32];
+
+	*src = ZPROP_SRC_NONE;
+	if (nv != NULL) {
+		pl = sp->sp_vdev;
+		type = ZFS_TYPE_VDEV;
+		if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) != 0)
+			return ("-");
+		(void) snprintf(guidstr, sizeof (guidstr), "%llu",
+		    (u_longlong_t)guid);
+		if (nvlist_lookup_nvlist(cb->cb_vdev_props, guidstr,
+		    &props) != 0)
+			return ("-");
+	}
+	if (pl == NULL ||
+	    nvlist_lookup_nvlist(props, proplist_name(pl, type), &prop) != 0)
+		return ("-");
+	*src = fnvlist_lookup_uint64(prop, ZPROP_SOURCE);
+	return (fnvlist_lookup_string(prop, ZPROP_VALUE));
+}
+
+/* Keep a value of a 'zpool status -o' column and widen the column to it. */
+static void
+status_add_prop(nvlist_t *props, const char *name, const char *value,
+    zprop_source_t src, status_prop_t *sp)
+{
+	nvlist_t *prop = fnvlist_alloc();
+
+	fnvlist_add_string(prop, ZPROP_VALUE, value);
+	fnvlist_add_uint64(prop, ZPROP_SOURCE, src);
+	fnvlist_add_nvlist(props, name, prop);
+	fnvlist_free(prop);
+	sp->sp_width = MAX(sp->sp_width, strlen(value));
+}
+
+/*
+ * Get the 'zpool status -o' properties of a vdev with zpool_get_vdev_prop(),
+ * as 'zpool get' does, keyed by the vdev's guid.  Each property takes an
+ * ioctl of its own: vdev_prop_get() stops at the first property whose lookup
+ * fails, an unset user property for one, so a request for several could
+ * leave the next ones out.
+ */
+static int
+status_get_vdev_props_cb(void *zhp_data, nvlist_t *nv, void *data)
+{
+	zpool_handle_t *zhp = zhp_data;
+	status_cbdata_t *cb = data;
+	nvlist_t *props;
+	char guidstr[32], value[ZFS_MAXPROPLEN];
+	zprop_source_t src;
+	uint64_t guid;
+
+	/*
+	 * The row of the pool shows the pool's properties, while -j has an
+	 * object for the root vdev too.
+	 */
+	if (!cb->cb_json && strcmp(fnvlist_lookup_string(nv,
+	    ZPOOL_CONFIG_TYPE), VDEV_TYPE_ROOT) == 0)
+		return (0);
+	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_GUID, &guid) != 0)
+		return (0);
+	(void) snprintf(guidstr, sizeof (guidstr), "%llu", (u_longlong_t)guid);
+	/* A spare in use is listed twice. */
+	if (nvlist_exists(cb->cb_vdev_props, guidstr))
+		return (0);
+
+	props = fnvlist_alloc();
+	for (status_prop_t *sp = cb->cb_props; sp != NULL; sp = sp->sp_next) {
+		if (sp->sp_vdev == NULL || zpool_get_vdev_prop(zhp, guidstr,
+		    sp->sp_vdev->pl_prop, sp->sp_vdev->pl_user_prop, value,
+		    sizeof (value), &src, cb->cb_literal) != 0 ||
+		    value[0] == '\0')
+			continue;
+		status_add_prop(props, proplist_name(sp->sp_vdev,
+		    ZFS_TYPE_VDEV), value, src, sp);
+	}
+	fnvlist_add_nvlist(cb->cb_vdev_props, guidstr, props);
+	fnvlist_free(props);
+	return (0);
+}
+
+/*
+ * Get the 'zpool status -o' properties of a pool and of its vdevs, and size
+ * their columns.  A property that cannot be read shows "-".
+ */
+static void
+status_get_props(zpool_handle_t *zhp, status_cbdata_t *cb)
+{
+	char value[ZFS_MAXPROPLEN];
+	zprop_source_t src;
+	boolean_t vdev = B_FALSE;
+
+	cb->cb_pool_props = fnvlist_alloc();
+	cb->cb_vdev_props = fnvlist_alloc();
+	libzfs_print_on_error(g_zfs, B_FALSE);
+	for (status_prop_t *sp = cb->cb_props; sp != NULL; sp = sp->sp_next) {
+		sp->sp_width = strlen(status_prop_header(sp));
+		if (sp->sp_vdev != NULL)
+			vdev = B_TRUE;
+		if (sp->sp_pool == NULL || get_pool_prop(zhp, sp->sp_pool,
+		    value, sizeof (value), &src, cb->cb_literal) != 0 ||
+		    value[0] == '\0')
+			continue;
+		status_add_prop(cb->cb_pool_props, proplist_name(sp->sp_pool,
+		    ZFS_TYPE_POOL), value, src, sp);
+	}
+	if (vdev)
+		(void) for_each_vdev(zhp, status_get_vdev_props_cb, cb);
+	libzfs_print_on_error(g_zfs, B_TRUE);
+}
+
+static void
+status_free_props(status_cbdata_t *cb)
+{
+	fnvlist_free(cb->cb_pool_props);
+	fnvlist_free(cb->cb_vdev_props);
+	cb->cb_pool_props = cb->cb_vdev_props = NULL;
+}
+
+/*
+ * Print the 'zpool status -o' columns of the pool, when nv is NULL, or of a
+ * vdev.
+ */
+static void
+print_status_props(status_cbdata_t *cb, nvlist_t *nv)
+{
+	zprop_source_t src;
+
+	for (status_prop_t *sp = cb->cb_props; sp != NULL; sp = sp->sp_next) {
+		(void) printf("  %*s", (int)sp->sp_width,
+		    status_prop_value(cb, nv, sp, &src));
+	}
+}
+
+/*
+ * Add the 'zpool status -o' properties of the pool, when nv is NULL, or of a
+ * vdev to its JSON object, those of its kind only, in the format of
+ * 'zpool get -j'.
+ */
+static void
+status_props_nvlist(status_cbdata_t *cb, nvlist_t *nv, nvlist_t *item)
+{
+	zfs_type_t type = nv == NULL ? ZFS_TYPE_POOL : ZFS_TYPE_VDEV;
+	nvlist_t *props = fnvlist_alloc();
+	const zprop_list_t *pl;
+	zprop_source_t src;
+	const char *value;
+
+	for (status_prop_t *sp = cb->cb_props; sp != NULL; sp = sp->sp_next) {
+		if ((pl = nv == NULL ? sp->sp_pool : sp->sp_vdev) == NULL)
+			continue;
+		value = status_prop_value(cb, nv, sp, &src);
+		(void) zprop_nvlist_one_property(proplist_name(pl, type),
+		    value, src, NULL, NULL, props, cb->cb_json_as_int);
+	}
+	if (!nvlist_empty(props))
+		fnvlist_add_nvlist(item, "properties", props);
+	fnvlist_free(props);
 }
 
 /*
@@ -3015,6 +3307,17 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 			else
 				printf(" %5s", dbuf);
 		}
+	}
+
+	if (cb->cb_props != NULL) {
+		/* Skip the counter columns a spare has none of, " %5s" each */
+		if (isspare) {
+			(void) printf("%*s", 6 * (3 + cb->cb_print_slow_ios +
+			    cb->cb_print_power + cb->cb_print_dio_verify), "");
+		}
+		/* The row of the root vdev is the pool's. */
+		print_status_props(cb,
+		    strcmp(type, VDEV_TYPE_ROOT) == 0 ? NULL : nv);
 	}
 
 	if (nvlist_lookup_uint64(nv, ZPOOL_CONFIG_NOT_PRESENT,
@@ -9677,6 +9980,9 @@ vdev_stats_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv,
 		}
 	}
 
+	if (cb->cb_props != NULL)
+		status_props_nvlist(cb, nv, vds);
+
 	if (children == 0) {
 		if (cb->cb_print_vdev_init) {
 			if (vs->vs_initialize_state != 0) {
@@ -11421,6 +11727,10 @@ status_callback_json(zpool_handle_t *zhp, void *data)
 		checkpoint_status_nvlist(nvroot, cbp, item);
 		condense_status_nvlist(nvroot, cbp, item);
 		raidz_expand_status_nvlist(zhp, cbp, nvroot, item);
+		if (cbp->cb_props != NULL) {
+			status_get_props(zhp, cbp);
+			status_props_nvlist(cbp, NULL, item);
+		}
 		vdev_stats_nvlist(zhp, cbp, nvroot, 0, B_FALSE, NULL, vds);
 		if (cbp->cb_flat_vdevs) {
 			class_vdevs_nvlist(zhp, cbp, nvroot,
@@ -11447,6 +11757,7 @@ status_callback_json(zpool_handle_t *zhp, void *data)
 			l2cache_nvlist(zhp, cbp, nvroot, item);
 			spares_nvlist(zhp, cbp, nvroot, item);
 		}
+		status_free_props(cbp);
 		dedup_stats_nvlist(zhp, cbp, item);
 
 		/*
@@ -11581,6 +11892,9 @@ status_callback(zpool_handle_t *zhp, void *data)
 		if (cbp->cb_namewidth < 10)
 			cbp->cb_namewidth = 10;
 
+		if (cbp->cb_props != NULL)
+			status_get_props(zhp, cbp);
+
 		color_start(ANSI_BOLD);
 		(void) printf("config:\n\n");
 		(void) printf("\t%-*s  %-8s %5s %5s %5s",
@@ -11599,6 +11913,12 @@ status_callback(zpool_handle_t *zhp, void *data)
 
 		if (cbp->cb_print_dio_verify) {
 			(void) printf_color(ANSI_BOLD, " %5s", "DIO");
+		}
+
+		for (status_prop_t *sp = cbp->cb_props; sp != NULL;
+		    sp = sp->sp_next) {
+			(void) printf_color(ANSI_BOLD, "  %*s",
+			    (int)sp->sp_width, status_prop_header(sp));
 		}
 
 		if (cbp->vcdl != NULL)
@@ -11620,6 +11940,8 @@ status_callback(zpool_handle_t *zhp, void *data)
 		if (nvlist_lookup_nvlist_array(nvroot, ZPOOL_CONFIG_SPARES,
 		    &spares, &nspares) == 0)
 			print_spares(zhp, cbp, spares, nspares);
+
+		status_free_props(cbp);
 
 		if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_ERRCOUNT,
 		    &nerr) == 0) {
@@ -11652,8 +11974,8 @@ status_callback(zpool_handle_t *zhp, void *data)
 /*
  * zpool status [-dDegiLpPstvx] [-c [script1,script2,...]] ...
  * 				[-j|--json [--json-flat-vdevs] [--json-int] ...
- * 				[--json-pool-key-guid]] [--power] [-T d|u] ...
- * 				[pool] [interval [count]]
+ * 				[--json-pool-key-guid]] [-o property[,...]] ...
+ * 				[--power] [-T d|u] [pool] [interval [count]]
  *
  *	-c CMD	For each vdev, run command CMD
  *	-D	Display dedup status (undocumented)
@@ -11666,6 +11988,7 @@ status_callback(zpool_handle_t *zhp, void *data)
  *	   --json-int Display numbers in integer format instead of string
  *	   --json-pool-key-guid Use pool GUID as key for pool objects
  *	-L	Follow links when resolving vdev path name.
+ *	-o	Display the given pool and vdev properties.
  *	-P	Display full path for vdev name.
  *	-p	Display values in parsable (exact) format.
  *	--power	Display vdev enclosure slot power status
@@ -11687,6 +12010,7 @@ zpool_do_status(int argc, char **argv)
 	status_cbdata_t cb = { 0 };
 	nvlist_t *data;
 	char *cmd = NULL;
+	char *props = NULL;
 
 	struct option long_options[] = {
 		{"power", no_argument, NULL, ZPOOL_OPTION_POWER},
@@ -11700,8 +12024,8 @@ zpool_do_status(int argc, char **argv)
 	};
 
 	/* check options */
-	while ((c = getopt_long(argc, argv, "c:jdDegiLpPstT:vx", long_options,
-	    NULL)) != -1) {
+	while ((c = getopt_long(argc, argv, "c:jdDegiLo:pPstT:vx",
+	    long_options, NULL)) != -1) {
 		switch (c) {
 		case 'c':
 			if (cmd != NULL) {
@@ -11745,6 +12069,9 @@ zpool_do_status(int argc, char **argv)
 			break;
 		case 'L':
 			cb.cb_name_flags |= VDEV_NAME_FOLLOW_LINKS;
+			break;
+		case 'o':
+			props = optarg;
 			break;
 		case 'p':
 			cb.cb_literal = B_TRUE;
@@ -11824,6 +12151,9 @@ zpool_do_status(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
+	if (props != NULL && status_get_proplist(props, &cb.cb_props) != 0)
+		usage(B_FALSE);
+
 	for (;;) {
 		if (cb.cb_json) {
 			cb.cb_jsobj = zpool_json_schema(0, 1);
@@ -11881,7 +12211,7 @@ zpool_do_status(int argc, char **argv)
 		}
 
 		if (ret != 0)
-			return (ret);
+			break;
 
 		if (interval == 0)
 			break;
@@ -11893,7 +12223,8 @@ zpool_do_status(int argc, char **argv)
 		(void) fsleep(interval);
 	}
 
-	return (0);
+	status_free_proplist(cb.cb_props);
+	return (ret);
 }
 
 typedef struct upgrade_cbdata {
@@ -13203,41 +13534,13 @@ get_callback(zpool_handle_t *zhp, void *data)
 			    pl == cbp->cb_proplist)
 				continue;
 
-			if (pl->pl_prop == ZPROP_INVAL &&
-			    zfs_prop_user(pl->pl_user_prop)) {
-				srctype = ZPROP_SRC_LOCAL;
+			if (get_pool_prop(zhp, pl, value, sizeof (value),
+			    &srctype, cbp->cb_literal) != 0)
+				continue;
 
-				if (zpool_get_userprop(zhp, pl->pl_user_prop,
-				    value, sizeof (value), &srctype) != 0)
-					continue;
-
-				err = zprop_collect_property(
-				    zpool_get_name(zhp), cbp, pl->pl_user_prop,
-				    value, srctype, NULL, NULL, props);
-			} else if (pl->pl_prop == ZPROP_INVAL &&
-			    (zpool_prop_feature(pl->pl_user_prop) ||
-			    zpool_prop_unsupported(pl->pl_user_prop))) {
-				srctype = ZPROP_SRC_LOCAL;
-
-				if (zpool_prop_get_feature(zhp,
-				    pl->pl_user_prop, value,
-				    sizeof (value)) == 0) {
-					err = zprop_collect_property(
-					    zpool_get_name(zhp), cbp,
-					    pl->pl_user_prop, value, srctype,
-					    NULL, NULL, props);
-				}
-			} else {
-				if (zpool_get_prop(zhp, pl->pl_prop, value,
-				    sizeof (value), &srctype,
-				    cbp->cb_literal) != 0)
-					continue;
-
-				err = zprop_collect_property(
-				    zpool_get_name(zhp), cbp,
-				    zpool_prop_to_name(pl->pl_prop),
-				    value, srctype, NULL, NULL, props);
-			}
+			err = zprop_collect_property(zpool_get_name(zhp), cbp,
+			    proplist_name(pl, ZFS_TYPE_POOL), value,
+			    srctype, NULL, NULL, props);
 			if (err != 0)
 				return (err);
 		}
