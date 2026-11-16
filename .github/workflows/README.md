@@ -70,23 +70,37 @@ can also alter the selection. The `workflow_dispatch` trigger accepts
 `fedora_kernel_ver` (Fedora-only run with a chosen kernel) and
 `specific_os` (pin the matrix to one OS).
 
-### Reusing fork QEMU results
+### Reusing earlier QEMU results
 
-PRs can reuse QEMU results from their source fork without a repository
-allowlist or additional configuration.
+PRs can reuse QEMU results of earlier runs of the same PR and of their
+source fork without a repository allowlist or additional configuration.
 
 For each requested OS, `test-config` looks for a successful job in the
-push runs that tested the same tree as the PR head, newest first: the
-latest ten runs of the exact PR head SHA, and the runs of other commits
-with that tree among the latest hundred push runs. A commit that differs
-only in its message or history, such as one amended to add a sign-off,
-reuses the results of the commit it replaces. A run must be no more than
-seven days old. Build, test and summary steps must all have completed
-successfully on `ubuntu-24.04`.
+runs that tested the same tree as the PR head, newest first: the latest
+ten PR runs of the PR branch in the base repository, and the push runs
+of the source fork, that is the latest ten runs of the exact PR head SHA
+and the runs of other commits with that tree among the latest hundred
+push runs. A commit that differs only in its message or history, such as
+one amended to add a sign-off or reworded after a review, reuses the
+results of the commit it replaces. A run must be no more than seven days
+old. Build, test and summary steps must all have completed successfully
+on `ubuntu-24.04`.
+
+The CI type of a PR run selects its OS list and test suite, and depends
+on the commit messages and on the files that differ from the base, so a
+reworded or rebased commit can change it. `test-config` records it in
+the name of one of its steps (`CI type: quick`), and a PR run is reused
+only by a run of the same CI type. Runs that recorded none, from before
+this rule, are not reused.
 Push runs use full tests, so they also cover PRs requesting quick tests.
 `ZTS_OS_OVERRIDE` in a fork can reduce the available OS results; missing
-OS jobs still run in the base repository. Dispatch and PR runs are not
-reused because they can select different inputs or test suites.
+OS jobs still run in the base repository. Dispatch runs are not reused
+because they can select different inputs.
+
+Push runs reuse the push runs of their own repository in the same way, so
+pushing a reworded commit to a fork runs only the jobs that have no
+successful result for its tree yet. A job that only reused another job
+has no result of its own, and the search goes on to the job it reused.
 
 Reused matrix jobs report success with a link to the original job and
 logs. The cleanup summary links to these results; their artifacts remain
@@ -113,8 +127,10 @@ progress are reused, as their result is final. Any API error ends the
 search without reuse, as does running short of API requests (fewer than
 200 left). The other workflows below run in a single job, which would
 hold a runner as long by waiting as by testing, so they do not wait.
+Unfinished jobs of earlier PR runs are not waited for, since a new PR run
+cancels the earlier runs of its branch, and push runs do not wait.
 
-Fork results are reused only on the first workflow attempt. Requested
+Earlier results are reused only on the first workflow attempt. Requested
 reruns execute the selected jobs in the base repository, including
 selective QEMU matrix reruns that retain the original Setup outputs.
 
@@ -123,10 +139,10 @@ standard full-testing push workflow. It does not compare workflow or
 script contents with the PR base, allowing its own PR to demonstrate
 reuse. Comparing CI files is deferred to a later change.
 
-### Reusing fork zloop results
+### Reusing zloop results
 
 The `zloop` job uses the same helper, `reuse-ci.py zloop`, to find a
-successful push job for the PR head tree. Push and PR jobs use
+successful job for the PR head tree. Push and PR jobs use
 the same build configuration (debug, ASAN and UBSAN) and test command.
 Dependency installation, autogen, configure, make, install and tests
 must all have succeeded on `ubuntu-24.04`. The same run age and source
@@ -136,7 +152,7 @@ A matching result skips build and testing in the PR job and links to
 the original job logs. Otherwise the usual zloop steps run. Successful
 zloop jobs do not upload artifacts, so reuse needs no artifact transfer.
 
-### Reusing other fork results
+### Reusing other results
 
 `unit-tests`, `zfs-arm` and `checkstyle` also use `reuse-ci.py`, passing
 their workflow name. The helper specifies each workflow's file, runner,

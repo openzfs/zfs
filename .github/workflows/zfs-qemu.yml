@@ -99,11 +99,17 @@ jobs:
           echo "os=$os_json" | tee -a "$GITHUB_OUTPUT"
           echo "ci_type=$ci_type" | tee -a "$GITHUB_OUTPUT"
 
-      - name: Find or wait for fork jobs
+      # A later PR run of the same tree reuses jobs of this run only if it
+      # has the same CI type, which it reads from the name of this step.
+      - name: "CI type: ${{ steps.os.outputs.ci_type }}"
+        run: "true"
+
+      - name: Find or wait for reusable jobs
         id: reuse
         env:
           GH_TOKEN: ${{ github.token }}
           ZTS_TARGETS: ${{ steps.os.outputs.os }}
+          CI_TYPE: ${{ steps.os.outputs.ci_type }}
           REUSE_WAIT_MINUTES: ${{ vars.REUSE_WAIT_MINUTES || 240 }}
         run: |
           jobs=$(python3 .github/workflows/scripts/reuse-ci.py)
@@ -137,10 +143,10 @@ jobs:
         ${{ github.run_attempt == '1' &&
         fromJSON(needs.test-config.outputs.reused_jobs)[matrix.os] || '' }}
     steps:
-    - name: Reuse successful fork job
+    - name: Reuse successful job
       if: env.REUSED_JOB != ''
       run: |
-        printf 'Reused successful full QEMU tests for this commit.\n\n[Original job and logs](%s)\n' \
+        printf 'Reused successful QEMU tests for this commit.\n\n[Original job and logs](%s)\n' \
           "$REUSED_JOB" | tee -a "$GITHUB_STEP_SUMMARY"
 
     - uses: actions/checkout@v6
@@ -215,7 +221,7 @@ jobs:
       if: >-
         github.run_attempt != '1' ||
         needs.test-config.outputs.all_reused != 'true'
-    - name: Reused fork results
+    - name: Reused results
       env:
         REUSED_JOBS: >-
           ${{ github.run_attempt == '1' &&
