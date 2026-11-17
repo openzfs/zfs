@@ -1481,6 +1481,26 @@ spa_vdev_config_exit_impl(spa_t *spa, vdev_t *vd, uint64_t txg, int error,
 		 */
 		vdev_autotrim_stop_wait(vd);
 
+		/*
+		 * Erase the labels of a detached leaf, with the label that
+		 * spa_vdev_detach() generated, only now that the txg that
+		 * detaches it is on disk, as vdev_remove_complete() does: an
+		 * import that scans the devices ignores erased labels.  A
+		 * failure is not fatal, the leaf may be detached because it
+		 * cannot be written.  As for the wait above, do not hold
+		 * spa_namespace_lock while a suspended txg may hold the
+		 * config lock.
+		 */
+		if (error == 0 && vd->vdev_detached) {
+			spa_open_ref(spa, FTAG);
+			spa_namespace_exit(FTAG);
+			spa_config_enter(spa, SCL_ALL, spa, RW_WRITER);
+			(void) vdev_label_detach_write(vd);
+			spa_config_exit(spa, SCL_ALL, spa);
+			spa_namespace_enter(FTAG);
+			spa_close(spa, FTAG);
+		}
+
 		spa_config_enter(spa, SCL_STATE_ALL, spa, RW_WRITER);
 		vdev_free(vd);
 		spa_config_exit(spa, SCL_STATE_ALL, spa);

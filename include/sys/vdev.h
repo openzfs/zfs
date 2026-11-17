@@ -248,6 +248,8 @@ typedef enum {
 } vdev_labeltype_t;
 
 extern int vdev_label_init(vdev_t *vd, uint64_t txg, vdev_labeltype_t reason);
+extern void vdev_label_detach_generate(vdev_t *vd);
+extern int vdev_label_detach_write(vdev_t *vd);
 
 extern int vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl);
 extern int vdev_prop_get(spa_t *spa, nvlist_t *nvprops, nvlist_t *outnvl);

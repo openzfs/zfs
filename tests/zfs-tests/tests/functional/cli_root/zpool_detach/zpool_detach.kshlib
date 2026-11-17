@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+
+#
+# Copyright (c) 2026 Tigerblue77
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+typeset -i DETACH_TIMEOUT=60
+
+#
+# Detach a device while every write and probe of the devices that remain
+# in the pool fail, so that the txg of the detach suspends the pool.  While
+# it is suspended, copy the given files to a directory: what a crash before
+# that txg leaves on disk.  Then clear the pool and check that the detach
+# completes.  TXG_TIMEOUT must be high enough that no other txg is synced
+# from the injection to the detach.
+#
+function detach_suspended_copy # pool device "faulted devices" dir file...
+{
+	typeset pool=$1
+	typeset dev=$2
+	typeset faulted=$3
+	typeset dir=$4
+	typeset -i pid
+	typeset -i rc
+	typeset -i waited=0
+	typeset d
+
+	shift 4
+	for d in $faulted; do
+		log_must zinject -d $d -e io -T write $pool
+		log_must zinject -d $d -e nxio -T probe $pool
+	done
+	log_must [ "$(kstat_pool $pool state)" != "SUSPENDED" ]
+
+	zpool detach $pool $dev &
+	pid=$!
+	while [[ "$(kstat_pool $pool state)" != "SUSPENDED" ]]; do
+		if ! kill -0 $pid 2>/dev/null; then
+			wait $pid
+			log_fail "zpool detach returned $? before suspending"
+		fi
+		((waited++ >= DETACH_TIMEOUT)) && log_fail "no suspension"
+		sleep 1
+	done
+
+	log_must cp "$@" $dir
+
+	log_must zinject -c all
+	log_must zpool clear $pool
+	waited=0
+	while kill -0 $pid 2>/dev/null; do
+		((waited++ >= DETACH_TIMEOUT)) &&
+		    log_fail "zpool detach still running after zpool clear"
+		sleep 1
+	done
+	wait $pid
+	rc=$?
+	log_note "zpool detach returned $rc"
+	log_must [ $rc -eq 0 ]
+}
+
+#
+# Print the txg of each distinct label of a device.
+#
+function label_txgs # device
+{
+	zdb -l $1 | awk '$1 == "txg:" { print $2 }'
+}

@@ -9088,14 +9088,13 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	}
 
 	/*
-	 * Erase the disk labels so the disk can be used for other things.
-	 * This must be done after all other error cases are handled,
-	 * but before we disembowel vd (so we can still do I/O to it).
-	 * But if we can't do it, don't treat the error as fatal --
-	 * it may be that the unwritability of the disk is the reason
-	 * it's being detached!
+	 * Generate the label that erases vd, so that the disk can be used for
+	 * other things.  This must be done after all other error cases are
+	 * handled, but before vd leaves its parent: the label describes the
+	 * pool before the detach, which "zhack label repair -u" restores.
+	 * spa_vdev_config_exit_impl() writes it once this txg is on disk.
 	 */
-	(void) vdev_label_init(vd, 0, VDEV_LABEL_REMOVE);
+	vdev_label_detach_generate(vd);
 
 	/*
 	 * Remove vd from its parent and compact the parent's children.
@@ -9141,6 +9140,13 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	 */
 	tvd = cvd->vdev_top;
 	ASSERT(tvd->vdev_parent == rvd);
+
+	/*
+	 * spa_vdev_config_exit_impl() erases the labels of vd once this txg
+	 * is on disk.  That I/O reads vd->vdev_top, which may be the parent
+	 * that vdev_remove_parent() has just freed.
+	 */
+	vd->vdev_top = tvd;
 
 	/*
 	 * Reevaluate the parent vdev state.
