@@ -17,7 +17,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd November 19, 2024
+.Dd November 17, 2026
 .Dt ZPOOL-REMOVE 8
 .Os
 .
@@ -81,6 +81,9 @@ Do not actually perform the removal
 Instead, print the estimated amount of memory that will be used by the
 mapping table after the removal completes.
 This is nonzero only for top-level vdevs.
+If the removal would be refused, print the error that the removal would print
+and exit non-zero instead.
+The removal checks again, as the pool can change in between.
 .El
 .Bl -tag -width Ds
 .It Fl p

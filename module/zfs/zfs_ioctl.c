@@ -2340,6 +2340,38 @@ zfs_ioc_vdev_remove(zfs_cmd_t *zc)
 	return (error);
 }
 
+/*
+ * Check whether ZFS_IOC_VDEV_REMOVE would remove a vdev, without removing it.
+ *
+ * innvl: {
+ *     "vdev_remove_check_guid" -> guid of the vdev (uint64)
+ * }
+ *
+ * outnvl: empty
+ *
+ * Returns 0, or the error that the removal would return.
+ */
+static const zfs_ioc_key_t zfs_keys_vdev_remove_check[] = {
+	{ZPOOL_VDEV_REMOVE_CHECK_GUID,	DATA_TYPE_UINT64,	0},
+};
+
+static int
+zfs_ioc_vdev_remove_check(const char *poolname, nvlist_t *innvl,
+    nvlist_t *outnvl)
+{
+	(void) outnvl;
+	spa_t *spa;
+	int error;
+
+	error = spa_open(poolname, &spa, FTAG);
+	if (error != 0)
+		return (error);
+	error = spa_vdev_remove_check(spa,
+	    fnvlist_lookup_uint64(innvl, ZPOOL_VDEV_REMOVE_CHECK_GUID));
+	spa_close(spa, FTAG);
+	return (error);
+}
+
 static int
 zfs_ioc_vdev_set_state(zfs_cmd_t *zc)
 {
@@ -8204,6 +8236,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_ddt_prune, zfs_secpolicy_config, POOL_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
 	    zfs_keys_ddt_prune, ARRAY_SIZE(zfs_keys_ddt_prune));
+
+	zfs_ioctl_register("zpool_vdev_remove_check", ZFS_IOC_VDEV_REMOVE_CHECK,
+	    zfs_ioc_vdev_remove_check, zfs_secpolicy_read, POOL_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_FALSE, B_FALSE,
+	    zfs_keys_vdev_remove_check, ARRAY_SIZE(zfs_keys_vdev_remove_check));
 
 	/* IOCTLS that use the legacy function signature */
 

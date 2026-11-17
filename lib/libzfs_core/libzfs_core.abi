@@ -130,6 +130,7 @@
     <elf-symbol name='lzc_sync' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_trim' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_unload_key' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzc_vdev_remove_check' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_wait' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_wait_fs' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_wait_tag' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -2447,6 +2448,7 @@
       <enumerator name='ZFS_IOC_POOL_PREFETCH' value='23128'/>
       <enumerator name='ZFS_IOC_DDT_PRUNE' value='23129'/>
       <enumerator name='ZFS_IOC_POOL_CONDENSE' value='23130'/>
+      <enumerator name='ZFS_IOC_VDEV_REMOVE_CHECK' value='23131'/>
       <enumerator name='ZFS_IOC_PLATFORM' value='23168'/>
       <enumerator name='ZFS_IOC_EVENTS_NEXT' value='23169'/>
       <enumerator name='ZFS_IOC_EVENTS_CLEAR' value='23170'/>
@@ -3778,6 +3780,11 @@
       <parameter type-id='80f4b756' name='pool_name'/>
       <parameter type-id='80f4b756' name='cmd'/>
       <parameter type-id='80f4b756' name='type'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_vdev_remove_check' mangled-name='lzc_vdev_remove_check' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_vdev_remove_check'>
+      <parameter type-id='80f4b756' name='pool_name'/>
+      <parameter type-id='9c313c2d' name='guid'/>
       <return type-id='95e97e5e'/>
     </function-decl>
     <function-decl name='lzc_hold' mangled-name='lzc_hold' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_hold'>

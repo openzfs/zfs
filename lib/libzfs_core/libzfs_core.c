@@ -548,6 +548,26 @@ lzc_condense(const char *pool_name, const char *cmd, const char *type)
 }
 
 /*
+ * Check whether removing the vdev with this guid from the pool would be
+ * accepted, without removing it.  Returns 0, or the error that the removal
+ * would return.
+ */
+int
+lzc_vdev_remove_check(const char *pool_name, uint64_t guid)
+{
+	int error;
+
+	nvlist_t *args = fnvlist_alloc();
+	fnvlist_add_uint64(args, ZPOOL_VDEV_REMOVE_CHECK_GUID, guid);
+
+	error = lzc_ioctl(ZFS_IOC_VDEV_REMOVE_CHECK, pool_name, args, NULL);
+
+	fnvlist_free(args);
+
+	return (error);
+}
+
+/*
  * Create "user holds" on snapshots.  If there is a hold on a snapshot,
  * the snapshot can not be destroyed.  (However, it can be marked for deletion
  * by lzc_destroy_snaps(defer=B_TRUE).)
