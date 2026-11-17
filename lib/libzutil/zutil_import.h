@@ -32,6 +32,16 @@ int zpool_find_import_blkid(libpc_handle_t *hdl, pthread_mutex_t *lock,
 void * zutil_alloc(libpc_handle_t *hdl, size_t size);
 char *zutil_strdup(libpc_handle_t *hdl, const char *str);
 
+/*
+ * What the import scan keeps of the labels of a device besides the one
+ * zpool_read_label() returns, in case no uberblock covers that one.
+ */
+typedef struct label_scan {
+	nvlist_t *ls_older;	/* Valid label of an older txg, or NULL */
+	int ls_older_labels;	/* Number of labels with its vdev guid */
+	int ls_mask;		/* Labels of its pool or the other's */
+} label_scan_t;
+
 typedef struct rdsk_node {
 	char *rn_name;			/* Full path to device */
 	int rn_order;			/* Preferred order (low to high) */
@@ -39,12 +49,14 @@ typedef struct rdsk_node {
 	uint64_t rn_vdev_guid;		/* Expected vdev guid when set */
 	libpc_handle_t *rn_hdl;
 	nvlist_t *rn_config;		/* Label config */
+	label_scan_t rn_scan;		/* Other labels */
 	avl_tree_t *rn_avl;
 	avl_node_t rn_node;
 	pthread_mutex_t *rn_lock;
 	boolean_t rn_labelpaths;
 } rdsk_node_t;
 
+int zpool_read_label_scan(int, nvlist_t **, int *, label_scan_t *);
 int slice_cache_compare(const void *, const void *);
 
 boolean_t zpool_dev_probe_ok(const char *path);
