@@ -4518,6 +4518,26 @@ out:
 }
 
 /*
+ * Say that a top-level vdev holds data that cannot be evacuated, and why.
+ */
+static void
+zpool_vdev_remove_not_empty(libzfs_handle_t *hdl, nvlist_t *tgt,
+    const char *why)
+{
+	vdev_stat_t *vs;
+	uint_t c;
+	char alloc[32];
+
+	if (nvlist_lookup_uint64_array(tgt, ZPOOL_CONFIG_VDEV_STATS,
+	    (uint64_t **)&vs, &c) == 0 && vs->vs_alloc != 0)
+		zfs_nicebytes(vs->vs_alloc, alloc, sizeof (alloc));
+	else
+		(void) strlcpy(alloc, "data", sizeof (alloc));
+	zfs_error_aux(hdl, "it holds %s, which cannot be evacuated while %s.",
+	    alloc, why);
+}
+
+/*
  * Remove the given device.
  */
 int
@@ -4529,6 +4549,8 @@ zpool_vdev_remove(zpool_handle_t *zhp, const char *path)
 	boolean_t avail_spare, l2cache, islog;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
 	uint64_t version;
+	const char *bias;
+	const char *why;
 
 	(void) snprintf(errbuf, sizeof (errbuf),
 	    "cannot remove %s", path);
@@ -4568,6 +4590,33 @@ zpool_vdev_remove(zpool_handle_t *zhp, const char *path)
 		zfs_error_aux(hdl,
 		    "invalid config; all top-level vdevs must "
 		    "have the same sector size and not be raidz.");
+		(void) zfs_error(hdl, EZFS_INVALCONFIG, errbuf);
+		break;
+
+	case ZFS_ERR_ASHIFT_MISMATCH:
+		if (nvlist_lookup_string(tgt, ZPOOL_CONFIG_ALLOCATION_BIAS,
+		    &bias) != 0)
+			why = "the normal vdevs do not all have the same "
+			    "sector size";
+		else if (strcmp(bias, VDEV_ALLOC_BIAS_DEDUP) == 0)
+			why = "the normal and dedup vdevs do not all have the "
+			    "same sector size";
+		else
+			why = "the normal and special vdevs do not all have "
+			    "the same sector size";
+		zpool_vdev_remove_not_empty(hdl, tgt, why);
+		(void) zfs_error(hdl, EZFS_INVALCONFIG, errbuf);
+		break;
+
+	case ZFS_ERR_DEVRM_PARITY:
+		zpool_vdev_remove_not_empty(hdl, tgt, "a top-level vdev has "
+		    "parity (raidz, draid or anymirror)");
+		(void) zfs_error(hdl, EZFS_INVALCONFIG, errbuf);
+		break;
+
+	case ZFS_ERR_DEVRM_MIRROR_REPLACING:
+		zpool_vdev_remove_not_empty(hdl, tgt, "a mirror has a device "
+		    "being replaced or a hot spare in use");
 		(void) zfs_error(hdl, EZFS_INVALCONFIG, errbuf);
 		break;
 

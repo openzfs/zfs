@@ -89,7 +89,8 @@ log_must default_setup_noexit "raidz1 ${disk[1]} ${disk[2]} ${disk[3]}"
 log_must zpool add -f $TESTPOOL raidz1 ${disk[4]} ${disk[5]} ${disk[6]}
 write_data file1
 log_must test "$(get_vdev_prop allocated $TESTPOOL raidz1-1)" -gt 0
-log_mustnot_expect "invalid config" zpool remove $TESTPOOL raidz1-1
+log_mustnot_expect "a top-level vdev has parity" \
+    zpool remove $TESTPOOL raidz1-1
 log_must vdevs_in_pool $TESTPOOL raidz1-1
 log_must test "$(get_vdev_prop allocating $TESTPOOL raidz1-1)" = "on"
 write_data file2

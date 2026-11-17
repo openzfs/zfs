@@ -2356,7 +2356,7 @@ spa_vdev_remove_top_check(vdev_t *vd)
 	 * All vdevs in normal class must have the same ashift.
 	 */
 	if (spa->spa_max_ashift != spa->spa_min_ashift) {
-		return (SET_ERROR(EINVAL));
+		return (SET_ERROR(ZFS_ERR_ASHIFT_MISMATCH));
 	}
 
 	/*
@@ -2365,7 +2365,7 @@ spa_vdev_remove_top_check(vdev_t *vd)
 	ASSERT(!vd->vdev_islog);
 	if (vd->vdev_alloc_bias != VDEV_BIAS_NONE &&
 	    vd->vdev_ashift != spa->spa_max_ashift) {
-		return (SET_ERROR(EINVAL));
+		return (SET_ERROR(ZFS_ERR_ASHIFT_MISMATCH));
 	}
 
 	/*
@@ -2383,7 +2383,7 @@ spa_vdev_remove_top_check(vdev_t *vd)
 		if (vd->vdev_alloc_bias != VDEV_BIAS_NONE &&
 		    cvd->vdev_alloc_bias == vd->vdev_alloc_bias &&
 		    cvd->vdev_ashift != vd->vdev_ashift) {
-			return (SET_ERROR(EINVAL));
+			return (SET_ERROR(ZFS_ERR_ASHIFT_MISMATCH));
 		}
 		if (cvd->vdev_ashift != 0 &&
 		    cvd->vdev_alloc_bias == VDEV_BIAS_NONE)
@@ -2391,16 +2391,18 @@ spa_vdev_remove_top_check(vdev_t *vd)
 		if (!vdev_is_concrete(cvd))
 			continue;
 		if (vdev_get_nparity(cvd) != 0)
-			return (SET_ERROR(EINVAL));
+			return (SET_ERROR(ZFS_ERR_DEVRM_PARITY));
 		/*
-		 * Need the mirror to be mirror of leaf vdevs only
+		 * Need the mirror to be mirror of leaf vdevs only: no child
+		 * may be a replacing or spare vdev (a hot spare in use).
 		 */
 		if (cvd->vdev_ops == &vdev_mirror_ops) {
 			for (uint64_t cid = 0;
 			    cid < cvd->vdev_children; cid++) {
 				if (!cvd->vdev_child[cid]->vdev_ops->
 				    vdev_op_leaf)
-					return (SET_ERROR(EINVAL));
+					return (SET_ERROR(
+					    ZFS_ERR_DEVRM_MIRROR_REPLACING));
 			}
 		}
 	}

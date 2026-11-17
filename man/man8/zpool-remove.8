@@ -17,7 +17,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd November 15, 2026
+.Dd November 17, 2026
 .Dt ZPOOL-REMOVE 8
 .Os
 .
@@ -47,9 +47,11 @@ Removes the specified device from the pool.
 This command supports removing hot spare, cache, log, and both mirrored and
 non-redundant primary top-level vdevs, including dedup and special vdevs.
 .Pp
-Top-level vdevs can only be removed if the primary pool storage does not contain
-a top-level raidz or draid vdev, all top-level vdevs have the same ashift size,
-and the keys for all encrypted datasets are loaded.
+A primary top-level vdev that holds data can only be removed if no top-level
+vdev has parity (raidz, draid, or anymirror other than anymirror0), no
+top-level mirror has a device being replaced or a hot spare in use, and the
+vdevs of its class and of the normal class all have the same ashift.
+The keys for all encrypted datasets must be loaded to remove a top-level vdev.
 .Pp
 A top-level vdev that has no allocated space is removed differently, whatever
 its type and whatever other vdevs the pool has, which allows undoing the

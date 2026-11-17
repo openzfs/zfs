@@ -2215,6 +2215,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/removal/remove_labels_after_hole.ksh \
 	functional/removal/remove_mirror.ksh \
 	functional/removal/remove_mirror_sanity.ksh \
+	functional/removal/remove_not_empty.ksh \
 	functional/removal/remove_raidz.ksh \
 	functional/removal/remove_raidz_busy.ksh \
 	functional/removal/remove_raidz_empty.ksh \
