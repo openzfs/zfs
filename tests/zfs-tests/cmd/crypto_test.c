@@ -191,6 +191,28 @@ parse_num(char *v, uint64_t *np)
 	return (B_TRUE);
 }
 
+static void
+free_tests(crypto_test_t *tests)
+{
+	while (tests != NULL) {
+		crypto_test_t *next = tests->next;
+		crypto_test_val_t *values[] = {
+		    &tests->iv, &tests->key, &tests->msg,
+		    &tests->ct, &tests->aad, &tests->tag,
+		};
+
+		for (int i = 0; i < ARRAY_SIZE(values); i++) {
+			if (values[i]->val != val_empty)
+				free(values[i]->val);
+		}
+		free(tests->fileloc);
+		free(tests->comment);
+		free(tests->flags);
+		free(tests);
+		tests = next;
+	}
+}
+
 /*
  * load tests from the test file. returns a linked list of tests, and the
  * test algorithm in *algp.
@@ -251,13 +273,7 @@ load_tests(const char *filepath, crypto_test_alg_t *algp)
 				goto err;
 			}
 
-			/* commit the test, ie, add it to the list */
-			if (tail == NULL)
-				tests = tail = test;
-			else {
-				tail->next = test;
-				tail = test;
-			}
+			/* the completed test is already linked */
 			ncommitted++;
 
 			test = NULL;
@@ -291,6 +307,11 @@ load_tests(const char *filepath, crypto_test_alg_t *algp)
 			snprintf(test->fileloc, len, "%s:%d",
 			    filename, lineno+1);
 			test->alg = alg;
+			if (tail == NULL)
+				tests = test;
+			else
+				tail->next = test;
+			tail = test;
 			continue;
 		}
 
@@ -495,12 +516,7 @@ err:
 	if (fh != NULL)
 		fclose(fh);
 
-	/*
-	 * XXX we should probably free all the tests here, but the test file
-	 *     is generated and this is a one-shot program, so it's really
-	 *     not worth the effort today
-	 */
-
+	free_tests(tests);
 	return (NULL);
 }
 
@@ -1038,6 +1054,7 @@ runtests_main(const char *filename, crypto_test_outmode_t outmode)
 	}
 
 	icp_fini();
+	free_tests(tests);
 
 	return (args.failed);
 }
