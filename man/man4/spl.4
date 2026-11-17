@@ -93,6 +93,11 @@ allocations less than or equal to this value will use
 but shift to
 .Fn vmalloc
 when exceeding this value.
+Contiguous allocations larger than the order half way between
+.Sy PAGE_ALLOC_COSTLY_ORDER
+and the order of this value will not wake kswapd to make them possible,
+since on systems with most of memory held by the ARC it may require
+evicting a large part of it.
 .
 .It Sy spl_kmem_cache_magazine_size Ns = Ns Sy 0 Pq uint
 Cache magazines are an optimization designed to minimize the cost of
