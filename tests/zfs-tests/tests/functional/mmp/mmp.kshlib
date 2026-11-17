@@ -86,8 +86,12 @@ function mmp_clear_suspended # pool
 {
 	typeset pool=${1:-$MMP_POOL}
 
+	# Ask the kernel: once the hostid has changed (mmp_clear_hostid),
+	# zpool's health column reports the hostid mismatch, not the
+	# suspension, and the pool would be passed on to destroy_pool, whose
+	# unmount then waits for the suspended pool forever.
 	if poolexists $pool && \
-	    [[ $(zpool list -H -o health $pool) == "SUSPENDED" ]]; then
+	    [[ $(kstat_pool $pool state) == "SUSPENDED" ]]; then
 		log_must zpool clear $pool
 	fi
 }

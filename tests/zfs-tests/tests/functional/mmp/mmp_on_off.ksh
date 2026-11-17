@@ -44,6 +44,8 @@ function cleanup
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 	log_must set_tunable64 TXG_TIMEOUT $TXG_TIMEOUT_DEFAULT
 	log_must set_tunable64 MULTIHOST_INTERVAL $MMP_INTERVAL_DEFAULT
+	log_must set_tunable64 MULTIHOST_FAIL_INTERVALS \
+	    $MMP_FAIL_INTERVALS_DEFAULT
 	log_must rm -f $PREV_UBER $CURR_UBER
 	log_must mmp_clear_hostid
 }
@@ -52,6 +54,12 @@ log_assert "mmp thread won't write uberblocks with multihost=off"
 log_onexit cleanup
 
 log_must set_tunable64 MULTIHOST_INTERVAL $MMP_INTERVAL_MIN
+# At MMP_INTERVAL_MIN the default fail intervals suspend the pool after one
+# second without a successful MMP write, and a pool suspended by MMP cannot be
+# cleared on the same host (#19033), so one slow write would leave it behind
+# for every later test.  This test is about whether uberblocks are written,
+# not about suspension, so turn suspension off.
+log_must set_tunable64 MULTIHOST_FAIL_INTERVALS 0
 log_must set_tunable64 TXG_TIMEOUT $TXG_TIMEOUT_LONG
 log_must mmp_set_hostid $HOSTID1
 
@@ -73,5 +81,8 @@ log_must eval "zdb -u $TESTPOOL > $CURR_UBER"
 if diff "$CURR_UBER" "$PREV_UBER"; then
 	log_fail "mmp failed to update uberblocks"
 fi
+
+state=$(kstat_pool $TESTPOOL state)
+[[ "$state" == "ONLINE" ]] || log_fail "pool $TESTPOOL is $state, not ONLINE"
 
 log_pass "mmp thread won't write uberblocks with multihost=off passed"
