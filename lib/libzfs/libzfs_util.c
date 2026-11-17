@@ -1456,8 +1456,22 @@ zprop_nvlist_one_property(const char *propname,
 {
 	int ret = 0;
 	nvlist_t *src_nv, *prop;
-	boolean_t all_numeric = strspn(value, STR_NUMS) == strlen(value);
+	boolean_t is_num = B_FALSE;
+	uint64_t val = 0;
 	src_nv = prop = NULL;
+
+	/*
+	 * A value is a number only if the number prints as the same text: a
+	 * non-empty run of digits with no leading zero, "0" excepted, that
+	 * fits in a uint64.
+	 */
+	if (as_int && value[0] != '\0' &&
+	    (value[0] != '0' || value[1] == '\0') &&
+	    strspn(value, STR_NUMS) == strlen(value)) {
+		errno = 0;
+		val = strtoull(value, NULL, 10);
+		is_num = (errno != ERANGE);
+	}
 
 	if ((nvlist_alloc(&prop, NV_UNIQUE_NAME, 0) != 0) ||
 	    (nvlist_alloc(&src_nv, NV_UNIQUE_NAME, 0) != 0)) {
@@ -1465,9 +1479,7 @@ zprop_nvlist_one_property(const char *propname,
 		goto err;
 	}
 
-	if (as_int && all_numeric) {
-		uint64_t val;
-		sscanf(value, "%lld", (u_longlong_t *)&val);
+	if (is_num) {
 		if (nvlist_add_uint64(prop, "value", val) != 0) {
 			ret = -1;
 			goto err;
