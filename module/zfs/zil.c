@@ -3831,19 +3831,36 @@ zil_free_commit_waiter(zil_commit_waiter_t *zcw)
  * then later committed to an lwb (or skipped) when
  * zil_process_commit_list() is called.
  */
-static void
+static int
 zil_commit_itx_assign(zilog_t *zilog, zil_commit_waiter_t *zcw)
 {
-	dmu_tx_t *tx = dmu_tx_create(zilog->zl_os);
+	dmu_tx_t *tx;
+	int err;
 
 	/*
 	 * Since we are not going to create any new dirty data, and we
 	 * can even help with clearing the existing dirty data, we
 	 * should not be subject to the dirty data based delays. We
 	 * use DMU_TX_NOTHROTTLE to bypass the delay mechanism.
+	 *
+	 * Don't wait here for a suspended pool to resume, as DMU_TX_SUSPEND
+	 * would: return ESHUTDOWN, and let zil_commit_flags() return EIO or
+	 * wait, as its caller (ZIL_COMMIT_NOW) and the pool's failmode= ask.
+	 * A wait for a full txg breaks off if the pool suspends meanwhile.
 	 */
-	VERIFY0(dmu_tx_assign(tx,
-	    DMU_TX_WAIT | DMU_TX_NOTHROTTLE | DMU_TX_SUSPEND));
+	for (;;) {
+		tx = dmu_tx_create(zilog->zl_os);
+		err = dmu_tx_assign(tx, DMU_TX_NOTHROTTLE);
+		if (err == 0)
+			break;
+		if (err == EIO || spa_suspended(zilog->zl_spa)) {
+			dmu_tx_abort(tx);
+			return (SET_ERROR(ESHUTDOWN));
+		}
+		VERIFY3S(err, ==, ERESTART);
+		dmu_tx_wait(tx);
+		dmu_tx_abort(tx);
+	}
 
 	itx_t *itx = zil_itx_create(TX_COMMIT, sizeof (lr_t));
 	itx->itx_sync = B_TRUE;
@@ -3852,6 +3869,7 @@ zil_commit_itx_assign(zilog_t *zilog, zil_commit_waiter_t *zcw)
 	zil_itx_assign(zilog, itx, tx);
 
 	dmu_tx_commit(tx);
+	return (0);
 }
 
 /*
@@ -4200,14 +4218,23 @@ zil_commit_impl(zilog_t *zilog, uint64_t foid)
 	 * zil_commit_waiter().
 	 */
 	zil_commit_waiter_t *zcw = zil_alloc_commit_waiter();
-	zil_commit_itx_assign(zilog, zcw);
+	int err = zil_commit_itx_assign(zilog, zcw);
+	if (err != 0) {
+		/*
+		 * The pool is suspended and the waiter was never assigned,
+		 * so nothing was issued and there is nothing to crash; the
+		 * caller decides whether to wait.
+		 */
+		zcw->zcw_done = B_TRUE;
+		zil_free_commit_waiter(zcw);
+		return (err);
+	}
 
 	uint64_t wtxg = zil_commit_writer(zilog, zcw);
 	if (wtxg != 0)
 		txg_kick(zilog->zl_dmu_pool, wtxg);
 	zil_commit_waiter(zilog, zcw);
 
-	int err = 0;
 	if (zcw->zcw_error != 0) {
 		/*
 		 * If there was an error writing out the ZIL blocks that
