@@ -465,6 +465,9 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
  * Update all disk labels, generate a fresh config based on the current
  * in-core state, and sync the global config cache (do not sync the config
  * cache if this is a booting rootpool).
+ *
+ * The caller holds spa_namespace_lock, which is dropped while waiting
+ * for a suspended pool to sync: see below.
  */
 void
 spa_config_update(spa_t *spa, int what)
@@ -510,8 +513,20 @@ spa_config_update(spa_t *spa, int what)
 
 	/*
 	 * Wait for the mosconfig to be regenerated and synced.
+	 *
+	 * A suspended pool syncs nothing until zpool clear resumes it,
+	 * and the clear needs spa_namespace_lock, so wait without the
+	 * lock then, as spa_vdev_exit() does.  The hold makes an export
+	 * fail with EBUSY, and what follows reads the vdev tree again.
 	 */
-	txg_wait_synced(spa->spa_dsl_pool, txg);
+	if (txg_wait_synced_flags(spa->spa_dsl_pool, txg,
+	    TXG_WAIT_SUSPEND) != 0) {
+		spa_open_ref(spa, FTAG);
+		spa_namespace_exit(FTAG);
+		txg_wait_synced(spa->spa_dsl_pool, txg);
+		spa_namespace_enter(FTAG);
+		spa_close(spa, FTAG);
+	}
 
 	/*
 	 * Update the global config cache to reflect the new mosconfig.
