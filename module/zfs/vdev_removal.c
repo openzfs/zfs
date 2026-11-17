@@ -283,6 +283,54 @@ vdev_passivate(vdev_t *vd, uint64_t *txg)
 	return (0);
 }
 
+typedef struct vdev_allocating_arg {
+	uint64_t	vaa_vdev_id;
+	uint64_t	vaa_allocating;
+} vdev_allocating_arg_t;
+
+static void
+vdev_allocating_sync(void *arg, dmu_tx_t *tx)
+{
+	vdev_allocating_arg_t *vaa = arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	vdev_t *vd = vdev_lookup_top(spa, vaa->vaa_vdev_id);
+
+	if (vd->vdev_top_zap != 0) {
+		mutex_enter(&spa->spa_props_lock);
+		VERIFY0(zap_update(spa->spa_meta_objset, vd->vdev_top_zap,
+		    vdev_prop_to_name(VDEV_PROP_ALLOCATING), sizeof (uint64_t),
+		    1, &vaa->vaa_allocating, tx));
+		mutex_exit(&spa->spa_props_lock);
+	}
+	spa_history_log_internal(spa, "vdev set", tx,
+	    "vdev_guid=%llu: %s=%llu", (u_longlong_t)vd->vdev_guid,
+	    vdev_prop_to_name(VDEV_PROP_ALLOCATING),
+	    (u_longlong_t)vaa->vaa_allocating);
+
+	kmem_free(vaa, sizeof (*vaa));
+}
+
+/*
+ * Write the "allocating" property of a vdev in the txg that writes its
+ * allocating state to the config, so that no crash can leave the two
+ * disagreeing.  The property keeps what was asked for: a vdev that is being
+ * removed does not allocate whatever it says, and goes back to it if the
+ * removal is canceled.
+ */
+static void
+vdev_allocating_prop_sync(vdev_t *vd, boolean_t allocating, uint64_t txg)
+{
+	dsl_pool_t *dp = spa_get_dsl(vd->vdev_spa);
+	vdev_allocating_arg_t *vaa = kmem_alloc(sizeof (*vaa), KM_SLEEP);
+
+	vaa->vaa_vdev_id = vd->vdev_id;
+	vaa->vaa_allocating = allocating;
+
+	dmu_tx_t *tx = dmu_tx_create_assigned(dp, txg);
+	dsl_sync_task_nowait(dp, vdev_allocating_sync, vaa, tx);
+	dmu_tx_commit(tx);
+}
+
 /*
  * Turn off allocations for a top-level device from the pool.
  *
@@ -312,12 +360,24 @@ spa_vdev_noalloc(spa_t *spa, uint64_t guid)
 		error = SET_ERROR(ENODEV);
 	else if (vd->vdev_mg == NULL)
 		error = SET_ERROR(ZFS_ERR_VDEV_NOTSUP);
-	else if (!vd->vdev_noalloc)
-		error = vdev_passivate(vd, &txg);
+	else if (!vd->vdev_noalloc) {
+		/*
+		 * As spa_vdev_remove_top_check() does, refuse to take away
+		 * space that the pool needs: it would have none available
+		 * until allocations are turned back on.
+		 */
+		if (vd->vdev_mg->mg_class == spa_normal_class(spa) &&
+		    dsl_dir_space_available(spa->spa_dsl_pool->dp_root_dir,
+		    NULL, 0, B_TRUE) < vd->vdev_stat.vs_dspace)
+			error = SET_ERROR(ENOSPC);
+		else
+			error = vdev_passivate(vd, &txg);
+	}
 
 	if (error == 0) {
 		vdev_dirty_leaves(vd, VDD_DTL, txg);
 		vdev_config_dirty(vd);
+		vdev_allocating_prop_sync(vd, B_FALSE, txg);
 	}
 
 	error = spa_vdev_exit(spa, NULL, txg, error);
@@ -345,12 +405,13 @@ spa_vdev_alloc(spa_t *spa, uint64_t guid)
 		error = SET_ERROR(ENODEV);
 	else if (vd->vdev_mg == NULL)
 		error = SET_ERROR(ZFS_ERR_VDEV_NOTSUP);
-	else if (!vd->vdev_removing)
+	else if (vd->vdev_noalloc && !vd->vdev_removing)
 		vdev_activate(vd);
 
 	if (error == 0) {
 		vdev_dirty_leaves(vd, VDD_DTL, txg);
 		vdev_config_dirty(vd);
+		vdev_allocating_prop_sync(vd, B_TRUE, txg);
 	}
 
 	(void) spa_vdev_exit(spa, NULL, txg, error);
