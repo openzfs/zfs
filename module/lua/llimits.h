@@ -98,14 +98,14 @@ typedef LUAI_UACNUMBER l_uacNumber;
 /*
 ** non-return type
 **
-** Suppress noreturn attribute in kernel builds to avoid objtool check warnings
+** Objtool can infer noreturn across Lua objects when it checks the linked module.
 */
 #if defined(__GNUC__) && !defined(_KERNEL)
 #define l_noret		void __attribute__((noreturn))
 #elif defined(_MSC_VER)
 #define l_noret		void __declspec(noreturn)
 #else
-#define l_noret		void
+#define l_noret		void LUAI_NORETURN
 #endif
 
 
