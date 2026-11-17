@@ -2613,8 +2613,10 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	if (resuming || book_resuming) {
 		err = setup_resume_points(dspp, to_arg, from_arg,
 		    rlt_arg, smt_arg, resuming, os, redact_rl, nvl);
-		if (err != 0)
+		if (err != 0) {
+			fnvlist_free(nvl);
 			goto out;
+		}
 	}
 
 	if (featureflags & DMU_BACKUP_FEATURE_RAW) {
