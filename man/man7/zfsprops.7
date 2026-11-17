@@ -29,7 +29,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd October 30, 2026
+.Dd November 17, 2026
 .Dt ZFSPROPS 7
 .Os
 .
@@ -1333,7 +1333,15 @@ mount options.
 Controls internal zvol threading.
 The value
 .Sy off
-disables zvol threading, and zvol relies on application threads.
+disables zvol threading, and zvol relies on application threads,
+except for non-blocking requests to
+.Li blk-mq
+zvols, such as those
+.Xr io_uring 7
+submits from its own task, which zvol threads still handle; see
+.Sy zvol_request_sync
+in
+.Xr zfs 4 .
 The default value is
 .Sy on ,
 which enables threading within a zvol.

@@ -2682,6 +2682,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zvol/zvol_misc/zvol_misc_006_pos.ksh \
 	functional/zvol/zvol_misc/zvol_misc_fua.ksh \
 	functional/zvol/zvol_misc/zvol_misc_hierarchy.ksh \
+	functional/zvol/zvol_misc/zvol_misc_nowait.ksh \
+	functional/zvol/zvol_misc/zvol_misc_nowait_fallback.ksh \
 	functional/zvol/zvol_misc/zvol_misc_rename_inuse.ksh \
 	functional/zvol/zvol_misc/zvol_misc_rename_open.ksh \
 	functional/zvol/zvol_misc/zvol_misc_rename_write.ksh \

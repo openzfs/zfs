@@ -141,11 +141,12 @@ static int zvol_blk_mq_alloc_tag_set(zvol_state_t *zv)
 	zso->tag_set.nr_hw_queues = zvol_blk_mq_actual_threads;
 	zso->tag_set.queue_depth = zvol_actual_blk_mq_queue_depth;
 	zso->tag_set.numa_node = NUMA_NO_NODE;
-	zso->tag_set.cmd_size = 0;
+	/* Each request carries the task that queues it, see zvol_rq_task(). */
+	zso->tag_set.cmd_size = sizeof (zv_request_task_t);
 
 	/*
-	 * We need BLK_MQ_F_BLOCKING here since we do blocking calls in
-	 * zvol_request_impl()
+	 * We need BLK_MQ_F_BLOCKING here since zvol_request_impl() processes
+	 * requests in place with zvol_request_sync=1 or volthreading=off.
 	 */
 	zso->tag_set.flags = BLK_MQ_F_BLOCKING;
 
@@ -283,12 +284,44 @@ zvol_write(zv_request_t *zvr)
 	zvol_end_io(bio, rq, error);
 }
 
+/*
+ * The task that queues a request: a blk-mq request's own driver data, so that
+ * queuing it allocates nothing, or an allocated one for a BIO.
+ */
+static zv_request_task_t *
+zvol_rq_task(zv_request_t *zvr)
+{
+	zv_request_task_t *task;
+
+	if (zvr->rq == NULL)
+		return (zv_request_task_create(*zvr));
+
+	task = blk_mq_rq_to_pdu(zvr->rq);
+	taskq_init_ent(&task->ent);
+	task->zvr = *zvr;
+	return (task);
+}
+
+/*
+ * Take the request out of its task, and free the task of a BIO. A blk-mq
+ * request, and its driver data, may be reused as soon as it completes, so
+ * the task is not touched after this.
+ */
+static zv_request_t
+zvol_rq_task_take(zv_request_task_t *task)
+{
+	zv_request_t zvr = task->zvr;
+
+	if (zvr.rq == NULL)
+		zv_request_task_free(task);
+	return (zvr);
+}
+
 static void
 zvol_write_task(void *arg)
 {
-	zv_request_task_t *task = arg;
-	zvol_write(&task->zvr);
-	zv_request_task_free(task);
+	zv_request_t zvr = zvol_rq_task_take(arg);
+	zvol_write(&zvr);
 }
 
 static void
@@ -382,9 +415,8 @@ unlock:
 static void
 zvol_discard_task(void *arg)
 {
-	zv_request_task_t *task = arg;
-	zvol_discard(&task->zvr);
-	zv_request_task_free(task);
+	zv_request_t zvr = zvol_rq_task_take(arg);
+	zvol_discard(&zvr);
 }
 
 static void
@@ -460,9 +492,8 @@ zvol_read(zv_request_t *zvr)
 static void
 zvol_read_task(void *arg)
 {
-	zv_request_task_t *task = arg;
-	zvol_read(&task->zvr);
-	zv_request_task_free(task);
+	zv_request_t zvr = zvol_rq_task_take(arg);
+	zvol_read(&zvr);
 }
 
 /*
@@ -484,6 +515,81 @@ zvol_read_task(void *arg)
 
 /* Get the IO opcode */
 #define	ZVOL_OP(bio, rq) (bio != NULL ? bio_op(bio) : req_op(rq))
+
+/*
+ * Take zv_suspend_lock as reader, which prevents the zvol from being
+ * suspended, or the ZIL being concurrently opened, until the request
+ * completes and releases it; and open the ZIL on the first write.  With
+ * 'nowait', return B_FALSE instead of sleeping, when a writer holds or waits
+ * for the lock (a suspend, a removal, a ZIL opening), or the ZIL is not open.
+ */
+static boolean_t
+zvol_request_enter(zvol_state_t *zv, int rw, boolean_t nowait)
+{
+	if (nowait) {
+		if (!rw_tryenter(&zv->zv_suspend_lock, RW_READER))
+			return (B_FALSE);
+		if (rw == WRITE && zv->zv_zilog == NULL) {
+			rw_exit(&zv->zv_suspend_lock);
+			return (B_FALSE);
+		}
+		return (B_TRUE);
+	}
+
+	rw_enter(&zv->zv_suspend_lock, RW_READER);
+
+	/*
+	 * Open a ZIL if this is the first time we have written to this
+	 * zvol. We protect zv->zv_zilog with zv_suspend_lock rather
+	 * than zv_state_lock so that we don't need to acquire an
+	 * additional lock in this path.
+	 */
+	if (rw == WRITE && zv->zv_zilog == NULL) {
+		rw_exit(&zv->zv_suspend_lock);
+		rw_enter(&zv->zv_suspend_lock, RW_WRITER);
+		if (zv->zv_zilog == NULL) {
+			zv->zv_zilog = zil_open(zv->zv_objset,
+			    zvol_get_data, &zv->zv_kstat.dk_zil_sums);
+			zv->zv_flags |= ZVOL_WRITTEN_TO;
+			/* replay / destroy done in zvol_create_minor */
+			VERIFY0((zv->zv_zilog->zl_header->zh_flags &
+			    ZIL_REPLAY_NEEDED));
+		}
+		rw_downgrade(&zv->zv_suspend_lock);
+	}
+	return (B_TRUE);
+}
+
+/*
+ * Requests that zvol_request_enter() could not admit without sleeping wait
+ * for zv_suspend_lock here, then are processed in place.  A taskq of their
+ * own, so that a suspended zvol does not hold the zvol taskqs, which other
+ * zvols need meanwhile.
+ */
+static taskq_t *zvol_nowait_taskq;
+
+static void
+zvol_nowait_task(void *arg)
+{
+	zv_request_t zvr = zvol_rq_task_take(arg);
+	struct bio *bio = zvr.bio;
+	struct request *rq = zvr.rq;
+
+	/*
+	 * The request keeps the zvol open until it completes, so the zvol
+	 * cannot be removed meanwhile.
+	 */
+	if (ZVOL_OP_IS_WRITE(ZVOL_OP(bio, rq))) {
+		(void) zvol_request_enter(zvr.zv, WRITE, B_FALSE);
+		if (io_is_discard(bio, rq) || io_is_write_zeroes(bio, rq))
+			zvol_discard(&zvr);
+		else
+			zvol_write(&zvr);
+	} else {
+		(void) zvol_request_enter(zvr.zv, READ, B_FALSE);
+		zvol_read(&zvr);
+	}
+}
 
 /*
  * Process a BIO or request
@@ -548,6 +654,14 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 	if (force_sync && rq != NULL && io_is_nowait(bio, rq))
 		force_sync = 0;
 
+	/*
+	 * queue_rq() may run in a non-blocking submitter's task, also for the
+	 * requests of other tasks that it dispatches, so a blk-mq request that
+	 * is queued must not sleep on its way to the taskq: see
+	 * zvol_request_enter().
+	 */
+	boolean_t nowait = (rq != NULL && !force_sync);
+
 	zv_request_t zvr = {
 		.zv = zv,
 		.bio = bio,
@@ -586,32 +700,8 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 			goto out;
 		}
 
-		/*
-		 * Prevents the zvol from being suspended, or the ZIL being
-		 * concurrently opened.  Will be released after the i/o
-		 * completes.
-		 */
-		rw_enter(&zv->zv_suspend_lock, RW_READER);
-
-		/*
-		 * Open a ZIL if this is the first time we have written to this
-		 * zvol. We protect zv->zv_zilog with zv_suspend_lock rather
-		 * than zv_state_lock so that we don't need to acquire an
-		 * additional lock in this path.
-		 */
-		if (zv->zv_zilog == NULL) {
-			rw_exit(&zv->zv_suspend_lock);
-			rw_enter(&zv->zv_suspend_lock, RW_WRITER);
-			if (zv->zv_zilog == NULL) {
-				zv->zv_zilog = zil_open(zv->zv_objset,
-				    zvol_get_data, &zv->zv_kstat.dk_zil_sums);
-				zv->zv_flags |= ZVOL_WRITTEN_TO;
-				/* replay / destroy done in zvol_create_minor */
-				VERIFY0((zv->zv_zilog->zl_header->zh_flags &
-				    ZIL_REPLAY_NEEDED));
-			}
-			rw_downgrade(&zv->zv_suspend_lock);
-		}
+		if (!zvol_request_enter(zv, rw, nowait))
+			goto defer;
 
 		/*
 		 * We don't want this thread to be blocked waiting for i/o to
@@ -647,7 +737,7 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 			if (force_sync) {
 				zvol_discard(&zvr);
 			} else {
-				task = zv_request_task_create(zvr);
+				task = zvol_rq_task(&zvr);
 				taskq_dispatch_ent(ztqs->tqs_taskq[tq_idx],
 				    zvol_discard_task, task, 0, &task->ent);
 			}
@@ -655,7 +745,7 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 			if (force_sync) {
 				zvol_write(&zvr);
 			} else {
-				task = zv_request_task_create(zvr);
+				task = zvol_rq_task(&zvr);
 				taskq_dispatch_ent(ztqs->tqs_taskq[tq_idx],
 				    zvol_write_task, task, 0, &task->ent);
 			}
@@ -671,18 +761,24 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 			goto out;
 		}
 
-		rw_enter(&zv->zv_suspend_lock, RW_READER);
+		if (!zvol_request_enter(zv, rw, nowait))
+			goto defer;
 
 		/* See comment in WRITE case above. */
 		if (force_sync) {
 			zvol_read(&zvr);
 		} else {
-			task = zv_request_task_create(zvr);
+			task = zvol_rq_task(&zvr);
 			taskq_dispatch_ent(ztqs->tqs_taskq[tq_idx],
 			    zvol_read_task, task, 0, &task->ent);
 		}
 	}
+	goto out;
 
+defer:
+	task = zvol_rq_task(&zvr);
+	taskq_dispatch_ent(zvol_nowait_taskq, zvol_nowait_task, task, 0,
+	    &task->ent);
 out:
 	spl_fstrans_unmark(cookie);
 }
@@ -1910,6 +2006,15 @@ zvol_init(void)
 		    1024);
 	}
 
+	/* At most as many threads as the zvol taskqs have by default. */
+	zvol_nowait_taskq = taskq_create("zvol_nowait", MAX(max_ncpus, 32),
+	    maxclsyspri, 1, INT_MAX, TASKQ_DYNAMIC);
+	if (zvol_nowait_taskq == NULL) {
+		unregister_blkdev(zvol_major, ZVOL_DRIVER);
+		zvol_fini_impl();
+		return (SET_ERROR(ENOMEM));
+	}
+
 	ida_init(&zvol_ida);
 	return (0);
 }
@@ -1921,6 +2026,7 @@ zvol_fini(void)
 
 	zvol_fini_impl();
 
+	taskq_destroy(zvol_nowait_taskq);
 	ida_destroy(&zvol_ida);
 }
 

@@ -16,7 +16,7 @@
 .\" Copyright (c) 2026, Mateusz Piotrowski <0mp@FreeBSD.org>
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd November 8, 2026
+.Dd November 17, 2026
 .Dt ZFS 4
 .Os
 .
@@ -3076,6 +3076,13 @@ the workload.
 This parameter will only appear if your kernel supports
 .Li blk-mq
 and is only read and assigned to a zvol at zvol load time.
+A request that a
+.Li blk-mq
+zvol hands to its thread pool never waits in the task that submits it:
+one that would have to, such as during a receive or rollback of the zvol or
+for the first write after it is opened, goes to a separate thread pool
+.Pq Sy zvol_nowait ,
+which waits instead and then handles it.
 .
 .It Sy zvol_blk_mq_blocks_per_thread Ns = Ns Sy 8 Pq uint
 If
