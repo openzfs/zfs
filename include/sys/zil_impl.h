@@ -53,6 +53,10 @@ extern "C" {
  * "issued" to "write done", and then from "write done" to "flush done",
  * the zilog's "zl_lock" must be held, *not* the "zl_issuer_lock".
  *
+ * If the ZIL crashes (zil_crash()) before an lwb in the "closed" or "ready"
+ * state is issued, the thread that would have issued it moves it to the
+ * "flush done" state instead, under "zl_lock" (zil_lwb_retire()).
+ *
  * The zilog's "zl_issuer_lock" can become heavily contended in certain
  * workloads, so we specifically avoid acquiring that lock when
  * transitioning an lwb from "issued" to "done". This allows us to avoid

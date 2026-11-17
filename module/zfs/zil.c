@@ -874,7 +874,9 @@ zil_free_lwb(zilog_t *zilog, lwb_t *lwb)
 {
 	ASSERT(MUTEX_HELD(&zilog->zl_lock));
 	ASSERT(lwb->lwb_state == LWB_STATE_NEW ||
-	    lwb->lwb_state == LWB_STATE_FLUSH_DONE);
+	    lwb->lwb_state == LWB_STATE_FLUSH_DONE ||
+	    (lwb->lwb_state == LWB_STATE_OPENED &&
+	    (lwb->lwb_flags & LWB_FLAG_CRASHED)));
 	ASSERT0P(lwb->lwb_child_zio);
 	ASSERT0P(lwb->lwb_write_zio);
 	ASSERT0P(lwb->lwb_root_zio);
@@ -1751,6 +1753,55 @@ zil_lwb_write_done(zio_t *zio)
 }
 
 /*
+ * zil_crash() moves the lwbs to zl_lwb_crash_list; look up the neighbours
+ * of an lwb on the list it is on.
+ */
+static list_t *
+zil_lwb_list(zilog_t *zilog, lwb_t *lwb)
+{
+	ASSERT(MUTEX_HELD(&zilog->zl_lock));
+	return ((lwb->lwb_flags & LWB_FLAG_CRASHED) ?
+	    &zilog->zl_lwb_crash_list : &zilog->zl_lwb_list);
+}
+
+/*
+ * Retire a crashed lwb that will not be issued, and the lwbs after it that
+ * wait in the "ready" state for the block pointer it would have given them.
+ * Wait for the writes of their WR_INDIRECT records first, whose completion
+ * uses the lwb, then mark them done so that zil_crash_clean() frees them.
+ */
+static void
+zil_lwb_retire(zilog_t *zilog, lwb_t *lwb)
+{
+	while (lwb != NULL) {
+		zil_vdev_node_t *zv;
+		void *cookie = NULL;
+
+		ASSERT(lwb->lwb_state == LWB_STATE_CLOSED ||
+		    lwb->lwb_state == LWB_STATE_READY);
+		ASSERT0P(lwb->lwb_write_zio);
+		ASSERT0P(lwb->lwb_root_zio);
+
+		if (lwb->lwb_child_zio != NULL) {
+			(void) zio_wait(lwb->lwb_child_zio);
+			lwb->lwb_child_zio = NULL;
+		}
+		while ((zv = avl_destroy_nodes(&lwb->lwb_vdev_tree,
+		    &cookie)) != NULL)
+			kmem_free(zv, sizeof (*zv));
+
+		mutex_enter(&zilog->zl_lock);
+		ASSERT(lwb->lwb_flags & LWB_FLAG_CRASHED);
+		lwb->lwb_state = LWB_STATE_FLUSH_DONE;
+		lwb = list_next(zil_lwb_list(zilog, lwb), lwb);
+		if (lwb != NULL && lwb->lwb_state != LWB_STATE_READY)
+			lwb = NULL;
+		IMPLY(lwb != NULL, BP_IS_HOLE(&lwb->lwb_blk));
+		mutex_exit(&zilog->zl_lock);
+	}
+}
+
+/*
  * Build the zio dependency chain, which is used to preserve the ordering of
  * lwb completions that is required by the semantics of the ZIL. Each new lwb
  * zio becomes a parent of the previous lwb zio, such that the new lwb's zio
@@ -1766,7 +1817,7 @@ zil_lwb_set_zio_dependency(zilog_t *zilog, lwb_t *lwb)
 {
 	ASSERT(MUTEX_HELD(&zilog->zl_lock));
 
-	lwb_t *prev_lwb = list_prev(&zilog->zl_lwb_list, lwb);
+	lwb_t *prev_lwb = list_prev(zil_lwb_list(zilog, lwb), lwb);
 	if (prev_lwb == NULL ||
 	    prev_lwb->lwb_state == LWB_STATE_FLUSH_DONE)
 		return;
@@ -2009,6 +2060,7 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 	boolean_t slog;
 	zbookmark_phys_t zb;
 	zio_priority_t prio;
+	lwb_t *nlwb, *nnlwb, *rlwb;
 	int error;
 
 	ASSERT3S(lwb->lwb_state, ==, LWB_STATE_CLOSED);
@@ -2019,31 +2071,38 @@ zil_lwb_write_issue(zilog_t *zilog, lwb_t *lwb)
 		error = zil_lwb_commit(zilog, lwb, itx);
 		if (error != 0) {
 			ASSERT3U(error, ==, ESHUTDOWN);
+			zil_lwb_retire(zilog, lwb);
 			return (error);
 		}
 	}
 	lwb->lwb_nused = lwb->lwb_nfilled;
 	ASSERT3U(lwb->lwb_nused, <=, lwb->lwb_nmax);
 
-	lwb->lwb_root_zio = zio_root(spa, zil_lwb_flush_vdevs_done, lwb,
-	    ZIO_FLAG_CANFAIL);
-
 	/*
 	 * The lwb is now ready to be issued, but it can be only if it already
 	 * got its block pointer allocated or the allocation has failed.
 	 * Otherwise leave it as-is, relying on some other thread to issue it
 	 * after allocating its block pointer via calling zil_lwb_write_issue()
-	 * for the previous lwb(s) in the chain.
+	 * for the previous lwb(s) in the chain.  If the ZIL crashed, the lwb
+	 * will not be written.
 	 */
 	mutex_enter(&zilog->zl_lock);
+	if (lwb->lwb_flags & LWB_FLAG_CRASHED) {
+		mutex_exit(&zilog->zl_lock);
+		zil_lwb_retire(zilog, lwb);
+		return (SET_ERROR(ESHUTDOWN));
+	}
 	lwb->lwb_state = LWB_STATE_READY;
 	if (BP_IS_HOLE(&lwb->lwb_blk) && lwb->lwb_error == 0) {
 		mutex_exit(&zilog->zl_lock);
 		return (0);
 	}
+	nlwb = list_next(zil_lwb_list(zilog, lwb), lwb);
 	mutex_exit(&zilog->zl_lock);
 
 next_lwb:
+	lwb->lwb_root_zio = zio_root(spa, zil_lwb_flush_vdevs_done, lwb,
+	    ZIO_FLAG_CANFAIL);
 	if (lwb->lwb_flags & LWB_FLAG_SLIM)
 		zilc = (zil_chain_t *)lwb->lwb_buf;
 	else
@@ -2102,7 +2161,6 @@ next_lwb:
 	/*
 	 * Allocate next the block pointer unless we are already in error.
 	 */
-	lwb_t *nlwb = list_next(&zilog->zl_lwb_list, lwb);
 	blkptr_t *bp = &zilc->zc_next_blk;
 	BP_ZERO(bp);
 	error = lwb->lwb_error;
@@ -2184,15 +2242,22 @@ next_lwb:
 	zil_lwb_set_zio_dependency(zilog, lwb);
 	lwb->lwb_state = LWB_STATE_ISSUED;
 
+	rlwb = NULL;
 	if (nlwb) {
 		nlwb->lwb_blk = *bp;
 		nlwb->lwb_error = error;
 		if (slog)
 			nlwb->lwb_flags |= LWB_FLAG_SLOG;
 		nlwb->lwb_alloc_txg = txg;
-		if (nlwb->lwb_state != LWB_STATE_READY)
+		if (nlwb->lwb_state != LWB_STATE_READY) {
 			nlwb = NULL;
+		} else if (nlwb->lwb_flags & LWB_FLAG_CRASHED) {
+			rlwb = nlwb;
+			nlwb = NULL;
+		}
 	}
+	nnlwb = (nlwb != NULL) ? list_next(zil_lwb_list(zilog, nlwb), nlwb) :
+	    NULL;
 	mutex_exit(&zilog->zl_lock);
 
 	if (lwb->lwb_flags & LWB_FLAG_SLOG) {
@@ -2222,7 +2287,12 @@ next_lwb:
 	 * If nlwb was ready when we gave it the block pointer,
 	 * it is on us to issue it and possibly following ones.
 	 */
+	if (rlwb != NULL) {
+		zil_lwb_retire(zilog, rlwb);
+		return (SET_ERROR(ESHUTDOWN));
+	}
 	lwb = nlwb;
+	nlwb = nnlwb;
 	if (lwb)
 		goto next_lwb;
 
@@ -2607,11 +2677,11 @@ zil_lwb_commit(zilog_t *zilog, lwb_t *lwb, itx_t *itx)
 					 * top of zil_lwb_write_issue(), which
 					 * itself is called from a loop over a
 					 * list of lwbs in various places.
-					 * zil_crash() will free those itxs
-					 * and sometimes the lwbs, so they
-					 * are invalid when zil_crash() returns.
-					 * Callers must pretty much abort
-					 * immediately.
+					 * zil_crash() will free those itxs,
+					 * so they are invalid when zil_crash()
+					 * returns.  Callers must abort
+					 * immediately, and retire the lwbs
+					 * they were to issue.
 					 */
 					zil_crash(zilog);
 					return (error);
@@ -2914,6 +2984,23 @@ zil_crash_clean(zilog_t *zilog, uint64_t synced_txg)
 			break;
 		}
 
+		/*
+		 * Free the lwb only once nothing uses it: its writes are done,
+		 * or it is still open and no thread holds zl_issuer_lock to
+		 * fill or close it.  The thread that would have issued an
+		 * lwb retires it instead, and the list is in log order, so
+		 * the lwb also outlives the issue of the previous one, which
+		 * sets its block pointer.
+		 */
+		boolean_t issuer = B_FALSE;
+		if (lwb->lwb_state != LWB_STATE_FLUSH_DONE) {
+			if ((lwb->lwb_state != LWB_STATE_NEW &&
+			    lwb->lwb_state != LWB_STATE_OPENED) ||
+			    !mutex_tryenter(&zilog->zl_issuer_lock))
+				break;
+			issuer = B_TRUE;
+		}
+
 		/* This LWB is from the past, so we can clean it up now. */
 		ASSERT(lwb->lwb_flags & LWB_FLAG_CRASHED);
 		list_remove(&zilog->zl_lwb_crash_list, lwb);
@@ -2926,12 +3013,16 @@ zil_crash_clean(zilog_t *zilog, uint64_t synced_txg)
 			 */
 			zio_free(zilog->zl_spa, synced_txg+1, &lwb->lwb_blk);
 		zil_free_lwb(zilog, lwb);
+		if (issuer)
+			mutex_exit(&zilog->zl_issuer_lock);
 	}
 
-	if (zilog->zl_restart_txg > synced_txg) {
+	if (zilog->zl_restart_txg > synced_txg ||
+	    !list_is_empty(&zilog->zl_lwb_crash_list)) {
 		/*
-		 * Not reached the restart txg yet, so mark the ZIL dirty for
-		 * the next txg and we'll consider it all again then.
+		 * Not reached the restart txg yet, or lwbs are still in use,
+		 * so mark the ZIL dirty for the next txg and we'll consider
+		 * it all again then.
 		 */
 		zilog_dirty(zilog, synced_txg+1);
 		return;
@@ -2939,10 +3030,8 @@ zil_crash_clean(zilog_t *zilog, uint64_t synced_txg)
 
 	/*
 	 * Reached the restart txg, so we can allow new calls to zil_commit().
-	 * All ZIL txgs have long past so there should be no IO waiting.
 	 */
 	ASSERT(list_is_empty(&zilog->zl_lwb_list));
-	ASSERT(list_is_empty(&zilog->zl_lwb_crash_list));
 
 	zilog->zl_restart_txg = 0;
 }
@@ -3401,6 +3490,8 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 		while ((lwb = list_remove_head(ilwbs)) != NULL) {
 			if (err == 0)
 				err = zil_lwb_write_issue(zilog, lwb);
+			else
+				zil_lwb_retire(zilog, lwb);
 		}
 		if (err != ESHUTDOWN)
 			err = zil_commit_writer_stall(zilog);
@@ -3485,6 +3576,8 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 					if (err == 0)
 						err = zil_lwb_write_issue(
 						    zilog, lwb);
+					else
+						zil_lwb_retire(zilog, lwb);
 				}
 				if (err != ESHUTDOWN)
 					(void) zil_commit_writer_stall(zilog);
@@ -3562,6 +3655,8 @@ out:
 	while ((lwb = list_remove_head(&ilwbs)) != NULL) {
 		if (err == 0)
 			err = zil_lwb_write_issue(zilog, lwb);
+		else
+			zil_lwb_retire(zilog, lwb);
 	}
 	list_destroy(&ilwbs);
 	return (wtxg);
