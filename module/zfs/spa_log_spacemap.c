@@ -1283,8 +1283,25 @@ spa_ld_log_sm_cb(space_map_entry_t *sme, void *arg)
 	if (slls->slls_txg < metaslab_unflushed_txg(ms))
 		return (0);
 
+	uint64_t ostart, osize;
 	switch (sme->sme_type) {
 	case SM_ALLOC:
+		/*
+		 * An allocation that overlaps one already in the log means a
+		 * damaged log: zfs_range_tree_add() then panics, or with
+		 * zfs_recover set skips the whole range, which leaves its new
+		 * part allocatable.  With zfs_recover set, record all of it.
+		 */
+		if (zfs_recover && zfs_range_tree_find_in(
+		    ms->ms_unflushed_allocs, offset, size, &ostart, &osize)) {
+			zfs_panic_recover("zfs: rt=%s: adding segment "
+			    "(offset=%llx size=%llx) overlapping with existing "
+			    "ones, adding the rest",
+			    ZFS_RT_NAME(ms->ms_unflushed_allocs),
+			    (u_longlong_t)offset, (u_longlong_t)size);
+			zfs_range_tree_clear(ms->ms_unflushed_allocs, offset,
+			    size);
+		}
 		zfs_range_tree_remove_xor_add_segment(offset, offset + size,
 		    ms->ms_unflushed_frees, ms->ms_unflushed_allocs);
 		break;

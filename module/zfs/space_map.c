@@ -381,6 +381,29 @@ space_map_incremental_destroy(space_map_t *sm, sm_cb_t callback, void *arg,
 	return (error);
 }
 
+/*
+ * Remove an allocated range from a tree of free space.  A range only part
+ * of which is free means a damaged space map: zfs_range_tree_remove() then
+ * panics, or with zfs_recover set leaves the whole range in the tree, so
+ * that its free part would be allocated again over live data.  With
+ * zfs_recover set, remove the part that is in the tree instead.
+ */
+void
+space_map_remove_alloc(void *arg, uint64_t start, uint64_t size)
+{
+	zfs_range_tree_t *rt = arg;
+
+	if (zfs_recover && !zfs_range_tree_contains(rt, start, size)) {
+		zfs_panic_recover("zfs: rt=%s: removing segment "
+		    "(offset=%llx size=%llx) not completely overlapped by "
+		    "existing ones, removing the overlapping part",
+		    ZFS_RT_NAME(rt), (u_longlong_t)start, (u_longlong_t)size);
+		zfs_range_tree_clear(rt, start, size);
+	} else {
+		zfs_range_tree_remove(rt, start, size);
+	}
+}
+
 typedef struct space_map_load_arg {
 	space_map_t	*smla_sm;
 	zfs_range_tree_t	*smla_rt;
@@ -395,6 +418,9 @@ space_map_load_callback(space_map_entry_t *sme, void *arg)
 		VERIFY3U(zfs_range_tree_space(smla->smla_rt) + sme->sme_run, <=,
 		    smla->smla_sm->sm_size);
 		zfs_range_tree_add(smla->smla_rt, sme->sme_offset,
+		    sme->sme_run);
+	} else if (smla->smla_type == SM_FREE) {
+		space_map_remove_alloc(smla->smla_rt, sme->sme_offset,
 		    sme->sme_run);
 	} else {
 		zfs_range_tree_remove(smla->smla_rt, sme->sme_offset,
