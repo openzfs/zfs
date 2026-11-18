@@ -221,9 +221,8 @@ nodist_%C%_test_fmd_timer_SOURCES = \
 %C%_test_fmd_timer_LDADD = \
 	libnvpair.la \
 	libunit.la \
-	libspl.la
-
-%C%_test_fmd_timer_LDADD += -lrt $(LIBUUID_LIBS)
+	libspl.la \
+	$(LIBUUID_LIBS)
 
 
 # test run and coverage targets below

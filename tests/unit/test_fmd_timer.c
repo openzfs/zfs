@@ -15,20 +15,15 @@
  */
 
 /*
- * ZED's FMD timer emulation (cmd/zed/agents/fmd_api.c).  A timer's expiry
- * must reach the module only through fmd_module_timeout(), on the thread
- * that dispatches agent events, and must be dropped once the timer has
- * been removed, even if its notification already ran.
+ * ZED's FMD timer emulation (cmd/zed/agents/fmd_api.c).  An expired timer
+ * must reach its module only through fmd_timer_expire(), which the agents
+ * thread calls between two events, and never from another thread.
  */
 
 #include <sys/types.h>
-#include <sys/resource.h>
-#include <pthread.h>
-#include <signal.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <unistd.h>
 #include <libnvpair.h>
 
@@ -39,17 +34,7 @@
 
 /* ========== */
 
-/*
- * Stand-ins for the parts of ZED that fmd_api.c calls.  Posted events are
- * kept so that a test can dispatch them itself, as the agents thread does.
- */
-
-#define	MAX_EVENTS	8
-
-static pthread_mutex_t ev_lock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t ev_cv = PTHREAD_COND_INITIALIZER;
-static nvlist_t *ev_queue[MAX_EVENTS];
-static int ev_count;
+/* Stand-ins for the parts of ZED that fmd_api.c calls. */
 
 /* Messages logged at LOG_ERR or above */
 static int err_msgs;
@@ -77,57 +62,21 @@ zed_log_die(const char *fmt, ...)
 void
 zfs_agent_post_event(const char *class, const char *subclass, nvlist_t *nvl)
 {
-	(void) subclass;
-
-	if (strcmp(class, FMD_TIMEOUT_CLASS) != 0)
-		return;
-
-	(void) pthread_mutex_lock(&ev_lock);
-	if (ev_count < MAX_EVENTS)
-		ev_queue[ev_count++] = fnvlist_dup(nvl);
-	(void) pthread_cond_broadcast(&ev_cv);
-	(void) pthread_mutex_unlock(&ev_lock);
-}
-
-/* Wait up to 10 seconds for a timeout event and take it off the queue. */
-static nvlist_t *
-wait_event(void)
-{
-	struct timespec deadline;
-	nvlist_t *nvl = NULL;
-
-	(void) clock_gettime(CLOCK_REALTIME, &deadline);
-	deadline.tv_sec += 10;
-
-	(void) pthread_mutex_lock(&ev_lock);
-	while (ev_count == 0 &&
-	    pthread_cond_timedwait(&ev_cv, &ev_lock, &deadline) == 0)
-		;
-	if (ev_count > 0) {
-		nvl = ev_queue[0];
-		memmove(&ev_queue[0], &ev_queue[1],
-		    --ev_count * sizeof (nvlist_t *));
-	}
-	(void) pthread_mutex_unlock(&ev_lock);
-
-	return (nvl);
-}
-
-static void
-dispatch(nvlist_t *nvl)
-{
-	fmd_module_timeout(nvl);
-	nvlist_free(nvl);
+	(void) class, (void) subclass, (void) nvl;
 }
 
 /* ========== */
 
-/* Calls of the module's fmdo_timeout, and those off the dispatcher */
-static int timeout_calls;
-static int offthread_calls;
-static fmd_timer_t *timeout_id;
-static void *timeout_arg;
-static pthread_t dispatcher;
+#define	MAX_CALLS	8
+
+/* The module's fmdo_timeout calls, in order */
+static int ncalls;
+static fmd_timer_t *call_id[MAX_CALLS];
+static void *call_arg[MAX_CALLS];
+
+/* What fmdo_timeout does besides recording the call */
+static boolean_t remove_in_timeout;	/* remove the timer, each time */
+static boolean_t install_in_timeout;	/* install an expired one, once */
 
 static void
 mod_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
@@ -138,32 +87,18 @@ mod_recv(fmd_hdl_t *hdl, fmd_event_t *ep, nvlist_t *nvl, const char *class)
 static void
 mod_timeout(fmd_hdl_t *hdl, id_t id, void *arg)
 {
-	(void) hdl;
+	if (ncalls < MAX_CALLS) {
+		call_id[ncalls] = id;
+		call_arg[ncalls] = arg;
+	}
+	ncalls++;
 
-	(void) pthread_mutex_lock(&ev_lock);
-	timeout_calls++;
-	if (!pthread_equal(pthread_self(), dispatcher))
-		offthread_calls++;
-	timeout_id = id;
-	timeout_arg = arg;
-	(void) pthread_mutex_unlock(&ev_lock);
-}
-
-/*
- * No notification thread may call the module.  Give one that wrongly does
- * time to finish before the count is checked.
- */
-static int
-offthread_count(void)
-{
-	int n;
-
-	(void) usleep(100000);
-	(void) pthread_mutex_lock(&ev_lock);
-	n = offthread_calls;
-	(void) pthread_mutex_unlock(&ev_lock);
-
-	return (n);
+	if (remove_in_timeout)
+		fmd_timer_remove(hdl, id);
+	if (install_in_timeout) {
+		install_in_timeout = B_FALSE;
+		(void) fmd_timer_install(hdl, NULL, NULL, 0);
+	}
 }
 
 static const fmd_hdl_ops_t mod_ops = {
@@ -188,180 +123,185 @@ mod_register(void)
 	fmd_hdl_t *hdl = fmd_module_hdl("zfs-diagnosis");
 
 	unit_ok(fmd_hdl_register(hdl, FMD_API_VERSION, &mod_info));
-	timeout_calls = 0;
-	offthread_calls = 0;
-	timeout_id = NULL;
-	timeout_arg = NULL;
+	ncalls = 0;
 	err_msgs = 0;
-	dispatcher = pthread_self();
+	remove_in_timeout = B_FALSE;
+	install_in_timeout = B_FALSE;
 
 	return (hdl);
 }
 
 /* ========== */
 
-/* The module is called when the event is dispatched, and not before. */
+/*
+ * Nothing calls the module when a timer expires: only fmd_timer_expire()
+ * does, from the thread that calls it, once.
+ */
 static MunitResult
-test_fmd_timer_fires_on_dispatch(const MunitParameter params[], void *data)
+test_fmd_timer_no_async_call(const MunitParameter params[], void *data)
 {
 	fmd_hdl_t *hdl = mod_register();
 	fmd_timer_t *ftp;
-	nvlist_t *nvl;
+	hrtime_t next;
 	int arg;
 
 	(void) params, (void) data;
 
 	ftp = fmd_timer_install(hdl, &arg, NULL, MSEC2NSEC(1));
-	nvl = wait_event();
-	unit_notnull(nvl);
-	unit_zero(timeout_calls);
+	(void) usleep(100000);
+	unit_zero(ncalls);
 
-	dispatch(nvl);
-	unit_eq(timeout_calls, 1);
-	unit_true(timeout_id == ftp);
-	unit_true(timeout_arg == &arg);
+	unit_false(fmd_timer_expire(&next));
+	unit_eq(ncalls, 1);
+	unit_true(call_id[0] == ftp);
+	unit_true(call_arg[0] == &arg);
 
+	/* it stays installed, and does not expire again */
+	unit_false(fmd_timer_expire(&next));
+	unit_eq(ncalls, 1);
 	fmd_timer_remove(hdl, ftp);
+	unit_zero(err_msgs);
+
 	fmd_hdl_unregister(hdl);
-	unit_zero(offthread_count());
 
 	return (MUNIT_OK);
 }
 
-/* A timer removed after its notification has run is not delivered. */
+/* A timer that has not expired yet gives the time to wait for. */
+static MunitResult
+test_fmd_timer_next(const MunitParameter params[], void *data)
+{
+	fmd_hdl_t *hdl = mod_register();
+	fmd_timer_t *later;
+	fmd_timer_t *sooner;
+	hrtime_t before;
+	hrtime_t next;
+
+	(void) params, (void) data;
+
+	before = gethrtime();
+	later = fmd_timer_install(hdl, NULL, NULL, SEC2NSEC(7200));
+	sooner = fmd_timer_install(hdl, NULL, NULL, SEC2NSEC(3600));
+
+	unit_true(fmd_timer_expire(&next));
+	unit_zero(ncalls);
+	unit_true(next >= before + SEC2NSEC(3600));
+	unit_true(next <= gethrtime() + SEC2NSEC(3600));
+
+	fmd_timer_remove(hdl, sooner);
+	unit_true(fmd_timer_expire(&next));
+	unit_true(next >= before + SEC2NSEC(7200));
+
+	fmd_timer_remove(hdl, later);
+	unit_false(fmd_timer_expire(&next));
+	unit_zero(ncalls);
+
+	fmd_hdl_unregister(hdl);
+
+	return (MUNIT_OK);
+}
+
+/* The expired timers fire earliest first; the others wait. */
+static MunitResult
+test_fmd_timer_order(const MunitParameter params[], void *data)
+{
+	fmd_hdl_t *hdl = mod_register();
+	fmd_timer_t *second;
+	fmd_timer_t *first;
+	fmd_timer_t *third;
+	hrtime_t next;
+
+	(void) params, (void) data;
+
+	second = fmd_timer_install(hdl, NULL, NULL, MSEC2NSEC(200));
+	third = fmd_timer_install(hdl, NULL, NULL, SEC2NSEC(3600));
+	first = fmd_timer_install(hdl, NULL, NULL, MSEC2NSEC(1));
+	(void) usleep(300000);
+
+	unit_true(fmd_timer_expire(&next));
+	unit_eq(ncalls, 2);
+	unit_true(call_id[0] == first);
+	unit_true(call_id[1] == second);
+	unit_true(next == third->ft_expire);
+
+	fmd_hdl_unregister(hdl);
+
+	return (MUNIT_OK);
+}
+
+/*
+ * A module can remove the expired timer and install another one from its
+ * fmdo_timeout, as zfs_diagnosis does when the timeout closes its case.
+ */
+static MunitResult
+test_fmd_timer_remove_in_timeout(const MunitParameter params[], void *data)
+{
+	fmd_hdl_t *hdl = mod_register();
+	hrtime_t next;
+
+	(void) params, (void) data;
+
+	(void) fmd_timer_install(hdl, NULL, NULL, 0);
+	(void) fmd_timer_install(hdl, NULL, NULL, 0);
+	remove_in_timeout = B_TRUE;
+	install_in_timeout = B_TRUE;
+
+	/* the timer installed by the first call has expired too */
+	unit_false(fmd_timer_expire(&next));
+	unit_eq(ncalls, 3);
+	unit_zero(err_msgs);
+
+	fmd_hdl_unregister(hdl);
+
+	return (MUNIT_OK);
+}
+
+/* A timer removed before it expires is never delivered. */
 static MunitResult
 test_fmd_timer_removed(const MunitParameter params[], void *data)
 {
 	fmd_hdl_t *hdl = mod_register();
 	fmd_timer_t *ftp;
-	nvlist_t *nvl;
+	hrtime_t next;
 
 	(void) params, (void) data;
 
 	ftp = fmd_timer_install(hdl, NULL, NULL, MSEC2NSEC(1));
-	nvl = wait_event();
-	unit_notnull(nvl);
-
 	fmd_timer_remove(hdl, ftp);
-	dispatch(nvl);
-	unit_zero(timeout_calls);
+	(void) usleep(10000);
+
+	unit_false(fmd_timer_expire(&next));
+	unit_zero(ncalls);
+
+	/* removing it again is an error that is logged */
+	fmd_timer_remove(hdl, ftp);
+	unit_eq(err_msgs, 1);
 
 	fmd_hdl_unregister(hdl);
-	unit_zero(offthread_count());
 
 	return (MUNIT_OK);
 }
 
 /*
- * A timer installed after its predecessor expired and was removed, as
- * zfs_fm_recv() re-arms zc_remove_timer, is not fired by the
- * predecessor's event.
+ * Unregistering a module removes the timers it left installed, so that none
+ * of them reaches the module once it is registered again.
  */
-static MunitResult
-test_fmd_timer_rearmed(const MunitParameter params[], void *data)
-{
-	fmd_hdl_t *hdl = mod_register();
-	fmd_timer_t *ftp;
-	nvlist_t *nvl;
-
-	(void) params, (void) data;
-
-	ftp = fmd_timer_install(hdl, NULL, NULL, MSEC2NSEC(1));
-	nvl = wait_event();
-	unit_notnull(nvl);
-
-	fmd_timer_remove(hdl, ftp);
-	ftp = fmd_timer_install(hdl, NULL, NULL, SEC2NSEC(3600));
-	dispatch(nvl);
-	unit_zero(timeout_calls);
-
-	fmd_timer_remove(hdl, ftp);
-	fmd_hdl_unregister(hdl);
-	unit_zero(offthread_count());
-
-	return (MUNIT_OK);
-}
-
-/* Unregistering a module removes the timers it left installed. */
 static MunitResult
 test_fmd_timer_unregister(const MunitParameter params[], void *data)
 {
 	fmd_hdl_t *hdl = mod_register();
-	nvlist_t *nvl;
+	hrtime_t next;
 
 	(void) params, (void) data;
 
 	(void) fmd_timer_install(hdl, NULL, NULL, SEC2NSEC(3600));
-	(void) fmd_timer_install(hdl, NULL, NULL, MSEC2NSEC(1));
-	nvl = wait_event();
-	unit_notnull(nvl);
-
+	(void) fmd_timer_install(hdl, NULL, NULL, 0);
 	fmd_hdl_unregister(hdl);
-	dispatch(nvl);
-	unit_zero(timeout_calls);
-	unit_zero(offthread_count());
 
-	return (MUNIT_OK);
-}
-
-static void
-noop_notify(union sigval sv)
-{
-	(void) sv;
-}
-
-/*
- * A timer that cannot be created is logged, never expires, and stays
- * installed until the module removes it.  The kernel refuses to create a
- * timer once RLIMIT_SIGPENDING is exhausted.
- */
-static MunitResult
-test_fmd_timer_not_created(const MunitParameter params[], void *data)
-{
-	fmd_hdl_t *hdl = mod_register();
-	fmd_timer_t *ftp = NULL;
-	struct rlimit rl;
-	struct rlimit none;
-	struct sigevent sev;
-	timer_t tid;
-	int err;
-	int n;
-
-	(void) params, (void) data;
-
-	unit_zero(getrlimit(RLIMIT_SIGPENDING, &rl));
-	none = rl;
-	none.rlim_cur = 0;
-	unit_zero(setrlimit(RLIMIT_SIGPENDING, &none));
-
-	memset(&sev, 0, sizeof (sev));
-	sev.sigev_notify = SIGEV_THREAD;
-	sev.sigev_notify_function = noop_notify;
-	err = timer_create(CLOCK_REALTIME, &sev, &tid);
-	if (err != 0)
-		ftp = fmd_timer_install(hdl, NULL, NULL, MSEC2NSEC(1));
-	unit_zero(setrlimit(RLIMIT_SIGPENDING, &rl));
-	if (err == 0) {
-		(void) timer_delete(tid);
-		fmd_hdl_unregister(hdl);
-		return (MUNIT_SKIP);
-	}
-
-	unit_notnull(ftp);
-	unit_eq(err_msgs, 1);
-
-	(void) usleep(100000);
-	(void) pthread_mutex_lock(&ev_lock);
-	n = ev_count;
-	(void) pthread_mutex_unlock(&ev_lock);
-	unit_zero(n);
-
-	/* still installed, so removing it logs no error */
-	fmd_timer_remove(hdl, ftp);
-	unit_eq(err_msgs, 1);
-
+	hdl = mod_register();
+	unit_false(fmd_timer_expire(&next));
+	unit_zero(ncalls);
 	fmd_hdl_unregister(hdl);
-	unit_zero(timeout_calls);
 
 	return (MUNIT_OK);
 }
@@ -369,11 +309,12 @@ test_fmd_timer_not_created(const MunitParameter params[], void *data)
 /* ========== */
 
 static const MunitTest fmd_timer_tests[] = {
-	UNIT_TEST("fires_on_dispatch",	test_fmd_timer_fires_on_dispatch),
+	UNIT_TEST("no_async_call",	test_fmd_timer_no_async_call),
+	UNIT_TEST("next",		test_fmd_timer_next),
+	UNIT_TEST("order",		test_fmd_timer_order),
+	UNIT_TEST("remove_in_timeout",	test_fmd_timer_remove_in_timeout),
 	UNIT_TEST("removed",		test_fmd_timer_removed),
-	UNIT_TEST("rearmed",		test_fmd_timer_rearmed),
 	UNIT_TEST("unregister",		test_fmd_timer_unregister),
-	UNIT_TEST("not_created",	test_fmd_timer_not_created),
 	{ 0 },
 };
 

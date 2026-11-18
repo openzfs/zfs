@@ -16,6 +16,7 @@
  * Copyright (c) 2021 Hewlett Packard Enterprise Development LP
  */
 
+#include <errno.h>
 #include <libnvpair.h>
 #include <libzfs.h>
 #include <stddef.h>
@@ -39,7 +40,7 @@
  */
 
 static pthread_mutex_t	agent_lock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t	agent_cond = PTHREAD_COND_INITIALIZER;
+static pthread_cond_t	agent_cond;	/* waits on CLOCK_MONOTONIC */
 static list_t		agent_events;	/* list of pending events */
 static int		agent_exiting;
 
@@ -299,13 +300,6 @@ zfs_agent_post_event(const char *class, const char *subclass, nvlist_t *nvl)
 	    sizeof (event->ae_subclass));
 
 	(void) pthread_mutex_lock(&agent_lock);
-	if (agent_exiting) {
-		/* a module timer can still expire during zfs_agent_fini() */
-		(void) pthread_mutex_unlock(&agent_lock);
-		nvlist_free(event->ae_nvl);
-		free(event);
-		return;
-	}
 	list_insert_tail(&agent_events, event);
 	(void) pthread_mutex_unlock(&agent_lock);
 
@@ -316,11 +310,6 @@ out:
 static void
 zfs_agent_dispatch(const char *class, const char *subclass, nvlist_t *nvl)
 {
-	if (strcmp(class, FMD_TIMEOUT_CLASS) == 0) {
-		fmd_module_timeout(nvl);
-		return;
-	}
-
 	/*
 	 * The diagnosis engine subscribes to the following events.
 	 * On illumos these subscriptions reside in:
@@ -366,6 +355,7 @@ zfs_agent_dispatch(const char *class, const char *subclass, nvlist_t *nvl)
  * An agent can also post an event so event list lock
  * is not held when calling an agent.
  * One event is consumed at a time.
+ * The module timers are fired from this thread too, between events.
  */
 static void *
 zfs_agent_consumer_thread(void *arg)
@@ -374,12 +364,26 @@ zfs_agent_consumer_thread(void *arg)
 
 	for (;;) {
 		agent_event_t *event;
+		struct timespec ts;
+		hrtime_t next = 0;
+		boolean_t armed;
+
+		armed = fmd_timer_expire(&next);
+		ts.tv_sec = next / NANOSEC;
+		ts.tv_nsec = next % NANOSEC;
 
 		(void) pthread_mutex_lock(&agent_lock);
 
-		/* wait for an event to show up */
-		while (!agent_exiting && list_is_empty(&agent_events))
-			(void) pthread_cond_wait(&agent_cond, &agent_lock);
+		/* wait for an event to show up, or for a timer to expire */
+		while (!agent_exiting && list_is_empty(&agent_events)) {
+			if (!armed) {
+				(void) pthread_cond_wait(&agent_cond,
+				    &agent_lock);
+			} else if (pthread_cond_timedwait(&agent_cond,
+			    &agent_lock, &ts) == ETIMEDOUT) {
+				break;
+			}
+		}
 
 		if (agent_exiting) {
 			(void) pthread_mutex_unlock(&agent_lock);
@@ -388,19 +392,17 @@ zfs_agent_consumer_thread(void *arg)
 			return (NULL);
 		}
 
-		if ((event = list_remove_head(&agent_events)) != NULL) {
-			(void) pthread_mutex_unlock(&agent_lock);
+		event = list_remove_head(&agent_events);
+		(void) pthread_mutex_unlock(&agent_lock);
 
+		if (event != NULL) {
 			/* dispatch to all event subscribers */
 			zfs_agent_dispatch(event->ae_class, event->ae_subclass,
 			    event->ae_nvl);
 
 			nvlist_free(event->ae_nvl);
 			free(event);
-			continue;
 		}
-
-		(void) pthread_mutex_unlock(&agent_lock);
 	}
 
 	return (NULL);
@@ -410,6 +412,7 @@ void
 zfs_agent_init(libzfs_handle_t *zfs_hdl)
 {
 	fmd_hdl_t *hdl;
+	pthread_condattr_t attr;
 
 	g_zfs_hdl = zfs_hdl;
 
@@ -430,10 +433,15 @@ zfs_agent_init(libzfs_handle_t *zfs_hdl)
 	list_create(&agent_events, sizeof (agent_event_t),
 	    offsetof(struct agent_event, ae_node));
 
+	/* the timers expire on gethrtime(), which is CLOCK_MONOTONIC */
+	if (pthread_condattr_init(&attr) != 0 ||
+	    pthread_condattr_setclock(&attr, CLOCK_MONOTONIC) != 0 ||
+	    pthread_cond_init(&agent_cond, &attr) != 0)
+		zed_log_die("Failed to initialize agents");
+	(void) pthread_condattr_destroy(&attr);
+
 	/* zed -I runs zfs_agent_init() again after zfs_agent_fini() */
-	(void) pthread_mutex_lock(&agent_lock);
 	agent_exiting = 0;
-	(void) pthread_mutex_unlock(&agent_lock);
 
 	if (pthread_create(&g_agents_tid, NULL, zfs_agent_consumer_thread,
 	    NULL) != 0) {
@@ -456,6 +464,7 @@ zfs_agent_fini(void)
 
 	/* wait for zfs_enum_pools thread to complete */
 	(void) pthread_join(g_agents_tid, NULL);
+	(void) pthread_cond_destroy(&agent_cond);
 
 	/* drain any pending events */
 	while ((event = list_remove_head(&agent_events)) != NULL) {
