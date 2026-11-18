@@ -68,20 +68,6 @@ function cleanup
 	log_must set_tunable32 VDEV_MIN_MS_COUNT $min_ms_count
 }
 
-function reflowed # pool
-{
-	zpool status -jp $1 | jq -r '.pools[].raidz_expand_stats.reflowed'
-}
-
-#
-# The reflow offset (in the raidz vdev's address space) of the exported pool.
-#
-function reflow_offset
-{
-	zdb -e -p $devdir -u $TESTPOOL | \
-	    awk '/raidz_reflow/ { sub("off=", "", $3); print $3 }'
-}
-
 #
 # Print the offset and allocated size of each level 0 block of the file in
 # the exported pool, in decimal.
@@ -137,7 +123,7 @@ log_must zpool export $TESTPOOL
 # disk 0 from the first such row on.  The copied part of the pool is in the
 # rows before that (they are wider) and stays intact.
 #
-offset1=$(reflow_offset)
+offset1=$(raidz_expand_reflow_offset "$TESTPOOL" "$devdir")
 log_note "reflow offset $offset1 after the first pause"
 (( offset1 > 0 )) || log_fail "no reflow offset in the uberblock"
 row=$((offset1 / 4096 / devs))
@@ -167,11 +153,11 @@ typeset -i straddling=0
 rowsize=$((devs * 4096))
 while (( straddling == 0 )); do
 	log_must set_tunable64 RAIDZ_EXPAND_MAX_REFLOW_BYTES \
-	    $(($(reflowed $TESTPOOL) + 1))
+	    $(($(raidz_expand_reflowed "$TESTPOOL") + 1))
 	wait_raidz_expand_paused $TESTPOOL
 	log_must zpool export $TESTPOOL
 
-	offset2=$(reflow_offset)
+	offset2=$(raidz_expand_reflow_offset "$TESTPOOL" "$devdir")
 	log_note "reflow offset $offset2 after the second pause"
 	if (( offset2 == 0 )); then
 		log_must zpool import -o cachefile=none -d $devdir $TESTPOOL
@@ -190,9 +176,10 @@ done
 (( straddling > 0 )) || \
     log_unsupported "no block of the file straddles the reflow offset"
 
-before=$(reflowed $TESTPOOL)
+before=$(raidz_expand_reflowed "$TESTPOOL")
 log_must zpool scrub -w $TESTPOOL
-log_note "reflowed $before before the scrub, $(reflowed $TESTPOOL) after it"
+after=$(raidz_expand_reflowed "$TESTPOOL")
+log_note "reflowed $before before the scrub, $after after it"
 log_must eval "zpool status -v $TESTPOOL"
 log_must check_pool_status $TESTPOOL "errors" "No known data errors"
 log_must eval "zpool status $TESTPOOL | grep -q 'expansion of .* in progress'"
