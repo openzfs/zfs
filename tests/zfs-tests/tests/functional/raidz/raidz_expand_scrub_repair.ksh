@@ -21,8 +21,8 @@
 # STRATEGY:
 #	1. Create a raidz3 pool, fill it and attach a new disk with the
 #	   reflow paused after a tenth of the data.
-#	2. Three times: export the pool, zero the data area of three disks (the
-#	   most raidz3 can repair), import it, start a scrub and then move
+#	2. Three times: export the pool, zero the data on three disks except
+#	   near the reflow offset, import it, start a scrub and move
 #	   the reflow pause point further on.  The reflow copies the damaged
 #	   rows while the scrub repairs them.  Verify the scrub found no data
 #	   errors and that the reflow is paused, not done.  At least one of
@@ -35,13 +35,10 @@
 typeset -r devs=6
 typeset -r dev_size_mb=128
 typeset -r nparity=3
+# Limit zdb and zpool import to this test pool.
+typeset -r devdir=$TEST_BASE_DIR/raidz_expand_scrub_repair
 
 typeset -a disks
-
-function reflowed # pool
-{
-	zpool status -jp $1 | jq -r '.pools[].raidz_expand_stats.reflowed'
-}
 
 prefetch_disable=$(get_tunable PREFETCH_DISABLE)
 scrub_after_expand=$(get_tunable SCRUB_AFTER_EXPAND)
@@ -50,9 +47,7 @@ function cleanup
 {
 	poolexists "$TESTPOOL" && log_must_busy zpool destroy "$TESTPOOL"
 
-	for i in {0..$devs}; do
-		log_must rm -f "$TEST_BASE_DIR/dev-$i"
-	done
+	log_must rm -rf "$devdir"
 
 	log_must set_tunable32 PREFETCH_DISABLE $prefetch_disable
 	log_must set_tunable32 SCRUB_AFTER_EXPAND $scrub_after_expand
@@ -64,14 +59,16 @@ log_onexit cleanup
 log_must set_tunable32 PREFETCH_DISABLE 1
 log_must set_tunable32 SCRUB_AFTER_EXPAND 0
 
+log_must mkdir "$devdir"
 for i in {0..$(($devs - 1))}; do
-	device=$TEST_BASE_DIR/dev-$i
+	device=$devdir/dev-$i
 	log_must truncate -s ${dev_size_mb}M $device
 	disks[${#disks[*]}+1]=$device
 done
-log_must truncate -s 512M $TEST_BASE_DIR/dev-$devs
+log_must truncate -s 512M $devdir/dev-$devs
 
-log_must zpool create -f -o cachefile=none $TESTPOOL raidz$nparity ${disks[@]}
+log_must zpool create -f -o cachefile=none -o ashift=9 $TESTPOOL \
+    raidz$nparity ${disks[@]}
 log_must zfs set primarycache=metadata $TESTPOOL
 
 log_must zfs create $TESTPOOL/fs
@@ -86,29 +83,49 @@ log_must fill_fs /$TESTPOOL/fs3 1 512 102400 1 R
 log_must zpool sync $TESTPOOL
 allocated=$(get_pool_prop allocated $TESTPOOL)
 log_must set_tunable64 RAIDZ_EXPAND_MAX_REFLOW_BYTES $((allocated / 10))
-log_must zpool attach $TESTPOOL raidz$nparity-0 $TEST_BASE_DIR/dev-$devs
+log_must zpool attach $TESTPOOL raidz$nparity-0 $devdir/dev-$devs
 wait_raidz_expand_paused $TESTPOOL
 
 typeset -i overlapped=0
 for pause in 3 5 7; do
 	log_must zpool export $TESTPOOL
 
-	# Zero the data area (past the labels and boot area) of nparity disks.
+	offset=$(raidz_expand_reflow_offset "$TESTPOOL" "$devdir")
+	(( offset >= 524288 && offset % 512 == 0 )) || \
+	    log_fail "invalid reflow offset in the uberblock: $offset"
+
+	# Leave blocks within 512K of the reflow offset intact.  A block
+	# damaged on both sides cannot be reconstructed once the reflow
+	# copies its old rows (see vdev_raidz_io_done()).  The fixture's
+	# 128K blocks allocate less than 512K even at the old width.
+	# Round the damage bounds outward from the spared band to MiB.
+	(( new_mib = (devs + 1) * 1048576 ))
+	(( old_mib = devs * 1048576 ))
+	(( lo = (offset - 524288) / new_mib ))
+	(( hi = (offset + 524288 + old_mib - 1) / old_mib ))
+	(( end = dev_size_mb - 4 ))
+	(( lo > 0 && lo < hi && hi < end )) || \
+	    log_fail "invalid damage bounds: $lo, $hi, $end"
+	log_note "reflow offset $offset, damaging MiB [0, $lo) and [$hi, $end)"
+
+	# Each child's data area starts after the 4M labels and boot area.
 	for (( i=0; i<$nparity; i=i+1 )); do
-		log_must dd conv=notrunc if=/dev/zero of=$TEST_BASE_DIR/dev-$i \
-		    bs=1M seek=4 count=$(($dev_size_mb-4))
+		log_must dd conv=notrunc if=/dev/zero of=$devdir/dev-$i \
+		    bs=1M seek=4 count=$lo
+		log_must dd conv=notrunc if=/dev/zero of=$devdir/dev-$i \
+		    bs=1M seek=$((4 + hi)) count=$((end - hi))
 	done
 
 	# Import with the reflow still paused, start the scrub and only then
 	# let the reflow copy another 20% of the data, so that it runs while
 	# the scrub repairs.
-	log_must zpool import -o cachefile=none -d $TEST_BASE_DIR $TESTPOOL
-	before=$(reflowed $TESTPOOL)
+	log_must zpool import -o cachefile=none -d "$devdir" "$TESTPOOL"
+	before=$(raidz_expand_reflowed "$TESTPOOL")
 	log_must zpool scrub $TESTPOOL
 	target=$((allocated * pause / 10))
 	log_must set_tunable64 RAIDZ_EXPAND_MAX_REFLOW_BYTES $target
 	log_must zpool wait -t scrub $TESTPOOL
-	after=$(reflowed $TESTPOOL)
+	after=$(raidz_expand_reflowed "$TESTPOOL")
 	log_note "reflowed $before before the scrub, $after after it"
 	#
 	# The reflow checks its pause point once a second, so a short scrub
