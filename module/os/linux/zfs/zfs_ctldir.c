@@ -1092,7 +1092,10 @@ zfsctl_snapdir_mkdir(struct inode *dip, const char *dirname, vattr_t *vap,
 		goto out;
 	}
 
+	if ((error = zfs_enter(zfsvfs, FTAG)) != 0)
+		goto out;
 	dmu_objset_name(zfsvfs->z_os, dsname);
+	zfs_exit(zfsvfs, FTAG);
 
 	error = zfs_secpolicy_snapshot_perms(dsname, cr);
 	if (error != 0)
