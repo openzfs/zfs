@@ -17,7 +17,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd July 11, 2022
+.Dd November 18, 2026
 .Dt ZPOOL-DESTROY 8
 .Os
 .
@@ -33,6 +33,9 @@
 .Sh DESCRIPTION
 Destroys the given pool, freeing up any devices for other use.
 This command tries to unmount any active datasets before destroying the pool.
+A pool imported with
+.Sy readonly Ns = Ns Sy on
+cannot be destroyed: export it and import it read-write first.
 .Bl -tag -width Ds
 .It Fl f
 Forcefully unmount all active datasets.

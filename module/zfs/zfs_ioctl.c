@@ -8252,9 +8252,13 @@ zfs_ioctl_init(void)
 	 * pool destroy, and export don't log the history as part of
 	 * zfsdev_ioctl, but rather zfs_ioc_pool_export
 	 * does the logging of those commands.
+	 *
+	 * A pool imported read-only cannot mark its labels destroyed, so
+	 * it cannot be destroyed, only exported.
 	 */
 	zfs_ioctl_register_pool(ZFS_IOC_POOL_DESTROY, zfs_ioc_pool_destroy,
-	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_SUSPENDED);
+	    zfs_secpolicy_config, B_FALSE,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY);
 	zfs_ioctl_register_pool(ZFS_IOC_POOL_EXPORT, zfs_ioc_pool_export,
 	    zfs_secpolicy_config, B_FALSE, POOL_CHECK_SUSPENDED);
 

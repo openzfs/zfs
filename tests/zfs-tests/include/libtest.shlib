@@ -1688,7 +1688,14 @@ function destroy_pool #pool
 			# to destroy a pool to fail with EBUSY. We retry a few
 			# times allowing failures before requiring the destroy
 			# to succeed.
-			log_must_busy zpool destroy -f $pool
+			#
+			# A pool imported read-only cannot be destroyed, so
+			# export it, which leaves its labels as they are.
+			if [[ $(get_pool_prop readonly "$pool") == "on" ]]; then
+				log_must_busy zpool export -f $pool
+			else
+				log_must_busy zpool destroy -f $pool
+			fi
 
 			[[ -d $mtpt && ! "$mtpt" -ef / ]] && \
 				log_must rm -rf $mtpt

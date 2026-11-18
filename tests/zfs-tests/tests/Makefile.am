@@ -1243,6 +1243,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_destroy/zpool_destroy_001_pos.ksh \
 	functional/cli_root/zpool_destroy/zpool_destroy_002_pos.ksh \
 	functional/cli_root/zpool_destroy/zpool_destroy_003_neg.ksh \
+	functional/cli_root/zpool_destroy/zpool_destroy_readonly_neg.ksh \
 	functional/cli_root/zpool_detach/cleanup.ksh \
 	functional/cli_root/zpool_detach/setup.ksh \
 	functional/cli_root/zpool_detach/zpool_detach_001_neg.ksh \
