@@ -3584,8 +3584,10 @@ again:
 	if ((error = gather_nvlist(hdl, tofs, fromsnap, NULL,
 	    recursive, B_TRUE, B_FALSE, recursive, B_FALSE, B_FALSE, B_FALSE,
 	    B_FALSE, B_TRUE, B_FALSE, &local_nv, &local_avl,
-	    NULL, NULL)) != 0)
+	    NULL, NULL)) != 0) {
+		fnvlist_free(deleted);
 		return (error);
+	}
 
 	/*
 	 * Process deletes and renames
@@ -3660,6 +3662,7 @@ again:
 			case -1:
 				fsavl_destroy(local_avl);
 				fnvlist_free(local_nv);
+				fnvlist_free(deleted);
 				return (-1);
 			}
 			/*
