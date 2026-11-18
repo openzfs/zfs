@@ -3370,9 +3370,15 @@ vdev_dtl_should_excise(vdev_t *vd, boolean_t rebuild_done)
 		vdev_rebuild_t *vr = &vd->vdev_top->vdev_rebuild_config;
 		vdev_rebuild_phys_t *vrp = &vr->vr_rebuild_phys;
 
-		/* Rebuild not initiated by attach */
+		/*
+		 * This leaf was not the target of the rebuild but still has
+		 * missing ranges (e.g. it was cleared or reopened while the
+		 * rebuild was in progress). A sequential resilver can't be
+		 * relied on to have repaired them and doesn't verify checksums,
+		 * so we should keep the DTL for a healing resilver.
+		 */
 		if (vd->vdev_rebuild_txg == 0)
-			return (B_TRUE);
+			return (B_FALSE);
 
 		/*
 		 * When a rebuild completes without error then all missing data
