@@ -6009,6 +6009,7 @@ zio_dva_throttle_done(zio_t *zio)
 	vdev_t *vd = zio->io_vd;
 	int flags = METASLAB_ASYNC_ALLOC;
 	const void *tag = pio;
+	const blkptr_t *bp = zio->io_bp;
 	uint64_t asize = 0;
 
 	ASSERT3P(zio->io_bp, !=, NULL);
@@ -6026,34 +6027,34 @@ zio_dva_throttle_done(zio_t *zio)
 	 * Parents of gang children can have two flavors -- ones that allocated
 	 * the gang header (will have ZIO_FLAG_IO_REWRITE set) and ones that
 	 * allocated the constituent blocks.  The first use their parent as tag.
-	 * The others release the asize of the DVA this write is for.  The gang
-	 * header cannot: zio_write_gang_member_ready() has added the asize of
-	 * its children to its DVAs by now, so convert the size it was
-	 * allocated with.
+	 * Both release the asize of the DVA this write is for, as allocated.
+	 * zio_write_gang_member_ready() has added the asize of the gang
+	 * children to the DVAs of a gang header by now, but zio_rewrite()
+	 * copied them to io_bp_orig of the header write right after
+	 * zio_write_gang_block() allocated them, before any child.
 	 */
 	if (pio->io_child_type == ZIO_CHILD_GANG &&
 	    (pio->io_flags & ZIO_FLAG_IO_REWRITE)) {
 		tag = zio_unique_parent(pio);
-		asize = vdev_psize_to_asize_txg(vd, SPA_OLD_GANGBLOCKSIZE,
-		    pio->io_txg);
-	} else {
-		/*
-		 * zio_vdev_child_io() moved the offset of a leaf top-level
-		 * vdev past its front labels.
-		 */
-		uint64_t offset = zio->io_offset;
-		if (vd->vdev_ops->vdev_op_leaf)
-			offset -= VDEV_LABEL_START_SIZE;
-		for (int d = 0; d < BP_GET_NDVAS(zio->io_bp); d++) {
-			const dva_t *dva = &zio->io_bp->blk_dva[d];
-			if (DVA_GET_VDEV(dva) == vd->vdev_id &&
-			    DVA_GET_OFFSET(dva) == offset) {
-				asize = DVA_GET_ASIZE(dva);
-				break;
-			}
-		}
-		ASSERT3U(asize, !=, 0);
+		bp = &pio->io_bp_orig;
 	}
+
+	/*
+	 * zio_vdev_child_io() moved the offset of a leaf top-level vdev past
+	 * its front labels.
+	 */
+	uint64_t offset = zio->io_offset;
+	if (vd->vdev_ops->vdev_op_leaf)
+		offset -= VDEV_LABEL_START_SIZE;
+	for (int d = 0; d < BP_GET_NDVAS(bp); d++) {
+		const dva_t *dva = &bp->blk_dva[d];
+		if (DVA_GET_VDEV(dva) == vd->vdev_id &&
+		    DVA_GET_OFFSET(dva) == offset) {
+			asize = DVA_GET_ASIZE(dva);
+			break;
+		}
+	}
+	ASSERT3U(asize, !=, 0);
 
 	ASSERT(IO_IS_ALLOCATING(pio) || (pio->io_child_type == ZIO_CHILD_GANG &&
 	    (pio->io_flags & ZIO_FLAG_IO_REWRITE)));
