@@ -556,11 +556,14 @@ metaslab_class_balance(metaslab_class_t *mc, boolean_t onsync)
 		    zio_dva_throttle_enabled;
 	}
 
+	/*
+	 * The quotas are in allocated bytes, which RAID-Z and dRAID spread
+	 * over all their children, parity included, so count them all.
+	 */
 	mg = first = mc->mc_allocator[0].mca_rotor;
 	uint64_t children = 0;
 	do {
-		children += vdev_get_ndisks(mg->mg_vd) -
-		    vdev_get_nparity(mg->mg_vd);
+		children += vdev_get_ndisks(mg->mg_vd);
 	} while ((mg = mg->mg_next) != first);
 
 	uint64_t sum_aliquot = 0;
@@ -629,14 +632,17 @@ metaslab_class_balance(metaslab_class_t *mc, boolean_t onsync)
 			mg->mg_aliquot = mg_aliquot;
 			mg->mg_queue_target = mg->mg_aliquot * 2;
 		}
-		sum_aliquot += mg->mg_aliquot;
+		sum_aliquot += (mg->mg_aliquot >> SPA_MINBLOCKSHIFT) *
+		    mg->mg_vd->vdev_deflate_ratio;
 	} while ((mg = mg->mg_next) != first);
 
 	/*
 	 * Set per-class allocation throttle threshold to 4 iterations through
 	 * all the vdevs.  This should keep all vdevs busy even if some are
 	 * allocating more than we planned for them due to bigger blocks or
-	 * better performance.
+	 * better performance.  The reservations it limits are in logical
+	 * bytes, taken before a group is chosen, so each quota was counted
+	 * above in logical bytes with the deflate ratio of its vdev.
 	 */
 	mc->mc_alloc_max = sum_aliquot * 4;
 }
