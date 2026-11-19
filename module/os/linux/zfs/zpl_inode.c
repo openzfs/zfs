@@ -166,6 +166,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_create, 4,
 	cred_t *cr = CRED();
 	znode_t *zp;
 	vattr_t *vap;
+	zpl_acl_init_t acl = { 0 };
 	int error;
 	fstrans_cookie_t cookie;
 
@@ -175,15 +176,18 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_create, 4,
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
-	zpl_vap_init(vap, dir, mode, cr, idmap);
-
 	cookie = spl_fstrans_mark();
-	error = -zfs_create_idmap(ITOZ(dir), dname(dentry), vap, 0,
-	    mode, &zp, cr, 0, NULL, idmap);
+	error = zpl_prepare_acl(dir, &mode, &acl);
+	if (error == 0)
+		zpl_vap_init(vap, dir, mode, cr, idmap);
+
+	if (error == 0)
+		error = -zfs_create_idmap(ITOZ(dir), dname(dentry), vap, 0,
+		    mode, &zp, cr, 0, NULL, idmap);
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error == 0)
-			error = zpl_init_acl(ZTOI(zp), dir);
+			error = zpl_apply_acl(ZTOI(zp), dir, &acl);
 
 		if (error) {
 			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
@@ -200,6 +204,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_create, 4,
 		d_drop(dentry);
 	}
 
+	zpl_release_acl(&acl);
 	spl_fstrans_unmark(cookie);
 	kmem_free(vap, sizeof (vattr_t));
 	crfree(cr);
@@ -214,6 +219,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_mknod, 4,
 	cred_t *cr = CRED();
 	znode_t *zp;
 	vattr_t *vap;
+	zpl_acl_init_t acl = { 0 };
 	int error;
 	fstrans_cookie_t cookie;
 
@@ -230,16 +236,20 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_mknod, 4,
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
-	zpl_vap_init(vap, dir, mode, cr, idmap);
-	vap->va_rdev = rdev;
-
 	cookie = spl_fstrans_mark();
-	error = -zfs_create_idmap(ITOZ(dir), dname(dentry), vap, 0,
-	    mode, &zp, cr, 0, NULL, idmap);
+	error = zpl_prepare_acl(dir, &mode, &acl);
+	if (error == 0) {
+		zpl_vap_init(vap, dir, mode, cr, idmap);
+		vap->va_rdev = rdev;
+	}
+
+	if (error == 0)
+		error = -zfs_create_idmap(ITOZ(dir), dname(dentry), vap, 0,
+		    mode, &zp, cr, 0, NULL, idmap);
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error == 0)
-			error = zpl_init_acl(ZTOI(zp), dir);
+			error = zpl_apply_acl(ZTOI(zp), dir, &acl);
 
 		if (error) {
 			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
@@ -256,6 +266,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_mknod, 4,
 		d_drop(dentry);
 	}
 
+	zpl_release_acl(&acl);
 	spl_fstrans_unmark(cookie);
 	kmem_free(vap, sizeof (vattr_t));
 	crfree(cr);
@@ -275,21 +286,26 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_tmpfile, 3,
 	cred_t *cr = CRED();
 	struct inode *ip;
 	vattr_t *vap;
+	zpl_acl_init_t acl = { 0 };
 	int error;
 	fstrans_cookie_t cookie;
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
+	cookie = spl_fstrans_mark();
 	/*
 	 * The VFS does not apply the umask, therefore it is applied here
 	 * when POSIX ACLs are not enabled.
 	 */
 	if (!IS_POSIXACL(dir))
 		mode &= ~current_umask();
-	zpl_vap_init(vap, dir, mode, cr, idmap);
+	error = zpl_prepare_acl(dir, &mode, &acl);
+	if (error == 0)
+		zpl_vap_init(vap, dir, mode, cr, idmap);
 
-	cookie = spl_fstrans_mark();
-	error = -zfs_tmpfile_idmap(dir, vap, 0, mode, &ip, cr, 0, NULL, idmap);
+	if (error == 0)
+		error = -zfs_tmpfile_idmap(dir, vap, 0, mode, &ip, cr, 0,
+		    NULL, idmap);
 	if (error == 0) {
 		/* d_tmpfile will do drop_nlink, so we should set it first */
 		set_nlink(ip, 1);
@@ -304,7 +320,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_tmpfile, 3,
 		error = zpl_xattr_security_init(ip, dir, &dentry->d_name);
 #endif
 		if (error == 0)
-			error = zpl_init_acl(ip, dir);
+			error = zpl_apply_acl(ip, dir, &acl);
 #ifdef HAVE_TMPFILE_FILE
 		error = finish_open_simple(file, error);
 #endif
@@ -314,6 +330,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_tmpfile, 3,
 		 */
 	}
 
+	zpl_release_acl(&acl);
 	spl_fstrans_unmark(cookie);
 	kmem_free(vap, sizeof (vattr_t));
 	crfree(cr);
@@ -359,6 +376,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_mkdir, 3,
 	cred_t *cr = CRED();
 	vattr_t *vap;
 	znode_t *zp;
+	zpl_acl_init_t acl = { 0 };
 	int error;
 	fstrans_cookie_t cookie;
 
@@ -369,15 +387,19 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_mkdir, 3,
 
 	crhold(cr);
 	vap = kmem_zalloc(sizeof (vattr_t), KM_SLEEP);
-	zpl_vap_init(vap, dir, mode | S_IFDIR, cr, idmap);
-
 	cookie = spl_fstrans_mark();
-	error = -zfs_mkdir_idmap(ITOZ(dir), dname(dentry), vap, &zp, cr, 0,
-	    NULL, idmap);
+	mode |= S_IFDIR;
+	error = zpl_prepare_acl(dir, &mode, &acl);
+	if (error == 0)
+		zpl_vap_init(vap, dir, mode, cr, idmap);
+
+	if (error == 0)
+		error = -zfs_mkdir_idmap(ITOZ(dir), dname(dentry), vap, &zp,
+		    cr, 0, NULL, idmap);
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error == 0)
-			error = zpl_init_acl(ZTOI(zp), dir);
+			error = zpl_apply_acl(ZTOI(zp), dir, &acl);
 
 		if (error) {
 			(void) zfs_rmdir(ITOZ(dir), dname(dentry), NULL, cr, 0);
@@ -394,6 +416,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_mkdir, 3,
 		d_drop(dentry);
 	}
 
+	zpl_release_acl(&acl);
 	spl_fstrans_unmark(cookie);
 	kmem_free(vap, sizeof (vattr_t));
 	crfree(cr);
