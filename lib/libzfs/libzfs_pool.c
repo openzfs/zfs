@@ -2728,7 +2728,7 @@ zpool_initialize_impl(zpool_handle_t *zhp, pool_initialize_func_t cmd_type,
 	nvlist_t *vdev_guids = fnvlist_alloc();
 	nvlist_t *guids_to_paths = fnvlist_alloc();
 	nvlist_t *vd_errlist = NULL;
-	nvlist_t *errlist;
+	nvlist_t *errlist = NULL;
 	nvpair_t *elem;
 
 	err = zpool_translate_vdev_guids(zhp, vds, vdev_guids,
@@ -2798,6 +2798,8 @@ out:
 
 	if (vd_errlist != NULL)
 		fnvlist_free(vd_errlist);
+
+	fnvlist_free(errlist);
 
 	return (err == 0 ? 0 : -1);
 }
