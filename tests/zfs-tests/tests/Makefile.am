@@ -477,6 +477,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/acl/posix/posix_003_pos.ksh \
 	functional/acl/posix/posix_004_pos.ksh \
 	functional/acl/posix/posix_005_pos.ksh \
+	functional/acl/posix/posix_006_pos.ksh \
 	functional/acl/posix-sa/cleanup.ksh \
 	functional/acl/posix-sa/posix_001_pos.ksh \
 	functional/acl/posix-sa/posix_002_pos.ksh \

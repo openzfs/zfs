@@ -249,3 +249,16 @@ function create_files #<directory>
 
 	cd $oldpwd
 }
+
+#
+# The tests of what a crash leaves of an ACL rely on changes to xattrs
+# kept as system attributes being logged.  Where they are not, an ACL
+# kept that way is not in the log, and the tests have nothing to check.
+#
+function require_saxattr_logging # [pool]
+{
+	[[ $(get_tunable ZIL_SAXATTR) == 1 ]] ||
+	    log_unsupported "zfs_zil_saxattr is off"
+	[[ -z $1 || $(get_pool_prop feature@zilsaxattr $1) != disabled ]] ||
+	    log_unsupported "feature@zilsaxattr is disabled on $1"
+}
