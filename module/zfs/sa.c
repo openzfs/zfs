@@ -1421,6 +1421,16 @@ sa_handle_get_from_db(objset_t *os, dmu_buf_t *db, void *userp,
 		handle->sa_spill_tab = NULL;
 
 		error = sa_build_index(handle, SA_BONUS);
+		if (error != 0) {
+			/*
+			 * The bonus buffer has no valid SA header. Don't
+			 * hand out (or attach to the dbuf) a handle that
+			 * callers would never destroy.
+			 */
+			kmem_cache_free(sa_cache, handle);
+			*handlepp = NULL;
+			return (error);
+		}
 
 		if (hdl_type == SA_HDL_SHARED) {
 			dmu_buf_init_user(&handle->sa_dbu, sa_evict_sync, NULL,
@@ -1448,8 +1458,11 @@ sa_handle_get(objset_t *objset, uint64_t objid, void *userp,
 	if ((error = dmu_bonus_hold(objset, objid, NULL, &db)))
 		return (error);
 
-	return (sa_handle_get_from_db(objset, db, userp, hdl_type,
-	    handlepp));
+	error = sa_handle_get_from_db(objset, db, userp, hdl_type, handlepp);
+	if (error != 0)
+		dmu_buf_rele(db, NULL);
+
+	return (error);
 }
 
 int
