@@ -2509,7 +2509,6 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	    db->db_blkid != DMU_SPILL_BLKID) {
 		mutex_enter(&dn->dn_mtx);
 		if (dn->dn_free_ranges[txgoff] != NULL) {
-			FREE_RANGE_VERIFY(tx, dn);
 			zfs_range_tree_clear(dn->dn_free_ranges[txgoff],
 			    db->db_blkid, 1);
 		}

@@ -2412,7 +2412,6 @@ done:
 	{
 		int txgoff = tx->tx_txg & TXG_MASK;
 
-		FREE_RANGE_VERIFY(tx, dn);
 		if (dn->dn_free_ranges[txgoff] == NULL) {
 			dn->dn_free_ranges[txgoff] =
 			    zfs_range_tree_create_flags(
