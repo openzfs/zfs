@@ -420,7 +420,11 @@ dump_redact(dmu_send_cookie_t *dscp, uint64_t object, uint64_t offset,
 		 */
 		if (drrr->drr_object == object && drrr->drr_offset +
 		    drrr->drr_length == offset) {
-			drrr->drr_length += length;
+			if (offset + length < offset ||
+			    length == UINT64_MAX)
+				drrr->drr_length = UINT64_MAX;
+			else
+				drrr->drr_length += length;
 			return (0);
 		} else {
 			/* not a continuation.  Push out pending record */
