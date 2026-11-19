@@ -123,9 +123,10 @@ then
 	exit $?
 else
 	# Create wrapper functions since Gentoo don't use the case part.
+	# Leave status() to OpenRC: without status_of_proc,
+	# zfs_daemon_status() would call a status() wrapper back forever.
 	depend() { do_depend; }
 	start() { do_start; }
 	stop() { do_stop; }
-	status() { do_status; }
 	reload() { do_reload; }
 fi
