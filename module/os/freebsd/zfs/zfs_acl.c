@@ -2568,7 +2568,12 @@ zfs_zaccess_delete(znode_t *dzp, znode_t *zp, cred_t *cr)
 	 * to determine what was found.
 	 */
 
-	if (zp->z_pflags & (ZFS_IMMUTABLE | ZFS_NOUNLINK))
+	/*
+	 * An append-only file may not be removed or renamed, and neither
+	 * may any entry of an append-only directory.
+	 */
+	if ((zp->z_pflags & (ZFS_IMMUTABLE | ZFS_NOUNLINK | ZFS_APPENDONLY)) ||
+	    (dzp->z_pflags & ZFS_APPENDONLY))
 		return (SET_ERROR(EPERM));
 
 	/*

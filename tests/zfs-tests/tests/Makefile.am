@@ -562,6 +562,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/block_cloning/block_cloning_copyfilerange_fallback_same_txg.ksh \
 	functional/block_cloning/block_cloning_copyfilerange.ksh \
 	functional/block_cloning/block_cloning_copyfilerange_partial.ksh \
+	functional/block_cloning/block_cloning_copyfilerange_appendonly.ksh \
 	functional/block_cloning/block_cloning_copyfilerange_clone.ksh \
 	functional/block_cloning/block_cloning_copyfilerange_clone_partial.ksh \
 	functional/block_cloning/block_cloning_disabled_copyfilerange.ksh \
@@ -648,6 +649,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/casenorm/setup.ksh \
 	functional/chattr/chattr_001_pos.ksh \
 	functional/chattr/chattr_002_neg.ksh \
+	functional/chattr/chattr_003_neg.ksh \
+	functional/chattr/chattr_004_neg.ksh \
 	functional/chattr/cleanup.ksh \
 	functional/chattr/setup.ksh \
 	functional/channel_program/lua_core/cleanup.ksh \

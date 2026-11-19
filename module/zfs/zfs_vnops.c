@@ -2149,10 +2149,13 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 	}
 
 	/*
-	 * If immutable then return EPERM.  Intentionally allow ZFS_READONLY
-	 * through here.  See zfs_zaccess_common().
+	 * If immutable, or append-only and not cloning at the end of the file,
+	 * then return EPERM, matching zfs_write().  Intentionally allow
+	 * ZFS_READONLY through here.  See zfs_zaccess_common().
 	 */
-	if ((outzp->z_pflags & ZFS_IMMUTABLE) != 0) {
+	if ((outzp->z_pflags & ZFS_IMMUTABLE) != 0 ||
+	    ((outzp->z_pflags & ZFS_APPENDONLY) != 0 &&
+	    outoff < outzp->z_size)) {
 		error = SET_ERROR(EPERM);
 		goto out;
 	}

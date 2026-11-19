@@ -2,7 +2,8 @@
 scripts_zfs_tests_bindir = $(datadir)/$(PACKAGE)/zfs-tests/bin
 
 
-scripts_zfs_tests_bin_PROGRAMS  = %D%/chg_usr_exec
+scripts_zfs_tests_bin_PROGRAMS  = %D%/append_only_ops
+scripts_zfs_tests_bin_PROGRAMS += %D%/chg_usr_exec
 scripts_zfs_tests_bin_PROGRAMS += %D%/clonefile
 scripts_zfs_tests_bin_PROGRAMS += %D%/clone_mmap_cached
 scripts_zfs_tests_bin_PROGRAMS += %D%/clone_mmap_write
