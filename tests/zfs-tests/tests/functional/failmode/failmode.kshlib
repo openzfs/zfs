@@ -137,3 +137,170 @@ function failmode_sync_test
 		log_fail "impossible failmode: $failmode"
 	fi
 }
+
+#
+# failmode_raw_recv_resume <keyload>
+#
+# A full raw receive of a new encrypted dataset is interrupted by a pool
+# suspension (failmode=wait) and resumed with zpool clear. The receive must
+# finish, and the received dataset must be intact, before and after an
+# export/import. With keyload=1, the key of the receiving dataset is loaded
+# while the receive runs, and `zpool status -v` (which holds the dataset with
+# its key mapped to resolve the error paths) runs in a loop meanwhile.
+#
+# When the pool suspends, the blocks that could not be allocated reach
+# arc_write_ready() with a hole bp. That must not turn their raw (encrypted)
+# ARC buffers into plaintext ones: the next txg that dirties such a block of
+# dnodes would then encrypt it again, with the dataset's key if it is mapped
+# (a dataset that fails to mount with EIO), or panic if it is not
+# (VERIFY0 in zio_encrypt(), #18394).
+#
+function failmode_raw_recv_resume
+{
+	typeset -i keyload=$1
+
+	typeset srcpool=raw_recv_src
+	typeset srcvdev=$TEST_BASE_DIR/raw_recv_src.vdev
+	typeset stream=$TEST_BASE_DIR/raw_recv.zsend
+	typeset gate=$TEST_BASE_DIR/raw_recv.gate
+	typeset recvout=$TEST_BASE_DIR/raw_recv.out
+	typeset recvfs=$TESTPOOL/raw_recv
+	typeset passphrase="password"
+	typeset disk=${DISKS%% *}
+
+	# 1. The source: 1000 small files fill about 32 blocks of dnodes, and
+	# the large file, created last, is sent last.
+	log_must truncate -s 1g $srcvdev
+	log_must zpool create -f $srcpool $srcvdev
+	log_must eval "echo $passphrase | zfs create -o encryption=on" \
+	    "-o keyformat=passphrase -o keylocation=prompt $srcpool/enc"
+	typeset -i i
+	for ((i = 1; i <= 1000; i++)); do
+		dd if=/dev/urandom of=/$srcpool/enc/f$i bs=1k \
+		    count=$((4 + i % 7)) 2>/dev/null ||
+		    log_fail "can't create /$srcpool/enc/f$i"
+	done
+	log_must dd if=/dev/urandom of=/$srcpool/enc/big bs=1M count=64
+	log_must zfs snapshot $srcpool/enc@snap
+	log_must eval "zfs send -w $srcpool/enc@snap > $stream"
+
+	# The stream ends with the large file's WRITE records. Split it into
+	# the part received before the failure (all but 40 MiB), the part that
+	# is dirty when the pool suspends (16 MiB), and the rest.
+	typeset -i total=$(( ($(stat_size $stream) + 1048575) / 1048576 ))
+	typeset -i part1=$((total - 40))
+	typeset -i part2=16
+	log_must test $part1 -gt 0
+	log_note "stream: $total MiB, parts: $part1 + $part2 + rest"
+
+	# 2. The destination.
+	log_must zpool create -f -o failmode=wait $TESTPOOL $disk
+
+	# 3. Receive the first part, and let it sync.
+	rm -f $gate.1 $gate.2
+	{
+		dd if=$stream bs=1M count=$part1 2>/dev/null
+		while [[ ! -f $gate.1 ]]; do sleep 0.1; done
+		dd if=$stream bs=1M skip=$part1 count=$part2 2>/dev/null
+		while [[ ! -f $gate.2 ]]; do sleep 0.1; done
+		dd if=$stream bs=1M skip=$((part1 + part2)) 2>/dev/null
+	} | zfs receive -s -u $recvfs >$recvout 2>&1 &
+	FAILMODE_RECV_PID=$!
+
+	typeset -i tries=60
+	until zfs list $recvfs >/dev/null 2>&1; do
+		((tries-- > 0)) || log_fail "receive didn't create $recvfs"
+		sleep 1
+	done
+	sleep 3
+	log_must zpool sync $TESTPOOL
+	log_must test "$(get_prop keystatus $recvfs)" = "unavailable"
+
+	if ((keyload)); then
+		# The key can be loaded while the receive runs (not once the
+		# pool is suspended).
+		log_must eval "echo $passphrase | zfs load-key $recvfs"
+		log_must test "$(get_prop keystatus $recvfs)" = "available"
+		while :; do
+			zpool status -v $TESTPOOL >/dev/null 2>&1
+		done &
+		FAILMODE_STATUS_PID=$!
+	fi
+
+	# 4. Fail the disk, and feed the next part: its txg can't be written.
+	log_must zinject -d $disk -e io -T write $TESTPOOL
+	log_must zinject -d $disk -e nxio -T probe $TESTPOOL
+	log_must touch $gate.1
+
+	log_note "waiting for the pool to suspend"
+	tries=60
+	until [[ $(kstat_pool $TESTPOOL state) == "SUSPENDED" ]]; do
+		((tries-- > 0)) || log_fail "pool didn't suspend"
+		sleep 1
+	done
+	log_must kill -0 $FAILMODE_RECV_PID
+
+	# 5. The disk is back: resume the pool, then feed the rest.
+	log_must zinject -c all
+	log_must zpool clear $TESTPOOL
+	log_must touch $gate.2
+
+	# 6. The receive must finish, and succeed.
+	wait $FAILMODE_RECV_PID
+	typeset -i rc=$?
+	FAILMODE_RECV_PID=0
+	if ((FAILMODE_STATUS_PID > 0)); then
+		kill $FAILMODE_STATUS_PID
+		wait $FAILMODE_STATUS_PID
+		FAILMODE_STATUS_PID=0
+	fi
+	log_note "zfs receive: rc=$rc: $(cat $recvout)"
+	log_must test $rc -eq 0
+	log_must test "$(kstat_pool $TESTPOOL state)" = "ONLINE"
+	log_must test "$(get_pool_prop health $TESTPOOL)" = "ONLINE"
+	log_must zfs list -t snapshot $recvfs@snap
+	log_must test "$(get_prop receive_resume_token $recvfs)" = "-"
+
+	# 7. The received data matches the source, as cached and as stored.
+	if ((keyload)); then
+		log_must test "$(get_prop keystatus $recvfs)" = "available"
+	else
+		log_must test "$(get_prop keystatus $recvfs)" = "unavailable"
+		log_must eval "echo $passphrase | zfs load-key $recvfs"
+	fi
+	log_must zfs mount $recvfs
+	log_must diff -r /$srcpool/enc /$recvfs
+	log_must zpool export $TESTPOOL
+	log_must zpool import $TESTPOOL
+	log_must eval "echo $passphrase | zfs load-key $recvfs"
+	log_must zfs mount $recvfs
+	log_must diff -r /$srcpool/enc /$recvfs
+
+	# 8. Everything on disk is readable and checksums correctly.
+	log_must zfs unmount $recvfs
+	log_must zfs unload-key $recvfs
+	verify_pool $TESTPOOL
+	log_must zpool status -v $TESTPOOL
+	log_must check_pool_status $TESTPOOL "errors" "No known data errors"
+}
+
+function failmode_raw_recv_resume_cleanup
+{
+	typeset gate=$TEST_BASE_DIR/raw_recv.gate
+
+	zinject -c all >/dev/null 2>&1
+	zpool clear $TESTPOOL >/dev/null 2>&1
+	touch $gate.1 $gate.2
+	if ((FAILMODE_STATUS_PID > 0)); then
+		kill $FAILMODE_STATUS_PID >/dev/null 2>&1
+		wait $FAILMODE_STATUS_PID
+	fi
+	if ((FAILMODE_RECV_PID > 0)); then
+		kill $FAILMODE_RECV_PID >/dev/null 2>&1
+		wait $FAILMODE_RECV_PID
+	fi
+	destroy_pool $TESTPOOL
+	destroy_pool raw_recv_src
+	rm -f $TEST_BASE_DIR/raw_recv_src.vdev $TEST_BASE_DIR/raw_recv.zsend \
+	    $gate.1 $gate.2 $TEST_BASE_DIR/raw_recv.out
+}

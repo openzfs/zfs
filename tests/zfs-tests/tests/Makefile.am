@@ -1773,6 +1773,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/failmode/failmode_msync_continue.ksh \
 	functional/failmode/failmode_osync_wait.ksh \
 	functional/failmode/failmode_osync_continue.ksh \
+	functional/failmode/failmode_raw_recv_resume.ksh \
+	functional/failmode/failmode_raw_recv_resume_key.ksh \
 	functional/failmode/failmode_syncalways_wait.ksh \
 	functional/failmode/failmode_syncalways_continue.ksh \
 	functional/failmode/failmode_nowait_wait.ksh \
