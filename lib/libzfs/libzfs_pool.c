@@ -1154,8 +1154,10 @@ vdev_expand_proplist(zpool_handle_t *zhp, const char *vdevname,
 			last = &(*last)->pl_next;
 
 		err = zpool_get_all_vdev_props(zhp, vdevname, &vprops);
-		if (err != 0)
+		if (err != 0) {
+			fnvlist_free(vprops);
 			return (err);
+		}
 
 		while ((elem = nvlist_next_nvpair(vprops, elem)) != NULL) {
 			propname = nvpair_name(elem);
@@ -1181,6 +1183,8 @@ vdev_expand_proplist(zpool_handle_t *zhp, const char *vdevname,
 			last = &entry->pl_next;
 		}
 	}
+
+	fnvlist_free(vprops);
 
 	return (0);
 }
