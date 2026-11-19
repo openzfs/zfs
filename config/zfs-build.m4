@@ -275,6 +275,19 @@ AC_DEFUN([ZFS_AC_OBJTOOL_WERROR], [
 
 AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 	AX_COUNT_CPUS([])
+	dnl # AX_COUNT_CPUS asks getconf for the CPUs online before nproc,
+	dnl # which counts only those this process may run on (affinity,
+	dnl # cpuset).  Take the smaller, to start no job for a CPU the
+	dnl # build cannot use.
+	AC_MSG_CHECKING([the number of CPUs this build may use])
+	AS_IF([command -v nproc >/dev/null 2>&1], [
+		zfs_ac_nproc=$(OMP_NUM_THREADS='' nproc 2>/dev/null)
+		AS_IF([test "$zfs_ac_nproc" -gt 0 2>/dev/null &&
+		    test "$zfs_ac_nproc" -lt "$CPU_COUNT"], [
+			CPU_COUNT=$zfs_ac_nproc
+		])
+	])
+	AC_MSG_RESULT([$CPU_COUNT])
 	AC_SUBST(CPU_COUNT)
 
 	ZFS_AC_CONFIG_ALWAYS_CC_NO_CLOBBERED
