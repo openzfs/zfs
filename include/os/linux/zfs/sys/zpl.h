@@ -58,16 +58,37 @@ extern ssize_t zpl_xattr_list(struct dentry *dentry, char *buf, size_t size);
 extern int zpl_xattr_security_init(struct inode *ip, struct inode *dip,
     const struct qstr *qstr);
 
+typedef struct zpl_acl_init {
+	struct posix_acl *default_acl;
+	struct posix_acl *access_acl;
+	boolean_t after_create;
+} zpl_acl_init_t;
+
 #if defined(CONFIG_FS_POSIX_ACL)
 extern int zpl_set_posix_acl(struct inode *ip, struct posix_acl *acl, int type);
 extern struct posix_acl *zpl_get_posix_acl(struct inode *ip, int type);
-extern int zpl_init_acl(struct inode *ip, struct inode *dir);
+extern int zpl_prepare_acl(struct inode *dir, umode_t *mode,
+    zpl_acl_init_t *acl);
+extern int zpl_apply_acl(struct inode *ip, struct inode *dir,
+    const zpl_acl_init_t *acl);
+extern void zpl_release_acl(zpl_acl_init_t *acl);
 extern int zpl_chmod_acl(struct inode *ip);
 #else
 static inline int
-zpl_init_acl(struct inode *ip, struct inode *dir)
+zpl_prepare_acl(struct inode *dir, umode_t *mode, zpl_acl_init_t *acl)
 {
 	return (0);
+}
+
+static inline int
+zpl_apply_acl(struct inode *ip, struct inode *dir, const zpl_acl_init_t *acl)
+{
+	return (0);
+}
+
+static inline void
+zpl_release_acl(zpl_acl_init_t *acl)
+{
 }
 
 static inline int
