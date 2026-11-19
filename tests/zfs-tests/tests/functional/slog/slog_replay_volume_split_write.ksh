@@ -60,8 +60,13 @@ function write_frozen
 	log_must dd if=/dev/zero of=$VOLDEV bs=512 seek=8192 count=1 \
 	    oflag=direct,sync
 	log_must zpool freeze $TESTPOOL
-	log_must dd if=$src of=$VOLDEV bs=512k seek=$seek count=1 \
-	    oflag=direct,sync
+	# Not dd: uutils dd (Ubuntu 26.04) reads into a buffer that is not
+	# 512-byte aligned, and when the kernel rejects that O_DIRECT write
+	# with EINVAL, it retries without O_DIRECT, so the zvol gets the
+	# write as many page-sized requests.  stride_dd's buffer is
+	# page-aligned and it fails rather than fall back.
+	log_must stride_dd -i $src -o $VOLDEV -b $((512 * 1024)) -c 1 \
+	    -k $seek -D
 }
 
 #
