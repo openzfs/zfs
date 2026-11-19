@@ -415,10 +415,14 @@ space_map_load_callback(space_map_entry_t *sme, void *arg)
 {
 	space_map_load_arg_t *smla = arg;
 	if (sme->sme_type == smla->smla_type) {
-		VERIFY3U(zfs_range_tree_space(smla->smla_rt) + sme->sme_run, <=,
-		    smla->smla_sm->sm_size);
+		/*
+		 * Check after the add: with zfs_recover set, an entry that
+		 * overlaps the tree adds nothing, so its run must not count.
+		 */
 		zfs_range_tree_add(smla->smla_rt, sme->sme_offset,
 		    sme->sme_run);
+		VERIFY3U(zfs_range_tree_space(smla->smla_rt), <=,
+		    smla->smla_sm->sm_size);
 	} else if (smla->smla_type == SM_FREE) {
 		space_map_remove_alloc(smla->smla_rt, sme->sme_offset,
 		    sme->sme_run);
