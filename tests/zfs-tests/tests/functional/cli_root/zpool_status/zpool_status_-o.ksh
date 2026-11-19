@@ -28,13 +28,14 @@
 # 3. Verify the row of the pool ends with the pool's values and "-" for
 #    rotational, and every vdev row, the spare's included, with the vdev's
 #    values and "-" for dedupratio, as 'zpool get' reports them, under their
-#    headers, and with exact values with -p.
+#    names in lower case, and with exact values with -p.
 # 4. Verify the "properties" object of the pool object of 'zpool status -j -o'
 #    and that of every vdev object, the root vdev's included, are what
 #    'zpool get -j' reports for the pool properties and the vdev properties,
 #    also with --json-flat-vdevs and --json-int, and, without --json-int,
 #    that every guid in them is the guid of the object.
-# 5. Verify an unknown property, 'all' and an empty list are refused.
+# 5. Verify that two -o options show the columns of both, in order.
+# 6. Verify an unknown property, 'all' and an empty list are refused.
 #
 
 verify_runnable "global"
@@ -88,7 +89,7 @@ function get_values
 function status_values
 {
 	zpool status "$@" -o $PROPS $TESTPOOL2 > $TMP.status || return 1
-	awk -v hdr="GUID SIZE COMMENT DEDUP ROTATIONAL $UPROP" '
+	awk -v hdr="guid size comment dedupratio rotational $UPROP" '
 	    /^\tNAME / {
 		h = $(NF - 5)
 		for (i = 4; i >= 0; i--)
@@ -171,6 +172,11 @@ done
 for opts in "" "--json-flat-vdevs" "--json-int"; do
 	check_json $opts
 done
+
+log_must eval "zpool status -o $PROPS $TESTPOOL2 > $TMP.exp"
+log_must eval "zpool status -o guid,size,comment -o dedupratio" \
+    "-o rotational,$UPROP $TESTPOOL2 > $TMP.out"
+log_must diff $TMP.exp $TMP.out
 
 log_mustnot zpool status -o nosuchprop $TESTPOOL2
 log_mustnot zpool status -j -o rotational,nosuchprop $TESTPOOL2

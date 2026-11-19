@@ -2771,8 +2771,9 @@ get_pool_prop(zpool_handle_t *zhp, const zprop_list_t *pl, char *value,
 }
 
 /*
- * The header of a 'zpool status -o' column.  A name of both kinds has the
- * same column name in both tables.
+ * The header of a 'zpool status -o' column: the property's name, in lower
+ * case as the columns of 'zpool status -c' are, to tell them from the
+ * default columns.  A name of both kinds is the same in both tables.
  */
 static const char *
 status_prop_header(const status_prop_t *sp)
@@ -2783,8 +2784,8 @@ status_prop_header(const status_prop_t *sp)
 	if (pl->pl_prop == ZPROP_USERPROP)
 		return (pl->pl_user_prop);
 	if (pl == sp->sp_pool)
-		return (zpool_prop_column_name(pl->pl_prop));
-	return (vdev_prop_column_name(pl->pl_prop));
+		return (zpool_prop_to_name(pl->pl_prop));
+	return (vdev_prop_to_name(pl->pl_prop));
 }
 
 /*
@@ -12071,7 +12072,18 @@ zpool_do_status(int argc, char **argv)
 			cb.cb_name_flags |= VDEV_NAME_FOLLOW_LINKS;
 			break;
 		case 'o':
-			props = optarg;
+			/* Each -o adds its columns after the earlier ones. */
+			if (props == NULL) {
+				size_t len = strlen(optarg) + 1;
+				props = safe_malloc(len);
+				(void) strlcpy(props, optarg, len);
+			} else {
+				char *more;
+				verify(-1 != asprintf(&more, "%s,%s", props,
+				    optarg));
+				free(props);
+				props = more;
+			}
 			break;
 		case 'p':
 			cb.cb_literal = B_TRUE;
@@ -12224,6 +12236,7 @@ zpool_do_status(int argc, char **argv)
 	}
 
 	status_free_proplist(cb.cb_props);
+	free(props);
 	return (ret);
 }
 

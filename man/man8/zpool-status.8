@@ -19,7 +19,7 @@
 .\" Copyright (c) 2024-2026, Klara, Inc.
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd November 17, 2026
+.Dd November 19, 2026
 .Dt ZPOOL-STATUS 8
 .Os
 .
@@ -118,7 +118,10 @@ This can be used to look up the current block device name regardless of the
 path used to open it.
 .It Fl o Ar property Ns Oo , Ns Ar property Ns ,… Oc
 Display the given pool and vdev properties, user properties included,
-one column each.
+one column each, titled with the property's name in lower case.
+.Fl o
+can be given more than once: the columns of each follow those of the
+previous ones.
 The row of the pool shows the pool property of each name,
 and the row of each vdev, spares and cache devices included,
 the vdev property of that name.
