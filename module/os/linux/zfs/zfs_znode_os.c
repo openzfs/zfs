@@ -331,7 +331,15 @@ zfs_cmpldev(uint64_t dev)
 	return (dev);
 }
 
-static void
+/*
+ * Attach an SA handle to the znode.  If the caller did not supply a handle
+ * one is created from the bonus buffer, which fails with EIO if the SA
+ * header is damaged (see sa_build_index()).  On failure the handle and
+ * the hold on the bonus buffer are released and zp->z_sa_hdl is NULL.
+ * Callers which pass an already initialized handle (zfs_mknode()) can not
+ * fail.
+ */
+static int
 zfs_znode_sa_init(zfsvfs_t *zfsvfs, znode_t *zp,
     dmu_buf_t *db, dmu_object_type_t obj_type, sa_handle_t *sa_hdl)
 {
@@ -342,8 +350,22 @@ zfs_znode_sa_init(zfsvfs_t *zfsvfs, znode_t *zp,
 	ASSERT0P(zp->z_sa_hdl);
 	ASSERT0P(zp->z_acl_cached);
 	if (sa_hdl == NULL) {
-		VERIFY0(sa_handle_get_from_db(zfsvfs->z_os, db, zp,
-		    SA_HDL_SHARED, &zp->z_sa_hdl));
+		int error = sa_handle_get_from_db(zfsvfs->z_os, db, zp,
+		    SA_HDL_SHARED, &zp->z_sa_hdl);
+		if (error != 0) {
+			/*
+			 * The handle was created but has no index table;
+			 * destroying it also drops the bonus buffer hold.
+			 */
+			zfs_dbgmsg("zfs_znode_sa_init: object %llu has an "
+			    "invalid SA bonus buffer, error=%d",
+			    (u_longlong_t)zp->z_id, error);
+			ASSERT3P(zp->z_sa_hdl, !=, NULL);
+			sa_handle_destroy(zp->z_sa_hdl);
+			zp->z_sa_hdl = NULL;
+			mutex_exit(&zp->z_lock);
+			return (SET_ERROR(error));
+		}
 	} else {
 		zp->z_sa_hdl = sa_hdl;
 		sa_set_userp(sa_hdl, zp);
@@ -352,6 +374,7 @@ zfs_znode_sa_init(zfsvfs_t *zfsvfs, znode_t *zp,
 	zp->z_is_sa = (obj_type == DMU_OT_SA) ? B_TRUE : B_FALSE;
 
 	mutex_exit(&zp->z_lock);
+	return (0);
 }
 
 void
@@ -517,10 +540,14 @@ zfs_znode_update_vfs(znode_t *zp)
  * This does not do a call to dmu_set_user() that is
  * up to the caller to do, in case you don't want to
  * return the znode
+ *
+ * Returns 0 and sets *zpp on success.  On failure the hold on the bonus
+ * buffer is dropped and no znode is returned: EIO if the SA of the object
+ * is damaged, otherwise ENOENT (including a failed inode allocation).
  */
-static znode_t *
+static int
 zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
-    dmu_object_type_t obj_type, sa_handle_t *hdl)
+    dmu_object_type_t obj_type, sa_handle_t *hdl, znode_t **zpp)
 {
 	znode_t	*zp;
 	struct inode *ip;
@@ -534,12 +561,14 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	uint64_t projid = ZFS_DEFAULT_PROJID;
 	sa_bulk_attr_t bulk[12];
 	int count = 0;
+	int err;
 
 	ASSERT(zfsvfs != NULL);
 
+	*zpp = NULL;
 	ip = new_inode(zfsvfs->z_sb);
 	if (ip == NULL)
-		return (NULL);
+		return (SET_ERROR(ENOENT));
 
 	zp = ITOZ(ip);
 	ASSERT0P(zp->z_dirlocks);
@@ -556,7 +585,11 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	zp->z_blksz = blksz;
 	zp->z_sync_cnt = 0;
 
-	zfs_znode_sa_init(zfsvfs, zp, db, obj_type, hdl);
+	err = zfs_znode_sa_init(zfsvfs, zp, db, obj_type, hdl);
+	if (err != 0) {
+		iput(ip);
+		return (err);
+	}
 
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_MODE(zfsvfs), NULL, &mode, 8);
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GEN(zfsvfs), NULL, &tmp_gen, 8);
@@ -581,6 +614,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 		if (hdl == NULL)
 			sa_handle_destroy(zp->z_sa_hdl);
 		zp->z_sa_hdl = NULL;
+		err = SET_ERROR(ENOENT);
 		goto error;
 	}
 
@@ -647,11 +681,12 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 
 	if (links > 0)
 		unlock_new_inode(ip);
-	return (zp);
+	*zpp = zp;
+	return (0);
 
 error:
 	iput(ip);
-	return (NULL);
+	return (err);
 }
 
 /*
@@ -945,9 +980,9 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 		 * the existing code is written such that zfs_mknode() can
 		 * not fail retry until sufficient memory has been reclaimed.
 		 */
-		do {
-			*zpp = zfs_znode_alloc(zfsvfs, db, 0, obj_type, sa_hdl);
-		} while (*zpp == NULL);
+		while (zfs_znode_alloc(zfsvfs, db, 0, obj_type, sa_hdl,
+		    zpp) != 0)
+			;
 
 		VERIFY(*zpp != NULL);
 		VERIFY(dzp != NULL);
@@ -1183,13 +1218,10 @@ again:
 	 * if zfs_znode_alloc() fails it will drop the hold on the
 	 * bonus buffer.
 	 */
-	zp = zfs_znode_alloc(zfsvfs, db, doi.doi_data_block_size,
-	    doi.doi_bonus_type, NULL);
-	if (zp == NULL) {
-		err = SET_ERROR(ENOENT);
-	} else {
+	err = zfs_znode_alloc(zfsvfs, db, doi.doi_data_block_size,
+	    doi.doi_bonus_type, NULL, &zp);
+	if (err == 0)
 		*zpp = zp;
-	}
 	zfs_znode_hold_exit(zfsvfs, zh);
 	return (err);
 }
@@ -1273,7 +1305,11 @@ zfs_rezget(znode_t *zp)
 		return (SET_ERROR(EINVAL));
 	}
 
-	zfs_znode_sa_init(zfsvfs, zp, db, doi.doi_bonus_type, NULL);
+	err = zfs_znode_sa_init(zfsvfs, zp, db, doi.doi_bonus_type, NULL);
+	if (err != 0) {
+		zfs_znode_hold_exit(zfsvfs, zh);
+		return (err);
+	}
 
 	/* reload cached values */
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_GEN(zfsvfs), NULL,

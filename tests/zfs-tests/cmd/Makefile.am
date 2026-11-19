@@ -30,6 +30,13 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/btree_test
 	libzpool.la \
 	libbtree.la
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/corrupt_sa
+%C%_corrupt_sa_SOURCES = %D%/corrupt_sa.c
+%C%_corrupt_sa_LDADD = \
+	libzpool.la \
+	libzutil.la \
+	libnvpair.la
+
 scripts_zfs_tests_bin_PROGRAMS += %D%/crypto_test
 %C%_crypto_test_SOURCES = %D%/crypto_test.c
 %C%_crypto_test_LDADD = libzpool.la
