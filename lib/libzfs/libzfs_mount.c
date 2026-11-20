@@ -18,6 +18,7 @@
  * Copyright 2017 RackTop Systems.
  * Copyright (c) 2018 Datto Inc.
  * Copyright 2018 OmniOS Community Edition (OmniOSce) Association.
+ * Copyright (c) 2026, TrueNAS.
  */
 
 /*
@@ -299,6 +300,7 @@ zfs_is_mountable(zfs_handle_t *zhp, char *buf, size_t buflen,
 	if (source)
 		*source = sourcetype;
 
+	zfs_flatten_path(buf);
 	return (B_TRUE);
 }
 
@@ -1028,11 +1030,13 @@ mountpoint_cmp(const void *arga, const void *argb)
 	if (gota) {
 		verify(zfs_prop_get(za, ZFS_PROP_MOUNTPOINT, mounta,
 		    sizeof (mounta), NULL, NULL, 0, B_FALSE) == 0);
+		zfs_flatten_path(mounta);
 	}
 	gotb = (zfs_get_type(zb) == ZFS_TYPE_FILESYSTEM);
 	if (gotb) {
 		verify(zfs_prop_get(zb, ZFS_PROP_MOUNTPOINT, mountb,
 		    sizeof (mountb), NULL, NULL, 0, B_FALSE) == 0);
+		zfs_flatten_path(mountb);
 	}
 
 	if (gota && gotb) {
@@ -1091,10 +1095,13 @@ non_descendant_idx(zfs_handle_t **handles, size_t num_handles, int idx)
 
 	verify(zfs_prop_get(handles[idx], ZFS_PROP_MOUNTPOINT, parent,
 	    sizeof (parent), NULL, NULL, 0, B_FALSE) == 0);
+	zfs_flatten_path(parent);
 
 	for (i = idx + 1; i < num_handles; i++) {
 		verify(zfs_prop_get(handles[i], ZFS_PROP_MOUNTPOINT, child,
 		    sizeof (child), NULL, NULL, 0, B_FALSE) == 0);
+		zfs_flatten_path(child);
+
 		if (!libzfs_path_contains(parent, child))
 			break;
 	}
@@ -1200,6 +1207,7 @@ zfs_mount_task(void *arg)
 
 	verify(zfs_prop_get(handles[idx], ZFS_PROP_MOUNTPOINT, mountpoint,
 	    sizeof (mountpoint), NULL, NULL, 0, B_FALSE) == 0);
+	zfs_flatten_path(mountpoint);
 
 	if (mp->mnt_func(handles[idx], mp->mnt_data) != 0)
 		goto out;
@@ -1217,6 +1225,7 @@ zfs_mount_task(void *arg)
 		char child[ZFS_MAXPROPLEN];
 		verify(zfs_prop_get(handles[i], ZFS_PROP_MOUNTPOINT,
 		    child, sizeof (child), NULL, NULL, 0, B_FALSE) == 0);
+		zfs_flatten_path(child);
 
 		if (!libzfs_path_contains(mountpoint, child))
 			break; /* not a descendant, return */
