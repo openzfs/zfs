@@ -7793,12 +7793,41 @@ ztest_spa_import_export(char *oldname, char *newname)
 	fnvlist_free(config);
 }
 
+/*
+ * Reopen every vdev file that ztest_fault_inject() closed.  Neither
+ * vdev_clear() nor the next vdev_reopen() reopens it.
+ */
+static void
+ztest_reopen_closed_files(vdev_t *vd)
+{
+	for (uint64_t c = 0; c < vd->vdev_children; c++)
+		ztest_reopen_closed_files(vd->vdev_child[c]);
+
+	if (vd->vdev_ops != &vdev_file_ops)
+		return;
+
+	vdev_file_t *vf = vd->vdev_tsd;
+	zfs_file_attr_t zfa;
+	if (vf == NULL || vf->vf_file == NULL ||
+	    zfs_file_getattr(vf->vf_file, &zfa) != EBADF)
+		return;
+
+	zfs_file_t *fp;
+	int error = zfs_file_open(vd->vdev_path, O_RDWR, 0, NULL, &fp);
+	if (error != 0)
+		fatal(B_FALSE, "can't reopen %s: %s", vd->vdev_path,
+		    strerror(error));
+	zfs_file_close(vf->vf_file);
+	vf->vf_file = fp;
+}
+
 static void
 ztest_resume(spa_t *spa)
 {
 	if (spa_suspended(spa) && ztest_opts.zo_verbose >= 6)
 		(void) printf("resuming from suspended state\n");
 	spa_vdev_state_enter(spa, SCL_NONE);
+	ztest_reopen_closed_files(spa->spa_root_vdev);
 	vdev_clear(spa, NULL);
 	(void) spa_vdev_state_exit(spa, NULL, 0);
 	(void) zio_resume(spa);
