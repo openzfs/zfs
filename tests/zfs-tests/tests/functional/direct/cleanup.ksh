@@ -22,7 +22,7 @@ verify_runnable "global"
 default_cleanup_noexit
 
 if tunable_exists DIO_ENABLED ; then
-	log_must restore_tunable DIO_ENABLED
+	log_must restore_group_tunable DIO_ENABLED
 fi
 
 log_pass
