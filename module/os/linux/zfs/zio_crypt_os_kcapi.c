@@ -190,7 +190,8 @@ zio_encrypt_decrypt_os_common(boolean_t do_encrypt, const zio_crypt_info_t *ci,
 	struct crypto_aead *aead;
 	struct aead_request *req;
 	struct scatterlist *sgl, *sg;
-	uint8_t *buf, *adbuf, *macbuf, *ivbuf;
+	uint8_t *buf, *macbuf, *ivbuf, *adcopy = NULL;
+	const uint8_t *adbuf;
 	size_t buflen, sgllen, reqsize, total = 0;
 	int nents, i, err;
 	DECLARE_CRYPTO_WAIT(wait);
@@ -220,17 +221,28 @@ zio_encrypt_decrypt_os_common(boolean_t do_encrypt, const zio_crypt_info_t *ci,
 	/*
 	 * The AAD, MAC and IV may be in memory that can't be mapped into a
 	 * scatterlist (eg the caller's stack), so we carry copies in a
-	 * private buffer.
+	 * private buffer. The AAD may be as large as a ZIL block,
+	 * so we only copy it if we're absolutely sure.
 	 */
-	buflen = adlen + ZIO_DATA_MAC_LEN + crypto_aead_ivsize(aead);
+	buflen = ZIO_DATA_MAC_LEN + crypto_aead_ivsize(aead);
 	buf = kmem_zalloc(buflen, KM_SLEEP);
-	adbuf = buf;
-	macbuf = adbuf + adlen;
+	macbuf = buf;
 	ivbuf = macbuf + ZIO_DATA_MAC_LEN;
 
-	memcpy(adbuf, ad, adlen);
 	if (!do_encrypt)
 		memcpy(macbuf, mac, ZIO_DATA_MAC_LEN);
+
+	/*
+	 * Map the AAD directly if we can.
+	 * If the AAD is on the stack, it requires a separate copy.
+	 */
+	if (adlen > 0 && object_is_on_stack(ad)) {
+		adcopy = kmem_alloc(adlen, KM_SLEEP);
+		memcpy(adcopy, ad, adlen);
+		adbuf = adcopy;
+	} else {
+		adbuf = ad;
+	}
 
 	if (ci->ci_crypt_type == ZC_TYPE_CCM) {
 		/*
@@ -329,6 +341,8 @@ zio_encrypt_decrypt_os_common(boolean_t do_encrypt, const zio_crypt_info_t *ci,
 
 	vmem_free(sgl, sgllen);
 	kmem_free(buf, buflen);
+	if (adcopy != NULL)
+		kmem_free(adcopy, adlen);
 	if (sess == NULL)
 		crypto_free_aead(aead);
 
