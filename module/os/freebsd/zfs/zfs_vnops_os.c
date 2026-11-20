@@ -3250,7 +3250,7 @@ zfs_rename_check(znode_t *szp, znode_t *sdzp, znode_t *tdzp)
 static int
 zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
     vnode_t *tdvp, vnode_t **tvpp, struct componentname *tcnp,
-    cred_t *cr);
+    cred_t *cr, uint_t at_flags);
 
 /*
  * Move an entry from the provided source directory to the target
@@ -3261,6 +3261,7 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
  *		tdvp	- Target directory to contain the "new entry".
  *		tcnp	- New entry name.
  *		cr	- credentials of caller.
+ *		at_flags - AT_RENAME_*
  *	INOUT:	svpp	- Source file
  *		tvpp	- Target file, may point to NULL initially
  *
@@ -3272,7 +3273,7 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 static int
 zfs_do_rename(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
     vnode_t *tdvp, vnode_t **tvpp, struct componentname *tcnp,
-    cred_t *cr)
+    cred_t *cr, uint_t at_flags)
 {
 	int	error;
 
@@ -3301,7 +3302,8 @@ zfs_do_rename(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 		return (error);
 	}
 
-	error = zfs_do_rename_impl(sdvp, svpp, scnp, tdvp, tvpp, tcnp, cr);
+	error = zfs_do_rename_impl(sdvp, svpp, scnp, tdvp, tvpp, tcnp, cr,
+	    at_flags);
 	VOP_UNLOCK(sdvp);
 	VOP_UNLOCK(*svpp);
 out:
@@ -3316,7 +3318,7 @@ out:
 static int
 zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
     vnode_t *tdvp, vnode_t **tvpp, struct componentname *tcnp,
-    cred_t *cr)
+    cred_t *cr, uint_t at_flags)
 {
 	dmu_tx_t	*tx;
 	zfsvfs_t	*zfsvfs;
@@ -3433,6 +3435,13 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 	 * Does target exist?
 	 */
 	if (tzp) {
+#ifdef AT_RENAME_NOREPLACE
+		if ((at_flags & AT_RENAME_NOREPLACE) != 0) {
+			error = SET_ERROR(EEXIST);
+			goto out;
+		}
+#endif
+
 		/*
 		 * Source and target must be the same type.
 		 */
@@ -3541,7 +3550,7 @@ out:
 
 int
 zfs_rename(znode_t *sdzp, const char *sname, znode_t *tdzp, const char *tname,
-    cred_t *cr, int flags, uint64_t rflags, vattr_t *wo_vap)
+    cred_t *cr, int flags, uint64_t rflags, uint_t at_flags, vattr_t *wo_vap)
 {
 	struct componentname scn, tcn;
 	vnode_t *sdvp, *tdvp;
@@ -3573,7 +3582,8 @@ zfs_rename(znode_t *sdzp, const char *sname, znode_t *tdzp, const char *tname,
 		goto fail;
 	}
 
-	error = zfs_do_rename(sdvp, &svp, &scn, tdvp, &tvp, &tcn, cr);
+	error = zfs_do_rename(sdvp, &svp, &scn, tdvp, &tvp, &tcn, cr,
+	    at_flags);
 fail:
 	if (svp != NULL)
 		vrele(svp);
@@ -5519,15 +5529,34 @@ zfs_freebsd_rename(struct vop_rename_args *ap)
 	}
 #endif
 
-	if (error == 0)
-		error = zfs_do_rename(fdvp, &fvp, ap->a_fcnp, tdvp, &tvp,
-		    ap->a_tcnp, ap->a_fcnp->cn_cred);
+#ifdef AT_RENAME_NOREPLACE
+	if (error == 0 && (ap->a_flags & ~(AT_RENAME_NOREPLACE)) != 0)
+		error = EOPNOTSUPP;
+#endif
 
-	vrele(fdvp);
-	vrele(fvp);
-	vrele(tdvp);
-	if (tvp != NULL)
-		vrele(tvp);
+	if (error == 0) {
+#ifdef AT_RENAME_NOREPLACE
+		error = zfs_do_rename(fdvp, &fvp, ap->a_fcnp, tdvp, &tvp,
+		    ap->a_tcnp, ap->a_fcnp->cn_cred, ap->a_flags);
+#else
+		error = zfs_do_rename(fdvp, &fvp, ap->a_fcnp, tdvp, &tvp,
+		    ap->a_tcnp, ap->a_fcnp->cn_cred, 0);
+#endif
+		vrele(fdvp);
+		vrele(fvp);
+		vrele(tdvp);
+		if (tvp != NULL)
+			vrele(tvp);
+	} else {
+		if (tdvp == tvp)
+			vrele(tdvp);
+		else
+			vput(tdvp);
+		if (tvp != NULL)
+			vput(tvp);
+		vrele(fdvp);
+		vrele(fvp);
+	}
 
 	return (error);
 }
