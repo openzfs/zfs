@@ -1590,8 +1590,9 @@ vdev_anyraid_write_map_sync(vdev_t *vd, zio_t *pio, uint64_t txg,
 		if (anyraidvd->vdev_child[i] == vd ||
 		    anyraidvd->vdev_child[i] == vd->vdev_parent)
 			disk_id = i;
+		/* Stored minus one, so that 2^16 tiles fit in 16 bits */
 		ASSERT(0 < var->vd_children[i]->van_capacity &&
-		    var->vd_children[i]->van_capacity <= UINT16_MAX);
+		    var->vd_children[i]->van_capacity <= VDEV_ANYRAID_MAX_TPD);
 		sizes[i] = var->vd_children[i]->van_capacity - 1;
 	}
 	ASSERT3U(disk_id, <, anyraidvd->vdev_children);
