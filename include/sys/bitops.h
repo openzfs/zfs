@@ -40,16 +40,23 @@ extern "C" {
 #define	BF32_GET(x, low, len)		BF32_DECODE(x, low, len)
 #define	BF64_GET(x, low, len)		BF64_DECODE(x, low, len)
 
+/*
+ * Clear and then set the field rather than XOR the old value back out. The
+ * XOR form reads the bits it replaces, so Valgrind reports fields set in
+ * uninitialized storage, such as new headers and search keys, as undefined.
+ */
 #define	BF32_SET(x, low, len, val) do { \
 	ASSERT3U(val, <, 1U << (len)); \
 	ASSERT3U(low + len, <=, 32); \
-	(x) ^= BF32_ENCODE((x >> low) ^ (val), low, len); \
+	(x) = ((x) & ~BF32_ENCODE(-1U, low, len)) | \
+	    BF32_ENCODE(val, low, len); \
 } while (0)
 
 #define	BF64_SET(x, low, len, val) do { \
 	ASSERT3U(val, <, 1ULL << (len)); \
 	ASSERT3U(low + len, <=, 64); \
-	((x) ^= BF64_ENCODE((x >> low) ^ (val), low, len)); \
+	(x) = ((x) & ~BF64_ENCODE(-1ULL, low, len)) | \
+	    BF64_ENCODE(val, low, len); \
 } while (0)
 
 #define	BF32_GET_SB(x, low, len, shift, bias)	\
