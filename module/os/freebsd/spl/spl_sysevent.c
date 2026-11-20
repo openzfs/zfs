@@ -183,16 +183,21 @@ log_sysevent(nvlist_t *event)
 
 			(void) nvpair_value_string_array(elem, &strarr, &nelem);
 
+			if (nelem > 0)
+				sbuf_printf(sb, " %s=\"", nvpair_name(elem));
 			for (ii = 0; ii < nelem; ii++) {
-				if (strarr[ii] == NULL)  {
-					sbuf_printf(sb, " <NULL>");
-					continue;
-				}
-
-				sbuf_printf(sb, " %s", strarr[ii]);
-				if (strcmp(FM_CLASS, strarr[ii]) == 0)
+				if (ii != 0)
+					sbuf_putc(sb, ' ');
+				if (strarr[ii] == NULL)
+					sbuf_cat(sb, "<NULL>");
+				else
+					devctl_safe_quote_sb(sb, strarr[ii]);
+				if (strarr[ii] != NULL &&
+				    strcmp(FM_CLASS, strarr[ii]) == 0)
 					type = strarr[ii];
 			}
+			if (nelem > 0)
+				sbuf_putc(sb, '"');
 			break;
 		}
 		case DATA_TYPE_NVLIST:
