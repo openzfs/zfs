@@ -68,6 +68,11 @@ typedef struct dbuf_stats {
 	 */
 	kstat_named_t cache_total_evicts;
 	/*
+	 * Number of times dbuf_evict_one() skipped a dbuf because another
+	 * thread held the ARC hash lock of its buffer.
+	 */
+	kstat_named_t cache_evict_busy;
+	/*
 	 * The distribution of dbuf levels in the dbuf cache and
 	 * the total size of all dbufs at each level.
 	 */
@@ -118,6 +123,7 @@ dbuf_stats_t dbuf_stats = {
 	{ "cache_lowater_bytes",		KSTAT_DATA_UINT64 },
 	{ "cache_hiwater_bytes",		KSTAT_DATA_UINT64 },
 	{ "cache_total_evicts",			KSTAT_DATA_UINT64 },
+	{ "cache_evict_busy",			KSTAT_DATA_UINT64 },
 	{ { "cache_levels_N",			KSTAT_DATA_UINT64 } },
 	{ { "cache_levels_bytes_N",		KSTAT_DATA_UINT64 } },
 	{ "hash_hits",				KSTAT_DATA_UINT64 },
@@ -138,6 +144,7 @@ dbuf_stats_t dbuf_stats = {
 struct {
 	wmsum_t cache_count;
 	wmsum_t cache_total_evicts;
+	wmsum_t cache_evict_busy;
 	wmsum_t cache_levels[DN_MAX_LEVELS];
 	wmsum_t cache_levels_bytes[DN_MAX_LEVELS];
 	wmsum_t hash_hits;
@@ -275,6 +282,20 @@ static unsigned long dbuf_metadata_cache_target_bytes(void);
  */
 static uint_t dbuf_cache_hiwater_pct = 10;
 static uint_t dbuf_cache_lowater_pct = 10;
+
+/*
+ * How long the dbuf eviction thread pauses when dbuf_evict_one() found only
+ * busy candidates (db_mtx, or the ARC hash lock of the buffer, held by
+ * another thread); dbuf_evict_notify() wakes it earlier if there is more to
+ * do.
+ */
+#define	DBUF_EVICT_BUSY_BACKOFF	MSEC2NSEC(1)
+
+/*
+ * How many more dbufs dbuf_evict_one() tries after one whose ARC hash lock
+ * was busy before it gives up.
+ */
+#define	DBUF_EVICT_BUSY_RETRIES	3
 
 static int
 dbuf_cons(void *vdb, void *unused, int kmflag)
@@ -761,44 +782,98 @@ dbuf_cache_above_lowater(void)
 }
 
 /*
- * Evict the oldest eligible dbuf from the dbuf cache.
+ * Evict the oldest eligible dbuf from the dbuf cache.  Returns B_FALSE if
+ * nothing was evicted because the candidates were busy (every db_mtx in the
+ * chosen sublist was held, or DBUF_EVICT_BUSY_RETRIES + 1 dbufs in a row had
+ * the ARC hash lock of their buffer held), so that the eviction thread can
+ * pause instead of spinning on them; an empty sublist returns B_TRUE, as
+ * there is nothing to wait for.
+ *
+ * This runs in the context of whichever thread released a dbuf (see
+ * dbuf_evict_notify()) as well as in the dbuf eviction thread, so it must
+ * not block on locks that can be held for a long time.  The sublist lock is
+ * taken with a blocking mutex_enter(); every holder keeps it only for a list
+ * insert, remove or the scan below.  The dbuf's db_mtx is taken under it
+ * with a tryenter, because dbuf_rele_and_unlock() takes db_mtx -> sublist
+ * lock, the opposite order.  The ARC hash lock of the dbuf's buffer is taken
+ * with a tryenter as well, because arc_read() can hold it across direct
+ * reclaim, and only after the sublist lock has been dropped: finding it
+ * reads the ARC header, and every thread that releases a dbuf contends on
+ * the sublist lock.
  */
-static void
+static boolean_t
 dbuf_evict_one(void)
 {
-	int idx = multilist_get_random_index(&dbuf_caches[DB_DBUF_CACHE].cache);
-	multilist_sublist_t *mls = multilist_sublist_lock_idx(
-	    &dbuf_caches[DB_DBUF_CACHE].cache, idx);
+	multilist_t *ml = &dbuf_caches[DB_DBUF_CACHE].cache;
+	int idx = multilist_get_random_index(ml);
+	multilist_sublist_t *mls = multilist_sublist_lock_idx(ml, idx);
+	boolean_t skipped = B_FALSE;
+	dmu_buf_impl_t *db;
 
 	ASSERT(!MUTEX_HELD(&dbuf_evict_lock));
 
-	dmu_buf_impl_t *db = multilist_sublist_tail(mls);
-	while (db != NULL && mutex_tryenter(&db->db_mtx) == 0) {
-		db = multilist_sublist_prev(mls, db);
-	}
+	for (int tries = 0; ; tries++) {
+		db = multilist_sublist_tail(mls);
+		while (db != NULL && mutex_tryenter(&db->db_mtx) == 0) {
+			skipped = B_TRUE;
+			db = multilist_sublist_prev(mls, db);
+		}
 
-	DTRACE_PROBE2(dbuf__evict__one, dmu_buf_impl_t *, db,
-	    multilist_sublist_t *, mls);
+		DTRACE_PROBE2(dbuf__evict__one, dmu_buf_impl_t *, db,
+		    multilist_sublist_t *, mls);
 
-	if (db != NULL) {
+		if (db == NULL) {
+			multilist_sublist_unlock(mls);
+			return (!skipped);
+		}
 		multilist_sublist_remove(mls, db);
 		multilist_sublist_unlock(mls);
-		uint64_t size = db->db.db_size;
-		uint64_t usize = dmu_buf_user_size(&db->db);
-		(void) zfs_refcount_remove_many(
-		    &dbuf_caches[DB_DBUF_CACHE].size, size, db);
-		(void) zfs_refcount_remove_many(
-		    &dbuf_caches[DB_DBUF_CACHE].size, usize, db->db_user);
-		DBUF_STAT_BUMPDOWN(cache_levels[db->db_level]);
-		DBUF_STAT_BUMPDOWN(cache_count);
-		DBUF_STAT_DECR(cache_levels_bytes[db->db_level], size + usize);
-		ASSERT3U(db->db_caching_status, ==, DB_DBUF_CACHE);
-		db->db_caching_status = DB_NO_CACHE;
-		dbuf_destroy(db);
-		DBUF_STAT_BUMP(cache_total_evicts);
-	} else {
-		multilist_sublist_unlock(mls);
+
+		/*
+		 * dbuf_destroy() would block on the hash lock, and a thread
+		 * in arc_read() may hold it for as long as the kernel takes
+		 * to reclaim memory for the read buffer; waiting here would
+		 * stall every thread that releases a dbuf, the dbuf eviction
+		 * thread and txg sync behind that one read.  db_mtx keeps the
+		 * dbuf ours while it is on no list.
+		 */
+		if (db->db_buf == NULL || arc_buf_try_lock(db->db_buf))
+			break;
+
+		/*
+		 * Busy: put the dbuf back, at the head of its sublist so that
+		 * the next pass does not find it again, and try the next
+		 * oldest one.
+		 */
+		DBUF_STAT_BUMP(cache_evict_busy);
+		mls = multilist_sublist_lock_idx(ml, idx);
+		multilist_sublist_insert_head(mls, db);
+		mutex_exit(&db->db_mtx);
+		if (tries == DBUF_EVICT_BUSY_RETRIES) {
+			multilist_sublist_unlock(mls);
+			return (B_FALSE);
+		}
 	}
+
+	ASSERT(MUTEX_HELD(&db->db_mtx));
+	if (db->db_buf != NULL) {
+		arc_buf_destroy_locked(db->db_buf, db);
+		db->db_buf = NULL;
+	}
+	uint64_t size = db->db.db_size;
+	uint64_t usize = dmu_buf_user_size(&db->db);
+	(void) zfs_refcount_remove_many(
+	    &dbuf_caches[DB_DBUF_CACHE].size, size, db);
+	(void) zfs_refcount_remove_many(
+	    &dbuf_caches[DB_DBUF_CACHE].size, usize, db->db_user);
+	DBUF_STAT_BUMPDOWN(cache_levels[db->db_level]);
+	DBUF_STAT_BUMPDOWN(cache_count);
+	DBUF_STAT_DECR(cache_levels_bytes[db->db_level], size + usize);
+	ASSERT3U(db->db_caching_status, ==, DB_DBUF_CACHE);
+	db->db_caching_status = DB_NO_CACHE;
+	dbuf_destroy(db);
+	DBUF_STAT_BUMP(cache_total_evicts);
+	return (B_TRUE);
 }
 
 /*
@@ -832,7 +907,20 @@ dbuf_evict_thread(void *unused)
 		 * minimize lock contention.
 		 */
 		while (dbuf_cache_above_lowater() && !dbuf_evict_thread_exit) {
-			dbuf_evict_one();
+			if (dbuf_evict_one())
+				continue;
+			/*
+			 * The candidates were busy.  Pause briefly rather
+			 * than spin; dbuf_evict_notify() wakes us as soon as
+			 * there is more to do.
+			 */
+			mutex_enter(&dbuf_evict_lock);
+			CALLB_CPR_SAFE_BEGIN(&cpr);
+			(void) cv_timedwait_idle_hires(&dbuf_evict_cv,
+			    &dbuf_evict_lock, DBUF_EVICT_BUSY_BACKOFF,
+			    DBUF_EVICT_BUSY_BACKOFF, 0);
+			CALLB_CPR_SAFE_END(&cpr, &dbuf_evict_lock);
+			mutex_exit(&dbuf_evict_lock);
 		}
 
 		mutex_enter(&dbuf_evict_lock);
@@ -866,7 +954,7 @@ dbuf_evict_notify(uint64_t size)
 		 */
 		if (size > dbuf_cache_hiwater_bytes() &&
 		    !current_is_reclaim_thread()) {
-			dbuf_evict_one();
+			(void) dbuf_evict_one();
 		}
 		cv_signal(&dbuf_evict_cv);
 	}
@@ -903,6 +991,8 @@ dbuf_kstat_update(kstat_t *ksp, int rw)
 	ds->cache_lowater_bytes.value.ui64 = dbuf_cache_lowater_bytes();
 	ds->cache_total_evicts.value.ui64 =
 	    wmsum_value(&dbuf_sums.cache_total_evicts);
+	ds->cache_evict_busy.value.ui64 =
+	    wmsum_value(&dbuf_sums.cache_evict_busy);
 	for (int i = 0; i < DN_MAX_LEVELS; i++) {
 		ds->cache_levels[i].value.ui64 =
 		    wmsum_value(&dbuf_sums.cache_levels[i]);
@@ -1011,6 +1101,7 @@ dbuf_init(void)
 
 	wmsum_init(&dbuf_sums.cache_count, 0);
 	wmsum_init(&dbuf_sums.cache_total_evicts, 0);
+	wmsum_init(&dbuf_sums.cache_evict_busy, 0);
 	for (int i = 0; i < DN_MAX_LEVELS; i++) {
 		wmsum_init(&dbuf_sums.cache_levels[i], 0);
 		wmsum_init(&dbuf_sums.cache_levels_bytes[i], 0);
@@ -1085,6 +1176,7 @@ dbuf_fini(void)
 
 	wmsum_fini(&dbuf_sums.cache_count);
 	wmsum_fini(&dbuf_sums.cache_total_evicts);
+	wmsum_fini(&dbuf_sums.cache_evict_busy);
 	for (int i = 0; i < DN_MAX_LEVELS; i++) {
 		wmsum_fini(&dbuf_sums.cache_levels[i]);
 		wmsum_fini(&dbuf_sums.cache_levels_bytes[i]);

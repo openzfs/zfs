@@ -3789,6 +3789,62 @@ arc_buf_destroy(arc_buf_t *buf, const void *tag)
 }
 
 /*
+ * Non-blocking variant of arc_buf_destroy(), in two steps so that the caller
+ * can decide what to do while it still holds its own locks:
+ * arc_buf_try_lock() takes the header's hash lock with mutex_tryenter() and
+ * returns B_FALSE if another thread holds it; after a B_TRUE return the
+ * caller must call arc_buf_destroy_locked(), which destroys the buffer and
+ * drops the hash lock.  Anonymous headers have no hash lock; both functions
+ * degrade to the plain arc_buf_destroy() behaviour for them.
+ *
+ * A thread in arc_read() holds the hash lock across the allocation of the
+ * read buffer, and that allocation can sit in memory reclaim for a long
+ * time when the system is short of free memory.  Callers that are merely
+ * trimming a cache, such as dbuf_evict_one(), must not inherit that wait:
+ * they run in the context of whichever thread happened to release a dbuf,
+ * so one slow read would otherwise stall every such thread, including the
+ * dbuf eviction thread and the txg sync thread.
+ */
+boolean_t
+arc_buf_try_lock(arc_buf_t *buf)
+{
+	arc_buf_hdr_t *hdr = buf->b_hdr;
+
+	/*
+	 * Reading b_state without the hash lock is what arc_buf_destroy()
+	 * does too: a buffer held by the caller keeps its header from being
+	 * evicted or re-keyed, and an anonymous header only becomes hashed
+	 * through arc_write(), which the caller would have to issue itself.
+	 */
+	if (hdr->b_l1hdr.b_state == arc_anon)
+		return (B_TRUE);
+	return (mutex_tryenter(HDR_LOCK(hdr)) != 0);
+}
+
+void
+arc_buf_destroy_locked(arc_buf_t *buf, const void *tag)
+{
+	arc_buf_hdr_t *hdr = buf->b_hdr;
+
+	if (hdr->b_l1hdr.b_state == arc_anon) {
+		arc_buf_destroy(buf, tag);
+		return;
+	}
+
+	kmutex_t *hash_lock = HDR_LOCK(hdr);
+	ASSERT(MUTEX_HELD(hash_lock));
+	ASSERT3P(hdr, ==, buf->b_hdr);
+	ASSERT3P(hdr->b_l1hdr.b_buf, !=, NULL);
+	ASSERT3P(hash_lock, ==, HDR_LOCK(hdr));
+	ASSERT3P(hdr->b_l1hdr.b_state, !=, arc_anon);
+	ASSERT3P(buf->b_data, !=, NULL);
+
+	arc_buf_destroy_impl(buf);
+	(void) remove_reference(hdr, tag);
+	mutex_exit(hash_lock);
+}
+
+/*
  * Evict the arc_buf_hdr that is provided as a parameter. The resultant
  * state of the header is dependent on its state prior to entering this
  * function. The following transitions are possible:
@@ -6114,8 +6170,12 @@ top:
 		abd_t *hdr_abd;
 		int alloc_flags = encrypted_read ? ARC_HDR_ALLOC_RDATA : 0;
 		arc_buf_contents_t type = BP_GET_BUFC_TYPE(bp);
+		boolean_t abd_allocated = B_FALSE;
 		int config_lock;
 		int error;
+
+		if ((*arc_flags & ARC_FLAG_UNCACHED) && !encrypted_read)
+			alloc_flags |= ARC_HDR_ALLOC_LINEAR;
 
 		if (*arc_flags & ARC_FLAG_CACHED_ONLY) {
 			if (hash_lock != NULL)
@@ -6161,6 +6221,22 @@ top:
 			arc_buf_hdr_t *exists = NULL;
 			hdr = arc_hdr_alloc(guid, psize, lsize,
 			    BP_IS_PROTECTED(bp), BP_GET_COMPRESS(bp), 0, type);
+
+			/*
+			 * Allocate the data buffer now, before the header
+			 * is inserted into the hash table.  Nothing else can
+			 * see the header yet, so no lock is needed, and the
+			 * hash lock stays out of the page allocation.  That
+			 * allocation can block in memory reclaim for a long
+			 * time when free memory is short; with the hash lock
+			 * held across it, every other user of this hash
+			 * bucket, dbuf_evict_one() and through it txg sync
+			 * would wait as well.  Should another thread insert
+			 * the same block meanwhile, arc_hdr_destroy() below
+			 * frees the buffer with the header.
+			 */
+			arc_hdr_alloc_abd(hdr, alloc_flags);
+			abd_allocated = B_TRUE;
 
 			if (!embedded_bp) {
 				hdr->b_dva = *BP_IDENTITY(bp);
@@ -6231,11 +6307,8 @@ top:
 				goto top;
 			}
 		}
-		if (*arc_flags & ARC_FLAG_UNCACHED) {
+		if (*arc_flags & ARC_FLAG_UNCACHED)
 			arc_hdr_set_flags(hdr, ARC_FLAG_UNCACHED);
-			if (!encrypted_read)
-				alloc_flags |= ARC_HDR_ALLOC_LINEAR;
-		}
 
 		/*
 		 * Take additional reference for IO_IN_PROGRESS.  It stops
@@ -6247,7 +6320,14 @@ top:
 		if (!embedded_bp)
 			arc_access(hdr, *arc_flags, B_FALSE);
 		arc_hdr_set_flags(hdr, ARC_FLAG_IO_IN_PROGRESS);
-		arc_hdr_alloc_abd(hdr, alloc_flags);
+		/*
+		 * A header found in a ghost state, or one that has the
+		 * decrypted data when the raw data was asked for, is already
+		 * in the hash table, so its buffer is still allocated under
+		 * the hash lock.  New headers were handled above.
+		 */
+		if (!abd_allocated)
+			arc_hdr_alloc_abd(hdr, alloc_flags);
 		if (encrypted_read) {
 			ASSERT(HDR_HAS_RABD(hdr));
 			size = HDR_GET_PSIZE(hdr);
