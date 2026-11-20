@@ -628,8 +628,14 @@ spa_prop_get(spa_t *spa, nvlist_t *nv)
 	dsl_pool_t *dp;
 	int err = 0;
 
+	/*
+	 * The pool may be in the namespace but not loaded, for example after
+	 * a failed open (see zfs_ioc_pool_get_props()).  Then there is no
+	 * DSL pool and no MOS, and only the spa config properties are valid.
+	 */
 	dp = spa_get_dsl(spa);
-	dsl_pool_config_enter(dp, FTAG);
+	if (dp != NULL)
+		dsl_pool_config_enter(dp, FTAG);
 	za = zap_attribute_alloc();
 	mutex_enter(&spa->spa_props_lock);
 
@@ -639,7 +645,7 @@ spa_prop_get(spa_t *spa, nvlist_t *nv)
 	spa_prop_get_config(spa, nv);
 
 	/* If no pool property object, no more prop to get. */
-	if (mos == NULL || spa->spa_pool_props_object == 0)
+	if (dp == NULL || mos == NULL || spa->spa_pool_props_object == 0)
 		goto out;
 
 	/*
@@ -714,7 +720,8 @@ spa_prop_get(spa_t *spa, nvlist_t *nv)
 	zap_cursor_fini(&zc);
 out:
 	mutex_exit(&spa->spa_props_lock);
-	dsl_pool_config_exit(dp, FTAG);
+	if (dp != NULL)
+		dsl_pool_config_exit(dp, FTAG);
 	zap_attribute_free(za);
 
 	if (err && err != ENOENT)
