@@ -616,6 +616,9 @@ vdev_mirror_io_start_impl(zio_t *zio, mirror_map_t *mm)
 
 	if (zio->io_type == ZIO_TYPE_READ) {
 		if ((zio->io_flags & ZIO_FLAG_SCRUB) && !mm->mm_resilvering) {
+			ASSERT(!(zio->io_flags & ZIO_FLAG_SCAN_THREAD) ||
+			    zio->io_vd == NULL ||
+			    !zio->io_vd->vdev_top->vdev_rebuilding);
 			/*
 			 * For scrubbing reads we need to issue reads to all
 			 * children.  One child can reuse parent buffer, but
