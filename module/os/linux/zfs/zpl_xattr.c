@@ -1092,7 +1092,13 @@ zpl_get_posix_acl(struct inode *ip, int type)
 	return (acl);
 }
 
-int
+/*
+ * Apply the umask or the parent's default ACL to an inode that has been
+ * created with the requested mode.  Every create used to work this way;
+ * zpl_prepare_acl() explains when one still does.  The mode change is not
+ * logged.
+ */
+static int
 zpl_init_acl(struct inode *ip, struct inode *dir)
 {
 	struct posix_acl *acl = NULL;
@@ -1139,6 +1145,97 @@ out:
 	zpl_posix_acl_release(acl);
 
 	return (error);
+}
+
+/*
+ * Work out, before an inode is created, the mode that the umask or the
+ * parent's default ACL gives it, so that it is created and logged with
+ * that mode.  zpl_apply_acl() stores the ACLs once the inode exists.
+ *
+ * Inheritable NFSv4 ACEs on the directory, which only another platform
+ * can have set, are combined with whatever mode the inode is created
+ * with.  Such a directory keeps the order that has always applied to it:
+ * the inode is created with the requested mode, and zpl_apply_acl() calls
+ * zpl_init_acl().
+ */
+int
+zpl_prepare_acl(struct inode *dir, umode_t *mode, zpl_acl_init_t *init)
+{
+	int error;
+
+	if (ITOZSB(dir)->z_acl_type != ZFS_ACLTYPE_POSIX || S_ISLNK(*mode))
+		return (0);
+
+	if (ITOZ(dir)->z_pflags & ZFS_INHERIT_ACE) {
+		init->after_create = B_TRUE;
+		return (0);
+	}
+
+	init->default_acl = zpl_get_posix_acl(dir, ACL_TYPE_DEFAULT);
+	if (IS_ERR(init->default_acl)) {
+		error = PTR_ERR(init->default_acl);
+		init->default_acl = NULL;
+		return (error);
+	}
+
+	if (!init->default_acl) {
+		*mode &= ~current_umask();
+		return (0);
+	}
+
+	/*
+	 * __posix_acl_create() replaces the ACL it is given with a copy
+	 * that it has fitted to the mode.  Only a directory keeps the
+	 * default ACL as well.
+	 */
+	if (S_ISDIR(*mode)) {
+		init->access_acl = posix_acl_dup(init->default_acl);
+	} else {
+		init->access_acl = init->default_acl;
+		init->default_acl = NULL;
+	}
+	error = __posix_acl_create(&init->access_acl, GFP_KERNEL, mode);
+	if (error < 0) {
+		zpl_release_acl(init);
+		return (error);
+	}
+	if (error == 0) {
+		zpl_posix_acl_release(init->access_acl);
+		init->access_acl = NULL;
+	}
+
+	return (0);
+}
+
+int
+zpl_apply_acl(struct inode *ip, struct inode *dir,
+    const zpl_acl_init_t *init)
+{
+	int error;
+
+	if (init->after_create)
+		return (zpl_init_acl(ip, dir));
+
+	if (init->default_acl) {
+		error = zpl_set_posix_acl(ip, init->default_acl,
+		    ACL_TYPE_DEFAULT);
+		if (error)
+			return (error);
+	}
+	if (init->access_acl)
+		return (zpl_set_posix_acl(ip, init->access_acl,
+		    ACL_TYPE_ACCESS));
+
+	return (0);
+}
+
+void
+zpl_release_acl(zpl_acl_init_t *init)
+{
+	zpl_posix_acl_release(init->default_acl);
+	zpl_posix_acl_release(init->access_acl);
+	init->default_acl = NULL;
+	init->access_acl = NULL;
 }
 
 int
