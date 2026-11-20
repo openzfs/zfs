@@ -150,7 +150,15 @@ cleanup_all() {
 	# shellcheck disable=2116,2086
 	msg "Removing pool(s):     $(echo ${TEST_POOLS})"
 	for TEST_POOL in $TEST_POOLS; do
-		sudo env ASAN_OPTIONS=detect_leaks=false "$ZPOOL" destroy "${TEST_POOL}"
+		# A pool imported read-only cannot be destroyed, only exported.
+		if [ "$(ASAN_OPTIONS=detect_leaks=false "$ZPOOL" get -Ho value \
+		    readonly "${TEST_POOL}")" = "on" ]; then
+			POOL_CMD="export"
+		else
+			POOL_CMD="destroy"
+		fi
+		sudo env ASAN_OPTIONS=detect_leaks=false "$ZPOOL" "$POOL_CMD" \
+		    "${TEST_POOL}"
 	done
 
 	if [ "$UNAME" != "FreeBSD" ] ; then
