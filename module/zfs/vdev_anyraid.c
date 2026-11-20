@@ -730,6 +730,22 @@ loop:
 	for (int c = 0; c < vd->vdev_children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
 
+		/*
+		 * The child was opened before the tile size was known, so
+		 * vdev_open() could not check it against the tiles the map
+		 * records for it.  A device that shrank, or was reused after
+		 * the map was written, can hold fewer of them, or none: fail
+		 * it as vdev_open() fails a device below its min_asize.
+		 */
+		if (cvd->vdev_open_error == 0 && cvd->vdev_asize <
+		    VDEV_ANYRAID_TOTAL_MAP_SIZE +
+		    (*child_capacities)[c] * tile_size) {
+			vdev_dbgmsg(cvd, "too small for its %d anyraid tiles",
+			    (*child_capacities)[c]);
+			vdev_set_state(cvd, B_TRUE, VDEV_STATE_CANT_OPEN,
+			    VDEV_AUX_BAD_LABEL);
+			cvd->vdev_open_error = SET_ERROR(EINVAL);
+		}
 		if (cvd->vdev_open_error != 0) {
 			lasterror = cvd->vdev_open_error;
 			numerrors++;
@@ -737,10 +753,14 @@ loop:
 		}
 	}
 
-	if (numerrors > var->vd_nparity)
+	if (numerrors > var->vd_nparity) {
 		vd->vdev_stat.vs_aux = VDEV_AUX_NO_REPLICAS;
-	else
+		kmem_free(*child_capacities, sizeof (**child_capacities) *
+		    count);
+		*child_capacities = NULL;
+	} else {
 		lasterror = 0;
+	}
 
 out:
 	{
@@ -1096,8 +1116,9 @@ vdev_anyraid_mirror_start(zio_t *zio, anyraid_tile_t *tile)
 		mc->mc_vd = cvd;
 		mc->mc_offset = VDEV_ANYRAID_START_OFFSET +
 		    atn->atn_offset * rsize + zio->io_offset % rsize;
-		ASSERT3U(mc->mc_offset, <, cvd->vdev_psize -
-		    VDEV_LABEL_END_SIZE);
+		/* A child that failed to open may be too small for it */
+		ASSERT(vdev_is_dead(cvd) || mc->mc_offset <
+		    cvd->vdev_psize - VDEV_LABEL_END_SIZE);
 		mm->mm_rebuilding = mc->mc_rebuilding = B_FALSE;
 		atn = list_next(&tile->at_list, atn);
 	}
