@@ -448,6 +448,21 @@ out:
 	return (error);
 }
 
+/*
+ * Is the mode that goes with this inode's POSIX access ACL written to the
+ * intent log?  zpl_set_posix_acl_mode() logs it only where changes to
+ * xattrs kept as system attributes are logged, and only for a trivial
+ * native ACL.  Whatever else puts an ACL change into the log ahead of
+ * that mode, or together with it, follows the same answer.  Where the
+ * answer is no, the log is what it has always been.
+ */
+static boolean_t
+zpl_acl_mode_logged(struct inode *ip)
+{
+	return ((ITOZ(ip)->z_pflags & ZFS_ACL_TRIVIAL) != 0 &&
+	    zfs_sa_xattr_log_enabled(ITOZSB(ip)->z_os));
+}
+
 static int
 zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
     size_t size, int flags, cred_t *cr)
@@ -458,6 +473,7 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 	int lookup_flags, error;
 	const int xattr_mode = S_IFREG | 0644;
 	loff_t pos = 0;
+	boolean_t sync;
 
 	/*
 	 * Lookup the xattr directory.  When we're adding an entry pass
@@ -483,8 +499,22 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 
 	/* Remove a specific name xattr when value is set to NULL. */
 	if (value == NULL) {
-		if (xzp)
+		if (xzp) {
+			/*
+			 * Every commit writes this removal, but only a commit
+			 * of the inode writes its mode.  Write the inode's
+			 * pending records first, so that a commit for another
+			 * file cannot leave the ACL's mask, or an earlier
+			 * chmod(2), as the owning group's permissions.  Only
+			 * where the mode that replaces the mask is logged.
+			 */
+			if (strcmp(name, XATTR_NAME_POSIX_ACL_ACCESS) == 0 &&
+			    zpl_acl_mode_logged(ip)) {
+				zil_async_to_sync(ITOZSB(ip)->z_log,
+				    ITOZ(ip)->z_id);
+			}
 			error = -zfs_remove(dxzp, (char *)name, cr, 0);
+		}
 
 		goto out;
 	}
@@ -505,11 +535,24 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 
 	ASSERT(xzp != NULL);
 
-	error = -zfs_freesp(xzp, 0, 0, xattr_mode, TRUE);
-	if (error)
-		goto out;
+	/*
+	 * Where the mode that goes with an access ACL is logged, the ACL's
+	 * contents must reach the log with it.  The xattr file's records are
+	 * not written by a commit of the owner, so log them as an O_SYNC open
+	 * would, for every commit to write in order.  A default ACL goes with
+	 * no mode.
+	 */
+	sync = (zpl_acl_mode_logged(ip) &&
+	    strcmp(name, XATTR_NAME_POSIX_ACL_ACCESS) == 0);
+	if (sync && atomic_inc_32_nv(&xzp->z_sync_cnt) == 1)
+		zil_async_to_sync(ITOZSB(ip)->z_log, xzp->z_id);
 
-	error = -zfs_write_simple(xzp, value, size, pos, NULL);
+	error = -zfs_freesp(xzp, 0, 0, xattr_mode, TRUE);
+	if (error == 0)
+		error = -zfs_write_simple(xzp, value, size, pos, NULL);
+
+	if (sync)
+		atomic_dec_32(&xzp->z_sync_cnt);
 out:
 	if (error == 0) {
 		zpl_inode_set_ctime_to_ts(ip, current_time(ip));
@@ -979,10 +1022,65 @@ static xattr_handler_t zpl_xattr_security_handler = {
  * attribute implemented by filesystems in the kernel." - xattr(7)
  */
 #ifdef CONFIG_FS_POSIX_ACL
-int
-zpl_set_posix_acl(struct inode *ip, struct posix_acl *acl, int type)
+/*
+ * Give an inode the mode that goes with its POSIX access ACL.
+ *
+ * With a trivial native ACL the change goes through zfs_setattr(), which
+ * rebuilds the native ACL for the new mode.  Two things about a chmod(2)
+ * do not apply:
+ *
+ * - Its set-id policy.  The caller was allowed to set the ACL, and only
+ *   the permission bits of the mode come from it.
+ *
+ * - Its log record, unless changes to xattrs kept as system attributes are
+ *   logged.  Where they are not, replay finds the ACL as it last reached
+ *   the disk, and must find the mode that went with it.
+ *
+ * A native ACL is not trivial only if another platform set it, or set
+ * inheritable ACEs on a parent directory.  zfs_setattr() would apply the
+ * aclmode property to such an ACL: discard it, or refuse the change.
+ * Those inodes are left as they have always been handled: the mode alone
+ * is updated, and the update is not logged.
+ */
+static int
+zpl_set_posix_acl_mode(struct inode *ip, umode_t mode, zidmap_t *idmap)
 {
-	char *name, *value = NULL;
+	znode_t *zp = ITOZ(ip);
+	vattr_t vap = { 0 };
+	cred_t *cr = CRED();
+	fstrans_cookie_t cookie;
+	int flags = ATTR_NOSETIDCHECK;
+	int error;
+
+	if (!(zp->z_pflags & ZFS_ACL_TRIVIAL)) {
+		zp->z_mode = ip->i_mode = mode;
+		zpl_inode_set_ctime_to_ts(ip, current_time(ip));
+		atomic_inc_64(&zp->z_seq);
+		zfs_mark_inode_dirty(ip);
+		return (0);
+	}
+
+	if (!zpl_acl_mode_logged(ip))
+		flags |= ATTR_NOZIL;
+
+	vap.va_mask = ATTR_MODE;
+	vap.va_mode = mode;
+	crhold(cr);
+	cookie = spl_fstrans_mark();
+	error = -zfs_setattr_idmap(zp, &vap, flags, cr, idmap);
+	spl_fstrans_unmark(cookie);
+	crfree(cr);
+
+	return (error);
+}
+
+int
+zpl_set_posix_acl(struct inode *ip, struct posix_acl *acl, int type,
+    zidmap_t *idmap)
+{
+	const char *name;
+	char *value = NULL;
+	umode_t mode = ip->i_mode;
 	int error = 0;
 	size_t size = 0;
 
@@ -993,29 +1091,11 @@ zpl_set_posix_acl(struct inode *ip, struct posix_acl *acl, int type)
 	case ACL_TYPE_ACCESS:
 		name = XATTR_NAME_POSIX_ACL_ACCESS;
 		if (acl) {
-			umode_t mode = ip->i_mode;
 			error = posix_acl_equiv_mode(acl, &mode);
-			if (error < 0) {
+			if (error < 0)
 				return (error);
-			} else {
-				/*
-				 * The mode bits will have been set by
-				 * ->zfs_setattr()->zfs_acl_chmod_setattr()
-				 * using the ZFS ACL conversion.  If they
-				 * differ from the Posix ACL conversion dirty
-				 * the inode to write the Posix mode bits.
-				 */
-				if (ip->i_mode != mode) {
-					ip->i_mode = ITOZ(ip)->z_mode = mode;
-					zpl_inode_set_ctime_to_ts(ip,
-					    current_time(ip));
-					atomic_inc_64(&ITOZ(ip)->z_seq);
-					zfs_mark_inode_dirty(ip);
-				}
-
-				if (error == 0)
-					acl = NULL;
-			}
+			if (error == 0)
+				acl = NULL;
 		}
 		break;
 
@@ -1027,6 +1107,19 @@ zpl_set_posix_acl(struct inode *ip, struct posix_acl *acl, int type)
 
 	default:
 		return (-EINVAL);
+	}
+
+	/*
+	 * The mode and the ACL are separate changes and separate log
+	 * records.  A mode that comes with an ACL is set after the ACL is
+	 * stored, and a mode that replaces one is set before the ACL is
+	 * removed, so that the log never has the ACL's mask as group
+	 * permissions ahead of the ACL, or behind its removal.
+	 */
+	if (acl == NULL && mode != ip->i_mode) {
+		error = zpl_set_posix_acl_mode(ip, mode, idmap);
+		if (error)
+			return (error);
 	}
 
 	if (acl) {
@@ -1043,13 +1136,16 @@ zpl_set_posix_acl(struct inode *ip, struct posix_acl *acl, int type)
 	error = zpl_xattr_set(ip, name, value, size, 0);
 	if (value)
 		kmem_free(value, size);
+	if (error)
+		return (error);
 
-	if (!error) {
-		if (acl)
-			set_cached_acl(ip, type, acl);
-		else
-			forget_cached_acl(ip, type);
-	}
+	if (acl)
+		set_cached_acl(ip, type, acl);
+	else
+		forget_cached_acl(ip, type);
+
+	if (acl && mode != ip->i_mode)
+		error = zpl_set_posix_acl_mode(ip, mode, idmap);
 
 	return (error);
 }
@@ -1059,7 +1155,7 @@ zpl_get_posix_acl(struct inode *ip, int type)
 {
 	struct posix_acl *acl;
 	void *value = NULL;
-	char *name;
+	const char *name;
 
 	switch (type) {
 	case ACL_TYPE_ACCESS:
@@ -1093,7 +1189,7 @@ zpl_get_posix_acl(struct inode *ip, int type)
 }
 
 int
-zpl_init_acl(struct inode *ip, struct inode *dir)
+zpl_init_acl(struct inode *ip, struct inode *dir, zidmap_t *idmap)
 {
 	struct posix_acl *acl = NULL;
 	int error = 0;
@@ -1118,7 +1214,8 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 		umode_t mode;
 
 		if (S_ISDIR(ip->i_mode)) {
-			error = zpl_set_posix_acl(ip, acl, ACL_TYPE_DEFAULT);
+			error = zpl_set_posix_acl(ip, acl, ACL_TYPE_DEFAULT,
+			    idmap);
 			if (error)
 				goto out;
 		}
@@ -1131,7 +1228,7 @@ zpl_init_acl(struct inode *ip, struct inode *dir)
 			zfs_mark_inode_dirty(ip);
 			if (error > 0) {
 				error = zpl_set_posix_acl(ip, acl,
-				    ACL_TYPE_ACCESS);
+				    ACL_TYPE_ACCESS, idmap);
 			}
 		}
 	}
@@ -1142,7 +1239,7 @@ out:
 }
 
 int
-zpl_chmod_acl(struct inode *ip)
+zpl_chmod_acl(struct inode *ip, zidmap_t *idmap)
 {
 	struct posix_acl *acl;
 	int error;
@@ -1159,7 +1256,7 @@ zpl_chmod_acl(struct inode *ip)
 
 	error = __posix_acl_chmod(&acl, GFP_KERNEL, ip->i_mode);
 	if (!error)
-		error = zpl_set_posix_acl(ip, acl, ACL_TYPE_ACCESS);
+		error = zpl_set_posix_acl(ip, acl, ACL_TYPE_ACCESS, idmap);
 
 	zpl_posix_acl_release(acl);
 
@@ -1277,7 +1374,7 @@ __zpl_xattr_acl_set_access(zidmap_t *idmap,
 	} else {
 		acl = NULL;
 	}
-	error = zpl_set_posix_acl(ip, acl, type);
+	error = zpl_set_posix_acl(ip, acl, type, idmap);
 	zpl_posix_acl_release(acl);
 
 	return (error);
@@ -1314,7 +1411,7 @@ __zpl_xattr_acl_set_default(zidmap_t *idmap,
 		acl = NULL;
 	}
 
-	error = zpl_set_posix_acl(ip, acl, type);
+	error = zpl_set_posix_acl(ip, acl, type, idmap);
 	zpl_posix_acl_release(acl);
 
 	return (error);
