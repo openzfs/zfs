@@ -1030,10 +1030,24 @@ zfs_replay_setsaxattr(void *arg1, void *arg2, boolean_t byteswap)
 	/* Get xattr name, value and size from log record */
 	size = lr->lr_size;
 	name = (char *)&lr->lr_data[0];
-	if (size == 0) {
+	if (size == 0 && lr->lr_common.lrc_reclen <
+	    LR_SETSAXATTR_EMPTY_RECLEN(strlen(name) + 1)) {
 		value = NULL;
 		error = nvlist_remove(nvl, name, DATA_TYPE_BYTE_ARRAY);
+		/*
+		 * The system attributes may not hold the name.  Older
+		 * versions logged this record when removing an xattr kept
+		 * in the xattr directory and when setting an empty value,
+		 * and a name set while zfs_zil_saxattr was off is not in
+		 * the log either.  There is nothing to remove then, and
+		 * failing here would discard the rest of the log.
+		 */
+		if (error == ENOENT) {
+			error = 0;
+			goto out;
+		}
 	} else {
+		/* An lr_size of zero here is an empty value. */
 		value = &lr->lr_data[strlen(name) + 1];
 		/* Limited to 32k to keep nvpair memory allocations small */
 		if (size > DXATTR_MAX_ENTRY_SIZE) {

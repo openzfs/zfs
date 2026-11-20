@@ -774,11 +774,22 @@ zfs_log_setsaxattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 
 	namelen = strlen(name) + 1;
 	recsize += (namelen + size);
+	/*
+	 * An lr_size of zero means "remove", so an empty value needs
+	 * another way to be told apart from a removal: see
+	 * LR_SETSAXATTR_EMPTY_RECLEN().
+	 */
+	if (value != NULL && size == 0)
+		recsize = LR_SETSAXATTR_EMPTY_RECLEN(namelen);
 	itx = zil_itx_create(txtype, recsize);
 	lr = (lr_setsaxattr_t *)&itx->itx_lr;
 	lr->lr_foid = zp->z_id;
 	memcpy(&lr->lr_data[0], name, namelen);
-	if (value != NULL) {
+	if (value != NULL && size == 0) {
+		memset(&lr->lr_data[namelen], 0,
+		    recsize - sizeof (*lr) - namelen);
+		lr->lr_size = 0;
+	} else if (value != NULL) {
 		memcpy(&lr->lr_data[namelen], value, size);
 		lr->lr_size = size;
 	} else {
