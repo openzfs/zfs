@@ -102,6 +102,13 @@ typedef struct vdev_raidz_expand {
 	uint64_t vre_dtl_gen;
 
 	/*
+	 * Set by the expansion thread when the vdev is too wide for the
+	 * scratch area, which stops the expansion for as long as the pool
+	 * is imported.
+	 */
+	boolean_t vre_too_wide;
+
+	/*
 	 * Offset that is completing each txg
 	 */
 	uint64_t vre_offset_pertxg[TXG_SIZE];

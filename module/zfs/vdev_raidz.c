@@ -5137,7 +5137,8 @@ spa_raidz_expand_thread_check(void *arg, zthr_t *zthr)
 	spa_t *spa = arg;
 
 	return (spa->spa_raidz_expand != NULL &&
-	    !spa->spa_raidz_expand->vre_waiting_for_resilver);
+	    !spa->spa_raidz_expand->vre_waiting_for_resilver &&
+	    !spa->spa_raidz_expand->vre_too_wide);
 }
 
 /*
@@ -5167,6 +5168,32 @@ spa_raidz_expand_thread(void *arg, zthr_t *zthr)
 
 	/* Reflow the beginning portion using the scratch area */
 	if (vre->vre_offset == 0) {
+		/*
+		 * Earlier releases did not count the new child in
+		 * vdev_raidz_attach_check(), and accepted expansions that the
+		 * scratch area cannot hold, which would fail the VERIFY in
+		 * raidz_reflow_scratch_sync() on every import.  Nothing has
+		 * been moved yet, so leave the vdev in its old layout.
+		 */
+		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+		vdev_t *raidvd = vdev_lookup_top(spa, vre->vre_vdev_id);
+		uint64_t width = raidvd->vdev_children;
+		vre->vre_too_wide =
+		    (width << raidvd->vdev_ashift > VDEV_BOOT_SIZE);
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+		if (vre->vre_too_wide) {
+			cmn_err(CE_WARN, "pool '%s': raidz vdev %llu is too "
+			    "wide to be expanded to %llu children, its "
+			    "expansion is stopped", spa_name(spa),
+			    (u_longlong_t)vre->vre_vdev_id,
+			    (u_longlong_t)width);
+			spa_history_log_internal(spa, "reflow too wide", NULL,
+			    "vdev=%llu width=%llu",
+			    (u_longlong_t)vre->vre_vdev_id,
+			    (u_longlong_t)width);
+			return;
+		}
+
 		VERIFY0(dsl_sync_task(spa_name(spa),
 		    NULL, raidz_reflow_scratch_sync,
 		    vre, 0, ZFS_SPACE_CHECK_NONE));
