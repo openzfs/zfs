@@ -112,30 +112,6 @@ crypto_get_ptrs(crypto_data_t *out, void **iov_or_mp, offset_t *current_offset,
 	} /* end switch */
 }
 
-void
-crypto_free_mode_ctx(void *ctx)
-{
-	common_ctx_t *common_ctx = (common_ctx_t *)ctx;
-
-	switch (common_ctx->cc_flags & (CCM_MODE|GCM_MODE)) {
-	case CCM_MODE:
-		if (((ccm_ctx_t *)ctx)->ccm_pt_buf != NULL)
-			vmem_free(((ccm_ctx_t *)ctx)->ccm_pt_buf,
-			    ((ccm_ctx_t *)ctx)->ccm_data_len);
-
-		kmem_free(ctx, sizeof (ccm_ctx_t));
-		break;
-
-	case GCM_MODE:
-		gcm_clear_ctx((gcm_ctx_t *)ctx);
-		kmem_free(ctx, sizeof (gcm_ctx_t));
-		break;
-
-	default:
-		__builtin_unreachable();
-	}
-}
-
 static void *
 explicit_memset(void *s, int c, size_t n)
 {

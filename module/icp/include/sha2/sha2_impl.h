@@ -54,19 +54,10 @@ typedef enum {
 } sha2_mech_t;
 
 /*
- * Context for SHA2 mechanism.
- */
-typedef struct sha2_ctx {
-	sha2_mech_type_t	sc_mech_type;	/* type of context */
-	SHA2_CTX		sc_sha2_ctx;	/* SHA2 context */
-} sha2_ctx_t;
-
-/*
- * Context for SHA2 HMAC and HMAC GENERAL mechanisms.
+ * Context for SHA512 HMAC.
  */
 typedef struct sha2_hmac_ctx {
 	sha2_mech_type_t	hc_mech_type;	/* type of context */
-	uint32_t		hc_digest_len;	/* digest len in bytes */
 	SHA2_CTX		hc_icontext;	/* inner SHA2 context */
 	SHA2_CTX		hc_ocontext;	/* outer SHA2 context */
 } sha2_hmac_ctx_t;
