@@ -38,14 +38,14 @@ jobs:
       with:
         fetch-depth: 0
         ref: ${{ github.event.pull_request.head.sha }}
-    - name: Find completed fork job
+    - name: Find completed job
       id: reuse
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
         jobs=$(python3 .github/workflows/scripts/reuse-ci.py zfs-arm)
         echo "url=$(jq -r '.["zfs-arm"] // ""' <<< "$jobs")" >> "$GITHUB_OUTPUT"
-    - name: Reuse successful fork job
+    - name: Reuse successful job
       if: steps.reuse.outputs.url != ''
       env:
         REUSED_JOB: ${{ steps.reuse.outputs.url }}
