@@ -1182,6 +1182,11 @@ vdev_bdev_issue_discard(zfs_bdev_handle_t *bdh, sector_t sector,
 #elif defined(HAVE_BLKDEV_ISSUE_DISCARD_ASYNC_NOFLAGS)
 	error = __blkdev_issue_discard(BDH_BDEV(bdh),
 	    sector, nsect, GFP_NOFS, biop);
+#elif defined(HAVE_BLKDEV_ISSUE_DISCARD_ASYNC_NOFLAGS_VOID)
+	/* Returns void since 7.0; errors are reported through the bio. */
+	__blkdev_issue_discard(BDH_BDEV(bdh),
+	    sector, nsect, GFP_NOFS, biop);
+	error = 0;
 #elif defined(HAVE_BLKDEV_ISSUE_DISCARD_FLAGS)
 	error = blkdev_issue_discard(BDH_BDEV(bdh),
 	    sector, nsect, GFP_NOFS, 0);
