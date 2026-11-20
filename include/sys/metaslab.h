@@ -52,6 +52,7 @@ void metaslab_unflushed_bump(metaslab_t *, dmu_tx_t *, boolean_t);
 uint64_t metaslab_unflushed_changes_memused(metaslab_t *);
 
 int metaslab_load(metaslab_t *);
+int metaslab_load_allocated(metaslab_t *, zfs_range_tree_t *, boolean_t);
 void metaslab_unload(metaslab_t *);
 boolean_t metaslab_flush(metaslab_t *, dmu_tx_t *);
 
@@ -126,6 +127,7 @@ uint64_t metaslab_class_get_dspace(metaslab_class_t *);
 uint64_t metaslab_class_get_deferred(metaslab_class_t *);
 
 void metaslab_space_update(metaslab_group_t *, int64_t, int64_t, int64_t);
+void metaslab_account_unavailable(metaslab_t *);
 
 metaslab_group_t *metaslab_group_create(metaslab_class_t *, vdev_t *);
 void metaslab_group_destroy(metaslab_group_t *);
