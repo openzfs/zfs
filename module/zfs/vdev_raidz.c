@@ -2311,9 +2311,36 @@ vdev_raidz_get_logical_width_locked(vdev_raidz_t *vdrz, uint64_t txg)
 	return (width);
 }
 
+/*
+ * Make re the newest node of vd_expand_txgs, after it has been added.  Its
+ * fields must be visible before the pointer is.
+ */
+static void
+vdev_raidz_set_expand_last(vdev_raidz_t *vdrz, reflow_node_t *re)
+{
+	ASSERT(MUTEX_HELD(&vdrz->vd_expand_lock));
+	ASSERT3P(re, ==, avl_last(&vdrz->vd_expand_txgs));
+
+	membar_producer();
+	vdrz->vd_expand_last = re;
+}
+
 static uint64_t
 vdev_raidz_get_logical_width(vdev_raidz_t *vdrz, uint64_t txg)
 {
+	/*
+	 * Blocks born since the newest expansion, and all blocks of a vdev
+	 * that was never expanded, need no lookup.  Seeing the previous
+	 * pointer while a node is added is the same as looking up the tree
+	 * just before: nodes are only added at its end.
+	 */
+	reflow_node_t *re = vdrz->vd_expand_last;
+	membar_consumer();
+	if (re == NULL)
+		return (vdrz->vd_original_width);
+	if (txg >= re->re_txg)
+		return (re->re_logical_width);
+
 	mutex_enter(&vdrz->vd_expand_lock);
 	uint64_t width = vdev_raidz_get_logical_width_locked(vdrz, txg);
 	mutex_exit(&vdrz->vd_expand_lock);
@@ -4394,6 +4421,7 @@ raidz_reflow_complete_sync(void *arg, dmu_tx_t *tx)
 	re->re_logical_width = vdrz->vd_physical_width;
 	mutex_enter(&vdrz->vd_expand_lock);
 	avl_add(&vdrz->vd_expand_txgs, re);
+	vdev_raidz_set_expand_last(vdrz, re);
 	mutex_exit(&vdrz->vd_expand_lock);
 
 	vdev_t *vd = vdev_lookup_top(spa, vre->vre_vdev_id);
@@ -5476,6 +5504,19 @@ vdev_raidz_attach_sync(void *arg, dmu_tx_t *tx)
 
 	spa_feature_incr(spa, SPA_FEATURE_RAIDZ_EXPANSION, tx);
 
+	/*
+	 * Activate per-block deflation ratio accounting if the user has
+	 * enabled the feature.  The boundary comes from this txg, not from
+	 * the txg the feature was enabled in, because software without
+	 * this feature may have expanded the pool since then and charged
+	 * its blocks at the legacy ratio.
+	 */
+	if (spa_feature_is_enabled(spa,
+	    SPA_FEATURE_RAIDZ_EXPANSION_ACCOUNTING) &&
+	    !spa_feature_is_active(spa,
+	    SPA_FEATURE_RAIDZ_EXPANSION_ACCOUNTING))
+		vdev_raidz_expand_acct_activate(spa, tx);
+
 	vdrz->vd_physical_width++;
 
 	VERIFY0(spa->spa_uberblock.ub_raidz_reflow_info);
@@ -5700,6 +5741,12 @@ vdev_raidz_init(spa_t *spa, nvlist_t *nv, void **tsd)
 		zfs_dbgmsg("reflow_in_progress, %u wide, %d prior expansions",
 		    children, txgs_size);
 	}
+
+	mutex_enter(&vdrz->vd_expand_lock);
+	reflow_node_t *last = avl_last(&vdrz->vd_expand_txgs);
+	if (last != NULL)
+		vdev_raidz_set_expand_last(vdrz, last);
+	mutex_exit(&vdrz->vd_expand_lock);
 
 	*tsd = vdrz;
 
