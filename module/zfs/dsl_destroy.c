@@ -559,8 +559,8 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 	if (dsl_dataset_phys(ds)->ds_next_clones_obj != 0) {
 		uint64_t count __maybe_unused;
 		ASSERT0(zap_count(mos,
-		    dsl_dataset_phys(ds)->ds_next_clones_obj, &count) &&
-		    count == 0);
+		    dsl_dataset_phys(ds)->ds_next_clones_obj, &count));
+		ASSERT0(count);
 		VERIFY0(dmu_object_free(mos,
 		    dsl_dataset_phys(ds)->ds_next_clones_obj, tx));
 	}
