@@ -17,10 +17,9 @@
 #
 
 . $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/cli_root/zpool_online/zpool_online.cfg
 
 verify_runnable "global"
-verify_disk_count "$DISKS" 2
+verify_disk_count "$DISKS" 3
 
-DISK=${DISKS%% *}
-
-default_mirror_setup $DISKS
+default_mirror_setup $DISK1 $DISK2
