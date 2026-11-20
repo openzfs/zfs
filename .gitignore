@@ -46,6 +46,7 @@
 !.gitignore
 !.gitmodules
 !.mailmap
+!AI_POLICY.md
 !AUTHORS
 !AGENTS.md
 !CLAUDE.md
