@@ -39,9 +39,11 @@ extern "C" {
 typedef struct fmd_hdl fmd_hdl_t;
 
 typedef struct fmd_timer {
-	timer_t		ft_tid;
+	hrtime_t	ft_expire;	/* gethrtime() at expiry */
+	boolean_t	ft_armed;	/* not expired yet */
 	void		*ft_arg;
 	fmd_hdl_t	*ft_hdl;
+	struct fmd_timer *ft_next;	/* list of installed timers */
 } fmd_timer_t;
 
 #define	id_t	fmd_timer_t *
@@ -217,6 +219,7 @@ extern nvlist_t *fmd_nvl_dup(fmd_hdl_t *, nvlist_t *, int);
 extern fmd_hdl_t *fmd_module_hdl(const char *);
 extern boolean_t fmd_module_initialized(fmd_hdl_t *);
 extern void fmd_module_recv(fmd_hdl_t *, nvlist_t *, const char *);
+extern boolean_t fmd_timer_expire(hrtime_t *);
 
 /* ZFS FMA Retire Agent */
 extern void _zfs_retire_init(fmd_hdl_t *);
