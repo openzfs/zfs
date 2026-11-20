@@ -3759,6 +3759,29 @@ vdev_create_link_zap(vdev_t *vd, dmu_tx_t *tx)
 	return (zap);
 }
 
+/*
+ * A removal-driven config sync must not start optional MOS updates after
+ * backing devices have become unavailable.
+ */
+static boolean_t
+vdev_tree_usable_for_root_zap(vdev_t *vd)
+{
+	/* Holes and indirect vdevs have no backing device to check. */
+	if (vd->vdev_ops == &vdev_hole_ops ||
+	    vd->vdev_ops == &vdev_indirect_ops)
+		return (B_TRUE);
+	if (!vdev_readable(vd) || vd->vdev_remove_wanted)
+		return (B_FALSE);
+	if (vd->vdev_ops->vdev_op_leaf)
+		return (vdev_writeable(vd));
+
+	for (uint64_t i = 0; i < vd->vdev_children; i++) {
+		if (!vdev_tree_usable_for_root_zap(vd->vdev_child[i]))
+			return (B_FALSE);
+	}
+	return (B_TRUE);
+}
+
 void
 vdev_construct_zaps(vdev_t *vd, dmu_tx_t *tx)
 {
@@ -3775,8 +3798,15 @@ vdev_construct_zaps(vdev_t *vd, dmu_tx_t *tx)
 				vdev_zap_allocation_data(vd, tx);
 		}
 	}
+	/*
+	 * Degraded/offlined pools stay enabled but inactive; root properties
+	 * return EINVAL until a healthy config sync initializes the root ZAP.
+	 * Already-active features still require their metadata to be present.
+	 */
 	if (vd->vdev_ops == &vdev_root_ops && vd->vdev_root_zap == 0 &&
-	    spa_feature_is_enabled(vd->vdev_spa, SPA_FEATURE_AVZ_V2)) {
+	    spa_feature_is_enabled(vd->vdev_spa, SPA_FEATURE_AVZ_V2) &&
+	    (spa_feature_is_active(vd->vdev_spa, SPA_FEATURE_AVZ_V2) ||
+	    vdev_tree_usable_for_root_zap(vd))) {
 		if (!spa_feature_is_active(vd->vdev_spa, SPA_FEATURE_AVZ_V2))
 			spa_feature_incr(vd->vdev_spa, SPA_FEATURE_AVZ_V2, tx);
 		vd->vdev_root_zap = vdev_create_link_zap(vd, tx);
