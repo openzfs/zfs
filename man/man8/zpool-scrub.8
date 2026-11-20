@@ -29,7 +29,7 @@
 .Nm zpool
 .Cm scrub
 .Op Fl w
-.Op Fl t
+.Op Fl m | Fl t
 .Oo
 .Fl C |
 .Xo
@@ -145,6 +145,24 @@ Error scrubbing cannot be run simultaneously with other scrubbing or
 resilvering, nor can it be run when a scrub is paused.
 This option cannot be combined with
 .Fl C ,
+.Fl m ,
+.Fl p ,
+.Fl s ,
+or
+.Fl t .
+.It Fl m
+Perform a metadata-only scrub.
+This verifies all metadata blocks
+.Pq indirect blocks, dnodes, ZAP objects, space maps, etc.
+while skipping data block I/O.
+.Pp
+Because data blocks are not verified, a metadata-only scrub does not update
+the
+.Sy last_scrubbed_txg
+pool property, and does not replace the list of errors reported by
+.Nm zpool Cm status Fl v .
+Cannot be combined with
+.Fl e ,
 .Fl p ,
 .Fl s ,
 or
@@ -173,6 +191,7 @@ If keys are not loaded or unloaded during a thorough scrub the scrub will revert
 to doing a normal scrub for the encrypted blocks with key(s) unloaded.
 Cannot be combined with
 .Fl e ,
+.Fl m ,
 .Fl p ,
 or
 .Fl s .

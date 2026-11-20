@@ -187,6 +187,9 @@ print_scan_status(nvlist_t *nvroot, const char *pool_name)
 		func = "rebuild";
 		break;
 #endif
+	case POOL_SCAN_METASCRUB:
+		func = "metascrub";
+		break;
 	default:
 		func = "scan";
 	}
