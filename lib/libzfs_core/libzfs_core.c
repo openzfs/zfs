@@ -1112,7 +1112,7 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
     uint8_t *wkeydata, uint_t wkeylen, const char *origin, boolean_t force,
     boolean_t heal, boolean_t resumable, boolean_t raw, int input_fd,
     const dmu_replay_record_t *begin_record, uint64_t *read_bytes,
-    uint64_t *errflags, nvlist_t **errors)
+    uint64_t *errflags, nvlist_t **errors, boolean_t local_origin)
 {
 	dmu_replay_record_t drr;
 	char fsname[MAXPATHLEN];
@@ -1165,7 +1165,8 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 	/*
 	 * All receives with a payload should use the new interface.
 	 */
-	if (resumable || heal || raw || wkeydata != NULL || payload) {
+	if (resumable || heal || raw || wkeydata != NULL || payload ||
+	    local_origin) {
 		nvlist_t *outnvl = NULL;
 		nvlist_t *innvl = fnvlist_alloc();
 
@@ -1207,6 +1208,9 @@ recv_impl(const char *snapname, nvlist_t *recvdprops, nvlist_t *localprops,
 
 		if (heal)
 			fnvlist_add_boolean(innvl, "heal");
+
+		if (local_origin)
+			fnvlist_add_boolean(innvl, "local_origin");
 
 		error = lzc_ioctl(ZFS_IOC_RECV_NEW, fsname, innvl, &outnvl);
 
@@ -1328,7 +1332,7 @@ lzc_receive(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, boolean_t raw, int fd)
 {
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    B_FALSE, B_FALSE, raw, fd, NULL, NULL, NULL, NULL));
+	    B_FALSE, B_FALSE, raw, fd, NULL, NULL, NULL, NULL, B_FALSE));
 }
 
 /*
@@ -1342,7 +1346,7 @@ lzc_receive_resumable(const char *snapname, nvlist_t *props, const char *origin,
     boolean_t force, boolean_t raw, int fd)
 {
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    B_FALSE, B_TRUE, raw, fd, NULL, NULL, NULL, NULL));
+	    B_FALSE, B_TRUE, raw, fd, NULL, NULL, NULL, NULL, B_FALSE));
 }
 
 /*
@@ -1365,7 +1369,8 @@ lzc_receive_with_header(const char *snapname, nvlist_t *props,
 		return (EINVAL);
 
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
-	    B_FALSE, resumable, raw, fd, begin_record, NULL, NULL, NULL));
+	    B_FALSE, resumable, raw, fd, begin_record, NULL, NULL, NULL,
+	    B_FALSE));
 }
 
 /*
@@ -1405,7 +1410,7 @@ lzc_receive_one(const char *snapname, nvlist_t *props,
 	(void) action_handle, (void) cleanup_fd;
 	return (recv_impl(snapname, props, NULL, NULL, 0, origin, force,
 	    B_FALSE, resumable, raw, input_fd, begin_record,
-	    read_bytes, errflags, errors));
+	    read_bytes, errflags, errors, B_FALSE));
 }
 
 /*
@@ -1427,7 +1432,22 @@ lzc_receive_with_cmdprops(const char *snapname, nvlist_t *props,
 	(void) action_handle, (void) cleanup_fd;
 	return (recv_impl(snapname, props, cmdprops, wkeydata, wkeylen, origin,
 	    force, B_FALSE, resumable, raw, input_fd, begin_record,
-	    read_bytes, errflags, errors));
+	    read_bytes, errflags, errors, B_FALSE));
+}
+
+/* Allow a clone stream to reuse an origin owned by the destination. */
+int
+lzc_receive_with_local_origin(const char *snapname, nvlist_t *props,
+    nvlist_t *cmdprops, uint8_t *wkeydata, uint_t wkeylen, const char *origin,
+    boolean_t force, boolean_t resumable, boolean_t raw, int input_fd,
+    const dmu_replay_record_t *begin_record, int cleanup_fd,
+    uint64_t *read_bytes, uint64_t *errflags, uint64_t *action_handle,
+    nvlist_t **errors)
+{
+	(void) action_handle, (void) cleanup_fd;
+	return (recv_impl(snapname, props, cmdprops, wkeydata, wkeylen, origin,
+	    force, B_FALSE, resumable, raw, input_fd, begin_record,
+	    read_bytes, errflags, errors, B_TRUE));
 }
 
 /*
@@ -1447,7 +1467,7 @@ int lzc_receive_with_heal(const char *snapname, nvlist_t *props,
 	(void) action_handle, (void) cleanup_fd;
 	return (recv_impl(snapname, props, cmdprops, wkeydata, wkeylen, origin,
 	    force, heal, resumable, raw, input_fd, begin_record,
-	    read_bytes, errflags, errors));
+	    read_bytes, errflags, errors, B_FALSE));
 }
 
 /*
