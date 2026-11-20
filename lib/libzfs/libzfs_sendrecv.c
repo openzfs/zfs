@@ -5169,6 +5169,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		(void) lzc_hold(holds, cleanup_fd, &errors);
 		fnvlist_free(snapholds_nvlist);
 		fnvlist_free(holds);
+		fnvlist_free(errors);
 	}
 
 	if (err && (ioctl_errno == ENOENT || ioctl_errno == EEXIST)) {
