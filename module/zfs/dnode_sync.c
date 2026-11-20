@@ -83,11 +83,7 @@ dnode_increase_indirection(dnode_t *dn, dmu_tx_t *tx)
 
 		if (child == NULL)
 			continue;
-#ifdef	ZFS_DEBUG
-		DB_DNODE_ENTER(child);
-		ASSERT3P(DB_DNODE(child), ==, dn);
-		DB_DNODE_EXIT(child);
-#endif	/* DEBUG */
+		ASSERT3P(child->db_dnode, ==, dn);
 		if (child->db_parent && child->db_parent != dn->dn_dbuf) {
 			ASSERT(child->db_parent->db_level == db->db_level);
 			ASSERT(child->db_blkptr !=
@@ -172,8 +168,7 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 	uint64_t txg = tx->tx_txg;
 	dnode_t *dn;
 
-	DB_DNODE_ENTER(db);
-	dn = DB_DNODE(db);
+	dn = db->db_dnode;
 	epbs = dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT;
 	off = start - (db->db_blkid << epbs);
 	num = end - start + 1;
@@ -245,7 +240,6 @@ free_verify(dmu_buf_impl_t *db, uint64_t start, uint64_t end, dmu_tx_t *tx)
 
 		dbuf_rele(child, FTAG);
 	}
-	DB_DNODE_EXIT(db);
 }
 #endif
 
@@ -309,8 +303,7 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	dbuf_release_bp(db);
 	bp = db->db.db_data;
 
-	DB_DNODE_ENTER(db);
-	dn = DB_DNODE(db);
+	dn = db->db_dnode;
 	epbs = dn->dn_phys->dn_indblkshift - SPA_BLKPTRSHIFT;
 	ASSERT3U(epbs, <, 31);
 	shift = (db->db_level - 1) * epbs;
@@ -357,7 +350,6 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 		rw_exit(&db->db_rwlock);
 	}
 
-	DB_DNODE_EXIT(db);
 	arc_buf_freeze(db->db_buf);
 }
 
@@ -451,11 +443,7 @@ dnode_evict_dbufs(dnode_t *dn)
 	mutex_enter(&dn->dn_dbufs_mtx);
 	for (db = avl_first(&dn->dn_dbufs); db != NULL; db = db_next) {
 
-#ifdef	ZFS_DEBUG
-		DB_DNODE_ENTER(db);
-		ASSERT3P(DB_DNODE(db), ==, dn);
-		DB_DNODE_EXIT(db);
-#endif	/* DEBUG */
+		ASSERT3P(db->db_dnode, ==, dn);
 
 		mutex_enter(&db->db_mtx);
 		if (db->db_state != DB_EVICTING &&

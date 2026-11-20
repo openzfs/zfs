@@ -33,7 +33,6 @@ kernel_sys_HEADERS = \
 	%D%/zfs/sys/trace_dbgmsg.h \
 	%D%/zfs/sys/trace_dbuf.h \
 	%D%/zfs/sys/trace_dmu.h \
-	%D%/zfs/sys/trace_dnode.h \
 	%D%/zfs/sys/trace_multilist.h \
 	%D%/zfs/sys/trace_rrwlock.h \
 	%D%/zfs/sys/trace_txg.h \
