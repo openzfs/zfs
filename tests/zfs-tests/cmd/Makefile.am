@@ -170,3 +170,9 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/file_uncached
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/file_unlink_fh
 %C%_file_unlink_fh_SOURCES  = %D%/file/file_unlink_fh.c
+
+scripts_zfs_tests_bin_PROGRAMS += %D%/zil_crash_issue
+%C%_zil_crash_issue_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+%C%_zil_crash_issue_LDADD = \
+	libzpool.la \
+	libnvpair.la
