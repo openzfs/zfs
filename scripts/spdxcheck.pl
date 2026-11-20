@@ -186,6 +186,7 @@ my @path_license_tags = (
 	# Some of the fletcher modules are dual-licensed
 	'module/zcommon/zfs_fletcher' =>
 	    ['BSD-2-Clause OR GPL-2.0-only', 'CDDL-1.0'],
+	'contrib/zcommon/zfs_fletcher' => ['BSD-2-Clause OR GPL-2.0-only'],
 
 	'module/icp' => ['Apache-2.0', 'CDDL-1.0'],
 	'contrib/icp' => ['Apache-2.0', 'CDDL-1.0'],

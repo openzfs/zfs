@@ -3,6 +3,8 @@ libzfs_la_CFLAGS  = $(AM_CFLAGS) $(LIBRARY_CFLAGS)
 libzfs_la_CFLAGS += $(LIBCRYPTO_CFLAGS) $(ZLIB_CFLAGS)
 libzfs_la_CFLAGS += -fvisibility=hidden
 
+libzfs_la_CCASFLAGS = $(AM_CCASFLAGS)
+
 lib_LTLIBRARIES += libzfs.la
 CPPCHECKTARGETS += libzfs.la
 
@@ -59,6 +61,11 @@ nodist_libzfs_la_SOURCES = \
 	module/zcommon/zfs_valstr.c \
 	module/zcommon/zpool_prop.c \
 	module/zcommon/zprop_common.c
+
+if TARGET_CPU_AARCH64
+nodist_libzfs_la_SOURCES += \
+	module/zcommon/zfs_fletcher_aarch64_neon_impl.S
+endif
 
 # Special case:
 #

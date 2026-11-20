@@ -82,6 +82,7 @@ nodist_%C%_test_btree_SOURCES = \
 
 
 %C%_test_fletcher_CFLAGS = $(AM_CFLAGS)
+%C%_test_fletcher_CCASFLAGS = $(AM_CCASFLAGS)
 
 nodist_%C%_test_fletcher_SOURCES = \
 	module/zcommon/zfs_fletcher.c \
@@ -91,6 +92,11 @@ nodist_%C%_test_fletcher_SOURCES = \
 	module/zcommon/zfs_fletcher_sse.c \
 	module/zcommon/zfs_fletcher_superscalar.c \
 	module/zcommon/zfs_fletcher_superscalar4.c
+
+if TARGET_CPU_AARCH64
+nodist_%C%_test_fletcher_SOURCES += \
+	module/zcommon/zfs_fletcher_aarch64_neon_impl.S
+endif
 
 %C%_test_fletcher_SOURCES = \
 	%D%/test_fletcher.c
