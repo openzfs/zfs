@@ -132,12 +132,16 @@ struct arc_callback {
 	boolean_t		acb_noauth;
 	boolean_t		acb_nobuf;
 	boolean_t		acb_wait;
+	boolean_t		acb_reissue;
 	int			acb_wait_error;
 	kmutex_t		acb_wait_lock;
 	kcondvar_t		acb_wait_cv;
 	zbookmark_phys_t	acb_zb;
 	zio_t			*acb_zio_dummy;
 	zio_t			*acb_zio_head;
+	int			acb_zio_flags;
+	zio_priority_t		acb_priority;
+	arc_flags_t		acb_arc_flags;
 	arc_callback_t		*acb_prev;
 	arc_callback_t		*acb_next;
 };
