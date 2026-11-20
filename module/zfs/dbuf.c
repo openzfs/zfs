@@ -1792,8 +1792,8 @@ dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
 	}
 }
 
-int
-dbuf_read(dmu_buf_impl_t *db, zio_t *pio, dmu_flags_t flags)
+static int
+dbuf_read_once(dmu_buf_impl_t *db, zio_t *pio, dmu_flags_t flags)
 {
 	dnode_t *dn;
 	boolean_t miss = B_TRUE, need_wait = B_FALSE, prefetch;
@@ -1937,6 +1937,68 @@ done:
 		zio->io_error = err;
 		zio_nowait(zio);
 	}
+
+	return (err);
+}
+
+/*
+ * A read that must succeed (no DB_RF_CANFAIL), and that dbuf_read_once()
+ * waited for itself (no pio), came back with an error.  Its callers cannot
+ * handle that: they go on to use the data of the dbuf.
+ *
+ * An I/O error of the read never gets here: the zio layer suspends the pool
+ * and reissues the read when it is resumed.  What gets here is a block that
+ * yields no data without an I/O error of this read: its block pointer is
+ * rejected, it does not decompress or authenticate, or the read was another
+ * reader's, one allowed to fail.  The zio layer has nothing to reissue then.
+ *
+ * Read once more, in case the failure was that other reader's: an I/O error
+ * of our own read is then handled as above.  After that, do what a failed
+ * ZIO_FLAG_MUSTSUCCEED zio does: suspend the pool and read again each time
+ * it is resumed.  Each read waits for a zio of its own, so no error is
+ * carried from one read to the next.
+ */
+noinline static int
+dbuf_read_must_succeed(dmu_buf_impl_t *db, dmu_flags_t flags, int err)
+{
+	spa_t *spa = db->db_objset->os_spa;
+	dbuf_states_t state;
+
+	for (int tries = 1; err != 0; tries++) {
+		mutex_enter(&db->db_mtx);
+		state = db->db_state;
+		mutex_exit(&db->db_mtx);
+
+		/* The dbuf has its data (or wants none): not a failed read. */
+		if (state == DB_CACHED || state == DB_NOFILL)
+			break;
+
+		if (state == DB_UNCACHED && tries > 1) {
+			cmn_err(CE_WARN, "Pool '%s' cannot read a block it "
+			    "has to: objset %llu object %llu level %lld "
+			    "blkid %llu, error %d", spa_name(spa),
+			    (u_longlong_t)dmu_objset_id(db->db_objset),
+			    (u_longlong_t)db->db.db_object,
+			    (longlong_t)db->db_level,
+			    (u_longlong_t)db->db_blkid, err);
+			zio_suspend(spa, NULL, ZIO_SUSPEND_IOERR);
+			zio_resume_wait(spa);
+		}
+
+		err = dbuf_read_once(db, NULL, flags);
+	}
+
+	return (err);
+}
+
+int
+dbuf_read(dmu_buf_impl_t *db, zio_t *pio, dmu_flags_t flags)
+{
+	int err = dbuf_read_once(db, pio, flags);
+
+	/* With a pio, the error goes to the pio and to whoever waits for it. */
+	if (err != 0 && pio == NULL && !(flags & DB_RF_CANFAIL))
+		err = dbuf_read_must_succeed(db, flags, err);
 
 	return (err);
 }

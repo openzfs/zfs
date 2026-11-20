@@ -2186,6 +2186,11 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 			    &hdr->b_complevel);
 			abd_free(&dabd);
 
+			if (zio_injection_enabled && error == 0) {
+				error = zio_handle_decompress_injection(spa,
+				    zb, EINVAL);
+			}
+
 			/*
 			 * Absent hardware errors or software bugs, this should
 			 * be impossible, but log it anyway so we can debug it.
@@ -5900,6 +5905,14 @@ arc_cached(spa_t *spa, const blkptr_t *bp)
  *
  * arc_read_done() will invoke all the requested "done" functions
  * for readers of this block.
+ *
+ * Without ZIO_FLAG_CANFAIL, an I/O error of the read suspends the pool in
+ * the zio layer, which reissues the read when the pool is resumed.  Other
+ * errors still reach "done" and pio: a block pointer that
+ * zfs_blkptr_verify() rejects, data that does not decompress, decrypt or
+ * authenticate, which a new read would normally return unchanged, and the
+ * error of a read in progress, allowed to fail, that this one joined.  A
+ * caller that must not fail and can wait handles them, as dbuf_read() does.
  */
 int
 arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
@@ -6030,8 +6043,14 @@ top:
 				}
 				acb->acb_zb = *zb;
 				if (pio != NULL) {
+					/*
+					 * It only carries the error of the
+					 * read in progress, which may be
+					 * allowed to fail, to pio.
+					 */
 					acb->acb_zio_dummy = zio_null(pio,
-					    spa, NULL, NULL, NULL, zio_flags);
+					    spa, NULL, NULL, NULL,
+					    zio_flags | ZIO_FLAG_CANFAIL);
 				}
 				acb->acb_zio_head = head_zio;
 				acb->acb_next = hdr->b_l1hdr.b_acb;
@@ -6496,7 +6515,14 @@ done:
 	if (done)
 		done(NULL, zb, bp, buf, private);
 	if (pio && rc != 0) {
-		zio_t *zio = zio_null(pio, spa, NULL, NULL, NULL, zio_flags);
+		/*
+		 * This zio only carries rc to pio: it has no block pointer,
+		 * so the zio layer never suspends or reissues it.  It has to
+		 * be allowed to fail whatever the read: zio_done() asserts
+		 * that no other zio completes with an error.
+		 */
+		zio_t *zio = zio_null(pio, spa, NULL, NULL, NULL,
+		    zio_flags | ZIO_FLAG_CANFAIL);
 		zio->io_error = rc;
 		zio_nowait(zio);
 	}
