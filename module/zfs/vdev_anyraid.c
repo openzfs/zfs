@@ -328,7 +328,8 @@ child_read(zio_t *zio, vdev_t *vd, int header, uint64_t reloff, uint64_t size,
  * Reads the tile map of copy 'mapping' of cvd, map_length bytes long, into
  * map_abds[], one SPA_MAXBLOCKSIZE buffer per block, each checked against its
  * checksum in 'header'.  The tile map is 64 MiB and the largest I/O 16 MiB, so
- * it takes up to 4 reads.  The caller frees the buffers, also on error.
+ * it takes up to 4 reads; a longer map_length, or one that is not a whole
+ * number of entries, is invalid.  The caller frees the buffers, also on error.
  */
 int
 vdev_anyraid_read_map(vdev_t *cvd, int mapping, anyraid_header_t *header,
@@ -337,6 +338,11 @@ vdev_anyraid_read_map(vdev_t *cvd, int mapping, anyraid_header_t *header,
 	spa_t *spa = cvd->vdev_spa;
 	uint64_t ashift = cvd->vdev_top->vdev_ashift;
 	uint64_t header_size = VDEV_ANYRAID_MAP_HEADER_SIZE(ashift);
+
+	if (map_length > VDEV_ANYRAID_MAP_SIZE ||
+	    map_length % sizeof (anyraid_map_entry_t) != 0)
+		return (SET_ERROR(EINVAL));
+
 	zio_t *rio = zio_root(spa, NULL, NULL, flags);
 	uint_t num_maps = (((int64_t)map_length - 1) / SPA_MAXBLOCKSIZE) + 1;
 
@@ -483,11 +489,28 @@ vdev_anyraid_open_mappings(vdev_t *cvd, avl_tree_t *tree)
 		header->ah_txg = written_txg;
 
 		nvlist_t *nvl = header->ah_nvl;
+		uint64_t tile_size;
+		uint32_t map_length;
 		if (!nvlist_exists(nvl, VDEV_ANYRAID_HEADER_DISK) ||
-		    !nvlist_exists(nvl, VDEV_ANYRAID_HEADER_TILE_SIZE) ||
-		    !nvlist_exists(nvl, VDEV_ANYRAID_HEADER_LENGTH)) {
+		    nvlist_lookup_uint64(nvl, VDEV_ANYRAID_HEADER_TILE_SIZE,
+		    &tile_size) != 0 ||
+		    nvlist_lookup_uint32(nvl, VDEV_ANYRAID_HEADER_LENGTH,
+		    &map_length) != 0) {
 			free_header(header, header_size);
 			error = SET_ERROR(EINVAL);
+			continue;
+		}
+		/*
+		 * A tile holds a block of the largest size, no block crosses
+		 * one, and 2^16 of them fit in 64 bits.
+		 */
+		if (tile_size < SPA_MAXBLOCKSIZE || !ISP2(tile_size) ||
+		    tile_size > UINT64_MAX / VDEV_ANYRAID_MAX_TPD) {
+			free_header(header, header_size);
+			error = SET_ERROR(EINVAL);
+			zfs_dbgmsg("Anyraid header %d on vdev %s: invalid "
+			    "tile size %llu", i, cvd->vdev_path,
+			    (u_longlong_t)tile_size);
 			continue;
 		}
 
@@ -646,6 +669,12 @@ loop:
 		if (checkpoint_rb && cur_tile > var->vd_checkpoint_tile &&
 		    pat_cnt == 0)
 			break;
+		/* Bounding tile numbers also keeps skips from wrapping them. */
+		if (pat_cnt == 0 && cur_tile >= VDEV_ANYRAID_MAX_TILES) {
+			zfs_dbgmsg("Invalid tile %u", cur_tile);
+			error = SET_ERROR(EINVAL);
+			break;
+		}
 
 		int next_map = off / SPA_MAXBLOCKSIZE;
 		if (map != next_map) {
@@ -683,6 +712,24 @@ loop:
 			case AMET_LOC: {
 				anyraid_map_loc_entry_t *amle =
 				    &entry->ame_u.ame_amle;
+				uint32_t disk = amle_get_disk(amle);
+				if (disk >= vd->vdev_children) {
+					zfs_dbgmsg("Invalid disk %u of %llu",
+					    disk,
+					    (u_longlong_t)vd->vdev_children);
+					error = SET_ERROR(EINVAL);
+					off = map_length;
+					break;
+				}
+				uint32_t offset = amle_get_offset(amle);
+				if (offset >= (*child_capacities)[disk]) {
+					zfs_dbgmsg("Invalid offset %u of %d on "
+					    "disk %u", offset,
+					    (*child_capacities)[disk], disk);
+					error = SET_ERROR(EINVAL);
+					off = map_length;
+					break;
+				}
 				create_tile_entry(var, amle,
 				    &pat_cnt, &at, &cur_tile);
 				break;
@@ -692,6 +739,10 @@ loop:
 				error = SET_ERROR(ENOTSUP);
 				off = map_length;
 		}
+	}
+	if (error == 0 && pat_cnt != 0) {
+		zfs_dbgmsg("Map ends inside tile %u", cur_tile - 1);
+		error = SET_ERROR(EINVAL);
 	}
 	if (map_buf)
 		abd_return_buf(map_abds[map], map_buf, abd_length);
