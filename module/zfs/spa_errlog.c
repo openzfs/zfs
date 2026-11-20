@@ -393,6 +393,18 @@ check_filesystem(spa_t *spa, uint64_t head_ds, zbookmark_err_phys_t *zep,
 
 		/* Report errors in snapshots. */
 		if (affected) {
+			if (aff_snap_count >= snap_count) {
+				/*
+				 * The array length is the snapname
+				 * zap count. It matches the prev-snap
+				 * chain on a consistent pool. A corrupt
+				 * ds_prev_snap_obj chain could, in-theory,
+				 * be longer than the zap.
+				 */
+				dsl_dataset_rele_flags(ds,
+				    DS_HOLD_FLAG_DECRYPT, FTAG);
+				break;
+			}
 			snap_obj_array[aff_snap_count] = snap_obj;
 			aff_snap_count++;
 
