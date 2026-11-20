@@ -126,7 +126,8 @@ static int zfs_do_unzone(int argc, char **argv);
 static int zfs_do_help(int argc, char **argv);
 
 enum zfs_options {
-	ZFS_OPTION_JSON_NUMS_AS_INT = 1024
+	ZFS_OPTION_JSON_NUMS_AS_INT = 1024,
+	ZFS_OPTION_ESCAPE
 };
 
 typedef enum {
@@ -289,9 +290,9 @@ get_usage(zfs_help_t idx)
 		return ("\tupgrade [-v]\n"
 		    "\tupgrade [-r] [-V version] <-a | filesystem ...>\n");
 	case HELP_LIST:
-		return ("\tlist [-Hp] [-j [--json-int]] [-r|-d max] "
-		    "[-o property[,...]] [-s property]...\n\t    "
-		    "[-S property]... [-t type[,...]] "
+		return ("\tlist [-H [--escape]] [-p] [-j [--json-int]] "
+		    "[-r|-d max]\n\t    [-o property[,...]] [-s property]... "
+		    "[-S property]...\n\t    [-t type[,...]] "
 		    "[filesystem|volume|snapshot] ...\n");
 	case HELP_MOUNT:
 		return ("\tmount [-j]\n"
@@ -3619,6 +3620,7 @@ typedef struct list_cbdata {
 	boolean_t	cb_json;
 	nvlist_t	*cb_jsobj;
 	boolean_t	cb_json_as_int;
+	boolean_t	cb_escape;
 } list_cbdata_t;
 
 /*
@@ -3823,7 +3825,9 @@ collect_dataset(zfs_handle_t *zhp, list_cbdata_t *cb)
 			 * this is the last column and it is left-justified,
 			 * don't include a width format specifier.
 			 */
-			if (cb->cb_scripted || (pl->pl_next == NULL &&
+			if (cb->cb_escape)
+				zfs_print_escaped(stdout, propstr);
+			else if (cb->cb_scripted || (pl->pl_next == NULL &&
 			    !right_justify))
 				(void) fputs(propstr, stdout);
 			else if (right_justify) {
@@ -3885,6 +3889,7 @@ zfs_do_list(int argc, char **argv)
 	struct option long_options[] = {
 		{"json", no_argument, NULL, 'j'},
 		{"json-int", no_argument, NULL, ZFS_OPTION_JSON_NUMS_AS_INT},
+		{"escape", no_argument, NULL, ZFS_OPTION_ESCAPE},
 		{0, 0, 0, 0}
 	};
 
@@ -3915,6 +3920,9 @@ zfs_do_list(int argc, char **argv)
 		case ZFS_OPTION_JSON_NUMS_AS_INT:
 			cb.cb_json_as_int = B_TRUE;
 			cb.cb_literal = B_TRUE;
+			break;
+		case ZFS_OPTION_ESCAPE:
+			cb.cb_escape = B_TRUE;
 			break;
 		case 'H':
 			cb.cb_scripted = B_TRUE;
@@ -3992,6 +4000,18 @@ found3:;
 	if (!cb.cb_json && cb.cb_json_as_int) {
 		(void) fprintf(stderr, "'--json-int' only works with"
 		    " '-j' option\n");
+		usage(B_FALSE);
+	}
+
+	if (cb.cb_escape && cb.cb_json) {
+		(void) fprintf(stderr, "'--escape' and '-j' options "
+		    "are mutually exclusive\n");
+		usage(B_FALSE);
+	}
+
+	if (cb.cb_escape && !cb.cb_scripted) {
+		(void) fprintf(stderr, "'--escape' only works with"
+		    " '-H' option\n");
 		usage(B_FALSE);
 	}
 

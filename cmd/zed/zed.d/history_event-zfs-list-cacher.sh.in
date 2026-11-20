@@ -14,7 +14,7 @@ FSLIST_TMP="@runstatedir@/zfs-list.cache@${ZEVENT_POOL}"
 . "${ZED_ZEDLET_DIR}/zed-functions.sh"
 
 [ "$ZEVENT_SUBCLASS" != "history_event" ] && exit 0
-zed_check_cmd "${ZFS}" sort diff
+zed_check_cmd "${ZFS}" sort diff grep
 
 # If we are acting on a snapshot, we have nothing to do
 [ "${ZEVENT_HISTORY_DSNAME%@*}" = "${ZEVENT_HISTORY_DSNAME}" ] || exit 0
@@ -74,7 +74,16 @@ PROPS="name,mountpoint,canmount,atime,relatime,devices,exec\
 ,org.openzfs.systemd:wanted-by,org.openzfs.systemd:required-by\
 ,org.openzfs.systemd:nofail,org.openzfs.systemd:ignore"
 
-"${ZFS}" list -H -t filesystem -o "${PROPS}" -r "${ZEVENT_POOL}" > "${FSLIST_TMP}"
+"${ZFS}" list -H --escape -t filesystem -o "${PROPS}" -r "${ZEVENT_POOL}" \
+    > "${FSLIST_TMP}"
+
+# Keep the escapes only if a value holds a tab or a newline, or a backslash
+# that zfs-mount-generator would read as the start of an escape. Otherwise
+# write the values as they are, so that generators that predate --escape
+# read the cache as before.
+if ! grep -qE '\\0(011|012)|\\01340[0-3][0-7][0-7]' "${FSLIST_TMP}"; then
+    printf '%b\n' "$(cat "${FSLIST_TMP}")" > "${FSLIST_TMP}"
+fi
 
 # Sort the output so that it is stable
 sort "${FSLIST_TMP}" -o "${FSLIST_TMP}"
