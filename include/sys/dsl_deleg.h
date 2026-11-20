@@ -61,6 +61,7 @@ extern "C" {
 #define	ZFS_DELEG_PERM_PROJECTQUOTA	"projectquota"
 #define	ZFS_DELEG_PERM_PROJECTOBJUSED	"projectobjused"
 #define	ZFS_DELEG_PERM_PROJECTOBJQUOTA	"projectobjquota"
+#define	ZFS_DELEG_PERM_REDACT		"redact"
 
 /*
  * Note: the names of properties that are marked delegatable are also
