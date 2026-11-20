@@ -155,6 +155,10 @@ freebsd_zfs_crypt_done_sync(struct cryptop *crp)
 void
 freebsd_crypt_freesession(freebsd_crypt_session_t *sess)
 {
+	/* freebsd_crypt_newsession() failed, so there is nothing to free */
+	if (sess->fs_sid == NULL)
+		return;
+
 	mtx_destroy(&sess->fs_lock);
 	crypto_freesession(sess->fs_sid);
 	memset(sess, 0, sizeof (*sess));
@@ -238,7 +242,9 @@ freebsd_crypt_uio_debug_log(boolean_t encrypt,
 /*
  * Create a new cryptographic session.  This should
  * happen every time the key changes (including when
- * it's first loaded).
+ * it's first loaded).  The session must be zeroed.  It
+ * is left so if this fails, and freebsd_crypt_freesession()
+ * may be called on it either way.
  */
 int
 freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
@@ -308,6 +314,8 @@ freebsd_crypt_newsession(freebsd_crypt_session_t *sessp,
 	 * hardware drivers.
 	 */
 	error = crypto_newsession(&sessp->fs_sid, &csp, CRYPTOCAP_F_SOFTWARE);
+	if (error != 0)
+		goto bad;
 	mtx_init(&sessp->fs_lock, "FreeBSD Cryptographic Session Lock",
 	    NULL, MTX_DEF);
 	crypt_sessions++;

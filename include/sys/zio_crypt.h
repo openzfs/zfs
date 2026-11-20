@@ -54,6 +54,8 @@ typedef struct zio_crypt_info {
 
 extern const zio_crypt_info_t zio_crypt_table[ZIO_CRYPT_FUNCTIONS];
 
+struct zio_crypt_salt_cache;
+
 /* in memory representation of an unwrapped key that is loaded into memory */
 typedef struct zio_crypt_key {
 	/* encryption algorithm */
@@ -94,8 +96,13 @@ typedef struct zio_crypt_key {
 
 	/* lock for changing the salt and dependent values */
 	krwlock_t zk_salt_lock;
+
+	/* keys derived for salts other than zk_salt, see zio_crypt.c */
+	struct zio_crypt_salt_cache *zk_salt_cache;
 } zio_crypt_key_t;
 
+void zio_crypt_init(void);
+void zio_crypt_fini(void);
 void zio_crypt_key_destroy(zio_crypt_key_t *key);
 int zio_crypt_key_init(uint64_t crypt, zio_crypt_key_t *key);
 int zio_crypt_key_get_salt(zio_crypt_key_t *key, uint8_t *salt_out);
@@ -149,6 +156,16 @@ int zio_do_crypt_abd(boolean_t encrypt, zio_crypt_key_t *key,
 int zio_crypt_key_open_os(zio_crypt_key_t *key, const zio_crypt_info_t *ci);
 void zio_crypt_key_close_os(zio_crypt_key_t *key);
 int zio_crypt_key_reopen_os(zio_crypt_key_t *key, const zio_crypt_info_t *ci);
+
+/*
+ * Set up and free a session for a key other than the current one, for
+ * zio_encrypt_os()/zio_decrypt_os(). The key data must stay valid until
+ * zio_crypt_session_fini_os() returns. A session may be used by several
+ * threads at once.
+ */
+int zio_crypt_session_init_os(zio_crypt_session_t *sess,
+    const zio_crypt_info_t *ci, crypto_key_t *key);
+void zio_crypt_session_fini_os(zio_crypt_session_t *sess);
 
 /*
  * Initialise/free a pair of UIOs with space for iovcnt data elements. This
