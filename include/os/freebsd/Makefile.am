@@ -81,7 +81,6 @@ noinst_HEADERS = \
 	%D%/zfs/sys/trace_zfs.h \
 	%D%/zfs/sys/vdev_os.h \
 	%D%/zfs/sys/zfs_acl_impl.h \
-	%D%/zfs/sys/zfs_bootenv_os.h \
 	%D%/zfs/sys/zfs_context_os.h \
 	%D%/zfs/sys/zfs_ctldir.h \
 	%D%/zfs/sys/zfs_debug_os.h \
