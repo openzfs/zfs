@@ -372,6 +372,10 @@ zio_crypt_key_wrap(crypto_key_t *cwkey, zio_crypt_key_t *key, uint8_t *iv,
 		aad[2] = LE_64(key->zk_version);
 	}
 
+	/* The on-disk master key field has a fixed size for every cipher. */
+	memset(keydata_out + ci->ci_keylen, 0,
+	    MASTER_KEY_MAX_LEN - ci->ci_keylen);
+
 	zfs_uio_t puio, cuio;
 	int idx;
 	ret = zio_crypt_uios_init_os(&puio, &cuio, 2, &idx);
