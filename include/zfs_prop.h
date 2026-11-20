@@ -129,11 +129,14 @@ _ZFS_PROP_H int zprop_string_to_index(int, const char *, uint64_t *,
     zfs_type_t);
 _ZFS_PROP_H int zprop_index_to_string(int, uint64_t, const char **,
     zfs_type_t);
-_ZFS_PROP_H uint64_t zprop_random_value(int, uint64_t, zfs_type_t);
 _ZFS_PROP_H const char *zprop_values(int, zfs_type_t);
 _ZFS_PROP_H size_t zprop_width(int, boolean_t *, zfs_type_t);
 _ZFS_PROP_H boolean_t zprop_valid_for_type(int, zfs_type_t, boolean_t);
 _ZFS_PROP_H int zprop_valid_char(char c);
+
+#ifdef ZTEST
+_ZFS_PROP_H uint64_t zprop_random_value(int, uint64_t, zfs_type_t);
+#endif
 
 #ifdef	__cplusplus
 }

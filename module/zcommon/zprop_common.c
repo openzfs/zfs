@@ -348,6 +348,7 @@ zprop_index_to_string(int prop, uint64_t index, const char **string,
 	return (-1);
 }
 
+#ifdef ZTEST
 /*
  * Return a random valid property value.  Used by ztest.
  */
@@ -366,6 +367,7 @@ zprop_random_value(int prop, uint64_t seed, zfs_type_t type)
 
 	return (idx_tbl[seed % prop_tbl[prop].pd_table_size].pi_value);
 }
+#endif
 
 const char *
 zprop_values(int prop, zfs_type_t type)
@@ -494,7 +496,6 @@ EXPORT_SYMBOL(zprop_iter_common);
 EXPORT_SYMBOL(zprop_name_to_prop);
 EXPORT_SYMBOL(zprop_string_to_index);
 EXPORT_SYMBOL(zprop_index_to_string);
-EXPORT_SYMBOL(zprop_random_value);
 EXPORT_SYMBOL(zprop_values);
 EXPORT_SYMBOL(zprop_valid_for_type);
 EXPORT_SYMBOL(zprop_valid_char);

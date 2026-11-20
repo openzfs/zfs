@@ -39,6 +39,7 @@ arc_default_max(uint64_t min, uint64_t allmem)
 int64_t
 arc_available_memory(void)
 {
+#ifdef ZTEST
 	int64_t lowest = INT64_MAX;
 
 	/* Every 100 calls, free a small amount */
@@ -46,6 +47,9 @@ arc_available_memory(void)
 		lowest = -1024;
 
 	return (lowest);
+#else
+	return (arc_free_memory() - arc_sys_free);
+#endif
 }
 
 int
@@ -58,13 +62,21 @@ arc_memory_throttle(spa_t *spa, uint64_t reserve, uint64_t txg)
 uint64_t
 arc_all_memory(void)
 {
+#ifdef ZTEST
 	return (ptob(physmem) / 2);
+#else
+	return (ptob(physmem));
+#endif
 }
 
 uint64_t
 arc_free_memory(void)
 {
+#ifdef ZTEST
 	return (random_in_range(arc_all_memory() * 20 / 100));
+#else
+	return (ptob(sysconf(_SC_AVPHYS_PAGES)));
+#endif
 }
 
 void

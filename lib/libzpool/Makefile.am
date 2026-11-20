@@ -10,6 +10,12 @@ libzpool_la_CPPFLAGS += -DLIB_ZPOOL_BUILD
 lib_LTLIBRARIES += libzpool.la
 CPPCHECKTARGETS += libzpool.la
 
+libzpool_ztest_la_CFLAGS  = $(libzpool_la_CFLAGS)
+libzpool_ztest_la_CPPFLAGS  = $(libzpool_la_CPPFLAGS) -DZTEST
+
+lib_LTLIBRARIES += libzpool_ztest.la
+CPPCHECKTARGETS += libzpool_ztest.la
+
 dist_libzpool_la_SOURCES = \
 	%D%/abd_os.c \
 	%D%/arc_os.c \
@@ -214,6 +220,10 @@ nodist_libzpool_la_SOURCES += \
 	module/zfs/btree.c \
 	module/zfs/range_tree.c
 
+nodist_libzpool_ztest_la_SOURCES = \
+	$(dist_libzpool_la_SOURCES) \
+	$(nodist_libzpool_la_SOURCES)
+
 libzpool_la_LIBADD = \
 	libicp.la \
 	libnvpair.la \
@@ -231,6 +241,9 @@ endif
 if BUILD_FREEBSD
 libzpool_la_LIBADD += -lgeom
 endif
+
+libzpool_ztest_la_LDFLAGS = $(libzpool_la_LDFLAGS)
+libzpool_ztest_la_LIBADD = $(libzpool_la_LIBADD)
 
 if TARGET_CPU_POWERPC
 module/zfs/libzpool_la-vdev_raidz_math_powerpc_altivec.$(OBJEXT) : CFLAGS += -maltivec
