@@ -2349,21 +2349,6 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	dr_next = list_next(&db->db_dirty_records, dr);
 	ASSERT(dr_next == NULL || dr_next->dr_txg < txg);
 
-	if (db->db_blkptr != NULL) {
-		/*
-		 * We need to fill in zgd_bp with the current blkptr so that
-		 * the nopwrite code can check if we're writing the same
-		 * data that's already on disk.  We can only nopwrite if we
-		 * are sure that after making the copy, db_blkptr will not
-		 * change until our i/o completes.  We ensure this by
-		 * holding the db_mtx, and only allowing nopwrite if the
-		 * block is not already dirty (see below).  This is verified
-		 * by dmu_sync_done(), which VERIFYs that the db_blkptr has
-		 * not changed.
-		 */
-		*zgd->zgd_bp = *db->db_blkptr;
-	}
-
 	/*
 	 * Assume the on-disk data is X, the current syncing data (in
 	 * txg - 1) is Y, and the current in-memory data is Z (currently
@@ -2385,6 +2370,13 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 	 * (dnode_block_freed()).  This behavior is verified by
 	 * zio_done(), which VERIFYs that the override BP is identical
 	 * to the on-disk BP.
+	 *
+	 * Check this before copying the BP.  The sync of a free zeroes
+	 * the BP before it removes the range from dn_free_ranges under
+	 * dn_mtx, without holding db_mtx, so a copy made before the
+	 * zeroing and a check made after the removal would nopwrite
+	 * against the freed block.  If dnode_block_freed() finds no
+	 * free, any free has already zeroed the BP.
 	 */
 	if (dr_next != NULL) {
 		zp.zp_nopwrite = B_FALSE;
@@ -2393,6 +2385,21 @@ dmu_sync(zio_t *pio, uint64_t txg, dmu_sync_cb_t *done, zgd_t *zgd)
 		if (dnode_block_freed(DB_DNODE(db), db->db_blkid))
 			zp.zp_nopwrite = B_FALSE;
 		DB_DNODE_EXIT(db);
+	}
+
+	if (db->db_blkptr != NULL) {
+		/*
+		 * We need to fill in zgd_bp with the current blkptr so that
+		 * the nopwrite code can check if we're writing the same
+		 * data that's already on disk.  We can only nopwrite if we
+		 * are sure that after making the copy, db_blkptr will not
+		 * change until our i/o completes.  We ensure this by
+		 * holding the db_mtx, and only allowing nopwrite if the
+		 * block is not already dirty (see above).  This is verified
+		 * by dmu_sync_done(), which VERIFYs that the db_blkptr has
+		 * not changed.
+		 */
+		*zgd->zgd_bp = *db->db_blkptr;
 	}
 
 	ASSERT(dr->dr_txg == txg);
