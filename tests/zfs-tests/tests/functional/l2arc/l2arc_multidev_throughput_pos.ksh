@@ -45,8 +45,7 @@ function cleanup
 	restore_tunable L2ARC_NOPREFETCH
 	restore_tunable L2ARC_DWPD_LIMIT
 	restore_tunable L2ARC_EXT_HEADROOM_PCT
-	restore_tunable ARC_MIN
-	restore_tunable ARC_MAX
+	restore_arc_limits
 }
 log_onexit cleanup
 
@@ -55,8 +54,7 @@ save_tunable L2ARC_WRITE_MAX
 save_tunable L2ARC_NOPREFETCH
 save_tunable L2ARC_DWPD_LIMIT
 save_tunable L2ARC_EXT_HEADROOM_PCT
-save_tunable ARC_MIN
-save_tunable ARC_MAX
+save_arc_limits
 
 # Test parameters — cache_sz and write_max are chosen so that total writes
 # across all windows stay below the global marker reset threshold
