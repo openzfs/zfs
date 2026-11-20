@@ -1792,8 +1792,8 @@ dbuf_fix_old_data(dmu_buf_impl_t *db, uint64_t txg)
 	}
 }
 
-int
-dbuf_read(dmu_buf_impl_t *db, zio_t *pio, dmu_flags_t flags)
+static int
+dbuf_read_once(dmu_buf_impl_t *db, zio_t *pio, dmu_flags_t flags)
 {
 	dnode_t *dn;
 	boolean_t miss = B_TRUE, need_wait = B_FALSE, prefetch;
@@ -1845,7 +1845,11 @@ dbuf_read(dmu_buf_impl_t *db, zio_t *pio, dmu_flags_t flags)
 			    zio_t *, pio);
 			cv_wait(&db->db_changed, &db->db_mtx);
 		} while (db->db_state == DB_READ || db->db_state == DB_FILL);
-		if (db->db_state == DB_UNCACHED) {
+		/*
+		 * The read may have been allowed to fail: a reader that must
+		 * succeed reads the block itself below.
+		 */
+		if (db->db_state == DB_UNCACHED && (flags & DB_RF_CANFAIL)) {
 			err = SET_ERROR(EIO);
 			mutex_exit(&db->db_mtx);
 			DB_DNODE_EXIT(db);
@@ -1939,6 +1943,55 @@ done:
 	}
 
 	return (err);
+}
+
+static void
+dbuf_read_suspend(dmu_buf_impl_t *db, int err)
+{
+	spa_t *spa = db->db_objset->os_spa;
+
+	cmn_err(CE_WARN, "Pool '%s' cannot read a block it has to: objset %llu "
+	    "object %llu level %lld blkid %llu, error %d", spa_name(spa),
+	    (u_longlong_t)dmu_objset_id(db->db_objset),
+	    (u_longlong_t)db->db.db_object, (longlong_t)db->db_level,
+	    (u_longlong_t)db->db_blkid, err);
+	zio_suspend(spa, NULL, ZIO_SUSPEND_IOERR);
+	zio_resume_wait(spa);
+}
+
+/*
+ * A read without DB_RF_CANFAIL must succeed: its callers use the data.  The
+ * zio layer suspends the pool on its I/O errors, and a failed read of another
+ * reader that it joined, in the dbuf or in the ARC, is done again for it.  An
+ * error that still leaves the dbuf without data is fatal, such as a block
+ * that does not decompress: hand it to the pool's failmode, as a failed
+ * ZIO_FLAG_MUSTSUCCEED zio does, and read again each time the pool resumes.
+ * With a pio, errors reach the pio after dbuf_read() returns, where nothing
+ * reads again: a read with a pio must have DB_RF_CANFAIL.
+ */
+int
+dbuf_read(dmu_buf_impl_t *db, zio_t *pio, dmu_flags_t flags)
+{
+	ASSERT(pio == NULL || (flags & DB_RF_CANFAIL));
+
+	for (;;) {
+		int err = dbuf_read_once(db, pio, flags);
+		if (err == 0 || (flags & DB_RF_CANFAIL))
+			return (err);
+
+		mutex_enter(&db->db_mtx);
+		dbuf_states_t state = db->db_state;
+		mutex_exit(&db->db_mtx);
+
+		/*
+		 * With data, or wanting none, it is not a failed read.  In
+		 * DB_READ or DB_FILL, another thread has it: wait for that.
+		 */
+		if (state == DB_CACHED || state == DB_NOFILL)
+			return (err);
+		if (state == DB_UNCACHED)
+			dbuf_read_suspend(db, err);
+	}
 }
 
 static void
