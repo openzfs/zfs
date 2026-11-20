@@ -210,6 +210,35 @@ vdev_activate(vdev_t *vd)
 	vd->vdev_noalloc = B_FALSE;
 }
 
+/*
+ * Is vd the only normal class vdev that still allocates?  If so it must
+ * not be passivated, otherwise we will not be able to make progress
+ * because we can't allocate from any vdevs.
+ */
+static boolean_t
+vdev_last_allocating(vdev_t *vd)
+{
+	spa_t *spa = vd->vdev_spa;
+	vdev_t *rvd = spa->spa_root_vdev;
+	metaslab_class_t *normal = spa_normal_class(spa);
+
+	if (vd->vdev_mg->mg_class != normal)
+		return (B_FALSE);
+
+	for (uint64_t id = 0; id < rvd->vdev_children; id++) {
+		vdev_t *cvd = rvd->vdev_child[id];
+
+		if (cvd == vd || !vdev_is_concrete(cvd) ||
+		    vdev_is_dead(cvd))
+			continue;
+
+		if (cvd->vdev_mg->mg_class == normal && !cvd->vdev_noalloc)
+			return (B_FALSE);
+	}
+
+	return (B_TRUE);
+}
+
 static int
 vdev_passivate(vdev_t *vd, uint64_t *txg)
 {
@@ -218,35 +247,9 @@ vdev_passivate(vdev_t *vd, uint64_t *txg)
 
 	ASSERT(!vd->vdev_noalloc);
 
-	vdev_t *rvd = spa->spa_root_vdev;
 	metaslab_group_t *mg = vd->vdev_mg;
-	metaslab_class_t *normal = spa_normal_class(spa);
-	if (mg->mg_class == normal) {
-		/*
-		 * We must check that this is not the only allocating device in
-		 * the pool before passivating, otherwise we will not be able
-		 * to make progress because we can't allocate from any vdevs.
-		 */
-		boolean_t last = B_TRUE;
-		for (uint64_t id = 0; id < rvd->vdev_children; id++) {
-			vdev_t *cvd = rvd->vdev_child[id];
-
-			if (cvd == vd || !vdev_is_concrete(cvd) ||
-			    vdev_is_dead(cvd))
-				continue;
-
-			metaslab_class_t *mc = cvd->vdev_mg->mg_class;
-			if (mc != normal)
-				continue;
-
-			if (!cvd->vdev_noalloc) {
-				last = B_FALSE;
-				break;
-			}
-		}
-		if (last)
-			return (SET_ERROR(EINVAL));
-	}
+	if (vdev_last_allocating(vd))
+		return (SET_ERROR(EINVAL));
 
 	metaslab_group_passivate(mg);
 	ASSERT(!vd->vdev_islog);
@@ -1893,6 +1896,64 @@ vdev_prop_allocating_off(vdev_t *vd)
 		mutex_exit(&spa->spa_props_lock);
 	}
 	return (allocating == 0);
+}
+
+static void
+vdev_noalloc_restore(vdev_t *vd, const char *why)
+{
+	spa_t *spa = vd->vdev_spa;
+
+	spa_config_enter(spa, SCL_ALLOC | SCL_ZIO, FTAG, RW_WRITER);
+	metaslab_group_passivate(vd->vdev_mg);
+	if (vd->vdev_log_mg != NULL)
+		metaslab_group_passivate(vd->vdev_log_mg);
+	vdev_update_nonallocating_space(vd, B_TRUE);
+	vd->vdev_noalloc = B_TRUE;
+	vd->vdev_noalloc_restored = B_TRUE;
+	spa_config_exit(spa, SCL_ALLOC | SCL_ZIO, FTAG);
+
+	zfs_dbgmsg("made vdev %llu of %s non-allocating: it %s but its "
+	    "config did not say so", (u_longlong_t)vd->vdev_id,
+	    spa_name(spa), why);
+}
+
+/*
+ * Only the config tells vdev_load() that a top-level vdev must not
+ * allocate, and releases that predate the "allocating" vdev property
+ * neither write nor keep that flag: a removal they started, or a vdev
+ * set allocating=off that they imported, comes back allocating.  Make
+ * such vdevs non-allocating again before anything allocates; the config
+ * is rewritten once the pool is writable (vdev_noalloc_restored).
+ * Removals go first so that vdev_last_allocating() does not count them.
+ */
+void
+spa_vdev_noalloc_restore(spa_t *spa)
+{
+	vdev_t *rvd = spa->spa_root_vdev;
+
+	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *vd = rvd->vdev_child[c];
+
+		if (vd->vdev_mg != NULL && vd->vdev_removing &&
+		    !vd->vdev_noalloc)
+			vdev_noalloc_restore(vd, "is being removed");
+	}
+
+	for (uint64_t c = 0; c < rvd->vdev_children; c++) {
+		vdev_t *vd = rvd->vdev_child[c];
+
+		if (vd->vdev_mg == NULL || vd->vdev_islog ||
+		    vd->vdev_noalloc || !vdev_prop_allocating_off(vd))
+			continue;
+
+		if (vdev_last_allocating(vd)) {
+			zfs_dbgmsg("vdev %llu of %s has allocating=off but "
+			    "is the last vdev that can allocate",
+			    (u_longlong_t)vd->vdev_id, spa_name(spa));
+			continue;
+		}
+		vdev_noalloc_restore(vd, "has allocating=off");
+	}
 }
 
 static int

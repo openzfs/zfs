@@ -265,6 +265,7 @@ struct vdev {
 	uint64_t	vdev_deflate_ratio; /* deflation ratio (x512)	*/
 	uint64_t	vdev_islog;	/* is an intent log device	*/
 	uint64_t	vdev_noalloc;	/* device is passivated?	*/
+	boolean_t	vdev_noalloc_restored; /* noalloc not in config */
 	uint64_t	vdev_removing;	/* device is being removed?	*/
 	uint64_t	vdev_failfast;	/* device failfast setting	*/
 	boolean_t	vdev_autosit;	/* automatic sitout management	*/
