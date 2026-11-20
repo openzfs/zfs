@@ -17,6 +17,15 @@
 #include "file_common.h"
 #include <unistd.h>
 #include <sys/sysmacros.h>
+#include <sys/uio.h>
+
+/*
+ * RWF_NOAPPEND reaches the kernel through pwritev2(), which not every
+ * libc provides.  Without it, -N reports that it is unsupported.
+ */
+#if defined(HAVE_PWRITEV2) && !defined(RWF_NOAPPEND)
+#define	RWF_NOAPPEND	0x00000020
+#endif
 
 static char *filename = NULL;
 static int expected_offset = -1;
@@ -24,13 +33,15 @@ static int blocksize = 131072; /* 128KiB */
 static int numblocks = 8;
 static const char *execname = "file_append";
 static int use_odirect = 0;
+static long noappend_offset = -1;
 
 static void
 usage(void)
 {
 	(void) fprintf(stderr,
 	    "usage %s -f filename -e expected_offset [-b blocksize] \n"
-	    "         [-n numblocks] [-d use_odirect] [-h help]\n"
+	    "         [-n numblocks] [-d use_odirect] [-N noappend_offset]\n"
+	    "         [-h help]\n"
 	    "\n"
 	    "Opens a file using O_APPEND and writes numblocks blocksize\n"
 	    "blocks to filename.\n"
@@ -45,6 +56,10 @@ usage(void)
 	    "    numblocks:        Total number of blocksized blocks to\n"
 	    "                      write.\n"
 	    "    use_odirect:      Open file using O_DIRECT.\n"
+	    "    noappend_offset:  Then write one byte at this offset with\n"
+	    "                      pwritev2(RWF_NOAPPEND) and check that it\n"
+	    "                      lands there and the file does not grow.\n"
+	    "                      Exits 3 if RWF_NOAPPEND is unsupported.\n"
 	    "    help:             Print usage information and exit.\n"
 	    "\n"
 	    "    Required parameters:\n"
@@ -67,7 +82,7 @@ parse_options(int argc, char *argv[])
 	extern char *optarg;
 	extern int optind, optopt;
 
-	while ((c = getopt(argc, argv, "b:de:f:hn:")) != -1) {
+	while ((c = getopt(argc, argv, "b:de:f:hn:N:")) != -1) {
 		switch (c) {
 			case 'b':
 				blocksize = atoi(optarg);
@@ -86,6 +101,9 @@ parse_options(int argc, char *argv[])
 				break;
 			case 'n':
 				numblocks = atoi(optarg);
+				break;
+			case 'N':
+				noappend_offset = atol(optarg);
 				break;
 			case ':':
 				(void) fprintf(stderr,
@@ -188,6 +206,62 @@ main(int argc, char *argv[])
 		    "to %ld\n", execname, expected_offset, filename,
 		    (long int)off);
 		(void) exit(2);
+	}
+
+	if (noappend_offset >= 0) {
+#if defined(HAVE_PWRITEV2)
+		/*
+		 * RWF_NOAPPEND asks for this one write to go to the given
+		 * offset even though the file was opened with O_APPEND.
+		 */
+		struct iovec iov = { .iov_base = (void *)"X", .iov_len = 1 };
+		ssize_t n = pwritev2(fd, &iov, 1, noappend_offset,
+		    RWF_NOAPPEND);
+		if (n == -1 && (errno == EOPNOTSUPP || errno == ENOSYS)) {
+			(void) fprintf(stderr, "%s: RWF_NOAPPEND not "
+			    "supported: %s\n", execname, strerror(errno));
+			(void) exit(3);
+		}
+		if (n != 1) {
+			perror("pwritev2");
+			(void) exit(2);
+		}
+
+		struct stat st;
+		if (fstat(fd, &st) == -1) {
+			perror("fstat");
+			(void) exit(2);
+		}
+		if (st.st_size != expected_offset) {
+			(void) fprintf(stderr, "%s: RWF_NOAPPEND write "
+			    "changed the size of %s from %d to %lld\n",
+			    execname, filename, expected_offset,
+			    (long long)st.st_size);
+			(void) exit(2);
+		}
+
+		int rfd = open(filename, O_RDONLY);
+		if (rfd == -1) {
+			perror("open");
+			(void) exit(2);
+		}
+		char c = 0;
+		if (pread(rfd, &c, 1, noappend_offset) != 1) {
+			perror("pread");
+			(void) exit(2);
+		}
+		(void) close(rfd);
+		if (c != 'X') {
+			(void) fprintf(stderr, "%s: RWF_NOAPPEND write did "
+			    "not land at offset %ld\n", execname,
+			    noappend_offset);
+			(void) exit(2);
+		}
+#else
+		(void) fprintf(stderr, "%s: RWF_NOAPPEND is not available\n",
+		    execname);
+		(void) exit(3);
+#endif
 	}
 
 	(void) close(fd);
