@@ -1249,6 +1249,11 @@ dmu_tx_assign(dmu_tx_t *tx, dmu_tx_flag_t flags)
 	/* If we might wait, we must not hold the config lock. */
 	IMPLY((flags & DMU_TX_WAIT), !dsl_pool_config_held(tx->tx_pool));
 
+	if (tx->tx_objset != NULL &&
+	    tx->tx_objset->os_upgrade_deferred &&
+	    !list_is_empty(&tx->tx_holds))
+		dmu_objset_start_deferred_upgrade(tx->tx_objset);
+
 	if ((flags & DMU_TX_NOTHROTTLE))
 		tx->tx_dirty_delayed = B_TRUE;
 

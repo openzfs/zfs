@@ -190,6 +190,7 @@ struct objset {
 	dmu_objset_upgrade_cb_t os_upgrade_cb;
 	boolean_t os_upgrade_exit;
 	int os_upgrade_status;
+	boolean_t os_upgrade_deferred;
 };
 
 #define	DMU_META_OBJSET		0
@@ -243,6 +244,8 @@ void dmu_objset_sync_done(objset_t *os, dmu_tx_t *tx);
 void dmu_objset_userquota_get_ids(dnode_t *dn, boolean_t before, dmu_tx_t *tx);
 boolean_t dmu_objset_userused_enabled(objset_t *os);
 void dmu_objset_userspace_upgrade(objset_t *os);
+void dmu_objset_upgrade_reopened(objset_t *os);
+void dmu_objset_start_deferred_upgrade(objset_t *os);
 boolean_t dmu_objset_userspace_present(objset_t *os);
 boolean_t dmu_objset_userobjused_enabled(objset_t *os);
 boolean_t dmu_objset_userobjspace_upgradable(objset_t *os);
