@@ -558,7 +558,8 @@ zfs_unlinked_drain(zfsvfs_t *zfsvfs)
 void
 zfs_unlinked_drain_stop_wait(zfsvfs_t *zfsvfs)
 {
-	ASSERT3B(zfsvfs->z_unmounted, ==, B_FALSE);
+	/* A failed zfs_resume_fs() leaves it unmounted, but not draining. */
+	ASSERT(!zfsvfs->z_unmounted || !zfsvfs->z_draining);
 
 	if (zfsvfs->z_draining) {
 		zfsvfs->z_drain_cancel = B_TRUE;
