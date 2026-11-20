@@ -65,7 +65,8 @@ main(int argc, const char *const *argv)
 found:;
 	}
 
-	int fd = open(argv[2], O_RDWR | O_APPEND | O_CLOEXEC);
+	/* Setting DOS flags needs no write access (cf. chattr). */
+	int fd = open(argv[2], O_RDONLY | O_CLOEXEC);
 	if (fd == -1)
 		err(EXIT_FAILURE, "%s", argv[2]);
 
