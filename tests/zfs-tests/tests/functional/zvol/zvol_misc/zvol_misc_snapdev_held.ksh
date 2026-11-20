@@ -14,6 +14,7 @@
 . $STF_SUITE/include/libtest.shlib
 . $STF_SUITE/include/blkdev.shlib
 . $STF_SUITE/tests/functional/zvol/zvol_common.shlib
+. $STF_SUITE/tests/functional/zvol/zvol_misc/zvol_misc_common.kshlib
 
 #
 # DESCRIPTION:
