@@ -4370,6 +4370,15 @@ dsl_dataset_clone_swap_sync_impl(dsl_dataset_t *clone,
 		    dsl_dataset_feature_is_active(origin_head, f);
 		void *origin_head_feature = origin_head->ds_feature[f];
 
+		/*
+		 * Setting compression=zstd activates zstd_compress
+		 * (dsl_dataset_set_compression()) and the property stays
+		 * with origin_head, so do not swap the feature: each dataset
+		 * keeps its own, and the caller destroys the clone.
+		 */
+		if (f == SPA_FEATURE_ZSTD_COMPRESS && origin_head_inuse)
+			continue;
+
 		if (clone_inuse)
 			dsl_dataset_deactivate_feature_impl(clone, f, tx);
 		if (origin_head_inuse)
