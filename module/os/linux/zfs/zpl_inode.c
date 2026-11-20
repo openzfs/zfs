@@ -27,6 +27,7 @@
 #include <sys/vfs.h>
 #include <sys/zpl.h>
 #include <sys/file.h>
+#include <sys/u8_textprep.h>
 
 static struct dentry *
 zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
@@ -67,10 +68,12 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 	crhold(cr);
 	cookie = spl_fstrans_mark();
 
-	/* If we are a case insensitive fs, we need the real name */
-	if (zfsvfs->z_case == ZFS_CASE_INSENSITIVE) {
+	/* Cache the stored name for case folding and normalization. */
+	if (zfsvfs->z_case == ZFS_CASE_INSENSITIVE)
 		zfs_flags = FIGNORECASE;
+	if (zfs_flags || (zfsvfs->z_norm & ~U8_TEXTPREP_TOUPPER)) {
 		pn_alloc(&pn);
+		(void) strlcpy(pn.pn_buf, dname(dentry), pn.pn_bufsize);
 		ppn = &pn;
 	}
 
@@ -86,8 +89,8 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 
 	if (error) {
 		/*
-		 * If we have a case sensitive fs, we do not want to
-		 * insert negative entries, so return NULL for ENOENT.
+		 * Normalizing lookups must not cache negative entries,
+		 * so return NULL for ENOENT.
 		 * Fall through if the error is not ENOENT. Also free memory.
 		 */
 		if (ppn) {
@@ -104,8 +107,7 @@ zpl_lookup(struct inode *dir, struct dentry *dentry, unsigned int flags)
 	ip = ZTOI(zp);
 
 	/*
-	 * If we are case insensitive, call the correct function
-	 * to install the name.
+	 * Install the stored name for normalizing lookups.
 	 */
 	if (ppn) {
 		struct dentry *new_dentry;

@@ -191,13 +191,6 @@ if sys.platform.startswith('freebsd'):
         'mmap/mmap_sync_001_pos': ['SKIP', na_reason],
         'uncached/uncached_dontcache': ['SKIP', na_reason],
     })
-elif sys.platform.startswith('linux'):
-    known.update({
-        'casenorm/mixed_formd_lookup': ['FAIL', 7633],
-        'casenorm/mixed_formd_delete': ['FAIL', 7633],
-        'casenorm/sensitive_formd_lookup': ['FAIL', 7633],
-        'casenorm/sensitive_formd_delete': ['FAIL', 7633],
-    })
 
 
 #
