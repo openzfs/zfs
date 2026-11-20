@@ -417,8 +417,6 @@ replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
 	nvlist_t **spares;
 	uint_t s, nspares;
 	char *dev_name;
-	zprop_source_t source;
-	int ashift;
 	uint64_t vdev_rotational = 0, vdev_size = 0, top_guid = 0;
 	boolean_t have_vdev_rotational;
 	vdev_stat_t *vs;
@@ -465,11 +463,6 @@ replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
 		order[j + 1] = key;
 	}
 
-	/*
-	 * lookup "ashift" pool property, we may need it for the replacement
-	 */
-	ashift = zpool_get_prop_int(zhp, ZPOOL_PROP_ASHIFT, &source);
-
 	replacement = fmd_nvl_alloc(hdl, FMD_SLEEP);
 
 	(void) nvlist_add_string(replacement, ZPOOL_CONFIG_TYPE,
@@ -494,11 +487,6 @@ replace_with_spare(fmd_hdl_t *hdl, zpool_handle_t *zhp, nvlist_t *vdev)
 		if ((nvlist_lookup_string(spare, ZPOOL_CONFIG_TYPE,
 		    &type) == 0) && strcmp(type, VDEV_TYPE_DRAID_SPARE) == 0)
 			rebuild = B_TRUE;
-
-		/* if set, add the "ashift" pool property to the spare nvlist */
-		if (source != ZPROP_SRC_DEFAULT)
-			(void) nvlist_add_uint64(spare,
-			    ZPOOL_CONFIG_ASHIFT, ashift);
 
 		(void) nvlist_add_nvlist_array(replacement,
 		    ZPOOL_CONFIG_CHILDREN, (const nvlist_t **)&spare, 1);
