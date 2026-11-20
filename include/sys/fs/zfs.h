@@ -195,6 +195,7 @@ typedef enum {
 	ZFS_PROP_DEFAULTPROJECTOBJQUOTA,
 	ZFS_PROP_SNAPSHOTS_CHANGED_NSECS,
 	ZFS_PROP_ZONED_UID,
+	ZFS_PROP_PROJECTMAC,
 	ZFS_NUM_PROPS
 } zfs_prop_t;
 
@@ -323,6 +324,7 @@ typedef enum {
 	ZPOOL_PROP_SELOG_USED,
 	ZPOOL_PROP_SELOG_EXPANDSZ,
 	ZPOOL_PROP_SELOG_FRAGMENTATION,
+	ZPOOL_PROP_PROJECTMAC,
 	ZPOOL_NUM_PROPS
 } zpool_prop_t;
 
@@ -671,6 +673,29 @@ typedef enum zfs_keystatus {
 	ZFS_KEYSTATUS_UNAVAILABLE,
 	ZFS_KEYSTATUS_AVAILABLE,
 } zfs_keystatus_t;
+
+/*
+ * Whether an encrypted filesystem's local MAC covers its project accounting
+ * (see zio_crypt_do_objset_hmacs()). Volumes have no space accounting, so
+ * this doesn't apply to them.
+ *
+ * As the value of the projectmac pool property, which is stored on disk, it
+ * determines the form every encrypted filesystem is written in. "Mixed"
+ * means that each filesystem keeps the form it already has, or takes the
+ * default form if it has none yet.
+ *
+ * As the value of the read-only projectmac dataset property, it indicates the
+ * form of the filesystem's local MAC, or if it has none yet, the form its
+ * next write will use. "Mixed" means that the form is unknown or doesn't
+ * apply: the filesystem isn't encrypted, has no space accounting, or its key
+ * isn't loaded.
+ * zfs get shows it as "-".
+ */
+typedef enum zfs_projectmac {
+	ZFS_PROJECTMAC_MIXED = 0,
+	ZFS_PROJECTMAC_ON = 1,
+	ZFS_PROJECTMAC_OFF = 2
+} zfs_projectmac_t;
 
 typedef enum zfs_keyformat {
 	ZFS_KEYFORMAT_NONE = 0,

@@ -285,6 +285,14 @@ get_special_prop(lua_State *state, dsl_dataset_t *ds, const char *dsname,
 		if (error == 0)
 			numval = dmu_objset_userspace_present(os);
 		break;
+	case ZFS_PROP_PROJECTMAC:
+		error = dmu_objset_from_ds(ds, &os);
+		if (error == 0) {
+			numval = dmu_objset_projectmac_prop(os);
+			if (numval == ZFS_PROJECTMAC_MIXED)
+				error = SET_ERROR(ENOENT);
+		}
+		break;
 	case ZFS_PROP_WRITTEN:
 		error = dsl_get_written(ds, &numval);
 		break;

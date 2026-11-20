@@ -19,7 +19,7 @@
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\" Copyright (c) 2023, 2026, Klara Inc.
 .\"
-.Dd September 9, 2026
+.Dd November 2, 2026
 .Dt ZPOOLPROPS 7
 .Os
 .
@@ -624,6 +624,54 @@ See
 for additional details.
 The default value is
 .Sy off .
+.It Sy projectmac Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy mixed
+Controls whether the project accounting of encrypted filesystems is
+authenticated.
+With
+.Sy on ,
+the MAC that protects a filesystem's space accounting from tampering, which
+developers know as its local MAC, covers the user, group and project
+accounting.
+With
+.Sy off ,
+it covers only the user and group accounting.
+Releases without this property mount only filesystems in the form they write:
+.Sy on
+for OpenZFS and
+.Sy off
+for illumos ZFS.
+A pool to be used with older releases of illumos ZFS is created with
+.Nm zpool Cm create Fl o Sy projectmac Ns = Ns Sy off ,
+or set to it with
+.Nm zpool Cm set ,
+and must also have only the features those releases support.
+Releases with this property read both forms.
+.Pp
+.Nm zpool Cm create
+sets this property to
+.Sy on
+unless it is given another value.
+.Sy mixed ,
+the default for pools created by releases without this property, means that
+no pool-wide form has been chosen, and each filesystem has its own:
+encrypted filesystems keep the form they have, and one that has neither,
+such as a new or raw-received filesystem, takes the form
+.Sy on .
+Setting this property to
+.Sy mixed
+returns the pool to these rules.
+.Pp
+When this property is
+.Sy on
+or
+.Sy off ,
+every encrypted filesystem takes that form.
+Setting it rewrites each filesystem whose key is loaded and whose local MAC
+has a form, and other filesystems take it with their next write.
+The form of each filesystem is shown by its
+.Sy projectmac
+property; see
+.Xr zfsprops 7 .
 .It Sy version Ns = Ns Ar version
 The current on-disk version of the pool.
 This can be increased, but never decreased.

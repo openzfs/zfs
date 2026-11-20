@@ -62,6 +62,13 @@ const char *const zfs_userquota_prop_prefixes[] = {
 	"projectobjquota@"
 };
 
+const zprop_index_t zfs_projectmac_table[] = {
+	{ "mixed",	ZFS_PROJECTMAC_MIXED },
+	{ "on",		ZFS_PROJECTMAC_ON },
+	{ "off",	ZFS_PROJECTMAC_OFF },
+	{ NULL }
+};
+
 zprop_desc_t *
 zfs_prop_get_table(void)
 {
@@ -547,6 +554,10 @@ zfs_prop_init(void)
 	    ZFS_KEYSTATUS_NONE, PROP_READONLY, ZFS_TYPE_DATASET,
 	    "none | unavailable | available",
 	    "KEYSTATUS", keystatus_table, sfeatures);
+	zprop_register_index(ZFS_PROP_PROJECTMAC, "projectmac",
+	    ZFS_PROJECTMAC_MIXED, PROP_READONLY,
+	    ZFS_TYPE_FILESYSTEM | ZFS_TYPE_SNAPSHOT, "on | off", "PROJECTMAC",
+	    zfs_projectmac_table, sfeatures);
 
 	/* set once index properties */
 	zprop_register_index(ZFS_PROP_NORMALIZE, "normalization", 0,

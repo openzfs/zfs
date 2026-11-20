@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+#
+# Helpers for the tests of the projectmac pool and dataset properties.
+# Encrypted datasets use the passphrase "password".
+#
+
+function create_encrypted # <filesystem> [zfs create options]
+{
+	typeset fs=$1
+	shift
+
+	log_must eval "echo password | zfs create -o encryption=on" \
+	    "-o keyformat=passphrase -o keylocation=prompt $* $fs"
+	write_and_sync $fs
+}
+
+function write_and_sync # <filesystem>
+{
+	log_must eval "echo data >> $(get_prop mountpoint $1)/file"
+	sync_pool ${1%%/*}
+}
+
+function load_and_mount # <filesystem>
+{
+	log_must eval "echo password | zfs load-key $1"
+	log_must zfs mount $1
+}
+
+function program_projectmac # <dataset>
+{
+	zfs program -j ${1%%/*} - $1 <<-EOF
+		arg = ...
+		value = zfs.get_prop(arg["argv"][1], "projectmac")
+		return value or "-"
+	EOF
+}
+
+#
+# Check the projectmac dataset property, both from zfs get and from a channel
+# program, which sees nil where zfs get shows "-".
+#
+function check_projectmac # <dataset> <expected>
+{
+	typeset value=$(get_prop projectmac $1)
+	[[ $value == $2 ]] ||
+	    log_fail "$1 has projectmac=$value, expected $2"
+
+	value=$(program_projectmac $1 |
+	    sed -n 's/.*"return": *"\([^"]*\)".*/\1/p')
+	[[ $value == $2 ]] ||
+	    log_fail "a channel program gets projectmac=$value for $1," \
+	    "expected $2"
+}
+
+function check_pool_projectmac # <pool> <expected> <source>
+{
+	typeset value=$(get_pool_prop projectmac $1)
+	typeset source=$(zpool get -H -o source projectmac $1)
+	[[ $value == $2 && $source == $3 ]] ||
+	    log_fail "$1 has projectmac=$value ($source), expected $2 ($3)"
+}
+
+#
+# Print the platform default form, which zpool create sets, from a pool that
+# was created without the projectmac property.
+#
+function projectmac_default # <pool>
+{
+	typeset form=$(get_pool_prop projectmac $1)
+
+	[[ $form == on || $form == off ]] ||
+	    log_fail "$1 has projectmac=$form after zpool create"
+	echo $form
+}
+
+function projectmac_other # <form>
+{
+	if [[ $1 == on ]]; then
+		echo off
+	else
+		echo on
+	fi
+}
