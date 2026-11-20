@@ -4612,12 +4612,20 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 
 	/*
 	 * Verify that the space map object ID has been recorded in the
-	 * vdev_ms_array.
+	 * vdev_ms_array.  This only cross-checks the in-core state, so if
+	 * the entry cannot be read (the read has already logged the error),
+	 * skip the check rather than panic.
 	 */
 	uint64_t object;
-	VERIFY0(dmu_read(mos, vd->vdev_ms_array,
-	    msp->ms_id * sizeof (uint64_t), sizeof (uint64_t), &object, 0));
-	VERIFY3U(object, ==, space_map_object(msp->ms_sm));
+	int error = dmu_read(mos, vd->vdev_ms_array,
+	    msp->ms_id * sizeof (uint64_t), sizeof (uint64_t), &object, 0);
+	if (error == 0) {
+		VERIFY3U(object, ==, space_map_object(msp->ms_sm));
+	} else {
+		vdev_dbgmsg(vd, "txg %llu, ms_id %llu: unable to read the "
+		    "metaslab array [error=%d]", (u_longlong_t)txg,
+		    (u_longlong_t)msp->ms_id, error);
+	}
 
 	mutex_exit(&msp->ms_sync_lock);
 	dmu_tx_commit(tx);
