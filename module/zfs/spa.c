@@ -748,6 +748,11 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			 * Sanitize the input.
 			 */
 			if (zfs_prop_user(propname)) {
+				if (nvpair_type(elem) != DATA_TYPE_STRING) {
+					error = SET_ERROR(EINVAL);
+					break;
+				}
+
 				if (strlen(propname) >= ZAP_MAXNAMELEN) {
 					error = SET_ERROR(ENAMETOOLONG);
 					break;
@@ -929,6 +934,18 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			break;
 
 		default:
+			/*
+			 * spa_sync_props() takes the other properties as
+			 * they are, and asserts on a value of the wrong type
+			 * or on a string too long for the ZAP.
+			 */
+			if (zpool_prop_get_type(prop) == PROP_TYPE_STRING) {
+				error = nvpair_value_string(elem, &strval);
+				if (!error && strlen(strval) >= ZAP_MAXVALUELEN)
+					error = SET_ERROR(E2BIG);
+			} else {
+				error = nvpair_value_uint64(elem, &intval);
+			}
 			break;
 		}
 
