@@ -48,10 +48,14 @@ dsl_dataset_user_hold_check_one(dsl_dataset_t *ds, const char *htag,
 
 	ASSERT(dsl_pool_config_held(dp));
 
-	if (strlen(htag) > MAXNAMELEN)
+	/*
+	 * The tag is a ZAP name, at most ZAP_MAXNAMELEN bytes including its
+	 * terminating NUL.  A temporary hold is also recorded in the pool's
+	 * temporary hold ZAP, under a name prefixed with the object id.
+	 */
+	if (strlen(htag) >= ZAP_MAXNAMELEN)
 		return (SET_ERROR(E2BIG));
-	/* Tempholds have a more restricted length */
-	if (temphold && strlen(htag) + MAX_TAG_PREFIX_LEN >= MAXNAMELEN)
+	if (temphold && strlen(htag) + MAX_TAG_PREFIX_LEN >= ZAP_MAXNAMELEN)
 		return (SET_ERROR(E2BIG));
 
 	/* tags must be unique (if ds already exists) */
