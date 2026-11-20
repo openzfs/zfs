@@ -23,6 +23,7 @@
 #include <sys/zio.h>
 #include <sys/zil.h>
 #include <sys/sha2.h>
+#include <sys/blake3.h>
 #include <sys/hkdf.h>
 #include <sys/qat.h>
 
@@ -151,13 +152,26 @@
  * already had. As a result, an attacker with read access to the raw disk will
  * be able to tell which blocks are the same but this information is given away
  * by dedup anyway. In order to get the same IVs and encryption keys for
- * equivalent blocks of data we use an HMAC of the plaintext. We use an HMAC
- * here so that a reproducible checksum of the plaintext is never available to
- * the attacker. The HMAC key is kept alongside the master key, encrypted on
- * disk. The first 64 bits of the HMAC are used in place of the random salt, and
+ * equivalent blocks of data we use a keyed PRF of the plaintext, so that a
+ * reproducible checksum of the plaintext is never available to the attacker.
+ * The first 64 bits of its output are used in place of the random salt, and
  * the next 96 bits are used as the IV. As a result of this mechanism, dedup
  * will only work within a clone family since encrypted dedup requires use of
  * the same master and HMAC keys.
+ *
+ * The PRF is chosen when the DSL Crypto Key is created, and recorded in it
+ * (see dsl_crypto_key_dedup_prf_sync()). It is an HMAC-SHA512 keyed with the
+ * HMAC key, which is kept alongside the master key, encrypted on disk, for
+ * keys created by older releases or where BLAKE3 is not wanted, and keyed
+ * BLAKE3, which is several times faster, for the others. The BLAKE3 key is
+ * derived from the HMAC key when the key is loaded, and never stored: it is
+ * the first 256 bits of HMAC-SHA512(HMAC key, label || 0x01), which is
+ * HKDF-Expand (RFC 5869) with the HMAC key as pseudorandom key. No other input
+ * MACed with the HMAC key can be equal to that one: block MACs cover a
+ * multiple of 512 bytes, and objset MACs at least 72 bytes. Readers use the
+ * stored salt and IV, so blocks written with either PRF can be read by any
+ * release, but blocks written with different PRFs do not dedup against each
+ * other.
  */
 
 /*
@@ -398,6 +412,55 @@ zio_crypt_key_wrap(crypto_key_t *cwkey, zio_crypt_key_t *key, uint8_t *iv,
 	return (ret);
 }
 
+/* domain separation label of the BLAKE3 dedup key, see the comment on top */
+static const char zio_crypt_dedup_blake3_label[] =
+	"OpenZFS dedup salt/IV BLAKE3 key v1";
+
+_Static_assert(DEDUP_BLAKE3_KEYLEN == BLAKE3_KEY_LEN,
+	"BLAKE3 key length mismatch");
+_Static_assert(ZIO_DATA_SALT_LEN + ZIO_DATA_IV_LEN <= BLAKE3_OUT_LEN,
+	"BLAKE3 output too short for a dedup salt and IV");
+
+static int
+zio_crypt_key_derive_dedup_blake3(zio_crypt_key_t *key)
+{
+	uint8_t info[sizeof (zio_crypt_dedup_blake3_label)];
+	uint8_t digest[SHA512_HMAC_LEN];
+	int ret;
+
+	/* the label without its NUL, then the HKDF-Expand block counter */
+	memcpy(info, zio_crypt_dedup_blake3_label, sizeof (info) - 1);
+	info[sizeof (info) - 1] = 0x01;
+
+	ret = zio_crypt_hmac_os(key, info, sizeof (info), digest);
+	if (ret == 0)
+		memcpy(key->zk_dedup_keydata, digest, DEDUP_BLAKE3_KEYLEN);
+
+	memset(digest, 0, sizeof (digest));
+	return (ret);
+}
+
+/*
+ * Select the PRF that derives the salt and IV of the dedup blocks of a key
+ * loaded by zio_crypt_key_unwrap(), which uses HMAC-SHA512 until then.
+ */
+int
+zio_crypt_key_set_dedup_prf(zio_crypt_key_t *key, zio_crypt_dedup_prf_t prf)
+{
+	int ret;
+
+	ASSERT3U(prf, <, ZIO_CRYPT_DEDUP_PRF_FUNCTIONS);
+
+	if (prf == ZIO_CRYPT_DEDUP_PRF_BLAKE3) {
+		ret = zio_crypt_key_derive_dedup_blake3(key);
+		if (ret != 0)
+			return (ret);
+	}
+
+	key->zk_dedup_prf = prf;
+	return (0);
+}
+
 int
 zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
     uint64_t guid, uint8_t *keydata, uint8_t *hmac_keydata, uint8_t *iv,
@@ -473,6 +536,7 @@ zio_crypt_key_unwrap(crypto_key_t *cwkey, uint64_t crypt, uint64_t version,
 	key->zk_crypt = crypt;
 	key->zk_version = version;
 	key->zk_guid = guid;
+	key->zk_dedup_prf = ZIO_CRYPT_DEDUP_PRF_HMAC_SHA512;
 	key->zk_salt_count = 0;
 
 	return (0);
@@ -516,6 +580,32 @@ zio_crypt_do_hmac(zio_crypt_key_t *key, uint8_t *data, uint_t datalen,
 	return (err);
 }
 
+static void
+zio_crypt_dedup_blake3(const zio_crypt_key_t *key, const uint8_t *data,
+    uint_t datalen, uint8_t digest[BLAKE3_OUT_LEN])
+{
+#if defined(_KERNEL)
+	/* as in abd_checksum_blake3_native() */
+	kpreempt_disable();
+	BLAKE3_CTX *ctx = blake3_per_cpu_ctx[CPU_SEQID];
+#else
+	BLAKE3_CTX *ctx = kmem_alloc(sizeof (*ctx), KM_SLEEP);
+#endif
+
+	Blake3_InitKeyed(ctx, key->zk_dedup_keydata);
+	Blake3_Update(ctx, data, datalen);
+	Blake3_Final(ctx, digest);
+
+	/* unlike a checksum context, this one holds secret key words */
+	memset(ctx, 0, sizeof (*ctx));
+
+#if defined(_KERNEL)
+	kpreempt_enable();
+#else
+	kmem_free(ctx, sizeof (*ctx));
+#endif
+}
+
 int
 zio_crypt_generate_iv_salt_dedup(zio_crypt_key_t *key, uint8_t *data,
     uint_t datalen, uint8_t *ivbuf, uint8_t *salt)
@@ -523,9 +613,13 @@ zio_crypt_generate_iv_salt_dedup(zio_crypt_key_t *key, uint8_t *data,
 	int ret;
 	uint8_t digestbuf[SHA512_HMAC_LEN];
 
-	ret = zio_crypt_hmac_os(key, data, datalen, digestbuf);
-	if (ret != 0)
-		return (ret);
+	if (key->zk_dedup_prf == ZIO_CRYPT_DEDUP_PRF_BLAKE3) {
+		zio_crypt_dedup_blake3(key, data, datalen, digestbuf);
+	} else {
+		ret = zio_crypt_hmac_os(key, data, datalen, digestbuf);
+		if (ret != 0)
+			return (ret);
+	}
 
 	memcpy(salt, digestbuf, ZIO_DATA_SALT_LEN);
 	memcpy(ivbuf, digestbuf + ZIO_DATA_SALT_LEN, ZIO_DATA_IV_LEN);

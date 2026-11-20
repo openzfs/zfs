@@ -21,7 +21,7 @@
 .\" Copyright 2019 Joyent, Inc.
 .\" Copyright 2026 Oxide Computer Company
 .\"
-.Dd January 30, 2026
+.Dd October 26, 2026
 .Dt ZFS-LOAD-KEY 8
 .Os
 .
@@ -279,6 +279,30 @@ altered data.
 Deduplication is still possible with encryption enabled but for security,
 datasets will only deduplicate against themselves, their snapshots,
 and their clones.
+.Pp
+To deduplicate, identical blocks must encrypt identically, so the salt and
+initialization vector of a deduplicated block are derived from its plaintext
+with a keyed pseudorandom function.
+An encryption key created while the
+.Sy blake3
+pool feature is enabled
+.Pq see Xr zpool-features 7
+and the
+.Sy zfs_crypt_dedup_blake3
+module parameter is set
+.Pq see Xr zfs 4 ,
+the default, uses keyed BLAKE3, which is faster.
+Other keys, and every key created by an older release, use HMAC-SHA512.
+The choice is recorded with the key when it is created and is shared by its
+clones.
+A raw receive gives the received key the choice of the sending key, when the
+stream carries one, so a key received first from an older release can change
+to keyed BLAKE3 with a later incremental stream.
+Blocks written with either function can be read by every release, but blocks
+written with different functions do not deduplicate against each other.
+Older releases ignore the recorded choice and always use HMAC-SHA512, so the
+blocks they write to a dataset whose key uses BLAKE3 do not deduplicate
+against the blocks written there by newer releases.
 .Pp
 There are a few limitations on encrypted datasets.
 Encrypted data cannot be embedded via the
