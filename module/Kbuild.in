@@ -71,6 +71,7 @@ endif
 
 asflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
 ccflags-y := $(ZFS_MODULE_CFLAGS) $(ZFS_MODULE_CPPFLAGS)
+subdir-ccflags-y = $(if $(delay-objtool),-DZFS_LUA_NORETURN)
 
 ifeq ($(CONFIG_ARM64),y)
 CFLAGS_REMOVE_zcommon/zfs_fletcher_aarch64_neon.o += -mgeneral-regs-only

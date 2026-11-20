@@ -164,6 +164,14 @@ extern int lcompat_hashnum(int64_t);
 #define LUALIB_API	LUA_API
 #define LUAMOD_API	LUALIB_API
 
+#if defined(ZFS_LUA_NORETURN)
+#define LUAI_NORETURN	__attribute__((__noreturn__))
+#define luai_errorreturn(e)	((void)(e))
+#else
+#define LUAI_NORETURN
+#define luai_errorreturn(e)	return (e)
+#endif
+
 
 /*
 @@ LUAI_FUNC is a mark for all extern functions that are not to be
