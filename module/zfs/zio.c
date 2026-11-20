@@ -3441,11 +3441,14 @@ zio_gang_issue(zio_t *zio)
 	ASSERT(BP_IS_GANG(bp) && zio->io_gang_leader == zio);
 	ASSERT(zio->io_child_type > ZIO_CHILD_GANG);
 
-	if (zio->io_child_error[ZIO_CHILD_GANG] == 0)
+	if (zio->io_child_error[ZIO_CHILD_GANG] == 0) {
 		zio_gang_tree_issue(zio, zio->io_gang_tree, bp, zio->io_abd,
 		    0);
-	else
+	} else {
+		if (zio->io_type == ZIO_TYPE_FREE && zfs_free_leak_on_eio)
+			zio->io_child_error[ZIO_CHILD_GANG] = 0;
 		zio_gang_tree_free(&zio->io_gang_tree);
+	}
 
 	zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
 
