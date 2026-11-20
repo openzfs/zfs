@@ -140,6 +140,7 @@ typedef struct raidz_map {
 	int rm_nskip;			/* RAIDZ sectors skipped for padding */
 	int rm_skipstart;		/* Column index of padding start */
 	int rm_original_width;		/* pre-expansion width of raidz vdev */
+	int rm_old_width;		/* width of the rr_old_layout rows */
 	int rm_nphys_cols;		/* num entries in rm_phys_col[] */
 	zfs_locked_range_t *rm_lr;
 	const raidz_impl_ops_t *rm_ops;	/* RAIDZ math operations */
