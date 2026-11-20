@@ -6378,6 +6378,9 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 			    bias_str != NULL ? bias_str : "none");
 			break;
 		}
+		case VDEV_PROP_ALLOCATING:
+			/* Written with the state, see spa_vdev_noalloc(). */
+			break;
 		default:
 			/* normalize the property name */
 			propname = vdev_prop_to_name(prop);
@@ -6509,10 +6512,10 @@ vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 				error = EINVAL;
 				break;
 			}
-			if (intval != vd->vdev_noalloc)
-				break;
 			/*
-			 * spa_vdev_noalloc()/spa_vdev_alloc() take SCL_ALL as a
+			 * spa_vdev_noalloc()/spa_vdev_alloc() write the
+			 * property in the txg that writes the state, even when
+			 * the state does not change.  They take SCL_ALL as a
 			 * writer; same locking dance as VDEV_PROP_PATH above.
 			 */
 			spa_config_exit(spa, SCL_CONFIG, FTAG);
