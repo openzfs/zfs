@@ -238,7 +238,10 @@ function test_remove_vdev
 }
 
 # Record txg history
-is_linux && log_must set_tunable32 TXG_HISTORY 100
+if is_linux; then
+	save_tunable TXG_HISTORY
+	log_must set_tunable32 TXG_HISTORY 100
+fi
 
 # Make the devices bigger to reduce chances of overwriting MOS metadata.
 increase_device_sizes $(( FILE_SIZE * 4 ))
