@@ -4518,45 +4518,46 @@ out:
 }
 
 /*
- * Remove the given device.
+ * Look up the vdev to remove, with the checks that zpool_vdev_remove()
+ * makes before asking the kernel.
  */
-int
-zpool_vdev_remove(zpool_handle_t *zhp, const char *path)
+static nvlist_t *
+zpool_vdev_remove_lookup(zpool_handle_t *zhp, const char *path,
+    const char *errbuf, boolean_t *avail_spare, boolean_t *l2cache,
+    boolean_t *islog)
 {
-	zfs_cmd_t zc = {"\0"};
-	char errbuf[ERRBUFLEN];
-	nvlist_t *tgt;
-	boolean_t avail_spare, l2cache, islog;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
-	uint64_t version;
-
-	(void) snprintf(errbuf, sizeof (errbuf),
-	    "cannot remove %s", path);
+	nvlist_t *tgt;
 
 	if (zpool_is_draid_spare(path)) {
 		zfs_error_aux(hdl,
 		    "dRAID spares cannot be removed");
-		return (zfs_error(hdl, EZFS_NODEVICE, errbuf));
+		(void) zfs_error(hdl, EZFS_NODEVICE, errbuf);
+		return (NULL);
 	}
 
-	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
-	if ((tgt = zpool_find_vdev(zhp, path, &avail_spare, &l2cache,
-	    &islog)) == NULL)
-		return (zfs_error(hdl, EZFS_NODEVICE, errbuf));
+	if ((tgt = zpool_find_vdev(zhp, path, avail_spare, l2cache,
+	    islog)) == NULL) {
+		(void) zfs_error(hdl, EZFS_NODEVICE, errbuf);
+		return (NULL);
+	}
 
-	version = zpool_get_prop_int(zhp, ZPOOL_PROP_VERSION, NULL);
-	if (islog && version < SPA_VERSION_HOLES) {
+	if (*islog && zpool_get_prop_int(zhp, ZPOOL_PROP_VERSION, NULL) <
+	    SPA_VERSION_HOLES) {
 		zfs_error_aux(hdl,
 		    "pool must be upgraded to support log removal");
-		return (zfs_error(hdl, EZFS_BADVERSION, errbuf));
+		(void) zfs_error(hdl, EZFS_BADVERSION, errbuf);
+		return (NULL);
 	}
 
-	zc.zc_guid = fnvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID);
+	return (tgt);
+}
 
-	if (zfs_ioctl(hdl, ZFS_IOC_VDEV_REMOVE, &zc) == 0)
-		return (0);
-
-	switch (errno) {
+static int
+zpool_vdev_remove_error(libzfs_handle_t *hdl, int error, boolean_t islog,
+    const char *errbuf)
+{
+	switch (error) {
 
 	case EALREADY:
 		zfs_error_aux(hdl,
@@ -4589,14 +4590,42 @@ zpool_vdev_remove(zpool_handle_t *zhp, const char *path)
 			    "Mount encrypted datasets to replay logs.");
 			(void) zfs_error(hdl, EZFS_BUSY, errbuf);
 		} else {
-			(void) zpool_standard_error(hdl, errno, errbuf);
+			(void) zpool_standard_error(hdl, error, errbuf);
 		}
 		break;
 
 	default:
-		(void) zpool_standard_error(hdl, errno, errbuf);
+		(void) zpool_standard_error(hdl, error, errbuf);
 	}
 	return (-1);
+}
+
+/*
+ * Remove the given device.
+ */
+int
+zpool_vdev_remove(zpool_handle_t *zhp, const char *path)
+{
+	zfs_cmd_t zc = {"\0"};
+	char errbuf[ERRBUFLEN];
+	nvlist_t *tgt;
+	boolean_t avail_spare, l2cache, islog;
+	libzfs_handle_t *hdl = zhp->zpool_hdl;
+
+	(void) snprintf(errbuf, sizeof (errbuf),
+	    "cannot remove %s", path);
+
+	if ((tgt = zpool_vdev_remove_lookup(zhp, path, errbuf, &avail_spare,
+	    &l2cache, &islog)) == NULL)
+		return (-1);
+
+	(void) strlcpy(zc.zc_name, zhp->zpool_name, sizeof (zc.zc_name));
+	zc.zc_guid = fnvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID);
+
+	if (zfs_ioctl(hdl, ZFS_IOC_VDEV_REMOVE, &zc) == 0)
+		return (0);
+
+	return (zpool_vdev_remove_error(hdl, errno, islog, errbuf));
 }
 
 int
@@ -4618,6 +4647,11 @@ zpool_vdev_remove_cancel(zpool_handle_t *zhp)
 	return (zpool_standard_error(hdl, errno, errbuf));
 }
 
+/*
+ * Return the memory that the indirect mapping would use after removing the
+ * given device.  Fail as zpool_vdev_remove() would if the kernel would refuse
+ * the removal.
+ */
 int
 zpool_vdev_indirect_size(zpool_handle_t *zhp, const char *path,
     uint64_t *sizep)
@@ -4626,14 +4660,20 @@ zpool_vdev_indirect_size(zpool_handle_t *zhp, const char *path,
 	nvlist_t *tgt;
 	boolean_t avail_spare, l2cache, islog;
 	libzfs_handle_t *hdl = zhp->zpool_hdl;
+	int error;
 
 	(void) snprintf(errbuf, sizeof (errbuf),
-	    "cannot determine indirect size of %s",
-	    path);
+	    "cannot remove %s", path);
 
-	if ((tgt = zpool_find_vdev(zhp, path, &avail_spare, &l2cache,
-	    &islog)) == NULL)
-		return (zfs_error(hdl, EZFS_NODEVICE, errbuf));
+	if ((tgt = zpool_vdev_remove_lookup(zhp, path, errbuf, &avail_spare,
+	    &l2cache, &islog)) == NULL)
+		return (-1);
+
+	/* A kernel module without the check only gets the estimate. */
+	error = lzc_vdev_remove_check(zhp->zpool_name,
+	    fnvlist_lookup_uint64(tgt, ZPOOL_CONFIG_GUID));
+	if (error != 0 && error != ZFS_ERR_IOC_CMD_UNAVAIL)
+		return (zpool_vdev_remove_error(hdl, error, islog, errbuf));
 
 	if (avail_spare || l2cache || islog) {
 		*sizep = 0;
@@ -4641,6 +4681,8 @@ zpool_vdev_indirect_size(zpool_handle_t *zhp, const char *path,
 	}
 
 	if (nvlist_lookup_uint64(tgt, ZPOOL_CONFIG_INDIRECT_SIZE, sizep) != 0) {
+		(void) snprintf(errbuf, sizeof (errbuf),
+		    "cannot determine indirect size of %s", path);
 		zfs_error_aux(hdl,
 		    "indirect size not available");
 		return (zfs_error(hdl, EINVAL, errbuf));
