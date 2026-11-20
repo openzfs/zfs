@@ -5232,6 +5232,9 @@ dbuf_write_done(zio_t *zio, arc_buf_t *buf, void *vdb)
 		dsl_dataset_t *ds = os->os_dsl_dataset;
 		(void) dsl_dataset_block_kill(ds, bp_orig, tx, B_TRUE);
 		dsl_dataset_block_born(ds, bp, tx);
+		if (db->db_level == 0 && db->db_blkid != DMU_BONUS_BLKID &&
+		    db->db_data_pending->dt.dl.dr_brtwrite)
+			brt_clone_born(os->os_spa, bp);
 	}
 
 	mutex_enter(&db->db_mtx);
