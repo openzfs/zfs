@@ -5138,6 +5138,19 @@ again:
 	 * is updated if we are in replay mode.
 	 */
 	error = zr->zr_replay[txtype](zr->zr_arg, zr->zr_lr, zr->zr_byteswap);
+
+	/*
+	 * A record that can be logged out of order may follow the record
+	 * that removed its object.  The check above skips it if the object
+	 * is gone.  But the removal may still be in progress: the znode is
+	 * released by a taskq, and a removed file's xattr directory and the
+	 * files in it are released after that.  Until then the object
+	 * exists, and the replay function cannot look it up.  That is the
+	 * same case, not an error.
+	 */
+	if (error == ENOENT && TX_OOO(txtype))
+		error = 0;
+
 	if (error != 0) {
 		/*
 		 * The DMU's dnode layer doesn't see removes until the txg
