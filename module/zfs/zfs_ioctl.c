@@ -4406,7 +4406,6 @@ zfs_ioc_destroy_snaps(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 	nvlist_t *snaps;
 	nvpair_t *pair;
 	boolean_t defer;
-	spa_t *spa;
 
 	snaps = fnvlist_lookup_nvlist(innvl, "snaps");
 	defer = nvlist_exists(innvl, "defer");
@@ -4417,20 +4416,21 @@ zfs_ioc_destroy_snaps(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 		const char *name = nvpair_name(pair);
 
 		/*
-		 * The snap must be in the specified pool to prevent the
-		 * invalid removal of zvol minors below.
+		 * The snap must be in the specified pool.
 		 */
 		if (strncmp(name, poolname, poollen) != 0 ||
 		    (name[poollen] != '/' && name[poollen] != '@'))
 			return (SET_ERROR(EXDEV));
 
 		zfs_unmount_snap(nvpair_name(pair));
-		if (spa_open(name, &spa, FTAG) == 0) {
-			zvol_remove_minors(spa, name, B_TRUE);
-			spa_close(spa, FTAG);
-		}
 	}
 
+	/*
+	 * The zvol minors of the destroyed snapshots are removed by the
+	 * dsl_destroy_snapshot_sync_impl() callbacks.  Removing them here
+	 * would stall the z_zvol taskq when the destroy fails with EBUSY
+	 * on an open snapdev device.
+	 */
 	return (dsl_destroy_snapshots_nvl(snaps, defer, outnvl));
 }
 
