@@ -35,6 +35,12 @@
 
 /*
  * N.B. - This file seems to be based on LZ4 r85, dated Dec 10, 2012
+ *
+ * OpenZFS compresses LZ4 blocks with this copy and keeps it as it is: a block
+ * written later dedups and nopwrites against one already on disk, and the ARC
+ * and corrective receive can compress a block again to match what is stored,
+ * only as long as its output does not change.  Decompression uses the LZ4
+ * library in module/lz4, see module/lz4/README.md.
  */
 
 #include <sys/zfs_context.h>
@@ -46,10 +52,6 @@ static int LZ4_compressCtx(void *ctx, const char *source, char *dest,
     int isize, int osize);
 static int LZ4_compress64kCtx(void *ctx, const char *source, char *dest,
     int isize, int osize);
-
-/* See lz4.c */
-int LZ4_uncompress_unknownOutputSize(const char *source, char *dest,
-    int isize, int maxOutputSize);
 
 static kmem_cache_t *lz4_cache;
 
@@ -81,35 +83,7 @@ zfs_lz4_compress_buf(void *s_start, void *d_start, size_t s_len,
 	return (bufsiz + sizeof (bufsiz));
 }
 
-static int
-zfs_lz4_decompress_buf(void *s_start, void *d_start, size_t s_len,
-    size_t d_len, int n)
-{
-	(void) n;
-	const char *src = s_start;
-	uint32_t bufsiz = BE_IN32(src);
-	int decoded;
-
-	/* invalid compressed buffer size encoded at start */
-	if (bufsiz + sizeof (bufsiz) > s_len)
-		return (1);
-
-	/*
-	 * LZ4_uncompress_unknownOutputSize returns the number of bytes decoded
-	 * on success, or a negative value on failure. An OpenZFS block must
-	 * expand to exactly d_len bytes
-	 */
-	decoded = LZ4_uncompress_unknownOutputSize(&src[sizeof (bufsiz)],
-	    d_start, bufsiz, d_len);
-	if (decoded < 0)
-		return (1);
-	if (d_len != (size_t)decoded)
-		return (1);
-	return (0);
-}
-
 ZFS_COMPRESS_WRAP_DECL(zfs_lz4_compress)
-ZFS_DECOMPRESS_WRAP_DECL(zfs_lz4_decompress)
 
 /*
  * LZ4 API Description:
@@ -124,18 +98,6 @@ ZFS_DECOMPRESS_WRAP_DECL(zfs_lz4_decompress)
  * 		situations (input data not compressible) worst case size
  * 		evaluation is provided by function LZ4_compressBound().
  *
- * real_LZ4_uncompress() :
- * 	osize  : is the output size, therefore the original size
- * 	return : the number of bytes read in the source buffer.
- * 		If the source stream is malformed, the function will stop
- * 		decoding and return a negative result, indicating the byte
- * 		position of the faulty instruction. This function never
- * 		writes beyond dest + osize, and is therefore protected
- * 		against malicious data packets.
- * 	note : destination buffer must be already allocated
- *	note : real_LZ4_uncompress() is not used in ZFS so its code
- *	       is not present here.
- *
  * Advanced Functions
  *
  * LZ4_compressBound() :
@@ -146,20 +108,6 @@ ZFS_DECOMPRESS_WRAP_DECL(zfs_lz4_decompress)
  * 	isize  : is the input size. Max supported value is ~1.9GB
  * 	return : maximum output size in a "worst case" scenario
  * 	note : this function is limited by "int" range (2^31-1)
- *
- * LZ4_uncompress_unknownOutputSize() :
- * 	isize  : is the input size, therefore the compressed size
- * 	maxOutputSize : is the size of the destination buffer (which must be
- * 		already allocated)
- * 	return : the number of bytes decoded in the destination buffer
- * 		(necessarily <= maxOutputSize). If the source stream is
- * 		malformed, the function will stop decoding and return a
- * 		negative result, indicating the byte position of the faulty
- * 		instruction. This function never writes beyond dest +
- * 		maxOutputSize, and is therefore protected against malicious
- * 		data packets.
- * 	note   : Destination buffer must be already allocated.
- *		This version is slightly slower than real_LZ4_uncompress()
  *
  * LZ4_compressCtx() :
  * 	This function explicitly handles the CTX memory structure.
