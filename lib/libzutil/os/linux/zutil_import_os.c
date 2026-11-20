@@ -143,6 +143,7 @@ zpool_open_func(void *arg)
 	rdsk_node_t *rn = arg;
 	libpc_handle_t *hdl = rn->rn_hdl;
 	nvlist_t *config;
+	label_scan_t scan;
 	uint64_t vdev_guid = 0;
 	int error;
 	int num_labels = 0;
@@ -164,7 +165,7 @@ zpool_open_func(void *arg)
 	if (fd < 0)
 		return;
 
-	error = zpool_read_label(fd, &config, &num_labels);
+	error = zpool_read_label_scan(fd, &config, &num_labels, &scan);
 	if (error != 0) {
 		(void) close(fd);
 		return;
@@ -173,6 +174,7 @@ zpool_open_func(void *arg)
 	if (num_labels == 0) {
 		(void) close(fd);
 		nvlist_free(config);
+		nvlist_free(scan.ls_older);
 		return;
 	}
 
@@ -185,6 +187,7 @@ zpool_open_func(void *arg)
 	if (error || (rn->rn_vdev_guid && rn->rn_vdev_guid != vdev_guid)) {
 		(void) close(fd);
 		nvlist_free(config);
+		nvlist_free(scan.ls_older);
 		return;
 	}
 
@@ -192,6 +195,7 @@ zpool_open_func(void *arg)
 
 	rn->rn_config = config;
 	rn->rn_num_labels = num_labels;
+	rn->rn_scan = scan;
 
 	/*
 	 * Add additional entries for paths described by this label.

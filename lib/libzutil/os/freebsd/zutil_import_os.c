@@ -164,6 +164,7 @@ zpool_open_func(void *arg)
 	rdsk_node_t *rn = arg;
 	struct stat64 statbuf;
 	nvlist_t *config;
+	label_scan_t scan;
 	int num_labels;
 	int fd;
 	off_t mediasize = 0;
@@ -203,15 +204,17 @@ zpool_open_func(void *arg)
 		goto out;
 	}
 
-	if (zpool_read_label(fd, &config, &num_labels) != 0)
+	if (zpool_read_label_scan(fd, &config, &num_labels, &scan) != 0)
 		goto out;
 	if (num_labels == 0) {
 		nvlist_free(config);
+		nvlist_free(scan.ls_older);
 		goto out;
 	}
 
 	rn->rn_config = config;
 	rn->rn_num_labels = num_labels;
+	rn->rn_scan = scan;
 
 	/* TODO: Reuse labelpaths logic from Linux? */
 out:
