@@ -747,6 +747,8 @@ typedef struct send_dump_data {
 	const char *tosnap;
 	char prevsnap[ZFS_MAX_DATASET_NAME_LEN];
 	uint64_t prevsnap_obj;
+	/* full name of the current filesystem's origin, if it is a clone */
+	char origin[ZFS_MAX_DATASET_NAME_LEN];
 	boolean_t seenfrom, seento, replicate, doall, fromorigin;
 	boolean_t dryrun, parsable, progress, embed_data, std_out;
 	boolean_t large_block, compress, raw, holds;
@@ -1246,11 +1248,17 @@ dump_snapshot(zfs_handle_t *zhp, void *arg)
 			*(strchr(fromds, '@') + 1) = '\0';
 			(void) strlcat(fromds, sdd->prevsnap, sizeof (fromds));
 			from = fromds;
+		} else if (fromorigin && sdd->origin[0] != '\0') {
+			/*
+			 * dump_ioctl() sends this snapshot as an incremental
+			 * from the clone's origin, so estimate it that way.
+			 */
+			from = sdd->origin;
 		}
 		if (zfs_send_space(zhp, zhp->zfs_name, from, flags,
 		    &size) == 0) {
 			send_print_verbose(fout, zhp->zfs_name,
-			    sdd->prevsnap[0] ? sdd->prevsnap : NULL,
+			    sdd->prevsnap[0] ? sdd->prevsnap : from,
 			    size, sdd->parsable);
 			sdd->size += size;
 		}
@@ -1337,6 +1345,8 @@ dump_filesystem(zfs_handle_t *zhp, send_dump_data_t *sdd)
 	sdd->seenfrom = sdd->seento = B_FALSE;
 	sdd->prevsnap[0] = '\0';
 	sdd->prevsnap_obj = 0;
+	(void) strlcpy(sdd->origin, zhp->zfs_dmustats.dds_origin,
+	    sizeof (sdd->origin));
 	if (sdd->fromsnap == NULL || missingfrom)
 		sdd->seenfrom = B_TRUE;
 
