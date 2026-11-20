@@ -26,7 +26,8 @@
 #
 # STRATEGY:
 # 1. Create a pool with hot spares
-# 2. Create a filesystem with the primary cache disable to force reads
+# 2. Create a filesystem with the primary cache and prefetch disabled to
+#    force demand reads
 # 3. Write a file to the pool to be read back
 # 4. Inject CHECKSUM ERRORS on read with a zinject error handler
 # 5. Verify the ZED kicks in a hot spare and expected pool/device status
@@ -68,8 +69,11 @@ for type in "mirror" "raidz" "raidz2" "anymirror1" "anymirror2" "anymirror3"; do
 	log_must zpool create -f $TESTPOOL $type $VDEV_FILES \
 	    spare $SPARE_FILE
 
-	# 2. Create a filesystem with the primary cache disable to force reads
-	log_must zfs create -o primarycache=none $TESTPOOL/$TESTFS
+	# 2. Create a filesystem with the primary cache disable to force reads.
+	# Prefetch reads are speculative and report no checksum errors, so
+	# disable prefetch to make every read of $FAULT_FILE count for the ZED.
+	log_must zfs create -o primarycache=none -o prefetch=none \
+	    $TESTPOOL/$TESTFS
 	log_must zfs set recordsize=16k compression=off $TESTPOOL/$TESTFS
 
 	# 3. Write a file to the pool to be read back
