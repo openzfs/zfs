@@ -903,6 +903,7 @@ enum arc_hdr_alloc_flags {
 static abd_t *arc_get_data_abd(arc_buf_hdr_t *, uint64_t, const void *, int);
 static void *arc_get_data_buf(arc_buf_hdr_t *, uint64_t, const void *);
 static void arc_get_data_impl(arc_buf_hdr_t *, uint64_t, const void *, int);
+static void arc_get_data_account(arc_buf_hdr_t *, uint64_t, const void *);
 static void arc_free_data_abd(arc_buf_hdr_t *, abd_t *, uint64_t, const void *);
 static void arc_free_data_buf(arc_buf_hdr_t *, void *, uint64_t, const void *);
 static void arc_free_data_impl(arc_buf_hdr_t *hdr, uint64_t size,
@@ -2769,11 +2770,17 @@ arc_can_share(arc_buf_hdr_t *hdr, arc_buf_t *buf)
  * Allocate a buf for this hdr. If you care about the data that's in the hdr,
  * or if you want a compressed buffer, pass those flags in. Returns 0 if the
  * copy was made successfully, or an error code otherwise.
+ *
+ * If *datap is not NULL it is a data buffer of arc_buf_size() bytes from
+ * zio_[data_]buf_alloc() that the caller allocated without holding the hash
+ * lock; it is used for the buf instead of allocating under the lock, and
+ * *datap is cleared.  It stays in *datap, and the caller must free it, if
+ * the buf can share the header's data instead.
  */
 static int
 arc_buf_alloc_impl(arc_buf_hdr_t *hdr, spa_t *spa, const zbookmark_phys_t *zb,
     const void *tag, boolean_t encrypted, boolean_t compressed,
-    boolean_t noauth, boolean_t fill, arc_buf_t **ret)
+    boolean_t noauth, boolean_t fill, void **datap, arc_buf_t **ret)
 {
 	arc_buf_t *buf;
 	arc_fill_flags_t flags = ARC_FILL_LOCKED;
@@ -2849,6 +2856,16 @@ arc_buf_alloc_impl(arc_buf_hdr_t *hdr, spa_t *spa, const zbookmark_phys_t *zb,
 		buf->b_data = abd_to_buf(hdr->b_l1hdr.b_pabd);
 		buf->b_flags |= ARC_BUF_FLAG_SHARED;
 		arc_hdr_set_flags(hdr, ARC_FLAG_SHARED_DATA);
+	} else if (datap != NULL && *datap != NULL) {
+		/*
+		 * The caller allocated this buffer, waited for ARC eviction
+		 * for it and charged it with arc_space_consume() before
+		 * taking the hash lock; only the state accounting is left.
+		 */
+		arc_get_data_account(hdr, arc_buf_size(buf), buf);
+		buf->b_data = *datap;
+		*datap = NULL;
+		ARCSTAT_INCR(arcstat_overhead_size, arc_buf_size(buf));
 	} else {
 		buf->b_data =
 		    arc_get_data_buf(hdr, arc_buf_size(buf), buf);
@@ -3499,7 +3516,7 @@ arc_alloc_buf(spa_t *spa, const void *tag, arc_buf_contents_t type,
 
 	arc_buf_t *buf = NULL;
 	VERIFY0(arc_buf_alloc_impl(hdr, spa, NULL, tag, B_FALSE, B_FALSE,
-	    B_FALSE, B_FALSE, &buf));
+	    B_FALSE, B_FALSE, NULL, &buf));
 	arc_buf_thaw(buf);
 
 	return (buf);
@@ -3523,7 +3540,7 @@ arc_alloc_compressed_buf(spa_t *spa, const void *tag, uint64_t psize,
 
 	arc_buf_t *buf = NULL;
 	VERIFY0(arc_buf_alloc_impl(hdr, spa, NULL, tag, B_FALSE,
-	    B_TRUE, B_FALSE, B_FALSE, &buf));
+	    B_TRUE, B_FALSE, B_FALSE, NULL, &buf));
 	arc_buf_thaw(buf);
 
 	/*
@@ -3570,7 +3587,7 @@ arc_alloc_raw_buf(spa_t *spa, const void *tag, uint64_t dsobj,
 	 */
 	buf = NULL;
 	VERIFY0(arc_buf_alloc_impl(hdr, spa, NULL, tag, B_TRUE, B_TRUE,
-	    B_FALSE, B_FALSE, &buf));
+	    B_FALSE, B_FALSE, NULL, &buf));
 	arc_buf_thaw(buf);
 
 	return (buf);
@@ -3777,6 +3794,62 @@ arc_buf_destroy(arc_buf_t *buf, const void *tag)
 	kmutex_t *hash_lock = HDR_LOCK(hdr);
 	mutex_enter(hash_lock);
 
+	ASSERT3P(hdr, ==, buf->b_hdr);
+	ASSERT3P(hdr->b_l1hdr.b_buf, !=, NULL);
+	ASSERT3P(hash_lock, ==, HDR_LOCK(hdr));
+	ASSERT3P(hdr->b_l1hdr.b_state, !=, arc_anon);
+	ASSERT3P(buf->b_data, !=, NULL);
+
+	arc_buf_destroy_impl(buf);
+	(void) remove_reference(hdr, tag);
+	mutex_exit(hash_lock);
+}
+
+/*
+ * Non-blocking variant of arc_buf_destroy(), in two steps so that the caller
+ * can decide what to do while it still holds its own locks:
+ * arc_buf_try_lock() takes the header's hash lock with mutex_tryenter() and
+ * returns B_FALSE if another thread holds it; after a B_TRUE return the
+ * caller must call arc_buf_destroy_locked(), which destroys the buffer and
+ * drops the hash lock.  Anonymous headers have no hash lock; both functions
+ * degrade to the plain arc_buf_destroy() behaviour for them.
+ *
+ * A thread in arc_read() holds the hash lock across the allocation of the
+ * read buffer, and that allocation can sit in memory reclaim for a long
+ * time when the system is short of free memory.  Callers that are merely
+ * trimming a cache, such as dbuf_evict_one(), must not inherit that wait:
+ * they run in the context of whichever thread happened to release a dbuf,
+ * so one slow read would otherwise stall every such thread, including the
+ * dbuf eviction thread and the txg sync thread.
+ */
+boolean_t
+arc_buf_try_lock(arc_buf_t *buf)
+{
+	arc_buf_hdr_t *hdr = buf->b_hdr;
+
+	/*
+	 * Reading b_state without the hash lock is what arc_buf_destroy()
+	 * does too: a buffer held by the caller keeps its header from being
+	 * evicted or re-keyed, and an anonymous header only becomes hashed
+	 * through arc_write(), which the caller would have to issue itself.
+	 */
+	if (hdr->b_l1hdr.b_state == arc_anon)
+		return (B_TRUE);
+	return (mutex_tryenter(HDR_LOCK(hdr)) != 0);
+}
+
+void
+arc_buf_destroy_locked(arc_buf_t *buf, const void *tag)
+{
+	arc_buf_hdr_t *hdr = buf->b_hdr;
+
+	if (hdr->b_l1hdr.b_state == arc_anon) {
+		arc_buf_destroy(buf, tag);
+		return;
+	}
+
+	kmutex_t *hash_lock = HDR_LOCK(hdr);
+	ASSERT(MUTEX_HELD(hash_lock));
 	ASSERT3P(hdr, ==, buf->b_hdr);
 	ASSERT3P(hdr->b_l1hdr.b_buf, !=, NULL);
 	ASSERT3P(hash_lock, ==, HDR_LOCK(hdr));
@@ -5299,6 +5372,20 @@ arc_get_data_impl(arc_buf_hdr_t *hdr, uint64_t size, const void *tag,
 		arc_space_consume(size, ARC_SPACE_DATA);
 	}
 
+	arc_get_data_account(hdr, size, tag);
+}
+
+/*
+ * Add size bytes of data that were just attached to hdr to the size of its
+ * state.  The caller has already charged them with arc_space_consume():
+ * arc_get_data_impl(), or arc_read() for a buffer it allocated before taking
+ * the hash lock (see arc_read_prebuf_alloc()).
+ */
+static void
+arc_get_data_account(arc_buf_hdr_t *hdr, uint64_t size, const void *tag)
+{
+	arc_buf_contents_t type = arc_buf_type(hdr);
+
 	/*
 	 * Update the state size.  Note that ghost states have a
 	 * "ghost size" and so don't need to be updated.
@@ -5607,6 +5694,52 @@ arc_hdr_verify(arc_buf_hdr_t *hdr, blkptr_t *bp)
 	}
 }
 
+/*
+ * Allocate the caller's data buffer for arc_read() before the hash lock is
+ * taken, doing what arc_get_data_impl() does for it: grow the target, wait
+ * for eviction (alloc_flags 0, as arc_get_data_buf() passes: no reserve) and
+ * charge it to arc_size right away, so that buffers held by reads in flight
+ * count against the ARC like the header data of those reads.  The state
+ * accounting is done when arc_buf_alloc_impl() attaches the buffer; an
+ * unused buffer goes back through arc_read_prebuf_release().
+ */
+static void *
+arc_read_prebuf_alloc(uint64_t size, boolean_t meta)
+{
+	arc_adapt(size);
+	arc_wait_for_eviction(size * zfs_arc_eviction_pct / 100, B_TRUE,
+	    B_FALSE);
+	void *buf = meta ? zio_buf_alloc(size) : zio_data_buf_alloc(size);
+	arc_space_consume(size, meta ? ARC_SPACE_META : ARC_SPACE_DATA);
+	return (buf);
+}
+
+static void
+arc_read_prebuf_release(void *buf, uint64_t size, boolean_t meta)
+{
+	arc_space_return(size, meta ? ARC_SPACE_META : ARC_SPACE_DATA);
+	if (meta)
+		zio_buf_free(buf, size);
+	else
+		zio_data_buf_free(buf, size);
+}
+
+/*
+ * Free the buffer that arc_read() allocated ahead of time for this callback
+ * if arc_buf_alloc_impl() did not use it (I/O error, or the buf shares the
+ * header's data).  The header is still valid here: its hash lock is held and
+ * the I/O reference has not been dropped yet.
+ */
+static void
+arc_read_prebuf_free(arc_buf_hdr_t *hdr, arc_callback_t *acb)
+{
+	if (acb->acb_buf_data == NULL)
+		return;
+	arc_read_prebuf_release(acb->acb_buf_data, HDR_GET_LSIZE(hdr),
+	    HDR_ISTYPE_METADATA(hdr));
+	acb->acb_buf_data = NULL;
+}
+
 static void
 arc_read_done(zio_t *zio)
 {
@@ -5698,18 +5831,24 @@ arc_read_done(zio_t *zio)
 		/* We need the last one to call below in original order. */
 		callback_list = acb;
 
-		if (!acb->acb_done || acb->acb_nobuf)
+		if (!acb->acb_done || acb->acb_nobuf) {
+			ASSERT0P(acb->acb_buf_data);
 			continue;
+		}
 
 		callback_cnt++;
 
-		if (zio->io_error != 0)
+		if (zio->io_error != 0) {
+			arc_read_prebuf_free(hdr, acb);
 			continue;
+		}
 
 		int error = arc_buf_alloc_impl(hdr, zio->io_spa,
 		    &acb->acb_zb, acb->acb_private, acb->acb_encrypted,
 		    acb->acb_compressed, acb->acb_noauth, B_TRUE,
-		    &acb->acb_buf);
+		    &acb->acb_buf_data, &acb->acb_buf);
+		/* Not consumed if the buf shares the header's data. */
+		arc_read_prebuf_free(hdr, acb);
 
 		/*
 		 * Assert non-speculative zios didn't fail because an
@@ -5937,6 +6076,54 @@ arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
 	 * on the hash_lock always set and clear the bit.
 	 */
 	fstrans_cookie_t cookie = spl_fstrans_mark();
+
+	/*
+	 * A demand read that wants the uncompressed data needs a buffer of
+	 * lsize bytes for the caller, whether the block is in the cache or
+	 * has to be read: arc_buf_alloc_impl() allocates it on a cache hit
+	 * below, and arc_read_done() does on a miss.  Both run with the hash
+	 * lock held, and the allocation can block in memory reclaim for a
+	 * long time when the system is short of memory, stalling every other
+	 * user of that hash bucket.  Allocate the buffer here instead, before
+	 * any lock is taken, and hand it down; whatever is not used is freed
+	 * at "out".  The wait for ARC eviction that arc_get_data_impl() would
+	 * do for this buffer is done here as well, so that it is not done
+	 * under the hash lock either, and the buffer is charged to the ARC
+	 * from the moment it exists (arc_read_prebuf_alloc()).
+	 *
+	 * Left as they were: compressed and raw reads (their buffer size
+	 * depends on the header), embedded block pointers (no hash lock),
+	 * cached-only reads (a miss returns without a buffer), and blocks
+	 * whose header will hold uncompressed data in a linear ABD (the
+	 * buffer would share that ABD instead of being copied into, so the
+	 * allocation would be wasted; this is any block that is uncompressed
+	 * on disk and small enough for abd_alloc() to go linear, or read
+	 * with ARC_FLAG_UNCACHED).  The block pointer has not been verified
+	 * yet, so a size or type that is out of range also falls back to the
+	 * old path, where zfs_blkptr_verify() reports it.
+	 */
+	void *prebuf = NULL;
+	uint64_t prebuf_size = 0;
+	boolean_t prebuf_meta = B_FALSE;
+	if (done != NULL && !no_buf && !compressed_read && !encrypted_read &&
+	    !embedded_bp && !(*arc_flags & ARC_FLAG_CACHED_ONLY)) {
+		uint64_t lsize = BP_GET_LSIZE(bp);
+		boolean_t hdr_compressed = zfs_compressed_arc_enabled &&
+		    BP_GET_PSIZE(bp) != 0 &&
+		    BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF;
+		boolean_t hdr_linear = (*arc_flags & ARC_FLAG_UNCACHED) ||
+		    abd_size_alloc_linear(lsize);
+
+		if (lsize != 0 && lsize <= SPA_MAXBLOCKSIZE &&
+		    DMU_OT_IS_VALID(BP_GET_TYPE(bp)) &&
+		    (hdr_compressed || !hdr_linear)) {
+			prebuf_size = lsize;
+			prebuf_meta =
+			    (BP_GET_BUFC_TYPE(bp) == ARC_BUFC_METADATA);
+			prebuf = arc_read_prebuf_alloc(prebuf_size,
+			    prebuf_meta);
+		}
+	}
 top:
 	if (!embedded_bp) {
 		/*
@@ -6034,6 +6221,11 @@ top:
 					    spa, NULL, NULL, NULL, zio_flags);
 				}
 				acb->acb_zio_head = head_zio;
+				IMPLY(prebuf != NULL,
+				    HDR_GET_LSIZE(hdr) == prebuf_size &&
+				    !!HDR_ISTYPE_METADATA(hdr) == prebuf_meta);
+				acb->acb_buf_data = prebuf;
+				prebuf = NULL;
 				acb->acb_next = hdr->b_l1hdr.b_acb;
 				hdr->b_l1hdr.b_acb->acb_prev = acb;
 				hdr->b_l1hdr.b_acb = acb;
@@ -6069,10 +6261,14 @@ top:
 		if (done && !no_buf) {
 			ASSERT(!embedded_bp || !BP_IS_HOLE(bp));
 
+			IMPLY(prebuf != NULL,
+			    HDR_GET_LSIZE(hdr) == prebuf_size &&
+			    !!HDR_ISTYPE_METADATA(hdr) == prebuf_meta);
+
 			/* Get a buf with the desired data in it. */
 			rc = arc_buf_alloc_impl(hdr, spa, zb, private,
 			    encrypted_read, compressed_read, noauth_read,
-			    B_TRUE, &buf);
+			    B_TRUE, &prebuf, &buf);
 			if (rc == ECKSUM) {
 				/*
 				 * Convert authentication and decryption errors
@@ -6114,8 +6310,12 @@ top:
 		abd_t *hdr_abd;
 		int alloc_flags = encrypted_read ? ARC_HDR_ALLOC_RDATA : 0;
 		arc_buf_contents_t type = BP_GET_BUFC_TYPE(bp);
+		boolean_t abd_allocated = B_FALSE;
 		int config_lock;
 		int error;
+
+		if ((*arc_flags & ARC_FLAG_UNCACHED) && !encrypted_read)
+			alloc_flags |= ARC_HDR_ALLOC_LINEAR;
 
 		if (*arc_flags & ARC_FLAG_CACHED_ONLY) {
 			if (hash_lock != NULL)
@@ -6161,6 +6361,22 @@ top:
 			arc_buf_hdr_t *exists = NULL;
 			hdr = arc_hdr_alloc(guid, psize, lsize,
 			    BP_IS_PROTECTED(bp), BP_GET_COMPRESS(bp), 0, type);
+
+			/*
+			 * Allocate the data buffer now, before the header
+			 * is inserted into the hash table.  Nothing else can
+			 * see the header yet, so no lock is needed, and the
+			 * hash lock stays out of the page allocation.  That
+			 * allocation can block in memory reclaim for a long
+			 * time when free memory is short; with the hash lock
+			 * held across it, every other user of this hash
+			 * bucket, dbuf_evict_one() and through it txg sync
+			 * would wait as well.  Should another thread insert
+			 * the same block meanwhile, arc_hdr_destroy() below
+			 * frees the buffer with the header.
+			 */
+			arc_hdr_alloc_abd(hdr, alloc_flags);
+			abd_allocated = B_TRUE;
 
 			if (!embedded_bp) {
 				hdr->b_dva = *BP_IDENTITY(bp);
@@ -6231,11 +6447,8 @@ top:
 				goto top;
 			}
 		}
-		if (*arc_flags & ARC_FLAG_UNCACHED) {
+		if (*arc_flags & ARC_FLAG_UNCACHED)
 			arc_hdr_set_flags(hdr, ARC_FLAG_UNCACHED);
-			if (!encrypted_read)
-				alloc_flags |= ARC_HDR_ALLOC_LINEAR;
-		}
 
 		/*
 		 * Take additional reference for IO_IN_PROGRESS.  It stops
@@ -6247,7 +6460,14 @@ top:
 		if (!embedded_bp)
 			arc_access(hdr, *arc_flags, B_FALSE);
 		arc_hdr_set_flags(hdr, ARC_FLAG_IO_IN_PROGRESS);
-		arc_hdr_alloc_abd(hdr, alloc_flags);
+		/*
+		 * A header found in a ghost state, or one that has the
+		 * decrypted data when the raw data was asked for, is already
+		 * in the hash table, so its buffer is still allocated under
+		 * the hash lock.  New headers were handled above.
+		 */
+		if (!abd_allocated)
+			arc_hdr_alloc_abd(hdr, alloc_flags);
 		if (encrypted_read) {
 			ASSERT(HDR_HAS_RABD(hdr));
 			size = HDR_GET_PSIZE(hdr);
@@ -6287,6 +6507,8 @@ top:
 		acb->acb_noauth = noauth_read;
 		acb->acb_nobuf = no_buf;
 		acb->acb_zb = *zb;
+		acb->acb_buf_data = prebuf;
+		prebuf = NULL;
 
 		ASSERT0P(hdr->b_l1hdr.b_acb);
 		hdr->b_l1hdr.b_acb = acb;
@@ -6486,6 +6708,8 @@ top:
 	}
 
 out:
+	if (prebuf != NULL)
+		arc_read_prebuf_release(prebuf, prebuf_size, prebuf_meta);
 	/* embedded bps don't actually go to disk */
 	if (!embedded_bp)
 		spa_read_history_add(spa, zb, *arc_flags);

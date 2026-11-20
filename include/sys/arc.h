@@ -289,6 +289,17 @@ arc_buf_t *arc_loan_raw_buf(spa_t *spa, uint64_t dsobj, boolean_t byteorder,
 void arc_return_buf(arc_buf_t *buf, const void *tag);
 void arc_loan_inuse_buf(arc_buf_t *buf, const void *tag);
 void arc_buf_destroy(arc_buf_t *buf, const void *tag);
+/*
+ * Non-blocking arc_buf_destroy() in two steps: arc_buf_try_lock() returns
+ * B_FALSE if the header's hash lock is held by another thread; after B_TRUE
+ * the caller must call arc_buf_destroy_locked().  An anonymous header has no
+ * hash lock: for it arc_buf_try_lock() returns B_TRUE without taking a lock
+ * and arc_buf_destroy_locked() behaves like arc_buf_destroy().  Otherwise
+ * arc_buf_destroy_locked() must be entered with the hash lock that
+ * arc_buf_try_lock() took still held, and drops it.
+ */
+boolean_t arc_buf_try_lock(arc_buf_t *buf);
+void arc_buf_destroy_locked(arc_buf_t *buf, const void *tag);
 void arc_buf_info(arc_buf_t *buf, arc_buf_info_t *abi, int state_index);
 uint64_t arc_buf_size(arc_buf_t *buf);
 uint64_t arc_buf_lsize(arc_buf_t *buf);
