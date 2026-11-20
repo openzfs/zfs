@@ -114,15 +114,13 @@ function read_gang_header
 	zdb -R $pool "${dva%:*}:$size:g" 2>&1 | grep -v "Found vdev:"
 }
 
-function preamble
-{
-	save_tunable METASLAB_FORCE_GANGING
-	save_tunable METASLAB_FORCE_GANGING_PCT
-}
+# The values setup.ksh sets for the group, and each test's cleanup sets back.
+FORCE_GANGING=16777217
+FORCE_GANGING_PCT=0
 
 function cleanup
 {
 	destroy_pool $TESTPOOL
-	restore_tunable METASLAB_FORCE_GANGING
-	restore_tunable METASLAB_FORCE_GANGING_PCT
+	set_tunable64 METASLAB_FORCE_GANGING $FORCE_GANGING
+	set_tunable32 METASLAB_FORCE_GANGING_PCT $FORCE_GANGING_PCT
 }

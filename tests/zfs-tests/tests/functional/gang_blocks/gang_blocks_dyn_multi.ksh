@@ -31,7 +31,6 @@
 log_assert "Verify that we can still multi-level gang with large headers."
 
 log_onexit cleanup
-preamble
 
 log_must zpool create -f -o ashift=12 -o feature@dynamic_gang_header=enabled $TESTPOOL $DISKS
 log_must zfs create -o recordsize=16M $TESTPOOL/$TESTFS
