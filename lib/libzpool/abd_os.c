@@ -394,8 +394,8 @@ abd_borrow_buf_copy(abd_t *abd, size_t n)
  * the buffer since it was borrowed. If you want any changes you made to buf to
  * be copied back to abd, use abd_return_buf_copy() instead.
  */
-void
-abd_return_buf(abd_t *abd, void *buf, size_t n)
+static void
+abd_return_buf_impl(abd_t *abd, void *buf, size_t n, boolean_t verify)
 {
 	abd_verify(abd);
 	ASSERT3U(abd->abd_size, >=, n);
@@ -405,16 +405,27 @@ abd_return_buf(abd_t *abd, void *buf, size_t n)
 	if (abd_is_linear(abd)) {
 		ASSERT3P(buf, ==, abd_to_buf(abd));
 	} else {
-		ASSERT0(abd_cmp_buf(abd, buf, n));
+		if (verify)
+			ASSERT0(abd_cmp_buf(abd, buf, n));
 		zio_buf_free(buf, n);
 	}
 }
 
+void
+abd_return_buf(abd_t *abd, void *buf, size_t n)
+{
+	abd_return_buf_impl(abd, buf, n, B_TRUE);
+}
+
+/*
+ * The ABD now holds buf's contents, so comparing them again proves nothing
+ * and reads any bytes the caller left unwritten, such as a compressor's tail.
+ */
 void
 abd_return_buf_copy(abd_t *abd, void *buf, size_t n)
 {
 	if (!abd_is_linear(abd)) {
 		abd_copy_from_buf(abd, buf, n);
 	}
-	abd_return_buf(abd, buf, n);
+	abd_return_buf_impl(abd, buf, n, B_FALSE);
 }
