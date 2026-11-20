@@ -176,3 +176,24 @@ function lose_zil_block
 		    conv=notrunc
 	done
 }
+
+#
+# Print how many ZIL replays have run their ARC priming pass, according to
+# the debug message log.
+#
+function prime_arc_count
+{
+	dbgmsg_read | grep -c "Starting zfs_zil_replay_prime_arc"
+}
+
+#
+# Print the debug message log.
+#
+function dbgmsg_read
+{
+	if is_linux; then
+		cat /proc/spl/kstat/zfs/dbgmsg
+	else
+		sysctl -n kstat.zfs.misc.dbgmsg
+	fi
+}
