@@ -286,8 +286,80 @@ static const blake3_ops_t *const blake3_impls[] = {
 #endif
 };
 
+/*
+ * Known answers: the first 32 bytes of "hash" for input_len 1025 and 31744 in
+ * test_vectors/test_vectors.json of the BLAKE3 reference implementation
+ * (github.com/BLAKE3-team/BLAKE3), whose inputs are bytes of i % 251. The
+ * longer input spans enough chunks to run the widest hash_many() paths.
+ */
+static const struct {
+	size_t len;
+	uint8_t digest[32];
+} blake3_selftest_vectors[] = {
+	{ 1025, {
+		0xd0, 0x02, 0x78, 0xae, 0x47, 0xeb, 0x27, 0xb3,
+		0x4f, 0xae, 0xcf, 0x67, 0xb4, 0xfe, 0x26, 0x3f,
+		0x82, 0xd5, 0x41, 0x29, 0x16, 0xc1, 0xff, 0xd9,
+		0x7c, 0x8c, 0xb7, 0xfb, 0x81, 0x4b, 0x84, 0x44
+	} },
+	{ 31744, {
+		0x62, 0xb6, 0x96, 0x0e, 0x1a, 0x44, 0xbc, 0xc1,
+		0xeb, 0x1a, 0x61, 0x1a, 0x8d, 0x62, 0x35, 0xb6,
+		0xb4, 0xb7, 0x8f, 0x32, 0xe7, 0xab, 0xc4, 0xfb,
+		0x4c, 0x6c, 0xdc, 0xce, 0x94, 0x89, 0x5c, 0x47
+	} }
+};
+
+#define	BLAKE3_SELFTEST_MAX_LEN	31744
+
+boolean_t
+blake3_impl_selftest(const blake3_ops_t *ops)
+{
+	uint8_t digest[32];
+	BLAKE3_CTX *ctx;
+	boolean_t ok = B_TRUE;
+
+	ctx = kmem_alloc(sizeof (*ctx), KM_SLEEP);
+	uint8_t *pattern = vmem_alloc(BLAKE3_SELFTEST_MAX_LEN, KM_SLEEP);
+	for (int i = 0; i < BLAKE3_SELFTEST_MAX_LEN; i++)
+		pattern[i] = i % 251;
+
+	/*
+	 * Each message in one update, then split into uneven pieces that
+	 * leave partial blocks and chunks buffered, complete them, and pass
+	 * several chunks at once.
+	 */
+	static const size_t splits[] = { 1, 63, 1025, 4096, 7, 2048 };
+	for (int split = 0; split <= 1; split++) {
+		for (int i = 0; i < ARRAY_SIZE(blake3_selftest_vectors); i++) {
+			size_t len = blake3_selftest_vectors[i].len;
+			const uint8_t *p = pattern;
+
+			Blake3_Init(ctx);
+			ctx->ops = ops;
+			for (int j = 0; len > 0;
+			    j = (j + 1) % ARRAY_SIZE(splits)) {
+				size_t n = split ? MIN(splits[j], len) : len;
+
+				Blake3_Update(ctx, p, n);
+				p += n;
+				len -= n;
+			}
+			Blake3_Final(ctx, digest);
+			if (memcmp(digest, blake3_selftest_vectors[i].digest,
+			    sizeof (digest)) != 0)
+				ok = B_FALSE;
+		}
+	}
+
+	vmem_free(pattern, BLAKE3_SELFTEST_MAX_LEN);
+	kmem_free(ctx, sizeof (*ctx));
+	return (ok);
+}
+
 /* use the generic implementation functions */
 #define	IMPL_NAME		"blake3"
+#define	IMPL_SELFTEST		blake3_impl_selftest
 #define	IMPL_OPS_T		blake3_ops_t
 #define	IMPL_ARRAY		blake3_impls
 #define	IMPL_GET_OPS		blake3_get_ops

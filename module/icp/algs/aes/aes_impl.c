@@ -21,18 +21,13 @@
 #include <aes/aes_impl.h>
 
 /*
- * Initialize AES encryption and decryption key schedules.
- *
- * Parameters:
- * cipherKey	User key
- * keyBits	AES key size (128, 192, or 256 bits)
- * keysched	AES key schedule to be initialized, of type aes_key_t.
- *		Allocated by aes_alloc_keysched().
+ * Initialize AES encryption and decryption key schedules for the given
+ * implementation.
  */
-void
-aes_init_keysched(const uint8_t *cipherKey, uint_t keyBits, void *keysched)
+static void
+aes_init_keysched_ops(const aes_impl_ops_t *ops, const uint8_t *cipherKey,
+    uint_t keyBits, void *keysched)
 {
-	const aes_impl_ops_t *ops = aes_impl_get_ops();
 	aes_key_t *newbie = keysched;
 	uint_t keysize, i, j;
 	union {
@@ -90,6 +85,21 @@ aes_init_keysched(const uint8_t *cipherKey, uint_t keyBits, void *keysched)
 	 * future, move setting key schedule type to individual implementations
 	 */
 	newbie->type = AES_32BIT_KS;
+}
+
+/*
+ * Initialize AES encryption and decryption key schedules.
+ *
+ * Parameters:
+ * cipherKey	User key
+ * keyBits	AES key size (128, 192, or 256 bits)
+ * keysched	AES key schedule to be initialized, of type aes_key_t.
+ *		Allocated by aes_alloc_keysched().
+ */
+void
+aes_init_keysched(const uint8_t *cipherKey, uint_t keyBits, void *keysched)
+{
+	aes_init_keysched_ops(aes_impl_get_ops(), cipherKey, keyBits, keysched);
 }
 
 
@@ -283,6 +293,59 @@ aes_impl_get_ops(void)
 }
 
 /*
+ * Known answers from Appendix C.1 to C.3 of FIPS 197 (November 2001): the
+ * same plaintext under 128, 192 and 256-bit keys of 00 01 02 ...
+ */
+static const uint8_t aes_selftest_pt[AES_BLOCK_LEN] = {
+	0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+	0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff
+};
+
+static const uint8_t aes_selftest_ct[3][AES_BLOCK_LEN] = {
+	{
+		0x69, 0xc4, 0xe0, 0xd8, 0x6a, 0x7b, 0x04, 0x30,
+		0xd8, 0xcd, 0xb7, 0x80, 0x70, 0xb4, 0xc5, 0x5a
+	},
+	{
+		0xdd, 0xa9, 0x7c, 0xa4, 0x86, 0x4c, 0xdf, 0xe0,
+		0x6e, 0xaf, 0x70, 0xa0, 0xec, 0x0d, 0x71, 0x91
+	},
+	{
+		0x8e, 0xa2, 0xb7, 0xca, 0x51, 0x67, 0x45, 0xbf,
+		0xea, 0xfc, 0x49, 0x90, 0x4b, 0x49, 0x60, 0x89
+	}
+};
+
+/*
+ * Check an implementation's key expansion, encryption and decryption
+ * against known answers. Returns B_TRUE if it passes.
+ */
+boolean_t
+aes_impl_selftest(const aes_impl_ops_t *ops)
+{
+	uint8_t key[32], ct[AES_BLOCK_LEN], pt[AES_BLOCK_LEN];
+	aes_key_t *ks;
+	boolean_t ok = B_TRUE;
+
+	for (int i = 0; i < sizeof (key); i++)
+		key[i] = i;
+
+	ks = kmem_alloc(sizeof (*ks), KM_SLEEP);
+	for (int i = 0; i < ARRAY_SIZE(aes_selftest_ct); i++) {
+		aes_init_keysched_ops(ops, key, 128 + 64 * i, ks);
+		(void) aes_encrypt_block(ks, aes_selftest_pt, ct);
+		(void) aes_decrypt_block(ks, ct, pt);
+		if (memcmp(ct, aes_selftest_ct[i], AES_BLOCK_LEN) != 0 ||
+		    memcmp(pt, aes_selftest_pt, AES_BLOCK_LEN) != 0)
+			ok = B_FALSE;
+	}
+	memset(ks, 0, sizeof (*ks));
+	kmem_free(ks, sizeof (*ks));
+
+	return (ok);
+}
+
+/*
  * Initialize all supported implementations.
  */
 void
@@ -291,34 +354,35 @@ aes_impl_init(void)
 	aes_impl_ops_t *curr_impl;
 	int i, c;
 
-	/* Move supported implementations into aes_supp_impls */
+	/*
+	 * Move supported implementations into aes_supp_impls, leaving out any
+	 * that compute wrong answers on this CPU. The generic implementation
+	 * comes first and is kept regardless, as there is nothing to fall
+	 * back to.
+	 */
 	for (i = 0, c = 0; i < ARRAY_SIZE(aes_all_impl); i++) {
 		curr_impl = (aes_impl_ops_t *)aes_all_impl[i];
 
-		if (curr_impl->is_supported())
-			aes_supp_impl[c++] = (aes_impl_ops_t *)curr_impl;
+		if (!curr_impl->is_supported())
+			continue;
+		if (!aes_impl_selftest(curr_impl)) {
+			cmn_err(CE_WARN, "ICP: the %s implementation of aes "
+			    "failed its self-test, and %s", curr_impl->name,
+			    c == 0 ? "can't be disabled" : "has been disabled");
+			if (c != 0)
+				continue;
+		}
+		aes_supp_impl[c++] = curr_impl;
 	}
 	aes_supp_impl_cnt = c;
 
 	/*
 	 * Set the fastest implementation given the assumption that the
-	 * hardware accelerated version is the fastest.
+	 * hardware accelerated version is the fastest. Implementations are
+	 * listed slowest first.
 	 */
-#if defined(__x86_64)
-#if HAVE_SIMD(AES)
-	if (aes_aesni_impl.is_supported()) {
-		memcpy(&aes_fastest_impl, &aes_aesni_impl,
-		    sizeof (aes_fastest_impl));
-	} else
-#endif
-	{
-		memcpy(&aes_fastest_impl, &aes_x86_64_impl,
-		    sizeof (aes_fastest_impl));
-	}
-#else
-	memcpy(&aes_fastest_impl, &aes_generic_impl,
+	memcpy(&aes_fastest_impl, aes_supp_impl[aes_supp_impl_cnt - 1],
 	    sizeof (aes_fastest_impl));
-#endif
 
 	strlcpy(aes_fastest_impl.name, "fastest", AES_IMPL_NAME_MAX);
 
