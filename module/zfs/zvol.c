@@ -2295,6 +2295,36 @@ zvol_create_minors(const char *name)
 	spa_close(spa, FTAG);
 }
 
+/*
+ * Check if the zvol minor of name, or of any of its descendants,
+ * is open.  This matches the set of minors that zvol_remove_minors()
+ * would remove for the same name with children.
+ */
+boolean_t
+zvol_minors_in_use(const char *name)
+{
+	zvol_state_t *zv;
+	int namelen = strlen(name);
+
+	rw_enter(&zvol_state_lock, RW_READER);
+	for (zv = list_head(&zvol_state_list); zv != NULL;
+	    zv = list_next(&zvol_state_list, zv)) {
+		mutex_enter(&zv->zv_state_lock);
+		if (strncmp(zv->zv_name, name, namelen) == 0 &&
+		    (zv->zv_name[namelen] == '\0' ||
+		    zv->zv_name[namelen] == '/' ||
+		    zv->zv_name[namelen] == '@') &&
+		    zv->zv_open_count > 0) {
+			mutex_exit(&zv->zv_state_lock);
+			rw_exit(&zvol_state_lock);
+			return (B_TRUE);
+		}
+		mutex_exit(&zv->zv_state_lock);
+	}
+	rw_exit(&zvol_state_lock);
+	return (B_FALSE);
+}
+
 void
 zvol_remove_minors(spa_t *spa, const char *name, boolean_t async)
 {
