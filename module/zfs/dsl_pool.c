@@ -1552,6 +1552,7 @@ dsl_pool_config_held_writer(dsl_pool_t *dp)
 
 EXPORT_SYMBOL(dsl_pool_config_enter);
 EXPORT_SYMBOL(dsl_pool_config_exit);
+EXPORT_SYMBOL(zfs_dirty_data_max); /* for Lustre */
 
 /* zfs_dirty_data_max_percent only applied at module load in arc_init(). */
 ZFS_MODULE_PARAM(zfs, zfs_, dirty_data_max_percent, UINT, ZMOD_RD,
