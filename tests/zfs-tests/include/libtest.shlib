@@ -3287,6 +3287,19 @@ function wait_resilvered #pool timeout
        done
 }
 
+# Number of bytes already copied by an expansion.
+function raidz_expand_reflowed # pool
+{
+	zpool status -jp "$1" | jq -r '.pools[].raidz_expand_stats.reflowed'
+}
+
+# Offset in the RAIDZ vdev address space of an exported pool.
+function raidz_expand_reflow_offset # pool devdir
+{
+	zdb -e -p "$2" -u "$1" | \
+	    awk '/raidz_reflow/ { sub("off=", "", $3); print $3 }'
+}
+
 # Wait for a raidz expansion to stop reflowing
 #
 # The raidz expansion tests pause a reflow by setting the tunable
