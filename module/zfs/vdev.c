@@ -3397,11 +3397,15 @@ vdev_dtl_should_excise(vdev_t *vd, boolean_t rebuild_done)
 		 * in all DTLs. If this device's max DTL is not part of this
 		 * scan (i.e. it is not in the range (scn_min_txg, scn_max_txg]
 		 * then it is not eligible for excision.
+		 *
+		 * Note that the scan's range need not include
+		 * vdev_resilver_txg: if some repair writes failed in the
+		 * previous resilver, DTL_MISSING is just the birth txgs of
+		 * those blocks, which may all be before (or after) the
+		 * attach.
 		 */
 		if (vdev_dtl_max(vd) <= scn->scn_phys.scn_max_txg) {
 			ASSERT3U(scnp->scn_min_txg, <=, vdev_dtl_min(vd));
-			ASSERT3U(scnp->scn_min_txg, <, vd->vdev_resilver_txg);
-			ASSERT3U(vd->vdev_resilver_txg, <=, scnp->scn_max_txg);
 			return (B_TRUE);
 		}
 	}
