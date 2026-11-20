@@ -337,6 +337,32 @@ def lzc_get_bookmarks(fsname, props=None):
     return bmarks
 
 
+def lzc_get_dataset_props(dsname, props=None):
+    '''
+    Retrieve properties for the given dataset.
+
+    :param bytes dsname: the name of the dataset.
+    :param props: a `list` of property names to retrieve, or None for all.
+    :type props: list of bytes or None
+    :return: a `dict` that maps property names to their values and sources.
+    :rtype: dict of bytes:dict
+
+    :raises DatasetNotFound: if the dataset is not found.
+
+    If ``props`` is `None` or empty, all properties are returned.
+    Otherwise, only the named properties are returned.
+    '''
+    result = {}
+    if props is None:
+        props = []
+    props_dict = {name: None for name in props}
+    nvlist = nvlist_in(props_dict)
+    with nvlist_out(result) as result_nvlist:
+        ret = _lib.lzc_get_dataset_props(dsname, nvlist, result_nvlist)
+    errors.lzc_get_dataset_props_translate_error(ret, dsname, props)
+    return result
+
+
 def lzc_destroy_bookmarks(bookmarks):
     '''
     Destroy bookmarks.
