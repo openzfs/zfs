@@ -1154,8 +1154,10 @@ vdev_expand_proplist(zpool_handle_t *zhp, const char *vdevname,
 			last = &(*last)->pl_next;
 
 		err = zpool_get_all_vdev_props(zhp, vdevname, &vprops);
-		if (err != 0)
+		if (err != 0) {
+			fnvlist_free(vprops);
 			return (err);
+		}
 
 		while ((elem = nvlist_next_nvpair(vprops, elem)) != NULL) {
 			propname = nvpair_name(elem);
@@ -1181,6 +1183,8 @@ vdev_expand_proplist(zpool_handle_t *zhp, const char *vdevname,
 			last = &entry->pl_next;
 		}
 	}
+
+	fnvlist_free(vprops);
 
 	return (0);
 }
@@ -2728,7 +2732,7 @@ zpool_initialize_impl(zpool_handle_t *zhp, pool_initialize_func_t cmd_type,
 	nvlist_t *vdev_guids = fnvlist_alloc();
 	nvlist_t *guids_to_paths = fnvlist_alloc();
 	nvlist_t *vd_errlist = NULL;
-	nvlist_t *errlist;
+	nvlist_t *errlist = NULL;
 	nvpair_t *elem;
 
 	err = zpool_translate_vdev_guids(zhp, vds, vdev_guids,
@@ -2798,6 +2802,8 @@ out:
 
 	if (vd_errlist != NULL)
 		fnvlist_free(vd_errlist);
+
+	fnvlist_free(errlist);
 
 	return (err == 0 ? 0 : -1);
 }
