@@ -62,6 +62,7 @@ struct zfsvfs {
 	int		z_norm;		/* normalization flags */
 	boolean_t	z_atime;	/* enable atimes mount option */
 	boolean_t	z_relatime;	/* enable relatime mount option */
+	boolean_t	z_dirsync;	/* sync namespace operations */
 	boolean_t	z_unmounted;	/* unmounted */
 	boolean_t	z_use_hold;	/* held via dmu_objset_hold */
 	zfs_teardown_lock_t z_teardown_lock;
