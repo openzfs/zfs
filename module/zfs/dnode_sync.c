@@ -851,6 +851,22 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 		mutex_exit(&ds->ds_lock);
 	}
 
+	/*
+	 * A file grown by truncate, or written only with holes, has a block
+	 * size above 128K before any such block is born, and its next write
+	 * needs large_blocks.  Activate it from the block size, as
+	 * dsl_dataset_block_born() does from the block.
+	 */
+	if (((uint64_t)dnp->dn_datablkszsec << SPA_MINBLOCKSHIFT) >
+	    SPA_OLD_MAXBLOCKSIZE && dn->dn_objset->os_dsl_dataset != NULL) {
+		dsl_dataset_t *ds = dn->dn_objset->os_dsl_dataset;
+		if (ds->ds_feature_activation[SPA_FEATURE_LARGE_BLOCKS] ==
+		    NULL) {
+			ds->ds_feature_activation[SPA_FEATURE_LARGE_BLOCKS] =
+			    (void *)B_TRUE;
+		}
+	}
+
 	if (dn->dn_next_nlevels[txgoff]) {
 		dnode_increase_indirection(dn, tx);
 		dn->dn_next_nlevels[txgoff] = 0;
