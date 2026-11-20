@@ -75,7 +75,10 @@ log_must [ -e $file ]
 log_mustnot_expect "Operation not permitted" mv $file $file.renamed
 log_must [ -e $file ]
 log_mustnot [ -e $file.renamed ]
-log_mustnot_expect "Operation not permitted" ln $file $file.link
+# uutils coreutils before 0.13 (the ln of Ubuntu 26.04) words EPERM as
+# "Permission denied".
+log_mustnot_expect "Operation not permitted\|Permission denied" \
+    ln $file $file.link
 log_mustnot [ -e $file.link ]
 
 log_must mkdir $dir
