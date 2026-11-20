@@ -2398,6 +2398,29 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 		rrw_exit(&dn->dn_objset->os_dsl_dataset->ds_bp_rwlock, FTAG);
 #endif
 
+	/*
+	 * Raise dn_maxblkid before this dirty record becomes visible, as
+	 * dbuf_dirty_lightweight() does, so no one can see a dirty L0 block
+	 * beyond dn_maxblkid (dmu_read_impl() and the free path treat blocks
+	 * past it as holes).  This must happen before db_mtx is taken to
+	 * preserve lock order.
+	 */
+	if (db->db_level == 0 && db->db_blkid != DMU_BONUS_BLKID &&
+	    db->db_blkid != DMU_SPILL_BLKID) {
+		IMPLY(db->db_objset->os_raw_receive,
+		    dn->dn_maxblkid >= db->db_blkid);
+		if (db->db_blkid > dn->dn_maxblkid) {
+			boolean_t held = RW_WRITE_HELD(&dn->dn_struct_rwlock);
+
+			if (!held)
+				rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
+			dnode_new_blkid(dn, db->db_blkid, tx, B_FALSE, B_FALSE);
+			if (!held)
+				rw_exit(&dn->dn_struct_rwlock);
+		}
+		ASSERT3U(dn->dn_maxblkid, >=, db->db_blkid);
+	}
+
 	mutex_enter(&db->db_mtx);
 	/*
 	 * XXX make this true for indirects too?  The problem is that
@@ -2564,14 +2587,6 @@ dbuf_dirty(dmu_buf_impl_t *db, dmu_tx_t *tx)
 	    dn->dn_next_nlevels[(tx->tx_txg-1) & TXG_MASK] > db->db_level ||
 	    dn->dn_next_nlevels[(tx->tx_txg-2) & TXG_MASK] > db->db_level);
 
-
-	if (db->db_level == 0) {
-		ASSERT(!db->db_objset->os_raw_receive ||
-		    dn->dn_maxblkid >= db->db_blkid);
-		dnode_new_blkid(dn, db->db_blkid, tx,
-		    drop_struct_rwlock, B_FALSE);
-		ASSERT(dn->dn_maxblkid >= db->db_blkid);
-	}
 
 	if (db->db_level+1 < dn->dn_nlevels) {
 		dmu_buf_impl_t *parent = db->db_parent;
