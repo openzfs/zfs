@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+# Runfile for comma-separated multi-pool import and related
+# parallel import coverage.
+#
+
+[DEFAULT]
+pre = setup
+quiet = False
+pre_user = root
+user = root
+timeout = 1200
+post_user = root
+post = cleanup
+failsafe_user = root
+failsafe = callbacks/zfs_failsafe
+tags = ['multi-import']
+
+[tests/functional/cli_root/zpool_import]
+tests = ['zpool_import_multi_pos', 'zpool_import_multi_neg',
+    'zpool_import_multi_parallel', 'zpool_import_parallel_pos',
+    'zpool_import_parallel_neg', 'zpool_import_parallel_admin',
+    'zpool_import_all_001_pos', 'zpool_import_rename_001_pos']
+tags = ['functional', 'cli_root', 'zpool_import', 'multi-import']
+timeout = 1200
