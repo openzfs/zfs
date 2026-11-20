@@ -130,6 +130,23 @@ kmem_strfree(char *str)
 }
 EXPORT_SYMBOL(kmem_strfree);
 
+/*
+ * Without __GFP_KSWAPD_RECLAIM the order-0 pages backing a vmalloc() area
+ * don't wake kswapd at the low watermark, so free memory sinks to the min
+ * watermark and allocating threads have to reclaim it directly.  Since
+ * wakeup_kswapd() is not exported, allocate and free one order-0 page
+ * that may wake kswapd, but neither reclaims nor dips into reserves.
+ */
+void
+spl_wake_kswapd_if_needed(void)
+{
+	struct page *page = alloc_page(__GFP_KSWAPD_RECLAIM | __GFP_HIGHMEM |
+	    __GFP_NOWARN | __GFP_NOMEMALLOC);
+
+	if (page != NULL)
+		__free_page(page);
+}
+
 void *
 spl_kvmalloc(size_t size, gfp_t lflags)
 {
@@ -178,13 +195,13 @@ spl_kvmalloc(size_t size, gfp_t lflags)
 	 * We first try kmalloc - even for big sizes - and fall back to
 	 * spl_vmalloc if that fails.
 	 *
-	 * Require both direct and kswapd reclaim permission in the original
-	 * mask for fallback.
-	 * Older kernels do not support nonblocking vmalloc allocations.
+	 * Require direct reclaim permission in the original mask for
+	 * fallback.  Older kernels do not support nonblocking vmalloc
+	 * allocations.
 	 */
 	void *ptr = kmalloc_node(size, kmalloc_lflags, NUMA_NO_NODE);
 	if (ptr || size <= PAGE_SIZE ||
-	    (lflags & __GFP_RECLAIM) != __GFP_RECLAIM) {
+	    !(lflags & __GFP_DIRECT_RECLAIM)) {
 		return (ptr);
 	}
 
@@ -230,6 +247,29 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 	 */
 	do {
 		/*
+		 * Don't wake kswapd for larger requests that can fall back to
+		 * vmalloc, nor from vmalloc, which on newer kernels first tries
+		 * high orders too.  When the ARC holds most of memory, which
+		 * compaction can't move, kswapd can make contiguous blocks
+		 * only by evicting a lot of it, growing exponentially with the
+		 * order, which soon costs more than vmalloc mapping and TLB
+		 * flush overheads.  Draw the line half way between the costly
+		 * order and spl_kmem_alloc_max in orders.  Direct reclaim is
+		 * kept, so this can't fail where it would not before, and the
+		 * retries below wake kswapd as usual.  Without the flag
+		 * spl_kvmalloc() skips kvmalloc(), which always wakes kswapd.
+		 * Keep the order-0 wakeup at the low watermark though.
+		 */
+		int mid_order = (PAGE_ALLOC_COSTLY_ORDER +
+		    get_order(spl_kmem_alloc_max)) / 2;
+		gfp_t vflags = lflags;
+		if ((lflags & (__GFP_RECLAIM | __GFP_RETRY_MAYFAIL)) ==
+		    __GFP_RECLAIM && get_order(size) > mid_order) {
+			vflags &= ~__GFP_KSWAPD_RECLAIM;
+			spl_wake_kswapd_if_needed();
+		}
+
+		/*
 		 * Calling kmalloc_node() when the size > spl_kmem_alloc_max
 		 * is unsafe.  This must fail for all kmem_alloc() and
 		 * kmem_zalloc() callers.
@@ -243,7 +283,7 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 		 */
 		if (size > spl_kmem_alloc_max) {
 			if (flags & KM_VMEM) {
-				ptr = spl_vmalloc(size, lflags);
+				ptr = spl_vmalloc(size, vflags);
 			} else {
 				return (NULL);
 			}
@@ -263,7 +303,7 @@ spl_kmem_alloc_impl(size_t size, int flags, int node)
 #else
 			if ((flags & KM_VMEM) || !(flags & KM_NOSLEEP)) {
 #endif
-				ptr = spl_kvmalloc(size, lflags);
+				ptr = spl_kvmalloc(size, vflags);
 			} else {
 				ptr = kmalloc_node(size, lflags, node);
 			}

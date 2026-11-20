@@ -57,6 +57,7 @@ extern void kmem_strfree(char *str);
 
 static int spl_fstrans_check(void);
 void *spl_kvmalloc(size_t size, gfp_t flags);
+void spl_wake_kswapd_if_needed(void);
 
 /*
  * Convert a KM_* flags mask to its Linux GFP_* counterpart.  The conversion
