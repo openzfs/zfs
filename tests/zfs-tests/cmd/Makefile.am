@@ -74,7 +74,8 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/libzfs_input_check
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/libzfs_mnttab_cache_check
 %C%_libzfs_mnttab_cache_check_LDADD = \
-	libzfs.la
+	libzfs.la \
+	libzfs_core.la
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/manipulate_user_buffer
 
@@ -94,6 +95,7 @@ endif
 scripts_zfs_tests_bin_PROGRAMS += %D%/zcp_support
 %C%_zcp_support_LDADD = \
 	libzfs.la \
+	libzfs_core.la \
 	libnvpair.la
 
 %C%_zcp_support_SOURCES = %D%/zcp_support.c
@@ -123,7 +125,8 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/threadsappend
 scripts_zfs_tests_bin_PROGRAMS += %D%/ereports
 %C%_ereports_LDADD = \
 	libnvpair.la \
-	libzfs.la
+	libzfs.la \
+	libzfs_core.la
 
 
 scripts_zfs_tests_bin_PROGRAMS += %D%/edonr_test %D%/skein_test \
