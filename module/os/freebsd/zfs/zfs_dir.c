@@ -572,9 +572,9 @@ zfs_link_create(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 {
 	zfsvfs_t *zfsvfs = zp->z_zfsvfs;
 	vnode_t *vp = ZTOV(zp);
-	uint64_t value;
+	uint64_t value, cookie;
 	int zp_is_dir = (vp->v_type == VDIR);
-	sa_bulk_attr_t bulk[6];
+	sa_bulk_attr_t bulk[7];
 	uint64_t mtime[2], ctime[2];
 	int count = 0;
 	int error;
@@ -603,8 +603,8 @@ zfs_link_create(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 		ASSERT(!zp->z_unlinked);
 	}
 	value = zfs_dirent(zp, zp->z_mode);
-	error = zap_add(zp->z_zfsvfs->z_os, dzp->z_id, name,
-	    8, 1, &value, tx);
+	error = zap_add_cookie(zp->z_zfsvfs->z_os, dzp->z_id, name,
+	    8, 1, &value, &cookie, tx);
 
 	/*
 	 * zap_add could fail to add the entry if it exceeds the capacity of the
@@ -629,6 +629,10 @@ zfs_link_create(znode_t *dzp, const char *name, znode_t *zp, dmu_tx_t *tx,
 
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_PARENT(zfsvfs), NULL,
 	    &dzp->z_id, sizeof (dzp->z_id));
+	if (zp->z_is_sa && zfs_parent_cookie) {
+		SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_PARENT_COOKIE(zfsvfs),
+		    NULL, &cookie, sizeof (cookie));
+	}
 	SA_ADD_BULK_ATTR(bulk, count, SA_ZPL_FLAGS(zfsvfs), NULL,
 	    &zp->z_pflags, sizeof (zp->z_pflags));
 
