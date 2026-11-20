@@ -21,7 +21,7 @@
 .\" Copyright 2019 Joyent, Inc.
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd June 14, 2026
+.Dd October 30, 2026
 .Dt ZFS-ALLOW 8
 .Os
 .
@@ -193,6 +193,7 @@ bookmark	subcommand
 clone	subcommand	Must also have the \fBcreate\fR ability and \fBmount\fR ability in the origin file system
 create	subcommand	Must also have the \fBmount\fR ability. Must also have the \fBrefreservation\fR ability to create a non-sparse volume.
 destroy	subcommand	Must also have the \fBmount\fR ability
+destroy:snapshot	subcommand	Only allows destroying snapshots and bookmarks, not filesystems or volumes.
 diff	subcommand	Allows lookup of paths within a dataset given an object number, and the ability to create snapshots necessary to \fBzfs diff\fR.
 hold	subcommand	Allows adding a user hold to a snapshot
 load-key	subcommand	Allows loading and unloading of encryption key (see \fBzfs load-key\fR and \fBzfs unload-key\fR).
