@@ -201,10 +201,10 @@ arc_shrinker_scan(struct shrinker *shrink, struct shrink_control *sc)
 
 	/*
 	 * We are experiencing memory pressure which the arc_evict_zthr was
-	 * unable to keep up with.  Set arc_no_grow to briefly pause ARC
+	 * unable to keep up with.  Briefly pause ARC
 	 * growth to avoid compounding the memory pressure.
 	 */
-	arc_no_grow = B_TRUE;
+	arc_growth_pause(&arc_growth, gethrtime());
 
 	/*
 	 * Evict the requested number of pages by reducing arc_c and waiting
