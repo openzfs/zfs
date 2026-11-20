@@ -104,7 +104,7 @@ int dsl_prop_predict(dsl_dir_t *dd, const char *propname,
 /* flag first receive on or after SPA_VERSION_RECVD_PROPS */
 boolean_t dsl_prop_get_hasrecvd(const char *dsname);
 int dsl_prop_set_hasrecvd(const char *dsname);
-void dsl_prop_unset_hasrecvd(const char *dsname);
+int dsl_prop_unset_hasrecvd(const char *dsname);
 
 void dsl_prop_nvlist_add_uint64(nvlist_t *nv, zfs_prop_t prop, uint64_t value);
 void dsl_prop_nvlist_add_string(nvlist_t *nv,
