@@ -933,6 +933,22 @@ test_wait_fs(const char *dataset)
 	nvlist_free(required);
 }
 
+/* The working dataset is a file system, which can not be rewritten so far. */
+static void
+test_dataset_rewrite(const char *dataset)
+{
+	nvlist_t *optional = fnvlist_alloc();
+
+	fnvlist_add_uint64(optional, DATASET_REWRITE_OFFSET, 0);
+	fnvlist_add_uint64(optional, DATASET_REWRITE_LENGTH, 0);
+	fnvlist_add_uint64(optional, DATASET_REWRITE_FLAGS, 0);
+
+	IOC_INPUT_TEST(ZFS_IOC_DATASET_REWRITE, dataset, NULL, optional,
+	    ENOTSUP);
+
+	nvlist_free(optional);
+}
+
 static void
 test_get_bootenv(const char *pool)
 {
@@ -1054,6 +1070,8 @@ zfs_ioc_input_tests(const char *pool)
 
 	test_wait(pool);
 	test_wait_fs(dataset);
+
+	test_dataset_rewrite(dataset);
 
 	test_set_bootenv(pool);
 	test_get_bootenv(pool);

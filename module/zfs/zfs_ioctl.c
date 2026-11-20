@@ -5105,6 +5105,47 @@ zfs_ioc_wait_fs(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
 }
 
 /*
+ * Rewrite a range of a dataset as-is without modification, so that its blocks
+ * are reallocated as if they were read and written back.  Only volumes can be
+ * rewritten this way so far, as the counterpart of the file rewrite.  The
+ * volume can be in use, and does not need to be exposed as a device.
+ *
+ * innvl: {
+ *     "rewrite_offset" -> uint64_t (optional, defaults to 0)
+ *     "rewrite_length" -> uint64_t (optional, defaults to the rest of the
+ *         volume)
+ *     "rewrite_flags" -> uint64_t (optional, ZFS_REWRITE_* flags)
+ * }
+ *
+ * outnvl is unused.
+ */
+static const zfs_ioc_key_t zfs_keys_dataset_rewrite[] = {
+	{DATASET_REWRITE_OFFSET,	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{DATASET_REWRITE_LENGTH,	DATA_TYPE_UINT64,	ZK_OPTIONAL},
+	{DATASET_REWRITE_FLAGS,		DATA_TYPE_UINT64,	ZK_OPTIONAL},
+};
+
+static int
+zfs_ioc_dataset_rewrite(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	uint64_t off = 0;
+	uint64_t len = 0;
+	uint64_t flags = 0;
+
+	if (innvl != NULL) {
+		(void) nvlist_lookup_uint64(innvl, DATASET_REWRITE_OFFSET,
+		    &off);
+		(void) nvlist_lookup_uint64(innvl, DATASET_REWRITE_LENGTH,
+		    &len);
+		(void) nvlist_lookup_uint64(innvl, DATASET_REWRITE_FLAGS,
+		    &flags);
+	}
+
+	/* zvol_rewrite() refuses any other type of dataset with ENOTSUP. */
+	return (zvol_rewrite(name, off, len, flags));
+}
+
+/*
  * fsname is name of dataset to rollback (to most recent snapshot)
  *
  * innvl may contain name of expected target snapshot
@@ -8204,6 +8245,11 @@ zfs_ioctl_init(void)
 	    zfs_ioc_ddt_prune, zfs_secpolicy_config, POOL_NAME,
 	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
 	    zfs_keys_ddt_prune, ARRAY_SIZE(zfs_keys_ddt_prune));
+
+	zfs_ioctl_register("dataset_rewrite", ZFS_IOC_DATASET_REWRITE,
+	    zfs_ioc_dataset_rewrite, zfs_secpolicy_config, DATASET_NAME,
+	    POOL_CHECK_SUSPENDED | POOL_CHECK_READONLY, B_TRUE, B_TRUE,
+	    zfs_keys_dataset_rewrite, ARRAY_SIZE(zfs_keys_dataset_rewrite));
 
 	/* IOCTLS that use the legacy function signature */
 
