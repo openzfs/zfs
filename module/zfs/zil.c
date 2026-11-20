@@ -4464,6 +4464,7 @@ zil_free(zilog_t *zilog)
 
 	ASSERT0(zilog->zl_suspend);
 	ASSERT0(zilog->zl_suspending);
+	ASSERT0(zilog->zl_suspended);
 	ASSERT0(zilog->zl_restart_txg);
 
 	ASSERT(list_is_empty(&zilog->zl_lwb_list));
@@ -4602,8 +4603,8 @@ static const char *suspend_tag = "zil suspending";
  * very little gain.
  *
  * if cookiep == NULL, this does both the suspend & resume.
- * Otherwise, it returns with the dataset "long held", and the cookie
- * should be passed into zil_resume().
+ * Otherwise, on success it returns with the dataset "long held", and the
+ * cookie should be passed into zil_resume().
  */
 int
 zil_suspend(const char *osname, void **cookiep)
@@ -4645,7 +4646,7 @@ zil_suspend(const char *osname, void **cookiep)
 	 * for the suspend because it's already suspended, or there's no ZIL.
 	 */
 	if (cookiep == NULL && !zilog->zl_suspending &&
-	    (zilog->zl_suspend > 0 || BP_IS_HOLE(&zh->zh_log))) {
+	    (zilog->zl_suspended || BP_IS_HOLE(&zh->zh_log))) {
 		mutex_exit(&zilog->zl_lock);
 		dmu_objset_rele(os, suspend_tag);
 		return (0);
@@ -4656,38 +4657,34 @@ zil_suspend(const char *osname, void **cookiep)
 
 	zilog->zl_suspend++;
 
-	if (zilog->zl_suspend > 1) {
-		/*
-		 * Someone else is already suspending it.
-		 * Just wait for them to finish.
-		 */
+	/*
+	 * If someone else is suspending it, wait for them to finish. If
+	 * they failed without crashing the ZIL, e.g. because the objset
+	 * failed authentication, the log still has to be emptied, so
+	 * suspend it ourselves.
+	 */
+	while (zilog->zl_suspending)
+		cv_wait(&zilog->zl_cv_suspend, &zilog->zl_lock);
 
-		while (zilog->zl_suspending)
-			cv_wait(&zilog->zl_cv_suspend, &zilog->zl_lock);
+	if (zilog->zl_restart_txg > 0) {
+		/* ZIL crashed while we were waiting. */
 		mutex_exit(&zilog->zl_lock);
-
-		if (zilog->zl_restart_txg > 0) {
-			/* ZIL crashed while we were waiting. */
-			zil_resume(os);
-			error = SET_ERROR(EBUSY);
-		} else if (cookiep == NULL)
-			zil_resume(os);
-		else
-			*cookiep = os;
-
-		return (error);
+		zil_resume(os);
+		return (SET_ERROR(EBUSY));
 	}
 
 	/*
-	 * If there is no pointer to an on-disk block, this ZIL must not
-	 * be active (e.g. filesystem not mounted), so there's nothing
-	 * to clean up.
+	 * There's nothing to clean up if another suspend emptied the log,
+	 * or if there is no pointer to an on-disk block, i.e. this ZIL
+	 * isn't active (e.g. filesystem not mounted).
 	 */
-	if (BP_IS_HOLE(&zh->zh_log)) {
-		ASSERT(cookiep != NULL); /* fast path already handled */
-
-		*cookiep = os;
+	if (zilog->zl_suspended || BP_IS_HOLE(&zh->zh_log)) {
+		zilog->zl_suspended = B_TRUE;
 		mutex_exit(&zilog->zl_lock);
+		if (cookiep == NULL)
+			zil_resume(os);
+		else
+			*cookiep = os;
 		return (0);
 	}
 
@@ -4710,6 +4707,12 @@ zil_suspend(const char *osname, void **cookiep)
 	mutex_exit(&zilog->zl_lock);
 
 	/*
+	 * Committing and destroying the log dirties the objset, which may
+	 * not be owned, so its MACs must be checked first.
+	 */
+	error = dmu_objset_authenticate(os);
+
+	/*
 	 * We need to use zil_commit_impl to ensure we wait for all
 	 * LWB_STATE_OPENED, _CLOSED and _READY lwbs to be committed
 	 * to disk before proceeding. If we used zil_commit instead, it
@@ -4722,7 +4725,8 @@ zil_suspend(const char *osname, void **cookiep)
 	 * txg_wait_sync_flushed(), which affects what we do next, so we
 	 * capture that error.
 	 */
-	error = zil_commit_impl(zilog, 0);
+	if (error == 0)
+		error = zil_commit_impl(zilog, 0);
 	if (error == ESHUTDOWN)
 		/* zil_commit_impl() has called zil_crash() already */
 		error = SET_ERROR(EBUSY);
@@ -4747,13 +4751,14 @@ zil_suspend(const char *osname, void **cookiep)
 
 	mutex_enter(&zilog->zl_lock);
 	zilog->zl_suspending = B_FALSE;
+	zilog->zl_suspended = (error == 0);
 	cv_broadcast(&zilog->zl_cv_suspend);
 	mutex_exit(&zilog->zl_lock);
 
 	if (os->os_encrypted)
 		dsl_dataset_remove_key_mapping(dmu_objset_ds(os));
 
-	if (cookiep == NULL)
+	if (cookiep == NULL || error != 0)
 		zil_resume(os);
 	else
 		*cookiep = os;
@@ -4769,7 +4774,8 @@ zil_resume(void *cookie)
 
 	mutex_enter(&zilog->zl_lock);
 	ASSERT(zilog->zl_suspend != 0);
-	zilog->zl_suspend--;
+	if (--zilog->zl_suspend == 0)
+		zilog->zl_suspended = B_FALSE;
 	mutex_exit(&zilog->zl_lock);
 	dsl_dataset_long_rele(dmu_objset_ds(os), suspend_tag);
 	dsl_dataset_rele(dmu_objset_ds(os), suspend_tag);
@@ -5254,8 +5260,11 @@ zil_reset(const char *osname, void *arg)
 	(void) arg;
 
 	int error = zil_suspend(osname, NULL);
-	/* EACCES means crypto key not loaded */
-	if ((error == EACCES) || (error == EBUSY))
+	/*
+	 * EACCES means crypto key not loaded, and EIO that the objset
+	 * failed authentication or could not be read.
+	 */
+	if (error == EACCES || error == EBUSY || error == EIO)
 		return (SET_ERROR(error));
 	if (error != 0)
 		return (SET_ERROR(EEXIST));
