@@ -2647,7 +2647,7 @@ metaslab_load_impl(metaslab_t *msp)
 	 * of what is allocated and what is free.
 	 */
 	zfs_range_tree_walk(msp->ms_unflushed_allocs,
-	    zfs_range_tree_remove, msp->ms_allocatable);
+	    space_map_remove_alloc, msp->ms_allocatable);
 	zfs_range_tree_walk(msp->ms_unflushed_frees,
 	    zfs_range_tree_add, msp->ms_allocatable);
 

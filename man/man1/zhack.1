@@ -13,7 +13,7 @@
 .\"
 .\" lint-ok: WARNING: sections out of conventional order: Sh SYNOPSIS
 .\"
-.Dd August 9, 2026
+.Dd November 18, 2026
 .Dt ZHACK 1
 .Os
 .
@@ -170,6 +170,31 @@ The
 flag forces the profile to apply even if the vdevs in the
 .Ar pool
 don't have the same number of metaslabs as the fragmentation profile.
+.
+.It Xo
+.Nm zhack
+.Cm metaslab append
+.Ar pool
+.Ar vdev
+.Ar type offset size Ns …
+.Xc
+Append to the space map of a metaslab of top-level vdev
+.Ar vdev
+an entry for each range of
+.Ar size
+bytes at
+.Ar offset ,
+in the order given, where
+.Ar type
+is
+.Sy alloc
+or
+.Sy free .
+Neither the metaslab nor the space map's count of allocated space takes the
+entries into account, so they can contradict the pool's allocation state and
+damage the space map; this is meant for testing recovery.
+Offsets are in bytes from the start of the vdev, as in a DVA.
+The ranges must lie in one metaslab and be aligned to the vdev's sector size.
 .
 .It Xo
 .Nm zhack
