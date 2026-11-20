@@ -1088,11 +1088,18 @@ spa_vdev_copy_one_child(vdev_copy_arg_t *vca, zio_t *nzio,
 	ASSERT3U(spa_config_held(nzio->io_spa, SCL_ALL, RW_READER), !=, 0);
 
 	/*
-	 * If the destination child in unwritable then there is no point
-	 * in issuing the source reads which cannot be written.
+	 * If the destination child is unwritable then there is no point
+	 * in issuing the source reads which cannot be written.  Count it
+	 * as a write error, so that the removal is canceled.  Otherwise
+	 * the child would never get this copy: the copied blocks keep
+	 * their birth txg, so a resilver of the child's DTL skips them.
 	 */
-	if (!vdev_writeable(dest_child_vd))
+	if (!vdev_writeable(dest_child_vd)) {
+		mutex_enter(&vca->vca_lock);
+		vca->vca_write_error_bytes += size;
+		mutex_exit(&vca->vca_lock);
 		return;
+	}
 
 	mutex_enter(&vca->vca_lock);
 	vca->vca_outstanding_bytes += size;

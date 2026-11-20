@@ -16,7 +16,7 @@
 .\" Copyright (c) 2026, Mateusz Piotrowski <0mp@FreeBSD.org>
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd September 9, 2026
+.Dd November 9, 2026
 .Dt ZFS 4
 .Os
 .
@@ -2315,7 +2315,8 @@ as it typically results in leaked space, or worse.
 .
 .It Sy zfs_removal_ignore_errors Ns = Ns Sy 0 Ns | Ns 1 Pq int
 Ignore hard I/O errors during device removal.
-When set, if a device encounters a hard I/O error during the removal process
+When set, if a device encounters a hard I/O error during the removal process,
+or a device that receives the data cannot be written to,
 the removal will not be canceled.
 This can result in a normally recoverable block becoming permanently damaged
 and is hence not recommended.
