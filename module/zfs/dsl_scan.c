@@ -1560,11 +1560,25 @@ void
 dsl_scan_restart_resilver(dsl_pool_t *dp, uint64_t txg)
 {
 	if (txg == 0) {
+		spa_t *spa = dp->dp_spa;
+		uint64_t mintxg;
+		uint64_t maxtxg = 0;
 		dmu_tx_t *tx;
+
+		/*
+		 * Not before the end of the DTLs, as in spa_vdev_attach():
+		 * a device attached while a resilver ran may still be
+		 * waiting for its txgs to sync (see dsl_scan_sync()).
+		 */
+		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+		(void) vdev_resilver_needed(spa->spa_root_vdev, &mintxg,
+		    &maxtxg);
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+
 		tx = dmu_tx_create_dd(dp->dp_mos_dir);
 		VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
 
-		txg = dmu_tx_get_txg(tx);
+		txg = MAX(dmu_tx_get_txg(tx), maxtxg);
 		dp->dp_scan->scn_restart_txg = txg;
 		dmu_tx_commit(tx);
 	} else {
@@ -4547,6 +4561,24 @@ dsl_scan_sync(dsl_pool_t *dp, dmu_tx_t *tx)
 	if (spa_sync_pass(spa) > 1)
 		return;
 
+	/*
+	 * Like spa_vdev_attach(), which restarts the resilver at the end of
+	 * the new device's DTL, don't restart early until every txg in the
+	 * DTLs has synced.  Blocks written by dmu_sync() before the attach
+	 * are stitched into their datasets only when their txg syncs; a
+	 * scan set up sooner would not find them and would still excise
+	 * their txgs from the DTL.  Its scn_max_txg would also lie past
+	 * this txg, so it would queue reads of MOS blocks born in this txg,
+	 * which a later sync pass may rewrite in place.  While the DTLs
+	 * keep growing, the deferred resilver waits for the running one.
+	 */
+	if (restart_early) {
+		uint64_t mintxg, maxtxg;
+
+		if (vdev_resilver_needed(spa->spa_root_vdev,
+		    &mintxg, &maxtxg) && maxtxg > tx->tx_txg)
+			restart_early = 0;
+	}
 
 	/*
 	 * Check for scn_restart_txg before checking spa_load_state, so
