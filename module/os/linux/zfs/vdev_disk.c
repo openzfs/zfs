@@ -107,6 +107,13 @@ static unsigned int zfs_vdev_failfast_mask = 1;
 static unsigned int zfs_vdev_disk_calling_thread_io = 0;
 
 /*
+ * Which writes are submitted REQ_SYNC|REQ_IDLE, so that the block layer's
+ * writeback throttle (blk-wbt) leaves them alone: 0 none, 1 the writes
+ * something waits on and flushes, 2 also every write the vdev queue paced.
+ */
+static uint_t zfs_vdev_disk_sync_writes = 1;
+
+/*
  * Convert SPA mode flags into bdev open mode flags.
  */
 #ifdef HAVE_BLK_MODE_T
@@ -1009,6 +1016,19 @@ vdev_disk_check_alignment(abd_t *abd, uint64_t size, struct block_device *bdev)
 	return (B_TRUE);
 }
 
+/*
+ * Whether something waits for this write: a write of the synchronous write
+ * class, or a ZIL block, which zil_lwb_write_issue() sends to a log device in
+ * the asynchronous class once the log is large.
+ */
+static boolean_t
+vdev_disk_write_waited(const zio_t *zio)
+{
+	return (zio->io_priority == ZIO_PRIORITY_SYNC_WRITE ||
+	    (zio->io_bookmark.zb_object == ZB_ZIL_OBJECT &&
+	    zio->io_bookmark.zb_level == ZB_ZIL_LEVEL));
+}
+
 static int
 vdev_disk_io_rw(zio_t *zio)
 {
@@ -1040,6 +1060,23 @@ vdev_disk_io_rw(zio_t *zio)
 		bio_set_flags_failfast(bdev, &flags, zfs_vdev_failfast_mask & 1,
 		    zfs_vdev_failfast_mask & 2, zfs_vdev_failfast_mask & 4);
 	}
+
+	/*
+	 * The block layer's writeback throttle (blk-wbt) puts the submitting
+	 * thread to sleep for any write that is not both REQ_SYNC and
+	 * REQ_IDLE.  Mark the writes something waits on, as the kernel does
+	 * for direct I/O and journal writes, so that they are not held
+	 * behind other writes, nor is the taskq thread issuing them.  An
+	 * aggregate takes the priority of the I/O it was built around, so a
+	 * sync write aggregated with async ones can still go unmarked.  With
+	 * zfs_vdev_disk_sync_writes=2, also mark the writes the vdev queue
+	 * paced, leaving blk-wbt only those that bypassed it.
+	 */
+	const uint_t sync_writes = zfs_vdev_disk_sync_writes;
+	if (zio->io_type == ZIO_TYPE_WRITE && sync_writes != 0 &&
+	    (vdev_disk_write_waited(zio) || (sync_writes >= 2 &&
+	    !(zio->io_flags & ZIO_FLAG_BYPASSED_QUEUE))))
+		flags |= REQ_SYNC | REQ_IDLE;
 
 	/*
 	 * Check alignment of the incoming ABD. If any part of it would require
@@ -1124,6 +1161,9 @@ vdev_disk_io_flush(struct block_device *bdev, zio_t *zio)
 	bio->bi_end_io = vdev_disk_io_flush_completion;
 	bio->bi_private = zio;
 	bio_set_flush(bio);
+	/* Waited on like a sync write; see vdev_disk_io_rw(). */
+	if (zfs_vdev_disk_sync_writes != 0)
+		bio->bi_opf |= REQ_SYNC | REQ_IDLE;
 	vdev_submit_bio(bio);
 	invalidate_bdev(bdev);
 
@@ -1483,3 +1523,7 @@ ZFS_MODULE_PARAM(zfs_vdev_disk, zfs_vdev_disk_, max_segs, UINT, ZMOD_RW,
 
 ZFS_MODULE_PARAM(zfs_vdev_disk, zfs_vdev_disk_, calling_thread_io, UINT,
 	ZMOD_RW, "Enable calling thread io");
+
+ZFS_MODULE_PARAM(zfs_vdev_disk, zfs_vdev_disk_, sync_writes, UINT, ZMOD_RW,
+	"Writes submitted REQ_SYNC|REQ_IDLE, out of blk-wbt: "
+	"0 none, 1 waited-on writes and flushes, 2 also queued writes");
