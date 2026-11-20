@@ -1714,6 +1714,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/direct/dio_async_always.ksh \
 	functional/direct/dio_async_fio_ioengines.ksh \
 	functional/direct/dio_compression.ksh \
+	functional/direct/dio_decompress_fault.ksh \
 	functional/direct/dio_dedup.ksh \
 	functional/direct/dio_encryption.ksh \
 	functional/direct/dio_grow_block.ksh \
