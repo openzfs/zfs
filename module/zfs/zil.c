@@ -971,6 +971,16 @@ zil_commit_activate_saxattr_feature(zilog_t *zilog)
 	    !dsl_dataset_feature_is_active(ds, SPA_FEATURE_ZILSAXATTR)) {
 		tx = dmu_tx_create(zilog->zl_os);
 		VERIFY0(dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_SUSPEND));
+		/*
+		 * A disable lets code that found the feature enabled while
+		 * holding a tx reference it in that tx's txg, see "Disabling"
+		 * in zfeature.c: check again now that we hold one.
+		 */
+		if (!spa_feature_is_enabled(zilog->zl_spa,
+		    SPA_FEATURE_ZILSAXATTR)) {
+			dmu_tx_commit(tx);
+			return (0);
+		}
 		dsl_dataset_dirty(ds, tx);
 		txg = dmu_tx_get_txg(tx);
 
@@ -986,6 +996,8 @@ zil_commit_activate_saxattr_feature(zilog_t *zilog)
 			zil_crash(zilog);
 			return (err);
 		}
+		ASSERT(dsl_dataset_feature_is_active(ds,
+		    SPA_FEATURE_ZILSAXATTR));
 	}
 
 	return (0);
@@ -1004,6 +1016,7 @@ zil_create(zilog_t *zilog)
 	blkptr_t blk;
 	int error = 0;
 	boolean_t slog = FALSE;
+	boolean_t saxattr = B_FALSE;
 	dsl_dataset_t *ds = dmu_objset_ds(zilog->zl_os);
 
 
@@ -1066,6 +1079,7 @@ zil_create(zilog_t *zilog)
 		if (spa_feature_is_enabled(zilog->zl_spa,
 		    SPA_FEATURE_ZILSAXATTR) && dmu_objset_type(zilog->zl_os) !=
 		    DMU_OST_ZVOL) {
+			saxattr = B_TRUE;
 			mutex_enter(&ds->ds_lock);
 			ds->ds_feature_activation[SPA_FEATURE_ZILSAXATTR] =
 			    (void *)B_TRUE;
@@ -1088,9 +1102,12 @@ zil_create(zilog_t *zilog)
 		if (zil_commit_activate_saxattr_feature(zilog) != 0)
 			return (NULL);
 	}
-	IMPLY(spa_feature_is_enabled(zilog->zl_spa, SPA_FEATURE_ZILSAXATTR) &&
-	    dmu_objset_type(zilog->zl_os) != DMU_OST_ZVOL,
-	    dsl_dataset_feature_is_active(ds, SPA_FEATURE_ZILSAXATTR));
+	/*
+	 * Check what was decided under the tx: the feature can read otherwise
+	 * by now, if a disable or an enable ran since, see zfeature.c.
+	 */
+	IMPLY(saxattr, dsl_dataset_feature_is_active(ds,
+	    SPA_FEATURE_ZILSAXATTR));
 
 	ASSERT(error != 0 || memcmp(&blk, &zh->zh_log, sizeof (blk)) == 0);
 	IMPLY(error == 0, lwb != NULL);
@@ -1371,6 +1388,25 @@ zil_lwb_error_pending(zilog_t *zilog)
 	/* In a frozen pool, txgs after the freeze never reach disk. */
 	return (etxg > spa_last_synced_txg(zilog->zl_spa) ||
 	    etxg > spa_freeze_txg(zilog->zl_spa));
+}
+
+/*
+ * Return EBUSY if the dataset's intent log was claimed when the pool was
+ * imported and has not been replayed yet, as zil_suspend() does.
+ */
+int
+zil_check_unplayed(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
+{
+	(void) dp;
+	(void) arg;
+	objset_t *os;
+	int error;
+
+	if ((error = dmu_objset_from_ds(ds, &os)) != 0)
+		return (error);
+	if (dmu_objset_zil(os)->zl_header->zh_flags & ZIL_REPLAY_NEEDED)
+		return (SET_ERROR(EBUSY));
+	return (0);
 }
 
 /*
@@ -3293,6 +3329,10 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 	list_create(&nolwb_waiters, sizeof (zil_commit_waiter_t),
 	    offsetof(zil_commit_waiter_t, zcw_node));
 
+	/* zilsaxattr is only activated above, so this holds for the loop. */
+	boolean_t saxattr_active = dsl_dataset_feature_is_active(
+	    dmu_objset_ds(zilog->zl_os), SPA_FEATURE_ZILSAXATTR);
+
 	while ((itx = list_remove_head(&zilog->zl_itx_commit_list)) != NULL) {
 		lr_t *lrc = &itx->itx_lr;
 		uint64_t txg = lrc->lrc_txg;
@@ -3309,6 +3349,35 @@ zil_process_commit_list(zilog_t *zilog, zil_commit_waiter_t *zcw, list_t *ilwbs)
 
 		boolean_t synced = txg <= spa_last_synced_txg(spa);
 		boolean_t frozen = txg > spa_freeze_txg(spa);
+
+		/*
+		 * zilsaxattr was enabled when this record was logged, but read
+		 * as disabled when it would have been activated above, and an
+		 * implementation without it could have to replay the record.
+		 * Rather than write it, wait for its txg to sync and skip it
+		 * as below.  Opened and closed lwbs hold no tx, and zil_sync()
+		 * waits only for issued ones, so they cannot block this wait.
+		 */
+		if (lrc->lrc_txtype == TX_SETSAXATTR && !saxattr_active &&
+		    lwb != NULL && !frozen && !synced) {
+			int err = txg_wait_synced_flags(zilog->zl_dmu_pool, txg,
+			    TXG_WAIT_SUSPEND);
+			if (err == 0) {
+				synced = B_TRUE;
+			} else {
+				/*
+				 * zil_crash() takes every lwb, also those in
+				 * ilwbs that are not issued: drop them there,
+				 * and let the itxs left take the nolwb path,
+				 * as when activation fails above.
+				 */
+				ASSERT3U(err, ==, ESHUTDOWN);
+				zil_crash(zilog);
+				while (list_remove_head(ilwbs) != NULL)
+					;
+				lwb = NULL;
+			}
+		}
 
 		/*
 		 * If the txg of this itx has already been synced out, then

@@ -456,6 +456,17 @@ struct spa {
 	uint64_t	spa_feat_desc_obj;	/* Feature descriptions */
 	uint64_t	spa_feat_enabled_txg_obj; /* Feature enabled txg */
 	kmutex_t	spa_feat_stats_lock;	/* protects spa_feat_stats */
+	kmutex_t	spa_feat_enable_lock;	/* feature re-enable/disable */
+	/*
+	 * Holds on features that an operation in progress may still
+	 * activate, see spa_feature_hold().
+	 */
+	uint64_t	spa_feat_hold_count[SPA_FEATURES];
+	/*
+	 * Txg whose sync started disabling the feature, 0 if none, see
+	 * "Disabling" in zfeature.c.  Protected by spa_feat_stats_lock.
+	 */
+	uint64_t	spa_feat_disabling_txg[SPA_FEATURES];
 	nvlist_t	*spa_feat_stats;	/* Cache of enabled features */
 	/* cache feature refcounts */
 	uint64_t	spa_feat_refcount_cache[SPA_FEATURES];

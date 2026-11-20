@@ -769,7 +769,8 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 					break;
 				}
 
-				if (intval != 0) {
+				if (intval != 0 &&
+				    intval != ZPOOL_FEATURE_DISABLE) {
 					error = SET_ERROR(EINVAL);
 					break;
 				}
@@ -987,8 +988,29 @@ spa_prop_set(spa_t *spa, nvlist_t *nvp)
 	if ((error = spa_prop_validate(spa, nvp)) != 0)
 		return (error);
 
+	/*
+	 * Disabling a feature does not go through spa_sync_props(): its own
+	 * sync task refuses it while the feature is in use.
+	 */
+	while ((elem = nvlist_next_nvpair(nvp, elem)) != NULL) {
+		spa_feature_t fid;
+
+		if (!zpool_prop_feature(nvpair_name(elem)) ||
+		    fnvpair_value_uint64(elem) != ZPOOL_FEATURE_DISABLE)
+			continue;
+		VERIFY0(zfeature_lookup_name(strchr(nvpair_name(elem), '@') + 1,
+		    &fid));
+		if ((error = spa_feature_disable(spa, fid)) != 0)
+			return (error);
+	}
+
 	while ((elem = nvlist_next_nvpair(nvp, elem)) != NULL) {
 		zpool_prop_t prop = zpool_name_to_prop(nvpair_name(elem));
+
+		if (prop == ZPOOL_PROP_INVAL &&
+		    zpool_prop_feature(nvpair_name(elem)) &&
+		    fnvpair_value_uint64(elem) == ZPOOL_FEATURE_DISABLE)
+			continue;
 
 		if (prop == ZPOOL_PROP_CACHEFILE ||
 		    prop == ZPOOL_PROP_ALTROOT ||
@@ -5397,6 +5419,7 @@ spa_ld_check_features(spa_t *spa, boolean_t *missing_feat_writep)
 		for (spa_feature_t i = 0; i < SPA_FEATURES; i++) {
 			uint64_t refcount;
 
+			spa->spa_feat_disabling_txg[i] = 0;
 			error = feature_get_refcount_from_disk(spa,
 			    &spa_feature_table[i], &refcount);
 			if (error == 0) {
@@ -10930,6 +10953,10 @@ spa_sync_props(void *arg, dmu_tx_t *tx)
 
 		case ZPOOL_PROP_INVAL:
 			if (zpool_prop_feature(elemname)) {
+				/* Disabling was done by spa_prop_set(). */
+				if (fnvpair_value_uint64(elem) ==
+				    ZPOOL_FEATURE_DISABLE)
+					break;
 				fname = strchr(elemname, '@') + 1;
 				VERIFY0(zfeature_lookup_name(fname, &fid));
 
