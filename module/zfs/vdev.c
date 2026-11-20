@@ -6302,11 +6302,69 @@ vdev_prop_add_list(nvlist_t *nvl, const char *propname, const char *strval,
 	nvlist_free(propval);
 }
 
+typedef struct vdev_props_set_arg {
+	nvlist_t	*vpsa_innvl;
+	nvlist_t	*vpsa_outnvl;
+} vdev_props_set_arg_t;
+
+/*
+ * Set the value kept in memory of a property that vdev_props_set_sync() has
+ * just written, so that memory never holds a value that is not on disk.
+ */
+static void
+vdev_prop_set_memory(vdev_t *vd, vdev_prop_t prop, uint64_t intval)
+{
+	switch (prop) {
+	case VDEV_PROP_FAILFAST:
+		vd->vdev_failfast = intval;
+		break;
+	case VDEV_PROP_SIT_OUT:
+		if (intval == 1)
+			vdev_raidz_sit_child(vd, INT64_MAX - gethrestime_sec());
+		else
+			vdev_raidz_unsit_child(vd);
+		break;
+	case VDEV_PROP_AUTOSIT:
+		vd->vdev_autosit = intval == 1;
+		break;
+	case VDEV_PROP_CHECKSUM_N:
+		vd->vdev_checksum_n = intval;
+		break;
+	case VDEV_PROP_CHECKSUM_T:
+		vd->vdev_checksum_t = intval;
+		break;
+	case VDEV_PROP_IO_N:
+		vd->vdev_io_n = intval;
+		break;
+	case VDEV_PROP_IO_T:
+		vd->vdev_io_t = intval;
+		break;
+	case VDEV_PROP_SLOW_IO_EVENTS:
+		vd->vdev_slow_io_events = intval != 0;
+		break;
+	case VDEV_PROP_SLOW_IO_N:
+		vd->vdev_slow_io_n = intval;
+		break;
+	case VDEV_PROP_SLOW_IO_T:
+		vd->vdev_slow_io_t = intval;
+		break;
+	case VDEV_PROP_SCHEDULER:
+		vd->vdev_scheduler = intval;
+		break;
+	case VDEV_PROP_ALLOC_BIAS:
+		vd->vdev_alloc_bias = (vdev_alloc_bias_t)intval;
+		break;
+	default:
+		break;
+	}
+}
+
 static void
 vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 {
 	vdev_t *vd;
-	nvlist_t *nvp = arg;
+	vdev_props_set_arg_t *vpsa = arg;
+	nvlist_t *nvp = vpsa->vpsa_innvl;
 	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
 	objset_t *mos = spa->spa_meta_objset;
 	nvpair_t *elem = NULL;
@@ -6372,6 +6430,7 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 				    1, strlen(bias_str) + 1, bias_str, tx));
 				spa_activate_allocation_classes(spa, tx);
 			}
+			vdev_prop_set_memory(vd, prop, intval);
 			spa_history_log_internal(spa, "vdev set", tx,
 			    "vdev_guid=%llu: alloc_bias=%s",
 			    (u_longlong_t)vdev_guid,
@@ -6402,6 +6461,7 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 				}
 				VERIFY0(zap_update(mos, objid, propname,
 				    sizeof (uint64_t), 1, &intval, tx));
+				vdev_prop_set_memory(vd, prop, intval);
 				spa_history_log_internal(spa, "vdev set", tx,
 				    "vdev_guid=%llu: %s=%lld",
 				    (u_longlong_t)vdev_guid,
@@ -6417,48 +6477,17 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 	mutex_exit(&spa->spa_props_lock);
 }
 
-int
-vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
+/*
+ * Check every property of a vdev_prop_set() call without changing anything:
+ * in open context before the path or the allocating state is set, and again
+ * in syncing context, against the pool as it is when the values are written.
+ * The property refused is returned in outnvl with the error.
+ */
+static int
+vdev_props_check(spa_t *spa, vdev_t *vd, nvlist_t *nvprops, nvlist_t *outnvl)
 {
-	vdev_t *vd;
 	nvpair_t *elem = NULL;
-	uint64_t vdev_guid;
-	nvlist_t *nvprops;
 	int error = 0;
-
-	if (nvlist_lookup_uint64(innvl, ZPOOL_VDEV_PROPS_SET_VDEV,
-	    &vdev_guid) != 0)
-		return (SET_ERROR(EINVAL));
-
-	if (nvlist_lookup_nvlist(innvl, ZPOOL_VDEV_PROPS_SET_PROPS,
-	    &nvprops) != 0)
-		return (SET_ERROR(EINVAL));
-
-	/*
-	 * Resolve the vdev by guid and hold SCL_CONFIG as a reader so the
-	 * vdev tree can't change beneath us while we touch vd.  The lock is
-	 * dropped around the "path" and "allocating" handlers below: those
-	 * descend into spa_vdev_enter() -> spa_config_enter(SCL_ALL,
-	 * RW_WRITER), and taking SCL_CONFIG as a writer while this same
-	 * thread already holds it as a reader is a self-deadlock (the writer
-	 * waits for scl_count to drain to 0, but scl_count is this thread's
-	 * own reader, which is never released).  Those handlers re-resolve
-	 * the vdev by guid under their own locking, so we re-resolve here
-	 * after each one in case the tree changed.
-	 */
-	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
-	if ((vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE)) == NULL) {
-		spa_config_exit(spa, SCL_CONFIG, FTAG);
-		return (SET_ERROR(ENODEV));
-	}
-
-	/* Check that vdev has a zap we can use */
-	if (vd->vdev_root_zap == 0 &&
-	    vd->vdev_top_zap == 0 &&
-	    vd->vdev_leaf_zap == 0) {
-		spa_config_exit(spa, SCL_CONFIG, FTAG);
-		return (SET_ERROR(EINVAL));
-	}
 
 	while ((elem = nvlist_next_nvpair(nvprops, elem)) != NULL) {
 		const char *propname = nvpair_name(elem);
@@ -6476,6 +6505,32 @@ vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 			goto end;
 		}
 
+		/*
+		 * The sync task asserts on what it writes, so refuse here
+		 * what it could not write: a value of the wrong type, an
+		 * index that the property does not have, or a name or a
+		 * string too long for the ZAP.
+		 */
+		if (prop == VDEV_PROP_USERPROP ||
+		    vdev_prop_get_type(prop) == PROP_TYPE_STRING) {
+			if (nvpair_value_string(elem, &strval) != 0)
+				error = EINVAL;
+			else if (strlen(propname) >= ZAP_MAXNAMELEN)
+				error = ENAMETOOLONG;
+			else if (strlen(strval) >= ZAP_MAXVALUELEN)
+				error = E2BIG;
+		} else {
+			const char *unused;
+
+			if (nvpair_value_uint64(elem, &intval) != 0 ||
+			    (vdev_prop_get_type(prop) == PROP_TYPE_INDEX &&
+			    vdev_prop_index_to_string(prop, intval,
+			    &unused) != 0))
+				error = EINVAL;
+		}
+		if (error != 0)
+			goto end;
+
 		/* Special Processing */
 		switch (prop) {
 		case VDEV_PROP_PATH:
@@ -6492,38 +6547,12 @@ vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 				error = EINVAL;
 				break;
 			}
-			/*
-			 * spa_vdev_setpath() takes SCL_ALL as a writer, so we
-			 * must not hold SCL_CONFIG across it (see above).  Drop
-			 * it, then re-resolve vd in case the tree changed.
-			 */
-			spa_config_exit(spa, SCL_CONFIG, FTAG);
-			error = spa_vdev_setpath(spa, vdev_guid, strval);
-			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
-			vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE);
-			if (vd == NULL && error == 0)
-				error = SET_ERROR(ENODEV);
 			break;
 		case VDEV_PROP_ALLOCATING:
 			if (nvpair_value_uint64(elem, &intval) != 0) {
 				error = EINVAL;
 				break;
 			}
-			if (intval != vd->vdev_noalloc)
-				break;
-			/*
-			 * spa_vdev_noalloc()/spa_vdev_alloc() take SCL_ALL as a
-			 * writer; same locking dance as VDEV_PROP_PATH above.
-			 */
-			spa_config_exit(spa, SCL_CONFIG, FTAG);
-			if (intval == 0)
-				error = spa_vdev_noalloc(spa, vdev_guid);
-			else
-				error = spa_vdev_alloc(spa, vdev_guid);
-			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
-			vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE);
-			if (vd == NULL && error == 0)
-				error = SET_ERROR(ENODEV);
 			break;
 		case VDEV_PROP_FAILFAST:
 			if (nvpair_value_uint64(elem, &intval) != 0 ||
@@ -6533,7 +6562,6 @@ vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 				error = EINVAL;
 				break;
 			}
-			vd->vdev_failfast = intval;
 			break;
 		case VDEV_PROP_SIT_OUT:
 			/* Only expose this for a draid or raidz leaf */
@@ -6566,11 +6594,6 @@ vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 					error = ZFS_ERR_TOO_MANY_SITOUTS;
 					break;
 				}
-				if (error == 0)
-					vdev_raidz_sit_child(vd,
-					    INT64_MAX - gethrestime_sec());
-			} else {
-				vdev_raidz_unsit_child(vd);
 			}
 			break;
 		case VDEV_PROP_AUTOSIT:
@@ -6583,63 +6606,54 @@ vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 				error = EINVAL;
 				break;
 			}
-			vd->vdev_autosit = intval == 1;
 			break;
 		case VDEV_PROP_CHECKSUM_N:
 			if (nvpair_value_uint64(elem, &intval) != 0) {
 				error = EINVAL;
 				break;
 			}
-			vd->vdev_checksum_n = intval;
 			break;
 		case VDEV_PROP_CHECKSUM_T:
 			if (nvpair_value_uint64(elem, &intval) != 0) {
 				error = EINVAL;
 				break;
 			}
-			vd->vdev_checksum_t = intval;
 			break;
 		case VDEV_PROP_IO_N:
 			if (nvpair_value_uint64(elem, &intval) != 0) {
 				error = EINVAL;
 				break;
 			}
-			vd->vdev_io_n = intval;
 			break;
 		case VDEV_PROP_IO_T:
 			if (nvpair_value_uint64(elem, &intval) != 0) {
 				error = EINVAL;
 				break;
 			}
-			vd->vdev_io_t = intval;
 			break;
 		case VDEV_PROP_SLOW_IO_EVENTS:
 			if (nvpair_value_uint64(elem, &intval) != 0) {
 				error = EINVAL;
 				break;
 			}
-			vd->vdev_slow_io_events = intval != 0;
 			break;
 		case VDEV_PROP_SLOW_IO_N:
 			if (nvpair_value_uint64(elem, &intval) != 0) {
 				error = EINVAL;
 				break;
 			}
-			vd->vdev_slow_io_n = intval;
 			break;
 		case VDEV_PROP_SLOW_IO_T:
 			if (nvpair_value_uint64(elem, &intval) != 0) {
 				error = EINVAL;
 				break;
 			}
-			vd->vdev_slow_io_t = intval;
 			break;
 		case VDEV_PROP_SCHEDULER:
 			if (nvpair_value_uint64(elem, &intval) != 0) {
 				error = EINVAL;
 				break;
 			}
-			vd->vdev_scheduler = intval;
 			break;
 		case VDEV_PROP_ALLOC_BIAS:
 			if (nvpair_value_uint64(elem, &intval) != 0) {
@@ -6686,7 +6700,6 @@ vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 					break;
 				}
 			}
-			vd->vdev_alloc_bias = (vdev_alloc_bias_t)intval;
 			break;
 		default:
 			/* Most processing is done in vdev_props_set_sync */
@@ -6700,13 +6713,140 @@ end:
 		}
 	}
 
+	return (error);
+}
+
+/*
+ * vdev_prop_set() has just checked the properties in open context, so check
+ * them again only in syncing context, before they are written and applied.
+ */
+static int
+vdev_props_set_check(void *arg, dmu_tx_t *tx)
+{
+	vdev_props_set_arg_t *vpsa = arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	vdev_t *vd;
+
+	if (!dmu_tx_is_syncing(tx))
+		return (0);
+
+	vd = spa_lookup_by_guid(spa, fnvlist_lookup_uint64(vpsa->vpsa_innvl,
+	    ZPOOL_VDEV_PROPS_SET_VDEV), B_TRUE);
+	if (vd == NULL)
+		return (SET_ERROR(ENODEV));
+
+	return (vdev_props_check(spa, vd, fnvlist_lookup_nvlist(
+	    vpsa->vpsa_innvl, ZPOOL_VDEV_PROPS_SET_PROPS), vpsa->vpsa_outnvl));
+}
+
+int
+vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
+{
+	vdev_t *vd;
+	nvpair_t *elem = NULL;
+	uint64_t vdev_guid;
+	nvlist_t *nvprops;
+	int error;
+
+	if (nvlist_lookup_uint64(innvl, ZPOOL_VDEV_PROPS_SET_VDEV,
+	    &vdev_guid) != 0)
+		return (SET_ERROR(EINVAL));
+
+	if (nvlist_lookup_nvlist(innvl, ZPOOL_VDEV_PROPS_SET_PROPS,
+	    &nvprops) != 0)
+		return (SET_ERROR(EINVAL));
+
+	/*
+	 * Resolve the vdev by guid and hold SCL_CONFIG as a reader so the
+	 * vdev tree can't change beneath us while we touch vd.  The lock is
+	 * dropped around the "path" and "allocating" handlers below: those
+	 * descend into spa_vdev_enter() -> spa_config_enter(SCL_ALL,
+	 * RW_WRITER), and taking SCL_CONFIG as a writer while this same
+	 * thread already holds it as a reader is a self-deadlock (the writer
+	 * waits for scl_count to drain to 0, but scl_count is this thread's
+	 * own reader, which is never released).  Those handlers re-resolve
+	 * the vdev by guid under their own locking, so we re-resolve here
+	 * after each one in case the tree changed.
+	 */
+	spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+	if ((vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE)) == NULL) {
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+		return (SET_ERROR(ENODEV));
+	}
+
+	/* Check that vdev has a zap we can use */
+	if (vd->vdev_root_zap == 0 &&
+	    vd->vdev_top_zap == 0 &&
+	    vd->vdev_leaf_zap == 0) {
+		spa_config_exit(spa, SCL_CONFIG, FTAG);
+		return (SET_ERROR(EINVAL));
+	}
+
+	/*
+	 * Check every property before changing anything.  The values are
+	 * written, and those kept in memory are set, by the sync task once it
+	 * has checked them again, so that a call that fails leaves no value
+	 * in memory that is not on disk.  The path and the allocating state
+	 * are written with the config, in their own txgs, and can still be
+	 * refused while they are set, so they are set before the sync task.
+	 */
+	error = vdev_props_check(spa, vd, nvprops, outnvl);
+
+	while (error == 0 &&
+	    (elem = nvlist_next_nvpair(nvprops, elem)) != NULL) {
+		const char *propname = nvpair_name(elem);
+		const char *strval = NULL;
+		uint64_t intval;
+
+		switch (vdev_name_to_prop(propname)) {
+		case VDEV_PROP_PATH:
+			strval = fnvpair_value_string(elem);
+			/*
+			 * spa_vdev_setpath() takes SCL_ALL as a writer, so we
+			 * must not hold SCL_CONFIG across it (see above).
+			 */
+			spa_config_exit(spa, SCL_CONFIG, FTAG);
+			error = spa_vdev_setpath(spa, vdev_guid, strval);
+			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+			break;
+		case VDEV_PROP_ALLOCATING:
+			intval = fnvpair_value_uint64(elem);
+			if (intval != vd->vdev_noalloc)
+				continue;
+			/*
+			 * spa_vdev_noalloc()/spa_vdev_alloc() take SCL_ALL as a
+			 * writer; same locking dance as VDEV_PROP_PATH above.
+			 */
+			spa_config_exit(spa, SCL_CONFIG, FTAG);
+			if (intval == 0)
+				error = spa_vdev_noalloc(spa, vdev_guid);
+			else
+				error = spa_vdev_alloc(spa, vdev_guid);
+			spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
+			break;
+		default:
+			continue;
+		}
+
+		/* Re-resolve vd in case the tree changed. */
+		vd = spa_lookup_by_guid(spa, vdev_guid, B_TRUE);
+		if (vd == NULL && error == 0)
+			error = SET_ERROR(ENODEV);
+		if (error != 0)
+			vdev_prop_add_list(outnvl, propname, strval, error, 0);
+	}
+
 	spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 	if (error != 0)
 		return (error);
 
-	return (dsl_sync_task(spa->spa_name, NULL, vdev_props_set_sync,
-	    innvl, 6, ZFS_SPACE_CHECK_EXTRA_RESERVED));
+	vdev_props_set_arg_t vpsa = {
+		.vpsa_innvl = innvl,
+		.vpsa_outnvl = outnvl,
+	};
+	return (dsl_sync_task(spa->spa_name, vdev_props_set_check,
+	    vdev_props_set_sync, &vpsa, 6, ZFS_SPACE_CHECK_EXTRA_RESERVED));
 }
 
 static int
