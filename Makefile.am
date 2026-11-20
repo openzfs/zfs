@@ -27,6 +27,17 @@ include $(srcdir)/%D%/etc/Makefile.am
 include $(srcdir)/%D%/lib/Makefile.am
 include $(srcdir)/%D%/man/Makefile.am
 include $(srcdir)/%D%/tests/Makefile.am
+
+# Libtool finalizes installed programs against the installed libraries.
+install-binPROGRAMS install-sbinPROGRAMS install-zfsexecPROGRAMS \
+install-mounthelperPROGRAMS install-pammoduleLTLIBRARIES \
+install-scripts_zfs_tests_binPROGRAMS \
+install-scripts_zfs_tests_functional_cp_filesPROGRAMS \
+install-scripts_zfs_tests_functional_hkdfPROGRAMS \
+install-scripts_zfs_tests_functional_libzfsPROGRAMS \
+install-scripts_zfs_tests_functional_tmpfilePROGRAMS \
+install-scripts_zfs_tests_functional_vdev_diskPROGRAMS: | install-libLTLIBRARIES
+
 if BUILD_LINUX
 include $(srcdir)/%D%/udev/Makefile.am
 endif
