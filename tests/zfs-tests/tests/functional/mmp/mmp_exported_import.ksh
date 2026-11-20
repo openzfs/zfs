@@ -38,6 +38,7 @@ function cleanup
 {
 	mmp_pool_destroy $MMP_POOL $MMP_DIR
 	log_must mmp_clear_hostid
+	restore_tunable RETIRE_INDIRECT_VDEVS
 }
 
 log_assert "multihost=on|off activity checks exported pool"

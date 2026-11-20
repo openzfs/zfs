@@ -41,6 +41,7 @@ function cleanup
 	mmp_pool_destroy $MMP_POOL $MMP_DIR
 	log_must mmp_clear_hostid
 	log_must set_tunable64 MULTIHOST_INTERVAL $MMP_INTERVAL_DEFAULT
+	restore_tunable RETIRE_INDIRECT_VDEVS
 }
 
 log_assert "multihost=on|off inactive pool activity checks"
