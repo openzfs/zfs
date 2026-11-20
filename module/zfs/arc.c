@@ -10782,7 +10782,7 @@ l2arc_fini(void)
 void
 l2arc_spa_rebuild_start(spa_t *spa)
 {
-	ASSERT(spa_namespace_held());
+	ASSERT(MUTEX_HELD(&spa->spa_vdev_top_lock));
 
 	/*
 	 * Locate the spa's l2arc devices and kick off rebuild threads.

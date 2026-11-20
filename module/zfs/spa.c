@@ -9223,7 +9223,7 @@ static int
 spa_vdev_initialize_impl(spa_t *spa, uint64_t guid, uint64_t cmd_type,
     uint64_t value, boolean_t value_provided, list_t *vd_list)
 {
-	ASSERT(spa_namespace_held());
+	ASSERT(MUTEX_HELD(&spa->spa_vdev_top_lock));
 
 	spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_READER);
 
@@ -9301,13 +9301,15 @@ spa_vdev_initialize(spa_t *spa, nvlist_t *nv, uint64_t cmd_type,
 	    offsetof(vdev_t, vdev_initialize_node));
 
 	/*
-	 * We hold the namespace lock through the whole function
-	 * to prevent any changes to the pool while we're starting or
-	 * stopping initialization. The config and state locks are held so that
+	 * We hold spa_vdev_top_lock through the whole function to prevent
+	 * vdev changes to the pool while we're starting or stopping
+	 * initialization.  The config and state locks are held so that
 	 * we can properly assess the vdev state before we commit to
-	 * the initializing operation.
+	 * the initializing operation.  Not the namespace lock: the
+	 * threads and the txg wait below may wait for a suspended pool,
+	 * which only zpool clear, which needs that lock, can resume.
 	 */
-	spa_namespace_enter(FTAG);
+	mutex_enter(&spa->spa_vdev_top_lock);
 
 	for (nvpair_t *pair = nvlist_next_nvpair(nv, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(nv, pair)) {
@@ -9330,7 +9332,7 @@ spa_vdev_initialize(spa_t *spa, nvlist_t *nv, uint64_t cmd_type,
 
 	/* Sync out the initializing state */
 	txg_wait_synced(spa->spa_dsl_pool, 0);
-	spa_namespace_exit(FTAG);
+	mutex_exit(&spa->spa_vdev_top_lock);
 
 	list_destroy(&vd_list);
 
@@ -9341,7 +9343,7 @@ static int
 spa_vdev_trim_impl(spa_t *spa, uint64_t guid, uint64_t cmd_type,
     uint64_t rate, boolean_t partial, boolean_t secure, list_t *vd_list)
 {
-	ASSERT(spa_namespace_held());
+	ASSERT(MUTEX_HELD(&spa->spa_vdev_top_lock));
 
 	spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_READER);
 
@@ -9422,13 +9424,13 @@ spa_vdev_trim(spa_t *spa, nvlist_t *nv, uint64_t cmd_type, uint64_t rate,
 	    offsetof(vdev_t, vdev_trim_node));
 
 	/*
-	 * We hold the namespace lock through the whole function
-	 * to prevent any changes to the pool while we're starting or
-	 * stopping TRIM. The config and state locks are held so that
-	 * we can properly assess the vdev state before we commit to
-	 * the TRIM operation.
+	 * We hold spa_vdev_top_lock through the whole function to prevent
+	 * vdev changes to the pool while we're starting or stopping TRIM,
+	 * as spa_vdev_initialize() does.  The config and state locks are
+	 * held so that we can properly assess the vdev state before we
+	 * commit to the TRIM operation.
 	 */
-	spa_namespace_enter(FTAG);
+	mutex_enter(&spa->spa_vdev_top_lock);
 
 	for (nvpair_t *pair = nvlist_next_nvpair(nv, NULL);
 	    pair != NULL; pair = nvlist_next_nvpair(nv, pair)) {
@@ -9451,7 +9453,7 @@ spa_vdev_trim(spa_t *spa, nvlist_t *nv, uint64_t cmd_type, uint64_t rate,
 
 	/* Sync out the TRIM state */
 	txg_wait_synced(spa->spa_dsl_pool, 0);
-	spa_namespace_exit(FTAG);
+	mutex_exit(&spa->spa_vdev_top_lock);
 
 	list_destroy(&vd_list);
 
@@ -10341,50 +10343,54 @@ spa_async_thread(void *arg)
 	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER)))
 		dsl_scan_restart_resilver(dp, 0);
 
+	/*
+	 * spa_vdev_top_lock keeps vdev changes out while threads are
+	 * restarted, as in spa_vdev_initialize().
+	 */
 	if (tasks & SPA_ASYNC_INITIALIZE_RESTART) {
-		spa_namespace_enter(FTAG);
+		mutex_enter(&spa->spa_vdev_top_lock);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 		vdev_initialize_restart(spa->spa_root_vdev);
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
-		spa_namespace_exit(FTAG);
+		mutex_exit(&spa->spa_vdev_top_lock);
 	}
 
 	if (tasks & SPA_ASYNC_TRIM_RESTART) {
-		spa_namespace_enter(FTAG);
+		mutex_enter(&spa->spa_vdev_top_lock);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 		vdev_trim_restart(spa->spa_root_vdev);
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
-		spa_namespace_exit(FTAG);
+		mutex_exit(&spa->spa_vdev_top_lock);
 	}
 
 	if (tasks & SPA_ASYNC_AUTOTRIM_RESTART) {
-		spa_namespace_enter(FTAG);
+		mutex_enter(&spa->spa_vdev_top_lock);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 		vdev_autotrim_restart(spa);
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
-		spa_namespace_exit(FTAG);
+		mutex_exit(&spa->spa_vdev_top_lock);
 	}
 
 	/*
 	 * Kick off L2 cache whole device TRIM.
 	 */
 	if (tasks & SPA_ASYNC_L2CACHE_TRIM) {
-		spa_namespace_enter(FTAG);
+		mutex_enter(&spa->spa_vdev_top_lock);
 		spa_config_enter(spa, SCL_CONFIG, FTAG, RW_READER);
 		vdev_trim_l2arc(spa);
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
-		spa_namespace_exit(FTAG);
+		mutex_exit(&spa->spa_vdev_top_lock);
 	}
 
 	/*
 	 * Kick off L2 cache rebuilding.
 	 */
 	if (tasks & SPA_ASYNC_L2CACHE_REBUILD) {
-		spa_namespace_enter(FTAG);
+		mutex_enter(&spa->spa_vdev_top_lock);
 		spa_config_enter(spa, SCL_L2ARC, FTAG, RW_READER);
 		l2arc_spa_rebuild_start(spa);
 		spa_config_exit(spa, SCL_L2ARC, FTAG);
-		spa_namespace_exit(FTAG);
+		mutex_exit(&spa->spa_vdev_top_lock);
 	}
 
 	/*

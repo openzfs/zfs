@@ -4528,7 +4528,10 @@ vdev_alloc_factor(vdev_t *vd)
  * This has to run after spa_vdev_state_exit() has dropped the config locks:
  * vdev_trim_stop() must not be called with SCL_STATE held as a writer, which
  * spa_vdev_state_enter() holds, and the thread being waited for takes
- * SCL_CONFIG as a reader and calls txg_wait_synced() on its way out.
+ * SCL_CONFIG as a reader and calls txg_wait_synced() on its way out.  That
+ * wait lasts until a suspended pool resumes, so spa_vdev_top_lock, and not
+ * the namespace lock which zpool clear needs, keeps the vdev from being
+ * freed meanwhile.
  */
 static void
 vdev_stop_trim_initialize(spa_t *spa, uint64_t guid)
@@ -4536,14 +4539,14 @@ vdev_stop_trim_initialize(spa_t *spa, uint64_t guid)
 	vdev_t *vd;
 	boolean_t cancel;
 
-	spa_namespace_enter(FTAG);
+	mutex_enter(&spa->spa_vdev_top_lock);
 
 	spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_READER);
 	vd = spa_lookup_by_guid(spa, guid, B_TRUE);
 	if (vd == NULL || !vd->vdev_ops->vdev_op_leaf ||
 	    !vdev_is_concrete(vd) || vdev_writeable(vd)) {
 		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
-		spa_namespace_exit(FTAG);
+		mutex_exit(&spa->spa_vdev_top_lock);
 		return;
 	}
 	cancel = vd->vdev_faulted;
@@ -4576,7 +4579,7 @@ vdev_stop_trim_initialize(spa_t *spa, uint64_t guid)
 	}
 	mutex_exit(&vd->vdev_initialize_lock);
 
-	spa_namespace_exit(FTAG);
+	mutex_exit(&spa->spa_vdev_top_lock);
 }
 
 /*
