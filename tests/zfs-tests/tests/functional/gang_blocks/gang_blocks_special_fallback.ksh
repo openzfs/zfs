@@ -33,7 +33,8 @@ log_assert "Metadata that fails in the special and normal classes is ganged"
 preamble
 log_onexit cleanup
 
-read -r normal special rest <<< "$DISKS"
+log_must truncate -s $MINVDEVSIZE $FILE_VDEVS
+read -r normal special rest <<< "$FILE_VDEVS"
 log_must zpool create -f -o ashift=9 $TESTPOOL $normal special $special
 log_must zfs create -o recordsize=512 $TESTPOOL/$TESTFS
 mountpoint=$(get_prop mountpoint $TESTPOOL/$TESTFS)

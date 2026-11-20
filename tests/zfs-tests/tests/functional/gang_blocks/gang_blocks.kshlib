@@ -16,6 +16,9 @@
 
 . $STF_SUITE/include/libtest.shlib
 
+# ashift=9 pools use these; a disk can't go below its logical sector size.
+FILE_VDEVS="$TEST_BASE_DIR/gang0 $TEST_BASE_DIR/gang1 $TEST_BASE_DIR/gang2"
+
 #
 # Get 0th DVA of first L0 block of file
 #
@@ -123,6 +126,7 @@ function preamble
 function cleanup
 {
 	destroy_pool $TESTPOOL
+	rm -f $FILE_VDEVS
 	restore_tunable METASLAB_FORCE_GANGING
 	restore_tunable METASLAB_FORCE_GANGING_PCT
 }

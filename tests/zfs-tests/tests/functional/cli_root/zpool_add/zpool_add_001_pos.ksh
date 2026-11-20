@@ -50,13 +50,13 @@ set -A keywords "" "mirror" "raidz" "raidz1" "anymirror" "anymirror1" "anymirror
 create_sparse_files "disk" 4 $MINVDEVSIZE2
 create_sparse_files "extradisk" 4 $MINVDEVSIZE2
 
-pooldevs="${DISK0} \
-	\"${DISK0} ${DISK1}\" \
-	\"${DISK0} ${DISK1} ${DISK2}\""
-mirrordevs="\"${DISK0} ${DISK1}\""
-raidzdevs="\"${DISK0} ${DISK1}\""
+pooldevs="${extradisk0} \
+	\"${extradisk0} ${extradisk1}\" \
+	\"${extradisk0} ${extradisk1} ${extradisk2}\""
+mirrordevs="\"${extradisk0} ${extradisk1}\""
+raidzdevs="\"${extradisk0} ${extradisk1}\""
 anyraiddevs="\"${extradisks}\""
-draiddevs="\"${DISK0} ${DISK1} ${DISK2}\""
+draiddevs="\"${extradisk0} ${extradisk1} ${extradisk2}\""
 
 
 typeset -i i=0

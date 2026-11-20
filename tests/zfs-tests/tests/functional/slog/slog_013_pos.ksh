@@ -61,8 +61,9 @@ log_must zpool create $TESTPOOL ${DISKS#$dsk1}
 # Add provided disk
 log_must zpool add $TESTPOOL log $dsk1
 log_must verify_slog_device $TESTPOOL $dsk1 'ONLINE'
-# Add normal file
-log_must zpool add $TESTPOOL log $LDEV
+# Add normal file.  This test mixes device types on purpose, and the file
+# and loop device may have a smaller ashift than the disks.
+log_must zpool add --allow-ashift-mismatch $TESTPOOL log $LDEV
 ldev=$(random_get $LDEV)
 log_must verify_slog_device $TESTPOOL $ldev 'ONLINE'
 
@@ -78,7 +79,7 @@ else
 	log_must lofiadm -a $lofidev
 	lofidev=$(lofiadm $lofidev)
 fi
-log_must zpool add $TESTPOOL log $lofidev
+log_must zpool add --allow-ashift-mismatch $TESTPOOL log $lofidev
 log_must verify_slog_device $TESTPOOL $lofidev 'ONLINE'
 
 log_pass "Verify slog device can be disk, file, lofi device or any device " \
