@@ -231,6 +231,17 @@ wait_for_children(boolean_t do_pause, boolean_t wait)
 	struct rusage usage;
 	int status;
 	struct launched_process_node node, *pnode;
+	sigset_t waitmask;
+
+	/*
+	 * The reaper keeps SIGCHLD blocked and only takes it in sigsuspend().
+	 * A child that exits after wait4() has looked leaves SIGCHLD pending,
+	 * and sigsuspend() returns at once.  With pause(), that SIGCHLD was
+	 * taken before the thread slept, so it slept with the zombie unreaped
+	 * and the job slot it held never came back.
+	 */
+	(void) pthread_sigmask(SIG_SETMASK, NULL, &waitmask);
+	(void) sigdelset(&waitmask, SIGCHLD);
 
 	for (_reap_children_stop = B_FALSE; !_reap_children_stop; ) {
 		(void) pthread_mutex_lock(&_launched_processes_lock);
@@ -242,7 +253,7 @@ wait_for_children(boolean_t do_pause, boolean_t wait)
 					_reap_test_sleep(
 					    _reap_test_wait_delay_ms);
 				if (do_pause)
-					pause();
+					(void) sigsuspend(&waitmask);
 			} else if (errno != EINTR)
 				zed_log_msg(LOG_WARNING,
 				    "Failed to wait for children: %s",
@@ -309,8 +320,8 @@ _reap_children(void *arg)
 	(void) arg;
 	struct sigaction sa = {};
 
+	/* Block SIGCHLD too: wait_for_children() takes it in sigsuspend(). */
 	(void) sigfillset(&sa.sa_mask);
-	(void) sigdelset(&sa.sa_mask, SIGCHLD);
 	(void) pthread_sigmask(SIG_SETMASK, &sa.sa_mask, NULL);
 
 	(void) sigemptyset(&sa.sa_mask);
