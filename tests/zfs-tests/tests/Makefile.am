@@ -392,6 +392,15 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/rsend/embedded-uncompressed-64.zsend.bz2 \
 	functional/rsend/embspill.dat.bz2 \
 	functional/rsend/fs.tar.gz \
+	functional/rsend/recv-skip-large-begin.zsend.bz2 \
+	functional/rsend/recv-skip-large-begin-nvlist.zsend.bz2 \
+	functional/rsend/recv-skip-large-embedded.zsend.bz2 \
+	functional/rsend/recv-skip-large-first-begin.zsend.bz2 \
+	functional/rsend/recv-skip-large-first-begin-nvlist.zsend.bz2 \
+	functional/rsend/recv-skip-large-object.zsend.bz2 \
+	functional/rsend/recv-skip-large-spill.zsend.bz2 \
+	functional/rsend/recv-skip-large-write.zsend.bz2 \
+	functional/rsend/recv-skip-large-write-max.zsend.bz2 \
 	functional/rsend/rsend.cfg \
 	functional/rsend/rsend.kshlib \
 	functional/scrub_mirror/default.cfg \
@@ -2280,6 +2289,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/rsend/recv_dedup_encrypted_zvol.ksh \
 	functional/rsend/recv_dedup.ksh \
 	functional/rsend/recv_dot_name_neg.ksh \
+	functional/rsend/recv_skip_large_payload.ksh \
 	functional/rsend/recv_validate_001_neg.ksh \
 	functional/rsend/rsend_001_pos.ksh \
 	functional/rsend/rsend_002_pos.ksh \
