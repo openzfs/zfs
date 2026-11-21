@@ -1143,6 +1143,139 @@ vdev_aux_label_generate(vdev_t *vd, boolean_t reason_spare)
 }
 
 /*
+ * Generate the label that vdev_label_init() writes to a leaf vdev.
+ */
+static nvlist_t *
+vdev_label_init_config(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
+{
+	spa_t *spa = vd->vdev_spa;
+	nvlist_t *label;
+	boolean_t reason_spare = (reason == VDEV_LABEL_SPARE || (reason ==
+	    VDEV_LABEL_REMOVE && vd->vdev_isspare));
+	boolean_t reason_l2cache = (reason == VDEV_LABEL_L2CACHE || (reason ==
+	    VDEV_LABEL_REMOVE && vd->vdev_isl2cache));
+
+	/*
+	 * Generate a label describing the pool and our top-level vdev.
+	 * We mark it as being from txg 0 to indicate that it's not
+	 * really part of an active pool just yet.  The labels will
+	 * be written again with a meaningful txg by spa_sync().
+	 */
+	if (reason_spare || reason_l2cache) {
+		label = vdev_aux_label_generate(vd, reason_spare);
+
+		/*
+		 * When spare or l2cache (aux) vdev is added during pool
+		 * creation, spa->spa_uberblock is not written until this
+		 * point. Write it on next config sync.
+		 */
+		if (uberblock_verify(&spa->spa_uberblock))
+			spa->spa_aux_sync_uber = B_TRUE;
+	} else {
+		uint64_t txg = 0ULL;
+
+		if (reason == VDEV_LABEL_SPLIT)
+			txg = spa->spa_uberblock.ub_txg;
+		label = spa_config_generate(spa, vd, txg, B_FALSE);
+
+		/*
+		 * Add our creation time.  This allows us to detect multiple
+		 * vdev uses as described above, and automatically expires if we
+		 * fail.
+		 */
+		VERIFY0(nvlist_add_uint64(label, ZPOOL_CONFIG_CREATE_TXG,
+		    crtxg));
+	}
+
+	return (label);
+}
+
+/*
+ * Write label to the four labels of a leaf vdev, with a copy of ubt with
+ * txg 0 as the only uberblock, and zero their boot environment areas.
+ */
+static int
+vdev_label_init_write(vdev_t *vd, nvlist_t *label, const uberblock_t *ubt)
+{
+	spa_t *spa = vd->vdev_spa;
+	vdev_phys_t *vp;
+	abd_t *vp_abd;
+	abd_t *bootenv;
+	uberblock_t *ub;
+	abd_t *ub_abd;
+	zio_t *zio;
+	char *buf;
+	size_t buflen;
+	int error;
+	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
+	    ZIO_FLAG_TRYHARD;
+
+	/*
+	 * Initialize its label.
+	 */
+	vp_abd = abd_alloc_linear(sizeof (vdev_phys_t), B_TRUE);
+	abd_zero(vp_abd, sizeof (vdev_phys_t));
+	vp = abd_to_buf(vp_abd);
+
+	buf = vp->vp_nvlist;
+	buflen = sizeof (vp->vp_nvlist);
+
+	error = nvlist_pack(label, &buf, &buflen, NV_ENCODE_XDR, KM_SLEEP);
+	if (error != 0) {
+		abd_free(vp_abd);
+		/* EFAULT means nvlist_pack ran out of room */
+		return (SET_ERROR(error == EFAULT ? ENAMETOOLONG : EINVAL));
+	}
+
+	/*
+	 * Initialize uberblock template.
+	 */
+	ub_abd = abd_alloc_linear(VDEV_UBERBLOCK_RING, B_TRUE);
+	abd_copy_from_buf(ub_abd, ubt, sizeof (uberblock_t));
+	abd_zero_off(ub_abd, sizeof (uberblock_t),
+	    VDEV_UBERBLOCK_RING - sizeof (uberblock_t));
+	ub = abd_to_buf(ub_abd);
+	ub->ub_txg = 0;
+
+	/* Initialize the 2nd padding area. */
+	bootenv = abd_alloc_for_io(VDEV_PAD_SIZE, B_TRUE);
+	abd_zero(bootenv, VDEV_PAD_SIZE);
+
+	/*
+	 * Write everything in parallel.
+	 */
+	zio = zio_root(spa, NULL, NULL, flags);
+
+	for (int l = 0; l < VDEV_LABELS; l++) {
+
+		vdev_label_write(zio, vd, l, vp_abd,
+		    offsetof(vdev_label_t, vl_vdev_phys),
+		    sizeof (vdev_phys_t), NULL, NULL, flags);
+
+		/*
+		 * Skip the 1st padding area.
+		 * Zero out the 2nd padding area where it might have
+		 * left over data from previous filesystem format.
+		 */
+		vdev_label_write(zio, vd, l, bootenv,
+		    offsetof(vdev_label_t, vl_be),
+		    VDEV_PAD_SIZE, NULL, NULL, flags);
+
+		vdev_label_write(zio, vd, l, ub_abd,
+		    offsetof(vdev_label_t, vl_uberblock),
+		    VDEV_UBERBLOCK_RING, NULL, NULL, flags);
+	}
+
+	error = zio_wait(zio);
+
+	abd_free(bootenv);
+	abd_free(ub_abd);
+	abd_free(vp_abd);
+
+	return (error);
+}
+
+/*
  * Initialize a vdev label.  We check to make sure each leaf device is not in
  * use, and writable.  We put down an initial label which we will later
  * overwrite with a complete label.  Note that it's important to do this
@@ -1155,22 +1288,8 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 {
 	spa_t *spa = vd->vdev_spa;
 	nvlist_t *label;
-	vdev_phys_t *vp;
-	abd_t *vp_abd;
-	abd_t *bootenv;
-	uberblock_t *ub;
-	abd_t *ub_abd;
-	zio_t *zio;
-	char *buf;
-	size_t buflen;
 	int error;
 	uint64_t spare_guid = 0, l2cache_guid = 0;
-	int flags = ZIO_FLAG_CONFIG_WRITER | ZIO_FLAG_CANFAIL |
-	    ZIO_FLAG_TRYHARD;
-	boolean_t reason_spare = (reason == VDEV_LABEL_SPARE || (reason ==
-	    VDEV_LABEL_REMOVE && vd->vdev_isspare));
-	boolean_t reason_l2cache = (reason == VDEV_LABEL_L2CACHE || (reason ==
-	    VDEV_LABEL_REMOVE && vd->vdev_isl2cache));
 
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 
@@ -1265,101 +1384,9 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		ASSERT(reason == VDEV_LABEL_REPLACE);
 	}
 
-	/*
-	 * Initialize its label.
-	 */
-	vp_abd = abd_alloc_linear(sizeof (vdev_phys_t), B_TRUE);
-	abd_zero(vp_abd, sizeof (vdev_phys_t));
-	vp = abd_to_buf(vp_abd);
-
-	/*
-	 * Generate a label describing the pool and our top-level vdev.
-	 * We mark it as being from txg 0 to indicate that it's not
-	 * really part of an active pool just yet.  The labels will
-	 * be written again with a meaningful txg by spa_sync().
-	 */
-	if (reason_spare || reason_l2cache) {
-		label = vdev_aux_label_generate(vd, reason_spare);
-
-		/*
-		 * When spare or l2cache (aux) vdev is added during pool
-		 * creation, spa->spa_uberblock is not written until this
-		 * point. Write it on next config sync.
-		 */
-		if (uberblock_verify(&spa->spa_uberblock))
-			spa->spa_aux_sync_uber = B_TRUE;
-	} else {
-		uint64_t txg = 0ULL;
-
-		if (reason == VDEV_LABEL_SPLIT)
-			txg = spa->spa_uberblock.ub_txg;
-		label = spa_config_generate(spa, vd, txg, B_FALSE);
-
-		/*
-		 * Add our creation time.  This allows us to detect multiple
-		 * vdev uses as described above, and automatically expires if we
-		 * fail.
-		 */
-		VERIFY0(nvlist_add_uint64(label, ZPOOL_CONFIG_CREATE_TXG,
-		    crtxg));
-	}
-
-	buf = vp->vp_nvlist;
-	buflen = sizeof (vp->vp_nvlist);
-
-	error = nvlist_pack(label, &buf, &buflen, NV_ENCODE_XDR, KM_SLEEP);
-	if (error != 0) {
-		nvlist_free(label);
-		abd_free(vp_abd);
-		/* EFAULT means nvlist_pack ran out of room */
-		return (SET_ERROR(error == EFAULT ? ENAMETOOLONG : EINVAL));
-	}
-
-	/*
-	 * Initialize uberblock template.
-	 */
-	ub_abd = abd_alloc_linear(VDEV_UBERBLOCK_RING, B_TRUE);
-	abd_copy_from_buf(ub_abd, &spa->spa_uberblock, sizeof (uberblock_t));
-	abd_zero_off(ub_abd, sizeof (uberblock_t),
-	    VDEV_UBERBLOCK_RING - sizeof (uberblock_t));
-	ub = abd_to_buf(ub_abd);
-	ub->ub_txg = 0;
-
-	/* Initialize the 2nd padding area. */
-	bootenv = abd_alloc_for_io(VDEV_PAD_SIZE, B_TRUE);
-	abd_zero(bootenv, VDEV_PAD_SIZE);
-
-	/*
-	 * Write everything in parallel.
-	 */
-	zio = zio_root(spa, NULL, NULL, flags);
-
-	for (int l = 0; l < VDEV_LABELS; l++) {
-
-		vdev_label_write(zio, vd, l, vp_abd,
-		    offsetof(vdev_label_t, vl_vdev_phys),
-		    sizeof (vdev_phys_t), NULL, NULL, flags);
-
-		/*
-		 * Skip the 1st padding area.
-		 * Zero out the 2nd padding area where it might have
-		 * left over data from previous filesystem format.
-		 */
-		vdev_label_write(zio, vd, l, bootenv,
-		    offsetof(vdev_label_t, vl_be),
-		    VDEV_PAD_SIZE, NULL, NULL, flags);
-
-		vdev_label_write(zio, vd, l, ub_abd,
-		    offsetof(vdev_label_t, vl_uberblock),
-		    VDEV_UBERBLOCK_RING, NULL, NULL, flags);
-	}
-
-	error = zio_wait(zio);
-
+	label = vdev_label_init_config(vd, crtxg, reason);
+	error = vdev_label_init_write(vd, label, &spa->spa_uberblock);
 	nvlist_free(label);
-	abd_free(bootenv);
-	abd_free(ub_abd);
-	abd_free(vp_abd);
 
 	/*
 	 * If this vdev hasn't been previously identified as a spare, then we
@@ -1378,6 +1405,48 @@ vdev_label_init(vdev_t *vd, uint64_t crtxg, vdev_labeltype_t reason)
 		spa_l2cache_add(vd);
 
 	return (error);
+}
+
+/*
+ * Generate the label that vdev_label_init(VDEV_LABEL_REMOVE) would write to
+ * a leaf now, and keep it, with the current uberblock, for
+ * vdev_label_detach_write().  spa_vdev_detach() calls this while the leaf is
+ * still in its parent, so that the label describes the pool as it was before
+ * the detach, which "zhack label repair -u" relies on.
+ */
+void
+vdev_label_detach_generate(vdev_t *vd)
+{
+	spa_t *spa = vd->vdev_spa;
+
+	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	ASSERT(vd->vdev_ops->vdev_op_leaf);
+	ASSERT0P(vd->vdev_detach_label);
+
+	vd->vdev_crtxg = 0;
+
+	if (!spa_writeable(spa) || vdev_is_dead(vd))
+		return;
+
+	vd->vdev_detach_label = vdev_label_init_config(vd, 0,
+	    VDEV_LABEL_REMOVE);
+	vd->vdev_detach_ub = kmem_alloc(sizeof (uberblock_t), KM_SLEEP);
+	*vd->vdev_detach_ub = spa->spa_uberblock;
+}
+
+/*
+ * Write the label that vdev_label_detach_generate() kept, if any.
+ */
+int
+vdev_label_detach_write(vdev_t *vd)
+{
+	ASSERT(spa_config_held(vd->vdev_spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+
+	if (vd->vdev_detach_label == NULL)
+		return (SET_ERROR(EIO));
+
+	return (vdev_label_init_write(vd, vd->vdev_detach_label,
+	    vd->vdev_detach_ub));
 }
 
 /*

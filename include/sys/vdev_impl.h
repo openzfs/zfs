@@ -396,6 +396,8 @@ struct vdev {
 	char		*vdev_physpath;	/* vdev device path (if any)	*/
 	char		*vdev_enc_sysfs_path;	/* enclosure sysfs path */
 	char		*vdev_fru;	/* physical FRU location	*/
+	nvlist_t	*vdev_detach_label; /* label erasing it once detached */
+	uberblock_t	*vdev_detach_ub; /* uberblock of that label	*/
 	uint64_t	vdev_not_present; /* not present during import	*/
 	uint64_t	vdev_unspare;	/* unspare when resilvering done */
 	boolean_t	vdev_nowritecache; /* true if flushwritecache failed */
