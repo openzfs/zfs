@@ -567,15 +567,16 @@ zpl_xattr_set_dir(struct inode *ip, const char *name, const void *value,
 
 	/*
 	 * Where the mode that goes with an access ACL is logged, the ACL's
-	 * contents must reach the log with it.  The xattr file's records are
-	 * not written by a commit of the owner, so log them as an O_SYNC open
-	 * would, for every commit to write in order.  A default ACL goes with
-	 * no mode.  Write the owner's pending records ahead of them, so that
-	 * a commit for another file cannot leave the new ACL on an inode
-	 * whose earlier chown(2) it did not write.
+	 * contents must reach the log with it, and a new directory's default
+	 * ACL with its creation; any default ACL is logged the same way.  The
+	 * xattr file's records are not written by a commit of the owner, so
+	 * log them as an O_SYNC open would, for every commit to write in
+	 * order, with the owner's pending records ahead of them: a commit for
+	 * another file cannot then leave the ACL without an earlier chown(2).
 	 */
 	sync = (zpl_acl_mode_logged(ip) &&
-	    strcmp(name, XATTR_NAME_POSIX_ACL_ACCESS) == 0);
+	    (strcmp(name, XATTR_NAME_POSIX_ACL_ACCESS) == 0 ||
+	    strcmp(name, XATTR_NAME_POSIX_ACL_DEFAULT) == 0));
 	if (sync) {
 		zil_async_to_sync(ITOZSB(ip)->z_log, ITOZ(ip)->z_id);
 		if (atomic_inc_32_nv(&xzp->z_sync_cnt) == 1)
@@ -1433,9 +1434,24 @@ zpl_apply_acl(struct inode *ip, struct inode *dir,
 		if (error)
 			return (error);
 	}
-	if (init->access_acl)
-		return (zpl_set_posix_acl(ip, init->access_acl,
-		    ACL_TYPE_ACCESS, idmap));
+	if (init->access_acl) {
+		error = zpl_set_posix_acl(ip, init->access_acl,
+		    ACL_TYPE_ACCESS, idmap);
+		if (error)
+			return (error);
+	}
+
+	/*
+	 * Every commit writes the create, with the mode these ACLs give.
+	 * Where replay of later ACL changes is supported, see
+	 * zpl_acl_mode_logged(), have every commit write the ACLs' records
+	 * too, so that a commit of the parent cannot leave the inode with
+	 * that mode and without its ACLs.  Whatever else the inode has
+	 * pending goes with them.
+	 */
+	if ((init->default_acl || init->access_acl) &&
+	    zpl_acl_mode_logged(ip))
+		zil_async_to_sync(ITOZSB(ip)->z_log, ITOZ(ip)->z_id);
 
 	return (0);
 }
