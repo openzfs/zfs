@@ -243,7 +243,7 @@ wait_for_children(boolean_t do_pause, boolean_t wait)
 	(void) pthread_sigmask(SIG_SETMASK, NULL, &waitmask);
 	(void) sigdelset(&waitmask, SIGCHLD);
 
-	for (_reap_children_stop = B_FALSE; !_reap_children_stop; ) {
+	while (!_reap_children_stop) {
 		(void) pthread_mutex_lock(&_launched_processes_lock);
 		pid = wait4(0, &status, wait ? 0 : WNOHANG, &usage);
 		if (pid == 0 || pid == (pid_t)-1) {
@@ -438,6 +438,13 @@ zed_exec_process(uint64_t eid, const char *class, const char *subclass,
 		_reap_test_start_delay_ms =
 		    _reap_test_delay("ZED_TEST_REAPER_START_DELAY_MS");
 
+		/*
+		 * Clear the stop flag before the reaper exists.  If the reaper
+		 * cleared it itself, a zed_exec_fini() that set it and sent
+		 * SIGCHLD before the new thread got that far would be lost,
+		 * and pthread_join() would never return.
+		 */
+		_reap_children_stop = B_FALSE;
 		if (pthread_create(&_reap_children_tid, NULL,
 		    _reap_children, NULL) != 0)
 			return (-1);
