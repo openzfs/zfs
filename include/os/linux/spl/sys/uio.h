@@ -56,6 +56,16 @@
 #define	UIO_DIO_DENY		0x0004
 #define	UIO_DIO_CKSUM_RETRIED	0x0008
 #define	UIO_DIO_BOUNCE		0x0010
+/*
+ * UIO_LOG_COPIED: put the data of a write into its log records when they
+ * are made (WR_COPIED), whatever the size of the write and the dataset's
+ * logbias.  A record otherwise takes its data when a commit writes it, and
+ * takes what the file holds by then.  For a caller that replaces a whole
+ * file from kernel memory, with other writers kept out, while a record of
+ * its earlier contents may still wait for a commit.  If the data cannot be
+ * copied, zfs_write() commits before it returns.
+ */
+#define	UIO_LOG_COPIED		0x0020
 
 #if defined(HAVE_FAULT_IN_IOV_ITER_READABLE)
 #define	iov_iter_fault_in_readable(a, b)	fault_in_iov_iter_readable(a, b)

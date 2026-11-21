@@ -4508,7 +4508,8 @@ zfs_putpages(struct vnode *vp, vm_page_t *ma, size_t len, int flags,
 			memcpy(pca->pca_pages, ma, sizeof (vm_page_t) * ncount);
 
 			zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, off, len,
-			    B_TRUE, B_FALSE, zfs_putpage_commit_cb, pca);
+			    B_TRUE, B_FALSE, B_FALSE, zfs_putpage_commit_cb,
+			    pca);
 
 			for (i = 0; i < ncount; i++)
 				rtvals[i] = zfs_vm_pagerret_pend;
@@ -4525,7 +4526,7 @@ zfs_putpages(struct vnode *vp, vm_page_t *ma, size_t len, int flags,
 			 * written down at txg sync.
 			 */
 			zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, off, len,
-			    B_FALSE, B_FALSE, NULL, NULL);
+			    B_FALSE, B_FALSE, B_FALSE, NULL, NULL);
 
 			zfs_vmobject_wlock(object);
 			for (i = 0; i < ncount; i++) {

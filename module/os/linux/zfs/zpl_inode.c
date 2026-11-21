@@ -187,7 +187,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_create, 4,
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error == 0)
-			error = zpl_apply_acl(ZTOI(zp), dir, &acl);
+			error = zpl_apply_acl(ZTOI(zp), dir, &acl, idmap);
 
 		if (error) {
 			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
@@ -249,7 +249,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_mknod, 4,
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error == 0)
-			error = zpl_apply_acl(ZTOI(zp), dir, &acl);
+			error = zpl_apply_acl(ZTOI(zp), dir, &acl, idmap);
 
 		if (error) {
 			(void) zfs_remove(ITOZ(dir), dname(dentry), cr, 0);
@@ -320,7 +320,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_tmpfile, 3,
 		error = zpl_xattr_security_init(ip, dir, &dentry->d_name);
 #endif
 		if (error == 0)
-			error = zpl_apply_acl(ip, dir, &acl);
+			error = zpl_apply_acl(ip, dir, &acl, idmap);
 #ifdef HAVE_TMPFILE_FILE
 		error = finish_open_simple(file, error);
 #endif
@@ -399,7 +399,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_mkdir, 3,
 	if (error == 0) {
 		error = zpl_xattr_security_init(ZTOI(zp), dir, &dentry->d_name);
 		if (error == 0)
-			error = zpl_apply_acl(ZTOI(zp), dir, &acl);
+			error = zpl_apply_acl(ZTOI(zp), dir, &acl, idmap);
 
 		if (error) {
 			(void) zfs_rmdir(ITOZ(dir), dname(dentry), NULL, cr, 0);
@@ -551,7 +551,7 @@ ZPL_IDMAP_IOP_DEFINE(int, zpl_setattr, 2,
 	cookie = spl_fstrans_mark();
 	error = -zfs_setattr_idmap(ITOZ(ip), vap, 0, cr, idmap);
 	if (!error && (ia->ia_valid & ATTR_MODE))
-		error = zpl_chmod_acl(ip);
+		error = zpl_chmod_acl(ip, idmap);
 
 	spl_fstrans_unmark(cookie);
 	kmem_free(vap, sizeof (vattr_t));
@@ -736,13 +736,13 @@ out:
 ZPL_IDMAP_IOP_DEFINE(int, zpl_set_acl, 3,
     struct dentry *, dentry, struct posix_acl *, acl, int, type)
 {
-	return (zpl_set_posix_acl(d_inode(dentry), acl, type));
+	return (zpl_set_posix_acl(d_inode(dentry), acl, type, idmap));
 }
 #else
 ZPL_IDMAP_IOP_DEFINE(int, zpl_set_acl, 3,
     struct inode *, ip, struct posix_acl *, acl, int, type)
 {
-	return (zpl_set_posix_acl(ip, acl, type));
+	return (zpl_set_posix_acl(ip, acl, type, idmap));
 }
 #endif
 

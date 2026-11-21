@@ -91,6 +91,8 @@
 #define	LOOKUP_XATTR		0x02
 #define	CREATE_XATTR_DIR	0x04
 #define	ATTR_NOACLCHECK		0x20
+#define	ATTR_NOSETIDCHECK	0x40	/* see zpl_set_posix_acl_mode() */
+#define	ATTR_NOZIL		0x80	/* see zpl_set_posix_acl_mode() */
 
 typedef struct vattr {
 	uint32_t	va_mask;	/* attribute bit-mask */

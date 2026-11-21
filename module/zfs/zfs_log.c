@@ -577,27 +577,37 @@ zfs_log_rename_whiteout(zilog_t *zilog, dmu_tx_t *tx, uint64_t txtype,
 /*
  * zfs_log_write() handles TX_WRITE transactions. The specified callback is
  * called as soon as the write is on stable storage (be it via a DMU sync or a
- * ZIL commit).
+ * ZIL commit).  With copied, the records hold the data from here on
+ * (WR_COPIED, see UIO_LOG_COPIED), in as many records as it takes.  If the
+ * data cannot be read back for one of them, that record takes it when a
+ * commit writes it, like any other, and B_TRUE is returned: the caller has
+ * to commit before the file can be written again.
  */
-void
+boolean_t
 zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, offset_t off, ssize_t resid, boolean_t commit,
-    boolean_t o_direct, zil_callback_t callback, void *callback_data)
+    boolean_t o_direct, boolean_t copied, zil_callback_t callback,
+    void *callback_data)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)sa_get_db(zp->z_sa_hdl);
 	uint32_t blocksize = zp->z_blksz;
 	itx_wr_state_t write_state;
 	uint64_t gen = 0, log_size = 0;
+	boolean_t late = B_FALSE;
 
 	if (zil_replaying(zilog, tx) || zp->z_unlinked ||
 	    zfs_xattr_owner_unlinked(zp)) {
 		if (callback != NULL)
 			callback(callback_data, 0);
-		return;
+		return (B_FALSE);
 	}
 
-	write_state = zil_write_state(zilog, resid, blocksize, o_direct,
-	    commit);
+	if (copied) {
+		write_state = WR_COPIED;
+	} else {
+		write_state = zil_write_state(zilog, resid, blocksize,
+		    o_direct, commit);
+	}
 
 	(void) sa_lookup(zp->z_sa_hdl, SA_ZPL_GEN(ZTOZSB(zp)), &gen,
 	    sizeof (gen));
@@ -612,13 +622,23 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 		 * A WR_COPIED record must fit entirely in one log block.
 		 * Large writes can use WR_NEED_COPY, which the ZIL will
 		 * split into multiple records across several log blocks
-		 * if necessary.
+		 * if necessary.  A write that the caller needs copied is
+		 * split here instead, as the ZIL would split it: on a
+		 * multiple of the record alignment.
 		 */
 		if (wr_state == WR_COPIED &&
-		    resid > zil_max_copied_data(zilog))
-			wr_state = WR_NEED_COPY;
-		else if (wr_state == WR_INDIRECT)
+		    resid > zil_max_copied_data(zilog)) {
+			if (copied) {
+				len = MIN(resid, MAX(P2ALIGN_TYPED(
+				    zil_max_copied_data(zilog),
+				    sizeof (uint64_t), uint64_t),
+				    sizeof (uint64_t)));
+			} else {
+				wr_state = WR_NEED_COPY;
+			}
+		} else if (wr_state == WR_INDIRECT) {
 			len = MIN(blocksize - P2PHASE(off, blocksize), resid);
+		}
 
 		itx = zil_itx_create(txtype, sizeof (*lr) +
 		    (wr_state == WR_COPIED ? len : 0));
@@ -639,6 +659,7 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 				itx = zil_itx_create(txtype, sizeof (*lr));
 				lr = (lr_write_t *)&itx->itx_lr;
 				wr_state = WR_NEED_COPY;
+				late = copied;
 			}
 		}
 
@@ -669,6 +690,8 @@ zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
 	}
 
 	dsl_pool_wrlog_count(zilog->zl_dmu_pool, log_size, tx->tx_txg);
+
+	return (late);
 }
 
 /*

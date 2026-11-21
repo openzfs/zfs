@@ -65,14 +65,15 @@ typedef struct zpl_acl_init {
 } zpl_acl_init_t;
 
 #if defined(CONFIG_FS_POSIX_ACL)
-extern int zpl_set_posix_acl(struct inode *ip, struct posix_acl *acl, int type);
+extern int zpl_set_posix_acl(struct inode *ip, struct posix_acl *acl, int type,
+    zidmap_t *idmap);
 extern struct posix_acl *zpl_get_posix_acl(struct inode *ip, int type);
 extern int zpl_prepare_acl(struct inode *dir, umode_t *mode,
     zpl_acl_init_t *acl);
 extern int zpl_apply_acl(struct inode *ip, struct inode *dir,
-    const zpl_acl_init_t *acl);
+    const zpl_acl_init_t *acl, zidmap_t *idmap);
 extern void zpl_release_acl(zpl_acl_init_t *acl);
-extern int zpl_chmod_acl(struct inode *ip);
+extern int zpl_chmod_acl(struct inode *ip, zidmap_t *idmap);
 #else
 static inline int
 zpl_prepare_acl(struct inode *dir, umode_t *mode, zpl_acl_init_t *acl)
@@ -81,7 +82,8 @@ zpl_prepare_acl(struct inode *dir, umode_t *mode, zpl_acl_init_t *acl)
 }
 
 static inline int
-zpl_apply_acl(struct inode *ip, struct inode *dir, const zpl_acl_init_t *acl)
+zpl_apply_acl(struct inode *ip, struct inode *dir, const zpl_acl_init_t *acl,
+    zidmap_t *idmap)
 {
 	return (0);
 }
@@ -92,7 +94,7 @@ zpl_release_acl(zpl_acl_init_t *acl)
 }
 
 static inline int
-zpl_chmod_acl(struct inode *ip)
+zpl_chmod_acl(struct inode *ip, zidmap_t *idmap)
 {
 	return (0);
 }
