@@ -489,7 +489,7 @@ spacemap_check_sm_log_cb(spa_t *spa, space_map_entry_t *sme,
 	vdev_t *vd = vdev_lookup_top(spa, vdev_id);
 
 	/* skip indirect vdevs */
-	if (!vdev_is_concrete(vd))
+	if (vd == NULL || !vdev_is_concrete(vd))
 		return (0);
 
 	if (vdev_id != mv->mv_vdid)
@@ -7314,7 +7314,7 @@ count_unflushed_space_cb(spa_t *spa, space_map_entry_t *sme,
 	uint64_t vdev_id = sme->sme_vdev;
 
 	vdev_t *vd = vdev_lookup_top(spa, vdev_id);
-	if (!vdev_is_concrete(vd))
+	if (vd == NULL || !vdev_is_concrete(vd))
 		return (0);
 
 	metaslab_t *ms = vd->vdev_ms[offset >> vd->vdev_ms_shift];
@@ -7355,7 +7355,7 @@ load_unflushed_cb(spa_t *spa, space_map_entry_t *sme, uint64_t txg, void *arg)
 	vdev_t *vd = vdev_lookup_top(spa, vdev_id);
 
 	/* skip indirect vdevs */
-	if (!vdev_is_concrete(vd))
+	if (vd == NULL || !vdev_is_concrete(vd))
 		return (0);
 
 	metaslab_t *ms = vd->vdev_ms[offset >> vd->vdev_ms_shift];
@@ -9350,7 +9350,7 @@ log_spacemap_obsolete_stats_cb(spa_t *spa, space_map_entry_t *sme,
 	lsos->lsos_total_entries++;
 
 	vdev_t *vd = vdev_lookup_top(spa, vdev_id);
-	if (!vdev_is_concrete(vd))
+	if (vd == NULL || !vdev_is_concrete(vd))
 		return (0);
 
 	metaslab_t *ms = vd->vdev_ms[offset >> vd->vdev_ms_shift];
