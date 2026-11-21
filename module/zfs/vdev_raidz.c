@@ -3911,13 +3911,16 @@ vdev_raidz_io_done_reconstruct_known_missing(zio_t *zio, raidz_map_t *rm,
 		raidz_col_t *rc = &rr->rr_col[c];
 
 		/*
-		 * If scrubbing and a replacing/sparing child vdev determined
-		 * that not all of its children have an identical copy of the
-		 * data, then clear the error so the column is treated like
-		 * any other read and force a repair to correct the damage.
+		 * If scrubbing, or retrying a read (see
+		 * vdev_mirror_retry_compare()), and a replacing/sparing child
+		 * vdev determined that not all of its children have an
+		 * identical copy of the data, then clear the error so the
+		 * column is treated like any other read and force a repair to
+		 * correct the damage.
 		 */
 		if (rc->rc_error == ECKSUM) {
-			ASSERT(zio->io_flags & ZIO_FLAG_SCRUB);
+			ASSERT(zio->io_flags &
+			    (ZIO_FLAG_SCRUB | ZIO_FLAG_IO_RETRY));
 			vdev_raidz_checksum_error(zio, rc, rc->rc_abd);
 			rc->rc_force_repair = 1;
 			rc->rc_error = 0;

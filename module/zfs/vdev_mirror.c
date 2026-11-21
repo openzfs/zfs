@@ -45,6 +45,9 @@ typedef struct mirror_stats {
 
 	kstat_named_t vdev_mirror_stat_preferred_found;
 	kstat_named_t vdev_mirror_stat_preferred_not_found;
+
+	kstat_named_t vdev_mirror_stat_retry_compare;
+	kstat_named_t vdev_mirror_stat_retry_mismatch;
 } mirror_stats_t;
 
 static mirror_stats_t mirror_stats = {
@@ -62,6 +65,10 @@ static mirror_stats_t mirror_stats = {
 	{ "preferred_found",			KSTAT_DATA_UINT64 },
 	/* Preferred child vdev not found or equal load  */
 	{ "preferred_not_found",		KSTAT_DATA_UINT64 },
+	/* Retried read compared the copies of a distributed spare */
+	{ "retry_compare",			KSTAT_DATA_UINT64 },
+	/* Retry compare found copies which differ */
+	{ "retry_compare_mismatch",		KSTAT_DATA_UINT64 },
 
 };
 
@@ -608,6 +615,50 @@ vdev_mirror_child_select(zio_t *zio)
 	return (-1);
 }
 
+/*
+ * Decide whether a read should read and compare all usable children.
+ *
+ * Normally a read of a spare or replacing vdev is served by one child, and
+ * vdev_mirror_child_select() always prefers a distributed spare.  Under
+ * dRAID the child I/O has no block pointer, so silently bad data on the
+ * distributed spare can only be detected by the dRAID layer, which cannot
+ * see the other copies.  When zio_vdev_io_assess() retries a failed logical
+ * read (ZIO_FLAG_IO_RETRY, inherited by vdev children) read every child
+ * which is readable and expected to hold this txg, and compare the copies
+ * in vdev_mirror_io_done().  If they differ, ECKSUM is returned along with
+ * a copy from a child other than the distributed spare, and the dRAID layer
+ * forces a repair of the column once the block checksum verifies, exactly
+ * as it does for a scrub (see vdev_raidz_io_done_reconstruct_known_missing).
+ *
+ * This is only done when there is a usable distributed spare and at least
+ * one other usable child to compare it with.  Direct I/O reads are excluded
+ * since their buffers may change while the I/O is in flight.
+ */
+static boolean_t
+vdev_mirror_retry_compare(zio_t *zio, mirror_map_t *mm)
+{
+	boolean_t dspare = B_FALSE;
+	int usable = 0;
+
+	if (!(zio->io_flags & ZIO_FLAG_IO_RETRY) || zio->io_bp != NULL ||
+	    (zio->io_flags & ZIO_FLAG_DIO_READ))
+		return (B_FALSE);
+
+	for (int c = 0; c < mm->mm_children; c++) {
+		mirror_child_t *mc = &mm->mm_child[c];
+
+		if (mc->mc_vd == NULL || !vdev_mirror_child_readable(mc) ||
+		    vdev_mirror_child_missing(mc, zio->io_txg, 1))
+			continue;
+
+		if (mc->mc_vd->vdev_ops == &vdev_draid_spare_ops)
+			dspare = B_TRUE;
+		usable++;
+	}
+
+	return (dspare && usable >= 2);
+}
+
 void
 vdev_mirror_io_start_impl(zio_t *zio, mirror_map_t *mm)
 {
@@ -615,13 +666,19 @@ vdev_mirror_io_start_impl(zio_t *zio, mirror_map_t *mm)
 	int c, children;
 
 	if (zio->io_type == ZIO_TYPE_READ) {
-		if ((zio->io_flags & ZIO_FLAG_SCRUB) && !mm->mm_resilvering) {
+		mm->mm_retry_compare = vdev_mirror_retry_compare(zio, mm);
+		if (mm->mm_retry_compare)
+			MIRROR_BUMP(vdev_mirror_stat_retry_compare);
+		if (((zio->io_flags & ZIO_FLAG_SCRUB) && !mm->mm_resilvering) ||
+		    mm->mm_retry_compare) {
 			/*
-			 * For scrubbing reads we need to issue reads to all
-			 * children.  One child can reuse parent buffer, but
-			 * for others we have to allocate separate ones to
-			 * verify checksums if io_bp is non-NULL, or compare
-			 * them in vdev_mirror_io_done() otherwise.
+			 * For scrubbing reads, and for retried reads which
+			 * compare copies (see vdev_mirror_retry_compare()),
+			 * we need to issue reads to all children.
+			 * One child can reuse parent buffer, but for others
+			 * we have to allocate separate ones to verify
+			 * checksums if io_bp is non-NULL, or compare them
+			 * in vdev_mirror_io_done() otherwise.
 			 */
 			boolean_t first = B_TRUE;
 
@@ -636,6 +693,21 @@ vdev_mirror_io_start_impl(zio_t *zio, mirror_map_t *mm)
 					mc->mc_error = SET_ERROR(ENXIO);
 					mc->mc_tried = 1;
 					mc->mc_skipped = 1;
+					continue;
+				}
+
+				/*
+				 * A retry compare only reads children which
+				 * are expected to hold this txg; a stale copy
+				 * would always compare unequal.
+				 */
+				if (mm->mm_retry_compare &&
+				    vdev_mirror_child_missing(mc,
+				    zio->io_txg, 1)) {
+					mc->mc_error = SET_ERROR(ESTALE);
+					mc->mc_tried = 1;
+					mc->mc_skipped = 1;
+					mc->mc_speculative = 1;
 					continue;
 				}
 
@@ -822,7 +894,8 @@ vdev_mirror_io_done(zio_t *zio)
 		return;
 	}
 
-	if (zio->io_flags & ZIO_FLAG_SCRUB && !mm->mm_resilvering) {
+	if ((zio->io_flags & ZIO_FLAG_SCRUB && !mm->mm_resilvering) ||
+	    mm->mm_retry_compare) {
 		abd_t *best_abd = NULL;
 		if (last_good_copy >= 0)
 			best_abd = mm->mm_child[last_good_copy].mc_abd;
@@ -865,6 +938,34 @@ vdev_mirror_io_done(zio_t *zio)
 				if (mc->mc_abd == zio->io_abd)
 					best_abd = mc->mc_abd;
 			}
+
+			/*
+			 * A retry compare happens because the block failed
+			 * to verify using the distributed spare's copy, so
+			 * prefer the copy from any other child instead.
+			 */
+			if (mm->mm_retry_compare) {
+				for (c = 0; c <= last_good_copy; c++) {
+					mc = &mm->mm_child[c];
+					if (mc->mc_error || !mc->mc_tried ||
+					    mc->mc_vd->vdev_ops ==
+					    &vdev_draid_spare_ops)
+						continue;
+					pref_abd = mc->mc_abd;
+					break;
+				}
+				if (zio->io_error == ECKSUM) {
+					MIRROR_BUMP(
+					    vdev_mirror_stat_retry_mismatch);
+					zfs_dbgmsg("retry compare mismatch: "
+					    "vdev=%llu offset=%llx size=%llx "
+					    "txg=%llu",
+					    (u_longlong_t)zio->io_vd->vdev_guid,
+					    (u_longlong_t)zio->io_offset,
+					    (u_longlong_t)zio->io_size,
+					    (u_longlong_t)zio->io_txg);
+				}
+			}
 			if (pref_abd)
 				best_abd = pref_abd;
 		} else {
@@ -901,7 +1002,13 @@ vdev_mirror_io_done(zio_t *zio)
 		ASSERT(zio->io_error != 0);
 	}
 
+	/*
+	 * If a retry compare found differing copies, leave the repair to the
+	 * dRAID layer, which rewrites the column through this vdev only after
+	 * the block checksum has been verified.
+	 */
 	if (good_copies && spa_self_heal_allowed(zio->io_spa) &&
+	    !(mm->mm_retry_compare && zio->io_error != 0) &&
 	    (unexpected_errors ||
 	    (zio->io_flags & ZIO_FLAG_RESILVER) ||
 	    ((zio->io_flags & ZIO_FLAG_SCRUB) && mm->mm_resilvering))) {
