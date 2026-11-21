@@ -2144,8 +2144,11 @@ top:
 		 * Log the size change as TX_TRUNCATE under the range lock
 		 * that covers it, not in TX_SETATTR below: a write logged in
 		 * between would be cut off when TX_SETATTR is replayed.
+		 * Not while replaying TX_SETATTR: zfs_freesp() would mark the
+		 * record replayed in a txg that can sync before the one that
+		 * sets the other attributes.
 		 */
-		err = zfs_freesp(zp, vap->va_size, 0, 0, TRUE);
+		err = zfs_freesp(zp, vap->va_size, 0, 0, !zfsvfs->z_replay);
 		if (err)
 			goto out3;
 	}
