@@ -1839,6 +1839,43 @@ which have the
 .Em no_root_squash
 option set.
 .
+.It Sy zfs_ctldir_spacefiles Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Enable the existence of (quota|space)/(user|group|project) files in the
+.Sy .zfs
+directory.
+These files can be used in lieu of the
+.Sy zfs-userspace Ns Pq 8 ,
+.Sy zfs-groupspace Ns Pq 8 ,
+and
+.Sy zfs-projectspace Ns Pq 8
+tools to determine space and quota utilization for a given dataset.
+These would normally be used when the dataset is being accessed over
+a network, e.g. using NFS, where ZFS command line tools, libzfs,
+etc. are not available.
+This parameter and these files are only available on Linux.
+Reading the files requires the same privileges as running the
+corresponding
+.Sy zfs userspace Ns -family
+command: root in the initial user namespace, or a caller holding
+all four of the file's family permissions delegated to it:
+.Sy userused , Sy userquota , Sy userobjused ,
+and
+.Sy userobjquota
+for the user files, and the
+.Sy group No / Sy project
+equivalents for the others, since a
+.Sy zfs userspace
+run stops at the first permission it lacks; otherwise opening the
+file fails, including from user namespaces and over NFS.
+The files report their full content length with no size cap, so
+.Nm stat
+and NFS clients observe the complete content rather than a
+placeholder.
+Their timestamps are refreshed whenever the size is taken, so NFS
+clients revalidate the content on each open.
+Taking the size (metadata) is permitted to any user able to traverse
+the dataset.
+.
 .It Sy zfs_snapshot_history_enabled Ns = Ns Sy 1 Ns | Ns 0 Pq int
 Whether snapshot creation and destruction events are recorded in the pool
 history log, viewable with
