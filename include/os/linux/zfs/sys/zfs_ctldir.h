@@ -31,6 +31,11 @@
 #define	ZFS_CTLDIR_NAME		".zfs"
 #define	ZFS_SNAPDIR_NAME	"snapshot"
 #define	ZFS_SHAREDIR_NAME	"shares"
+#define	ZFS_SPACEDIR_NAME	"space"
+#define	ZFS_QUOTADIR_NAME	"quota"
+#define	ZFS_USERFILE_NAME	"user"
+#define	ZFS_GROUPFILE_NAME	"group"
+#define	ZFS_PROJECTFILE_NAME	"project"
 
 #define	zfs_has_ctldir(zdp)	\
 	((zdp)->z_id == ZTOZSB(zdp)->z_root && \
@@ -40,6 +45,7 @@
 	(ZTOZSB(zdp)->z_show_ctldir == ZFS_SNAPDIR_VISIBLE))
 
 extern int zfs_expire_snapshot;
+extern int zfs_ctldir_spacefiles;
 
 /* zfsctl generic functions */
 extern int zfsctl_create(zfsvfs_t *);
@@ -47,6 +53,7 @@ extern void zfsctl_destroy(zfsvfs_t *);
 extern struct inode *zfsctl_root(znode_t *);
 extern boolean_t zfsctl_is_node(struct inode *ip);
 extern boolean_t zfsctl_is_snapdir(struct inode *ip);
+extern boolean_t zfsctl_is_snapdir_ino(uint64_t ino);
 extern int zfsctl_snapdir_fsid(struct inode *ip, uint64_t *fsidp);
 extern int zfsctl_fid(struct inode *ip, fid_t *fidp);
 
@@ -78,6 +85,16 @@ extern int zfsctl_shares_lookup(struct inode *dip, char *name,
     struct inode **ipp, int flags, cred_t *cr, int *direntflags,
     pathname_t *realpnp);
 
+/* zfsctl '.zfs/space' functions */
+extern int zfsctl_spacedir_lookup(struct inode *dip, const char *name,
+    struct inode **ipp, int flags, cred_t *cr, int *direntflags,
+    pathname_t *realpnp);
+
+/* zfsctl '.zfs/quota' functions */
+extern int zfsctl_quotadir_lookup(struct inode *dip, const char *name,
+    struct inode **ipp, int flags, cred_t *cr, int *direntflags,
+    pathname_t *realpnp);
+
 /*
  * These inodes numbers are reserved for the .zfs control directory.
  * It is important that they be no larger that 48-bits because only
@@ -89,6 +106,39 @@ extern int zfsctl_shares_lookup(struct inode *dip, char *name,
 #define	ZFSCTL_INO_SHARES	0x0000FFFFFFFFFFFEULL
 #define	ZFSCTL_INO_SNAPDIR	0x0000FFFFFFFFFFFDULL
 #define	ZFSCTL_INO_SNAPDIRS	0x0000FFFFFFFFFFFCULL
+/*
+ * snapdir inode numbers must be lowest; each snapshot gets its own
+ * directory and inode number, assigned by decrementing from
+ * ZFSCTL_INO_SNAPDIRS.
+ */
+/*
+ * Fixed inodes for the '.zfs/(space|quota)' pseudo-files.  A dedicated
+ * block at 2^47: numerically inside the snapshot band's range (below
+ * ZFSCTL_INO_SNAPDIRS), so band tests must exclude it explicitly, but
+ * a snapshot inode (SNAPDIRS - objsetid) can only LAND here for
+ * objset ids above 2^47 - 8; objset ids are MOS object numbers and
+ * stay far below 2^31, so no collision is reachable.  Real dmu object
+ * numbers never reach 2^47 either.  The block top (2^47 + 7) remains
+ * within the 48-bit object field of an NFS file handle.  Existing
+ * ZFSCTL_INO_ROOT/SHARES/SNAPDIR/SNAPDIRS values are untouched so
+ * file handles issued by older modules for .zfs/snapshot and snapshot
+ * directories remain valid.
+ */
+#define	ZFSCTL_INO_SPACEDIR	0x0000800000000000ULL
+#define	ZFSCTL_INO_SPACE_USER	0x0000800000000001ULL
+#define	ZFSCTL_INO_SPACE_GROUP	0x0000800000000002ULL
+#define	ZFSCTL_INO_SPACE_PROJ	0x0000800000000003ULL
+#define	ZFSCTL_INO_QUOTADIR	0x0000800000000004ULL
+#define	ZFSCTL_INO_QUOTA_USER	0x0000800000000005ULL
+#define	ZFSCTL_INO_QUOTA_GROUP	0x0000800000000006ULL
+#define	ZFSCTL_INO_QUOTA_PROJ	0x0000800000000007ULL
+#define	ZFSCTL_INO_SPACEFILE_MAX	ZFSCTL_INO_QUOTA_PROJ
+
+/*
+ * Upper bound on rendered space/quota file content, used by getattr
+ * when measuring the files' real size for NFS clients.
+ */
+#define	ZFSCTL_SPACEFILE_MAXSIZE	(1024 * 1024)
 
 #define	ZFSCTL_EXPIRE_SNAPSHOT	300
 
