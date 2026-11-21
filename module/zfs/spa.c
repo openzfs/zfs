@@ -10318,6 +10318,9 @@ spa_async_thread(void *arg)
 		spa_vdev_state_enter(spa, SCL_NONE);
 		boolean_t suspend = B_FALSE;
 		spa_async_fault_vdev(spa->spa_root_vdev, &suspend);
+		for (int i = 0; i < spa->spa_l2cache.sav_count; i++)
+			spa_async_fault_vdev(spa->spa_l2cache.sav_vdevs[i],
+			    &suspend);
 		(void) spa_vdev_state_exit(spa, NULL, 0);
 		if (suspend)
 			zio_suspend(spa, NULL, ZIO_SUSPEND_IOERR);
