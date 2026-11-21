@@ -746,7 +746,7 @@ zstd_dctx_alloc(void *opaque __maybe_unused, size_t size)
 
 	z = (struct zstd_kmem *)zstd_mempool_alloc(zstd_mempool_dctx, nbytes);
 	if (z) {
-		type = ZSTD_KMEM_POOL;
+		type = z->kmem_type;
 	} else {
 		/* Try harder, decompression shall not fail */
 		z = vmem_alloc(nbytes, KM_SLEEP);
