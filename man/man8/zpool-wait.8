@@ -43,7 +43,12 @@ The activity could cease because it has completed, or because it has been
 paused or canceled by a user, or because the pool has been exported or
 destroyed.
 If no activities are specified, the command waits until background activity of
-every type listed below has ceased.
+every type listed below except
+.Sy async_mirror
+has ceased.
+Specify
+.Fl t Sy async_mirror
+to wait for an asynchronous mirror.
 If there is no activity of the given types in progress, the command returns
 immediately.
 .Pp
@@ -73,7 +78,18 @@ Manual trim to cease
 Attaching to a RAID-Z vdev to complete
 .It Sy condense
 Metadata condense operations to complete
+.It Sy async_mirror
+Asynchronous mirror copy to catch up
 .El
+.Pp
+The asynchronous mirror activity waits for the lagging child to apply the
+newest ready transaction group record that was pending when the wait began.
+If no record was pending, the command returns immediately.
+Writes synced after the wait begins do not extend the target, so the command
+can finish while writes continue.
+If the mirror is turned off, fails, or freezes before it reaches the target,
+the command reports that the asynchronous mirror did not catch up and exits
+with status 1.
 .Pp
 If an
 .Ar interval

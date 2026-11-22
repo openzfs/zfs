@@ -11,7 +11,7 @@
 .\"
 .\" Copyright (c) 2021, 2025, Klara, Inc.
 .\"
-.Dd July 23, 2024
+.Dd November 12, 2026
 .Dt VDEVPROPS 7
 .Os
 .
@@ -134,6 +134,36 @@ See
 Indicates if a leaf device supports trim operations.
 .It Sy rotational
 Indicates whether the device backing this vdev uses rotating media.
+.It Sy async_mirror_state
+Only valid for leaf vdevs.
+What the async mirror does with this leaf now; see the
+.Sy write_mode
+property below.
+.Bl -tag -compact -width "starting"
+.It Sy off
+The leaf is not part of an async mirror.
+.It Sy starting
+The async mirror turns on at the next transaction group.
+.It Sy behind
+The leaf is the lagging child, and transaction groups wait to be copied
+to it.
+.It Sy current
+The leaf is the lagging child, and it holds every transaction group that
+is on disk.
+.It Sy stopping
+The property is
+.Sy off ,
+and the pool drains the copy before the child becomes a normal child.
+.It Sy frozen
+A block could not be read, or the async mirror gave up on a lagging child
+that is too slow or stalled, and the lagging child stays at its last complete
+transaction group.
+No write waits for it.
+.It Sy failed
+A write to the lagging child failed, or its freeze ended; it is resilvered.
+.It Sy leader
+The leaf is the other child of the mirror, which takes the writes.
+.El
 .It anyraid_tile_capacity
 Only valid for
 .Sy AnyRAID
@@ -260,6 +290,131 @@ Never adds I/O requests to the vdev queue.
 This is not recommended for vdevs backed by spinning disks as it could
 result in starvation.
 .El
+.It Sy read_mode Ns = Ns Sy normal Ns | Ns Sy fallback
+Only valid for leaf children of a mirror.
+The default value,
+.Sy normal ,
+allows reads from this member with the usual mirror read selection.
+.Sy fallback
+makes this a write-only member while another member can return the block
+with a good checksum.
+ZFS uses it when the other members cannot return the block, and as a source
+for a resilver.
+It remains a write target when
+.Sy write_mode
+is
+.Sy sync .
+For a synchronous member, ZFS stores this property in the leaf vdev ZAP.
+Older software ignores the property and reads the member normally, which is
+safe because synchronous writes keep its data current.
+.Pp
+ZFS refuses
+.Sy read_mode Ns = Ns Sy normal
+while
+.Sy write_mode
+is
+.Sy behind .
+A mirror must keep at least one member with
+.Sy read_mode Ns = Ns Sy normal
+and
+.Sy write_mode Ns = Ns Sy sync .
+ZFS refuses a change that would leave no such member.
+.It Sy write_mode Ns = Ns Sy sync Ns | Ns Sy behind
+Only valid for leaf children of a mirror.
+The default value,
+.Sy sync ,
+waits for this member as part of the mirror write.
+.Sy behind
+starts the async mirror: writes complete on another member, and a worker
+copies each transaction group to this member later, in order.
+Setting
+.Sy write_mode Ns = Ns Sy behind
+also sets
+.Sy read_mode Ns = Ns Sy fallback
+in the same step.
+The read mode of a behind member is derived from its write mode.
+See
+.Sy feature@async_mirror
+in
+.Xr zpool-features 7 .
+The property is stored in the pool, so the async mirror stays on across an
+export and an import.
+A scrub checks and repairs the behind member for the blocks that it already
+holds; it checks a newer block on the leader only.
+An async mirror cannot start while the pool's
+.Sy multihost
+property is on.
+The pool's
+.Sy multihost
+property cannot be turned on while an async mirror is active.
+To turn the async mirror off, set this member's
+.Sy write_mode Ns = Ns Sy sync
+and wait until its
+.Sy async_mirror_state
+is
+.Sy off .
+.Pp
+The change takes effect at a transaction group boundary, with no export.
+An import refreshes the behind member's labels before it starts the async
+mirror.
+A device that does not complete this I/O can delay the transaction group or
+the import.
+Turning the async mirror on changes the mirror configuration, so a rewind
+.Pq Nm zpool Cm import Fl F
+cannot go back to a transaction group before that change.
+The labels that an import refreshes keep an older configuration transaction
+group, so the behind member alone can still be rewound to an older
+transaction group that it holds.
+.Pp
+.Sy behind
+is refused unless the leaf is one of the two children of a two-way mirror
+that is the only data top-level vdev of the pool (log devices are allowed),
+both children are online and need no resilver, the pool has no checkpoint,
+.Sy feature@async_mirror
+is enabled, and no other leaf of the pool is part of the async mirror,
+including an earlier async mirror that still releases its records.
+This version supports one behind member in a pool.
+ZFS refuses a second one with
+.Sy EEXIST
+and names the member that already has
+.Sy write_mode Ns = Ns Sy behind .
+.Pp
+The
+.Nm zpool Cm replace
+command can replace a failed behind member while the async mirror is on.
+ZFS switches it to
+.Sy sync ,
+records the transaction groups that it lacks, and resilvers the replacement
+from the leader.
+The replacement stays synchronous after resilver.
+Set its
+.Sy write_mode
+to
+.Sy behind
+to start the async mirror again.
+Replacing a healthy behind member or the leader is refused while the async
+mirror is on.
+A hot spare cannot replace a failed lagging child.
+.Pp
+Setting
+.Sy write_mode Ns = Ns Sy sync
+starts the switch off.
+New writes reach the member at once, and it gets the older transaction groups
+that it has not received; while it does,
+.Sy async_mirror_state
+is
+.Sy stopping .
+After the member is current, it has no resilver requirement.
+The member keeps
+.Sy read_mode Ns = Ns Sy fallback
+until the operator sets it to
+.Sy normal
+after the member is ready to serve reads.
+A frozen or failed member is resilvered instead.
+.Pp
+The control properties use standard vdev property lookup, including the
+hierarchical vdev names supported by
+.Nm zpool Cm set .
 .El
 .Ss User Properties
 In addition to the standard native properties, ZFS supports arbitrary user

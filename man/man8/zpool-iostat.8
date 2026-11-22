@@ -171,6 +171,10 @@ Note that TRIM I/O may exceed 16M, but will be counted as 16M.
 .It Fl v
 Verbose statistics Reports usage statistics for individual vdevs within the
 pool, in addition to the pool-wide statistics.
+For an asynchronous mirror, the lagging child's write numbers include the
+writes that copy the leader's data to it.
+These writes follow the leader's writes, so the lagging child's numbers can
+trail the leader's numbers until the copy catches up.
 .It Fl y
 Normally the first line of output reports the statistics since boot:
 suppress it.

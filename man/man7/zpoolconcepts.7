@@ -278,6 +278,263 @@ For example, the following creates a pool with two root vdevs,
 each a mirror of two disks:
 .Dl # Nm zpool Cm create Ar mypool Sy mirror Ar sda sdb Sy mirror Ar sdc sdd
 .
+.Ss Async Mirrors
+An async mirror does not have the durability of a normal mirror.
+If the leader fails, every write since the lagging child's applied transaction
+group is lost.
+A write that fails on the leader is not written to the lagging child out of
+order.
+ZFS handles it as for a pool of one disk: the write is retried while the
+leader still answers, and the pool suspends if the leader stops answering.
+.Fn fsync
+returns when the data is on the leader; it does not wait for the lagging child.
+Writes to the intent log are not copied to the lagging child while the async
+mirror is on.
+A plain
+.Nm zpool Cm sync
+waits after it syncs the pool until the lagging child applies that transaction
+group.
+This wait does not make the sync thread or application writes wait for the
+child.
+Use
+.Nm zpool Cm sync Fl l
+to return when the transaction group reaches the leader.
+If the child's copy is frozen, failed, switched off, switching off, or
+suspended, the command reports that the child did not apply the transaction
+group and exits with status 0 because the sync on the leader succeeded.
+A scrub checks blocks on the lagging child only through its applied transaction
+group.
+It skips newer blocks that the child does not hold.
+.Pp
+The on-disk format of the async mirror is not limited to one layout: it has
+room for more than one lagging child, for more than one leader, and for a
+stripe of async mirrors.
+This version of the software supports one layout: one mirror of two children,
+a leader and a lagging child, as the only data vdev of the pool.
+Log devices are allowed, but other data vdevs are not.
+A later layout gets a feature flag of its own, so that software without it
+refuses the pool.
+The per-member
+.Sy write_mode
+property selects a synchronous or behind child; see
+.Xr vdevprops 7 .
+The default
+.Sy read_mode Ns = Ns Sy normal
+lets ZFS read from the member normally.
+Set
+.Sy read_mode Ns = Ns Sy fallback
+on a synchronous member to make it a write-only member while another member
+can return the block with a good checksum.
+ZFS can use this member as a last read source and for resilvering.
+Setting
+.Sy write_mode Ns = Ns Sy behind
+sets
+.Sy read_mode Ns = Ns Sy fallback
+in the same step.
+The read mode of a behind member is derived from its write mode.
+Older software ignores the stored fallback read mode and reads a synchronous
+member normally, which is safe.
+Every mirror must keep a member with
+.Sy read_mode Ns = Ns Sy normal
+and
+.Sy write_mode Ns = Ns Sy sync .
+The current implementation supports one behind member in a pool.
+The pool copies transaction groups to that child in the background and holds
+freed space until the child has passed the free.
+The read-only
+.Sy async_mirror_state
+property reports the leaf's current role or state.
+.Pp
+Writes and transaction groups never wait without end for the lagging child,
+and the child never fills the pool.
+The pool gives up on a lagging child that is too slow or stalled, and freezes
+it, in three cases; see
+.Xr zfs 4
+for each tunable:
+.Bl -bullet -compact
+.It
+The space that the pool holds for the child stays at
+.Sy zfs_vdev_async_mirror_held_limit_percent
+.Pq 50% of the pool by default
+while the child makes too little progress.
+.It
+The datasets can use less than
+.Sy zfs_vdev_async_mirror_held_free_percent
+of the pool because of that held space.
+.It
+Writes wait for the copy backlog, and the copy makes no progress for
+.Sy zfs_vdev_async_mirror_stall_secs
+seconds.
+.El
+The pool then frees the held space and posts the event
+.Sy async_mirror_frozen
+with the reason.
+The frozen child gets no I/O and stays a complete, older copy of the pool, but
+it gets no newer data, and
+.Nm zpool Cm status
+reports that it is not protected.
+.Pp
+The child stays frozen until an administrator sets
+.Sy write_mode=sync
+and lets a normal resilver finish.
+The administrator can then set
+.Sy write_mode=behind
+to start the async mirror again.
+During the freeze, the child stays out of the path of each write, so writes do
+not wait for it.
+A child that was missing or incomplete at import is also switched to sync
+mode, so it cannot become a normal mirror child that makes foreground writes
+wait.
+.Pp
+The copy reads each block through its block pointer, so the checksum of the
+block is verified before the lagging child gets it.
+Two kinds of data have no such check, and are copied from the leader as they
+are: a block with
+.Sy checksum Ns = Ns Sy off ,
+and a range that a transaction group allocated and that no block pointer of
+that transaction group leads to.
+The second kind is expected only in a pool with deduplication.
+The
+.Sy copy_rest_bytes
+and
+.Sy copy_rest_ranges
+counters in the
+.Sy async_mirror
+kstat of the pool count the bytes and the writes of the second kind.
+In a pool that never used deduplication, a value other than 0 shows a defect:
+report it.
+A scrub of the lagging child finds a damaged copy of either kind as on any
+mirror.
+.Pp
+The
+.Sy async_mirror
+kstat of the pool
+.Pq Pa /proc/spl/kstat/zfs/ Ns Ar pool Ns Pa /async_mirror
+on Linux exists while the pool has an asynchronous mirror.
+All its fields are counters or gauges of 64 bits.
+A counter counts from the import of the pool.
+.Bl -tag -width "giveup_reason"
+.It Sy active
+1 while the copy to a lagging child runs or is frozen.
+.It Sy failed
+1 when the copy is frozen or has failed.
+.It Sy applied_txg
+The newest transaction group that the lagging child holds.
+.It Sy synced_txg
+The newest transaction group that the pool has synced.
+.It Sy pending_bytes , pending_txgs
+The bytes and the transaction groups that wait for the copy.
+.It Sy held_bytes
+The space that the pool holds for the transaction groups that the copy has
+not finished.
+.It Sy copied_bytes
+The bytes that the copy wrote to the lagging child.
+.It Sy last_lag_ms , max_lag_ms
+The time in milliseconds from the end of a sync of the pool to the end of its
+copy, for the last transaction group and the largest so far.
+.It Sy throttled_ms
+The time in milliseconds that writers waited for the copy, because the
+backlog was above its limit.
+.It Sy resync_from
+The first transaction group that a resilver of the lagging child copies.
+.It Sy data_errors
+The data blocks that the copy could not read from the leader, after all tries.
+The lagging child lacks these blocks.
+.It Sy read_retries
+The tries again after a read error of the leader.
+.It Sy frozen
+1 when the lagging child is frozen.
+.It Sy frozen_txg
+The transaction group at which the child is frozen, or 0.
+.It Sy data_deferred
+The data blocks that wait for a new try after a read error.
+.It Sy data_recovered
+The deferred data blocks that a later try copied.
+.It Sy held_limit
+1 when the pool gave up on the lagging child and the child is frozen or has
+failed.
+.It Sy giveups
+The number of give-ups since the pool was opened.
+.It Sy giveup_reason
+The reason of the give-up as a number, 0 when there is none:
+1 held space limit, 2 pool space low, 3 copy stalled.
+.El
+.Pp
+The fields
+.Sy copy_rest_bytes
+and
+.Sy copy_rest_ranges
+are in the text above and in
+.Xr zfs 4 .
+.Pp
+Set the leaf's
+.Sy write_mode
+property to
+.Sy sync
+before attaching, detaching, offlining, or splitting a child.
+Replace a failed lagging child with
+.Nm zpool Cm replace
+without turning the async mirror off first.
+ZFS turns the async mirror off, records the transaction groups that the child
+lacks, and resilvers the replacement from the leader.
+The replacement stays synchronous after resilver.
+Set its
+.Sy write_mode
+to
+.Sy behind
+to start the async mirror again.
+ZFS refuses to replace a healthy lagging child or the leader while the async
+mirror is on.
+A hot spare cannot replace a failed lagging child while the async mirror is
+on: set its
+.Sy write_mode
+to
+.Sy sync
+first, as the error message says.
+Do not use the
+.Fl s
+option to replace a failed or frozen lagging child.
+ZFS rejects this operation before it changes the pool.
+.Pp
+Wait for the leaf's
+.Sy async_mirror_state
+to return to
+.Sy off
+and wait until the member is current before you change the mirror.
+Then set
+.Sy read_mode Ns = Ns Sy normal .
+See
+.Xr zpool-import 8
+for recovery when the copies have divergent histories.
+.Pp
+The import compares only the copies that it can read.
+If the pool configuration marks a copy offline, the import does not read it.
+When that copy was written apart from the pool in the meantime,
+.Nm zpool Cm online
+compares it before it rejoins the pool.
+If it holds another history, the command fails and the copy stays offline,
+because a resilver would not remove its uberblocks.
+Replace the copy with
+.Nm zpool Cm replace ,
+or export the pool and import it with the copy to keep.
+.Pp
+An async mirror and the pool's
+.Sy multihost
+property cannot be active at the same time.
+The pool refuses to start an async mirror while
+.Sy multihost
+is on, and refuses to turn
+.Sy multihost
+on while an async mirror is active.
+Set
+.Sy write_mode Ns = Ns Sy sync
+on the behind member and wait until its
+.Sy async_mirror_state
+is
+.Sy off
+before enabling
+.Sy multihost .
+.
 .Ss Device Failure and Recovery
 ZFS supports a rich set of mechanisms for handling device failure and data
 corruption.

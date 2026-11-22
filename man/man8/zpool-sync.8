@@ -27,6 +27,7 @@
 .Sh SYNOPSIS
 .Nm zpool
 .Cm sync
+.Op Fl l
 .Oo Ar pool Oc Ns …
 .
 .Sh DESCRIPTION
@@ -37,6 +38,29 @@ Without arguments,
 .Nm zpool Cm sync
 will sync all pools on the system.
 Otherwise, it will sync only the specified pools.
+For a pool with an asynchronous mirror, the command then waits until the
+lagging child has applied the transaction group that the command synced.
+For other pools, the command returns as soon as the transaction group syncs.
+Only the
+.Nm zpool Cm sync
+process waits; the pool's sync thread and application writes do not wait for
+the lagging child.
+.
+.Pp
+If the lagging child is frozen, failed, switched off, switching off, or its
+copy is suspended, the command writes a message to standard error and returns
+status 0.
+The sync itself succeeded on the leader.
+If a signal interrupts the wait, the command returns a nonzero status.
+.
+.Sh OPTIONS
+.Bl -tag -width Ds
+.It Fl l
+Leader only.
+Return when the transaction group has synced to the leader.
+Do not wait for the lagging child.
+This is the behavior used by earlier versions of this command.
+.El
 .
 .Sh SEE ALSO
 .Xr zpoolconcepts 7 ,

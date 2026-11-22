@@ -59,6 +59,11 @@ In this case, the new disk may have the same
 .Pa /dev
 path as the old device, even though it is actually a different disk.
 ZFS recognizes this.
+.Pp
+For a failed or frozen lagging child of an async mirror, use a normal
+replacement without
+.Fl s .
+ZFS refuses sequential reconstruction before it changes the pool.
 .Bl -tag -width Ds
 .It Fl f
 Forces use of
@@ -79,6 +84,8 @@ is reconstructed sequentially to restore redundancy as quickly as possible.
 Checksums are not verified during sequential reconstruction so a scrub is
 started when the resilver completes.
 Sequential reconstruction is not supported for raidz configurations.
+Sequential reconstruction is not supported for a failed or frozen lagging
+child of an async mirror.
 .It Fl w
 Waits until the replacement has completed before returning.
 .El

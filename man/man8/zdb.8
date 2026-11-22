@@ -15,7 +15,7 @@
 .\" Copyright (c) 2017 Lawrence Livermore National Security, LLC.
 .\" Copyright (c) 2017 Intel Corporation.
 .\"
-.Dd October 20, 2026
+.Dd November 12, 2026
 .Dt ZDB 8
 .Os
 .
@@ -348,7 +348,12 @@ By default,
 verifies that all non-free blocks are referenced, which can be very expensive.
 .It Fl m , -metaslabs
 Display the offset, spacemap, free space of each metaslab, all the log
-spacemaps and their obsolete entry statistics.
+spacemaps and their obsolete entry statistics, and the lineage and the
+records of an asynchronous mirror: the txg, the lagging leaf, and the space
+map of each record.
+It also shows the entries that explain a stopped copy:
+the freeze, the txg at which the mode was turned off, the leaf of a
+replacement, and the deferred blocks.
 .It Fl mm
 Also display information about the on-disk free space histogram associated with
 each metaslab.
