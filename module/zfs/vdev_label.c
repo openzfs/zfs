@@ -1855,6 +1855,49 @@ vdev_uberblock_sync_done(zio_t *zio)
 }
 
 /*
+ * Write ub to its slot in the uberblock ring of each label of leaf vd.  Each
+ * successful write increments *good_writes.
+ */
+static void
+vdev_uberblock_write(zio_t *zio, uint64_t *good_writes, uberblock_t *ub,
+    vdev_t *vd, int flags)
+{
+	ASSERT(vd->vdev_ops->vdev_op_leaf);
+
+	/*
+	 * We chose a slot based on the txg.  If this uberblock has a special
+	 * RAIDZ expansion state, then it is essentially an update of the
+	 * current uberblock (it has the same txg).  However, the current
+	 * state is committed, so we want to write it to a different slot. If
+	 * we overwrote the same slot, and we lose power during the uberblock
+	 * write, and the disk does not do single-sector overwrites
+	 * atomically (even though it is required to - i.e. we should see
+	 * either the old or the new uberblock), then we could lose this
+	 * txg's uberblock. Rewinding to the previous txg's uberblock may not
+	 * be possible because RAIDZ expansion may have already overwritten
+	 * some of the data, so we need the progress indicator in the
+	 * uberblock.
+	 */
+	int m = spa_multihost(vd->vdev_spa) ? MMP_BLOCKS_PER_LABEL : 0;
+	int n = (ub->ub_txg - (RRSS_GET_STATE(ub) == RRSS_SCRATCH_VALID)) %
+	    (VDEV_UBERBLOCK_COUNT(vd) - m);
+
+	/* Copy the uberblock_t into the ABD */
+	abd_t *ub_abd = abd_alloc_for_io(VDEV_UBERBLOCK_SIZE(vd), B_TRUE);
+	abd_copy_from_buf(ub_abd, ub, sizeof (uberblock_t));
+	abd_zero_off(ub_abd, sizeof (uberblock_t),
+	    VDEV_UBERBLOCK_SIZE(vd) - sizeof (uberblock_t));
+
+	for (int l = 0; l < VDEV_LABELS; l++)
+		vdev_label_write(zio, vd, l, ub_abd,
+		    VDEV_UBERBLOCK_OFFSET(vd, n), VDEV_UBERBLOCK_SIZE(vd),
+		    vdev_uberblock_sync_done, good_writes,
+		    flags | ZIO_FLAG_DONT_PROPAGATE);
+
+	abd_free(ub_abd);
+}
+
+/*
  * Write the uberblock to all labels of all leaves of the specified vdev.
  */
 static void
@@ -1897,37 +1940,7 @@ vdev_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 		vd->vdev_tail_labels_foreign = B_FALSE;
 	}
 
-	/*
-	 * We chose a slot based on the txg.  If this uberblock has a special
-	 * RAIDZ expansion state, then it is essentially an update of the
-	 * current uberblock (it has the same txg).  However, the current
-	 * state is committed, so we want to write it to a different slot. If
-	 * we overwrote the same slot, and we lose power during the uberblock
-	 * write, and the disk does not do single-sector overwrites
-	 * atomically (even though it is required to - i.e. we should see
-	 * either the old or the new uberblock), then we could lose this
-	 * txg's uberblock. Rewinding to the previous txg's uberblock may not
-	 * be possible because RAIDZ expansion may have already overwritten
-	 * some of the data, so we need the progress indicator in the
-	 * uberblock.
-	 */
-	int m = spa_multihost(vd->vdev_spa) ? MMP_BLOCKS_PER_LABEL : 0;
-	int n = (ub->ub_txg - (RRSS_GET_STATE(ub) == RRSS_SCRATCH_VALID)) %
-	    (VDEV_UBERBLOCK_COUNT(vd) - m);
-
-	/* Copy the uberblock_t into the ABD */
-	abd_t *ub_abd = abd_alloc_for_io(VDEV_UBERBLOCK_SIZE(vd), B_TRUE);
-	abd_copy_from_buf(ub_abd, ub, sizeof (uberblock_t));
-	abd_zero_off(ub_abd, sizeof (uberblock_t),
-	    VDEV_UBERBLOCK_SIZE(vd) - sizeof (uberblock_t));
-
-	for (int l = 0; l < VDEV_LABELS; l++)
-		vdev_label_write(zio, vd, l, ub_abd,
-		    VDEV_UBERBLOCK_OFFSET(vd, n), VDEV_UBERBLOCK_SIZE(vd),
-		    vdev_uberblock_sync_done, good_writes,
-		    flags | ZIO_FLAG_DONT_PROPAGATE);
-
-	abd_free(ub_abd);
+	vdev_uberblock_write(zio, good_writes, ub, vd, flags);
 }
 
 /* Sync the uberblocks to all vdevs in svd[] */
