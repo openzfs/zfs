@@ -959,6 +959,21 @@ dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 	return (0);
 }
 
+/*
+ * Ask for a later resilver of each leaf whose DTL reaches past the
+ * scn_max_txg of the resilver that this txg sets up.
+ */
+static void
+dsl_scan_assess_leaves(dsl_pool_t *dp, vdev_t *vd)
+{
+	if (vd->vdev_ops->vdev_op_leaf) {
+		dsl_scan_assess_vdev(dp, vd);
+		return;
+	}
+	for (uint64_t c = 0; c < vd->vdev_children; c++)
+		dsl_scan_assess_leaves(dp, vd->vdev_child[c]);
+}
+
 void
 dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 {
@@ -1009,6 +1024,20 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 
 		if (vdev_resilver_needed(spa->spa_root_vdev,
 		    &scn->scn_phys.scn_min_txg, &scn->scn_phys.scn_max_txg)) {
+			/*
+			 * A DTL can include this txg: a write that failed
+			 * earlier in this sync marks it.  A block born in this
+			 * txg can still be rewritten in place by a later sync
+			 * pass, so a read of it that this scan queues can find
+			 * other data on every child, and count checksum errors
+			 * on healthy devices.  Stop before this txg, as a scrub
+			 * does, and resilver the rest later.
+			 */
+			if (scn->scn_phys.scn_max_txg > tx->tx_txg) {
+				scn->scn_phys.scn_max_txg = tx->tx_txg;
+				dsl_scan_assess_leaves(scn->scn_dp,
+				    spa->spa_root_vdev);
+			}
 			nvlist_t *aux = fnvlist_alloc();
 			fnvlist_add_string(aux, ZFS_EV_RESILVER_TYPE,
 			    "healing");
