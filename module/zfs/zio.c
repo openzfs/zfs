@@ -5557,6 +5557,44 @@ zio_vdev_io_bypass(zio_t *zio)
  * ==========================================================================
  */
 
+/*
+ * Encrypting or authenticating a block fails if its dataset's key is not
+ * loaded (EACCES), which a write should never be issued without, or if
+ * the cipher cannot take the block (EIO: AES-CCM encrypts less than
+ * 16 MiB at once).  Fail the write rather than panic: like a write that
+ * cannot be allocated, one that cannot fail suspends the pool, since
+ * retrying it at once would only fail again.
+ */
+static zio_t *
+zio_encrypt_failed(zio_t *zio, abd_t *eabd, int error)
+{
+	zfs_dbgmsg("%s: zio_encrypt failed: error %d, objset %llu, "
+	    "object %llu, level %lld, blkid %llu, type %u, psize %llu",
+	    spa_name(zio->io_spa), error,
+	    (u_longlong_t)zio->io_bookmark.zb_objset,
+	    (u_longlong_t)zio->io_bookmark.zb_object,
+	    (longlong_t)zio->io_bookmark.zb_level,
+	    (u_longlong_t)zio->io_bookmark.zb_blkid,
+	    (uint_t)BP_GET_TYPE(zio->io_bp),
+	    (u_longlong_t)BP_GET_PSIZE(zio->io_bp));
+
+	if (eabd != NULL)
+		abd_free(eabd);
+
+	zio->io_error = error;
+	if (!(zio->io_flags & ZIO_FLAG_CANFAIL)) {
+		/*
+		 * Logical children may still be completing (we only waited
+		 * for them to be ready), and zio_notify_parent() updates
+		 * io_post under io_lock.
+		 */
+		mutex_enter(&zio->io_lock);
+		zio->io_post |= ZIO_POST_SUSPEND;
+		mutex_exit(&zio->io_lock);
+	}
+	zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
+	return (zio);
+}
 
 /*
  * This function is used for ZIO_STAGE_ENCRYPT. It is responsible for
@@ -5578,6 +5616,7 @@ zio_encrypt(zio_t *zio)
 	uint8_t iv[ZIO_DATA_IV_LEN];
 	uint8_t mac[ZIO_DATA_MAC_LEN];
 	boolean_t no_crypt = B_FALSE;
+	int error;
 
 	/* the root zio already encrypted the data */
 	if (zio->io_child_type == ZIO_CHILD_GANG)
@@ -5638,16 +5677,20 @@ zio_encrypt(zio_t *zio)
 		ASSERT0(DMU_OT_IS_ENCRYPTED(ot));
 		ASSERT3U(BP_GET_COMPRESS(bp), ==, ZIO_COMPRESS_OFF);
 		BP_SET_CRYPT(bp, B_TRUE);
-		VERIFY0(spa_do_crypt_objset_mac_abd(B_TRUE, spa, dsobj,
-		    zio->io_abd, psize, BP_SHOULD_BYTESWAP(bp)));
+		error = spa_do_crypt_objset_mac_abd(B_TRUE, spa, dsobj,
+		    zio->io_abd, psize, BP_SHOULD_BYTESWAP(bp));
+		if (error != 0)
+			return (zio_encrypt_failed(zio, NULL, error));
 		return (zio);
 	}
 
 	/* unencrypted object types are only authenticated with a MAC */
 	if (!DMU_OT_IS_ENCRYPTED(ot)) {
 		BP_SET_CRYPT(bp, B_TRUE);
-		VERIFY0(spa_do_crypt_mac_abd(B_TRUE, spa, dsobj,
-		    zio->io_abd, psize, mac));
+		error = spa_do_crypt_mac_abd(B_TRUE, spa, dsobj,
+		    zio->io_abd, psize, mac);
+		if (error != 0)
+			return (zio_encrypt_failed(zio, NULL, error));
 		zio_crypt_encode_mac_bp(bp, mac);
 		return (zio);
 	}
@@ -5680,10 +5723,12 @@ zio_encrypt(zio_t *zio)
 		BP_SET_CRYPT(bp, B_TRUE);
 	}
 
-	/* Perform the encryption. This should not fail */
-	VERIFY0(spa_do_crypt_abd(B_TRUE, spa, &zio->io_bookmark,
+	/* Perform the encryption: fails without the key or for CCM >= 16M */
+	error = spa_do_crypt_abd(B_TRUE, spa, &zio->io_bookmark,
 	    BP_GET_TYPE(bp), BP_GET_DEDUP(bp), BP_SHOULD_BYTESWAP(bp),
-	    salt, iv, mac, psize, zio->io_abd, eabd, &no_crypt));
+	    salt, iv, mac, psize, zio->io_abd, eabd, &no_crypt);
+	if (error != 0)
+		return (zio_encrypt_failed(zio, eabd, error));
 
 	/* encode encryption metadata into the bp */
 	if (ot == DMU_OT_INTENT_LOG) {
@@ -6302,6 +6347,14 @@ zio_done(zio_t *zio)
 		zio_dva_unallocate(zio, zio->io_gang_tree, zio->io_bp);
 
 	zio_gang_tree_free(&zio->io_gang_tree);
+
+	/*
+	 * SUSPEND wins over REEXECUTE, own or inherited: the root suspends
+	 * either way, and a suspend root given both never completes.
+	 */
+	if ((zio->io_post & ZIO_POST_SUSPEND) &&
+	    !(zio->io_flags & ZIO_FLAG_GODFATHER))
+		zio->io_post &= ~ZIO_POST_REEXECUTE;
 
 	/*
 	 * Godfather I/Os should never suspend.
