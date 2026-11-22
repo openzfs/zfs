@@ -14,7 +14,7 @@
 .\" reserved.
 .\" Copyright (c) 2017, Intel Corporation.
 .\"
-.Dd July 5, 2026
+.Dd November 12, 2026
 .Dt ZTEST 1
 .Os
 .
@@ -23,7 +23,7 @@
 .Nd was written by the ZFS Developers as a ZFS unit test
 .Sh SYNOPSIS
 .Nm
-.Op Fl VEG
+.Op Fl VEGA
 .Op Fl v Ar vdevs
 .Op Fl s Ar size_of_each_vdev
 .Op Fl a Ar alignment_shift
@@ -159,6 +159,41 @@ property enabled, so that subsequent imports run the MMP activity check.
 Requires a non-zero hostid.
 One may be supplied through
 .Ev ZFS_HOSTID .
+.It Fl A , -async-mirror
+Use one two-way mirror as the only data top-level vdev, and turn on the
+async mirror.
+This sets
+.Fl v Ns = Ns Sy 1 ,
+.Fl m Ns = Ns Sy 2
+and
+.Fl r Ns = Ns Sy 1 ,
+whatever the other options say.
+Ztest scales the size of each mirror child by the data width selected with
+.Fl r
+and
+.Fl R
+to keep the usable space comparable with the normal RAIDZ layout.
+Ztest exits with an error if
+.Fl M
+is also given.
+The second child of the mirror is the lagging child.
+Ztest sets its
+.Sy write_mode
+property to
+.Sy behind
+when it creates the pool.
+Ztest skips the operations that the async mirror refuses:
+attach, detach, replace, split, device removal,
+and the addition of a data or class vdev.
+It checks that the async mirror refuses detach, offline and removal of its
+vdevs, and that a checkpoint and a guid change fail.
+It makes half of the blocks at or above the gang block threshold gang blocks.
+It damages the lagging child only,
+and it stops and restarts the copy to the lagging child at random.
+Some passes end with the copy stopped, so that the next pass must resume it.
+After each pass, the main ztest process runs
+.Xr zdb 8
+on the pool, as for every run.
 .It Fl E , -use-existing-pool
 Use existing pool (use existing pool instead of creating new one).
 .It Fl T , -run-time Ns = (default: Sy 300 Ns s)
@@ -181,7 +216,8 @@ i.e. given
 .Fl B Pa ./chroots/lenny/usr/bin/ Ns Nm ,
 .Pa ./chroots/lenny/usr/lib
 will be loaded.
-.It Fl C , -vdev-class-state Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy random No (default : Sy random  )
+.It Fl C , -vdev-class-state Ns = Ns Sy on Ns | Ns Sy off Ns | Ns Sy random
+No (default: Sy random )
 The vdev allocation class state.
 .It Fl o , -option Ns = Ns Ar var Ns = Ns Ar value Ns …
 Set the given tunable to the provided value.
