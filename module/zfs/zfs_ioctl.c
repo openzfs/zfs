@@ -5025,8 +5025,9 @@ static const zfs_ioc_key_t zfs_keys_bucket_create[] = {
 static int
 zfs_ioc_bucket_create(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 {
-	const char *bucketname = fnvlist_lookup_string(innvl, ZFS_BUCKET);
-	return (create_bucket(poolname, bucketname));
+	(void) poolname;
+	const char *dataset = fnvlist_lookup_string(innvl, ZFS_BUCKET);
+	return (create_bucket(dataset));
 }
 
 static const zfs_ioc_key_t zfs_keys_bucket_delete[] = {
@@ -5036,44 +5037,51 @@ static const zfs_ioc_key_t zfs_keys_bucket_delete[] = {
 static int
 zfs_ioc_bucket_delete(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 {
-	const char *bucketname = fnvlist_lookup_string(innvl, ZFS_BUCKET);
-	return (delete_bucket(poolname, bucketname));
+	(void) poolname;
+	const char *dataset = fnvlist_lookup_string(innvl, ZFS_BUCKET);
+	return (delete_bucket(dataset));
 }
 
 static int
 zfs_ioc_bucket_list(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
 {
-	spa_t *spa;
 	objset_t *os;
-	zap_cursor_t zc;
-	zap_attribute_t *za;
+	objset_t *cos;
+	char name[ZFS_MAX_DATASET_NAME_LEN];
+	uint64_t off = 0;
 	int error;
 
-	error = spa_open(poolname, &spa, FTAG);
+	error = dmu_objset_hold(poolname, FTAG, &os);
 	if (error)
 		return (error);
 
-	error = zos_get_objset(spa, &os);
-	if (error == ENOENT) {
-		spa_close(spa, FTAG);
-		return (0);
-	}
-	if (error) {
-		spa_close(spa, FTAG);
-		return (error);
+	for (;;) {
+		error = dmu_dir_list_next(os, sizeof(name), name, NULL, &off);
+		if (error == ENOENT) {
+			error = 0;
+			break;
+		}
+		if (error)
+			break;
+
+		// Skip hidden/internal datasets
+		char *fullname = kmem_asprintf("%s/%s", poolname, name);
+		if (zfs_dataset_name_hidden(fullname)) {
+			kmem_strfree(fullname);
+			continue;
+		}
+
+		if (dmu_objset_hold(fullname, FTAG, &cos) == 0) {
+			if (dmu_objset_type(cos) == DMU_OST_BUCKET) {
+				fnvlist_add_boolean(outnvl, name);
+			}
+			dmu_objset_rele(cos, FTAG);
+		}
+		kmem_strfree(fullname);
 	}
 
-	za = zap_attribute_alloc();
-	for (zap_cursor_init(&zc, os, ZOS_BUCKET_DIR_OBJ);
-	    zap_cursor_retrieve(&zc, za) == 0;
-	    zap_cursor_advance(&zc)) {
-		fnvlist_add_boolean(outnvl, za->za_name);
-	}
-	zap_attribute_free(za);
-	zap_cursor_fini(&zc);
-	zos_release_objset(os);
-	spa_close(spa, FTAG);
-	return (0);
+	dmu_objset_rele(os, FTAG);
+	return (error);
 }
 
 static const zfs_ioc_key_t zfs_keys_object_put[] = {
@@ -5134,7 +5142,6 @@ static const zfs_ioc_key_t zfs_keys_object_list[] = {
 
 static int
 zfs_ioc_object_list(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl) {
-	spa_t *spa;
 	objset_t *os;
 	uint64_t bucket_zap;
 	zap_cursor_t zc;
@@ -5142,30 +5149,23 @@ zfs_ioc_object_list(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl) {
 	int error;
 	const char *bucket = fnvlist_lookup_string(innvl, ZFS_BUCKET);
 
-	error = spa_open(poolname, &spa, FTAG);
-	if (error) {
-		return (error);
-	}
-
-	error = get_bucket(spa, bucket, &os, &bucket_zap);
+	error = get_bucket(poolname, bucket, &os, &bucket_zap);
 	if (error) {
 		if (os != NULL) {
 			zos_release_objset(os);
 		}
-		spa_close(spa, FTAG);
 		return (error);
 	}
 
 	za = zap_attribute_alloc();
 	for (zap_cursor_init(&zc, os, bucket_zap);
-	    zap_cursor_retrieve(&zc, za) == 0;
-	    zap_cursor_advance(&zc)) {
+			zap_cursor_retrieve(&zc, za) == 0;
+			zap_cursor_advance(&zc)) {
 		fnvlist_add_boolean(outnvl, za->za_name);
 	}
 	zap_attribute_free(za);
 	zap_cursor_fini(&zc);
 	zos_release_objset(os);
-	spa_close(spa, FTAG);
 	return (0);
 }
 

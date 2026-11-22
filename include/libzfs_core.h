@@ -157,8 +157,8 @@ _LIBZFS_CORE_H int lzc_scrub(zfs_ioc_t, const char *, nvlist_t *, nvlist_t **);
 _LIBZFS_CORE_H int lzc_ddt_prune(const char *, zpool_ddt_prune_unit_t,
     uint64_t);
 
-_LIBZFS_CORE_H int lzc_bucket_create(const char *, const char *);
-_LIBZFS_CORE_H int lzc_bucket_delete(const char *, const char *);
+_LIBZFS_CORE_H int lzc_bucket_create(const char *);
+_LIBZFS_CORE_H int lzc_bucket_delete(const char *);
 _LIBZFS_CORE_H int lzc_bucket_list(const char *, nvlist_t **);
 _LIBZFS_CORE_H int lzc_object_put(const char *, const char *, const char *,
 	    int, uint64_t);

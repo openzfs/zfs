@@ -2091,16 +2091,16 @@ lzc_ddt_prune(const char *pool, zpool_ddt_prune_unit_t unit, uint64_t amount)
 }
 
 int
-lzc_bucket_create(const char *pool, const char *bucket)
+lzc_bucket_create(const char *path)
 {
 	int error;
 
 	nvlist_t *args = fnvlist_alloc();
 	nvlist_t *result = NULL;
 
-	fnvlist_add_string(args, ZFS_BUCKET, bucket);
+	fnvlist_add_string(args, ZFS_BUCKET, path);
 
-	error = lzc_ioctl(ZFS_IOC_BUCKET_CREATE, pool, args, &result);
+	error = lzc_ioctl(ZFS_IOC_BUCKET_CREATE, path, args, &result);
 
 	fnvlist_free(args);
 	fnvlist_free(result);
@@ -2109,16 +2109,16 @@ lzc_bucket_create(const char *pool, const char *bucket)
 }
 
 int
-lzc_bucket_delete(const char *pool, const char *bucket)
+lzc_bucket_delete(const char *path)
 {
 	int error;
 
 	nvlist_t *args = fnvlist_alloc();
 	nvlist_t *result = NULL;
 
-	fnvlist_add_string(args, ZFS_BUCKET, bucket);
+	fnvlist_add_string(args, ZFS_BUCKET, path);
 
-	error = lzc_ioctl(ZFS_IOC_BUCKET_DELETE, pool, args, &result);
+	error = lzc_ioctl(ZFS_IOC_BUCKET_DELETE, path, args, &result);
 
 	fnvlist_free(args);
 	fnvlist_free(result);

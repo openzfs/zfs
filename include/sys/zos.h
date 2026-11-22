@@ -44,12 +44,10 @@ typedef struct zos_object_meta {
 	uint64_t size;
 } zos_object_meta_t;
 
-int zos_get_objset(spa_t *spa, objset_t **osp);
 void zos_release_objset(objset_t *os);
-int create_bucket(const char *pool, const char *bucket);
-int delete_bucket(const char *pool, const char *bucket);
-/* Resolved bucket: held objset + bucket ZAP object ID */
-int get_bucket(spa_t *spa, const char *bucket, objset_t **os,
+int create_bucket(const char *dataset);
+int delete_bucket(const char *dataset);
+int get_bucket(const char *pool, const char *bucket, objset_t **os,
     uint64_t *bucket_zap);
 
 /*

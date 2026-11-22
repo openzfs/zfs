@@ -9398,20 +9398,11 @@ zfs_do_bucket(int argc, char **argv) {
 			usage(B_FALSE);
 		}
 
-		char *pool;
-		char *bucket;
-
-		int error = parse_pool_bucket(path, &pool, &bucket);
-		if (error) {
-			(void) fprintf(stderr, "expected pool/bucket\n");
-			usage(B_FALSE);
-		}
-
-		error = lzc_bucket_create(pool, bucket);
+		int error = lzc_bucket_create(path);
 		if (error != 0) {
 			(void) fprintf(stderr,
-			    "cannot create bucket '%s/%s': %s\n", pool,
-			    bucket, strerror(error));
+			    "cannot create bucket '%s': %s\n", path,
+			    strerror(error));
 			usage(B_FALSE);
 		}
 
@@ -9422,20 +9413,11 @@ zfs_do_bucket(int argc, char **argv) {
 			usage(B_FALSE);
 		}
 
-		char *pool;
-		char *bucket;
-
-		int error = parse_pool_bucket(path, &pool, &bucket);
-		if (error) {
-			(void) fprintf(stderr, "expected pool/bucket\n");
-			usage(B_FALSE);
-		}
-
-		error = lzc_bucket_delete(pool, bucket);
+		int error = lzc_bucket_delete(path);
 		if (error != 0) {
 			if (error == ENOTEMPTY) {
-				(void) fprintf(stderr, "cannot delete '%s/%s': "
-				    "bucket is not empty\n", pool, bucket);
+				(void) fprintf(stderr, "cannot delete '%s': "
+				    "bucket is not empty\n", path);
 			} else {
 				(void) zfs_standard_error(g_zfs, error,
 						"cannot delete bucket");
