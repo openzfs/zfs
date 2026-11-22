@@ -241,6 +241,7 @@ typedef uint64_t zio_flag_t;
 #define	ZIO_FLAG_POSTREAD	(1ULL << 35)
 #define	ZIO_FLAG_LIGHTWEIGHT	(1ULL << 36)
 #define	ZIO_FLAG_IO_INJECTED	(1ULL << 37)
+#define	ZIO_FLAG_REPAIR_STALE	(1ULL << 38)
 
 #define	ZIO_ALLOCATOR_NONE	(-1)
 #define	ZIO_HAS_ALLOCATOR(zio)	((zio)->io_allocator != ZIO_ALLOCATOR_NONE)

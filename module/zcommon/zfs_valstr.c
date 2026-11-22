@@ -217,6 +217,7 @@ _VALSTR_BITFIELD_IMPL(zio_flag,
 	{ '.', "PO", "POSTREAD" },
 	{ '.', "LW", "LIGHTWEIGHT" },
 	{ '.', "IJ", "IO_INJECTED" },
+	{ '.', "SR", "REPAIR_STALE" },
 )
 
 /*

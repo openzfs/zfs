@@ -53,6 +53,7 @@ typedef struct mirror_map {
 	boolean_t	mm_resilvering;
 	boolean_t	mm_rebuilding;
 	boolean_t	mm_root;
+	boolean_t	mm_retry_compare;
 	mirror_child_t	mm_child[];
 } mirror_map_t;
 
