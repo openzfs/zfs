@@ -35,6 +35,8 @@
 #include <sys/dsl_synctask.h>
 #include <sys/vdev.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_async_mirror.h>
+#include <sys/vdev_async_mirror_impl.h>
 #include <sys/mmp.h>
 #include <sys/fs/zfs.h>
 #include <sys/dmu_objset.h>
@@ -66,7 +68,8 @@ extern boolean_t spa_mode_readable_spacemaps;
 typedef enum {
 	ZHACK_REPAIR_OP_UNKNOWN  = 0,
 	ZHACK_REPAIR_OP_CKSUM    = (1 << 0),
-	ZHACK_REPAIR_OP_UNDETACH = (1 << 1)
+	ZHACK_REPAIR_OP_UNDETACH = (1 << 1),
+	ZHACK_REPAIR_OP_LEGACY_MARK = (1 << 2)
 } zhack_repair_op_t;
 
 static __attribute__((noreturn)) void
@@ -90,6 +93,11 @@ usage(void)
 	    "        import the pool for a set time then export it\n"
 	    "        -t <seconds> sets the time the pool is imported\n"
 	    "\n"
+	    "    async-mirror damage <pool> <kind>\n"
+	    "        damage the records of an asynchronous mirror, to test\n"
+	    "        the checks of an import; <kind> is none, free-overlap,\n"
+	    "        same-object, not-space-map or deferred\n"
+	    "\n"
 	    "    feature stat <pool>\n"
 	    "        print information about enabled features\n"
 	    "    feature enable [-r] [-d desc] <pool> <feature>\n"
@@ -108,6 +116,8 @@ usage(void)
 	    "        which may be combined to do their functions in one call\n"
 	    "        -c repair corrupted label checksums\n"
 	    "        -u restore the label on a detached device\n"
+	    "    label async-mirror-legacy-mark <device>\n"
+	    "        add the old async mirror write mark to each label\n"
 	    "\n"
 	    "    <device> : path to vdev\n"
 	    "\n"
@@ -1627,6 +1637,308 @@ zhack_do_metaslab(int argc, char **argv)
 	return (0);
 }
 
+typedef enum zhack_am_kind {
+	ZHACK_AM_NONE,
+	ZHACK_AM_FREE_OVERLAP,
+	ZHACK_AM_SAME_OBJECT,
+	ZHACK_AM_NOT_SPACE_MAP,
+	ZHACK_AM_DEFERRED,
+	ZHACK_AM_RECORD_FLAG,
+	ZHACK_AM_CHILD_FLAG,
+	ZHACK_AM_CHILD_SECOND,
+	ZHACK_AM_CHILD_GONE,
+	ZHACK_AM_LINEAGE_COUNT,
+	ZHACK_AM_LINEAGE_ZERO_GUID,
+	ZHACK_AM_LINEAGE_FLAG
+} zhack_am_kind_t;
+
+typedef struct zhack_am_arg {
+	zhack_am_kind_t		zaa_kind;
+	int			zaa_error;
+	objset_t		*zaa_mos;
+	boolean_t		zaa_found;	/* a record exists */
+	uint64_t		zaa_txg;	/* the oldest record */
+	async_mirror_rec_phys_t	zaa_rec;
+	boolean_t		zaa_free_found;	/* a held range exists */
+	uint64_t		zaa_free_obj;	/* the space map with it */
+	space_map_entry_t	zaa_free;
+	uint64_t		zaa_child_guid;	/* the lagging child */
+	async_mirror_child_phys_t zaa_child;	/* its per-child entry */
+	async_mirror_lineage_phys_t zaa_lineage;
+} zhack_am_arg_t;
+
+static int
+zhack_am_child_cb(uint64_t guid, const async_mirror_child_phys_t *amc,
+    void *arg)
+{
+	zhack_am_arg_t *zaa = arg;
+
+	if ((amc->amc_flags & ASYNC_MIRROR_CHILD_LAGGING) != 0) {
+		zaa->zaa_child_guid = guid;
+		zaa->zaa_child = *amc;
+	}
+	return (0);
+}
+
+static int
+zhack_am_entry_cb(space_map_entry_t *sme, void *arg)
+{
+	zhack_am_arg_t *zaa = arg;
+
+	if (sme->sme_type != SM_FREE)
+		return (0);
+	zaa->zaa_free = *sme;
+	zaa->zaa_free_found = B_TRUE;
+	return (SET_ERROR(EINTR));
+}
+
+static int
+zhack_am_rec_cb(uint64_t txg, const async_mirror_rec_phys_t *rec, void *arg)
+{
+	zhack_am_arg_t *zaa = arg;
+	space_map_t *sm = NULL;
+
+	if (!zaa->zaa_found || txg < zaa->zaa_txg) {
+		zaa->zaa_found = B_TRUE;
+		zaa->zaa_txg = txg;
+		zaa->zaa_rec = *rec;
+	}
+	if (zaa->zaa_free_found)
+		return (0);
+
+	int error = space_map_open(&sm, zaa->zaa_mos, rec->amr_sm_obj, 0,
+	    UINT64_MAX, SPA_MINBLOCKSHIFT);
+
+	if (error != 0)
+		return (error);
+	error = space_map_iterate(sm, space_map_length(sm), zhack_am_entry_cb,
+	    zaa);
+	space_map_close(sm);
+	if (zaa->zaa_free_found) {
+		zaa->zaa_free_obj = rec->amr_sm_obj;
+		error = 0;
+	}
+	return (error);
+}
+
+static void
+zhack_am_damage_sync(void *arg, dmu_tx_t *tx)
+{
+	zhack_am_arg_t *zaa = arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	objset_t *mos = spa->spa_meta_objset;
+	uint64_t zap, txg;
+	int error;
+
+	zaa->zaa_mos = mos;
+	if (zaa->zaa_kind == ZHACK_AM_LINEAGE_COUNT ||
+	    zaa->zaa_kind == ZHACK_AM_LINEAGE_ZERO_GUID ||
+	    zaa->zaa_kind == ZHACK_AM_LINEAGE_FLAG) {
+		error = zap_lookup(mos, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_ASYNC_MIRROR_LINEAGE, sizeof (uint64_t),
+		    ASYNC_MIRROR_LINEAGE_WORDS, &zaa->zaa_lineage);
+		if (error == 0 && (zaa->zaa_lineage.aml_parent == 0 ||
+		    zaa->zaa_lineage.aml_nabsent == 0 ||
+		    zaa->zaa_lineage.aml_nabsent >
+		    ASYNC_MIRROR_LINEAGE_ABSENT))
+			error = SET_ERROR(EINVAL);
+		if (error == 0) {
+			switch (zaa->zaa_kind) {
+			case ZHACK_AM_LINEAGE_COUNT:
+				zaa->zaa_lineage.aml_nabsent = 0;
+				break;
+			case ZHACK_AM_LINEAGE_ZERO_GUID:
+				zaa->zaa_lineage.aml_absent[0] = 0;
+				break;
+			case ZHACK_AM_LINEAGE_FLAG:
+				zaa->zaa_lineage.aml_flags |= 1ULL << 63;
+				break;
+			default:
+				error = SET_ERROR(EINVAL);
+			}
+			if (error == 0) {
+				error = zap_update(mos,
+				    DMU_POOL_DIRECTORY_OBJECT,
+				    DMU_POOL_ASYNC_MIRROR_LINEAGE,
+				    sizeof (uint64_t),
+				    ASYNC_MIRROR_LINEAGE_WORDS,
+				    &zaa->zaa_lineage, tx);
+			}
+		}
+		zaa->zaa_error = error;
+		if (error == 0) {
+			spa_history_log_internal(spa,
+			    "zhack async-mirror damage", tx, "kind=%d",
+			    (int)zaa->zaa_kind);
+		}
+		return;
+	}
+	error = zap_lookup(mos, DMU_POOL_DIRECTORY_OBJECT,
+	    DMU_POOL_ASYNC_MIRROR_ZAP, sizeof (uint64_t), 1, &zap);
+	if (error == 0) {
+		error = async_mirror_rec_iterate(mos, zap, zhack_am_rec_cb,
+		    zaa);
+	}
+	if (error == 0 && (!zaa->zaa_found || zaa->zaa_txg < 2))
+		error = SET_ERROR(ENOENT);
+
+	uint64_t czap = 0;
+
+	if (error == 0) {
+		error = zap_lookup(mos, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_ASYNC_MIRROR_CHILD, sizeof (uint64_t), 1, &czap);
+	}
+	if (error == 0) {
+		error = async_mirror_child_iterate(mos, zhack_am_child_cb,
+		    zaa);
+	}
+	if (error == 0 && zaa->zaa_child_guid == 0)
+		error = SET_ERROR(ENOENT);
+	if (error != 0) {
+		zaa->zaa_error = error;
+		return;
+	}
+	txg = zaa->zaa_txg - 1;
+
+	switch (zaa->zaa_kind) {
+	case ZHACK_AM_NONE:
+		return;
+	case ZHACK_AM_FREE_OVERLAP: {
+		const space_map_entry_t *sme = &zaa->zaa_free;
+		space_map_t *sm = NULL;
+
+		if (!zaa->zaa_free_found) {
+			error = SET_ERROR(ENOENT);
+			break;
+		}
+
+		zfs_range_tree_t *rt = zfs_range_tree_create(NULL,
+		    ZFS_RANGE_SEG64, NULL, 0, 0);
+
+		VERIFY0(space_map_open(&sm, mos, zaa->zaa_free_obj, 0,
+		    UINT64_MAX, SPA_MINBLOCKSHIFT));
+		zfs_range_tree_add(rt, sme->sme_offset, sme->sme_run);
+		space_map_write(sm, rt, SM_FREE, sme->sme_vdev, tx);
+		space_map_close(sm);
+		zfs_range_tree_vacate(rt, NULL, NULL);
+		zfs_range_tree_destroy(rt);
+		break;
+	}
+	case ZHACK_AM_SAME_OBJECT:
+		error = zap_add_uint64(mos, zap, &txg, 1, sizeof (uint64_t),
+		    ASYNC_MIRROR_REC_WORDS, &zaa->zaa_rec, tx);
+		break;
+	case ZHACK_AM_NOT_SPACE_MAP:
+		zaa->zaa_rec.amr_sm_obj = zap;
+		error = zap_add_uint64(mos, zap, &txg, 1, sizeof (uint64_t),
+		    ASYNC_MIRROR_REC_WORDS, &zaa->zaa_rec, tx);
+		break;
+	case ZHACK_AM_DEFERRED: {
+		uint64_t val[ASYNC_MIRROR_DEFER_WORDS] = { zaa->zaa_txg };
+		uint64_t dzap;
+
+		error = zap_lookup(mos, DMU_POOL_DIRECTORY_OBJECT,
+		    DMU_POOL_ASYNC_MIRROR_DEFERRED, sizeof (uint64_t), 1,
+		    &dzap);
+		if (error == ENOENT) {
+			dzap = zap_create(mos, DMU_OTN_ZAP_METADATA,
+			    DMU_OT_NONE, 0, tx);
+			error = zap_add(mos, DMU_POOL_DIRECTORY_OBJECT,
+			    DMU_POOL_ASYNC_MIRROR_DEFERRED, sizeof (uint64_t),
+			    1, &dzap, tx);
+		}
+		if (error == 0) {
+			error = zap_add(mos, dzap, "zhack", sizeof (uint64_t),
+			    ASYNC_MIRROR_DEFER_WORDS, val, tx);
+		}
+		break;
+	}
+	case ZHACK_AM_RECORD_FLAG:
+		zaa->zaa_rec.amr_flags |= 1ULL << 63;
+		error = zap_update_uint64(mos, zap, &zaa->zaa_txg, 1,
+		    sizeof (uint64_t), ASYNC_MIRROR_REC_WORDS, &zaa->zaa_rec,
+		    tx);
+		break;
+	case ZHACK_AM_CHILD_FLAG:
+		zaa->zaa_child.amc_flags |= 1ULL << 63;
+		error = zap_update_uint64(mos, czap, &zaa->zaa_child_guid, 1,
+		    sizeof (uint64_t), ASYNC_MIRROR_CHILD_WORDS,
+		    &zaa->zaa_child, tx);
+		break;
+	case ZHACK_AM_CHILD_SECOND: {
+		uint64_t guid = zaa->zaa_child_guid + 1;
+
+		error = zap_add_uint64(mos, czap, &guid, 1, sizeof (uint64_t),
+		    ASYNC_MIRROR_CHILD_WORDS, &zaa->zaa_child, tx);
+		break;
+	}
+	case ZHACK_AM_CHILD_GONE:
+		error = zap_remove_uint64(mos, czap, &zaa->zaa_child_guid, 1,
+		    tx);
+		break;
+	case ZHACK_AM_LINEAGE_COUNT:
+	case ZHACK_AM_LINEAGE_ZERO_GUID:
+	case ZHACK_AM_LINEAGE_FLAG:
+		error = SET_ERROR(EINVAL);
+		break;
+	}
+	zaa->zaa_error = error;
+	if (error == 0) {
+		spa_history_log_internal(spa, "zhack async-mirror damage", tx,
+		    "kind=%d", (int)zaa->zaa_kind);
+	}
+}
+
+static void
+zhack_do_async_mirror_damage(int argc, char **argv)
+{
+	static const struct {
+		const char *name;
+		zhack_am_kind_t kind;
+	} kinds[] = {
+		{ "none", ZHACK_AM_NONE },
+		{ "free-overlap", ZHACK_AM_FREE_OVERLAP },
+		{ "same-object", ZHACK_AM_SAME_OBJECT },
+		{ "not-space-map", ZHACK_AM_NOT_SPACE_MAP },
+		{ "deferred", ZHACK_AM_DEFERRED },
+		{ "record-flag", ZHACK_AM_RECORD_FLAG },
+		{ "child-flag", ZHACK_AM_CHILD_FLAG },
+		{ "child-second", ZHACK_AM_CHILD_SECOND },
+		{ "child-gone", ZHACK_AM_CHILD_GONE },
+		{ "lineage-count", ZHACK_AM_LINEAGE_COUNT },
+		{ "lineage-zero-guid", ZHACK_AM_LINEAGE_ZERO_GUID },
+		{ "lineage-flag", ZHACK_AM_LINEAGE_FLAG },
+	};
+	zhack_am_arg_t zaa = { 0 };
+	boolean_t known = B_FALSE;
+	spa_t *spa;
+
+	if (argc != 3) {
+		(void) fprintf(stderr, "error: async-mirror damage needs a "
+		    "pool and a kind\n");
+		usage();
+	}
+	for (size_t i = 0; i < ARRAY_SIZE(kinds); i++) {
+		if (strcmp(argv[2], kinds[i].name) == 0) {
+			zaa.zaa_kind = kinds[i].kind;
+			known = B_TRUE;
+		}
+	}
+	if (!known) {
+		(void) fprintf(stderr, "error: unknown kind: %s\n", argv[2]);
+		usage();
+	}
+
+	zhack_spa_open(argv[1], B_FALSE, FTAG, &spa);
+	VERIFY0(dsl_sync_task(spa_name(spa), NULL, zhack_am_damage_sync,
+	    &zaa, 0, ZFS_SPACE_CHECK_NONE));
+	if (zaa.zaa_error != 0) {
+		fatal(spa, FTAG, "cannot damage the async mirror records "
+		    "of '%s': %s", argv[1], strerror(zaa.zaa_error));
+	}
+	spa_close(spa, FTAG);
+}
+
 #define	ASHIFT_UBERBLOCK_SHIFT(ashift)	\
 	MIN(MAX(ashift, UBERBLOCK_SHIFT), \
 	MAX_UBERBLOCK_SHIFT)
@@ -1958,6 +2270,22 @@ zhack_repair_one_label(const zhack_repair_op_t op, const int fd,
 	if (err)
 		return;
 
+	if ((op & ZHACK_REPAIR_OP_LEGACY_MARK) != 0) {
+		char *buf = vl->vl_vdev_phys.vp_nvlist;
+		size_t buflen = VDEV_PHYS_SIZE - sizeof (zio_eck_t);
+
+		err = nvlist_add_uint64(cfg,
+		    ZPOOL_CONFIG_ASYNC_MIRROR_LEGACY_MARK, 1);
+		if (err == 0)
+			err = nvlist_pack(cfg, &buf, &buflen, NV_ENCODE_XDR, 0);
+		if (err != 0) {
+			(void) fprintf(stderr,
+			    "error: label %d: cannot add legacy async mirror "
+			    "mark: %s\n", l, strerror(err));
+			return;
+		}
+	}
+
 	if ((op & ZHACK_REPAIR_OP_UNDETACH) != 0) {
 		char *buf;
 		size_t buflen;
@@ -2110,6 +2438,9 @@ zhack_do_label(int argc, char **argv)
 	subcommand = argv[0];
 	if (strcmp(subcommand, "repair") == 0) {
 		err = zhack_do_label_repair(argc, argv);
+	} else if (strcmp(subcommand, "async-mirror-legacy-mark") == 0) {
+		err = zhack_label_repair(ZHACK_REPAIR_OP_LEGACY_MARK,
+		    argc - 1, argv + 1);
 	} else {
 		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
 		    subcommand);
@@ -2187,6 +2518,20 @@ main(int argc, char **argv)
 
 	if (strcmp(subcommand, "action") == 0) {
 		rv = zhack_do_action(argc, argv);
+	} else if (strcmp(subcommand, "async-mirror") == 0) {
+		argc--;
+		argv++;
+		if (argc == 0) {
+			(void) fprintf(stderr,
+			    "error: no async-mirror operation specified\n");
+			usage();
+		}
+		if (strcmp(argv[0], "damage") != 0) {
+			(void) fprintf(stderr,
+			    "error: unknown subcommand: %s\n", argv[0]);
+			usage();
+		}
+		zhack_do_async_mirror_damage(argc, argv);
 	} else if (strcmp(subcommand, "feature") == 0) {
 		rv = zhack_do_feature(argc, argv);
 	} else if (strcmp(subcommand, "mmp") == 0) {
