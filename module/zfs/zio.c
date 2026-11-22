@@ -1770,15 +1770,16 @@ zio_vdev_delegated_io(vdev_t *vd, uint64_t offset, abd_t *data, uint64_t size,
 
 
 /*
- * Send a flush command to the given vdev. Unlike most zio creation functions,
- * the flush zios are issued immediately. You can wait on pio to pause until
- * the flushes complete.
+ * Flush vd, or each leaf under it.  If propagate is false, a failed flush is
+ * not an error of pio.
  */
-void
-zio_flush(zio_t *pio, vdev_t *vd)
+static void
+zio_flush_impl(zio_t *pio, vdev_t *vd, boolean_t propagate)
 {
-	const zio_flag_t flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE |
-	    ZIO_FLAG_DONT_RETRY;
+	zio_flag_t flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_RETRY;
+
+	if (!propagate)
+		flags |= ZIO_FLAG_DONT_PROPAGATE;
 
 	if (vd->vdev_nowritecache)
 		return;
@@ -1798,8 +1799,19 @@ zio_flush(zio_t *pio, vdev_t *vd)
 		    NULL, ZIO_STAGE_OPEN, ZIO_FLUSH_PIPELINE));
 	} else {
 		for (uint64_t c = 0; c < vd->vdev_children; c++)
-			zio_flush(pio, vd->vdev_child[c]);
+			zio_flush_impl(pio, vd->vdev_child[c], propagate);
 	}
+}
+
+/*
+ * Send a flush command to the given vdev. Unlike most zio creation functions,
+ * the flush zios are issued immediately. You can wait on pio to pause until
+ * the flushes complete.  A failed flush is not an error of pio.
+ */
+void
+zio_flush(zio_t *pio, vdev_t *vd)
+{
+	zio_flush_impl(pio, vd, B_FALSE);
 }
 
 void
