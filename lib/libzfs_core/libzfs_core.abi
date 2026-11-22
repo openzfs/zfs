@@ -131,6 +131,7 @@
     <elf-symbol name='lzc_trim' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_unload_key' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_wait' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
+    <elf-symbol name='lzc_wait_async_mirror_sync' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_wait_fs' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='lzc_wait_tag' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
     <elf-symbol name='mkdirp' type='func-type' binding='global-binding' visibility='default-visibility' is-defined='yes'/>
@@ -2473,7 +2474,8 @@
       <enumerator name='ZPOOL_WAIT_TRIM' value='7'/>
       <enumerator name='ZPOOL_WAIT_RAIDZ_EXPAND' value='8'/>
       <enumerator name='ZPOOL_WAIT_CONDENSE' value='9'/>
-      <enumerator name='ZPOOL_WAIT_NUM_ACTIVITIES' value='10'/>
+      <enumerator name='ZPOOL_WAIT_ASYNC_MIRROR' value='10'/>
+      <enumerator name='ZPOOL_WAIT_NUM_ACTIVITIES' value='11'/>
     </enum-decl>
     <typedef-decl name='zpool_wait_activity_t' type-id='849338e3' id='73446457'/>
     <enum-decl name='zfs_wait_activity_t' naming-typedef-id='3024501a' id='527d5dc6'>
@@ -4077,6 +4079,11 @@
     <function-decl name='lzc_wait' mangled-name='lzc_wait' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_wait'>
       <parameter type-id='80f4b756' name='pool'/>
       <parameter type-id='73446457' name='activity'/>
+      <parameter type-id='37e3bd22' name='waited'/>
+      <return type-id='95e97e5e'/>
+    </function-decl>
+    <function-decl name='lzc_wait_async_mirror_sync' mangled-name='lzc_wait_async_mirror_sync' visibility='default' binding='global' size-in-bits='64' elf-symbol-id='lzc_wait_async_mirror_sync'>
+      <parameter type-id='80f4b756' name='pool'/>
       <parameter type-id='37e3bd22' name='waited'/>
       <return type-id='95e97e5e'/>
     </function-decl>

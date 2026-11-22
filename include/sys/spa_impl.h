@@ -32,6 +32,7 @@
 #include <sys/vdev_rebuild.h>
 #include <sys/vdev_removal.h>
 #include <sys/vdev_raidz.h>
+#include <sys/vdev_async_mirror.h>
 #include <sys/metaslab.h>
 #include <sys/dmu.h>
 #include <sys/dsl_pool.h>
@@ -354,6 +355,20 @@ struct spa {
 	uint64_t	spa_nonallocating_dspace;
 	spa_removing_phys_t spa_removing_phys;
 	spa_vdev_removal_t *spa_vdev_removal;
+	/* asynchronous mirror state */
+	struct vdev_async_mirror *spa_async_mirror;
+	/* counters for the async_mirror kstat */
+	spa_async_mirror_stats_t spa_async_mirror_stats;
+	/* the lineage, and the lineage entry in the MOS as on disk */
+	async_mirror_lineage_phys_t spa_async_mirror_lin;
+	async_mirror_lineage_phys_t spa_async_mirror_lin_disk;
+	/* load: the lineage of the copies is not checked yet; no repair */
+	boolean_t	spa_async_mirror_unchecked;
+	/* a leaf ZAP may hold the lineage of the leaf's labels */
+	boolean_t	spa_async_mirror_label_keys;
+	/* import: the copy to discard, erased after the load */
+	uint64_t	spa_async_mirror_skip;
+	async_mirror_import_t spa_async_mirror_import;
 
 	spa_condensing_indirect_phys_t	spa_condensing_indirect_phys;
 	spa_condensing_indirect_t	*spa_condensing_indirect;

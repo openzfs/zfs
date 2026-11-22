@@ -82,10 +82,52 @@ static const char *const zfs_msgid_table[] = {
 	 *	ZPOOL_STATUS_COMPATIBILITY_ERR
 	 *	ZPOOL_STATUS_INCOMPATIBLE_FEAT
 	 *	ZPOOL_STATUS_OK
+	 *	ZPOOL_STATUS_ASYNC_MIRROR_FROZEN
+	 *	ZPOOL_STATUS_ASYNC_MIRROR_FAILED
+	 *	ZPOOL_STATUS_ASYNC_MIRROR_DIVERGED
 	 */
 };
 
 #define	NMSGID	(sizeof (zfs_msgid_table) / sizeof (zfs_msgid_table[0]))
+
+static zpool_status_t
+async_mirror_vdev_status(nvlist_t *nv)
+{
+	nvlist_t **child;
+	nvlist_t *stats;
+	uint_t children, i;
+	const char *state;
+
+	if (nvlist_lookup_nvlist(nv, ZPOOL_CONFIG_ASYNC_MIRROR_STATS,
+	    &stats) == 0 &&
+	    nvlist_lookup_string(stats, ZPOOL_CONFIG_ASYNC_MIRROR_STATE,
+	    &state) == 0) {
+		if (strcmp(state, "frozen") == 0)
+			return (ZPOOL_STATUS_ASYNC_MIRROR_FROZEN);
+		if (strcmp(state, "failed") == 0)
+			return (ZPOOL_STATUS_ASYNC_MIRROR_FAILED);
+	}
+
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_ASYNC_MIRROR_STATE,
+	    &state) == 0) {
+		if (strcmp(state, "frozen") == 0)
+			return (ZPOOL_STATUS_ASYNC_MIRROR_FROZEN);
+		if (strcmp(state, "failed") == 0)
+			return (ZPOOL_STATUS_ASYNC_MIRROR_FAILED);
+	}
+
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) == 0) {
+		for (i = 0; i < children; i++) {
+			zpool_status_t status =
+			    async_mirror_vdev_status(child[i]);
+
+			if (status != ZPOOL_STATUS_OK)
+				return (status);
+		}
+	}
+	return (ZPOOL_STATUS_OK);
+}
 
 static int
 vdev_missing(vdev_stat_t *vs, uint_t vsc, void *arg)
@@ -227,7 +269,6 @@ find_vdev_problem(nvlist_t *vdev, int (*func)(vdev_stat_t *, uint_t, void *),
  *
  *	- Check for a complete and valid configuration
  *	- Look for any faulted or missing devices in a non-replicated config
- *	- Check for any data errors
  *	- Check for any faulted or missing devices in a replicated config
  *	- Look for any devices showing errors
  *	- Check for any resilvering or rebuilding devices
@@ -244,6 +285,11 @@ check_status(nvlist_t *config, boolean_t isimport,
 	uint64_t suspended;
 	uint64_t hostid = 0;
 	uint64_t errata = 0;
+	zpool_status_t async_mirror_status;
+	nvlist_t *load_info, *async_mirror_stats;
+	uint64_t *diverged;
+	uint_t ndiverged;
+	const char *async_mirror_state;
 	unsigned long system_hostid = get_system_hostid();
 
 	uint64_t version = fnvlist_lookup_uint64(config, ZPOOL_CONFIG_VERSION);
@@ -253,6 +299,12 @@ check_status(nvlist_t *config, boolean_t isimport,
 	    ZPOOL_CONFIG_VDEV_STATS, &vsc);
 	uint64_t stateval = fnvlist_lookup_uint64(config,
 	    ZPOOL_CONFIG_POOL_STATE);
+
+	if (isimport && nvlist_lookup_nvlist(config, ZPOOL_CONFIG_LOAD_INFO,
+	    &load_info) == 0 && nvlist_lookup_uint64_array(load_info,
+	    ZPOOL_CONFIG_ASYNC_MIRROR_DIVERGED, &diverged, &ndiverged) == 0 &&
+	    ndiverged == 4)
+		return (ZPOOL_STATUS_ASYNC_MIRROR_DIVERGED);
 
 	/*
 	 * Currently resilvering a vdev
@@ -412,8 +464,23 @@ check_status(nvlist_t *config, boolean_t isimport,
 	if (!isimport) {
 		uint64_t nerr;
 		if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_ERRCOUNT,
-		    &nerr) == 0 && nerr != 0)
+		    &nerr) == 0 && nerr != 0) {
+			if (nvlist_lookup_nvlist(nvroot,
+			    ZPOOL_CONFIG_ASYNC_MIRROR_STATS,
+			    &async_mirror_stats) == 0 &&
+			    nvlist_lookup_string(async_mirror_stats,
+			    ZPOOL_CONFIG_ASYNC_MIRROR_STATE,
+			    &async_mirror_state) == 0 &&
+			    strcmp(async_mirror_state, "frozen") == 0 &&
+			    nvlist_exists(async_mirror_stats,
+			    ZPOOL_CONFIG_ASYNC_MIRROR_FREEZE_READ) &&
+			    !nvlist_exists(async_mirror_stats,
+			    ZPOOL_CONFIG_ASYNC_MIRROR_HELD_LIMIT) &&
+			    async_mirror_vdev_status(nvroot) ==
+			    ZPOOL_STATUS_ASYNC_MIRROR_FROZEN)
+				return (ZPOOL_STATUS_ASYNC_MIRROR_FROZEN);
 			return (ZPOOL_STATUS_CORRUPT_DATA);
+		}
 	}
 
 	/*
@@ -429,6 +496,10 @@ check_status(nvlist_t *config, boolean_t isimport,
 		return (ZPOOL_STATUS_MISSING_DEV_R);
 	if (find_vdev_problem(nvroot, vdev_broken, NULL, B_TRUE))
 		return (ZPOOL_STATUS_CORRUPT_LABEL_R);
+
+	async_mirror_status = async_mirror_vdev_status(nvroot);
+	if (async_mirror_status != ZPOOL_STATUS_OK)
+		return (async_mirror_status);
 
 	/*
 	 * Devices with errors

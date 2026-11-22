@@ -77,9 +77,18 @@ int metaslab_alloc_range(spa_t *, metaslab_class_t *, uint64_t, uint64_t,
     int, const void *, uint64_t *);
 int metaslab_alloc_dva(spa_t *, metaslab_class_t *, uint64_t,
     dva_t *, int, const dva_t *, uint64_t, int, zio_alloc_list_t *, int);
+/* Passed to vdev_async_mirror_should_hold(). */
+typedef enum metaslab_free_kind {
+	METASLAB_FREE_BLOCK,		/* any other block */
+	METASLAB_FREE_ZIL,		/* intent log block of this import */
+	METASLAB_FREE_ZIL_CLAIMED,	/* intent log block of a claimed log */
+} metaslab_free_kind_t;
+
 void metaslab_free(spa_t *, const blkptr_t *, uint64_t, boolean_t);
-void metaslab_free_concrete(vdev_t *, uint64_t, uint64_t, boolean_t);
-void metaslab_free_dva(spa_t *, const dva_t *, boolean_t);
+void metaslab_free_concrete(vdev_t *, uint64_t, uint64_t, boolean_t,
+	metaslab_free_kind_t);
+void metaslab_free_dva(spa_t *, const dva_t *, boolean_t,
+	metaslab_free_kind_t);
 void metaslab_free_impl_cb(uint64_t, vdev_t *, uint64_t, uint64_t, void *);
 void metaslab_unalloc_dva(spa_t *, const dva_t *, uint64_t);
 int metaslab_claim(spa_t *, const blkptr_t *, uint64_t);

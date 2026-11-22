@@ -60,6 +60,7 @@
 #include <sys/vdev_raidz.h>
 #include <sys/vdev_draid.h>
 #include <sys/vdev_anyraid.h>
+#include <sys/vdev_async_mirror.h>
 #include <sys/metaslab.h>
 #include <sys/metaslab_impl.h>
 #include <sys/mmp.h>
@@ -629,7 +630,13 @@ spa_prop_get(spa_t *spa, nvlist_t *nv)
 	int err = 0;
 
 	dp = spa_get_dsl(spa);
-	dsl_pool_config_enter(dp, FTAG);
+	/*
+	 * A pool whose load failed stays in the namespace with no DSL pool and
+	 * no MOS (for example after zinject -u or a reopen that fails); its
+	 * properties come from the config only.
+	 */
+	if (dp != NULL)
+		dsl_pool_config_enter(dp, FTAG);
 	za = zap_attribute_alloc();
 	mutex_enter(&spa->spa_props_lock);
 
@@ -714,7 +721,8 @@ spa_prop_get(spa_t *spa, nvlist_t *nv)
 	zap_cursor_fini(&zc);
 out:
 	mutex_exit(&spa->spa_props_lock);
-	dsl_pool_config_exit(dp, FTAG);
+	if (dp != NULL)
+		dsl_pool_config_exit(dp, FTAG);
 	zap_attribute_free(za);
 
 	if (err && err != ENOENT)
@@ -814,6 +822,9 @@ spa_prop_validate(spa_t *spa, nvlist_t *props)
 			error = nvpair_value_uint64(elem, &intval);
 			if (!error && intval > 1)
 				error = SET_ERROR(EINVAL);
+			if (!error && intval != 0 &&
+			    vdev_async_mirror_active(spa))
+				error = SET_ERROR(ZFS_ERR_ASYNC_MIRROR_ACTIVE);
 
 			if (!error) {
 				uint32_t hostid = zone_get_hostid(NULL);
@@ -1069,6 +1080,9 @@ spa_change_guid_check(void *arg, dmu_tx_t *tx)
 		    ZFS_ERR_CHECKPOINT_EXISTS : ZFS_ERR_DISCARDING_CHECKPOINT;
 		return (SET_ERROR(error));
 	}
+
+	if (vdev_async_mirror_active(spa))
+		return (SET_ERROR(ZFS_ERR_ASYNC_MIRROR_ACTIVE));
 
 	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
 	vdev_state = rvd->vdev_state;
@@ -2373,6 +2387,7 @@ spa_unload(spa_t *spa)
 		txg_sync_stop(spa->spa_dsl_pool);
 		spa->spa_sync_on = B_FALSE;
 	}
+	vdev_async_mirror_stop(spa);
 
 	/*
 	 * This ensures that there is no async metaslab prefetching
@@ -2392,6 +2407,8 @@ spa_unload(spa_t *spa)
 		kmem_free(spa->spa_async_zio_root, max_ncpus * sizeof (void *));
 		spa->spa_async_zio_root = NULL;
 	}
+
+	vdev_async_mirror_fini(spa);
 
 	if (spa->spa_vdev_removal != NULL) {
 		spa_vdev_removal_destroy(spa->spa_vdev_removal);
@@ -3685,6 +3702,8 @@ spa_spawn_aux_threads(spa_t *spa)
 	    zthr_create("z_checkpoint_discard",
 	    spa_checkpoint_discard_thread_check,
 	    spa_checkpoint_discard_thread, spa, minclsyspri);
+
+	vdev_async_mirror_spawn(spa);
 }
 
 /*
@@ -3775,6 +3794,7 @@ spa_load(spa_t *spa, spa_load_state_t state, spa_import_type_t type)
 	const char *ereport = FM_EREPORT_ZFS_POOL;
 	int error;
 
+	vdev_async_mirror_import_reset(spa);
 	spa->spa_load_state = state;
 	(void) spa_import_progress_set_state(spa_guid(spa),
 	    spa_load_state(spa));
@@ -3782,6 +3802,7 @@ spa_load(spa_t *spa, spa_load_state_t state, spa_import_type_t type)
 
 	gethrestime(&spa->spa_loaded_ts);
 	error = spa_load_impl(spa, type, &ereport);
+	vdev_async_mirror_load_done(spa);
 
 	/*
 	 * Don't count references from objsets that are already closed
@@ -3982,8 +4003,8 @@ spa_activity_check_required(spa_t *spa, uberblock_t *ub, nvlist_t *label)
 
 		if (spa_get_hostid(spa) && hostid == spa_get_hostid(spa) &&
 		    state == POOL_STATE_EXPORTED) {
-			zfs_dbgmsg("mmp: skipping check: hostid matches "
-			    "and pool is exported, spa=%s, hostid=%llx",
+			zfs_dbgmsg("mmp: skip check: same hostid and "
+			    "exported pool, spa=%s, hostid=%llx",
 			    spa_load_name(spa), (u_longlong_t)hostid);
 			return (B_FALSE);
 		}
@@ -4148,7 +4169,6 @@ spa_activity_set_load_info(spa_t *spa, nvlist_t *label, mmp_state_t state,
 	fnvlist_add_uint64(spa->spa_load_info, ZPOOL_CONFIG_MMP_TXG, txg);
 	fnvlist_add_uint16(spa->spa_load_info, ZPOOL_CONFIG_MMP_SEQ, seq);
 	fnvlist_add_uint32(spa->spa_load_info, ZPOOL_CONFIG_MMP_RESULT, error);
-
 	if (mmp->mmp_tryimport_ns > 0) {
 		fnvlist_add_uint64(spa->spa_load_info,
 		    ZPOOL_CONFIG_MMP_TRYIMPORT_NS, mmp->mmp_tryimport_ns);
@@ -4184,10 +4204,12 @@ spa_ld_activity_result(spa_t *spa, int error, const char *state)
 		error = EREMOTEIO;
 		break;
 	case ENODEV:
-		cmn_err(CE_WARN, "pool '%s' could not claim every device the "
-		    "config expects present, aborted import during %s; if a "
-		    "device is permanently gone see 'zhack mmp reclaim'",
-		    spa_load_name(spa), state);
+		cmn_err(CE_WARN,
+		    "pool '%s' could not claim every device during %s; "
+		    "restore missing devices. If one is gone, confirm "
+		    "other hosts are stopped, then run 'zhack mmp "
+		    "reclaim %s' before import",
+		    spa_load_name(spa), state, spa_load_name(spa));
 		/* Userspace expects EREMOTEIO for a failed claim */
 		error = EREMOTEIO;
 		break;
@@ -4491,7 +4513,6 @@ out:
 	mutex_exit(&mtx);
 	mutex_destroy(&mtx);
 	cv_destroy(&cv);
-
 	return (error);
 }
 
@@ -5197,6 +5218,7 @@ spa_ld_trusted_config(spa_t *spa, spa_import_type_t type,
 	 * vdevs in order for them to be writeable.
 	 */
 	spa->spa_trust_config = B_TRUE;
+	vdev_async_mirror_import_restore_offline(spa, rvd);
 
 	/*
 	 * Open and validate the new vdev tree
@@ -5208,6 +5230,8 @@ spa_ld_trusted_config(spa_t *spa, spa_import_type_t type,
 	error = spa_ld_validate_vdevs(spa);
 	if (error != 0)
 		return (error);
+
+	vdev_async_mirror_load_marked(spa);
 
 	if (copy_error != 0 || spa_load_print_vdev_tree) {
 		spa_load_note(spa, "final vdev tree:");
@@ -5252,6 +5276,12 @@ spa_ld_trusted_config(spa_t *spa, spa_import_type_t type,
 	 */
 	if (spa->spa_load_state != SPA_LOAD_TRYIMPORT &&
 	    !spa->spa_extreme_rewind && spa->spa_activity_check) {
+		error = vdev_async_mirror_lineage_load(spa);
+		if (error != 0) {
+			spa_load_failed(spa, "cannot read the asynchronous "
+			    "mirror lineage for the claim [error=%d]", error);
+			return (error);
+		}
 
 		error = spa_activity_check_claim(spa);
 		error = spa_ld_activity_result(spa, error, "claim");
@@ -5999,6 +6029,8 @@ spa_ld_mos_init(spa_t *spa, spa_import_type_t type)
 	if (error != 0)
 		return (error);
 
+	vdev_async_mirror_load_marked(spa);
+
 	/*
 	 * Pass that uberblock to the dsl_pool layer which will open the root
 	 * blkptr. This blkptr points to the latest version of the MOS and will
@@ -6170,9 +6202,39 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 
 	spa_load_note(spa, "LOADING");
 
+	spa->spa_async_mirror_unchecked = B_TRUE;
 	error = spa_ld_mos_with_trusted_config(spa, type, &update_config_cache);
 	if (error != 0)
 		return (error);
+
+	error = vdev_async_mirror_check_lineage(spa);
+	if (error == ERESTART) {
+		update_config_cache = B_TRUE;
+		spa_ld_prepare_for_reload(spa);
+		spa_load_note(spa, "RELOADING with the kept copy of the "
+		    "asynchronous mirror");
+		error = spa_ld_mos_with_trusted_config(spa, type, NULL);
+		if (error != 0)
+			return (error);
+		error = vdev_async_mirror_check_lineage(spa);
+		if (error == ERESTART)
+			error = SET_ERROR(ZFS_ERR_ASYNC_MIRROR_DIVERGED);
+	}
+	if (error != 0) {
+		spa_load_failed(spa, "the copies of the asynchronous mirror "
+		    "were written separately, or cannot be checked "
+		    "[error=%d]", error);
+		return (error);
+	}
+	spa->spa_async_mirror_unchecked = B_FALSE;
+
+	error = vdev_async_mirror_check_legacy_mark(spa);
+	if (error != 0) {
+		spa_load_failed(spa, "the only copy of an asynchronous mirror "
+		    "was catching up and is not consistent [error=%d]",
+		    error);
+		return (error);
+	}
 
 	/*
 	 * If we are rewinding to the checkpoint then we need to repeat
@@ -6359,11 +6421,21 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 			    (u_longlong_t)spa->spa_uberblock.ub_checkpoint_txg);
 		}
 
+		error = vdev_async_mirror_activate_if_enabled(spa);
+		if (error != 0) {
+			spa_load_failed(spa, "cannot read the async mirror "
+			    "records [error=%d]", error);
+			error = spa_vdev_err(spa->spa_root_vdev,
+			    VDEV_AUX_CORRUPT_DATA, EIO);
+			goto fail;
+		}
+
 		spa_import_progress_set_notes(spa, "Claiming ZIL blocks");
 		/*
 		 * Traverse the ZIL and claim all blocks.
 		 */
 		spa_ld_claim_log_blocks(spa);
+		vdev_async_mirror_claimed(spa);
 
 		/*
 		 * Kick-off the syncing thread.
@@ -6400,7 +6472,7 @@ spa_load_impl(spa_t *spa, spa_import_type_t type, const char **ereport)
 		if (vdev_rebuild_active(spa->spa_root_vdev)) {
 			vdev_rebuild_restart(spa);
 		} else if (!dsl_scan_resilvering(spa->spa_dsl_pool) &&
-		    vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL)) {
+		    vdev_async_mirror_resilver_wanted(spa->spa_root_vdev)) {
 			spa_async_request(spa, SPA_ASYNC_RESILVER);
 		}
 
@@ -6557,6 +6629,10 @@ spa_load_best(spa_t *spa, spa_load_state_t state, uint64_t max_request,
 		zfs_fallthrough;
 	case EBADF:
 		/* The config cache is out of sync (vdevs or hostid) */
+		zfs_fallthrough;
+	case ZFS_ERR_ASYNC_MIRROR_DIVERGED:
+		zfs_fallthrough;
+	case ZFS_ERR_ASYNC_MIRROR_CATCHING_UP:
 		zfs_fallthrough;
 	case EINTR:
 		/* The user interactively interrupted the import */
@@ -7694,6 +7770,8 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 	if (policy.zlp_rewind & ZPOOL_DO_REWIND)
 		state = SPA_LOAD_RECOVER;
 
+	vdev_async_mirror_import_keep(spa, config);
+
 	spa->spa_config_source = SPA_CONFIG_SRC_TRYIMPORT;
 
 	if (state != SPA_LOAD_RECOVER) {
@@ -7704,6 +7782,7 @@ spa_import(char *pool, nvlist_t *config, nvlist_t *props, uint64_t flags)
 		    "(RECOVERY MODE)", pool, (longlong_t)policy.zlp_txg);
 	}
 	error = spa_load_best(spa, state, policy.zlp_txg, policy.zlp_rewind);
+	vdev_async_mirror_import_done(spa);
 
 	/*
 	 * Propagate anything learned while loading the pool and pass it
@@ -8279,6 +8358,10 @@ spa_vdev_add(spa_t *spa, nvlist_t *nvroot, boolean_t check_ashift)
 	if (vd->vdev_children == 0 && nspares == 0 && nl2cache == 0)
 		return (spa_vdev_exit(spa, vd, txg, EINVAL));
 
+	error = vdev_async_mirror_add_check(spa, vd);
+	if (error != 0)
+		return (spa_vdev_exit(spa, vd, txg, error));
+
 	if (vd->vdev_children != 0 &&
 	    (error = vdev_create(vd, txg, B_FALSE)) != 0) {
 		return (spa_vdev_exit(spa, vd, txg, error));
@@ -8523,27 +8606,9 @@ spa_vdev_new_spare_would_cause_double_spares(vdev_t *newvd, vdev_t *pvd)
 	return (B_FALSE);
 }
 
-/*
- * Attach a device to a vdev specified by its guid.  The vdev type can be
- * a mirror, a raidz, or a leaf device that is also a top-level (e.g. a
- * single device). When the vdev is a single device, a mirror vdev will be
- * automatically inserted.
- *
- * If 'replacing' is specified, the new device is intended to replace the
- * existing device; in this case the two devices are made into their own
- * mirror using the 'replacing' vdev, which is functionally identical to
- * the mirror vdev (it actually reuses all the same ops) but has a few
- * extra rules: you can't attach to it after it's been created, and upon
- * completion of resilvering, the first disk (the one being replaced)
- * is automatically detached.
- *
- * If 'rebuild' is specified, then sequential reconstruction (a.ka. rebuild)
- * should be performed instead of traditional healing reconstruction.  From
- * an administrators perspective these are both resilver operations.
- */
-int
-spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
-    int rebuild)
+static int
+spa_vdev_attach_impl(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
+    int rebuild, vdev_async_mirror_replace_ctx_t *replace_ctx)
 {
 	uint64_t txg, dtl_max_txg;
 	vdev_t *rvd = spa->spa_root_vdev;
@@ -8555,6 +8620,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 
 	ASSERT(spa_writeable(spa));
 
+retry:
 	txg = spa_vdev_enter(spa);
 
 	oldvd = spa_lookup_by_guid(spa, guid, B_FALSE);
@@ -8588,6 +8654,11 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 
 	if (oldvd == NULL)
 		return (spa_vdev_exit(spa, NULL, txg, ENODEV));
+
+	error = vdev_async_mirror_replace_attach_check(spa, guid, oldvd,
+	    replacing, replace_ctx);
+	if (error != 0)
+		return (spa_vdev_exit(spa, NULL, txg, error));
 
 	boolean_t raidz = oldvd->vdev_ops == &vdev_raidz_ops;
 	boolean_t anyraid = oldvd->vdev_ops == &vdev_anyraid_ops;
@@ -8783,6 +8854,13 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 
 	}
 
+	error = vdev_async_mirror_replace_attach_prepare(spa, guid, oldvd,
+	    newvd, replacing, rebuild, txg, newrootvd, replace_ctx);
+	if (error == ERESTART)
+		goto retry;
+	if (error != 0)
+		return (error);
+
 	if (raidz) {
 		/*
 		 * Note: oldvdpath is freed by spa_strfree(),  but
@@ -8939,6 +9017,7 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	 * Commit the config
 	 */
 	(void) spa_vdev_exit(spa, newrootvd, dtl_max_txg, 0);
+	vdev_async_mirror_replace_attach_commit(spa, guid, replace_ctx);
 
 	spa_history_log_internal(spa, "vdev attach", NULL,
 	    "%s vdev=%s %s vdev=%s",
@@ -8950,6 +9029,46 @@ spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
 	spa_strfree(newvdpath);
 
 	return (0);
+}
+
+/*
+ * Attach a device to a vdev specified by its guid.  The vdev type can be
+ * a mirror, a raidz, or a leaf device that is also a top-level (e.g. a
+ * single device). When the vdev is a single device, a mirror vdev will be
+ * automatically inserted.
+ *
+ * If 'replacing' is specified, the new device is intended to replace the
+ * existing device; in this case the two devices are made into their own
+ * mirror using the 'replacing' vdev, which is functionally identical to
+ * the mirror vdev (it actually reuses all the same ops) but has a few
+ * extra rules: you can't attach to it after it's been created, and upon
+ * completion of resilvering, the first disk (the one being replaced)
+ * is automatically detached.
+ *
+ * If 'rebuild' is specified, then sequential reconstruction (a.ka. rebuild)
+ * should be performed instead of traditional healing reconstruction.  From
+ * an administrators perspective these are both resilver operations.
+ */
+int
+spa_vdev_attach(spa_t *spa, uint64_t guid, nvlist_t *nvroot, int replacing,
+    int rebuild)
+{
+	int error;
+	vdev_async_mirror_replace_ctx_t replace_ctx = { 0 };
+
+	ASSERT(!spa_namespace_held());
+	spa_namespace_enter(FTAG);
+	spa_open_ref(spa, FTAG);
+	spa_namespace_exit(FTAG);
+	error = spa_vdev_attach_impl(spa, guid, nvroot, replacing, rebuild,
+	    &replace_ctx);
+	if (error != 0)
+		vdev_async_mirror_replace_attach_abort(spa, guid, &replace_ctx);
+	spa_namespace_enter(FTAG);
+	spa_close(spa, FTAG);
+	spa_namespace_exit(FTAG);
+
+	return (error);
 }
 
 /*
@@ -9002,8 +9121,12 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	if (!vd->vdev_ops->vdev_op_leaf)
 		return (spa_vdev_exit(spa, NULL, txg, ENOTSUP));
 
-	pvd = vd->vdev_parent;
+	if (vdev_async_mirror_is_child(vd)) {
+		return (spa_vdev_exit(spa, NULL, txg,
+		    ZFS_ERR_ASYNC_MIRROR_ACTIVE));
+	}
 
+	pvd = vd->vdev_parent;
 	/*
 	 * If the parent/child relationship is not as expected, don't do it.
 	 * Consider M(A,R(B,C)) -- that is, a mirror of A with a replacing
@@ -9044,6 +9167,10 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 	 */
 	if (vdev_dtl_required(vd))
 		return (spa_vdev_exit(spa, NULL, txg, EBUSY));
+
+	error = vdev_async_mirror_topology_check(vd);
+	if (error != 0)
+		return (spa_vdev_exit(spa, NULL, txg, error));
 
 	ASSERT(pvd->vdev_children >= 2);
 
@@ -9213,6 +9340,12 @@ spa_vdev_detach(spa_t *spa, uint64_t guid, uint64_t pguid, int replace_done)
 
 	/* all done with the spa; OK to release */
 	spa_namespace_enter(FTAG);
+	if (error == 0) {
+		uint64_t replace_guid;
+		if (vdev_async_mirror_replace_pending(spa,
+		    &replace_guid) == 0 && replace_guid == guid)
+			(void) vdev_async_mirror_replace_abort(spa, guid);
+	}
 	spa_close(spa, FTAG);
 	spa_namespace_exit(FTAG);
 
@@ -9238,6 +9371,10 @@ spa_vdev_initialize_impl(spa_t *spa, uint64_t guid, uint64_t cmd_type,
 	} else if (!vdev_writeable(vd)) {
 		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
 		return (SET_ERROR(EROFS));
+	} else if (vdev_async_mirror_is_async(vd)) {
+		/* See the same refusal in spa_vdev_trim_impl(). */
+		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
+		return (SET_ERROR(EOPNOTSUPP));
 	}
 	mutex_enter(&vd->vdev_initialize_lock);
 	spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
@@ -9356,7 +9493,11 @@ spa_vdev_trim_impl(spa_t *spa, uint64_t guid, uint64_t cmd_type,
 	} else if (!vdev_writeable(vd)) {
 		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
 		return (SET_ERROR(EROFS));
-	} else if (!vd->vdev_has_trim) {
+	} else if (!vd->vdev_has_trim || vdev_async_mirror_is_async(vd)) {
+		/*
+		 * Free space on the leader is not free on the asynchronous
+		 * child: its older uberblock can still reference it.
+		 */
 		spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
 		return (SET_ERROR(EOPNOTSUPP));
 	} else if (secure && !vd->vdev_has_securetrim) {
@@ -9528,6 +9669,11 @@ spa_vdev_split_mirror(spa_t *spa, const char *newname, nvlist_t *config,
 		return (spa_vdev_exit(spa, NULL, txg, error));
 	}
 
+	if (vdev_async_mirror_active(spa)) {
+		return (spa_vdev_exit(spa, NULL, txg,
+		    ZFS_ERR_ASYNC_MIRROR_ACTIVE));
+	}
+
 	/* clear the log and flush everything up to now */
 	activate_slog = spa_passivate_log(spa);
 	(void) spa_vdev_config_exit(spa, NULL, txg, 0, FTAG);
@@ -9634,6 +9780,10 @@ spa_vdev_split_mirror(spa_t *spa, const char *newname, nvlist_t *config,
 			error = SET_ERROR(EBUSY);
 			break;
 		}
+
+		error = vdev_async_mirror_topology_check(vml[c]);
+		if (error != 0)
+			break;
 
 		/* we need certain info from the top level */
 		fnvlist_add_uint64(child[c], ZPOOL_CONFIG_METASLAB_ARRAY,
@@ -10332,13 +10482,12 @@ spa_async_thread(void *arg)
 		spa_vdev_resilver_done(spa);
 	}
 
-	/*
-	 * Kick off a resilver.
-	 */
+	/* Kick off a resilver. */
 	if (tasks & SPA_ASYNC_RESILVER &&
 	    !vdev_rebuild_active(spa->spa_root_vdev) &&
 	    (!dsl_scan_resilvering(dp) ||
-	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER)))
+	    !spa_feature_is_enabled(dp->dp_spa, SPA_FEATURE_RESILVER_DEFER)) &&
+	    vdev_async_mirror_resilver_pending(spa))
 		dsl_scan_restart_resilver(dp, 0);
 
 	if (tasks & SPA_ASYNC_INITIALIZE_RESTART) {
@@ -10431,6 +10580,8 @@ spa_async_suspend(spa_t *spa)
 	if (discard_thread != NULL)
 		zthr_cancel(discard_thread);
 
+	vdev_async_mirror_zthr_cancel(spa);
+
 	zthr_t *ll_delete_thread = spa->spa_livelist_delete_zthr;
 	if (ll_delete_thread != NULL)
 		zthr_cancel(ll_delete_thread);
@@ -10460,6 +10611,8 @@ spa_async_resume(spa_t *spa)
 	zthr_t *discard_thread = spa->spa_checkpoint_discard_zthr;
 	if (discard_thread != NULL)
 		zthr_resume(discard_thread);
+
+	vdev_async_mirror_zthr_resume(spa);
 
 	zthr_t *ll_delete_thread = spa->spa_livelist_delete_zthr;
 	if (ll_delete_thread != NULL)
@@ -11258,6 +11411,7 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
 			 * Sync tasks can only be processed in pass 1, so
 			 * there's no need to do this in later passes.
 			 */
+			vdev_async_mirror_sync_lineage(spa, tx);
 			spa_sync_config_object(spa, tx);
 		}
 
@@ -11284,6 +11438,8 @@ spa_sync_iterate_to_convergence(spa_t *spa, dmu_tx_t *tx)
 			ASSERT(txg_list_empty(&dp->dp_early_sync_tasks, txg));
 			break;
 		}
+
+		vdev_async_mirror_sync_record(spa, tx);
 
 		spa_sync_deferred_frees(spa, tx);
 	} while (dmu_objset_is_dirty(mos, txg));
@@ -11466,6 +11622,8 @@ spa_sync(spa_t *spa, uint64_t txg)
 	dsl_pool_t *dp = spa->spa_dsl_pool;
 	dmu_tx_t *tx = dmu_tx_create_assigned(dp, txg);
 
+	vdev_async_mirror_sync_start(spa, tx);
+
 	spa->spa_sync_starttime = getlrtime();
 
 	taskq_cancel_id(system_delay_taskq, spa->spa_deadman_tqid, B_TRUE);
@@ -11527,6 +11685,7 @@ spa_sync(spa_t *spa, uint64_t txg)
 		vdev_sync_dispatch(vd, txg);
 
 	spa_sync_rewrite_vdev_config(spa, tx);
+	vdev_async_mirror_txg_synced(spa, txg);
 	dmu_tx_commit(tx);
 
 	taskq_cancel_id(system_delay_taskq, spa->spa_deadman_tqid, B_TRUE);
@@ -12083,7 +12242,8 @@ spa_vdev_activity_in_progress(spa_t *spa, boolean_t use_guid, uint64_t guid,
 
 static int
 spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
-    boolean_t use_tag, uint64_t tag, boolean_t *in_progress)
+    boolean_t use_tag, uint64_t tag, boolean_t stop_early,
+    boolean_t *in_progress)
 {
 	int error = 0;
 
@@ -12170,6 +12330,14 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 		}
 		break;
 	}
+	case ZPOOL_WAIT_ASYNC_MIRROR: {
+		*in_progress = B_FALSE;
+		if (!use_tag)
+			break;
+		error = vdev_async_mirror_wait_pending(spa, tag, stop_early,
+		    in_progress);
+		break;
+	}
 	default:
 		panic("unrecognized value for activity %d", activity);
 	}
@@ -12179,7 +12347,8 @@ spa_activity_in_progress(spa_t *spa, zpool_wait_activity_t activity,
 
 static int
 spa_wait_common(const char *pool, zpool_wait_activity_t activity,
-    boolean_t use_tag, uint64_t tag, boolean_t *waited)
+    boolean_t use_tag, uint64_t tag, boolean_t stop_early,
+    boolean_t *waited)
 {
 	/*
 	 * The tag is used to distinguish between instances of an activity.
@@ -12192,16 +12361,31 @@ spa_wait_common(const char *pool, zpool_wait_activity_t activity,
 	 * of them individually, we just wait for them all to finish.
 	 */
 	if (use_tag && activity != ZPOOL_WAIT_INITIALIZE &&
-	    activity != ZPOOL_WAIT_TRIM)
+	    activity != ZPOOL_WAIT_TRIM &&
+	    activity != ZPOOL_WAIT_ASYNC_MIRROR)
 		return (EINVAL);
 
 	if (activity < 0 || activity >= ZPOOL_WAIT_NUM_ACTIVITIES)
+		return (EINVAL);
+	if (stop_early && activity != ZPOOL_WAIT_ASYNC_MIRROR)
 		return (EINVAL);
 
 	spa_t *spa;
 	int error = spa_open(pool, &spa, FTAG);
 	if (error != 0)
 		return (error);
+	if (stop_early && vdev_async_mirror_sync_stopped(spa)) {
+		spa_close(spa, FTAG);
+		return (ECANCELED);
+	}
+	if (activity == ZPOOL_WAIT_ASYNC_MIRROR) {
+		uint64_t target;
+		uint64_t limit = use_tag ? tag : UINT64_MAX;
+
+		use_tag = vdev_async_mirror_wait_target(spa, limit, &target);
+		if (use_tag)
+			tag = target;
+	}
 
 	/*
 	 * Increment the spa's waiter count so that we can call spa_close and
@@ -12218,15 +12402,25 @@ spa_wait_common(const char *pool, zpool_wait_activity_t activity,
 	*waited = B_FALSE;
 	for (;;) {
 		boolean_t in_progress;
+		int wait_error;
+
 		error = spa_activity_in_progress(spa, activity, use_tag, tag,
-		    &in_progress);
+		    stop_early, &in_progress);
 
 		if (error || !in_progress || spa->spa_waiters_cancel)
 			break;
 
 		*waited = B_TRUE;
 
-		if (cv_wait_sig(&spa->spa_activities_cv,
+		if (stop_early) {
+			/* Recheck copy progress and the test tunable. */
+			wait_error = cv_timedwait_sig(&spa->spa_activities_cv,
+			    &spa->spa_activities_lock, ddi_get_lbolt() + hz);
+			if (wait_error == 0) {
+				error = EINTR;
+				break;
+			}
+		} else if (cv_wait_sig(&spa->spa_activities_cv,
 		    &spa->spa_activities_lock) == 0) {
 			error = EINTR;
 			break;
@@ -12248,7 +12442,14 @@ int
 spa_wait_tag(const char *pool, zpool_wait_activity_t activity, uint64_t tag,
     boolean_t *waited)
 {
-	return (spa_wait_common(pool, activity, B_TRUE, tag, waited));
+	return (spa_wait_common(pool, activity, B_TRUE, tag, B_FALSE, waited));
+}
+
+int
+spa_wait_async_mirror_sync(const char *pool, boolean_t *waited)
+{
+	return (spa_wait_common(pool, ZPOOL_WAIT_ASYNC_MIRROR, B_FALSE, 0,
+	    B_TRUE, waited));
 }
 
 /*
@@ -12258,7 +12459,7 @@ int
 spa_wait(const char *pool, zpool_wait_activity_t activity, boolean_t *waited)
 {
 
-	return (spa_wait_common(pool, activity, B_FALSE, 0, waited));
+	return (spa_wait_common(pool, activity, B_FALSE, 0, B_FALSE, waited));
 }
 
 sysevent_t *

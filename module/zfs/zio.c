@@ -28,6 +28,7 @@
 #include <sys/txg.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_async_mirror.h>
 #include <sys/vdev_raidz.h>
 #include <sys/vdev_trim.h>
 #include <sys/zio_impl.h>
@@ -1769,10 +1770,7 @@ zio_vdev_delegated_io(vdev_t *vd, uint64_t offset, abd_t *data, uint64_t size,
 }
 
 
-/*
- * Flush vd, or each leaf under it.  If propagate is false, a failed flush is
- * not an error of pio.
- */
+/* Flush vd or each leaf under it. */
 static void
 zio_flush_impl(zio_t *pio, vdev_t *vd, boolean_t propagate)
 {
@@ -1794,6 +1792,9 @@ zio_flush_impl(zio_t *pio, vdev_t *vd, boolean_t propagate)
 		 */
 		if (!vdev_is_concrete(vd))
 			return;
+		if (!propagate && vd->vdev_spa->spa_async_mirror != NULL &&
+		    vdev_async_mirror_is_async(vd))
+			return;
 		zio_nowait(zio_create(pio, vd->vdev_spa, 0, NULL, NULL, 0, 0,
 		    NULL, NULL, ZIO_TYPE_FLUSH, ZIO_PRIORITY_NOW, flags, vd, 0,
 		    NULL, ZIO_STAGE_OPEN, ZIO_FLUSH_PIPELINE));
@@ -1806,12 +1807,21 @@ zio_flush_impl(zio_t *pio, vdev_t *vd, boolean_t propagate)
 /*
  * Send a flush command to the given vdev. Unlike most zio creation functions,
  * the flush zios are issued immediately. You can wait on pio to pause until
- * the flushes complete.  A failed flush is not an error of pio.
+ * the flushes complete.
  */
 void
 zio_flush(zio_t *pio, vdev_t *vd)
 {
 	zio_flush_impl(pio, vd, B_FALSE);
+}
+
+/* Flush one leaf and propagate flush errors. */
+void
+zio_flush_leaf(zio_t *pio, vdev_t *vd)
+{
+	ASSERT(vd->vdev_ops->vdev_op_leaf);
+
+	zio_flush_impl(pio, vd, B_TRUE);
 }
 
 void

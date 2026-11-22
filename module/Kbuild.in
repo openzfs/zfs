@@ -415,6 +415,10 @@ ZFS_OBJS := \
 	vdev_mirror.o \
 	vdev_missing.o \
 	vdev_anyraid.o \
+	vdev_async_mirror.o \
+	vdev_async_mirror_copy.o \
+	vdev_async_mirror_lineage.o \
+	vdev_async_mirror_prop.o \
 	vdev_queue.o \
 	vdev_raidz.o \
 	vdev_raidz_math.o \

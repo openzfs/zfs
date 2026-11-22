@@ -31,6 +31,7 @@
 #include <sys/zil_impl.h>
 #include <sys/dsl_dataset.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_async_mirror.h>
 #include <sys/dmu_tx.h>
 #include <sys/dsl_pool.h>
 #include <sys/metaslab.h>
@@ -625,8 +626,16 @@ zil_claim_log_block(zilog_t *zilog, const blkptr_t *bp, void *tx,
 	 * happens in the txg of tx, the first one the pool syncs, which is
 	 * later than first_txg after a load of an explicitly requested txg.
 	 */
-	if (BP_IS_HOLE(bp) || BP_GET_BIRTH(bp) < first_txg ||
-	    zil_bp_tree_add(zilog, bp) != 0)
+	if (BP_IS_HOLE(bp))
+		return (0);
+	if (BP_GET_BIRTH(bp) < first_txg) {
+		if (tx != NULL) {
+			vdev_async_mirror_claim_committed(zilog->zl_spa, bp,
+			    dmu_tx_get_txg(tx));
+		}
+		return (0);
+	}
+	if (zil_bp_tree_add(zilog, bp) != 0)
 		return (0);
 
 	return (zio_wait(zio_claim(NULL, zilog->zl_spa,

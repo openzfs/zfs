@@ -4996,13 +4996,18 @@ zfs_ioc_ddt_prune(const char *poolname, nvlist_t *innvl, nvlist_t *outnvl)
  * innvl: {
  *     "wait_activity" -> int32_t
  *     (optional) "wait_tag" -> uint64_t
+ *     (optional) "wait_async_mirror_sync" -> boolean
  * }
+ *
+ * The async mirror sync mode cancels when the copy is not running normally.
  *
  * outnvl: "waited" -> boolean_t
  */
 static const zfs_ioc_key_t zfs_keys_pool_wait[] = {
 	{ZPOOL_WAIT_ACTIVITY,	DATA_TYPE_INT32,		0},
 	{ZPOOL_WAIT_TAG,	DATA_TYPE_UINT64,		ZK_OPTIONAL},
+	{ZPOOL_WAIT_ASYNC_MIRROR_SYNC,
+	    DATA_TYPE_BOOLEAN, ZK_OPTIONAL},
 };
 
 static int
@@ -5011,13 +5016,22 @@ zfs_ioc_wait(const char *name, nvlist_t *innvl, nvlist_t *outnvl)
 	int32_t activity;
 	uint64_t tag;
 	boolean_t waited;
+	boolean_t async_mirror_sync;
 	int error;
 
 	if (nvlist_lookup_int32(innvl, ZPOOL_WAIT_ACTIVITY, &activity) != 0)
 		return (EINVAL);
+	async_mirror_sync = nvlist_exists(innvl,
+	    ZPOOL_WAIT_ASYNC_MIRROR_SYNC);
+	if (async_mirror_sync && activity != ZPOOL_WAIT_ASYNC_MIRROR)
+		return (EINVAL);
+	if (async_mirror_sync && nvlist_exists(innvl, ZPOOL_WAIT_TAG))
+		return (EINVAL);
 
 	if (nvlist_lookup_uint64(innvl, ZPOOL_WAIT_TAG, &tag) == 0)
 		error = spa_wait_tag(name, activity, tag, &waited);
+	else if (async_mirror_sync)
+		error = spa_wait_async_mirror_sync(name, &waited);
 	else
 		error = spa_wait(name, activity, &waited);
 

@@ -25,6 +25,7 @@
 #include <sys/metaslab_impl.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_anyraid.h>
+#include <sys/vdev_async_mirror.h>
 #include <sys/vdev_draid.h>
 #include <sys/zio.h>
 #include <sys/spa_impl.h>
@@ -346,7 +347,8 @@ static uint_t zfs_metaslab_find_max_tries = 100;
 
 static uint64_t metaslab_weight(metaslab_t *, boolean_t);
 static void metaslab_set_fragmentation(metaslab_t *, boolean_t);
-static void metaslab_free_impl(vdev_t *, uint64_t, uint64_t, boolean_t);
+static void metaslab_free_impl(vdev_t *, uint64_t, uint64_t, boolean_t,
+    metaslab_free_kind_t);
 static void metaslab_check_free_impl(vdev_t *, uint64_t, uint64_t);
 
 static void metaslab_passivate(metaslab_t *msp, uint64_t weight);
@@ -387,6 +389,22 @@ metaslab_rt_name(metaslab_group_t *mg, metaslab_t *ms, const char *name)
 	    name));
 }
 
+
+static void
+metaslab_async_mirror_rt_destroy(zfs_range_tree_t **rtp)
+{
+	if (*rtp != NULL) {
+		zfs_range_tree_destroy(*rtp);
+		*rtp = NULL;
+	}
+}
+
+static boolean_t
+metaslab_holding_empty(const metaslab_t *msp)
+{
+	return (msp->ms_holding == NULL ||
+	    zfs_range_tree_is_empty(msp->ms_holding));
+}
 
 static kstat_t *metaslab_ksp;
 
@@ -3118,11 +3136,14 @@ metaslab_fini(metaslab_t *msp)
 	zfs_range_tree_vacate(msp->ms_unflushed_allocs, NULL, NULL);
 	zfs_range_tree_destroy(msp->ms_unflushed_allocs);
 	zfs_range_tree_destroy(msp->ms_checkpointing);
+	metaslab_async_mirror_rt_destroy(&msp->ms_holding);
 	zfs_range_tree_vacate(msp->ms_unflushed_frees, NULL, NULL);
 	zfs_range_tree_destroy(msp->ms_unflushed_frees);
 
 	for (int t = 0; t < TXG_SIZE; t++) {
 		zfs_range_tree_destroy(msp->ms_allocating[t]);
+		metaslab_async_mirror_rt_destroy(
+		    &msp->ms_async_mirror_nolist[t]);
 	}
 	for (int t = 0; t < TXG_DEFER_SIZE; t++) {
 		zfs_range_tree_destroy(msp->ms_defer[t]);
@@ -4363,6 +4384,7 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 		ASSERT0(zfs_range_tree_space(msp->ms_freeing));
 		ASSERT0(zfs_range_tree_space(msp->ms_freed));
 		ASSERT0(zfs_range_tree_space(msp->ms_checkpointing));
+		ASSERT(metaslab_holding_empty(msp));
 		ASSERT0(zfs_range_tree_space(msp->ms_trim));
 		return;
 	}
@@ -4381,6 +4403,7 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 	if (zfs_range_tree_is_empty(alloctree) &&
 	    zfs_range_tree_is_empty(msp->ms_freeing) &&
 	    zfs_range_tree_is_empty(msp->ms_checkpointing) &&
+	    metaslab_holding_empty(msp) &&
 	    !(msp->ms_loaded && msp->ms_condense_wanted &&
 	    txg <= spa_final_dirty_txg(spa)))
 		return;
@@ -4536,6 +4559,8 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 		zfs_range_tree_vacate(msp->ms_checkpointing, NULL, NULL);
 	}
 
+	vdev_async_mirror_metaslab_sync(spa, vd, msp, alloctree, txg, tx);
+
 	if (msp->ms_loaded) {
 		/*
 		 * When the space map is loaded, we have an accurate
@@ -4601,12 +4626,14 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 	}
 	msp->ms_allocated_this_txg += zfs_range_tree_space(alloctree);
 	zfs_range_tree_vacate(alloctree, NULL, NULL);
+	vdev_async_mirror_metaslab_sync_done(msp, txg);
 
 	ASSERT0(zfs_range_tree_space(msp->ms_allocating[txg & TXG_MASK]));
 	ASSERT0(zfs_range_tree_space(msp->ms_allocating[TXG_CLEAN(txg)
 	    & TXG_MASK]));
 	ASSERT0(zfs_range_tree_space(msp->ms_freeing));
 	ASSERT0(zfs_range_tree_space(msp->ms_checkpointing));
+	ASSERT(metaslab_holding_empty(msp));
 
 	mutex_exit(&msp->ms_lock);
 
@@ -4669,6 +4696,7 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 
 	ASSERT0(zfs_range_tree_space(msp->ms_freeing));
 	ASSERT0(zfs_range_tree_space(msp->ms_checkpointing));
+	ASSERT(metaslab_holding_empty(msp));
 
 	defer_tree = &msp->ms_defer[txg % TXG_DEFER_SIZE];
 
@@ -4770,6 +4798,9 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	ASSERT0(zfs_range_tree_space(msp->ms_freeing));
 	ASSERT0(zfs_range_tree_space(msp->ms_freed));
 	ASSERT0(zfs_range_tree_space(msp->ms_checkpointing));
+	ASSERT(metaslab_holding_empty(msp));
+	if (msp->ms_holding != NULL && !vdev_async_mirror_in_use(spa))
+		metaslab_async_mirror_rt_destroy(&msp->ms_holding);
 	msp->ms_allocating_total -= msp->ms_allocated_this_txg;
 	msp->ms_allocated_this_txg = 0;
 	mutex_exit(&msp->ms_lock);
@@ -5618,7 +5649,7 @@ metaslab_alloc_dva(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 
 void
 metaslab_free_concrete(vdev_t *vd, uint64_t offset, uint64_t asize,
-    boolean_t checkpoint)
+    boolean_t checkpoint, metaslab_free_kind_t kind)
 {
 	metaslab_t *msp;
 	spa_t *spa = vd->vdev_spa;
@@ -5640,14 +5671,16 @@ metaslab_free_concrete(vdev_t *vd, uint64_t offset, uint64_t asize,
 
 	mutex_enter(&msp->ms_lock);
 	if (zfs_range_tree_is_empty(msp->ms_freeing) &&
-	    zfs_range_tree_is_empty(msp->ms_checkpointing)) {
+	    zfs_range_tree_is_empty(msp->ms_checkpointing) &&
+	    metaslab_holding_empty(msp)) {
 		vdev_dirty(vd, VDD_METASLAB, msp, spa_syncing_txg(spa));
 	}
 
 	if (checkpoint) {
 		ASSERT(spa_has_checkpoint(spa));
 		zfs_range_tree_add(msp->ms_checkpointing, offset, asize);
-	} else {
+	} else if (!vdev_async_mirror_metaslab_hold_free(spa, vd, msp,
+	    offset, asize, kind)) {
 		zfs_range_tree_add(msp->ms_freeing, offset, asize);
 	}
 	mutex_exit(&msp->ms_lock);
@@ -5665,12 +5698,13 @@ metaslab_free_impl_cb(uint64_t inner_offset, vdev_t *vd, uint64_t offset,
 	if (vd->vdev_ops->vdev_op_remap != NULL)
 		vdev_indirect_mark_obsolete(vd, offset, size);
 	else
-		metaslab_free_impl(vd, offset, size, *checkpoint);
+		metaslab_free_impl(vd, offset, size, *checkpoint,
+		    METASLAB_FREE_BLOCK);
 }
 
 static void
 metaslab_free_impl(vdev_t *vd, uint64_t offset, uint64_t size,
-    boolean_t checkpoint)
+    boolean_t checkpoint, metaslab_free_kind_t kind)
 {
 	spa_t *spa = vd->vdev_spa;
 
@@ -5694,7 +5728,7 @@ metaslab_free_impl(vdev_t *vd, uint64_t offset, uint64_t size,
 		vd->vdev_ops->vdev_op_remap(vd, offset, size,
 		    metaslab_free_impl_cb, &checkpoint);
 	} else {
-		metaslab_free_concrete(vd, offset, size, checkpoint);
+		metaslab_free_concrete(vd, offset, size, checkpoint, kind);
 	}
 }
 
@@ -5895,6 +5929,7 @@ metaslab_unalloc_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 	mutex_enter(&msp->ms_lock);
 	zfs_range_tree_remove(msp->ms_allocating[txg & TXG_MASK],
 	    offset, size);
+	vdev_async_mirror_metaslab_unalloc(msp, txg, offset, size);
 	msp->ms_allocating_total -= size;
 
 	VERIFY(!msp->ms_condensing);
@@ -5909,10 +5944,12 @@ metaslab_unalloc_dva(spa_t *spa, const dva_t *dva, uint64_t txg)
 }
 
 /*
- * Free the block represented by the given DVA.
+ * Free the block represented by the given DVA.  kind says what the block is;
+ * see metaslab_free_kind_t.
  */
 void
-metaslab_free_dva(spa_t *spa, const dva_t *dva, boolean_t checkpoint)
+metaslab_free_dva(spa_t *spa, const dva_t *dva, boolean_t checkpoint,
+    metaslab_free_kind_t kind)
 {
 	uint64_t vdev = DVA_GET_VDEV(dva);
 	uint64_t offset = DVA_GET_OFFSET(dva);
@@ -5926,7 +5963,7 @@ metaslab_free_dva(spa_t *spa, const dva_t *dva, boolean_t checkpoint)
 		size = vdev_gang_header_asize(vd);
 	}
 
-	metaslab_free_impl(vd, offset, size, checkpoint);
+	metaslab_free_impl(vd, offset, size, checkpoint, kind);
 }
 
 /*
@@ -6205,6 +6242,9 @@ metaslab_alloc_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	if (actual_psize)
 		*actual_psize = smallest_psize;
 
+	vdev_async_mirror_metaslab_nolist_alloc(spa, bp, dva, ndvas, txg,
+	    flags);
+
 	spa_config_exit(spa, SCL_ALLOC, FTAG);
 
 	BP_SET_BIRTH(bp, txg, 0);
@@ -6252,6 +6292,8 @@ metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg, boolean_t now)
 		checkpoint = B_TRUE;
 	}
 
+	metaslab_free_kind_t kind = vdev_async_mirror_free_kind(spa, bp);
+
 	spa_config_enter(spa, SCL_FREE, FTAG, RW_READER);
 
 	for (int d = 0; d < ndvas; d++) {
@@ -6259,7 +6301,7 @@ metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg, boolean_t now)
 			metaslab_unalloc_dva(spa, &dva[d], txg);
 		} else {
 			ASSERT3U(txg, ==, spa_syncing_txg(spa));
-			metaslab_free_dva(spa, &dva[d], checkpoint);
+			metaslab_free_dva(spa, &dva[d], checkpoint, kind);
 		}
 	}
 
@@ -6351,6 +6393,7 @@ metaslab_check_free_impl(vdev_t *vd, uint64_t offset, uint64_t size)
 	 */
 	zfs_range_tree_verify_not_present(msp->ms_freeing, offset, size);
 	zfs_range_tree_verify_not_present(msp->ms_checkpointing, offset, size);
+	vdev_async_mirror_metaslab_check_free(msp, offset, size);
 	zfs_range_tree_verify_not_present(msp->ms_freed, offset, size);
 	for (int j = 0; j < TXG_DEFER_SIZE; j++)
 		zfs_range_tree_verify_not_present(msp->ms_defer[j], offset,

@@ -103,6 +103,8 @@ COMMON_H = \
 	sys/uuid.h \
 	sys/vdev.h \
 	sys/vdev_anyraid.h \
+	sys/vdev_async_mirror.h \
+	sys/vdev_async_mirror_impl.h \
 	sys/vdev_disk.h \
 	sys/vdev_draid.h \
 	sys/vdev_file.h \

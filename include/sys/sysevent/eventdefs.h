@@ -119,6 +119,12 @@ extern "C" {
 #define	ESC_ZFS_ERRORSCRUB_ABORT	"errorscrub_abort"
 #define	ESC_ZFS_ERRORSCRUB_RESUME	"errorscrub_resume"
 #define	ESC_ZFS_ERRORSCRUB_PAUSED	"errorscrub_paused"
+#define	ESC_ZFS_ASYNC_MIRROR_RETRY	"async_mirror_retry"
+#define	ESC_ZFS_ASYNC_MIRROR_RECOVERED	"async_mirror_recovered"
+#define	ESC_ZFS_ASYNC_MIRROR_REFUSED	"async_mirror_refused"
+#define	ESC_ZFS_ASYNC_MIRROR_FROZEN	"async_mirror_frozen"
+#define	ESC_ZFS_ASYNC_MIRROR_FAILED	"async_mirror_failed"
+#define	ESC_ZFS_ASYNC_MIRROR_OFF	"async_mirror_off"
 
 /*
  * datalink subclass definitions.

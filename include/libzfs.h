@@ -467,9 +467,13 @@ typedef enum {
 	ZPOOL_STATUS_INCOMPATIBLE_FEAT,	/* feature set outside compatibility */
 
 	/*
-	 * Finally, the following indicates a healthy pool.
+	 * Finally, the following indicates a healthy pool.  Keep the async
+	 * mirror results after this value to preserve the existing values.
 	 */
-	ZPOOL_STATUS_OK
+	ZPOOL_STATUS_OK,
+	ZPOOL_STATUS_ASYNC_MIRROR_FROZEN,	/* async mirror copy frozen */
+	ZPOOL_STATUS_ASYNC_MIRROR_FAILED,	/* async mirror copy failed */
+	ZPOOL_STATUS_ASYNC_MIRROR_DIVERGED	/* copies diverged */
 } zpool_status_t;
 
 _LIBZFS_H zpool_status_t zpool_get_status(zpool_handle_t *, const char **,

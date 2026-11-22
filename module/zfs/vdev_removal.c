@@ -33,6 +33,7 @@
 #include <sys/dsl_dir.h>
 #include <sys/arc.h>
 #include <sys/zfeature.h>
+#include <sys/vdev_async_mirror.h>
 #include <sys/vdev_indirect_births.h>
 #include <sys/vdev_indirect_mapping.h>
 #include <sys/abd.h>
@@ -714,7 +715,7 @@ free_from_removing_vdev(vdev_t *vd, uint64_t offset, uint64_t size)
 	 * time.
 	 */
 	ASSERT(!spa_has_checkpoint(spa));
-	metaslab_free_concrete(vd, offset, size, B_FALSE);
+	metaslab_free_concrete(vd, offset, size, B_FALSE, METASLAB_FREE_BLOCK);
 
 	uint64_t synced_size = 0;
 	uint64_t synced_offset = 0;
@@ -2272,6 +2273,9 @@ spa_vdev_remove_top_check(vdev_t *vd)
 	if (!spa_feature_is_enabled(spa, SPA_FEATURE_DEVICE_REMOVAL))
 		return (SET_ERROR(ENOTSUP));
 
+	if (vdev_async_mirror_removal_refused(vd))
+		return (SET_ERROR(ENOTSUP));
+
 	/*
 	 * This device is already being removed
 	 */
@@ -2583,7 +2587,10 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		vd_type = VDEV_TYPE_LOG;
 		vd_path = spa_strdup((vd->vdev_path != NULL) ?
 		    vd->vdev_path : "-");
-		error = spa_vdev_remove_log(vd, &txg);
+		if (vdev_async_mirror_removal_refused(vd))
+			error = SET_ERROR(EBUSY);
+		else
+			error = spa_vdev_remove_log(vd, &txg);
 	} else if (vd != NULL) {
 		ASSERT(!locked);
 		error = spa_vdev_remove_top(vd, &txg);

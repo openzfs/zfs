@@ -21,6 +21,7 @@
 #include <sys/spa_impl.h>
 #include <sys/txg.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_async_mirror.h>
 #include <sys/vdev_trim.h>
 #include <sys/metaslab_impl.h>
 #include <sys/dsl_synctask.h>
@@ -161,6 +162,7 @@ vdev_trim_should_stop(vdev_t *vd)
 {
 	return (vd->vdev_trim_exit_wanted || !vdev_writeable(vd) ||
 	    vd->vdev_detached || vd->vdev_top->vdev_removing ||
+	    vdev_async_mirror_is_async(vd) ||
 	    vd->vdev_top->vdev_rz_expanding);
 }
 
@@ -1185,6 +1187,7 @@ vdev_trim_restart(vdev_t *vd)
 			VERIFY0(vdev_trim_load(vd));
 		} else if (vd->vdev_trim_state == VDEV_TRIM_ACTIVE &&
 		    vdev_writeable(vd) && !vd->vdev_top->vdev_removing &&
+		    !vdev_async_mirror_is_async(vd) &&
 		    !vd->vdev_top->vdev_rz_expanding &&
 		    vd->vdev_trim_thread == NULL) {
 			VERIFY0(vdev_trim_load(vd));
@@ -1353,6 +1356,7 @@ vdev_autotrim_thread(void *arg)
 				if (cvd->vdev_detached ||
 				    !vdev_writeable(cvd) ||
 				    !cvd->vdev_has_trim ||
+				    vdev_async_mirror_is_async(cvd) ||
 				    cvd->vdev_trim_thread != NULL) {
 					continue;
 				}

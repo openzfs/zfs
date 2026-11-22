@@ -563,22 +563,28 @@ zio_checksum_error_impl(zio_t *zio, enum zio_checksum checksum, abd_t *abd,
 }
 
 /*
- * Verify a whole block in its on-disk form against its block pointer, for a
- * caller that has no zio: abd holds BP_GET_PSIZE(bp) bytes as they are on
- * disk, not decompressed and not decrypted.  Not for a hole, an embedded
- * block or a gang block.  A block with no checksum cannot be verified.
+ * Verify a block in its on-disk form against its block pointer, for a caller
+ * that has no zio: abd holds the first size bytes of the block as they are on
+ * disk, not decompressed and not decrypted.  For a gang block, that is its
+ * gang header, of size bytes; for any other block, size is BP_GET_PSIZE(bp).
+ * Not for a hole or an embedded block.  A block with no checksum cannot be
+ * verified.
  */
 int
-zio_checksum_verify_bp(spa_t *spa, const blkptr_t *bp, abd_t *abd)
+zio_checksum_verify_bp(spa_t *spa, const blkptr_t *bp, abd_t *abd,
+    uint64_t size)
 {
+	enum zio_checksum checksum = BP_IS_GANG(bp) ?
+	    ZIO_CHECKSUM_GANG_HEADER : BP_GET_CHECKSUM(bp);
+
 	ASSERT(!BP_IS_HOLE(bp));
 	ASSERT(!BP_IS_EMBEDDED(bp));
-	ASSERT(!BP_IS_GANG(bp));
+	ASSERT(BP_IS_GANG(bp) || size == BP_GET_PSIZE(bp));
 
-	if (BP_GET_CHECKSUM(bp) == ZIO_CHECKSUM_OFF)
+	if (checksum == ZIO_CHECKSUM_OFF)
 		return (SET_ERROR(ENOTSUP));
-	return (zio_checksum_error_common(spa, bp, NULL, BP_GET_CHECKSUM(bp),
-	    abd, BP_GET_PSIZE(bp), 0, NULL));
+	return (zio_checksum_error_common(spa, bp, NULL, checksum, abd, size,
+	    0, NULL));
 }
 
 int

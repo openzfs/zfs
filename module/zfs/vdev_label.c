@@ -146,6 +146,7 @@
 #include <sys/vdev_raidz.h>
 #include <sys/vdev_draid.h>
 #include <sys/vdev_anyraid.h>
+#include <sys/vdev_async_mirror.h>
 #include <sys/uberblock_impl.h>
 #include <sys/metaslab.h>
 #include <sys/metaslab_impl.h>
@@ -186,7 +187,7 @@ vdev_label_number(uint64_t psize, uint64_t offset)
 	return (l < VDEV_LABELS ? l : -1);
 }
 
-static void
+void
 vdev_label_read(zio_t *zio, vdev_t *vd, int l, abd_t *buf, uint64_t offset,
     uint64_t size, zio_done_func_t *done, void *private, int flags)
 {
@@ -761,6 +762,7 @@ vdev_config_generate_impl(spa_t *spa, vdev_t *vd, nvlist_t *nv,
 		if (vd->vdev_rebuild_txg != 0)
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_REBUILD_TXG,
 			    vd->vdev_rebuild_txg);
+		vdev_async_mirror_vdev_config_generate(vd, nv, getstats);
 		if (vd->vdev_faulted)
 			fnvlist_add_uint64(nv, ZPOOL_CONFIG_FAULTED, B_TRUE);
 		if (vd->vdev_degraded)
@@ -1638,7 +1640,9 @@ vdev_uberblock_compare(const uberblock_t *ub1, const uberblock_t *ub2)
 struct ubl_cbdata {
 	uberblock_t	ubl_latest;	/* Most recent uberblock */
 	uberblock_t	*ubl_ubbest;	/* Best uberblock (w/r/t max_txg) */
+	const blkptr_t	*ubl_ignore_rootbp;
 	vdev_t		*ubl_vd;	/* vdev associated with the above */
+	boolean_t	ubl_io_error;	/* At least one slot had a read error */
 };
 
 static void
@@ -1652,7 +1656,13 @@ vdev_uberblock_load_done(zio_t *zio)
 
 	ASSERT3U(zio->io_size, ==, VDEV_UBERBLOCK_SIZE(vd));
 
-	if (zio->io_error == 0 && uberblock_verify(ub) == 0) {
+	if (zio->io_error != 0) {
+		mutex_enter(&rio->io_lock);
+		cbp->ubl_io_error = B_TRUE;
+		mutex_exit(&rio->io_lock);
+	} else if (uberblock_verify(ub) == 0 &&
+	    (cbp->ubl_ignore_rootbp == NULL ||
+	    !BP_EQUAL(&ub->ub_rootbp, cbp->ubl_ignore_rootbp))) {
 		mutex_enter(&rio->io_lock);
 		if (vdev_uberblock_compare(ub, &cbp->ubl_latest) > 0) {
 			cbp->ubl_latest = *ub;
@@ -1682,7 +1692,8 @@ vdev_uberblock_load_impl(zio_t *zio, vdev_t *vd, int flags,
 		vdev_uberblock_load_impl(zio, vd->vdev_child[c], flags, cbp);
 
 	if (vd->vdev_ops->vdev_op_leaf && vdev_readable(vd) &&
-	    vd->vdev_ops != &vdev_draid_spare_ops) {
+	    vd->vdev_ops != &vdev_draid_spare_ops &&
+	    vd->vdev_guid != vd->vdev_spa->spa_async_mirror_skip) {
 		int labels = VDEV_TRUSTED_LABELS(vd);
 
 		for (int l = 0; l < VDEV_LABELS; l++) {
@@ -1705,9 +1716,12 @@ vdev_uberblock_load_impl(zio_t *zio, vdev_t *vd, int flags,
  * configuration. First, we read the uberblock array of each label of each
  * vdev, keeping track of the uberblock with the highest txg in each array.
  * Then, we read the configuration from the same vdev as the best uberblock.
+ * If newest is not NULL, it gets the newest valid uberblock, whatever txg
+ * the load asked for.
  */
-void
-vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
+static void
+vdev_uberblock_load_common(vdev_t *rvd, uberblock_t *ub, uberblock_t *newest,
+    nvlist_t **config, boolean_t *io_error, const blkptr_t *ignore_rootbp)
 {
 	zio_t *zio;
 	spa_t *spa = rvd->vdev_spa;
@@ -1717,17 +1731,22 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 
 	ASSERT(ub);
 	ASSERT(config);
+	if (io_error != NULL)
+		*io_error = B_FALSE;
 
 	memset(ub, 0, sizeof (uberblock_t));
 	memset(&cb, 0, sizeof (cb));
 	*config = NULL;
 
 	cb.ubl_ubbest = ub;
+	cb.ubl_ignore_rootbp = ignore_rootbp;
 
 	spa_config_enter(spa, SCL_ALL, FTAG, RW_WRITER);
 	zio = zio_root(spa, NULL, &cb, flags);
 	vdev_uberblock_load_impl(zio, rvd, flags, &cb);
 	(void) zio_wait(zio);
+	if (io_error != NULL)
+		*io_error = cb.ubl_io_error;
 
 	/*
 	 * It's possible that the best uberblock was discovered on a label
@@ -1742,6 +1761,8 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 	 * prefer them.
 	 */
 	spa->spa_load_latest_ub_txg = cb.ubl_latest.ub_txg;
+	if (newest != NULL)
+		*newest = cb.ubl_latest;
 
 	if (cb.ubl_vd != NULL) {
 		vdev_dbgmsg(cb.ubl_vd, "best uberblock found for spa %s, "
@@ -1778,6 +1799,36 @@ vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
 		}
 	}
 	spa_config_exit(spa, SCL_ALL, FTAG);
+}
+
+void
+vdev_uberblock_load(vdev_t *rvd, uberblock_t *ub, nvlist_t **config)
+{
+	vdev_uberblock_load_common(rvd, ub, NULL, config, NULL, NULL);
+}
+
+/*
+ * As vdev_uberblock_load(), and also return the newest valid uberblock in
+ * the labels, with no filter on spa_load_max_txg.  A rewind can select an
+ * older uberblock while the labels still hold newer ones.
+ */
+void
+vdev_uberblock_load_newest(vdev_t *rvd, uberblock_t *best,
+    uberblock_t *newest, nvlist_t **config, boolean_t *io_error)
+{
+	ASSERT(newest);
+	vdev_uberblock_load_common(rvd, best, newest, config, io_error, NULL);
+}
+
+/* Read newest uberblocks, ignoring a foreign pool root block. */
+void
+vdev_uberblock_load_newest_ignore_root(vdev_t *rvd, uberblock_t *best,
+    uberblock_t *newest, nvlist_t **config, boolean_t *io_error,
+    const blkptr_t *ignore_rootbp)
+{
+	ASSERT(newest);
+	vdev_uberblock_load_common(rvd, best, newest, config, io_error,
+	    ignore_rootbp);
 }
 
 /*
@@ -1841,24 +1892,39 @@ vdev_copy_uberblocks(vdev_t *vd)
 	abd_free(ub_abd);
 }
 
+typedef struct vdev_uberblock_write_ctx {
+	uint64_t	*ubwc_good_writes;
+	uint64_t	ubwc_txg;
+	uint32_t	ubwc_remaining;
+} vdev_uberblock_write_ctx_t;
+
 /*
- * On success, increment root zio's count of good writes.
- * We only get credit for writes to known-visible vdevs; see spa_vdev_add().
+ * On success, increment root zio's count of good writes and note that this
+ * child has a durable uberblock.  We only get credit for writes to
+ * known-visible vdevs; see spa_vdev_add().
  */
 static void
 vdev_uberblock_sync_done(zio_t *zio)
 {
-	uint64_t *good_writes = zio->io_private;
+	vdev_uberblock_write_ctx_t *ctx = zio->io_private;
 
-	if (zio->io_error == 0 && zio->io_vd->vdev_top->vdev_ms_array != 0)
-		atomic_inc_64(good_writes);
+	if (zio->io_error == 0) {
+		if (zio->io_vd->vdev_top->vdev_ms_array != 0)
+			atomic_inc_64(ctx->ubwc_good_writes);
+		if (zio->io_vd->vdev_top->vdev_ms_array != 0)
+			vdev_async_mirror_uberblock_written(zio->io_vd,
+			    ctx->ubwc_txg);
+	}
+	if (atomic_dec_32_nv(&ctx->ubwc_remaining) == 0)
+		kmem_free(ctx, sizeof (*ctx));
 }
 
 /*
  * Write ub to its slot in the uberblock ring of each label of leaf vd.  Each
- * successful write increments *good_writes.
+ * successful write increments *good_writes.  The caller decides that this
+ * leaf gets the uberblock; see vdev_uberblock_sync().
  */
-static void
+void
 vdev_uberblock_write(zio_t *zio, uint64_t *good_writes, uberblock_t *ub,
     vdev_t *vd, int flags)
 {
@@ -1887,11 +1953,15 @@ vdev_uberblock_write(zio_t *zio, uint64_t *good_writes, uberblock_t *ub,
 	abd_copy_from_buf(ub_abd, ub, sizeof (uberblock_t));
 	abd_zero_off(ub_abd, sizeof (uberblock_t),
 	    VDEV_UBERBLOCK_SIZE(vd) - sizeof (uberblock_t));
+	vdev_uberblock_write_ctx_t *ctx = kmem_alloc(sizeof (*ctx), KM_SLEEP);
+	ctx->ubwc_good_writes = good_writes;
+	ctx->ubwc_txg = ub->ub_txg;
+	ctx->ubwc_remaining = VDEV_LABELS;
 
 	for (int l = 0; l < VDEV_LABELS; l++)
 		vdev_label_write(zio, vd, l, ub_abd,
 		    VDEV_UBERBLOCK_OFFSET(vd, n), VDEV_UBERBLOCK_SIZE(vd),
-		    vdev_uberblock_sync_done, good_writes,
+		    vdev_uberblock_sync_done, ctx,
 		    flags | ZIO_FLAG_DONT_PROPAGATE);
 
 	abd_free(ub_abd);
@@ -1924,6 +1994,10 @@ vdev_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 	if (vd->vdev_ops == &vdev_draid_spare_ops)
 		return;
 
+	if (vd->vdev_spa->spa_async_mirror != NULL &&
+	    vdev_async_mirror_skip_uberblock(vd))
+		return;
+
 	/*
 	 * If the vdev was expanded, or its trailing labels were found to hold
 	 * an older pool's, the rings there have to be rebuilt in full: the
@@ -1942,6 +2016,7 @@ vdev_uberblock_sync(zio_t *zio, uint64_t *good_writes,
 
 	vdev_uberblock_write(zio, good_writes, ub, vd, flags);
 }
+
 
 /* Sync the uberblocks to all vdevs in svd[] */
 int
@@ -1995,6 +2070,7 @@ vdev_uberblock_sync_list(spa_t *spa, vdev_t **svd, int svdcount,
 	}
 
 	(void) zio_wait(zio);
+	vdev_async_mirror_uberblock_flush(spa, ub->ub_txg);
 
 	return (good_writes >= 1 ? 0 : EIO);
 }
@@ -2070,16 +2146,26 @@ vdev_extra_sync_all(spa_t *spa, int flags, uint64_t txg,
 	return (good_writes >= 1 ? 0 : EIO);
 }
 
-/*
- * On success, increment the count of good writes for our top-level vdev.
- */
+typedef struct vdev_label_sync_ctx {
+	uint64_t	*vlsc_good_writes;
+	uint64_t	vlsc_txg;
+	uint32_t	vlsc_remaining;
+} vdev_label_sync_ctx_t;
+
+/* On success, count the write and record the DTL config label. */
 static void
 vdev_label_sync_done(zio_t *zio)
 {
-	uint64_t *good_writes = zio->io_private;
+	vdev_label_sync_ctx_t *ctx = zio->io_private;
 
-	if (zio->io_error == 0)
-		atomic_inc_64(good_writes);
+	if (zio->io_error == 0) {
+		atomic_inc_64(ctx->vlsc_good_writes);
+		if (zio->io_vd->vdev_top->vdev_ms_array != 0)
+			vdev_async_mirror_label_written(zio->io_vd,
+			    ctx->vlsc_txg);
+	}
+	if (atomic_dec_32_nv(&ctx->vlsc_remaining) == 0)
+		kmem_free(ctx, sizeof (*ctx));
 }
 
 /*
@@ -2108,9 +2194,10 @@ vdev_label_sync_ignore_done(zio_t *zio)
 /*
  * Write all even or odd labels to all leaves of the specified vdev.
  */
-static void
+void
 vdev_label_sync(zio_t *zio, uint64_t *good_writes,
-    vdev_t *vd, int l, uint64_t txg, int flags)
+    vdev_t *vd, int l, uint64_t txg, int flags,
+    boolean_t async_mirror_refresh)
 {
 	nvlist_t *label;
 	vdev_phys_t *vp;
@@ -2122,13 +2209,18 @@ vdev_label_sync(zio_t *zio, uint64_t *good_writes,
 
 	for (int c = 0; c < vd->vdev_children; c++) {
 		vdev_label_sync(zio, good_writes,
-		    vd->vdev_child[c], l, txg, flags);
+		    vd->vdev_child[c], l, txg, flags, async_mirror_refresh);
 	}
 
 	if (!vd->vdev_ops->vdev_op_leaf)
 		return;
 
 	if (!vdev_writeable(vd))
+		return;
+
+	if (vd->vdev_spa->spa_async_mirror != NULL &&
+	    (vdev_async_mirror_inject_dtl_label_flush(vd) ||
+	    (!async_mirror_refresh && vdev_async_mirror_skip_labels(vd))))
 		return;
 
 	/*
@@ -2149,6 +2241,11 @@ vdev_label_sync(zio_t *zio, uint64_t *good_writes,
 		label = vdev_aux_label_generate(vd, vd->vdev_isspare);
 	} else {
 		label = spa_config_generate(vd->vdev_spa, vd, txg, B_FALSE);
+		if (vd->vdev_async_label_lineage != 0) {
+			fnvlist_add_uint64(label,
+			    ZPOOL_CONFIG_ASYNC_MIRROR_LINEAGE,
+			    vd->vdev_async_label_lineage);
+		}
 	}
 
 	vp_abd = abd_alloc_linear(sizeof (vdev_phys_t), B_TRUE);
@@ -2159,11 +2256,16 @@ vdev_label_sync(zio_t *zio, uint64_t *good_writes,
 	buflen = sizeof (vp->vp_nvlist);
 
 	if (!nvlist_pack(label, &buf, &buflen, NV_ENCODE_XDR, KM_SLEEP)) {
+		vdev_label_sync_ctx_t *ctx = kmem_alloc(sizeof (*ctx),
+		    KM_SLEEP);
+		ctx->vlsc_good_writes = good_writes;
+		ctx->vlsc_txg = txg;
+		ctx->vlsc_remaining = (VDEV_LABELS + 1) / 2;
 		for (; l < VDEV_LABELS; l += 2) {
 			vdev_label_write(zio, vd, l, vp_abd,
 			    offsetof(vdev_label_t, vl_vdev_phys),
 			    sizeof (vdev_phys_t),
-			    vdev_label_sync_done, good_writes,
+			    vdev_label_sync_done, ctx,
 			    flags | ZIO_FLAG_DONT_PROPAGATE);
 		}
 	}
@@ -2195,7 +2297,7 @@ vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
 		    (vd->vdev_islog || vd->vdev_aux != NULL) ?
 		    vdev_label_sync_ignore_done : vdev_label_sync_top_done,
 		    good_writes, flags);
-		vdev_label_sync(vio, good_writes, vd, l, txg, flags);
+		vdev_label_sync(vio, good_writes, vd, l, txg, flags, B_FALSE);
 		zio_nowait(vio);
 	}
 
@@ -2212,7 +2314,7 @@ vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
 			zio_t *vio = zio_null(zio, spa, NULL,
 			    vdev_label_sync_ignore_done, good_writes, flags);
 			vdev_label_sync(vio, good_writes, sav[i]->sav_vdevs[v],
-			    l, txg, flags);
+			    l, txg, flags, B_FALSE);
 			zio_nowait(vio);
 		}
 	}
@@ -2237,6 +2339,7 @@ vdev_label_sync_list(spa_t *spa, int l, uint64_t txg, int flags)
 	}
 
 	(void) zio_wait(zio);
+	vdev_async_mirror_label_flush(spa, txg);
 
 	return (error);
 }

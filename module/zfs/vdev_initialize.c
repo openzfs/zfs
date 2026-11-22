@@ -18,6 +18,7 @@
 #include <sys/spa_impl.h>
 #include <sys/txg.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_async_mirror.h>
 #include <sys/metaslab_impl.h>
 #include <sys/dsl_synctask.h>
 #include <sys/zap.h>
@@ -40,6 +41,7 @@ vdev_initialize_should_stop(vdev_t *vd)
 {
 	return (vd->vdev_initialize_exit_wanted || !vdev_writeable(vd) ||
 	    vd->vdev_detached || vd->vdev_top->vdev_removing ||
+	    vdev_async_mirror_is_async(vd) ||
 	    vd->vdev_top->vdev_rz_expanding);
 }
 
@@ -847,6 +849,7 @@ vdev_initialize_restart(vdev_t *vd)
 			VERIFY0(vdev_initialize_load(vd));
 		} else if (vd->vdev_initialize_state ==
 		    VDEV_INITIALIZE_ACTIVE && vdev_writeable(vd) &&
+		    !vdev_async_mirror_is_async(vd) &&
 		    !vd->vdev_top->vdev_removing &&
 		    !vd->vdev_top->vdev_rz_expanding &&
 		    vd->vdev_initialize_thread == NULL) {

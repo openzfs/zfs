@@ -2004,7 +2004,7 @@ lzc_redact(const char *snapshot, const char *bookname, nvlist_t *snapnv)
 
 static int
 wait_common(const char *pool, zpool_wait_activity_t activity, boolean_t use_tag,
-    uint64_t tag, boolean_t *waited)
+    uint64_t tag, boolean_t async_mirror_sync, boolean_t *waited)
 {
 	nvlist_t *args = fnvlist_alloc();
 	nvlist_t *result = NULL;
@@ -2012,6 +2012,8 @@ wait_common(const char *pool, zpool_wait_activity_t activity, boolean_t use_tag,
 	fnvlist_add_int32(args, ZPOOL_WAIT_ACTIVITY, activity);
 	if (use_tag)
 		fnvlist_add_uint64(args, ZPOOL_WAIT_TAG, tag);
+	if (async_mirror_sync)
+		fnvlist_add_boolean(args, ZPOOL_WAIT_ASYNC_MIRROR_SYNC);
 
 	int error = lzc_ioctl(ZFS_IOC_WAIT, pool, args, &result);
 
@@ -2028,14 +2030,21 @@ wait_common(const char *pool, zpool_wait_activity_t activity, boolean_t use_tag,
 int
 lzc_wait(const char *pool, zpool_wait_activity_t activity, boolean_t *waited)
 {
-	return (wait_common(pool, activity, B_FALSE, 0, waited));
+	return (wait_common(pool, activity, B_FALSE, 0, B_FALSE, waited));
 }
 
 int
 lzc_wait_tag(const char *pool, zpool_wait_activity_t activity, uint64_t tag,
     boolean_t *waited)
 {
-	return (wait_common(pool, activity, B_TRUE, tag, waited));
+	return (wait_common(pool, activity, B_TRUE, tag, B_FALSE, waited));
+}
+
+int
+lzc_wait_async_mirror_sync(const char *pool, boolean_t *waited)
+{
+	return (wait_common(pool, ZPOOL_WAIT_ASYNC_MIRROR, B_FALSE, 0, B_TRUE,
+	    waited));
 }
 
 int

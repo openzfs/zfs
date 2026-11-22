@@ -337,6 +337,10 @@ SRCS+=	abd.c \
 	vdev_mirror.c \
 	vdev_missing.c \
 	vdev_anyraid.c \
+	vdev_async_mirror.c \
+	vdev_async_mirror_copy.c \
+	vdev_async_mirror_lineage.c \
+	vdev_async_mirror_prop.c \
 	vdev_queue.c \
 	vdev_raidz.c \
 	vdev_raidz_math_avx2.c \
