@@ -754,6 +754,19 @@ traverse_dataset_destroyed(spa_t *spa, blkptr_t *blkptr,
 }
 
 /*
+ * Traverse the tree under rootbp, the root of the objset with id objset, with
+ * no dataset: the intent log is not visited.  The caller makes sure that the
+ * blocks born after txg_start do not change.
+ */
+int
+traverse_root(spa_t *spa, uint64_t objset, blkptr_t *rootbp,
+    uint64_t txg_start, int flags, blkptr_cb_t func, void *arg)
+{
+	return (traverse_impl(spa, NULL, objset, rootbp, txg_start, NULL,
+	    flags, func, arg));
+}
+
+/*
  * NB: pool must not be changing on-disk (eg, from zdb or sync context).
  */
 int
@@ -820,6 +833,7 @@ traverse_pool(spa_t *spa, uint64_t txg_start, int flags,
 
 EXPORT_SYMBOL(traverse_dataset);
 EXPORT_SYMBOL(traverse_pool);
+EXPORT_SYMBOL(traverse_root);
 
 ZFS_MODULE_PARAM(zfs, zfs_, pd_bytes_max, INT, ZMOD_RW,
 	"Max number of bytes to prefetch");
