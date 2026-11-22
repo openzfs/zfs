@@ -421,15 +421,18 @@ zio_checksum_compute(zio_t *zio, enum zio_checksum checksum,
 	}
 }
 
-int
-zio_checksum_error_impl(zio_t *zio, enum zio_checksum checksum, abd_t *abd,
+/*
+ * Verify the checksum of abd.  bp is the block pointer, or NULL for a block
+ * whose checksum is in the zio_eck_t at ieck.
+ */
+static int
+zio_checksum_error_common(spa_t *spa, const blkptr_t *bp,
+    const zio_eck_t *ieck, enum zio_checksum checksum, abd_t *abd,
     uint64_t size, uint64_t offset, zio_bad_cksum_t *info)
 {
 	zio_checksum_info_t *ci = &zio_checksum_table[checksum];
 	zio_cksum_t actual_cksum, expected_cksum;
 	zio_eck_t eck;
-	spa_t *spa = zio->io_spa;
-	const blkptr_t *bp = zio->io_bp;
 	int byteswap;
 
 	if (checksum >= ZIO_CHECKSUM_FUNCTIONS || ci->ci_func[0] == NULL)
@@ -499,8 +502,8 @@ zio_checksum_error_impl(zio_t *zio, enum zio_checksum checksum, abd_t *abd,
 			byteswap_uint64_array(&expected_cksum,
 			    sizeof (zio_cksum_t));
 		}
-	} else if (zio->io_bp == NULL) {
-		eck = *(zio_eck_t *)(zio->io_private);
+	} else if (bp == NULL) {
+		eck = *ieck;
 		byteswap = (eck.zec_magic == BSWAP_64(ZEC_MAGIC));
 		expected_cksum = eck.zec_cksum;
 		ci->ci_func[byteswap](abd, size,
@@ -548,6 +551,34 @@ zio_checksum_error_impl(zio_t *zio, enum zio_checksum checksum, abd_t *abd,
 		return (SET_ERROR(ECKSUM));
 
 	return (0);
+}
+
+int
+zio_checksum_error_impl(zio_t *zio, enum zio_checksum checksum, abd_t *abd,
+    uint64_t size, uint64_t offset, zio_bad_cksum_t *info)
+{
+	return (zio_checksum_error_common(zio->io_spa, zio->io_bp,
+	    zio->io_bp == NULL ? zio->io_private : NULL, checksum, abd, size,
+	    offset, info));
+}
+
+/*
+ * Verify a whole block in its on-disk form against its block pointer, for a
+ * caller that has no zio: abd holds BP_GET_PSIZE(bp) bytes as they are on
+ * disk, not decompressed and not decrypted.  Not for a hole, an embedded
+ * block or a gang block.  A block with no checksum cannot be verified.
+ */
+int
+zio_checksum_verify_bp(spa_t *spa, const blkptr_t *bp, abd_t *abd)
+{
+	ASSERT(!BP_IS_HOLE(bp));
+	ASSERT(!BP_IS_EMBEDDED(bp));
+	ASSERT(!BP_IS_GANG(bp));
+
+	if (BP_GET_CHECKSUM(bp) == ZIO_CHECKSUM_OFF)
+		return (SET_ERROR(ENOTSUP));
+	return (zio_checksum_error_common(spa, bp, NULL, BP_GET_CHECKSUM(bp),
+	    abd, BP_GET_PSIZE(bp), 0, NULL));
 }
 
 int
