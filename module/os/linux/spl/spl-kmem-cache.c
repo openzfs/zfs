@@ -152,8 +152,10 @@ kv_alloc(spl_kmem_cache_t *skc, int size, int flags)
 	 * Slabs are only grown from spl_cache_grow_work(), which can sleep
 	 * and reclaim directly, so don't wake kswapd from here.  The order-0
 	 * allocations keep direct reclaim, so this cannot fail where it
-	 * would not have failed before.
+	 * would not have failed before.  Keep the order-0 wakeup at the low
+	 * watermark though.
 	 */
+	spl_wake_kswapd_if_needed();
 	ptr = spl_vmalloc(size, lflags & ~__GFP_KSWAPD_RECLAIM);
 
 	/* Resulting allocated memory will be page aligned */
