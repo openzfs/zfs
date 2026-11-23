@@ -17,7 +17,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd November 18, 2026
+.Dd November 23, 2026
 .Dt ZPOOL-DESTROY 8
 .Os
 .
@@ -36,6 +36,16 @@ This command tries to unmount any active datasets before destroying the pool.
 A pool imported with
 .Sy readonly Ns = Ns Sy on
 cannot be destroyed: export it and import it read-write first.
+A pool that cannot be imported read-write, such as a damaged pool or one with
+active read-only compatible features that this system does not support
+.Pq see Xr zpool-features 7 ,
+can only be exported.
+Each of its devices can then be cleared with
+.Nm zpool Cm labelclear Fl f ,
+which, unlike a destroy, cannot be undone with
+.Nm zpool Cm import Fl D ;
+see
+.Xr zpool-labelclear 8 .
 .Bl -tag -width Ds
 .It Fl f
 Forcefully unmount all active datasets.
