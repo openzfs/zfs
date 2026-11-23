@@ -1385,6 +1385,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_offline/zpool_offline_002_neg.ksh \
 	functional/cli_root/zpool_offline/zpool_offline_003_pos.ksh \
 	functional/cli_root/zpool_offline/zpool_offline_spare.ksh \
+	functional/cli_root/zpool_offline/zpool_offline_write_error.ksh \
 	functional/cli_root/zpool_online/cleanup.ksh \
 	functional/cli_root/zpool_online/setup.ksh \
 	functional/cli_root/zpool_online/zpool_online_001_pos.ksh \
