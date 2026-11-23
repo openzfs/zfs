@@ -17,24 +17,20 @@ sudo virsh undefine --nvram openzfs
 # cpu pinning
 CPUSET=("0,1" "2,3")
 
+# Two guests of 8 GiB do not fit the 16 GiB runners once the tests have
+# touched their memory, and a runner whose swap file is on its root file
+# system then stops responding.  6 GiB each leaves room for the host.
+RAM=6
+
 # additional options for virt-install
 OPTS[0]=""
 OPTS[1]=""
 
 case "$OS" in
-  freebsd*)
-    # FreeBSD needs only 6GiB
-    RAM=6
-    ;;
   debian13)
-    RAM=8
     # Boot Debian 13 with uefi=on and secureboot=off (ZFS Kernel Module not signed)
     OPTS[0]="--boot"
     OPTS[1]="firmware=efi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no"
-    ;;
-  *)
-    # Linux needs more memory, but can be optimized to share it via KSM
-    RAM=8
     ;;
 esac
 

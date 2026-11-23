@@ -1,3 +1,6 @@
+#!/bin/bash
+set -e
+
 ######################################################################
 # 3) Wait for VM to boot from previous step and launch dependencies
 #    script on it.
@@ -27,7 +30,7 @@ if [[ $ver =~ ^[0-9]+\.[0-9]+ ]] ; then
   sed -i -E 's/Linux-Maximum: .+/Linux-Maximum: '$ver'/g' META
 fi
 
-scp .github/workflows/scripts/qemu-3-deps-vm.sh zfs@vm0:qemu-3-deps-vm.sh
+scp .github/workflows/scripts/{qemu-3-deps-vm,debian-user-deps}.sh zfs@vm0:
 PID=`pidof /usr/bin/qemu-system-x86_64`
 ssh zfs@vm0 '$HOME/qemu-3-deps-vm.sh' "$@"
 # wait for poweroff to succeed

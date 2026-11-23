@@ -31,7 +31,9 @@
 #define	dname(dentry)	((char *)((dentry)->d_name.name))
 #define	dlen(dentry)	((int)((dentry)->d_name.len))
 
+#ifdef HAVE_DENTRY_D_U_ALIASES
 #define	d_alias			d_u.d_alias
+#endif
 
 /*
  * Starting from Linux 5.13, flush_dcache_page() becomes an inline function

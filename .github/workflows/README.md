@@ -32,6 +32,7 @@ subgraph Other workflows
   zfs-arm.yml
   zloop.yml
   labels.yml
+  zfs-precheck.yml
 end
 ```
 
@@ -69,13 +70,93 @@ can also alter the selection. The `workflow_dispatch` trigger accepts
 `fedora_kernel_ver` (Fedora-only run with a chosen kernel) and
 `specific_os` (pin the matrix to one OS).
 
+### Reusing fork QEMU results
+
+PRs can reuse QEMU results from their source fork without a repository
+allowlist or additional configuration.
+
+For each requested OS, `test-config` looks for a successful job in the
+push runs that tested the same tree as the PR head, newest first: the
+latest ten runs of the exact PR head SHA, and the runs of other commits
+with that tree among the latest hundred push runs. A commit that differs
+only in its message or history, such as one amended to add a sign-off,
+reuses the results of the commit it replaces. A run must be no more than
+seven days old. Build, test and summary steps must all have completed
+successfully on `ubuntu-24.04`.
+Push runs use full tests, so they also cover PRs requesting quick tests.
+`ZTS_OS_OVERRIDE` in a fork can reduce the available OS results; missing
+OS jobs still run in the base repository. Dispatch and PR runs are not
+reused because they can select different inputs or test suites.
+
+Reused matrix jobs report success with a link to the original job and
+logs. The cleanup summary links to these results; their artifacts remain
+in the fork. Failed or unfinished jobs and unavailable API responses fall
+back to normal testing. The newest finished result for each job
+decides it, using each job's latest attempt, so an older success cannot
+replace a newer failure. Jobs that were cancelled, skipped or are still
+running have no result, so pushing an already tested commit to a PR branch
+(which starts another push run for it) or cancelling a run does not hide
+an older successful job of the same tree. The other reused workflows
+below search the same way.
+
+When a PR is pushed, its fork usually starts a push run of the same
+commit at the same time. If that run, or another push run of the same
+tree, has QEMU jobs without a result yet, `test-config` waits for them,
+checking every ten minutes, then reuses those that succeeded and runs the
+others in the base repository as usual. Only the Setup job waits, so
+the wait holds one runner rather than one per OS. It lasts at most
+`REUSE_WAIT_MINUTES` minutes, a repository variable (default 240, at most
+300, 0 disables waiting): QEMU jobs take two to four hours. Jobs that
+have not started after 30 minutes, for example because the fork has no
+runner free, are not waited for. Successful jobs of a run still in
+progress are reused, as their result is final. Any API error ends the
+search without reuse, as does running short of API requests (fewer than
+200 left). The other workflows below run in a single job, which would
+hold a runner as long by waiting as by testing, so they do not wait.
+
+Fork results are reused only on the first workflow attempt. Requested
+reruns execute the selected jobs in the base repository, including
+selective QEMU matrix reruns that retain the original Setup outputs.
+
+This version checks run and step metadata and assumes the fork uses the
+standard full-testing push workflow. It does not compare workflow or
+script contents with the PR base, allowing its own PR to demonstrate
+reuse. Comparing CI files is deferred to a later change.
+
+### Reusing fork zloop results
+
+The `zloop` job uses the same helper, `reuse-ci.py zloop`, to find a
+successful push job for the PR head tree. Push and PR jobs use
+the same build configuration (debug, ASAN and UBSAN) and test command.
+Dependency installation, autogen, configure, make, install and tests
+must all have succeeded on `ubuntu-24.04`. The same run age and source
+repository checks apply as for QEMU.
+
+A matching result skips build and testing in the PR job and links to
+the original job logs. Otherwise the usual zloop steps run. Successful
+zloop jobs do not upload artifacts, so reuse needs no artifact transfer.
+
+### Reusing other fork results
+
+`unit-tests`, `zfs-arm` and `checkstyle` also use `reuse-ci.py`, passing
+their workflow name. The helper specifies each workflow's file, runner,
+job name and required successful steps. All use the same tree, run age,
+source repository and first-attempt checks as QEMU and zloop.
+
+Unit tests require the complete userspace build and test sequence on
+`ubuntu-24.04`. ARM requires dependency installation and the build/sanity
+test step on `ubuntu-24.04-arm`; manual runs with a custom GCC are not
+reused. Checkstyle requires prepare, configure, build, style, lint and
+ABI checks on `ubuntu-22.04`. Missing or failed results run normally,
+as do manually requested reruns.
+
 ### Supported guests
 
 Auto-selected:
 
 - Linux: almalinux 8/9/10, centos-stream 9/10, debian 11/12/13,
   fedora 43/44, ubuntu 22/24/26
-- FreeBSD: 14.4-RELEASE/STABLE, 15.1-RELEASE/STABLE, 16.0-CURRENT
+- FreeBSD: 14.4-RELEASE, 14.5-STABLE, 15.1-RELEASE, 15.2-STABLE, 16.0-CURRENT
 
 Available via `specific_os` or `ZTS_OS_OVERRIDE`:
 
@@ -91,6 +172,61 @@ Available via `specific_os` or `ZTS_OS_OVERRIDE`:
 
 - `zfs-arm.yml`: ARM build on `ubuntu-24.04-arm`
 - `zloop.yml`: host-side zloop
-- `labels.yml`: maintains PR status labels
+- `labels.yml`: maintains PR labels:
+  - status labels, and every 3 hours `Status: Reviewed` on PRs that someone
+    other than their author has reviewed, `Status: Maintainer Reviewed` when
+    one of them can push to the repository, and `Status: Revision Needed` on
+    PRs other than drafts whose head a reviewer with write access has asked
+    to change
+  - size labels, from the lines each PR changes
+  - `Component: CI`, `Component: Test Suite`, `Type: Documentation` and
+    `Type: Building`, for PRs that change only CI, tests, documentation or
+    the build and packaging
+  - type and priority labels, from the boxes ticked in the PR template,
+    for PRs that have none of that kind; `Type: Breaking Change` and
+    `Type: Library API Change` are kinds of their own
+  - type and component labels, from the issues each PR closes, for PRs
+    that have none of that kind
+  - `Status: Blocked`, on PRs that declare "Depends on #N" while any of
+    those PRs or issues is open
+  - `Status: Merge Conflict`, on PRs that conflict with their base, checked
+    when a PR is opened, pushed to or reopened, and every 3 hours
+  - `Status: Inactive`, every 3 hours, on PRs, drafts included, with no
+    commit, comment, review or change of state by anyone but a bot for 90
+    days; it goes once there is some, unless it was added by hand
+
+  Running it by hand applies the jobs that label every open PR, all of
+  them or the one chosen.  A first run over many unlabelled PRs is best
+  made one job at a time, an hour apart, to stay within GitHub's limits of
+  1,000 REST API requests and 500 label changes an hour for the workflow's
+  token.
+- `zfs-precheck.yml`: quick checks on one VM; for PRs that add a test in
+  one commit and fix the bug in a later commit, checks that the test
+  fails on the test commit and passes on the PR head (see below)
 - `zfs-qemu-packages.yml`: manually dispatched, builds release RPMs or
   tests RPM installation from the ZFS yum repo
+
+### Failing test, then fix (`zfs-precheck.yml`)
+
+A bug fix is easiest to review when the PR first adds a test that shows
+the bug, then fixes it.  `zfs-precheck.yml` checks that pattern.  Its
+`Detect` job runs `scripts/failfirst-detect.py` over the PR's commits and
+looks for a *test commit*:
+
+- it changes only files under `tests/`,
+- it adds or modifies at least one test script (other than `setup.ksh`
+  and `cleanup.ksh`), or a channel program (`.zcp`) that is run by the
+  `.ksh` test of the same name, and
+- a later commit in the PR changes files outside `tests/`.
+
+For each test commit (up to four), a `Verify` job builds that commit with
+`--enable-debug` in one `ubuntu24` VM and runs the tests it adds or
+modifies; at least one of them must fail, be killed, hang or crash the
+kernel.  Another `Verify` job builds the PR head and runs the same tests;
+all of them must pass without kernel errors.  Tests run one at a time
+with `zfs-tests.sh -t`, and the VM is restarted after a crash or hang.
+The `Verdict` job collects the results.  PRs without a test commit finish
+after `Detect`.
+
+The repository variables `FAILFIRST_OS` and `FAILFIRST_UPSTREAM` change
+the test OS and the repository whose `master` is the base for pushes.
