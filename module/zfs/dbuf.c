@@ -2032,6 +2032,7 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 	uint64_t txg = tx->tx_txg;
 	avl_index_t where;
 	dbuf_dirty_record_t *dr;
+	boolean_t clone;
 
 	if (end_blkid > dn->dn_maxblkid &&
 	    !(start_blkid == DMU_SPILL_BLKID || end_blkid == DMU_SPILL_BLKID))
@@ -2061,9 +2062,27 @@ dbuf_free_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid,
 
 		/* found a level 0 buffer in the range */
 		mutex_enter(&db->db_mtx);
+		dr = dbuf_find_dirty_eq(db, txg);
+		clone = (dr != NULL && dr->dt.dl.dr_brtwrite);
 		if (dbuf_undirty(db, tx)) {
 			/* mutex has been dropped and dbuf destroyed */
 			continue;
+		}
+
+		/*
+		 * Reads of a NOFILL dbuf use the block pointer of the clone
+		 * at the head of its dirty records.  When the undirty above
+		 * dropped this txg's clone, the head is now an older record
+		 * that may not be a clone, and reads would fail with EIO
+		 * (see dmu_buf_get_bp_from_dbuf()) until it is written out.
+		 * Make the dbuf uncached instead, so that reads see the free.
+		 */
+		if (clone && db->db_state == DB_NOFILL) {
+			dr = list_head(&db->db_dirty_records);
+			if (dr == NULL || !dr->dt.dl.dr_brtwrite) {
+				db->db_state = DB_UNCACHED;
+				DTRACE_SET_STATE(db, "cloned block freed");
+			}
 		}
 
 		if (db->db_state == DB_UNCACHED ||
