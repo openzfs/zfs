@@ -993,29 +993,44 @@ zpl_set_posix_acl(struct inode *ip, struct posix_acl *acl, int type)
 	case ACL_TYPE_ACCESS:
 		name = XATTR_NAME_POSIX_ACL_ACCESS;
 		if (acl) {
-			umode_t mode = ip->i_mode;
+			znode_t *zp = ITOZ(ip);
+			boolean_t dirty = B_FALSE;
+			umode_t mode;
+
+			/*
+			 * Start from z_mode under z_acl_lock, not ip->i_mode:
+			 * zfs_write() clears S_ISUID/S_ISGID in z_mode under
+			 * this lock, and ip->i_mode only catches up when the
+			 * write ends.
+			 */
+			mutex_enter(&zp->z_acl_lock);
+			mode = zp->z_mode;
 			error = posix_acl_equiv_mode(acl, &mode);
 			if (error < 0) {
+				mutex_exit(&zp->z_acl_lock);
 				return (error);
-			} else {
-				/*
-				 * The mode bits will have been set by
-				 * ->zfs_setattr()->zfs_acl_chmod_setattr()
-				 * using the ZFS ACL conversion.  If they
-				 * differ from the Posix ACL conversion dirty
-				 * the inode to write the Posix mode bits.
-				 */
-				if (ip->i_mode != mode) {
-					ip->i_mode = ITOZ(ip)->z_mode = mode;
-					zpl_inode_set_ctime_to_ts(ip,
-					    current_time(ip));
-					atomic_inc_64(&ITOZ(ip)->z_seq);
-					zfs_mark_inode_dirty(ip);
-				}
-
-				if (error == 0)
-					acl = NULL;
 			}
+
+			/*
+			 * The mode bits will have been set by
+			 * ->zfs_setattr()->zfs_acl_chmod_setattr()
+			 * using the ZFS ACL conversion.  If they
+			 * differ from the Posix ACL conversion dirty
+			 * the inode to write the Posix mode bits.
+			 */
+			if (ip->i_mode != mode) {
+				ip->i_mode = zp->z_mode = mode;
+				zpl_inode_set_ctime_to_ts(ip, current_time(ip));
+				atomic_inc_64(&zp->z_seq);
+				dirty = B_TRUE;
+			}
+			mutex_exit(&zp->z_acl_lock);
+
+			if (dirty)
+				zfs_mark_inode_dirty(ip);
+
+			if (error == 0)
+				acl = NULL;
 		}
 		break;
 

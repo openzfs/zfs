@@ -4147,6 +4147,7 @@ zfs_dirty_inode(struct inode *ip, int flags)
 		goto out;
 	}
 
+	mutex_enter(&zp->z_acl_lock);
 	mutex_enter(&zp->z_lock);
 	zp->z_atime_dirty = B_FALSE;
 
@@ -4162,7 +4163,12 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	ZFS_TIME_ENCODE(&tmp_ts, mtime);
 	tmp_ts = zpl_inode_get_ctime(ip);
 	ZFS_TIME_ENCODE(&tmp_ts, ctime);
-	mode = ip->i_mode;
+	/*
+	 * zfs_write() clears S_ISUID/S_ISGID in z_mode under z_acl_lock,
+	 * and ip->i_mode only catches up when the write ends, so never
+	 * let ip->i_mode put back a set-id bit that z_mode no longer has.
+	 */
+	mode = ip->i_mode & ~((S_ISUID | S_ISGID) & ~zp->z_mode);
 
 	zp->z_mode = mode;
 	/* persist z_seq; callers bump it before zfs_mark_inode_dirty */
@@ -4171,6 +4177,7 @@ zfs_dirty_inode(struct inode *ip, int flags)
 	ASSERT3S(cnt, <=, ARRAY_SIZE(bulk));
 	error = sa_bulk_update(zp->z_sa_hdl, bulk, cnt, tx);
 	mutex_exit(&zp->z_lock);
+	mutex_exit(&zp->z_acl_lock);
 
 	dmu_tx_commit(tx);
 out:
