@@ -41,7 +41,7 @@ extern int zfs_get_direct_alignment(znode_t *, uint64_t *);
 
 extern int mappedread(znode_t *, int, zfs_uio_t *);
 extern int mappedread_sf(znode_t *, int, zfs_uio_t *);
-extern void update_pages(znode_t *, int64_t, int, objset_t *);
+extern void update_pages(znode_t *, int64_t, uint64_t, objset_t *);
 
 /*
  * Platform code that asynchronously drops zp's inode / vnode_t.
