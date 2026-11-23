@@ -5498,12 +5498,18 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 
 	/*
 	 * If this is an I/O error that is going to be retried, then ignore the
-	 * error.  Otherwise, the user may interpret B_FAILFAST I/O errors as
-	 * hard errors, when in reality they can happen for any number of
-	 * innocuous reasons (bus resets, MPxIO link failure, etc).
+	 * error.  Only the logical I/O is retried (zio_vdev_io_assess()), and
+	 * only when it fails as a whole; the retry's children then carry
+	 * ZIO_FLAG_IO_RETRY.  A leaf write that fails while its parent
+	 * succeeds, because redundancy absorbed the failure, is never
+	 * retried, so it must reach the DTL update below.  Otherwise the DTL
+	 * does not record that the leaf missed the write: a resilver does not
+	 * repair it, and vdev_dtl_required() lets the only complete copy be
+	 * offlined or detached.
 	 */
 	if (zio->io_error == EIO &&
-	    !(zio->io_flags & ZIO_FLAG_IO_RETRY))
+	    !(zio->io_flags & ZIO_FLAG_IO_RETRY) &&
+	    !vd->vdev_ops->vdev_op_leaf)
 		return;
 
 	/*
