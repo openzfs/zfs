@@ -604,8 +604,9 @@ zpl_putpage(struct page *pp, struct writeback_control *wbc, void *data)
 	ASSERT(!PageWriteback(pp));
 
 	cookie = spl_fstrans_mark();
-	ret = zfs_putpage(pp->mapping->host, pp, wbc, *for_sync);
+	ret = -zfs_putpage(pp->mapping->host, pp, wbc, *for_sync);
 	spl_fstrans_unmark(cookie);
+	ASSERT3S(ret, <=, 0);
 
 	return (ret);
 }

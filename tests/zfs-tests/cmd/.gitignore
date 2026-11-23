@@ -38,6 +38,7 @@
 /mmap_stale_check
 /mmap_seek
 /mmap_sync
+/mmap_sync_errno
 /mmapwrite
 /mmap_write_sync
 /mount_null_source
