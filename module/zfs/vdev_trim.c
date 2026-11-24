@@ -1240,6 +1240,10 @@ vdev_autotrim_thread(void *arg)
 		uint64_t extent_bytes_max = zfs_trim_extent_bytes_max;
 		uint64_t extent_bytes_min = zfs_trim_extent_bytes_min;
 
+		/* Nothing to do if none of the leaves support TRIM. */
+		if (!vd->vdev_has_trim)
+			goto next;
+
 		/*
 		 * All of the metaslabs are divided in to groups of size
 		 * num_metaslabs / zfs_trim_txg_batch.  Each of these groups
@@ -1456,7 +1460,7 @@ vdev_autotrim_thread(void *arg)
 			if (vdev_autotrim_should_stop(vd))
 				break;
 		}
-
+next:
 		spa_config_exit(spa, SCL_CONFIG, FTAG);
 
 		vdev_autotrim_wait_kick(vd, 1);
