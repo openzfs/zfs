@@ -858,48 +858,28 @@ vdev_rebuild_thread(void *arg)
 			}
 		}
 
-		/*
-		 * When a metaslab has been allocated from read its allocated
-		 * ranges from the space map object into the vr_scan_tree.
-		 * Then add inflight / unflushed ranges and remove inflight /
-		 * unflushed frees.  This is the minimum range to be rebuilt.
-		 *
-		 * ms_sync_lock keeps the space map and the unflushed trees
-		 * from changing.  Do not hold ms_lock while reading the space
-		 * map, as metaslab_load() does not.  A read error makes the
-		 * read wait for repair writes, whose completion may be queued
-		 * behind a ZIO thread freeing a block in this metaslab, which
-		 * needs ms_lock.  Such a free only adds to ms_freeing, which
-		 * the rebuild does not use.
-		 */
-		if (msp->ms_sm != NULL) {
-			mutex_exit(&msp->ms_lock);
-			ASSERT(!MUTEX_HELD(&msp->ms_lock));
-			VERIFY0(space_map_load(msp->ms_sm,
-			    vr->vr_scan_tree, SM_ALLOC));
-			mutex_enter(&msp->ms_lock);
-
-			for (int i = 0; i < TXG_SIZE; i++) {
-				ASSERT0(zfs_range_tree_space(
-				    msp->ms_allocating[i]));
-			}
-
-			zfs_range_tree_walk(msp->ms_unflushed_allocs,
-			    zfs_range_tree_add, vr->vr_scan_tree);
-			zfs_range_tree_walk(msp->ms_unflushed_frees,
-			    zfs_range_tree_remove, vr->vr_scan_tree);
-
-			/*
-			 * Remove ranges which have already been rebuilt based
-			 * on the last offset.  This can happen when restarting
-			 * a scan after exporting and re-importing the pool.
-			 */
-			zfs_range_tree_clear(vr->vr_scan_tree, 0,
-			    vrp->vrp_last_offset);
-		}
-
+		error = metaslab_load_allocated(msp, vr->vr_scan_tree, B_FALSE);
 		mutex_exit(&msp->ms_lock);
 		mutex_exit(&msp->ms_sync_lock);
+		if (error != 0) {
+			/*
+			 * An unavailable allocation map must not leave missing
+			 * data unrebuilt.  Scan the whole metaslab instead.
+			 * Allocations remain disabled until the rebuild I/O has
+			 * synced, so copying free space cannot race its reuse.
+			 */
+			ASSERT(zfs_range_tree_is_empty(vr->vr_scan_tree));
+			zfs_range_tree_add(vr->vr_scan_tree, msp->ms_start,
+			    msp->ms_size);
+			zfs_dbgmsg("rebuild: unable to load metaslab %llu "
+			    "on vdev %llu: error %d; "
+			    "rebuilding entire metaslab",
+			    (u_longlong_t)msp->ms_id,
+			    (u_longlong_t)vd->vdev_id, error);
+		}
+
+		/* Discard ranges completed before an export and re-import. */
+		zfs_range_tree_clear(vr->vr_scan_tree, 0, vrp->vrp_last_offset);
 
 		/*
 		 * To provide an accurate estimate re-calculate the estimated

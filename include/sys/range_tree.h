@@ -300,7 +300,18 @@ uint64_t zfs_range_tree_max(zfs_range_tree_t *rt);
 uint64_t zfs_range_tree_span(zfs_range_tree_t *rt);
 
 void zfs_range_tree_add(void *arg, uint64_t start, uint64_t size);
+/*
+ * For gap-free trees, try_add() succeeds only when the requested range does
+ * not overlap the tree, and try_remove() succeeds only when one segment
+ * contains the entire range. Both reject gap trees and ranges that are empty,
+ * overflow, or cannot be represented by the tree's base, shift, and segment
+ * width. On failure they return B_FALSE without modifying the tree.
+ */
+boolean_t zfs_range_tree_try_add(zfs_range_tree_t *rt, uint64_t start,
+    uint64_t size);
 void zfs_range_tree_remove(void *arg, uint64_t start, uint64_t size);
+boolean_t zfs_range_tree_try_remove(zfs_range_tree_t *rt, uint64_t start,
+    uint64_t size);
 void zfs_range_tree_remove_fill(zfs_range_tree_t *rt, uint64_t start,
     uint64_t size);
 void zfs_range_tree_adjust_fill(zfs_range_tree_t *rt, zfs_range_seg_t *rs,
