@@ -615,6 +615,7 @@ vdev_add_child(vdev_t *pvd, vdev_t *cvd)
 	pvd->vdev_child = newchild;
 	pvd->vdev_child[id] = cvd;
 	pvd->vdev_nonrot &= cvd->vdev_nonrot;
+	pvd->vdev_has_trim |= cvd->vdev_has_trim;
 
 	cvd->vdev_top = (pvd->vdev_top ? pvd->vdev_top: cvd);
 	ASSERT0P(cvd->vdev_top->vdev_parent->vdev_parent);
@@ -1480,6 +1481,7 @@ vdev_add_parent(vdev_t *cvd, vdev_ops_t *ops)
 	mvd->vdev_state = cvd->vdev_state;
 	mvd->vdev_crtxg = cvd->vdev_crtxg;
 	mvd->vdev_nonrot = cvd->vdev_nonrot;
+	mvd->vdev_has_trim = cvd->vdev_has_trim;
 
 	vdev_remove_child(pvd, cvd);
 	vdev_add_child(pvd, mvd);
@@ -2082,10 +2084,10 @@ vdev_open_children_impl(vdev_t *vd, cred_t *cred,
     vdev_open_children_func_t *open_func)
 {
 	int children = vd->vdev_children;
+	boolean_t nonrot = B_TRUE;
 
 	taskq_t *tq = taskq_create("vdev_open", children, minclsyspri,
 	    children, children, TASKQ_PREPOPULATE);
-	vd->vdev_nonrot = B_TRUE;
 
 	for (int c = 0; c < children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
@@ -2108,14 +2110,20 @@ vdev_open_children_impl(vdev_t *vd, cred_t *cred,
 
 	if (tq != NULL)
 		taskq_wait(tq);
+
+	/*
+	 * Aggregate over all the opened children, not only this subset, so
+	 * that consecutive subset opens accumulate.
+	 */
 	for (int c = 0; c < children; c++) {
 		vdev_t *cvd = vd->vdev_child[c];
 
-		if (open_func(cvd) == B_FALSE ||
-		    cvd->vdev_state <= VDEV_STATE_FAULTED)
+		if (cvd->vdev_state <= VDEV_STATE_FAULTED)
 			continue;
-		vd->vdev_nonrot &= cvd->vdev_nonrot;
+		nonrot &= cvd->vdev_nonrot;
+		vd->vdev_has_trim |= cvd->vdev_has_trim;
 	}
+	vd->vdev_nonrot = nonrot;
 
 	if (tq != NULL)
 		taskq_destroy(tq);
