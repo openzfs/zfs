@@ -3392,16 +3392,14 @@ vdev_dtl_should_excise(vdev_t *vd, boolean_t rebuild_done)
 			return (B_TRUE);
 
 		/*
-		 * When a resilver is initiated the scan will assign the
-		 * scn_max_txg value to the highest txg value that exists
-		 * in all DTLs. If this device's max DTL is not part of this
-		 * scan (i.e. it is not in the range (scn_min_txg, scn_max_txg]
-		 * then it is not eligible for excision.
+		 * A scan's scn_max_txg is at most the txg it was set up in,
+		 * so a device attached by scn_max_txg was resilvering for
+		 * the whole scan.  A device attached later was not, and is
+		 * not eligible for excision.  The scan covers txgs before
+		 * scn_max_txg; the rest of the DTL stays for a later scan.
 		 */
-		if (vdev_dtl_max(vd) <= scn->scn_phys.scn_max_txg) {
+		if (vd->vdev_resilver_txg <= scn->scn_phys.scn_max_txg) {
 			ASSERT3U(scnp->scn_min_txg, <=, vdev_dtl_min(vd));
-			ASSERT3U(scnp->scn_min_txg, <, vd->vdev_resilver_txg);
-			ASSERT3U(vd->vdev_resilver_txg, <=, scnp->scn_max_txg);
 			return (B_TRUE);
 		}
 	}
