@@ -2756,6 +2756,8 @@ dmu_write_policy(objset_t *os, dnode_t *dn, int level, int wp, zio_prop_t *zp)
 	zp->zp_byteorder = ZFS_HOST_BYTEORDER;
 	zp->zp_direct_write = (wp & WP_DIRECT_WR) ? B_TRUE : B_FALSE;
 	zp->zp_rewrite = B_FALSE;
+	zp->zp_local_mac_has_project =
+	    (SPA_PROJECTMAC_DEFAULT == ZFS_PROJECTMAC_ON);
 	memset(zp->zp_salt, 0, ZIO_DATA_SALT_LEN);
 	memset(zp->zp_iv, 0, ZIO_DATA_IV_LEN);
 	memset(zp->zp_mac, 0, ZIO_DATA_MAC_LEN);

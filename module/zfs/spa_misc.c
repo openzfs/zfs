@@ -2383,6 +2383,16 @@ spa_get_autotrim(spa_t *spa)
 	return (spa->spa_autotrim);
 }
 
+/*
+ * Return the projectmac pool property: the form of local MAC that every
+ * encrypted filesystem takes, or ZFS_PROJECTMAC_MIXED if each keeps its own.
+ */
+zfs_projectmac_t
+spa_projectmac(spa_t *spa)
+{
+	return (spa->spa_projectmac);
+}
+
 uint64_t
 spa_deadman_ziotime(spa_t *spa)
 {
