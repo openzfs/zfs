@@ -1009,7 +1009,12 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	scn->scn_phys.scn_errors = 0;
 	scn->scn_phys.scn_to_examine = spa->spa_root_vdev->vdev_stat.vs_alloc;
 	scn->scn_issued_before_pass = 0;
-	scn->scn_restart_txg = 0;
+	/*
+	 * Keep a restart scheduled for a later txg, e.g. the resilver that
+	 * spa_vdev_attach() scheduled in this txg.
+	 */
+	if (scn->scn_restart_txg <= tx->tx_txg)
+		scn->scn_restart_txg = 0;
 	scn->scn_done_txg = 0;
 	scn->scn_last_checkpoint = 0;
 	scn->scn_checkpointing = B_FALSE;
