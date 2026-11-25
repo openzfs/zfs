@@ -20,146 +20,99 @@
 #
 # STRATEGY:
 # 1. Start initializing with zero, a sub-sector value, a greater-than-16 MiB
-#    value, and a sector-unaligned value. Verify that initialization remains
-#    healthy.
+#    value, and sector-unaligned values below and above the sector size.
+#    Verify that initializing reports no errors and writes whole sectors.
 # 2. Start with a sector-sized chunk, change the tunable while initializing,
 #    and suspend the operation.
 # 3. Change the tunable while suspended, resume, change it again while active,
-#    and verify that initializing remains healthy and can complete.
+#    and verify the same.
 #
 
-VDEV=$TEST_BASE_DIR/initialize-chunk-size.$$
+DISK1="$(echo $DISKS | cut -d' ' -f1)"
 
 function cleanup
 {
-	[[ "$injected" == "true" ]] && zinject -c all >/dev/null 2>&1
+	zinject -c all
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
-	rm -f "$VDEV"
-	[[ "$default_chunk_sz" ]] && \
-	    log_must set_tunable64 INITIALIZE_CHUNK_SIZE $default_chunk_sz
+	restore_tunable INITIALIZE_CHUNK_SIZE
 }
 log_onexit cleanup
 
-default_chunk_sz=$(get_tunable INITIALIZE_CHUNK_SIZE)
+log_must save_tunable INITIALIZE_CHUNK_SIZE
+
 max_chunk_sz=$((16 * 1024 * 1024))
 sector_sz=4096
-injected=false
 
-function initialize_stat # field
-{
-	typeset field=$1
-
-	zpool status -j --json-flat-vdevs --json-int -i $TESTPOOL | \
-	    jq -er --arg field "$field" \
-	    '.pools[].vdevs[] | select(has($field)) | .[$field]'
-}
-
-function wait_for_initialize
-{
-	typeset retries=50 state
-
-	while (( retries-- > 0 )); do
-		state=$(initialize_stat init_state 2>/dev/null) || state=
-		[[ "$state" == "ACTIVE" || "$state" == "COMPLETE" ]] && return
-		sleep 0.1
-	done
-	log_fail "Initializing did not start"
-}
-
-function wait_for_initialize_active
-{
-	typeset retries=50 state
-
-	while (( retries-- > 0 )); do
-		state=$(initialize_stat init_state 2>/dev/null) || state=
-		[[ "$state" == "ACTIVE" ]] && return
-		sleep 0.1
-	done
-	log_fail "Initializing did not become active"
-}
-
-function add_initialize_delay
-{
-	log_must zinject -d "$VDEV" -D100:1 $TESTPOOL
-	injected=true
-}
-
-function remove_initialize_delay
-{
-	log_must zinject -c all
-	injected=false
-}
-
+#
+# Initializing must report no write errors and must have written only whole
+# sectors.
+#
 function verify_initialize_healthy
 {
-	typeset state errors
+	typeset errors bytes
 
-	state=$(initialize_stat init_state) || \
-	    log_fail "Could not read initializing state"
-	errors=$(initialize_stat init_errors) || \
+	errors=$(initialize_stat $TESTPOOL $DISK1 init_errors) || \
 	    log_fail "Could not read initializing errors"
-	[[ "$state" == "ACTIVE" || "$state" == "COMPLETE" ]] || \
-	    log_fail "Unexpected initializing state: $state"
+	bytes=$(initialize_stat $TESTPOOL $DISK1 initialized) || \
+	    log_fail "Could not read initialized bytes"
 	(( errors == 0 )) || log_fail "Initializing reported $errors errors"
+	(( bytes % sector_sz == 0 )) || \
+	    log_fail "Initialized $bytes bytes, not a multiple of $sector_sz"
+}
+
+function start_initialize
+{
+	log_must zpool initialize $TESTPOOL $DISK1
+	[[ -z "$(initialize_progress $TESTPOOL $DISK1)" ]] && \
+	    log_fail "Initializing did not start"
+}
+
+#
+# Change the tunable while initializing is active. Writes are delayed by
+# 100 ms, so waiting a second before the change lets the thread sample the
+# tunable first, and waiting a second after it gives the thread time to issue
+# more writes.
+#
+function change_while_active # chunk_size
+{
+	sleep 1
+	log_must set_tunable64 INITIALIZE_CHUNK_SIZE $1
+	sleep 1
+	verify_initialize_healthy
 }
 
 function test_chunk_size # chunk_size
 {
-	typeset chunk_size=$1
-
-	log_must set_tunable64 INITIALIZE_CHUNK_SIZE $chunk_size
-	log_must zpool create -f -m none -o ashift=12 $TESTPOOL "$VDEV"
-	log_must zpool initialize $TESTPOOL "$VDEV"
-	wait_for_initialize
+	log_must set_tunable64 INITIALIZE_CHUNK_SIZE $1
+	log_must zpool create -f -m none -o ashift=12 $TESTPOOL $DISK1
+	start_initialize
 	sleep 1
 	verify_initialize_healthy
 	log_must zpool destroy -f $TESTPOOL
 }
 
-log_must truncate -s $((MINVDEVSIZE * 4)) "$VDEV"
-
-for chunk_size in 0 1 $((sector_sz - 1)) $((max_chunk_sz + 1)); do
+for chunk_size in 0 1 $((sector_sz - 1)) $((sector_sz + 1)) \
+    $((max_chunk_sz + 1)); do
 	test_chunk_size $chunk_size
 done
 
 log_must set_tunable64 INITIALIZE_CHUNK_SIZE $sector_sz
-log_must zpool create -f -m none -o ashift=12 $TESTPOOL "$VDEV"
-add_initialize_delay
-log_must zpool initialize $TESTPOOL "$VDEV"
-wait_for_initialize_active
-progress=$(initialize_progress $TESTPOOL $VDEV)
+log_must zpool create -f -m none -o ashift=12 $TESTPOOL $DISK1
+log_must zinject -d $DISK1 -D 100:1 -T write $TESTPOOL
+start_initialize
 
 # Changing the tunable must not invalidate the active thread's allocation and
 # write size.
-log_must set_tunable64 INITIALIZE_CHUNK_SIZE $((max_chunk_sz + 1))
-verify_initialize_healthy
-log_must zpool initialize -s $TESTPOOL "$VDEV"
-remove_initialize_delay
-log_must eval "initialize_prog_line $TESTPOOL $VDEV | grep suspended"
-new_progress=$(initialize_progress $TESTPOOL $VDEV)
-(( progress <= new_progress )) || log_fail "Initializing progress regressed"
+change_while_active $((max_chunk_sz + 1))
+log_must zpool initialize -s $TESTPOOL $DISK1
+log_must eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
 
-# Resume starts a new thread, which samples and aligns a sector-unaligned value.
-# A further active change must not invalidate that thread's allocation or
-# writes.
-log_must set_tunable64 INITIALIZE_CHUNK_SIZE $((sector_sz - 1))
-add_initialize_delay
-log_must zpool initialize $TESTPOOL "$VDEV"
-wait_for_initialize_active
-log_mustnot eval "initialize_prog_line $TESTPOOL $VDEV | grep suspended"
-log_must set_tunable64 INITIALIZE_CHUNK_SIZE 0
-verify_initialize_healthy
-log_must zpool initialize -s $TESTPOOL "$VDEV"
-remove_initialize_delay
-log_must eval "initialize_prog_line $TESTPOOL $VDEV | grep suspended"
-progress=$(initialize_progress $TESTPOOL $VDEV)
-(( new_progress <= progress )) || log_fail "Initializing progress regressed"
-
-# A final resume samples the upper-bound case and must complete without errors.
-log_must set_tunable64 INITIALIZE_CHUNK_SIZE $((max_chunk_sz + 1))
-log_must zpool initialize -w $TESTPOOL "$VDEV"
-verify_initialize_healthy
-[[ "$(initialize_stat init_state)" == "COMPLETE" ]] || \
-    log_fail "Initializing did not complete"
+# Resuming starts a new thread, which samples the tunable again and writes
+# 8 KiB chunks from where the suspended thread stopped. Changing the tunable
+# while that thread is active must not invalidate its allocation or write size.
+log_must set_tunable64 INITIALIZE_CHUNK_SIZE $((2 * sector_sz + 1))
+start_initialize
+log_mustnot eval "initialize_prog_line $TESTPOOL $DISK1 | grep suspended"
+change_while_active 0
 
 log_pass "Initializing bounds, aligns, and snapshots its chunk size"

@@ -315,7 +315,7 @@ vdev_initialize_block_alloc(vdev_t *vd)
 	uint64_t chunk_size = zfs_initialize_chunk_size;
 	uint64_t value = vd->vdev_initialize_value;
 
-	/* Snapshot and normalise the tunable for this initialization thread. */
+	/* Snapshot and normalize the tunable for this initialization thread. */
 	chunk_size = MIN(MAX(chunk_size, align), SPA_MAXBLOCKSIZE);
 	chunk_size = P2ALIGN_TYPED(chunk_size, align, uint64_t);
 
