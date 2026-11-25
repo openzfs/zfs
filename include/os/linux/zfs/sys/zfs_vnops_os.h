@@ -65,6 +65,10 @@ extern int zfs_fid(struct inode *ip, fid_t *fidp);
 extern int zfs_getpage(struct inode *ip, struct page *pp);
 extern int zfs_putpage(struct inode *ip, struct page *pp,
     struct writeback_control *wbc, boolean_t for_sync);
+extern void zfs_update_eof_page(znode_t *zp, struct zfs_locked_range *lr,
+    uint64_t start, uint64_t end);
+extern struct page *zfs_lock_cached_page(znode_t *zp,
+    struct zfs_locked_range *lr, uint64_t off);
 extern int zfs_dirty_inode(struct inode *ip, int flags);
 extern int zfs_map(struct inode *ip, offset_t off, caddr_t *addrp,
     size_t len, unsigned long vm_flags);

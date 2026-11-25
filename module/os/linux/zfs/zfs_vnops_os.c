@@ -221,23 +221,69 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 	return (0);
 }
 
-static int zfs_fillpage(struct inode *ip, struct page *pp);
+/*
+ * Return the cached page at off locked, for a caller holding lr over part
+ * of it, if the page is up to date.  One that is not has not been filled
+ * yet, or a refresh failed; whoever fills it reads all of it from the DMU.
+ */
+struct page *
+zfs_lock_cached_page(znode_t *zp, zfs_locked_range_t *lr, uint64_t off)
+{
+	struct address_space *mp = ZTOI(zp)->i_mapping;
+	struct page *pp;
+
+	if (off < lr->lr_offset) {
+		/*
+		 * A fault may be filling this page under a range lock ending
+		 * before lr: wait for it.  Readahead holding this page is not
+		 * waiting for lr itself, as earlier pages lie outside lr.
+		 */
+		pp = find_lock_page(mp, off >> PAGE_SHIFT);
+	} else {
+		/*
+		 * lr covers this page from its first byte, so no fault can
+		 * fill it until lr is dropped.  Readahead may hold it locked
+		 * while it waits for lr, so wait only for a filled page.
+		 */
+		pp = find_get_page(mp, off >> PAGE_SHIFT);
+		if (pp != NULL && PageUptodate(pp)) {
+			lock_page(pp);
+			if (pp->mapping != mp) {
+				unlock_page(pp);
+				put_page(pp);
+				pp = NULL;
+			}
+		} else if (pp != NULL) {
+			put_page(pp);
+			pp = NULL;
+		}
+	}
+
+	if (pp != NULL && !PageUptodate(pp)) {
+		unlock_page(pp);
+		put_page(pp);
+		pp = NULL;
+	}
+	return (pp);
+}
 
 /*
  * When a file is memory mapped, we must keep the IO data synchronized
  * between the DMU cache and the memory mapped pages.  Update all mapped
- * pages with the contents of the coresponding dmu buffer.
+ * pages with the contents of the coresponding dmu buffer.  The caller
+ * holds lr, a range lock covering the bytes to update.
  */
 void
-update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
+update_pages(znode_t *zp, int64_t start, int len, objset_t *os,
+    zfs_locked_range_t *lr)
 {
 	struct address_space *mp = ZTOI(zp)->i_mapping;
 	int64_t off = start & (PAGE_SIZE - 1);
 
 	for (start &= PAGE_MASK; len > 0; start += PAGE_SIZE) {
 		uint64_t nbytes = MIN(PAGE_SIZE - off, len);
+		struct page *pp = zfs_lock_cached_page(zp, lr, start);
 
-		struct page *pp = find_lock_page(mp, start >> PAGE_SHIFT);
 		if (pp) {
 			if (mapping_writably_mapped(mp))
 				flush_dcache_page(pp);
@@ -249,7 +295,26 @@ update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
 
 			if (error) {
 				SetPageError(pp);
+				/*
+				 * Drop it, so that the next access reads all
+				 * of it in again.  zfs_putpage() does not
+				 * write a page that is not up to date, so
+				 * stores made to it through a mapping and not
+				 * yet written back are lost: report that
+				 * through fsync(), and clean the page so that
+				 * writeback does not report it again.
+				 */
+				unmap_mapping_range(mp, start, PAGE_SIZE, 0);
 				ClearPageUptodate(pp);
+				if (PageDirty(pp)) {
+					mapping_set_error(mp, -EIO);
+					zfs_dbgmsg("object %llu offset %llu: "
+					    "refresh failed (error %d), stores "
+					    "to the page dropped",
+					    (u_longlong_t)zp->z_id,
+					    (u_longlong_t)(start + off), error);
+					(void) clear_page_dirty_for_io(pp);
+				}
 			} else {
 				ClearPageError(pp);
 				SetPageUptodate(pp);
@@ -267,6 +332,31 @@ update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
 		len -= nbytes;
 		off = 0;
 	}
+}
+
+/*
+ * Called once the caller, holding lr, has written [start, end) and set
+ * i_size.  A fault on the page holding an unaligned lr->lr_offset is not
+ * held off by lr, and may cache zeros past the old i_size over the new
+ * bytes, so refresh that page.  lr covers later pages from their start.
+ */
+void
+zfs_update_eof_page(znode_t *zp, zfs_locked_range_t *lr, uint64_t start,
+    uint64_t end)
+{
+	uint64_t pend = P2ROUNDUP(lr->lr_offset, PAGE_SIZE);
+
+	if (end <= start || start >= pend)
+		return;
+	end = MIN(end, pend);
+
+	/*
+	 * Pairs with smp_mb() in zfs_getpage(): either the fault reads the
+	 * new i_size, or its page is found here.
+	 */
+	smp_mb();
+	if (zn_has_cached_data(zp, start, end - 1))
+		update_pages(zp, start, end - start, ZTOZSB(zp)->z_os, lr);
 }
 
 /*
@@ -295,22 +385,17 @@ mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
 		uint64_t bytes = MIN(PAGE_SIZE - off, len);
 
 		struct page *pp = find_lock_page(mp, start >> PAGE_SHIFT);
-		if (pp) {
-
+		if (pp && unlikely(!PageUptodate(pp))) {
 			/*
-			 * If filemap_fault() retries there exists a window
-			 * where the page will be unlocked and not up to date.
-			 * In this case we must try and fill the page.
+			 * Not filled yet: read from the DMU instead.  Filling
+			 * it here, with only these bytes locked, could zero
+			 * bytes that a write is adding to the page.
 			 */
-			if (unlikely(!PageUptodate(pp))) {
-				error = zfs_fillpage(ip, pp);
-				if (error) {
-					unlock_page(pp);
-					put_page(pp);
-					return (error);
-				}
-			}
-
+			unlock_page(pp);
+			put_page(pp);
+			error = dmu_read_uio_dbuf(sa_get_db(zp->z_sa_hdl),
+			    uio, bytes, DMU_READ_PREFETCH);
+		} else if (pp) {
 			ASSERT(PageUptodate(pp) || PageDirty(pp));
 
 			unlock_page(pp);
@@ -3981,6 +4066,24 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	}
 
 	/*
+	 * A page that is not up to date failed a read or refresh and was
+	 * dirtied since, so it holds stale bytes that must not reach the
+	 * disk.  Drop it, with any stores made to it, and report that
+	 * through fsync().
+	 */
+	if (unlikely(!PageUptodate(pp))) {
+		wbc->pages_skipped--;
+		mapping_set_error(mapping, -EIO);
+		zfs_dbgmsg("object %llu offset %llu: page not up to date, "
+		    "stores to it dropped", (u_longlong_t)zp->z_id,
+		    (u_longlong_t)pgoff);
+		unlock_page(pp);
+		zfs_rangelock_exit(lr);
+		zfs_exit(zfsvfs, FTAG);
+		return (0);
+	}
+
+	/*
 	 * Counterpart for redirty_page_for_writepage() above.  This page
 	 * was in fact not skipped and should not be counted as if it were.
 	 */
@@ -4246,11 +4349,10 @@ zfs_inactive(struct inode *ip)
  * Fill pages with data from the disk.
  */
 static int
-zfs_fillpage(struct inode *ip, struct page *pp)
+zfs_fillpage(struct inode *ip, struct page *pp, loff_t i_size)
 {
 	znode_t *zp = ITOZ(ip);
 	zfsvfs_t *zfsvfs = ITOZSB(ip);
-	loff_t i_size = i_size_read(ip);
 	u_offset_t io_off = page_offset(pp);
 	size_t io_len = PAGE_SIZE;
 
@@ -4311,20 +4413,11 @@ zfs_getpage(struct inode *ip, struct page *pp)
 	int error;
 	loff_t i_size = i_size_read(ip);
 	u_offset_t io_off = page_offset(pp);
-	size_t io_len = PAGE_SIZE;
+	size_t io_len = 0;
+	zfs_locked_range_t *lr = NULL;
 
 	if ((error = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
 		return (error);
-
-	/*
-	 * If the page lies entirely at or beyond EOF (e.g. it raced a
-	 * truncate) just lock the page and let zfs_fillpage() re-check
-	 * i_size under the range lock and zero-fill it.
-	 */
-	if (io_off >= i_size)
-		io_len = PAGE_SIZE;
-	else if (io_off + io_len > i_size)
-		io_len = i_size - io_off;
 
 	/*
 	 * It is important to hold the rangelock here because it is possible
@@ -4337,24 +4430,58 @@ zfs_getpage(struct inode *ip, struct page *pp)
 	 * the rangelock a NULL pointer dereference can occur in
 	 * dmu_read_impl() for db->db_data during the mempcy operation when
 	 * zfs_fillpage() calls dmu_read().
+	 *
+	 * The part of the last page past EOF is not locked, so that a write
+	 * sourcing its data from that page does not deadlock on its own
+	 * fault; see zfs_update_eof_page().  If i_size has grown past the
+	 * locked part once locked, lock again over what zfs_fillpage() will
+	 * read.  Such a write can still deadlock if another thread publishes
+	 * the size it is writing first, through zfs_znode_update_vfs().
 	 */
-	zfs_locked_range_t *lr = zfs_rangelock_tryenter(&zp->z_rangelock,
-	    io_off, io_len, RL_READER);
-	if (lr == NULL) {
-		/*
-		 * It is important to drop the page lock before grabbing the
-		 * rangelock to avoid another deadlock between here and
-		 * zfs_write() -> update_pages(). update_pages() holds both the
-		 * rangelock and the page lock.
-		 */
-		get_page(pp);
-		unlock_page(pp);
-		lr = zfs_rangelock_enter(&zp->z_rangelock, io_off,
-		    io_len, RL_READER);
-		lock_page(pp);
-		put_page(pp);
+	for (;;) {
+		size_t len = io_off >= i_size ? PAGE_SIZE :
+		    MIN(PAGE_SIZE, i_size - io_off);
+
+		if (lr != NULL) {
+			if (len <= io_len)
+				break;
+			zfs_rangelock_exit(lr);
+		}
+		io_len = len;
+		lr = zfs_rangelock_tryenter(&zp->z_rangelock, io_off, io_len,
+		    RL_READER);
+		if (lr == NULL) {
+			/*
+			 * It is important to drop the page lock before
+			 * grabbing the rangelock to avoid another deadlock
+			 * between here and zfs_write() -> update_pages().
+			 * update_pages() holds both the rangelock and the
+			 * page lock.
+			 */
+			get_page(pp);
+			unlock_page(pp);
+			lr = zfs_rangelock_enter(&zp->z_rangelock, io_off,
+			    io_len, RL_READER);
+			lock_page(pp);
+			put_page(pp);
+
+			/*
+			 * Another fault may have filled the page meanwhile,
+			 * and filling it again would undo any store since
+			 * made to it through a mapping.
+			 */
+			if (PageUptodate(pp)) {
+				zfs_rangelock_exit(lr);
+				zfs_exit(zfsvfs, FTAG);
+				return (0);
+			}
+		}
+
+		/* Pairs with smp_mb() in zfs_update_eof_page(). */
+		smp_mb();
+		i_size = i_size_read(ip);
 	}
-	error = zfs_fillpage(ip, pp);
+	error = zfs_fillpage(ip, pp, i_size);
 	zfs_rangelock_exit(lr);
 
 	if (error == 0)

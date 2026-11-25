@@ -212,6 +212,11 @@ zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
+	/* Report errors recorded on the mapping, e.g. by update_pages(). */
+	int wb_error = file_check_and_advance_wb_err(filp);
+	if (error == 0)
+		error = wb_error;
+
 	return (error);
 }
 

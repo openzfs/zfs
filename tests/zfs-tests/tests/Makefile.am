@@ -556,6 +556,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/block_cloning/cleanup.ksh \
 	functional/block_cloning/setup.ksh \
 	functional/block_cloning/block_cloning_clone_mmap_cached.ksh \
+	functional/block_cloning/block_cloning_clone_mmap_error.ksh \
 	functional/block_cloning/block_cloning_clone_mmap_write.ksh \
 	functional/block_cloning/block_cloning_copyfilerange_cross_dataset.ksh \
 	functional/block_cloning/block_cloning_copyfilerange_fallback.ksh \
@@ -1945,6 +1946,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/mmap/mmap_seek_001_pos.ksh \
 	functional/mmap/mmap_sync_001_pos.ksh \
 	functional/mmap/mmap_write_001_pos.ksh \
+	functional/mmap/mmap_write_race.ksh \
 	functional/mmap/mmap_ftruncate.ksh \
 	functional/mmap/mmap_read_truncate.ksh \
 	functional/mmap/mmap_cached_rollback.ksh \

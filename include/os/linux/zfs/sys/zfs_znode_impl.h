@@ -62,6 +62,8 @@ extern "C" {
 
 #define	zn_flush_cached_data(zp, sync)	write_inode_now(ZTOI(zp), sync)
 #define	zn_zero_eof_page(zp, lr, end)	zfs_zero_eof_page(zp, lr, end)
+#define	zn_update_eof_page(zp, lr, start, end) \
+	zfs_update_eof_page(zp, lr, start, end)
 #define	zn_rlimit_fsize(size)		(0)
 #define	zn_rlimit_fsize_uio(zp, uio)	(0)
 

@@ -768,6 +768,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		zn_zero_eof_page(zp, lr, woff);
 
 	uint64_t end_size = MAX(zp->z_size, woff + n);
+	const uint64_t start_off = woff;
 	zilog_t *zilog = zfsvfs->z_log;
 	boolean_t commit = (ioflag & (O_SYNC | O_DSYNC)) ||
 	    (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS);
@@ -1007,7 +1008,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		 */
 		if (tx_bytes &&
 		    zn_has_cached_data(zp, woff, woff + tx_bytes - 1)) {
-			update_pages(zp, woff, tx_bytes, zfsvfs->z_os);
+			update_pages(zp, woff, tx_bytes, zfsvfs->z_os, lr);
 		}
 
 		/*
@@ -1087,6 +1088,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	}
 
 	zfs_znode_update_vfs(zp);
+	zn_update_eof_page(zp, lr, start_off, zfs_uio_offset(uio));
 	zfs_rangelock_exit(lr);
 
 	/*
@@ -1840,6 +1842,9 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 
 	bps = vmem_alloc(sizeof (bps[0]) * maxblocks, KM_SLEEP);
 
+	const uint64_t start_off = outoff;
+	uint64_t end_off = outoff;
+
 	/*
 	 * Clone the file in reasonable size chunks.  Each chunk is cloned
 	 * in a separate transaction; this keeps the intent log records small
@@ -1997,8 +2002,9 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 		 */
 		if (!dedup &&
 		    zn_has_cached_data(outzp, outoff, outoff + size - 1)) {
-			update_pages(outzp, outoff, size, outos);
+			update_pages(outzp, outoff, size, outos, outlr);
 		}
+		end_off = outoff + size;
 
 		if (!dedup) {
 			zfs_clear_setid_bits_if_necessary(outzfsvfs, outzp, cr,
@@ -2067,6 +2073,8 @@ zfs_clone_range_locked(znode_t *inzp, uint64_t inoff, znode_t *outzp,
 
 	vmem_free(bps, sizeof (bps[0]) * maxblocks);
 	zfs_znode_update_vfs(outzp);
+	if (!dedup)
+		zn_update_eof_page(outzp, outlr, start_off, end_off);
 
 	*donep = done;
 
@@ -2170,9 +2178,16 @@ zfs_clone_range(znode_t *inzp, uint64_t *inoffp, znode_t *outzp,
 		}
 	}
 
-	/* Flush any mmap()'d data to disk */
+	/*
+	 * Flush any mmap()'d data to disk, in the destination too: a page
+	 * whose refresh after the clone fails is dropped, and with it any
+	 * stores to it not yet written back.  Stores made between this flush
+	 * and the clone can still be lost that way.
+	 */
 	if (zn_has_cached_data(inzp, inoff, inoff + len - 1))
 		zn_flush_cached_data(inzp, B_TRUE);
+	if (zn_has_cached_data(outzp, outoff, outoff + len - 1))
+		zn_flush_cached_data(outzp, B_TRUE);
 
 	/*
 	 * Maintain predictable lock order.

@@ -1661,11 +1661,12 @@ zfs_extend(znode_t *zp, uint64_t end, boolean_t log)
  * Zeroes a piece of a single page cache entry for zp at offset
  * start and length len.
  *
- * Caller must acquire a range lock on the file for the region
- * being zeroed in order that the ARC and page cache stay in sync.
+ * The caller holds lr, a range lock over the region being zeroed, in
+ * order that the ARC and page cache stay in sync.
  */
 static void
-zfs_zero_partial_page(znode_t *zp, uint64_t start, uint64_t len)
+zfs_zero_partial_page(znode_t *zp, zfs_locked_range_t *lr, uint64_t start,
+    uint64_t len)
 {
 	struct address_space *mp = ZTOI(zp)->i_mapping;
 	struct page *pp;
@@ -1677,7 +1678,7 @@ zfs_zero_partial_page(znode_t *zp, uint64_t start, uint64_t len)
 	off = start & (PAGE_SIZE - 1);
 	start &= PAGE_MASK;
 
-	pp = find_lock_page(mp, start >> PAGE_SHIFT);
+	pp = zfs_lock_cached_page(zp, lr, start);
 	if (pp) {
 		if (mapping_writably_mapped(mp))
 			flush_dcache_page(pp);
@@ -1733,22 +1734,22 @@ zfs_zero_eof_page(znode_t *zp, zfs_locked_range_t *lr, uint64_t end)
 
 	len = end - size;
 	if (zn_has_cached_data(zp, size, size + len - 1))
-		zfs_zero_partial_page(zp, size, len);
+		zfs_zero_partial_page(zp, lr, size, len);
 }
 
 /*
  * Free space in a file.
  *
  *	IN:	zp	- znode of file to free data in.
+ *		lr	- RL_WRITER range lock covering the section.
  *		off	- start of section to free.
  *		len	- length of section to free.
- *
- *	The caller holds an RL_WRITER range lock covering the section.
  *
  *	RETURN:	0 on success, error code on failure
  */
 static int
-zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
+zfs_free_range(znode_t *zp, zfs_locked_range_t *lr, uint64_t off,
+    uint64_t len)
 {
 	zfsvfs_t *zfsvfs = ZTOZSB(zp);
 	int error;
@@ -1791,18 +1792,18 @@ zfs_free_range(znode_t *zp, uint64_t off, uint64_t len)
 		/* truncate sub-page ranges */
 		if (first_page > last_page) {
 			/* entire punched area within a single page */
-			zfs_zero_partial_page(zp, off, len);
+			zfs_zero_partial_page(zp, lr, off, len);
 		} else {
 			/* beginning of punched area at the end of a page */
 			page_len  = first_page_offset - off;
 			if (page_len > 0)
-				zfs_zero_partial_page(zp, off, page_len);
+				zfs_zero_partial_page(zp, lr, off, page_len);
 
 			/* end of punched area at the beginning of a page */
 			page_len = off + len - last_page_offset;
 			if (page_len > 0)
-				zfs_zero_partial_page(zp, last_page_offset,
-				    page_len);
+				zfs_zero_partial_page(zp, lr,
+				    last_page_offset, page_len);
 		}
 	}
 
@@ -1920,7 +1921,7 @@ zfs_freesp(znode_t *zp, uint64_t off, uint64_t len, int flag, boolean_t log)
 	if (len == 0) {
 		error = zfs_trunc(zp, off);
 	} else {
-		if ((error = zfs_free_range(zp, off, len)) == 0 &&
+		if ((error = zfs_free_range(zp, lr, off, len)) == 0 &&
 		    off + len > zp->z_size)
 			error = zfs_extend_locked(zp, lr, off+len, B_FALSE);
 	}
