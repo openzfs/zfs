@@ -737,7 +737,7 @@ AC_DEFUN([ZFS_AC_DEFAULT_PACKAGE], [
 
 	AC_MSG_CHECKING([default bash completion directory])
 	case "$VENDOR" in
-		alpine|arch|artix|debian|gentoo|macaroni|ubuntu)
+		alpine|arch|artix|debian|fedora|gentoo|macaroni|openeuler|redhat|ubuntu)
 			bashcompletiondir=/usr/share/bash-completion/completions
 			;;
 		freebsd)

@@ -27,7 +27,12 @@
 # Set the default _bashcompletiondir directory based on distribution.
 %if %{undefined _bashcompletiondir}
 %if 0%{?rhel}%{?fedora}%{?centos}%{?suse_version}%{?openEuler}
-%global _bashcompletiondir    /etc/bash_completion.d
+# Fedora and EL-10+ define %%bash_completions_dir in redhat-rpm-config.  Older
+# EL releases rely on epel-rpm-macros to set this.  On openEuler it is defined
+# in openEuler-rpm-config.  Define the macro, if needed.  The preferred path is
+# /usr/share/bash-completion/completions.
+%{?!bash_completions_dir:%global bash_completions_dir %{_datadir}/bash-completion/completions}
+%global _bashcompletiondir    %{bash_completions_dir}
 %else
 %global _bashcompletiondir    /usr/share/bash-completion
 %endif
