@@ -1401,6 +1401,11 @@ zvol_alloc(const char *name, uint64_t dsobj, uint64_t volsize,
 	return (error);
 }
 
+static void
+zvol_geom_noop_event(void *arg __unused, int flag __unused)
+{
+}
+
 /*
  * Remove minor node for the specified volume.
  */
@@ -1427,6 +1432,18 @@ zvol_os_remove_minor(zvol_state_t *zv)
 		pp->private = NULL;
 		g_wither_geom(pp->geom, ENXIO);
 		g_topology_unlock();
+		/*
+		 * g_waitidle() can return while the event thread is still
+		 * orphaning our provider: one_event() takes the provider off
+		 * g_doorstep before it calls the consumers' orphan methods.
+		 * Until g_dev's orphan method has run, the old device name
+		 * is still taken, and creating a volmode=dev node with the
+		 * same name fails with EEXIST.  The event thread serves
+		 * g_doorstep before g_events and handles one item at a time,
+		 * so an event posted now completes only after the orphan.
+		 */
+		(void) g_waitfor_event(zvol_geom_noop_event, NULL, M_WAITOK,
+		    NULL);
 		g_waitidle(curthread);
 	} else if (zv->zv_volmode == ZFS_VOLMODE_DEV) {
 		struct zvol_state_dev *zsd = &zso->zso_dev;
