@@ -3445,7 +3445,7 @@ zio_gang_issue(zio_t *zio)
 		zio_gang_tree_issue(zio, zio->io_gang_tree, bp, zio->io_abd,
 		    0);
 	} else {
-		if (zio->io_type == ZIO_TYPE_FREE && zfs_free_leak_on_eio)
+		if (zio->io_type == ZIO_TYPE_FREE)
 			zio->io_child_error[ZIO_CHILD_GANG] = 0;
 		zio_gang_tree_free(&zio->io_gang_tree);
 	}

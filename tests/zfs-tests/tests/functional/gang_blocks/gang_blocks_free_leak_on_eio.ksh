@@ -14,14 +14,15 @@
 #
 # Description:
 # Verify that freeing a gang block whose gang header copies are all
-# unreadable succeeds and leaks the gang children when zfs_free_leak_on_eio
-# is enabled, rather than panicking or suspending the pool.
+# unreadable succeeds and leaks the gang children even when
+# zfs_free_leak_on_eio is disabled, rather than panicking or suspending
+# the pool.
 #
 # Strategy:
 # 1. Create a pool on a file vdev and force 128K blocks to gang.
 # 2. Write two 128K files with copies=1, each having two gang header copies.
 # 3. Export the pool and overwrite both gang header copies of each file.
-# 4. Import the pool and enable FREE_LEAK_ON_EIO.
+# 4. Import the pool and ensure FREE_LEAK_ON_EIO is disabled (0).
 # 5. Remove the first file (synchronous free via spa_sync_frees / free_bpobj)
 #    and destroy the dataset containing the second file (asynchronous destroy
 #    via dsl_process_async_destroys / bptree).
@@ -64,8 +65,8 @@ function damage_sector # sector
 	    count=1 conv=notrunc
 }
 
-log_assert "Freeing a gang block with a corrupt gang header leaks space when" \
-    "zfs_free_leak_on_eio is set."
+log_assert "Freeing a gang block with a corrupt gang header leaks space even" \
+    "when zfs_free_leak_on_eio is disabled."
 
 preamble
 save_tunable FREE_LEAK_ON_EIO
@@ -100,7 +101,7 @@ for s in "${sectors[@]}"; do
 done
 log_must zpool import -d $vdev $TESTPOOL
 
-set_tunable32 FREE_LEAK_ON_EIO 1
+set_tunable32 FREE_LEAK_ON_EIO 0
 
 # Test synchronous/deferred free path (spa_sync_frees / dp_free_bpobj)
 log_must rm $mntpnt/file1
