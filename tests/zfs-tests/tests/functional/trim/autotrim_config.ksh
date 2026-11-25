@@ -40,6 +40,12 @@
 
 verify_runnable "global"
 
+# On FreeBSD, autotrim does not reclaim space on file vdevs stored
+# on a ZFS filesystem within the test framework.
+if is_freebsd; then
+	log_unsupported "Autotrim on file vdevs not supported on FreeBSD"
+fi
+
 log_assert "Set 'autotrim=on' verify pool disks were trimmed"
 
 function cleanup
@@ -69,7 +75,7 @@ typeset vdev_min_ms_count=$(get_tunable VDEV_MIN_MS_COUNT)
 log_must set_tunable64 VDEV_MIN_MS_COUNT 32
 
 typeset VDEV_MAX_MB=$(( floor(4 * MINVDEVSIZE * 0.75 / 1024 / 1024) ))
-typeset VDEV_MIN_MB=$(( floor(4 * MINVDEVSIZE * 0.30 / 1024 / 1024) ))
+typeset VDEV_MIN_MB=$(( floor(4 * MINVDEVSIZE * 0.40 / 1024 / 1024) ))
 
 for type in "" "mirror" "raidz2" "draid"; do
 
@@ -83,8 +89,9 @@ for type in "" "mirror" "raidz2" "draid"; do
 		VDEVS="$TRIM_VDEV1 $TRIM_VDEV2 $TRIM_VDEV3 $TRIM_VDEV4"
 
 		# The per-vdev utilization is lower due to the capacity
-		# resilverd for the distributed spare.
+		# reserved for the distributed spare.
 		VDEV_MAX_MB=$(( floor(4 * MINVDEVSIZE * 0.50 / 1024 / 1024) ))
+		VDEV_MIN_MB=$(( floor(4 * MINVDEVSIZE * 0.45 / 1024 / 1024) ))
 	fi
 
 	log_must truncate -s $((4 * MINVDEVSIZE)) $VDEVS

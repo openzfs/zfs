@@ -1303,13 +1303,14 @@ dnode_reclaim_slots(dnode_children_t *children, int idx, int slots)
 void
 dnode_free_interior_slots(dnode_t *dn)
 {
-	dnode_children_t *children = dmu_buf_get_user(&dn->dn_dbuf->db);
-	int epb = dn->dn_dbuf->db.db_size >> DNODE_SHIFT;
-	int idx = (dn->dn_object & (epb - 1)) + 1;
 	int slots = dn->dn_num_slots - 1;
 
 	if (slots == 0)
 		return;
+
+	dnode_children_t *children = dmu_buf_get_user(&dn->dn_dbuf->db);
+	int epb = dn->dn_dbuf->db.db_size >> DNODE_SHIFT;
+	int idx = (dn->dn_object & (epb - 1)) + 1;
 
 	ASSERT3S(idx + slots, <=, DNODES_PER_BLOCK);
 
@@ -1782,8 +1783,6 @@ dnode_rele_and_unlock(dnode_t *dn, const void *tag, boolean_t evicting)
 	refs = zfs_refcount_remove(&dn->dn_holds, tag);
 	if (refs == 0)
 		cv_broadcast(&dn->dn_nodnholds);
-	mutex_exit(&dn->dn_mtx);
-	/* dnode could get destroyed at this point, so don't use it anymore */
 
 	/*
 	 * It's unsafe to release the last hold on a dnode by dnode_rele() or
@@ -1797,6 +1796,12 @@ dnode_rele_and_unlock(dnode_t *dn, const void *tag, boolean_t evicting)
 #ifdef ZFS_DEBUG
 	ASSERT(refs > 0 || zrl_owner(&dnh->dnh_zrlock) != curthread);
 #endif
+
+	mutex_exit(&dn->dn_mtx);
+	/*
+	 * After the dn_mtx is released the dn and dnh may be destroyed,
+	 * they are no longer safe to use after this point.
+	 */
 
 	/* NOTE: the DNODE_DNODE does not have a dn_dbuf */
 	if (refs == 0 && db != NULL) {
@@ -1971,7 +1976,7 @@ dnode_set_blksz(dnode_t *dn, uint64_t size, int ibs, dmu_tx_t *tx)
 		/* resize the old block */
 		err = dbuf_hold_impl(dn, 0, 0, TRUE, FALSE, FTAG, &db);
 		if (err == 0) {
-			dbuf_new_size(db, size, tx);
+			dbuf_new_size(db, size, B_TRUE, tx);
 		} else if (err != ENOENT) {
 			goto fail;
 		}

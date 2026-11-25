@@ -1137,6 +1137,36 @@ zfs_prune_aliases(zfsvfs_t *zfsvfs, unsigned long nr_to_scan)
 #define	S_SHRINK(sb)	((sb)->s_shrink)
 #endif
 
+/*
+ * Call the superblock shrinker in batches of shrinker->batch objects, the
+ * same way the kernel's do_shrink_slab() does.  A single scan_objects() call
+ * marks every inode it isolates I_FREEING before evicting them one at a time,
+ * so a prune of millions of objects would leave lookups of any of those
+ * inodes retrying in zfs_zget() until the whole list has been evicted.
+ */
+static int
+zfs_prune_batched(struct shrinker *shrinker, struct shrink_control *sc,
+    unsigned long nr_to_scan)
+{
+	unsigned long batch = shrinker->batch > 0 ? shrinker->batch : 128;
+	int objects = 0;
+
+	while (nr_to_scan > 0) {
+		unsigned long nr = MIN(nr_to_scan, batch);
+		unsigned long freed;
+
+		sc->nr_to_scan = nr;
+		freed = (*shrinker->scan_objects)(shrinker, sc);
+		if (freed == SHRINK_STOP)
+			break;
+		objects += freed;
+		nr_to_scan -= nr;
+		cond_resched();
+	}
+
+	return (objects);
+}
+
 int
 zfs_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 {
@@ -1167,14 +1197,14 @@ zfs_prune(struct super_block *sb, unsigned long nr_to_scan, int *objects)
 				continue;
 			if (c > tc)
 				tc = c;
-			sc.nr_to_scan = mult_frac(nr_to_scan, c, tc) + 1;
-			*objects += (*shrinker->scan_objects)(shrinker, &sc);
+			*objects += zfs_prune_batched(shrinker, &sc,
+			    mult_frac(nr_to_scan, c, tc) + 1);
 		}
 	} else {
-			*objects = (*shrinker->scan_objects)(shrinker, &sc);
+		*objects = zfs_prune_batched(shrinker, &sc, nr_to_scan);
 	}
 #else
-	*objects = (*shrinker->scan_objects)(shrinker, &sc);
+	*objects = zfs_prune_batched(shrinker, &sc, nr_to_scan);
 #endif
 
 	/*
@@ -1639,13 +1669,18 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 	/* A zero fid_gen means we are in the .zfs control directories */
 	if (fid_gen == 0 &&
 	    (object == ZFSCTL_INO_ROOT || object == ZFSCTL_INO_SNAPDIR)) {
-		if (zfsvfs->z_show_ctldir == ZFS_SNAPDIR_DISABLED) {
+		/*
+		 * Snapshots have no .zfs directory of their own, so there
+		 * is no z_ctldir to return even though z_show_ctldir keeps
+		 * its default value.
+		 */
+		if (zfsvfs->z_show_ctldir == ZFS_SNAPDIR_DISABLED ||
+		    zfsvfs->z_ctldir == NULL) {
 			zfs_exit(zfsvfs, FTAG);
 			return (SET_ERROR(ENOENT));
 		}
 
 		*ipp = zfsvfs->z_ctldir;
-		ASSERT(*ipp != NULL);
 
 		if (object == ZFSCTL_INO_SNAPDIR) {
 			VERIFY0(zfsctl_root_lookup(*ipp, "snapshot", ipp,
@@ -1683,7 +1718,7 @@ zfs_vget(struct super_block *sb, struct inode **ipp, fid_t *fidp)
 		zp_gen = 1;
 	if ((fid_gen == 0) && (zfsvfs->z_root == object))
 		fid_gen = zp_gen;
-	if (zp->z_unlinked || zp_gen != fid_gen) {
+	if (zp_gen != fid_gen) {
 		dprintf("znode gen (%llu) != fid gen (%llu)\n", zp_gen,
 		    fid_gen);
 		zrele(zp);
@@ -1776,12 +1811,12 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 
 	/*
 	 * Attempt to re-establish all the active inodes with their
-	 * dbufs.  If a zfs_rezget() fails, then we unhash the inode
-	 * and mark it stale.  This prevents a collision if a new
-	 * inode/object is created which must use the same inode
-	 * number.  The stale inode will be released when the VFS
-	 * prunes the dentry holding the remaining references on
-	 * the stale inode.
+	 * dbufs.  If a zfs_rezget() fails, or the inode was unlinked,
+	 * then we unhash the inode and mark it stale.  This prevents a
+	 * collision if a new inode/object is created which must use the
+	 * same inode number.  The stale inode will be released when the
+	 * VFS prunes the dentry holding the remaining references on the
+	 * stale inode.
 	 *
 	 * zfs_rezget() takes the per-object znode hold lock.  Pin each znode
 	 * while holding z_znodes_lock, then drop the list lock before calling
@@ -1797,7 +1832,7 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 		mutex_exit(&zfsvfs->z_znodes_lock);
 
 		err2 = zfs_rezget(zp);
-		if (err2) {
+		if (err2 != 0 || zp->z_unlinked) {
 			zpl_d_drop_aliases(ZTOI(zp));
 			remove_inode_hash(ZTOI(zp));
 		}
@@ -1841,15 +1876,6 @@ bail:
 	/* release the VFS ops */
 	rw_exit(&zfsvfs->z_teardown_inactive_lock);
 	ZFS_TEARDOWN_EXIT(zfsvfs, FTAG);
-
-	if (err != 0) {
-		/*
-		 * Since we couldn't setup the sa framework, try to force
-		 * unmount this file system.
-		 */
-		if (zfsvfs->z_os)
-			(void) zfs_umount(zfsvfs->z_sb);
-	}
 	return (err);
 }
 
@@ -2084,7 +2110,6 @@ zfs_fini(void)
 	zfsctl_fini();
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_suspend_fs);
 EXPORT_SYMBOL(zfs_resume_fs);
 EXPORT_SYMBOL(zfs_set_version);
@@ -2099,4 +2124,3 @@ EXPORT_SYMBOL(zfs_statvfs);
 EXPORT_SYMBOL(zfs_vget);
 EXPORT_SYMBOL(zfs_prune);
 EXPORT_SYMBOL(zfs_set_default_quota);
-#endif

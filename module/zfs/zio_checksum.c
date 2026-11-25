@@ -25,6 +25,7 @@
  * Copyright 2013 Saso Kiselkov. All rights reserved.
  */
 
+#include <sys/simd.h>
 #include <sys/zfs_context.h>
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
@@ -134,11 +135,14 @@ abd_fletcher_4_native(abd_t *abd, uint64_t size,
 {
 	(void) ctx_template;
 	fletcher_4_ctx_t ctx;
+	kfpu_ctx_t kctx;
+	fletcher_4_abd_priv_t priv = { .fap_kctx = &kctx };
 
 	zio_abd_checksum_data_t acd = {
 		.acd_byteorder	= ZIO_CHECKSUM_NATIVE,
 		.acd_zcp 	= zcp,
-		.acd_ctx	= &ctx
+		.acd_ctx	= &ctx,
+		.acd_private	= &priv
 	};
 
 	abd_fletcher_4_impl(abd, size, &acd);
@@ -151,11 +155,14 @@ abd_fletcher_4_byteswap(abd_t *abd, uint64_t size,
 {
 	(void) ctx_template;
 	fletcher_4_ctx_t ctx;
+	kfpu_ctx_t kctx;
+	fletcher_4_abd_priv_t priv = { .fap_kctx = &kctx };
 
 	zio_abd_checksum_data_t acd = {
 		.acd_byteorder	= ZIO_CHECKSUM_BYTESWAP,
 		.acd_zcp 	= zcp,
-		.acd_ctx	= &ctx
+		.acd_ctx	= &ctx,
+		.acd_private	= &priv
 	};
 
 	abd_fletcher_4_impl(abd, size, &acd);
@@ -551,7 +558,7 @@ zio_checksum_error(zio_t *zio, zio_bad_cksum_t *info)
 	spa_t *spa = zio->io_spa;
 
 	if (bp && BP_IS_GANG(bp)) {
-		if (spa_feature_is_active(spa, SPA_FEATURE_DYNAMIC_GANG_HEADER))
+		if (spa_dynamic_gang_header(spa))
 			size = zio->io_size;
 		else
 			size = SPA_OLD_GANGBLOCKSIZE;

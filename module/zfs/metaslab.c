@@ -4424,8 +4424,8 @@ metaslab_sync(metaslab_t *msp, uint64_t txg)
 		    msp->ms_checkpointing, SM_FREE, SM_NO_VDEVID, tx);
 		mutex_enter(&msp->ms_lock);
 
-		spa->spa_checkpoint_info.sci_dspace +=
-		    zfs_range_tree_space(msp->ms_checkpointing);
+		atomic_add_64(&spa->spa_checkpoint_info.sci_dspace,
+		    zfs_range_tree_space(msp->ms_checkpointing));
 		vd->vdev_stat.vs_checkpoint_space +=
 		    zfs_range_tree_space(msp->ms_checkpointing);
 		ASSERT3U(vd->vdev_stat.vs_checkpoint_space, ==,
@@ -5312,7 +5312,8 @@ next:
 
 static boolean_t
 metaslab_group_allocatable(spa_t *spa, metaslab_group_t *mg, uint64_t psize,
-    int d, int flags, boolean_t try_hard, zio_alloc_list_t *zal, int allocator)
+    int d, int flags, boolean_t try_hard, zio_alloc_list_t *zal, int allocator,
+    boolean_t *unhealthy)
 {
 	metaslab_class_t *mc = mg->mg_class;
 	vdev_t *vd = mg->mg_vd;
@@ -5351,6 +5352,7 @@ metaslab_group_allocatable(spa_t *spa, metaslab_group_t *mg, uint64_t psize,
 		    vd->vdev_children == 0) {
 			metaslab_trace_add(zal, mg, NULL, psize, d,
 			    TRACE_VDEV_ERROR, allocator);
+			*unhealthy = B_TRUE;
 			return (B_FALSE);
 		}
 	}
@@ -5367,6 +5369,7 @@ metaslab_alloc_dva_range(spa_t *spa, metaslab_class_t *mc, uint64_t psize,
 	metaslab_group_t *mg = NULL, *rotor;
 	vdev_t *vd;
 	boolean_t try_hard = B_FALSE;
+	boolean_t unhealthy = B_FALSE;
 
 	ASSERT(!DVA_IS_VALID(&dva[d]));
 
@@ -5433,7 +5436,7 @@ top:
 		ASSERT(mg->mg_class == mc);
 
 		if (!metaslab_group_allocatable(spa, mg, psize, d, flags,
-		    try_hard, zal, allocator))
+		    try_hard, zal, allocator, &unhealthy))
 			goto next;
 
 		vd = mg->mg_vd;
@@ -5443,8 +5446,7 @@ top:
 		    txg);
 		ASSERT0(P2PHASE(max_asize, 1ULL << vd->vdev_ashift));
 		uint64_t offset = metaslab_group_alloc(mg, zal, asize,
-		    max_asize, txg, dva, d, allocator, try_hard,
-		    &asize);
+		    max_asize, txg, dva, d, allocator, try_hard, &asize);
 
 		if (offset != -1ULL) {
 			if (actual_psize)
@@ -5465,10 +5467,16 @@ next:
 
 	/*
 	 * If we haven't tried hard, perhaps do so now.
+	 *
+	 * Also do so if we skipped an unhealthy vdev in the normal class.
+	 * No other class is tried after it, so failing here only makes
+	 * the block a gang block, and its gang header and members are
+	 * then allocated with try_hard, typically on that same vdev.
 	 */
 	if (!try_hard && (zfs_metaslab_try_hard_before_gang ||
 	    GANG_ALLOCATION(flags) || (flags & METASLAB_ZIL) != 0 ||
-	    psize <= spa->spa_min_alloc)) {
+	    psize <= spa->spa_min_alloc ||
+	    (unhealthy && mc == spa_normal_class(spa)))) {
 		METASLABSTAT_BUMP(metaslabstat_try_hard);
 		try_hard = B_TRUE;
 		goto top;
@@ -6086,9 +6094,13 @@ metaslab_free(spa_t *spa, const blkptr_t *bp, uint64_t txg, boolean_t now)
 	 * Note that, we don't checkpoint any blocks if the current
 	 * syncing txg <= spa_checkpoint_txg. We want these frees to sync
 	 * normally as they will be referenced by the checkpointed uberblock.
+	 *
+	 * What matters is when the space was allocated: a cloned block's
+	 * logical birth is the txg of the clone, but its DVAs are the
+	 * original's, so use the physical birth.
 	 */
 	boolean_t checkpoint = B_FALSE;
-	if (BP_GET_BIRTH(bp) <= spa->spa_checkpoint_txg &&
+	if (BP_GET_PHYSICAL_BIRTH(bp) <= spa->spa_checkpoint_txg &&
 	    spa_syncing_txg(spa) > spa->spa_checkpoint_txg) {
 		/*
 		 * At this point, if the block is part of the checkpoint

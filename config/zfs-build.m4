@@ -288,6 +288,7 @@ AC_DEFUN([ZFS_AC_CONFIG_ALWAYS], [
 	ZFS_AC_CONFIG_ALWAYS_CPPCHECK
 	ZFS_AC_CONFIG_ALWAYS_SHELLCHECK
 	ZFS_AC_CONFIG_ALWAYS_PARALLEL
+	ZFS_AC_CONFIG_ALWAYS_ZCP
 ])
 
 AC_DEFUN([ZFS_AC_CONFIG], [
@@ -438,9 +439,9 @@ AC_DEFUN([ZFS_AC_RPM], [
 		AC_SUBST(MULTIARCH_LIBDIR)
 	])
 
-	dnl # Make RPM_DEFINE_KMOD additions conditional on CONFIG_KERNEL,
-	dnl # since the values will not be set otherwise. The spec files
-	dnl # provide defaults for them.
+	dnl # For akmod builds, we don't need to define kernel build parameters
+	dnl # since akmods handles this automatically. For regular kmod builds,
+	dnl # we need all the kernel build parameters.
 	dnl #
 	RPM_DEFINE_KMOD='--define "_wrong_version_format_terminate_build 0"'
 	AM_COND_IF([CONFIG_KERNEL], [

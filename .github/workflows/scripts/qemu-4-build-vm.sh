@@ -11,6 +11,7 @@
 # OS:           OS name like 'fedora41'
 # --custom-branch: When building packages, checkout this version of ZFS to
 #                  build, but use the current CI scripts to do it.
+# --no-confcache:  Disable configure caching
 # --enable-debug:  Build RPMs with '--enable-debug' (for testing)
 # --dkms:       Build DKMS RPMs as well
 # --patch-level NUM:    Use a custom patch level number for packages.
@@ -31,6 +32,7 @@ REPO=""
 TARBALL=""
 CUSTOM_BRANCH=""
 PREV_BRANCH=""
+NO_CONFCACHE=""
 
 cleanup() {
   if [ -n "$PREV_BRANCH" ] ; then
@@ -49,6 +51,10 @@ while [[ $# -gt 0 ]]; do
       shift
       PREV_BRANCH=$(git branch --show-current)
       trap 'cleanup' ERR
+      ;;
+    --no-confcache)
+      NO_CONFCACHE=1
+      shift
       ;;
     --enable-debug)
       ENABLE_DEBUG=1
@@ -155,6 +161,14 @@ function copy_rpms_to_repo {
     ;;
   esac
 
+  # The x86_64_v2 variant of AlmaLinux 10 builds with -march=x86-64-v2
+  # but still names the RPMs '.x86_64'.  Put them in their own arch
+  # directory so they don't collide with the regular (v3) EL10 RPMs.
+  arch="x86_64"
+  if [ "$(rpm --eval '%{?x86_64_v2}')" == "1" ] ; then
+    arch="x86_64_v2"
+  fi
+
   prefix=/tmp/repo
   dst="$prefix/$d/$os_ver"
 
@@ -169,20 +183,20 @@ function copy_rpms_to_repo {
 
   if [[ "$build_host" =~ "almalinux" ]] ; then
     # Copy kmods+userspace
-    mkdir -p $dst/kmod/x86_64/debug
-    cp $(ls *.rpm | grep -Ev 'src.rpm|dkms|debuginfo') $dst/kmod/x86_64
-    cp *debuginfo*.rpm $dst/kmod/x86_64/debug
+    mkdir -p $dst/kmod/$arch/debug
+    cp $(ls *.rpm | grep -Ev 'src.rpm|dkms|debuginfo') $dst/kmod/$arch
+    cp *debuginfo*.rpm $dst/kmod/$arch/debug
   fi
 
   if [ -n "$DKMS" ] ; then
     # Copy dkms+userspace
-    mkdir -p $dst/x86_64
-    cp $(ls *.rpm | grep -Ev 'src.rpm|kmod|debuginfo') $dst/x86_64
+    mkdir -p $dst/$arch
+    cp $(ls *.rpm | grep -Ev 'src.rpm|kmod|debuginfo') $dst/$arch
   fi
 
   # Copy debug
-  mkdir -p $dst/x86_64/debug
-  cp $(ls *debuginfo*.rpm | grep -v kmod) $dst/x86_64/debug
+  mkdir -p $dst/$arch/debug
+  cp $(ls *debuginfo*.rpm | grep -v kmod) $dst/$arch/debug
 }
 
 function freebsd() {
@@ -334,9 +348,11 @@ function deb_build_and_install() {
 }
 
 function build_tarball {
+  extra="${1:-}"
+
   if [ -n "$REPO" ] ; then
     ./autogen.sh
-    ./configure --with-config=srpm
+    ./configure --with-config=srpm $extra
     make dist
     mkdir -p /tmp/repo/releases
     # The tarball name is based off of 'Version' field in the META file.
@@ -384,8 +400,12 @@ fi
 export PATH="$PATH:/sbin:/usr/sbin:/usr/local/sbin"
 
 extra=""
+if [ -z "$NO_CONFCACHE" ] ; then
+  extra="${extra} -C"
+fi
+
 if [ -n "$ENABLE_DEBUG" ] ; then
-  extra="--enable-debug"
+  extra="${extra} --enable-debug"
 fi
 
 if [ -n "$CUSTOM_BRANCH" ] ; then
@@ -401,13 +421,13 @@ case "$OS" in
   alma*|centos*)
     rpm_build_and_install "--with-spec=redhat $extra"
     if [ -n "$TARBALL" ] ; then
-        build_tarball
+        build_tarball "$extra"
     fi
     ;;
   fedora*)
     rpm_build_and_install "$extra"
     if [ -n "$TARBALL" ] ; then
-        build_tarball
+        build_tarball "$extra"
     fi
     ;;
   debian*|ubuntu*)

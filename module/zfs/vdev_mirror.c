@@ -285,6 +285,12 @@ vdev_mirror_map_init(zio_t *zio)
 		 * checked by their respective sorted IOs. Only if we
 		 * hit an error will we try all DVAs upon retrying.
 		 *
+		 * Gang blocks are not sorted: dsl_scan_enqueue() issues
+		 * them whole, and their gang headers and gang members
+		 * are read by gang children of that one IO. No other
+		 * IO checks their other DVAs, so gang children check
+		 * them all, as they would in a legacy scrub.
+		 *
 		 * Note: This check is safe even if the user switches
 		 * from a legacy scrub to a sequential one in the middle
 		 * of processing, since scn_is_sorted isn't updated until
@@ -293,6 +299,7 @@ vdev_mirror_map_init(zio_t *zio)
 		 */
 		if ((zio->io_flags & ZIO_FLAG_SCRUB) &&
 		    !(zio->io_flags & ZIO_FLAG_IO_RETRY) &&
+		    !(zio->io_flags & ZIO_FLAG_GANG_CHILD) &&
 		    dsl_scan_scrubbing(spa->spa_dsl_pool) &&
 		    scn->scn_is_sorted) {
 			c = 1;
@@ -516,6 +523,28 @@ vdev_mirror_child_missing(mirror_child_t *mc, uint64_t txg, uint64_t size)
 }
 
 /*
+ * A sequential rebuild read has no real birth txg (TXG_INITIAL) and no
+ * checksum, so vdev_mirror_child_missing() cannot tell whether a child
+ * holds current data for it.  A child that missed writes in any txg, e.g.
+ * one onlined during the rebuild but not yet resilvered, may return stale
+ * data that would be copied unverified to the child being rebuilt.
+ */
+static boolean_t
+vdev_mirror_child_complete(mirror_child_t *mc)
+{
+	vdev_t *vd = mc->mc_vd;
+
+	/*
+	 * dRAID is left as it was: its distributed spares must stay
+	 * preferred, see vdev_mirror_child_select().
+	 */
+	if (vd->vdev_top != NULL && vd->vdev_top->vdev_ops == &vdev_draid_ops)
+		return (B_TRUE);
+
+	return (vdev_dtl_empty(vd, DTL_MISSING));
+}
+
+/*
  * Try to find a vdev whose DTL doesn't contain the block we want to read
  * preferring vdevs based on determined load. If we can't, try the read on
  * any vdev we haven't already tried.
@@ -530,6 +559,8 @@ vdev_mirror_child_select(zio_t *zio)
 {
 	mirror_map_t *mm = zio->io_vsd;
 	uint64_t txg = zio->io_txg;
+	boolean_t rebuild = (zio->io_priority == ZIO_PRIORITY_REBUILD);
+	int incomplete = -1;
 	int c, lowest_load;
 
 	ASSERT(zio->io_bp == NULL || BP_GET_PHYSICAL_BIRTH(zio->io_bp) == txg);
@@ -555,6 +586,13 @@ vdev_mirror_child_select(zio_t *zio)
 			mc->mc_error = SET_ERROR(ESTALE);
 			mc->mc_skipped = 1;
 			mc->mc_speculative = 1;
+			continue;
+		}
+
+		/* For a rebuild read, prefer children missing no data. */
+		if (rebuild && !vdev_mirror_child_complete(mc)) {
+			if (incomplete == -1)
+				incomplete = c;
 			continue;
 		}
 
@@ -585,6 +623,9 @@ vdev_mirror_child_select(zio_t *zio)
 		MIRROR_BUMP(vdev_mirror_stat_preferred_not_found);
 		return (vdev_mirror_preferred_child_randomize(zio));
 	}
+
+	if (incomplete != -1)
+		return (incomplete);
 
 	/*
 	 * Every device is either missing or has this txg in its DTL.

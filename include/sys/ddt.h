@@ -129,9 +129,12 @@ typedef struct {
  * characteristics of the stored block, such as its location on disk (DVAs),
  * birth txg and ref count.
  *
- * The "traditional" entry has an array of four, one for each number of DVAs
- * (copies= property) and another for additional "ditto" copies. Users of the
- * traditional struct will specify the variant (index) of the one they want.
+ * The "traditional" entry has an array of four, one for each value of the
+ * copies= property the block was written with and another for additional
+ * "ditto" copies. (The stored block's BP may carry more DVAs than copies=,
+ * eg a gang header is stored in more copies than the data it gangs, so the
+ * slot is not the BP's DVA count.) Users of the traditional struct will
+ * specify the variant (index) of the one they want.
  *
  * The newer "flat" entry has only a single form that is specified using the
  * DDT_PHYS_FLAT variant.
@@ -220,14 +223,14 @@ typedef enum {
  * because its relatively rarely used.
  */
 typedef struct {
-	/* protects dde_phys, dde_orig_phys and dde_lead_zio during I/O */
+	/* protects dde_phys, dde_rollback_phys and dde_lead_zio during I/O */
 	kmutex_t	dde_io_lock;
 
 	/* copy of data after a repair read, to be rewritten */
 	abd_t		*dde_repair_abd;
 
-	/* original phys contents before update, for error handling */
-	ddt_univ_phys_t	dde_orig_phys;
+	/* rollback point for the outstanding extension chain */
+	ddt_univ_phys_t	dde_rollback_phys;
 
 	/* in-flight update IOs */
 	zio_t		*dde_lead_zio[DDT_PHYS_MAX];
@@ -363,7 +366,8 @@ extern void ddt_bp_create(enum zio_checksum checksum, const ddt_key_t *ddk,
 
 extern void ddt_phys_extend(ddt_univ_phys_t *ddp, ddt_phys_variant_t v,
     const blkptr_t *bp);
-extern void ddt_phys_unextend(ddt_univ_phys_t *cur, ddt_univ_phys_t *orig,
+extern void ddt_phys_unextend(ddt_univ_phys_t *cur,
+    const ddt_univ_phys_t *orig,
     ddt_phys_variant_t v);
 extern void ddt_phys_copy(ddt_univ_phys_t *dst, const ddt_univ_phys_t *src,
     ddt_phys_variant_t v);

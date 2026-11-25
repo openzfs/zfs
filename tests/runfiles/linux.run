@@ -105,6 +105,10 @@ tests = ['device_access_create', 'device_access_attach', 'device_access_add',
     'device_access_import']
 tags = ['functional', 'device_access']
 
+[tests/functional/dedup:Linux]
+tests = ['dedup_legacy_gang']
+tags = ['functional', 'dedup']
+
 [tests/functional/devices:Linux]
 tests = ['devices_001_pos', 'devices_002_neg', 'devices_003_pos']
 tags = ['functional', 'devices']
@@ -177,7 +181,7 @@ tags = ['functional', 'mmp']
 timeout = 1200
 
 [tests/functional/mount:Linux]
-tests = ['umount_unlinked_drain', 'mount_loopback']
+tests = ['umount_unlinked_drain', 'mount_loopback', 'mount_null_source']
 tags = ['functional', 'mount']
 
 [tests/functional/pam:Linux]
@@ -193,6 +197,7 @@ tags = ['functional', 'procfs']
 [tests/functional/projectquota:Linux]
 tests = ['defaultprojectquota_001_pos', 'defaultprojectquota_005_pos',
     'projectid_001_pos', 'projectid_002_pos', 'projectid_003_pos',
+    'projectid_004_pos',
     'projectquota_001_pos', 'projectquota_003_pos', 'projectquota_006_pos',
     'projectspace_001_pos', 'projectspace_002_pos', 'projectspace_003_pos',
     'projectspace_004_pos', 'projectspace_005_pos', 'projecttree_001_pos']

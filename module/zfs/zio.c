@@ -1683,10 +1683,10 @@ zio_vdev_child_io(zio_t *pio, blkptr_t *bp, vdev_t *vd, uint64_t offset,
 	 * have already processed the original allocating I/O.
 	 */
 	if (flags & ZIO_FLAG_ALLOC_THROTTLED &&
-	    (vd != vd->vdev_top || (flags & ZIO_FLAG_IO_RETRY))) {
+	    (vd != vd->vdev_top || (flags & ZIO_FLAG_IO_RETRY)) &&
+	    type == ZIO_TYPE_WRITE) {
 		ASSERT(pio->io_metaslab_class != NULL);
 		ASSERT(pio->io_metaslab_class->mc_alloc_throttle_enabled);
-		ASSERT(type == ZIO_TYPE_WRITE);
 		ASSERT(priority == ZIO_PRIORITY_ASYNC_WRITE);
 		ASSERT(!(flags & ZIO_FLAG_IO_REPAIR));
 		ASSERT(!(pio->io_flags & ZIO_FLAG_IO_REWRITE) ||
@@ -2146,7 +2146,12 @@ zio_free_bp_init(zio_t *zio)
 
 	if (zio->io_child_type == ZIO_CHILD_LOGICAL) {
 		if (BP_GET_DEDUP(bp))
-			zio->io_pipeline = ZIO_DDT_FREE_PIPELINE;
+			/*
+			 * Keep the gang stages zio_create() added: if
+			 * zio_ddt_free() falls back to a plain free, they
+			 * free the gang members along with the header.
+			 */
+			zio->io_pipeline |= ZIO_DDT_FREE_PIPELINE;
 	}
 
 	ASSERT3P(zio->io_bp, ==, &zio->io_bp_copy);
@@ -2962,8 +2967,7 @@ static void
 zio_gang_tree_assemble(zio_t *gio, blkptr_t *bp, zio_gang_node_t **gnpp)
 {
 	uint64_t gangblocksize = UINT64_MAX;
-	if (spa_feature_is_active(gio->io_spa,
-	    SPA_FEATURE_DYNAMIC_GANG_HEADER)) {
+	if (spa_dynamic_gang_header(gio->io_spa)) {
 		spa_config_enter(gio->io_spa, SCL_VDEV, FTAG, RW_READER);
 		for (int dva = 0; dva < BP_GET_NDVAS(bp); dva++) {
 			vdev_t *vd = vdev_lookup_top(gio->io_spa,
@@ -2997,8 +3001,11 @@ zio_gang_tree_assemble_done(zio_t *zio)
 	ASSERT(gio == zio_unique_parent(zio));
 	ASSERT(list_is_empty(&zio->io_child_list));
 
-	if (zio->io_error)
+	if (zio->io_error) {
+		/* free the ABD from zio_gang_tree_assemble() on failure too */
+		abd_free(zio->io_abd);
 		return;
+	}
 
 	/* this ABD was created from a linear buf in zio_gang_tree_assemble */
 	if (BP_SHOULD_BYTESWAP(bp))
@@ -3710,7 +3717,7 @@ zio_ddt_child_write_done(zio_t *zio)
 	if (dde->dde_io->dde_lead_zio[p] == zio)
 		dde->dde_io->dde_lead_zio[p] = NULL;
 
-	ddt_univ_phys_t *orig = &dde->dde_io->dde_orig_phys;
+	ddt_univ_phys_t *orig = &dde->dde_io->dde_rollback_phys;
 
 	if (zio->io_error != 0) {
 		/*
@@ -3719,7 +3726,8 @@ zio_ddt_child_write_done(zio_t *zio)
 		 * the last time it was successfully extended.
 		 */
 		ddt_phys_unextend(ddp, orig, v);
-		ddt_phys_clear(orig, v);
+		if (dde->dde_io->dde_lead_zio[p] == NULL)
+			ddt_phys_clear(orig, v);
 
 		mutex_exit(&dde->dde_io->dde_io_lock);
 
@@ -3742,12 +3750,13 @@ zio_ddt_child_write_done(zio_t *zio)
 	/*
 	 * We've successfully added new DVAs to the entry. Clear the saved
 	 * state or, if there's still outstanding IO, remember it so we can
-	 * revert to a known good state if that IO fails.
+	 * revert to a known good state if that IO fails. A DDT child owns a
+	 * private BP, so it contains only this child's newly allocated DVAs.
 	 */
 	if (dde->dde_io->dde_lead_zio[p] == NULL)
 		ddt_phys_clear(orig, v);
 	else
-		ddt_phys_copy(orig, ddp, v);
+		ddt_phys_extend(orig, v, zio->io_bp);
 
 	mutex_exit(&dde->dde_io->dde_io_lock);
 }
@@ -3765,11 +3774,13 @@ zio_ddt_child_write_ready(zio_t *zio)
 	ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
 
 	if (ddt_phys_is_gang(dde->dde_phys, v)) {
-		for (int i = 0; i < BP_GET_NDVAS(zio->io_bp); i++) {
-			dva_t *d = &zio->io_bp->blk_dva[i];
-			metaslab_group_alloc_decrement(zio->io_spa,
-			    DVA_GET_VDEV(d), zio->io_allocator,
-			    METASLAB_ASYNC_ALLOC, zio->io_size, zio);
+		if (zio->io_flags & ZIO_FLAG_ALLOC_THROTTLED) {
+			for (int i = 0; i < BP_GET_NDVAS(zio->io_bp); i++) {
+				dva_t *d = &zio->io_bp->blk_dva[i];
+				metaslab_group_alloc_decrement(zio->io_spa,
+				    DVA_GET_VDEV(d), zio->io_allocator,
+				    METASLAB_ASYNC_ALLOC, zio->io_size, zio);
+			}
 		}
 		zio->io_error = EAGAIN;
 	}
@@ -4131,7 +4142,7 @@ piggyback:
 		 * First time out, take a copy of the stable entry to revert
 		 * to if there's an error (see zio_ddt_child_write_done())
 		 */
-		ddt_phys_copy(&dde_io->dde_orig_phys, dde->dde_phys, v);
+		ddt_phys_copy(&dde_io->dde_rollback_phys, dde->dde_phys, v);
 		dde_io->dde_lead_zio[p] = cio;
 	} else {
 		if (dde_io->dde_lead_zio[p] == NULL) {
@@ -4140,7 +4151,7 @@ piggyback:
 			 * to revert to if there's an error (see
 			 * zio_ddt_child_write_done())
 			 */
-			ddt_phys_copy(&dde_io->dde_orig_phys, dde->dde_phys,
+			ddt_phys_copy(&dde_io->dde_rollback_phys, dde->dde_phys,
 			    v);
 		} else {
 			/*
@@ -4188,13 +4199,12 @@ zio_ddt_free(zio_t *zio)
 			ddt_phys_decref(dde->dde_phys, v);
 		else
 			/*
-			 * If the entry was found but the phys was not, then
-			 * this block must have been pruned from the dedup
-			 * table, and the entry refers to a later version of
-			 * this data. Therefore, the caller is trying to delete
-			 * the only stored instance of this block, and so we
-			 * need to do a normal (not dedup) free. Clear dde so
-			 * we fall into the block below.
+			 * No phys matches this BP; ddt_lookup() returned a
+			 * fresh, empty entry because the key is not in the
+			 * table at all (eg the original entry was pruned).
+			 * There is no reference to release, so we need to do
+			 * a normal (not dedup) free. Clear dde so we fall
+			 * into the block below.
 			 */
 			dde = NULL;
 	}
@@ -4212,8 +4222,24 @@ zio_ddt_free(zio_t *zio)
 		 * table.  Clear the DEDUP bit so it is treated as a normal
 		 * block from here on.  BRT_FREE and DVA_FREE follow in the
 		 * pipeline and will handle any cloned references and the
-		 * actual block free respectively.
+		 * actual block free respectively, along with the gang stages
+		 * for a gang BP.
+		 *
+		 * Only flat (FDT) tables are ever pruned, so a miss against
+		 * a traditional table means the table and the BP disagree,
+		 * which should not be possible. The plain free below is
+		 * still the best we can do for this BP, but leave a trace.
 		 */
+		if (!(ddt->ddt_flags & DDT_FLAG_FLAT)) {
+			zfs_dbgmsg("%s: no matching traditional DDT phys for "
+			    "dedup BP DVA[0]=<%llu:%llx:%llx> phys_birth=%llu; "
+			    "freeing without a refcount decrement",
+			    spa_name(spa),
+			    (u_longlong_t)DVA_GET_VDEV(&bp->blk_dva[0]),
+			    (u_longlong_t)DVA_GET_OFFSET(&bp->blk_dva[0]),
+			    (u_longlong_t)DVA_GET_ASIZE(&bp->blk_dva[0]),
+			    (u_longlong_t)BP_GET_PHYSICAL_BIRTH(bp));
+		}
 		BP_SET_DEDUP(bp, 0);
 	}
 
@@ -4818,11 +4844,17 @@ zio_vdev_io_start(zio_t *zio)
 		}
 		zio->io_delay = gethrtime();
 
-		if (zio_handle_device_injection(vd, zio, ENOSYS) != 0) {
+		int error = zio_handle_device_injections(vd, zio, ENOSYS,
+		    EFAULT);
+		if (error == ENOSYS || (error == EFAULT &&
+		    !(zio->io_flags & ZIO_FLAG_IO_REPAIR))) {
 			/*
 			 * "no-op" injections return success, but do no actual
-			 * work. Just return it.
+			 * work. Just return it. "io-prefail" injections are
+			 * similar, but don't return success.
 			 */
+			if (error == EFAULT)
+				zio->io_error = EIO;
 			zio_delay_interrupt(zio);
 			return (NULL);
 		}
@@ -5554,6 +5586,12 @@ zio_dva_throttle_done(zio_t *zio)
 	}
 }
 
+static void
+zio_done_postread_done(zio_t *zio)
+{
+	abd_free(zio->io_abd);
+}
+
 static zio_t *
 zio_done(zio_t *zio)
 {
@@ -5882,6 +5920,24 @@ zio_done(zio_t *zio)
 		zcr->zcr_next = NULL;
 		zcr->zcr_finish(zcr, NULL);
 		zfs_ereport_free_checksum(zcr);
+	}
+
+	if (zio->io_flags & ZIO_FLAG_POSTREAD) {
+		ASSERT3U(zio->io_type, ==, ZIO_TYPE_WRITE);
+		zl = NULL;
+		zio_t *pio = zio_walk_parents(zio, &zl);
+		blkptr_t *bp = zio->io_bp;
+		abd_t *abd = abd_alloc_for_io(BP_GET_PSIZE(bp), B_FALSE);
+		zio_priority_t prio = zio->io_priority ==
+		    ZIO_PRIORITY_SYNC_WRITE ? ZIO_PRIORITY_SYNC_READ :
+		    ZIO_PRIORITY_SCRUB;
+		zio_t *cio = zio_vdev_child_io(pio, zio->io_bp, zio->io_vd,
+		    zio->io_offset, abd, zio->io_size, ZIO_TYPE_READ, prio,
+		    ZIO_FLAG_SCRUB | ZIO_FLAG_RAW | ZIO_FLAG_CANFAIL |
+		    ZIO_FLAG_RESILVER | ZIO_FLAG_DONT_PROPAGATE,
+		    zio_done_postread_done, NULL);
+		cio->io_flags &= ~ZIO_FLAG_ALLOC_THROTTLED;
+		zio_nowait(cio);
 	}
 
 	/*

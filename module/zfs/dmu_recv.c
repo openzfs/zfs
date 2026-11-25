@@ -371,6 +371,11 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 	boolean_t raw = (featureflags & DMU_BACKUP_FEATURE_RAW) != 0;
 	boolean_t embed = (featureflags & DMU_BACKUP_FEATURE_EMBED_DATA) != 0;
 
+	if (!drba->drba_cookie->drc_heal &&
+	    dsl_dir_namelen(ds->ds_dir) + 1 + strlen(recv_clone_name) >=
+	    ZFS_MAX_DATASET_NAME_LEN)
+		return (SET_ERROR(ENAMETOOLONG));
+
 	/* Temporary clone name must not exist. */
 	error = zap_lookup(dp->dp_meta_objset,
 	    dsl_dir_phys(ds->ds_dir)->dd_child_dir_zapobj, recv_clone_name,
@@ -812,8 +817,7 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 				if (!redact_check(drba, origin)) {
 					dsl_dataset_rele_flags(origin, dsflags,
 					    FTAG);
-					dsl_dataset_rele_flags(ds, dsflags,
-					    FTAG);
+					dsl_dataset_rele(ds, FTAG);
 					return (SET_ERROR(EINVAL));
 				}
 			}
@@ -821,7 +825,7 @@ dmu_recv_begin_check(void *arg, dmu_tx_t *tx)
 			error = recv_check_large_blocks(ds, featureflags);
 			if (error != 0) {
 				dsl_dataset_rele_flags(origin, dsflags, FTAG);
-				dsl_dataset_rele_flags(ds, dsflags, FTAG);
+				dsl_dataset_rele(ds, FTAG);
 				return (error);
 			}
 
@@ -1428,6 +1432,41 @@ corrective_read_done(zio_t *zio)
 }
 
 /*
+ * Determine the compression level to use when recompressing a block for
+ * a corrective receive.  The objset being healed is a snapshot, and
+ * dmu_objset_open_impl() does not register the compression property
+ * callbacks for snapshots, so os_complevel is not valid here.  Instead,
+ * look up the effective compression property of the dataset (which for
+ * a snapshot is inherited from its head).  If the property does not name
+ * the algorithm the block was written with, fall back to the default
+ * level for that algorithm.  If the chosen level does not match the level
+ * the block was originally written with, the recompressed data will not
+ * match the block's checksum and the block will not be healed.
+ */
+static uint8_t
+corrective_recv_complevel(objset_t *os, enum zio_compress compress)
+{
+	dsl_pool_t *dp = dmu_objset_pool(os);
+	uint64_t val;
+	int err;
+
+	/* Only zstd takes its level from the caller; see zio_compress_data() */
+	if (compress != ZIO_COMPRESS_ZSTD)
+		return (ZIO_COMPLEVEL_DEFAULT);
+
+	dsl_pool_config_enter(dp, FTAG);
+	err = dsl_prop_get_int_ds(os->os_dsl_dataset,
+	    zfs_prop_to_name(ZFS_PROP_COMPRESSION), &val);
+	dsl_pool_config_exit(dp, FTAG);
+
+	if (err != 0 || ZIO_COMPRESS_ALGO(val) != compress)
+		return (ZIO_COMPLEVEL_DEFAULT);
+
+	return (zio_complevel_select(os->os_spa, compress,
+	    ZIO_COMPRESS_LEVEL(val), ZIO_COMPLEVEL_DEFAULT));
+}
+
+/*
  * zio_rewrite the data pointed to by bp with the data from the rrd's abd.
  */
 static int
@@ -1438,6 +1477,10 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 	zio_t *io;
 	zbookmark_phys_t zb;
 	dnode_t *dn;
+	/*
+	 * The caller frees rrd->abd once we return, so rrd->abd must be
+	 * updated whenever abd is swapped for a new buffer below.
+	 */
 	abd_t *abd = rrd->abd;
 	zio_cksum_t bp_cksum = bp->blk_cksum;
 	zio_flag_t flags = ZIO_FLAG_SPECULATIVE | ZIO_FLAG_DONT_RETRY |
@@ -1468,19 +1511,47 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		/* Swap in the newly decompressed data into the abd */
 		abd_free(abd);
 		abd = dabd;
+		rrd->abd = abd;
 	}
 
 	if (!rwa->raw && BP_GET_COMPRESS(bp) != ZIO_COMPRESS_OFF) {
-		/* Recompress the data */
-		abd_t *cabd = abd_alloc_linear(BP_GET_PSIZE(bp),
-		    B_FALSE);
-		uint64_t csize = zio_compress_data(BP_GET_COMPRESS(bp),
-		    abd, &cabd, abd_get_size(abd), BP_GET_PSIZE(bp),
-		    rwa->os->os_complevel);
-		abd_zero_off(cabd, csize, BP_GET_PSIZE(bp) - csize);
+		/*
+		 * Recompress the data.  The output of some compressors
+		 * depends on the size of the destination buffer (e.g. the
+		 * zstd early abort heuristic), so use the same maximum size
+		 * as zio_write_compress() did when the block was written.
+		 */
+		spa_t *spa = rwa->os->os_spa;
+		enum zio_compress compress = BP_GET_COMPRESS(bp);
+		uint64_t lsize = abd_get_size(abd);
+		uint64_t psize = BP_GET_PSIZE(bp);
+		abd_t *tabd = abd_alloc_linear(lsize, B_FALSE);
+		uint64_t csize = zio_compress_data(compress, abd, &tabd,
+		    lsize, zio_get_compression_max_size(compress,
+		    spa->spa_gcd_alloc, spa->spa_min_alloc, lsize),
+		    corrective_recv_complevel(rwa->os, compress));
+
+		/*
+		 * If the data did not compress into the on-disk physical
+		 * size, it cannot reproduce the original block, so it cannot
+		 * be used to heal it.
+		 */
+		if (csize > psize) {
+			abd_free(tabd);
+			/* abd may have been swapped above; caller frees it */
+			rrd->abd = abd;
+			if (zfs_recv_best_effort_corrective != 0)
+				return (0);
+			return (SET_ERROR(ECKSUM));
+		}
+		abd_t *cabd = abd_alloc_linear(psize, B_FALSE);
+		abd_copy(cabd, tabd, csize);
+		abd_zero_off(cabd, csize, psize - csize);
+		abd_free(tabd);
 		/* Swap in newly compressed data into the abd */
 		abd_free(abd);
 		abd = cabd;
+		rrd->abd = abd;
 		flags |= ZIO_FLAG_RAW_COMPRESS;
 	}
 
@@ -1504,8 +1575,16 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		zio_crypt_decode_mac_bp(bp, mac);
 
 		dsl_pool_config_enter(dp, FTAG);
+		/*
+		 * dmu_recv_begin_check() only allows a non-raw healing
+		 * receive with the key loaded, and the receive owns the
+		 * snapshot being healed with DS_HOLD_FLAG_DECRYPT, which
+		 * keeps the key mapped, so neither the hold nor the key
+		 * lookup below should fail.
+		 */
 		err = dsl_dataset_hold_flags(dp, rwa->tofs,
 		    DS_HOLD_FLAG_DECRYPT, FTAG, &ds);
+		ASSERT0(err);
 		if (err != 0) {
 			dsl_pool_config_exit(dp, FTAG);
 			abd_free(eabd);
@@ -1515,6 +1594,7 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		/* Look up the key from the spa's keystore */
 		err = spa_keystore_lookup_key(rwa->os->os_spa,
 		    zb.zb_objset, FTAG, &dck);
+		ASSERT0(err);
 		if (err != 0) {
 			dsl_dataset_rele_flags(ds, DS_HOLD_FLAG_DECRYPT,
 			    FTAG);
@@ -1532,6 +1612,7 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		dsl_pool_config_exit(dp, FTAG);
 
 		ASSERT0(no_crypt);
+		ASSERT0(err);
 		if (err != 0) {
 			abd_free(eabd);
 			return (err);
@@ -1539,6 +1620,7 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		/* Swap in the newly encrypted data into the abd */
 		abd_free(abd);
 		abd = eabd;
+		rrd->abd = abd;
 
 		/*
 		 * We want to prevent zio_rewrite() from trying to
@@ -1546,7 +1628,6 @@ do_corrective_recv(struct receive_writer_arg *rwa, struct drr_write *drrw,
 		 */
 		flags |= ZIO_FLAG_RAW_ENCRYPT;
 	}
-	rrd->abd = abd;
 
 	io = zio_rewrite(NULL, rwa->os->os_spa, BP_GET_BIRTH(bp), bp,
 	    abd, BP_GET_PSIZE(bp), NULL, NULL, ZIO_PRIORITY_SYNC_WRITE, flags,
@@ -2624,7 +2705,7 @@ receive_spill(struct receive_writer_arg *rwa, struct drr_spill *drrs,
 	if (db_spill->db_size != drrs->drr_length) {
 		dmu_buf_will_fill(db_spill, tx, B_FALSE);
 		VERIFY0(dbuf_spill_set_blksz(db_spill,
-		    drrs->drr_length, tx));
+		    drrs->drr_length, B_FALSE, tx));
 	}
 
 	arc_buf_t *abuf;
@@ -3272,6 +3353,143 @@ receive_process_record(struct receive_writer_arg *rwa,
 }
 
 /*
+ * A raw receive can't account for the objects that it changes or frees,
+ * because their owners and sizes are encrypted.  If the dataset already has
+ * user accounting, it is now incorrect, so we throw all of it away.  This
+ * leaves the dataset as a full raw receive does, with no accounting objects
+ * and no accounted flags. When it is next mounted, the accounting will be
+ * rebuilt.
+ *
+ * Each block of dnodes that has accounted flags is rewritten raw with the
+ * crypt params it already has, since its MAC doesn't cover the flags, and
+ * dnode_sync() clears the flags of the dnodes dirtied in a raw receive.
+ * The accounting objects are then freed like any other object.
+ *
+ * If this is interrupted, the receive is not complete, so the dataset can't
+ * be mounted; a resumed receive does it again.
+ */
+static int
+receive_reset_accounting(objset_t *os)
+{
+	dnode_t *mdn = DMU_META_DNODE(os);
+	int epbs = mdn->dn_datablkshift - DNODE_SHIFT;
+	dmu_tx_t *tx = NULL;
+	uint64_t txblk = 0;
+	uint64_t obj = 0;
+	uint64_t txg;
+	int err;
+
+	if (DMU_USERUSED_DNODE(os) == NULL ||
+	    DMU_USERUSED_DNODE(os)->dn_type == DMU_OT_NONE)
+		return (0);
+
+	zfs_dbgmsg("resetting user accounting of objset %llu after raw "
+	    "receive", (u_longlong_t)dmu_objset_id(os));
+
+	/*
+	 * The dnode blocks' cached crypt params must be the ones on disk.
+	 * The receive's txs are all committed, so they are in txgs no later
+	 * than the one a new tx is assigned to.
+	 */
+	tx = dmu_tx_create(os);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT | DMU_TX_NOTHROTTLE);
+	if (err != 0) {
+		dmu_tx_abort(tx);
+		return (err);
+	}
+	txg = dmu_tx_get_txg(tx);
+	dmu_tx_commit(tx);
+	tx = NULL;
+	txg_wait_synced(dmu_objset_pool(os), txg);
+
+	while ((err = dmu_object_next(os, &obj, B_FALSE, 0)) == 0) {
+		dnode_t *dn;
+		uint64_t flags;
+
+		if (tx != NULL && (obj >> epbs) != txblk) {
+			dmu_tx_commit(tx);
+			tx = NULL;
+		}
+		if (issig()) {
+			err = SET_ERROR(EINTR);
+			break;
+		}
+
+		err = dnode_hold(os, obj, FTAG, &dn);
+		if (err != 0)
+			break;
+		mutex_enter(&dn->dn_mtx);
+		flags = dn->dn_phys->dn_flags;
+		mutex_exit(&dn->dn_mtx);
+		if (!(flags & (DNODE_FLAG_USERUSED_ACCOUNTED |
+		    DNODE_FLAG_USEROBJUSED_ACCOUNTED))) {
+			dnode_rele(dn, FTAG);
+			continue;
+		}
+
+		if (tx == NULL) {
+			dmu_buf_t *db;
+
+			tx = dmu_tx_create(os);
+			dmu_tx_hold_bonus(tx, obj);
+			err = dmu_tx_assign(tx, DMU_TX_WAIT);
+			if (err != 0) {
+				dmu_tx_abort(tx);
+				tx = NULL;
+				dnode_rele(dn, FTAG);
+				break;
+			}
+			txblk = obj >> epbs;
+			err = dmu_buf_hold_by_dnode(mdn,
+			    txblk << mdn->dn_datablkshift, FTAG, &db,
+			    DMU_READ_NO_PREFETCH | DMU_READ_NO_DECRYPT);
+			if (err == 0) {
+				err = dmu_buf_will_rewrite_raw(db, tx);
+				dmu_buf_rele(db, FTAG);
+			}
+			if (err != 0) {
+				dnode_rele(dn, FTAG);
+				break;
+			}
+		}
+		dnode_setdirty(dn, tx);
+		dnode_rele(dn, FTAG);
+	}
+	if (tx != NULL)
+		dmu_tx_commit(tx);
+	if (err != ESRCH)
+		return (err);
+
+	dnode_t *used[] = { DMU_USERUSED_DNODE(os), DMU_GROUPUSED_DNODE(os),
+	    DMU_PROJECTUSED_DNODE(os) };
+
+	tx = dmu_tx_create(os);
+	for (int i = 0; i < ARRAY_SIZE(used); i++) {
+		if (used[i] != NULL && used[i]->dn_type != DMU_OT_NONE) {
+			dmu_tx_hold_free_by_dnode(tx, used[i], 0,
+			    DMU_OBJECT_END);
+		}
+	}
+	dmu_tx_mark_netfree(tx);
+	err = dmu_tx_assign(tx, DMU_TX_WAIT);
+	if (err != 0) {
+		dmu_tx_abort(tx);
+		return (err);
+	}
+	for (int i = 0; i < ARRAY_SIZE(used); i++) {
+		if (used[i] != NULL && used[i]->dn_type != DMU_OT_NONE) {
+			dnode_free_range(used[i], 0, DMU_OBJECT_END, tx);
+			dnode_free(used[i], tx);
+		}
+	}
+	os->os_flags &= ~(OBJSET_FLAG_USERACCOUNTING_COMPLETE |
+	    OBJSET_FLAG_USEROBJACCOUNTING_COMPLETE |
+	    OBJSET_FLAG_PROJECTQUOTA_COMPLETE);
+	dmu_tx_commit(tx);
+	return (0);
+}
+
+/*
  * dmu_recv_stream's worker thread; pull records off the queue, and then call
  * receive_process_record  When we're done, signal the main thread and exit.
  */
@@ -3392,6 +3610,12 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	ASSERT0(drc->drc_os->os_encrypted &&
 	    (drc->drc_featureflags & DMU_BACKUP_FEATURE_EMBED_DATA));
 
+	/*
+	 * Set this before the key payload creates a new dataset's objset,
+	 * so that user accounting is never enabled for it.
+	 */
+	drc->drc_os->os_raw_receive = drc->drc_raw;
+
 	/* handle DSL encryption key payload */
 	if (drc->drc_featureflags & DMU_BACKUP_FEATURE_RAW) {
 		nvlist_t *keynvl = NULL;
@@ -3464,7 +3688,6 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	rwa->raw = drc->drc_raw;
 	rwa->spill = drc->drc_spill;
 	rwa->full = (drc->drc_drr_begin->drr_u.drr_begin.drr_fromguid == 0);
-	rwa->os->os_raw_receive = drc->drc_raw;
 	if (drc->drc_heal) {
 		rwa->heal_pio = zio_root(drc->drc_os->os_spa, NULL, NULL,
 		    ZIO_FLAG_GODFATHER);
@@ -3560,6 +3783,8 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	list_destroy(&rwa->write_batch);
 	if (err == 0)
 		err = rwa->err;
+	if (err == 0 && drc->drc_raw && !drc->drc_heal)
+		err = receive_reset_accounting(rwa->os);
 
 out:
 	/*

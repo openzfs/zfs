@@ -78,10 +78,13 @@
  *
  * Traditionally, each ddt_phys_t slot in the entry represents a separate dedup
  * block for the same content/checksum. The slot is selected based on the
- * zp_copies parameter the block is written with, that is, the number of DVAs
- * in the block. The "ditto" slot (DDT_PHYS_DITTO) used to be used for
- * now-removed "dedupditto" feature. These are no longer written, and will be
- * freed if encountered on old pools.
+ * zp_copies parameter the block is written with. Note that the block may
+ * carry more DVAs than zp_copies (a gang header is stored in more copies
+ * than the data it gangs), so the slot cannot be inferred from the BP's DVA
+ * count; a stored phys is matched to a BP by block identity (see
+ * ddt_phys_select()). The "ditto" slot (DDT_PHYS_DITTO) used to be used for
+ * the now-removed "dedupditto" feature. These are no longer written, and
+ * will be freed if encountered on old pools.
  *
  * If the "fast_dedup" feature is enabled, new dedup tables will be created
  * with the "flat phys" option. In this mode, there is only one ddt_phys_t
@@ -809,13 +812,13 @@ ddt_phys_extend(ddt_univ_phys_t *ddp, ddt_phys_variant_t v, const blkptr_t *bp)
 }
 
 void
-ddt_phys_unextend(ddt_univ_phys_t *cur, ddt_univ_phys_t *orig,
+ddt_phys_unextend(ddt_univ_phys_t *cur, const ddt_univ_phys_t *orig,
     ddt_phys_variant_t v)
 {
 	ASSERT3U(v, <, DDT_PHYS_NONE);
 	dva_t *cur_dvas = (v == DDT_PHYS_FLAT) ?
 	    cur->ddp_flat.ddp_dva : cur->ddp_trad[v].ddp_dva;
-	dva_t *orig_dvas = (v == DDT_PHYS_FLAT) ?
+	const dva_t *orig_dvas = (v == DDT_PHYS_FLAT) ?
 	    orig->ddp_flat.ddp_dva : orig->ddp_trad[v].ddp_dva;
 
 	for (int d = 0; d < SPA_DVAS_PER_BP; d++)
@@ -1187,44 +1190,31 @@ ddt_prefetch_all(spa_t *spa)
 static int ddt_configure(ddt_t *ddt, boolean_t new);
 
 /*
- * If the BP passed to ddt_lookup has valid DVAs, then we need to compare them
- * to the ones in the entry. If they're different, then the passed-in BP is
- * from a previous generation of this entry (ie was previously pruned) and we
+ * If the BP passed to ddt_lookup has valid DVAs, then we need to check that
+ * they match one of the phys in the entry. If not, then the passed-in BP is
+ * from a previous generation of this entry (eg was previously pruned) and we
  * have to act like the entry doesn't exist at all.
  *
- * This should only happen during a lookup to free the block (zio_ddt_free()).
+ * Callers that pass verify expect the entry they get back to hold a phys
+ * matching the BP in hand.
  *
- * XXX this is similar in spirit to ddt_phys_select(), maybe can combine
- *       -- robn, 2024-02-09
+ * The match is made on block identity (DVA[0] and physical birth) via
+ * ddt_phys_select(). The phys slot must not be inferred from the BP's DVA
+ * count: a gang header is stored in more copies than the data it gangs, so
+ * its BP carries more DVAs than the copies value the block was written with
+ * (eg a copies=1 dedup gang block has a two-DVA header BP but lives in the
+ * copies=1 slot). Slot-by-DVA-count would therefore check the wrong slot and
+ * misread a live entry as pruned, bypassing its refcount when the block is
+ * freed.
  */
 static boolean_t
 ddt_entry_lookup_is_valid(ddt_t *ddt, const blkptr_t *bp, ddt_entry_t *dde)
 {
 	/* If the BP has no DVAs, then this entry is good */
-	uint_t ndvas = BP_GET_NDVAS(bp);
-	if (ndvas == 0)
+	if (BP_GET_NDVAS(bp) == 0)
 		return (B_TRUE);
 
-	/*
-	 * Only checking the phys for the copies. For flat, there's only one;
-	 * for trad it'll be the one that has the matching set of DVAs.
-	 */
-	const dva_t *dvas = (ddt->ddt_flags & DDT_FLAG_FLAT) ?
-	    dde->dde_phys->ddp_flat.ddp_dva :
-	    dde->dde_phys->ddp_trad[ndvas].ddp_dva;
-
-	/*
-	 * Compare entry DVAs with the BP. They should all be there, but
-	 * there's not really anything we can do if its only partial anyway,
-	 * that's an error somewhere else, maybe long ago.
-	 */
-	uint_t d;
-	for (d = 0; d < ndvas; d++)
-		if (!DVA_EQUAL(&dvas[d], &bp->blk_dva[d]))
-			return (B_FALSE);
-	ASSERT3U(d, ==, ndvas);
-
-	return (B_TRUE);
+	return (ddt_phys_select(ddt, dde, bp) != DDT_PHYS_NONE);
 }
 
 ddt_entry_t *
@@ -1956,13 +1946,23 @@ ddt_repair_done(ddt_t *ddt, ddt_entry_t *dde)
 	ddt_exit(ddt);
 }
 
+/*
+ * The repair zio is a null zio with no bp, so the ddt can't be recovered from
+ * it in the done callback (ddt_select() needs a bp); carry it alongside the
+ * entry, which ddt_free() needs to find the entry's size and cache.
+ */
+typedef struct ddt_repair_ctx {
+	ddt_t		*drc_ddt;
+	ddt_entry_t	*drc_rdde;
+} ddt_repair_ctx_t;
+
 static void
 ddt_repair_entry_done(zio_t *zio)
 {
-	ddt_t *ddt = ddt_select(zio->io_spa, zio->io_bp);
-	ddt_entry_t *rdde = zio->io_private;
+	ddt_repair_ctx_t *drc = zio->io_private;
 
-	ddt_free(ddt, rdde);
+	ddt_free(drc->drc_ddt, drc->drc_rdde);
+	kmem_free(drc, sizeof (ddt_repair_ctx_t));
 }
 
 static void
@@ -1970,11 +1970,16 @@ ddt_repair_entry(ddt_t *ddt, ddt_entry_t *dde, ddt_entry_t *rdde, zio_t *rio)
 {
 	ddt_key_t *ddk = &dde->dde_key;
 	ddt_key_t *rddk = &rdde->dde_key;
+	ddt_repair_ctx_t *drc;
 	zio_t *zio;
 	blkptr_t blk;
 
+	drc = kmem_alloc(sizeof (ddt_repair_ctx_t), KM_SLEEP);
+	drc->drc_ddt = ddt;
+	drc->drc_rdde = rdde;
+
 	zio = zio_null(rio, rio->io_spa, NULL,
-	    ddt_repair_entry_done, rdde, rio->io_flags);
+	    ddt_repair_entry_done, drc, rio->io_flags);
 
 	for (int p = 0; p < DDT_NPHYS(ddt); p++) {
 		ddt_univ_phys_t *ddp = dde->dde_phys;
@@ -2694,10 +2699,15 @@ ddt_addref(spa_t *spa, const blkptr_t *bp)
 		 * This entry was either synced to a store object (dde_type is
 		 * real) or was logged. It must be properly on disk at this
 		 * point, so we can just bump its refcount.
+		 *
+		 * The verified lookup above guarantees a matching phys
+		 * exists for any BP that carries DVAs, and clone BPs always
+		 * do; the VERIFY keeps DDT_PHYS_NONE from reaching
+		 * ddt_phys_addref(), which would index out of bounds on
+		 * release builds.
 		 */
-		int p = DDT_PHYS_FOR_COPIES(ddt, BP_GET_NDVAS(bp));
-		ddt_phys_variant_t v = DDT_PHYS_VARIANT(ddt, p);
-
+		ddt_phys_variant_t v = ddt_phys_select(ddt, dde, bp);
+		VERIFY3U(v, !=, DDT_PHYS_NONE);
 		ddt_phys_addref(dde->dde_phys, v);
 		result = B_TRUE;
 	} else {

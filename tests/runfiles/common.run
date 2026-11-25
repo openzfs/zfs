@@ -272,7 +272,7 @@ tests = ['zfs_mount_001_pos', 'zfs_mount_002_pos', 'zfs_mount_003_pos',
 tags = ['functional', 'cli_root', 'zfs_mount']
 
 [tests/functional/cli_root/zfs_program]
-tests = ['zfs_program_json']
+tests = ['zfs_channel_program_support', 'zfs_program_json']
 tags = ['functional', 'cli_root', 'zfs_program']
 
 [tests/functional/cli_root/zfs_promote]
@@ -487,8 +487,10 @@ tests = ['zpool_import_001_pos', 'zpool_import_002_pos',
     'import_cachefile_shared_device',
     'import_devices_missing', 'import_log_missing',
     'import_paths_changed',
+    'import_relax_metadata_damaged',
     'import_rewind_config_changed',
     'import_rewind_device_replaced',
+    'import_rewind_metadata_damaged',
     'zpool_import_status', 'zpool_import_parallel_pos',
     'zpool_import_parallel_neg', 'zpool_import_parallel_admin']
 tags = ['functional', 'cli_root', 'zpool_import']
@@ -707,6 +709,7 @@ tags = ['functional', 'deadman']
 tests = ['dedup_bclone_pruned', 'dedup_fdt_create', 'dedup_fdt_import',
     'dedup_fdt_pacing', 'dedup_legacy_create', 'dedup_legacy_import',
     'dedup_legacy_fdt_upgrade', 'dedup_legacy_fdt_mixed', 'dedup_quota',
+    'dedup_log_zdb_leak',
     'dedup_prune', 'dedup_prune_leak', 'dedup_zap_shrink']
 pre =
 post =
@@ -903,10 +906,11 @@ tests = ['redacted_compressed', 'redacted_contents', 'redacted_deleted',
 tags = ['functional', 'redacted_send']
 
 [tests/functional/raidz]
-tests = ['raidz_001_neg', 'raidz_002_pos', 'raidz_expand_001_pos',
+tests = ['raidz_001_neg', 'raidz_002_pos', 'raidz_dedup_overrun',
+    'raidz_expand_001_pos',
     'raidz_expand_002_pos', 'raidz_expand_003_neg', 'raidz_expand_003_pos',
     'raidz_expand_004_pos', 'raidz_expand_005_pos', 'raidz_expand_006_neg',
-    'raidz_expand_007_neg']
+    'raidz_expand_007_neg', 'raidz_zinject']
 tags = ['functional', 'raidz']
 timeout = 1200
 
@@ -937,7 +941,8 @@ tags = ['functional', 'refreserv']
 [tests/functional/removal]
 pre =
 tests = ['removal_all_vdev', 'removal_cancel', 'removal_check_space',
-    'removal_condense_export', 'removal_multiple_indirection',
+    'removal_condense_export', 'removal_indirect_class',
+    'removal_multiple_indirection',
     'removal_nopwrite', 'removal_remap_deadlists',
     'removal_resume_export', 'removal_sanity', 'removal_with_add',
     'removal_with_create_fs', 'removal_with_dedup',
@@ -945,7 +950,8 @@ tests = ['removal_all_vdev', 'removal_cancel', 'removal_check_space',
     'removal_with_ganging', 'removal_with_faulted',
     'removal_with_remove', 'removal_with_scrub', 'removal_with_send',
     'removal_with_send_recv', 'removal_with_snapshot',
-    'removal_with_write', 'removal_with_zdb', 'remove_expanded',
+    'removal_with_write', 'removal_with_zdb', 'removal_with_zil',
+    'remove_expanded',
     'remove_mirror', 'remove_mirror_sanity', 'remove_raidz',
     'remove_indirect', 'remove_attach_mirror', 'removal_reservation',
     'removal_with_hole', 'removal_with_missing_log']
@@ -1016,7 +1022,10 @@ tests = ['slog_001_pos', 'slog_002_pos', 'slog_003_pos', 'slog_004_pos',
     'slog_005_pos', 'slog_006_pos', 'slog_007_pos', 'slog_008_neg',
     'slog_009_neg', 'slog_010_neg', 'slog_011_neg', 'slog_012_neg',
     'slog_013_pos', 'slog_014_pos', 'slog_015_neg', 'slog_replay_fs_001',
-    'slog_replay_fs_002', 'slog_replay_volume', 'slog_016_pos']
+    'slog_replay_fs_002', 'slog_replay_fs_split_truncate',
+    'slog_replay_fs_split_write', 'slog_replay_lwb_error', 'slog_replay_volume',
+    'slog_replay_volume_split_boundary', 'slog_replay_volume_split_write',
+    'slog_016_pos']
 tags = ['functional', 'slog']
 
 [tests/functional/snapshot]
@@ -1047,6 +1056,12 @@ tests = ['suid_write_to_suid', 'suid_write_to_sgid', 'suid_write_to_suid_sgid',
     'suid_write_to_none', 'suid_write_zil_replay']
 tags = ['functional', 'suid']
 
+[tests/functional/test_runner]
+tests = ['test_runner_report', 'test_runner_rerun', 'test_runner_selection']
+pre =
+post =
+tags = ['functional', 'test_runner']
+
 [tests/functional/trim]
 tests = ['autotrim_integrity', 'autotrim_config', 'autotrim_trim_integrity',
     'trim_integrity', 'trim_config', 'trim_l2arc']
@@ -1055,6 +1070,10 @@ tags = ['functional', 'trim']
 [tests/functional/truncate]
 tests = ['truncate_001_pos', 'truncate_002_pos', 'truncate_timestamps']
 tags = ['functional', 'truncate']
+
+[tests/functional/unlink]
+tests = ['unlinked_fh_accessible']
+tags = ['functional', 'unlink']
 
 [tests/functional/upgrade]
 tests = ['upgrade_userobj_001_pos', 'upgrade_readonly_pool']
@@ -1076,6 +1095,7 @@ tests = [
     'groupspace_005_pos',
     'userspace_001_pos', 'userspace_002_pos', 'userspace_004_pos',
     'userspace_005_pos', 'userspace_encrypted', 'userspace_send_encrypted',
+    'userspace_send_encrypted_changes',
     'userspace_encrypted_13709']
 tags = ['functional', 'userquota']
 

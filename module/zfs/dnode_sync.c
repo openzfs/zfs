@@ -305,9 +305,12 @@ free_children(dmu_buf_impl_t *db, uint64_t blkid, uint64_t nblks,
 	 * ancestor of the first or last block to be freed.  The first and
 	 * last L1 indirect blocks are always dirtied by dnode_free_range().
 	 */
-	db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
-	VERIFY(BP_GET_FILL(db->db_blkptr) == 0 || db->db_dirtycnt > 0);
-	dmu_buf_unlock_parent(db, dblt, FTAG);
+	if (!free_indirects) {
+		db_lock_type_t dblt = dmu_buf_lock_parent(db, RW_READER, FTAG);
+		VERIFY_IMPLY(BP_GET_FILL(db->db_blkptr) > 0,
+		    db->db_dirtycnt > 0);
+		dmu_buf_unlock_parent(db, dblt, FTAG);
+	}
 
 	dbuf_release_bp(db);
 	bp = db->db.db_data;
@@ -441,7 +444,7 @@ dnode_sync_free_range_impl(dnode_t *dn, uint64_t blkid, uint64_t nblks,
 }
 
 /*
- * Try to kick all the dnode's dbufs out of the cache...
+ * Try to kick all the dnode's dbufs out of the cache.
  */
 void
 dnode_evict_dbufs(dnode_t *dn)
@@ -593,7 +596,9 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT(dn->dn_type != DMU_OT_NONE);
 
 	ASSERT(dn->dn_free_txg > 0);
-	if (dn->dn_allocated_txg != dn->dn_free_txg)
+	/* A special dnode is in the objset_phys_t, which is always written. */
+	if (!DMU_OBJECT_IS_SPECIAL(dn->dn_object) &&
+	    dn->dn_allocated_txg != dn->dn_free_txg)
 		dmu_buf_will_dirty(&dn->dn_dbuf->db, tx);
 	memset(dn->dn_phys, 0, sizeof (dnode_phys_t) * dn->dn_num_slots);
 	dnode_free_interior_slots(dn);
@@ -608,6 +613,10 @@ dnode_sync_free(dnode_t *dn, dmu_tx_t *tx)
 	mutex_exit(&dn->dn_mtx);
 
 	ASSERT(dn->dn_object != DMU_META_DNODE_OBJECT);
+
+	/* dnode_setdirty() does not add a hold to special dnodes. */
+	if (DMU_OBJECT_IS_SPECIAL(dn->dn_object))
+		return;
 
 	dnode_rele(dn, (void *)(uintptr_t)tx->tx_txg);
 	/*
@@ -697,12 +706,12 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 	ASSERT(dn->dn_dbuf == NULL || arc_released(dn->dn_dbuf->db_buf));
 
 	/*
-	 * Do user accounting if it is enabled and this is not
-	 * an encrypted receive.
+	 * Do user accounting if it is enabled and this is not a raw
+	 * receive.
 	 */
 	if (dmu_objset_userused_enabled(os) &&
 	    !DMU_OBJECT_IS_SPECIAL(dn->dn_object) &&
-	    (!os->os_encrypted || !dmu_objset_is_receiving(os))) {
+	    !os->os_raw_receive) {
 		mutex_enter(&dn->dn_mtx);
 		dn->dn_oldused = DN_USED_BYTES(dn->dn_phys);
 		dn->dn_oldflags = dn->dn_phys->dn_flags;
@@ -712,7 +721,18 @@ dnode_sync(dnode_t *dn, dmu_tx_t *tx)
 			    DNODE_FLAG_USEROBJUSED_ACCOUNTED;
 		mutex_exit(&dn->dn_mtx);
 		dmu_objset_userquota_get_ids(dn, B_FALSE, tx);
-	} else if (!(os->os_encrypted && dmu_objset_is_receiving(os))) {
+	} else if (os->os_raw_receive &&
+	    !DMU_OBJECT_IS_SPECIAL(dn->dn_object)) {
+		/*
+		 * A raw receive throws the accounting away, see
+		 * receive_reset_accounting().  The block's MAC doesn't
+		 * cover these flags.
+		 */
+		mutex_enter(&dn->dn_mtx);
+		dn->dn_phys->dn_flags &= ~(DNODE_FLAG_USERUSED_ACCOUNTED |
+		    DNODE_FLAG_USEROBJUSED_ACCOUNTED);
+		mutex_exit(&dn->dn_mtx);
+	} else if (!os->os_raw_receive) {
 		/*
 		 * Once we account for it, we should always account for it,
 		 * except for the case of a raw receive. We will not be able

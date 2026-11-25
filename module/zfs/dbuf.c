@@ -1464,6 +1464,48 @@ dbuf_handle_indirect_hole(void *data, dnode_t *dn, blkptr_t *dbbp)
 }
 
 /*
+ * Check for a hole, including frees which have not yet been synced.
+ * The caller must hold db_mtx to stabilize the dirty records.
+ */
+boolean_t
+dbuf_is_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
+{
+	ASSERT(MUTEX_HELD(&db->db_mtx));
+
+	boolean_t is_hole = bp == NULL || BP_IS_HOLE(bp);
+	/*
+	 * For level 0 blocks only, if the above check didn't find a hole,
+	 * consult dnode_block_freed() to check for pending frees.
+	 *
+	 * If the block has been overridden by a block clone or direct I/O
+	 * write, we can't use dnode_block_freed() directly because it would
+	 * find frees from TXGs before the override, which should not make
+	 * the block appear freed.  Instead, check only free ranges from
+	 * TXGs after the override.
+	 *
+	 * Otherwise, recheck BP_IS_HOLE() after dnode_block_freed():
+	 * dnode_sync_free_ranges() clears the bp before it removes the
+	 * free range, and free_blocks() does not take the parent's
+	 * db_rwlock for blkptrs held in the dnode.  If we wait for dn_mtx
+	 * while that happens, block_freed says "no" but bp is now a hole,
+	 * which must not be handed to arc_read().
+	 */
+	if (!is_hole && db->db_level == 0) {
+		dbuf_dirty_record_t *dr = list_head(&db->db_dirty_records);
+		if (dr != NULL &&
+		    (dr->dt.dl.dr_brtwrite || dr->dt.dl.dr_diowrite)) {
+			is_hole = dnode_block_freed_after(dn,
+			    db->db_blkid, dr->dr_txg);
+		} else {
+			is_hole = dnode_block_freed(dn, db->db_blkid) ||
+			    BP_IS_HOLE(bp);
+		}
+	}
+
+	return (is_hole);
+}
+
+/*
  * Handle reads on dbufs that are holes, if necessary.  This function
  * requires that the dbuf's mutex is held. Returns success (0) if action
  * was taken, ENOENT if no action was taken.
@@ -1474,29 +1516,7 @@ dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
 	ASSERT(MUTEX_HELD(&db->db_mtx));
 	arc_buf_t *db_data;
 
-	int is_hole = bp == NULL || BP_IS_HOLE(bp);
-	/*
-	 * For level 0 blocks only, if the above check didn't find a hole,
-	 * consult dnode_block_freed() to check for pending frees.
-	 *
-	 * If the block has been overridden by a block clone or direct I/O
-	 * write, we can't use dnode_block_freed() directly because it would
-	 * find frees from TXGs before the override, which should not make
-	 * the block appear freed.  Instead, check only free ranges from
-	 * TXGs after the override.
-	 */
-	if (!is_hole && db->db_level == 0) {
-		dbuf_dirty_record_t *dr = list_head(&db->db_dirty_records);
-		if (dr != NULL &&
-		    (dr->dt.dl.dr_brtwrite || dr->dt.dl.dr_diowrite)) {
-			is_hole = dnode_block_freed_after(dn,
-			    db->db_blkid, dr->dr_txg);
-		} else {
-			is_hole = dnode_block_freed(dn, db->db_blkid);
-		}
-	}
-
-	if (is_hole) {
+	if (dbuf_is_hole(db, dn, bp)) {
 		db_data = dbuf_alloc_arcbuf(db);
 		memset(db_data->b_data, 0, db->db.db_size);
 
@@ -1513,33 +1533,15 @@ dbuf_read_hole(dmu_buf_impl_t *db, dnode_t *dn, blkptr_t *bp)
 }
 
 /*
- * This function ensures that, when doing a decrypting read of a block,
- * we make sure we have decrypted the dnode associated with it. We must do
- * this so that we ensure we are fully authenticating the checksum-of-MACs
- * tree from the root of the objset down to this block. Indirect blocks are
- * always verified against their secure checksum-of-MACs assuming that the
- * dnode containing them is correct. Now that we are doing a decrypting read,
- * we can be sure that the key is loaded and verify that assumption. This is
- * especially important considering that we always read encrypted dnode
- * blocks as raw data (without verifying their MACs) to start, and
- * decrypt / authenticate them when we need to read an encrypted bonus buffer.
+ * Decrypt a block of dnodes that was read raw.
  */
 static int
-dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, dnode_t *dn,
-    dmu_flags_t flags)
+dbuf_decrypt_dnode_block(objset_t *os, dmu_buf_impl_t *dndb)
 {
-	objset_t *os = db->db_objset;
-	dmu_buf_impl_t *dndb;
-	arc_buf_t *dnbuf;
+	arc_buf_t *dnbuf = dndb->db_buf;
 	zbookmark_phys_t zb;
 	int err;
 
-	if ((flags & DMU_READ_NO_DECRYPT) != 0 ||
-	    !os->os_encrypted || os->os_raw_receive ||
-	    (dndb = dn->dn_dbuf) == NULL)
-		return (0);
-
-	dnbuf = dndb->db_buf;
 	if (!arc_is_encrypted(dnbuf))
 		return (0);
 
@@ -1567,6 +1569,38 @@ dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, dnode_t *dn,
 	    DMU_META_DNODE_OBJECT, 0, dndb->db_blkid);
 	err = arc_untransform(dnbuf, os->os_spa, &zb, B_TRUE);
 
+	mutex_exit(&dndb->db_mtx);
+
+	return (err);
+}
+
+/*
+ * This function ensures that, when doing a decrypting read of a block,
+ * we make sure we have decrypted the dnode associated with it. We must do
+ * this so that we ensure we are fully authenticating the checksum-of-MACs
+ * tree from the root of the objset down to this block. Indirect blocks are
+ * always verified against their secure checksum-of-MACs assuming that the
+ * dnode containing them is correct. Now that we are doing a decrypting read,
+ * we can be sure that the key is loaded and verify that assumption. This is
+ * especially important considering that we always read encrypted dnode
+ * blocks as raw data (without verifying their MACs) to start, and
+ * decrypt / authenticate them when we need to read an encrypted bonus buffer.
+ */
+static int
+dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, dnode_t *dn,
+    dmu_flags_t flags)
+{
+	objset_t *os = db->db_objset;
+	dmu_buf_impl_t *dndb;
+	int err;
+
+	if ((flags & DMU_READ_NO_DECRYPT) != 0 ||
+	    !os->os_encrypted || os->os_raw_receive ||
+	    (dndb = dn->dn_dbuf) == NULL)
+		return (0);
+
+	err = dbuf_decrypt_dnode_block(os, dndb);
+
 	/*
 	 * An error code of EACCES tells us that the key is still not
 	 * available. This is ok if we are only reading authenticated
@@ -1578,9 +1612,21 @@ dbuf_read_verify_dnode_crypt(dmu_buf_impl_t *db, dnode_t *dn,
 	    !DMU_OT_IS_ENCRYPTED(dn->dn_bonustype))))
 		err = 0;
 
-	mutex_exit(&dndb->db_mtx);
-
 	return (err);
+}
+
+/*
+ * Make the bonus buffer in dn_phys readable: dnode_hold() reads blocks of
+ * dnodes raw, so in an encrypted objset they may still be encrypted.
+ */
+int
+dnode_decrypt_bonus(dnode_t *dn)
+{
+	objset_t *os = dn->dn_objset;
+
+	if (!os->os_encrypted || os->os_raw_receive || dn->dn_dbuf == NULL)
+		return (0);
+	return (dbuf_decrypt_dnode_block(os, dn->dn_dbuf));
 }
 
 /*
@@ -2149,7 +2195,7 @@ dbuf_evict_range(dnode_t *dn, uint64_t start_blkid, uint64_t end_blkid)
 }
 
 void
-dbuf_new_size(dmu_buf_impl_t *db, int size, dmu_tx_t *tx)
+dbuf_new_size(dmu_buf_impl_t *db, int size, boolean_t copy, dmu_tx_t *tx)
 {
 	arc_buf_t *buf, *old_buf;
 	dbuf_dirty_record_t *dr;
@@ -2173,12 +2219,15 @@ dbuf_new_size(dmu_buf_impl_t *db, int size, dmu_tx_t *tx)
 	/* create the data buffer for the new block */
 	buf = arc_alloc_buf(dn->dn_objset->os_spa, db, type, size);
 
-	/* copy old block data to the new block */
 	old_buf = db->db_buf;
-	memcpy(buf->b_data, old_buf->b_data, MIN(osize, size));
-	/* zero the remainder */
-	if (size > osize)
-		memset((uint8_t *)buf->b_data + osize, 0, size - osize);
+	if (copy) {
+		ASSERT(arc_get_compression(old_buf) == ZIO_COMPRESS_OFF);
+		/* copy old block data to the new block */
+		memcpy(buf->b_data, old_buf->b_data, MIN(osize, size));
+		/* zero the remainder */
+		if (size > osize)
+			memset((uint8_t *)buf->b_data + osize, 0, size - osize);
+	}
 
 	mutex_enter(&db->db_mtx);
 	dbuf_set_data(db, buf);
@@ -3078,6 +3127,34 @@ dmu_buf_set_crypt_params(dmu_buf_t *db_fake, boolean_t byteorder,
 	memcpy(dr->dt.dl.dr_salt, salt, ZIO_DATA_SALT_LEN);
 	memcpy(dr->dt.dl.dr_iv, iv, ZIO_DATA_IV_LEN);
 	memcpy(dr->dt.dl.dr_mac, mac, ZIO_DATA_MAC_LEN);
+}
+
+/*
+ * This function is effectively the same as dmu_buf_will_dirty(), but
+ * indicates the caller expects raw encrypted data in the db, which will not
+ * be modified by the caller.  Changes that the block's MAC doesn't cover,
+ * such as non-portable dnode flags, can then be made without the key.  This
+ * is only used for blocks of dnodes, during raw receive.
+ */
+int
+dmu_buf_will_rewrite_raw(dmu_buf_t *db_fake, dmu_tx_t *tx)
+{
+	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
+	boolean_t byteorder;
+	uint8_t salt[ZIO_DATA_SALT_LEN];
+	uint8_t iv[ZIO_DATA_IV_LEN];
+	uint8_t mac[ZIO_DATA_MAC_LEN];
+
+	mutex_enter(&db->db_mtx);
+	if (db->db_buf == NULL || !arc_is_encrypted(db->db_buf)) {
+		mutex_exit(&db->db_mtx);
+		return (SET_ERROR(EIO));
+	}
+	arc_get_raw_params(db->db_buf, &byteorder, salt, iv, mac);
+	mutex_exit(&db->db_mtx);
+
+	dmu_buf_set_crypt_params(db_fake, byteorder, salt, iv, mac, tx);
+	return (0);
 }
 
 static void
@@ -4129,7 +4206,8 @@ dbuf_create_bonus(dnode_t *dn)
 }
 
 int
-dbuf_spill_set_blksz(dmu_buf_t *db_fake, uint64_t blksz, dmu_tx_t *tx)
+dbuf_spill_set_blksz(dmu_buf_t *db_fake, uint64_t blksz, boolean_t copy,
+    dmu_tx_t *tx)
 {
 	dmu_buf_impl_t *db = (dmu_buf_impl_t *)db_fake;
 
@@ -4140,7 +4218,7 @@ dbuf_spill_set_blksz(dmu_buf_t *db_fake, uint64_t blksz, dmu_tx_t *tx)
 	ASSERT3U(blksz, <=, spa_maxblocksize(dmu_objset_spa(db->db_objset)));
 	blksz = P2ROUNDUP(blksz, SPA_MINBLOCKSIZE);
 
-	dbuf_new_size(db, blksz, tx);
+	dbuf_new_size(db, blksz, copy, tx);
 
 	return (0);
 }
@@ -5463,15 +5541,30 @@ dbuf_write(dbuf_dirty_record_t *dr, arc_buf_t *data, dmu_tx_t *tx)
 	if (db->db_level == 0 &&
 	    dr->dt.dl.dr_override_state == DR_OVERRIDDEN) {
 		/*
-		 * The BP for this block has been provided by open context
-		 * (by dmu_sync(), dmu_write_direct(),
-		 *  or dmu_buf_write_embedded()).
+		 * The BP for this block was provided by open context via
+		 * dmu_sync(), dmu_write_direct(), dmu_buf_write_embedded(),
+		 * dmu_brt_clone(), or dmu_buf_redact().
 		 */
-		abd_t *contents = (data != NULL) ?
-		    abd_get_from_buf(data->b_data, arc_buf_size(data)) : NULL;
+		blkptr_t *obp = &dr->dt.dl.dr_overridden_by;
+		abd_t *contents = NULL;
+		/*
+		 * A data-less override carries no payload. WP_NOFILL keeps it
+		 * out of dedup and encryption, so zio_write_bp_init() switches
+		 * it to ZIO_INTERLOCK_PIPELINE before any stage that would
+		 * consume a size.
+		 */
+		uint64_t size = 0;
+
+		if (data != NULL) {
+			/* The live dbuf may have a newer size. */
+			size = arc_buf_size(data);
+			ASSERT3U(size, ==, arc_buf_lsize(data));
+			IMPLY(!BP_IS_HOLE(obp), size == BP_GET_LSIZE(obp));
+			contents = abd_get_from_buf(data->b_data, size);
+		}
 
 		dr->dr_zio = zio_write(pio, os->os_spa, txg, &dr->dr_bp_copy,
-		    contents, db->db.db_size, db->db.db_size, &zp,
+		    contents, size, size, &zp,
 		    dbuf_write_override_ready, NULL,
 		    dbuf_write_override_done,
 		    dr, ZIO_PRIORITY_ASYNC_WRITE, ZIO_FLAG_MUSTSUCCEED, &zb);

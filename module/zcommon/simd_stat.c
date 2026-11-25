@@ -42,6 +42,9 @@ kstat_t *simd_stat_kstat;
 #ifndef HAVE_KERNEL_NEON
 #define	HAVE_KERNEL_NEON (0)
 #endif
+#ifndef HAVE_KERNEL_NEON_STATE
+#define	HAVE_KERNEL_NEON_STATE (0)
+#endif
 #ifndef HAVE_KERNEL_FPU_INTERNAL
 #define	HAVE_KERNEL_FPU_INTERNAL (0)
 #endif
@@ -126,17 +129,19 @@ simd_stat_kstat_data(char *buf, size_t size, void *data)
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
 		    "osxsave", boot_cpu_has(X86_FEATURE_OSXSAVE));
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
-		    "xsaves", static_cpu_has(X86_FEATURE_XSAVES));
+		    "xsaves", cpu_feature_enabled(X86_FEATURE_XSAVES));
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
-		    "xsaveopt", static_cpu_has(X86_FEATURE_XSAVEOPT));
+		    "xsaveopt", cpu_feature_enabled(X86_FEATURE_XSAVEOPT));
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
-		    "xsave", static_cpu_has(X86_FEATURE_XSAVE));
+		    "xsave", cpu_feature_enabled(X86_FEATURE_XSAVE));
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
-		    "fxsr", static_cpu_has(X86_FEATURE_FXSR));
+		    "fxsr", cpu_feature_enabled(X86_FEATURE_FXSR));
 #endif /* __x86__ */
 #if defined(__arm__) || defined(__aarch64__)
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
 		    "kernel_neon", HAVE_KERNEL_NEON);
+		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
+		    "kernel_neon_state", HAVE_KERNEL_NEON_STATE);
 #if defined(CONFIG_KERNEL_MODE_NEON)
 		off += SIMD_STAT_PRINT(simd_stat_kstat_payload,
 		    "kernel_mode_neon", CONFIG_KERNEL_MODE_NEON);

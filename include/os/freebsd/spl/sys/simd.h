@@ -30,6 +30,11 @@
 #ifndef _FREEBSD_SIMD_H
 #define	_FREEBSD_SIMD_H
 
+/* No state is kept between kfpu_begin() and kfpu_end(). */
+typedef struct kfpu_ctx {
+	char kfpu_unused;
+} kfpu_ctx_t;
+
 #if defined(__amd64__) || defined(__i386__)
 #include <sys/simd_x86.h>
 
@@ -45,8 +50,8 @@
 #else
 #define	kfpu_allowed()		0
 #define	kfpu_initialize(tsk)	do {} while (0)
-#define	kfpu_begin()		do {} while (0)
-#define	kfpu_end()		do {} while (0)
+#define	kfpu_begin(ctx)		((void) (ctx))
+#define	kfpu_end(ctx)		((void) (ctx))
 #define	kfpu_init()		(0)
 #define	kfpu_fini()		do {} while (0)
 #endif

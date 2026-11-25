@@ -70,6 +70,12 @@ blk_queue_set_write_cache(struct request_queue *q, bool on)
  *      Only controls if the operator is allowed to change _WC. Initial version
  *      buggy; aliased to QUEUE_FLAG_FUA, so unuseable.
  * 6.6.10, 6.7: QUEUE_FLAG_HW_WC fixed.
+ * 6.11: Both flags removed. BLK_FEAT_WRITE_CACHE in queue_limits.features is
+ *       the driver-set equivalent of _HW_WC, while the operator's override
+ *       lives separately in BLK_FLAG_WRITE_CACHE_DISABLED. We deliberately
+ *       ignore the override (ie don't use bdev_write_cache()): we only sample
+ *       this at vdev open, so if the operator later re-enabled the cache we
+ *       would never flush again.
  *
  * Older than 4.10 we just assume write cache, and let the normal flush fail
  * detection apply.
@@ -77,7 +83,10 @@ blk_queue_set_write_cache(struct request_queue *q, bool on)
 static inline boolean_t
 zfs_bdev_has_write_cache(struct block_device *bdev)
 {
-#if defined(QUEUE_FLAG_HW_WC) && QUEUE_FLAG_HW_WC != QUEUE_FLAG_FUA
+#if defined(HAVE_BLKDEV_QUEUE_LIMITS_FEATURES)
+	return (!!(bdev_get_queue(bdev)->limits.features &
+	    BLK_FEAT_WRITE_CACHE));
+#elif defined(QUEUE_FLAG_HW_WC) && QUEUE_FLAG_HW_WC != QUEUE_FLAG_FUA
 	return (test_bit(QUEUE_FLAG_HW_WC, &bdev_get_queue(bdev)->queue_flags));
 #elif defined(QUEUE_FLAG_WC)
 	return (test_bit(QUEUE_FLAG_WC, &bdev_get_queue(bdev)->queue_flags));
@@ -104,7 +113,11 @@ blk_queue_set_read_ahead(struct request_queue *q, unsigned long ra_pages)
 #define	BIO_BI_SECTOR(bio)	(bio)->bi_iter.bi_sector
 #define	BIO_BI_SIZE(bio)	(bio)->bi_iter.bi_size
 #define	BIO_BI_IDX(bio)		(bio)->bi_iter.bi_idx
+#ifdef HAVE_BVEC_ITER_OFFSET
+#define	BIO_BI_SKIP(bio)	(bio)->bi_iter.bi_offset
+#else
 #define	BIO_BI_SKIP(bio)	(bio)->bi_iter.bi_bvec_done
+#endif
 #define	bio_for_each_segment4(bv, bvp, b, i)	\
 	bio_for_each_segment((bv), (b), (i))
 typedef struct bvec_iter bvec_iterator_t;

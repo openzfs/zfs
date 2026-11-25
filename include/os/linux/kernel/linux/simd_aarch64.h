@@ -31,10 +31,14 @@
  *
  * Kernel fpu methods:
  *	kfpu_allowed()
- *	kfpu_begin()
- *	kfpu_end()
+ *	kfpu_begin(kfpu_ctx_t *)
+ *	kfpu_end(kfpu_ctx_t *)
  *	kfpu_init()
  *	kfpu_fini()
+ *
+ * A region of FPU use is bracketed by kfpu_begin() and kfpu_end(), which
+ * take a kfpu_ctx_t that the caller declares for that region. It holds
+ * whatever the platform needs to keep between the two calls.
  *
  * SIMD support:
  *
@@ -62,14 +66,34 @@
 #define	ID_AA64PFR0_EL1		sys_reg(3, 0, 0, 1, 0)
 #define	ID_AA64ISAR0_EL1	sys_reg(3, 0, 0, 6, 0)
 
+#if defined(HAVE_KERNEL_NEON_STATE)
+/*
+ * Since Linux 7.0 the caller provides the buffer that holds the kernel mode
+ * NEON state while it is live, so that the region can be preempted.
+ */
+typedef struct kfpu_ctx {
+	struct user_fpsimd_state kc_state;
+} kfpu_ctx_t;
+#else
+/* No state is kept between kfpu_begin() and kfpu_end(). */
+typedef struct kfpu_ctx {
+	char kfpu_unused;
+} kfpu_ctx_t;
+#endif
+
 #if (defined(HAVE_KERNEL_NEON) && defined(CONFIG_KERNEL_MODE_NEON))
 #define	kfpu_allowed()		1
-#define	kfpu_begin()		kernel_neon_begin()
-#define	kfpu_end()		kernel_neon_end()
+#if defined(HAVE_KERNEL_NEON_STATE)
+#define	kfpu_begin(ctx)		kernel_neon_begin(&(ctx)->kc_state)
+#define	kfpu_end(ctx)		kernel_neon_end(&(ctx)->kc_state)
+#else
+#define	kfpu_begin(ctx)		((void) (ctx), kernel_neon_begin())
+#define	kfpu_end(ctx)		((void) (ctx), kernel_neon_end())
+#endif
 #else
 #define	kfpu_allowed()		0
-#define	kfpu_begin()		do {} while (0)
-#define	kfpu_end()		do {} while (0)
+#define	kfpu_begin(ctx)		((void) (ctx))
+#define	kfpu_end(ctx)		((void) (ctx))
 #endif
 #define	kfpu_init()		(0)
 #define	kfpu_fini()		do {} while (0)
@@ -86,8 +110,13 @@
 static inline boolean_t
 zfs_neon_available(void)
 {
-	unsigned long ftr = ((get_ftr(ID_AA64PFR0_EL1)) >> 16) & 0xf;
-	return (ftr == 0 || ftr == 1);
+	unsigned long ftr = ((get_ftr(ID_AA64PFR0_EL1)) >> 20) & 0xf;
+
+	/*
+	 * ID_AA64PFR0_EL1.AdvSIMD is a signed field: 0b1111 means not
+	 * implemented, and any non-negative value means implemented.
+	 */
+	return (ftr < 0x8);
 }
 
 /*
@@ -96,8 +125,8 @@ zfs_neon_available(void)
 static inline boolean_t
 zfs_sha256_available(void)
 {
-	unsigned long ftr = ((get_ftr(ID_AA64ISAR0_EL1)) >> 12) & 0x3;
-	return (ftr & 0x1);
+	unsigned long ftr = ((get_ftr(ID_AA64ISAR0_EL1)) >> 12) & 0xf;
+	return (ftr >= 1);
 }
 
 /*
@@ -106,8 +135,8 @@ zfs_sha256_available(void)
 static inline boolean_t
 zfs_sha512_available(void)
 {
-	unsigned long ftr = ((get_ftr(ID_AA64ISAR0_EL1)) >> 12) & 0x3;
-	return (ftr & 0x2);
+	unsigned long ftr = ((get_ftr(ID_AA64ISAR0_EL1)) >> 12) & 0xf;
+	return (ftr >= 2);
 }
 
 #endif /* _LINUX_SIMD_AARCH64_H */

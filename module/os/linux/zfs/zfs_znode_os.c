@@ -775,22 +775,28 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	if (flag & IS_XATTR)
 		pflags |= ZFS_XATTR;
 
-	if (S_ISREG(vap->va_mode) || S_ISDIR(vap->va_mode)) {
-		/*
-		 * With ZFS_PROJID flag, we can easily know whether there is
-		 * project ID stored on disk or not. See zpl_get_file_info().
-		 */
-		if (obj_type != DMU_OT_ZNODE &&
-		    dmu_objset_projectquota_enabled(zfsvfs->z_os))
-			pflags |= ZFS_PROJID;
+	/*
+	 * With ZFS_PROJID flag, we can easily know whether there is
+	 * project ID stored on disk or not. See zpl_get_file_info().
+	 */
+	if (obj_type != DMU_OT_ZNODE &&
+	    dmu_objset_projectquota_enabled(zfsvfs->z_os))
+		pflags |= ZFS_PROJID;
 
-		/*
-		 * Inherit project ID from parent if required.
-		 */
-		projid = zfs_inherit_projid(dzp);
-		if (dzp->z_pflags & ZFS_PROJINHERIT)
-			pflags |= ZFS_PROJINHERIT;
-	}
+	/*
+	 * Inherit project ID from parent if required.  Every object type
+	 * takes part, as ext4 and XFS do: an object that carried no project
+	 * ID of its own would be treated as belonging to a different project
+	 * than the directory holding it, so zfs_rename() and zfs_link()
+	 * would refuse it with EXDEV even within its own project.
+	 *
+	 * The ZFS_PROJINHERIT flag itself keeps passing to regular files and
+	 * directories only, as before, so that lsattr(1) output is unchanged.
+	 */
+	projid = zfs_inherit_projid(dzp);
+	if ((S_ISREG(vap->va_mode) || S_ISDIR(vap->va_mode)) &&
+	    (dzp->z_pflags & ZFS_PROJINHERIT))
+		pflags |= ZFS_PROJINHERIT;
 
 	/*
 	 * No execs denied will be determined when zfs_mode_compute() is called.
@@ -1131,8 +1137,13 @@ again:
 		zfs_znode_hold_exit(zfsvfs, zh);
 
 		if (err == EAGAIN) {
-			/* inode might need this to finish evict */
-			cond_resched();
+			/*
+			 * The inode is being evicted, possibly by a thread
+			 * working through a long dispose list.  Sleep rather
+			 * than spin so that thread gets the CPU and the hold
+			 * locks it needs; xfs_iget() does the same.
+			 */
+			delay(1);
 			goto again;
 		}
 		return (err);
@@ -1187,6 +1198,15 @@ zfs_rezget(znode_t *zp)
 	 */
 	if (zp->z_is_ctldir)
 		return (0);
+
+	/*
+	 * Drop cached pages before reloading the znode.  After a rollback or
+	 * a forced receive the object may hold different data under the same
+	 * inode, size and generation; stale Uptodate pages would otherwise be
+	 * served by mappedread() and mmap() (see #10931).  FreeBSD does the
+	 * same here via vn_pages_remove().
+	 */
+	truncate_inode_pages(ZTOI(zp)->i_mapping, 0);
 
 	zh = zfs_znode_hold_enter(zfsvfs, obj_num);
 

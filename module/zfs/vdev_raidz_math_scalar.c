@@ -24,6 +24,7 @@
  * Copyright (C) 2016 Gvozden Nešković. All rights reserved.
  */
 
+#include <sys/simd.h>
 #include <sys/vdev_raidz_impl.h>
 
 /*
@@ -153,8 +154,8 @@ static const struct {
 	}								\
 }
 
-#define	raidz_math_begin()	{}
-#define	raidz_math_end()	{}
+#define	raidz_math_begin(ctx)	((void) (ctx))
+#define	raidz_math_end(ctx)	((void) (ctx))
 
 #define	SYN_STRIDE		1
 

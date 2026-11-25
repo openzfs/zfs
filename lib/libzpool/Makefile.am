@@ -19,7 +19,7 @@ dist_libzpool_la_SOURCES = \
 	%D%/zfs_racct.c \
 	%D%/zfs_debug.c
 
-nodist_libzpool_la_SOURCES = \
+ZCP_SOURCES = \
 	module/lua/lapi.c \
 	module/lua/lauxlib.c \
 	module/lua/lbaselib.c \
@@ -45,6 +45,14 @@ nodist_libzpool_la_SOURCES = \
 	module/lua/lvm.c \
 	module/lua/lzio.c \
 	\
+	module/zfs/zcp.c \
+	module/zfs/zcp_get.c \
+	module/zfs/zcp_global.c \
+	module/zfs/zcp_iter.c \
+	module/zfs/zcp_set.c \
+	module/zfs/zcp_synctask.c
+
+nodist_libzpool_la_SOURCES = \
 	module/os/linux/zfs/zio_crypt.c \
 	\
 	module/zcommon/cityhash.c \
@@ -168,12 +176,6 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/zap.c \
 	module/zfs/zap_leaf.c \
 	module/zfs/zap_micro.c \
-	module/zfs/zcp.c \
-	module/zfs/zcp_get.c \
-	module/zfs/zcp_global.c \
-	module/zfs/zcp_iter.c \
-	module/zfs/zcp_set.c \
-	module/zfs/zcp_synctask.c \
 	module/zfs/zfeature.c \
 	module/zfs/zfs_byteswap.c \
 	module/zfs/zfs_chksum.c \
@@ -193,6 +195,11 @@ nodist_libzpool_la_SOURCES = \
 	module/zfs/zle.c \
 	module/zfs/zrlock.c \
 	module/zfs/zthr.c
+
+if ZCP_ENABLED
+nodist_libzpool_la_SOURCES += \
+	$(ZCP_SOURCES)
+endif
 
 libzpool_la_LIBADD = \
 	libicp.la \

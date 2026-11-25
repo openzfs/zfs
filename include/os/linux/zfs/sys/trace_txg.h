@@ -20,7 +20,6 @@
  * CDDL HEADER END
  */
 
-#if defined(_KERNEL)
 #if defined(HAVE_DECLARE_EVENT_CLASS)
 
 #undef TRACE_SYSTEM
@@ -85,4 +84,3 @@ DEFINE_DTRACE_PROBE2(txg__synced);
 DEFINE_DTRACE_PROBE2(txg__quiesced);
 
 #endif /* HAVE_DECLARE_EVENT_CLASS */
-#endif /* _KERNEL */

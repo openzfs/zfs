@@ -1758,6 +1758,9 @@ vdev_metaslab_fini(vdev_t *vd)
 	if (vd->vdev_checkpoint_sm != NULL) {
 		ASSERT(spa_feature_is_active(vd->vdev_spa,
 		    SPA_FEATURE_POOL_CHECKPOINT));
+		atomic_sub_64(&vd->vdev_spa->spa_checkpoint_info.sci_dspace,
+		    vd->vdev_stat.vs_checkpoint_space);
+		vd->vdev_stat.vs_checkpoint_space = 0;
 		space_map_close(vd->vdev_checkpoint_sm);
 		/*
 		 * Even though we close the space map, we need to set its
@@ -3019,7 +3022,11 @@ vdev_metaslab_set_size(vdev_t *vd)
 	 */
 
 	if (ms_count < zfs_vdev_min_ms_count)
-		ms_shift = highbit64(asize / zfs_vdev_min_ms_count);
+		/*
+		 * Subtract 1 from highbit64() to ensure ms_shift yields
+		 * at least zfs_vdev_min_ms_count metaslabs.
+		 */
+		ms_shift = highbit64(asize / zfs_vdev_min_ms_count) - 1;
 	else if (ms_count > zfs_vdev_default_ms_count)
 		ms_shift = highbit64(asize / zfs_vdev_default_ms_count);
 	else
@@ -4048,8 +4055,9 @@ vdev_load(vdev_t *vd)
 			 */
 			vd->vdev_stat.vs_checkpoint_space =
 			    -space_map_allocated(vd->vdev_checkpoint_sm);
-			vd->vdev_spa->spa_checkpoint_info.sci_dspace +=
-			    vd->vdev_stat.vs_checkpoint_space;
+			atomic_add_64(
+			    &vd->vdev_spa->spa_checkpoint_info.sci_dspace,
+			    vd->vdev_stat.vs_checkpoint_space);
 		} else if (error != 0) {
 			vdev_dbgmsg(vd, "vdev_load: failed to retrieve "
 			    "checkpoint space map object from vdev ZAP "
@@ -5067,14 +5075,6 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 	vdev_t *vd = zio->io_vd ? zio->io_vd : rvd;
 	vdev_t *pvd;
 	uint64_t txg = zio->io_txg;
-/* Suppress ASAN false positive */
-#ifdef __SANITIZE_ADDRESS__
-	vdev_stat_t *vs = vd ? &vd->vdev_stat : NULL;
-	vdev_stat_ex_t *vsx = vd ? &vd->vdev_stat_ex : NULL;
-#else
-	vdev_stat_t *vs = &vd->vdev_stat;
-	vdev_stat_ex_t *vsx = &vd->vdev_stat_ex;
-#endif
 	zio_type_t type = zio->io_type;
 	int flags = zio->io_flags;
 
@@ -5103,6 +5103,8 @@ vdev_stat_update(zio_t *zio, uint64_t psize)
 			return;
 
 		ASSERT(vd == zio->io_vd);
+		vdev_stat_t *vs = &vd->vdev_stat;
+		vdev_stat_ex_t *vsx = &vd->vdev_stat_ex;
 
 		if (flags & ZIO_FLAG_IO_BYPASS)
 			return;

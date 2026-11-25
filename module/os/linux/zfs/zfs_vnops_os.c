@@ -230,8 +230,6 @@ zfs_close(struct inode *ip, int flag, cred_t *cr)
 	return (0);
 }
 
-#if defined(_KERNEL)
-
 static int zfs_fillpage(struct inode *ip, struct page *pp);
 
 /*
@@ -363,8 +361,6 @@ mappedread(znode_t *zp, int nbytes, zfs_uio_t *uio)
 
 	return (error);
 }
-#endif /* _KERNEL */
-
 static unsigned long zfs_delete_blocks = DMU_MAX_DELETEBLKCNT;
 
 /*
@@ -736,8 +732,7 @@ top:
 			goto out;
 		have_acl = B_TRUE;
 
-		if (S_ISREG(vap->va_mode) || S_ISDIR(vap->va_mode))
-			projid = zfs_inherit_projid(dzp);
+		projid = zfs_inherit_projid(dzp);
 		if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, projid)) {
 			zfs_acl_ids_free(&acl_ids);
 			error = SET_ERROR(EDQUOT);
@@ -930,8 +925,7 @@ top:
 		goto out;
 	have_acl = B_TRUE;
 
-	if (S_ISREG(vap->va_mode) || S_ISDIR(vap->va_mode))
-		projid = zfs_inherit_projid(dzp);
+	projid = zfs_inherit_projid(dzp);
 	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, projid)) {
 		zfs_acl_ids_free(&acl_ids);
 		error = SET_ERROR(EDQUOT);
@@ -2995,8 +2989,16 @@ top:
 	 * not only the project ID, but also the ZFS_PROJINHERIT flag. Under
 	 * such case, we only allow renames into our tree when the project
 	 * IDs are the same.
+	 *
+	 * A rename within a single directory leaves the object exactly where
+	 * it already is, so it cannot move it between projects and is always
+	 * allowed.  Objects created before symlinks and other non-regular
+	 * files began inheriting a project ID carry none of their own, and
+	 * would otherwise not be renameable within the very directory that
+	 * holds them -- which breaks "ln -sfn", implemented as
+	 * create-under-a-temporary-name-then-rename.
 	 */
-	if (tdzp->z_pflags & ZFS_PROJINHERIT &&
+	if (sdzp != tdzp && tdzp->z_pflags & ZFS_PROJINHERIT &&
 	    tdzp->z_projid != szp->z_projid) {
 		error = SET_ERROR(EXDEV);
 		goto out;
@@ -3057,11 +3059,8 @@ top:
 
 	/* Set up inode creation for RENAME_WHITEOUT. */
 	if (rflags & RENAME_WHITEOUT) {
-		/*
-		 * Whiteout files are not regular files or directories, so to
-		 * match zfs_create() we do not inherit the project id.
-		 */
-		uint64_t wo_projid = ZFS_DEFAULT_PROJID;
+		/* Match zfs_create(): the whiteout joins its directory. */
+		uint64_t wo_projid = zfs_inherit_projid(sdzp);
 
 		error = zfs_zaccess(sdzp, ACE_ADD_FILE, 0, B_FALSE, cr, mnt_ns);
 		if (error)
@@ -3389,7 +3388,7 @@ top:
 		return (error);
 	}
 
-	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, ZFS_DEFAULT_PROJID)) {
+	if (zfs_acl_ids_overquota(zfsvfs, &acl_ids, zfs_inherit_projid(dzp))) {
 		zfs_acl_ids_free(&acl_ids);
 		zfs_dirent_unlock(dl);
 		zfs_exit(zfsvfs, FTAG);
@@ -4448,7 +4447,6 @@ zfs_fid(struct inode *ip, fid_t *fidp)
 	return (0);
 }
 
-#if defined(_KERNEL)
 EXPORT_SYMBOL(zfs_open);
 EXPORT_SYMBOL(zfs_close);
 EXPORT_SYMBOL(zfs_lookup);
@@ -4474,4 +4472,3 @@ EXPORT_SYMBOL(zfs_map);
 
 module_param(zfs_delete_blocks, ulong, 0644);
 MODULE_PARM_DESC(zfs_delete_blocks, "Delete files larger than N blocks async");
-#endif

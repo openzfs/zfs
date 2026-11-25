@@ -25,7 +25,7 @@
 #ifndef _SPL_CMN_ERR_H
 #define	_SPL_CMN_ERR_H
 
-#if defined(_KERNEL) && defined(HAVE_STANDALONE_LINUX_STDARG)
+#if defined(HAVE_STANDALONE_LINUX_STDARG)
 #include <linux/stdarg.h>
 #else
 #include <stdarg.h>
