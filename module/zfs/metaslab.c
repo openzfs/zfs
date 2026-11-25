@@ -4710,9 +4710,11 @@ metaslab_sync_done(metaslab_t *msp, uint64_t txg)
 	 * periodically consumed by the vdev_autotrim_thread() which issues
 	 * trims for all ranges and then vacates the tree.  The ms_trim tree
 	 * can be discarded at any time with the sole consequence of recent
-	 * frees not being trimmed.
+	 * frees not being trimmed.  Don't collect the frees if none of the
+	 * vdev's leaves support TRIM.
 	 */
-	if (spa_get_autotrim(spa) == SPA_AUTOTRIM_ON) {
+	if (spa_get_autotrim(spa) == SPA_AUTOTRIM_ON &&
+	    vd->vdev_has_trim) {
 		zfs_range_tree_walk(*defer_tree, zfs_range_tree_add,
 		    msp->ms_trim);
 		if (!defer_allowed) {
