@@ -14,12 +14,73 @@ echo "Disk space before purge:"
 df -h /
 sudo docker image prune --all --force
 sudo docker builder prune -a
+
+probe_mirror() {
+  local url=$1 path=$2 spd
+  spd=$(curl -4 -fsSL -r 0-524287 --connect-timeout 2 --max-time 3 \
+    -o /dev/null -w '%{speed_download}' "${url}${path}" 2>/dev/null || echo 0)
+  printf '%s %s\n' "$spd" "$url"
+}
+
+setup_fast_apt_mirrors() {
+  local codename probe_path tmp m
+  sudo tee /etc/apt/apt.conf.d/99-fast-mirrors >/dev/null <<'EOF'
+Acquire::Retries "2";
+Acquire::http::Timeout "10";
+Acquire::https::Timeout "10";
+EOF
+
+  codename=$(. /etc/os-release && echo "${VERSION_CODENAME:-noble}")
+  probe_path="dists/${codename}/main/binary-amd64/Packages.xz"
+  tmp=$(mktemp)
+
+  for m in $(
+    {
+      curl -4 -fsSL --max-time 5 http://mirrors.ubuntu.com/US.txt 2>/dev/null \
+        | shuf -n 12 || true
+      printf '%s\n' "https://mirrors.edge.kernel.org/ubuntu/" \
+        "https://archive.ubuntu.com/ubuntu/"
+    } | awk 'NF && !seen[$0]++'
+  ); do
+    probe_mirror "$m" "$probe_path" >> "$tmp" &
+  done
+  wait
+
+  {
+    awk '$1 + 0 > 0' "$tmp" | sort -rn | head -n 5 | awk '{print $2}'
+    printf '%s\n' "https://archive.ubuntu.com/ubuntu/" \
+      "https://security.ubuntu.com/ubuntu/"
+  } | awk 'NF && !seen[$0]++ {printf "%s\tpriority:%d\n", $0, ++p}' \
+    | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+  rm -f "$tmp"
+
+  echo "Using mirrors:"
+  cat /etc/apt/apt-mirrors.txt
+}
+
+install_apt_packages() {
+  if ! timeout 5m sudo apt-get install -y "$@"; then
+    sudo sed -i '1d' /etc/apt/apt-mirrors.txt
+    echo "Retrying with next mirror:"
+    cat /etc/apt/apt-mirrors.txt
+    sudo apt-get -y update
+    sudo apt-get install -y "$@"
+  fi
+}
+
+setup_fast_apt_mirrors
+
+export DEBIAN_FRONTEND="noninteractive"
+sudo apt-get -y update
+
 unneeded="microsoft-edge-stable|azure-cli|google-cloud|google-chrome-stable|"\
 "temurin|llvm|firefox|mysql-server|snapd|android|dotnet|haskell|ghcup|"\
 "powershell|julia|swift|miniconda|chromium"
-# refresh package index before removing packages
-sudo apt-get -y update
-sudo apt-get -y remove $(dpkg-query -f '${binary:Package}\n' -W | grep -E "'$unneeded'")
+pkgs=$(dpkg-query -f '${binary:Package}\n' -W | grep -E "$unneeded" || true)
+if [ -n "$pkgs" ]; then
+  # shellcheck disable=SC2086
+  sudo apt-get -y remove $pkgs
+fi
 sudo apt-get -y autoremove
 
 # Next, remove unneeded files in /usr.  This frees up an additional 25GB.
@@ -29,25 +90,9 @@ sudo rm -fr /usr/local/lib/android /usr/share/dotnet /usr/local/.ghcup \
 echo "Disk space after:"
 df -h /
 
-# The default 'azure.archive.ubuntu.com' mirrors can be really slow.
-# Prioritize the official Ubuntu mirrors.
-#
-# The normal apt-mirrors.txt will look like:
-#
-# http://azure.archive.ubuntu.com/ubuntu/       priority:1
-# https://archive.ubuntu.com/ubuntu/    priority:2
-# https://security.ubuntu.com/ubuntu/   priority:3
-#
-# Just delete the 'azure.archive.ubuntu.com' line.
-sudo sed -i '/azure.archive.ubuntu.com/d' /etc/apt/apt-mirrors.txt
-echo "Using mirrors:"
-cat /etc/apt/apt-mirrors.txt
-
-# install needed packages
-export DEBIAN_FRONTEND="noninteractive"
-sudo apt-get -y update
-sudo apt-get install -y axel cloud-image-utils daemonize guestfs-tools \
+install_apt_packages axel cloud-image-utils daemonize guestfs-tools \
   virt-manager zfsutils-linux
+
 
 # generate ssh keys
 rm -f ~/.ssh/id_ed25519
