@@ -137,7 +137,7 @@ tests = ['events_001_pos', 'events_002_pos', 'zed_rc_filter', 'zed_fd_spill',
 tags = ['functional', 'events']
 
 [tests/functional/exportfs:Linux]
-tests = ['exportfs_reconnect_dir']
+tests = ['exportfs_reconnect_dir', 'exportfs_reconnect_file_longname']
 tags = ['functional', 'exportfs']
 
 [tests/functional/failmode:Linux]
