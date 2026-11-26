@@ -92,6 +92,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/alloc_class/alloc_class.kshlib \
 	functional/anyraid/anyraid_common.kshlib \
 	functional/anyraid/default.cfg \
+	functional/arc/blockfiles/auth_lz4be.dat.bz2 \
 	functional/atime/atime.cfg \
 	functional/atime/atime_common.kshlib \
 	functional/bclone/bclone.cfg \
@@ -521,6 +522,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/append/threadsappend_001_pos.ksh \
 	functional/append/cleanup.ksh \
 	functional/append/setup.ksh \
+	functional/arc/arc_auth_recompress.ksh \
 	functional/arc/arcstats_runtime_tuning.ksh \
 	functional/arc/cleanup.ksh \
 	functional/arc/dbufstats_001_pos.ksh \
