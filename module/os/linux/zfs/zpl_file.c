@@ -1379,11 +1379,21 @@ zpl_compat_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case FS_IOC32_SETFLAGS:
 		cmd = FS_IOC_SETFLAGS;
 		break;
+	/*
+	 * Since Linux 5.13 the compat ioctl system call turns
+	 * FS_IOC32_[GS]ETFLAGS into FS_IOC_[GS]ETFLAGS itself, before it
+	 * calls this handler.  The handlers copy 32 bits either way.
+	 */
+	case FS_IOC_GETFLAGS:
+	case FS_IOC_SETFLAGS:
+	/* struct fsxattr has the same layout in 32-bit and 64-bit mode. */
+	case ZFS_IOC_FSGETXATTR:
+	case ZFS_IOC_FSSETXATTR:
 #ifndef HAVE_SUPER_SET_UUID
 	case FS_IOC_GETFSUUID:
 		/* The ioctl is the same in 32-bit and 64-bit mode. */
-		break;
 #endif
+		break;
 	default:
 		return (-ENOTTY);
 	}
