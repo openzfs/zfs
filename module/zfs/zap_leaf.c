@@ -527,7 +527,10 @@ zap_leaf_lookup_closest(zap_leaf_t *l,
 }
 
 /*
- * Find an entry whose first integer, masked, equals value & mask.  Unlike
+ * Find an entry whose first integer, masked, equals value & mask and whose
+ * name fits in max_name_numints integers.  Matching entries with longer
+ * names are skipped, and *toolong set, so that a caller looking for a name
+ * that fits a buffer can still find a shorter one.  Unlike
  * stepping a cursor through the leaf (zap_leaf_lookup_closest() for each
  * entry), this walks the hash chains once.  The value is read as
  * zap_cursor_retrieve() reads za_first_integer: 0 for an entry with no
@@ -535,7 +538,7 @@ zap_leaf_lookup_closest(zap_leaf_t *l,
  */
 int
 zap_leaf_value_search(zap_leaf_t *l, uint64_t value, uint64_t mask,
-    zap_entry_handle_t *zeh)
+    uint64_t max_name_numints, boolean_t *toolong, zap_entry_handle_t *zeh)
 {
 	struct zap_leaf_entry *le;
 
@@ -559,6 +562,10 @@ zap_leaf_value_search(zap_leaf_t *l, uint64_t value, uint64_t mask,
 			}
 			if ((v & mask) != (value & mask))
 				continue;
+			if (le->le_name_numints > max_name_numints) {
+				*toolong = B_TRUE;
+				continue;
+			}
 
 			zeh->zeh_num_integers = le->le_value_numints;
 			zeh->zeh_integer_size = le->le_value_intlen;

@@ -1161,6 +1161,12 @@ fzap_value_search(zap_t *zap, uint64_t value, uint64_t mask, char *name,
     uint64_t namelen)
 {
 	uint64_t h = 0;
+	boolean_t toolong = B_FALSE;
+	/* As zap_entry_read_name() reads names into a buffer of namelen */
+	uint64_t max_name_numints = MIN(namelen, UINT16_MAX);
+
+	if (zap_getflags(zap) & ZAP_FLAG_UINT64_KEY)
+		max_name_numints /= 8;
 
 	ASSERT(RW_READ_HELD(&zap->zap_rwlock));
 
@@ -1178,7 +1184,8 @@ fzap_value_search(zap_t *zap, uint64_t value, uint64_t mask, char *name,
 		if (err != 0)
 			return (err);
 
-		err = zap_leaf_value_search(l, value, mask, &zeh);
+		err = zap_leaf_value_search(l, value, mask, max_name_numints,
+		    &toolong, &zeh);
 		if (err == 0) {
 			err = zap_entry_read_name(zap, &zeh,
 			    MIN(namelen, UINT16_MAX), name);
@@ -1192,15 +1199,16 @@ fzap_value_search(zap_t *zap, uint64_t value, uint64_t mask, char *name,
 		uint16_t prefix_len = zap_leaf_phys(l)->l_hdr.lh_prefix_len;
 		zap_put_leaf(l);
 		if (prefix_len == 0)
-			return (SET_ERROR(ENOENT));
+			break;
 		uint64_t nocare = (1ULL << (64 - prefix_len)) - 1;
 		h = (h & ~nocare) + nocare + 1;
 		if (h == 0)
-			return (SET_ERROR(ENOENT));
+			break;
 
 		rw_exit(&zap->zap_rwlock);
 		rw_enter(&zap->zap_rwlock, RW_READER);
 	}
+	return (SET_ERROR(toolong ? ENAMETOOLONG : ENOENT));
 }
 
 /*

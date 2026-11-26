@@ -1021,7 +1021,9 @@ zap_increment(objset_t *os, uint64_t zapobj, const char *name, int64_t delta,
  * Find the name of an entry whose value, masked, equals value & mask.  This
  * is a linear search (the ZAP is indexed by name), so it takes the locks
  * once per leaf rather than going through a cursor, which takes them for
- * every entry.
+ * every entry.  A matching entry whose name doesn't fit in namelen is
+ * skipped, so that a shorter one (another hard link) is found if there is
+ * one; ENAMETOOLONG means that there are matches, but none fits.
  */
 static int
 zap_value_search_impl(zap_t *zap, uint64_t value, uint64_t mask,
@@ -1033,16 +1035,20 @@ zap_value_search_impl(zap_t *zap, uint64_t value, uint64_t mask,
 	if (!zap->zap_ismicro)
 		return (fzap_value_search(zap, value, mask, name, namelen));
 
+	boolean_t toolong = B_FALSE;
 	for (uint16_t i = 0; i < zap->zap_m.zap_num_chunks; i++) {
 		mzap_ent_phys_t *mze = &zap_m_phys(zap)->mz_chunk[i];
 		if (mze->mze_name[0] == '\0' ||
 		    (mze->mze_value & mask) != (value & mask))
 			continue;
-		if (strlcpy(name, mze->mze_name, namelen) >= namelen)
-			return (SET_ERROR(ENAMETOOLONG));
+		if (strnlen(mze->mze_name, MZAP_NAME_LEN) >= namelen) {
+			toolong = B_TRUE;
+			continue;
+		}
+		(void) strlcpy(name, mze->mze_name, namelen);
 		return (0);
 	}
-	return (SET_ERROR(ENOENT));
+	return (SET_ERROR(toolong ? ENAMETOOLONG : ENOENT));
 }
 
 int

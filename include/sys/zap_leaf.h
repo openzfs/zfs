@@ -193,10 +193,13 @@ extern int zap_leaf_lookup_closest(zap_leaf_t *l,
 
 /*
  * Return a handle to an entry whose first integer, masked, equals
- * value & mask, or ENOENT if there is none in this leaf.
+ * value & mask and whose name has at most max_name_numints integers, or
+ * ENOENT if there is none in this leaf.  Sets *toolong if a matching
+ * entry was skipped because its name is longer.
  */
 extern int zap_leaf_value_search(zap_leaf_t *l,
-    uint64_t value, uint64_t mask, zap_entry_handle_t *zeh);
+    uint64_t value, uint64_t mask, uint64_t max_name_numints,
+    boolean_t *toolong, zap_entry_handle_t *zeh);
 
 /*
  * Return a handle to the entry with exactly this hash and cd, or ENOENT.

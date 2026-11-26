@@ -174,7 +174,8 @@ int zfs_parent_cookie = 1;
 /*
  * How zfs_dirent_name() found names: by the SA_ZPL_PARENT_COOKIE hint
  * (cookie_hits), or by searching the directory because the hint was stale
- * (cookie_stale) or missing (cookie_missing).  searches counts the searches.
+ * (cookie_stale) or missing (cookie_missing).  searches counts the searches,
+ * including those for a shorter name when the hint's is too long.
  */
 static struct {
 	kstat_named_t cookie_hits;
@@ -255,7 +256,9 @@ zfs_dirent_name_fini(void)
  * Find a name of object obj in directory dobj: the entry at obj's
  * SA_ZPL_PARENT_COOKIE hint if that entry refers to obj, otherwise by
  * searching the directory.  The hint is only a shortcut, so any entry it
- * finds is checked and a stale or missing hint costs only the search.
+ * finds is checked and a stale or missing hint costs only the search.  If
+ * the name at the hint is too long for the buffer, the search looks for a
+ * shorter one: another hard link in the same directory.
  * hdl is obj's SA handle (or NULL to search), sa_table the dataset's ZPL
  * attribute table.
  */
@@ -268,15 +271,16 @@ zfs_dirent_name(objset_t *os, sa_handle_t *hdl, sa_attr_type_t *sa_table,
 
 	if (hdl != NULL && sa_lookup(hdl, sa_table[ZPL_PARENT_COOKIE],
 	    &cookie, sizeof (cookie)) == 0 && cookie != ZFS_COOKIE_NONE) {
-		/* A name too long for the buffer is too long for the search */
 		error = zap_lookup_cookie(os, dobj, cookie, &value, name,
 		    namelen);
 		if ((error == 0 || error == ENAMETOOLONG) &&
 		    ZFS_DIRENT_OBJ(value) == obj) {
 			DIRENT_NAME_BUMP(cookie_hits);
-			return (error);
+			if (error == 0)
+				return (0);
+		} else {
+			DIRENT_NAME_BUMP(cookie_stale);
 		}
-		DIRENT_NAME_BUMP(cookie_stale);
 	} else {
 		DIRENT_NAME_BUMP(cookie_missing);
 	}
