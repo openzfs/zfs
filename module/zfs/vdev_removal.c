@@ -956,7 +956,18 @@ spa_finish_removal(spa_t *spa, dsl_scan_state_t state, dmu_tx_t *tx)
 	spa->spa_removing_phys.sr_state = state;
 	spa->spa_removing_phys.sr_end_time = gethrestime_sec();
 
+	/*
+	 * spa_vdev_remove_suspend() can run in open context at the same time
+	 * (spa_async_suspend() from an export, or a cancel), with its own
+	 * pointer to the svr.  Take the removal away from it, then wait until
+	 * no caller still uses the svr before freeing it.  The removal thread
+	 * has already stopped, so no caller waits long.
+	 */
+	mutex_enter(&spa->spa_removal_lock);
 	spa->spa_vdev_removal = NULL;
+	while (spa->spa_removal_holds != 0)
+		cv_wait(&spa->spa_removal_cv, &spa->spa_removal_lock);
+	mutex_exit(&spa->spa_removal_lock);
 	spa_vdev_removal_destroy(svr);
 
 	if (zfs_removal_suspend_complete_race == 4 ||
@@ -1942,10 +1953,18 @@ again:
 void
 spa_vdev_remove_suspend(spa_t *spa)
 {
+	/*
+	 * Hold the svr so that spa_finish_removal() can't free it under us
+	 * when the removal completes in syncing context meanwhile.
+	 */
+	mutex_enter(&spa->spa_removal_lock);
 	spa_vdev_removal_t *svr = spa->spa_vdev_removal;
-
-	if (svr == NULL)
+	if (svr == NULL) {
+		mutex_exit(&spa->spa_removal_lock);
 		return;
+	}
+	spa->spa_removal_holds++;
+	mutex_exit(&spa->spa_removal_lock);
 
 	boolean_t waited = B_FALSE;
 
@@ -1959,6 +1978,12 @@ spa_vdev_remove_suspend(spa_t *spa)
 		svr->svr_thread_exit = B_FALSE;
 		mutex_exit(&svr->svr_lock);
 	}
+
+	mutex_enter(&spa->spa_removal_lock);
+	ASSERT3U(spa->spa_removal_holds, >, 0);
+	if (--spa->spa_removal_holds == 0)
+		cv_broadcast(&spa->spa_removal_cv);
+	mutex_exit(&spa->spa_removal_lock);
 }
 
 /*
