@@ -36,11 +36,13 @@
  * when only a few blocks have changed since the last transaction group.
  */
 
+#ifdef ZTEST
 /*
  * Enabled whenever we want to stress test the use of double-word
  * space map entries.
  */
 boolean_t zfs_force_some_double_word_sm_entries = B_FALSE;
+#endif
 
 /*
  * Override the default indirect block size of 128K, instead use 16K for
@@ -708,19 +710,23 @@ space_map_write_impl(space_map_t *sm, zfs_range_tree_t *rt, maptype_t maptype,
 		 * [2] The offset or run is too big for a single-word entry,
 		 *	or the vdev_id is set (meaning not equal to
 		 *	SM_NO_VDEVID).
-		 *
-		 * Note that for purposes of testing we've added the case that
-		 * we write two-word entries occasionally when the feature is
-		 * enabled and zfs_force_some_double_word_sm_entries has been
-		 * set.
 		 */
 		if (spa_feature_is_active(spa, SPA_FEATURE_SPACEMAP_V2) &&
 		    (offset >= (1ULL << SM_OFFSET_BITS) ||
 		    length > SM_RUN_MAX ||
-		    vdev_id != SM_NO_VDEVID ||
-		    (zfs_force_some_double_word_sm_entries &&
-		    random_in_range(100) == 0)))
+		    vdev_id != SM_NO_VDEVID))
 			words = 2;
+#ifdef ZTEST
+		/*
+		 * For testing, occasionally write two-word entries when the
+		 * feature is active and zfs_force_some_double_word_sm_entries
+		 * has been set.
+		 */
+		if (words == 1 && zfs_force_some_double_word_sm_entries &&
+		    spa_feature_is_active(spa, SPA_FEATURE_SPACEMAP_V2) &&
+		    random_in_range(100) == 0)
+			words = 2;
+#endif
 
 		space_map_write_seg(sm, zfs_rs_get_start(rs, rt),
 		    zfs_rs_get_end(rs, rt), maptype, vdev_id, words, &db,
@@ -1025,15 +1031,17 @@ space_map_estimate_optimal_size(space_map_t *sm, zfs_range_tree_t *rt,
 	if (!spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_V2) ||
 	    (vdev_id == SM_NO_VDEVID && sm->sm_size < SM_OFFSET_MAX)) {
 
+		uint64_t entry_size = sizeof (uint64_t);
+#ifdef ZTEST
 		/*
 		 * If we are trying to force some double word entries just
 		 * assume the worst-case of every single word entry being
 		 * written as a double word entry.
 		 */
-		uint64_t entry_size =
-		    (spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_V2) &&
-		    zfs_force_some_double_word_sm_entries) ?
-		    (2 * sizeof (uint64_t)) : sizeof (uint64_t);
+		if (spa_feature_is_enabled(spa, SPA_FEATURE_SPACEMAP_V2) &&
+		    zfs_force_some_double_word_sm_entries)
+			entry_size = 2 * sizeof (uint64_t);
+#endif
 
 		uint64_t single_entry_max_bucket = SM_RUN_BITS + shift - 1;
 		for (; idx <= single_entry_max_bucket; idx++)
