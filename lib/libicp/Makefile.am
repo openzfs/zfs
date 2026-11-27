@@ -8,10 +8,11 @@ libicp_la_CPPFLAGS += -I$(top_srcdir)/module/icp/include
 noinst_LTLIBRARIES += libicp.la
 
 nodist_libicp_la_SOURCES = \
-	module/icp/spi/kcf_spi.c \
-	module/icp/api/kcf_ctxops.c \
-	module/icp/api/kcf_cipher.c \
-	module/icp/api/kcf_mac.c \
+	module/icp/api/crypto_buffer.c \
+	module/icp/api/crypto_cipher.c \
+	module/icp/api/crypto_mac.c \
+	module/icp/api/crypto_mech.c \
+	module/icp/api/crypto_template.c \
 	module/icp/algs/aes/aes_impl_aesni.c \
 	module/icp/algs/aes/aes_impl_generic.c \
 	module/icp/algs/aes/aes_impl_x86-64.c \
@@ -34,12 +35,7 @@ nodist_libicp_la_SOURCES = \
 	module/icp/algs/skein/skein_iv.c \
 	module/icp/illumos-crypto.c \
 	module/icp/io/aes.c \
-	module/icp/io/sha2_mod.c \
-	module/icp/core/kcf_sched.c \
-	module/icp/core/kcf_prov_lib.c \
-	module/icp/core/kcf_callprov.c \
-	module/icp/core/kcf_mech_tabs.c \
-	module/icp/core/kcf_prov_tabs.c
+	module/icp/io/sha2_mod.c
 
 if TARGET_CPU_AARCH64
 nodist_libicp_la_SOURCES += \
