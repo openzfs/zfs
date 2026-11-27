@@ -44,6 +44,7 @@ dist_noinst_DATA += autogen.sh copy-builtin
 dist_noinst_DATA += AUTHORS CODE_OF_CONDUCT.md COPYRIGHT LICENSE META NEWS NOTICE
 dist_noinst_DATA += README.md RELEASES.md
 dist_noinst_DATA += module/lua/README.zfs module/os/linux/spl/README.md
+dist_noinst_DATA += module/lz4/README.md module/lz4/lib/LICENSE
 
 # Include all the extra licensing information for modules
 dist_noinst_DATA += module/icp/algs/skein/THIRDPARTYLICENSE
@@ -138,9 +139,9 @@ cstyle:
 		! -name 'zstd_compat_wrapper.h' \
 		! -path './module/zstd/zstd-in.c' \
 		! -path './module/zstd/lib/*' \
+		! -path './module/lz4/lib/*' \
 		! -path './include/sys/lua/*' \
 		! -path './module/lua/l*.[ch]' \
-		! -path './module/zfs/lz4.c' \
 		! -path './tests/unit/munit.[ch]' \
 		$(cstyle_line)
 
