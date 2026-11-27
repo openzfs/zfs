@@ -174,7 +174,7 @@ tests = [ 'clean_mirror_001_pos', 'clean_mirror_002_pos',
 tags = ['functional', 'clean_mirror']
 
 [tests/functional/cli_root/json]
-tests = ['json_sanity']
+tests = ['json_int_values', 'json_sanity']
 tags = ['functional', 'cli_root', 'json']
 
 [tests/functional/cli_root/zinject]
