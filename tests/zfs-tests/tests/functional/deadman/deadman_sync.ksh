@@ -24,7 +24,9 @@
 #	2. Reduce the zfs_deadman_checktime_ms to 1s.
 #	3. Inject a 10s zio delay to force long IOs.
 #	4. Write enough data to force a long txg sync time due to the delay.
-#	5. Verify a "deadman" event is posted.
+#	5. Keep the delay in place, so the txg stays hung, until at least 3
+#	   "deadman" events for the pool have been posted.
+#	6. Clear the delay and verify the txg completes and the pool is healthy.
 #
 
 . $STF_SUITE/include/libtest.shlib
@@ -62,20 +64,35 @@ log_must zinject -d $DISK1 -D10000:10 $TESTPOOL
 
 mntpnt=$(get_prop mountpoint $TESTPOOL/$TESTFS)
 log_must file_write -b 1048576 -c 8 -o create -d 0 -f $mntpnt/file
-sleep 10
+
+# While the delay is in place every write the txg sync issues takes 10s, so
+# the txg stays hung for as long as we wait.  Its sync starts within 5s
+# (zfs_txg_timeout); from 5s into the sync the deadman checks it every second
+# and posts an event when a write has been outstanding for more than 5s, so 3
+# events take about 13s.  A fixed sleep counts fewer when the VM stalls and
+# misses checks, so wait for at least 3 instead, for up to 30s.
+typeset -i events=0
+typeset -i i=0
+while (( i < 30 )); do
+	events=$(zpool events $TESTPOOL | grep -c ereport.fs.zfs.deadman)
+	(( events >= 3 )) && break
+	sleep 1
+	(( i += 1 ))
+done
 
 log_must zinject -c all
-sync_all_pools
+log_must sync_all_pools
 
 # Log txg sync times for reference and the zpool event summary.
 log_must kstat_pool $TESTPOOL txgs
 log_must zpool events
 
-# Verify at least 3 deadman events were logged.  The first after 5 seconds,
-# and another each second thereafter until the delay  is clearer.
-events=$(zpool events | grep -c ereport.fs.zfs.deadman)
-if [ "$events" -lt 3 ]; then
-	log_fail "Expect >=3 deadman events, $events found"
+# Verify at least 3 deadman events were logged for the pool, and that the
+# txg completed once the delay was cleared, leaving the pool healthy.
+if (( events < 3 )); then
+	log_fail "Expect >=3 deadman events after ${i}s, $events found"
 fi
+log_must check_state $TESTPOOL "" "ONLINE"
+log_must eval "zpool status -x $TESTPOOL | grep -q 'is healthy'"
 
 log_pass "Verify spa deadman detected a hung txg and $events deadman events"
