@@ -4255,9 +4255,12 @@ zio_ddt_write(zio_t *zio)
 	 * pointer can't have "D" flag to be confused with pruned DDT entries.
 	 */
 	IMPLY(zio->io_bp_override, !BP_GET_DEDUP(zio->io_bp_override));
-	dde = ddt_lookup(ddt, bp, B_FALSE);
-	if (dde == NULL) {
-		/* DDT size is over its quota so no new entries */
+	if (ddt_lookup(ddt, bp, B_FALSE, &dde) != 0) {
+		/*
+		 * DDT size is over its quota so no new entries (ENOENT), or
+		 * the entry could not be read (any other error). Write the
+		 * block without dedup.
+		 */
 		ddt_exit(ddt);
 		zp->zp_dedup = B_FALSE;
 		BP_SET_DEDUP(bp, B_FALSE);
@@ -4631,15 +4634,27 @@ zio_ddt_free(zio_t *zio)
 	blkptr_t *bp = zio->io_bp;
 	ddt_t *ddt = ddt_select(spa, bp);
 	ddt_entry_t *dde = NULL;
+	boolean_t exhausted = B_FALSE;
+	int error;
 
 	ASSERT(BP_GET_DEDUP(bp));
 	ASSERT(zio->io_child_type == ZIO_CHILD_LOGICAL);
 
 	ddt_enter(ddt);
-	freedde = dde = ddt_lookup(ddt, bp, B_TRUE);
+	error = ddt_lookup(ddt, bp, B_TRUE, &dde);
+	freedde = dde;
 	if (dde) {
 		ddt_phys_variant_t v = ddt_phys_select(ddt, dde, bp);
-		if (v != DDT_PHYS_NONE)
+		if (v != DDT_PHYS_NONE &&
+		    ddt_phys_refcnt(dde->dde_phys, v) == 0)
+			/*
+			 * The entry has no reference left to release, so this
+			 * one is held elsewhere: in the BRT, if ddt_addref()
+			 * could not read the entry. Leak the block rather than
+			 * underflow the refcount.
+			 */
+			exhausted = B_TRUE;
+		else if (v != DDT_PHYS_NONE)
 			ddt_phys_decref(dde->dde_phys, v);
 		else
 			/*
@@ -4654,7 +4669,22 @@ zio_ddt_free(zio_t *zio)
 	}
 	ddt_exit(ddt);
 
-	if (dde) {
+	if (exhausted || (error != 0 && error != ENOENT)) {
+		/*
+		 * The entry has no reference left, or could not be read
+		 * (ENOENT is not that: it means the block has no entry).
+		 * We can't tell how many references the block has. Leak it
+		 * rather than free a block that may still be in use.
+		 */
+		zfs_dbgmsg("%s: DDT entry %s, leaking dedup BP "
+		    "DVA[0]=<%llu:%llx:%llx> phys_birth=%llu",
+		    spa_name(spa), exhausted ? "exhausted" : "unreadable",
+		    (u_longlong_t)DVA_GET_VDEV(&bp->blk_dva[0]),
+		    (u_longlong_t)DVA_GET_OFFSET(&bp->blk_dva[0]),
+		    (u_longlong_t)DVA_GET_ASIZE(&bp->blk_dva[0]),
+		    (u_longlong_t)BP_GET_PHYSICAL_BIRTH(bp));
+		zio->io_pipeline = ZIO_INTERLOCK_PIPELINE;
+	} else if (dde) {
 		/*
 		 * DDT entry found and the refcount has been decremented.
 		 * Stop the pipeline — there is nothing more to do right now.
