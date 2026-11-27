@@ -56,6 +56,19 @@ _launched_process_node_compare(const void *x1, const void *x2)
 
 static pthread_t _reap_children_tid = (pthread_t)-1;
 static volatile boolean_t _reap_children_stop;
+
+/*
+ * Test-only delays for the ZTS events/zed_zedlet_reap and
+ * events/zed_reaper_stop tests, in milliseconds, read from ZED's
+ * environment when the reaper thread is started.  Unset or 0 means no
+ * delay.  They widen two windows of the reaper that are otherwise only
+ * hit under heavy CPU contention:
+ *   ZED_TEST_REAPER_WAIT_DELAY_MS: after wait4() finds no exited child,
+ *	before the reaper waits for SIGCHLD.
+ *   ZED_TEST_REAPER_START_DELAY_MS: in a new reaper, before its loop.
+ */
+static unsigned int _reap_test_wait_delay_ms;
+static unsigned int _reap_test_start_delay_ms;
 static avl_tree_t _launched_processes;
 static pthread_mutex_t _launched_processes_lock = PTHREAD_MUTEX_INITIALIZER;
 static int16_t _launched_processes_limit;
@@ -188,6 +201,29 @@ _nop(int sig)
 	(void) sig;
 }
 
+static unsigned int
+_reap_test_delay(const char *name)
+{
+	const char *val = getenv(name);
+
+	return (val != NULL ? (unsigned int)strtoul(val, NULL, 10) : 0);
+}
+
+/*
+ * Sleep for the whole of [ms] milliseconds, signals or not.
+ */
+static void
+_reap_test_sleep(unsigned int ms)
+{
+	struct timespec ts = {
+		.tv_sec = ms / 1000,
+		.tv_nsec = (ms % 1000) * 1000 * 1000,
+	};
+
+	while (nanosleep(&ts, &ts) != 0 && errno == EINTR)
+		;
+}
+
 static void
 wait_for_children(boolean_t do_pause, boolean_t wait)
 {
@@ -195,15 +231,29 @@ wait_for_children(boolean_t do_pause, boolean_t wait)
 	struct rusage usage;
 	int status;
 	struct launched_process_node node, *pnode;
+	sigset_t waitmask;
 
-	for (_reap_children_stop = B_FALSE; !_reap_children_stop; ) {
+	/*
+	 * The reaper keeps SIGCHLD blocked and only takes it in sigsuspend().
+	 * A child that exits after wait4() has looked leaves SIGCHLD pending,
+	 * and sigsuspend() returns at once.  With pause(), that SIGCHLD was
+	 * taken before the thread slept, so it slept with the zombie unreaped
+	 * and the job slot it held never came back.
+	 */
+	(void) pthread_sigmask(SIG_SETMASK, NULL, &waitmask);
+	(void) sigdelset(&waitmask, SIGCHLD);
+
+	while (!_reap_children_stop) {
 		(void) pthread_mutex_lock(&_launched_processes_lock);
 		pid = wait4(0, &status, wait ? 0 : WNOHANG, &usage);
 		if (pid == 0 || pid == (pid_t)-1) {
 			(void) pthread_mutex_unlock(&_launched_processes_lock);
 			if ((pid == 0) || (errno == ECHILD)) {
+				if (do_pause && _reap_test_wait_delay_ms != 0)
+					_reap_test_sleep(
+					    _reap_test_wait_delay_ms);
 				if (do_pause)
-					pause();
+					(void) sigsuspend(&waitmask);
 			} else if (errno != EINTR)
 				zed_log_msg(LOG_WARNING,
 				    "Failed to wait for children: %s",
@@ -270,14 +320,17 @@ _reap_children(void *arg)
 	(void) arg;
 	struct sigaction sa = {};
 
+	/* Block SIGCHLD too: wait_for_children() takes it in sigsuspend(). */
 	(void) sigfillset(&sa.sa_mask);
-	(void) sigdelset(&sa.sa_mask, SIGCHLD);
 	(void) pthread_sigmask(SIG_SETMASK, &sa.sa_mask, NULL);
 
 	(void) sigemptyset(&sa.sa_mask);
 	sa.sa_handler = _nop;
 	sa.sa_flags = SA_NOCLDSTOP;
 	(void) sigaction(SIGCHLD, &sa, NULL);
+
+	if (_reap_test_start_delay_ms != 0)
+		_reap_test_sleep(_reap_test_start_delay_ms);
 
 	wait_for_children(B_TRUE, B_FALSE);
 
@@ -380,7 +433,18 @@ zed_exec_process(uint64_t eid, const char *class, const char *subclass,
 
 	if (_reap_children_tid == (pthread_t)-1) {
 		_launched_processes_limit = zcp->max_jobs;
+		_reap_test_wait_delay_ms =
+		    _reap_test_delay("ZED_TEST_REAPER_WAIT_DELAY_MS");
+		_reap_test_start_delay_ms =
+		    _reap_test_delay("ZED_TEST_REAPER_START_DELAY_MS");
 
+		/*
+		 * Clear the stop flag before the reaper exists.  If the reaper
+		 * cleared it itself, a zed_exec_fini() that set it and sent
+		 * SIGCHLD before the new thread got that far would be lost,
+		 * and pthread_join() would never return.
+		 */
+		_reap_children_stop = B_FALSE;
 		if (pthread_create(&_reap_children_tid, NULL,
 		    _reap_children, NULL) != 0)
 			return (-1);
