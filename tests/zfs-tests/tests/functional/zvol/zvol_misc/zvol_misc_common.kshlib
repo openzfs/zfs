@@ -130,3 +130,77 @@ function verify_partition # device
 		is_disk_device "${devname}s0"
 	fi
 }
+
+#
+# Issue 4 KiB O_DIRECT I/Os with RWF_NOWAIT to a zvol, through one file
+# descriptor, and print one line per I/O: the I/O, its result ("ok", an errno
+# name, or "baddata" if a read does not return what a write of the same
+# block wrote), and how many requests the zvol_nowait taskq received during
+# it ("-" if that taskq does not exist).  An I/O is w<offset> for a write and
+# r<offset> for a read.  ctypes, for Python 3.6, which has no os.pwritev().
+#
+function nowait_io # volume io...
+{
+	typeset dev=$ZVOL_DEVDIR/$1
+	shift
+
+	block_device_wait "$dev"
+	python3 -c '
+import ctypes, errno, fcntl, mmap, os, sys
+
+RWF_NOWAIT = 0x8
+BLKFLSBUF = 0x1261
+KSTAT = "/proc/spl/kstat/taskq/zvol_nowait.0"
+
+class iovec(ctypes.Structure):
+    _fields_ = [("iov_base", ctypes.c_void_p), ("iov_len", ctypes.c_size_t)]
+
+def dispatched():
+    try:
+        with open(KSTAT) as f:
+            for line in f:
+                w = line.split()
+                if len(w) == 3 and w[0] == "tasks_dispatched":
+                    return int(w[2])
+    except OSError:
+        pass
+    return None
+
+libc = ctypes.CDLL(None, use_errno=True)
+for fn in (libc.preadv2, libc.pwritev2):
+    fn.argtypes = [ctypes.c_int, ctypes.POINTER(iovec), ctypes.c_int,
+        ctypes.c_int64, ctypes.c_int]
+    fn.restype = ctypes.c_ssize_t
+
+fd = os.open(sys.argv[1], os.O_RDWR | os.O_DIRECT)
+buf = mmap.mmap(-1, 4096)
+iov = iovec(ctypes.addressof(ctypes.c_char.from_buffer(buf)), 4096)
+for io in sys.argv[2:]:
+    off = int(io[1:])
+    data = bytes([off // 4096 % 255 + 1]) * 4096
+    fn = libc.pwritev2 if io[0] == "w" else libc.preadv2
+    for i in range(10):
+        buf[:] = data if io[0] == "w" else bytes(4096)
+        before = dispatched()
+        rc = fn(fd, ctypes.byref(iov), 1, off, RWF_NOWAIT)
+        err = ctypes.get_errno() if rc < 0 else 0
+        after = dispatched()
+        if err != errno.EAGAIN:
+            break
+        # Pages of the device in the page cache fail it: drop them.
+        try:
+            fcntl.ioctl(fd, BLKFLSBUF)
+        except OSError:
+            pass
+    if err == errno.EOPNOTSUPP:
+        # errno.errorcode calls it ENOTSUP, an alias on Linux.
+        res = "EOPNOTSUPP"
+    elif err != 0:
+        res = errno.errorcode.get(err, str(err))
+    elif rc != 4096 or (io[0] == "r" and buf[:] != data):
+        res = "baddata"
+    else:
+        res = "ok"
+    print(io, res, "-" if before is None else after - before)
+' "$dev" "$@"
+}

@@ -16,7 +16,7 @@
 .\" Copyright (c) 2026, Mateusz Piotrowski <0mp@FreeBSD.org>
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd September 9, 2026
+.Dd November 17, 2026
 .Dt ZFS 4
 .Os
 .
@@ -3025,7 +3025,16 @@ The number of requests which can be handled concurrently is controlled by
 .Sy zvol_threads .
 This parameter applies regardless of the
 .Sy zvol_use_blk_mq
-setting.
+setting, except for non-blocking
+.Pq Dv REQ_NOWAIT
+requests to
+.Li blk-mq
+zvols, such as those
+.Xr io_uring 7
+submits from its own task: those are handled by the thread pool even when this
+parameter is set or the
+.Sy volthreading
+property is off, so that their submitter does not wait for each of them.
 .
 .It Sy zvol_num_taskqs Ns = Ns Sy 0 Pq uint
 Number of zvol taskqs.
@@ -3067,6 +3076,13 @@ the workload.
 This parameter will only appear if your kernel supports
 .Li blk-mq
 and is only read and assigned to a zvol at zvol load time.
+A request that a
+.Li blk-mq
+zvol hands to its thread pool never waits in the task that submits it:
+one that would have to, such as during a receive or rollback of the zvol or
+for the first write after it is opened, goes to a separate thread pool
+.Pq Sy zvol_nowait ,
+which waits instead and then handles it.
 .
 .It Sy zvol_blk_mq_blocks_per_thread Ns = Ns Sy 8 Pq uint
 If
