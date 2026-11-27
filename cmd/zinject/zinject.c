@@ -1332,8 +1332,8 @@ main(int argc, char **argv)
 		if (raw != NULL || range != NULL || type != TYPE_INVAL ||
 		    level != 0 || device != NULL || record.zi_freq > 0 ||
 		    dvas != 0) {
-			(void) fprintf(stderr, "%s incompatible with other "
-			    "options\n", "import|export delay (-P)");
+			(void) fprintf(stderr, "panic (-p) incompatible with "
+			    "other options\n");
 			usage();
 			libzfs_fini(g_zfs);
 			return (2);
