@@ -395,14 +395,18 @@ case, set
 .Sy ashift Ns = Ns Sy 12
 (which is
 .Sy 1<<12 No = Sy 4096 ) .
-When set, this property is
-used as the default hint value in subsequent vdev operations (add,
-attach and replace).
-Changing this value will not modify any existing
-vdev, not even on disk replacement; however it can be used, for
-instance, to replace a dying 512B sectors disk with a newer 4KiB
-sectors device: this will probably result in bad performance but at the
-same time could prevent loss of data.
+When set, this property is used as the default hint value in subsequent
+.Xr zpool-add 8
+operations; it does not affect
+.Xr zpool-attach 8
+or
+.Xr zpool-replace 8 ,
+which honor only an explicitly requested
+.Fl o Sy ashift Ns = Ns Ar ashift ,
+and only when it does not exceed the ashift of the existing top-level
+vdev.
+Changing this value will not modify any existing vdev, not even on disk
+replacement.
 .It Sy autoexpand Ns = Ns Sy on Ns | Ns Sy off
 Controls automatic pool expansion when the underlying LUN is grown.
 If set to
