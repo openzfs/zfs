@@ -81,6 +81,47 @@ zfs_is_readonly(zfsvfs_t *zfsvfs)
 	return (!!(zfsvfs->z_sb->s_flags & SB_RDONLY));
 }
 
+/*
+ * Reject new async Direct I/O admissions and wait for the requests already
+ * admitted to complete.  This runs before the teardown write lock is taken:
+ * an async request executes without holding the teardown read lock, so
+ * waiting for it while holding the write lock would deadlock if any part of
+ * the request needs that lock.
+ */
+static void
+zfs_async_dio_drain(zfsvfs_t *zfsvfs)
+{
+	uint64_t old = atomic_load_64(&zfsvfs->z_async_dio_inflight);
+
+	for (;;) {
+		if (atomic_cas_64(&zfsvfs->z_async_dio_inflight, old,
+		    old | ZPL_ASYNC_DIO_DRAINING_BIT) == old)
+			break;
+		old = atomic_load_64(&zfsvfs->z_async_dio_inflight);
+	}
+
+	mutex_enter(&zfsvfs->z_async_dio_lock);
+	while ((atomic_load_64(&zfsvfs->z_async_dio_inflight) &
+	    ZPL_ASYNC_DIO_INFLIGHT_MASK) != 0)
+		cv_wait(&zfsvfs->z_async_dio_cv, &zfsvfs->z_async_dio_lock);
+	mutex_exit(&zfsvfs->z_async_dio_lock);
+}
+
+/*
+ * Clear the draining flag after a teardown that did not complete (the
+ * zfsvfs was already unmounted) or after zfs_resume_fs() made the filesystem
+ * usable again.
+ */
+static void
+zfs_async_dio_resume(zfsvfs_t *zfsvfs)
+{
+	uint64_t old = atomic_load_64(&zfsvfs->z_async_dio_inflight);
+
+	while (atomic_cas_64(&zfsvfs->z_async_dio_inflight, old,
+	    old & ZPL_ASYNC_DIO_INFLIGHT_MASK) != old)
+		old = atomic_load_64(&zfsvfs->z_async_dio_inflight);
+}
+
 int
 zfs_sync(struct super_block *sb, int wait, cred_t *cr)
 {
@@ -678,6 +719,9 @@ zfsvfs_create_impl(zfsvfs_t **zfvp, zfsvfs_t *zfsvfs, objset_t *os)
 	list_create(&zfsvfs->z_all_znodes, sizeof (znode_t),
 	    offsetof(znode_t, z_link_node));
 	ZFS_TEARDOWN_INIT(zfsvfs);
+	mutex_init(&zfsvfs->z_async_dio_lock, NULL, MUTEX_DEFAULT, NULL);
+	cv_init(&zfsvfs->z_async_dio_cv, NULL, CV_DEFAULT, NULL);
+	atomic_store_64(&zfsvfs->z_async_dio_inflight, 0);
 	rw_init(&zfsvfs->z_teardown_inactive_lock, NULL, RW_DEFAULT, NULL);
 	rw_init(&zfsvfs->z_fuid_lock, NULL, RW_DEFAULT, NULL);
 
@@ -824,6 +868,10 @@ zfsvfs_free(zfsvfs_t *zfsvfs)
 	mutex_destroy(&zfsvfs->z_lock);
 	list_destroy(&zfsvfs->z_all_znodes);
 	ZFS_TEARDOWN_DESTROY(zfsvfs);
+	ASSERT0(atomic_load_64(&zfsvfs->z_async_dio_inflight) &
+	    ZPL_ASYNC_DIO_INFLIGHT_MASK);
+	mutex_destroy(&zfsvfs->z_async_dio_lock);
+	cv_destroy(&zfsvfs->z_async_dio_cv);
 	rw_destroy(&zfsvfs->z_teardown_inactive_lock);
 	rw_destroy(&zfsvfs->z_fuid_lock);
 	for (i = 0; i != size; i++) {
@@ -1275,6 +1323,14 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 		}
 	}
 
+	/*
+	 * Reject new async Direct I/O submissions and wait for the requests
+	 * already executing to finish before taking the teardown write lock.
+	 * Async I/O runs without the teardown read lock held, so this is what
+	 * keeps it from racing with dataset teardown.
+	 */
+	zfs_async_dio_drain(zfsvfs);
+
 	ZFS_TEARDOWN_ENTER_WRITE(zfsvfs, FTAG);
 
 	if (!unmounting) {
@@ -1307,6 +1363,13 @@ zfsvfs_teardown(zfsvfs_t *zfsvfs, boolean_t unmounting)
 	if (!unmounting && (zfsvfs->z_unmounted || zfsvfs->z_os == NULL)) {
 		rw_exit(&zfsvfs->z_teardown_inactive_lock);
 		ZFS_TEARDOWN_EXIT(zfsvfs, FTAG);
+
+		/*
+		 * Teardown bailed out without a matching zfs_resume_fs(), so
+		 * re-enable async Direct I/O instead of leaving the
+		 * filesystem permanently degraded.
+		 */
+		zfs_async_dio_resume(zfsvfs);
 		return (SET_ERROR(EIO));
 	}
 
@@ -1928,6 +1991,13 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 bail:
 	if (err != 0)
 		zfsvfs->z_unmounted = B_TRUE;
+
+	/*
+	 * The filesystem is usable again, so re-enable async Direct I/O.
+	 * The teardown write lock is still held, so no new submission can
+	 * observe the cleared draining flag before it is released below.
+	 */
+	zfs_async_dio_resume(zfsvfs);
 
 	/* release the VFS ops */
 	rw_exit(&zfsvfs->z_teardown_inactive_lock);
