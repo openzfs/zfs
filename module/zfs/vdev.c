@@ -1261,6 +1261,11 @@ vdev_free(vdev_t *vd)
 	if (vd->vdev_fru)
 		spa_strfree(vd->vdev_fru);
 
+	if (vd->vdev_detach_label != NULL) {
+		nvlist_free(vd->vdev_detach_label);
+		kmem_free(vd->vdev_detach_ub, sizeof (uberblock_t));
+	}
+
 	if (vd->vdev_isspare)
 		spa_spare_remove(vd);
 	if (vd->vdev_isl2cache)
