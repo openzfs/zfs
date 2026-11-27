@@ -5095,8 +5095,9 @@ dbuf_write_ready(zio_t *zio, arc_buf_t *buf, void *vdb)
 #ifdef ZFS_DEBUG
 	if (db->db_blkid == DMU_SPILL_BLKID) {
 		ASSERT(dn->dn_phys->dn_flags & DNODE_FLAG_SPILL_BLKPTR);
-		ASSERT(!(BP_IS_HOLE(bp)) &&
-		    db->db_blkptr == DN_SPILL_BLKPTR(dn->dn_phys));
+		/* A write that failed before allocation leaves a hole. */
+		ASSERT(zio->io_error != 0 || !BP_IS_HOLE(bp));
+		ASSERT3P(db->db_blkptr, ==, DN_SPILL_BLKPTR(dn->dn_phys));
 	}
 #endif
 

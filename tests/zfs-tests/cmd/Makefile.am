@@ -35,6 +35,12 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/crypto_test
 %C%_crypto_test_SOURCES = %D%/crypto_test.c
 %C%_crypto_test_LDADD = libzpool.la
 
+scripts_zfs_tests_bin_PROGRAMS += %D%/zio_encrypt_suspend
+%C%_zio_encrypt_suspend_CPPFLAGS = $(AM_CPPFLAGS) $(LIBZPOOL_CPPFLAGS)
+%C%_zio_encrypt_suspend_LDADD = \
+	libzpool.la \
+	libnvpair.la
+
 scripts_zfs_tests_bin_PROGRAMS += %D%/clone_after_trunc
 
 if WANT_DEVNAME2DEVID
