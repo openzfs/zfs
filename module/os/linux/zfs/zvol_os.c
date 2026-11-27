@@ -588,10 +588,12 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 		 * than zv_state_lock so that we don't need to acquire an
 		 * additional lock in this path.
 		 */
-		if (zv->zv_zilog == NULL) {
+		if (zv->zv_zilog == NULL &&
+		    !(zv->zv_flags & ZVOL_RESUME_FAILED)) {
 			rw_exit(&zv->zv_suspend_lock);
 			rw_enter(&zv->zv_suspend_lock, RW_WRITER);
-			if (zv->zv_zilog == NULL) {
+			if (zv->zv_zilog == NULL &&
+			    !(zv->zv_flags & ZVOL_RESUME_FAILED)) {
 				zv->zv_zilog = zil_open(zv->zv_objset,
 				    zvol_get_data, &zv->zv_kstat.dk_zil_sums);
 				zv->zv_flags |= ZVOL_WRITTEN_TO;
@@ -600,6 +602,12 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 				    ZIL_REPLAY_NEEDED));
 			}
 			rw_downgrade(&zv->zv_suspend_lock);
+		}
+
+		if (unlikely(zv->zv_flags & ZVOL_RESUME_FAILED)) {
+			rw_exit(&zv->zv_suspend_lock);
+			zvol_end_io(bio, rq, SET_ERROR(EIO));
+			goto out;
 		}
 
 		/*
@@ -661,6 +669,12 @@ zvol_request_impl(zvol_state_t *zv, struct bio *bio, struct request *rq,
 		}
 
 		rw_enter(&zv->zv_suspend_lock, RW_READER);
+
+		if (unlikely(zv->zv_flags & ZVOL_RESUME_FAILED)) {
+			rw_exit(&zv->zv_suspend_lock);
+			zvol_end_io(bio, rq, SET_ERROR(EIO));
+			goto out;
+		}
 
 		/* See comment in WRITE case above. */
 		if (force_sync) {
@@ -947,7 +961,9 @@ zvol_ioctl(struct block_device *bdev, fmode_t mode,
 		invalidate_bdev(bdev);
 		rw_enter(&zv->zv_suspend_lock, RW_READER);
 
-		if (!(zv->zv_flags & ZVOL_RDONLY))
+		if (zv->zv_flags & ZVOL_RESUME_FAILED)
+			error = SET_ERROR(EIO);
+		else if (!(zv->zv_flags & ZVOL_RDONLY))
 			txg_wait_synced(dmu_objset_pool(zv->zv_objset), 0);
 
 		rw_exit(&zv->zv_suspend_lock);

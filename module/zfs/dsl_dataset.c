@@ -1497,6 +1497,11 @@ dsl_dataset_dirty(dsl_dataset_t *ds, dmu_tx_t *tx)
 		    !os->os_raw_receive &&
 		    !os->os_next_write_raw[tx->tx_txg & TXG_MASK]) {
 			ASSERT3P(ds->ds_key_mapping, !=, NULL);
+			/*
+			 * The next write computes new MACs, so the old ones
+			 * must have been checked (dmu_objset_authenticate()).
+			 */
+			ASSERT(os->os_authenticated);
 			key_mapping_add_ref(ds->ds_key_mapping, ds);
 		}
 	}
