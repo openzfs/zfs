@@ -1860,7 +1860,9 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 		goto bail;
 
 	ds->ds_dir->dd_activity_cancelled = B_FALSE;
-	VERIFY0(zfsvfs_setup(zfsvfs, B_FALSE));
+	err = zfsvfs_setup(zfsvfs, B_FALSE);
+	if (err != 0)
+		goto bail;
 
 	zfs_set_fuid_feature(zfsvfs);
 	zfsvfs->z_rollback_time = jiffies;
@@ -1926,8 +1928,25 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 	shrink_dcache_sb(zfsvfs->z_sb);
 
 bail:
-	if (err != 0)
+	if (err != 0) {
 		zfsvfs->z_unmounted = B_TRUE;
+
+		/*
+		 * Drop the references zfs_suspend_fs() took, so that
+		 * unmount can drain z_all_znodes.  zfs_zrele_async() never
+		 * frees a znode here: the last iput runs from a taskq, and
+		 * eviction waits for z_teardown_inactive_lock.
+		 */
+		mutex_enter(&zfsvfs->z_znodes_lock);
+		for (zp = list_head(&zfsvfs->z_all_znodes); zp != NULL;
+		    zp = list_next(&zfsvfs->z_all_znodes, zp)) {
+			if (zp->z_suspended) {
+				zp->z_suspended = B_FALSE;
+				zfs_zrele_async(zp);
+			}
+		}
+		mutex_exit(&zfsvfs->z_znodes_lock);
+	}
 
 	/* release the VFS ops */
 	rw_exit(&zfsvfs->z_teardown_inactive_lock);

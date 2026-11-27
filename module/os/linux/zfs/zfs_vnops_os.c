@@ -3877,8 +3877,10 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	int		cnt = 0;
 	struct address_space *mapping;
 
-	if ((err = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0)
+	if ((err = zfs_enter_verify_zp(zfsvfs, zp, FTAG)) != 0) {
+		unlock_page(pp);
 		return (err);
+	}
 
 	ASSERT(PageLocked(pp));
 
