@@ -2186,6 +2186,11 @@ arc_buf_fill(arc_buf_t *buf, spa_t *spa, const zbookmark_phys_t *zb,
 			    &hdr->b_complevel);
 			abd_free(&dabd);
 
+			if (zio_injection_enabled && error == 0) {
+				error = zio_handle_decompress_injection(spa,
+				    zb, EINVAL);
+			}
+
 			/*
 			 * Absent hardware errors or software bugs, this should
 			 * be impossible, but log it anyway so we can debug it.
@@ -5607,6 +5612,29 @@ arc_hdr_verify(arc_buf_hdr_t *hdr, blkptr_t *bp)
 	}
 }
 
+/*
+ * A reader without ZIO_FLAG_CANFAIL joined a read that has it, and the read
+ * failed with an I/O error.  Had the read been its own, the zio layer would
+ * have suspended the pool and retried it, so read the block again for it,
+ * as dbuf_prefetch_indirect_done() also reads from an ARC done callback.
+ * The new read is a child of the reader's acb_zio_dummy, which keeps the
+ * reader's pio open until it completes.  A reader that waits in arc_read()
+ * reads again itself.
+ */
+static void
+arc_read_reissue(zio_t *zio, arc_callback_t *acb)
+{
+	if (!acb->acb_wait) {
+		arc_flags_t aflags = acb->acb_arc_flags;
+
+		(void) arc_read(acb->acb_zio_dummy, zio->io_spa, zio->io_bp,
+		    acb->acb_done, acb->acb_private, acb->acb_priority,
+		    acb->acb_zio_flags, &aflags, &acb->acb_zb);
+	}
+	if (acb->acb_zio_dummy != NULL)
+		zio_nowait(acb->acb_zio_dummy);
+}
+
 static void
 arc_read_done(zio_t *zio)
 {
@@ -5798,7 +5826,11 @@ arc_read_done(zio_t *zio)
 
 	/* execute each callback and free its structure */
 	while ((acb = callback_list) != NULL) {
-		if (acb->acb_done != NULL) {
+		boolean_t reissue = read_error && acb->acb_reissue;
+
+		if (reissue) {
+			arc_read_reissue(zio, acb);
+		} else if (acb->acb_done != NULL) {
 			if (zio->io_error != 0 && acb->acb_buf != NULL) {
 				/*
 				 * If arc_buf_alloc_impl() fails during
@@ -5813,7 +5845,7 @@ arc_read_done(zio_t *zio)
 			    acb->acb_buf, acb->acb_private);
 		}
 
-		if (acb->acb_zio_dummy != NULL) {
+		if (!reissue && acb->acb_zio_dummy != NULL) {
 			acb->acb_zio_dummy->io_error = zio->io_error;
 			zio_nowait(acb->acb_zio_dummy);
 		}
@@ -5822,6 +5854,7 @@ arc_read_done(zio_t *zio)
 		if (acb->acb_wait) {
 			mutex_enter(&acb->acb_wait_lock);
 			acb->acb_wait_error = zio->io_error;
+			acb->acb_reissue = reissue;
 			acb->acb_wait = B_FALSE;
 			cv_signal(&acb->acb_wait_cv);
 			mutex_exit(&acb->acb_wait_lock);
@@ -5900,6 +5933,10 @@ arc_cached(spa_t *spa, const blkptr_t *bp)
  *
  * arc_read_done() will invoke all the requested "done" functions
  * for readers of this block.
+ *
+ * Even without ZIO_FLAG_CANFAIL, errors that are fatal and outside the zio
+ * pipeline, such as a block pointer that fails verification or data that
+ * does not decompress, decrypt or authenticate, reach "done" and pio.
  */
 int
 arc_read(zio_t *pio, spa_t *spa, const blkptr_t *bp,
@@ -6009,7 +6046,9 @@ top:
 			 * arc_read_done via acb_wait_error.  Nowait reads
 			 * attach the acb_zio_dummy zio to pio and
 			 * arc_read_done propagates the physical I/O's io_error
-			 * to acb_zio_dummy, and thereby to pio.
+			 * to acb_zio_dummy, and thereby to pio.  A reader
+			 * without ZIO_FLAG_CANFAIL reads again instead, see
+			 * arc_read_reissue().
 			 */
 			arc_callback_t *acb = NULL;
 			if (done || pio || *arc_flags & ARC_FLAG_WAIT) {
@@ -6029,9 +6068,15 @@ top:
 					    CV_DEFAULT, NULL);
 				}
 				acb->acb_zb = *zb;
+				acb->acb_reissue =
+				    !(zio_flags & ZIO_FLAG_CANFAIL);
+				acb->acb_zio_flags = zio_flags;
+				acb->acb_priority = priority;
+				acb->acb_arc_flags = *arc_flags;
 				if (pio != NULL) {
 					acb->acb_zio_dummy = zio_null(pio,
-					    spa, NULL, NULL, NULL, zio_flags);
+					    spa, NULL, NULL, NULL,
+					    zio_flags | ZIO_FLAG_CANFAIL);
 				}
 				acb->acb_zio_head = head_zio;
 				acb->acb_next = hdr->b_l1hdr.b_acb;
@@ -6050,11 +6095,14 @@ top:
 					cv_wait(&acb->acb_wait_cv,
 					    &acb->acb_wait_lock);
 				}
-				rc = acb->acb_wait_error;
+				boolean_t reissue = acb->acb_reissue;
+				rc = reissue ? 0 : acb->acb_wait_error;
 				mutex_exit(&acb->acb_wait_lock);
 				mutex_destroy(&acb->acb_wait_lock);
 				cv_destroy(&acb->acb_wait_cv);
 				kmem_free(acb, sizeof (arc_callback_t));
+				if (reissue)
+					goto top;
 			}
 			goto out;
 		}
@@ -6505,7 +6553,8 @@ done:
 	if (done)
 		done(NULL, zb, bp, buf, private);
 	if (pio && rc != 0) {
-		zio_t *zio = zio_null(pio, spa, NULL, NULL, NULL, zio_flags);
+		zio_t *zio = zio_null(pio, spa, NULL, NULL, NULL,
+		    zio_flags | ZIO_FLAG_CANFAIL);
 		zio->io_error = rc;
 		zio_nowait(zio);
 	}
