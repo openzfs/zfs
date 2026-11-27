@@ -57,6 +57,7 @@
 #include <sys/zfs_ioctl.h>
 #include <sys/mount.h>
 #include <sys/sysmacros.h>
+#include <sys/list.h>
 #include <string.h>
 #include <math.h>
 
@@ -2630,6 +2631,30 @@ is_blank_str(const char *str)
 	return (B_TRUE);
 }
 
+/*
+ * trim whitespace from the front and back of the string; return ptr to
+ * the start of the resulting string, which may be the same as `str` if
+ * there's no whitespace at the start. Writes a null in the final space
+ * in the string, if the string has trailing whitespace.
+ */
+static char *
+trim_whitespace(char *str)
+{
+	char *end;
+
+	if (str == NULL || *str == '\0')
+		return (str);
+
+	end = str + strlen(str) - 1;
+	while (end >= str && isspace((unsigned char)*end))
+		--end;
+	*(end + 1) = '\0';
+	while (str < end && isspace((unsigned char)*str))
+		str++;
+
+	return (str);
+}
+
 static void
 zpool_nvlist_cmd(vdev_cmd_data_list_t *vcdl, const char *pool, const char *path,
     nvlist_t *item)
@@ -3944,18 +3969,124 @@ typedef struct import_parameters {
 	nvlist_t *ip_props;
 	int ip_flags;
 	uint_t ip_mntthreads;
-	int *ip_err;
+	int ip_err;
+	list_node_t ip_node;
 } import_parameters_t;
 
 static void
 do_import_task(void *arg)
 {
 	import_parameters_t *ip = arg;
-	*ip->ip_err |= do_import(ip->ip_config, NULL, ip->ip_mntopts,
+	ip->ip_err |= do_import(ip->ip_config, NULL, ip->ip_mntopts,
 	    ip->ip_props, ip->ip_flags, ip->ip_mntthreads);
-	free(ip);
 }
 
+static boolean_t
+name_or_guid_match(nvpair_t *elem, const char *cfg_name, uint64_t cfg_guid)
+{
+	data_type_t dtype = nvpair_type(elem);
+
+	if (dtype == DATA_TYPE_UINT64 && cfg_guid != 0) {
+		uint64_t pool_guid;
+
+		VERIFY0(nvpair_value_uint64(elem, &pool_guid));
+		if (pool_guid == cfg_guid)
+			return (B_TRUE);
+	} else if (cfg_name != NULL) {
+		const char *pool_name;
+
+		ASSERT3U(dtype, ==, DATA_TYPE_STRING);
+		VERIFY0(nvpair_value_string(elem, &pool_name));
+		if (strcmp(pool_name, cfg_name) == 0)
+			return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+static void
+remove_pool_config(nvlist_t *config, nvlist_t *pool_list)
+{
+	nvpair_t *elem = NULL;
+	nvpair_t *next;
+	const char *name;
+	uint64_t guid;
+
+	if (nvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME, &name) != 0)
+		name = NULL;
+	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID, &guid) != 0)
+		guid = 0;
+
+	/*
+	 * We'll loop over the whole list, even after we found an entry,
+	 * as it's possible the user could give both a name and a guid
+	 * that refer to the same pool.
+	 */
+	for (elem = nvlist_next_nvpair(pool_list, NULL); elem != NULL;
+	    elem = next) {
+		next = nvlist_next_nvpair(pool_list, elem);
+		if (name_or_guid_match(elem, name, guid))
+			nvlist_remove_nvpair(pool_list, elem);
+	}
+}
+
+static boolean_t
+should_import(nvlist_t *config, nvlist_t *pool_list)
+{
+	nvpair_t *elem = NULL;
+	const char *name;
+	uint64_t guid;
+
+	if (pool_list == NULL)
+		return (B_TRUE);
+
+	if (nvlist_lookup_string(config, ZPOOL_CONFIG_POOL_NAME, &name) != 0)
+		name = NULL;
+	if (nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_GUID, &guid) != 0)
+		guid = 0;
+
+	while ((elem = nvlist_next_nvpair(pool_list, elem)) != NULL) {
+		if (name_or_guid_match(elem, name, guid))
+			return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+static void
+report_name_or_guid(nvpair_t *elem)
+{
+	data_type_t dtype = nvpair_type(elem);
+
+	if (dtype == DATA_TYPE_UINT64) {
+		(void) fprintf(stderr, "  pool '%llu' not imported\n",
+		    (u_longlong_t)fnvpair_value_uint64(elem));
+	} else {
+		ASSERT3U(dtype, ==, DATA_TYPE_STRING);
+		(void) fprintf(stderr, "  pool '%s' not imported\n",
+		    fnvpair_value_string(elem));
+	}
+}
+
+static boolean_t
+report_missing_pool_imports(nvlist_t *pool_list)
+{
+	nvpair_t *elem = NULL;
+	boolean_t print_header = B_TRUE;
+	boolean_t err = B_FALSE;
+
+	while ((elem = nvlist_next_nvpair(pool_list, elem)) != NULL) {
+		if (print_header) {
+			(void) fprintf(stderr,
+			    "Not all pools were imported:\n");
+			print_header = B_FALSE;
+		}
+		report_name_or_guid(elem);
+		err = B_TRUE;
+	}
+
+	return (err);
+}
 
 static int
 import_pools(nvlist_t *pools, nvlist_t *props, char *mntopts, int flags,
@@ -3967,13 +4098,15 @@ import_pools(nvlist_t *pools, nvlist_t *props, char *mntopts, int flags,
 	boolean_t pool_specified = (import->poolname != NULL ||
 	    import->guid != 0);
 	uint_t npools = 0;
-
+	list_t work;
 
 	taskq_t *tq = NULL;
 	if (import->do_all) {
 		tq = taskq_create("zpool_import_all",
 		    5 * sysconf(_SC_NPROCESSORS_ONLN), minclsyspri, 1, INT_MAX,
 		    TASKQ_DYNAMIC);
+		list_create(&work, sizeof (import_parameters_t),
+		    offsetof(import_parameters_t, ip_node));
 	}
 
 	/*
@@ -3982,24 +4115,25 @@ import_pools(nvlist_t *pools, nvlist_t *props, char *mntopts, int flags,
 	 * post-process the list to deal with pool state and possible
 	 * duplicate names.
 	 */
+	if (!pool_specified && import->do_all) {
+		if (import->pool_list != NULL)
+			npools = fnvlist_num_pairs(import->pool_list);
+		else
+			npools = fnvlist_num_pairs(pools);
+	}
+
 	int err = 0;
 	nvpair_t *elem = NULL;
 	boolean_t first = B_TRUE;
-	if (!pool_specified && import->do_all) {
-		while ((elem = nvlist_next_nvpair(pools, elem)) != NULL)
-			npools++;
-	}
 	while ((elem = nvlist_next_nvpair(pools, elem)) != NULL) {
 
 		verify(nvpair_value_nvlist(elem, &config) == 0);
 
 		verify(nvlist_lookup_uint64(config, ZPOOL_CONFIG_POOL_STATE,
 		    &pool_state) == 0);
-		if (!import->do_destroyed &&
-		    pool_state == POOL_STATE_DESTROYED)
+		if (!import->do_destroyed && pool_state == POOL_STATE_DESTROYED)
 			continue;
-		if (import->do_destroyed &&
-		    pool_state != POOL_STATE_DESTROYED)
+		if (import->do_destroyed && pool_state != POOL_STATE_DESTROYED)
 			continue;
 
 		verify(nvlist_add_nvlist(config, ZPOOL_LOAD_POLICY,
@@ -4012,15 +4146,20 @@ import_pools(nvlist_t *pools, nvlist_t *props, char *mntopts, int flags,
 				(void) fputc('\n', stdout);
 
 			if (import->do_all) {
-				import_parameters_t *ip = safe_malloc(
-				    sizeof (import_parameters_t));
+				import_parameters_t *ip;
+
+				if (!should_import(config, import->pool_list))
+					continue;
+
+				ip = safe_malloc(sizeof (import_parameters_t));
 
 				ip->ip_config = config;
 				ip->ip_mntopts = mntopts;
 				ip->ip_props = props;
 				ip->ip_flags = flags;
 				ip->ip_mntthreads = mount_tp_nthr / npools;
-				ip->ip_err = &err;
+				ip->ip_err = 0;
+				list_insert_tail(&work, ip);
 
 				(void) taskq_dispatch(tq, do_import_task,
 				    (void *)ip, TQ_SLEEP);
@@ -4071,9 +4210,26 @@ import_pools(nvlist_t *pools, nvlist_t *props, char *mntopts, int flags,
 				found_config = config;
 		}
 	}
+
 	if (import->do_all) {
+		import_parameters_t *ip;
+
 		taskq_wait(tq);
 		taskq_destroy(tq);
+
+		while ((ip = list_remove_head(&work)) != NULL) {
+			if (ip->ip_err) {
+				err = B_TRUE;
+			} else if (import->pool_list != NULL) {
+				remove_pool_config(ip->ip_config,
+				    import->pool_list);
+			}
+			free(ip);
+		}
+		list_destroy(&work);
+
+		if (import->pool_list != NULL)
+			err |= report_missing_pool_imports(import->pool_list);
 	}
 
 	/*
@@ -4135,6 +4291,86 @@ name_or_guid_exists(zpool_handle_t *zhp, void *data)
 
 	return (found);
 }
+
+static boolean_t
+check_pool_exists(importargs_t *idata, const char *name)
+{
+	const char *searchname = NULL;
+	uint64_t searchguid = 0;
+	char *endptr;
+
+	errno = 0;
+	searchguid = strtoull(name, &endptr, 10);
+	if (name[0] == '\0' || errno != 0 || *endptr != '\0') {
+		searchname = name;
+		searchguid = 0;
+	}
+	idata->poolname = searchname;
+	idata->guid = searchguid;
+
+	/*
+	 * User specified a name or guid.  Ensure it's unique.
+	 */
+	target_exists_args_t search = {searchname, searchguid};
+	return (zpool_iter(g_zfs, name_or_guid_exists, &search));
+}
+
+enum pool_check_result {
+	POOL_CHECK_OK,
+	POOL_CHECK_MULTI_OK,
+	POOL_CHECK_FOUND,
+	POOL_CHECK_MULTI_FOUND
+};
+
+static enum pool_check_result
+validate_pool_list(importargs_t *idata, const char *names)
+{
+	idata->pool_list = NULL;
+
+	if (strchr(names, ',') != NULL) {
+		char *tokptr, *namedup;
+		nvlist_t *pool_list;
+
+		VERIFY0(nvlist_alloc(&pool_list, NV_UNIQUE_NAME, 0));
+
+		tokptr = namedup = safe_strdup(names);
+		for (char *namep; (namep = strsep(&tokptr, ",")) != NULL; ) {
+			char *name = trim_whitespace(namep);
+
+			/* ignore empty pool names */
+			if (*name == '\0')
+				continue;
+
+			if (check_pool_exists(idata, name)) {
+				free(namedup);
+				idata->poolname = NULL;
+				idata->guid = 0;
+				idata->pool_list = pool_list;
+				return (POOL_CHECK_MULTI_FOUND);
+			}
+
+			/* silently ignore duplicate pool names/guids */
+			if (idata->guid != 0) {
+				fnvlist_add_uint64(pool_list, name,
+				    idata->guid);
+			} else {
+				fnvlist_add_string(pool_list, name,
+				    idata->poolname);
+			}
+		}
+
+		free(namedup);
+		idata->poolname = NULL;
+		idata->guid = 0;
+		idata->pool_list = pool_list;
+
+		return (POOL_CHECK_MULTI_OK);
+	}
+
+	return (check_pool_exists(idata, names) ?
+	    POOL_CHECK_FOUND : POOL_CHECK_OK);
+}
+
 /*
  * zpool checkpoint <pool>
  *       checkpoint --discard <pool>
@@ -4305,6 +4541,9 @@ zpool_do_prefetch(int argc, char **argv)
  *       import [-o mntopts] [-o prop=value] ... [-R root] [-D] [-l]
  *              [-d dir | -c cachefile | -s] [-f] [-n] [-F] <pool | id>
  *              [newpool]
+ *       import [-o mntopts] [-o prop=value] ... [-R root] [-D] [-l]
+ *              [-d dir | -c cachefile | -s] [-f] [-n] [-F]
+ *              <pool | id>[,<pool | id>] ...
  *
  *	-c	Read pool information from a cachefile instead of searching
  *		devices. If importing from a cachefile config fails, then
@@ -4368,8 +4607,6 @@ zpool_do_import(int argc, char **argv)
 	boolean_t do_all = B_FALSE;
 	boolean_t do_destroyed = B_FALSE;
 	char *mntopts = NULL;
-	uint64_t searchguid = 0;
-	char *searchname = NULL;
 	char *propval;
 	nvlist_t *policy = NULL;
 	nvlist_t *props = NULL;
@@ -4572,26 +4809,50 @@ zpool_do_import(int argc, char **argv)
 	 *
 	 *	-a	Iterate through all pools and try to import each one.
 	 *
-	 *	<id>	Find the pool that corresponds to the given GUID/pool
-	 *		name and import that one.
+	 *	<id>	Find the pool or pools that correspond to the given
+	 *		GUIDs/pool names and import them.
 	 *
 	 *	-D	Above options applies only to destroyed pools.
 	 */
 	if (argc != 0) {
-		char *endptr;
+		boolean_t stop_import = B_FALSE;
 
-		errno = 0;
-		searchguid = strtoull(argv[0], &endptr, 10);
-		if (errno != 0 || *endptr != '\0') {
-			searchname = argv[0];
-			searchguid = 0;
+		switch (validate_pool_list(&idata, argv[0])) {
+		case POOL_CHECK_OK:
+			pool_exists = B_FALSE;
+			break;
+		case POOL_CHECK_FOUND:
+			pool_exists = B_TRUE;
+			break;
+		case POOL_CHECK_MULTI_OK:
+			pool_exists = B_FALSE;
+			if (argc == 2) {
+				(void) fprintf(stderr,
+				    "cannot do a rename-import when importing"
+				    " multiple pools\n");
+				stop_import = B_TRUE;
+			}
+			break;
+		case POOL_CHECK_MULTI_FOUND:
+			(void) fprintf(stderr,
+			    "one or more pools already imported\n");
+			stop_import = B_TRUE;
+			break;
+
+		default:
+			(void) fprintf(stderr, "internal error: "
+			    "validate_pool_list() result unexpected\n");
+			stop_import = B_TRUE;
+			break;
 		}
 
-		/*
-		 * User specified a name or guid.  Ensure it's unique.
-		 */
-		target_exists_args_t search = {searchname, searchguid};
-		pool_exists = zpool_iter(g_zfs, name_or_guid_exists, &search);
+		if (stop_import) {
+			free(searchdirs);
+			nvlist_free(props);
+			nvlist_free(policy);
+			nvlist_free(idata.pool_list);
+			return (1);
+		}
 	}
 
 	/*
@@ -4611,15 +4872,14 @@ zpool_do_import(int argc, char **argv)
 		}
 	}
 
+	/* TODO: extend importargs_t to search for a list of pools */
 	idata.path = searchdirs;
 	idata.paths = nsearch;
-	idata.poolname = searchname;
-	idata.guid = searchguid;
 	idata.cachefile = cachefile;
 	idata.scan = do_scan;
 	idata.policy = policy;
 	idata.do_destroyed = do_destroyed;
-	idata.do_all = do_all;
+	idata.do_all = do_all || idata.pool_list != NULL;
 
 	libpc_handle_t lpch = {
 		.lpc_lib_handle = g_zfs,
@@ -4658,6 +4918,7 @@ zpool_do_import(int argc, char **argv)
 		nvlist_free(policy);
 		nvlist_free(pools);
 		nvlist_free(props);
+		nvlist_free(idata.pool_list);
 		return (1);
 	}
 
@@ -4691,6 +4952,7 @@ error:
 	nvlist_free(props);
 	nvlist_free(pools);
 	nvlist_free(policy);
+	nvlist_free(idata.pool_list);
 	free(searchdirs);
 	free(envdup);
 
