@@ -7124,7 +7124,7 @@ spa_validate_aux_devs(spa_t *spa, nvlist_t *nvroot, uint64_t crtxg, int mode,
 	nvlist_t **dev;
 	uint_t i, ndev;
 	vdev_t *vd;
-	int error;
+	int error = 0;
 
 	ASSERT(spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
 

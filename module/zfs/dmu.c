@@ -2778,7 +2778,7 @@ dmu_offset_next_impl(objset_t *os, uint64_t object, boolean_t hole,
     uint64_t *off, boolean_t wait)
 {
 	dnode_t *dn;
-	uint64_t txg, maxtxg = 0;
+	uint64_t txg = 0, maxtxg = 0;
 	int err;
 
 restart:
