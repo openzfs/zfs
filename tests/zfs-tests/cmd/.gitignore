@@ -6,6 +6,7 @@
 /clone_after_trunc
 /clone_mmap_cached
 /clone_mmap_write
+/compat_ioctl
 /crypto_test
 /devname2devid
 /dio_append_fallocate
