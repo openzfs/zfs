@@ -1877,6 +1877,9 @@ dsl_dataset_promote_crypt_sync(dsl_dir_t *target, dsl_dir_t *origin,
 	dsl_pool_t *dp = target->dd_pool;
 	dsl_dataset_t *targetds;
 	dsl_dataset_t *originds;
+	dsl_wrapping_key_t wkey_search;
+	dsl_wrapping_key_t *wkey;
+	avl_index_t where;
 	char *keylocation;
 
 	if (origin->dd_crypto_obj == 0)
@@ -1913,6 +1916,24 @@ dsl_dataset_promote_crypt_sync(dsl_dir_t *target, dsl_dir_t *origin,
 	rw_enter(&dp->dp_spa->spa_keystore.sk_wkeys_lock, RW_WRITER);
 	spa_keystore_change_key_sync_impl(rddobj, origin->dd_object,
 	    target->dd_object, NULL, B_FALSE, tx);
+
+	/*
+	 * The keystore indexes wrapping keys by their encryption root's ddobj.
+	 * Promote has just moved the root from origin to target, so the
+	 * in-memory entry has to move with it. Otherwise every later lookup
+	 * resolves the new root, finds no wrapping key, and reports the key as
+	 * unavailable even though it is loaded.
+	 */
+	wkey_search.wk_ddobj = origin->dd_object;
+	wkey = avl_find(&dp->dp_spa->spa_keystore.sk_wkeys, &wkey_search, NULL);
+	if (wkey != NULL) {
+		avl_remove(&dp->dp_spa->spa_keystore.sk_wkeys, wkey);
+		wkey->wk_ddobj = target->dd_object;
+		VERIFY(!avl_find(&dp->dp_spa->spa_keystore.sk_wkeys, wkey,
+		    &where));
+		avl_insert(&dp->dp_spa->spa_keystore.sk_wkeys, wkey, where);
+	}
+
 	rw_exit(&dp->dp_spa->spa_keystore.sk_wkeys_lock);
 
 	dsl_dataset_rele(targetds, FTAG);

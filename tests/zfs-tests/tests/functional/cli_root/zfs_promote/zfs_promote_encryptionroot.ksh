@@ -32,6 +32,8 @@
 # 6. Verify the encryption root of all datasets is still the origin
 # 7. Promote the dataset again, so it is now the encryption root
 # 8. Verify the encryption root of all datasets is the promoted dataset
+# 9. Verify the key is still reported as loaded, that the dataset can be
+#    mounted again, and that the data is readable, without reloading it
 #
 
 verify_runnable "both"
@@ -86,5 +88,28 @@ log_must verify_encryption_root $TESTPOOL/clone2 $TESTPOOL/clone2
 log_must verify_encryption_root $TESTPOOL/$TESTFS1/child0 $TESTPOOL/clone2
 log_must verify_encryption_root $TESTPOOL/clone1/child1 $TESTPOOL/clone2
 log_must verify_encryption_root $TESTPOOL/clone2/child2 $TESTPOOL/clone2
+
+#
+# The promoted dataset is now the encryption root. The wrapping key is indexed
+# by the encryption root, so it has to move with it: the tree must still be
+# reported as unlocked, and it must be possible to mount it again. Without the
+# key the mount is refused with "encryption key not loaded".
+#
+log_must key_available $TESTPOOL/$TESTFS1
+log_must key_available $TESTPOOL/clone1
+log_must key_available $TESTPOOL/clone2
+log_must key_available $TESTPOOL/clone2/child2
+
+if ismounted "$(get_prop mountpoint $TESTPOOL/clone2/child2)"; then
+	log_must zfs unmount $TESTPOOL/clone2/child2
+fi
+if ismounted "$(get_prop mountpoint $TESTPOOL/clone2)"; then
+	log_must zfs unmount $TESTPOOL/clone2
+fi
+log_must zfs mount $TESTPOOL/clone2
+
+typeset mp=$(get_prop mountpoint $TESTPOOL/clone2)
+log_must eval "echo promote > $mp/promote_read_test"
+log_must grep -q promote $mp/promote_read_test
 
 log_pass "ZFS promotes clones of an encryption root"
