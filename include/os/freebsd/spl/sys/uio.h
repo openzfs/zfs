@@ -51,6 +51,7 @@
 #define	UIO_DIO_DENY		0x0004
 #define	UIO_DIO_CKSUM_RETRIED	0x0008
 #define	UIO_DIO_BOUNCE		0x0010
+#define	UIO_LOG_COPIED		0x0020
 
 typedef	struct iovec	iovec_t;
 typedef	enum uio_seg	zfs_uio_seg_t;

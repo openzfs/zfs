@@ -1971,6 +1971,11 @@ next:
  *			  If ATTR_XVATTR set, then optional attrs are being set
  *		flags	- ATTR_UTIME set if non-default time values provided.
  *			- ATTR_NOACLCHECK (CIFS context only).
+ *			- ATTR_NOSETIDCHECK (a mode that goes with a POSIX
+ *			  ACL, which the caller was allowed to set: the
+ *			  set-id policy of chmod(2) is not applied).
+ *			- ATTR_NOZIL (the change is not written to the
+ *			  intent log).
  *		cr	- credentials of caller.
  *		idmap	- idmap of the mount
  *
@@ -2318,10 +2323,12 @@ top:
 	if (mask & ATTR_MODE) {
 		if (zfs_zaccess_idmap(zp, ACE_WRITE_ACL, 0, skipaclchk, cr,
 		    idmap) == 0) {
-			err = secpolicy_setid_setsticky_clear(ip, vap,
-			    &oldva, cr, idmap, zfs_i_user_ns(ip));
-			if (err)
-				goto out3;
+			if (!(flags & ATTR_NOSETIDCHECK)) {
+				err = secpolicy_setid_setsticky_clear(ip, vap,
+				    &oldva, cr, idmap, zfs_i_user_ns(ip));
+				if (err)
+					goto out3;
+			}
 			trim_mask |= ATTR_MODE;
 		} else {
 			need_policy = TRUE;
@@ -2663,8 +2670,10 @@ top:
 
 		if (log_mask & ATTR_SIZE)
 			log_mask = (log_mask & ~ATTR_SIZE) | ATTR_MTIME;
-		zfs_log_setattr(zilog, tx, TX_SETATTR, zp, vap, log_mask,
-		    fuidp);
+		if (!(flags & ATTR_NOZIL)) {
+			zfs_log_setattr(zilog, tx, TX_SETATTR, zp, vap,
+			    log_mask, fuidp);
+		}
 		/*
 		 * ATTR_MODE bumps via zfs_aclset_common -> tstamp_update_setup.
 		 */
@@ -4072,7 +4081,7 @@ zfs_putpage(struct inode *ip, struct page *pp, struct writeback_control *wbc,
 	 * question is whether it will be us, or zpl_writepages().
 	 */
 	zfs_log_write(zfsvfs->z_log, tx, TX_WRITE, zp, pgoff, pglen, for_sync,
-	    B_FALSE, for_sync ? zfs_putpage_commit_cb : NULL, pp);
+	    B_FALSE, B_FALSE, for_sync ? zfs_putpage_commit_cb : NULL, pp);
 
 	if (!for_sync) {
 		/*

@@ -323,9 +323,10 @@ extern void zfs_log_rename_exchange(zilog_t *zilog, dmu_tx_t *tx,
 extern void zfs_log_rename_whiteout(zilog_t *zilog, dmu_tx_t *tx,
     uint64_t txtype, znode_t *sdzp, const char *sname, znode_t *tdzp,
     const char *dname, znode_t *szp, znode_t *wzp);
-extern void zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
+extern boolean_t zfs_log_write(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, offset_t off, ssize_t len, boolean_t commit,
-    boolean_t o_direct, zil_callback_t callback, void *callback_data);
+    boolean_t o_direct, boolean_t copied, zil_callback_t callback,
+    void *callback_data);
 extern void zfs_log_truncate(zilog_t *zilog, dmu_tx_t *tx, int txtype,
     znode_t *zp, uint64_t off, uint64_t len);
 extern void zfs_log_setattr(zilog_t *zilog, dmu_tx_t *tx, int txtype,

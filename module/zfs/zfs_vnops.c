@@ -771,6 +771,7 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 	zilog_t *zilog = zfsvfs->z_log;
 	boolean_t commit = (ioflag & (O_SYNC | O_DSYNC)) ||
 	    (zfsvfs->z_os->os_sync == ZFS_SYNC_ALWAYS);
+	boolean_t late = B_FALSE;
 
 	const uint64_t uid = KUID_TO_SUID(ZTOUID(zp));
 	const uint64_t gid = KGID_TO_SGID(ZTOGID(zp));
@@ -1057,9 +1058,11 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		 * zfs_clear_setid_bits_if_necessary must precede any of
 		 * the TX_WRITE records logged here.
 		 */
-		zfs_log_write(zilog, tx, TX_WRITE, zp, woff, tx_bytes, commit,
-		    uio->uio_extflg & UIO_DIRECT ? B_TRUE : B_FALSE, NULL,
-		    NULL);
+		if (zfs_log_write(zilog, tx, TX_WRITE, zp, woff, tx_bytes,
+		    commit, uio->uio_extflg & UIO_DIRECT ? B_TRUE : B_FALSE,
+		    uio->uio_extflg & UIO_LOG_COPIED ? B_TRUE : B_FALSE,
+		    NULL, NULL))
+			late = B_TRUE;
 
 		dmu_tx_commit(tx);
 
@@ -1106,7 +1109,14 @@ zfs_write(znode_t *zp, zfs_uio_t *uio, int ioflag, cred_t *cr)
 		return (error);
 	}
 
-	if (commit) {
+	/*
+	 * Also commit if a record that the caller needed to hold its data
+	 * does not (see UIO_LOG_COPIED).  The caller keeps other writers of
+	 * the file out until we return, so the record can only take the data
+	 * that was just written.  Such a caller writes from kernel memory,
+	 * so the return above was not for EFAULT.
+	 */
+	if (commit || late) {
 		error = zil_commit(zilog, zp->z_id);
 		if (error != 0) {
 			zfs_exit(zfsvfs, FTAG);

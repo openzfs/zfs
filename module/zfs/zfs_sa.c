@@ -182,6 +182,19 @@ zfs_sa_set_scanstamp(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 	}
 }
 
+/*
+ * Returns B_TRUE if xattr=sa operations may be logged as TX_SETSAXATTR
+ * records in this objset's intent log.  Users enable this by enabling the
+ * SPA_FEATURE_ZILSAXATTR feature on the pool; the feature is activated
+ * during zil_process_commit_list/zil_create, if enabled.
+ */
+boolean_t
+zfs_sa_xattr_log_enabled(objset_t *os)
+{
+	return (spa_feature_is_enabled(dmu_objset_spa(os),
+	    SPA_FEATURE_ZILSAXATTR) && zfs_zil_saxattr);
+}
+
 int
 zfs_sa_get_xattr(znode_t *zp)
 {
@@ -243,13 +256,7 @@ zfs_sa_set_xattr(znode_t *zp, const char *name, const void *value, size_t vsize)
 
 	zilog = zfsvfs->z_log;
 
-	/*
-	 * Users enable ZIL logging of xattr=sa operations by enabling the
-	 * SPA_FEATURE_ZILSAXATTR feature on the pool. Feature is activated
-	 * during zil_process_commit_list/zil_create, if enabled.
-	 */
-	if (spa_feature_is_enabled(zfsvfs->z_os->os_spa,
-	    SPA_FEATURE_ZILSAXATTR) && zfs_zil_saxattr)
+	if (zfs_sa_xattr_log_enabled(zfsvfs->z_os))
 		logsaxattr = 1;
 
 	tx = dmu_tx_create(zfsvfs->z_os);
