@@ -22,6 +22,7 @@ COMMON_H = \
 	sys/abd_impl.h \
 	sys/aggsum.h \
 	sys/arc.h \
+	sys/arc_growth.h \
 	sys/arc_impl.h \
 	sys/asm_linkage.h \
 	sys/avl.h \
