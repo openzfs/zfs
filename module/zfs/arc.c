@@ -6939,8 +6939,19 @@ arc_write_ready(zio_t *zio)
 	/*
 	 * If this block was written for raw encryption but the zio layer
 	 * ended up only authenticating it, adjust the buffer flags now.
+	 *
+	 * Leave the flags alone if the write failed. A failed allocation
+	 * leaves a hole bp here, but the buffer still holds the raw data.
+	 * If the pool suspended, this zio is reexecuted as a raw write
+	 * after the resume, and the buffer may be dirtied again in a
+	 * later txg. Clearing ARC_BUF_FLAG_ENCRYPTED now would make that
+	 * later write encrypt the already encrypted data with the
+	 * dataset's key, which is not loaded during a raw receive
+	 * (VERIFY in zio_encrypt()).
 	 */
-	if (BP_IS_AUTHENTICATED(bp) && ARC_BUF_ENCRYPTED(buf)) {
+	if (zio->io_error != 0) {
+		/* the buffer is unchanged; see above */
+	} else if (BP_IS_AUTHENTICATED(bp) && ARC_BUF_ENCRYPTED(buf)) {
 		arc_hdr_set_flags(hdr, ARC_FLAG_NOAUTH);
 		buf->b_flags &= ~ARC_BUF_FLAG_ENCRYPTED;
 		if (BP_GET_COMPRESS(bp) == ZIO_COMPRESS_OFF)

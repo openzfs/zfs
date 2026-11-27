@@ -1485,6 +1485,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_status/zpool_status_features_001_pos.ksh \
 	functional/cli_root/zpool_status/zpool_status_-v.ksh \
 	functional/cli_root/zpool_status/zpool_status_errlog_read_error.ksh \
+	functional/cli_root/zpool_status/zpool_status_raw_recv_errlog.ksh \
 	functional/cli_root/zpool_sync/cleanup.ksh \
 	functional/cli_root/zpool_sync/setup.ksh \
 	functional/cli_root/zpool_sync/zpool_sync_001_pos.ksh \
@@ -1775,6 +1776,8 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/failmode/failmode_msync_continue.ksh \
 	functional/failmode/failmode_osync_wait.ksh \
 	functional/failmode/failmode_osync_continue.ksh \
+	functional/failmode/failmode_raw_recv_resume.ksh \
+	functional/failmode/failmode_raw_recv_resume_key.ksh \
 	functional/failmode/failmode_syncalways_wait.ksh \
 	functional/failmode/failmode_syncalways_continue.ksh \
 	functional/failmode/failmode_nowait_wait.ksh \
