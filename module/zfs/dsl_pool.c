@@ -957,6 +957,9 @@ dsl_pool_adjustedsize(dsl_pool_t *dp, zfs_space_check_t slop_policy)
 	case ZFS_SPACE_CHECK_RESERVED:
 		resv >>= 1;
 		break;
+	case ZFS_SPACE_CHECK_NETFREE:
+		resv = (resv >> 2) + (resv >> 3);
+		break;
 	case ZFS_SPACE_CHECK_EXTRA_RESERVED:
 		resv >>= 2;
 		break;
