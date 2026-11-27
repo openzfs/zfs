@@ -2486,9 +2486,9 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 {
 	vdev_t *vd;
 	nvlist_t **spares, **l2cache, *nv;
-	uint64_t txg = 0;
+	uint64_t txg;
 	uint_t nspares, nl2cache;
-	int error = 0, error_log;
+	int error = 0;
 	boolean_t locked = spa_namespace_held();
 	sysevent_t *ev = NULL;
 	const char *vd_type = NULL;
@@ -2496,8 +2496,12 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 
 	ASSERT(spa_writeable(spa));
 
-	if (!locked)
-		txg = spa_vdev_enter(spa);
+	/*
+	 * If our caller (spa_vdev_detach()) holds the locks, this is the txg
+	 * that its spa_vdev_enter() returned.
+	 */
+	ASSERT(!locked || spa_config_held(spa, SCL_ALL, RW_WRITER) == SCL_ALL);
+	txg = locked ? spa_last_synced_txg(spa) + 1 : spa_vdev_enter(spa);
 
 	ASSERT(spa_namespace_held());
 	if (spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT)) {
@@ -2594,22 +2598,21 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 		error = SET_ERROR(ENOENT);
 	}
 
-	error_log = error;
+	/*
+	 * Log the removal in the txg that syncs the config change.  We can't
+	 * wait for a new tx here: we hold the config lock, which txg sync
+	 * needs.
+	 */
+	if (error == 0 && vd_path != NULL) {
+		dmu_tx_t *tx = dmu_tx_create_assigned(spa->spa_dsl_pool, txg);
+		spa_history_log_internal(spa, "vdev remove", tx,
+		    "%s vdev (%s) %s", spa_name(spa), vd_type, vd_path);
+		dmu_tx_commit(tx);
+	}
 
 	if (!locked)
 		error = spa_vdev_exit(spa, NULL, txg, error);
 
-	/*
-	 * Logging must be done outside the spa config lock. Otherwise,
-	 * this code path could end up holding the spa config lock while
-	 * waiting for a txg_sync so it can write to the internal log.
-	 * Doing that would prevent the txg sync from actually happening,
-	 * causing a deadlock.
-	 */
-	if (error_log == 0 && vd_type != NULL && vd_path != NULL) {
-		spa_history_log_internal(spa, "vdev remove", NULL,
-		    "%s vdev (%s) %s", spa_name(spa), vd_type, vd_path);
-	}
 	if (vd_path != NULL)
 		spa_strfree(vd_path);
 

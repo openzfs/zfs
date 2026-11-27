@@ -1246,8 +1246,13 @@ dmu_tx_assign(dmu_tx_t *tx, dmu_tx_flag_t flags)
 	IMPLY(flags & DMU_TX_SUSPEND, flags & DMU_TX_WAIT);
 	ASSERT(!dsl_pool_sync_context(tx->tx_pool));
 
-	/* If we might wait, we must not hold the config lock. */
+	/*
+	 * If we might wait, we must not hold the pool config lock, or any spa
+	 * config lock as writer: txg sync needs them.
+	 */
 	IMPLY((flags & DMU_TX_WAIT), !dsl_pool_config_held(tx->tx_pool));
+	IMPLY((flags & DMU_TX_WAIT),
+	    spa_config_held(spa, SCL_ALL, RW_WRITER) == 0);
 
 	if ((flags & DMU_TX_NOTHROTTLE))
 		tx->tx_dirty_delayed = B_TRUE;
