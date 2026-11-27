@@ -4087,12 +4087,32 @@ trunc_prop_errs(int truncated)
 		    "%d more properties could not be set\n", truncated);
 }
 
+/*
+ * Read and discard len bytes of record payload.  The length comes from the
+ * stream and is not bounded by anything, so read it in pieces that fit in
+ * buf, which holds buflen bytes.
+ */
+static int
+recv_drain(libzfs_handle_t *hdl, int fd, void *buf, size_t buflen,
+    uint64_t len)
+{
+	while (len > 0) {
+		size_t n = MIN(len, buflen);
+		int err = recv_read(hdl, fd, buf, n, B_FALSE, NULL);
+		if (err != 0)
+			return (err);
+		len -= n;
+	}
+	return (0);
+}
+
 static int
 recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
 {
 	dmu_replay_record_t *drr;
 	void *buf = zfs_alloc(hdl, SPA_MAXBLOCKSIZE);
 	uint64_t payload_size;
+	uint32_t drr_type;
 	char errbuf[ERRBUFLEN];
 
 	(void) snprintf(errbuf, sizeof (errbuf),
@@ -4103,15 +4123,13 @@ recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
 
 	while (recv_read(hdl, fd, drr, sizeof (dmu_replay_record_t),
 	    byteswap, NULL) == 0) {
-		if (byteswap)
-			drr->drr_type = BSWAP_32(drr->drr_type);
+		drr_type = byteswap ? BSWAP_32(drr->drr_type) : drr->drr_type;
 
-		switch (drr->drr_type) {
+		payload_size = 0;
+		switch (drr_type) {
 		case DRR_BEGIN:
-			if (drr->drr_payloadlen != 0) {
-				(void) recv_read(hdl, fd, buf,
-				    drr->drr_payloadlen, B_FALSE, NULL);
-			}
+			payload_size = byteswap ?
+			    BSWAP_32(drr->drr_payloadlen) : drr->drr_payloadlen;
 			break;
 
 		case DRR_END:
@@ -4130,8 +4148,6 @@ recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
 
 			payload_size =
 			    DRR_OBJECT_PAYLOAD_SIZE(&drr->drr_u.drr_object);
-			(void) recv_read(hdl, fd, buf, payload_size,
-			    B_FALSE, NULL);
 			break;
 
 		case DRR_WRITE:
@@ -4145,9 +4161,6 @@ recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
 			}
 			payload_size =
 			    DRR_WRITE_PAYLOAD_SIZE(&drr->drr_u.drr_write);
-			assert(payload_size <= SPA_MAXBLOCKSIZE);
-			(void) recv_read(hdl, fd, buf,
-			    payload_size, B_FALSE, NULL);
 			break;
 		case DRR_SPILL:
 			if (byteswap) {
@@ -4160,8 +4173,6 @@ recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
 
 			payload_size =
 			    DRR_SPILL_PAYLOAD_SIZE(&drr->drr_u.drr_spill);
-			(void) recv_read(hdl, fd, buf, payload_size,
-			    B_FALSE, NULL);
 			break;
 		case DRR_WRITE_EMBEDDED:
 			if (byteswap) {
@@ -4169,9 +4180,8 @@ recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
 				    BSWAP_32(drr->drr_u.drr_write_embedded.
 				    drr_psize);
 			}
-			(void) recv_read(hdl, fd, buf,
-			    P2ROUNDUP(drr->drr_u.drr_write_embedded.drr_psize,
-			    8), B_FALSE, NULL);
+			payload_size = P2ROUNDUP((uint64_t)
+			    drr->drr_u.drr_write_embedded.drr_psize, 8);
 			break;
 		case DRR_OBJECT_RANGE:
 		case DRR_WRITE_BYREF:
@@ -4185,6 +4195,22 @@ recv_skip(libzfs_handle_t *hdl, int fd, boolean_t byteswap)
 			free(buf);
 			return (zfs_error(hdl, EZFS_BADSTREAM, errbuf));
 		}
+
+		/*
+		 * A DRR_BEGIN payload is a packed nvlist, limited like the
+		 * other nvlists in a stream; every other payload is at most
+		 * one block.
+		 */
+		if (payload_size > (drr_type == DRR_BEGIN ?
+		    hdl->libzfs_max_nvlist : SPA_MAXBLOCKSIZE)) {
+			zfs_error_aux(hdl, "invalid record payload length");
+			free(buf);
+			return (zfs_error(hdl, EZFS_BADSTREAM, errbuf));
+		}
+
+		if (recv_drain(hdl, fd, buf, SPA_MAXBLOCKSIZE,
+		    payload_size) != 0)
+			break;
 	}
 
 	free(buf);
@@ -5067,7 +5093,7 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 	}
 
 	if (flags->dryrun) {
-		void *buf = zfs_alloc(hdl, SPA_MAXBLOCKSIZE);
+		void *buf;
 
 		/*
 		 * We have read the DRR_BEGIN record, but we have
@@ -5076,8 +5102,14 @@ zfs_receive_one(libzfs_handle_t *hdl, int infd, const char *tosnap,
 		 * emulate that here, before attempting to read
 		 * more records.
 		 */
-		err = recv_read(hdl, infd, buf, drr->drr_payloadlen,
-		    flags->byteswap, NULL);
+		if (drr->drr_payloadlen > hdl->libzfs_max_nvlist) {
+			zfs_error_aux(hdl, "invalid record payload length");
+			err = zfs_error(hdl, EZFS_BADSTREAM, errbuf);
+			goto out;
+		}
+		buf = zfs_alloc(hdl, SPA_MAXBLOCKSIZE);
+		err = recv_drain(hdl, infd, buf, SPA_MAXBLOCKSIZE,
+		    drr->drr_payloadlen);
 		free(buf);
 		if (err != 0)
 			goto out;
