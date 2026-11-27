@@ -788,9 +788,10 @@ zio_handle_pool_delay(spa_t *spa, hrtime_t elapsed, zinject_type_t command)
 
 	rw_enter(&inject_lock, RW_READER);
 
-	for (handler = list_head(&inject_handlers);
-	    handler != NULL && handler->zi_record.zi_cmd == command;
+	for (handler = list_head(&inject_handlers); handler != NULL;
 	    handler = list_next(&inject_handlers, handler)) {
+		if (handler->zi_record.zi_cmd != command)
+			continue;
 		ASSERT3P(handler->zi_spa_name, !=, NULL);
 		if (strcmp(spa_name(spa), handler->zi_spa_name) == 0) {
 			handler->zi_record.zi_match_count++;
