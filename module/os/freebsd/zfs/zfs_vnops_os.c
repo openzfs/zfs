@@ -381,7 +381,14 @@ zfs_ioctl(vnode_t *vp, ulong_t com, intptr_t data, int flag, cred_t *cred,
 	}
 	case ZFS_IOC_REWRITE: {
 		zfs_rewrite_args_t *args = (zfs_rewrite_args_t *)data;
-		if ((flag & FWRITE) == 0)
+		/*
+		 * A writable descriptor is needed, except for -N on a
+		 * directory, which can't have one: zfs_rewrite() checks
+		 * write permission itself.
+		 */
+		if ((flag & FWRITE) == 0 &&
+		    (!(args->flags & ZFS_REWRITE_PARENT_COOKIE) ||
+		    vp->v_type != VDIR))
 			return (SET_ERROR(EBADF));
 		error = vn_lock(vp, LK_SHARED);
 		if (error)
@@ -3327,6 +3334,7 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 	const char	*snm = scnp->cn_nameptr;
 	const char	*tnm = tcnp->cn_nameptr;
 	int		error;
+	int		sgrow;
 
 	tdzp = VTOZ(tdvp);
 	sdzp = VTOZ(sdvp);
@@ -3469,8 +3477,9 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 	if (tdvp != *tvpp)
 		vn_seqc_write_begin(tdvp);
 
+	sgrow = ZFS_LINK_MAY_GROW(szp) ? ZLINKGROW : 0;
 	tx = dmu_tx_create(zfsvfs->z_os);
-	dmu_tx_hold_sa(tx, szp->z_sa_hdl, ZFS_SEQ_MAY_GROW(szp));
+	dmu_tx_hold_sa(tx, szp->z_sa_hdl, sgrow != 0);
 	dmu_tx_hold_sa(tx, sdzp->z_sa_hdl, ZFS_SEQ_MAY_GROW(sdzp));
 	dmu_tx_hold_zap(tx, sdzp->z_id, FALSE, snm);
 	dmu_tx_hold_zap(tx, tdzp->z_id, TRUE, tnm);
@@ -3495,7 +3504,8 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 		error = zfs_link_destroy(tdzp, tnm, tzp, tx, 0, NULL);
 
 	if (error == 0) {
-		error = zfs_link_create(tdzp, tnm, szp, tx, ZRENAMING);
+		error = zfs_link_create(tdzp, tnm, szp, tx,
+		    ZRENAMING | sgrow);
 		if (error == 0) {
 			szp->z_pflags |= ZFS_AV_MODIFIED;
 
@@ -3808,6 +3818,7 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 	zilog_t		*zilog;
 	dmu_tx_t	*tx;
 	int		error;
+	int		grow;
 	uint64_t	parent;
 	uid_t		owner;
 
@@ -3903,8 +3914,9 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 		return (error);
 	}
 
+	grow = ZFS_LINK_MAY_GROW(szp) ? ZLINKGROW : 0;
 	tx = dmu_tx_create(zfsvfs->z_os);
-	dmu_tx_hold_sa(tx, szp->z_sa_hdl, ZFS_SEQ_MAY_GROW(szp));
+	dmu_tx_hold_sa(tx, szp->z_sa_hdl, grow != 0);
 	dmu_tx_hold_sa(tx, tdzp->z_sa_hdl, ZFS_SEQ_MAY_GROW(tdzp));
 	dmu_tx_hold_zap(tx, tdzp->z_id, TRUE, name);
 	zfs_sa_upgrade_txholds(tx, szp);
@@ -3916,7 +3928,7 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 		return (error);
 	}
 
-	error = zfs_link_create(tdzp, name, szp, tx, 0);
+	error = zfs_link_create(tdzp, name, szp, tx, grow);
 
 	if (error == 0) {
 		uint64_t txtype = TX_LINK;

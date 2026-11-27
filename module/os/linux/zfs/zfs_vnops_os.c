@@ -576,8 +576,8 @@ zfs_get_name(znode_t *dzp, char *name, znode_t *zp)
 	}
 
 	/* buffer len is hardcoded to 256 in Linux kernel */
-	error = zap_value_search(zfsvfs->z_os, dzp->z_id, zp->z_id,
-	    ZFS_DIRENT_OBJ(-1ULL), name, ZAP_MAXNAMELEN);
+	error = zfs_dirent_name(zfsvfs->z_os, zp->z_sa_hdl,
+	    zfsvfs->z_attr_table, dzp->z_id, zp->z_id, name, ZAP_MAXNAMELEN);
 
 	zfs_exit(zfsvfs, FTAG);
 	return (error);
@@ -2863,6 +2863,7 @@ zfs_rename_idmap(znode_t *sdzp, char *snm, znode_t *tdzp, char *tnm,
 	int		cmp, serr, terr;
 	int		error = 0;
 	int		zflg = 0;
+	int		sgrow, tgrow;
 	boolean_t	waited = B_FALSE;
 	/* Needed for whiteout inode creation. */
 	boolean_t	fuid_dirtied;
@@ -3146,8 +3147,10 @@ top:
 		}
 	}
 
+	sgrow = ZFS_LINK_MAY_GROW(szp) ? ZLINKGROW : 0;
+	tgrow = (tzp != NULL && ZFS_LINK_MAY_GROW(tzp)) ? ZLINKGROW : 0;
 	tx = dmu_tx_create(zfsvfs->z_os);
-	dmu_tx_hold_sa(tx, szp->z_sa_hdl, ZFS_SEQ_MAY_GROW(szp));
+	dmu_tx_hold_sa(tx, szp->z_sa_hdl, sgrow != 0);
 	dmu_tx_hold_sa(tx, sdzp->z_sa_hdl, ZFS_SEQ_MAY_GROW(sdzp));
 	dmu_tx_hold_zap(tx, sdzp->z_id,
 	    (rflags & RENAME_EXCHANGE) ? TRUE : FALSE, snm);
@@ -3157,7 +3160,7 @@ top:
 		zfs_sa_upgrade_txholds(tx, tdzp);
 	}
 	if (tzp) {
-		dmu_tx_hold_sa(tx, tzp->z_sa_hdl, ZFS_SEQ_MAY_GROW(tzp));
+		dmu_tx_hold_sa(tx, tzp->z_sa_hdl, tgrow != 0);
 		zfs_sa_upgrade_txholds(tx, tzp);
 	}
 	if (rflags & RENAME_WHITEOUT) {
@@ -3249,7 +3252,7 @@ top:
 	 *   * RENAME_EXCHANGE: Link the old target to the source.
 	 *   * RENAME_WHITEOUT: Create a whiteout inode in-place of the source.
 	 */
-	error = zfs_link_create(tdl, szp, tx, ZRENAMING);
+	error = zfs_link_create(tdl, szp, tx, ZRENAMING | sgrow);
 	if (error) {
 		/*
 		 * If we have removed the existing target, a subsequent call to
@@ -3262,7 +3265,7 @@ top:
 
 	switch (rflags & (RENAME_EXCHANGE | RENAME_WHITEOUT)) {
 	case RENAME_EXCHANGE:
-		error = zfs_link_create(sdl, tzp, tx, ZRENAMING);
+		error = zfs_link_create(sdl, tzp, tx, ZRENAMING | tgrow);
 		/*
 		 * The same argument as zfs_link_create() failing for
 		 * szp applies here, since the source directory must
@@ -3363,11 +3366,11 @@ commit_unlink_td_szp:
 	VERIFY0(zfs_link_destroy(tdl, szp, tx, ZRENAMING, NULL));
 commit_link_tzp:
 	if (tzp) {
-		if (zfs_link_create(tdl, tzp, tx, ZRENAMING))
+		if (zfs_link_create(tdl, tzp, tx, ZRENAMING | tgrow))
 			VERIFY0(zfs_drop_nlink(tzp, tx, NULL));
 	}
 commit_link_szp:
-	if (zfs_link_create(sdl, szp, tx, ZRENAMING))
+	if (zfs_link_create(sdl, szp, tx, ZRENAMING | sgrow))
 		VERIFY0(zfs_drop_nlink(szp, tx, NULL));
 	goto commit;
 }
@@ -3624,6 +3627,7 @@ zfs_link(znode_t *tdzp, znode_t *szp, char *name, cred_t *cr,
 	dmu_tx_t	*tx;
 	int		error;
 	int		zf = ZNEW;
+	int		grow;
 	uint64_t	parent;
 	uid_t		owner;
 	boolean_t	waited = B_FALSE;
@@ -3731,8 +3735,9 @@ top:
 		return (error);
 	}
 
+	grow = ZFS_LINK_MAY_GROW(szp) ? ZLINKGROW : 0;
 	tx = dmu_tx_create(zfsvfs->z_os);
-	dmu_tx_hold_sa(tx, szp->z_sa_hdl, ZFS_SEQ_MAY_GROW(szp));
+	dmu_tx_hold_sa(tx, szp->z_sa_hdl, grow != 0);
 	dmu_tx_hold_sa(tx, tdzp->z_sa_hdl, ZFS_SEQ_MAY_GROW(tdzp));
 	dmu_tx_hold_zap(tx, tdzp->z_id, TRUE, name);
 	if (is_tmpfile)
@@ -3757,7 +3762,7 @@ top:
 	/* unmark z_unlinked so zfs_link_create will not reject */
 	if (is_tmpfile)
 		szp->z_unlinked = B_FALSE;
-	error = zfs_link_create(dl, szp, tx, 0);
+	error = zfs_link_create(dl, szp, tx, grow);
 
 	if (error == 0) {
 		uint64_t txtype = TX_LINK;

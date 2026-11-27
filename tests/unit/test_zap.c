@@ -1017,6 +1017,57 @@ test_zap_value_search(const MunitParameter params[], void *data)
 	return (MUNIT_OK);
 }
 
+/*
+ * zap_value_search: a match whose name doesn't fit the buffer is skipped
+ * for one that does (a shorter hard link), whatever the hash order.
+ */
+static MunitResult
+test_zap_value_search_toolong(const MunitParameter params[], void *data)
+{
+	(void) data;
+
+	dnode_t *dn = mock_zap_create_params(params, "type");
+	dmu_tx_t *tx = (dmu_tx_t *)mock_tx_create();
+
+	/* Value 1: three long names and one short; value 2: long only. */
+	uint64_t v1 = 1, v2 = 2;
+	char l1[41], l2[41], l3[41], l4[41], s1[6];
+	unit_rand_str(l1, sizeof (l1));
+	unit_rand_str(l2, sizeof (l2));
+	unit_rand_str(l3, sizeof (l3));
+	unit_rand_str(l4, sizeof (l4));
+	unit_rand_str(s1, sizeof (s1));
+
+	unit_ok(zap_add_by_dnode(dn, l1, sizeof (uint64_t), 1, &v1, tx));
+	unit_ok(zap_add_by_dnode(dn, l2, sizeof (uint64_t), 1, &v1, tx));
+	unit_ok(zap_add_by_dnode(dn, s1, sizeof (uint64_t), 1, &v1, tx));
+	unit_ok(zap_add_by_dnode(dn, l3, sizeof (uint64_t), 1, &v1, tx));
+	unit_ok(zap_add_by_dnode(dn, l4, sizeof (uint64_t), 1, &v2, tx));
+
+	char name[ZAP_MAXNAMELEN];
+
+	/* Only the short name fits. */
+	unit_ok(zap_value_search_by_dnode(dn, 1, 0, name, 16));
+	unit_str_eq(name, s1);
+
+	/* Matches, but none fits; a name needs room for its NUL too. */
+	unit_err(zap_value_search_by_dnode(dn, 2, 0, name, 16),
+	    ENAMETOOLONG);
+	unit_err(zap_value_search_by_dnode(dn, 2, 0, name, 40),
+	    ENAMETOOLONG);
+	unit_ok(zap_value_search_by_dnode(dn, 2, 0, name, 41));
+	unit_str_eq(name, l4);
+
+	/* No match at all is still ENOENT. */
+	unit_err(zap_value_search_by_dnode(dn, 3, 0, name, 16), ENOENT);
+
+	mock_tx_destroy((mock_dmu_tx_t *)tx);
+	unit_true(mock_zap_is_params(dn, params, "type"));
+	mock_zap_destroy(dn);
+
+	return (MUNIT_OK);
+}
+
 /* zap_value_search: value masks */
 static MunitResult
 test_zap_value_search_mask(const MunitParameter params[], void *data)
@@ -1629,6 +1680,8 @@ static const MunitTest zap_tests[] = {
 	    "zap_value_search",		test_zap_value_search),
 	UNIT_TEST_ZAP_TYPES(
 	    "zap_value_search_mask",	test_zap_value_search_mask),
+	UNIT_TEST_ZAP_TYPES(
+	    "zap_value_search_toolong",	test_zap_value_search_toolong),
 
 	UNIT_TEST("norm_toupper",	test_norm_toupper, zap_type_params),
 	UNIT_TEST("norm_match_case",	test_norm_match_case, zap_type_params),

@@ -1284,8 +1284,23 @@ zpl_ioctl_rewrite(struct file *filp, void __user *arg)
 	if (copy_from_user(&args, arg, sizeof (args)))
 		return (-EFAULT);
 
-	if (unlikely(!(filp->f_mode & FMODE_WRITE)))
-		return (-EBADF);
+	/*
+	 * A writable descriptor is needed, except for -N on a directory,
+	 * which can't have one.  So for it check what opening for write
+	 * would: that the mount is writable (zfs_rewrite() checks the file
+	 * system) and the mode bits, as the mount maps the owner.
+	 */
+	if (unlikely(!(filp->f_mode & FMODE_WRITE))) {
+		if (!(args.flags & ZFS_REWRITE_PARENT_COOKIE) ||
+		    !S_ISDIR(ip->i_mode))
+			return (-EBADF);
+		if (zpl_file_mnt_readonly(filp))
+			return (-EROFS);
+		err = zpl_generic_permission(zpl_file_mnt_idmap(filp), ip,
+		    MAY_WRITE);
+		if (err != 0)
+			return (err);
+	}
 
 	cookie = spl_fstrans_mark();
 	err = -zfs_rewrite(ITOZ(ip), args.off, args.len, args.flags, args.arg);
