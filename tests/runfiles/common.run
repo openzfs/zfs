@@ -192,7 +192,7 @@ tests = ['zdb_002_pos', 'zdb_003_pos', 'zdb_004_pos', 'zdb_005_pos',
     'zdb_file_layout_neg', 'zdb_label_checksum', 'zdb_object_range_neg',
     'zdb_object_range_pos', 'zdb_objset_id', 'zdb_decompress_zstd',
     'zdb_recover', 'zdb_recover_2', 'zdb_simulated_ddt_errors', 'zdb_backup',
-    'zdb_tunables',
+    'zdb_space_map_overlap', 'zdb_tunables',
     'zdb_il_saxattr']
 pre =
 post =
@@ -415,8 +415,8 @@ tags = ['functional', 'cli_root', 'zfs_wait']
 
 [tests/functional/cli_root/zhack]
 tests = ['zhack_label_repair_001', 'zhack_label_repair_002',
-    'zhack_label_repair_003', 'zhack_label_repair_004', 'zhack_metaslab_leak',
-    'zhack_mos_scan_reclaim']
+    'zhack_label_repair_003', 'zhack_label_repair_004',
+    'zhack_metaslab_append', 'zhack_metaslab_leak', 'zhack_mos_scan_reclaim']
 pre =
 post =
 tags = ['functional', 'cli_root', 'zhack']

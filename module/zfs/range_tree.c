@@ -32,7 +32,13 @@
  * our panic() usage in this file assumes it's NORETURN.
  */
 #define	panic(...) do {PANIC(__VA_ARGS__); abort(); } while (0);
+/*
+ * libzpool has zfs_panic_recover(), which honours zfs_recover (zdb -AA);
+ * the other userspace libraries have no zfs_recover to honour.
+ */
+#ifndef LIB_ZPOOL_BUILD
 #define	zfs_panic_recover(...) panic(__VA_ARGS__)
+#endif
 #endif
 
 /*

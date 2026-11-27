@@ -120,6 +120,9 @@ usage(void)
 	    "\n"
 	    "    metaslab leak <pool>\n"
 	    "        apply allocation map from zdb to specified pool\n"
+	    "    metaslab append <pool> <vdev> <type> <offset> <size> ...\n"
+	    "        append alloc or free entries to a metaslab's space map\n"
+	    "        without applying them, damaging it for testing\n"
 	    "\n"
 	    "    mos scan <pool>\n"
 	    "        identify reclaimable leaked MOS objects\n"
@@ -1602,6 +1605,155 @@ zhack_do_metaslab_leak(int argc, char **argv)
 	spa_close(spa, FTAG);
 }
 
+typedef struct zhack_sm_entry {
+	maptype_t	zse_type;
+	uint64_t	zse_offset;
+	uint64_t	zse_size;
+} zhack_sm_entry_t;
+
+typedef struct zhack_sm_append {
+	metaslab_t		*zsa_msp;
+	zhack_sm_entry_t	*zsa_entries;
+	int			zsa_count;
+} zhack_sm_append_t;
+
+static void
+zhack_metaslab_append_sync(void *arg, dmu_tx_t *tx)
+{
+	zhack_sm_append_t *zsa = arg;
+	space_map_t *sm = zsa->zsa_msp->ms_sm;
+	int64_t alloc = space_map_allocated(sm);
+	zfs_range_tree_t *rt = zfs_range_tree_create(NULL, ZFS_RANGE_SEG64,
+	    NULL, 0, 0);
+
+	for (int i = 0; i < zsa->zsa_count; i++) {
+		zhack_sm_entry_t *zse = &zsa->zsa_entries[i];
+
+		zfs_range_tree_add(rt, zse->zse_offset, zse->zse_size);
+		space_map_write(sm, rt, zse->zse_type, SM_NO_VDEVID, tx);
+		zfs_range_tree_vacate(rt, NULL, NULL);
+	}
+	zfs_range_tree_destroy(rt);
+
+	/* Keep the allocated space that the loaded metaslab accounts for. */
+	sm->sm_phys->smp_alloc = alloc;
+}
+
+static boolean_t
+zhack_parse_u64(const char *s, uint64_t *val)
+{
+	char *end;
+
+	errno = 0;
+	*val = strtoull(s, &end, 0);
+	return (*s != '\0' && *end == '\0' && errno == 0);
+}
+
+static void
+zhack_do_metaslab_append(int argc, char **argv)
+{
+	spa_t *spa;
+	uint64_t vdev_id;
+
+	argc--;
+	argv++;
+	if (argc < 5 || (argc - 2) % 3 != 0) {
+		(void) fprintf(stderr, "error: expected a pool, a vdev and "
+		    "one or more <type> <offset> <size> entries\n");
+		usage();
+	}
+	if (!zhack_parse_u64(argv[1], &vdev_id)) {
+		(void) fprintf(stderr, "error: invalid vdev: %s\n", argv[1]);
+		usage();
+	}
+
+	zhack_sm_append_t zsa = { 0 };
+	zsa.zsa_count = (argc - 2) / 3;
+	zsa.zsa_entries = kmem_zalloc(zsa.zsa_count *
+	    sizeof (zhack_sm_entry_t), KM_SLEEP);
+	for (int i = 0; i < zsa.zsa_count; i++) {
+		zhack_sm_entry_t *zse = &zsa.zsa_entries[i];
+		char **e = &argv[2 + 3 * i];
+
+		if (strcmp(e[0], "alloc") == 0) {
+			zse->zse_type = SM_ALLOC;
+		} else if (strcmp(e[0], "free") == 0) {
+			zse->zse_type = SM_FREE;
+		} else {
+			(void) fprintf(stderr, "error: invalid type: %s\n",
+			    e[0]);
+			usage();
+		}
+		if (!zhack_parse_u64(e[1], &zse->zse_offset) ||
+		    !zhack_parse_u64(e[2], &zse->zse_size) ||
+		    zse->zse_size == 0 ||
+		    zse->zse_offset + zse->zse_size < zse->zse_offset) {
+			(void) fprintf(stderr, "error: invalid range: %s %s\n",
+			    e[1], e[2]);
+			usage();
+		}
+	}
+
+	zhack_spa_open(argv[0], B_FALSE, FTAG, &spa);
+
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+	vdev_t *vd = vdev_lookup_top(spa, vdev_id);
+	if (vd == NULL || !vdev_is_concrete(vd) || vd->vdev_ms == NULL) {
+		spa_config_exit(spa, SCL_VDEV, FTAG);
+		fatal(spa, FTAG, "vdev %llu has no metaslabs",
+		    (u_longlong_t)vdev_id);
+	}
+	uint64_t ms_id = zsa.zsa_entries[0].zse_offset >> vd->vdev_ms_shift;
+	metaslab_t *msp = ms_id < vd->vdev_ms_count ? vd->vdev_ms[ms_id] :
+	    NULL;
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+	if (msp == NULL || msp->ms_sm == NULL) {
+		fatal(spa, FTAG, "no space map at offset %llu of vdev %llu",
+		    (u_longlong_t)zsa.zsa_entries[0].zse_offset,
+		    (u_longlong_t)vdev_id);
+	}
+	uint64_t unit = 1ULL << msp->ms_sm->sm_shift;
+	for (int i = 0; i < zsa.zsa_count; i++) {
+		zhack_sm_entry_t *zse = &zsa.zsa_entries[i];
+
+		if (zse->zse_offset < msp->ms_start ||
+		    zse->zse_offset + zse->zse_size >
+		    msp->ms_start + msp->ms_size ||
+		    !IS_P2ALIGNED(zse->zse_offset, unit) ||
+		    !IS_P2ALIGNED(zse->zse_size, unit)) {
+			fatal(spa, FTAG, "range %llu %llu is not in metaslab "
+			    "%llu or not aligned to %llu bytes",
+			    (u_longlong_t)zse->zse_offset,
+			    (u_longlong_t)zse->zse_size, (u_longlong_t)ms_id,
+			    (u_longlong_t)unit);
+		}
+	}
+
+	/*
+	 * Load the metaslab before appending, so that this process does not
+	 * read back the entries it appends: without zfs_recover, loading a
+	 * damaged space map panics.
+	 */
+	metaslab_disable(msp);
+	mutex_enter(&msp->ms_lock);
+	int error = metaslab_load(msp);
+	mutex_exit(&msp->ms_lock);
+	if (error == 0) {
+		zsa.zsa_msp = msp;
+		VERIFY0(dsl_sync_task(spa_name(spa), NULL,
+		    zhack_metaslab_append_sync, &zsa, 0,
+		    ZFS_SPACE_CHECK_NONE));
+	}
+	metaslab_enable(msp, B_FALSE, B_FALSE);
+	kmem_free(zsa.zsa_entries, zsa.zsa_count * sizeof (zhack_sm_entry_t));
+	if (error != 0) {
+		fatal(spa, FTAG, "cannot load metaslab %llu: %s",
+		    (u_longlong_t)ms_id, strerror(error));
+	}
+
+	spa_close(spa, FTAG);
+}
+
 static int
 zhack_do_metaslab(int argc, char **argv)
 {
@@ -1618,6 +1770,8 @@ zhack_do_metaslab(int argc, char **argv)
 	subcommand = argv[0];
 	if (strcmp(subcommand, "leak") == 0) {
 		zhack_do_metaslab_leak(argc, argv);
+	} else if (strcmp(subcommand, "append") == 0) {
+		zhack_do_metaslab_append(argc, argv);
 	} else {
 		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
 		    subcommand);

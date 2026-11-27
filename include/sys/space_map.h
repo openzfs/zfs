@@ -198,6 +198,7 @@ boolean_t sm_entry_is_double_word(uint64_t e);
 
 typedef int (*sm_cb_t)(space_map_entry_t *sme, void *arg);
 
+void space_map_remove_alloc(void *arg, uint64_t start, uint64_t size);
 int space_map_load(space_map_t *sm, zfs_range_tree_t *rt, maptype_t maptype);
 int space_map_load_length(space_map_t *sm, zfs_range_tree_t *rt,
     maptype_t maptype, uint64_t length);
