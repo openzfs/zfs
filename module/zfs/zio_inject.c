@@ -56,6 +56,10 @@ uint32_t zio_injection_enabled = 0;
  * Data describing each zinject handler registered on the system, and
  * contains the list node linking the handler in the global zinject
  * handler list.
+ *
+ * The hooks below count matches and injections in zi_record holding
+ * inject_lock only as RW_READER, so the counts are updated atomically,
+ * except by the delay hook, which inject_delay_mtx already serializes.
  */
 typedef struct inject_handler {
 	int			zi_id;
@@ -159,12 +163,12 @@ zio_match_handler(const zbookmark_phys_t *zb, uint64_t type, int dva,
 
 done:
 	if (matched) {
-		record->zi_match_count++;
+		atomic_inc_64(&record->zi_match_count);
 		injected = freq_triggered(record->zi_freq);
 	}
 
 	if (injected)
-		record->zi_inject_count++;
+		atomic_inc_64(&record->zi_inject_count);
 
 	return (injected);
 }
@@ -191,8 +195,8 @@ zio_handle_panic_injection(spa_t *spa, const char *tag, uint64_t type)
 
 		if (handler->zi_record.zi_type == type &&
 		    strcmp(tag, handler->zi_record.zi_func) == 0) {
-			handler->zi_record.zi_match_count++;
-			handler->zi_record.zi_inject_count++;
+			atomic_inc_64(&handler->zi_record.zi_match_count);
+			atomic_inc_64(&handler->zi_record.zi_inject_count);
 			panic("Panic requested in function %s\n", tag);
 		}
 	}
@@ -361,8 +365,8 @@ zio_handle_label_injection(zio_t *zio, int error)
 
 		if (zio->io_vd->vdev_guid == handler->zi_record.zi_guid &&
 		    (offset >= start && offset <= end)) {
-			handler->zi_record.zi_match_count++;
-			handler->zi_record.zi_inject_count++;
+			atomic_inc_64(&handler->zi_record.zi_match_count);
+			atomic_inc_64(&handler->zi_record.zi_inject_count);
 			ret = error;
 			break;
 		}
@@ -456,7 +460,8 @@ zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 
 			if (handler->zi_record.zi_error == err1 ||
 			    handler->zi_record.zi_error == err2) {
-				handler->zi_record.zi_match_count++;
+				atomic_inc_64(
+				    &handler->zi_record.zi_match_count);
 
 				/*
 				 * limit error injection if requested
@@ -464,7 +469,8 @@ zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 				if (!freq_triggered(handler->zi_record.zi_freq))
 					continue;
 
-				handler->zi_record.zi_inject_count++;
+				atomic_inc_64(
+				    &handler->zi_record.zi_inject_count);
 
 				/*
 				 * For a failed open, pretend like the device
@@ -502,8 +508,10 @@ zio_handle_device_injection_impl(vdev_t *vd, zio_t *zio, int err1, int err2)
 				break;
 			}
 			if (handler->zi_record.zi_error == ENXIO) {
-				handler->zi_record.zi_match_count++;
-				handler->zi_record.zi_inject_count++;
+				atomic_inc_64(
+				    &handler->zi_record.zi_match_count);
+				atomic_inc_64(
+				    &handler->zi_record.zi_inject_count);
 				ret = SET_ERROR(EIO);
 				break;
 			}
@@ -549,7 +557,7 @@ zio_handle_ignored_writes(zio_t *zio)
 		    handler->zi_record.zi_cmd != ZINJECT_IGNORED_WRITES)
 			continue;
 
-		handler->zi_record.zi_match_count++;
+		atomic_inc_64(&handler->zi_record.zi_match_count);
 
 		/*
 		 * Positive duration implies # of seconds, negative
@@ -564,7 +572,7 @@ zio_handle_ignored_writes(zio_t *zio)
 
 		/* Have a "problem" writing 60% of the time */
 		if (random_in_range(100) < 60) {
-			handler->zi_record.zi_inject_count++;
+			atomic_inc_64(&handler->zi_record.zi_inject_count);
 			zio->io_pipeline &= ~ZIO_VDEV_IO_STAGES;
 		}
 		break;
@@ -590,8 +598,8 @@ spa_handle_ignored_writes(spa_t *spa)
 		    handler->zi_record.zi_cmd != ZINJECT_IGNORED_WRITES)
 			continue;
 
-		handler->zi_record.zi_match_count++;
-		handler->zi_record.zi_inject_count++;
+		atomic_inc_64(&handler->zi_record.zi_match_count);
+		atomic_inc_64(&handler->zi_record.zi_inject_count);
 
 		if (handler->zi_record.zi_duration > 0) {
 			VERIFY(handler->zi_record.zi_timer == 0 ||
@@ -793,11 +801,12 @@ zio_handle_pool_delay(spa_t *spa, hrtime_t elapsed, zinject_type_t command)
 	    handler = list_next(&inject_handlers, handler)) {
 		ASSERT3P(handler->zi_spa_name, !=, NULL);
 		if (strcmp(spa_name(spa), handler->zi_spa_name) == 0) {
-			handler->zi_record.zi_match_count++;
+			atomic_inc_64(&handler->zi_record.zi_match_count);
 			uint64_t pause =
 			    SEC2NSEC(handler->zi_record.zi_duration);
 			if (pause > elapsed) {
-				handler->zi_record.zi_inject_count++;
+				atomic_inc_64(
+				    &handler->zi_record.zi_inject_count);
 				delay = pause - elapsed;
 			}
 			id = handler->zi_id;
@@ -1107,7 +1116,11 @@ zio_inject_list_next(int *id, char *name, size_t buflen,
 	int ret;
 
 	spa_namespace_enter(FTAG);
-	rw_enter(&inject_lock, RW_READER);
+	/*
+	 * As a writer, so that no hook is between counting a match and
+	 * counting its injection while the record is copied.
+	 */
+	rw_enter(&inject_lock, RW_WRITER);
 
 	for (handler = list_head(&inject_handlers); handler != NULL;
 	    handler = list_next(&inject_handlers, handler))
