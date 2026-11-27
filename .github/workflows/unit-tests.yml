@@ -20,14 +20,14 @@ jobs:
     - uses: actions/checkout@v6
       with:
         ref: ${{ github.event.pull_request.head.sha }}
-    - name: Find completed fork job
+    - name: Find completed job
       id: reuse
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
         jobs=$(python3 .github/workflows/scripts/reuse-ci.py unit-tests)
         echo "url=$(jq -r '.["unit-tests"] // ""' <<< "$jobs")" >> "$GITHUB_OUTPUT"
-    - name: Reuse successful fork job
+    - name: Reuse successful job
       if: steps.reuse.outputs.url != ''
       env:
         REUSED_JOB: ${{ steps.reuse.outputs.url }}
