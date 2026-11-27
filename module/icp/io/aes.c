@@ -126,8 +126,8 @@ aes_check_mech_param(crypto_mechanism_t *mechanism, aes_ctx_t **ctx)
 	default:
 		__builtin_unreachable();
 	}
-	if (param_required && mechanism->cm_param != NULL &&
-	    mechanism->cm_param_len != param_len) {
+	if (param_required && (mechanism->cm_param == NULL ||
+	    mechanism->cm_param_len != param_len)) {
 		rv = CRYPTO_MECHANISM_PARAM_INVALID;
 	}
 	if (ctx != NULL) {
