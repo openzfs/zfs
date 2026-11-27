@@ -20,7 +20,9 @@
 #
 # DESCRIPTION:
 #	Inject an io-prefail error on a child of a raidz device, then write
-#	some data and verify that the pool encountered errors.
+#	some data and verify that the pool encountered errors.  Import the
+#	pool without another child, and verify that the resilver repairs
+#	the failed writes and that a scrub then finds nothing to repair.
 #
 
 function cleanup
@@ -66,8 +68,14 @@ function run_test
 	log_must zpool export -f $TESTPOOL
 	log_must rm $TEST_BASE_DIR/dev-2
 	log_must zpool import -d $TEST_BASE_DIR $TESTPOOL
+	log_must zpool wait -t resilver $TESTPOOL
+
+	# The resilver repairs the failed writes; the scrub finds nothing left.
+	log_pos check_pool_status $TESTPOOL "scan" "resilvered" || return 1
+	log_neg check_pool_status $TESTPOOL "scan" "resilvered 0B" || return 1
 	log_must zpool scrub $TESTPOOL
 	log_must zpool wait -t scrub $TESTPOOL
+	log_pos check_pool_status $TESTPOOL "scan" "repaired 0B" || return 1
 	log_pos check_pool_status $TESTPOOL "errors" "No known data" || return 1
 	log_pos check_pool_device $TESTPOOL "dev-1" "ONLINE.* 0$" || return 1
 }
