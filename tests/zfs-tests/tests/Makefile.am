@@ -1465,6 +1465,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_split/zpool_split_dryrun_output.ksh \
 	functional/cli_root/zpool_split/zpool_split_encryption.ksh \
 	functional/cli_root/zpool_split/zpool_split_indirect.ksh \
+	functional/cli_root/zpool_split/zpool_split_log_spacemap.ksh \
 	functional/cli_root/zpool_split/zpool_split_props.ksh \
 	functional/cli_root/zpool_split/zpool_split_resilver.ksh \
 	functional/cli_root/zpool_split/zpool_split_vdevs.ksh \

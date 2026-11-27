@@ -1265,9 +1265,11 @@ spa_ld_log_sm_cb(space_map_entry_t *sme, void *arg)
 	/*
 	 * If the vdev has been removed (i.e. it is indirect or a hole)
 	 * skip this entry. The contents of this vdev have already moved
-	 * elsewhere.
+	 * elsewhere. A pool made by zpool split has no vdev at all for the
+	 * trailing log and hole vdevs of the pool whose log space maps it
+	 * inherited, so skip entries past its last vdev as well.
 	 */
-	if (!vdev_is_concrete(vd))
+	if (vd == NULL || !vdev_is_concrete(vd))
 		return (0);
 
 	metaslab_t *ms = vd->vdev_ms[offset >> vd->vdev_ms_shift];
