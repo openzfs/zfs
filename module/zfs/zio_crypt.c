@@ -258,7 +258,7 @@ zio_crypt_key_init(uint64_t crypt, zio_crypt_key_t *key)
 	key->zk_current_key.ck_data = key->zk_current_keydata;
 	key->zk_current_key.ck_length = CRYPTO_BYTES2BITS(ci->ci_keylen);
 
-	key->zk_hmac_key.ck_data = &key->zk_hmac_key;
+	key->zk_hmac_key.ck_data = key->zk_hmac_keydata;
 	key->zk_hmac_key.ck_length = CRYPTO_BYTES2BITS(SHA512_HMAC_KEYLEN);
 
 	ret = zio_crypt_key_open_os(key, ci);
