@@ -3104,6 +3104,9 @@ spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps)
 
 	/* data stored on disk */
 	ps->pss_func = scn->scn_phys.scn_func;
+	if (ps->pss_func == POOL_SCAN_SCRUB &&
+	    (scn->scn_phys.scn_flags & DSF_SCRUB_METADATA) != 0)
+		ps->pss_func = POOL_SCAN_METASCRUB;
 	ps->pss_state = scn->scn_phys.scn_state;
 	ps->pss_start_time = scn->scn_phys.scn_start_time;
 	ps->pss_end_time = scn->scn_phys.scn_end_time;
@@ -3136,6 +3139,22 @@ spa_scan_get_stats(spa_t *spa, pool_scan_stat_t *ps)
 	ps->pss_pass_scrub_flags = 0;
 	if (scn->scn_phys.scn_flags & DSF_SCRUB_THOROUGH)
 		ps->pss_pass_scrub_flags |= POOL_SCRUB_THOROUGH;
+
+	/* summary of the last completed full scrub */
+	ps->pss_last_scrub_start = scn->scn_last_scrub.ss_start_time;
+	ps->pss_last_scrub_end = scn->scn_last_scrub.ss_end_time;
+	ps->pss_last_scrub_to_examine = scn->scn_last_scrub.ss_to_examine;
+	ps->pss_last_scrub_examined = scn->scn_last_scrub.ss_examined;
+	ps->pss_last_scrub_processed = scn->scn_last_scrub.ss_processed;
+	ps->pss_last_scrub_errors = scn->scn_last_scrub.ss_errors;
+
+	/* summary of the last completed metascrub */
+	ps->pss_metascrub_start = scn->scn_last_metascrub.ss_start_time;
+	ps->pss_metascrub_end = scn->scn_last_metascrub.ss_end_time;
+	ps->pss_metascrub_to_examine = scn->scn_last_metascrub.ss_to_examine;
+	ps->pss_metascrub_examined = scn->scn_last_metascrub.ss_examined;
+	ps->pss_metascrub_processed = scn->scn_last_metascrub.ss_processed;
+	ps->pss_metascrub_errors = scn->scn_last_metascrub.ss_errors;
 
 	return (0);
 }

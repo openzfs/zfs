@@ -42,7 +42,7 @@ verify_runnable "global"
 
 typeset -a args=("-?" "blah blah" "-%" "--?" "-*" "-=" \
     "-b" "-c" "-d" "-f" "-g" "-h" "-i" "-j" "-k" "-l" \
-    "-m" "-n" "-o" "-q" "-r" "-u" "-v" "-x" "-y" "-z" \
+    "-n" "-o" "-q" "-r" "-u" "-v" "-x" "-y" "-z" \
     "-A" "-B" "-D" "-E" "-F" "-G" "-H" "-I" "-J" "-K" "-L" \
     "-M" "-N" "-O" "-P" "-Q" "-R" "-S" "-T" "-U" "-V" "-W" "-X" "-Y" "-Z")
 
@@ -78,5 +78,10 @@ log_mustnot zpool scrub -s -S "2000-01-01" -E "2099-12-31" $TESTPOOL
 log_mustnot zpool scrub -C -S "2000-01-01" $TESTPOOL
 log_mustnot zpool scrub -C -E "2099-12-31" $TESTPOOL
 log_mustnot zpool scrub -C -S "2000-01-01" -E "2099-12-31" $TESTPOOL
+
+log_mustnot zpool scrub -m -e $TESTPOOL
+log_mustnot zpool scrub -m -p $TESTPOOL
+log_mustnot zpool scrub -m -s $TESTPOOL
+log_mustnot zpool scrub -m -t $TESTPOOL
 
 log_pass "Badly formed 'zpool scrub' parameters fail as expected."
