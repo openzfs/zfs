@@ -23,13 +23,14 @@
  * one-shot timers and SERD engines.
  *
  * In the ZED runtime, the modules are called from a single thread so no
- * locking is required in this emulated FMD environment.
+ * locking is required in this emulated FMD environment.  That thread also
+ * runs the expired timers, as fmd does on illumos, where an expired timer is
+ * queued to its module like an event.
  */
 
 #include <sys/types.h>
 #include <sys/fm/protocol.h>
 #include <uuid/uuid.h>
-#include <signal.h>
 #include <string.h>
 #include <time.h>
 
@@ -62,6 +63,9 @@ typedef struct fmd_module {
  */
 fmd_module_t	zfs_retire_module;
 fmd_module_t	zfs_diagnosis_module;
+
+/* Installed timers */
+static fmd_timer_t	*fmd_timers;
 
 /*
  * Register a module with fmd and finish module initialization.
@@ -97,6 +101,15 @@ fmd_hdl_unregister(fmd_hdl_t *hdl)
 	fmd_module_t *mp = (fmd_module_t *)hdl;
 	fmd_modstat_t *msp = &mp->mod_stats;
 	const fmd_hdl_ops_t *ops = mp->mod_info->fmdi_ops;
+	fmd_timer_t *ftp;
+	fmd_timer_t *next;
+
+	/* remove any timers the module left installed */
+	for (ftp = fmd_timers; ftp != NULL; ftp = next) {
+		next = ftp->ft_next;
+		if (ftp->ft_hdl == hdl)
+			fmd_timer_remove(hdl, ftp);
+	}
 
 	/* dump generic module stats */
 	fmd_hdl_debug(hdl, "%s: %llu", msp->ms_accepted.fmds_name,
@@ -538,59 +551,28 @@ fmd_serd_gc(fmd_hdl_t *hdl)
 
 /* FMD Timers */
 
-static void
-_timer_notify(union sigval sv)
-{
-	fmd_timer_t *ftp = sv.sival_ptr;
-	fmd_hdl_t *hdl = ftp->ft_hdl;
-	fmd_module_t *mp = (fmd_module_t *)hdl;
-	const fmd_hdl_ops_t *ops = mp->mod_info->fmdi_ops;
-	struct itimerspec its;
-
-	fmd_hdl_debug(hdl, "%s timer fired (%p)", mp->mod_name, ftp->ft_tid);
-
-	/* disarm the timer */
-	memset(&its, 0, sizeof (struct itimerspec));
-	timer_settime(ftp->ft_tid, 0, &its, NULL);
-
-	/* Note that the fmdo_timeout can remove this timer */
-	if (ops->fmdo_timeout != NULL)
-		ops->fmdo_timeout(hdl, ftp, ftp->ft_arg);
-}
-
 /*
  * Install a new timer which will fire at least delta nanoseconds after the
  * current time. After the timeout has expired, the module's fmdo_timeout
- * entry point is called.
+ * entry point is called, from fmd_timer_expire().  The timer then stays
+ * installed until the module removes it.
  */
 fmd_timer_t *
 fmd_timer_install(fmd_hdl_t *hdl, void *arg, fmd_event_t *ep, hrtime_t delta)
 {
 	(void) ep;
-	struct sigevent sev;
-	struct itimerspec its;
 	fmd_timer_t *ftp;
 
 	ftp = fmd_hdl_alloc(hdl, sizeof (fmd_timer_t), FMD_SLEEP);
+	ftp->ft_expire = gethrtime() + delta;
+	ftp->ft_armed = B_TRUE;
 	ftp->ft_arg = arg;
 	ftp->ft_hdl = hdl;
-
-	its.it_value.tv_sec = delta / 1000000000;
-	its.it_value.tv_nsec = delta % 1000000000;
-	its.it_interval.tv_sec = its.it_value.tv_sec;
-	its.it_interval.tv_nsec = its.it_value.tv_nsec;
-
-	sev.sigev_notify = SIGEV_THREAD;
-	sev.sigev_notify_function = _timer_notify;
-	sev.sigev_notify_attributes = NULL;
-	sev.sigev_value.sival_ptr = ftp;
-	sev.sigev_signo = 0;
-
-	timer_create(CLOCK_REALTIME, &sev, &ftp->ft_tid);
-	timer_settime(ftp->ft_tid, 0, &its, NULL);
+	ftp->ft_next = fmd_timers;
+	fmd_timers = ftp;
 
 	fmd_hdl_debug(hdl, "installing timer for %d secs (%p)",
-	    (int)its.it_value.tv_sec, ftp->ft_tid);
+	    (int)(delta / NANOSEC), (void *)ftp);
 
 	return (ftp);
 }
@@ -598,11 +580,56 @@ fmd_timer_install(fmd_hdl_t *hdl, void *arg, fmd_event_t *ep, hrtime_t delta)
 void
 fmd_timer_remove(fmd_hdl_t *hdl, fmd_timer_t *ftp)
 {
-	fmd_hdl_debug(hdl, "removing timer (%p)", ftp->ft_tid);
+	fmd_timer_t **pp;
 
-	timer_delete(ftp->ft_tid);
+	for (pp = &fmd_timers; *pp != NULL && *pp != ftp;
+	    pp = &(*pp)->ft_next)
+		;
+	if (*pp == NULL) {
+		zed_log_msg(LOG_ERR, "removing a timer that is not installed");
+		return;
+	}
+	*pp = ftp->ft_next;
+
+	fmd_hdl_debug(hdl, "removing timer (%p)", (void *)ftp);
 
 	fmd_hdl_free(hdl, ftp, sizeof (fmd_timer_t));
+}
+
+/*
+ * Fire the expired timers, earliest first.  Returns B_FALSE if no timer is
+ * left to expire, or B_TRUE and when the next one expires in *next.  Called
+ * from the thread that calls the modules, never while a module runs.
+ */
+boolean_t
+fmd_timer_expire(hrtime_t *next)
+{
+	fmd_timer_t *ftp;
+	fmd_timer_t *first;
+	const fmd_hdl_ops_t *ops;
+
+	for (;;) {
+		first = NULL;
+		for (ftp = fmd_timers; ftp != NULL; ftp = ftp->ft_next) {
+			if (ftp->ft_armed && (first == NULL ||
+			    ftp->ft_expire < first->ft_expire))
+				first = ftp;
+		}
+		if (first == NULL)
+			return (B_FALSE);
+		if (first->ft_expire > gethrtime()) {
+			*next = first->ft_expire;
+			return (B_TRUE);
+		}
+
+		first->ft_armed = B_FALSE;
+		ops = ((fmd_module_t *)first->ft_hdl)->mod_info->fmdi_ops;
+		fmd_hdl_debug(first->ft_hdl, "timer fired (%p)", (void *)first);
+
+		/* fmdo_timeout can install timers, and remove this one */
+		if (ops->fmdo_timeout != NULL)
+			ops->fmdo_timeout(first->ft_hdl, first, first->ft_arg);
+	}
 }
 
 /* Name-Value Pair Lists */
