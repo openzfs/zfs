@@ -951,7 +951,14 @@ zfsctl_snapdir_lookup(struct vop_lookup_args *ap)
 		return (SET_ERROR(ENAMETOOLONG));
 
 	strlcpy(name, ap->a_cnp->cn_nameptr, ap->a_cnp->cn_namelen + 1);
+	if ((err = zfs_enter(zfsvfs, FTAG)) != 0)
+		return (err);
 	err = zfsctl_snapshot_lookup(dvp, name, &snap_id);
+	if (err == 0) {
+		VERIFY0(zfsctl_snapshot_zname(dvp, name, sizeof (fullname),
+		    fullname));
+	}
+	zfs_exit(zfsvfs, FTAG);
 	if (err != 0)
 		return (SET_ERROR(ENOENT));
 
@@ -1006,8 +1013,6 @@ zfsctl_snapdir_lookup(struct vop_lookup_args *ap)
 		vput(*vpp);
 		kern_yield(PRI_USER);
 	}
-
-	VERIFY0(zfsctl_snapshot_zname(dvp, name, sizeof (fullname), fullname));
 
 	mountpoint_len = strlen(dvp->v_vfsp->mnt_stat.f_mntonname) +
 	    strlen("/" ZFS_CTLDIR_NAME "/snapshot/") + strlen(name) + 1;
