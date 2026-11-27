@@ -1369,8 +1369,13 @@ dmu_read_impl(dnode_t *dn, uint64_t offset, uint64_t size,
 	 * Deal with odd block sizes, where there can't be data past the first
 	 * block. If we ever do the tail block optimization, we will need to
 	 * handle that here as well.
+	 *
+	 * Only odd (non power-of-2) block sizes are guaranteed to be a single
+	 * block.  A power-of-2 object may have a block past dn_maxblkid that
+	 * is already dirty, since dbuf_dirty() raises dn_maxblkid only after
+	 * publishing the dirty record; let the normal path find it.
 	 */
-	if (dn->dn_maxblkid == 0) {
+	if (dn->dn_maxblkid == 0 && dn->dn_datablkshift == 0) {
 		uint64_t newsz = offset > dn->dn_datablksz ? 0 :
 		    MIN(size, dn->dn_datablksz - offset);
 		memset((char *)buf + newsz, 0, size - newsz);
