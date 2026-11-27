@@ -26,6 +26,13 @@
 
 verify_runnable "global"
 
+function cleanup
+{
+	restore_tunable LUA_MAX_MEMLIMIT
+}
+
+log_onexit cleanup
+
 log_mustnot_checkerror_program "Memory limit exhausted" \
     -t 100000000 $TESTPOOL - <<-EOF
 	a = {};
@@ -63,6 +70,7 @@ log_mustnot_checkerror_program "Memory limit exhausted" -m 1 $TESTPOOL - <<-EOF
 EOF
 
 # Set the memlimit, in case it is a non-default value
+save_tunable LUA_MAX_MEMLIMIT
 log_must set_tunable32 LUA_MAX_MEMLIMIT 100000000
 
 log_mustnot_checkerror_program "Invalid instruction or memory limit" \

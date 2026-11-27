@@ -37,12 +37,14 @@
 
 function cleanup
 {
-	log_must zfs destroy -Rf $TESTPOOL/$TESTFS1
 	# reset the livelist sublist size to the original value
 	set_tunable64 LIVELIST_MAX_ENTRIES $ORIGINAL_MAX
 	# reset the condense tests to 0
 	set_tunable32 LIVELIST_CONDENSE_ZTHR_PAUSE 0
 	set_tunable32 LIVELIST_CONDENSE_SYNC_PAUSE 0
+	set_tunable32 LIVELIST_CONDENSE_ZTHR_CANCEL 0
+	set_tunable32 LIVELIST_CONDENSE_SYNC_CANCEL 0
+	log_must zfs destroy -Rf $TESTPOOL/$TESTFS1
 	log_must zfs inherit compression $TESTPOOL
 }
 
