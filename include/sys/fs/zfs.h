@@ -403,6 +403,12 @@ typedef int (*zprop_func)(int, void *);
 #define	ZPOOL_ROOTFS_PROPS	"root-props-nvl"
 
 /*
+ * Value of a "feature@<name>" property passed to ZFS_IOC_POOL_SET_PROPS:
+ * 0 enables the feature, ZPOOL_FEATURE_DISABLE disables it again.
+ */
+#define	ZPOOL_FEATURE_DISABLE	1ULL
+
+/*
  * Length of 'written@' and 'written#'
  */
 #define	ZFS_WRITTEN_PROP_PREFIX_LEN	8

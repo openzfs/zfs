@@ -1457,6 +1457,13 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_set/user_property_001_pos.ksh \
 	functional/cli_root/zpool_set/user_property_002_neg.ksh \
 	functional/cli_root/zpool_set/zpool_set_features.ksh \
+	functional/cli_root/zpool_set/zpool_set_feature_disable.ksh \
+	functional/cli_root/zpool_set/zpool_set_feature_disable_clone.ksh \
+	functional/cli_root/zpool_set/zpool_set_feature_disable_props.ksh \
+	functional/cli_root/zpool_set/zpool_set_feature_disable_recv.ksh \
+	functional/cli_root/zpool_set/zpool_set_feature_disable_volume.ksh \
+	functional/cli_root/zpool_set/zpool_set_feature_disable_window.ksh \
+	functional/cli_root/zpool_set/zpool_set_feature_disable_xattr.ksh \
 	functional/cli_root/zpool_set/zpool_set_clear_userprop.ksh \
 	functional/cli_root/zpool_split/cleanup.ksh \
 	functional/cli_root/zpool_split/setup.ksh \
@@ -1816,6 +1823,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/features/async_destroy/async_destroy_001_pos.ksh \
 	functional/features/async_destroy/cleanup.ksh \
 	functional/features/async_destroy/setup.ksh \
+	functional/features/large_blocks/large_blocks_001_pos.ksh \
 	functional/features/large_dnode/cleanup.ksh \
 	functional/features/large_dnode/large_dnode_001_pos.ksh \
 	functional/features/large_dnode/large_dnode_002_pos.ksh \

@@ -20,6 +20,11 @@
 #include <sys/nvpair.h>
 #include <sys/zap.h>
 #include <sys/dmu_tx.h>
+#include <sys/dsl_pool.h>
+#include <sys/dsl_prop.h>
+#include <sys/dsl_synctask.h>
+#include <sys/dmu_objset.h>
+#include <sys/zil.h>
 #include "zfeature_common.h"
 #include <sys/spa_impl.h>
 
@@ -70,9 +75,34 @@
  *
  * Each feature may depend on other features. The only effect of this
  * relationship is that when a feature is enabled all of its dependencies are
- * automatically enabled as well. Any future work to support disabling of
- * features would need to ensure that features cannot be disabled if other
- * enabled features depend on them.
+ * automatically enabled as well, and that a feature cannot be disabled again
+ * while an enabled feature depends on it.
+ *
+ * Disabling
+ * ---------
+ *
+ * An enabled feature can be disabled again while its reference count is 0
+ * and no enabled feature depends on it, in two steps.  A sync task in txg T
+ * checks this and marks the feature as disabling, in memory only: from then
+ * on spa_feature_is_enabled() returns B_FALSE, so nothing starts to use the
+ * feature, while it stays enabled on disk.  Code that found it enabled
+ * before, holding a tx or in syncing context, references it in that tx's
+ * txg at the latest.  While T syncs, T + 1 can be quiescing and T + 2 open,
+ * so that is T + TXG_CONCURRENT_STATES - 1.  Such a reference ends the
+ * disable: the feature is still enabled on disk.  So does an explicit
+ * enable.  Once T + 2 has synced, a second sync task removes what
+ * feature_enable_sync() wrote if the feature is still disabling, and the
+ * feature reads as never enabled; otherwise the disable fails with EBUSY.
+ * A crash before then leaves the feature enabled.
+ *
+ * Any other reference to a feature that is not enabled should have kept it
+ * from being disabled.  spa_feature_incr() asserts that it does not happen,
+ * and a release build enables the feature again with a warning.
+ *
+ * An operation can find a feature enabled and activate it only much later,
+ * or not at all, such as a receive whose stream may hold large dnodes.
+ * spa_feature_hold() keeps the feature from being disabled until
+ * spa_feature_rele().
  *
  * On-disk Format
  * --------------
@@ -322,6 +352,34 @@ feature_sync(spa_t *spa, zfeature_info_t *feature, uint64_t refcount,
 		spa_activate_mos_feature(spa, feature->fi_guid, tx);
 }
 
+static uint64_t
+feature_disabling_txg(spa_t *spa, spa_feature_t fid)
+{
+	uint64_t txg;
+
+	mutex_enter(&spa->spa_feat_stats_lock);
+	txg = spa->spa_feat_disabling_txg[fid];
+	mutex_exit(&spa->spa_feat_stats_lock);
+	return (txg);
+}
+
+/*
+ * End a disable that has not removed the feature from disk yet, see
+ * "Disabling" above.  Its reference count was 0 when the disable started,
+ * and nothing has changed it since.
+ */
+static void
+feature_disabling_end(spa_t *spa, spa_feature_t fid)
+{
+	mutex_enter(&spa->spa_feat_stats_lock);
+	if (spa->spa_feat_disabling_txg[fid] != 0) {
+		spa->spa_feat_disabling_txg[fid] = 0;
+		VERIFY3U(atomic_swap_64(&spa->spa_feat_refcount_cache[fid], 0),
+		    ==, SPA_FEATURE_DISABLED);
+	}
+	mutex_exit(&spa->spa_feat_stats_lock);
+}
+
 /*
  * This function is non-static for zhack; it should otherwise not be used
  * outside this file.
@@ -337,6 +395,10 @@ feature_enable_sync(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
 	ASSERT(0 != zapobj);
 	ASSERT(zfeature_is_valid_guid(feature->fi_guid));
 	ASSERT3U(spa_version(spa), >=, SPA_VERSION_FEATURES);
+
+	/* A feature being disabled is still enabled on disk. */
+	if (VALID_FEATURE_FID(feature->fi_feature))
+		feature_disabling_end(spa, feature->fi_feature);
 
 	/*
 	 * If the feature is already enabled, ignore the request.
@@ -392,6 +454,49 @@ feature_enable_sync(spa_t *spa, zfeature_info_t *feature, dmu_tx_t *tx)
 		spa_upgrade_errlog(spa, tx);
 }
 
+/*
+ * A reference to a feature that reads as disabled: one that ends a disable
+ * from within its window, see "Disabling" above, or one that should have
+ * kept the feature from being disabled.  spa_feature_incr() also runs on
+ * dp_sync_taskq threads, hence spa_feat_enable_lock.
+ */
+static void
+feature_incr_disabled(spa_t *spa, spa_feature_t fid, dmu_tx_t *tx)
+{
+	zfeature_info_t *feature = &spa_feature_table[fid];
+	uint64_t disabling_txg;
+	boolean_t in_window;
+
+	/*
+	 * feature_enable_sync() increments ENABLED_TXG only once it is
+	 * enabled, so this does not recurse.
+	 */
+	ASSERT(!MUTEX_HELD(&spa->spa_feat_enable_lock));
+	mutex_enter(&spa->spa_feat_enable_lock);
+	if (spa_feature_is_enabled(spa, fid)) {
+		mutex_exit(&spa->spa_feat_enable_lock);
+		return;
+	}
+
+	disabling_txg = feature_disabling_txg(spa, fid);
+	in_window = disabling_txg != 0 &&
+	    dmu_tx_get_txg(tx) < disabling_txg + TXG_CONCURRENT_STATES;
+	if (!in_window) {
+		cmn_err(CE_WARN, "pool '%s': feature@%s referenced while %s, "
+		    "enabling it again", spa_name(spa), feature->fi_uname,
+		    disabling_txg != 0 ? "disabling" : "disabled");
+	}
+	ASSERT(in_window);
+
+	/* This also ends a disable, see feature_enable_sync(). */
+	spa_feature_enable(spa, fid, tx);
+	if (disabling_txg == 0) {
+		spa_history_log_internal(spa, "set", tx, "feature@%s=enabled",
+		    feature->fi_uname);
+	}
+	mutex_exit(&spa->spa_feat_enable_lock);
+}
+
 static void
 feature_do_action(spa_t *spa, spa_feature_t fid, feature_action_t action,
     dmu_tx_t *tx)
@@ -408,6 +513,10 @@ feature_do_action(spa_t *spa, spa_feature_t fid, feature_action_t action,
 
 	ASSERT(dmu_tx_is_syncing(tx));
 	ASSERT3U(spa_version(spa), >=, SPA_VERSION_FEATURES);
+
+	/* Before spa_feat_stats_lock, which feature_enable_sync() takes. */
+	if (action == FEATURE_ACTION_INCR && !spa_feature_is_enabled(spa, fid))
+		feature_incr_disabled(spa, fid, tx);
 
 	mutex_enter(&spa->spa_feat_stats_lock);
 	VERIFY3U(feature_get_refcount(spa, feature, &refcount), !=, ENOTSUP);
@@ -472,6 +581,214 @@ void
 spa_feature_decr(spa_t *spa, spa_feature_t fid, dmu_tx_t *tx)
 {
 	feature_do_action(spa, fid, FEATURE_ACTION_DECR, tx);
+}
+
+/*
+ * zfeature_depends_on() only looks at direct dependencies, and a pool may
+ * have a feature enabled without one of them, as errata #4 pools have
+ * encryption without bookmark_v2.
+ */
+static boolean_t
+feature_depends_on(spa_feature_t fid, spa_feature_t check)
+{
+	zfeature_info_t *feature = &spa_feature_table[fid];
+
+	for (int i = 0; feature->fi_depends[i] != SPA_FEATURE_NONE; i++) {
+		if (feature->fi_depends[i] == check ||
+		    feature_depends_on(feature->fi_depends[i], check))
+			return (B_TRUE);
+	}
+	return (B_FALSE);
+}
+
+typedef struct feature_disable_arg {
+	spa_feature_t	fda_feature;
+	uint64_t	fda_txg;	/* txg of the mark, 0 if none */
+	int		fda_error;
+} feature_disable_arg_t;
+
+static int
+feature_disable_check(void *arg, dmu_tx_t *tx)
+{
+	feature_disable_arg_t *fda = arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	spa_feature_t fid = fda->fda_feature;
+	uint64_t refcount;
+
+	if (spa_version(spa) < SPA_VERSION_FEATURES)
+		return (SET_ERROR(ENOTSUP));
+	if (!spa_writeable(spa))
+		return (SET_ERROR(EROFS));
+	/* Disabled, or disabling, which the mark waits for */
+	if (feature_get_refcount(spa, &spa_feature_table[fid], &refcount) != 0)
+		return (0);
+	if (refcount != 0 ||
+	    atomic_load_64(&spa->spa_feat_hold_count[fid]) != 0)
+		return (SET_ERROR(EBUSY));
+	/* A disabling dependent is still enabled on disk */
+	for (spa_feature_t f = 0; f < SPA_FEATURES; f++) {
+		if ((spa_feature_is_enabled(spa, f) ||
+		    feature_disabling_txg(spa, f) != 0) &&
+		    feature_depends_on(f, fid))
+			return (SET_ERROR(EBUSY));
+	}
+	/*
+	 * A TX_CLONE_RANGE record needs block_cloning when it is replayed,
+	 * but the BRT entries that claiming it added keep the feature active
+	 * only if one of its blocks is neither a hole nor embedded.
+	 */
+	if (fid == SPA_FEATURE_BLOCK_CLONING) {
+		int error = dmu_objset_find_dp(dmu_tx_pool(tx),
+		    dmu_tx_pool(tx)->dp_root_dir_obj, zil_check_unplayed, NULL,
+		    DS_FIND_CHILDREN | DS_FIND_SERIALIZE);
+		if (error != 0)
+			return (error);
+	}
+	return (dsl_prop_feature_check(dmu_tx_pool(tx), fid));
+}
+
+static void
+feature_disable_mark_sync(void *arg, dmu_tx_t *tx)
+{
+	feature_disable_arg_t *fda = arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	spa_feature_t fid = fda->fda_feature;
+
+	mutex_enter(&spa->spa_feat_enable_lock);
+	mutex_enter(&spa->spa_feat_stats_lock);
+	if (spa->spa_feat_disabling_txg[fid] == 0 &&
+	    spa_feature_is_enabled(spa, fid)) {
+		/* A hold taken in open context since feature_disable_check() */
+		if (atomic_load_64(&spa->spa_feat_hold_count[fid]) != 0) {
+			fda->fda_error = SET_ERROR(EBUSY);
+		} else {
+			VERIFY0(atomic_swap_64(
+			    &spa->spa_feat_refcount_cache[fid],
+			    SPA_FEATURE_DISABLED));
+			spa->spa_feat_disabling_txg[fid] = dmu_tx_get_txg(tx);
+			if (spa->spa_feat_stats != NULL) {
+				(void) nvlist_remove_all(spa->spa_feat_stats,
+				    spa_feature_table[fid].fi_guid);
+			}
+		}
+	}
+	fda->fda_txg = spa->spa_feat_disabling_txg[fid];
+	mutex_exit(&spa->spa_feat_stats_lock);
+	mutex_exit(&spa->spa_feat_enable_lock);
+}
+
+static int
+feature_disable_final_check(void *arg, dmu_tx_t *tx)
+{
+	feature_disable_arg_t *fda = arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	uint64_t disabling_txg = feature_disabling_txg(spa, fda->fda_feature);
+
+	if (disabling_txg == fda->fda_txg) {
+		ASSERT3U(dmu_tx_get_txg(tx), >=,
+		    disabling_txg + TXG_CONCURRENT_STATES);
+		return (0);
+	}
+	/* Referenced or enabled again, unless a concurrent disable ended */
+	if (disabling_txg != 0 || spa_feature_is_enabled(spa, fda->fda_feature))
+		return (SET_ERROR(EBUSY));
+	return (0);
+}
+
+static void
+feature_disable_final_sync(void *arg, dmu_tx_t *tx)
+{
+	feature_disable_arg_t *fda = arg;
+	spa_t *spa = dmu_tx_pool(tx)->dp_spa;
+	zfeature_info_t *feature = &spa_feature_table[fda->fda_feature];
+	objset_t *mos = spa->spa_meta_objset;
+	uint64_t zapobj = (feature->fi_flags & ZFEATURE_FLAG_READONLY_COMPAT) ?
+	    spa->spa_feat_for_write_obj : spa->spa_feat_for_read_obj;
+
+	mutex_enter(&spa->spa_feat_enable_lock);
+	mutex_enter(&spa->spa_feat_stats_lock);
+	if (spa->spa_feat_disabling_txg[fda->fda_feature] != fda->fda_txg) {
+		mutex_exit(&spa->spa_feat_stats_lock);
+		mutex_exit(&spa->spa_feat_enable_lock);
+		return;
+	}
+	spa->spa_feat_disabling_txg[fda->fda_feature] = 0;
+	mutex_exit(&spa->spa_feat_stats_lock);
+
+	VERIFY0(zap_remove(mos, zapobj, feature->fi_guid, tx));
+	(void) zap_remove(mos, spa->spa_feat_desc_obj, feature->fi_guid, tx);
+	if (spa->spa_feat_enabled_txg_obj != 0 &&
+	    zap_remove(mos, spa->spa_feat_enabled_txg_obj, feature->fi_guid,
+	    tx) == 0)
+		spa_feature_decr(spa, SPA_FEATURE_ENABLED_TXG, tx);
+	mutex_exit(&spa->spa_feat_enable_lock);
+
+	spa_history_log_internal(spa, "set", tx, "feature@%s=disabled",
+	    feature->fi_uname);
+}
+
+/*
+ * Disable an enabled feature that nothing uses, so that it reads as never
+ * enabled, see "Disabling" above.  Disabling a feature that is not enabled
+ * does nothing; disabling one that is disabling waits for that disable.
+ */
+int
+spa_feature_disable(spa_t *spa, spa_feature_t fid)
+{
+	feature_disable_arg_t fda = { .fda_feature = fid, .fda_txg = 0,
+	    .fda_error = 0 };
+	int error;
+
+	ASSERT(VALID_FEATURE_FID(fid));
+
+	error = dsl_sync_task(spa_name(spa), feature_disable_check,
+	    feature_disable_mark_sync, &fda, 0, ZFS_SPACE_CHECK_NONE);
+	if (error == 0)
+		error = fda.fda_error;
+	if (error != 0 || fda.fda_txg == 0)
+		return (error);
+
+	txg_wait_synced(spa_get_dsl(spa),
+	    fda.fda_txg + TXG_CONCURRENT_STATES - 1);
+
+	return (dsl_sync_task(spa_name(spa), feature_disable_final_check,
+	    feature_disable_final_sync, &fda, 6, ZFS_SPACE_CHECK_RESERVED));
+}
+
+/*
+ * Hold a feature that an operation in progress may still activate, so that
+ * it cannot be disabled until spa_feature_rele().  Returns ENOTSUP, and
+ * takes no hold, if the feature is not enabled.  The disable checks holds
+ * under spa_feat_stats_lock too, so a hold can be taken in any context.
+ */
+int
+spa_feature_hold(spa_t *spa, spa_feature_t fid)
+{
+	int error = 0;
+
+	ASSERT(VALID_FEATURE_FID(fid));
+
+	mutex_enter(&spa->spa_feat_stats_lock);
+	if (spa_feature_is_enabled(spa, fid))
+		atomic_inc_64(&spa->spa_feat_hold_count[fid]);
+	else
+		error = SET_ERROR(ENOTSUP);
+	mutex_exit(&spa->spa_feat_stats_lock);
+
+	return (error);
+}
+
+/*
+ * A disable that sees a hold that is being released is refused, which is
+ * safe, so releasing needs no lock.
+ */
+void
+spa_feature_rele(spa_t *spa, spa_feature_t fid)
+{
+	ASSERT(VALID_FEATURE_FID(fid));
+	ASSERT3U(atomic_load_64(&spa->spa_feat_hold_count[fid]), >, 0);
+
+	atomic_dec_64(&spa->spa_feat_hold_count[fid]);
 }
 
 /*

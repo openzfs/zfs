@@ -27,6 +27,9 @@
 #include <sys/dsl_synctask.h>
 #include <sys/spa.h>
 #include <sys/zap.h>
+#include <sys/zfeature.h>
+#include <sys/zio_checksum.h>
+#include <sys/zvol.h>
 #include <sys/fs/zfs.h>
 
 #include "zfs_prop.h"
@@ -930,6 +933,60 @@ dsl_prop_inherit(const char *dsname, const char *propname,
 	return (error);
 }
 
+/*
+ * The feature that a property value needs, or SPA_FEATURE_NONE.  Most of
+ * these features become active only when a block or dnode that uses them
+ * is written, possibly long after the value was set, so the feature has to
+ * stay enabled for as long as the value is stored.
+ */
+spa_feature_t
+dsl_prop_feature(zfs_prop_t prop, uint64_t value)
+{
+	switch (prop) {
+	case ZFS_PROP_RECORDSIZE:
+	case ZFS_PROP_VOLBLOCKSIZE:
+		if (value > SPA_OLD_MAXBLOCKSIZE)
+			return (SPA_FEATURE_LARGE_BLOCKS);
+		break;
+	case ZFS_PROP_DNODESIZE:
+		if (value != ZFS_DNSIZE_LEGACY)
+			return (SPA_FEATURE_LARGE_DNODE);
+		break;
+	case ZFS_PROP_CHECKSUM:
+	case ZFS_PROP_DEDUP:
+		return (zio_checksum_to_feature(value & ZIO_CHECKSUM_MASK));
+	case ZFS_PROP_COMPRESSION:
+		return (zio_compress_to_feature(ZIO_COMPRESS_ALGO(value)));
+	default:
+		break;
+	}
+	return (SPA_FEATURE_NONE);
+}
+
+/*
+ * zfs_check_settable() checked in open context that the feature a value
+ * needs is enabled, but the feature may have been disabled since.  Check
+ * again in syncing context, which the disable's sync task cannot overlap.
+ */
+static int
+dsl_props_check_feature(spa_t *spa, nvpair_t *elem)
+{
+	zfs_prop_t prop = zfs_name_to_prop(nvpair_name(elem));
+	nvpair_t *pair = elem;
+	spa_feature_t f;
+
+	if (nvpair_type(pair) == DATA_TYPE_NVLIST &&
+	    nvlist_lookup_nvpair(fnvpair_value_nvlist(elem), ZPROP_VALUE,
+	    &pair) != 0)
+		return (0);
+	if (nvpair_type(pair) != DATA_TYPE_UINT64)
+		return (0);
+	f = dsl_prop_feature(prop, fnvpair_value_uint64(pair));
+	if (f != SPA_FEATURE_NONE && !spa_feature_is_enabled(spa, f))
+		return (SET_ERROR(ENOTSUP));
+	return (0);
+}
+
 int
 dsl_props_set_check(void *arg, dmu_tx_t *tx)
 {
@@ -958,6 +1015,11 @@ dsl_props_set_check(void *arg, dmu_tx_t *tx)
 				dsl_dataset_rele(ds, FTAG);
 				return (SET_ERROR(E2BIG));
 			}
+		}
+		if ((dpsa->dpsa_source & ZPROP_SRC_NONE) == 0 &&
+		    (err = dsl_props_check_feature(dp->dp_spa, elem)) != 0) {
+			dsl_dataset_rele(ds, FTAG);
+			return (err);
 		}
 	}
 
@@ -1042,6 +1104,73 @@ dsl_props_set(const char *dsname, zprop_source_t source, nvlist_t *props)
 
 	return (dsl_sync_task(dsname, dsl_props_set_check, dsl_props_set_sync,
 	    &dpsa, nblks, ZFS_SPACE_CHECK_RESERVED));
+}
+
+static boolean_t
+dsl_prop_stored_needs(objset_t *mos, uint64_t zapobj, zfs_prop_t prop,
+    const char *name, spa_feature_t f)
+{
+	uint64_t value;
+
+	return (zap_lookup(mos, zapobj, name, sizeof (value), 1, &value) == 0 &&
+	    dsl_prop_feature(prop, value) == f);
+}
+
+static int
+dsl_prop_feature_check_cb(dsl_pool_t *dp, dsl_dataset_t *ds, void *arg)
+{
+	static const zfs_prop_t props[] = { ZFS_PROP_RECORDSIZE,
+	    ZFS_PROP_DNODESIZE, ZFS_PROP_CHECKSUM, ZFS_PROP_DEDUP,
+	    ZFS_PROP_COMPRESSION };
+	spa_feature_t f = *(spa_feature_t *)arg;
+	uint64_t zapobj = dsl_dir_phys(ds->ds_dir)->dd_props_zapobj;
+	dmu_object_info_t doi;
+	objset_t *os;
+	int err;
+
+	for (int i = 0; zapobj != 0 && i < ARRAY_SIZE(props); i++) {
+		const char *name = zfs_prop_to_name(props[i]);
+		char *recvd = kmem_asprintf("%s%s", name, ZPROP_RECVD_SUFFIX);
+		boolean_t needs = dsl_prop_stored_needs(dp->dp_meta_objset,
+		    zapobj, props[i], name, f) ||
+		    dsl_prop_stored_needs(dp->dp_meta_objset, zapobj, props[i],
+		    recvd, f);
+
+		kmem_strfree(recvd);
+		if (needs)
+			return (SET_ERROR(EBUSY));
+	}
+
+	/* A volume's block size is that of its data object, not a property */
+	if (f != SPA_FEATURE_LARGE_BLOCKS)
+		return (0);
+	if ((err = dmu_objset_from_ds(ds, &os)) != 0)
+		return (err);
+	if (dmu_objset_type(os) != DMU_OST_ZVOL)
+		return (0);
+	err = dmu_object_info(os, ZVOL_OBJ, &doi);
+	if (err == ENOENT)
+		return (0);
+	if (err == 0 && doi.doi_data_block_size > SPA_OLD_MAXBLOCKSIZE)
+		return (SET_ERROR(EBUSY));
+	return (err);
+}
+
+/*
+ * Return EBUSY if a property value of a dataset, set locally or received,
+ * needs feature f, or if f is large_blocks and a volume has blocks larger
+ * than 128K.  A received value counts even when a local one hides it,
+ * since "zfs inherit -S" brings it back without any check.
+ */
+int
+dsl_prop_feature_check(dsl_pool_t *dp, spa_feature_t f)
+{
+	/* dsl_prop_feature() only returns per-dataset features */
+	if (!(spa_feature_table[f].fi_flags & ZFEATURE_FLAG_PER_DATASET))
+		return (0);
+	return (dmu_objset_find_dp(dp, dp->dp_root_dir_obj,
+	    dsl_prop_feature_check_cb, &f,
+	    DS_FIND_CHILDREN | DS_FIND_SERIALIZE));
 }
 
 typedef enum dsl_prop_getflags {

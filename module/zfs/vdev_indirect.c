@@ -815,7 +815,6 @@ vdev_indirect_sync_obsolete(vdev_t *vd, dmu_tx_t *tx)
 	ASSERT3U(vic->vic_mapping_object, !=, 0);
 	ASSERT(zfs_range_tree_space(vd->vdev_obsolete_segments) > 0);
 	ASSERT(vd->vdev_removing || vd->vdev_ops == &vdev_indirect_ops);
-	ASSERT(spa_feature_is_enabled(spa, SPA_FEATURE_OBSOLETE_COUNTS));
 
 	uint64_t obsolete_sm_object;
 	VERIFY0(vdev_obsolete_sm_object(vd, &obsolete_sm_object));
