@@ -270,6 +270,7 @@ zfs_vop_fsync(vnode_t *vp)
 	struct mount *mp;
 	int error;
 
+retry:
 #if __FreeBSD_version < 1400068
 	if ((error = vn_start_write(vp, &mp, V_WAIT | PCATCH)) != 0)
 #else
@@ -280,6 +281,13 @@ zfs_vop_fsync(vnode_t *vp)
 	error = VOP_FSYNC(vp, MNT_WAIT, curthread);
 	VOP_UNLOCK(vp);
 	vn_finished_write(mp);
+	/*
+	 * ERELOOKUP asks the caller to retry: the file system had to drop
+	 * the vnode lock, as UFS soft updates does to write a new block of
+	 * the parent directory.  kern_fsync() retries the same way.
+	 */
+	if (error == ERELOOKUP)
+		goto retry;
 drop:
 	return (SET_ERROR(error));
 }

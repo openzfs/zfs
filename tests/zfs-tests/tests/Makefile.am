@@ -625,6 +625,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cachefile/cachefile_002_pos.ksh \
 	functional/cachefile/cachefile_003_pos.ksh \
 	functional/cachefile/cachefile_004_pos.ksh \
+	functional/cachefile/cachefile_005_pos.ksh \
 	functional/cachefile/cleanup.ksh \
 	functional/cachefile/setup.ksh \
 	functional/cache/setup.ksh \

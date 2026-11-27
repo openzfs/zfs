@@ -119,7 +119,7 @@ tags = ['functional', 'cache']
 
 [tests/functional/cachefile]
 tests = ['cachefile_001_pos', 'cachefile_002_pos', 'cachefile_003_pos',
-    'cachefile_004_pos']
+    'cachefile_004_pos', 'cachefile_005_pos']
 tags = ['functional', 'cachefile']
 
 [tests/functional/casenorm]
