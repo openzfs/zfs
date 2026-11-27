@@ -57,6 +57,28 @@ extern "C" {
  */
 #define	ZFS_PROJID		0x0000800000000000ull
 
+/*
+ * FIXED_BLKSZ: the block size was set through fsx_extsize and doesn't grow
+ * toward recordsize.
+ */
+#define	ZFS_FIXED_BLKSZ		0x0001000000000000ull
+
+/*
+ * EXTSZINHERIT: new files here get the fixed block size in SA_ZPL_EXTSIZE;
+ * new directories inherit it.
+ */
+#define	ZFS_EXTSZINHERIT	0x0002000000000000ull
+
+/*
+ * Older code ignores FIXED_BLKSZ and may have grown the file's block, so the
+ * pin holds only while the block size is still the one set (z_extsize).
+ */
+#define	ZFS_BLKSZ_FIXED(zp)	((zp)->z_extsize != 0 && \
+	(zp)->z_blksz == (zp)->z_extsize)
+
+#define	ZFS_MAX_BLKSZ(zp)	(ZFS_BLKSZ_FIXED(zp) ? \
+	(zp)->z_blksz : ZTOZSB(zp)->z_max_blksz)
+
 #define	ZFS_ATTR_SET(zp, attr, value, pflags, tx) \
 { \
 	if (value) \
@@ -103,6 +125,7 @@ extern "C" {
 #define	SA_ZPL_PAD(z)		z->z_attr_table[ZPL_PAD]
 #define	SA_ZPL_PROJID(z)	z->z_attr_table[ZPL_PROJID]
 #define	SA_ZPL_SEQ(z)		z->z_attr_table[ZPL_SEQ]
+#define	SA_ZPL_EXTSIZE(z)	z->z_attr_table[ZPL_EXTSIZE]
 
 /*
  * may_grow for a dmu_tx_hold_sa() that may persist z_seq: the SA layout
@@ -211,6 +234,7 @@ typedef struct znode {
 	boolean_t	z_xattr_dir_absent;	/* no xattr dir (cached) */
 	boolean_t	z_has_seq;	/* SA_ZPL_SEQ present (in-core only) */
 	uint_t		z_blksz;	/* block size in bytes */
+	uint_t		z_extsize;	/* fsx_extsize block size, or 0 */
 	uint64_t	z_seq;		/* modification sequence number */
 	uint64_t	z_mapcnt;	/* number of pages mapped to file */
 	uint64_t	z_dnodesize;	/* dnode size */

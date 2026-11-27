@@ -286,6 +286,9 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/events/events_common.kshlib \
 	functional/failmode/failmode.kshlib \
 	functional/fault/fault.cfg \
+	functional/fileblocksize/fileblocksize.cfg \
+	functional/fileblocksize/fileblocksize.kshlib \
+	functional/fileblocksize/oddblk.zsend.bz2 \
 	functional/gang_blocks/gang_blocks.kshlib \
 	functional/getfsuuid/getfsuuid.kshlib \
 	functional/grow/grow.cfg \
@@ -1827,6 +1830,22 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/features/large_dnode/large_dnode_008_pos.ksh \
 	functional/features/large_dnode/large_dnode_009_pos.ksh \
 	functional/features/large_dnode/setup.ksh \
+	functional/fileblocksize/cleanup.ksh \
+	functional/fileblocksize/fileblocksize_001_pos.ksh \
+	functional/fileblocksize/fileblocksize_002_neg.ksh \
+	functional/fileblocksize/fileblocksize_003_pos.ksh \
+	functional/fileblocksize/fileblocksize_004_pos.ksh \
+	functional/fileblocksize/fileblocksize_005_pos.ksh \
+	functional/fileblocksize/fileblocksize_006_pos.ksh \
+	functional/fileblocksize/fileblocksize_007_pos.ksh \
+	functional/fileblocksize/fileblocksize_008_neg.ksh \
+	functional/fileblocksize/fileblocksize_010_pos.ksh \
+	functional/fileblocksize/fileblocksize_011_neg.ksh \
+	functional/fileblocksize/fileblocksize_012_neg.ksh \
+	functional/fileblocksize/fileblocksize_013_neg.ksh \
+	functional/fileblocksize/fileblocksize_015_neg.ksh \
+	functional/fileblocksize/fileblocksize_017_pos.ksh \
+	functional/fileblocksize/setup.ksh \
 	functional/gang_blocks/cleanup.ksh \
 	functional/gang_blocks/gang_blocks_001_pos.ksh \
 	functional/gang_blocks/gang_blocks_ddt_copies.ksh \

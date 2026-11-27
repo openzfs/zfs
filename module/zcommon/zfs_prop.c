@@ -804,6 +804,9 @@ zfs_prop_init(void)
 	zprop_register_index(ZFS_PROP_LONGNAME, "longname", 0, PROP_INHERIT,
 	    ZFS_TYPE_FILESYSTEM, "on | off", "LONGNAME", boolean_table,
 	    sfeatures);
+	zprop_register_index(ZFS_PROP_FILEBLOCKSIZE, "fileblocksize", 1,
+	    PROP_INHERIT, ZFS_TYPE_FILESYSTEM, "on | off", "FILEBLOCKSIZE",
+	    boolean_table, sfeatures);
 
 	zfs_mod_list_supported_free(sfeatures);
 }

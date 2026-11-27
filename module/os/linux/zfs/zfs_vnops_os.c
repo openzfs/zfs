@@ -1980,9 +1980,9 @@ next:
  * Timestamps:
  *	ip - ctime updated, mtime updated if size changed.
  */
-int
-zfs_setattr_idmap(znode_t *zp, vattr_t *vap, int flags, cred_t *cr,
-    zidmap_t *idmap)
+static int
+zfs_setattr_impl(znode_t *zp, vattr_t *vap, int flags, cred_t *cr,
+    zidmap_t *idmap, zfs_extsize_req_t *req)
 {
 	struct inode	*ip;
 	zfsvfs_t	*zfsvfs = ZTOZSB(zp);
@@ -2019,6 +2019,12 @@ zfs_setattr_idmap(znode_t *zp, vattr_t *vap, int flags, cred_t *cr,
 		return (err);
 	ip = ZTOI(zp);
 	os = zfsvfs->z_os;
+
+	/* An extent size change comes only with FS_IOC_FSSETXATTR's flags. */
+	if (req != NULL && mask != ATTR_XVATTR) {
+		zfs_exit(zfsvfs, FTAG);
+		return (SET_ERROR(EINVAL));
+	}
 
 	/*
 	 * If this is a xvattr_t, then get a pointer to the structure of
@@ -2400,6 +2406,12 @@ top:
 			goto out2;
 		}
 	}
+
+	if (req != NULL && (err = zfs_extsize_begin(zp, xvap, req)) != 0) {
+		if (attrzp)
+			zrele(attrzp);
+		goto out2;
+	}
 	tx = dmu_tx_create(os);
 
 	if (mask & ATTR_MODE) {
@@ -2444,7 +2456,7 @@ top:
 		    XVA_ISSET_REQ(xvap, XAT_AV_SCANSTAMP)) ||
 		    (projid != ZFS_INVALID_PROJID &&
 		    !(zp->z_pflags & ZFS_PROJID)) ||
-		    !zp->z_has_seq)
+		    (req != NULL && req->zer_change) || !zp->z_has_seq)
 			dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_TRUE);
 		else
 			dmu_tx_hold_sa(tx, zp->z_sa_hdl, B_FALSE);
@@ -2453,6 +2465,8 @@ top:
 	if (attrzp) {
 		dmu_tx_hold_sa(tx, attrzp->z_sa_hdl, B_FALSE);
 	}
+	if (req != NULL)
+		zfs_extsize_hold(zp, req, tx);
 
 	fuid_dirtied = zfsvfs->z_fuid_dirty;
 	if (fuid_dirtied)
@@ -2463,6 +2477,15 @@ top:
 	err = dmu_tx_assign(tx, DMU_TX_WAIT);
 	if (err)
 		goto out;
+
+	/* First, so that if it fails nothing else has changed. */
+	if (req != NULL && req->zer_change &&
+	    (err = zfs_extsize_apply(zp, req, tx)) != 0) {
+		dmu_tx_commit(tx);
+		if (attrzp)
+			zrele(attrzp);
+		goto out2;
+	}
 
 	count = 0;
 	/*
@@ -2702,8 +2725,11 @@ out:
 		dmu_tx_abort(tx);
 		if (attrzp)
 			zrele(attrzp);
-		if (err == ERESTART)
+		if (err == ERESTART) {
+			if (req != NULL)
+				(void) zfs_extsize_end(zp, req);
 			goto top;
+		}
 	} else {
 		ASSERT3S(count, <=, bulks);
 		if (count > 0)
@@ -2718,6 +2744,8 @@ out:
 	}
 
 out2:
+	if (req != NULL && (err2 = zfs_extsize_end(zp, req)) != 0 && err == 0)
+		err = err2;
 	if (err == 0 && os->os_sync == ZFS_SYNC_ALWAYS)
 		err = zil_commit(zilog, 0);
 
@@ -2729,9 +2757,24 @@ out3:
 	return (err);
 }
 int
+zfs_setattr_idmap(znode_t *zp, vattr_t *vap, int flags, cred_t *cr,
+    zidmap_t *idmap)
+{
+	return (zfs_setattr_impl(zp, vap, flags, cr, idmap, NULL));
+}
+
+int
 zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 {
 	return (zfs_setattr_idmap(zp, vap, flags, cr, zfs_init_idmap));
+}
+
+/* zfs_setattr() with an FS_IOC_FSSETXATTR extent size change. */
+int
+zfs_setattr_extsize(znode_t *zp, vattr_t *vap, cred_t *cr,
+    zfs_extsize_req_t *req)
+{
+	return (zfs_setattr_impl(zp, vap, 0, cr, zfs_init_idmap, req));
 }
 
 typedef struct zfs_zlock {

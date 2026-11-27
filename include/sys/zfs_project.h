@@ -34,6 +34,9 @@ typedef struct fsxattr zfsxattr_t;
 /* Non-Linux OS */
 #define	FS_PROJINHERIT_FL	0x20000000
 #define	FS_XFLAG_PROJINHERIT	FS_PROJINHERIT_FL
+#define	FS_XFLAG_IMMUTABLE	0x00000008
+#define	FS_XFLAG_EXTSIZE	0x00000800
+#define	FS_XFLAG_EXTSZINHERIT	0x00001000
 
 struct zfsxattr {
 	uint32_t	fsx_xflags;	/* xflags field value (get/set) */

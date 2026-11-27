@@ -33,6 +33,25 @@ extern int zfs_clone_range_replay(znode_t *, uint64_t, uint64_t, uint64_t,
 extern int zfs_dedupe_range(znode_t *, uint64_t, znode_t *, uint64_t,
     uint64_t *, cred_t *, boolean_t, boolean_t *);
 extern int zfs_rewrite(znode_t *, uint64_t, uint64_t, uint64_t, uint64_t);
+/* An FS_IOC_FSSETXATTR extent size change, made by zfs_setattr_extsize(). */
+typedef struct zfs_extsize_req {
+	uint32_t		zer_xflags;	/* fsx_xflags */
+	uint32_t		zer_extsize;	/* fsx_extsize */
+	uint64_t		zer_blksz;	/* to set, or 0 to clear */
+	boolean_t		zer_change;
+	boolean_t		zer_applied;
+	zfs_locked_range_t	*zer_lr;
+} zfs_extsize_req_t;
+
+extern int zfs_setattr_extsize(znode_t *, vattr_t *, cred_t *,
+    zfs_extsize_req_t *);
+extern int zfs_extsize_begin(znode_t *, xvattr_t *, zfs_extsize_req_t *);
+extern void zfs_extsize_hold(znode_t *, zfs_extsize_req_t *, dmu_tx_t *);
+extern int zfs_extsize_apply(znode_t *, zfs_extsize_req_t *, dmu_tx_t *);
+extern int zfs_extsize_end(znode_t *, zfs_extsize_req_t *);
+extern uint64_t zfs_inherit_extsize(znode_t *);
+extern void zfs_extsize_load(zfsvfs_t *, znode_t *);
+extern int zfs_get_extsize(znode_t *, uint32_t *, uint32_t *);
 
 extern int zfs_getsecattr(znode_t *, vsecattr_t *, int, cred_t *);
 extern int zfs_setsecattr(znode_t *, vsecattr_t *, int, cred_t *);

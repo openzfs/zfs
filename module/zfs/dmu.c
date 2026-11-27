@@ -2497,6 +2497,23 @@ dmu_object_set_blocksize(objset_t *os, uint64_t object, uint64_t size, int ibs,
 	return (err);
 }
 
+/*
+ * Whether dmu_object_set_blocksize(os, object, size, 0, tx) would succeed
+ * now, for a caller that keeps the object from changing in between.
+ */
+boolean_t
+dmu_object_can_set_blocksize(objset_t *os, uint64_t object, uint64_t size)
+{
+	dnode_t *dn;
+	boolean_t ok;
+
+	if (dnode_hold(os, object, FTAG, &dn) != 0)
+		return (B_FALSE);
+	ok = dnode_can_set_blksz(dn, size);
+	dnode_rele(dn, FTAG);
+	return (ok);
+}
+
 int
 dmu_object_set_maxblkid(objset_t *os, uint64_t object, uint64_t maxblkid,
     dmu_tx_t *tx)
@@ -3278,6 +3295,7 @@ EXPORT_SYMBOL(dmu_object_size_from_db);
 EXPORT_SYMBOL(dmu_object_dnsize_from_db);
 EXPORT_SYMBOL(dmu_object_set_nlevels);
 EXPORT_SYMBOL(dmu_object_set_blocksize);
+EXPORT_SYMBOL(dmu_object_can_set_blocksize);
 EXPORT_SYMBOL(dmu_object_set_maxblkid);
 EXPORT_SYMBOL(dmu_object_set_checksum);
 EXPORT_SYMBOL(dmu_object_set_compress);
