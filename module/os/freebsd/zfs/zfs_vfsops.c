@@ -261,6 +261,7 @@ zfs_getquota(zfsvfs_t *zfsvfs, uid_t id, int isgroup, struct dqblk64 *dqp)
 	 * So we set them to be the same.
 	 */
 	dqp->dqb_bsoftlimit = dqp->dqb_bhardlimit = btodb(quota);
+	dmu_objset_start_deferred_upgrade(zfsvfs->z_os);
 	error = zap_lookup(zfsvfs->z_os, usedobj, buf, sizeof (used), 1, &used);
 	if (error == ENOENT)
 		error = 0;
@@ -2078,6 +2079,8 @@ zfs_resume_fs(zfsvfs_t *zfsvfs, dsl_dataset_t *ds)
 	dsl_pool_t *dp = spa_get_dsl(dsl_dataset_get_spa(ds));
 	dsl_pool_config_enter(dp, FTAG);
 	VERIFY0(dmu_objset_from_ds(ds, &os));
+	if (!zfs_is_readonly(zfsvfs))
+		dmu_objset_upgrade_reopened(os);
 	dsl_pool_config_exit(dp, FTAG);
 
 	err = zfsvfs_init(zfsvfs, os);

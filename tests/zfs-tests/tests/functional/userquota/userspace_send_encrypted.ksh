@@ -99,9 +99,14 @@ log_must eval "echo 'password' | zfs load-key $ENC_SOURCE"
 log_must eval "echo 'password' | zfs load-key $ENC_TARGET"
 log_must zfs mount $ENC_SOURCE
 log_must zfs mount $ENC_TARGET
+for ds in $ENC_SOURCE $ENC_TARGET; do
+	typeset -i n=0
+	until zfs userspace -Hp $ds >/dev/null 2>&1; do
+		((n++ < 60)) || log_fail "$ds accounting was not built"
+		sleep 1
+	done
+done
 sync
-
-sleep 5
 
 src_uspace=$(zfs userspace -Hp $ENC_SOURCE | \
 	awk "/$QUSER1/"' {printf "%d\n", $4 / 1024 / 1024}')

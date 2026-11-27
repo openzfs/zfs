@@ -175,6 +175,22 @@ zfs_usedquota_prop_to_default(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type)
 	}
 }
 
+static boolean_t
+zfs_userquota_prop_is_used(zfs_userquota_prop_t type)
+{
+	switch (type) {
+	case ZFS_PROP_USERUSED:
+	case ZFS_PROP_GROUPUSED:
+	case ZFS_PROP_USEROBJUSED:
+	case ZFS_PROP_GROUPOBJUSED:
+	case ZFS_PROP_PROJECTUSED:
+	case ZFS_PROP_PROJECTOBJUSED:
+		return (B_TRUE);
+	default:
+		return (B_FALSE);
+	}
+}
+
 int
 zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
     uint64_t *cookiep, void *vbuf, uint64_t *bufsizep,
@@ -187,6 +203,8 @@ zfs_userspace_many(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 	uint64_t obj;
 	int offset = 0;
 
+	if (zfs_userquota_prop_is_used(type))
+		dmu_objset_start_deferred_upgrade(zfsvfs->z_os);
 	if (!dmu_objset_userspace_present(zfsvfs->z_os))
 		return (SET_ERROR(ENOTSUP));
 
@@ -259,6 +277,8 @@ zfs_userspace_one(zfsvfs_t *zfsvfs, zfs_userquota_prop_t type,
 
 	*valp = 0;
 
+	if (zfs_userquota_prop_is_used(type))
+		dmu_objset_start_deferred_upgrade(zfsvfs->z_os);
 	if (!dmu_objset_userspace_present(zfsvfs->z_os))
 		return (SET_ERROR(ENOTSUP));
 
