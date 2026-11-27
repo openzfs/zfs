@@ -724,6 +724,17 @@ zil_claim_log_record(zilog_t *zilog, const lr_t *lrc, void *tx,
 	case TX_WRITE:
 		return (zil_claim_write(zilog, lrc, tx, first_txg));
 	case TX_CLONE_RANGE:
+		/*
+		 * A record whose transaction group has synced is not
+		 * replayed, and its clone is on disk with its references.
+		 * Such a record can still be in the log: a commit that
+		 * falls back to txg_wait_synced() writes the rest of its
+		 * records after zil_sync() has run for that group.  There
+		 * is nothing to claim, and the blocks may have been freed
+		 * since.
+		 */
+		if (lrc->lrc_txg < first_txg)
+			return (0);
 		return (zil_claim_clone_range(zilog, lrc, tx, first_txg));
 	default:
 		return (0);
@@ -802,6 +813,9 @@ zil_free_log_record(zilog_t *zilog, const lr_t *lrc, void *tx,
 	case TX_WRITE:
 		return (zil_free_write(zilog, lrc, tx, claim_txg));
 	case TX_CLONE_RANGE:
+		/* Not claimed: see zil_claim_log_record(). */
+		if (lrc->lrc_txg < claim_txg)
+			return (0);
 		return (zil_free_clone_range(zilog, lrc, tx));
 	default:
 		return (0);
