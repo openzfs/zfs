@@ -147,18 +147,18 @@ LUALIB_API void luaL_traceback (lua_State *L, lua_State *L1,
 LUALIB_API int luaL_argerror (lua_State *L, int narg, const char *extramsg) {
   lua_Debug ar;
   if (!lua_getstack(L, 0, &ar))  /* no stack frame? */
-    return luaL_error(L, "bad argument #%d (%s)", narg, extramsg);
+    luai_errorreturn(luaL_error(L, "bad argument #%d (%s)", narg, extramsg));
   lua_getinfo(L, "n", &ar);
   if (strcmp(ar.namewhat, "method") == 0) {
     narg--;  /* do not count `self' */
     if (narg == 0)  /* error is in the self argument itself? */
-      return luaL_error(L, "calling " LUA_QS " on bad self (%s)",
-                           ar.name, extramsg);
+      luai_errorreturn(luaL_error(L, "calling " LUA_QS " on bad self (%s)",
+                                 ar.name, extramsg));
   }
   if (ar.name == NULL)
     ar.name = (pushglobalfuncname(L, &ar)) ? lua_tostring(L, -1) : "?";
-  return luaL_error(L, "bad argument #%d to " LUA_QS " (%s)",
-                        narg, ar.name, extramsg);
+  luai_errorreturn(luaL_error(L, "bad argument #%d to " LUA_QS " (%s)",
+                              narg, ar.name, extramsg));
 }
 
 
@@ -194,7 +194,7 @@ LUALIB_API int luaL_error (lua_State *L, const char *fmt, ...) {
   lua_pushvfstring(L, fmt, argp);
   va_end(argp);
   lua_concat(L, 2);
-  return lua_error(L);
+  luai_errorreturn(lua_error(L));
 }
 
 

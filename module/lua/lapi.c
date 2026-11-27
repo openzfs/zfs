@@ -1106,7 +1106,7 @@ LUA_API int lua_error (lua_State *L) {
   api_checknelems(L, 1);
   luaG_errormsg(L);
   /* code unreachable; will unlock when control actually leaves the kernel */
-  return 0;  /* to avoid warnings */
+  luai_errorreturn(0);
 }
 
 
