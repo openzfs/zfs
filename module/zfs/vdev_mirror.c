@@ -489,6 +489,25 @@ vdev_mirror_child_missing(mirror_child_t *mc, uint64_t txg, uint64_t size)
 }
 
 /*
+ * Return the first child that read its copy without error and whose DTL
+ * says that it has the data of this txg, or -1 if there is none.
+ */
+static int
+vdev_mirror_current_child(zio_t *zio)
+{
+	mirror_map_t *mm = zio->io_vsd;
+
+	for (int c = 0; c < mm->mm_children; c++) {
+		mirror_child_t *mc = &mm->mm_child[c];
+
+		if (mc->mc_error == 0 && mc->mc_tried &&
+		    !vdev_mirror_child_missing(mc, zio->io_txg, 1))
+			return (c);
+	}
+	return (-1);
+}
+
+/*
  * A sequential rebuild read has no real birth txg (TXG_INITIAL) and no
  * checksum, so vdev_mirror_child_missing() cannot tell whether a child
  * holds current data for it.  A child that missed writes in any txg, e.g.
@@ -839,24 +858,24 @@ vdev_mirror_io_done(zio_t *zio)
 			ASSERT(zio->io_vd->vdev_ops == &vdev_replacing_ops ||
 			    zio->io_vd->vdev_ops == &vdev_spare_ops);
 
-			abd_t *pref_abd = NULL;
+			int pref = -1;
+			boolean_t differ = B_FALSE;
 			for (c = 0; c < last_good_copy; c++) {
 				mc = &mm->mm_child[c];
 				if (mc->mc_error || !mc->mc_tried)
 					continue;
 
 				if (abd_cmp(mc->mc_abd, best_abd) != 0)
-					zio->io_error = SET_ERROR(ECKSUM);
+					differ = B_TRUE;
 
 				/*
 				 * The distributed spare is always prefered
 				 * by vdev_mirror_child_select() so it's
 				 * considered to be the best candidate.
 				 */
-				if (pref_abd == NULL &&
-				    mc->mc_vd->vdev_ops ==
+				if (pref == -1 && mc->mc_vd->vdev_ops ==
 				    &vdev_draid_spare_ops)
-					pref_abd = mc->mc_abd;
+					pref = c;
 
 				/*
 				 * In the absence of a preferred copy, use
@@ -865,8 +884,23 @@ vdev_mirror_io_done(zio_t *zio)
 				if (mc->mc_abd == zio->io_abd)
 					best_abd = mc->mc_abd;
 			}
-			if (pref_abd)
-				best_abd = pref_abd;
+
+			/*
+			 * If the copies differ, a child that still needs to
+			 * be resilvered may hold stale data.  Return the copy
+			 * of a child whose DTL says that it has this txg.
+			 */
+			if (differ) {
+				zio->io_error = SET_ERROR(ECKSUM);
+				if (pref == -1 || vdev_mirror_child_missing(
+				    &mm->mm_child[pref], zio->io_txg, 1)) {
+					c = vdev_mirror_current_child(zio);
+					if (c != -1)
+						pref = c;
+				}
+			}
+			if (pref != -1)
+				best_abd = mm->mm_child[pref].mc_abd;
 		} else {
 
 			/*
