@@ -28,7 +28,7 @@ if ! command -v clonefile > /dev/null ; then
 fi
 
 if tunable_exists BCLONE_ENABLED ; then
-	log_must save_tunable BCLONE_ENABLED
+	log_must save_group_tunable BCLONE_ENABLED
 	log_must set_tunable32 BCLONE_ENABLED 1
 fi
 

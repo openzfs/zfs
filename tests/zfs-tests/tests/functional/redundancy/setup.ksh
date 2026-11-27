@@ -25,7 +25,7 @@
 verify_runnable "global"
 
 # Setting TXG_TIMEOUT=1 makes 'zpool replace' complete much quicker.
-log_must save_tunable TXG_TIMEOUT
+log_must save_group_tunable TXG_TIMEOUT
 log_must set_tunable32 TXG_TIMEOUT 1
 
 log_pass
