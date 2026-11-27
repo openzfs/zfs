@@ -31,6 +31,10 @@ tags = ['functional', 'acl', 'posix']
 tests = ['posix_001_pos', 'posix_002_pos', 'posix_003_pos', 'posix_004_pos']
 tags = ['functional', 'acl', 'posix-sa']
 
+[tests/functional/anyraid:Linux]
+tests = ['anyraid_create_child_fails']
+tags = ['functional', 'anyraid']
+
 [tests/functional/block_cloning:Linux]
 tests = ['block_cloning_ficlone', 'block_cloning_ficlonerange',
     'block_cloning_ficlonerange_partial',
