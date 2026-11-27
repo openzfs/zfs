@@ -553,8 +553,14 @@ zio_decompress(zio_t *zio, abd_t *data, uint64_t size)
 		if (zio_injection_enabled && ret == 0)
 			ret = zio_handle_fault_injection(zio, EINVAL);
 
-		if (ret != 0)
+		/*
+		 * data can be the caller's own buffer, as for Direct I/O:
+		 * leave no partial output in it.
+		 */
+		if (ret != 0) {
+			abd_zero(data, size);
 			zio->io_error = SET_ERROR(EIO);
+		}
 	}
 }
 

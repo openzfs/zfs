@@ -189,6 +189,8 @@ name(abd_t *src, abd_t *dst, size_t s_len, size_t d_len, int n)		\
 	void *s_buf = abd_borrow_buf_copy(src, s_len);			\
 	void *d_buf = abd_borrow_buf(dst, d_len);			\
 	int err = name##_buf(s_buf, d_buf, s_len, d_len, n);		\
+	if (err != 0)							\
+		memset(d_buf, 0, d_len);				\
 	abd_return_buf(src, s_buf, s_len);				\
 	abd_return_buf_copy(dst, d_buf, d_len);				\
 	return (err);							\
@@ -200,6 +202,8 @@ name(abd_t *src, abd_t *dst, size_t s_len, size_t d_len, uint8_t *n)	\
 	void *s_buf = abd_borrow_buf_copy(src, s_len);			\
 	void *d_buf = abd_borrow_buf(dst, d_len);			\
 	int err = name##_buf(s_buf, d_buf, s_len, d_len, n);		\
+	if (err != 0)							\
+		memset(d_buf, 0, d_len);				\
 	abd_return_buf(src, s_buf, s_len);				\
 	abd_return_buf_copy(dst, d_buf, d_len);				\
 	return (err);							\
