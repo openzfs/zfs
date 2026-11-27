@@ -743,8 +743,6 @@ tags = ['functional', 'crtime']
 
 [tests/functional/crypto]
 tests = ['icp_aes_ccm', 'icp_aes_gcm']
-pre =
-post =
 tags = ['functional', 'crypto']
 
 [tests/functional/ctime]
