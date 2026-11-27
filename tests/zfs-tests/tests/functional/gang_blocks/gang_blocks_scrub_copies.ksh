@@ -80,7 +80,6 @@ function check_sector # sector description
 
 log_assert "A scrub repairs every copy of a gang block."
 
-preamble
 log_onexit cleanup2
 
 log_must truncate -s 256m $vdev
@@ -95,8 +94,8 @@ for fs in $TESTFS $TESTFS1; do
 	log_must dd if=/dev/urandom of=$mntpnt/file bs=128k count=1
 done
 sync_pool $TESTPOOL
-restore_tunable METASLAB_FORCE_GANGING
-restore_tunable METASLAB_FORCE_GANGING_PCT
+set_tunable64 METASLAB_FORCE_GANGING $FORCE_GANGING
+set_tunable32 METASLAB_FORCE_GANGING_PCT $FORCE_GANGING_PCT
 
 # The second copy of the gang header of the copies=1 block.
 hdr=$(get_first_block $TESTPOOL/$TESTFS file | awk '{print $4}')

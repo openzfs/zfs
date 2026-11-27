@@ -30,7 +30,6 @@
 
 log_assert "Metadata that fails in the special and normal classes is ganged"
 
-preamble
 log_onexit cleanup
 
 read -r normal special rest <<< "$DISKS"

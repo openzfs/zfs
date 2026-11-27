@@ -15,7 +15,9 @@
 # Copyright (c) 2025 by Klara Inc.
 #
 
-. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/gang_blocks/gang_blocks.kshlib
 
-set_tunable64 METASLAB_FORCE_GANGING 16777217
-set_tunable32 METASLAB_FORCE_GANGING_PCT 0
+save_tunable METASLAB_FORCE_GANGING
+save_tunable METASLAB_FORCE_GANGING_PCT
+set_tunable64 METASLAB_FORCE_GANGING $FORCE_GANGING
+set_tunable32 METASLAB_FORCE_GANGING_PCT $FORCE_GANGING_PCT
