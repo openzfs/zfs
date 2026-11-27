@@ -16,7 +16,7 @@
 .\" Copyright (c) 2026, Mateusz Piotrowski <0mp@FreeBSD.org>
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd September 9, 2026
+.Dd November 18, 2026
 .Dt ZFS 4
 .Os
 .
@@ -1825,6 +1825,48 @@ are fast and low latency.
 May impact performance with certain workloads when enabled on raidz or draid
 zpool configurations.
 This parameter currently only applies on Linux.
+.
+.It Sy zfs_vdev_disk_sync_writes Ns = Ns Sy 1 Pq uint
+Which writes and cache flushes are submitted to disk vdevs with the
+.Sy REQ_SYNC
+and
+.Sy REQ_IDLE
+flags, as Linux submits direct I/O writes.
+The block layer's writeback throttle
+.Pq blk-wbt ,
+meant for page cache writeback, leaves such writes alone.
+Without the flags, blk-wbt may put the ZFS thread submitting a write to sleep,
+and that thread may be one that also processes I/O completions.
+Valid values are:
+.Bl -tag -compact -offset 4n -width "a"
+.It Sy 0
+None: blk-wbt may throttle every write and cache flush.
+.It Sy 1
+Cache flushes and the writes something waits on: writes of the synchronous
+write class, such as ZIL blocks, the data blocks they point to, Direct I/O
+writes, labels and uberblocks, and ZIL blocks written to a log device.
+.It Sy 2
+In addition, every write the
+.Sx ZFS I/O SCHEDULER
+queued, so that it alone decides how many writes a disk receives.
+.El
+.Pp
+With
+.Sy 1 ,
+blk-wbt keeps limiting the other writes, more tightly once reads of a disk
+take longer than its
+.Pa queue/wbt_lat_usec
+in sysfs.
+That limit is the only one that reacts to read latency, and
+.Sy 2
+gives it up: reads may then wait longer behind writes inside the disk.
+A synchronous write aggregated with asynchronous ones may still go unmarked.
+Discards
+.Pq TRIM
+are throttled by blk-wbt whatever the value.
+Where blk-wbt is off, as with the BFQ scheduler or blk-iocost, the flags only
+make BFQ queue the writes as synchronous.
+This parameter only applies on Linux.
 .
 .It Sy zfs_expire_snapshot Ns = Ns Sy 300 Ns s Pq int
 Time before expiring
