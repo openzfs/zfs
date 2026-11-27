@@ -30,6 +30,12 @@ OPTS[0]=""
 OPTS[1]=""
 ALT_URL=""
 
+latest_img() {
+  local url="$1" pattern="$2" img
+  img=$(curl -4 -fsSL "$url/" | grep -Eo "$pattern" | sort -V | tail -n 1)
+  echo "$url/$img"
+}
+
 case "$OS" in
   almalinux8)
     OSNAME="AlmaLinux 8"
@@ -51,10 +57,11 @@ case "$OS" in
     URL="https://repo.almalinux.org/almalinux/10/cloud/x86_64_v2/images/AlmaLinux-10-GenericCloud-latest.x86_64_v2.qcow2"
     ;;
   alpine3-24*)
-    OSNAME="Alpine Linux 3.24.2"
+    OSNAME="Alpine Linux 3.24"
     # Alpine Linux v3.22 and v3.23 are unknown to osinfo as of 2025-12-26.
     OSv="alpinelinux3.21"
-    URL="https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/cloud/alpine-3.24.2-x86_64-cloudinit-r2.qcow2"
+    URL=$(latest_img "https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/cloud" \
+      "alpine-[0-9.]+-x86_64-cloudinit-r[0-9]+\.qcow2")
     ;;
   archlinux)
     OSNAME="Archlinux"
