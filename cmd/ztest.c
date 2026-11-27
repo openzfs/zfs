@@ -3869,6 +3869,54 @@ ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 }
 
 /*
+ * Returns B_TRUE if ztest_fault_inject() has made a leaf under vd
+ * unreadable, so that resilvering from it would lose data.
+ */
+static boolean_t
+ztest_vdev_has_unreadable_leaf(vdev_t *vd)
+{
+	ASSERT(MUTEX_HELD(&ztest_vdev_lock));
+	ASSERT3U(spa_config_held(vd->vdev_spa, SCL_STATE_ALL, RW_WRITER), ==,
+	    SCL_STATE_ALL);
+
+	if (!vd->vdev_ops->vdev_op_leaf) {
+		for (uint64_t c = 0; c < vd->vdev_children; c++) {
+			if (ztest_vdev_has_unreadable_leaf(vd->vdev_child[c]))
+				return (B_TRUE);
+		}
+		return (B_FALSE);
+	}
+
+	/* ztest_fault_inject() set vdev_cant_read.  A reopen clears it. */
+	if (vd->vdev_cant_read)
+		return (B_TRUE);
+
+	/*
+	 * ztest_fault_inject() closed the leaf's fd, and a reopen has since
+	 * failed.  The failure freed the vdev_file_t, so the check below
+	 * can't see the closed fd; the leaf stays CANT_OPEN until the next
+	 * reopen.
+	 */
+	if (vd->vdev_state == VDEV_STATE_CANT_OPEN)
+		return (B_TRUE);
+
+	/*
+	 * Only file vdevs have their fd closed by ztest_fault_inject().
+	 * vdev_tsd is NULL while the leaf is closed, and vf_file is NULL
+	 * until an open succeeds.
+	 */
+	if (vd->vdev_ops != &vdev_file_ops)
+		return (B_FALSE);
+	vdev_file_t *vf = vd->vdev_tsd;
+	if (vf == NULL || vf->vf_file == NULL)
+		return (B_FALSE);
+
+	/* ztest_fault_inject() closed the fd and nothing has noticed yet. */
+	zfs_file_attr_t zfa;
+	return (zfs_file_getattr(vf->vf_file, &zfa) != 0);
+}
+
+/*
  * Verify that we can attach and detach devices.
  */
 void
@@ -4022,6 +4070,23 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 		    error != ZFS_ERR_DISCARDING_CHECKPOINT)
 			fatal(B_FALSE, "detach (%s) returned %d",
 			    oldpath, error);
+		goto out;
+	}
+
+	/*
+	 * A resilver that can't read its source still completes and
+	 * excises the new device's DTL (vdev_dtl_reassess()), after which
+	 * the old device, possibly the only good copy, can be detached or
+	 * replaced away.  That's by design: otherwise a permanent read
+	 * error would make the resilver run forever, and the errors are
+	 * reported.  So don't attach to or replace in a top-level vdev
+	 * with a leaf that ztest_fault_inject() has made unreadable.
+	 * ztest_fault_inject() holds the ztest_vdev_lock while it injects,
+	 * and after the attach vdev_resilver_needed() keeps it from
+	 * faulting the source.
+	 */
+	if (ztest_vdev_has_unreadable_leaf(oldvd->vdev_top)) {
+		spa_config_exit(spa, SCL_ALL, FTAG);
 		goto out;
 	}
 
