@@ -91,6 +91,10 @@
 #define	VN_OPEN_INVFS	0x0
 #endif
 
+#ifndef UF_NOCACHE
+#define	UF_NOCACHE	0x0
+#endif
+
 VFS_SMR_DECLARE;
 
 #if __FreeBSD_version >= 1400045
@@ -2115,6 +2119,12 @@ zfs_getattr(vnode_t *vp, vattr_t *vap, int flags, cred_t *cr)
 			xoap->xoa_projid = zp->z_projid;
 			XVA_SET_RTN(xvap, XAT_PROJID);
 		}
+
+		if (XVA_ISSET_REQ(xvap, XAT_NOCACHE)) {
+			xoap->xoa_nocache =
+			    ((zp->z_pflags & ZFS_NOCACHE) != 0);
+			XVA_SET_RTN(xvap, XAT_NOCACHE);
+		}
 	}
 
 	ZFS_TIME_DECODE(&vap->va_atime, zp->z_atime);
@@ -2457,7 +2467,8 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 	    XVA_ISSET_REQ(xvap, XAT_OFFLINE) ||
 	    XVA_ISSET_REQ(xvap, XAT_SPARSE) ||
 	    XVA_ISSET_REQ(xvap, XAT_CREATETIME) ||
-	    XVA_ISSET_REQ(xvap, XAT_SYSTEM)))) {
+	    XVA_ISSET_REQ(xvap, XAT_SYSTEM) ||
+	    XVA_ISSET_REQ(xvap, XAT_NOCACHE)))) {
 		need_policy = zfs_zaccess(zp, ACE_WRITE_ATTRIBUTES, 0,
 		    skipaclchk, cr);
 	}
@@ -5331,6 +5342,7 @@ zfs_freebsd_getattr(struct vop_getattr_args *ap)
 	XVA_SET_REQ(&xvap, XAT_REPARSE);
 	XVA_SET_REQ(&xvap, XAT_OFFLINE);
 	XVA_SET_REQ(&xvap, XAT_SPARSE);
+	XVA_SET_REQ(&xvap, XAT_NOCACHE);
 
 	error = zfs_getattr(ap->a_vp, (vattr_t *)&xvap, 0, ap->a_cred);
 	if (error != 0)
@@ -5363,6 +5375,8 @@ zfs_freebsd_getattr(struct vop_getattr_args *ap)
 	    xvap.xva_xoptattrs.xoa_offline);
 	FLAG_CHECK(UF_SPARSE, XAT_SPARSE,
 	    xvap.xva_xoptattrs.xoa_sparse);
+	FLAG_CHECK(UF_NOCACHE, XAT_NOCACHE,
+	    xvap.xva_xoptattrs.xoa_nocache);
 
 #undef	FLAG_CHECK
 	*vap = xvap.xva_vattr;
@@ -5418,7 +5432,7 @@ zfs_freebsd_setattr(struct vop_setattr_args *ap)
 		 */
 		if ((fflags & ~(SF_IMMUTABLE|SF_APPEND|SF_NOUNLINK|UF_ARCHIVE|
 		    UF_NODUMP|UF_SYSTEM|UF_HIDDEN|UF_READONLY|UF_REPARSE|
-		    UF_OFFLINE|UF_SPARSE)) != 0)
+		    UF_OFFLINE|UF_SPARSE|UF_NOCACHE)) != 0)
 			return (EOPNOTSUPP);
 		/*
 		 * Unprivileged processes are not permitted to unset system
@@ -5487,6 +5501,8 @@ zfs_freebsd_setattr(struct vop_setattr_args *ap)
 		    xvap.xva_xoptattrs.xoa_offline);
 		FLAG_CHANGE(UF_SPARSE, ZFS_SPARSE, XAT_SPARSE,
 		    xvap.xva_xoptattrs.xoa_sparse);
+		FLAG_CHANGE(UF_NOCACHE, ZFS_NOCACHE, XAT_NOCACHE,
+		    xvap.xva_xoptattrs.xoa_nocache);
 #undef	FLAG_CHANGE
 	}
 	if (vap->va_birthtime.tv_sec != VNOVAL) {

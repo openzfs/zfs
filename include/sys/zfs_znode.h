@@ -57,6 +57,9 @@ extern "C" {
  */
 #define	ZFS_PROJID		0x0000800000000000ull
 
+/* Used to indicate a file's data should not be cached (NFSv4). */
+#define	ZFS_NOCACHE		0x0001000000000000ull
+
 #define	ZFS_ATTR_SET(zp, attr, value, pflags, tx) \
 { \
 	if (value) \

@@ -133,6 +133,7 @@
 #define	XAT0_GEN	0x00004000	/* object generation number */
 #define	XAT0_OFFLINE	0x00008000	/* offline */
 #define	XAT0_SPARSE	0x00010000	/* sparse */
+#define	XAT0_NOCACHE	0x00080000	/* Don't cache file data (NFSv4) */
 
 /* Support for XAT_* optional attributes */
 #define	XVA_MASK		0xffffffff	/* Used to mask off 32 bits */
@@ -169,6 +170,7 @@
 #define	XAT_GEN			((XAT0_INDEX << XVA_SHFT) | XAT0_GEN)
 #define	XAT_OFFLINE		((XAT0_INDEX << XVA_SHFT) | XAT0_OFFLINE)
 #define	XAT_SPARSE		((XAT0_INDEX << XVA_SHFT) | XAT0_SPARSE)
+#define	XAT_NOCACHE		((XAT0_INDEX << XVA_SHFT) | XAT0_NOCACHE)
 
 /*
  * The returned attribute map array (xva_rtnattrmap[]) is located past the
