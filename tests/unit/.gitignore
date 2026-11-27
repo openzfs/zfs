@@ -10,6 +10,7 @@
 /test_nvpair
 /test_backtrace
 /test_timer
+/test_taskq
 /test_zfs_file
 /test_indirect_mapping
 /test_nvpair_stress
