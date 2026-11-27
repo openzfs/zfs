@@ -465,7 +465,7 @@ page_unhold(vm_page_t pp)
  *		the page and the dmu buffer.
  */
 void
-update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
+update_pages(znode_t *zp, int64_t start, uint64_t len, objset_t *os)
 {
 	vm_object_t obj;
 	struct sf_buf *sf;
@@ -481,7 +481,7 @@ update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
 	vm_object_pip_add(obj, 1);
 	for (start &= PAGEMASK; len > 0; start += PAGESIZE) {
 		vm_page_t pp;
-		int nbytes = imin(PAGESIZE - off, len);
+		int nbytes = MIN(PAGESIZE - off, len);
 
 		if ((pp = page_busy(vp, start, off, nbytes)) != NULL) {
 			va = zfs_map_page(pp, &sf);
