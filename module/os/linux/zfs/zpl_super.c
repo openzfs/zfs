@@ -1074,6 +1074,21 @@ const struct super_operations zpl_super_operations = {
 static int
 zpl_dentry_delete(const struct dentry *dentry)
 {
+	struct inode *ip = dentry->d_inode;
+
+	/*
+	 * A rollback or receive leaves an inode stale, with no SA handle,
+	 * when its object is gone or was replaced (zfs_resume_fs()).  It
+	 * drops the stale inode's dentries, except one that a filesystem is
+	 * mounted on, because dropping that would detach the mount.  Once
+	 * that filesystem is unmounted, don't keep the dentry cached:
+	 * lookups of the name would keep finding the stale inode (EIO)
+	 * instead of what is on disk now.
+	 */
+	if (ip != NULL && !ITOZ(ip)->z_is_ctldir &&
+	    ITOZ(ip)->z_sa_hdl == NULL)
+		return (1);
+
 	return (zfs_delete_dentry ? 1 : 0);
 }
 
