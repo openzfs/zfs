@@ -23,6 +23,8 @@
 #include <sys/spa.h>
 #include <sys/dsl_dataset.h>
 
+struct objset_phys;
+
 /*
  * ZAP entry keys for DSL Crypto Keys stored on disk. In addition,
  * ZFS_PROP_KEYFORMAT, ZFS_PROP_PBKDF2_SALT, and ZFS_PROP_PBKDF2_ITERS are
@@ -215,8 +217,12 @@ void dsl_crypto_key_destroy_sync(uint64_t dckobj, dmu_tx_t *tx);
 int spa_crypt_get_salt(spa_t *spa, uint64_t dsobj, uint8_t *salt);
 int spa_do_crypt_mac_abd(boolean_t generate, spa_t *spa, uint64_t dsobj,
     abd_t *abd, uint_t datalen, uint8_t *mac);
-int spa_do_crypt_objset_mac_abd(boolean_t generate, spa_t *spa, uint64_t dsobj,
-    abd_t *abd, uint_t datalen, boolean_t byteswap);
+int spa_crypt_objset_mac_generate(spa_t *spa, uint64_t dsobj, abd_t *abd,
+    uint_t datalen, boolean_t byteswap, boolean_t project);
+int spa_crypt_objset_mac_verify(spa_t *spa, uint64_t dsobj, abd_t *abd,
+    uint_t datalen, boolean_t byteswap);
+int spa_crypt_objset_local_mac_form(spa_t *spa, uint64_t dsobj,
+    struct objset_phys *osp, uint_t datalen, zfs_projectmac_t *formp);
 int spa_do_crypt_abd(boolean_t encrypt, spa_t *spa, const zbookmark_phys_t *zb,
     dmu_object_type_t ot, boolean_t dedup, boolean_t bswap, uint8_t *salt,
     uint8_t *iv, uint8_t *mac, uint_t datalen, abd_t *pabd, abd_t *cabd,

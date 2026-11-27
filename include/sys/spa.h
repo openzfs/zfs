@@ -1091,6 +1091,12 @@ extern void spa_misc_stats_bump_resumed(spa_t *spa);
 extern void spa_claim_notify(zio_t *zio);
 extern void spa_deadman(void *);
 
+/*
+ * The default form of the local MAC.  Applies to newly created pools, and to
+ * filesystems with no form yet if the projectmac property is "mixed".
+ */
+#define	SPA_PROJECTMAC_DEFAULT	ZFS_PROJECTMAC_ON
+
 /* Accessor functions */
 extern boolean_t spa_shutting_down(spa_t *spa);
 extern struct dsl_pool *spa_get_dsl(spa_t *spa);
@@ -1152,6 +1158,7 @@ extern uint64_t spa_deadman_synctime(spa_t *spa);
 extern uint64_t spa_deadman_ziotime(spa_t *spa);
 extern uint64_t spa_dirty_data(spa_t *spa);
 extern spa_autotrim_t spa_get_autotrim(spa_t *spa);
+extern zfs_projectmac_t spa_projectmac(spa_t *spa);
 extern int spa_get_allocator(spa_t *spa);
 extern void spa_set_allocator(spa_t *spa, const char *allocator);
 

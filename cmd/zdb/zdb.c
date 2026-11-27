@@ -4807,6 +4807,39 @@ out:
 	return (rc);
 }
 
+/*
+ * Report the form of an encrypted filesystem's local MAC, which protects its
+ * space accounting. Telling the forms apart takes the key.
+ */
+static void
+dump_objset_local_mac(objset_t *os)
+{
+	const uint8_t zeroed_mac[ZIO_OBJSET_MAC_LEN] = {0};
+	zfs_projectmac_t form;
+	const char *desc;
+
+	if (spa_crypt_objset_local_mac_form(os->os_spa, dmu_objset_id(os),
+	    os->os_phys, arc_buf_size(os->os_phys_buf), &form) != 0) {
+		(void) printf("    Local MAC: set (load the key with -K to "
+		    "show its form)\n");
+		return;
+	}
+
+	if (form == ZFS_PROJECTMAC_ON)
+		desc = "with project accounting";
+	else if (form == ZFS_PROJECTMAC_OFF)
+		desc = "without project accounting";
+	else if (memcmp(os->os_phys->os_local_mac, zeroed_mac,
+	    ZIO_OBJSET_MAC_LEN) == 0)
+		desc = "zeroed";
+	else if (!(os->os_phys->os_flags &
+	    OBJSET_FLAG_USERACCOUNTING_COMPLETE))
+		desc = "set while user accounting was incomplete";
+	else
+		desc = "the same in both forms, or in neither";
+	(void) printf("    Local MAC: %s\n", desc);
+}
+
 static void
 dump_objset(objset_t *os)
 {
@@ -4869,6 +4902,9 @@ dump_objset(objset_t *os)
 	    (u_longlong_t)dds.dds_creation_txg,
 	    numbuf, (u_longlong_t)usedobjs, blkbuf,
 	    (dds.dds_inconsistent) ? " (inconsistent)" : "");
+
+	if (os->os_encrypted && dmu_objset_type(os) == DMU_OST_ZFS)
+		dump_objset_local_mac(os);
 
 	for (i = 0; i < zopt_object_args; i++) {
 		obj_start = zopt_object_ranges[i].zor_obj_start;

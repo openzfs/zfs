@@ -29,7 +29,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd October 30, 2026
+.Dd November 2, 2026
 .Dt ZFSPROPS 7
 .Os
 .
@@ -300,6 +300,22 @@ created.
 See also the
 .Sy clones
 property.
+.It Sy projectmac
+For an encrypted filesystem or snapshot whose key is loaded, whether its
+project accounting is authenticated along with its user and group accounting:
+.Sy on
+or
+.Sy off .
+If its local MAC doesn't show either form, because it has no project
+accounting or its user accounting is incomplete, as after a raw receive, this
+is the form its next write will use.
+Volumes, snapshots whose local MAC doesn't show either form, unencrypted
+filesystems and snapshots, and those whose key isn't loaded, show
+.Sy - .
+See the
+.Sy projectmac
+pool property in
+.Xr zpoolprops 7 .
 .It Sy receive_resume_token
 For filesystems or volumes which have saved partially-completed state from
 .Nm zfs Cm receive Fl s ,

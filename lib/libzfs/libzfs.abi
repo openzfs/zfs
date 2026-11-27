@@ -2072,7 +2072,8 @@
       <enumerator name='ZFS_PROP_DEFAULTPROJECTOBJQUOTA' value='105'/>
       <enumerator name='ZFS_PROP_SNAPSHOTS_CHANGED_NSECS' value='106'/>
       <enumerator name='ZFS_PROP_ZONED_UID' value='107'/>
-      <enumerator name='ZFS_NUM_PROPS' value='108'/>
+      <enumerator name='ZFS_PROP_PROJECTMAC' value='108'/>
+      <enumerator name='ZFS_NUM_PROPS' value='109'/>
     </enum-decl>
     <typedef-decl name='zfs_prop_t' type-id='4b000d60' id='58603c44'/>
     <enum-decl name='zprop_source_t' naming-typedef-id='a2256d42' id='5903f80e'>
@@ -3197,7 +3198,8 @@
       <enumerator name='ZPOOL_PROP_SELOG_USED' value='96'/>
       <enumerator name='ZPOOL_PROP_SELOG_EXPANDSZ' value='97'/>
       <enumerator name='ZPOOL_PROP_SELOG_FRAGMENTATION' value='98'/>
-      <enumerator name='ZPOOL_NUM_PROPS' value='99'/>
+      <enumerator name='ZPOOL_PROP_PROJECTMAC' value='99'/>
+      <enumerator name='ZPOOL_NUM_PROPS' value='100'/>
     </enum-decl>
     <typedef-decl name='zpool_prop_t' type-id='af1ba157' id='5d0c23fb'/>
     <typedef-decl name='regoff_t' type-id='95e97e5e' id='54a2a2a8'/>

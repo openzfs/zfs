@@ -2484,19 +2484,9 @@ dmu_send_impl(struct dmu_send_params *dspp)
 	 * it can't be modified.
 	 */
 	if (!dspp->rawok && os->os_encrypted &&
-	    arc_is_unauthenticated(os->os_phys_buf)) {
-		zbookmark_phys_t zb;
-
-		SET_BOOKMARK(&zb, to_ds->ds_object, ZB_ROOT_OBJECT,
-		    ZB_ROOT_LEVEL, ZB_ROOT_BLKID);
-		err = arc_untransform(os->os_phys_buf, os->os_spa,
-		    &zb, B_FALSE);
-		if (err != 0) {
-			dsl_pool_rele(dp, tag);
-			return (err);
-		}
-
-		ASSERT0(arc_is_unauthenticated(os->os_phys_buf));
+	    (err = dmu_objset_authenticate(os)) != 0) {
+		dsl_pool_rele(dp, tag);
+		return (err);
 	}
 
 	if ((err = setup_featureflags(dspp, os, &featureflags)) != 0) {
