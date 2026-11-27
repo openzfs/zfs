@@ -77,7 +77,7 @@ int
 dsl_prop_get_dd(dsl_dir_t *dd, const char *propname,
     int intsz, int numints, void *buf, char *setpoint, boolean_t snapshot)
 {
-	int err;
+	int err = 0;
 	dsl_dir_t *target = dd;
 	objset_t *mos = dd->dd_pool->dp_meta_objset;
 	zfs_prop_t prop;
