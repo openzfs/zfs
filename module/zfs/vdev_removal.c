@@ -211,42 +211,49 @@ vdev_activate(vdev_t *vd)
 }
 
 static int
+vdev_passivate_check(vdev_t *vd)
+{
+	spa_t *spa = vd->vdev_spa;
+	vdev_t *rvd = spa->spa_root_vdev;
+	metaslab_class_t *normal = spa_normal_class(spa);
+
+	if (vd->vdev_mg->mg_class != normal)
+		return (0);
+
+	/*
+	 * We must check that this is not the only allocating device in
+	 * the pool before passivating, otherwise we will not be able
+	 * to make progress because we can't allocate from any vdevs.
+	 */
+	for (uint64_t id = 0; id < rvd->vdev_children; id++) {
+		vdev_t *cvd = rvd->vdev_child[id];
+
+		if (cvd == vd || !vdev_is_concrete(cvd) ||
+		    vdev_is_dead(cvd))
+			continue;
+
+		metaslab_class_t *mc = cvd->vdev_mg->mg_class;
+		if (mc != normal)
+			continue;
+
+		if (!cvd->vdev_noalloc)
+			return (0);
+	}
+	return (SET_ERROR(EINVAL));
+}
+
+static int
 vdev_passivate(vdev_t *vd, uint64_t *txg)
 {
 	spa_t *spa = vd->vdev_spa;
+	metaslab_group_t *mg = vd->vdev_mg;
 	int error;
 
 	ASSERT(!vd->vdev_noalloc);
 
-	vdev_t *rvd = spa->spa_root_vdev;
-	metaslab_group_t *mg = vd->vdev_mg;
-	metaslab_class_t *normal = spa_normal_class(spa);
-	if (mg->mg_class == normal) {
-		/*
-		 * We must check that this is not the only allocating device in
-		 * the pool before passivating, otherwise we will not be able
-		 * to make progress because we can't allocate from any vdevs.
-		 */
-		boolean_t last = B_TRUE;
-		for (uint64_t id = 0; id < rvd->vdev_children; id++) {
-			vdev_t *cvd = rvd->vdev_child[id];
-
-			if (cvd == vd || !vdev_is_concrete(cvd) ||
-			    vdev_is_dead(cvd))
-				continue;
-
-			metaslab_class_t *mc = cvd->vdev_mg->mg_class;
-			if (mc != normal)
-				continue;
-
-			if (!cvd->vdev_noalloc) {
-				last = B_FALSE;
-				break;
-			}
-		}
-		if (last)
-			return (SET_ERROR(EINVAL));
-	}
+	error = vdev_passivate_check(vd);
+	if (error != 0)
+		return (error);
 
 	metaslab_group_passivate(mg);
 	ASSERT(!vd->vdev_islog);
@@ -2615,6 +2622,57 @@ spa_vdev_remove(spa_t *spa, uint64_t guid, boolean_t unspare)
 
 	if (ev != NULL)
 		spa_event_post(ev);
+
+	return (error);
+}
+
+/*
+ * Return the error that spa_vdev_remove() would return for guid, without
+ * removing anything: the same checks, with the config lock held as reader
+ * instead of writer.  The removal checks again, and can still fail on what
+ * changes in between, and on what only removing finds out: resetting the
+ * logs.
+ */
+int
+spa_vdev_remove_check(spa_t *spa, uint64_t guid)
+{
+	nvlist_t **spares, **l2cache, *nv;
+	uint_t nspares, nl2cache;
+	const char *type;
+	vdev_t *vd;
+	int error = 0;
+
+	spa_config_enter(spa, SCL_CONFIG | SCL_STATE, FTAG, RW_READER);
+
+	vd = spa_lookup_by_guid(spa, guid, B_FALSE);
+
+	if (spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT)) {
+		error = (spa_has_checkpoint(spa)) ?
+		    ZFS_ERR_CHECKPOINT_EXISTS : ZFS_ERR_DISCARDING_CHECKPOINT;
+	} else if (spa->spa_spares.sav_vdevs != NULL &&
+	    nvlist_lookup_nvlist_array(spa->spa_spares.sav_config,
+	    ZPOOL_CONFIG_SPARES, &spares, &nspares) == 0 &&
+	    (nv = spa_nvlist_lookup_by_guid(spares, nspares, guid)) != NULL) {
+		if (vd != NULL) {
+			error = SET_ERROR(EBUSY);
+		} else if (nvlist_lookup_string(nv, ZPOOL_CONFIG_TYPE,
+		    &type) == 0 && strcmp(type, VDEV_TYPE_DRAID_SPARE) == 0) {
+			error = SET_ERROR(ENOTSUP);
+		}
+	} else if (spa->spa_l2cache.sav_vdevs != NULL &&
+	    nvlist_lookup_nvlist_array(spa->spa_l2cache.sav_config,
+	    ZPOOL_CONFIG_L2CACHE, &l2cache, &nl2cache) == 0 &&
+	    spa_nvlist_lookup_by_guid(l2cache, nl2cache, guid) != NULL) {
+		/* Cache devices can always be removed. */
+	} else if (vd == NULL) {
+		error = SET_ERROR(ENOENT);
+	} else if (!vd->vdev_islog) {
+		error = spa_vdev_remove_top_check(vd);
+		if (error == 0 && !vd->vdev_noalloc)
+			error = vdev_passivate_check(vd);
+	}
+
+	spa_config_exit(spa, SCL_CONFIG | SCL_STATE, FTAG);
 
 	return (error);
 }

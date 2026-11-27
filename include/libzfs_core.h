@@ -135,6 +135,8 @@ _LIBZFS_CORE_H int lzc_reopen(const char *, boolean_t);
 
 _LIBZFS_CORE_H int lzc_condense(const char *, const char *, const char *);
 
+_LIBZFS_CORE_H int lzc_vdev_remove_check(const char *, uint64_t);
+
 _LIBZFS_CORE_H int lzc_pool_checkpoint(const char *);
 _LIBZFS_CORE_H int lzc_pool_checkpoint_discard(const char *);
 
