@@ -150,6 +150,13 @@ typedef struct vdev_raidz {
 	kmutex_t vd_expand_lock;
 
 	/*
+	 * The newest node of vd_expand_txgs (NULL if there is none), so that
+	 * the logical width of blocks born since the last expansion can be
+	 * found without the lock.  Nodes are never changed once published.
+	 */
+	struct reflow_node *vd_expand_last;
+
+	/*
 	 * If this vdev is being expanded, spa_raidz_expand is set to this
 	 */
 	vdev_raidz_expand_t vn_vre;

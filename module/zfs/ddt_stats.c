@@ -46,8 +46,15 @@ ddt_stat_generate(ddt_t *ddt, const ddt_lightweight_entry_t *ddlwe,
 		    ddp->ddp_flat.ddp_dva : ddp->ddp_trad[p].ddp_dva;
 
 		uint64_t dsize = 0;
+		/*
+		 * Use ddp_phys_birth for the deflation ratio lookup.
+		 * Copies added later share this birth, and
+		 * zio_ddt_child_write_layout_matches() refuses to add
+		 * them when the deflate ratio has changed since.
+		 */
+		uint64_t birth = ddt_phys_birth(ddp, v);
 		for (int d = 0; d < ndvas; d++)
-			dsize += dva_get_dsize_sync(spa, &dvas[d]);
+			dsize += dva_get_dsize_sync(spa, &dvas[d], birth);
 
 		uint64_t refcnt = ddt_phys_refcnt(ddp, v);
 
