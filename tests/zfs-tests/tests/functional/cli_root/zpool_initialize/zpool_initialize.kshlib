@@ -27,6 +27,13 @@ function initialize_progress # pool disk
 	    sed 's/.*(\([0-9]\{1,\}\)% initialized.*/\1/g'
 }
 
+function initialize_stat # pool disk field
+{
+	zpool status -j --json-flat-vdevs --json-int -i "$1" | \
+	    jq -er --arg dev "$2" --arg field "$3" \
+	    '.pools[].vdevs[] | select(.name == $dev) | .[$field]'
+}
+
 function cleanup
 {
         if poolexists $TESTPOOL; then
