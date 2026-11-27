@@ -2322,6 +2322,14 @@ and is hence not recommended.
 This should only be used as a last resort when the
 pool cannot be returned to a healthy state prior to removing the device.
 .
+.It Sy zfs_removal_suspend_complete_race Ns = Ns Sy 0 Pq uint
+This is used by the test suite to make an export or a removal cancel wait
+for a removal that is completing, and to wake it late.
+Set to
+.Sy 1
+to arm it for the next removal to complete; it then reports its progress
+in the same variable.
+.
 .It Sy zfs_removal_suspend_progress Ns = Ns Sy 0 Ns | Ns 1 Pq uint
 This is used by the test suite so that it can ensure that certain actions
 happen while in the middle of a removal.

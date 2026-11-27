@@ -2192,6 +2192,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/removal/removal_reservation.ksh \
 	functional/removal/removal_resume_export.ksh \
 	functional/removal/removal_sanity.ksh \
+	functional/removal/removal_suspend_complete.ksh \
 	functional/removal/removal_with_add.ksh \
 	functional/removal/removal_with_create_fs.ksh \
 	functional/removal/removal_with_dedup.ksh \
