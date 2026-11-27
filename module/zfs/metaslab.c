@@ -2845,8 +2845,7 @@ metaslab_unload(metaslab_t *msp)
 		    (u_longlong_t)msp->ms_id,
 		    (u_longlong_t)msp->ms_weight,
 		    (u_longlong_t)msp->ms_selected_txg,
-		    (u_longlong_t)(NSEC2SEC(msp->ms_unload_time) -
-		    msp->ms_selected_time),
+		    (u_longlong_t)(gethrestime_sec() - msp->ms_selected_time),
 		    (u_longlong_t)msp->ms_alloc_txg,
 		    (u_longlong_t)(msp->ms_unload_time -
 		    msp->ms_load_time) / 1000 / 1000,
