@@ -16,7 +16,7 @@
 .\" Copyright (c) 2026, Mateusz Piotrowski <0mp@FreeBSD.org>
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd September 9, 2026
+.Dd November 11, 2026
 .Dt ZFS 4
 .Os
 .
@@ -1594,6 +1594,8 @@ All except
 .Sy fastest No and Sy scalar
 require instruction set extensions to be available,
 and will only appear if ZFS detects that they are present at runtime.
+An implementation that gets known answers wrong when the module loads is
+disabled and does not appear, and a warning is logged.
 If multiple implementations of fletcher 4 are available, the
 .Sy fastest
 will be chosen using a micro benchmark.
@@ -1636,6 +1638,8 @@ All except
 .Sy cycle , fastest No and Sy generic
 require instruction set extensions to be available,
 and will only appear if ZFS detects that they are present at runtime.
+An implementation that gets known answers wrong when the module loads is
+disabled and does not appear, and a warning is logged.
 If multiple implementations of BLAKE3 are available, the
 .Sy fastest will be chosen using a micro benchmark. You can see the
 benchmark results by reading this kstat file:

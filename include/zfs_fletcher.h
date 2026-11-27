@@ -123,6 +123,9 @@ typedef struct fletcher_4_func {
 	const char *name;
 } __attribute__((aligned(64))) fletcher_4_ops_t;
 
+/* Checks an implementation against known answers; true if it passes. */
+extern boolean_t fletcher_4_selftest(const fletcher_4_ops_t *ops);
+
 /*
  * Private data of the ABD adapters, provided by the caller through
  * zio_abd_checksum_data_t.acd_private: the implementation in use, which

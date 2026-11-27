@@ -59,6 +59,16 @@ void gcm_impl_init(void);
  */
 const struct gcm_impl_ops *gcm_impl_get_ops(void);
 
+/*
+ * Checks an implementation against known answers; true if it passes
+ */
+boolean_t gcm_impl_selftest(const gcm_impl_ops_t *ops);
+
+/*
+ * Stops using the avx2 or avx implementation after a failed self-test
+ */
+const char *gcm_impl_disable_avx(void);
+
 #ifdef	__cplusplus
 }
 #endif

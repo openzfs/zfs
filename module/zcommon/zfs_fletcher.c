@@ -742,18 +742,97 @@ fletcher_4_benchmark_impl(boolean_t native, char *data, uint64_t data_size)
 /*
  * Initialize and benchmark all supported implementations.
  */
+/*
+ * Known answers for FLETCHER_4_SELFTEST_LEN bytes of i % 251, read as
+ * little-endian and as big-endian 32-bit words. Fletcher-4 has no published
+ * test vectors, so these come from its definition: for each word w,
+ * a += w, b += a, c += b, d += c, modulo 2^64. In Python 3:
+ *	import struct
+ *	a = b = c = d = 0
+ *	buf = bytes(i % 251 for i in range(4096))
+ *	for (w,) in struct.iter_unpack("<I", buf):
+ *		a = (a + w) % 2**64; b = (b + a) % 2**64
+ *		c = (c + b) % 2**64; d = (d + c) % 2**64
+ * with ">I" for big-endian words.
+ */
+#define	FLETCHER_4_SELFTEST_LEN	4096
+
+static const zio_cksum_t fletcher_4_selftest_le = { {
+	0x000001ef5f4b3534ULL, 0x0003d7ec96d3353eULL,
+	0x05145f4cdd70d7ecULL, 0x0a3cbf79cd879473ULL
+} };
+
+static const zio_cksum_t fletcher_4_selftest_be = { {
+	0x000001ef23374970ULL, 0x0003d7ea200209b4ULL,
+	0x0514233be4f9b0d0ULL, 0x09c20f51992703ecULL
+} };
+
+/*
+ * Check an implementation's native and byteswapped checksums against known
+ * answers. Returns B_TRUE if it passes.
+ */
+boolean_t
+fletcher_4_selftest(const fletcher_4_ops_t *ops)
+{
+#if defined(_ZFS_LITTLE_ENDIAN)
+	const zio_cksum_t *native = &fletcher_4_selftest_le;
+	const zio_cksum_t *byteswap = &fletcher_4_selftest_be;
+#else
+	const zio_cksum_t *native = &fletcher_4_selftest_be;
+	const zio_cksum_t *byteswap = &fletcher_4_selftest_le;
+#endif
+	fletcher_4_ctx_t ctx;
+	kfpu_ctx_t kctx;
+	zio_cksum_t zc1, zc2;
+
+	uint8_t *buf = kmem_alloc(FLETCHER_4_SELFTEST_LEN, KM_SLEEP);
+	for (int i = 0; i < FLETCHER_4_SELFTEST_LEN; i++)
+		buf[i] = i % 251;
+
+	if (ops->uses_fpu)
+		kfpu_begin(&kctx);
+	ops->init_native(&ctx);
+	ops->compute_native(&ctx, buf, FLETCHER_4_SELFTEST_LEN);
+	ops->fini_native(&ctx, &zc1);
+	ops->init_byteswap(&ctx);
+	ops->compute_byteswap(&ctx, buf, FLETCHER_4_SELFTEST_LEN);
+	ops->fini_byteswap(&ctx, &zc2);
+	if (ops->uses_fpu)
+		kfpu_end(&kctx);
+
+	kmem_free(buf, FLETCHER_4_SELFTEST_LEN);
+	return (ZIO_CHECKSUM_EQUAL(zc1, *native) &&
+	    ZIO_CHECKSUM_EQUAL(zc2, *byteswap));
+}
+
 static void
 fletcher_4_benchmark(void)
 {
 	fletcher_4_ops_t *curr_impl;
 	int i, c;
 
-	/* Move supported implementations into fletcher_4_supp_impls */
+	/*
+	 * Move supported implementations into fletcher_4_supp_impls, leaving
+	 * out any that compute wrong answers on this CPU. The scalar
+	 * implementation comes first and is kept regardless, as there is
+	 * nothing to fall back to.
+	 */
 	for (i = 0, c = 0; i < ARRAY_SIZE(fletcher_4_impls); i++) {
 		curr_impl = (fletcher_4_ops_t *)fletcher_4_impls[i];
 
-		if (curr_impl->valid && curr_impl->valid())
-			fletcher_4_supp_impls[c++] = curr_impl;
+		if (!curr_impl->valid || !curr_impl->valid())
+			continue;
+		if (!fletcher_4_selftest(curr_impl)) {
+#if defined(_KERNEL)
+			cmn_err(CE_WARN, "ZFS: the %s implementation of "
+			    "fletcher_4 failed its self-test, and %s",
+			    curr_impl->name, c == 0 ? "can't be disabled" :
+			    "has been disabled");
+#endif
+			if (c != 0)
+				continue;
+		}
+		fletcher_4_supp_impls[c++] = curr_impl;
 	}
 	membar_producer();	/* complete fletcher_4_supp_impls[] init */
 	fletcher_4_supp_impls_cnt = c;	/* number of supported impl */
