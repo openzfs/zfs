@@ -1051,18 +1051,96 @@ label_offset(uint64_t size, int l)
 }
 
 /*
- * The same description applies as to zpool_read_label below,
+ * Whether label is of an older txg than first, and names the same pool or,
+ * as before a reguid, the same vdev.
+ */
+static boolean_t
+label_is_older(nvlist_t *first, nvlist_t *label)
+{
+	uint64_t pool, guid, txg, first_pool, first_guid, first_txg;
+
+	return (nvlist_lookup_uint64(first, ZPOOL_CONFIG_POOL_GUID,
+	    &first_pool) == 0 &&
+	    nvlist_lookup_uint64(first, ZPOOL_CONFIG_POOL_TXG,
+	    &first_txg) == 0 &&
+	    nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_GUID, &pool) == 0 &&
+	    nvlist_lookup_uint64(label, ZPOOL_CONFIG_POOL_TXG, &txg) == 0 &&
+	    txg < first_txg && (pool == first_pool ||
+	    (nvlist_lookup_uint64(first, ZPOOL_CONFIG_GUID, &first_guid) == 0 &&
+	    nvlist_lookup_uint64(label, ZPOOL_CONFIG_GUID, &guid) == 0 &&
+	    guid == first_guid)));
+}
+
+/*
+ * Given the valid labels of a device, cfg[l] for label l or NULL, return the
+ * first one in *config and the number of those with its vdev guid in
+ * *num_labels.  With scan != NULL, also keep there the first label of an
+ * older txg that names the same pool or vdev, and note which labels name
+ * the pool of either, for zpool_skip_uncommitted_labels().  Free the others.
+ */
+static void
+label_pick(nvlist_t **cfg, nvlist_t **config, int *num_labels,
+    label_scan_t *scan)
+{
+	nvlist_t *first = NULL, *older = NULL;
+	uint64_t guid, pool, first_pool = 0, older_pool = 0;
+	int l, count = 0;
+
+	for (l = 0; l < VDEV_LABELS; l++) {
+		if (cfg[l] == NULL)
+			continue;
+		if (first == NULL)
+			first = cfg[l];
+		else if (older == NULL && scan != NULL &&
+		    label_is_older(first, cfg[l]))
+			older = cfg[l];
+	}
+
+	if (first != NULL)
+		(void) nvlist_lookup_uint64(first, ZPOOL_CONFIG_POOL_GUID,
+		    &first_pool);
+	if (older != NULL)
+		older_pool = fnvlist_lookup_uint64(older,
+		    ZPOOL_CONFIG_POOL_GUID);
+
+	for (l = 0; l < VDEV_LABELS; l++) {
+		if (cfg[l] == NULL)
+			continue;
+		guid = fnvlist_lookup_uint64(cfg[l], ZPOOL_CONFIG_GUID);
+		if (guid == fnvlist_lookup_uint64(first, ZPOOL_CONFIG_GUID))
+			count++;
+		if (scan != NULL && nvlist_lookup_uint64(cfg[l],
+		    ZPOOL_CONFIG_POOL_GUID, &pool) == 0 && pool != 0 &&
+		    (pool == first_pool || pool == older_pool))
+			scan->ls_mask |= 1 << l;
+		if (older != NULL &&
+		    guid == fnvlist_lookup_uint64(older, ZPOOL_CONFIG_GUID))
+			scan->ls_older_labels++;
+		if (cfg[l] != first && cfg[l] != older)
+			nvlist_free(cfg[l]);
+	}
+
+	if (scan != NULL)
+		scan->ls_older = older;
+	if (num_labels != NULL)
+		*num_labels = count;
+	*config = first;
+}
+
+/*
+ * The same description applies as to zpool_read_label_scan below,
  * except here we do it without aio, presumably because an aio call
  * errored out in a way we think not using it could circumvent.
  */
 static int
-zpool_read_label_slow(int fd, nvlist_t **config, int *num_labels)
+zpool_read_label_slow(int fd, nvlist_t **config, int *num_labels,
+    label_scan_t *scan)
 {
 	struct stat64 statbuf;
-	int l, count = 0;
+	int l;
 	vdev_phys_t *label;
-	nvlist_t *expected_config = NULL;
-	uint64_t expected_guid = 0, size;
+	nvlist_t *cfg[VDEV_LABELS] = { NULL };
+	uint64_t size;
 
 	*config = NULL;
 
@@ -1106,23 +1184,11 @@ zpool_read_label_slow(int fd, nvlist_t **config, int *num_labels)
 			continue;
 		}
 
-		if (expected_guid) {
-			if (expected_guid == guid)
-				count++;
-
-			nvlist_free(*config);
-		} else {
-			expected_config = *config;
-			expected_guid = guid;
-			count++;
-		}
+		cfg[l] = *config;
 	}
 
-	if (num_labels != NULL)
-		*num_labels = count;
-
 	kmem_free_aligned(label, sizeof (*label));
-	*config = expected_config;
+	label_pick(cfg, config, num_labels, scan);
 
 	return (0);
 }
@@ -1135,16 +1201,29 @@ zpool_read_label_slow(int fd, nvlist_t **config, int *num_labels)
 int
 zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 {
+	return (zpool_read_label_scan(fd, config, num_labels, NULL));
+}
+
+/*
+ * As zpool_read_label(), and with scan != NULL, also return there what
+ * zpool_skip_uncommitted_labels() needs of the other labels.
+ */
+int
+zpool_read_label_scan(int fd, nvlist_t **config, int *num_labels,
+    label_scan_t *scan)
+{
+	if (scan != NULL)
+		memset(scan, 0, sizeof (*scan));
 #ifndef HAVE_AIO_H
-	return (zpool_read_label_slow(fd, config, num_labels));
+	return (zpool_read_label_slow(fd, config, num_labels, scan));
 #else
 	struct stat64 statbuf;
 	struct aiocb aiocbs[VDEV_LABELS];
 	struct aiocb *aiocbps[VDEV_LABELS];
 	vdev_phys_t *labels;
-	nvlist_t *expected_config = NULL;
-	uint64_t expected_guid = 0, size;
-	int error, l, count = 0;
+	nvlist_t *cfg[VDEV_LABELS] = { NULL };
+	uint64_t size;
+	int error, l;
 
 	*config = NULL;
 
@@ -1216,7 +1295,8 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 			 * At least some IO involved access unsafe-for-AIO
 			 * files. Let's try again, without AIO this time.
 			 */
-			error = zpool_read_label_slow(fd, config, num_labels);
+			error = zpool_read_label_slow(fd, config, num_labels,
+			    scan);
 			saved_errno = errno;
 		}
 		kmem_free_aligned(labels, VDEV_LABELS * sizeof (*labels));
@@ -1253,23 +1333,11 @@ zpool_read_label(int fd, nvlist_t **config, int *num_labels)
 			continue;
 		}
 
-		if (expected_guid) {
-			if (expected_guid == guid)
-				count++;
-
-			nvlist_free(*config);
-		} else {
-			expected_config = *config;
-			expected_guid = guid;
-			count++;
-		}
+		cfg[l] = *config;
 	}
 
-	if (num_labels != NULL)
-		*num_labels = count;
-
 	kmem_free_aligned(labels, VDEV_LABELS * sizeof (*labels));
-	*config = expected_config;
+	label_pick(cfg, config, num_labels, scan);
 
 	return (0);
 #endif
@@ -1566,6 +1634,167 @@ error:
 }
 
 /*
+ * Return the txg of the newest uberblock in the rings of the labels of the
+ * device at path that mask selects, or 0.  config gives the ashift, hence
+ * the size of an uberblock.  Their checksums are not verified, so a torn
+ * uberblock counts as one: the label of its txg is then used, as before.
+ */
+static uint64_t
+label_newest_ub(const char *path, nvlist_t *config, int mask)
+{
+	struct stat64 statbuf;
+	nvlist_t *nvtop;
+	uint64_t size, off, txg, ashift = 0, newest = 0;
+	uberblock_t *ub;
+	char *ring;
+	int fd, l, shift;
+
+	fd = open(path, O_RDONLY | O_DIRECT | O_CLOEXEC);
+	if (fd < 0 && errno == EINVAL)
+		fd = open(path, O_RDONLY | O_CLOEXEC);
+	if (fd < 0)
+		return (0);
+
+	ring = kmem_alloc_aligned(VDEV_UBERBLOCK_RING, PAGESIZE, KM_NOSLEEP);
+	if (ring == NULL || fstat64_blk(fd, &statbuf) == -1)
+		goto out;
+	size = P2ALIGN_TYPED(statbuf.st_size, sizeof (vdev_label_t), uint64_t);
+
+	if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE, &nvtop) == 0) {
+		(void) nvlist_lookup_uint64(nvtop, ZPOOL_CONFIG_ASHIFT,
+		    &ashift);
+	}
+	shift = MIN(MAX(ashift, UBERBLOCK_SHIFT), MAX_UBERBLOCK_SHIFT);
+
+	for (l = 0; l < VDEV_LABELS; l++) {
+		if (!(mask & (1 << l)) || pread64(fd, ring, VDEV_UBERBLOCK_RING,
+		    label_offset(size, l) + offsetof(vdev_label_t,
+		    vl_uberblock)) != VDEV_UBERBLOCK_RING)
+			continue;
+
+		for (off = 0; off < VDEV_UBERBLOCK_RING; off += 1ULL << shift) {
+			ub = (uberblock_t *)(ring + off);
+			txg = ub->ub_txg;
+			if (ub->ub_magic == BSWAP_64((uint64_t)UBERBLOCK_MAGIC))
+				txg = BSWAP_64(txg);
+			else if (ub->ub_magic != UBERBLOCK_MAGIC)
+				continue;
+			newest = MAX(newest, txg);
+		}
+	}
+
+out:
+	if (ring != NULL)
+		kmem_free_aligned(ring, VDEV_UBERBLOCK_RING);
+	(void) close(fd);
+
+	return (newest);
+}
+
+typedef struct pool_ub {
+	uint64_t pu_guid;
+	uint64_t pu_txg;		/* Newest uberblock found */
+	struct pool_ub *pu_next;
+} pool_ub_t;
+
+static pool_ub_t *
+pool_ub_lookup(pool_ub_t *pu, nvlist_t *config)
+{
+	uint64_t guid;
+
+	if (config == NULL || nvlist_lookup_uint64(config,
+	    ZPOOL_CONFIG_POOL_GUID, &guid) != 0)
+		return (NULL);
+
+	for (; pu != NULL; pu = pu->pu_next) {
+		if (pu->pu_guid == guid)
+			return (pu);
+	}
+
+	return (NULL);
+}
+
+/*
+ * vdev_config_sync() writes labels 0 and 2 of a txg before its uberblocks,
+ * and labels 1 and 3 after them, so that a crash in between leaves labels 0
+ * and 2 newer than every uberblock.  They describe a change that the pool
+ * never committed, which is why vdev_uberblock_load() reads the config of
+ * the label no newer than the uberblock it loads.  Do the same here: when
+ * the label of a device is newer than every uberblock found for its pool,
+ * use instead an older label of the device that one of them covers.
+ * Otherwise, after a crash in the txg of a detach, the config lacks the
+ * detached device and can name the remaining one by the guid of its parent,
+ * while the MOS config has both under their own guids: when the devices
+ * have moved, their new paths are lost, and the pool imports degraded or
+ * not at all.
+ */
+static void
+zpool_skip_uncommitted_labels(libpc_handle_t *hdl, avl_tree_t *cache)
+{
+	pool_ub_t *pools = NULL, *pu, *po;
+	rdsk_node_t *slice;
+	nvlist_t *older;
+	uint64_t txg;
+
+	for (slice = avl_first(cache); slice != NULL;
+	    slice = avl_walk(cache, slice, AVL_AFTER)) {
+		nvlist_t *nv[2] = { slice->rn_config, slice->rn_scan.ls_older };
+
+		if (nv[1] == NULL)
+			continue;
+		for (int i = 0; i < 2; i++) {
+			if (pool_ub_lookup(pools, nv[i]) != NULL)
+				continue;
+			if ((pu = zutil_alloc(hdl, sizeof (*pu))) == NULL)
+				goto out;
+			pu->pu_guid = fnvlist_lookup_uint64(nv[i],
+			    ZPOOL_CONFIG_POOL_GUID);
+			pu->pu_next = pools;
+			pools = pu;
+		}
+	}
+	if (pools == NULL)
+		return;
+
+	for (slice = avl_first(cache); slice != NULL;
+	    slice = avl_walk(cache, slice, AVL_AFTER)) {
+		pu = pool_ub_lookup(pools, slice->rn_config);
+		po = pool_ub_lookup(pools, slice->rn_scan.ls_older);
+		if (pu == NULL && po == NULL)
+			continue;
+		txg = label_newest_ub(slice->rn_name, slice->rn_config,
+		    slice->rn_scan.ls_mask);
+		if (pu != NULL)
+			pu->pu_txg = MAX(pu->pu_txg, txg);
+		if (po != NULL)
+			po->pu_txg = MAX(po->pu_txg, txg);
+	}
+
+	for (slice = avl_first(cache); slice != NULL;
+	    slice = avl_walk(cache, slice, AVL_AFTER)) {
+		if ((older = slice->rn_scan.ls_older) == NULL)
+			continue;
+		pu = pool_ub_lookup(pools, slice->rn_config);
+		po = pool_ub_lookup(pools, older);
+		if (pu->pu_txg == 0 || fnvlist_lookup_uint64(slice->rn_config,
+		    ZPOOL_CONFIG_POOL_TXG) <= pu->pu_txg ||
+		    fnvlist_lookup_uint64(older, ZPOOL_CONFIG_POOL_TXG) >
+		    po->pu_txg)
+			continue;
+		nvlist_free(slice->rn_config);
+		slice->rn_config = older;
+		slice->rn_num_labels = slice->rn_scan.ls_older_labels;
+		slice->rn_scan.ls_older = NULL;
+	}
+
+out:
+	while ((pu = pools) != NULL) {
+		pools = pu->pu_next;
+		free(pu);
+	}
+}
+
+/*
  * Given a list of directories to search, find all pools stored on disk.  This
  * includes partial pools which are not available to import.  If no args are
  * given (argc is 0), then the default directory (/dev/dsk) is searched.
@@ -1616,6 +1845,8 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg,
 
 	taskq_wait(tq);
 	taskq_destroy(tq);
+
+	zpool_skip_uncommitted_labels(hdl, cache);
 
 	/*
 	 * Process the cache, filtering out any entries which are not
@@ -1678,6 +1909,7 @@ zpool_find_import_impl(libpc_handle_t *hdl, importargs_t *iarg,
 			}
 			nvlist_free(config);
 		}
+		nvlist_free(slice->rn_scan.ls_older);
 		free(slice->rn_name);
 		free(slice);
 	}
