@@ -14,7 +14,7 @@
 .\"
 .\" lint-ok: WARNING: sections out of conventional order: Sh SYNOPSIS
 .\"
-.Dd April 1, 2026
+.Dd November 18, 2026
 .Dt ZINJECT 8
 .Os
 .
@@ -120,11 +120,15 @@ Force a vdev error.
 .
 .It Xo
 .Nm zinject
-.Fl i Ar seconds
+.Fl P Sy import Ns | Ns Sy export
+.Fl s Ar seconds
 .Ar pool
 .Xc
-Add an artificial delay during the future import of a pool.
-This injector is automatically cleared after the import is finished.
+Add an artificial delay to the future import or export of a pool,
+so that it takes at least
+.Ar seconds
+to complete.
+This injector is automatically cleared once the import or export is finished.
 .
 .It Xo
 .Nm zinject
