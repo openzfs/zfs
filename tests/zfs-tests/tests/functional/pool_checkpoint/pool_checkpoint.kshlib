@@ -166,7 +166,7 @@ function cleanup_nested_pool
 function cleanup_test_pool
 {
 	if poolexists $TESTPOOL; then
-		log_must zpool destroy $TESTPOOL
+		destroy_pool $TESTPOOL
 	fi
 
 	#

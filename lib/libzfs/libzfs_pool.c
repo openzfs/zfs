@@ -1839,14 +1839,7 @@ zpool_destroy(zpool_handle_t *zhp, const char *log_str)
 	if (zfs_ioctl(hdl, ZFS_IOC_POOL_DESTROY, &zc) != 0) {
 		(void) snprintf(errbuf, sizeof (errbuf),
 		    "cannot destroy '%s'", zhp->zpool_name);
-
-		if (errno == EROFS) {
-			zfs_error_aux(hdl,
-			    "one or more devices is read only");
-			(void) zfs_error(hdl, EZFS_BADDEV, errbuf);
-		} else {
-			(void) zpool_standard_error(hdl, errno, errbuf);
-		}
+		(void) zpool_standard_error(hdl, errno, errbuf);
 
 		if (zfp)
 			zfs_close(zfp);

@@ -15,8 +15,8 @@
 
 #
 # DESCRIPTION:
-#	Verify that zpool export and zpool destroy of a pool imported
-#	read-only succeed right after they unmount the pool's datasets.
+#	Verify that zpool export of a pool imported read-only succeeds
+#	right after it unmounts the pool's datasets.
 #
 # STRATEGY:
 #	1. Create a pool with a file system holding many files
@@ -25,8 +25,8 @@
 #	3. Export the pool; it must not fail with "pool is busy", and the
 #	   pool must be gone afterwards
 #	4. Repeat 2-3 a few times
-#	5. Import it read-only once more, stat the files and destroy it,
-#	   which takes the same path
+#	5. Import it read-only once more and stat the files; zpool destroy
+#	   must refuse the pool, and the export that follows must succeed
 #
 # A dataset that is closed is evicted asynchronously, and its dsl_dir
 # holds a reference on the pool until then.  Evicting a file system's
@@ -46,7 +46,7 @@ function cleanup
 	log_must rm -rf $DEVICE_DIR $MNTPT
 }
 
-log_assert "zpool export/destroy of a read-only pool succeeds right after unmount"
+log_assert "zpool export of a read-only pool succeeds right after unmount"
 
 log_onexit cleanup
 
@@ -66,7 +66,8 @@ done
 
 log_must zpool import -d $DEVICE_DIR -o readonly=on $TESTPOOL1
 log_must eval "ls -l $MNTPT >/dev/null"
-log_must zpool destroy $TESTPOOL1
+log_mustnot zpool destroy $TESTPOOL1
+log_must zpool export $TESTPOOL1
 log_mustnot poolexists $TESTPOOL1
 
-log_pass "zpool export/destroy of a read-only pool succeeds right after unmount"
+log_pass "zpool export of a read-only pool succeeds right after unmount"

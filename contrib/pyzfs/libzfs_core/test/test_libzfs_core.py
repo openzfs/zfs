@@ -290,7 +290,7 @@ class ZFSTest(unittest.TestCase):
                 filesystems=cls.FILESYSTEMS, readonly=True)
             cls.pools = [cls.pool, cls.misc_pool, cls.readonly_pool]
         except Exception:
-            cls._cleanUp()
+            cls._cleanUp(check=False)
             raise
 
     @classmethod
@@ -298,10 +298,16 @@ class ZFSTest(unittest.TestCase):
         cls._cleanUp()
 
     @classmethod
-    def _cleanUp(cls):
+    def _cleanUp(cls, check=True):
+        errors = []
         for pool in [cls.pool, cls.misc_pool, cls.readonly_pool]:
             if pool is not None:
-                pool.cleanUp()
+                try:
+                    pool.cleanUp()
+                except Exception as e:
+                    errors.append(e)
+        if check and errors:
+            raise errors[0]
 
     def setUp(self):
         pass
@@ -3853,14 +3859,14 @@ class _TempPool(object):
                 os.remove(cachefile)
 
         except subprocess.CalledProcessError as e:
-            self.cleanUp()
+            self.cleanUp(check=False)
             if b'permission denied' in e.output:
                 raise unittest.SkipTest(
                     'insufficient privileges to run libzfs_core tests')
             print('command failed: ', e.output)
             raise
         except Exception:
-            self.cleanUp()
+            self.cleanUp(check=False)
             raise
 
     def reset(self):
@@ -3898,14 +3904,18 @@ class _TempPool(object):
         self.getRoot().reset()
 
     def _destroy(self):
+        # A pool imported read-only cannot be destroyed, so export it,
+        # which leaves its labels as they are.
+        if self._readonly:
+            cmd = ['zpool', 'export', '-f', self._pool_name]
+        else:
+            cmd = ['zpool', 'destroy', '-f', self._pool_name]
         # On the CI builders this may fail with "pool is busy"
         # Retry 5 times before raising an error
         retry = 0
         while True:
             try:
-                subprocess.check_output(
-                    ['zpool', 'destroy', '-f', self._pool_name],
-                    stderr=subprocess.STDOUT)
+                subprocess.check_output(cmd, stderr=subprocess.STDOUT)
                 return
             except subprocess.CalledProcessError as e:
                 if b'pool is busy' in e.output and retry < 5:
@@ -3915,13 +3925,16 @@ class _TempPool(object):
                 print('command failed: ', e.output)
                 raise
 
-    def cleanUp(self):
+    def cleanUp(self, check=True):
         # Retry "pool is busy" like reset() does, so the pool isn't left
-        # behind for the tests that run after this one.
+        # behind for the tests that run after this one.  If it is, raise
+        # once the files are removed; the error paths pass check=False,
+        # as the pool may not exist and they raise their own error.
+        error = None
         try:
             self._destroy()
-        except Exception:
-            pass
+        except Exception as e:
+            error = e
         try:
             os.remove(self._pool_file_path)
         except Exception:
@@ -3935,6 +3948,8 @@ class _TempPool(object):
                 self._pool_file_path + _TempPool._cachefile_suffix + '.tmp')
         except Exception:
             pass
+        if check and error is not None:
+            raise error
 
     def makeName(self, relative=None):
         if not relative:

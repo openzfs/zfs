@@ -2379,6 +2379,18 @@ zpool_do_destroy(int argc, char **argv)
 		return (1);
 	}
 
+	/*
+	 * The kernel refuses to destroy a pool imported read-only.  Refuse
+	 * it here, before its datasets are unmounted for nothing.
+	 */
+	if (zpool_get_prop_int(zhp, ZPOOL_PROP_READONLY, NULL)) {
+		(void) fprintf(stderr, "cannot destroy '%s': pool is "
+		    "imported read-only\nExport it, then import it "
+		    "read-write to destroy it.\n", zpool_get_name(zhp));
+		zpool_close(zhp);
+		return (1);
+	}
+
 	if (zpool_disable_datasets(zhp, force) != 0) {
 		(void) fprintf(stderr, "could not destroy '%s': "
 		    "could not unmount datasets\n", zpool_get_name(zhp));
