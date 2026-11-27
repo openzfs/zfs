@@ -283,7 +283,8 @@ dsl_destroy_snapshot_handle_remaps(dsl_dataset_t *ds, dsl_dataset_t *ds_next,
 
 		dsl_deadlist_move_bpobj(&ds_next->ds_remap_deadlist,
 		    &dp->dp_obsolete_bpobj,
-		    dsl_dataset_phys(ds)->ds_prev_snap_txg, tx);
+		    dsl_dataset_phys(ds)->ds_prev_snap_txg, NULL, NULL, NULL,
+		    tx);
 	}
 
 	/* Merge our deadlist into next's and free it. */
@@ -421,11 +422,20 @@ dsl_destroy_snapshot_sync_impl(dsl_dataset_t *ds, boolean_t defer, dmu_tx_t *tx)
 		    -used, -comp, -uncomp, tx);
 
 		/* Move blocks to be freed to pool's free list. */
+		uint64_t lused = 0, lcomp = 0, luncomp = 0;
 		dsl_deadlist_move_bpobj(&ds_next->ds_deadlist,
 		    &dp->dp_free_bpobj, dsl_dataset_phys(ds)->ds_prev_snap_txg,
-		    tx);
+		    &lused, &lcomp, &luncomp, tx);
 		dsl_dir_diduse_space(tx->tx_pool->dp_free_dir,
 		    DD_USED_HEAD, used, comp, uncomp, tx);
+		/*
+		 * Lost deadlist entries (see dsl_deadlist_load_tree()) put
+		 * nothing on the free list: their space is leaked.
+		 */
+		if (lused != 0 || lcomp != 0 || luncomp != 0) {
+			dsl_pool_leak_space(dp, dp->dp_free_dir, lused, lcomp,
+			    luncomp, tx);
+		}
 
 		/* Merge our deadlist into next's and free it. */
 		dsl_deadlist_merge(&ds_next->ds_deadlist,

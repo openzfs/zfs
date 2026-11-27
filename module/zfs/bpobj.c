@@ -147,13 +147,18 @@ bpobj_open(bpobj_t *bpo, objset_t *os, uint64_t object)
 	if (err)
 		return (err);
 
+	/*
+	 * Only damage names another kind of object (or object 0, the meta
+	 * dnode) as a bpobj.  Let the caller decide what to do about it.
+	 */
+	if (object == 0 || doi.doi_type != DMU_OT_BPOBJ ||
+	    doi.doi_bonus_type != DMU_OT_BPOBJ_HDR)
+		return (SET_ERROR(EINVAL));
+
 	memset(bpo, 0, sizeof (*bpo));
 
 	ASSERT0P(bpo->bpo_dbuf);
 	ASSERT0P(bpo->bpo_phys);
-	ASSERT(object != 0);
-	ASSERT3U(doi.doi_type, ==, DMU_OT_BPOBJ);
-	ASSERT3U(doi.doi_bonus_type, ==, DMU_OT_BPOBJ_HDR);
 
 	err = dmu_bonus_hold(os, object, bpo, &bpo->bpo_dbuf);
 	if (err)

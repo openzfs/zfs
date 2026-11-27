@@ -65,6 +65,16 @@ typedef struct dsl_deadlist_entry {
 	avl_node_t dle_node;
 	uint64_t dle_mintxg;
 	bpobj_t dle_bpobj;
+	/*
+	 * The entry's bpobj is lost (see dsl_deadlist_load_tree()): it is
+	 * missing, or isn't a bpobj.  dle_bpobj is then the pool's empty
+	 * bpobj, opened without taking a reference on it, and dle_lost_*
+	 * is the space the deadlist counts for blocks no bpobj lists.
+	 */
+	boolean_t dle_missing;
+	uint64_t dle_lost_used;
+	uint64_t dle_lost_comp;
+	uint64_t dle_lost_uncomp;
 } dsl_deadlist_entry_t;
 
 typedef struct livelist_condense_entry {
@@ -104,6 +114,7 @@ void dsl_deadlist_space_range(dsl_deadlist_t *dl,
     uint64_t *usedp, uint64_t *compp, uint64_t *uncompp);
 void dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx);
 void dsl_deadlist_move_bpobj(dsl_deadlist_t *dl, bpobj_t *bpo, uint64_t mintxg,
+    uint64_t *lost_usedp, uint64_t *lost_compp, uint64_t *lost_uncompp,
     dmu_tx_t *tx);
 boolean_t dsl_deadlist_is_open(dsl_deadlist_t *dl);
 int dsl_process_sub_livelist(bpobj_t *bpobj, struct bplist *to_free,

@@ -3635,6 +3635,11 @@ static int
 dsl_deadlist_entry_dump(void *arg, dsl_deadlist_entry_t *dle)
 {
 	ASSERT0P(arg);
+	if (dle->dle_missing) {
+		(void) printf("mintxg %llu -> obj missing\n",
+		    (longlong_t)dle->dle_mintxg);
+		return (0);
+	}
 	if (dump_opt['d'] >= 5) {
 		char buf[128];
 		(void) snprintf(buf, sizeof (buf),

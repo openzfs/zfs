@@ -459,6 +459,37 @@ dsl_pool_create_obsolete_bpobj(dsl_pool_t *dp, dmu_tx_t *tx)
 	spa_feature_incr(dp->dp_spa, SPA_FEATURE_OBSOLETE_COUNTS, tx);
 }
 
+/*
+ * Move space that can't be freed from dir "from" to the pool's $LEAK dir,
+ * creating that dir if needed.
+ */
+void
+dsl_pool_leak_space(dsl_pool_t *dp, dsl_dir_t *from, int64_t used,
+    int64_t comp, int64_t uncomp, dmu_tx_t *tx)
+{
+	ASSERT(dmu_tx_is_syncing(tx));
+	if (dp->dp_leak_dir == NULL) {
+		boolean_t held = dsl_pool_config_held_writer(dp);
+		if (!held)
+			rrw_enter(&dp->dp_config_rwlock, RW_WRITER, FTAG);
+		(void) dsl_dir_create_sync(dp, dp->dp_root_dir,
+		    LEAK_DIR_NAME, tx);
+		VERIFY0(dsl_pool_open_special_dir(dp,
+		    LEAK_DIR_NAME, &dp->dp_leak_dir));
+		/*
+		 * Keeping the leak dir open increases spa_minref, as for
+		 * the free dir in spa_sync_upgrades(); otherwise the pool
+		 * couldn't be exported until it is imported again.
+		 */
+		dp->dp_spa->spa_minref += 3;
+		if (!held)
+			rrw_exit(&dp->dp_config_rwlock, FTAG);
+	}
+	dsl_dir_diduse_space(dp->dp_leak_dir, DD_USED_HEAD,
+	    used, comp, uncomp, tx);
+	dsl_dir_diduse_space(from, DD_USED_HEAD, -used, -comp, -uncomp, tx);
+}
+
 void
 dsl_pool_destroy_obsolete_bpobj(dsl_pool_t *dp, dmu_tx_t *tx)
 {
