@@ -177,6 +177,9 @@ zfs_log_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 	if (XVA_ISSET_REQ(xvap, XAT_PROJINHERIT))
 		end->lr_attr_attrs |= (xoap->xoa_projinherit == 0) ? 0 :
 		    XAT0_PROJINHERIT;
+	if (XVA_ISSET_REQ(xvap, XAT_NOCACHE))
+		end->lr_attr_attrs |= (xoap->xoa_nocache == 0) ? 0 :
+		    XAT0_NOCACHE;
 }
 
 static void *

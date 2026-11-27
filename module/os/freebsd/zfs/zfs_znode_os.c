@@ -970,6 +970,11 @@ zfs_xvattr_set(znode_t *zp, xvattr_t *xvap, dmu_tx_t *tx)
 		    zp->z_pflags, tx);
 		XVA_SET_RTN(xvap, XAT_PROJINHERIT);
 	}
+	if (XVA_ISSET_REQ(xvap, XAT_NOCACHE)) {
+		ZFS_ATTR_SET(zp, ZFS_NOCACHE, xoap->xoa_nocache,
+		    zp->z_pflags, tx);
+		XVA_SET_RTN(xvap, XAT_NOCACHE);
+	}
 }
 
 int

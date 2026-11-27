@@ -153,6 +153,8 @@ zfs_replay_xvattr(lr_attr_t *lrattr, xvattr_t *xvap)
 		xoap->xoa_sparse = ((*attrs & XAT0_SPARSE) != 0);
 	if (XVA_ISSET_REQ(xvap, XAT_PROJINHERIT))
 		xoap->xoa_projinherit = ((*attrs & XAT0_PROJINHERIT) != 0);
+	if (XVA_ISSET_REQ(xvap, XAT_NOCACHE))
+		xoap->xoa_nocache = ((*attrs & XAT0_NOCACHE) != 0);
 }
 
 static int
