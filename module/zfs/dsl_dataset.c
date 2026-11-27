@@ -2036,7 +2036,7 @@ dsl_dataset_snapshot(nvlist_t *snaps, nvlist_t *props, nvlist_t *errors)
 typedef struct dsl_dataset_snapshot_tmp_arg {
 	const char *ddsta_fsname;
 	const char *ddsta_snapname;
-	minor_t ddsta_cleanup_minor;
+	zfs_onexit_t *ddsta_onexit;
 	const char *ddsta_htag;
 } dsl_dataset_snapshot_tmp_arg_t;
 
@@ -2087,15 +2087,19 @@ dsl_dataset_snapshot_tmp_sync(void *arg, dmu_tx_t *tx)
 	dsl_dataset_snapshot_sync_impl(ds, ddsta->ddsta_snapname,
 	    gethrestime_sec(), tx);
 	dsl_dataset_user_hold_sync_one(ds->ds_prev, ddsta->ddsta_htag,
-	    ddsta->ddsta_cleanup_minor, gethrestime_sec(), tx);
+	    ddsta->ddsta_onexit, gethrestime_sec(), tx);
 	dsl_destroy_snapshot_sync_impl(ds->ds_prev, B_TRUE, tx);
 
 	dsl_dataset_rele(ds, FTAG);
 }
 
+/*
+ * A non-NULL onexit is borrowed; the caller must hold its owner until this
+ * synchronous operation returns.
+ */
 int
 dsl_dataset_snapshot_tmp(const char *fsname, const char *snapname,
-    minor_t cleanup_minor, const char *htag)
+    zfs_onexit_t *onexit, const char *htag)
 {
 	dsl_dataset_snapshot_tmp_arg_t ddsta;
 	int error;
@@ -2105,7 +2109,7 @@ dsl_dataset_snapshot_tmp(const char *fsname, const char *snapname,
 
 	ddsta.ddsta_fsname = fsname;
 	ddsta.ddsta_snapname = snapname;
-	ddsta.ddsta_cleanup_minor = cleanup_minor;
+	ddsta.ddsta_onexit = onexit;
 	ddsta.ddsta_htag = htag;
 
 	error = spa_open(fsname, &spa, FTAG);

@@ -557,10 +557,11 @@ lzc_condense(const char *pool_name, const char *cmd, const char *type)
  * The value is the name of the hold (string type).
  *
  * If cleanup_fd is not -1, it must be the result of open(ZFS_DEV, O_EXCL).
- * In this case, when the cleanup_fd is closed (including on process
- * termination), the holds will be released.  If the system is shut down
- * uncleanly, the holds will be released when the pool is next opened
- * or imported.
+ * The holds are released when the last reference to the associated open
+ * file description is released.  Duplicated, inherited, or transferred
+ * descriptors can keep the holds alive after cleanup_fd is closed or its
+ * process exits.  If the system is shut down uncleanly, the holds will be
+ * released when the pool is next opened or imported.
  *
  * Holds for snapshots which don't exist will be skipped and have an entry
  * added to errlist, but will not cause an overall failure.

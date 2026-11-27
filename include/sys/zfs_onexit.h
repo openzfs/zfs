@@ -24,12 +24,14 @@
 extern "C" {
 #endif
 
+typedef struct zfs_onexit zfs_onexit_t;
+
 #ifdef _KERNEL
 
-typedef struct zfs_onexit {
+struct zfs_onexit {
 	kmutex_t	zo_lock;
 	list_t		zo_actions;
-} zfs_onexit_t;
+};
 
 typedef struct zfs_onexit_action_node {
 	list_node_t	za_link;
@@ -37,15 +39,12 @@ typedef struct zfs_onexit_action_node {
 	void		*za_data;
 } zfs_onexit_action_node_t;
 
-extern void zfs_onexit_init(zfs_onexit_t **zo);
-extern void zfs_onexit_destroy(zfs_onexit_t *zo);
+extern void zfs_onexit_init(zfs_onexit_t *);
+extern void zfs_onexit_fini(zfs_onexit_t *);
 
 #endif
 
-extern zfs_file_t *zfs_onexit_fd_hold(int fd, minor_t *minorp);
-extern void zfs_onexit_fd_rele(zfs_file_t *);
-extern int zfs_onexit_add_cb(minor_t minor, void (*func)(void *), void *data,
-    uintptr_t *action_handle);
+extern void zfs_onexit_add_cb(zfs_onexit_t *, void (*)(void *), void *);
 
 #ifdef	__cplusplus
 }
