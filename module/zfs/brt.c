@@ -1546,47 +1546,82 @@ brt_sync_entry(spa_t *spa, dnode_t *dn, brt_entry_t *bre, dmu_tx_t *tx)
 	}
 }
 
+typedef struct brt_sync_vdev_arg {
+	spa_t		*bsva_spa;
+	brt_vdev_t	*bsva_brtvd;
+	dmu_tx_t	*bsva_tx;
+} brt_sync_vdev_arg_t;
+
+static void
+brt_sync_vdev(void *arg)
+{
+	brt_sync_vdev_arg_t *bsva = arg;
+	spa_t *spa = bsva->bsva_spa;
+	brt_vdev_t *brtvd = bsva->bsva_brtvd;
+	dmu_tx_t *tx = bsva->bsva_tx;
+	brt_entry_t *bre;
+	void *c = NULL;
+
+	while ((bre = avl_destroy_nodes(&brtvd->bv_tree, &c)) != NULL) {
+		brt_sync_entry(spa, brtvd->bv_mos_entries_dnode, bre, tx);
+		kmem_cache_free(brt_entry_cache, bre);
+	}
+
+	if (brtvd->bv_totalcount != 0)
+		brt_vdev_sync(spa, brtvd, tx);
+}
+
 static void
 brt_sync_table(spa_t *spa, dmu_tx_t *tx)
 {
-	brt_entry_t *bre;
+	taskq_t *tq = spa->spa_dsl_pool->dp_sync_taskq;
 
 	brt_rlock(spa);
-	for (uint64_t vdevid = 0; vdevid < spa->spa_brt_nvdevs; vdevid++) {
+	uint64_t nvdevs = spa->spa_brt_nvdevs;
+	brt_unlock(spa);
+	brt_sync_vdev_arg_t *bsva =
+	    kmem_zalloc(sizeof (*bsva) * nvdevs, KM_SLEEP);
+	brt_rlock(spa);
+	for (uint64_t vdevid = 0; vdevid < nvdevs; vdevid++) {
 		brt_vdev_t *brtvd = spa->spa_brt_vdevs[vdevid];
-		brt_unlock(spa);
 
 		if (!brtvd->bv_meta_dirty) {
 			ASSERT(!brtvd->bv_entcount_dirty);
 			ASSERT0(avl_numnodes(&brtvd->bv_tree));
-			brt_rlock(spa);
 			continue;
 		}
 
 		ASSERT(!brtvd->bv_entcount_dirty ||
 		    avl_numnodes(&brtvd->bv_tree) != 0);
 
+		bsva[vdevid].bsva_spa = spa;
+		bsva[vdevid].bsva_brtvd = brtvd;
+		bsva[vdevid].bsva_tx = tx;
+	}
+	brt_unlock(spa);
+
+	for (uint64_t vdevid = 0; vdevid < nvdevs; vdevid++) {
+		brt_vdev_t *brtvd = bsva[vdevid].bsva_brtvd;
+		if (brtvd == NULL)
+			continue;
 		if (brtvd->bv_mos_brtvdev == 0)
 			brt_vdev_create(spa, brtvd, tx);
-
-		void *c = NULL;
-		while ((bre = avl_destroy_nodes(&brtvd->bv_tree, &c)) != NULL) {
-			brt_sync_entry(spa, brtvd->bv_mos_entries_dnode, bre,
-			    tx);
-			kmem_cache_free(brt_entry_cache, bre);
-		}
-
+		VERIFY(taskq_dispatch(tq, brt_sync_vdev, &bsva[vdevid],
+		    TQ_SLEEP) != TASKQID_INVALID);
+	}
+	taskq_wait(tq);
+	for (uint64_t vdevid = 0; vdevid < nvdevs; vdevid++) {
+		brt_vdev_t *brtvd = bsva[vdevid].bsva_brtvd;
+		if (brtvd == NULL)
+			continue;
 #ifdef ZFS_DEBUG
 		if (zfs_flags & ZFS_DEBUG_BRT)
 			brt_vdev_dump(brtvd);
 #endif
 		if (brtvd->bv_totalcount == 0)
 			brt_vdev_destroy(spa, brtvd, tx);
-		else
-			brt_vdev_sync(spa, brtvd, tx);
-		brt_rlock(spa);
 	}
-	brt_unlock(spa);
+	kmem_free(bsva, sizeof (*bsva) * nvdevs);
 }
 
 void
