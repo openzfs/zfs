@@ -45,6 +45,9 @@
 #include <sys/dmu_tx.h>
 #include <sys/backtrace.h>
 #include <sys/dsl_dir.h>
+#include <sys/dsl_dataset.h>
+#include <sys/dsl_deadlist.h>
+#include <sys/bpobj.h>
 #include <sys/space_map.h>
 #include <zfeature_common.h>
 #include <libzutil.h>
@@ -120,6 +123,12 @@ usage(void)
 	    "\n"
 	    "    metaslab leak <pool>\n"
 	    "        apply allocation map from zdb to specified pool\n"
+	    "\n"
+	    "    deadlist damage [-t mintxg] [-o object] <dataset>\n"
+	    "        free the bpobj of a deadlist entry of <dataset>, keeping\n"
+	    "        the entry, to test damaged pools (destroys data)\n"
+	    "        -t <mintxg> the entry (default: the last non-empty one)\n"
+	    "        -o <object> make the entry name <object> instead\n"
 	    "\n"
 	    "    mos scan <pool>\n"
 	    "        identify reclaimable leaked MOS objects\n"
@@ -1627,6 +1636,176 @@ zhack_do_metaslab(int argc, char **argv)
 	return (0);
 }
 
+typedef struct zhack_deadlist_damage_arg {
+	const char *zdd_dsname;
+	uint64_t zdd_mintxg;	/* in: UINT64_MAX for the last non-empty */
+	uint64_t zdd_newobj;	/* in: what the entry names after, or 0 */
+	uint64_t zdd_dlobj;	/* out */
+	uint64_t zdd_obj;	/* out: the freed bpobj */
+	int zdd_error;		/* out */
+} zhack_deadlist_damage_arg_t;
+
+/*
+ * Free the bpobj of one entry of a dataset's deadlist and keep the entry,
+ * as damage would leave it: the entry names an object that doesn't exist.
+ */
+static void
+zhack_deadlist_damage_sync(void *arg, dmu_tx_t *tx)
+{
+	zhack_deadlist_damage_arg_t *zdd = arg;
+	dsl_pool_t *dp = dmu_tx_pool(tx);
+	objset_t *mos = dp->dp_meta_objset;
+	dsl_dataset_t *ds;
+	zap_cursor_t zc;
+	zap_attribute_t *za;
+	dmu_object_info_t doi;
+	uint64_t mintxg = 0, obj = 0;
+	int err;
+
+	zdd->zdd_error = dsl_dataset_hold(dp, zdd->zdd_dsname, FTAG, &ds);
+	if (zdd->zdd_error != 0)
+		return;
+	zdd->zdd_dlobj = dsl_dataset_phys(ds)->ds_deadlist_obj;
+	if (dsl_deadlist_is_open(&ds->ds_deadlist)) {
+		if (ds->ds_deadlist.dl_oldfmt) {
+			zdd->zdd_error = SET_ERROR(ENOTSUP);
+			dsl_dataset_rele(ds, FTAG);
+			return;
+		}
+		/* Drop the tree's holds on the bpobjs. */
+		dsl_deadlist_discard_tree(&ds->ds_deadlist);
+	}
+
+	za = zap_attribute_alloc();
+	for (zap_cursor_init(&zc, mos, zdd->zdd_dlobj);
+	    (err = zap_cursor_retrieve(&zc, za)) == 0;
+	    zap_cursor_advance(&zc)) {
+		uint64_t t = zfs_strtonum(za->za_name, NULL);
+		uint64_t o = za->za_first_integer;
+		if (zdd->zdd_mintxg != UINT64_MAX) {
+			if (t == zdd->zdd_mintxg) {
+				mintxg = t;
+				obj = o;
+				break;
+			}
+		} else if (o != dp->dp_empty_bpobj &&
+		    (obj == 0 || t > mintxg)) {
+			mintxg = t;
+			obj = o;
+		}
+	}
+	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
+
+	if (obj == 0 || obj == dp->dp_empty_bpobj) {
+		zdd->zdd_error = SET_ERROR(ENOENT);
+	} else if (dmu_object_info(mos, obj, &doi) != 0 ||
+	    doi.doi_type != DMU_OT_BPOBJ) {
+		zdd->zdd_error = SET_ERROR(EINVAL);
+	} else {
+		VERIFY0(dmu_object_free(mos, obj, tx));
+		if (zdd->zdd_newobj != 0) {
+			VERIFY0(zap_update_int_key(mos, zdd->zdd_dlobj,
+			    mintxg, zdd->zdd_newobj, tx));
+		}
+		zdd->zdd_mintxg = mintxg;
+		zdd->zdd_obj = obj;
+		spa_history_log_internal(dp->dp_spa, "zhack deadlist damage",
+		    tx, "dataset=%s deadlist=%llu mintxg=%llu bpobj=%llu",
+		    zdd->zdd_dsname, (u_longlong_t)zdd->zdd_dlobj,
+		    (u_longlong_t)mintxg, (u_longlong_t)obj);
+	}
+	dsl_dataset_rele(ds, FTAG);
+}
+
+static int
+zhack_do_deadlist_damage(int argc, char **argv)
+{
+	zhack_deadlist_damage_arg_t zdd = { .zdd_mintxg = UINT64_MAX };
+	char pool[ZFS_MAX_DATASET_NAME_LEN];
+	spa_t *spa;
+	char *tmp;
+	int c;
+
+	optind = 1;
+	while ((c = getopt(argc, argv, "+t:o:")) != -1) {
+		switch (c) {
+		case 'o':
+			zdd.zdd_newobj = strtoull(optarg, &tmp, 0);
+			if (*tmp != '\0' || optarg[0] == '-') {
+				(void) fprintf(stderr, "error: invalid "
+				    "object: %s\n", optarg);
+				usage();
+			}
+			break;
+		case 't':
+			zdd.zdd_mintxg = strtoull(optarg, &tmp, 0);
+			if (*tmp != '\0' || optarg[0] == '-') {
+				(void) fprintf(stderr, "error: invalid "
+				    "mintxg: %s\n", optarg);
+				usage();
+			}
+			break;
+		default:
+			usage();
+			break;
+		}
+	}
+	argc -= optind;
+	argv += optind;
+	if (argc < 1) {
+		(void) fprintf(stderr, "error: missing dataset name\n");
+		usage();
+	}
+	zdd.zdd_dsname = argv[0];
+	(void) strlcpy(pool, zdd.zdd_dsname, sizeof (pool));
+	if ((tmp = strpbrk(pool, "/@#")) != NULL)
+		*tmp = '\0';
+
+	zhack_spa_open(pool, B_FALSE, FTAG, &spa);
+	VERIFY0(dsl_sync_task(spa_name(spa), NULL, zhack_deadlist_damage_sync,
+	    &zdd, 5, ZFS_SPACE_CHECK_NONE));
+	if (zdd.zdd_error != 0) {
+		fatal(spa, FTAG, "can't damage the deadlist of %s: %s",
+		    zdd.zdd_dsname, strerror(zdd.zdd_error));
+	}
+	(void) printf("freed bpobj %llu of deadlist %llu entry %llu\n",
+	    (u_longlong_t)zdd.zdd_obj, (u_longlong_t)zdd.zdd_dlobj,
+	    (u_longlong_t)zdd.zdd_mintxg);
+	if (zdd.zdd_newobj != 0) {
+		(void) printf("entry %llu now names object %llu\n",
+		    (u_longlong_t)zdd.zdd_mintxg,
+		    (u_longlong_t)zdd.zdd_newobj);
+	}
+	spa_close(spa, FTAG);
+	return (0);
+}
+
+static int
+zhack_do_deadlist(int argc, char **argv)
+{
+	char *subcommand;
+
+	argc--;
+	argv++;
+	if (argc == 0) {
+		(void) fprintf(stderr,
+		    "error: no deadlist operation specified\n");
+		usage();
+	}
+
+	subcommand = argv[0];
+	if (strcmp(subcommand, "damage") == 0) {
+		return (zhack_do_deadlist_damage(argc, argv));
+	} else {
+		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
+		    subcommand);
+		usage();
+	}
+
+	return (0);
+}
+
 #define	ASHIFT_UBERBLOCK_SHIFT(ashift)	\
 	MIN(MAX(ashift, UBERBLOCK_SHIFT), \
 	MAX_UBERBLOCK_SHIFT)
@@ -2197,6 +2376,8 @@ main(int argc, char **argv)
 		return (zhack_do_label(argc, argv));
 	} else if (strcmp(subcommand, "metaslab") == 0) {
 		rv = zhack_do_metaslab(argc, argv);
+	} else if (strcmp(subcommand, "deadlist") == 0) {
+		rv = zhack_do_deadlist(argc, argv);
 	} else {
 		(void) fprintf(stderr, "error: unknown subcommand: %s\n",
 		    subcommand);

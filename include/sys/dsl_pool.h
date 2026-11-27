@@ -199,6 +199,8 @@ int dsl_pool_hold(const char *name, const void *tag, dsl_pool_t **dp);
 void dsl_pool_rele(dsl_pool_t *dp, const void *tag);
 
 void dsl_pool_create_obsolete_bpobj(dsl_pool_t *dp, dmu_tx_t *tx);
+void dsl_pool_leak_space(dsl_pool_t *dp, struct dsl_dir *from, int64_t used,
+    int64_t comp, int64_t uncomp, dmu_tx_t *tx);
 void dsl_pool_destroy_obsolete_bpobj(dsl_pool_t *dp, dmu_tx_t *tx);
 
 #ifdef	__cplusplus

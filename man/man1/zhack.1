@@ -173,6 +173,33 @@ don't have the same number of metaslabs as the fragmentation profile.
 .
 .It Xo
 .Nm zhack
+.Cm deadlist damage
+.Op Fl t Ar mintxg
+.Op Fl o Ar object
+.Ar dataset
+.Xc
+Free the bpobj of one entry of the deadlist of
+.Ar dataset
+and keep the entry, so that it names an object that no longer exists,
+as damage would leave it.
+This is for testing how damaged pools are handled, on disposable pools:
+the blocks the bpobj listed are leaked.
+The
+.Fl t
+flag picks the entry by its
+.Ar mintxg ;
+by default it is the entry with the highest
+.Ar mintxg
+whose bpobj is not the pool's shared empty bpobj.
+The
+.Fl o
+flag makes the entry name
+.Ar object
+instead of the freed bpobj, whose number the pool may reuse.
+The pool must be exported.
+.
+.It Xo
+.Nm zhack
 .Cm mos scan
 .Ar pool
 .Xc

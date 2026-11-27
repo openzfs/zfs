@@ -120,6 +120,116 @@ dsl_deadlist_cache_compare(const void *arg1, const void *arg2)
 	return (TREE_CMP(dlce1->dlce_mintxg, dlce2->dlce_mintxg));
 }
 
+/*
+ * A deadlist entry names a bpobj that can't be opened: it was lost to
+ * damage.  A missing object (ENOENT), or one that isn't a bpobj (EINVAL),
+ * has nothing left to lose, so the entry is always treated as lost; other
+ * errors (e.g. EIO) panic unless zfs_recover is set.
+ *
+ * A lost entry lists no blocks, but the deadlist header still counts their
+ * space.  The space that no bpobj accounts for is given to the first lost
+ * entry, which keeps it through the deadlist operations: when the entry is
+ * moved to the pool's free list, the space goes with it and ends up in the
+ * pool's $LEAK directory, as other space that can't be freed does.  Blocks
+ * added to a lost entry are leaked the same way.  So the dataset's
+ * snapshots can still be taken and destroyed, and the dataset destroyed.
+ */
+static void
+dsl_deadlist_bpobj_lost(objset_t *os, uint64_t dlobj, uint64_t mintxg,
+    uint64_t obj, int err, boolean_t warn)
+{
+	spa_t *spa = dmu_objset_spa(os);
+
+	if (err != ENOENT && err != EINVAL) {
+		zfs_panic_recover("pool %s: deadlist %llu entry %llu: "
+		    "can't open bpobj %llu (error %d)", spa_name(spa),
+		    (u_longlong_t)dlobj, (u_longlong_t)mintxg,
+		    (u_longlong_t)obj, err);
+	}
+	zfs_dbgmsg("pool %s: deadlist %llu entry %llu: bpobj %llu is "
+	    "lost (error %d), treating it as empty; the blocks it "
+	    "listed are leaked", spa_name(spa), (u_longlong_t)dlobj,
+	    (u_longlong_t)mintxg, (u_longlong_t)obj, err);
+	if (warn) {
+		cmn_err(CE_WARN, "pool %s: deadlist %llu entry %llu: bpobj "
+		    "%llu is lost (error %d), treating it as empty; the "
+		    "blocks it listed are leaked", spa_name(spa),
+		    (u_longlong_t)dlobj, (u_longlong_t)mintxg,
+		    (u_longlong_t)obj, err);
+	}
+}
+
+/*
+ * The space the deadlist header counts beyond what (used, comp, uncomp),
+ * the sum over its readable bpobjs, accounts for.
+ */
+static void
+dsl_deadlist_unlisted(dsl_deadlist_phys_t *dlp, uint64_t *used,
+    uint64_t *comp, uint64_t *uncomp)
+{
+	*used = dlp->dl_used > *used ? dlp->dl_used - *used : 0;
+	*comp = dlp->dl_comp > *comp ? dlp->dl_comp - *comp : 0;
+	*uncomp = dlp->dl_uncomp > *uncomp ? dlp->dl_uncomp - *uncomp : 0;
+}
+
+static void
+dle_space(dsl_deadlist_entry_t *dle, uint64_t *used, uint64_t *comp,
+    uint64_t *uncomp)
+{
+	if (dle->dle_missing) {
+		*used = dle->dle_lost_used;
+		*comp = dle->dle_lost_comp;
+		*uncomp = dle->dle_lost_uncomp;
+	} else {
+		VERIFY0(bpobj_space(&dle->dle_bpobj, used, comp, uncomp));
+	}
+}
+
+static void
+dle_add_lost(dsl_deadlist_entry_t *dle, int64_t used, int64_t comp,
+    int64_t uncomp)
+{
+	ASSERT(dle->dle_missing);
+	dle->dle_lost_used = MAX((int64_t)dle->dle_lost_used + used, 0);
+	dle->dle_lost_comp = MAX((int64_t)dle->dle_lost_comp + comp, 0);
+	dle->dle_lost_uncomp = MAX((int64_t)dle->dle_lost_uncomp + uncomp, 0);
+}
+
+/*
+ * Make a lost entry of dle: its bpobj is freed but not its blocks, which
+ * are leaked, and its ZAP entry names object 0, which is never a bpobj.
+ * Used when a lost entry's space has to be merged into this one.
+ */
+static void
+dle_make_lost(dsl_deadlist_t *dl, dsl_deadlist_entry_t *dle, dmu_tx_t *tx)
+{
+	objset_t *os = dl->dl_os;
+	uint64_t empty_bpobj = dmu_objset_pool(os)->dp_empty_bpobj;
+	uint64_t obj = dle->dle_bpobj.bpo_object;
+	uint64_t used, comp, uncomp;
+
+	ASSERT(MUTEX_HELD(&dl->dl_lock));
+	if (dle->dle_missing)
+		return;
+	VERIFY0(bpobj_space(&dle->dle_bpobj, &used, &comp, &uncomp));
+	bpobj_close(&dle->dle_bpobj);
+	if (obj == empty_bpobj)
+		bpobj_decr_empty(os, tx);
+	else
+		bpobj_free(os, obj, tx);
+	VERIFY0(zap_update_int_key(os, dl->dl_object, dle->dle_mintxg, 0,
+	    tx));
+	VERIFY0(bpobj_open(&dle->dle_bpobj, os, empty_bpobj));
+	dle->dle_missing = B_TRUE;
+	dle->dle_lost_used = used;
+	dle->dle_lost_comp = comp;
+	dle->dle_lost_uncomp = uncomp;
+	zfs_dbgmsg("pool %s: deadlist %llu entry %llu: bpobj %llu freed to "
+	    "take a lost entry's space; its blocks are leaked",
+	    spa_name(dmu_objset_spa(os)), (u_longlong_t)dl->dl_object,
+	    (u_longlong_t)dle->dle_mintxg, (u_longlong_t)obj);
+}
+
 static void
 dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 {
@@ -157,7 +267,8 @@ dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 	for (zap_cursor_init(&zc, dl->dl_os, dl->dl_object);
 	    (error = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
-		dsl_deadlist_entry_t *dle = kmem_alloc(sizeof (*dle), KM_SLEEP);
+		dsl_deadlist_entry_t *dle =
+		    kmem_zalloc(sizeof (*dle), KM_SLEEP);
 		dle->dle_mintxg = zfs_strtonum(za->za_name, NULL);
 
 		/*
@@ -174,10 +285,44 @@ dsl_deadlist_load_tree(dsl_deadlist_t *dl)
 	zap_cursor_fini(&zc);
 	zap_attribute_free(za);
 
+	dsl_deadlist_entry_t *first_lost = NULL;
 	for (dsl_deadlist_entry_t *dle = avl_first(&dl->dl_tree);
 	    dle != NULL; dle = AVL_NEXT(&dl->dl_tree, dle)) {
-		VERIFY0(bpobj_open(&dle->dle_bpobj, dl->dl_os,
-		    dle->dle_bpobj.bpo_object));
+		uint64_t obj = dle->dle_bpobj.bpo_object;
+		error = bpobj_open(&dle->dle_bpobj, dl->dl_os, obj);
+		if (error == 0)
+			continue;
+		/*
+		 * Stand in the empty bpobj for the lost one, without a
+		 * reference: dle_missing tells the users of the entry not
+		 * to drop one, or to free the original object.
+		 */
+		uint64_t empty_bpobj =
+		    dmu_objset_pool(dl->dl_os)->dp_empty_bpobj;
+		dsl_deadlist_bpobj_lost(dl->dl_os, dl->dl_object,
+		    dle->dle_mintxg, obj, error, B_TRUE);
+		VERIFY3U(empty_bpobj, !=, 0);
+		VERIFY0(bpobj_open(&dle->dle_bpobj, dl->dl_os, empty_bpobj));
+		dle->dle_missing = B_TRUE;
+		if (first_lost == NULL)
+			first_lost = dle;
+	}
+	if (first_lost != NULL) {
+		uint64_t used = 0, comp = 0, uncomp = 0;
+		for (dsl_deadlist_entry_t *dle = avl_first(&dl->dl_tree);
+		    dle != NULL; dle = AVL_NEXT(&dl->dl_tree, dle)) {
+			uint64_t u, c, uc;
+			if (dle->dle_missing)
+				continue;
+			VERIFY0(bpobj_space(&dle->dle_bpobj, &u, &c, &uc));
+			used += u;
+			comp += c;
+			uncomp += uc;
+		}
+		dsl_deadlist_unlisted(dl->dl_phys, &used, &comp, &uncomp);
+		first_lost->dle_lost_used = used;
+		first_lost->dle_lost_comp = comp;
+		first_lost->dle_lost_uncomp = uncomp;
 	}
 	dl->dl_havetree = B_TRUE;
 }
@@ -237,14 +382,34 @@ dsl_deadlist_load_cache(dsl_deadlist_t *dl)
 	zap_cursor_fini(&zc);
 	zap_attribute_free(za);
 
+	dsl_deadlist_cache_entry_t *first_lost = NULL;
+	uint64_t used = 0, comp = 0, uncomp = 0;
 	for (dsl_deadlist_cache_entry_t *dlce = avl_first(&dl->dl_cache);
 	    dlce != NULL; dlce = AVL_NEXT(&dl->dl_cache, dlce)) {
 		bpobj_t bpo;
-		VERIFY0(bpobj_open(&bpo, dl->dl_os, dlce->dlce_bpobj));
+		error = bpobj_open(&bpo, dl->dl_os, dlce->dlce_bpobj);
+		if (error != 0) {
+			/* As dsl_deadlist_load_tree() does. */
+			dsl_deadlist_bpobj_lost(dl->dl_os, dl->dl_object,
+			    dlce->dlce_mintxg, dlce->dlce_bpobj, error,
+			    B_FALSE);
+			if (first_lost == NULL)
+				first_lost = dlce;
+			continue;
+		}
 
 		VERIFY0(bpobj_space(&bpo,
 		    &dlce->dlce_bytes, &dlce->dlce_comp, &dlce->dlce_uncomp));
 		bpobj_close(&bpo);
+		used += dlce->dlce_bytes;
+		comp += dlce->dlce_comp;
+		uncomp += dlce->dlce_uncomp;
+	}
+	if (first_lost != NULL) {
+		dsl_deadlist_unlisted(dl->dl_phys, &used, &comp, &uncomp);
+		first_lost->dlce_bytes = used;
+		first_lost->dlce_comp = comp;
+		first_lost->dlce_uncomp = uncomp;
 	}
 	dl->dl_havecache = B_TRUE;
 }
@@ -400,10 +565,21 @@ dsl_deadlist_free(objset_t *os, uint64_t dlobj, dmu_tx_t *tx)
 	    (error = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
 		uint64_t obj = za->za_first_integer;
-		if (obj == dmu_objset_pool(os)->dp_empty_bpobj)
+		bpobj_t bpo;
+		if (obj == dmu_objset_pool(os)->dp_empty_bpobj) {
 			bpobj_decr_empty(os, tx);
-		else
-			bpobj_free(os, obj, tx);
+			continue;
+		}
+		error = bpobj_open(&bpo, os, obj);
+		if (error != 0) {
+			/* Lost: nothing to free, its blocks are leaked. */
+			dsl_deadlist_bpobj_lost(os, dlobj,
+			    zfs_strtonum(za->za_name, NULL), obj, error,
+			    B_FALSE);
+			continue;
+		}
+		bpobj_close(&bpo);
+		bpobj_free(os, obj, tx);
 	}
 	VERIFY3U(error, ==, ENOENT);
 	zap_cursor_fini(&zc);
@@ -416,6 +592,14 @@ dle_enqueue(dsl_deadlist_t *dl, dsl_deadlist_entry_t *dle,
     const blkptr_t *bp, boolean_t bp_freed, dmu_tx_t *tx)
 {
 	ASSERT(MUTEX_HELD(&dl->dl_lock));
+	if (dle->dle_missing) {
+		/* The block is leaked with the rest of the lost entry. */
+		int sign = bp_freed ? -1 : +1;
+		dle_add_lost(dle,
+		    sign * bp_get_dsize_sync(dmu_objset_spa(dl->dl_os), bp),
+		    sign * BP_GET_PSIZE(bp), sign * BP_GET_UCSIZE(bp));
+		return;
+	}
 	if (dle->dle_bpobj.bpo_object ==
 	    dmu_objset_pool(dl->dl_os)->dp_empty_bpobj) {
 		uint64_t obj = bpobj_alloc(dl->dl_os, SPA_OLD_MAXBLOCKSIZE, tx);
@@ -433,7 +617,25 @@ dle_enqueue_subobj(dsl_deadlist_t *dl, dsl_deadlist_entry_t *dle,
     uint64_t obj, dmu_tx_t *tx)
 {
 	ASSERT(MUTEX_HELD(&dl->dl_lock));
-	if (dle->dle_bpobj.bpo_object !=
+	if (dle->dle_missing) {
+		/*
+		 * The blocks are leaked with the rest of the lost entry;
+		 * only the bpobj that lists them is freed.
+		 */
+		uint64_t empty_bpobj =
+		    dmu_objset_pool(dl->dl_os)->dp_empty_bpobj;
+		uint64_t used, comp, uncomp;
+		bpobj_t bpo;
+
+		VERIFY0(bpobj_open(&bpo, dl->dl_os, obj));
+		VERIFY0(bpobj_space(&bpo, &used, &comp, &uncomp));
+		bpobj_close(&bpo);
+		if (obj == empty_bpobj)
+			bpobj_decr_empty(dl->dl_os, tx);
+		else
+			bpobj_free(dl->dl_os, obj, tx);
+		dle_add_lost(dle, used, comp, uncomp);
+	} else if (dle->dle_bpobj.bpo_object !=
 	    dmu_objset_pool(dl->dl_os)->dp_empty_bpobj) {
 		bpobj_enqueue_subobj(&dle->dle_bpobj, obj, tx);
 	} else {
@@ -528,7 +730,7 @@ dsl_deadlist_add_key(dsl_deadlist_t *dl, uint64_t mintxg, dmu_tx_t *tx)
 	if (dl->dl_oldfmt)
 		return;
 
-	dle = kmem_alloc(sizeof (*dle), KM_SLEEP);
+	dle = kmem_zalloc(sizeof (*dle), KM_SLEEP);
 	dle->dle_mintxg = mintxg;
 
 	mutex_enter(&dl->dl_lock);
@@ -563,7 +765,14 @@ dsl_deadlist_remove_key(dsl_deadlist_t *dl, uint64_t mintxg, dmu_tx_t *tx)
 	dle_prev = AVL_PREV(&dl->dl_tree, dle);
 	ASSERT3P(dle_prev, !=, NULL);
 
-	dle_enqueue_subobj(dl, dle_prev, dle->dle_bpobj.bpo_object, tx);
+	if (dle->dle_missing) {
+		/* The previous entry takes the lost space. */
+		dle_make_lost(dl, dle_prev, tx);
+		dle_add_lost(dle_prev, dle->dle_lost_used,
+		    dle->dle_lost_comp, dle->dle_lost_uncomp);
+	} else {
+		dle_enqueue_subobj(dl, dle_prev, dle->dle_bpobj.bpo_object, tx);
+	}
 
 	avl_remove(&dl->dl_tree, dle);
 	bpobj_close(&dle->dle_bpobj);
@@ -598,12 +807,15 @@ dsl_deadlist_remove_entry(dsl_deadlist_t *dl, uint64_t mintxg, dmu_tx_t *tx)
 
 	avl_remove(&dl->dl_tree, dle);
 	VERIFY0(zap_remove_int(os, dl->dl_object, mintxg, tx));
-	VERIFY0(bpobj_space(&dle->dle_bpobj, &used, &comp, &uncomp));
+	dle_space(dle, &used, &comp, &uncomp);
 	dmu_buf_will_dirty(dl->dl_dbuf, tx);
 	dl->dl_phys->dl_used -= used;
 	dl->dl_phys->dl_comp -= comp;
 	dl->dl_phys->dl_uncomp -= uncomp;
-	if (dle->dle_bpobj.bpo_object == dmu_objset_pool(os)->dp_empty_bpobj) {
+	if (dle->dle_missing) {
+		/* Neither the lost object nor a reference to drop. */
+	} else if (dle->dle_bpobj.bpo_object ==
+	    dmu_objset_pool(os)->dp_empty_bpobj) {
 		bpobj_decr_empty(os, tx);
 	} else {
 		bpobj_free(os, dle->dle_bpobj.bpo_object, tx);
@@ -627,12 +839,18 @@ dsl_deadlist_clear_entry(dsl_deadlist_entry_t *dle, dsl_deadlist_t *dl,
 
 	mutex_enter(&dl->dl_lock);
 	VERIFY0(zap_remove_int(os, dl->dl_object, dle->dle_mintxg, tx));
-	VERIFY0(bpobj_space(&dle->dle_bpobj, &used, &comp, &uncomp));
+	dle_space(dle, &used, &comp, &uncomp);
 	dmu_buf_will_dirty(dl->dl_dbuf, tx);
 	dl->dl_phys->dl_used -= used;
 	dl->dl_phys->dl_comp -= comp;
 	dl->dl_phys->dl_uncomp -= uncomp;
-	if (dle->dle_bpobj.bpo_object == dmu_objset_pool(os)->dp_empty_bpobj)
+	if (dle->dle_missing) {
+		dle->dle_missing = B_FALSE;
+		dle->dle_lost_used = 0;
+		dle->dle_lost_comp = 0;
+		dle->dle_lost_uncomp = 0;
+	} else if (dle->dle_bpobj.bpo_object ==
+	    dmu_objset_pool(os)->dp_empty_bpobj)
 		bpobj_decr_empty(os, tx);
 	else
 		bpobj_free(os, dle->dle_bpobj.bpo_object, tx);
@@ -799,19 +1017,26 @@ dsl_deadlist_space_range(dsl_deadlist_t *dl, uint64_t mintxg, uint64_t maxtxg,
 	mutex_exit(&dl->dl_lock);
 }
 
-static void
+/*
+ * Returns the error from opening obj, and then adds nothing: the caller
+ * handles a lost bpobj.
+ */
+static int
 dsl_deadlist_insert_bpobj(dsl_deadlist_t *dl, uint64_t obj, uint64_t birth,
-    dmu_tx_t *tx)
+    uint64_t *usedp, uint64_t *compp, uint64_t *uncompp, dmu_tx_t *tx)
 {
 	dsl_deadlist_entry_t dle_tofind;
 	dsl_deadlist_entry_t *dle;
 	avl_index_t where;
 	uint64_t used, comp, uncomp;
 	bpobj_t bpo;
+	int err;
 
 	ASSERT(MUTEX_HELD(&dl->dl_lock));
 
-	VERIFY0(bpobj_open(&bpo, dl->dl_os, obj));
+	err = bpobj_open(&bpo, dl->dl_os, obj);
+	if (err != 0)
+		return (err);
 	VERIFY0(bpobj_space(&bpo, &used, &comp, &uncomp));
 	bpobj_close(&bpo);
 
@@ -827,6 +1052,63 @@ dsl_deadlist_insert_bpobj(dsl_deadlist_t *dl, uint64_t obj, uint64_t birth,
 	if (dle == NULL)
 		dle = avl_nearest(&dl->dl_tree, where, AVL_BEFORE);
 	dle_enqueue_subobj(dl, dle, obj, tx);
+	*usedp += used;
+	*compp += comp;
+	*uncompp += uncomp;
+	return (0);
+}
+
+/*
+ * Merging a deadlist (srcobj, its header srcp) with a lost entry (birth,
+ * obj): the entry of dl it goes to becomes lost too, and takes the space
+ * that srcobj's readable bpobjs don't account for.  The merged ones (used,
+ * comp, uncomp, already counted) are gone from srcobj; the rest are read.
+ */
+static void
+dsl_deadlist_insert_lost(dsl_deadlist_t *dl, uint64_t srcobj,
+    const dsl_deadlist_phys_t *srcp, uint64_t birth, uint64_t obj,
+    uint64_t used, uint64_t comp, uint64_t uncomp, dmu_tx_t *tx)
+{
+	dsl_deadlist_phys_t dlp = *srcp;
+	dsl_deadlist_entry_t dle_tofind;
+	dsl_deadlist_entry_t *dle;
+	avl_index_t where;
+	zap_cursor_t zc;
+	zap_attribute_t *za;
+
+	ASSERT(MUTEX_HELD(&dl->dl_lock));
+
+	za = zap_attribute_alloc();
+	for (zap_cursor_init(&zc, dl->dl_os, srcobj);
+	    zap_cursor_retrieve(&zc, za) == 0; zap_cursor_advance(&zc)) {
+		uint64_t u, c, uc;
+		bpobj_t bpo;
+		if (za->za_first_integer == obj ||
+		    bpobj_open(&bpo, dl->dl_os, za->za_first_integer) != 0)
+			continue;
+		VERIFY0(bpobj_space(&bpo, &u, &c, &uc));
+		bpobj_close(&bpo);
+		used += u;
+		comp += c;
+		uncomp += uc;
+	}
+	zap_cursor_fini(&zc);
+	zap_attribute_free(za);
+	dsl_deadlist_unlisted(&dlp, &used, &comp, &uncomp);
+
+	dsl_deadlist_load_tree(dl);
+
+	dmu_buf_will_dirty(dl->dl_dbuf, tx);
+	dl->dl_phys->dl_used += used;
+	dl->dl_phys->dl_comp += comp;
+	dl->dl_phys->dl_uncomp += uncomp;
+
+	dle_tofind.dle_mintxg = birth;
+	dle = avl_find(&dl->dl_tree, &dle_tofind, &where);
+	if (dle == NULL)
+		dle = avl_nearest(&dl->dl_tree, where, AVL_BEFORE);
+	dle_make_lost(dl, dle, tx);
+	dle_add_lost(dle, used, comp, uncomp);
 }
 
 /*
@@ -841,6 +1123,8 @@ dsl_deadlist_prefetch_bpobj(dsl_deadlist_t *dl, uint64_t obj, uint64_t birth)
 
 	ASSERT(MUTEX_HELD(&dl->dl_lock));
 
+	if (obj == 0)
+		return;	/* a lost entry */
 	dsl_deadlist_load_tree(dl);
 
 	dle_tofind.dle_mintxg = birth;
@@ -885,6 +1169,11 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 	za = zap_attribute_alloc();
 	pza = zap_attribute_alloc();
 
+	VERIFY0(dmu_bonus_hold(dl->dl_os, obj, FTAG, &bonus));
+	dlp = bonus->db_data;
+	uint64_t used = 0, comp = 0, uncomp = 0;
+	boolean_t lost = B_FALSE;
+
 	mutex_enter(&dl->dl_lock);
 	/*
 	 * Prefetch up to 128 deadlists first and then more as we progress.
@@ -899,8 +1188,20 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 	for (zap_cursor_init(&zc, dl->dl_os, obj);
 	    (error = zap_cursor_retrieve(&zc, za)) == 0;
 	    zap_cursor_advance(&zc)) {
-		dsl_deadlist_insert_bpobj(dl, za->za_first_integer,
-		    zfs_strtonum(za->za_name, NULL), tx);
+		uint64_t birth = zfs_strtonum(za->za_name, NULL);
+		uint64_t bpobj = za->za_first_integer;
+		int err = dsl_deadlist_insert_bpobj(dl, bpobj, birth,
+		    &used, &comp, &uncomp, tx);
+		if (err != 0) {
+			dsl_deadlist_bpobj_lost(dl->dl_os, obj, birth, bpobj,
+			    err, B_TRUE);
+			/* The first lost entry takes all the lost space. */
+			if (!lost) {
+				dsl_deadlist_insert_lost(dl, obj, dlp, birth,
+				    bpobj, used, comp, uncomp, tx);
+				lost = B_TRUE;
+			}
+		}
 		VERIFY0(zap_remove(dl->dl_os, obj, za->za_name, tx));
 		if (perror == 0) {
 			dsl_deadlist_prefetch_bpobj(dl, pza->za_first_integer,
@@ -913,8 +1214,6 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 	zap_cursor_fini(&zc);
 	zap_cursor_fini(&pzc);
 
-	VERIFY0(dmu_bonus_hold(dl->dl_os, obj, FTAG, &bonus));
-	dlp = bonus->db_data;
 	dmu_buf_will_dirty(bonus, tx);
 	memset(dlp, 0, sizeof (*dlp));
 	dmu_buf_rele(bonus, FTAG);
@@ -926,9 +1225,12 @@ dsl_deadlist_merge(dsl_deadlist_t *dl, uint64_t obj, dmu_tx_t *tx)
 
 /*
  * Remove entries on dl that are born > mintxg, and put them on the bpobj.
+ * Lost entries have nothing to put there: the space they count is added
+ * to the lost_* arguments (if not NULL), for the caller to leak.
  */
 void
 dsl_deadlist_move_bpobj(dsl_deadlist_t *dl, bpobj_t *bpo, uint64_t mintxg,
+    uint64_t *lost_usedp, uint64_t *lost_compp, uint64_t *lost_uncompp,
     dmu_tx_t *tx)
 {
 	dsl_deadlist_entry_t dle_tofind;
@@ -951,21 +1253,32 @@ dsl_deadlist_move_bpobj(dsl_deadlist_t *dl, bpobj_t *bpo, uint64_t mintxg,
 	 * The limit is a balance between ARC use and diminishing returns.
 	 */
 	for (pdle = dle, i = 0; pdle && i < 128; i++) {
-		bpobj_prefetch_subobj(bpo, pdle->dle_bpobj.bpo_object);
+		if (!pdle->dle_missing)
+			bpobj_prefetch_subobj(bpo, pdle->dle_bpobj.bpo_object);
 		pdle = AVL_NEXT(&dl->dl_tree, pdle);
 	}
 	while (dle) {
 		uint64_t used, comp, uncomp;
 		dsl_deadlist_entry_t *dle_next;
 
-		bpobj_enqueue_subobj(bpo, dle->dle_bpobj.bpo_object, tx);
+		/* A lost bpobj has nothing to move, and no reference. */
+		if (!dle->dle_missing)
+			bpobj_enqueue_subobj(bpo, dle->dle_bpobj.bpo_object,
+			    tx);
 		if (pdle) {
-			bpobj_prefetch_subobj(bpo, pdle->dle_bpobj.bpo_object);
+			if (!pdle->dle_missing) {
+				bpobj_prefetch_subobj(bpo,
+				    pdle->dle_bpobj.bpo_object);
+			}
 			pdle = AVL_NEXT(&dl->dl_tree, pdle);
 		}
 
-		VERIFY0(bpobj_space(&dle->dle_bpobj,
-		    &used, &comp, &uncomp));
+		dle_space(dle, &used, &comp, &uncomp);
+		if (dle->dle_missing && lost_usedp != NULL) {
+			*lost_usedp += used;
+			*lost_compp += comp;
+			*lost_uncompp += uncomp;
+		}
 		ASSERT3U(dl->dl_phys->dl_used, >=, used);
 		ASSERT3U(dl->dl_phys->dl_comp, >=, comp);
 		ASSERT3U(dl->dl_phys->dl_uncomp, >=, uncomp);
