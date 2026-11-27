@@ -354,6 +354,16 @@ struct spa {
 	uint64_t	spa_nonallocating_dspace;
 	spa_removing_phys_t spa_removing_phys;
 	spa_vdev_removal_t *spa_vdev_removal;
+	/*
+	 * spa_removal_holds counts the open-context callers of
+	 * spa_vdev_remove_suspend() using spa_vdev_removal.  It and the
+	 * clearing of spa_vdev_removal are under spa_removal_lock, and
+	 * spa_finish_removal() waits on spa_removal_cv for the holds to
+	 * drop before it frees the removal.
+	 */
+	kmutex_t	spa_removal_lock;
+	kcondvar_t	spa_removal_cv;
+	uint64_t	spa_removal_holds;
 
 	spa_condensing_indirect_phys_t	spa_condensing_indirect_phys;
 	spa_condensing_indirect_t	*spa_condensing_indirect;

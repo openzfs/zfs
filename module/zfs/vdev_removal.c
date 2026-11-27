@@ -165,6 +165,66 @@ uint_t vdev_removal_max_span = 32 * 1024;
  */
 static int zfs_removal_suspend_progress = 0;
 
+/*
+ * Also for the test suite: when set to 1, the next removal to complete
+ * makes a concurrent spa_vdev_remove_suspend() caller wait across the
+ * completion, and that caller takes svr_lock back late after its wakeup.
+ * The stages are:
+ *   2  the removal thread is completing and waits for a suspend to start
+ *   3  a caller waits in spa_vdev_remove_suspend() across the completion
+ *   4  spa_finish_removal() has done its own suspend
+ *   5  the caller took svr_lock back before the removal was freed
+ *   6  spa_finish_removal() freed the removal after the caller was done
+ *   7  spa_finish_removal() freed the removal while the caller still
+ *      had to take svr_lock back (the caller then leaves it alone)
+ */
+static uint_t zfs_removal_suspend_complete_race = 0;
+
+/*
+ * Wait up to "ms" milliseconds for zfs_removal_suspend_complete_race to
+ * reach "stage".
+ */
+static boolean_t
+removal_race_wait(uint_t stage, int ms)
+{
+	for (int i = 0; i < ms / 10; i++) {
+		if (zfs_removal_suspend_complete_race >= stage)
+			return (B_TRUE);
+		delay(MSEC_TO_TICK(10));
+	}
+	return (zfs_removal_suspend_complete_race >= stage);
+}
+
+/*
+ * Called by a spa_vdev_remove_suspend() caller that waited, holding
+ * svr_lock.  Returns B_TRUE if the svr was freed meanwhile; svr_lock is
+ * then not held and the svr must not be touched.
+ */
+static boolean_t
+removal_race_late_wakeup(spa_vdev_removal_t *svr)
+{
+	uint_t stage = zfs_removal_suspend_complete_race;
+
+	if (stage != 3 && stage != 4)
+		return (B_FALSE);
+
+	/*
+	 * Stay off svr_lock until spa_finish_removal() has done its own
+	 * suspend, then for up to 2 seconds more, as a waiter that is slow
+	 * to run after its wakeup would.
+	 */
+	mutex_exit(&svr->svr_lock);
+	(void) removal_race_wait(4, 60000);
+	if (removal_race_wait(6, 2000)) {
+		zfs_dbgmsg("removal freed under a suspend that waited");
+		zfs_removal_suspend_complete_race = 7;
+		return (B_TRUE);
+	}
+	mutex_enter(&svr->svr_lock);
+	zfs_removal_suspend_complete_race = 5;
+	return (B_FALSE);
+}
+
 #define	VDEV_REMOVAL_ZAP_OBJS	"lzap"
 
 static __attribute__((noreturn)) void spa_vdev_remove_thread(void *arg);
@@ -873,6 +933,9 @@ spa_finish_removal(spa_t *spa, dsl_scan_state_t state, dmu_tx_t *tx)
 	/* Ensure the removal thread has completed before we free the svr. */
 	spa_vdev_remove_suspend(spa);
 
+	if (zfs_removal_suspend_complete_race == 3)
+		zfs_removal_suspend_complete_race = 4;
+
 	ASSERT(state == DSS_FINISHED || state == DSS_CANCELED);
 
 	if (state == DSS_FINISHED) {
@@ -893,8 +956,23 @@ spa_finish_removal(spa_t *spa, dsl_scan_state_t state, dmu_tx_t *tx)
 	spa->spa_removing_phys.sr_state = state;
 	spa->spa_removing_phys.sr_end_time = gethrestime_sec();
 
+	/*
+	 * spa_vdev_remove_suspend() can run in open context at the same time
+	 * (spa_async_suspend() from an export, or a cancel), with its own
+	 * pointer to the svr.  Take the removal away from it, then wait until
+	 * no caller still uses the svr before freeing it.  The removal thread
+	 * has already stopped, so no caller waits long.
+	 */
+	mutex_enter(&spa->spa_removal_lock);
 	spa->spa_vdev_removal = NULL;
+	while (spa->spa_removal_holds != 0)
+		cv_wait(&spa->spa_removal_cv, &spa->spa_removal_lock);
+	mutex_exit(&spa->spa_removal_lock);
 	spa_vdev_removal_destroy(svr);
+
+	if (zfs_removal_suspend_complete_race == 4 ||
+	    zfs_removal_suspend_complete_race == 5)
+		zfs_removal_suspend_complete_race = 6;
 
 	spa_sync_removing_state(spa, tx);
 	spa_notify_waiters(spa);
@@ -1381,6 +1459,21 @@ vdev_remove_complete(spa_t *spa)
 {
 	uint64_t txg;
 
+	if (zfs_removal_suspend_complete_race == 1) {
+		spa_vdev_removal_t *svr = spa->spa_vdev_removal;
+		boolean_t suspending = B_FALSE;
+
+		zfs_removal_suspend_complete_race = 2;
+		for (int i = 0; i < 6000 && !suspending; i++) {
+			delay(MSEC_TO_TICK(10));
+			mutex_enter(&svr->svr_lock);
+			suspending = svr->svr_thread_exit;
+			mutex_exit(&svr->svr_lock);
+		}
+		if (suspending)
+			zfs_removal_suspend_complete_race = 3;
+	}
+
 	/*
 	 * Wait for any deferred frees to be synced before we call
 	 * vdev_metaslab_fini()
@@ -1860,17 +1953,37 @@ again:
 void
 spa_vdev_remove_suspend(spa_t *spa)
 {
+	/*
+	 * Hold the svr so that spa_finish_removal() can't free it under us
+	 * when the removal completes in syncing context meanwhile.
+	 */
+	mutex_enter(&spa->spa_removal_lock);
 	spa_vdev_removal_t *svr = spa->spa_vdev_removal;
-
-	if (svr == NULL)
+	if (svr == NULL) {
+		mutex_exit(&spa->spa_removal_lock);
 		return;
+	}
+	spa->spa_removal_holds++;
+	mutex_exit(&spa->spa_removal_lock);
+
+	boolean_t waited = B_FALSE;
 
 	mutex_enter(&svr->svr_lock);
 	svr->svr_thread_exit = B_TRUE;
-	while (svr->svr_thread != NULL)
+	while (svr->svr_thread != NULL) {
 		cv_wait(&svr->svr_cv, &svr->svr_lock);
-	svr->svr_thread_exit = B_FALSE;
-	mutex_exit(&svr->svr_lock);
+		waited = B_TRUE;
+	}
+	if (!waited || !removal_race_late_wakeup(svr)) {
+		svr->svr_thread_exit = B_FALSE;
+		mutex_exit(&svr->svr_lock);
+	}
+
+	mutex_enter(&spa->spa_removal_lock);
+	ASSERT3U(spa->spa_removal_holds, >, 0);
+	if (--spa->spa_removal_holds == 0)
+		cv_broadcast(&spa->spa_removal_cv);
+	mutex_exit(&spa->spa_removal_lock);
 }
 
 /*
@@ -2661,6 +2774,10 @@ ZFS_MODULE_PARAM(zfs_vdev, vdev_, removal_max_span, UINT, ZMOD_RW,
 ZFS_MODULE_PARAM(zfs_vdev, zfs_, removal_suspend_progress, UINT, ZMOD_RW,
 	"Pause device removal after this many bytes are copied "
 	"(debug use only - causes removal to hang)");
+
+ZFS_MODULE_PARAM(zfs_vdev, zfs_, removal_suspend_complete_race, UINT, ZMOD_RW,
+	"Make a suspend wait across a removal's completion and wake late "
+	"(debug use only)");
 
 EXPORT_SYMBOL(free_from_removing_vdev);
 EXPORT_SYMBOL(spa_removal_get_stats);
