@@ -1421,6 +1421,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_resilver/zpool_resilver_bad_args.ksh \
 	functional/cli_root/zpool_resilver/zpool_resilver_restart.ksh \
 	functional/cli_root/zpool_resilver/zpool_resilver_concurrent.ksh \
+	functional/cli_root/zpool_resilver/zpool_resilver_failing_writes.ksh \
 	functional/cli_root/zpool_scrub/cleanup.ksh \
 	functional/cli_root/zpool_scrub/setup.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_001_neg.ksh \
@@ -1433,6 +1434,9 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zpool_scrub/zpool_scrub_multiple_pools.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_offline_device.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_print_repairing.ksh \
+	functional/cli_root/zpool_scrub/zpool_scrub_replace_same_txg.ksh \
+	functional/cli_root/zpool_scrub/zpool_scrub_resilver_defer_disabled.ksh \
+	functional/cli_root/zpool_scrub/zpool_scrub_write_error_same_txg.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_txg_continue_from_last.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_date_range_001.ksh \
 	functional/cli_root/zpool_scrub/zpool_scrub_date_range_002.ksh \

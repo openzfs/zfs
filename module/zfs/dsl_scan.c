@@ -994,7 +994,12 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 	scn->scn_phys.scn_errors = 0;
 	scn->scn_phys.scn_to_examine = spa->spa_root_vdev->vdev_stat.vs_alloc;
 	scn->scn_issued_before_pass = 0;
-	scn->scn_restart_txg = 0;
+	/*
+	 * Keep a restart scheduled for a later txg, e.g. the resilver that
+	 * spa_vdev_attach() scheduled in this txg.
+	 */
+	if (scn->scn_restart_txg <= tx->tx_txg)
+		scn->scn_restart_txg = 0;
 	scn->scn_done_txg = 0;
 	scn->scn_last_checkpoint = 0;
 	scn->scn_checkpointing = B_FALSE;
@@ -1018,6 +1023,17 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 		} else {
 			spa_event_notify(spa, NULL, NULL, ESC_ZFS_SCRUB_START);
 		}
+
+		/*
+		 * A failed write or an attach can put this txg and later
+		 * ones in a DTL.  A later sync pass can rewrite blocks born
+		 * in this txg, so a queued read of one can see different
+		 * data on each mirror child and report checksum errors on
+		 * healthy devices.  scn_max_txg is exclusive: stop before
+		 * this txg.  dsl_scan_done() starts a resilver for the rest.
+		 */
+		scn->scn_phys.scn_max_txg = MIN(scn->scn_phys.scn_max_txg,
+		    tx->tx_txg);
 
 		spa->spa_scrub_started = B_TRUE;
 		/*
@@ -1212,6 +1228,8 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 
 	dsl_pool_t *dp = scn->scn_dp;
 	spa_t *spa = dp->dp_spa;
+	uint64_t dtl_min, dtl_max;
+	boolean_t excised = B_FALSE;
 	int i;
 
 	/* Remove any remnants of an old-style scrub. */
@@ -1285,6 +1303,7 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 		    !spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT)) {
 			vdev_dtl_reassess(spa->spa_root_vdev, tx->tx_txg,
 			    scn->scn_phys.scn_max_txg, B_TRUE, B_FALSE);
+			excised = B_TRUE;
 
 			if (DSL_SCAN_IS_RESILVER(scn)) {
 				nvlist_t *aux = fnvlist_alloc();
@@ -1339,6 +1358,17 @@ dsl_scan_done(dsl_scan_t *scn, boolean_t complete, dmu_tx_t *tx)
 			spa_history_log_internal(spa,
 			    "starting deferred resilver", tx, "errors=%llu",
 			    (u_longlong_t)spa_approx_errlog_size(spa));
+			spa_async_request(spa, SPA_ASYNC_RESILVER);
+		} else if (excised && vdev_resilver_needed(spa->spa_root_vdev,
+		    &dtl_min, &dtl_max) &&
+		    dtl_max > scn->scn_phys.scn_max_txg) {
+			/*
+			 * A DTL extends past this scan, e.g. because a
+			 * write failed while it ran.  Resilver the rest.
+			 * Not when the DTLs were not excised (a checkpoint
+			 * exists): the next scan would find the same DTL
+			 * and start another one, without end.
+			 */
 			spa_async_request(spa, SPA_ASYNC_RESILVER);
 		}
 
