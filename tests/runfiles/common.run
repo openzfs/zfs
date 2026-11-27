@@ -815,6 +815,12 @@ tags = ['functional', 'fallocate']
 tests = ['async_destroy_001_pos']
 tags = ['functional', 'features', 'async_destroy']
 
+[tests/functional/features/large_blocks]
+tests = ['large_blocks_001_pos']
+pre =
+post =
+tags = ['functional', 'features', 'large_blocks']
+
 [tests/functional/features/large_dnode]
 tests = ['large_dnode_001_pos', 'large_dnode_003_pos', 'large_dnode_004_neg',
     'large_dnode_005_pos', 'large_dnode_007_neg', 'large_dnode_009_pos']

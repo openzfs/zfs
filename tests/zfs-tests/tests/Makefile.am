@@ -1816,6 +1816,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/features/async_destroy/async_destroy_001_pos.ksh \
 	functional/features/async_destroy/cleanup.ksh \
 	functional/features/async_destroy/setup.ksh \
+	functional/features/large_blocks/large_blocks_001_pos.ksh \
 	functional/features/large_dnode/cleanup.ksh \
 	functional/features/large_dnode/large_dnode_001_pos.ksh \
 	functional/features/large_dnode/large_dnode_002_pos.ksh \
