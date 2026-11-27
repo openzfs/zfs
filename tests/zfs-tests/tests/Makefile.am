@@ -2641,6 +2641,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/zpool_influxdb/cleanup.ksh \
 	functional/zpool_influxdb/setup.ksh \
 	functional/zpool_influxdb/zpool_influxdb.ksh \
+	functional/zpool_influxdb/zpool_influxdb_scan_remaining.ksh \
 	functional/zstream/setup.ksh \
 	functional/zstream/cleanup.ksh \
 	functional/zstream/zstream_checksum_001_pos.ksh \
