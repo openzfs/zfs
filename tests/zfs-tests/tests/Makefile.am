@@ -625,6 +625,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cachefile/cachefile_002_pos.ksh \
 	functional/cachefile/cachefile_003_pos.ksh \
 	functional/cachefile/cachefile_004_pos.ksh \
+	functional/cachefile/cachefile_005_pos.ksh \
 	functional/cachefile/cleanup.ksh \
 	functional/cachefile/setup.ksh \
 	functional/cache/setup.ksh \
@@ -1766,6 +1767,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/fadvise/fadvise_willneed_limit.ksh \
 	functional/fadvise/setup.ksh \
 	functional/failmode/cleanup.ksh \
+	functional/failmode/failmode_config_update.ksh \
 	functional/failmode/failmode_create_continue.ksh \
 	functional/failmode/failmode_dmu_tx_wait.ksh \
 	functional/failmode/failmode_dmu_tx_continue.ksh \
