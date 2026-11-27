@@ -82,6 +82,7 @@ void metaslab_free_concrete(vdev_t *, uint64_t, uint64_t, boolean_t);
 void metaslab_free_dva(spa_t *, const dva_t *, boolean_t);
 void metaslab_free_impl_cb(uint64_t, vdev_t *, uint64_t, uint64_t, void *);
 void metaslab_unalloc_dva(spa_t *, const dva_t *, uint64_t);
+boolean_t metaslab_unalloc_range(vdev_t *, uint64_t, uint64_t, uint64_t);
 int metaslab_claim(spa_t *, const blkptr_t *, uint64_t);
 int metaslab_claim_impl(vdev_t *, uint64_t, uint64_t, uint64_t);
 void metaslab_check_free(spa_t *, const blkptr_t *);
