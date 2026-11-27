@@ -2362,8 +2362,13 @@ zfs_setattr(znode_t *zp, vattr_t *vap, int flags, cred_t *cr)
 	 * In particular, the size of an append-only file may not be changed
 	 * through setattr: truncation would discard data that has already been
 	 * appended, and extension would bypass the O_APPEND write path.
+	 *
+	 * Replay does not repeat the check: the change was allowed when it
+	 * was logged, and older software did not refuse append-only files
+	 * here.
 	 */
-	if ((zp->z_pflags & (ZFS_IMMUTABLE | ZFS_APPENDONLY)) &&
+	if (!zfsvfs->z_replay &&
+	    (zp->z_pflags & (ZFS_IMMUTABLE | ZFS_APPENDONLY)) &&
 	    ((mask & (AT_SIZE|AT_UID|AT_GID|AT_MTIME|AT_MODE)) ||
 	    ((mask & AT_XVATTR) && XVA_ISSET_REQ(xvap, XAT_CREATETIME)))) {
 		zfs_exit(zfsvfs, FTAG);
@@ -3397,7 +3402,8 @@ zfs_do_rename_impl(vnode_t *sdvp, vnode_t **svpp, struct componentname *scnp,
 	 * holds them -- which breaks "ln -sfn", implemented as
 	 * create-under-a-temporary-name-then-rename.
 	 */
-	if (sdzp != tdzp && tdzp->z_pflags & ZFS_PROJINHERIT &&
+	if (!tdzp->z_zfsvfs->z_replay && sdzp != tdzp &&
+	    tdzp->z_pflags & ZFS_PROJINHERIT &&
 	    tdzp->z_projid != szp->z_projid) {
 		error = SET_ERROR(EXDEV);
 		goto out;
@@ -3841,13 +3847,13 @@ zfs_link(znode_t *tdzp, znode_t *szp, const char *name, cred_t *cr,
 	 * such case, we only allow hard link creation in our tree when the
 	 * project IDs are the same.
 	 */
-	if (tdzp->z_pflags & ZFS_PROJINHERIT &&
+	if (!zfsvfs->z_replay && tdzp->z_pflags & ZFS_PROJINHERIT &&
 	    tdzp->z_projid != szp->z_projid) {
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EXDEV));
 	}
 
-	if (szp->z_pflags & (ZFS_APPENDONLY |
+	if (!zfsvfs->z_replay && szp->z_pflags & (ZFS_APPENDONLY |
 	    ZFS_IMMUTABLE | ZFS_READONLY)) {
 		zfs_exit(zfsvfs, FTAG);
 		return (SET_ERROR(EPERM));
