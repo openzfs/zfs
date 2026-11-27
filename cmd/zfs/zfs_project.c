@@ -92,8 +92,11 @@ zfs_project_sanity_check(const char *name, zfs_project_control_t *zpc,
 	}
 
 	if (!S_ISREG(st->st_mode) && !S_ISDIR(st->st_mode)) {
-		(void) fprintf(stderr, "only support project quota on "
-		    "regular file or directory\n");
+		(void) fprintf(stderr, zpc->zpc_extsize ?
+		    "only regular files and directories have a block size "
+		    "setting\n" :
+		    "only support project quota on regular file or "
+		    "directory\n");
 		return (-1);
 	}
 
@@ -155,16 +158,86 @@ zfs_project_load_projid(int fd, const char *name, zfs_project_control_t *zpc)
 		(void) fprintf(stderr,
 		    "failed to get xattr for %s: %s\n",
 		    name, strerror(errno));
+	else if (zpc->zpc_extsize)
+		zpc->zpc_expected_extsize = (fsx.fsx_xflags &
+		    (FS_XFLAG_EXTSIZE | FS_XFLAG_EXTSZINHERIT)) ?
+		    fsx.fsx_extsize : 0;
 	else
 		zpc->zpc_expected_projid = fsx.fsx_projid;
 
 	return (ret);
 }
 
+/*
+ * zfs fileblocksize on one file or directory.  Returns 1 when fsx should be
+ * set, 0 when there is nothing to set, and -1 on error.
+ */
+static int
+zfs_extsize_handle_one(int fd, const char *name, zfsxattr_t *fsx,
+    zfs_project_control_t *zpc)
+{
+	struct stat st;
+	uint32_t flag, size;
+
+	if (fstat(fd, &st) != 0) {
+		(void) fprintf(stderr, "failed to stat %s: %s\n",
+		    name, strerror(errno));
+		return (-1);
+	}
+	flag = S_ISDIR(st.st_mode) ? FS_XFLAG_EXTSZINHERIT : FS_XFLAG_EXTSIZE;
+	size = (fsx->fsx_xflags & flag) ? fsx->fsx_extsize : 0;
+
+	switch (zpc->zpc_op) {
+	case ZFS_PROJECT_OP_LIST:
+		(void) printf("%7u %c %s\n", size,
+		    (fsx->fsx_xflags & FS_XFLAG_EXTSZINHERIT) ? 'I' : '-',
+		    name);
+		return (0);
+	case ZFS_PROJECT_OP_CHECK:
+		if (size == zpc->zpc_expected_extsize)
+			return (0);
+		if (!zpc->zpc_newline)
+			(void) printf("%s%c", name, '\0');
+		else
+			(void) printf("%s - block size is not set properly "
+			    "(%u/%u)\n", name, size,
+			    zpc->zpc_expected_extsize);
+		return (0);
+	case ZFS_PROJECT_OP_CLEAR:
+		if (size == 0)
+			return (0);
+		fsx->fsx_xflags &= ~(FS_XFLAG_EXTSIZE | FS_XFLAG_EXTSZINHERIT);
+		fsx->fsx_extsize = 0;
+		return (1);
+	case ZFS_PROJECT_OP_SET:
+		if (size == zpc->zpc_expected_extsize)
+			return (0);
+		/*
+		 * A file with data can't change.  Below the top
+		 * (zpc_ignore_noent), skip it; -c lists it.
+		 */
+		if (S_ISREG(st.st_mode) && st.st_size != 0) {
+			if (zpc->zpc_ignore_noent)
+				return (0);
+			(void) fprintf(stderr, "cannot set the block size of "
+			    "%s: the file already has data\n", name);
+			return (-1);
+		}
+		fsx->fsx_xflags &= ~(FS_XFLAG_EXTSIZE | FS_XFLAG_EXTSZINHERIT);
+		fsx->fsx_xflags |= flag;
+		fsx->fsx_extsize = zpc->zpc_expected_extsize;
+		return (1);
+	default:
+		ASSERT(0);
+		return (-1);
+	}
+}
+
 static int
 zfs_project_handle_one(int fd, const char *name, zfs_project_control_t *zpc)
 {
 	zfsxattr_t fsx;
+	struct stat st;
 	int ret, err;
 
 	ret = ioctl(fd, ZFS_IOC_FSGETXATTR, &fsx);
@@ -173,6 +246,13 @@ zfs_project_handle_one(int fd, const char *name, zfs_project_control_t *zpc)
 		    "failed to get xattr for %s: %s\n",
 		    name, strerror(errno));
 		return (ret);
+	}
+
+	if (zpc->zpc_extsize) {
+		ret = zfs_extsize_handle_one(fd, name, &fsx, zpc);
+		if (ret <= 0)
+			return (ret);
+		goto set;
 	}
 
 	switch (zpc->zpc_op) {
@@ -227,13 +307,28 @@ zfs_project_handle_one(int fd, const char *name, zfs_project_control_t *zpc)
 		break;
 	}
 
+set:
 	ret = ioctl(fd, ZFS_IOC_FSSETXATTR, &fsx);
 	if (ret) {
 		err = errno;
+		/*
+		 * Below the top, a file written to since it was checked can't
+		 * take a block size any more; skip it, as if seen with data.
+		 */
+		if (zpc->zpc_extsize && zpc->zpc_ignore_noent &&
+		    err == EINVAL && zpc->zpc_op == ZFS_PROJECT_OP_SET &&
+		    fstat(fd, &st) == 0 && S_ISREG(st.st_mode) &&
+		    st.st_size != 0)
+			return (0);
 		(void) fprintf(stderr,
 		    "failed to set xattr for %s: %s\n",
 		    name, strerror(err));
 
+		if (err == ENOTSUP && zpc->zpc_extsize)
+			(void) fprintf(stderr, "The dataset's fileblocksize "
+			    "property may be off, the pool may lack the "
+			    "project_quota feature, or the file may predate "
+			    "system attributes.\n");
 		if (err == ENOTSUP) {
 			char *kver = zfs_version_kernel();
 			/*
@@ -467,9 +562,11 @@ zfs_project_handle(const char *name, zfs_project_control_t *zpc)
 	if (fd < 0)
 		return (fd);
 
-	if ((zpc->zpc_op == ZFS_PROJECT_OP_SET ||
+	if (zpc->zpc_extsize ? (zpc->zpc_op == ZFS_PROJECT_OP_CHECK &&
+	    zpc->zpc_expected_extsize == ZFS_EXTSIZE_FROM_TARGET) :
+	    ((zpc->zpc_op == ZFS_PROJECT_OP_SET ||
 	    zpc->zpc_op == ZFS_PROJECT_OP_CHECK) &&
-	    zpc->zpc_expected_projid == ZFS_INVALID_PROJID) {
+	    zpc->zpc_expected_projid == ZFS_INVALID_PROJID)) {
 		ret = zfs_project_load_projid(fd, name, zpc);
 		if (ret)
 			goto out;

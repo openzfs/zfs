@@ -824,8 +824,10 @@ tags = ['functional', 'features', 'large_dnode']
 tests = ['fileblocksize_001_pos', 'fileblocksize_002_neg',
     'fileblocksize_003_pos', 'fileblocksize_004_pos', 'fileblocksize_005_pos',
     'fileblocksize_006_pos', 'fileblocksize_007_pos', 'fileblocksize_008_neg',
-    'fileblocksize_010_pos', 'fileblocksize_011_neg', 'fileblocksize_012_neg',
-    'fileblocksize_013_neg', 'fileblocksize_015_neg', 'fileblocksize_017_pos']
+    'fileblocksize_009_pos', 'fileblocksize_010_pos', 'fileblocksize_011_neg',
+    'fileblocksize_012_neg', 'fileblocksize_013_neg',
+    'fileblocksize_014_pos', 'fileblocksize_015_neg',
+    'fileblocksize_016_pos', 'fileblocksize_017_pos']
 tags = ['functional', 'fileblocksize']
 
 [tests/functional/gang_blocks]

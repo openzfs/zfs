@@ -1839,11 +1839,14 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/fileblocksize/fileblocksize_006_pos.ksh \
 	functional/fileblocksize/fileblocksize_007_pos.ksh \
 	functional/fileblocksize/fileblocksize_008_neg.ksh \
+	functional/fileblocksize/fileblocksize_009_pos.ksh \
 	functional/fileblocksize/fileblocksize_010_pos.ksh \
 	functional/fileblocksize/fileblocksize_011_neg.ksh \
 	functional/fileblocksize/fileblocksize_012_neg.ksh \
 	functional/fileblocksize/fileblocksize_013_neg.ksh \
+	functional/fileblocksize/fileblocksize_014_pos.ksh \
 	functional/fileblocksize/fileblocksize_015_neg.ksh \
+	functional/fileblocksize/fileblocksize_016_pos.ksh \
 	functional/fileblocksize/fileblocksize_017_pos.ksh \
 	functional/fileblocksize/setup.ksh \
 	functional/gang_blocks/cleanup.ksh \

@@ -108,6 +108,7 @@ static int zfs_do_load_key(int argc, char **argv);
 static int zfs_do_unload_key(int argc, char **argv);
 static int zfs_do_change_key(int argc, char **argv);
 static int zfs_do_project(int argc, char **argv);
+static int zfs_do_fileblocksize(int argc, char **argv);
 static int zfs_do_version(int argc, char **argv);
 static int zfs_do_redact(int argc, char **argv);
 static int zfs_do_rewrite(int argc, char **argv);
@@ -154,6 +155,7 @@ typedef enum {
 	HELP_GROUPSPACE,
 	HELP_PROJECTSPACE,
 	HELP_PROJECT,
+	HELP_FILEBLOCKSIZE,
 	HELP_HOLD,
 	HELP_HOLDS,
 	HELP_RELEASE,
@@ -214,6 +216,7 @@ static zfs_command_t command_table[] = {
 	{ "projectspace", zfs_do_userspace,	HELP_PROJECTSPACE	},
 	{ NULL },
 	{ "project",	zfs_do_project,		HELP_PROJECT		},
+	{ "fileblocksize", zfs_do_fileblocksize, HELP_FILEBLOCKSIZE	},
 	{ NULL },
 	{ "mount",	zfs_do_mount,		HELP_MOUNT		},
 	{ "unmount",	zfs_do_unmount,		HELP_UNMOUNT		},
@@ -379,6 +382,12 @@ get_usage(zfs_help_t idx)
 		    "\tproject -c [-0] [-d|-r] [-p id] <directory|file ...>\n"
 		    "\tproject -C [-k] [-r] <directory ...>\n"
 		    "\tproject [-p id] [-r] [-s] <directory ...>\n");
+	case HELP_FILEBLOCKSIZE:
+		return ("\tfileblocksize [-d|-r] <directory|file ...>\n"
+		    "\tfileblocksize -c [-0] [-d|-r] [-b size] "
+		    "<directory|file ...>\n"
+		    "\tfileblocksize -C [-r] <directory|file ...>\n"
+		    "\tfileblocksize -b size [-r] <directory|file ...>\n");
 	case HELP_HOLD:
 		return ("\thold [-r] <tag> <snapshot> ...\n");
 	case HELP_HOLDS:
@@ -9081,6 +9090,112 @@ zfs_do_project(int argc, char **argv)
 	for (int i = 0; i < argc; i++) {
 		int err;
 
+		err = zfs_project_handle(argv[i], &zpc);
+		if (err && !ret)
+			ret = err;
+	}
+
+	return (ret);
+}
+
+/*
+ * zfs fileblocksize: list, check (-c), clear (-C) or set (-b) the fsx_extsize
+ * block size of files and directories.  Options follow zfs project; see
+ * zfs-fileblocksize(8).
+ */
+static int
+zfs_do_fileblocksize(int argc, char **argv)
+{
+	zfs_project_control_t zpc = {
+		.zpc_op = ZFS_PROJECT_OP_DEFAULT,
+		.zpc_newline = B_TRUE,
+		.zpc_extsize = B_TRUE,
+		.zpc_expected_extsize = ZFS_EXTSIZE_FROM_TARGET,
+	};
+	boolean_t have_size = B_FALSE;
+	uint64_t size;
+	int ret = 0, c;
+
+	if (argc < 2)
+		usage(B_FALSE);
+
+	while ((c = getopt(argc, argv, "0b:Ccdr")) != -1) {
+		switch (c) {
+		case '0':
+			zpc.zpc_newline = B_FALSE;
+			break;
+		case 'b':
+			if (zfs_nicestrtonum(g_zfs, optarg, &size) != 0 ||
+			    !ISP2(size) || size < SPA_MINBLOCKSIZE ||
+			    size > SPA_OLD_MAXBLOCKSIZE) {
+				(void) fprintf(stderr, "block size must be a "
+				    "power of 2 from 512 to 128K\n");
+				usage(B_FALSE);
+			}
+			zpc.zpc_expected_extsize = (uint32_t)size;
+			have_size = B_TRUE;
+			break;
+		case 'C':
+		case 'c':
+			if (zpc.zpc_op != ZFS_PROJECT_OP_DEFAULT) {
+				(void) fprintf(stderr, "cannot "
+				    "specify '-C' and '-c' together\n");
+				usage(B_FALSE);
+			}
+			zpc.zpc_op = (c == 'C') ? ZFS_PROJECT_OP_CLEAR :
+			    ZFS_PROJECT_OP_CHECK;
+			break;
+		case 'd':
+			zpc.zpc_dironly = B_TRUE;
+			/* overwrite "-r" option */
+			zpc.zpc_recursive = B_FALSE;
+			break;
+		case 'r':
+			zpc.zpc_recursive = B_TRUE;
+			/* overwrite "-d" option */
+			zpc.zpc_dironly = B_FALSE;
+			break;
+		default:
+			(void) fprintf(stderr, "invalid option '%c'\n",
+			    optopt);
+			usage(B_FALSE);
+		}
+	}
+
+	if (zpc.zpc_op == ZFS_PROJECT_OP_DEFAULT)
+		zpc.zpc_op = have_size ? ZFS_PROJECT_OP_SET :
+		    ZFS_PROJECT_OP_LIST;
+
+	if (!zpc.zpc_newline && zpc.zpc_op != ZFS_PROJECT_OP_CHECK) {
+		(void) fprintf(stderr,
+		    "'-0' is only valid together with '-c'\n");
+		usage(B_FALSE);
+	}
+	if (zpc.zpc_dironly && (zpc.zpc_op == ZFS_PROJECT_OP_CLEAR ||
+	    zpc.zpc_op == ZFS_PROJECT_OP_SET)) {
+		(void) fprintf(stderr, "'-d' is only valid for listing and "
+		    "checking\n");
+		usage(B_FALSE);
+	}
+	if (have_size && zpc.zpc_op == ZFS_PROJECT_OP_CLEAR) {
+		(void) fprintf(stderr, "'-b' is useless together with '-C'\n");
+		usage(B_FALSE);
+	}
+
+	argv += optind;
+	argc -= optind;
+	if (argc == 0) {
+		(void) fprintf(stderr,
+		    "missing file or directory target(s)\n");
+		usage(B_FALSE);
+	}
+
+	for (int i = 0; i < argc; i++) {
+		int err;
+
+		/* -c without -b compares against each target's own size */
+		if (zpc.zpc_op == ZFS_PROJECT_OP_CHECK && !have_size)
+			zpc.zpc_expected_extsize = ZFS_EXTSIZE_FROM_TARGET;
 		err = zfs_project_handle(argv[i], &zpc);
 		if (err && !ret)
 			ret = err;
