@@ -501,6 +501,7 @@ zone_dataset_admin_check(const char *dataset, zone_uid_op_t op,
 			break;
 		case ZONE_OP_CREATE:
 		case ZONE_OP_SNAPSHOT:
+		case ZONE_OP_DESTROY_SNAPSHOT:
 		case ZONE_OP_SETPROP:
 			required_cap = CAP_FOWNER;
 			break;
@@ -555,6 +556,7 @@ zone_dataset_admin_check(const char *dataset, zone_uid_op_t op,
 
 	case ZONE_OP_CREATE:
 	case ZONE_OP_SNAPSHOT:
+	case ZONE_OP_DESTROY_SNAPSHOT:
 	case ZONE_OP_SETPROP:
 		/* No additional constraints */
 		break;
