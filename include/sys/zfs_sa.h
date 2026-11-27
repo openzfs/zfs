@@ -130,6 +130,7 @@ void zfs_sa_symlink(struct znode *, char *link, int len, dmu_tx_t *);
 void zfs_sa_get_scanstamp(struct znode *, xvattr_t *);
 void zfs_sa_set_scanstamp(struct znode *, xvattr_t *, dmu_tx_t *);
 int zfs_sa_get_xattr(struct znode *);
+boolean_t zfs_sa_xattr_log_enabled(objset_t *);
 int zfs_sa_set_xattr(struct znode *, const char *, const void *, size_t);
 void zfs_sa_upgrade(struct sa_handle  *, dmu_tx_t *);
 void zfs_sa_upgrade_txholds(dmu_tx_t *, struct znode *);

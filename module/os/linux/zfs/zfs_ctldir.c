@@ -592,6 +592,7 @@ zfsctl_inode_alloc(zfsvfs_t *zfsvfs, uint64_t id,
 	zp->z_pflags = 0;
 	zp->z_mode = 0;
 	zp->z_sync_cnt = 0;
+	zp->z_publish_txg = 0;
 	zp->z_btime.tv_sec = creation;
 	zp->z_btime.tv_nsec = 0;
 	ip->i_generation = 0;
