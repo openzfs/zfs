@@ -9833,6 +9833,42 @@ zdb_decompress_block(abd_t *pabd, void *buf, void *lbuf, uint64_t lsize,
 }
 
 /*
+ * Return how many bytes at the start of the range can be remapped to
+ * concrete vdevs.  An indirect mapping covers only the segments that were
+ * allocated when the vdev was removed, and vdev_indirect_remap() requires
+ * the whole range to be mapped, on this vdev and on any indirect vdevs
+ * that it maps to.
+ */
+static uint64_t
+zdb_indirect_mapped_size(vdev_t *vd, uint64_t offset, uint64_t asize)
+{
+	vdev_indirect_mapping_t *vim = vd->vdev_indirect_mapping;
+	uint64_t done = 0;
+
+	if (vd->vdev_ops != &vdev_indirect_ops)
+		return (asize);
+	if (vdev_indirect_mapping_num_entries(vim) == 0)
+		return (0);
+
+	while (done < asize) {
+		vdev_indirect_mapping_entry_phys_t *m =
+		    vdev_indirect_mapping_entry_for_offset(vim, offset + done);
+		if (m == NULL)
+			break;
+		uint64_t inner = offset + done - DVA_MAPPING_GET_SRC_OFFSET(m);
+		uint64_t size = MIN(asize - done,
+		    DVA_GET_ASIZE(&m->vimep_dst) - inner);
+		uint64_t mapped = zdb_indirect_mapped_size(
+		    vdev_lookup_top(vd->vdev_spa, DVA_GET_VDEV(&m->vimep_dst)),
+		    DVA_GET_OFFSET(&m->vimep_dst) + inner, size);
+		done += mapped;
+		if (mapped != size)
+			break;
+	}
+	return (done);
+}
+
+/*
  * Read a block from a pool and print it out.  The syntax of the
  * block descriptor is:
  *
@@ -9954,6 +9990,17 @@ zdb_read_block(char *thing, spa_t *spa)
 		else
 			(void) fprintf(stderr, "Found vdev type: %s\n",
 			    vd->vdev_ops->vdev_op_type);
+	}
+
+	uint64_t asize = vdev_psize_to_asize(vd, psize);
+	spa_config_enter(spa, SCL_STATE, FTAG, RW_READER);
+	uint64_t mapped = zdb_indirect_mapped_size(vd, offset, asize);
+	spa_config_exit(spa, SCL_STATE, FTAG);
+	if (mapped != asize) {
+		(void) printf("***Range not mapped on indirect vdev %llu at "
+		    "offset %llx\n", (u_longlong_t)vd->vdev_id,
+		    (u_longlong_t)(offset + mapped));
+		goto done;
 	}
 
 	pabd = abd_alloc_for_io(SPA_MAXBLOCKSIZE, B_FALSE);
