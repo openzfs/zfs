@@ -40,7 +40,7 @@ function cleanup_testenv
 	cleanup
 	if [[ -n $lofidev ]]; then
 		if is_linux; then
-			losetup -d $lofidev
+			log_must losetup -d /dev/$lofidev
 		elif is_freebsd; then
 			mdconfig -du ${lofidev#md}
 		else
@@ -77,9 +77,9 @@ log_must verify_cache_device $TESTPOOL $ldev 'ONLINE'
 
 # Add loop back device
 if is_linux; then
-	lofidev=$(losetup -f)
-	log_must losetup $lofidev ${VDEV2%% *}
-	lofidev=${lofidev##*/}
+	lodev=$(losetup -f)
+	log_must losetup $lodev ${VDEV2%% *}
+	lofidev=${lodev##*/}
 elif is_freebsd; then
 	lofidev=$(mdconfig -a ${VDEV2%% *})
 else
