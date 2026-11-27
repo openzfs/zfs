@@ -2455,8 +2455,19 @@ vdev_open(vdev_t *vd, cred_t *cred)
 	if (vd->vdev_state == VDEV_STATE_HEALTHY &&
 	    ((asize > vd->vdev_asize &&
 	    (vd->vdev_expanding || spa->spa_autoexpand)) ||
-	    (asize < vd->vdev_asize)))
+	    (asize < vd->vdev_asize))) {
+		/*
+		 * The metaslabs for the new space are only added by
+		 * vdev_expand(), from the config update.  A reopen that
+		 * isn't followed by one (zpool reopen, or zed's reopen of
+		 * a grown whole disk) would otherwise leave the space
+		 * neither usable nor reported as expandable.
+		 */
+		if (asize > vd->vdev_asize && vd->vdev_top == vd &&
+		    vd->vdev_ms_array != 0 && spa_writeable(spa))
+			spa_async_request(spa, SPA_ASYNC_CONFIG_UPDATE);
 		vd->vdev_asize = asize;
+	}
 
 	vdev_set_min_asize(vd);
 
