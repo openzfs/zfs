@@ -114,6 +114,7 @@ _LIBZUTIL_H int zfs_resolve_shortname(const char *name, char *path,
 
 _LIBZUTIL_H char *zfs_strip_partition(const char *);
 _LIBZUTIL_H const char *zfs_strip_path(const char *);
+_LIBZUTIL_H void zfs_flatten_path(char *);
 
 _LIBZUTIL_H int zfs_strcmp_pathname(const char *, const char *, int);
 
