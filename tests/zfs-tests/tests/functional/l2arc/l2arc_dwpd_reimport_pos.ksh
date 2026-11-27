@@ -48,8 +48,7 @@ function cleanup
 	restore_tunable L2ARC_DWPD_LIMIT
 	restore_tunable L2ARC_EXT_HEADROOM_PCT
 	restore_tunable L2ARC_REBUILD_BLOCKS_MIN_L2SIZE
-	restore_tunable ARC_MIN
-	restore_tunable ARC_MAX
+	restore_arc_limits
 }
 log_onexit cleanup
 
@@ -59,8 +58,7 @@ save_tunable L2ARC_NOPREFETCH
 save_tunable L2ARC_DWPD_LIMIT
 save_tunable L2ARC_EXT_HEADROOM_PCT
 save_tunable L2ARC_REBUILD_BLOCKS_MIN_L2SIZE
-save_tunable ARC_MIN
-save_tunable ARC_MAX
+save_arc_limits
 
 # Test parameters
 typeset cache_sz=900

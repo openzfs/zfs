@@ -50,16 +50,14 @@ ARC_MAX_BYTES=$((256 * 1024 * 1024))
 function cleanup
 {
 	zinject -c all > /dev/null 2>&1
-	restore_tunable ARC_MAX
-	restore_tunable ARC_MIN
+	restore_arc_limits
 	[[ -e $FILE ]] && log_must rm -f $FILE
 }
 
 log_assert "Explicit WILLNEED prefetch is bounded to a fraction of the ARC (#15776)"
 log_onexit cleanup
 
-save_tunable ARC_MAX
-save_tunable ARC_MIN
+save_arc_limits
 log_must set_tunable64 ARC_MIN $ARC_MIN_BYTES
 log_must set_tunable64 ARC_MAX $ARC_MAX_BYTES
 
