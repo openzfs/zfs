@@ -393,6 +393,15 @@ typedef struct {
 	uint8_t		lr_data[];
 } lr_setsaxattr_t;
 
+/*
+ * A TX_SETSAXATTR record with an lr_size of zero removes the xattr.  A
+ * record that sets an empty value also has an lr_size of zero, and is
+ * told apart by its length: one zeroed word follows the name.
+ */
+#define	LR_SETSAXATTR_EMPTY_RECLEN(namelen)				\
+	(sizeof (lr_setsaxattr_t) +					\
+	P2ROUNDUP((size_t)(namelen), sizeof (uint64_t)) + sizeof (uint64_t))
+
 typedef struct {
 	lr_t		lr_common;	/* common portion of log record */
 	uint64_t	lr_foid;	/* obj id of file */

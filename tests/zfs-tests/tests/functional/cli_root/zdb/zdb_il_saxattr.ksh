@@ -21,15 +21,18 @@
 # Description:
 # zdb -ivvvvv prints TX_SETSAXATTR values as text: a value with a
 # non-printable byte, or any value with -P, is printed escaped, and each
-# value ends with a newline.
+# value ends with a newline.  An empty value is printed as a value, and
+# only a removal as NULL.
 #
 # Strategy:
 # 1. Create a pool with xattr=sa and sync=always, and freeze it.
-# 2. Set a user xattr whose value ends in a NUL byte, and one whose
-#    value is printable.
+# 2. Set a user xattr whose value ends in a NUL byte, one whose value
+#    is printable and one whose value is empty, and remove the second.
 # 3. Verify zdb -ivvvvv prints the first value escaped and the second
 #    as is, each on its own line, and emits no NUL bytes.
 # 4. Verify zdb -ivvvvvP prints both values escaped.
+# 5. Verify both print nothing for the empty value and NULL for the
+#    removal.
 #
 
 verify_runnable "global"
@@ -41,6 +44,18 @@ function cleanup
 {
 	poolexists $TESTPOOL && destroy_pool $TESTPOOL
 	rm -f $VDEV $OUT
+}
+
+# What follows XAT_VALUE in the last record for an xattr name, in brackets.
+function last_value # name
+{
+	awk -v name="$1" '
+	    $1 == "XAT_NAME" { found = ($2 ~ ("(^|[.])" name "$")) }
+	    $1 == "XAT_VALUE" && found {
+		sub(/^[[:space:]]*XAT_VALUE[[:space:]]*/, "")
+		value = "[" $0 "]"
+	    }
+	    END { print value }' $OUT
 }
 
 log_onexit cleanup
@@ -61,11 +76,15 @@ FreeBSD)
 	log_must eval "printf 'zdbval\\000' | \
 	    setextattr -i user zdbname $TESTDIR/file"
 	log_must setextattr user zdbplain zdbtext $TESTDIR/file
+	log_must setextattr user zdbempty "" $TESTDIR/file
+	log_must rmextattr user zdbplain $TESTDIR/file
 	;;
 *)
 	# "zdbval" followed by a NUL byte
 	log_must setfattr -n user.zdbname -v 0x7a646276616c00 $TESTDIR/file
 	log_must setfattr -n user.zdbplain -v zdbtext $TESTDIR/file
+	log_must setfattr -n user.zdbempty -v "" $TESTDIR/file
+	log_must setfattr -x user.zdbplain $TESTDIR/file
 	;;
 esac
 
@@ -80,9 +99,13 @@ log_must grep -qE "^[[:space:]]*XAT_VALUE[[:space:]]+$zdbval\$" $OUT
 log_must grep -qE "^[[:space:]]*XAT_VALUE[[:space:]]+zdbtext\$" $OUT
 typeset nuls=$(tr -cd '\000' < $OUT | wc -c)
 log_must test "$nuls" -eq 0
+log_must test "$(last_value zdbempty)" = "[]"
+log_must test "$(last_value zdbplain)" = "[NULL]"
 
 log_must eval "zdb -ivvvvvP $TESTPOOL > $OUT"
 log_must grep -qE "^[[:space:]]*XAT_VALUE[[:space:]]+$zdbval\$" $OUT
 log_must grep -qE "^[[:space:]]*XAT_VALUE[[:space:]]+$zdbtext\$" $OUT
+log_must test "$(last_value zdbempty)" = "[]"
+log_must test "$(last_value zdbplain)" = "[NULL]"
 
 log_pass "zdb -ivvvvv prints TX_SETSAXATTR values as text"
