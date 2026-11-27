@@ -56,6 +56,7 @@
 #include <sys/btree.h>
 #include <sys/zfeature.h>
 #include <sys/qat.h>
+#include <sys/zio_crypt.h>
 #include <sys/zstd/zstd.h>
 
 /*
@@ -2897,6 +2898,7 @@ spa_init(spa_mode_t mode)
 	brt_init();
 	ddt_init();
 	zio_init();
+	zio_crypt_init();
 	dmu_init();
 	zil_init();
 	vdev_mirror_stat_init();
@@ -2924,6 +2926,7 @@ spa_fini(void)
 	chksum_fini();
 	zil_fini();
 	dmu_fini();
+	zio_crypt_fini();
 	zio_fini();
 	ddt_fini();
 	brt_fini();
