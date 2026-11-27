@@ -406,6 +406,19 @@ static int zfs_scrub_after_expand = 1;
  */
 static int zfs_scrub_partial_writes = 1;
 
+/*
+ * A row is allocated with, past its columns, the iterators of the columns
+ * that its parity math maps at once, see abd_raidz_cols_iterate(), so that
+ * the math need not allocate them at each call.  The row belongs to one
+ * zio, which generates parity or reconstructs with one call at a time.
+ */
+static size_t
+vdev_raidz_row_size(int cols)
+{
+	return (offsetof(raidz_row_t, rr_col[cols]) +
+	    abd_raidz_cols_size(RAIDZ_ROW_MAPCOLS(cols)));
+}
+
 static void
 vdev_raidz_row_free(raidz_row_t *rr)
 {
@@ -430,7 +443,7 @@ vdev_raidz_row_free(raidz_row_t *rr)
 	if (rr->rr_abd_empty != NULL)
 		abd_free(rr->rr_abd_empty);
 
-	kmem_free(rr, offsetof(raidz_row_t, rr_col[rr->rr_scols]));
+	kmem_free(rr, vdev_raidz_row_size(rr->rr_scols));
 }
 
 void
@@ -491,11 +504,13 @@ const zio_vsd_ops_t vdev_raidz_vsd_ops = {
 raidz_row_t *
 vdev_raidz_row_alloc(int cols, zio_t *zio)
 {
-	raidz_row_t *rr =
-	    kmem_zalloc(offsetof(raidz_row_t, rr_col[cols]), KM_SLEEP);
+	raidz_row_t *rr = kmem_alloc(vdev_raidz_row_size(cols), KM_SLEEP);
 
+	/* The iterators need no initialization. */
+	memset(rr, 0, offsetof(raidz_row_t, rr_col[cols]));
 	rr->rr_cols = cols;
 	rr->rr_scols = cols;
+	rr->rr_rzc = (abd_raidz_col_t *)&rr->rr_col[cols];
 
 	for (int c = 0; c < cols; c++) {
 		raidz_col_t *rc = &rr->rr_col[c];
