@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+
+#
+# Copyright (c) 2026 Tigerblue77
+#
+
+. $STF_SUITE/include/libtest.shlib
+
+#
+# Create a pool named <name> on the file <vdev> and export it, as a release
+# that did not reserve <name> yet would have.  The pool is created under a
+# placeholder of the same length, then the name is replaced in the four
+# labels, which keeps the layout of the label nvlists, and zhack repairs
+# the label checksums.
+#
+function create_exported_pool_named # name vdev
+{
+	typeset name=$1
+	typeset vdev=$2
+	typeset tmp=x${name#?}
+
+	log_must truncate -s $MINVDEVSIZE $vdev
+	log_must zpool create -m none $tmp $vdev
+	log_must zpool export $tmp
+
+	log_must python3 -c '
+import sys
+path, old, new = sys.argv[1], sys.argv[2].encode(), sys.argv[3].encode()
+label = 256 * 1024
+with open(path, "r+b") as f:
+    size = f.seek(0, 2) // label * label
+    for off in (0, label, size - 2 * label, size - label):
+        f.seek(off)
+        buf = f.read(label)
+        if buf.count(old) != 1:
+            sys.exit("label at %d: %d copies of the name" %
+                (off, buf.count(old)))
+        f.seek(off)
+        f.write(buf.replace(old, new))
+' $vdev $tmp $name
+	log_must zhack label repair -c $vdev
+}

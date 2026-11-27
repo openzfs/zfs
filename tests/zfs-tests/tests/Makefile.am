@@ -362,6 +362,7 @@ nobase_dist_datadir_zfs_tests_tests_DATA += \
 	functional/no_space/enospc.cfg \
 	functional/online_offline/online_offline.cfg \
 	functional/pool_checkpoint/pool_checkpoint.kshlib \
+	functional/pool_names/pool_names.kshlib \
 	functional/projectquota/projectquota.cfg \
 	functional/projectquota/projectquota_common.kshlib \
 	functional/quota/quota.cfg \
@@ -2039,6 +2040,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/pool_checkpoint/setup.ksh \
 	functional/pool_names/pool_names_001_pos.ksh \
 	functional/pool_names/pool_names_002_neg.ksh \
+	functional/pool_names/pool_names_reserved_fgroup.ksh \
 	functional/poolversion/cleanup.ksh \
 	functional/poolversion/poolversion_001_pos.ksh \
 	functional/poolversion/poolversion_002_pos.ksh \

@@ -62,6 +62,8 @@ set -A args  "" "-?" "-n" "-f" "-nf" "-fn" "-f -n" "--f" "-e" "-s" \
 	"$TESTPOOL draid $DISK0 $DISK1 $DISK2 spare s0-draid1-0" \
 	"1tank $DISK0" "1234 $DISK0" "?tank $DISK0" \
 	"tan%k $DISK0" "ta@# $DISK0" "tan+k $DISK0" \
+	"fgroup $DISK0" "fdomain $DISK0" \
+	"failure_group $DISK0" "failure_domain $DISK0" \
 	"$BYND_MAX_NAME $DISK0"
 
 log_assert "'zpool create' should return an error with badly-formed parameters."
