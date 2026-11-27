@@ -29,6 +29,7 @@
 extern void zvol_create_minors(const char *);
 extern void zvol_remove_minors(spa_t *, const char *, boolean_t);
 extern void zvol_rename_minors(spa_t *, const char *, const char *, boolean_t);
+extern boolean_t zvol_minors_in_use(const char *);
 
 #ifdef _KERNEL
 struct zvol_state;

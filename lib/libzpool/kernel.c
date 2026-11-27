@@ -463,6 +463,13 @@ zvol_remove_minors(spa_t *spa, const char *name, boolean_t async)
 	(void) spa, (void) name, (void) async;
 }
 
+boolean_t
+zvol_minors_in_use(const char *name)
+{
+	(void) name;
+	return (B_FALSE);
+}
+
 void
 zvol_rename_minors(spa_t *spa, const char *oldname, const char *newname,
     boolean_t async)

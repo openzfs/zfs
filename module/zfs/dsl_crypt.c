@@ -936,6 +936,17 @@ spa_keystore_unload_wkey(const char *dsname)
 		goto error;
 	}
 
+	/*
+	 * Removing the zvol minors below this dataset waits for their
+	 * open counts to reach zero, so an open zvol would turn the
+	 * unload into an indefinite stall.  Return EBUSY instead, the
+	 * same way zpool export does for open zvols.
+	 */
+	if (zvol_minors_in_use(dsname)) {
+		ret = (SET_ERROR(EBUSY));
+		goto error;
+	}
+
 	/* unload the wkey */
 	ret = spa_keystore_unload_wkey_impl(dp->dp_spa, dd->dd_object);
 	if (ret != 0)

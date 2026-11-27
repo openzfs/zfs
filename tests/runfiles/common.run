@@ -387,7 +387,8 @@ tests = ['zfs_snapshot_001_neg', 'zfs_snapshot_002_neg',
 tags = ['functional', 'cli_root', 'zfs_snapshot']
 
 [tests/functional/cli_root/zfs_unload-key]
-tests = ['zfs_unload-key', 'zfs_unload-key_all', 'zfs_unload-key_recursive']
+tests = ['zfs_unload-key', 'zfs_unload-key_all', 'zfs_unload-key_recursive',
+    'zfs_unload-key_zvol']
 tags = ['functional', 'cli_root', 'zfs_unload-key']
 
 [tests/functional/cli_root/zfs_unmount]

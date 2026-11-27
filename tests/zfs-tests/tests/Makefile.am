@@ -1108,6 +1108,7 @@ nobase_dist_datadir_zfs_tests_tests_SCRIPTS += \
 	functional/cli_root/zfs_unload-key/zfs_unload-key_all.ksh \
 	functional/cli_root/zfs_unload-key/zfs_unload-key.ksh \
 	functional/cli_root/zfs_unload-key/zfs_unload-key_recursive.ksh \
+	functional/cli_root/zfs_unload-key/zfs_unload-key_zvol.ksh \
 	functional/cli_root/zfs_unmount/cleanup.ksh \
 	functional/cli_root/zfs_unmount/setup.ksh \
 	functional/cli_root/zfs_unmount/zfs_unmount_001_pos.ksh \
