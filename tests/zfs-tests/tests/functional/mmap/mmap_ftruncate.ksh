@@ -19,20 +19,25 @@
 
 #
 # This verifies that async writeback of dirty mmap()'d pages completes quickly.
-# ftruncate() is an operation that will trigger async writeback, but is not
-# itself a syncing operation, making it a useful proxy for any way the kernel
-# might trigger async writeback.
+# The mmap_ftruncate program dirties every page of a mapped file, starts
+# async writeback of all of them, then calls ftruncate() to collapse the
+# file, which must wait for any page still under writeback. None of these
+# is a syncing operation.
 #
-# The guts of this test is in the mmap_ftruncate program. This driver sets a
-# larger zfs_txg_timeout. Test failure occurs ftruncate() blocks waiting for
-# the writeback until the txg timeout is reached and the changes are forcibly
-# written out. Success means the DMU has accepted the changes and cleared the
-# page dirty flags.
+# This driver sets a larger zfs_txg_timeout. Test failure occurs when
+# ftruncate() blocks waiting for the writeback until the txg timeout is
+# reached and the changes are forcibly written out. Success means the DMU
+# has accepted the changes and cleared the page writeback flags.
+#
+# Only the ftruncate() call is timed (mmap_ftruncate prints it). Dirtying
+# the pages and writing them back first is throughput-bound: on a slow CI
+# VM it took longer than the limit on its own, with ftruncate() still
+# near-instant.
 #
 
 TIMEOUT=180
 TESTFILE=/$TESTPOOL/truncfile
-TESTSIZE=$((2*1024*1024*1024)) # 2G
+TESTSIZE=$((256*1024*1024)) # 256M
 
 verify_runnable "global"
 
@@ -52,19 +57,28 @@ log_onexit cleanup
 log_must set_tunable32 TXG_TIMEOUT $TIMEOUT
 log_must zpool sync -f
 
-# run mmap_ftruncate and record the run time
-typeset -i start=$(date +%s)
-log_must mmap_ftruncate $TESTFILE $TESTSIZE
-typeset -i end=$(date +%s)
-typeset -i delta=$((end - start))
+# zfs_putpage() counts the bytes it writes back in the dataset's nwritten
+typeset nwritten0=$(kstat_dataset $TESTPOOL nwritten)
 
-# in practice, mmap_ftruncate needs a few seconds to dirty all the pages, and
-# when this test passes, the ftruncate() call itself should be near-instant.
-# when it fails, then its only the txg sync that allows ftruncate() to
-# complete, in that case, the run time will be extremely close to the timeout,
-# so to avoid any confusion at the edges, we require that it complets within
-# half the transaction time.  for any timeout higher than ~30s that should be a
+# run mmap_ftruncate; it prints how long ftruncate() took, in milliseconds
+typeset ms
+typeset -i start=$(date +%s)
+ms=$(mmap_ftruncate $TESTFILE $TESTSIZE) || \
+    log_fail "mmap_ftruncate $TESTFILE $TESTSIZE failed"
+typeset -i end=$(date +%s)
+typeset nwritten=$(($(kstat_dataset $TESTPOOL nwritten) - nwritten0))
+log_note "ftruncate() took $ms ms; whole run $((end - start)) s;" \
+    "$nwritten bytes written back"
+
+# the async writeback must have pushed the pages to the DMU (zfs_putpage()
+# counts them), or the ftruncate() timing says nothing
+log_must test $nwritten -ge $TESTSIZE
+
+# when this test passes, the ftruncate() call should be near-instant. when
+# it fails, it's only the txg sync that allows ftruncate() to complete, and
+# it takes close to the timeout, so require that it completes within half
+# the transaction time. for any timeout higher than ~30s that should be a
 # very bright line down the middle.
-log_must test $delta -lt $((TIMEOUT / 2))
+log_must test $ms -lt $((TIMEOUT * 1000 / 2))
 
 log_pass $claim
