@@ -596,9 +596,17 @@ vdev_mirror_child_select(zio_t *zio)
 	/*
 	 * Every device is either missing or has this txg in its DTL.
 	 * Look for any child we haven't already tried before giving up.
+	 * A rebuild read has no checksum, though: a child whose DTL says
+	 * it is missing the data would return whatever it holds as good
+	 * data, and vdev_mirror_io_done() would then write that over the
+	 * children whose reads failed.  A rebuild read fails instead.
 	 */
 	for (c = 0; c < mm->mm_children; c++) {
-		if (!mm->mm_child[c].mc_tried)
+		mirror_child_t *mc = &mm->mm_child[c];
+
+		if (rebuild && mc->mc_skipped)
+			continue;
+		if (!mc->mc_tried)
 			return (c);
 	}
 
