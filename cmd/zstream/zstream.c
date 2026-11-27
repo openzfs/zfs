@@ -42,7 +42,7 @@ zstream_usage(void)
 	    "\n"
 	    "\tzstream recompress [-t num_threads] compress_type [file]\n"
 	    "\n"
-	    "\tzstream redup [-v] file\n"
+	    "\tzstream redup [-v] [-d tmpdir] [-m memory] file\n"
 	    "\n"
 	    "\tzstream token resume_token\n");
 	exit(1);
