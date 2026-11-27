@@ -323,7 +323,7 @@ tests = ['zfs_receive_001_pos', 'zfs_receive_002_pos', 'zfs_receive_003_pos',
     'zfs_receive_-wR-encrypted-mix', 'zfs_receive_corrective',
     'zfs_receive_promote_outside',
     'zfs_receive_compressed_corrective', 'zfs_receive_large_block_corrective',
-    'zfs_receive_zstd_corrective']
+    'zfs_receive_zstd_corrective', 'zfs_receive_corrective_owned']
 tags = ['functional', 'cli_root', 'zfs_receive']
 
 [tests/functional/cli_root/zfs_rename]

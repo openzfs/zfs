@@ -466,6 +466,15 @@ recv_begin_check_existing_impl(dmu_recv_begin_arg_t *drba, dsl_dataset_t *ds,
 			return (error);
 
 		/*
+		 * dmu_recv_begin_sync() has to own the snapshot, which fails
+		 * while it has another owner, such as a mount or an open zvol.
+		 */
+		if (dsl_dataset_has_owner(snap)) {
+			dsl_dataset_rele(snap, FTAG);
+			return (SET_ERROR(EBUSY));
+		}
+
+		/*
 		 * When not doing best effort corrective recv healing can only
 		 * be done if the send stream is for the same snapshot as the
 		 * one we are trying to heal.
@@ -1041,8 +1050,15 @@ dmu_recv_begin_sync(void *arg, dmu_tx_t *tx)
 		    numredactsnaps, tx);
 	}
 
-	dmu_buf_will_dirty(newds->ds_dbuf, tx);
-	dsl_dataset_phys(newds)->ds_flags |= DS_FLAG_INCONSISTENT;
+	/*
+	 * A corrective receive only rewrites damaged blocks of the snapshot
+	 * in place and owns it meanwhile, so it is not marked inconsistent,
+	 * which would keep it from being mounted after the receive.
+	 */
+	if (!drc->drc_heal) {
+		dmu_buf_will_dirty(newds->ds_dbuf, tx);
+		dsl_dataset_phys(newds)->ds_flags |= DS_FLAG_INCONSISTENT;
+	}
 
 	/*
 	 * When receiving, we refuse to accept streams that are missing the
@@ -5227,7 +5243,7 @@ dmu_recv_stream(dmu_recv_cookie_t *drc, offset_t *voffp)
 	    DMU_SUBSTREAM);
 	ASSERT3U(drc->drc_drrb->drr_type, <, DMU_OST_NUMTYPES);
 
-	ASSERT(dsl_dataset_phys(drc->drc_ds)->ds_flags & DS_FLAG_INCONSISTENT);
+	IMPLY(!drc->drc_heal, DS_IS_INCONSISTENT(drc->drc_ds));
 	ASSERT0(drc->drc_os->os_encrypted &&
 	    (drc->drc_featureflags & DMU_BACKUP_FEATURE_EMBED_DATA));
 
@@ -5544,6 +5560,12 @@ dmu_recv_end_sync(void *arg, dmu_tx_t *tx)
 	drc->drc_ds->ds_objset->os_raw_receive = B_FALSE;
 
 	if (drc->drc_heal) {
+		/* Clear the mark earlier releases left on a healed snapshot */
+		if (DS_IS_INCONSISTENT(drc->drc_ds)) {
+			dmu_buf_will_dirty(drc->drc_ds->ds_dbuf, tx);
+			dsl_dataset_phys(drc->drc_ds)->ds_flags &=
+			    ~DS_FLAG_INCONSISTENT;
+		}
 		if (drc->drc_keynvl != NULL) {
 			nvlist_free(drc->drc_keynvl);
 			drc->drc_keynvl = NULL;
