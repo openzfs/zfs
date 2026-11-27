@@ -2537,6 +2537,18 @@ If there is an error during healing, the healing receive is not
 terminated instead it moves on to the next record.
 .El
 .
+.It Sy zfs_recv_check_free_range_n Ns = Ns Sy 512 Pq int
+When an incremental receive meets a file whose block size differs from
+the stream's, it looks ahead at most this many records to see whether the
+stream rewrites or frees the whole file.
+If it does, the file takes the stream's block size; otherwise it keeps its
+own block size, rounded up to a power of 2 if needed.
+.
+.It Sy zfs_recv_check_free_range_b Ns = Ns Sy 67108864 Ns B Po 64 MiB Pc Pq u64
+The same as
+.Sy zfs_recv_check_free_range_n ,
+but the look ahead also stops after this many bytes of records.
+.
 .It Sy zfs_override_estimate_recordsize Ns = Ns Sy 0 Ns | Ns 1 Pq uint
 Setting this variable overrides the default logic for estimating block
 sizes when doing a
