@@ -17,7 +17,7 @@
 .\" Copyright 2017 Nexenta Systems, Inc.
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\"
-.Dd July 11, 2022
+.Dd November 10, 2026
 .Dt ZPOOL-IMPORT 8
 .Os
 .
@@ -44,6 +44,7 @@
 .Op Fl DflmMt
 .Op Fl F Op Fl nTX
 .Op Fl -rewind-to-checkpoint
+.Op Fl -async-mirror-keep Ns = Ns Ar guid
 .Op Fl c Ar cachefile Ns | Ns Fl d Ar dir Ns | Ns Ar device
 .Op Fl o Ar mntopts
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
@@ -153,6 +154,14 @@ The
 option is also required.
 .It Fl f
 Forces import, even if the pool appears to be potentially active.
+With
+.Fl o Sy readonly Ns = Ns Sy on ,
+also imports the lagging child of an async mirror alone when the pool was
+catching that child up and the child is not consistent.
+Such an import is otherwise refused.
+It can rescue the files that are still readable; expect checksum errors.
+See
+.Xr zpoolconcepts 7 .
 .It Fl F
 Recovery mode for a non-importable pool.
 Attempt to return the pool to an importable state by discarding the last few
@@ -263,6 +272,7 @@ health of your pool and should only be used as a last resort.
 .Oo Fl o Ar property Ns = Ns Ar value Oc Ns …
 .Op Fl R Ar root
 .Op Fl s
+.Op Fl -async-mirror-keep Ns = Ns Ar guid
 .Ar pool Ns | Ns Ar id
 .Op Ar newpool
 .Xc
@@ -310,6 +320,14 @@ The
 option is also required.
 .It Fl f
 Forces import, even if the pool appears to be potentially active.
+With
+.Fl o Sy readonly Ns = Ns Sy on ,
+also imports the lagging child of an async mirror alone when the pool was
+catching that child up and the child is not consistent.
+Such an import is otherwise refused.
+It can rescue the files that are still readable; expect checksum errors.
+See
+.Xr zpoolconcepts 7 .
 .It Fl F
 Recovery mode for a non-importable pool.
 Attempt to return the pool to an importable state by discarding the last few
@@ -368,6 +386,26 @@ and the
 .Sy altroot
 property to
 .Ar root .
+.It Fl -async-mirror-keep Ns = Ns Ar guid
+Resolves an async mirror with divergent child histories, such as when its
+lagging child was imported alone and written while the leader held writes
+that the lagging child did not receive.
+Such an import is otherwise refused, and the error names the guid and the
+newest transaction group of each copy.
+The import keeps the copy of the child with this
+.Ar guid ,
+erases the uberblocks of the other child before it writes anything, and
+resilvers that child in full from the kept copy.
+All writes that only the other copy holds are lost.
+Inspect each copy first with a read-only import of it alone.
+The option has no effect on a read-only import, or when the copies were not
+written separately.
+The guid must be a positive number.
+The option needs the name or guid of one pool, and cannot be used with
+.Fl a .
+See
+.Xr zpoolconcepts 7
+for the durability rules and pool layout limits.
 .It Fl s
 Scan using the default search path, the libblkid cache will not be
 consulted.

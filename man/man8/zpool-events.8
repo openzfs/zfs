@@ -18,7 +18,7 @@
 .\" Copyright (c) 2017 Open-E, Inc. All Rights Reserved.
 .\" Copyright (c) 2024, 2025, Klara, Inc.
 .\"
-.Dd October 18, 2026
+.Dd November 16, 2026
 .Dt ZPOOL-EVENTS 8
 .Os
 .
@@ -207,6 +207,101 @@ Issued when a errorscrub is aborted on a pool.
 Issued when a errorscrub is resumed on a pool.
 .It Sy errorscrub_paused
 Issued when a errorscrub is paused on a pool.
+.It Sy async_mirror_retry
+Issued when the copy of a transaction group to the lagging child of an
+asynchronous mirror fails with a read error, before the first of the tries of
+.Sy zfs_vdev_async_mirror_read_retries .
+The vdev is the leader.
+The payload has the transaction group
+.Pq Sy async_mirror_txg ,
+the error
+.Pq Sy async_mirror_errno ,
+the number of tries
+.Pq Sy async_mirror_retries ,
+and the delay before each try
+.Pq Sy async_mirror_delay_ms .
+.It Sy async_mirror_recovered
+Issued once for each try when one or more data blocks that the copy to the
+lagging child of an asynchronous mirror could not read, also after the tries of
+.Sy zfs_vdev_async_mirror_read_retries ,
+are read and copied when they are tried again.
+The vdev is the leader.
+The payload has the number of recovered blocks
+.Pq Sy async_mirror_count ,
+the transaction group of the first recovered block
+.Pq Sy async_mirror_txg
+and its bookmark
+.Pq Sy async_mirror_objset , async_mirror_object , async_mirror_level , async_mirror_blkid .
+.It Sy async_mirror_refused
+Issued when the copy to the lagging child of an asynchronous mirror refuses a
+block pointer: the block pointer is not valid, or it points to a range that its
+transaction group did not allocate.
+Nothing of the block is written, and the lagging child is frozen; an
+.Sy async_mirror_frozen
+event with the reason
+.Qq block pointer refused
+follows.
+The vdev is the leader.
+The payload has the transaction group
+.Pq Sy async_mirror_txg ,
+the error
+.Pq Sy async_mirror_errno ,
+the bookmark of the block
+.Pq Sy async_mirror_objset , async_mirror_object , async_mirror_level , async_mirror_blkid ,
+the range of the mirror that is refused, in bytes
+.Pq Sy async_mirror_offset , async_mirror_size ,
+and the reason as text
+.Pq Sy async_mirror_reason .
+The offset is that of a DVA, as
+.Xr zdb 8
+prints it.
+The range is the first copy of the block when the block pointer as a whole is
+refused, and 0 when a dnode is refused.
+.It Sy async_mirror_frozen
+Issued when the copy to the lagging child of an asynchronous mirror stops and
+the child freezes at its transaction group.
+The vdev is the lagging child.
+The payload has the transaction group whose copy failed
+.Pq Sy async_mirror_txg ,
+the error number
+.Pq Sy async_mirror_errno ,
+the newest transaction group fully applied to the child
+.Pq Sy async_mirror_applied_txg ,
+and the reason
+.Pq Sy async_mirror_reason .
+The reason is
+.Qq read error
+or
+.Qq block pointer refused
+when the leader could not supply a block.
+When the pool gave up on a child that is slow or stalled, the reason is
+.Qq held space limit
+.Pq Sy zfs_vdev_async_mirror_held_limit_percent ,
+.Qq pool space low
+.Pq Sy zfs_vdev_async_mirror_held_free_percent ,
+or
+.Qq copy stalled
+.Pq Sy zfs_vdev_async_mirror_stall_secs ;
+the error number is then
+.Er ENOSPC .
+.It Sy async_mirror_failed
+Issued when a write error stops the copy to the lagging child of an
+asynchronous mirror.
+The vdev and payload are the same as for
+.Sy async_mirror_frozen ;
+the reason is
+.Qq write error .
+For a deferred data write failure, the
+.Sy async_mirror_txg
+value is the last transaction group applied.
+It is not the birth transaction group of the deferred data block.
+.It Sy async_mirror_off
+Issued when a copy is active and the
+.Sy async_mirror
+property is set to
+.Sy off
+on the lagging child.
+The child may need a resilver if the copy did not finish.
 .It Sy trim_start
 Issued when a trim is started on a pool.
 .It Sy trim_finish

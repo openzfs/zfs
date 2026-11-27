@@ -25,6 +25,7 @@
 #include <sys/nvpair.h>
 #include <sys/fs/zfs.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_async_mirror.h>
 #include <sys/zfs_ioctl.h>
 #include <sys/systeminfo.h>
 #include <sys/sunddi.h>
@@ -421,6 +422,7 @@ spa_config_generate(spa_t *spa, vdev_t *vd, uint64_t txg, int getstats)
 	nvlist_free(nvroot);
 	nvroot = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE);
 	vdev_config_generate_impl(spa, vd, nvroot, getstats, config_gen_flags);
+	vdev_async_mirror_config_generate(spa, rvd, nvroot, getstats);
 
 	/*
 	 * Store what's necessary for reading the MOS in the label.

@@ -38,6 +38,7 @@
 #include <sys/zfs_znode.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_async_mirror.h>
 #include <sys/zil_impl.h>
 #include <sys/zio_checksum.h>
 #include <sys/brt.h>
@@ -948,12 +949,17 @@ dsl_scan_sync_state(dsl_scan_t *scn, dmu_tx_t *tx, state_sync_type_t sync_type)
 int
 dsl_scan_setup_check(void *arg, dmu_tx_t *tx)
 {
-	(void) arg;
+	/* arg points to a setup_sync_arg_t or to its first member, func. */
+	pool_scan_func_t func = *(pool_scan_func_t *)arg;
 	dsl_scan_t *scn = dmu_tx_pool(tx)->dp_scan;
 	vdev_t *rvd = scn->scn_dp->dp_spa->spa_root_vdev;
 
 	if (dsl_scan_is_running(scn) || vdev_rebuild_active(rvd) ||
 	    dsl_errorscrubbing(scn->scn_dp))
+		return (SET_ERROR(EBUSY));
+
+	if (func == POOL_SCAN_SCRUB &&
+	    vdev_async_mirror_dtl_fence_open(scn->scn_dp->dp_spa))
 		return (SET_ERROR(EBUSY));
 
 	return (0);
@@ -1009,6 +1015,7 @@ dsl_scan_setup_sync(void *arg, dmu_tx_t *tx)
 
 		if (vdev_resilver_needed(spa->spa_root_vdev,
 		    &scn->scn_phys.scn_min_txg, &scn->scn_phys.scn_max_txg)) {
+			vdev_async_mirror_scan_setup_sync(scn, tx, spa);
 			nvlist_t *aux = fnvlist_alloc();
 			fnvlist_add_string(aux, ZFS_EV_RESILVER_TYPE,
 			    "healing");
@@ -5495,6 +5502,9 @@ dsl_scan_assess_vdev(dsl_pool_t *dp, vdev_t *vd)
 	uint64_t min, max;
 
 	if (!vdev_resilver_needed(vd, &min, &max))
+		return;
+
+	if (vdev_async_mirror_dtl_fence(vd))
 		return;
 
 	if (!dsl_scan_resilvering(dp)) {

@@ -16,7 +16,7 @@
 .\" Copyright (c) 2019, Allan Jude
 .\" Copyright (c) 2021, Colm Buckley <colm@tuatha.org>
 .\"
-.Dd July 23, 2025
+.Dd November 12, 2026
 .Dt ZPOOL-FEATURES 7
 .Os
 .
@@ -374,6 +374,25 @@ while
 .Sy freeing
 is non-zero.
 .
+.feature org.openzfs async_mirror no spacemap_v2
+The
+.Sy async_mirror
+feature tracks a two-way mirror whose writes reach one child before the
+other.
+It requires
+.Sy spacemap_v2 .
+Software without this feature cannot import a pool while it is active.
+See
+.Xr zpoolconcepts 7
+for its limits and durability rules, and
+.Xr zpool-import 8
+for resolving divergent copies.
+The per-member controls are
+.Sy read_mode
+and
+.Sy write_mode ;
+see
+.Xr vdevprops 7 .
 .feature org.openzfs blake3 no extensible_dataset
 This feature enables the use of the BLAKE3 hash algorithm for checksum and
 dedup.

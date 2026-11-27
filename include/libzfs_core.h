@@ -141,6 +141,7 @@ _LIBZFS_CORE_H int lzc_pool_checkpoint_discard(const char *);
 _LIBZFS_CORE_H int lzc_wait(const char *, zpool_wait_activity_t, boolean_t *);
 _LIBZFS_CORE_H int lzc_wait_tag(const char *, zpool_wait_activity_t, uint64_t,
     boolean_t *);
+_LIBZFS_CORE_H int lzc_wait_async_mirror_sync(const char *, boolean_t *);
 
 _LIBZFS_CORE_H int lzc_pool_prefetch(const char *, zpool_prefetch_type_t);
 

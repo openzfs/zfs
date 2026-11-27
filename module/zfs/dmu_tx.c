@@ -26,12 +26,14 @@
 #include <sys/dsl_pool.h>
 #include <sys/zap_impl.h>
 #include <sys/spa.h>
+#include <sys/spa_impl.h>
 #include <sys/brt.h>
 #include <sys/brt_impl.h>
 #include <sys/sa.h>
 #include <sys/sa_impl.h>
 #include <sys/zfs_context.h>
 #include <sys/trace_zfs.h>
+#include <sys/vdev_async_mirror.h>
 
 typedef void (*dmu_tx_hold_func_t)(dmu_tx_t *tx, struct dnode *dn,
     uint64_t arg1, uint64_t arg2);
@@ -869,6 +871,13 @@ dmu_tx_dirty_buf(dmu_tx_t *tx, dmu_buf_impl_t *db)
  */
 static const hrtime_t zfs_delay_max_ns = 100 * MICROSEC; /* 100 milliseconds */
 
+static boolean_t
+dmu_tx_async_mirror(dmu_tx_t *tx)
+{
+	return (tx->tx_objset != NULL &&
+	    tx->tx_pool->dp_spa->spa_async_mirror != NULL);
+}
+
 /*
  * We delay transactions when we've determined that the backend storage
  * isn't able to accommodate the rate of incoming writes.
@@ -993,6 +1002,9 @@ dmu_tx_delay(dmu_tx_t *tx, uint64_t dirty)
 		    (zfs_wrlog_data_max - wrlog), tx_time);
 	}
 
+	if (dmu_tx_async_mirror(tx))
+		tx_time = MAX(vdev_async_mirror_delay(dp->dp_spa), tx_time);
+
 	if (tx_time == 0)
 		return;
 
@@ -1084,6 +1096,12 @@ dmu_tx_try_assign(dmu_tx_t *tx)
 	    dsl_pool_need_dirty_delay(tx->tx_pool)) {
 		tx->tx_wait_dirty = B_TRUE;
 		DMU_TX_STAT_BUMP(dmu_tx_dirty_delay);
+		return (SET_ERROR(ERESTART));
+	}
+
+	if (!tx->tx_dirty_delayed && dmu_tx_async_mirror(tx) &&
+	    vdev_async_mirror_delay(spa) != 0) {
+		tx->tx_wait_dirty = B_TRUE;
 		return (SET_ERROR(ERESTART));
 	}
 
@@ -1385,6 +1403,8 @@ dmu_tx_wait(dmu_tx_t *tx)
 			dp->dp_dirty_waiters--;
 			mutex_exit(&dp->dp_lock);
 		}
+		if (dmu_tx_async_mirror(tx))
+			vdev_async_mirror_wait(spa);
 		dirty = dp->dp_dirty_total + dp->dp_sync_reserve_total;
 
 		dmu_tx_delay(tx, dirty);

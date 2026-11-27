@@ -616,6 +616,18 @@ See
 in the
 .Xr zfs 4
 manual page.
+An async mirror cannot start while this property is on.
+This property cannot be turned on while an async mirror is active.
+To turn the async mirror off, set
+.Sy write_mode Ns = Ns Sy sync
+on the behind member and wait until
+.Sy async_mirror_state
+is
+.Sy off .
+See
+.Sx Async Mirrors
+in
+.Xr zpoolconcepts 7 .
 In order to enable this property each host must set a unique hostid.
 See
 .Xr genhostid 1

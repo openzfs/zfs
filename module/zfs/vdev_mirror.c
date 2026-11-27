@@ -30,6 +30,7 @@
 #include <sys/abd.h>
 #include <sys/fs/zfs.h>
 #include <sys/vdev_mirror.h>
+#include <sys/vdev_async_mirror.h>
 
 /*
  * Vdev mirror kstats
@@ -421,6 +422,15 @@ vdev_mirror_child_done(zio_t *zio)
 	mc->mc_skipped = 0;
 }
 
+static void
+vdev_mirror_repair_done(zio_t *zio)
+{
+	mirror_child_t *mc = zio->io_private;
+
+	vdev_async_mirror_repair_done(mc->mc_async_repair);
+	mc->mc_async_repair = NULL;
+}
+
 /*
  * Check the other, lower-index DVAs to see if they're on the same
  * vdev as the child we picked.  If they are, use them since they
@@ -478,6 +488,22 @@ vdev_mirror_child_readable(mirror_child_t *mc)
 }
 
 static boolean_t
+vdev_mirror_child_fenced(mirror_child_t *mc, const zio_t *zio)
+{
+	if (zio->io_spa->spa_async_mirror == NULL &&
+	    !mc->mc_vd->vdev_async_lagging)
+		return (B_FALSE);
+	if (!vdev_async_mirror_read_fenced(mc->mc_vd, zio))
+		return (B_FALSE);
+
+	mc->mc_error = SET_ERROR(ENXIO);
+	mc->mc_tried = 1;
+	mc->mc_skipped = 1;
+	mc->mc_speculative = 1;
+	return (B_TRUE);
+}
+
+static boolean_t
 vdev_mirror_child_missing(mirror_child_t *mc, uint64_t txg, uint64_t size)
 {
 	vdev_t *vd = mc->mc_vd;
@@ -527,6 +553,9 @@ vdev_mirror_child_select(zio_t *zio)
 	uint64_t txg = zio->io_txg;
 	boolean_t rebuild = (zio->io_priority == ZIO_PRIORITY_REBUILD);
 	int incomplete = -1;
+	int lagging = -1;
+	int fallback = -1;
+	int fallback_incomplete = -1;
 	int c, lowest_load;
 
 	ASSERT(zio->io_bp == NULL || BP_GET_PHYSICAL_BIRTH(zio->io_bp) == txg);
@@ -548,10 +577,29 @@ vdev_mirror_child_select(zio_t *zio)
 			continue;
 		}
 
+		if (vdev_mirror_child_fenced(mc, zio))
+			continue;
+
 		if (vdev_mirror_child_missing(mc, txg, 1)) {
 			mc->mc_error = SET_ERROR(ESTALE);
 			mc->mc_skipped = 1;
 			mc->mc_speculative = 1;
+			continue;
+		}
+
+		if (mc->mc_vd->vdev_async_lagging) {
+			if (lagging == -1)
+				lagging = c;
+			continue;
+		}
+
+		if (mc->mc_vd->vdev_read_mode == VDEV_READ_MODE_FALLBACK) {
+			if (rebuild && !vdev_mirror_child_complete(mc)) {
+				if (fallback_incomplete == -1)
+					fallback_incomplete = c;
+			} else if (fallback == -1) {
+				fallback = c;
+			}
 			continue;
 		}
 
@@ -590,8 +638,17 @@ vdev_mirror_child_select(zio_t *zio)
 		return (vdev_mirror_preferred_child_randomize(zio));
 	}
 
+	if (fallback != -1)
+		return (fallback);
+
 	if (incomplete != -1)
 		return (incomplete);
+
+	if (lagging != -1)
+		return (lagging);
+
+	if (fallback_incomplete != -1)
+		return (fallback_incomplete);
 
 	/*
 	 * Every device is either missing or has this txg in its DTL.
@@ -638,6 +695,8 @@ vdev_mirror_io_start_impl(zio_t *zio, mirror_map_t *mm)
 					mc->mc_skipped = 1;
 					continue;
 				}
+				if (vdev_mirror_child_fenced(mc, zio))
+					continue;
 
 				mc->mc_abd = first ? zio->io_abd :
 				    abd_alloc_sametype(zio->io_abd,
@@ -687,6 +746,11 @@ vdev_mirror_io_start_impl(zio_t *zio, mirror_map_t *mm)
 		    mm->mm_rebuilding && !mc->mc_rebuilding) {
 			continue;
 		}
+
+		if (zio->io_type == ZIO_TYPE_WRITE &&
+		    zio->io_spa->spa_async_mirror != NULL &&
+		    vdev_async_mirror_intercept_write(zio, mc->mc_vd))
+			continue;
 
 		zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
 		    mc->mc_vd, mc->mc_offset, zio->io_abd, zio->io_size,
@@ -944,14 +1008,23 @@ vdev_mirror_io_done(zio_t *zio)
 					continue;
 				mc->mc_error = SET_ERROR(ESTALE);
 			}
+			boolean_t repair_started =
+			    vdev_async_mirror_repair_start(mc->mc_vd,
+			    zio, &mc->mc_async_repair);
+			if (!repair_started)
+				continue;
 
+			int priority = ZIO_PRIORITY_ASYNC_WRITE;
+			int repair_flags = ZIO_FLAG_IO_REPAIR;
+
+			if (zio->io_priority == ZIO_PRIORITY_REBUILD)
+				priority = ZIO_PRIORITY_REBUILD;
+			if (unexpected_errors)
+				repair_flags |= ZIO_FLAG_SELF_HEAL;
 			zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
-			    mc->mc_vd, mc->mc_offset,
-			    zio->io_abd, zio->io_size, ZIO_TYPE_WRITE,
-			    zio->io_priority == ZIO_PRIORITY_REBUILD ?
-			    ZIO_PRIORITY_REBUILD : ZIO_PRIORITY_ASYNC_WRITE,
-			    ZIO_FLAG_IO_REPAIR | (unexpected_errors ?
-			    ZIO_FLAG_SELF_HEAL : 0), NULL, NULL));
+			    mc->mc_vd, mc->mc_offset, zio->io_abd,
+			    zio->io_size, ZIO_TYPE_WRITE, priority,
+			    repair_flags, vdev_mirror_repair_done, mc));
 		}
 	}
 }

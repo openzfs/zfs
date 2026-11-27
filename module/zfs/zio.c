@@ -28,6 +28,7 @@
 #include <sys/txg.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_async_mirror.h>
 #include <sys/vdev_raidz.h>
 #include <sys/vdev_trim.h>
 #include <sys/zio_impl.h>
@@ -1769,16 +1770,14 @@ zio_vdev_delegated_io(vdev_t *vd, uint64_t offset, abd_t *data, uint64_t size,
 }
 
 
-/*
- * Send a flush command to the given vdev. Unlike most zio creation functions,
- * the flush zios are issued immediately. You can wait on pio to pause until
- * the flushes complete.
- */
-void
-zio_flush(zio_t *pio, vdev_t *vd)
+/* Flush vd or each leaf under it. */
+static void
+zio_flush_impl(zio_t *pio, vdev_t *vd, boolean_t propagate)
 {
-	const zio_flag_t flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_PROPAGATE |
-	    ZIO_FLAG_DONT_RETRY;
+	zio_flag_t flags = ZIO_FLAG_CANFAIL | ZIO_FLAG_DONT_RETRY;
+
+	if (!propagate)
+		flags |= ZIO_FLAG_DONT_PROPAGATE;
 
 	if (vd->vdev_nowritecache)
 		return;
@@ -1793,13 +1792,36 @@ zio_flush(zio_t *pio, vdev_t *vd)
 		 */
 		if (!vdev_is_concrete(vd))
 			return;
+		if (!propagate && vd->vdev_spa->spa_async_mirror != NULL &&
+		    vdev_async_mirror_is_async(vd))
+			return;
 		zio_nowait(zio_create(pio, vd->vdev_spa, 0, NULL, NULL, 0, 0,
 		    NULL, NULL, ZIO_TYPE_FLUSH, ZIO_PRIORITY_NOW, flags, vd, 0,
 		    NULL, ZIO_STAGE_OPEN, ZIO_FLUSH_PIPELINE));
 	} else {
 		for (uint64_t c = 0; c < vd->vdev_children; c++)
-			zio_flush(pio, vd->vdev_child[c]);
+			zio_flush_impl(pio, vd->vdev_child[c], propagate);
 	}
+}
+
+/*
+ * Send a flush command to the given vdev. Unlike most zio creation functions,
+ * the flush zios are issued immediately. You can wait on pio to pause until
+ * the flushes complete.
+ */
+void
+zio_flush(zio_t *pio, vdev_t *vd)
+{
+	zio_flush_impl(pio, vd, B_FALSE);
+}
+
+/* Flush one leaf and propagate flush errors. */
+void
+zio_flush_leaf(zio_t *pio, vdev_t *vd)
+{
+	ASSERT(vd->vdev_ops->vdev_op_leaf);
+
+	zio_flush_impl(pio, vd, B_TRUE);
 }
 
 void

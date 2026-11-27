@@ -61,6 +61,7 @@
 #include <math.h>
 
 #include <libzfs.h>
+#include <libzfs_core.h>
 #include <libzutil.h>
 
 #include "zpool_util.h"
@@ -467,7 +468,9 @@ get_usage(zpool_help_t idx)
 		    "\timport [-o mntopts] [-o property=value] ... \n"
 		    "\t    [-d dir | -c cachefile] [-D] [-l] [-f] [-m] [-N] "
 		    "[-R root] [-F [-n]]\n"
-		    "\t    [--rewind-to-checkpoint] <pool | id> [newpool]\n");
+		    "\t    [--rewind-to-checkpoint] "
+		    "[--async-mirror-keep=guid]\n"
+		    "\t    <pool | id> [newpool]\n");
 	case HELP_IOSTAT:
 		return ("\tiostat [[[-c [script1,script2,...]"
 		    "[-lq]]|[-rw]] [-T d | u] [-ghHLpPvy]\n"
@@ -533,7 +536,7 @@ get_usage(zpool_help_t idx)
 	case HELP_REGUID:
 		return ("\treguid [-g guid] <pool>\n");
 	case HELP_SYNC:
-		return ("\tsync [pool] ...\n");
+		return ("\tsync [-l] [pool] ...\n");
 	case HELP_CONDENSE:
 		return ("\tcondense [-t <type>] [-c | -w] "
 		    "[-a | <pool> ...]\n"
@@ -1168,6 +1171,8 @@ fill_vdev_info(nvlist_t *list, zpool_handle_t *zhp, char *name,
 	nvlist_t *nvdev;
 	nvlist_t *nvdev_parent = NULL;
 	char *_name;
+	char mode[ZFS_MAXPROPLEN];
+	zprop_source_t srctype;
 
 	if (strcmp(name, zpool_get_name(zhp)) != 0)
 		_name = name;
@@ -1251,6 +1256,15 @@ fill_vdev_info(nvlist_t *list, zpool_handle_t *zhp, char *name,
 		    (uint64_t **)&vs, &c) == 0) {
 			fnvlist_add_string(list, "state",
 			    vdev_state_str[vs->vs_state]);
+		}
+		if (!nvlist_exists(nvdev, ZPOOL_CONFIG_CHILDREN) &&
+		    !spare && !hole && !l2c) {
+			if (zpool_get_vdev_prop(zhp, name, VDEV_PROP_READ_MODE,
+			    NULL, mode, sizeof (mode), &srctype, B_TRUE) == 0)
+				fnvlist_add_string(list, "read_mode", mode);
+			if (zpool_get_vdev_prop(zhp, name, VDEV_PROP_WRITE_MODE,
+			    NULL, mode, sizeof (mode), &srctype, B_TRUE) == 0)
+				fnvlist_add_string(list, "write_mode", mode);
 		}
 	}
 }
@@ -2889,6 +2903,7 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 	char rbuf[6], wbuf[6], cbuf[6], dbuf[6];
 	char *vname;
 	uint64_t notpresent;
+	uint64_t am_lagging;
 	spare_cbdata_t spare_cb;
 	const char *state;
 	const char *type;
@@ -3147,6 +3162,10 @@ print_status_config(zpool_handle_t *zhp, status_cbdata_t *cb, const char *name,
 			(void) printf("  (awaiting resilver)");
 		}
 	}
+	if (children == 0 && nvlist_lookup_uint64(nv,
+	    ZPOOL_CONFIG_ASYNC_MIRROR_LAGGING, &am_lagging) == 0 &&
+	    am_lagging != 0)
+		(void) printf("  (lagging)");
 
 	/* The top-level vdevs have the rebuild stats */
 	if (vrs != NULL && vrs->vrs_state == VDEV_REBUILD_ACTIVE &&
@@ -3571,6 +3590,37 @@ show_import(nvlist_t *config, boolean_t report_error)
 		    "\t%sExpect reduced performance.\n", indent);
 		break;
 
+	case ZPOOL_STATUS_ASYNC_MIRROR_FROZEN:
+		(void) printf_color(ANSI_YELLOW, "The asynchronous mirror "
+		    "copy is frozen.\n");
+		break;
+
+	case ZPOOL_STATUS_ASYNC_MIRROR_FAILED:
+		(void) printf_color(ANSI_YELLOW, "The asynchronous mirror "
+		    "copy has failed.\n");
+		break;
+
+	case ZPOOL_STATUS_ASYNC_MIRROR_DIVERGED: {
+		uint64_t *diverged = NULL;
+		uint_t ndiverged = 0;
+
+		(void) printf_color(ANSI_YELLOW, "The two copies of the "
+		    "asynchronous mirror were written separately.\n");
+		if (nvlist_lookup_nvlist(config, ZPOOL_CONFIG_LOAD_INFO,
+		    &nvinfo) == 0 && nvlist_lookup_uint64_array(nvinfo,
+		    ZPOOL_CONFIG_ASYNC_MIRROR_DIVERGED, &diverged,
+		    &ndiverged) == 0 && ndiverged == 4) {
+			(void) printf("\t%sCopy %llu reached txg %llu.\n"
+			    "\t%sCopy %llu reached txg %llu.\n", indent,
+			    (u_longlong_t)diverged[0],
+			    (u_longlong_t)diverged[1], indent,
+			    (u_longlong_t)diverged[2],
+			    (u_longlong_t)diverged[3]);
+		}
+		(void) printf("\t%sA read-write import is refused.\n", indent);
+		break;
+	}
+
 	default:
 		/*
 		 * No other status can be seen when importing pools.
@@ -3586,7 +3636,19 @@ show_import(nvlist_t *config, boolean_t report_error)
 		(void) printf("%s", indent);
 		(void) printf("action: ");
 	}
-	if (vs->vs_state == VDEV_STATE_HEALTHY) {
+	if (reason == ZPOOL_STATUS_ASYNC_MIRROR_DIVERGED) {
+		(void) printf("Import one copy read-only to inspect it.\n"
+		    "\t%sTo keep one copy and discard the other, import with "
+		    "'--async-mirror-keep=<guid>'.\n", indent);
+	} else if (reason == ZPOOL_STATUS_ASYNC_MIRROR_FROZEN) {
+		(void) printf("Check the leader device. Repair the read error, "
+		    "then set write_mode=sync on the lagging child to resync "
+		    "it.\n");
+	} else if (reason == ZPOOL_STATUS_ASYNC_MIRROR_FAILED) {
+		(void) printf("Check the lagging child and replace it if "
+		    "needed. Then set write_mode=sync on the lagging child to "
+		    "resync it.\n");
+	} else if (vs->vs_state == VDEV_STATE_HEALTHY) {
 		if (reason == ZPOOL_STATUS_VERSION_OLDER ||
 		    reason == ZPOOL_STATUS_FEAT_DISABLED) {
 			(void) printf("The pool can be imported using "
@@ -4224,6 +4286,7 @@ zpool_do_checkpoint(int argc, char **argv)
 }
 
 #define	CHECKPOINT_OPT	1024
+#define	ASYNC_MIRROR_KEEP_OPT	1025
 
 /*
  * zpool prefetch [-t <type>] <pool>
@@ -4382,12 +4445,15 @@ zpool_do_import(int argc, char **argv)
 	boolean_t do_scan = B_FALSE;
 	boolean_t pool_exists = B_FALSE;
 	uint64_t txg = -1ULL;
+	uint64_t am_keep = 0;
 	char *cachefile = NULL;
 	importargs_t idata = { 0 };
 	char *endptr;
 
 	struct option long_options[] = {
 		{"rewind-to-checkpoint", no_argument, NULL, CHECKPOINT_OPT},
+		{"async-mirror-keep", required_argument, NULL,
+		    ASYNC_MIRROR_KEEP_OPT},
 		{0, 0, 0, 0}
 	};
 
@@ -4480,6 +4546,20 @@ zpool_do_import(int argc, char **argv)
 		case CHECKPOINT_OPT:
 			flags |= ZFS_IMPORT_CHECKPOINT;
 			break;
+		case ASYNC_MIRROR_KEEP_OPT:
+			/* strtoull() accepts a sign and a space. */
+			errno = 0;
+			endptr = optarg;
+			if (isdigit((unsigned char)optarg[0]))
+				am_keep = strtoull(optarg, &endptr, 0);
+			if (endptr == optarg || errno != 0 ||
+			    *endptr != '\0' || am_keep == 0) {
+				(void) fprintf(stderr, "invalid guid '%s' for "
+				    "--async-mirror-keep: use a positive guid "
+				    "of the child to keep\n", optarg);
+				usage(B_FALSE);
+			}
+			break;
 		case ':':
 			(void) fprintf(stderr, "missing argument for "
 			    "'%c' option\n", optopt);
@@ -4516,6 +4596,18 @@ zpool_do_import(int argc, char **argv)
 		usage(B_FALSE);
 	}
 
+	if (am_keep != 0 && do_all) {
+		(void) fprintf(stderr, "--async-mirror-keep is incompatible "
+		    "with -a\n");
+		usage(B_FALSE);
+	}
+
+	if (am_keep != 0 && argc == 0) {
+		(void) fprintf(stderr, "--async-mirror-keep needs the name "
+		    "or guid of one pool to import\n");
+		usage(B_FALSE);
+	}
+
 	if ((dryrun || xtreme_rewind) && !do_rewind) {
 		(void) fprintf(stderr,
 		    "-n or -X only meaningful with -F\n");
@@ -4534,7 +4626,9 @@ zpool_do_import(int argc, char **argv)
 	    nvlist_add_uint32(policy, ZPOOL_LOAD_REWIND_POLICY,
 	    rewind_policy) != 0 ||
 	    nvlist_add_boolean_value(policy, ZPOOL_LOAD_RELAX_META,
-	    relax_meta) != 0)
+	    relax_meta) != 0 ||
+	    (am_keep != 0 && nvlist_add_uint64(policy,
+	    ZPOOL_LOAD_ASYNC_MIRROR_KEEP, am_keep) != 0))
 		goto error;
 
 	/* check argument count */
@@ -4697,6 +4791,40 @@ error:
 	return (err ? 1 : 0);
 }
 
+typedef struct zpool_sync_cbdata {
+	boolean_t sc_force;
+	boolean_t sc_leader_only;
+} zpool_sync_cbdata_t;
+
+static int
+zpool_sync_one_cb(zpool_handle_t *zhp, void *data)
+{
+	zpool_sync_cbdata_t *cb = data;
+	const char *pool = zpool_get_name(zhp);
+	boolean_t waited;
+	int error;
+
+	error = zpool_sync_one(zhp, &cb->sc_force);
+	if (error != 0 || cb->sc_leader_only)
+		return (error);
+
+	error = lzc_wait_async_mirror_sync(pool, &waited);
+	if (error == ECANCELED) {
+		(void) fprintf(stderr,
+		    "async mirror did not catch up in pool '%s': "
+		    "the lagging child was turned off, failed, froze, "
+		    "or its copy was suspended\n", pool);
+		return (0);
+	}
+	if (error != 0) {
+		(void) fprintf(stderr, "cannot wait for the async mirror of "
+		    "pool '%s': %s\n", pool, strerror(error));
+		return (1);
+	}
+
+	return (0);
+}
+
 /*
  * zpool sync [-f] [pool] ...
  *
@@ -4705,20 +4833,21 @@ error:
  *
  * Sync the specified pool(s).
  * Without arguments "zpool sync" will sync all pools.
- * This command initiates TXG sync(s) and will return after the TXG(s) commit.
- *
  */
 static int
 zpool_do_sync(int argc, char **argv)
 {
+	zpool_sync_cbdata_t cb = { 0 };
 	int ret;
-	boolean_t force = B_FALSE;
 
 	/* check options */
-	while ((ret  = getopt(argc, argv, "f")) != -1) {
+	while ((ret  = getopt(argc, argv, "fl")) != -1) {
 		switch (ret) {
 		case 'f':
-			force = B_TRUE;
+			cb.sc_force = B_TRUE;
+			break;
+		case 'l':
+			cb.sc_leader_only = B_TRUE;
 			break;
 		case '?':
 			(void) fprintf(stderr, "invalid option '%c'\n",
@@ -4730,9 +4859,9 @@ zpool_do_sync(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	/* if argc == 0 we will execute zpool_sync_one on all pools */
+	/* if argc == 0 we will execute zpool_sync_one_cb on all pools */
 	ret = for_each_pool(argc, argv, B_FALSE, NULL, ZFS_TYPE_POOL,
-	    B_FALSE, zpool_sync_one, &force);
+	    B_FALSE, zpool_sync_one_cb, &cb);
 
 	return (ret);
 }
@@ -9512,6 +9641,41 @@ check_rebuilding(nvlist_t *nvroot, uint64_t *rebuild_end_time)
 	return (rebuilding);
 }
 
+static nvlist_t *async_mirror_stats(zpool_handle_t *zhp);
+
+static void
+async_mirror_leaf_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb,
+    nvlist_t *vds)
+{
+	nvlist_t *stats = async_mirror_stats(zhp);
+	uint64_t val;
+
+	if (stats == NULL)
+		return;
+
+	if (nvlist_lookup_uint64(stats, ZPOOL_CONFIG_ASYNC_MIRROR_APPLIED_TXG,
+	    &val) == 0) {
+		nice_num_str_nvlist(vds, "async_mirror_applied_txg", val,
+		    B_TRUE, cb->cb_json_as_int, ZFS_NICENUM_RAW);
+	}
+	if (nvlist_lookup_uint64(stats, ZPOOL_CONFIG_ASYNC_MIRROR_PENDING,
+	    &val) == 0) {
+		nice_num_str_nvlist(vds, "async_mirror_pending_bytes", val,
+		    cb->cb_literal, cb->cb_json_as_int, ZFS_NICENUM_BYTES);
+	}
+	if (nvlist_exists(stats, ZPOOL_CONFIG_ASYNC_MIRROR_HELD_LIMIT)) {
+		const char *why;
+
+		nice_num_str_nvlist(vds, "async_mirror_held_limit", 1, B_TRUE,
+		    cb->cb_json_as_int, ZFS_NICENUM_1024);
+		if (nvlist_lookup_string(stats,
+		    ZPOOL_CONFIG_ASYNC_MIRROR_GIVEUP_REASON, &why) == 0) {
+			fnvlist_add_string(vds, "async_mirror_giveup_reason",
+			    why);
+		}
+	}
+}
+
 static void
 vdev_stats_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv,
     int depth, boolean_t isspare, char *parent, nvlist_t *item)
@@ -9520,6 +9684,7 @@ vdev_stats_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv,
 	uint_t vsc, children;
 	vdev_stat_t *vs;
 	char *vname;
+	uint64_t am_lagging;
 	uint64_t notpresent;
 	const char *type, *path;
 
@@ -9668,6 +9833,17 @@ vdev_stats_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb, nvlist_t *nv,
 	} else if (VDEV_STAT_VALID(vs_noalloc, vsc) && vs->vs_noalloc != 0) {
 		nice_num_str_nvlist(vds, "noalloc", vs->vs_noalloc,
 		    B_TRUE, cb->cb_json_as_int, ZFS_NICENUM_1024);
+	}
+	if (children == 0 && nvlist_lookup_uint64(nv,
+	    ZPOOL_CONFIG_ASYNC_MIRROR_LAGGING, &am_lagging) == 0 &&
+	    am_lagging != 0) {
+		const char *state;
+		nice_num_str_nvlist(vds, "async_mirror_lagging", 1, B_TRUE,
+		    cb->cb_json_as_int, ZFS_NICENUM_1024);
+		if (nvlist_lookup_string(nv,
+		    ZPOOL_CONFIG_ASYNC_MIRROR_STATE, &state) == 0)
+			fnvlist_add_string(vds, "async_mirror_state", state);
+		async_mirror_leaf_nvlist(zhp, cb, vds);
 	}
 
 	if (cb->vcdl != NULL) {
@@ -10199,6 +10375,89 @@ checkpoint_status_nvlist(nvlist_t *nvroot, status_cbdata_t *cb,
 	}
 }
 
+static boolean_t
+async_mirror_vdev_state(nvlist_t *nv, const char **statep)
+{
+	nvlist_t **child;
+	nvlist_t *stats;
+	uint_t children, i;
+
+	if (nvlist_lookup_nvlist(nv, ZPOOL_CONFIG_ASYNC_MIRROR_STATS,
+	    &stats) == 0 &&
+	    nvlist_lookup_string(stats, ZPOOL_CONFIG_ASYNC_MIRROR_STATE,
+	    statep) == 0)
+		return (B_TRUE);
+
+	if (nvlist_lookup_string(nv, ZPOOL_CONFIG_ASYNC_MIRROR_STATE,
+	    statep) == 0)
+		return (B_TRUE);
+
+	if (nvlist_lookup_nvlist_array(nv, ZPOOL_CONFIG_CHILDREN,
+	    &child, &children) == 0) {
+		for (i = 0; i < children; i++) {
+			if (async_mirror_vdev_state(child[i], statep))
+				return (B_TRUE);
+		}
+	}
+	return (B_FALSE);
+}
+
+static void
+async_mirror_status_nvlist(nvlist_t *nvroot, status_cbdata_t *cb,
+    nvlist_t *item)
+{
+	nvlist_t *stats;
+	nvlist_t *async_mirror;
+	uint64_t synced_txg;
+	boolean_t have_stats;
+	boolean_t replacing = nvlist_exists(nvroot,
+	    ZPOOL_CONFIG_ASYNC_MIRROR_REPLACING);
+
+	have_stats = nvlist_lookup_nvlist(nvroot,
+	    ZPOOL_CONFIG_ASYNC_MIRROR_STATS, &stats) == 0;
+	if (!have_stats && !replacing)
+		return;
+
+	async_mirror = fnvlist_alloc();
+	if (have_stats &&
+	    nvlist_lookup_uint64(stats, ZPOOL_CONFIG_ASYNC_MIRROR_SYNCED_TXG,
+	    &synced_txg) == 0) {
+		nice_num_str_nvlist(async_mirror, "synced_txg", synced_txg,
+		    B_TRUE, cb->cb_json_as_int, ZFS_NICENUM_RAW);
+	}
+	if (replacing)
+		nice_num_str_nvlist(async_mirror, "replacing", 1, B_TRUE,
+		    cb->cb_json_as_int, ZFS_NICENUM_1024);
+	fnvlist_add_nvlist(item, "async_mirror", async_mirror);
+	fnvlist_free(async_mirror);
+}
+
+static nvlist_t *
+async_mirror_stats(zpool_handle_t *zhp)
+{
+	nvlist_t *config = zpool_get_config(zhp, NULL);
+	nvlist_t *nvroot, *stats;
+
+	if (config == NULL || nvlist_lookup_nvlist(config,
+	    ZPOOL_CONFIG_VDEV_TREE, &nvroot) != 0 ||
+	    nvlist_lookup_nvlist(nvroot, ZPOOL_CONFIG_ASYNC_MIRROR_STATS,
+	    &stats) != 0)
+		return (NULL);
+	return (stats);
+}
+
+static boolean_t
+async_mirror_held_limit(nvlist_t *stats, const char **whyp)
+{
+	*whyp = "held space limit";
+	if (stats == NULL || !nvlist_exists(stats,
+	    ZPOOL_CONFIG_ASYNC_MIRROR_HELD_LIMIT))
+		return (B_FALSE);
+	(void) nvlist_lookup_string(stats,
+	    ZPOOL_CONFIG_ASYNC_MIRROR_GIVEUP_REASON, whyp);
+	return (B_TRUE);
+}
+
 static void
 removal_status_nvlist(zpool_handle_t *zhp, status_cbdata_t *cb,
     nvlist_t *nvroot, nvlist_t *item)
@@ -10510,6 +10769,63 @@ print_scan_status(zpool_handle_t *zhp, nvlist_t *nvroot)
 	(void) nvlist_lookup_uint64_array(nvroot,
 	    ZPOOL_CONFIG_CHECKPOINT_STATS, (uint64_t **)&pcs, &c);
 	print_checkpoint_scan_warning(ps, pcs);
+}
+
+static void
+print_async_mirror_status(nvlist_t *nvroot)
+{
+	nvlist_t *stats = NULL;
+	uint64_t applied_txg = 0, synced_txg = 0, pending_bytes = 0;
+	char pending_buf[7];
+	const char *state = NULL;
+	boolean_t have_state = async_mirror_vdev_state(nvroot, &state);
+	boolean_t replacing = nvlist_exists(nvroot,
+	    ZPOOL_CONFIG_ASYNC_MIRROR_REPLACING);
+	boolean_t have_status = B_FALSE;
+
+	boolean_t have_stats = (nvlist_lookup_nvlist(nvroot,
+	    ZPOOL_CONFIG_ASYNC_MIRROR_STATS,
+	    &stats) != 0 ||
+	    nvlist_lookup_uint64(stats, ZPOOL_CONFIG_ASYNC_MIRROR_APPLIED_TXG,
+	    &applied_txg) != 0 ||
+	    nvlist_lookup_uint64(stats, ZPOOL_CONFIG_ASYNC_MIRROR_SYNCED_TXG,
+	    &synced_txg) != 0 ||
+	    nvlist_lookup_uint64(stats, ZPOOL_CONFIG_ASYNC_MIRROR_PENDING,
+	    &pending_bytes) != 0) ? B_FALSE : B_TRUE;
+	if (!replacing && !have_stats)
+		return;
+
+	(void) printf(" ");
+	(void) printf_color(ANSI_BOLD, "  async mirror:");
+	if (replacing) {
+		(void) printf(" off (lagging child replaced)");
+		have_status = B_TRUE;
+	}
+	if (have_stats) {
+		zfs_nicebytes(pending_bytes, pending_buf, sizeof (pending_buf));
+		if (have_state) {
+			(void) printf("%slagging child (%s) at txg %llu of "
+			    "%llu; %s pending", have_status ? "; " : " ",
+			    state,
+			    (u_longlong_t)applied_txg,
+			    (u_longlong_t)synced_txg, pending_buf);
+		} else {
+			(void) printf("%slagging child at txg %llu of %llu; "
+			    "%s pending", have_status ? "; " : " ",
+			    (u_longlong_t)applied_txg,
+			    (u_longlong_t)synced_txg, pending_buf);
+		}
+		if (nvlist_exists(stats,
+		    ZPOOL_CONFIG_ASYNC_MIRROR_HELD_LIMIT)) {
+			const char *why = "held space limit";
+
+			(void) nvlist_lookup_string(stats,
+			    ZPOOL_CONFIG_ASYNC_MIRROR_GIVEUP_REASON, &why);
+			(void) printf("; not protected: gave up (%s), "
+			    "the child needs a resilver", why);
+		}
+	}
+	(void) printf("\n");
 }
 
 /*
@@ -11274,6 +11590,74 @@ print_status_reason(zpool_handle_t *zhp, status_cbdata_t *cbp,
 		    "\tThen import it to correct the mismatch.\n");
 		break;
 
+	case ZPOOL_STATUS_ASYNC_MIRROR_FROZEN: {
+		nvlist_t *stats = async_mirror_stats(zhp);
+		const char *why;
+
+		if (async_mirror_held_limit(stats, &why)) {
+			(void) snprintf(status, ST_SIZE,
+			    "The asynchronous mirror gave up on the lagging "
+			    "child (%s). The child is frozen and is not "
+			    "protected. Writes do not wait for it.\n", why);
+			(void) snprintf(action, AC_SIZE,
+			    "Check the child. Set write_mode=sync and wait for "
+			    "a resilver. Then set write_mode=behind to write "
+			    "asynchronously again.\n");
+			break;
+		}
+		if (stats == NULL || !nvlist_exists(stats,
+		    ZPOOL_CONFIG_ASYNC_MIRROR_FREEZE_READ)) {
+			(void) snprintf(status, ST_SIZE,
+			    "The asynchronous mirror copy is frozen. The "
+			    "lagging child is not receiving updates.\n");
+			(void) snprintf(action, AC_SIZE,
+		    "Check the leader device. Set write_mode=sync on the "
+		    "lagging child to resync it.\n");
+			break;
+		}
+		(void) snprintf(status, ST_SIZE,
+		    "The asynchronous mirror copy is frozen after a read "
+		    "error. The lagging child is not receiving updates.\n");
+		(void) snprintf(action, AC_SIZE,
+		    "Check the leader device. Repair the read error, then "
+		    "set write_mode=sync on the lagging child to resync it. "
+		    "Use 'zpool status -v' to list the files with "
+		    "errors.\n");
+		break;
+	}
+
+	case ZPOOL_STATUS_ASYNC_MIRROR_FAILED: {
+		nvlist_t *stats = async_mirror_stats(zhp);
+		const char *why;
+
+		if (async_mirror_held_limit(stats, &why)) {
+			(void) snprintf(status, ST_SIZE,
+			    "The asynchronous mirror gave up on the lagging "
+			    "child (%s). The child is being resynced.\n",
+			    why);
+			(void) snprintf(action, AC_SIZE,
+			    "Wait for the resilver to complete.\n");
+			break;
+		}
+		(void) snprintf(status, ST_SIZE,
+		    "The asynchronous mirror copy has failed. The lagging "
+		    "child may be out of date.\n");
+		(void) snprintf(action, AC_SIZE,
+		    "Check the lagging child and replace it if needed. "
+		    "Then set write_mode=sync on the lagging child to "
+		    "resync it.\n");
+		break;
+	}
+
+	case ZPOOL_STATUS_ASYNC_MIRROR_DIVERGED:
+		(void) snprintf(status, ST_SIZE,
+		    "The two copies of the asynchronous mirror were written "
+		    "separately. A read-write import is refused.\n");
+		(void) snprintf(action, AC_SIZE,
+		    "Import one copy read-only, or use "
+		    "'--async-mirror-keep=<guid>' to choose one copy.\n");
+		break;
+
 	case ZPOOL_STATUS_ERRATA:
 		(void) snprintf(status, ST_SIZE,
 		    "Errata #%d detected.\n", errata);
@@ -11417,6 +11801,7 @@ status_callback_json(zpool_handle_t *zhp, void *data)
 		}
 
 		scan_status_nvlist(zhp, cbp, nvroot, item);
+		async_mirror_status_nvlist(nvroot, cbp, item);
 		removal_status_nvlist(zhp, cbp, nvroot, item);
 		checkpoint_status_nvlist(nvroot, cbp, item);
 		condense_status_nvlist(nvroot, cbp, item);
@@ -11556,6 +11941,7 @@ status_callback(zpool_handle_t *zhp, void *data)
 		uint_t nspares, nl2cache;
 
 		print_scan_status(zhp, nvroot);
+		print_async_mirror_status(nvroot);
 
 		pool_removal_stat_t *prs = NULL;
 		(void) nvlist_lookup_uint64_array(nvroot,
@@ -13804,9 +14190,11 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 	pool_removal_stat_t *prs = NULL;
 	pool_raidz_expand_stat_t *pres = NULL;
 	nvlist_t *cnv = NULL;
+	nvlist_t *async_mirror_stats = NULL;
+	uint64_t async_mirror_pending;
 	const char *const headers[] = {"DISCARD", "FREE", "INITIALIZE",
 	    "REPLACE", "REMOVE", "RESILVER", "SCRUB", "TRIM", "RAIDZ_EXPAND",
-	    "CONDENSE"};
+	    "CONDENSE", "ASYNC_MIRROR"};
 	int col_widths[ZPOOL_WAIT_NUM_ACTIVITIES];
 
 	/* Calculate the width of each column */
@@ -13842,6 +14230,11 @@ print_wait_status_row(wait_data_t *wd, zpool_handle_t *zhp, int row)
 
 	config = zpool_get_config(zhp, NULL);
 	nvroot = fnvlist_lookup_nvlist(config, ZPOOL_CONFIG_VDEV_TREE);
+	if (nvlist_lookup_nvlist(nvroot,
+	    ZPOOL_CONFIG_ASYNC_MIRROR_STATS, &async_mirror_stats) == 0 &&
+	    nvlist_lookup_uint64(async_mirror_stats,
+	    ZPOOL_CONFIG_ASYNC_MIRROR_PENDING, &async_mirror_pending) == 0)
+		bytes_rem[ZPOOL_WAIT_ASYNC_MIRROR] = async_mirror_pending;
 
 	(void) nvlist_lookup_uint64_array(nvroot,
 	    ZPOOL_CONFIG_CHECKPOINT_STATS, (uint64_t **)&pcs, &c);
@@ -14003,9 +14396,8 @@ zpool_do_wait(int argc, char **argv)
 	(void) pthread_mutex_init(&wd.wd_mutex, NULL);
 	(void) pthread_cond_init(&wd.wd_cv, NULL);
 
-	/* By default, wait for all types of activity. */
 	for (i = 0; i < ZPOOL_WAIT_NUM_ACTIVITIES; i++)
-		wd.wd_enabled[i] = B_TRUE;
+		wd.wd_enabled[i] = (i != ZPOOL_WAIT_ASYNC_MIRROR);
 
 	while ((c = getopt(argc, argv, "HpT:t:")) != -1) {
 		switch (c) {
@@ -14029,7 +14421,8 @@ zpool_do_wait(int argc, char **argv)
 				static const char *const col_opts[] = {
 				    "discard", "free", "initialize", "replace",
 				    "remove", "resilver", "scrub", "trim",
-				    "raidz_expand", "condense" };
+				    "raidz_expand", "condense", "async_mirror"
+				};
 
 				for (i = 0; i < ARRAY_SIZE(col_opts); ++i)
 					if (strcmp(tok, col_opts[i]) == 0) {
@@ -14111,6 +14504,21 @@ found:;
 				continue;
 
 			error = zpool_wait_status(zhp, i, &missing, &waited);
+			if (i == ZPOOL_WAIT_ASYNC_MIRROR &&
+			    error == ECANCELED) {
+				(void) fprintf(stderr,
+				    "async mirror did not catch up "
+				    "in pool '%s': the asynchronous "
+				    "mirror was turned off, failed or froze\n",
+				    zpool_get_name(zhp));
+				error = 1;
+			} else if (i == ZPOOL_WAIT_ASYNC_MIRROR && error != 0 &&
+			    !missing) {
+				(void) fprintf(stderr,
+				    "error waiting in pool '%s': %s\n",
+				    zpool_get_name(zhp), strerror(error));
+				error = 1;
+			}
 			if (error != 0 || missing)
 				break;
 

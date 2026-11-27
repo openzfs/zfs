@@ -227,9 +227,19 @@ extern uint64_t vdev_label_offset(uint64_t psize, int l, uint64_t offset);
 extern int vdev_label_number(uint64_t psise, uint64_t offset);
 extern nvlist_t *vdev_label_read_config(vdev_t *vd, uint64_t txg, int labels);
 extern void vdev_uberblock_load(vdev_t *, struct uberblock *, nvlist_t **);
+extern void vdev_uberblock_load_newest(vdev_t *, struct uberblock *,
+    struct uberblock *, nvlist_t **, boolean_t *);
+extern void vdev_uberblock_load_newest_ignore_root(vdev_t *,
+    struct uberblock *, struct uberblock *, nvlist_t **, boolean_t *,
+    const blkptr_t *);
 extern void vdev_config_generate_stats(vdev_t *vd, nvlist_t *nv);
+extern void vdev_label_read(zio_t *zio, vdev_t *vd, int l, abd_t *buf,
+    uint64_t offset, uint64_t size, zio_done_func_t *done, void *priv,
+    int flags);
 extern void vdev_label_write(zio_t *zio, vdev_t *vd, int l, abd_t *buf, uint64_t
     offset, uint64_t size, zio_done_func_t *done, void *priv, int flags);
+extern void vdev_uberblock_write(zio_t *zio, uint64_t *good_writes,
+    struct uberblock *ub, vdev_t *vd, int flags);
 extern int vdev_label_read_bootenv(vdev_t *, nvlist_t *);
 extern int vdev_label_write_bootenv(vdev_t *, nvlist_t *);
 extern int vdev_uberblock_sync_list(spa_t *, vdev_t **, int,

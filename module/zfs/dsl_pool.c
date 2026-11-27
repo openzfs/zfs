@@ -34,6 +34,7 @@
 #include <sys/zfs_znode.h>
 #include <sys/spa_impl.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_async_mirror.h>
 #include <sys/metaslab_impl.h>
 #include <sys/bptree.h>
 #include <sys/zfeature.h>
@@ -686,6 +687,8 @@ dsl_early_sync_task_verify(dsl_pool_t *dp, uint64_t txg)
 		    ms = txg_list_next(tl, ms, TXG_CLEAN(txg))) {
 			VERIFY(zfs_range_tree_is_empty(ms->ms_freeing));
 			VERIFY(zfs_range_tree_is_empty(ms->ms_checkpointing));
+			VERIFY(ms->ms_holding == NULL ||
+			    zfs_range_tree_is_empty(ms->ms_holding));
 		}
 	}
 
@@ -948,7 +951,9 @@ dsl_pool_adjustedsize(dsl_pool_t *dp, zfs_space_check_t slop_policy)
 	    spa->spa_deferred_bpobj.bpo_phys->bpo_bytes;
 
 	space = spa_get_dspace(spa)
-	    - spa_get_checkpoint_space(spa) - spa_deferred_frees;
+	    - spa_get_checkpoint_space(spa)
+	    - spa_get_async_mirror_held_space(spa)
+	    - spa_deferred_frees;
 	resv = spa_get_slop_space(spa);
 
 	switch (slop_policy) {

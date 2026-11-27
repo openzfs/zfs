@@ -6039,6 +6039,9 @@
       <enumerator name='ZPOOL_STATUS_COMPATIBILITY_ERR' value='31'/>
       <enumerator name='ZPOOL_STATUS_INCOMPATIBLE_FEAT' value='32'/>
       <enumerator name='ZPOOL_STATUS_OK' value='33'/>
+      <enumerator name='ZPOOL_STATUS_ASYNC_MIRROR_FROZEN' value='34'/>
+      <enumerator name='ZPOOL_STATUS_ASYNC_MIRROR_FAILED' value='35'/>
+      <enumerator name='ZPOOL_STATUS_ASYNC_MIRROR_DIVERGED' value='36'/>
     </enum-decl>
     <typedef-decl name='zpool_status_t' type-id='5e770b40' id='d3dd6294'/>
     <enum-decl name='zpool_compat_status_t' naming-typedef-id='901b78d1' id='20676925'>
@@ -6195,7 +6198,9 @@
       <enumerator name='VDEV_PROP_ANYRAID_CAP_TILES' value='60'/>
       <enumerator name='VDEV_PROP_ANYRAID_NUM_TILES' value='61'/>
       <enumerator name='VDEV_PROP_ANYRAID_TILE_SIZE' value='62'/>
-      <enumerator name='VDEV_NUM_PROPS' value='63'/>
+      <enumerator name='VDEV_PROP_ASYNC_MIRROR' value='63'/>
+      <enumerator name='VDEV_PROP_ASYNC_MIRROR_STATE' value='64'/>
+      <enumerator name='VDEV_NUM_PROPS' value='65'/>
     </enum-decl>
     <typedef-decl name='vdev_prop_t' type-id='1573bec8' id='5aa5c90c'/>
     <class-decl name='zpool_load_policy' size-in-bits='256' is-struct='yes' visibility='default' id='2f65b36f'>
@@ -6422,7 +6427,8 @@
       <enumerator name='ZPOOL_WAIT_TRIM' value='7'/>
       <enumerator name='ZPOOL_WAIT_RAIDZ_EXPAND' value='8'/>
       <enumerator name='ZPOOL_WAIT_CONDENSE' value='9'/>
-      <enumerator name='ZPOOL_WAIT_NUM_ACTIVITIES' value='10'/>
+      <enumerator name='ZPOOL_WAIT_ASYNC_MIRROR' value='10'/>
+      <enumerator name='ZPOOL_WAIT_NUM_ACTIVITIES' value='11'/>
     </enum-decl>
     <typedef-decl name='zpool_wait_activity_t' type-id='849338e3' id='73446457'/>
     <enum-decl name='zpool_prefetch_type_t' naming-typedef-id='e55ff6bc' id='0299ab50'>
@@ -6554,7 +6560,8 @@
       <enumerator name='SPA_FEATURE_PHYSICAL_REWRITE' value='46'/>
       <enumerator name='SPA_FEATURE_DRAID_FAIL_DOMAINS' value='47'/>
       <enumerator name='SPA_FEATURE_ANYRAID' value='48'/>
-      <enumerator name='SPA_FEATURES' value='49'/>
+      <enumerator name='SPA_FEATURE_ASYNC_MIRROR' value='49'/>
+      <enumerator name='SPA_FEATURES' value='50'/>
     </enum-decl>
     <typedef-decl name='spa_feature_t' type-id='33ecb627' id='d6618c78'/>
     <qualified-type-def type-id='80f4b756' const='yes' id='b99c00c9'/>

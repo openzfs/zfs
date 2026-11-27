@@ -1,0 +1,1314 @@
+#!/bin/ksh -p
+# SPDX-License-Identifier: CDDL-1.0
+
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+
+#
+# Copyright (c) 2026, John White.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/async_mirror/async_mirror.cfg
+
+typeset ASYNC_MIRROR_SAVED_TUNABLES=""
+
+# Keep this suite's sync helper at the leader-only behavior.  The shared
+# libtest helper remains unchanged for pools without an async mirror.
+function sync_pool #pool <force>
+{
+	typeset pool=${1:-$TESTPOOL}
+	typeset force=${2:-false}
+
+	if [[ $force == true ]]; then
+		log_must zpool sync -l -f $pool
+	else
+		log_must zpool sync -l $pool
+	fi
+
+	return 0
+}
+
+function async_mirror_set_tunable32
+{
+	typeset tunable=$1
+	shift
+	case " $ASYNC_MIRROR_SAVED_TUNABLES " in
+	*" $tunable "*) ;;
+	*)
+		log_must save_tunable $tunable
+		ASYNC_MIRROR_SAVED_TUNABLES="$ASYNC_MIRROR_SAVED_TUNABLES $tunable"
+		;;
+	esac
+	set_tunable32 $tunable "$@"
+}
+
+function async_mirror_set_tunable64
+{
+	typeset tunable=$1
+	shift
+	case " $ASYNC_MIRROR_SAVED_TUNABLES " in
+	*" $tunable "*) ;;
+	*)
+		log_must save_tunable $tunable
+		ASYNC_MIRROR_SAVED_TUNABLES="$ASYNC_MIRROR_SAVED_TUNABLES $tunable"
+		;;
+	esac
+	set_tunable64 $tunable "$@"
+}
+
+#
+# The tests of this group use a two-way mirror of file vdevs.  The tests
+# make one child run behind with the vdev property write_mode:
+# "zpool set write_mode=behind".  The change is live, with no export.
+# The property is stored in the pool, so an import turns the async mirror
+# on again.  The counters of the async mirror are in the kstat "async_mirror"
+# of the pool.
+#
+
+#
+# Print the guid of the leaf vdev that is stored in the labels of a file.
+#
+# $1 path of the vdev file
+#
+function get_leaf_guid
+{
+	zdb -l $1 | awk '$1 == "guid:" { print $2; exit }'
+}
+
+#
+# Create the vdev files and the test pool.  The pool is a mirror of the
+# leader and the lagging child.  Each argument is a file that is added
+# to the pool as a top-level vdev of its own.  A vdev class keyword, such
+# as "log", can come before a file.
+#
+# The extra vdevs are added after the create: in one "zpool create", a
+# file after the two children of the mirror becomes a third child.
+#
+function async_mirror_create_pool # [[log] extra vdev file ...]
+{
+	typeset arg
+
+	# See async_mirror_write_until_reuse().
+	[[ ${ASYNC_MIRROR_ONE_ALLOCATOR:-0} == 1 ]] && \
+	    log_must async_mirror_set_tunable32 SPA_NUM_ALLOCATORS 1
+	log_must truncate -s $ASYNC_MIRROR_VDEV_SIZE \
+	    $ASYNC_MIRROR_LEADER $ASYNC_MIRROR_LAGGING
+	for arg in "$@"; do
+		[[ $arg == /* ]] && \
+		    log_must truncate -s $ASYNC_MIRROR_VDEV_SIZE $arg
+	done
+	log_must zpool create -f $TESTPOOL mirror \
+	    $ASYNC_MIRROR_LEADER $ASYNC_MIRROR_LAGGING
+	(( $# > 0 )) && log_must zpool add -f $TESTPOOL "$@"
+	return 0
+}
+
+#
+# Import the test pool from the directory of the vdev files.
+#
+function async_mirror_import
+{
+	log_must zpool import -d $ASYNC_MIRROR_DIR $TESTPOOL
+}
+
+#
+# Import the lagging child alone.  Move the leader out of the directory
+# first.  The import reads the label of every file in the directory, so a
+# leader that is only renamed there is still found, and the import uses it.
+# With no leader, the async mirror does not start, and the records are released.
+#
+function async_mirror_import_lagging
+{
+	log_must mv $ASYNC_MIRROR_LEADER $ASYNC_MIRROR_HIDDEN
+	log_must zpool import -d $ASYNC_MIRROR_DIR $TESTPOOL
+}
+
+#
+# Print read_mode, write_mode or async_mirror_state for a mirror child.
+#
+# $1 property: "read_mode", "write_mode" or "state"
+# $2 path of the vdev file, the lagging child by default
+#
+function get_async_mirror_prop # prop [vdev]
+{
+	typeset prop=${1:-write_mode}
+	typeset vdev=${2:-$ASYNC_MIRROR_LAGGING}
+
+	[[ $prop == state ]] && prop=async_mirror_state
+	zpool get -H -o value $prop $TESTPOOL $vdev
+}
+
+#
+# Wait until the async_mirror_state of the lagging child is one of the
+# given states.  Sync the pool each second: a switch off needs a few txgs.
+#
+# $1 states, separated by "|"
+# $2 timeout in seconds
+# $3 leaf path (defaults to the original lagging child)
+#
+function wait_async_mirror_state # states [timeout] [vdev]
+{
+	typeset states=$1
+	typeset -i timeout=${2:-$ASYNC_MIRROR_TIMEOUT}
+	typeset vdev=${3:-$ASYNC_MIRROR_LAGGING}
+	typeset -i i
+	typeset state
+
+	for (( i = 0; i < timeout; i++ )); do
+		state=$(get_async_mirror_prop state $vdev)
+		[[ "|$states|" == *"|$state|"* ]] && return 0
+		zpool sync -l $TESTPOOL
+		sleep 1
+	done
+	log_note "async_mirror_state is $state, not $states"
+	return 1
+}
+
+#
+# Turn the async mirror on: set write_mode=behind on one member.
+# The change is live, and the async mirror is on when "zpool set" returns.
+# An earlier async mirror can still release its records for a few txgs,
+# and the property is refused until then, so try again for a while.
+#
+function async_mirror_enable
+{
+	typeset -i i
+
+	for (( i = 0; i < ASYNC_MIRROR_TIMEOUT; i++ )); do
+		zpool set write_mode=behind $TESTPOOL $ASYNC_MIRROR_LAGGING \
+		    && break
+		zpool sync -l $TESTPOOL
+		sleep 1
+	done
+	log_must test "$(get_async_mirror_prop)" == behind
+	log_must wait_async_mirror_state "behind|current"
+}
+
+#
+# Turn the async mirror off: set write_mode=sync on the behind member, and
+# wait until the child is in sync.  Then export and import the pool.
+#
+function async_mirror_disable
+{
+	log_must zpool set write_mode=sync $TESTPOOL $ASYNC_MIRROR_LAGGING
+	log_must wait_async_mirror_state off
+	log_must zpool export $TESTPOOL
+	async_mirror_import
+}
+
+#
+# Write a file of random data to the test pool.
+#
+# $1 name of the file
+# $2 number of 128 KiB blocks
+#
+function async_mirror_write # file blocks
+{
+	log_must file_write -o create -f $1 -b 131072 -c $2 -d R
+}
+
+#
+# Write a few files and commit each one in a txg of its own.
+#
+# $1 prefix of the file names
+# $2 number of files
+# $3 number of 128 KiB blocks in each file, 16 by default
+#
+function async_mirror_write_files # prefix count [blocks]
+{
+	typeset -i i
+
+	for (( i = 0; i < $2; i++ )); do
+		async_mirror_write /$TESTPOOL/$1.$i ${3:-16}
+		sync_pool $TESTPOOL
+	done
+}
+
+#
+# Print the digests of the files that async_mirror_write_files created.
+#
+function async_mirror_digests # prefix count
+{
+	typeset -i i
+
+	for (( i = 0; i < $2; i++ )); do
+		xxh128digest /$TESTPOOL/$1.$i
+	done
+}
+
+#
+# Print one counter of the async_mirror kstat of the test pool.  The kstat
+# exists only while the pool has the state of the async mirror; without it,
+# every counter is 0.
+#
+function get_async_mirror_stat # name
+{
+	if is_freebsd; then
+		if ! sysctl -q kstat.zfs.$TESTPOOL.misc.async_mirror >/dev/null
+		then
+			echo 0
+			return
+		fi
+	elif [[ ! -e /proc/spl/kstat/zfs/$TESTPOOL/async_mirror ]]; then
+		echo 0
+		return
+	fi
+	kstat_pool $TESTPOOL async_mirror.$1
+}
+
+#
+# Print the txg of the newest uberblock of the test pool.
+#
+function get_async_mirror_pool_txg
+{
+	typeset out
+
+	# A read-only import is not in the cache file: search the vdev files.
+	out=$(zdb -u $TESTPOOL 2>/dev/null) ||
+	    out=$(zdb -e -p $ASYNC_MIRROR_DIR -u $TESTPOOL 2>/dev/null)
+	print -- "$out" | awk '$1 == "txg" { print $3; exit }'
+}
+
+#
+# Wait until the lagging child has copied every txg that has synced, and
+# no deferred data block waits for a try.
+#
+# $1 timeout in seconds
+#
+function wait_async_mirror_idle # [timeout]
+{
+	typeset -i timeout=${1:-$ASYNC_MIRROR_TIMEOUT}
+	typeset -i i
+
+	for (( i = 0; i < timeout; i++ )); do
+		[[ $(get_async_mirror_stat pending_txgs) == 0 &&
+		    $(get_async_mirror_stat data_deferred) == 0 ]] && return 0
+		if async_mirror_panicked; then
+			log_note "the copy to the lagging child panicked"
+			return 1
+		fi
+		sleep 1
+	done
+	return 1
+}
+
+#
+# Succeed if a check of the copy to the lagging child failed in this boot.
+# The thread of the copy then waits forever, and the pool cannot be exported
+# or destroyed.
+#
+function async_mirror_panicked
+{
+	dmesg 2>/dev/null | grep -q "PANIC: async mirror"
+}
+
+#
+# As wait_async_mirror_stat, but sync the pool before each look.  Use it for a
+# stat that changes only at the start of a txg (the DTL of a failed copy), in
+# a test with a long txg timeout.
+#
+function wait_async_mirror_stat_synced # name op value [timeout]
+{
+	typeset -i timeout=${4:-$ASYNC_MIRROR_TIMEOUT}
+	typeset -i i
+
+	for (( i = 0; i < timeout; i++ )); do
+		zpool sync -l $TESTPOOL
+		test "$(get_async_mirror_stat $1)" "$2" "$3" 2>/dev/null &&
+		    return 0
+		sleep 1
+	done
+	log_fail "Timed out waiting for async mirror stat $1 $2 $3" \
+	    "(last value: $(get_async_mirror_stat $1))"
+}
+
+#
+# Wait until a kstat or property reaches a value.
+#
+# $1 name of the kstat field or pool property
+# $2 comparison operator (-eq -ne -gt -ge -lt -le)
+# $3 value to compare against
+# $4 timeout in seconds (optional, defaults to ASYNC_MIRROR_TIMEOUT)
+#
+function wait_async_mirror_stat # name op value [timeout]
+{
+	typeset name=$1
+	typeset op=$2
+	typeset value=$3
+	typeset -i timeout=${4:-$ASYNC_MIRROR_TIMEOUT}
+	typeset -i i
+	typeset stat
+
+	case $op in
+	-eq|-ge|-le|-gt|-lt|-ne) ;;
+	*) log_fail "Invalid async mirror comparison: $op" ;;
+	esac
+
+	for (( i = 0; i < timeout; i++ )); do
+		stat=$(get_async_mirror_stat $name)
+		test "$stat" "$op" "$value" 2>/dev/null && return 0
+		sleep 1
+	done
+	log_fail "Timed out waiting for async mirror stat $name $op $value" \
+	    "(last value: $stat)"
+}
+
+#
+# Wait until the lagging child has reached a txg.
+#
+# $1 txg
+# $2 timeout in seconds
+#
+function wait_async_mirror_applied # txg [timeout]
+{
+	typeset -i txg=$1
+	typeset -i timeout=${2:-$ASYNC_MIRROR_TIMEOUT}
+
+	wait_async_mirror_stat applied_txg -ge $txg $timeout
+}
+
+#
+# Wait until the replay reports a failure.
+#
+# $1 timeout in seconds
+#
+function wait_async_mirror_failed # [timeout]
+{
+	typeset -i timeout=${1:-$ASYNC_MIRROR_TIMEOUT}
+
+	wait_async_mirror_stat failed -eq 1 $timeout
+}
+
+#
+# Wait until the replay freezes the lagging child.
+#
+# $1 timeout in seconds
+#
+function wait_async_mirror_frozen # [timeout]
+{
+	typeset -i timeout=${1:-$ASYNC_MIRROR_TIMEOUT}
+
+	wait_async_mirror_stat frozen -eq 1 $timeout
+}
+
+#
+# Wait until a resilver that the pool started on its own has finished.
+#
+# "zpool wait -t resilver" is not enough after an import or a failed
+# replay.  The pool only requests the resilver, and the scan starts in a
+# later txg.  On an idle pool that txg can come seconds later, and the
+# wait returns at once because no resilver runs yet.  A scrub that the
+# test runs next then finds the stale child as checksum errors.  So sync
+# the pool, wait, and check that a resilver has finished.
+#
+# $1 timeout in seconds
+#
+function wait_async_mirror_resilvered # [timeout]
+{
+	typeset -i timeout=${1:-$ASYNC_MIRROR_TIMEOUT}
+	typeset -i i
+
+	for (( i = 0; i < timeout; i++ )); do
+		zpool sync -l $TESTPOOL || return 1
+		zpool wait -t resilver $TESTPOOL || return 1
+		is_pool_resilvered $TESTPOOL && return 0
+		sleep 1
+	done
+	return 1
+}
+
+#
+# Wait until the pool has released every record of the async mirror:
+# the MOS has no record ZAP.  Sync the pool each second.
+#
+# $1 timeout in seconds
+#
+function wait_async_mirror_released # [timeout]
+{
+	typeset -i timeout=${1:-$ASYNC_MIRROR_TIMEOUT}
+	typeset -i i
+	typeset out
+
+	for (( i = 0; i < timeout; i++ )); do
+		zpool sync -l $TESTPOOL
+		out=$(zdb -dddd $TESTPOOL 1) &&
+		    [[ "$out" != *"org.openzfs:async_mirror_zap"* ]] && return 0
+		sleep 1
+	done
+	return 1
+}
+
+#
+# Succeed if a per-child entry of the test pool has a flag, as "zdb -m"
+# prints it: lagging, frozen, off or replace.
+#
+# $1 flag
+# $2... options of zdb, for example "-e -p <dir>" for an exported pool
+#
+function async_mirror_child_has_flag # flag [zdb options]
+{
+	typeset flag=$1
+	shift
+
+	zdb "$@" -m $TESTPOOL | awk -v f=$flag '
+	    $1 == "flags" && $2 == "=" {
+		for (i = 4; i <= NF; i++) {
+			gsub(/[()]/, "", $i)
+			if ($i == f)
+				found = 1
+		}
+	    }
+	    END { exit(found ? 0 : 1) }'
+}
+
+#
+# Wait until an interrupted replacement writes its pool marker: the replace
+# flag in the per-child entry of the leaf.
+#
+# $1 replace process ID
+# $2 timeout in seconds
+#
+function wait_async_mirror_replace_marker # pid [timeout]
+{
+	typeset pid=$1
+	typeset -i timeout=${2:-$ASYNC_MIRROR_TIMEOUT}
+	typeset -i i
+
+	for (( i = 0; i < timeout; i++ )); do
+		async_mirror_child_has_flag replace && return 0
+		kill -0 "$pid" 2>/dev/null || {
+			log_note "replace exited before its pool marker appeared"
+			return 1
+		}
+		sleep 1
+	done
+	log_note "timed out waiting for the pool replacement marker"
+	return 1
+}
+
+#
+# Stop or restart the copy to the lagging child.  While the copy is stopped,
+# an export leaves the lagging child behind the leader, as a crash does.
+#
+# $1 1 to stop, 0 to restart
+#
+function async_mirror_suspend_copy # 0|1
+{
+	log_must async_mirror_set_tunable32 ASYNC_MIRROR_SUSPEND_COPY $1
+}
+
+#
+# Make the async mirror give up on the lagging child for the held space,
+# and wait until the child is frozen.  The hard limit is 10% of the pool.
+#
+# $1 a file of more than 10% of the pool, which is removed
+#
+function async_mirror_freeze_at_held_limit # file
+{
+	typeset -i i held
+
+	# The held space must stay at its limit for this time.
+	log_must async_mirror_set_tunable32 ASYNC_MIRROR_HELD_LIMIT_SECS 5
+	log_must async_mirror_set_tunable32 ASYNC_MIRROR_HELD_LIMIT_PERCENT 10
+	log_must async_mirror_set_tunable32 ASYNC_MIRROR_HELD_FREE_PERCENT 0
+	async_mirror_suspend_copy 1
+	log_must zinject -d $(get_leaf_guid $ASYNC_MIRROR_LAGGING) -D 1500:1 \
+	    $TESTPOOL
+	log_must rm $1
+	sync_pool $TESTPOOL
+	held=$(get_async_mirror_stat held_bytes)
+	log_note "$held bytes held after the frees"
+	log_must test $held -ge $(( 30 * 1024 * 1024 ))
+
+	# The check runs when a txg syncs, so sync the pool while waiting.
+	for (( i = 0; i < ASYNC_MIRROR_TIMEOUT; i++ )); do
+		[[ $(get_async_mirror_stat frozen) == 1 ]] && break
+		sync_pool $TESTPOOL
+		sleep 1
+	done
+	log_must test "$(get_async_mirror_stat frozen)" -eq 1
+	log_must test "$(get_async_mirror_stat held_limit)" -eq 1
+	log_must test "$(get_async_mirror_prop state)" == frozen
+}
+
+#
+# Stall the lagging child with real I/O: each I/O of the child takes the
+# given time, and the child does one I/O at a time.  The copy is not
+# stopped: its worker waits in the I/O.  One block of the copy is in flight
+# at a time, so the I/O that is in flight at a give-up ends within three
+# times that time, for a block with three copies.  "zinject -c all" removes
+# the delay.
+#
+# $1 milliseconds for each I/O of the lagging child
+#
+function async_mirror_stall_child # ms
+{
+	log_must async_mirror_set_tunable64 ASYNC_MIRROR_COPY_LIMIT 1
+	log_must zinject -d $(get_leaf_guid $ASYNC_MIRROR_LAGGING) -D $1:1 \
+	    $TESTPOOL
+}
+
+#
+# Make the async mirror give up on a lagging child that is stalled with
+# real I/O, and wait until the child is frozen.  Writes wait for the copy
+# when more than one txg waits for it, and the copy is stalled when it made
+# no progress for 3 seconds; each I/O of the child takes 6 seconds.  The
+# held space has no limit, so only the stall ends the copy.  Each write has
+# a time limit: a write that waits for the stalled child fails the test.
+#
+# $1 prefix of the files that are written
+#
+function async_mirror_freeze_by_stall # prefix
+{
+	typeset -i i
+
+	log_must async_mirror_set_tunable32 ASYNC_MIRROR_HELD_LIMIT_PERCENT 0
+	log_must async_mirror_set_tunable32 ASYNC_MIRROR_HELD_FREE_PERCENT 0
+	log_must async_mirror_set_tunable32 ASYNC_MIRROR_STALL_SECS 3
+	log_must async_mirror_set_tunable64 ASYNC_MIRROR_MAX_PENDING_TXGS 1
+	async_mirror_stall_child 6000
+
+	for (( i = 0; i < 12; i++ )); do
+		log_must timeout 30 dd if=/dev/urandom of=$1.$i bs=128k \
+		    count=4 conv=fsync
+		sync_pool $TESTPOOL
+	done
+	for (( i = 0; i < ASYNC_MIRROR_TIMEOUT; i++ )); do
+		[[ $(get_async_mirror_stat frozen) == 1 ]] && break
+		sync_pool $TESTPOOL
+		sleep 1
+	done
+	log_must test "$(get_async_mirror_stat frozen)" -eq 1
+	log_must test "$(get_async_mirror_stat held_limit)" -eq 1
+	# 3 is "copy stalled"; see async_mirror_giveup_t.
+	log_must test "$(get_async_mirror_stat giveup_reason)" -eq 3
+	log_must test "$(get_async_mirror_prop state)" == frozen
+}
+
+#
+#
+# Succeed if the labels of a vdev file hold the legacy async mirror mark.
+#
+# $1 path of the vdev file
+#
+function async_mirror_label_has_legacy_mark # file
+{
+	zdb -l $1 | grep -q 'async_mirror_catching_up:'
+}
+
+#
+# Create the test pool with the async mirror on and two small files, and
+# freeze the lagging child by a stall; see async_mirror_freeze_by_stall().
+# The stall time is then raised, so that a wait of the copy for the leader
+# is not taken for a stall of the child.
+#
+function async_mirror_create_frozen
+{
+	async_mirror_create_pool
+	log_must zfs set compression=off $TESTPOOL
+	async_mirror_enable
+	async_mirror_write_files keep 2
+	sync_pool $TESTPOOL
+	log_must wait_async_mirror_idle
+	async_mirror_freeze_by_stall /$TESTPOOL/w
+	log_must async_mirror_set_tunable32 ASYNC_MIRROR_STALL_SECS 30
+}
+
+#
+# Export the test pool, import the lagging child alone, and verify the
+# digests of files and a scrub with no error.  Then export the pool and
+# move the leader back.
+#
+# $1 the expected output of the command
+# $2... the command that prints the digests
+#
+function async_mirror_verify_lagging_alone # digests command...
+{
+	typeset want=$1
+	shift
+
+	log_must zpool export $TESTPOOL
+	async_mirror_import_lagging
+	log_must test "$want" == "$("$@")"
+	async_mirror_check_clean $ASYNC_MIRROR_LAGGING
+	log_must zpool export $TESTPOOL
+	async_mirror_unhide_leader
+}
+
+#
+#
+# Stop or restart the release of records.  ZFS keeps the blocks of only the
+# last few txgs from reuse, so a rewind further back fails when the pool has
+# reused a block of the kept txg, and the import then goes back to an older
+# txg.  While no record is released, every free since is held, and no block
+# of the kept txg is reused.  A test that rewinds many txgs stops the
+# release before it notes the rewind txg, and restarts it after the import:
+# a record released between the two would free blocks of the kept txg.
+# While the release is stopped, a failure or a freeze of the copy is not
+# recorded in the pool either, as after a crash.
+#
+# $1 1 to stop, 0 to restart
+#
+function async_mirror_suspend_release # 0|1
+{
+	log_must async_mirror_set_tunable32 ASYNC_MIRROR_SUSPEND_RELEASE $1
+}
+
+#
+# Import the test pool with a rewind to a txg, and fail when the import
+# went back to another txg.  zpool import -T can fall back to an older
+# uberblock when the asked txg does not load; it then prints "returned to
+# its state as of ... (txg N)" and succeeds.  A test that then checks only
+# the async mirror would pass on the wrong state.
+#
+# $1 txg
+# $2... more import options
+#
+function async_mirror_import_txg # txg [options...]
+{
+	typeset -i txg=$1
+	typeset out
+	shift
+
+	out=$(zpool import "$@" -d $ASYNC_MIRROR_DIR -T $txg $TESTPOOL 2>&1) ||
+	    log_fail "zpool import -T $txg failed: $out"
+	[[ -n "$out" ]] && log_note "$out"
+	if [[ "$out" == *"returned to its state"* &&
+	    "$out" != *"(txg $txg)"* ]]; then
+		log_fail "zpool import -T $txg went back to another txg: $out"
+	fi
+	log_note "imported $TESTPOOL at txg $txg"
+}
+
+#
+# Print the checksum errors of one vdev of the test pool.
+#
+# $1 the vdev, as zpool status names it
+#
+function async_mirror_cksum_errors # vdev
+{
+	zpool status -p $TESTPOOL | awk -v v=$1 '$1 == v { print $5 }'
+}
+
+#
+# Stop the copy, write files, and export the pool.  The lagging child is
+# left behind the leader, as after a crash.  The copy stays stopped.
+#
+# $1 prefix of the file names
+# $2 number of files
+#
+function async_mirror_export_behind # prefix count
+{
+	async_mirror_suspend_copy 1
+	async_mirror_write_files $1 $2
+	log_must test "$(get_async_mirror_stat pending_txgs)" -gt 0
+	log_must zpool export $TESTPOOL
+}
+
+#
+# Print the state of the async_mirror feature of the test pool.
+#
+function get_async_mirror_feature
+{
+	get_pool_prop feature@async_mirror $TESTPOOL
+}
+
+#
+# Wait until the async_mirror feature of the test pool is in a state.
+#
+# $1 state, enabled or active
+# $2 timeout in seconds
+#
+function wait_async_mirror_feature # state [timeout]
+{
+	typeset state=$1
+	typeset -i timeout=${2:-$ASYNC_MIRROR_TIMEOUT}
+	typeset -i i
+
+	for (( i = 0; i < timeout; i++ )); do
+		[[ $(get_async_mirror_feature) == "$state" ]] && return 0
+		sleep 1
+	done
+	return 1
+}
+
+#
+# Print the txg of each valid uberblock in the labels of a vdev file, in
+# ascending order, each txg once.
+#
+# $1 path of the vdev file
+#
+function get_ring_txgs # file
+{
+	zdb -lu $1 | awk '$1 == "txg" && $2 == "=" { print $3 }' | sort -nu
+}
+
+#
+# Print the txg of the newest uberblock in the labels of a vdev file.
+#
+# $1 path of the vdev file
+#
+function get_ring_max_txg # file
+{
+	get_ring_txgs $1 | tail -n 1
+}
+
+#
+# Print the number of uberblocks in the labels of a vdev file whose txg is
+# above one txg and at or below another.
+#
+# $1 path of the vdev file
+# $2 the lower txg, not included
+# $3 the upper txg, included
+#
+function count_ring_txgs # file low high
+{
+	get_ring_txgs $1 | awk -v lo=$2 -v hi=$3 \
+	    '$1 > lo && $1 <= hi { n++ } END { print n + 0 }'
+}
+
+#
+# Move the leader back into the directory of the vdev files.
+#
+function async_mirror_unhide_leader
+{
+	log_must mv $ASYNC_MIRROR_HIDDEN $ASYNC_MIRROR_LEADER
+}
+
+#
+# Import the leader alone, read-write.  Move the lagging child out of the
+# directory first.
+#
+function async_mirror_import_leader
+{
+	log_must mv $ASYNC_MIRROR_LAGGING $ASYNC_MIRROR_LAGGING_HIDDEN
+	log_must zpool import -d $ASYNC_MIRROR_DIR $TESTPOOL
+}
+
+#
+# Move the lagging child back into the directory of the vdev files.
+#
+function async_mirror_unhide_lagging
+{
+	log_must mv $ASYNC_MIRROR_LAGGING_HIDDEN $ASYNC_MIRROR_LAGGING
+}
+
+#
+# Clear the error counts of an import that brought back a child that
+# missed txgs while it was out of the pool.  The import reads the MOS
+# before it loads the DTLs, so a mirror read can go to that stale child,
+# fail the checksum, and be read from the other child.  A plain mirror
+# does the same.  Fail if a device other than the stale child counted
+# an error of any kind.  Call this after the resilver, so that the scrub
+# of verify_pool counts only its own errors.
+#
+# $1 the vdev file of the stale child
+#
+function async_mirror_clear_import_errors # stale-vdev
+{
+	typeset stale=$1
+	typeset vdev rd wr ck
+
+	zpool status -p $TESTPOOL | awk '$1 ~ /^\// { print $1, $3, $4, $5 }' |
+	    while read vdev rd wr ck; do
+		log_note "$vdev: $rd read, $wr write, $ck checksum errors"
+		(( rd == 0 && wr == 0 )) || \
+		    log_fail "$vdev has read or write errors"
+		[[ $vdev == $stale ]] || (( ck == 0 )) || \
+		    log_fail "$vdev is not stale but has checksum errors"
+	done
+	log_must zpool clear $TESTPOOL
+}
+
+#
+# Print one field of the lineage of the test pool, as "zdb -m" prints it:
+# lineage, lineage_parent, lineage_fork_txg or lineage_absent.  Print 0 if
+# the pool has no lineage.
+#
+function get_async_mirror_lineage # field
+{
+	zdb -m $TESTPOOL | awk -v f=$1 '$1 == f { v = $3 }
+	    END { print (v == "" ? 0 : v) }'
+}
+
+#
+# Print the lineage in the labels of a vdev file, or 0.
+#
+# $1 path of the vdev file
+#
+function get_label_lineage # file
+{
+	zdb -l $1 | awk '$1 == "async_mirror_lineage:" { v = $2 }
+	    END { print (v == "" ? 0 : v) }'
+}
+
+#
+# Print the highest config txg in the labels of a vdev file, or 0.
+#
+# $1 path of the vdev file
+#
+function get_label_txg # file
+{
+	zdb -l $1 | awk '$1 == "txg:" && $2 > v { v = $2 }
+	    END { print v + 0 }'
+}
+
+#
+# Succeed if no label of a vdev file has a config txg above the newest
+# uberblock in its labels.  An activation refreshes the labels of the
+# lagging child at its own txg, never at a newer one.
+#
+# $1 path of the vdev file
+#
+function label_txg_held # file
+{
+	typeset -i ltxg=$(get_label_txg $1)
+	typeset -i utxg=$(get_ring_max_txg $1)
+
+	log_note "$1: label txg $ltxg, newest uberblock txg $utxg"
+	(( ltxg > 0 && ltxg <= utxg ))
+}
+
+#
+# Print the xxhash128 digest of a vdev file with the config area of each
+# of its four labels read as zeros.  The digest covers the uberblock rings
+# and every block of the pool.  An activation of the async mirror rewrites
+# the config of the lagging child, at the txg that the child holds; see
+# vdev_async_mirror_label_sync().
+#
+# $1 path of the vdev file
+#
+function digest_except_label_config # file
+{
+	typeset copy=$TEST_BASE_DIR/async_mirror_digest.$$
+	typeset -i size=$(stat_size $1)
+	typeset -i lsize=$(( 256 * 1024 ))
+	typeset -i end=$(( size / lsize * lsize ))
+	typeset -i base
+
+	cp $1 $copy || return 1
+	# Each label: 8K pad, 8K boot area, 112K config, 128K uberblocks.
+	for base in 0 $lsize $(( end - 2 * lsize )) $(( end - lsize )); do
+		dd if=/dev/zero of=$copy bs=512 count=224 conv=notrunc \
+		    seek=$(( (base + 16384) / 512 )) 2>/dev/null ||
+		    { rm -f $copy; return 1; }
+	done
+	xxh128digest $copy
+	rm -f $copy
+}
+
+#
+# Write random bytes over blocks of a file on the leader only.  The pool
+# must be imported.  The ARC still holds the good bytes, so export the
+# pool before a read must see the damage.
+#
+# $1 path of the file
+# $2 level of the blocks, 0 for data
+# $3 the number of block copies to damage, 0 for all
+#
+function async_mirror_corrupt_leader # file level [count]
+{
+	typeset -i max=${3:-0}
+	typeset -i n=0
+	typeset level path offset length
+
+	list_file_blocks $1 | while read level path offset length; do
+		[[ $level == "L$2" && $path == "$ASYNC_MIRROR_LEADER" ]] ||
+		    continue
+		(( max > 0 && n >= max )) && break
+		log_must dd if=/dev/urandom of=$path bs=512 count=$length \
+		    seek=$offset conv=notrunc
+		(( n++ ))
+	done
+	(( n > 0 )) || log_fail "No L$2 block of $1 on the leader"
+	sync
+}
+
+#
+# Stop the copy, write a file of 16 blocks, and damage blocks of it on the
+# leader only.  Export the pool, so that the ARC does not hold the blocks.
+# Then restart the copy and import the pool: the copy of the file's txg
+# reads the damaged blocks from the leader.  The damage stays, so the copy
+# makes one try after a read error.
+#
+# $1 path of the file
+# $2 level of the damaged blocks, 0 for data
+# $3 the number of block copies to damage, 0 for all
+#
+function async_mirror_damage_backlog # file level [count]
+{
+	log_must async_mirror_set_tunable32 ASYNC_MIRROR_READ_RETRIES 1
+	async_mirror_suspend_copy 1
+	async_mirror_write $1 16
+	sync_pool $TESTPOOL
+	log_must test "$(get_async_mirror_stat pending_txgs)" -gt 0
+	async_mirror_corrupt_leader $1 $2 $3
+	log_must zpool export $TESTPOOL
+	async_mirror_suspend_copy 0
+	async_mirror_import
+}
+
+#
+# Print the ranges of the data blocks of a file of the test pool on the
+# leader, one "offset length" per line.  zdb prints the data blocks in its
+# list of indirect blocks without a "DVA[0]=" prefix, so read that list with
+# list_file_blocks.
+#
+# $1 file name in the root of the test pool
+#
+function async_mirror_file_ranges # file
+{
+	list_file_blocks /$TESTPOOL/$1 | awk -v p=$ASYNC_MIRROR_LEADER \
+	    '$1 == "L0" && $2 == p { print $3, $4 }'
+}
+
+#
+# Print the newest birth txg of the data blocks of a file of the test pool.
+# This is the txg that wrote the data last.  The synced txg after a sync of
+# the pool can be a later txg: the pool may sync more txgs before the test
+# reads it.
+#
+# $1 file name in the root of the test pool
+#
+function async_mirror_file_birth # file
+{
+	typeset ds="$(zfs list -H -o name /$TESTPOOL/$1)"
+	typeset objnum="$(get_objnum /$TESTPOOL/$1)"
+
+	# The trailing slash opens the dataset, not the MOS.
+	zdb -dddddd "$ds/" $objnum | awk '
+	    /^$/ { looking = 0 }
+	    looking && $2 == "L0" {
+	        for (i = 3; i <= NF; i++) {
+	            if ($i !~ /^B=/)
+	                continue
+	            split(substr($i, 3), b, "/")
+	            if (b[1] + 0 > m)
+	                m = b[1] + 0
+	        }
+	    }
+	    /^Indirect blocks:/ { looking = 1 }
+	    END { print m + 0 }'
+}
+
+#
+# Write files until one of them uses a range of a list of freed ranges.
+# The allocator does not take a freed range at once: each metaslab has a
+# cursor that moves on after each allocation, and it starts again at the
+# lowest free range only when it reaches the end of the metaslab.  So
+# write files <prefix>.0, <prefix>.1, ... of <blocks> blocks of 128 KiB,
+# each in a txg of its own, until one shares a range with the list, or
+# until <max> files.  The pool must have one allocator
+# (async_mirror_create_pool with ASYNC_MIRROR_ONE_ALLOCATOR=1), so that
+# all the files use the same metaslab cursor.  Set ASYNC_MIRROR_REUSE_FILE
+# to the name of the file that uses a freed range, and
+# ASYNC_MIRROR_REUSE_FILES to the names of all the files written.  Return 1
+# if no file uses a freed range.
+#
+# $1 prefix of the file names, in the root of the test pool
+# $2 blocks of each file
+# $3 the most files to write
+# $4 freed ranges, from async_mirror_file_ranges
+#
+function async_mirror_write_until_reuse # prefix blocks max ranges
+{
+	typeset -i i
+	typeset name
+
+	ASYNC_MIRROR_REUSE_FILE=
+	ASYNC_MIRROR_REUSE_FILES=
+	for (( i = 0; i < $3; i++ )); do
+		name=$1.$i
+		async_mirror_write /$TESTPOOL/$name $2
+		sync_pool $TESTPOOL
+		ASYNC_MIRROR_REUSE_FILES="$ASYNC_MIRROR_REUSE_FILES $name"
+		if async_mirror_shares_range "$4" \
+		    "$(async_mirror_file_ranges $name)"; then
+			ASYNC_MIRROR_REUSE_FILE=$name
+			log_note "$name uses a freed range after $(( i + 1 ))" \
+			    "files"
+			return 0
+		fi
+	done
+	return 1
+}
+
+#
+# Succeed if a range of one list of async_mirror_file_ranges overlaps a
+# range of the other.  A new block can start inside a freed block, so an
+# exact match of "offset length" is not enough.
+#
+function async_mirror_shares_range # ranges ranges
+{
+	[[ -n "$1" && -n "$2" ]] || return 1
+	AM_RANGES_A="$1" AM_RANGES_B="$2" awk 'BEGIN {
+	    n = split(ENVIRON["AM_RANGES_A"], a, "\n")
+	    m = split(ENVIRON["AM_RANGES_B"], b, "\n")
+	    for (i = 1; i <= n; i++) {
+	        if (split(a[i], x, " ") != 2)
+	            continue
+	        for (j = 1; j <= m; j++) {
+	            if (split(b[j], y, " ") != 2)
+	                continue
+	            if (x[1] + 0 < y[1] + y[2] && y[1] + 0 < x[1] + x[2])
+	                exit 0
+	        }
+	    }
+	    exit 1
+	}'
+}
+
+#
+# Make many small held ranges.  Write a file of 8 KiB blocks, wait until
+# the lagging child has it, and write every second block again.  The pool
+# frees the old blocks, and the async mirror holds them.  They are not
+# adjacent, so each one is a range of its own in the record of its txg.
+# The dataset must have recordsize=8k and compression=off.
+#
+# $1 path of the file
+# $2 number of 8 KiB blocks of the file
+#
+function async_mirror_hold_ranges # file blocks
+{
+	typeset file=$1
+	typeset -i blocks=$2
+	typeset src=$TEST_BASE_DIR/async_mirror_ranges.$$
+
+	log_must dd if=/dev/urandom of=$src bs=8k count=$blocks
+	log_must dd if=$src of=$file bs=8k
+	sync_pool $TESTPOOL
+	log_must wait_async_mirror_idle
+	log_must stride_dd -i $src -o $file -b 8192 -c $(( blocks / 2 )) -s 2
+	log_must rm -f $src
+	sync_pool $TESTPOOL
+	log_must wait_async_mirror_idle
+}
+
+#
+# Zero each uberblock above a txg in the labels of a vdev file.  The pool
+# must be exported.  The newest uberblock of the file is then of that txg
+# or of an older one, as after a loss of the newer ones.
+#
+# Each label has 128 KiB of pad and config and then 128 KiB of uberblock
+# slots.  A slot starts with the magic number, the version and the txg, as
+# 64-bit words in the byte order of the host that wrote them.
+#
+# $1 path of the vdev file
+# $2 the txg
+#
+function async_mirror_zero_uberblocks # file txg
+{
+	typeset file=$1
+	typeset -i txg=$2
+	typeset -i size=$(stat_size $file)
+	typeset -i lsize=$(( 256 * 1024 ))
+	typeset -i end=$(( size / lsize * lsize ))
+	typeset -i ashift=$(zdb -l $file |
+	    awk '$1 == "ashift:" { print $2; exit }')
+	typeset -i base idx slot zeroed=0
+
+	(( ashift < 10 )) && ashift=10
+	(( ashift > 13 )) && ashift=13
+	slot=$(( 1 << ashift ))
+	for base in 0 $lsize $(( end - 2 * lsize )) $(( end - lsize )); do
+		for idx in $(dd if=$file bs=1024 count=128 \
+		    skip=$(( base / 1024 + 128 )) 2>/dev/null |
+		    od -A n -t u8 -v |
+		    awk -v words=$(( slot / 8 )) -v txg=$txg '{
+			for (i = 1; i <= NF; i++) {
+				w = n % words
+				if (w == 0)
+					magic = $i
+				if (w == 2 && magic == 12235020 && $i > txg)
+					print int(n / words)
+				n++
+			}
+		    }'); do
+			dd if=/dev/zero of=$file bs=$slot count=1 \
+			    conv=notrunc 2>/dev/null \
+			    seek=$(( (base + 131072) / slot + idx )) ||
+			    return 1
+			(( zeroed++ ))
+		done
+	done
+	sync
+	log_note "zeroed $zeroed uberblocks above txg $txg in $file"
+	(( zeroed > 0 ))
+}
+
+#
+# Remove injected faults, restore tunables, destroy the pool and
+# remove the vdev files.  The tunables are cleared first: a stopped copy or
+# release, or a zero limit of pending txgs, can make the destroy wait.
+#
+function cleanup_async_mirror
+{
+	typeset tunable
+
+	zinject -c all > /dev/null 2>&1
+	for tunable in $ASYNC_MIRROR_SAVED_TUNABLES; do
+		log_must restore_tunable $tunable
+	done
+	ASYNC_MIRROR_SAVED_TUNABLES=""
+	if async_mirror_panicked; then
+		log_note "the copy to the lagging child panicked: the pool" \
+		    "stays, because a destroy would wait forever"
+	elif poolexists $TESTPOOL; then
+		destroy_pool $TESTPOOL
+	fi
+	log_must rm -f $ASYNC_MIRROR_VDEVS $ASYNC_MIRROR_HIDDEN \
+	    $ASYNC_MIRROR_LAGGING_HIDDEN
+}
+
+#
+# The helpers below are for the tests of the intent log.
+#
+ASYNC_MIRROR_PATTERN="$TEST_BASE_DIR/async_mirror_pattern"
+ASYNC_MIRROR_WRITER_STOP="$TEST_BASE_DIR/async_mirror_writer.stop"
+typeset ASYNC_MIRROR_WRITER_PID=""
+
+#
+# Scrub the test pool, and fail if the pool or one of the given vdevs
+# shows an error.  Use it after an import of one child alone: a log block
+# that the child lacks, or that holds other bytes, shows here.
+#
+# $1... the vdev files whose checksum counts must be 0
+#
+function async_mirror_check_clean # vdev...
+{
+	typeset vdev
+
+	log_must zpool scrub -w $TESTPOOL
+	log_must check_pool_status $TESTPOOL errors "No known data errors"
+	for vdev in "$@"; do
+		log_must test "$(async_mirror_cksum_errors $vdev)" -eq 0
+	done
+}
+
+#
+# Write the intent log of the test pool to the log, for the reader of a
+# failure.  The pool must be exported.  The zdb output is not a check,
+# and its format can change.
+#
+function async_mirror_note_zil
+{
+	typeset line
+
+	zdb -e -p $ASYNC_MIRROR_DIR -iv $TESTPOOL 2>&1 | head -40 | \
+	    while read line; do
+		log_note "zdb: $line"
+	done
+	return 0
+}
+
+#
+# Write 4 KiB records of the letter x to a file, one synchronous write for
+# each record, until the stop file exists.  Each write makes an intent log
+# block.  The file then has only x bytes and holes, whatever part of the
+# log a crash keeps.
+#
+# $1 the file
+#
+function async_mirror_sync_writer # file
+{
+	typeset -i i=0
+
+	while [[ ! -e $ASYNC_MIRROR_WRITER_STOP ]]; do
+		dd if=$ASYNC_MIRROR_PATTERN of=$1 bs=4k count=1 seek=$i \
+		    conv=notrunc oflag=sync 2>/dev/null || return 1
+		(( i++ ))
+	done
+	return 0
+}
+
+function async_mirror_start_sync_writer # file
+{
+	log_must rm -f $ASYNC_MIRROR_WRITER_STOP
+	tr '\0' 'x' < /dev/zero | dd of=$ASYNC_MIRROR_PATTERN bs=4k count=1 \
+	    2>/dev/null
+	log_must test "$(stat_size $ASYNC_MIRROR_PATTERN)" -eq 4096
+	async_mirror_sync_writer $1 &
+	ASYNC_MIRROR_WRITER_PID=$!
+}
+
+#
+# Stop the writer.  It is also safe to call this when none runs.
+#
+function async_mirror_stop_sync_writer
+{
+	touch $ASYNC_MIRROR_WRITER_STOP
+	if [[ -n $ASYNC_MIRROR_WRITER_PID ]]; then
+		wait $ASYNC_MIRROR_WRITER_PID
+		ASYNC_MIRROR_WRITER_PID=""
+	fi
+	rm -f $ASYNC_MIRROR_WRITER_STOP $ASYNC_MIRROR_PATTERN
+	return 0
+}
+
+#
+# Succeed if a file holds only x bytes and holes.
+#
+function async_mirror_only_x # file
+{
+	[[ $(tr -d 'x\000' < $1 | wc -c) -eq 0 ]]
+}
+
+#
+# Print the number of events of one class in the output of "zpool events -v".
+# Each event is a paragraph of its own, and its class is on two lines of it,
+# so a plain "grep -c" counts each event twice.
+#
+# $1 file with the output of "zpool events -v"
+# $2 the class, as a part of its name: "async_mirror_refused"
+#
+function async_mirror_event_count # file class
+{
+	awk -v c="$2" 'BEGIN { RS = ""; FS = "\n" }
+	    index($0, "sysevent.fs.zfs." c) { n++ }
+	    END { print n + 0 }' $1
+}
+
+#
+# Print the txg (async_mirror_txg) of each event of one class in the output
+# of "zpool events -v", one for each line, as the number that the event
+# prints, in hexadecimal.  A ksh arithmetic expression reads it.
+#
+# $1 file with the output of "zpool events -v"
+# $2 the class, as a part of its name: "async_mirror_refused"
+#
+function async_mirror_event_txgs # file class
+{
+	awk -v c="$2" 'BEGIN { RS = ""; FS = "\n" }
+	    index($0, "sysevent.fs.zfs." c) {
+		for (i = 1; i <= NF; i++) {
+			if ($i ~ /async_mirror_txg = /) {
+				n = split($i, w, " ")
+				print w[n]
+			}
+		}
+	    }' $1
+}
+
+#
+# Print the number of lines of the debug log of the module that contain two
+# texts.  The log is shared by every pool and every test of the boot, and
+# txg numbers repeat, so a test takes the count before the step that it
+# checks, and compares it with the count after.
+#
+# $1 the first text
+# $2 the second text
+#
+function async_mirror_dbgmsg_count # text text
+{
+	kstat dbgmsg | awk -v a="$1" -v b="$2" \
+	    'index($0, a) && index($0, b) { n++ } END { print n + 0 }'
+}

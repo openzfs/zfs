@@ -34,6 +34,7 @@
 #include <sys/dmu_tx.h>
 #include <sys/dsl_dir.h>
 #include <sys/vdev_impl.h>
+#include <sys/vdev_async_mirror.h>
 #include <sys/vdev_rebuild.h>
 #include <sys/vdev_draid.h>
 #include <sys/uberblock_impl.h>
@@ -475,7 +476,7 @@ vdev_prop_get_objid(vdev_t *vd, uint64_t *objid)
 	return (0);
 }
 
-static int
+int
 vdev_prop_get_int(vdev_t *vd, vdev_prop_t prop, uint64_t *value)
 {
 	spa_t *spa = vd->vdev_spa;
@@ -787,6 +788,7 @@ vdev_alloc_common(spa_t *spa, uint_t id, uint64_t guid, vdev_ops_t *ops)
 	vd->vdev_slow_io_t = vdev_prop_default_numeric(VDEV_PROP_SLOW_IO_T);
 
 	vd->vdev_scheduler = vdev_prop_default_numeric(VDEV_PROP_SCHEDULER);
+	vd->vdev_read_mode = vdev_prop_default_numeric(VDEV_PROP_READ_MODE);
 
 	list_link_init(&vd->vdev_config_dirty_node);
 	list_link_init(&vd->vdev_state_dirty_node);
@@ -1099,6 +1101,9 @@ vdev_alloc(spa_t *spa, vdev_t **vdp, nvlist_t *nv, vdev_t *parent, uint_t id,
 			    &vd->vdev_dtl_object);
 			(void) nvlist_lookup_uint64(nv, ZPOOL_CONFIG_UNSPARE,
 			    &vd->vdev_unspare);
+			(void) nvlist_lookup_uint64(nv,
+			    ZPOOL_CONFIG_ASYNC_MIRROR_LAGGING,
+			    &vd->vdev_async_lagging);
 		}
 
 		if (alloctype == VDEV_ALLOC_ROOTPOOL) {
@@ -1210,6 +1215,8 @@ vdev_free(vdev_t *vd)
 	 */
 	for (int c = 0; c < vd->vdev_children; c++)
 		vdev_free(vd->vdev_child[c]);
+
+	vdev_async_mirror_vdev_free(vd);
 
 	ASSERT0P(vd->vdev_child);
 	ASSERT(vd->vdev_guid_sum == vd->vdev_guid);
@@ -2765,7 +2772,8 @@ vdev_validate(vdev_t *vd)
 	 */
 	if (!(spa->spa_import_flags & ZFS_IMPORT_VERBATIM) &&
 	    spa_load_state(spa) == SPA_LOAD_OPEN &&
-	    state != POOL_STATE_ACTIVE) {
+	    state != POOL_STATE_ACTIVE &&
+	    !vdev_async_mirror_accept_exported_label(vd, state)) {
 		vdev_dbgmsg(vd, "vdev_validate: invalid pool state (%llu) "
 		    "for spa %s", (u_longlong_t)state, spa->spa_name);
 		return (SET_ERROR(EBADF));
@@ -3042,7 +3050,7 @@ vdev_reopen(vdev_t *vd)
 	 * Recheck if resilver is still needed and cancel any
 	 * scheduled resilver if resilver is unneeded.
 	 */
-	if (!vdev_resilver_needed(spa->spa_root_vdev, NULL, NULL) &&
+	if (!vdev_async_mirror_resilver_wanted(spa->spa_root_vdev) &&
 	    spa->spa_async_tasks & SPA_ASYNC_RESILVER) {
 		mutex_enter(&spa->spa_async_lock);
 		spa->spa_async_tasks &= ~SPA_ASYNC_RESILVER;
@@ -3363,6 +3371,9 @@ vdev_dtl_should_excise(vdev_t *vd, boolean_t rebuild_done)
 	if (vd->vdev_resilver_deferred)
 		return (B_FALSE);
 
+	if (vdev_async_mirror_dtl_fence(vd))
+		return (B_FALSE);
+
 	if (zfs_range_tree_is_empty(vd->vdev_dtl[DTL_MISSING]))
 		return (B_TRUE);
 
@@ -3388,7 +3399,11 @@ vdev_dtl_should_excise(vdev_t *vd, boolean_t rebuild_done)
 		}
 	} else {
 		dsl_scan_t *scn = vd->vdev_spa->spa_dsl_pool->dp_scan;
-		dsl_scan_phys_t *scnp __maybe_unused = &scn->scn_phys;
+		dsl_scan_phys_t *scnp = &scn->scn_phys;
+
+		if (vdev_async_mirror_dtl_below_scan(vdev_dtl_min(vd),
+		    scnp->scn_min_txg))
+			return (B_FALSE);
 
 		/* Resilver not initiated by attach */
 		if (vd->vdev_resilver_txg == 0)
@@ -3772,6 +3787,7 @@ vdev_construct_zaps(vdev_t *vd, dmu_tx_t *tx)
 		if (vd->vdev_ops->vdev_op_leaf && vd->vdev_leaf_zap == 0) {
 			vd->vdev_leaf_zap = vdev_create_link_zap(vd, tx);
 		}
+		vdev_async_mirror_construct_zaps(vd, tx);
 		if (vd == vd->vdev_top && vd->vdev_top_zap == 0) {
 			vd->vdev_top_zap = vdev_create_link_zap(vd, tx);
 			if (vd->vdev_alloc_bias != VDEV_BIAS_NONE)
@@ -4153,6 +4169,7 @@ vdev_load(vdev_t *vd)
 		if (error && error != ENOENT)
 			vdev_dbgmsg(vd, "vdev_load: zap_lookup(zap=%llu) "
 			    "failed [error=%d]", (u_longlong_t)zapobj, error);
+		vdev_async_mirror_vdev_load(vd);
 	}
 
 	/*
@@ -4602,6 +4619,10 @@ vdev_fault(spa_t *spa, uint64_t guid, vdev_aux_t aux)
 
 	tvd = vd->vdev_top;
 
+	error = vdev_async_mirror_fault_check(vd, aux);
+	if (error != 0)
+		return (spa_vdev_state_exit(spa, NULL, error));
+
 	/*
 	 * If user did a 'zpool offline -f' then make the fault persist across
 	 * reboots.
@@ -4743,8 +4764,9 @@ int
 vdev_online(spa_t *spa, uint64_t guid, uint64_t flags, vdev_state_t *newstate)
 {
 	vdev_t *vd, *tvd, *pvd, *rvd = spa->spa_root_vdev;
-	boolean_t wasoffline;
+	boolean_t wasoffline, was_tmpoffline;
 	vdev_state_t oldstate;
+	int error;
 
 	spa_vdev_state_enter(spa, SCL_NONE);
 
@@ -4752,6 +4774,7 @@ vdev_online(spa_t *spa, uint64_t guid, uint64_t flags, vdev_state_t *newstate)
 		return (spa_vdev_state_exit(spa, NULL, SET_ERROR(ENODEV)));
 
 	wasoffline = (vd->vdev_offline || vd->vdev_tmpoffline);
+	was_tmpoffline = vd->vdev_tmpoffline;
 	oldstate = vd->vdev_state;
 
 	tvd = vd->vdev_top;
@@ -4775,6 +4798,11 @@ vdev_online(spa_t *spa, uint64_t guid, uint64_t flags, vdev_state_t *newstate)
 		for (pvd = vd; pvd != rvd; pvd = pvd->vdev_parent)
 			pvd->vdev_expanding = B_FALSE;
 	}
+
+	error = vdev_async_mirror_online_restore(spa, vd, tvd, wasoffline,
+	    was_tmpoffline);
+	if (error != 0)
+		return (spa_vdev_state_exit(spa, NULL, error));
 
 	if (newstate)
 		*newstate = vd->vdev_state;
@@ -4856,6 +4884,10 @@ top:
 
 	if (vd->vdev_ops == &vdev_draid_spare_ops)
 		return (spa_vdev_state_exit(spa, NULL, ENOTSUP));
+
+	error = vdev_async_mirror_offline_check(vd);
+	if (error != 0)
+		return (spa_vdev_state_exit(spa, NULL, error));
 
 	tvd = vd->vdev_top;
 	mg = tvd->vdev_mg;
@@ -6156,7 +6188,7 @@ vdev_clear_resilver_deferred(vdev_t *vd, dmu_tx_t *tx)
 	vd->vdev_resilver_deferred = B_FALSE;
 
 	return (!vdev_is_dead(vd) && !vd->vdev_offline &&
-	    vdev_resilver_needed(vd, NULL, NULL));
+	    vdev_async_mirror_resilver_wanted(vd));
 }
 
 boolean_t
@@ -6381,6 +6413,11 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 			    bias_str != NULL ? bias_str : "none");
 			break;
 		}
+		case VDEV_PROP_READ_MODE:
+		case VDEV_PROP_WRITE_MODE:
+			vdev_async_mirror_prop_set_sync(spa, vd, prop, elem,
+			    objid, tx);
+			break;
 		default:
 			/* normalize the property name */
 			propname = vdev_prop_to_name(prop);
@@ -6397,7 +6434,6 @@ vdev_props_set_sync(void *arg, dmu_tx_t *tx)
 				    strval);
 			} else if (nvpair_type(elem) == DATA_TYPE_UINT64) {
 				intval = fnvpair_value_uint64(elem);
-
 				if (proptype == PROP_TYPE_INDEX) {
 					const char *unused;
 					VERIFY0(vdev_prop_index_to_string(
@@ -6644,6 +6680,11 @@ vdev_prop_set(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 			}
 			vd->vdev_scheduler = intval;
 			break;
+		case VDEV_PROP_READ_MODE:
+		case VDEV_PROP_WRITE_MODE:
+			error = vdev_async_mirror_prop_set(spa, &vd, vdev_guid,
+			    prop, elem, outnvl);
+			break;
 		case VDEV_PROP_ALLOC_BIAS:
 			if (nvpair_value_uint64(elem, &intval) != 0) {
 				error = EINVAL;
@@ -6708,7 +6749,8 @@ end:
 	if (error != 0)
 		return (error);
 
-	return (dsl_sync_task(spa->spa_name, NULL, vdev_props_set_sync,
+	return (dsl_sync_task(spa->spa_name, vdev_async_mirror_props_set_check,
+	    vdev_props_set_sync,
 	    innvl, 6, ZFS_SPACE_CHECK_EXTRA_RESERVED));
 }
 
@@ -7174,6 +7216,17 @@ vdev_prop_get(spa_t *spa, nvlist_t *innvl, nvlist_t *outnvl)
 			case VDEV_PROP_ROTATIONAL:
 				vdev_prop_add_list(outnvl, propname, NULL,
 				    !vd->vdev_nonrot, ZPROP_SRC_NONE);
+				continue;
+			case VDEV_PROP_READ_MODE:
+			case VDEV_PROP_WRITE_MODE:
+					if (!vdev_async_mirror_prop_get(
+					    vd, prop, propname, outnvl, &err))
+					continue;
+				break;
+			case VDEV_PROP_ASYNC_MIRROR_STATE:
+					if (!vdev_async_mirror_prop_get(
+					    vd, prop, propname, outnvl, &err))
+					continue;
 				continue;
 			case VDEV_PROP_CHECKSUM_N:
 			case VDEV_PROP_CHECKSUM_T:

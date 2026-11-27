@@ -2428,7 +2428,7 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 
 	if (error) {
 		char desc[1024];
-		char aux[256];
+		char aux[ERRBUFLEN];
 
 		/*
 		 * Dry-run failed, but we print out what success
@@ -2545,6 +2545,49 @@ zpool_import_props(libzfs_handle_t *hdl, nvlist_t *config, const char *newname,
 			break;
 
 		case EINVAL:
+			(void) zfs_error(hdl, EZFS_INVALCONFIG, desc);
+			break;
+
+		case ZFS_ERR_ASYNC_MIRROR_DIVERGED: {
+			uint64_t *diverged = NULL;
+			uint_t ndiverged = 0;
+			const char *advice = "Each copy can be imported alone "
+			    "and read-only, with the other device out of\n"
+			    "the search path.  To keep one copy, import the "
+			    "pool with\n"
+			    "'--async-mirror-keep=<guid>', the guid of the "
+			    "copy to keep.  The writes that only\n"
+			    "the other copy has are lost, and that copy is "
+			    "resilvered in full.";
+
+			if (nv != NULL && nvlist_lookup_nvlist(nv,
+			    ZPOOL_CONFIG_LOAD_INFO, &nvinfo) == 0 &&
+			    nvlist_lookup_uint64_array(nvinfo,
+			    ZPOOL_CONFIG_ASYNC_MIRROR_DIVERGED, &diverged,
+			    &ndiverged) == 0 && ndiverged == 4) {
+				zfs_error_aux(hdl, "the two copies of the "
+				    "asynchronous mirror were written "
+				    "separately.\nCopy %llu reached txg %llu.\n"
+				    "Copy %llu reached txg %llu.\n%s",
+				    (u_longlong_t)diverged[0],
+				    (u_longlong_t)diverged[1],
+				    (u_longlong_t)diverged[2],
+				    (u_longlong_t)diverged[3], advice);
+			} else {
+				zfs_error_aux(hdl, "the two copies of the "
+				    "asynchronous mirror were written "
+				    "separately.\n%s", advice);
+			}
+			(void) zfs_error(hdl, EZFS_INVALCONFIG, desc);
+			break;
+		}
+
+		case ZFS_ERR_ASYNC_MIRROR_CATCHING_UP:
+			zfs_error_aux(hdl, "this copy of the asynchronous "
+			    "mirror was catching up and is not consistent.\n"
+			    "Import the pool with its leader, or force a "
+			    "read-only import to rescue readable\nfiles: "
+			    "'zpool import -f -o readonly=on'.");
 			(void) zfs_error(hdl, EZFS_INVALCONFIG, desc);
 			break;
 
@@ -5735,12 +5778,29 @@ int
 zpool_wait_status(zpool_handle_t *zhp, zpool_wait_activity_t activity,
     boolean_t *missing, boolean_t *waited)
 {
-	int error = lzc_wait(zhp->zpool_name, activity, waited);
+	int error;
+
+	if (activity == ZPOOL_WAIT_ASYNC_MIRROR) {
+		nvlist_t *config = zpool_get_config(zhp, NULL);
+		nvlist_t *nvroot, *stats;
+		uint64_t target = 0;
+
+		if (config != NULL && nvlist_lookup_nvlist(config,
+		    ZPOOL_CONFIG_VDEV_TREE, &nvroot) == 0 &&
+		    nvlist_lookup_nvlist(nvroot,
+		    ZPOOL_CONFIG_ASYNC_MIRROR_STATS, &stats) == 0) {
+			(void) nvlist_lookup_uint64(stats,
+			    ZPOOL_CONFIG_ASYNC_MIRROR_SYNCED_TXG, &target);
+		}
+		error = lzc_wait_tag(zhp->zpool_name, activity, target, waited);
+	} else {
+		error = lzc_wait(zhp->zpool_name, activity, waited);
+	}
 	*missing = (error == ENOENT);
 	if (*missing)
 		return (0);
 
-	if (error != 0) {
+	if (error != 0 && activity != ZPOOL_WAIT_ASYNC_MIRROR) {
 		(void) zpool_standard_error_fmt(zhp->zpool_hdl, error,
 		    "error waiting in pool '%s'",
 		    zhp->zpool_name);
@@ -6228,6 +6288,10 @@ zpool_get_vdev_prop_value(nvlist_t *nvprop, vdev_prop_t prop, char *prop_name,
 			/* Only valid for top-level vdevs */
 			if (prop == VDEV_PROP_ALLOC_BIAS)
 				return (ENOENT);
+			/* Only valid for mirror members. */
+			if (prop == VDEV_PROP_READ_MODE ||
+			    prop == VDEV_PROP_WRITE_MODE)
+				return (ENOENT);
 		}
 		if (vdev_prop_index_to_string(prop, intval,
 		    (const char **)&strval) != 0)
@@ -6395,9 +6459,54 @@ zpool_set_vdev_prop(zpool_handle_t *zhp, const char *vdevname,
 
 	nvlist_free(props);
 	nvlist_free(nvl);
-	nvlist_free(outnvl);
 
+	if (ret == EEXIST && vdev_name_to_prop(propname) ==
+	    VDEV_PROP_WRITE_MODE) {
+		uint64_t other = 0;
+
+		/* This version has one behind child in a pool. */
+		if (outnvl != NULL) {
+			(void) nvlist_lookup_uint64(outnvl,
+			    ZPOOL_VDEV_PROPS_SET_ASYNC_MIRROR_LEAF, &other);
+		}
+		if (other != 0) {
+			zfs_error_aux(zhp->zpool_hdl, "the pool has a behind "
+			    "child already, the vdev with guid %llu; this "
+			    "version supports one behind child in a pool; "
+			    "set write_mode=sync on that vdev first",
+			    (u_longlong_t)other);
+		} else {
+			zfs_error_aux(zhp->zpool_hdl, "the pool has a behind "
+			    "child already; this version supports one "
+			    "behind child in a pool; set write_mode=sync "
+			    "on that vdev first");
+		}
+		(void) zfs_error(zhp->zpool_hdl, EZFS_BUSY, errbuf);
+		nvlist_free(outnvl);
+		return (ret);
+	}
 	if (ret) {
+		const char *set_error = NULL;
+		if (outnvl != NULL && nvlist_lookup_string(outnvl,
+		    ZPOOL_VDEV_PROPS_SET_ERROR, &set_error) == 0) {
+			zfs_error_aux(zhp->zpool_hdl,
+			    "cannot set %s on %s: %s", propname, vdevname,
+			    set_error);
+		} else if (ret == EINVAL &&
+		    strcmp(propname, "read_mode") == 0 &&
+		    strcmp(propval, "normal") == 0) {
+			zfs_error_aux(zhp->zpool_hdl,
+			    "read_mode=normal is not allowed while "
+			    "write_mode=behind");
+		} else if (ret == EINVAL &&
+		    ((strcmp(propname, "read_mode") == 0 &&
+		    strcmp(propval, "fallback") == 0) ||
+		    (strcmp(propname, "write_mode") == 0 &&
+		    strcmp(propval, "behind") == 0))) {
+			zfs_error_aux(zhp->zpool_hdl,
+			    "the mirror must keep a member with "
+			    "read_mode=normal and write_mode=sync");
+		}
 		if (ret == ENOTSUP) {
 			zfs_error_aux(zhp->zpool_hdl,
 			    "property not supported for this vdev");
@@ -6407,6 +6516,7 @@ zpool_set_vdev_prop(zpool_handle_t *zhp, const char *vdevname,
 			    errbuf);
 		}
 	}
+	nvlist_free(outnvl);
 
 	return (ret);
 }

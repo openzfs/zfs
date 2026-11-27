@@ -135,6 +135,7 @@
 #include <sys/spa.h>
 #include <sys/spa_impl.h>
 #include <sys/spa_checkpoint.h>
+#include <sys/vdev_async_mirror.h>
 #include <sys/vdev_impl.h>
 #include <sys/zap.h>
 #include <sys/zfeature.h>
@@ -465,6 +466,9 @@ spa_checkpoint_check(void *arg, dmu_tx_t *tx)
 
 	if (spa_feature_is_active(spa, SPA_FEATURE_POOL_CHECKPOINT))
 		return (SET_ERROR(ZFS_ERR_DISCARDING_CHECKPOINT));
+
+	if (vdev_async_mirror_in_use(spa) || spa_async_mirror_lineage(spa) != 0)
+		return (SET_ERROR(ENOTSUP));
 
 	return (0);
 }

@@ -528,6 +528,7 @@ mmp_write_uberblock(spa_t *spa)
 	    MMP_INTERVAL_SET(MMP_INTERVAL_OK(zfs_multihost_interval)) |
 	    MMP_FAIL_INT_SET(MMP_FAIL_INTVS_OK(
 	    zfs_multihost_fail_intervals));
+
 	vd->vdev_mmp_pending = gethrtime();
 	vd->vdev_mmp_kstat_id = mmp->mmp_kstat_id;
 

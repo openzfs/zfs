@@ -16,7 +16,7 @@
 .\" Copyright (c) 2026, Mateusz Piotrowski <0mp@FreeBSD.org>
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd September 9, 2026
+.Dd November 16, 2026
 .Dt ZFS 4
 .Os
 .
@@ -1655,6 +1655,293 @@ These frees may require additional I/O, making them more expensive.
 After freeing this many dedup, clone or gang blocks wait for all pending
 I/Os to complete before continuing.
 .
+.It Sy zfs_vdev_async_mirror_copy_delay_ms Ns = Ns Sy 0 Ns ms Pq uint
+Test-suite tunable that makes the copy to the lagging child of an async
+mirror wait this long before each block.
+An export of the pool and a give-up on the child end the wait.
+.
+.It Sy zfs_vdev_async_mirror_copy_limit Ns = Ns Sy 67108864 Ns B Po 64 MiB Pc Pq u64
+Maximum bytes of blocks that the copy to the lagging child of an asynchronous
+mirror has in flight: read from the leader, or written to the lagging child.
+A larger value gives the lagging child a deeper queue to sort and merge.
+.
+.It Sy zfs_vdev_async_mirror_defer_max Ns = Ns Sy 16384 Pq uint
+Maximum number of data blocks that the copy to the lagging child of an
+asynchronous mirror defers for one transaction group.
+The copy defers a data block that it cannot read on its last try, and tries it
+again later.
+A pool with a large area that does not read would otherwise defer without
+bound, and the deferred blocks use memory and space in the pool.
+When more blocks than this fail, the lagging child freezes at the
+transaction group before, as for a metadata block that cannot be read.
+Set to 0 to defer no block: the first data block that cannot be read freezes
+the lagging child.
+.
+.It Sy zfs_vdev_async_mirror_held_free_percent Ns = Ns Sy 2 Ns % Pq uint
+Free space of the pool below which an async mirror gives up on its lagging
+child.
+The pool holds the blocks that it has freed until the lagging child has
+copied the transaction group of the free, and held space is not available to
+the datasets.
+The pool is short of space when the datasets can use less than this
+percentage of the pool, and less than a quarter of the slop space
+.Pq see Sy spa_slop_shift :
+the datasets are then about to run out of space.
+A pool that is only nearly full is not short of space.
+When the pool is short of space, a progressing copy gets time to release held
+frees as it advances.
+If the waiting held frees can restore this margin, the
+async mirror gives up if the copy is suspended or has made no progress for the
+smaller of
+.Sy zfs_vdev_async_mirror_held_limit_secs
+and
+.Sy zfs_txg_timeout .
+Otherwise, it gives the copy time to pass the newest transaction group.
+It also gives up sooner if the child makes no progress for the smaller of
+.Sy zfs_vdev_async_mirror_held_limit_secs
+and
+.Sy zfs_txg_timeout .
+The async mirror freezes the child as described for
+.Sy zfs_vdev_async_mirror_held_limit_percent .
+The check uses both the space available to datasets and the free space in
+the normal allocation class after slop.
+Held and deferred frees remain allocated until the allocator can reuse them,
+so the allocation-class check counts them as used.
+The check runs before and after a transaction group sync, and once a second.
+On a pool that is nearly full this margin is reached long before
+.Sy zfs_vdev_async_mirror_held_limit_percent .
+Set to 0 to turn this off: the datasets can then run out of space until the
+child is resilvered.
+.
+.It Sy zfs_vdev_async_mirror_held_limit_percent Ns = Ns Sy 50 Ns % Pq uint
+Hard limit of the held space of an async mirror that waits for the lagging
+child.
+An async mirror holds the blocks that the pool has freed until the lagging
+child has copied the transaction group of the free.
+Held space is not available to the datasets, and this part of it never delays
+a write
+.Pq see Sy zfs_vdev_async_mirror_max_held_percent .
+When this part stays at this percentage of the pool for
+.Sy zfs_vdev_async_mirror_held_limit_secs
+seconds, and in that time the lagging child does not pass the transaction
+group that was the newest one at the start of that time, the async mirror
+gives up on the lagging child and freezes it:
+.Bl -bullet -compact
+.It
+The pool frees all of the held space, and holds no new space.
+.It
+The child gets no I/O from the pool: no write, no label and no read.
+It stays a complete copy of the pool at its own transaction group, and neither
+a write nor a transaction group waits for it.
+.It
+The pool notes the frozen transaction group, also across an export, posts the
+event
+.Sy async_mirror_frozen
+with the reason
+.Qq held space limit ,
+and
+.Nm zpool Cm status
+reports that the child is not protected.
+.El
+So a lagging child that is slow or stalled does not fill the pool.
+A healthy child that is behind passes that transaction group in time, so one
+large delete does not freeze it.
+The async mirror gives up on the child in two other cases, with the same
+result and another reason in the event; see
+.Sy zfs_vdev_async_mirror_held_free_percent
+.Pq Qq pool space low
+and
+.Sy zfs_vdev_async_mirror_stall_secs
+.Pq Qq copy stalled .
+A child that encounters a read error of the other child after
+.Sy zfs_vdev_async_mirror_read_retries
+tries, freezes in the same way, with the reason
+.Qq metadata read error .
+An administrator can set
+.Sy write_mode=sync
+to resilver it.
+The checks run before and after a transaction group sync, and once a second.
+The held space comes back after the copy I/O that is in flight has ended,
+which can take as long as the I/O timeout of a child that does not answer;
+writes do not wait for that.
+Held space that the lagging child has passed does not count, because a release
+frees it without the child.
+Set to 0 for no limit.
+.
+.It Sy zfs_vdev_async_mirror_held_limit_secs Ns = Ns Sy 60 Ns s Pq uint
+Seconds for which the held space of an async mirror stays at
+.Sy zfs_vdev_async_mirror_held_limit_percent ,
+with too little progress of the lagging child, before the async mirror gives
+up on the child.
+For the pool-space rule of
+.Sy zfs_vdev_async_mirror_held_free_percent ,
+a normal copy that makes progress gets this time to pass the newest transaction
+group when the waiting held frees cannot restore the pool-space margin.
+Set to 0 to give up as soon as the limit is reached.
+.
+.It Sy zfs_vdev_async_mirror_inject_refuse Ns = Ns Sy 0 Pq uint
+Test-suite tunable; do not set it on a production system: it freezes every
+lagging child, which then needs a resilver.
+The copy to the lagging child of an asynchronous mirror counts the block
+pointers of each transaction group that it copies, from 1.
+It refuses the block pointer with this number, as if the block pointer pointed
+to a range that its transaction group did not allocate.
+The lagging child is then frozen.
+Set to 0 to turn this off.
+.
+.It Sy zfs_vdev_async_mirror_inject_rest Ns = Ns Sy 0 Pq uint
+Test-suite tunable; do not set it on a production system: it copies one block
+of each transaction group without checking its checksum.
+The copy to the lagging child of an asynchronous mirror counts the block
+pointers of each transaction group that it copies, from 1.
+It ignores the block pointer with this number, and copies the ranges of that
+block as ranges that no block pointer leads to; see the
+.Sy copy_rest_bytes
+counter in
+.Xr zpoolconcepts 7 .
+Set to 0 to turn this off.
+.
+.It Sy zfs_vdev_async_mirror_inject_dtl_delay Ns = Ns Sy 0 Pq uint
+Test-suite tunable; do not set it on a production system.
+After a copy failure, it keeps labels and uberblocks off the failed child for
+this many transaction groups after the DTL is durable.
+This leaves a test window in which writes must still stay off the child.
+Set to 0 to turn this off.
+.
+.It Sy zfs_vdev_async_mirror_inject_dtl_label_flush Ns = Ns Sy 0 Pq uint
+Test-suite tunable; do not set it on a production system.
+It drops DTL label writes to the failed child and reports a failed leaf flush.
+This models loss of the label writes before the flush makes them durable.
+The pool uberblock sync continues, so the test can verify that it skips the
+failed child.
+Set to 0 to turn this off.
+.
+.It Sy zfs_vdev_async_mirror_load_max_bytes Ns = Ns Sy 1073741824 Ns B Po 1 GiB Pc Pq u64
+Limit of the memory that an import allocates for each list of async mirror
+records, free intervals, and deferred blocks.
+The default is room for about 4 million records.
+An import that needs more fails, and a kernel message names this parameter;
+raise the limit to import such a pool.
+Set to 0 for no limit.
+.
+.It Sy zfs_vdev_async_mirror_max_held_percent Ns = Ns Sy 25 Ns % Pq uint
+Limit of the held space of an async mirror that waits for its release.
+An async mirror holds the blocks that the pool has freed until the lagging
+child has copied the transaction group of the free; a release then frees them.
+Held space is not available to the datasets.
+Only the held space that the lagging child has passed counts against this
+limit, because only a release can get it back:
+.Bl -bullet -compact
+.It
+As that space passes
+.Sy zfs_delay_min_dirty_percent
+of this percentage of the pool, writes are delayed on the curve of the dirty
+data throttle.
+They do not wait above it.
+.It
+While writes are delayed, the release runs at once, in a transaction group of
+its own, so the delay ends when the release has freed the space.
+.It
+While more than a quarter of this limit waits and a release did not finish,
+the next release runs in a transaction group of its own too.
+.El
+Held space that the lagging child has not passed never delays a write: a
+child that is slow or stalled does not slow the pool in this way.
+That space has hard limits of its own,
+.Sy zfs_vdev_async_mirror_held_limit_percent
+and
+.Sy zfs_vdev_async_mirror_held_free_percent ,
+at which the async mirror gives up on the child and freezes it.
+Keep that limit well above the point where the delay starts here.
+The same is true for the held space behind a deferred data block that is not
+recovered yet: no release frees it, so it never delays a write and counts
+against the hard limit.
+Set to 0 to turn the delay off.
+.
+.It Sy zfs_vdev_async_mirror_max_pending_bytes Ns = Ns Sy 2147483648 Ns B Po 2 GiB Pc Pq u64
+Limit of the bytes that wait to be copied to the lagging child of an
+async mirror.
+As the backlog passes
+.Sy zfs_delay_min_dirty_percent
+of this limit, writes are delayed on the curve of the dirty data throttle;
+above it, they wait for the copy.
+That wait ends when the copy makes no progress; see
+.Sy zfs_vdev_async_mirror_stall_secs .
+Writes are not delayed and do not wait while the child is frozen.
+An administrator must set
+.Sy write_mode=sync
+and let a normal resilver finish before setting
+.Sy write_mode=behind
+again.
+.
+.It Sy zfs_vdev_async_mirror_max_pending_txgs Ns = Ns Sy 256 Pq u64
+Limit of the txgs that wait to be copied to the lagging child of an
+async mirror, applied as
+.Sy zfs_vdev_async_mirror_max_pending_bytes .
+.
+.It Sy zfs_vdev_async_mirror_read_retries Ns = Ns Sy 10 Pq uint
+Retry a failed read while copying to the lagging child this many times, 3
+seconds apart.
+A data block is tried again before its space is reused.
+.
+.It Sy zfs_vdev_async_mirror_release_limit Ns = Ns Sy 0 Pq u64
+Limit the number of held ranges that one sync task releases from an
+async mirror.
+Set to 0 for no limit.
+This parameter is for tests: with a small limit the held space can come back
+more slowly than the pool holds new space.
+The time limit
+.Sy zfs_vdev_async_mirror_release_ms
+applies in both cases.
+.
+.It Sy zfs_vdev_async_mirror_release_ms Ns = Ns Sy 250 Ns ms Pq uint
+Limit the time that one sync task spends on the release of the held ranges of
+an async mirror.
+A release that reaches the limit continues in a later transaction group.
+While much held space waits
+.Pq see Sy zfs_vdev_async_mirror_max_held_percent ,
+each part of the release runs in a transaction group of its own, so a very
+large release can sync several transaction groups a second.
+Set to 0 for no limit.
+.
+.It Sy zfs_vdev_async_mirror_sort_limit Ns = Ns Sy 67108864 Ns B Po 64 MiB Pc Pq u64
+Maximum bytes of memory for the blocks that the copy to the lagging child of an
+asynchronous mirror collects before it sorts them by their offset and issues
+them.
+The copy collects the blocks of all the transaction groups that it commits
+together, so that the lagging child gets its writes in one pass.
+A block uses about 300 bytes.
+When the limit is reached, the copy issues what it holds and makes one more
+pass.
+A larger value helps a rotating lagging child after many small random writes.
+.
+.It Sy zfs_vdev_async_mirror_stall_secs Ns = Ns Sy 30 Ns s Pq uint
+Seconds with no progress of the copy to the lagging child of an async mirror
+after which the async mirror gives up on the child.
+Above
+.Sy zfs_vdev_async_mirror_max_pending_bytes
+or
+.Sy zfs_vdev_async_mirror_max_pending_txgs
+writes wait for the copy.
+When the copy then writes no block for this time, the lagging child is
+stalled: the async mirror gives up on it and freezes it, as described for
+.Sy zfs_vdev_async_mirror_held_limit_percent ,
+with the reason
+.Qq copy stalled
+in the event, and the writes go on at once.
+So a write waits for a stalled child for about this time at most.
+A child that is slow, and still writes, is not stalled: writes then run at
+the speed of the child, as the backlog limits intend.
+Set to 0 to turn this off; writes then wait for a stalled child until it
+answers.
+.
+.It Sy zfs_vdev_async_mirror_suspend_copy Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Test-suite tunable that pauses copying to the lagging child of an async
+mirror.
+.
+.It Sy zfs_vdev_async_mirror_suspend_release Ns = Ns Sy 0 Ns | Ns 1 Pq int
+Test-suite tunable that pauses release of an async mirror's held space.
+.
 .It Sy zfs_vdev_async_read_max_active Ns = Ns Sy 3 Pq uint
 Maximum asynchronous read I/O operations active to each device.
 .No See Sx ZFS I/O SCHEDULER .
@@ -2168,6 +2455,21 @@ every
 milliseconds.
 In practice, the observed period can vary with the I/O load
 and this observed value is the delay which is stored in the uberblock.
+.Pp
+The pool refuses to start an async mirror while
+.Sy multihost
+is on.
+It also refuses to turn
+.Sy multihost
+on while an async mirror is active.
+Set
+.Sy write_mode Ns = Ns Sy sync
+on the behind member and wait until its
+.Sy async_mirror_state
+is
+.Sy off
+before enabling
+.Sy multihost .
 .
 .It Sy zfs_multihost_import_intervals Ns = Ns Sy 20 Pq uint
 Used to control the duration of the activity test on import.

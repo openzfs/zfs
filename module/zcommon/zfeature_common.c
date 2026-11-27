@@ -816,6 +816,18 @@ zpool_feature_init(void)
 	    "com.klarasystems:anyraid", "anyraid", "Support for anyraid VDEV",
 	    ZFEATURE_FLAG_MOS, ZFEATURE_TYPE_BOOLEAN, NULL, sfeatures);
 
+	{
+		static const spa_feature_t async_mirror_deps[] = {
+			SPA_FEATURE_SPACEMAP_V2,
+			SPA_FEATURE_NONE
+		};
+		zfeature_register(SPA_FEATURE_ASYNC_MIRROR,
+		    "org.openzfs:async_mirror", "async_mirror",
+		    "Support for asynchronous mirror children",
+		    0, ZFEATURE_TYPE_BOOLEAN,
+		    async_mirror_deps, sfeatures);
+	}
+
 	zfs_mod_list_supported_free(sfeatures);
 }
 

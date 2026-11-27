@@ -392,6 +392,18 @@ vdev_prop_init(void)
 		{ NULL }
 	};
 
+	static const zprop_index_t vdev_read_mode_table[] = {
+		{ "normal",	VDEV_READ_MODE_NORMAL },
+		{ "fallback",	VDEV_READ_MODE_FALLBACK },
+		{ NULL }
+	};
+
+	static const zprop_index_t vdev_write_mode_table[] = {
+		{ "sync",	VDEV_WRITE_MODE_SYNC },
+		{ "behind",	VDEV_WRITE_MODE_BEHIND },
+		{ NULL }
+	};
+
 	struct zfs_mod_supported_features *sfeatures =
 	    zfs_mod_list_supported(ZFS_SYSFS_VDEV_PROPERTIES);
 
@@ -399,6 +411,9 @@ vdev_prop_init(void)
 	zprop_register_string(VDEV_PROP_COMMENT, "comment", NULL,
 	    PROP_DEFAULT, ZFS_TYPE_VDEV, "<comment-string>", "COMMENT",
 	    sfeatures);
+	zprop_register_string(VDEV_PROP_ASYNC_MIRROR_STATE,
+	    "async_mirror_state", NULL, PROP_READONLY, ZFS_TYPE_VDEV, "<state>",
+	    "AMSTATE", sfeatures);
 	zprop_register_string(VDEV_PROP_PATH, "path", NULL,
 	    PROP_DEFAULT, ZFS_TYPE_VDEV, "<device-path>", "PATH", sfeatures);
 	zprop_register_string(VDEV_PROP_DEVID, "devid", NULL,
@@ -573,6 +588,14 @@ vdev_prop_init(void)
 	    VDEV_BIAS_NONE, PROP_DEFAULT, ZFS_TYPE_VDEV,
 	    "none | log | special | dedup", "ALLOC_BIAS",
 	    vdev_alloc_bias_table, sfeatures);
+	zprop_register_index(VDEV_PROP_READ_MODE, "read_mode",
+	    VDEV_READ_MODE_NORMAL, PROP_DEFAULT, ZFS_TYPE_VDEV,
+	    "normal | fallback", "READ_MODE", vdev_read_mode_table,
+	    sfeatures);
+	zprop_register_index(VDEV_PROP_WRITE_MODE, "write_mode",
+	    VDEV_WRITE_MODE_SYNC, PROP_DEFAULT, ZFS_TYPE_VDEV,
+	    "sync | behind", "WRITE_MODE", vdev_write_mode_table,
+	    sfeatures);
 	zprop_register_index(VDEV_PROP_ROTATIONAL, "rotational", 0,
 	    PROP_READONLY, ZFS_TYPE_VDEV, "on | off", "ROTATIONAL",
 	    boolean_table, sfeatures);

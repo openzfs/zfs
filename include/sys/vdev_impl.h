@@ -391,6 +391,14 @@ struct vdev {
 	uint64_t	vdev_removed;	/* persistent removed state	*/
 	uint64_t	vdev_resilver_txg; /* persistent resilvering state */
 	uint64_t	vdev_rebuild_txg; /* persistent rebuilding state */
+	uint64_t	vdev_async_lagging; /* persistent: lags its mirror */
+	uint64_t	vdev_async_txg;	/* it holds the blocks up to this */
+	uint64_t	vdev_async_mirror; /* internal async mirror state */
+	uint64_t	vdev_read_mode;	/* cached read_mode property */
+	boolean_t	vdev_async_mirror_pending;
+	boolean_t	vdev_async_mirror_replace_pending;
+	uint64_t	vdev_async_label_lineage; /* lineage in its labels */
+	uint32_t	vdev_async_state; /* async mirror state, atomic */
 	char		*vdev_path;	/* vdev path (if any)		*/
 	char		*vdev_devid;	/* vdev devid (if any)		*/
 	char		*vdev_physpath;	/* vdev device path (if any)	*/
@@ -609,6 +617,7 @@ extern void vdev_remove_parent(vdev_t *cvd);
 extern boolean_t vdev_log_state_valid(vdev_t *vd);
 extern int vdev_load(vdev_t *vd);
 extern int vdev_dtl_load(vdev_t *vd);
+extern int vdev_prop_get_int(vdev_t *vd, vdev_prop_t prop, uint64_t *value);
 extern void vdev_sync(vdev_t *vd, uint64_t txg);
 extern void vdev_sync_dispatch(vdev_t *vd, uint64_t txg);
 extern void vdev_sync_done(vdev_t *vd, uint64_t txg);

@@ -44,6 +44,7 @@ typedef struct mirror_child {
 	uint8_t		mc_skipped;
 	uint8_t		mc_speculative;
 	uint8_t		mc_rebuilding;
+	void		*mc_async_repair;
 } mirror_child_t;
 
 typedef struct mirror_map {

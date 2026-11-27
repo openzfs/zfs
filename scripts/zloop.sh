@@ -281,13 +281,14 @@ while (( timeout == 0 )) || (( curtime <= (starttime + timeout) )); do
 	draid_data=0
 	draid_spares=0
 	expand=0
+	async_mirror=0
 
 	# randomly use special classes
 	class="special=random"
 
-	# choose between four types of configs
-	# (basic, raidz mix, raidz expansion, and draid mix)
-	case $((RANDOM % 4)) in
+	# choose between five types of configs
+	# (basic, raidz mix, raidz expansion, draid mix, and async mirror)
+	case $((RANDOM % 5)) in
 
 	# basic mirror configuration
 	0)	parity=1
@@ -333,6 +334,15 @@ while (( timeout == 0 )) || (( curtime <= (starttime + timeout) )); do
 		vdevs=$((RANDOM % 3))
 		raid_type="draid"
 		;;
+
+	# one regular two-way mirror for asynchronous mirror coverage
+	4)	parity=1
+		mirrors=2
+		raid_children=1
+		vdevs=1
+		raid_type="raidz"
+		async_mirror=1
+		;;
 	*)
 		# avoid shellcheck SC2249
 		;;
@@ -349,6 +359,9 @@ while (( timeout == 0 )) || (( curtime <= (starttime + timeout) )); do
 	zopt="$zopt -C $class"
 	zopt="$zopt -s $size"
 	zopt="$zopt -f $workdir"
+	if [[ $async_mirror -eq 1 ]]; then
+		zopt="$zopt -A"
+	fi
 
 	# ztest takes a 64 hex digit seed
 	ztest_seed=""
@@ -364,7 +377,8 @@ while (( timeout == 0 )) || (( curtime <= (starttime + timeout) )); do
 	# running it everywhere would remove that coverage from the loop.
 	# A raidz expansion run is skipped because ztest forces -M off for
 	# one, which would spend a multihost iteration on a run that does
-	# no multihost testing.
+	# no multihost testing.  An async mirror run is skipped too: ztest
+	# refuses -A together with -M.
 	#
 	# ztest needs a non-zero hostid to set the multihost property, and
 	# ZFS_HOSTID provides one without creating /etc/hostid, which the ZTS
@@ -372,7 +386,8 @@ while (( timeout == 0 )) || (( curtime <= (starttime + timeout) )); do
 	#
 	if [[ $multihost -eq 1 ]]; then
 		unset ZFS_HOSTID
-		if [[ $expand -eq 0 ]] && [[ $((RANDOM % 5)) -eq 0 ]]; then
+		if [[ $expand -eq 0 ]] && [[ $async_mirror -eq 0 ]] &&
+		    [[ $((RANDOM % 5)) -eq 0 ]]; then
 			zopt="$zopt -M"
 			export ZFS_HOSTID=$((RANDOM + 1))
 		fi

@@ -155,6 +155,57 @@ write to them.
 .
 .It Xo
 .Nm zhack
+.Cm async-mirror damage
+.Ar pool
+.Ar kind
+.Xc
+Damage the records, per-child entries and lineage of an asynchronous mirror
+in the MOS of an exported
+.Ar pool ,
+to test the checks that an import makes.
+Each
+.Ar kind
+writes what a damaged or crafted pool can hold and what ZFS never writes:
+.Bl -tag -compact -width "lineage-zero-guid"
+.It Sy none
+Change nothing.
+.It Sy free-overlap
+Write a held range of a record a second time.
+.It Sy same-object
+Add a record that names the space map object of another record.
+.It Sy not-space-map
+Add a record whose object is not a space map.
+.It Sy deferred
+Add a deferred block whose block pointer is a hole.
+.It Sy record-flag
+Set a flag that no software knows in the oldest record.
+.It Sy child-flag
+Set a flag that no software knows in the per-child entry of the lagging child.
+.It Sy child-second
+Add a second per-child entry of a lagging child.
+.It Sy child-gone
+Remove the per-child entry of the lagging child, and keep its records.
+.It Sy child-frozen-flag
+Set a flag that no software knows in the frozen flags of the lagging child.
+.It Sy lineage-count
+Clear the absent-child count in a forked lineage entry.
+.It Sy lineage-zero-guid
+Set one absent child guid in a forked lineage entry to 0.
+.It Sy lineage-flag
+Set a flag that no software knows in a forked lineage entry.
+.El
+An import of the pool must then fail.
+Run it with
+.Fl o Sy zfs_vdev_async_mirror_suspend_copy Ns = Ns Sy 1
+and
+.Fl o Sy zfs_vdev_async_mirror_suspend_release Ns = Ns Sy 1 ,
+so that
+.Nm
+itself neither copies nor releases the records.
+The pool is not usable afterwards: never use this on a pool with data.
+.
+.It Xo
+.Nm zhack
 .Cm metaslab leak
 .Op Fl f
 .Ar pool

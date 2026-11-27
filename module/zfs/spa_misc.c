@@ -3010,7 +3010,7 @@ spa_writeable(spa_t *spa)
 boolean_t
 spa_self_heal_allowed(spa_t *spa)
 {
-	return (spa_writeable(spa) &&
+	return (spa_writeable(spa) && !spa->spa_async_mirror_unchecked &&
 	    (spa->spa_load_state == SPA_LOAD_NONE ||
 	    spa->spa_load_max_txg == UINT64_MAX || spa->spa_sync_on));
 }

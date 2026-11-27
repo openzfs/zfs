@@ -110,6 +110,66 @@ to display numbers in integer format instead of strings.
 Specify
 .Sy --json-pool-key-guid
 to set pool GUID as key for pool objects instead of pool names.
+When the pool has an asynchronous mirror, the pool object includes an
+.Sy async_mirror
+object with the field
+.Sy synced_txg ,
+and these fields when they are true:
+.Pp
+.Bl -tag -compact -width "replacing"
+.It Sy replacing
+The failed lagging child is in a replacing vdev.
+.El
+.Pp
+The values of a lagging child are in the object of its leaf, so that each
+lagging child has its own.
+The lagging leaf has the fields
+.Sy async_mirror_lagging , async_mirror_state ,
+.Sy async_mirror_applied_txg , No and
+.Sy async_mirror_pending_bytes .
+Each leaf child of a mirror also has the string fields
+.Sy read_mode
+and
+.Sy write_mode .
+It can also include these fields when they are true:
+.Pp
+.Bl -tag -compact -width "async_mirror_giveup_reason"
+.It Sy async_mirror_held_limit
+The pool gave up on the lagging child because it is too slow or stalled.
+The child is frozen and needs a normal resilver.
+The leaf then has the string
+.Sy async_mirror_giveup_reason :
+.Qq held space limit ,
+.Qq pool space low ,
+.Qq copy stalled .
+.El
+.Pp
+The fields that are true, and the
+.Sy async_mirror_lagging
+field of the lagging leaf, have the value string
+.Sy 1
+unless
+.Sy --json-int
+is specified, in which case they have the value number
+.Sy 1 .
+The other numbers of the asynchronous mirror are strings unless
+.Sy --json-int
+is specified.
+The
+.Sy async_mirror_state
+and
+.Sy async_mirror_giveup_reason
+fields are always strings.
+.Pp
+Text status reports a frozen or failed asynchronous mirror copy as a pool
+health problem.
+When the pool gave up on the lagging child, the status text says so, and the
+.Sy async mirror
+line ends with
+.Qq not protected: gave up (held space limit), the child needs a resilver ,
+with the reason of the give-up.
+The same status and action text is available with
+.Nm zpool Cm status Fl x .
 .It Fl L
 Display real paths for vdevs resolving all symbolic links.
 This can be used to look up the current block device name regardless of the

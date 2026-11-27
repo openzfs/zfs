@@ -367,6 +367,8 @@ struct metaslab {
 	uint64_t	ms_fragmentation;
 
 	zfs_range_tree_t	*ms_allocating[TXG_SIZE];
+	/* subset of ms_allocating that is not for the async mirror's list */
+	zfs_range_tree_t	*ms_async_mirror_nolist[TXG_SIZE];
 	zfs_range_tree_t	*ms_allocatable;
 	uint64_t	ms_allocated_this_txg;
 	uint64_t	ms_allocating_total;
@@ -382,6 +384,8 @@ struct metaslab {
 	zfs_range_tree_t	*ms_defer[TXG_DEFER_SIZE];
 	/* to add to the checkpoint */
 	zfs_range_tree_t	*ms_checkpointing;
+	/* freed, held for the asynchronous mirror; see vdev_async_mirror.c */
+	zfs_range_tree_t	*ms_holding;
 
 	/*
 	 * The ms_trim tree is the set of allocatable segments which are

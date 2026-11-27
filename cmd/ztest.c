@@ -98,6 +98,7 @@
 #include <sys/zil.h>
 #include <sys/zil_impl.h>
 #include <sys/vdev_anyraid.h>
+#include <sys/vdev_async_mirror.h>
 #include <sys/vdev_draid.h>
 #include <sys/vdev_impl.h>
 #include <sys/vdev_file.h>
@@ -198,6 +199,7 @@ typedef struct ztest_shared_opts {
 	uint64_t zo_metaslab_force_ganging;
 	raidz_expand_test_state_t zo_raidz_expand_test;
 	int zo_mmp_test;
+	int zo_async_mirror;
 	int zo_special_vdevs;
 	int zo_dump_dbgmsg;
 	int zo_fishing;
@@ -254,6 +256,7 @@ static const ztest_shared_opts_t ztest_opts_defaults = {
 	.zo_killrate = DEFAULT_KILL_RATE,
 	.zo_verbose = 0,
 	.zo_mmp_test = 0,
+	.zo_async_mirror = 0,
 	.zo_init = DEFAULT_INITS,
 	.zo_time = DEFAULT_RUN_TIME,
 	.zo_maxloops = DEFAULT_MAX_LOOPS, /* max loops during spa_freeze() */
@@ -265,12 +268,14 @@ static const ztest_shared_opts_t ztest_opts_defaults = {
 };
 
 extern uint64_t metaslab_force_ganging;
+extern uint_t metaslab_force_ganging_pct;
 extern uint64_t metaslab_df_alloc_threshold;
 extern uint64_t zfs_deadman_synctime_ms;
 extern uint_t metaslab_preload_limit;
 extern int zfs_compressed_arc_enabled;
 extern int zfs_abd_scatter_enabled;
 extern uint_t dmu_object_alloc_chunk_shift;
+extern int zfs_vdev_async_mirror_suspend_copy;
 extern boolean_t zfs_force_some_double_word_sm_entries;
 extern unsigned long zfs_reconstruct_indirect_damage_fraction;
 extern uint64_t raidz_expand_max_reflow_bytes;
@@ -457,6 +462,8 @@ ztest_func_t ztest_ddt_prune;
 ztest_func_t ztest_spa_log_flushall_start;
 ztest_func_t ztest_spa_log_flushall_cancel;
 ztest_func_t ztest_scrub_prefetch;
+ztest_func_t ztest_async_mirror_suspend;
+ztest_func_t ztest_async_mirror_refusals;
 
 static uint64_t zopt_always = 0ULL * NANOSEC;		/* all the time */
 static uint64_t zopt_incessant = 1ULL * NANOSEC / 10;	/* every 1/10 second */
@@ -513,9 +520,20 @@ static ztest_info_t ztest_info[] = {
 	ZTI_INIT(ztest_spa_log_flushall_start, 1, &zopt_rarely),
 	ZTI_INIT(ztest_spa_log_flushall_cancel, 1, &zopt_rarely),
 	ZTI_INIT(ztest_scrub_prefetch, 1, &zopt_rarely),
+	ZTI_INIT(ztest_async_mirror_suspend, 1, &zopt_sometimes),
+	ZTI_INIT(ztest_async_mirror_refusals, 1, &zopt_sometimes),
 };
 
 #define	ZTEST_FUNCS	(sizeof (ztest_info) / sizeof (ztest_info_t))
+/* Keep async-only tests last so non-async runs keep the same test range. */
+#define	ZTEST_ASYNC_FUNCS	2
+
+static uint_t
+ztest_func_count(void)
+{
+	return (ZTEST_FUNCS - (ztest_opts.zo_async_mirror ? 0 :
+	    ZTEST_ASYNC_FUNCS));
+}
 
 /*
  * The following struct is used to hold a list of uncalled commit callbacks.
@@ -561,6 +579,19 @@ static kmutex_t ztest_vdev_lock;
 static boolean_t ztest_device_removal_active = B_FALSE;
 static boolean_t ztest_pool_scrubbed = B_FALSE;
 static kmutex_t ztest_checkpoint_lock;
+
+static void
+ztest_async_mirror_suspend_copy(boolean_t suspend)
+{
+	zfs_vdev_async_mirror_suspend_copy = suspend ? 1 : 0;
+}
+
+static boolean_t
+ztest_async_mirror_in_use(void)
+{
+	return (ztest_opts.zo_async_mirror &&
+	    vdev_async_mirror_in_use(ztest_spa));
+}
 
 /*
  * The ztest_name_lock protects the pool and dataset namespace used by
@@ -785,6 +816,9 @@ static ztest_option_t option_table[] = {
 	    NO_DEFAULT, DEFAULT_VDEV_DIR},
 	{ 'M',	"multi-host", NULL,
 	    "Multi-host; create the pool with multihost enabled",
+	    NO_DEFAULT, NULL},
+	{ 'A',	"async-mirror", NULL,
+	    "Use one two-way mirror and turn on the asynchronous mirror mode",
 	    NO_DEFAULT, NULL},
 	{ 'E',	"use-existing-pool", NULL,
 	    "Use existing pool instead of creating new one", NO_DEFAULT, NULL},
@@ -1239,6 +1273,9 @@ process_options(int argc, char **argv)
 		case 'M':
 			zo->zo_mmp_test = 1;
 			break;
+		case 'A':
+			zo->zo_async_mirror = 1;
+			break;
 		case 'V':
 			zo->zo_verbose++;
 			break;
@@ -1342,6 +1379,30 @@ process_options(int argc, char **argv)
 	if (zo->zo_mmp_test && get_system_hostid() == 0) {
 		(void) fprintf(stderr, "-M requires a non-zero hostid\n");
 		exit(1);
+	}
+
+	if (zo->zo_async_mirror) {
+		if (zo->zo_mmp_test) {
+			(void) fprintf(stderr,
+			    "-A and -M cannot be used together\n");
+			exit(1);
+		}
+		/* Keep the usable size of the normal RAIDZ mirror. */
+		uint64_t data_disks = zo->zo_raid_children -
+		    MIN(zo->zo_raid_parity, zo->zo_raid_children - 1);
+		if (zo->zo_vdev_size > SIZE_MAX / data_disks) {
+			(void) fprintf(stderr,
+			    "error: -A vdev size is too large\n");
+			exit(1);
+		}
+		zo->zo_vdev_size *= data_disks;
+		zo->zo_raidz_expand_test = RAIDZ_EXPAND_NONE;
+		zo->zo_mirrors = 2;
+		zo->zo_vdevs = 1;
+		zo->zo_raid_children = 1;
+		zo->zo_raid_parity = 1;
+		zo->zo_special_vdevs = ZTEST_VDEV_CLASS_OFF;
+		raid_kind = "raidz";
 	}
 
 	if (strcmp(raid_kind, "random") == 0) {
@@ -3417,6 +3478,14 @@ ztest_spa_checkpoint(spa_t *spa)
 	case ZFS_ERR_CHECKPOINT_EXISTS:
 	case ZFS_ERR_RAIDZ_EXPAND_IN_PROGRESS:
 		break;
+	case ENOTSUP:
+	case ZFS_ERR_ASYNC_MIRROR_ACTIVE:
+		if (!ztest_async_mirror_in_use() &&
+		    spa_async_mirror_lineage(spa) == 0) {
+			fatal(B_FALSE, "spa_checkpoint(%s) = %d",
+			    spa->spa_name, error);
+		}
+		break;
 	case ENOSPC:
 		ztest_record_enospc(FTAG);
 		break;
@@ -3502,6 +3571,9 @@ ztest_vdev_add_remove(ztest_ds_t *zd, uint64_t id)
 	int error;
 
 	if (ztest_opts.zo_mmp_test)
+		return;
+
+	if (ztest_async_mirror_in_use())
 		return;
 
 	mutex_enter(&ztest_vdev_lock);
@@ -3592,6 +3664,9 @@ ztest_vdev_class_add(ztest_ds_t *zd, uint64_t id)
 	const char *class = (ztest_random(2) == 0) ?
 	    VDEV_ALLOC_BIAS_SPECIAL : VDEV_ALLOC_BIAS_DEDUP;
 	int error;
+
+	if (ztest_async_mirror_in_use())
+		return;
 
 	/*
 	 * By default add a special vdev 50% of the time
@@ -3789,6 +3864,9 @@ ztest_split_pool(ztest_ds_t *zd, uint64_t id)
 	if (ztest_opts.zo_mmp_test)
 		return;
 
+	if (ztest_async_mirror_in_use())
+		return;
+
 	mutex_enter(&ztest_vdev_lock);
 
 	/* ensure we have a usable config; mirrors of raidz aren't supported */
@@ -3897,6 +3975,9 @@ ztest_vdev_attach_detach(ztest_ds_t *zd, uint64_t id)
 	int error, expected_error;
 
 	if (ztest_opts.zo_mmp_test)
+		return;
+
+	if (ztest_async_mirror_in_use())
 		return;
 
 	oldpath = kmem_alloc(MAXPATHLEN, KM_SLEEP);
@@ -4392,6 +4473,9 @@ ztest_device_removal(ztest_ds_t *zd, uint64_t id)
 	vdev_t *vd;
 	uint64_t guid;
 	int error;
+
+	if (ztest_async_mirror_in_use())
+		return;
 
 	mutex_enter(&ztest_vdev_lock);
 
@@ -6686,6 +6770,9 @@ ztest_fault_inject(ztest_ds_t *zd, uint64_t id)
 		top = ztest_random_vdev_top(spa, B_TRUE);
 		leaf = ztest_random(leaves) + zs->zs_splits;
 
+		if (ztest_async_mirror_in_use())
+			leaf = 1;
+
 		/*
 		 * Generate paths to the first leaf in this top-level vdev,
 		 * and to the random leaf we selected.  We'll induce transient
@@ -6988,6 +7075,11 @@ ztest_reguid(ztest_ds_t *zd, uint64_t id)
 	zs->zs_guid = spa_guid(spa);
 	(void) pthread_rwlock_unlock(&ztest_name_lock);
 
+	/* ztest enables this mode only when it creates the pool. */
+	if (ztest_async_mirror_in_use() &&
+	    vdev_async_mirror_active(spa))
+		VERIFY3S(error, ==, ZFS_ERR_ASYNC_MIRROR_ACTIVE);
+
 	if (error != 0)
 		return;
 
@@ -6998,6 +7090,72 @@ ztest_reguid(ztest_ds_t *zd, uint64_t id)
 
 	VERIFY3U(orig, !=, spa_guid(spa));
 	VERIFY3U(load, ==, spa_load_guid(spa));
+}
+
+void
+ztest_async_mirror_suspend(ztest_ds_t *zd, uint64_t id)
+{
+	(void) zd, (void) id;
+	static volatile uint32_t suspended = 0;
+
+	if (!ztest_async_mirror_in_use())
+		return;
+
+	if (atomic_cas_32(&suspended, 0, 1) != 0)
+		return;
+
+	ztest_async_mirror_suspend_copy(B_TRUE);
+	(void) poll(NULL, 0, 100 + ztest_random(2000));
+	ztest_async_mirror_suspend_copy(B_FALSE);
+
+	atomic_swap_32(&suspended, 0);
+}
+
+void
+ztest_async_mirror_refusals(ztest_ds_t *zd, uint64_t id)
+{
+	(void) zd, (void) id;
+	spa_t *spa = ztest_spa;
+	uint64_t guids[3];
+	int error;
+
+	if (!ztest_async_mirror_in_use() || !vdev_async_mirror_active(spa))
+		return;
+
+	mutex_enter(&ztest_vdev_lock);
+
+	spa_config_enter(spa, SCL_VDEV, FTAG, RW_READER);
+	vdev_t *tvd = spa->spa_root_vdev->vdev_child[0];
+	ASSERT3U(tvd->vdev_children, ==, 2);
+	guids[0] = tvd->vdev_child[0]->vdev_guid;
+	guids[1] = tvd->vdev_child[1]->vdev_guid;
+	guids[2] = tvd->vdev_guid;
+	spa_config_exit(spa, SCL_VDEV, FTAG);
+
+	for (int c = 0; c < 2; c++) {
+		error = spa_vdev_detach(spa, guids[c], 0, B_FALSE);
+		if (error != ZFS_ERR_ASYNC_MIRROR_ACTIVE) {
+			fatal(B_FALSE, "spa_vdev_detach(%"PRIu64") = %d, "
+			    "expected the async mirror refusal", guids[c],
+			    error);
+		}
+
+		error = vdev_offline(spa, guids[c],
+		    ztest_random(2) == 0 ? ZFS_OFFLINE_TEMPORARY : 0);
+		if (error != ZFS_ERR_ASYNC_MIRROR_ACTIVE) {
+			fatal(B_FALSE, "vdev_offline(%"PRIu64") = %d, "
+			    "expected the async mirror refusal", guids[c],
+			    error);
+		}
+	}
+
+	error = spa_vdev_remove(spa, guids[2], B_FALSE);
+	if (error != ENOTSUP && error != ZFS_ERR_ASYNC_MIRROR_ACTIVE) {
+		fatal(B_FALSE, "spa_vdev_remove(%"PRIu64") = %d, "
+		    "expected a refusal", guids[2], error);
+	}
+
+	mutex_exit(&ztest_vdev_lock);
 }
 
 void
@@ -8013,7 +8171,7 @@ ztest_thread(void *arg)
 		/*
 		 * Pick a random function to execute.
 		 */
-		rand = ztest_random(ZTEST_FUNCS);
+		rand = ztest_random(ztest_func_count());
 		zi = &ztest_info[rand];
 		zc = ZTEST_GET_SHARED_CALLSTATE(rand);
 		call_next = zc->zc_next;
@@ -8265,6 +8423,8 @@ ztest_dmu_sync_blocksize_change(spa_t *spa, uint64_t old_size,
 	dbuf_dirty_record_t *dr;
 	dmu_tx_t *dirty_tx, *resize_tx;
 	uint64_t dirty_txg, resize_txg;
+	int error;
+	int io_error;
 	blkptr_t bp, override_bp;
 	lr_write_t lr = { 0 };
 	zio_prop_t zp;
@@ -8338,8 +8498,8 @@ ztest_dmu_sync_blocksize_change(spa_t *spa, uint64_t old_size,
 	BP_ZERO(&lr.lr_blkptr);
 	lwb = ztest_dmu_sync_lwb_alloc();
 	pio = zio_root(spa, NULL, NULL, ZIO_FLAG_CANFAIL);
-	int error = ztest_get_data(zd, 0, &lr, NULL, lwb, pio);
-	int io_error = zio_wait(pio);
+	error = ztest_get_data(zd, 0, &lr, NULL, lwb, pio);
+	io_error = zio_wait(pio);
 	if (error == 0)
 		error = io_error;
 	ztest_dmu_sync_lwb_free(lwb);
@@ -8374,8 +8534,20 @@ ztest_dmu_sync_blocksize_change(spa_t *spa, uint64_t old_size,
 	dmu_tx_commit(dirty_tx);
 	txg_wait_open(spa_get_dsl(spa), dirty_txg + 1, B_TRUE);
 
-	VERIFY0(dmu_tx_assign(resize_tx,
-	    DMU_TX_NOWAIT | DMU_TX_NOTHROTTLE));
+	error = dmu_tx_assign(resize_tx,
+	    DMU_TX_NOWAIT | DMU_TX_NOTHROTTLE);
+	if (error == ERESTART) {
+		/*
+		 * The pending txg cannot sync while this test's gate is closed.
+		 * Release it before waiting for the retry to become possible.
+		 */
+		zio_nowait(sync_gate);
+		sync_gate = NULL;
+		dmu_tx_wait(resize_tx);
+		error = dmu_tx_assign(resize_tx,
+		    DMU_TX_NOWAIT | DMU_TX_NOTHROTTLE);
+	}
+	VERIFY0(error);
 	resize_txg = dmu_tx_get_txg(resize_tx);
 	VERIFY3U(resize_txg, >, dirty_txg);
 
@@ -8386,17 +8558,22 @@ ztest_dmu_sync_blocksize_change(spa_t *spa, uint64_t old_size,
 	dr = list_head(&db->db_dirty_records);
 	VERIFY3P(dr, !=, NULL);
 	VERIFY3U(dr->dr_txg, ==, resize_txg);
-	dr = list_next(&db->db_dirty_records, dr);
-	VERIFY3P(dr, !=, NULL);
-	VERIFY3U(dr->dr_txg, ==, dirty_txg);
-	VERIFY3U(dr->dt.dl.dr_override_state, ==, DR_OVERRIDDEN);
-	VERIFY3U(arc_buf_lsize(dr->dt.dl.dr_data), ==, old_size);
-	VERIFY3U(arc_buf_size(dr->dt.dl.dr_data), ==, old_size);
-	VERIFY3P(dr->dt.dl.dr_data, !=, db->db_buf);
-	override_bp = dr->dt.dl.dr_overridden_by;
+	if (sync_gate != NULL) {
+		dr = list_next(&db->db_dirty_records, dr);
+		VERIFY3P(dr, !=, NULL);
+		VERIFY3U(dr->dr_txg, ==, dirty_txg);
+		VERIFY3U(dr->dt.dl.dr_override_state, ==, DR_OVERRIDDEN);
+		VERIFY3U(arc_buf_lsize(dr->dt.dl.dr_data), ==, old_size);
+		VERIFY3U(arc_buf_size(dr->dt.dl.dr_data), ==, old_size);
+		VERIFY3P(dr->dt.dl.dr_data, !=, db->db_buf);
+		override_bp = dr->dt.dl.dr_overridden_by;
+	} else {
+		override_bp = lr.lr_blkptr;
+	}
 	mutex_exit(&db->db_mtx);
 
-	zio_nowait(sync_gate);
+	if (sync_gate != NULL)
+		zio_nowait(sync_gate);
 	txg_wait_synced(spa_get_dsl(spa), dirty_txg);
 
 	/* The newer dirty record has not been allowed to sync yet. */
@@ -8888,6 +9065,7 @@ ztest_generic_run(ztest_shared_t *zs, spa_t *spa)
 {
 	kthread_t **run_threads;
 	int i, ndatasets;
+	int opened;
 
 	run_threads = kmem_zalloc(ztest_opts.zo_threads * sizeof (kthread_t *),
 	    KM_SLEEP);
@@ -8900,30 +9078,46 @@ ztest_generic_run(ztest_shared_t *zs, spa_t *spa)
 	/*
 	 * Prepare the datasets first.
 	 */
-	for (i = 0; i < ndatasets; i++)
-		VERIFY0(ztest_dataset_open(i));
+	for (opened = 0; opened < ndatasets; opened++) {
+		int error = ztest_dataset_open(opened);
 
-	/*
-	 * Kick off all the tests that run in parallel.
-	 */
-	for (i = 0; i < ztest_opts.zo_threads; i++) {
-		run_threads[i] = _thread_create(NULL, 0, ztest_thread,
-		    (void *)(uintptr_t)i, 0, NULL, TS_RUN | TS_JOINABLE,
-		    defclsyspri);
+		if (error == ENOSPC && ztest_opts.zo_async_mirror) {
+			spa_async_mirror_stats_t *sams =
+			    &spa->spa_async_mirror_stats;
+			vdev_t *lag = spa->spa_root_vdev->vdev_child[0]->
+			    vdev_child[1];
+
+			(void) fprintf(stderr, "async mirror ENOSPC: state=%s, "
+			    "held bytes=%llu\n",
+			    vdev_async_mirror_state(lag),
+			    (u_longlong_t)sams->sams_held_bytes);
+		}
+		VERIFY0(error);
 	}
 
-	/*
-	 * Wait for all of the tests to complete.
-	 */
-	for (i = 0; i < ztest_opts.zo_threads; i++)
-		VERIFY0(thread_join(run_threads[i]));
+	if (opened == ndatasets) {
+		/*
+		 * Kick off all the tests that run in parallel.
+		 */
+		for (i = 0; i < ztest_opts.zo_threads; i++) {
+			run_threads[i] = _thread_create(NULL, 0,
+			    ztest_thread, (void *)(uintptr_t)i, 0, NULL,
+			    TS_RUN | TS_JOINABLE, defclsyspri);
+		}
+
+		/*
+		 * Wait for all of the tests to complete.
+		 */
+		for (i = 0; i < ztest_opts.zo_threads; i++)
+			VERIFY0(thread_join(run_threads[i]));
+	}
 
 	/*
 	 * Close all datasets. This must be done after all the threads
 	 * are joined so we can be sure none of the datasets are in-use
 	 * by any of the threads.
 	 */
-	for (i = 0; i < ndatasets; i++)
+	for (i = 0; i < opened; i++)
 		ztest_dataset_close(i);
 
 	txg_wait_synced(spa_get_dsl(spa), 0);
@@ -9136,6 +9330,9 @@ ztest_run(ztest_shared_t *zs)
 			(void) printf("spa_next: found %s\n", spa_name(spa));
 	spa_namespace_exit(FTAG);
 
+	if (ztest_opts.zo_async_mirror && ztest_random(2) == 0)
+		ztest_async_mirror_suspend_copy(B_TRUE);
+
 	/*
 	 * Verify that we can export the pool and reimport it under a
 	 * different name.
@@ -9292,6 +9489,25 @@ ztest_init(ztest_shared_t *zs)
 	zs->zs_metaslab_sz =
 	    1ULL << spa->spa_root_vdev->vdev_child[0]->vdev_ms_shift;
 	zs->zs_guid = spa_guid(spa);
+
+	if (ztest_opts.zo_async_mirror) {
+		vdev_t *tvd = spa->spa_root_vdev->vdev_child[0];
+		nvlist_t *props = fnvlist_alloc();
+		nvlist_t *innvl = fnvlist_alloc();
+		nvlist_t *outnvl = fnvlist_alloc();
+
+		ASSERT3U(tvd->vdev_children, ==, 2);
+		fnvlist_add_uint64(props,
+		    vdev_prop_to_name(VDEV_PROP_WRITE_MODE),
+		    VDEV_WRITE_MODE_BEHIND);
+		fnvlist_add_uint64(innvl, ZPOOL_VDEV_PROPS_SET_VDEV,
+		    tvd->vdev_child[1]->vdev_guid);
+		fnvlist_add_nvlist(innvl, ZPOOL_VDEV_PROPS_SET_PROPS, props);
+		VERIFY0(vdev_prop_set(spa, innvl, outnvl));
+		fnvlist_free(outnvl);
+		fnvlist_free(innvl);
+		fnvlist_free(props);
+	}
 	spa_close(spa, FTAG);
 
 	kernel_fini();
@@ -9349,7 +9565,7 @@ setup_hdr(void)
 	hdr->zh_opts_size = sizeof (ztest_shared_opts_t);
 	hdr->zh_size = sizeof (ztest_shared_t);
 	hdr->zh_stats_size = sizeof (ztest_shared_callstate_t);
-	hdr->zh_stats_count = ZTEST_FUNCS;
+	hdr->zh_stats_count = ztest_func_count();
 	hdr->zh_ds_size = sizeof (ztest_shared_ds_t);
 	hdr->zh_ds_count = ztest_opts.zo_datasets;
 	hdr->zh_scratch_state_size = sizeof (ztest_shared_scratch_state_t);
@@ -9599,6 +9815,8 @@ main(int argc, char **argv)
 
 	if (fd_data_str) {
 		metaslab_force_ganging = ztest_opts.zo_metaslab_force_ganging;
+		if (ztest_opts.zo_async_mirror)
+			metaslab_force_ganging_pct = 50;
 		metaslab_df_alloc_threshold =
 		    zs->zs_metaslab_df_alloc_threshold;
 
@@ -9664,7 +9882,7 @@ main(int argc, char **argv)
 	zs->zs_proc_start = gethrtime();
 	zs->zs_proc_stop = zs->zs_proc_start + ztest_opts.zo_time * NANOSEC;
 
-	for (f = 0; f < ZTEST_FUNCS; f++) {
+	for (f = 0; f < ztest_func_count(); f++) {
 		zi = &ztest_info[f];
 		zc = ZTEST_GET_SHARED_CALLSTATE(f);
 		if (zs->zs_proc_start + zi->zi_interval[0] > zs->zs_proc_stop)
@@ -9686,7 +9904,7 @@ main(int argc, char **argv)
 		/*
 		 * Initialize the workload counters for each function.
 		 */
-		for (f = 0; f < ZTEST_FUNCS; f++) {
+		for (f = 0; f < ztest_func_count(); f++) {
 			zc = ZTEST_GET_SHARED_CALLSTATE(f);
 			zc->zc_count = 0;
 			zc->zc_time = 0;
@@ -9741,7 +9959,7 @@ main(int argc, char **argv)
 			    "Calls", "Time", "Function");
 			(void) printf("%7s %9s   %s\n",
 			    "-----", "----", "--------");
-			for (f = 0; f < ZTEST_FUNCS; f++) {
+			for (f = 0; f < ztest_func_count(); f++) {
 				zi = &ztest_info[f];
 				zc = ZTEST_GET_SHARED_CALLSTATE(f);
 				print_time(zc->zc_time, timebuf);
