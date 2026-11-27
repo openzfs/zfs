@@ -714,6 +714,7 @@ vdev_initialize_stop_wait(spa_t *spa, list_t *vd_list)
 	vdev_t *vd;
 
 	ASSERT(spa_namespace_held() ||
+	    MUTEX_HELD(&spa->spa_vdev_top_lock) ||
 	    spa->spa_export_thread == curthread);
 
 	while ((vd = list_remove_head(vd_list)) != NULL) {
@@ -757,6 +758,7 @@ vdev_initialize_stop(vdev_t *vd, vdev_initializing_state_t tgt_state,
 		vdev_initialize_stop_wait_impl(vd);
 	} else {
 		ASSERT(spa_namespace_held() ||
+		    MUTEX_HELD(&vd->vdev_spa->spa_vdev_top_lock) ||
 		    vd->vdev_spa->spa_export_thread == curthread);
 		list_insert_tail(vd_list, vd);
 	}
@@ -809,7 +811,7 @@ vdev_initialize_stop_all(vdev_t *vd, vdev_initializing_state_t tgt_state)
 void
 vdev_initialize_restart(vdev_t *vd)
 {
-	ASSERT(spa_namespace_held() ||
+	ASSERT(MUTEX_HELD(&vd->vdev_spa->spa_vdev_top_lock) ||
 	    vd->vdev_spa->spa_load_thread == curthread);
 	ASSERT(!spa_config_held(vd->vdev_spa, SCL_ALL, RW_WRITER));
 
