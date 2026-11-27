@@ -838,7 +838,7 @@ brt_vdev_sync(spa_t *spa, brt_vdev_t *brtvd, dmu_tx_t *tx)
 static void
 brt_vdevs_free(spa_t *spa)
 {
-	if (spa->spa_brt_vdevs == 0)
+	if (spa->spa_brt_vdevs == NULL)
 		return;
 	for (uint64_t vdevid = 0; vdevid < spa->spa_brt_nvdevs; vdevid++) {
 		brt_vdev_t *brtvd = spa->spa_brt_vdevs[vdevid];
@@ -858,6 +858,8 @@ brt_vdevs_free(spa_t *spa)
 	}
 	kmem_free(spa->spa_brt_vdevs, sizeof (*spa->spa_brt_vdevs) *
 	    spa->spa_brt_nvdevs);
+	spa->spa_brt_vdevs = NULL;
+	spa->spa_brt_nvdevs = 0;
 }
 
 static void
