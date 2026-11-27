@@ -286,6 +286,10 @@ aes_decrypt_atomic(crypto_mechanism_t *mechanism,
 		length_needed = aes_ctx.ac_data_len;
 		break;
 	case AES_GCM_MECH_INFO_TYPE:
+		if (ciphertext->cd_length < aes_ctx.ac_tag_len) {
+			ret = CRYPTO_ENCRYPTED_DATA_LEN_RANGE;
+			goto out;
+		}
 		length_needed = ciphertext->cd_length - aes_ctx.ac_tag_len;
 		break;
 	default:
@@ -297,6 +301,16 @@ aes_decrypt_atomic(crypto_mechanism_t *mechanism,
 		plaintext->cd_length = length_needed;
 		ret = CRYPTO_BUFFER_TOO_SMALL;
 		goto out;
+	}
+
+	if (mechanism->cm_type == AES_GCM_MECH_INFO_TYPE) {
+		gcm_ctx_t *gcm = (gcm_ctx_t *)&aes_ctx;
+		gcm->gcm_pt_buf = vmem_alloc(ciphertext->cd_length, KM_SLEEP);
+		if (gcm->gcm_pt_buf == NULL) {
+			ret = CRYPTO_HOST_MEMORY;
+			goto out;
+		}
+		gcm->gcm_pt_buf_len = ciphertext->cd_length;
 	}
 
 	saved_offset = plaintext->cd_offset;
