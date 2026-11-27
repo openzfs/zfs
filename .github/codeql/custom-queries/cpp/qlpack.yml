@@ -1,4 +1,6 @@
-name: openzfs-cpp-queries
+name: openzfs/cpp-queries
 version: 0.0.0
-libraryPathDependencies: codeql-cpp
-suites: openzfs-cpp-suite
+dependencies:
+  codeql/cpp-all: "*"
+extractor: cpp
+warnOnImplicitThis: true
