@@ -16,7 +16,7 @@
 .\" Copyright (c) 2026, Mateusz Piotrowski <0mp@FreeBSD.org>
 .\" Copyright (c) 2026, TrueNAS.
 .\"
-.Dd September 9, 2026
+.Dd November 9, 2026
 .Dt ZFS 4
 .Os
 .
@@ -2941,6 +2941,19 @@ Set value only applies to pools imported/created after that.
 Determines the minimum number of threads per write issue taskq.
 Higher values improve CPU utilization on high throughput,
 while lower reduce taskq locks contention on high IOPS.
+Set value only applies to pools imported/created after that.
+.
+.It Sy zio_taskq_numa Ns = Ns Sy 1 Ns | Ns 0 Pq uint
+Split the read issue taskqs and the read and write interrupt taskqs
+into one group per NUMA node with CPUs,
+and dispatch each I/O to a taskq of the group of the node
+of the CPU that dispatches it,
+so that the work done after an I/O completes, such as checksum verification
+and decompression, is queued on the node that issued it.
+The threads of these taskqs are not bound to a node:
+where they run is left to the scheduler.
+The number of these taskqs is rounded up to a multiple of the number of nodes.
+Has no effect on systems with a single node.
 Set value only applies to pools imported/created after that.
 .
 .It Sy zio_taskq_read Ns = Ns Sy fixed,1,8 null scale null Pq charp
