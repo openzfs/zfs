@@ -12,4 +12,5 @@
 /test_timer
 /test_zfs_file
 /test_indirect_mapping
+/test_lzjb
 /test_nvpair_stress
