@@ -194,6 +194,55 @@ fopenat(int dirfd, const char *pathname, int flags,
 	return (fdopen(fd, stream_mode));
 }
 
+/*
+ * Takes the next tab-separated field of a cache line and decodes, in place,
+ * the \0ooo escapes that zfs list --escape writes for bytes that aren't
+ * printable ASCII.  Other backslashes stay, so a cache written without
+ * --escape reads as before unless it holds one of these sequences.
+ */
+static char *
+next_field(char *line, char **toktmp)
+{
+	char *field = strtok_r(line, "\t", toktmp);
+	if (field == NULL)
+		return (NULL);
+
+	char *out = field;
+	for (const char *in = field; *in != '\0'; ++in, ++out) {
+		*out = *in;
+		if (in[0] != '\\' || in[1] != '0' ||
+		    in[2] < '0' || in[2] > '3' ||
+		    in[3] < '0' || in[3] > '7' ||
+		    in[4] < '0' || in[4] > '7')
+			continue;
+
+		int c = (in[2] - '0') << 6 | (in[3] - '0') << 3 | (in[4] - '0');
+		if (c != '\0') {
+			*out = c;
+			in += 4;
+		}
+	}
+	*out = '\0';
+
+	return (field);
+}
+
+/*
+ * Unit files take org.openzfs.systemd values as they are, where a line break
+ * would end the line.  Logs and returns true if the value of prop holds one.
+ */
+static bool
+has_line_break(const char *dataset, const char *prop, const char *value)
+{
+	if (strpbrk(value, "\n\r") == NULL)
+		return (false);
+
+	fprintf(stderr, PROGNAME "[%d]: %s: "
+	    "ignoring org.openzfs.systemd:%s with a line break\n",
+	    getpid(), dataset, prop);
+	return (true);
+}
+
 static int
 line_worker(char *line, const char *cachefile)
 {
@@ -204,26 +253,26 @@ line_worker(char *line, const char *cachefile)
 	char *toktmp;
 	const char *toktmp2;
 	/* BEGIN CSTYLED */
-	const char *dataset                     = strtok_r(line, "\t", &toktmp);
-	      char *p_mountpoint                = strtok_r(NULL, "\t", &toktmp);
-	const char *p_canmount                  = strtok_r(NULL, "\t", &toktmp);
-	const char *p_atime                     = strtok_r(NULL, "\t", &toktmp);
-	const char *p_relatime                  = strtok_r(NULL, "\t", &toktmp);
-	const char *p_devices                   = strtok_r(NULL, "\t", &toktmp);
-	const char *p_exec                      = strtok_r(NULL, "\t", &toktmp);
-	const char *p_readonly                  = strtok_r(NULL, "\t", &toktmp);
-	const char *p_setuid                    = strtok_r(NULL, "\t", &toktmp);
-	const char *p_nbmand                    = strtok_r(NULL, "\t", &toktmp);
-	const char *p_encroot                   = strtok_r(NULL, "\t", &toktmp) ?: "-";
-	      char *p_keyloc                    = strtok_r(NULL, "\t", &toktmp) ?: strdupa("none");
-	const char *p_systemd_requires          = strtok_r(NULL, "\t", &toktmp) ?: "-";
-	const char *p_systemd_requiresmountsfor = strtok_r(NULL, "\t", &toktmp) ?: "-";
-	const char *p_systemd_before            = strtok_r(NULL, "\t", &toktmp) ?: "-";
-	const char *p_systemd_after             = strtok_r(NULL, "\t", &toktmp) ?: "-";
-	      char *p_systemd_wantedby          = strtok_r(NULL, "\t", &toktmp) ?: strdupa("-");
-	      char *p_systemd_requiredby        = strtok_r(NULL, "\t", &toktmp) ?: strdupa("-");
-	const char *p_systemd_nofail            = strtok_r(NULL, "\t", &toktmp) ?: "-";
-	const char *p_systemd_ignore            = strtok_r(NULL, "\t", &toktmp) ?: "-";
+	const char *dataset                     = next_field(line, &toktmp);
+	      char *p_mountpoint                = next_field(NULL, &toktmp);
+	const char *p_canmount                  = next_field(NULL, &toktmp);
+	const char *p_atime                     = next_field(NULL, &toktmp);
+	const char *p_relatime                  = next_field(NULL, &toktmp);
+	const char *p_devices                   = next_field(NULL, &toktmp);
+	const char *p_exec                      = next_field(NULL, &toktmp);
+	const char *p_readonly                  = next_field(NULL, &toktmp);
+	const char *p_setuid                    = next_field(NULL, &toktmp);
+	const char *p_nbmand                    = next_field(NULL, &toktmp);
+	const char *p_encroot                   = next_field(NULL, &toktmp) ?: "-";
+	      char *p_keyloc                    = next_field(NULL, &toktmp) ?: strdupa("none");
+	const char *p_systemd_requires          = next_field(NULL, &toktmp) ?: "-";
+	const char *p_systemd_requiresmountsfor = next_field(NULL, &toktmp) ?: "-";
+	const char *p_systemd_before            = next_field(NULL, &toktmp) ?: "-";
+	const char *p_systemd_after             = next_field(NULL, &toktmp) ?: "-";
+	      char *p_systemd_wantedby          = next_field(NULL, &toktmp) ?: strdupa("-");
+	      char *p_systemd_requiredby        = next_field(NULL, &toktmp) ?: strdupa("-");
+	const char *p_systemd_nofail            = next_field(NULL, &toktmp) ?: "-";
+	const char *p_systemd_ignore            = next_field(NULL, &toktmp) ?: "-";
 	/* END CSTYLED */
 
 	size_t pool_len = strlen(dataset);
@@ -261,6 +310,20 @@ line_worker(char *line, const char *cachefile)
 		wants = "";
 	}
 
+	if (has_line_break(dataset, "requires", p_systemd_requires))
+		p_systemd_requires = "-";
+	if (has_line_break(dataset, "requires-mounts-for",
+	    p_systemd_requiresmountsfor))
+		p_systemd_requiresmountsfor = "-";
+	if (has_line_break(dataset, "before", p_systemd_before))
+		p_systemd_before = "-";
+	if (has_line_break(dataset, "after", p_systemd_after))
+		p_systemd_after = "-";
+	if (has_line_break(dataset, "wanted-by", p_systemd_wantedby))
+		p_systemd_wantedby = strdupa("-");
+	if (has_line_break(dataset, "required-by", p_systemd_requiredby))
+		p_systemd_requiredby = strdupa("-");
+
 	if (strcmp(p_systemd_after, "-") == 0)
 		p_systemd_after = NULL;
 	if (strcmp(p_systemd_before, "-") == 0)
@@ -295,8 +358,13 @@ line_worker(char *line, const char *cachefile)
 				if (strcmp(scheme, "https") == 0 ||
 				    strcmp(scheme, "http") == 0)
 					need_network = true;
-				else
+				else if (strpbrk(path, "\n\r") == NULL)
 					keymountdep = path;
+				else
+					fprintf(stderr, PROGNAME "[%d]: %s: "
+					    "not requiring mounts for key path "
+					    "with a line break\n",
+					    getpid(), dataset);
 			} else {
 				if (strcmp(p_keyloc, "prompt") != 0)
 					fprintf(stderr, PROGNAME "[%d]: %s: "
@@ -433,6 +501,12 @@ line_worker(char *line, const char *cachefile)
 	else if (p_mountpoint[0] != '/') {
 		fprintf(stderr, PROGNAME "[%d]: %s: invalid mountpoint=%s\n",
 		    getpid(), dataset, p_mountpoint);
+		goto err;
+	} else if (strpbrk(p_mountpoint, "\n\r") != NULL) {
+		/* Where= takes the mountpoint as it is */
+		fprintf(stderr, PROGNAME "[%d]: %s: "
+		    "invalid mountpoint with a line break\n",
+		    getpid(), dataset);
 		goto err;
 	}
 
