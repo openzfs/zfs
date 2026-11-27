@@ -28,8 +28,9 @@
 #	has correct permission delegation in datasets.
 #
 # STRATEGY:
-#	1. Delegate all the permission one by one to user on dataset.
-#	2. Verify privileged user has correct permission without any other
+#	1. Verify 'zfs allow -h' lists each of the permissions below.
+#	2. Delegate all the permission one by one to user on dataset.
+#	3. Verify privileged user has correct permission without any other
 #	   permissions allowed.
 #
 
@@ -74,6 +75,7 @@ set -A perms	create		true		false	\
 		userprop	true		true	\
 		aclinherit	true		false	\
 		rollback	true		true	\
+		redact		true		false	\
 		clone		true		true	\
 		promote		true		true	\
 		xattr		true		false	\
@@ -114,6 +116,7 @@ set -A perms	create		true		false	\
 		aclmode		true		false	\
 		aclinherit	true		false	\
 		rollback	true		true	\
+		redact		true		false	\
 		clone		true		true	\
 		rename		true		true	\
 		promote		true		true	\
@@ -147,6 +150,7 @@ set -A perms	create		true		false	\
 		aclmode		true		false	\
 		aclinherit	true		false	\
 		rollback	true		true	\
+		redact		true		false	\
 		clone		true		true	\
 		rename		true		true	\
 		promote		true		true	\
@@ -162,6 +166,12 @@ if is_global_zone; then
 	perms[((n+3))]="share"; perms[((n+4))]="true"; perms[((n+5))]="false"
 fi
 fi
+
+typeset help=$(zfs allow -h)
+for (( i = 0; i < ${#perms[@]}; i += 3 )); do
+	[[ $help == *$'\n'"${perms[$i]} "* ]] || \
+	    log_fail "'zfs allow -h' does not list ${perms[$i]}"
+done
 
 for dtst in $DATASETS; do
 	typeset -i k=1
