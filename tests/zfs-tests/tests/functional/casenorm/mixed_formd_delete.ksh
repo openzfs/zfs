@@ -45,6 +45,8 @@ for name1 in $NAMES_ALL; do
 	typeset -n namen=NAME_$(switch_norm $name1)_$(get_case $name1)
 	for name2 in $NAMES_ALL; do
 		log_must create_file $name1
+		log_must lookup_file $name1
+		log_must lookup_file $namen
 		if [[ $name2 == $namen || $name2 == $name1 ]]; then
 			log_must delete_file $name2
 			log_mustnot lookup_any

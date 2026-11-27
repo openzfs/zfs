@@ -121,7 +121,7 @@ zfs_match_find(zfsvfs_t *zfsvfs, znode_t *dzp, const char *name,
  *	dlpp	- pointer to the dirlock for this entry (NULL on error)
  *      direntflags - (case-insensitive lookup only)
  *		flags if multiple case-sensitive matches exist in directory
- *      realpnp     - (case-insensitive lookup only)
+ *      realpnp     - (normalizing lookup only)
  *		actual name matched within the directory
  *
  * Return value: 0 on success or errno on failure.
