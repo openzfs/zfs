@@ -2580,10 +2580,11 @@ spa_load_spares(spa_t *spa)
 		vd->vdev_top = vd;
 		vd->vdev_aux = &spa->spa_spares;
 
-		if (vdev_open(vd, CRED()) != 0)
-			continue;
-
-		if (vdev_validate_aux(vd) == 0)
+		/*
+		 * Register a spare that cannot be opened too, as a cache
+		 * device is, so that it is still a spare once it is back.
+		 */
+		if (vdev_open(vd, CRED()) != 0 || vdev_validate_aux(vd) == 0)
 			spa_spare_add(vd);
 	}
 
