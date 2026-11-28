@@ -111,6 +111,8 @@ typedef struct zfs_soft_state {
     vn_has_cached_data(ZTOV(zp))
 #define	zn_flush_cached_data(zp, sync)	vn_flush_cached_data(ZTOV(zp), sync)
 #define	zn_zero_eof_page(zp, lr, end)	zfs_zero_eof_page(zp, lr, end)
+#define	zn_update_eof_page(zp, lr, start, end) \
+    do { (void) (zp); (void) (lr); (void) (start); (void) (end); } while (0)
 #define	zn_rlimit_fsize(size)		zfs_rlimit_fsize(size)
 #define	zn_rlimit_fsize_uio(zp, uio) \
     vn_rlimit_fsize(ZTOV(zp), GET_UIO_STRUCT(uio), zfs_uio_td(uio))

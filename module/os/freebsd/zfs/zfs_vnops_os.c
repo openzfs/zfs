@@ -465,7 +465,8 @@ page_unhold(vm_page_t pp)
  *		the page and the dmu buffer.
  */
 void
-update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
+update_pages(znode_t *zp, int64_t start, int len, objset_t *os,
+    zfs_locked_range_t *lr)
 {
 	vm_object_t obj;
 	struct sf_buf *sf;
@@ -473,6 +474,7 @@ update_pages(znode_t *zp, int64_t start, int len, objset_t *os)
 	caddr_t va;
 	int off;
 
+	(void) lr;
 	ASSERT3P(vp->v_mount, !=, NULL);
 	obj = vp->v_object;
 	ASSERT3P(obj, !=, NULL);

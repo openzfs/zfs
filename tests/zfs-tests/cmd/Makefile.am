@@ -83,7 +83,8 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/mkbusy %D%/mkfile %D%/mkfiles %D%/mktree
 scripts_zfs_tests_bin_PROGRAMS += \
 	%D%/mmap_exec %D%/mmap_ftruncate %D%/mmap_seek \
 	%D%/mmap_sync %D%/mmapwrite %D%/readmmap %D%/mmap_write_sync \
-	%D%/mmap_read_truncate %D%/mmap_eof_extend %D%/mmap_stale_check
+	%D%/mmap_read_truncate %D%/mmap_eof_extend %D%/mmap_stale_check \
+	%D%/mmap_write_race
 
 if WANT_MMAP_LIBAIO
 scripts_zfs_tests_bin_PROGRAMS += %D%/mmap_libaio
@@ -139,6 +140,7 @@ scripts_zfs_tests_bin_PROGRAMS += %D%/edonr_test %D%/skein_test \
 %C%_blake3_test_LDADD = $(%C%_skein_test_LDADD)
 
 if BUILD_LINUX
+scripts_zfs_tests_bin_PROGRAMS += %D%/clone_mmap_error
 scripts_zfs_tests_bin_PROGRAMS += %D%/getfsuuid
 scripts_zfs_tests_bin_PROGRAMS += %D%/getversion
 scripts_zfs_tests_bin_PROGRAMS += %D%/user_ns_exec
