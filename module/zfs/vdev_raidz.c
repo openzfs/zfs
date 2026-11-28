@@ -3397,6 +3397,17 @@ vdev_raidz_io_done_verified(zio_t *zio, raidz_row_t *rr)
 			if (rc->rc_tgt_is_dspare)
 				aflags &= ~ZIO_FLAG_SPECULATIVE;
 
+			/*
+			 * A dRAID resilver repair of a spare or replacing
+			 * column which was read without error only needs to
+			 * reach the children which lack this txg, see
+			 * vdev_draid_io_start_read().  ZIO_FLAG_REPAIR_STALE
+			 * makes vdev_mirror_io_start_impl() skip the children
+			 * which already hold it.
+			 */
+			if (rc->rc_repair_stale_only && rc->rc_error == 0)
+				aflags |= ZIO_FLAG_REPAIR_STALE;
+
 			zio_nowait(zio_vdev_child_io(zio, NULL, cvd,
 			    rc->rc_offset, rc->rc_abd, rc->rc_size,
 			    ZIO_TYPE_WRITE,
@@ -3911,15 +3922,19 @@ vdev_raidz_io_done_reconstruct_known_missing(zio_t *zio, raidz_map_t *rm,
 		raidz_col_t *rc = &rr->rr_col[c];
 
 		/*
-		 * If scrubbing and a replacing/sparing child vdev determined
-		 * that not all of its children have an identical copy of the
-		 * data, then clear the error so the column is treated like
-		 * any other read and force a repair to correct the damage.
+		 * If scrubbing, or retrying a read (see
+		 * vdev_mirror_retry_compare()), and a replacing/sparing child
+		 * vdev determined that not all of its children have an
+		 * identical copy of the data, then clear the error so the
+		 * column is treated like any other read and force a repair
+		 * to correct the damage.
 		 */
 		if (rc->rc_error == ECKSUM) {
-			ASSERT(zio->io_flags & ZIO_FLAG_SCRUB);
+			ASSERT(zio->io_flags &
+			    (ZIO_FLAG_SCRUB | ZIO_FLAG_IO_RETRY));
 			vdev_raidz_checksum_error(zio, rc, rc->rc_abd);
 			rc->rc_force_repair = 1;
+			rc->rc_repair_stale_only = 0;
 			rc->rc_error = 0;
 		}
 

@@ -2036,6 +2036,31 @@ vdev_draid_io_verify(vdev_t *vd, raidz_row_t *rr, int col)
 }
 
 /*
+ * Returns B_TRUE if the passed vdev is a spare or replacing vdev with a
+ * writable child which lacks the txg at the given offset.  A child which
+ * cannot be written, e.g. a faulted device, cannot be repaired, so it does
+ * not count.
+ */
+static boolean_t
+vdev_draid_mirror_child_missing(vdev_t *vd, uint64_t physical_offset,
+    uint64_t txg)
+{
+	if (vd->vdev_ops != &vdev_spare_ops &&
+	    vd->vdev_ops != &vdev_replacing_ops)
+		return (B_FALSE);
+
+	for (int c = 0; c < vd->vdev_children; c++) {
+		vdev_t *cvd = vd->vdev_child[c];
+
+		if (vdev_writeable(cvd) &&
+		    vdev_draid_missing(cvd, physical_offset, txg, 1))
+			return (B_TRUE);
+	}
+
+	return (B_FALSE);
+}
+
+/*
  * For write operations:
  * 1. Generate the parity data
  * 2. Create child zio write operations to each column's vdev, for both
@@ -2192,6 +2217,30 @@ vdev_draid_io_start_read(zio_t *zio, raidz_row_t *rr)
 				rc->rc_force_repair = 1;
 				rc->rc_allow_repair = 1;
 			}
+		}
+
+		/*
+		 * During a healing resilver vdev_mirror_io_done() doesn't
+		 * copy the unverified data it read to children of a spare or
+		 * replacing vdev which lack this txg.  Force a repair of the
+		 * column instead, which vdev_raidz_io_done_verified() issues
+		 * through the spare or replacing vdev once the block checksum
+		 * has been verified.  If the block cannot be reconstructed,
+		 * those children keep their existing contents.
+		 *
+		 * Unless the code above already requested a repair of all of
+		 * the children, mark the repair as one which only needs to
+		 * reach the children lacking the txg, provided the column
+		 * itself is read without error; see
+		 * vdev_raidz_io_done_verified().
+		 */
+		if ((zio->io_flags & ZIO_FLAG_RESILVER) &&
+		    zio->io_priority != ZIO_PRIORITY_REBUILD &&
+		    !rc->rc_force_repair &&
+		    vdev_draid_mirror_child_missing(cvd, rc->rc_offset,
+		    zio->io_txg)) {
+			rc->rc_force_repair = 1;
+			rc->rc_repair_stale_only = 1;
 		}
 
 		if (vdev_sit_out_reads(cvd, zio->io_flags)) {

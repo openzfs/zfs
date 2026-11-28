@@ -16,6 +16,7 @@
 
 /*
  * Copyright (c) 2012, 2015 by Delphix. All rights reserved.
+ * Copyright (c) 2026 by Wasabi Technologies, Inc.
  */
 
 #include <sys/zfs_context.h>
@@ -45,6 +46,9 @@ typedef struct mirror_stats {
 
 	kstat_named_t vdev_mirror_stat_preferred_found;
 	kstat_named_t vdev_mirror_stat_preferred_not_found;
+
+	kstat_named_t vdev_mirror_stat_retry_compare;
+	kstat_named_t vdev_mirror_stat_retry_mismatch;
 } mirror_stats_t;
 
 static mirror_stats_t mirror_stats = {
@@ -62,6 +66,10 @@ static mirror_stats_t mirror_stats = {
 	{ "preferred_found",			KSTAT_DATA_UINT64 },
 	/* Preferred child vdev not found or equal load  */
 	{ "preferred_not_found",		KSTAT_DATA_UINT64 },
+	/* Retried read compared the copies of a distributed spare */
+	{ "retry_compare",			KSTAT_DATA_UINT64 },
+	/* Retry compare found copies which differ */
+	{ "retry_compare_mismatch",		KSTAT_DATA_UINT64 },
 
 };
 
@@ -511,6 +519,57 @@ vdev_mirror_child_complete(mirror_child_t *mc)
 }
 
 /*
+ * Decide whether a read should read and compare all readable children.
+ *
+ * Normally, a read of a spare or replacing vdev is served by one child, and
+ * vdev_mirror_child_select() always prefers a distributed spare.  Under
+ * dRAID, the child I/O has no block pointer, so silently bad data on the
+ * distributed spare can only be detected by the dRAID layer, which cannot
+ * see the other copies.  When zio_vdev_io_assess() retries a failed logical
+ * read (ZIO_FLAG_IO_RETRY, inherited by vdev children), read every readable
+ * child and compare the copies in vdev_mirror_io_done().  If they differ,
+ * ECKSUM is returned along with the copy most likely to be correct, and the
+ * dRAID layer forces a repair of the column once the block checksum
+ * verifies, as it does for a scrub (vdev_raidz_io_done_reconstruct_known_
+ * missing()).
+ *
+ * Children whose DTL claims they lack the txg are read too.  A DTL only
+ * tracks txgs, so a device can be marked as missing a txg because a repair
+ * write of some other block failed, while it still holds good copies of
+ * every other block of that txg.  The dRAID layer treats such columns the
+ * same way: vdev_raidz_read_all() reads them as a last resort.  A stale
+ * copy can never be used unless it passes the block checksum.
+ *
+ * This is only done when there is a current distributed spare and at least
+ * one other readable child to compare it with.  Direct I/O reads are
+ * excluded since their buffers may change while the I/O is in flight.
+ */
+static boolean_t
+vdev_mirror_retry_compare(zio_t *zio, mirror_map_t *mm)
+{
+	boolean_t dspare = B_FALSE;
+	int readable = 0;
+
+	if (!(zio->io_flags & ZIO_FLAG_IO_RETRY) || zio->io_bp != NULL ||
+	    (zio->io_flags & ZIO_FLAG_DIO_READ))
+		return (B_FALSE);
+
+	for (int c = 0; c < mm->mm_children; c++) {
+		mirror_child_t *mc = &mm->mm_child[c];
+
+		if (mc->mc_vd == NULL || !vdev_mirror_child_readable(mc))
+			continue;
+
+		if (mc->mc_vd->vdev_ops == &vdev_draid_spare_ops &&
+		    !vdev_mirror_child_missing(mc, zio->io_txg, 1))
+			dspare = B_TRUE;
+		readable++;
+	}
+
+	return (dspare && readable >= 2);
+}
+
+/*
  * Try to find a vdev whose DTL doesn't contain the block we want to read
  * preferring vdevs based on determined load. If we can't, try the read on
  * any vdev we haven't already tried.
@@ -615,7 +674,13 @@ vdev_mirror_io_start_impl(zio_t *zio, mirror_map_t *mm)
 	int c, children;
 
 	if (zio->io_type == ZIO_TYPE_READ) {
-		if ((zio->io_flags & ZIO_FLAG_SCRUB) && !mm->mm_resilvering) {
+		/* See vdev_mirror_retry_compare() */
+		mm->mm_retry_compare = vdev_mirror_retry_compare(zio, mm);
+		if (mm->mm_retry_compare)
+			MIRROR_BUMP(vdev_mirror_stat_retry_compare);
+
+		if (((zio->io_flags & ZIO_FLAG_SCRUB) && !mm->mm_resilvering) ||
+		    mm->mm_retry_compare) {
 			/*
 			 * For scrubbing reads we need to issue reads to all
 			 * children.  One child can reuse parent buffer, but
@@ -667,6 +732,23 @@ vdev_mirror_io_start_impl(zio_t *zio, mirror_map_t *mm)
 		children = mm->mm_children;
 	}
 
+	/*
+	 * A dRAID resilver repair with ZIO_FLAG_REPAIR_STALE only needs to
+	 * reach the writable children which lack this txg, see
+	 * vdev_raidz_io_done_verified().  The data was verified against the
+	 * block checksum, and the other children already hold it.  If no
+	 * child is written, the write completes without error: a child which
+	 * cannot be written must not fail the repair of the whole vdev.
+	 *
+	 * The flag is not inherited by child I/Os.  When a distributed spare
+	 * passes the write on to the vdev holding its data, which may be
+	 * another spare or replacing vdev, all of that vdev's children are
+	 * written: their DTLs cover their own column, not the distributed
+	 * spare's data stored on them.
+	 */
+	boolean_t stale_only = (zio->io_flags & ZIO_FLAG_REPAIR_STALE) != 0;
+	IMPLY(stale_only, zio->io_type == ZIO_TYPE_WRITE);
+
 	if (children > 1)
 		zio_batch_create(zio);
 
@@ -687,6 +769,10 @@ vdev_mirror_io_start_impl(zio_t *zio, mirror_map_t *mm)
 		    mm->mm_rebuilding && !mc->mc_rebuilding) {
 			continue;
 		}
+
+		if (stale_only && (!vdev_writeable(mc->mc_vd) ||
+		    !vdev_mirror_child_missing(mc, zio->io_txg, 1)))
+			continue;
 
 		zio_nowait(zio_vdev_child_io(zio, zio->io_bp,
 		    mc->mc_vd, mc->mc_offset, zio->io_abd, zio->io_size,
@@ -822,7 +908,8 @@ vdev_mirror_io_done(zio_t *zio)
 		return;
 	}
 
-	if (zio->io_flags & ZIO_FLAG_SCRUB && !mm->mm_resilvering) {
+	if ((zio->io_flags & ZIO_FLAG_SCRUB && !mm->mm_resilvering) ||
+	    mm->mm_retry_compare) {
 		abd_t *best_abd = NULL;
 		if (last_good_copy >= 0)
 			best_abd = mm->mm_child[last_good_copy].mc_abd;
@@ -865,6 +952,46 @@ vdev_mirror_io_done(zio_t *zio)
 				if (mc->mc_abd == zio->io_abd)
 					best_abd = mc->mc_abd;
 			}
+
+			/*
+			 * A retry compare happens because the block failed to
+			 * verify using the distributed spare's copy.  Prefer
+			 * the copy of a child which holds this txg, then that
+			 * of any other child, and only then the spare's.
+			 */
+			if (mm->mm_retry_compare) {
+				int best = -1, best_rank = 0;
+
+				for (c = 0; c <= last_good_copy; c++) {
+					mc = &mm->mm_child[c];
+					if (mc->mc_error || !mc->mc_tried ||
+					    mc->mc_vd->vdev_ops ==
+					    &vdev_draid_spare_ops)
+						continue;
+
+					int rank = vdev_mirror_child_missing(mc,
+					    zio->io_txg, 1) ? 1 : 2;
+					if (rank > best_rank) {
+						best_rank = rank;
+						best = c;
+					}
+				}
+				if (best != -1)
+					pref_abd = mm->mm_child[best].mc_abd;
+
+				if (zio->io_error == ECKSUM) {
+					MIRROR_BUMP(
+					    vdev_mirror_stat_retry_mismatch);
+					zfs_dbgmsg("retry compare mismatch: "
+					    "vdev=%llu offset=%llx size=%llx "
+					    "txg=%llu stale=%d",
+					    (u_longlong_t)zio->io_vd->vdev_guid,
+					    (u_longlong_t)zio->io_offset,
+					    (u_longlong_t)zio->io_size,
+					    (u_longlong_t)zio->io_txg,
+					    best_rank == 1);
+				}
+			}
 			if (pref_abd)
 				best_abd = pref_abd;
 		} else {
@@ -901,10 +1028,31 @@ vdev_mirror_io_done(zio_t *zio)
 		ASSERT(zio->io_error != 0);
 	}
 
+	/*
+	 * If a retry compare found differing copies, leave the repair to the
+	 * dRAID layer, which rewrites the column through this vdev only after
+	 * the block checksum has been verified.
+	 */
 	if (good_copies && spa_self_heal_allowed(zio->io_spa) &&
+	    !(mm->mm_retry_compare && zio->io_error != 0) &&
 	    (unexpected_errors ||
 	    (zio->io_flags & ZIO_FLAG_RESILVER) ||
 	    ((zio->io_flags & ZIO_FLAG_SCRUB) && mm->mm_resilvering))) {
+		/*
+		 * Under dRAID, the data in hand has not been verified against
+		 * the block checksum yet.  During a healing resilver, don't
+		 * copy it to children which were skipped or not tried; the
+		 * dRAID layer repairs them once the block has been verified,
+		 * see vdev_draid_io_start_read().  Otherwise a damaged copy,
+		 * e.g. from a distributed spare, could overwrite the only good
+		 * copy on a device whose DTL merely claims it lacks the txg.
+		 * Children which returned an error are still repaired here.
+		 */
+		boolean_t draid_resilver = zio->io_bp == NULL &&
+		    zio->io_vd->vdev_top->vdev_ops == &vdev_draid_ops &&
+		    (zio->io_flags & ZIO_FLAG_RESILVER) &&
+		    zio->io_priority != ZIO_PRIORITY_REBUILD;
+
 		/*
 		 * Use the good data we have in hand to repair damaged children.
 		 */
@@ -917,6 +1065,10 @@ vdev_mirror_io_done(zio_t *zio)
 			 * there would be no good copies left!
 			 */
 			mc = &mm->mm_child[c];
+
+			if (draid_resilver &&
+			    (mc->mc_error == 0 || mc->mc_skipped))
+				continue;
 
 			if (mc->mc_error == 0) {
 				vdev_ops_t *ops = mc->mc_vd->vdev_ops;

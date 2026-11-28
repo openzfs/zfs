@@ -239,6 +239,7 @@ maybe = {
     'upgrade/upgrade_projectquota_002_pos': ['SKIP', project_id_reason],
     'user_namespace/setup': ['SKIP', user_ns_reason],
     'userquota/setup': ['SKIP', exec_reason],
+    'redundancy/redundancy_draid_spare_resilver': ['SKIP', known_reason],
 }
 
 if sys.platform.startswith('freebsd'):

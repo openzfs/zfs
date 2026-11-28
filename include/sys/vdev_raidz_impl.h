@@ -111,6 +111,7 @@ typedef struct raidz_col {
 	uint8_t rc_allow_repair:1;	/* Allow repair I/O to this column */
 	uint8_t rc_tgt_is_dspare:1;	/* The target is draid spare vdev */
 	uint8_t rc_latency_outlier:1;	/* Latency outlier for this device */
+	uint8_t rc_repair_stale_only:1;	/* Repair only children lacking txg */
 	int rc_shadow_devidx;		/* for double write during expansion */
 	int rc_shadow_error;		/* for double write during expansion */
 	uint64_t rc_shadow_offset;	/* for double write during expansion */
