@@ -212,7 +212,12 @@ zpl_fsync(struct file *filp, loff_t start, loff_t end, int datasync)
 	crfree(cr);
 	ASSERT3S(error, <=, 0);
 
-	/* Report errors recorded on the mapping, e.g. by update_pages(). */
+	/*
+	 * zfs_fsync() does not look at the page cache.  Report the error
+	 * that update_pages() and zfs_putpage() record on the mapping when
+	 * they drop a page holding stores made through a mapping, so that
+	 * fsync() and msync() do not return success after losing them.
+	 */
 	int wb_error = file_check_and_advance_wb_err(filp);
 	if (error == 0)
 		error = wb_error;
