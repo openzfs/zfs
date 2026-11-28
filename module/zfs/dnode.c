@@ -1927,6 +1927,47 @@ dnode_free(dnode_t *dn, dmu_tx_t *tx)
 }
 
 /*
+ * Whether the data block size may change: the object has no blocks, in
+ * use or cached, beyond the first.  Called with dn_struct_rwlock held.
+ */
+static boolean_t
+dnode_blksz_changeable(dnode_t *dn)
+{
+	dmu_buf_impl_t *db;
+
+	ASSERT(RW_LOCK_HELD(&dn->dn_struct_rwlock));
+
+	/* Check for any allocated blocks beyond the first */
+	if (dn->dn_maxblkid != 0)
+		return (B_FALSE);
+
+	mutex_enter(&dn->dn_dbufs_mtx);
+	for (db = avl_first(&dn->dn_dbufs); db != NULL;
+	    db = AVL_NEXT(&dn->dn_dbufs, db)) {
+		if (db->db_blkid != 0 && db->db_blkid != DMU_BONUS_BLKID &&
+		    db->db_blkid != DMU_SPILL_BLKID) {
+			mutex_exit(&dn->dn_dbufs_mtx);
+			return (B_FALSE);
+		}
+	}
+	mutex_exit(&dn->dn_dbufs_mtx);
+	return (B_TRUE);
+}
+
+/* Whether dnode_set_blksz(dn, size, 0, tx) would succeed now. */
+boolean_t
+dnode_can_set_blksz(dnode_t *dn, uint64_t size)
+{
+	boolean_t ok;
+
+	size = size == 0 ? SPA_MINBLOCKSIZE : P2ROUNDUP(size, SPA_MINBLOCKSIZE);
+	rw_enter(&dn->dn_struct_rwlock, RW_READER);
+	ok = size == dn->dn_datablksz || dnode_blksz_changeable(dn);
+	rw_exit(&dn->dn_struct_rwlock);
+	return (ok);
+}
+
+/*
  * Try to change the block size for the indicated dnode.  This can only
  * succeed if there are no blocks allocated or dirty beyond first block
  */
@@ -1950,20 +1991,8 @@ dnode_set_blksz(dnode_t *dn, uint64_t size, int ibs, dmu_tx_t *tx)
 
 	rw_enter(&dn->dn_struct_rwlock, RW_WRITER);
 
-	/* Check for any allocated blocks beyond the first */
-	if (dn->dn_maxblkid != 0)
+	if (!dnode_blksz_changeable(dn))
 		goto fail;
-
-	mutex_enter(&dn->dn_dbufs_mtx);
-	for (db = avl_first(&dn->dn_dbufs); db != NULL;
-	    db = AVL_NEXT(&dn->dn_dbufs, db)) {
-		if (db->db_blkid != 0 && db->db_blkid != DMU_BONUS_BLKID &&
-		    db->db_blkid != DMU_SPILL_BLKID) {
-			mutex_exit(&dn->dn_dbufs_mtx);
-			goto fail;
-		}
-	}
-	mutex_exit(&dn->dn_dbufs_mtx);
 
 	if (ibs && dn->dn_nlevels != 1)
 		goto fail;

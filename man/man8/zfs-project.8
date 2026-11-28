@@ -20,7 +20,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd July 11, 2022
+.Dd November 28, 2026
 .Dt ZFS-PROJECT 8
 .Os
 .
@@ -51,6 +51,13 @@
 .Ar file Ns | Ns Ar directory Ns …
 .
 .Sh DESCRIPTION
+Within a directory, only regular files and subdirectories are listed, checked
+or changed: symbolic links found there are not followed, and other entries,
+such as FIFOs and devices, are skipped.
+A symbolic link named on the command line is followed.
+A file that can't be opened at once because another process holds a lease on
+it, or a directory that something else replaced during the walk, is skipped
+with a message, and the command then exits with an error.
 .Bl -tag -width ""
 .It Xo
 .Nm zfs

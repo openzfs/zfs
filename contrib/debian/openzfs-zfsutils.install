@@ -60,6 +60,7 @@ usr/share/man/man8/zfs-clone.8
 usr/share/man/man8/zfs-create.8
 usr/share/man/man8/zfs-destroy.8
 usr/share/man/man8/zfs-diff.8
+usr/share/man/man8/zfs-fileblocksize.8
 usr/share/man/man8/zfs-get.8
 usr/share/man/man8/zfs-groupspace.8
 usr/share/man/man8/zfs-hold.8

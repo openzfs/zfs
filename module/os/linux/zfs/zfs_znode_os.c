@@ -109,7 +109,7 @@ zfs_rangelock_cb(zfs_locked_range_t *new, void *arg)
 	 */
 	uint64_t end_size = MAX(zp->z_size, new->lr_offset + new->lr_length);
 	if (zp->z_size <= zp->z_blksz && end_size > zp->z_blksz &&
-	    (!ISP2(zp->z_blksz) || zp->z_blksz < ZTOZSB(zp)->z_max_blksz)) {
+	    (!ISP2(zp->z_blksz) || zp->z_blksz < ZFS_MAX_BLKSZ(zp))) {
 		new->lr_offset = 0;
 		new->lr_length = UINT64_MAX;
 	}
@@ -601,6 +601,7 @@ zfs_znode_alloc(zfsvfs_t *zfsvfs, dmu_buf_t *db, int blksz,
 	}
 
 	zp->z_projid = projid;
+	zfs_extsize_load(zfsvfs, zp);
 	zp->z_mode = ip->i_mode = mode;
 	ip->i_generation = (uint32_t)tmp_gen;
 	ip->i_blkbits = SPA_MINBLOCKSHIFT;
@@ -696,6 +697,7 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	uint64_t	mode, size, links, parent, pflags;
 	uint64_t	projid = ZFS_DEFAULT_PROJID;
 	uint64_t	rdev = 0;
+	uint64_t	extsize = 0;
 	zfsvfs_t	*zfsvfs = ZTOZSB(dzp);
 	dmu_buf_t	*db;
 	inode_timespec_t now;
@@ -738,6 +740,12 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	 * that there will be an i/o error and we will fail one of the
 	 * assertions below.
 	 */
+	/* Inherit the directory's fsx_extsize (FS_XFLAG_EXTSZINHERIT). */
+	if (obj_type == DMU_OT_SA && !(flag & (IS_ROOT_NODE | IS_XATTR)) &&
+	    !(dzp->z_pflags & ZFS_XATTR) &&
+	    (S_ISREG(vap->va_mode) || S_ISDIR(vap->va_mode)))
+		extsize = zfs_inherit_extsize(dzp);
+
 	if (S_ISDIR(vap->va_mode)) {
 		if (zfsvfs->z_replay) {
 			VERIFY0(zap_create_claim_norm_dnsize(zfsvfs->z_os, obj,
@@ -751,11 +759,11 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	} else {
 		if (zfsvfs->z_replay) {
 			VERIFY0(dmu_object_claim_dnsize(zfsvfs->z_os, obj,
-			    DMU_OT_PLAIN_FILE_CONTENTS, 0,
+			    DMU_OT_PLAIN_FILE_CONTENTS, extsize,
 			    obj_type, bonuslen, dnodesize, tx));
 		} else {
 			obj = dmu_object_alloc_dnsize(zfsvfs->z_os,
-			    DMU_OT_PLAIN_FILE_CONTENTS, 0,
+			    DMU_OT_PLAIN_FILE_CONTENTS, extsize,
 			    obj_type, bonuslen, dnodesize, tx);
 		}
 	}
@@ -821,6 +829,11 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 	if ((S_ISREG(vap->va_mode) || S_ISDIR(vap->va_mode)) &&
 	    (dzp->z_pflags & ZFS_PROJINHERIT))
 		pflags |= ZFS_PROJINHERIT;
+
+	if (extsize != 0 && S_ISDIR(vap->va_mode))
+		pflags |= ZFS_EXTSZINHERIT;
+	else if (extsize != 0)
+		pflags |= ZFS_FIXED_BLKSZ;
 
 	/*
 	 * No execs denied will be determined when zfs_mode_compute() is called.
@@ -908,6 +921,10 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 		SA_ADD_BULK_ATTR(sa_attrs, cnt, SA_ZPL_PROJID(zfsvfs),
 		    NULL, &projid, 8);
 	}
+	if (pflags & (ZFS_EXTSZINHERIT | ZFS_FIXED_BLKSZ)) {
+		SA_ADD_BULK_ATTR(sa_attrs, cnt, SA_ZPL_EXTSIZE(zfsvfs),
+		    NULL, &extsize, 8);
+	}
 	if (obj_type == DMU_OT_ZNODE ||
 	    (S_ISBLK(vap->va_mode) || S_ISCHR(vap->va_mode))) {
 		SA_ADD_BULK_ATTR(sa_attrs, cnt, SA_ZPL_RDEV(zfsvfs),
@@ -946,7 +963,9 @@ zfs_mknode(znode_t *dzp, vattr_t *vap, dmu_tx_t *tx, cred_t *cr,
 		 * not fail retry until sufficient memory has been reclaimed.
 		 */
 		do {
-			*zpp = zfs_znode_alloc(zfsvfs, db, 0, obj_type, sa_hdl);
+			*zpp = zfs_znode_alloc(zfsvfs, db,
+			    (pflags & ZFS_FIXED_BLKSZ) ? extsize : 0,
+			    obj_type, sa_hdl);
 		} while (*zpp == NULL);
 
 		VERIFY(*zpp != NULL);
@@ -1348,6 +1367,7 @@ zfs_rezget(znode_t *zp)
 	zfs_set_inode_flags(zp, ZTOI(zp));
 
 	zp->z_blksz = doi.doi_data_block_size;
+	zfs_extsize_load(zfsvfs, zp);
 	zp->z_atime_dirty = B_FALSE;
 	zfs_znode_update_vfs(zp);
 
@@ -1517,7 +1537,7 @@ zfs_grow_blocksize(znode_t *zp, uint64_t size, dmu_tx_t *tx)
 	int		error;
 	u_longlong_t	dummy;
 
-	if (size <= zp->z_blksz)
+	if (size <= zp->z_blksz || ZFS_BLKSZ_FIXED(zp))
 		return;
 	/*
 	 * If the file size is already greater than the current blocksize,
@@ -1578,11 +1598,11 @@ zfs_extend_locked(znode_t *zp, zfs_locked_range_t *lr, uint64_t end,
 	    log ? ZFS_SEQ_MAY_GROW(zp) : B_FALSE);
 	zfs_sa_upgrade_txholds(tx, zp);
 	if (end > zp->z_blksz &&
-	    (!ISP2(zp->z_blksz) || zp->z_blksz < zfsvfs->z_max_blksz)) {
+	    (!ISP2(zp->z_blksz) || zp->z_blksz < ZFS_MAX_BLKSZ(zp))) {
 		/*
 		 * We are growing the file past the current block size.
 		 */
-		if (zp->z_blksz > ZTOZSB(zp)->z_max_blksz) {
+		if (zp->z_blksz > ZFS_MAX_BLKSZ(zp)) {
 			/*
 			 * File's blocksize is already larger than the
 			 * "recordsize" property.  Only let it grow to
@@ -1591,7 +1611,7 @@ zfs_extend_locked(znode_t *zp, zfs_locked_range_t *lr, uint64_t end,
 			ASSERT(!ISP2(zp->z_blksz));
 			newblksz = MIN(end, 1 << highbit64(zp->z_blksz));
 		} else {
-			newblksz = MIN(end, ZTOZSB(zp)->z_max_blksz);
+			newblksz = MIN(end, ZFS_MAX_BLKSZ(zp));
 		}
 		dmu_tx_hold_write(tx, zp->z_id, 0, newblksz);
 	} else {

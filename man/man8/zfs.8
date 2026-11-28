@@ -27,7 +27,7 @@
 .\" Copyright 2018 Nexenta Systems, Inc.
 .\" Copyright 2019 Joyent, Inc.
 .\"
-.Dd May 12, 2025
+.Dd November 28, 2026
 .Dt ZFS 8
 .Os
 .
@@ -242,6 +242,12 @@ Displays space consumed by, and quotas on, each user, group, or project
 in the specified filesystem or snapshot.
 .It Xr zfs-project 8
 List, set, or clear project ID and/or inherit flag on the files or directories.
+.El
+.
+.Ss Files
+.Bl -tag -width ""
+.It Xr zfs-fileblocksize 8
+List, set, check, or clear the block size chosen for files and directories.
 .El
 .
 .Ss Mountpoints
@@ -804,6 +810,7 @@ don't wait.
 .Xr zfs-create 8 ,
 .Xr zfs-destroy 8 ,
 .Xr zfs-diff 8 ,
+.Xr zfs-fileblocksize 8 ,
 .Xr zfs-get 8 ,
 .Xr zfs-groupspace 8 ,
 .Xr zfs-hold 8 ,

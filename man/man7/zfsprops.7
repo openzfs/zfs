@@ -29,7 +29,7 @@
 .\" Copyright (c) 2019, Kjeld Schouten-Lebbing
 .\" Copyright (c) 2022 Hewlett Packard Enterprise Development LP.
 .\"
-.Dd October 30, 2026
+.Dd November 28, 2026
 .Dt ZFSPROPS 7
 .Os
 .
@@ -1341,6 +1341,43 @@ Please note that this property will be overridden by
 .Sy zvol_request_sync
 module parameter.
 This property is only applicable to Linux.
+.It Sy fileblocksize Ns = Ns Sy on Ns | Ns Sy off
+Controls whether applications may choose the block size of individual files.
+With
+.Sy on ,
+the default, the
+.Dv FS_IOC_FSSETXATTR
+ioctl sets the block size of an empty regular file through
+.Fa fsx_extsize
+and
+.Dv FS_XFLAG_EXTSIZE ,
+so that the file keeps that block size as it grows instead of growing
+toward
+.Sy recordsize .
+On a directory,
+.Dv FS_XFLAG_EXTSZINHERIT
+gives that block size to new files created in it and passes the setting on
+to new subdirectories.
+The block size must be a power of 2 from 512 bytes to 128 KiB, no larger than
+.Sy recordsize
+and, unless
+.Sy special_small_blocks
+is at least
+.Sy recordsize ,
+larger than
+.Sy special_small_blocks .
+The ioctl also carries the project ID, so it needs the
+.Sy project_quota
+pool feature.
+This suits files with a fixed internal page size, such as databases.
+See
+.Xr zfs-fileblocksize 8 .
+With
+.Sy off ,
+new settings are refused with
+.Er EOPNOTSUPP
+and directories no longer pass theirs on; files already created keep
+their block size, and settings can still be cleared.
 .It Sy filesystem_limit Ns = Ns Ar count Ns | Ns Sy none
 Limits the number of filesystems and volumes that can exist under this point in
 the dataset tree.

@@ -1,0 +1,83 @@
+# SPDX-License-Identifier: CDDL-1.0
+#
+# This file and its contents are supplied under the terms of the
+# Common Development and Distribution License ("CDDL"), version 1.0.
+# You may only use this file in accordance with the terms of version
+# 1.0 of the CDDL.
+#
+# A full copy of the text of the CDDL should have accompanied this
+# source.  A copy of the CDDL is also available via the Internet at
+# https://opensource.org/license/CDDL-1.0.
+#
+
+#
+# Copyright (c) 2026 by Will Rouesnel. All rights reserved.
+#
+
+. $STF_SUITE/include/libtest.shlib
+. $STF_SUITE/tests/functional/fileblocksize/fileblocksize.cfg
+
+#
+# Check the extent size setting of a file or directory: flag is extsize,
+# extszinherit or none.
+#
+function verify_ext # path flag size
+{
+	typeset got=$(extsize $1 | awk '{print $1, $2}')
+
+	[[ "$got" == "$2 $3" ]] ||
+	    log_fail "$1: extent size '$got', expected '$2 $3'"
+}
+
+#
+# Check a file's block size (st_blksize is the dnode's data block size once
+# the file has data).  FreeBSD reports at least the page size.
+#
+function verify_blksz # path size
+{
+	typeset got=$(extsize $1 | awk '{print $3}')
+	typeset -i want=$2
+
+	if is_freebsd && (( want < $(getconf PAGESIZE) )); then
+		want=$(getconf PAGESIZE)
+	fi
+	[[ "$got" == "$want" ]] ||
+	    log_fail "$1: block size $got, expected $2"
+}
+
+#
+# Setting the extent size must fail with the given errno name.
+#
+function extsize_fails # errno extsize-args...
+{
+	typeset want=$1
+	shift
+	typeset out
+
+	out=$(extsize "$@")
+	(( $? != 0 )) || log_fail "extsize $* succeeded"
+	[[ "$out" == "$want" ]] ||
+	    log_fail "extsize $*: $out, expected $want"
+	log_note "extsize $*: $out"
+}
+
+#
+# Write 1 MiB of random data to a file, from the start.
+#
+function write_mib # path
+{
+	log_must dd if=/dev/urandom of=$1 bs=128k count=8 2>/dev/null
+}
+
+#
+# Export and import the test pool, which may sit on files.
+#
+function reimport_pool
+{
+	typeset disk=${DISKS%% *}
+	typeset dir=/dev
+
+	[[ $disk == /* ]] && dir=$(dirname $disk)
+	log_must zpool export $TESTPOOL
+	log_must zpool import -d $dir $TESTPOOL
+}

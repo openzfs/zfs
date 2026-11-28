@@ -33,7 +33,13 @@ typedef struct zfs_project_control {
 	boolean_t		zpc_newline;
 	boolean_t		zpc_recursive;
 	boolean_t		zpc_set_flag;
+	/* zfs fileblocksize: handle fsx_extsize instead of project IDs */
+	boolean_t		zpc_extsize;
+	uint32_t		zpc_expected_extsize;
 } zfs_project_control_t;
+
+/* zpc_expected_extsize: take the target directory's setting */
+#define	ZFS_EXTSIZE_FROM_TARGET	UINT32_MAX
 
 int zfs_project_handle(const char *name, zfs_project_control_t *zpc);
 

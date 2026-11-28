@@ -11,6 +11,7 @@
 /dio_append_fallocate
 /dir_rd_update
 /draid
+/extsize
 /file_fadvise
 /file_append
 /file_check

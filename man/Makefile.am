@@ -38,6 +38,7 @@ dist_man_MANS = \
 	%D%/man8/zfs-create.8 \
 	%D%/man8/zfs-destroy.8 \
 	%D%/man8/zfs-diff.8 \
+	%D%/man8/zfs-fileblocksize.8 \
 	%D%/man8/zfs-get.8 \
 	%D%/man8/zfs-groupspace.8 \
 	%D%/man8/zfs-hold.8 \

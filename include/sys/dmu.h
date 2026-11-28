@@ -498,6 +498,8 @@ int dmu_object_set_nlevels(objset_t *os, uint64_t object, int nlevels,
  */
 int dmu_object_set_blocksize(objset_t *os, uint64_t object, uint64_t size,
     int ibs, dmu_tx_t *tx);
+boolean_t dmu_object_can_set_blocksize(objset_t *os, uint64_t object,
+    uint64_t size);
 
 /*
  * Manually set the maxblkid on a dnode. This will adjust nlevels accordingly

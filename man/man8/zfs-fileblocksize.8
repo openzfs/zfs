@@ -1,0 +1,212 @@
+.\" SPDX-License-Identifier: CDDL-1.0
+.\"
+.\" This file and its contents are supplied under the terms of the
+.\" Common Development and Distribution License ("CDDL"), version 1.0.
+.\" You may only use this file in accordance with the terms of version
+.\" 1.0 of the CDDL.
+.\"
+.\" A full copy of the text of the CDDL should have accompanied this
+.\" source.  A copy of the CDDL is also available via the Internet at
+.\" https://opensource.org/license/CDDL-1.0.
+.\"
+.\" Copyright (c) 2026 by Will Rouesnel. All rights reserved.
+.\"
+.Dd November 28, 2026
+.Dt ZFS-FILEBLOCKSIZE 8
+.Os
+.
+.Sh NAME
+.Nm zfs-fileblocksize
+.Nd choose the block size of files and directories in a ZFS filesystem
+.Sh SYNOPSIS
+.Nm zfs
+.Cm fileblocksize
+.Oo Fl d Ns | Ns Fl r Ns Oc
+.Ar file Ns | Ns Ar directory Ns …
+.Nm zfs
+.Cm fileblocksize
+.Fl C
+.Op Fl r
+.Ar file Ns | Ns Ar directory Ns …
+.Nm zfs
+.Cm fileblocksize
+.Fl c
+.Oo Fl 0 Ns Oc
+.Oo Fl d Ns | Ns Fl r Ns Oc
+.Op Fl b Ar size
+.Ar file Ns | Ns Ar directory Ns …
+.Nm zfs
+.Cm fileblocksize
+.Fl b Ar size
+.Op Fl r
+.Ar file Ns | Ns Ar directory Ns …
+.
+.Sh DESCRIPTION
+A file's block size normally grows with the file, up to the dataset's
+.Sy recordsize .
+A file with a fixed internal page size, such as a database, can instead be
+given a block size that matches its pages, without changing
+.Sy recordsize
+for the rest of the dataset.
+The block size of an empty regular file can be chosen, and the file keeps it
+as it grows.
+A directory can carry a block size that new regular files created in it get,
+and that new subdirectories inherit, so that files an application creates
+itself, such as a database's journal, get it too.
+The size must be a power of 2 from 512 bytes to 128 KiB, no larger than
+.Sy recordsize ,
+and larger than
+.Sy special_small_blocks ,
+so that a file's blocks only go to the special allocation class if blocks of
+.Sy recordsize
+would; when
+.Sy special_small_blocks
+is at least
+.Sy recordsize ,
+any size up to
+.Sy recordsize
+is allowed.
+A directory stops giving its size to new files while the size breaks either
+limit, and new subdirectories created then don't get the setting; files
+already set keep their size.
+The setting can't be changed on an immutable file or directory.
+It needs the
+.Sy project_quota
+pool feature, since the ioctls that carry it also carry the project ID.
+.Pp
+Each change waits for the pool to sync it, so setting many files with
+.Fl r
+is slow.
+Where possible, set the directory before its files are created: new files
+then get the size at no extra cost.
+Block cloning, such as
+.Xr cp 1
+with
+.Fl -reflink ,
+into a file whose block size differs from the source's fails with
+.Er EINVAL ,
+so a clone into a directory with a setting may instead copy the data or fail.
+.Fl r
+walks the tree as
+.Xr zfs-project 8
+does: symbolic links found in the tree are not followed, entries that are
+neither regular files nor directories are skipped, and a symbolic link named
+on the command line is followed.
+A file written to while
+.Fl r
+sets it is skipped, like one that already had data.
+.Pp
+These are the extent size settings of the
+.Dv FS_IOC_FSGETXATTR
+and
+.Dv FS_IOC_FSSETXATTR
+ioctls:
+.Dv FS_XFLAG_EXTSIZE
+on a regular file and
+.Dv FS_XFLAG_EXTSZINHERIT
+on a directory, with the size in
+.Fa fsx_extsize .
+Applications may also set them directly.
+Only the owner of a file or directory, or a privileged user, may change them.
+The
+.Sy fileblocksize
+property, described in
+.Xr zfsprops 7 ,
+controls whether new settings are allowed.
+.Bl -tag -width ""
+.It Xo
+.Nm zfs
+.Cm fileblocksize
+.Oo Fl d Ns | Ns Fl r Ns Oc
+.Ar file Ns | Ns Ar directory Ns …
+.Xc
+List the block size setting of files and directories: the size, or 0 for
+none, then
+.Sy I
+for a directory that gives its size to new files, and the name.
+.Bl -tag -width "-d"
+.It Fl d
+Show the directory's own setting, not its children's.
+.It Fl r
+List subdirectories recursively.
+.El
+.It Xo
+.Nm zfs
+.Cm fileblocksize
+.Fl C
+.Op Fl r
+.Ar file Ns | Ns Ar directory Ns …
+.Xc
+Clear the setting on files and directories.
+A file with more than one block keeps its block size; one that is empty or
+still a single block grows toward
+.Sy recordsize
+again.
+.Bl -tag -width "-r"
+.It Fl r
+Clear subdirectories and their files recursively.
+.El
+.It Xo
+.Nm zfs
+.Cm fileblocksize
+.Fl c
+.Oo Fl 0 Ns Oc
+.Oo Fl d Ns | Ns Fl r Ns Oc
+.Op Fl b Ar size
+.Ar file Ns | Ns Ar directory Ns …
+.Xc
+Check the setting on files and directories: report entries whose setting
+differs from the target directory's, or from
+.Ar size .
+Files that had data before the directory's setting was made are reported
+this way.
+.Bl -tag -width "-b size"
+.It Fl 0
+Delimit filenames with a NUL byte instead of newline, don't output diagnoses.
+.It Fl b Ar size
+Compare to
+.Ar size
+instead of the target directory's setting.
+.It Fl d
+Check the directory's own setting, not its children's.
+.It Fl r
+Check subdirectories recursively.
+.El
+.It Xo
+.Nm zfs
+.Cm fileblocksize
+.Fl b Ar size
+.Op Fl r
+.Ar file Ns | Ns Ar directory Ns …
+.Xc
+Set the block size of empty regular files, and the size directories give to
+new files and subdirectories.
+Naming a file that already has data is an error, unless it is already set
+to that size.
+.Bl -tag -width "-r"
+.It Fl r
+Set on subdirectories and empty files recursively.
+Files that already have data are left as they are.
+.El
+.El
+.
+.Sh EXAMPLES
+.Ss Example 1 : No A directory for SQLite databases with 16 KiB pages
+.Bd -literal -compact -offset Ds
+.No # Nm zfs Cm fileblocksize Fl b Ar 16K Pa /tank/db
+# sqlite3 /tank/db/app.db \e
+    'PRAGMA page_size=16384; PRAGMA journal_mode=WAL; CREATE TABLE t(x);'
+.No $ Nm zfs Cm fileblocksize Pa /tank/db
+  16384 I /tank/db
+  16384 - /tank/db/app.db
+.Ed
+.Pp
+The database's
+.Pa -wal
+and
+.Pa -journal
+files get the same block size while they exist.
+.
+.Sh SEE ALSO
+.Xr zfsprops 7 ,
+.Xr zfs-project 8

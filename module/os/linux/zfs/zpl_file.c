@@ -1143,9 +1143,15 @@ zpl_ioctl_getxattr(struct file *filp, void __user *arg)
 	zfsxattr_t fsx = { 0 };
 	struct inode *ip = file_inode(filp);
 	int err;
+	fstrans_cookie_t cookie;
 
 	fsx.fsx_xflags = __zpl_ioctl_getxflags(ip);
 	fsx.fsx_projid = ITOZ(ip)->z_projid;
+	cookie = spl_fstrans_mark();
+	err = -zfs_get_extsize(ITOZ(ip), &fsx.fsx_xflags, &fsx.fsx_extsize);
+	spl_fstrans_unmark(cookie);
+	if (err)
+		return (err);
 	err = copy_to_user(arg, &fsx, sizeof (fsx));
 
 	return (err);
@@ -1159,6 +1165,7 @@ zpl_ioctl_setxattr(struct file *filp, void __user *arg)
 	cred_t *cr = CRED();
 	xvattr_t xva;
 	xoptattr_t *xoap;
+	zfs_extsize_req_t req = { 0 };
 	int err;
 	fstrans_cookie_t cookie;
 
@@ -1168,7 +1175,8 @@ zpl_ioctl_setxattr(struct file *filp, void __user *arg)
 	if (!zpl_is_valid_projid(fsx.fsx_projid))
 		return (-EINVAL);
 
-	err = __zpl_ioctl_setxflags(ip, fsx.fsx_xflags, &xva);
+	err = __zpl_ioctl_setxflags(ip, fsx.fsx_xflags &
+	    ~(FS_XFLAG_EXTSIZE | FS_XFLAG_EXTSZINHERIT), &xva);
 	if (err)
 		return (err);
 
@@ -1176,9 +1184,12 @@ zpl_ioctl_setxattr(struct file *filp, void __user *arg)
 	XVA_SET_REQ(&xva, XAT_PROJID);
 	xoap->xoa_projid = fsx.fsx_projid;
 
+	/* The extent size changes in the same transaction as the rest. */
+	req.zer_xflags = fsx.fsx_xflags;
+	req.zer_extsize = fsx.fsx_extsize;
 	crhold(cr);
 	cookie = spl_fstrans_mark();
-	err = -zfs_setattr(ITOZ(ip), (vattr_t *)&xva, 0, cr);
+	err = -zfs_setattr_extsize(ITOZ(ip), (vattr_t *)&xva, cr, &req);
 	spl_fstrans_unmark(cookie);
 	crfree(cr);
 

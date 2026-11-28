@@ -67,6 +67,7 @@ typedef enum zpl_attr {
 	ZPL_DXATTR,
 	ZPL_PROJID,
 	ZPL_SEQ,
+	ZPL_EXTSIZE,
 	ZPL_END
 } zpl_attr_t;
 

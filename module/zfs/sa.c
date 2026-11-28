@@ -1582,6 +1582,7 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 	char scanstamp[AV_SCANSTAMP_SZ];
 	char *dxattr_obj = NULL;
 	int dxattr_size = 0;
+	uint64_t extsize = 0;
 
 	if (zp->z_acl_cached == NULL) {
 		zfs_acl_t *aclp;
@@ -1674,6 +1675,11 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 			goto out;
 	}
 
+	/* The rebuilt layout keeps a block size set with fsx_extsize. */
+	err = sa_lookup_locked(hdl, SA_ZPL_EXTSIZE(zfsvfs), &extsize, 8);
+	if (err != 0 && err != ENOENT)
+		goto out;
+
 	zp->z_projid = projid;
 	zp->z_pflags |= ZFS_PROJID;
 	links = ZTONLNK(zp);
@@ -1729,6 +1735,10 @@ sa_add_projid(sa_handle_t *hdl, dmu_tx_t *tx, uint64_t projid)
 		SA_ADD_BULK_ATTR(attrs, count, SA_ZPL_DXATTR(zfsvfs),
 		    NULL, dxattr_obj, dxattr_size);
 	}
+
+	if (extsize != 0)
+		SA_ADD_BULK_ATTR(attrs, count, SA_ZPL_EXTSIZE(zfsvfs), NULL,
+		    &extsize, 8);
 
 	VERIFY0(dmu_set_bonustype(db, DMU_OT_SA, tx));
 	VERIFY0(sa_replace_all_by_template_locked(hdl, attrs, count, tx));
